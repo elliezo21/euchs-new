@@ -1667,7 +1667,7 @@ const exportSingleApplicationReceipt = (app) => {
   }
 
   receiptLines.push('========================================================================')
-  receiptLines.push('담당 문의: 010-9373-1214 / 카카오톡: ericcho0710 / 위챗: china775852')
+  receiptLines.push('담당 문의: 010-9373-1214 / 중국직통: +86 195-2407-7350 / 카카오톡: ericcho0710 / 위챗: euchskorea')
   receiptLines.push('========================================================================')
 
   const content = '\uFEFF' + receiptLines.join('\r\n')

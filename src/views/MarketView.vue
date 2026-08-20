@@ -68,7 +68,7 @@
               </p>
               <p class="flex items-center gap-2">
                 <i class="fas fa-phone-alt text-blue-500"></i>
-                <span><strong>현지 지사 직통:</strong> 0086-180-5893-3760 / 010-6703-6750</span>
+                <span><strong>현지 지사 직통:</strong> +86 195-2407-7350 / 010-9373-1214</span>
               </p>
             </div>
 

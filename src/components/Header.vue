@@ -6,11 +6,11 @@
         <div class="flex items-center gap-6">
           <span class="flex items-center gap-1.5 text-slate-300">
             <i class="fas fa-phone text-blue-400"></i>
-            <span>상담문의: <strong>010-9373-1214</strong> / <strong>010-6703-6750</strong></span>
+            <span>상담문의: <strong>010-9373-1214</strong> / <strong>+86 195-2407-7350</strong></span>
           </span>
           <span class="flex items-center gap-1.5 text-slate-300">
             <i class="fab fa-weixin text-green-400"></i>
-            <span>위챗: <strong>china775852</strong></span>
+            <span>위챗: <strong>euchskorea</strong></span>
           </span>
           <span class="flex items-center gap-1.5 text-slate-300">
             <i class="fas fa-comment text-yellow-400"></i>

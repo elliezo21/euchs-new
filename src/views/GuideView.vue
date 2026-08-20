@@ -224,7 +224,7 @@
             <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
               <i class="fas fa-mobile-screen-button text-blue-400 text-xl mb-2"></i>
               <p class="text-slate-400 text-[11px]">중국 현지폰</p>
-              <p class="font-bold text-white mt-1">010-6703-6750</p>
+              <p class="font-bold text-white mt-1">195-2407-7350</p>
             </div>
 
             <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
@@ -236,7 +236,7 @@
             <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
               <i class="fab fa-weixin text-green-400 text-xl mb-2"></i>
               <p class="text-slate-400 text-[11px]">위챗(WeChat) ID</p>
-              <p class="font-bold text-green-300 mt-1">china775852</p>
+              <p class="font-bold text-green-300 mt-1">euchskorea</p>
             </div>
           </div>
 

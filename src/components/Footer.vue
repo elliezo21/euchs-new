@@ -96,7 +96,7 @@
               <strong>중국 본사:</strong> No. 2, building 62, Qiancheng community, Yiwu, China
             </p>
             <p><strong>한국 연락처:</strong> <a href="tel:010-9373-1214" class="hover:text-white">010-9373-1214</a></p>
-            <p><strong>중국 직통:</strong> <a href="tel:010-6703-6750" class="hover:text-white">010-6703-6750</a></p>
+            <p><strong>중국 직통:</strong> <a href="tel:+86-195-2407-7350" class="hover:text-white">+86 195-2407-7350</a></p>
           </div>
 
           <div class="pt-3 text-slate-500 text-[11px] border-t border-slate-900">
