@@ -51,6 +51,7 @@ export const SUPABASE_SQL_SCHEMA = `-- =========================================
 CREATE TABLE IF NOT EXISTS notices (
   id BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   title TEXT NOT NULL,
   category TEXT NOT NULL DEFAULT 'schedule',
   category_name TEXT NOT NULL DEFAULT '업무일정',
@@ -68,6 +69,7 @@ CREATE TABLE IF NOT EXISTS notices (
 CREATE TABLE IF NOT EXISTS applications (
   id BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
   service_type TEXT NOT NULL, -- 'market_tour', 'rocket_growth', 'purchasing', 'trade'
   service_name TEXT NOT NULL, -- '이우 시장투어', '쿠팡 로켓그로스', '구매대행', '무역대행'
   customer_name TEXT NOT NULL,
@@ -78,6 +80,10 @@ CREATE TABLE IF NOT EXISTS applications (
   memo TEXT,
   details JSONB DEFAULT '{}'::jsonb
 );
+
+-- 기존 테이블에 updated_at 컬럼이 없는 경우 안전하게 추가 (마이그레이션)
+ALTER TABLE notices ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
+ALTER TABLE applications ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ DEFAULT NOW();
 
 -- 3. Row Level Security (RLS) 활성화 및 전체 허용 정책
 ALTER TABLE notices ENABLE ROW LEVEL SECURITY;

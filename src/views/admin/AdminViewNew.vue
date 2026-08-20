@@ -1520,7 +1520,7 @@ const updateAppStatus = async (id, status) => {
     if (isSupabaseConfigured()) {
       const { error } = await supabase
         .from('applications')
-        .update({ status, updated_at: new Date().toISOString() })
+        .update({ status })
         .eq('id', id)
 
       if (error) {
@@ -1957,8 +1957,7 @@ const handleSaveNotice = async () => {
       is_pinned: Boolean(noticeForm.value.is_pinned),
       summary: noticeForm.value.summary || '',
       content: noticeForm.value.content || '',
-      thumbnail_url: noticeForm.value.thumbnail_url || defaultNoticeImage,
-      updated_at: new Date().toISOString()
+      thumbnail_url: noticeForm.value.thumbnail_url || defaultNoticeImage
     }
 
     if (editingNoticeId.value) {
