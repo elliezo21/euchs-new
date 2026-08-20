@@ -697,54 +697,21 @@
                     
                     <button 
                       type="button" 
-                      @click="triggerHeroImageUpload" 
+                      @click="triggerHeroFileUpload" 
                       :disabled="isUploadingHero"
-                      class="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-xs border border-purple-500/40 transition flex items-center gap-1.5 shrink-0"
+                      class="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-xs border border-purple-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
                     >
                       <i v-if="isUploadingHero" class="fas fa-spinner animate-spin"></i>
                       <i v-else class="fas fa-cloud-arrow-up"></i>
-                      <span>{{ isUploadingHero ? '업로드 중...' : '사진 업로드' }}</span>
+                      <span>{{ isUploadingHero ? '업로드 중...' : (settingsForm.hero_media_type === 'video_mp4' ? '동영상 업로드' : (settingsForm.hero_media_type === 'image' ? '사진 업로드' : '파일 업로드')) }}</span>
                     </button>
                     <input 
                       ref="heroFileInput" 
                       type="file" 
-                      accept="image/*" 
+                      accept="video/mp4, video/*, image/*" 
                       class="hidden" 
-                      @change="handleHeroImageUpload" 
+                      @change="handleHeroFileUpload" 
                     />
-                  </div>
-
-                  <!-- Quick Presets -->
-                  <div class="flex flex-wrap items-center gap-2 pt-2 text-[11px] text-slate-400">
-                    <span class="text-slate-500">추천 프리셋:</span>
-                    <button 
-                      type="button"
-                      @click="setHeroPreset('cargo_ship')"
-                      class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-blue-300 border border-slate-700 transition"
-                    >
-                      🚢 대형 화물선 항해 mp4
-                    </button>
-                    <button 
-                      type="button"
-                      @click="setHeroPreset('warehouse')"
-                      class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-emerald-300 border border-slate-700 transition"
-                    >
-                      📦 스마트 물류 창고 mp4
-                    </button>
-                    <button 
-                      type="button"
-                      @click="setHeroPreset('port_aerial')"
-                      class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-amber-300 border border-slate-700 transition"
-                    >
-                      ⚓ 컨테이너 항만 항공뷰 mp4
-                    </button>
-                    <button 
-                      type="button"
-                      @click="setHeroPreset('port_image')"
-                      class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-purple-300 border border-slate-700 transition"
-                    >
-                      🖼️ 항만 컨테이너 고화질 사진
-                    </button>
                   </div>
                 </div>
 
@@ -1827,13 +1794,13 @@ const handleSaveSettings = async () => {
 const heroFileInput = ref(null)
 const isUploadingHero = ref(false)
 
-const triggerHeroImageUpload = () => {
+const triggerHeroFileUpload = () => {
   if (heroFileInput.value) {
     heroFileInput.value.click()
   }
 }
 
-const handleHeroImageUpload = async (event) => {
+const handleHeroFileUpload = async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
 
@@ -1844,20 +1811,22 @@ const handleHeroImageUpload = async (event) => {
       return
     }
 
-    const fileExt = file.name.split('.').pop()
-    const fileName = `hero_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+    const fileExt = (file.name.split('.').pop() || '').toLowerCase()
+    const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'].includes(fileExt)
+    const fileName = `hero_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt || (isVideo ? 'mp4' : 'jpg')}`
     const filePath = `hero/${fileName}`
 
     const { error: uploadError } = await supabase.storage
       .from('notices')
       .upload(filePath, file, {
         cacheControl: '3600',
-        upsert: true
+        upsert: true,
+        contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg')
       })
 
     if (uploadError) {
-      console.error('Hero Image Upload Error:', uploadError)
-      alert('이미지 업로드 실패: ' + uploadError.message)
+      console.error('Hero File Upload Error:', uploadError)
+      alert('파일 업로드 실패: ' + uploadError.message)
       return
     }
 
@@ -1866,32 +1835,20 @@ const handleHeroImageUpload = async (event) => {
       .getPublicUrl(filePath)
 
     if (publicUrlData && publicUrlData.publicUrl) {
-      settingsForm.value.hero_media_type = 'image'
+      if (isVideo) {
+        settingsForm.value.hero_media_type = 'video_mp4'
+      } else {
+        settingsForm.value.hero_media_type = 'image'
+      }
       settingsForm.value.hero_media_url = publicUrlData.publicUrl
-      alert('히어로 배경 이미지가 성공적으로 업로드되었습니다!')
+      alert(`${isVideo ? '동영상' : '이미지'} 배경 파일이 성공적으로 업로드되어 등록되었습니다!`)
     }
   } catch (err) {
-    console.error('Hero Image Upload Exception:', err)
-    alert('이미지 업로드 중 오류가 발생했습니다: ' + err.message)
+    console.error('Hero File Upload Exception:', err)
+    alert('파일 업로드 중 오류가 발생했습니다: ' + err.message)
   } finally {
     isUploadingHero.value = false
     if (event.target) event.target.value = ''
-  }
-}
-
-const setHeroPreset = (type) => {
-  if (type === 'cargo_ship') {
-    settingsForm.value.hero_media_type = 'video_mp4'
-    settingsForm.value.hero_media_url = 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm'
-  } else if (type === 'warehouse') {
-    settingsForm.value.hero_media_type = 'youtube'
-    settingsForm.value.hero_media_url = 'https://www.youtube.com/watch?v=TR3aXzVJTO0'
-  } else if (type === 'port_aerial') {
-    settingsForm.value.hero_media_type = 'youtube'
-    settingsForm.value.hero_media_url = 'https://www.youtube.com/watch?v=o2RfyGcRVcI'
-  } else if (type === 'port_image') {
-    settingsForm.value.hero_media_type = 'image'
-    settingsForm.value.hero_media_url = 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?auto=format&fit=crop&w=2000&q=80'
   }
 }
 
