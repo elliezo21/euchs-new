@@ -1004,7 +1004,7 @@ const submitTourApplication = async () => {
 
   try {
     if (isSupabaseConfigured()) {
-      await supabase.from('applications').insert([
+      const { error } = await supabase.from('applications').insert([
         {
           service_type: 'market_tour',
           service_name: '이우 시장투어',
@@ -1035,15 +1035,20 @@ const submitTourApplication = async () => {
           }
         }
       ])
+
+      if (error) {
+        throw error
+      }
     }
 
     // Sync Channel Talk
     syncWithChannelTalk()
+    showSuccessModal.value = true
   } catch (err) {
     console.error('Supabase tour insert error:', err)
+    alert(`투어 신청서 접수 중 오류가 발생했습니다: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
   } finally {
     isSubmitting.value = false
-    showSuccessModal.value = true
   }
 }
 

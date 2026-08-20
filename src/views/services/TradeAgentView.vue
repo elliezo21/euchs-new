@@ -407,7 +407,7 @@ const submitTradeAgentForm = async () => {
 
   try {
     if (isSupabaseConfigured()) {
-      await supabase.from('applications').insert([
+      const { error } = await supabase.from('applications').insert([
         {
           service_type: 'trade',
           service_name: '무역대행 OEM/ODM',
@@ -430,12 +430,17 @@ const submitTradeAgentForm = async () => {
           }
         }
       ])
+
+      if (error) {
+        throw error
+      }
     }
+    showModal.value = true
   } catch (err) {
     console.error('Supabase trade insert error:', err)
+    alert(`무역대행 신청서 접수 중 오류가 발생했습니다: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
   } finally {
     isSubmitting.value = false
-    showModal.value = true
   }
 }
 </script>

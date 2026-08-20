@@ -94,26 +94,39 @@
               <span>고객 서비스 신청 내역</span>
             </h2>
             <p class="text-xs text-slate-400 mt-1">
-              투어 신청, 쿠팡 로켓그로스, 구매대행, OEM/ODM 맞춤 무역 의뢰 접수 목록입니다.
+              이우 시장투어, 1688 구매대행, OEM/ODM 맞춤 무역, 쿠팡 로켓그로스 의뢰 접수 목록입니다. (총 {{ filteredApplications.length }}건)
             </p>
           </div>
 
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center gap-2">
             <!-- Filter by service -->
             <select 
               v-model="filterService" 
-              class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 outline-none focus:border-blue-500"
+              class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 outline-none focus:border-blue-500 font-medium"
             >
               <option value="all">모든 서비스 전체</option>
               <option value="market_tour">이우 시장투어 신청</option>
+              <option value="purchasing">1688 구매대행</option>
+              <option value="trade">OEM/ODM 무역대행</option>
               <option value="rocket_growth">쿠팡 로켓그로스 대행</option>
-              <option value="purchasing_agent">1688 구매대행</option>
-              <option value="trade_agent">OEM/ODM 무역대행</option>
             </select>
 
+            <!-- Excel Export Button -->
             <button 
+              type="button"
+              @click="exportApplicationsToExcel" 
+              class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+              title="조회된 신청 목록을 엑셀(CSV) 파일로 다운로드합니다"
+            >
+              <i class="fas fa-file-excel text-sm text-emerald-200"></i>
+              <span>엑셀 다운로드</span>
+            </button>
+
+            <!-- Refresh Button -->
+            <button 
+              type="button"
               @click="fetchApplications" 
-              class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
+              class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
             >
               <i class="fas fa-sync-alt" :class="{ 'animate-spin': isFetchingApps }"></i>
               <span>새로고침</span>
@@ -128,9 +141,10 @@
               <thead class="bg-slate-950 text-slate-400 uppercase font-black text-[11px] border-b border-slate-800">
                 <tr>
                   <th class="py-3.5 px-4">신청일시</th>
-                  <th class="py-3.5 px-4">서비스 유형</th>
+                  <th class="py-3.5 px-4">서비스 구분</th>
                   <th class="py-3.5 px-4">신청자명</th>
                   <th class="py-3.5 px-4">연락처</th>
+                  <th class="py-3.5 px-4 text-right">견적 금액</th>
                   <th class="py-3.5 px-4">주요 요청/품목</th>
                   <th class="py-3.5 px-4 text-center">처리 상태</th>
                   <th class="py-3.5 px-4 text-center">관리</th>
@@ -160,35 +174,47 @@
                   <td class="py-3.5 px-4 font-mono text-slate-300">
                     {{ app.phone }}
                   </td>
+                  <td class="py-3.5 px-4 text-right font-mono font-bold" :class="app.total_amount > 0 ? 'text-amber-400' : 'text-slate-500'">
+                    {{ app.total_amount > 0 ? `${Number(app.total_amount).toLocaleString()}원` : '-' }}
+                  </td>
                   <td class="py-3.5 px-4 max-w-xs truncate text-slate-300">
-                    {{ app.item_name || app.requirement || app.tour_date || '-' }}
+                    {{ getAppSummaryText(app) }}
                   </td>
                   <td class="py-3.5 px-4 text-center" @click.stop>
                     <select 
                       v-model="app.status" 
                       @change="updateAppStatus(app.id, app.status)"
-                      class="px-2 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-blue-500"
+                      class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-blue-500"
                       :class="getStatusClass(app.status)"
                     >
                       <option value="pending">접수 대기</option>
                       <option value="consulting">상담 진행 중</option>
+                      <option value="quoted">견적 완료</option>
                       <option value="completed">처리 완료</option>
                       <option value="cancelled">취소/보류</option>
                     </select>
                   </td>
                   <td class="py-3.5 px-4 text-center" @click.stop>
-                    <button 
-                      @click="deleteApplication(app.id)" 
-                      class="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 text-[11px] transition"
-                    >
-                      삭제
-                    </button>
+                    <div class="flex items-center justify-center gap-1.5">
+                      <button 
+                        @click="openAppDetail(app)" 
+                        class="px-2 py-1 rounded-lg bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800/60 text-[11px] font-semibold transition"
+                      >
+                        상세
+                      </button>
+                      <button 
+                        @click="deleteApplication(app.id)" 
+                        class="px-2 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 text-[11px] transition"
+                      >
+                        삭제
+                      </button>
+                    </div>
                   </td>
                 </tr>
 
                 <!-- Empty State -->
                 <tr v-if="filteredApplications.length === 0">
-                  <td colspan="7" class="py-12 text-center text-slate-500 text-xs">
+                  <td colspan="8" class="py-12 text-center text-slate-500 text-xs">
                     <i class="fas fa-inbox text-3xl mb-2 block opacity-40"></i>
                     접수된 신청 내역이 없습니다.
                   </td>
@@ -1030,47 +1056,117 @@
     <!-- Application Detail Modal -->
     <!-- ========================================================== -->
     <div v-if="selectedApp" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" @click.self="selectedApp = null">
-      <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[85vh] overflow-y-auto space-y-6 shadow-2xl relative text-slate-200 text-xs">
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl relative text-slate-200 text-xs">
         
         <!-- Header -->
         <div class="flex items-center justify-between border-b border-slate-800 pb-4">
           <div>
             <span class="px-2.5 py-1 rounded-md text-[11px] font-bold" :class="getServiceBadgeClass(selectedApp.service_type)">
-              {{ selectedApp.service_name }}
+              {{ selectedApp.service_name || getServiceLabel(selectedApp.service_type) }}
             </span>
-            <h3 class="text-lg font-black text-white mt-1.5">
-              {{ selectedApp.customer_name }} 님의 상세 신청 내역
+            <h3 class="text-lg font-black text-white mt-1.5 flex items-center gap-2">
+              <span>{{ selectedApp.customer_name }} 님의 상세 신청 내역</span>
             </h3>
           </div>
-          <button @click="selectedApp = null" class="p-2 text-slate-400 hover:text-white">
+          <button @click="selectedApp = null" class="p-2 text-slate-400 hover:text-white rounded-lg transition">
             <i class="fas fa-times text-lg"></i>
           </button>
         </div>
 
         <!-- Details Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
           <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block">연락처 (전화번호)</span>
-            <span class="font-bold text-white font-mono text-sm">{{ selectedApp.phone }}</span>
+            <span class="text-slate-500 block text-[11px]">연락처 (전화번호)</span>
+            <a :href="`tel:${selectedApp.phone}`" class="font-bold text-white font-mono text-sm hover:text-blue-400 transition flex items-center gap-1.5">
+              <i class="fas fa-phone-alt text-xs text-blue-400"></i>
+              <span>{{ selectedApp.phone }}</span>
+            </a>
           </div>
 
           <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block">이메일</span>
+            <span class="text-slate-500 block text-[11px]">이메일</span>
             <span class="font-bold text-white font-mono text-sm">{{ selectedApp.email || '-' }}</span>
           </div>
 
           <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block">회사명 / 상호</span>
-            <span class="font-bold text-white">{{ selectedApp.company_name || '-' }}</span>
+            <span class="text-slate-500 block text-[11px]">총 견적 / 예상 금액</span>
+            <span class="font-bold text-amber-400 font-mono text-sm">
+              {{ selectedApp.total_amount > 0 ? `${Number(selectedApp.total_amount).toLocaleString()}원` : '별도 협의 / 실비 청구' }}
+            </span>
           </div>
 
           <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block">신청 일시</span>
-            <span class="font-bold text-slate-300 font-mono">{{ formatDateTime(selectedApp.created_at) }}</span>
+            <span class="text-slate-500 block text-[11px]">접수 일시</span>
+            <span class="font-bold text-slate-300 font-mono text-xs">{{ formatDateTime(selectedApp.created_at) }}</span>
           </div>
         </div>
 
-        <!-- Additional Services Box (If present) -->
+        <!-- 1. Market Tour Details Box -->
+        <div v-if="selectedApp.service_type === 'market_tour'" class="space-y-2">
+          <label class="block font-bold text-amber-300 flex items-center gap-1.5">
+            <i class="fas fa-plane-departure text-amber-400"></i>
+            <span>이우 시장투어 맞춤 옵션 내역</span>
+          </label>
+          <div class="p-4 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-2 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
+              <div><strong class="text-slate-400">공항 픽업:</strong> {{ selectedApp.details?.pickupSummaryText || (selectedApp.details?.usePickup ? selectedApp.details?.pickupAirport : '미선택') }}</div>
+              <div><strong class="text-slate-400">통역 가이드:</strong> {{ selectedApp.details?.guideSummaryText || (selectedApp.details?.useGuide ? `${selectedApp.details?.guideDays}일` : '미선택') }}</div>
+              <div><strong class="text-slate-400">도착일정:</strong> {{ selectedApp.details?.arrivalDate || '-' }}</div>
+              <div><strong class="text-slate-400">복귀일정:</strong> {{ selectedApp.details?.returnDate || '-' }}</div>
+            </div>
+            <div class="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5">
+              <span v-if="selectedApp.details?.supportHotel" class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-bold">호텔 예약 지원 요청</span>
+              <span v-if="selectedApp.details?.supportFactory" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-bold">공장 실사 동행 요청</span>
+              <span v-if="selectedApp.details?.support1688" class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-400/30 text-[11px] font-bold">사전 1688 비교 데이터 요청</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Trade Agent Details Box -->
+        <div v-if="selectedApp.service_type === 'trade' || selectedApp.service_type === 'trade_agent'" class="space-y-2">
+          <label class="block font-bold text-emerald-300 flex items-center gap-1.5">
+            <i class="fas fa-handshake text-emerald-400"></i>
+            <span>OEM/ODM 무역대행 의뢰 상세</span>
+          </label>
+          <div class="p-4 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-2 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
+              <div><strong class="text-slate-400">품목 카테고리:</strong> {{ selectedApp.details?.category || '-' }}</div>
+              <div><strong class="text-slate-400">목표 수량(MOQ):</strong> {{ selectedApp.details?.moq || '-' }}</div>
+              <div><strong class="text-slate-400">목표 단가:</strong> {{ selectedApp.details?.targetPrice || '-' }}</div>
+              <div><strong class="text-slate-400">공장 실사 동행:</strong> {{ selectedApp.details?.needInspectionTrip ? '신청함' : '미신청' }}</div>
+            </div>
+            <div v-if="selectedApp.details?.refUrl" class="pt-1.5 border-t border-slate-800">
+              <strong class="text-slate-400 block mb-0.5">참고 URL:</strong>
+              <a :href="selectedApp.details.refUrl" target="_blank" class="text-blue-400 hover:underline break-all">
+                {{ selectedApp.details.refUrl }}
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Rocket Growth Details Box -->
+        <div v-if="selectedApp.service_type === 'rocket_growth'" class="space-y-2">
+          <label class="block font-bold text-rose-300 flex items-center gap-1.5">
+            <i class="fas fa-rocket text-rose-400"></i>
+            <span>쿠팡 로켓그로스 입고 대행 상세</span>
+          </label>
+          <div class="p-4 bg-slate-950 rounded-2xl border border-rose-500/30 space-y-2 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
+              <div><strong class="text-slate-400">쿠팡 센터(FC):</strong> {{ selectedApp.details?.targetFc || selectedApp.details?.coupangFC || '-' }}</div>
+              <div><strong class="text-slate-400">입고 희망일:</strong> {{ selectedApp.details?.targetDate || '-' }}</div>
+              <div><strong class="text-slate-400">총 품목 수량:</strong> {{ selectedApp.details?.totalQuantity ? `${selectedApp.details.totalQuantity.toLocaleString()} EA` : '-' }}</div>
+              <div><strong class="text-slate-400">총 박스 수:</strong> {{ selectedApp.details?.grandTotalBoxes ? `${selectedApp.details.grandTotalBoxes} 박스` : '-' }}</div>
+            </div>
+            <div v-if="selectedApp.details?.services" class="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5">
+              <span v-if="selectedApp.details.services.barcode" class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[11px] font-bold">바코드 부착</span>
+              <span v-if="selectedApp.details.services.pallet" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[11px] font-bold">파레트 적재&랩핑</span>
+              <span v-if="selectedApp.details.services.repack" class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[11px] font-bold">에어캡 완충포장</span>
+              <span v-if="selectedApp.details.services.inspection" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">정밀 전수검품</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4. Additional Warehouse Services Box (Purchasing & General) -->
         <div v-if="selectedApp.additional_services || selectedApp.details?.additionalServices" class="space-y-2">
           <label class="block font-bold text-amber-400 flex items-center gap-1.5">
             <i class="fas fa-shield-halved"></i>
@@ -1100,7 +1196,7 @@
           </div>
         </div>
 
-        <!-- Purchasing Items Table (If purchasing service) -->
+        <!-- 5. Purchasing Items Table (If purchasing service) -->
         <div v-if="selectedApp.details?.items && selectedApp.details.items.length" class="space-y-2">
           <label class="block font-bold text-sky-400 flex items-center gap-1.5">
             <i class="fas fa-list-check"></i>
@@ -1110,7 +1206,7 @@
             <table class="w-full text-left text-xs text-slate-300">
               <thead class="bg-slate-900 text-slate-400 uppercase font-bold text-[10px]">
                 <tr>
-                  <th class="py-2.5 px-3">URL</th>
+                  <th class="py-2.5 px-3">상품 URL / 명칭</th>
                   <th class="py-2.5 px-3">옵션</th>
                   <th class="py-2.5 px-3 text-right">단가(¥)</th>
                   <th class="py-2.5 px-3 text-right">수량</th>
@@ -1119,32 +1215,36 @@
               <tbody class="divide-y divide-slate-800/60">
                 <tr v-for="(it, idx) in selectedApp.details.items" :key="idx">
                   <td class="py-2 px-3 max-w-[200px] truncate">
-                    <a :href="it.url" target="_blank" class="text-blue-400 hover:underline flex items-center gap-1">
+                    <a v-if="it.url" :href="it.url" target="_blank" class="text-blue-400 hover:underline flex items-center gap-1">
                       <i class="fas fa-arrow-up-right-from-square text-[10px]"></i>
-                      <span class="truncate">{{ it.url || '링크 없음' }}</span>
+                      <span class="truncate">{{ it.url }}</span>
                     </a>
+                    <span v-else>{{ it.name || it.sku || '상품명 미기재' }}</span>
                   </td>
                   <td class="py-2 px-3">{{ it.option || '-' }}</td>
-                  <td class="py-2 px-3 text-right font-mono">¥ {{ it.priceCny }}</td>
-                  <td class="py-2 px-3 text-right font-mono font-bold">{{ it.qty }} EA</td>
+                  <td class="py-2 px-3 text-right font-mono">{{ it.priceCny ? `¥ ${it.priceCny}` : '-' }}</td>
+                  <td class="py-2 px-3 text-right font-mono font-bold">{{ it.qty ? `${it.qty} EA` : '-' }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        <!-- Requirement / Custom Fields -->
+        <!-- Requirement / Memo / Structured Message -->
         <div class="space-y-2">
-          <label class="block font-bold text-slate-400">상세 메모 / 고객 요청 사항</label>
-          <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 whitespace-pre-line leading-relaxed text-slate-200">
-            {{ selectedApp.memo || selectedApp.requirement || selectedApp.item_name || '작성된 상세 요청사항이 없습니다.' }}
+          <label class="block font-bold text-slate-400 flex items-center gap-1.5">
+            <i class="fas fa-comment-dots text-slate-400"></i>
+            <span>상세 메모 및 신청서 전문</span>
+          </label>
+          <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 whitespace-pre-line leading-relaxed text-slate-200 font-mono text-xs max-h-60 overflow-y-auto">
+            {{ selectedApp.details?.fullApplicationMessage || selectedApp.memo || selectedApp.requirement || selectedApp.item_name || '작성된 상세 요청사항이 없습니다.' }}
           </div>
         </div>
 
         <!-- Modal Footer Actions -->
-        <div class="flex items-center justify-between pt-4 border-t border-slate-800">
+        <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
           <div class="flex items-center gap-2">
-            <span class="text-slate-400 font-bold">처리 상태 변경:</span>
+            <span class="text-slate-400 font-bold text-xs">처리 상태:</span>
             <select 
               v-model="selectedApp.status" 
               @change="updateAppStatus(selectedApp.id, selectedApp.status)"
@@ -1153,14 +1253,26 @@
             >
               <option value="pending">접수 대기</option>
               <option value="consulting">상담 진행 중</option>
+              <option value="quoted">견적 완료</option>
               <option value="completed">처리 완료</option>
               <option value="cancelled">취소/보류</option>
             </select>
           </div>
 
-          <button @click="selectedApp = null" class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs">
-            닫기
-          </button>
+          <div class="flex items-center gap-2">
+            <button 
+              @click="deleteApplication(selectedApp.id)" 
+              class="px-4 py-2 bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 font-bold rounded-xl text-xs transition"
+            >
+              삭제
+            </button>
+            <button 
+              @click="selectedApp = null" 
+              class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
+            >
+              닫기
+            </button>
+          </div>
         </div>
 
       </div>
@@ -1235,8 +1347,24 @@ const selectedApp = ref(null)
 
 const filteredApplications = computed(() => {
   if (filterService.value === 'all') return applications.value
-  return applications.value.filter(app => app.service_type === filterService.value)
+  return applications.value.filter(app => {
+    if (filterService.value === 'trade') {
+      return app.service_type === 'trade' || app.service_type === 'trade_agent'
+    }
+    if (filterService.value === 'purchasing') {
+      return app.service_type === 'purchasing' || app.service_type === 'purchasing_agent'
+    }
+    return app.service_type === filterService.value
+  })
 })
+
+const getAppSummaryText = (app) => {
+  if (app.details?.targetItem) return `품목: ${app.details.targetItem}`
+  if (app.details?.category) return `카테고리: ${app.details.category}`
+  if (app.details?.items && app.details.items.length) return `신청품목 ${app.details.items.length}종`
+  if (app.details?.targetFc) return `쿠팡 ${app.details.targetFc} 입고`
+  return app.memo || app.requirement || app.item_name || '-'
+}
 
 const fetchApplications = async () => {
   isFetchingApps.value = true
@@ -1303,7 +1431,9 @@ const getServiceLabel = (type) => {
   switch (type) {
     case 'market_tour': return '이우 시장투어'
     case 'rocket_growth': return '쿠팡 로켓그로스'
+    case 'purchasing':
     case 'purchasing_agent': return '1688 구매대행'
+    case 'trade':
     case 'trade_agent': return 'OEM/ODM 무역'
     default: return '서비스 신청'
   }
@@ -1312,8 +1442,10 @@ const getServiceLabel = (type) => {
 const getServiceBadgeClass = (type) => {
   switch (type) {
     case 'market_tour': return 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-    case 'rocket_growth': return 'bg-red-500/20 text-red-300 border border-red-500/30'
+    case 'rocket_growth': return 'bg-rose-500/20 text-rose-300 border border-rose-500/30'
+    case 'purchasing':
     case 'purchasing_agent': return 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
+    case 'trade':
     case 'trade_agent': return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
     default: return 'bg-slate-800 text-slate-300'
   }
@@ -1321,12 +1453,119 @@ const getServiceBadgeClass = (type) => {
 
 const getStatusClass = (status) => {
   switch (status) {
-    case 'pending': return 'text-amber-400 border-amber-500/40'
-    case 'consulting': return 'text-blue-400 border-blue-500/40'
-    case 'completed': return 'text-emerald-400 border-emerald-500/40'
-    case 'cancelled': return 'text-slate-500 border-slate-700'
+    case 'pending':
+    case '접수대기': return 'text-amber-400 border-amber-500/40'
+    case 'consulting':
+    case '상담진행': return 'text-blue-400 border-blue-500/40'
+    case 'quoted':
+    case '견적완료': return 'text-purple-400 border-purple-500/40'
+    case 'completed':
+    case '처리완료': return 'text-emerald-400 border-emerald-500/40'
+    case 'cancelled':
+    case '취소/보류': return 'text-slate-500 border-slate-700'
     default: return 'text-slate-300'
   }
+}
+
+// Excel (UTF-8 BOM CSV) Export Function
+const exportApplicationsToExcel = () => {
+  const targetList = filteredApplications.value
+  if (!targetList || targetList.length === 0) {
+    alert('다운로드할 신청 내역 데이터가 없습니다.')
+    return
+  }
+
+  const headers = [
+    '번호',
+    '접수일시',
+    '구분',
+    '고객명',
+    '연락처',
+    '이메일',
+    '견적금액',
+    '픽업위치',
+    '통역기간',
+    '상세요청사항',
+    '처리상태'
+  ]
+
+  const statusNameMap = {
+    pending: '접수 대기',
+    consulting: '상담 진행 중',
+    quoted: '견적 완료',
+    completed: '처리 완료',
+    cancelled: '취소/보류',
+    '접수대기': '접수 대기',
+    '상담진행': '상담 진행 중',
+    '견적완료': '견적 완료',
+    '처리완료': '처리 완료'
+  }
+
+  const rows = targetList.map((app, index) => {
+    const num = targetList.length - index
+    const dateStr = formatDateTime(app.created_at)
+    const serviceName = app.service_name || getServiceLabel(app.service_type)
+    const customer = app.customer_name || ''
+    const phone = app.phone || ''
+    const email = app.email || ''
+    const totalAmount = app.total_amount > 0 ? `${Number(app.total_amount).toLocaleString()}원` : '0원'
+
+    let pickup = '-'
+    if (app.details?.pickupSummaryText) {
+      pickup = app.details.pickupSummaryText
+    } else if (app.details?.pickupAirport) {
+      const airportMap = { hangzhou: '항저우 소산 공항', shanghai: '상하이 푸동 공항', yiwu: '이우 공항/역' }
+      pickup = airportMap[app.details.pickupAirport] || app.details.pickupAirport
+    }
+
+    let guide = '-'
+    if (app.details?.guideSummaryText) {
+      guide = app.details.guideSummaryText
+    } else if (app.details?.guideDays) {
+      guide = `${app.details.guideDays}일`
+    }
+
+    let memo = app.memo || app.requirement || app.details?.targetItem || app.item_name || ''
+    if (app.details?.fullApplicationMessage) {
+      memo = app.details.fullApplicationMessage
+    }
+    memo = memo.replace(/\r?\n/g, ' ').replace(/"/g, '""')
+
+    const statusText = statusNameMap[app.status] || app.status || '접수 대기'
+
+    return [
+      `"${num}"`,
+      `"${dateStr}"`,
+      `"${serviceName.replace(/"/g, '""')}"`,
+      `"${customer.replace(/"/g, '""')}"`,
+      `"${phone.replace(/"/g, '""')}"`,
+      `"${email.replace(/"/g, '""')}"`,
+      `"${totalAmount}"`,
+      `"${pickup.replace(/"/g, '""')}"`,
+      `"${guide.replace(/"/g, '""')}"`,
+      `"${memo}"`,
+      `"${statusText}"`
+    ].join(',')
+  })
+
+  // UTF-8 BOM prefix (\uFEFF) ensures 100% Korean support in Microsoft Excel
+  const csvContent = '\uFEFF' + [headers.map(h => `"${h}"`).join(','), ...rows].join('\r\n')
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+
+  const now = new Date()
+  const yyyy = now.getFullYear()
+  const mm = String(now.getMonth() + 1).padStart(2, '0')
+  const dd = String(now.getDate()).padStart(2, '0')
+  const filename = `euchs_신청내역_${yyyy}${mm}${dd}.csv`
+
+  const link = document.createElement('a')
+  link.setAttribute('href', url)
+  link.setAttribute('download', filename)
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  URL.revokeObjectURL(url)
 }
 
 // ----------------------------------------------------

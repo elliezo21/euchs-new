@@ -661,7 +661,7 @@ const submitPurchasingForm = async () => {
 
   try {
     if (isSupabaseConfigured()) {
-      await supabase.from('applications').insert([
+      const { error } = await supabase.from('applications').insert([
         {
           service_type: 'purchasing',
           service_name: '구매대행',
@@ -687,12 +687,17 @@ const submitPurchasingForm = async () => {
           }
         }
       ])
+
+      if (error) {
+        throw error
+      }
     }
+    showModal.value = true
   } catch (err) {
     console.error('Supabase purchasing insert error:', err)
+    alert(`구매대행 주문서 접수 중 오류가 발생했습니다: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
   } finally {
     isSubmitting.value = false
-    showModal.value = true
   }
 }
 </script>

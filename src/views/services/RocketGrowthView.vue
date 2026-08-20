@@ -565,7 +565,7 @@ const submitRocketGrowthForm = async () => {
 
   try {
     if (isSupabaseConfigured()) {
-      await supabase.from('applications').insert([
+      const { error } = await supabase.from('applications').insert([
         {
           service_type: 'rocket_growth',
           service_name: '쿠팡 로켓그로스',
@@ -578,7 +578,7 @@ const submitRocketGrowthForm = async () => {
             customsCode: form.value.customsCode,
             targetDate: form.value.targetDate,
             shippingType: form.value.shippingType,
-            targetFc: form.value.targetFc,
+            targetFc: form.value.coupangFC || form.value.targetFc,
             items: form.value.items,
             totalQuantity: totalQuantity.value,
             grandTotalBoxes: grandTotalBoxes.value,
@@ -586,12 +586,17 @@ const submitRocketGrowthForm = async () => {
           }
         }
       ])
+
+      if (error) {
+        throw error
+      }
     }
+    showModal.value = true
   } catch (err) {
     console.error('Supabase rocket growth insert error:', err)
+    alert(`로켓그로스 신청서 접수 중 오류가 발생했습니다: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
   } finally {
     isSubmitting.value = false
-    showModal.value = true
   }
 }
 </script>
