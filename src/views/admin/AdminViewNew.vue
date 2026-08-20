@@ -1095,22 +1095,57 @@
         </div>
 
         <!-- 1. Market Tour Details Box -->
-        <div v-if="selectedApp.service_type === 'market_tour'" class="space-y-2">
-          <label class="block font-bold text-amber-300 flex items-center gap-1.5">
+        <div v-if="selectedApp.service_type === 'market_tour'" class="space-y-2.5">
+          <label class="block font-bold text-amber-300 flex items-center gap-1.5 text-xs">
             <i class="fas fa-plane-departure text-amber-400"></i>
-            <span>이우 시장투어 맞춤 옵션 내역</span>
+            <span>이우 시장투어 상세 신청 명세</span>
           </label>
-          <div class="p-4 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-2 text-xs">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
-              <div><strong class="text-slate-400">공항 픽업:</strong> {{ selectedApp.details?.pickupSummaryText || (selectedApp.details?.usePickup ? selectedApp.details?.pickupAirport : '미선택') }}</div>
-              <div><strong class="text-slate-400">통역 가이드:</strong> {{ selectedApp.details?.guideSummaryText || (selectedApp.details?.useGuide ? `${selectedApp.details?.guideDays}일` : '미선택') }}</div>
-              <div><strong class="text-slate-400">도착일정:</strong> {{ selectedApp.details?.arrivalDate || '-' }}</div>
-              <div><strong class="text-slate-400">복귀일정:</strong> {{ selectedApp.details?.returnDate || '-' }}</div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="p-3.5 bg-slate-950 rounded-2xl border border-blue-500/30 space-y-1">
+              <span class="text-blue-400 font-bold block text-[11px] flex items-center gap-1">
+                <i class="fas fa-car"></i> 공항 픽업 / 샌딩 코스
+              </span>
+              <p class="font-bold text-white text-xs">
+                {{ selectedApp.details?.pickupAirport || selectedApp.details?.pickupSummaryText || (selectedApp.details?.usePickup ? '신청' : '미신청') }}
+              </p>
+              <p class="text-[11px] text-slate-400">
+                차량: {{ selectedApp.details?.vehicleType || '5인승 비즈니스 세단' }}
+              </p>
             </div>
-            <div class="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5">
-              <span v-if="selectedApp.details?.supportHotel" class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-bold">호텔 예약 지원 요청</span>
-              <span v-if="selectedApp.details?.supportFactory" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-400/30 text-[11px] font-bold">공장 실사 동행 요청</span>
-              <span v-if="selectedApp.details?.support1688" class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-400/30 text-[11px] font-bold">사전 1688 비교 데이터 요청</span>
+
+            <div class="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-1">
+              <span class="text-amber-400 font-bold block text-[11px] flex items-center gap-1">
+                <i class="fas fa-user-tie"></i> 1:1 무역 전담 통역 가이드
+              </span>
+              <p class="font-bold text-white text-xs">
+                {{ selectedApp.details?.guideSummaryText || (selectedApp.details?.guideDays ? `${selectedApp.details.guideDays}일` : '미신청') }}
+              </p>
+              <p class="text-[11px] text-slate-400">
+                분야: {{ selectedApp.details?.guideCategory || '생활잡화/판촉물' }}
+              </p>
+            </div>
+
+            <div class="p-3.5 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-1">
+              <span class="text-emerald-400 font-bold block text-[11px] flex items-center gap-1">
+                <i class="fas fa-calendar-days"></i> 입국 / 출국 투어 일정
+              </span>
+              <p class="font-bold text-white text-xs">
+                입국: {{ selectedApp.details?.arrivalDate || '미정' }}<br/>
+                출국: {{ selectedApp.details?.returnDate || '미정' }}
+              </p>
+            </div>
+
+            <div class="p-3.5 bg-slate-950 rounded-2xl border border-purple-500/30 space-y-1">
+              <span class="text-purple-400 font-bold block text-[11px] flex items-center gap-1">
+                <i class="fas fa-tags"></i> 조사 희망 품목 & 무료 지원
+              </span>
+              <p class="font-bold text-white text-xs">
+                {{ selectedApp.details?.targetItem || selectedApp.memo || '미지정' }}
+              </p>
+              <div class="flex items-center gap-2 text-[10px] pt-0.5">
+                <span v-if="selectedApp.details?.supportHotel" class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-400/30 font-bold">호텔예약지원</span>
+                <span v-if="selectedApp.details?.support1688" class="px-1.5 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-400/30 font-bold">1688사전비교</span>
+              </div>
             </div>
           </div>
         </div>
@@ -1554,10 +1589,11 @@ const exportApplicationsToExcel = () => {
     '고객명',
     '연락처',
     '이메일',
-    '견적금액',
-    '픽업위치',
-    '통역기간',
-    '상세요청사항',
+    '총견적금액',
+    '신청공항/픽업상세',
+    '통역일수/전문분야',
+    '투어일정(입국/출국)',
+    '희망품목/상세요청사항',
     '처리상태'
   ]
 
@@ -1571,21 +1607,32 @@ const exportApplicationsToExcel = () => {
     const totalAmount = app.total_amount > 0 ? `${Number(app.total_amount).toLocaleString()}원` : '0원'
 
     let pickup = '-'
-    if (app.details?.pickupSummaryText) {
+    if (app.details?.pickupAirport && app.details?.pickupCourseLabel) {
+      pickup = `${app.details.pickupAirport} (${app.details.pickupCourseLabel} / ${app.details.vehicleType || '세단'})`
+    } else if (app.details?.pickupSummaryText) {
       pickup = app.details.pickupSummaryText
     } else if (app.details?.pickupAirport) {
-      const airportMap = { hangzhou: '항저우 소산 공항', shanghai: '상하이 푸동 공항', yiwu: '이우 공항/역' }
+      const airportMap = { hangzhou: '항저우 소산 공항', shanghai: '상하이 푸동/홍차오 공항', yiwu: '이우 공항/역' }
       pickup = airportMap[app.details.pickupAirport] || app.details.pickupAirport
+    } else if (app.details?.usePickup) {
+      pickup = '픽업 신청'
     }
 
     let guide = '-'
     if (app.details?.guideSummaryText) {
       guide = app.details.guideSummaryText
     } else if (app.details?.guideDays) {
-      guide = `${app.details.guideDays}일`
+      guide = `${app.details.guideDays}일 (${app.details.guideCategory || '일반'})`
+    } else if (app.details?.useGuide) {
+      guide = '통역 신청'
     }
 
-    let memo = app.memo || app.requirement || app.details?.targetItem || app.item_name || ''
+    let schedule = '-'
+    if (app.details?.arrivalDate || app.details?.returnDate) {
+      schedule = `입국:${app.details.arrivalDate || '미정'} / 출국:${app.details.returnDate || '미정'}`
+    }
+
+    let memo = app.details?.targetItem || app.memo || app.requirement || app.item_name || ''
     if (app.details?.fullApplicationMessage) {
       memo = app.details.fullApplicationMessage
     }
@@ -1603,6 +1650,7 @@ const exportApplicationsToExcel = () => {
       `"${totalAmount}"`,
       `"${pickup.replace(/"/g, '""')}"`,
       `"${guide.replace(/"/g, '""')}"`,
+      `"${schedule.replace(/"/g, '""')}"`,
       `"${memo}"`,
       `"${statusText}"`
     ].join(',')
