@@ -7,7 +7,7 @@ export const DEFAULT_SETTINGS = {
   exchange_rate: 195.0,
   rate_margin: 1.5,
   agency_fee_rate: 8.0,
-  sea_cbm_rate: 85000,
+  sea_cbm_rate: 98000,
   customs_clearance_fee: 33000,
   fta_co_fee: 33000,
   // 메인 히어로 미디어 배경 설정
@@ -73,7 +73,7 @@ export const saveSiteSettings = async (settings) => {
     exchange_rate: Number(settings.exchange_rate) || 195.0,
     rate_margin: Number(settings.rate_margin) || 1.5,
     agency_fee_rate: Number(settings.agency_fee_rate) || 8.0,
-    sea_cbm_rate: Number(settings.sea_cbm_rate) || 85000,
+    sea_cbm_rate: Number(settings.sea_cbm_rate) || 98000,
     customs_clearance_fee: Number(settings.customs_clearance_fee) || 33000,
     fta_co_fee: Number(settings.fta_co_fee) || 33000,
     hero_media_type: settings.hero_media_type || 'video_mp4',

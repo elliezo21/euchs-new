@@ -764,7 +764,7 @@ const exchangeRateMode = ref('manual')
 const customExchangeRate = ref(195.0)
 const rateMargin = ref(1.5)
 const agencyFeePercent = ref(8.0)
-const seaCbmRate = ref(85000)
+const seaCbmRate = ref(98000)
 const customsClearanceFee = ref(33000)
 const ftaCoFee = ref(33000)
 
@@ -910,7 +910,7 @@ const calculatedFreightKrw = computed(() => {
   if (shippingMode.value === 'sea_lcl') {
     // 해운 LCL: 기본 CBM당 요율 (설정값 반영)
     const cbm = Math.max(finalCbm.value, 1.0)
-    return Math.round(cbm * (Number(seaCbmRate.value) || 85000))
+    return Math.round(cbm * (Number(seaCbmRate.value) || 98000))
   } else if (shippingMode.value === 'sea_express') {
     // 전자상 해운특송: 기본 1kg 5,000원 + 0.5kg당 800원
     const kg = Math.max(inputWeightKg.value, 1)

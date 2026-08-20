@@ -607,7 +607,7 @@
                     />
                     <span class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 font-bold">원</span>
                   </div>
-                  <span class="text-[10px] text-slate-500 block">기본 추천: 85,000원 / CBM</span>
+                  <span class="text-[10px] text-slate-500 block">기본 추천: 98,000원 / CBM</span>
                 </div>
 
                 <!-- 3. 관세사 통관 수수료 -->

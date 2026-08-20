@@ -692,6 +692,9 @@ const customRate = ref('195.00')
 const rateMode = ref('manual')
 const rateMargin = ref(1.5)
 const agencyFeeRate = ref(8)
+const seaCbmRate = ref(98000)
+const customsClearanceFee = ref(33000)
+const ftaCoFee = ref(33000)
 const selectedNotice = ref(null)
 
 // Hero Media State & Ref
@@ -789,6 +792,9 @@ const fetchLiveRateAndSettings = async () => {
       rateMode.value = settings.exchange_rate_mode || 'manual'
       rateMargin.value = Number(settings.rate_margin) || 1.5
       agencyFeeRate.value = Number(settings.agency_fee_rate) || 8
+      seaCbmRate.value = Number(settings.sea_cbm_rate) || 98000
+      customsClearanceFee.value = Number(settings.customs_clearance_fee) || 33000
+      ftaCoFee.value = Number(settings.fta_co_fee) || 33000
 
       // Hero Media Bindings
       heroMediaType.value = settings.hero_media_type || 'video_mp4'
@@ -836,7 +842,7 @@ const miniProductKrw = computed(() => {
 
 const miniFreightKrw = computed(() => {
   if (miniShipping.value === 'sea_lcl') {
-    return Math.round(Math.max(Number(miniCbm.value) || 1, 1) * 85000)
+    return Math.round(Math.max(Number(miniCbm.value) || 1, 1) * seaCbmRate.value)
   } else if (miniShipping.value === 'sea_express') {
     return Math.round(5000 + (Math.ceil(Math.max(Number(miniCbm.value) * 167 - 1, 0) / 0.5) * 800))
   } else {
@@ -852,7 +858,7 @@ const miniTaxKrw = computed(() => {
 
 const miniTotalKrw = computed(() => {
   const fee = Math.max(Math.round(miniProductKrw.value * (agencyFeeRate.value / 100)), 10000)
-  return miniProductKrw.value + fee + miniFreightKrw.value + miniTaxKrw.value + 33000
+  return miniProductKrw.value + fee + miniFreightKrw.value + miniTaxKrw.value + customsClearanceFee.value
 })
 
 // Visibility change sync
