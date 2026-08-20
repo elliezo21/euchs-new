@@ -240,7 +240,7 @@
             </div>
           </div>
 
-          <div class="pt-4 flex justify-center">
+          <div class="pt-4 flex flex-col items-center gap-3">
             <a 
               href="http://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
@@ -249,6 +249,12 @@
               <i class="fas fa-comment"></i>
               <span>카카오톡 1:1 상담창 바로 열기</span>
             </a>
+            <p class="text-xs text-slate-400 pt-1">
+              이메일 문의: 
+              <a href="mailto:lcceuchs@gmail.com" class="text-slate-300 hover:text-white underline font-semibold">lcceuchs@gmail.com</a>
+              <span class="mx-1.5 text-slate-500">/</span>
+              <a href="mailto:zozo2121@nate.com" class="text-slate-300 hover:text-white underline font-semibold">zozo2121@nate.com</a>
+            </p>
           </div>
         </div>
       </section>

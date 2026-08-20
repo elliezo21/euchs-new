@@ -226,7 +226,7 @@
             <div>
               <span class="text-xs font-semibold text-gray-400 block">본사 및 지사 주소</span>
               <strong class="text-xs font-bold text-gray-900 block leading-snug">
-                [중국본사] No. 2, building 62, Qiancheng community, Yiwu, China
+                [중국주소] Warehouse No. 1, Block 38, Qingyan Liu C District, Yiwu City, Zhejiang Province
               </strong>
               <strong class="text-xs font-semibold text-gray-700 block mt-1">
                 [한국지사] 광주광역시 북구 서방로135번길 54, 1층

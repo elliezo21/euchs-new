@@ -88,15 +88,21 @@
             <p><strong>대표:</strong> 조해성</p>
             <p><strong>사업자등록번호:</strong> 783-17-01247</p>
             <p><strong>통신판매업신고번호:</strong> 제2019-광주동구-0277호</p>
-            <p><strong>이메일:</strong> koreaeuchs@126.com</p>
+            <p class="sm:col-span-2">
+              <strong>이메일:</strong> 
+              <a href="mailto:lcceuchs@gmail.com" class="hover:text-white underline">lcceuchs@gmail.com</a> / 
+              <a href="mailto:zozo2121@nate.com" class="hover:text-white underline">zozo2121@nate.com</a>
+            </p>
             <p class="sm:col-span-2">
               <strong>한국 주소:</strong> 광주광역시 북구 서방로135번길 54, 1층
             </p>
             <p class="sm:col-span-2">
-              <strong>중국 본사:</strong> No. 2, building 62, Qiancheng community, Yiwu, China
+              <strong>중국 주소:</strong> Warehouse No. 1, Block 38, Qingyan Liu C District, Yiwu City, Zhejiang Province
             </p>
             <p><strong>한국 연락처:</strong> <a href="tel:010-9373-1214" class="hover:text-white">010-9373-1214</a></p>
-            <p><strong>중국 직통:</strong> <a href="tel:+86-195-2407-7350" class="hover:text-white">+86 195-2407-7350</a></p>
+            <p><strong>중국 직통:</strong> <a href="tel:19524077350" class="hover:text-white">19524077350</a> (+86 195-2407-7350)</p>
+            <p><strong>위챗 ID:</strong> <span class="text-green-400 font-bold">euchskorea</span></p>
+            <p><strong>카카오톡 ID:</strong> <span class="text-yellow-400 font-bold">ericcho0710</span></p>
           </div>
 
           <div class="pt-3 text-slate-500 text-[11px] border-t border-slate-900">
