@@ -11,7 +11,12 @@
     <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-30 backdrop-blur-md">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         <div class="flex items-center gap-3">
-          <router-link to="/" class="flex items-center gap-2 group">
+          <router-link 
+            to="/admin" 
+            @click="activeTab = 'applications'; fetchApplications()" 
+            class="flex items-center gap-2 group cursor-pointer"
+            title="관리자 메인 대시보드로 이동"
+          >
             <span class="text-xl font-black bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent group-hover:opacity-90">
               EUC COMPANY
             </span>
@@ -59,6 +64,17 @@
           </button>
 
           <div class="h-5 w-px bg-slate-800 mx-1 hidden sm:block"></div>
+
+          <!-- Quick Link to User Website -->
+          <a 
+            href="/" 
+            target="_blank" 
+            title="일반 사용자 메인 웹사이트 새 탭으로 열기"
+            class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5"
+          >
+            <i class="fas fa-arrow-up-right-from-square text-[10px] text-blue-400"></i>
+            <span class="hidden md:inline">사용자 사이트</span>
+          </a>
 
           <!-- Admin Profile Info & Sign Out -->
           <div class="flex items-center gap-2">
