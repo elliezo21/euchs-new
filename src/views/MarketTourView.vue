@@ -638,43 +638,120 @@
     >
       <div 
         v-if="showSuccessModal" 
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm"
+        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-sm select-none"
       >
-        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-5 shadow-2xl">
-          <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl mx-auto">
+        <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full text-center space-y-5 shadow-2xl border border-gray-100 relative overflow-hidden">
+          
+          <!-- Toast Notification inside modal -->
+          <transition
+            enter-active-class="transition duration-200 ease-out"
+            enter-from-class="opacity-0 -translate-y-2"
+            enter-to-class="opacity-100 translate-y-0"
+            leave-active-class="transition duration-150 ease-in"
+            leave-from-class="opacity-100 translate-y-0"
+            leave-to-class="opacity-0 -translate-y-2"
+          >
+            <div 
+              v-if="showToast" 
+              class="absolute top-4 left-1/2 -translate-x-1/2 z-20 px-4 py-2 bg-slate-900 text-white text-xs font-bold rounded-full shadow-lg border border-slate-700 flex items-center gap-2"
+            >
+              <i class="fas fa-circle-check text-emerald-400"></i>
+              <span>{{ toastMessage }}</span>
+            </div>
+          </transition>
+
+          <!-- Top Icon -->
+          <div class="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-3xl mx-auto shadow-inner">
             <i class="fas fa-check-circle"></i>
           </div>
 
+          <!-- Header -->
           <div>
-            <h3 class="text-xl font-black text-gray-900">투어 신청이 완료되었습니다!</h3>
+            <span class="text-xs font-bold text-blue-600 tracking-wider uppercase">Application Completed</span>
+            <h3 class="text-xl sm:text-2xl font-black text-gray-900 mt-1">시장조사 투어 신청 완료!</h3>
             <p class="text-xs sm:text-sm text-gray-600 mt-2 leading-relaxed">
               <strong>{{ form.name }}</strong> 님의 시장조사 투어 신청서가 정상적으로 접수되었습니다.<br />
-              담당 무역 전문 매니저가 <strong>{{ form.phone }}</strong> 번호로 1시간 이내에 연락드려 상세 일정과 준비사항을 안내해 드리겠습니다.
+              담당 무역 전문 매니저가 <strong>{{ form.phone }}</strong> 번호로 신속히 연락드릴 예정입니다.
             </p>
           </div>
 
-          <div class="bg-slate-50 p-4 rounded-xl border border-gray-100 text-xs text-left space-y-1">
-            <p><strong>총 예상 견적:</strong> {{ totalCost.toLocaleString() }}원</p>
-            <p><strong>공항 픽업:</strong> {{ form.usePickup ? form.pickupAirport : '미선택' }}</p>
-            <p><strong>통역 기간:</strong> {{ form.useGuide ? (form.guideDays === 'custom' || Number(form.guideDays) >= 5 ? '5일 이상 (사전 협의)' : `${form.guideDays}일`) : '미선택' }}</p>
+          <!-- Structured Summary Card with Copy Action -->
+          <div class="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200/80 text-left space-y-2 relative group">
+            <div class="flex items-center justify-between pb-2 border-b border-slate-200 text-xs font-bold text-slate-800">
+              <span class="flex items-center gap-1.5 text-blue-600">
+                <i class="fas fa-file-invoice"></i>
+                <span>신청 상세 내역</span>
+              </span>
+              <button 
+                type="button"
+                @click="copyApplicationDetails"
+                class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:text-blue-600 flex items-center gap-1 transition shadow-sm"
+              >
+                <i :class="isCopied ? 'fas fa-check text-emerald-500' : 'fas fa-copy text-slate-500'"></i>
+                <span>{{ isCopied ? '복사됨!' : '내역 복사' }}</span>
+              </button>
+            </div>
+
+            <div class="text-xs text-slate-700 space-y-1.5 font-medium leading-relaxed">
+              <div class="flex justify-between">
+                <span class="text-slate-500">고객명:</span>
+                <span class="font-bold text-slate-900">{{ form.name }}님</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500">연락처:</span>
+                <span class="font-bold text-slate-900">{{ form.phone }}</span>
+              </div>
+              <div class="flex justify-between">
+                <span class="text-slate-500">총 예상 견적:</span>
+                <span class="font-black text-blue-600">{{ totalCost.toLocaleString() }}원</span>
+              </div>
+              <div class="flex justify-between items-start">
+                <span class="text-slate-500 shrink-0">공항 픽업:</span>
+                <span class="text-right text-slate-900 font-semibold">{{ pickupSummaryText }}</span>
+              </div>
+              <div class="flex justify-between items-start">
+                <span class="text-slate-500 shrink-0">통역 기간:</span>
+                <span class="text-right text-slate-900 font-semibold">{{ guideSummaryText }}</span>
+              </div>
+              <div v-if="form.targetItem" class="flex justify-between items-start">
+                <span class="text-slate-500 shrink-0">희망 품목:</span>
+                <span class="text-right text-slate-900">{{ form.targetItem }}</span>
+              </div>
+            </div>
           </div>
 
-          <div class="flex flex-col gap-2 pt-2">
-            <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
-              target="_blank"
-              class="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-1.5"
-            >
-              <i class="fas fa-comment"></i>
-              <span>카카오톡으로 신청 확인하기</span>
-            </a>
+          <!-- Action Buttons -->
+          <div class="flex flex-col gap-2.5 pt-1">
+            <!-- 1. Kakao Confirm Button -->
             <button 
-              @click="closeModal"
-              class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition"
+              type="button"
+              @click="handleKakaoConfirm" 
+              class="w-full py-3.5 px-4 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-md hover:shadow-lg shadow-amber-400/20"
             >
-              닫기
+              <i class="fas fa-comment text-amber-950 text-base"></i>
+              <span>카카오톡으로 신청 확인 & 1:1 상담하기</span>
+            </button>
+
+            <!-- 2. Channel Talk Button -->
+            <button 
+              type="button"
+              @click="handleChannelTalkConfirm"
+              class="w-full py-3 px-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs sm:text-sm rounded-xl transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-md hover:shadow-lg shadow-blue-500/20"
+            >
+              <i class="fas fa-headset text-sm"></i>
+              <span>채널톡 실시간 상담창 열기</span>
+            </button>
+
+            <!-- 3. Close Button -->
+            <button 
+              type="button"
+              @click="closeModal"
+              class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-xs rounded-xl transition"
+            >
+              확인 및 닫기
             </button>
           </div>
+
         </div>
       </div>
     </transition>
@@ -684,9 +761,13 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
 const isSubmitting = ref(false)
 const showSuccessModal = ref(false)
+const isCopied = ref(false)
+const showToast = ref(false)
+const toastMessage = ref('')
 
 const form = ref({
   name: '',
@@ -734,9 +815,6 @@ const vehicleExtraMap = {
 // Daily guide fee
 const GUIDE_DAILY_FEE = 150000
 
-// Real-time calculation
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-
 const totalCost = computed(() => {
   let cost = 0
 
@@ -759,7 +837,6 @@ const totalCost = computed(() => {
       const days = parseInt(form.value.guideDays, 10) || 1
       cost += days * GUIDE_DAILY_FEE
     } else {
-      // 5일 이상은 사전 협의(별도 안내)로 0원 합산
       cost += 0
     }
   }
@@ -785,6 +862,143 @@ const calculatedDetails = computed(() => {
   return parts.length > 0 ? parts.join(' + ') : '기본 상담'
 })
 
+// Airport & Guide text helpers
+const pickupSummaryText = computed(() => {
+  if (!form.value.usePickup) return '미선택'
+  const airportMap = {
+    hangzhou: '항저우 공항',
+    shanghai: '상하이 푸동',
+    yiwu: '이우 공항/역'
+  }
+  const vehicle = form.value.vehicleType === 'van' ? '7인승 밴' : '5인승 세단'
+  const trips = []
+  if (form.value.pickupArrival) trips.push(`도착(${form.value.arrivalDate || '미정'})`)
+  if (form.value.pickupDeparture) trips.push(`샌딩(${form.value.returnDate || '미정'})`)
+  return `${airportMap[form.value.pickupAirport] || form.value.pickupAirport} (${vehicle} / ${trips.join(', ')})`
+})
+
+const guideSummaryText = computed(() => {
+  if (!form.value.useGuide) return '미선택'
+  const catMap = {
+    general: '생활잡화/주방/판촉',
+    fashion: '패션의류/원단/액세서리',
+    digital: '전자/IT기기/가전',
+    toy: '완구/공예품',
+    industrial: '산업재/금형사출'
+  }
+  const category = catMap[form.value.guideCategory] || form.value.guideCategory
+  if (form.value.guideDays === 'custom' || Number(form.value.guideDays) >= 5) {
+    return `5일 이상 (사전 협의 - ${category})`
+  }
+  return `${form.value.guideDays}일 (${category})`
+})
+
+// Structured application message for clipboard & messaging
+const generatedApplicationMessage = computed(() => {
+  const nowStr = new Date().toLocaleString('ko-KR', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit'
+  })
+
+  return `[이유씨컴퍼니 시장조사 투어 신청 내역]
+- 고객명: ${form.value.name || '고객'}님
+- 연락처: ${form.value.phone || '-'}
+- 희망 품목: ${form.value.targetItem || '소상품/생활잡화'}
+- 총 예상 견적: ${totalCost.value.toLocaleString()}원
+- 공항 픽업: ${pickupSummaryText.value}
+- 통역 기간: ${guideSummaryText.value}
+- 호텔 예약 지원: ${form.value.supportHotel ? '무료 대행 요청' : '미요청'}
+- 신청 일시: ${nowStr}
+* 신청이 정상 접수되어 무역 전담 매니저가 신속히 연락드릴 예정입니다.`
+})
+
+const triggerToast = (msg) => {
+  toastMessage.value = msg
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 4000)
+}
+
+const copyApplicationDetails = async () => {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(generatedApplicationMessage.value)
+    } else {
+      const textArea = document.createElement('textarea')
+      textArea.value = generatedApplicationMessage.value
+      textArea.style.position = 'fixed'
+      textArea.style.opacity = '0'
+      document.body.appendChild(textArea)
+      textArea.select()
+      document.execCommand('copy')
+      document.body.removeChild(textArea)
+    }
+    isCopied.value = true
+    triggerToast('신청 내역이 클립보드에 복사되었습니다.')
+    setTimeout(() => {
+      isCopied.value = false
+    }, 3000)
+  } catch (err) {
+    console.warn('Clipboard copy fallback:', err)
+  }
+}
+
+const handleKakaoConfirm = async () => {
+  await copyApplicationDetails()
+  triggerToast('신청 내역이 복사되었습니다. 채팅창에 붙여넣어 문의해 주세요.')
+  setTimeout(() => {
+    window.open('http://pf.kakao.com/_xmQWsK/chat', '_blank')
+  }, 350)
+}
+
+const handleChannelTalkConfirm = () => {
+  if (typeof window !== 'undefined' && window.ChannelIO) {
+    try {
+      window.ChannelIO('showMessenger')
+      triggerToast('채널톡 상담창이 연결되었습니다.')
+    } catch (e) {
+      console.warn('ChannelIO error:', e)
+      handleKakaoConfirm()
+    }
+  } else {
+    handleKakaoConfirm()
+  }
+}
+
+// Channel.io user sync & event tracking
+const syncWithChannelTalk = () => {
+  if (typeof window !== 'undefined' && window.ChannelIO) {
+    try {
+      window.ChannelIO('updateUser', {
+        profile: {
+          name: form.value.name,
+          mobileNumber: form.value.phone,
+          CUSTOMER_NAME: form.value.name,
+          PHONE: form.value.phone,
+          LAST_TOUR_APPLICATION: new Date().toISOString(),
+          ESTIMATED_TOUR_COST: `${totalCost.value.toLocaleString()}원`,
+          TOUR_PICKUP: pickupSummaryText.value,
+          TOUR_GUIDE_DAYS: guideSummaryText.value
+        }
+      })
+      window.ChannelIO('track', 'Tour_Application', {
+        customerName: form.value.name,
+        phone: form.value.phone,
+        totalCost: totalCost.value,
+        pickup: pickupSummaryText.value,
+        guide: guideSummaryText.value,
+        appliedAt: new Date().toISOString()
+      })
+    } catch (e) {
+      console.warn('ChannelIO sync error:', e)
+    }
+  }
+}
+
 const submitTourApplication = async () => {
   isSubmitting.value = true
 
@@ -798,10 +1012,8 @@ const submitTourApplication = async () => {
           phone: form.value.phone,
           status: '접수대기',
           total_amount: totalCost.value,
-          memo: form.value.specialRequest || '',
+          memo: form.value.targetItem ? `희망품목: ${form.value.targetItem}` : '',
           details: {
-            company: form.value.company,
-            memberCount: form.value.memberCount,
             targetItem: form.value.targetItem,
             arrivalDate: form.value.arrivalDate,
             returnDate: form.value.returnDate,
@@ -810,15 +1022,23 @@ const submitTourApplication = async () => {
             vehicleType: form.value.vehicleType,
             pickupArrival: form.value.pickupArrival,
             pickupDeparture: form.value.pickupDeparture,
-            flightNumber: form.value.flightNumber,
             useGuide: form.value.useGuide,
             guideDays: form.value.guideDays,
-            guideFocus: form.value.guideFocus,
-            calculatedDetails: calculatedDetails.value
+            guideCategory: form.value.guideCategory,
+            supportHotel: form.value.supportHotel,
+            supportFactory: form.value.supportFactory,
+            support1688: form.value.support1688,
+            pickupSummaryText: pickupSummaryText.value,
+            guideSummaryText: guideSummaryText.value,
+            calculatedDetails: calculatedDetails.value,
+            fullApplicationMessage: generatedApplicationMessage.value
           }
         }
       ])
     }
+
+    // Sync Channel Talk
+    syncWithChannelTalk()
   } catch (err) {
     console.error('Supabase tour insert error:', err)
   } finally {
