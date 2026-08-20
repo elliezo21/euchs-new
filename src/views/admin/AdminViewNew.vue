@@ -215,12 +215,22 @@
                       <button 
                         @click="openAppDetail(app)" 
                         class="px-2 py-1 rounded-lg bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800/60 text-[11px] font-semibold transition"
+                        title="신청 상세 내역 확인"
                       >
                         상세
                       </button>
                       <button 
+                        @click="exportSingleApplicationReceipt(app)" 
+                        class="px-2 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[11px] font-semibold transition flex items-center gap-1"
+                        title="해당 건 견적 명세서(CSV/Excel) 다운로드"
+                      >
+                        <i class="fas fa-file-csv text-[10px]"></i>
+                        <span>명세서</span>
+                      </button>
+                      <button 
                         @click="deleteApplication(app.id)" 
                         class="px-2 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 text-[11px] transition"
+                        title="신청 내역 삭제"
                       >
                         삭제
                       </button>
@@ -1406,8 +1416,13 @@ const deleteApplication = async (id) => {
   }
 }
 
-const openAppDetail = (app) => {
+const openAppDetail = async (app) => {
   selectedApp.value = app
+  // When opening a new application in 'pending' / '접수대기' state, automatically update status to 'consulting'
+  if (app && (app.status === 'pending' || app.status === '접수대기')) {
+    app.status = 'consulting'
+    await updateAppStatus(app.id, 'consulting')
+  }
 }
 
 const getServiceLabel = (type) => {
@@ -1450,6 +1465,80 @@ const getStatusClass = (status) => {
   }
 }
 
+const statusNameMap = {
+  pending: '접수 대기',
+  consulting: '상담 진행 중',
+  quoted: '견적 완료',
+  completed: '처리 완료',
+  cancelled: '취소/보류',
+  '접수대기': '접수 대기',
+  '상담진행': '상담 진행 중',
+  '견적완료': '견적 완료',
+  '처리완료': '처리 완료'
+}
+
+// Single Application Receipt Export
+const exportSingleApplicationReceipt = (app) => {
+  if (!app) return
+
+  const dateStr = formatDateTime(app.created_at)
+  const serviceName = app.service_name || getServiceLabel(app.service_type)
+  const customer = app.customer_name || '고객'
+  const phone = app.phone || '-'
+  const email = app.email || '-'
+  const totalAmount = app.total_amount > 0 ? `${Number(app.total_amount).toLocaleString()}원` : '0원'
+
+  const receiptLines = [
+    '========================================================================',
+    `[EUC COMPANY] ${serviceName} 견적 명세서 / 접수 확인서`,
+    '========================================================================',
+    `접수번호: #EUC-${app.id || 'N/A'}`,
+    `접수일시: ${dateStr}`,
+    `처리상태: ${statusNameMap[app.status] || app.status || '접수 대기'}`,
+    '------------------------------------------------------------------------',
+    `[고객 정보]`,
+    `고객명 / 회사명: ${customer}`,
+    `연락처: ${phone}`,
+    `이메일: ${email}`,
+    '------------------------------------------------------------------------',
+    `[서비스 견적 세부 내역]`,
+    `서비스 구분: ${serviceName}`,
+    `총 예상 견적 금액: ${totalAmount}`
+  ]
+
+  if (app.details) {
+    if (app.details.pickupSummaryText) receiptLines.push(`공항 픽업/샌딩: ${app.details.pickupSummaryText}`)
+    if (app.details.guideSummaryText) receiptLines.push(`통역 가이드: ${app.details.guideSummaryText}`)
+    if (app.details.guideCost) receiptLines.push(`통역 비용: ${Number(app.details.guideCost).toLocaleString()}원`)
+    if (app.details.pickupCost) receiptLines.push(`픽업 비용: ${Number(app.details.pickupCost).toLocaleString()}원`)
+    if (app.details.supportHotel) receiptLines.push(`호텔 예약 대행: 요청 (무료 지원)`)
+    if (app.details.support1688) receiptLines.push(`1688 사전 비교 데이터: 요청 (무료 지원)`)
+    if (app.details.targetItem) receiptLines.push(`조사 희망품목: ${app.details.targetItem}`)
+    if (app.details.fullApplicationMessage) {
+      receiptLines.push('------------------------------------------------------------------------')
+      receiptLines.push('[신청서 전문 내용]')
+      receiptLines.push(app.details.fullApplicationMessage)
+    }
+  }
+
+  receiptLines.push('========================================================================')
+  receiptLines.push('담당 문의: 010-9373-1214 / 카카오톡: ericcho0710 / 위챗: china775852')
+  receiptLines.push('========================================================================')
+
+  const content = '\uFEFF' + receiptLines.join('\r\n')
+  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  const cleanName = customer.replace(/[^a-zA-Z0-9가-힣]/g, '') || '고객'
+  const yyyymmdd = new Date().toISOString().slice(0, 10).replace(/-/g, '')
+  a.href = url
+  a.download = `euchs_견적명세서_${cleanName}_${yyyymmdd}.csv`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  URL.revokeObjectURL(url)
+}
+
 // Excel (UTF-8 BOM CSV) Export Function
 const exportApplicationsToExcel = () => {
   const targetList = filteredApplications.value
@@ -1471,18 +1560,6 @@ const exportApplicationsToExcel = () => {
     '상세요청사항',
     '처리상태'
   ]
-
-  const statusNameMap = {
-    pending: '접수 대기',
-    consulting: '상담 진행 중',
-    quoted: '견적 완료',
-    completed: '처리 완료',
-    cancelled: '취소/보류',
-    '접수대기': '접수 대기',
-    '상담진행': '상담 진행 중',
-    '견적완료': '견적 완료',
-    '처리완료': '처리 완료'
-  }
 
   const rows = targetList.map((app, index) => {
     const num = targetList.length - index

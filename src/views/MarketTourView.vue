@@ -389,7 +389,7 @@
                 투어 신청 및 실시간 견적
               </h3>
               <p class="text-xs text-gray-500 mt-1">
-                원하시는 서비스를 선택하시면 예상 비용이 자동 계산됩니다.
+                원하시는 서비스를 선택하시면 예상 비용이 실시간으로 투명하게 자동 계산됩니다.
               </p>
             </div>
 
@@ -429,8 +429,8 @@
                 </div>
               </div>
 
-              <!-- 2. 공항 픽업 서비스 옵션 (Checkbox Toggle) -->
-              <div class="border border-gray-200 rounded-2xl p-4 bg-slate-50 space-y-3">
+              <!-- 2. 공항 픽업 서비스 옵션 -->
+              <div class="border border-gray-200 rounded-2xl p-4 bg-slate-50 space-y-3.5">
                 <label class="flex items-center justify-between cursor-pointer">
                   <span class="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
                     <i class="fas fa-car-side text-blue-600"></i>
@@ -444,67 +444,90 @@
                 </label>
 
                 <!-- Detailed Pickup Options when checked -->
-                <div v-if="form.usePickup" class="pt-2 border-t border-gray-200 space-y-3 text-xs">
+                <div v-if="form.usePickup" class="pt-3 border-t border-gray-200 space-y-3 text-xs">
+                  
+                  <!-- 픽업 유형 선택 (왕복 / 입국 편도 / 출국 편도) -->
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">공항 선택</label>
+                    <label class="block text-[11px] font-semibold text-gray-600 mb-1.5">픽업 유형 선택</label>
+                    <div class="grid grid-cols-3 gap-1.5">
+                      <button
+                        type="button"
+                        @click="form.pickupType = 'round'"
+                        class="py-2 px-2 rounded-xl text-center font-bold text-xs transition border"
+                        :class="form.pickupType === 'round' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'"
+                      >
+                        🔄 왕복 (픽업+샌딩)
+                      </button>
+                      <button
+                        type="button"
+                        @click="form.pickupType = 'arrival'"
+                        class="py-2 px-2 rounded-xl text-center font-bold text-xs transition border"
+                        :class="form.pickupType === 'arrival' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'"
+                      >
+                        ✈️ 편도 (입국 픽업)
+                      </button>
+                      <button
+                        type="button"
+                        @click="form.pickupType = 'departure'"
+                        class="py-2 px-2 rounded-xl text-center font-bold text-xs transition border"
+                        :class="form.pickupType === 'departure' ? 'bg-blue-600 text-white border-blue-600 shadow-sm' : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50'"
+                      >
+                        🛫 편도 (출국 샌딩)
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 지역별 공항 선택 -->
+                  <div>
+                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">공항 선택 (단가 안내)</label>
                     <select 
                       v-model="form.pickupAirport"
-                      class="w-full p-2 rounded-lg border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none"
+                      class="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs font-semibold focus:border-blue-600 outline-none"
                     >
-                      <option value="hangzhou">항저우 소산 공항 (HGH) - 편도 99,000원</option>
-                      <option value="shanghai">상하이 푸동 공항 (PVG) - 편도 180,000원</option>
-                      <option value="yiwu">이우 공항 / 고속철역 - 편도 40,000원</option>
+                      <option value="hangzhou">항저우 소산 공항 (HGH) — 편도 99,000원 / 왕복 198,000원</option>
+                      <option value="shanghai">상하이 푸동/홍차오 (PVG/SHA) — 편도 180,000원 / 왕복 360,000원</option>
+                      <option value="yiwu">이우 공항 / 고속철역 — 편도 40,000원 / 왕복 80,000원</option>
                     </select>
                   </div>
 
+                  <!-- 차량 규격 선택 -->
                   <div>
                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">차량 규격 선택</label>
                     <select 
                       v-model="form.vehicleType"
-                      class="w-full p-2 rounded-lg border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none"
+                      class="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none"
                     >
-                      <option value="sedan">5인승 비즈니스 세단 (기본)</option>
-                      <option value="van">7인승 럭셔리 밴 (단체/짐 다량 +30,000원)</option>
+                      <option value="sedan">5인승 비즈니스 세단 (기본 0원)</option>
+                      <option value="van">7인승 럭셔리 밴 (단체/짐 다량 +30,000원/편도당)</option>
                     </select>
                   </div>
 
-                  <div class="grid grid-cols-2 gap-2 pt-1">
-                    <label class="flex items-center gap-1.5 cursor-pointer">
-                      <input v-model="form.pickupArrival" type="checkbox" class="w-3.5 h-3.5 rounded text-blue-600" />
-                      <span class="text-[11px] font-medium text-gray-700">도착 픽업 (공항→호텔)</span>
-                    </label>
-                    <label class="flex items-center gap-1.5 cursor-pointer">
-                      <input v-model="form.pickupDeparture" type="checkbox" class="w-3.5 h-3.5 rounded text-blue-600" />
-                      <span class="text-[11px] font-medium text-gray-700">복귀 샌딩 (호텔→공항)</span>
-                    </label>
-                  </div>
-
-                  <!-- Date Inputs (2 Columns: Arrival & Return) -->
+                  <!-- Date Inputs (Arrival & Return) -->
                   <div class="grid grid-cols-2 gap-2.5 pt-1">
                     <div>
                       <label class="block text-[11px] font-semibold text-gray-600 mb-1">
-                        도착 날짜 <span v-if="form.pickupArrival" class="text-blue-600">*</span>
+                        입국 도착 일자 <span v-if="form.pickupType === 'round' || form.pickupType === 'arrival'" class="text-blue-600">*</span>
                       </label>
                       <input 
                         v-model="form.arrivalDate" 
                         type="date" 
                         @click="openDatePicker($event)"
                         @focus="openDatePicker($event)"
-                        :disabled="!form.pickupArrival"
+                        :disabled="form.pickupType === 'departure'"
                         class="w-full p-2.5 rounded-lg border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none cursor-pointer hover:border-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed transition"
                       />
                     </div>
 
                     <div>
                       <label class="block text-[11px] font-semibold text-gray-600 mb-1">
-                        복귀 날짜 <span v-if="form.pickupDeparture" class="text-blue-600">*</span>
+                        출국 복귀 일자 <span v-if="form.pickupType === 'round' || form.pickupType === 'departure'" class="text-blue-600">*</span>
                       </label>
                       <input 
                         v-model="form.returnDate" 
                         type="date" 
                         @click="openDatePicker($event)"
                         @focus="openDatePicker($event)"
-                        :disabled="!form.pickupDeparture"
+                        :disabled="form.pickupType === 'arrival'"
                         class="w-full p-2.5 rounded-lg border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none cursor-pointer hover:border-blue-400 disabled:bg-gray-100 disabled:cursor-not-allowed transition"
                       />
                     </div>
@@ -512,7 +535,7 @@
                 </div>
               </div>
 
-              <!-- 3. 통역 / 가이드 서비스 옵션 (Checkbox Toggle) -->
+              <!-- 3. 통역 / 가이드 서비스 옵션 -->
               <div class="border border-gray-200 rounded-2xl p-4 bg-slate-50 space-y-3">
                 <label class="flex items-center justify-between cursor-pointer">
                   <span class="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
@@ -530,17 +553,17 @@
                 <div v-if="form.useGuide" class="pt-2 border-t border-gray-200 space-y-3 text-xs">
                   <div>
                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">
-                      통역 기간 (1일당 150,000원)
+                      통역 기간 (1일당 150,000원 정액)
                     </label>
                     <select 
                       v-model="form.guideDays"
-                      class="w-full p-2.5 rounded-lg border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none cursor-pointer"
+                      class="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs font-semibold focus:border-blue-600 outline-none cursor-pointer"
                     >
-                      <option :value="1">1일 (당일 시장조사) - 150,000원</option>
-                      <option :value="2">2일 (표준 코스) - 300,000원</option>
-                      <option :value="3">3일 (심층 조사 & 미팅) - 450,000원</option>
-                      <option :value="4">4일 (전 구역 정밀 조사) - 600,000원</option>
-                      <option value="custom">5일 이상 (사전 협의 - 별도 안내)</option>
+                      <option :value="1">1일 (당일 코스) — 150,000원</option>
+                      <option :value="2">2일 (표준 코스) — 300,000원</option>
+                      <option :value="3">3일 (심층 조사 & 미팅) — 450,000원</option>
+                      <option :value="4">4일 (전 구역 정밀 조사) — 600,000원</option>
+                      <option value="custom">5일 이상 (사전 협의 — 별도 맞춤 안내)</option>
                     </select>
                   </div>
 
@@ -548,7 +571,7 @@
                     <label class="block text-[11px] font-semibold text-gray-600 mb-1">통역 전문 분야</label>
                     <select 
                       v-model="form.guideCategory"
-                      class="w-full p-2 rounded-lg border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none"
+                      class="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none"
                     >
                       <option value="general">생활잡화 / 주방 / 판촉물</option>
                       <option value="fashion">패션의류 / 원단 / 액세서리</option>
@@ -560,45 +583,65 @@
                 </div>
               </div>
 
-              <!-- 4. 기타 무료 및 부가 옵션 -->
-              <div class="space-y-2 text-xs">
-                <label class="flex items-center gap-2 cursor-pointer">
+              <!-- 4. 무료 지원 옵션 -->
+              <div class="space-y-2 text-xs bg-white p-3 rounded-xl border border-gray-200">
+                <label class="flex items-center gap-2 cursor-pointer font-medium text-gray-700">
                   <input v-model="form.supportHotel" type="checkbox" class="w-3.5 h-3.5 rounded text-blue-600" />
-                  <span class="text-gray-700">이우 현지 호텔 예약 대행 지원 (무료)</span>
+                  <span>이우 현지 호텔 예약 대행 지원 (무료 지원)</span>
                 </label>
-                <label class="flex items-center gap-2 cursor-pointer">
-                  <input v-model="form.supportFactory" type="checkbox" class="w-3.5 h-3.5 rounded text-blue-600" />
-                  <span class="text-gray-700">공장 방문 미팅 및 공장 수배 필요</span>
-                </label>
-                <label class="flex items-center gap-2 cursor-pointer">
+                <label class="flex items-center gap-2 cursor-pointer font-medium text-gray-700">
                   <input v-model="form.support1688" type="checkbox" class="w-3.5 h-3.5 rounded text-blue-600" />
-                  <span class="text-gray-700">사전 1688 온라인 비교 데이터 요청</span>
+                  <span>사전 1688 온라인 최저가 비교 데이터 요청 (무료 지원)</span>
                 </label>
               </div>
 
-              <!-- 5. 실시간 예상 견적 합계 박스 -->
-              <div class="bg-gradient-to-br from-slate-900 to-blue-950 text-white p-4 sm:p-5 rounded-2xl space-y-3">
-                <div class="flex items-center justify-between text-xs text-slate-300">
-                  <span>선택 옵션 소계</span>
-                  <span>{{ calculatedDetails }}</span>
+              <!-- 5. 투명한 실시간 예상 견적 명세서 박스 -->
+              <div class="bg-gradient-to-br from-slate-900 via-slate-900 to-blue-950 text-white p-5 rounded-2xl space-y-3.5 shadow-lg border border-slate-800">
+                <div class="flex items-center justify-between pb-2 border-b border-white/10 text-xs font-bold text-amber-300">
+                  <span class="flex items-center gap-1.5">
+                    <i class="fas fa-file-invoice-dollar"></i>
+                    <span>견적 산출 상세 명세서</span>
+                  </span>
+                  <span class="text-[11px] text-slate-400 font-normal">부가세(VAT) 별도</span>
                 </div>
-                <div class="border-t border-white/20 pt-2 flex items-baseline justify-between">
-                  <span class="text-xs sm:text-sm font-bold text-amber-300">총 예상 견적</span>
-                  <div class="text-right">
-                    <span class="text-2xl sm:text-3xl font-black text-yellow-400">
-                      {{ totalCost.toLocaleString() }}
-                    </span>
-                    <span class="text-sm font-bold ml-1">원</span>
+
+                <div class="space-y-1.5 text-xs text-slate-300 font-medium">
+                  <!-- 1) 통역 가이드료 -->
+                  <div class="flex justify-between items-center">
+                    <span class="text-slate-400">1:1 무역 전담 통역:</span>
+                    <span class="font-mono text-white">{{ guideItemizedText }}</span>
+                  </div>
+
+                  <!-- 2) 공항 픽업/샌딩료 -->
+                  <div class="flex justify-between items-center">
+                    <span class="text-slate-400">공항 픽업/샌딩:</span>
+                    <span class="font-mono text-white">{{ pickupItemizedText }}</span>
+                  </div>
+
+                  <!-- 3) 차량 규격 추가금 -->
+                  <div v-if="form.usePickup && form.vehicleType === 'van'" class="flex justify-between items-center text-amber-300">
+                    <span class="text-slate-400">7인승 밴 추가금:</span>
+                    <span class="font-mono">+{{ vehicleExtraTotal.toLocaleString() }}원</span>
                   </div>
                 </div>
-                <p class="text-[10px] text-slate-400 leading-tight">
-                  ※ 현지 사정에 따른 유류비/톨게이트비 포함 기준이며, 최종 확정 견적은 접수 후 매니저가 유선으로 상세 안내해 드립니다.
-                </p>
+
+                <div class="border-t border-white/20 pt-3 flex items-baseline justify-between">
+                  <div>
+                    <span class="text-xs sm:text-sm font-bold text-amber-300 block">총 예상 견적 합계</span>
+                    <span class="text-[10px] text-slate-400">현지 유류비/통행료 일체 포함</span>
+                  </div>
+                  <div class="text-right">
+                    <span class="text-2xl sm:text-3xl font-black text-yellow-400 font-mono">
+                      {{ totalCost.toLocaleString() }}
+                    </span>
+                    <span class="text-sm font-bold ml-1 text-white">원</span>
+                  </div>
+                </div>
               </div>
 
               <!-- 6. 제출 버튼 -->
               <button 
-                type="submit"
+                type="submit" 
                 :disabled="isSubmitting"
                 class="w-full py-4 px-6 bg-gradient-to-r from-blue-600 via-sky-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white font-black text-base rounded-xl shadow-lg hover:shadow-xl transition-all duration-200 flex items-center justify-center gap-2 transform active:scale-98 disabled:opacity-50"
               >
@@ -760,8 +803,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { currentUser, userDisplayName } from '@/lib/auth'
 
 const isSubmitting = ref(false)
 const showSuccessModal = ref(false)
@@ -774,18 +818,23 @@ const form = ref({
   phone: '',
   targetItem: '',
   usePickup: true,
+  pickupType: 'round', // 'round', 'arrival', 'departure'
   pickupAirport: 'hangzhou', // hangzhou, shanghai, yiwu
   vehicleType: 'sedan', // sedan, van
-  pickupArrival: true,
-  pickupDeparture: true,
   arrivalDate: '',
   returnDate: '',
   useGuide: true,
   guideDays: 2,
   guideCategory: 'general',
   supportHotel: true,
-  supportFactory: false,
   support1688: true
+})
+
+onMounted(() => {
+  if (currentUser.value) {
+    if (userDisplayName.value) form.value.name = userDisplayName.value
+    if (currentUser.value.user_metadata?.phone) form.value.phone = currentUser.value.user_metadata.phone
+  }
 })
 
 // DatePicker click helper to open native calendar picker anywhere in the input box
@@ -799,14 +848,21 @@ const openDatePicker = (event) => {
   }
 }
 
-// Airport pricing map
+// Airport pricing map (편도 기준)
 const airportPriceMap = {
   hangzhou: 99000,
   shanghai: 180000,
   yiwu: 40000
 }
 
-// Vehicle extra price
+// Airport labels
+const airportNameMap = {
+  hangzhou: '항저우 소산 공항 (HGH)',
+  shanghai: '상하이 푸동/홍차오 공항 (PVG/SHA)',
+  yiwu: '이우 공항 / 고속철역'
+}
+
+// Vehicle extra price (편도당)
 const vehicleExtraMap = {
   sedan: 0,
   van: 30000
@@ -815,66 +871,64 @@ const vehicleExtraMap = {
 // Daily guide fee
 const GUIDE_DAILY_FEE = 150000
 
+// 1. Guide cost
+const guideCost = computed(() => {
+  if (!form.value.useGuide) return 0
+  if (form.value.guideDays === 'custom' || Number(form.value.guideDays) >= 5) {
+    return 0
+  }
+  const days = parseInt(form.value.guideDays, 10) || 1
+  return days * GUIDE_DAILY_FEE
+})
+
+// 2. Pickup cost
+const pickupTripsCount = computed(() => {
+  if (!form.value.usePickup) return 0
+  if (form.value.pickupType === 'round') return 2
+  return 1
+})
+
+const pickupBaseTotal = computed(() => {
+  if (!form.value.usePickup) return 0
+  const baseAirportRate = airportPriceMap[form.value.pickupAirport] || 99000
+  return baseAirportRate * pickupTripsCount.value
+})
+
+const vehicleExtraTotal = computed(() => {
+  if (!form.value.usePickup) return 0
+  const vehicleExtra = vehicleExtraMap[form.value.vehicleType] || 0
+  return vehicleExtra * pickupTripsCount.value
+})
+
 const totalCost = computed(() => {
-  let cost = 0
-
-  // 1. Pickup cost
-  if (form.value.usePickup) {
-    const baseAirportRate = airportPriceMap[form.value.pickupAirport] || 99000
-    const vehicleExtra = vehicleExtraMap[form.value.vehicleType] || 0
-    const tripCost = baseAirportRate + vehicleExtra
-
-    let tripsCount = 0
-    if (form.value.pickupArrival) tripsCount += 1
-    if (form.value.pickupDeparture) tripsCount += 1
-
-    cost += tripCost * tripsCount
-  }
-
-  // 2. Guide cost (5일 이상 사전 협의 시 추가금 0원 처리)
-  if (form.value.useGuide) {
-    if (form.value.guideDays !== 'custom' && Number(form.value.guideDays) < 5) {
-      const days = parseInt(form.value.guideDays, 10) || 1
-      cost += days * GUIDE_DAILY_FEE
-    } else {
-      cost += 0
-    }
-  }
-
-  return cost
+  return guideCost.value + pickupBaseTotal.value + vehicleExtraTotal.value
 })
 
-const calculatedDetails = computed(() => {
-  const parts = []
-  if (form.value.usePickup) {
-    let trips = 0
-    if (form.value.pickupArrival) trips++
-    if (form.value.pickupDeparture) trips++
-    parts.push(`픽업 ${trips}회`)
+// Itemized receipt text
+const guideItemizedText = computed(() => {
+  if (!form.value.useGuide) return '미선택 (0원)'
+  if (form.value.guideDays === 'custom' || Number(form.value.guideDays) >= 5) {
+    return '5일 이상 (사전 협의)'
   }
-  if (form.value.useGuide) {
-    if (form.value.guideDays === 'custom' || Number(form.value.guideDays) >= 5) {
-      parts.push('통역: 사전 협의(별도 안내)')
-    } else {
-      parts.push(`통역 ${form.value.guideDays}일`)
-    }
-  }
-  return parts.length > 0 ? parts.join(' + ') : '기본 상담'
+  return `1일 150,000원 × ${form.value.guideDays}일 = ${guideCost.value.toLocaleString()}원`
 })
 
-// Airport & Guide text helpers
+const pickupItemizedText = computed(() => {
+  if (!form.value.usePickup) return '미선택 (0원)'
+  const airport = form.value.pickupAirport === 'hangzhou' ? '항저우' : (form.value.pickupAirport === 'shanghai' ? '상하이' : '이우')
+  const typeStr = form.value.pickupType === 'round' ? '왕복(2회)' : (form.value.pickupType === 'arrival' ? '입국 편도' : '출국 편도')
+  return `${airport} ${typeStr} (${pickupBaseTotal.value.toLocaleString()}원)`
+})
+
 const pickupSummaryText = computed(() => {
   if (!form.value.usePickup) return '미선택'
-  const airportMap = {
-    hangzhou: '항저우 공항',
-    shanghai: '상하이 푸동',
-    yiwu: '이우 공항/역'
-  }
+  const airport = airportNameMap[form.value.pickupAirport] || form.value.pickupAirport
+  const typeStr = form.value.pickupType === 'round' ? '왕복' : (form.value.pickupType === 'arrival' ? '입국 편도' : '출국 편도')
   const vehicle = form.value.vehicleType === 'van' ? '7인승 밴' : '5인승 세단'
-  const trips = []
-  if (form.value.pickupArrival) trips.push(`도착(${form.value.arrivalDate || '미정'})`)
-  if (form.value.pickupDeparture) trips.push(`샌딩(${form.value.returnDate || '미정'})`)
-  return `${airportMap[form.value.pickupAirport] || form.value.pickupAirport} (${vehicle} / ${trips.join(', ')})`
+  const dates = []
+  if (form.value.pickupType === 'round' || form.value.pickupType === 'arrival') dates.push(`입국: ${form.value.arrivalDate || '미정'}`)
+  if (form.value.pickupType === 'round' || form.value.pickupType === 'departure') dates.push(`출국: ${form.value.returnDate || '미정'}`)
+  return `${airport} [${typeStr} / ${vehicle}] (${dates.join(', ')})`
 })
 
 const guideSummaryText = computed(() => {
@@ -909,8 +963,9 @@ const generatedApplicationMessage = computed(() => {
 - 희망 품목: ${form.value.targetItem || '소상품/생활잡화'}
 - 총 예상 견적: ${totalCost.value.toLocaleString()}원
 - 공항 픽업: ${pickupSummaryText.value}
-- 통역 기간: ${guideSummaryText.value}
+- 통역 가이드: ${guideSummaryText.value} (1일 150,000원 정액)
 - 호텔 예약 지원: ${form.value.supportHotel ? '무료 대행 요청' : '미요청'}
+- 1688 사전 비교: ${form.value.support1688 ? '무료 지원 요청' : '미요청'}
 - 신청 일시: ${nowStr}
 * 신청이 정상 접수되어 무역 전담 매니저가 신속히 연락드릴 예정입니다.`
 })
@@ -1010,6 +1065,8 @@ const submitTourApplication = async () => {
           service_name: '이우 시장투어',
           customer_name: form.value.name,
           phone: form.value.phone,
+          email: currentUser.value?.email || '',
+          user_id: currentUser.value?.id || null,
           status: '접수대기',
           total_amount: totalCost.value,
           memo: form.value.targetItem ? `희망품목: ${form.value.targetItem}` : '',
@@ -1018,19 +1075,18 @@ const submitTourApplication = async () => {
             arrivalDate: form.value.arrivalDate,
             returnDate: form.value.returnDate,
             usePickup: form.value.usePickup,
+            pickupType: form.value.pickupType,
             pickupAirport: form.value.pickupAirport,
             vehicleType: form.value.vehicleType,
-            pickupArrival: form.value.pickupArrival,
-            pickupDeparture: form.value.pickupDeparture,
             useGuide: form.value.useGuide,
             guideDays: form.value.guideDays,
             guideCategory: form.value.guideCategory,
             supportHotel: form.value.supportHotel,
-            supportFactory: form.value.supportFactory,
             support1688: form.value.support1688,
             pickupSummaryText: pickupSummaryText.value,
             guideSummaryText: guideSummaryText.value,
-            calculatedDetails: calculatedDetails.value,
+            guideCost: guideCost.value,
+            pickupCost: pickupBaseTotal.value + vehicleExtraTotal.value,
             fullApplicationMessage: generatedApplicationMessage.value
           }
         }

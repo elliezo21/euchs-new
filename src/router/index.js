@@ -14,6 +14,7 @@ import AdminView from '../views/admin/AdminViewNew.vue'
 import AdminLoginView from '../views/admin/AdminLoginView.vue'
 import CalculatorView from '../views/tools/CalculatorView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
+import MyPageView from '../views/MyPageView.vue'
 import { currentUser, checkUserRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
@@ -22,6 +23,15 @@ const routes = [
     path: '/',
     name: 'home',
     component: HomeView,
+  },
+  {
+    path: '/mypage',
+    name: 'mypage',
+    component: MyPageView,
+  },
+  {
+    path: '/my-page',
+    redirect: '/mypage'
   },
   {
     path: '/auth/callback/naver',

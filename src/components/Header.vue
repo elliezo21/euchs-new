@@ -76,6 +76,14 @@
                 <p class="font-bold text-gray-900 truncate">{{ userDisplayName }}</p>
                 <p class="text-[11px] text-gray-500 truncate mt-0.5">{{ userEmail }}</p>
               </div>
+              <router-link 
+                to="/mypage" 
+                @click="isUserMenuOpen = false" 
+                class="w-full text-left px-3 py-2 hover:bg-blue-50 text-blue-600 font-bold flex items-center gap-2 transition"
+              >
+                <i class="fas fa-file-invoice-dollar text-blue-500"></i>
+                <span>나의 신청/견적 내역</span>
+              </router-link>
               <button 
                 type="button"
                 @click="handleSignOut" 
@@ -282,7 +290,7 @@
             </button>
           </div>
 
-          <div v-else class="flex items-center gap-2">
+          <div v-else class="flex items-center gap-1.5 flex-wrap">
             <img 
               v-if="userAvatarUrl" 
               :src="userAvatarUrl" 
@@ -296,9 +304,17 @@
               {{ userDisplayName.charAt(0) }}
             </div>
             <span class="text-xs font-bold text-gray-800">{{ userDisplayName }}님</span>
+            <router-link 
+              to="/mypage" 
+              @click="isMobileMenuOpen = false" 
+              class="text-xs text-blue-600 font-bold ml-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 transition flex items-center gap-1"
+            >
+              <i class="fas fa-file-invoice"></i>
+              <span>마이페이지</span>
+            </router-link>
             <button 
               @click="handleSignOut" 
-              class="text-xs text-red-500 hover:text-red-700 font-semibold ml-1.5 px-2 py-0.5 rounded bg-red-50 border border-red-200 transition"
+              class="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-0.5 rounded bg-red-50 border border-red-200 transition"
             >
               로그아웃
             </button>
