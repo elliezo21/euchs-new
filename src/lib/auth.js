@@ -479,6 +479,28 @@ export const signOut = async () => {
 }
 
 /**
+ * 사용자 프로필 DB (public.profiles) 자동 생성 및 동기화
+ */
+export const syncUserProfile = async (user) => {
+  if (!user || !isSupabaseConfigured()) return
+  try {
+    const meta = user.user_metadata || {}
+    const profilePayload = {
+      id: user.id,
+      email: user.email || '',
+      full_name: meta.full_name || meta.name || user.email?.split('@')[0] || '회원',
+      avatar_url: meta.avatar_url || meta.picture || '',
+      phone: meta.phone || meta.mobile || '',
+      provider: meta.provider || user.app_metadata?.provider || 'email',
+      updated_at: new Date().toISOString()
+    }
+    await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' })
+  } catch (err) {
+    console.warn('Profile sync notice:', err)
+  }
+}
+
+/**
  * 인증 세션 초기화 및 리스너 등록
  */
 let isListenerAttached = false
@@ -494,6 +516,7 @@ export const initAuth = async () => {
     currentUser.value = session?.user || null
     if (session?.user) {
       await checkUserRole(session.user)
+      await syncUserProfile(session.user)
     } else {
       userRole.value = 'user'
     }
@@ -510,6 +533,7 @@ export const initAuth = async () => {
       isAuthLoading.value = false
       if (session?.user) {
         await checkUserRole(session.user)
+        await syncUserProfile(session.user)
         closeLoginModal()
       } else {
         userRole.value = 'user'
