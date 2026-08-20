@@ -90,6 +90,7 @@
                 class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs font-semibold text-white outline-none focus:border-blue-500"
               >
                 <option value="all">전체 서비스 ({{ myApplications.length }})</option>
+                <option value="calculator">무역/운임 실시간 견적</option>
                 <option value="market_tour">이우 시장투어</option>
                 <option value="purchasing">1688 구매대행</option>
                 <option value="trade">OEM/ODM 무역대행</option>
@@ -307,6 +308,38 @@
               </div>
             </template>
 
+            <!-- Freight & Calculator Specific -->
+            <template v-if="selectedApp.service_type === 'calculator' || selectedApp.details.freightCostKrw !== undefined">
+              <div v-if="selectedApp.details.shippingModeName" class="flex justify-between">
+                <span class="text-slate-400">운송 방식:</span>
+                <span class="text-sky-300 font-bold">{{ selectedApp.details.shippingModeName }}</span>
+              </div>
+              <div v-if="selectedApp.details.cbm" class="flex justify-between">
+                <span class="text-slate-400">화물 규격:</span>
+                <span class="text-slate-200">{{ selectedApp.details.cbm }} CBM / {{ selectedApp.details.weightKg }} kg</span>
+              </div>
+              <div v-if="selectedApp.details.boxDimensions" class="flex justify-between">
+                <span class="text-slate-400">포장 규격:</span>
+                <span class="text-slate-200">{{ selectedApp.details.boxDimensions }}</span>
+              </div>
+              <div v-if="selectedApp.details.freightCostKrw" class="flex justify-between">
+                <span class="text-slate-400">기본 국제 운임:</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details.freightCostKrw).toLocaleString() }}</span>
+              </div>
+              <div v-if="selectedApp.details.tariffKrw" class="flex justify-between">
+                <span class="text-slate-400">예상 관세:</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details.tariffKrw).toLocaleString() }}</span>
+              </div>
+              <div v-if="selectedApp.details.vatKrw" class="flex justify-between">
+                <span class="text-slate-400">수입 부가세(VAT):</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details.vatKrw).toLocaleString() }}</span>
+              </div>
+              <div v-if="selectedApp.details.customsFeeKrw" class="flex justify-between">
+                <span class="text-slate-400">통관 및 부대비용:</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details.customsFeeKrw).toLocaleString() }}</span>
+              </div>
+            </template>
+
             <!-- Raw / full message -->
             <div v-if="selectedApp.details.fullApplicationMessage" class="pt-2 border-t border-slate-800/80">
               <span class="text-slate-400 block mb-1">신청서 전문:</span>
@@ -368,6 +401,7 @@ const filteredMyApplications = computed(() => {
     return myApplications.value
   }
   return myApplications.value.filter(a => {
+    if (selectedServiceFilter.value === 'calculator') return a.service_type === 'calculator' || a.service_type === 'logistics_estimate'
     if (selectedServiceFilter.value === 'market_tour') return a.service_type === 'market_tour'
     if (selectedServiceFilter.value === 'purchasing') return a.service_type === 'purchasing' || a.service_type === 'purchasing_agent'
     if (selectedServiceFilter.value === 'trade') return a.service_type === 'trade' || a.service_type === 'trade_agent'
@@ -429,6 +463,8 @@ const getServiceLabel = (type) => {
     case 'purchasing_agent': return '1688 구매대행'
     case 'trade':
     case 'trade_agent': return 'OEM/ODM 무역대행'
+    case 'calculator':
+    case 'logistics_estimate': return '무역/운임 실시간 견적'
     default: return '서비스 신청'
   }
 }
@@ -441,6 +477,8 @@ const getServiceBadgeClass = (type) => {
     case 'purchasing_agent': return 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
     case 'trade':
     case 'trade_agent': return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+    case 'calculator':
+    case 'logistics_estimate': return 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
     default: return 'bg-slate-800 text-slate-300'
   }
 }
@@ -478,6 +516,9 @@ const getStatusBadgeClass = (status) => {
 }
 
 const getAppSummaryText = (app) => {
+  if (app.details?.shippingModeName && app.details?.cbm) {
+    return `[${app.details.shippingModeName}] ${app.details.cbm} CBM / ${app.details.weightKg || 0} kg (${app.details.boxDimensions || '규격직접입력'})`
+  }
   if (app.details?.pickupSummaryText && app.details?.guideSummaryText) {
     return `[픽업] ${app.details.pickupSummaryText} / [통역] ${app.details.guideSummaryText}`
   }
@@ -535,6 +576,13 @@ const downloadReceipt = (app) => {
     if (app.details.pickupCost) lines.push(`픽업 비용: ${Number(app.details.pickupCost).toLocaleString()}원`)
     if (app.details.supportHotel) lines.push(`호텔 예약 대행: 무료 지원`)
     if (app.details.support1688) lines.push(`1688 사전 비교 데이터: 무료 지원`)
+    if (app.details.shippingModeName) lines.push(`운송 방식: ${app.details.shippingModeName}`)
+    if (app.details.cbm) lines.push(`화물 부피(CBM) / 중량: ${app.details.cbm} CBM / ${app.details.weightKg || 0} kg`)
+    if (app.details.boxDimensions) lines.push(`포장 규격: ${app.details.boxDimensions}`)
+    if (app.details.freightCostKrw) lines.push(`기본 국제 운송료: ₩${Number(app.details.freightCostKrw).toLocaleString()}`)
+    if (app.details.tariffKrw) lines.push(`예상 관세: ₩${Number(app.details.tariffKrw).toLocaleString()}`)
+    if (app.details.vatKrw) lines.push(`수입 부가세: ₩${Number(app.details.vatKrw).toLocaleString()}`)
+    if (app.details.customsFeeKrw) lines.push(`통관 및 부대비용: ₩${Number(app.details.customsFeeKrw).toLocaleString()}`)
     if (app.details.targetItem) lines.push(`조사 희망품목: ${app.details.targetItem}`)
     if (app.details.fullApplicationMessage) {
       lines.push('------------------------------------------------------------------------')

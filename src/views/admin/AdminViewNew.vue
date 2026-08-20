@@ -1150,7 +1150,82 @@
           </div>
         </div>
 
-        <!-- 2. Trade Agent Details Box -->
+        <!-- 2. Calculator & Freight Logistics Details Box -->
+        <div v-if="selectedApp.service_type === 'calculator' || selectedApp.details?.freightCostKrw !== undefined || selectedApp.details?.cbm !== undefined" class="space-y-3">
+          <label class="block font-bold text-sky-300 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-calculator text-sky-400"></i>
+            <span>실시간 무역·운임 및 관부가세 산출 내역</span>
+          </label>
+          
+          <!-- Freight Info Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div class="p-3 bg-slate-950 rounded-2xl border border-sky-500/30 space-y-1">
+              <span class="text-sky-400 font-bold block text-[11px] flex items-center gap-1">
+                <i class="fas fa-ship"></i> 운송 방식
+              </span>
+              <p class="font-bold text-white text-xs">
+                {{ selectedApp.details?.shippingModeName || selectedApp.details?.shippingMode || '해운 LCL' }}
+              </p>
+            </div>
+
+            <div class="p-3 bg-slate-950 rounded-2xl border border-sky-500/30 space-y-1">
+              <span class="text-sky-400 font-bold block text-[11px] flex items-center gap-1">
+                <i class="fas fa-cube"></i> 화물 총 부피 / 중량
+              </span>
+              <p class="font-bold text-white text-xs">
+                {{ selectedApp.details?.cbm }} CBM / {{ selectedApp.details?.weightKg }} kg
+              </p>
+            </div>
+
+            <div class="p-3 bg-slate-950 rounded-2xl border border-sky-500/30 space-y-1">
+              <span class="text-sky-400 font-bold block text-[11px] flex items-center gap-1">
+                <i class="fas fa-box"></i> 포장 박스 규격
+              </span>
+              <p class="font-bold text-white text-xs">
+                {{ selectedApp.details?.boxDimensions || '직접 입력' }}
+              </p>
+            </div>
+          </div>
+
+          <!-- Itemized Breakdown Table -->
+          <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-slate-300">
+              <div class="flex justify-between border-b border-slate-800/60 pb-1">
+                <span class="text-slate-400">1) 순수 제품가:</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.productPriceKrw || 0).toLocaleString() }} (¥{{ selectedApp.details?.productPriceRmb || 0 }})</span>
+              </div>
+              <div class="flex justify-between border-b border-slate-800/60 pb-1">
+                <span class="text-slate-400">2) 구매대행 수수료:</span>
+                <span class="font-mono text-amber-300">₩{{ Number(selectedApp.details?.agencyFeeKrw || 0).toLocaleString() }}</span>
+              </div>
+              <div class="flex justify-between border-b border-slate-800/60 pb-1">
+                <span class="text-slate-400">3) 기본 국제 운송료:</span>
+                <span class="font-mono text-sky-300">₩{{ Number(selectedApp.details?.freightCostKrw || 0).toLocaleString() }}</span>
+              </div>
+              <div class="flex justify-between border-b border-slate-800/60 pb-1">
+                <span class="text-slate-400">4) 예상 관세:</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.tariffKrw || 0).toLocaleString() }} {{ selectedApp.details?.useFtaCo ? '(한중 FTA C/O 0%)' : `(${selectedApp.details?.tariffRate || 0}%)` }}</span>
+              </div>
+              <div class="flex justify-between border-b border-slate-800/60 pb-1">
+                <span class="text-slate-400">5) 수입 부가가치세 (VAT):</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.vatKrw || 0).toLocaleString() }}</span>
+              </div>
+              <div class="flex justify-between border-b border-slate-800/60 pb-1">
+                <span class="text-slate-400">6) 통관 수수료 & 부대비용:</span>
+                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.customsFeeKrw || 0).toLocaleString() }}</span>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-800 flex justify-between items-baseline font-bold text-amber-400">
+              <span class="text-xs">총 예상 견적 합계:</span>
+              <span class="text-base font-black text-yellow-400 font-mono">
+                {{ Number(selectedApp.total_amount || selectedApp.details?.grandTotalKrw || 0).toLocaleString() }}원
+              </span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Trade Agent Details Box -->
         <div v-if="selectedApp.service_type === 'trade' || selectedApp.service_type === 'trade_agent'" class="space-y-2">
           <label class="block font-bold text-emerald-300 flex items-center gap-1.5">
             <i class="fas fa-handshake text-emerald-400"></i>
@@ -1468,6 +1543,8 @@ const getServiceLabel = (type) => {
     case 'purchasing_agent': return '1688 구매대행'
     case 'trade':
     case 'trade_agent': return 'OEM/ODM 무역'
+    case 'calculator':
+    case 'logistics_estimate': return '무역/운임 실시간 견적'
     default: return '서비스 신청'
   }
 }
@@ -1480,6 +1557,8 @@ const getServiceBadgeClass = (type) => {
     case 'purchasing_agent': return 'bg-blue-500/20 text-blue-300 border border-blue-500/30'
     case 'trade':
     case 'trade_agent': return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+    case 'calculator':
+    case 'logistics_estimate': return 'bg-sky-500/20 text-sky-300 border border-sky-500/30'
     default: return 'bg-slate-800 text-slate-300'
   }
 }
@@ -1542,13 +1621,44 @@ const exportSingleApplicationReceipt = (app) => {
   ]
 
   if (app.details) {
+    // Market tour fields
     if (app.details.pickupSummaryText) receiptLines.push(`공항 픽업/샌딩: ${app.details.pickupSummaryText}`)
     if (app.details.guideSummaryText) receiptLines.push(`통역 가이드: ${app.details.guideSummaryText}`)
     if (app.details.guideCost) receiptLines.push(`통역 비용: ${Number(app.details.guideCost).toLocaleString()}원`)
     if (app.details.pickupCost) receiptLines.push(`픽업 비용: ${Number(app.details.pickupCost).toLocaleString()}원`)
     if (app.details.supportHotel) receiptLines.push(`호텔 예약 대행: 요청 (무료 지원)`)
     if (app.details.support1688) receiptLines.push(`1688 사전 비교 데이터: 요청 (무료 지원)`)
-    if (app.details.targetItem) receiptLines.push(`조사 희망품목: ${app.details.targetItem}`)
+
+    // Freight & Calculator fields
+    if (app.details.shippingModeName || app.details.shippingMode) {
+      receiptLines.push(`운송 방식: ${app.details.shippingModeName || app.details.shippingMode}`)
+    }
+    if (app.details.cbm !== undefined) {
+      receiptLines.push(`화물 부피(CBM) / 중량: ${app.details.cbm} CBM / ${app.details.weightKg || 0} kg`)
+    }
+    if (app.details.boxDimensions) {
+      receiptLines.push(`포장 박스 규격: ${app.details.boxDimensions}`)
+    }
+    if (app.details.productPriceKrw !== undefined) {
+      receiptLines.push(`순수 제품가: ₩${Number(app.details.productPriceKrw).toLocaleString()} (¥${app.details.productPriceRmb || 0})`)
+    }
+    if (app.details.agencyFeeKrw !== undefined) {
+      receiptLines.push(`구매대행 수수료: ₩${Number(app.details.agencyFeeKrw).toLocaleString()}`)
+    }
+    if (app.details.freightCostKrw !== undefined) {
+      receiptLines.push(`기본 국제 운송료: ₩${Number(app.details.freightCostKrw).toLocaleString()}`)
+    }
+    if (app.details.tariffKrw !== undefined) {
+      receiptLines.push(`예상 관세: ₩${Number(app.details.tariffKrw).toLocaleString()} ${app.details.useFtaCo ? '(한중 FTA C/O 0%)' : `(${app.details.tariffRate || 0}%)`}`)
+    }
+    if (app.details.vatKrw !== undefined) {
+      receiptLines.push(`수입 부가가치세(VAT): ₩${Number(app.details.vatKrw).toLocaleString()}`)
+    }
+    if (app.details.customsFeeKrw !== undefined) {
+      receiptLines.push(`통관 수수료 & 부대비용: ₩${Number(app.details.customsFeeKrw).toLocaleString()}`)
+    }
+
+    if (app.details.targetItem) receiptLines.push(`조사/희망품목: ${app.details.targetItem}`)
     if (app.details.fullApplicationMessage) {
       receiptLines.push('------------------------------------------------------------------------')
       receiptLines.push('[신청서 전문 내용]')
@@ -1607,7 +1717,9 @@ const exportApplicationsToExcel = () => {
     const totalAmount = app.total_amount > 0 ? `${Number(app.total_amount).toLocaleString()}원` : '0원'
 
     let pickup = '-'
-    if (app.details?.pickupAirport && app.details?.pickupCourseLabel) {
+    if (app.service_type === 'calculator' || app.details?.freightCostKrw !== undefined) {
+      pickup = app.details?.shippingModeName || app.details?.shippingMode || '해운 LCL'
+    } else if (app.details?.pickupAirport && app.details?.pickupCourseLabel) {
       pickup = `${app.details.pickupAirport} (${app.details.pickupCourseLabel} / ${app.details.vehicleType || '세단'})`
     } else if (app.details?.pickupSummaryText) {
       pickup = app.details.pickupSummaryText
@@ -1619,7 +1731,9 @@ const exportApplicationsToExcel = () => {
     }
 
     let guide = '-'
-    if (app.details?.guideSummaryText) {
+    if (app.service_type === 'calculator' || app.details?.freightCostKrw !== undefined) {
+      guide = `${app.details?.cbm || 0} CBM / ${app.details?.weightKg || 0} kg`
+    } else if (app.details?.guideSummaryText) {
       guide = app.details.guideSummaryText
     } else if (app.details?.guideDays) {
       guide = `${app.details.guideDays}일 (${app.details.guideCategory || '일반'})`
@@ -1628,13 +1742,21 @@ const exportApplicationsToExcel = () => {
     }
 
     let schedule = '-'
-    if (app.details?.arrivalDate || app.details?.returnDate) {
+    if (app.service_type === 'calculator' || app.details?.freightCostKrw !== undefined) {
+      schedule = app.details?.boxDimensions || '규격직접입력'
+    } else if (app.details?.arrivalDate || app.details?.returnDate) {
       schedule = `입국:${app.details.arrivalDate || '미정'} / 출국:${app.details.returnDate || '미정'}`
     }
 
-    let memo = app.details?.targetItem || app.memo || app.requirement || app.item_name || ''
-    if (app.details?.fullApplicationMessage) {
-      memo = app.details.fullApplicationMessage
+    let memo = ''
+    if (app.service_type === 'calculator' || app.details?.freightCostKrw !== undefined) {
+      memo = `제품가:₩${Number(app.details?.productPriceKrw || 0).toLocaleString()} / 운송료:₩${Number(app.details?.freightCostKrw || 0).toLocaleString()} / 관세:₩${Number(app.details?.tariffKrw || 0).toLocaleString()} / 통관료:₩${Number(app.details?.customsFeeKrw || 0).toLocaleString()}`
+      if (app.memo) memo += ` | ${app.memo}`
+    } else {
+      memo = app.details?.targetItem || app.memo || app.requirement || app.item_name || ''
+      if (app.details?.fullApplicationMessage) {
+        memo = app.details.fullApplicationMessage
+      }
     }
     memo = memo.replace(/\r?\n/g, ' ').replace(/"/g, '""')
 

@@ -466,11 +466,11 @@
             <!-- Action Buttons -->
             <div class="pt-2 space-y-2">
               <button 
-                @click="goToApplyWithEstimate"
+                @click="openApplyModal"
                 class="w-full py-3.5 bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 transform active:scale-98"
               >
                 <i class="fas fa-paper-plane"></i>
-                <span>이 견적으로 바로 구매/수입대행 신청하기</span>
+                <span>이 견적으로 실시간 운임/수입 신청하기</span>
                 <i class="fas fa-arrow-right text-xs"></i>
               </button>
 
@@ -516,6 +516,135 @@
 
     </div>
 
+    <!-- ==================================================== -->
+    <!-- Estimate Application Modal (Online Submission) -->
+    <!-- ==================================================== -->
+    <div v-if="showApplyModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm" @click.self="showApplyModal = false">
+      <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl text-gray-900 max-h-[90vh] overflow-y-auto">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div>
+            <span class="inline-block px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">ESTIMATE APPLY</span>
+            <h3 class="text-lg font-black text-gray-900 mt-1">실시간 무역·운임 견적 신청</h3>
+          </div>
+          <button @click="showApplyModal = false" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg">
+            <i class="fas fa-times text-base"></i>
+          </button>
+        </div>
+
+        <!-- Calculated Summary Brief Card -->
+        <div class="p-4 bg-gradient-to-br from-slate-900 to-blue-950 text-white rounded-2xl space-y-2 text-xs">
+          <div class="flex items-center justify-between pb-1.5 border-b border-white/10 text-amber-300 font-bold">
+            <span>{{ shippingModeName }} 운송 견적</span>
+            <span class="font-mono text-white">{{ finalCbm.toFixed(2) }} CBM / {{ inputWeightKg }}kg</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2 text-slate-300 text-[11px]">
+            <div>제품가: ₩{{ calculatedProductKrw.toLocaleString() }} (¥{{ inputPriceRmb.toLocaleString() }})</div>
+            <div>국제운임: ₩{{ calculatedFreightKrw.toLocaleString() }}</div>
+            <div>예상관세: ₩{{ calculatedTariffKrw.toLocaleString() }}</div>
+            <div>통관/부대: ₩{{ incidentalCosts.toLocaleString() }}</div>
+          </div>
+          <div class="border-t border-white/10 pt-2 flex items-baseline justify-between text-yellow-400 font-black text-sm">
+            <span>총 예상 견적 합계</span>
+            <span class="text-base sm:text-lg font-mono">{{ grandTotalImportCost.toLocaleString() }}원</span>
+          </div>
+        </div>
+
+        <!-- Input Form -->
+        <form @submit.prevent="submitEstimateApplication" class="space-y-3.5 text-xs">
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">성함 / 상호명 <span class="text-red-500">*</span></label>
+            <input 
+              v-model="applyForm.name" 
+              type="text" 
+              required 
+              placeholder="예: 홍길동 / (주)이유씨커머스"
+              class="w-full p-2.5 rounded-xl border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition font-medium"
+            />
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">연락처 <span class="text-red-500">*</span></label>
+            <input 
+              v-model="applyForm.phone" 
+              type="tel" 
+              required 
+              placeholder="예: 010-1234-5678"
+              class="w-full p-2.5 rounded-xl border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition font-medium"
+            />
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">이메일 (견적서 수신용)</label>
+            <input 
+              v-model="applyForm.email" 
+              type="email" 
+              placeholder="예: contact@domain.com"
+              class="w-full p-2.5 rounded-xl border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition font-medium"
+            />
+          </div>
+
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">품목명 및 문의사항 / 수령 지역</label>
+            <textarea 
+              v-model="applyForm.memo" 
+              rows="2"
+              placeholder="희망 품목명이나 국내 도착지, 특별 요청사항 등을 입력해 주세요."
+              class="w-full p-2.5 rounded-xl border border-gray-300 focus:border-blue-600 focus:ring-2 focus:ring-blue-100 outline-none transition"
+            ></textarea>
+          </div>
+
+          <div class="pt-2">
+            <button 
+              type="submit" 
+              :disabled="isSubmittingApply"
+              class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black text-sm rounded-xl shadow-lg transition flex items-center justify-center gap-2 transform active:scale-98 disabled:opacity-50"
+            >
+              <i v-if="isSubmittingApply" class="fas fa-spinner animate-spin"></i>
+              <i v-else class="fas fa-check-circle"></i>
+              <span>{{ isSubmittingApply ? '견적 접수 처리 중...' : '견적서 접수 및 전담 매니저 배정' }}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ==================================================== -->
+    <!-- Application Success Modal -->
+    <!-- ==================================================== -->
+    <div v-if="showSuccessModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-sm">
+      <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 shadow-2xl text-gray-900">
+        <div class="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl mx-auto shadow-inner">
+          <i class="fas fa-check-circle"></i>
+        </div>
+        <h3 class="text-xl font-black text-gray-900">운임 및 수입 견적이 접수되었습니다!</h3>
+        <p class="text-xs sm:text-sm text-gray-600 leading-relaxed">
+          <strong>{{ applyForm.name }}</strong> 님의 산출 견적이 정상 접수되었습니다.<br />
+          <strong>{{ applyForm.phone }}</strong> 번호로 무역 전담 매니저가 신속히 상세 안내를 드립니다.
+        </p>
+
+        <div class="p-3.5 bg-slate-50 rounded-2xl border border-gray-100 text-xs text-left space-y-1 text-gray-700 font-medium">
+          <div><strong>운송 방식:</strong> {{ shippingModeName }} ({{ finalCbm.toFixed(2) }} CBM / {{ inputWeightKg }}kg)</div>
+          <div><strong>총 예상 견적:</strong> <span class="text-blue-600 font-black">{{ grandTotalImportCost.toLocaleString() }}원</span></div>
+        </div>
+
+        <div class="space-y-2 pt-2">
+          <a 
+            href="http://pf.kakao.com/_xmQWsK/chat" 
+            target="_blank"
+            class="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow"
+          >
+            <i class="fas fa-comment"></i> 카카오톡으로 실시간 빠른 확인
+          </a>
+          <button 
+            @click="showSuccessModal = false" 
+            class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition"
+          >
+            확인 및 창 닫기
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -523,8 +652,110 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchSiteSettings, DEFAULT_SETTINGS } from '@/lib/settings'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { currentUser, userDisplayName } from '@/lib/auth'
 
 const router = useRouter()
+
+const showApplyModal = ref(false)
+const showSuccessModal = ref(false)
+const isSubmittingApply = ref(false)
+
+const applyForm = ref({
+  name: '',
+  phone: '',
+  email: '',
+  memo: ''
+})
+
+const openApplyModal = () => {
+  if (currentUser.value) {
+    if (userDisplayName.value && !applyForm.value.name) applyForm.value.name = userDisplayName.value
+    if (currentUser.value.email && !applyForm.value.email) applyForm.value.email = currentUser.value.email
+    if (currentUser.value.user_metadata?.phone && !applyForm.value.phone) applyForm.value.phone = currentUser.value.user_metadata.phone
+  }
+  showApplyModal.value = true
+}
+
+const submitEstimateApplication = async () => {
+  isSubmittingApply.value = true
+  try {
+    if (isSupabaseConfigured()) {
+      const { error } = await supabase.from('applications').insert([
+        {
+          service_type: 'calculator',
+          service_name: '무역/운임 실시간 견적',
+          customer_name: applyForm.value.name,
+          phone: applyForm.value.phone,
+          email: applyForm.value.email || currentUser.value?.email || '',
+          user_id: currentUser.value?.id || null,
+          status: '접수대기',
+          total_amount: grandTotalImportCost.value,
+          memo: applyForm.value.memo ? `[고객문의] ${applyForm.value.memo}` : '',
+          details: {
+            shippingMode: shippingMode.value,
+            shippingModeName: shippingModeName.value,
+            cbm: Number(finalCbm.value.toFixed(3)),
+            weightKg: Number(inputWeightKg.value),
+            boxWidth: Number(boxWidth.value),
+            boxLength: Number(boxLength.value),
+            boxHeight: Number(boxHeight.value),
+            boxCount: Number(boxCount.value),
+            boxDimensions: cbmInputMode.value === 'box' 
+              ? `${boxWidth.value}×${boxLength.value}×${boxHeight.value}cm (${boxCount.value}박스)` 
+              : `직접입력 ${finalCbm.value.toFixed(2)} CBM`,
+            cbmInputMode: cbmInputMode.value,
+            productPriceRmb: Number(inputPriceRmb.value),
+            productPriceKrw: calculatedProductKrw.value,
+            exchangeRate: Number(customExchangeRate.value),
+            agencyFeeKrw: calculatedAgencyFeeKrw.value,
+            freightCostKrw: calculatedFreightKrw.value,
+            cifValueKrw: cifValue.value,
+            tariffRate: effectiveTariffRate.value,
+            tariffKrw: calculatedTariffKrw.value,
+            vatKrw: calculatedVatKrw.value,
+            customsFeeKrw: incidentalCosts.value,
+            useFtaCo: useFtaCo.value,
+            grandTotalKrw: grandTotalImportCost.value
+          }
+        }
+      ])
+      if (error) throw error
+    }
+
+    // Sync channel talk if available
+    if (typeof window !== 'undefined' && window.ChannelIO) {
+      try {
+        window.ChannelIO('updateUser', {
+          profile: {
+            name: applyForm.value.name,
+            mobileNumber: applyForm.value.phone,
+            LAST_CALCULATOR_ESTIMATE: `${grandTotalImportCost.value.toLocaleString()}원`,
+            CALCULATOR_FREIGHT_MODE: shippingModeName.value,
+            CALCULATOR_CBM: `${finalCbm.value.toFixed(2)} CBM`
+          }
+        })
+        window.ChannelIO('track', 'Calculator_Estimate_Apply', {
+          name: applyForm.value.name,
+          phone: applyForm.value.phone,
+          totalAmount: grandTotalImportCost.value,
+          shippingMode: shippingModeName.value,
+          cbm: finalCbm.value.toFixed(2)
+        })
+      } catch (e) {
+        console.warn('ChannelIO tracking error:', e)
+      }
+    }
+
+    showApplyModal.value = false
+    showSuccessModal.value = true
+  } catch (err) {
+    console.error('Supabase calculator estimate insert error:', err)
+    alert(`견적서 접수 중 오류가 발생했습니다: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
+  } finally {
+    isSubmittingApply.value = false
+  }
+}
 
 // ----------------------------------------------------
 // Settings & Rates State
