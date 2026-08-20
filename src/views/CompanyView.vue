@@ -104,7 +104,78 @@
         </div>
       </section>
 
-      <!-- Section 2: 회사개요 -->
+      <!-- Section 2: 연혁 및 비전 -->
+      <section id="history" class="scroll-mt-24">
+        <div class="text-center max-w-3xl mx-auto mb-12">
+          <h2 class="text-xs sm:text-sm font-bold tracking-widest text-blue-600 uppercase mb-1">History & Vision</h2>
+          <h3 class="text-2xl sm:text-3xl font-extrabold text-gray-900">
+            연혁 및 비전
+          </h3>
+          <p class="mt-2 text-sm sm:text-base text-gray-600">
+            2000년 창립 이래 20여 년간 한중 무역의 선두에서 고객과 함께 성장해 왔습니다.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+          <!-- 연혁 타임라인 카드 -->
+          <div class="bg-slate-50 rounded-3xl p-6 sm:p-8 border border-gray-100 shadow-sm space-y-6">
+            <h4 class="text-lg font-bold text-gray-900 flex items-center gap-2">
+              <i class="fas fa-clock-rotate-left text-blue-600"></i>
+              <span>주요 연혁 (History)</span>
+            </h4>
+            <div class="relative pl-6 border-l-2 border-blue-200 space-y-6">
+              <div class="relative">
+                <span class="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-blue-600 border-2 border-white shadow"></span>
+                <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">2022 ~ 현재</span>
+                <h5 class="text-sm font-bold text-gray-900 mt-1">EUC COMPANY 법인 전환 및 이커머스 풀필먼트(3PL) 확장</h5>
+                <p class="text-xs text-gray-600 mt-0.5">쿠팡 로켓그로스 납품 대행 및 스마트 실시간 물류 관제 시스템 도입</p>
+              </div>
+              <div class="relative">
+                <span class="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-blue-400 border-2 border-white shadow"></span>
+                <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">2015 ~ 2021</span>
+                <h5 class="text-sm font-bold text-gray-900 mt-1">중국 이우 본사 신사옥 확장 & 광저우/심천 지사 네트워크 구축</h5>
+                <p class="text-xs text-gray-600 mt-0.5">자체 검품 물류센터 운영 및 OEM/ODM 금형 제작 제조라인 연계</p>
+              </div>
+              <div class="relative">
+                <span class="absolute -left-[31px] top-1 w-4 h-4 rounded-full bg-blue-300 border-2 border-white shadow"></span>
+                <span class="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">2000. 05</span>
+                <h5 class="text-sm font-bold text-gray-900 mt-1">이유씨 무역 설립 (중국 현지 무역 거점 개설)</h5>
+                <p class="text-xs text-gray-600 mt-0.5">한국 도소매 바이어 대상 이우 푸텐시장 가이드 및 수출입 사입 대행 개시</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- 기업 비전 카드 -->
+          <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-6 sm:p-8 shadow-xl flex flex-col justify-between space-y-6">
+            <div>
+              <span class="text-xs font-bold text-blue-400 tracking-wider uppercase">Our Core Vision</span>
+              <h4 class="text-xl sm:text-2xl font-black text-white mt-1">
+                "가장 안전하고 신속한<br/><span class="text-sky-300">중국 무역 원스톱 파트너</span>"
+              </h4>
+              <p class="text-xs sm:text-sm text-slate-300 mt-3 leading-relaxed">
+                단순 구매대행을 넘어 철저한 현지 전수검품, 신속한 통관·물류, 안정적인 단가 경쟁력 확보로 고객사의 글로벌 경쟁력을 극대화합니다.
+              </p>
+            </div>
+            
+            <div class="grid grid-cols-3 gap-3 pt-4 border-t border-slate-700/60 text-center">
+              <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <span class="text-lg font-black text-blue-400 block">15년+</span>
+                <span class="text-[10px] text-slate-300 font-medium">현지 무역 경력</span>
+              </div>
+              <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <span class="text-lg font-black text-sky-400 block">10,000+</span>
+                <span class="text-[10px] text-slate-300 font-medium">누적 진행 프로젝트</span>
+              </div>
+              <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
+                <span class="text-lg font-black text-emerald-400 block">99.8%</span>
+                <span class="text-[10px] text-slate-300 font-medium">고객 만족도</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section 3: 회사개요 -->
       <section id="overview" class="scroll-mt-24">
         <div class="text-center max-w-3xl mx-auto mb-12">
           <h2 class="text-xs sm:text-sm font-bold tracking-widest text-blue-600 uppercase mb-1">Company Overview</h2>

@@ -119,9 +119,6 @@
               <router-link to="/company#history" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">연혁 및 비전</router-link>
               <router-link to="/company#overview" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">회사개요</router-link>
               <router-link to="/company#business" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">사업영역</router-link>
-              <router-link to="/company#photo" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">EUC 포토</router-link>
-              <div class="border-t border-gray-100 my-1"></div>
-              <router-link to="/company#partner" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">협력사 소개</router-link>
             </div>
           </div>
 
@@ -147,7 +144,6 @@
               <router-link to="/market#guangzhou" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">광저우 시장소개 (의류/패션)</router-link>
               <router-link to="/market#shenzhen" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">심천 시장소개 (화창베이 전자)</router-link>
               <div class="border-t border-gray-100 my-1"></div>
-              <a href="/#products" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">추천상품 1688 갤러리</a>
               <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 맞춤 상품조사 의뢰</a>
             </div>
           </div>
@@ -161,10 +157,10 @@
               <span>무역대행 신청</span>
               <i class="fas fa-chevron-right text-[10px] opacity-90 group-hover:translate-x-0.5 transition-transform"></i>
             </router-link>
-            <div class="absolute left-0 mt-1 w-52 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+            <div class="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <router-link to="/services/trade-agent#apply-form" class="block px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50">✍️ 무역대행 맞춤 견적 신청</router-link>
-              <router-link to="/services/trade-agent" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">무역대행(OEM/ODM) 안내</router-link>
-              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 실시간 무역 상담</a>
+              <div class="border-t border-gray-100 my-1"></div>
+              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
             </div>
           </div>
 
@@ -178,8 +174,7 @@
               <i class="fas fa-chevron-right text-[10px] opacity-90 group-hover:translate-x-0.5 transition-transform"></i>
             </router-link>
             <div class="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/services/purchasing-agent#apply-form" class="block px-4 py-2 text-sm font-bold text-amber-600 hover:bg-amber-50">📝 구매대행 주문서 신청</router-link>
-              <router-link to="/services/purchasing-agent" class="block px-4 py-2 text-sm text-gray-700 hover:bg-amber-50 hover:text-amber-600">중국 구매대행 안내</router-link>
+              <router-link to="/services/purchasing-agent#apply-form" class="block px-4 py-2 text-sm font-bold text-amber-600 hover:bg-amber-50">📝 구매대행 주문서/견적 작성</router-link>
               <div class="border-t border-gray-100 my-1"></div>
               <router-link to="/services/rocket-growth" class="block px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">🚀 쿠팡 로켓그로스 대행</router-link>
               <router-link to="/services/3pl-fulfillment" class="block px-4 py-2 text-sm font-semibold text-purple-600 hover:bg-purple-50">📦 3PL 풀필먼트 배송</router-link>
@@ -330,7 +325,6 @@
               <router-link @click="isMobileMenuOpen = false" to="/company#history" class="block py-1 hover:text-blue-600">연혁 및 비전</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/company#overview" class="block py-1 hover:text-blue-600">회사개요</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/company#business" class="block py-1 hover:text-blue-600">사업영역</router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/company#partner" class="block py-1 hover:text-blue-600">협력사 소개</router-link>
             </div>
           </div>
 
@@ -358,8 +352,7 @@
               <router-link @click="isMobileMenuOpen = false" to="/market#yiwu" class="block py-1 hover:text-blue-600">이우 시장소개 (푸텐시장)</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/market#guangzhou" class="block py-1 hover:text-blue-600">광저우 시장소개 (의류/패션)</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/market#shenzhen" class="block py-1 hover:text-blue-600">심천 시장소개 (화창베이 전자)</router-link>
-              <a @click="isMobileMenuOpen = false" href="/#products" class="block py-1 hover:text-blue-600">추천상품 리스트</a>
-              <a @click="isMobileMenuOpen = false" href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block py-1 hover:text-blue-600">상품조사 의뢰</a>
+              <a @click="isMobileMenuOpen = false" href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block py-1 hover:text-blue-600">1:1 맞춤 상품조사 의뢰</a>
             </div>
           </div>
 
@@ -389,14 +382,16 @@
               @click="toggleMobileSubmenu('agency')" 
               class="w-full flex justify-between items-center py-2.5 text-base font-semibold text-gray-800 hover:text-blue-600"
             >
-              <span>서비스 세부 안내 (무역/구매)</span>
+              <span>서비스 신청 & 세부 안내</span>
               <i :class="mobileSubmenu === 'agency' ? 'fas fa-chevron-up text-xs text-blue-600' : 'fas fa-chevron-down text-xs text-gray-400'"></i>
             </button>
             <div v-show="mobileSubmenu === 'agency'" class="pl-4 pb-2 space-y-1.5 text-sm text-gray-600">
-              <router-link @click="isMobileMenuOpen = false" to="/services/trade-agent" class="block py-1 hover:text-blue-600">무역대행 (OEM/ODM) 안내</router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/services/purchasing-agent" class="block py-1 hover:text-blue-600">중국 구매대행 안내</router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/services/rocket-growth" class="block py-1 text-red-600 font-semibold">🚀 쿠팡 로켓그로스 입고 대행</router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/services/3pl-fulfillment" class="block py-1 text-purple-600 font-semibold">📦 3PL 풀필먼트 배송대행</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/services/trade-agent#apply-form" class="block py-1 font-bold text-blue-600">✍️ 무역대행 맞춤 견적 신청</router-link>
+              <a @click="isMobileMenuOpen = false" href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block py-1 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
+              <div class="border-t border-gray-100 my-1"></div>
+              <router-link @click="isMobileMenuOpen = false" to="/services/purchasing-agent#apply-form" class="block py-1 font-bold text-amber-600">📝 구매대행 주문서/견적 작성</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/services/rocket-growth" class="block py-1 text-red-600 font-semibold">🚀 쿠팡 로켓그로스 대행</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/services/3pl-fulfillment" class="block py-1 text-purple-600 font-semibold">📦 3PL 풀필먼트 배송</router-link>
             </div>
           </div>
 
