@@ -36,7 +36,7 @@ export const userEmail = computed(() => {
 export const isLoggedIn = computed(() => Boolean(currentUser.value))
 
 /**
- * 사용자 역할(Role) 조회 함수
+ * 사용자 역할(Role) 조회 함수 (Supabase DB 및 Auth Metadata 검증)
  */
 export const checkUserRole = async (user) => {
   if (!user) {
@@ -44,47 +44,53 @@ export const checkUserRole = async (user) => {
     return 'user'
   }
 
-  // 1. user_metadata 또는 app_metadata에 role이 명시된 경우
-  const metaRole = user.user_metadata?.role || user.app_metadata?.role
-  if (metaRole && ['super_admin', 'staff', 'admin'].includes(metaRole)) {
-    userRole.value = metaRole === 'admin' ? 'super_admin' : metaRole
-    return userRole.value
-  }
-
-  // 2. Supabase user_roles 및 profiles 테이블 조회
+  // 1. Supabase user_roles 및 profiles 테이블 DB 실시간 조회
   try {
     if (isSupabaseConfigured()) {
-      // 2-1. user_roles 테이블 확인
+      // 1-1. user_roles 테이블 우선 조회
       const { data: roleData, error: roleError } = await supabase
         .from('user_roles')
         .select('role')
         .or(`user_id.eq.${user.id},email.eq.${user.email}`)
         .maybeSingle()
 
-      if (!roleError && roleData?.role) {
-        userRole.value = roleData.role
-        return roleData.role
+      if (!roleError && roleData?.role && ['super_admin', 'staff', 'admin'].includes(roleData.role)) {
+        userRole.value = roleData.role === 'admin' ? 'super_admin' : roleData.role
+        return userRole.value
       }
 
-      // 2-2. profiles 테이블 확인
+      // 1-2. profiles 테이블 조회
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('role')
         .eq('id', user.id)
         .maybeSingle()
 
-      if (!profileError && profileData?.role) {
-        userRole.value = profileData.role
-        return profileData.role
+      if (!profileError && profileData?.role && ['super_admin', 'staff', 'admin'].includes(profileData.role)) {
+        userRole.value = profileData.role === 'admin' ? 'super_admin' : profileData.role
+        return userRole.value
       }
     }
   } catch (err) {
-    console.warn('roles / profiles lookup notice:', err)
+    console.warn('roles / profiles DB lookup notice:', err)
   }
 
-  // 3. Fallback: 관리자 이메일 패턴 또는 기본 user
-  const emailLower = (user.email || '').toLowerCase()
-  if (emailLower.includes('admin') || emailLower.startsWith('master@') || emailLower.startsWith('euc_admin@')) {
+  // 2. Auth metadata (app_metadata 또는 user_metadata) 확인
+  const metaRole = user.app_metadata?.role || user.user_metadata?.role
+  if (metaRole && ['super_admin', 'staff', 'admin'].includes(metaRole)) {
+    userRole.value = metaRole === 'admin' ? 'super_admin' : metaRole
+    return userRole.value
+  }
+
+  // 3. 관리자 지정 이메일 Whitelist 확인
+  const emailLower = (user.email || '').toLowerCase().trim()
+  const ADMIN_EMAILS = [
+    'admin@euccompany.com',
+    'master@euccompany.com',
+    'euc_admin@euccompany.com',
+    'elliezo21@gmail.com'
+  ]
+  if (ADMIN_EMAILS.includes(emailLower)) {
     userRole.value = 'super_admin'
     return 'super_admin'
   }

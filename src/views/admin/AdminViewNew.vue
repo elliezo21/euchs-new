@@ -1,5 +1,11 @@
 <template>
-  <div class="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20 selection:bg-blue-600 selection:text-white">
+  <!-- Loading state during authentication check -->
+  <div v-if="isCheckingAuth" class="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white space-y-4">
+    <div class="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    <div class="text-sm font-semibold tracking-wide text-slate-300">관리자 인증 및 권한 확인 중...</div>
+  </div>
+
+  <div v-else-if="isAuthorized" class="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20 selection:bg-blue-600 selection:text-white">
     
     <!-- Top Navigation / Header -->
     <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-30 backdrop-blur-md">
@@ -1168,9 +1174,46 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, isSupabaseConfigured } from '../../lib/supabase'
 import { fetchSiteSettings, saveSiteSettings, DEFAULT_SETTINGS } from '../../lib/settings'
-import { currentUser, userRole, isSuperAdmin, signOut } from '../../lib/auth'
+import { currentUser, userRole, checkUserRole, isSuperAdmin, signOut } from '../../lib/auth'
 
 const router = useRouter()
+
+// Auth Guard States
+const isCheckingAuth = ref(true)
+const isAuthorized = ref(false)
+
+const verifyAdminAccess = async () => {
+  isCheckingAuth.value = true
+  try {
+    let user = currentUser.value
+    if (!user && isSupabaseConfigured()) {
+      const { data: { session } } = await supabase.auth.getSession()
+      user = session?.user || null
+      if (user) currentUser.value = user
+    }
+
+    if (!user) {
+      router.replace('/login')
+      return false
+    }
+
+    const role = await checkUserRole(user)
+    if (!['super_admin', 'staff', 'admin'].includes(role)) {
+      alert('관리자 권한(Admin/Staff)이 필요한 페이지입니다.')
+      router.replace('/login')
+      return false
+    }
+
+    isAuthorized.value = true
+    return true
+  } catch (err) {
+    console.error('Admin component auth verification error:', err)
+    router.replace('/login')
+    return false
+  } finally {
+    isCheckingAuth.value = false
+  }
+}
 
 // Active Tab ('applications' | 'notices' | 'settings' | 'staff')
 const activeTab = ref('applications')
@@ -1178,7 +1221,7 @@ const activeTab = ref('applications')
 const handleAdminLogout = async () => {
   if (confirm('관리자 콘솔에서 로그아웃하시겠습니까?')) {
     await signOut()
-    router.push('/admin/login')
+    router.replace('/login')
   }
 }
 
@@ -1798,11 +1841,14 @@ const formatDateTime = (dateStr) => {
   })
 }
 
-onMounted(() => {
-  fetchApplications()
-  fetchNotices()
-  loadSettings()
-  fetchLiveRefRate()
-  fetchStaffList()
+onMounted(async () => {
+  const allowed = await verifyAdminAccess()
+  if (allowed) {
+    fetchApplications()
+    fetchNotices()
+    loadSettings()
+    fetchLiveRefRate()
+    fetchStaffList()
+  }
 })
 </script>

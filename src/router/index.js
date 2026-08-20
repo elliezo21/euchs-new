@@ -14,7 +14,7 @@ import AdminView from '../views/admin/AdminViewNew.vue'
 import AdminLoginView from '../views/admin/AdminLoginView.vue'
 import CalculatorView from '../views/tools/CalculatorView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
-import { currentUser, userRole, checkUserRole, isAuthLoading } from '../lib/auth'
+import { currentUser, checkUserRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 const routes = [
@@ -88,6 +88,11 @@ const routes = [
     component: CalculatorView,
   },
   {
+    path: '/login',
+    name: 'login',
+    component: AdminLoginView,
+  },
+  {
     path: '/admin/login',
     name: 'admin-login',
     component: AdminLoginView,
@@ -95,6 +100,12 @@ const routes = [
   {
     path: '/admin',
     name: 'admin',
+    component: AdminView,
+    meta: { requiresAdmin: true }
+  },
+  {
+    path: '/admin/:pathMatch(.*)*',
+    name: 'admin-all',
     component: AdminView,
     meta: { requiresAdmin: true }
   },
@@ -118,45 +129,83 @@ const router = createRouter({
   }
 })
 
-// Navigation Guard: 관리자 및 직원 권한 검증
+// Navigation Guard: 관리자 및 직원 권한 철저 검증 (Route Protection)
 router.beforeEach(async (to, from, next) => {
-  if (to.meta.requiresAdmin) {
-    // 1. Supabase 설정 확인
-    if (!isSupabaseConfigured()) {
-      next()
-      return
-    }
+  const isAdminRoute = to.matched.some(record => record.meta?.requiresAdmin) ||
+                       to.path === '/admin' ||
+                       to.path.startsWith('/admin/')
+  const isLoginPage = to.path === '/login' || to.path === '/admin/login'
 
-    // 2. 현재 로그인된 유저 세션 확인
+  // 1. 로그인 페이지 접속 시: 이미 관리자로 로그인되어 있으면 /admin으로 이동
+  if (isLoginPage) {
     let user = currentUser.value
-    if (!user) {
-      const { data: { session } } = await supabase.auth.getSession()
-      user = session?.user || null
-      currentUser.value = user
+    if (!user && isSupabaseConfigured()) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        user = session?.user || null
+        if (user) currentUser.value = user
+      } catch (err) {
+        console.warn('Session retrieval notice:', err)
+      }
+    }
+    if (user) {
+      const role = await checkUserRole(user)
+      if (['super_admin', 'staff', 'admin'].includes(role)) {
+        next('/admin')
+        return
+      }
+    }
+    next()
+    return
+  }
+
+  // 2. 관리자 경로 접근 보호 (/admin 및 하위 경로 전체)
+  if (isAdminRoute) {
+    // 2-1. Supabase 세션 사용자 조회
+    let user = currentUser.value
+    if (!user && isSupabaseConfigured()) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        user = session?.user || null
+        if (user) currentUser.value = user
+      } catch (err) {
+        console.error('Session retrieval error in guard:', err)
+      }
     }
 
+    // 2-2. 비로그인 상태인 경우 즉시 /login 으로 리다이렉트
     if (!user) {
       next({
-        path: '/admin/login',
+        path: '/login',
         query: { redirect: to.fullPath }
       })
       return
     }
 
-    // 3. 권한(Role) 확인
-    const role = await checkUserRole(user)
-    if (['super_admin', 'staff', 'admin'].includes(role)) {
-      next()
-    } else {
-      alert('관리자 또는 직원 권한(Admin/Staff)이 부여되지 않은 계정입니다.')
+    // 2-3. Supabase DB Role 검증 (admin / super_admin / staff)
+    try {
+      const role = await checkUserRole(user)
+      if (['super_admin', 'staff', 'admin'].includes(role)) {
+        next()
+      } else {
+        alert('관리자 또는 직원 권한(Admin/Staff)이 부여되지 않은 계정입니다.')
+        next({
+          path: '/login',
+          query: { redirect: to.fullPath }
+        })
+      }
+    } catch (err) {
+      console.error('Role verification exception:', err)
       next({
-        path: '/admin/login',
+        path: '/login',
         query: { redirect: to.fullPath }
       })
     }
-  } else {
-    next()
+    return
   }
+
+  // 일반 공개 라우트 통과
+  next()
 })
 
 export default router
