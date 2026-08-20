@@ -161,11 +161,6 @@ export const closeLoginModal = () => {
  */
 export const signInWithGoogle = async () => {
   try {
-    if (!isSupabaseConfigured()) {
-      alert('Supabase 연동 설정이 필요합니다. 관리자에게 문의하거나 .env 설정을 확인해 주세요.')
-      return
-    }
-
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
@@ -174,12 +169,12 @@ export const signInWithGoogle = async () => {
     })
 
     if (error) {
-      console.error('Google OAuth Error:', error)
-      alert(`구글 로그인 오류: ${error.message}`)
+      console.warn('Google OAuth Provider notice:', error)
+      alert('현재 구글 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
     }
   } catch (err) {
-    console.error('Google Login Exception:', err)
-    alert('구글 로그인을 시작할 수 없습니다. 잠시 후 다시 시도해 주세요.')
+    console.warn('Google Login Exception:', err)
+    alert('현재 구글 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
   }
 }
 
@@ -188,11 +183,6 @@ export const signInWithGoogle = async () => {
  */
 export const signInWithKakao = async () => {
   try {
-    if (!isSupabaseConfigured()) {
-      alert('카카오 간편 로그인은 현재 준비 중입니다.\n구글 계정으로 즉시 로그인하실 수 있습니다.')
-      return
-    }
-
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'kakao',
       options: {
@@ -202,11 +192,11 @@ export const signInWithKakao = async () => {
 
     if (error) {
       console.warn('Kakao OAuth not enabled in Supabase:', error)
-      alert('카카오 간편 로그인은 관리자 설정 진행 중입니다.\n구글 계정으로 바로 로그인해 주세요.')
+      alert('현재 카카오 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
     }
   } catch (err) {
     console.warn('Kakao Login Exception:', err)
-    alert('카카오 간편 로그인은 현재 준비 중입니다.\n구글 계정으로 바로 로그인해 주세요.')
+    alert('현재 카카오 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
   }
 }
 
@@ -214,28 +204,26 @@ export const signInWithKakao = async () => {
  * Naver OAuth2 로그인 실행
  */
 export const signInWithNaver = () => {
-  const clientId = import.meta.env.VITE_NAVER_CLIENT_ID || ''
-  const redirectUri = import.meta.env.VITE_NAVER_REDIRECT_URI || `${window.location.origin}/auth/callback/naver`
+  try {
+    const clientId = import.meta.env.VITE_NAVER_CLIENT_ID || 'UnBL7sON2_LO_noLE03c'
+    const redirectUri = import.meta.env.VITE_NAVER_REDIRECT_URI || `${window.location.origin}/auth/callback/naver`
 
-  if (!clientId || clientId === '여기에_네이버_CLIENT_ID') {
-    alert(
-      '[네이버 로그인 안내]\n' +
-      '네이버 Developers에 앱을 등록하고 발급받은 Client ID를 .env 파일에 설정해 주세요.\n\n' +
-      '설정 항목:\n' +
-      '1. VITE_NAVER_CLIENT_ID=네이버_클라이언트_아이디\n' +
-      '2. VITE_NAVER_REDIRECT_URI=' + redirectUri + '\n\n' +
-      '※ 현재는 구글 계정으로 즉시 로그인하실 수 있습니다.'
-    )
-    return
+    if (!clientId || clientId === '여기에_네이버_CLIENT_ID') {
+      alert('현재 네이버 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
+      return
+    }
+
+    // CSRF 방지용 랜덤 state 생성 및 저장
+    const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
+    sessionStorage.setItem('naver_oauth_state', state)
+
+    const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`
+
+    window.location.href = naverAuthUrl
+  } catch (err) {
+    console.warn('Naver Login Exception:', err)
+    alert('현재 네이버 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
   }
-
-  // CSRF 방지용 랜덤 state 생성 및 저장
-  const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-  sessionStorage.setItem('naver_oauth_state', state)
-
-  const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`
-
-  window.location.href = naverAuthUrl
 }
 
 /**
@@ -401,11 +389,17 @@ export const signInWithEmail = async (email, password) => {
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: (email || '').trim(),
     password
   })
 
   if (error) {
+    if (error.message?.includes('Invalid login credentials')) {
+      throw new Error('아이디(이메일) 또는 비밀번호가 일치하지 않습니다.')
+    }
+    if (error.message?.includes('Email not confirmed')) {
+      throw new Error('이메일 인증이 완료되지 않은 계정입니다. 이메일을 확인해 주세요.')
+    }
     throw error
   }
 
@@ -417,22 +411,30 @@ export const signInWithEmail = async (email, password) => {
 /**
  * 이메일 / 비밀번호 회원가입
  */
-export const signUpWithEmail = async (email, password, name = '') => {
+export const signUpWithEmail = async (email, password, name = '', phone = '') => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase 설정이 필요합니다.')
   }
 
   const { data, error } = await supabase.auth.signUp({
-    email,
+    email: (email || '').trim(),
     password,
     options: {
       data: {
-        full_name: name
+        full_name: (name || '').trim(),
+        name: (name || '').trim(),
+        phone: (phone || '').trim()
       }
     }
   })
 
   if (error) {
+    if (error.message?.includes('already registered') || error.message?.includes('User already registered')) {
+      throw new Error('이미 등록된 이메일 계정입니다. 로그인을 진행해 주세요.')
+    }
+    if (error.message?.includes('Password should be at least')) {
+      throw new Error('비밀번호는 최소 6자 이상이어야 합니다.')
+    }
     throw error
   }
 
@@ -447,7 +449,7 @@ export const resetPasswordForEmail = async (email) => {
     throw new Error('Supabase 설정이 필요합니다.')
   }
 
-  const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+  const { data, error } = await supabase.auth.resetPasswordForEmail((email || '').trim(), {
     redirectTo: `${window.location.origin}/reset-password`
   })
 

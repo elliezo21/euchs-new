@@ -43,17 +43,17 @@
       </div>
 
       <!-- Login Form -->
-      <form @submit.prevent="handleAdminLogin" class="space-y-4">
+      <form @submit.prevent="handleAdminLogin" class="space-y-4" autocomplete="on">
         
         <!-- Email Input -->
         <div class="space-y-1.5">
           <label class="block text-xs font-bold text-slate-300">관리자 이메일 계정</label>
           <div class="relative">
             <input 
-              v-model="loginForm.email"
+              v-model.trim="loginForm.email"
               type="email" 
               required
-              autocomplete="email"
+              autocomplete="username"
               placeholder="admin@euccompany.com"
               class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm text-white placeholder-slate-600 outline-none transition"
             />
@@ -69,7 +69,7 @@
           <div class="relative">
             <input 
               v-model="loginForm.password"
-              :type="showPassword ? 'text' : 'password'"
+              :type="showPassword ? 'text' : 'password'" 
               required
               autocomplete="current-password"
               placeholder="••••••••"
@@ -125,7 +125,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { adminSignIn } from '@/lib/auth'
 
@@ -140,6 +140,15 @@ const loginForm = ref({
 const showPassword = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
+
+onMounted(() => {
+  loginForm.value = {
+    email: '',
+    password: ''
+  }
+  showPassword.value = false
+  errorMessage.value = ''
+})
 
 const handleAdminLogin = async () => {
   if (!loginForm.value.email || !loginForm.value.password) return

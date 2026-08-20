@@ -45,7 +45,7 @@
           <!-- 1. LOGIN MODE FORM -->
           <!-- ============================================ -->
           <div v-if="loginModalMode === 'login'" class="space-y-4">
-            <form @submit.prevent="handleEmailLogin" class="space-y-3">
+            <form @submit.prevent="handleEmailLogin" class="space-y-3" autocomplete="on">
               <!-- Email / ID Input -->
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">아이디 / 이메일</label>
@@ -57,6 +57,7 @@
                     v-model.trim="loginForm.email"
                     type="email" 
                     required
+                    autocomplete="username"
                     placeholder="example@euchs.com" 
                     class="w-full pl-10 pr-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                   />
@@ -74,6 +75,7 @@
                     v-model="loginForm.password"
                     :type="showPassword ? 'text' : 'password'" 
                     required
+                    autocomplete="current-password"
                     placeholder="비밀번호를 입력하세요" 
                     class="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                   />
@@ -103,7 +105,7 @@
             <!-- Bottom Links: 비밀번호 찾기 | 회원가입 -->
             <div class="flex items-center justify-center gap-3 text-xs text-slate-500 pt-1">
               <button 
-                type="button"
+                type="button" 
                 @click="loginModalMode = 'forgot'"
                 class="hover:text-blue-600 transition"
               >
@@ -111,7 +113,7 @@
               </button>
               <span class="text-slate-300">|</span>
               <button 
-                type="button"
+                type="button" 
                 @click="loginModalMode = 'signup'"
                 class="hover:text-blue-600 font-bold text-slate-700 transition"
               >
@@ -175,13 +177,14 @@
           <!-- 2. SIGNUP MODE FORM -->
           <!-- ============================================ -->
           <div v-else-if="loginModalMode === 'signup'" class="space-y-4">
-            <form @submit.prevent="handleEmailSignup" class="space-y-3">
+            <form @submit.prevent="handleEmailSignup" class="space-y-3" autocomplete="off">
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">성명 / 닉네임</label>
                 <input 
                   v-model.trim="signupForm.name"
                   type="text" 
                   required
+                  autocomplete="off"
                   placeholder="홍길동" 
                   class="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                 />
@@ -193,19 +196,54 @@
                   v-model.trim="signupForm.email"
                   type="email" 
                   required
+                  autocomplete="off"
                   placeholder="example@euchs.com" 
                   class="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                 />
               </div>
 
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 (6자 이상)</label>
+                <label class="block text-xs font-bold text-slate-700 mb-1">연락처 (휴대폰 번호)</label>
                 <input 
-                  v-model="signupForm.password"
+                  v-model.trim="signupForm.phone"
+                  type="tel" 
+                  autocomplete="off"
+                  placeholder="010-1234-5678" 
+                  class="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
+                />
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 (6자 이상)</label>
+                <div class="relative">
+                  <input 
+                    v-model="signupForm.password"
+                    :type="showSignupPassword ? 'text' : 'password'" 
+                    required
+                    minlength="6"
+                    autocomplete="new-password"
+                    placeholder="비밀번호 설정 (6자 이상)" 
+                    class="w-full pl-3.5 pr-10 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
+                  />
+                  <button 
+                    type="button" 
+                    @click="showSignupPassword = !showSignupPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1"
+                  >
+                    <i :class="showSignupPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 확인</label>
+                <input 
+                  v-model="signupForm.passwordConfirm"
                   type="password" 
                   required
                   minlength="6"
-                  placeholder="비밀번호 설정" 
+                  autocomplete="new-password"
+                  placeholder="비밀번호를 한 번 더 입력하세요" 
                   class="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                 />
               </div>
@@ -240,13 +278,14 @@
             <p class="text-xs text-slate-600 leading-relaxed">
               가입하신 이메일 주소를 입력하시면 비밀번호 재설정 링크를 보내드립니다.
             </p>
-            <form @submit.prevent="handleForgotPassword" class="space-y-3">
+            <form @submit.prevent="handleForgotPassword" class="space-y-3" autocomplete="off">
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">이메일 주소</label>
                 <input 
                   v-model.trim="forgotEmail"
                   type="email" 
                   required
+                  autocomplete="off"
                   placeholder="example@euchs.com" 
                   class="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                 />
@@ -282,7 +321,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import {
   isLoginModalOpen,
   loginModalMode,
@@ -297,6 +336,7 @@ import {
 
 const isLoading = ref(false)
 const showPassword = ref(false)
+const showSignupPassword = ref(false)
 const forgotEmail = ref('')
 
 const loginForm = ref({
@@ -307,13 +347,46 @@ const loginForm = ref({
 const signupForm = ref({
   name: '',
   email: '',
-  password: ''
+  phone: '',
+  password: '',
+  passwordConfirm: ''
 })
 
 const modalTitle = computed(() => {
   if (loginModalMode.value === 'signup') return '회원가입'
   if (loginModalMode.value === 'forgot') return '비밀번호 찾기'
   return '로그인'
+})
+
+const resetAllForms = () => {
+  loginForm.value = {
+    email: '',
+    password: ''
+  }
+  signupForm.value = {
+    name: '',
+    email: '',
+    phone: '',
+    password: '',
+    passwordConfirm: ''
+  }
+  forgotEmail.value = ''
+  showPassword.value = false
+  showSignupPassword.value = false
+}
+
+watch(isLoginModalOpen, (isOpen) => {
+  if (isOpen) {
+    resetAllForms()
+  }
+})
+
+watch(loginModalMode, () => {
+  resetAllForms()
+})
+
+onMounted(() => {
+  resetAllForms()
 })
 
 const handleGoogleLogin = async () => {
@@ -325,7 +398,7 @@ const handleKakaoLogin = async () => {
 }
 
 const handleNaverLogin = async () => {
-  await signInWithNaver()
+  signInWithNaver()
 }
 
 const handleEmailLogin = async () => {
@@ -334,7 +407,7 @@ const handleEmailLogin = async () => {
   try {
     await signInWithEmail(loginForm.value.email, loginForm.value.password)
     alert('성공적으로 로그인되었습니다.')
-    loginForm.value = { email: '', password: '' }
+    resetAllForms()
   } catch (err) {
     console.error('Email login error:', err)
     alert(`로그인 실패: ${err.message || '아이디 또는 비밀번호를 확인해 주세요.'}`)
@@ -344,13 +417,32 @@ const handleEmailLogin = async () => {
 }
 
 const handleEmailSignup = async () => {
-  if (!signupForm.value.email || !signupForm.value.password) return
+  if (!signupForm.value.name || !signupForm.value.email || !signupForm.value.password) {
+    alert('성명, 이메일, 비밀번호를 모두 입력해 주세요.')
+    return
+  }
+
+  if (signupForm.value.password.length < 6) {
+    alert('비밀번호는 최소 6자 이상이어야 합니다.')
+    return
+  }
+
+  if (signupForm.value.password !== signupForm.value.passwordConfirm) {
+    alert('비밀번호와 비밀번호 확인이 일치하지 않습니다. 다시 확인해 주세요.')
+    return
+  }
+
   isLoading.value = true
   try {
-    await signUpWithEmail(signupForm.value.email, signupForm.value.password, signupForm.value.name)
+    await signUpWithEmail(
+      signupForm.value.email,
+      signupForm.value.password,
+      signupForm.value.name,
+      signupForm.value.phone
+    )
     alert('회원가입 신청이 완료되었습니다! 이메일 인증 후 로그인하실 수 있습니다.')
     loginModalMode.value = 'login'
-    signupForm.value = { name: '', email: '', password: '' }
+    resetAllForms()
   } catch (err) {
     console.error('Email signup error:', err)
     alert(`회원가입 실패: ${err.message || '입력 정보를 다시 확인해 주세요.'}`)
