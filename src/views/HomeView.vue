@@ -697,13 +697,14 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
 // Real-Time Rates & Settings & Hero Media
 // ----------------------------------------------------
 const liveRate = ref(null)
-const customRate = ref('195.00')
+const customRate = ref('230')
 const rateMode = ref('manual')
 const rateMargin = ref(1.5)
 const agencyFeeRate = ref(8)
 const seaCbmRate = ref(98000)
 const customsClearanceFee = ref(33000)
 const ftaCoFee = ref(33000)
+const isVideoLoaded = ref(false)
 const selectedNotice = ref(null)
 
 // Hero Media State & Ref
@@ -727,39 +728,10 @@ const heroYoutubeEmbedUrl = computed(() => {
   return `https://www.youtube-nocookie.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&playsinline=1`
 })
 
-const rateModeDesc = computed(() => {
-  if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
-    return `(실시간 + ${rateMargin.value}원 마진)`
-  }
-  return `(공식 고정 환율)`
-})
-
 // ----------------------------------------------------
 // Notices Feed State
 // ----------------------------------------------------
-const noticesList = ref([
-  {
-    id: 1,
-    date: '2026.04',
-    badge: '공지',
-    title: '2026년 중국 노동절/국경절 연휴에 따른 출고 마감 일정 안내',
-    summary: '중국 현지 세관 및 물류 배송사 휴무에 따른 안전 출고 일정'
-  },
-  {
-    id: 2,
-    date: '2026.04',
-    badge: '투어',
-    title: '이유씨컴퍼니 중국 이우(푸텐) 도매시장 정기 투어 모집',
-    summary: '이우 및 광저우 도매시장 1:1 전담 동행 및 맞춤 사입 조사 일정'
-  },
-  {
-    id: 3,
-    date: '2026.04',
-    badge: '물류',
-    title: '봄 시즌 신규 사업자 대상 LCL 콘솔 운임 및 통관 지원 프로모션',
-    summary: '신규 사업자 회원 대상 특송 운임 및 한중 FTA C/O 발급 지원'
-  }
-])
+const noticesList = ref([])
 
 const fetchNoticesFeed = async () => {
   try {
@@ -780,7 +752,7 @@ const fetchNoticesFeed = async () => {
 }
 
 const fetchLiveRateAndSettings = async () => {
-  let liveNum = 195.0
+  let liveNum = 230.0
   try {
     const res = await fetch('https://open.er-api.com/v6/latest/CNY')
     if (res.ok) {
@@ -792,7 +764,7 @@ const fetchLiveRateAndSettings = async () => {
     }
   } catch (err) {
     console.warn('Live rate API fetch fallback:', err)
-    liveRate.value = '195.50'
+    liveRate.value = '230.00'
   }
 
   try {
@@ -816,10 +788,10 @@ const fetchLiveRateAndSettings = async () => {
 
       if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
         const calculated = Number((liveNum + rateMargin.value).toFixed(2))
-        customRate.value = calculated.toFixed(2)
+        customRate.value = String(calculated)
       } else {
-        const fixed = Number(settings.exchange_rate) || 195.0
-        customRate.value = fixed.toFixed(2)
+        const fixed = Number(settings.exchange_rate) || 230
+        customRate.value = String(fixed)
       }
     }
   } catch (e) {
@@ -843,7 +815,7 @@ const miniRmb = ref(5000)
 const miniCbm = ref(1.0)
 const miniShipping = ref('sea_lcl')
 
-const currentRateNum = computed(() => Number(customRate.value) || 195.0)
+const currentRateNum = computed(() => Number(customRate.value) || 230)
 
 const miniProductKrw = computed(() => {
   return Math.round((Number(miniRmb.value) || 0) * currentRateNum.value)

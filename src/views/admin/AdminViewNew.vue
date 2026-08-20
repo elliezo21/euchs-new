@@ -2049,10 +2049,10 @@ const resetNoticeForm = () => {
 // ----------------------------------------------------
 const settingsForm = ref({ ...DEFAULT_SETTINGS })
 const isSavingSettings = ref(false)
-const liveRefRate = ref(195.0)
+const liveRefRate = ref(230.0)
 
 const calculatedAutoRate = computed(() => {
-  const base = Number(liveRefRate.value) || 195.0
+  const base = Number(liveRefRate.value) || 230.0
   const margin = Number(settingsForm.value.rate_margin) || 0
   return Number((base + margin).toFixed(2))
 })

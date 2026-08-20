@@ -4,7 +4,7 @@ import { supabase, isSupabaseConfigured } from './supabase'
 export const DEFAULT_SETTINGS = {
   id: 'default',
   exchange_rate_mode: 'manual', // 'manual' | 'auto_margin'
-  exchange_rate: 195.0,
+  exchange_rate: 230.0,
   rate_margin: 1.5,
   agency_fee_rate: 8.0,
   sea_cbm_rate: 98000,
@@ -38,7 +38,8 @@ export const fetchSiteSettings = async () => {
         currentSettings.value = {
           ...DEFAULT_SETTINGS,
           ...data,
-          exchange_rate: Number(data.exchange_rate) || DEFAULT_SETTINGS.exchange_rate,
+          exchange_rate: Number(data.exchange_rate) || Number(data.custom_exchange_rate) || DEFAULT_SETTINGS.exchange_rate,
+          exchange_rate_mode: data.exchange_rate_mode || 'manual',
           agency_fee_rate: Number(data.agency_fee_rate) || DEFAULT_SETTINGS.agency_fee_rate,
           sea_cbm_rate: Number(data.sea_cbm_rate) || DEFAULT_SETTINGS.sea_cbm_rate,
           customs_clearance_fee: Number(data.customs_clearance_fee) || DEFAULT_SETTINGS.customs_clearance_fee,
@@ -70,7 +71,7 @@ export const saveSiteSettings = async (settings) => {
   const payload = {
     id: 'default',
     exchange_rate_mode: settings.exchange_rate_mode || 'manual',
-    exchange_rate: Number(settings.exchange_rate) || 195.0,
+    exchange_rate: Number(settings.exchange_rate) || 230.0,
     rate_margin: Number(settings.rate_margin) || 1.5,
     agency_fee_rate: Number(settings.agency_fee_rate) || 8.0,
     sea_cbm_rate: Number(settings.sea_cbm_rate) || 98000,

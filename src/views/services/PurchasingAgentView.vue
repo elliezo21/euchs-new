@@ -547,7 +547,7 @@ import { currentUser } from '@/lib/auth'
 const isSubmitting = ref(false)
 const showModal = ref(false)
 
-const exchangeRate = ref(195) // 기본 고시환율
+const exchangeRate = ref(230) // 기본 고시환율
 const feeRate = ref(8) // 구매대행 수수료율 8%
 
 const form = ref({
@@ -593,7 +593,7 @@ const totalCny = computed(() => {
 })
 
 const totalKrw = computed(() => {
-  return Math.round(totalCny.value * (Number(exchangeRate.value) || 195))
+  return Math.round(totalCny.value * (Number(exchangeRate.value) || 230))
 })
 
 const agencyFee = computed(() => {
@@ -625,7 +625,19 @@ onMounted(async () => {
   try {
     const settings = await fetchSiteSettings()
     if (settings) {
-      if (settings.exchange_rate) exchangeRate.value = Number(settings.exchange_rate)
+      if (settings.exchange_rate_mode === 'auto_margin') {
+        let liveNum = 230
+        try {
+          const res = await fetch('https://open.er-api.com/v6/latest/CNY')
+          if (res.ok) {
+            const d = await res.json()
+            if (d?.rates?.KRW) liveNum = d.rates.KRW
+          }
+        } catch (e) {}
+        exchangeRate.value = Number((liveNum + (Number(settings.rate_margin) || 1.5)).toFixed(1))
+      } else {
+        exchangeRate.value = Number(settings.exchange_rate) || 230
+      }
       if (settings.agency_fee_rate) feeRate.value = Number(settings.agency_fee_rate)
     }
   } catch (e) {

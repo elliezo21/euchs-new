@@ -207,7 +207,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchSiteSettings } from '@/lib/settings'
 
 const liveRate = ref(null)
-const customRate = ref('195.00')
+const customRate = ref('230')
 const rateMode = ref('manual')
 const rateMargin = ref(1.5)
 
@@ -237,7 +237,7 @@ const notices = [
 ]
 
 const fetchExchangeRate = async () => {
-  let liveNum = 195.0
+  let liveNum = 230.0
   try {
     const res = await fetch('https://open.er-api.com/v6/latest/CNY')
     if (!res.ok) throw new Error('환율 API 호출 실패')
@@ -248,8 +248,8 @@ const fetchExchangeRate = async () => {
     }
   } catch (err) {
     console.error('환율 조회 에러:', err)
-    liveRate.value = '195.50' // fallback
-    liveNum = 195.5
+    liveRate.value = '230.00' // fallback
+    liveNum = 230.0
   }
 
   // 관리자 설정 환율 불러오기 및 모드별 분기 적용
@@ -262,11 +262,11 @@ const fetchExchangeRate = async () => {
       if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
         // 실시간 + 마진
         const calculated = Number((liveNum + rateMargin.value).toFixed(2))
-        customRate.value = calculated.toFixed(2)
+        customRate.value = String(calculated)
       } else {
         // 수동 고정 환율
-        const fixed = Number(settings.exchange_rate) || 195.0
-        customRate.value = fixed.toFixed(2)
+        const fixed = Number(settings.exchange_rate) || 230
+        customRate.value = String(fixed)
       }
     }
   } catch (e) {

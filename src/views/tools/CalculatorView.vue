@@ -796,14 +796,14 @@ const submitEstimateApplication = async () => {
 // Settings & Rates State
 // ----------------------------------------------------
 const exchangeRateMode = ref('manual')
-const customExchangeRate = ref(195.0)
+const customExchangeRate = ref(230)
 const rateMargin = ref(1.5)
 const agencyFeePercent = ref(8.0)
 const seaCbmRate = ref(98000)
 const customsClearanceFee = ref(33000)
 const ftaCoFee = ref(33000)
 
-const liveMarketRate = ref(195.0)
+const liveMarketRate = ref(230.0)
 const isFetchingRate = ref(false)
 const isCopied = ref(false)
 
@@ -820,7 +820,7 @@ const reloadSettingsAndRates = async () => {
   isFetchingRate.value = true
   try {
     // 1. 실시간 시장 환율 참고치 로드
-    let fetchedLiveRate = 195.0
+    let fetchedLiveRate = 230.0
     try {
       const res = await fetch('https://open.er-api.com/v6/latest/CNY')
       if (res.ok) {
@@ -851,7 +851,7 @@ const reloadSettingsAndRates = async () => {
         customExchangeRate.value = calculatedRate
       } else {
         // 수동 고정 환율
-        customExchangeRate.value = Number(settings.exchange_rate) || DEFAULT_SETTINGS.exchange_rate
+        customExchangeRate.value = Number(settings.exchange_rate) || 230
       }
     }
   } catch (err) {
@@ -928,7 +928,7 @@ const chargedWeightDesc = computed(() => {
 // 2. 순수 제품 금액 (KRW)
 const calculatedProductKrw = computed(() => {
   const rmb = Number(inputPriceRmb.value) || 0
-  const rate = Number(customExchangeRate.value) || 195.0
+  const rate = Number(customExchangeRate.value) || 230
   return Math.round(rmb * rate)
 })
 
