@@ -45,7 +45,11 @@
           <!-- 1. LOGIN MODE FORM -->
           <!-- ============================================ -->
           <div v-if="loginModalMode === 'login'" class="space-y-4">
-            <form @submit.prevent="handleEmailLogin" class="space-y-3" autocomplete="on">
+            <form @submit.prevent="handleEmailLogin" class="space-y-3" autocomplete="off">
+              <!-- Hidden dummy inputs to trick browser autofill -->
+              <input type="text" style="display:none" aria-hidden="true" autocomplete="off" />
+              <input type="password" style="display:none" aria-hidden="true" autocomplete="new-password" />
+
               <!-- Email / ID Input -->
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">아이디 / 이메일</label>
@@ -57,7 +61,7 @@
                     v-model.trim="loginForm.email"
                     type="email" 
                     required
-                    autocomplete="username"
+                    autocomplete="new-password"
                     placeholder="example@euchs.com" 
                     class="w-full pl-10 pr-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                   />
@@ -75,7 +79,7 @@
                     v-model="loginForm.password"
                     :type="showPassword ? 'text' : 'password'" 
                     required
-                    autocomplete="current-password"
+                    autocomplete="new-password"
                     placeholder="비밀번호를 입력하세요" 
                     class="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                   />
@@ -178,6 +182,10 @@
           <!-- ============================================ -->
           <div v-else-if="loginModalMode === 'signup'" class="space-y-4">
             <form @submit.prevent="handleEmailSignup" class="space-y-3" autocomplete="off">
+              <!-- Hidden dummy inputs to trick browser autofill -->
+              <input type="text" style="display:none" aria-hidden="true" autocomplete="off" />
+              <input type="password" style="display:none" aria-hidden="true" autocomplete="new-password" />
+
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">성명 / 닉네임</label>
                 <input 
@@ -196,7 +204,7 @@
                   v-model.trim="signupForm.email"
                   type="email" 
                   required
-                  autocomplete="off"
+                  autocomplete="new-password"
                   placeholder="example@euchs.com" 
                   class="w-full px-3.5 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                 />
@@ -279,6 +287,10 @@
               가입하신 이메일 주소를 입력하시면 비밀번호 재설정 링크를 보내드립니다.
             </p>
             <form @submit.prevent="handleForgotPassword" class="space-y-3" autocomplete="off">
+              <!-- Hidden dummy inputs to trick browser autofill -->
+              <input type="text" style="display:none" aria-hidden="true" autocomplete="off" />
+              <input type="password" style="display:none" aria-hidden="true" autocomplete="new-password" />
+
               <div>
                 <label class="block text-xs font-bold text-slate-700 mb-1">이메일 주소</label>
                 <input 
@@ -321,7 +333,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, nextTick } from 'vue'
 import {
   isLoginModalOpen,
   loginModalMode,
@@ -358,6 +370,17 @@ const modalTitle = computed(() => {
   return '로그인'
 })
 
+const forceClearDomInputs = () => {
+  if (typeof document !== 'undefined') {
+    const inputs = document.querySelectorAll('input:not([type="hidden"])')
+    inputs.forEach(input => {
+      if (input.type === 'email' || input.type === 'password' || input.type === 'text') {
+        input.value = ''
+      }
+    })
+  }
+}
+
 const resetAllForms = () => {
   loginForm.value = {
     email: '',
@@ -373,6 +396,16 @@ const resetAllForms = () => {
   forgotEmail.value = ''
   showPassword.value = false
   showSignupPassword.value = false
+
+  nextTick(() => {
+    forceClearDomInputs()
+  })
+  setTimeout(() => {
+    forceClearDomInputs()
+  }, 50)
+  setTimeout(() => {
+    forceClearDomInputs()
+  }, 200)
 }
 
 watch(isLoginModalOpen, (isOpen) => {

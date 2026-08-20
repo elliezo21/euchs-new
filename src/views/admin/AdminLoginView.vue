@@ -43,7 +43,10 @@
       </div>
 
       <!-- Login Form -->
-      <form @submit.prevent="handleAdminLogin" class="space-y-4" autocomplete="on">
+      <form @submit.prevent="handleAdminLogin" class="space-y-4" autocomplete="off">
+        <!-- Hidden dummy inputs to trick browser autofill -->
+        <input type="text" style="display:none" aria-hidden="true" autocomplete="off" />
+        <input type="password" style="display:none" aria-hidden="true" autocomplete="new-password" />
         
         <!-- Email Input -->
         <div class="space-y-1.5">
@@ -53,7 +56,7 @@
               v-model.trim="loginForm.email"
               type="email" 
               required
-              autocomplete="username"
+              autocomplete="new-password"
               placeholder="admin@euccompany.com"
               class="w-full pl-10 pr-4 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm text-white placeholder-slate-600 outline-none transition"
             />
@@ -71,7 +74,7 @@
               v-model="loginForm.password"
               :type="showPassword ? 'text' : 'password'" 
               required
-              autocomplete="current-password"
+              autocomplete="new-password"
               placeholder="••••••••"
               class="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 text-sm text-white placeholder-slate-600 outline-none transition"
             />
@@ -125,7 +128,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { adminSignIn } from '@/lib/auth'
 
@@ -141,6 +144,17 @@ const showPassword = ref(false)
 const isLoading = ref(false)
 const errorMessage = ref('')
 
+const forceClearDomInputs = () => {
+  if (typeof document !== 'undefined') {
+    const inputs = document.querySelectorAll('input:not([type="hidden"])')
+    inputs.forEach(input => {
+      if (input.type === 'email' || input.type === 'password' || input.type === 'text') {
+        input.value = ''
+      }
+    })
+  }
+}
+
 onMounted(() => {
   loginForm.value = {
     email: '',
@@ -148,6 +162,16 @@ onMounted(() => {
   }
   showPassword.value = false
   errorMessage.value = ''
+
+  nextTick(() => {
+    forceClearDomInputs()
+  })
+  setTimeout(() => {
+    forceClearDomInputs()
+  }, 50)
+  setTimeout(() => {
+    forceClearDomInputs()
+  }, 200)
 })
 
 const handleAdminLogin = async () => {
