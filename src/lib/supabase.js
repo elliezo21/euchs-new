@@ -1,7 +1,19 @@
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://kkqxdvytjcwqiditkqay.supabase.co'
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || ''
+// Vite 표준 환경 변수 (VITE_ 접두사) 로드 및 기본 Fallback 설정
+const envSupabaseUrl = import.meta.env.VITE_SUPABASE_URL
+const envSupabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
+
+const FALLBACK_SUPABASE_URL = 'https://kkqxdvytjcwqiditkqay.supabase.co'
+const FALLBACK_SUPABASE_ANON_KEY = 'sb_publishable_CK-mobqkhFkJeksELv-H1Q_s35ZLTCD'
+
+export const supabaseUrl = (envSupabaseUrl && typeof envSupabaseUrl === 'string' && envSupabaseUrl.trim().length > 0)
+  ? envSupabaseUrl.trim()
+  : FALLBACK_SUPABASE_URL
+
+export const supabaseAnonKey = (envSupabaseAnonKey && typeof envSupabaseAnonKey === 'string' && envSupabaseAnonKey.trim().length > 0)
+  ? envSupabaseAnonKey.trim()
+  : FALLBACK_SUPABASE_ANON_KEY
 
 // Key 유효성 확인
 export const isSupabaseConfigured = () => {
@@ -18,7 +30,15 @@ export const isSupabaseConfigured = () => {
 // Supabase Client Export
 export const supabase = createClient(
   supabaseUrl,
-  isSupabaseConfigured() ? supabaseAnonKey : 'dummy-anon-key'
+  supabaseAnonKey,
+  {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storage: window.localStorage
+    }
+  }
 )
 
 // SQL Schema 가이드 (테이블 및 Storage 버킷 생성)

@@ -104,20 +104,26 @@ export const checkUserRole = async (user) => {
  */
 export const adminSignIn = async (email, password) => {
   if (!isSupabaseConfigured()) {
-    throw new Error('Supabase 설정이 필요합니다. .env 파일을 확인해 주세요.')
+    throw new Error('Supabase 연동 설정이 필요합니다.')
   }
 
   const { data, error } = await supabase.auth.signInWithPassword({
-    email,
+    email: (email || '').trim(),
     password
   })
 
   if (error) {
+    if (error.message?.includes('Invalid login credentials')) {
+      throw new Error('아이디(이메일) 또는 비밀번호가 올바르지 않습니다.')
+    }
+    if (error.message?.includes('Email not confirmed')) {
+      throw new Error('이메일 인증이 완료되지 않았습니다. 메일함을 확인해 주세요.')
+    }
     throw error
   }
 
   if (!data?.user) {
-    throw new Error('로그인 정보를 가져올 수 없습니다.')
+    throw new Error('로그인 사용자 정보를 가져올 수 없습니다.')
   }
 
   // 권한 검증
