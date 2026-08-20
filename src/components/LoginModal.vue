@@ -141,7 +141,7 @@
               <button 
                 type="button"
                 @click="handleKakaoLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95"
+                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95 cursor-pointer"
                 style="background-color: #FEE500;"
               >
                 <i class="fas fa-comment text-amber-950 text-base"></i>
@@ -152,7 +152,7 @@
               <button 
                 type="button"
                 @click="handleNaverLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95"
+                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95 cursor-pointer"
                 style="background-color: #03C75A;"
               >
                 <span class="font-black text-sm tracking-tighter bg-white text-[#03C75A] w-4 h-4 rounded-sm flex items-center justify-center text-[10px]">N</span>
@@ -163,7 +163,7 @@
               <button 
                 type="button"
                 @click="handleGoogleLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm"
+                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm cursor-pointer"
               >
                 <svg class="w-4 h-4" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -195,7 +195,7 @@
               <button 
                 type="button"
                 @click="handleKakaoLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95"
+                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95 cursor-pointer"
                 style="background-color: #FEE500;"
               >
                 <i class="fas fa-comment text-amber-950 text-base"></i>
@@ -206,7 +206,7 @@
               <button 
                 type="button"
                 @click="handleNaverLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95"
+                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95 cursor-pointer"
                 style="background-color: #03C75A;"
               >
                 <span class="font-black text-sm tracking-tighter bg-white text-[#03C75A] w-4 h-4 rounded-sm flex items-center justify-center text-[10px]">N</span>
@@ -217,7 +217,7 @@
               <button 
                 type="button"
                 @click="handleGoogleLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm"
+                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm cursor-pointer"
               >
                 <svg class="w-4 h-4" viewBox="0 0 24 24">
                   <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>

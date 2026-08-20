@@ -157,107 +157,29 @@ export const closeLoginModal = () => {
 }
 
 /**
- * Google Identity Services (GIS) 스크립트 비동기 로더
+ * Google OAuth 로그인 실행
  */
-export const loadGsiScript = () => {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined') return resolve(null)
-    if (window.google?.accounts?.id) {
-      resolve(window.google)
-      return
-    }
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
-    if (existing) {
-      existing.addEventListener('load', () => resolve(window.google))
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.defer = true
-    script.onload = () => resolve(window.google)
-    script.onerror = () => resolve(null)
-    document.head.appendChild(script)
-  })
-}
-
-/**
- * Google ID Token 인증 처리 함수 (Supabase signInWithIdToken)
- * - 브라우저 팝업/창에 supabase.co 주소가 전혀 노출되지 않고 ID 토큰으로 직접 세션을 생성합니다.
- */
-export const handleGoogleCredentialResponse = async (response) => {
-  if (!response?.credential) {
-    console.warn('Google GIS credential not found in response:', response)
-    return { success: false, message: '구글 인증 토큰을 받지 못했습니다.' }
-  }
-
+export const signInWithGoogle = async () => {
   try {
     if (!isSupabaseConfigured()) {
       throw new Error('Supabase 연동 설정이 필요합니다.')
     }
 
-    // Supabase signInWithIdToken 호출: 백엔드와 ID Token 직접 교환 (supabase.co 도메인 노출 차단)
-    const { data, error } = await supabase.auth.signInWithIdToken({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
-      token: response.credential
+      options: {
+        redirectTo: window.location.origin
+      }
     })
 
     if (error) {
-      console.error('Supabase signInWithIdToken error:', error)
+      console.warn('Google OAuth Provider notice:', error)
       throw error
     }
-
-    if (data?.user) {
-      currentUser.value = data.user
-      await checkUserRole(data.user)
-      await syncUserProfile(data.user)
-      closeLoginModal()
-      return { success: true, user: data.user }
-    }
+    return data
   } catch (err) {
-    console.error('Google ID Token authentication error:', err)
-    alert(`구글 로그인 처리 중 오류가 발생했습니다: ${err.message || '다시 시도해 주세요.'}`)
-    return { success: false, message: err.message }
-  }
-}
-
-/**
- * Google GIS One-Tap / ID-Token 로그인 실행
- */
-export const signInWithGoogle = async () => {
-  const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || '1021434948831-778j5g6m1f12.apps.googleusercontent.com'
-  const google = await loadGsiScript()
-
-  if (!google || !google.accounts?.id) {
-    alert('Google 인증 서비스를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.')
-    return
-  }
-
-  if (!clientId || clientId.includes('여기에')) {
-    alert('Google Client ID(VITE_GOOGLE_CLIENT_ID) 설정이 필요합니다.\nGoogle Cloud Console에서 발급받은 클라이언트 ID를 .env에 등록해 주세요.')
-    return
-  }
-
-  try {
-    google.accounts.id.initialize({
-      client_id: clientId,
-      callback: handleGoogleCredentialResponse,
-      auto_select: false,
-      cancel_on_tap_outside: false,
-      context: 'signin'
-    })
-
-    // 구글 원탭 / 계정 선택 팝업 직접 호출 (supabase.co 노출 없이 현재 창/팝업에서 바로 인증)
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed()) {
-        console.warn('GIS prompt isNotDisplayed reason:', notification.getNotDisplayedReason())
-      } else if (notification.isSkippedMoment()) {
-        console.warn('GIS prompt isSkippedMoment reason:', notification.getSkippedReason())
-      }
-    })
-  } catch (err) {
-    console.error('Google GIS prompt exception:', err)
-    alert('구글 로그인 창을 여는 중 문제가 발생했습니다: ' + (err.message || err))
+    console.error('Google Login Exception:', err)
+    alert(`구글 로그인 처리 중 문제가 발생했습니다: ${err.message || err}`)
   }
 }
 
@@ -266,6 +188,10 @@ export const signInWithGoogle = async () => {
  */
 export const signInWithKakao = async () => {
   try {
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase 연동 설정이 필요합니다.')
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'kakao',
       options: {
@@ -274,12 +200,13 @@ export const signInWithKakao = async () => {
     })
 
     if (error) {
-      console.warn('Kakao OAuth not enabled in Supabase:', error)
-      alert('현재 카카오 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
+      console.warn('Kakao OAuth error:', error)
+      throw error
     }
+    return data
   } catch (err) {
-    console.warn('Kakao Login Exception:', err)
-    alert('현재 카카오 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
+    console.error('Kakao Login Exception:', err)
+    alert(`카카오 로그인 처리 중 문제가 발생했습니다: ${err.message || err}`)
   }
 }
 
