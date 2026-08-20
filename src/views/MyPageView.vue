@@ -340,6 +340,24 @@
               </div>
             </template>
 
+            <!-- Purchasing Specific -->
+            <template v-if="selectedApp.details.shippingType || selectedApp.details.shippingTypeName">
+              <div class="flex justify-between">
+                <span class="text-slate-400">배송 방식:</span>
+                <span class="text-sky-300 font-bold">
+                  {{ selectedApp.details.shippingTypeName || (selectedApp.details.shippingType === 'other_customs' ? '기타통관' : selectedApp.details.shippingType === 'air' ? '항공특송' : selectedApp.details.shippingType === 'lcl' ? 'LCL콘솔' : '해운특송') }}
+                </span>
+              </div>
+              <div v-if="selectedApp.details.customsCode" class="flex justify-between">
+                <span class="text-slate-400">개인통관고유부호:</span>
+                <span class="font-mono text-white">{{ selectedApp.details.customsCode }}</span>
+              </div>
+              <div v-if="selectedApp.details.address" class="flex justify-between">
+                <span class="text-slate-400">수령지 주소:</span>
+                <span class="text-slate-200 truncate max-w-[200px]">{{ selectedApp.details.address }}</span>
+              </div>
+            </template>
+
             <!-- Raw / full message -->
             <div v-if="selectedApp.details.fullApplicationMessage" class="pt-2 border-t border-slate-800/80">
               <span class="text-slate-400 block mb-1">신청서 전문:</span>
@@ -583,6 +601,15 @@ const downloadReceipt = (app) => {
     if (app.details.tariffKrw) lines.push(`예상 관세: ₩${Number(app.details.tariffKrw).toLocaleString()}`)
     if (app.details.vatKrw) lines.push(`수입 부가세: ₩${Number(app.details.vatKrw).toLocaleString()}`)
     if (app.details.customsFeeKrw) lines.push(`통관 및 부대비용: ₩${Number(app.details.customsFeeKrw).toLocaleString()}`)
+    if (app.details.shippingTypeName || app.details.shippingType) {
+      const sName = app.details.shippingTypeName || (app.details.shippingType === 'other_customs' ? '기타통관' : app.details.shippingType === 'air' ? '항공특송(긴급)' : app.details.shippingType === 'lcl' ? '사업자 LCL 콘솔' : '해운특송(기본)')
+      lines.push(`배송 방식: ${sName}`)
+    }
+    if (app.details.customsCode) lines.push(`개인통관고유부호: ${app.details.customsCode}`)
+    if (app.details.address) lines.push(`수령지 주소: ${app.details.address}`)
+    if (app.details.items && app.details.items.length) {
+      lines.push(`구매 품목 수: ${app.details.items.length}종`)
+    }
     if (app.details.targetItem) lines.push(`조사 희망품목: ${app.details.targetItem}`)
     if (app.details.fullApplicationMessage) {
       lines.push('------------------------------------------------------------------------')

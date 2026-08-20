@@ -1299,6 +1299,30 @@
           </div>
         </div>
 
+        <!-- 4.5. Purchasing Order Summary Card -->
+        <div v-if="selectedApp.service_type === 'purchasing' || selectedApp.service_type === 'purchasing_agent' || selectedApp.details?.shippingType" class="space-y-2">
+          <label class="block font-bold text-blue-300 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-truck-fast text-blue-400"></i>
+            <span>구매대행 배송 및 수령 정보</span>
+          </label>
+          <div class="p-3.5 bg-slate-950 rounded-2xl border border-blue-500/30 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-slate-300">
+            <div>
+              <strong class="text-slate-400 block text-[11px]">배송 방식:</strong>
+              <span class="font-bold text-sky-300">
+                {{ selectedApp.details?.shippingTypeName || (selectedApp.details?.shippingType === 'other_customs' ? '기타통관' : selectedApp.details?.shippingType === 'air' ? '항공특송(긴급)' : selectedApp.details?.shippingType === 'lcl' ? '사업자 LCL 콘솔' : '해운특송(기본)') }}
+              </span>
+            </div>
+            <div>
+              <strong class="text-slate-400 block text-[11px]">개인통관고유부호:</strong>
+              <span class="font-mono text-white">{{ selectedApp.details?.customsCode || '-' }}</span>
+            </div>
+            <div>
+              <strong class="text-slate-400 block text-[11px]">수령지 주소:</strong>
+              <span class="text-white truncate block">{{ selectedApp.details?.address || '-' }}</span>
+            </div>
+          </div>
+        </div>
+
         <!-- 5. Purchasing Items Table (If purchasing service) -->
         <div v-if="selectedApp.details?.items && selectedApp.details.items.length" class="space-y-2">
           <label class="block font-bold text-sky-400 flex items-center gap-1.5">
@@ -1658,6 +1682,17 @@ const exportSingleApplicationReceipt = (app) => {
       receiptLines.push(`통관 수수료 & 부대비용: ₩${Number(app.details.customsFeeKrw).toLocaleString()}`)
     }
 
+    // Purchasing specific fields
+    if (app.details.shippingTypeName || app.details.shippingType) {
+      const sName = app.details.shippingTypeName || (app.details.shippingType === 'other_customs' ? '기타통관' : app.details.shippingType === 'air' ? '항공특송(긴급)' : app.details.shippingType === 'lcl' ? '사업자 LCL 콘솔' : '해운특송(기본)')
+      receiptLines.push(`배송 방식: ${sName}`)
+    }
+    if (app.details.customsCode) receiptLines.push(`개인통관고유부호: ${app.details.customsCode}`)
+    if (app.details.address) receiptLines.push(`수령지 주소: ${app.details.address}`)
+    if (app.details.items && app.details.items.length) {
+      receiptLines.push(`구매 품목 수: ${app.details.items.length}종`)
+    }
+
     if (app.details.targetItem) receiptLines.push(`조사/희망품목: ${app.details.targetItem}`)
     if (app.details.fullApplicationMessage) {
       receiptLines.push('------------------------------------------------------------------------')
@@ -1700,9 +1735,9 @@ const exportApplicationsToExcel = () => {
     '연락처',
     '이메일',
     '총견적금액',
-    '신청공항/픽업상세',
-    '통역일수/전문분야',
-    '투어일정(입국/출국)',
+    '신청공항/픽업/배송방식',
+    '통역일수/화물규격/통관부호',
+    '투어일정/박스규격/배송지',
     '희망품목/상세요청사항',
     '처리상태'
   ]
@@ -1719,6 +1754,8 @@ const exportApplicationsToExcel = () => {
     let pickup = '-'
     if (app.service_type === 'calculator' || app.details?.freightCostKrw !== undefined) {
       pickup = app.details?.shippingModeName || app.details?.shippingMode || '해운 LCL'
+    } else if (app.service_type === 'purchasing' || app.service_type === 'purchasing_agent' || app.details?.shippingType) {
+      pickup = app.details?.shippingTypeName || (app.details?.shippingType === 'other_customs' ? '기타통관' : app.details?.shippingType === 'air' ? '항공특송' : app.details?.shippingType === 'lcl' ? 'LCL콘솔' : '해운특송')
     } else if (app.details?.pickupAirport && app.details?.pickupCourseLabel) {
       pickup = `${app.details.pickupAirport} (${app.details.pickupCourseLabel} / ${app.details.vehicleType || '세단'})`
     } else if (app.details?.pickupSummaryText) {
@@ -1733,6 +1770,8 @@ const exportApplicationsToExcel = () => {
     let guide = '-'
     if (app.service_type === 'calculator' || app.details?.freightCostKrw !== undefined) {
       guide = `${app.details?.cbm || 0} CBM / ${app.details?.weightKg || 0} kg`
+    } else if (app.service_type === 'purchasing' || app.service_type === 'purchasing_agent' || app.details?.customsCode) {
+      guide = app.details?.customsCode ? `통관부호:${app.details.customsCode}` : '-'
     } else if (app.details?.guideSummaryText) {
       guide = app.details.guideSummaryText
     } else if (app.details?.guideDays) {
@@ -1744,6 +1783,8 @@ const exportApplicationsToExcel = () => {
     let schedule = '-'
     if (app.service_type === 'calculator' || app.details?.freightCostKrw !== undefined) {
       schedule = app.details?.boxDimensions || '규격직접입력'
+    } else if (app.service_type === 'purchasing' || app.service_type === 'purchasing_agent' || app.details?.address) {
+      schedule = app.details?.address || '-'
     } else if (app.details?.arrivalDate || app.details?.returnDate) {
       schedule = `입국:${app.details.arrivalDate || '미정'} / 출국:${app.details.returnDate || '미정'}`
     }

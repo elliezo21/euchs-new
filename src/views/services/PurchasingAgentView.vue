@@ -438,12 +438,17 @@
                 <label class="block text-xs font-bold text-gray-700 mb-1">배송 방식 선택</label>
                 <select 
                   v-model="form.shippingType" 
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-xs sm:text-sm outline-none cursor-pointer"
+                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 text-xs sm:text-sm outline-none cursor-pointer font-medium"
                 >
-                  <option value="sea">전자상 해운택배 (가장 경제적)</option>
-                  <option value="air">1일 항공특송 (긴급 샘플)</option>
-                  <option value="lcl">사업자 LCL 해운 컨테이너</option>
+                  <option value="sea">해운특송(기본)</option>
+                  <option value="air">항공특송(긴급)</option>
+                  <option value="other_customs">기타통관</option>
+                  <option value="lcl">사업자 LCL 해운 콘솔</option>
                 </select>
+                <p v-if="form.shippingType === 'other_customs'" class="text-[11px] text-amber-600 mt-1 font-medium flex items-center gap-1">
+                  <i class="fas fa-circle-info"></i>
+                  <span>특수/기타 통관 품목은 전담 매니저의 1:1 상담 후 맞춤 견적이 산출됩니다.</span>
+                </p>
               </div>
             </div>
 
@@ -651,6 +656,16 @@ onMounted(async () => {
   }
 })
 
+const getShippingTypeName = (type) => {
+  switch (type) {
+    case 'sea': return '해운특송(기본)'
+    case 'air': return '항공특송(긴급)'
+    case 'other_customs': return '기타통관'
+    case 'lcl': return '사업자 LCL 해운 콘솔'
+    default: return type || '해운특송'
+  }
+}
+
 const submitPurchasingForm = async () => {
   isSubmitting.value = true
 
@@ -676,6 +691,7 @@ const submitPurchasingForm = async () => {
           details: {
             customsCode: form.value.customsCode,
             shippingType: form.value.shippingType,
+            shippingTypeName: getShippingTypeName(form.value.shippingType),
             address: form.value.address,
             exchangeRate: exchangeRate.value,
             totalCny: totalCny.value,

@@ -563,6 +563,7 @@
                     <option value="sea_lcl">해운 LCL 콘솔</option>
                     <option value="sea_express">전자상 해운특송</option>
                     <option value="air_express">항공 특송</option>
+                    <option value="other_customs">기타통관 (1:1 맞춤)</option>
                   </select>
                 </div>
 
@@ -576,7 +577,8 @@
                 </div>
                 <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
                   <span class="text-slate-500 block">예상 국제운임</span>
-                  <span class="font-bold text-sky-300">{{ miniFreightKrw.toLocaleString() }}원</span>
+                  <span v-if="miniShipping === 'other_customs'" class="font-bold text-amber-300 text-[10px]">1:1 맞춤 산출</span>
+                  <span v-else class="font-bold text-sky-300">{{ miniFreightKrw.toLocaleString() }}원</span>
                 </div>
                 <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
                   <span class="text-slate-500 block">관세+부가세(10%)</span>
@@ -584,8 +586,15 @@
                 </div>
                 <div class="p-2.5 bg-blue-950/60 rounded-xl border border-blue-800/80">
                   <span class="text-amber-300 block font-bold">총 예상 견적</span>
-                  <span class="font-black text-yellow-400 text-xs sm:text-sm">{{ miniTotalKrw.toLocaleString() }}원</span>
+                  <span v-if="miniShipping === 'other_customs'" class="font-black text-yellow-400 text-xs">상담 후 확정</span>
+                  <span v-else class="font-black text-yellow-400 text-xs sm:text-sm">{{ miniTotalKrw.toLocaleString() }}원</span>
                 </div>
+              </div>
+
+              <!-- Other customs notice -->
+              <div v-if="miniShipping === 'other_customs'" class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+                <i class="fas fa-info-circle text-amber-400 shrink-0"></i>
+                <span>특수/기타 통관 품목은 전담 매니저의 1:1 상담 후 맞춤 견적이 산출됩니다.</span>
               </div>
 
               <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
@@ -841,7 +850,9 @@ const miniProductKrw = computed(() => {
 })
 
 const miniFreightKrw = computed(() => {
-  if (miniShipping.value === 'sea_lcl') {
+  if (miniShipping.value === 'other_customs') {
+    return 0
+  } else if (miniShipping.value === 'sea_lcl') {
     return Math.round(Math.max(Number(miniCbm.value) || 1, 1) * seaCbmRate.value)
   } else if (miniShipping.value === 'sea_express') {
     return Math.round(5000 + (Math.ceil(Math.max(Number(miniCbm.value) * 167 - 1, 0) / 0.5) * 800))

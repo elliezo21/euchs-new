@@ -168,7 +168,7 @@
                 <span>운송 방식 선택 (Shipping Type)</span>
               </label>
 
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                 <label 
                   class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition text-xs"
                   :class="shippingMode === 'sea_lcl' 
@@ -177,7 +177,7 @@
                 >
                   <input v-model="shippingMode" type="radio" value="sea_lcl" class="text-blue-600" />
                   <div>
-                    <span class="block">해운 LCL 콘솔</span>
+                    <span class="block">해운 LCL</span>
                     <span class="text-[10px] text-gray-400 font-normal">CBM당 {{ seaCbmRate.toLocaleString() }}원</span>
                   </div>
                 </label>
@@ -190,7 +190,7 @@
                 >
                   <input v-model="shippingMode" type="radio" value="sea_express" class="text-blue-600" />
                   <div>
-                    <span class="block">전자상 해운특송</span>
+                    <span class="block">해운 특송</span>
                     <span class="text-[10px] text-gray-400 font-normal">소포장 / 5~7일</span>
                   </div>
                 </label>
@@ -203,10 +203,34 @@
                 >
                   <input v-model="shippingMode" type="radio" value="air_express" class="text-blue-600" />
                   <div>
-                    <span class="block">항공 특송 (1~2일)</span>
-                    <span class="text-[10px] text-gray-400 font-normal">긴급 샘플 / 고가품</span>
+                    <span class="block">항공 특송</span>
+                    <span class="text-[10px] text-gray-400 font-normal">긴급 / 1~2일</span>
                   </div>
                 </label>
+
+                <label 
+                  class="flex items-center gap-2.5 p-3 rounded-xl border cursor-pointer transition text-xs"
+                  :class="shippingMode === 'other_customs' 
+                    ? 'border-blue-600 bg-blue-50/60 font-bold text-blue-900 shadow-sm' 
+                    : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'"
+                >
+                  <input v-model="shippingMode" type="radio" value="other_customs" class="text-blue-600" />
+                  <div>
+                    <span class="block">기타통관</span>
+                    <span class="text-[10px] text-amber-600 font-bold">1:1 맞춤 견적</span>
+                  </div>
+                </label>
+              </div>
+
+              <!-- Other Customs Info Banner -->
+              <div v-if="shippingMode === 'other_customs'" class="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-amber-950 text-xs flex items-start gap-2.5 mt-2.5 animate-fadeIn">
+                <i class="fas fa-circle-info text-amber-600 text-base shrink-0 mt-0.5"></i>
+                <div class="space-y-0.5">
+                  <strong class="font-bold block text-amber-950">기타/특수 통관 안내</strong>
+                  <p class="text-[11px] text-amber-800 leading-relaxed">
+                    특수/기타 통관 품목은 전담 매니저의 1:1 상담 후 맞춤 견적이 산출됩니다.
+                  </p>
+                </div>
               </div>
             </div>
 
@@ -407,9 +431,10 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1">
                   <span class="text-slate-300">3) 국제 운송료 ({{ shippingModeName }})</span>
-                  <span class="text-[10px] text-slate-400">({{ finalCbm.toFixed(2) }} CBM / {{ inputWeightKg }}kg)</span>
+                  <span v-if="shippingMode !== 'other_customs'" class="text-[10px] text-slate-400">({{ finalCbm.toFixed(2) }} CBM / {{ inputWeightKg }}kg)</span>
                 </div>
-                <span class="font-bold text-sky-300">{{ calculatedFreightKrw.toLocaleString() }}원</span>
+                <span v-if="shippingMode === 'other_customs'" class="font-bold text-amber-300 text-xs">별도 협의 (1:1 맞춤)</span>
+                <span v-else class="font-bold text-sky-300">{{ calculatedFreightKrw.toLocaleString() }}원</span>
               </div>
 
               <!-- 4. 과세가격 (CIF) -->
@@ -452,10 +477,20 @@
               <div class="flex items-baseline justify-between">
                 <span class="text-sm sm:text-base font-black text-amber-300">총 예상 수입 견적 합계</span>
                 <div class="text-right">
-                  <span class="text-2xl sm:text-3xl font-black text-yellow-400">
-                    {{ grandTotalImportCost.toLocaleString() }}
-                  </span>
-                  <span class="text-sm font-bold text-white ml-1">원</span>
+                  <template v-if="shippingMode === 'other_customs'">
+                    <span class="text-xl sm:text-2xl font-black text-yellow-400">
+                      상담 후 확정
+                    </span>
+                    <span class="text-[11px] text-slate-300 block">
+                      (기본 제품가+수수료 기준 {{ (calculatedProductKrw + calculatedAgencyFeeKrw).toLocaleString() }}원 + α)
+                    </span>
+                  </template>
+                  <template v-else>
+                    <span class="text-2xl sm:text-3xl font-black text-yellow-400">
+                      {{ grandTotalImportCost.toLocaleString() }}
+                    </span>
+                    <span class="text-sm font-bold text-white ml-1">원</span>
+                  </template>
                 </div>
               </div>
               <p class="text-[11px] text-slate-400 text-right">
@@ -907,7 +942,9 @@ const calculatedAgencyFeeKrw = computed(() => {
 
 // 4. 국제 운송료 (KRW)
 const calculatedFreightKrw = computed(() => {
-  if (shippingMode.value === 'sea_lcl') {
+  if (shippingMode.value === 'other_customs') {
+    return 0
+  } else if (shippingMode.value === 'sea_lcl') {
     // 해운 LCL: 기본 CBM당 요율 (설정값 반영)
     const cbm = Math.max(finalCbm.value, 1.0)
     return Math.round(cbm * (Number(seaCbmRate.value) || 98000))
@@ -927,6 +964,7 @@ const shippingModeName = computed(() => {
     case 'sea_lcl': return '해운 LCL'
     case 'sea_express': return '해운 특송'
     case 'air_express': return '항공 특송'
+    case 'other_customs': return '기타통관'
     default: return '국제운송'
   }
 })
