@@ -176,18 +176,95 @@
               이우 시장투어, 1688 구매대행, OEM/ODM 맞춤 무역, 쿠팡 로켓그로스 의뢰 접수 목록입니다. (총 {{ filteredApplications.length }}건)
             </p>
           </div>
+        </div>
 
-          <div class="flex flex-wrap items-center gap-2">
-            <!-- Filter by service -->
+        <!-- Service Sub-Tabs Navigation Bar -->
+        <div class="flex flex-wrap items-center justify-between gap-3 bg-slate-900/90 p-2 sm:p-2.5 rounded-2xl border border-slate-800 shadow-lg">
+          <!-- Left: Tab Buttons Group -->
+          <div class="flex flex-wrap items-center gap-1.5 sm:gap-2">
+            <!-- 1. 전체 신청 -->
+            <button 
+              type="button"
+              @click="filterService = 'all'"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95"
+              :class="filterService === 'all' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800'"
+            >
+              <span>전체 신청</span>
+              <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black" :class="filterService === 'all' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300'">
+                {{ serviceCounts.all }}
+              </span>
+            </button>
+
+            <!-- 2. 구매대행 -->
+            <button 
+              type="button"
+              @click="filterService = 'purchasing'"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95"
+              :class="filterService === 'purchasing' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/30' : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800'"
+            >
+              <i class="fas fa-cart-shopping text-blue-400"></i>
+              <span>🛒 구매대행</span>
+              <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black" :class="filterService === 'purchasing' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300'">
+                {{ serviceCounts.purchasing }}
+              </span>
+            </button>
+
+            <!-- 3. 이우시장투어 -->
+            <button 
+              type="button"
+              @click="filterService = 'market_tour'"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95"
+              :class="filterService === 'market_tour' ? 'bg-amber-600 text-white shadow-md shadow-amber-600/30' : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800'"
+            >
+              <i class="fas fa-plane-departure text-amber-400"></i>
+              <span>🚩 이우시장투어</span>
+              <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black" :class="filterService === 'market_tour' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300'">
+                {{ serviceCounts.marketTour }}
+              </span>
+            </button>
+
+            <!-- 4. 무역대행 OEM/ODM -->
+            <button 
+              type="button"
+              @click="filterService = 'trade'"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95"
+              :class="filterService === 'trade' ? 'bg-emerald-600 text-white shadow-md shadow-emerald-600/30' : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800'"
+            >
+              <i class="fas fa-handshake text-emerald-400"></i>
+              <span>🏭 무역대행 OEM/ODM</span>
+              <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black" :class="filterService === 'trade' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300'">
+                {{ serviceCounts.trade }}
+              </span>
+            </button>
+
+            <!-- 5. 쿠팡 로켓그로스 -->
+            <button 
+              v-if="serviceCounts.rocketGrowth > 0"
+              type="button"
+              @click="filterService = 'rocket_growth'"
+              class="px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-2 active:scale-95"
+              :class="filterService === 'rocket_growth' ? 'bg-rose-600 text-white shadow-md shadow-rose-600/30' : 'bg-slate-950/60 text-slate-400 hover:text-white hover:bg-slate-800'"
+            >
+              <i class="fas fa-rocket text-rose-400"></i>
+              <span>로켓그로스</span>
+              <span class="px-1.5 py-0.5 rounded-md text-[10px] font-black" :class="filterService === 'rocket_growth' ? 'bg-white/20 text-white' : 'bg-slate-800 text-slate-300'">
+                {{ serviceCounts.rocketGrowth }}
+              </span>
+            </button>
+          </div>
+
+          <!-- Right: Dropdown Filter & Action Buttons -->
+          <div class="flex items-center gap-2">
+            <!-- Filter by service (Dropdown synced) -->
             <select 
               v-model="filterService" 
-              class="px-3 py-2 rounded-xl bg-slate-900 border border-slate-700 text-xs text-slate-200 outline-none focus:border-blue-500 font-medium"
+              class="px-3 py-2 rounded-xl bg-slate-950 border border-slate-700 text-xs text-slate-200 outline-none focus:border-blue-500 font-medium cursor-pointer"
             >
-              <option value="all">모든 서비스 전체</option>
-              <option value="market_tour">이우 시장투어 신청</option>
-              <option value="purchasing">1688 구매대행</option>
-              <option value="trade">OEM/ODM 무역대행</option>
-              <option value="rocket_growth">쿠팡 로켓그로스 대행</option>
+              <option value="all">모든 서비스 전체 ({{ serviceCounts.all }})</option>
+              <option value="purchasing">1688 구매대행 ({{ serviceCounts.purchasing }})</option>
+              <option value="market_tour">이우 시장투어 신청 ({{ serviceCounts.marketTour }})</option>
+              <option value="trade">OEM/ODM 무역대행 ({{ serviceCounts.trade }})</option>
+              <option value="rocket_growth">쿠팡 로켓그로스 대행 ({{ serviceCounts.rocketGrowth }})</option>
             </select>
 
             <!-- Excel Export Button -->
@@ -198,7 +275,7 @@
               title="조회된 신청 목록을 엑셀(CSV) 파일로 다운로드합니다"
             >
               <i class="fas fa-file-excel text-sm text-emerald-200"></i>
-              <span>엑셀 다운로드</span>
+              <span class="hidden sm:inline">엑셀</span>
             </button>
 
             <!-- Refresh Button -->
@@ -208,7 +285,7 @@
               class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
             >
               <i class="fas fa-sync-alt" :class="{ 'animate-spin': isFetchingApps || isFetchingStats }"></i>
-              <span>새로고침</span>
+              <span class="hidden sm:inline">새로고침</span>
             </button>
           </div>
         </div>
@@ -221,7 +298,7 @@
                 <tr>
                   <th class="py-3.5 px-4">신청일시</th>
                   <th class="py-3.5 px-4">서비스 구분</th>
-                  <th class="py-3.5 px-4">신청자명</th>
+                  <th class="py-3.5 px-4">신청자명 (가입 계정)</th>
                   <th class="py-3.5 px-4">연락처</th>
                   <th class="py-3.5 px-4 text-right">견적 금액</th>
                   <th class="py-3.5 px-4">주요 요청/품목</th>
@@ -233,7 +310,7 @@
                 <tr 
                   v-for="app in filteredApplications" 
                   :key="app.id" 
-                  class="hover:bg-slate-800/40 transition cursor-pointer"
+                  class="hover:bg-slate-800/40 transition cursor-pointer group"
                   @click="openAppDetail(app)"
                 >
                   <td class="py-3.5 px-4 text-slate-400 font-mono">
@@ -245,8 +322,16 @@
                     </span>
                   </td>
                   <td class="py-3.5 px-4 font-bold text-white">
-                    {{ app.customer_name }}
-                    <span v-if="app.company_name" class="text-[10px] text-slate-400 block font-normal">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-white group-hover:text-blue-300 transition font-bold">{{ app.customer_name }}</span>
+                      <span v-if="app.email" class="text-[10px] font-normal text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded">회원</span>
+                      <span v-else class="text-[10px] font-normal text-slate-500 bg-slate-800/80 border border-slate-700 px-1.5 py-0.2 rounded">비회원</span>
+                    </div>
+                    <div class="text-[11px] text-slate-400 font-mono font-normal flex items-center gap-1 mt-0.5">
+                      <i class="fas fa-envelope text-[9px] text-slate-500"></i>
+                      <span class="truncate max-w-[170px]">{{ app.email || '비회원 접수' }}</span>
+                    </div>
+                    <span v-if="app.company_name" class="text-[10px] text-slate-500 block font-normal mt-0.5">
                       {{ app.company_name }}
                     </span>
                   </td>
@@ -263,7 +348,7 @@
                     <select 
                       v-model="app.status" 
                       @change="updateAppStatus(app.id, app.status)"
-                      class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-blue-500"
+                      class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-blue-500 cursor-pointer"
                       :class="getStatusClass(app.status)"
                     >
                       <option value="pending">접수 대기</option>
@@ -277,10 +362,11 @@
                     <div class="flex items-center justify-center gap-1.5">
                       <button 
                         @click="openAppDetail(app)" 
-                        class="px-2 py-1 rounded-lg bg-blue-950/60 hover:bg-blue-900 text-blue-300 border border-blue-800/60 text-[11px] font-semibold transition"
-                        title="신청 상세 내역 확인"
+                        class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold shadow-sm transition active:scale-95 flex items-center gap-1"
+                        title="신청 상세 내역 및 고객 이력 확인"
                       >
-                        상세
+                        <i class="fas fa-magnifying-glass text-[10px]"></i>
+                        <span>상세</span>
                       </button>
                       <button 
                         @click="exportSingleApplicationReceipt(app)" 
@@ -303,9 +389,9 @@
 
                 <!-- Empty State -->
                 <tr v-if="filteredApplications.length === 0">
-                  <td colspan="8" class="py-12 text-center text-slate-500 text-xs">
+                  <td colspan="8" class="py-16 text-center text-slate-500 text-xs">
                     <i class="fas fa-inbox text-3xl mb-2 block opacity-40"></i>
-                    접수된 신청 내역이 없습니다.
+                    선택한 조건의 서비스 신청 내역이 없습니다.
                   </td>
                 </tr>
               </tbody>
@@ -1134,55 +1220,141 @@
     </div>
 
     <!-- ========================================================== -->
-    <!-- Application Detail Modal -->
+    <!-- Application Detail Modal (Comprehensive Customer & Consultation) -->
     <!-- ========================================================== -->
-    <div v-if="selectedApp" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm" @click.self="selectedApp = null">
-      <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-2xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl relative text-slate-200 text-xs">
+    <div v-if="selectedApp" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md" @click.self="selectedApp = null">
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-3xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl relative text-slate-200 text-xs my-auto">
         
         <!-- Header -->
-        <div class="flex items-center justify-between border-b border-slate-800 pb-4">
+        <div class="flex items-start justify-between border-b border-slate-800 pb-4">
           <div>
-            <span class="px-2.5 py-1 rounded-md text-[11px] font-bold" :class="getServiceBadgeClass(selectedApp.service_type)">
-              {{ selectedApp.service_name || getServiceLabel(selectedApp.service_type) }}
-            </span>
-            <h3 class="text-lg font-black text-white mt-1.5 flex items-center gap-2">
-              <span>{{ selectedApp.customer_name }} 님의 상세 신청 내역</span>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 rounded-lg bg-slate-950 text-blue-400 font-mono text-xs font-black border border-slate-800">
+                #EUC-{{ selectedApp.id }}
+              </span>
+              <span class="px-2.5 py-0.5 rounded-lg text-xs font-bold" :class="getServiceBadgeClass(selectedApp.service_type)">
+                {{ selectedApp.service_name || getServiceLabel(selectedApp.service_type) }}
+              </span>
+            </div>
+            <h3 class="text-lg sm:text-xl font-black text-white mt-1.5 flex items-center gap-2">
+              <span>{{ selectedApp.customer_name }} 님의 상담 & 상세 신청 내역</span>
             </h3>
           </div>
-          <button @click="selectedApp = null" class="p-2 text-slate-400 hover:text-white rounded-lg transition">
-            <i class="fas fa-times text-lg"></i>
+          <button @click="selectedApp = null" class="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white flex items-center justify-center transition">
+            <i class="fas fa-times text-base"></i>
           </button>
         </div>
 
-        <!-- Details Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-          <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block text-[11px]">연락처 (전화번호)</span>
-            <a :href="`tel:${selectedApp.phone}`" class="font-bold text-white font-mono text-sm hover:text-blue-400 transition flex items-center gap-1.5">
-              <i class="fas fa-phone-alt text-xs text-blue-400"></i>
-              <span>{{ selectedApp.phone }}</span>
-            </a>
+        <!-- Section 1: Customer Profile Overview Box -->
+        <div class="p-4 sm:p-5 bg-slate-950 rounded-2xl border border-slate-800 space-y-3">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3">
+            <div class="flex items-center gap-3">
+              <div class="w-11 h-11 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-600 text-white font-bold text-base flex items-center justify-center shadow-md shrink-0">
+                {{ (selectedApp.customer_name || '고').charAt(0) }}
+              </div>
+              <div>
+                <div class="flex items-center gap-2">
+                  <span class="text-sm sm:text-base font-black text-white">{{ selectedApp.customer_name }}</span>
+                  <span v-if="selectedApp.email" class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                    가입회원
+                  </span>
+                  <span v-else class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-800 text-slate-400 border border-slate-700">
+                    비회원 접수
+                  </span>
+                </div>
+                <div class="text-slate-400 font-mono text-[11px] mt-0.5 flex items-center gap-1.5">
+                  <i class="fas fa-envelope text-[10px] text-slate-500"></i>
+                  <span>{{ selectedApp.email || '가입 이메일 미등록' }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Quick Communication Action -->
+            <div class="flex items-center gap-2 self-start sm:self-auto">
+              <a 
+                :href="`tel:${selectedApp.phone}`" 
+                class="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-xs transition flex items-center gap-1.5"
+                title="전화 걸기"
+              >
+                <i class="fas fa-phone-alt text-blue-400"></i>
+                <span class="font-mono">{{ selectedApp.phone }}</span>
+              </a>
+              <a 
+                href="http://pf.kakao.com/_xmQWsK/chat" 
+                target="_blank" 
+                class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-sm"
+                title="카카오톡 1:1 상담창 열기"
+              >
+                <i class="fas fa-comment text-amber-950"></i>
+                <span>카톡상담</span>
+              </a>
+            </div>
           </div>
 
-          <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block text-[11px]">이메일</span>
-            <span class="font-bold text-white font-mono text-sm">{{ selectedApp.email || '-' }}</span>
-          </div>
-
-          <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block text-[11px]">총 견적 / 예상 금액</span>
-            <span class="font-bold text-amber-400 font-mono text-sm">
-              {{ selectedApp.total_amount > 0 ? `${Number(selectedApp.total_amount).toLocaleString()}원` : '별도 협의 / 실비 청구' }}
-            </span>
-          </div>
-
-          <div class="p-3.5 bg-slate-950 rounded-2xl border border-slate-800 space-y-1">
-            <span class="text-slate-500 block text-[11px]">접수 일시</span>
-            <span class="font-bold text-slate-300 font-mono text-xs">{{ formatDateTime(selectedApp.created_at) }}</span>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-[11px] text-slate-300">
+            <div>
+              <span class="text-slate-500 block">접수일시</span>
+              <span class="font-mono text-slate-200 font-bold mt-0.5 block">{{ formatDateTime(selectedApp.created_at) }}</span>
+            </div>
+            <div>
+              <span class="text-slate-500 block">총 견적 / 예상금액</span>
+              <span class="font-mono font-bold text-amber-400 mt-0.5 block">
+                {{ selectedApp.total_amount > 0 ? `${Number(selectedApp.total_amount).toLocaleString()}원` : '상담 후 확정' }}
+              </span>
+            </div>
+            <div class="sm:col-span-2">
+              <span class="text-slate-500 block">배송지 / 수령 주소</span>
+              <span class="text-slate-200 truncate block mt-0.5">{{ selectedApp.details?.address || selectedApp.address || '기본 주소 정보 없음' }}</span>
+            </div>
           </div>
         </div>
 
-        <!-- 1. Market Tour Details Box -->
+        <!-- Section 2: Order Specific Details (Items Table, Tour, Freight, etc.) -->
+        
+        <!-- (Purchasing Items Table) -->
+        <div v-if="selectedApp.details?.items && selectedApp.details.items.length" class="space-y-2">
+          <label class="block font-bold text-blue-400 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-list-check"></i>
+            <span>구매대행 신청 품목 명세 (총 {{ selectedApp.details.items.length }}종)</span>
+          </label>
+          <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950">
+            <table class="w-full text-left text-xs text-slate-300">
+              <thead class="bg-slate-900 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-800">
+                <tr>
+                  <th class="py-2.5 px-3">No</th>
+                  <th class="py-2.5 px-3">상품명 / 옵션</th>
+                  <th class="py-2.5 px-3 text-right">단가(¥)</th>
+                  <th class="py-2.5 px-3 text-center">수량</th>
+                  <th class="py-2.5 px-3 text-center">링크</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60">
+                <tr v-for="(it, idx) in selectedApp.details.items" :key="idx" class="hover:bg-slate-900/50">
+                  <td class="py-2.5 px-3 font-mono text-slate-500">{{ idx + 1 }}</td>
+                  <td class="py-2.5 px-3">
+                    <div class="font-bold text-white">{{ it.name || it.sku || '상품명 미기재' }}</div>
+                    <div v-if="it.option" class="text-[11px] text-slate-400">옵션: {{ it.option }}</div>
+                  </td>
+                  <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-200">
+                    {{ it.priceCny ? `¥${it.priceCny}` : (it.unitPrice ? `¥${it.unitPrice}` : '-') }}
+                  </td>
+                  <td class="py-2.5 px-3 text-center font-mono font-bold text-white">
+                    {{ it.qty ? `${it.qty}개` : '-' }}
+                  </td>
+                  <td class="py-2.5 px-3 text-center">
+                    <a v-if="it.url || it.link" :href="it.url || it.link" target="_blank" class="px-2 py-1 rounded bg-blue-600/20 hover:bg-blue-600 text-blue-300 hover:text-white border border-blue-500/30 text-[10px] font-bold transition inline-flex items-center gap-1">
+                      <span>보기</span>
+                      <i class="fas fa-external-link-alt text-[8px]"></i>
+                    </a>
+                    <span v-else class="text-slate-600">-</span>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- (Market Tour Details Box) -->
         <div v-if="selectedApp.service_type === 'market_tour'" class="space-y-2.5">
           <label class="block font-bold text-amber-300 flex items-center gap-1.5 text-xs">
             <i class="fas fa-plane-departure text-amber-400"></i>
@@ -1225,7 +1397,7 @@
 
             <div class="p-3.5 bg-slate-950 rounded-2xl border border-purple-500/30 space-y-1">
               <span class="text-purple-400 font-bold block text-[11px] flex items-center gap-1">
-                <i class="fas fa-tags"></i> 조사 희망 품목 & 무료 지원
+                <i class="fas fa-tags"></i> 조사 희망 품목 & 지원
               </span>
               <p class="font-bold text-white text-xs">
                 {{ selectedApp.details?.targetItem || selectedApp.memo || '미지정' }}
@@ -1238,86 +1410,11 @@
           </div>
         </div>
 
-        <!-- 2. Calculator & Freight Logistics Details Box -->
-        <div v-if="selectedApp.service_type === 'calculator' || selectedApp.details?.freightCostKrw !== undefined || selectedApp.details?.cbm !== undefined" class="space-y-3">
-          <label class="block font-bold text-sky-300 flex items-center gap-1.5 text-xs">
-            <i class="fas fa-calculator text-sky-400"></i>
-            <span>실시간 무역·운임 및 관부가세 산출 내역</span>
-          </label>
-          
-          <!-- Freight Info Grid -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-            <div class="p-3 bg-slate-950 rounded-2xl border border-sky-500/30 space-y-1">
-              <span class="text-sky-400 font-bold block text-[11px] flex items-center gap-1">
-                <i class="fas fa-ship"></i> 운송 방식
-              </span>
-              <p class="font-bold text-white text-xs">
-                {{ selectedApp.details?.shippingModeName || selectedApp.details?.shippingMode || '해운 LCL' }}
-              </p>
-            </div>
-
-            <div class="p-3 bg-slate-950 rounded-2xl border border-sky-500/30 space-y-1">
-              <span class="text-sky-400 font-bold block text-[11px] flex items-center gap-1">
-                <i class="fas fa-cube"></i> 화물 총 부피 / 중량
-              </span>
-              <p class="font-bold text-white text-xs">
-                {{ selectedApp.details?.cbm }} CBM / {{ selectedApp.details?.weightKg }} kg
-              </p>
-            </div>
-
-            <div class="p-3 bg-slate-950 rounded-2xl border border-sky-500/30 space-y-1">
-              <span class="text-sky-400 font-bold block text-[11px] flex items-center gap-1">
-                <i class="fas fa-box"></i> 포장 박스 규격
-              </span>
-              <p class="font-bold text-white text-xs">
-                {{ selectedApp.details?.boxDimensions || '직접 입력' }}
-              </p>
-            </div>
-          </div>
-
-          <!-- Itemized Breakdown Table -->
-          <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-2 text-xs">
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-slate-300">
-              <div class="flex justify-between border-b border-slate-800/60 pb-1">
-                <span class="text-slate-400">1) 순수 제품가:</span>
-                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.productPriceKrw || 0).toLocaleString() }} (¥{{ selectedApp.details?.productPriceRmb || 0 }})</span>
-              </div>
-              <div class="flex justify-between border-b border-slate-800/60 pb-1">
-                <span class="text-slate-400">2) 구매대행 수수료:</span>
-                <span class="font-mono text-amber-300">₩{{ Number(selectedApp.details?.agencyFeeKrw || 0).toLocaleString() }}</span>
-              </div>
-              <div class="flex justify-between border-b border-slate-800/60 pb-1">
-                <span class="text-slate-400">3) 기본 국제 운송료:</span>
-                <span class="font-mono text-sky-300">₩{{ Number(selectedApp.details?.freightCostKrw || 0).toLocaleString() }}</span>
-              </div>
-              <div class="flex justify-between border-b border-slate-800/60 pb-1">
-                <span class="text-slate-400">4) 예상 관세:</span>
-                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.tariffKrw || 0).toLocaleString() }} {{ selectedApp.details?.useFtaCo ? '(한중 FTA C/O 0%)' : `(${selectedApp.details?.tariffRate || 0}%)` }}</span>
-              </div>
-              <div class="flex justify-between border-b border-slate-800/60 pb-1">
-                <span class="text-slate-400">5) 수입 부가가치세 (VAT):</span>
-                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.vatKrw || 0).toLocaleString() }}</span>
-              </div>
-              <div class="flex justify-between border-b border-slate-800/60 pb-1">
-                <span class="text-slate-400">6) 통관 수수료 & 부대비용:</span>
-                <span class="font-mono text-white">₩{{ Number(selectedApp.details?.customsFeeKrw || 0).toLocaleString() }}</span>
-              </div>
-            </div>
-
-            <div class="pt-2 border-t border-slate-800 flex justify-between items-baseline font-bold text-amber-400">
-              <span class="text-xs">총 예상 견적 합계:</span>
-              <span class="text-base font-black text-yellow-400 font-mono">
-                {{ Number(selectedApp.total_amount || selectedApp.details?.grandTotalKrw || 0).toLocaleString() }}원
-              </span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. Trade Agent Details Box -->
+        <!-- (OEM/ODM Trade Agent Details) -->
         <div v-if="selectedApp.service_type === 'trade' || selectedApp.service_type === 'trade_agent'" class="space-y-2">
           <label class="block font-bold text-emerald-300 flex items-center gap-1.5">
             <i class="fas fa-handshake text-emerald-400"></i>
-            <span>OEM/ODM 무역대행 의뢰 상세</span>
+            <span>OEM/ODM 맞춤 무역대행 의뢰 상세</span>
           </label>
           <div class="p-4 bg-slate-950 rounded-2xl border border-emerald-500/30 space-y-2 text-xs">
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-slate-300">
@@ -1335,7 +1432,7 @@
           </div>
         </div>
 
-        <!-- 3. Rocket Growth Details Box -->
+        <!-- (Rocket Growth Details) -->
         <div v-if="selectedApp.service_type === 'rocket_growth'" class="space-y-2">
           <label class="block font-bold text-rose-300 flex items-center gap-1.5">
             <i class="fas fa-rocket text-rose-400"></i>
@@ -1348,122 +1445,140 @@
               <div><strong class="text-slate-400">총 품목 수량:</strong> {{ selectedApp.details?.totalQuantity ? `${selectedApp.details.totalQuantity.toLocaleString()} EA` : '-' }}</div>
               <div><strong class="text-slate-400">총 박스 수:</strong> {{ selectedApp.details?.grandTotalBoxes ? `${selectedApp.details.grandTotalBoxes} 박스` : '-' }}</div>
             </div>
-            <div v-if="selectedApp.details?.services" class="pt-2 border-t border-slate-800 flex flex-wrap gap-1.5">
-              <span v-if="selectedApp.details.services.barcode" class="px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[11px] font-bold">바코드 부착</span>
-              <span v-if="selectedApp.details.services.pallet" class="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[11px] font-bold">파레트 적재&랩핑</span>
-              <span v-if="selectedApp.details.services.repack" class="px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 text-[11px] font-bold">에어캡 완충포장</span>
-              <span v-if="selectedApp.details.services.inspection" class="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-[11px] font-bold">정밀 전수검품</span>
-            </div>
           </div>
         </div>
 
-        <!-- 4. Additional Warehouse Services Box (Purchasing & General) -->
+        <!-- (Selected Warehouse Additional Services) -->
         <div v-if="selectedApp.additional_services || selectedApp.details?.additionalServices" class="space-y-2">
-          <label class="block font-bold text-amber-400 flex items-center gap-1.5">
+          <label class="block font-bold text-amber-400 flex items-center gap-1.5 text-xs">
             <i class="fas fa-shield-halved"></i>
-            <span>신청된 현지 창고 부가서비스</span>
+            <span>선택된 현지 부가서비스</span>
           </label>
-          <div class="p-4 bg-slate-950 rounded-2xl border border-amber-500/30 space-y-2">
-            <div class="flex flex-wrap gap-2">
-              <span v-if="(selectedApp.additional_services?.precision_inspection || selectedApp.details?.additionalServices?.precision_inspection)" class="px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold">
-                ✓ 기본 정밀검수
-              </span>
-              <span v-if="(selectedApp.additional_services?.origin_labeling || selectedApp.details?.additionalServices?.origin_labeling)" class="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-bold">
-                ✓ 원산지 표기 (MADE IN CHINA)
-              </span>
-              <span v-if="(selectedApp.additional_services?.packaging_reinforcement || selectedApp.details?.additionalServices?.packaging_reinforcement)" class="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-400/30 text-xs font-bold">
-                ✓ 포장 보강 / 재포장
-              </span>
-              <span v-if="(selectedApp.additional_services?.photo_inspection || selectedApp.details?.additionalServices?.photo_inspection)" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold">
-                ✓ 검품 사진 촬영
-              </span>
-              <span v-if="(selectedApp.additional_services?.barcode_attachment || selectedApp.details?.additionalServices?.barcode_attachment)" class="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-400/30 text-xs font-bold">
-                ✓ 개별 바코드 부착
-              </span>
-            </div>
-            <p v-if="selectedApp.additional_services?.custom_request || selectedApp.details?.additionalServices?.custom_request" class="text-xs text-slate-300 pt-1 border-t border-slate-800">
-              <strong class="text-slate-400">기타 부가 요청:</strong> {{ selectedApp.additional_services?.custom_request || selectedApp.details?.additionalServices?.custom_request }}
-            </p>
+          <div class="p-3.5 bg-slate-950 rounded-2xl border border-amber-500/30 flex flex-wrap gap-1.5">
+            <span v-if="(selectedApp.additional_services?.precision_inspection || selectedApp.details?.additionalServices?.precision_inspection)" class="px-2.5 py-1 rounded-lg bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-bold">
+              ✓ 기본 정밀검수
+            </span>
+            <span v-if="(selectedApp.additional_services?.origin_labeling || selectedApp.details?.additionalServices?.origin_labeling)" class="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 border border-amber-400/30 text-xs font-bold">
+              ✓ 원산지 표기 (MADE IN CHINA)
+            </span>
+            <span v-if="(selectedApp.additional_services?.packaging_reinforcement || selectedApp.details?.additionalServices?.packaging_reinforcement)" class="px-2.5 py-1 rounded-lg bg-purple-500/20 text-purple-300 border border-purple-400/30 text-xs font-bold">
+              ✓ 포장 보강 / 재포장
+            </span>
+            <span v-if="(selectedApp.additional_services?.photo_inspection || selectedApp.details?.additionalServices?.photo_inspection)" class="px-2.5 py-1 rounded-lg bg-emerald-500/20 text-emerald-300 border border-emerald-400/30 text-xs font-bold">
+              ✓ 검품 사진 촬영
+            </span>
+            <span v-if="(selectedApp.additional_services?.barcode_attachment || selectedApp.details?.additionalServices?.barcode_attachment)" class="px-2.5 py-1 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-400/30 text-xs font-bold">
+              ✓ 개별 바코드 부착
+            </span>
           </div>
         </div>
 
-        <!-- 4.5. Purchasing Order Summary Card -->
-        <div v-if="selectedApp.service_type === 'purchasing' || selectedApp.service_type === 'purchasing_agent' || selectedApp.details?.shippingType" class="space-y-2">
-          <label class="block font-bold text-blue-300 flex items-center gap-1.5 text-xs">
-            <i class="fas fa-truck-fast text-blue-400"></i>
-            <span>구매대행 배송 및 수령 정보</span>
-          </label>
-          <div class="p-3.5 bg-slate-950 rounded-2xl border border-blue-500/30 grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs text-slate-300">
-            <div>
-              <strong class="text-slate-400 block text-[11px]">배송 방식:</strong>
-              <span class="font-bold text-sky-300">
-                {{ selectedApp.details?.shippingTypeName || (selectedApp.details?.shippingType === 'other_customs' ? '기타통관' : selectedApp.details?.shippingType === 'air' ? '항공특송(긴급)' : selectedApp.details?.shippingType === 'lcl' ? '사업자 LCL 콘솔' : '해운특송(기본)') }}
-              </span>
-            </div>
-            <div>
-              <strong class="text-slate-400 block text-[11px]">개인통관고유부호:</strong>
-              <span class="font-mono text-white">{{ selectedApp.details?.customsCode || '-' }}</span>
-            </div>
-            <div>
-              <strong class="text-slate-400 block text-[11px]">수령지 주소:</strong>
-              <span class="text-white truncate block">{{ selectedApp.details?.address || '-' }}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- 5. Purchasing Items Table (If purchasing service) -->
-        <div v-if="selectedApp.details?.items && selectedApp.details.items.length" class="space-y-2">
-          <label class="block font-bold text-sky-400 flex items-center gap-1.5">
-            <i class="fas fa-list-check"></i>
-            <span>구매대행 신청 품목 리스트 ({{ selectedApp.details.items.length }}건)</span>
-          </label>
-          <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950">
-            <table class="w-full text-left text-xs text-slate-300">
-              <thead class="bg-slate-900 text-slate-400 uppercase font-bold text-[10px]">
-                <tr>
-                  <th class="py-2.5 px-3">상품 URL / 명칭</th>
-                  <th class="py-2.5 px-3">옵션</th>
-                  <th class="py-2.5 px-3 text-right">단가(¥)</th>
-                  <th class="py-2.5 px-3 text-right">수량</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-800/60">
-                <tr v-for="(it, idx) in selectedApp.details.items" :key="idx">
-                  <td class="py-2 px-3 max-w-[200px] truncate">
-                    <a v-if="it.url" :href="it.url" target="_blank" class="text-blue-400 hover:underline flex items-center gap-1">
-                      <i class="fas fa-arrow-up-right-from-square text-[10px]"></i>
-                      <span class="truncate">{{ it.url }}</span>
-                    </a>
-                    <span v-else>{{ it.name || it.sku || '상품명 미기재' }}</span>
-                  </td>
-                  <td class="py-2 px-3">{{ it.option || '-' }}</td>
-                  <td class="py-2 px-3 text-right font-mono">{{ it.priceCny ? `¥ ${it.priceCny}` : '-' }}</td>
-                  <td class="py-2 px-3 text-right font-mono font-bold">{{ it.qty ? `${it.qty} EA` : '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <!-- Requirement / Memo / Structured Message -->
+        <!-- Customer Requirement Memo -->
         <div class="space-y-2">
-          <label class="block font-bold text-slate-400 flex items-center gap-1.5">
+          <label class="block font-bold text-slate-300 flex items-center gap-1.5 text-xs">
             <i class="fas fa-comment-dots text-slate-400"></i>
-            <span>상세 메모 및 신청서 전문</span>
+            <span>고객 작성 요청사항 / 신청서 전문</span>
           </label>
-          <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 whitespace-pre-line leading-relaxed text-slate-200 font-mono text-xs max-h-60 overflow-y-auto">
-            {{ selectedApp.details?.fullApplicationMessage || selectedApp.memo || selectedApp.requirement || selectedApp.item_name || '작성된 상세 요청사항이 없습니다.' }}
+          <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 whitespace-pre-line leading-relaxed text-slate-200 font-mono text-xs max-h-48 overflow-y-auto">
+            {{ selectedApp.details?.fullApplicationMessage || selectedApp.memo || selectedApp.requirement || selectedApp.item_name || '작성된 추가 요청사항이 없습니다.' }}
+          </div>
+        </div>
+
+        <!-- Section 3: '이 고객의 이전 신청/상담 이력' (Customer History Timeline) -->
+        <div class="space-y-2.5 pt-3 border-t border-slate-800">
+          <div class="flex items-center justify-between">
+            <label class="font-black text-indigo-300 flex items-center gap-1.5 text-xs">
+              <i class="fas fa-clock-rotate-left text-indigo-400"></i>
+              <span>이 고객의 이전 신청 / 상담 이력</span>
+              <span class="px-1.5 py-0.2 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 rounded text-[10px]">
+                총 {{ customerHistory.length }}건
+              </span>
+            </label>
+          </div>
+
+          <div v-if="customerHistory.length > 0" class="space-y-2 max-h-48 overflow-y-auto pr-1">
+            <div 
+              v-for="hist in customerHistory" 
+              :key="hist.id"
+              class="p-3 bg-slate-950 rounded-xl border border-slate-800 hover:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs transition"
+            >
+              <div class="space-y-1">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-mono text-slate-400 text-[11px]">{{ formatDateTime(hist.created_at) }}</span>
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="getServiceBadgeClass(hist.service_type)">
+                    {{ hist.service_name || getServiceLabel(hist.service_type) }}
+                  </span>
+                  <span class="px-2 py-0.5 rounded-full text-[10px] font-bold border" :class="getStatusClass(hist.status)">
+                    {{ statusNameMap[hist.status] || hist.status }}
+                  </span>
+                </div>
+                <p class="text-slate-300 font-medium text-[11px] line-clamp-1">
+                  {{ getAppSummaryText(hist) }}
+                </p>
+              </div>
+
+              <div class="flex items-center gap-2 self-end sm:self-auto shrink-0">
+                <span class="font-mono font-bold text-amber-400 text-xs">
+                  {{ hist.total_amount > 0 ? Number(hist.total_amount).toLocaleString() + '원' : '-' }}
+                </span>
+                <button 
+                  type="button"
+                  @click="openAppDetail(hist)"
+                  class="px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold transition active:scale-95"
+                >
+                  이 건 열람
+                </button>
+              </div>
+            </div>
+          </div>
+          <div v-else class="p-3.5 bg-slate-950/60 rounded-xl border border-slate-800/80 text-center text-slate-500 text-[11px]">
+            이 고객의 이전 신청 이력이 없습니다. (첫 번째 접수건)
+          </div>
+        </div>
+
+        <!-- Section 4: 관리자 전용 상담 메모 기능 (Admin Consultation Notes) -->
+        <div class="space-y-2.5 pt-3 border-t border-slate-800">
+          <div class="flex items-center justify-between">
+            <label class="font-black text-amber-300 flex items-center gap-1.5 text-xs">
+              <i class="fas fa-user-pen text-amber-400"></i>
+              <span>관리자 전용 상담 및 진행 메모 (DB 영구 저장)</span>
+            </label>
+            <span v-if="selectedApp.details?.adminMemoUpdatedAt" class="text-[10px] text-slate-500 font-mono">
+              최근 저장: {{ formatDateTime(selectedApp.details.adminMemoUpdatedAt) }}
+            </span>
+          </div>
+
+          <div class="space-y-2">
+            <textarea 
+              v-model="adminMemoInput" 
+              rows="3" 
+              placeholder="고객과의 유선 통화 내용, 카카오톡 상담 기록, 견적 변경사항 및 특이사항을 기록하세요."
+              class="w-full p-3 bg-slate-950 rounded-xl border border-slate-800 text-white text-xs outline-none focus:border-amber-500 leading-relaxed font-sans placeholder:text-slate-600"
+            ></textarea>
+
+            <div class="flex justify-end">
+              <button 
+                type="button" 
+                @click="saveAdminMemo"
+                :disabled="isSavingMemo"
+                class="px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 disabled:opacity-50 active:scale-95"
+              >
+                <i v-if="isSavingMemo" class="fas fa-spinner animate-spin"></i>
+                <i v-else class="fas fa-floppy-disk"></i>
+                <span>{{ isSavingMemo ? '저장 중...' : '상담 메모 저장' }}</span>
+              </button>
+            </div>
           </div>
         </div>
 
         <!-- Modal Footer Actions -->
         <div class="flex flex-wrap items-center justify-between gap-3 pt-4 border-t border-slate-800">
           <div class="flex items-center gap-2">
-            <span class="text-slate-400 font-bold text-xs">처리 상태:</span>
+            <span class="text-slate-400 font-bold text-xs">진행 상태:</span>
             <select 
               v-model="selectedApp.status" 
               @change="updateAppStatus(selectedApp.id, selectedApp.status)"
-              class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-bold outline-none"
+              class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-bold outline-none cursor-pointer"
               :class="getStatusClass(selectedApp.status)"
             >
               <option value="pending">접수 대기</option>
@@ -1476,14 +1591,22 @@
 
           <div class="flex items-center gap-2">
             <button 
+              @click="exportSingleApplicationReceipt(selectedApp)" 
+              class="px-3.5 py-2 bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 font-bold rounded-xl text-xs transition flex items-center gap-1.5 active:scale-95"
+              title="견적서(CSV) 다운로드"
+            >
+              <i class="fas fa-file-csv"></i>
+              <span>명세서 CSV</span>
+            </button>
+            <button 
               @click="deleteApplication(selectedApp.id)" 
-              class="px-4 py-2 bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 font-bold rounded-xl text-xs transition"
+              class="px-3.5 py-2 bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 font-bold rounded-xl text-xs transition active:scale-95"
             >
               삭제
             </button>
             <button 
               @click="selectedApp = null" 
-              class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition"
+              class="px-5 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-xl text-xs transition active:scale-95"
             >
               닫기
             </button>
@@ -1601,6 +1724,19 @@ const applications = ref([])
 const isFetchingApps = ref(false)
 const filterService = ref('all')
 const selectedApp = ref(null)
+const customerHistory = ref([])
+const isSavingMemo = ref(false)
+const adminMemoInput = ref('')
+
+const serviceCounts = computed(() => {
+  const all = applications.value.length
+  const purchasing = applications.value.filter(a => a.service_type === 'purchasing' || a.service_type === 'purchasing_agent').length
+  const marketTour = applications.value.filter(a => a.service_type === 'market_tour').length
+  const trade = applications.value.filter(a => a.service_type === 'trade' || a.service_type === 'trade_agent').length
+  const rocketGrowth = applications.value.filter(a => a.service_type === 'rocket_growth').length
+  const calculator = applications.value.filter(a => a.service_type === 'calculator' || a.service_type === 'logistics_estimate').length
+  return { all, purchasing, marketTour, trade, rocketGrowth, calculator }
+})
 
 const filteredApplications = computed(() => {
   if (filterService.value === 'all') return applications.value
@@ -1681,11 +1817,84 @@ const deleteApplication = async (id) => {
 }
 
 const openAppDetail = async (app) => {
+  if (!app) {
+    selectedApp.value = null
+    customerHistory.value = []
+    return
+  }
+
   selectedApp.value = app
+  adminMemoInput.value = app.admin_memo || app.details?.adminMemo || ''
+
+  // Load customer past history matching email, phone, or user_id
+  const email = app.email?.toLowerCase().trim()
+  const phone = app.phone?.replace(/[^0-9]/g, '')
+  const uid = app.user_id
+
+  customerHistory.value = applications.value.filter(a => {
+    if (a.id === app.id) return false
+    const aEmail = a.email?.toLowerCase().trim()
+    const aPhone = a.phone?.replace(/[^0-9]/g, '')
+    const aUid = a.user_id
+
+    const matchEmail = Boolean(email && aEmail && email === aEmail)
+    const matchPhone = Boolean(phone && aPhone && phone.length >= 8 && phone === aPhone)
+    const matchUid = Boolean(uid && aUid && uid === aUid)
+
+    return matchEmail || matchPhone || matchUid
+  })
+
   // When opening a new application in 'pending' / '접수대기' state, automatically update status to 'consulting'
-  if (app && (app.status === 'pending' || app.status === '접수대기')) {
+  if (app.status === 'pending' || app.status === '접수대기') {
     app.status = 'consulting'
     await updateAppStatus(app.id, 'consulting')
+  }
+}
+
+const saveAdminMemo = async () => {
+  if (!selectedApp.value) return
+  isSavingMemo.value = true
+  try {
+    const updatedDetails = {
+      ...(selectedApp.value.details || {}),
+      adminMemo: adminMemoInput.value,
+      adminMemoUpdatedAt: new Date().toISOString()
+    }
+
+    if (isSupabaseConfigured()) {
+      // 1. Try updating admin_memo and details
+      const { error } = await supabase
+        .from('applications')
+        .update({
+          admin_memo: adminMemoInput.value,
+          details: updatedDetails
+        })
+        .eq('id', selectedApp.value.id)
+
+      if (error) {
+        // Fallback: update details only
+        await supabase
+          .from('applications')
+          .update({ details: updatedDetails })
+          .eq('id', selectedApp.value.id)
+      }
+    }
+
+    selectedApp.value.admin_memo = adminMemoInput.value
+    selectedApp.value.details = updatedDetails
+
+    const target = applications.value.find(a => a.id === selectedApp.value.id)
+    if (target) {
+      target.admin_memo = adminMemoInput.value
+      target.details = updatedDetails
+    }
+
+    alert('관리자 상담 메모가 안전하게 저장되었습니다.')
+  } catch (err) {
+    console.error('Save admin memo error:', err)
+    alert('상담 메모 저장 중 오류가 발생했습니다: ' + err.message)
+  } finally {
+    isSavingMemo.value = false
   }
 }
 
