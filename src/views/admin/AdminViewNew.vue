@@ -2510,6 +2510,84 @@ const getYoutubeEmbedUrl = (url) => {
 }
 
 // ----------------------------------------------------
+// Service Cards Media Management State & Logic
+// ----------------------------------------------------
+const serviceCardFileInput = ref(null)
+const currentServiceUploadType = ref('rocket')
+const isUploadingServiceCard = ref({
+  rocket: false,
+  purchasing: false,
+  trade: false,
+  tour: false
+})
+
+const isVideoMedia = (url) => {
+  if (!url) return false
+  const clean = url.toLowerCase().split('?')[0]
+  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.ogg') || clean.endsWith('.mov') || url.includes('/video/')
+}
+
+const triggerServiceCardUpload = (serviceKey) => {
+  currentServiceUploadType.value = serviceKey
+  if (serviceCardFileInput.value) {
+    serviceCardFileInput.value.click()
+  }
+}
+
+const handleServiceCardFileUpload = async (event) => {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  const serviceKey = currentServiceUploadType.value || 'rocket'
+  isUploadingServiceCard.value[serviceKey] = true
+
+  try {
+    if (!isSupabaseConfigured()) {
+      alert('Supabase 설정이 필요합니다. 외부 URL을 직접 입력해 주세요.')
+      return
+    }
+
+    const fileExt = (file.name.split('.').pop() || '').toLowerCase()
+    const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'].includes(fileExt)
+    const fileName = `service_card_${serviceKey}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.${fileExt || (isVideo ? 'mp4' : 'jpg')}`
+    const filePath = `service_cards/${fileName}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('notices')
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: true,
+        contentType: file.type || (isVideo ? 'video/mp4' : 'image/jpeg')
+      })
+
+    if (uploadError) {
+      console.error('Service Card Upload Error:', uploadError)
+      alert('파일 업로드 실패: ' + uploadError.message)
+      return
+    }
+
+    const { data: publicUrlData } = supabase.storage
+      .from('notices')
+      .getPublicUrl(filePath)
+
+    if (publicUrlData && publicUrlData.publicUrl) {
+      if (serviceKey === 'rocket') settingsForm.value.service_card_media_rocket = publicUrlData.publicUrl
+      else if (serviceKey === 'purchasing') settingsForm.value.service_card_media_purchasing = publicUrlData.publicUrl
+      else if (serviceKey === 'trade') settingsForm.value.service_card_media_trade = publicUrlData.publicUrl
+      else if (serviceKey === 'tour') settingsForm.value.service_card_media_tour = publicUrlData.publicUrl
+
+      alert(`서비스 미디어 파일이 성공적으로 업로드되었습니다! 하단의 [저장하기] 버튼을 누르면 메인 화면에 즉시 반영됩니다.`)
+    }
+  } catch (err) {
+    console.error('Service Card File Upload Exception:', err)
+    alert('파일 업로드 중 오류가 발생했습니다: ' + err.message)
+  } finally {
+    isUploadingServiceCard.value[serviceKey] = false
+    if (event.target) event.target.value = ''
+  }
+}
+
+// ----------------------------------------------------
 // TAB 4: Staff & Role Management State & Logic
 // ----------------------------------------------------
 const PROTECTED_MASTER_EMAILS = [

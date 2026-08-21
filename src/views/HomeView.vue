@@ -308,7 +308,7 @@
 
     <!-- ======================================================== -->
     <!-- ======================================================== -->
-    <!-- 3. CORE SERVICES 4 CARDS (High-End Agency Cards with Dynamic Animated Backgrounds) -->
+    <!-- 3. CORE SERVICES 4 CARDS (High-End Agency Cards) -->
     <!-- ======================================================== -->
     <section class="py-16 sm:py-24 bg-[#0b0f19] text-white relative border-t border-slate-800">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
@@ -326,18 +326,33 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
           
           <!-- Card 1: 쿠팡 로켓그로스 & 밀크런 입고 대행 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-red-500/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
-            <!-- Dynamic Moving Background -->
-            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-red-500/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Only when configured) -->
+            <div v-if="serviceMediaRocket" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <video 
+                v-if="isVideoMedia(serviceMediaRocket)"
+                :src="serviceMediaRocket"
+                autoplay 
+                loop 
+                muted 
+                playsinline
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              ></video>
               <img 
-                src="https://media1.giphy.com/media/l0HlTy9x8FZo0XO1i/giphy.gif" 
-                alt="쿠팡 물류창고 컨베이어 박스 배송"
+                v-else
+                :src="serviceMediaRocket" 
+                alt="쿠팡 물류창고 입고 배경"
                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                 loading="lazy"
               />
               <!-- Dark Overlay for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+            </div>
+
+            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
+            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-red-500/5 rounded-full blur-3xl group-hover:bg-red-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer -->
@@ -373,18 +388,33 @@
           </div>
 
           <!-- Card 2: 1688 / 타오바오 중국 구매대행 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-blue-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
-            <!-- Dynamic Moving Background -->
-            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-blue-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Only when configured) -->
+            <div v-if="serviceMediaPurchasing" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <video 
+                v-if="isVideoMedia(serviceMediaPurchasing)"
+                :src="serviceMediaPurchasing"
+                autoplay 
+                loop 
+                muted 
+                playsinline
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              ></video>
               <img 
-                src="https://media1.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif" 
-                alt="1688 타오바오 온라인 구매대행 화면"
+                v-else
+                :src="serviceMediaPurchasing" 
+                alt="1688 타오바오 구매대행 배경"
                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                 loading="lazy"
               />
               <!-- Dark Overlay for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+            </div>
+
+            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
+            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer -->
@@ -420,18 +450,33 @@
           </div>
 
           <!-- Card 3: 무역대행 & OEM/ODM 맞춤제조 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-emerald-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
-            <!-- Dynamic Moving Background -->
-            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-emerald-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Only when configured) -->
+            <div v-if="serviceMediaTrade" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <video 
+                v-if="isVideoMedia(serviceMediaTrade)"
+                :src="serviceMediaTrade"
+                autoplay 
+                loop 
+                muted 
+                playsinline
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              ></video>
               <img 
-                src="https://media1.giphy.com/media/26BRzozg4TCBXv6QU/giphy.gif" 
-                alt="공장 생산 라인 및 로봇 자동화"
+                v-else
+                :src="serviceMediaTrade" 
+                alt="공장 생산 라인 배경"
                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                 loading="lazy"
               />
               <!-- Dark Overlay for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+            </div>
+
+            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
+            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer -->
@@ -467,18 +512,33 @@
           </div>
 
           <!-- Card 4: 중국 이우(푸텐) 시장조사 투어 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-amber-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
-            <!-- Dynamic Moving Background -->
-            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-amber-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Only when configured) -->
+            <div v-if="serviceMediaTour" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <video 
+                v-if="isVideoMedia(serviceMediaTour)"
+                :src="serviceMediaTour"
+                autoplay 
+                loop 
+                muted 
+                playsinline
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              ></video>
               <img 
-                src="https://media1.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif" 
-                alt="이우 시장조사 투어 상점 거리"
+                v-else
+                :src="serviceMediaTour" 
+                alt="이우 시장조사 투어 배경"
                 class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
                 loading="lazy"
               />
               <!-- Dark Overlay for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+            </div>
+
+            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
+            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-amber-500/5 rounded-full blur-3xl group-hover:bg-amber-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer -->
@@ -775,8 +835,22 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TradePhotos from '../components/TradePhotos.vue'
-import { fetchSiteSettings } from '../lib/settings'
+import { fetchSiteSettings, currentSettings } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+
+// ----------------------------------------------------
+// 4 Core Service Cards Dynamic Media Bindings
+// ----------------------------------------------------
+const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
+const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
+const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
+const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
+
+const isVideoMedia = (url) => {
+  if (!url) return false
+  const clean = url.toLowerCase().split('?')[0]
+  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.ogg') || clean.endsWith('.mov') || url.includes('/video/')
+}
 
 // ----------------------------------------------------
 // Real-Time Rates & Settings & Hero Media

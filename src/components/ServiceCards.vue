@@ -15,17 +15,30 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
         
         <!-- Card 1: 쿠팡 배송대행 / 로켓배송 -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-red-500/80 p-6 min-h-[380px]">
-          <!-- Dynamic Moving Background -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-red-500/80 p-6 min-h-[380px] bg-[#141e33]">
+          <!-- Dynamic Moving Background (Only when registered) -->
+          <div v-if="serviceMediaRocket" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <video 
+              v-if="isVideoMedia(serviceMediaRocket)"
+              :src="serviceMediaRocket"
+              autoplay 
+              loop 
+              muted 
+              playsinline
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+            ></video>
             <img 
-              src="https://media1.giphy.com/media/l0HlTy9x8FZo0XO1i/giphy.gif" 
+              v-else
+              :src="serviceMediaRocket" 
               alt="쿠팡 로켓 배송 입고 대행"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
               loading="lazy"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+          </div>
+          <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+            <div class="absolute -right-6 -bottom-6 w-36 h-36 bg-red-500/5 rounded-full blur-2xl group-hover:bg-red-500/10 transition duration-500"></div>
           </div>
 
           <div class="relative z-10 space-y-3">
@@ -57,17 +70,30 @@
         </div>
 
         <!-- Card 2: 구매대행이란? -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-blue-400/80 p-6 min-h-[380px]">
-          <!-- Dynamic Moving Background -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-blue-400/80 p-6 min-h-[380px] bg-[#141e33]">
+          <!-- Dynamic Moving Background (Only when registered) -->
+          <div v-if="serviceMediaPurchasing" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <video 
+              v-if="isVideoMedia(serviceMediaPurchasing)"
+              :src="serviceMediaPurchasing"
+              autoplay 
+              loop 
+              muted 
+              playsinline
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+            ></video>
             <img 
-              src="https://media1.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif" 
+              v-else
+              :src="serviceMediaPurchasing" 
               alt="구매대행 안내"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
               loading="lazy"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+          </div>
+          <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+            <div class="absolute -right-6 -bottom-6 w-36 h-36 bg-blue-500/5 rounded-full blur-2xl group-hover:bg-blue-500/10 transition duration-500"></div>
           </div>
 
           <div class="relative z-10 space-y-3">
@@ -99,17 +125,30 @@
         </div>
 
         <!-- Card 3: 무역대행이란? -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-emerald-400/80 p-6 min-h-[380px]">
-          <!-- Dynamic Moving Background -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-emerald-400/80 p-6 min-h-[380px] bg-[#141e33]">
+          <!-- Dynamic Moving Background (Only when registered) -->
+          <div v-if="serviceMediaTrade" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <video 
+              v-if="isVideoMedia(serviceMediaTrade)"
+              :src="serviceMediaTrade"
+              autoplay 
+              loop 
+              muted 
+              playsinline
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+            ></video>
             <img 
-              src="https://media1.giphy.com/media/26BRzozg4TCBXv6QU/giphy.gif" 
+              v-else
+              :src="serviceMediaTrade" 
               alt="무역대행 안내"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
               loading="lazy"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+          </div>
+          <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+            <div class="absolute -right-6 -bottom-6 w-36 h-36 bg-emerald-500/5 rounded-full blur-2xl group-hover:bg-emerald-500/10 transition duration-500"></div>
           </div>
 
           <div class="relative z-10 space-y-3">
@@ -141,17 +180,30 @@
         </div>
 
         <!-- Card 4: 이우 시장조사 투어 -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-amber-400/80 p-6 min-h-[380px]">
-          <!-- Dynamic Moving Background -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-amber-400/80 p-6 min-h-[380px] bg-[#141e33]">
+          <!-- Dynamic Moving Background (Only when registered) -->
+          <div v-if="serviceMediaTour" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <video 
+              v-if="isVideoMedia(serviceMediaTour)"
+              :src="serviceMediaTour"
+              autoplay 
+              loop 
+              muted 
+              playsinline
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+            ></video>
             <img 
-              src="https://media1.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif" 
+              v-else
+              :src="serviceMediaTour" 
               alt="이우 시장조사 투어"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
               loading="lazy"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+          </div>
+          <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
+            <div class="absolute -right-6 -bottom-6 w-36 h-36 bg-amber-500/5 rounded-full blur-2xl group-hover:bg-amber-500/10 transition duration-500"></div>
           </div>
 
           <div class="relative z-10 space-y-3">
@@ -186,21 +238,20 @@
 
     </div>
   </section>
-</template>></i> 안전한 창고 보관 & 재고 관리</li>
-              <li class="flex items-center gap-1.5"><i class="fas fa-check text-blue-500"></i> 주문서 연동 개별 소비자 직발송</li>
-              <li class="flex items-center gap-1.5"><i class="fas fa-check text-blue-500"></i> 합포장 & 에어캡 완충 포장</li>
-            </ul>
-            <router-link 
-              to="/services/3pl-fulfillment"
-              class="block w-full text-center py-2.5 px-4 bg-gray-100 hover:bg-purple-600 hover:text-white text-gray-800 text-xs font-semibold rounded-lg transition"
-            >
-              3PL 제휴 문의하기 &rarr;
-            </router-link>
-          </div>
-        </div>
-
-      </div>
-
-    </div>
-  </section>
 </template>
+
+<script setup>
+import { computed } from 'vue'
+import { currentSettings } from '../lib/settings'
+
+const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
+const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
+const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
+const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
+
+const isVideoMedia = (url) => {
+  if (!url) return false
+  const clean = url.toLowerCase().split('?')[0]
+  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.ogg') || clean.endsWith('.mov') || url.includes('/video/')
+}
+</script>
