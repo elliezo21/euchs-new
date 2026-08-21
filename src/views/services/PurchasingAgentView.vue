@@ -521,13 +521,13 @@
           </div>
         </div>
         <div class="flex flex-col gap-2 pt-2">
-          <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
-            target="_blank"
-            class="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold text-xs rounded-xl transition flex items-center justify-center gap-1"
+          <router-link 
+            to="/mypage" 
+            class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2"
           >
-            <i class="fas fa-comment"></i> 카카오톡으로 신청 확인
-          </a>
+            <i class="fas fa-receipt"></i>
+            <span>마이페이지 주문내역 확인</span>
+          </router-link>
           <button @click="showModal = false" class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition">
             닫기
           </button>

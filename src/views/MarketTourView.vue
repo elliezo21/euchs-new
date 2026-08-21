@@ -735,15 +735,14 @@
 
           <!-- Action Buttons -->
           <div class="flex flex-col gap-2.5 pt-1">
-            <!-- 1. Kakao Confirm Button -->
-            <button 
-              type="button"
-              @click="handleKakaoConfirm" 
-              class="w-full py-3.5 px-4 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-md hover:shadow-lg shadow-amber-400/20"
+            <!-- 1. MyPage Confirm Button -->
+            <router-link 
+              to="/mypage" 
+              class="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-md hover:shadow-lg shadow-blue-500/20"
             >
-              <i class="fas fa-comment text-amber-950 text-base"></i>
-              <span>카카오톡으로 신청 확인 & 1:1 상담하기</span>
-            </button>
+              <i class="fas fa-receipt text-sm"></i>
+              <span>마이페이지 신청내역 확인</span>
+            </router-link>
 
             <!-- 2. Channel Talk Button -->
             <button 

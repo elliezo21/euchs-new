@@ -663,13 +663,13 @@
         </div>
 
         <div class="space-y-2 pt-2">
-          <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
-            target="_blank"
-            class="w-full py-3 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs rounded-xl transition flex items-center justify-center gap-1.5 shadow"
+          <router-link 
+            to="/mypage" 
+            class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-blue-500/20"
           >
-            <i class="fas fa-comment"></i> 카카오톡으로 실시간 빠른 확인
-          </a>
+            <i class="fas fa-receipt"></i>
+            <span>마이페이지 견적내역 확인</span>
+          </router-link>
           <button 
             @click="showSuccessModal = false" 
             class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs rounded-xl transition"
