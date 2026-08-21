@@ -91,7 +91,7 @@
             <p class="sm:col-span-2">
               <strong>이메일:</strong> 
               <a href="mailto:lcceuchs@gmail.com" class="hover:text-white underline">lcceuchs@gmail.com</a> / 
-              <a href="mailto:zozo2121@nate.com" class="hover:text-white underline">zozo2121@nate.com</a>
+              <a href="mailto:contact@euchs.co.kr" class="hover:text-white underline">contact@euchs.co.kr</a>
             </p>
             <p class="sm:col-span-2">
               <strong>한국 주소:</strong> 광주광역시 북구 서방로135번길 54, 1층

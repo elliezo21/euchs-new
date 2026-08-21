@@ -259,7 +259,7 @@
               이메일 문의: 
               <a href="mailto:lcceuchs@gmail.com" class="text-slate-300 hover:text-white underline font-semibold">lcceuchs@gmail.com</a>
               <span class="mx-1.5 text-slate-500">/</span>
-              <a href="mailto:zozo2121@nate.com" class="text-slate-300 hover:text-white underline font-semibold">zozo2121@nate.com</a>
+              <a href="mailto:contact@euchs.co.kr" class="text-slate-300 hover:text-white underline font-semibold">contact@euchs.co.kr</a>
             </p>
           </div>
         </div>
