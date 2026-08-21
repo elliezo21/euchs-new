@@ -11,15 +11,24 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import QuickMenu from './components/QuickMenu.vue'
 import LoginModal from './components/LoginModal.vue'
+import { recordVisit } from './lib/analytics'
 
 const route = useRoute()
 const isAdminRoute = computed(() => {
   return route.path.startsWith('/admin') || route.path === '/login'
+})
+
+onMounted(() => {
+  recordVisit(route.path)
+})
+
+watch(() => route.path, (newPath) => {
+  recordVisit(newPath)
 })
 </script>

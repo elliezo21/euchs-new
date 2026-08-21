@@ -131,4 +131,18 @@ ON CONFLICT (id) DO NOTHING;
 ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public all site_settings" ON site_settings;
 CREATE POLICY "Public all site_settings" ON site_settings FOR ALL USING (true) WITH CHECK (true);
+
+-- 6. 방문자 접속 통계 테이블 (site_visits)
+CREATE TABLE IF NOT EXISTS site_visits (
+  id BIGSERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  visited_date DATE DEFAULT CURRENT_DATE,
+  page_path TEXT DEFAULT '/',
+  referrer TEXT,
+  user_agent TEXT
+);
+
+ALTER TABLE site_visits ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public all site_visits" ON site_visits;
+CREATE POLICY "Public all site_visits" ON site_visits FOR ALL USING (true) WITH CHECK (true);
 `

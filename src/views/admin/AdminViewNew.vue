@@ -100,6 +100,80 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
       
       <!-- ========================================================== -->
+      <!-- TOP VISITOR ANALYTICS SUMMARY CARDS (3 Cards Grid) -->
+      <!-- ========================================================== -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
+        <!-- 1. 오늘 방문자 수 (Today) -->
+        <div class="bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-blue-500/50 transition-all duration-300">
+          <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span> 오늘 방문자 수 (Today)
+            </span>
+            <div class="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
+              <i class="fas fa-chart-simple text-base"></i>
+            </div>
+          </div>
+          <div class="mt-3 flex items-baseline gap-2">
+            <span class="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              {{ isFetchingStats ? '...' : visitorStats.today.toLocaleString() }}
+            </span>
+            <span class="text-xs font-bold text-blue-400">명</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+            <i class="fas fa-calendar-day text-[10px] text-slate-400"></i>
+            <span>오늘 하루 고유 방문자</span>
+          </p>
+        </div>
+
+        <!-- 2. 이번 달 방문자 수 (This Month) -->
+        <div class="bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-indigo-500/50 transition-all duration-300">
+          <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-indigo-400"></span> 이번 달 방문자 수 (This Month)
+            </span>
+            <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
+              <i class="fas fa-chart-line text-base"></i>
+            </div>
+          </div>
+          <div class="mt-3 flex items-baseline gap-2">
+            <span class="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              {{ isFetchingStats ? '...' : visitorStats.thisMonth.toLocaleString() }}
+            </span>
+            <span class="text-xs font-bold text-indigo-400">명</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+            <i class="fas fa-calendar-alt text-[10px] text-slate-400"></i>
+            <span>당월 누적 방문자 수</span>
+          </p>
+        </div>
+
+        <!-- 3. 전체 누적 방문자 수 (Total) -->
+        <div class="bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all duration-300">
+          <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> 전체 누적 방문자 수 (Total)
+            </span>
+            <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
+              <i class="fas fa-globe text-base"></i>
+            </div>
+          </div>
+          <div class="mt-3 flex items-baseline gap-2">
+            <span class="text-3xl sm:text-4xl font-black text-white tracking-tight">
+              {{ isFetchingStats ? '...' : visitorStats.total.toLocaleString() }}
+            </span>
+            <span class="text-xs font-bold text-emerald-400">명</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+            <i class="fas fa-users text-[10px] text-slate-400"></i>
+            <span>사이트 오픈 이래 총 누적</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- ========================================================== -->
       <!-- TAB 1: CUSTOMER APPLICATIONS LIST -->
       <!-- ========================================================== -->
       <section v-if="activeTab === 'applications'" class="space-y-6">
@@ -141,10 +215,10 @@
             <!-- Refresh Button -->
             <button 
               type="button"
-              @click="fetchApplications" 
+              @click="fetchApplications(); fetchStats()" 
               class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs shadow-md transition flex items-center gap-1.5"
             >
-              <i class="fas fa-sync-alt" :class="{ 'animate-spin': isFetchingApps }"></i>
+              <i class="fas fa-sync-alt" :class="{ 'animate-spin': isFetchingApps || isFetchingStats }"></i>
               <span>새로고침</span>
             </button>
           </div>
@@ -1414,6 +1488,7 @@ import { useRouter } from 'vue-router'
 import { supabase, isSupabaseConfigured } from '../../lib/supabase'
 import { fetchSiteSettings, saveSiteSettings, DEFAULT_SETTINGS } from '../../lib/settings'
 import { currentUser, userRole, checkUserRole, isSuperAdmin, signOut } from '../../lib/auth'
+import { getVisitorStats } from '../../lib/analytics'
 
 const router = useRouter()
 
@@ -1461,6 +1536,28 @@ const handleAdminLogout = async () => {
   if (confirm('관리자 콘솔에서 로그아웃하시겠습니까?')) {
     await signOut()
     router.replace('/login')
+  }
+}
+
+// ----------------------------------------------------
+// TOP STATS: Visitor Analytics State & Fetch
+// ----------------------------------------------------
+const visitorStats = ref({
+  today: 0,
+  thisMonth: 0,
+  total: 0
+})
+const isFetchingStats = ref(false)
+
+const fetchStats = async () => {
+  isFetchingStats.value = true
+  try {
+    const stats = await getVisitorStats()
+    visitorStats.value = stats
+  } catch (err) {
+    console.warn('Visitor stats fetch error:', err)
+  } finally {
+    isFetchingStats.value = false
   }
 }
 
@@ -2343,6 +2440,7 @@ const formatDateTime = (dateStr) => {
 onMounted(async () => {
   const allowed = await verifyAdminAccess()
   if (allowed) {
+    fetchStats()
     fetchApplications()
     fetchNotices()
     loadSettings()
