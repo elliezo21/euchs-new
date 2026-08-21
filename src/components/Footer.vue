@@ -53,14 +53,6 @@
               무역/관부가세계산기
             </router-link>
 
-            <router-link 
-              to="/admin" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-500 hover:text-blue-400 text-center transition flex items-center justify-center gap-1 col-span-3 md:col-span-1 text-[11px] sm:text-xs"
-            >
-              <i class="fas fa-lock text-[10px]"></i>
-              <span>관리자</span>
-            </router-link>
-
           </div>
         </nav>
 
