@@ -100,76 +100,63 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-8">
       
       <!-- ========================================================== -->
-      <!-- TOP VISITOR ANALYTICS SUMMARY CARDS (3 Cards Grid) -->
+      <!-- UNIFIED COMPACT VISITOR STATS BAR (Single Integrated Card) -->
       <!-- ========================================================== -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 mb-8">
-        <!-- 1. 오늘 방문자 수 (Today) -->
-        <div class="bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-blue-500/50 transition-all duration-300">
-          <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-blue-500/10 rounded-full blur-2xl group-hover:bg-blue-500/20 transition-all"></div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span> 오늘 방문자 수 (Today)
-            </span>
-            <div class="w-10 h-10 rounded-2xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400 group-hover:scale-110 transition-transform">
-              <i class="fas fa-chart-simple text-base"></i>
+      <div class="bg-slate-900 rounded-2xl p-3.5 sm:px-6 sm:py-3 border border-slate-800 shadow-xl mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+        <!-- Title & Icon -->
+        <div class="flex items-center gap-2.5">
+          <div class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
+            <i class="fas fa-chart-line text-sm"></i>
+          </div>
+          <div>
+            <div class="text-xs font-black text-white flex items-center gap-1.5">
+              <span>방문자 접속 통계</span>
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
             </div>
+            <p class="text-[10px] text-slate-400">실시간 방문자 집계 요약</p>
           </div>
-          <div class="mt-3 flex items-baseline gap-2">
-            <span class="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              {{ isFetchingStats ? '...' : visitorStats.today.toLocaleString() }}
-            </span>
-            <span class="text-xs font-bold text-blue-400">명</span>
-          </div>
-          <p class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
-            <i class="fas fa-calendar-day text-[10px] text-slate-400"></i>
-            <span>오늘 하루 고유 방문자</span>
-          </p>
         </div>
 
-        <!-- 2. 이번 달 방문자 수 (This Month) -->
-        <div class="bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-indigo-500/50 transition-all duration-300">
-          <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-indigo-500/10 rounded-full blur-2xl group-hover:bg-indigo-500/20 transition-all"></div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-indigo-400"></span> 이번 달 방문자 수 (This Month)
+        <!-- 3 Metrics in 1 row -->
+        <div class="grid grid-cols-3 divide-x divide-slate-800/80 bg-slate-950/60 rounded-xl border border-slate-800/60 px-2 py-1.5 sm:px-4 sm:py-2 flex-1 md:max-w-2xl">
+          <!-- 1. Today -->
+          <div class="px-2 sm:px-4 text-center">
+            <span class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase flex items-center justify-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-blue-400 animate-pulse"></span> 오늘
             </span>
-            <div class="w-10 h-10 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 group-hover:scale-110 transition-transform">
-              <i class="fas fa-chart-line text-base"></i>
+            <div class="mt-0.5 flex items-baseline justify-center gap-0.5">
+              <span class="text-base sm:text-xl font-black text-white tracking-tight">
+                {{ isFetchingStats ? '...' : visitorStats.today.toLocaleString() }}
+              </span>
+              <span class="text-[10px] font-bold text-blue-400">명</span>
             </div>
           </div>
-          <div class="mt-3 flex items-baseline gap-2">
-            <span class="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              {{ isFetchingStats ? '...' : visitorStats.thisMonth.toLocaleString() }}
-            </span>
-            <span class="text-xs font-bold text-indigo-400">명</span>
-          </div>
-          <p class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
-            <i class="fas fa-calendar-alt text-[10px] text-slate-400"></i>
-            <span>당월 누적 방문자 수</span>
-          </p>
-        </div>
 
-        <!-- 3. 전체 누적 방문자 수 (Total) -->
-        <div class="bg-slate-900 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-xl relative overflow-hidden group hover:border-emerald-500/50 transition-all duration-300">
-          <div class="absolute -right-4 -bottom-4 w-28 h-28 bg-emerald-500/10 rounded-full blur-2xl group-hover:bg-emerald-500/20 transition-all"></div>
-          <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
-              <span class="w-2 h-2 rounded-full bg-emerald-400"></span> 전체 누적 방문자 수 (Total)
+          <!-- 2. This Month -->
+          <div class="px-2 sm:px-4 text-center">
+            <span class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase flex items-center justify-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-indigo-400"></span> 이번 달
             </span>
-            <div class="w-10 h-10 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 group-hover:scale-110 transition-transform">
-              <i class="fas fa-globe text-base"></i>
+            <div class="mt-0.5 flex items-baseline justify-center gap-0.5">
+              <span class="text-base sm:text-xl font-black text-white tracking-tight">
+                {{ isFetchingStats ? '...' : visitorStats.thisMonth.toLocaleString() }}
+              </span>
+              <span class="text-[10px] font-bold text-indigo-400">명</span>
             </div>
           </div>
-          <div class="mt-3 flex items-baseline gap-2">
-            <span class="text-3xl sm:text-4xl font-black text-white tracking-tight">
-              {{ isFetchingStats ? '...' : visitorStats.total.toLocaleString() }}
+
+          <!-- 3. Total -->
+          <div class="px-2 sm:px-4 text-center">
+            <span class="text-[10px] sm:text-[11px] font-bold text-slate-400 uppercase flex items-center justify-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400"></span> 전체 누적
             </span>
-            <span class="text-xs font-bold text-emerald-400">명</span>
+            <div class="mt-0.5 flex items-baseline justify-center gap-0.5">
+              <span class="text-base sm:text-xl font-black text-white tracking-tight">
+                {{ isFetchingStats ? '...' : visitorStats.total.toLocaleString() }}
+              </span>
+              <span class="text-[10px] font-bold text-emerald-400">명</span>
+            </div>
           </div>
-          <p class="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
-            <i class="fas fa-users text-[10px] text-slate-400"></i>
-            <span>사이트 오픈 이래 총 누적</span>
-          </p>
         </div>
       </div>
 
