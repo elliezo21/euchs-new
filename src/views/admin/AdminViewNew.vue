@@ -964,6 +964,351 @@
               </div>
             </div>
 
+            <!-- Section 4: 4대 핵심 서비스 카드 배경 미디어 관리 -->
+            <div class="space-y-4 pt-4 border-t border-slate-700">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h4 class="text-sm font-bold text-blue-300 flex items-center gap-2">
+                    <i class="fas fa-cubes text-emerald-400"></i>
+                    <span>4. 메인 페이지 4대 핵심 서비스 카드 배경 미디어 관리</span>
+                  </h4>
+                  <p class="text-xs text-slate-400 mt-0.5">
+                    메인 페이지의 4개 핵심 서비스 카드별로 움직이는 동영상(MP4/WebM) 또는 애니메이션(GIF/이미지) 배경을 등록할 수 있습니다. (미등록 시 세련된 다크 네이비 카드 스타일 기본 노출)
+                  </p>
+                </div>
+              </div>
+
+              <!-- 4 Services Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                
+                <!-- Service 1: 쿠팡 로켓그로스 & 밀크런 입고 대행 -->
+                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded-xl bg-red-500/20 text-red-400 flex items-center justify-center text-sm border border-red-500/40">
+                          <i class="fas fa-rocket"></i>
+                        </span>
+                        <div>
+                          <h5 class="text-xs font-bold text-white">#1 쿠팡 로켓그로스 & 밀크런</h5>
+                          <span class="text-[10px] text-slate-400">로켓배송/물류창고 입고 대행</span>
+                        </div>
+                      </div>
+                      <button 
+                        v-if="settingsForm.service_card_media_rocket" 
+                        type="button" 
+                        @click="settingsForm.service_card_media_rocket = ''" 
+                        class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
+                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                      >
+                        <i class="fas fa-trash-alt mr-1"></i>삭제
+                      </button>
+                    </div>
+
+                    <!-- URL Input & Upload Button -->
+                    <div class="flex gap-2">
+                      <input 
+                        v-model="settingsForm.service_card_media_rocket" 
+                        type="text" 
+                        placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
+                        class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs outline-none focus:border-red-500"
+                      />
+                      <button 
+                        type="button" 
+                        @click="triggerServiceCardUpload('rocket')" 
+                        :disabled="isUploadingServiceCard['rocket']"
+                        class="px-3.5 py-2.5 rounded-xl bg-red-600/30 hover:bg-red-600 text-red-200 hover:text-white font-bold text-xs border border-red-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                      >
+                        <i v-if="isUploadingServiceCard['rocket']" class="fas fa-spinner animate-spin"></i>
+                        <i v-else class="fas fa-cloud-arrow-up"></i>
+                        <span>업로드</span>
+                      </button>
+                    </div>
+
+                    <!-- Live Mini Preview -->
+                    <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
+                      <template v-if="settingsForm.service_card_media_rocket">
+                        <video 
+                          v-if="isVideoMedia(settingsForm.service_card_media_rocket)"
+                          :src="settingsForm.service_card_media_rocket" 
+                          autoplay 
+                          loop 
+                          muted 
+                          playsinline
+                          class="absolute inset-0 w-full h-full object-cover"
+                        ></video>
+                        <img 
+                          v-else 
+                          :src="settingsForm.service_card_media_rocket" 
+                          class="absolute inset-0 w-full h-full object-cover" 
+                        />
+                        <div class="absolute inset-0 bg-black/60"></div>
+                        <div class="relative z-10 text-white text-xs font-bold space-y-1">
+                          <div class="flex items-center justify-center gap-1.5 text-emerald-400">
+                            <i class="fas fa-check-circle"></i>
+                            <span>미디어 등록 완료</span>
+                          </div>
+                          <p class="text-[10px] text-slate-300">메인 카드 배경으로 재생됩니다</p>
+                        </div>
+                      </template>
+                      <div v-else class="text-xs text-slate-400 flex flex-col items-center gap-1.5 p-4">
+                        <i class="fas fa-cube text-xl text-slate-600"></i>
+                        <span class="font-bold text-slate-300">기본 다크 네이비 카드 스타일</span>
+                        <span class="text-[10px] text-slate-500">미디어를 등록하지 않으면 깔끔한 다크 네이비 카드로 표시됩니다</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Service 2: 1688 / 타오바오 중국 구매대행 -->
+                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded-xl bg-blue-500/20 text-blue-400 flex items-center justify-center text-sm border border-blue-500/40">
+                          <i class="fas fa-cart-shopping"></i>
+                        </span>
+                        <div>
+                          <h5 class="text-xs font-bold text-white">#2 1688 / 타오바오 구매대행</h5>
+                          <span class="text-[10px] text-slate-400">온라인 결제 & 검품 출고 대행</span>
+                        </div>
+                      </div>
+                      <button 
+                        v-if="settingsForm.service_card_media_purchasing" 
+                        type="button" 
+                        @click="settingsForm.service_card_media_purchasing = ''" 
+                        class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
+                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                      >
+                        <i class="fas fa-trash-alt mr-1"></i>삭제
+                      </button>
+                    </div>
+
+                    <!-- URL Input & Upload Button -->
+                    <div class="flex gap-2">
+                      <input 
+                        v-model="settingsForm.service_card_media_purchasing" 
+                        type="text" 
+                        placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
+                        class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs outline-none focus:border-blue-500"
+                      />
+                      <button 
+                        type="button" 
+                        @click="triggerServiceCardUpload('purchasing')" 
+                        :disabled="isUploadingServiceCard['purchasing']"
+                        class="px-3.5 py-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white font-bold text-xs border border-blue-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                      >
+                        <i v-if="isUploadingServiceCard['purchasing']" class="fas fa-spinner animate-spin"></i>
+                        <i v-else class="fas fa-cloud-arrow-up"></i>
+                        <span>업로드</span>
+                      </button>
+                    </div>
+
+                    <!-- Live Mini Preview -->
+                    <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
+                      <template v-if="settingsForm.service_card_media_purchasing">
+                        <video 
+                          v-if="isVideoMedia(settingsForm.service_card_media_purchasing)"
+                          :src="settingsForm.service_card_media_purchasing" 
+                          autoplay 
+                          loop 
+                          muted 
+                          playsinline
+                          class="absolute inset-0 w-full h-full object-cover"
+                        ></video>
+                        <img 
+                          v-else 
+                          :src="settingsForm.service_card_media_purchasing" 
+                          class="absolute inset-0 w-full h-full object-cover" 
+                        />
+                        <div class="absolute inset-0 bg-black/60"></div>
+                        <div class="relative z-10 text-white text-xs font-bold space-y-1">
+                          <div class="flex items-center justify-center gap-1.5 text-emerald-400">
+                            <i class="fas fa-check-circle"></i>
+                            <span>미디어 등록 완료</span>
+                          </div>
+                          <p class="text-[10px] text-slate-300">메인 카드 배경으로 재생됩니다</p>
+                        </div>
+                      </template>
+                      <div v-else class="text-xs text-slate-400 flex flex-col items-center gap-1.5 p-4">
+                        <i class="fas fa-cube text-xl text-slate-600"></i>
+                        <span class="font-bold text-slate-300">기본 다크 네이비 카드 스타일</span>
+                        <span class="text-[10px] text-slate-500">미디어를 등록하지 않으면 깔끔한 다크 네이비 카드로 표시됩니다</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Service 3: 무역대행 & OEM/ODM 맞춤제조 -->
+                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-sm border border-emerald-500/40">
+                          <i class="fas fa-industry"></i>
+                        </span>
+                        <div>
+                          <h5 class="text-xs font-bold text-white">#3 무역대행 & OEM/ODM 맞춤제조</h5>
+                          <span class="text-[10px] text-slate-400">공장 발굴 & 금형/생산 관리</span>
+                        </div>
+                      </div>
+                      <button 
+                        v-if="settingsForm.service_card_media_trade" 
+                        type="button" 
+                        @click="settingsForm.service_card_media_trade = ''" 
+                        class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
+                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                      >
+                        <i class="fas fa-trash-alt mr-1"></i>삭제
+                      </button>
+                    </div>
+
+                    <!-- URL Input & Upload Button -->
+                    <div class="flex gap-2">
+                      <input 
+                        v-model="settingsForm.service_card_media_trade" 
+                        type="text" 
+                        placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
+                        class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs outline-none focus:border-emerald-500"
+                      />
+                      <button 
+                        type="button" 
+                        @click="triggerServiceCardUpload('trade')" 
+                        :disabled="isUploadingServiceCard['trade']"
+                        class="px-3.5 py-2.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white font-bold text-xs border border-emerald-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                      >
+                        <i v-if="isUploadingServiceCard['trade']" class="fas fa-spinner animate-spin"></i>
+                        <i v-else class="fas fa-cloud-arrow-up"></i>
+                        <span>업로드</span>
+                      </button>
+                    </div>
+
+                    <!-- Live Mini Preview -->
+                    <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
+                      <template v-if="settingsForm.service_card_media_trade">
+                        <video 
+                          v-if="isVideoMedia(settingsForm.service_card_media_trade)"
+                          :src="settingsForm.service_card_media_trade" 
+                          autoplay 
+                          loop 
+                          muted 
+                          playsinline
+                          class="absolute inset-0 w-full h-full object-cover"
+                        ></video>
+                        <img 
+                          v-else 
+                          :src="settingsForm.service_card_media_trade" 
+                          class="absolute inset-0 w-full h-full object-cover" 
+                        />
+                        <div class="absolute inset-0 bg-black/60"></div>
+                        <div class="relative z-10 text-white text-xs font-bold space-y-1">
+                          <div class="flex items-center justify-center gap-1.5 text-emerald-400">
+                            <i class="fas fa-check-circle"></i>
+                            <span>미디어 등록 완료</span>
+                          </div>
+                          <p class="text-[10px] text-slate-300">메인 카드 배경으로 재생됩니다</p>
+                        </div>
+                      </template>
+                      <div v-else class="text-xs text-slate-400 flex flex-col items-center gap-1.5 p-4">
+                        <i class="fas fa-cube text-xl text-slate-600"></i>
+                        <span class="font-bold text-slate-300">기본 다크 네이비 카드 스타일</span>
+                        <span class="text-[10px] text-slate-500">미디어를 등록하지 않으면 깔끔한 다크 네이비 카드로 표시됩니다</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Service 4: 중국 이우(푸텐) 시장조사 투어 -->
+                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                  <div class="space-y-3">
+                    <div class="flex items-center justify-between">
+                      <div class="flex items-center gap-2">
+                        <span class="w-8 h-8 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-sm border border-amber-500/40">
+                          <i class="fas fa-plane-departure"></i>
+                        </span>
+                        <div>
+                          <h5 class="text-xs font-bold text-white">#4 중국 이우(푸텐) 시장조사 투어</h5>
+                          <span class="text-[10px] text-slate-400">전담 가이드 & 도매시장 투어</span>
+                        </div>
+                      </div>
+                      <button 
+                        v-if="settingsForm.service_card_media_tour" 
+                        type="button" 
+                        @click="settingsForm.service_card_media_tour = ''" 
+                        class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
+                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                      >
+                        <i class="fas fa-trash-alt mr-1"></i>삭제
+                      </button>
+                    </div>
+
+                    <!-- URL Input & Upload Button -->
+                    <div class="flex gap-2">
+                      <input 
+                        v-model="settingsForm.service_card_media_tour" 
+                        type="text" 
+                        placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
+                        class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-950 border border-slate-700 text-white font-mono text-xs outline-none focus:border-amber-500"
+                      />
+                      <button 
+                        type="button" 
+                        @click="triggerServiceCardUpload('tour')" 
+                        :disabled="isUploadingServiceCard['tour']"
+                        class="px-3.5 py-2.5 rounded-xl bg-amber-600/30 hover:bg-amber-600 text-amber-200 hover:text-white font-bold text-xs border border-amber-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                      >
+                        <i v-if="isUploadingServiceCard['tour']" class="fas fa-spinner animate-spin"></i>
+                        <i v-else class="fas fa-cloud-arrow-up"></i>
+                        <span>업로드</span>
+                      </button>
+                    </div>
+
+                    <!-- Live Mini Preview -->
+                    <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
+                      <template v-if="settingsForm.service_card_media_tour">
+                        <video 
+                          v-if="isVideoMedia(settingsForm.service_card_media_tour)"
+                          :src="settingsForm.service_card_media_tour" 
+                          autoplay 
+                          loop 
+                          muted 
+                          playsinline
+                          class="absolute inset-0 w-full h-full object-cover"
+                        ></video>
+                        <img 
+                          v-else 
+                          :src="settingsForm.service_card_media_tour" 
+                          class="absolute inset-0 w-full h-full object-cover" 
+                        />
+                        <div class="absolute inset-0 bg-black/60"></div>
+                        <div class="relative z-10 text-white text-xs font-bold space-y-1">
+                          <div class="flex items-center justify-center gap-1.5 text-emerald-400">
+                            <i class="fas fa-check-circle"></i>
+                            <span>미디어 등록 완료</span>
+                          </div>
+                          <p class="text-[10px] text-slate-300">메인 카드 배경으로 재생됩니다</p>
+                        </div>
+                      </template>
+                      <div v-else class="text-xs text-slate-400 flex flex-col items-center gap-1.5 p-4">
+                        <i class="fas fa-cube text-xl text-slate-600"></i>
+                        <span class="font-bold text-slate-300">기본 다크 네이비 카드 스타일</span>
+                        <span class="text-[10px] text-slate-500">미디어를 등록하지 않으면 깔끔한 다크 네이비 카드로 표시됩니다</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Hidden file input for service cards upload -->
+              <input 
+                ref="serviceCardFileInput" 
+                type="file" 
+                accept="video/mp4, video/*, image/*" 
+                class="hidden" 
+                @change="handleServiceCardFileUpload" 
+              />
+            </div>
+
             <!-- Save Action Button -->
             <div class="pt-4 border-t border-slate-700 flex justify-end gap-3">
               <button 
@@ -981,7 +1326,7 @@
               >
                 <i v-if="isSavingSettings" class="fas fa-spinner animate-spin"></i>
                 <i v-else class="fas fa-check"></i>
-                <span>{{ isSavingSettings ? '저장 중...' : '환율·수수료 및 히어로 비주얼 설정값 저장하기' }}</span>
+                <span>{{ isSavingSettings ? '저장 중...' : '환율·수수료 및 미디어 설정값 저장하기' }}</span>
               </button>
             </div>
 
