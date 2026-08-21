@@ -102,7 +102,7 @@
             <p><strong>한국 연락처:</strong> <a href="tel:010-9373-1214" class="hover:text-white">010-9373-1214</a></p>
             <p><strong>중국 직통:</strong> <a href="tel:19524077350" class="hover:text-white">19524077350</a> (+86 195-2407-7350)</p>
             <p><strong>위챗 ID:</strong> <span class="text-green-400 font-bold">euchskorea</span></p>
-            <p><strong>카카오톡 ID:</strong> <span class="text-yellow-400 font-bold">ericcho0710</span></p>
+            <p><strong>카카오톡:</strong> <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="text-yellow-400 font-bold hover:underline" title="카카오톡 공식 채널 바로가기">이유씨컴퍼니</a></p>
           </div>
 
           <div class="pt-3 text-slate-500 text-[11px] border-t border-slate-900">

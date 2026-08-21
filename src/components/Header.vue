@@ -12,10 +12,16 @@
             <i class="fab fa-weixin text-green-400"></i>
             <span>위챗: <strong>euchskorea</strong></span>
           </span>
-          <span class="flex items-center gap-1.5 text-slate-300">
+          <a 
+            href="http://pf.kakao.com/_xmQWsK/chat" 
+            target="_blank" 
+            rel="noopener noreferrer"
+            class="flex items-center gap-1.5 text-slate-300 hover:text-yellow-400 transition"
+            title="카카오톡 공식 채널 1:1 상담 열기"
+          >
             <i class="fas fa-comment text-yellow-400"></i>
-            <span>카톡: <strong>ericcho0710</strong></span>
-          </span>
+            <span>카톡: <strong>이유씨컴퍼니</strong></span>
+          </a>
         </div>
         <div class="flex items-center gap-4">
           <a href="https://www.youtube.com/@euccompany" target="_blank" class="flex items-center gap-1 text-red-400 hover:text-red-300 transition">

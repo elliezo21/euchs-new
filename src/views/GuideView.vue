@@ -227,11 +227,17 @@
               <p class="font-bold text-white mt-1">195-2407-7350</p>
             </div>
 
-            <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
+            <a 
+              href="http://pf.kakao.com/_xmQWsK/chat" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              class="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center transition block"
+              title="카카오톡 공식 채널 바로가기"
+            >
               <i class="fas fa-comment text-yellow-400 text-xl mb-2"></i>
-              <p class="text-slate-400 text-[11px]">카카오톡 ID</p>
-              <p class="font-bold text-yellow-300 mt-1">ericcho0710</p>
-            </div>
+              <p class="text-slate-400 text-[11px]">카카오톡 공식채널</p>
+              <p class="font-bold text-yellow-300 mt-1">이유씨컴퍼니</p>
+            </a>
 
             <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
               <i class="fab fa-weixin text-green-400 text-xl mb-2"></i>

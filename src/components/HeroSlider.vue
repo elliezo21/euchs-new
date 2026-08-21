@@ -51,10 +51,16 @@
                       <i class="fas fa-phone-volume text-blue-400 text-base"></i>
                       <span><strong>상담문의:</strong> {{ slide.phones }}</span>
                     </div>
-                    <div class="flex items-center gap-2">
+                    <a 
+                      href="http://pf.kakao.com/_xmQWsK/chat" 
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex items-center gap-2 hover:text-yellow-300 transition"
+                      title="카카오톡 공식 채널 1:1 상담 열기"
+                    >
                       <i class="fas fa-comment-dots text-yellow-400 text-base"></i>
                       <span><strong>카톡:</strong> {{ slide.kakao }}</span>
-                    </div>
+                    </a>
                   </div>
                 </div>
               </div>
@@ -132,7 +138,7 @@ const slides = [
       '기본값 외 추가비용 NO'
     ],
     phones: '010-9373-1214 / +86 195-2407-7350',
-    kakao: 'ericcho0710 / calvinli'
+    kakao: '이유씨컴퍼니'
   },
   {
     pcImage: 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/img/main_slide2.jpg',
@@ -144,7 +150,7 @@ const slides = [
       '현지 직영 창고에서의 철저한 전수 검품'
     ],
     phones: '010-9373-1214 / +86 195-2407-7350',
-    kakao: 'ericcho0710 / calvinli'
+    kakao: '이유씨컴퍼니'
   }
 ]
 

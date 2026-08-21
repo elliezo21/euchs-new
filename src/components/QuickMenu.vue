@@ -129,6 +129,7 @@
       <a 
         href="http://pf.kakao.com/_xmQWsK/chat" 
         target="_blank"
+        rel="noopener noreferrer"
         class="w-12 h-12 sm:w-13 sm:h-13 rounded-full bg-yellow-400 hover:bg-yellow-500 active:scale-95 text-slate-900 shadow-lg hover:shadow-xl flex items-center justify-center transition-all duration-200 transform focus:outline-none border border-amber-300/40 hover:-translate-y-0.5"
         title="카카오톡 실시간 상담"
         aria-label="카카오톡 상담하기"
