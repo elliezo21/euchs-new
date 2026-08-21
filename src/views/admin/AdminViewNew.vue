@@ -28,7 +28,7 @@
 
         <div class="flex items-center gap-2 flex-wrap">
           <button 
-            @click="activeTab = 'applications'; fetchApplications()" 
+            @click="switchTab('applications')" 
             class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             :class="activeTab === 'applications' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
@@ -37,7 +37,7 @@
           </button>
 
           <button 
-            @click="activeTab = 'notices'; fetchNotices()" 
+            @click="switchTab('notices')" 
             class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             :class="activeTab === 'notices' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
@@ -46,7 +46,7 @@
           </button>
 
           <button 
-            @click="activeTab = 'settings'; loadSettings()" 
+            @click="switchTab('settings')" 
             class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             :class="activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
@@ -54,8 +54,10 @@
             <span>환경설정</span>
           </button>
 
+          <!-- Staff / Role Management: Only visible to Super Admin -->
           <button 
-            @click="activeTab = 'staff'; fetchStaffList()" 
+            v-if="isSuperAdmin"
+            @click="switchTab('staff')" 
             class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
             :class="activeTab === 'staff' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
@@ -967,27 +969,42 @@
               <tbody class="divide-y divide-slate-800/60">
                 <tr v-for="staff in staffList" :key="staff.id || staff.email" class="hover:bg-slate-800/40 transition">
                   <td class="py-3.5 px-4 font-bold text-white flex items-center gap-2">
-                    <div class="w-7 h-7 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-bold text-xs">
+                    <div class="w-7 h-7 rounded-full bg-indigo-600/30 text-indigo-300 border border-indigo-500/40 flex items-center justify-center font-bold text-xs shrink-0">
                       {{ (staff.name || staff.email || 'S').charAt(0).toUpperCase() }}
                     </div>
-                    <span>{{ staff.name || '직원' }}</span>
+                    <div class="flex items-center gap-1.5 flex-wrap">
+                      <span>{{ staff.name || '직원' }}</span>
+                      <span 
+                        v-if="isProtectedMasterAccount(staff)" 
+                        class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black flex items-center gap-1"
+                        title="시스템 대표 최고관리자 계정 (보호됨)"
+                      >
+                        <i class="fas fa-shield-halved text-[9px]"></i> 마스터
+                      </span>
+                    </div>
                   </td>
                   <td class="py-3.5 px-4 font-mono text-slate-300">
                     {{ staff.email }}
                   </td>
                   <td class="py-3.5 px-4">
                     <span 
-                      class="px-2.5 py-1 rounded-md text-[11px] font-bold"
+                      class="px-2.5 py-1 rounded-md text-[11px] font-bold inline-flex items-center gap-1"
                       :class="staff.role === 'super_admin' || staff.role === 'admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'"
                     >
-                      {{ staff.role === 'super_admin' || staff.role === 'admin' ? '최고관리자' : '운영스태프' }}
+                      <i v-if="isProtectedMasterAccount(staff)" class="fas fa-crown text-[10px] text-amber-400"></i>
+                      <span>{{ staff.role === 'super_admin' || staff.role === 'admin' ? '최고관리자' : '운영스태프' }}</span>
                     </span>
                   </td>
                   <td class="py-3.5 px-4 font-mono text-slate-400">
                     {{ formatDateTime(staff.created_at) }}
                   </td>
                   <td class="py-3.5 px-4 text-center">
+                    <div v-if="isProtectedMasterAccount(staff)" class="flex items-center justify-center gap-1 text-slate-400 font-bold text-xs py-1">
+                      <i class="fas fa-lock text-[10px] text-amber-400"></i>
+                      <span class="text-amber-400/90 text-[11px]">마스터 고정</span>
+                    </div>
                     <select 
+                      v-else
                       v-model="staff.role"
                       @change="updateStaffRole(staff)"
                       class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-xs font-bold text-slate-200 outline-none focus:border-indigo-500"
@@ -998,8 +1015,18 @@
                   </td>
                   <td class="py-3.5 px-4 text-center">
                     <button 
+                      v-if="isProtectedMasterAccount(staff)"
+                      disabled
+                      class="px-2.5 py-1 rounded-lg bg-slate-800 text-slate-500 border border-slate-700/50 text-[11px] cursor-not-allowed flex items-center justify-center gap-1 mx-auto"
+                      title="대표 마스터 계정은 삭제/해제할 수 없습니다."
+                    >
+                      <i class="fas fa-lock text-[10px]"></i>
+                      <span>보호됨</span>
+                    </button>
+                    <button 
+                      v-else
                       @click="deleteStaff(staff)"
-                      class="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 text-[11px] transition"
+                      class="px-2.5 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 text-[11px] transition active:scale-95"
                     >
                       해제
                     </button>
@@ -1518,6 +1545,25 @@ const verifyAdminAccess = async () => {
 
 // Active Tab ('applications' | 'notices' | 'settings' | 'staff')
 const activeTab = ref('applications')
+
+const switchTab = (tab) => {
+  if (tab === 'staff' && !isSuperAdmin.value) {
+    alert('접근 권한이 없습니다. 직원/권한 관리는 최고관리자(Super Admin) 전용 메뉴입니다.')
+    activeTab.value = 'applications'
+    return
+  }
+  activeTab.value = tab
+  if (tab === 'applications') fetchApplications()
+  else if (tab === 'notices') fetchNotices()
+  else if (tab === 'settings') loadSettings()
+  else if (tab === 'staff') {
+    if (isSuperAdmin.value) {
+      fetchStaffList()
+    } else {
+      activeTab.value = 'applications'
+    }
+  }
+}
 
 const handleAdminLogout = async () => {
   if (confirm('관리자 콘솔에서 로그아웃하시겠습니까?')) {
@@ -2257,6 +2303,20 @@ const getYoutubeEmbedUrl = (url) => {
 // ----------------------------------------------------
 // TAB 4: Staff & Role Management State & Logic
 // ----------------------------------------------------
+const PROTECTED_MASTER_EMAILS = [
+  'elliezo21@gmail.com',
+  'admin@euccompany.com',
+  'master@euccompany.com',
+  'euc_admin@euccompany.com'
+]
+
+const isProtectedMasterAccount = (staff) => {
+  if (!staff) return false
+  if (staff.id === 'master-1') return true
+  const email = (staff.email || '').toLowerCase().trim()
+  return PROTECTED_MASTER_EMAILS.includes(email)
+}
+
 const staffList = ref([])
 const isFetchingStaff = ref(false)
 const showAddStaffModal = ref(false)
@@ -2269,6 +2329,7 @@ const newStaffForm = ref({
 })
 
 const fetchStaffList = async () => {
+  if (!isSuperAdmin.value) return
   isFetchingStaff.value = true
   try {
     if (isSupabaseConfigured()) {
@@ -2289,8 +2350,8 @@ const fetchStaffList = async () => {
     staffList.value = [
       {
         id: 'master-1',
-        name: '최고 관리자 (Master)',
-        email: currentUser.value?.email || 'admin@euccompany.com',
+        name: '대표 최고관리자 (Master)',
+        email: currentUser.value?.email || 'elliezo21@gmail.com',
         role: 'super_admin',
         created_at: new Date().toISOString()
       }
@@ -2303,6 +2364,11 @@ const fetchStaffList = async () => {
 }
 
 const handleCreateStaff = async () => {
+  if (!isSuperAdmin.value) {
+    alert('최고관리자(Super Admin)만 신규 직원 계정을 등록할 수 있습니다.')
+    return
+  }
+
   if (!newStaffForm.value.email || !newStaffForm.value.password) {
     alert('이메일과 비밀번호를 모두 입력해 주세요.')
     return
@@ -2367,6 +2433,17 @@ const handleCreateStaff = async () => {
 }
 
 const updateStaffRole = async (staff) => {
+  if (isProtectedMasterAccount(staff)) {
+    alert('대표 최고관리자(마스터) 계정의 권한은 변경할 수 없습니다.')
+    staff.role = 'super_admin'
+    return
+  }
+
+  if (!isSuperAdmin.value) {
+    alert('최고관리자(Super Admin)만 직원 권한을 변경할 수 있습니다.')
+    return
+  }
+
   try {
     if (isSupabaseConfigured()) {
       const { error } = await supabase
@@ -2385,6 +2462,16 @@ const updateStaffRole = async (staff) => {
 }
 
 const deleteStaff = async (staff) => {
+  if (isProtectedMasterAccount(staff)) {
+    alert('대표 최고관리자(마스터) 계정은 해제/삭제할 수 없습니다.')
+    return
+  }
+
+  if (!isSuperAdmin.value) {
+    alert('최고관리자(Super Admin)만 직원 계정을 해제할 수 있습니다.')
+    return
+  }
+
   if (!confirm(`${staff.name || staff.email} 직원의 관리자 접근 권한을 해제하시겠습니까?`)) return
 
   try {
@@ -2432,7 +2519,9 @@ onMounted(async () => {
     fetchNotices()
     loadSettings()
     fetchLiveRefRate()
-    fetchStaffList()
+    if (isSuperAdmin.value) {
+      fetchStaffList()
+    }
   }
 })
 </script>
