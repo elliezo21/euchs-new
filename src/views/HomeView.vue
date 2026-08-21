@@ -307,123 +307,208 @@
     </section>
 
     <!-- ======================================================== -->
-    <!-- 3. CORE SERVICES 4 CARDS (High-End Agency Cards) -->
     <!-- ======================================================== -->
-    <section class="py-16 sm:py-24 bg-white border-t border-gray-100">
+    <!-- 3. CORE SERVICES 4 CARDS (High-End Agency Cards with Dynamic Animated Backgrounds) -->
+    <!-- ======================================================== -->
+    <section class="py-16 sm:py-24 bg-[#0b0f19] text-white relative border-t border-slate-800">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
         
         <div class="text-center max-w-3xl mx-auto space-y-3">
-          <span class="text-xs font-black text-blue-600 uppercase tracking-wider">EUC CORE COMPETENCY</span>
-          <h2 class="text-3xl sm:text-4xl font-black text-gray-900 tracking-tight">
+          <span class="text-xs font-black text-blue-400 uppercase tracking-wider">EUC CORE COMPETENCY</span>
+          <h2 class="text-3xl sm:text-4xl font-black text-white tracking-tight">
             성공적인 중국 수입을 위한 4대 핵심 서비스
           </h2>
-          <p class="text-sm sm:text-base text-gray-500 leading-relaxed">
+          <p class="text-sm sm:text-base text-slate-300 leading-relaxed">
             소싱부터 통관, 검수, 직납까지 고객의 비즈니스 형태에 가장 최적화된 맞춤 물류 솔루션을 제공합니다.
           </p>
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
           
-          <!-- Card 1: 쿠팡 로켓그로스 -->
-          <div class="group bg-slate-50 rounded-3xl p-7 border border-gray-200 hover:border-red-500/40 hover:bg-white hover:shadow-2xl transition-all duration-300 flex flex-col justify-between">
-            <div class="space-y-4">
-              <div class="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-sm">
-                <i class="fas fa-rocket"></i>
-              </div>
-              <span class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-red-50 text-red-600 border border-red-200 inline-block">
-                쿠팡 공식 규격 완벽 준수
-              </span>
-              <h3 class="text-xl font-bold text-gray-900 group-hover:text-red-600 transition">
-                쿠팡 로켓그로스 & 밀크런 입고 대행
-              </h3>
-              <p class="text-xs text-gray-600 leading-relaxed">
-                바코드 라벨 부착, KC인증 라벨 작업, 파레트 래핑 및 규격 포장부터 지정 FC센터 밀크런 트럭 직납까지 원스톱 대행.
-              </p>
+          <!-- Card 1: 쿠팡 로켓그로스 & 밀크런 입고 대행 -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-red-500/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
+            <!-- Dynamic Moving Background -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <img 
+                src="https://media1.giphy.com/media/l0HlTy9x8FZo0XO1i/giphy.gif" 
+                alt="쿠팡 물류창고 컨베이어 박스 배송"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                loading="lazy"
+              />
+              <!-- Dark Overlay for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
             </div>
-            <div class="pt-6 border-t border-gray-200/60 mt-6">
+
+            <!-- Content Layer -->
+            <div class="relative z-10 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-400/40 text-red-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
+                  <i class="fas fa-rocket"></i>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-red-500/80 text-white border border-red-300/40 shadow-sm backdrop-blur-sm">
+                  쿠팡 공식 규격 준수
+                </span>
+              </div>
+
+              <div>
+                <h3 class="text-xl font-black text-white group-hover:text-red-300 transition leading-snug">
+                  쿠팡 로켓그로스 & 밀크런 입고 대행
+                </h3>
+                <p class="text-xs text-slate-200 mt-2.5 leading-relaxed font-medium">
+                  바코드 라벨 부착, KC인증 라벨 작업, 파레트 래핑 및 규격 포장부터 지정 FC센터 밀크런 트럭 직납까지 원스톱 대행.
+                </p>
+              </div>
+            </div>
+
+            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/services/rocket-growth" 
-                class="text-xs font-bold text-red-600 group-hover:underline flex items-center gap-1"
+                class="text-xs font-bold text-red-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
               >
-                상세 안내 및 신청하기 &rarr;
+                <span>상세 안내 및 신청하기</span>
+                <span class="w-7 h-7 rounded-full bg-red-500/30 border border-red-400/50 flex items-center justify-center text-xs text-white group-hover:bg-red-500 transition">&rarr;</span>
               </router-link>
             </div>
           </div>
 
-          <!-- Card 2: 구매대행 -->
-          <div class="group bg-slate-50 rounded-3xl p-7 border border-gray-200 hover:border-blue-500/40 hover:bg-white hover:shadow-2xl transition-all duration-300 flex flex-col justify-between">
-            <div class="space-y-4">
-              <div class="w-14 h-14 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-sm">
-                <i class="fas fa-cart-shopping"></i>
-              </div>
-              <span class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-blue-50 text-blue-600 border border-blue-200 inline-block">
-                수수료 8% / 최저가 보장
-              </span>
-              <h3 class="text-xl font-bold text-gray-900 group-hover:text-blue-600 transition">
-                1688 / 타오바오 중국 구매대행
-              </h3>
-              <p class="text-xs text-gray-600 leading-relaxed">
-                알리페이 수수료 절감, 현지 창고 도착 즉시 1차 정밀 검품, 해운/항공 특송 출고 및 통관 서류 완벽 지원.
-              </p>
+          <!-- Card 2: 1688 / 타오바오 중국 구매대행 -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-blue-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
+            <!-- Dynamic Moving Background -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <img 
+                src="https://media1.giphy.com/media/3oKIPnAiaMCws8nOsE/giphy.gif" 
+                alt="1688 타오바오 온라인 구매대행 화면"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                loading="lazy"
+              />
+              <!-- Dark Overlay for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
             </div>
-            <div class="pt-6 border-t border-gray-200/60 mt-6">
+
+            <!-- Content Layer -->
+            <div class="relative z-10 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-400/40 text-blue-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
+                  <i class="fas fa-cart-shopping"></i>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-blue-600/80 text-white border border-blue-300/40 shadow-sm backdrop-blur-sm">
+                  수수료 8% / 최저가 보장
+                </span>
+              </div>
+
+              <div>
+                <h3 class="text-xl font-black text-white group-hover:text-blue-300 transition leading-snug">
+                  1688 / 타오바오 중국 구매대행
+                </h3>
+                <p class="text-xs text-slate-200 mt-2.5 leading-relaxed font-medium">
+                  알리페이 수수료 절감, 현지 창고 도착 즉시 1차 정밀 검품, 해운/항공 특송 출고 및 통관 서류 완벽 지원.
+                </p>
+              </div>
+            </div>
+
+            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/services/purchasing-agent" 
-                class="text-xs font-bold text-blue-600 group-hover:underline flex items-center gap-1"
+                class="text-xs font-bold text-blue-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
               >
-                주문서 작성 바로가기 &rarr;
+                <span>주문서 작성 바로가기</span>
+                <span class="w-7 h-7 rounded-full bg-blue-500/30 border border-blue-400/50 flex items-center justify-center text-xs text-white group-hover:bg-blue-600 transition">&rarr;</span>
               </router-link>
             </div>
           </div>
 
-          <!-- Card 3: 무역대행 OEM/ODM -->
-          <div class="group bg-slate-50 rounded-3xl p-7 border border-gray-200 hover:border-emerald-500/40 hover:bg-white hover:shadow-2xl transition-all duration-300 flex flex-col justify-between">
-            <div class="space-y-4">
-              <div class="w-14 h-14 rounded-2xl bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-sm">
-                <i class="fas fa-industry"></i>
-              </div>
-              <span class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-emerald-50 text-emerald-600 border border-emerald-200 inline-block">
-                현지 공장 다이렉트 소싱
-              </span>
-              <h3 class="text-xl font-bold text-gray-900 group-hover:text-emerald-600 transition">
-                무역대행 & OEM/ODM 맞춤제조
-              </h3>
-              <p class="text-xs text-gray-600 leading-relaxed">
-                현지 공장 실사, 단가 네고, 금형 제작 및 샘플 감리, 포워딩 & 통관 서류 일체 대행으로 브랜드 제품 런칭 지원.
-              </p>
+          <!-- Card 3: 무역대행 & OEM/ODM 맞춤제조 -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-emerald-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
+            <!-- Dynamic Moving Background -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <img 
+                src="https://media1.giphy.com/media/26BRzozg4TCBXv6QU/giphy.gif" 
+                alt="공장 생산 라인 및 로봇 자동화"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                loading="lazy"
+              />
+              <!-- Dark Overlay for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
             </div>
-            <div class="pt-6 border-t border-gray-200/60 mt-6">
+
+            <!-- Content Layer -->
+            <div class="relative z-10 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
+                  <i class="fas fa-industry"></i>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-emerald-600/80 text-white border border-emerald-300/40 shadow-sm backdrop-blur-sm">
+                  현지 공장 다이렉트 소싱
+                </span>
+              </div>
+
+              <div>
+                <h3 class="text-xl font-black text-white group-hover:text-emerald-300 transition leading-snug">
+                  무역대행 & OEM/ODM 맞춤제조
+                </h3>
+                <p class="text-xs text-slate-200 mt-2.5 leading-relaxed font-medium">
+                  현지 공장 실사, 단가 네고, 금형 제작 및 샘플 감리, 포워딩 & 통관 서류 일체 대행으로 브랜드 제품 런칭 지원.
+                </p>
+              </div>
+            </div>
+
+            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/services/trade-agent" 
-                class="text-xs font-bold text-emerald-600 group-hover:underline flex items-center gap-1"
+                class="text-xs font-bold text-emerald-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
               >
-                맞춤 무역 의뢰하기 &rarr;
+                <span>맞춤 무역 의뢰하기</span>
+                <span class="w-7 h-7 rounded-full bg-emerald-500/30 border border-emerald-400/50 flex items-center justify-center text-xs text-white group-hover:bg-emerald-600 transition">&rarr;</span>
               </router-link>
             </div>
           </div>
 
-          <!-- Card 4: 이우 시장조사 투어 -->
-          <div class="group bg-slate-50 rounded-3xl p-7 border border-gray-200 hover:border-amber-500/40 hover:bg-white hover:shadow-2xl transition-all duration-300 flex flex-col justify-between">
-            <div class="space-y-4">
-              <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-600 flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-sm">
-                <i class="fas fa-plane-departure"></i>
-              </div>
-              <span class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-50 text-amber-600 border border-amber-200 inline-block">
-                전담 통역 & 픽업 풀패키지
-              </span>
-              <h3 class="text-xl font-bold text-gray-900 group-hover:text-amber-600 transition">
-                중국 이우(푸텐) 시장조사 투어
-              </h3>
-              <p class="text-xs text-gray-600 leading-relaxed">
-                세계 최대 도매시장 푸텐시장 1~5기 구역별 맞춤 가이드, 비즈니스 전담 통역, 호텔/공항 픽업 및 발주 연계.
-              </p>
+          <!-- Card 4: 중국 이우(푸텐) 시장조사 투어 -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-amber-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px]">
+            <!-- Dynamic Moving Background -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <img 
+                src="https://media1.giphy.com/media/26n6WywJyh39n1pBu/giphy.gif" 
+                alt="이우 시장조사 투어 상점 거리"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                loading="lazy"
+              />
+              <!-- Dark Overlay for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
             </div>
-            <div class="pt-6 border-t border-gray-200/60 mt-6">
+
+            <!-- Content Layer -->
+            <div class="relative z-10 space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
+                  <i class="fas fa-plane-departure"></i>
+                </div>
+                <span class="px-2.5 py-1 rounded-full text-[11px] font-black bg-amber-500/80 text-white border border-amber-300/40 shadow-sm backdrop-blur-sm">
+                  전담 통역 & 픽업 풀패키지
+                </span>
+              </div>
+
+              <div>
+                <h3 class="text-xl font-black text-white group-hover:text-amber-300 transition leading-snug">
+                  중국 이우(푸텐) 시장조사 투어
+                </h3>
+                <p class="text-xs text-slate-200 mt-2.5 leading-relaxed font-medium">
+                  세계 최대 도매시장 푸텐시장 1~5기 구역별 맞춤 가이드, 비즈니스 전담 통역, 호텔/공항 픽업 및 발주 연계.
+                </p>
+              </div>
+            </div>
+
+            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/guide/market-tour" 
-                class="text-xs font-bold text-amber-600 group-hover:underline flex items-center gap-1"
+                class="text-xs font-bold text-amber-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
               >
-                투어 일정 & 견적 확인 &rarr;
+                <span>투어 일정 & 견적 확인</span>
+                <span class="w-7 h-7 rounded-full bg-amber-500/30 border border-amber-400/50 flex items-center justify-center text-xs text-white group-hover:bg-amber-500 transition">&rarr;</span>
               </router-link>
             </div>
           </div>
