@@ -184,20 +184,20 @@
               v-for="app in filteredMyApplications" 
               :key="app.id"
               @click="openDetailModal(app)"
-              class="group bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-blue-500/50 rounded-2xl p-5 sm:p-6 transition-all duration-200 space-y-4 shadow-lg cursor-pointer hover:shadow-blue-500/5"
+              class="group bg-[#141e33] hover:bg-[#18243c] border border-slate-700/80 hover:border-blue-500/60 rounded-2xl p-5 sm:p-6 transition-all duration-300 space-y-4 shadow-xl shadow-black/40 hover:shadow-2xl hover:shadow-blue-500/10 cursor-pointer transform hover:-translate-y-0.5"
             >
               <!-- Card Header: Order No, Service Badge, Date, Status -->
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3.5 border-b border-slate-700/60">
                 <div class="flex flex-wrap items-center gap-2 sm:gap-3">
                   <!-- Order Number -->
-                  <span class="px-2.5 py-1 rounded-lg bg-slate-950 text-blue-400 font-mono text-xs font-black border border-slate-800 flex items-center gap-1">
+                  <span class="px-2.5 py-1 rounded-lg bg-slate-950/90 text-blue-400 font-mono text-xs font-black border border-slate-700/70 flex items-center gap-1 shadow-inner">
                     <i class="fas fa-hashtag text-[10px] text-blue-500"></i>
                     <span>{{ getOrderNumber(app) }}</span>
                   </span>
 
                   <!-- Service Type Badge -->
                   <span 
-                    class="px-2.5 py-1 rounded-lg text-xs font-bold"
+                    class="px-2.5 py-1 rounded-lg text-xs font-bold shadow-sm"
                     :class="getServiceBadgeClass(app.service_type)"
                   >
                     {{ app.service_name || getServiceLabel(app.service_type) }}
@@ -213,7 +213,7 @@
                 <!-- Status Badge -->
                 <div class="flex items-center gap-2 self-start sm:self-auto">
                   <span 
-                    class="px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5"
+                    class="px-3 py-1 rounded-full text-xs font-bold border flex items-center gap-1.5 shadow-sm"
                     :class="getStatusBadgeClass(app.status)"
                   >
                     <span class="w-1.5 h-1.5 rounded-full" :class="getStatusDotClass(app.status)"></span>
@@ -226,39 +226,42 @@
               <div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-center">
                 
                 <!-- Left: Representative Item Summary & Info (8 cols) -->
-                <div class="lg:col-span-8 space-y-2">
+                <div class="lg:col-span-8 space-y-2.5">
                   <div class="flex items-center gap-2">
                     <h3 class="text-base sm:text-lg font-black text-white group-hover:text-blue-300 transition">
                       {{ getItemSummaryTitle(app) }}
                     </h3>
                   </div>
 
-                  <!-- Sub-details: Recipient / Shipping / Memo -->
-                  <div class="flex flex-wrap items-center gap-y-1 gap-x-4 text-xs text-slate-400">
-                    <span v-if="app.customer_name" class="flex items-center gap-1">
-                      <i class="far fa-user text-slate-500"></i>
+                  <!-- Sub-details: Recipient / Shipping / Phone -->
+                  <div class="flex flex-wrap items-center gap-y-1.5 gap-x-4 text-xs text-slate-300">
+                    <span v-if="app.customer_name" class="flex items-center gap-1 bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-700/50">
+                      <i class="far fa-user text-slate-400"></i>
                       <span>{{ app.customer_name }}</span>
                     </span>
-                    <span v-if="app.phone" class="flex items-center gap-1 font-mono">
-                      <i class="fas fa-phone text-slate-500"></i>
+                    <span v-if="app.phone" class="flex items-center gap-1 font-mono bg-slate-900/90 px-2.5 py-1 rounded-lg border border-slate-700/50">
+                      <i class="fas fa-phone text-slate-400"></i>
                       <span>{{ app.phone }}</span>
                     </span>
-                    <span v-if="app.details?.shippingTypeName || app.details?.shippingType" class="flex items-center gap-1 text-sky-400 font-semibold">
+                    <span v-if="app.details?.shippingTypeName || app.details?.shippingType" class="flex items-center gap-1 text-sky-400 font-semibold bg-sky-950/40 px-2.5 py-1 rounded-lg border border-sky-800/40">
                       <i class="fas fa-truck text-sky-400"></i>
                       <span>{{ app.details.shippingTypeName || getShippingTypeFallback(app.details.shippingType) }}</span>
                     </span>
                   </div>
 
-                  <!-- 1-line summary note -->
-                  <p class="text-xs text-slate-400 line-clamp-1 bg-slate-950/60 px-3 py-1.5 rounded-xl border border-slate-800/80">
-                    <i class="fas fa-circle-info text-blue-400 text-[10px] mr-1"></i>
+                  <!-- 1-line summary note box -->
+                  <p class="text-xs text-slate-300 line-clamp-1 bg-slate-900/90 px-3.5 py-2 rounded-xl border border-slate-700/60 shadow-inner">
+                    <i class="fas fa-circle-info text-blue-400 text-[11px] mr-1.5"></i>
                     {{ getQuickMemo(app) }}
                   </p>
                 </div>
 
                 <!-- Right: Price & Quick CTA (4 cols) -->
-                <div class="lg:col-span-4 bg-slate-950/80 p-4 rounded-2xl border border-slate-800/80 flex flex-col justify-between items-start sm:items-end gap-2">
-                  <span class="text-[11px] text-slate-400 font-semibold">예상 / 확정 금액</span>
+                <div class="lg:col-span-4 bg-slate-950/90 p-4 sm:p-5 rounded-2xl border border-slate-700/70 shadow-inner flex flex-col justify-between items-start sm:items-end gap-1.5">
+                  <span class="text-[11px] text-slate-400 font-semibold flex items-center gap-1">
+                    <i class="fas fa-calculator text-[10px] text-slate-500"></i>
+                    <span>예상 / 확정 금액</span>
+                  </span>
                   <div class="text-xl sm:text-2xl font-black text-yellow-400 font-mono tracking-tight">
                     {{ app.total_amount > 0 ? Number(app.total_amount).toLocaleString() + '원' : '상담 후 확정' }}
                   </div>
@@ -267,11 +270,11 @@
               </div>
 
               <!-- Card Actions Toolbar -->
-              <div class="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-800/60" @click.stop>
+              <div class="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-700/60" @click.stop>
                 <button 
                   type="button" 
                   @click="openDetailModal(app)" 
-                  class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/20 transition flex items-center gap-1.5 active:scale-95"
+                  class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md shadow-blue-600/30 transition flex items-center gap-1.5 active:scale-95"
                 >
                   <i class="fas fa-magnifying-glass text-blue-200"></i>
                   <span>주문 상세내역 확인</span>
@@ -289,7 +292,7 @@
                   href="http://pf.kakao.com/_xmQWsK/chat" 
                   target="_blank" 
                   rel="noopener noreferrer"
-                  class="px-3 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-sm active:scale-95"
+                  class="px-3 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-bold text-xs transition flex items-center gap-1.5 shadow-md active:scale-95"
                 >
                   <i class="fas fa-comment text-amber-950"></i>
                   <span>1:1 카톡 상담</span>
