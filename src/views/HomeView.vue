@@ -328,8 +328,8 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
           
           <!-- Card 1: 쿠팡 로켓그로스 & 밀크런 입고 대행 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-red-500/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Only when configured) -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-red-500/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Always visible when configured) -->
             <div v-if="serviceMediaRocket" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
               <video 
                 v-if="isVideoMedia(serviceMediaRocket)"
@@ -341,18 +341,18 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
               ></video>
               <img 
                 v-else
                 :src="serviceMediaRocket" 
                 alt="쿠팡 물류창고 입고 배경"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                loading="lazy"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                loading="eager"
               />
-              <!-- Dark Overlay for crystal clear typography -->
-              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
-              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+              <!-- Dark Overlay with z-10 for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
             </div>
 
             <!-- Default Elegant Dark Card Gradient (when no media configured) -->
@@ -360,8 +360,8 @@
               <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-red-500/5 rounded-full blur-3xl group-hover:bg-red-500/10 transition duration-500"></div>
             </div>
 
-            <!-- Content Layer -->
-            <div class="relative z-10 space-y-4">
+            <!-- Content Layer (z-20) -->
+            <div class="relative z-20 space-y-4">
               <div class="flex items-center justify-between">
                 <div class="w-14 h-14 rounded-2xl bg-red-500/20 border border-red-400/40 text-red-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
                   <i class="fas fa-rocket"></i>
@@ -381,7 +381,7 @@
               </div>
             </div>
 
-            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
+            <div class="relative z-20 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/services/rocket-growth" 
                 class="text-xs font-bold text-red-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
@@ -393,8 +393,8 @@
           </div>
 
           <!-- Card 2: 1688 / 타오바오 중국 구매대행 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-blue-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Only when configured) -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-blue-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Always visible when configured) -->
             <div v-if="serviceMediaPurchasing" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
               <video 
                 v-if="isVideoMedia(serviceMediaPurchasing)"
@@ -406,18 +406,18 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
               ></video>
               <img 
                 v-else
                 :src="serviceMediaPurchasing" 
                 alt="1688 타오바오 구매대행 배경"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                loading="lazy"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                loading="eager"
               />
-              <!-- Dark Overlay for crystal clear typography -->
-              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
-              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+              <!-- Dark Overlay with z-10 for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
             </div>
 
             <!-- Default Elegant Dark Card Gradient (when no media configured) -->
@@ -425,8 +425,8 @@
               <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition duration-500"></div>
             </div>
 
-            <!-- Content Layer -->
-            <div class="relative z-10 space-y-4">
+            <!-- Content Layer (z-20) -->
+            <div class="relative z-20 space-y-4">
               <div class="flex items-center justify-between">
                 <div class="w-14 h-14 rounded-2xl bg-blue-500/20 border border-blue-400/40 text-blue-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
                   <i class="fas fa-cart-shopping"></i>
@@ -446,7 +446,7 @@
               </div>
             </div>
 
-            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
+            <div class="relative z-20 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/services/purchasing-agent" 
                 class="text-xs font-bold text-blue-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
@@ -458,8 +458,8 @@
           </div>
 
           <!-- Card 3: 무역대행 & OEM/ODM 맞춤제조 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-emerald-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Only when configured) -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-emerald-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Always visible when configured) -->
             <div v-if="serviceMediaTrade" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
               <video 
                 v-if="isVideoMedia(serviceMediaTrade)"
@@ -471,18 +471,18 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
               ></video>
               <img 
                 v-else
                 :src="serviceMediaTrade" 
                 alt="공장 생산 라인 배경"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                loading="lazy"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                loading="eager"
               />
-              <!-- Dark Overlay for crystal clear typography -->
-              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
-              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+              <!-- Dark Overlay with z-10 for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
             </div>
 
             <!-- Default Elegant Dark Card Gradient (when no media configured) -->
@@ -490,8 +490,8 @@
               <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition duration-500"></div>
             </div>
 
-            <!-- Content Layer -->
-            <div class="relative z-10 space-y-4">
+            <!-- Content Layer (z-20) -->
+            <div class="relative z-20 space-y-4">
               <div class="flex items-center justify-between">
                 <div class="w-14 h-14 rounded-2xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
                   <i class="fas fa-industry"></i>
@@ -511,7 +511,7 @@
               </div>
             </div>
 
-            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
+            <div class="relative z-20 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/services/trade-agent" 
                 class="text-xs font-bold text-emerald-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
@@ -523,8 +523,8 @@
           </div>
 
           <!-- Card 4: 중국 이우(푸텐) 시장조사 투어 -->
-          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-amber-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-7 min-h-[390px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Only when configured) -->
+          <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-amber-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
+            <!-- Dynamic Moving Background (Always visible when configured) -->
             <div v-if="serviceMediaTour" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
               <video 
                 v-if="isVideoMedia(serviceMediaTour)"
@@ -536,18 +536,18 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
               ></video>
               <img 
                 v-else
                 :src="serviceMediaTour" 
                 alt="이우 시장조사 투어 배경"
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-                loading="lazy"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                loading="eager"
               />
-              <!-- Dark Overlay for crystal clear typography -->
-              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
-              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
+              <!-- Dark Overlay with z-10 for crystal clear typography -->
+              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
+              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
             </div>
 
             <!-- Default Elegant Dark Card Gradient (when no media configured) -->
@@ -555,8 +555,8 @@
               <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-amber-500/5 rounded-full blur-3xl group-hover:bg-amber-500/10 transition duration-500"></div>
             </div>
 
-            <!-- Content Layer -->
-            <div class="relative z-10 space-y-4">
+            <!-- Content Layer (z-20) -->
+            <div class="relative z-20 space-y-4">
               <div class="flex items-center justify-between">
                 <div class="w-14 h-14 rounded-2xl bg-amber-500/20 border border-amber-400/40 text-amber-400 backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg">
                   <i class="fas fa-plane-departure"></i>
@@ -576,7 +576,7 @@
               </div>
             </div>
 
-            <div class="relative z-10 pt-6 border-t border-white/15 mt-6">
+            <div class="relative z-20 pt-6 border-t border-white/15 mt-6">
               <router-link 
                 to="/guide/market-tour" 
                 class="text-xs font-bold text-amber-300 group-hover:text-white flex items-center justify-between transition group-hover:translate-x-1"
@@ -849,7 +849,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TradePhotos from '../components/TradePhotos.vue'
-import { fetchSiteSettings, currentSettings } from '../lib/settings'
+import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 // ----------------------------------------------------
@@ -859,12 +859,6 @@ const serviceMediaRocket = computed(() => currentSettings.value?.service_card_me
 const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
 const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
 const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
-
-const isVideoMedia = (url) => {
-  if (!url) return false
-  const clean = url.toLowerCase().split('?')[0]
-  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.ogg') || clean.endsWith('.mov') || url.includes('/video/')
-}
 
 // ----------------------------------------------------
 // Real-Time Rates & Settings & Hero Media
