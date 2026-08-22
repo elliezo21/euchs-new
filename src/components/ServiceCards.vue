@@ -82,10 +82,10 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { currentSettings, fetchSiteSettings, isVideoMedia } from '../lib/settings'
 
-const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
-const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
-const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
-const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
+const serviceMediaRocket = computed(() => currentSettings.value?.service_media?.card1 || currentSettings.value?.service_card_media_rocket || '')
+const serviceMediaPurchasing = computed(() => currentSettings.value?.service_media?.card2 || currentSettings.value?.service_card_media_purchasing || '')
+const serviceMediaTrade = computed(() => currentSettings.value?.service_media?.card3 || currentSettings.value?.service_card_media_trade || '')
+const serviceMediaTour = computed(() => currentSettings.value?.service_media?.card4 || currentSettings.value?.service_card_media_tour || '')
 
 const serviceCards = computed(() => [
   {

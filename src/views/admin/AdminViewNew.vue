@@ -911,9 +911,9 @@
                       </div>
                     </div>
                     <button 
-                      v-if="settingsForm.service_card_media_rocket" 
+                      v-if="settingsForm.service_media && settingsForm.service_media.card1" 
                       type="button" 
-                      @click="removeServiceCardMedia('rocket')" 
+                      @click="deleteMediaCard('card1')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
                       title="등록된 미디어 삭제 (기본 다크 스타일로 즉시 복원 및 자동 저장)"
                     >
@@ -925,30 +925,31 @@
                   <!-- URL Input & Upload Button -->
                   <div class="flex flex-col sm:flex-row gap-2">
                     <input 
-                      v-model="settingsForm.service_card_media_rocket" 
+                      v-if="settingsForm.service_media"
+                      v-model="settingsForm.service_media.card1" 
                       type="text" 
-                      @change="handleServiceCardUrlChange('rocket')"
+                      @change="saveMediaCard('card1')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-red-500"
                     />
                     <button 
                       type="button" 
-                      @click="triggerServiceCardUpload('rocket')" 
-                      :disabled="isUploadingServiceCard['rocket']"
+                      @click="triggerCardUpload('card1')" 
+                      :disabled="isUploadingCard['card1']"
                       class="px-3.5 py-2.5 rounded-xl bg-red-600/30 hover:bg-red-600 text-red-200 hover:text-white font-bold text-xs border border-red-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                     >
-                      <i v-if="isUploadingServiceCard['rocket']" class="fas fa-spinner animate-spin"></i>
+                      <i v-if="isUploadingCard['card1']" class="fas fa-spinner animate-spin"></i>
                       <i v-else class="fas fa-cloud-arrow-up"></i>
-                      <span>{{ isUploadingServiceCard['rocket'] ? '업로드 중...' : '업로드' }}</span>
+                      <span>{{ isUploadingCard['card1'] ? '업로드 중...' : '업로드' }}</span>
                     </button>
                   </div>
 
                   <!-- Live Mini Preview -->
                   <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
-                    <template v-if="settingsForm.service_card_media_rocket">
+                    <template v-if="settingsForm.service_media && settingsForm.service_media.card1">
                       <video 
-                        v-if="isVideoMedia(settingsForm.service_card_media_rocket)"
-                        :src="settingsForm.service_card_media_rocket" 
+                        v-if="isVideoMedia(settingsForm.service_media.card1)"
+                        :src="settingsForm.service_media.card1" 
                         autoplay 
                         loop 
                         muted 
@@ -960,7 +961,7 @@
                       ></video>
                       <img 
                         v-else 
-                        :src="settingsForm.service_card_media_rocket" 
+                        :src="settingsForm.service_media.card1" 
                         class="absolute inset-0 w-full h-full object-cover" 
                       />
                       <div class="absolute inset-0 bg-black/60"></div>
@@ -995,9 +996,9 @@
                       </div>
                     </div>
                     <button 
-                      v-if="settingsForm.service_card_media_purchasing" 
+                      v-if="settingsForm.service_media && settingsForm.service_media.card2" 
                       type="button" 
-                      @click="removeServiceCardMedia('purchasing')" 
+                      @click="deleteMediaCard('card2')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
                       title="등록된 미디어 삭제 (기본 다크 스타일로 즉시 복원 및 자동 저장)"
                     >
@@ -1009,30 +1010,31 @@
                   <!-- URL Input & Upload Button -->
                   <div class="flex flex-col sm:flex-row gap-2">
                     <input 
-                      v-model="settingsForm.service_card_media_purchasing" 
+                      v-if="settingsForm.service_media"
+                      v-model="settingsForm.service_media.card2" 
                       type="text" 
-                      @change="handleServiceCardUrlChange('purchasing')"
+                      @change="saveMediaCard('card2')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-blue-500"
                     />
                     <button 
                       type="button" 
-                      @click="triggerServiceCardUpload('purchasing')" 
-                      :disabled="isUploadingServiceCard['purchasing']"
+                      @click="triggerCardUpload('card2')" 
+                      :disabled="isUploadingCard['card2']"
                       class="px-3.5 py-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white font-bold text-xs border border-blue-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                     >
-                      <i v-if="isUploadingServiceCard['purchasing']" class="fas fa-spinner animate-spin"></i>
+                      <i v-if="isUploadingCard['card2']" class="fas fa-spinner animate-spin"></i>
                       <i v-else class="fas fa-cloud-arrow-up"></i>
-                      <span>{{ isUploadingServiceCard['purchasing'] ? '업로드 중...' : '업로드' }}</span>
+                      <span>{{ isUploadingCard['card2'] ? '업로드 중...' : '업로드' }}</span>
                     </button>
                   </div>
 
                   <!-- Live Mini Preview -->
                   <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
-                    <template v-if="settingsForm.service_card_media_purchasing">
+                    <template v-if="settingsForm.service_media && settingsForm.service_media.card2">
                       <video 
-                        v-if="isVideoMedia(settingsForm.service_card_media_purchasing)"
-                        :src="settingsForm.service_card_media_purchasing" 
+                        v-if="isVideoMedia(settingsForm.service_media.card2)"
+                        :src="settingsForm.service_media.card2" 
                         autoplay 
                         loop 
                         muted 
@@ -1044,7 +1046,7 @@
                       ></video>
                       <img 
                         v-else 
-                        :src="settingsForm.service_card_media_purchasing" 
+                        :src="settingsForm.service_media.card2" 
                         class="absolute inset-0 w-full h-full object-cover" 
                       />
                       <div class="absolute inset-0 bg-black/60"></div>
@@ -1079,9 +1081,9 @@
                       </div>
                     </div>
                     <button 
-                      v-if="settingsForm.service_card_media_trade" 
+                      v-if="settingsForm.service_media && settingsForm.service_media.card3" 
                       type="button" 
-                      @click="removeServiceCardMedia('trade')" 
+                      @click="deleteMediaCard('card3')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
                       title="등록된 미디어 삭제 (기본 스타일로 즉시 복원 및 자동 저장)"
                     >
@@ -1093,30 +1095,31 @@
                   <!-- URL Input & Upload Button -->
                   <div class="flex flex-col sm:flex-row gap-2">
                     <input 
-                      v-model="settingsForm.service_card_media_trade" 
+                      v-if="settingsForm.service_media"
+                      v-model="settingsForm.service_media.card3" 
                       type="text" 
-                      @change="handleServiceCardUrlChange('trade')"
+                      @change="saveMediaCard('card3')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-emerald-500"
                     />
                     <button 
                       type="button" 
-                      @click="triggerServiceCardUpload('trade')" 
-                      :disabled="isUploadingServiceCard['trade']"
+                      @click="triggerCardUpload('card3')" 
+                      :disabled="isUploadingCard['card3']"
                       class="px-3.5 py-2.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white font-bold text-xs border border-emerald-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                     >
-                      <i v-if="isUploadingServiceCard['trade']" class="fas fa-spinner animate-spin"></i>
+                      <i v-if="isUploadingCard['card3']" class="fas fa-spinner animate-spin"></i>
                       <i v-else class="fas fa-cloud-arrow-up"></i>
-                      <span>{{ isUploadingServiceCard['trade'] ? '업로드 중...' : '업로드' }}</span>
+                      <span>{{ isUploadingCard['card3'] ? '업로드 중...' : '업로드' }}</span>
                     </button>
                   </div>
 
                   <!-- Live Mini Preview -->
                   <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
-                    <template v-if="settingsForm.service_card_media_trade">
+                    <template v-if="settingsForm.service_media && settingsForm.service_media.card3">
                       <video 
-                        v-if="isVideoMedia(settingsForm.service_card_media_trade)"
-                        :src="settingsForm.service_card_media_trade" 
+                        v-if="isVideoMedia(settingsForm.service_media.card3)"
+                        :src="settingsForm.service_media.card3" 
                         autoplay 
                         loop 
                         muted 
@@ -1128,7 +1131,7 @@
                       ></video>
                       <img 
                         v-else 
-                        :src="settingsForm.service_card_media_trade" 
+                        :src="settingsForm.service_media.card3" 
                         class="absolute inset-0 w-full h-full object-cover" 
                       />
                       <div class="absolute inset-0 bg-black/60"></div>
@@ -1163,9 +1166,9 @@
                       </div>
                     </div>
                     <button 
-                      v-if="settingsForm.service_card_media_tour" 
+                      v-if="settingsForm.service_media && settingsForm.service_media.card4" 
                       type="button" 
-                      @click="removeServiceCardMedia('tour')" 
+                      @click="deleteMediaCard('card4')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
                       title="등록된 미디어 삭제 (기본 스타일로 즉시 복원 및 자동 저장)"
                     >
@@ -1177,30 +1180,31 @@
                   <!-- URL Input & Upload Button -->
                   <div class="flex flex-col sm:flex-row gap-2">
                     <input 
-                      v-model="settingsForm.service_card_media_tour" 
+                      v-if="settingsForm.service_media"
+                      v-model="settingsForm.service_media.card4" 
                       type="text" 
-                      @change="handleServiceCardUrlChange('tour')"
+                      @change="saveMediaCard('card4')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-amber-500"
                     />
                     <button 
                       type="button" 
-                      @click="triggerServiceCardUpload('tour')" 
-                      :disabled="isUploadingServiceCard['tour']"
+                      @click="triggerCardUpload('card4')" 
+                      :disabled="isUploadingCard['card4']"
                       class="px-3.5 py-2.5 rounded-xl bg-amber-600/30 hover:bg-amber-600 text-amber-200 hover:text-white font-bold text-xs border border-amber-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                     >
-                      <i v-if="isUploadingServiceCard['tour']" class="fas fa-spinner animate-spin"></i>
+                      <i v-if="isUploadingCard['card4']" class="fas fa-spinner animate-spin"></i>
                       <i v-else class="fas fa-cloud-arrow-up"></i>
-                      <span>{{ isUploadingServiceCard['tour'] ? '업로드 중...' : '업로드' }}</span>
+                      <span>{{ isUploadingCard['card4'] ? '업로드 중...' : '업로드' }}</span>
                     </button>
                   </div>
 
                   <!-- Live Mini Preview -->
                   <div class="relative h-36 w-full rounded-xl overflow-hidden border border-slate-800 bg-[#141e33] flex items-center justify-center text-center">
-                    <template v-if="settingsForm.service_card_media_tour">
+                    <template v-if="settingsForm.service_media && settingsForm.service_media.card4">
                       <video 
-                        v-if="isVideoMedia(settingsForm.service_card_media_tour)"
-                        :src="settingsForm.service_card_media_tour" 
+                        v-if="isVideoMedia(settingsForm.service_media.card4)"
+                        :src="settingsForm.service_media.card4" 
                         autoplay 
                         loop 
                         muted 
@@ -1212,7 +1216,7 @@
                       ></video>
                       <img 
                         v-else 
-                        :src="settingsForm.service_card_media_tour" 
+                        :src="settingsForm.service_media.card4" 
                         class="absolute inset-0 w-full h-full object-cover" 
                       />
                       <div class="absolute inset-0 bg-black/60"></div>
@@ -1241,7 +1245,7 @@
               type="file" 
               accept="video/mp4, video/*, image/*" 
               class="hidden" 
-              @change="handleServiceCardFileUpload" 
+              @change="handleCardFileUpload" 
             />
 
           </div>
@@ -2114,7 +2118,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, isSupabaseConfigured } from '../../lib/supabase'
-import { fetchSiteSettings, saveSiteSettings, DEFAULT_SETTINGS, isVideoMedia } from '../../lib/settings'
+import { fetchSiteSettings, saveSiteSettings, updateServiceMedia, DEFAULT_SETTINGS, isVideoMedia } from '../../lib/settings'
 import { currentUser, userRole, checkUserRole, isSuperAdmin, signOut } from '../../lib/auth'
 import { getVisitorStats } from '../../lib/analytics'
 
@@ -2909,6 +2913,14 @@ const loadSettings = async () => {
   const loaded = await fetchSiteSettings()
   if (loaded) {
     settingsForm.value = { ...loaded }
+    if (!settingsForm.value.service_media) {
+      settingsForm.value.service_media = {
+        card1: loaded.service_card_media_rocket || '',
+        card2: loaded.service_card_media_purchasing || '',
+        card3: loaded.service_card_media_trade || '',
+        card4: loaded.service_card_media_tour || ''
+      }
+    }
   }
 }
 
@@ -3050,66 +3062,52 @@ const getYoutubeEmbedUrl = (url) => {
 }
 
 // ----------------------------------------------------
-// Service Cards Media Management State & Logic (Auto-Save Pipeline)
+// 4대 핵심 서비스 카드 미디어 관리 (service_media JSONB 전용 파이프라인)
 // ----------------------------------------------------
 const serviceCardFileInput = ref(null)
-const currentServiceUploadType = ref('rocket')
-const isUploadingServiceCard = ref({
-  rocket: false,
-  purchasing: false,
-  trade: false,
-  tour: false
+const currentUploadCardKey = ref('card1')
+const isUploadingCard = ref({
+  card1: false,
+  card2: false,
+  card3: false,
+  card4: false
 })
 
-const getServiceCardName = (serviceKey) => {
-  const names = {
-    rocket: '#1 쿠팡 로켓그로스',
-    purchasing: '#2 1688/타오바오 구매대행',
-    trade: '#3 무역대행 & 맞춤제조',
-    tour: '#4 중국 이우 시장투어'
+const getCardLabel = (cardKey) => {
+  const map = {
+    card1: '#1 쿠팡 로켓그로스',
+    card2: '#2 1688/타오바오 구매대행',
+    card3: '#3 무역대행 & 맞춤제조',
+    card4: '#4 중국 이우 시장투어'
   }
-  return names[serviceKey] || '서비스 카드'
+  return map[cardKey] || '서비스 카드'
 }
 
-const triggerServiceCardUpload = (serviceKey) => {
-  currentServiceUploadType.value = serviceKey
+const triggerCardUpload = (cardKey) => {
+  currentUploadCardKey.value = cardKey
   if (serviceCardFileInput.value) {
     serviceCardFileInput.value.click()
   }
 }
 
-// URL 직접 입력 시 즉시 자동 저장 (on change)
-const handleServiceCardUrlChange = async (serviceKey) => {
-  const serviceName = getServiceCardName(serviceKey)
-  try {
-    await saveSiteSettings(settingsForm.value)
-    showToast(`✓ ${serviceName} 미디어 URL이 즉시 자동 저장되었습니다!`, 'success')
-  } catch (err) {
-    console.error('URL change auto-save error:', err)
-    alert('DB 저장 실패: ' + (err.message || err))
-    showToast('미디어 URL 저장 실패: ' + (err.message || err), 'error')
-  }
-}
-
-// [업로드] 클릭 시 파일 업로드 후 즉시 자동 저장
-const handleServiceCardFileUpload = async (event) => {
+// 1. [업로드] 파일 업로드 -> URL 획득 -> DB 즉시 UPDATE
+const handleCardFileUpload = async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
 
-  const serviceKey = currentServiceUploadType.value || 'rocket'
-  const serviceName = getServiceCardName(serviceKey)
-  isUploadingServiceCard.value[serviceKey] = true
+  const cardKey = currentUploadCardKey.value || 'card1'
+  const cardLabel = getCardLabel(cardKey)
+  isUploadingCard.value[cardKey] = true
 
   try {
     if (!isSupabaseConfigured()) {
-      alert('Supabase 설정이 필요합니다.')
-      showToast('Supabase 설정이 필요합니다. 외부 URL을 직접 입력해 주세요.', 'error')
+      alert('Supabase가 연결되어 있지 않습니다.')
       return
     }
 
     const fileExt = (file.name.split('.').pop() || '').toLowerCase()
     const isVideo = file.type.startsWith('video/') || ['mp4', 'webm', 'mov', 'm4v', 'avi', 'mkv'].includes(fileExt)
-    const fileName = `service_card_${serviceKey}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.${fileExt || (isVideo ? 'mp4' : 'jpg')}`
+    const fileName = `service_${cardKey}_${Date.now()}_${Math.random().toString(36).substring(2, 6)}.${fileExt || (isVideo ? 'mp4' : 'jpg')}`
     const filePath = `service_cards/${fileName}`
 
     const { error: uploadError } = await supabase.storage
@@ -3121,9 +3119,8 @@ const handleServiceCardFileUpload = async (event) => {
       })
 
     if (uploadError) {
-      console.error('Service Card Upload Error:', uploadError)
-      alert('미디어 파일 업로드 실패: ' + uploadError.message)
-      showToast('파일 업로드 실패: ' + uploadError.message, 'error')
+      console.error('Storage Upload Error:', uploadError)
+      alert('파일 업로드 실패: ' + uploadError.message)
       return
     }
 
@@ -3132,40 +3129,52 @@ const handleServiceCardFileUpload = async (event) => {
       .getPublicUrl(filePath)
 
     if (publicUrlData && publicUrlData.publicUrl) {
-      if (serviceKey === 'rocket') settingsForm.value.service_card_media_rocket = publicUrlData.publicUrl
-      else if (serviceKey === 'purchasing') settingsForm.value.service_card_media_purchasing = publicUrlData.publicUrl
-      else if (serviceKey === 'trade') settingsForm.value.service_card_media_trade = publicUrlData.publicUrl
-      else if (serviceKey === 'tour') settingsForm.value.service_card_media_tour = publicUrlData.publicUrl
+      if (!settingsForm.value.service_media) {
+        settingsForm.value.service_media = { card1: '', card2: '', card3: '', card4: '' }
+      }
+      settingsForm.value.service_media[cardKey] = publicUrlData.publicUrl
 
-      // 즉시 Supabase DB 및 LocalStorage 자동 저장 & 실시간 동기화
-      await saveSiteSettings(settingsForm.value)
-      showToast(`✓ ${serviceName} 미디어가 성공적으로 업로드 및 즉시 자동 저장되었습니다!`, 'success')
+      // 즉시 Supabase DB site_settings service_media JSONB 컬럼 UPDATE
+      await updateServiceMedia(settingsForm.value.service_media)
+      showToast(`✓ ${cardLabel} 미디어가 성공적으로 업로드 및 DB 저장되었습니다!`, 'success')
     }
   } catch (err) {
-    console.error('Service Card File Upload Exception:', err)
+    console.error('Card File Upload Error:', err)
     alert('DB 저장 실패: ' + (err.message || err))
-    showToast('파일 업로드 중 오류가 발생했습니다: ' + err.message, 'error')
   } finally {
-    isUploadingServiceCard.value[serviceKey] = false
+    isUploadingCard.value[cardKey] = false
     if (event.target) event.target.value = ''
   }
 }
 
-// [삭제] 클릭 시 즉시 빈 값으로 DB 자동 저장
-const removeServiceCardMedia = async (serviceKey) => {
-  const serviceName = getServiceCardName(serviceKey)
-  if (serviceKey === 'rocket') settingsForm.value.service_card_media_rocket = ''
-  else if (serviceKey === 'purchasing') settingsForm.value.service_card_media_purchasing = ''
-  else if (serviceKey === 'trade') settingsForm.value.service_card_media_trade = ''
-  else if (serviceKey === 'tour') settingsForm.value.service_card_media_tour = ''
-
+// 2. URL 직접 수정 시 즉시 DB UPDATE
+const saveMediaCard = async (cardKey) => {
+  const cardLabel = getCardLabel(cardKey)
   try {
-    await saveSiteSettings(settingsForm.value)
-    showToast(`✓ ${serviceName} 미디어가 삭제되고 기본 다크 네이비 스타일로 즉시 저장되었습니다.`, 'info')
+    if (!settingsForm.value.service_media) {
+      settingsForm.value.service_media = { card1: '', card2: '', card3: '', card4: '' }
+    }
+    await updateServiceMedia(settingsForm.value.service_media)
+    showToast(`✓ ${cardLabel} 미디어 URL이 DB에 즉시 저장되었습니다!`, 'success')
   } catch (err) {
-    console.error('Remove service media error:', err)
+    console.error('Save media card error:', err)
     alert('DB 저장 실패: ' + (err.message || err))
-    showToast('미디어 삭제 저장 실패: ' + (err.message || err), 'error')
+  }
+}
+
+// 3. [삭제] 클릭 시 즉시 빈 값으로 DB UPDATE
+const deleteMediaCard = async (cardKey) => {
+  const cardLabel = getCardLabel(cardKey)
+  try {
+    if (!settingsForm.value.service_media) {
+      settingsForm.value.service_media = { card1: '', card2: '', card3: '', card4: '' }
+    }
+    settingsForm.value.service_media[cardKey] = ''
+    await updateServiceMedia(settingsForm.value.service_media)
+    showToast(`✓ ${cardLabel} 미디어가 삭제되고 기본 다크 네이비 스타일로 DB 저장되었습니다.`, 'info')
+  } catch (err) {
+    console.error('Delete media card error:', err)
+    alert('DB 삭제 저장 실패: ' + (err.message || err))
   }
 }
 

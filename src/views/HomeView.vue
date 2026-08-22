@@ -656,12 +656,12 @@ import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/setting
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 // ----------------------------------------------------
-// 4 Core Service Cards Dynamic Media Bindings (Direct Supabase DB Bindings)
+// 4 Core Service Cards Dynamic Media Bindings (service_media JSONB Direct Supabase Binding)
 // ----------------------------------------------------
-const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
-const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
-const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
-const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
+const serviceMediaCard1 = computed(() => currentSettings.value?.service_media?.card1 || currentSettings.value?.service_card_media_rocket || '')
+const serviceMediaCard2 = computed(() => currentSettings.value?.service_media?.card2 || currentSettings.value?.service_card_media_purchasing || '')
+const serviceMediaCard3 = computed(() => currentSettings.value?.service_media?.card3 || currentSettings.value?.service_card_media_trade || '')
+const serviceMediaCard4 = computed(() => currentSettings.value?.service_media?.card4 || currentSettings.value?.service_card_media_tour || '')
 
 const serviceCards = computed(() => [
   {
@@ -678,7 +678,7 @@ const serviceCards = computed(() => [
     desc: '바코드 라벨 부착, KC인증 라벨 작업, 파레트 래핑 및 규격 포장부터 지정 FC센터 밀크런 트럭 직납까지 원스톱 대행.',
     link: '/services/rocket-growth',
     linkText: '상세 안내 및 신청하기',
-    mediaUrl: serviceMediaRocket.value
+    mediaUrl: serviceMediaCard1.value
   },
   {
     id: 'purchasing',
@@ -694,7 +694,7 @@ const serviceCards = computed(() => [
     desc: '알리페이 수수료 절감, 현지 창고 도착 즉시 1차 정밀 검품, 해운/항공 특송 출고 및 통관 서류 완벽 지원.',
     link: '/services/purchasing-agent',
     linkText: '주문서 작성 바로가기',
-    mediaUrl: serviceMediaPurchasing.value
+    mediaUrl: serviceMediaCard2.value
   },
   {
     id: 'trade',
@@ -710,7 +710,7 @@ const serviceCards = computed(() => [
     desc: '현지 공장 실사, 단가 네고, 금형 제작 및 샘플 감리, 포워딩 & 통관 서류 일체 대행으로 브랜드 제품 런칭 지원.',
     link: '/services/trade-agent',
     linkText: '맞춤 무역 의뢰하기',
-    mediaUrl: serviceMediaTrade.value
+    mediaUrl: serviceMediaCard3.value
   },
   {
     id: 'tour',
@@ -726,7 +726,7 @@ const serviceCards = computed(() => [
     desc: '세계 최대 도매시장 푸텐시장 1~5기 구역별 맞춤 가이드, 비즈니스 전담 통역, 호텔/공항 픽업 및 발주 연계.',
     link: '/guide/market-tour',
     linkText: '투어 일정 & 견적 확인',
-    mediaUrl: serviceMediaTour.value
+    mediaUrl: serviceMediaCard4.value
   }
 ])
 
