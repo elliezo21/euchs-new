@@ -13,6 +13,20 @@ export const isVideoMedia = (url) => {
   return false
 }
 
+export const DEFAULT_SERVICE_MEDIA = {
+  rocket: 'https://assets.mixkit.co/videos/43289/43289-720.mp4',
+  purchasing: 'https://assets.mixkit.co/videos/41551/41551-720.mp4',
+  trade: 'https://assets.mixkit.co/videos/43292/43292-720.mp4',
+  tour: 'https://assets.mixkit.co/videos/42940/42940-720.mp4'
+}
+
+export const DEFAULT_SERVICE_POSTERS = {
+  rocket: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=800&q=80',
+  purchasing: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=800&q=80',
+  trade: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80',
+  tour: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80'
+}
+
 export const DEFAULT_SETTINGS = {
   id: 'default',
   exchange_rate_mode: 'manual', // 'manual' | 'auto_margin'
@@ -24,13 +38,13 @@ export const DEFAULT_SETTINGS = {
   fta_co_fee: 33000,
   // 메인 히어로 미디어 배경 설정
   hero_media_type: 'video_mp4', // 'video_mp4' | 'youtube' | 'image'
-  hero_media_url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm',
+  hero_media_url: 'https://assets.mixkit.co/videos/43288/43288-720.mp4',
   hero_overlay_opacity: 60, // 30 ~ 90 (%)
-  // 4대 핵심 서비스 카드 기본 미디어 URL (DB 통신 지연/실패 시에도 모바일 화면이 비어있지 않도록 보장)
-  service_card_media_rocket: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm',
-  service_card_media_purchasing: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=800&q=80',
-  service_card_media_trade: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80',
-  service_card_media_tour: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80',
+  // 4대 핵심 서비스 카드 기본 미디어 URL (모바일 기기에서도 항상 고화질 영상/애니메이션 보장)
+  service_card_media_rocket: DEFAULT_SERVICE_MEDIA.rocket,
+  service_card_media_purchasing: DEFAULT_SERVICE_MEDIA.purchasing,
+  service_card_media_trade: DEFAULT_SERVICE_MEDIA.trade,
+  service_card_media_tour: DEFAULT_SERVICE_MEDIA.tour,
   updated_at: new Date().toISOString()
 }
 
@@ -80,10 +94,10 @@ export const fetchSiteSettings = async (retryCount = 2) => {
             hero_media_type: dbData.hero_media_type || DEFAULT_SETTINGS.hero_media_type,
             hero_media_url: dbData.hero_media_url || DEFAULT_SETTINGS.hero_media_url,
             hero_overlay_opacity: Number(dbData.hero_overlay_opacity) || DEFAULT_SETTINGS.hero_overlay_opacity,
-            service_card_media_rocket: (dbData.service_card_media_rocket !== undefined && dbData.service_card_media_rocket !== '') ? dbData.service_card_media_rocket : merged.service_card_media_rocket,
-            service_card_media_purchasing: (dbData.service_card_media_purchasing !== undefined && dbData.service_card_media_purchasing !== '') ? dbData.service_card_media_purchasing : merged.service_card_media_purchasing,
-            service_card_media_trade: (dbData.service_card_media_trade !== undefined && dbData.service_card_media_trade !== '') ? dbData.service_card_media_trade : merged.service_card_media_trade,
-            service_card_media_tour: (dbData.service_card_media_tour !== undefined && dbData.service_card_media_tour !== '') ? dbData.service_card_media_tour : merged.service_card_media_tour
+            service_card_media_rocket: (dbData.service_card_media_rocket && dbData.service_card_media_rocket.trim() !== '') ? dbData.service_card_media_rocket : (merged.service_card_media_rocket || DEFAULT_SERVICE_MEDIA.rocket),
+            service_card_media_purchasing: (dbData.service_card_media_purchasing && dbData.service_card_media_purchasing.trim() !== '') ? dbData.service_card_media_purchasing : (merged.service_card_media_purchasing || DEFAULT_SERVICE_MEDIA.purchasing),
+            service_card_media_trade: (dbData.service_card_media_trade && dbData.service_card_media_trade.trim() !== '') ? dbData.service_card_media_trade : (merged.service_card_media_trade || DEFAULT_SERVICE_MEDIA.trade),
+            service_card_media_tour: (dbData.service_card_media_tour && dbData.service_card_media_tour.trim() !== '') ? dbData.service_card_media_tour : (merged.service_card_media_tour || DEFAULT_SERVICE_MEDIA.tour)
           }
           console.info('[SiteSettings] Successfully fetched live settings from Supabase DB.')
         } else if (dbError) {

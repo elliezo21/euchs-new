@@ -329,8 +329,15 @@
           
           <!-- Card 1: 쿠팡 로켓그로스 & 밀크런 입고 대행 -->
           <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-red-500/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Always visible when configured) -->
-            <div v-if="serviceMediaRocket" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <!-- High-Res Instant Poster (prevents black gap during mobile video initialization) -->
+              <img 
+                :src="DEFAULT_SERVICE_POSTERS.rocket" 
+                alt="쿠팡 물류창고 입고 포스터"
+                class="absolute inset-0 w-full h-full object-cover z-0"
+                loading="eager"
+              />
               <video 
                 v-if="isVideoMedia(serviceMediaRocket)"
                 :src="serviceMediaRocket"
@@ -341,23 +348,22 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
-              ></video>
+                :poster="DEFAULT_SERVICE_POSTERS.rocket"
+                @canplay="handleVideoCanPlay"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
+              >
+                <source :src="serviceMediaRocket" type="video/mp4" />
+              </video>
               <img 
-                v-else
+                v-else-if="serviceMediaRocket"
                 :src="serviceMediaRocket" 
                 alt="쿠팡 물류창고 입고 배경"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
                 loading="eager"
               />
               <!-- Dark Overlay with z-10 for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-            </div>
-
-            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
-            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
-              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-red-500/5 rounded-full blur-3xl group-hover:bg-red-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer (z-20) -->
@@ -394,8 +400,15 @@
 
           <!-- Card 2: 1688 / 타오바오 중국 구매대행 -->
           <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-blue-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Always visible when configured) -->
-            <div v-if="serviceMediaPurchasing" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <!-- High-Res Instant Poster -->
+              <img 
+                :src="DEFAULT_SERVICE_POSTERS.purchasing" 
+                alt="구매대행 포스터"
+                class="absolute inset-0 w-full h-full object-cover z-0"
+                loading="eager"
+              />
               <video 
                 v-if="isVideoMedia(serviceMediaPurchasing)"
                 :src="serviceMediaPurchasing"
@@ -406,23 +419,22 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
-              ></video>
+                :poster="DEFAULT_SERVICE_POSTERS.purchasing"
+                @canplay="handleVideoCanPlay"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
+              >
+                <source :src="serviceMediaPurchasing" type="video/mp4" />
+              </video>
               <img 
-                v-else
+                v-else-if="serviceMediaPurchasing"
                 :src="serviceMediaPurchasing" 
                 alt="1688 타오바오 구매대행 배경"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
                 loading="eager"
               />
               <!-- Dark Overlay with z-10 for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-            </div>
-
-            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
-            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
-              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-blue-500/5 rounded-full blur-3xl group-hover:bg-blue-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer (z-20) -->
@@ -459,8 +471,15 @@
 
           <!-- Card 3: 무역대행 & OEM/ODM 맞춤제조 -->
           <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-emerald-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Always visible when configured) -->
-            <div v-if="serviceMediaTrade" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <!-- High-Res Instant Poster -->
+              <img 
+                :src="DEFAULT_SERVICE_POSTERS.trade" 
+                alt="무역대행 맞춤제조 포스터"
+                class="absolute inset-0 w-full h-full object-cover z-0"
+                loading="eager"
+              />
               <video 
                 v-if="isVideoMedia(serviceMediaTrade)"
                 :src="serviceMediaTrade"
@@ -471,23 +490,22 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
-              ></video>
+                :poster="DEFAULT_SERVICE_POSTERS.trade"
+                @canplay="handleVideoCanPlay"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
+              >
+                <source :src="serviceMediaTrade" type="video/mp4" />
+              </video>
               <img 
-                v-else
+                v-else-if="serviceMediaTrade"
                 :src="serviceMediaTrade" 
                 alt="공장 생산 라인 배경"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
                 loading="eager"
               />
               <!-- Dark Overlay with z-10 for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-            </div>
-
-            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
-            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
-              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-emerald-500/5 rounded-full blur-3xl group-hover:bg-emerald-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer (z-20) -->
@@ -524,8 +542,15 @@
 
           <!-- Card 4: 중국 이우(푸텐) 시장조사 투어 -->
           <div class="group relative rounded-3xl overflow-hidden border border-slate-700/80 hover:border-amber-400/80 shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]">
-            <!-- Dynamic Moving Background (Always visible when configured) -->
-            <div v-if="serviceMediaTour" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+            <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
+            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
+              <!-- High-Res Instant Poster -->
+              <img 
+                :src="DEFAULT_SERVICE_POSTERS.tour" 
+                alt="이우 시장조사 투어 포스터"
+                class="absolute inset-0 w-full h-full object-cover z-0"
+                loading="eager"
+              />
               <video 
                 v-if="isVideoMedia(serviceMediaTour)"
                 :src="serviceMediaTour"
@@ -536,23 +561,22 @@
                 webkit-playsinline
                 x5-playsinline
                 preload="auto"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0 bg-[#141e33]"
-              ></video>
+                :poster="DEFAULT_SERVICE_POSTERS.tour"
+                @canplay="handleVideoCanPlay"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
+              >
+                <source :src="serviceMediaTour" type="video/mp4" />
+              </video>
               <img 
-                v-else
+                v-else-if="serviceMediaTour"
                 :src="serviceMediaTour" 
                 alt="이우 시장조사 투어 배경"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-0"
+                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
                 loading="eager"
               />
               <!-- Dark Overlay with z-10 for crystal clear typography -->
               <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
               <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-            </div>
-
-            <!-- Default Elegant Dark Card Gradient (when no media configured) -->
-            <div v-else class="absolute inset-0 bg-gradient-to-br from-[#182234] to-[#0f172a] z-0 pointer-events-none select-none">
-              <div class="absolute -right-8 -bottom-8 w-40 h-40 bg-amber-500/5 rounded-full blur-3xl group-hover:bg-amber-500/10 transition duration-500"></div>
             </div>
 
             <!-- Content Layer (z-20) -->
@@ -849,16 +873,28 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TradePhotos from '../components/TradePhotos.vue'
-import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
+import { fetchSiteSettings, currentSettings, isVideoMedia, DEFAULT_SERVICE_MEDIA, DEFAULT_SERVICE_POSTERS } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 // ----------------------------------------------------
-// 4 Core Service Cards Dynamic Media Bindings
+// 4 Core Service Cards Dynamic Media Bindings (Guaranteed Non-Empty)
 // ----------------------------------------------------
-const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
-const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
-const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
-const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
+const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || DEFAULT_SERVICE_MEDIA.rocket)
+const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || DEFAULT_SERVICE_MEDIA.purchasing)
+const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || DEFAULT_SERVICE_MEDIA.trade)
+const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || DEFAULT_SERVICE_MEDIA.tour)
+
+const handleVideoCanPlay = (e) => {
+  const v = e?.target
+  if (v) {
+    v.muted = true
+    v.defaultMuted = true
+    const p = v.play()
+    if (p !== undefined) {
+      p.catch(() => {})
+    }
+  }
+}
 
 // ----------------------------------------------------
 // Real-Time Rates & Settings & Hero Media
