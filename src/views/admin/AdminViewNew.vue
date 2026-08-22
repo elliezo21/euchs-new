@@ -2949,9 +2949,19 @@ const handleSaveRatesAndFees = async () => {
 const handleSaveServiceMedia = async () => {
   isSavingServiceMedia.value = true
   try {
-    await saveSiteSettings(settingsForm.value)
+    const payload = {
+      ...settingsForm.value,
+      service_card_media_rocket: (settingsForm.value.service_card_media_rocket || '').trim(),
+      service_card_media_purchasing: (settingsForm.value.service_card_media_purchasing || '').trim(),
+      service_card_media_trade: (settingsForm.value.service_card_media_trade || '').trim(),
+      service_card_media_tour: (settingsForm.value.service_card_media_tour || '').trim()
+    }
+    await saveSiteSettings(payload)
+    settingsForm.value.service_card_media_rocket = payload.service_card_media_rocket
+    settingsForm.value.service_card_media_purchasing = payload.service_card_media_purchasing
+    settingsForm.value.service_card_media_trade = payload.service_card_media_trade
+    settingsForm.value.service_card_media_tour = payload.service_card_media_tour
     showToast('✓ 4대 핵심 서비스 카드 미디어 설정이 성공적으로 저장되었습니다! 메인 화면에 즉시 반영됩니다.', 'success')
-    await loadSettings()
   } catch (err) {
     console.error('Save service media error:', err)
     showToast('서비스 미디어 저장 실패: ' + (err.message || err), 'error')
@@ -2966,7 +2976,6 @@ const handleSaveHeroMedia = async () => {
   try {
     await saveSiteSettings(settingsForm.value)
     showToast('✓ 메인 상단 비주얼(Hero) 설정이 성공적으로 저장되었습니다!', 'success')
-    await loadSettings()
   } catch (err) {
     console.error('Save hero media error:', err)
     showToast('상단 비주얼 저장 실패: ' + (err.message || err), 'error')
@@ -2980,7 +2989,6 @@ const handleSaveSettings = async () => {
   try {
     await saveSiteSettings(settingsForm.value)
     showToast('환율·수수료 및 미디어 설정이 성공적으로 저장되었습니다! 메인 페이지에 실시간 반영됩니다.', 'success')
-    await loadSettings()
   } catch (err) {
     console.error('Save settings error:', err)
     showToast('설정 저장 실패: ' + (err.message || err), 'error')

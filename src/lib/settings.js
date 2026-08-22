@@ -3,12 +3,18 @@ import { supabase, isSupabaseConfigured } from './supabase'
 
 /**
  * 미디어 URL의 비디오 여부 판별 공통 헬퍼 (mp4, webm, mov, ogg, avi, mkv 등)
+ * .gif, .png, .jpg, .webp 등 이미지는 확실하게 false 반환
  */
 export const isVideoMedia = (url) => {
   if (!url || typeof url !== 'string') return false
   const clean = url.toLowerCase().split('?')[0].split('#')[0].trim()
+  
+  const imageExtensions = ['.gif', '.png', '.jpg', '.jpeg', '.webp', '.svg', '.bmp', '.ico', '.avif']
+  if (imageExtensions.some(ext => clean.endsWith(ext))) return false
+
   const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v', '.avi', '.mkv']
   if (videoExtensions.some(ext => clean.endsWith(ext))) return true
+
   if (clean.includes('/video/') || clean.includes('video_') || clean.includes('format=mp4') || clean.includes('format=webm')) return true
   return false
 }
@@ -44,12 +50,18 @@ export const isSettingsLoading = ref(false)
 export const fetchSiteSettings = async () => {
   isSettingsLoading.value = true
   try {
-    let settings = { ...DEFAULT_SETTINGS }
+    // 1. 기존 캐시/메모리 상태 유지
+    let cached = {}
+    try {
+      const raw = localStorage.getItem('euchs_site_settings')
+      if (raw) cached = JSON.parse(raw)
+    } catch (e) {}
 
-    // 1. Supabase DB 조회 (site_settings 테이블 및 notices 백업)
+    let merged = { ...DEFAULT_SETTINGS, ...cached, ...currentSettings.value }
+
+    // 2. Supabase DB 조회
     if (isSupabaseConfigured()) {
       let dbData = null
-
       try {
         const { data, error } = await supabase
           .from('site_settings')
@@ -59,14 +71,12 @@ export const fetchSiteSettings = async () => {
 
         if (!error && data) {
           dbData = data
-        } else if (error) {
-          console.warn('[SiteSettings] Supabase site_settings select notice:', error.message)
         }
       } catch (err) {
-        console.warn('[SiteSettings] Supabase site_settings select exception:', err)
+        console.warn('[SiteSettings] site_settings query exception:', err)
       }
 
-      // notices 테이블 시스템 백업도 조회하여 최신 누락값 보완
+      // notices 백업 레코드 조회
       let backupData = null
       try {
         const { data: backupNotice } = await supabase
@@ -81,46 +91,37 @@ export const fetchSiteSettings = async () => {
         }
       } catch (e) {}
 
-      // 최신 데이터 병합: DB 컬럼 우선 -> 백업 데이터 -> 기본값
-      const source = { ...DEFAULT_SETTINGS, ...(backupData || {}), ...(dbData || {}) }
-
-      settings = {
-        id: 'default',
-        exchange_rate_mode: source.exchange_rate_mode || 'manual',
-        exchange_rate: Number(source.exchange_rate) || DEFAULT_SETTINGS.exchange_rate,
-        rate_margin: Number(source.rate_margin) || DEFAULT_SETTINGS.rate_margin,
-        agency_fee_rate: Number(source.agency_fee_rate) || DEFAULT_SETTINGS.agency_fee_rate,
-        sea_cbm_rate: Number(source.sea_cbm_rate) || DEFAULT_SETTINGS.sea_cbm_rate,
-        customs_clearance_fee: Number(source.customs_clearance_fee) || DEFAULT_SETTINGS.customs_clearance_fee,
-        fta_co_fee: Number(source.fta_co_fee) || DEFAULT_SETTINGS.fta_co_fee,
-        hero_media_type: source.hero_media_type || DEFAULT_SETTINGS.hero_media_type,
-        hero_media_url: source.hero_media_url || '',
-        hero_overlay_opacity: Number(source.hero_overlay_opacity) || 60,
-        service_card_media_rocket: source.service_card_media_rocket || '',
-        service_card_media_purchasing: source.service_card_media_purchasing || '',
-        service_card_media_trade: source.service_card_media_trade || '',
-        service_card_media_tour: source.service_card_media_tour || '',
-        updated_at: source.updated_at || new Date().toISOString()
+      if (backupData) {
+        merged = { ...merged, ...backupData }
       }
 
-      currentSettings.value = { ...settings }
+      if (dbData) {
+        if (dbData.exchange_rate !== undefined && dbData.exchange_rate !== null) merged.exchange_rate = Number(dbData.exchange_rate)
+        if (dbData.exchange_rate_mode) merged.exchange_rate_mode = dbData.exchange_rate_mode
+        if (dbData.rate_margin !== undefined && dbData.rate_margin !== null) merged.rate_margin = Number(dbData.rate_margin)
+        if (dbData.agency_fee_rate !== undefined && dbData.agency_fee_rate !== null) merged.agency_fee_rate = Number(dbData.agency_fee_rate)
+        if (dbData.sea_cbm_rate !== undefined && dbData.sea_cbm_rate !== null) merged.sea_cbm_rate = Number(dbData.sea_cbm_rate)
+        if (dbData.customs_clearance_fee !== undefined && dbData.customs_clearance_fee !== null) merged.customs_clearance_fee = Number(dbData.customs_clearance_fee)
+        if (dbData.fta_co_fee !== undefined && dbData.fta_co_fee !== null) merged.fta_co_fee = Number(dbData.fta_co_fee)
+        if (dbData.hero_media_type) merged.hero_media_type = dbData.hero_media_type
+        if (dbData.hero_media_url !== undefined && dbData.hero_media_url !== null) merged.hero_media_url = dbData.hero_media_url
+        if (dbData.hero_overlay_opacity !== undefined && dbData.hero_overlay_opacity !== null) merged.hero_overlay_opacity = Number(dbData.hero_overlay_opacity)
+
+        if (dbData.service_card_media_rocket !== undefined && dbData.service_card_media_rocket !== null) merged.service_card_media_rocket = dbData.service_card_media_rocket
+        if (dbData.service_card_media_purchasing !== undefined && dbData.service_card_media_purchasing !== null) merged.service_card_media_purchasing = dbData.service_card_media_purchasing
+        if (dbData.service_card_media_trade !== undefined && dbData.service_card_media_trade !== null) merged.service_card_media_trade = dbData.service_card_media_trade
+        if (dbData.service_card_media_tour !== undefined && dbData.service_card_media_tour !== null) merged.service_card_media_tour = dbData.service_card_media_tour
+      }
+
+      currentSettings.value = { ...merged }
       try {
-        localStorage.setItem('euchs_site_settings', JSON.stringify(settings))
+        localStorage.setItem('euchs_site_settings', JSON.stringify(merged))
       } catch (e) {}
 
-      console.info('[SiteSettings] Successfully fetched live settings from Supabase:', settings)
       return currentSettings.value
     }
 
-    // 2. Supabase 미연결 시 LocalStorage 캐시 fallback
-    try {
-      const cached = localStorage.getItem('euchs_site_settings')
-      if (cached) {
-        settings = { ...DEFAULT_SETTINGS, ...JSON.parse(cached) }
-      }
-    } catch (e) {}
-
-    currentSettings.value = { ...settings }
+    currentSettings.value = { ...merged }
     return currentSettings.value
   } catch (err) {
     console.error('[SiteSettings] Fetch site_settings fallback:', err)
@@ -153,20 +154,29 @@ export const saveSiteSettings = async (settings) => {
     updated_at: new Date().toISOString()
   }
 
-  // 1. Supabase DB 저장
-  if (isSupabaseConfigured()) {
-    let dbSaved = false
+  // 1. 메모리 및 LocalStorage 즉시 갱신
+  currentSettings.value = { ...currentSettings.value, ...payload }
+  try {
+    localStorage.setItem('euchs_site_settings', JSON.stringify(currentSettings.value))
+  } catch (e) {}
+
+  // 2. 실시간 이벤트 전파 (HomeView 등 즉시 반영)
+  if (typeof window !== 'undefined') {
     try {
-      const { data, error: upsertError } = await supabase
+      window.dispatchEvent(new CustomEvent('euchs-settings-updated', { detail: currentSettings.value }))
+    } catch (e) {}
+  }
+
+  // 3. Supabase DB 영구 저장
+  if (isSupabaseConfigured()) {
+    // 3-1. site_settings 테이블 저장
+    try {
+      const { error: upsertError } = await supabase
         .from('site_settings')
         .upsert(payload, { onConflict: 'id' })
-        .select()
 
-      if (!upsertError) {
-        dbSaved = true
-        console.info('[SiteSettings] site_settings table upsert success:', data)
-      } else {
-        console.warn('[SiteSettings] site_settings full upsert notice, trying basic payload:', upsertError.message)
+      if (upsertError) {
+        console.warn('[SiteSettings] site_settings full upsert notice:', upsertError.message)
         const basicPayload = {
           id: 'default',
           exchange_rate_mode: payload.exchange_rate_mode,
@@ -187,7 +197,7 @@ export const saveSiteSettings = async (settings) => {
       console.warn('[SiteSettings] site_settings save exception:', e)
     }
 
-    // 2. DB notices 테이블 시스템 설정 JSON 백업 저장
+    // 3-2. DB notices 시스템 설정 JSON 백업 저장
     try {
       const backupNoticePayload = {
         title: '__SITE_SETTINGS_BACKUP__',
@@ -216,7 +226,7 @@ export const saveSiteSettings = async (settings) => {
       console.warn('[SiteSettings] Notices system backup save notice:', noticeErr)
     }
 
-    // 3. Supabase Public Storage에 site_settings.json 저장 (모바일 직접 접근용)
+    // 3-3. Supabase Public Storage에 site_settings.json 저장 (CDN 백업)
     try {
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
       await supabase.storage
@@ -231,21 +241,7 @@ export const saveSiteSettings = async (settings) => {
     }
   }
 
-  // 3. LocalStorage 및 전역 상태 즉시 갱신
-  try {
-    localStorage.setItem('euchs_site_settings', JSON.stringify(payload))
-  } catch (e) {}
-
-  currentSettings.value = { ...payload }
-
-  // 4. 실시간 이벤트 전파
-  if (typeof window !== 'undefined') {
-    try {
-      window.dispatchEvent(new CustomEvent('euchs-settings-updated', { detail: payload }))
-    } catch (e) {}
-  }
-
-  return payload
+  return currentSettings.value
 }
 
 // 브라우저 탭 간 실시간 동기화 리스너 등록
