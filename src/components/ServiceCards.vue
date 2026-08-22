@@ -298,6 +298,13 @@ const enableVideoOnFirstTouch = () => {
   }
 }
 
+const handleSettingsSync = (e) => {
+  if (e?.detail) {
+    currentSettings.value = { ...currentSettings.value, ...e.detail }
+  }
+  setTimeout(attemptAutoplayVideos, 50)
+}
+
 onMounted(() => {
   setTimeout(attemptAutoplayVideos, 50)
   setTimeout(attemptAutoplayVideos, 300)
@@ -307,10 +314,14 @@ onMounted(() => {
     window.addEventListener('touchstart', enableVideoOnFirstTouch, { passive: true, once: true })
     window.addEventListener('click', enableVideoOnFirstTouch, { passive: true, once: true })
     window.addEventListener('scroll', enableVideoOnFirstTouch, { passive: true, once: true })
+    window.addEventListener('euchs-settings-updated', handleSettingsSync)
     userInteractionListenerRegistered = true
   }
 
   onUnmounted(() => {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('euchs-settings-updated', handleSettingsSync)
+    }
     if (userInteractionListenerRegistered && typeof window !== 'undefined') {
       window.removeEventListener('touchstart', enableVideoOnFirstTouch)
       window.removeEventListener('click', enableVideoOnFirstTouch)

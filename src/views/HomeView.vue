@@ -880,11 +880,20 @@ const ftaCoFee = ref(33000)
 const isVideoLoaded = ref(false)
 const selectedNotice = ref(null)
 
-// Hero Media State & Ref
+// Hero Media State & Reactive Bindings
 const heroVideoRef = ref(null)
-const heroMediaType = ref('video_mp4')
-const heroMediaUrl = ref('https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm')
-const heroOverlayOpacity = ref(60)
+const heroMediaType = computed(() => currentSettings.value?.hero_media_type || 'video_mp4')
+const heroMediaUrl = computed(() => {
+  let mediaUrl = currentSettings.value?.hero_media_url || ''
+  if (!mediaUrl || mediaUrl.includes('assets.mixkit.co')) {
+    mediaUrl = 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm'
+  }
+  return mediaUrl
+})
+const heroOverlayOpacity = computed(() => {
+  const op = currentSettings.value?.hero_overlay_opacity
+  return op !== undefined && !isNaN(Number(op)) ? Number(op) : 60
+})
 
 const heroYoutubeEmbedUrl = computed(() => {
   if (!heroMediaUrl.value) return ''
@@ -1053,6 +1062,16 @@ const enableVideoOnFirstTouch = () => {
   }
 }
 
+// Real-time Settings Sync Handler
+const handleSettingsSync = (e) => {
+  if (e?.detail) {
+    currentSettings.value = { ...currentSettings.value, ...e.detail }
+  } else {
+    fetchLiveRateAndSettings()
+  }
+  setTimeout(attemptAutoplayVideos, 50)
+}
+
 // Visibility change sync
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
@@ -1075,6 +1094,7 @@ onMounted(() => {
     window.addEventListener('touchstart', enableVideoOnFirstTouch, { passive: true, once: true })
     window.addEventListener('click', enableVideoOnFirstTouch, { passive: true, once: true })
     window.addEventListener('scroll', enableVideoOnFirstTouch, { passive: true, once: true })
+    window.addEventListener('euchs-settings-updated', handleSettingsSync)
     userInteractionListenerRegistered = true
   }
 
@@ -1086,6 +1106,9 @@ onMounted(() => {
     clearInterval(intervalId)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
     window.removeEventListener('focus', fetchLiveRateAndSettings)
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('euchs-settings-updated', handleSettingsSync)
+    }
     if (userInteractionListenerRegistered && typeof window !== 'undefined') {
       window.removeEventListener('touchstart', enableVideoOnFirstTouch)
       window.removeEventListener('click', enableVideoOnFirstTouch)

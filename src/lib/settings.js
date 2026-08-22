@@ -106,14 +106,21 @@ export const saveSiteSettings = async (settings) => {
     updated_at: new Date().toISOString()
   }
 
-  // 1. LocalStorage 즉시 저장
+  // 1. LocalStorage 즉시 저장 및 전역 상태 갱신
   try {
     localStorage.setItem('euchs_site_settings', JSON.stringify(payload))
   } catch (e) {}
 
   currentSettings.value = { ...payload }
 
-  // 2. Supabase DB 저장
+  // 2. 실시간 이벤트 전파 (동일 탭 및 다른 뷰 즉시 반영)
+  if (typeof window !== 'undefined') {
+    try {
+      window.dispatchEvent(new CustomEvent('euchs-settings-updated', { detail: payload }))
+    } catch (e) {}
+  }
+
+  // 3. Supabase DB 저장
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase
@@ -132,4 +139,17 @@ export const saveSiteSettings = async (settings) => {
   }
 
   return payload
+}
+
+// 브라우저 탭 간 실시간 동기화 리스너 등록
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event) => {
+    if (event.key === 'euchs_site_settings' && event.newValue) {
+      try {
+        const parsed = JSON.parse(event.newValue)
+        currentSettings.value = { ...currentSettings.value, ...parsed }
+        window.dispatchEvent(new CustomEvent('euchs-settings-updated', { detail: parsed }))
+      } catch (e) {}
+    }
+  })
 }

@@ -8,49 +8,79 @@
   <div v-else-if="isAuthorized" class="min-h-screen bg-slate-950 text-slate-100 font-sans pb-20 selection:bg-blue-600 selection:text-white">
     
     <!-- Top Navigation / Header -->
-    <header class="border-b border-slate-800 bg-slate-900/80 sticky top-0 z-30 backdrop-blur-md">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-        <div class="flex items-center gap-3">
-          <router-link 
-            to="/admin" 
-            @click="activeTab = 'applications'; fetchApplications()" 
-            class="flex items-center gap-2 group cursor-pointer"
-            title="관리자 메인 대시보드로 이동"
-          >
-            <span class="text-xl font-black bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent group-hover:opacity-90">
-              EUC COMPANY
+    <!-- Top Navigation / Header (Mobile Responsive & No-overlap) -->
+    <header class="border-b border-slate-800 bg-slate-900/90 sticky top-0 z-30 backdrop-blur-md">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 sm:py-0 sm:h-16 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 sm:gap-4">
+        
+        <!-- Row 1 (Mobile): Logo + Badges + Mobile Logout -->
+        <div class="flex items-center justify-between gap-3 w-full sm:w-auto">
+          <div class="flex items-center gap-2.5">
+            <router-link 
+              to="/admin" 
+              @click="activeTab = 'applications'; fetchApplications()" 
+              class="flex items-center gap-2 group cursor-pointer shrink-0"
+              title="관리자 메인 대시보드로 이동"
+            >
+              <span class="text-lg sm:text-xl font-black bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent group-hover:opacity-90 tracking-tight">
+                EUC COMPANY
+              </span>
+            </router-link>
+            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold whitespace-nowrap">
+              관리자 콘솔
             </span>
-          </router-link>
-          <span class="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold">
-            통합 관리자 대시보드
-          </span>
+          </div>
+
+          <!-- Mobile Quick Profile & Logout -->
+          <div class="flex items-center gap-1.5 sm:hidden">
+            <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider whitespace-nowrap"
+              :class="userRole === 'super_admin' || userRole === 'admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'"
+            >
+              {{ userRole === 'super_admin' || userRole === 'admin' ? '최고관리자' : '스태프' }}
+            </span>
+            <a 
+              href="/" 
+              target="_blank" 
+              title="사용자 사이트 새 탭 열기"
+              class="p-1.5 rounded-lg bg-slate-800 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold flex items-center justify-center"
+            >
+              <i class="fas fa-external-link-alt text-[10px] text-blue-400"></i>
+            </a>
+            <button 
+              @click="handleAdminLogout"
+              title="관리자 로그아웃"
+              class="p-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 text-xs font-bold transition flex items-center justify-center"
+            >
+              <i class="fas fa-power-off text-[11px]"></i>
+            </button>
+          </div>
         </div>
 
-        <div class="flex items-center gap-2 flex-wrap">
+        <!-- Navigation Tabs (Horizontal scrollable on mobile, flex-wrap on desktop) -->
+        <div class="flex items-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar w-full sm:w-auto pb-1 sm:pb-0 scroll-smooth">
           <button 
             @click="switchTab('applications')" 
-            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeTab === 'applications' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
-            <i class="fas fa-inbox"></i>
+            <i class="fas fa-inbox text-[11px]"></i>
             <span>신청 관리 ({{ applications.length }})</span>
           </button>
 
           <button 
             @click="switchTab('notices')" 
-            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeTab === 'notices' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
-            <i class="fas fa-bullhorn"></i>
+            <i class="fas fa-bullhorn text-[11px]"></i>
             <span>공지사항</span>
           </button>
 
           <button 
             @click="switchTab('settings')" 
-            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeTab === 'settings' ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
-            <i class="fas fa-sliders"></i>
+            <i class="fas fa-sliders text-[11px]"></i>
             <span>환경설정</span>
           </button>
 
@@ -58,28 +88,28 @@
           <button 
             v-if="isSuperAdmin"
             @click="switchTab('staff')" 
-            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5"
+            class="px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 shrink-0 whitespace-nowrap"
             :class="activeTab === 'staff' ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/30' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'"
           >
-            <i class="fas fa-users-gear"></i>
+            <i class="fas fa-users-gear text-[11px]"></i>
             <span>직원/권한 관리</span>
           </button>
 
-          <div class="h-5 w-px bg-slate-800 mx-1 hidden sm:block"></div>
+          <div class="h-5 w-px bg-slate-800 mx-1 hidden sm:block shrink-0"></div>
 
-          <!-- Quick Link to User Website -->
+          <!-- Quick Link to User Website (Desktop) -->
           <a 
             href="/" 
             target="_blank" 
             title="일반 사용자 메인 웹사이트 새 탭으로 열기"
-            class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition flex items-center gap-1.5"
+            class="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-xs font-semibold transition hidden sm:flex items-center gap-1.5 shrink-0"
           >
             <i class="fas fa-arrow-up-right-from-square text-[10px] text-blue-400"></i>
             <span class="hidden md:inline">사용자 사이트</span>
           </a>
 
-          <!-- Admin Profile Info & Sign Out -->
-          <div class="flex items-center gap-2">
+          <!-- Desktop Admin Profile Info & Sign Out -->
+          <div class="hidden sm:flex items-center gap-2 shrink-0">
             <span class="px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-wider"
               :class="userRole === 'super_admin' || userRole === 'admin' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-blue-500/20 text-blue-300 border border-blue-500/30'"
             >
@@ -856,12 +886,12 @@
               </div>
 
               <!-- Media URL & Upload Inputs -->
-              <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-4">
+              <div class="bg-slate-900/70 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-4">
                 <div>
                   <label class="block text-slate-300 font-bold text-xs mb-1.5">
                     {{ settingsForm.hero_media_type === 'youtube' ? '유튜브 링크 (URL 또는 ID)' : '배경 미디어 URL' }}
                   </label>
-                  <div class="flex gap-2">
+                  <div class="flex flex-col sm:flex-row gap-2">
                     <input 
                       v-model="settingsForm.hero_media_url" 
                       type="text" 
@@ -874,7 +904,7 @@
                       type="button" 
                       @click="triggerHeroFileUpload" 
                       :disabled="isUploadingHero"
-                      class="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-xs border border-purple-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                      class="px-4 py-2.5 rounded-xl bg-purple-600/30 hover:bg-purple-600 text-purple-200 hover:text-white font-bold text-xs border border-purple-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                     >
                       <i v-if="isUploadingHero" class="fas fa-spinner animate-spin"></i>
                       <i v-else class="fas fa-cloud-arrow-up"></i>
@@ -981,11 +1011,11 @@
                 </div>
               </div>
 
-              <!-- 4 Services Grid -->
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- 4 Services Grid (Mobile 1 column, Desktop 2 columns) -->
+              <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 
                 <!-- Service 1: 쿠팡 로켓그로스 & 밀크런 입고 대행 -->
-                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                <div class="bg-slate-900/70 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
                   <div class="space-y-3">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
@@ -1000,16 +1030,16 @@
                       <button 
                         v-if="settingsForm.service_card_media_rocket" 
                         type="button" 
-                        @click="settingsForm.service_card_media_rocket = ''" 
+                        @click="removeServiceCardMedia('rocket')" 
                         class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
-                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                        title="등록된 미디어 삭제 (기본 스타일로 즉시 초기화)"
                       >
                         <i class="fas fa-trash-alt mr-1"></i>삭제
                       </button>
                     </div>
 
-                    <!-- URL Input & Upload Button -->
-                    <div class="flex gap-2">
+                    <!-- URL Input & Upload Button (Responsive Flex) -->
+                    <div class="flex flex-col sm:flex-row gap-2">
                       <input 
                         v-model="settingsForm.service_card_media_rocket" 
                         type="text" 
@@ -1020,11 +1050,11 @@
                         type="button" 
                         @click="triggerServiceCardUpload('rocket')" 
                         :disabled="isUploadingServiceCard['rocket']"
-                        class="px-3.5 py-2.5 rounded-xl bg-red-600/30 hover:bg-red-600 text-red-200 hover:text-white font-bold text-xs border border-red-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                        class="px-3.5 py-2.5 rounded-xl bg-red-600/30 hover:bg-red-600 text-red-200 hover:text-white font-bold text-xs border border-red-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                       >
                         <i v-if="isUploadingServiceCard['rocket']" class="fas fa-spinner animate-spin"></i>
                         <i v-else class="fas fa-cloud-arrow-up"></i>
-                        <span>업로드</span>
+                        <span>{{ isUploadingServiceCard['rocket'] ? '업로드 중...' : '업로드' }}</span>
                       </button>
                     </div>
 
@@ -1067,7 +1097,7 @@
                 </div>
 
                 <!-- Service 2: 1688 / 타오바오 중국 구매대행 -->
-                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                <div class="bg-slate-900/70 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
                   <div class="space-y-3">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
@@ -1082,16 +1112,16 @@
                       <button 
                         v-if="settingsForm.service_card_media_purchasing" 
                         type="button" 
-                        @click="settingsForm.service_card_media_purchasing = ''" 
+                        @click="removeServiceCardMedia('purchasing')" 
                         class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
-                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                        title="등록된 미디어 삭제 (기본 스타일로 즉시 초기화)"
                       >
                         <i class="fas fa-trash-alt mr-1"></i>삭제
                       </button>
                     </div>
 
-                    <!-- URL Input & Upload Button -->
-                    <div class="flex gap-2">
+                    <!-- URL Input & Upload Button (Responsive Flex) -->
+                    <div class="flex flex-col sm:flex-row gap-2">
                       <input 
                         v-model="settingsForm.service_card_media_purchasing" 
                         type="text" 
@@ -1102,11 +1132,11 @@
                         type="button" 
                         @click="triggerServiceCardUpload('purchasing')" 
                         :disabled="isUploadingServiceCard['purchasing']"
-                        class="px-3.5 py-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white font-bold text-xs border border-blue-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                        class="px-3.5 py-2.5 rounded-xl bg-blue-600/30 hover:bg-blue-600 text-blue-200 hover:text-white font-bold text-xs border border-blue-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                       >
                         <i v-if="isUploadingServiceCard['purchasing']" class="fas fa-spinner animate-spin"></i>
                         <i v-else class="fas fa-cloud-arrow-up"></i>
-                        <span>업로드</span>
+                        <span>{{ isUploadingServiceCard['purchasing'] ? '업로드 중...' : '업로드' }}</span>
                       </button>
                     </div>
 
@@ -1149,7 +1179,7 @@
                 </div>
 
                 <!-- Service 3: 무역대행 & OEM/ODM 맞춤제조 -->
-                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                <div class="bg-slate-900/70 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
                   <div class="space-y-3">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
@@ -1164,16 +1194,16 @@
                       <button 
                         v-if="settingsForm.service_card_media_trade" 
                         type="button" 
-                        @click="settingsForm.service_card_media_trade = ''" 
+                        @click="removeServiceCardMedia('trade')" 
                         class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
-                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                        title="등록된 미디어 삭제 (기본 스타일로 즉시 초기화)"
                       >
                         <i class="fas fa-trash-alt mr-1"></i>삭제
                       </button>
                     </div>
 
-                    <!-- URL Input & Upload Button -->
-                    <div class="flex gap-2">
+                    <!-- URL Input & Upload Button (Responsive Flex) -->
+                    <div class="flex flex-col sm:flex-row gap-2">
                       <input 
                         v-model="settingsForm.service_card_media_trade" 
                         type="text" 
@@ -1184,11 +1214,11 @@
                         type="button" 
                         @click="triggerServiceCardUpload('trade')" 
                         :disabled="isUploadingServiceCard['trade']"
-                        class="px-3.5 py-2.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white font-bold text-xs border border-emerald-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                        class="px-3.5 py-2.5 rounded-xl bg-emerald-600/30 hover:bg-emerald-600 text-emerald-200 hover:text-white font-bold text-xs border border-emerald-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                       >
                         <i v-if="isUploadingServiceCard['trade']" class="fas fa-spinner animate-spin"></i>
                         <i v-else class="fas fa-cloud-arrow-up"></i>
-                        <span>업로드</span>
+                        <span>{{ isUploadingServiceCard['trade'] ? '업로드 중...' : '업로드' }}</span>
                       </button>
                     </div>
 
@@ -1231,7 +1261,7 @@
                 </div>
 
                 <!-- Service 4: 중국 이우(푸텐) 시장조사 투어 -->
-                <div class="bg-slate-900/70 p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
+                <div class="bg-slate-900/70 p-4 sm:p-5 rounded-2xl border border-slate-800 space-y-3.5 flex flex-col justify-between">
                   <div class="space-y-3">
                     <div class="flex items-center justify-between">
                       <div class="flex items-center gap-2">
@@ -1246,16 +1276,16 @@
                       <button 
                         v-if="settingsForm.service_card_media_tour" 
                         type="button" 
-                        @click="settingsForm.service_card_media_tour = ''" 
+                        @click="removeServiceCardMedia('tour')" 
                         class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2 py-0.5 rounded bg-rose-500/10 border border-rose-500/30 transition"
-                        title="등록된 미디어 삭제 (기본 스타일로 초기화)"
+                        title="등록된 미디어 삭제 (기본 스타일로 즉시 초기화)"
                       >
                         <i class="fas fa-trash-alt mr-1"></i>삭제
                       </button>
                     </div>
 
-                    <!-- URL Input & Upload Button -->
-                    <div class="flex gap-2">
+                    <!-- URL Input & Upload Button (Responsive Flex) -->
+                    <div class="flex flex-col sm:flex-row gap-2">
                       <input 
                         v-model="settingsForm.service_card_media_tour" 
                         type="text" 
@@ -1266,11 +1296,11 @@
                         type="button" 
                         @click="triggerServiceCardUpload('tour')" 
                         :disabled="isUploadingServiceCard['tour']"
-                        class="px-3.5 py-2.5 rounded-xl bg-amber-600/30 hover:bg-amber-600 text-amber-200 hover:text-white font-bold text-xs border border-amber-500/40 transition flex items-center gap-1.5 shrink-0 active:scale-95"
+                        class="px-3.5 py-2.5 rounded-xl bg-amber-600/30 hover:bg-amber-600 text-amber-200 hover:text-white font-bold text-xs border border-amber-500/40 transition flex items-center justify-center gap-1.5 shrink-0 active:scale-95"
                       >
                         <i v-if="isUploadingServiceCard['tour']" class="fas fa-spinner animate-spin"></i>
                         <i v-else class="fas fa-cloud-arrow-up"></i>
-                        <span>업로드</span>
+                        <span>{{ isUploadingServiceCard['tour'] ? '업로드 중...' : '업로드' }}</span>
                       </button>
                     </div>
 
@@ -1975,6 +2005,49 @@
 
       </div>
     </div>
+
+    <!-- Floating Global Toast Notification -->
+    <transition
+      enter-active-class="transform ease-out duration-300 transition"
+      enter-from-class="translate-y-4 opacity-0 sm:translate-y-0 sm:translate-x-4"
+      enter-to-class="translate-y-0 opacity-100 sm:translate-x-0"
+      leave-active-class="transition ease-in duration-200"
+      leave-from-class="opacity-100"
+      leave-to-class="opacity-0"
+    >
+      <div 
+        v-if="toastMessage" 
+        class="fixed bottom-5 right-5 z-50 max-w-sm sm:max-w-md w-[calc(100%-2.5rem)] p-4 rounded-2xl shadow-2xl border flex items-center gap-3 backdrop-blur-xl"
+        :class="{
+          'bg-emerald-950/95 text-emerald-100 border-emerald-500/50 shadow-emerald-950/50': toastType === 'success',
+          'bg-rose-950/95 text-rose-100 border-rose-500/50 shadow-rose-950/50': toastType === 'error',
+          'bg-blue-950/95 text-blue-100 border-blue-500/50 shadow-blue-950/50': toastType === 'info'
+        }"
+      >
+        <div 
+          class="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 text-base"
+          :class="{
+            'bg-emerald-500/20 text-emerald-400': toastType === 'success',
+            'bg-rose-500/20 text-rose-400': toastType === 'error',
+            'bg-blue-500/20 text-blue-400': toastType === 'info'
+          }"
+        >
+          <i 
+            :class="{
+              'fas fa-check-circle': toastType === 'success',
+              'fas fa-triangle-exclamation': toastType === 'error',
+              'fas fa-info-circle': toastType === 'info'
+            }"
+          ></i>
+        </div>
+        <div class="flex-1 text-xs font-semibold leading-relaxed">
+          {{ toastMessage }}
+        </div>
+        <button @click="toastMessage = ''" class="text-slate-400 hover:text-white p-1 transition">
+          <i class="fas fa-times text-sm"></i>
+        </button>
+      </div>
+    </transition>
 
   </div>
 </template>
@@ -2743,6 +2816,22 @@ const resetNoticeForm = () => {
 }
 
 // ----------------------------------------------------
+// Global Toast Notification Helper
+// ----------------------------------------------------
+const toastMessage = ref('')
+const toastType = ref('success') // 'success' | 'error' | 'info'
+let toastTimeout = null
+
+const showToast = (message, type = 'success') => {
+  toastMessage.value = message
+  toastType.value = type
+  if (toastTimeout) clearTimeout(toastTimeout)
+  toastTimeout = setTimeout(() => {
+    toastMessage.value = ''
+  }, 4000)
+}
+
+// ----------------------------------------------------
 // TAB 3: Exchange Rate, Fee & Hero Settings State
 // ----------------------------------------------------
 const settingsForm = ref({ ...DEFAULT_SETTINGS })
@@ -2780,11 +2869,11 @@ const handleSaveSettings = async () => {
   isSavingSettings.value = true
   try {
     await saveSiteSettings(settingsForm.value)
-    alert('환율, 수수료 및 메인 히어로 비주얼 설정이 성공적으로 저장되었습니다.')
+    showToast('환율·수수료 및 미디어 설정이 성공적으로 저장되었습니다! 메인 페이지에 실시간 반영됩니다.', 'success')
     await loadSettings()
   } catch (err) {
     console.error('Save settings error:', err)
-    alert('설정 저장 실패: ' + (err.message || err))
+    showToast('설정 저장 실패: ' + (err.message || err), 'error')
   } finally {
     isSavingSettings.value = false
   }
@@ -2809,7 +2898,7 @@ const handleHeroFileUpload = async (event) => {
   isUploadingHero.value = true
   try {
     if (!isSupabaseConfigured()) {
-      alert('Supabase 설정이 필요합니다.')
+      showToast('Supabase 설정이 필요합니다. 외부 URL을 직접 입력해 주세요.', 'error')
       return
     }
 
@@ -2828,7 +2917,7 @@ const handleHeroFileUpload = async (event) => {
 
     if (uploadError) {
       console.error('Hero File Upload Error:', uploadError)
-      alert('파일 업로드 실패: ' + uploadError.message)
+      showToast('파일 업로드 실패: ' + uploadError.message, 'error')
       return
     }
 
@@ -2843,11 +2932,14 @@ const handleHeroFileUpload = async (event) => {
         settingsForm.value.hero_media_type = 'image'
       }
       settingsForm.value.hero_media_url = publicUrlData.publicUrl
-      alert(`${isVideo ? '동영상' : '이미지'} 배경 파일이 성공적으로 업로드되어 등록되었습니다!`)
+
+      // 즉시 Supabase DB 및 LocalStorage 자동 저장 & 실시간 동기화
+      await saveSiteSettings(settingsForm.value)
+      showToast(`${isVideo ? '동영상' : '이미지'} 배경이 업로드되고 즉시 자동 저장되었습니다!`, 'success')
     }
   } catch (err) {
     console.error('Hero File Upload Exception:', err)
-    alert('파일 업로드 중 오류가 발생했습니다: ' + err.message)
+    showToast('파일 업로드 중 오류가 발생했습니다: ' + err.message, 'error')
   } finally {
     isUploadingHero.value = false
     if (event.target) event.target.value = ''
@@ -2903,7 +2995,7 @@ const handleServiceCardFileUpload = async (event) => {
 
   try {
     if (!isSupabaseConfigured()) {
-      alert('Supabase 설정이 필요합니다. 외부 URL을 직접 입력해 주세요.')
+      showToast('Supabase 설정이 필요합니다. 외부 URL을 직접 입력해 주세요.', 'error')
       return
     }
 
@@ -2922,7 +3014,7 @@ const handleServiceCardFileUpload = async (event) => {
 
     if (uploadError) {
       console.error('Service Card Upload Error:', uploadError)
-      alert('파일 업로드 실패: ' + uploadError.message)
+      showToast('파일 업로드 실패: ' + uploadError.message, 'error')
       return
     }
 
@@ -2936,15 +3028,28 @@ const handleServiceCardFileUpload = async (event) => {
       else if (serviceKey === 'trade') settingsForm.value.service_card_media_trade = publicUrlData.publicUrl
       else if (serviceKey === 'tour') settingsForm.value.service_card_media_tour = publicUrlData.publicUrl
 
-      alert(`서비스 미디어 파일이 성공적으로 업로드되었습니다! 하단의 [저장하기] 버튼을 누르면 메인 화면에 즉시 반영됩니다.`)
+      // 즉시 Supabase DB 및 LocalStorage 자동 저장 & 실시간 동기화
+      await saveSiteSettings(settingsForm.value)
+      showToast(`서비스 미디어가 성공적으로 업로드되고 즉시 자동 저장되었습니다!`, 'success')
     }
   } catch (err) {
     console.error('Service Card File Upload Exception:', err)
-    alert('파일 업로드 중 오류가 발생했습니다: ' + err.message)
+    showToast('파일 업로드 중 오류가 발생했습니다: ' + err.message, 'error')
   } finally {
     isUploadingServiceCard.value[serviceKey] = false
     if (event.target) event.target.value = ''
   }
+}
+
+const removeServiceCardMedia = async (serviceKey) => {
+  if (serviceKey === 'rocket') settingsForm.value.service_card_media_rocket = ''
+  else if (serviceKey === 'purchasing') settingsForm.value.service_card_media_purchasing = ''
+  else if (serviceKey === 'trade') settingsForm.value.service_card_media_trade = ''
+  else if (serviceKey === 'tour') settingsForm.value.service_card_media_tour = ''
+
+  // 즉시 Supabase DB 및 LocalStorage 자동 저장 & 실시간 동기화
+  await saveSiteSettings(settingsForm.value)
+  showToast('등록된 미디어가 삭제되고 기본 다크 네이비 카드 스타일로 즉시 복원되었습니다.', 'info')
 }
 
 // ----------------------------------------------------
