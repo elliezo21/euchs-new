@@ -326,50 +326,37 @@
         </div>
 
         <!-- Single Unified Responsive Grid for Mobile (1 col), Tablet (2 col), and Desktop (4 col) -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div 
             v-for="card in serviceCards" 
             :key="card.id"
             :class="['group relative rounded-3xl overflow-hidden border border-slate-700/80 shadow-xl shadow-black/60 hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between p-6 sm:p-7 min-h-[380px] bg-[#141e33]', card.hoverBorder, card.hoverShadow]"
           >
-            <!-- Dynamic Moving Background Layer (Active on Mobile, Tablet & Desktop) -->
-            <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
-              <!-- High-Res Instant Poster Image (z-0) -->
-              <img 
-                :src="card.poster" 
-                :alt="card.title"
-                class="absolute inset-0 w-full h-full object-cover z-0"
-                loading="eager"
-              />
-              <!-- Video Background (z-[1]) -->
-              <video 
-                v-if="isVideoMedia(card.mediaUrl)"
-                :src="card.mediaUrl"
-                autoplay 
-                loop 
-                muted 
-                playsinline
-                webkit-playsinline
-                x5-playsinline
-                preload="auto"
-                :poster="card.poster"
-                @canplay="handleVideoCanPlay"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
-              >
-                <source :src="card.mediaUrl" type="video/mp4" />
-              </video>
-              <!-- Image/GIF Background (z-[1]) -->
-              <img 
-                v-else-if="card.mediaUrl"
-                :src="card.mediaUrl" 
-                :alt="card.title"
-                class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
-                loading="eager"
-              />
-              <!-- Dark Overlay with z-10 for crystal clear typography -->
-              <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10 pointer-events-none"></div>
-              <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10 pointer-events-none"></div>
-            </div>
+            <!-- Background Media Layer (Video or Image or Default Navy) -->
+            <video 
+              v-if="card.mediaUrl && isVideoMedia(card.mediaUrl)" 
+              :src="card.mediaUrl" 
+              autoplay 
+              loop 
+              muted 
+              playsinline 
+              webkit-playsinline 
+              x5-playsinline
+              preload="auto"
+              @canplay="handleVideoCanPlay"
+              class="absolute inset-0 w-full h-full object-cover z-0"
+            ></video>
+            <img 
+              v-else-if="card.mediaUrl" 
+              :src="card.mediaUrl" 
+              :alt="card.title" 
+              class="absolute inset-0 w-full h-full object-cover z-0" 
+              loading="eager"
+            />
+            <div v-else class="absolute inset-0 bg-[#141e33] z-0"></div>
+
+            <!-- Dark Overlay (z-10) -->
+            <div class="absolute inset-0 bg-black/60 z-10 pointer-events-none"></div>
 
             <!-- Content Layer (z-20) -->
             <div class="relative z-20 space-y-4">
@@ -665,16 +652,16 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import TradePhotos from '../components/TradePhotos.vue'
-import { fetchSiteSettings, currentSettings, isVideoMedia, DEFAULT_SERVICE_MEDIA, DEFAULT_SERVICE_POSTERS } from '../lib/settings'
+import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 // ----------------------------------------------------
-// 4 Core Service Cards Dynamic Media Bindings (Guaranteed Non-Empty)
+// 4 Core Service Cards Dynamic Media Bindings (Direct Supabase DB Bindings)
 // ----------------------------------------------------
-const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || DEFAULT_SERVICE_MEDIA.rocket)
-const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || DEFAULT_SERVICE_MEDIA.purchasing)
-const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || DEFAULT_SERVICE_MEDIA.trade)
-const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || DEFAULT_SERVICE_MEDIA.tour)
+const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
+const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
+const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
+const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
 
 const serviceCards = computed(() => [
   {
@@ -691,8 +678,7 @@ const serviceCards = computed(() => [
     desc: '바코드 라벨 부착, KC인증 라벨 작업, 파레트 래핑 및 규격 포장부터 지정 FC센터 밀크런 트럭 직납까지 원스톱 대행.',
     link: '/services/rocket-growth',
     linkText: '상세 안내 및 신청하기',
-    mediaUrl: serviceMediaRocket.value,
-    poster: DEFAULT_SERVICE_POSTERS.rocket
+    mediaUrl: serviceMediaRocket.value
   },
   {
     id: 'purchasing',
@@ -708,8 +694,7 @@ const serviceCards = computed(() => [
     desc: '알리페이 수수료 절감, 현지 창고 도착 즉시 1차 정밀 검품, 해운/항공 특송 출고 및 통관 서류 완벽 지원.',
     link: '/services/purchasing-agent',
     linkText: '주문서 작성 바로가기',
-    mediaUrl: serviceMediaPurchasing.value,
-    poster: DEFAULT_SERVICE_POSTERS.purchasing
+    mediaUrl: serviceMediaPurchasing.value
   },
   {
     id: 'trade',
@@ -725,8 +710,7 @@ const serviceCards = computed(() => [
     desc: '현지 공장 실사, 단가 네고, 금형 제작 및 샘플 감리, 포워딩 & 통관 서류 일체 대행으로 브랜드 제품 런칭 지원.',
     link: '/services/trade-agent',
     linkText: '맞춤 무역 의뢰하기',
-    mediaUrl: serviceMediaTrade.value,
-    poster: DEFAULT_SERVICE_POSTERS.trade
+    mediaUrl: serviceMediaTrade.value
   },
   {
     id: 'tour',
@@ -742,8 +726,7 @@ const serviceCards = computed(() => [
     desc: '세계 최대 도매시장 푸텐시장 1~5기 구역별 맞춤 가이드, 비즈니스 전담 통역, 호텔/공항 픽업 및 발주 연계.',
     link: '/guide/market-tour',
     linkText: '투어 일정 & 견적 확인',
-    mediaUrl: serviceMediaTour.value,
-    poster: DEFAULT_SERVICE_POSTERS.tour
+    mediaUrl: serviceMediaTour.value
   }
 ])
 

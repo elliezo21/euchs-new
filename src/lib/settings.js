@@ -38,13 +38,13 @@ export const DEFAULT_SETTINGS = {
   fta_co_fee: 33000,
   // 메인 히어로 미디어 배경 설정
   hero_media_type: 'video_mp4', // 'video_mp4' | 'youtube' | 'image'
-  hero_media_url: 'https://assets.mixkit.co/videos/43288/43288-720.mp4',
+  hero_media_url: '',
   hero_overlay_opacity: 60, // 30 ~ 90 (%)
-  // 4대 핵심 서비스 카드 기본 미디어 URL (모바일 기기에서도 항상 고화질 영상/애니메이션 보장)
-  service_card_media_rocket: DEFAULT_SERVICE_MEDIA.rocket,
-  service_card_media_purchasing: DEFAULT_SERVICE_MEDIA.purchasing,
-  service_card_media_trade: DEFAULT_SERVICE_MEDIA.trade,
-  service_card_media_tour: DEFAULT_SERVICE_MEDIA.tour,
+  // 4대 핵심 서비스 카드 배경 설정 (Supabase DB 등록 값)
+  service_card_media_rocket: '',
+  service_card_media_purchasing: '',
+  service_card_media_trade: '',
+  service_card_media_tour: '',
   updated_at: new Date().toISOString()
 }
 
@@ -94,10 +94,10 @@ export const fetchSiteSettings = async (retryCount = 2) => {
             hero_media_type: dbData.hero_media_type || DEFAULT_SETTINGS.hero_media_type,
             hero_media_url: dbData.hero_media_url || DEFAULT_SETTINGS.hero_media_url,
             hero_overlay_opacity: Number(dbData.hero_overlay_opacity) || DEFAULT_SETTINGS.hero_overlay_opacity,
-            service_card_media_rocket: (dbData.service_card_media_rocket && dbData.service_card_media_rocket.trim() !== '') ? dbData.service_card_media_rocket : (merged.service_card_media_rocket || DEFAULT_SERVICE_MEDIA.rocket),
-            service_card_media_purchasing: (dbData.service_card_media_purchasing && dbData.service_card_media_purchasing.trim() !== '') ? dbData.service_card_media_purchasing : (merged.service_card_media_purchasing || DEFAULT_SERVICE_MEDIA.purchasing),
-            service_card_media_trade: (dbData.service_card_media_trade && dbData.service_card_media_trade.trim() !== '') ? dbData.service_card_media_trade : (merged.service_card_media_trade || DEFAULT_SERVICE_MEDIA.trade),
-            service_card_media_tour: (dbData.service_card_media_tour && dbData.service_card_media_tour.trim() !== '') ? dbData.service_card_media_tour : (merged.service_card_media_tour || DEFAULT_SERVICE_MEDIA.tour)
+            service_card_media_rocket: dbData.service_card_media_rocket || merged.service_card_media_rocket || '',
+            service_card_media_purchasing: dbData.service_card_media_purchasing || merged.service_card_media_purchasing || '',
+            service_card_media_trade: dbData.service_card_media_trade || merged.service_card_media_trade || '',
+            service_card_media_tour: dbData.service_card_media_tour || merged.service_card_media_tour || ''
           }
           console.info('[SiteSettings] Successfully fetched live settings from Supabase DB.')
         } else if (dbError) {

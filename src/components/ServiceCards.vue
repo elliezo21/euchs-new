@@ -11,273 +11,67 @@
         <div class="mt-4 w-12 h-1 bg-blue-500 mx-auto rounded-full"></div>
       </div>
 
-      <!-- 4 Cards Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
-        
-          <!-- Card 1: 쿠팡 배송대행 / 로켓배송 -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-red-500/80 p-6 min-h-[380px] bg-[#141e33]">
-          <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
-            <!-- High-Res Instant Poster -->
-            <img 
-              :src="DEFAULT_SERVICE_POSTERS.rocket" 
-              alt="쿠팡 물류창고 입고 포스터"
-              class="absolute inset-0 w-full h-full object-cover z-0"
-              loading="eager"
-            />
-            <video 
-              v-if="isVideoMedia(serviceMediaRocket)"
-              :src="serviceMediaRocket"
-              autoplay 
-              loop 
-              muted 
-              playsinline
-              webkit-playsinline
-              x5-playsinline
-              preload="auto"
-              :poster="DEFAULT_SERVICE_POSTERS.rocket"
-              @canplay="handleVideoCanPlay"
-              class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
-            >
-              <source :src="serviceMediaRocket" type="video/mp4" />
-            </video>
-            <img 
-              v-else-if="serviceMediaRocket"
-              :src="serviceMediaRocket" 
-              alt="쿠팡 로켓 배송 입고 대행"
-              class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
-              loading="eager"
-            />
-            <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
-            <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-          </div>
+      <!-- 4 Cards Unified Grid: grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <div 
+          v-for="card in serviceCards"
+          :key="card.id"
+          :class="['group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 p-6 min-h-[380px] bg-[#141e33]', card.hoverBorder, card.hoverShadow]"
+        >
+          <!-- Background Media Layer -->
+          <video 
+            v-if="card.mediaUrl && isVideoMedia(card.mediaUrl)" 
+            :src="card.mediaUrl" 
+            autoplay 
+            loop 
+            muted 
+            playsinline 
+            webkit-playsinline 
+            x5-playsinline
+            preload="auto"
+            class="absolute inset-0 w-full h-full object-cover z-0"
+          ></video>
+          <img 
+            v-else-if="card.mediaUrl" 
+            :src="card.mediaUrl" 
+            :alt="card.title" 
+            class="absolute inset-0 w-full h-full object-cover z-0" 
+            loading="eager"
+          />
+          <div v-else class="absolute inset-0 bg-[#141e33] z-0"></div>
 
+          <!-- Dark Overlay (z-10) -->
+          <div class="absolute inset-0 bg-black/60 z-10 pointer-events-none"></div>
+
+          <!-- Content Layer (z-20) -->
           <div class="relative z-20 space-y-3">
             <div class="flex items-center justify-between">
-              <span class="inline-block px-2.5 py-1 bg-red-500/80 text-white text-[11px] font-black rounded-full border border-red-300/40 backdrop-blur-sm shadow-sm">
-                쿠팡 입고 대행
+              <span :class="['inline-block px-2.5 py-1 text-white text-[11px] font-black rounded-full border shadow-sm backdrop-blur-sm', card.badgeColor]">
+                {{ card.badge }}
               </span>
-              <div class="w-10 h-10 rounded-xl bg-red-500/20 border border-red-400/40 text-red-400 flex items-center justify-center text-lg shadow-sm">
-                <i class="fas fa-rocket"></i>
+              <div :class="['w-10 h-10 rounded-xl border flex items-center justify-center text-lg shadow-sm', card.iconColor]">
+                <i :class="card.icon"></i>
               </div>
             </div>
-            <h3 class="text-lg font-black text-white leading-snug group-hover:text-red-300 transition">
-              쿠팡 로켓그로스 & 밀크런
+            <h3 :class="['text-lg font-black text-white leading-snug transition', card.hoverText]">
+              {{ card.title }}
             </h3>
             <p class="text-xs text-slate-200 leading-relaxed font-medium">
-              중국 생산지에서 쿠팡 물류창고 입고 규격에 맞춘 바코드 부착 및 직납 서비스
+              {{ card.desc }}
             </p>
           </div>
 
+          <!-- Bottom Action Link (z-20) -->
           <div class="relative z-20 pt-4 border-t border-white/15 mt-5">
             <router-link 
-              to="/services/rocket-growth" 
-              class="flex items-center justify-between text-xs font-bold text-red-300 group-hover:text-white transition group-hover:translate-x-1"
+              :to="card.link" 
+              :class="['flex items-center justify-between text-xs font-bold transition group-hover:translate-x-1', card.hoverText]"
             >
-              <span>상담 문의하기</span>
-              <span class="w-6 h-6 rounded-full bg-red-500/30 border border-red-400/50 flex items-center justify-center text-xs text-white group-hover:bg-red-500 transition">&rarr;</span>
+              <span class="group-hover:text-white transition">{{ card.linkText }}</span>
+              <span :class="['w-6 h-6 rounded-full border flex items-center justify-center text-xs text-white transition', card.arrowBg]">&rarr;</span>
             </router-link>
           </div>
         </div>
-
-        <!-- Card 2: 구매대행이란? -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-blue-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-blue-400/80 p-6 min-h-[380px] bg-[#141e33]">
-          <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
-            <!-- High-Res Instant Poster -->
-            <img 
-              :src="DEFAULT_SERVICE_POSTERS.purchasing" 
-              alt="구매대행 포스터"
-              class="absolute inset-0 w-full h-full object-cover z-0"
-              loading="eager"
-            />
-            <video 
-              v-if="isVideoMedia(serviceMediaPurchasing)"
-              :src="serviceMediaPurchasing"
-              autoplay 
-              loop 
-              muted 
-              playsinline
-              webkit-playsinline
-              x5-playsinline
-              preload="auto"
-              :poster="DEFAULT_SERVICE_POSTERS.purchasing"
-              @canplay="handleVideoCanPlay"
-              class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
-            >
-              <source :src="serviceMediaPurchasing" type="video/mp4" />
-            </video>
-            <img 
-              v-else-if="serviceMediaPurchasing"
-              :src="serviceMediaPurchasing" 
-              alt="구매대행 안내"
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
-              loading="eager"
-            />
-            <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
-            <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-          </div>
-
-          <div class="relative z-20 space-y-3">
-            <div class="flex items-center justify-between">
-              <span class="inline-block px-2.5 py-1 bg-blue-600/80 text-white text-[11px] font-black rounded-full border border-blue-300/40 backdrop-blur-sm shadow-sm">
-                1688 구매대행
-              </span>
-              <div class="w-10 h-10 rounded-xl bg-blue-500/20 border border-blue-400/40 text-blue-400 flex items-center justify-center text-lg shadow-sm">
-                <i class="fas fa-cart-shopping"></i>
-              </div>
-            </div>
-            <h3 class="text-lg font-black text-white leading-snug group-hover:text-blue-300 transition">
-              1688 / 타오바오 구매대행
-            </h3>
-            <p class="text-xs text-slate-200 leading-relaxed font-medium">
-              중국에서 구매하기 어려운 상품을 현지 최저가로 안전하게 구매 및 검품 출고 대행
-            </p>
-          </div>
-
-          <div class="relative z-20 pt-4 border-t border-white/15 mt-5">
-            <router-link 
-              to="/services/purchasing-agent" 
-              class="flex items-center justify-between text-xs font-bold text-blue-300 group-hover:text-white transition group-hover:translate-x-1"
-            >
-              <span>구매대행 신청하기</span>
-              <span class="w-6 h-6 rounded-full bg-blue-500/30 border border-blue-400/50 flex items-center justify-center text-xs text-white group-hover:bg-blue-600 transition">&rarr;</span>
-            </router-link>
-          </div>
-        </div>
-
-        <!-- Card 3: 무역대행이란? -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-emerald-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-emerald-400/80 p-6 min-h-[380px] bg-[#141e33]">
-          <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
-            <!-- High-Res Instant Poster -->
-            <img 
-              :src="DEFAULT_SERVICE_POSTERS.trade" 
-              alt="무역대행 맞춤제조 포스터"
-              class="absolute inset-0 w-full h-full object-cover z-0"
-              loading="eager"
-            />
-            <video 
-              v-if="isVideoMedia(serviceMediaTrade)"
-              :src="serviceMediaTrade"
-              autoplay 
-              loop 
-              muted 
-              playsinline
-              webkit-playsinline
-              x5-playsinline
-              preload="auto"
-              :poster="DEFAULT_SERVICE_POSTERS.trade"
-              @canplay="handleVideoCanPlay"
-              class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
-            >
-              <source :src="serviceMediaTrade" type="video/mp4" />
-            </video>
-            <img 
-              v-else-if="serviceMediaTrade"
-              :src="serviceMediaTrade" 
-              alt="무역대행 안내"
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
-              loading="eager"
-            />
-            <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
-            <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-          </div>
-
-          <div class="relative z-20 space-y-3">
-            <div class="flex items-center justify-between">
-              <span class="inline-block px-2.5 py-1 bg-emerald-600/80 text-white text-[11px] font-black rounded-full border border-emerald-300/40 backdrop-blur-sm shadow-sm">
-                OEM / ODM
-              </span>
-              <div class="w-10 h-10 rounded-xl bg-emerald-500/20 border border-emerald-400/40 text-emerald-400 flex items-center justify-center text-lg shadow-sm">
-                <i class="fas fa-industry"></i>
-              </div>
-            </div>
-            <h3 class="text-lg font-black text-white leading-snug group-hover:text-emerald-300 transition">
-              무역대행 & 맞춤제조
-            </h3>
-            <p class="text-xs text-slate-200 leading-relaxed font-medium">
-              중국 공장 발굴, 단가 네고, 금형 제작 및 시장조사까지 원스톱 무역업무 대행
-            </p>
-          </div>
-
-          <div class="relative z-20 pt-4 border-t border-white/15 mt-5">
-            <router-link 
-              to="/services/trade-agent" 
-              class="flex items-center justify-between text-xs font-bold text-emerald-300 group-hover:text-white transition group-hover:translate-x-1"
-            >
-              <span>무역대행 문의하기</span>
-              <span class="w-6 h-6 rounded-full bg-emerald-500/30 border border-emerald-400/50 flex items-center justify-center text-xs text-white group-hover:bg-emerald-600 transition">&rarr;</span>
-            </router-link>
-          </div>
-        </div>
-
-        <!-- Card 4: 이우 시장조사 투어 -->
-        <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-amber-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-amber-400/80 p-6 min-h-[380px] bg-[#141e33]">
-          <!-- Dynamic Moving Background Layer (Always visible on all devices) -->
-          <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
-            <!-- High-Res Instant Poster -->
-            <img 
-              :src="DEFAULT_SERVICE_POSTERS.tour" 
-              alt="이우 시장조사 투어 포스터"
-              class="absolute inset-0 w-full h-full object-cover z-0"
-              loading="eager"
-            />
-            <video 
-              v-if="isVideoMedia(serviceMediaTour)"
-              :src="serviceMediaTour"
-              autoplay 
-              loop 
-              muted 
-              playsinline
-              webkit-playsinline
-              x5-playsinline
-              preload="auto"
-              :poster="DEFAULT_SERVICE_POSTERS.tour"
-              @canplay="handleVideoCanPlay"
-              class="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1] bg-transparent"
-            >
-              <source :src="serviceMediaTour" type="video/mp4" />
-            </video>
-            <img 
-              v-else-if="serviceMediaTour"
-              :src="serviceMediaTour" 
-              alt="이우 시장조사 투어"
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out z-[1]"
-              loading="eager"
-            />
-            <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500 z-10"></div>
-            <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35 z-10"></div>
-          </div>
-
-          <div class="relative z-20 space-y-3">
-            <div class="flex items-center justify-between">
-              <span class="inline-block px-2.5 py-1 bg-amber-500/80 text-white text-[11px] font-black rounded-full border border-amber-300/40 backdrop-blur-sm shadow-sm">
-                시장투어 풀패키지
-              </span>
-              <div class="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-400 flex items-center justify-center text-lg shadow-sm">
-                <i class="fas fa-plane-departure"></i>
-              </div>
-            </div>
-            <h3 class="text-lg font-black text-white leading-snug group-hover:text-amber-300 transition">
-              중국 이우 시장조사 투어
-            </h3>
-            <p class="text-xs text-slate-200 leading-relaxed font-medium">
-              세계 최대 도매시장 푸텐시장 구역별 전문 가이드, 통역, 픽업 및 발주 연계
-            </p>
-          </div>
-
-          <div class="relative z-20 pt-4 border-t border-white/15 mt-5">
-            <router-link 
-              to="/guide/market-tour" 
-              class="flex items-center justify-between text-xs font-bold text-amber-300 group-hover:text-white transition group-hover:translate-x-1"
-            >
-              <span>투어 일정 & 견적</span>
-              <span class="w-6 h-6 rounded-full bg-amber-500/30 border border-amber-400/50 flex items-center justify-center text-xs text-white group-hover:bg-amber-500 transition">&rarr;</span>
-            </router-link>
-          </div>
-        </div>
-
       </div>
 
     </div>
@@ -286,85 +80,95 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted } from 'vue'
-import { currentSettings, fetchSiteSettings, isVideoMedia, DEFAULT_SERVICE_MEDIA, DEFAULT_SERVICE_POSTERS } from '../lib/settings'
+import { currentSettings, fetchSiteSettings, isVideoMedia } from '../lib/settings'
 
-const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || DEFAULT_SERVICE_MEDIA.rocket)
-const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || DEFAULT_SERVICE_MEDIA.purchasing)
-const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || DEFAULT_SERVICE_MEDIA.trade)
-const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || DEFAULT_SERVICE_MEDIA.tour)
+const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
+const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
+const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
+const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
 
-const handleVideoCanPlay = (e) => {
-  const v = e?.target
-  if (v) {
-    v.muted = true
-    v.defaultMuted = true
-    const p = v.play()
-    if (p !== undefined) {
-      p.catch(() => {})
-    }
+const serviceCards = computed(() => [
+  {
+    id: 'rocket',
+    title: '쿠팡 로켓그로스 & 밀크런',
+    badge: '쿠팡 입고 대행',
+    badgeColor: 'bg-red-500/80 border-red-300/40',
+    icon: 'fas fa-rocket',
+    iconColor: 'bg-red-500/20 border-red-400/40 text-red-400',
+    hoverBorder: 'hover:border-red-500/80',
+    hoverShadow: 'hover:shadow-red-500/20',
+    hoverText: 'group-hover:text-red-300',
+    arrowBg: 'bg-red-500/30 border-red-400/50 group-hover:bg-red-500',
+    desc: '중국 생산지에서 쿠팡 물류창고 입고 규격에 맞춘 바코드 부착 및 직납 서비스',
+    link: '/services/rocket-growth',
+    linkText: '상담 문의하기',
+    mediaUrl: serviceMediaRocket.value
+  },
+  {
+    id: 'purchasing',
+    title: '1688 / 타오바오 구매대행',
+    badge: '1688 구매대행',
+    badgeColor: 'bg-blue-600/80 border-blue-300/40',
+    icon: 'fas fa-cart-shopping',
+    iconColor: 'bg-blue-500/20 border-blue-400/40 text-blue-400',
+    hoverBorder: 'hover:border-blue-400/80',
+    hoverShadow: 'hover:shadow-blue-500/20',
+    hoverText: 'group-hover:text-blue-300',
+    arrowBg: 'bg-blue-500/30 border-blue-400/50 group-hover:bg-blue-600',
+    desc: '중국에서 구매하기 어려운 상품을 현지 최저가로 안전하게 구매 및 검품 출고 대행',
+    link: '/services/purchasing-agent',
+    linkText: '구매대행 신청하기',
+    mediaUrl: serviceMediaPurchasing.value
+  },
+  {
+    id: 'trade',
+    title: '무역대행 & 맞춤제조',
+    badge: 'OEM / ODM',
+    badgeColor: 'bg-emerald-600/80 border-emerald-300/40',
+    icon: 'fas fa-industry',
+    iconColor: 'bg-emerald-500/20 border-emerald-400/40 text-emerald-400',
+    hoverBorder: 'hover:border-emerald-400/80',
+    hoverShadow: 'hover:shadow-emerald-500/20',
+    hoverText: 'group-hover:text-emerald-300',
+    arrowBg: 'bg-emerald-500/30 border-emerald-400/50 group-hover:bg-emerald-600',
+    desc: '중국 공장 발굴, 단가 네고, 금형 제작 및 시장조사까지 원스톱 무역업무 대행',
+    link: '/services/trade-agent',
+    linkText: '무역대행 문의하기',
+    mediaUrl: serviceMediaTrade.value
+  },
+  {
+    id: 'tour',
+    title: '중국 이우 시장조사 투어',
+    badge: '시장투어 풀패키지',
+    badgeColor: 'bg-amber-500/80 border-amber-300/40',
+    icon: 'fas fa-plane-departure',
+    iconColor: 'bg-amber-500/20 border-amber-400/40 text-amber-400',
+    hoverBorder: 'hover:border-amber-400/80',
+    hoverShadow: 'hover:shadow-amber-500/20',
+    hoverText: 'group-hover:text-amber-300',
+    arrowBg: 'bg-amber-500/30 border-amber-400/50 group-hover:bg-amber-500',
+    desc: '세계 최대 도매시장 푸텐시장 구역별 전문 가이드, 통역, 픽업 및 발주 연계',
+    link: '/guide/market-tour',
+    linkText: '투어 일정 & 견적',
+    mediaUrl: serviceMediaTour.value
   }
-}
-
-const attemptAutoplayVideos = () => {
-  if (typeof document === 'undefined') return
-  const videoElements = document.querySelectorAll('video')
-  videoElements.forEach((video) => {
-    video.muted = true
-    video.playsInline = true
-    video.setAttribute('muted', '')
-    video.setAttribute('playsinline', '')
-    video.setAttribute('webkit-playsinline', '')
-    video.setAttribute('x5-playsinline', '')
-
-    const playPromise = video.play()
-    if (playPromise !== undefined) {
-      playPromise.catch((err) => {
-        console.warn('Initial mobile autoplay prevented/deferred:', err?.message || err)
-      })
-    }
-  })
-}
-
-let userInteractionListenerRegistered = false
-const enableVideoOnFirstTouch = () => {
-  attemptAutoplayVideos()
-  if (userInteractionListenerRegistered && typeof window !== 'undefined') {
-    window.removeEventListener('touchstart', enableVideoOnFirstTouch)
-    window.removeEventListener('click', enableVideoOnFirstTouch)
-    window.removeEventListener('scroll', enableVideoOnFirstTouch)
-    userInteractionListenerRegistered = false
-  }
-}
+])
 
 const handleSettingsSync = (e) => {
   if (e?.detail) {
     currentSettings.value = { ...currentSettings.value, ...e.detail }
   }
-  setTimeout(attemptAutoplayVideos, 50)
 }
 
 onMounted(async () => {
   await fetchSiteSettings()
-  setTimeout(attemptAutoplayVideos, 50)
-  setTimeout(attemptAutoplayVideos, 300)
-  setTimeout(attemptAutoplayVideos, 1000)
-
   if (typeof window !== 'undefined') {
-    window.addEventListener('touchstart', enableVideoOnFirstTouch, { passive: true, once: true })
-    window.addEventListener('click', enableVideoOnFirstTouch, { passive: true, once: true })
-    window.addEventListener('scroll', enableVideoOnFirstTouch, { passive: true, once: true })
     window.addEventListener('euchs-settings-updated', handleSettingsSync)
-    userInteractionListenerRegistered = true
   }
 
   onUnmounted(() => {
     if (typeof window !== 'undefined') {
       window.removeEventListener('euchs-settings-updated', handleSettingsSync)
-    }
-    if (userInteractionListenerRegistered && typeof window !== 'undefined') {
-      window.removeEventListener('touchstart', enableVideoOnFirstTouch)
-      window.removeEventListener('click', enableVideoOnFirstTouch)
-      window.removeEventListener('scroll', enableVideoOnFirstTouch)
     }
   })
 })
