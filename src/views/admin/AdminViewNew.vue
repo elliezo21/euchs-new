@@ -3086,6 +3086,7 @@ const handleServiceCardUrlChange = async (serviceKey) => {
     showToast(`✓ ${serviceName} 미디어 URL이 즉시 자동 저장되었습니다!`, 'success')
   } catch (err) {
     console.error('URL change auto-save error:', err)
+    alert('DB 저장 실패: ' + (err.message || err))
     showToast('미디어 URL 저장 실패: ' + (err.message || err), 'error')
   }
 }
@@ -3101,6 +3102,7 @@ const handleServiceCardFileUpload = async (event) => {
 
   try {
     if (!isSupabaseConfigured()) {
+      alert('Supabase 설정이 필요합니다.')
       showToast('Supabase 설정이 필요합니다. 외부 URL을 직접 입력해 주세요.', 'error')
       return
     }
@@ -3120,6 +3122,7 @@ const handleServiceCardFileUpload = async (event) => {
 
     if (uploadError) {
       console.error('Service Card Upload Error:', uploadError)
+      alert('미디어 파일 업로드 실패: ' + uploadError.message)
       showToast('파일 업로드 실패: ' + uploadError.message, 'error')
       return
     }
@@ -3140,6 +3143,7 @@ const handleServiceCardFileUpload = async (event) => {
     }
   } catch (err) {
     console.error('Service Card File Upload Exception:', err)
+    alert('DB 저장 실패: ' + (err.message || err))
     showToast('파일 업로드 중 오류가 발생했습니다: ' + err.message, 'error')
   } finally {
     isUploadingServiceCard.value[serviceKey] = false
@@ -3160,6 +3164,7 @@ const removeServiceCardMedia = async (serviceKey) => {
     showToast(`✓ ${serviceName} 미디어가 삭제되고 기본 다크 네이비 스타일로 즉시 저장되었습니다.`, 'info')
   } catch (err) {
     console.error('Remove service media error:', err)
+    alert('DB 저장 실패: ' + (err.message || err))
     showToast('미디어 삭제 저장 실패: ' + (err.message || err), 'error')
   }
 }

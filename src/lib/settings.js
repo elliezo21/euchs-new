@@ -32,11 +32,17 @@ export const DEFAULT_SETTINGS = {
   hero_media_type: 'video_mp4', // 'video_mp4' | 'youtube' | 'image'
   hero_media_url: '',
   hero_overlay_opacity: 60, // 30 ~ 90 (%)
-  // 4대 핵심 서비스 카드 배경 설정 (Supabase DB 등록 값)
+  // 4대 핵심 서비스 카드 배경 설정
   service_card_media_rocket: '',
   service_card_media_purchasing: '',
   service_card_media_trade: '',
   service_card_media_tour: '',
+  service_media_urls: {
+    "1": "",
+    "2": "",
+    "3": "",
+    "4": ""
+  },
   updated_at: new Date().toISOString()
 }
 
@@ -76,7 +82,7 @@ export const fetchSiteSettings = async () => {
         console.warn('[SiteSettings] site_settings query exception:', err)
       }
 
-      // notices 백업 레코드 조회
+      // notices 백업 레코드 조회 (1. __SITE_SETTINGS_BACKUP__, 2. __SERVICE_MEDIA_URLS__)
       let backupData = null
       try {
         const { data: backupNotice } = await supabase
@@ -88,6 +94,20 @@ export const fetchSiteSettings = async () => {
 
         if (backupNotice && backupNotice.content) {
           backupData = JSON.parse(backupNotice.content)
+        }
+      } catch (e) {}
+
+      let mediaNoticeData = null
+      try {
+        const { data: mediaNotice } = await supabase
+          .from('notices')
+          .select('content')
+          .eq('category', 'system_config')
+          .eq('title', '__SERVICE_MEDIA_URLS__')
+          .maybeSingle()
+
+        if (mediaNotice && mediaNotice.content) {
+          mediaNoticeData = JSON.parse(mediaNotice.content)
         }
       } catch (e) {}
 
@@ -107,30 +127,30 @@ export const fetchSiteSettings = async () => {
         if (dbData.hero_media_url !== undefined && dbData.hero_media_url !== null) merged.hero_media_url = dbData.hero_media_url
         if (dbData.hero_overlay_opacity !== undefined && dbData.hero_overlay_opacity !== null) merged.hero_overlay_opacity = Number(dbData.hero_overlay_opacity)
 
-        // 4대 서비스 카드 미디어: 개별 컬럼 우선 -> hero_cards_media JSON -> 기존 값
-        const heroCards = dbData.hero_cards_media || dbData.service_media || {}
-        if (dbData.service_card_media_rocket !== undefined && dbData.service_card_media_rocket !== null) {
-          merged.service_card_media_rocket = dbData.service_card_media_rocket
-        } else if (heroCards.rocket || heroCards.card1) {
-          merged.service_card_media_rocket = heroCards.rocket || heroCards.card1
-        }
+        // 4대 서비스 카드 미디어: 개별 컬럼 우선 -> service_media_urls JSON -> 백업 데이터
+        const jsonUrls = dbData.service_media_urls || dbData.hero_cards_media || dbData.service_media || mediaNoticeData || {}
+        
+        merged.service_card_media_rocket = dbData.service_card_media_rocket || jsonUrls["1"] || jsonUrls.rocket || jsonUrls.card1 || merged.service_card_media_rocket || ''
+        merged.service_card_media_purchasing = dbData.service_card_media_purchasing || jsonUrls["2"] || jsonUrls.purchasing || jsonUrls.card2 || merged.service_card_media_purchasing || ''
+        merged.service_card_media_trade = dbData.service_card_media_trade || jsonUrls["3"] || jsonUrls.trade || jsonUrls.card3 || merged.service_card_media_trade || ''
+        merged.service_card_media_tour = dbData.service_card_media_tour || jsonUrls["4"] || jsonUrls.tour || jsonUrls.card4 || merged.service_card_media_tour || ''
 
-        if (dbData.service_card_media_purchasing !== undefined && dbData.service_card_media_purchasing !== null) {
-          merged.service_card_media_purchasing = dbData.service_card_media_purchasing
-        } else if (heroCards.purchasing || heroCards.card2) {
-          merged.service_card_media_purchasing = heroCards.purchasing || heroCards.card2
+        merged.service_media_urls = {
+          "1": merged.service_card_media_rocket,
+          "2": merged.service_card_media_purchasing,
+          "3": merged.service_card_media_trade,
+          "4": merged.service_card_media_tour
         }
-
-        if (dbData.service_card_media_trade !== undefined && dbData.service_card_media_trade !== null) {
-          merged.service_card_media_trade = dbData.service_card_media_trade
-        } else if (heroCards.trade || heroCards.card3) {
-          merged.service_card_media_trade = heroCards.trade || heroCards.card3
-        }
-
-        if (dbData.service_card_media_tour !== undefined && dbData.service_card_media_tour !== null) {
-          merged.service_card_media_tour = dbData.service_card_media_tour
-        } else if (heroCards.tour || heroCards.card4) {
-          merged.service_card_media_tour = heroCards.tour || heroCards.card4
+      } else if (mediaNoticeData) {
+        merged.service_card_media_rocket = mediaNoticeData["1"] || mediaNoticeData.rocket || merged.service_card_media_rocket || ''
+        merged.service_card_media_purchasing = mediaNoticeData["2"] || mediaNoticeData.purchasing || merged.service_card_media_purchasing || ''
+        merged.service_card_media_trade = mediaNoticeData["3"] || mediaNoticeData.trade || merged.service_card_media_trade || ''
+        merged.service_card_media_tour = mediaNoticeData["4"] || mediaNoticeData.tour || merged.service_card_media_tour || ''
+        merged.service_media_urls = {
+          "1": merged.service_card_media_rocket,
+          "2": merged.service_card_media_purchasing,
+          "3": merged.service_card_media_trade,
+          "4": merged.service_card_media_tour
         }
       }
 
@@ -153,9 +173,25 @@ export const fetchSiteSettings = async () => {
 }
 
 /**
- * Supabase site_settings 테이블 및 시스템 백업에 설정값 강제 저장 (Hero Media와 100% 동일한 저장 파이프라인)
+ * Supabase site_settings 테이블 및 시스템 백업에 설정값 영구 저장
  */
 export const saveSiteSettings = async (settings) => {
+  const url1 = settings.service_card_media_rocket !== undefined ? settings.service_card_media_rocket : (settings.service_media_urls?.['1'] || '')
+  const url2 = settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : (settings.service_media_urls?.['2'] || '')
+  const url3 = settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : (settings.service_media_urls?.['3'] || '')
+  const url4 = settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : (settings.service_media_urls?.['4'] || '')
+
+  const mediaUrlsJson = {
+    "1": url1,
+    "2": url2,
+    "3": url3,
+    "4": url4,
+    "rocket": url1,
+    "purchasing": url2,
+    "trade": url3,
+    "tour": url4
+  }
+
   const payload = {
     id: 'default',
     exchange_rate_mode: settings.exchange_rate_mode || 'manual',
@@ -168,20 +204,11 @@ export const saveSiteSettings = async (settings) => {
     hero_media_type: settings.hero_media_type || 'video_mp4',
     hero_media_url: settings.hero_media_url || '',
     hero_overlay_opacity: Number(settings.hero_overlay_opacity) || 60,
-    service_card_media_rocket: settings.service_card_media_rocket !== undefined ? settings.service_card_media_rocket : '',
-    service_card_media_purchasing: settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : '',
-    service_card_media_trade: settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : '',
-    service_card_media_tour: settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : '',
-    hero_cards_media: {
-      card1: settings.service_card_media_rocket !== undefined ? settings.service_card_media_rocket : '',
-      card2: settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : '',
-      card3: settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : '',
-      card4: settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : '',
-      rocket: settings.service_card_media_rocket !== undefined ? settings.service_card_media_rocket : '',
-      purchasing: settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : '',
-      trade: settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : '',
-      tour: settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : ''
-    },
+    service_card_media_rocket: url1,
+    service_card_media_purchasing: url2,
+    service_card_media_trade: url3,
+    service_card_media_tour: url4,
+    service_media_urls: mediaUrlsJson,
     updated_at: new Date().toISOString()
   }
 
@@ -191,7 +218,7 @@ export const saveSiteSettings = async (settings) => {
     localStorage.setItem('euchs_site_settings', JSON.stringify(currentSettings.value))
   } catch (e) {}
 
-  // 2. 실시간 이벤트 전파 (HomeView 등 즉시 반영)
+  // 2. 실시간 이벤트 전파 (HomeView 등 즉시 반응)
   if (typeof window !== 'undefined') {
     try {
       window.dispatchEvent(new CustomEvent('euchs-settings-updated', { detail: currentSettings.value }))
@@ -200,7 +227,9 @@ export const saveSiteSettings = async (settings) => {
 
   // 3. Supabase DB 영구 저장
   if (isSupabaseConfigured()) {
-    // 3-1. site_settings 테이블 저장
+    let lastError = null
+
+    // 3-1. site_settings 테이블 upsert
     try {
       const { error: upsertError } = await supabase
         .from('site_settings')
@@ -208,27 +237,25 @@ export const saveSiteSettings = async (settings) => {
 
       if (upsertError) {
         console.warn('[SiteSettings] site_settings full upsert notice:', upsertError.message)
-        const basicPayload = {
-          id: 'default',
-          exchange_rate_mode: payload.exchange_rate_mode,
-          exchange_rate: payload.exchange_rate,
-          rate_margin: payload.rate_margin,
-          agency_fee_rate: payload.agency_fee_rate,
-          sea_cbm_rate: payload.sea_cbm_rate,
-          customs_clearance_fee: payload.customs_clearance_fee,
-          fta_co_fee: payload.fta_co_fee,
-          hero_media_type: payload.hero_media_type,
-          hero_media_url: payload.hero_media_url,
-          hero_overlay_opacity: payload.hero_overlay_opacity,
-          updated_at: payload.updated_at
+        // 컬럼이 일부 없을 경우를 대비하여 service_media_urls만으로 또는 기본 컬럼으로 UPDATE 시도
+        const { error: updateJsonError } = await supabase
+          .from('site_settings')
+          .update({
+            service_media_urls: mediaUrlsJson,
+            updated_at: payload.updated_at
+          })
+          .eq('id', 'default')
+
+        if (updateJsonError) {
+          lastError = updateJsonError
         }
-        await supabase.from('site_settings').upsert(basicPayload, { onConflict: 'id' })
       }
     } catch (e) {
       console.warn('[SiteSettings] site_settings save exception:', e)
+      lastError = e
     }
 
-    // 3-2. DB notices 시스템 설정 JSON 백업 저장
+    // 3-2. DB notices 시스템 설정 JSON 백업 저장 (__SITE_SETTINGS_BACKUP__ 및 __SERVICE_MEDIA_URLS__)
     try {
       const backupNoticePayload = {
         title: '__SITE_SETTINGS_BACKUP__',
@@ -236,7 +263,7 @@ export const saveSiteSettings = async (settings) => {
         category_name: '시스템설정',
         badge: '시스템',
         is_pinned: false,
-        summary: 'Global Site Settings JSON Backup for Cross-Device Sync',
+        summary: 'Global Site Settings JSON Backup',
         content: JSON.stringify(payload),
         updated_at: new Date().toISOString()
       }
@@ -254,8 +281,34 @@ export const saveSiteSettings = async (settings) => {
         await supabase.from('notices').insert(backupNoticePayload)
       }
     } catch (noticeErr) {
-      console.warn('[SiteSettings] Notices system backup save notice:', noticeErr)
+      console.warn('[SiteSettings] Notices system backup notice:', noticeErr)
     }
+
+    try {
+      const mediaNoticePayload = {
+        title: '__SERVICE_MEDIA_URLS__',
+        category: 'system_config',
+        category_name: '시스템설정',
+        badge: '미디어',
+        is_pinned: false,
+        summary: '4 Core Service Cards Media JSON Backup',
+        content: JSON.stringify(mediaUrlsJson),
+        updated_at: new Date().toISOString()
+      }
+
+      const { data: existingMediaNotice } = await supabase
+        .from('notices')
+        .select('id')
+        .eq('category', 'system_config')
+        .eq('title', '__SERVICE_MEDIA_URLS__')
+        .maybeSingle()
+
+      if (existingMediaNotice && existingMediaNotice.id) {
+        await supabase.from('notices').update(mediaNoticePayload).eq('id', existingMediaNotice.id)
+      } else {
+        await supabase.from('notices').insert(mediaNoticePayload)
+      }
+    } catch (e) {}
 
     // 3-3. Supabase Public Storage에 site_settings.json 저장 (CDN 백업)
     try {
@@ -268,7 +321,7 @@ export const saveSiteSettings = async (settings) => {
           contentType: 'application/json'
         })
     } catch (storageErr) {
-      console.warn('[SiteSettings] Storage settings backup save notice:', storageErr)
+      console.warn('[SiteSettings] Storage settings backup notice:', storageErr)
     }
   }
 
