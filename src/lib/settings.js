@@ -13,20 +13,6 @@ export const isVideoMedia = (url) => {
   return false
 }
 
-export const DEFAULT_SERVICE_MEDIA = {
-  rocket: 'https://assets.mixkit.co/videos/43289/43289-720.mp4',
-  purchasing: 'https://assets.mixkit.co/videos/41551/41551-720.mp4',
-  trade: 'https://assets.mixkit.co/videos/43292/43292-720.mp4',
-  tour: 'https://assets.mixkit.co/videos/42940/42940-720.mp4'
-}
-
-export const DEFAULT_SERVICE_POSTERS = {
-  rocket: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=800&q=80',
-  purchasing: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=800&q=80',
-  trade: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80',
-  tour: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80'
-}
-
 export const DEFAULT_SETTINGS = {
   id: 'default',
   exchange_rate_mode: 'manual', // 'manual' | 'auto_margin'
