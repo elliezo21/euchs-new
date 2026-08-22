@@ -871,10 +871,10 @@
         </div>
 
         <!-- ========================================================== -->
-        <!-- [섹션 B: 4대 핵심 서비스 카드 미디어 관리] -->
+        <!-- [섹션 B: 4대 핵심 서비스 카드 미디어 관리 (즉시 자동 저장: Auto-Save)] -->
         <!-- ========================================================== -->
         <div class="bg-slate-900/90 rounded-3xl p-6 sm:p-8 border border-slate-800 shadow-xl space-y-6">
-          <div class="border-b border-slate-800 pb-4 flex items-center justify-between">
+          <div class="border-b border-slate-800 pb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div class="flex items-center gap-2.5">
               <div class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center text-base">
                 <i class="fas fa-cubes"></i>
@@ -884,9 +884,15 @@
                 <p class="text-xs text-slate-400">메인 화면 4개 서비스 카드별 배경 영상(MP4) 또는 이미지(GIF/WebP/JPG)를 등록 및 삭제 관리합니다.</p>
               </div>
             </div>
+
+            <!-- Auto-save notification badge -->
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 font-bold shrink-0 self-start sm:self-auto">
+              <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+              <span>업로드/삭제/URL입력 시 즉시 자동 저장 (Auto-Save)</span>
+            </div>
           </div>
 
-          <form @submit.prevent="handleSaveServiceMedia" class="space-y-6">
+          <div class="space-y-6">
             
             <!-- 4 Services Grid (Mobile 1 column, Desktop 2 columns) -->
             <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -909,7 +915,7 @@
                       type="button" 
                       @click="removeServiceCardMedia('rocket')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
-                      title="등록된 미디어 삭제 (기본 다크 스타일로 즉시 복원)"
+                      title="등록된 미디어 삭제 (기본 다크 스타일로 즉시 복원 및 자동 저장)"
                     >
                       <i class="fas fa-trash-alt"></i>
                       <span>삭제</span>
@@ -921,6 +927,7 @@
                     <input 
                       v-model="settingsForm.service_card_media_rocket" 
                       type="text" 
+                      @change="handleServiceCardUrlChange('rocket')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-red-500"
                     />
@@ -992,7 +999,7 @@
                       type="button" 
                       @click="removeServiceCardMedia('purchasing')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
-                      title="등록된 미디어 삭제 (기본 다크 스타일로 즉시 복원)"
+                      title="등록된 미디어 삭제 (기본 다크 스타일로 즉시 복원 및 자동 저장)"
                     >
                       <i class="fas fa-trash-alt"></i>
                       <span>삭제</span>
@@ -1004,6 +1011,7 @@
                     <input 
                       v-model="settingsForm.service_card_media_purchasing" 
                       type="text" 
+                      @change="handleServiceCardUrlChange('purchasing')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-blue-500"
                     />
@@ -1075,7 +1083,7 @@
                       type="button" 
                       @click="removeServiceCardMedia('trade')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
-                      title="등록된 미디어 삭제 (기본 스타일로 즉시 복원)"
+                      title="등록된 미디어 삭제 (기본 스타일로 즉시 복원 및 자동 저장)"
                     >
                       <i class="fas fa-trash-alt"></i>
                       <span>삭제</span>
@@ -1087,6 +1095,7 @@
                     <input 
                       v-model="settingsForm.service_card_media_trade" 
                       type="text" 
+                      @change="handleServiceCardUrlChange('trade')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-emerald-500"
                     />
@@ -1158,7 +1167,7 @@
                       type="button" 
                       @click="removeServiceCardMedia('tour')" 
                       class="text-[11px] text-rose-400 hover:text-rose-300 font-semibold px-2.5 py-1 rounded-lg bg-rose-500/10 border border-rose-500/30 hover:bg-rose-500/20 transition flex items-center gap-1 active:scale-95"
-                      title="등록된 미디어 삭제 (기본 스타일로 즉시 복원)"
+                      title="등록된 미디어 삭제 (기본 스타일로 즉시 복원 및 자동 저장)"
                     >
                       <i class="fas fa-trash-alt"></i>
                       <span>삭제</span>
@@ -1170,6 +1179,7 @@
                     <input 
                       v-model="settingsForm.service_card_media_tour" 
                       type="text" 
+                      @change="handleServiceCardUrlChange('tour')"
                       placeholder="동영상 MP4/GIF/이미지 URL (https://...)" 
                       class="flex-1 px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-mono text-xs outline-none focus:border-amber-500"
                     />
@@ -1234,20 +1244,7 @@
               @change="handleServiceCardFileUpload" 
             />
 
-            <!-- Dedicated Save Button for Section B -->
-            <div class="pt-4 border-t border-slate-800 flex justify-end">
-              <button 
-                type="submit" 
-                :disabled="isSavingServiceMedia"
-                class="w-full sm:w-auto px-8 py-3 rounded-2xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-lg shadow-emerald-600/30 flex items-center justify-center gap-2 disabled:opacity-50 transition active:scale-95"
-              >
-                <i v-if="isSavingServiceMedia" class="fas fa-spinner animate-spin"></i>
-                <i v-else class="fas fa-check"></i>
-                <span>{{ isSavingServiceMedia ? '저장 중...' : '✓ 서비스 카드 미디어 설정 저장하기' }}</span>
-              </button>
-            </div>
-
-          </form>
+          </div>
         </div>
 
         <!-- ========================================================== -->
@@ -2899,7 +2896,6 @@ const showToast = (message, type = 'success') => {
 const settingsForm = ref({ ...DEFAULT_SETTINGS })
 const isSavingSettings = ref(false)
 const isSavingRatesAndFees = ref(false)
-const isSavingServiceMedia = ref(false)
 const isSavingHeroMedia = ref(false)
 const liveRefRate = ref(230.0)
 
@@ -2936,37 +2932,11 @@ const handleSaveRatesAndFees = async () => {
   try {
     await saveSiteSettings(settingsForm.value)
     showToast('✓ 환율 및 기본 수수료 설정이 성공적으로 저장되었습니다!', 'success')
-    await loadSettings()
   } catch (err) {
     console.error('Save rates and fees error:', err)
     showToast('환율·수수료 저장 실패: ' + (err.message || err), 'error')
   } finally {
     isSavingRatesAndFees.value = false
-  }
-}
-
-// [섹션 B: 4대 핵심 서비스 카드 미디어 저장 전용 핸들러]
-const handleSaveServiceMedia = async () => {
-  isSavingServiceMedia.value = true
-  try {
-    const payload = {
-      ...settingsForm.value,
-      service_card_media_rocket: (settingsForm.value.service_card_media_rocket || '').trim(),
-      service_card_media_purchasing: (settingsForm.value.service_card_media_purchasing || '').trim(),
-      service_card_media_trade: (settingsForm.value.service_card_media_trade || '').trim(),
-      service_card_media_tour: (settingsForm.value.service_card_media_tour || '').trim()
-    }
-    await saveSiteSettings(payload)
-    settingsForm.value.service_card_media_rocket = payload.service_card_media_rocket
-    settingsForm.value.service_card_media_purchasing = payload.service_card_media_purchasing
-    settingsForm.value.service_card_media_trade = payload.service_card_media_trade
-    settingsForm.value.service_card_media_tour = payload.service_card_media_tour
-    showToast('✓ 4대 핵심 서비스 카드 미디어 설정이 성공적으로 저장되었습니다! 메인 화면에 즉시 반영됩니다.', 'success')
-  } catch (err) {
-    console.error('Save service media error:', err)
-    showToast('서비스 미디어 저장 실패: ' + (err.message || err), 'error')
-  } finally {
-    isSavingServiceMedia.value = false
   }
 }
 
@@ -3080,7 +3050,7 @@ const getYoutubeEmbedUrl = (url) => {
 }
 
 // ----------------------------------------------------
-// Service Cards Media Management State & Logic
+// Service Cards Media Management State & Logic (Auto-Save Pipeline)
 // ----------------------------------------------------
 const serviceCardFileInput = ref(null)
 const currentServiceUploadType = ref('rocket')
@@ -3091,6 +3061,16 @@ const isUploadingServiceCard = ref({
   tour: false
 })
 
+const getServiceCardName = (serviceKey) => {
+  const names = {
+    rocket: '#1 쿠팡 로켓그로스',
+    purchasing: '#2 1688/타오바오 구매대행',
+    trade: '#3 무역대행 & 맞춤제조',
+    tour: '#4 중국 이우 시장투어'
+  }
+  return names[serviceKey] || '서비스 카드'
+}
+
 const triggerServiceCardUpload = (serviceKey) => {
   currentServiceUploadType.value = serviceKey
   if (serviceCardFileInput.value) {
@@ -3098,11 +3078,25 @@ const triggerServiceCardUpload = (serviceKey) => {
   }
 }
 
+// URL 직접 입력 시 즉시 자동 저장 (on change)
+const handleServiceCardUrlChange = async (serviceKey) => {
+  const serviceName = getServiceCardName(serviceKey)
+  try {
+    await saveSiteSettings(settingsForm.value)
+    showToast(`✓ ${serviceName} 미디어 URL이 즉시 자동 저장되었습니다!`, 'success')
+  } catch (err) {
+    console.error('URL change auto-save error:', err)
+    showToast('미디어 URL 저장 실패: ' + (err.message || err), 'error')
+  }
+}
+
+// [업로드] 클릭 시 파일 업로드 후 즉시 자동 저장
 const handleServiceCardFileUpload = async (event) => {
   const file = event.target.files?.[0]
   if (!file) return
 
   const serviceKey = currentServiceUploadType.value || 'rocket'
+  const serviceName = getServiceCardName(serviceKey)
   isUploadingServiceCard.value[serviceKey] = true
 
   try {
@@ -3142,7 +3136,7 @@ const handleServiceCardFileUpload = async (event) => {
 
       // 즉시 Supabase DB 및 LocalStorage 자동 저장 & 실시간 동기화
       await saveSiteSettings(settingsForm.value)
-      showToast(`서비스 미디어가 성공적으로 업로드되고 즉시 자동 저장되었습니다!`, 'success')
+      showToast(`✓ ${serviceName} 미디어가 성공적으로 업로드 및 즉시 자동 저장되었습니다!`, 'success')
     }
   } catch (err) {
     console.error('Service Card File Upload Exception:', err)
@@ -3153,15 +3147,21 @@ const handleServiceCardFileUpload = async (event) => {
   }
 }
 
+// [삭제] 클릭 시 즉시 빈 값으로 DB 자동 저장
 const removeServiceCardMedia = async (serviceKey) => {
+  const serviceName = getServiceCardName(serviceKey)
   if (serviceKey === 'rocket') settingsForm.value.service_card_media_rocket = ''
   else if (serviceKey === 'purchasing') settingsForm.value.service_card_media_purchasing = ''
   else if (serviceKey === 'trade') settingsForm.value.service_card_media_trade = ''
   else if (serviceKey === 'tour') settingsForm.value.service_card_media_tour = ''
 
-  // 즉시 Supabase DB 및 LocalStorage 자동 저장 & 실시간 동기화
-  await saveSiteSettings(settingsForm.value)
-  showToast('등록된 미디어가 삭제되고 기본 다크 네이비 카드 스타일로 즉시 복원되었습니다.', 'info')
+  try {
+    await saveSiteSettings(settingsForm.value)
+    showToast(`✓ ${serviceName} 미디어가 삭제되고 기본 다크 네이비 스타일로 즉시 저장되었습니다.`, 'info')
+  } catch (err) {
+    console.error('Remove service media error:', err)
+    showToast('미디어 삭제 저장 실패: ' + (err.message || err), 'error')
+  }
 }
 
 // ----------------------------------------------------
