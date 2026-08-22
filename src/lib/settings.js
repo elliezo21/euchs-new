@@ -159,12 +159,12 @@ export const saveSiteSettings = async (settings) => {
     customs_clearance_fee: Number(settings.customs_clearance_fee) || 33000,
     fta_co_fee: Number(settings.fta_co_fee) || 33000,
     hero_media_type: settings.hero_media_type || 'video_mp4',
-    hero_media_url: settings.hero_media_url || DEFAULT_SETTINGS.hero_media_url,
-    hero_overlay_opacity: Number(settings.hero_overlay_opacity) || 65,
-    service_card_media_rocket: settings.service_card_media_rocket || '',
-    service_card_media_purchasing: settings.service_card_media_purchasing || '',
-    service_card_media_trade: settings.service_card_media_trade || '',
-    service_card_media_tour: settings.service_card_media_tour || '',
+    hero_media_url: settings.hero_media_url || '',
+    hero_overlay_opacity: Number(settings.hero_overlay_opacity) || 60,
+    service_card_media_rocket: settings.service_card_media_rocket !== undefined ? settings.service_card_media_rocket : '',
+    service_card_media_purchasing: settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : '',
+    service_card_media_trade: settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : '',
+    service_card_media_tour: settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : '',
     updated_at: new Date().toISOString()
   }
 
