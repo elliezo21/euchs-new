@@ -25,7 +25,10 @@
               loop 
               muted 
               playsinline
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              webkit-playsinline
+              x5-playsinline
+              preload="auto"
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
             ></video>
             <img 
               v-else
@@ -80,7 +83,10 @@
               loop 
               muted 
               playsinline
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              webkit-playsinline
+              x5-playsinline
+              preload="auto"
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
             ></video>
             <img 
               v-else
@@ -135,7 +141,10 @@
               loop 
               muted 
               playsinline
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              webkit-playsinline
+              x5-playsinline
+              preload="auto"
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
             ></video>
             <img 
               v-else
@@ -190,7 +199,10 @@
               loop 
               muted 
               playsinline
-              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+              webkit-playsinline
+              x5-playsinline
+              preload="auto"
+              class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
             ></video>
             <img 
               v-else
@@ -241,7 +253,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { currentSettings } from '../lib/settings'
 
 const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
@@ -254,4 +266,56 @@ const isVideoMedia = (url) => {
   const clean = url.toLowerCase().split('?')[0]
   return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.ogg') || clean.endsWith('.mov') || url.includes('/video/')
 }
+
+const attemptAutoplayVideos = () => {
+  if (typeof document === 'undefined') return
+  const videoElements = document.querySelectorAll('video')
+  videoElements.forEach((video) => {
+    video.muted = true
+    video.playsInline = true
+    video.setAttribute('muted', '')
+    video.setAttribute('playsinline', '')
+    video.setAttribute('webkit-playsinline', '')
+    video.setAttribute('x5-playsinline', '')
+
+    const playPromise = video.play()
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        console.warn('Initial mobile autoplay prevented/deferred:', err?.message || err)
+      })
+    }
+  })
+}
+
+let userInteractionListenerRegistered = false
+const enableVideoOnFirstTouch = () => {
+  attemptAutoplayVideos()
+  if (userInteractionListenerRegistered && typeof window !== 'undefined') {
+    window.removeEventListener('touchstart', enableVideoOnFirstTouch)
+    window.removeEventListener('click', enableVideoOnFirstTouch)
+    window.removeEventListener('scroll', enableVideoOnFirstTouch)
+    userInteractionListenerRegistered = false
+  }
+}
+
+onMounted(() => {
+  setTimeout(attemptAutoplayVideos, 50)
+  setTimeout(attemptAutoplayVideos, 300)
+  setTimeout(attemptAutoplayVideos, 1000)
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('touchstart', enableVideoOnFirstTouch, { passive: true, once: true })
+    window.addEventListener('click', enableVideoOnFirstTouch, { passive: true, once: true })
+    window.addEventListener('scroll', enableVideoOnFirstTouch, { passive: true, once: true })
+    userInteractionListenerRegistered = true
+  }
+
+  onUnmounted(() => {
+    if (userInteractionListenerRegistered && typeof window !== 'undefined') {
+      window.removeEventListener('touchstart', enableVideoOnFirstTouch)
+      window.removeEventListener('click', enableVideoOnFirstTouch)
+      window.removeEventListener('scroll', enableVideoOnFirstTouch)
+    }
+  })
+})
 </script>

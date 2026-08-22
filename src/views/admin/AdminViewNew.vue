@@ -921,6 +921,9 @@
                       loop 
                       muted 
                       playsinline
+                      webkit-playsinline
+                      x5-playsinline
+                      preload="auto"
                       class="absolute inset-0 w-full h-full object-cover"
                     ></video>
 
@@ -1035,6 +1038,9 @@
                           loop 
                           muted 
                           playsinline
+                          webkit-playsinline
+                          x5-playsinline
+                          preload="auto"
                           class="absolute inset-0 w-full h-full object-cover"
                         ></video>
                         <img 
@@ -1114,6 +1120,9 @@
                           loop 
                           muted 
                           playsinline
+                          webkit-playsinline
+                          x5-playsinline
+                          preload="auto"
                           class="absolute inset-0 w-full h-full object-cover"
                         ></video>
                         <img 
@@ -1193,6 +1202,9 @@
                           loop 
                           muted 
                           playsinline
+                          webkit-playsinline
+                          x5-playsinline
+                          preload="auto"
                           class="absolute inset-0 w-full h-full object-cover"
                         ></video>
                         <img 
@@ -1272,6 +1284,9 @@
                           loop 
                           muted 
                           playsinline
+                          webkit-playsinline
+                          x5-playsinline
+                          preload="auto"
                           class="absolute inset-0 w-full h-full object-cover"
                         ></video>
                         <img 

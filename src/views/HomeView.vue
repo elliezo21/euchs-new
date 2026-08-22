@@ -19,7 +19,9 @@
           muted 
           playsinline
           webkit-playsinline
-          class="w-full h-full object-cover scale-105 transition-opacity duration-700"
+          x5-playsinline
+          preload="auto"
+          class="w-full h-full object-cover scale-105 transition-opacity duration-700 bg-slate-950"
         >
           <source :src="heroMediaUrl" type="video/mp4" />
           <source src="https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm" type="video/webm" />
@@ -336,7 +338,10 @@
                 loop 
                 muted 
                 playsinline
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                webkit-playsinline
+                x5-playsinline
+                preload="auto"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
               ></video>
               <img 
                 v-else
@@ -398,7 +403,10 @@
                 loop 
                 muted 
                 playsinline
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                webkit-playsinline
+                x5-playsinline
+                preload="auto"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
               ></video>
               <img 
                 v-else
@@ -460,7 +468,10 @@
                 loop 
                 muted 
                 playsinline
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                webkit-playsinline
+                x5-playsinline
+                preload="auto"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
               ></video>
               <img 
                 v-else
@@ -522,7 +533,10 @@
                 loop 
                 muted 
                 playsinline
-                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
+                webkit-playsinline
+                x5-playsinline
+                preload="auto"
+                class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out bg-[#141e33]"
               ></video>
               <img 
                 v-else
@@ -952,6 +966,7 @@ const fetchLiveRateAndSettings = async () => {
         const fixed = Number(settings.exchange_rate) || 230
         customRate.value = String(fixed)
       }
+      setTimeout(attemptAutoplayVideos, 50)
     }
   } catch (e) {
     console.warn('Settings load fallback:', e)
@@ -1003,11 +1018,47 @@ const miniTotalKrw = computed(() => {
   return miniProductKrw.value + fee + miniFreightKrw.value + miniTaxKrw.value + customsClearanceFee.value
 })
 
+// ----------------------------------------------------
+// Mobile Video Autoplay Guarantee & Exception Handler
+// ----------------------------------------------------
+const attemptAutoplayVideos = () => {
+  if (typeof document === 'undefined') return
+  const videoElements = document.querySelectorAll('video')
+  videoElements.forEach((video) => {
+    video.muted = true
+    video.playsInline = true
+    video.setAttribute('muted', '')
+    video.setAttribute('playsinline', '')
+    video.setAttribute('webkit-playsinline', '')
+    video.setAttribute('x5-playsinline', '')
+
+    const playPromise = video.play()
+    if (playPromise !== undefined) {
+      playPromise.catch((err) => {
+        // Mobile policy might restrict background autoplay before user touch
+        console.warn('Initial mobile autoplay prevented/deferred:', err?.message || err)
+      })
+    }
+  })
+}
+
+let userInteractionListenerRegistered = false
+const enableVideoOnFirstTouch = () => {
+  attemptAutoplayVideos()
+  if (userInteractionListenerRegistered && typeof window !== 'undefined') {
+    window.removeEventListener('touchstart', enableVideoOnFirstTouch)
+    window.removeEventListener('click', enableVideoOnFirstTouch)
+    window.removeEventListener('scroll', enableVideoOnFirstTouch)
+    userInteractionListenerRegistered = false
+  }
+}
+
 // Visibility change sync
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
     fetchLiveRateAndSettings()
     fetchNoticesFeed()
+    setTimeout(attemptAutoplayVideos, 100)
   }
 }
 
@@ -1015,12 +1066,17 @@ onMounted(() => {
   fetchLiveRateAndSettings()
   fetchNoticesFeed()
 
-  // Video Autoplay Guarantee for all devices
-  setTimeout(() => {
-    if (heroVideoRef.value) {
-      heroVideoRef.value.play().catch(() => {})
-    }
-  }, 100)
+  // Video Autoplay Guarantee for mobile browsers (iOS Safari / Android Chrome / Webviews)
+  setTimeout(attemptAutoplayVideos, 50)
+  setTimeout(attemptAutoplayVideos, 300)
+  setTimeout(attemptAutoplayVideos, 1000)
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('touchstart', enableVideoOnFirstTouch, { passive: true, once: true })
+    window.addEventListener('click', enableVideoOnFirstTouch, { passive: true, once: true })
+    window.addEventListener('scroll', enableVideoOnFirstTouch, { passive: true, once: true })
+    userInteractionListenerRegistered = true
+  }
 
   const intervalId = setInterval(fetchLiveRateAndSettings, 10 * 60 * 1000)
   document.addEventListener('visibilitychange', handleVisibilityChange)
@@ -1030,6 +1086,11 @@ onMounted(() => {
     clearInterval(intervalId)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
     window.removeEventListener('focus', fetchLiveRateAndSettings)
+    if (userInteractionListenerRegistered && typeof window !== 'undefined') {
+      window.removeEventListener('touchstart', enableVideoOnFirstTouch)
+      window.removeEventListener('click', enableVideoOnFirstTouch)
+      window.removeEventListener('scroll', enableVideoOnFirstTouch)
+    }
   })
 })
 </script>
