@@ -254,7 +254,7 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted } from 'vue'
-import { currentSettings } from '../lib/settings'
+import { currentSettings, fetchSiteSettings } from '../lib/settings'
 
 const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
 const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
@@ -305,7 +305,8 @@ const handleSettingsSync = (e) => {
   setTimeout(attemptAutoplayVideos, 50)
 }
 
-onMounted(() => {
+onMounted(async () => {
+  await fetchSiteSettings()
   setTimeout(attemptAutoplayVideos, 50)
   setTimeout(attemptAutoplayVideos, 300)
   setTimeout(attemptAutoplayVideos, 1000)

@@ -108,24 +108,33 @@ CREATE POLICY "Public notices bucket update" ON storage.objects FOR UPDATE USING
 DROP POLICY IF EXISTS "Public notices bucket delete" ON storage.objects;
 CREATE POLICY "Public notices bucket delete" ON storage.objects FOR DELETE USING (bucket_id = 'notices');
 
--- 5. 사이트 환경설정 & 환율/수수료/히어로 비주얼 테이블 (site_settings)
+-- 5. 사이트 환경설정 & 환율/수수료/히어로 및 4대 서비스 미디어 테이블 (site_settings)
 CREATE TABLE IF NOT EXISTS site_settings (
   id TEXT PRIMARY KEY DEFAULT 'default',
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   exchange_rate_mode TEXT DEFAULT 'manual', -- 'manual' | 'auto_margin'
-  exchange_rate NUMERIC DEFAULT 195.0,
+  exchange_rate NUMERIC DEFAULT 230.0,
   rate_margin NUMERIC DEFAULT 1.5,
   agency_fee_rate NUMERIC DEFAULT 8.0,
-  sea_cbm_rate NUMERIC DEFAULT 85000,
+  sea_cbm_rate NUMERIC DEFAULT 98000,
   customs_clearance_fee NUMERIC DEFAULT 33000,
   fta_co_fee NUMERIC DEFAULT 33000,
   hero_media_type TEXT DEFAULT 'video_mp4', -- 'video_mp4' | 'youtube' | 'image'
-  hero_media_url TEXT DEFAULT 'https://assets.mixkit.co/videos/preview/mixkit-cargo-ship-sailing-in-the-ocean-43288-large.mp4',
-  hero_overlay_opacity NUMERIC DEFAULT 65
+  hero_media_url TEXT DEFAULT 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm',
+  hero_overlay_opacity NUMERIC DEFAULT 60,
+  service_card_media_rocket TEXT DEFAULT '',
+  service_card_media_purchasing TEXT DEFAULT '',
+  service_card_media_trade TEXT DEFAULT '',
+  service_card_media_tour TEXT DEFAULT ''
 );
 
+ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS service_card_media_rocket TEXT DEFAULT '';
+ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS service_card_media_purchasing TEXT DEFAULT '';
+ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS service_card_media_trade TEXT DEFAULT '';
+ALTER TABLE site_settings ADD COLUMN IF NOT EXISTS service_card_media_tour TEXT DEFAULT '';
+
 INSERT INTO site_settings (id, exchange_rate, agency_fee_rate, sea_cbm_rate, customs_clearance_fee, fta_co_fee, hero_media_type, hero_media_url, hero_overlay_opacity)
-VALUES ('default', 195.0, 8.0, 85000, 33000, 33000, 'video_mp4', 'https://assets.mixkit.co/videos/preview/mixkit-cargo-ship-sailing-in-the-ocean-43288-large.mp4', 65)
+VALUES ('default', 230.0, 8.0, 98000, 33000, 33000, 'video_mp4', 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm', 60)
 ON CONFLICT (id) DO NOTHING;
 
 ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;

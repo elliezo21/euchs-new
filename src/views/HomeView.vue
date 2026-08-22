@@ -921,6 +921,7 @@ const fetchNoticesFeed = async () => {
       const { data, error } = await supabase
         .from('notices')
         .select('*')
+        .neq('category', 'system_config')
         .order('created_at', { ascending: false })
         .limit(5)
 
@@ -958,15 +959,6 @@ const fetchLiveRateAndSettings = async () => {
       seaCbmRate.value = Number(settings.sea_cbm_rate) || 98000
       customsClearanceFee.value = Number(settings.customs_clearance_fee) || 33000
       ftaCoFee.value = Number(settings.fta_co_fee) || 33000
-
-      // Hero Media Bindings
-      heroMediaType.value = settings.hero_media_type || 'video_mp4'
-      let mediaUrl = settings.hero_media_url || ''
-      if (!mediaUrl || mediaUrl.includes('assets.mixkit.co')) {
-        mediaUrl = 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm'
-      }
-      heroMediaUrl.value = mediaUrl
-      heroOverlayOpacity.value = Number(settings.hero_overlay_opacity) !== undefined && !isNaN(Number(settings.hero_overlay_opacity)) ? Number(settings.hero_overlay_opacity) : 60
 
       if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
         const calculated = Number((liveNum + rateMargin.value).toFixed(2))

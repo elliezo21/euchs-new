@@ -70,9 +70,14 @@ USING (
 );
 
 
--- 2. site_settings 테이블 (환율, 수수료율, 메인 히어로 비주얼 등)
+-- 2. site_settings 테이블 (환율, 수수료율, 메인 히어로 비주얼 & 4대 서비스 미디어 등)
 -- ------------------------------------------------------------------------------
 ALTER TABLE IF EXISTS site_settings ENABLE ROW LEVEL SECURITY;
+
+ALTER TABLE IF EXISTS site_settings ADD COLUMN IF NOT EXISTS service_card_media_rocket TEXT DEFAULT '';
+ALTER TABLE IF EXISTS site_settings ADD COLUMN IF NOT EXISTS service_card_media_purchasing TEXT DEFAULT '';
+ALTER TABLE IF EXISTS site_settings ADD COLUMN IF NOT EXISTS service_card_media_trade TEXT DEFAULT '';
+ALTER TABLE IF EXISTS site_settings ADD COLUMN IF NOT EXISTS service_card_media_tour TEXT DEFAULT '';
 
 DROP POLICY IF EXISTS "Public can view site settings" ON site_settings;
 DROP POLICY IF EXISTS "Authenticated admins can update site settings" ON site_settings;

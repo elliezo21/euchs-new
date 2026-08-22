@@ -2639,6 +2639,7 @@ const fetchNotices = async () => {
       const { data, error } = await supabase
         .from('notices')
         .select('*')
+        .neq('category', 'system_config')
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false })
 

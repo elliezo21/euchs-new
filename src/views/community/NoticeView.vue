@@ -349,6 +349,7 @@ const fetchNotices = async () => {
       const { data, error } = await supabase
         .from('notices')
         .select('*')
+        .neq('category', 'system_config')
         .order('created_at', { ascending: false })
 
       if (!error && data && data.length > 0) {
