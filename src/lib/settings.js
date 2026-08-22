@@ -107,10 +107,31 @@ export const fetchSiteSettings = async () => {
         if (dbData.hero_media_url !== undefined && dbData.hero_media_url !== null) merged.hero_media_url = dbData.hero_media_url
         if (dbData.hero_overlay_opacity !== undefined && dbData.hero_overlay_opacity !== null) merged.hero_overlay_opacity = Number(dbData.hero_overlay_opacity)
 
-        if (dbData.service_card_media_rocket !== undefined && dbData.service_card_media_rocket !== null) merged.service_card_media_rocket = dbData.service_card_media_rocket
-        if (dbData.service_card_media_purchasing !== undefined && dbData.service_card_media_purchasing !== null) merged.service_card_media_purchasing = dbData.service_card_media_purchasing
-        if (dbData.service_card_media_trade !== undefined && dbData.service_card_media_trade !== null) merged.service_card_media_trade = dbData.service_card_media_trade
-        if (dbData.service_card_media_tour !== undefined && dbData.service_card_media_tour !== null) merged.service_card_media_tour = dbData.service_card_media_tour
+        // 4대 서비스 카드 미디어: 개별 컬럼 우선 -> hero_cards_media JSON -> 기존 값
+        const heroCards = dbData.hero_cards_media || dbData.service_media || {}
+        if (dbData.service_card_media_rocket !== undefined && dbData.service_card_media_rocket !== null) {
+          merged.service_card_media_rocket = dbData.service_card_media_rocket
+        } else if (heroCards.rocket || heroCards.card1) {
+          merged.service_card_media_rocket = heroCards.rocket || heroCards.card1
+        }
+
+        if (dbData.service_card_media_purchasing !== undefined && dbData.service_card_media_purchasing !== null) {
+          merged.service_card_media_purchasing = dbData.service_card_media_purchasing
+        } else if (heroCards.purchasing || heroCards.card2) {
+          merged.service_card_media_purchasing = heroCards.purchasing || heroCards.card2
+        }
+
+        if (dbData.service_card_media_trade !== undefined && dbData.service_card_media_trade !== null) {
+          merged.service_card_media_trade = dbData.service_card_media_trade
+        } else if (heroCards.trade || heroCards.card3) {
+          merged.service_card_media_trade = heroCards.trade || heroCards.card3
+        }
+
+        if (dbData.service_card_media_tour !== undefined && dbData.service_card_media_tour !== null) {
+          merged.service_card_media_tour = dbData.service_card_media_tour
+        } else if (heroCards.tour || heroCards.card4) {
+          merged.service_card_media_tour = heroCards.tour || heroCards.card4
+        }
       }
 
       currentSettings.value = { ...merged }
@@ -132,7 +153,7 @@ export const fetchSiteSettings = async () => {
 }
 
 /**
- * Supabase site_settings 테이블 및 시스템 백업에 설정값 강제 저장 (Multi-Tier Upsert)
+ * Supabase site_settings 테이블 및 시스템 백업에 설정값 강제 저장 (Hero Media와 100% 동일한 저장 파이프라인)
  */
 export const saveSiteSettings = async (settings) => {
   const payload = {
@@ -151,6 +172,16 @@ export const saveSiteSettings = async (settings) => {
     service_card_media_purchasing: settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : '',
     service_card_media_trade: settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : '',
     service_card_media_tour: settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : '',
+    hero_cards_media: {
+      card1: settings.service_card_media_rocket !== undefined ? settings.service_card_media_rocket : '',
+      card2: settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : '',
+      card3: settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : '',
+      card4: settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : '',
+      rocket: settings.service_card_media_rocket !== undefined ? settings.service_card_media_rocket : '',
+      purchasing: settings.service_card_media_purchasing !== undefined ? settings.service_card_media_purchasing : '',
+      trade: settings.service_card_media_trade !== undefined ? settings.service_card_media_trade : '',
+      tour: settings.service_card_media_tour !== undefined ? settings.service_card_media_tour : ''
+    },
     updated_at: new Date().toISOString()
   }
 
