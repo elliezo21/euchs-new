@@ -14,7 +14,7 @@
       <!-- 4 Cards Grid -->
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
         
-        <!-- Card 1: 쿠팡 배송대행 / 로켓배송 -->
+          <!-- Card 1: 쿠팡 배송대행 / 로켓배송 -->
         <div class="group relative rounded-3xl overflow-hidden shadow-xl shadow-black/60 hover:shadow-2xl hover:shadow-red-500/20 transition-all duration-500 transform hover:-translate-y-1.5 flex flex-col justify-between border border-slate-700/80 hover:border-red-500/80 p-6 min-h-[380px] bg-[#141e33]">
           <!-- Dynamic Moving Background (Only when registered) -->
           <div v-if="serviceMediaRocket" class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
@@ -35,7 +35,7 @@
               :src="serviceMediaRocket" 
               alt="쿠팡 로켓 배송 입고 대행"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-              loading="lazy"
+              loading="eager"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
@@ -93,7 +93,7 @@
               :src="serviceMediaPurchasing" 
               alt="구매대행 안내"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-              loading="lazy"
+              loading="eager"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
@@ -151,7 +151,7 @@
               :src="serviceMediaTrade" 
               alt="무역대행 안내"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-              loading="lazy"
+              loading="eager"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
@@ -209,7 +209,7 @@
               :src="serviceMediaTour" 
               alt="이우 시장조사 투어"
               class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700 ease-out"
-              loading="lazy"
+              loading="eager"
             />
             <div class="absolute inset-0 bg-black/65 group-hover:bg-black/55 transition-colors duration-500"></div>
             <div class="absolute inset-0 bg-gradient-to-t from-[#070b14]/95 via-black/60 to-black/35"></div>
@@ -254,18 +254,12 @@
 
 <script setup>
 import { computed, onMounted, onUnmounted } from 'vue'
-import { currentSettings, fetchSiteSettings } from '../lib/settings'
+import { currentSettings, fetchSiteSettings, isVideoMedia } from '../lib/settings'
 
 const serviceMediaRocket = computed(() => currentSettings.value?.service_card_media_rocket || '')
 const serviceMediaPurchasing = computed(() => currentSettings.value?.service_card_media_purchasing || '')
 const serviceMediaTrade = computed(() => currentSettings.value?.service_card_media_trade || '')
 const serviceMediaTour = computed(() => currentSettings.value?.service_card_media_tour || '')
-
-const isVideoMedia = (url) => {
-  if (!url) return false
-  const clean = url.toLowerCase().split('?')[0]
-  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.ogg') || clean.endsWith('.mov') || url.includes('/video/')
-}
 
 const attemptAutoplayVideos = () => {
   if (typeof document === 'undefined') return

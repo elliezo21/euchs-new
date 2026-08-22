@@ -168,6 +168,37 @@ USING (
 )
 WITH CHECK (true);
 
+-- [site_settings RLS - 환경설정 및 4대 서비스 미디어 퍼블릭 읽기/쓰기]
+CREATE TABLE IF NOT EXISTS public.site_settings (
+  id TEXT PRIMARY KEY DEFAULT 'default',
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  exchange_rate_mode TEXT DEFAULT 'manual',
+  exchange_rate NUMERIC DEFAULT 230.0,
+  rate_margin NUMERIC DEFAULT 1.5,
+  agency_fee_rate NUMERIC DEFAULT 8.0,
+  sea_cbm_rate NUMERIC DEFAULT 98000,
+  customs_clearance_fee NUMERIC DEFAULT 33000,
+  fta_co_fee NUMERIC DEFAULT 33000,
+  hero_media_type TEXT DEFAULT 'video_mp4',
+  hero_media_url TEXT DEFAULT 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm',
+  hero_overlay_opacity NUMERIC DEFAULT 60,
+  service_card_media_rocket TEXT DEFAULT '',
+  service_card_media_purchasing TEXT DEFAULT '',
+  service_card_media_trade TEXT DEFAULT '',
+  service_card_media_tour TEXT DEFAULT ''
+);
+
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS service_card_media_rocket TEXT DEFAULT '';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS service_card_media_purchasing TEXT DEFAULT '';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS service_card_media_trade TEXT DEFAULT '';
+ALTER TABLE public.site_settings ADD COLUMN IF NOT EXISTS service_card_media_tour TEXT DEFAULT '';
+
+ALTER TABLE public.site_settings ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Allow public read access" ON public.site_settings;
+DROP POLICY IF EXISTS "Allow public all access" ON public.site_settings;
+DROP POLICY IF EXISTS "Public all site_settings" ON public.site_settings;
+CREATE POLICY "Allow public read access" ON public.site_settings FOR SELECT TO public USING (true);
+CREATE POLICY "Allow public all access" ON public.site_settings FOR ALL TO public USING (true) WITH CHECK (true);
 
 -- ------------------------------------------------------------------------------
 -- 7. 기존 auth.users 계정 프로필 동기화

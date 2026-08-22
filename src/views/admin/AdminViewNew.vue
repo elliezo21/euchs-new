@@ -2056,7 +2056,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { supabase, isSupabaseConfigured } from '../../lib/supabase'
-import { fetchSiteSettings, saveSiteSettings, DEFAULT_SETTINGS } from '../../lib/settings'
+import { fetchSiteSettings, saveSiteSettings, DEFAULT_SETTINGS, isVideoMedia } from '../../lib/settings'
 import { currentUser, userRole, checkUserRole, isSuperAdmin, signOut } from '../../lib/auth'
 import { getVisitorStats } from '../../lib/analytics'
 
@@ -2973,12 +2973,6 @@ const isUploadingServiceCard = ref({
   trade: false,
   tour: false
 })
-
-const isVideoMedia = (url) => {
-  if (!url) return false
-  const clean = url.toLowerCase().split('?')[0]
-  return clean.endsWith('.mp4') || clean.endsWith('.webm') || clean.endsWith('.ogg') || clean.endsWith('.mov') || url.includes('/video/')
-}
 
 const triggerServiceCardUpload = (serviceKey) => {
   currentServiceUploadType.value = serviceKey

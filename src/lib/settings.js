@@ -1,6 +1,18 @@
 import { ref } from 'vue'
 import { supabase, isSupabaseConfigured } from './supabase'
 
+/**
+ * 미디어 URL의 비디오 여부 판별 공통 헬퍼 (mp4, webm, mov, ogg, avi, mkv 등)
+ */
+export const isVideoMedia = (url) => {
+  if (!url || typeof url !== 'string') return false
+  const clean = url.toLowerCase().split('?')[0].split('#')[0].trim()
+  const videoExtensions = ['.mp4', '.webm', '.ogg', '.mov', '.m4v', '.avi', '.mkv']
+  if (videoExtensions.some(ext => clean.endsWith(ext))) return true
+  if (clean.includes('/video/') || clean.includes('video_') || clean.includes('format=mp4') || clean.includes('format=webm')) return true
+  return false
+}
+
 export const DEFAULT_SETTINGS = {
   id: 'default',
   exchange_rate_mode: 'manual', // 'manual' | 'auto_margin'
@@ -14,11 +26,11 @@ export const DEFAULT_SETTINGS = {
   hero_media_type: 'video_mp4', // 'video_mp4' | 'youtube' | 'image'
   hero_media_url: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm',
   hero_overlay_opacity: 60, // 30 ~ 90 (%)
-  // 4대 핵심 서비스 카드 미디어 배경 설정 (미등록 시 기본 다크 네이비 카드 스타일)
-  service_card_media_rocket: '',
-  service_card_media_purchasing: '',
-  service_card_media_trade: '',
-  service_card_media_tour: '',
+  // 4대 핵심 서비스 카드 기본 미디어 URL (DB 통신 지연/실패 시에도 모바일 화면이 비어있지 않도록 보장)
+  service_card_media_rocket: 'https://upload.wikimedia.org/wikipedia/commons/transcoded/7/7a/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm/Container_Ship_Dashcam_Around_The_World_In_70_Days_Timelapse%2C_4k%2C_60fps.webm.480p.vp9.webm',
+  service_card_media_purchasing: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?auto=format&fit=crop&w=800&q=80',
+  service_card_media_trade: 'https://images.unsplash.com/photo-1581091226825-a6a2a5aee158?auto=format&fit=crop&w=800&q=80',
+  service_card_media_tour: 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?auto=format&fit=crop&w=800&q=80',
   updated_at: new Date().toISOString()
 }
 
@@ -29,10 +41,10 @@ export const isSettingsLoading = ref(false)
 /**
  * Supabase DB(site_settings, notices system backup), Storage 및 LocalStorage에서 최신 설정값 조회
  */
-export const fetchSiteSettings = async () => {
+export const fetchSiteSettings = async (retryCount = 2) => {
   isSettingsLoading.value = true
   try {
-    let merged = { ...currentSettings.value }
+    let merged = { ...DEFAULT_SETTINGS, ...currentSettings.value }
 
     // 1. LocalStorage 캐시 먼저 읽기 (즉시 렌더링용)
     try {
@@ -45,6 +57,7 @@ export const fetchSiteSettings = async () => {
 
     // 2. Supabase DB site_settings 테이블 조회 (최우선)
     if (isSupabaseConfigured()) {
+      let dbSuccess = false
       try {
         const { data: dbData, error: dbError } = await supabase
           .from('site_settings')
@@ -53,6 +66,7 @@ export const fetchSiteSettings = async () => {
           .maybeSingle()
 
         if (!dbError && dbData) {
+          dbSuccess = true
           merged = {
             ...merged,
             ...dbData,
@@ -66,18 +80,21 @@ export const fetchSiteSettings = async () => {
             hero_media_type: dbData.hero_media_type || DEFAULT_SETTINGS.hero_media_type,
             hero_media_url: dbData.hero_media_url || DEFAULT_SETTINGS.hero_media_url,
             hero_overlay_opacity: Number(dbData.hero_overlay_opacity) || DEFAULT_SETTINGS.hero_overlay_opacity,
-            service_card_media_rocket: dbData.service_card_media_rocket !== undefined ? dbData.service_card_media_rocket : merged.service_card_media_rocket,
-            service_card_media_purchasing: dbData.service_card_media_purchasing !== undefined ? dbData.service_card_media_purchasing : merged.service_card_media_purchasing,
-            service_card_media_trade: dbData.service_card_media_trade !== undefined ? dbData.service_card_media_trade : merged.service_card_media_trade,
-            service_card_media_tour: dbData.service_card_media_tour !== undefined ? dbData.service_card_media_tour : merged.service_card_media_tour
+            service_card_media_rocket: (dbData.service_card_media_rocket !== undefined && dbData.service_card_media_rocket !== '') ? dbData.service_card_media_rocket : merged.service_card_media_rocket,
+            service_card_media_purchasing: (dbData.service_card_media_purchasing !== undefined && dbData.service_card_media_purchasing !== '') ? dbData.service_card_media_purchasing : merged.service_card_media_purchasing,
+            service_card_media_trade: (dbData.service_card_media_trade !== undefined && dbData.service_card_media_trade !== '') ? dbData.service_card_media_trade : merged.service_card_media_trade,
+            service_card_media_tour: (dbData.service_card_media_tour !== undefined && dbData.service_card_media_tour !== '') ? dbData.service_card_media_tour : merged.service_card_media_tour
           }
+          console.info('[SiteSettings] Successfully fetched live settings from Supabase DB.')
+        } else if (dbError) {
+          console.warn('[SiteSettings] Supabase site_settings query notice:', dbError.message || dbError)
         }
       } catch (err) {
-        console.warn('Supabase site_settings query fallback:', err)
+        console.warn('[SiteSettings] Supabase query exception:', err)
       }
 
-      // 3. 만약 4대 서비스 카드 미디어가 비어있다면, DB System Config Backup 조회
-      if (!merged.service_card_media_rocket && !merged.service_card_media_purchasing && !merged.service_card_media_trade && !merged.service_card_media_tour) {
+      // 3. 만약 DB 컬럼이 없거나 비어있을 경우, DB System Config Backup 조회
+      if (!dbSuccess || !merged.service_card_media_rocket || !merged.service_card_media_purchasing) {
         try {
           const { data: backupNotice } = await supabase
             .from('notices')
@@ -89,6 +106,7 @@ export const fetchSiteSettings = async () => {
           if (backupNotice && backupNotice.content) {
             const parsedBackup = JSON.parse(backupNotice.content)
             merged = { ...merged, ...parsedBackup }
+            console.info('[SiteSettings] Synced from DB system config backup notice.')
           }
         } catch (e) {}
 
@@ -100,9 +118,15 @@ export const fetchSiteSettings = async () => {
             if (storageRes.ok) {
               const storageJson = await storageRes.json()
               merged = { ...merged, ...storageJson }
+              console.info('[SiteSettings] Synced from Supabase storage site_settings.json.')
             }
           }
         } catch (e) {}
+      }
+
+      // 5. 첫 조회 실패 시 1초 후 재시도
+      if (!dbSuccess && retryCount > 0) {
+        setTimeout(() => fetchSiteSettings(retryCount - 1), 1000)
       }
     }
 
@@ -114,7 +138,7 @@ export const fetchSiteSettings = async () => {
 
     return currentSettings.value
   } catch (err) {
-    console.warn('Fetch site_settings error fallback to defaults:', err)
+    console.error('[SiteSettings] Fetch site_settings fallback to defaults:', err)
   } finally {
     isSettingsLoading.value = false
   }
@@ -167,7 +191,7 @@ export const saveSiteSettings = async (settings) => {
         .upsert(payload, { onConflict: 'id' })
 
       if (upsertError) {
-        console.warn('site_settings full upsert warning (fallback to basic columns):', upsertError)
+        console.warn('[SiteSettings] site_settings full upsert notice (saving standard columns):', upsertError)
         // 만약 추가된 컬럼이 테이블에 없어 오류가 발생한 경우, 기본 컬럼만으로 저장 시도
         const basicPayload = {
           id: 'default',
@@ -186,7 +210,7 @@ export const saveSiteSettings = async (settings) => {
         await supabase.from('site_settings').upsert(basicPayload, { onConflict: 'id' })
       }
     } catch (e) {
-      console.warn('site_settings save error:', e)
+      console.warn('[SiteSettings] site_settings save error:', e)
     }
 
     // 3-2. DB notices 테이블에 시스템 설정 백업 저장 (DB 수준 글로벌 동기화)
@@ -215,7 +239,7 @@ export const saveSiteSettings = async (settings) => {
         await supabase.from('notices').insert(backupNoticePayload)
       }
     } catch (noticeErr) {
-      console.warn('Notices system backup save error:', noticeErr)
+      console.warn('[SiteSettings] Notices system backup save notice:', noticeErr)
     }
 
     // 3-3. Supabase Public Storage에 site_settings.json 저장 (모바일 직접 접근용)
@@ -229,7 +253,7 @@ export const saveSiteSettings = async (settings) => {
           contentType: 'application/json'
         })
     } catch (storageErr) {
-      console.warn('Storage settings backup save error:', storageErr)
+      console.warn('[SiteSettings] Storage settings backup save notice:', storageErr)
     }
   }
 
