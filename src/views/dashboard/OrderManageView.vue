@@ -620,7 +620,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
 import {
   Search,
   UploadCloud,
@@ -645,6 +646,9 @@ import {
   getOrderStatusBadgeClass
 } from '@/lib/orderPipeline';
 
+const route = useRoute();
+const router = useRouter();
+
 // ---------------------------------------------------------
 // 상태 관리 (Tabs & Filters)
 // ---------------------------------------------------------
@@ -663,6 +667,20 @@ const statusTabs = [
 ];
 
 const selectedTab = ref('all');
+
+watch(() => route.query.tab, (newTab) => {
+  if (!newTab || newTab === 'all') {
+    selectedTab.value = 'all';
+  } else if (newTab === 'quote' || newTab === 'quote_pending') {
+    selectedTab.value = 'quote_pending';
+  } else if (newTab === 'purchasing') {
+    selectedTab.value = 'purchasing';
+  } else if (newTab === 'warehouse' || newTab === 'warehouse_in') {
+    selectedTab.value = 'warehouse_in';
+  } else {
+    selectedTab.value = normalizeOrderStatus(newTab);
+  }
+}, { immediate: true });
 const searchQuery = ref('');
 const dateFilter = ref('all');
 const sortBy = ref('latest');
