@@ -637,19 +637,29 @@ import {
 } from 'lucide-vue-next';
 import { exportQuoteToExcel, parseOrderExcel } from '@/utils/excelHandler';
 import { calculateImportCost, formatCurrency } from '@/utils/costCalculator';
+import {
+  PIPELINE_STATUSES,
+  normalizeOrderStatus,
+  getOrderStatusLabel,
+  getOrderStatusShortLabel,
+  getOrderStatusBadgeClass
+} from '@/lib/orderPipeline';
 
 // ---------------------------------------------------------
 // 상태 관리 (Tabs & Filters)
 // ---------------------------------------------------------
 const statusTabs = [
   { id: 'all', label: '전체' },
-  { id: 'quote_request', label: '견적요청' },
-  { id: 'pending_payment', label: '결제대기' },
-  { id: 'purchasing', label: '현지구매중' },
-  { id: 'in_warehouse', label: 'EUC창고입고' },
-  { id: 'customs', label: '선적/통관' },
-  { id: 'domestic_delivery', label: '국내배송' },
-  { id: 'completed', label: '완료' },
+  { id: 'quote_pending', label: '1. 견적대기' },
+  { id: 'quote_confirmed', label: '2. 결제대기' },
+  { id: 'payment_verified', label: '3. 결제확인' },
+  { id: 'purchasing', label: '4. 구매진행' },
+  { id: 'warehouse_in', label: '5. 창고입고' },
+  { id: 'inspection_done', label: '6. 검수완료' },
+  { id: 'shipping_ready', label: '7. 선적대기' },
+  { id: 'customs_clearance', label: '8. 수입통관' },
+  { id: 'domestic_shipping', label: '9. 국내배송' },
+  { id: 'delivered', label: '10. 배송완료' },
 ];
 
 const selectedTab = ref('all');
@@ -853,15 +863,12 @@ onMounted(() => {
   refreshCostSummaries();
 });
 
-// ---------------------------------------------------------
-// 필터링 및 카운트 연산 (Computed)
-// ---------------------------------------------------------
 const filteredOrders = computed(() => {
   let list = [...orders.value];
 
   // 1. 탭 필터링
   if (selectedTab.value !== 'all') {
-    list = list.filter((ord) => ord.status === selectedTab.value);
+    list = list.filter((ord) => normalizeOrderStatus(ord.status) === selectedTab.value);
   }
 
   // 2. 검색어 필터링
@@ -895,7 +902,7 @@ const filteredOrders = computed(() => {
 
 function getTabCount(tabId) {
   if (tabId === 'all') return orders.value.length;
-  return orders.value.filter((ord) => ord.status === tabId).length;
+  return orders.value.filter((ord) => normalizeOrderStatus(ord.status) === tabId).length;
 }
 
 const isAllSelected = computed(() => {
@@ -921,29 +928,11 @@ function getOrderTotalQuantity(order) {
 // 상태별 레이블 및 뱃지 스타일 헬퍼
 // ---------------------------------------------------------
 function getStatusLabel(status) {
-  const map = {
-    quote_request: '견적요청',
-    pending_payment: '결제대기',
-    purchasing: '현지구매중',
-    in_warehouse: 'EUC창고입고',
-    customs: '선적/통관',
-    domestic_delivery: '국내배송',
-    completed: '완료',
-  };
-  return map[status] || status || '진행중';
+  return getOrderStatusShortLabel(status) || getOrderStatusLabel(status) || status;
 }
 
 function getStatusBadgeClass(status) {
-  const map = {
-    quote_request: 'bg-amber-50 text-amber-700 border border-amber-200',
-    pending_payment: 'bg-rose-50 text-rose-700 border border-rose-200',
-    purchasing: 'bg-blue-50 text-blue-700 border border-blue-200',
-    in_warehouse: 'bg-indigo-50 text-indigo-700 border border-indigo-200',
-    customs: 'bg-purple-50 text-purple-700 border border-purple-200',
-    domestic_delivery: 'bg-teal-50 text-teal-700 border border-teal-200',
-    completed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
-  };
-  return map[status] || 'bg-gray-100 text-gray-700';
+  return getOrderStatusBadgeClass(status);
 }
 
 function handleImgError(e) {

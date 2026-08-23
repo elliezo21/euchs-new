@@ -384,16 +384,14 @@
                   </td>
                   <td class="py-3.5 px-4 text-center" @click.stop>
                     <select 
-                      v-model="app.status" 
-                      @change="updateAppStatus(app.id, app.status)"
-                      class="px-2.5 py-1 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-blue-500 cursor-pointer"
-                      :class="getStatusClass(app.status)"
+                      :value="normalizeOrderStatus(app.status)" 
+                      @change="updateAppStatus(app.id, $event.target.value)"
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-amber-500 cursor-pointer"
+                      :class="getOrderStatusBadgeClass(app.status)"
                     >
-                      <option value="pending">접수 대기</option>
-                      <option value="consulting">상담 진행 중</option>
-                      <option value="quoted">견적 완료</option>
-                      <option value="completed">처리 완료</option>
-                      <option value="cancelled">취소/보류</option>
+                      <option v-for="st in PIPELINE_STATUSES" :key="st.key" :value="st.key">
+                        {{ st.label }}
+                      </option>
                     </select>
                   </td>
                   <td class="py-3.5 px-4 text-center" @click.stop>
@@ -2045,16 +2043,14 @@
           <div class="flex items-center gap-2">
             <span class="text-slate-400 font-bold text-xs">진행 상태:</span>
             <select 
-              v-model="selectedApp.status" 
-              @change="updateAppStatus(selectedApp.id, selectedApp.status)"
+              :value="normalizeOrderStatus(selectedApp.status)" 
+              @change="updateAppStatus(selectedApp.id, $event.target.value)"
               class="px-3 py-1.5 rounded-xl bg-slate-950 border border-slate-700 text-xs font-bold outline-none cursor-pointer"
-              :class="getStatusClass(selectedApp.status)"
+              :class="getOrderStatusBadgeClass(selectedApp.status)"
             >
-              <option value="pending">접수 대기</option>
-              <option value="consulting">상담 진행 중</option>
-              <option value="quoted">견적 완료</option>
-              <option value="completed">처리 완료</option>
-              <option value="cancelled">취소/보류</option>
+              <option v-for="st in PIPELINE_STATUSES" :key="st.key" :value="st.key">
+                {{ st.label }}
+              </option>
             </select>
           </div>
 
@@ -2146,6 +2142,13 @@ import { fetchSiteSettings, saveSiteSettings, updateServiceMedia, DEFAULT_SETTIN
 import { currentUser, userRole, checkUserRole, isSuperAdmin, signOut } from '../../lib/auth'
 import { getVisitorStats } from '../../lib/analytics'
 import AdminWarehouseModal from '../../components/admin/AdminWarehouseModal.vue'
+import {
+  PIPELINE_STATUSES,
+  normalizeOrderStatus,
+  getOrderStatusLabel,
+  getOrderStatusBadgeClass,
+  updateApplicationOrderStatus
+} from '../../lib/orderPipeline'
 
 const router = useRouter()
 const route = useRoute()
@@ -2319,17 +2322,15 @@ const fetchApplications = async () => {
 
 const updateAppStatus = async (id, status) => {
   try {
-    if (isSupabaseConfigured()) {
-      const { error } = await supabase
-        .from('applications')
-        .update({ status })
-        .eq('id', id)
-
-      if (error) {
-        console.error('Status update error:', error)
-        alert('상태 업데이트 실패: ' + error.message)
-      }
+    const normalized = await updateApplicationOrderStatus(id, status)
+    const target = applications.value.find(a => a.id === id)
+    if (target) {
+      target.status = normalized
     }
+    if (selectedApp.value && selectedApp.value.id === id) {
+      selectedApp.value.status = normalized
+    }
+    showToast(`진행 상태가 '${getOrderStatusLabel(normalized)}' (으)로 변경되었습니다.`)
   } catch (err) {
     console.error('Status update exception:', err)
   }

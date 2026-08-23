@@ -529,74 +529,74 @@
 
               <div class="grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-gray-200 text-center text-xs">
                 
-                <!-- Step 1: 견적대기 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_quote', '견적대기')">
-                  <div class="text-gray-600 font-medium">견적대기</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">{{ savedItems.length }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">보관함 품목</div>
+                <!-- Step 1: 견적대기 (quote_pending) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_quote', 'quote_pending')">
+                  <div class="text-gray-600 font-medium">1. 견적대기</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">{{ getPipelineCount('quote_pending') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">견적 요청/보관함</div>
                 </div>
 
-                <!-- Step 2: 고객확인 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', '고객확인')">
-                  <div class="text-gray-600 font-medium">고객확인</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">견적서 검토</div>
+                <!-- Step 2: 결제대기 (quote_confirmed) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', 'quote_confirmed')">
+                  <div class="text-gray-600 font-medium">2. 결제대기</div>
+                  <div class="text-2xl font-bold text-orange-600 mt-1 font-mono">{{ getPipelineCount('quote_confirmed') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">견적서 검토/확인</div>
                 </div>
 
-                <!-- Step 3: 고객결제 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', '고객결제')">
-                  <div class="text-gray-600 font-medium">고객결제</div>
-                  <div class="text-2xl font-bold text-orange-600 mt-1 font-mono">0</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">결제 대기</div>
+                <!-- Step 3: 결제확인 (payment_verified) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', 'payment_verified')">
+                  <div class="text-gray-600 font-medium">3. 결제확인</div>
+                  <div class="text-2xl font-bold text-blue-600 mt-1 font-mono">{{ getPipelineCount('payment_verified') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">입금 확인 완료</div>
                 </div>
 
-                <!-- Step 4: 결제심사 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', '결제심사')">
-                  <div class="text-gray-600 font-medium">결제심사</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">입금 확인중</div>
-                </div>
-
-                <!-- Step 5: 구매진행 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_purchase', '구매진행')">
-                  <div class="text-gray-600 font-medium">구매진행</div>
-                  <div class="text-2xl font-bold text-blue-600 mt-1 font-mono">{{ submittedOrders.length }}</div>
+                <!-- Step 4: 구매진행 (purchasing) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_purchase', 'purchasing')">
+                  <div class="text-gray-600 font-medium">4. 구매진행</div>
+                  <div class="text-2xl font-bold text-indigo-600 mt-1 font-mono">{{ getPipelineCount('purchasing') }}</div>
                   <div class="text-[11px] text-gray-400 mt-0.5">1688 공장발주</div>
                 </div>
 
-                <!-- Step 6: 입고완료 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_inbound')">
-                  <div class="text-gray-600 font-medium">입고완료</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">이우/위해 창고</div>
+                <!-- Step 5: 창고입고 (warehouse_in) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_inbound', 'warehouse_in')">
+                  <div class="text-gray-600 font-medium">5. 창고입고</div>
+                  <div class="text-2xl font-bold text-cyan-600 mt-1 font-mono">{{ getPipelineCount('warehouse_in') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">이우 물류센터 계근</div>
                 </div>
 
-                <!-- Step 7: 출고대기 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_outbound')">
-                  <div class="text-gray-600 font-medium">출고대기</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">선적/항공 준비</div>
+                <!-- Step 6: 검수완료 (inspection_done) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_inbound', 'inspection_done')">
+                  <div class="text-gray-600 font-medium">6. 검수완료</div>
+                  <div class="text-2xl font-bold text-teal-600 mt-1 font-mono">{{ getPipelineCount('inspection_done') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">정밀 실사 등록</div>
                 </div>
 
-                <!-- Step 8: 부분출고 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_outbound')">
-                  <div class="text-gray-600 font-medium">부분출고</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">분할 선적</div>
+                <!-- Step 7: 선적대기 (shipping_ready) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_outbound', 'shipping_ready')">
+                  <div class="text-gray-600 font-medium">7. 선적대기</div>
+                  <div class="text-2xl font-bold text-purple-600 mt-1 font-mono">{{ getPipelineCount('shipping_ready') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">컨테이너 적재</div>
                 </div>
 
-                <!-- Step 9: 배송완료 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking')">
-                  <div class="text-gray-600 font-medium">배송완료</div>
-                  <div class="text-2xl font-bold text-emerald-600 mt-1 font-mono">0</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">국내 수령 완료</div>
+                <!-- Step 8: 수입통관 (customs_clearance) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking', 'customs_clearance')">
+                  <div class="text-gray-600 font-medium">8. 수입통관</div>
+                  <div class="text-2xl font-bold text-violet-600 mt-1 font-mono">{{ getPipelineCount('customs_clearance') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">세관 통관 진행</div>
                 </div>
 
-                <!-- Step 10: 전체주문 -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_all', 'all')">
-                  <div class="text-gray-600 font-medium">전체주문</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">{{ totalOrderStepCount }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">전체 이력</div>
+                <!-- Step 9: 국내배송 (domestic_shipping) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking', 'domestic_shipping')">
+                  <div class="text-gray-600 font-medium">9. 국내배송</div>
+                  <div class="text-2xl font-bold text-sky-600 mt-1 font-mono">{{ getPipelineCount('domestic_shipping') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">화물/택배 운송</div>
+                </div>
+
+                <!-- Step 10: 배송완료 (delivered) -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking', 'delivered')">
+                  <div class="text-gray-600 font-medium">10. 배송완료</div>
+                  <div class="text-2xl font-bold text-emerald-600 mt-1 font-mono">{{ getPipelineCount('delivered') }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">바이어 수령 완료</div>
                 </div>
 
               </div>
@@ -885,6 +885,14 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { fetchSiteSettings } from '../lib/settings'
 import { exportQuoteExcel } from '../utils/excelExport'
+import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import {
+  PIPELINE_STATUSES,
+  normalizeOrderStatus,
+  getOrderStatusLabel,
+  getOrderStatusShortLabel,
+  getOrderStatusBadgeClass
+} from '../lib/orderPipeline'
 
 const router = useRouter()
 const route = useRoute()
@@ -965,9 +973,9 @@ const buyerForm = ref({
 })
 
 // ----------------------------------------------------
-// Load Data from LocalStorage
+// Load Data from LocalStorage & Supabase
 // ----------------------------------------------------
-const loadDashboardData = () => {
+const loadDashboardData = async () => {
   try {
     // 1. 보관함 품목
     const cachedCart = localStorage.getItem('euchs_erp_saved_items')
@@ -978,17 +986,65 @@ const loadDashboardData = () => {
       savedItems.value = []
     }
 
-    // 2. 접수된 주문서
+    // 2. 접수된 주문서 (localStorage)
+    let ordersList = []
     const cachedOrders = localStorage.getItem('euchs_erp_submitted_orders')
     if (cachedOrders) {
       const parsedOrders = JSON.parse(cachedOrders)
-      submittedOrders.value = Array.isArray(parsedOrders) ? parsedOrders : []
-    } else {
-      submittedOrders.value = []
+      if (Array.isArray(parsedOrders)) {
+        ordersList = parsedOrders
+      }
     }
+
+    // 3. Supabase 연동 (실시간 주문 상태 동기화)
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: dbApps } = await supabase
+          .from('applications')
+          .select('*')
+          .order('created_at', { ascending: false })
+
+        if (Array.isArray(dbApps) && dbApps.length > 0) {
+          dbApps.forEach(app => {
+            const normalizedStatus = normalizeOrderStatus(app.status)
+            const existingIdx = ordersList.findIndex(o => String(o.id) === String(app.id) || o.orderId === app.details?.orderId)
+            if (existingIdx !== -1) {
+              ordersList[existingIdx].status = normalizedStatus
+              ordersList[existingIdx].details = app.details
+            } else if (app.details?.items) {
+              ordersList.push({
+                id: app.id,
+                orderId: app.details?.orderId || `EUC-${app.id}`,
+                createdAt: app.created_at,
+                status: normalizedStatus,
+                items: app.details.items,
+                details: app.details,
+                customer_name: app.customer_name
+              })
+            }
+          })
+        }
+      } catch (e) {
+        console.warn('Supabase applications fetch error in Dashboard:', e)
+      }
+    }
+
+    submittedOrders.value = ordersList
   } catch (err) {
     console.error('Failed to load dashboard data:', err)
   }
+}
+
+// ----------------------------------------------------
+// Pipeline Count Helper
+// ----------------------------------------------------
+const getPipelineCount = (statusKey) => {
+  if (statusKey === 'quote_pending') {
+    const cartCount = savedItems.value.length
+    const orderCount = submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length
+    return cartCount + orderCount
+  }
+  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === statusKey).length
 }
 
 // ----------------------------------------------------
@@ -1030,7 +1086,7 @@ const displayItemsList = computed(() => {
     list.push({
       ...it,
       type: 'cart',
-      status: '견적대기'
+      status: 'quote_pending'
     })
   })
 
@@ -1042,7 +1098,7 @@ const displayItemsList = computed(() => {
           ...it,
           orderId: ord.orderId,
           type: 'submitted',
-          status: ord.status || '구매진행'
+          status: normalizeOrderStatus(ord.status) || 'purchasing'
         })
       })
     }
@@ -1053,8 +1109,9 @@ const displayItemsList = computed(() => {
     // 상태 필터
     if (selectedStatusFilter.value === 'cart' && row.type !== 'cart') return false
     if (selectedStatusFilter.value === 'submitted' && row.type !== 'submitted') return false
-    if (selectedStatusFilter.value === '견적대기' && row.status !== '견적대기') return false
-    if (selectedStatusFilter.value === '구매진행' && row.status !== '구매진행') return false
+    if (selectedStatusFilter.value !== 'all' && selectedStatusFilter.value !== 'cart' && selectedStatusFilter.value !== 'submitted') {
+      if (normalizeOrderStatus(row.status) !== selectedStatusFilter.value) return false
+    }
 
     // 텍스트 검색 필터
     if (tableSearchQuery.value.trim()) {
@@ -1135,7 +1192,7 @@ const downloadRowEstimate = (row) => {
 // Lifecycle
 // ----------------------------------------------------
 onMounted(async () => {
-  loadDashboardData()
+  await loadDashboardData()
 
   try {
     const settings = await fetchSiteSettings()
@@ -1148,5 +1205,7 @@ onMounted(async () => {
   }
 
   window.addEventListener('storage', loadDashboardData)
+  window.addEventListener('euchs-order-status-update', loadDashboardData)
+  window.addEventListener('euchs-warehouse-update', loadDashboardData)
 })
 </script>

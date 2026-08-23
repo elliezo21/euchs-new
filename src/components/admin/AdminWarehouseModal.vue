@@ -93,12 +93,13 @@
             v-model="inboundForm.inspectionStatus"
             class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold focus:outline-none focus:border-amber-500 cursor-pointer"
           >
-            <option value="pending_inbound">입고 대기 (1688 공장 배송중)</option>
-            <option value="inbound_weighed">실측 계근 완료 (중량/체적 확정)</option>
-            <option value="inspecting">정밀 검수 진행중 (실사 촬영)</option>
-            <option value="passed">검수 통과 (정상 양품 100%)</option>
-            <option value="defect_found">불량/파손/수량불일치 감지 (교환/환불 접수)</option>
-            <option value="ready_to_ship">한국행 선적 대기 (컨테이너 적재 준비)</option>
+            <option value="warehouse_in">5. 이우창고 입고완료 (실측 계근 확정)</option>
+            <option value="inspection_done">6. 정밀검수/실사 등록완료 (현장 실사 촬영)</option>
+            <option value="shipping_ready">7. 한국행 선적/출고대기 (컨테이너 적재 준비)</option>
+            <option value="customs_clearance">8. 세관 수입통관 진행 (인천/평택 입항)</option>
+            <option value="domestic_shipping">9. 국내 화물/택배 배송중</option>
+            <option value="delivered">10. 배송완료 (바이어 수령완료)</option>
+            <option value="defect_found">파손/수량불일치 감지 (1688 공장 교환 접수)</option>
           </select>
         </div>
 
@@ -220,6 +221,7 @@
 import { ref, watch } from 'vue';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { updateStoredInboundItem, loadStoredInbounds, saveStoredInbounds } from '../../lib/warehouseStore';
+import { updateApplicationOrderStatus } from '../../lib/orderPipeline';
 
 const props = defineProps({
   modelValue: {
@@ -381,6 +383,16 @@ const saveInboundProcessing = async () => {
   const app = props.application || {};
   const currentDetails = app.details || {};
 
+  // 자동 상태 승격 로직
+  let autoStatus = inboundForm.value.inspectionStatus;
+  if (!autoStatus || autoStatus === 'pending_inbound' || autoStatus === 'inbound_weighed') {
+    if (inboundForm.value.inspectionPhotos && inboundForm.value.inspectionPhotos.length > 0) {
+      autoStatus = 'inspection_done'; // 6. 정밀검수/실사 등록완료
+    } else if (inboundForm.value.measuredWeightKg > 0 || inboundForm.value.measuredCbm > 0) {
+      autoStatus = 'warehouse_in'; // 5. 이우창고 입고완료
+    }
+  }
+
   const updatedDetails = {
     ...currentDetails,
     inboundId: inboundForm.value.id,
@@ -388,21 +400,25 @@ const saveInboundProcessing = async () => {
     measuredWeightKg: inboundForm.value.measuredWeightKg,
     measuredCbm: inboundForm.value.measuredCbm,
     boxCount: inboundForm.value.boxCount,
-    inspectionStatus: inboundForm.value.inspectionStatus,
+    inspectionStatus: autoStatus,
     inspectionNote: inboundForm.value.inspectionNote,
     inspectionPhotos: inboundForm.value.inspectionPhotos,
   };
 
-  // 1. Supabase Application 업데이트 (if ID exists)
-  if (app.id && isSupabaseConfigured()) {
+  // 1. Supabase & Pipeline 동기화
+  if (app.id) {
     try {
-      await supabase
-        .from('applications')
-        .update({
-          details: updatedDetails,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', app.id);
+      await updateApplicationOrderStatus(app.id, autoStatus);
+      if (isSupabaseConfigured()) {
+        await supabase
+          .from('applications')
+          .update({
+            details: updatedDetails,
+            status: autoStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', app.id);
+      }
     } catch (err) {
       console.warn('[Supabase Application details update error]:', err);
     }
@@ -426,7 +442,7 @@ const saveInboundProcessing = async () => {
     boxCount: inboundForm.value.boxCount,
     measuredWeightKg: inboundForm.value.measuredWeightKg,
     measuredCbm: inboundForm.value.measuredCbm,
-    inspectionStatus: inboundForm.value.inspectionStatus,
+    inspectionStatus: autoStatus,
     inspectionNote: inboundForm.value.inspectionNote,
     thumbnail: app.details?.items?.[0]?.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
     inspectionPhotos: inboundForm.value.inspectionPhotos,
@@ -442,7 +458,7 @@ const saveInboundProcessing = async () => {
 
   isSaving.value = false;
   closeModal();
-  emit('saved', inboundPayload);
+  emit('saved', { ...inboundPayload, appStatus: autoStatus });
 };
 
 function matchedVas(list, id) {

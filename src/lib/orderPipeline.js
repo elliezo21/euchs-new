@@ -1,0 +1,117 @@
+/**
+ * EUCHS 1688 B2B 수입 파이프라인 표준 10단계 상태 코드 매핑 & 동기화 유틸리티
+ */
+import { supabase, isSupabaseConfigured } from './supabase';
+
+export const PIPELINE_STATUSES = [
+  { key: 'quote_pending', code: 1, label: '1. 견적 요청/대기', shortLabel: '견적대기', badgeClass: 'bg-amber-100 text-amber-800 border border-amber-200' },
+  { key: 'quote_confirmed', code: 2, label: '2. 견적 완료 (고객 결제대기)', shortLabel: '결제대기', badgeClass: 'bg-orange-100 text-orange-800 border border-orange-200' },
+  { key: 'payment_verified', code: 3, label: '3. 입금/결제 확인', shortLabel: '결제확인', badgeClass: 'bg-blue-100 text-blue-800 border border-blue-200' },
+  { key: 'purchasing', code: 4, label: '4. 1688 공장 구매진행', shortLabel: '구매진행', badgeClass: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
+  { key: 'warehouse_in', code: 5, label: '5. 이우창고 입고완료', shortLabel: '창고입고', badgeClass: 'bg-cyan-100 text-cyan-800 border border-cyan-200' },
+  { key: 'inspection_done', code: 6, label: '6. 정밀검수/실사 등록완료', shortLabel: '검수완료', badgeClass: 'bg-teal-100 text-teal-800 border border-teal-200' },
+  { key: 'shipping_ready', code: 7, label: '7. 한국행 선적/출고대기', shortLabel: '선적대기', badgeClass: 'bg-purple-100 text-purple-800 border border-purple-200' },
+  { key: 'customs_clearance', code: 8, label: '8. 세관 수입통관 진행', shortLabel: '수입통관', badgeClass: 'bg-violet-100 text-violet-800 border border-violet-200' },
+  { key: 'domestic_shipping', code: 9, label: '9. 국내 화물/택배 배송중', shortLabel: '국내배송', badgeClass: 'bg-sky-100 text-sky-800 border border-sky-200' },
+  { key: 'delivered', code: 10, label: '10. 배송완료 (수령완료)', shortLabel: '배송완료', badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
+  { key: 'cancelled', code: 0, label: '주문 취소 / 환불', shortLabel: '주문취소', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' }
+];
+
+export const STATUS_ALIAS_MAP = {
+  // Legacy / Application default mappings
+  pending: 'quote_pending',
+  quote_request: 'quote_pending',
+  consulting: 'quote_confirmed',
+  pending_payment: 'quote_confirmed',
+  quoted: 'quote_confirmed',
+  payment_verified: 'payment_verified',
+  purchasing: 'purchasing',
+  purchasing_agent: 'purchasing',
+  in_warehouse: 'warehouse_in',
+  warehouse_in: 'warehouse_in',
+  inspection_done: 'inspection_done',
+  inspecting: 'inspection_done',
+  inbound_weighed: 'warehouse_in',
+  shipping_ready: 'shipping_ready',
+  ready_to_ship: 'shipping_ready',
+  customs: 'customs_clearance',
+  customs_clearance: 'customs_clearance',
+  domestic_delivery: 'domestic_shipping',
+  domestic_shipping: 'domestic_shipping',
+  completed: 'delivered',
+  delivered: 'delivered',
+  cancelled: 'cancelled'
+};
+
+export function normalizeOrderStatus(status) {
+  if (!status) return 'quote_pending';
+  return STATUS_ALIAS_MAP[status] || status;
+}
+
+export function getOrderStatusItem(status) {
+  const normalized = normalizeOrderStatus(status);
+  return PIPELINE_STATUSES.find(s => s.key === normalized) || {
+    key: normalized,
+    label: normalized,
+    shortLabel: normalized,
+    badgeClass: 'bg-gray-100 text-gray-700'
+  };
+}
+
+export function getOrderStatusLabel(status) {
+  return getOrderStatusItem(status).label;
+}
+
+export function getOrderStatusShortLabel(status) {
+  return getOrderStatusItem(status).shortLabel;
+}
+
+export function getOrderStatusBadgeClass(status) {
+  return getOrderStatusItem(status).badgeClass;
+}
+
+/**
+ * 관리자/바이어 공통 주문 상태 갱신 함수 (Supabase + LocalStorage + Event)
+ */
+export async function updateApplicationOrderStatus(appId, newStatus) {
+  const normalized = normalizeOrderStatus(newStatus);
+
+  // 1. Supabase update
+  if (appId && isSupabaseConfigured()) {
+    try {
+      await supabase
+        .from('applications')
+        .update({
+          status: normalized,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', appId);
+    } catch (e) {
+      console.warn('[orderPipeline] Supabase status update error:', e);
+    }
+  }
+
+  // 2. LocalStorage submitted orders sync
+  try {
+    const raw = localStorage.getItem('euchs_erp_submitted_orders');
+    if (raw) {
+      const orders = JSON.parse(raw);
+      if (Array.isArray(orders)) {
+        const target = orders.find(o => String(o.id) === String(appId) || String(o.orderId) === String(appId));
+        if (target) {
+          target.status = normalized;
+          localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(orders));
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('[orderPipeline] LocalStorage sync error:', e);
+  }
+
+  // 3. Dispatch global update event
+  window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
+    detail: { appId, status: normalized }
+  }));
+
+  return normalized;
+}
