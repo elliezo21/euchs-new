@@ -2301,6 +2301,7 @@ const getAppSummaryText = (app) => {
 const fetchApplications = async () => {
   isFetchingApps.value = true
   try {
+    let list = []
     if (isSupabaseConfigured()) {
       const { data, error } = await supabase
         .from('applications')
@@ -2310,9 +2311,46 @@ const fetchApplications = async () => {
       if (error) {
         console.error('Fetch applications error:', error)
       } else if (data) {
-        applications.value = data
+        list = data
       }
     }
+
+    // Merge locally submitted ERP orders for seamless demo and offline consistency
+    try {
+      const raw = localStorage.getItem('euchs_erp_submitted_orders')
+      if (raw) {
+        const localOrders = JSON.parse(raw)
+        if (Array.isArray(localOrders)) {
+          localOrders.forEach(ord => {
+            const exists = list.some(a => String(a.id) === String(ord.id) || a.details?.orderId === ord.orderNumber)
+            if (!exists) {
+              list.push({
+                id: ord.id,
+                service_type: 'purchasing',
+                service_name: '1688 구매대행',
+                customer_name: ord.buyerInfo?.buyerName || ord.customer_name || '이유씨 바이어',
+                company_name: ord.buyerInfo?.companyName || '이유씨글로벌파트너스',
+                phone: ord.buyerInfo?.phone || '010-9373-1214',
+                email: ord.buyerInfo?.email || 'buyer@euchs.com',
+                status: ord.status || 'quote_pending',
+                created_at: ord.createdAt || new Date().toISOString(),
+                details: {
+                  orderId: ord.orderNumber,
+                  items: ord.items,
+                  address: ord.buyerInfo?.address,
+                  customsCode: ord.buyerInfo?.customsCode,
+                  memo: ord.buyerInfo?.memo
+                }
+              })
+            }
+          })
+        }
+      }
+    } catch (e) {
+      console.warn('Local orders parse error in admin:', e)
+    }
+
+    applications.value = list
   } catch (err) {
     console.error('Exception fetching applications:', err)
   } finally {
@@ -3445,6 +3483,9 @@ onMounted(async () => {
     if (isSuperAdmin.value) {
       fetchStaffList()
     }
+
+    window.addEventListener('euchs-order-status-update', fetchApplications)
+    window.addEventListener('storage', fetchApplications)
   }
 })
 </script>
