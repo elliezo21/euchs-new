@@ -1,53 +1,113 @@
 <template>
-  <div class="min-h-screen bg-slate-50 font-sans p-4 sm:p-6 lg:p-8 space-y-6">
+  <div class="space-y-6">
     <!-- ======================================================== -->
-    <!-- 1. 페이지 헤더 & 상단 메트릭/액션 영역 -->
+    <!-- 1. 페이지 헤더 & 통계 요약 카드 4종 -->
     <!-- ======================================================== -->
-    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
       <div>
         <div class="flex items-center gap-2">
-          <span class="px-2.5 py-0.5 rounded-full bg-orange-100 text-orange-700 text-xs font-black tracking-wide">
+          <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 text-xs font-black tracking-wide border border-amber-500/20">
             EUCHS B2B ERP
           </span>
           <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
-            주문 / 발주 통합 관리
+            1688 수입 발주 및 주문 통합 관리
           </h1>
         </div>
         <p class="text-xs sm:text-sm text-gray-500 mt-1">
-          1688 소싱 품목의 실시간 견적, 현지 구매, 검수 창고 입고 및 통관·배송 상태를 관리합니다.
+          1688 장바구니/소싱몰을 통해 신청된 전체 발주 내역을 실시간으로 추적·관리합니다.
         </p>
       </div>
 
-      <!-- 상단 액션 버튼 그룹 -->
-      <div class="flex flex-wrap items-center gap-2.5">
+      <!-- 상단 메인 액션 버튼 그룹 -->
+      <div class="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          @click="openUploadModal"
-          class="px-3.5 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs shadow-xs transition flex items-center gap-2 active:scale-95"
+          @click="exportSelectedQuotes"
+          :disabled="selectedOrderIds.length === 0"
+          class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95"
         >
-          <UploadCloud class="w-4 h-4 text-orange-500" />
-          <span>1688 엑셀 대량 등록</span>
+          <FileSpreadsheet class="w-4 h-4" />
+          <span>선택 품목 견적 엑셀 다운로드 ({{ selectedOrderIds.length }})</span>
         </button>
 
         <button
           type="button"
-          @click="handleExportAllQuotes"
-          :disabled="filteredOrders.length === 0"
-          class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-sm transition flex items-center gap-2 active:scale-95"
+          @click="refreshData"
+          class="px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95"
+          title="목록 새로고침"
         >
-          <FileSpreadsheet class="w-4 h-4" />
-          <span>공식 견적서 XLSX 다운로드</span>
+          <RefreshCw class="w-3.5 h-3.5" :class="{ 'animate-spin': isRefreshing }" />
+          <span>새로고침</span>
         </button>
       </div>
     </div>
 
+    <!-- 통계 요약 카드 4종 -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <!-- 1. 전체 발주 -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+        <div class="space-y-1">
+          <span class="text-xs font-bold text-gray-500">전체 발주</span>
+          <div class="text-2xl font-extrabold text-gray-900 font-mono">
+            {{ orders.length }} <span class="text-xs font-normal text-gray-500">건</span>
+          </div>
+          <p class="text-[11px] text-gray-400">누적 발주 의뢰</p>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
+          <Layers class="w-5 h-5" />
+        </div>
+      </div>
+
+      <!-- 2. 견적 대기/심사 -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+        <div class="space-y-1">
+          <span class="text-xs font-bold text-amber-700">견적 대기/심사</span>
+          <div class="text-2xl font-extrabold text-amber-600 font-mono">
+            {{ statCounts.quotePending }} <span class="text-xs font-normal text-gray-500">건</span>
+          </div>
+          <p class="text-[11px] text-amber-600/70">관세/운임 산출중</p>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <Clock class="w-5 h-5" />
+        </div>
+      </div>
+
+      <!-- 3. 결제 대기 -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+        <div class="space-y-1">
+          <span class="text-xs font-bold text-orange-700">결제 대기</span>
+          <div class="text-2xl font-extrabold text-orange-600 font-mono">
+            {{ statCounts.quoteConfirmed }} <span class="text-xs font-normal text-gray-500">건</span>
+          </div>
+          <p class="text-[11px] text-orange-600/70">견적 확정/입금대기</p>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
+          <Calculator class="w-5 h-5" />
+        </div>
+      </div>
+
+      <!-- 4. 1688 구매 진행중 -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+        <div class="space-y-1">
+          <span class="text-xs font-bold text-blue-700">1688 구매 진행중</span>
+          <div class="text-2xl font-extrabold text-blue-600 font-mono">
+            {{ statCounts.purchasing }} <span class="text-xs font-normal text-gray-500">건</span>
+          </div>
+          <p class="text-[11px] text-blue-600/70">현지 공장 주문완료</p>
+        </div>
+        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+          <Package class="w-5 h-5" />
+        </div>
+      </div>
+    </div>
+
     <!-- ======================================================== -->
-    <!-- 2. 상태 필터링 탭 바 (반응형 가로 스크롤 & 카운트 배지) -->
+    <!-- 2. 상태 필터 탭 바 (반응형 가로 스크롤 & 카운트) -->
     <!-- ======================================================== -->
     <div class="bg-white border border-gray-200 rounded-2xl p-2 shadow-xs">
       <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth">
         <button
-          v-for="tab in statusTabs"
+          v-for="tab in filterTabs"
           :key="tab.id"
           type="button"
           @click="selectedTab = tab.id"
@@ -63,14 +123,14 @@
               ? 'bg-white/20 text-white'
               : 'bg-gray-100 text-gray-600'"
           >
-            {{ getTabCount(tab.id) }}
+            {{ getFilterTabCount(tab.id) }}
           </span>
         </button>
       </div>
     </div>
 
     <!-- ======================================================== -->
-    <!-- 3. 검색 및 필터 컨트롤 바 -->
+    <!-- 3. 검색 및 정렬 컨트롤 바 -->
     <!-- ======================================================== -->
     <div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
       <!-- 검색 인풋 -->
@@ -79,8 +139,8 @@
         <input
           type="text"
           v-model="searchQuery"
-          placeholder="주문번호, 1688 상품명, 옵션(SKU), 수령인 검색"
-          class="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 font-medium"
+          placeholder="주문번호, 1688 상품명, 공급사, 옵션(SKU) 검색"
+          class="w-full pl-10 pr-4 py-2 text-xs rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500 font-medium"
         />
       </div>
 
@@ -109,7 +169,7 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 4. 주문/발주 리스트 (PC 테이블 뷰) -->
+    <!-- 4. 주문 목록 데이터 테이블 (PC 뷰) -->
     <!-- ======================================================== -->
     <div class="hidden md:block bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
       <div class="overflow-x-auto">
@@ -121,13 +181,13 @@
                   type="checkbox"
                   :checked="isAllSelected"
                   @change="toggleSelectAll"
-                  class="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                  class="rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
               </th>
-              <th class="py-3.5 px-4">주문번호 / 일자</th>
+              <th class="py-3.5 px-4">주문번호 / 일시</th>
               <th class="py-3.5 px-4">1688 대표 상품 정보</th>
-              <th class="py-3.5 px-4 text-center">옵션 / 수량</th>
-              <th class="py-3.5 px-4 text-right">총 견적 금액 (DDP)</th>
+              <th class="py-3.5 px-4 text-center">선택 옵션 / 수량</th>
+              <th class="py-3.5 px-4 text-right">공급단가 & 총 견적금액 (DDP)</th>
               <th class="py-3.5 px-4 text-center">진행 상태</th>
               <th class="py-3.5 px-4 text-center">관리 액션</th>
             </tr>
@@ -144,13 +204,13 @@
                   type="checkbox"
                   v-model="selectedOrderIds"
                   :value="order.id"
-                  class="rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                  class="rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
               </td>
 
               <!-- 주문번호 & 일자 -->
               <td class="py-3.5 px-4 whitespace-nowrap font-mono">
-                <div class="font-bold text-gray-900 hover:text-orange-600 cursor-pointer" @click="openOrderDetail(order)">
+                <div class="font-bold text-gray-900 hover:text-amber-600 cursor-pointer" @click="openOrderDetail(order)">
                   {{ order.orderNumber }}
                 </div>
                 <div class="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1">
@@ -163,26 +223,27 @@
               <td class="py-3.5 px-4">
                 <div class="flex items-center gap-3 min-w-[260px]">
                   <img
-                    :src="order.items[0]?.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
-                    :alt="order.items[0]?.productName"
+                    :src="getItemThumbnail(order)"
+                    :alt="getItemTitle(order)"
                     class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0"
                     @error="handleImgError"
                   />
                   <div class="space-y-0.5 flex-1 min-w-0">
                     <div
-                      class="font-bold text-gray-900 hover:text-orange-600 line-clamp-1 cursor-pointer transition"
+                      class="font-bold text-gray-900 hover:text-amber-600 line-clamp-1 cursor-pointer transition"
                       @click="openOrderDetail(order)"
+                      :title="getItemTitle(order)"
                     >
-                      {{ order.items[0]?.productName }}
+                      {{ getItemTitle(order) }}
                     </div>
                     <div class="flex items-center gap-2 text-[11px] text-gray-500 font-mono">
-                      <span>품목 <b>{{ order.items.length }}</b>건</span>
+                      <span>품목 <b>{{ getItemsCount(order) }}</b>건</span>
                       <a
-                        v-if="order.items[0]?.productUrl"
-                        :href="order.items[0]?.productUrl"
+                        v-if="order.items?.[0]?.productUrl"
+                        :href="order.items[0].productUrl"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="text-orange-600 hover:underline flex items-center gap-0.5"
+                        class="text-amber-600 hover:underline flex items-center gap-0.5"
                         @click.stop
                       >
                         <span>1688 바로가기</span>
@@ -196,20 +257,20 @@
               <!-- 옵션 / 총 수량 -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="text-gray-700 font-medium truncate max-w-[130px] mx-auto">
-                  {{ order.items[0]?.sku || '기본 옵션' }}
+                  {{ order.items?.[0]?.sku || order.items?.[0]?.selectedOption || '기본 옵션' }}
                 </div>
                 <div class="text-xs font-bold text-gray-900 font-mono mt-0.5">
                   총 {{ getOrderTotalQuantity(order) }}개
                 </div>
               </td>
 
-              <!-- 총 견적 금액 (DDP) -->
-              <td class="py-3.5 px-4 text-right whitespace-nowrap">
-                <div class="text-sm font-bold text-gray-900 font-mono">
-                  {{ formatCurrency(order.costSummary.totalDdpKrw, 'KRW') }}
+              <!-- 공급단가 및 총 견적 금액 (DDP) -->
+              <td class="py-3.5 px-4 text-right whitespace-nowrap font-mono">
+                <div class="text-sm font-bold text-gray-900">
+                  ₩{{ formatNumber(getOrderCostSummary(order).totalDdpKrw) }}원
                 </div>
-                <div class="text-[11px] text-gray-400 font-mono">
-                  (¥ {{ order.costSummary.itemTotalCny.toFixed(2) }} 위안)
+                <div class="text-[11px] text-gray-400">
+                  (단가 ¥{{ getOrderCostSummary(order).avgPriceCny.toFixed(2) }} / 합계 ¥{{ getOrderCostSummary(order).itemTotalCny.toFixed(2) }})
                 </div>
               </td>
 
@@ -217,51 +278,59 @@
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <span
                   class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
-                  :class="getStatusBadgeClass(order.status)"
+                  :class="getOrderStatusBadgeClass(order.status)"
                 >
                   <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
-                  {{ getStatusLabel(order.status) }}
+                  <span>{{ getOrderStatusLabel(order.status) }}</span>
                 </span>
               </td>
 
-              <!-- 액션 버튼 -->
+              <!-- 관리 액션 -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="flex items-center justify-center gap-1.5">
                   <button
                     type="button"
                     @click="openOrderDetail(order)"
-                    class="p-1.5 text-gray-500 hover:text-orange-600 hover:bg-orange-50 rounded-lg transition"
-                    title="상세보기"
+                    class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
+                    title="주문 상세 내역 확인"
                   >
-                    <Eye class="w-4 h-4" />
+                    <Eye class="w-3 h-3" />
+                    <span>상세보기</span>
                   </button>
                   <button
                     type="button"
-                    @click="handleExportSingleQuote(order)"
-                    class="p-1.5 text-gray-500 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition"
-                    title="견적서 다운로드"
+                    @click="openOrderDetail(order, 'quote')"
+                    class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
+                    title="견적서 명세서 확인"
                   >
-                    <Download class="w-4 h-4" />
+                    <FileText class="w-3 h-3" />
+                    <span>견적서 확인</span>
                   </button>
+                  <a
+                    href="http://pf.kakao.com/_xmQWsK/chat"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="px-2 py-1 rounded-lg bg-yellow-400/20 hover:bg-yellow-400/30 text-amber-900 border border-yellow-300 font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
+                    title="1:1 카카오톡 상담 문의"
+                  >
+                    <MessageCircle class="w-3 h-3" />
+                    <span>1:1 문의</span>
+                  </a>
                 </div>
               </td>
             </tr>
 
-            <!-- 데이터 없음 -->
+            <!-- Empty State -->
             <tr v-if="filteredOrders.length === 0">
-              <td colspan="7" class="py-16 text-center text-gray-400">
-                <div class="flex flex-col items-center justify-center gap-2">
-                  <Package class="w-10 h-10 text-gray-300 stroke-[1.5]" />
-                  <p class="font-bold text-gray-600 text-sm">해당 조건에 부합하는 주문 내역이 없습니다.</p>
-                  <p class="text-xs text-gray-400">새로운 1688 엑셀 발주서를 등록해보세요.</p>
-                  <button
-                    type="button"
-                    @click="openUploadModal"
-                    class="mt-2 px-4 py-2 rounded-xl bg-orange-600 text-white font-bold text-xs hover:bg-orange-700 transition"
-                  >
-                    1688 엑셀 업로드하기
-                  </button>
-                </div>
+              <td colspan="7" class="py-16 text-center text-gray-400 text-xs">
+                <Package class="w-10 h-10 mx-auto text-gray-300 mb-2" />
+                <p class="font-medium">선택한 조건의 발주/주문 내역이 없습니다.</p>
+                <router-link
+                  to="/mall"
+                  class="mt-3 inline-flex items-center gap-1 px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold text-xs rounded-xl transition shadow-xs"
+                >
+                  1688 소싱몰에서 상품 담기
+                </router-link>
               </td>
             </tr>
           </tbody>
@@ -270,7 +339,7 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 4-2. 모바일 전용 카드 뷰 -->
+    <!-- 5. 모바일 카드형 뷰 (Mobile View) -->
     <!-- ======================================================== -->
     <div class="md:hidden space-y-3">
       <div
@@ -278,245 +347,195 @@
         :key="order.id"
         class="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-3"
       >
-        <!-- 카드 상단: 번호 & 상태 -->
-        <div class="flex items-center justify-between pb-2.5 border-b border-gray-100">
-          <div class="font-mono font-bold text-xs text-gray-900">
-            {{ order.orderNumber }}
-          </div>
+        <div class="flex items-center justify-between">
+          <span class="font-mono font-bold text-gray-900 text-xs">{{ order.orderNumber }}</span>
           <span
-            class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold"
-            :class="getStatusBadgeClass(order.status)"
+            class="px-2 py-0.5 rounded-full text-[11px] font-bold"
+            :class="getOrderStatusBadgeClass(order.status)"
           >
-            {{ getStatusLabel(order.status) }}
+            {{ getOrderStatusLabel(order.status) }}
           </span>
         </div>
 
-        <!-- 상품 요약 정보 -->
-        <div class="flex items-start gap-3">
+        <div class="flex items-center gap-3">
           <img
-            :src="order.items[0]?.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
-            :alt="order.items[0]?.productName"
+            :src="getItemThumbnail(order)"
+            :alt="getItemTitle(order)"
             class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0"
             @error="handleImgError"
           />
-          <div class="flex-1 min-w-0 space-y-1">
-            <h4 class="font-bold text-xs text-gray-900 line-clamp-2">
-              {{ order.items[0]?.productName }}
-            </h4>
-            <div class="text-[11px] text-gray-500 font-medium">
-              {{ order.items[0]?.sku }} · 총 {{ getOrderTotalQuantity(order) }}개
-            </div>
-            <div class="text-xs font-bold text-orange-600 font-mono">
-              {{ formatCurrency(order.costSummary.totalDdpKrw, 'KRW') }}
-            </div>
+          <div class="flex-1 min-w-0">
+            <h4 class="font-bold text-gray-900 text-xs truncate">{{ getItemTitle(order) }}</h4>
+            <p class="text-[11px] text-gray-500 font-mono mt-0.5">
+              옵션: {{ order.items?.[0]?.sku || '기본' }} · 수량: <b>{{ getOrderTotalQuantity(order) }}개</b>
+            </p>
+            <p class="text-xs font-bold text-amber-600 font-mono mt-0.5">
+              ₩{{ formatNumber(getOrderCostSummary(order).totalDdpKrw) }}원
+            </p>
           </div>
         </div>
 
-        <!-- 카드 하단 액션 버튼 -->
-        <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs">
-          <button
-            type="button"
-            @click="openOrderDetail(order)"
-            class="w-full py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold transition flex items-center justify-center gap-1.5"
-          >
-            <Eye class="w-3.5 h-3.5" />
-            <span>상세보기</span>
-          </button>
-          <button
-            type="button"
-            @click="handleExportSingleQuote(order)"
-            class="w-full py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold transition flex items-center justify-center gap-1.5"
-          >
-            <Download class="w-3.5 h-3.5" />
-            <span>견적서</span>
-          </button>
+        <div class="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
+          <span class="text-[11px] text-gray-400 font-mono">{{ order.createdAt }}</span>
+          <div class="flex items-center gap-1.5">
+            <button
+              type="button"
+              @click="openOrderDetail(order)"
+              class="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-bold text-xs"
+            >
+              상세보기
+            </button>
+            <button
+              type="button"
+              @click="openOrderDetail(order, 'quote')"
+              class="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs"
+            >
+              견적서
+            </button>
+          </div>
         </div>
-      </div>
-
-      <div v-if="filteredOrders.length === 0" class="bg-white border border-gray-200 rounded-2xl p-8 text-center text-gray-400">
-        <Package class="w-8 h-8 mx-auto text-gray-300 mb-2" />
-        <p class="font-bold text-xs text-gray-600">조회된 주문 내역이 없습니다.</p>
       </div>
     </div>
 
     <!-- ======================================================== -->
-    <!-- 5. 주문 상세 내역 슬라이드오버 Drawer -->
+    <!-- 6. 주문 상세 및 견적 명세서 팝업 모달 -->
     <!-- ======================================================== -->
-    <div v-if="isDetailDrawerOpen" class="fixed inset-0 z-50 overflow-hidden">
-      <!-- 배경 오버레이 -->
-      <div
-        class="absolute inset-0 bg-slate-900/50 backdrop-blur-xs transition-opacity"
-        @click="closeOrderDetail"
-      ></div>
-
-      <div class="fixed inset-y-0 right-0 max-w-full flex pl-10">
-        <div class="w-screen max-w-2xl bg-white shadow-2xl flex flex-col justify-between">
-          <!-- Drawer Header -->
-          <div class="p-5 border-b border-gray-200 flex items-center justify-between bg-slate-50">
-            <div>
-              <div class="flex items-center gap-2">
-                <span
-                  class="px-2 py-0.5 rounded-full text-[11px] font-bold"
-                  :class="getStatusBadgeClass(activeOrder?.status)"
-                >
-                  {{ getStatusLabel(activeOrder?.status) }}
-                </span>
-                <h3 class="text-base font-bold text-gray-900 font-mono">
-                  {{ activeOrder?.orderNumber }}
-                </h3>
-              </div>
-              <p class="text-xs text-gray-500 mt-1">주문일시: {{ activeOrder?.createdAt }}</p>
+    <div
+      v-if="isDetailModalOpen && activeOrder"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+      @click.self="closeDetailModal"
+    >
+      <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto text-xs text-gray-700">
+        <!-- 모달 헤더 -->
+        <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded-md text-[10px] font-black" :class="getOrderStatusBadgeClass(activeOrder.status)">
+                {{ getOrderStatusLabel(activeOrder.status) }}
+              </span>
+              <span class="font-mono text-xs text-gray-500 font-bold">{{ activeOrder.orderNumber }}</span>
             </div>
-            <button
-              type="button"
-              @click="closeOrderDetail"
-              class="p-2 rounded-xl text-gray-400 hover:text-gray-600 hover:bg-gray-200 transition"
+            <h3 class="text-base font-bold text-gray-900 mt-1">
+              1688 수입 발주 상세 견적 명세서
+            </h3>
+          </div>
+          <button @click="closeDetailModal" class="text-gray-400 hover:text-gray-900 p-1.5 rounded-xl hover:bg-gray-100 transition">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- 1. 품목 목록 -->
+        <div class="space-y-2.5">
+          <h4 class="font-bold text-gray-900 flex items-center gap-1.5">
+            <Package class="w-4 h-4 text-amber-500" />
+            <span>발주 신청 품목 내역 (총 {{ getItemsCount(activeOrder) }}건)</span>
+          </h4>
+          <div class="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden bg-slate-50/50">
+            <div
+              v-for="(it, idx) in activeOrder.items"
+              :key="idx"
+              class="p-3.5 flex items-center gap-3 bg-white"
             >
-              <X class="w-5 h-5" />
-            </button>
-          </div>
-
-          <!-- Drawer Body (Scrollable) -->
-          <div class="p-6 overflow-y-auto space-y-6 text-xs text-gray-700 flex-1">
-            <!-- 1. 소싱 품목 목록 -->
-            <div class="space-y-3">
-              <h4 class="font-bold text-sm text-gray-900 flex items-center gap-1.5">
-                <Package class="w-4 h-4 text-orange-500" />
-                <span>1688 발주 상품 목록 ({{ activeOrder?.items.length }}건)</span>
-              </h4>
-
-              <div class="space-y-2">
-                <div
-                  v-for="(item, idx) in activeOrder?.items"
-                  :key="idx"
-                  class="p-3.5 bg-slate-50 border border-gray-200 rounded-xl flex items-start gap-3"
-                >
-                  <img
-                    :src="item.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
-                    class="w-14 h-14 rounded-lg object-cover border border-gray-200 bg-white shrink-0"
-                    @error="handleImgError"
-                  />
-                  <div class="flex-1 min-w-0 space-y-1">
-                    <div class="font-bold text-gray-900 text-xs line-clamp-2">
-                      {{ item.productName }}
-                    </div>
-                    <div class="text-[11px] text-gray-500">
-                      옵션(SKU): <span class="font-semibold text-gray-700">{{ item.sku }}</span>
-                    </div>
-                    <div class="flex items-center justify-between pt-1">
-                      <span class="font-mono text-gray-600">
-                        단가: ¥{{ item.priceCny }} × {{ item.quantity }}개
-                      </span>
-                      <span class="font-mono font-bold text-gray-900">
-                        소계: ¥{{ (item.priceCny * item.quantity).toFixed(2) }}
-                      </span>
-                    </div>
-                    <div v-if="item.productUrl" class="pt-1">
-                      <a
-                        :href="item.productUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-orange-600 hover:underline inline-flex items-center gap-1 text-[11px] font-bold"
-                      >
-                        <span>1688 원본 상품 링크 열기</span>
-                        <ExternalLink class="w-3 h-3" />
-                      </a>
-                    </div>
-                  </div>
-                </div>
+              <img
+                :src="it.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
+                :alt="it.productName"
+                class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0"
+                @error="handleImgError"
+              />
+              <div class="flex-1 min-w-0">
+                <p class="font-bold text-gray-900 truncate">{{ it.productName || it.titleKo || it.titleZh }}</p>
+                <p class="text-[11px] text-gray-500 font-mono mt-0.5">
+                  옵션: {{ it.sku || it.selectedOption || '기본 규격' }} · 수량: <b>{{ it.quantity || 1 }}개</b> · 단가: <b>¥{{ Number(it.priceCny || it.price || 0).toFixed(2) }}</b>
+                </p>
               </div>
-            </div>
-
-            <!-- 2. 수입 도착원가(DDP) 상세 내역 (costCalculator 연동) -->
-            <div class="space-y-3">
-              <h4 class="font-bold text-sm text-gray-900 flex items-center gap-1.5">
-                <Calculator class="w-4 h-4 text-blue-500" />
-                <span>예상 수입 도착원가 (DDP Breakdown)</span>
-              </h4>
-
-              <div class="bg-blue-50/50 border border-blue-100 rounded-2xl p-4 space-y-2.5 font-mono">
-                <div class="flex justify-between">
-                  <span class="text-gray-600">상품대금 합계 (CNY)</span>
-                  <span class="font-bold text-gray-900">¥ {{ activeOrder?.costSummary.itemTotalCny.toFixed(2) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">적용 환율</span>
-                  <span class="text-gray-900">{{ activeOrder?.costSummary.exchangeRate }} 원/위안</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">상품대금 원화 (KRW)</span>
-                  <span class="font-bold text-gray-900">{{ formatCurrency(activeOrder?.costSummary.itemTotalKrw) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">해운 운임 (예상 {{ activeOrder?.costSummary.cbm }} CBM)</span>
-                  <span class="text-gray-900">{{ formatCurrency(activeOrder?.costSummary.shippingFeeKrw) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">수입 관세 (8%)</span>
-                  <span class="text-gray-900">{{ formatCurrency(activeOrder?.costSummary.tariffKrw) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">수입 부가세 (10%)</span>
-                  <span class="text-gray-900">{{ formatCurrency(activeOrder?.costSummary.vatKrw) }}</span>
-                </div>
-                <div class="flex justify-between">
-                  <span class="text-gray-600">EUC 수입 대행 수수료 (5%)</span>
-                  <span class="text-gray-900">{{ formatCurrency(activeOrder?.costSummary.agencyFeeKrw) }}</span>
-                </div>
-                <div class="border-t border-blue-200 pt-2.5 flex justify-between items-baseline text-sm">
-                  <span class="font-bold text-gray-900">최종 총 도착원가 (DDP)</span>
-                  <span class="font-black text-orange-600 text-base">{{ formatCurrency(activeOrder?.costSummary.totalDdpKrw) }}</span>
-                </div>
-                <div class="text-right text-[11px] text-gray-500">
-                  개당 도착원가: {{ formatCurrency(activeOrder?.costSummary.unitDdpKrw) }} / 개
-                </div>
-              </div>
-            </div>
-
-            <!-- 3. 수령인 및 통관 정보 -->
-            <div class="space-y-3">
-              <h4 class="font-bold text-sm text-gray-900 flex items-center gap-1.5">
-                <Truck class="w-4 h-4 text-emerald-500" />
-                <span>배송지 및 수입 통관 정보</span>
-              </h4>
-
-              <div class="bg-gray-50 border border-gray-200 rounded-2xl p-4 space-y-2">
-                <div class="grid grid-cols-2 gap-2">
-                  <div>
-                    <span class="text-gray-500 text-[11px]">업체/수령인</span>
-                    <p class="font-bold text-gray-900">{{ activeOrder?.buyerInfo.companyName || activeOrder?.buyerInfo.buyerName }}</p>
-                  </div>
-                  <div>
-                    <span class="text-gray-500 text-[11px]">연락처</span>
-                    <p class="font-mono text-gray-900">{{ activeOrder?.buyerInfo.phone }}</p>
-                  </div>
-                </div>
-                <div>
-                  <span class="text-gray-500 text-[11px]">개인/사업자 통관고유부호</span>
-                  <p class="font-mono font-bold text-blue-600">{{ activeOrder?.buyerInfo.customsCode }}</p>
-                </div>
-                <div>
-                  <span class="text-gray-500 text-[11px]">국내 수령지 주소</span>
-                  <p class="text-gray-800">{{ activeOrder?.buyerInfo.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층' }}</p>
-                </div>
+              <div class="text-right font-mono font-bold text-gray-900">
+                ₩{{ formatNumber(Math.round((Number(it.priceCny || it.price || 0) * 226.19) * (it.quantity || 1))) }}원
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Drawer Footer -->
-          <div class="p-4 border-t border-gray-200 bg-slate-50 flex items-center justify-between gap-3">
+        <!-- 2. 공식 수입 도착원가 (DDP) 상세 원가 계산표 -->
+        <div class="p-4 bg-slate-50 border border-gray-200 rounded-2xl space-y-2.5">
+          <h4 class="font-bold text-gray-900 flex items-center justify-between">
+            <span class="flex items-center gap-1.5">
+              <Calculator class="w-4 h-4 text-amber-500" />
+              <span>수입 원가 상세 계산서 (DDP 기준)</span>
+            </span>
+            <span class="text-[11px] text-gray-400 font-normal font-mono">적용환율 ₩226.19 / 위안</span>
+          </h4>
+
+          <div class="space-y-1.5 text-[11px]">
+            <div class="flex justify-between py-1 border-b border-gray-200/60">
+              <span class="text-gray-600">1. 순수 1688 제품 대금 (¥{{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }})</span>
+              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).itemTotalKrw) }}원</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-gray-200/60">
+              <span class="text-gray-600">2. 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
+              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-gray-200/60">
+              <span class="text-gray-600">3. 예상 수입 관세 (8% 기준)</span>
+              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).tariffKrw) }}원</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-gray-200/60">
+              <span class="text-gray-600">4. 수입 부가가치세 (VAT 10%)</span>
+              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
+            </div>
+            <div class="flex justify-between py-1 border-b border-gray-200/60">
+              <span class="text-gray-600">5. 수입 대행 수수료 (8%)</span>
+              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).agencyFeeKrw) }}원</span>
+            </div>
+            <div class="flex justify-between pt-2 text-sm font-extrabold text-amber-600">
+              <span>최종 예상 총 견적금액 (DDP)</span>
+              <span class="font-mono text-base">₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원</span>
+            </div>
+            <div class="text-right text-[10px] text-gray-400 font-mono">
+              개당 도착원가 환산: 약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원 / 개
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. 바이어 배송 및 통관 정보 -->
+        <div class="p-3.5 bg-white border border-gray-200 rounded-2xl space-y-1.5 text-[11px]">
+          <h4 class="font-bold text-gray-900">수령자 및 배송지 정보</h4>
+          <p class="text-gray-600">
+            상호/성명: <b class="text-gray-900">{{ activeOrder.buyerInfo?.companyName || activeOrder.customer_name || '이유씨 바이어' }}</b> ·
+            연락처: <b class="text-gray-900 font-mono">{{ activeOrder.buyerInfo?.phone || '-' }}</b>
+          </p>
+          <p class="text-gray-600">
+            통관고유부호: <b class="text-gray-900 font-mono">{{ activeOrder.buyerInfo?.customsCode || 'P240012345678' }}</b>
+          </p>
+          <p class="text-gray-600 truncate">
+            배송지: {{ activeOrder.buyerInfo?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩' }}
+          </p>
+        </div>
+
+        <!-- 모달 푸터 버튼 -->
+        <div class="flex items-center justify-between gap-2 pt-3 border-t border-gray-200">
+          <a
+            href="http://pf.kakao.com/_xmQWsK/chat"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-black font-extrabold text-xs transition flex items-center gap-1.5 shadow-xs"
+          >
+            <MessageCircle class="w-4 h-4" />
+            <span>1:1 전담 매니저 상담</span>
+          </a>
+
+          <div class="flex items-center gap-2">
             <button
               type="button"
-              @click="handleExportSingleQuote(activeOrder)"
-              class="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition flex items-center justify-center gap-2"
+              @click="exportSingleQuote(activeOrder)"
+              class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs"
             >
               <FileSpreadsheet class="w-4 h-4" />
-              <span>견적서 엑셀 다운로드</span>
+              <span>공식 견적서 엑셀 다운로드</span>
             </button>
             <button
               type="button"
-              @click="closeOrderDetail"
-              class="px-5 py-2.5 rounded-xl bg-white border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 transition"
+              @click="closeDetailModal"
+              class="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition"
             >
               닫기
             </button>
@@ -525,97 +544,6 @@
       </div>
     </div>
 
-    <!-- ======================================================== -->
-    <!-- 6. 1688 엑셀 대량 등록 모달 (parseOrderExcel 연동) -->
-    <!-- ======================================================== -->
-    <div v-if="isUploadModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" @click="closeUploadModal"></div>
-
-      <div class="relative bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 border border-gray-100 max-h-[90vh] flex flex-col">
-        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-8 rounded-xl bg-orange-100 text-orange-600 flex items-center justify-center">
-              <UploadCloud class="w-4 h-4" />
-            </div>
-            <div>
-              <h3 class="font-bold text-base text-gray-900">1688 엑셀 파일 대량 발주 등록</h3>
-              <p class="text-xs text-gray-500">1688 상품 링크, 수량, 옵션이 포함된 엑셀(.xlsx)을 업로드하세요.</p>
-            </div>
-          </div>
-          <button type="button" @click="closeUploadModal" class="p-1.5 rounded-lg text-gray-400 hover:text-gray-600">
-            <X class="w-5 h-5" />
-          </button>
-        </div>
-
-        <!-- 파일 드래그 앤 드롭 영역 -->
-        <div
-          class="border-2 border-dashed border-gray-300 hover:border-orange-500 rounded-2xl p-6 text-center cursor-pointer transition bg-slate-50/50 hover:bg-orange-50/30"
-          @click="triggerFileInput"
-          @dragover.prevent
-          @drop.prevent="handleFileDrop"
-        >
-          <input
-            type="file"
-            ref="fileInputRef"
-            accept=".xlsx, .xls, .csv"
-            class="hidden"
-            @change="handleFileChange"
-          />
-          <FileSpreadsheet class="w-10 h-10 mx-auto text-orange-500 mb-2" />
-          <p class="text-xs font-bold text-gray-800">클릭하거나 엑셀 파일을 여기로 드래그하세요</p>
-          <p class="text-[11px] text-gray-400 mt-1">지원 포맷: .xlsx, .xls (최대 10MB)</p>
-        </div>
-
-        <!-- 파싱 상태 및 미리보기 -->
-        <div v-if="isParsing" class="py-8 text-center text-xs text-gray-500 space-y-2">
-          <div class="w-6 h-6 border-2 border-orange-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p class="font-medium">엑셀 데이터를 정규화 파싱 중입니다...</p>
-        </div>
-
-        <div v-else-if="parsedPreviewItems.length > 0" class="flex-1 min-h-0 space-y-2">
-          <div class="flex items-center justify-between text-xs">
-            <span class="font-bold text-gray-800">추출된 상품 목록 ({{ parsedPreviewItems.length }}건)</span>
-            <span class="text-emerald-600 font-medium">파싱 성공</span>
-          </div>
-
-          <div class="max-h-48 overflow-y-auto border border-gray-200 rounded-xl text-xs divide-y divide-gray-100">
-            <div
-              v-for="(item, idx) in parsedPreviewItems"
-              :key="idx"
-              class="p-2.5 flex items-center justify-between hover:bg-gray-50"
-            >
-              <div class="flex-1 min-w-0 pr-3">
-                <p class="font-bold text-gray-900 truncate">{{ item.productName }}</p>
-                <p class="text-[11px] text-gray-400 truncate">{{ item.productUrl }} | 옵션: {{ item.sku }}</p>
-              </div>
-              <div class="text-right font-mono whitespace-nowrap">
-                <span class="font-bold text-gray-900">{{ item.quantity }}개</span>
-                <span class="text-gray-500 text-[11px] ml-1.5">(¥{{ item.priceCny }})</span>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <!-- 모달 액션 버튼 -->
-        <div class="pt-3 border-t border-gray-100 flex items-center justify-end gap-2 text-xs">
-          <button
-            type="button"
-            @click="closeUploadModal"
-            class="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            @click="submitBulkOrder"
-            :disabled="parsedPreviewItems.length === 0"
-            class="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 disabled:opacity-50 text-white font-bold transition shadow-xs"
-          >
-            발주 목록에 {{ parsedPreviewItems.length }}건 추가하기
-          </button>
-        </div>
-      </div>
-    </div>
   </div>
 </template>
 
@@ -624,7 +552,6 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Search,
-  UploadCloud,
   FileSpreadsheet,
   Download,
   Eye,
@@ -635,67 +562,49 @@ import {
   Clock,
   Truck,
   Calculator,
+  RefreshCw,
+  Layers,
+  MessageCircle,
+  FileText
 } from 'lucide-vue-next';
-import { exportQuoteToExcel, parseOrderExcel } from '@/utils/excelHandler';
+import { exportQuoteExcel } from '@/utils/excelExport';
 import { calculateImportCost, formatCurrency } from '@/utils/costCalculator';
 import {
   PIPELINE_STATUSES,
   normalizeOrderStatus,
   getOrderStatusLabel,
-  getOrderStatusShortLabel,
   getOrderStatusBadgeClass
 } from '@/lib/orderPipeline';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const route = useRoute();
 const router = useRouter();
 
 // ---------------------------------------------------------
-// 상태 관리 (Tabs & Filters)
+// 상태 탭 정의
 // ---------------------------------------------------------
-const statusTabs = [
-  { id: 'all', label: '전체' },
-  { id: 'quote_pending', label: '1. 견적대기' },
-  { id: 'quote_confirmed', label: '2. 결제대기' },
-  { id: 'payment_verified', label: '3. 결제확인' },
-  { id: 'purchasing', label: '4. 구매진행' },
-  { id: 'warehouse_in', label: '5. 창고입고' },
-  { id: 'inspection_done', label: '6. 검수완료' },
-  { id: 'shipping_ready', label: '7. 선적대기' },
-  { id: 'customs_clearance', label: '8. 수입통관' },
-  { id: 'domestic_shipping', label: '9. 국내배송' },
-  { id: 'delivered', label: '10. 배송완료' },
+const filterTabs = [
+  { id: 'all', label: '전체 (All)' },
+  { id: 'quote_pending', label: '견적 요청/대기' },
+  { id: 'quote_confirmed', label: '결제 대기' },
+  { id: 'purchasing', label: '1688 구매진행' },
+  { id: 'in_transit', label: '현지 입고/배송중' },
+  { id: 'delivered', label: '완료/정산' },
 ];
 
 const selectedTab = ref('all');
-
-watch(() => route.query.tab, (newTab) => {
-  if (!newTab || newTab === 'all') {
-    selectedTab.value = 'all';
-  } else if (newTab === 'quote' || newTab === 'quote_pending') {
-    selectedTab.value = 'quote_pending';
-  } else if (newTab === 'purchasing') {
-    selectedTab.value = 'purchasing';
-  } else if (newTab === 'warehouse' || newTab === 'warehouse_in') {
-    selectedTab.value = 'warehouse_in';
-  } else {
-    selectedTab.value = normalizeOrderStatus(newTab);
-  }
-}, { immediate: true });
 const searchQuery = ref('');
 const dateFilter = ref('all');
 const sortBy = ref('latest');
 const selectedOrderIds = ref([]);
+const isRefreshing = ref(false);
 
-// 모달 & 슬라이드오버 상태
-const isDetailDrawerOpen = ref(false);
+// 모달 상태
+const isDetailModalOpen = ref(false);
 const activeOrder = ref(null);
-const isUploadModalOpen = ref(false);
-const isParsing = ref(false);
-const parsedPreviewItems = ref([]);
-const fileInputRef = ref(null);
 
 // ---------------------------------------------------------
-// 기본 바이어 정보 (기본값 설정)
+// 기본 바이어 정보
 // ---------------------------------------------------------
 const defaultBuyerInfo = {
   companyName: '이유씨글로벌파트너스',
@@ -708,33 +617,32 @@ const defaultBuyerInfo = {
 };
 
 // ---------------------------------------------------------
-// 주문/발주 목데이터 초기화 (8대 상태별 현실적 데이터셋)
+// 초기 기본 주문 데이터셋
 // ---------------------------------------------------------
-const orders = ref([
+const defaultMockOrders = [
   {
     id: 'ord-101',
     orderNumber: 'EUC-20260824-001',
     createdAt: '2026-08-24 09:30',
-    status: 'quote_request',
+    status: 'quote_pending',
     buyerInfo: { ...defaultBuyerInfo },
     items: [
       {
         productName: '미니멀 무소음 탁상용 USB 충전식 선풍기 2000mAh',
         productUrl: 'https://detail.1688.com/offer/7123456789.html',
         imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
-        sku: '화이트 / 3단 조절',
+        sku: '화이트 / 3단 풍속',
         quantity: 200,
         priceCny: 18.5,
         cbm: 0.35,
       }
-    ],
-    costSummary: null,
+    ]
   },
   {
     id: 'ord-102',
     orderNumber: 'EUC-20260823-014',
     createdAt: '2026-08-23 15:45',
-    status: 'pending_payment',
+    status: 'quote_confirmed',
     buyerInfo: { ...defaultBuyerInfo },
     items: [
       {
@@ -746,8 +654,7 @@ const orders = ref([
         priceCny: 12.0,
         cbm: 0.65,
       }
-    ],
-    costSummary: null,
+    ]
   },
   {
     id: 'ord-103',
@@ -765,71 +672,67 @@ const orders = ref([
         priceCny: 35.0,
         cbm: 0.85,
       }
-    ],
-    costSummary: null,
+    ]
   },
   {
     id: 'ord-104',
     orderNumber: 'EUC-20260821-003',
     createdAt: '2026-08-21 14:10',
-    status: 'in_warehouse',
+    status: 'warehouse_in',
     buyerInfo: { ...defaultBuyerInfo },
     items: [
       {
-        productName: '자석 부착형 무선 센서 LED 계단등 간접조명',
-        productUrl: 'https://detail.1688.com/offer/7567891234.html',
-        imageUrl: 'https://images.unsplash.com/photo-1507473885765-e6ed057f782c?w=160&auto=format&fit=crop&q=80',
-        sku: '웜화이트 3000K / 40cm',
-        quantity: 300,
-        priceCny: 8.9,
-        cbm: 0.25,
+        productName: '초음파 세척기 안경/귀금속 다용도 450ml',
+        productUrl: 'https://detail.1688.com/offer/7456123890.html',
+        imageUrl: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=160&auto=format&fit=crop&q=80',
+        sku: '모던 그레이 / 40kHz',
+        quantity: 80,
+        priceCny: 42.0,
+        cbm: 0.45,
       }
-    ],
-    costSummary: null,
+    ]
   },
   {
     id: 'ord-105',
-    orderNumber: 'EUC-20260820-022',
-    createdAt: '2026-08-20 18:00',
-    status: 'customs',
+    orderNumber: 'EUC-20260819-012',
+    createdAt: '2026-08-19 16:30',
+    status: 'shipping_ready',
     buyerInfo: { ...defaultBuyerInfo },
     items: [
       {
-        productName: '차량용 맥세이프 고속 무선충전 송풍구 거치대 15W',
-        productUrl: 'https://detail.1688.com/offer/7788991122.html',
-        imageUrl: 'https://images.unsplash.com/photo-1583863788434-e58a36330cf0?w=160&auto=format&fit=crop&q=80',
-        sku: '스페이스 그레이',
-        quantity: 400,
-        priceCny: 22.5,
-        cbm: 0.45,
+        productName: '무선 LED 센서 바 감성 무드등 자석 부착형',
+        productUrl: 'https://detail.1688.com/offer/7234567891.html',
+        imageUrl: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=160&auto=format&fit=crop&q=80',
+        sku: '웜 화이트 40cm',
+        quantity: 300,
+        priceCny: 8.5,
+        cbm: 0.28,
       }
-    ],
-    costSummary: null,
+    ]
   },
   {
     id: 'ord-106',
-    orderNumber: 'EUC-20260819-005',
-    createdAt: '2026-08-19 10:15',
-    status: 'domestic_delivery',
+    orderNumber: 'EUC-20260817-005',
+    createdAt: '2026-08-17 10:45',
+    status: 'customs_clearance',
     buyerInfo: { ...defaultBuyerInfo },
     items: [
       {
-        productName: '인체공학 메모리폼 경추 목베개 숙면 베개',
-        productUrl: 'https://detail.1688.com/offer/7998877665.html',
-        imageUrl: 'https://images.unsplash.com/photo-1584100936595-c0654b55a2e2?w=160&auto=format&fit=crop&q=80',
-        sku: '그레이 쿨링커버 포함',
+        productName: '대용량 멀티 포켓 방수 백팩 30L',
+        productUrl: 'https://detail.1688.com/offer/7012345678.html',
+        imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=160&auto=format&fit=crop&q=80',
+        sku: '차콜 블랙 / 노트북 수납',
         quantity: 150,
         priceCny: 28.0,
-        cbm: 0.95,
+        cbm: 0.72,
       }
-    ],
-    costSummary: null,
+    ]
   },
   {
     id: 'ord-107',
     orderNumber: 'EUC-20260815-001',
     createdAt: '2026-08-15 09:00',
-    status: 'completed',
+    status: 'delivered',
     buyerInfo: { ...defaultBuyerInfo },
     items: [
       {
@@ -841,64 +744,204 @@ const orders = ref([
         priceCny: 16.2,
         cbm: 0.38,
       }
-    ],
-    costSummary: null,
-  },
-]);
+    ]
+  }
+];
+
+const orders = ref([...defaultMockOrders]);
 
 // ---------------------------------------------------------
-// 도착 원가 실시간 동기화 계산 함수
+// 라우터 쿼리 탭 동기화
 // ---------------------------------------------------------
-function refreshCostSummaries() {
-  orders.value.forEach((order) => {
-    let totalCny = 0;
-    let totalQty = 0;
-    let totalCbm = 0;
+watch(() => route.query.tab, (newTab) => {
+  if (!newTab || newTab === 'all') {
+    selectedTab.value = 'all';
+  } else if (newTab === 'quote' || newTab === 'quote_pending') {
+    selectedTab.value = 'quote_pending';
+  } else if (newTab === 'purchasing') {
+    selectedTab.value = 'purchasing';
+  } else if (newTab === 'warehouse' || newTab === 'warehouse_in' || newTab === 'in_transit') {
+    selectedTab.value = 'in_transit';
+  } else {
+    selectedTab.value = normalizeOrderStatus(newTab);
+  }
+}, { immediate: true });
 
-    order.items.forEach((item) => {
-      totalQty += item.quantity || 1;
-      totalCny += (item.priceCny || 0) * (item.quantity || 1);
-      totalCbm += item.cbm || 0.05;
-    });
+// ---------------------------------------------------------
+// 데이터 로드 (Supabase + LocalStorage)
+// ---------------------------------------------------------
+const loadOrdersData = async () => {
+  isRefreshing.value = true;
+  try {
+    let list = [...defaultMockOrders];
 
-    const avgPriceCny = totalQty > 0 ? totalCny / totalQty : 0;
-    const calcResult = calculateImportCost({
-      productPriceCny: avgPriceCny,
-      quantity: totalQty,
-      exchangeRate: 195,
-      cbm: Math.max(0.1, Number(totalCbm.toFixed(3))),
-      shippingRatePerCbm: 85000,
-      tariffRate: 0.08,
-      vatRate: 0.10,
-      agencyFeeRate: 0.05,
-    });
+    // 1. LocalStorage 체크
+    const cachedOrders = localStorage.getItem('euchs_erp_submitted_orders');
+    if (cachedOrders) {
+      try {
+        const parsed = JSON.parse(cachedOrders);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          list = parsed.map(o => ({
+            id: o.id || `ord-${o.orderId}`,
+            orderNumber: o.orderNumber || o.orderId || `EUC-${o.id}`,
+            createdAt: o.createdAt || new Date().toISOString().slice(0, 16).replace('T', ' '),
+            status: normalizeOrderStatus(o.status),
+            buyerInfo: o.buyerInfo || { ...defaultBuyerInfo },
+            items: o.items || [{ productName: '1688 소싱 품목', quantity: 100, priceCny: 20 }]
+          }));
+        }
+      } catch (e) {
+        console.warn('LocalStorage parse error:', e);
+      }
+    }
 
-    order.costSummary = calcResult.summary;
-  });
-}
+    // 2. Supabase 체크
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: dbApps } = await supabase
+          .from('applications')
+          .select('*')
+          .order('created_at', { ascending: false });
 
-onMounted(() => {
-  refreshCostSummaries();
+        if (Array.isArray(dbApps) && dbApps.length > 0) {
+          dbApps.forEach(app => {
+            const normalizedStatus = normalizeOrderStatus(app.status);
+            const exists = list.find(o => String(o.id) === String(app.id) || o.orderNumber === app.details?.orderId);
+            if (exists) {
+              exists.status = normalizedStatus;
+              if (app.details?.items) exists.items = app.details.items;
+            } else if (app.details?.items || app.service_type === 'purchasing') {
+              list.unshift({
+                id: String(app.id),
+                orderNumber: app.details?.orderId || `EUC-APP-${app.id}`,
+                createdAt: app.created_at ? new Date(app.created_at).toLocaleString('ko-KR') : '2026-08-24 10:00',
+                status: normalizedStatus,
+                customer_name: app.customer_name,
+                buyerInfo: {
+                  companyName: app.company_name || app.customer_name,
+                  buyerName: app.customer_name,
+                  phone: app.phone,
+                  email: app.email,
+                  customsCode: app.details?.customsCode || 'P240012345678',
+                  address: app.details?.address || '서울특별시 강남구'
+                },
+                items: app.details?.items || [
+                  {
+                    productName: app.details?.productName || app.memo || '1688 소싱 품목',
+                    quantity: app.details?.quantity || 100,
+                    priceCny: 25.0,
+                    sku: app.details?.option || '기본 규격',
+                    imageUrl: app.details?.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80'
+                  }
+                ]
+              });
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Supabase fetch error:', e);
+      }
+    }
+
+    orders.value = list;
+  } finally {
+    isRefreshing.value = false;
+  }
+};
+
+const refreshData = async () => {
+  await loadOrdersData();
+};
+
+// ---------------------------------------------------------
+// 통계 요약 (4대 KPI)
+// ---------------------------------------------------------
+const statCounts = computed(() => {
+  const quotePending = orders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length;
+  const quoteConfirmed = orders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length;
+  const purchasing = orders.value.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length;
+  return {
+    quotePending,
+    quoteConfirmed,
+    purchasing
+  };
 });
 
+// ---------------------------------------------------------
+// 안전한 원가 계산 헬퍼 (getOrderCostSummary)
+// ---------------------------------------------------------
+function getOrderCostSummary(order) {
+  if (!order || !Array.isArray(order.items) || order.items.length === 0) {
+    return {
+      totalDdpKrw: 0,
+      itemTotalCny: 0,
+      itemTotalKrw: 0,
+      avgPriceCny: 0,
+      cbm: 0.1,
+      shippingFeeKrw: 0,
+      tariffKrw: 0,
+      vatKrw: 0,
+      agencyFeeKrw: 0,
+      unitDdpKrw: 0
+    };
+  }
+
+  let totalCny = 0;
+  let totalQty = 0;
+  let totalCbm = 0;
+
+  order.items.forEach((it) => {
+    const q = Number(it.quantity) || 1;
+    const p = Number(it.priceCny || it.price || it.unitPriceCny) || 0;
+    totalQty += q;
+    totalCny += p * q;
+    totalCbm += Number(it.cbm) || (0.002 * q);
+  });
+
+  const avgPriceCny = totalQty > 0 ? totalCny / totalQty : 0;
+  const calc = calculateImportCost({
+    productPriceCny: avgPriceCny,
+    quantity: totalQty,
+    exchangeRate: 226.19,
+    cbm: Math.max(0.05, Number(totalCbm.toFixed(3))),
+    shippingRatePerCbm: 85000,
+    tariffRate: 0.08,
+    vatRate: 0.10,
+    agencyFeeRate: 0.08,
+  });
+
+  return {
+    ...calc.summary,
+    avgPriceCny: Number(avgPriceCny.toFixed(2)),
+    itemTotalCny: Number(totalCny.toFixed(2))
+  };
+}
+
+// ---------------------------------------------------------
+// 필터링 및 정렬 (Computed)
+// ---------------------------------------------------------
 const filteredOrders = computed(() => {
   let list = [...orders.value];
 
   // 1. 탭 필터링
   if (selectedTab.value !== 'all') {
-    list = list.filter((ord) => normalizeOrderStatus(ord.status) === selectedTab.value);
+    if (selectedTab.value === 'in_transit') {
+      const transitKeys = ['warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping'];
+      list = list.filter(ord => transitKeys.includes(normalizeOrderStatus(ord.status)));
+    } else {
+      list = list.filter(ord => normalizeOrderStatus(ord.status) === selectedTab.value);
+    }
   }
 
   // 2. 검색어 필터링
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.trim().toLowerCase();
     list = list.filter((ord) => {
-      const matchOrderNo = ord.orderNumber.toLowerCase().includes(q);
-      const matchBuyer = ord.buyerInfo?.companyName?.toLowerCase().includes(q) ||
-                         ord.buyerInfo?.buyerName?.toLowerCase().includes(q);
-      const matchItem = ord.items.some((it) =>
-        it.productName?.toLowerCase().includes(q) ||
-        it.sku?.toLowerCase().includes(q)
+      const matchOrderNo = (ord.orderNumber || '').toLowerCase().includes(q);
+      const matchBuyer = (ord.buyerInfo?.companyName || ord.customer_name || '').toLowerCase().includes(q);
+      const matchItem = Array.isArray(ord.items) && ord.items.some((it) =>
+        (it.productName || it.titleKo || it.titleZh || '').toLowerCase().includes(q) ||
+        (it.sku || '').toLowerCase().includes(q)
       );
       return matchOrderNo || matchBuyer || matchItem;
     });
@@ -910,19 +953,26 @@ const filteredOrders = computed(() => {
   } else if (sortBy.value === 'oldest') {
     list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   } else if (sortBy.value === 'priceHigh') {
-    list.sort((a, b) => (b.costSummary?.totalDdpKrw || 0) - (a.costSummary?.totalDdpKrw || 0));
+    list.sort((a, b) => getOrderCostSummary(b).totalDdpKrw - getOrderCostSummary(a).totalDdpKrw);
   } else if (sortBy.value === 'priceLow') {
-    list.sort((a, b) => (a.costSummary?.totalDdpKrw || 0) - (b.costSummary?.totalDdpKrw || 0));
+    list.sort((a, b) => getOrderCostSummary(a).totalDdpKrw - getOrderCostSummary(b).totalDdpKrw);
   }
 
   return list;
 });
 
-function getTabCount(tabId) {
+function getFilterTabCount(tabId) {
   if (tabId === 'all') return orders.value.length;
+  if (tabId === 'in_transit') {
+    const transitKeys = ['warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping'];
+    return orders.value.filter(ord => transitKeys.includes(normalizeOrderStatus(ord.status))).length;
+  }
   return orders.value.filter((ord) => normalizeOrderStatus(ord.status) === tabId).length;
 }
 
+// ---------------------------------------------------------
+// 체크박스 선택 로직
+// ---------------------------------------------------------
 const isAllSelected = computed(() => {
   return (
     filteredOrders.value.length > 0 &&
@@ -938,19 +988,28 @@ function toggleSelectAll(e) {
   }
 }
 
+// ---------------------------------------------------------
+// 아이템 헬퍼
+// ---------------------------------------------------------
+function getItemThumbnail(order) {
+  return order.items?.[0]?.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60';
+}
+
+function getItemTitle(order) {
+  return order.items?.[0]?.productName || order.items?.[0]?.titleKo || order.items?.[0]?.titleZh || '1688 수입 발주 품목';
+}
+
+function getItemsCount(order) {
+  return Array.isArray(order.items) ? order.items.length : 1;
+}
+
 function getOrderTotalQuantity(order) {
+  if (!Array.isArray(order.items)) return 1;
   return order.items.reduce((acc, cur) => acc + (Number(cur.quantity) || 1), 0);
 }
 
-// ---------------------------------------------------------
-// 상태별 레이블 및 뱃지 스타일 헬퍼
-// ---------------------------------------------------------
-function getStatusLabel(status) {
-  return getOrderStatusShortLabel(status) || getOrderStatusLabel(status) || status;
-}
-
-function getStatusBadgeClass(status) {
-  return getOrderStatusBadgeClass(status);
+function formatNumber(num) {
+  return Math.round(Number(num) || 0).toLocaleString('ko-KR');
 }
 
 function handleImgError(e) {
@@ -958,145 +1017,75 @@ function handleImgError(e) {
 }
 
 // ---------------------------------------------------------
-// 상세 슬라이드오버 Drawer 동작
+// 모달 동작
 // ---------------------------------------------------------
-function openOrderDetail(order) {
+function openOrderDetail(order, mode = 'detail') {
   activeOrder.value = order;
-  isDetailDrawerOpen.value = true;
+  isDetailModalOpen.value = true;
 }
 
-function closeOrderDetail() {
-  isDetailDrawerOpen.value = false;
+function closeDetailModal() {
+  isDetailModalOpen.value = false;
   activeOrder.value = null;
 }
 
 // ---------------------------------------------------------
-// 엑셀 내보내기 연동 (exportQuoteToExcel)
+// 엑셀 내보내기 연동
 // ---------------------------------------------------------
-function handleExportSingleQuote(order) {
-  if (!order) return;
-  const quoteItems = order.items.map((it) => ({
-    name: it.productName,
-    url: it.productUrl,
-    sku: it.sku,
-    quantity: it.quantity,
-    priceCny: it.priceCny,
-    cbm: it.cbm || 0.05,
-    remark: order.buyerInfo?.memo || '',
-  }));
+function exportSelectedQuotes() {
+  const targetOrders = orders.value.filter(o => selectedOrderIds.value.includes(o.id));
+  if (targetOrders.length === 0) {
+    alert('엑셀로 다운로드할 주문을 먼저 선택해 주세요.');
+    return;
+  }
 
-  exportQuoteToExcel(quoteItems, order.buyerInfo);
-}
-
-function handleExportAllQuotes() {
-  const targetOrders = selectedOrderIds.value.length > 0
-    ? orders.value.filter((o) => selectedOrderIds.value.includes(o.id))
-    : filteredOrders.value;
-
-  if (targetOrders.length === 0) return;
-
-  const combinedItems = [];
-  targetOrders.forEach((o) => {
-    o.items.forEach((it) => {
-      combinedItems.push({
-        name: `[${o.orderNumber}] ${it.productName}`,
-        url: it.productUrl,
-        sku: it.sku,
-        quantity: it.quantity,
-        priceCny: it.priceCny,
-        cbm: it.cbm || 0.05,
-        remark: o.orderNumber,
+  const allItems = [];
+  targetOrders.forEach(ord => {
+    if (Array.isArray(ord.items)) {
+      ord.items.forEach(it => {
+        allItems.push({
+          ...it,
+          orderNo: ord.orderNumber,
+          buyerName: ord.buyerInfo?.buyerName || ord.customer_name
+        });
       });
-    });
+    }
   });
 
-  exportQuoteToExcel(combinedItems, defaultBuyerInfo);
-}
-
-// ---------------------------------------------------------
-// 엑셀 파서 및 대량 등록 모달 (parseOrderExcel)
-// ---------------------------------------------------------
-function openUploadModal() {
-  parsedPreviewItems.value = [];
-  isParsing.value = false;
-  isUploadModalOpen.value = true;
-}
-
-function closeUploadModal() {
-  isUploadModalOpen.value = false;
-  parsedPreviewItems.value = [];
-  if (fileInputRef.value) fileInputRef.value.value = '';
-}
-
-function triggerFileInput() {
-  fileInputRef.value?.click();
-}
-
-async function handleFileChange(event) {
-  const file = event.target.files?.[0];
-  if (!file) return;
-  await processExcelFile(file);
-}
-
-async function handleFileDrop(event) {
-  const file = event.dataTransfer?.files?.[0];
-  if (!file) return;
-  await processExcelFile(file);
-}
-
-async function processExcelFile(file) {
-  isParsing.value = true;
   try {
-    const parsedData = await parseOrderExcel(file);
-    if (!parsedData || parsedData.length === 0) {
-      alert('엑셀 파일에서 유효한 상품 데이터를 찾지 못했습니다. 서식을 확인해주세요.');
-      return;
-    }
-    parsedPreviewItems.value = parsedData;
+    const fileName = exportQuoteExcel(
+      allItems,
+      targetOrders[0]?.buyerInfo || defaultBuyerInfo,
+      226.19,
+      0.08
+    );
+    alert(`선택된 ${targetOrders.length}건의 공식 견적서(${fileName})가 다운로드되었습니다.`);
   } catch (err) {
-    alert(err.message || '엑셀 파일 파싱 중 오류가 발생했습니다.');
-  } finally {
-    isParsing.value = false;
+    console.error('Export error:', err);
+    alert('견적서 엑셀 다운로드 중 오류가 발생했습니다.');
   }
 }
 
-function submitBulkOrder() {
-  if (parsedPreviewItems.value.length === 0) return;
-
-  const newOrderNumber = `EUC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(orders.value.length + 1).padStart(3, '0')}`;
-  const nowStr = new Date().toISOString().replace('T', ' ').slice(0, 16);
-
-  const newOrder = {
-    id: `ord-${Date.now()}`,
-    orderNumber: newOrderNumber,
-    createdAt: nowStr,
-    status: 'quote_request',
-    buyerInfo: { ...defaultBuyerInfo },
-    items: parsedPreviewItems.value.map((item) => ({
-      productName: item.productName,
-      productUrl: item.productUrl,
-      imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
-      sku: item.sku || '기본 옵션',
-      quantity: item.quantity || 1,
-      priceCny: item.priceCny || 0,
-      cbm: item.cbm || 0.1,
-    })),
-    costSummary: null,
-  };
-
-  orders.value.unshift(newOrder);
-  refreshCostSummaries();
-  closeUploadModal();
-  selectedTab.value = 'quote_request';
+function exportSingleQuote(order) {
+  if (!order) return;
+  try {
+    const items = (order.items || []).map(it => ({
+      ...it,
+      orderNo: order.orderNumber,
+      buyerName: order.buyerInfo?.buyerName || order.customer_name
+    }));
+    exportQuoteExcel(items, order.buyerInfo || defaultBuyerInfo, 226.19, 0.08);
+  } catch (err) {
+    console.error('Single quote export error:', err);
+  }
 }
+
+// ---------------------------------------------------------
+// Lifecycle
+// ---------------------------------------------------------
+onMounted(async () => {
+  await loadOrdersData();
+  window.addEventListener('euchs-order-status-update', loadOrdersData);
+  window.addEventListener('storage', loadOrdersData);
+});
 </script>
-
-<style scoped>
-.no-scrollbar::-webkit-scrollbar {
-  display: none;
-}
-.no-scrollbar {
-  -ms-overflow-style: none;
-  scrollbar-width: none;
-}
-</style>
