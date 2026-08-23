@@ -1,0 +1,1152 @@
+<template>
+  <div class="min-h-screen bg-slate-50 font-sans flex flex-col">
+    
+    <!-- ======================================================== -->
+    <!-- 0. SLIM GLOBAL NAVIGATION BAR (GNB 최상단 슬림 헤더) -->
+    <!-- ======================================================== -->
+    <header class="bg-white border-b border-gray-200 sticky top-0 z-40 shadow-xs select-none">
+      <div class="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between items-center h-14 sm:h-15">
+          
+          <!-- Logo & Slogan -->
+          <div class="flex items-center gap-3">
+            <router-link to="/" class="flex items-center gap-2 shrink-0">
+              <img 
+                src="https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/img/logo.png" 
+                alt="이유씨컴퍼니 로고" 
+                class="h-8 sm:h-9 w-auto object-contain hover:opacity-95 transition"
+              />
+            </router-link>
+            <div class="hidden xl:flex items-center gap-1.5 pl-3 border-l border-gray-200 text-xs text-gray-500 font-medium">
+              <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 text-[10px] font-bold">B2B</span>
+              <span>중국무역 & 1688 수입대행 ERP</span>
+            </div>
+          </div>
+
+          <!-- Desktop Navigation Menu (Slim Version) -->
+          <nav class="hidden lg:flex items-center space-x-1 xl:space-x-3 text-xs font-semibold text-gray-700">
+            <!-- 1. 회사소개 -->
+            <router-link 
+              to="/company" 
+              class="px-2.5 py-1.5 rounded-lg hover:text-blue-600 hover:bg-gray-50 transition"
+            >
+              회사소개
+            </router-link>
+
+            <!-- 2. 이우시장투어 -->
+            <router-link 
+              to="/guide/market-tour" 
+              class="px-2.5 py-1.5 rounded-lg hover:text-blue-600 hover:bg-gray-50 transition"
+            >
+              이우시장투어
+            </router-link>
+
+            <!-- 3. 상품조사 -->
+            <router-link 
+              to="/market" 
+              class="px-2.5 py-1.5 rounded-lg hover:text-blue-600 hover:bg-gray-50 transition"
+            >
+              상품조사
+            </router-link>
+
+            <!-- 4. 무역대행 신청 (Slim Button) -->
+            <router-link 
+              to="/services/trade-agent" 
+              class="px-3 py-1.5 rounded-lg font-bold text-white bg-blue-600 hover:bg-blue-700 shadow-sm transition active:scale-95 flex items-center gap-1"
+            >
+              <span>무역대행 신청</span>
+            </router-link>
+
+            <!-- 5. 1688 소싱몰 (Slim Button) -->
+            <router-link 
+              to="/mall" 
+              class="px-3 py-1.5 rounded-lg font-bold text-white bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 hover:from-rose-700 hover:to-orange-600 shadow-sm transition active:scale-95 flex items-center gap-1.5"
+            >
+              <i class="fas fa-store text-xs"></i>
+              <span>1688 소싱몰</span>
+            </router-link>
+
+            <!-- 6. EUC 안내 -->
+            <router-link 
+              to="/guide" 
+              class="px-2.5 py-1.5 rounded-lg hover:text-blue-600 hover:bg-gray-50 transition"
+            >
+              EUC 안내
+            </router-link>
+
+            <!-- 7. 고객센터 -->
+            <router-link 
+              to="/community/notice" 
+              class="px-2.5 py-1.5 rounded-lg hover:text-blue-600 hover:bg-gray-50 transition"
+            >
+              고객센터
+            </router-link>
+          </nav>
+
+          <!-- Right Action: Phone Contact & Mobile Hamburger -->
+          <div class="flex items-center gap-2 sm:gap-3">
+            <a 
+              href="tel:010-9373-1214" 
+              class="hidden sm:flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm transition active:scale-95"
+            >
+              <i class="fas fa-phone-alt text-[10px] text-blue-400"></i>
+              <span>전화상담</span>
+            </a>
+
+            <!-- Mobile Menu Toggle Button -->
+            <button 
+              type="button"
+              @click="isGnbMobileOpen = !isGnbMobileOpen"
+              class="lg:hidden p-1.5 rounded-lg text-gray-700 hover:bg-gray-100 transition"
+              aria-label="전체 메뉴 열기"
+            >
+              <i :class="isGnbMobileOpen ? 'fas fa-times text-lg' : 'fas fa-bars text-lg'"></i>
+            </button>
+          </div>
+
+        </div>
+
+        <!-- Mobile GNB Drawer -->
+        <div v-show="isGnbMobileOpen" class="lg:hidden py-3 border-t border-gray-100 space-y-1 text-xs font-medium">
+          <router-link to="/company" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">회사소개</router-link>
+          <router-link to="/guide/market-tour" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">이우시장투어</router-link>
+          <router-link to="/market" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">상품조사</router-link>
+          <router-link to="/services/trade-agent" class="block px-3 py-2 rounded-lg font-bold text-blue-600 hover:bg-blue-50">무역대행 신청</router-link>
+          <router-link to="/mall" class="block px-3 py-2 rounded-lg font-bold text-rose-600 hover:bg-rose-50">1688 실시간 소싱몰</router-link>
+          <router-link to="/guide" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">EUC 안내</router-link>
+          <router-link to="/community/notice" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">고객센터</router-link>
+        </div>
+      </div>
+    </header>
+
+    <!-- ======================================================== -->
+    <!-- MAIN WORKSPACE (사이드바 + 메인 본문 2단 분할) -->
+    <!-- ======================================================== -->
+    <div class="flex-1 flex flex-col md:flex-row">
+      
+      <!-- ======================================================== -->
+      <!-- 1. LEFT SIDEBAR (CN인사이더 B2B 아코디언 LNB 메뉴바) -->
+      <!-- ======================================================== -->
+      <aside class="w-full md:w-64 bg-white border-r border-gray-200 shrink-0 flex flex-col justify-between select-none">
+        
+        <!-- Top Section: Profile & LNB Tree -->
+        <div>
+          <!-- Profile Mini Card -->
+          <div class="p-4 sm:p-5 border-b border-gray-200 bg-slate-50/70">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white font-black flex items-center justify-center text-base shadow-sm">
+                E
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-1.5">
+                  <span class="font-bold text-gray-900 text-sm truncate">이유씨 바이어</span>
+                  <span class="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[10px] font-black">VIP</span>
+                </div>
+                <p class="text-xs text-gray-500 font-mono truncate">buyer@euchs.com</p>
+              </div>
+            </div>
+
+            <div class="mt-3 pt-2.5 border-t border-gray-200/80 flex items-center justify-between text-xs">
+              <span class="text-gray-500 font-medium">전담 매니저</span>
+              <span class="font-bold text-gray-800 flex items-center gap-1">
+                <i class="fas fa-headset text-orange-500"></i> 이유씨 1:1 배정
+              </span>
+            </div>
+          </div>
+
+          <!-- LNB Accordion Navigation Menu Tree -->
+          <nav class="p-3 space-y-1 text-xs">
+            
+            <!-- 1. 메인 (대시보드) - 단일 클릭 -->
+            <router-link
+              to="/dashboard"
+              class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+              :class="route.path === '/dashboard' ? 'bg-orange-50 text-orange-600 font-bold border-r-2 border-orange-500 shadow-sm' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+            >
+              <div class="flex items-center gap-2.5">
+                <i class="fas fa-chart-pie text-base" :class="route.path === '/dashboard' ? 'text-orange-500' : 'text-gray-400'"></i>
+                <span>메인 (대시보드)</span>
+              </div>
+              <span class="px-1.5 py-0.2 text-[10px] rounded bg-orange-600 text-white font-bold">ERP</span>
+            </router-link>
+
+            <!-- 2. 상품관리 (아코디언) -->
+            <div class="space-y-0.5 pt-1">
+              <button
+                type="button"
+                @click="toggleMenu('products')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-boxes-stacked text-gray-400 text-sm"></i>
+                  <span>상품관리</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.products ? 'rotate-180 text-orange-500' : 'text-gray-400'"></i>
+              </button>
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.products" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/mall"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-gray-600 hover:text-orange-600 hover:bg-orange-50/60 font-medium transition"
+                >
+                  <span>1688 관심상품</span>
+                  <i class="fas fa-external-link-alt text-[9px] text-gray-400"></i>
+                </router-link>
+                <button
+                  type="button"
+                  @click="selectMenu('products_sourcing', 'cart')"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="activeMenuId === 'products_sourcing' ? 'bg-orange-50 text-orange-600 font-bold border-r-2 border-orange-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>내 소싱 상품 목록</span>
+                  <span class="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[9px] font-black font-mono">
+                    {{ savedItems.length }}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  @click="selectMenu('products_bulk')"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="activeMenuId === 'products_bulk' ? 'bg-orange-50 text-orange-600 font-bold border-r-2 border-orange-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>대량 URL 수집기</span>
+                  <span class="text-[9px] bg-slate-100 text-slate-600 px-1 rounded font-bold">AI</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- 3. 발주관리 (아코디언) -->
+            <div class="space-y-0.5 pt-1">
+              <button
+                type="button"
+                @click="toggleMenu('orders')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-clipboard-list text-gray-400 text-sm"></i>
+                  <span>발주관리</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.orders ? 'rotate-180 text-orange-500' : 'text-gray-400'"></i>
+              </button>
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.orders" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/orders"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path.startsWith('/dashboard/orders') ? 'bg-orange-50 text-orange-600 font-bold border-r-2 border-orange-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>주문/발주 통합 관리</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ submittedOrders.length }})</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/orders"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>견적 요청/대기</span>
+                  <span class="font-mono text-gray-500 text-[11px]">({{ savedItems.length }})</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/orders"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>1688 공장 구매진행</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ submittedOrders.length }})</span>
+                </router-link>
+              </div>
+            </div>
+
+            <!-- 4. EUC 현지창고 (입고/검수) (아코디언) -->
+            <div class="space-y-0.5 pt-1">
+              <button
+                type="button"
+                @click="toggleMenu('warehouse')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-warehouse text-gray-400 text-sm"></i>
+                  <span>EUC 현지창고 (입고/검수)</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.warehouse ? 'rotate-180 text-orange-500' : 'text-gray-400'"></i>
+              </button>
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.warehouse" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/warehouse"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path.startsWith('/dashboard/warehouse') ? 'bg-orange-50 text-orange-600 font-bold border-r-2 border-orange-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>실시간 입고/검수 현황</span>
+                  <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">100%</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/warehouse"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>정밀 검수 실사 확인</span>
+                  <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">실사</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/warehouse"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>부가작업 신청 (VAS)</span>
+                </router-link>
+              </div>
+            </div>
+
+            <!-- 5. 수입 통관 & 국내배송 (아코디언) -->
+            <div class="space-y-0.5 pt-1">
+              <button
+                type="button"
+                @click="toggleMenu('shipping')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-ship text-gray-400 text-sm"></i>
+                  <span>수입 통관 & 국내배송</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.shipping ? 'rotate-180 text-orange-500' : 'text-gray-400'"></i>
+              </button>
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.shipping" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/logistics"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path.startsWith('/dashboard/logistics') ? 'bg-orange-50 text-orange-600 font-bold border-r-2 border-orange-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>통관 진행 (Uni-Pass)</span>
+                  <i class="fas fa-link text-[9px] text-gray-400"></i>
+                </router-link>
+                <router-link
+                  to="/dashboard/logistics"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>국내 택배/화물 배송추적</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/logistics"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>한·중 FTA C/O 신청</span>
+                </router-link>
+              </div>
+            </div>
+
+            <!-- 6. 계정 및 수령처 설정 (아코디언) -->
+            <div class="space-y-0.5 pt-1">
+              <button
+                type="button"
+                @click="toggleMenu('account')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-id-card text-gray-400 text-sm"></i>
+                  <span>계정 및 수령처 설정</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.account ? 'rotate-180 text-orange-500' : 'text-gray-400'"></i>
+              </button>
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.account" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/account"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path.startsWith('/dashboard/account') ? 'bg-orange-50 text-orange-600 font-bold border-r-2 border-orange-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>기본/추가 수령 주소지</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/account"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>사업자/통관고유부호(PCCC)</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/account"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium"
+                >
+                  <span>예치금 충전/환불 관리</span>
+                </router-link>
+              </div>
+            </div>
+
+          </nav>
+        </div>
+
+        <!-- Bottom Quick Help Box -->
+        <div class="p-4 m-3 bg-slate-900 text-white rounded-2xl space-y-2 text-xs">
+          <div class="flex items-center gap-2 text-orange-400 font-bold">
+            <i class="fas fa-comment-dots text-sm"></i>
+            <span>1:1 전담 카카오톡 상담</span>
+          </div>
+          <p class="text-slate-300 text-[11px] leading-relaxed">
+            대량 발주, 특수 검수, 맞춤 OEM 제작 문의는 전담 매니저에게 실시간 문의하세요.
+          </p>
+          <a
+            href="http://pf.kakao.com/_xmQWsK/chat"
+            target="_blank"
+            class="block w-full py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-extrabold text-center rounded-xl transition"
+          >
+            카카오톡 상담하기
+          </a>
+        </div>
+
+      </aside>
+
+      <!-- ======================================================== -->
+      <!-- 2. RIGHT MAIN CONTENT AREA -->
+      <!-- ======================================================== -->
+      <main class="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-x-hidden">
+        
+        <!-- Nested Router View for /dashboard/orders, /dashboard/warehouse -->
+        <router-view v-if="route.path !== '/dashboard'" />
+
+        <!-- Default Main Dashboard Overview -->
+        <template v-else>
+          <!-- Top Title Bar -->
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-gray-200">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded bg-orange-100 text-orange-700 text-xs font-black">
+                {{ currentMenuLabel }}
+              </span>
+              <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
+                B2B 수입대행 통합 대시보드
+              </h1>
+            </div>
+            <p class="text-xs text-gray-600 font-medium mt-1">
+              1688 실시간 상품 소싱부터 발주, 현지 창고 검수, 세관 통관까지 원스톱으로 관리합니다.
+            </p>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              @click="downloadEstimateExcel"
+              :disabled="savedItems.length === 0 && submittedOrders.length === 0"
+              class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5 disabled:opacity-50"
+            >
+              <i class="fas fa-file-excel"></i>
+              <span>전체 견적 엑셀 다운로드</span>
+            </button>
+            
+            <router-link
+              to="/mall"
+              class="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5"
+            >
+              <i class="fas fa-plus"></i>
+              <span>1688 상품 소싱하기</span>
+            </router-link>
+          </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- A. TOP METRIC CARDS (3대 프로필 & 예치금/외화 카드) -->
+        <!-- ======================================================== -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          
+          <!-- Card 1: User Profile & Rank Card -->
+          <div class="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-none hover:border-gray-300 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-gray-600">바이어 계정 현황</span>
+              <span class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-bold">
+                <i class="fas fa-user-check"></i>
+              </span>
+            </div>
+            <div class="mt-3 space-y-1">
+              <div class="text-lg font-bold text-gray-900 truncate">
+                {{ buyerForm.companyName || '이유씨 글로벌 바이어' }}
+              </div>
+              <div class="flex items-center gap-2 text-xs text-gray-600">
+                <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">VIP 1</span>
+                <span>수수료율: <b class="text-orange-600">{{ agencyFeeRate }}%</b></span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 2: KRW Deposit Balance Card -->
+          <div class="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-none hover:border-gray-300 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-gray-600">한화 (KRW) 예치금 잔액</span>
+              <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">
+                <i class="fas fa-won-sign"></i>
+              </span>
+            </div>
+            <div class="mt-3">
+              <div class="flex items-baseline space-x-1 font-sans">
+                <span class="text-sm font-semibold text-gray-700">₩</span>
+                <span class="text-2xl font-bold tracking-tight text-gray-900">{{ formatKrw(depositBalanceKrw) }}</span>
+              </div>
+              <div class="text-xs font-medium text-gray-500 mt-1">
+                환산 약 ¥ {{ (depositBalanceKrw / customExchangeRate).toFixed(2) }} 위안
+              </div>
+            </div>
+          </div>
+
+          <!-- Card 3: Foreign Currency Card (CNY / USD) -->
+          <div class="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-none hover:border-gray-300 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-medium text-gray-600">외화 잔액 (CNY / USD)</span>
+              <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-bold">
+                <i class="fas fa-coins"></i>
+              </span>
+            </div>
+            <div class="mt-3 space-y-1">
+              <div class="flex items-baseline space-x-1 font-sans">
+                <span class="text-sm font-semibold text-rose-600">¥</span>
+                <span class="text-xl font-bold tracking-tight text-gray-900 font-mono">0.00</span>
+                <span class="text-xs text-gray-400 font-normal ml-1">위안</span>
+              </div>
+              <div class="text-xs font-medium text-gray-500 font-mono">
+                USD: $0.00 달러
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 2-COLUMN SPLIT: Central Main + Right Side Panel -->
+        <!-- ======================================================== -->
+        <div class="flex flex-col lg:flex-row gap-6 items-start">
+          
+          <!-- LEFT-CENTER: Main Stages & Table (flex-1) -->
+          <div class="flex-1 min-w-0 w-full space-y-6">
+            
+            <!-- B. ORDER STATUS GRID (CN인사이더 표준 2x5 상태 현황 테이블) -->
+            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-none">
+              <div class="px-5 py-3.5 border-b border-gray-200 flex items-center justify-between bg-slate-50/70">
+                <h2 class="text-sm font-bold text-gray-900 flex items-center gap-2">
+                  <i class="fas fa-list-check text-orange-500"></i>
+                  <span>1688 수입 발주 진행 단계별 현황</span>
+                </h2>
+                <span class="text-xs text-gray-500 font-medium">전체 주문 건수: <b class="text-gray-900">{{ totalOrderStepCount }}</b>건</span>
+              </div>
+
+              <div class="grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-gray-200 text-center text-xs">
+                
+                <!-- Step 1: 견적대기 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_quote', '견적대기')">
+                  <div class="text-gray-600 font-medium">견적대기</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">{{ savedItems.length }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">보관함 품목</div>
+                </div>
+
+                <!-- Step 2: 고객확인 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', '고객확인')">
+                  <div class="text-gray-600 font-medium">고객확인</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">견적서 검토</div>
+                </div>
+
+                <!-- Step 3: 고객결제 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', '고객결제')">
+                  <div class="text-gray-600 font-medium">고객결제</div>
+                  <div class="text-2xl font-bold text-orange-600 mt-1 font-mono">0</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">결제 대기</div>
+                </div>
+
+                <!-- Step 4: 결제심사 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', '결제심사')">
+                  <div class="text-gray-600 font-medium">결제심사</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">입금 확인중</div>
+                </div>
+
+                <!-- Step 5: 구매진행 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_purchase', '구매진행')">
+                  <div class="text-gray-600 font-medium">구매진행</div>
+                  <div class="text-2xl font-bold text-blue-600 mt-1 font-mono">{{ submittedOrders.length }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">1688 공장발주</div>
+                </div>
+
+                <!-- Step 6: 입고완료 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_inbound')">
+                  <div class="text-gray-600 font-medium">입고완료</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">이우/위해 창고</div>
+                </div>
+
+                <!-- Step 7: 출고대기 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_outbound')">
+                  <div class="text-gray-600 font-medium">출고대기</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">선적/항공 준비</div>
+                </div>
+
+                <!-- Step 8: 부분출고 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_outbound')">
+                  <div class="text-gray-600 font-medium">부분출고</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">0</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">분할 선적</div>
+                </div>
+
+                <!-- Step 9: 배송완료 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking')">
+                  <div class="text-gray-600 font-medium">배송완료</div>
+                  <div class="text-2xl font-bold text-emerald-600 mt-1 font-mono">0</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">국내 수령 완료</div>
+                </div>
+
+                <!-- Step 10: 전체주문 -->
+                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_all', 'all')">
+                  <div class="text-gray-600 font-medium">전체주문</div>
+                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">{{ totalOrderStepCount }}</div>
+                  <div class="text-[11px] text-gray-400 mt-0.5">전체 이력</div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- C. RECENT ORDERS & WAITING ITEMS COMPREHENSIVE TABLE -->
+            <div class="bg-white border border-gray-200 rounded-xl shadow-none space-y-4 p-5">
+              
+              <!-- 한·중 FTA C/O 및 수입통관 설정 바 -->
+              <div class="bg-orange-50/70 border border-orange-200 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+                <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    v-model="orderOptions.requestCo"
+                    class="w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500 accent-orange-600"
+                  />
+                  <span class="font-bold text-gray-900 flex flex-wrap items-center gap-1.5">
+                    <i class="fas fa-file-shield text-orange-600 text-sm"></i>
+                    <span>한·중 FTA C/O(원산지증명서) 발급 신청</span>
+                    <span class="px-1.5 py-0.2 bg-orange-100 text-orange-800 rounded text-[10px] font-black border border-orange-200">
+                      관세 감면용 필수 서류
+                    </span>
+                  </span>
+                </label>
+                <div class="text-[11px] text-gray-600 font-medium flex items-center gap-1">
+                  <i class="fas fa-circle-info text-orange-500 text-xs"></i>
+                  <span>발급 시 품목별 한-중 FTA 협정 관세(관세 인하 또는 0%)가 적용됩니다.</span>
+                </div>
+              </div>
+
+              <!-- Table Search & Filter Bar -->
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div class="flex items-center gap-2">
+                  <h2 class="text-base font-bold text-gray-900 flex items-center gap-2">
+                    <i class="fas fa-table-list text-orange-600"></i>
+                    <span>발주 대기 & 최근 주문 목록</span>
+                  </h2>
+                  <span class="text-xs text-gray-500">({{ displayItemsList.length }}건)</span>
+                </div>
+
+                <!-- Search & Filter Controls -->
+                <div class="flex flex-wrap items-center gap-2 text-xs">
+                  <select
+                    v-model="selectedStatusFilter"
+                    class="px-3 py-2 rounded-lg border border-gray-300 font-medium text-gray-800 outline-none focus:border-orange-500 bg-white"
+                  >
+                    <option value="all">전체 상태 보기</option>
+                    <option value="cart">발주대기 보관함</option>
+                    <option value="submitted">접수완료 (구매진행)</option>
+                    <option value="견적대기">견적대기</option>
+                    <option value="구매진행">구매진행</option>
+                  </select>
+
+                  <div class="relative flex-1 sm:w-64">
+                    <input
+                      type="text"
+                      v-model="tableSearchQuery"
+                      placeholder="상품명, 1688 ID, 발주번호 검색"
+                      class="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-300 font-medium text-gray-800 outline-none focus:border-orange-500"
+                    />
+                    <i class="fas fa-search absolute left-2.5 top-3 text-gray-400 text-xs"></i>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Table View -->
+              <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                <table class="w-full text-left text-xs divide-y divide-gray-200">
+                  <thead class="bg-slate-50 text-gray-600 font-semibold">
+                    <tr>
+                      <th class="py-3 px-4">구분 / 번호</th>
+                      <th class="py-3 px-4">상품 정보</th>
+                      <th class="py-3 px-4 text-center">옵션 / 규격</th>
+                      <th class="py-3 px-4 text-center">수량</th>
+                      <th class="py-3 px-4 text-right">사입 공급가 (KRW / CNY)</th>
+                      <th class="py-3 px-4 text-center">상태</th>
+                      <th class="py-3 px-4 text-center">관리</th>
+                    </tr>
+                  </thead>
+
+                  <tbody class="divide-y divide-gray-100 bg-white">
+                    
+                    <!-- Empty State -->
+                    <tr v-if="displayItemsList.length === 0">
+                      <td colspan="7" class="py-12 text-center text-gray-400">
+                        <div class="flex flex-col items-center gap-2">
+                          <i class="fas fa-inbox text-3xl text-gray-300"></i>
+                          <span class="font-medium">선택된 조건의 발주 내역이 없습니다.</span>
+                          <router-link
+                            to="/mall"
+                            class="mt-2 px-4 py-2 rounded-lg bg-orange-600 text-white font-bold text-xs hover:bg-orange-700 transition shadow-sm"
+                          >
+                            1688 상품 소싱하러 가기
+                          </router-link>
+                        </div>
+                      </td>
+                    </tr>
+
+                    <!-- Items List Row -->
+                    <tr
+                      v-for="(row, rIdx) in displayItemsList"
+                      :key="row.id || rIdx"
+                      class="hover:bg-slate-50/80 transition"
+                    >
+                      <!-- 1. 구분 / 번호 -->
+                      <td class="py-3 px-4 font-mono text-gray-600 whitespace-nowrap">
+                        <span
+                          class="px-2 py-0.5 rounded text-[10px] font-bold"
+                          :class="row.type === 'cart' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-blue-50 text-blue-700 border border-blue-200'"
+                        >
+                          {{ row.type === 'cart' ? '보관함' : '주문접수' }}
+                        </span>
+                        <div class="text-[11px] text-gray-500 mt-1">
+                          {{ row.orderId || `CART-${row.id?.slice(-6) || rIdx + 1}` }}
+                        </div>
+                      </td>
+
+                      <!-- 2. 상품 정보 (Thumbnail + Name) -->
+                      <td class="py-3 px-4">
+                        <div class="flex items-center gap-3 min-w-[240px]">
+                          <img
+                            :src="row.imageUrl"
+                            :alt="row.titleKo"
+                            class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0"
+                            @error="handleImageError"
+                          />
+                          <div class="space-y-0.5 flex-1 min-w-0">
+                            <a
+                              :href="row.detailUrl"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              class="font-bold text-gray-900 hover:text-orange-600 line-clamp-2 leading-snug transition"
+                              :title="row.titleKo || row.titleZh"
+                            >
+                              {{ row.titleKo || row.titleZh }}
+                            </a>
+                            <div class="text-[11px] text-gray-500 font-mono">
+                              1688 ID: <b>{{ row.itemId || row.id }}</b>
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+
+                      <!-- 3. 옵션 / 규격 -->
+                      <td class="py-3 px-4 text-center text-gray-700 font-medium whitespace-nowrap">
+                        <span v-if="row.skus && row.skus.length" class="bg-gray-100 px-2 py-1 rounded text-[11px]">
+                          {{ row.skus[0].color }} / {{ row.skus[0].size }}
+                          <span v-if="row.skus.length > 1" class="text-orange-600 font-bold ml-0.5">
+                            외 {{ row.skus.length - 1 }}종
+                          </span>
+                        </span>
+                        <span v-else class="text-gray-400">기본 옵션</span>
+                      </td>
+
+                      <!-- 4. 수량 -->
+                      <td class="py-3 px-4 text-center font-bold text-gray-900 font-mono whitespace-nowrap">
+                        {{ getItemQuantity(row) }}개
+                      </td>
+
+                      <!-- 5. 사입 공급가 -->
+                      <td class="py-3 px-4 text-right whitespace-nowrap">
+                        <div class="flex items-baseline justify-end space-x-1 font-sans">
+                          <span class="text-xs font-semibold text-gray-700">₩</span>
+                          <span class="font-bold text-gray-900 text-sm">{{ formatKrw(getItemTotalKrw(row)) }}</span>
+                        </div>
+                        <div class="text-[11px] font-medium text-rose-600 font-mono">
+                          ¥ {{ getItemTotalRmb(row).toFixed(2) }}
+                        </div>
+                      </td>
+
+                      <!-- 6. 상태 -->
+                      <td class="py-3 px-4 text-center whitespace-nowrap">
+                        <span
+                          class="px-2.5 py-1 rounded-full text-[11px] font-bold"
+                          :class="row.type === 'cart' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'"
+                        >
+                          {{ row.status || (row.type === 'cart' ? '견적대기' : '구매진행') }}
+                        </span>
+                      </td>
+
+                      <!-- 7. 관리 -->
+                      <td class="py-3 px-4 text-center whitespace-nowrap space-x-1">
+                        <button
+                          v-if="row.type === 'cart'"
+                          type="button"
+                          @click="removeCartItemById(row.id)"
+                          class="px-2.5 py-1 rounded border border-gray-300 hover:border-red-400 text-gray-600 hover:text-red-600 text-xs transition"
+                        >
+                          삭제
+                        </button>
+                        <button
+                          type="button"
+                          @click="downloadRowEstimate(row)"
+                          class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-gray-700 text-xs font-medium transition"
+                          title="단건 견적서 다운로드"
+                        >
+                          견적서
+                        </button>
+                      </td>
+
+                    </tr>
+
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- RIGHT SIDE PANEL (CN인사이더 스타일: 가이드 & FAQ & 안내) -->
+          <div class="w-full lg:w-72 xl:w-80 flex flex-col space-y-4 shrink-0">
+            
+            <!-- Panel 1: 시스템 이용가이드 (튜토리얼 카드) -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-none">
+              <div class="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
+                <h4 class="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                  <i class="fas fa-book-open text-orange-500 text-xs mr-1"></i>
+                  <span>시스템 이용가이드</span>
+                </h4>
+                <router-link to="/guide" class="text-[11px] text-gray-400 hover:text-gray-600">더보기 &gt;</router-link>
+              </div>
+              <ul class="space-y-2 text-xs text-gray-600 font-medium">
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• (신) 수령주소 작성 및 관리 방법</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• EUC 현지창고 입고사진/검수 확인법</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 통관 위임장 및 사업자 통관 안내</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 원산지(Made in China) 작업 신청법</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 개인회원 ↔ 사업자회원 전환 절차</li>
+              </ul>
+            </div>
+
+            <!-- Panel 2: 자주 묻는 질문 (FAQ 카드) -->
+            <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-none">
+              <div class="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
+                <h4 class="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                  <i class="fas fa-circle-question text-blue-500 text-xs mr-1"></i>
+                  <span>자주 묻는 질문 (FAQ)</span>
+                </h4>
+                <router-link to="/community/faq" class="text-[11px] text-gray-400 hover:text-gray-600">더보기 &gt;</router-link>
+              </div>
+              <ul class="space-y-2 text-xs text-gray-600 font-medium">
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 1688 최소 구매수량(MOQ) 협의 가능한가요?</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 예치금 충전 후 세금계산서는 언제 발행되나요?</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 한-중 FTA 원산지증명서(C/O) 발급 비용은?</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 쿠팡 밀크런/로켓그로스 바코드 부착 서비스는?</li>
+                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 불량품 발견 시 중국 공장 반품/환불 절차</li>
+              </ul>
+            </div>
+
+            <!-- Panel 3: 중국 현지 물류센터 직통 안내 -->
+            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-4 space-y-2.5 text-xs shadow-sm">
+              <div class="font-bold flex items-center gap-1.5 text-orange-400 text-xs">
+                <i class="fas fa-building-flag"></i>
+                <span>EUCHS 중국 직영 창고 운영 안내</span>
+              </div>
+              <div class="space-y-1.5 text-[11px] text-slate-300">
+                <div class="flex items-center justify-between">
+                  <span>이우(Yiwu) 물류센터:</span>
+                  <span class="text-emerald-400 font-bold">정상 가동중</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <span>위해(Weihai) 물류센터:</span>
+                  <span class="text-emerald-400 font-bold">정상 가동중</span>
+                </div>
+                <div class="flex items-center justify-between pt-1 border-t border-slate-700 text-slate-400">
+                  <span>한국행 해운 선적:</span>
+                  <span>매주 주 4회 출항 (정기 선적)</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
+        </template>
+
+      </main>
+
+    </div>
+
+  </div>
+</template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { useRouter, useRoute } from 'vue-router'
+import { fetchSiteSettings } from '../lib/settings'
+import { exportQuoteExcel } from '../utils/excelExport'
+
+const router = useRouter()
+const route = useRoute()
+
+// ----------------------------------------------------
+// State: GNB & LNB Accordion Tree
+// ----------------------------------------------------
+const isGnbMobileOpen = ref(false)
+const activeMenuId = ref('dashboard_main')
+
+const expandedMenus = ref({
+  products: true,
+  orders: true,
+  warehouse: false,
+  shipping: false,
+  account: false
+})
+
+const toggleMenu = (key) => {
+  expandedMenus.value[key] = !expandedMenus.value[key]
+}
+
+const selectMenu = (menuId, filter = null) => {
+  activeMenuId.value = menuId
+  if (filter) {
+    selectedStatusFilter.value = filter
+  }
+}
+
+const menuLabels = {
+  dashboard_main: '메인 (대시보드)',
+  products_sourcing: '내 소싱 상품 목록',
+  products_bulk: '대량 URL 수집기',
+  orders_quote: '견적 요청/대기',
+  orders_payment: '결제 대기/완료',
+  orders_purchase: '1688 공장 구매진행',
+  orders_all: '전체 주문 통합내역',
+  warehouse_inbound: '실시간 입고/계근 현황',
+  warehouse_inspect: '정밀 검수 실사 확인',
+  warehouse_customs_work: '부가작업 신청 (바코드/원산지)',
+  warehouse_outbound: '한국행 출고/선적 요청',
+  shipping_unipass: '통관 진행 (Uni-Pass)',
+  shipping_tracking: '국내 택배/화물 배송추적',
+  shipping_tax: '수입신고필증/세금계산서',
+  account_address: '기본/추가 수령 주소지',
+  account_customs_code: '사업자/통관고유부호(PCCC)',
+  account_deposit: '예치금 충전/환불 관리'
+}
+
+const currentMenuLabel = computed(() => {
+  return menuLabels[activeMenuId.value] || '대시보드 메인'
+})
+
+// ----------------------------------------------------
+// Dashboard Data State
+// ----------------------------------------------------
+const selectedStatusFilter = ref('all')
+const tableSearchQuery = ref('')
+
+const savedItems = ref([])
+const submittedOrders = ref([])
+
+const orderOptions = ref({
+  requestCo: true, // 한·중 FTA C/O(원산지증명서) 발급 신청 기본 선택
+  requestInspection: true
+})
+
+const customExchangeRate = ref(226.19)
+const agencyFeeRate = ref(8.0)
+const depositBalanceKrw = ref(15420000)
+
+const buyerForm = ref({
+  companyName: '(주)이유씨 글로벌 바이어',
+  managerName: '홍길동',
+  phone: '010-1234-5678',
+  email: 'buyer@euchs.com',
+  customsCode: 'P123456789012'
+})
+
+// ----------------------------------------------------
+// Load Data from LocalStorage
+// ----------------------------------------------------
+const loadDashboardData = () => {
+  try {
+    // 1. 보관함 품목
+    const cachedCart = localStorage.getItem('euchs_erp_saved_items')
+    if (cachedCart) {
+      const parsed = JSON.parse(cachedCart)
+      savedItems.value = Array.isArray(parsed) ? parsed : []
+    } else {
+      savedItems.value = []
+    }
+
+    // 2. 접수된 주문서
+    const cachedOrders = localStorage.getItem('euchs_erp_submitted_orders')
+    if (cachedOrders) {
+      const parsedOrders = JSON.parse(cachedOrders)
+      submittedOrders.value = Array.isArray(parsedOrders) ? parsedOrders : []
+    } else {
+      submittedOrders.value = []
+    }
+  } catch (err) {
+    console.error('Failed to load dashboard data:', err)
+  }
+}
+
+// ----------------------------------------------------
+// Calculations
+// ----------------------------------------------------
+const getItemQuantity = (item) => {
+  if (Array.isArray(item.skus) && item.skus.length > 0) {
+    return item.skus.reduce((sum, s) => sum + (Number(s.quantity) || 0), 0)
+  }
+  return Number(item.quantity || item.orderQty || item.minOrder || 1)
+}
+
+const getItemTotalRmb = (item) => {
+  const qty = getItemQuantity(item)
+  const unitPrice = Number(item.price) || 0
+  return Number((qty * unitPrice).toFixed(2))
+}
+
+const getItemTotalKrw = (item) => {
+  return Math.round(getItemTotalRmb(item) * customExchangeRate.value)
+}
+
+const totalOrderStepCount = computed(() => {
+  return savedItems.value.length + submittedOrders.value.length
+})
+
+const formatKrw = (val) => {
+  return Math.round(val || 0).toLocaleString('ko-KR')
+}
+
+// ----------------------------------------------------
+// Filtered Table Items List
+// ----------------------------------------------------
+const displayItemsList = computed(() => {
+  const list = []
+
+  // 1. 보관함 항목 매핑
+  savedItems.value.forEach(it => {
+    list.push({
+      ...it,
+      type: 'cart',
+      status: '견적대기'
+    })
+  })
+
+  // 2. 접수된 주문서 항목 매핑
+  submittedOrders.value.forEach(ord => {
+    if (Array.isArray(ord.items)) {
+      ord.items.forEach(it => {
+        list.push({
+          ...it,
+          orderId: ord.orderId,
+          type: 'submitted',
+          status: ord.status || '구매진행'
+        })
+      })
+    }
+  })
+
+  // 필터링 적용
+  return list.filter(row => {
+    // 상태 필터
+    if (selectedStatusFilter.value === 'cart' && row.type !== 'cart') return false
+    if (selectedStatusFilter.value === 'submitted' && row.type !== 'submitted') return false
+    if (selectedStatusFilter.value === '견적대기' && row.status !== '견적대기') return false
+    if (selectedStatusFilter.value === '구매진행' && row.status !== '구매진행') return false
+
+    // 텍스트 검색 필터
+    if (tableSearchQuery.value.trim()) {
+      const q = tableSearchQuery.value.trim().toLowerCase()
+      const title = (row.titleKo || row.titleZh || '').toLowerCase()
+      const id = String(row.itemId || row.id || '').toLowerCase()
+      const ordId = String(row.orderId || '').toLowerCase()
+      return title.includes(q) || id.includes(q) || ordId.includes(q)
+    }
+
+    return true
+  })
+})
+
+// ----------------------------------------------------
+// Actions
+// ----------------------------------------------------
+const removeCartItemById = (id) => {
+  if (confirm('해당 품목을 보관함에서 삭제하시겠습니까?')) {
+    savedItems.value = savedItems.value.filter(it => it.id !== id)
+    localStorage.setItem('euchs_erp_saved_items', JSON.stringify(savedItems.value))
+    window.dispatchEvent(new Event('storage'))
+  }
+}
+
+const handleImageError = (e) => {
+  e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=80'
+}
+
+// ----------------------------------------------------
+// Excel Download
+// ----------------------------------------------------
+const downloadEstimateExcel = () => {
+  const targetItems = displayItemsList.value
+  if (targetItems.length === 0) {
+    alert('견적서로 출력할 상품 또는 발주 대기 항목이 없습니다.')
+    return
+  }
+
+  try {
+    const fileName = exportQuoteExcel(
+      targetItems,
+      {
+        companyName: buyerForm.value.companyName,
+        buyerName: buyerForm.value.managerName,
+        phone: buyerForm.value.contactPhone,
+        email: buyerForm.value.email,
+        customsCode: buyerForm.value.customsCode,
+        memo: `한·중 FTA C/O: ${orderOptions.value.requestCo ? '신청' : '미신청'} | 정밀검수: 신청`
+      },
+      customExchangeRate.value,
+      agencyFeeRate.value / 100
+    )
+    alert(`공식 견적서 파일(${fileName})이 정상적으로 다운로드되었습니다.`)
+  } catch (err) {
+    console.error('견적서 엑셀 다운로드 오류:', err)
+    alert(`견적서 엑셀 다운로드 중 오류가 발생했습니다: ${err.message}`)
+  }
+}
+
+const downloadRowEstimate = (row) => {
+  try {
+    exportQuoteExcel(
+      [row],
+      {
+        companyName: buyerForm.value.companyName,
+        buyerName: buyerForm.value.managerName
+      },
+      customExchangeRate.value,
+      agencyFeeRate.value / 100
+    )
+  } catch (err) {
+    console.error('단건 견적 엑셀 다운로드 오류:', err)
+  }
+}
+
+// ----------------------------------------------------
+// Lifecycle
+// ----------------------------------------------------
+onMounted(async () => {
+  loadDashboardData()
+
+  try {
+    const settings = await fetchSiteSettings()
+    if (settings) {
+      agencyFeeRate.value = Number(settings.agency_fee_rate) || 8.0
+      customExchangeRate.value = Number(settings.exchange_rate) || 226.19
+    }
+  } catch (e) {
+    console.warn('Dashboard settings load error:', e)
+  }
+
+  window.addEventListener('storage', loadDashboardData)
+})
+</script>

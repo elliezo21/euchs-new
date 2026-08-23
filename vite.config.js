@@ -84,6 +84,111 @@ function naverAuthPlugin(env) {
   }
 }
 
+// 1688 DataHub & DeepL 로컬 프록시 미들웨어 플러그인
+function lab1688Plugin(env) {
+  return {
+    name: 'lab-1688-deepl-plugin',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        // 1. DeepL 번역 프록시
+        if (req.url?.startsWith('/api/deepl-translate') && req.method === 'POST') {
+          let body = ''
+          req.on('data', (chunk) => { body += chunk })
+          req.on('end', async () => {
+            try {
+              const { text, target_lang, source_lang } = JSON.parse(body || '{}')
+              const deeplKey = env.VITE_DEEPL_API_KEY || env.DEEPL_API_KEY || process.env.DEEPL_API_KEY || ''
+              
+              if (!deeplKey) {
+                res.statusCode = 500
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.end(JSON.stringify({ success: false, message: 'DEEPL_API_KEY가 설정되지 않았습니다.' }))
+                return
+              }
+
+              const isFreeKey = deeplKey.endsWith(':fx')
+              const deeplEndpoint = isFreeKey
+                ? 'https://api-free.deepl.com/v2/translate'
+                : 'https://api.deepl.com/v2/translate'
+
+              const response = await fetch(deeplEndpoint, {
+                method: 'POST',
+                headers: {
+                  'Authorization': `DeepL-Auth-Key ${deeplKey}`,
+                  'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                  text: Array.isArray(text) ? text : [text],
+                  target_lang: target_lang || 'ZH',
+                  ...(source_lang ? { source_lang } : {})
+                })
+              })
+
+              const data = await response.json()
+              res.statusCode = response.status
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
+            } catch (err) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: err.message }))
+            }
+          })
+          return
+        }
+
+        // 2. 1688 DataHub 검색 프록시
+        if (req.url?.startsWith('/api/1688-search') && req.method === 'GET') {
+          try {
+            const reqUrl = new URL(req.url, 'http://localhost:5173')
+            const q = reqUrl.searchParams.get('q') || ''
+            const page = reqUrl.searchParams.get('page') || '1'
+            const sort = reqUrl.searchParams.get('sort') || 'default'
+            const priceMin = reqUrl.searchParams.get('price_min') || ''
+            const priceMax = reqUrl.searchParams.get('price_max') || ''
+
+            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || ''
+            const rapidHost = env.VITE_RAPIDAPI_HOST || env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
+
+            if (!rapidKey) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: 'RAPIDAPI_KEY가 설정되지 않았습니다.' }))
+              return
+            }
+
+            const targetUrl = new URL(`https://${rapidHost}/item_search`)
+            targetUrl.searchParams.set('q', q)
+            targetUrl.searchParams.set('page', page)
+            if (sort && sort !== 'default') targetUrl.searchParams.set('sort', sort)
+            if (priceMin) targetUrl.searchParams.set('price_min', priceMin)
+            if (priceMax) targetUrl.searchParams.set('price_max', priceMax)
+
+            const response = await fetch(targetUrl.toString(), {
+              headers: {
+                'x-rapidapi-key': rapidKey,
+                'x-rapidapi-host': rapidHost
+              }
+            })
+
+            const data = await response.json()
+            res.statusCode = response.status
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: false, message: err.message }))
+          }
+          return
+        }
+
+        next()
+      })
+    }
+  }
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
@@ -91,7 +196,8 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [
       vue(),
-      naverAuthPlugin(env)
+      naverAuthPlugin(env),
+      lab1688Plugin(env)
     ],
     resolve: {
       alias: {

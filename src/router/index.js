@@ -12,7 +12,15 @@ import NoticeView from '../views/community/NoticeView.vue'
 import FaqView from '../views/community/FaqView.vue'
 import AdminView from '../views/admin/AdminViewNew.vue'
 import AdminLoginView from '../views/admin/AdminLoginView.vue'
+import AdminWarehouseView from '../views/admin/AdminWarehouseView.vue'
 import CalculatorView from '../views/tools/CalculatorView.vue'
+import Lab1688View from '../views/Lab1688View.vue'
+import MallView from '../views/MallView.vue'
+import DashboardView from '../views/DashboardView.vue'
+import OrderManageView from '../views/dashboard/OrderManageView.vue'
+import WarehouseView from '../views/dashboard/WarehouseView.vue'
+import CustomsLogisticsView from '../views/dashboard/CustomsLogisticsView.vue'
+import AccountSettingsView from '../views/dashboard/AccountSettingsView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
 import MyPageView from '../views/MyPageView.vue'
 import { currentUser, checkUserRole } from '../lib/auth'
@@ -25,13 +33,57 @@ const routes = [
     component: HomeView,
   },
   {
+    path: '/mall',
+    name: 'mall',
+    component: MallView,
+  },
+  {
+    path: '/dashboard',
+    component: DashboardView,
+    children: [
+      {
+        path: '',
+        name: 'dashboard',
+      },
+      {
+        path: 'orders',
+        name: 'dashboard-orders',
+        component: OrderManageView,
+      },
+      {
+        path: 'warehouse',
+        name: 'dashboard-warehouse',
+        component: WarehouseView,
+      },
+      {
+        path: 'logistics',
+        name: 'dashboard-logistics',
+        component: CustomsLogisticsView,
+      },
+      {
+        path: 'account',
+        name: 'dashboard-account',
+        component: AccountSettingsView,
+      },
+    ],
+  },
+  {
+    path: '/lab/1688-search',
+    name: 'lab-1688-search',
+    component: Lab1688View,
+  },
+  {
+    path: '/lab/1688',
+    redirect: '/dashboard'
+  },
+  {
     path: '/mypage',
     name: 'mypage',
-    component: MyPageView,
+    component: Lab1688View,
   },
   {
     path: '/my-page',
-    redirect: '/mypage'
+    redirect: '/dashboard'
   },
   {
     path: '/auth/callback/naver',
@@ -111,6 +163,12 @@ const routes = [
     path: '/admin',
     name: 'admin',
     component: AdminView,
+    meta: { requiresAdmin: true }
+  },
+  {
+    path: '/admin/warehouse',
+    name: 'admin-warehouse',
+    component: AdminWarehouseView,
     meta: { requiresAdmin: true }
   },
   {

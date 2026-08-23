@@ -1,11 +1,11 @@
 <template>
   <div class="min-h-screen flex flex-col bg-white text-slate-800">
-    <Header v-if="!isAdminRoute" />
+    <Header v-if="!isStandaloneRoute" />
     <main class="flex-grow">
       <router-view />
     </main>
-    <QuickMenu v-if="!isAdminRoute" />
-    <Footer v-if="!isAdminRoute" />
+    <QuickMenu v-if="!isStandaloneRoute" />
+    <Footer v-if="!isStandaloneRoute" />
     <LoginModal />
   </div>
 </template>
@@ -17,18 +17,27 @@ import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import QuickMenu from './components/QuickMenu.vue'
 import LoginModal from './components/LoginModal.vue'
-import { recordVisit } from './lib/analytics'
+import { trackVisitor } from './lib/analytics'
 
 const route = useRoute()
-const isAdminRoute = computed(() => {
-  return route.path.startsWith('/admin') || route.path === '/login'
+const isStandaloneRoute = computed(() => {
+  const p = route.path
+  return (
+    p.startsWith('/admin') || 
+    p === '/login' || 
+    p === '/admin/login' ||
+    p.startsWith('/dashboard') ||
+    p.startsWith('/mypage') ||
+    p.startsWith('/my-page') ||
+    p.startsWith('/lab')
+  )
 })
 
 onMounted(() => {
-  recordVisit(route.path)
+  trackVisitor(route.path)
 })
 
 watch(() => route.path, (newPath) => {
-  recordVisit(newPath)
+  trackVisitor(newPath)
 })
 </script>

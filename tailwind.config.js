@@ -16,7 +16,7 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['"Noto Sans KR"', 'sans-serif'],
+        sans: ['"Pretendard"', '"Noto Sans KR"', '-apple-system', 'BlinkMacSystemFont', 'system-ui', 'Roboto', 'sans-serif'],
       }
     },
   },

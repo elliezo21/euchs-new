@@ -27,7 +27,7 @@ export const isSupabaseConfigured = () => {
   )
 }
 
-// Supabase Client Export
+// Supabase Client Export (항상 cache: 'no-store' 및 no-cache 헤더로 실시간 최신 데이터 동기화)
 export const supabase = createClient(
   supabaseUrl,
   supabaseAnonKey,
@@ -37,6 +37,18 @@ export const supabase = createClient(
       autoRefreshToken: true,
       detectSessionInUrl: true,
       storage: window.localStorage
+    },
+    global: {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
+      },
+      fetch: (url, options = {}) => {
+        return fetch(url, {
+          ...options,
+          cache: 'no-store'
+        })
+      }
     }
   }
 )
@@ -141,7 +153,7 @@ ALTER TABLE site_settings ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public all site_settings" ON site_settings;
 CREATE POLICY "Public all site_settings" ON site_settings FOR ALL USING (true) WITH CHECK (true);
 
--- 6. 방문자 접속 통계 테이블 (site_visits)
+-- 6. 방문자 접속 통계 테이블 (site_visits / visitor_logs 호환)
 CREATE TABLE IF NOT EXISTS site_visits (
   id BIGSERIAL PRIMARY KEY,
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -154,4 +166,17 @@ CREATE TABLE IF NOT EXISTS site_visits (
 ALTER TABLE site_visits ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public all site_visits" ON site_visits;
 CREATE POLICY "Public all site_visits" ON site_visits FOR ALL USING (true) WITH CHECK (true);
+
+-- visitor_logs 호환 뷰/테이블
+CREATE TABLE IF NOT EXISTS visitor_logs (
+  id BIGSERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  visited_date DATE DEFAULT CURRENT_DATE,
+  page_path TEXT DEFAULT '/',
+  referrer TEXT,
+  user_agent TEXT
+);
+ALTER TABLE visitor_logs ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public all visitor_logs" ON visitor_logs;
+CREATE POLICY "Public all visitor_logs" ON visitor_logs FOR ALL USING (true) WITH CHECK (true);
 `

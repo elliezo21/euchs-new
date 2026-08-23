@@ -133,6 +133,97 @@
     </section>
 
     <!-- ======================================================== -->
+    <!-- 1.5. LARGE 1688 GLOBAL SOURCING SEARCH BAR SECTION -->
+    <!-- ======================================================== -->
+    <section class="py-10 sm:py-14 bg-white border-b border-gray-200 shadow-sm relative z-20">
+      <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+        
+        <div class="text-center space-y-2 mb-6">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-rose-50 border border-rose-200 text-rose-600 text-xs font-bold">
+            <i class="fas fa-fire-alt text-rose-500"></i>
+            <span>1688 실시간 도매 소싱 & AI 자동 번역 검색</span>
+          </div>
+          <h2 class="text-2xl sm:text-3xl font-black text-gray-900 tracking-tight">
+            중국 1688 도매 상품, <span class="text-rose-600">한글로 검색</span>하세요!
+          </h2>
+          <p class="text-xs sm:text-sm text-gray-500">
+            원하는 상품명을 한글로 입력하시면 AI 실시간 번역을 거쳐 중국 1688 최신 도매가와 상품을 찾아드립니다.
+          </p>
+        </div>
+
+        <!-- Search Bar Input Form -->
+        <form @submit.prevent="handleMain1688Search(mainSearchQuery)" class="space-y-4">
+          <div class="flex flex-col sm:flex-row items-stretch rounded-2xl bg-white border-2 border-rose-500/80 p-1.5 shadow-lg shadow-rose-500/10 focus-within:border-rose-600 focus-within:ring-4 focus-within:ring-rose-100 transition-all">
+            
+            <!-- Platform Dropdown -->
+            <div class="flex items-center px-4 py-3 sm:py-0 border-b sm:border-b-0 sm:border-r border-gray-200 bg-gray-50/70 sm:rounded-l-xl text-xs sm:text-sm font-black text-gray-800 shrink-0">
+              <i class="fas fa-cubes text-rose-600 mr-2"></i>
+              <span>1688 도매검색</span>
+            </div>
+
+            <!-- Search Input -->
+            <div class="relative flex-1 flex items-center">
+              <input
+                v-model="mainSearchQuery"
+                type="text"
+                placeholder="상품명 한글 입력 또는 1688 상품 링크(URL)를 붙여넣으세요"
+                class="w-full px-4 py-3.5 sm:py-4 text-sm sm:text-base font-medium text-gray-900 placeholder:text-gray-400 bg-transparent outline-none"
+              />
+              <button 
+                v-if="mainSearchQuery" 
+                type="button" 
+                @click="mainSearchQuery = ''" 
+                class="pr-3 text-gray-400 hover:text-gray-600 transition"
+              >
+                <i class="fas fa-times-circle"></i>
+              </button>
+            </div>
+
+            <!-- Search Submit Button -->
+            <button
+              type="submit"
+              class="px-7 py-3.5 sm:py-4 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white font-extrabold text-sm sm:text-base shadow-md shadow-rose-500/30 active:scale-95 transition-all flex items-center justify-center gap-2 shrink-0"
+            >
+              <i class="fas fa-search text-base"></i>
+              <span>1688 검색</span>
+            </button>
+          </div>
+
+          <!-- Popular / Recommended Tags -->
+          <div class="flex flex-wrap items-center justify-center gap-1.5 pt-1 text-xs">
+            <span class="text-gray-400 font-bold flex items-center gap-1 mr-1">
+              <i class="fas fa-tags text-rose-500"></i> 인기 키워드:
+            </span>
+            <button
+              v-for="tag in popularSearchTags"
+              :key="tag"
+              type="button"
+              @click="handleMain1688Search(tag)"
+              class="px-2.5 py-1 rounded-lg bg-gray-100 hover:bg-rose-50 hover:text-rose-600 text-gray-600 border border-gray-200 hover:border-rose-300 font-medium transition active:scale-95"
+            >
+              #{{ tag }}
+            </button>
+          </div>
+
+          <!-- 1688 Sourcing Mall Direct Button -->
+          <div class="pt-2 flex justify-center">
+            <router-link
+              to="/mall"
+              class="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 rounded-2xl bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 hover:from-orange-600 hover:to-rose-600 text-white font-black text-xs sm:text-sm shadow-lg shadow-orange-500/25 hover:shadow-xl hover:shadow-orange-500/35 hover:-translate-y-0.5 active:scale-95 transition-all duration-200"
+            >
+              <span class="w-5 h-5 rounded-md bg-white text-rose-600 flex items-center justify-center font-black text-[10px] shadow-sm">
+                1688
+              </span>
+              <span>1688 실시간 소싱몰 바로가기</span>
+              <i class="fas fa-arrow-right text-xs"></i>
+            </router-link>
+          </div>
+        </form>
+
+      </div>
+    </section>
+
+    <!-- ======================================================== -->
     <!-- 2. BENTO GRID DASHBOARD (Real-Time Rates, Notices & Quick Hub) -->
     <!-- ======================================================== -->
     <section class="py-16 sm:py-24 bg-slate-900 text-white relative border-t border-slate-800">
@@ -651,9 +742,45 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import TradePhotos from '../components/TradePhotos.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+
+const router = useRouter()
+
+// ----------------------------------------------------
+// 1688 Real-Time Search Bar State & Action
+// ----------------------------------------------------
+const mainSearchQuery = ref('')
+const popularSearchTags = [
+  '블라우스',
+  '실내화',
+  '셔츠',
+  '숄더백',
+  '텀블러',
+  '캠핑의자',
+  '보조배터리',
+  '스마트워치스트랩'
+]
+
+const handleMain1688Search = (keyword) => {
+  const rawInput = (keyword || mainSearchQuery.value || '').trim()
+  if (!rawInput) {
+    router.push('/mall')
+    return
+  }
+
+  const urlMatch = rawInput.match(/offer\/(\d+)\.html/) || rawInput.match(/[?&]offerId=(\d+)/) || rawInput.match(/[?&]itemId=(\d+)/)
+  const isNumericId = /^\d{9,16}$/.test(rawInput)
+  const offerId = urlMatch ? urlMatch[1] : (isNumericId ? rawInput : null)
+
+  if (offerId) {
+    router.push({ path: '/mall', query: { offerId } })
+  } else {
+    router.push({ path: '/mall', query: { q: rawInput } })
+  }
+}
 
 // ----------------------------------------------------
 // 4 Core Service Cards Dynamic Media Bindings (service_media JSONB Direct Supabase Binding)

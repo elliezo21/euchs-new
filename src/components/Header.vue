@@ -1,14 +1,14 @@
 <template>
-  <header class="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-sm transition-all duration-200">
-    <!-- Top Utility Bar for Desktop -->
-    <div class="hidden lg:block bg-slate-900 text-slate-300 text-xs py-2">
+  <header class="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-xs transition-all duration-200">
+    <!-- Top Utility Bar for Desktop (Slim) -->
+    <div class="hidden lg:block bg-slate-900 text-slate-300 text-xs py-1">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-        <div class="flex items-center gap-6">
-          <span class="flex items-center gap-1.5 text-slate-300">
+        <div class="flex items-center gap-5">
+          <span class="flex items-center gap-1 text-slate-300 text-[11px]">
             <i class="fas fa-phone text-blue-400"></i>
-            <span>상담문의: <strong>010-9373-1214</strong> / <strong>+86 195-2407-7350</strong></span>
+            <span>상담: <strong>010-9373-1214</strong> / <strong>+86 195-2407-7350</strong></span>
           </span>
-          <span class="flex items-center gap-1.5 text-slate-300">
+          <span class="flex items-center gap-1 text-slate-300 text-[11px]">
             <i class="fab fa-weixin text-green-400"></i>
             <span>위챗: <strong>euchskorea</strong></span>
           </span>
@@ -16,37 +16,37 @@
             href="http://pf.kakao.com/_xmQWsK/chat" 
             target="_blank" 
             rel="noopener noreferrer"
-            class="flex items-center gap-1.5 text-slate-300 hover:text-yellow-400 transition"
+            class="flex items-center gap-1 text-slate-300 hover:text-yellow-400 transition text-[11px]"
             title="카카오톡 공식 채널 1:1 상담 열기"
           >
             <i class="fas fa-comment text-yellow-400"></i>
             <span>카톡: <strong>이유씨컴퍼니</strong></span>
           </a>
         </div>
-        <div class="flex items-center gap-4">
+        <div class="flex items-center gap-3 text-[11px]">
           <a href="https://www.youtube.com/@euccompany" target="_blank" class="flex items-center gap-1 text-red-400 hover:text-red-300 transition">
-            <i class="fab fa-youtube text-sm"></i>
+            <i class="fab fa-youtube text-xs"></i>
             <span>이유씨유튜브</span>
           </a>
           <span class="text-slate-600">|</span>
 
           <!-- Desktop Login / User Profile Area -->
-          <div v-if="!isLoggedIn" class="flex items-center gap-3">
+          <div v-if="!isLoggedIn" class="flex items-center gap-2.5">
             <button 
               type="button"
               @click="openLoginModal('login')" 
-              class="hover:text-white transition flex items-center gap-1.5 text-slate-300 font-medium text-xs active:scale-95"
+              class="hover:text-white transition flex items-center gap-1 text-slate-300 font-medium active:scale-95"
             >
-              <i class="fa fa-power-off text-slate-400"></i>
+              <i class="fa fa-power-off text-slate-400 text-[10px]"></i>
               <span>로그인</span>
             </button>
             <span class="text-slate-700">·</span>
             <button 
               type="button"
               @click="openLoginModal('signup')" 
-              class="hover:text-white transition flex items-center gap-1.5 text-slate-300 font-medium text-xs active:scale-95"
+              class="hover:text-white transition flex items-center gap-1 text-slate-300 font-medium active:scale-95"
             >
-              <i class="fa fa-user text-slate-400"></i>
+              <i class="fa fa-user text-slate-400 text-[10px]"></i>
               <span>회원가입</span>
             </button>
           </div>
@@ -55,47 +55,47 @@
             <button 
               type="button"
               @click="isUserMenuOpen = !isUserMenuOpen" 
-              class="flex items-center gap-2 px-2.5 py-1 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
+              class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
             >
               <img 
                 v-if="userAvatarUrl" 
                 :src="userAvatarUrl" 
                 :alt="userDisplayName" 
-                class="w-5 h-5 rounded-full object-cover border border-blue-400"
+                class="w-4 h-4 rounded-full object-cover border border-blue-400"
               />
               <div 
                 v-else 
-                class="w-5 h-5 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center"
+                class="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center"
               >
                 {{ userDisplayName.charAt(0) }}
               </div>
-              <span class="font-bold text-white max-w-[120px] truncate text-xs">{{ userDisplayName }}님</span>
-              <i class="fas fa-chevron-down text-[9px] text-slate-400 transition" :class="{ 'rotate-180': isUserMenuOpen }"></i>
+              <span class="font-bold text-white max-w-[100px] truncate text-[11px]">{{ userDisplayName }}님</span>
+              <i class="fas fa-chevron-down text-[8px] text-slate-400 transition" :class="{ 'rotate-180': isUserMenuOpen }"></i>
             </button>
 
             <!-- User Dropdown Menu -->
             <div 
               v-if="isUserMenuOpen" 
-              class="absolute right-0 mt-1.5 w-48 bg-white text-gray-800 rounded-xl shadow-2xl border border-gray-100 py-1.5 z-50 text-xs"
+              class="absolute right-0 mt-1 w-44 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs"
             >
-              <div class="px-3 py-2 border-b border-gray-100">
+              <div class="px-3 py-1.5 border-b border-gray-100">
                 <p class="font-bold text-gray-900 truncate">{{ userDisplayName }}</p>
-                <p class="text-[11px] text-gray-500 truncate mt-0.5">{{ userEmail }}</p>
+                <p class="text-[10px] text-gray-500 truncate mt-0.5">{{ userEmail }}</p>
               </div>
               <router-link 
                 to="/mypage" 
                 @click="isUserMenuOpen = false" 
-                class="w-full text-left px-3 py-2 hover:bg-blue-50 text-blue-600 font-bold flex items-center gap-2 transition"
+                class="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-600 font-bold flex items-center gap-1.5 transition"
               >
-                <i class="fas fa-file-invoice-dollar text-blue-500"></i>
+                <i class="fas fa-file-invoice-dollar text-blue-500 text-xs"></i>
                 <span>나의 신청/견적 내역</span>
               </router-link>
               <button 
                 type="button"
                 @click="handleSignOut" 
-                class="w-full text-left px-3 py-2 hover:bg-red-50 text-red-600 font-semibold flex items-center gap-2 transition"
+                class="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-600 font-semibold flex items-center gap-1.5 transition"
               >
-                <i class="fas fa-sign-out-alt"></i>
+                <i class="fas fa-sign-out-alt text-xs"></i>
                 <span>로그아웃</span>
               </button>
             </div>
@@ -105,41 +105,41 @@
       </div>
     </div>
 
-    <!-- Main Navigation Bar -->
+    <!-- Main Navigation Bar (Slim) -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-20">
+      <div class="flex justify-between items-center h-14 sm:h-15">
         <!-- Logo -->
         <router-link to="/" class="flex-shrink-0 flex items-center">
           <img 
             src="https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/img/logo.png" 
             alt="이유씨컴퍼니 로고" 
-            class="h-10 sm:h-12 w-auto object-contain hover:opacity-95 transition"
+            class="h-8 sm:h-9 w-auto object-contain hover:opacity-95 transition"
           />
         </router-link>
 
         <!-- Desktop Navigation Menu -->
-        <nav class="hidden lg:flex items-center space-x-1 xl:space-x-4">
+        <nav class="hidden lg:flex items-center space-x-1 xl:space-x-2.5 text-xs sm:text-[13px]">
           <!-- Dropdown 1: 회사소개 -->
           <div class="relative group">
             <router-link 
               to="/company" 
-              class="px-3 py-2 text-[15px] font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition"
+              class="px-2.5 py-1.5 font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition rounded-lg hover:bg-gray-50"
             >
               회사소개
-              <i class="fas fa-chevron-down text-[10px] text-gray-400 group-hover:text-blue-600 transition"></i>
+              <i class="fas fa-chevron-down text-[9px] text-gray-400 group-hover:text-blue-600 transition"></i>
             </router-link>
-            <div class="absolute left-0 mt-0 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/company#ceo" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">인사말</router-link>
-              <router-link to="/company#history" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">연혁 및 비전</router-link>
-              <router-link to="/company#overview" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">회사개요</router-link>
-              <router-link to="/company#business" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">사업영역</router-link>
+            <div class="absolute left-0 mt-0 w-44 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <router-link to="/company#ceo" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">인사말</router-link>
+              <router-link to="/company#history" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">연혁 및 비전</router-link>
+              <router-link to="/company#overview" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">회사개요</router-link>
+              <router-link to="/company#business" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">사업영역</router-link>
             </div>
           </div>
 
           <!-- Menu 2: 이우시장투어 (독립 메인 메뉴) -->
           <router-link 
             to="/guide/market-tour" 
-            class="px-3 py-2 text-[15px] font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition"
+            class="px-2.5 py-1.5 font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition rounded-lg hover:bg-gray-50"
           >
             <span>이우시장투어</span>
           </router-link>
@@ -148,50 +148,52 @@
           <div class="relative group">
             <router-link 
               to="/market" 
-              class="px-3 py-2 text-[15px] font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition"
+              class="px-2.5 py-1.5 font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition rounded-lg hover:bg-gray-50"
             >
               상품조사
-              <i class="fas fa-chevron-down text-[10px] text-gray-400 group-hover:text-blue-600 transition"></i>
+              <i class="fas fa-chevron-down text-[9px] text-gray-400 group-hover:text-blue-600 transition"></i>
             </router-link>
-            <div class="absolute left-0 mt-0 w-60 bg-white rounded-lg shadow-xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/market#yiwu" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">이우 시장소개 (푸텐시장)</router-link>
-              <router-link to="/market#guangzhou" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">광저우 시장소개 (의류/패션)</router-link>
-              <router-link to="/market#shenzhen" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">심천 시장소개 (화창베이 전자)</router-link>
+            <div class="absolute left-0 mt-0 w-56 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <router-link to="/market#yiwu" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">이우 시장소개 (푸텐시장)</router-link>
+              <router-link to="/market#guangzhou" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">광저우 시장소개 (의류/패션)</router-link>
+              <router-link to="/market#shenzhen" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">심천 시장소개 (화창베이 전자)</router-link>
               <div class="border-t border-gray-100 my-1"></div>
-              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 맞춤 상품조사 의뢰</a>
+              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 맞춤 상품조사 의뢰</a>
             </div>
           </div>
 
-          <!-- Dropdown 4: 무역대행 신청 (CTA Button) -->
+          <!-- Dropdown 4: 무역대행 신청 (CTA Button Slim) -->
           <div class="relative group">
             <router-link 
               to="/services/trade-agent" 
-              class="px-3.5 py-1.5 rounded-xl font-bold text-[14px] text-white bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 shadow-md shadow-blue-500/20 hover:shadow-lg hover:shadow-blue-500/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center gap-1.5"
+              class="px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-blue-600 hover:bg-blue-700 shadow-sm hover:shadow active:scale-95 transition-all duration-200 flex items-center gap-1"
             >
               <span>무역대행 신청</span>
-              <i class="fas fa-chevron-right text-[10px] opacity-90 group-hover:translate-x-0.5 transition-transform"></i>
+              <i class="fas fa-chevron-right text-[9px] opacity-90"></i>
             </router-link>
-            <div class="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/services/trade-agent#apply-form" class="block px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50">✍️ 무역대행 맞춤 견적 신청</router-link>
+            <div class="absolute left-0 mt-1 w-52 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <router-link to="/services/trade-agent#apply-form" class="block px-3.5 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50">✍️ 무역대행 견적 신청</router-link>
               <div class="border-t border-gray-100 my-1"></div>
-              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
+              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
             </div>
           </div>
 
-          <!-- Dropdown 5: 구매대행 신청 (CTA Button) -->
+          <!-- Dropdown 5: 1688 소싱몰 (Primary CTA Button Slim) -->
           <div class="relative group">
             <router-link 
-              to="/services/purchasing-agent" 
-              class="px-3.5 py-1.5 rounded-xl font-bold text-[14px] text-white bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 shadow-md shadow-orange-500/20 hover:shadow-lg hover:shadow-orange-500/30 hover:-translate-y-0.5 active:translate-y-0 active:scale-95 transition-all duration-200 flex items-center gap-1.5"
+              to="/mall" 
+              class="px-3 py-1.5 rounded-lg font-bold text-xs text-white bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 hover:from-rose-700 hover:to-orange-600 shadow-sm hover:shadow active:scale-95 transition-all duration-200 flex items-center gap-1.5"
             >
-              <span>구매대행 신청</span>
-              <i class="fas fa-chevron-right text-[10px] opacity-90 group-hover:translate-x-0.5 transition-transform"></i>
+              <i class="fas fa-store text-[11px] text-white"></i>
+              <span>1688 소싱몰</span>
+              <i class="fas fa-chevron-right text-[9px] opacity-90"></i>
             </router-link>
-            <div class="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/services/purchasing-agent#apply-form" class="block px-4 py-2 text-sm font-bold text-amber-600 hover:bg-amber-50">📝 구매대행 주문서/견적 작성</router-link>
+            <div class="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <router-link to="/mall" class="block px-3.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50">🛍️ 1688 실시간 상품 소싱몰</router-link>
+              <router-link to="/services/purchasing-agent#apply-form" class="block px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">📝 1688 구매대행 견적 신청</router-link>
               <div class="border-t border-gray-100 my-1"></div>
-              <router-link to="/services/rocket-growth" class="block px-4 py-2 text-sm font-semibold text-red-600 hover:bg-red-50">🚀 쿠팡 로켓그로스 대행</router-link>
-              <router-link to="/services/3pl-fulfillment" class="block px-4 py-2 text-sm font-semibold text-purple-600 hover:bg-purple-50">📦 3PL 풀필먼트 배송</router-link>
+              <router-link to="/services/rocket-growth" class="block px-3.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">🚀 쿠팡 로켓그로스 대행</router-link>
+              <router-link to="/services/3pl-fulfillment" class="block px-3.5 py-1.5 text-xs font-semibold text-purple-600 hover:bg-purple-50">📦 3PL 풀필먼트 배송</router-link>
             </div>
           </div>
 
@@ -199,20 +201,20 @@
           <div class="relative group">
             <router-link 
               to="/guide" 
-              class="px-3 py-2 text-[15px] font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition"
+              class="px-2.5 py-1.5 font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition rounded-lg hover:bg-gray-50"
             >
               EUC 안내
-              <i class="fas fa-chevron-down text-[10px] text-gray-400 group-hover:text-blue-600 transition"></i>
+              <i class="fas fa-chevron-down text-[9px] text-gray-400 group-hover:text-blue-600 transition"></i>
             </router-link>
-            <div class="absolute left-0 mt-0 w-60 bg-white rounded-lg shadow-xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/tools/calculator" class="block px-4 py-2 text-sm font-bold text-blue-600 hover:bg-blue-50">
-                🧮 무역/물류비·관부가세 계산기
+            <div class="absolute left-0 mt-0 w-56 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <router-link to="/tools/calculator" class="block px-3.5 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50">
+                🧮 관부가세 계산기
               </router-link>
               <div class="border-t border-gray-100 my-1"></div>
-              <router-link to="/guide#express" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">택배 배송 요금표 안내</router-link>
-              <router-link to="/guide#sea" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">전자상 해운물류 안내</router-link>
-              <router-link to="/guide#forwarding" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">포워딩 & 수수료 안내</router-link>
-              <router-link to="/guide#refund" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">반품 및 교환 안내</router-link>
+              <router-link to="/guide#express" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">택배 배송 요금표 안내</router-link>
+              <router-link to="/guide#sea" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">전자상 해운물류 안내</router-link>
+              <router-link to="/guide#forwarding" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">포워딩 & 수수료 안내</router-link>
+              <router-link to="/guide#refund" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">반품 및 교환 안내</router-link>
             </div>
           </div>
 
@@ -220,45 +222,53 @@
           <div class="relative group">
             <router-link 
               to="/community/notice" 
-              class="px-3 py-2 text-[15px] font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition"
+              class="px-2.5 py-1.5 font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition rounded-lg hover:bg-gray-50"
             >
               고객센터
-              <i class="fas fa-chevron-down text-[10px] text-gray-400 group-hover:text-blue-600 transition"></i>
+              <i class="fas fa-chevron-down text-[9px] text-gray-400 group-hover:text-blue-600 transition"></i>
             </router-link>
-            <div class="absolute right-0 mt-0 w-48 bg-white rounded-lg shadow-xl border border-gray-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/community/notice" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">공지사항</router-link>
-              <router-link to="/community/faq" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">자주하는 질문 (FAQ)</router-link>
-              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-4 py-2 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 실시간 문의</a>
+            <div class="absolute right-0 mt-0 w-44 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
+              <router-link to="/community/notice" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">공지사항</router-link>
+              <router-link to="/community/faq" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">자주하는 질문 (FAQ)</router-link>
+              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 실시간 문의</a>
             </div>
           </div>
         </nav>
 
         <!-- Right Quick Action / Mobile Hamburger -->
-        <div class="flex items-center gap-3">
+        <div class="flex items-center gap-2 sm:gap-2.5">
           <a 
             href="tel:010-9373-1214" 
-            class="hidden sm:flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold px-4 py-2 rounded-full shadow-md hover:shadow-lg transition"
+            class="hidden sm:flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm hover:shadow transition"
           >
-            <i class="fas fa-phone-alt"></i>
+            <i class="fas fa-phone-alt text-[10px]"></i>
             <span>전화상담</span>
           </a>
 
-          <!-- Mobile Call button -->
-          <a 
-            href="tel:010-9373-1214" 
-            class="lg:hidden p-2 text-blue-600 hover:text-blue-700 transition"
-            aria-label="전화걸기"
+          <!-- Mobile Saved Items Cart Widget -->
+          <router-link 
+            to="/dashboard"
+            class="lg:hidden flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition text-xs shrink-0 whitespace-nowrap"
+            title="발주대기 보관함"
           >
-            <i class="fas fa-phone text-xl"></i>
-          </a>
+            <div class="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center text-rose-600 border border-rose-100 shrink-0">
+              <i class="fas fa-shopping-bag text-xs"></i>
+            </div>
+            <div class="flex flex-col text-left leading-none">
+              <span class="text-[9px] text-gray-500 font-medium">발주대기</span>
+              <span class="text-[11px] font-black text-rose-600 font-mono mt-0.5">
+                {{ savedCount }}건 보관중
+              </span>
+            </div>
+          </router-link>
 
           <!-- Mobile Hamburger Toggle -->
           <button 
             @click="isMobileMenuOpen = !isMobileMenuOpen"
-            class="lg:hidden p-2 rounded-md text-gray-700 hover:text-blue-600 focus:outline-none"
+            class="lg:hidden p-2 rounded-xl text-gray-700 hover:bg-gray-100 hover:text-blue-600 focus:outline-none transition"
             aria-label="메뉴 열기"
           >
-            <i :class="isMobileMenuOpen ? 'fas fa-times text-2xl' : 'fas fa-bars text-2xl'"></i>
+            <i :class="isMobileMenuOpen ? 'fas fa-times text-xl' : 'fas fa-bars text-xl'"></i>
           </button>
         </div>
       </div>
@@ -350,6 +360,23 @@
             </div>
           </div>
 
+          <!-- Item 1: 회사소개 -->
+          <div>
+            <button 
+              @click="toggleMobileSubmenu('company')" 
+              class="w-full flex justify-between items-center py-2.5 text-base font-semibold text-gray-800 hover:text-blue-600"
+            >
+              <span>회사소개</span>
+              <i :class="mobileSubmenu === 'company' ? 'fas fa-chevron-up text-xs text-blue-600' : 'fas fa-chevron-down text-xs text-gray-400'"></i>
+            </button>
+            <div v-show="mobileSubmenu === 'company'" class="pl-4 pb-2 space-y-1.5 text-sm text-gray-600">
+              <router-link @click="isMobileMenuOpen = false" to="/company#ceo" class="block py-1 hover:text-blue-600">인사말</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/company#history" class="block py-1 hover:text-blue-600">연혁 및 비전</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/company#overview" class="block py-1 hover:text-blue-600">회사개요</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/company#business" class="block py-1 hover:text-blue-600">사업영역</router-link>
+            </div>
+          </div>
+
           <!-- Item 2: 이우시장투어 (독립 메인 메뉴) -->
           <div>
             <router-link 
@@ -378,7 +405,7 @@
             </div>
           </div>
 
-          <!-- Item 4: 무역대행 신청 & 구매대행 신청 (Dual Mobile CTA Buttons) -->
+          <!-- Item 4: 무역대행 신청 & 1688 소싱몰 (Dual Mobile CTA Buttons) -->
           <div class="py-2 grid grid-cols-2 gap-2 border-y border-gray-100 my-1">
             <router-link 
               @click="isMobileMenuOpen = false" 
@@ -390,10 +417,11 @@
             </router-link>
             <router-link 
               @click="isMobileMenuOpen = false" 
-              to="/services/purchasing-agent#apply-form" 
-              class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-md shadow-orange-500/20 active:scale-95 transition"
+              to="/mall" 
+              class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-md shadow-rose-500/20 active:scale-95 transition"
             >
-              <span>구매대행 신청</span>
+              <i class="fas fa-store text-[10px]"></i>
+              <span>1688 소싱몰</span>
               <i class="fas fa-chevron-right text-[9px]"></i>
             </router-link>
           </div>
@@ -473,6 +501,21 @@ const isMobileMenuOpen = ref(false)
 const mobileSubmenu = ref(null)
 const isUserMenuOpen = ref(false)
 const userDropdownRef = ref(null)
+const savedCount = ref(0)
+
+const updateSavedCount = () => {
+  try {
+    const cached = localStorage.getItem('euchs_erp_saved_items')
+    if (cached) {
+      const parsed = JSON.parse(cached)
+      savedCount.value = Array.isArray(parsed) ? parsed.length : 0
+    } else {
+      savedCount.value = 0
+    }
+  } catch (e) {
+    savedCount.value = 0
+  }
+}
 
 const toggleMobileSubmenu = (menu) => {
   if (mobileSubmenu.value === menu) {
@@ -501,10 +544,13 @@ const handleDocumentClick = (e) => {
 
 onMounted(() => {
   initAuth()
+  updateSavedCount()
   document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('storage', updateSavedCount)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('storage', updateSavedCount)
 })
 </script>

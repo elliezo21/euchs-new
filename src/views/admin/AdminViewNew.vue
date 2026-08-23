@@ -144,8 +144,16 @@
             <div class="text-xs font-black text-white flex items-center gap-1.5">
               <span>방문자 접속 통계</span>
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              <button 
+                @click="fetchStats" 
+                title="실시간 통계 새로고침" 
+                class="ml-1 text-slate-400 hover:text-white transition p-0.5 rounded hover:bg-slate-800"
+                :disabled="isFetchingStats"
+              >
+                <i class="fas fa-sync-alt text-[10px]" :class="{ 'fa-spin': isFetchingStats }"></i>
+              </button>
             </div>
-            <p class="text-[10px] text-slate-400">실시간 방문자 집계 요약</p>
+            <p class="text-[10px] text-slate-400">실시간 방문자 집계 요약 (동기화 보정됨)</p>
           </div>
         </div>
 
@@ -389,7 +397,7 @@
                     </select>
                   </td>
                   <td class="py-3.5 px-4 text-center" @click.stop>
-                    <div class="flex items-center justify-center gap-1.5">
+                    <div class="flex items-center justify-center gap-1.5 flex-wrap">
                       <button 
                         @click="openAppDetail(app)" 
                         class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold shadow-sm transition active:scale-95 flex items-center gap-1"
@@ -397,6 +405,15 @@
                       >
                         <i class="fas fa-magnifying-glass text-[10px]"></i>
                         <span>상세</span>
+                      </button>
+                      <button 
+                        v-if="app.service_type === 'purchasing' || app.service_type === 'purchasing_agent' || app.service_name?.includes('구매') || app.details?.items"
+                        @click="openWarehouseInspectionModal(app)" 
+                        class="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm transition active:scale-95 flex items-center gap-1"
+                        title="이우 창고 실측 계근 및 검수 사진 등록"
+                      >
+                        <i class="fas fa-boxes-packing text-[10px]"></i>
+                        <span>입고·검수</span>
                       </button>
                       <button 
                         @click="exportSingleApplicationReceipt(app)" 
@@ -2111,18 +2128,41 @@
       </div>
     </transition>
 
+    <!-- Modal: Warehouse Inbound & Inspection (WMS) -->
+    <AdminWarehouseModal 
+      v-model="showWarehouseModal" 
+      :application="targetWarehouseApp" 
+      @saved="handleWarehouseSaved" 
+    />
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { supabase, isSupabaseConfigured } from '../../lib/supabase'
 import { fetchSiteSettings, saveSiteSettings, updateServiceMedia, DEFAULT_SETTINGS, isVideoMedia } from '../../lib/settings'
 import { currentUser, userRole, checkUserRole, isSuperAdmin, signOut } from '../../lib/auth'
 import { getVisitorStats } from '../../lib/analytics'
+import AdminWarehouseModal from '../../components/admin/AdminWarehouseModal.vue'
 
 const router = useRouter()
+const route = useRoute()
+
+// Warehouse Inspection Modal State
+const showWarehouseModal = ref(false)
+const targetWarehouseApp = ref(null)
+
+const openWarehouseInspectionModal = (app) => {
+  targetWarehouseApp.value = app
+  showWarehouseModal.value = true
+}
+
+const handleWarehouseSaved = (payload) => {
+  showToast('이우 창고 실측 계근 및 검수 데이터가 성공적으로 저장되었습니다.')
+  fetchApplications()
+}
 
 // Auth Guard States
 const isCheckingAuth = ref(true)
@@ -2171,6 +2211,7 @@ const switchTab = (tab) => {
     return
   }
   activeTab.value = tab
+  fetchStats()
   if (tab === 'applications') fetchApplications()
   else if (tab === 'notices') fetchNotices()
   else if (tab === 'settings') loadSettings()
@@ -3392,6 +3433,9 @@ const formatDateTime = (dateStr) => {
 onMounted(async () => {
   const allowed = await verifyAdminAccess()
   if (allowed) {
+    if (route.query.service === 'purchasing' || route.query.filter === 'purchasing') {
+      filterService.value = 'purchasing'
+    }
     fetchStats()
     fetchApplications()
     fetchNotices()
