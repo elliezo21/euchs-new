@@ -527,7 +527,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
+import { useRoute } from 'vue-router';
 import {
   Scale,
   ShieldCheck,
@@ -542,12 +543,24 @@ import {
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
 
+const route = useRoute();
+
 // ---------------------------------------------------------
 // 상태 필터 & 검색어 & 스토어 데이터
 // ---------------------------------------------------------
 const inbounds = ref([]);
 const searchQuery = ref('');
 const statusFilter = ref('all');
+
+watch(() => route.query.tab, (newTab) => {
+  if (newTab === 'inspection') {
+    statusFilter.value = 'inspected';
+  } else if (newTab === 'vas') {
+    statusFilter.value = 'all';
+  } else if (newTab === 'all' || !newTab) {
+    statusFilter.value = 'all';
+  }
+}, { immediate: true });
 
 // 모달 상태
 const isPhotoModalOpen = ref(false);

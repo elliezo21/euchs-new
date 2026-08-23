@@ -456,7 +456,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Ship,
   Truck,
@@ -472,11 +473,21 @@ import {
   X
 } from 'lucide-vue-next'
 
+const route = useRoute()
+
 // 검색 및 필터 상태
 const searchQuery = ref('')
 const statusFilter = ref('all')
 const showFtaModal = ref(false)
 const selectedDetail = ref(null)
+
+watch(() => route.query.tab, (newTab) => {
+  if (newTab === 'shipping') {
+    statusFilter.value = 'delivery'
+  } else {
+    statusFilter.value = 'all'
+  }
+}, { immediate: true })
 
 const ftaForm = ref({
   orderNo: '',

@@ -523,7 +523,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import {
   Wallet,
   ShieldCheck,
@@ -535,12 +536,20 @@ import {
   X
 } from 'lucide-vue-next'
 
+const route = useRoute()
+
 const walletBalance = ref(15420000)
 const walletFilter = ref('all')
 const showAddressModal = ref(false)
 const showDepositModal = ref(false)
 const editingAddressId = ref(null)
 const depositAmount = ref(3000000)
+
+watch(() => route.query.tab, (newTab) => {
+  if (newTab === 'deposit') {
+    showDepositModal.value = true
+  }
+}, { immediate: true })
 
 const customsProfile = ref({
   companyName: '(주)글로벌 커머스',
