@@ -18,7 +18,7 @@
         <!-- Modal Card Container -->
         <div 
           class="relative w-full bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8 text-slate-800 my-auto max-h-[92vh] overflow-y-auto custom-scrollbar transition-all"
-          :class="(loginModalMode === 'signup' || loginModalMode === 'business_verify') ? 'max-w-[480px]' : 'max-w-[420px]'"
+          :class="(isSignupMode || isBusinessVerifyMode) ? 'max-w-[480px]' : 'max-w-[420px]'"
           role="dialog" 
           aria-modal="true"
         >
@@ -34,7 +34,7 @@
 
           <!-- Top Brand Header -->
           <div class="text-center space-y-1.5 pb-5">
-            <span v-if="loginModalMode === 'business_verify'" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-xs font-black">
+            <span v-if="isBusinessVerifyMode" class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-300 text-xs font-black">
               <i class="fas fa-shield-alt text-amber-600"></i> B2B 바이어 필수 인증
             </span>
             <h2 class="text-2xl font-black text-slate-900 tracking-tight">
@@ -48,7 +48,7 @@
           <!-- ============================================ -->
           <!-- 1. LOGIN MODE FORM -->
           <!-- ============================================ -->
-          <div v-if="loginModalMode === 'login'" class="space-y-4">
+          <div v-if="isLoginMode" class="space-y-4">
             <form @submit.prevent="handleEmailLogin" class="space-y-3" autocomplete="off">
               <!-- Hidden dummy inputs to trick browser autofill -->
               <input type="text" style="display:none" aria-hidden="true" autocomplete="off" />
@@ -136,53 +136,54 @@
               <div class="flex-grow border-t border-slate-200"></div>
             </div>
 
-            <!-- 3 SOCIAL LOGIN BUTTONS -->
-            <div class="space-y-2.5">
+            <!-- 3 SOCIAL LOGIN BUTTONS (3-Column Grid) -->
+            <div class="grid grid-cols-3 gap-2">
               <!-- 1. Kakao Yellow Button -->
               <button 
                 type="button"
                 @click="handleKakaoLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95 cursor-pointer"
+                class="py-2.5 px-2 rounded-xl font-bold text-xs text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-2xs hover:brightness-95 cursor-pointer"
                 style="background-color: #FEE500;"
+                title="카카오 로그인"
               >
-                <i class="fas fa-comment text-amber-950 text-base"></i>
-                <span>카카오로 시작하기</span>
+                <i class="fas fa-comment text-amber-950 text-xs"></i>
+                <span>카카오</span>
               </button>
 
               <!-- 2. Naver Green Button -->
               <button 
                 type="button"
                 @click="handleNaverLogin"
-                class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm text-white transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm hover:brightness-95 cursor-pointer"
+                class="py-2.5 px-2 rounded-xl font-bold text-xs text-white transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-2xs hover:brightness-95 cursor-pointer"
                 style="background-color: #03C75A;"
+                title="네이버 로그인"
               >
-                <span class="font-black text-sm tracking-tighter bg-white text-[#03C75A] w-4 h-4 rounded-sm flex items-center justify-center text-[10px]">N</span>
-                <span>네이버 로그인</span>
+                <span class="font-black text-[11px] bg-white text-[#03C75A] w-3.5 h-3.5 rounded-xs flex items-center justify-center">N</span>
+                <span>네이버</span>
               </button>
 
               <!-- 3. Google Button -->
-              <div id="google-login-btn" class="w-full flex justify-center min-h-[44px]">
-                <button 
-                  type="button"
-                  @click="handleGoogleLogin"
-                  class="w-full py-3 px-4 rounded-xl font-bold text-xs sm:text-sm bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-sm cursor-pointer"
-                >
-                  <svg class="w-4 h-4" viewBox="0 0 24 24">
-                    <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                    <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                    <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
-                    <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
-                  </svg>
-                  <span>구글 계정으로 로그인</span>
-                </button>
-              </div>
+              <button 
+                type="button"
+                @click="handleGoogleLogin"
+                class="py-2.5 px-2 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                title="구글 로그인"
+              >
+                <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
+                </svg>
+                <span>구글</span>
+              </button>
             </div>
           </div>
 
           <!-- ============================================ -->
           <!-- 2. B2B SIGNUP MODE FORM (with Business Fields) -->
           <!-- ============================================ -->
-          <div v-else-if="loginModalMode === 'signup'" class="space-y-4">
+          <div v-else-if="isSignupMode" class="space-y-4">
             
             <!-- SNS Quick Signup Header & Buttons -->
             <div class="space-y-2">
@@ -409,9 +410,9 @@
           <!-- ============================================ -->
           <!-- 3. BUSINESS VERIFICATION ONLY MODE (For SNS Users) -->
           <!-- ============================================ -->
-          <div v-else-if="loginModalMode === 'business_verify'" class="space-y-4">
-            <div class="p-3 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
-              <p class="font-bold flex items-center gap-1.5 text-amber-950">
+          <div v-else-if="isBusinessVerifyMode" class="space-y-4">
+            <div class="p-3.5 bg-amber-50 rounded-2xl border border-amber-200 text-xs text-amber-900 space-y-1">
+              <p class="font-bold flex items-center gap-1.5 text-amber-950 text-sm">
                 <i class="fas fa-exclamation-triangle text-amber-600"></i>
                 <span>사업자 정보 등록이 필요합니다</span>
               </p>
@@ -420,7 +421,7 @@
               </p>
             </div>
 
-            <form @submit.prevent="handleBusinessVerifySubmit" class="space-y-3" autocomplete="off">
+            <form @submit.prevent="handleBusinessVerifySubmit" class="space-y-3.5" autocomplete="off">
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="block text-xs font-bold text-slate-700 mb-1">상호명 (회사명) *</label>
@@ -509,7 +510,7 @@
           <!-- ============================================ -->
           <!-- 4. FORGOT PASSWORD MODE -->
           <!-- ============================================ -->
-          <div v-else-if="loginModalMode === 'forgot'" class="space-y-4">
+          <div v-else-if="isForgotMode" class="space-y-4">
             <p class="text-xs text-slate-600 leading-relaxed">
               가입하신 이메일 주소를 입력하시면 비밀번호 재설정 링크를 보내드립니다.
             </p>
@@ -606,17 +607,22 @@ const verifyForm = ref({
   phone: ''
 })
 
+const isLoginMode = computed(() => loginModalMode.value === 'login' || !loginModalMode.value)
+const isSignupMode = computed(() => loginModalMode.value === 'signup' || loginModalMode.value === 'register')
+const isBusinessVerifyMode = computed(() => loginModalMode.value === 'business_verify' || loginModalMode.value === 'business' || loginModalMode.value === 'verify')
+const isForgotMode = computed(() => loginModalMode.value === 'forgot')
+
 const modalTitle = computed(() => {
-  if (loginModalMode.value === 'signup') return 'B2B 사업자 회원가입'
-  if (loginModalMode.value === 'business_verify') return 'B2B 사업자 정보 등록'
-  if (loginModalMode.value === 'forgot') return '비밀번호 찾기'
+  if (isSignupMode.value) return 'B2B 사업자 회원가입'
+  if (isBusinessVerifyMode.value) return 'B2B 사업자 정보 등록'
+  if (isForgotMode.value) return '비밀번호 찾기'
   return '로그인'
 })
 
 const modalSubtitle = computed(() => {
-  if (loginModalMode.value === 'signup') return '중국 1688 실시간 도매 소싱 및 B2B 수입대행 전용 회원가입'
-  if (loginModalMode.value === 'business_verify') return '사업자 전용 B2B 폐쇄몰입니다. 원활한 도매 소싱을 위해 사업자정보를 입력해 주세요.'
-  if (loginModalMode.value === 'forgot') return '가입하신 이메일로 비밀번호 재설정 링크를 보내드립니다.'
+  if (isSignupMode.value) return '중국 1688 실시간 도매 소싱 및 B2B 수입대행 전용 회원가입'
+  if (isBusinessVerifyMode.value) return '사업자 전용 B2B 폐쇄몰입니다. 원활한 도매 소싱을 위해 사업자정보를 입력해 주세요.'
+  if (isForgotMode.value) return '가입하신 이메일로 비밀번호 재설정 링크를 보내드립니다.'
   return '15년 노하우 신뢰의 중국 무역 파트너 EUC COMPANY'
 })
 
@@ -644,7 +650,7 @@ const validatePcccCode = (code) => {
 const mountGoogleGsiButtons = async () => {
   await nextTick()
   if (!isLoginModalOpen.value) return
-  if (loginModalMode.value === 'login') {
+  if (isLoginMode.value) {
     renderGoogleButton('google-login-btn', { mode: 'login' })
   }
 }
@@ -714,6 +720,7 @@ const handleEmailLogin = async () => {
   try {
     await signInWithEmail(loginForm.value.email, loginForm.value.password)
     alert('성공적으로 로그인되었습니다.')
+    window.dispatchEvent(new CustomEvent('euchs:login_success'))
     resetAllForms()
   } catch (err) {
     console.error('Email login error:', err)
@@ -773,6 +780,7 @@ const handleEmailSignup = async () => {
       }
     )
     alert('🎉 B2B 사업자 회원가입이 완료되었습니다!\n확인 이메일을 인증하신 후 로그인해 주세요.')
+    window.dispatchEvent(new CustomEvent('euchs:signup_success'))
     loginModalMode.value = 'login'
     resetAllForms()
   } catch (err) {
@@ -813,6 +821,7 @@ const handleBusinessVerifySubmit = async () => {
     })
     alert('✅ B2B 사업자 인증 및 정보 등록이 완료되었습니다!\n이제 1688 도매 소싱몰을 자유롭게 이용하실 수 있습니다.')
     closeLoginModal()
+    window.dispatchEvent(new CustomEvent('euchs:business_verified'))
   } catch (err) {
     console.error('Business verify error:', err)
     alert(`등록 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`)

@@ -530,7 +530,16 @@
                 class="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
               >
                 <i class="fas fa-building text-sm"></i>
-                <span>B2B 사업자 정보 등록하기</span>
+                <span>B2B 사업자 정보 바로 등록하기</span>
+              </button>
+
+              <button
+                type="button"
+                @click="goToAccountSettings"
+                class="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shadow-xs transition active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <i class="fas fa-cog text-xs text-slate-500"></i>
+                <span>마이페이지 계정 설정에서 등록</span>
               </button>
             </div>
 
@@ -553,7 +562,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
 import { fetchSiteSettings } from '../lib/settings'
@@ -660,6 +669,8 @@ const updateSavedCount = () => {
 // ----------------------------------------------------
 const isB2BAuthGuardOpen = ref(false)
 const b2bGuardType = ref('guest') // 'guest' | 'unverified'
+const pendingProductToOpen = ref(null)
+const pendingOfferIdToOpen = ref(null)
 
 const openB2BGuard = (type = 'guest') => {
   b2bGuardType.value = type
@@ -675,10 +686,34 @@ const handleGuardAction = (mode) => {
   openLoginModal(mode)
 }
 
+const goToAccountSettings = () => {
+  closeB2BGuard()
+  router.push('/dashboard/account?tab=pccc')
+}
+
+// 사업자 인증 완료 시 방금 누른 상품 상세 모달 자동 오픈
+const checkAndResumePendingProduct = async () => {
+  if (isUserBusinessVerified(currentUser.value)) {
+    closeB2BGuard()
+    if (pendingProductToOpen.value) {
+      const p = pendingProductToOpen.value
+      pendingProductToOpen.value = null
+      selectedModalProduct.value = p
+    } else if (pendingOfferIdToOpen.value) {
+      const id = pendingOfferIdToOpen.value
+      pendingOfferIdToOpen.value = null
+      await openDetailModalById(id)
+    }
+  }
+}
+
 // ----------------------------------------------------
 // B2B 폐쇄몰 상세 모달 오픈 (Strict B2B Guard)
 // ----------------------------------------------------
 const openProductModal = (item) => {
+  pendingProductToOpen.value = item
+  pendingOfferIdToOpen.value = null
+
   // 1. 비로그인 상태 차단 -> 화면 중앙 커스텀 잠금 모달 노출
   if (!isLoggedIn.value) {
     openB2BGuard('guest')
@@ -693,6 +728,7 @@ const openProductModal = (item) => {
 
   // 3. 인증된 사업자 회원만 상세 모달 오픈
   selectedModalProduct.value = item
+  pendingProductToOpen.value = null
 }
 
 const handleModalCartAdded = (savedItem) => {
@@ -704,6 +740,9 @@ const handleModalCartAdded = (savedItem) => {
 // 1688 Direct OfferId Modal Opener (with B2B Guard)
 // ----------------------------------------------------
 const openDetailModalById = async (offerId) => {
+  pendingOfferIdToOpen.value = offerId
+  pendingProductToOpen.value = null
+
   // 1. 비로그인 상태 차단 -> 커스텀 잠금 모달
   if (!isLoggedIn.value) {
     openB2BGuard('guest')
@@ -726,6 +765,7 @@ const openDetailModalById = async (offerId) => {
   try {
     const product = await fetch1688ProductById(offerId)
     selectedModalProduct.value = product
+    pendingOfferIdToOpen.value = null
   } catch (err) {
     console.warn('[Mall1688] Direct detail open fallback:', err)
   } finally {
@@ -878,6 +918,18 @@ onMounted(async () => {
   await loadRates()
   updateSavedCount()
   handleIncomingQuery()
+
+  window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
+  window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('euchs:business_verified', checkAndResumePendingProduct)
+  window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
+})
+
+watch(currentUser, () => {
+  checkAndResumePendingProduct()
 })
 
 watch(() => route.query, () => {

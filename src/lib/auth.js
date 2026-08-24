@@ -148,13 +148,20 @@ export const adminSignIn = async (email, password) => {
  * 로그인 모달 열기/닫기 제어
  */
 export const openLoginModal = (mode = 'login') => {
-  loginModalMode.value = mode
+  let normalized = mode || 'login'
+  if (normalized === 'register') normalized = 'signup'
+  if (normalized === 'business' || normalized === 'verify') normalized = 'business_verify'
+  loginModalMode.value = normalized
   isLoginModalOpen.value = true
 }
+
+export const openAuthModal = openLoginModal
 
 export const closeLoginModal = () => {
   isLoginModalOpen.value = false
 }
+
+export const closeAuthModal = closeLoginModal
 
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '637980227155-clcfso2b4jl9lmp3rp907d59uttavjp6.apps.googleusercontent.com'
 
