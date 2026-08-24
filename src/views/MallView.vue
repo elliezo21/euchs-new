@@ -449,12 +449,19 @@
 
 <script setup>
 import { ref, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
 import { fetchSiteSettings } from '../lib/settings'
+import {
+  isLoggedIn,
+  currentUser,
+  openLoginModal,
+  isUserBusinessVerified
+} from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 
 const route = useRoute()
+const router = useRouter()
 
 // ----------------------------------------------------
 // State & Navigation
@@ -543,7 +550,25 @@ const updateSavedCount = () => {
   }
 }
 
+// ----------------------------------------------------
+// B2B 폐쇄몰 상세 모달 오픈 (Strict B2B Guard)
+// ----------------------------------------------------
 const openProductModal = (item) => {
+  // 1. 비로그인 상태 차단
+  if (!isLoggedIn.value) {
+    alert("🔒 도매 단가 및 상세 정보는 사업자 회원 전용입니다. 로그인 후 이용해 주세요.")
+    openLoginModal('login')
+    return
+  }
+
+  // 2. 로그인은 되었으나 사업자 정보(사업자등록번호/통관부호)가 없는 회원 (SNS 간편가입자 등)
+  if (!isUserBusinessVerified(currentUser.value)) {
+    alert("⚠️ 사업자정보를 등록한 인증 바이어만 상세 도매 단가를 열람할 수 있습니다.")
+    openLoginModal('business_verify')
+    return
+  }
+
+  // 3. 인증된 사업자 회원만 상세 모달 오픈
   selectedModalProduct.value = item
 }
 
@@ -553,9 +578,23 @@ const handleModalCartAdded = (savedItem) => {
 }
 
 // ----------------------------------------------------
-// 1688 Direct OfferId Modal Opener
+// 1688 Direct OfferId Modal Opener (with B2B Guard)
 // ----------------------------------------------------
 const openDetailModalById = async (offerId) => {
+  // 1. 비로그인 상태 차단
+  if (!isLoggedIn.value) {
+    alert("🔒 도매 단가 및 상세 정보는 사업자 회원 전용입니다. 로그인 후 이용해 주세요.")
+    openLoginModal('login')
+    return
+  }
+
+  // 2. 사업자 미인증 회원 차단
+  if (!isUserBusinessVerified(currentUser.value)) {
+    alert("⚠️ 사업자정보를 등록한 인증 바이어만 상세 도매 단가를 열람할 수 있습니다.")
+    openLoginModal('business_verify')
+    return
+  }
+
   isLoading.value = true
   errorMessage.value = ''
   currentProgress.value = {

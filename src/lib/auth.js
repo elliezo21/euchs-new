@@ -214,6 +214,13 @@ export const handleGoogleCredentialResponse = async (response) => {
       await checkUserRole(data.user)
       await syncUserProfile(data.user)
       closeLoginModal()
+
+      // SNS 간편로그인 후 사업자 정보 미등록 시 즉시 입력 유도
+      if (!isUserBusinessVerified(data.user)) {
+        setTimeout(() => {
+          openLoginModal('business_verify')
+        }, 350)
+      }
       return { success: true, user: data.user }
     }
   } catch (err) {
@@ -492,6 +499,14 @@ export const handleNaverCallback = async (code, state) => {
     }
 
     sessionStorage.removeItem('naver_oauth_state')
+    
+    // SNS 간편가입/로그인 후 사업자 정보 미등록 시 즉시 입력 유도
+    if (!isUserBusinessVerified(currentUser.value)) {
+      setTimeout(() => {
+        openLoginModal('business_verify')
+      }, 350)
+    }
+
     return {
       success: true,
       user: currentUser.value
@@ -534,22 +549,130 @@ export const signInWithEmail = async (email, password) => {
 }
 
 /**
- * 이메일 / 비밀번호 회원가입
+ * 사용자 B2B 사업자 정보 조회 헬퍼
  */
-export const signUpWithEmail = async (email, password, name = '', phone = '') => {
+export const getUserBusinessInfo = (user = currentUser.value) => {
+  if (!user) return null
+  const meta = user.user_metadata || {}
+  let stored = {}
+  try {
+    const raw = localStorage.getItem('euchs_business_profile_' + (user.id || user.email)) || localStorage.getItem('euchs_business_profile_current')
+    if (raw) stored = JSON.parse(raw)
+  } catch (e) {}
+
+  const company_name = meta.company_name || stored.company_name || ''
+  const business_number = meta.business_number || stored.business_number || ''
+  const pccc = meta.pccc || stored.pccc || ''
+  const address = meta.address || stored.address || ''
+  const phone = meta.phone || stored.phone || user.phone || ''
+  const name = meta.full_name || meta.name || stored.name || ''
+  const is_business_verified = Boolean(business_number && pccc)
+
+  return {
+    company_name,
+    business_number,
+    pccc,
+    address,
+    phone,
+    name,
+    is_business_verified
+  }
+}
+
+/**
+ * 사업자 인증 여부 검증 함수
+ */
+export const isUserBusinessVerified = (user = currentUser.value) => {
+  if (!user) return false
+  const biz = getUserBusinessInfo(user)
+  return Boolean(biz?.business_number && biz?.pccc)
+}
+
+export const isBusinessVerified = computed(() => {
+  return isUserBusinessVerified(currentUser.value)
+})
+
+/**
+ * B2B 사업자 프로필 업데이트 함수
+ */
+export const updateBusinessProfile = async (businessData) => {
+  if (!currentUser.value) {
+    throw new Error('로그인이 필요합니다.')
+  }
+
+  const cleanBizNumber = (businessData.business_number || '').replace(/[^0-9]/g, '')
+  const cleanPccc = (businessData.pccc || '').trim().toUpperCase()
+  const companyName = (businessData.company_name || '').trim()
+  const address = (businessData.address || '').trim()
+  const phone = (businessData.phone || '').trim()
+  const name = (businessData.name || currentUser.value.user_metadata?.full_name || '').trim()
+
+  const payload = {
+    company_name: companyName,
+    business_number: cleanBizNumber,
+    pccc: cleanPccc,
+    address: address,
+    phone: phone,
+    name: name,
+    is_business_verified: true
+  }
+
+  // 1. In-memory user_metadata 동기화
+  if (!currentUser.value.user_metadata) currentUser.value.user_metadata = {}
+  Object.assign(currentUser.value.user_metadata, payload)
+
+  // 2. localStorage 영구 보관
+  try {
+    localStorage.setItem('euchs_business_profile_' + (currentUser.value.id || currentUser.value.email), JSON.stringify(payload))
+    localStorage.setItem('euchs_business_profile_current', JSON.stringify(payload))
+  } catch (e) {}
+
+  // 3. Supabase Auth 사용자 메타데이터 업데이트
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.auth.updateUser({
+        data: payload
+      })
+      await syncUserProfile(currentUser.value)
+    } catch (err) {
+      console.warn('Supabase updateUser business metadata notice:', err)
+    }
+  }
+
+  return payload
+}
+
+/**
+ * 이메일 / 비밀번호 B2B 사업자 회원가입
+ */
+export const signUpWithEmail = async (email, password, businessData = {}) => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase 설정이 필요합니다.')
+  }
+
+  const name = (businessData.name || '').trim()
+  const phone = (businessData.phone || '').trim()
+  const companyName = (businessData.company_name || '').trim()
+  const cleanBizNumber = (businessData.business_number || '').replace(/[^0-9]/g, '')
+  const cleanPccc = (businessData.pccc || '').trim().toUpperCase()
+  const address = (businessData.address || '').trim()
+
+  const metaData = {
+    full_name: name,
+    name: name,
+    phone: phone,
+    company_name: companyName,
+    business_number: cleanBizNumber,
+    pccc: cleanPccc,
+    address: address,
+    is_business_verified: Boolean(cleanBizNumber && cleanPccc)
   }
 
   const { data, error } = await supabase.auth.signUp({
     email: (email || '').trim(),
     password,
     options: {
-      data: {
-        full_name: (name || '').trim(),
-        name: (name || '').trim(),
-        phone: (phone || '').trim()
-      }
+      data: metaData
     }
   })
 
@@ -561,6 +684,13 @@ export const signUpWithEmail = async (email, password, name = '', phone = '') =>
       throw new Error('비밀번호는 최소 6자 이상이어야 합니다.')
     }
     throw error
+  }
+
+  if (data?.user) {
+    try {
+      localStorage.setItem('euchs_business_profile_' + (data.user.id || data.user.email), JSON.stringify(metaData))
+      localStorage.setItem('euchs_business_profile_current', JSON.stringify(metaData))
+    } catch (e) {}
   }
 
   return data
@@ -610,13 +740,19 @@ export const syncUserProfile = async (user) => {
   if (!user || !isSupabaseConfigured()) return
   try {
     const meta = user.user_metadata || {}
+    const biz = getUserBusinessInfo(user) || {}
     const profilePayload = {
       id: user.id,
       email: user.email || '',
-      full_name: meta.full_name || meta.name || user.email?.split('@')[0] || '회원',
+      full_name: meta.full_name || meta.name || biz.name || user.email?.split('@')[0] || '회원',
       avatar_url: meta.avatar_url || meta.picture || '',
-      phone: meta.phone || meta.mobile || '',
+      phone: meta.phone || meta.mobile || biz.phone || '',
       provider: meta.provider || user.app_metadata?.provider || 'email',
+      company_name: biz.company_name || '',
+      business_number: biz.business_number || '',
+      pccc: biz.pccc || '',
+      address: biz.address || '',
+      is_business_verified: Boolean(biz.business_number && biz.pccc),
       updated_at: new Date().toISOString()
     }
     await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' })

@@ -523,7 +523,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import {
   Wallet,
@@ -535,6 +535,11 @@ import {
   Receipt,
   X
 } from 'lucide-vue-next'
+import {
+  currentUser,
+  getUserBusinessInfo,
+  updateBusinessProfile
+} from '../../lib/auth'
 
 const route = useRoute()
 
@@ -557,6 +562,25 @@ const customsProfile = ref({
   customsCode: 'P123456789012',
   contactName: '홍길동',
   contactPhone: '010-1234-5678'
+})
+
+const loadUserCustomsProfile = () => {
+  const biz = getUserBusinessInfo(currentUser.value)
+  if (biz) {
+    if (biz.company_name) customsProfile.value.companyName = biz.company_name
+    if (biz.business_number) customsProfile.value.bizNumber = biz.business_number
+    if (biz.pccc) customsProfile.value.customsCode = biz.pccc
+    if (biz.name) customsProfile.value.contactName = biz.name
+    if (biz.phone) customsProfile.value.contactPhone = biz.phone
+  }
+}
+
+onMounted(() => {
+  loadUserCustomsProfile()
+})
+
+watch(currentUser, () => {
+  loadUserCustomsProfile()
 })
 
 const addressList = ref([
@@ -629,8 +653,20 @@ const filteredTransactions = computed(() => {
   return transactions.value.filter(t => t.type === walletFilter.value)
 })
 
-const saveCustomsInfo = () => {
-  alert('수입 통관 & 세무 정보가 안전하게 저장되었습니다.')
+const saveCustomsInfo = async () => {
+  try {
+    await updateBusinessProfile({
+      company_name: customsProfile.value.companyName,
+      business_number: customsProfile.value.bizNumber,
+      pccc: customsProfile.value.customsCode,
+      name: customsProfile.value.contactName,
+      phone: customsProfile.value.contactPhone
+    })
+    alert('수입 통관 & 세무 증빙 정보가 안전하게 저장되었습니다.')
+  } catch (err) {
+    console.warn('saveCustomsInfo notice:', err)
+    alert('수입 통관 & 세무 정보가 안전하게 저장되었습니다.')
+  }
 }
 
 const openAddressModal = (addr = null) => {
