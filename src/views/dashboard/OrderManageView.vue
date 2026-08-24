@@ -1085,7 +1085,7 @@
                 <div
                   v-for="(photo, idx) in (selectedSecondPaymentOrder.inspectionPhotos || defaultInspectionPhotos)"
                   :key="idx"
-                  class="group relative rounded-xl overflow-hidden border border-gray-200 bg-black aspect-4/3 cursor-pointer shadow-xs"
+                  class="group relative rounded-xl overflow-hidden border border-gray-200 bg-black aspect-[4/3] cursor-pointer shadow-xs"
                   @click="openPhotoPreview(photo.url)"
                 >
                   <img
@@ -1149,7 +1149,7 @@
               v-if="!uploadedBarcodeFile"
               @dragover.prevent
               @drop.prevent="handleDropBarcodeFile"
-              @click="$refs.barcodeFileInputRef.click()"
+              @click="triggerBarcodeFileInput"
               class="border-2 border-dashed border-gray-300 hover:border-amber-500 bg-gray-50/60 hover:bg-amber-50/20 rounded-2xl p-6 text-center cursor-pointer transition space-y-2.5 group"
             >
               <div class="w-12 h-12 rounded-full bg-white border border-gray-200 text-gray-400 group-hover:text-amber-500 group-hover:border-amber-300 flex items-center justify-center mx-auto transition shadow-xs">
@@ -1205,7 +1205,7 @@
               <div class="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
-                  @click="$refs.barcodeFileInputRef.click()"
+                  @click="triggerBarcodeFileInput"
                   class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-[11px] transition cursor-pointer"
                 >
                   파일 교체
@@ -2360,6 +2360,12 @@ function closeSecondPaymentModal() {
 
 function openPhotoPreview(url) {
   previewPhotoUrl.value = url;
+}
+
+function triggerBarcodeFileInput() {
+  if (barcodeFileInputRef.value) {
+    barcodeFileInputRef.value.click();
+  }
 }
 
 function handleBarcodeFileUpload(event) {
