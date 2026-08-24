@@ -444,6 +444,111 @@
       @change-product="selectedModalProduct = $event"
     />
 
+    <!-- ======================================================== -->
+    <!-- 6. B2B AUTH GUARD MODAL (화면 중앙 커스텀 B2B 잠금 안내 팝업) -->
+    <!-- ======================================================== -->
+    <teleport to="body">
+      <transition
+        enter-active-class="transition duration-200 ease-out"
+        enter-from-class="opacity-0 scale-95"
+        enter-to-class="opacity-100 scale-100"
+        leave-active-class="transition duration-150 ease-in"
+        leave-from-class="opacity-100 scale-100"
+        leave-to-class="opacity-0 scale-95"
+      >
+        <div
+          v-if="isB2BAuthGuardOpen"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm select-none"
+          @click.self="closeB2BGuard"
+          @keydown.esc="closeB2BGuard"
+        >
+          <div
+            class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8 text-center text-slate-800 animate-fade-in"
+            role="dialog"
+            aria-modal="true"
+          >
+            <!-- 닫기 버튼 (X) -->
+            <button
+              type="button"
+              @click="closeB2BGuard"
+              class="absolute top-4 right-4 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-700 flex items-center justify-center transition cursor-pointer"
+              aria-label="닫기"
+            >
+              <i class="fas fa-times text-sm"></i>
+            </button>
+
+            <!-- 1. 자물쇠 아이콘 -->
+            <div class="w-16 h-16 rounded-3xl bg-gradient-to-tr from-amber-500 to-orange-400 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-orange-500/30 mb-4">
+              <i class="fas fa-lock"></i>
+            </div>
+
+            <!-- 2. 모달 타이틀 -->
+            <div class="space-y-1 pb-3">
+              <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-xs font-black">
+                <i class="fas fa-shield-alt"></i> B2B 도매 회원 전용
+              </span>
+              <h3 class="text-xl font-black text-slate-900 tracking-tight pt-1">
+                B2B 사업자 전용 안내
+              </h3>
+            </div>
+
+            <!-- 3. 본문 안내 문구 -->
+            <p v-if="b2bGuardType === 'guest'" class="text-xs sm:text-sm text-slate-600 leading-relaxed pb-6">
+              🔒 1688 도매 단가 및 실시간 옵션 상세 정보는 <strong>사업자 회원 전용</strong>입니다.<br class="hidden sm:inline" />
+              로그인이나 B2B 회원가입 후 이용해 주세요.
+            </p>
+            <p v-else class="text-xs sm:text-sm text-slate-600 leading-relaxed pb-6">
+              ⚠️ 사업자정보(사업자번호/통관부호)를 등록한 <strong>인증 바이어만</strong> 상세 도매 단가를 열람할 수 있습니다.<br class="hidden sm:inline" />
+              사업자 정보를 등록하고 도매몰을 이용해 보세요.
+            </p>
+
+            <!-- 4. 하단 버튼 액션 그룹 -->
+            <div v-if="b2bGuardType === 'guest'" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                @click="handleGuardAction('login')"
+                class="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <i class="fas fa-key text-xs"></i>
+                <span>로그인하러 가기</span>
+              </button>
+
+              <button
+                type="button"
+                @click="handleGuardAction('signup')"
+                class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white font-bold text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <i class="fas fa-user-plus text-xs"></i>
+                <span>B2B 사업자 회원가입</span>
+              </button>
+            </div>
+
+            <div v-else class="space-y-2">
+              <button
+                type="button"
+                @click="handleGuardAction('business_verify')"
+                class="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <i class="fas fa-building text-sm"></i>
+                <span>B2B 사업자 정보 등록하기</span>
+              </button>
+            </div>
+
+            <!-- 하단 닫기 텍스트 링크 -->
+            <div class="pt-4">
+              <button
+                type="button"
+                @click="closeB2BGuard"
+                class="text-xs text-slate-400 hover:text-slate-600 underline font-medium cursor-pointer"
+              >
+                다음에 하기
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
+
   </div>
 </template>
 
@@ -551,20 +656,38 @@ const updateSavedCount = () => {
 }
 
 // ----------------------------------------------------
+// B2B Auth Guard State & Handlers (화면 중앙 커스텀 모달)
+// ----------------------------------------------------
+const isB2BAuthGuardOpen = ref(false)
+const b2bGuardType = ref('guest') // 'guest' | 'unverified'
+
+const openB2BGuard = (type = 'guest') => {
+  b2bGuardType.value = type
+  isB2BAuthGuardOpen.value = true
+}
+
+const closeB2BGuard = () => {
+  isB2BAuthGuardOpen.value = false
+}
+
+const handleGuardAction = (mode) => {
+  isB2BAuthGuardOpen.value = false
+  openLoginModal(mode)
+}
+
+// ----------------------------------------------------
 // B2B 폐쇄몰 상세 모달 오픈 (Strict B2B Guard)
 // ----------------------------------------------------
 const openProductModal = (item) => {
-  // 1. 비로그인 상태 차단
+  // 1. 비로그인 상태 차단 -> 화면 중앙 커스텀 잠금 모달 노출
   if (!isLoggedIn.value) {
-    alert("🔒 도매 단가 및 상세 정보는 사업자 회원 전용입니다. 로그인 후 이용해 주세요.")
-    openLoginModal('login')
+    openB2BGuard('guest')
     return
   }
 
-  // 2. 로그인은 되었으나 사업자 정보(사업자등록번호/통관부호)가 없는 회원 (SNS 간편가입자 등)
+  // 2. 로그인은 되었으나 사업자 정보가 없는 회원 -> 사업자 등록 안내 모달 노출
   if (!isUserBusinessVerified(currentUser.value)) {
-    alert("⚠️ 사업자정보를 등록한 인증 바이어만 상세 도매 단가를 열람할 수 있습니다.")
-    openLoginModal('business_verify')
+    openB2BGuard('unverified')
     return
   }
 
@@ -581,17 +704,15 @@ const handleModalCartAdded = (savedItem) => {
 // 1688 Direct OfferId Modal Opener (with B2B Guard)
 // ----------------------------------------------------
 const openDetailModalById = async (offerId) => {
-  // 1. 비로그인 상태 차단
+  // 1. 비로그인 상태 차단 -> 커스텀 잠금 모달
   if (!isLoggedIn.value) {
-    alert("🔒 도매 단가 및 상세 정보는 사업자 회원 전용입니다. 로그인 후 이용해 주세요.")
-    openLoginModal('login')
+    openB2BGuard('guest')
     return
   }
 
-  // 2. 사업자 미인증 회원 차단
+  // 2. 사업자 미인증 회원 차단 -> 커스텀 안내 모달
   if (!isUserBusinessVerified(currentUser.value)) {
-    alert("⚠️ 사업자정보를 등록한 인증 바이어만 상세 도매 단가를 열람할 수 있습니다.")
-    openLoginModal('business_verify')
+    openB2BGuard('unverified')
     return
   }
 
