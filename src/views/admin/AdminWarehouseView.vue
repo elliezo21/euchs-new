@@ -185,6 +185,15 @@
                   <div class="space-y-0.5 flex-1 min-w-0">
                     <p class="font-bold text-white line-clamp-1">{{ item.productName }}</p>
                     <p class="text-[11px] text-slate-400">옵션: {{ item.sku }} · <b class="text-amber-300">{{ item.quantity }}개</b> ({{ item.boxCount }} CTN)</p>
+                    <div v-if="getVasBadges(item).length" class="flex flex-wrap gap-1 mt-1">
+                      <span
+                        v-for="vas in getVasBadges(item)"
+                        :key="vas.id"
+                        class="px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-[10px] font-bold border border-amber-500/30"
+                      >
+                        {{ vas.shortName || vas.name }}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </td>
@@ -267,6 +276,28 @@
           <button @click="isModalOpen = false" class="text-slate-400 hover:text-white p-1">
             <X class="w-5 h-5" />
           </button>
+        </div>
+
+        <!-- 부가서비스(VAS) 요청 내역 안내 -->
+        <div v-if="getVasBadges(activeItem).length" class="p-3 bg-amber-950/30 border border-amber-500/30 rounded-2xl space-y-1.5">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
+              <i class="fas fa-screwdriver-wrench text-amber-400"></i>
+              <span>바이어 현장 부가서비스(VAS) 요청 (총 {{ getVasBadges(activeItem).length }}건)</span>
+            </span>
+            <span class="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/15 px-2 py-0.5 rounded-full">
+              필수 작업
+            </span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <span
+              v-for="vas in getVasBadges(activeItem)"
+              :key="vas.id"
+              class="px-2 py-0.5 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/30 text-[11px] font-bold"
+            >
+              {{ vas.shortName || vas.name }}
+            </span>
+          </div>
         </div>
 
         <form @submit.prevent="saveInboundProcessing" class="space-y-4 text-xs">
@@ -523,6 +554,22 @@ const filteredInbounds = computed(() => {
 
   return list;
 });
+
+const VAS_OPTIONS_MAP = {
+  inspection_precision: { id: 'inspection_precision', name: '정밀검수', shortName: '🔍 정밀검수' },
+  origin_label: { id: 'origin_label', name: '원산지 라벨', shortName: '🏷️ 원산지' },
+  barcode_label: { id: 'barcode_label', name: '바코드 라벨', shortName: '📦 바코드' },
+  opp_repack: { id: 'opp_repack', name: 'OPP 재포장', shortName: '📦 OPP' },
+  fta_co: { id: 'fta_co', name: 'FTA C/O', shortName: '📄 FTA C/O' },
+  pallet_wood: { id: 'pallet_wood', name: '목재 파렛트', shortName: '🪵 파렛트' }
+};
+
+const getVasBadges = (item) => {
+  if (!item) return [];
+  const raw = item.vas_services || item.vasServices || item.details?.vas_services || item.details?.vasServices || [];
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw.map(id => VAS_OPTIONS_MAP[id] || { id, name: id, shortName: id });
+};
 
 const getInspectionLabel = (status) => {
   const map = {

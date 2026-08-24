@@ -578,6 +578,50 @@
                 </div>
               </div>
 
+              <!-- 3. 현지 창고 부가서비스 (VAS) 신청 박스 -->
+              <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                  <h4 class="font-bold text-gray-900 flex items-center gap-2 text-xs sm:text-sm">
+                    <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                    <span>🛠️ 현지 창고 부가서비스 신청 (선택)</span>
+                  </h4>
+                  <span class="text-[10px] text-amber-700 bg-amber-50 font-bold px-2 py-0.5 rounded-full border border-amber-200">
+                    선택 시 맞춤 작업 진행
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 gap-2 text-xs">
+                  <label
+                    v-for="vas in VAS_OPTIONS"
+                    :key="vas.id"
+                    class="flex items-start gap-2.5 p-2.5 rounded-xl border transition cursor-pointer select-none"
+                    :class="isVasSelected(vas.id)
+                      ? 'bg-amber-50/60 border-amber-300 text-slate-900 shadow-2xs'
+                      : 'bg-slate-50/50 border-gray-200 hover:border-gray-300 text-gray-600'"
+                  >
+                    <input
+                      type="checkbox"
+                      :checked="isVasSelected(vas.id)"
+                      @change="toggleVasService(vas.id)"
+                      class="mt-0.5 w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <div class="flex items-center justify-between gap-2">
+                        <span class="font-bold text-xs" :class="isVasSelected(vas.id) ? 'text-amber-900' : 'text-gray-800'">
+                          {{ vas.name }}
+                        </span>
+                        <span class="text-[10px] font-mono font-bold shrink-0" :class="vas.badgeClass || 'text-slate-500'">
+                          {{ vas.feeLabel }}
+                        </span>
+                      </div>
+                      <p class="text-[11px] text-gray-400 mt-0.5 leading-snug">
+                        {{ vas.desc }}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
             </div>
 
             <!-- RIGHT COLUMN: DDP 도착원가 계산표 + 최종 결제 요약 (6 cols) -->
@@ -613,7 +657,7 @@
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
                   </div>
                   <div class="flex items-center justify-between py-1 border-b border-gray-100">
-                    <span class="text-gray-600">5. 수입 구매대행 & 검수 수수료 (8%)</span>
+                    <span class="text-gray-600">5. 수입 구매대행 & 기본 수수료 (8%)</span>
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).agencyFeeKrw) }}원</span>
                   </div>
                 </div>
@@ -1180,6 +1224,105 @@ function getGroupedOrderItems(rawItems) {
   });
 
   return Array.from(groupsMap.values());
+}
+
+// ---------------------------------------------------------
+// 현지 창고 부가서비스 (VAS: Value-Added Services)
+// ---------------------------------------------------------
+const VAS_OPTIONS = [
+  {
+    id: 'inspection_precision',
+    name: '정밀 검수 (전수 불량/파손 정밀 검사 & 실사 사진 전송)',
+    desc: '입고 시 100% 전수 개봉하여 오염, 스크래치, 파손 여부를 정밀 검사하고 고화질 실사 사진을 전송합니다.',
+    feeLabel: '무료 기본제공',
+    badgeClass: 'text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-bold'
+  },
+  {
+    id: 'origin_label',
+    name: '원산지 표시(MADE IN CHINA) 라벨 부착 / 봉제 작업',
+    desc: '국내 세관 통관 필수 요건인 원산지 표기 스티커 부착 또는 의류/패브릭 봉제 라벨 작업을 현지에서 완벽 처리합니다.',
+    feeLabel: '개당 약 ₩50~100',
+    badgeClass: 'text-blue-600 font-bold'
+  },
+  {
+    id: 'barcode_label',
+    name: '바코드 / 쿠팡 로켓그로스 바코드(바코드 라벨링) 부착',
+    desc: '스마트스토어, 쿠팡 로켓그로스 입고용 상품 바코드(EAN/UPC) 및 박스 라벨을 인쇄하여 부착합니다.',
+    feeLabel: '개당 약 ₩50~100',
+    badgeClass: 'text-indigo-600 font-bold'
+  },
+  {
+    id: 'opp_repack',
+    name: 'OPP 재포장 / 세트 합포장 작업',
+    desc: '손상된 비닐 교체, 상품별 개별 OPP 포장, 또는 2개 이상의 단품을 1개 세트로 묶는 번들 합포장 작업.',
+    feeLabel: '개당 약 ₩100~200',
+    badgeClass: 'text-amber-600 font-bold'
+  },
+  {
+    id: 'fta_co',
+    name: '한-중 FTA 원산지증명서(C/O) 발급 신청',
+    desc: '수입 관세를 최대 0~5%까지 절감할 수 있는 상공회의소 공식 한-중 FTA 협정세율 C/O를 현지에서 발급합니다.',
+    feeLabel: '관세 절감 필수',
+    badgeClass: 'text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold'
+  },
+  {
+    id: 'pallet_wood',
+    name: '목재 파렛트 / 에어캡 특수 완충 포장',
+    desc: '도자기, 유리, 가전 등 파손 위험이 높은 화물의 해상 운송 중 파손을 방지하기 위한 목재 훈증 파렛트 및 완충 보강.',
+    feeLabel: '파손 위험 상품',
+    badgeClass: 'text-slate-600 font-bold'
+  }
+];
+
+function isVasSelected(vasId) {
+  if (!activeOrder.value) return false;
+  const list = activeOrder.value.vas_services || activeOrder.value.vasServices || activeOrder.value.details?.vas_services || [];
+  return Array.isArray(list) && list.includes(vasId);
+}
+
+function toggleVasService(vasId) {
+  if (!activeOrder.value) return;
+  let list = activeOrder.value.vas_services || activeOrder.value.vasServices || activeOrder.value.details?.vas_services || [];
+  if (!Array.isArray(list)) list = [];
+
+  if (list.includes(vasId)) {
+    list = list.filter(id => id !== vasId);
+  } else {
+    list.push(vasId);
+  }
+
+  activeOrder.value.vas_services = [...list];
+  activeOrder.value.vasServices = [...list];
+  if (activeOrder.value.details) {
+    activeOrder.value.details.vas_services = [...list];
+  }
+
+  // Update order in orders list and localStorage
+  const target = orders.value.find(o => o.id === activeOrder.value.id || o.orderNumber === activeOrder.value.orderNumber);
+  if (target) {
+    target.vas_services = [...list];
+    target.vasServices = [...list];
+    if (target.details) target.details.vas_services = [...list];
+  }
+
+  try {
+    const raw = localStorage.getItem('euchs_erp_submitted_orders');
+    if (raw) {
+      let stored = JSON.parse(raw);
+      if (Array.isArray(stored)) {
+        const sTarget = stored.find(o => o.id === activeOrder.value.id || o.orderNumber === activeOrder.value.orderNumber);
+        if (sTarget) {
+          sTarget.vas_services = [...list];
+          sTarget.vasServices = [...list];
+          if (sTarget.details) sTarget.details.vas_services = [...list];
+          localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(stored));
+          window.dispatchEvent(new Event('storage'));
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to sync VAS services:', e);
+  }
 }
 
 // ---------------------------------------------------------

@@ -1781,6 +1781,29 @@
           </div>
         </div>
 
+        <!-- Section 1.5: 현지 창고 부가서비스 (VAS) 신청 내역 배지 -->
+        <div v-if="getAppVasServices(selectedApp).length" class="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-500/30 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-amber-300 flex items-center gap-1.5">
+              <i class="fas fa-screwdriver-wrench text-amber-400"></i>
+              <span>현지 창고 부가서비스(VAS) 작업 요청 ({{ getAppVasServices(selectedApp).length }}건)</span>
+            </span>
+            <span class="text-[10px] text-amber-400/80 font-mono font-bold">
+              이우 물류센터 입고/검수팀 연동
+            </span>
+          </div>
+          <div class="flex flex-wrap gap-1.5">
+            <span
+              v-for="vas in getAppVasServices(selectedApp)"
+              :key="vas.id"
+              class="px-2.5 py-1 rounded-xl bg-amber-500/20 border border-amber-500/35 text-amber-200 text-xs font-bold flex items-center gap-1.5 shadow-2xs"
+            >
+              <i :class="vas.icon || 'fas fa-check'" class="text-amber-400 text-[10px]"></i>
+              <span>{{ vas.name }}</span>
+            </span>
+          </div>
+        </div>
+
         <!-- Section 2: Order Specific Details (Items Table, Tour, Freight, etc.) -->
         
         <!-- (Purchasing Items Table - Enterprise 1688 ERP Grouped Style) -->
@@ -2537,6 +2560,22 @@ const openAppDetail = async (app) => {
 // 1688 Purchasing ERP Operational Helpers & Grouping
 // ----------------------------------------------------
 const formatNumber = (num) => Number(num || 0).toLocaleString('ko-KR')
+
+const VAS_OPTIONS_MAP = {
+  inspection_precision: { id: 'inspection_precision', name: '정밀 검수(실사 사진)', icon: 'fas fa-magnifying-glass' },
+  origin_label: { id: 'origin_label', name: '원산지 라벨(MADE IN CHINA)', icon: 'fas fa-tag' },
+  barcode_label: { id: 'barcode_label', name: '바코드 라벨링(쿠팡/스토어)', icon: 'fas fa-barcode' },
+  opp_repack: { id: 'opp_repack', name: 'OPP 재포장/합포장', icon: 'fas fa-box-open' },
+  fta_co: { id: 'fta_co', name: '한-중 FTA C/O 발급', icon: 'fas fa-file-invoice' },
+  pallet_wood: { id: 'pallet_wood', name: '목재 파렛트/완충 보강', icon: 'fas fa-cubes' }
+}
+
+const getAppVasServices = (app) => {
+  if (!app) return []
+  const raw = app.vas_services || app.vasServices || app.details?.vas_services || app.details?.vasServices || []
+  if (!Array.isArray(raw) || raw.length === 0) return []
+  return raw.map(id => VAS_OPTIONS_MAP[id] || { id, name: id, icon: 'fas fa-check' })
+}
 
 const formatSkuText = (it) => {
   if (!it) return '기본 옵션'

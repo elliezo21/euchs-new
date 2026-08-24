@@ -40,6 +40,29 @@
         </span>
       </div>
 
+      <!-- 부가서비스(VAS) 요청 내역 안내 -->
+      <div v-if="getAppVasServices().length" class="p-3.5 bg-amber-950/30 border border-amber-500/30 rounded-2xl space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="font-bold text-amber-300 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-screwdriver-wrench text-amber-400"></i>
+            <span>바이어 현장 부가서비스(VAS) 요청 (총 {{ getAppVasServices().length }}건)</span>
+          </span>
+          <span class="text-[10px] text-amber-400 font-mono font-bold bg-amber-500/15 px-2 py-0.5 rounded-full border border-amber-500/30">
+            검수/출고 전 필수 작업
+          </span>
+        </div>
+        <div class="flex flex-wrap gap-1.5">
+          <span
+            v-for="vas in getAppVasServices()"
+            :key="vas.id"
+            class="px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-200 border border-amber-500/30 text-xs font-bold flex items-center gap-1.5 shadow-2xs"
+          >
+            <i class="fas fa-check text-[9px] text-amber-400"></i>
+            <span>{{ vas.name }}</span>
+          </span>
+        </div>
+      </div>
+
       <form @submit.prevent="saveInboundProcessing" class="space-y-4">
         <!-- 1. 실측 계근 입력 (중량, CBM, 박스수) -->
         <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
@@ -274,6 +297,22 @@ const initFormData = () => {
     inspectionNote: matched?.inspectionNote || details.inspectionNote || '',
     inspectionPhotos: JSON.parse(JSON.stringify(matched?.inspectionPhotos || details.inspectionPhotos || []))
   };
+};
+
+const VAS_OPTIONS_MAP = {
+  inspection_precision: { id: 'inspection_precision', name: '정밀 검수(실사 사진)', icon: 'fas fa-magnifying-glass' },
+  origin_label: { id: 'origin_label', name: '원산지 라벨(MADE IN CHINA)', icon: 'fas fa-tag' },
+  barcode_label: { id: 'barcode_label', name: '바코드 라벨링(쿠팡/스토어)', icon: 'fas fa-barcode' },
+  opp_repack: { id: 'opp_repack', name: 'OPP 재포장/합포장', icon: 'fas fa-box-open' },
+  fta_co: { id: 'fta_co', name: '한-중 FTA C/O 발급', icon: 'fas fa-file-invoice' },
+  pallet_wood: { id: 'pallet_wood', name: '목재 파렛트/완충 보강', icon: 'fas fa-cubes' }
+};
+
+const getAppVasServices = () => {
+  const app = props.application || {};
+  const raw = app.vas_services || app.vasServices || app.details?.vas_services || app.details?.vasServices || [];
+  if (!Array.isArray(raw) || raw.length === 0) return [];
+  return raw.map(id => VAS_OPTIONS_MAP[id] || { id, name: id, icon: 'fas fa-check' });
 };
 
 const getTargetProductName = () => {
