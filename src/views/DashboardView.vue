@@ -260,47 +260,19 @@
               </div>
             </div>
 
-            <!-- 4. EUC 창고 (아코디언) -->
-            <div class="space-y-0.5 pt-1">
-              <button
-                type="button"
-                @click="toggleMenu('warehouse')"
-                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
-                :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-600' : ''"
+            <!-- 4. EUC 창고 (단일 메뉴) -->
+            <div class="pt-1">
+              <router-link
+                to="/dashboard/warehouse"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+                :class="route.path.startsWith('/dashboard/warehouse') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-warehouse text-sm" :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-500' : 'text-gray-400'"></i>
-                  <span>EUC 창고</span>
+                  <i class="fas fa-warehouse text-base" :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span>이우 물류센터 입고/검수</span>
                 </div>
-                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.warehouse ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
-              </button>
-
-              <!-- Submenu Items -->
-              <div v-show="expandedMenus.warehouse" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
-                <router-link
-                  to="/dashboard/warehouse"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/warehouse' && !route.query.tab ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
-                >
-                  <span>실시간 입고/검수 현황</span>
-                  <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">100%</span>
-                </router-link>
-                <router-link
-                  to="/dashboard/warehouse?tab=inspection"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/warehouse' && route.query.tab === 'inspection' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
-                >
-                  <span>정밀 검수 실사 확인</span>
-                  <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1 rounded font-bold">실사</span>
-                </router-link>
-                <router-link
-                  to="/dashboard/warehouse?tab=vas"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/warehouse' && route.query.tab === 'vas' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
-                >
-                  <span>부가작업 신청 (VAS)</span>
-                </router-link>
-              </div>
+                <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">100%</span>
+              </router-link>
             </div>
 
             <!-- 5. 수입 통관 & 국내배송 (아코디언) -->
@@ -921,7 +893,6 @@ const activeMenuId = ref('dashboard_main')
 const expandedMenus = ref({
   products: true,
   orders: true,
-  warehouse: true,
   shipping: true,
   account: true
 })
@@ -931,8 +902,6 @@ watch(() => route.path, (newPath) => {
     expandedMenus.value.products = true
   } else if (newPath.startsWith('/dashboard/orders')) {
     expandedMenus.value.orders = true
-  } else if (newPath.startsWith('/dashboard/warehouse')) {
-    expandedMenus.value.warehouse = true
   } else if (newPath.startsWith('/dashboard/logistics')) {
     expandedMenus.value.shipping = true
   } else if (newPath.startsWith('/dashboard/account')) {
@@ -959,9 +928,7 @@ const menuLabels = {
   orders_payment: '결제 대기/완료',
   orders_purchase: '1688 공장 구매진행',
   orders_all: '전체 주문 통합내역',
-  warehouse_inbound: '실시간 입고/계근 현황',
-  warehouse_inspect: '정밀 검수 실사 확인',
-  warehouse_customs_work: '부가작업 신청 (바코드/원산지)',
+  warehouse_inbound: '이우 물류센터 입고/검수',
   warehouse_outbound: '한국행 출고/선적 요청',
   shipping_unipass: '통관 진행 (Uni-Pass)',
   shipping_tracking: '국내 택배/화물 배송추적',
