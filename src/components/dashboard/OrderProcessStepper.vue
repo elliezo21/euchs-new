@@ -1,102 +1,103 @@
 <template>
   <div class="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
-    <!-- 1. 상단 섹션 인디케이터 헤더 -->
-    <div class="px-5 py-3 border-b border-gray-100 bg-slate-50/80 flex flex-wrap items-center justify-between gap-3">
+    <!-- 1. 상단 섹션 인디케이터 헤더 (고시인성 헤더) -->
+    <div class="px-5 py-3 border-b border-gray-100 bg-slate-50/90 flex flex-wrap items-center justify-between gap-3">
       <div class="flex items-center gap-2.5">
-        <div class="w-7 h-7 rounded-lg bg-amber-500 text-slate-950 flex items-center justify-center font-bold text-xs shadow-2xs">
+        <div class="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-2xs">
           <i class="fas fa-route"></i>
         </div>
         <div>
           <h3 class="text-xs sm:text-sm font-extrabold text-gray-900 flex items-center gap-1.5">
-            <span>EUCHS 1688 수입 풀프로세스 10단계 로드맵</span>
-            <span class="text-[11px] font-normal text-gray-400 hidden sm:inline">(클릭 시 해당 단계로 이동)</span>
+            <span>EUCHS 1688 수입 풀프로세스 8단계 로드맵</span>
+            <span class="text-[11px] font-normal text-gray-400 hidden sm:inline">(클릭 시 해당 단계 관리 화면으로 즉시 이동)</span>
           </h3>
         </div>
       </div>
 
       <!-- 3대 대구간 요약 배지 -->
-      <div class="flex items-center gap-1.5 text-[11px] font-bold">
+      <div class="flex items-center gap-1.5 text-xs font-extrabold">
         <span
-          class="px-2.5 py-1 rounded-lg transition"
-          :class="currentSection === 'orders' ? 'bg-blue-600 text-white shadow-2xs' : 'bg-gray-100 text-gray-600'"
+          class="px-2.5 py-1 rounded-lg transition border"
+          :class="currentSection === 'orders'
+            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+            : 'bg-white text-gray-600 border-gray-200'"
         >
-          1~4단계: 발주 & 1차 결제
+          1~4: 발주 & 1차 결제
         </span>
         <span class="text-gray-300">›</span>
         <span
-          class="px-2.5 py-1 rounded-lg transition"
-          :class="currentSection === 'warehouse' ? 'bg-teal-600 text-white shadow-2xs' : 'bg-gray-100 text-gray-600'"
+          class="px-2.5 py-1 rounded-lg transition border"
+          :class="currentSection === 'warehouse'
+            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+            : 'bg-white text-gray-600 border-gray-200'"
         >
-          5~7단계: 이우 창고 & 검수/2차 결제
+          5~6: 이우 창고 & 실측검수
         </span>
         <span class="text-gray-300">›</span>
         <span
-          class="px-2.5 py-1 rounded-lg transition"
-          :class="currentSection === 'customs' ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-gray-100 text-gray-600'"
+          class="px-2.5 py-1 rounded-lg transition border"
+          :class="currentSection === 'customs'
+            ? 'bg-indigo-600 text-white border-indigo-600 shadow-2xs'
+            : 'bg-white text-gray-600 border-gray-200'"
         >
-          8~10단계: 통관 & 국내 배송
+          7~8: 통관 & 국내 배송
         </span>
       </div>
     </div>
 
-    <!-- 2. 가로형 10단계 파이프라인 스텝 바 (스크롤 지원) -->
+    <!-- 2. 가로형 8단계 파이프라인 스텝 바 (고대비 / 고시인성 UI) -->
     <div class="p-3 sm:p-4 overflow-x-auto custom-scrollbar">
-      <div class="flex items-center min-w-[980px] gap-1.5">
+      <div class="flex items-center min-w-[860px] gap-2">
         <template v-for="(step, idx) in steps" :key="step.key">
           <!-- Step Card -->
           <div
             @click="handleStepClick(step)"
-            class="flex-1 min-w-[90px] p-2.5 rounded-xl border transition-all duration-200 cursor-pointer text-center relative group"
+            class="flex-1 min-w-[95px] p-3 rounded-xl border transition-all duration-200 cursor-pointer text-center relative select-none group"
             :class="[
               isStepInCurrentSection(step)
-                ? 'border-amber-400 bg-amber-50/40 shadow-2xs hover:bg-amber-50/70 hover:border-amber-500'
-                : 'border-gray-200/80 bg-white hover:border-gray-300 hover:bg-slate-50/80',
-              getStepCount(step.key) > 0 ? 'ring-1 ring-amber-400/30' : ''
+                ? 'border-2 border-indigo-600 bg-indigo-50/40 shadow-xs ring-2 ring-indigo-500/10 hover:bg-indigo-50/70'
+                : 'border-gray-200 bg-white hover:border-gray-300 hover:bg-slate-50/70',
             ]"
           >
-            <!-- 단계 번호 & 배지 -->
-            <div class="flex items-center justify-between gap-1 mb-1">
+            <!-- 스텝 번호 뱃지 & 상단 라벨 -->
+            <div class="flex items-center justify-center gap-1.5 mb-1.5">
               <span
-                class="w-5 h-5 rounded-full text-[10px] font-black flex items-center justify-center font-mono shrink-0 transition"
-                :class="isStepInCurrentSection(step) ? 'bg-amber-500 text-slate-950 font-extrabold' : 'bg-gray-100 text-gray-600 group-hover:bg-gray-200'"
+                class="w-5 h-5 rounded-full text-[11px] font-black flex items-center justify-center font-mono shrink-0 transition"
+                :class="isStepInCurrentSection(step)
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 group-hover:bg-gray-200'"
               >
                 {{ step.code }}
               </span>
-
-              <!-- 건수 뱃지 -->
               <span
-                class="px-1.5 py-0.2 rounded-full font-mono text-[10px] font-bold"
-                :class="getStepCount(step.key) > 0
-                  ? 'bg-rose-500 text-white animate-pulse shadow-2xs'
-                  : 'bg-gray-100 text-gray-400'"
+                class="font-black text-xs truncate tracking-tight text-gray-900"
               >
-                {{ getStepCount(step.key) }}건
+                {{ step.label }}
               </span>
             </div>
 
-            <!-- 스텝 명칭 -->
-            <div
-              class="font-extrabold text-[11px] truncate tracking-tight"
-              :class="isStepInCurrentSection(step) ? 'text-gray-950 font-black' : 'text-gray-700'"
-            >
-              {{ step.shortLabel }}
+            <!-- 주문 건수 숫자 (고대비 / 크고 굵은 폰트) -->
+            <div class="mt-1">
+              <div
+                class="text-lg font-black font-mono tracking-tight"
+                :class="getStepCount(step) > 0
+                  ? 'text-indigo-600'
+                  : 'text-gray-400'"
+              >
+                {{ getStepCount(step) }}<span class="text-xs font-bold text-gray-500 ml-0.5">건</span>
+              </div>
             </div>
 
-            <!-- 스텝 부가설명 -->
-            <div class="text-[9.5px] text-gray-400 truncate mt-0.5 font-medium">
-              {{ step.desc }}
-            </div>
-
-            <!-- 활성 섹션 인디케이터 밑줄 바 -->
+            <!-- 활성 섹션 하단 인디케이터 바 -->
             <div
               v-if="isStepInCurrentSection(step)"
-              class="absolute -bottom-1 left-2 right-2 h-0.5 rounded-full bg-amber-500"
+              class="absolute -bottom-1 left-2 right-2 h-0.5 rounded-full bg-indigo-600"
             ></div>
           </div>
 
-          <!-- Connector Arrow (마지막 단계 제외) -->
-          <div v-if="idx < steps.length - 1" class="text-gray-300 text-xs shrink-0 px-0.5 select-none">
-            <i class="fas fa-chevron-right text-[9px] text-gray-300"></i>
+          <!-- 연결 화살표 (마지막 단계 제외) -->
+          <div v-if="idx < steps.length - 1" class="text-gray-300 shrink-0 px-0.5 select-none">
+            <i class="fas fa-chevron-right text-[11px] text-gray-400 font-bold"></i>
           </div>
         </template>
       </div>
@@ -107,7 +108,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { PIPELINE_STATUSES, normalizeOrderStatus } from '../../lib/orderPipeline'
+import { normalizeOrderStatus } from '../../lib/orderPipeline'
 
 const props = defineProps({
   currentSection: {
@@ -123,97 +124,71 @@ const props = defineProps({
 
 const router = useRouter()
 
-// 10단계 풀프로세스 상세 정의
+// 8대 명확한 수입 프로세스 단계 정의 (5/6단계 입고&정밀검수 통합)
 const steps = [
   {
     code: 1,
     key: 'quote_pending',
+    keys: ['quote_pending'],
     label: '1. 견적대기',
-    shortLabel: '1. 견적대기',
-    desc: '견적 요청/보관함',
     section: 'orders',
     route: '/dashboard/orders?tab=quote_pending'
   },
   {
     code: 2,
     key: 'quote_confirmed',
+    keys: ['quote_confirmed'],
     label: '2. 결제대기',
-    shortLabel: '2. 결제대기',
-    desc: '1차 결제 대기',
     section: 'orders',
     route: '/dashboard/orders?tab=quote_confirmed'
   },
   {
     code: 3,
     key: 'payment_verified',
+    keys: ['payment_verified'],
     label: '3. 결제확인',
-    shortLabel: '3. 결제확인',
-    desc: '입금/결제 확인',
     section: 'orders',
     route: '/dashboard/orders?tab=payment_verified'
   },
   {
     code: 4,
     key: 'purchasing',
+    keys: ['purchasing'],
     label: '4. 1688 구매진행',
-    shortLabel: '4. 구매진행',
-    desc: '1688 공장발주',
     section: 'orders',
     route: '/dashboard/orders?tab=purchasing'
   },
   {
     code: 5,
-    key: 'warehouse_in',
-    label: '5. 이우창고 입고',
-    shortLabel: '5. 창고입고',
-    desc: '이우 물류센터 계근',
+    key: 'warehouse_inspection',
+    keys: ['warehouse_in', 'inspection_done'],
+    label: '5. 입고 & 정밀검수',
     section: 'warehouse',
     route: '/dashboard/warehouse'
   },
   {
     code: 6,
-    key: 'inspection_done',
-    label: '6. 실측/검수완료',
-    shortLabel: '6. 검수완료',
-    desc: '2차결제/바코드',
-    section: 'warehouse',
-    route: '/dashboard/orders'
-  },
-  {
-    code: 7,
     key: 'shipping_ready',
-    label: '7. 선적대기',
-    shortLabel: '7. 선적대기',
-    desc: '한국행 컨테이너',
+    keys: ['shipping_ready'],
+    label: '6. 선적대기',
     section: 'warehouse',
     route: '/dashboard/warehouse'
   },
   {
-    code: 8,
+    code: 7,
     key: 'customs_clearance',
-    label: '8. 세관 수입통관',
-    shortLabel: '8. 수입통관',
-    desc: '세관 통관/관부가세',
+    keys: ['customs_clearance'],
+    label: '7. 세관 수입통관',
     section: 'customs',
     route: '/dashboard/logistics'
   },
   {
-    code: 9,
-    key: 'domestic_shipping',
-    label: '9. 국내배송',
-    shortLabel: '9. 국내배송',
-    desc: '국내 택배/화물',
+    code: 8,
+    key: 'domestic_delivered',
+    keys: ['domestic_shipping', 'delivered'],
+    label: '8. 국내배송 완료',
     section: 'customs',
     route: '/dashboard/logistics?tab=shipping'
-  },
-  {
-    code: 10,
-    key: 'delivered',
-    label: '10. 배송완료',
-    shortLabel: '10. 배송완료',
-    desc: '바이어 수령완료',
-    section: 'customs',
-    route: '/dashboard/orders?tab=delivered'
   }
 ]
 
@@ -279,11 +254,27 @@ const loadInternalCounts = () => {
   internalCounts.value = countsMap
 }
 
-const getStepCount = (stepKey) => {
-  if (props.counts && typeof props.counts[stepKey] === 'number') {
-    return props.counts[stepKey]
+const getStepCount = (step) => {
+  if (props.counts) {
+    if (typeof props.counts[step.key] === 'number') {
+      return props.counts[step.key]
+    }
+    let customSum = 0
+    let hasCustomKey = false
+    step.keys.forEach(k => {
+      if (props.counts[k] !== undefined) {
+        customSum += Number(props.counts[k]) || 0
+        hasCustomKey = true
+      }
+    })
+    if (hasCustomKey) return customSum
   }
-  return internalCounts.value[stepKey] || 0
+
+  let total = 0
+  step.keys.forEach(k => {
+    total += (internalCounts.value[k] || 0)
+  })
+  return total
 }
 
 const handleStepClick = (step) => {
