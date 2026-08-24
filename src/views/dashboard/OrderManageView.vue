@@ -42,10 +42,14 @@
       </div>
     </div>
 
-    <!-- 통계 요약 카드 4종 -->
+    <!-- 통계 요약 카드 4종 (클릭 시 탭 필터링 연동) -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <!-- 1. 전체 발주 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+      <div
+        @click="selectTab('all')"
+        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
+        :class="selectedTab === 'all' ? 'border-2 border-slate-900 bg-slate-50/70 ring-2 ring-slate-900/10' : 'border-gray-200 hover:border-gray-300'"
+      >
         <div class="space-y-1">
           <span class="text-xs font-bold text-gray-500">전체 발주</span>
           <div class="text-2xl font-extrabold text-gray-900 font-mono">
@@ -59,7 +63,11 @@
       </div>
 
       <!-- 2. 견적 대기/심사 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+      <div
+        @click="selectTab('quote_pending')"
+        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
+        :class="selectedTab === 'quote_pending' ? 'border-2 border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/20' : 'border-gray-200 hover:border-amber-200'"
+      >
         <div class="space-y-1">
           <span class="text-xs font-bold text-amber-700">견적 대기/심사</span>
           <div class="text-2xl font-extrabold text-amber-600 font-mono">
@@ -73,7 +81,11 @@
       </div>
 
       <!-- 3. 결제 대기 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+      <div
+        @click="selectTab('quote_confirmed')"
+        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
+        :class="selectedTab === 'quote_confirmed' ? 'border-2 border-orange-500 bg-orange-50/40 ring-2 ring-orange-500/20' : 'border-gray-200 hover:border-orange-200'"
+      >
         <div class="space-y-1">
           <span class="text-xs font-bold text-orange-700">결제 대기</span>
           <div class="text-2xl font-extrabold text-orange-600 font-mono">
@@ -87,7 +99,11 @@
       </div>
 
       <!-- 4. 1688 구매 진행중 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+      <div
+        @click="selectTab('purchasing')"
+        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
+        :class="selectedTab === 'purchasing' ? 'border-2 border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/20' : 'border-gray-200 hover:border-blue-200'"
+      >
         <div class="space-y-1">
           <span class="text-xs font-bold text-blue-700">1688 구매 진행중</span>
           <div class="text-2xl font-extrabold text-blue-600 font-mono">
@@ -982,6 +998,33 @@ function getFilterTabCount(tabId) {
   }
   return orders.value.filter((ord) => normalizeOrderStatus(ord.status) === tabId).length;
 }
+
+function selectTab(tabId) {
+  selectedTab.value = tabId;
+  let tabQuery = '';
+  if (tabId === 'quote_pending') tabQuery = 'quote';
+  else if (tabId === 'quote_confirmed') tabQuery = 'payment';
+  else if (tabId === 'purchasing') tabQuery = 'purchasing';
+
+  if (tabQuery) {
+    router.replace({ query: { ...route.query, tab: tabQuery } });
+  } else {
+    const { tab, ...rest } = route.query;
+    router.replace({ query: rest });
+  }
+}
+
+watch(() => route.query.tab, (newTab) => {
+  if (!newTab || newTab === 'all') {
+    selectedTab.value = 'all';
+  } else if (newTab === 'quote' || newTab === 'quote_pending') {
+    selectedTab.value = 'quote_pending';
+  } else if (newTab === 'payment' || newTab === 'quote_confirmed') {
+    selectedTab.value = 'quote_confirmed';
+  } else if (newTab === 'purchasing') {
+    selectedTab.value = 'purchasing';
+  }
+}, { immediate: true });
 
 // ---------------------------------------------------------
 // 체크박스 선택 로직
