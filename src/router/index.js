@@ -73,6 +73,11 @@ const routes = [
         component: CustomsLogisticsView,
       },
       {
+        path: 'customs',
+        name: 'dashboard-customs',
+        component: CustomsLogisticsView,
+      },
+      {
         path: 'account',
         name: 'dashboard-account',
         component: AccountSettingsView,

@@ -275,7 +275,7 @@ const part1Steps = [
     keys: ['quote_pending'],
     label: '1. 견적대기',
     section: 'orders',
-    route: '/dashboard/orders?tab=quote_pending'
+    route: '/dashboard/orders'
   },
   {
     code: 2,
@@ -283,7 +283,7 @@ const part1Steps = [
     keys: ['quote_confirmed'],
     label: '2. 결제대기',
     section: 'orders',
-    route: '/dashboard/orders?tab=quote_confirmed'
+    route: '/dashboard/orders'
   },
   {
     code: 3,
@@ -291,7 +291,7 @@ const part1Steps = [
     keys: ['payment_verified'],
     label: '3. 결제확인',
     section: 'orders',
-    route: '/dashboard/orders?tab=payment_verified'
+    route: '/dashboard/orders'
   },
   {
     code: 4,
@@ -299,7 +299,7 @@ const part1Steps = [
     keys: ['purchasing'],
     label: '4. 1688 구매진행',
     section: 'orders',
-    route: '/dashboard/orders?tab=purchasing'
+    route: '/dashboard/orders'
   }
 ]
 
@@ -311,7 +311,7 @@ const part2Steps = [
     keys: ['warehouse_in', 'inspection_done', 'warehouse_inspection', 'step_5', 'inspecting'],
     label: '5. 입고 & 정밀검수',
     section: 'warehouse',
-    route: '/dashboard/orders?tab=inspection_done'
+    route: '/dashboard/warehouse'
   },
   {
     code: 6,
@@ -319,7 +319,7 @@ const part2Steps = [
     keys: ['shipping_ready', 'ready_to_ship'],
     label: '6. 선적대기',
     section: 'warehouse',
-    route: '/dashboard/orders?tab=shipping_ready'
+    route: '/dashboard/warehouse'
   }
 ]
 
@@ -331,7 +331,7 @@ const part3Steps = [
     keys: ['customs_clearance', 'customs'],
     label: '7. 세관 수입통관',
     section: 'customs',
-    route: '/dashboard/logistics'
+    route: '/dashboard/customs'
   },
   {
     code: 8,
@@ -339,7 +339,7 @@ const part3Steps = [
     keys: ['domestic_shipping', 'delivered', 'completed', 'domestic_delivered'],
     label: '8. 국내배송 완료',
     section: 'customs',
-    route: '/dashboard/logistics?tab=shipping'
+    route: '/dashboard/customs'
   }
 ]
 
@@ -465,7 +465,19 @@ const getStepCount = (step) => {
 }
 
 const handleStepClick = (step) => {
-  if (step.route) {
+  const code = typeof step === 'number' ? step : (step?.code || 1)
+  // 1~4단계: 발주 관리 페이지로 이동
+  if (code >= 1 && code <= 4) {
+    router.push('/dashboard/orders')
+  }
+  // 5~6단계: 이우 물류센터 입고/검수 페이지로 즉시 이동
+  else if (code === 5 || code === 6) {
+    router.push('/dashboard/warehouse')
+  }
+  // 7~8단계: 수입통관 & 국내배송 페이지로 즉시 이동
+  else if (code === 7 || code === 8) {
+    router.push('/dashboard/customs')
+  } else if (step?.route) {
     router.push(step.route)
   }
 }
