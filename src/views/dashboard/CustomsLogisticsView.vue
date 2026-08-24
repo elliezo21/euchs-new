@@ -41,6 +41,9 @@
       </div>
     </div>
 
+    <!-- 공통 10단계 풀프로세스 스텝 바 (통관/배송 포커스) -->
+    <OrderProcessStepper currentSection="customs" />
+
     <!-- ======================================================== -->
     <!-- 2. 통관 & 물류 4대 핵심 지표 카드 -->
     <!-- ======================================================== -->
@@ -472,6 +475,7 @@ import {
   ShieldCheck,
   X
 } from 'lucide-vue-next'
+import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue'
 
 const route = useRoute()
 

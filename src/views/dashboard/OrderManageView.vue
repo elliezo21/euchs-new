@@ -42,6 +42,9 @@
       </div>
     </div>
 
+    <!-- 공통 10단계 풀프로세스 스텝 바 (발주관리 포커스) -->
+    <OrderProcessStepper currentSection="orders" />
+
     <!-- 통계 요약 카드 4종 (클릭 시 탭 필터링 연동) -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <!-- 1. 전체 발주 -->
@@ -1374,6 +1377,7 @@ import {
   getOrderStatusBadgeClass
 } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 
 const route = useRoute();
 const router = useRouter();

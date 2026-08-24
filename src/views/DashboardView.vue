@@ -504,90 +504,8 @@
           <!-- LEFT-CENTER: Main Stages & Table (flex-1) -->
           <div class="flex-1 min-w-0 w-full space-y-6">
             
-            <!-- B. ORDER STATUS GRID (CN인사이더 표준 2x5 상태 현황 테이블) -->
-            <div class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-none">
-              <div class="px-5 py-3.5 border-b border-gray-200 flex items-center justify-between bg-slate-50/70">
-                <h2 class="text-sm font-bold text-gray-900 flex items-center gap-2">
-                  <i class="fas fa-list-check text-orange-500"></i>
-                  <span>1688 수입 발주 진행 단계별 현황</span>
-                </h2>
-                <span class="text-xs text-gray-500 font-medium">전체 주문 건수: <b class="text-gray-900">{{ totalOrderStepCount }}</b>건</span>
-              </div>
-
-              <div class="grid grid-cols-2 sm:grid-cols-5 divide-x divide-y sm:divide-y-0 divide-gray-200 text-center text-xs">
-                
-                <!-- Step 1: 견적대기 (quote_pending) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_quote', 'quote_pending')">
-                  <div class="text-gray-600 font-medium">1. 견적대기</div>
-                  <div class="text-2xl font-bold text-gray-900 mt-1 font-mono">{{ getPipelineCount('quote_pending') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">견적 요청/보관함</div>
-                </div>
-
-                <!-- Step 2: 결제대기 (quote_confirmed) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', 'quote_confirmed')">
-                  <div class="text-gray-600 font-medium">2. 결제대기</div>
-                  <div class="text-2xl font-bold text-orange-600 mt-1 font-mono">{{ getPipelineCount('quote_confirmed') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">견적서 검토/확인</div>
-                </div>
-
-                <!-- Step 3: 결제확인 (payment_verified) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_payment', 'payment_verified')">
-                  <div class="text-gray-600 font-medium">3. 결제확인</div>
-                  <div class="text-2xl font-bold text-blue-600 mt-1 font-mono">{{ getPipelineCount('payment_verified') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">입금 확인 완료</div>
-                </div>
-
-                <!-- Step 4: 구매진행 (purchasing) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('orders_purchase', 'purchasing')">
-                  <div class="text-gray-600 font-medium">4. 구매진행</div>
-                  <div class="text-2xl font-bold text-indigo-600 mt-1 font-mono">{{ getPipelineCount('purchasing') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">1688 공장발주</div>
-                </div>
-
-                <!-- Step 5: 창고입고 (warehouse_in) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_inbound', 'warehouse_in')">
-                  <div class="text-gray-600 font-medium">5. 창고입고</div>
-                  <div class="text-2xl font-bold text-cyan-600 mt-1 font-mono">{{ getPipelineCount('warehouse_in') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">이우 물류센터 계근</div>
-                </div>
-
-                <!-- Step 6: 검수완료 (inspection_done) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_inbound', 'inspection_done')">
-                  <div class="text-gray-600 font-medium">6. 검수완료</div>
-                  <div class="text-2xl font-bold text-teal-600 mt-1 font-mono">{{ getPipelineCount('inspection_done') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">정밀 실사 등록</div>
-                </div>
-
-                <!-- Step 7: 선적대기 (shipping_ready) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('warehouse_outbound', 'shipping_ready')">
-                  <div class="text-gray-600 font-medium">7. 선적대기</div>
-                  <div class="text-2xl font-bold text-purple-600 mt-1 font-mono">{{ getPipelineCount('shipping_ready') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">컨테이너 적재</div>
-                </div>
-
-                <!-- Step 8: 수입통관 (customs_clearance) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking', 'customs_clearance')">
-                  <div class="text-gray-600 font-medium">8. 수입통관</div>
-                  <div class="text-2xl font-bold text-violet-600 mt-1 font-mono">{{ getPipelineCount('customs_clearance') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">세관 통관 진행</div>
-                </div>
-
-                <!-- Step 9: 국내배송 (domestic_shipping) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking', 'domestic_shipping')">
-                  <div class="text-gray-600 font-medium">9. 국내배송</div>
-                  <div class="text-2xl font-bold text-sky-600 mt-1 font-mono">{{ getPipelineCount('domestic_shipping') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">화물/택배 운송</div>
-                </div>
-
-                <!-- Step 10: 배송완료 (delivered) -->
-                <div class="p-4 hover:bg-orange-50/40 transition cursor-pointer" @click="selectMenu('shipping_tracking', 'delivered')">
-                  <div class="text-gray-600 font-medium">10. 배송완료</div>
-                  <div class="text-2xl font-bold text-emerald-600 mt-1 font-mono">{{ getPipelineCount('delivered') }}</div>
-                  <div class="text-[11px] text-gray-400 mt-0.5">바이어 수령 완료</div>
-                </div>
-
-              </div>
-            </div>
+            <!-- B. ORDER PROCESS STEPPER (공통 10단계 풀프로세스 스텝 바) -->
+            <OrderProcessStepper currentSection="dashboard" />
 
             <!-- C. RECENT ORDERS & WAITING ITEMS COMPREHENSIVE TABLE -->
             <div class="bg-white border border-gray-200 rounded-xl shadow-none space-y-4 p-5">
@@ -883,6 +801,7 @@ import {
   getOrderStatusShortLabel,
   getOrderStatusBadgeClass
 } from '../lib/orderPipeline'
+import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
 
 const router = useRouter()
 const route = useRoute()

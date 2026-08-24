@@ -26,6 +26,9 @@
       </div>
     </div>
 
+    <!-- 공통 10단계 풀프로세스 스텝 바 (이우창고/검수 포커스) -->
+    <OrderProcessStepper currentSection="warehouse" />
+
     <!-- ======================================================== -->
     <!-- 2. 창고 현황 요약 카드 4종 (1:1 반응형 카운트 일치) -->
     <!-- ======================================================== -->
@@ -542,6 +545,7 @@ import {
   Maximize2,
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
+import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 
 const route = useRoute();
 
