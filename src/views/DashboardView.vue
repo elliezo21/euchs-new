@@ -837,20 +837,23 @@
             <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-4 space-y-2.5 text-xs shadow-sm">
               <div class="font-bold flex items-center gap-1.5 text-orange-400 text-xs">
                 <i class="fas fa-building-flag"></i>
-                <span>EUCHS 중국 직영 창고 운영 안내</span>
+                <span>🏢 EUCHS 중국 직영 물류센터 안내</span>
               </div>
-              <div class="space-y-1.5 text-[11px] text-slate-300">
+              <div class="space-y-2 text-[11px] text-slate-300">
                 <div class="flex items-center justify-between">
-                  <span>이우(Yiwu) 물류센터:</span>
-                  <span class="text-emerald-400 font-bold">정상 가동중</span>
+                  <span class="text-slate-300 font-medium">이우(Yiwu) 전용 물류센터:</span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
+                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                    정상 가동중
+                  </span>
                 </div>
-                <div class="flex items-center justify-between">
-                  <span>위해(Weihai) 물류센터:</span>
-                  <span class="text-emerald-400 font-bold">정상 가동중</span>
+                <div class="flex items-center justify-between pt-1.5 border-t border-slate-700/80 text-slate-300">
+                  <span class="text-slate-400">한국행 해운 선적:</span>
+                  <span class="text-amber-300 font-medium">매주 4~5회 직항 출항 (정기 선적)</span>
                 </div>
-                <div class="flex items-center justify-between pt-1 border-t border-slate-700 text-slate-400">
-                  <span>한국행 해운 선적:</span>
-                  <span>매주 주 4회 출항 (정기 선적)</span>
+                <div class="pt-1.5 border-t border-slate-700/80 text-[10.5px] text-slate-400 flex items-center gap-1.5">
+                  <i class="fas fa-check-circle text-emerald-400 text-[10px] shrink-0"></i>
+                  <span>1688 공장 직입고 / CBM 실측 계근 / 100% 정밀 검수</span>
                 </div>
               </div>
             </div>
