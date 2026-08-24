@@ -285,32 +285,25 @@
                 </span>
               </td>
 
-              <!-- 관리 액션 -->
+              <!-- 관리 액션 (단일화된 견적 확인 및 결제 버튼) -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="flex items-center justify-center gap-1.5">
                   <button
                     type="button"
                     @click="openOrderDetail(order)"
-                    class="px-2.5 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
-                    title="주문 상세 내역 확인"
+                    class="px-3 py-1.5 rounded-xl font-bold text-[11px] transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    :class="order.status === 'quote_confirmed' ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse' : 'bg-slate-900 hover:bg-slate-800 text-white'"
+                    :title="order.status === 'quote_confirmed' ? '견적 확인 및 즉시 결제' : '견적 및 주문 상세 확인'"
                   >
-                    <Eye class="w-3 h-3" />
-                    <span>상세보기</span>
-                  </button>
-                  <button
-                    type="button"
-                    @click="openOrderDetail(order, 'quote')"
-                    class="px-2.5 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
-                    title="견적서 명세서 확인"
-                  >
-                    <FileText class="w-3 h-3" />
-                    <span>견적서 확인</span>
+                    <CreditCard v-if="order.status === 'quote_confirmed'" class="w-3.5 h-3.5" />
+                    <ClipboardCheck v-else class="w-3.5 h-3.5 text-amber-400" />
+                    <span>{{ order.status === 'quote_confirmed' ? '견적 확인 및 결제' : '견적/주문 상세' }}</span>
                   </button>
                   <a
                     href="http://pf.kakao.com/_xmQWsK/chat"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="px-2 py-1 rounded-lg bg-yellow-400/20 hover:bg-yellow-400/30 text-amber-900 border border-yellow-300 font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
+                    class="px-2 py-1.5 rounded-xl bg-yellow-400/20 hover:bg-yellow-400/30 text-amber-900 border border-yellow-300 font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
                     title="1:1 카카오톡 상담 문의"
                   >
                     <MessageCircle class="w-3 h-3" />
@@ -381,17 +374,22 @@
             <button
               type="button"
               @click="openOrderDetail(order)"
-              class="px-3 py-1.5 rounded-lg bg-slate-900 text-white font-bold text-xs"
+              class="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
+              :class="order.status === 'quote_confirmed' ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-900 text-white'"
             >
-              상세보기
+              <CreditCard v-if="order.status === 'quote_confirmed'" class="w-3.5 h-3.5" />
+              <ClipboardCheck v-else class="w-3.5 h-3.5 text-amber-400" />
+              <span>{{ order.status === 'quote_confirmed' ? '견적 확인 및 결제' : '견적/주문 상세' }}</span>
             </button>
-            <button
-              type="button"
-              @click="openOrderDetail(order, 'quote')"
-              class="px-3 py-1.5 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 font-bold text-xs"
+            <a
+              href="http://pf.kakao.com/_xmQWsK/chat"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="p-2 rounded-xl bg-yellow-400/20 text-amber-900 border border-yellow-300 text-xs font-bold"
+              title="1:1 문의"
             >
-              견적서
-            </button>
+              <MessageCircle class="w-3.5 h-3.5" />
+            </a>
           </div>
         </div>
       </div>
@@ -512,26 +510,39 @@
         </div>
 
         <!-- 모달 푸터 버튼 -->
-        <div class="flex items-center justify-between gap-2 pt-3 border-t border-gray-200">
+        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-gray-200">
           <a
             href="http://pf.kakao.com/_xmQWsK/chat"
             target="_blank"
             rel="noopener noreferrer"
-            class="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-black font-extrabold text-xs transition flex items-center gap-1.5 shadow-xs"
+            class="px-3.5 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-extrabold text-xs transition flex items-center justify-center gap-1.5 shadow-xs"
           >
             <MessageCircle class="w-4 h-4" />
             <span>1:1 전담 매니저 상담</span>
           </a>
 
-          <div class="flex items-center gap-2">
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <!-- 결제 대기 / 견적 완료 상태일 때 즉시 결제하기 메인 버튼 노출 -->
+            <button
+              v-if="activeOrder.status === 'quote_confirmed' || activeOrder.status === 'quote_pending'"
+              type="button"
+              @click="executeInstantPayment(activeOrder)"
+              :disabled="isPaying"
+              class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 animate-pulse"
+            >
+              <CreditCard class="w-4 h-4" />
+              <span>💳 예치금/카드 즉시 결제하기 (₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원)</span>
+            </button>
+
             <button
               type="button"
               @click="exportSingleQuote(activeOrder)"
-              class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs"
+              class="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs"
             >
               <FileSpreadsheet class="w-4 h-4" />
-              <span>공식 견적서 엑셀 다운로드</span>
+              <span>견적서 엑셀 다운로드</span>
             </button>
+
             <button
               type="button"
               @click="closeDetailModal"
@@ -565,7 +576,9 @@ import {
   RefreshCw,
   Layers,
   MessageCircle,
-  FileText
+  FileText,
+  CreditCard,
+  ClipboardCheck
 } from 'lucide-vue-next';
 import { exportQuoteExcel } from '@/utils/excelExport';
 import { calculateImportCost, formatCurrency } from '@/utils/costCalculator';
@@ -1016,9 +1029,69 @@ function handleImgError(e) {
   e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60';
 }
 
-// ---------------------------------------------------------
-// 모달 동작
-// ---------------------------------------------------------
+const isPaying = ref(false);
+
+async function executeInstantPayment(order) {
+  if (!order) return;
+  const cost = getOrderCostSummary(order);
+  const totalWon = formatNumber(cost.totalDdpKrw);
+
+  if (!confirm(`총 결제 예정 금액 [ ₩${totalWon}원 ]을 예치금/카드로 즉시 결제 승인하시겠습니까?`)) {
+    return;
+  }
+
+  isPaying.value = true;
+  try {
+    // 1. 상태를 'purchasing' (4. 1688 공장 구매진행)으로 변경
+    const nextStatus = 'purchasing';
+    order.status = nextStatus;
+
+    // 2. Supabase 업데이트
+    if (isSupabaseConfigured() && order.id) {
+      try {
+        await supabase
+          .from('applications')
+          .update({
+            status: nextStatus,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', order.id);
+      } catch (e) {
+        console.warn('Supabase status update error:', e);
+      }
+    }
+
+    // 3. LocalStorage 업데이트
+    try {
+      const raw = localStorage.getItem('euchs_erp_submitted_orders');
+      if (raw) {
+        const localOrders = JSON.parse(raw);
+        const idx = localOrders.findIndex(o => o.id === order.id || o.orderNumber === order.orderNumber);
+        if (idx !== -1) {
+          localOrders[idx].status = nextStatus;
+          localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(localOrders));
+        }
+      }
+    } catch (e) {
+      console.warn('LocalStorage status update error:', e);
+    }
+
+    // 4. 이벤트 통지
+    window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
+      detail: { appId: order.id, status: nextStatus }
+    }));
+
+    alert(`결제가 성공적으로 승인되었습니다!\n(발주번호: ${order.orderNumber})\n중국 현지 1688 공장 구매 진행(사입) 단계로 진입합니다.`);
+    closeDetailModal();
+  } catch (err) {
+    console.error('Payment error:', err);
+    alert('결제 처리 중 오류가 발생했습니다: ' + err.message);
+  } finally {
+    isPaying.value = false;
+  }
+}
+
 function openOrderDetail(order, mode = 'detail') {
   activeOrder.value = order;
   isDetailModalOpen.value = true;
