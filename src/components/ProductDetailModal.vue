@@ -800,7 +800,10 @@ const handleAddToCart = () => {
       totalPriceRmb: totalPriceRmb.value,
       totalPriceKrw: totalPriceKrw.value,
       skus: JSON.parse(JSON.stringify(selectedSkus.value)),
-      sku: selectedSkus.value.map(s => `${s.color} / ${s.size} (${s.quantity}개)`).join(', '),
+      sku: selectedSkus.value.map(s => {
+        const parts = [s.color, s.size].filter(p => p && p !== 'undefined')
+        return (parts.length ? parts.join(' / ') : '기본 옵션') + (s.quantity ? ` (${s.quantity}개)` : '')
+      }).join(', '),
       detailUrl: currentItem.value.detailUrl,
       company: currentItem.value.company || '1688 공급처',
       createdAt: new Date().toISOString()

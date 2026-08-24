@@ -211,7 +211,7 @@
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="space-y-1">
                   <span class="inline-block px-2.5 py-1 rounded-lg bg-slate-100 text-gray-800 font-medium text-[11px] max-w-[150px] truncate">
-                    {{ item.sku || item.selectedOption || (item.skus?.[0]?.color ? `${item.skus[0].color} / ${item.skus[0].size}` : '기본 옵션') }}
+                    {{ getItemSkuText(item) }}
                   </span>
                   <div>
                     <button
@@ -575,6 +575,20 @@ const defaultSampleCart = [
   }
 ];
 
+function getItemSkuText(item) {
+  if (!item) return '기본 옵션';
+  if (item.sku && typeof item.sku === 'string') {
+    const cleaned = item.sku.replace(/\/\s*undefined/g, '').replace(/undefined\s*\//g, '').replace(/undefined/g, '').trim();
+    if (cleaned) return cleaned;
+  }
+  if (item.selectedOption) return item.selectedOption;
+  if (item.skus?.[0]) {
+    const parts = [item.skus[0].color, item.skus[0].size].filter(p => p && p !== 'undefined');
+    return parts.length ? parts.join(' / ') : '기본 옵션';
+  }
+  return '기본 옵션';
+}
+
 // ---------------------------------------------------------
 // 데이터 로드 & 스토리지 동기화
 // ---------------------------------------------------------
@@ -592,7 +606,7 @@ const loadCartItems = () => {
           imageUrl: it.imageUrl || it.thumbnail,
           priceCny: Number(it.priceCny || it.price || 15),
           quantity: Math.max(1, Number(it.quantity || it.minOrder || 10)),
-          sku: it.sku || it.selectedOption || (it.skus?.[0]?.color ? `${it.skus[0].color} / ${it.skus[0].size}` : '기본 옵션')
+          sku: getItemSkuText(it)
         }));
         if (selectedItemIds.value.length === 0) {
           selectedItemIds.value = cartItems.value.map(it => it.id);
