@@ -45,58 +45,58 @@
     <OrderProcessStepper currentSection="customs" />
 
     <!-- ======================================================== -->
-    <!-- 2. 통관 & 물류 4대 핵심 지표 카드 -->
+    <!-- 2. 통관 & 물류 4대 핵심 지표 카드 (컴팩트 슬림 디자인) -->
     <!-- ======================================================== -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">해상 운송중 (선적)</span>
-          <div class="text-2xl font-extrabold text-gray-900 font-mono">
-            {{ summaryCounts.shipping }} <span class="text-xs font-normal text-gray-500">건</span>
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <!-- 1. 해상 운송중 -->
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">해상 운송중 (선적)</span>
+          <div class="text-lg font-bold text-gray-900 font-mono tracking-tight mt-0.5">
+            {{ summaryCounts.shipping }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">위해/이우 ➔ 인천/평택</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-          <Ship class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+          <Ship class="w-3.5 h-3.5" />
         </div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">세관 수입통관 진행중</span>
-          <div class="text-2xl font-extrabold text-orange-600 font-mono">
-            {{ summaryCounts.customs }} <span class="text-xs font-normal text-gray-500">건</span>
+      <!-- 2. 세관 수입통관 -->
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">세관 수입통관</span>
+          <div class="text-lg font-bold text-orange-600 font-mono tracking-tight mt-0.5">
+            {{ summaryCounts.customs }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">수입신고 및 검사대기</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-          <ShieldAlert class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-orange-100/70 text-orange-700 flex items-center justify-center shrink-0">
+          <ShieldAlert class="w-3.5 h-3.5" />
         </div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">한·중 FTA C/O 적용</span>
-          <div class="text-2xl font-extrabold text-indigo-600 font-mono">
-            {{ summaryCounts.fta }} <span class="text-xs font-normal text-gray-500">건</span>
+      <!-- 3. 한·중 FTA C/O -->
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">한·중 FTA C/O 적용</span>
+          <div class="text-lg font-bold text-indigo-600 font-mono tracking-tight mt-0.5">
+            {{ summaryCounts.fta }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-emerald-600 font-bold">관세 0~8% 감면적용</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-          <Award class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-indigo-100/70 text-indigo-700 flex items-center justify-center shrink-0">
+          <Award class="w-3.5 h-3.5" />
         </div>
       </div>
 
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">국내 배송중 / 완료</span>
-          <div class="text-2xl font-extrabold text-emerald-600 font-mono">
-            {{ summaryCounts.delivered }} <span class="text-xs font-normal text-gray-500">건</span>
+      <!-- 4. 국내 배송중/완료 -->
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">국내 배송 / 완료</span>
+          <div class="text-lg font-bold text-emerald-600 font-mono tracking-tight mt-0.5">
+            {{ summaryCounts.delivered }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">CJ대한통운 / 경동화물</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-          <Truck class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0">
+          <Truck class="w-3.5 h-3.5" />
         </div>
       </div>
     </div>

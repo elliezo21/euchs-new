@@ -30,62 +30,58 @@
     <OrderProcessStepper currentSection="warehouse" />
 
     <!-- ======================================================== -->
-    <!-- 2. 창고 현황 요약 카드 4종 (1:1 반응형 카운트 일치) -->
+    <!-- 2. 창고 현황 요약 카드 4종 (컴팩트 슬림 디자인) -->
     <!-- ======================================================== -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <!-- 1. 입고 대기 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">입고 대기</span>
-          <div class="text-2xl font-extrabold text-gray-900 font-mono">
-            {{ getStatusSummaryCount('pending_inbound') }} <span class="text-xs font-normal text-gray-500">건</span>
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">입고 대기</span>
+          <div class="text-lg font-bold text-gray-900 font-mono tracking-tight mt-0.5">
+            {{ getStatusSummaryCount('pending_inbound') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">1688 공장 배송중</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-          <Truck class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-amber-100/70 text-amber-700 flex items-center justify-center shrink-0">
+          <Truck class="w-3.5 h-3.5" />
         </div>
       </div>
 
       <!-- 2. 실측 계근 완료 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">실측 계근 완료</span>
-          <div class="text-2xl font-extrabold text-blue-600 font-mono">
-            {{ getStatusSummaryCount('inbound_weighed') }} <span class="text-xs font-normal text-gray-500">건</span>
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">실측 계근 완료</span>
+          <div class="text-lg font-bold text-blue-600 font-mono tracking-tight mt-0.5">
+            {{ getStatusSummaryCount('inbound_weighed') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">CBM & 중량 측정완료</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-          <Scale class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+          <Scale class="w-3.5 h-3.5" />
         </div>
       </div>
 
       <!-- 3. 정밀 검수 / 실사 촬영 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">정밀 검수 / 실사 촬영</span>
-          <div class="text-2xl font-extrabold text-orange-600 font-mono">
-            {{ getStatusSummaryCount('inspecting') }} <span class="text-xs font-normal text-gray-500">건</span>
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">정밀 검수 / 실사</span>
+          <div class="text-lg font-bold text-orange-600 font-mono tracking-tight mt-0.5">
+            {{ getStatusSummaryCount('inspecting') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">수량·외관·작동 검수</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-          <Camera class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-orange-100/70 text-orange-700 flex items-center justify-center shrink-0">
+          <Camera class="w-3.5 h-3.5" />
         </div>
       </div>
 
       <!-- 4. 한국행 선적 대기 -->
-      <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">한국행 선적 대기</span>
-          <div class="text-2xl font-extrabold text-emerald-600 font-mono">
-            {{ getStatusSummaryCount('ready_to_ship') }} <span class="text-xs font-normal text-gray-500">건</span>
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">한국행 선적 대기</span>
+          <div class="text-lg font-bold text-emerald-600 font-mono tracking-tight mt-0.5">
+            {{ getStatusSummaryCount('ready_to_ship') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">컨테이너 적재 준비</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-          <ShieldCheck class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0">
+          <ShieldCheck class="w-3.5 h-3.5" />
         </div>
       </div>
     </div>
