@@ -42,35 +42,35 @@
           <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60">
             <div class="flex items-center gap-2">
               <span
-                class="w-2 h-2 rounded-full"
+                class="w-2.5 h-2.5 rounded-full"
                 :class="currentSection === 'orders' ? 'bg-indigo-600 animate-pulse' : 'bg-slate-400'"
               ></span>
-              <h4 class="text-xs font-black tracking-tight" :class="currentSection === 'orders' ? 'text-indigo-950' : 'text-slate-800'">
+              <h4 class="text-xs sm:text-sm font-black tracking-tight" :class="currentSection === 'orders' ? 'text-indigo-950' : 'text-slate-800'">
                 PART 1. 발주 & 1차 결제
               </h4>
-              <span class="text-[11px] font-bold text-slate-400 font-mono">(1~4단계)</span>
+              <span class="text-xs font-bold text-slate-400 font-mono">(1~4단계)</span>
             </div>
             <button
               type="button"
               @click="router.push('/dashboard/orders')"
-              class="text-[11px] font-bold px-2 py-0.5 rounded-md transition cursor-pointer"
+              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
               :class="currentSection === 'orders' ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'"
             >
               발주관리 바로가기 ›
             </button>
           </div>
 
-          <!-- 4개 스텝 가로 연결 노드 -->
+          <!-- 4개 스텝 가로 연결 노드 (연결선 최소화 & 폰트 확대) -->
           <div class="flex items-center justify-between gap-1 overflow-x-auto custom-scrollbar py-1">
             <template v-for="(step, idx) in part1Steps" :key="step.key">
               <!-- Step Node -->
               <div
                 @click="handleStepClick(step)"
-                class="flex flex-col items-center flex-1 min-w-[72px] text-center cursor-pointer group px-1 py-1 rounded-xl transition hover:bg-white/80"
+                class="flex flex-col items-center flex-1 text-center cursor-pointer group px-1 py-1.5 rounded-xl transition hover:bg-white/90 select-none"
               >
-                <div class="flex items-center gap-1 mb-1.5">
+                <div class="flex items-center gap-1 mb-1">
                   <span
-                    class="w-6 h-6 rounded-full text-xs font-black flex items-center justify-center font-mono transition shadow-2xs"
+                    class="w-7 h-7 rounded-full text-sm font-black flex items-center justify-center font-mono transition shadow-2xs"
                     :class="[
                       getStepCount(step) > 0
                         ? 'bg-indigo-600 text-white'
@@ -82,19 +82,19 @@
                     {{ step.code }}
                   </span>
                 </div>
-                <div class="text-xs font-bold text-slate-800 truncate w-full group-hover:text-indigo-600 transition">
+                <div class="text-sm font-bold text-slate-800 whitespace-nowrap group-hover:text-indigo-600 transition tracking-tight">
                   {{ step.label }}
                 </div>
                 <div
-                  class="text-xs sm:text-sm font-extrabold font-mono mt-0.5"
+                  class="text-sm font-black font-mono mt-0.5"
                   :class="getStepCount(step) > 0 ? 'text-indigo-600' : 'text-slate-400'"
                 >
-                  {{ getStepCount(step) }}<span class="text-[10px] font-bold text-slate-400 ml-0.5">건</span>
+                  {{ getStepCount(step) }}<span class="text-[11px] font-bold text-slate-400 ml-0.5">건</span>
                 </div>
               </div>
 
-              <!-- Connector Line (스텝 사이) -->
-              <div v-if="idx < part1Steps.length - 1" class="h-0.5 flex-1 min-w-[12px] bg-slate-200 mb-6 shrink-0"></div>
+              <!-- 초소형 연결선 (가로 낭비 제거) -->
+              <div v-if="idx < part1Steps.length - 1" class="w-3 h-0.5 bg-slate-300 mx-0.5 mb-5 shrink-0 rounded-full"></div>
             </template>
           </div>
         </div>
@@ -114,35 +114,35 @@
           <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60">
             <div class="flex items-center gap-2">
               <span
-                class="w-2 h-2 rounded-full"
+                class="w-2.5 h-2.5 rounded-full"
                 :class="currentSection === 'warehouse' ? 'bg-teal-600 animate-pulse' : 'bg-slate-400'"
               ></span>
-              <h4 class="text-xs font-black tracking-tight" :class="currentSection === 'warehouse' ? 'text-teal-950' : 'text-slate-800'">
+              <h4 class="text-xs sm:text-sm font-black tracking-tight" :class="currentSection === 'warehouse' ? 'text-teal-950' : 'text-slate-800'">
                 PART 2. 이우 창고 & 검수
               </h4>
-              <span class="text-[11px] font-bold text-slate-400 font-mono">(5~6단계)</span>
+              <span class="text-xs font-bold text-slate-400 font-mono">(5~6단계)</span>
             </div>
             <button
               type="button"
               @click="router.push('/dashboard/warehouse')"
-              class="text-[11px] font-bold px-2 py-0.5 rounded-md transition cursor-pointer"
+              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
               :class="currentSection === 'warehouse' ? 'bg-teal-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'"
             >
               이우창고 ›
             </button>
           </div>
 
-          <!-- 2개 스텝 가로 연결 노드 -->
+          <!-- 2개 스텝 가로 연결 노드 (연결선 최소화 & 폰트 확대) -->
           <div class="flex items-center justify-between gap-1 overflow-x-auto custom-scrollbar py-1">
             <template v-for="(step, idx) in part2Steps" :key="step.key">
               <!-- Step Node -->
               <div
                 @click="handleStepClick(step)"
-                class="flex flex-col items-center flex-1 min-w-[80px] text-center cursor-pointer group px-1 py-1 rounded-xl transition hover:bg-white/80"
+                class="flex flex-col items-center flex-1 text-center cursor-pointer group px-1 py-1.5 rounded-xl transition hover:bg-white/90 select-none"
               >
-                <div class="flex items-center gap-1 mb-1.5">
+                <div class="flex items-center gap-1 mb-1">
                   <span
-                    class="w-6 h-6 rounded-full text-xs font-black flex items-center justify-center font-mono transition shadow-2xs"
+                    class="w-7 h-7 rounded-full text-sm font-black flex items-center justify-center font-mono transition shadow-2xs"
                     :class="[
                       getStepCount(step) > 0
                         ? 'bg-teal-600 text-white'
@@ -154,19 +154,19 @@
                     {{ step.code }}
                   </span>
                 </div>
-                <div class="text-xs font-bold text-slate-800 truncate w-full group-hover:text-teal-600 transition">
+                <div class="text-sm font-bold text-slate-800 whitespace-nowrap group-hover:text-teal-600 transition tracking-tight">
                   {{ step.label }}
                 </div>
                 <div
-                  class="text-xs sm:text-sm font-extrabold font-mono mt-0.5"
+                  class="text-sm font-black font-mono mt-0.5"
                   :class="getStepCount(step) > 0 ? 'text-teal-600' : 'text-slate-400'"
                 >
-                  {{ getStepCount(step) }}<span class="text-[10px] font-bold text-slate-400 ml-0.5">건</span>
+                  {{ getStepCount(step) }}<span class="text-[11px] font-bold text-slate-400 ml-0.5">건</span>
                 </div>
               </div>
 
-              <!-- Connector Line (스텝 사이) -->
-              <div v-if="idx < part2Steps.length - 1" class="h-0.5 flex-1 min-w-[12px] bg-slate-200 mb-6 shrink-0"></div>
+              <!-- 초소형 연결선 (가로 낭비 제거) -->
+              <div v-if="idx < part2Steps.length - 1" class="w-3 h-0.5 bg-slate-300 mx-0.5 mb-5 shrink-0 rounded-full"></div>
             </template>
           </div>
         </div>
@@ -186,35 +186,35 @@
           <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60">
             <div class="flex items-center gap-2">
               <span
-                class="w-2 h-2 rounded-full"
+                class="w-2.5 h-2.5 rounded-full"
                 :class="currentSection === 'customs' ? 'bg-indigo-600 animate-pulse' : 'bg-slate-400'"
               ></span>
-              <h4 class="text-xs font-black tracking-tight" :class="currentSection === 'customs' ? 'text-indigo-950' : 'text-slate-800'">
+              <h4 class="text-xs sm:text-sm font-black tracking-tight" :class="currentSection === 'customs' ? 'text-indigo-950' : 'text-slate-800'">
                 PART 3. 통관 & 국내배송
               </h4>
-              <span class="text-[11px] font-bold text-slate-400 font-mono">(7~8단계)</span>
+              <span class="text-xs font-bold text-slate-400 font-mono">(7~8단계)</span>
             </div>
             <button
               type="button"
               @click="router.push('/dashboard/logistics')"
-              class="text-[11px] font-bold px-2 py-0.5 rounded-md transition cursor-pointer"
+              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
               :class="currentSection === 'customs' ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'"
             >
               통관·배송 ›
             </button>
           </div>
 
-          <!-- 2개 스텝 가로 연결 노드 -->
+          <!-- 2개 스텝 가로 연결 노드 (연결선 최소화 & 폰트 확대) -->
           <div class="flex items-center justify-between gap-1 overflow-x-auto custom-scrollbar py-1">
             <template v-for="(step, idx) in part3Steps" :key="step.key">
               <!-- Step Node -->
               <div
                 @click="handleStepClick(step)"
-                class="flex flex-col items-center flex-1 min-w-[80px] text-center cursor-pointer group px-1 py-1 rounded-xl transition hover:bg-white/80"
+                class="flex flex-col items-center flex-1 text-center cursor-pointer group px-1 py-1.5 rounded-xl transition hover:bg-white/90 select-none"
               >
-                <div class="flex items-center gap-1 mb-1.5">
+                <div class="flex items-center gap-1 mb-1">
                   <span
-                    class="w-6 h-6 rounded-full text-xs font-black flex items-center justify-center font-mono transition shadow-2xs"
+                    class="w-7 h-7 rounded-full text-sm font-black flex items-center justify-center font-mono transition shadow-2xs"
                     :class="[
                       getStepCount(step) > 0
                         ? 'bg-indigo-600 text-white'
@@ -226,19 +226,19 @@
                     {{ step.code }}
                   </span>
                 </div>
-                <div class="text-xs font-bold text-slate-800 truncate w-full group-hover:text-indigo-600 transition">
+                <div class="text-sm font-bold text-slate-800 whitespace-nowrap group-hover:text-indigo-600 transition tracking-tight">
                   {{ step.label }}
                 </div>
                 <div
-                  class="text-xs sm:text-sm font-extrabold font-mono mt-0.5"
+                  class="text-sm font-black font-mono mt-0.5"
                   :class="getStepCount(step) > 0 ? 'text-indigo-600' : 'text-slate-400'"
                 >
-                  {{ getStepCount(step) }}<span class="text-[10px] font-bold text-slate-400 ml-0.5">건</span>
+                  {{ getStepCount(step) }}<span class="text-[11px] font-bold text-slate-400 ml-0.5">건</span>
                 </div>
               </div>
 
-              <!-- Connector Line (스텝 사이) -->
-              <div v-if="idx < part3Steps.length - 1" class="h-0.5 flex-1 min-w-[12px] bg-slate-200 mb-6 shrink-0"></div>
+              <!-- 초소형 연결선 (가로 낭비 제거) -->
+              <div v-if="idx < part3Steps.length - 1" class="w-3 h-0.5 bg-slate-300 mx-0.5 mb-5 shrink-0 rounded-full"></div>
             </template>
           </div>
         </div>
