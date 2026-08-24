@@ -462,47 +462,73 @@
             <!-- LEFT COLUMN: 발주 품목 리스트 + 수령자/통관 정보 (6 cols) -->
             <div class="lg:col-span-6 space-y-5">
               
-              <!-- 1. 발주 신청 품목 리스트 -->
+              <!-- 1. 발주 신청 품목 리스트 (동일 상품 기준 그룹핑) -->
               <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
                 <div class="flex items-center justify-between pb-2 border-b border-gray-100">
                   <h4 class="font-bold text-gray-900 flex items-center gap-2 text-xs sm:text-sm">
                     <Package class="w-4 h-4 text-amber-500" />
-                    <span>발주 품목 내역 (총 {{ getItemsCount(activeOrder) }}종)</span>
+                    <span>발주 품목 내역 (총 {{ getGroupedOrderItems(activeOrder.items).length }}개 상품 / {{ getItemsCount(activeOrder) }}종 옵션)</span>
                   </h4>
                   <span class="text-xs font-bold text-amber-700 font-mono">
                     총 {{ getOrderTotalQuantity(activeOrder) }}개
                   </span>
                 </div>
 
-                <div class="divide-y divide-gray-100 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                <div class="space-y-3 max-h-[340px] overflow-y-auto pr-1 custom-scrollbar">
                   <div
-                    v-for="(it, idx) in activeOrder.items"
-                    :key="idx"
-                    class="py-3 flex items-start gap-3 first:pt-0 last:pb-0"
+                    v-for="(prod, pIdx) in getGroupedOrderItems(activeOrder.items)"
+                    :key="prod.groupKey || pIdx"
+                    class="p-3.5 bg-slate-50/70 border border-gray-200 rounded-2xl space-y-2.5"
                   >
-                    <img
-                      :src="it.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
-                      :alt="it.productName"
-                      class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0"
-                      @error="handleImgError"
-                    />
-                    <div class="flex-1 min-w-0 space-y-1">
-                      <p class="font-bold text-gray-900 line-clamp-2 leading-snug">
-                        {{ it.productName || it.titleKo || it.titleZh }}
-                      </p>
-                      <div class="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 font-mono">
-                        <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-medium">
-                          {{ it.sku || it.selectedOption || '기본 옵션' }}
-                        </span>
-                        <span>수량: <b class="text-gray-900">{{ it.quantity || 1 }}개</b></span>
+                    <!-- Group Header: Product Info -->
+                    <div class="flex items-start gap-3 border-b border-gray-200/70 pb-2.5">
+                      <img
+                        :src="prod.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
+                        :alt="prod.productName"
+                        class="w-12 h-12 rounded-xl object-cover bg-white border border-gray-200 shrink-0"
+                        @error="handleImgError"
+                      />
+                      <div class="flex-1 min-w-0">
+                        <p class="font-bold text-gray-900 line-clamp-1 leading-snug">
+                          {{ prod.productName || prod.titleKo }}
+                        </p>
+                        <p v-if="prod.titleZh" class="text-[10px] text-gray-400 font-mono truncate" :title="prod.titleZh">
+                          {{ prod.titleZh }}
+                        </p>
+                        <div class="flex items-center gap-2 text-[11px] text-amber-700 font-mono mt-0.5">
+                          <span>총 <b>{{ prod.skus.length }}종</b> 옵션</span>
+                          <span>·</span>
+                          <span>합계 <b>{{ prod.totalQty }}개</b></span>
+                          <span>·</span>
+                          <span class="font-bold">₩{{ formatNumber(prod.totalPriceKrw) }}원</span>
+                        </div>
                       </div>
-                      <div class="flex items-center justify-between pt-0.5">
-                        <span class="text-[11px] text-gray-400 font-mono">
-                          단가 ¥{{ Number(it.priceCny || it.price || 0).toFixed(2) }}
-                        </span>
-                        <span class="text-xs font-bold text-gray-900 font-mono">
-                          ₩{{ formatNumber(Math.round((Number(it.priceCny || it.price || 0) * 226.19) * (it.quantity || 1))) }}원
-                        </span>
+                    </div>
+
+                    <!-- Group Sub-items: Option / SKU List -->
+                    <div class="space-y-1.5 divide-y divide-gray-100">
+                      <div
+                        v-for="(sku, sIdx) in prod.skus"
+                        :key="sku.skuId || sIdx"
+                        class="flex items-center justify-between gap-2 pt-1.5 first:pt-0 text-[11px]"
+                      >
+                        <div class="flex items-center gap-1.5 min-w-0">
+                          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
+                          <span class="font-medium text-gray-800 truncate">
+                            {{ sku.optionKo }}
+                          </span>
+                          <span v-if="sku.optionZh" class="text-[10px] text-gray-400 font-mono truncate">
+                            ({{ sku.optionZh }})
+                          </span>
+                        </div>
+                        <div class="flex items-center gap-3 shrink-0 font-mono">
+                          <span class="text-gray-500">
+                            {{ sku.quantity }}개 × ¥{{ Number(sku.priceCny).toFixed(2) }}
+                          </span>
+                          <span class="font-bold text-gray-900">
+                            ₩{{ formatNumber(sku.totalKrw) }}원
+                          </span>
+                        </div>
                       </div>
                     </div>
                   </div>
@@ -1045,6 +1071,115 @@ function getOrderCostSummary(order) {
     avgPriceCny: Number(avgPriceCny.toFixed(2)),
     itemTotalCny: Number(totalCny.toFixed(2))
   };
+}
+
+// ---------------------------------------------------------
+// 동일 1688 상품 기준 그룹핑 헬퍼 (Order Grouping & Sanitizer)
+// ---------------------------------------------------------
+function formatSkuText(it) {
+  if (!it) return '기본 옵션';
+  if (Array.isArray(it.skus) && it.skus.length > 0) {
+    return it.skus.map(s => {
+      const color = s.color && s.color !== 'undefined' ? s.color : '';
+      const size = s.size && s.size !== 'undefined' ? s.size : '';
+      const optParts = [color, size].filter(Boolean).join(' / ');
+      const qtyText = s.quantity ? ` (${s.quantity}개)` : '';
+      return (optParts || '기본 규격') + qtyText;
+    }).join(', ');
+  }
+
+  let str = it.sku || it.option || it.selectedOption || '';
+  if (typeof str === 'string') {
+    str = str.replace(/\/\s*undefined/g, '')
+             .replace(/undefined\s*\//g, '')
+             .replace(/undefined/g, '')
+             .trim();
+    return str || '기본 규격';
+  }
+  return '기본 규격';
+}
+
+function getGroupedOrderItems(rawItems) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
+
+  const groupsMap = new Map();
+
+  rawItems.forEach((it, originalIdx) => {
+    const prodId = it.itemId || (it.id && !String(it.id).includes('_') ? it.id : null) || '';
+    const prodUrl = it.productUrl || it.url || it.detailUrl || it.link || '';
+    const prodName = it.productName || it.titleKo || it.name || it.titleZh || `상품-${originalIdx + 1}`;
+    
+    const groupKey = prodId ? `id_${prodId}` : (prodUrl ? `url_${prodUrl}` : `name_${prodName}`);
+
+    if (!groupsMap.has(groupKey)) {
+      groupsMap.set(groupKey, {
+        groupKey,
+        itemId: prodId,
+        productName: it.productName || it.titleKo || it.name || '1688 소싱 상품',
+        titleKo: it.titleKo || it.productName || it.name || '',
+        titleZh: it.titleZh || '',
+        imageUrl: it.imageUrl || it.image || it.thumbnail || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60',
+        productUrl: prodUrl || (prodId ? `https://detail.1688.com/offer/${prodId}.html` : 'https://www.1688.com'),
+        company: it.company || '1688 공급처',
+        skus: [],
+        totalQty: 0,
+        totalPriceCny: 0,
+        totalPriceKrw: 0
+      });
+    }
+
+    const group = groupsMap.get(groupKey);
+
+    if (Array.isArray(it.skus) && it.skus.length > 0) {
+      it.skus.forEach((skuObj, skuIdx) => {
+        const qty = Number(skuObj.quantity || skuObj.qty || 1);
+        const price = Number(it.priceCny || it.price || it.unitPrice || 0);
+        const color = skuObj.color && skuObj.color !== 'undefined' ? skuObj.color : '';
+        const size = skuObj.size && skuObj.size !== 'undefined' ? skuObj.size : '';
+        const optText = [color, size].filter(Boolean).join(' / ') || '기본 규격';
+        
+        const colorZh = skuObj.colorZh && skuObj.colorZh !== 'undefined' ? skuObj.colorZh : '';
+        const sizeZh = skuObj.sizeZh && skuObj.sizeZh !== 'undefined' ? skuObj.sizeZh : '';
+        const optZhText = [colorZh, sizeZh].filter(Boolean).join(' / ');
+
+        group.skus.push({
+          skuId: `${groupKey}_${skuIdx}_${Date.now()}`,
+          optionKo: optText,
+          optionZh: optZhText,
+          color,
+          size,
+          quantity: qty,
+          priceCny: price,
+          totalCny: Number((qty * price).toFixed(2)),
+          totalKrw: Math.round(qty * price * 226.19)
+        });
+
+        group.totalQty += qty;
+        group.totalPriceCny += qty * price;
+        group.totalPriceKrw += Math.round(qty * price * 226.19);
+      });
+    } else {
+      const qty = Number(it.quantity || it.qty || 1);
+      const price = Number(it.priceCny || it.price || it.unitPrice || 0);
+      const optText = formatSkuText(it);
+
+      group.skus.push({
+        skuId: `${groupKey}_${originalIdx}`,
+        optionKo: optText,
+        optionZh: it.optionZh || it.skuZh || '',
+        quantity: qty,
+        priceCny: price,
+        totalCny: Number((qty * price).toFixed(2)),
+        totalKrw: Math.round(qty * price * 226.19)
+      });
+
+      group.totalQty += qty;
+      group.totalPriceCny += qty * price;
+      group.totalPriceKrw += Math.round(qty * price * 226.19);
+    }
+  });
+
+  return Array.from(groupsMap.values());
 }
 
 // ---------------------------------------------------------

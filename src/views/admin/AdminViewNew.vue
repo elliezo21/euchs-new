@@ -1783,15 +1783,15 @@
 
         <!-- Section 2: Order Specific Details (Items Table, Tour, Freight, etc.) -->
         
-        <!-- (Purchasing Items Table - Enterprise 1688 ERP Style) -->
-        <div v-if="selectedApp.details?.items && selectedApp.details.items.length" class="space-y-3">
+        <!-- (Purchasing Items Table - Enterprise 1688 ERP Grouped Style) -->
+        <div v-if="selectedApp.details?.items && selectedApp.details.items.length" class="space-y-3.5">
           <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-1 border-b border-slate-800">
             <label class="font-bold text-amber-400 flex items-center gap-2 text-xs sm:text-sm">
               <i class="fas fa-boxes-packing text-amber-400"></i>
-              <span>1688 구매대행 발주 품목 명세 (총 {{ selectedApp.details.items.length }}종)</span>
+              <span>1688 구매대행 발주 품목 명세 (총 {{ getGroupedItems(selectedApp.details.items).length }}개 상품 / {{ selectedApp.details.items.length }}종 옵션)</span>
             </label>
             
-            <!-- 관리자 상단 일괄 작업 버튼 (1688 발주용 엑셀 & 전체 링크 열기) -->
+            <!-- 관리자 상단 일괄 작업 버튼 -->
             <div class="flex items-center gap-2">
               <button
                 type="button"
@@ -1815,103 +1815,116 @@
             </div>
           </div>
 
-          <div class="overflow-x-auto rounded-2xl border border-slate-800 bg-slate-950 custom-scrollbar">
-            <table class="w-full text-left text-xs text-slate-300 min-w-[700px]">
-              <thead class="bg-slate-900/90 text-slate-400 uppercase font-black text-[10px] border-b border-slate-800">
-                <tr>
-                  <th class="py-2.5 px-3 text-center w-10">NO</th>
-                  <th class="py-2.5 px-3 min-w-[220px]">상품 정보 (한글명 / 1688 원문)</th>
-                  <th class="py-2.5 px-3 min-w-[170px]">발주 옵션 (SKU)</th>
-                  <th class="py-2.5 px-3 text-right whitespace-nowrap">단가(¥)</th>
-                  <th class="py-2.5 px-3 text-center whitespace-nowrap">수량</th>
-                  <th class="py-2.5 px-3 text-right whitespace-nowrap">합계(¥)</th>
-                  <th class="py-2.5 px-3 text-center whitespace-nowrap min-w-[150px]">1688 바로구매</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-800/60">
-                <tr v-for="(it, idx) in selectedApp.details.items" :key="idx" class="hover:bg-slate-900/50">
-                  <!-- 1. NO -->
-                  <td class="py-3 px-3 text-center font-mono text-slate-500 font-bold">
-                    {{ idx + 1 }}
-                  </td>
-
-                  <!-- 2. 상품 썸네일 & 상품명 -->
-                  <td class="py-3 px-3">
-                    <div class="flex items-start gap-2.5">
-                      <img
-                        :src="it.imageUrl || it.image || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&auto=format&fit=crop&q=60'"
-                        :alt="it.productName || it.name"
-                        class="w-11 h-11 rounded-lg object-cover bg-slate-900 border border-slate-800 shrink-0 mt-0.5"
-                        @error="handleImgError"
-                      />
-                      <div class="min-w-0 space-y-0.5">
-                        <p class="font-bold text-white leading-snug line-clamp-2">
-                          {{ it.productName || it.titleKo || it.name || '상품명 미기재' }}
-                        </p>
-                        <p v-if="it.titleZh" class="text-[10px] text-slate-400 font-mono line-clamp-1 truncate" :title="it.titleZh">
-                          {{ it.titleZh }}
-                        </p>
-                      </div>
+          <!-- Product Groups Loop -->
+          <div class="space-y-3">
+            <div
+              v-for="(group, gIdx) in getGroupedItems(selectedApp.details.items)"
+              :key="group.groupKey || gIdx"
+              class="rounded-2xl border border-slate-800 bg-slate-950 overflow-hidden shadow-md"
+            >
+              <!-- Group Top Header (Product Level) -->
+              <div class="p-3 sm:p-3.5 bg-slate-900/90 border-b border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div class="flex items-start gap-3 min-w-0">
+                  <img
+                    :src="group.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=100&auto=format&fit=crop&q=60'"
+                    :alt="group.productName"
+                    class="w-12 h-12 rounded-xl object-cover bg-slate-950 border border-slate-800 shrink-0"
+                    @error="handleImgError"
+                  />
+                  <div class="min-w-0 space-y-0.5">
+                    <div class="flex items-center gap-2">
+                      <span class="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-300 text-[10px] font-bold">
+                        상품 #{{ gIdx + 1 }}
+                      </span>
+                      <span v-if="group.itemId" class="text-[10px] text-slate-400 font-mono">
+                        ID: {{ group.itemId }}
+                      </span>
                     </div>
-                  </td>
+                    <p class="font-bold text-white text-xs sm:text-sm line-clamp-1">
+                      {{ group.productName || group.titleKo }}
+                    </p>
+                    <p v-if="group.titleZh" class="text-[10px] text-slate-400 font-mono truncate" :title="group.titleZh">
+                      {{ group.titleZh }}
+                    </p>
+                  </div>
+                </div>
 
-                  <!-- 3. 발주 옵션 (SKU: 한국어 + 중문 원문) -->
-                  <td class="py-3 px-3">
-                    <div class="space-y-0.5">
-                      <div class="font-bold text-slate-200">
-                        {{ formatSkuText(it) }}
-                      </div>
-                      <div v-if="formatSkuZhText(it)" class="text-[10px] text-amber-400/90 font-mono">
-                        {{ formatSkuZhText(it) }}
-                      </div>
+                <div class="flex items-center justify-between sm:justify-end gap-3 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-800/80">
+                  <div class="text-right font-mono">
+                    <div class="text-xs font-bold text-amber-400">
+                      총 {{ group.totalQty }}개 (합계 ¥{{ group.totalPriceCny.toFixed(2) }})
                     </div>
-                  </td>
-
-                  <!-- 4. 단가(¥) -->
-                  <td class="py-3 px-3 text-right font-mono font-bold text-slate-200 whitespace-nowrap">
-                    ¥{{ Number(it.priceCny || it.price || it.unitPrice || 0).toFixed(2) }}
-                  </td>
-
-                  <!-- 5. 수량 -->
-                  <td class="py-3 px-3 text-center font-mono font-bold text-white whitespace-nowrap">
-                    {{ it.quantity || it.qty || 1 }}개
-                  </td>
-
-                  <!-- 6. 합계(¥) -->
-                  <td class="py-3 px-3 text-right font-mono font-black text-amber-400 whitespace-nowrap">
-                    ¥{{ ((it.quantity || it.qty || 1) * Number(it.priceCny || it.price || it.unitPrice || 0)).toFixed(2) }}
-                  </td>
-
-                  <!-- 7. 1688 바로구매 액션 -->
-                  <td class="py-3 px-3 text-center whitespace-nowrap" @click.stop>
-                    <div class="flex items-center justify-center gap-1.5">
-                      <!-- 1688 공장 상품 열기 ↗ -->
-                      <a
-                        :href="get1688ProductUrl(it)"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="px-2 py-1 rounded-lg bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-[10px] font-bold transition inline-flex items-center gap-1 active:scale-95 shadow-xs"
-                        title="1688 공장 상품 상세페이지로 새 창 이동"
-                      >
-                        <i class="fas fa-store text-[9px]"></i>
-                        <span>1688 열기 ↗</span>
-                      </a>
-
-                      <!-- SKU/ID 복사 버튼 -->
-                      <button
-                        type="button"
-                        @click="copyPurchaseInfo(it, idx)"
-                        class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-bold transition inline-flex items-center gap-1 active:scale-95 shadow-xs cursor-pointer"
-                        :title="copiedSkuId === idx ? '복사 완료!' : '발주용 정보(ID/SKU/수량) 클립보드 복사'"
-                      >
-                        <i :class="copiedSkuId === idx ? 'fas fa-check text-emerald-400' : 'fas fa-copy text-slate-400'" class="text-[9px]"></i>
-                        <span>{{ copiedSkuId === idx ? '복사됨!' : 'SKU 복사' }}</span>
-                      </button>
+                    <div class="text-[10px] text-slate-400">
+                      ₩{{ formatNumber(group.totalPriceKrw) }}원
                     </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+                  </div>
+
+                  <!-- 1688 공장 상품 열기 ↗ (상품당 1개만 배치) -->
+                  <a
+                    :href="group.productUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="px-3 py-1.5 rounded-xl bg-rose-600/20 hover:bg-rose-600 text-rose-300 hover:text-white border border-rose-500/30 text-xs font-bold transition inline-flex items-center gap-1.5 active:scale-95 shadow-xs shrink-0"
+                    title="1688 공장 상세페이지로 이동하여 하위 옵션을 일괄 담기"
+                  >
+                    <i class="fas fa-store text-xs"></i>
+                    <span>1688 공장 열기 ↗</span>
+                  </a>
+                </div>
+              </div>
+
+              <!-- Group Sub Table (Option/SKU Level) -->
+              <div class="overflow-x-auto custom-scrollbar">
+                <table class="w-full text-left text-xs text-slate-300">
+                  <thead class="bg-slate-950 text-slate-400 uppercase font-bold text-[10px] border-b border-slate-800/60">
+                    <tr>
+                      <th class="py-2 px-3 text-center w-10">No</th>
+                      <th class="py-2 px-3 min-w-[200px]">발주 옵션명 (한국어 / 중문 원문)</th>
+                      <th class="py-2 px-3 text-right whitespace-nowrap">단가(¥)</th>
+                      <th class="py-2 px-3 text-center whitespace-nowrap">수량</th>
+                      <th class="py-2 px-3 text-right whitespace-nowrap">합계(¥)</th>
+                      <th class="py-2 px-3 text-center whitespace-nowrap w-24">발주 액션</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-800/40">
+                    <tr v-for="(sku, sIdx) in group.skus" :key="sku.skuId || sIdx" class="hover:bg-slate-900/40">
+                      <td class="py-2.5 px-3 text-center font-mono text-slate-500 font-bold">
+                        {{ sIdx + 1 }}
+                      </td>
+                      <td class="py-2.5 px-3">
+                        <div class="font-bold text-slate-200">
+                          {{ sku.optionKo }}
+                        </div>
+                        <div v-if="sku.optionZh" class="text-[10px] text-amber-400/90 font-mono">
+                          {{ sku.optionZh }}
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-3 text-right font-mono font-bold text-slate-200 whitespace-nowrap">
+                        ¥{{ Number(sku.priceCny || 0).toFixed(2) }}
+                      </td>
+                      <td class="py-2.5 px-3 text-center font-mono font-bold text-white whitespace-nowrap">
+                        {{ sku.quantity }}개
+                      </td>
+                      <td class="py-2.5 px-3 text-right font-mono font-bold text-amber-400 whitespace-nowrap">
+                        ¥{{ Number(sku.totalCny || 0).toFixed(2) }}
+                      </td>
+                      <td class="py-2.5 px-3 text-center whitespace-nowrap" @click.stop>
+                        <button
+                          type="button"
+                          @click="copySkuDirect(group, sku, `${gIdx}_${sIdx}`)"
+                          class="px-2 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 text-[10px] font-bold transition inline-flex items-center gap-1 active:scale-95 shadow-xs cursor-pointer"
+                          :title="copiedSkuId === `${gIdx}_${sIdx}` ? '복사 완료!' : '해당 옵션 정보 복사'"
+                        >
+                          <i :class="copiedSkuId === `${gIdx}_${sIdx}` ? 'fas fa-check text-emerald-400' : 'fas fa-copy text-slate-400'" class="text-[9px]"></i>
+                          <span>{{ copiedSkuId === `${gIdx}_${sIdx}` ? '복사됨!' : 'SKU 복사' }}</span>
+                        </button>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+
+            </div>
           </div>
         </div>
 
@@ -2521,8 +2534,10 @@ const openAppDetail = async (app) => {
 }
 
 // ----------------------------------------------------
-// 1688 Purchasing ERP Operational Helpers
+// 1688 Purchasing ERP Operational Helpers & Grouping
 // ----------------------------------------------------
+const formatNumber = (num) => Number(num || 0).toLocaleString('ko-KR')
+
 const formatSkuText = (it) => {
   if (!it) return '기본 옵션'
   
@@ -2575,7 +2590,112 @@ const get1688ProductUrl = (it) => {
   return 'https://www.1688.com'
 }
 
+// 동일 1688 상품 기준 그룹핑 헬퍼 (Admin & Buyer 공통 로직)
+const getGroupedItems = (rawItems) => {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return []
+
+  const groupsMap = new Map()
+
+  rawItems.forEach((it, originalIdx) => {
+    const prodId = it.itemId || (it.id && !String(it.id).includes('_') ? it.id : null) || ''
+    const prodUrl = it.productUrl || it.url || it.detailUrl || it.link || ''
+    const prodName = it.productName || it.titleKo || it.name || it.titleZh || `상품-${originalIdx + 1}`
+    
+    const groupKey = prodId ? `id_${prodId}` : (prodUrl ? `url_${prodUrl}` : `name_${prodName}`)
+
+    if (!groupsMap.has(groupKey)) {
+      groupsMap.set(groupKey, {
+        groupKey,
+        itemId: prodId,
+        productName: it.productName || it.titleKo || it.name || '1688 소싱 상품',
+        titleKo: it.titleKo || it.productName || it.name || '',
+        titleZh: it.titleZh || '',
+        imageUrl: it.imageUrl || it.image || it.thumbnail || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60',
+        productUrl: get1688ProductUrl(it),
+        company: it.company || '1688 공급처',
+        skus: [],
+        totalQty: 0,
+        totalPriceCny: 0,
+        totalPriceKrw: 0
+      })
+    }
+
+    const group = groupsMap.get(groupKey)
+
+    if (Array.isArray(it.skus) && it.skus.length > 0) {
+      it.skus.forEach((skuObj, skuIdx) => {
+        const qty = Number(skuObj.quantity || skuObj.qty || 1)
+        const price = Number(it.priceCny || it.price || it.unitPrice || 0)
+        const color = skuObj.color && skuObj.color !== 'undefined' ? skuObj.color : ''
+        const size = skuObj.size && skuObj.size !== 'undefined' ? skuObj.size : ''
+        const optText = [color, size].filter(Boolean).join(' / ') || '기본 규격'
+        
+        const colorZh = skuObj.colorZh && skuObj.colorZh !== 'undefined' ? skuObj.colorZh : ''
+        const sizeZh = skuObj.sizeZh && skuObj.sizeZh !== 'undefined' ? skuObj.sizeZh : ''
+        const optZhText = [colorZh, sizeZh].filter(Boolean).join(' / ')
+
+        group.skus.push({
+          skuId: `${groupKey}_${skuIdx}_${Date.now()}`,
+          optionKo: optText,
+          optionZh: optZhText,
+          color,
+          size,
+          quantity: qty,
+          priceCny: price,
+          totalCny: Number((qty * price).toFixed(2)),
+          totalKrw: Math.round(qty * price * 226.19)
+        })
+
+        group.totalQty += qty
+        group.totalPriceCny += qty * price
+        group.totalPriceKrw += Math.round(qty * price * 226.19)
+      })
+    } else {
+      const qty = Number(it.quantity || it.qty || 1)
+      const price = Number(it.priceCny || it.price || it.unitPrice || 0)
+      const optText = formatSkuText(it)
+      const optZhText = formatSkuZhText(it)
+
+      group.skus.push({
+        skuId: `${groupKey}_${originalIdx}`,
+        optionKo: optText,
+        optionZh: optZhText,
+        quantity: qty,
+        priceCny: price,
+        totalCny: Number((qty * price).toFixed(2)),
+        totalKrw: Math.round(qty * price * 226.19)
+      })
+
+      group.totalQty += qty
+      group.totalPriceCny += qty * price
+      group.totalPriceKrw += Math.round(qty * price * 226.19)
+    }
+  })
+
+  return Array.from(groupsMap.values())
+}
+
 const copiedSkuId = ref(null)
+const copySkuDirect = (group, sku, key) => {
+  const itemId = group.itemId || 'N/A'
+  const title = group.productName || group.titleKo || ''
+  const skuText = sku.optionKo + (sku.optionZh ? ` (${sku.optionZh})` : '')
+  const qty = sku.quantity || 1
+  const price = sku.priceCny || 0
+  const url = group.productUrl || 'https://www.1688.com'
+
+  const textToCopy = `[1688 발주 정보]\n상품명: ${title}\n상품ID: ${itemId}\n옵션: ${skuText}\n수량: ${qty}개\n단가: ¥${price}\n링크: ${url}`
+
+  navigator.clipboard.writeText(textToCopy).then(() => {
+    copiedSkuId.value = key
+    setTimeout(() => {
+      copiedSkuId.value = null
+    }, 2000)
+  }).catch(err => {
+    console.error('Copy failed:', err)
+  })
+}
+
 const copyPurchaseInfo = (it, idx) => {
   if (!it) return
   const itemId = it.itemId || it.id || 'N/A'
@@ -2600,32 +2720,36 @@ const copyPurchaseInfo = (it, idx) => {
 
 const openAll1688Links = (items) => {
   if (!Array.isArray(items) || items.length === 0) return
-  items.forEach(it => {
-    const url = get1688ProductUrl(it)
-    if (url && url.startsWith('http')) {
-      window.open(url, '_blank')
+  const groups = getGroupedItems(items)
+  groups.forEach(g => {
+    if (g.productUrl && g.productUrl.startsWith('http')) {
+      window.open(g.productUrl, '_blank')
     }
   })
 }
 
 const export1688PurchaseExcel = (app) => {
   if (!app || !app.details?.items) return
-  const items = app.details.items
+  const groups = getGroupedItems(app.details.items)
   let csvContent = "\uFEFFNO,1688상품ID,상품명(한글),상품명(중문),발주옵션(한국어),1688원문옵션(중문),수량(개),단가(RMB),합계(RMB),1688상세링크\n"
 
-  items.forEach((it, idx) => {
-    const no = idx + 1
-    const id = it.itemId || it.id || ''
-    const titleKo = `"${(it.productName || it.titleKo || it.name || '').replace(/"/g, '""')}"`
-    const titleZh = `"${(it.titleZh || '').replace(/"/g, '""')}"`
-    const sku = `"${formatSkuText(it).replace(/"/g, '""')}"`
-    const skuZh = `"${formatSkuZhText(it).replace(/"/g, '""')}"`
-    const qty = it.quantity || it.qty || 1
-    const price = Number(it.priceCny || it.price || it.unitPrice || 0)
-    const total = (qty * price).toFixed(2)
-    const url = `"${get1688ProductUrl(it)}"`
+  let counter = 1
+  groups.forEach((group) => {
+    const id = group.itemId || ''
+    const titleKo = `"${(group.titleKo || group.productName || '').replace(/"/g, '""')}"`
+    const titleZh = `"${(group.titleZh || '').replace(/"/g, '""')}"`
+    const url = `"${group.productUrl}"`
 
-    csvContent += `${no},${id},${titleKo},${titleZh},${sku},${skuZh},${qty},${price},${total},${url}\n`
+    group.skus.forEach((sku) => {
+      const skuKo = `"${(sku.optionKo || '').replace(/"/g, '""')}"`
+      const skuZh = `"${(sku.optionZh || '').replace(/"/g, '""')}"`
+      const qty = sku.quantity || 1
+      const price = Number(sku.priceCny || 0)
+      const total = (qty * price).toFixed(2)
+
+      csvContent += `${counter},${id},${titleKo},${titleZh},${skuKo},${skuZh},${qty},${price},${total},${url}\n`
+      counter++
+    })
   })
 
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' })
