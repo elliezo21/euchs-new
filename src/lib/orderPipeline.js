@@ -8,12 +8,12 @@ export const PIPELINE_STATUSES = [
   { key: 'quote_confirmed', code: 2, label: '2. 견적 완료 (고객 결제대기)', shortLabel: '결제대기', badgeClass: 'bg-orange-100 text-orange-800 border border-orange-200' },
   { key: 'payment_verified', code: 3, label: '3. 입금/결제 확인', shortLabel: '결제확인', badgeClass: 'bg-blue-100 text-blue-800 border border-blue-200' },
   { key: 'purchasing', code: 4, label: '4. 1688 공장 구매진행', shortLabel: '구매진행', badgeClass: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
-  { key: 'warehouse_in', code: 5, label: '5. 이우창고 입고완료', shortLabel: '창고입고', badgeClass: 'bg-cyan-100 text-cyan-800 border border-cyan-200' },
-  { key: 'inspection_done', code: 6, label: '6. 정밀검수/실사 등록완료', shortLabel: '검수완료', badgeClass: 'bg-teal-100 text-teal-800 border border-teal-200' },
-  { key: 'shipping_ready', code: 7, label: '7. 한국행 선적/출고대기', shortLabel: '선적대기', badgeClass: 'bg-purple-100 text-purple-800 border border-purple-200' },
-  { key: 'customs_clearance', code: 8, label: '8. 세관 수입통관 진행', shortLabel: '수입통관', badgeClass: 'bg-violet-100 text-violet-800 border border-violet-200' },
-  { key: 'domestic_shipping', code: 9, label: '9. 국내 화물/택배 배송중', shortLabel: '국내배송', badgeClass: 'bg-sky-100 text-sky-800 border border-sky-200' },
-  { key: 'delivered', code: 10, label: '10. 배송완료 (수령완료)', shortLabel: '배송완료', badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
+  { key: 'warehouse_in', code: 5, label: '5. 입고 & 정밀검수', shortLabel: '입고/검수', badgeClass: 'bg-teal-100 text-teal-800 border border-teal-200' },
+  { key: 'inspection_done', code: 5, label: '5. 정밀검수/실측완료', shortLabel: '정밀검수', badgeClass: 'bg-teal-100 text-teal-800 border border-teal-200' },
+  { key: 'shipping_ready', code: 6, label: '6. 한국행 선적/출고대기', shortLabel: '선적대기', badgeClass: 'bg-purple-100 text-purple-800 border border-purple-200' },
+  { key: 'customs_clearance', code: 7, label: '7. 세관 수입통관 진행', shortLabel: '수입통관', badgeClass: 'bg-violet-100 text-violet-800 border border-violet-200' },
+  { key: 'domestic_shipping', code: 8, label: '8. 국내 화물/택배 배송중', shortLabel: '국내배송', badgeClass: 'bg-sky-100 text-sky-800 border border-sky-200' },
+  { key: 'delivered', code: 8, label: '8. 배송완료 (수령완료)', shortLabel: '배송완료', badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
   { key: 'cancelled', code: 0, label: '주문 취소 / 환불', shortLabel: '주문취소', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' }
 ];
 

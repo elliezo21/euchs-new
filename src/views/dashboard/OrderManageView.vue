@@ -303,16 +303,16 @@
               <!-- 관리 액션 (단일화된 견적 확인 및 결제 버튼) -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="flex items-center justify-center gap-1.5">
-                  <!-- 6. 검수완료 상태: [2차 결제 & 바코드 등록] 강조 버튼 -->
+                  <!-- 5. 입고 & 정밀검수 상태: [💳 2차 결제] 버튼 -->
                   <button
-                    v-if="order.status === 'inspection_done'"
+                    v-if="order.status === 'inspection_done' || order.status === 'warehouse_in'"
                     type="button"
                     @click="openSecondPaymentModal(order)"
-                    class="px-3.5 py-1.5 rounded-xl font-black text-[11px] bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition active:scale-95 flex items-center gap-1.5 animate-pulse cursor-pointer"
-                    title="현지 실측 검수 확인 및 2차 결제 / 바코드 업로드"
+                    class="px-3.5 py-1.5 rounded-xl font-bold text-[11px] bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    title="현지 실측 검수 확인 및 2차 결제"
                   >
-                    <Package class="w-3.5 h-3.5" />
-                    <span>📦 2차 결제 & 바코드 등록</span>
+                    <CreditCard class="w-3.5 h-3.5" />
+                    <span>💳 2차 결제</span>
                   </button>
 
                   <!-- 2. 견적 완료 (결제대기) 상태: [견적 확인 및 결제] -->
@@ -411,15 +411,15 @@
         <div class="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
           <span class="text-[11px] text-gray-400 font-mono">{{ order.createdAt }}</span>
           <div class="flex items-center gap-1.5">
-            <!-- 6. 검수완료 상태 -->
+            <!-- 5. 입고 & 정밀검수 상태 -->
             <button
-              v-if="order.status === 'inspection_done'"
+              v-if="order.status === 'inspection_done' || order.status === 'warehouse_in'"
               type="button"
               @click="openSecondPaymentModal(order)"
-              class="px-3 py-1.5 rounded-xl font-black text-xs bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white flex items-center gap-1.5 shadow-xs cursor-pointer"
+              class="px-3 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white flex items-center gap-1.5 shadow-xs cursor-pointer"
             >
-              <Package class="w-3.5 h-3.5" />
-              <span>📦 2차 결제 & 바코드 등록</span>
+              <CreditCard class="w-3.5 h-3.5" />
+              <span>💳 2차 결제</span>
             </button>
 
             <!-- 2. 결제 대기 상태 -->
@@ -502,18 +502,18 @@
         <!-- B. 모달 본문 (CNINSIDER Reference Standard Layout: Top-to-Bottom + 2-Column bottom) -->
         <div class="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6 custom-scrollbar text-xs text-gray-700 bg-slate-50/40">
           
-          <!-- 검수완료 상태일 때 2차 결제 바로가기 강조 배너 -->
+          <!-- 5. 입고 & 정밀검수 상태일 때 2차 결제 바로가기 강조 배너 -->
           <div
-            v-if="activeOrder.status === 'inspection_done'"
+            v-if="activeOrder.status === 'inspection_done' || activeOrder.status === 'warehouse_in'"
             class="p-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md"
           >
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-white/20 text-white flex items-center justify-center font-bold shrink-0">
-                <Package class="w-5 h-5" />
+                <CreditCard class="w-5 h-5" />
               </div>
               <div>
                 <div class="font-extrabold text-sm text-white">현지 창고 실측 계근 및 검수가 완료되었습니다!</div>
-                <div class="text-xs text-teal-100 mt-0.5">바코드 라벨 파일 업로드 및 2차 결제(국제해운운임+세관+작업비: ₩133,000)를 진행해 주세요.</div>
+                <div class="text-xs text-teal-100 mt-0.5">2차 결제(국제해운운임+세관+작업비: ₩133,000)를 진행해 주세요. (바코드 라벨 첨부는 선택 사항)</div>
               </div>
             </div>
             <button
@@ -521,7 +521,7 @@
               @click="openSecondPaymentModal(activeOrder); closeDetailModal()"
               class="px-5 py-2.5 rounded-xl bg-white text-teal-950 font-black text-xs shadow-md hover:bg-teal-50 transition active:scale-95 shrink-0 cursor-pointer"
             >
-              📦 2차 결제 & 바코드 등록 열기 ➔
+              💳 2차 결제 열기 ➔
             </button>
           </div>
 
@@ -1010,7 +1010,7 @@
             <div>
               <div class="flex items-center gap-2">
                 <span class="px-2 py-0.5 rounded-full bg-teal-500/30 text-teal-300 text-[10px] font-black tracking-wide border border-teal-500/40">
-                  STEP 6. 현지 실측 검수완료
+                  STEP 5. 현지 입고 & 정밀검수 완료
                 </span>
                 <span class="font-mono text-xs text-slate-300">
                   {{ selectedSecondPaymentOrder.orderNumber }}
@@ -1103,15 +1103,15 @@
             </div>
           </div>
 
-          <!-- ② 🏷️ 바코드 라벨 파일 업로드 영역 (쿠팡 로켓그로스 / 자체 바코드) -->
+          <!-- ② 🏷️ 바코드 라벨 파일 업로드 영역 (쿠팡 로켓그로스 / 자체 바코드 - 선택사항) -->
           <div class="bg-white rounded-2xl p-5 border border-gray-200 shadow-2xs space-y-4">
             <div class="flex items-center justify-between border-b border-gray-100 pb-3">
               <div class="flex items-center gap-2">
                 <FileText class="w-4 h-4 text-orange-600" />
                 <h4 class="font-bold text-sm text-gray-900">2. 🏷️ 마켓/쿠팡 바코드 라벨 파일 업로드</h4>
               </div>
-              <span class="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[10px] font-black">
-                선적 필수 제출
+              <span class="px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">
+                [선택] 쿠팡 로켓그로스 / 마켓 바코드 부착 시에만 첨부
               </span>
             </div>
 
@@ -1129,7 +1129,7 @@
                   </span>
                 </div>
                 <p class="text-[11px] text-gray-600 leading-relaxed">
-                  쿠팡 윙 또는 마켓에서 다운로드받은 상품 바코드 라벨(PDF/ZIP/이미지)을 업로드해 주세요. 현지 창고에서 출력 후 제품별로 정밀 부착합니다.
+                  자사몰 및 일반 셀러는 바코드 등록 없이 즉시 결제 및 선적 지시가 가능합니다. 쿠팡 윙 또는 마켓 바코드 부착이 필요한 경우에만 라벨 파일(PDF/ZIP/이미지)을 업로드해 주세요.
                 </p>
               </div>
             </div>
@@ -2406,24 +2406,19 @@ function setSampleBarcodeFile() {
 }
 
 async function handleConfirmSecondPayment() {
-  if (!uploadedBarcodeFile.value) {
-    alert('바코드 라벨 파일을 먼저 업로드해 주세요.');
-    return;
-  }
-
   isProcessingPayment.value = true;
   setTimeout(async () => {
     isProcessingPayment.value = false;
     if (selectedSecondPaymentOrder.value) {
       const order = selectedSecondPaymentOrder.value;
       order.status = 'shipping_ready';
-      order.barcodeFile = uploadedBarcodeFile.value;
+      order.barcodeFile = uploadedBarcodeFile.value || null;
 
       // Update in orders list
       const idx = orders.value.findIndex(o => o.id === order.id);
       if (idx !== -1) {
         orders.value[idx].status = 'shipping_ready';
-        orders.value[idx].barcodeFile = uploadedBarcodeFile.value;
+        orders.value[idx].barcodeFile = uploadedBarcodeFile.value || null;
       }
 
       // Update in Supabase if configured
@@ -2436,7 +2431,7 @@ async function handleConfirmSecondPayment() {
               details: {
                 ...(order.details || {}),
                 status: 'shipping_ready',
-                barcodeFile: uploadedBarcodeFile.value
+                barcodeFile: uploadedBarcodeFile.value || null
               }
             })
             .eq('id', order.id);
@@ -2455,7 +2450,8 @@ async function handleConfirmSecondPayment() {
       }));
 
       const fee = order.secondPayment?.totalSecondPaymentKrw || 133000;
-      alert(`✅ 2차 결제(₩${formatNumber(fee)}원)가 성공적으로 완료되었습니다!\n주문 상태가 [7. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [바코드 부착 및 정기선박 선적 지시]가 즉시 전달되었습니다.`);
+      const barcodeNote = uploadedBarcodeFile.value ? '바코드 부착 및 ' : '';
+      alert(`✅ 2차 결제(₩${formatNumber(fee)}원)가 성공적으로 완료되었습니다!\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 즉시 전달되었습니다.`);
       closeSecondPaymentModal();
     }
   }, 600);
