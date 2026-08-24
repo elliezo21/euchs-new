@@ -17,6 +17,7 @@ import CalculatorView from '../views/tools/CalculatorView.vue'
 import Lab1688View from '../views/Lab1688View.vue'
 import MallView from '../views/MallView.vue'
 import DashboardView from '../views/DashboardView.vue'
+import CartView from '../views/dashboard/CartView.vue'
 import SourcingProductsView from '../views/dashboard/SourcingProductsView.vue'
 import OrderManageView from '../views/dashboard/OrderManageView.vue'
 import WarehouseView from '../views/dashboard/WarehouseView.vue'
@@ -47,9 +48,14 @@ const routes = [
         name: 'dashboard',
       },
       {
+        path: 'cart',
+        name: 'dashboard-cart',
+        component: CartView,
+      },
+      {
         path: 'sourcing-products',
         name: 'dashboard-sourcing-products',
-        component: SourcingProductsView,
+        component: CartView,
       },
       {
         path: 'orders',

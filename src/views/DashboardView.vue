@@ -176,10 +176,10 @@
                 type="button"
                 @click="toggleMenu('products')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
-                :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-600' : ''"
+                :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>상품관리</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.products ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
@@ -196,12 +196,12 @@
                   <i class="fas fa-external-link-alt text-[9px] text-gray-400"></i>
                 </router-link>
                 <router-link
-                  to="/dashboard/sourcing-products"
+                  to="/dashboard/cart"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/sourcing-products' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                  :class="route.path === '/dashboard/cart' || route.path === '/dashboard/sourcing-products' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
-                  <span>내 소싱 상품 목록</span>
-                  <span class="px-1.5 py-0.2 rounded-full bg-red-600 text-white text-[9px] font-black font-mono">
+                  <span>장바구니</span>
+                  <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs">
                     {{ savedItems.length }}
                   </span>
                 </router-link>
@@ -927,7 +927,7 @@ const expandedMenus = ref({
 })
 
 watch(() => route.path, (newPath) => {
-  if (newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/mall')) {
+  if (newPath.startsWith('/dashboard/cart') || newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/mall')) {
     expandedMenus.value.products = true
   } else if (newPath.startsWith('/dashboard/orders')) {
     expandedMenus.value.orders = true
