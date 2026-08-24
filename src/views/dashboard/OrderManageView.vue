@@ -56,7 +56,7 @@
         <div class="min-w-0">
           <span class="text-xs font-semibold text-slate-500 block truncate">전체 발주</span>
           <div class="text-lg font-bold text-gray-900 font-mono tracking-tight mt-0.5">
-            {{ orders.length }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
+            {{ statCounts.total }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
         </div>
         <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
@@ -1578,13 +1578,17 @@ const refreshData = async () => {
 };
 
 // ---------------------------------------------------------
-// 통계 요약 (4대 KPI)
+// 통계 요약 (4대 KPI - 1~4단계 발주/사입 관리 대상)
 // ---------------------------------------------------------
+const ORDER_STAGE_STATUSES = ['quote_pending', 'quote_confirmed', 'payment_verified', 'purchasing'];
+
 const statCounts = computed(() => {
-  const quotePending = orders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length;
-  const quoteConfirmed = orders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length;
-  const purchasing = orders.value.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length;
+  const stageOrders = orders.value.filter(o => ORDER_STAGE_STATUSES.includes(normalizeOrderStatus(o.status)));
+  const quotePending = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length;
+  const quoteConfirmed = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length;
+  const purchasing = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length;
   return {
+    total: stageOrders.length,
     quotePending,
     quoteConfirmed,
     purchasing
@@ -1943,26 +1947,13 @@ function getOrderPaymentStages(order) {
   };
 }
 
-// ---------------------------------------------------------
-// 필터링 및 정렬 (Computed)
-// ---------------------------------------------------------
 const filteredOrders = computed(() => {
-  let list = [...orders.value];
+  // 1~4단계(발주/사입 진행) 주문만 발주관리 테이블 목록에 노출 (5~8단계는 창고/통관 전용 페이지로 격리)
+  let list = orders.value.filter(ord => ORDER_STAGE_STATUSES.includes(normalizeOrderStatus(ord.status)));
 
   // 1. 탭 필터링
   if (selectedTab.value !== 'all') {
-    if (selectedTab.value === 'inspection_done' || selectedTab.value === 'warehouse_inspection' || selectedTab.value === 'warehouse_in') {
-      const step5Keys = ['inspection_done', 'warehouse_in', 'inspecting', 'step_5', 'warehouse_inspection'];
-      list = list.filter(ord => step5Keys.includes(normalizeOrderStatus(ord.status)));
-    } else if (selectedTab.value === 'delivered' || selectedTab.value === 'domestic_delivered') {
-      const step8Keys = ['domestic_shipping', 'delivered', 'completed'];
-      list = list.filter(ord => step8Keys.includes(normalizeOrderStatus(ord.status)));
-    } else if (selectedTab.value === 'in_transit') {
-      const transitKeys = ['warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping'];
-      list = list.filter(ord => transitKeys.includes(normalizeOrderStatus(ord.status)));
-    } else {
-      list = list.filter(ord => normalizeOrderStatus(ord.status) === selectedTab.value);
-    }
+    list = list.filter(ord => normalizeOrderStatus(ord.status) === selectedTab.value);
   }
 
   // 2. 검색어 필터링
