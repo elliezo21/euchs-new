@@ -43,7 +43,7 @@
     </div>
 
     <!-- 공통 10단계 풀프로세스 스텝 바 (발주관리 포커스) -->
-    <OrderProcessStepper currentSection="orders" />
+    <OrderProcessStepper :counts="stepperCounts" currentSection="orders" />
 
     <!-- 통계 요약 카드 4종 (컴팩트 슬림 디자인, 클릭 시 탭 필터링 연동) -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1383,11 +1383,13 @@ const router = useRouter();
 // ---------------------------------------------------------
 const filterTabs = [
   { id: 'all', label: '전체 (All)' },
-  { id: 'quote_pending', label: '견적 요청/대기' },
-  { id: 'quote_confirmed', label: '결제 대기' },
-  { id: 'purchasing', label: '1688 구매진행' },
-  { id: 'in_transit', label: '현지 입고/배송중' },
-  { id: 'delivered', label: '완료/정산' },
+  { id: 'quote_pending', label: '1. 견적대기' },
+  { id: 'quote_confirmed', label: '2. 결제대기' },
+  { id: 'purchasing', label: '4. 구매진행' },
+  { id: 'inspection_done', label: '5. 입고 & 정밀검수 (2차결제)' },
+  { id: 'shipping_ready', label: '6. 선적대기' },
+  { id: 'customs_clearance', label: '7. 세관통관' },
+  { id: 'delivered', label: '8. 배송완료' },
 ];
 
 const selectedTab = ref('all');
@@ -1600,23 +1602,6 @@ const defaultMockOrders = [
 const orders = ref([...defaultMockOrders]);
 
 // ---------------------------------------------------------
-// 라우터 쿼리 탭 동기화
-// ---------------------------------------------------------
-watch(() => route.query.tab, (newTab) => {
-  if (!newTab || newTab === 'all') {
-    selectedTab.value = 'all';
-  } else if (newTab === 'quote' || newTab === 'quote_pending') {
-    selectedTab.value = 'quote_pending';
-  } else if (newTab === 'purchasing') {
-    selectedTab.value = 'purchasing';
-  } else if (newTab === 'warehouse' || newTab === 'warehouse_in' || newTab === 'in_transit') {
-    selectedTab.value = 'in_transit';
-  } else {
-    selectedTab.value = normalizeOrderStatus(newTab);
-  }
-}, { immediate: true });
-
-// ---------------------------------------------------------
 // 데이터 로드 (Supabase + LocalStorage)
 // ---------------------------------------------------------
 const loadOrdersData = async () => {
@@ -1722,6 +1707,41 @@ const statCounts = computed(() => {
     quoteConfirmed,
     purchasing
   };
+});
+
+// 상단 8단계 풀프로세스 트래커 실시간 집계
+const stepperCounts = computed(() => {
+  const map = {
+    quote_pending: 0,
+    quote_confirmed: 0,
+    payment_verified: 0,
+    purchasing: 0,
+    warehouse_in: 0,
+    inspection_done: 0,
+    warehouse_inspection: 0,
+    shipping_ready: 0,
+    customs_clearance: 0,
+    domestic_shipping: 0,
+    delivered: 0,
+    domestic_delivered: 0
+  };
+
+  orders.value.forEach(o => {
+    const norm = normalizeOrderStatus(o.status);
+    if (map[norm] !== undefined) {
+      map[norm]++;
+    }
+    // 5단계 통합 카운트: warehouse_in, inspection_done, step_5, inspecting
+    if (norm === 'warehouse_in' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting') {
+      map.warehouse_inspection++;
+    }
+    // 8단계 통합 카운트: domestic_shipping, delivered
+    if (norm === 'domestic_shipping' || norm === 'delivered' || norm === 'completed') {
+      map.domestic_delivered++;
+    }
+  });
+
+  return map;
 });
 
 // ---------------------------------------------------------
@@ -2079,7 +2099,13 @@ const filteredOrders = computed(() => {
 
   // 1. 탭 필터링
   if (selectedTab.value !== 'all') {
-    if (selectedTab.value === 'in_transit') {
+    if (selectedTab.value === 'inspection_done' || selectedTab.value === 'warehouse_inspection' || selectedTab.value === 'warehouse_in') {
+      const step5Keys = ['inspection_done', 'warehouse_in', 'inspecting', 'step_5', 'warehouse_inspection'];
+      list = list.filter(ord => step5Keys.includes(normalizeOrderStatus(ord.status)));
+    } else if (selectedTab.value === 'delivered' || selectedTab.value === 'domestic_delivered') {
+      const step8Keys = ['domestic_shipping', 'delivered', 'completed'];
+      list = list.filter(ord => step8Keys.includes(normalizeOrderStatus(ord.status)));
+    } else if (selectedTab.value === 'in_transit') {
       const transitKeys = ['warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping'];
       list = list.filter(ord => transitKeys.includes(normalizeOrderStatus(ord.status)));
     } else {
@@ -2117,6 +2143,14 @@ const filteredOrders = computed(() => {
 
 function getFilterTabCount(tabId) {
   if (tabId === 'all') return orders.value.length;
+  if (tabId === 'inspection_done' || tabId === 'warehouse_inspection' || tabId === 'warehouse_in') {
+    const step5Keys = ['inspection_done', 'warehouse_in', 'inspecting', 'step_5', 'warehouse_inspection'];
+    return orders.value.filter(ord => step5Keys.includes(normalizeOrderStatus(ord.status))).length;
+  }
+  if (tabId === 'delivered' || tabId === 'domestic_delivered') {
+    const step8Keys = ['domestic_shipping', 'delivered', 'completed'];
+    return orders.value.filter(ord => step8Keys.includes(normalizeOrderStatus(ord.status))).length;
+  }
   if (tabId === 'in_transit') {
     const transitKeys = ['warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping'];
     return orders.value.filter(ord => transitKeys.includes(normalizeOrderStatus(ord.status))).length;
@@ -2127,9 +2161,13 @@ function getFilterTabCount(tabId) {
 function selectTab(tabId) {
   selectedTab.value = tabId;
   let tabQuery = '';
-  if (tabId === 'quote_pending') tabQuery = 'quote';
-  else if (tabId === 'quote_confirmed') tabQuery = 'payment';
+  if (tabId === 'quote_pending') tabQuery = 'quote_pending';
+  else if (tabId === 'quote_confirmed') tabQuery = 'quote_confirmed';
   else if (tabId === 'purchasing') tabQuery = 'purchasing';
+  else if (tabId === 'inspection_done') tabQuery = 'inspection_done';
+  else if (tabId === 'shipping_ready') tabQuery = 'shipping_ready';
+  else if (tabId === 'customs_clearance') tabQuery = 'customs_clearance';
+  else if (tabId === 'delivered') tabQuery = 'delivered';
 
   if (tabQuery) {
     router.replace({ query: { ...route.query, tab: tabQuery } });
@@ -2148,6 +2186,16 @@ watch(() => route.query.tab, (newTab) => {
     selectedTab.value = 'quote_confirmed';
   } else if (newTab === 'purchasing') {
     selectedTab.value = 'purchasing';
+  } else if (newTab === 'inspection_done' || newTab === 'warehouse_inspection' || newTab === 'warehouse_in' || newTab === 'step_5' || newTab === 'warehouse') {
+    selectedTab.value = 'inspection_done';
+  } else if (newTab === 'shipping_ready' || newTab === 'ready_to_ship' || newTab === 'step_6') {
+    selectedTab.value = 'shipping_ready';
+  } else if (newTab === 'customs' || newTab === 'customs_clearance' || newTab === 'step_7') {
+    selectedTab.value = 'customs_clearance';
+  } else if (newTab === 'delivered' || newTab === 'domestic_shipping' || newTab === 'step_8' || newTab === 'shipping') {
+    selectedTab.value = 'delivered';
+  } else {
+    selectedTab.value = normalizeOrderStatus(newTab);
   }
 }, { immediate: true });
 

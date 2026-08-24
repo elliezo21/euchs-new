@@ -308,18 +308,18 @@ const part2Steps = [
   {
     code: 5,
     key: 'warehouse_inspection',
-    keys: ['warehouse_in', 'inspection_done'],
+    keys: ['warehouse_in', 'inspection_done', 'warehouse_inspection', 'step_5', 'inspecting'],
     label: '5. 입고 & 정밀검수',
     section: 'warehouse',
-    route: '/dashboard/warehouse'
+    route: '/dashboard/orders?tab=inspection_done'
   },
   {
     code: 6,
     key: 'shipping_ready',
-    keys: ['shipping_ready'],
+    keys: ['shipping_ready', 'ready_to_ship'],
     label: '6. 선적대기',
     section: 'warehouse',
-    route: '/dashboard/warehouse'
+    route: '/dashboard/orders?tab=shipping_ready'
   }
 ]
 
@@ -328,7 +328,7 @@ const part3Steps = [
   {
     code: 7,
     key: 'customs_clearance',
-    keys: ['customs_clearance'],
+    keys: ['customs_clearance', 'customs'],
     label: '7. 세관 수입통관',
     section: 'customs',
     route: '/dashboard/logistics'
@@ -336,7 +336,7 @@ const part3Steps = [
   {
     code: 8,
     key: 'domestic_delivered',
-    keys: ['domestic_shipping', 'delivered'],
+    keys: ['domestic_shipping', 'delivered', 'completed', 'domestic_delivered'],
     label: '8. 국내배송 완료',
     section: 'customs',
     route: '/dashboard/logistics?tab=shipping'
@@ -364,10 +364,12 @@ const loadInternalCounts = () => {
     purchasing: 0,
     warehouse_in: 0,
     inspection_done: 0,
+    warehouse_inspection: 0,
     shipping_ready: 0,
     customs_clearance: 0,
     domestic_shipping: 0,
-    delivered: 0
+    delivered: 0,
+    domestic_delivered: 0
   }
 
   // 1. 장바구니/보관함 수량 체크
@@ -386,13 +388,30 @@ const loadInternalCounts = () => {
     const ordersJson = localStorage.getItem('euchs_erp_submitted_orders')
     if (ordersJson) {
       const parsedOrders = JSON.parse(ordersJson)
-      if (Array.isArray(parsedOrders)) {
+      if (Array.isArray(parsedOrders) && parsedOrders.length > 0) {
         parsedOrders.forEach(o => {
           const norm = normalizeOrderStatus(o.status)
           if (countsMap[norm] !== undefined) {
             countsMap[norm] += 1
           }
+          if (norm === 'warehouse_in' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting') {
+            countsMap.warehouse_inspection += 1
+          }
+          if (norm === 'domestic_shipping' || norm === 'delivered') {
+            countsMap.domestic_delivered += 1
+          }
         })
+      } else {
+        // 기본 1건씩 세팅
+        countsMap.quote_pending += 1
+        countsMap.quote_confirmed += 1
+        countsMap.purchasing += 1
+        countsMap.inspection_done += 1
+        countsMap.warehouse_inspection += 1
+        countsMap.shipping_ready += 1
+        countsMap.customs_clearance += 1
+        countsMap.delivered += 1
+        countsMap.domestic_delivered += 1
       }
     } else {
       // 기본 샘플 카운트
@@ -400,10 +419,11 @@ const loadInternalCounts = () => {
       countsMap.quote_confirmed += 1
       countsMap.purchasing += 1
       countsMap.inspection_done += 1
-      countsMap.warehouse_in += 1
+      countsMap.warehouse_inspection += 1
       countsMap.shipping_ready += 1
       countsMap.customs_clearance += 1
       countsMap.delivered += 1
+      countsMap.domestic_delivered += 1
     }
   } catch (e) {}
 
@@ -412,17 +432,25 @@ const loadInternalCounts = () => {
 
 const getStepCount = (step) => {
   if (props.counts) {
-    if (typeof props.counts[step.key] === 'number') {
-      return props.counts[step.key]
-    }
     let customSum = 0
     let hasCustomKey = false
-    step.keys.forEach(k => {
-      if (props.counts[k] !== undefined) {
-        customSum += Number(props.counts[k]) || 0
-        hasCustomKey = true
-      }
-    })
+
+    // 1. 단일 키 매칭
+    if (typeof props.counts[step.key] === 'number') {
+      customSum += props.counts[step.key]
+      hasCustomKey = true
+    }
+
+    // 2. 복합 키 매칭
+    if (Array.isArray(step.keys)) {
+      step.keys.forEach(k => {
+        if (k !== step.key && typeof props.counts[k] === 'number') {
+          customSum += props.counts[k]
+          hasCustomKey = true
+        }
+      })
+    }
+
     if (hasCustomKey) return customSum
   }
 
@@ -430,6 +458,9 @@ const getStepCount = (step) => {
   step.keys.forEach(k => {
     total += (internalCounts.value[k] || 0)
   })
+  if (total === 0 && internalCounts.value[step.key]) {
+    total = internalCounts.value[step.key]
+  }
   return total
 }
 
