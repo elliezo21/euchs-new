@@ -304,17 +304,42 @@
               <!-- 관리 액션 (단일화된 견적 확인 및 결제 버튼) -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="flex items-center justify-center gap-1.5">
+                  <!-- 6. 검수완료 상태: [2차 결제 & 바코드 등록] 강조 버튼 -->
                   <button
+                    v-if="order.status === 'inspection_done'"
+                    type="button"
+                    @click="openSecondPaymentModal(order)"
+                    class="px-3.5 py-1.5 rounded-xl font-black text-[11px] bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition active:scale-95 flex items-center gap-1.5 animate-pulse cursor-pointer"
+                    title="현지 실측 검수 확인 및 2차 결제 / 바코드 업로드"
+                  >
+                    <Package class="w-3.5 h-3.5" />
+                    <span>📦 2차 결제 & 바코드 등록</span>
+                  </button>
+
+                  <!-- 2. 견적 완료 (결제대기) 상태: [견적 확인 및 결제] -->
+                  <button
+                    v-else-if="order.status === 'quote_confirmed'"
                     type="button"
                     @click="openOrderDetail(order)"
-                    class="px-3 py-1.5 rounded-xl font-bold text-[11px] transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    :class="order.status === 'quote_confirmed' ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse' : 'bg-slate-900 hover:bg-slate-800 text-white'"
-                    :title="order.status === 'quote_confirmed' ? '견적 확인 및 즉시 결제' : '견적 및 주문 상세 확인'"
+                    class="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    title="견적 확인 및 즉시 결제"
                   >
-                    <CreditCard v-if="order.status === 'quote_confirmed'" class="w-3.5 h-3.5" />
-                    <ClipboardCheck v-else class="w-3.5 h-3.5 text-amber-400" />
-                    <span>{{ order.status === 'quote_confirmed' ? '견적 확인 및 결제' : '견적/주문 상세' }}</span>
+                    <CreditCard class="w-3.5 h-3.5" />
+                    <span>견적 확인 및 결제</span>
                   </button>
+
+                  <!-- 기타 상태: [견적/주문 상세] -->
+                  <button
+                    v-else
+                    type="button"
+                    @click="openOrderDetail(order)"
+                    class="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-slate-900 hover:bg-slate-800 text-white transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    title="견적 및 주문 상세 확인"
+                  >
+                    <ClipboardCheck class="w-3.5 h-3.5 text-amber-400" />
+                    <span>견적/주문 상세</span>
+                  </button>
+
                   <a
                     href="http://pf.kakao.com/_xmQWsK/chat"
                     target="_blank"
@@ -387,15 +412,37 @@
         <div class="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
           <span class="text-[11px] text-gray-400 font-mono">{{ order.createdAt }}</span>
           <div class="flex items-center gap-1.5">
+            <!-- 6. 검수완료 상태 -->
             <button
+              v-if="order.status === 'inspection_done'"
+              type="button"
+              @click="openSecondPaymentModal(order)"
+              class="px-3 py-1.5 rounded-xl font-black text-xs bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white flex items-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Package class="w-3.5 h-3.5" />
+              <span>📦 2차 결제 & 바코드 등록</span>
+            </button>
+
+            <!-- 2. 결제 대기 상태 -->
+            <button
+              v-else-if="order.status === 'quote_confirmed'"
               type="button"
               @click="openOrderDetail(order)"
-              class="px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5"
-              :class="order.status === 'quote_confirmed' ? 'bg-amber-500 text-slate-950 font-black' : 'bg-slate-900 text-white'"
+              class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer"
             >
-              <CreditCard v-if="order.status === 'quote_confirmed'" class="w-3.5 h-3.5" />
-              <ClipboardCheck v-else class="w-3.5 h-3.5 text-amber-400" />
-              <span>{{ order.status === 'quote_confirmed' ? '견적 확인 및 결제' : '견적/주문 상세' }}</span>
+              <CreditCard class="w-3.5 h-3.5" />
+              <span>견적 확인 및 결제</span>
+            </button>
+
+            <!-- 기타 상태 -->
+            <button
+              v-else
+              type="button"
+              @click="openOrderDetail(order)"
+              class="px-3 py-1.5 rounded-xl font-bold text-xs bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer"
+            >
+              <ClipboardCheck class="w-3.5 h-3.5 text-amber-400" />
+              <span>견적/주문 상세</span>
             </button>
             <a
               href="http://pf.kakao.com/_xmQWsK/chat"
@@ -456,6 +503,29 @@
         <!-- B. 모달 본문 (CNINSIDER Reference Standard Layout: Top-to-Bottom + 2-Column bottom) -->
         <div class="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6 custom-scrollbar text-xs text-gray-700 bg-slate-50/40">
           
+          <!-- 검수완료 상태일 때 2차 결제 바로가기 강조 배너 -->
+          <div
+            v-if="activeOrder.status === 'inspection_done'"
+            class="p-4 bg-gradient-to-r from-teal-600 via-emerald-600 to-teal-700 text-white rounded-2xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-md"
+          >
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-xl bg-white/20 text-white flex items-center justify-center font-bold shrink-0">
+                <Package class="w-5 h-5" />
+              </div>
+              <div>
+                <div class="font-extrabold text-sm text-white">현지 창고 실측 계근 및 검수가 완료되었습니다!</div>
+                <div class="text-xs text-teal-100 mt-0.5">바코드 라벨 파일 업로드 및 2차 결제(국제해운운임+세관+작업비: ₩133,000)를 진행해 주세요.</div>
+              </div>
+            </div>
+            <button
+              type="button"
+              @click="openSecondPaymentModal(activeOrder); closeDetailModal()"
+              class="px-5 py-2.5 rounded-xl bg-white text-teal-950 font-black text-xs shadow-md hover:bg-teal-50 transition active:scale-95 shrink-0 cursor-pointer"
+            >
+              📦 2차 결제 & 바코드 등록 열기 ➔
+            </button>
+          </div>
+
           <!-- ======================================================== -->
           <!-- ① 상단: [1. 기본 발주 & 통관/배송 설정] -->
           <!-- ======================================================== -->
@@ -923,6 +993,346 @@
       </div>
     </div>
 
+    <!-- ======================================================== -->
+    <!-- 7. 2차 결제 & 바코드 라벨 업로드 전용 모달 (Step 6 검수완료 전용) -->
+    <!-- ======================================================== -->
+    <div
+      v-if="isSecondPaymentModalOpen && selectedSecondPaymentOrder"
+      class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto"
+      @click.self="closeSecondPaymentModal"
+    >
+      <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
+        <!-- 1. 모달 상단 헤더 -->
+        <div class="px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-teal-950 text-white flex items-center justify-between shrink-0">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-teal-500/20 text-teal-400 border border-teal-500/30 flex items-center justify-center font-bold text-lg">
+              <Package class="w-5 h-5" />
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 rounded-full bg-teal-500/30 text-teal-300 text-[10px] font-black tracking-wide border border-teal-500/40">
+                  STEP 6. 현지 실측 검수완료
+                </span>
+                <span class="font-mono text-xs text-slate-300">
+                  {{ selectedSecondPaymentOrder.orderNumber }}
+                </span>
+              </div>
+              <h3 class="text-base sm:text-lg font-bold text-white mt-0.5">
+                현지 실측 검수 확인 & 2차 정산 결제 (선적 지시)
+              </h3>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="closeSecondPaymentModal"
+            class="w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center transition cursor-pointer"
+          >
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <!-- 2. 모달 바디 스크롤 영역 -->
+        <div class="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6 text-xs bg-slate-50/50">
+          
+          <!-- ① 현지 창고 실측 계근 및 실사 검수 확인 -->
+          <div class="bg-white rounded-2xl p-5 border border-gray-200 shadow-2xs space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div class="flex items-center gap-2">
+                <ShieldCheck class="w-4 h-4 text-teal-600" />
+                <h4 class="font-bold text-sm text-gray-900">1. 중국 이우 물류센터 정밀 계근 & 실사 검수 보고서</h4>
+              </div>
+              <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                검수 합격 (100% 양호)
+              </span>
+            </div>
+
+            <!-- 실측 수치 4종 그리드 -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <div class="text-[11px] text-gray-500 font-medium">실측 총 중량 (Weight)</div>
+                <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
+                  {{ selectedSecondPaymentOrder.measuredData?.weightKg || 42.5 }} kg
+                </div>
+              </div>
+              <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <div class="text-[11px] text-gray-500 font-medium">실측 총 체적 (Volume)</div>
+                <div class="text-base font-extrabold text-teal-700 font-mono mt-0.5">
+                  {{ selectedSecondPaymentOrder.measuredData?.cbm || 0.352 }} CBM
+                </div>
+              </div>
+              <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <div class="text-[11px] text-gray-500 font-medium">포장 카톤 & 수량</div>
+                <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
+                  {{ selectedSecondPaymentOrder.measuredData?.cartons || 12 }} CTN (120 PCS)
+                </div>
+              </div>
+              <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
+                <div class="text-[11px] text-gray-500 font-medium">불량 검출 건수</div>
+                <div class="text-base font-extrabold text-emerald-600 font-mono mt-0.5">
+                  0건 (불량률 0.0%)
+                </div>
+              </div>
+            </div>
+
+            <!-- 현지 실사 검수 사진 3장 미리보기 갤러리 -->
+            <div>
+              <div class="text-xs font-bold text-gray-700 mb-2 flex items-center justify-between">
+                <span>📸 현지 실사 검수 촬영 사진 (3장)</span>
+                <span class="text-[11px] text-gray-400 font-normal">클릭 시 원본 확대</span>
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div
+                  v-for="(photo, idx) in (selectedSecondPaymentOrder.inspectionPhotos || defaultInspectionPhotos)"
+                  :key="idx"
+                  class="group relative rounded-xl overflow-hidden border border-gray-200 bg-black aspect-4/3 cursor-pointer shadow-xs"
+                  @click="openPhotoPreview(photo.url)"
+                >
+                  <img
+                    :src="photo.url"
+                    :alt="photo.caption"
+                    class="w-full h-full object-cover group-hover:scale-105 transition duration-300 opacity-90 group-hover:opacity-100"
+                  />
+                  <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
+                    <span class="text-[11px] font-bold line-clamp-1">{{ photo.caption }}</span>
+                  </div>
+                  <div class="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition">
+                    <ZoomIn class="w-3.5 h-3.5" />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ② 🏷️ 바코드 라벨 파일 업로드 영역 (쿠팡 로켓그로스 / 자체 바코드) -->
+          <div class="bg-white rounded-2xl p-5 border border-gray-200 shadow-2xs space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div class="flex items-center gap-2">
+                <FileText class="w-4 h-4 text-orange-600" />
+                <h4 class="font-bold text-sm text-gray-900">2. 🏷️ 마켓/쿠팡 바코드 라벨 파일 업로드</h4>
+              </div>
+              <span class="px-2 py-0.5 rounded bg-orange-100 text-orange-800 text-[10px] font-black">
+                선적 필수 제출
+              </span>
+            </div>
+
+            <!-- 신청 부가서비스 안내 뱃지 -->
+            <div class="p-3 bg-amber-50/60 rounded-xl border border-amber-200/80 flex items-start gap-2.5">
+              <Info class="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+              <div class="space-y-1">
+                <div class="font-bold text-gray-800">
+                  신청 부가서비스:
+                  <span class="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 text-[11px]">
+                    원산지 표시(MADE IN CHINA)
+                  </span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-200/60 text-orange-900 text-[11px]">
+                    쿠팡 로켓그로스 바코드 부착
+                  </span>
+                </div>
+                <p class="text-[11px] text-gray-600 leading-relaxed">
+                  쿠팡 윙 또는 마켓에서 다운로드받은 상품 바코드 라벨(PDF/ZIP/이미지)을 업로드해 주세요. 현지 창고에서 출력 후 제품별로 정밀 부착합니다.
+                </p>
+              </div>
+            </div>
+
+            <!-- 파일 업로드 드롭존 -->
+            <input
+              type="file"
+              ref="barcodeFileInputRef"
+              @change="handleBarcodeFileUpload"
+              accept=".pdf,.png,.jpg,.jpeg,.zip"
+              class="hidden"
+            />
+
+            <!-- 아직 업로드 전일 때 -->
+            <div
+              v-if="!uploadedBarcodeFile"
+              @dragover.prevent
+              @drop.prevent="handleDropBarcodeFile"
+              @click="$refs.barcodeFileInputRef.click()"
+              class="border-2 border-dashed border-gray-300 hover:border-amber-500 bg-gray-50/60 hover:bg-amber-50/20 rounded-2xl p-6 text-center cursor-pointer transition space-y-2.5 group"
+            >
+              <div class="w-12 h-12 rounded-full bg-white border border-gray-200 text-gray-400 group-hover:text-amber-500 group-hover:border-amber-300 flex items-center justify-center mx-auto transition shadow-xs">
+                <UploadCloud class="w-6 h-6" />
+              </div>
+              <div>
+                <p class="font-bold text-gray-800 text-xs sm:text-sm">
+                  클릭하여 바코드 라벨 파일을 선택하거나, 여기로 드래그하세요
+                </p>
+                <p class="text-[11px] text-gray-400 mt-0.5">
+                  지원 형식: PDF, ZIP, JPG, PNG (최대 50MB) · 쿠팡 SKU 라벨 권장
+                </p>
+              </div>
+              <div class="pt-1 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  class="px-4 py-2 rounded-xl bg-slate-900 group-hover:bg-amber-600 text-white font-bold text-xs shadow-xs transition"
+                >
+                  📁 파일 선택하기
+                </button>
+                <button
+                  type="button"
+                  @click.stop="setSampleBarcodeFile"
+                  class="px-3 py-2 rounded-xl bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold text-xs transition"
+                >
+                  샘플 라벨 첨부
+                </button>
+              </div>
+            </div>
+
+            <!-- 업로드 완료 상태 카드 -->
+            <div
+              v-else
+              class="p-4 rounded-2xl bg-emerald-50 border border-emerald-300 flex items-center justify-between gap-3"
+            >
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-10 h-10 rounded-xl bg-emerald-500 text-white flex items-center justify-center shrink-0">
+                  <CheckCircle2 class="w-5 h-5" />
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-gray-900 truncate">{{ uploadedBarcodeFile.name }}</span>
+                    <span class="px-2 py-0.2 rounded-full bg-emerald-200 text-emerald-800 text-[10px] font-black shrink-0">
+                      업로드 완료
+                    </span>
+                  </div>
+                  <div class="text-[11px] text-gray-500 font-mono mt-0.5">
+                    파일 크기: {{ uploadedBarcodeFile.size }} · 등록일시: {{ uploadedBarcodeFile.uploadedAt }}
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  @click="$refs.barcodeFileInputRef.click()"
+                  class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-[11px] transition cursor-pointer"
+                >
+                  파일 교체
+                </button>
+                <button
+                  type="button"
+                  @click="removeBarcodeFile"
+                  class="p-1.5 rounded-lg bg-white border border-gray-200 hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition cursor-pointer"
+                  title="삭제"
+                >
+                  <Trash2 class="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- ③ 2차 정산 견적서 (국제 배송 및 세관/작업비) -->
+          <div class="bg-white rounded-2xl p-5 border border-gray-200 shadow-2xs space-y-4">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div class="flex items-center gap-2">
+                <Calculator class="w-4 h-4 text-indigo-600" />
+                <h4 class="font-bold text-sm text-gray-900">3. 2차 정산 내역서 (국제 해운 운임 + 수입 통관 + 부가작업비)</h4>
+              </div>
+              <span class="font-mono text-xs text-gray-400">실측 계근 0.352 CBM 기준</span>
+            </div>
+
+            <!-- 정산 테이블 -->
+            <div class="border border-gray-200 rounded-xl overflow-hidden">
+              <table class="w-full text-left text-xs divide-y divide-gray-100">
+                <thead class="bg-slate-50 text-gray-600 font-bold">
+                  <tr>
+                    <th class="py-2.5 px-4">정산 항목명</th>
+                    <th class="py-2.5 px-4 text-center">산출 근거 / 수량</th>
+                    <th class="py-2.5 px-4 text-right">정산 금액 (KRW)</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 bg-white">
+                  <tr>
+                    <td class="py-2.5 px-4 font-medium text-gray-800">
+                      🛳️ 한-중 LCL 해운 국제 운임 (이우 ➔ 인천/평택항)
+                    </td>
+                    <td class="py-2.5 px-4 text-center font-mono text-gray-500">실측 0.352 CBM (최소 0.5CBM 구간)</td>
+                    <td class="py-2.5 px-4 text-right font-mono font-bold text-gray-900">₩85,000</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2.5 px-4 font-medium text-gray-800">
+                      📑 세관 수입통관 수수료 및 관·부가세 예상액
+                    </td>
+                    <td class="py-2.5 px-4 text-center font-mono text-gray-500">B2B 표준 통관 대행</td>
+                    <td class="py-2.5 px-4 text-right font-mono font-bold text-gray-900">₩42,000</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2.5 px-4 font-medium text-gray-800">
+                      🏷️ 현지 부가작업비 (쿠팡 로켓그로스 바코드 라벨 부착)
+                    </td>
+                    <td class="py-2.5 px-4 text-center font-mono text-gray-500">120 PCS x ₩50</td>
+                    <td class="py-2.5 px-4 text-right font-mono font-bold text-gray-900">₩6,000</td>
+                  </tr>
+                  <tr class="bg-slate-50 font-bold">
+                    <td colspan="2" class="py-3 px-4 text-right text-gray-700">최종 2차 결제 합계 (선적 청구액):</td>
+                    <td class="py-3 px-4 text-right text-base text-rose-600 font-extrabold font-mono">
+                      ₩133,000원
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <!-- 보유 예치금 결제 안내 -->
+            <div class="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5">
+                <CreditCard class="w-5 h-5 text-amber-400 shrink-0" />
+                <div>
+                  <span class="text-[11px] text-slate-400">보유 예치금 잔액: <b>₩15,420,000</b></span>
+                  <div class="text-xs font-bold text-white">결제 후 잔액: ₩15,287,000 (예치금 충분)</div>
+                </div>
+              </div>
+              <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 text-[11px] font-bold border border-emerald-500/30">
+                즉시 차감 결제 가능
+              </span>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 3. 모달 하단 푸터 버튼 -->
+        <div class="px-6 py-4 bg-white border-t border-gray-200 flex items-center justify-end gap-2.5 shrink-0">
+          <button
+            type="button"
+            @click="closeSecondPaymentModal"
+            class="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 transition cursor-pointer"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            @click="handleConfirmSecondPayment"
+            :disabled="isProcessingPayment"
+            class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs shadow-md transition active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <RefreshCw v-if="isProcessingPayment" class="w-4 h-4 animate-spin" />
+            <CreditCard v-else class="w-4 h-4" />
+            <span>💳 예치금 즉시 결제 및 선적 지시 (₩133,000)</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- 8. 검수 사진 확대 팝업 라이트박스 -->
+    <!-- ======================================================== -->
+    <div
+      v-if="previewPhotoUrl"
+      class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in"
+      @click="previewPhotoUrl = null"
+    >
+      <div class="relative max-w-4xl max-h-[90vh] w-full flex flex-col items-center">
+        <img :src="previewPhotoUrl" class="max-h-[85vh] max-w-full rounded-2xl object-contain shadow-2xl" />
+        <button
+          @click="previewPhotoUrl = null"
+          class="absolute top-3 right-3 p-2.5 rounded-full bg-black/70 text-white hover:bg-black transition"
+        >
+          <X class="w-5 h-5" />
+        </button>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -946,7 +1356,14 @@ import {
   MessageCircle,
   FileText,
   CreditCard,
-  ClipboardCheck
+  ClipboardCheck,
+  UploadCloud,
+  CheckCircle2,
+  AlertCircle,
+  Trash2,
+  ZoomIn,
+  Info,
+  ShieldCheck
 } from 'lucide-vue-next';
 import { exportQuoteExcel } from '@/utils/excelExport';
 import { calculateImportCost, formatCurrency } from '@/utils/costCalculator';
@@ -1052,6 +1469,57 @@ const defaultMockOrders = [
         quantity: 120,
         priceCny: 35.0,
         cbm: 0.85,
+      }
+    ]
+  },
+  {
+    id: 'ord-v01',
+    orderNumber: 'EUC-20260824-V01',
+    createdAt: '2026-08-24 10:15',
+    status: 'inspection_done',
+    buyerInfo: { ...defaultBuyerInfo },
+    measuredData: {
+      weightKg: 42.5,
+      cbm: 0.352,
+      cartons: 12,
+      totalPcs: 120,
+      defectCount: 0,
+      inspectionDate: '2026-08-24 11:20'
+    },
+    inspectionPhotos: [
+      {
+        url: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&auto=format&fit=crop&q=80',
+        caption: '1. 완제품 전수 실물 검수 (120 PCS 정상)'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+        caption: '2. 정밀 계근 및 CBM 체적 실측 (42.5kg / 0.352CBM)'
+      },
+      {
+        url: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop&q=80',
+        caption: '3. 수출용 5중 카톤 포장 및 밴딩 마감 (12 CTN)'
+      }
+    ],
+    vasServices: [
+      { name: '원산지 라벨 부착 (MADE IN CHINA)', price: 0, status: '준비완료' },
+      { name: '쿠팡 로켓그로스 바코드 부착', price: 6000, status: '라벨 대기' }
+    ],
+    secondPayment: {
+      shippingFeeKrw: 85000,
+      customsFeeKrw: 42000,
+      vasFeeKrw: 6000,
+      totalSecondPaymentKrw: 133000
+    },
+    barcodeFile: null,
+    items: [
+      {
+        productName: '[테스트 샘플] 초경량 접이식 캠핑 체어 120개 (12 CTN)',
+        productUrl: 'https://detail.1688.com/offer/7345612345.html',
+        imageUrl: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=160&auto=format&fit=crop&q=80',
+        sku: '카키 베이지 / 120 PCS (12 CTN)',
+        quantity: 120,
+        priceCny: 35.0,
+        cbm: 0.352,
       }
     ]
   },
@@ -1162,14 +1630,22 @@ const loadOrdersData = async () => {
       try {
         const parsed = JSON.parse(cachedOrders);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          list = parsed.map(o => ({
-            id: o.id || `ord-${o.orderId}`,
-            orderNumber: o.orderNumber || o.orderId || `EUC-${o.id}`,
-            createdAt: o.createdAt || new Date().toISOString().slice(0, 16).replace('T', ' '),
-            status: normalizeOrderStatus(o.status),
-            buyerInfo: o.buyerInfo || { ...defaultBuyerInfo },
-            items: o.items || [{ productName: '1688 소싱 품목', quantity: 100, priceCny: 20 }]
-          }));
+          const map = new Map();
+          defaultMockOrders.forEach(m => map.set(m.id, { ...m }));
+          parsed.forEach(o => {
+            const id = o.id || `ord-${o.orderId}`;
+            const existing = map.get(id);
+            map.set(id, {
+              ...(existing || {}),
+              ...o,
+              id,
+              orderNumber: o.orderNumber || o.orderId || `EUC-${o.id}`,
+              status: normalizeOrderStatus(o.status),
+              buyerInfo: o.buyerInfo || existing?.buyerInfo || { ...defaultBuyerInfo },
+              items: o.items || existing?.items || [{ productName: '1688 소싱 품목', quantity: 100, priceCny: 20 }]
+            });
+          });
+          list = Array.from(map.values());
         }
       } catch (e) {
         console.warn('LocalStorage parse error:', e);
@@ -1843,6 +2319,140 @@ function exportSingleQuote(order) {
   } catch (err) {
     console.error('Single quote export error:', err);
   }
+}
+
+// ---------------------------------------------------------
+// 2차 결제 & 바코드 업로드 모달 상태 및 핸들러 (Step 6 검수완료)
+// ---------------------------------------------------------
+const isSecondPaymentModalOpen = ref(false);
+const selectedSecondPaymentOrder = ref(null);
+const uploadedBarcodeFile = ref(null);
+const barcodeFileInputRef = ref(null);
+const isProcessingPayment = ref(false);
+const previewPhotoUrl = ref(null);
+
+const defaultInspectionPhotos = [
+  {
+    url: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&auto=format&fit=crop&q=80',
+    caption: '1. 완제품 전수 실물 검수 (120 PCS 정상)'
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
+    caption: '2. 정밀 계근 및 CBM 체적 실측 (42.5kg / 0.352CBM)'
+  },
+  {
+    url: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop&q=80',
+    caption: '3. 수출용 5중 카톤 포장 및 밴딩 마감 (12 CTN)'
+  }
+];
+
+function openSecondPaymentModal(order) {
+  selectedSecondPaymentOrder.value = order;
+  uploadedBarcodeFile.value = order.barcodeFile || null;
+  isSecondPaymentModalOpen.value = true;
+}
+
+function closeSecondPaymentModal() {
+  isSecondPaymentModalOpen.value = false;
+  selectedSecondPaymentOrder.value = null;
+  previewPhotoUrl.value = null;
+}
+
+function openPhotoPreview(url) {
+  previewPhotoUrl.value = url;
+}
+
+function handleBarcodeFileUpload(event) {
+  const file = event.target.files?.[0];
+  if (file) {
+    uploadedBarcodeFile.value = {
+      name: file.name,
+      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+      uploadedAt: new Date().toLocaleTimeString('ko-KR')
+    };
+  }
+}
+
+function handleDropBarcodeFile(event) {
+  const file = event.dataTransfer.files?.[0];
+  if (file) {
+    uploadedBarcodeFile.value = {
+      name: file.name,
+      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
+      uploadedAt: new Date().toLocaleTimeString('ko-KR')
+    };
+  }
+}
+
+function removeBarcodeFile() {
+  uploadedBarcodeFile.value = null;
+  if (barcodeFileInputRef.value) {
+    barcodeFileInputRef.value.value = '';
+  }
+}
+
+function setSampleBarcodeFile() {
+  uploadedBarcodeFile.value = {
+    name: '캠핑체어_쿠팡_SKU라벨_120PCS.pdf',
+    size: '1.24 MB',
+    uploadedAt: new Date().toLocaleTimeString('ko-KR')
+  };
+}
+
+async function handleConfirmSecondPayment() {
+  if (!uploadedBarcodeFile.value) {
+    alert('바코드 라벨 파일을 먼저 업로드해 주세요.');
+    return;
+  }
+
+  isProcessingPayment.value = true;
+  setTimeout(async () => {
+    isProcessingPayment.value = false;
+    if (selectedSecondPaymentOrder.value) {
+      const order = selectedSecondPaymentOrder.value;
+      order.status = 'shipping_ready';
+      order.barcodeFile = uploadedBarcodeFile.value;
+
+      // Update in orders list
+      const idx = orders.value.findIndex(o => o.id === order.id);
+      if (idx !== -1) {
+        orders.value[idx].status = 'shipping_ready';
+        orders.value[idx].barcodeFile = uploadedBarcodeFile.value;
+      }
+
+      // Update in Supabase if configured
+      if (isSupabaseConfigured()) {
+        try {
+          await supabase
+            .from('applications')
+            .update({
+              status: 'shipping_ready',
+              details: {
+                ...(order.details || {}),
+                status: 'shipping_ready',
+                barcodeFile: uploadedBarcodeFile.value
+              }
+            })
+            .eq('id', order.id);
+        } catch (e) {
+          console.warn('Supabase update warning:', e);
+        }
+      }
+
+      // Sync with localStorage
+      try {
+        localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(orders.value));
+      } catch (e) {}
+
+      window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
+        detail: { appId: order.id, status: 'shipping_ready' }
+      }));
+
+      const fee = order.secondPayment?.totalSecondPaymentKrw || 133000;
+      alert(`✅ 2차 결제(₩${formatNumber(fee)}원)가 성공적으로 완료되었습니다!\n주문 상태가 [7. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [바코드 부착 및 정기선박 선적 지시]가 즉시 전달되었습니다.`);
+      closeSecondPaymentModal();
+    }
+  }, 600);
 }
 
 // ---------------------------------------------------------
