@@ -997,7 +997,26 @@ const filteredInbounds = computed(() => {
 
   // 1. 검수 상태 필터링
   if (statusFilter.value !== 'all') {
-    list = list.filter((item) => item.inspectionStatus === statusFilter.value);
+    if (statusFilter.value === 'inbound_weighed') {
+      list = list.filter((item) =>
+        item.inspectionStatus === 'inbound_weighed' ||
+        item.inspectionStatus === 'inspected' ||
+        (Number(item.measuredWeightKg) > 0)
+      );
+    } else if (statusFilter.value === 'inspecting') {
+      list = list.filter((item) =>
+        item.inspectionStatus === 'inspecting' ||
+        item.inspectionStatus === 'inspected' ||
+        (Array.isArray(item.inspectionPhotos) && item.inspectionPhotos.length > 0)
+      );
+    } else if (statusFilter.value === 'inspected') {
+      list = list.filter((item) =>
+        item.inspectionStatus === 'inspected' ||
+        item.inspectionStatus === 'inspection_done'
+      );
+    } else {
+      list = list.filter((item) => item.inspectionStatus === statusFilter.value);
+    }
   }
 
   // 2. 검색어 필터링
@@ -1015,6 +1034,31 @@ const filteredInbounds = computed(() => {
 });
 
 function getStatusSummaryCount(status) {
+  if (status === 'pending_inbound') {
+    return inbounds.value.filter((item) => item.inspectionStatus === 'pending_inbound' || !item.measuredWeightKg).length;
+  }
+  if (status === 'inbound_weighed') {
+    // 실측 계근 완료: inbound_weighed, inspected, passed, ready_to_ship 또는 measuredWeightKg > 0
+    return inbounds.value.filter((item) =>
+      item.inspectionStatus === 'inbound_weighed' ||
+      item.inspectionStatus === 'inspected' ||
+      item.inspectionStatus === 'passed' ||
+      item.inspectionStatus === 'ready_to_ship' ||
+      (Number(item.measuredWeightKg) > 0)
+    ).length;
+  }
+  if (status === 'inspecting') {
+    // 정밀 검수 / 실사: inspecting, inspected, passed, ready_to_ship 또는 inspectionPhotos 존재
+    return inbounds.value.filter((item) =>
+      item.inspectionStatus === 'inspecting' ||
+      item.inspectionStatus === 'inspected' ||
+      item.inspectionStatus === 'passed' ||
+      (Array.isArray(item.inspectionPhotos) && item.inspectionPhotos.length > 0)
+    ).length;
+  }
+  if (status === 'ready_to_ship') {
+    return inbounds.value.filter((item) => item.inspectionStatus === 'ready_to_ship').length;
+  }
   return inbounds.value.filter((item) => item.inspectionStatus === status).length;
 }
 
@@ -1027,29 +1071,40 @@ function resetFilters() {
 // 검수 상태 뱃지 헬퍼
 // ---------------------------------------------------------
 function getInspectionLabel(status) {
+  if (!status) return '진행중';
+  const norm = String(status).toLowerCase();
+  if (norm === 'inspected' || norm === 'inspection_done' || norm === 'inspected_done') {
+    return '실측 & 검수완료';
+  }
   const map = {
     pending_inbound: '입고 대기',
     inbound_weighed: '실측 계근 완료',
-    inspecting: '정밀 검수중',
-    inspected: '정밀검수/실측완료',
+    inspecting: '정밀 검수 진행중',
+    inspected: '실측 & 검수완료',
+    inspection_done: '실측 & 검수완료',
     passed: '검수 통과',
     defect_found: '불량 발견',
     ready_to_ship: '한국행 선적 대기',
   };
-  return map[status] || status || '진행중';
+  return map[status] || status;
 }
 
 function getInspectionBadgeClass(status) {
+  const norm = String(status || '').toLowerCase();
+  if (norm === 'inspected' || norm === 'inspection_done') {
+    return 'bg-teal-50 text-teal-700 border border-teal-200 font-bold';
+  }
   const map = {
     pending_inbound: 'bg-amber-50 text-amber-700 border border-amber-200',
     inbound_weighed: 'bg-blue-50 text-blue-700 border border-blue-200',
     inspecting: 'bg-orange-50 text-orange-700 border border-orange-200',
-    inspected: 'bg-teal-50 text-teal-700 border border-teal-200 font-black',
+    inspected: 'bg-teal-50 text-teal-700 border border-teal-200 font-bold',
+    inspection_done: 'bg-teal-50 text-teal-700 border border-teal-200 font-bold',
     passed: 'bg-emerald-50 text-emerald-700 border border-emerald-200',
     defect_found: 'bg-rose-50 text-rose-700 border border-rose-200',
     ready_to_ship: 'bg-purple-50 text-purple-700 border border-purple-200',
   };
-  return map[status] || 'bg-gray-100 text-gray-700';
+  return map[status] || 'bg-teal-50 text-teal-700 border border-teal-200 font-bold';
 }
 
 function handleImageFallback(e) {
