@@ -41,6 +41,33 @@
         </div>
       </div>
 
+      <!-- Toast Alert Notification -->
+      <transition
+        enter-active-class="transition duration-300 ease-out"
+        enter-from-class="transform -translate-y-4 opacity-0"
+        enter-to-class="transform translate-y-0 opacity-100"
+        leave-active-class="transition duration-200 ease-in"
+        leave-from-class="transform translate-y-0 opacity-100"
+        leave-to-class="transform -translate-y-4 opacity-0"
+      >
+        <div
+          v-if="toastMessage"
+          class="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white px-5 py-2.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 text-xs font-bold backdrop-blur-md animate-bounce-subtle"
+        >
+          <span class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
+            <i class="fas fa-check"></i>
+          </span>
+          <span class="text-emerald-300">{{ toastMessage }}</span>
+          <button
+            type="button"
+            @click="toastMessage = ''"
+            class="text-gray-400 hover:text-white ml-2 text-xs"
+          >
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </transition>
+
       <!-- ======================================================== -->
       <!-- 2. MODAL BODY (SCROLLABLE CONTAINER: max-h-[88vh]) -->
       <!-- ======================================================== -->
@@ -736,8 +763,19 @@ const selectAnotherProduct = (newProduct) => {
 }
 
 // ----------------------------------------------------
-// Modal Actions
+// Modal Actions & Toast Notification
 // ----------------------------------------------------
+const toastMessage = ref('')
+let toastTimer = null
+
+const showToastNotification = (msg) => {
+  toastMessage.value = msg
+  if (toastTimer) clearTimeout(toastTimer)
+  toastTimer = setTimeout(() => {
+    toastMessage.value = ''
+  }, 3000)
+}
+
 const handleClose = () => {
   emit('close')
 }
@@ -757,10 +795,12 @@ const handleAddToCart = () => {
       titleZh: currentItem.value.titleZh,
       imageUrl: activeImage.value || currentItem.value.imageUrl,
       price: currentUnitRmb.value,
+      priceCny: currentUnitRmb.value,
       quantity: totalQuantity.value,
       totalPriceRmb: totalPriceRmb.value,
       totalPriceKrw: totalPriceKrw.value,
       skus: JSON.parse(JSON.stringify(selectedSkus.value)),
+      sku: selectedSkus.value.map(s => `${s.color} / ${s.size} (${s.quantity}개)`).join(', '),
       detailUrl: currentItem.value.detailUrl,
       company: currentItem.value.company || '1688 공급처',
       createdAt: new Date().toISOString()
@@ -772,15 +812,20 @@ const handleAddToCart = () => {
     // Storage 이벤트 및 emit
     window.dispatchEvent(new Event('storage'))
     emit('added-to-cart', itemToSave)
-    handleClose()
+
+    // ✅ 모달을 닫지 않고 상단에 토스트 알림 노출
+    showToastNotification(`✅ 보관함에 담겼습니다. (선택 ${selectedSkus.value.length}종 / 총 ${totalQuantity.value}개)`)
   } catch (err) {
     console.error('Failed to add to cart:', err)
   }
 }
 
 const handleInstantOrder = () => {
+  if (totalQuantity.value === 0 || !currentItem.value) return
+
   handleAddToCart()
-  router.push('/dashboard')
+  handleClose()
+  router.push('/dashboard/cart')
 }
 
 const handleImageFallback = (e) => {
