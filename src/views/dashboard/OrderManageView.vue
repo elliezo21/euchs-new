@@ -45,77 +45,73 @@
     <!-- 공통 10단계 풀프로세스 스텝 바 (발주관리 포커스) -->
     <OrderProcessStepper currentSection="orders" />
 
-    <!-- 통계 요약 카드 4종 (클릭 시 탭 필터링 연동) -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+    <!-- 통계 요약 카드 4종 (컴팩트 슬림 디자인, 클릭 시 탭 필터링 연동) -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
       <!-- 1. 전체 발주 -->
       <div
         @click="selectTab('all')"
-        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
-        :class="selectedTab === 'all' ? 'border-2 border-slate-900 bg-slate-50/70 ring-2 ring-slate-900/10' : 'border-gray-200 hover:border-gray-300'"
+        class="bg-white border rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between cursor-pointer transition select-none"
+        :class="selectedTab === 'all' ? 'border-2 border-slate-900 bg-slate-50 ring-1 ring-slate-900/10' : 'border-gray-200 hover:border-gray-300'"
       >
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-gray-500">전체 발주</span>
-          <div class="text-2xl font-extrabold text-gray-900 font-mono">
-            {{ orders.length }} <span class="text-xs font-normal text-gray-500">건</span>
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">전체 발주</span>
+          <div class="text-lg font-bold text-gray-900 font-mono tracking-tight mt-0.5">
+            {{ orders.length }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-gray-400">누적 발주 의뢰</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-slate-100 text-slate-700 flex items-center justify-center">
-          <Layers class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-slate-100 text-slate-700 flex items-center justify-center shrink-0">
+          <Layers class="w-3.5 h-3.5" />
         </div>
       </div>
 
       <!-- 2. 견적 대기/심사 -->
       <div
         @click="selectTab('quote_pending')"
-        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
-        :class="selectedTab === 'quote_pending' ? 'border-2 border-amber-500 bg-amber-50/40 ring-2 ring-amber-500/20' : 'border-gray-200 hover:border-amber-200'"
+        class="bg-white border rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between cursor-pointer transition select-none"
+        :class="selectedTab === 'quote_pending' ? 'border-2 border-amber-500 bg-amber-50/50 ring-1 ring-amber-500/20' : 'border-gray-200 hover:border-amber-200'"
       >
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-amber-700">견적 대기/심사</span>
-          <div class="text-2xl font-extrabold text-amber-600 font-mono">
-            {{ statCounts.quotePending }} <span class="text-xs font-normal text-gray-500">건</span>
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-amber-700 block truncate">견적 대기/심사</span>
+          <div class="text-lg font-bold text-amber-600 font-mono tracking-tight mt-0.5">
+            {{ statCounts.quotePending }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-amber-600/70">관세/운임 산출중</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-          <Clock class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-amber-100/70 text-amber-700 flex items-center justify-center shrink-0">
+          <Clock class="w-3.5 h-3.5" />
         </div>
       </div>
 
       <!-- 3. 결제 대기 -->
       <div
         @click="selectTab('quote_confirmed')"
-        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
-        :class="selectedTab === 'quote_confirmed' ? 'border-2 border-orange-500 bg-orange-50/40 ring-2 ring-orange-500/20' : 'border-gray-200 hover:border-orange-200'"
+        class="bg-white border rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between cursor-pointer transition select-none"
+        :class="selectedTab === 'quote_confirmed' ? 'border-2 border-orange-500 bg-orange-50/50 ring-1 ring-orange-500/20' : 'border-gray-200 hover:border-orange-200'"
       >
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-orange-700">결제 대기</span>
-          <div class="text-2xl font-extrabold text-orange-600 font-mono">
-            {{ statCounts.quoteConfirmed }} <span class="text-xs font-normal text-gray-500">건</span>
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-orange-700 block truncate">결제 대기</span>
+          <div class="text-lg font-bold text-orange-600 font-mono tracking-tight mt-0.5">
+            {{ statCounts.quoteConfirmed }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-orange-600/70">견적 확정/입금대기</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center">
-          <Calculator class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-orange-100/70 text-orange-700 flex items-center justify-center shrink-0">
+          <Calculator class="w-3.5 h-3.5" />
         </div>
       </div>
 
       <!-- 4. 1688 구매 진행중 -->
       <div
         @click="selectTab('purchasing')"
-        class="bg-white border rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between cursor-pointer transition-all duration-200 hover:-translate-y-1 hover:shadow-md select-none"
-        :class="selectedTab === 'purchasing' ? 'border-2 border-blue-500 bg-blue-50/40 ring-2 ring-blue-500/20' : 'border-gray-200 hover:border-blue-200'"
+        class="bg-white border rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between cursor-pointer transition select-none"
+        :class="selectedTab === 'purchasing' ? 'border-2 border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/20' : 'border-gray-200 hover:border-blue-200'"
       >
-        <div class="space-y-1">
-          <span class="text-xs font-bold text-blue-700">1688 구매 진행중</span>
-          <div class="text-2xl font-extrabold text-blue-600 font-mono">
-            {{ statCounts.purchasing }} <span class="text-xs font-normal text-gray-500">건</span>
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-blue-700 block truncate">1688 구매 진행중</span>
+          <div class="text-lg font-bold text-blue-600 font-mono tracking-tight mt-0.5">
+            {{ statCounts.purchasing }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
-          <p class="text-[11px] text-blue-600/70">현지 공장 주문완료</p>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-          <Package class="w-5 h-5" />
+        <div class="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+          <Package class="w-3.5 h-3.5" />
         </div>
       </div>
     </div>
