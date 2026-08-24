@@ -1335,6 +1335,7 @@ import {
   getOrderStatusBadgeClass
 } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getStoredOrders, saveStoredOrders, calculatePipelineCounts } from '@/utils/orderStorage';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 
 const route = useRoute();
@@ -1563,91 +1564,10 @@ const defaultMockOrders = [
 
 const orders = ref([...defaultMockOrders]);
 
-// ---------------------------------------------------------
-// 데이터 로드 (Supabase + LocalStorage)
-// ---------------------------------------------------------
 const loadOrdersData = async () => {
   isRefreshing.value = true;
   try {
-    let list = [...defaultMockOrders];
-
-    // 1. LocalStorage 체크
-    const cachedOrders = localStorage.getItem('euchs_erp_submitted_orders');
-    if (cachedOrders) {
-      try {
-        const parsed = JSON.parse(cachedOrders);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          const map = new Map();
-          defaultMockOrders.forEach(m => map.set(m.id, { ...m }));
-          parsed.forEach(o => {
-            const id = o.id || `ord-${o.orderId}`;
-            const existing = map.get(id);
-            map.set(id, {
-              ...(existing || {}),
-              ...o,
-              id,
-              orderNumber: o.orderNumber || o.orderId || `EUC-${o.id}`,
-              status: normalizeOrderStatus(o.status),
-              buyerInfo: o.buyerInfo || existing?.buyerInfo || { ...defaultBuyerInfo },
-              items: o.items || existing?.items || [{ productName: '1688 소싱 품목', quantity: 100, priceCny: 20 }]
-            });
-          });
-          list = Array.from(map.values());
-        }
-      } catch (e) {
-        console.warn('LocalStorage parse error:', e);
-      }
-    }
-
-    // 2. Supabase 체크
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: dbApps } = await supabase
-          .from('applications')
-          .select('*')
-          .order('created_at', { ascending: false });
-
-        if (Array.isArray(dbApps) && dbApps.length > 0) {
-          dbApps.forEach(app => {
-            const normalizedStatus = normalizeOrderStatus(app.status);
-            const exists = list.find(o => String(o.id) === String(app.id) || o.orderNumber === app.details?.orderId);
-            if (exists) {
-              exists.status = normalizedStatus;
-              if (app.details?.items) exists.items = app.details.items;
-            } else if (app.details?.items || app.service_type === 'purchasing') {
-              list.unshift({
-                id: String(app.id),
-                orderNumber: app.details?.orderId || `EUC-APP-${app.id}`,
-                createdAt: app.created_at ? new Date(app.created_at).toLocaleString('ko-KR') : '2026-08-24 10:00',
-                status: normalizedStatus,
-                customer_name: app.customer_name,
-                buyerInfo: {
-                  companyName: app.company_name || app.customer_name,
-                  buyerName: app.customer_name,
-                  phone: app.phone,
-                  email: app.email,
-                  customsCode: app.details?.customsCode || 'P240012345678',
-                  address: app.details?.address || '서울특별시 강남구'
-                },
-                items: app.details?.items || [
-                  {
-                    productName: app.details?.productName || app.memo || '1688 소싱 품목',
-                    quantity: app.details?.quantity || 100,
-                    priceCny: 25.0,
-                    sku: app.details?.option || '기본 규격',
-                    imageUrl: app.details?.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80'
-                  }
-                ]
-              });
-            }
-          });
-        }
-      } catch (e) {
-        console.warn('Supabase fetch error:', e);
-      }
-    }
-
-    orders.value = list;
+    orders.value = getStoredOrders();
   } finally {
     isRefreshing.value = false;
   }
@@ -1671,39 +1591,9 @@ const statCounts = computed(() => {
   };
 });
 
-// 상단 8단계 풀프로세스 트래커 실시간 집계
+// 상단 8단계 풀프로세스 트래커 실시간 집계 (전역 동기화)
 const stepperCounts = computed(() => {
-  const map = {
-    quote_pending: 0,
-    quote_confirmed: 0,
-    payment_verified: 0,
-    purchasing: 0,
-    warehouse_in: 0,
-    inspection_done: 0,
-    warehouse_inspection: 0,
-    shipping_ready: 0,
-    customs_clearance: 0,
-    domestic_shipping: 0,
-    delivered: 0,
-    domestic_delivered: 0
-  };
-
-  orders.value.forEach(o => {
-    const norm = normalizeOrderStatus(o.status);
-    if (map[norm] !== undefined) {
-      map[norm]++;
-    }
-    // 5단계 통합 카운트: warehouse_in, inspection_done, step_5, inspecting
-    if (norm === 'warehouse_in' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting') {
-      map.warehouse_inspection++;
-    }
-    // 8단계 통합 카운트: domestic_shipping, delivered
-    if (norm === 'domestic_shipping' || norm === 'delivered' || norm === 'completed') {
-      map.domestic_delivered++;
-    }
-  });
-
-  return map;
+  return calculatePipelineCounts(orders.value);
 });
 
 // ---------------------------------------------------------
@@ -2450,14 +2340,8 @@ async function handleConfirmSecondPayment() {
         }
       }
 
-      // Sync with localStorage
-      try {
-        localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(orders.value));
-      } catch (e) {}
-
-      window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
-        detail: { appId: order.id, status: 'shipping_ready' }
-      }));
+      // Sync with global order storage
+      saveStoredOrders(orders.value);
 
       const fee = order.secondPayment?.totalSecondPaymentKrw || 133000;
       const barcodeNote = uploadedBarcodeFile.value ? '바코드 부착 및 ' : '';

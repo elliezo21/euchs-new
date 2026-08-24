@@ -252,6 +252,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { normalizeOrderStatus } from '../../lib/orderPipeline'
+import { calculatePipelineCounts } from '../../utils/orderStorage'
 
 const props = defineProps({
   currentSection: {
@@ -357,77 +358,7 @@ const totalActiveCount = computed(() => {
 })
 
 const loadInternalCounts = () => {
-  const countsMap = {
-    quote_pending: 0,
-    quote_confirmed: 0,
-    payment_verified: 0,
-    purchasing: 0,
-    warehouse_in: 0,
-    inspection_done: 0,
-    warehouse_inspection: 0,
-    shipping_ready: 0,
-    customs_clearance: 0,
-    domestic_shipping: 0,
-    delivered: 0,
-    domestic_delivered: 0
-  }
-
-  // 1. 장바구니/보관함 수량 체크
-  try {
-    const saved = localStorage.getItem('euchs_1688_saved_items')
-    if (saved) {
-      const parsedSaved = JSON.parse(saved)
-      if (Array.isArray(parsedSaved)) {
-        countsMap.quote_pending += parsedSaved.length
-      }
-    }
-  } catch (e) {}
-
-  // 2. 제출된 주문 데이터 수량 체크
-  try {
-    const ordersJson = localStorage.getItem('euchs_erp_submitted_orders')
-    if (ordersJson) {
-      const parsedOrders = JSON.parse(ordersJson)
-      if (Array.isArray(parsedOrders) && parsedOrders.length > 0) {
-        parsedOrders.forEach(o => {
-          const norm = normalizeOrderStatus(o.status)
-          if (countsMap[norm] !== undefined) {
-            countsMap[norm] += 1
-          }
-          if (norm === 'warehouse_in' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting') {
-            countsMap.warehouse_inspection += 1
-          }
-          if (norm === 'domestic_shipping' || norm === 'delivered') {
-            countsMap.domestic_delivered += 1
-          }
-        })
-      } else {
-        // 기본 1건씩 세팅
-        countsMap.quote_pending += 1
-        countsMap.quote_confirmed += 1
-        countsMap.purchasing += 1
-        countsMap.inspection_done += 1
-        countsMap.warehouse_inspection += 1
-        countsMap.shipping_ready += 1
-        countsMap.customs_clearance += 1
-        countsMap.delivered += 1
-        countsMap.domestic_delivered += 1
-      }
-    } else {
-      // 기본 샘플 카운트
-      countsMap.quote_pending += 1
-      countsMap.quote_confirmed += 1
-      countsMap.purchasing += 1
-      countsMap.inspection_done += 1
-      countsMap.warehouse_inspection += 1
-      countsMap.shipping_ready += 1
-      countsMap.customs_clearance += 1
-      countsMap.delivered += 1
-      countsMap.domestic_delivered += 1
-    }
-  } catch (e) {}
-
-  internalCounts.value = countsMap
+  internalCounts.value = calculatePipelineCounts()
 }
 
 const getStepCount = (step) => {

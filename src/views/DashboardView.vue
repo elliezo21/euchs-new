@@ -801,6 +801,7 @@ import {
   getOrderStatusShortLabel,
   getOrderStatusBadgeClass
 } from '../lib/orderPipeline'
+import { getStoredOrders } from '../utils/orderStorage'
 import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
 
 const router = useRouter()
@@ -896,7 +897,7 @@ const buyerForm = ref({
 const loadDashboardData = async () => {
   try {
     // 1. 보관함 품목
-    const cachedCart = localStorage.getItem('euchs_erp_saved_items')
+    const cachedCart = localStorage.getItem('euchs_erp_saved_items') || localStorage.getItem('euchs_1688_saved_items')
     if (cachedCart) {
       const parsed = JSON.parse(cachedCart)
       savedItems.value = Array.isArray(parsed) ? parsed : []
@@ -904,50 +905,8 @@ const loadDashboardData = async () => {
       savedItems.value = []
     }
 
-    // 2. 접수된 주문서 (localStorage)
-    let ordersList = []
-    const cachedOrders = localStorage.getItem('euchs_erp_submitted_orders')
-    if (cachedOrders) {
-      const parsedOrders = JSON.parse(cachedOrders)
-      if (Array.isArray(parsedOrders)) {
-        ordersList = parsedOrders
-      }
-    }
-
-    // 3. Supabase 연동 (실시간 주문 상태 동기화)
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: dbApps } = await supabase
-          .from('applications')
-          .select('*')
-          .order('created_at', { ascending: false })
-
-        if (Array.isArray(dbApps) && dbApps.length > 0) {
-          dbApps.forEach(app => {
-            const normalizedStatus = normalizeOrderStatus(app.status)
-            const existingIdx = ordersList.findIndex(o => String(o.id) === String(app.id) || o.orderId === app.details?.orderId)
-            if (existingIdx !== -1) {
-              ordersList[existingIdx].status = normalizedStatus
-              ordersList[existingIdx].details = app.details
-            } else if (app.details?.items) {
-              ordersList.push({
-                id: app.id,
-                orderId: app.details?.orderId || `EUC-${app.id}`,
-                createdAt: app.created_at,
-                status: normalizedStatus,
-                items: app.details.items,
-                details: app.details,
-                customer_name: app.customer_name
-              })
-            }
-          })
-        }
-      } catch (e) {
-        console.warn('Supabase applications fetch error in Dashboard:', e)
-      }
-    }
-
-    submittedOrders.value = ordersList
+    // 2. 전역 일원화된 주문 데이터 조회 (LocalStorage + V01 샘플)
+    submittedOrders.value = getStoredOrders()
   } catch (err) {
     console.error('Failed to load dashboard data:', err)
   }

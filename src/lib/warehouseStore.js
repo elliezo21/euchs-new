@@ -2,17 +2,50 @@
  * EUCHS B2B Warehouse & Inspection Shared State Store
  * 이우 물류센터 입고, 실측 계근(kg, CBM), 정밀 검수 실사 사진 및 상태 관리
  */
-import { ref } from 'vue';
+import { getWarehouseInboundsFromOrders, getStoredOrders, saveStoredOrders } from '@/utils/orderStorage';
 
 const STORAGE_KEY = 'euchs_warehouse_inbounds_data';
 
 export const DEFAULT_INBOUNDS = [
   {
+    id: 'ord-v01',
+    inboundNo: 'INB-YW-260824-V01',
+    inboundDate: '2026-08-24 10:15',
+    orderNo: 'EUC-20260824-V01',
+    buyerName: '이유씨글로벌파트너스 (김이유)',
+    buyerId: 'EUCHS-VIP-8821',
+    warehouse: 'yiwu',
+    productName: '[테스트 샘플] 초경량 접이식 캠핑 체어 알루미늄 프레임',
+    sku: '카키 베이지 / 120 PCS (12 CTN)',
+    quantity: 120,
+    boxCount: 12,
+    measuredWeightKg: 42.5,
+    measuredCbm: 0.352,
+    inspectionStatus: 'inspected',
+    inspectionNote: '이우 센터 입고 완료. 실측 중량 42.5kg, 부피 0.352 CBM 정밀 계근 및 100% 전수 실사 검수 완료. 2차 결제 대기중.',
+    thumbnail: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=160&auto=format&fit=crop&q=80',
+    inspectionPhotos: [
+      { url: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&auto=format&fit=crop&q=80', caption: '1. 완제품 전수 실물 검수 (120 PCS 정상)' },
+      { url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80', caption: '2. 정밀 계근 및 CBM 체적 실측 (42.5kg / 0.352CBM)' },
+      { url: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop&q=80', caption: '3. 수출용 5중 카톤 포장 및 밴딩 마감 (12 CTN)' }
+    ],
+    vasApplied: [
+      { id: 'origin_label', name: '원산지 라벨' },
+      { id: 'barcode_label', name: '쿠팡 로켓그로스 바코드' }
+    ],
+    secondPayment: {
+      internationalShippingKrw: 65000,
+      customsDutyKrw: 38000,
+      vasFeeKrw: 30000,
+      totalSecondPaymentKrw: 133000
+    }
+  },
+  {
     id: 'inb-001',
     inboundNo: 'INB-YW-260824-01',
     inboundDate: '2026-08-24 10:15',
     orderNo: 'EUC-20260824-001',
-    buyerName: '(주)글로벌 커머스 (홍길동)',
+    buyerName: '이유씨글로벌파트너스 (김이유)',
     buyerId: 'EUCHS-VIP-8821',
     warehouse: 'yiwu',
     productName: '미니멀 무소음 탁상용 USB 선풍기 2000mAh',
@@ -104,12 +137,9 @@ export const DEFAULT_INBOUNDS = [
 
 export function loadStoredInbounds() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        return parsed;
-      }
+    const list = getWarehouseInboundsFromOrders();
+    if (Array.isArray(list) && list.length > 0) {
+      return list;
     }
   } catch (e) {
     console.warn('[WarehouseStore] Failed to load stored inbounds, fallback to defaults:', e);
@@ -128,7 +158,7 @@ export function saveStoredInbounds(list) {
 
 export function updateStoredInboundItem(inboundId, updates) {
   const list = loadStoredInbounds();
-  const idx = list.findIndex(i => i.id === inboundId);
+  const idx = list.findIndex(i => i.id === inboundId || i.inboundNo === inboundId || i.orderNo === inboundId);
   if (idx !== -1) {
     list[idx] = {
       ...list[idx],
