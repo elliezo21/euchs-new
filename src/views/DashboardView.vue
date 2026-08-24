@@ -328,9 +328,9 @@
               <!-- Submenu Items -->
               <div v-show="expandedMenus.account" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
                 <router-link
-                  to="/dashboard/account"
+                  to="/dashboard/account?tab=address"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/account' && !route.query.tab ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                  :class="route.path === '/dashboard/account' && (!route.query.tab || route.query.tab === 'address') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>기본/추가 수령 주소지</span>
                 </router-link>
