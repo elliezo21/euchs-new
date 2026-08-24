@@ -465,13 +465,16 @@
                 <Truck class="w-4.5 h-4.5 text-blue-600" />
                 <span>1. 기본 발주 & 수입 통관/배송 설정</span>
               </h4>
-              <span class="px-2.5 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-200">
-                수입 세관 필수 기재사항
+              <span
+                class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border"
+                :class="isOrderEditable ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-700 border-slate-300'"
+              >
+                {{ isOrderEditable ? '수정 가능 (견적 심사 대기)' : '설정 확정 완료 (Readonly)' }}
               </span>
             </div>
 
-            <!-- 통관 및 배송방식 토글 버튼 그룹 -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- 1-A. 편집 모드 (isOrderEditable) : 인터랙티브 토글 버튼 -->
+            <div v-if="isOrderEditable" class="grid grid-cols-1 md:grid-cols-2 gap-4">
               <!-- 통관방식 선택 토글 -->
               <div class="space-y-1.5">
                 <label class="block text-xs font-bold text-gray-700">
@@ -535,6 +538,31 @@
               </div>
             </div>
 
+            <!-- 1-B. 조회 전용 모드 (isOrderReadonly) : 확정된 상태 배지 고정 노출 -->
+            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div class="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] text-gray-400 block font-bold">확정된 통관 방식</span>
+                  <span class="font-bold text-xs text-blue-700 mt-0.5 flex items-center gap-1.5">
+                    <i :class="(activeOrder.customsClearanceType || activeOrder.buyerInfo?.customsType) === 'personal' ? 'fas fa-user' : 'fas fa-building'"></i>
+                    <span>{{ (activeOrder.customsClearanceType || activeOrder.buyerInfo?.customsType) === 'personal' ? '개인 통관 (자가소비용 안심 통관)' : '사업자 통관 (세금계산서/매입자료 100% 발행)' }}</span>
+                  </span>
+                </div>
+                <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">확정</span>
+              </div>
+
+              <div class="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex items-center justify-between">
+                <div>
+                  <span class="text-[10px] text-gray-400 block font-bold">확정된 국내 배송 방식</span>
+                  <span class="font-bold text-xs text-amber-700 mt-0.5 flex items-center gap-1.5">
+                    <i :class="(activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod) === 'coupang_rocket' ? 'fas fa-rocket' : 'fas fa-truck'"></i>
+                    <span>{{ (activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod) === 'coupang_rocket' ? '쿠팡 로켓그로스 입고 (밀크런 센터 직송)' : '일반 수입배송 (지정 사업장/창고 직배송)' }}</span>
+                  </span>
+                </div>
+                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">확정</span>
+              </div>
+            </div>
+
             <!-- 바이어 및 수령지 정보 카드 -->
             <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
               <div class="bg-slate-50 p-3 rounded-xl border border-gray-200/80">
@@ -559,14 +587,16 @@
                 <div class="flex items-center justify-between">
                   <span class="text-gray-400 text-[10px]">수령 주소지</span>
                   <button
+                    v-if="isOrderEditable"
                     type="button"
                     @click="isEditingAddress ? saveAddress() : startEditAddress()"
                     class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
                   >
                     {{ isEditingAddress ? '[저장]' : '[주소 변경]' }}
                   </button>
+                  <span v-else class="text-[10px] text-slate-400">고정 주소</span>
                 </div>
-                <div v-if="isEditingAddress" class="mt-1">
+                <div v-if="isEditingAddress && isOrderEditable" class="mt-1">
                   <input
                     type="text"
                     v-model="editAddressInput"
@@ -583,7 +613,7 @@
           </div>
 
           <!-- ======================================================== -->
-          <!-- ② 중단: [2. 현지 창고 부가서비스 선택 (VAS) - 2~3열 정돈 그리드] -->
+          <!-- ② 중단: [2. 현지 창고 부가서비스 선택 (VAS)] -->
           <!-- ======================================================== -->
           <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-3.5">
             <div class="flex items-center justify-between pb-2 border-b border-gray-100">
@@ -591,12 +621,16 @@
                 <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
                 <span>2. 현지 창고 부가서비스 신청 (VAS: Value-Added Services)</span>
               </h4>
-              <span class="text-[11px] text-amber-700 bg-amber-50 font-bold px-2.5 py-0.5 rounded-full border border-amber-200">
-                선택 시 현지 물류센터 즉시 지시
+              <span
+                class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border"
+                :class="isOrderEditable ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-300'"
+              >
+                {{ isOrderEditable ? '선택 시 현지 물류센터 즉시 지시' : '신청 내역 조회 (Readonly)' }}
               </span>
             </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            <!-- 2-A. 편집 모드 (isOrderEditable) : 인터랙티브 체크박스 카드 그리드 -->
+            <div v-if="isOrderEditable" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
               <label
                 v-for="vas in VAS_OPTIONS"
                 :key="vas.id"
@@ -627,6 +661,43 @@
                   </div>
                 </div>
               </label>
+            </div>
+
+            <!-- 2-B. 조회 전용 모드 (isOrderReadonly) : 신청된 배지 목록 노출 + 안내문구 -->
+            <div v-else class="space-y-3">
+              <div class="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-center gap-2">
+                <i class="fas fa-info-circle text-amber-600 shrink-0"></i>
+                <span>※ 이미 견적이 확정/진행 중인 주문으로, 부가서비스 변경은 1:1 담당 매니저에게 문의해 주세요.</span>
+              </div>
+
+              <!-- 신청된 부가서비스가 있을 때 -->
+              <div v-if="getBuyerSelectedVas().length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                <div
+                  v-for="vas in getBuyerSelectedVas()"
+                  :key="vas.id"
+                  class="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-300/80 flex items-start gap-3 shadow-2xs"
+                >
+                  <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold shadow-xs">
+                    <i class="fas fa-check text-[10px]"></i>
+                  </div>
+                  <div class="space-y-0.5 min-w-0 flex-1">
+                    <div class="flex items-center justify-between gap-1.5">
+                      <span class="font-bold text-xs text-emerald-950 block leading-snug">
+                        {{ vas.name }}
+                      </span>
+                    </div>
+                    <span class="text-[10px] font-mono font-bold text-emerald-700">
+                      {{ vas.feeLabel }} · 현장 작업 지시됨
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 신청된 부가서비스가 없을 때 -->
+              <div v-else class="p-4 rounded-2xl bg-slate-50 border border-gray-200 text-center text-gray-500 font-medium text-xs">
+                <i class="fas fa-shield-check text-slate-400 mr-1.5"></i>
+                <span>신청된 현지 부가서비스 없음 (기본 외관 검수 및 표준 포장으로 진행됩니다)</span>
+              </div>
             </div>
           </div>
 
@@ -1434,6 +1505,24 @@ function toggleVasService(vasId) {
     console.error('Failed to sync VAS services:', e);
   }
 }
+
+// ---------------------------------------------------------
+// 발주서 수정 가능(isOrderEditable) vs 조회 전용(isOrderReadonly) 분기
+// ---------------------------------------------------------
+const isOrderEditable = computed(() => {
+  if (!activeOrder.value) return false;
+  const status = normalizeOrderStatus(activeOrder.value.status);
+  return status === 'quote_pending';
+});
+
+const isOrderReadonly = computed(() => !isOrderEditable.value);
+
+const getBuyerSelectedVas = () => {
+  if (!activeOrder.value) return [];
+  const list = activeOrder.value.vas_services || activeOrder.value.vasServices || activeOrder.value.details?.vas_services || [];
+  if (!Array.isArray(list) || list.length === 0) return [];
+  return VAS_OPTIONS.filter(vas => list.includes(vas.id));
+};
 
 // ---------------------------------------------------------
 // CNINSIDER 발주/통관 설정 & 주소지 변경 & 분리정산 헬퍼
