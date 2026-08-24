@@ -16,18 +16,22 @@
         <div class="flex items-center justify-between gap-3 w-full sm:w-auto">
           <div class="flex items-center gap-2.5">
             <router-link 
-              to="/admin" 
-              @click="activeTab = 'applications'; fetchApplications()" 
+              to="/" 
               class="flex items-center gap-2 group cursor-pointer shrink-0"
-              title="관리자 메인 대시보드로 이동"
+              title="EUC COMPANY 공식 메인 홈으로 이동"
             >
-              <span class="text-lg sm:text-xl font-black bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent group-hover:opacity-90 tracking-tight">
+              <span class="text-lg sm:text-xl font-black bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent group-hover:opacity-80 transition tracking-tight">
                 EUC COMPANY
               </span>
             </router-link>
-            <span class="text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-300 border border-blue-500/30 font-bold whitespace-nowrap">
+            <router-link
+              to="/admin"
+              @click="activeTab = 'applications'; fetchApplications()"
+              class="text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 hover:text-white border border-blue-500/30 font-bold whitespace-nowrap transition cursor-pointer"
+              title="관리자 콘솔 대시보드로 이동"
+            >
               관리자 콘솔
-            </span>
+            </router-link>
           </div>
 
           <!-- Mobile Quick Profile & Logout -->
@@ -134,7 +138,10 @@
       <!-- ========================================================== -->
       <!-- UNIFIED COMPACT VISITOR STATS BAR (Single Integrated Card) -->
       <!-- ========================================================== -->
-      <div class="bg-slate-900 rounded-2xl p-3.5 sm:px-6 sm:py-3 border border-slate-800 shadow-xl mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4">
+      <div 
+        v-if="activeTab !== 'applications'" 
+        class="bg-slate-900 rounded-2xl p-3.5 sm:px-6 sm:py-3 border border-slate-800 shadow-xl mb-6 flex flex-col md:flex-row md:items-center justify-between gap-3 sm:gap-4"
+      >
         <!-- Title & Icon -->
         <div class="flex items-center gap-2.5">
           <div class="w-8 h-8 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
@@ -330,18 +337,18 @@
 
         <!-- Table Card -->
         <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs text-slate-300">
+          <div class="overflow-x-auto custom-scrollbar">
+            <table class="w-full text-left text-xs text-slate-300 min-w-[1050px]">
               <thead class="bg-slate-950 text-slate-400 uppercase font-black text-[11px] border-b border-slate-800">
                 <tr>
-                  <th class="py-3.5 px-4">신청일시</th>
-                  <th class="py-3.5 px-4">서비스 구분</th>
-                  <th class="py-3.5 px-4">신청자명 (가입 계정)</th>
-                  <th class="py-3.5 px-4">연락처</th>
-                  <th class="py-3.5 px-4 text-right">견적 금액</th>
-                  <th class="py-3.5 px-4">주요 요청/품목</th>
-                  <th class="py-3.5 px-4 text-center">처리 상태</th>
-                  <th class="py-3.5 px-4 text-center">관리</th>
+                  <th class="py-3.5 px-4 whitespace-nowrap">신청일시</th>
+                  <th class="py-3.5 px-4 whitespace-nowrap">서비스 구분</th>
+                  <th class="py-3.5 px-4 whitespace-nowrap min-w-[180px]">신청자명 (가입 계정)</th>
+                  <th class="py-3.5 px-4 whitespace-nowrap">연락처</th>
+                  <th class="py-3.5 px-4 text-right whitespace-nowrap">견적 금액</th>
+                  <th class="py-3.5 px-4 min-w-[200px]">주요 요청/품목</th>
+                  <th class="py-3.5 px-4 text-center whitespace-nowrap min-w-[180px]">처리 상태</th>
+                  <th class="py-3.5 px-4 text-center whitespace-nowrap min-w-[230px]">관리</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-800/60">
@@ -351,42 +358,42 @@
                   class="hover:bg-slate-800/40 transition cursor-pointer group"
                   @click="openAppDetail(app)"
                 >
-                  <td class="py-3.5 px-4 text-slate-400 font-mono">
+                  <td class="py-3.5 px-4 text-slate-400 font-mono whitespace-nowrap">
                     {{ formatDateTime(app.created_at) }}
                   </td>
-                  <td class="py-3.5 px-4">
+                  <td class="py-3.5 px-4 whitespace-nowrap">
                     <span class="px-2.5 py-1 rounded-md text-[11px] font-bold" :class="getServiceBadgeClass(app.service_type)">
                       {{ app.service_name || getServiceLabel(app.service_type) }}
                     </span>
                   </td>
-                  <td class="py-3.5 px-4 font-bold text-white">
-                    <div class="flex items-center gap-1.5">
+                  <td class="py-3.5 px-4 font-bold text-white min-w-[180px]">
+                    <div class="flex items-center gap-1.5 flex-wrap">
                       <span class="text-white group-hover:text-blue-300 transition font-bold">{{ app.customer_name }}</span>
-                      <span v-if="app.email" class="text-[10px] font-normal text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded">회원</span>
-                      <span v-else class="text-[10px] font-normal text-slate-500 bg-slate-800/80 border border-slate-700 px-1.5 py-0.2 rounded">비회원</span>
+                      <span v-if="app.email" class="text-[10px] font-normal text-blue-400 bg-blue-500/10 border border-blue-500/20 px-1.5 py-0.2 rounded whitespace-nowrap">회원</span>
+                      <span v-else class="text-[10px] font-normal text-slate-500 bg-slate-800/80 border border-slate-700 px-1.5 py-0.2 rounded whitespace-nowrap">비회원</span>
                     </div>
                     <div class="text-[11px] text-slate-400 font-mono font-normal flex items-center gap-1 mt-0.5">
                       <i class="fas fa-envelope text-[9px] text-slate-500"></i>
                       <span class="truncate max-w-[170px]">{{ app.email || '비회원 접수' }}</span>
                     </div>
-                    <span v-if="app.company_name" class="text-[10px] text-slate-500 block font-normal mt-0.5">
+                    <span v-if="app.company_name" class="text-[10px] text-slate-500 block font-normal mt-0.5 truncate max-w-[180px]">
                       {{ app.company_name }}
                     </span>
                   </td>
-                  <td class="py-3.5 px-4 font-mono text-slate-300">
+                  <td class="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
                     {{ app.phone }}
                   </td>
-                  <td class="py-3.5 px-4 text-right font-mono font-bold" :class="app.total_amount > 0 ? 'text-amber-400' : 'text-slate-500'">
+                  <td class="py-3.5 px-4 text-right font-mono font-bold whitespace-nowrap" :class="app.total_amount > 0 ? 'text-amber-400' : 'text-slate-500'">
                     {{ app.total_amount > 0 ? `${Number(app.total_amount).toLocaleString()}원` : '-' }}
                   </td>
-                  <td class="py-3.5 px-4 max-w-xs truncate text-slate-300">
-                    {{ getAppSummaryText(app) }}
+                  <td class="py-3.5 px-4 text-slate-300 min-w-[200px]">
+                    <p class="line-clamp-2 leading-relaxed">{{ getAppSummaryText(app) }}</p>
                   </td>
-                  <td class="py-3.5 px-4 text-center" @click.stop>
+                  <td class="py-3.5 px-4 text-center whitespace-nowrap" @click.stop>
                     <select 
                       :value="normalizeOrderStatus(app.status)" 
                       @change="updateAppStatus(app.id, $event.target.value)"
-                      class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-amber-500 cursor-pointer"
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-950 border border-slate-700 text-[11px] font-bold outline-none focus:border-amber-500 cursor-pointer shadow-xs"
                       :class="getOrderStatusBadgeClass(app.status)"
                     >
                       <option v-for="st in PIPELINE_STATUSES" :key="st.key" :value="st.key">
@@ -394,8 +401,8 @@
                       </option>
                     </select>
                   </td>
-                  <td class="py-3.5 px-4 text-center" @click.stop>
-                    <div class="flex items-center justify-center gap-1.5 flex-wrap">
+                  <td class="py-3.5 px-4 text-center whitespace-nowrap" @click.stop>
+                    <div class="flex items-center justify-center gap-1.5">
                       <button 
                         @click="openAppDetail(app)" 
                         class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold shadow-sm transition active:scale-95 flex items-center gap-1"
@@ -1690,7 +1697,7 @@
     <!-- Application Detail Modal (Comprehensive Customer & Consultation) -->
     <!-- ========================================================== -->
     <div v-if="selectedApp" class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/85 backdrop-blur-md" @click.self="selectedApp = null">
-      <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-3xl w-full max-h-[92vh] overflow-y-auto space-y-6 shadow-2xl relative text-slate-200 text-xs my-auto">
+      <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 sm:p-8 max-w-4xl w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl relative text-slate-200 text-xs my-auto custom-scrollbar">
         
         <!-- Header -->
         <div class="flex items-start justify-between border-b border-slate-800 pb-4">
