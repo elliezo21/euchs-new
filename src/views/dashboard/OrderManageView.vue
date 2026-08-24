@@ -412,139 +412,239 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 6. 주문 상세 및 견적 명세서 팝업 모달 -->
+    <!-- 6. 주문 상세 및 견적 명세서 팝업 모달 (대형 2단 ERP 레이아웃) -->
     <!-- ======================================================== -->
     <div
       v-if="isDetailModalOpen && activeOrder"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+      class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto"
       @click.self="closeDetailModal"
     >
-      <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto text-xs text-gray-700">
-        <!-- 모달 헤더 -->
-        <div class="flex items-center justify-between pb-3 border-b border-gray-200">
-          <div>
-            <div class="flex items-center gap-2">
-              <span class="px-2 py-0.5 rounded-md text-[10px] font-black" :class="getOrderStatusBadgeClass(activeOrder.status)">
-                {{ getOrderStatusLabel(activeOrder.status) }}
-              </span>
-              <span class="font-mono text-xs text-gray-500 font-bold">{{ activeOrder.orderNumber }}</span>
+      <div class="bg-white rounded-3xl max-w-5xl w-full flex flex-col shadow-2xl relative border border-gray-200 overflow-hidden font-sans my-auto max-h-[90vh]">
+        
+        <!-- A. 모달 헤더 (Sticky Top) -->
+        <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between bg-slate-50/90 backdrop-blur-md shrink-0 z-10">
+          <div class="flex items-center gap-3">
+            <span
+              class="px-3 py-1 rounded-full text-xs font-black tracking-wider flex items-center gap-1.5 shadow-2xs"
+              :class="getOrderStatusBadgeClass(activeOrder.status)"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+              <span>{{ getOrderStatusLabel(activeOrder.status) }}</span>
+            </span>
+            <div class="space-y-0.5">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-xs font-black text-gray-800 bg-white px-2 py-0.5 rounded-lg border border-gray-200">
+                  {{ activeOrder.orderNumber }}
+                </span>
+                <span class="text-xs text-gray-400 font-mono hidden sm:inline">접수일시: {{ activeOrder.createdAt }}</span>
+              </div>
+              <h3 class="text-base sm:text-lg font-black text-gray-900 leading-none">
+                1688 수입 발주 상세 & DDP 공식 견적서
+              </h3>
             </div>
-            <h3 class="text-base font-bold text-gray-900 mt-1">
-              1688 수입 발주 상세 견적 명세서
-            </h3>
           </div>
-          <button @click="closeDetailModal" class="text-gray-400 hover:text-gray-900 p-1.5 rounded-xl hover:bg-gray-100 transition">
+          <button
+            type="button"
+            @click="closeDetailModal"
+            class="w-9 h-9 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-900 flex items-center justify-center text-sm transition focus:outline-none"
+            title="모달 닫기"
+          >
             <X class="w-5 h-5" />
           </button>
         </div>
 
-        <!-- 1. 품목 목록 -->
-        <div class="space-y-2.5">
-          <h4 class="font-bold text-gray-900 flex items-center gap-1.5">
-            <Package class="w-4 h-4 text-amber-500" />
-            <span>발주 신청 품목 내역 (총 {{ getItemsCount(activeOrder) }}건)</span>
-          </h4>
-          <div class="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden bg-slate-50/50">
-            <div
-              v-for="(it, idx) in activeOrder.items"
-              :key="idx"
-              class="p-3.5 flex items-center gap-3 bg-white"
-            >
-              <img
-                :src="it.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
-                :alt="it.productName"
-                class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0"
-                @error="handleImgError"
-              />
-              <div class="flex-1 min-w-0">
-                <p class="font-bold text-gray-900 truncate">{{ it.productName || it.titleKo || it.titleZh }}</p>
-                <p class="text-[11px] text-gray-500 font-mono mt-0.5">
-                  옵션: {{ it.sku || it.selectedOption || '기본 규격' }} · 수량: <b>{{ it.quantity || 1 }}개</b> · 단가: <b>¥{{ Number(it.priceCny || it.price || 0).toFixed(2) }}</b>
-                </p>
+        <!-- B. 모달 본문 (Scrollable 2-Column Grid) -->
+        <div class="p-6 sm:p-7 overflow-y-auto flex-1 space-y-6 custom-scrollbar text-xs text-gray-700 bg-slate-50/30">
+          
+          <!-- 2단 그리드 컨테이너 -->
+          <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+            
+            <!-- LEFT COLUMN: 발주 품목 리스트 + 수령자/통관 정보 (6 cols) -->
+            <div class="lg:col-span-6 space-y-5">
+              
+              <!-- 1. 발주 신청 품목 리스트 -->
+              <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                  <h4 class="font-bold text-gray-900 flex items-center gap-2 text-xs sm:text-sm">
+                    <Package class="w-4 h-4 text-amber-500" />
+                    <span>발주 품목 내역 (총 {{ getItemsCount(activeOrder) }}종)</span>
+                  </h4>
+                  <span class="text-xs font-bold text-amber-700 font-mono">
+                    총 {{ getOrderTotalQuantity(activeOrder) }}개
+                  </span>
+                </div>
+
+                <div class="divide-y divide-gray-100 max-h-[300px] overflow-y-auto pr-1 custom-scrollbar">
+                  <div
+                    v-for="(it, idx) in activeOrder.items"
+                    :key="idx"
+                    class="py-3 flex items-start gap-3 first:pt-0 last:pb-0"
+                  >
+                    <img
+                      :src="it.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
+                      :alt="it.productName"
+                      class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0"
+                      @error="handleImgError"
+                    />
+                    <div class="flex-1 min-w-0 space-y-1">
+                      <p class="font-bold text-gray-900 line-clamp-2 leading-snug">
+                        {{ it.productName || it.titleKo || it.titleZh }}
+                      </p>
+                      <div class="flex flex-wrap items-center gap-2 text-[11px] text-gray-500 font-mono">
+                        <span class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 font-medium">
+                          {{ it.sku || it.selectedOption || '기본 옵션' }}
+                        </span>
+                        <span>수량: <b class="text-gray-900">{{ it.quantity || 1 }}개</b></span>
+                      </div>
+                      <div class="flex items-center justify-between pt-0.5">
+                        <span class="text-[11px] text-gray-400 font-mono">
+                          단가 ¥{{ Number(it.priceCny || it.price || 0).toFixed(2) }}
+                        </span>
+                        <span class="text-xs font-bold text-gray-900 font-mono">
+                          ₩{{ formatNumber(Math.round((Number(it.priceCny || it.price || 0) * 226.19) * (it.quantity || 1))) }}원
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <div class="text-right font-mono font-bold text-gray-900">
-                ₩{{ formatNumber(Math.round((Number(it.priceCny || it.price || 0) * 226.19) * (it.quantity || 1))) }}원
+
+              <!-- 2. 수령자 및 통관 정보 박스 -->
+              <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3">
+                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                  <h4 class="font-bold text-gray-900 flex items-center gap-2 text-xs sm:text-sm">
+                    <Truck class="w-4 h-4 text-blue-500" />
+                    <span>수령자 및 수입 통관 정보</span>
+                  </h4>
+                  <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-[10px] font-bold">
+                    안심 통관
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                  <div class="bg-slate-50 p-2.5 rounded-xl border border-gray-100">
+                    <span class="text-gray-400 block text-[10px]">바이어 상호 / 성명</span>
+                    <span class="font-bold text-gray-900 truncate block mt-0.5">
+                      {{ activeOrder.buyerInfo?.companyName || activeOrder.customer_name || '이유씨 바이어' }}
+                    </span>
+                  </div>
+                  <div class="bg-slate-50 p-2.5 rounded-xl border border-gray-100">
+                    <span class="text-gray-400 block text-[10px]">연락처 (휴대폰)</span>
+                    <span class="font-bold text-gray-900 font-mono block mt-0.5">
+                      {{ activeOrder.buyerInfo?.phone || '010-9373-1214' }}
+                    </span>
+                  </div>
+                  <div class="bg-slate-50 p-2.5 rounded-xl border border-gray-100 sm:col-span-2">
+                    <span class="text-gray-400 block text-[10px]">개인/사업자 통관고유부호 (PCCC)</span>
+                    <span class="font-mono font-bold text-amber-700 block mt-0.5">
+                      {{ activeOrder.buyerInfo?.customsCode || 'P240012345678' }}
+                    </span>
+                  </div>
+                  <div class="bg-slate-50 p-2.5 rounded-xl border border-gray-100 sm:col-span-2">
+                    <span class="text-gray-400 block text-[10px]">최종 수령 배송지 주소</span>
+                    <span class="font-medium text-gray-800 block mt-0.5 leading-snug">
+                      {{ activeOrder.buyerInfo?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층 물류센터' }}
+                    </span>
+                  </div>
+                  <div v-if="activeOrder.buyerInfo?.memo" class="bg-amber-50/50 p-2.5 rounded-xl border border-amber-200/50 sm:col-span-2 text-[11px] text-amber-800">
+                    <span class="font-bold">발주 특이사항:</span> {{ activeOrder.buyerInfo.memo }}
+                  </div>
+                </div>
               </div>
+
             </div>
+
+            <!-- RIGHT COLUMN: DDP 도착원가 계산표 + 최종 결제 요약 (6 cols) -->
+            <div class="lg:col-span-6 space-y-5">
+              
+              <!-- 1. 공식 수입 도착원가 (DDP) 상세 원가 계산표 -->
+              <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3.5">
+                <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+                  <h4 class="font-bold text-gray-900 flex items-center gap-2 text-xs sm:text-sm">
+                    <Calculator class="w-4 h-4 text-emerald-500" />
+                    <span>수입 도착원가 (DDP) 계산서</span>
+                  </h4>
+                  <span class="text-[11px] text-gray-400 font-mono">
+                    적용환율 ₩226.19 / 위안
+                  </span>
+                </div>
+
+                <div class="space-y-2 text-xs">
+                  <div class="flex items-center justify-between py-1 border-b border-gray-100">
+                    <span class="text-gray-600">1. 순수 1688 제품 대금 (¥{{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }})</span>
+                    <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).itemTotalKrw) }}원</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-gray-100">
+                    <span class="text-gray-600">2. 국제 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
+                    <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-gray-100">
+                    <span class="text-gray-600">3. 예상 수입 관세 (8% 한-중 FTA 협정세율)</span>
+                    <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).tariffKrw) }}원</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-gray-100">
+                    <span class="text-gray-600">4. 수입 부가가치세 (VAT 10% 매입세액공제)</span>
+                    <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-gray-100">
+                    <span class="text-gray-600">5. 수입 구매대행 & 검수 수수료 (8%)</span>
+                    <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).agencyFeeKrw) }}원</span>
+                  </div>
+                </div>
+
+                <!-- 2. 최종 DDP 총 견적 금액 강조 카드 -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-4 sm:p-5 shadow-lg space-y-2 mt-2">
+                  <div class="flex items-center justify-between text-xs text-slate-300">
+                    <span class="font-bold text-amber-400">최종 예상 총 견적금액 (DDP)</span>
+                    <span class="text-[11px] text-slate-400 font-mono">세금·운임 일체 포함</span>
+                  </div>
+                  <div class="flex items-baseline justify-between pt-1">
+                    <span class="text-xs text-slate-400">총 결제 예정액:</span>
+                    <div class="text-right">
+                      <div class="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
+                        ₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원
+                      </div>
+                      <div class="text-[11px] text-slate-400 font-mono mt-0.5">
+                        (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 환산)
+                      </div>
+                    </div>
+                  </div>
+                  <div class="flex items-center justify-between pt-3 border-t border-slate-700/80 text-[11px] text-slate-300 font-mono">
+                    <span>개당 도착원가 환산:</span>
+                    <span class="font-bold text-white">약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원 / 개</span>
+                  </div>
+                </div>
+
+              </div>
+
+            </div>
+
           </div>
+
         </div>
 
-        <!-- 2. 공식 수입 도착원가 (DDP) 상세 원가 계산표 -->
-        <div class="p-4 bg-slate-50 border border-gray-200 rounded-2xl space-y-2.5">
-          <h4 class="font-bold text-gray-900 flex items-center justify-between">
-            <span class="flex items-center gap-1.5">
-              <Calculator class="w-4 h-4 text-amber-500" />
-              <span>수입 원가 상세 계산서 (DDP 기준)</span>
-            </span>
-            <span class="text-[11px] text-gray-400 font-normal font-mono">적용환율 ₩226.19 / 위안</span>
-          </h4>
-
-          <div class="space-y-1.5 text-[11px]">
-            <div class="flex justify-between py-1 border-b border-gray-200/60">
-              <span class="text-gray-600">1. 순수 1688 제품 대금 (¥{{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }})</span>
-              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).itemTotalKrw) }}원</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-gray-200/60">
-              <span class="text-gray-600">2. 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
-              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-gray-200/60">
-              <span class="text-gray-600">3. 예상 수입 관세 (8% 기준)</span>
-              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).tariffKrw) }}원</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-gray-200/60">
-              <span class="text-gray-600">4. 수입 부가가치세 (VAT 10%)</span>
-              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
-            </div>
-            <div class="flex justify-between py-1 border-b border-gray-200/60">
-              <span class="text-gray-600">5. 수입 대행 수수료 (8%)</span>
-              <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).agencyFeeKrw) }}원</span>
-            </div>
-            <div class="flex justify-between pt-2 text-sm font-extrabold text-amber-600">
-              <span>최종 예상 총 견적금액 (DDP)</span>
-              <span class="font-mono text-base">₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원</span>
-            </div>
-            <div class="text-right text-[10px] text-gray-400 font-mono">
-              개당 도착원가 환산: 약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원 / 개
-            </div>
-          </div>
-        </div>
-
-        <!-- 3. 바이어 배송 및 통관 정보 -->
-        <div class="p-3.5 bg-white border border-gray-200 rounded-2xl space-y-1.5 text-[11px]">
-          <h4 class="font-bold text-gray-900">수령자 및 배송지 정보</h4>
-          <p class="text-gray-600">
-            상호/성명: <b class="text-gray-900">{{ activeOrder.buyerInfo?.companyName || activeOrder.customer_name || '이유씨 바이어' }}</b> ·
-            연락처: <b class="text-gray-900 font-mono">{{ activeOrder.buyerInfo?.phone || '-' }}</b>
-          </p>
-          <p class="text-gray-600">
-            통관고유부호: <b class="text-gray-900 font-mono">{{ activeOrder.buyerInfo?.customsCode || 'P240012345678' }}</b>
-          </p>
-          <p class="text-gray-600 truncate">
-            배송지: {{ activeOrder.buyerInfo?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩' }}
-          </p>
-        </div>
-
-        <!-- 모달 푸터 버튼 -->
-        <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-gray-200">
+        <!-- C. 모달 고정 푸터 액션 바 -->
+        <div class="px-6 py-4 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0 z-10 shadow-lg">
+          <!-- 좌측: 카카오톡 전담 매니저 상담 -->
           <a
             href="http://pf.kakao.com/_xmQWsK/chat"
             target="_blank"
             rel="noopener noreferrer"
-            class="px-3.5 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-extrabold text-xs transition flex items-center justify-center gap-1.5 shadow-xs"
+            class="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5 shadow-xs active:scale-95"
           >
             <MessageCircle class="w-4 h-4" />
-            <span>1:1 전담 매니저 상담</span>
+            <span>1:1 담당 매니저 상담</span>
           </a>
 
-          <div class="flex flex-wrap items-center justify-end gap-2">
+          <!-- 우측 액션 버튼 그룹 -->
+          <div class="flex flex-wrap items-center justify-end gap-2.5">
             <!-- 결제 대기 / 견적 완료 상태일 때 즉시 결제하기 메인 버튼 노출 -->
             <button
               v-if="activeOrder.status === 'quote_confirmed' || activeOrder.status === 'quote_pending'"
               type="button"
               @click="executeInstantPayment(activeOrder)"
               :disabled="isPaying"
-              class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition flex items-center gap-1.5 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 animate-pulse"
+              class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 animate-pulse"
             >
               <CreditCard class="w-4 h-4" />
               <span>💳 예치금/카드 즉시 결제하기 (₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원)</span>
@@ -553,7 +653,7 @@
             <button
               type="button"
               @click="exportSingleQuote(activeOrder)"
-              class="px-3.5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs"
+              class="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs active:scale-95"
             >
               <FileSpreadsheet class="w-4 h-4" />
               <span>견적서 엑셀 다운로드</span>
@@ -562,12 +662,13 @@
             <button
               type="button"
               @click="closeDetailModal"
-              class="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-50 transition"
+              class="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 transition active:scale-95"
             >
               닫기
             </button>
           </div>
         </div>
+
       </div>
     </div>
 
