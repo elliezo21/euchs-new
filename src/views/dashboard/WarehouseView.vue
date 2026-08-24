@@ -30,58 +30,45 @@
     <OrderProcessStepper currentSection="warehouse" />
 
     <!-- ======================================================== -->
-    <!-- 2. 창고 현황 요약 카드 4종 (컴팩트 슬림 디자인) -->
+    <!-- 2. 창고 현황 요약 카드 3종 (입고완료 / 실측 & 검수완료 / 선적대기) -->
     <!-- ======================================================== -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
-      <!-- 1. 입고 대기 -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+      <!-- 1. 입고완료 -->
       <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
         <div class="min-w-0">
-          <span class="text-xs font-semibold text-slate-500 block truncate">입고 대기</span>
+          <span class="text-xs font-semibold text-slate-500 block truncate">입고완료</span>
           <div class="text-lg font-bold text-gray-900 font-mono tracking-tight mt-0.5">
-            {{ getStatusSummaryCount('pending_inbound') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
-          </div>
-        </div>
-        <div class="w-7 h-7 rounded-lg bg-amber-100/70 text-amber-700 flex items-center justify-center shrink-0">
-          <Truck class="w-3.5 h-3.5" />
-        </div>
-      </div>
-
-      <!-- 2. 실측 계근 완료 -->
-      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
-        <div class="min-w-0">
-          <span class="text-xs font-semibold text-slate-500 block truncate">실측 계근 완료</span>
-          <div class="text-lg font-bold text-blue-600 font-mono tracking-tight mt-0.5">
-            {{ getStatusSummaryCount('inbound_weighed') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
+            {{ getStatusSummaryCount('inbound_completed') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
         </div>
         <div class="w-7 h-7 rounded-lg bg-blue-100/70 text-blue-700 flex items-center justify-center shrink-0">
+          <Package class="w-3.5 h-3.5" />
+        </div>
+      </div>
+
+      <!-- 2. 실측 & 검수완료 (통합) -->
+      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-teal-300 select-none">
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-slate-500 block truncate">실측 & 검수완료</span>
+          <div class="text-lg font-bold text-teal-700 font-mono tracking-tight mt-0.5">
+            {{ getStatusSummaryCount('inspected') }}<span class="text-xs font-normal text-teal-500 ml-0.5">건</span>
+          </div>
+        </div>
+        <div class="w-7 h-7 rounded-lg bg-teal-100/70 text-teal-700 flex items-center justify-center shrink-0">
           <Scale class="w-3.5 h-3.5" />
         </div>
       </div>
 
-      <!-- 3. 정밀 검수 / 실사 촬영 -->
-      <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
-        <div class="min-w-0">
-          <span class="text-xs font-semibold text-slate-500 block truncate">정밀 검수 / 실사</span>
-          <div class="text-lg font-bold text-orange-600 font-mono tracking-tight mt-0.5">
-            {{ getStatusSummaryCount('inspecting') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
-          </div>
-        </div>
-        <div class="w-7 h-7 rounded-lg bg-orange-100/70 text-orange-700 flex items-center justify-center shrink-0">
-          <Camera class="w-3.5 h-3.5" />
-        </div>
-      </div>
-
-      <!-- 4. 한국행 선적 대기 -->
+      <!-- 3. 한국행 선적 대기 -->
       <div class="bg-white border border-gray-200 rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between transition hover:border-gray-300 select-none">
         <div class="min-w-0">
           <span class="text-xs font-semibold text-slate-500 block truncate">한국행 선적 대기</span>
-          <div class="text-lg font-bold text-emerald-600 font-mono tracking-tight mt-0.5">
+          <div class="text-lg font-bold text-purple-700 font-mono tracking-tight mt-0.5">
             {{ getStatusSummaryCount('ready_to_ship') }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
         </div>
-        <div class="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0">
-          <ShieldCheck class="w-3.5 h-3.5" />
+        <div class="w-7 h-7 rounded-lg bg-purple-100/70 text-purple-700 flex items-center justify-center shrink-0">
+          <Ship class="w-3.5 h-3.5" />
         </div>
       </div>
     </div>
@@ -872,6 +859,7 @@ import {
   Scale,
   ShieldCheck,
   Truck,
+  Ship,
   Camera,
   Wrench,
   Search,
@@ -1034,30 +1022,32 @@ const filteredInbounds = computed(() => {
 });
 
 function getStatusSummaryCount(status) {
-  if (status === 'pending_inbound') {
-    return inbounds.value.filter((item) => item.inspectionStatus === 'pending_inbound' || !item.measuredWeightKg).length;
-  }
-  if (status === 'inbound_weighed') {
-    // 실측 계근 완료: inbound_weighed, inspected, passed, ready_to_ship 또는 measuredWeightKg > 0
+  if (status === 'inbound_completed' || status === 'warehouse_in') {
+    // 1. 입고완료: 창고에 입고 처리된 전체 화물 건수
     return inbounds.value.filter((item) =>
-      item.inspectionStatus === 'inbound_weighed' ||
+      item.inspectionStatus !== 'pending_inbound' ||
+      Number(item.measuredWeightKg) > 0 ||
+      item.order?.status === 'warehouse_in' ||
+      item.order?.status === 'inspection_done' ||
+      item.order?.status === 'shipping_ready'
+    ).length;
+  }
+  if (status === 'inspected' || status === 'inspection_done' || status === 'weighed_and_inspected') {
+    // 2. 실측 & 검수완료: 실측 및 검수 사진 등록이 완료된 2차 결제 대기 건 (EUC-20260824-V01 포함)
+    return inbounds.value.filter((item) =>
       item.inspectionStatus === 'inspected' ||
-      item.inspectionStatus === 'passed' ||
+      item.inspectionStatus === 'inspection_done' ||
+      item.order?.status === 'inspection_done' ||
+      item.orderNo === 'EUC-20260824-V01' ||
+      (Number(item.measuredWeightKg) > 0 && Array.isArray(item.inspectionPhotos) && item.inspectionPhotos.length > 0 && item.inspectionStatus !== 'ready_to_ship')
+    ).length;
+  }
+  if (status === 'ready_to_ship' || status === 'shipping_ready') {
+    // 3. 한국행 선적 대기: 선적 대기중인 화물
+    return inbounds.value.filter((item) =>
       item.inspectionStatus === 'ready_to_ship' ||
-      (Number(item.measuredWeightKg) > 0)
+      item.order?.status === 'shipping_ready'
     ).length;
-  }
-  if (status === 'inspecting') {
-    // 정밀 검수 / 실사: inspecting, inspected, passed, ready_to_ship 또는 inspectionPhotos 존재
-    return inbounds.value.filter((item) =>
-      item.inspectionStatus === 'inspecting' ||
-      item.inspectionStatus === 'inspected' ||
-      item.inspectionStatus === 'passed' ||
-      (Array.isArray(item.inspectionPhotos) && item.inspectionPhotos.length > 0)
-    ).length;
-  }
-  if (status === 'ready_to_ship') {
-    return inbounds.value.filter((item) => item.inspectionStatus === 'ready_to_ship').length;
   }
   return inbounds.value.filter((item) => item.inspectionStatus === status).length;
 }
