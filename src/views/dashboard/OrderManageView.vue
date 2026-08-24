@@ -116,33 +116,6 @@
       </div>
     </div>
 
-    <!-- ======================================================== -->
-    <!-- 2. 상태 필터 탭 바 (반응형 가로 스크롤 & 카운트) -->
-    <!-- ======================================================== -->
-    <div class="bg-white border border-gray-200 rounded-2xl p-2 shadow-xs">
-      <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar scroll-smooth">
-        <button
-          v-for="tab in filterTabs"
-          :key="tab.id"
-          type="button"
-          @click="selectedTab = tab.id"
-          class="shrink-0 flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition select-none"
-          :class="selectedTab === tab.id
-            ? 'bg-slate-900 text-white shadow-xs'
-            : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'"
-        >
-          <span>{{ tab.label }}</span>
-          <span
-            class="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-black"
-            :class="selectedTab === tab.id
-              ? 'bg-white/20 text-white'
-              : 'bg-gray-100 text-gray-600'"
-          >
-            {{ getFilterTabCount(tab.id) }}
-          </span>
-        </button>
-      </div>
-    </div>
 
     <!-- ======================================================== -->
     <!-- 3. 검색 및 정렬 컨트롤 바 -->
@@ -251,19 +224,8 @@
                     >
                       {{ getItemTitle(order) }}
                     </div>
-                    <div class="flex items-center gap-2 text-[11px] text-gray-500 font-mono">
+                    <div class="text-[11px] text-gray-500 font-mono">
                       <span>품목 <b>{{ getItemsCount(order) }}</b>건</span>
-                      <a
-                        v-if="order.items?.[0]?.productUrl"
-                        :href="order.items[0].productUrl"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="text-amber-600 hover:underline flex items-center gap-0.5"
-                        @click.stop
-                      >
-                        <span>1688 바로가기</span>
-                        <ExternalLink class="w-2.5 h-2.5" />
-                      </a>
                     </div>
                   </div>
                 </div>
