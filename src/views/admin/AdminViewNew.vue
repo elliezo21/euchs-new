@@ -338,17 +338,15 @@
         <!-- Table Card -->
         <div class="bg-slate-900 rounded-3xl border border-slate-800 shadow-xl overflow-hidden">
           <div class="overflow-x-auto custom-scrollbar">
-            <table class="w-full text-left text-xs text-slate-300 min-w-[1050px]">
+            <table class="w-full text-left text-xs text-slate-300">
               <thead class="bg-slate-950 text-slate-400 uppercase font-black text-[11px] border-b border-slate-800">
                 <tr>
-                  <th class="py-3.5 px-4 whitespace-nowrap">신청일시</th>
-                  <th class="py-3.5 px-4 whitespace-nowrap">서비스 구분</th>
-                  <th class="py-3.5 px-4 whitespace-nowrap min-w-[180px]">신청자명 (가입 계정)</th>
-                  <th class="py-3.5 px-4 whitespace-nowrap">연락처</th>
-                  <th class="py-3.5 px-4 text-right whitespace-nowrap">견적 금액</th>
-                  <th class="py-3.5 px-4 min-w-[200px]">주요 요청/품목</th>
-                  <th class="py-3.5 px-4 text-center whitespace-nowrap min-w-[180px]">처리 상태</th>
-                  <th class="py-3.5 px-4 text-center whitespace-nowrap min-w-[230px]">관리</th>
+                  <th class="py-3.5 px-4 whitespace-nowrap min-w-[130px]">신청일시</th>
+                  <th class="py-3.5 px-4 whitespace-nowrap min-w-[130px]">서비스 구분</th>
+                  <th class="py-3.5 px-4 whitespace-nowrap min-w-[180px]">신청자 / ID</th>
+                  <th class="py-3.5 px-4 text-right whitespace-nowrap min-w-[120px]">견적/결제 금액</th>
+                  <th class="py-3.5 px-4 text-center whitespace-nowrap min-w-[190px]">처리 상태</th>
+                  <th class="py-3.5 px-4 text-center whitespace-nowrap min-w-[180px]">관리 액션</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-800/60">
@@ -358,14 +356,19 @@
                   class="hover:bg-slate-800/40 transition cursor-pointer group"
                   @click="openAppDetail(app)"
                 >
+                  <!-- 1. 신청일시 -->
                   <td class="py-3.5 px-4 text-slate-400 font-mono whitespace-nowrap">
                     {{ formatDateTime(app.created_at) }}
                   </td>
+
+                  <!-- 2. 서비스 구분 -->
                   <td class="py-3.5 px-4 whitespace-nowrap">
                     <span class="px-2.5 py-1 rounded-md text-[11px] font-bold" :class="getServiceBadgeClass(app.service_type)">
                       {{ app.service_name || getServiceLabel(app.service_type) }}
                     </span>
                   </td>
+
+                  <!-- 3. 신청자 / ID -->
                   <td class="py-3.5 px-4 font-bold text-white min-w-[180px]">
                     <div class="flex items-center gap-1.5 flex-wrap">
                       <span class="text-white group-hover:text-blue-300 transition font-bold">{{ app.customer_name }}</span>
@@ -380,15 +383,13 @@
                       {{ app.company_name }}
                     </span>
                   </td>
-                  <td class="py-3.5 px-4 font-mono text-slate-300 whitespace-nowrap">
-                    {{ app.phone }}
-                  </td>
+
+                  <!-- 4. 견적/결제 금액 -->
                   <td class="py-3.5 px-4 text-right font-mono font-bold whitespace-nowrap" :class="app.total_amount > 0 ? 'text-amber-400' : 'text-slate-500'">
                     {{ app.total_amount > 0 ? `${Number(app.total_amount).toLocaleString()}원` : '-' }}
                   </td>
-                  <td class="py-3.5 px-4 text-slate-300 min-w-[200px]">
-                    <p class="line-clamp-2 leading-relaxed">{{ getAppSummaryText(app) }}</p>
-                  </td>
+
+                  <!-- 5. 처리 상태 드롭다운 -->
                   <td class="py-3.5 px-4 text-center whitespace-nowrap" @click.stop>
                     <select 
                       :value="normalizeOrderStatus(app.status)" 
@@ -401,39 +402,36 @@
                       </option>
                     </select>
                   </td>
-                  <td class="py-3.5 px-4 text-center whitespace-nowrap" @click.stop>
+
+                  <!-- 6. 관리 액션 -->
+                  <td class="py-3.5 px-4 text-center whitespace-nowrap min-w-[180px]" @click.stop>
                     <div class="flex items-center justify-center gap-1.5">
                       <button 
                         @click="openAppDetail(app)" 
-                        class="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold shadow-sm transition active:scale-95 flex items-center gap-1"
+                        class="px-2.5 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-[11px] font-bold shadow-sm transition active:scale-95 flex items-center gap-1 shrink-0"
                         title="신청 상세 내역 및 고객 이력 확인"
                       >
                         <i class="fas fa-magnifying-glass text-[10px]"></i>
                         <span>상세</span>
                       </button>
+
                       <button 
                         v-if="app.service_type === 'purchasing' || app.service_type === 'purchasing_agent' || app.service_name?.includes('구매') || app.details?.items"
                         @click="openWarehouseInspectionModal(app)" 
-                        class="px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm transition active:scale-95 flex items-center gap-1"
+                        class="px-2.5 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[11px] shadow-sm transition active:scale-95 flex items-center gap-1 shrink-0"
                         title="이우 창고 실측 계근 및 검수 사진 등록"
                       >
                         <i class="fas fa-boxes-packing text-[10px]"></i>
                         <span>입고·검수</span>
                       </button>
-                      <button 
-                        @click="exportSingleApplicationReceipt(app)" 
-                        class="px-2 py-1 rounded-lg bg-emerald-950/60 hover:bg-emerald-900 text-emerald-300 border border-emerald-800/60 text-[11px] font-semibold transition flex items-center gap-1"
-                        title="해당 건 견적 명세서(CSV/Excel) 다운로드"
-                      >
-                        <i class="fas fa-file-csv text-[10px]"></i>
-                        <span>명세서</span>
-                      </button>
+
                       <button 
                         @click="deleteApplication(app.id)" 
-                        class="px-2 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-800/60 text-[11px] transition"
+                        class="px-2 py-1.5 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 hover:text-white border border-red-800/60 text-[11px] font-bold transition flex items-center gap-1 shrink-0"
                         title="신청 내역 삭제"
                       >
-                        삭제
+                        <i class="fas fa-trash-alt text-[10px]"></i>
+                        <span>삭제</span>
                       </button>
                     </div>
                   </td>
@@ -441,7 +439,7 @@
 
                 <!-- Empty State -->
                 <tr v-if="filteredApplications.length === 0">
-                  <td colspan="8" class="py-16 text-center text-slate-500 text-xs">
+                  <td colspan="6" class="py-16 text-center text-slate-500 text-xs">
                     <i class="fas fa-inbox text-3xl mb-2 block opacity-40"></i>
                     선택한 조건의 서비스 신청 내역이 없습니다.
                   </td>
@@ -3458,22 +3456,59 @@ const deleteStaff = async (staff) => {
 }
 
 // ----------------------------------------------------
-// Helpers
+// Helpers (Safe Date Formatter)
 // ----------------------------------------------------
 const formatDate = (dateStr) => {
-  if (!dateStr) return ''
-  return dateStr.split('T')[0]
+  if (!dateStr) return new Date().toISOString().split('T')[0]
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) return new Date().toISOString().split('T')[0]
+    return d.toISOString().split('T')[0]
+  } catch {
+    return new Date().toISOString().split('T')[0]
+  }
 }
 
 const formatDateTime = (dateStr) => {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleString('ko-KR', {
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
+  if (!dateStr) {
+    return new Date().toLocaleString('ko-KR', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })
+  }
+  try {
+    const d = new Date(dateStr)
+    if (isNaN(d.getTime())) {
+      if (typeof dateStr === 'string' && dateStr.trim()) {
+        return dateStr
+      }
+      return new Date().toLocaleString('ko-KR', {
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      })
+    }
+    return d.toLocaleString('ko-KR', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })
+  } catch {
+    return new Date().toLocaleString('ko-KR', {
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    })
+  }
 }
 
 onMounted(async () => {
