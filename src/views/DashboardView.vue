@@ -257,42 +257,75 @@
                 type="button"
                 @click="toggleMenu('products')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
-                :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') || route.path.startsWith('/dashboard/stores') ? 'text-amber-600' : ''"
+                :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') || route.path.startsWith('/dashboard/categories') || route.path.startsWith('/dashboard/labels') || route.path.startsWith('/dashboard/stores') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') || route.path.startsWith('/dashboard/stores') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') || route.path.startsWith('/dashboard/categories') || route.path.startsWith('/dashboard/labels') || route.path.startsWith('/dashboard/stores') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>상품관리</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.products ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
               </button>
 
-              <!-- Submenu Items -->
+              <!-- Submenu Items (CN인사이더 스타일 5종) -->
               <div v-show="expandedMenus.products" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
-                <router-link
-                  to="/mall"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg font-medium transition"
-                  :class="route.path === '/mall' && !route.query.tab ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-amber-600 hover:bg-gray-50'"
-                >
-                  <span>1688 소싱몰 바로가기</span>
-                  <i class="fas fa-external-link-alt text-[9px] text-gray-400"></i>
-                </router-link>
+                <!-- 🛒 장바구니 -->
                 <router-link
                   to="/dashboard/cart"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/cart' || route.path === '/dashboard/sourcing-products' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                  :class="route.path === '/dashboard/cart' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
-                  <span>장바구니</span>
+                  <div class="flex items-center gap-1.5">
+                    <span>🛒</span>
+                    <span>장바구니</span>
+                  </div>
                   <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs">
                     {{ savedItems.length }}
                   </span>
                 </router-link>
+                <!-- 📋 상품리스트 (메인) -->
+                <router-link
+                  to="/dashboard/sourcing-products"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/sourcing-products' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>📋</span>
+                    <span>상품리스트</span>
+                  </div>
+                  <span class="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
+                </router-link>
+                <!-- 📂 카테고리 -->
+                <router-link
+                  to="/dashboard/categories"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/categories' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>📂</span>
+                    <span>카테고리</span>
+                  </div>
+                </router-link>
+                <!-- 🏷️ 라벨설정 -->
+                <router-link
+                  to="/dashboard/labels"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/labels' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <div class="flex items-center gap-1.5">
+                    <span>🏷️</span>
+                    <span>라벨설정</span>
+                  </div>
+                </router-link>
+                <!-- 🏬 업체(상점)관리 -->
                 <router-link
                   to="/dashboard/stores"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
                   :class="route.path === '/dashboard/stores' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
-                  <span>구매한 상점모음</span>
-                  <i class="fas fa-store-alt text-[11px] opacity-60"></i>
+                  <div class="flex items-center gap-1.5">
+                    <span>🏬</span>
+                    <span>업체(상점)관리</span>
+                  </div>
                 </router-link>
               </div>
             </div>

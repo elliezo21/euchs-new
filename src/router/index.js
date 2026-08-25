@@ -56,7 +56,17 @@ const routes = [
       {
         path: 'sourcing-products',
         name: 'dashboard-sourcing-products',
-        component: CartView,
+        component: SourcingProductsView,
+      },
+      {
+        path: 'categories',
+        name: 'dashboard-categories',
+        component: SourcingProductsView,
+      },
+      {
+        path: 'labels',
+        name: 'dashboard-labels',
+        component: SourcingProductsView,
       },
       {
         path: 'orders',
