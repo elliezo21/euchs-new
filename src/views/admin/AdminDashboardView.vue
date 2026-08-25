@@ -144,15 +144,15 @@
             <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">모집중</span>
           </div>
           <p class="text-xs text-slate-500 leading-relaxed">
-            중국 이우 푸톈시장 1~5구 현지 바이어 동행 소싱 투어 신청 접수 현황입니다.
+            중국 이우 푸텐시장 1~5구 현지 바이어 동행 소싱 투어 신청 접수 현황입니다.
           </p>
         </div>
 
         <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
           <div>
-            <div class="text-[11px] text-slate-400 font-bold">2026년 9월 43기 조사단</div>
+            <div class="text-[11px] text-slate-400 font-bold">실시간 참가 신청 현황</div>
             <div class="text-lg font-black text-slate-900 mt-0.5 font-mono">
-              7 / 12명 <span class="text-xs text-slate-500 font-normal">(잔여 5석)</span>
+              {{ marketTourCount }}건 <span class="text-xs text-slate-500 font-normal">({{ marketTourCount > 0 ? '접수 확인' : '접수 대기' }})</span>
             </div>
           </div>
           <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg">
@@ -202,7 +202,7 @@
         </div>
         <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
           <span>불량 발생률</span>
-          <span class="text-emerald-600 font-bold">0.4% (양호)</span>
+          <span class="text-emerald-600 font-bold">0.0% (양호)</span>
         </div>
       </div>
 
@@ -232,7 +232,7 @@
         </div>
         <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
           <span>평균 소요일</span>
-          <span class="text-slate-700 font-bold">평택항 1.8일</span>
+          <span class="text-slate-700 font-bold">인천항 1.8일</span>
         </div>
       </div>
 
@@ -243,56 +243,56 @@
             <span class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
               <span>🏬 OEM·ODM 무역대행</span>
             </span>
-            <span class="text-[10px] text-slate-400 font-mono">B2B 생산</span>
+            <span class="text-[10px] text-slate-400 font-mono">B2B 맞춤</span>
           </div>
           <div class="mt-3 space-y-2 text-xs">
             <div class="flex justify-between items-center text-slate-600">
-              <span>신규 의뢰 문의</span>
-              <span class="font-bold font-mono text-slate-900">3건</span>
+              <span>신규 의뢰 접수</span>
+              <span class="font-bold font-mono text-slate-900">{{ customTradeCounts.new }}건</span>
             </div>
             <div class="flex justify-between items-center text-slate-600">
               <span>공장 견적 협의중</span>
-              <span class="font-bold font-mono text-blue-600">11건</span>
+              <span class="font-bold font-mono text-blue-600">{{ customTradeCounts.consulting }}건</span>
             </div>
             <div class="flex justify-between items-center text-slate-600">
-              <span>샘플 제작 & 승인</span>
-              <span class="font-bold font-mono text-purple-600">2건</span>
+              <span>샘플 및 계약진행</span>
+              <span class="font-bold font-mono text-purple-600">{{ customTradeCounts.contract }}건</span>
             </div>
           </div>
         </div>
         <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
-          <span>당월 계약 체결</span>
-          <span class="text-blue-600 font-bold">4건 (₩8,400만)</span>
+          <span>맞춤 생산 프로세스</span>
+          <span class="text-blue-600 font-bold">1:1 전담 매칭</span>
         </div>
       </div>
 
-      <!-- 4. 방문자 통계 -->
+      <!-- 4. 플랫폼 회원 & 바이어 통계 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between hover:shadow-md transition">
         <div>
           <div class="flex items-center justify-between">
             <span class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-              <span>💬 플랫폼 방문자 통계</span>
+              <span>👥 플랫폼 회원 & 바이어</span>
             </span>
-            <span class="text-[10px] text-emerald-600 font-bold font-mono">● LIVE</span>
+            <router-link to="/admin/members" class="text-[11px] text-blue-600 hover:underline font-bold">회원관리 ➔</router-link>
           </div>
           <div class="mt-3 space-y-2 text-xs">
             <div class="flex justify-between items-center text-slate-600">
-              <span>오늘 방문자</span>
-              <span class="font-bold font-mono text-slate-900">142명</span>
+              <span>총 가입 회원</span>
+              <span class="font-bold font-mono text-slate-900">{{ memberStats.total }}명</span>
             </div>
             <div class="flex justify-between items-center text-slate-600">
-              <span>이번 달 누적 바이어</span>
-              <span class="font-bold font-mono text-blue-600">3,890명</span>
+              <span>사업자 인증 바이어</span>
+              <span class="font-bold font-mono text-emerald-600">{{ memberStats.verified }}개사</span>
             </div>
             <div class="flex justify-between items-center text-slate-600">
-              <span>전체 누적 조회수</span>
-              <span class="font-bold font-mono text-slate-900">28,450회</span>
+              <span>인증 대기 바이어</span>
+              <span class="font-bold font-mono text-orange-600">{{ memberStats.pending }}건</span>
             </div>
           </div>
         </div>
         <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
-          <span>전주 대비 증가</span>
-          <span class="text-emerald-600 font-bold">+18.4% ▲</span>
+          <span>B2B 인증 완료율</span>
+          <span class="text-emerald-600 font-bold">{{ memberStats.rate }}%</span>
         </div>
       </div>
     </div>
@@ -424,11 +424,81 @@ function loadDashboardNotices() {
   }
 }
 
+// 실시간 이우 시장투어 신청 현황
+const marketTourCount = ref(0);
+function loadMarketTourStats() {
+  try {
+    const raw = localStorage.getItem('euchs_market_tour_applications') || localStorage.getItem('market_tour_applications');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        marketTourCount.value = parsed.length;
+        return;
+      }
+    }
+  } catch (e) {}
+  marketTourCount.value = 0;
+}
+
+// 실시간 OEM/ODM 맞춤 무역 의뢰 현황
+const customTradeCounts = ref({
+  new: 0,
+  consulting: 0,
+  contract: 0
+});
+function loadCustomTradeStats() {
+  try {
+    const raw = localStorage.getItem('euchs_trade_orders') || localStorage.getItem('euchs_custom_trade_orders');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        let n = 0, c = 0, ct = 0;
+        parsed.forEach(item => {
+          if (item.status === 'consulting') c++;
+          else if (item.status === 'contract' || item.status === 'completed') ct++;
+          else n++;
+        });
+        customTradeCounts.value = { new: n, consulting: c, contract: ct };
+        return;
+      }
+    }
+  } catch (e) {}
+  customTradeCounts.value = { new: 0, consulting: 0, contract: 0 };
+}
+
+// 실시간 플랫폼 회원 & 사업자 인증 바이어 통계
+const memberStats = ref({
+  total: 0,
+  verified: 0,
+  pending: 0,
+  rate: 100
+});
+function loadMemberStats() {
+  try {
+    const raw = localStorage.getItem('euchs_admin_members');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        const total = parsed.length;
+        const verified = parsed.filter(m => m.verificationStatus === 'verified').length;
+        const pending = parsed.filter(m => m.verificationStatus === 'pending').length;
+        const rate = total > 0 ? Math.round((verified / total) * 100) : 100;
+        memberStats.value = { total, verified, pending, rate };
+        return;
+      }
+    }
+  } catch (e) {}
+  memberStats.value = { total: 0, verified: 0, pending: 0, rate: 100 };
+}
+
 function reloadStats() {
   isRefreshing.value = true;
   orders.value = getStoredOrders();
   inbounds.value = loadStoredInbounds();
   loadDashboardNotices();
+  loadMarketTourStats();
+  loadCustomTradeStats();
+  loadMemberStats();
   const now = new Date();
   lastUpdatedTime.value = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
   setTimeout(() => {
@@ -441,6 +511,7 @@ onMounted(() => {
   window.addEventListener('euchs-order-status-update', reloadStats);
   window.addEventListener('euchs-warehouse-update', reloadStats);
   window.addEventListener('euchs-notice-update', loadDashboardNotices);
+  window.addEventListener('euchs-members-updated', loadMemberStats);
   window.addEventListener('storage', reloadStats);
 });
 
@@ -448,6 +519,7 @@ onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', reloadStats);
   window.removeEventListener('euchs-warehouse-update', reloadStats);
   window.removeEventListener('euchs-notice-update', loadDashboardNotices);
+  window.removeEventListener('euchs-members-updated', loadMemberStats);
   window.removeEventListener('storage', reloadStats);
 });
 </script>
