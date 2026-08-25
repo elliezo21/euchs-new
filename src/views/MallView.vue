@@ -10,9 +10,9 @@
     </transition>
 
     <!-- ======================================================== -->
-    <!-- 1. MALL SEARCH & BRAND HEADER (Slim & Lifted)            -->
+    <!-- 1. MALL SEARCH & BRAND HEADER (Sticky below GNB)         -->
     <!-- ======================================================== -->
-    <header class="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm transition-all duration-200">
+    <header class="sticky top-14 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-md transition-all duration-200">
       <!-- 검색바 영역 -->
       <div class="py-2 sm:py-2.5 border-b border-gray-100">
         <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
@@ -112,10 +112,10 @@
         </div>
       </div>
 
-      <!-- ── 카테고리 메가메뉴 바 (sticky 포함) ──
+      <!-- ── 카테고리 메가메뉴 바 ──
            이 영역은 JS에서 categoryNavRef로 참조되며
-           아래 2-column layout의 main에서 이동해옴 -->
-      <div class="border-t border-gray-100 bg-white">
+           검색바와 하나의 sticky 컨테이너(header) 안에 포함됨 -->
+      <div class="border-t border-gray-100 bg-white/95">
         <div class="max-w-[1720px] mx-auto px-2 lg:px-4 py-2">
           <div
             ref="categoryNavRef"
@@ -279,7 +279,7 @@
       <!-- ====================================================== -->
       <!-- LEFT: LNB SIDEBAR (고정 PC 전용)                        -->
       <!-- ====================================================== -->
-      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-24 self-start mr-4">
+      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-[200px] self-start mr-4">
 
         <!-- Profile Mini Card -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
