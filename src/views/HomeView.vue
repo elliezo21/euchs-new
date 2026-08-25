@@ -2,49 +2,6 @@
   <div class="bg-slate-50 text-slate-900 font-sans selection:bg-blue-600 selection:text-white">
     
     <!-- ======================================================== -->
-    <!-- 0. 최상단 시스템 점검/긴급 공지 아코디언 배너 (스마트스토어 센터 형태) -->
-    <!-- ======================================================== -->
-    <div v-if="urgentNotice" class="bg-amber-50 border-b border-amber-200/90 text-amber-950 transition-all select-none">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center justify-between text-xs gap-3">
-        <div 
-          class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer group"
-          @click="isNoticeExpanded = !isNoticeExpanded"
-          title="클릭하여 공지 내용 펼치기"
-        >
-          <span class="px-1.5 py-0.5 rounded bg-amber-500 text-white font-black text-[10px] shrink-0 uppercase tracking-wider">
-            {{ urgentNotice.badge || urgentNotice.category_name || '시스템' }}
-          </span>
-          <p class="truncate font-bold text-[11px] sm:text-xs text-amber-950 group-hover:text-amber-700 transition">
-            {{ urgentNotice.title }}
-          </p>
-          <span class="text-amber-700/60 text-[11px] font-mono hidden md:inline shrink-0">
-            {{ formatDate(urgentNotice.created_at || urgentNotice.createdAt) }}
-          </span>
-        </div>
-        <button
-          type="button"
-          @click="isNoticeExpanded = !isNoticeExpanded"
-          class="text-amber-800 hover:text-amber-950 font-bold text-[11px] flex items-center gap-1 shrink-0 px-2.5 py-1 rounded-lg hover:bg-amber-200/60 transition cursor-pointer"
-        >
-          <span>{{ isNoticeExpanded ? '접기 ▲' : '펼치기 ▼' }}</span>
-        </button>
-      </div>
-
-      <!-- 공지 확장 시 상세 내용 -->
-      <div v-if="isNoticeExpanded" class="border-t border-amber-200/70 bg-white/95 backdrop-blur-sm px-4 sm:px-6 lg:px-8 py-4 text-xs text-slate-700 shadow-inner animate-fade-in">
-        <div class="max-w-7xl mx-auto space-y-2">
-          <div class="flex items-center gap-2">
-            <span class="text-base">📢</span>
-            <h4 class="font-black text-slate-900 text-xs sm:text-sm">{{ urgentNotice.title }}</h4>
-          </div>
-          <p class="text-slate-600 leading-relaxed whitespace-pre-line pl-6 font-medium text-[11px] sm:text-xs">
-            {{ urgentNotice.content || urgentNotice.summary }}
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- ======================================================== -->
     <!-- 1. HERO SECTION (Global Trade Visual with Autoplay Video Background) -->
     <!-- ======================================================== -->
     <section class="relative bg-slate-950 text-white overflow-hidden pt-16 pb-20 sm:pt-28 sm:pb-36 min-h-[620px] flex items-center justify-center">
@@ -1011,16 +968,6 @@ const DEFAULT_HOME_NOTICES = [
 ]
 
 const noticesList = ref([])
-const isNoticeExpanded = ref(false)
-
-const urgentNotice = computed(() => {
-  if (!noticesList.value || noticesList.value.length === 0) return null
-  // 1. is_pinned 또는 is_important 또는 category === 'system' 공지 최우선
-  const pinned = noticesList.value.find(n => n.is_pinned || n.is_important || n.category === 'system')
-  if (pinned) return pinned
-  // 2. 최신 공지 첫 번째 반환
-  return noticesList.value[0]
-})
 
 const sortNotices = (list) => {
   if (!Array.isArray(list)) return []
