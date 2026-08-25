@@ -461,13 +461,25 @@
               </div>
             </div>
 
-            <div class="space-y-1 text-xs">
-              <div class="font-bold text-gray-700 flex items-center gap-1">
-                <i class="fas fa-bullhorn text-rose-500"></i> 실시간 소싱 공지
+            <div 
+              class="space-y-1 text-xs p-2.5 rounded-2xl bg-slate-50 hover:bg-rose-50/70 border border-gray-200/70 transition cursor-pointer group select-none"
+              @click="openNoticeModal(latestMallNotice)"
+              title="클릭하여 공지사항 상세 보기"
+            >
+              <div class="font-bold text-gray-800 flex items-center justify-between gap-1">
+                <span class="flex items-center gap-1.5 text-[11px] text-rose-600 font-black">
+                  <i class="fas fa-bullhorn"></i> 실시간 소싱 공지
+                </span>
+                <span v-if="latestMallNotice?.badge" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
+                  {{ latestMallNotice.badge }}
+                </span>
               </div>
-              <p class="text-[11px] text-gray-500 leading-snug line-clamp-2">
-                [공지] 1688 상품 주문 시 직영 물류센터 24시간 검수 후 안전 출고됩니다.
+              <p class="text-[11px] font-bold text-gray-800 group-hover:text-rose-600 leading-snug line-clamp-2 transition">
+                {{ latestMallNotice?.title || '[공지] 1688 상품 주문 시 직영 물류센터 24시간 검수 후 안전 출고됩니다.' }}
               </p>
+              <span class="text-[10px] text-gray-400 font-mono block">
+                {{ formatDate(latestMallNotice?.created_at || latestMallNotice?.createdAt) }}
+              </span>
             </div>
           </div>
 
@@ -846,6 +858,45 @@
                 class="text-xs text-slate-400 hover:text-slate-600 underline font-medium cursor-pointer"
               >
                 다음에 하기
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
+
+    <!-- 공지사항 상세 모달 -->
+    <teleport to="body">
+      <transition name="fade">
+        <div
+          v-if="selectedNotice"
+          class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm"
+          @click.self="selectedNotice = null"
+        >
+          <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full shadow-2xl border border-slate-100 space-y-4 text-slate-900 animate-fade-in select-none">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-50 text-rose-600 border border-rose-200">
+                  {{ selectedNotice.badge || selectedNotice.category_name || '공지' }}
+                </span>
+                <span class="text-xs text-gray-400 font-mono">{{ formatDate(selectedNotice.created_at || selectedNotice.createdAt) }}</span>
+              </div>
+              <button @click="selectedNotice = null" class="text-gray-400 hover:text-gray-600 p-1 text-base font-bold cursor-pointer">
+                ✕
+              </button>
+            </div>
+            <h3 class="text-base sm:text-lg font-black text-slate-900 leading-snug">
+              {{ selectedNotice.title }}
+            </h3>
+            <div class="text-xs sm:text-sm text-slate-600 leading-relaxed max-h-60 overflow-y-auto whitespace-pre-line py-2">
+              {{ selectedNotice.content || selectedNotice.summary }}
+            </div>
+            <div class="pt-3 border-t border-gray-100 flex items-center justify-between">
+              <router-link to="/community/notice" class="text-xs text-blue-600 hover:underline font-bold">
+                공지사항 전체보기 &gt;
+              </router-link>
+              <button @click="selectedNotice = null" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold rounded-xl text-xs cursor-pointer shadow-sm">
+                확인 완료
               </button>
             </div>
           </div>
@@ -1399,6 +1450,44 @@ const handleImageError = (e) => {
 }
 
 // ----------------------------------------------------
+// Real-time Notice State (Single Source of Truth: euchs_admin_notices)
+// ----------------------------------------------------
+const mallNotices = ref([])
+const selectedNotice = ref(null)
+
+const latestMallNotice = computed(() => {
+  if (!mallNotices.value || mallNotices.value.length === 0) return null
+  const pinned = mallNotices.value.find(n => n.is_pinned || n.is_important)
+  if (pinned) return pinned
+  return mallNotices.value[0]
+})
+
+const openNoticeModal = (item) => {
+  if (item) {
+    selectedNotice.value = item
+  }
+}
+
+const loadMallNotices = () => {
+  try {
+    const raw = localStorage.getItem('euchs_admin_notices') || localStorage.getItem('euchs_notices')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        mallNotices.value = parsed.sort((a, b) => {
+          if (a.is_pinned && !b.is_pinned) return -1
+          if (!a.is_pinned && b.is_pinned) return 1
+          return new Date(b.created_at || b.createdAt || 0) - new Date(a.created_at || a.createdAt || 0)
+        })
+        return
+      }
+    }
+  } catch (e) {
+    console.warn('MallView load notices error:', e)
+  }
+}
+
+// ----------------------------------------------------
 // Lifecycle & Route Query Watcher
 // ----------------------------------------------------
 const handleIncomingQuery = async () => {
@@ -1443,16 +1532,21 @@ onMounted(async () => {
 
   await loadRates()
   loadBalance()
+  loadMallNotices()
   updateSavedCount()
   handleIncomingQuery()
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
+  window.addEventListener('euchs-notice-update', loadMallNotices)
+  window.addEventListener('storage', loadMallNotices)
 })
 
 onUnmounted(() => {
   window.removeEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
+  window.removeEventListener('euchs-notice-update', loadMallNotices)
+  window.removeEventListener('storage', loadMallNotices)
 })
 
 watch(currentUser, () => {
