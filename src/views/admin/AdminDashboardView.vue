@@ -4,13 +4,17 @@
     <!-- ======================================================== -->
     <!-- 1. 최상단 시스템 공지 롤링/슬림 배너 (스마트스토어 센터 형태) -->
     <!-- ======================================================== -->
-    <div class="bg-amber-50/80 border border-amber-200/80 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-amber-900 shadow-xs">
-      <div class="flex items-center gap-2 overflow-hidden">
-        <span class="px-1.5 py-0.5 rounded bg-amber-500 text-white font-black text-[10px] shrink-0">시스템</span>
+    <div v-if="urgentNotice" class="bg-amber-50/80 border border-amber-200/80 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-amber-900 shadow-xs">
+      <div class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer" @click="isNoticeExpanded = !isNoticeExpanded">
+        <span class="px-1.5 py-0.5 rounded bg-amber-500 text-white font-black text-[10px] shrink-0">
+          {{ urgentNotice.badge || urgentNotice.category_name || '시스템' }}
+        </span>
         <p class="truncate font-medium text-[11px] sm:text-xs">
-          8/29(토) EUCHS 클라우드 DB 및 1688 API 연동망 정기 점검에 따른 일부 기능 이용 제한 안내 (02:00 ~ 06:00)
+          {{ urgentNotice.title }}
         </p>
-        <span class="text-amber-700/60 text-[11px] font-mono hidden md:inline shrink-0">2026.08.25.</span>
+        <span class="text-amber-700/60 text-[11px] font-mono hidden md:inline shrink-0">
+          {{ formatDate(urgentNotice.created_at || urgentNotice.createdAt) }}
+        </span>
       </div>
       <button
         type="button"
@@ -22,12 +26,10 @@
     </div>
 
     <!-- 공지 확장 시 상세 내용 -->
-    <div v-if="isNoticeExpanded" class="p-4 bg-white border border-amber-200 rounded-xl text-xs text-slate-700 space-y-2 shadow-xs animate-fade-in">
-      <p class="font-bold text-slate-900">📢 2026 하반기 정기 서버 점검 및 중국 세관 EDI 연계 점검</p>
-      <p class="text-slate-600 leading-relaxed">
-        - 점검 일시: 2026년 8월 29일(토) 02:00 ~ 06:00 (약 4시간)<br />
-        - 점검 영향: 1688 자동 소싱 및 관세청 유니패스 실시간 통관 조회 일시 중단<br />
-        - 고객 주문 접수는 정상 유지되며 점검 완료 후 순차 자동 반영됩니다.
+    <div v-if="isNoticeExpanded && urgentNotice" class="p-4 bg-white border border-amber-200 rounded-xl text-xs text-slate-700 space-y-2 shadow-xs animate-fade-in">
+      <p class="font-bold text-slate-900">📢 {{ urgentNotice.title }}</p>
+      <p class="text-slate-600 leading-relaxed whitespace-pre-line">
+        {{ urgentNotice.content || urgentNotice.summary }}
       </p>
     </div>
 
@@ -392,10 +394,41 @@ function getTabName(key) {
   return map[key] || '문의';
 }
 
+const noticesList = ref([]);
+
+const urgentNotice = computed(() => {
+  if (!noticesList.value || noticesList.value.length === 0) return null;
+  const pinned = noticesList.value.find(n => n.is_pinned || n.is_important || n.category === 'system');
+  if (pinned) return pinned;
+  return noticesList.value[0];
+});
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}.`;
+}
+
+function loadDashboardNotices() {
+  try {
+    const raw = localStorage.getItem('euchs_admin_notices') || localStorage.getItem('euchs_notices');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        noticesList.value = parsed;
+        return;
+      }
+    }
+  } catch (e) {
+    console.warn('Dashboard load notices error:', e);
+  }
+}
+
 function reloadStats() {
   isRefreshing.value = true;
   orders.value = getStoredOrders();
   inbounds.value = loadStoredInbounds();
+  loadDashboardNotices();
   const now = new Date();
   lastUpdatedTime.value = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
   setTimeout(() => {
@@ -407,12 +440,14 @@ onMounted(() => {
   reloadStats();
   window.addEventListener('euchs-order-status-update', reloadStats);
   window.addEventListener('euchs-warehouse-update', reloadStats);
+  window.addEventListener('euchs-notice-update', loadDashboardNotices);
   window.addEventListener('storage', reloadStats);
 });
 
 onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', reloadStats);
   window.removeEventListener('euchs-warehouse-update', reloadStats);
+  window.removeEventListener('euchs-notice-update', loadDashboardNotices);
   window.removeEventListener('storage', reloadStats);
 });
 </script>
