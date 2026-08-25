@@ -82,11 +82,11 @@
           <!-- CTA Buttons -->
           <div class="flex flex-wrap items-center justify-center gap-3.5 pt-2">
             <router-link 
-              to="/tools/calculator"
+              to="/mall"
               class="px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm sm:text-base shadow-xl shadow-blue-600/40 hover:shadow-blue-500/60 hover:-translate-y-0.5 active:scale-95 transition-all duration-200 flex items-center gap-2 border border-blue-400/30"
             >
-              <i class="fas fa-calculator text-blue-200"></i>
-              <span>실시간 무역 견적 계산기</span>
+              <i class="fas fa-shopping-cart text-blue-200"></i>
+              <span>1688 구매하러 가기</span>
               <i class="fas fa-arrow-right text-xs text-blue-200"></i>
             </router-link>
 
