@@ -350,36 +350,6 @@
         </transition>
       </div>
 
-      <!-- Progress Indicator (During Search) -->
-      <div v-if="isLoading" class="bg-white rounded-2xl p-4 sm:p-5 border border-rose-200 shadow-sm space-y-3">
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-rose-600 text-white flex items-center justify-center text-sm font-bold shadow-md shadow-rose-500/30">
-              <i class="fas fa-sync fa-spin"></i>
-            </div>
-            <div>
-              <div class="text-sm font-bold text-gray-900">
-                {{ currentProgress.message || '1688 실시간 상품 및 AI 번역 연동 중...' }}
-              </div>
-              <div class="text-xs text-rose-600 mt-0.5">
-                Step {{ currentProgress.step }}/3: 
-                <span v-if="currentProgress.step === 1">AI 한글 ➔ 중국어 키워드 번역</span>
-                <span v-else-if="currentProgress.step === 2">1688 DataHub 실시간 상품 DB 검색</span>
-                <span v-else>수신 상품명 AI 한국어 일괄 번역</span>
-              </div>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-1.5 text-xs font-bold">
-            <span :class="['px-2.5 py-1 rounded-lg transition-all', currentProgress.step >= 1 ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-400']">1. 키워드번역</span>
-            <i class="fas fa-chevron-right text-[10px] text-gray-300"></i>
-            <span :class="['px-2.5 py-1 rounded-lg transition-all', currentProgress.step >= 2 ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-400']">2. 1688검색</span>
-            <i class="fas fa-chevron-right text-[10px] text-gray-300"></i>
-            <span :class="['px-2.5 py-1 rounded-lg transition-all', currentProgress.step >= 3 ? 'bg-rose-600 text-white' : 'bg-gray-100 text-gray-400']">3. 한국어매핑</span>
-          </div>
-        </div>
-      </div>
-
       <!-- Clean Search Results Header Bar (No Item Count, Clean Single Tag) -->
       <div v-if="hasSearched && !isLoading" class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div class="flex items-center gap-2 text-xs sm:text-sm">
