@@ -223,13 +223,27 @@ export const signInWithKakao = async () => {
 }
 
 /**
+ * 네이버 OAuth redirectUri 정규화 헬퍼
+ * - localhost 개발환경: http://localhost:5173/mall
+ * - 프로덕션 (euchs.co.kr / www.euchs.co.kr 양쪽 모두): https://www.euchs.co.kr/mall 강제 통일
+ */
+const getNaverRedirectUri = () => {
+  const origin = window.location.origin
+  if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+    return 'http://localhost:5173/mall'
+  }
+  // www 유무 관계없이 항상 네이버 개발자센터 등록 URL과 동일하게 고정
+  return 'https://www.euchs.co.kr/mall'
+}
+
+/**
  * Naver OAuth2 로그인 실행
  * - Client ID: UnBL7sON2_LO_noLE03c
  * - 등록된 Callback URL: https://www.euchs.co.kr/mall | http://localhost:5173/mall
  */
 export const signInWithNaver = () => {
   const clientId = 'UnBL7sON2_LO_noLE03c'
-  const redirectUri = encodeURIComponent(`${window.location.origin}/mall`)
+  const redirectUri = encodeURIComponent(getNaverRedirectUri())
 
   // CSRF 방지용 랜덤 state 생성 및 저장
   const state = Math.random().toString(36).substring(2, 15)
@@ -239,25 +253,35 @@ export const signInWithNaver = () => {
   window.location.href = naverAuthUrl
 }
 
+// 중복 콜백 처리 방지 플래그
+let _isNaverCallbackProcessing = false
 
 /**
  * 네이버 OAuth 콜백 처리 함수
+ * - 토큰 교환 시 signInWithNaver와 동일한 redirectUri 필수
+ * - 중복 호출 가드로 이중 처리 방지
  */
 export const handleNaverCallback = async (code, state) => {
-  const savedState = sessionStorage.getItem('naver_oauth_state')
+  // 중복 호출 방지
+  if (_isNaverCallbackProcessing) {
+    console.warn('[NaverCallback] Already processing, skipping duplicate call.')
+    return { success: false, message: 'Already processing' }
+  }
+  _isNaverCallbackProcessing = true
 
+  const savedState = sessionStorage.getItem('naver_oauth_state')
   if (savedState && savedState !== state) {
     console.warn('Naver OAuth state mismatch, proceeding with token exchange')
   }
 
-  // 토큰 교환 시 authorize 요청과 동일한 redirectUri 필수
-  const redirectUri = `${window.location.origin}/mall`
+  // authorize 요청과 반드시 동일한 redirectUri 사용
+  const redirectUri = getNaverRedirectUri()
 
   try {
     let naverUser = null
     let sessionResult = null
 
-    // 1. 로컬 API 엔드포인트 (/api/naver-auth) 우선 시도
+    // 1. Vercel Serverless API (/api/naver-auth) 우선 시도
     try {
       const localApiRes = await fetch('/api/naver-auth', {
         method: 'POST',
@@ -275,7 +299,7 @@ export const handleNaverCallback = async (code, state) => {
       console.warn('Local naver-auth API fallback to Edge Function:', localErr)
     }
 
-    // 2. 만약 로컬 API 응답이 없으면 Supabase Edge Function 호출 시도
+    // 2. Supabase Edge Function 폴백
     if (!naverUser && isSupabaseConfigured()) {
       try {
         const { data: edgeData, error: edgeError } = await supabase.functions.invoke('naver-auth', {
@@ -283,12 +307,8 @@ export const handleNaverCallback = async (code, state) => {
         })
 
         if (!edgeError && edgeData?.success) {
-          if (edgeData.session) {
-            sessionResult = edgeData.session
-          }
-          if (edgeData.user) {
-            naverUser = edgeData.user.user_metadata || edgeData.user
-          }
+          if (edgeData.session) sessionResult = edgeData.session
+          if (edgeData.user) naverUser = edgeData.user.user_metadata || edgeData.user
         }
       } catch (edgeErr) {
         console.warn('Edge function naver-auth invoke error:', edgeErr)
@@ -299,7 +319,7 @@ export const handleNaverCallback = async (code, state) => {
       throw new Error('네이버 계정 정보를 인증할 수 없습니다. 네이버 로그인 설정을 확인해 주세요.')
     }
 
-    // 3. Supabase Edge Function에서 표준 세션이 반환된 경우
+    // 3. Supabase Edge Function 표준 세션 반환 처리
     if (sessionResult?.access_token && sessionResult?.refresh_token) {
       const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
         access_token: sessionResult.access_token,
@@ -309,11 +329,13 @@ export const handleNaverCallback = async (code, state) => {
       if (!sessionError) {
         currentUser.value = sessionData.user || sessionResult.user
         sessionStorage.removeItem('naver_oauth_state')
+        closeLoginModal()
+        window.dispatchEvent(new CustomEvent('euchs:login_success', { detail: { user: currentUser.value } }))
         return { success: true, user: currentUser.value }
       }
     }
 
-    // 4. 네이버 프로필 정보를 기반으로 Supabase Auth 사용자 연동
+    // 4. 네이버 프로필 기반 Supabase Auth 사용자 연동
     const naverId = naverUser.id || naverUser.naver_id
     const userEmail = naverUser.email || `naver_${naverId}@naver.user`
     const displayName = naverUser.nickname || naverUser.name || naverUser.full_name || '네이버 회원'
@@ -333,7 +355,7 @@ export const handleNaverCallback = async (code, state) => {
           currentUser.value = signInData.user
         } else {
           // 신규 계정 가입 시도
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+          const { data: signUpData } = await supabase.auth.signUp({
             email: userEmail,
             password: deterministicPassword,
             options: {
@@ -351,14 +373,12 @@ export const handleNaverCallback = async (code, state) => {
           if (signUpData?.user) {
             currentUser.value = signUpData.user
           } else {
-            // 가입 확인 후 로그인 재시도
+            // 가입 확인 후 재로그인
             const { data: retrySignIn } = await supabase.auth.signInWithPassword({
               email: userEmail,
               password: deterministicPassword
             })
-            if (retrySignIn?.user) {
-              currentUser.value = retrySignIn.user
-            }
+            if (retrySignIn?.user) currentUser.value = retrySignIn.user
           }
         }
       } catch (authSyncErr) {
@@ -366,42 +386,33 @@ export const handleNaverCallback = async (code, state) => {
       }
     }
 
-    // 사용자 상태 확정
+    // 사용자 상태 확정 (Supabase 연동 실패 시 로컬 세션)
     if (!currentUser.value) {
       currentUser.value = {
         id: `naver_${naverId}`,
         email: userEmail,
-        user_metadata: {
-          full_name: displayName,
-          name: displayName,
-          avatar_url: avatarUrl,
-          mobile,
-          provider: 'naver'
-        }
+        user_metadata: { full_name: displayName, name: displayName, avatar_url: avatarUrl, mobile, provider: 'naver' }
       }
     }
 
     sessionStorage.removeItem('naver_oauth_state')
-    
-    // SNS 간편가입/로그인 후 사업자 정보 미등록 시 즉시 입력 유도
+    closeLoginModal()
+    window.dispatchEvent(new CustomEvent('euchs:login_success', { detail: { user: currentUser.value } }))
+
+    // 사업자 정보 미등록 시 즉시 입력 유도
     if (!isUserBusinessVerified(currentUser.value)) {
-      setTimeout(() => {
-        openLoginModal('business_verify')
-      }, 350)
+      setTimeout(() => { openLoginModal('business_verify') }, 350)
     }
 
-    return {
-      success: true,
-      user: currentUser.value
-    }
+    return { success: true, user: currentUser.value }
   } catch (err) {
     console.error('handleNaverCallback Error:', err)
-    return {
-      success: false,
-      message: err.message || '네이버 로그인 처리 중 오류가 발생했습니다.'
-    }
+    return { success: false, message: err.message || '네이버 로그인 처리 중 오류가 발생했습니다.' }
+  } finally {
+    _isNaverCallbackProcessing = false
   }
 }
+
 
 /**
  * 이메일 / 비밀번호 로그인
