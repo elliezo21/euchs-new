@@ -386,9 +386,9 @@
             <div>
               <h3 
                 class="text-[13px] font-medium text-gray-800 leading-[18px] line-clamp-2 h-[36px] group-hover:text-orange-600 transition" 
-                :title="item.titleKo || item.titleZh"
+                :title="item.titleKo || item.title || item.titleZh"
               >
-                {{ item.titleKo || item.titleZh }}
+                {{ item.titleKo || item.title || item.titleZh }}
               </h3>
             </div>
 

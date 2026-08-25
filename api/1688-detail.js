@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vercel Serverless Function: /api/1688-detail
  * 1688 DataHub RapidAPI 상품 상세 조회 프록시
  */
@@ -16,7 +16,7 @@ export default async function handler(req, res) {
   const rapidHost = process.env.VITE_RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
 
   try {
-    const targetUrl = new URL(https:///item_detail)
+    const targetUrl = new URL(`https://${rapidHost}/item_detail`)
     targetUrl.searchParams.set('itemId', targetId)
 
     const response = await fetch(targetUrl.toString(), {

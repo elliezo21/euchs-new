@@ -97,7 +97,7 @@ function lab1688Plugin(env) {
           req.on('end', async () => {
             try {
               const { text, target_lang, source_lang } = JSON.parse(body || '{}')
-              const deeplKey = env.VITE_DEEPL_API_KEY || env.DEEPL_API_KEY || process.env.DEEPL_API_KEY || ''
+              const deeplKey = env.VITE_DEEPL_API_KEY || env.DEEPL_API_KEY || process.env.DEEPL_API_KEY || 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'
               
               if (!deeplKey) {
                 res.statusCode = 500

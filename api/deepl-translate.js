@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vercel Serverless Function: /api/deepl-translate
  * DeepL 번역 API CORS 우회 및 일괄 번역 프록시
  */
@@ -36,7 +36,7 @@ export default async function handler(req, res) {
     const response = await fetch(deeplEndpoint, {
       method: 'POST',
       headers: {
-        'Authorization': DeepL-Auth-Key ,
+        'Authorization': `DeepL-Auth-Key ${deeplKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(payload)

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vercel Serverless Function: /api/1688-search
  * 1688 DataHub RapidAPI 검색 프록시
  */
@@ -15,7 +15,7 @@ export default async function handler(req, res) {
   const rapidHost = process.env.VITE_RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
 
   try {
-    const targetUrl = new URL(https:///item_search)
+    const targetUrl = new URL(`https://${rapidHost}/item_search`)
     targetUrl.searchParams.set('q', q || '')
     targetUrl.searchParams.set('page', page)
     if (sort && sort !== 'default') targetUrl.searchParams.set('sort', sort)
