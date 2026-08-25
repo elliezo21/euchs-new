@@ -217,3 +217,316 @@ export function parseOrderExcel(file) {
     reader.readAsArrayBuffer(file);
   });
 }
+
+// ============================================================
+// 관리자 전용 엑셀 내보내기 유틸리티 (Admin Excel Export Utils)
+// ============================================================
+
+/** 날짜 포맷 헬퍼 YYYY-MM-DD */
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+/**
+ * 1688 공장 발주용 사입 엑셀 다운로드
+ * @param {Object} order - 주문 객체 (items[], buyerInfo, orderNumber 등)
+ */
+export function exportAdmin1688PurchaseExcel(order) {
+  if (!order) throw new Error('order 객체가 없습니다.');
+  const items = Array.isArray(order.items) ? order.items : [];
+  const today = todayStr();
+  const orderId = order.orderNumber || order.id || 'UNKNOWN';
+
+  // 헤더 메타 블록
+  const headerRows = [
+    ['1688 공장 사입 발주서 (Admin Purchase Order)'],
+    [],
+    ['주문번호', orderId, '', '발주일', today],
+    ['바이어', order.buyerInfo?.companyName || order.buyerInfo?.buyerName || '이유씨글로벌', '', '연락처', order.buyerInfo?.phone || '-'],
+    ['담당자 메모', order.adminMemo || order.buyerInfo?.memo || ''],
+    [],
+    // 컬럼 헤더
+    ['NO', '1688 상품링크', '상품명(중문/한글)', '옵션규격(SKU)', '발주수량(개)', '단가(¥ CNY)', '합계(¥ CNY)', '특이사항 / 사입메모'],
+  ];
+
+  let totalQty = 0;
+  let totalCny = 0;
+
+  const itemRows = items
+    .filter(i => !i.excluded)
+    .map((item, idx) => {
+      // 1688 원본 링크 조합
+      let url = item.productUrl || item.source_url || item.detailUrl || '';
+      if (!url) {
+        const rawId = item.num_iid || item.itemId || item.id || '';
+        const cleanId = String(rawId).replace(/[^0-9]/g, '');
+        if (cleanId.length >= 7) url = `https://detail.1688.com/offer/${cleanId}.html`;
+        else url = 'https://www.1688.com';
+      }
+
+      const qty     = Number(item.quantity || 1);
+      const price   = Number(item.priceCny || 0);
+      const subtotal = Number((qty * price).toFixed(2));
+
+      totalQty += qty;
+      totalCny += subtotal;
+
+      const name = item.productName || item.titleZh || item.title || item.name || '1688 상품';
+      const sku  = item.sku || item.selectedOption || item.optionName || item.option || '기본';
+
+      return [
+        idx + 1,
+        url,
+        name,
+        sku,
+        qty,
+        price,
+        subtotal,
+        item.remark || item.memo || '',
+      ];
+    });
+
+  const totalRow = ['합계', '', `총 ${itemRows.length}품목`, '', totalQty, '', Number(totalCny.toFixed(2)), ''];
+
+  const sheetData = [...headerRows, ...itemRows, totalRow];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 5 },  // NO
+    { wch: 42 }, // 1688 링크
+    { wch: 34 }, // 상품명
+    { wch: 24 }, // SKU
+    { wch: 12 }, // 수량
+    { wch: 14 }, // 단가
+    { wch: 14 }, // 합계
+    { wch: 26 }, // 메모
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '1688_사입발주서');
+  const fileName = `1688_발주서_${orderId}_${today}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return fileName;
+}
+
+/**
+ * 종합 수입 주문서 / 세무 정산용 엑셀 다운로드
+ * @param {Object} order - 주문 객체
+ * @param {number} [exchangeRate=226.19] - 적용 환율
+ */
+export function exportAdminMasterOrderExcel(order, exchangeRate = 226.19) {
+  if (!order) throw new Error('order 객체가 없습니다.');
+  const items = Array.isArray(order.items) ? order.items : [];
+  const today = todayStr();
+  const orderId  = order.orderNumber || order.id || 'UNKNOWN';
+  const buyer    = order.buyerInfo || {};
+  const buyerName = buyer.companyName || buyer.buyerName || '이유씨글로벌';
+
+  // 상단 메타 블록
+  const headerRows = [
+    ['EUC 수입 종합 주문서 / 세무 정산서 (Import Master Order Sheet)'],
+    [],
+    ['주문번호',       orderId,                             '',  '접수일자',              order.createdAt || today],
+    ['바이어 상호명',  buyerName,                           '',  '담당자 성명',            buyer.buyerName || '-'],
+    ['연락처',         buyer.phone || '-',                  '',  '이메일',                buyer.email || '-'],
+    ['PCCC (개인통관부호)', buyer.customsCode || buyer.pccc || '-', '', '사업자등록번호',   buyer.bizNo || buyer.businessNumber || '-'],
+    ['국내 배송지',    buyer.address || '-',                '',  '배송 요청메모',          buyer.memo || '-'],
+    ['적용 환율 (₩/¥)', `1 CNY = ${exchangeRate} KRW`,    '',  '대행수수료율',           '8%'],
+    [],
+    // 품목 컬럼 헤더
+    [
+      'NO', '상품명(한글/중문)', '옵션(SKU)',
+      '수량(개)', '단가(¥ CNY)', '단가(₩ KRW)',
+      '상품소계(₩)', '관·부가세 예상(₩)', '대행수수료 8%(₩)', '최종 공급가액(₩)',
+    ],
+  ];
+
+  let totalQty     = 0;
+  let totalKrw     = 0;
+  let totalTax     = 0;
+  let totalFee     = 0;
+  let totalFinal   = 0;
+
+  const AGY_RATE = 0.08;
+  const TAX_RATE = 0.18; // 관세+부가세 합산 예상 (13% 관세 + 5% 부가세 평균 기준)
+
+  const itemRows = items
+    .filter(i => !i.excluded)
+    .map((item, idx) => {
+      const qty      = Number(item.quantity || 1);
+      const priceCny = Number(item.priceCny || 0);
+      const priceKrw = Math.round(priceCny * exchangeRate);
+      const subKrw   = priceKrw * qty;
+      const taxKrw   = Math.round(subKrw * TAX_RATE);
+      const feeKrw   = Math.round(subKrw * AGY_RATE);
+      const finalKrw = subKrw + taxKrw + feeKrw;
+
+      totalQty   += qty;
+      totalKrw   += subKrw;
+      totalTax   += taxKrw;
+      totalFee   += feeKrw;
+      totalFinal += finalKrw;
+
+      const name = item.productName || item.titleZh || item.title || item.name || '1688 상품';
+      const sku  = item.sku || item.selectedOption || item.optionName || '기본';
+
+      return [
+        idx + 1,
+        name,
+        sku,
+        qty,
+        priceCny,
+        priceKrw,
+        subKrw,
+        taxKrw,
+        feeKrw,
+        finalKrw,
+      ];
+    });
+
+  const totalRow = [
+    '합계', `총 ${itemRows.length}품목`, '',
+    totalQty, '', '',
+    totalKrw, totalTax, totalFee, totalFinal,
+  ];
+
+  const summaryRows = [
+    [],
+    ['[비용 정산 요약]'],
+    ['1. 1688 상품대 합계 (KRW)',             totalKrw],
+    ['2. 관·부가세 합계 예상 (KRW)',           totalTax],
+    ['3. EUCHS 대행수수료 8% (KRW)',           totalFee],
+    ['★ 최종 총액 (DDP 예상, KRW)',             totalFinal],
+    [],
+    ['※ 본 견적은 인천세관 수입신고 시 최종 확정됩니다. 환율 변동에 따라 차이가 있을 수 있습니다.'],
+  ];
+
+  const sheetData = [...headerRows, ...itemRows, totalRow, ...summaryRows];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+  ws['!cols'] = [
+    { wch: 5 },  // NO
+    { wch: 34 }, // 상품명
+    { wch: 22 }, // SKU
+    { wch: 10 }, // 수량
+    { wch: 12 }, // 단가(CNY)
+    { wch: 14 }, // 단가(KRW)
+    { wch: 16 }, // 소계(KRW)
+    { wch: 16 }, // 관부가세
+    { wch: 16 }, // 수수료
+    { wch: 18 }, // 최종
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'EUC_수입주문서');
+  const fileName = `EUC_수입발주서_${orderId}_${buyerName}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return fileName;
+}
+
+/**
+ * 여러 주문을 하나의 엑셀 파일로 통합 다운로드 (관리자 일괄 처리용)
+ * @param {Array<Object>} orders - 주문 객체 배열
+ * @param {number} [exchangeRate=226.19] - 적용 환율
+ */
+export function exportAdminBulkOrderExcel(orders, exchangeRate = 226.19) {
+  if (!Array.isArray(orders) || orders.length === 0) throw new Error('주문 목록이 비어 있습니다.');
+  const today   = todayStr();
+  const AGY_RATE = 0.08;
+
+  const wb = XLSX.utils.book_new();
+
+  // ① 시트 1: 전체 주문 요약 목록
+  const summaryHeader = [
+    ['EUC 통합 발주 요약서 (Bulk Order Summary)'],
+    [`추출일: ${today}  |  총 ${orders.length}건`],
+    [],
+    ['NO', '주문번호', '접수일', '바이어', 'PCCC', '품목수', '총수량', '상품대(¥)', '상품대(₩)', '수수료8%(₩)', '합계(₩)', '진행단계'],
+  ];
+
+  let grandTotalKrw = 0;
+  let grandTotalFee = 0;
+
+  const summaryRows = orders.map((order, idx) => {
+    const items  = (order.items || []).filter(i => !i.excluded);
+    const totalCny = items.reduce((s, i) => s + Number(i.priceCny||0)*Number(i.quantity||1), 0);
+    const totalQty = items.reduce((s, i) => s + Number(i.quantity||1), 0);
+    const totalKrw = Math.round(totalCny * exchangeRate);
+    const feeKrw   = Math.round(totalKrw * AGY_RATE);
+    const finalKrw = totalKrw + feeKrw;
+    const buyer    = order.buyerInfo || {};
+
+    grandTotalKrw += totalKrw;
+    grandTotalFee += feeKrw;
+
+    return [
+      idx + 1,
+      order.orderNumber || order.id,
+      order.createdAt || '-',
+      buyer.companyName || buyer.buyerName || '-',
+      buyer.customsCode || buyer.pccc || '-',
+      items.length,
+      totalQty,
+      Number(totalCny.toFixed(2)),
+      totalKrw,
+      feeKrw,
+      finalKrw,
+      order.status || '-',
+    ];
+  });
+
+  const summaryTotal = ['합계', `${orders.length}건`, '', '', '', '', '', '', grandTotalKrw, grandTotalFee, grandTotalKrw + grandTotalFee, ''];
+
+  const summarySheet = XLSX.utils.aoa_to_sheet([...summaryHeader, ...summaryRows, summaryTotal]);
+  summarySheet['!cols'] = [
+    {wch:5},{wch:20},{wch:14},{wch:20},{wch:16},{wch:8},{wch:8},{wch:12},{wch:14},{wch:14},{wch:14},{wch:14},
+  ];
+  XLSX.utils.book_append_sheet(wb, summarySheet, '통합요약');
+
+  // ② 시트 2~: 주문별 품목 상세
+  orders.forEach((order, oIdx) => {
+    const items    = (order.items || []).filter(i => !i.excluded);
+    const orderId  = order.orderNumber || order.id || `ORDER-${oIdx+1}`;
+    const buyer    = order.buyerInfo || {};
+    const sheetName = `주문${oIdx+1}_${String(orderId).slice(-8)}`.slice(0, 31);
+
+    const rows = [
+      [`주문번호: ${orderId}  /  바이어: ${buyer.companyName || buyer.buyerName || '-'}  /  PCCC: ${buyer.customsCode || '-'}`],
+      [],
+      ['NO', '상품명', '옵션(SKU)', '수량', '단가(¥)', '단가(₩)', '소계(₩)', '수수료8%(₩)', '1688 링크'],
+    ];
+
+    items.forEach((item, idx) => {
+      let url = item.productUrl || item.source_url || item.detailUrl || '';
+      if (!url) {
+        const rawId = item.num_iid || item.itemId || item.id || '';
+        const cleanId = String(rawId).replace(/[^0-9]/g, '');
+        if (cleanId.length >= 7) url = `https://detail.1688.com/offer/${cleanId}.html`;
+      }
+      const qty    = Number(item.quantity || 1);
+      const pCny   = Number(item.priceCny || 0);
+      const pKrw   = Math.round(pCny * exchangeRate);
+      const subKrw = pKrw * qty;
+      const feeKrw = Math.round(subKrw * AGY_RATE);
+
+      rows.push([
+        idx + 1,
+        item.productName || item.name || '1688 상품',
+        item.sku || item.selectedOption || '기본',
+        qty,
+        pCny,
+        pKrw,
+        subKrw,
+        feeKrw,
+        url,
+      ]);
+    });
+
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{wch:5},{wch:32},{wch:22},{wch:8},{wch:12},{wch:12},{wch:14},{wch:14},{wch:40}];
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  const fileName = `EUC_통합발주서_${orders.length}건_${today}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+  return fileName;
+}

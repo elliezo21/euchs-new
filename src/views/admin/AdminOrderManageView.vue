@@ -56,10 +56,37 @@
 
       <!-- 주문 테이블 -->
       <div class="bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
+
+        <!-- 일괄 액션 툴바 (선택 건 있을 때만 강조) -->
+        <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-slate-50/70">
+          <div class="flex items-center gap-2 text-xs">
+            <label class="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 font-medium">
+              <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" class="w-3.5 h-3.5 rounded cursor-pointer accent-slate-800" />
+              <span>전체 선택</span>
+            </label>
+            <span v-if="selectedOrders.length > 0" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px]">
+              {{ selectedOrders.length }}건 선택됨
+            </span>
+          </div>
+          <button
+            @click="handleBulkExcel"
+            :disabled="selectedOrders.length === 0"
+            class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer shadow-xs"
+            :class="selectedOrders.length > 0
+              ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+          >
+            <span>📥</span>
+            <span>선택 주문 통합 엑셀 다운로드</span>
+            <span v-if="selectedOrders.length > 0" class="font-mono">({{ selectedOrders.length }}건)</span>
+          </button>
+        </div>
+
         <div class="overflow-x-auto">
           <table class="w-full text-left text-xs">
             <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wide">
               <tr>
+                <th class="py-3 px-3 w-8"></th>
                 <th class="py-3 px-4 w-48">주문번호 / 일시</th>
                 <th class="py-3 px-4 min-w-[220px]">상품 정보</th>
                 <th class="py-3 px-4 text-center">수량 / CBM</th>
@@ -70,6 +97,13 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-for="order in filteredOrders" :key="order.id" class="hover:bg-slate-50/60 transition">
+                <td class="py-3 px-3">
+                  <input type="checkbox"
+                    :checked="isOrderSelected(order.id || order.orderNumber)"
+                    @change="toggleOrderSelect(order.id || order.orderNumber)"
+                    class="w-3.5 h-3.5 rounded cursor-pointer accent-slate-800"
+                  />
+                </td>
                 <td class="py-3 px-4">
                   <div class="font-mono font-black text-slate-800 text-[11px]">{{ order.orderNumber }}</div>
                   <div class="text-[10px] text-slate-400 mt-0.5">{{ order.createdAt }}</div>
@@ -621,7 +655,24 @@
           <div v-else class="text-xs text-slate-400 font-medium">
             * 2단계(결제대기) 이후 상태는 수정이 제한된 읽기 전용 모드입니다.
           </div>
-          <div class="flex items-center gap-2">
+          <div class="flex items-center gap-2 flex-wrap">
+            <!-- 엑셀 다운로드 버튼 (항상 노출) -->
+            <button
+              @click="handle1688Excel(activeOrder)"
+              type="button"
+              class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-xs transition cursor-pointer active:scale-95"
+            >
+              <span>📋</span>
+              <span>1688 사입용 엑셀</span>
+            </button>
+            <button
+              @click="handleMasterExcel(activeOrder)"
+              type="button"
+              class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition cursor-pointer active:scale-95"
+            >
+              <span>📥</span>
+              <span>종합 주문서 엑셀</span>
+            </button>
             <button
               @click="closeModals"
               type="button"
@@ -659,6 +710,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute } from 'vue-router';
 import { getStoredOrders, saveStoredOrders, updateOrderStatus, fetchOrdersFromSupabase } from '@/utils/orderStorage';
 import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
+import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 
 const route = useRoute();
 
@@ -702,6 +754,39 @@ const trackingForm = ref({ deliveryType: 'parcel', carrier: '경동택배', trac
 const excludeReasonMap = ref({});
 const toast = ref({ show: false, message: '', type: 'success' });
 let toastTimer = null;
+
+// 체크박스 다중 선택 (일괄 엑셀용)
+const selectedOrderIds = ref(new Set());
+function toggleOrderSelect(orderId) {
+  const s = new Set(selectedOrderIds.value);
+  if (s.has(orderId)) s.delete(orderId); else s.add(orderId);
+  selectedOrderIds.value = s;
+}
+function isOrderSelected(orderId) { return selectedOrderIds.value.has(orderId); }
+function toggleSelectAll() {
+  if (selectedOrderIds.value.size === filteredOrders.value.length) {
+    selectedOrderIds.value = new Set();
+  } else {
+    selectedOrderIds.value = new Set(filteredOrders.value.map(o => o.id || o.orderNumber));
+  }
+}
+const allSelected = computed(() => filteredOrders.value.length > 0 && selectedOrderIds.value.size === filteredOrders.value.length);
+const selectedOrders = computed(() => filteredOrders.value.filter(o => selectedOrderIds.value.has(o.id || o.orderNumber)));
+
+// 엑셀 다운로드 핸들러
+function handle1688Excel(order) {
+  try { exportAdmin1688PurchaseExcel(order); showToast(`[${order.orderNumber}] 1688 사입 발주서 다운로드 완료`, 'success'); }
+  catch (e) { showToast(`엑셀 생성 실패: ${e.message}`, 'error'); }
+}
+function handleMasterExcel(order) {
+  try { exportAdminMasterOrderExcel(order); showToast(`[${order.orderNumber}] 종합 주문서 다운로드 완료`, 'success'); }
+  catch (e) { showToast(`엑셀 생성 실패: ${e.message}`, 'error'); }
+}
+function handleBulkExcel() {
+  if (selectedOrders.value.length === 0) { showToast('선택된 주문이 없습니다.', 'error'); return; }
+  try { exportAdminBulkOrderExcel(selectedOrders.value); showToast(`${selectedOrders.value.length}건 통합 엑셀 다운로드 완료`, 'success'); }
+  catch (e) { showToast(`엑셀 생성 실패: ${e.message}`, 'error'); }
+}
 
 async function loadData() { 
   orders.value = getStoredOrders(); 
