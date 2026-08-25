@@ -10,159 +10,29 @@
     </transition>
 
     <!-- ======================================================== -->
-    <!-- 1. MALL SEARCH & BRAND HEADER (Sticky below GNB)         -->
+    <!-- 1. MALL 2-TIER STICKY SEARCH & CATEGORY BAR              -->
     <!-- ======================================================== -->
-    <header class="sticky top-14 z-40 bg-white/95 backdrop-blur-md border-b border-gray-200 shadow-md transition-all duration-200">
-      <!-- 검색바 영역 -->
-      <div class="py-2 sm:py-2.5 border-b border-gray-100">
-        <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-200 py-3 transition-all duration-200">
+      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
         
-        <div class="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
+        <!-- 메인 한 줄 바: [모든 카테고리] + [1688 와이드 검색창] + [보관함] -->
+        <div class="flex items-center gap-3 sm:gap-4 relative" ref="categoryNavRef" id="mall-category-bar" @mouseleave="handleMegaMenuLeave">
           
-          <!-- Mall Logo -->
-          <router-link to="/mall" class="flex items-center gap-2.5 shrink-0">
-            <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-gradient-to-tr from-rose-600 via-orange-500 to-amber-500 flex items-center justify-center text-white font-black text-lg shadow-md shadow-rose-500/20">
-              1688
-            </div>
-            <div>
-              <div class="flex items-center gap-1.5">
-                <span class="text-lg sm:text-xl font-black text-gray-900 tracking-tight">EUCHS × 1688</span>
-                <span class="px-1.5 py-0.2 rounded bg-rose-100 text-rose-600 text-[10px] font-black uppercase">
-                  실시간 소싱몰
-                </span>
-              </div>
-              <p class="text-[10px] text-gray-500 font-medium">1688 도매가 그대로 한글 실시간 소싱</p>
-            </div>
-          </router-link>
-
-          <!-- Main Search Bar -->
-          <form @submit.prevent="executeSearch(1)" class="w-full max-w-2xl">
-            <div class="flex items-stretch rounded-xl border-2 border-rose-500 p-0.5 bg-white shadow-xs focus-within:ring-2 focus-within:ring-rose-100 transition-all">
-              
-              <div class="relative flex-1 flex items-center">
-                <div class="pl-3 text-gray-400">
-                  <i class="fas fa-search text-gray-400 text-xs"></i>
-                </div>
-                <input
-                  v-model="queryInput"
-                  @input="handleSearchInputDebounced"
-                  type="text"
-                  placeholder="1688 상품명 한글 입력 또는 1688 상품 링크(URL)를 붙여넣으세요"
-                  class="w-full px-2.5 py-1.5 text-xs sm:text-sm font-normal text-gray-800 placeholder:text-gray-400/80 placeholder:font-light bg-transparent outline-none"
-                  :disabled="isLoading"
-                />
-                <button 
-                  v-if="queryInput" 
-                  type="button" 
-                  @click="queryInput = ''" 
-                  class="pr-2.5 text-gray-400 hover:text-gray-600"
-                >
-                  <i class="fas fa-times-circle text-xs"></i>
-                </button>
-              </div>
-
-              <!-- Submit Button -->
-              <button
-                type="submit"
-                :disabled="isLoading || !queryInput.trim()"
-                class="px-5 sm:px-6 py-1.5 rounded-lg bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white font-extrabold text-xs sm:text-sm shadow-sm active:scale-95 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-50"
-              >
-                <i class="fas fa-spinner fa-spin text-xs" v-if="isLoading"></i>
-                <i class="fas fa-search text-xs" v-else></i>
-                <span>1688 검색</span>
-              </button>
-
-            </div>
-
-            <!-- Quick Popular Tags -->
-            <div class="flex flex-wrap items-center gap-1.5 pt-1.5 text-[11px]">
-              <span class="text-gray-400 font-semibold flex items-center gap-1">
-                <i class="fas fa-tags text-rose-500 text-[10px]"></i> 인기:
-              </span>
-              <button
-                v-for="kw in popularKeywords"
-                :key="kw"
-                type="button"
-                @click="queryInput = kw; executeSearch(1)"
-                class="px-1.5 py-0.2 rounded bg-gray-100 hover:bg-rose-50 hover:text-rose-600 text-gray-600 transition font-medium"
-              >
-                {{ kw }}
-              </button>
-            </div>
-          </form>
-
-          <!-- Right Quick Cart Button -->
-          <router-link
-            to="/dashboard"
-            class="hidden lg:flex items-center gap-2.5 px-3 py-2 rounded-xl bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition group shrink-0"
-          >
-            <div class="w-8 h-8 rounded-lg bg-white text-rose-600 shadow-xs flex items-center justify-center text-sm group-hover:scale-105 transition border border-gray-100">
-              <i class="fas fa-shopping-bag"></i>
-            </div>
-            <div class="text-left">
-              <div class="text-[10px] text-gray-500 font-medium">발주 대기 보관함</div>
-              <div class="text-xs font-black text-gray-900 group-hover:text-rose-600 font-mono">
-                {{ savedCount }}건 보관중
-              </div>
-            </div>
-          </router-link>
-
-        </div>
-
-        </div>
-      </div>
-
-      <!-- ── 카테고리 메가메뉴 바 ──
-           이 영역은 JS에서 categoryNavRef로 참조되며
-           검색바와 하나의 sticky 컨테이너(header) 안에 포함됨 -->
-      <div class="border-t border-gray-100 bg-white/95">
-        <div class="max-w-[1720px] mx-auto px-2 lg:px-4 py-2">
-          <div
-            ref="categoryNavRef"
-            class="relative bg-gray-50 rounded-2xl border border-gray-200 z-30"
-            @mouseleave="handleMegaMenuLeave"
-            id="mall-category-bar"
-          >
-            <!-- ── Top Bar: 메가메뉴 버튼 + 퀵 카테고리 탭 ── -->
-            <div class="flex items-center gap-2 px-2 py-2 overflow-x-auto no-scrollbar">
-
-              <!-- [☰ 모든 카테고리 ▾] 오렌지 메가메뉴 버튼 -->
-              <button
-                type="button"
-                @click.stop="toggleMegaMenu"
-                @mouseenter="openMegaMenuOnHover"
-                class="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm shadow-md shadow-orange-500/25 transition-all touch-manipulation select-none whitespace-nowrap"
-              >
-                <i class="fas fa-bars text-base"></i>
-                <span>모든 카테고리</span>
-                <i
-                  class="fas fa-chevron-down text-[10px] transition-transform duration-200"
-                  :class="isMegaMenuOpen ? 'rotate-180' : ''"
-                ></i>
-              </button>
-
-              <!-- 수직 구분선 -->
-              <div class="shrink-0 h-7 w-px bg-gray-200"></div>
-
-              <!-- 퀵 카테고리 탭 (빠른 바로가기) -->
-              <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
-                <button
-                  v-for="qt in quickTabs"
-                  :key="qt.id"
-                  type="button"
-                  @click.stop="selectQuickTab(qt)"
-                  :class="[
-                    'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none',
-                    selectedCategoryId === qt.id
-                      ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
-                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-                  ]"
-                >
-                  <span>{{ qt.emoji }}</span>
-                  <span>{{ qt.label }}</span>
-                </button>
-              </div>
-            </div>
+          <!-- 1. [☰ 모든 카테고리 ▾] 주황색 버튼 (오르간 메가메뉴) -->
+          <div class="relative shrink-0">
+            <button
+              type="button"
+              @click.stop="toggleMegaMenu"
+              @mouseenter="openMegaMenuOnHover"
+              class="h-11 px-4 sm:px-5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white font-black text-xs sm:text-sm shadow-md shadow-orange-500/25 transition-all flex items-center gap-2 touch-manipulation select-none whitespace-nowrap cursor-pointer"
+            >
+              <i class="fas fa-bars text-sm sm:text-base"></i>
+              <span>모든 카테고리</span>
+              <i
+                class="fas fa-chevron-down text-[10px] transition-transform duration-200"
+                :class="isMegaMenuOpen ? 'rotate-180' : ''"
+              ></i>
+            </button>
 
             <!-- ── 2단 오르간(Organ) 메가메뉴 드롭다운 패널 ── -->
             <transition
@@ -175,15 +45,15 @@
             >
               <div
                 v-if="isMegaMenuOpen"
-                class="absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-gray-200/90 z-50 overflow-hidden"
+                class="absolute left-0 top-full mt-2 w-[320px] sm:w-[540px] md:w-[720px] lg:w-[860px] xl:w-[960px] bg-white rounded-2xl shadow-2xl border border-gray-200/90 z-50 overflow-hidden"
                 style="max-height: 70vh;"
                 @mouseenter="clearMegaMenuTimer"
                 @mouseleave="handleMegaMenuLeave"
               >
-                <div class="flex" style="min-height: 300px; max-height: 70vh;">
+                <div class="flex" style="min-height: 320px; max-height: 70vh;">
 
                   <!-- 1단: 좌측 대분류 목록 (세로 리스트) -->
-                  <div class="shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto" style="width: 210px;">
+                  <div class="shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto" style="width: 200px;">
                     <div class="py-2">
                       <button
                         v-for="cat in categories"
@@ -267,7 +137,98 @@
               </div>
             </transition>
           </div>
+
+          <!-- 2. 1688 한글/URL 와이드 검색 입력창 (h-11, border-2 border-orange-400) + [🔍 1688 검색] 버튼 (h-11, bg-rose-500) -->
+          <form @submit.prevent="executeSearch(1)" class="flex-1 min-w-0">
+            <div class="flex items-stretch rounded-xl border-2 border-orange-400 p-0.5 bg-white shadow-xs focus-within:ring-2 focus-within:ring-orange-200 transition-all h-11">
+              <div class="pl-3.5 pr-1.5 text-gray-400 flex items-center shrink-0">
+                <i class="fas fa-search text-orange-400 text-sm"></i>
+              </div>
+              <input
+                v-model="queryInput"
+                @input="handleSearchInputDebounced"
+                type="text"
+                placeholder="1688 상품명 한글 입력 또는 1688 상품 링크(URL)를 붙여넣으세요"
+                class="w-full px-2 text-xs sm:text-sm font-normal text-gray-800 placeholder:text-gray-400/80 placeholder:font-light bg-transparent outline-none"
+                :disabled="isLoading"
+              />
+              <button 
+                v-if="queryInput" 
+                type="button" 
+                @click="queryInput = ''" 
+                class="px-2 text-gray-400 hover:text-gray-600 flex items-center"
+              >
+                <i class="fas fa-times-circle text-xs"></i>
+              </button>
+              <button
+                type="submit"
+                :disabled="isLoading || !queryInput.trim()"
+                class="h-full px-5 sm:px-7 rounded-lg bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-black text-xs sm:text-sm shadow-sm active:scale-95 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
+              >
+                <i class="fas fa-spinner fa-spin text-xs" v-if="isLoading"></i>
+                <i class="fas fa-search text-xs" v-else></i>
+                <span>1688 검색</span>
+              </button>
+            </div>
+          </form>
+
+          <!-- 3. 우측 발주 대기 보관함 (장바구니) -->
+          <router-link
+            to="/dashboard"
+            class="hidden md:flex items-center gap-2.5 px-3.5 h-11 rounded-xl bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition group shrink-0"
+            title="발주대기 보관함 바로가기"
+          >
+            <div class="w-7 h-7 rounded-lg bg-white text-rose-600 shadow-xs flex items-center justify-center text-xs group-hover:scale-105 transition border border-gray-100">
+              <i class="fas fa-shopping-bag"></i>
+            </div>
+            <div class="text-left leading-none">
+              <div class="text-[9px] text-gray-500 font-medium">발주 대기</div>
+              <div class="text-xs font-black text-gray-900 group-hover:text-rose-600 font-mono mt-0.5">
+                {{ savedCount }}건
+              </div>
+            </div>
+          </router-link>
+
         </div>
+
+        <!-- 4. 서브 바: 퀵 카테고리 탭 & 인기 검색어 -->
+        <div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 text-xs">
+          <!-- 퀵 카테고리 탭 -->
+          <div class="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+            <button
+              v-for="qt in quickTabs"
+              :key="qt.id"
+              type="button"
+              @click.stop="selectQuickTab(qt)"
+              :class="[
+                'shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none',
+                selectedCategoryId === qt.id
+                  ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+              ]"
+            >
+              <span>{{ qt.emoji }}</span>
+              <span>{{ qt.label }}</span>
+            </button>
+          </div>
+
+          <!-- 인기 검색어 태그 -->
+          <div class="hidden xl:flex items-center gap-1.5 shrink-0 text-[11px]">
+            <span class="text-gray-400 font-semibold flex items-center gap-1">
+              <i class="fas fa-fire text-rose-500 text-[10px]"></i> 인기:
+            </span>
+            <button
+              v-for="kw in popularKeywords"
+              :key="kw"
+              type="button"
+              @click="queryInput = kw; executeSearch(1)"
+              class="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-rose-50 hover:text-rose-600 text-gray-600 transition font-medium"
+            >
+              {{ kw }}
+            </button>
+          </div>
+        </div>
+
       </div>
     </header>
 
@@ -279,7 +240,7 @@
       <!-- ====================================================== -->
       <!-- LEFT: LNB SIDEBAR (고정 PC 전용)                        -->
       <!-- ====================================================== -->
-      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-[200px] self-start mr-4">
+      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-28 self-start mr-4">
 
         <!-- Profile Mini Card -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">

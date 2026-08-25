@@ -1,7 +1,7 @@
 <template>
   <div 
     v-if="product" 
-    class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
+    class="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
     @click.self="handleClose"
   >
     <!-- 1. Modal Container (max-w-7xl) -->

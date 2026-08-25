@@ -1,5 +1,8 @@
 <template>
-  <header class="sticky top-0 z-[100] bg-white border-b border-gray-100 shadow-xs transition-all duration-200">
+  <header 
+    :class="route.path === '/mall' || route.path.startsWith('/mall/') ? 'relative z-30' : 'sticky top-0 z-[100]'"
+    class="bg-white border-b border-gray-100 shadow-xs transition-all duration-200"
+  >
     <!-- Top Utility Bar for Desktop (Slim & Centered max-w-7xl) -->
     <div class="hidden lg:block bg-slate-950 border-b border-slate-800/80 text-slate-300 text-xs">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-1.5 text-xs">
@@ -511,6 +514,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { fetchSiteSettings } from '../lib/settings'
 import {
   currentUser,
@@ -523,6 +527,7 @@ import {
   initAuth
 } from '../lib/auth'
 
+const route = useRoute()
 const isMobileMenuOpen = ref(false)
 const mobileSubmenu = ref(null)
 const isUserMenuOpen = ref(false)
