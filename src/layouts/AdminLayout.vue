@@ -316,7 +316,7 @@ const handleLogout = async () => {
     } catch (e) {
       console.warn('Logout error:', e)
     }
-    router.replace('/login')
+    router.replace('/admin/login')
   }
 }
 

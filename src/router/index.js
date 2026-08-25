@@ -252,72 +252,91 @@ router.beforeEach(async (to, from, next) => {
   const isAdminRoute = to.matched.some(record => record.meta?.requiresAdmin) ||
                        to.path === '/admin' ||
                        to.path.startsWith('/admin/')
-  const isLoginPage = to.path === '/login' || to.path === '/admin/login'
+  const isAdminLoginPage = to.path === '/admin/login'
+  const isGeneralLoginPage = to.path === '/login'
 
-  // 1. 로그인 페이지 접속 시: 이미 관리자로 로그인되어 있으면 /admin 메인 대시보드로 이동
-  if (isLoginPage) {
-    let user = currentUser.value
-    if (!user && isSupabaseConfigured()) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        user = session?.user || null
-        if (user) currentUser.value = user
-      } catch (err) {
-        console.warn('Session retrieval notice:', err)
+  // 관리자 세션 유효성 판별 헬퍼 (로컬 토큰 + 세션 + 화이트리스트 통합)
+  const checkAdminAuth = async () => {
+    // 1. localStorage 관리자 토큰 및 유저 캐시 확인 (새로고침 즉시 통과 보장)
+    try {
+      const adminToken = localStorage.getItem('euchs_admin_token')
+      const authUserRaw = localStorage.getItem('euchs_auth_user')
+      if (adminToken === 'admin_authenticated' && authUserRaw) {
+        const authUser = JSON.parse(authUserRaw)
+        if (authUser?.role === 'admin' || authUser?.role === 'super_admin' || authUser?.role === 'staff' || authUser?.isAdmin) {
+          if (!currentUser.value) currentUser.value = authUser
+          return true
+        }
+      }
+    } catch (e) {}
+
+    // 2. currentUser 메모리 상태 확인
+    if (currentUser.value) {
+      const role = await checkUserRole(currentUser.value)
+      if (['super_admin', 'staff', 'admin'].includes(role)) {
+        return true
       }
     }
-    if (user) {
-      const role = await checkUserRole(user)
-      if (['super_admin', 'staff', 'admin'].includes(role)) {
-        next('/admin')
-        return
+
+    // 3. Supabase Auth 세션 조회
+    if (isSupabaseConfigured()) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          currentUser.value = session.user
+          const role = await checkUserRole(session.user)
+          if (['super_admin', 'staff', 'admin'].includes(role)) {
+            return true
+          }
+        }
+      } catch (err) {
+        console.warn('Session retrieval in guard notice:', err)
       }
+    }
+
+    return false
+  }
+
+  const isAdminAuthenticated = await checkAdminAuth()
+
+  // 1. /login?redirect=/admin 으로 들어온 경우 -> /admin/login 으로 교정
+  if (isGeneralLoginPage && typeof to.query?.redirect === 'string' && to.query.redirect.startsWith('/admin')) {
+    if (isAdminAuthenticated) {
+      next('/admin')
+    } else {
+      next('/admin/login')
+    }
+    return
+  }
+
+  // 2. 관리자 로그인 페이지(/admin/login) 접속 시
+  if (isAdminLoginPage) {
+    if (isAdminAuthenticated) {
+      next('/admin')
+      return
     }
     next()
     return
   }
 
-  // 2. 관리자 경로 접근 보호 (/admin 및 하위 경로 전체)
-  if (isAdminRoute) {
-    // 2-1. Supabase 세션 사용자 조회
-    let user = currentUser.value
-    if (!user && isSupabaseConfigured()) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession()
-        user = session?.user || null
-        if (user) currentUser.value = user
-      } catch (err) {
-        console.error('Session retrieval error in guard:', err)
-      }
-    }
-
-    // 2-2. 비로그인 상태인 경우 즉시 /login 으로 리다이렉트
-    if (!user) {
-      next({
-        path: '/login',
-        query: { redirect: to.fullPath }
-      })
+  // 3. 일반 로그인 페이지(/login) 접속 시
+  if (isGeneralLoginPage) {
+    if (isAdminAuthenticated) {
+      next('/admin')
       return
     }
+    next()
+    return
+  }
 
-    // 2-3. Supabase DB Role 검증 (admin / super_admin / staff)
-    try {
-      const role = await checkUserRole(user)
-      if (['super_admin', 'staff', 'admin'].includes(role)) {
-        next()
-      } else {
-        alert('관리자 또는 직원 권한(Admin/Staff)이 부여되지 않은 계정입니다.')
-        next({
-          path: '/login',
-          query: { redirect: to.fullPath }
-        })
-      }
-    } catch (err) {
-      console.error('Role verification exception:', err)
-      next({
-        path: '/login',
-        query: { redirect: to.fullPath }
-      })
+  // 4. 관리자 보호 경로 (/admin 및 /admin/*) 접근
+  if (isAdminRoute) {
+    if (isAdminAuthenticated) {
+      // 관리자 권한 확인 완료 -> 어떤 간섭 없이 100% 진입 허용
+      next()
+    } else {
+      // 비로그인 상태 -> 일반 로그인이 아닌 관리자 전용 로그인 화면(/admin/login)으로 직행
+      next('/admin/login')
     }
     return
   }

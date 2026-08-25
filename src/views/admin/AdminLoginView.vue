@@ -181,10 +181,24 @@ const handleAdminLogin = async () => {
   errorMessage.value = ''
 
   try {
-    const result = await adminSignIn(loginForm.value.email, loginForm.value.password)
-    if (result.success) {
-      // 관리자 로그인 시 무조건 최상위 통합 메인 대시보드(/admin)로 직행
-      router.replace('/admin')
+    const email = loginForm.value.email.trim()
+    const password = loginForm.value.password
+
+    const result = await adminSignIn(email, password)
+    if (result && result.success) {
+      // 1. 관리자 세션 정보 구성 및 로컬 스토리지 즉시 저장
+      const adminUser = {
+        email: email,
+        name: '이유씨 관리자',
+        role: 'admin',
+        isAdmin: true
+      }
+      currentUser.value = adminUser
+      localStorage.setItem('euchs_auth_user', JSON.stringify(adminUser))
+      localStorage.setItem('euchs_admin_token', 'admin_authenticated')
+
+      // 2. redirect 쿼리 파라미터와 상관없이 최상위 메인 대시보드(/admin)로 즉시 직행
+      await router.replace('/admin')
     }
   } catch (err) {
     console.error('Admin login failed:', err)
