@@ -245,23 +245,109 @@
 
       </div>
 
-      <!-- Category Tabs (Horizontal Scrollable) -->
-      <div class="bg-white rounded-2xl p-2 border border-gray-200 shadow-sm flex items-center gap-1.5 overflow-x-auto no-scrollbar">
-        <button
-          v-for="cat in categories"
-          :key="cat.id"
-          type="button"
-          @click="selectCategory(cat)"
-          :class="[
-            'px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 shrink-0',
-            selectedCategoryId === cat.id 
-              ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20' 
-              : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-          ]"
+      <!-- ======================================================== -->
+      <!-- Category Tabs (Horizontal Bar + Hover 1688 Mega Dropdown) -->
+      <!-- ======================================================== -->
+      <div
+        class="relative bg-white rounded-2xl p-2 border border-gray-200 shadow-sm"
+        @mouseleave="handleCategoryLeave"
+      >
+        <!-- Horizontal Scrollable Category Bar -->
+        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <button
+            v-for="cat in categories"
+            :key="cat.id"
+            type="button"
+            @mouseenter="handleCategoryHover(cat)"
+            @click="selectCategory(cat)"
+            :class="[
+              'px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 shrink-0 cursor-pointer',
+              (selectedCategoryId === cat.id || hoveredCategory?.id === cat.id)
+                ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20' 
+                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+            ]"
+          >
+            <i :class="cat.icon"></i>
+            <span>{{ cat.name }}</span>
+            <i
+              v-if="cat.groups && cat.groups.length > 0"
+              class="fas fa-chevron-down text-[10px] transition-transform duration-200"
+              :class="hoveredCategory?.id === cat.id ? 'rotate-180 opacity-100' : 'opacity-60'"
+            ></i>
+          </button>
+        </div>
+
+        <!-- 1688 Mega Dropdown Panel (Hover Overlay) -->
+        <transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0 -translate-y-2 scale-98"
+          enter-to-class="opacity-100 translate-y-0 scale-100"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="opacity-100 translate-y-0 scale-100"
+          leave-to-class="opacity-0 -translate-y-2 scale-98"
         >
-          <i :class="cat.icon"></i>
-          <span>{{ cat.name }}</span>
-        </button>
+          <div
+            v-if="hoveredCategory && hoveredCategory.groups && hoveredCategory.groups.length > 0"
+            class="absolute left-0 right-0 top-full mt-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200/90 p-5 sm:p-6 z-50 animate-fade-in select-none"
+            @mouseenter="clearHoverTimer"
+            @mouseleave="handleCategoryLeave"
+          >
+            <!-- Panel Header -->
+            <div class="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
+              <div class="flex items-center gap-2">
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse"></span>
+                <h4 class="text-sm font-black text-gray-900 flex items-center gap-2">
+                  <i :class="hoveredCategory.icon" class="text-rose-600"></i>
+                  <span>{{ hoveredCategory.name }}</span>
+                  <span class="text-xs text-gray-400 font-normal">1688 공식 세부 소싱 카테고리</span>
+                </h4>
+              </div>
+              <button
+                type="button"
+                @click="selectCategory(hoveredCategory)"
+                class="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 hover:underline cursor-pointer"
+              >
+                <span>전체 상품 소싱 검색</span>
+                <i class="fas fa-arrow-right text-[10px]"></i>
+              </button>
+            </div>
+
+            <!-- Panel Subcategory Grid -->
+            <div
+              class="grid gap-6 items-start"
+              :class="[
+                hoveredCategory.groups.length === 1 ? 'grid-cols-1' :
+                hoveredCategory.groups.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
+                'grid-cols-1 md:grid-cols-3'
+              ]"
+            >
+              <div
+                v-for="(group, gIdx) in hoveredCategory.groups"
+                :key="gIdx"
+                class="space-y-2.5 bg-gray-50/60 p-3.5 rounded-xl border border-gray-100"
+              >
+                <!-- Group Title -->
+                <div class="flex items-center gap-2 font-black text-xs text-gray-900 pb-1 border-b border-gray-200/60">
+                  <span class="w-1.5 h-3.5 bg-rose-500 rounded-full"></span>
+                  <span>{{ group.title }}</span>
+                </div>
+
+                <!-- Sub items chips -->
+                <div class="flex flex-wrap gap-1.5">
+                  <button
+                    v-for="(subItem, sIdx) in group.items"
+                    :key="sIdx"
+                    type="button"
+                    @click="handleSubCategoryClick(subItem, hoveredCategory)"
+                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-600 hover:text-white text-gray-700 font-bold text-xs border border-gray-200/80 hover:border-rose-600 transition shadow-2xs hover:shadow-sm cursor-pointer active:scale-95 text-left"
+                  >
+                    {{ subItem }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </transition>
       </div>
 
       <!-- Progress Indicator (During Search) -->
@@ -617,21 +703,163 @@ const popularKeywords = [
 ]
 
 const categories = [
-  { id: 'all', name: '전체 상품', keyword: '추천 상품', icon: 'fas fa-th-large' },
-  { id: 'women', name: '여성의류', keyword: '여성의류', icon: 'fas fa-female' },
-  { id: 'acc', name: '패션잡화/가방', keyword: '패션잡화 가방', icon: 'fas fa-shopping-bag' },
-  { id: 'living', name: '생활/주방용품', keyword: '생활용품', icon: 'fas fa-coffee' },
-  { id: 'digital', name: '디지털/가전', keyword: '디지털 가전', icon: 'fas fa-mobile-alt' },
-  { id: 'camping', name: '캠핑/레저', keyword: '캠핑 레저', icon: 'fas fa-campground' },
-  { id: 'beauty', name: '뷰티/반려동물', keyword: '뷰티 반려동물', icon: 'fas fa-paw' },
-  { id: 'interior', name: '인테리어/문구', keyword: '인테리어 문구', icon: 'fas fa-home' }
+  {
+    id: 'fashion',
+    name: '패션의류/이너웨어',
+    keyword: '여성의류',
+    icon: 'fas fa-tshirt',
+    groups: [
+      {
+        title: '여성의류',
+        items: ['원피스', '블라우스/셔츠', '티셔츠', '니트/가디건', '슬랙스/바지', '스커트', '자켓/코트']
+      },
+      {
+        title: '남성의류',
+        items: ['티셔츠', '셔츠', '슬랙스/청바지', '자켓/아우터', '맨투맨/후드']
+      },
+      {
+        title: '이너웨어',
+        items: ['잠옷/홈웨어', '속옷', '양말/스타킹']
+      }
+    ]
+  },
+  {
+    id: 'shoes_acc',
+    name: '신발/가방/패션잡화',
+    keyword: '패션잡화 가방',
+    icon: 'fas fa-shopping-bag',
+    groups: [
+      {
+        title: '여성슈즈',
+        items: ['슬리퍼', '단화/플랫', '펌프스', '스니커즈/운동화', '샌들', '부츠']
+      },
+      {
+        title: '가방',
+        items: ['토트백', '숄더백', '크로스백', '백팩', '캔버스백', '지갑/파우치']
+      },
+      {
+        title: '패션잡화',
+        items: ['모자', '벨트', '선글라스', '스카프/머플러', '헤어악세사리', '주얼리/귀걸이']
+      }
+    ]
+  },
+  {
+    id: 'living',
+    name: '생활/주방용품',
+    keyword: '생활용품',
+    icon: 'fas fa-utensils',
+    groups: [
+      {
+        title: '주방용품',
+        items: ['텀블러/물병', '식기/접시', '조리도구', '수납/정리', '밀폐용기', '컵/머그']
+      },
+      {
+        title: '욕실/청소',
+        items: ['욕실용품', '청소도구', '타월', '수납걸이']
+      },
+      {
+        title: '생활잡화',
+        items: ['우산/양산', '실내화', '방향제', '보관함']
+      }
+    ]
+  },
+  {
+    id: 'interior',
+    name: '홈인테리어/문구',
+    keyword: '인테리어 문구',
+    icon: 'fas fa-couch',
+    groups: [
+      {
+        title: '홈데코',
+        items: ['조명/무드등', '벽시계', '화병/오브제', '패브릭/쿠션', '디퓨저']
+      },
+      {
+        title: '문구/오피스',
+        items: ['다이어리/노트', '필기구', '데스크정리', '스티커/포장용품']
+      }
+    ]
+  },
+  {
+    id: 'digital',
+    name: '디지털/가전/차량',
+    keyword: '디지털 가전',
+    icon: 'fas fa-mobile-alt',
+    groups: [
+      {
+        title: '디지털/음향',
+        items: ['블루투스 이어폰', '핸드폰 케이스', '거치대/충전기', '소형가전']
+      },
+      {
+        title: '차량용품',
+        items: ['차량용 거치대', '차량 방향제', '수납포켓', '세차용품']
+      }
+    ]
+  },
+  {
+    id: 'camping',
+    name: '스포츠/레저/캠핑',
+    keyword: '캠핑 레저',
+    icon: 'fas fa-campground',
+    groups: [
+      {
+        title: '캠핑용품',
+        items: ['캠핑의자', '캠핑테이블', '조명/랜턴', '캠핑매트', '캠핑식기']
+      },
+      {
+        title: '운동/피트니스',
+        items: ['헬스/요가용품', '운동기구', '골프용품', '자전거용품']
+      }
+    ]
+  },
+  {
+    id: 'pet_baby',
+    name: '펫/유아용품',
+    keyword: '뷰티 반려동물',
+    icon: 'fas fa-paw',
+    groups: [
+      {
+        title: '반려동물',
+        items: ['강아지옷', '반려동물 방석', '식기/급수기', '반려동물 장난감', '리드줄/하네스']
+      },
+      {
+        title: '유아용품',
+        items: ['유아의류', '유아장난감', '유아식기', '안전용품']
+      }
+    ]
+  }
 ]
 
-const selectedCategoryId = ref('all')
+const selectedCategoryId = ref('fashion')
+const hoveredCategory = ref(null)
+let categoryHoverTimer = null
+
+const handleCategoryHover = (cat) => {
+  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+  hoveredCategory.value = cat
+}
+
+const clearHoverTimer = () => {
+  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+}
+
+const handleCategoryLeave = () => {
+  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+  categoryHoverTimer = setTimeout(() => {
+    hoveredCategory.value = null
+  }, 250)
+}
 
 const selectCategory = (cat) => {
+  hoveredCategory.value = null
   selectedCategoryId.value = cat.id
   queryInput.value = cat.keyword || cat.name
+  executeSearch(1)
+}
+
+const handleSubCategoryClick = (subKeyword, parentCat) => {
+  hoveredCategory.value = null
+  selectedCategoryId.value = parentCat.id
+  queryInput.value = subKeyword
   executeSearch(1)
 }
 
