@@ -634,7 +634,7 @@ const DEFAULT_LOGS = [
 const transactionLogs = ref([])
 
 const currentTotalBalance = computed(() => {
-  return userBalance.value || 15420000
+  return userBalance.value || 0
 })
 
 const firstPaymentSum = ref(41200000)

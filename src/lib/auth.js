@@ -733,7 +733,7 @@ export const syncUserProfile = async (user) => {
       tier: existing?.tier || (biz.business_number && biz.pccc ? 'business' : 'general'),
       is_business_verified: Boolean(biz.business_number && biz.pccc) || Boolean(existing?.is_business_verified),
       verification_status: existing?.verification_status || (biz.business_number && biz.pccc ? 'verified' : 'unverified'),
-      balance: existing?.balance !== undefined ? existing.balance : (Number(localStorage.getItem('euchs_user_balance')) || 15420000),
+      balance: existing?.balance !== undefined ? existing.balance : (Number(localStorage.getItem('euchs_user_balance')) || 0),
       updated_at: new Date().toISOString()
     }
     

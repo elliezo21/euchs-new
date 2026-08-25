@@ -174,7 +174,12 @@
               <ShieldCheck class="w-5 h-5 text-indigo-600" />
               <h2 class="text-sm font-bold text-gray-900">수입 통관 & 세무 증빙 정보</h2>
             </div>
-            <span class="text-[11px] text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">인증완료</span>
+            <span
+              class="text-[11px] font-bold px-2 py-0.5 rounded"
+              :class="customsProfile.status === 'verified' ? 'text-emerald-600 bg-emerald-50' : (customsProfile.status === 'pending' ? 'text-amber-600 bg-amber-50' : 'text-slate-500 bg-slate-100')"
+            >
+              {{ customsProfile.status === 'verified' ? '인증완료' : (customsProfile.status === 'pending' ? '심사대기' : '미인증') }}
+            </span>
           </div>
 
           <form @submit.prevent="saveCustomsInfo" class="space-y-3.5 text-xs">
@@ -183,7 +188,7 @@
               <input
                 type="text"
                 v-model="customsProfile.companyName"
-                placeholder="(주)글로벌 커머스"
+                placeholder="상호명(법인/개인사업자)을 입력하세요"
                 required
                 class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-medium"
               />
@@ -195,7 +200,7 @@
                 <input
                   type="text"
                   v-model="customsProfile.bizNumber"
-                  placeholder="123-45-67890"
+                  placeholder="사업자등록번호 10자리 (- 제외)"
                   required
                   class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono font-bold"
                 />
@@ -205,7 +210,7 @@
                 <input
                   type="text"
                   v-model="customsProfile.customsCode"
-                  placeholder="P123456789012"
+                  placeholder="P로 시작하는 13자리 통관고유부호"
                   required
                   class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono font-bold text-indigo-600 uppercase"
                 />
@@ -218,7 +223,7 @@
                 <input
                   type="text"
                   v-model="customsProfile.contactName"
-                  placeholder="홍길동"
+                  placeholder="수입 담당자 성명"
                   required
                   class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
                 />
@@ -228,7 +233,7 @@
                 <input
                   type="tel"
                   v-model="customsProfile.contactPhone"
-                  placeholder="010-1234-5678"
+                  placeholder="휴대폰 번호 (- 제외)"
                   required
                   class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono"
                 />
@@ -250,14 +255,17 @@
         <div class="bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 text-white rounded-3xl p-6 shadow-md flex flex-col justify-between space-y-4">
           <div>
             <div class="flex items-center justify-between">
-              <span class="px-2.5 py-0.5 rounded-full bg-amber-400/20 text-amber-300 text-[10px] font-black tracking-widest border border-amber-400/30">
-                VIP PRIME BUYER
+              <span
+                class="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest border"
+                :class="customsProfile.status === 'verified' ? 'bg-amber-400/20 text-amber-300 border-amber-400/30' : 'bg-slate-700/50 text-slate-300 border-slate-600'"
+              >
+                {{ customsProfile.status === 'verified' ? 'VIP PRIME BUYER' : (customsProfile.status === 'pending' ? 'B2B 인증 심사대기' : '일반 바이어') }}
               </span>
-              <span class="text-xs text-slate-400 font-mono">고객번호: EUCHS-VIP-8821</span>
+              <span class="text-xs text-slate-400 font-mono">고객번호: {{ buyerCustomerId }}</span>
             </div>
 
             <div class="mt-4">
-              <h3 class="text-lg font-bold text-white">{{ customsProfile.companyName || '글로벌 커머스' }}</h3>
+              <h3 class="text-lg font-bold text-white">{{ customsProfile.companyName || userDisplayName || '신규 B2B 바이어' }}</h3>
               <p class="text-xs text-slate-300 mt-1">대행 수수료 우대 8.0% 적용 | 전담 창고 우선 계근 혜택</p>
             </div>
           </div>
@@ -618,13 +626,14 @@ import {
 } from 'lucide-vue-next'
 import {
   currentUser,
+  currentUserProfile,
+  userDisplayName,
   getUserBusinessInfo,
   updateBusinessProfile
 } from '../../lib/auth'
 import {
   userBalance,
-  loadBalance,
-  setBalance
+  loadBalance
 } from '../../lib/balanceStore'
 
 const route = useRoute()
@@ -636,8 +645,15 @@ const walletFilter = ref('all')
 const showAddressModal = ref(false)
 const showDepositModal = ref(false)
 const editingAddressId = ref(null)
-const depositAmount = ref(3000000)
-const depositDepositorName = ref('이유씨글로벌')
+const depositAmount = ref(1000000)
+const depositDepositorName = ref('')
+
+const buyerCustomerId = computed(() => {
+  if (!currentUser.value) return 'EUCHS-GUEST'
+  const rawId = String(currentUser.value.id || '')
+  const cleanSuffix = rawId.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase() || 'B2B'
+  return `EUCHS-${cleanSuffix}`
+})
 
 const switchTab = (tabName) => {
   activeTab.value = tabName
@@ -653,9 +669,9 @@ const submitDepositRequest = () => {
   const req = {
     id: `DEP-${Date.now()}`,
     createdAt: new Date().toISOString(),
-    buyerName: customsProfile.value?.companyName || '이유씨글로벌',
-    buyerEmail: currentUser.value?.email || 'buyer@euchs.com',
-    depositorName: depositDepositorName.value || '이유씨글로벌',
+    buyerName: customsProfile.value.companyName || userDisplayName.value || '바이어 회원',
+    buyerEmail: currentUser.value?.email || '',
+    depositorName: depositDepositorName.value || customsProfile.value.companyName || userDisplayName.value || '입금자',
     amount: depositAmount.value,
     bankName: '기업은행',
     accountNumber: '190-134321-01-016',
@@ -677,32 +693,9 @@ const submitDepositRequest = () => {
 }
 
 // ----------------------------------------------------
-// 주소 및 세무/통관 프로필 상태
+// 주소 및 세무/통관 프로필 상태 (동적 로드)
 // ----------------------------------------------------
-const addressList = ref([
-  {
-    id: 1,
-    title: '본사 물류창고',
-    recipient: '김물류 대리',
-    phone: '010-9988-7766',
-    zipCode: '17520',
-    address: '경기도 안성시 일죽면 대송로 123',
-    detailAddress: 'EUCHS 로지스틱스 1층 102호',
-    memo: '하역장 지게차 하차 가능 (진입로 11톤 트럭 진입 가능)',
-    isDefault: true
-  },
-  {
-    id: 2,
-    title: '인천 제2 풀필먼트 센터',
-    recipient: '박풀필 매니저',
-    phone: '010-3344-5566',
-    zipCode: '22301',
-    address: '인천광역시 중구 항동7가 45-6',
-    detailAddress: '인천항 보세물류창고 3층',
-    memo: '사전 연락 필수 (보세구역 출입 승인 필요)',
-    isDefault: false
-  }
-])
+const addressList = ref([])
 
 const addressForm = ref({
   title: '',
@@ -715,44 +708,79 @@ const addressForm = ref({
 })
 
 const customsProfile = ref({
-  companyName: '이유씨글로벌 (EUCHS GLOBAL)',
-  bizNumber: '128-86-12345',
-  customsCode: 'P123456789012',
-  contactName: '조해성 대표',
-  contactPhone: '010-8821-1688',
+  companyName: '',
+  bizNumber: '',
+  customsCode: '',
+  contactName: '',
+  contactPhone: '',
   bizCertUrl: '',
-  status: 'verified'
+  status: 'unverified'
 })
 
-const transactions = ref([
-  {
-    id: 'tx-1',
-    date: '2026.08.24 14:30',
-    title: '예치금 무통장 입금 충전 (승인완료)',
-    orderNo: 'DEP-20260824-001',
-    type: 'in',
-    amount: 5000000,
-    balanceAfter: 15420000
-  },
-  {
-    id: 'tx-2',
-    date: '2026.08.23 11:20',
-    title: '1688 수입 발주 1차 상품대금 결제',
-    orderNo: 'ORD-20260823-1688',
-    type: 'out',
-    amount: 1630000,
-    balanceAfter: 10420000
-  },
-  {
-    id: 'tx-3',
-    date: '2026.08.20 16:45',
-    title: '인천항 LCL 해상운임 및 세관 통관비 2차 정산',
-    orderNo: 'ORD-20260815-0922',
-    type: 'out',
-    amount: 890000,
-    balanceAfter: 12050000
+const loadCustomsProfile = () => {
+  const biz = getUserBusinessInfo(currentUser.value) || {}
+  const p = currentUserProfile.value || {}
+  
+  customsProfile.value = {
+    companyName: p.company_name || biz.company_name || '',
+    bizNumber: p.business_number || biz.business_number || '',
+    customsCode: p.pccc || biz.pccc || '',
+    contactName: p.representative_name || p.name || biz.name || currentUser.value?.user_metadata?.full_name || currentUser.value?.user_metadata?.name || '',
+    contactPhone: p.phone || biz.phone || currentUser.value?.phone || '',
+    bizCertUrl: p.biz_cert_url || '',
+    status: p.verification_status || (biz.business_number && biz.pccc ? 'pending' : 'unverified')
   }
-])
+
+  if (!depositDepositorName.value) {
+    depositDepositorName.value = customsProfile.value.companyName || customsProfile.value.contactName || userDisplayName.value || ''
+  }
+}
+
+const loadAddresses = () => {
+  const storageKey = 'euchs_user_addresses_' + (currentUser.value?.id || 'guest')
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        addressList.value = parsed
+        return
+      }
+    }
+  } catch (e) {}
+  addressList.value = []
+}
+
+const saveAddressesToStorage = () => {
+  const storageKey = 'euchs_user_addresses_' + (currentUser.value?.id || 'guest')
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(addressList.value))
+  } catch (e) {}
+}
+
+const transactions = ref([])
+
+const loadTransactions = () => {
+  try {
+    const raw = localStorage.getItem('euchs_deposit_requests')
+    if (raw) {
+      const list = JSON.parse(raw)
+      if (Array.isArray(list) && list.length > 0) {
+        transactions.value = list.map(t => ({
+          id: t.id,
+          date: t.createdAt ? new Date(t.createdAt).toLocaleString('ko-KR') : '-',
+          title: `예치금 무통장 입금 충전 (${t.status === 'approved' ? '승인완료' : (t.status === 'rejected' ? '반려' : '심사중')})`,
+          orderNo: t.id,
+          type: 'in',
+          amount: t.amount,
+          balanceAfter: walletBalance.value
+        }))
+        return
+      }
+    }
+  } catch (e) {}
+  transactions.value = []
+}
 
 const filteredTransactions = computed(() => {
   if (walletFilter.value === 'all') return transactions.value
@@ -769,6 +797,7 @@ const saveCustomsInfo = async () => {
       phone: customsProfile.value.contactPhone
     })
     alert('수입 통관 & 세무 증빙 정보가 안전하게 저장되었습니다.')
+    loadCustomsProfile()
   } catch (err) {
     console.warn('saveCustomsInfo notice:', err)
     alert('수입 통관 & 세무 정보가 안전하게 저장되었습니다.')
@@ -783,8 +812,8 @@ const openAddressModal = (addr = null) => {
     editingAddressId.value = null
     addressForm.value = {
       title: '',
-      recipient: '',
-      phone: '',
+      recipient: customsProfile.value.contactName || userDisplayName.value || '',
+      phone: customsProfile.value.contactPhone || '',
       zipCode: '',
       address: '',
       detailAddress: '',
@@ -810,12 +839,14 @@ const saveAddress = () => {
       isDefault: addressList.value.length === 0
     })
   }
+  saveAddressesToStorage()
   showAddressModal.value = false
 }
 
 const deleteAddress = (id) => {
   if (confirm('해당 주소지를 삭제하시겠습니까?')) {
     addressList.value = addressList.value.filter(a => a.id !== id)
+    saveAddressesToStorage()
   }
 }
 
@@ -823,16 +854,30 @@ const setDefaultAddress = (id) => {
   addressList.value.forEach(a => {
     a.isDefault = a.id === id
   })
+  saveAddressesToStorage()
 }
 
 const downloadReceipt = (t) => {
   alert(`[거래번호: ${t.id}]\n${t.title}\n금액: ₩${t.amount.toLocaleString()}\n발행일: ${t.date}\n전자 영수증이 발급되었습니다.`)
 }
 
+watch(currentUser, () => {
+  loadCustomsProfile()
+  loadAddresses()
+  loadTransactions()
+})
+
+watch(currentUserProfile, () => {
+  loadCustomsProfile()
+})
+
 onMounted(() => {
   if (route.query.tab) {
     activeTab.value = route.query.tab
   }
   loadBalance()
+  loadCustomsProfile()
+  loadAddresses()
+  loadTransactions()
 })
 </script>

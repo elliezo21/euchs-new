@@ -9,7 +9,7 @@ import { supabase, isSupabaseConfigured } from './supabase';
 import { currentUser } from './auth';
 
 const STORAGE_KEY = 'euchs_user_balance';
-const DEFAULT_BALANCE = 15420000; // 데모 기본값 (원)
+const DEFAULT_BALANCE = 0; // 신규/비로그인 기본값 (원)
 
 // ----------------------------------------------------------------
 // 반응형 예치금 잔액 상태
