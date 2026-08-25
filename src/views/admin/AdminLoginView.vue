@@ -130,7 +130,7 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { adminSignIn } from '@/lib/auth'
+import { currentUser, userRole, adminSignIn } from '@/lib/auth'
 
 const router = useRouter()
 const route = useRoute()
@@ -174,7 +174,8 @@ onMounted(() => {
   }, 200)
 })
 
-const handleAdminLogin = async () => {
+const handleAdminLogin = async (e) => {
+  if (e && typeof e.preventDefault === 'function') e.preventDefault()
   if (!loginForm.value.email || !loginForm.value.password) return
 
   isLoading.value = true
@@ -186,23 +187,29 @@ const handleAdminLogin = async () => {
 
     const result = await adminSignIn(email, password)
     if (result && result.success) {
-      // 1. 관리자 세션 정보 구성 및 로컬 스토리지 즉시 저장
+      // 1. 관리자 세션 정보 구성
       const adminUser = {
-        email: email,
+        id: 'admin_master_01',
+        email: email || 'elliezo21@gmail.com',
         name: '이유씨 관리자',
         role: 'admin',
         isAdmin: true
       }
+
+      // 2. 반응형 전역 상태 및 로컬 스토리지에 관리자 세션 영구 주입
       currentUser.value = adminUser
+      userRole.value = 'super_admin'
       localStorage.setItem('euchs_auth_user', JSON.stringify(adminUser))
       localStorage.setItem('euchs_admin_token', 'admin_authenticated')
 
-      // 2. redirect 쿼리 파라미터와 상관없이 최상위 메인 대시보드(/admin)로 즉시 직행
+      // 3. 리다이렉트 쿼리와 무관하게 최상위 스마트 종합 대시보드(/admin)로 즉시 직행
       await router.replace('/admin')
+    } else {
+      errorMessage.value = result?.error || '관리자 계정 정보가 일치하지 않거나 접근 권한이 없습니다.'
     }
   } catch (err) {
     console.error('Admin login failed:', err)
-    errorMessage.value = err.message || '관리자 계정 정보가 일치하지 않거나 접근 권한이 없습니다.'
+    errorMessage.value = err.message || '관리자 로그인 처리 중 오류가 발생했습니다.'
   } finally {
     isLoading.value = false
   }
