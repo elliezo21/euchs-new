@@ -340,10 +340,10 @@
                 type="button"
                 @click="toggleMenu('products')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
-                :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-600' : ''"
+                :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') || route.path.startsWith('/dashboard/stores') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') || route.path.startsWith('/dashboard/stores') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>상품관리</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.products ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
@@ -370,12 +370,12 @@
                   </span>
                 </router-link>
                 <router-link
-                  to="/mall?tab=bulk"
+                  to="/dashboard/stores"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/mall' && route.query.tab === 'bulk' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                  :class="route.path === '/dashboard/stores' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
-                  <span>1688 대량 URL 수집기</span>
-                  <span class="text-[9px] bg-slate-100 text-slate-600 px-1 rounded font-bold">AI</span>
+                  <span>구매한 상점모음</span>
+                  <i class="fas fa-store-alt text-[11px] opacity-60"></i>
                 </router-link>
               </div>
             </div>
@@ -1420,7 +1420,7 @@ const expandedMenus = ref({
 })
 
 watch(() => route.path, (newPath) => {
-  if (newPath.startsWith('/dashboard/cart') || newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/mall')) {
+  if (newPath.startsWith('/dashboard/cart') || newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/mall') || newPath.startsWith('/dashboard/stores')) {
     expandedMenus.value.products = true
   } else if (newPath.startsWith('/dashboard/orders')) {
     expandedMenus.value.orders = true
