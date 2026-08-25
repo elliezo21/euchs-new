@@ -351,6 +351,55 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
+  // 5. /dashboard 하위 마이페이지 보호 (일반 회원 인증 가드)
+  const isDashboardRoute = to.path === '/dashboard' || to.path.startsWith('/dashboard/')
+
+  if (isDashboardRoute) {
+    // 현재 로그인 세션 확인: 메모리 → localStorage 캐시 순
+    let isUserLoggedIn = Boolean(currentUser.value)
+
+    if (!isUserLoggedIn) {
+      try {
+        const authUserRaw = localStorage.getItem('euchs_auth_user')
+        if (authUserRaw) {
+          const authUser = JSON.parse(authUserRaw)
+          if (authUser?.id && authUser?.email) {
+            currentUser.value = authUser
+            isUserLoggedIn = true
+          }
+        }
+      } catch (e) {}
+    }
+
+    if (!isUserLoggedIn && isSupabaseConfigured()) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (session?.user) {
+          currentUser.value = session.user
+          isUserLoggedIn = true
+        }
+      } catch (e) {}
+    }
+
+    if (!isUserLoggedIn) {
+      // 목적지 경로를 sessionStorage에 저장 (로그인 후 복귀용)
+      sessionStorage.setItem('euchs_auth_redirect', to.fullPath)
+
+      // 로그인 모달 호출 이벤트 발행 (App.vue 또는 Header.vue에서 수신)
+      window.dispatchEvent(new CustomEvent('euchs-open-login-modal', {
+        detail: { message: '로그인이 필요한 서비스입니다. 로그인 후 이용해 주세요.' }
+      }))
+
+      // 이전 페이지가 있으면 머무르고, 없으면 메인으로
+      if (from.path && from.path !== to.path && from.name) {
+        next(false)
+      } else {
+        next('/')
+      }
+      return
+    }
+  }
+
   // 일반 공개 라우트 통과
   next()
 })

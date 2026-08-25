@@ -11,15 +11,18 @@
 </template>
 
 <script setup>
-import { computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import QuickMenu from './components/QuickMenu.vue'
 import LoginModal from './components/LoginModal.vue'
 import { trackVisitor } from './lib/analytics'
+import { openLoginModal } from './lib/auth'
 
 const route = useRoute()
+const router = useRouter()
+
 const isStandaloneRoute = computed(() => {
   const p = route.path
   return (
@@ -33,8 +36,29 @@ const isStandaloneRoute = computed(() => {
   )
 })
 
+// 라우터 가드가 발행하는 로그인 모달 호출 이벤트 수신
+const handleOpenLoginModal = () => {
+  openLoginModal('login')
+}
+
+// 로그인 성공 후 저장된 목적지로 자동 리다이렉트
+const handleLoginSuccess = () => {
+  const redirectPath = sessionStorage.getItem('euchs_auth_redirect')
+  if (redirectPath && redirectPath !== route.path) {
+    sessionStorage.removeItem('euchs_auth_redirect')
+    router.push(redirectPath)
+  }
+}
+
 onMounted(() => {
   trackVisitor(route.path)
+  window.addEventListener('euchs-open-login-modal', handleOpenLoginModal)
+  window.addEventListener('euchs:login_success', handleLoginSuccess)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('euchs-open-login-modal', handleOpenLoginModal)
+  window.removeEventListener('euchs:login_success', handleLoginSuccess)
 })
 
 watch(() => route.path, (newPath) => {
