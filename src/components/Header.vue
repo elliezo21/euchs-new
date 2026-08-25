@@ -398,22 +398,6 @@
             </div>
           </div>
 
-          <!-- Item 1: 회사소개 -->
-          <div>
-            <button 
-              @click="toggleMobileSubmenu('company')" 
-              class="w-full flex justify-between items-center py-2.5 text-base font-semibold text-gray-800 hover:text-blue-600"
-            >
-              <span>회사소개</span>
-              <i :class="mobileSubmenu === 'company' ? 'fas fa-chevron-up text-xs text-blue-600' : 'fas fa-chevron-down text-xs text-gray-400'"></i>
-            </button>
-            <div v-show="mobileSubmenu === 'company'" class="pl-4 pb-2 space-y-1.5 text-sm text-gray-600">
-              <router-link @click="isMobileMenuOpen = false" to="/company#ceo" class="block py-1 hover:text-blue-600">인사말</router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/company#history" class="block py-1 hover:text-blue-600">연혁 및 비전</router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/company#overview" class="block py-1 hover:text-blue-600">회사개요</router-link>
-              <router-link @click="isMobileMenuOpen = false" to="/company#business" class="block py-1 hover:text-blue-600">사업영역</router-link>
-            </div>
-          </div>
 
           <!-- Item 2: 이우시장투어 (독립 메인 메뉴) -->
           <div>
