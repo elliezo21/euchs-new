@@ -648,11 +648,7 @@ const validatePcccCode = (code) => {
 }
 
 const mountGoogleGsiButtons = async () => {
-  await nextTick()
-  if (!isLoginModalOpen.value) return
-  if (isLoginMode.value) {
-    renderGoogleButton('google-login-btn', { mode: 'login' })
-  }
+  // signInWithOAuth 방식으로 전환 완료 - GIS SDK 렌더링 불필요
 }
 
 const resetAllForms = () => {

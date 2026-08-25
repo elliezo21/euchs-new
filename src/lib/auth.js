@@ -167,151 +167,60 @@ export const closeAuthModal = closeLoginModal
 export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '637980227155-clcfso2b4jl9lmp3rp907d59uttavjp6.apps.googleusercontent.com'
 
 /**
- * Google Identity Services (GIS) 스크립트 비동기 로더
- */
-export const loadGsiScript = () => {
-  return new Promise((resolve) => {
-    if (typeof window === 'undefined') return resolve(null)
-    if (window.google?.accounts?.id) {
-      resolve(window.google)
-      return
-    }
-    const existing = document.querySelector('script[src="https://accounts.google.com/gsi/client"]')
-    if (existing) {
-      existing.addEventListener('load', () => resolve(window.google))
-      return
-    }
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.defer = true
-    script.onload = () => resolve(window.google)
-    script.onerror = () => resolve(null)
-    document.head.appendChild(script)
-  })
-}
-
-/**
- * Google ID Token 인증 처리 함수 (Supabase signInWithIdToken)
- * - 브라우저 팝업/창에 supabase.co 주소가 전혀 노출되지 않고 ID 토큰으로 직접 Supabase 세션을 생성합니다.
- */
-export const handleGoogleCredentialResponse = async (response) => {
-  if (!response?.credential) {
-    console.warn('Google GIS credential not found in response:', response)
-    return { success: false, message: '구글 인증 토큰을 받지 못했습니다.' }
-  }
-
-  try {
-    if (!isSupabaseConfigured()) {
-      throw new Error('Supabase 연동 설정이 필요합니다.')
-    }
-
-    // Supabase signInWithIdToken 호출: 백엔드와 ID Token 직접 교환 (supabase.co 도메인 노출 차단)
-    const { data, error } = await supabase.auth.signInWithIdToken({
-      provider: 'google',
-      token: response.credential
-    })
-
-    if (error) {
-      console.error('Supabase signInWithIdToken error:', error)
-      throw error
-    }
-
-    if (data?.user) {
-      currentUser.value = data.user
-      await checkUserRole(data.user)
-      await syncUserProfile(data.user)
-      closeLoginModal()
-
-      // SNS 간편로그인 후 사업자 정보 미등록 시 즉시 입력 유도
-      if (!isUserBusinessVerified(data.user)) {
-        setTimeout(() => {
-          openLoginModal('business_verify')
-        }, 350)
-      }
-      return { success: true, user: data.user }
-    }
-  } catch (err) {
-    console.error('Google ID Token authentication error:', err)
-    alert(`구글 로그인 처리 중 오류가 발생했습니다: ${err.message || '다시 시도해 주세요.'}`)
-    return { success: false, message: err.message }
-  }
-}
-
-/**
- * Google GIS 버튼 렌더링 함수
- */
-export const renderGoogleButton = async (containerEl, options = {}) => {
-  const google = await loadGsiScript()
-  if (!google?.accounts?.id) return false
-
-  const target = typeof containerEl === 'string' ? document.getElementById(containerEl) : containerEl
-  if (!target) return false
-
-  try {
-    target.innerHTML = ''
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredentialResponse,
-      auto_select: false,
-      cancel_on_tap_outside: true,
-      itp_support: true
-    })
-
-    google.accounts.id.renderButton(target, {
-      type: 'standard',
-      theme: 'outline',
-      size: 'large',
-      text: options.text || (options.mode === 'signup' ? 'signup_with' : 'signin_with'),
-      shape: 'rectangular',
-      logo_alignment: 'left',
-      width: options.width || 356,
-      locale: 'ko'
-    })
-    return true
-  } catch (err) {
-    console.warn('Google renderButton notice:', err)
-    return false
-  }
-}
-
-/**
- * Google GIS One-Tap / ID-Token 로그인 실행 (버튼 클릭 시)
+ * Google OAuth 로그인 — Supabase 표준 signInWithOAuth 리다이렉트 방식 (nonce 이슈 원천 해결)
+ * GIS One-Tap / signInWithIdToken 방식은 Supabase nonce 검증 오류를 유발하므로
+ * 실도메인(euchs.co.kr)과 localhost 모두에서 안전한 표준 OAuth 리다이렉트로 단일화합니다.
  */
 export const signInWithGoogle = async () => {
-  const google = await loadGsiScript()
-
-  if (!google?.accounts?.id) {
-    // Fallback to standard Supabase OAuth if GIS script is unavailable
-    try {
-      return await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: { redirectTo: window.location.origin }
-      })
-    } catch (e) {
-      alert('Google 인증 서비스를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.')
-      return
-    }
+  if (!isSupabaseConfigured()) {
+    alert('Supabase 연동 설정이 필요합니다.')
+    return
   }
-
   try {
-    google.accounts.id.initialize({
-      client_id: GOOGLE_CLIENT_ID,
-      callback: handleGoogleCredentialResponse,
-      auto_select: false,
-      cancel_on_tap_outside: false
-    })
-
-    // 구글 원탭 / 계정 선택 팝업 직접 호출 (supabase.co 노출 없이 현재 창/팝업에서 바로 인증)
-    google.accounts.id.prompt((notification) => {
-      if (notification.isNotDisplayed() || notification.isSkippedMoment()) {
-        console.warn('GIS prompt notification:', notification)
+    const redirectTo = `${window.location.origin}/`
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'select_account'
+        }
       }
     })
+    if (error) {
+      console.error('Google OAuth error:', error)
+      alert(`구글 로그인 중 오류가 발생했습니다: ${error.message}`)
+    }
   } catch (err) {
-    console.error('Google GIS prompt exception:', err)
+    console.error('Google OAuth exception:', err)
+    alert('구글 로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.')
   }
 }
+
+/**
+ * Google GIS 버튼 렌더링 함수 (deprecated: signInWithOAuth 방식으로 전환됨)
+ * 하위 호환성을 위해 no-op으로 유지합니다.
+ */
+export const renderGoogleButton = async (_containerEl, _options = {}) => {
+  // GIS SDK 렌더링 방식은 signInWithOAuth로 대체되었습니다.
+  return false
+}
+
+/**
+ * @deprecated signInWithGoogle을 사용하세요.
+ * Google ID Token 처리 함수 — signInWithOAuth 전환 후 미사용
+ */
+export const handleGoogleCredentialResponse = async (response) => {
+  if (!response?.credential) return { success: false }
+  console.warn('handleGoogleCredentialResponse is deprecated. Use signInWithGoogle (signInWithOAuth) instead.')
+  return { success: false, message: 'signInWithOAuth 방식을 사용하세요.' }
+}
+
+/**
+ * @deprecated loadGsiScript는 signInWithOAuth 전환 후 미사용
+ */
+export const loadGsiScript = () => Promise.resolve(null)
 
 /**
  * Kakao OAuth 로그인 실행
