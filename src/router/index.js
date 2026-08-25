@@ -346,26 +346,37 @@ router.beforeEach(async (to, from, next) => {
 })
 
 // 타이틀 & 파비콘 동적 분기 (관리자 vs 사용자)
-const USER_FAVICON = 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/favicon-9b27655ca4c28b6f3b75803b9cb7d64a.ico'
-const ADMIN_FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23374151'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='bold' font-size='13' fill='%23fff'%3EAD%3C/text%3E%3C/svg%3E"
+const USER_FAVICON_URL = 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/favicon-9b27655ca4c28b6f3b75803b9cb7d64a.ico'
+const ADMIN_FAVICON_SVG = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="6" fill="%231E293B"/><text x="50%" y="54%" font-family="sans-serif" font-weight="900" font-size="13" fill="%23FFFFFF" text-anchor="middle" dominant-baseline="middle">AD</text></svg>'
 
 router.afterEach((to) => {
-  const isAdminLogin = to.path === '/admin/login' || 
-    (to.path === '/login' && typeof to.query?.redirect === 'string' && to.query.redirect.startsWith('/admin'))
-  const isAdminPath = to.path === '/admin' || to.path.startsWith('/admin/') || isAdminLogin
+  // 1. 관리자 전용 경로 판단
+  const isAdminRoute = to.path.startsWith('/admin') || 
+                       to.path === '/admin' || 
+                       to.query?.redirect === '/admin' ||
+                       (typeof to.query?.redirect === 'string' && to.query.redirect.startsWith('/admin'))
 
-  if (isAdminPath) {
-    if (isAdminLogin) {
+  // 2. 파비콘 엘리먼트 취득 (없으면 자동 생성)
+  let faviconLink = document.querySelector("link[rel~='icon']")
+  if (!faviconLink) {
+    faviconLink = document.createElement('link')
+    faviconLink.rel = 'icon'
+    document.head.appendChild(faviconLink)
+  }
+
+  // 3. 경로에 따른 타이틀 및 파비콘 분기
+  if (isAdminRoute) {
+    // 관리자 모드: 무채색 AD 뱃지 파비콘 + 공식 관리자 타이틀
+    if (to.path === '/admin/login') {
       document.title = 'EUC 관리자 로그인 | EUCHS Admin'
     } else {
       document.title = to.meta?.title || 'EUC 관리자 솔루션 | EUCHS Admin Console'
     }
-    const favicon = document.querySelector("link[rel='icon']")
-    if (favicon) favicon.href = ADMIN_FAVICON
+    faviconLink.href = ADMIN_FAVICON_SVG
   } else {
-    document.title = '이유씨컴퍼니 (EUCHS) - 중국 무역 & 수입대행'
-    const favicon = document.querySelector("link[rel='icon']")
-    if (favicon) favicon.href = USER_FAVICON
+    // 일반 사용자 모드: 오리지널 로고/타이틀 복원
+    document.title = to.meta?.title || '이유씨컴퍼니 (EUCHS) - 중국 무역 & 수입대행 전문 파트너'
+    faviconLink.href = USER_FAVICON_URL
   }
 })
 
