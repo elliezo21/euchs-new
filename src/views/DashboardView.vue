@@ -432,6 +432,36 @@
               </div>
             </div>
 
+            <!-- 7. 공지사항 -->
+            <div class="pt-1">
+              <router-link
+                to="/community/notice"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+                :class="route.path.startsWith('/community/notice') || route.path.startsWith('/notice') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-bullhorn text-sm" :class="route.path.startsWith('/community/notice') || route.path.startsWith('/notice') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span>공지사항</span>
+                </div>
+                <span class="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">새소식</span>
+              </router-link>
+            </div>
+
+            <!-- 8. 사이트 이용가이드 -->
+            <div class="pt-0.5">
+              <router-link
+                to="/support/guide"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+                :class="route.path.startsWith('/support/guide') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-book-open text-sm" :class="route.path.startsWith('/support/guide') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span>사이트 이용가이드</span>
+                </div>
+                <span class="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">가이드</span>
+              </router-link>
+            </div>
+
           </nav>
         </div>
 

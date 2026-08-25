@@ -197,158 +197,226 @@
           </div>
 
           <!-- LNB Navigation Tree -->
-          <nav class="p-3 space-y-0.5 text-xs">
+          <nav class="p-3 space-y-1 text-xs">
 
-            <!-- 1. 대시보드 메인 -->
+            <!-- 1. 메인 (대시보드) - 단일 클릭 -->
             <router-link
               to="/dashboard"
               class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
-              :class="route.path === '/dashboard' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+              :class="route.path === '/dashboard' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
             >
               <div class="flex items-center gap-2.5">
-                <i class="fas fa-chart-pie text-sm" :class="route.path === '/dashboard' ? 'text-amber-500' : 'text-gray-400'"></i>
-                <span>대시보드 메인</span>
+                <i class="fas fa-chart-pie text-base" :class="route.path === '/dashboard' ? 'text-amber-500' : 'text-gray-400'"></i>
+                <span>메인 (대시보드)</span>
               </div>
-              <span class="px-1.5 py-0.5 text-[9px] rounded bg-amber-500 text-slate-950 font-black">ERP</span>
+              <span class="px-1.5 py-0.2 text-[10px] rounded bg-amber-500 text-slate-950 font-black">ERP</span>
             </router-link>
 
             <!-- 2. 상품관리 (아코디언) -->
-            <div class="space-y-0.5 pt-0.5">
+            <div class="space-y-0.5 pt-1">
               <button
                 type="button"
                 @click="toggleMenu('products')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
-                :class="route.path.startsWith('/mall') ? 'text-amber-600' : ''"
+                :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') || route.path.startsWith('/dashboard/cart') || route.path.startsWith('/dashboard/sourcing-products') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>상품관리</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.products ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
               </button>
-              <div v-show="expandedMenus.products" class="pl-7 pr-1 py-1 space-y-0.5">
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.products" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
                 <router-link
                   to="/mall"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg font-bold transition bg-rose-50 text-rose-600 border-r-2 border-rose-500"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg font-medium transition"
+                  :class="route.path === '/mall' && !route.query.tab ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-amber-600 hover:bg-gray-50'"
                 >
-                  <span>1688 소싱몰 (현재 페이지)</span>
-                  <i class="fas fa-store text-[10px] text-rose-500"></i>
+                  <span>1688 소싱몰 바로가기</span>
+                  <i class="fas fa-external-link-alt text-[9px] text-gray-400"></i>
                 </router-link>
                 <router-link
                   to="/dashboard/cart"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/cart' || route.path === '/dashboard/sourcing-products' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
-                  <span>장바구니 / 보관함</span>
-                  <span class="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono">{{ savedCount }}</span>
+                  <span>장바구니</span>
+                  <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs">
+                    {{ savedCount }}
+                  </span>
                 </router-link>
                 <router-link
-                  to="/dashboard/orders"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium"
+                  to="/mall?tab=bulk"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/mall' && route.query.tab === 'bulk' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
-                  <span>내 소싱 상품 목록</span>
+                  <span>1688 대량 URL 수집기</span>
+                  <span class="text-[9px] bg-slate-100 text-slate-600 px-1 rounded font-bold">AI</span>
                 </router-link>
               </div>
             </div>
 
             <!-- 3. 발주관리 (아코디언) -->
-            <div class="space-y-0.5 pt-0.5">
+            <div class="space-y-0.5 pt-1">
               <button
                 type="button"
                 @click="toggleMenu('orders')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+                :class="route.path.startsWith('/dashboard/orders') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-clipboard-list text-sm text-gray-400"></i>
+                  <i class="fas fa-clipboard-list text-sm" :class="route.path.startsWith('/dashboard/orders') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>발주관리</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.orders ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
               </button>
-              <div v-show="expandedMenus.orders" class="pl-7 pr-1 py-1 space-y-0.5">
-                <router-link to="/dashboard/orders" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  내 주문 (주문/발주 통합)
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.orders" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/orders"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/orders' && (!route.query.tab || route.query.tab === 'all') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>내 주문 (주문/발주 통합 관리)</span>
                 </router-link>
-                <router-link to="/dashboard/orders?tab=quote" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  견적 요청/대기
+                <router-link
+                  to="/dashboard/orders?tab=quote"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/orders' && (route.query.tab === 'quote' || route.query.tab === 'quote_pending') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>견적 요청/대기</span>
                 </router-link>
-                <router-link to="/dashboard/orders?tab=purchasing" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  1688 구매 진행중
+                <router-link
+                  to="/dashboard/orders?tab=purchasing"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/orders' && route.query.tab === 'purchasing' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>1688 구매 진행중</span>
                 </router-link>
               </div>
             </div>
 
-            <!-- 4. 물류센터 입고/검수 -->
-            <div class="pt-0.5">
+            <!-- 4. EUC 창고 (단일 메뉴) -->
+            <div class="pt-1">
               <router-link
                 to="/dashboard/warehouse"
                 class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
-                :class="route.path.startsWith('/dashboard/warehouse') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+                :class="route.path.startsWith('/dashboard/warehouse') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-warehouse text-sm" :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <i class="fas fa-warehouse text-base" :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>이우 물류센터 입고/검수</span>
                 </div>
+                <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">100%</span>
               </router-link>
             </div>
 
             <!-- 5. 수입 통관 & 국내배송 (아코디언) -->
-            <div class="space-y-0.5 pt-0.5">
+            <div class="space-y-0.5 pt-1">
               <button
                 type="button"
                 @click="toggleMenu('shipping')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+                :class="route.path.startsWith('/dashboard/logistics') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-ship text-sm text-gray-400"></i>
+                  <i class="fas fa-ship text-sm" :class="route.path.startsWith('/dashboard/logistics') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>수입 통관 & 국내배송</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.shipping ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
               </button>
-              <div v-show="expandedMenus.shipping" class="pl-7 pr-1 py-1 space-y-0.5">
-                <router-link to="/dashboard/logistics" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  세관 통관 조회 / C/O
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.shipping" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/logistics"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/logistics' && !route.query.tab ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>세관 통관 조회 / C/O</span>
+                  <i class="fas fa-link text-[9px] text-gray-400"></i>
                 </router-link>
-                <router-link to="/dashboard/logistics?tab=shipping" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  국내 화물 운송장 추적
+                <router-link
+                  to="/dashboard/logistics?tab=shipping"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/logistics' && route.query.tab === 'shipping' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>국내 화물 운송장 추적</span>
                 </router-link>
               </div>
             </div>
 
             <!-- 6. 계정센터 (아코디언) -->
-            <div class="space-y-0.5 pt-0.5">
+            <div class="space-y-0.5 pt-1">
               <button
                 type="button"
                 @click="toggleMenu('account')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+                :class="route.path.startsWith('/dashboard/account') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-id-card text-sm text-gray-400"></i>
+                  <i class="fas fa-id-card text-sm" :class="route.path.startsWith('/dashboard/account') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>계정센터</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.account ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
               </button>
-              <div v-show="expandedMenus.account" class="pl-7 pr-1 py-1 space-y-0.5">
-                <router-link to="/dashboard/account?tab=address" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  수령지 주소록
+
+              <!-- Submenu Items -->
+              <div v-show="expandedMenus.account" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/account?tab=address"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/account' && (!route.query.tab || route.query.tab === 'address') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>기본/추가 수령 주소지</span>
                 </router-link>
-                <router-link to="/dashboard/account?tab=pccc" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  사업자/통관부호 관리
+                <router-link
+                  to="/dashboard/account?tab=pccc"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/account' && route.query.tab === 'pccc' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>사업자 / 통관부호 관리</span>
                 </router-link>
-                <router-link to="/dashboard/account?tab=deposit" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
-                  예치금 충전
+                <router-link
+                  to="/dashboard/account?tab=deposit"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/account' && route.query.tab === 'deposit' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>예치금 충전 / 환불 관리</span>
                 </router-link>
               </div>
             </div>
 
-            <!-- 7. 공지사항 & 이용가이드 -->
-            <div class="pt-0.5">
+            <!-- 7. 공지사항 -->
+            <div class="pt-1">
               <router-link
                 to="/community/notice"
-                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left text-gray-700 hover:bg-gray-100 font-medium"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+                :class="route.path.startsWith('/community/notice') || route.path.startsWith('/notice') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-bullhorn text-sm text-gray-400"></i>
-                  <span>공지사항 & 이용가이드</span>
+                  <i class="fas fa-bullhorn text-sm" :class="route.path.startsWith('/community/notice') || route.path.startsWith('/notice') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span>공지사항</span>
                 </div>
+                <span class="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">새소식</span>
+              </router-link>
+            </div>
+
+            <!-- 8. 사이트 이용가이드 -->
+            <div class="pt-0.5">
+              <router-link
+                to="/support/guide"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+                :class="route.path.startsWith('/support/guide') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-book-open text-sm" :class="route.path.startsWith('/support/guide') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span>사이트 이용가이드</span>
+                </div>
+                <span class="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">가이드</span>
               </router-link>
             </div>
 
@@ -1182,10 +1250,22 @@ const displayCompanyName = computed(() => {
 
 const expandedMenus = ref({
   products: true,
-  orders: false,
-  shipping: false,
-  account: false
+  orders: true,
+  shipping: true,
+  account: true
 })
+
+watch(() => route.path, (newPath) => {
+  if (newPath.startsWith('/dashboard/cart') || newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/mall')) {
+    expandedMenus.value.products = true
+  } else if (newPath.startsWith('/dashboard/orders')) {
+    expandedMenus.value.orders = true
+  } else if (newPath.startsWith('/dashboard/logistics')) {
+    expandedMenus.value.shipping = true
+  } else if (newPath.startsWith('/dashboard/account')) {
+    expandedMenus.value.account = true
+  }
+}, { immediate: true })
 
 const toggleMenu = (key) => {
   expandedMenus.value[key] = !expandedMenus.value[key]
