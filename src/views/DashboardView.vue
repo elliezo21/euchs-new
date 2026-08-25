@@ -287,12 +287,12 @@
                   </span>
                 </router-link>
                 <router-link
-                  to="/mall?tab=bulk"
+                  to="/dashboard/stores"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/mall' && route.query.tab === 'bulk' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                  :class="route.path === '/dashboard/stores' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
-                  <span>1688 대량 URL 수집기</span>
-                  <span class="text-[9px] bg-slate-100 text-slate-600 px-1 rounded font-bold">AI</span>
+                  <span>구매한 상점모음</span>
+                  <i class="fas fa-store-alt text-[11px] opacity-60"></i>
                 </router-link>
               </div>
             </div>
@@ -1066,7 +1066,7 @@ const selectMenu = (menuId, filter = null) => {
 const menuLabels = {
   dashboard_main: '메인 (대시보드)',
   products_sourcing: '내 소싱 상품 목록',
-  products_bulk: '대량 URL 수집기',
+  products_bulk: '구매한 상점모음',
   orders_quote: '견적 요청/대기',
   orders_payment: '결제 대기/완료',
   orders_purchase: '1688 공장 구매진행',

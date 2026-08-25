@@ -23,6 +23,7 @@ import OrderManageView from '../views/dashboard/OrderManageView.vue'
 import WarehouseView from '../views/dashboard/WarehouseView.vue'
 import CustomsLogisticsView from '../views/dashboard/CustomsLogisticsView.vue'
 import AccountSettingsView from '../views/dashboard/AccountSettingsView.vue'
+import FavoriteStoresView from '../views/dashboard/FavoriteStoresView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
 import { currentUser, checkUserRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
@@ -80,6 +81,11 @@ const routes = [
         path: 'account',
         name: 'dashboard-account',
         component: AccountSettingsView,
+      },
+      {
+        path: 'stores',
+        name: 'dashboard-stores',
+        component: FavoriteStoresView,
       },
     ],
   },
