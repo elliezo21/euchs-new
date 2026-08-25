@@ -847,14 +847,18 @@
                   <i class="fas fa-book-open text-orange-500 text-xs mr-1"></i>
                   <span>시스템 이용가이드</span>
                 </h4>
-                <router-link to="/guide" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
+                <router-link to="/support/guide" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
               </div>
               <ul class="space-y-2 text-xs text-slate-800 font-bold">
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• (신) 수령주소 작성 및 관리 방법</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• EUC 현지창고 입고사진/검수 확인법</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 통관 위임장 및 사업자 통관 안내</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 원산지(Made in China) 작업 신청법</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 개인회원 ↔ 사업자회원 전환 절차</li>
+                <li v-for="item in guideItems" :key="item.id">
+                  <router-link
+                    :to="'/support/guide/' + item.id"
+                    class="hover:text-orange-600 cursor-pointer truncate transition flex items-center gap-1.5 block"
+                  >
+                    <span class="text-slate-400 shrink-0">•</span>
+                    <span class="truncate">{{ item.title }}</span>
+                  </router-link>
+                </li>
               </ul>
             </div>
 
@@ -865,7 +869,7 @@
                   <i class="fas fa-circle-question text-blue-600 text-xs mr-1"></i>
                   <span>자주 묻는 질문 (FAQ)</span>
                 </h4>
-                <router-link to="/community/faq" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
+                <router-link to="/support/guide?tab=faq" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
               </div>
               <ul class="space-y-2 text-xs text-slate-800 font-bold">
                 <li class="hover:text-orange-600 cursor-pointer truncate transition">• 1688 최소 구매수량(MOQ) 협의 가능한가요?</li>
@@ -919,6 +923,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { fetchSiteSettings } from '../lib/settings'
 import { exportQuoteExcel } from '../utils/excelExport'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { GUIDE_ITEMS } from '../data/guideData.js'
 import {
   PIPELINE_STATUSES,
   normalizeOrderStatus,
@@ -948,6 +953,9 @@ import {
 
 const router = useRouter()
 const route = useRoute()
+
+// 대시보드 이용가이드 위젯 (상위 5건)
+const guideItems = GUIDE_ITEMS.slice(0, 5)
 
 // ----------------------------------------------------
 // Auth & Buyer Profile Single Source of Truth

@@ -121,6 +121,16 @@ const routes = [
     component: GuideView,
   },
   {
+    path: '/support/guide',
+    name: 'support-guide',
+    component: () => import('../views/support/GuideView.vue'),
+  },
+  {
+    path: '/support/guide/:id',
+    name: 'support-guide-detail',
+    component: () => import('../views/support/GuideDetailView.vue'),
+  },
+  {
     path: '/guide/market-tour',
     name: 'market-tour',
     component: MarketTourView,
