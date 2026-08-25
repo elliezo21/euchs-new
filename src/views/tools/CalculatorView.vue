@@ -1029,21 +1029,10 @@ const resetInputs = () => {
   useFtaCo.value = false
 }
 
-// 해당 견적을 들고 구매대행 신청 페이지로 이동
+// 해당 견적을 들고 구매대행 안내 또는 1688 소싱몰로 이동
 const goToApplyWithEstimate = () => {
   router.push({
-    path: '/services/purchasing-agent',
-    hash: '#apply-form',
-    state: {
-      fromCalculator: true,
-      priceRmb: inputPriceRmb.value,
-      totalKrw: calculatedProductKrw.value,
-      agencyFee: calculatedAgencyFeeKrw.value,
-      cbm: finalCbm.value.toFixed(2),
-      weightKg: inputWeightKg.value,
-      shippingMode: shippingMode.value,
-      estimatedTotal: grandTotalImportCost.value
-    }
+    path: '/mall'
   })
 }
 

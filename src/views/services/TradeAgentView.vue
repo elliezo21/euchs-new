@@ -2,7 +2,7 @@
   <div class="bg-slate-50 min-h-screen">
     
     <!-- Hero Header -->
-    <div class="relative bg-slate-900 py-12 sm:py-20 text-white overflow-hidden">
+    <div class="relative bg-slate-900 py-14 sm:py-20 text-white overflow-hidden">
       <div class="absolute inset-0 opacity-25 bg-[radial-gradient(#10b981_1px,transparent_1px)] [background-size:16px_16px]"></div>
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div class="max-w-3xl">
@@ -23,16 +23,26 @@
           </p>
 
           <div class="mt-8 flex flex-wrap items-center gap-4">
-            <a 
-              href="#apply-form" 
-              class="px-6 py-3.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black rounded-xl shadow-lg shadow-emerald-600/30 hover:shadow-xl transition-all duration-200 flex items-center gap-2 text-sm sm:text-base"
+            <router-link 
+              to="/mall" 
+              class="px-6 py-3.5 bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 hover:from-rose-700 hover:to-orange-600 text-white font-black rounded-xl shadow-lg shadow-orange-500/25 hover:shadow-xl transition-all duration-200 flex items-center gap-2 text-sm sm:text-base active:scale-95"
             >
-              <i class="fas fa-file-contract"></i>
-              <span>OEM/ODM 맞춤 견적 의뢰서 작성</span>
-              <i class="fas fa-arrow-down text-xs"></i>
+              <i class="fas fa-store"></i>
+              <span>1688 소싱몰 바로가기</span>
+              <i class="fas fa-arrow-right text-xs"></i>
+            </router-link>
+
+            <a 
+              href="http://pf.kakao.com/_xmQWsK/chat" 
+              target="_blank"
+              rel="noopener noreferrer"
+              class="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 transition-all flex items-center gap-2 text-sm sm:text-base"
+            >
+              <i class="fas fa-comment text-yellow-400"></i>
+              <span>1:1 맞춤 제작 상담</span>
             </a>
 
-            <div class="flex items-center gap-2 text-xs text-slate-400">
+            <div class="flex items-center gap-2 text-xs text-slate-400 sm:ml-2">
               <router-link to="/" class="hover:text-white flex items-center gap-1">
                 <i class="fas fa-home"></i> 홈
               </router-link>
@@ -82,7 +92,7 @@
         </div>
       </section>
 
-      <!-- 4-Step Process -->
+      <!-- 4-Step Process Section -->
       <section class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-8">
         <div class="text-center max-w-2xl mx-auto">
           <span class="text-xs font-bold text-emerald-600 uppercase tracking-widest">Process</span>
@@ -121,326 +131,95 @@
         </div>
       </section>
 
-      <!-- Advanced Trade Agent Application Form -->
-      <section id="apply-form" class="scroll-mt-24 bg-white rounded-3xl p-6 sm:p-10 border-2 border-emerald-600/20 shadow-2xl space-y-8">
-        
-        <!-- Form Header -->
-        <div class="border-b border-gray-100 pb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-full mb-2">
-              <i class="fas fa-industry"></i>
-              <span>OEM / ODM & SOURCING INQUIRY</span>
+      <!-- Trust Points Section -->
+      <section class="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-3xl p-8 sm:p-12 shadow-xl space-y-8">
+        <div class="text-center max-w-2xl mx-auto space-y-2">
+          <span class="px-3 py-1 bg-emerald-500/30 text-emerald-300 text-xs font-bold rounded-full border border-emerald-400/30">
+            OEM/ODM CORE VALUES
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-black">
+            이유씨컴퍼니 맞춤 제작의 3대 안전장치
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-300">
+            금형 소유권부터 불량 방지까지 바이어의 권리를 100% 안전하게 보호합니다.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 text-xs">
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+            <div class="text-emerald-400 font-bold text-sm flex items-center gap-2">
+              <i class="fas fa-shield-alt"></i>
+              <span>금형 소유권 & 독점권 보장</span>
             </div>
-            <h2 class="text-2xl sm:text-3xl font-black text-gray-900">
-              무역대행 & 공장 소싱 맞춤 의뢰서
-            </h2>
-            <p class="text-xs sm:text-sm text-gray-500 mt-1">
-              제작하시려는 제품 기획서나 벤치마킹 링크를 전달해 주시면 15년 전문 소싱팀이 1차 공장 조사를 진행합니다.
+            <p class="text-slate-300 leading-relaxed">
+              제작된 사출/압출 금형은 계약서상 화주 소유로 귀속되며 제3자 무단 도용 생산을 법적으로 원천 차단합니다.
             </p>
           </div>
 
-          <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
-            target="_blank"
-            class="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm"
-          >
-            <i class="fas fa-comment"></i>
-            <span>카톡 실시간 공장 소싱 상담</span>
-          </a>
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+            <div class="text-teal-400 font-bold text-sm flex items-center gap-2">
+              <i class="fas fa-check-double"></i>
+              <span>생산 중간 실사 & 2단계 검품</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed">
+              양산 중간 공장 방문 실사 및 출하 전 이우 창고 입고 2단계 정밀 검수를 통해 불량 리스크를 제거합니다.
+            </p>
+          </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+            <div class="text-cyan-400 font-bold text-sm flex items-center gap-2">
+              <i class="fas fa-file-contract"></i>
+              <span>정식 무역 계약 & 안전 결제</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed">
+              국내 법인간 정식 세금계산서 발행 및 중국 현지 법인 명의의 무역 계약 체결로 대금 사고 걱정이 없습니다.
+            </p>
+          </div>
         </div>
-
-        <form @submit.prevent="submitTradeAgentForm" class="space-y-8">
-          
-          <!-- 1. 의뢰자 기본 정보 -->
-          <div class="space-y-4">
-            <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs flex items-center justify-center font-bold">1</span>
-              <span>의뢰 업체 기본 정보</span>
-            </h3>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">업체명 / 상호명 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.companyName" 
-                  type="text" 
-                  required 
-                  placeholder="예: 주식회사 알파"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">담당자 성함 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.contactName" 
-                  type="text" 
-                  required 
-                  placeholder="예: 이대표"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">연락처 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.phone" 
-                  type="tel" 
-                  required 
-                  placeholder="예: 010-1234-5678"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">이메일 주소 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.email" 
-                  type="email" 
-                  required 
-                  placeholder="예: contact@company.com"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. 소싱 및 제작 의뢰 상세 -->
-          <div class="space-y-4 pt-4 border-t border-gray-100">
-            <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs flex items-center justify-center font-bold">2</span>
-              <span>소싱 및 OEM/ODM 제작 상세</span>
-            </h3>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">
-                  벤치마킹 제품 링크 (국내 스마트스토어/쿠팡/1688 등) <span class="text-red-500">*</span>
-                </label>
-                <input 
-                  v-model="form.refUrl" 
-                  type="url" 
-                  required
-                  placeholder="https://..."
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">의뢰 분야 / 품목명 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.category" 
-                  type="text" 
-                  required 
-                  placeholder="예: 실리콘 조리도구 세트 / 캠핑 테이블"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">목표 제작 수량 (MOQ) <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.moq" 
-                  type="text" 
-                  required 
-                  placeholder="예: 1,000개 (또는 3,000개)"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">희망 목표 납품 단가 (선택)</label>
-                <input 
-                  v-model="form.targetPrice" 
-                  type="text" 
-                  placeholder="예: 개당 5,000원 이하 또는 ¥ 20 이하"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">상세 제작 요구 사항 (금형, 로고 인쇄, 패키지 등) <span class="text-red-500">*</span></label>
-              <textarea 
-                v-model="form.details" 
-                rows="3" 
-                required 
-                placeholder="로고 실크인쇄/레이저 각인 여부, 칼라 박스 패키징 디자인 제작 필요 여부, 금형 신규 개발 여부 등을 기재해 주세요."
-                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 text-xs outline-none"
-              ></textarea>
-            </div>
-
-            <div>
-              <label class="block text-xs font-bold text-gray-700 mb-1">도면 / 디자인 시안 첨부 (선택)</label>
-              <input 
-                type="file" 
-                multiple
-                class="w-full p-2.5 border border-dashed border-gray-300 rounded-xl bg-slate-50 text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-emerald-50 file:text-emerald-700 hover:file:bg-emerald-100 cursor-pointer"
-              />
-            </div>
-          </div>
-
-          <!-- 3. 현지 출장 조사 및 공장 실사 동행 옵션 -->
-          <div class="space-y-4 pt-4 border-t border-gray-100">
-            <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-emerald-600 text-white text-xs flex items-center justify-center font-bold">3</span>
-              <span>현지 공장 실사 & 출장 동행 옵션</span>
-            </h3>
-
-            <div class="border border-gray-200 rounded-2xl p-4 bg-slate-50 space-y-3">
-              <label class="flex items-center justify-between cursor-pointer">
-                <span class="flex items-center gap-2 text-xs sm:text-sm font-bold text-gray-900">
-                  <i class="fas fa-plane-departure text-emerald-600"></i>
-                  <span>현지 제조공장 직접 실사 및 출장 가이드 동행 요청 (비용 별도 협의)</span>
-                </span>
-                <input 
-                  v-model="form.needInspectionTrip" 
-                  type="checkbox" 
-                  class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-pointer"
-                />
-              </label>
-
-              <!-- Detailed Trip Options when checked -->
-              <div v-if="form.needInspectionTrip" class="pt-3 border-t border-gray-200 grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-600 mb-1">희망 출장 지역</label>
-                  <input 
-                    v-model="form.tripLocation" 
-                    type="text" 
-                    placeholder="예: 절강성 이우/영강, 광동성 광저우/심천"
-                    class="w-full p-2 border border-gray-300 rounded-lg text-xs outline-none focus:border-emerald-600"
-                  />
-                </div>
-                <div>
-                  <label class="block text-[11px] font-semibold text-gray-600 mb-1">예상 출장 일정</label>
-                  <input 
-                    v-model="form.tripSchedule" 
-                    type="text" 
-                    placeholder="예: 2026년 9월 중순 (2박 3일)"
-                    class="w-full p-2 border border-gray-300 rounded-lg text-xs outline-none focus:border-emerald-600"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- Submit Button -->
-          <div class="pt-4">
-            <button 
-              type="submit" 
-              :disabled="isSubmitting"
-              class="w-full py-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-base rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-98 disabled:opacity-50"
-            >
-              <i v-if="isSubmitting" class="fas fa-spinner animate-spin"></i>
-              <i v-else class="fas fa-paper-plane"></i>
-              <span>{{ isSubmitting ? '의뢰서 전송 중...' : '무역대행 맞춤 견적 의뢰하기' }}</span>
-            </button>
-          </div>
-
-        </form>
-
       </section>
 
-    </div>
+      <!-- Bottom Wide Call To Action Banner -->
+      <section class="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 text-white rounded-3xl p-8 sm:p-14 shadow-2xl text-center space-y-6">
+        <div class="max-w-2xl mx-auto space-y-3">
+          <span class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-black">
+            <i class="fas fa-industry text-yellow-300"></i>
+            <span>나만의 브랜드 상품 제작 & 공장 직거래</span>
+          </span>
+          <h2 class="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight">
+            1688 소싱몰에서 제품을 둘러보시거나<br />
+            원하는 제작 사양을 전담 MD에게 상담하세요!
+          </h2>
+          <p class="text-xs sm:text-sm text-white/90 leading-relaxed">
+            로고 인쇄부터 패키지 디자인, 신규 금형 사출까지 15년 무역 전문가가 친절히 상담해 드립니다.
+          </p>
+        </div>
 
-    <!-- Modal -->
-    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 shadow-2xl text-gray-900">
-        <div class="w-14 h-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center text-2xl mx-auto">
-          <i class="fas fa-check-circle"></i>
-        </div>
-        <h3 class="text-xl font-bold">무역대행 의뢰서가 접수되었습니다!</h3>
-        <p class="text-xs sm:text-sm text-gray-600 leading-relaxed">
-          <strong>{{ form.companyName }}</strong> 님의 OEM/ODM 소싱 의뢰가 정상 접수되었습니다.<br />
-          중국 현지 1차 공장 데이터베이스 조회 후 <strong>{{ form.contactName }}</strong> ({{ form.phone }}) 님께 24시간 내로 1차 피드백을 전달해 드리겠습니다.
-        </p>
-        <div class="bg-slate-50 p-3.5 rounded-xl text-xs text-left space-y-1 border border-gray-100">
-          <p><strong>품목명:</strong> {{ form.category }}</p>
-          <p><strong>목표 수량:</strong> {{ form.moq }}</p>
-          <p><strong>공장 실사 동행:</strong> {{ form.needInspectionTrip ? '신청함' : '미신청' }}</p>
-        </div>
-        <div class="flex flex-col gap-2 pt-2">
-          <router-link 
-            to="/dashboard/orders" 
-            class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2"
+        <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+          <router-link
+            to="/mall"
+            class="px-8 py-4 bg-white hover:bg-slate-100 text-emerald-700 font-black text-sm sm:text-base rounded-2xl shadow-xl transition active:scale-95 flex items-center gap-2"
           >
-            <i class="fas fa-receipt"></i>
-            <span>대시보드 주문/신청내역 확인</span>
+            <i class="fas fa-shopping-cart text-lg"></i>
+            <span>1688 소싱몰에서 바로 상품 담기 ➔</span>
           </router-link>
-          <button @click="showModal = false" class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition">
-            닫기
-          </button>
+
+          <a
+            href="http://pf.kakao.com/_xmQWsK/chat"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-8 py-4 bg-slate-950/80 hover:bg-slate-950 text-white font-bold text-sm sm:text-base rounded-2xl border border-white/20 transition active:scale-95 flex items-center gap-2"
+          >
+            <i class="fas fa-comment text-yellow-400 text-lg"></i>
+            <span>전담 MD와 1:1 카카오톡 실시간 상담</span>
+          </a>
         </div>
-      </div>
+      </section>
+
     </div>
 
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
-
-const isSubmitting = ref(false)
-const showModal = ref(false)
-
-const form = ref({
-  companyName: '',
-  contactName: '',
-  phone: '',
-  email: '',
-  refUrl: '',
-  category: '',
-  moq: '1,000개',
-  targetPrice: '',
-  details: '',
-  needInspectionTrip: false,
-  tripLocation: '',
-  tripSchedule: ''
-})
-
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-
-const submitTradeAgentForm = async () => {
-  isSubmitting.value = true
-
-  try {
-    if (isSupabaseConfigured()) {
-      const { error } = await supabase.from('applications').insert([
-        {
-          service_type: 'trade',
-          service_name: '무역대행 OEM/ODM',
-          customer_name: `${form.value.contactName} (${form.value.companyName})`,
-          phone: form.value.phone,
-          email: form.value.email,
-          status: '접수대기',
-          total_amount: 0,
-          memo: form.value.details || '',
-          details: {
-            companyName: form.value.companyName,
-            contactName: form.value.contactName,
-            refUrl: form.value.refUrl,
-            category: form.value.category,
-            moq: form.value.moq,
-            targetPrice: form.value.targetPrice,
-            needInspectionTrip: form.value.needInspectionTrip,
-            tripLocation: form.value.tripLocation,
-            tripSchedule: form.value.tripSchedule
-          }
-        }
-      ])
-
-      if (error) {
-        throw error
-      }
-    }
-    showModal.value = true
-  } catch (err) {
-    console.error('Supabase trade insert error:', err)
-    alert(`무역대행 신청서 접수 중 오류가 발생했습니다: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
-  } finally {
-    isSubmitting.value = false
-  }
-}
+// TradeAgentView: 중국 무역대행 OEM/ODM 서비스 소개 및 1688 소싱몰 연동 가이드
 </script>

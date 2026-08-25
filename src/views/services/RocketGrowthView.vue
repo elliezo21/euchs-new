@@ -2,7 +2,7 @@
   <div class="bg-slate-50 min-h-screen">
     
     <!-- Hero Header -->
-    <div class="relative bg-slate-900 py-12 sm:py-20 text-white overflow-hidden">
+    <div class="relative bg-slate-900 py-14 sm:py-20 text-white overflow-hidden">
       <div class="absolute inset-0 opacity-25 bg-[radial-gradient(#ef4444_1px,transparent_1px)] [background-size:16px_16px]"></div>
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10">
         <div class="max-w-3xl">
@@ -23,16 +23,26 @@
           </p>
 
           <div class="mt-8 flex flex-wrap items-center gap-4">
-            <a 
-              href="#apply-form" 
-              class="px-6 py-3.5 bg-gradient-to-r from-red-600 to-amber-600 hover:from-red-700 hover:to-amber-700 text-white font-black rounded-xl shadow-lg shadow-red-600/30 hover:shadow-xl transition-all duration-200 flex items-center gap-2 text-sm sm:text-base"
+            <router-link 
+              to="/mall" 
+              class="px-6 py-3.5 bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 hover:from-rose-700 hover:to-orange-600 text-white font-black rounded-xl shadow-lg shadow-orange-500/25 hover:shadow-xl transition-all duration-200 flex items-center gap-2 text-sm sm:text-base active:scale-95"
             >
-              <i class="fas fa-file-invoice"></i>
-              <span>로켓그로스 입고 신청서 작성</span>
-              <i class="fas fa-arrow-down text-xs"></i>
+              <i class="fas fa-store"></i>
+              <span>1688 소싱몰 바로가기</span>
+              <i class="fas fa-arrow-right text-xs"></i>
+            </router-link>
+
+            <a 
+              href="http://pf.kakao.com/_xmQWsK/chat" 
+              target="_blank"
+              rel="noopener noreferrer"
+              class="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 transition-all flex items-center gap-2 text-sm sm:text-base"
+            >
+              <i class="fas fa-comment text-yellow-400"></i>
+              <span>1:1 로켓그로스 입고 상담</span>
             </a>
 
-            <div class="flex items-center gap-2 text-xs text-slate-400">
+            <div class="flex items-center gap-2 text-xs text-slate-400 sm:ml-2">
               <router-link to="/" class="hover:text-white flex items-center gap-1">
                 <i class="fas fa-home"></i> 홈
               </router-link>
@@ -82,7 +92,7 @@
         </div>
       </section>
 
-      <!-- 4-Step Process -->
+      <!-- 4-Step Process Section -->
       <section class="bg-white rounded-3xl p-6 sm:p-10 border border-gray-100 shadow-sm space-y-8">
         <div class="text-center max-w-2xl mx-auto">
           <span class="text-xs font-bold text-red-600 uppercase tracking-widest">Process</span>
@@ -121,482 +131,95 @@
         </div>
       </section>
 
-      <!-- Advanced Rocket-Growth Application Form -->
-      <section id="apply-form" class="scroll-mt-24 bg-white rounded-3xl p-6 sm:p-10 border-2 border-red-500/20 shadow-2xl space-y-8">
-        
-        <!-- Form Title Header -->
-        <div class="border-b border-gray-100 pb-6 flex flex-wrap items-center justify-between gap-4">
-          <div>
-            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-red-100 text-red-700 text-xs font-black rounded-full mb-2">
-              <i class="fas fa-clipboard-check"></i>
-              <span>ROCKET-GROWTH ORDER FORM</span>
+      <!-- Checklist Section -->
+      <section class="bg-gradient-to-br from-slate-900 via-slate-950 to-slate-900 text-white rounded-3xl p-8 sm:p-12 shadow-xl space-y-8">
+        <div class="text-center max-w-2xl mx-auto space-y-2">
+          <span class="px-3 py-1 bg-red-500/30 text-red-300 text-xs font-bold rounded-full border border-red-400/30">
+            COUPANG LOGISTICS CHECKLIST
+          </span>
+          <h2 class="text-2xl sm:text-3xl font-black">
+            쿠팡 물류센터 입고 거부 방지 체크리스트
+          </h2>
+          <p class="text-xs sm:text-sm text-slate-300">
+            까다로운 쿠팡의 검수 기준을 100% 충족하도록 현지 창고에서 철저히 점검합니다.
+          </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 text-xs">
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+            <div class="text-red-400 font-bold text-sm flex items-center gap-2">
+              <i class="fas fa-check-circle"></i>
+              <span>바코드 인쇄 가독성 100% 검증</span>
             </div>
-            <h2 class="text-2xl sm:text-3xl font-black text-gray-900">
-              쿠팡 로켓그로스 정밀 입고 대행 신청서
-            </h2>
-            <p class="text-xs sm:text-sm text-gray-500 mt-1">
-              입고 품목과 가공 작업 요청사항을 입력해 주시면 전담 매니저가 라벨 규격 검토 후 견적을 안내합니다.
+            <p class="text-slate-300 leading-relaxed">
+              바코드 번짐, 훼손 방지를 위한 감열/유포지 라벨 사용 및 스캐너 실측 테스트 후 출고합니다.
             </p>
           </div>
-          <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
-            target="_blank"
-            class="px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold text-xs rounded-xl transition flex items-center gap-1.5 shadow-sm"
-          >
-            <i class="fas fa-comment"></i>
-            <span>카톡 실시간 라벨 검토 문의</span>
-          </a>
+
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+            <div class="text-amber-400 font-bold text-sm flex items-center gap-2">
+              <i class="fas fa-check-circle"></i>
+              <span>박스 라벨 & 부착 위치 준수</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed">
+              쿠팡 박스 라벨을 박스 정면 우측 상단 등 가이드라인 규격 위치에 정확히 부착합니다.
+            </p>
+          </div>
+
+          <div class="bg-white/5 border border-white/10 rounded-2xl p-5 space-y-2">
+            <div class="text-emerald-400 font-bold text-sm flex items-center gap-2">
+              <i class="fas fa-check-circle"></i>
+              <span>파레트 래핑 및 전복 방지</span>
+            </div>
+            <p class="text-slate-300 leading-relaxed">
+              지정 파레트(1100×1100) 규격 및 코너 엣지 보호대 보강으로 흔들림 없는 완벽한 고정을 보장합니다.
+            </p>
+          </div>
         </div>
-
-        <form @submit.prevent="submitRocketGrowthForm" class="space-y-8">
-          
-          <!-- 1. 기본 화주 정보 -->
-          <div class="space-y-4">
-            <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-bold">1</span>
-              <span>화주 기본 정보</span>
-            </h3>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">화주명 / 상호명 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.companyName" 
-                  type="text" 
-                  required 
-                  placeholder="예: 주식회사 알파 / 홍길동"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-red-600 focus:ring-2 focus:ring-red-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">연락처 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.phone" 
-                  type="tel" 
-                  required 
-                  placeholder="예: 010-1234-5678"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-red-600 focus:ring-2 focus:ring-red-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">개인/사업자 통관부호 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.customsCode" 
-                  type="text" 
-                  required 
-                  placeholder="예: P123456789012 또는 사업자등록번호"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-red-600 focus:ring-2 focus:ring-red-100 text-xs sm:text-sm outline-none transition"
-                />
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">입고 희망일 <span class="text-red-500">*</span></label>
-                <input 
-                  v-model="form.targetDate" 
-                  type="date" 
-                  required
-                  @click="openDatePicker($event)"
-                  @focus="openDatePicker($event)"
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 focus:border-red-600 focus:ring-2 focus:ring-red-100 text-xs sm:text-sm outline-none cursor-pointer transition"
-                />
-              </div>
-            </div>
-          </div>
-
-          <!-- 2. 입고 방식 및 쿠팡 FC 센터 선택 -->
-          <div class="space-y-4 pt-4 border-t border-gray-100">
-            <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-bold">2</span>
-              <span>입고 방식 및 쿠팡 물류센터(FC) 지정</span>
-            </h3>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <!-- 입고 방식 -->
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-2">입고 방식 선택 <span class="text-red-500">*</span></label>
-                <div class="grid grid-cols-2 gap-3">
-                  <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition" :class="form.deliveryMethod === 'milkrun' ? 'border-red-600 bg-red-50/50 text-red-900 font-bold' : 'border-gray-200 text-gray-700'">
-                    <input type="radio" value="milkrun" v-model="form.deliveryMethod" class="text-red-600" />
-                    <span class="text-xs sm:text-sm">밀크런 입고 (트럭 연계)</span>
-                  </label>
-                  <label class="flex items-center gap-2 p-3 rounded-xl border cursor-pointer transition" :class="form.deliveryMethod === 'courier' ? 'border-red-600 bg-red-50/50 text-red-900 font-bold' : 'border-gray-200 text-gray-700'">
-                    <input type="radio" value="courier" v-model="form.deliveryMethod" class="text-red-600" />
-                    <span class="text-xs sm:text-sm">택배 / 화물 직납</span>
-                  </label>
-                </div>
-              </div>
-
-              <!-- 쿠팡 센터 -->
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">입고 지정 쿠팡 물류센터(FC) <span class="text-red-500">*</span></label>
-                <select 
-                  v-model="form.coupangFC" 
-                  required
-                  class="w-full px-3.5 py-2.5 rounded-xl border border-gray-300 bg-white focus:border-red-600 focus:ring-2 focus:ring-red-100 text-xs sm:text-sm outline-none cursor-pointer"
-                >
-                  <option value="안성1센터">안성1센터 (경기 안성시)</option>
-                  <option value="안성4센터">안성4센터 (경기 안성시)</option>
-                  <option value="안성5센터">안성5센터 (경기 안성시)</option>
-                  <option value="인천4센터">인천4센터 (인천 서구)</option>
-                  <option value="인천14센터">인천14센터 (인천 중구)</option>
-                  <option value="고양1센터">고양1센터 (경기 고양시)</option>
-                  <option value="덕평센터">덕평센터 (경기 이천시)</option>
-                  <option value="용인센터">용인센터 (경기 처인구)</option>
-                  <option value="대구FC">대구 메가FC (대구 달성군)</option>
-                  <option value="김천FC">김천FC (경북 김천시)</option>
-                  <option value="칠곡FC">칠곡FC (경북 칠곡군)</option>
-                  <option value="창원1센터">창원1센터 (경남 창원시)</option>
-                  <option value="광주FC">광주FC (광주 평동)</option>
-                  <option value="other">기타 센터 (직접 기재)</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-          <!-- 3. 다중 품목 입력 테이블 (행 추가/삭제) -->
-          <div class="space-y-4 pt-4 border-t border-gray-100">
-            <div class="flex items-center justify-between flex-wrap gap-2">
-              <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-                <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-bold">3</span>
-                <span>입고 대상 품목 리스트</span>
-              </h3>
-              <button 
-                type="button" 
-                @click="addProductRow"
-                class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold rounded-lg transition flex items-center gap-1 shadow"
-              >
-                <i class="fas fa-plus text-[10px]"></i>
-                <span>품목 추가 (+행)</span>
-              </button>
-            </div>
-
-            <!-- Responsive Table -->
-            <div class="overflow-x-auto border border-gray-200 rounded-2xl">
-              <table class="w-full text-left text-xs text-gray-700">
-                <thead class="bg-slate-100 text-gray-800 font-bold uppercase text-[11px] border-b border-gray-200">
-                  <tr>
-                    <th class="py-3 px-3 w-10 text-center">No</th>
-                    <th class="py-3 px-3 min-w-[140px]">SKU / 바코드 번호 *</th>
-                    <th class="py-3 px-3 min-w-[180px]">상품명 및 옵션(색상/사이즈) *</th>
-                    <th class="py-3 px-3 min-w-[100px]">입고 수량 (EA) *</th>
-                    <th class="py-3 px-3 min-w-[110px]">박스당 수량 (EA)</th>
-                    <th class="py-3 px-3 min-w-[90px]">총 박스 (BOX)</th>
-                    <th class="py-3 px-2 w-12 text-center">삭제</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-gray-200 bg-white">
-                  <tr v-for="(item, idx) in form.items" :key="idx" class="hover:bg-slate-50 transition">
-                    <td class="py-2.5 px-3 text-center text-gray-400 font-bold">{{ idx + 1 }}</td>
-                    <td class="py-2 px-3">
-                      <input 
-                        v-model="item.sku" 
-                        type="text" 
-                        required 
-                        placeholder="예: 880912345678"
-                        class="w-full p-2 border border-gray-300 rounded-lg text-xs outline-none focus:border-red-600"
-                      />
-                    </td>
-                    <td class="py-2 px-3">
-                      <input 
-                        v-model="item.name" 
-                        type="text" 
-                        required 
-                        placeholder="예: 실리콘 조리도구 5종 세트 (블랙)"
-                        class="w-full p-2 border border-gray-300 rounded-lg text-xs outline-none focus:border-red-600"
-                      />
-                    </td>
-                    <td class="py-2 px-3">
-                      <input 
-                        v-model.number="item.qty" 
-                        type="number" 
-                        min="1" 
-                        required 
-                        placeholder="예: 500"
-                        class="w-full p-2 border border-gray-300 rounded-lg text-xs outline-none focus:border-red-600 text-right"
-                      />
-                    </td>
-                    <td class="py-2 px-3">
-                      <input 
-                        v-model.number="item.qtyPerBox" 
-                        type="number" 
-                        min="1" 
-                        placeholder="예: 50"
-                        class="w-full p-2 border border-gray-300 rounded-lg text-xs outline-none focus:border-red-600 text-right"
-                      />
-                    </td>
-                    <td class="py-2 px-3 text-center font-bold text-gray-900">
-                      {{ calculateTotalBoxes(item) }} 박스
-                    </td>
-                    <td class="py-2 px-2 text-center">
-                      <button 
-                        type="button" 
-                        @click="removeProductRow(idx)"
-                        :disabled="form.items.length <= 1"
-                        class="text-gray-400 hover:text-red-600 disabled:opacity-30 transition p-1"
-                      >
-                        <i class="fas fa-trash-alt"></i>
-                      </button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-
-            <!-- Table Summary -->
-            <div class="flex items-center justify-between text-xs bg-slate-100 p-3.5 rounded-xl text-gray-800 font-bold">
-              <span>총 품목 수: {{ form.items.length }}종</span>
-              <div class="flex items-center gap-4">
-                <span>총 수량: {{ totalQuantity.toLocaleString() }} EA</span>
-                <span class="text-red-600">총 박스: {{ grandTotalBoxes.toLocaleString() }} BOX</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 4. 현지 작업 요청 사항 (다중 체크박스) -->
-          <div class="space-y-4 pt-4 border-t border-gray-100">
-            <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-bold">4</span>
-              <span>현지 창고 가공 / 작업 요청 (다중 선택)</span>
-            </h3>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-              <label class="flex items-start gap-2.5 p-3.5 rounded-2xl border border-gray-200 bg-slate-50 hover:bg-red-50/40 cursor-pointer transition">
-                <input v-model="form.services.barcode" type="checkbox" class="mt-0.5 w-4 h-4 rounded text-red-600 focus:ring-red-500" />
-                <div class="text-xs">
-                  <span class="font-bold text-gray-900 block">쿠팡 상품 바코드 부착</span>
-                  <span class="text-gray-500 text-[11px]">개별 상품에 SKU 바코드 인쇄 및 정밀 부착</span>
-                </div>
-              </label>
-
-              <label class="flex items-start gap-2.5 p-3.5 rounded-2xl border border-gray-200 bg-slate-50 hover:bg-red-50/40 cursor-pointer transition">
-                <input v-model="form.services.kclabel" type="checkbox" class="mt-0.5 w-4 h-4 rounded text-red-600 focus:ring-red-500" />
-                <div class="text-xs">
-                  <span class="font-bold text-gray-900 block">KC인증 / 한글표시사항 라벨</span>
-                  <span class="text-gray-500 text-[11px]">수입식품/공산품 법정 한글 표시사항 라벨링</span>
-                </div>
-              </label>
-
-              <label class="flex items-start gap-2.5 p-3.5 rounded-2xl border border-gray-200 bg-slate-50 hover:bg-red-50/40 cursor-pointer transition">
-                <input v-model="form.services.pallet" type="checkbox" class="mt-0.5 w-4 h-4 rounded text-red-600 focus:ring-red-500" />
-                <div class="text-xs">
-                  <span class="font-bold text-gray-900 block">파레트 적재 & 랩핑</span>
-                  <span class="text-gray-500 text-[11px]">1100×1100 파레트 규격 적재 및 스트레치 필름 랩핑</span>
-                </div>
-              </label>
-
-              <label class="flex items-start gap-2.5 p-3.5 rounded-2xl border border-gray-200 bg-slate-50 hover:bg-red-50/40 cursor-pointer transition">
-                <input v-model="form.services.repack" type="checkbox" class="mt-0.5 w-4 h-4 rounded text-red-600 focus:ring-red-500" />
-                <div class="text-xs">
-                  <span class="font-bold text-gray-900 block">세트 OPP / 에어캡 완충 포장</span>
-                  <span class="text-gray-500 text-[11px]">파손 위험 상품 에어캡 보강 및 묶음 OPP 포장</span>
-                </div>
-              </label>
-
-              <label class="flex items-start gap-2.5 p-3.5 rounded-2xl border border-gray-200 bg-slate-50 hover:bg-red-50/40 cursor-pointer transition">
-                <input v-model="form.services.inspection" type="checkbox" class="mt-0.5 w-4 h-4 rounded text-red-600 focus:ring-red-500" />
-                <div class="text-xs">
-                  <span class="font-bold text-gray-900 block">정밀 전수 검품 (불량 선별)</span>
-                  <span class="text-gray-500 text-[11px]">외관 스크래치, 마감 불량, 작동 검사 진행</span>
-                </div>
-              </label>
-            </div>
-          </div>
-
-          <!-- 5. 파일 첨부 및 추가 메모 -->
-          <div class="space-y-4 pt-4 border-t border-gray-100">
-            <h3 class="text-sm font-black text-gray-900 flex items-center gap-2">
-              <span class="w-6 h-6 rounded-full bg-red-600 text-white text-xs flex items-center justify-center font-bold">5</span>
-              <span>라벨 파일 첨부 및 추가 요청 사항</span>
-            </h3>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">
-                  쿠팡 바코드 / 라벨 파일 첨부 (PDF, ZIP, 이미지)
-                </label>
-                <input 
-                  type="file" 
-                  multiple 
-                  @change="handleFileUpload"
-                  class="w-full p-2.5 border border-dashed border-gray-300 rounded-xl bg-slate-50 text-xs text-gray-600 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-red-50 file:text-red-700 hover:file:bg-red-100 cursor-pointer"
-                />
-                <p class="text-[11px] text-gray-400 mt-1">※ 파일이 여러 개인 경우 ZIP 압축 후 업로드해 주셔도 됩니다.</p>
-              </div>
-
-              <div>
-                <label class="block text-xs font-bold text-gray-700 mb-1">추가 요청 사항</label>
-                <textarea 
-                  v-model="form.memo" 
-                  rows="3" 
-                  placeholder="쿠팡 입고 승인 일정, 특이 박스 규격, 출고 긴급도 등을 자유롭게 적어주세요."
-                  class="w-full px-3.5 py-2 rounded-xl border border-gray-300 focus:border-red-600 focus:ring-2 focus:ring-red-100 text-xs outline-none"
-                ></textarea>
-              </div>
-            </div>
-          </div>
-
-          <!-- Submit Button -->
-          <div class="pt-4">
-            <button 
-              type="submit" 
-              :disabled="isSubmitting"
-              class="w-full py-4 bg-gradient-to-r from-red-600 via-amber-600 to-red-700 hover:from-red-700 hover:to-red-800 text-white font-black text-base rounded-2xl shadow-xl transition-all flex items-center justify-center gap-2 transform active:scale-98 disabled:opacity-50"
-            >
-              <i v-if="isSubmitting" class="fas fa-spinner animate-spin"></i>
-              <i v-else class="fas fa-paper-plane"></i>
-              <span>{{ isSubmitting ? '신청서 전송 중...' : '쿠팡 로켓그로스 입고 대행 신청하기' }}</span>
-            </button>
-          </div>
-
-        </form>
-
       </section>
 
-    </div>
+      <!-- Bottom Wide Call To Action Banner -->
+      <section class="bg-gradient-to-r from-red-600 via-amber-600 to-orange-500 text-white rounded-3xl p-8 sm:p-14 shadow-2xl text-center space-y-6">
+        <div class="max-w-2xl mx-auto space-y-3">
+          <span class="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-white/20 backdrop-blur-md text-white text-xs font-black">
+            <i class="fas fa-rocket text-yellow-300"></i>
+            <span>쿠팡 로켓그로스 사입 & 가공 원스톱</span>
+          </span>
+          <h2 class="text-2xl sm:text-3xl lg:text-4xl font-black tracking-tight">
+            1688 상품 소싱부터 쿠팡 센터 직납까지<br />
+            이유씨컴퍼니가 가장 확실하게 대행합니다!
+          </h2>
+          <p class="text-xs sm:text-sm text-white/90 leading-relaxed">
+            1688 소싱몰에서 상품을 고르고, 로켓그로스 입고 옵션을 선택하시면 현지 라벨링부터 파레트 입고까지 일사천리로 진행됩니다.
+          </p>
+        </div>
 
-    <!-- Modal -->
-    <div v-if="showModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full text-center space-y-4 shadow-2xl text-gray-900">
-        <div class="w-14 h-14 rounded-full bg-red-100 text-red-600 flex items-center justify-center text-2xl mx-auto">
-          <i class="fas fa-check-circle"></i>
-        </div>
-        <h3 class="text-xl font-bold">로켓그로스 신청서가 접수되었습니다!</h3>
-        <p class="text-xs sm:text-sm text-gray-600 leading-relaxed">
-          <strong>{{ form.companyName }}</strong> 님의 쿠팡 입고 대행 의뢰가 정상 접수되었습니다.<br />
-          입고 희망일(<strong>{{ form.targetDate }}</strong>) 및 <strong>{{ form.coupangFC }}</strong> 기준으로 담당 매니저가 <strong>{{ form.phone }}</strong> 번호로 즉시 안내해 드리겠습니다.
-        </p>
-        <div class="bg-slate-50 p-3 rounded-xl text-xs text-left space-y-1 border border-gray-100">
-          <p><strong>총 품목:</strong> {{ form.items.length }}종 ({{ totalQuantity.toLocaleString() }} EA)</p>
-          <p><strong>입고 방식:</strong> {{ form.deliveryMethod === 'milkrun' ? '밀크런 트럭 연계' : '택배/화물 직납' }}</p>
-        </div>
-        <div class="flex flex-col gap-2 pt-2">
-          <router-link 
-            to="/dashboard/orders" 
-            class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2"
+        <div class="flex flex-wrap items-center justify-center gap-4 pt-2">
+          <router-link
+            to="/mall"
+            class="px-8 py-4 bg-white hover:bg-slate-100 text-red-600 font-black text-sm sm:text-base rounded-2xl shadow-xl transition active:scale-95 flex items-center gap-2"
           >
-            <i class="fas fa-receipt"></i>
-            <span>대시보드 주문/신청내역 확인</span>
+            <i class="fas fa-shopping-cart text-lg"></i>
+            <span>1688 소싱몰에서 바로 상품 담기 ➔</span>
           </router-link>
-          <button @click="showModal = false" class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition">
-            닫기
-          </button>
+
+          <a
+            href="http://pf.kakao.com/_xmQWsK/chat"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="px-8 py-4 bg-slate-950/80 hover:bg-slate-950 text-white font-bold text-sm sm:text-base rounded-2xl border border-white/20 transition active:scale-95 flex items-center gap-2"
+          >
+            <i class="fas fa-comment text-yellow-400 text-lg"></i>
+            <span>전담 MD와 1:1 카카오톡 실시간 상담</span>
+          </a>
         </div>
-      </div>
+      </section>
+
     </div>
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-
-const isSubmitting = ref(false)
-const showModal = ref(false)
-
-const form = ref({
-  companyName: '',
-  phone: '',
-  customsCode: '',
-  targetDate: '',
-  deliveryMethod: 'milkrun',
-  coupangFC: '안성4센터',
-  items: [
-    { sku: '', name: '', qty: 100, qtyPerBox: 20 }
-  ],
-  services: {
-    barcode: true,
-    kclabel: false,
-    pallet: true,
-    repack: false,
-    inspection: true
-  },
-  memo: '',
-  files: []
-})
-
-const openDatePicker = (event) => {
-  if (event && event.target && typeof event.target.showPicker === 'function') {
-    try {
-      event.target.showPicker()
-    } catch (e) {
-      // ignore
-    }
-  }
-}
-
-const addProductRow = () => {
-  form.value.items.push({
-    sku: '',
-    name: '',
-    qty: 100,
-    qtyPerBox: 20
-  })
-}
-
-const removeProductRow = (index) => {
-  if (form.value.items.length > 1) {
-    form.value.items.splice(index, 1)
-  }
-}
-
-const calculateTotalBoxes = (item) => {
-  if (!item.qty || !item.qtyPerBox) return 0
-  return Math.ceil(item.qty / item.qtyPerBox)
-}
-
-const totalQuantity = computed(() => {
-  return form.value.items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0)
-})
-
-const grandTotalBoxes = computed(() => {
-  return form.value.items.reduce((sum, item) => sum + calculateTotalBoxes(item), 0)
-})
-
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-
-const handleFileUpload = (e) => {
-  form.value.files = Array.from(e.target.files)
-}
-
-const submitRocketGrowthForm = async () => {
-  isSubmitting.value = true
-
-  try {
-    if (isSupabaseConfigured()) {
-      const { error } = await supabase.from('applications').insert([
-        {
-          service_type: 'rocket_growth',
-          service_name: '쿠팡 로켓그로스',
-          customer_name: form.value.companyName,
-          phone: form.value.phone,
-          status: '접수대기',
-          total_amount: 0,
-          memo: form.value.memo || '',
-          details: {
-            customsCode: form.value.customsCode,
-            targetDate: form.value.targetDate,
-            shippingType: form.value.shippingType,
-            targetFc: form.value.coupangFC || form.value.targetFc,
-            items: form.value.items,
-            totalQuantity: totalQuantity.value,
-            grandTotalBoxes: grandTotalBoxes.value,
-            services: form.value.services
-          }
-        }
-      ])
-
-      if (error) {
-        throw error
-      }
-    }
-    showModal.value = true
-  } catch (err) {
-    console.error('Supabase rocket growth insert error:', err)
-    alert(`로켓그로스 신청서 접수 중 오류가 발생했습니다: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
-  } finally {
-    isSubmitting.value = false
-  }
-}
+// RocketGrowthView: 쿠팡 로켓그로스 서비스 소개 및 1688 소싱몰 연동 가이드
 </script>

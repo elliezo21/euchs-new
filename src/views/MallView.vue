@@ -405,7 +405,7 @@
 
           <div class="pt-4 relative z-10">
             <router-link
-              to="/services/trade-agent#apply-form"
+              to="/services/trade-agent"
               class="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-indigo-600/30 text-center"
             >
               <span>맞춤 제작 상담 신청</span>

@@ -23,6 +23,15 @@
           </p>
 
           <div class="mt-8 flex flex-wrap items-center gap-4">
+            <router-link 
+              to="/mall" 
+              class="px-6 py-3.5 bg-gradient-to-r from-rose-600 via-orange-500 to-amber-500 hover:from-rose-700 hover:to-orange-600 text-white font-black rounded-xl shadow-lg shadow-orange-500/25 hover:shadow-xl transition-all duration-200 flex items-center gap-2 text-sm sm:text-base active:scale-95"
+            >
+              <i class="fas fa-store"></i>
+              <span>1688 소싱몰 바로가기</span>
+              <i class="fas fa-arrow-right text-xs"></i>
+            </router-link>
+
             <a 
               href="http://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"

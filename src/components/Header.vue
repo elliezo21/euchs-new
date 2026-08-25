@@ -218,7 +218,7 @@
               <i class="fas fa-chevron-right text-[9px] opacity-90"></i>
             </router-link>
             <div class="absolute left-0 mt-1 w-52 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/services/trade-agent#apply-form" class="block px-3.5 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50">✍️ 무역대행 견적 신청</router-link>
+              <router-link to="/services/trade-agent" class="block px-3.5 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50">✍️ 무역대행 맞춤 서비스</router-link>
               <div class="border-t border-gray-100 my-1"></div>
               <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
             </div>
@@ -236,7 +236,7 @@
             </router-link>
             <div class="absolute left-0 mt-1 w-56 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
               <router-link to="/mall" class="block px-3.5 py-1.5 text-xs font-bold text-rose-600 hover:bg-rose-50">🛍️ 1688 실시간 상품 소싱몰</router-link>
-              <router-link to="/services/purchasing-agent#apply-form" class="block px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">📝 1688 구매대행 견적 신청</router-link>
+              <router-link to="/services/purchasing-agent" class="block px-3.5 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">📝 1688 구매대행 이용안내</router-link>
               <div class="border-t border-gray-100 my-1"></div>
               <router-link to="/services/rocket-growth" class="block px-3.5 py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50">🚀 쿠팡 로켓그로스 대행</router-link>
               <router-link to="/services/3pl-fulfillment" class="block px-3.5 py-1.5 text-xs font-semibold text-purple-600 hover:bg-purple-50">📦 3PL 풀필먼트 배송</router-link>
@@ -447,10 +447,10 @@
           <div class="py-2 grid grid-cols-2 gap-2 border-y border-gray-100 my-1">
             <router-link 
               @click="isMobileMenuOpen = false" 
-              to="/services/trade-agent#apply-form" 
+              to="/services/trade-agent" 
               class="py-2.5 px-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-xs flex items-center justify-center gap-1 shadow-md shadow-blue-500/20 active:scale-95 transition"
             >
-              <span>무역대행 신청</span>
+              <span>무역대행 안내</span>
               <i class="fas fa-chevron-right text-[9px]"></i>
             </router-link>
             <router-link 
@@ -470,14 +470,14 @@
               @click="toggleMobileSubmenu('agency')" 
               class="w-full flex justify-between items-center py-2.5 text-base font-semibold text-gray-800 hover:text-blue-600"
             >
-              <span>서비스 신청 & 세부 안내</span>
+              <span>서비스 안내 & 1:1 상담</span>
               <i :class="mobileSubmenu === 'agency' ? 'fas fa-chevron-up text-xs text-blue-600' : 'fas fa-chevron-down text-xs text-gray-400'"></i>
             </button>
             <div v-show="mobileSubmenu === 'agency'" class="pl-4 pb-2 space-y-1.5 text-sm text-gray-600">
-              <router-link @click="isMobileMenuOpen = false" to="/services/trade-agent#apply-form" class="block py-1 font-bold text-blue-600">✍️ 무역대행 맞춤 견적 신청</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/services/trade-agent" class="block py-1 font-bold text-blue-600">✍️ 무역대행 맞춤 서비스 안내</router-link>
               <a @click="isMobileMenuOpen = false" href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" class="block py-1 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
               <div class="border-t border-gray-100 my-1"></div>
-              <router-link @click="isMobileMenuOpen = false" to="/services/purchasing-agent#apply-form" class="block py-1 font-bold text-amber-600">📝 구매대행 주문서/견적 작성</router-link>
+              <router-link @click="isMobileMenuOpen = false" to="/services/purchasing-agent" class="block py-1 font-bold text-amber-600">📝 1688 구매대행 이용안내</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/services/rocket-growth" class="block py-1 text-red-600 font-semibold">🚀 쿠팡 로켓그로스 대행</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/services/3pl-fulfillment" class="block py-1 text-purple-600 font-semibold">📦 3PL 풀필먼트 배송</router-link>
             </div>
