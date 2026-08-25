@@ -42,7 +42,7 @@ export const GUIDE_ITEMS = [
     category: "address",
     categoryLabel: "수령주소관리",
     color: "blue",
-    title: "(신) 수령주소 작성 및 관리 방법",
+    title: "이우 물류센터 수령주소 등록 및 관리 방법",
     summary: "이우 물류센터 정확한 수령주소 작성법과 PCCC 통관부호 연동 관리 방법을 안내합니다.",
     tags: ["#주소작성", "#PCCC", "#이우창고"],
     steps: [

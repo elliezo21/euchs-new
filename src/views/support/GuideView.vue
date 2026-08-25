@@ -29,13 +29,13 @@
 
     <!-- CATEGORY TAB BAR -->
     <div class="sticky top-0 z-30 bg-white border-b border-slate-200 shadow-xs">
-      <div class="max-w-5xl mx-auto px-4 flex items-center gap-1 overflow-x-auto py-2 no-scrollbar">
+      <div class="max-w-6xl xl:max-w-7xl mx-auto px-4 flex items-center gap-1.5 overflow-x-auto py-2.5 no-scrollbar">
         <button
           v-for="cat in GUIDE_CATEGORIES"
           :key="cat.key"
           type="button"
           @click="activeCategory = cat.key"
-          class="shrink-0 px-3.5 py-1.5 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer"
+          class="shrink-0 px-4 py-2 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer"
           :class="activeCategory === cat.key
             ? 'bg-slate-900 text-white shadow-sm'
             : 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'"
@@ -46,51 +46,51 @@
     </div>
 
     <!-- MAIN CONTENT -->
-    <div class="max-w-5xl mx-auto px-4 py-10">
+    <div class="max-w-6xl xl:max-w-7xl mx-auto px-4 py-10 sm:py-12">
 
       <!-- 결과 헤더 -->
-      <div class="flex items-center justify-between mb-6">
+      <div class="flex items-center justify-between mb-8">
         <div>
-          <h2 class="text-base font-black text-slate-900">
+          <h2 class="text-lg sm:text-xl font-black text-slate-900">
             {{ activeCategory === 'all' ? '전체 가이드' : GUIDE_CATEGORIES.find(c => c.key === activeCategory)?.label }}
           </h2>
-          <p class="text-xs text-slate-400 mt-0.5 font-mono">총 {{ filteredGuides.length }}건의 가이드</p>
+          <p class="text-xs sm:text-sm text-slate-400 mt-1 font-mono">총 {{ filteredGuides.length }}건의 가이드</p>
         </div>
-        <router-link to="/community/faq" class="text-xs text-blue-600 hover:underline font-bold flex items-center gap-1">
-          <i class="fas fa-circle-question text-[11px]"></i> FAQ 바로가기
+        <router-link to="/community/faq" class="text-xs sm:text-sm text-blue-600 hover:underline font-bold flex items-center gap-1.5">
+          <i class="fas fa-circle-question text-xs"></i> FAQ 바로가기
         </router-link>
       </div>
 
       <!-- 빈 상태 -->
       <div v-if="filteredGuides.length === 0" class="text-center py-24 text-slate-400 space-y-3">
         <div class="text-5xl">🔍</div>
-        <p class="font-bold text-slate-600 text-sm">검색 결과가 없습니다.</p>
-        <p class="text-xs">다른 키워드로 검색하거나 카테고리를 변경해 보세요.</p>
-        <button type="button" @click="searchQuery=''; activeCategory='all'" class="mt-2 px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold cursor-pointer hover:bg-slate-800 transition">
+        <p class="font-bold text-slate-600 text-base">검색 결과가 없습니다.</p>
+        <p class="text-xs sm:text-sm">다른 키워드로 검색하거나 카테고리를 변경해 보세요.</p>
+        <button type="button" @click="searchQuery=''; activeCategory='all'" class="mt-2 px-5 py-2.5 rounded-xl bg-slate-900 text-white text-xs font-bold cursor-pointer hover:bg-slate-800 transition">
           전체 가이드 보기
         </button>
       </div>
 
-      <!-- GUIDE CARD GRID -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <!-- GUIDE CARD GRID (3-Column Spacious Grid) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <router-link
           v-for="guide in filteredGuides"
           :key="guide.id"
           :to="'/support/guide/' + guide.id"
-          class="group bg-white rounded-2xl border p-5 flex flex-col justify-between space-y-4 transition duration-200 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer"
+          class="group bg-white rounded-2xl border p-6 sm:p-7 flex flex-col justify-between space-y-5 transition duration-200 hover:-translate-y-1.5 hover:shadow-xl cursor-pointer"
           :class="CATEGORY_COLOR_MAP[guide.color]?.border || 'border-slate-200'"
         >
           <!-- 카드 상단 -->
-          <div class="space-y-3">
+          <div class="space-y-3.5">
             <div class="flex items-center justify-between">
               <span
-                class="text-[10px] font-black font-mono px-2 py-0.5 rounded-full border"
+                class="text-xs font-black font-mono px-2.5 py-0.5 rounded-full border"
                 :class="[CATEGORY_COLOR_MAP[guide.color]?.bg, CATEGORY_COLOR_MAP[guide.color]?.text, CATEGORY_COLOR_MAP[guide.color]?.border]"
               >
                 NO.{{ guide.no }}
               </span>
               <span
-                class="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                class="text-xs font-bold px-2.5 py-0.5 rounded-full"
                 :class="[CATEGORY_COLOR_MAP[guide.color]?.bg, CATEGORY_COLOR_MAP[guide.color]?.text]"
               >
                 {{ guide.categoryLabel }}
@@ -98,26 +98,26 @@
             </div>
 
             <!-- 메인 타이틀 -->
-            <h3 class="text-sm sm:text-[15px] font-black text-slate-900 leading-snug group-hover:text-blue-700 transition line-clamp-3">
+            <h3 class="text-base sm:text-lg lg:text-xl font-black text-slate-900 leading-snug group-hover:text-blue-600 transition tracking-tight line-clamp-2">
               {{ guide.title }}
             </h3>
 
             <!-- 요약 -->
-            <p class="text-[11px] text-slate-500 leading-relaxed line-clamp-2">{{ guide.summary }}</p>
+            <p class="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-2">{{ guide.summary }}</p>
           </div>
 
-          <!-- 해시태그 -->
-          <div class="flex flex-wrap gap-1 pt-2 border-t border-slate-100">
+          <!-- 해시태그 & 읽기 -->
+          <div class="flex flex-wrap gap-1.5 pt-3 border-t border-slate-100 items-center">
             <span
               v-for="tag in guide.tags"
               :key="tag"
-              class="text-[10px] font-mono px-1.5 py-0.5 rounded-md"
+              class="text-xs font-mono px-2 py-0.5 rounded-md font-medium"
               :class="[CATEGORY_COLOR_MAP[guide.color]?.bg, CATEGORY_COLOR_MAP[guide.color]?.text]"
             >
               {{ tag }}
             </span>
-            <span class="ml-auto text-[10px] text-slate-400 group-hover:text-blue-600 font-bold flex items-center gap-0.5 transition">
-              읽기 <i class="fas fa-arrow-right text-[9px]"></i>
+            <span class="ml-auto text-xs text-slate-400 group-hover:text-blue-600 font-bold flex items-center gap-1 transition">
+              읽기 <i class="fas fa-arrow-right text-[10px]"></i>
             </span>
           </div>
         </router-link>
