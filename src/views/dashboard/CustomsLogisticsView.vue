@@ -798,213 +798,50 @@ function getKakaoUrl(item) {
 }
 
 // ----------------------------------------------------------------
-// Mock 데이터 (7단계 통관 + 8단계 배송)
-// orderStorage의 실제 orders와 병합하여 사용
+// 실제 orderStorage의 주문 데이터(7~8단계 및 해상/통관/배송) 기반 상태 관리
 // ----------------------------------------------------------------
-const MOCK_LOGISTICS = [
-  // ── 7단계: 세관 수입통관 진행 중 ──
-  {
-    id: 'log-001',
-    hblNo: 'EUCHS260825-V01',
-    cargoMgtNo: 'INCHEON2026-08-25-09182',
-    orderNo: 'EUC-20260824-V01',
-    productName: '[테스트 샘플] 초경량 접이식 캠핑 체어 알루미늄 프레임 (120 PCS)',
-    quantity: 120,
-    weightKg: 42.5,
-    cbm: 0.352,
-    departurePort: '위해(Weihai)항',
-    arrivalPort: '인천(Incheon)항',
-    arrivalDate: '2026-08-25',
-    vesselName: 'NEW GOLDEN BRIDGE VII',
-    customsStep: 'customs',
-    customsStepName: '세관 심사진행중',
-    declarationNo: '12345-26-100512U',
-    ftaStatus: 'approved',
-    estimatedDutySaving: 42000,
-    deliveryType: 'cargo',
-    courierCompany: '경동택배(화물)',
-    trackingNo: '',
-    trackingUrl: '',
-    stage: 7
-  },
-  {
-    id: 'log-002',
-    hblNo: 'EUCHS260823-002',
-    cargoMgtNo: 'PYEONGTAEK2026-08-23-04512',
-    orderNo: 'EUC-20260823-014',
-    productName: '304 스테인리스 이중 진공 보온 텀블러 500ml (500개)',
-    quantity: 500,
-    weightKg: 135.0,
-    cbm: 0.648,
-    departurePort: '위해(Weihai)항',
-    arrivalPort: '평택(Pyeongtaek)항',
-    arrivalDate: '2026-08-23',
-    vesselName: 'GRAND PEACE',
-    customsStep: 'customs',
-    customsStepName: '수입신고 심사중',
-    declarationNo: '12345-26-100341U',
-    ftaStatus: 'applying',
-    estimatedDutySaving: 0,
-    deliveryType: 'parcel',
-    courierCompany: 'CJ대한통운',
-    trackingNo: '',
-    trackingUrl: 'https://www.cjlogistics.com/ko/tool/parcel/tracking',
-    stage: 7
-  },
-  {
-    id: 'log-003',
-    hblNo: 'EUCHS260820-003',
-    cargoMgtNo: '',
-    orderNo: 'EUC-20260820-022',
-    productName: '차량용 맥세이프 고속 무선충전 거치대 15W (400개)',
-    quantity: 400,
-    weightKg: 88.0,
-    cbm: 0.52,
-    departurePort: '이우 ➔ 위해항',
-    arrivalPort: '인천(Incheon)항',
-    arrivalDate: '2026-08-27 (예정)',
-    vesselName: 'ORIENTAL PEARL VIII',
-    customsStep: 'sailing',
-    customsStepName: '해상 적재 운송중',
-    declarationNo: '',
-    ftaStatus: 'none',
-    estimatedDutySaving: 0,
-    deliveryType: 'parcel',
-    courierCompany: '',
-    trackingNo: '',
-    trackingUrl: '',
-    stage: 7
-  },
-  // ── 8단계: 국내 배송 / 완료 ──
-  {
-    id: 'log-004',
-    hblNo: 'EUCHS260817-004',
-    cargoMgtNo: 'INCHEON2026-08-17-00291',
-    orderNo: 'EUC-20260817-005',
-    productName: '대용량 멀티 포켓 방수 백팩 30L (150개)',
-    quantity: 150,
-    weightKg: 105.0,
-    cbm: 0.72,
-    departurePort: '위해(Weihai)항',
-    arrivalPort: '인천(Incheon)항',
-    arrivalDate: '2026-08-17',
-    vesselName: 'NEW GOLDEN BRIDGE V',
-    customsStep: 'delivery',
-    customsStepName: '국내 배송중',
-    declarationNo: '12345-26-099812U',
-    ftaStatus: 'approved',
-    estimatedDutySaving: 67200,
-    deliveryType: 'cargo',
-    courierCompany: '경동택배(화물)',
-    trackingNo: '882019481920',
-    trackingUrl: 'https://kdexp.com/main.do',
-    deliveryEta: '2026-08-26 오전 중',
-    stage: 8
-  },
-  {
-    id: 'log-005',
-    hblNo: 'EUCHS260815-005',
-    cargoMgtNo: 'INCHEON2026-08-15-00084',
-    orderNo: 'EUC-20260815-002',
-    productName: '알루미늄 3단 접이식 노트북 거치대 스탠드 (250개) — 🚀 쿠팡 FC 직송',
-    quantity: 250,
-    weightKg: 87.5,
-    cbm: 0.35,
-    departurePort: '위해(Weihai)항',
-    arrivalPort: '인천(Incheon)항',
-    arrivalDate: '2026-08-15',
-    vesselName: 'COSCO YINGKOU',
-    customsStep: 'delivery',
-    customsStepName: 'FC 직송 배차중',
-    declarationNo: '12345-26-098220U',
-    ftaStatus: 'approved',
-    estimatedDutySaving: 31500,
-    deliveryType: 'rocket',
-    courierCompany: '쿠팡 로켓그로스 밀크런',
-    trackingNo: '',
-    trackingUrl: '',
-    rocketFcCenter: '쿠팡 군포 FC (경기도 군포시)',
-    rocketInboundDate: '2026-08-26 오전 10:00',
-    rocketTruckNo: '경기 12가 3456',
-    rocketDriverPhone: '010-9988-1234',
-    rocketSkuCount: 3,
-    barcodeLabelFilename: '노트북거치대_쿠팡SKU라벨_250PCS.pdf',
-    deliveryEta: '2026-08-26',
-    stage: 8
-  },
-  {
-    id: 'log-006',
-    hblNo: 'EUCHS260810-006',
-    cargoMgtNo: 'PYEONGTAEK2026-08-10-00712',
-    orderNo: 'EUC-20260810-009',
-    productName: '무선 LED 센서등 감성 무드등 자석부착형 (300개)',
-    quantity: 300,
-    weightKg: 72.0,
-    cbm: 0.28,
-    departurePort: '위해(Weihai)항',
-    arrivalPort: '인천(Incheon)항',
-    arrivalDate: '2026-08-10',
-    vesselName: 'EAST WIND 21',
-    customsStep: 'delivered',
-    customsStepName: '배송 완료',
-    declarationNo: '12345-26-096502U',
-    ftaStatus: 'approved',
-    estimatedDutySaving: 14400,
-    deliveryType: 'parcel',
-    courierCompany: 'CJ대한통운',
-    trackingNo: '682910000391',
-    trackingUrl: 'https://www.cjlogistics.com/ko/tool/parcel/tracking',
-    deliveryEta: '2026-08-15 완료',
-    stage: 8
-  }
-]
-
-// ----------------------------------------------------------------
-// 데이터 로드: Mock + 실제 localStorage orders 병합
-// ----------------------------------------------------------------
-const allLogisticsList = ref([...MOCK_LOGISTICS])
+const allLogisticsList = ref([])
 
 function mergeFromOrderStorage() {
   try {
     const orders = getStoredOrders()
-    const existingOrderNos = new Set(MOCK_LOGISTICS.map(m => m.orderNo))
     const customsOrders = orders.filter(o => {
       const s = o.status
-      return (s === 'customs_clearance' || s === 'domestic_shipping' || s === 'delivered') &&
-        !existingOrderNos.has(o.orderNumber)
+      return s === 'shipping_ready' || s === 'customs_clearance' || s === 'domestic_shipping' || s === 'delivered'
     })
-    const merged = [...MOCK_LOGISTICS]
+    const list = []
     customsOrders.forEach(o => {
       const item = o.items?.[0] || {}
       const measured = o.measuredData || {}
-      merged.push({
+      list.push({
         id: `order-${o.id}`,
-        hblNo: o.inboundNo || `EUCHS-${o.id}`,
+        hblNo: o.inboundNo || `EUCHS-${o.orderNumber || o.id}`,
         cargoMgtNo: '',
         orderNo: o.orderNumber,
-        productName: item.productName || '1688 수입 품목',
+        productName: item.productName || item.titleKo || '1688 수입 품목',
         quantity: item.quantity || 0,
         weightKg: measured.weightKg || 0,
         cbm: measured.cbm || 0,
         departurePort: '위해(Weihai)항',
         arrivalPort: '인천(Incheon)항',
         arrivalDate: '-',
-        vesselName: '-',
-        customsStep: o.status === 'customs_clearance' ? 'customs' : o.status === 'domestic_shipping' ? 'delivery' : 'delivered',
-        customsStepName: o.status === 'customs_clearance' ? '수입신고 진행중' : o.status === 'domestic_shipping' ? '국내 배송중' : '배송 완료',
+        vesselName: 'EUC EXPRESS',
+        customsStep: o.status === 'shipping_ready' ? 'sailing' : o.status === 'customs_clearance' ? 'customs' : o.status === 'domestic_shipping' ? 'delivery' : 'delivered',
+        customsStepName: o.status === 'shipping_ready' ? '해상 선적운송' : o.status === 'customs_clearance' ? '세관 수입신고 심사중' : o.status === 'domestic_shipping' ? '국내 배송중' : '배송 완료',
         declarationNo: '',
-        ftaStatus: 'none',
+        ftaStatus: o.options?.requestCo ? 'applying' : 'none',
         estimatedDutySaving: 0,
         deliveryType: 'parcel',
-        courierCompany: '',
+        courierCompany: o.status === 'domestic_shipping' || o.status === 'delivered' ? 'CJ대한통운' : '',
         trackingNo: '',
         trackingUrl: '',
-        stage: o.status === 'customs_clearance' ? 7 : 8
+        stage: (o.status === 'shipping_ready' || o.status === 'customs_clearance') ? 7 : 8
       })
     })
-    allLogisticsList.value = merged
+    allLogisticsList.value = list
   } catch (e) {
-    console.warn('[CustomsView] orderStorage 병합 실패:', e)
+    console.warn('[CustomsView] orderStorage 조회 실패:', e)
+    allLogisticsList.value = []
   }
 }
 

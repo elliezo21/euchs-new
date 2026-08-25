@@ -224,7 +224,7 @@
                 <div class="flex items-center justify-center gap-1.5">
                   <!-- 2차 결제 대상: [💳 2차 결제] 버튼 -->
                   <button
-                    v-if="item.order?.status === 'inspection_done' || item.inspectionStatus === 'inspected' || item.orderNo === 'EUC-20260824-V01'"
+                    v-if="item.order?.status === 'inspection_done' || item.inspectionStatus === 'inspected'"
                     type="button"
                     @click="openSecondPaymentModal(item)"
                     class="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer animate-pulse"

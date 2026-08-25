@@ -1058,20 +1058,20 @@ const customExchangeRate = ref(226.19)
 const agencyFeeRate = ref(8.0)
 
 const buyerForm = ref({
-  companyName: '(주)이유씨 글로벌 바이어',
-  managerName: '이유씨 바이어',
-  phone: '010-9373-1214',
-  email: 'buyer@euchs.com',
-  customsCode: 'P240012345678'
+  companyName: '',
+  managerName: '',
+  phone: '',
+  email: '',
+  customsCode: ''
 })
 
 const syncBuyerForm = () => {
   const biz = getUserBusinessInfo(currentUser.value) || {}
-  const name = userDisplayName.value || biz.name || '이유씨 바이어'
-  const email = userEmail.value || 'buyer@euchs.com'
-  const phone = biz.phone || currentUser.value?.user_metadata?.phone || '010-9373-1214'
-  const companyName = biz.company_name || (isLoggedIn.value ? `${name} 바이어` : '(주)이유씨 글로벌 바이어')
-  const customsCode = biz.pccc || 'P240012345678'
+  const name = userDisplayName.value || biz.name || ''
+  const email = userEmail.value || ''
+  const phone = biz.phone || currentUser.value?.user_metadata?.phone || ''
+  const companyName = biz.company_name || (isLoggedIn.value ? (name ? `${name} 바이어` : 'B2B 바이어') : '')
+  const customsCode = biz.pccc || ''
 
   buyerForm.value = {
     companyName,

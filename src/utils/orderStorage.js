@@ -20,304 +20,39 @@ export const DEFAULT_BUYER_INFO = {
   memo: '안전 통관 및 파손 방지 완충 에어캡 추가 포장 요청'
 };
 
-export const INITIAL_GLOBAL_ORDERS = [
-  {
-    id: 'ord-v01',
-    orderNumber: 'EUC-20260824-V01',
-    inboundNo: 'INB-YW-260824-V01',
-    createdAt: '2026-08-24 10:15',
-    status: 'inspection_done', // 5. 입고 & 정밀검수 (2차 결제 대기)
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    measuredData: {
-      weightKg: 42.5,
-      cbm: 0.352,
-      cartons: 12,
-      totalPcs: 120,
-      defectCount: 0,
-      inspectionDate: '2026-08-24 11:20'
-    },
-    inspectionPhotos: [
-      {
-        url: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&auto=format&fit=crop&q=80',
-        caption: '1. 완제품 전수 실물 검수 (120 PCS 정상)'
-      },
-      {
-        url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
-        caption: '2. 정밀 계근 및 CBM 체적 실측 (42.5kg / 0.352CBM)'
-      },
-      {
-        url: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop&q=80',
-        caption: '3. 수출용 5중 카톤 포장 및 밴딩 마감 (12 CTN)'
-      }
-    ],
-    secondPayment: {
-      internationalShippingKrw: 65000,
-      customsDutyKrw: 38000,
-      vasFeeKrw: 30000,
-      totalSecondPaymentKrw: 133000
-    },
-    vasApplied: [
-      { id: 'origin_label', name: '원산지 라벨' },
-      { id: 'barcode_label', name: '쿠팡 바코드 부착' }
-    ],
-    items: [
-      {
-        productName: '[테스트 샘플] 초경량 접이식 캠핑 체어 알루미늄 프레임',
-        productUrl: 'https://detail.1688.com/offer/7345612345.html',
-        imageUrl: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=160&auto=format&fit=crop&q=80',
-        sku: '카키 베이지 / 120 PCS (12 CTN)',
-        quantity: 120,
-        priceCny: 35.0,
-        cbm: 0.352,
-      }
-    ]
-  },
-  {
-    id: 'ord-101',
-    orderNumber: 'EUC-20260824-001',
-    inboundNo: 'INB-YW-260824-01',
-    createdAt: '2026-08-24 09:30',
-    status: 'quote_pending', // 1. 견적대기
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    items: [
-      {
-        productName: '미니멀 무소음 탁상용 USB 선풍기 2000mAh',
-        productUrl: 'https://detail.1688.com/offer/7123456789.html',
-        imageUrl: 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
-        sku: '스노우 화이트 / 3단 풍속',
-        quantity: 200,
-        priceCny: 18.5,
-        cbm: 0.42,
-      }
-    ]
-  },
-  {
-    id: 'ord-102',
-    orderNumber: 'EUC-20260823-014',
-    inboundNo: 'INB-YW-260823-05',
-    createdAt: '2026-08-23 15:40',
-    status: 'quote_confirmed', // 2. 결제대기
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    items: [
-      {
-        productName: '고급 스테인리스 진공 보온 텀블러 500ml',
-        productUrl: 'https://detail.1688.com/offer/6987654321.html',
-        imageUrl: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=160&auto=format&fit=crop&q=80',
-        sku: '매트 블랙 / 보온 12h',
-        quantity: 500,
-        priceCny: 12.0,
-        cbm: 0.65,
-      }
-    ]
-  },
-  {
-    id: 'ord-102b',
-    orderNumber: 'EUC-20260823-021',
-    inboundNo: 'INB-YW-260823-07',
-    createdAt: '2026-08-23 17:20',
-    status: 'payment_verified', // 3. 결제확인
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    paymentInfo: {
-      paidAt: '2026-08-23 17:45',
-      payerName: '김이유',
-      method: '예치금 즉시 차감',
-    },
-    items: [
-      {
-        productName: '접이식 경량 트레킹 스틱 (폴딩 등산 스틱) 2개 세트',
-        productUrl: 'https://detail.1688.com/offer/7389012345.html',
-        imageUrl: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=160&auto=format&fit=crop&q=80',
-        sku: '알루미늄 실버 / 110~135cm 조절',
-        quantity: 200,
-        priceCny: 22.5,
-        cbm: 0.48,
-      }
-    ]
-  },
-  {
-    id: 'ord-103',
-    orderNumber: 'EUC-20260822-008',
-    inboundNo: 'INB-YW-260822-03',
-    createdAt: '2026-08-22 11:20',
-    status: 'purchasing', // 4. 구매진행
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    items: [
-      {
-        productName: '초경량 접이식 캠핑 체어 알루미늄 프레임',
-        productUrl: 'https://detail.1688.com/offer/7345612345.html',
-        imageUrl: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=160&auto=format&fit=crop&q=80',
-        sku: '카키 베이지 / 대형',
-        quantity: 120,
-        priceCny: 35.0,
-        cbm: 0.85,
-      }
-    ]
-  },
-  {
-    id: 'ord-104',
-    orderNumber: 'EUC-20260821-003',
-    inboundNo: 'INB-YW-260821-02',
-    createdAt: '2026-08-21 14:10',
-    status: 'warehouse_in', // 5. 입고 & 정밀검수
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    measuredData: {
-      weightKg: 34.0,
-      cbm: 0.280,
-      cartons: 4,
-      totalPcs: 80,
-      defectCount: 0,
-      inspectionDate: '2026-08-21 15:30'
-    },
-    inspectionPhotos: [
-      { url: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=600&auto=format&fit=crop&q=80', caption: '초음파 세척기 실사 검수' }
-    ],
-    items: [
-      {
-        productName: '초음파 세척기 안경/귀금속 다용도 450ml',
-        productUrl: 'https://detail.1688.com/offer/7456123890.html',
-        imageUrl: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=160&auto=format&fit=crop&q=80',
-        sku: '모던 그레이 / 40kHz',
-        quantity: 80,
-        priceCny: 42.0,
-        cbm: 0.45,
-      }
-    ]
-  },
-  {
-    id: 'ord-105',
-    orderNumber: 'EUC-20260819-012',
-    inboundNo: 'INB-YW-260819-08',
-    createdAt: '2026-08-19 16:30',
-    status: 'shipping_ready', // 6. 선적대기
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    items: [
-      {
-        productName: '무선 LED 센서 바 감성 무드등 자석 부착형',
-        productUrl: 'https://detail.1688.com/offer/7234567891.html',
-        imageUrl: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=160&auto=format&fit=crop&q=80',
-        sku: '웜 화이트 40cm',
-        quantity: 300,
-        priceCny: 8.5,
-        cbm: 0.28,
-      }
-    ]
-  },
-  {
-    id: 'ord-106',
-    orderNumber: 'EUC-20260817-005',
-    inboundNo: 'INB-YW-260817-04',
-    createdAt: '2026-08-17 10:45',
-    status: 'customs_clearance', // 7. 세관통관
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    measuredData: { weightKg: 105.0, cbm: 0.72, cartons: 15, totalPcs: 150, defectCount: 0, inspectionDate: '2026-08-15 14:00' },
-    items: [
-      {
-        productName: '대용량 멀티 포켓 방수 백팩 30L',
-        productUrl: 'https://detail.1688.com/offer/7012345678.html',
-        imageUrl: 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=160&auto=format&fit=crop&q=80',
-        sku: '카본 블랙 / 30L 방수',
-        quantity: 150,
-        priceCny: 28.0,
-        cbm: 0.72,
-      }
-    ]
-  },
-  {
-    id: 'ord-107',
-    orderNumber: 'EUC-20260815-002',
-    inboundNo: 'INB-YW-260815-01',
-    createdAt: '2026-08-15 09:15',
-    status: 'domestic_shipping', // 8. 국내배송중
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    measuredData: { weightKg: 87.5, cbm: 0.35, cartons: 25, totalPcs: 250, defectCount: 0, inspectionDate: '2026-08-14 11:00' },
-    items: [
-      {
-        productName: '알루미늄 3단 접이식 노트북 거치대 스탠드',
-        productUrl: 'https://detail.1688.com/offer/7112233445.html',
-        imageUrl: 'https://images.unsplash.com/photo-1527864550417-7fd91fc51a46?w=160&auto=format&fit=crop&q=80',
-        sku: '실버 / 알루미늄 풀바디',
-        quantity: 250,
-        priceCny: 15.0,
-        cbm: 0.35,
-      }
-    ]
-  },
-  {
-    id: 'ord-108',
-    orderNumber: 'EUC-20260810-009',
-    inboundNo: 'INB-YW-260810-06',
-    createdAt: '2026-08-10 13:00',
-    status: 'delivered', // 8. 배송완료
-    buyerInfo: { ...DEFAULT_BUYER_INFO },
-    measuredData: { weightKg: 72.0, cbm: 0.28, cartons: 10, totalPcs: 300, defectCount: 0, inspectionDate: '2026-08-09 10:30' },
-    items: [
-      {
-        productName: '무선 LED 센서 바 감성 무드등 자석 부착형',
-        productUrl: 'https://detail.1688.com/offer/7234567891.html',
-        imageUrl: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=160&auto=format&fit=crop&q=80',
-        sku: '웜 화이트 40cm',
-        quantity: 300,
-        priceCny: 8.5,
-        cbm: 0.28,
-      }
-    ]
-  }
-];
+export const INITIAL_GLOBAL_ORDERS = [];
 
 /**
- * 전역 주문 목록 조회 (항상 V01 샘플 포함 및 최신화)
+ * 전역 주문 목록 조회 (실제 저장된 주문만 반환, 더미 자동 정제)
  */
 export function getStoredOrders() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY_ORDERS) || localStorage.getItem(STORAGE_KEY_LEGACY_ORDERS);
     if (!raw) {
-      saveStoredOrders(INITIAL_GLOBAL_ORDERS);
-      return [...INITIAL_GLOBAL_ORDERS];
+      return [];
     }
     const parsed = JSON.parse(raw);
     if (!Array.isArray(parsed) || parsed.length === 0) {
-      saveStoredOrders(INITIAL_GLOBAL_ORDERS);
-      return [...INITIAL_GLOBAL_ORDERS];
+      return [];
     }
 
-    // 항상 EUC-20260824-V01이 누락되지 않도록 병합 보장
-    const hasV01 = parsed.some(o => o.orderNumber === 'EUC-20260824-V01' || o.id === 'ord-v01');
-    // 3단계 결제확인 샘플 병합 보장
-    const hasPaymentVerified = parsed.some(o => o.id === 'ord-102b' || o.orderNumber === 'EUC-20260823-021');
-    // 7단계 통관 샘플 병합 보장
-    const hasCustoms = parsed.some(o => o.id === 'ord-106' || o.orderNumber === 'EUC-20260817-005');
-    // 8단계 국내배송 샘플 병합 보장
-    const hasDomestic = parsed.some(o => o.id === 'ord-107' || o.orderNumber === 'EUC-20260815-002');
-    // 8단계 배송완료 샘플 병합 보장
-    const hasDelivered = parsed.some(o => o.id === 'ord-108' || o.orderNumber === 'EUC-20260810-009');
+    // 과거 더미 주문(ord-v01, ord-101~108, EUC-20260824-V01 등)이 로컬스토리지에 남아있다면 자동 필터링
+    const cleanOrders = parsed.filter(o => {
+      if (!o) return false;
+      const id = String(o.id || '');
+      const orderNum = String(o.orderNumber || '');
+      const isDummy = id.startsWith('ord-v0') || id.startsWith('ord-10') || orderNum.includes('20260824-V01') || orderNum.includes('20260823-014');
+      return !isDummy;
+    });
 
-    let merged = [...parsed];
-    if (!hasV01) merged = [INITIAL_GLOBAL_ORDERS[0], ...merged];
-    if (!hasPaymentVerified) {
-      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-102b');
-      if (s) merged.splice(2, 0, s); // quote_confirmed 다음 위치에 삽입
-    }
-    if (!hasCustoms) {
-      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-106');
-      if (s) merged.push(s);
-    }
-    if (!hasDomestic) {
-      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-107');
-      if (s) merged.push(s);
-    }
-    if (!hasDelivered) {
-      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-108');
-      if (s) merged.push(s);
+    if (cleanOrders.length !== parsed.length) {
+      saveStoredOrders(cleanOrders);
     }
 
-    if (!hasV01 || !hasPaymentVerified || !hasCustoms || !hasDomestic || !hasDelivered) {
-      saveStoredOrders(merged);
-    }
-
-    return merged;
+    return cleanOrders;
   } catch (e) {
     console.error('getStoredOrders error:', e);
-    return [...INITIAL_GLOBAL_ORDERS];
+    return [];
   }
 }
 
