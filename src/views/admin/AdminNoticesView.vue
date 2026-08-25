@@ -330,7 +330,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 
-const NOTICES_STORAGE_KEY = 'euchs_notices'
+const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
 
 const formRef = ref(null)
 const noticeFileInput = ref(null)
@@ -342,33 +342,42 @@ const DEFAULT_NOTICES = [
   {
     id: 'notice-1',
     category: 'system',
-    badge: '시스템',
+    category_name: '업무일정',
+    badge: '긴급점검',
     is_pinned: true,
-    title: '8/29(토) EUCHS 클라우드 DB 및 1688 API 연동망 정기 점검 안내',
-    summary: '8월 29일(토) 새벽 02:00 ~ 06:00 정기 점검에 따른 일부 기능 일시 제한 안내',
-    thumbnail_url: '',
-    content: '안녕하세요. 이유씨컴퍼니(EUCHS) 운영팀입니다.\n\n안정적인 1688 수입대행 ERP 서비스 제공을 위해 하반기 정기 서버 점검이 진행됩니다.\n\n- 일시: 2026.08.29(토) 02:00 ~ 06:00 (약 4시간)\n- 작업 내용: 1688 자동 소싱 연동망 및 관세청 유니패스 연계 점검\n\n점검 중에도 고객 주문 접수는 정상 유지됩니다.',
-    created_at: '2026-08-25T10:00:00.000Z'
+    is_important: true,
+    title: 'EUCHS 차세대 B2B 수입대행 ERP 시스템 정기 데이터베이스 점검 안내',
+    summary: '실시간 1688 API 주문 및 화물 트래킹 연동 안정화를 위한 서버 점검',
+    thumbnail_url: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
+    image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
+    content: '안녕하세요, 이유씨컴퍼니입니다.\n\n보다 안정적인 1688 실시간 상품 연동 및 화물 위치 추적 서비스를 제공하기 위해 정기 서버 및 데이터베이스 최적화 작업을 진행합니다.\n\n- 작업 일시: 2026년 8월 26일 (수) 새벽 02:00 ~ 04:00 (약 2시간)\n- 영향 범위: 작업 시간 중 일시적인 주문서 작성 지연이 발생할 수 있습니다.\n\n바이어 여러분의 너른 양해 부탁드립니다.',
+    created_at: '2026-08-25T09:00:00.000Z'
   },
   {
     id: 'notice-2',
     category: 'schedule',
-    badge: '투어',
+    category_name: '이벤트',
+    badge: '모집중',
     is_pinned: true,
-    title: '2026년 9월 43기 중국 이우(푸텐) 도매시장 바이어 조사단 모집 안내',
-    summary: '중국 이우 1~5기 도매시장 전담 통역 동행 투어 선착순 12명 모집',
+    is_important: true,
+    title: '제43기 중국 이우(푸텐) 도매시장 사입 조사단 참가 바이어 모집',
+    summary: '전담 통역 및 1:1 공장 섭외 포함 4박 5일 풀패키지 투어 선착순 모집',
     thumbnail_url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=80',
+    image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=80',
     content: '중국 이우 푸텐시장 1~5구 전 구역을 전담 매니저와 함께 동행하는 43기 이우 시장조사 투어 접수가 시작되었습니다.\n\n- 일정: 2026년 9월 16일 ~ 9월 20일 (4박 5일)\n- 모집 인원: 선착순 12명 (잔여 5석)\n- 혜택: 전담 통역, 픽업, 호텔, 공장 섭외 풀패키지 지원',
     created_at: '2026-08-23T14:30:00.000Z'
   },
   {
     id: 'notice-3',
     category: 'customs',
+    category_name: '통관·물류',
     badge: '통관',
     is_pinned: false,
+    is_important: false,
     title: '한-중 FTA 원산지증명서(C/O) 발급 및 관세 감면 실무 가이드',
     summary: '정식 수입신고 시 FTA 협정관세 0~4% 감면 적용 절차 안내',
-    thumbnail_url: '',
+    thumbnail_url: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=600&auto=format&fit=crop&q=80',
+    image: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=600&auto=format&fit=crop&q=80',
     content: '중국 수입 시 한-중 FTA 협정관세를 적용받기 위한 원산지증명서(C/O) 발급 절차 및 서류 안내입니다.\n\n당사 창고에서 출고 전 발급 대행을 원스톱으로 지원해 드립니다.',
     created_at: '2026-08-20T09:15:00.000Z'
   }
@@ -472,7 +481,7 @@ function handleNoticeImageUpload(e) {
 
 function loadNotices() {
   try {
-    const raw = localStorage.getItem(NOTICES_STORAGE_KEY)
+    const raw = localStorage.getItem(NOTICES_STORAGE_KEY) || localStorage.getItem('euchs_notices')
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -489,6 +498,7 @@ function loadNotices() {
 
 function saveToStorage() {
   localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify(noticesList.value))
+  localStorage.setItem('euchs_notices', JSON.stringify(noticesList.value))
   window.dispatchEvent(new CustomEvent('euchs-notice-update', { detail: noticesList.value }))
   window.dispatchEvent(new Event('storage'))
 
