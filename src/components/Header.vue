@@ -1,40 +1,18 @@
 <template>
   <header class="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-xs transition-all duration-200">
     <!-- Top Utility Bar for Desktop (Slim) -->
-    <div class="hidden lg:block bg-slate-900 text-slate-300 text-xs py-1">
+    <div class="hidden lg:block bg-slate-900 text-slate-300 text-xs py-1.5 border-b border-slate-800">
       <div class="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-        <!-- Left: Contact channels -->
-        <div class="flex items-center gap-4">
-          <span class="flex items-center gap-1 text-slate-300 text-[11px]">
-            <i class="fas fa-phone text-blue-400"></i>
-            <span>상담: <strong>010-9373-1214</strong> / <strong>+86 195-2407-7350</strong></span>
-          </span>
-          <span class="flex items-center gap-1 text-slate-300 text-[11px]">
-            <i class="fab fa-weixin text-green-400"></i>
-            <span>위챗: <strong>euchskorea</strong></span>
-          </span>
-          <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
-            target="_blank" 
-            rel="noopener noreferrer"
-            class="flex items-center gap-1 text-slate-300 hover:text-yellow-400 transition text-[11px]"
-            title="카카오톡 공식 채널 1:1 상담 열기"
-          >
-            <i class="fas fa-comment text-yellow-400"></i>
-            <span>카톡: <strong>이유씨컴퍼니</strong></span>
-          </a>
-        </div>
-
-        <!-- Center: Live Exchange Rate Badge -->
-        <div class="flex items-center gap-2 text-[11px]">
-          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/90 border border-slate-700/80 text-yellow-300 font-medium">
+        <!-- Left: Live Exchange Rate Badge -->
+        <div class="flex items-center gap-2.5 text-[11px]">
+          <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-slate-800/90 border border-slate-700/80 text-yellow-300 font-medium">
             <i class="fas fa-bolt text-yellow-400 text-[10px]"></i>
-            <span>실시간 고시 환율: <strong class="text-white font-mono font-bold">1위안(CNY) = {{ customExchangeRate }}원(KRW)</strong></span>
-            <span class="text-[10px] text-slate-400 font-normal hidden xl:inline">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
+            <span>실시간 고시 환율: <strong class="text-white font-mono font-bold">1위안 (CNY) = {{ customExchangeRate }}원 (KRW)</strong></span>
+            <span class="text-[10px] text-slate-400 font-normal ml-0.5 hidden xl:inline">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
           </span>
-          <router-link to="/tools/calculator" class="text-slate-400 hover:text-yellow-300 transition flex items-center gap-1 text-[10px]">
-            <i class="fas fa-calculator text-amber-400 text-[9px]"></i>
-            <span>계산기</span>
+          <router-link to="/tools/calculator" class="text-slate-400 hover:text-yellow-300 transition flex items-center gap-1 text-[11px] font-medium">
+            <i class="fas fa-calculator text-amber-400 text-[10px]"></i>
+            <span>간이관세 계산기</span>
           </router-link>
         </div>
 
