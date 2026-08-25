@@ -872,11 +872,15 @@
                 <router-link to="/support/guide?tab=faq" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
               </div>
               <ul class="space-y-2 text-xs text-slate-800 font-bold">
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 1688 최소 구매수량(MOQ) 협의 가능한가요?</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 예치금 충전 후 세금계산서는 언제 발행되나요?</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 한-중 FTA 원산지증명서(C/O) 발급 비용은?</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 쿠팡 밀크런/로켓그로스 바코드 부착 서비스는?</li>
-                <li class="hover:text-orange-600 cursor-pointer truncate transition">• 불량품 발견 시 중국 공장 반품/환불 절차</li>
+                <li v-for="faq in faqItems" :key="faq.id">
+                  <router-link
+                    :to="'/support/guide/' + faq.id"
+                    class="hover:text-blue-600 hover:underline cursor-pointer transition flex items-center justify-between group"
+                  >
+                    <span class="truncate">• {{ faq.title }}</span>
+                    <i class="fas fa-chevron-right text-[9px] text-slate-400 group-hover:text-blue-600 shrink-0 ml-1 transition"></i>
+                  </router-link>
+                </li>
               </ul>
             </div>
 
@@ -923,7 +927,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { fetchSiteSettings } from '../lib/settings'
 import { exportQuoteExcel } from '../utils/excelExport'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { GUIDE_ITEMS } from '../data/guideData.js'
+import { GUIDE_ITEMS, FAQ_ITEMS } from '../data/guideData.js'
 import {
   PIPELINE_STATUSES,
   normalizeOrderStatus,
@@ -956,6 +960,9 @@ const route = useRoute()
 
 // 대시보드 이용가이드 위젯 (상위 5건)
 const guideItems = GUIDE_ITEMS.slice(0, 5)
+
+// 대시보드 FAQ 위젯 (5대 항목)
+const faqItems = FAQ_ITEMS && FAQ_ITEMS.length > 0 ? FAQ_ITEMS : GUIDE_ITEMS.filter(item => item.category === 'faq')
 
 // ----------------------------------------------------
 // Auth & Buyer Profile Single Source of Truth

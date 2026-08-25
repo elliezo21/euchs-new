@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="min-h-screen bg-slate-50">
 
     <!-- HERO HEADER -->
@@ -153,7 +153,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { GUIDE_CATEGORIES, GUIDE_ITEMS, CATEGORY_COLOR_MAP } from '@/data/guideData.js'
 
@@ -162,12 +162,23 @@ const route = useRoute()
 const searchQuery = ref('')
 const activeCategory = ref('all')
 
-// URL 쿼리 파라미터로 탭 초기화
+// URL 쿼리 파라미터로 탭 초기화 & 감지
 onMounted(() => {
   if (route.query.tab) {
     activeCategory.value = route.query.tab
   }
 })
+
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    if (newTab) {
+      activeCategory.value = newTab
+    } else {
+      activeCategory.value = 'all'
+    }
+  }
+)
 
 const filteredGuides = computed(() => {
   let items = GUIDE_ITEMS
