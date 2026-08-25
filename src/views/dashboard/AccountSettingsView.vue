@@ -18,8 +18,8 @@
         </p>
       </div>
 
-      <!-- 상단 예치금 잔액 요약 배너 -->
-      <div class="flex items-center gap-3 bg-white p-2.5 pr-4 rounded-2xl border border-gray-200 shadow-xs">
+      <!-- 상단 예치금 잔액 요약 배너 (로그인 시 노출) -->
+      <div v-if="isLoggedIn" class="flex items-center gap-3 bg-white p-2.5 pr-4 rounded-2xl border border-gray-200 shadow-xs">
         <div class="w-10 h-10 rounded-xl bg-orange-50 text-orange-600 flex items-center justify-center font-bold">
           <Wallet class="w-5 h-5" />
         </div>
@@ -40,49 +40,84 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 2. 계정센터 전용 3대 탭 네비게이션 바 -->
+    <!-- 비로그인 상태 안내 카드 (Auth Guard) -->
     <!-- ======================================================== -->
-    <div class="flex items-center gap-2 border-b border-gray-200 pb-1 overflow-x-auto no-scrollbar">
-      <button
-        type="button"
-        @click="switchTab('address')"
-        class="px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-        :class="activeTab === 'address' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
-      >
-        <MapPin class="w-4 h-4" :class="activeTab === 'address' ? 'text-amber-400' : 'text-gray-400'" />
-        <span>기본/추가 수령 주소지</span>
-        <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono" :class="activeTab === 'address' ? 'bg-amber-400 text-slate-950 font-black' : 'bg-gray-100 text-gray-600'">
-          {{ addressList.length }}
-        </span>
-      </button>
-
-      <button
-        type="button"
-        @click="switchTab('pccc')"
-        class="px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-        :class="activeTab === 'pccc' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
-      >
-        <ShieldCheck class="w-4 h-4" :class="activeTab === 'pccc' ? 'text-indigo-400' : 'text-gray-400'" />
-        <span>사업자 / 통관부호 관리</span>
-        <span
-          v-if="isLoggedIn && customsProfile.status"
-          class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
-          :class="customsProfile.status === 'verified' ? 'bg-emerald-100 text-emerald-800' : (customsProfile.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')"
+    <div v-if="!isLoggedIn" class="bg-white border border-gray-200 rounded-3xl p-8 sm:p-12 shadow-xs text-center max-w-xl mx-auto space-y-5 my-8 animate-fade-in">
+      <div class="w-16 h-16 rounded-3xl bg-slate-100 text-slate-700 flex items-center justify-center text-3xl mx-auto shadow-inner">
+        🔒
+      </div>
+      <div class="space-y-2">
+        <h2 class="text-lg sm:text-xl font-bold text-gray-900">
+          로그인이 필요한 서비스입니다
+        </h2>
+        <p class="text-xs sm:text-sm text-gray-500 leading-relaxed max-w-md mx-auto">
+          수입 통관 필수 정보(사업자등록번호, 통관부호), 배송 주소록 및 예치금 관리는 일반회원 로그인 후 이용하실 수 있습니다.
+        </p>
+      </div>
+      <div class="pt-2 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <button
+          type="button"
+          @click="openLoginModal('login')"
+          class="w-full sm:w-auto px-6 py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition active:scale-95 shadow-sm flex items-center justify-center gap-2 cursor-pointer"
         >
-          {{ customsProfile.status === 'verified' ? '인증' : (customsProfile.status === 'pending' ? '심사중' : '미인증') }}
-        </span>
-      </button>
-
-      <button
-        type="button"
-        @click="switchTab('deposit')"
-        class="px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer"
-        :class="activeTab === 'deposit' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
-      >
-        <Receipt class="w-4 h-4" :class="activeTab === 'deposit' ? 'text-emerald-400' : 'text-gray-400'" />
-        <span>예치금 충전 / 환불 관리</span>
-      </button>
+          <span>🔑 일반회원 로그인하기</span>
+        </button>
+        <button
+          type="button"
+          @click="openLoginModal('signup')"
+          class="w-full sm:w-auto px-5 py-3 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 font-bold text-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+        >
+          <span>📝 회원가입</span>
+        </button>
+      </div>
     </div>
+
+    <!-- ======================================================== -->
+    <!-- 로그인 완료 상태: 3대 탭 & 본문 폼 화면 -->
+    <!-- ======================================================== -->
+    <template v-else>
+      <!-- 2. 계정센터 전용 3대 탭 네비게이션 바 -->
+      <div class="flex items-center gap-2 border-b border-gray-200 pb-1 overflow-x-auto no-scrollbar">
+        <button
+          type="button"
+          @click="switchTab('address')"
+          class="px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+          :class="activeTab === 'address' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
+        >
+          <MapPin class="w-4 h-4" :class="activeTab === 'address' ? 'text-amber-400' : 'text-gray-400'" />
+          <span>기본/추가 수령 주소지</span>
+          <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono" :class="activeTab === 'address' ? 'bg-amber-400 text-slate-950 font-black' : 'bg-gray-100 text-gray-600'">
+            {{ addressList.length }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          @click="switchTab('pccc')"
+          class="px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+          :class="activeTab === 'pccc' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
+        >
+          <ShieldCheck class="w-4 h-4" :class="activeTab === 'pccc' ? 'text-indigo-400' : 'text-gray-400'" />
+          <span>사업자 / 통관부호 관리</span>
+          <span
+            v-if="isLoggedIn && customsProfile.status"
+            class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+            :class="customsProfile.status === 'verified' ? 'bg-emerald-100 text-emerald-800' : (customsProfile.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')"
+          >
+            {{ customsProfile.status === 'verified' ? '인증' : (customsProfile.status === 'pending' ? '심사중' : '미인증') }}
+          </span>
+        </button>
+
+        <button
+          type="button"
+          @click="switchTab('deposit')"
+          class="px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+          :class="activeTab === 'deposit' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
+        >
+          <Receipt class="w-4 h-4" :class="activeTab === 'deposit' ? 'text-emerald-400' : 'text-gray-400'" />
+          <span>예치금 충전 / 환불 관리</span>
+        </button>
+      </div>
 
     <!-- ======================================================== -->
     <!-- TAB 1: 국내 배송지 주소록 관리 (activeTab === 'address') -->
@@ -295,8 +330,8 @@
                 1:1 카톡 문의
               </a>
             </div>
-            <div class="text-[11px] text-slate-300 pt-1 border-t border-white/10 flex items-center justify-between">
-              <span>직통 유선전화: 070-8821-1688</span>
+            <div class="text-[11px] text-slate-300 pt-1 border-t border-white/10 flex items-center justify-between flex-wrap gap-1">
+              <span>직통 연락처: <a href="tel:010-9373-1214" class="text-amber-300 hover:underline font-mono font-bold">010-9373-1214</a></span>
               <span>업무시간: 평일 09:00 ~ 18:00</span>
             </div>
           </div>
@@ -612,6 +647,7 @@
         </div>
       </div>
     </div>
+    </template>
   </div>
 </template>
 
@@ -634,7 +670,8 @@ import {
   isLoggedIn,
   userDisplayName,
   getUserBusinessInfo,
-  updateBusinessProfile
+  updateBusinessProfile,
+  openLoginModal
 } from '../../lib/auth'
 import {
   userBalance,
