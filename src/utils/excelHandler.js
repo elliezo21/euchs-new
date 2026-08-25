@@ -228,6 +228,14 @@ function todayStr() {
   return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+/** 파일명/시트명에 사용할 수 없는 특수문자 안전 치환 */
+function sanitizeFileName(str) {
+  return String(str || '').replace(/[\\/:*?"<>|]/g, '_').trim() || 'ORDER';
+}
+function sanitizeSheetName(str) {
+  return String(str || '').replace(/[\\/?*:[\]]/g, '_').trim().slice(0, 31) || 'Sheet';
+}
+
 /**
  * 1688 공장 발주용 사입 엑셀 다운로드
  * @param {Object} order - 주문 객체 (items[], buyerInfo, orderNumber 등)
@@ -304,7 +312,8 @@ export function exportAdmin1688PurchaseExcel(order) {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, '1688_사입발주서');
-  const fileName = `1688_발주서_${orderId}_${today}.xlsx`;
+  const safeOrderId = sanitizeFileName(orderId);
+  const fileName = `1688_발주서_${safeOrderId}_${today}.xlsx`;
   XLSX.writeFile(wb, fileName);
   return fileName;
 }
@@ -418,7 +427,9 @@ export function exportAdminMasterOrderExcel(order, exchangeRate = 226.19) {
 
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'EUC_수입주문서');
-  const fileName = `EUC_수입발주서_${orderId}_${buyerName}.xlsx`;
+  const safeOrderId = sanitizeFileName(orderId);
+  const safeBuyerName = sanitizeFileName(buyerName);
+  const fileName = `EUC_수입발주서_${safeOrderId}_${safeBuyerName}.xlsx`;
   XLSX.writeFile(wb, fileName);
   return fileName;
 }
@@ -487,7 +498,8 @@ export function exportAdminBulkOrderExcel(orders, exchangeRate = 226.19) {
     const items    = (order.items || []).filter(i => !i.excluded);
     const orderId  = order.orderNumber || order.id || `ORDER-${oIdx+1}`;
     const buyer    = order.buyerInfo || {};
-    const sheetName = `주문${oIdx+1}_${String(orderId).slice(-8)}`.slice(0, 31);
+    const rawSheetName = `주문${oIdx+1}_${String(orderId).slice(-8)}`;
+    const sheetName = sanitizeSheetName(rawSheetName);
 
     const rows = [
       [`주문번호: ${orderId}  /  바이어: ${buyer.companyName || buyer.buyerName || '-'}  /  PCCC: ${buyer.customsCode || '-'}`],
@@ -530,3 +542,4 @@ export function exportAdminBulkOrderExcel(orders, exchangeRate = 226.19) {
   XLSX.writeFile(wb, fileName);
   return fileName;
 }
+
