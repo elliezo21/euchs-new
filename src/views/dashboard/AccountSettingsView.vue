@@ -64,8 +64,12 @@
       >
         <ShieldCheck class="w-4 h-4" :class="activeTab === 'pccc' ? 'text-indigo-400' : 'text-gray-400'" />
         <span>사업자 / 통관부호 관리</span>
-        <span class="px-1.5 py-0.2 rounded-full text-[10px] bg-emerald-100 text-emerald-800 font-bold">
-          인증
+        <span
+          v-if="isLoggedIn && customsProfile.status"
+          class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+          :class="customsProfile.status === 'verified' ? 'bg-emerald-100 text-emerald-800' : (customsProfile.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')"
+        >
+          {{ customsProfile.status === 'verified' ? '인증' : (customsProfile.status === 'pending' ? '심사중' : '미인증') }}
         </span>
       </button>
 
@@ -627,6 +631,7 @@ import {
 import {
   currentUser,
   currentUserProfile,
+  isLoggedIn,
   userDisplayName,
   getUserBusinessInfo,
   updateBusinessProfile
@@ -639,7 +644,18 @@ import {
 const route = useRoute()
 const router = useRouter()
 
-const activeTab = ref('address') // 'address' | 'pccc' | 'deposit'
+const activeTab = ref(route.query.tab || 'address') // 'address' | 'pccc' | 'deposit'
+
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    if (newTab) {
+      activeTab.value = newTab
+    }
+  },
+  { immediate: true }
+)
+
 const walletBalance = userBalance
 const walletFilter = ref('all')
 const showAddressModal = ref(false)

@@ -292,14 +292,14 @@
             <tr v-if="filteredItems.length === 0">
               <td colspan="7" class="py-20 text-center text-gray-400 text-xs">
                 <ShoppingCart class="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p class="text-sm font-bold text-gray-700">장바구니에 담긴 상품이 없습니다.</p>
+                <p class="text-sm font-bold text-gray-700">장바구니에 담긴 1688 소싱 품목이 없습니다.</p>
                 <p class="text-xs text-gray-400 mt-1">1688 소싱몰에서 원하는 상품을 찾아 장바구니에 담아보세요.</p>
                 <router-link
                   to="/mall"
                   class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
                 >
                   <Plus class="w-4 h-4" />
-                  <span>1688 소싱몰 바로가기</span>
+                  <span>1688 상품 소싱하러 가기</span>
                 </router-link>
               </td>
             </tr>
@@ -546,37 +546,6 @@ const isOptionModalOpen = ref(false);
 const editingItem = ref(null);
 const modalSkuList = ref([]);
 
-// 기본 샘플 장바구니 데이터셋 (로컬 스토리지에 데이터가 없을 때 폴백)
-const defaultSampleCart = [
-  {
-    id: 'cart-001',
-    itemId: '7234910238',
-    titleKo: '2026 초경량 미니 무선 에어건 120,000RPM 차량/키보드 청소용',
-    imageUrl: 'https://images.unsplash.com/photo-1583394838336-acd977736f90?w=160&auto=format&fit=crop&q=80',
-    priceCny: 32.5,
-    quantity: 50,
-    sku: '매트 블랙 풀세트'
-  },
-  {
-    id: 'cart-002',
-    itemId: '6948201948',
-    titleKo: '실리콘 접이식 휴대용 텀블러 보온보냉 550ml 캠핑용',
-    imageUrl: 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=160&auto=format&fit=crop&q=80',
-    priceCny: 9.8,
-    quantity: 100,
-    sku: '밀크베이지 / 카라비너 포함'
-  },
-  {
-    id: 'cart-003',
-    itemId: '7102938472',
-    titleKo: '자석 부착형 3색 변환 LED 무선 센서등 침실/드레스룸용 40cm',
-    imageUrl: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=160&auto=format&fit=crop&q=80',
-    priceCny: 7.2,
-    quantity: 200,
-    sku: '40cm 실버 / 3색 변환'
-  }
-];
-
 function getItemSkuText(item) {
   if (!item) return '기본 옵션';
   if (item.sku && typeof item.sku === 'string') {
@@ -616,12 +585,12 @@ const loadCartItems = () => {
         return;
       }
     }
-    cartItems.value = [...defaultSampleCart];
-    if (selectedItemIds.value.length === 0) {
-      selectedItemIds.value = cartItems.value.map(it => it.id);
-    }
+    cartItems.value = [];
+    selectedItemIds.value = [];
   } catch (e) {
     console.warn('Load cart items error:', e);
+    cartItems.value = [];
+    selectedItemIds.value = [];
   }
 };
 

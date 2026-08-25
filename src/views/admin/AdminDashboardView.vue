@@ -339,6 +339,7 @@ import { RefreshCw, ChevronRight } from 'lucide-vue-next';
 import { getStoredOrders } from '@/utils/orderStorage';
 import { normalizeOrderStatus } from '@/lib/orderPipeline';
 import { loadStoredInbounds } from '@/lib/warehouseStore';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const isNoticeExpanded = ref(false);
 const isRefreshing = ref(false);
@@ -473,22 +474,53 @@ const memberStats = ref({
   pending: 0,
   rate: 100
 });
-function loadMemberStats() {
+async function loadMemberStats() {
+  let list = [];
   try {
-    const raw = localStorage.getItem('euchs_admin_members');
+    const raw = localStorage.getItem('euchs_admin_members') || localStorage.getItem('euchs_members_list');
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        const total = parsed.length;
-        const verified = parsed.filter(m => m.verificationStatus === 'verified').length;
-        const pending = parsed.filter(m => m.verificationStatus === 'pending').length;
-        const rate = total > 0 ? Math.round((verified / total) * 100) : 100;
-        memberStats.value = { total, verified, pending, rate };
-        return;
+        list = [...parsed];
       }
     }
   } catch (e) {}
-  memberStats.value = { total: 0, verified: 0, pending: 0, rate: 100 };
+
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: dbProfiles, error } = await supabase
+        .from('profiles')
+        .select('*');
+      if (!error && Array.isArray(dbProfiles) && dbProfiles.length > 0) {
+        dbProfiles.forEach(p => {
+          const idx = list.findIndex(m => m.id === p.id || (p.email && m.email === p.email));
+          const formatted = {
+            id: p.id,
+            email: p.email,
+            verificationStatus: p.verification_status || (p.is_business_verified ? 'verified' : (p.business_number ? 'pending' : 'unverified'))
+          };
+          if (idx !== -1) {
+            list[idx] = { ...list[idx], ...formatted };
+          } else {
+            list.push(formatted);
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('AdminDashboard loadMemberStats supabase error:', e);
+    }
+  }
+
+  if (list.length > 0) {
+    const total = list.length;
+    const verified = list.filter(m => m.verificationStatus === 'verified' || m.is_business_verified).length;
+    const pending = list.filter(m => m.verificationStatus === 'pending').length;
+    const rate = total > 0 ? Math.round((verified / total) * 100) : 0;
+    memberStats.value = { total, verified, pending, rate };
+    return;
+  }
+
+  memberStats.value = { total: 0, verified: 0, pending: 0, rate: 0 };
 }
 
 function reloadStats() {
