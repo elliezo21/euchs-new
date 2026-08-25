@@ -397,10 +397,10 @@
                 type="button"
                 @click="toggleMenu('account')"
                 class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
-                :class="route.path.startsWith('/dashboard/account') ? 'text-amber-600' : ''"
+                :class="route.path.startsWith('/dashboard/account') || route.path.startsWith('/dashboard/tax-invoice') ? 'text-amber-600' : ''"
               >
                 <div class="flex items-center gap-2.5">
-                  <i class="fas fa-id-card text-sm" :class="route.path.startsWith('/dashboard/account') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <i class="fas fa-id-card text-sm" :class="route.path.startsWith('/dashboard/account') || route.path.startsWith('/dashboard/tax-invoice') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>계정센터</span>
                 </div>
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.account ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
@@ -428,6 +428,14 @@
                   :class="route.path === '/dashboard/account' && route.query.tab === 'deposit' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>예치금 충전 / 환불 관리</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/tax-invoice"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/tax-invoice' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>세금계산서 관리</span>
+                  <i class="fas fa-file-invoice text-[11px] opacity-60"></i>
                 </router-link>
               </div>
             </div>
@@ -1047,7 +1055,7 @@ watch(() => route.path, (newPath) => {
     expandedMenus.value.orders = true
   } else if (newPath.startsWith('/dashboard/logistics')) {
     expandedMenus.value.shipping = true
-  } else if (newPath.startsWith('/dashboard/account')) {
+  } else if (newPath.startsWith('/dashboard/account') || newPath.startsWith('/dashboard/tax-invoice')) {
     expandedMenus.value.account = true
   }
 }, { immediate: true })
