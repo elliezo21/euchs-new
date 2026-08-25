@@ -560,7 +560,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, nextTick } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import {
   isLoginModalOpen,
   loginModalMode,
@@ -573,8 +573,7 @@ import {
   signInWithEmail,
   signUpWithEmail,
   updateBusinessProfile,
-  resetPasswordForEmail,
-  renderGoogleButton
+  resetPasswordForEmail
 } from '../lib/auth'
 
 const isLoading = ref(false)

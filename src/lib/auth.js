@@ -164,12 +164,10 @@ export const closeLoginModal = () => {
 
 export const closeAuthModal = closeLoginModal
 
-export const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID || '637980227155-clcfso2b4jl9lmp3rp907d59uttavjp6.apps.googleusercontent.com'
 
 /**
- * Google OAuth 로그인 — Supabase 표준 signInWithOAuth 리다이렉트 방식 (nonce 이슈 원천 해결)
- * GIS One-Tap / signInWithIdToken 방식은 Supabase nonce 검증 오류를 유발하므로
- * 실도메인(euchs.co.kr)과 localhost 모두에서 안전한 표준 OAuth 리다이렉트로 단일화합니다.
+ * Google OAuth 로그인 — Supabase 표준 signInWithOAuth 리다이렉트 방식
+ * GIS SDK, signInWithIdToken, nonce 처리 없이 실도메인/로컬 양쪽 완전 호환
  */
 export const signInWithGoogle = async () => {
   if (!isSupabaseConfigured()) {
@@ -177,11 +175,10 @@ export const signInWithGoogle = async () => {
     return
   }
   try {
-    const redirectTo = `${window.location.origin}/`
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo,
+        redirectTo: `${window.location.origin}/`,
         queryParams: {
           access_type: 'offline',
           prompt: 'select_account'
@@ -197,30 +194,6 @@ export const signInWithGoogle = async () => {
     alert('구글 로그인 중 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.')
   }
 }
-
-/**
- * Google GIS 버튼 렌더링 함수 (deprecated: signInWithOAuth 방식으로 전환됨)
- * 하위 호환성을 위해 no-op으로 유지합니다.
- */
-export const renderGoogleButton = async (_containerEl, _options = {}) => {
-  // GIS SDK 렌더링 방식은 signInWithOAuth로 대체되었습니다.
-  return false
-}
-
-/**
- * @deprecated signInWithGoogle을 사용하세요.
- * Google ID Token 처리 함수 — signInWithOAuth 전환 후 미사용
- */
-export const handleGoogleCredentialResponse = async (response) => {
-  if (!response?.credential) return { success: false }
-  console.warn('handleGoogleCredentialResponse is deprecated. Use signInWithGoogle (signInWithOAuth) instead.')
-  return { success: false, message: 'signInWithOAuth 방식을 사용하세요.' }
-}
-
-/**
- * @deprecated loadGsiScript는 signInWithOAuth 전환 후 미사용
- */
-export const loadGsiScript = () => Promise.resolve(null)
 
 /**
  * Kakao OAuth 로그인 실행
