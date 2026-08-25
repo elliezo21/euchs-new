@@ -567,7 +567,8 @@ import {
   isLoggedIn,
   currentUser,
   openLoginModal,
-  isUserBusinessVerified
+  isUserBusinessVerified,
+  handleNaverCallback
 } from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
@@ -928,6 +929,21 @@ const handleIncomingQuery = async () => {
 }
 
 onMounted(async () => {
+  // ── 네이버 OAuth 콜백 처리 (/mall?code=...&state=...) ──────────────────
+  const naverCode = route.query.code
+  const naverState = route.query.state
+  if (naverCode && naverState) {
+    try {
+      await handleNaverCallback(String(naverCode), String(naverState))
+    } catch (e) {
+      console.warn('[MallView] Naver callback error:', e)
+    }
+    // 처리 후 URL query 파라미터 정리 (브라우저 뒤로가기 시 재처리 방지)
+    router.replace({ path: '/mall', query: {} })
+    return
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   await loadRates()
   loadBalance()
   updateSavedCount()

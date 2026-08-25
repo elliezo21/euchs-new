@@ -224,29 +224,21 @@ export const signInWithKakao = async () => {
 
 /**
  * Naver OAuth2 로그인 실행
+ * - Client ID: UnBL7sON2_LO_noLE03c
+ * - 등록된 Callback URL: https://www.euchs.co.kr/mall | http://localhost:5173/mall
  */
 export const signInWithNaver = () => {
-  try {
-    const clientId = import.meta.env.VITE_NAVER_CLIENT_ID || 'UnBL7sON2_LO_noLE03c'
-    const redirectUri = import.meta.env.VITE_NAVER_REDIRECT_URI || `${window.location.origin}/auth/callback/naver`
+  const clientId = 'UnBL7sON2_LO_noLE03c'
+  const redirectUri = encodeURIComponent(`${window.location.origin}/mall`)
 
-    if (!clientId || clientId === '여기에_네이버_CLIENT_ID') {
-      alert('현재 네이버 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
-      return
-    }
+  // CSRF 방지용 랜덤 state 생성 및 저장
+  const state = Math.random().toString(36).substring(2, 15)
+  sessionStorage.setItem('naver_oauth_state', state)
 
-    // CSRF 방지용 랜덤 state 생성 및 저장
-    const state = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15)
-    sessionStorage.setItem('naver_oauth_state', state)
-
-    const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}`
-
-    window.location.href = naverAuthUrl
-  } catch (err) {
-    console.warn('Naver Login Exception:', err)
-    alert('현재 네이버 간편 로그인은 연동 준비 중입니다. 이메일 간편 로그인을 이용해 주세요.')
-  }
+  const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}`
+  window.location.href = naverAuthUrl
 }
+
 
 /**
  * 네이버 OAuth 콜백 처리 함수
@@ -258,7 +250,8 @@ export const handleNaverCallback = async (code, state) => {
     console.warn('Naver OAuth state mismatch, proceeding with token exchange')
   }
 
-  const redirectUri = import.meta.env.VITE_NAVER_REDIRECT_URI || `${window.location.origin}/auth/callback/naver`
+  // 토큰 교환 시 authorize 요청과 동일한 redirectUri 필수
+  const redirectUri = `${window.location.origin}/mall`
 
   try {
     let naverUser = null
