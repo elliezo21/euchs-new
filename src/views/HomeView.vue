@@ -668,7 +668,12 @@
     </section>
 
     <!-- ======================================================== -->
-    <!-- 6. PHOTO GALLERY SHOWCASE -->
+    <!-- 6. COMMUNITY & NOTICES SECTION (Real-time Rate & Notices) -->
+    <!-- ======================================================== -->
+    <CommunitySection />
+
+    <!-- ======================================================== -->
+    <!-- 7. PHOTO GALLERY SHOWCASE -->
     <!-- ======================================================== -->
     <TradePhotos />
 
@@ -743,6 +748,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import CommunitySection from '../components/CommunitySection.vue'
 import TradePhotos from '../components/TradePhotos.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
@@ -919,6 +925,18 @@ const heroYoutubeEmbedUrl = computed(() => {
 const noticesList = ref([])
 
 const fetchNoticesFeed = async () => {
+  // 1. localStorage euchs_admin_notices 우선 로드
+  try {
+    const raw = localStorage.getItem('euchs_admin_notices')
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        noticesList.value = parsed
+      }
+    }
+  } catch (e) {}
+
+  // 2. Supabase DB 비동기 fetch 및 병합
   try {
     if (isSupabaseConfigured()) {
       const { data, error } = await supabase
@@ -926,10 +944,13 @@ const fetchNoticesFeed = async () => {
         .select('*')
         .neq('category', 'system_config')
         .order('created_at', { ascending: false })
-        .limit(5)
+        .limit(10)
 
       if (!error && data && data.length > 0) {
         noticesList.value = data
+        try {
+          localStorage.setItem('euchs_admin_notices', JSON.stringify(data))
+        } catch (e) {}
       }
     }
   } catch (err) {
@@ -1090,6 +1111,8 @@ onMounted(() => {
     window.addEventListener('click', enableVideoOnFirstTouch, { passive: true, once: true })
     window.addEventListener('scroll', enableVideoOnFirstTouch, { passive: true, once: true })
     window.addEventListener('euchs-settings-updated', handleSettingsSync)
+    window.addEventListener('euchs-notice-update', fetchNoticesFeed)
+    window.addEventListener('storage', fetchNoticesFeed)
     userInteractionListenerRegistered = true
   }
 
@@ -1103,6 +1126,8 @@ onMounted(() => {
     window.removeEventListener('focus', fetchLiveRateAndSettings)
     if (typeof window !== 'undefined') {
       window.removeEventListener('euchs-settings-updated', handleSettingsSync)
+      window.removeEventListener('euchs-notice-update', fetchNoticesFeed)
+      window.removeEventListener('storage', fetchNoticesFeed)
     }
     if (userInteractionListenerRegistered && typeof window !== 'undefined') {
       window.removeEventListener('touchstart', enableVideoOnFirstTouch)

@@ -22,6 +22,52 @@ export const CONFIG = {
   DEEPL_API_KEY: getEnv('DEEPL_API_KEY', 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'),
 }
 
+// ========================================================
+// Quota Defense: Memory & SessionStorage Cache Layer
+// ========================================================
+const CACHE_TTL = 30 * 60 * 1000 // 30분 캐시 유지
+const memorySearchCache = new Map()
+const memoryDetailCache = new Map()
+const memoryTranslationCache = new Map()
+
+const getFromCache = (cacheMap, storageKey, key) => {
+  // 1. 메모리 캐시 조회
+  if (cacheMap.has(key)) {
+    const entry = cacheMap.get(key)
+    if (Date.now() - entry.timestamp < CACHE_TTL) {
+      return entry.data
+    }
+    cacheMap.delete(key)
+  }
+
+  // 2. SessionStorage 조회
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      const raw = window.sessionStorage.getItem(`${storageKey}_${key}`)
+      if (raw) {
+        const parsed = JSON.parse(raw)
+        if (Date.now() - parsed.timestamp < CACHE_TTL) {
+          cacheMap.set(key, parsed) // 메모리에 복원
+          return parsed.data
+        }
+        window.sessionStorage.removeItem(`${storageKey}_${key}`)
+      }
+    }
+  } catch (e) {}
+
+  return null
+}
+
+const saveToCache = (cacheMap, storageKey, key, data) => {
+  const entry = { data, timestamp: Date.now() }
+  cacheMap.set(key, entry)
+  try {
+    if (typeof window !== 'undefined' && window.sessionStorage) {
+      window.sessionStorage.setItem(`${storageKey}_${key}`, JSON.stringify(entry))
+    }
+  } catch (e) {}
+}
+
 /**
  * DeepL 텍스트 번역 함수 (에러 발생 시 원문 반환으로 안전하게 Fallback)
  * @param {string|string[]} text - 번역할 텍스트 또는 텍스트 배열
@@ -42,6 +88,12 @@ export async function translateText(text, targetLang = 'ZH', sourceLang = null) 
     return text
   }
 
+  const cacheKey = `${targetLang}_${sourceLang || 'auto'}_${cleanTexts.join('||')}`
+  const cached = getFromCache(memoryTranslationCache, 'euchs_trans', cacheKey)
+  if (cached) {
+    return isArray ? cached : cached[0]
+  }
+
   const apiKey = CONFIG.DEEPL_API_KEY
 
   // 1. Vite Dev Server 로컬 프록시 우선 시도
@@ -60,6 +112,7 @@ export async function translateText(text, targetLang = 'ZH', sourceLang = null) 
       const result = await proxyRes.json()
       if (result.success && result.data?.translations) {
         const translatedList = result.data.translations.map((item, idx) => item.text || cleanTexts[idx])
+        saveToCache(memoryTranslationCache, 'euchs_trans', cacheKey, translatedList)
         return isArray ? translatedList : translatedList[0]
       }
     }
@@ -95,6 +148,7 @@ export async function translateText(text, targetLang = 'ZH', sourceLang = null) 
       const data = await directRes.json()
       if (data.translations && Array.isArray(data.translations)) {
         const translatedList = data.translations.map((item, idx) => item.text || cleanTexts[idx])
+        saveToCache(memoryTranslationCache, 'euchs_trans', cacheKey, translatedList)
         return isArray ? translatedList : translatedList[0]
       }
     }
@@ -119,13 +173,21 @@ export async function search1688(queryZh, page = 1, options = {}) {
   }
 
   const { sort = 'default', price_min = '', price_max = '' } = options
+  const cacheKey = `${query}_p${page}_s${sort}_min${price_min}_max${price_max}`
+
+  // 1. Quota Defense: 캐시 확인
+  const cached = getFromCache(memorySearchCache, 'euchs_search', cacheKey)
+  if (cached) {
+    return cached
+  }
+
   const rapidKey = CONFIG.RAPIDAPI_KEY
   const rapidHost = CONFIG.RAPIDAPI_HOST
 
   let data = null
   let isApiError = false
 
-  // 1. Vite Dev Server 로컬 프록시 우선 시도
+  // 2. Vite Dev Server 로컬 프록시 우선 시도
   try {
     const params = new URLSearchParams({
       q: query,
@@ -150,7 +212,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
     console.debug('1688 search proxy fallback to direct API call:', err.message)
   }
 
-  // 2. Direct RapidAPI Fallback
+  // 3. Direct RapidAPI Fallback
   if (!data && !isApiError && rapidKey) {
     try {
       const targetUrl = new URL(`https://${rapidHost}/item_search`)
@@ -182,7 +244,9 @@ export async function search1688(queryZh, page = 1, options = {}) {
   // API 호출 실패 또는 쿼터 초과(429) 시 Mock 데이터셋으로 무결점 전환
   if (!data || isApiError) {
     console.warn(`[1688 API] RapidAPI Quota/Error fallback triggered for keyword "${query}" (Returning rich Mock dataset)`)
-    return getMockSearchResults(query, page, options)
+    const mockRes = getMockSearchResults(query, page, options)
+    saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
+    return mockRes
   }
 
   // 응답 데이터 파싱 및 정규화
@@ -235,7 +299,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
       }
     })
 
-    return {
+    const formattedResult = {
       rawResponse: data,
       items,
       page: parseInt(settings.page || String(page), 10),
@@ -244,9 +308,14 @@ export async function search1688(queryZh, page = 1, options = {}) {
       hasMore: base.hasMore === 'true' || base.hasMore === true,
       queryZh: query
     }
+
+    saveToCache(memorySearchCache, 'euchs_search', cacheKey, formattedResult)
+    return formattedResult
   } catch (parseErr) {
     console.warn('[1688 API] Response parse error, using Mock Fallback:', parseErr)
-    return getMockSearchResults(query, page, options)
+    const mockRes = getMockSearchResults(query, page, options)
+    saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
+    return mockRes
   }
 }
 
@@ -359,6 +428,12 @@ export async function getItemDetail1688(itemId) {
     return getMockProductDetail('804895839701')
   }
 
+  // Quota Defense: 상세 조회 캐시 확인
+  const cached = getFromCache(memoryDetailCache, 'euchs_detail_raw', idStr)
+  if (cached) {
+    return cached
+  }
+
   const rapidKey = CONFIG.RAPIDAPI_KEY
   const rapidHost = CONFIG.RAPIDAPI_HOST
 
@@ -396,9 +471,12 @@ export async function getItemDetail1688(itemId) {
   }
 
   if (!data) {
-    return getMockProductDetail(idStr)
+    const mockDetail = getMockProductDetail(idStr)
+    saveToCache(memoryDetailCache, 'euchs_detail_raw', idStr, mockDetail)
+    return mockDetail
   }
 
+  saveToCache(memoryDetailCache, 'euchs_detail_raw', idStr, data)
   return data
 }
 
@@ -411,40 +489,67 @@ export async function fetch1688ProductById(offerId) {
   const idStr = String(offerId || '').trim()
   if (!idStr) return getMockProductDetail('804895839701')
 
+  const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', idStr)
+  if (cachedProduct) {
+    return cachedProduct
+  }
+
   try {
     const rawData = await getItemDetail1688(idStr)
     const it = rawData?.result?.item || rawData?.item || rawData?.result || rawData || {}
 
-    // 썸네일 정규화
-    let imageUrl = it.image || it.imageUrl || it.picUrl || ''
-    if (Array.isArray(it.images) && it.images.length > 0 && !imageUrl) {
-      imageUrl = it.images[0]
+    // 갤러리 이미지 리스트 정규화
+    let images = []
+    if (Array.isArray(it.images) && it.images.length > 0) {
+      images = it.images.map(img => (img.startsWith('//') ? 'https:' + img : img))
+    } else if (imageUrl) {
+      images = [imageUrl]
     }
-    if (imageUrl && imageUrl.startsWith('//')) {
-      imageUrl = 'https:' + imageUrl
-    }
 
-    // 가격 정규화
-    const priceStr = it.sku?.def?.price || it.price || '0'
-    const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 25.00
+    // SKU 리스트 정규화 (1688 DataHub 응답 구조 파싱)
+    let parsedSkus = []
+    if (Array.isArray(it.skus) && it.skus.length > 0) {
+      parsedSkus = it.skus.map(s => ({
+        color: s.color || s.propName || s.name || '',
+        size: s.size || s.subPropName || s.spec || '',
+        price: parseFloat(s.price || priceNum),
+        imageUrl: s.imageUrl || s.image || imageUrl,
+        stock: parseInt(s.stock || s.quantity || '999', 10)
+      }))
+    } else if (Array.isArray(it.skuProps) && it.skuProps.length > 0) {
+      // skuProps 구조 파싱 (예: [{prop: '색상', values: [{name, imageUrl}]}, {prop: '사이즈', values: [{name}]}])
+      const colorProp = it.skuProps.find(p => p.prop?.includes('색') || p.prop?.includes('color') || p.prop?.includes('款式') || p.prop?.includes('颜色')) || it.skuProps[0]
+      const sizeProp = it.skuProps.find(p => p !== colorProp && (p.prop?.includes('사이즈') || p.prop?.includes('size') || p.prop?.includes('尺码') || p.prop?.includes('规格'))) || it.skuProps[1]
 
-    // MOQ 정규화
-    const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
-    const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
+      const colors = colorProp?.values || []
+      const sizes = sizeProp?.values || []
 
-    const titleZh = it.title || it.titleZh || `1688 상품 (${idStr})`
-    let titleKo = it.titleKo || ''
-
-    if (!titleKo && titleZh) {
-      try {
-        const translated = await translateText(titleZh, 'KO', 'ZH')
-        titleKo = typeof translated === 'string' ? translated : (translated[0] || titleZh)
-      } catch (e) {
-        titleKo = titleZh
+      if (colors.length > 0 && sizes.length > 0) {
+        colors.forEach(c => {
+          sizes.forEach(s => {
+            parsedSkus.push({
+              color: c.name || c.value || '기본',
+              size: s.name || s.value || 'Free',
+              price: priceNum,
+              imageUrl: c.imageUrl || c.image || imageUrl,
+              stock: 999
+            })
+          })
+        })
+      } else if (colors.length > 0) {
+        colors.forEach(c => {
+          parsedSkus.push({
+            color: c.name || c.value || '기본',
+            size: 'Free (원사이즈)',
+            price: priceNum,
+            imageUrl: c.imageUrl || c.image || imageUrl,
+            stock: 999
+          })
+        })
       }
     }
 
-    return {
+    const normalizedProduct = {
       id: idStr,
       titleZh,
       titleKo: titleKo || titleZh,
@@ -453,14 +558,21 @@ export async function fetch1688ProductById(offerId) {
       minOrder,
       sales: it.sales || '1.5만+',
       imageUrl: imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
+      images,
       detailUrl: `https://detail.1688.com/offer/${idStr}.html`,
       repurchaseRate: it.repurchaseRate || '94%',
       company: it.company?.name || it.shopName || '1688 인증 직영 제조공장',
-      skus: it.skus || [],
+      skus: parsedSkus.length > 0 ? parsedSkus : (it.skus || []),
+      descImgs: it.descImgs || it.descriptionImages || [],
       raw: it
     }
+
+    saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, normalizedProduct)
+    return normalizedProduct
   } catch (err) {
     console.warn('[1688 Product Fetch] Fallback to Mock product:', err.message)
-    return getMockProductDetail(idStr)
+    const mockDetail = getMockProductDetail(idStr)
+    saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, mockDetail)
+    return mockDetail
   }
 }

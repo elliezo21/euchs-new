@@ -70,6 +70,7 @@
                 </div>
                 <input
                   v-model="queryInput"
+                  @input="handleSearchInputDebounced"
                   type="text"
                   placeholder="1688 상품명 한글 입력 또는 1688 상품 링크(URL)를 붙여넣으세요"
                   class="w-full px-2.5 py-1.5 text-xs sm:text-sm font-normal text-gray-800 placeholder:text-gray-400/80 placeholder:font-light bg-transparent outline-none"
@@ -771,9 +772,13 @@ const openDetailModalById = async (offerId) => {
 }
 
 // ----------------------------------------------------
-// 1688 Search & AI Execution (with URL/OfferId Detection)
+// 1688 Search & AI Execution (with 500ms Debounce & Quota Defense)
 // ----------------------------------------------------
+let searchDebounceTimer = null
+
 const executeSearch = async (page = 1, overrideKeyword = null) => {
+  clearTimeout(searchDebounceTimer)
+
   const rawInput = (overrideKeyword !== null ? overrideKeyword : queryInput.value).trim()
   if (!rawInput) return
 
@@ -815,6 +820,17 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
     console.warn('[Mall1688] Search notice:', err)
   } finally {
     isLoading.value = false
+  }
+}
+
+// 500ms 디바운스 검색어 입력 핸들러
+const handleSearchInputDebounced = () => {
+  clearTimeout(searchDebounceTimer)
+  const val = queryInput.value.trim()
+  if (val.length >= 2) {
+    searchDebounceTimer = setTimeout(() => {
+      executeSearch(1)
+    }, 500)
   }
 }
 

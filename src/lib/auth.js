@@ -724,42 +724,6 @@ export const resetPasswordForEmail = async (email) => {
 }
 
 /**
- * ⚡ 테스트 바이어 1초 간편 로그인 (Demo / Test Quick Login)
- * 별도 비밀번호 검증 없이 즉시 바이어 계정 세션을 주입합니다.
- */
-export const loginAsDemoBuyer = async () => {
-  const demoUser = {
-    id: 'demo-buyer-01',
-    email: 'buyer@euchs.com',
-    app_metadata: { provider: 'email', role: 'buyer' },
-    user_metadata: {
-      full_name: '이유씨 바이어',
-      name: '이유씨 바이어',
-      company_name: '(주)이유씨 글로벌 바이어',
-      phone: '010-9373-1214',
-      business_number: '123-45-67890',
-      pccc: 'P240012345678',
-      address: '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
-      is_business_verified: true
-    },
-    created_at: new Date().toISOString()
-  }
-
-  currentUser.value = demoUser
-  userRole.value = 'buyer'
-
-  try {
-    localStorage.setItem('euchs_demo_session', JSON.stringify(demoUser))
-    localStorage.setItem('euchs_business_profile_current', JSON.stringify(demoUser.user_metadata))
-    localStorage.setItem('euchs_business_profile_demo-buyer-01', JSON.stringify(demoUser.user_metadata))
-  } catch (e) {}
-
-  closeLoginModal()
-  window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: demoUser } }))
-  return { success: true, user: demoUser }
-}
-
-/**
  * 로그아웃 실행
  */
 export const signOut = async () => {

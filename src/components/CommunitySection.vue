@@ -84,22 +84,30 @@
 
             <ul class="space-y-3.5 text-xs">
               <li 
-                v-for="(notice, index) in notices" 
-                :key="index"
+                v-for="(notice, index) in displayNotices" 
+                :key="notice.id || index"
                 @click="openNotice(notice)"
-                class="group cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition"
+                class="group cursor-pointer p-2.5 rounded-xl hover:bg-blue-50/60 transition border border-transparent hover:border-blue-100"
               >
                 <div class="flex items-center justify-between text-gray-400 text-[11px] mb-1">
-                  <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 font-semibold rounded text-[10px]">
-                    공지
-                  </span>
-                  <span>{{ notice.date }}</span>
+                  <div class="flex items-center gap-1.5">
+                    <span 
+                      v-if="notice.is_pinned"
+                      class="px-1.5 py-0.5 bg-rose-50 text-rose-600 font-bold rounded text-[10px] border border-rose-200 flex items-center gap-0.5"
+                    >
+                      <span>📌 필독</span>
+                    </span>
+                    <span class="px-1.5 py-0.5 bg-blue-50 text-blue-600 font-semibold rounded text-[10px] border border-blue-100">
+                      {{ notice.badge || getCategoryLabel(notice.category) }}
+                    </span>
+                  </div>
+                  <span class="font-mono text-gray-400">{{ formatDate(notice.created_at || notice.date) }}</span>
                 </div>
-                <h5 class="text-xs font-semibold text-gray-800 group-hover:text-blue-600 transition truncate">
+                <h5 class="text-xs font-bold text-gray-800 group-hover:text-blue-600 transition truncate">
                   {{ notice.title }}
                 </h5>
-                <p class="text-[11px] text-gray-500 line-clamp-1 mt-0.5">
-                  {{ notice.desc }}
+                <p class="text-[11px] text-gray-500 line-clamp-1 mt-0.5 font-normal">
+                  {{ notice.summary || notice.content || notice.desc }}
                 </p>
               </li>
             </ul>
@@ -108,7 +116,7 @@
           <div class="mt-4 pt-4 border-t border-gray-100 text-center">
             <router-link 
               to="/community/notice" 
-              class="inline-flex items-center gap-1 text-xs text-blue-600 font-semibold hover:underline"
+              class="inline-flex items-center gap-1 text-xs text-blue-600 font-bold hover:underline"
             >
               공지사항 전체보기 <i class="fas fa-arrow-right text-[10px]"></i>
             </router-link>
@@ -149,20 +157,20 @@
               </a>
 
               <router-link 
-                to="/community/faq" 
-                class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-50 hover:bg-blue-50 text-gray-700 hover:text-blue-600 transition text-center group border border-gray-100"
+                to="/services/rocket-growth" 
+                class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-50 hover:bg-red-50 text-gray-700 hover:text-red-600 transition text-center group border border-gray-100"
               >
-                <div class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-indigo-600 group-hover:scale-110 transition mb-2">
-                  <i class="fas fa-circle-question text-sm"></i>
+                <div class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-red-500 group-hover:scale-110 transition mb-2">
+                  <i class="fas fa-rocket text-sm"></i>
                 </div>
-                <span class="text-[11px] font-semibold">자주묻는질문</span>
+                <span class="text-[11px] font-semibold">로켓그로스</span>
               </router-link>
 
               <router-link 
                 to="/services/purchasing-agent" 
                 class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-50 hover:bg-blue-50 text-gray-700 hover:text-blue-600 transition text-center group border border-gray-100"
               >
-                <div class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-teal-600 group-hover:scale-110 transition mb-2">
+                <div class="w-10 h-10 rounded-full bg-white shadow-sm flex items-center justify-center text-blue-600 group-hover:scale-110 transition mb-2">
                   <i class="fas fa-cart-shopping text-sm"></i>
                 </div>
                 <span class="text-[11px] font-semibold">구매대행</span>
@@ -199,17 +207,108 @@
       </div>
 
     </div>
+
+    <!-- 공지 상세 모달 -->
+    <div v-if="selectedNotice" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="selectedNotice = null">
+      <div class="bg-white rounded-3xl p-6 sm:p-7 max-w-lg w-full max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl relative text-gray-900 text-xs">
+        <div class="flex items-center justify-between border-b border-gray-100 pb-3">
+          <div class="flex items-center gap-2">
+            <span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 text-[11px] font-bold rounded">
+              {{ selectedNotice.badge || getCategoryLabel(selectedNotice.category) }}
+            </span>
+            <span class="text-gray-400 font-mono text-[11px]">{{ formatDate(selectedNotice.created_at || selectedNotice.date) }}</span>
+          </div>
+          <button @click="selectedNotice = null" class="text-gray-400 hover:text-gray-600 p-1 cursor-pointer">
+            <i class="fas fa-times text-base"></i>
+          </button>
+        </div>
+        
+        <div>
+          <h3 class="text-base font-black text-gray-900 leading-snug">
+            {{ selectedNotice.title }}
+          </h3>
+          <p v-if="selectedNotice.summary" class="text-xs font-semibold text-blue-600 mt-1">
+            {{ selectedNotice.summary }}
+          </p>
+        </div>
+
+        <div v-if="selectedNotice.thumbnail_url" class="rounded-xl overflow-hidden border border-gray-100">
+          <img :src="selectedNotice.thumbnail_url" class="w-full h-44 object-cover" />
+        </div>
+
+        <p class="text-gray-700 whitespace-pre-line leading-relaxed text-xs">
+          {{ selectedNotice.content || selectedNotice.summary || selectedNotice.desc }}
+        </p>
+
+        <div class="flex justify-end pt-3 border-t border-gray-100">
+          <button @click="selectedNotice = null" class="px-5 py-2 bg-slate-900 text-white font-bold rounded-xl text-xs hover:bg-slate-800 transition cursor-pointer">
+            닫기
+          </button>
+        </div>
+      </div>
+    </div>
   </section>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchSiteSettings } from '@/lib/settings'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+
+const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
+
+const DEFAULT_NOTICES = [
+  {
+    id: 'notice-1',
+    category: 'system',
+    badge: '긴급점검',
+    is_pinned: true,
+    title: 'EUCHS 차세대 B2B 수입대행 ERP 시스템 정기 데이터베이스 점검 안내',
+    summary: '실시간 1688 API 주문 및 화물 트래킹 연동 안정화를 위한 서버 점검',
+    thumbnail_url: '',
+    content: '안녕하세요, 이유씨컴퍼니입니다.\n\n보다 안정적인 1688 실시간 상품 연동 및 화물 위치 추적 서비스를 제공하기 위해 정기 서버 및 데이터베이스 최적화 작업을 진행합니다.\n\n- 작업 일시: 2026년 8월 26일 (수) 새벽 02:00 ~ 04:00 (약 2시간)\n- 영향 범위: 작업 시간 중 일시적인 주문서 작성 지연이 발생할 수 있습니다.\n\n바이어 여러분의 너른 양해 부탁드립니다.',
+    created_at: '2026-08-25T09:00:00.000Z'
+  },
+  {
+    id: 'notice-2',
+    category: 'schedule',
+    badge: '모집중',
+    is_pinned: false,
+    title: '제43기 중국 이우(푸텐) 도매시장 사입 조사단 참가 바이어 모집',
+    summary: '전담 통역 및 1:1 공장 섭외 포함 4박 5일 풀패키지 투어',
+    thumbnail_url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=80',
+    content: '중국 이우 푸텐시장 1~5구 전 구역을 전담 매니저와 함께 동행하는 43기 이우 시장조사 투어 접수가 시작되었습니다.\n\n- 일정: 2026년 9월 16일 ~ 9월 20일 (4박 5일)\n- 모집 인원: 선착순 12명 (잔여 5석)\n- 혜택: 전담 통역, 픽업, 호텔, 공장 섭외 풀패키지 지원',
+    created_at: '2026-08-23T14:30:00.000Z'
+  },
+  {
+    id: 'notice-3',
+    category: 'customs',
+    badge: '통관',
+    is_pinned: false,
+    title: '한-중 FTA 원산지증명서(C/O) 발급 및 관세 감면 실무 가이드',
+    summary: '정식 수입신고 시 FTA 협정관세 0~4% 감면 적용 절차 안내',
+    thumbnail_url: '',
+    content: '중국 수입 시 한-중 FTA 협정관세를 적용받기 위한 원산지증명서(C/O) 발급 절차 및 서류 안내입니다.\n\n당사 창고에서 출고 전 발급 대행을 원스톱으로 지원해 드립니다.',
+    created_at: '2026-08-20T09:15:00.000Z'
+  }
+]
 
 const liveRate = ref(null)
 const customRate = ref('230')
 const rateMode = ref('manual')
 const rateMargin = ref(1.5)
+const noticesList = ref([])
+const selectedNotice = ref(null)
+
+const displayNotices = computed(() => {
+  let list = [...noticesList.value]
+  // 1순위: Pinned(고정) 우선, 2순위: 최신순 정렬
+  return list.sort((a, b) => {
+    if (a.is_pinned && !b.is_pinned) return -1
+    if (!a.is_pinned && b.is_pinned) return 1
+    return new Date(b.created_at || b.date || 0) - new Date(a.created_at || a.date || 0)
+  }).slice(0, 3)
+})
 
 const rateModeDesc = computed(() => {
   if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
@@ -218,23 +317,39 @@ const rateModeDesc = computed(() => {
   return `(공식 고정 환율)`
 })
 
-const notices = [
-  {
-    date: '2024.04',
-    title: '2024년 중국노동절 휴무일정 안내해드립니다.',
-    desc: '중국 현지 세관 및 물류 배송사 휴무에 따른 출고 마감 일정'
-  },
-  {
-    date: '2024.04',
-    title: '이유씨컴퍼니 중국출장 시장조사 정기출발 합니다.',
-    desc: '이우 및 광저우 도매시장 동행 및 맞춤 사입 조사 일정'
-  },
-  {
-    date: '2024.04',
-    title: '2024년 봄 이유씨컴퍼니 운임관세통관료 할인이벤트',
-    desc: '신규 사업자 회원 대상 특송 운임 및 통관 지원 프로모션'
+function getCategoryLabel(cat) {
+  const map = {
+    schedule: '업무일정',
+    event: '이벤트',
+    system: '시스템안내',
+    customs: '세관통관',
+    general: '일반공지'
   }
-]
+  return map[cat] || '공지'
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return ''
+  const d = new Date(dateStr)
+  if (isNaN(d.getTime())) return dateStr
+  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`
+}
+
+function loadNotices() {
+  try {
+    const raw = localStorage.getItem(NOTICES_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        noticesList.value = parsed
+        return
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load notices from storage:', e)
+  }
+  noticesList.value = JSON.parse(JSON.stringify(DEFAULT_NOTICES))
+}
 
 const fetchExchangeRate = async () => {
   let liveNum = 230.0
@@ -247,12 +362,10 @@ const fetchExchangeRate = async () => {
       liveRate.value = liveNum.toFixed(2)
     }
   } catch (err) {
-    console.error('환율 조회 에러:', err)
-    liveRate.value = '230.00' // fallback
+    liveRate.value = '230.00'
     liveNum = 230.0
   }
 
-  // 관리자 설정 환율 불러오기 및 모드별 분기 적용
   try {
     const settings = await fetchSiteSettings()
     if (settings) {
@@ -260,11 +373,9 @@ const fetchExchangeRate = async () => {
       rateMargin.value = Number(settings.rate_margin) || 1.5
 
       if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
-        // 실시간 + 마진
         const calculated = Number((liveNum + rateMargin.value).toFixed(2))
         customRate.value = String(calculated)
       } else {
-        // 수동 고정 환율
         const fixed = Number(settings.exchange_rate) || 230
         customRate.value = String(fixed)
       }
@@ -274,20 +385,58 @@ const fetchExchangeRate = async () => {
   }
 }
 
+const fetchNoticesFromSupabase = async () => {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase
+        .from('notices')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (!error && data && data.length > 0) {
+        noticesList.value = data
+        try {
+          localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify(data))
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+}
+
 const openNotice = (notice) => {
-  alert(`[공지사항] ${notice.title}\n\n상세 내용 및 추가 문의는 고객센터 및 카카오톡으로 안내해 드립니다.`)
+  selectedNotice.value = notice
+}
+
+const handleNoticeUpdateEvent = (e) => {
+  if (e?.detail && Array.isArray(e.detail)) {
+    noticesList.value = e.detail
+  } else {
+    loadNotices()
+  }
 }
 
 // 탭 활성화 시 즉시 최신 설정 동기화
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
     fetchExchangeRate()
+    loadNotices()
+    fetchNoticesFromSupabase()
   }
 }
 
 onMounted(() => {
+  loadNotices()
+  fetchNoticesFromSupabase()
   fetchExchangeRate()
-  const intervalId = setInterval(fetchExchangeRate, 10 * 60 * 1000)
+
+  window.addEventListener('euchs-notice-update', handleNoticeUpdateEvent)
+  window.addEventListener('storage', loadNotices)
+
+  const intervalId = setInterval(() => {
+    fetchExchangeRate()
+    fetchNoticesFromSupabase()
+  }, 10 * 60 * 1000)
+
   document.addEventListener('visibilitychange', handleVisibilityChange)
   window.addEventListener('focus', fetchExchangeRate)
 

@@ -245,107 +245,75 @@ const categories = [
   { id: 'event', name: '이벤트' }
 ]
 
-// 기본 폴백 데이터 (DB가 비어있거나 초기화 전일 때 표시)
-const fallbackNotices = [
+const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
+
+const DEFAULT_NOTICES = [
   {
-    id: 1,
+    id: 'notice-1',
     category: 'schedule',
     category_name: '업무일정',
-    badge: '공지',
+    badge: '긴급점검',
+    is_pinned: true,
     is_important: true,
-    title: '2026년 중국 춘절/국경절 연휴에 따른 물류 및 통관 일정 안내',
-    created_at: '2026-08-15',
-    views: 1420,
-    image: 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/img/main_bnr_img1.jpg',
-    summary: '중국 최대 명절인 춘절 및 국경절 연휴 기간 동안 중국 현지 지사 및 이우/광저우 물류센터 운영 일정과 선적 마감일을 공지해 드립니다.',
-    content: `안녕하세요, 이유씨컴퍼니(EUC)입니다.
-
-2026년 중국 주요 명절 연휴에 따른 한-중 물류센터 및 세관 통관 일정을 안내해 드립니다.
-
-1. 중국 이우 물류센터 휴무 일정
-- 연휴 기간 동안 현지 택배사 및 공장 가동이 순차적으로 중단됩니다.
-- 연휴 시작 전 안전한 출고를 위해 마감일 최소 3일 전까지 주문서를 접수해 주시기 바랍니다.
-
-2. 항공/해운 특송 선적 마감
-- 1차 해운 마감: 연휴 시작 5일 전 18:00
-- 항공 특송 마감: 연휴 시작 3일 전 14:00
-
-3. 한국 고객센터 정상 운영
-- 연휴 기간 중에도 카카오톡 1:1 상담 및 온라인 견적 문의는 정상 접수됩니다.
-
-대표님들의 원활한 재고 관리를 위해 사전 일정 확인을 부탁드립니다.`
+    title: 'EUCHS 차세대 B2B 수입대행 ERP 시스템 정기 데이터베이스 점검 안내',
+    summary: '실시간 1688 API 주문 및 화물 트래킹 연동 안정화를 위한 서버 점검',
+    thumbnail_url: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
+    image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
+    content: '안녕하세요, 이유씨컴퍼니입니다.\n\n보다 안정적인 1688 실시간 상품 연동 및 화물 위치 추적 서비스를 제공하기 위해 정기 서버 및 데이터베이스 최적화 작업을 진행합니다.\n\n- 작업 일시: 2026년 8월 26일 (수) 새벽 02:00 ~ 04:00 (약 2시간)\n- 영향 범위: 작업 시간 중 일시적인 주문서 작성 지연이 발생할 수 있습니다.\n\n바이어 여러분의 너른 양해 부탁드립니다.',
+    created_at: '2026-08-25T09:00:00.000Z',
+    views: 320
   },
   {
-    id: 2,
-    category: 'logistics',
-    category_name: '통관·물류',
-    badge: '안내',
-    is_important: false,
-    title: '1688 / 타오바오 구매대행 수수료 개편 및 빠른 당일 결제 서비스 도입',
-    created_at: '2026-08-10',
-    views: 980,
-    image: 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/img/m_bnr_img3.jpg',
-    summary: '셀러님들의 사입 마진을 극대화하기 위해 구매대행 수수료 체계를 개편하고, 알리페이 실시간 결제 승인 시스템을 도입했습니다.',
-    content: `안녕하세요, 이유씨컴퍼니입니다.
-
-이유씨컴퍼니를 이용해 주시는 고객님들께 더 큰 혜택을 드리고자 구매대행 시스템을 대폭 개편하였습니다.
-
-■ 주요 변경 사항
-1. 구매대행 기본 수수료: 업계 최저 수준 5% 적용 (대량 사입 시 추가 할인)
-2. 당일 실시간 결제: 결제 요청 접수 후 30분 이내 중국 판매자에게 다이렉트 알리페이 송금
-3. 현지 창고 무료 보관 기간: 기존 15일에서 최대 30일로 연장
-
-보다 빠르고 안전한 사입 파트너가 되겠습니다. 감사합니다.`
-  },
-  {
-    id: 3,
-    category: 'logistics',
-    category_name: '통관·물류',
-    badge: '물류',
-    is_important: true,
-    title: '해운/항공 특송 검품 절차 및 쿠팡 로켓그로스 입고 가이드 업데이트',
-    created_at: '2026-08-01',
-    views: 1890,
-    image: 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/img/coupangbn2.png',
-    summary: '쿠팡 로켓그로스 최신 파레트 적재 규격 및 바코드 검수 기준을 반영한 현지 가공 프로세스가 업데이트되었습니다.',
-    content: `안녕하세요, EUC 물류 운영팀입니다.
-
-쿠팡 물류센터(CFS/FC)의 입고 검수 기준이 강화됨에 따라, 현지 가공 단계에서 적용되는 업데이트 규정을 안내드립니다.
-
-1. 바코드 인쇄 해상도 300DPI 이상 및 반사 방지 라벨지 기본 적용
-2. 파레트 적재 시 스트레치 필름 5회 이상 랩핑 및 코너 프로텍터 적용
-3. 혼적 박스의 경우 쿠팡 전용 혼적 라벨(Mixed SKU) 부착 의무화
-
-EUC를 통해 입고 대행을 진행하시면 모든 규격 오차 없이 반송 걱정 없이 안전하게 입고됩니다.`
-  },
-  {
-    id: 4,
+    id: 'notice-2',
     category: 'event',
     category_name: '이벤트',
-    badge: '이벤트',
+    badge: '모집중',
+    is_pinned: false,
     is_important: false,
-    title: '이우 푸텐시장 가이드 투어 신청 시 공항 픽업 할인 프로모션',
-    created_at: '2026-07-25',
-    views: 2150,
-    image: 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/img/main_bnr_img2.jpg',
-    summary: '중국 최대의 소상품 도매시장 이우 푸텐시장 투어를 신청하시는 고객님께 항저우/상하이 공항 픽업 할인 혜택을 드립니다.',
-    content: `안녕하세요, 이유씨컴퍼니 투어 사업부입니다.
-
-중국 비즈니스 출장을 준비하시는 셀러 및 무역 대표님들을 위해 특별 할인 프로모션을 진행합니다.
-
-■ 프로모션 내용
-- 대상: 이우 푸텐시장 2일 이상 가이드 투어 신청 고객
-- 혜택: 항저우 소산 공항 픽업 20% 할인 + 현지 1688 사전 시장조사 데이터 무료 제공
-- 기간: 상시 진행 (매월 선착순 20팀 한정)
-
-지금 바로 [이우 시장투어 신청] 메뉴에서 견적을 확인하고 신청해 보세요!`
+    title: '제43기 중국 이우(푸텐) 도매시장 사입 조사단 참가 바이어 모집',
+    summary: '전담 통역 및 1:1 공장 섭외 포함 4박 5일 풀패키지 투어',
+    thumbnail_url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=80',
+    image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=80',
+    content: '중국 이우 푸텐시장 1~5구 전 구역을 전담 매니저와 함께 동행하는 43기 이우 시장조사 투어 접수가 시작되었습니다.\n\n- 일정: 2026년 9월 16일 ~ 9월 20일 (4박 5일)\n- 모집 인원: 선착순 12명 (잔여 5석)\n- 혜택: 전담 통역, 픽업, 호텔, 공장 섭외 풀패키지 지원',
+    created_at: '2026-08-23T14:30:00.000Z',
+    views: 890
+  },
+  {
+    id: 'notice-3',
+    category: 'logistics',
+    category_name: '통관·물류',
+    badge: '통관',
+    is_pinned: false,
+    is_important: false,
+    title: '한-중 FTA 원산지증명서(C/O) 발급 및 관세 감면 실무 가이드',
+    summary: '정식 수입신고 시 FTA 협정관세 0~4% 감면 적용 절차 안내',
+    thumbnail_url: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=600&auto=format&fit=crop&q=80',
+    image: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=600&auto=format&fit=crop&q=80',
+    content: '중국 수입 시 한-중 FTA 협정관세를 적용받기 위한 원산지증명서(C/O) 발급 절차 및 서류 안내입니다.\n\n당사 창고에서 출고 전 발급 대행을 원스톱으로 지원해 드립니다.',
+    created_at: '2026-08-20T09:15:00.000Z',
+    views: 1450
   }
 ]
 
 const fetchNotices = async () => {
-  isLoading.value = true
+  // 1. localStorage euchs_admin_notices 우선 로드
   try {
-    if (isSupabaseConfigured()) {
+    const raw = localStorage.getItem(NOTICES_STORAGE_KEY)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        notices.value = parsed
+      }
+    } else {
+      notices.value = JSON.parse(JSON.stringify(DEFAULT_NOTICES))
+    }
+  } catch (e) {
+    notices.value = JSON.parse(JSON.stringify(DEFAULT_NOTICES))
+  }
+
+  // 2. Supabase DB 비동기 fetch
+  if (isSupabaseConfigured()) {
+    try {
       const { data, error } = await supabase
         .from('notices')
         .select('*')
@@ -354,21 +322,28 @@ const fetchNotices = async () => {
 
       if (!error && data && data.length > 0) {
         notices.value = data
-        return
+        try {
+          localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify(data))
+        } catch (e) {}
       }
+    } catch (err) {
+      console.warn('Supabase fetch notices fallback:', err)
     }
-    // Supabase 미설정 또는 빈 테이블일 때 기본 데이터 유지
-    notices.value = fallbackNotices
-  } catch (err) {
-    console.warn('Supabase fetch notices fallback:', err)
-    notices.value = fallbackNotices
-  } finally {
-    isLoading.value = false
+  }
+}
+
+const handleNoticeUpdate = (e) => {
+  if (e?.detail && Array.isArray(e.detail)) {
+    notices.value = e.detail
+  } else {
+    fetchNotices()
   }
 }
 
 onMounted(() => {
   fetchNotices()
+  window.addEventListener('euchs-notice-update', handleNoticeUpdate)
+  window.addEventListener('storage', fetchNotices)
 })
 
 const formatDate = (dateStr) => {

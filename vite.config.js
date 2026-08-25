@@ -183,6 +183,44 @@ function lab1688Plugin(env) {
           return
         }
 
+        // 3. 1688 DataHub 상품 상세 프록시
+        if (req.url?.startsWith('/api/1688-detail') && req.method === 'GET') {
+          try {
+            const reqUrl = new URL(req.url, 'http://localhost:5173')
+            const itemId = reqUrl.searchParams.get('itemId') || reqUrl.searchParams.get('offerId') || ''
+
+            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || ''
+            const rapidHost = env.VITE_RAPIDAPI_HOST || env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
+
+            if (!rapidKey) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: 'RAPIDAPI_KEY가 설정되지 않았습니다.' }))
+              return
+            }
+
+            const targetUrl = new URL(`https://${rapidHost}/item_detail`)
+            targetUrl.searchParams.set('itemId', itemId)
+
+            const response = await fetch(targetUrl.toString(), {
+              headers: {
+                'x-rapidapi-key': rapidKey,
+                'x-rapidapi-host': rapidHost
+              }
+            })
+
+            const data = await response.json()
+            res.statusCode = response.status
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: false, message: err.message }))
+          }
+          return
+        }
+
         next()
       })
     }

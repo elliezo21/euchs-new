@@ -491,6 +491,26 @@ function saveToStorage() {
   localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify(noticesList.value))
   window.dispatchEvent(new CustomEvent('euchs-notice-update', { detail: noticesList.value }))
   window.dispatchEvent(new Event('storage'))
+
+  // Supabase notices 테이블 비동기 백그라운드 동기화
+  if (isSupabaseConfigured() && noticesList.value.length > 0) {
+    const rows = noticesList.value.map(n => ({
+      id: isNaN(Number(n.id)) ? undefined : Number(n.id),
+      title: n.title,
+      category: n.category || 'general',
+      category_name: getCategoryLabel(n.category),
+      badge: n.badge || '공지',
+      is_pinned: Boolean(n.is_pinned),
+      is_important: Boolean(n.is_pinned),
+      summary: n.summary || '',
+      content: n.content || '',
+      thumbnail_url: n.thumbnail_url || '',
+      created_at: n.created_at || new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    }))
+
+    supabase.from('notices').upsert(rows).then(() => {}).catch(err => console.warn('Supabase notices upsert notice:', err))
+  }
 }
 
 function handleSubmitNotice() {
