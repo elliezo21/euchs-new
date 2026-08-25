@@ -508,7 +508,8 @@ export const updateBusinessProfile = async (businessData) => {
     address: address,
     phone: phone,
     name: name,
-    is_business_verified: true
+    verification_status: 'pending',
+    is_business_verified: false
   }
 
   // 1. In-memory user_metadata 동기화
@@ -519,15 +520,66 @@ export const updateBusinessProfile = async (businessData) => {
   try {
     localStorage.setItem('euchs_business_profile_' + (currentUser.value.id || currentUser.value.email), JSON.stringify(payload))
     localStorage.setItem('euchs_business_profile_current', JSON.stringify(payload))
-  } catch (e) {}
 
-  // 3. Supabase Auth 사용자 메타데이터 업데이트
-  if (isSupabaseConfigured()) {
+    // 2-1. 관리자 회원 관리(euchs_admin_members) 목록에 즉시 심사대기(pending) 상태로 반영
+    const rawMembers = localStorage.getItem('euchs_admin_members')
+    let members = rawMembers ? JSON.parse(rawMembers) : []
+    const existingIndex = members.findIndex(m => m.id === currentUser.value.id || (m.email && m.email === currentUser.value.email))
+    const memberObj = {
+      id: currentUser.value.id || 'mem-' + Date.now(),
+      companyName: companyName,
+      name: name,
+      representativeName: name,
+      email: currentUser.value.email || '',
+      phone: phone,
+      bizNumber: cleanBizNumber,
+      pccc: cleanPccc,
+      bizAddress: address,
+      bizCertUrl: '',
+      tier: 'general',
+      balance: currentUserProfile.value?.balance !== undefined ? currentUserProfile.value.balance : 0,
+      verificationStatus: 'pending',
+      createdAt: members[existingIndex]?.createdAt || new Date().toISOString()
+    }
+    if (existingIndex >= 0) {
+      members[existingIndex] = { ...members[existingIndex], ...memberObj }
+    } else {
+      members.unshift(memberObj)
+    }
+    localStorage.setItem('euchs_admin_members', JSON.stringify(members))
+    window.dispatchEvent(new CustomEvent('euchs-member-update', { detail: members }))
+    window.dispatchEvent(new Event('storage'))
+  } catch (e) {
+    console.warn('Local admin members sync warning:', e)
+  }
+
+  // 3. Supabase Auth 사용자 메타데이터 및 profiles 테이블 DB 업데이트
+  if (isSupabaseConfigured() && currentUser.value.id) {
     try {
       await supabase.auth.updateUser({
         data: payload
       })
-      await syncUserProfile(currentUser.value)
+
+      const profilePayload = {
+        id: currentUser.value.id,
+        email: currentUser.value.email || '',
+        name: name,
+        company_name: companyName,
+        representative_name: name,
+        business_number: cleanBizNumber,
+        pccc: cleanPccc,
+        address: address,
+        phone: phone,
+        tier: currentUserProfile.value?.tier || 'general',
+        is_business_verified: false,
+        verification_status: 'pending',
+        updated_at: new Date().toISOString()
+      }
+
+      const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
+      if (!error && data) {
+        currentUserProfile.value = { ...(currentUserProfile.value || {}), ...data }
+      }
     } catch (err) {
       console.warn('Supabase updateUser business metadata notice:', err)
     }

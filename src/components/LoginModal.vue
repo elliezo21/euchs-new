@@ -814,9 +814,10 @@ const handleBusinessVerifySubmit = async () => {
       address: verifyForm.value.address,
       phone: verifyForm.value.phone
     })
-    alert('✅ B2B 사업자 인증 및 정보 등록이 완료되었습니다!\n이제 1688 도매 소싱몰을 자유롭게 이용하실 수 있습니다.')
+    alert('✅ B2B 사업자 정보 등록이 성공적으로 완료되었습니다!\n신규 바이어 심사 대기(Pending) 상태로 등록되었으며, 1688 실시간 소싱 및 견적 의뢰가 즉시 가능합니다.')
     closeLoginModal()
     window.dispatchEvent(new CustomEvent('euchs:business_verified'))
+    window.dispatchEvent(new CustomEvent('euchs-auth-changed'))
   } catch (err) {
     console.error('Business verify error:', err)
     alert(`등록 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`)

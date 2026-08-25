@@ -423,9 +423,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { supabase, isSupabaseConfigured } from '../../lib/supabase'
 
-const MEMBERS_STORAGE_KEY = 'euchs_members_list'
+const MEMBERS_STORAGE_KEY = 'euchs_admin_members'
 
 const statusFilter = ref('all')
 const searchQuery = ref('')
@@ -448,8 +449,15 @@ function fmtN(val) {
 
 function formatDate(dateStr) {
   if (!dateStr) return '-'
-  const d = new Date(dateStr)
-  return `${d.getFullYear()}.${String(d.getMonth()+1).padStart(2,'0')}.${String(d.getDate()).padStart(2,'0')}`
+  try {
+    const d = new Date(dateStr)
+    const y = d.getFullYear()
+    const m = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    return `${y}.${m}.${day}`
+  } catch (e) {
+    return dateStr
+  }
 }
 
 function copyPccc(pccc) {
@@ -458,88 +466,56 @@ function copyPccc(pccc) {
 }
 
 // ----------------------------------------------------
-// 더미 바이어 샘플 데이터 (초기 세팅)
+// 기본 더미 데이터 (시스템 초기화 시 활용)
 // ----------------------------------------------------
 const DEFAULT_MEMBERS = [
   {
     id: 'mem-1',
-    companyName: '이유씨글로벌 (EUCHS GLOBAL)',
-    name: '조해성 대표',
-    representativeName: '조해성',
-    email: 'buyer@euchs.com',
-    phone: '010-8821-1688',
-    bizNumber: '128-86-12345',
+    companyName: '이유씨글로벌 (주)',
+    name: '김이유',
+    representativeName: '김이유',
+    email: 'euchs_buyer@gmail.com',
+    phone: '010-9876-5432',
+    bizNumber: '123-86-12345',
     pccc: 'P123456789012',
-    bizAddress: '경기도 안성시 일죽면 대송로 123 EUCHS 로지스틱스 1층',
+    bizAddress: '인천광역시 연수구 송도미래로 30',
     bizCertUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
     tier: 'business',
     balance: 15420000,
-    verificationStatus: 'verified', // 'verified' | 'pending' | 'unverified' | 'rejected'
-    createdAt: '2026-08-10T09:00:00.000Z'
+    verificationStatus: 'verified',
+    createdAt: '2026-08-01T10:00:00.000Z'
   },
   {
     id: 'mem-2',
-    companyName: '(주)케이커머스',
-    name: '김케이 대표',
-    representativeName: '김케이',
-    email: 'kcommerce@naver.com',
+    companyName: '스타일트레이딩',
+    name: '최수현',
+    representativeName: '최수현',
+    email: 'sh_style@naver.com',
     phone: '010-3344-5566',
     bizNumber: '214-88-99887',
     pccc: 'P987654321098',
-    bizAddress: '인천광역시 연수구 송도미래로 30 송도B2B타워 501호',
-    bizCertUrl: 'https://images.unsplash.com/photo-1554224154-26032ffc0d07?w=600&auto=format&fit=crop&q=80',
+    bizAddress: '경기도 성남시 분당구 판교역로 166',
+    bizCertUrl: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=600&auto=format&fit=crop&q=80',
     tier: 'general',
-    balance: 3000000,
+    balance: 0,
     verificationStatus: 'pending',
     createdAt: '2026-08-24T14:20:00.000Z'
   },
   {
     id: 'mem-3',
-    companyName: '탑글로벌무역',
-    name: '박글로벌 이사',
+    companyName: '탑글로벌물류',
+    name: '박글로벌',
     representativeName: '박글로벌',
     email: 'topglobal@gmail.com',
     phone: '010-7788-9900',
     bizNumber: '603-81-44556',
     pccc: 'P554433221100',
-    bizAddress: '부산광역시 중구 중앙대로 88 무역회관 12층',
+    bizAddress: '부산광역시 중구 중앙대로 88',
     bizCertUrl: '',
     tier: 'business',
     balance: 10000000,
     verificationStatus: 'verified',
     createdAt: '2026-08-20T11:15:00.000Z'
-  },
-  {
-    id: 'mem-4',
-    companyName: '에이치앤컴퍼니',
-    name: '한정훈',
-    representativeName: '한정훈',
-    email: 'hn_company@daum.net',
-    phone: '010-4455-6677',
-    bizNumber: '107-22-33445',
-    pccc: 'P332211009988',
-    bizAddress: '서울특별시 동대문구 장한로 50',
-    bizCertUrl: 'https://images.unsplash.com/photo-1586281380349-632531db7ed4?w=600&auto=format&fit=crop&q=80',
-    tier: 'general',
-    balance: 0,
-    verificationStatus: 'pending',
-    createdAt: '2026-08-25T08:30:00.000Z'
-  },
-  {
-    id: 'mem-5',
-    companyName: '',
-    name: '이민지 바이어',
-    representativeName: '이민지',
-    email: 'minji_lee@gmail.com',
-    phone: '010-1234-5678',
-    bizNumber: '',
-    pccc: '',
-    bizAddress: '',
-    bizCertUrl: '',
-    tier: 'general',
-    balance: 500000,
-    verificationStatus: 'unverified',
-    createdAt: '2026-08-25T13:10:00.000Z'
   }
 ]
 
@@ -591,7 +567,6 @@ const filteredMembers = computed(() => {
     )
   }
 
-  // 1순위: 심사대기 우선, 2순위: 최신 가입일순
   return list.sort((a, b) => {
     if (a.verificationStatus === 'pending' && b.verificationStatus !== 'pending') return -1
     if (a.verificationStatus !== 'pending' && b.verificationStatus === 'pending') return 1
@@ -619,22 +594,8 @@ function getStatusBadgeClass(status) {
   return map[status] || 'bg-slate-100 text-slate-600'
 }
 
-function getTierLabel(tier) {
-  if (tier === 'business' || tier === 'VIP' || tier === 'VVIP' || tier === 'PARTNER') {
-    return '사업자회원'
-  }
-  return '일반회원'
-}
-
-function getTierBadgeClass(tier) {
-  if (tier === 'business' || tier === 'VIP' || tier === 'VVIP' || tier === 'PARTNER') {
-    return 'bg-blue-100 text-blue-800 border border-blue-200'
-  }
-  return 'bg-slate-100 text-slate-600 border border-slate-200'
-}
-
 // ----------------------------------------------------
-// 심사 승인 / 반려 / 모달 액션
+// 심사 승인 / 반려 / 모달 액션 (Supabase DB 영구 동기화)
 // ----------------------------------------------------
 function openDetailModal(member) {
   selectedMember.value = member
@@ -646,16 +607,32 @@ function quickApprove(member) {
   }
 }
 
-function approveMember(member) {
+async function approveMember(member) {
   member.verificationStatus = 'verified'
   member.tier = 'business' // 사업자회원으로 전환
   member.verifiedAt = new Date().toISOString()
   saveState()
+
+  // Supabase DB profiles 테이블 동기화
+  if (isSupabaseConfigured() && member.id && !member.id.startsWith('mem-')) {
+    try {
+      await supabase.from('profiles').update({
+        is_business_verified: true,
+        verification_status: 'verified',
+        tier: 'business',
+        updated_at: new Date().toISOString()
+      }).eq('id', member.id)
+    } catch (e) {
+      console.warn('Supabase profile approve error:', e)
+    }
+  }
+
   showToast(`사업자 인증 승인 및 사업자회원 전환이 완료되었습니다.`)
   selectedMember.value = null // 모달 닫기
 }
 
-function rejectMember(member) {
+
+async function rejectMember(member) {
   const reason = prompt('반려 사유를 입력하세요:', '사업자등록증 식별 불가 / 통관부호 불일치')
   if (reason === null) return
 
@@ -663,44 +640,134 @@ function rejectMember(member) {
   member.tier = 'general' // 일반회원으로 유지
   member.rejectReason = reason
   saveState()
+
+  // Supabase DB profiles 테이블 동기화
+  if (isSupabaseConfigured() && member.id && !member.id.startsWith('mem-')) {
+    try {
+      await supabase.from('profiles').update({
+        is_business_verified: false,
+        verification_status: 'rejected',
+        tier: 'general',
+        updated_at: new Date().toISOString()
+      }).eq('id', member.id)
+    } catch (e) {
+      console.warn('Supabase profile reject error:', e)
+    }
+  }
+
   showToast('사업자 인증 신청이 반려 처리되었습니다.')
   selectedMember.value = null // 모달 닫기
 }
 
-function saveMemberChanges(member) {
+async function saveMemberChanges(member) {
   saveState()
+
+  // Supabase DB profiles 테이블 동기화
+  if (isSupabaseConfigured() && member.id && !member.id.startsWith('mem-')) {
+    try {
+      await supabase.from('profiles').update({
+        company_name: member.companyName,
+        representative_name: member.representativeName,
+        name: member.name,
+        phone: member.phone,
+        business_number: member.bizNumber,
+        pccc: member.pccc,
+        address: member.bizAddress,
+        tier: member.tier,
+        verification_status: member.verificationStatus,
+        is_business_verified: member.verificationStatus === 'verified',
+        updated_at: new Date().toISOString()
+      }).eq('id', member.id)
+    } catch (e) {
+      console.warn('Supabase profile update error:', e)
+    }
+  }
+
   showToast(`[${member.companyName || member.name}] 회원 정보가 성공적으로 저장되었습니다.`)
   selectedMember.value = null // 모달 닫기
 }
 
 // ----------------------------------------------------
-// 스토리지 로드 & 저장
+// 스토리지 및 Supabase profiles 로드 & 저장
 // ----------------------------------------------------
-function loadMembers() {
+async function loadMembers() {
+  let list = []
   try {
-    const raw = localStorage.getItem(MEMBERS_STORAGE_KEY)
+    const raw = localStorage.getItem(MEMBERS_STORAGE_KEY) || localStorage.getItem('euchs_members_list')
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
-        membersList.value = parsed
-        return
+        list = parsed
       }
     }
   } catch (e) {
-    console.warn('Failed to load members list:', e)
+    console.warn('Failed to load local members list:', e)
   }
-  membersList.value = JSON.parse(JSON.stringify(DEFAULT_MEMBERS))
+
+  if (list.length === 0) {
+    list = JSON.parse(JSON.stringify(DEFAULT_MEMBERS))
+  }
+
+  // Supabase profiles 테이블에서 실제 가입 회원 병합 조회
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: dbProfiles, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (!error && Array.isArray(dbProfiles) && dbProfiles.length > 0) {
+        dbProfiles.forEach(p => {
+          const formatted = {
+            id: p.id,
+            companyName: p.company_name || '',
+            name: p.name || p.representative_name || p.email?.split('@')[0] || '바이어',
+            representativeName: p.representative_name || p.name || '',
+            email: p.email || '',
+            phone: p.phone || '',
+            bizNumber: p.business_number || '',
+            pccc: p.pccc || '',
+            bizAddress: p.address || '',
+            bizCertUrl: p.biz_cert_url || '',
+            tier: p.tier || (p.is_business_verified ? 'business' : 'general'),
+            balance: Number(p.balance) || 0,
+            verificationStatus: p.verification_status || (p.is_business_verified ? 'verified' : (p.business_number ? 'pending' : 'unverified')),
+            createdAt: p.created_at || new Date().toISOString()
+          }
+
+          const existingIdx = list.findIndex(m => m.id === p.id || (m.email && m.email === p.email))
+          if (existingIdx >= 0) {
+            list[existingIdx] = { ...list[existingIdx], ...formatted }
+          } else {
+            list.unshift(formatted)
+          }
+        })
+      }
+    } catch (dbErr) {
+      console.warn('Supabase profiles fetch notice in AdminMembersView:', dbErr)
+    }
+  }
+
+  membersList.value = list
   saveState()
 }
 
 function saveState() {
   localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(membersList.value))
+  localStorage.setItem('euchs_members_list', JSON.stringify(membersList.value))
   window.dispatchEvent(new CustomEvent('euchs-member-update', { detail: membersList.value }))
   window.dispatchEvent(new Event('storage'))
 }
 
 onMounted(() => {
   loadMembers()
+  window.addEventListener('euchs-member-update', loadMembers)
+  window.addEventListener('storage', loadMembers)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('euchs-member-update', loadMembers)
+  window.removeEventListener('storage', loadMembers)
 })
 </script>
 
