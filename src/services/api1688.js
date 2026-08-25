@@ -326,15 +326,22 @@ export async function search1688(queryZh, page = 1, options = {}) {
       return mockRes
     }
 
-    const items = rawList.map((entry) => {
+    const items = rawList.map((entry, idx) => {
       const it = entry.item || entry
 
-      let imageUrl = it.image || it.imageUrl || it.picUrl || ''
+      // 1688 DataHub 다중 이미지 필드 전수 탐색
+      let rawImage = it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
+                     entry.imageUrl || entry.image || entry.picUrl || entry.pic_url || entry.img || entry.imgUrl || entry.pic ||
+                     it.sku?.def?.imageUrl || it.sku?.def?.image || (Array.isArray(it.images) && it.images[0]) || ''
+
+      let imageUrl = String(rawImage || '').trim()
       if (imageUrl.startsWith('//')) {
         imageUrl = 'https:' + imageUrl
+      } else if (imageUrl.startsWith('http://')) {
+        imageUrl = imageUrl.replace('http://', 'https://')
       }
 
-      let detailUrl = it.itemUrl || ''
+      let detailUrl = it.itemUrl || it.detailUrl || ''
       if (detailUrl.startsWith('//')) {
         detailUrl = 'https:' + detailUrl
       } else if (!detailUrl && it.itemId) {
@@ -350,7 +357,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
       const titleZh = it.title || it.subject || ''
 
       return {
-        id: String(it.itemId || Math.random().toString(36).slice(2)),
+        id: String(it.itemId || `item-${Date.now()}-${idx}`),
         titleZh,
         titleEn: it.titleEn || '',
         titleKo: '',
@@ -359,7 +366,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
         priceFormatted: priceNum.toFixed(2),
         minOrder,
         sales: it.sales || '0',
-        imageUrl: imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
+        imageUrl: imageUrl,
         detailUrl,
         repurchaseRate: it.repurchaseRate || '90%',
         company: it.company?.name || it.shopName || '1688 공식 인증 공급사',
@@ -568,8 +575,14 @@ export async function fetch1688ProductById(offerId) {
     const it = rawData?.result?.item || rawData?.item || rawData?.result || rawData || {}
 
     const titleZh = it.title || it.subject || ''
-    let imageUrl = it.image || it.imageUrl || it.picUrl || ''
-    if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl
+    let rawImage = it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
+                   (Array.isArray(it.images) && it.images[0]) || ''
+    let imageUrl = String(rawImage || '').trim()
+    if (imageUrl.startsWith('//')) {
+      imageUrl = 'https:' + imageUrl
+    } else if (imageUrl.startsWith('http://')) {
+      imageUrl = imageUrl.replace('http://', 'https://')
+    }
 
     const priceStr = it.sku?.def?.price || it.price || '0'
     const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0

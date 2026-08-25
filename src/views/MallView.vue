@@ -359,10 +359,11 @@
           <!-- Thumbnail Image -->
           <div class="relative aspect-square bg-gray-100 overflow-hidden">
             <img
-              :src="item.imageUrl"
-              :alt="item.titleKo || item.titleZh"
+              :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'"
+              :alt="item.titleKo || item.title || item.titleZh"
               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
+              referrerpolicy="no-referrer"
               @error="handleImageError"
             />
             
@@ -920,7 +921,8 @@ const formatRmb = (val) => {
 }
 
 const handleImageError = (e) => {
-  e.target.src = 'https://images.unsplash.com/photo-1560343090-f0409e92791a?w=400&auto=format&fit=crop&q=60'
+  e.target.onerror = null
+  e.target.src = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400&auto=format&fit=crop&q=60'
 }
 
 // ----------------------------------------------------

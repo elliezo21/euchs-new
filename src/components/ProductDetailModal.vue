@@ -101,6 +101,7 @@
                 :src="activeImage || currentItem?.imageUrl" 
                 :alt="currentItem?.titleKo"
                 class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                referrerpolicy="no-referrer"
                 @error="handleImageFallback"
               />
               
@@ -125,7 +126,7 @@
                 class="w-16 h-16 rounded-2xl border-2 overflow-hidden shrink-0 transition-all bg-gray-50"
                 :class="activeImage === img ? 'border-rose-600 shadow-md scale-105' : 'border-transparent hover:border-gray-300 opacity-70 hover:opacity-100'"
               >
-                <img :src="img" :alt="`thumb-${idx}`" class="w-full h-full object-cover" />
+                <img :src="img" :alt="`thumb-${idx}`" class="w-full h-full object-cover" referrerpolicy="no-referrer" />
               </button>
             </div>
 
@@ -226,7 +227,7 @@
                     ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20' 
                     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
                 >
-                  <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-gray-200" />
+                  <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-gray-200" referrerpolicy="no-referrer" />
                   <span>{{ color.name }}</span>
                 </button>
               </div>
@@ -373,6 +374,7 @@
                   :src="imgUrl"
                   :alt="`상세 이미지 ${idx + 1}`"
                   loading="lazy"
+                  referrerpolicy="no-referrer"
                   class="w-full h-auto block rounded-xl shadow-sm border border-gray-100"
                   @error="handleDetailImageError(idx)"
                 />
@@ -428,6 +430,7 @@
                   :src="sp.imageUrl" 
                   :alt="sp.titleKo"
                   class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                  referrerpolicy="no-referrer"
                   @error="handleImageFallback"
                 />
                 <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[9px] font-bold rounded">
@@ -915,7 +918,8 @@ const handleInstantOrder = () => {
 }
 
 const handleImageFallback = (e) => {
-  e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=500&auto=format&fit=crop&q=80'
+  e.target.onerror = null
+  e.target.src = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&auto=format&fit=crop&q=80'
 }
 
 // ESC 키로 모달 닫기
