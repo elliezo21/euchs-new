@@ -491,11 +491,11 @@
 
             <!-- 3. 본문 안내 문구 -->
             <p v-if="b2bGuardType === 'guest'" class="text-xs sm:text-sm text-slate-600 leading-relaxed pb-6">
-              🔒 1688 도매 단가 및 실시간 옵션 상세 정보는 <strong>사업자 회원 전용</strong>입니다.<br class="hidden sm:inline" />
+              🔒 1688 도매 단가 열람 및 대량 소싱(추가 상품 조회)은 <strong>사업자 회원 전용</strong>입니다.<br class="hidden sm:inline" />
               로그인이나 B2B 회원가입 후 이용해 주세요.
             </p>
             <p v-else class="text-xs sm:text-sm text-slate-600 leading-relaxed pb-6">
-              ⚠️ 사업자정보(사업자번호/통관부호)를 등록한 <strong>인증 바이어만</strong> 상세 도매 단가를 열람할 수 있습니다.<br class="hidden sm:inline" />
+              ⚠️ 사업자정보(사업자번호/통관부호)를 등록한 <strong>인증 바이어만</strong> 상세 도매 단가 열람 및 추가 상품 조회가 가능합니다.<br class="hidden sm:inline" />
               사업자 정보를 등록하고 도매몰을 이용해 보세요.
             </p>
 
@@ -616,21 +616,21 @@ const popularKeywords = [
 ]
 
 const categories = [
-  { id: 'all', name: '전체 상품', keyword: '여성 원피스', icon: 'fas fa-th-large' },
-  { id: 'women', name: '여성의류', keyword: '여성 린넨 블라우스', icon: 'fas fa-female' },
-  { id: 'acc', name: '패션잡화/가방', keyword: '여성 숄더백', icon: 'fas fa-shopping-bag' },
-  { id: 'living', name: '생활/주방용품', keyword: '스테인리스 텀블러', icon: 'fas fa-coffee' },
-  { id: 'digital', name: '디지털/가전', keyword: '대용량 보조배터리', icon: 'fas fa-mobile-alt' },
-  { id: 'camping', name: '캠핑/레저', keyword: '캠핑 접이식 의자', icon: 'fas fa-campground' },
-  { id: 'beauty', name: '뷰티/반려동물', keyword: '고양이 스크래쳐', icon: 'fas fa-paw' },
-  { id: 'interior', name: '인테리어/문구', keyword: '데스크 오거나이저', icon: 'fas fa-home' }
+  { id: 'all', name: '전체 상품', keyword: '추천 상품', icon: 'fas fa-th-large' },
+  { id: 'women', name: '여성의류', keyword: '여성의류', icon: 'fas fa-female' },
+  { id: 'acc', name: '패션잡화/가방', keyword: '패션잡화 가방', icon: 'fas fa-shopping-bag' },
+  { id: 'living', name: '생활/주방용품', keyword: '생활용품', icon: 'fas fa-coffee' },
+  { id: 'digital', name: '디지털/가전', keyword: '디지털 가전', icon: 'fas fa-mobile-alt' },
+  { id: 'camping', name: '캠핑/레저', keyword: '캠핑 레저', icon: 'fas fa-campground' },
+  { id: 'beauty', name: '뷰티/반려동물', keyword: '뷰티 반려동물', icon: 'fas fa-paw' },
+  { id: 'interior', name: '인테리어/문구', keyword: '인테리어 문구', icon: 'fas fa-home' }
 ]
 
 const selectedCategoryId = ref('all')
 
 const selectCategory = (cat) => {
   selectedCategoryId.value = cat.id
-  queryInput.value = cat.keyword
+  queryInput.value = cat.keyword || cat.name
   executeSearch(1)
 }
 
@@ -836,9 +836,24 @@ const handleSearchInputDebounced = () => {
 }
 
 // ----------------------------------------------------
-// Load More Products (Next Page)
+// Load More Products (Next Page) - B2B 권한 가드 적용
 // ----------------------------------------------------
 const loadMoreProducts = async () => {
+  // 1. 비로그인 상태 차단 -> B2B 안내 모달 노출 및 쿼터 방어
+  if (!isLoggedIn.value) {
+    showToast('추가 상품 조회 및 1688 대량 소싱은 [사업자 인증 회원] 전용 서비스입니다. 로그인 또는 사업자 정보를 등록해 주세요.')
+    openB2BGuard('guest')
+    return
+  }
+
+  // 2. 로그인은 되었으나 사업자 미인증 일반회원 -> 사업자 정보 입력 안내 모달 노출
+  if (!isUserBusinessVerified(currentUser.value)) {
+    showToast('추가 상품 조회 및 1688 대량 소싱은 [사업자 인증 회원] 전용 서비스입니다. 사업자 정보를 등록해 주세요.')
+    openB2BGuard('unverified')
+    return
+  }
+
+  // 3. 인증된 사업자 바이어만 다음 페이지 호출
   const query = lastQueryKo.value || queryInput.value.trim()
   if (!query) return
 
