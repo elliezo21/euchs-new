@@ -649,11 +649,6 @@ const lastQueryKo = ref('')
 const lastQueryZh = ref('')
 const items = ref([])
 
-const currentProgress = ref({
-  step: 1,
-  message: ''
-})
-
 const selectedModalProduct = ref(null)
 
 const customExchangeRate = ref(226.19)
@@ -955,10 +950,6 @@ const openDetailModalById = async (offerId) => {
 
   isLoading.value = true
   errorMessage.value = ''
-  currentProgress.value = {
-    step: 2,
-    message: `1688 상품(ID: ${offerId}) 상세 정보 조회 중...`
-  }
 
   try {
     const product = await fetch1688ProductById(offerId)
@@ -999,17 +990,12 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
   isLoading.value = true
   errorMessage.value = ''
   currentPage.value = page
-  currentProgress.value = {
-    step: 1,
-    message: `한글 키워드 분석 중: "${rawInput}"`
-  }
 
   try {
     const result = await search1688WithTranslation(
       rawInput,
       page,
-      { sort: sortOrder.value },
-      (p) => { currentProgress.value = p }
+      { sort: sortOrder.value }
     )
 
     items.value = result.items || []

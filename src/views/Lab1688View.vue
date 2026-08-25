@@ -447,36 +447,6 @@
 
           </div>
 
-          <!-- Progress Indicator -->
-          <div v-if="isLoadingSearch" class="bg-indigo-50 border border-indigo-200 rounded-2xl p-4">
-            <div class="flex flex-col sm:flex-row items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <div class="w-8 h-8 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-bold text-xs shadow-sm">
-                  <i class="fas fa-sync fa-spin"></i>
-                </div>
-                <div>
-                  <div class="text-xs font-bold text-indigo-900">
-                    {{ currentProgress.message || '1688 DataHub 및 AI 번역 연동 중...' }}
-                  </div>
-                  <div class="text-[11px] text-indigo-600 mt-0.5">
-                    Step {{ currentProgress.step }}/3: 
-                    <span v-if="currentProgress.step === 1">AI 한글 ➔ 중국어 번역</span>
-                    <span v-else-if="currentProgress.step === 2">1688 실시간 상품 DB 검색</span>
-                    <span v-else>상품명 AI 한국어 일괄 번역</span>
-                  </div>
-                </div>
-              </div>
-
-              <div class="flex items-center gap-1.5 text-[11px] font-semibold">
-                <span :class="['px-2 py-0.5 rounded-md', currentProgress.step >= 1 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500']">1. 키워드번역</span>
-                <i class="fas fa-chevron-right text-[8px] text-slate-400"></i>
-                <span :class="['px-2 py-0.5 rounded-md', currentProgress.step >= 2 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500']">2. 1688검색</span>
-                <i class="fas fa-chevron-right text-[8px] text-slate-400"></i>
-                <span :class="['px-2 py-0.5 rounded-md', currentProgress.step >= 3 ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-500']">3. 한글매핑</span>
-              </div>
-            </div>
-          </div>
-
           <!-- ==================================================== -->
           <!-- CASE A: 1688 SEARCH RESULTS TAB -->
           <!-- ==================================================== -->
