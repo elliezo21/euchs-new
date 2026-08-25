@@ -934,12 +934,19 @@ onMounted(async () => {
   const naverState = route.query.state
   if (naverCode && naverState) {
     try {
-      await handleNaverCallback(String(naverCode), String(naverState))
+      const result = await handleNaverCallback(String(naverCode), String(naverState))
+      // ✅ 로그인 성공 시 원래 머물던 페이지로 복귀
+      const dest = (result?.returnUrl && result.returnUrl !== '/mall') ? result.returnUrl : null
+      if (dest) {
+        router.replace(dest)
+      } else {
+        // 원래 페이지가 /mall이거나 없으면 query만 정리
+        router.replace({ path: '/mall', query: {} })
+      }
     } catch (e) {
       console.warn('[MallView] Naver callback error:', e)
+      router.replace({ path: '/mall', query: {} })
     }
-    // 처리 후 URL query 파라미터 정리 (브라우저 뒤로가기 시 재처리 방지)
-    router.replace({ path: '/mall', query: {} })
     return
   }
   // ────────────────────────────────────────────────────────────────────────

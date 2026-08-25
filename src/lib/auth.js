@@ -249,6 +249,10 @@ export const signInWithNaver = () => {
   const state = Math.random().toString(36).substring(2, 15)
   sessionStorage.setItem('naver_oauth_state', state)
 
+  // ✅ 현재 머물던 페이지 기억 (콜백 완료 후 복귀용)
+  const returnUrl = window.location.pathname + window.location.search
+  sessionStorage.setItem('euchs_oauth_return_url', returnUrl)
+
   const naverAuthUrl = `https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=${clientId}&redirect_uri=${redirectUri}&state=${state}`
   window.location.href = naverAuthUrl
 }
@@ -398,13 +402,18 @@ export const handleNaverCallback = async (code, state) => {
     sessionStorage.removeItem('naver_oauth_state')
     closeLoginModal()
     window.dispatchEvent(new CustomEvent('euchs:login_success', { detail: { user: currentUser.value } }))
+    window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: currentUser.value } }))
+
+    // ✅ 복귀 URL 읽기 후 즉시 정리 (재사용 방지)
+    const returnUrl = sessionStorage.getItem('euchs_oauth_return_url') || '/mall'
+    sessionStorage.removeItem('euchs_oauth_return_url')
 
     // 사업자 정보 미등록 시 즉시 입력 유도
     if (!isUserBusinessVerified(currentUser.value)) {
       setTimeout(() => { openLoginModal('business_verify') }, 350)
     }
 
-    return { success: true, user: currentUser.value }
+    return { success: true, user: currentUser.value, returnUrl }
   } catch (err) {
     console.error('handleNaverCallback Error:', err)
     return { success: false, message: err.message || '네이버 로그인 처리 중 오류가 발생했습니다.' }
