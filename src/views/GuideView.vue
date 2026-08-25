@@ -82,7 +82,7 @@
               <tr class="hover:bg-slate-50 transition">
                 <td class="py-3.5 px-4 font-bold text-gray-900">기본료</td>
                 <td class="py-3.5 px-4">1 KG</td>
-                <td class="py-3.5 px-4 font-black text-red-600 text-base">CNY 60위안</td>
+                <td class="py-3.5 px-4 font-black text-red-600 text-base">CNY 70위안</td>
                 <td class="py-3.5 px-4 text-gray-500">1KG 미만 시 1KG 적용</td>
               </tr>
               <tr class="hover:bg-slate-50 transition">
@@ -118,8 +118,8 @@
             <span><strong>소요 기일:</strong> 서울 기준 1일 도착 / 기타 지역 +1일 소요</span>
           </p>
           <div class="pt-2 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs text-gray-600 bg-white p-3 rounded-lg border border-gray-100">
-            <div>💡 <strong>예시 1:</strong> 서울 기준 800g 파우치 샘플 = <strong>60위안</strong> / 1일 도착</div>
-            <div>💡 <strong>예시 2:</strong> 인천 기준 1,800g 파우치 샘플 = 60 + 40 + 20 = <strong>120위안</strong> / 2일 도착</div>
+            <div>💡 <strong>예시 1:</strong> 서울 기준 800g 파우치 샘플 = <strong>70위안</strong> / 1일 도착</div>
+            <div>💡 <strong>예시 2:</strong> 인천 기준 1,800g 파우치 샘플 = 70 + 40 + 20 = <strong>130위안</strong> / 2일 도착</div>
           </div>
         </div>
       </section>
