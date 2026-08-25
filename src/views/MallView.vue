@@ -12,8 +12,10 @@
     <!-- ======================================================== -->
     <!-- 1. MALL SEARCH & BRAND HEADER (Slim & Lifted)            -->
     <!-- ======================================================== -->
-    <header class="bg-white border-b border-gray-200 py-2 sm:py-2.5 shadow-xs sticky top-0 z-30">
-      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+    <header class="sticky top-0 z-40 bg-white border-b border-gray-200 shadow-sm transition-all duration-200">
+      <!-- 검색바 영역 -->
+      <div class="py-2 sm:py-2.5 border-b border-gray-100">
+        <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
         
         <div class="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
           
@@ -107,6 +109,165 @@
 
         </div>
 
+        </div>
+      </div>
+
+      <!-- ── 카테고리 메가메뉴 바 (sticky 포함) ──
+           이 영역은 JS에서 categoryNavRef로 참조되며
+           아래 2-column layout의 main에서 이동해옴 -->
+      <div class="border-t border-gray-100 bg-white">
+        <div class="max-w-[1720px] mx-auto px-2 lg:px-4 py-2">
+          <div
+            ref="categoryNavRef"
+            class="relative bg-gray-50 rounded-2xl border border-gray-200 z-30"
+            @mouseleave="handleMegaMenuLeave"
+            id="mall-category-bar"
+          >
+            <!-- ── Top Bar: 메가메뉴 버튼 + 퀵 카테고리 탭 ── -->
+            <div class="flex items-center gap-2 px-2 py-2 overflow-x-auto no-scrollbar">
+
+              <!-- [☰ 모든 카테고리 ▾] 오렌지 메가메뉴 버튼 -->
+              <button
+                type="button"
+                @click.stop="toggleMegaMenu"
+                @mouseenter="openMegaMenuOnHover"
+                class="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm shadow-md shadow-orange-500/25 transition-all touch-manipulation select-none whitespace-nowrap"
+              >
+                <i class="fas fa-bars text-base"></i>
+                <span>모든 카테고리</span>
+                <i
+                  class="fas fa-chevron-down text-[10px] transition-transform duration-200"
+                  :class="isMegaMenuOpen ? 'rotate-180' : ''"
+                ></i>
+              </button>
+
+              <!-- 수직 구분선 -->
+              <div class="shrink-0 h-7 w-px bg-gray-200"></div>
+
+              <!-- 퀵 카테고리 탭 (빠른 바로가기) -->
+              <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                <button
+                  v-for="qt in quickTabs"
+                  :key="qt.id"
+                  type="button"
+                  @click.stop="selectQuickTab(qt)"
+                  :class="[
+                    'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none',
+                    selectedCategoryId === qt.id
+                      ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
+                      : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  ]"
+                >
+                  <span>{{ qt.emoji }}</span>
+                  <span>{{ qt.label }}</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- ── 2단 오르간(Organ) 메가메뉴 드롭다운 패널 ── -->
+            <transition
+              enter-active-class="transition duration-200 ease-out"
+              enter-from-class="opacity-0 -translate-y-1"
+              enter-to-class="opacity-100 translate-y-0"
+              leave-active-class="transition duration-150 ease-in"
+              leave-from-class="opacity-100 translate-y-0"
+              leave-to-class="opacity-0 -translate-y-1"
+            >
+              <div
+                v-if="isMegaMenuOpen"
+                class="absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-gray-200/90 z-50 overflow-hidden"
+                style="max-height: 70vh;"
+                @mouseenter="clearMegaMenuTimer"
+                @mouseleave="handleMegaMenuLeave"
+              >
+                <div class="flex" style="min-height: 300px; max-height: 70vh;">
+
+                  <!-- 1단: 좌측 대분류 목록 (세로 리스트) -->
+                  <div class="shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto" style="width: 210px;">
+                    <div class="py-2">
+                      <button
+                        v-for="cat in categories"
+                        :key="cat.id"
+                        type="button"
+                        @mouseenter="handleMegaCatHover(cat)"
+                        @click.stop="handleMegaCatClick(cat)"
+                        :class="[
+                          'w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium transition-all touch-manipulation select-none',
+                          activeMegaCat?.id === cat.id
+                            ? 'bg-orange-50 text-orange-600 font-bold border-l-4 border-orange-500 pl-3'
+                            : 'text-gray-700 hover:bg-white hover:text-orange-500 border-l-4 border-transparent'
+                        ]"
+                      >
+                        <span class="text-base leading-none shrink-0">{{ cat.emoji }}</span>
+                        <span class="text-xs leading-tight">{{ cat.name }}</span>
+                        <i class="fas fa-chevron-right text-[9px] ml-auto opacity-40"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 2단: 우측 소분류 패널 -->
+                  <div class="flex-1 overflow-y-auto p-5">
+                    <template v-if="activeMegaCat">
+                      <!-- 패널 헤더 -->
+                      <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                        <div class="flex items-center gap-2">
+                          <span class="text-xl">{{ activeMegaCat.emoji }}</span>
+                          <div>
+                            <h4 class="text-sm font-black text-gray-900">{{ activeMegaCat.name }}</h4>
+                            <p class="text-[10px] text-gray-400">1688 공식 소싱 카테고리</p>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          @click.stop="selectCategory(activeMegaCat)"
+                          class="flex items-center gap-1 text-xs font-bold text-orange-500 hover:text-orange-600 hover:underline transition touch-manipulation"
+                        >
+                          <span>전체 검색</span>
+                          <i class="fas fa-arrow-right text-[9px]"></i>
+                        </button>
+                      </div>
+
+                      <!-- 중분류 그룹 & 소분류 태그 그리드 -->
+                      <div class="space-y-4">
+                        <div
+                          v-for="(group, gIdx) in activeMegaCat.groups"
+                          :key="gIdx"
+                        >
+                          <!-- 중분류 제목 -->
+                          <div class="flex items-center gap-2 mb-2">
+                            <span class="w-1 h-4 bg-orange-500 rounded-full shrink-0"></span>
+                            <span class="text-xs font-black text-gray-800">{{ group.title }}</span>
+                          </div>
+                          <!-- 소분류 칩 태그 -->
+                          <div class="flex flex-wrap gap-1.5">
+                            <button
+                              v-for="(subItem, sIdx) in group.items"
+                              :key="sIdx"
+                              type="button"
+                              @click.stop="handleSubCategoryClick(subItem, activeMegaCat)"
+                              class="px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-orange-500 hover:text-white text-gray-700 font-medium text-xs border border-gray-200 hover:border-orange-500 transition shadow-xs hover:shadow-md active:scale-95 cursor-pointer touch-manipulation whitespace-nowrap"
+                            >
+                              {{ subItem }}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </template>
+
+                    <!-- 카테고리 미선택 기본 상태 -->
+                    <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">
+                      <div class="text-center space-y-2">
+                        <i class="fas fa-hand-pointer text-3xl text-orange-200"></i>
+                        <p>좌측 카테고리를 선택하세요</p>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </div>
+            </transition>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -118,7 +279,7 @@
       <!-- ====================================================== -->
       <!-- LEFT: LNB SIDEBAR (고정 PC 전용)                        -->
       <!-- ====================================================== -->
-      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-16 self-start mr-4">
+      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-24 self-start mr-4">
 
         <!-- Profile Mini Card -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
@@ -564,158 +725,6 @@
 
       </div>
 
-      <!-- ======================================================== -->
-      <!-- CNInsider Style Mega Menu Category Navigation             -->
-      <!-- ======================================================== -->
-      <div
-        ref="categoryNavRef"
-        class="relative bg-white rounded-2xl border border-gray-200 shadow-sm z-40"
-        @mouseleave="handleMegaMenuLeave"
-      >
-        <!-- ── Top Bar: 메가메뉴 버튼 + 퀵 카테고리 탭 ── -->
-        <div class="flex items-center gap-2 px-2 py-2 overflow-x-auto no-scrollbar">
-
-          <!-- [☰ 모든 카테고리 ▾] 오렌지 메가메뉴 버튼 -->
-          <button
-            type="button"
-            @click.stop="toggleMegaMenu"
-            @mouseenter="openMegaMenuOnHover"
-            class="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm shadow-md shadow-orange-500/25 transition-all touch-manipulation select-none whitespace-nowrap"
-          >
-            <i class="fas fa-bars text-base"></i>
-            <span>모든 카테고리</span>
-            <i
-              class="fas fa-chevron-down text-[10px] transition-transform duration-200"
-              :class="isMegaMenuOpen ? 'rotate-180' : ''"
-            ></i>
-          </button>
-
-          <!-- 수직 구분선 -->
-          <div class="shrink-0 h-7 w-px bg-gray-200"></div>
-
-          <!-- 퀵 카테고리 탭 (빠른 바로가기) -->
-          <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
-            <button
-              v-for="qt in quickTabs"
-              :key="qt.id"
-              type="button"
-              @click.stop="selectQuickTab(qt)"
-              :class="[
-                'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none',
-                selectedCategoryId === qt.id
-                  ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-              ]"
-            >
-              <span>{{ qt.emoji }}</span>
-              <span>{{ qt.label }}</span>
-            </button>
-          </div>
-        </div>
-
-        <!-- ── 2단 오르간(Organ) 메가메뉴 드롭다운 패널 ── -->
-        <transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="opacity-0 -translate-y-1"
-          enter-to-class="opacity-100 translate-y-0"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="opacity-100 translate-y-0"
-          leave-to-class="opacity-0 -translate-y-1"
-        >
-          <div
-            v-if="isMegaMenuOpen"
-            class="absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-gray-200/90 z-50 overflow-hidden"
-            style="max-height: 70vh;"
-            @mouseenter="clearMegaMenuTimer"
-            @mouseleave="handleMegaMenuLeave"
-          >
-            <div class="flex" style="min-height: 300px; max-height: 70vh;">
-
-              <!-- 1단: 좌측 대분류 목록 (세로 리스트) -->
-              <div class="shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto" style="width: 210px;">
-                <div class="py-2">
-                  <button
-                    v-for="cat in categories"
-                    :key="cat.id"
-                    type="button"
-                    @mouseenter="handleMegaCatHover(cat)"
-                    @click.stop="handleMegaCatClick(cat)"
-                    :class="[
-                      'w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium transition-all touch-manipulation select-none',
-                      activeMegaCat?.id === cat.id
-                        ? 'bg-orange-50 text-orange-600 font-bold border-l-4 border-orange-500 pl-3'
-                        : 'text-gray-700 hover:bg-white hover:text-orange-500 border-l-4 border-transparent'
-                    ]"
-                  >
-                    <span class="text-base leading-none shrink-0">{{ cat.emoji }}</span>
-                    <span class="text-xs leading-tight">{{ cat.name }}</span>
-                    <i class="fas fa-chevron-right text-[9px] ml-auto opacity-40"></i>
-                  </button>
-                </div>
-              </div>
-
-              <!-- 2단: 우측 소분류 패널 -->
-              <div class="flex-1 overflow-y-auto p-5">
-                <template v-if="activeMegaCat">
-                  <!-- 패널 헤더 -->
-                  <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
-                    <div class="flex items-center gap-2">
-                      <span class="text-xl">{{ activeMegaCat.emoji }}</span>
-                      <div>
-                        <h4 class="text-sm font-black text-gray-900">{{ activeMegaCat.name }}</h4>
-                        <p class="text-[10px] text-gray-400">1688 공식 소싱 카테고리</p>
-                      </div>
-                    </div>
-                    <button
-                      type="button"
-                      @click.stop="selectCategory(activeMegaCat)"
-                      class="flex items-center gap-1 text-xs font-bold text-orange-500 hover:text-orange-600 hover:underline transition touch-manipulation"
-                    >
-                      <span>전체 검색</span>
-                      <i class="fas fa-arrow-right text-[9px]"></i>
-                    </button>
-                  </div>
-
-                  <!-- 중분류 그룹 & 소분류 태그 그리드 -->
-                  <div class="space-y-4">
-                    <div
-                      v-for="(group, gIdx) in activeMegaCat.groups"
-                      :key="gIdx"
-                    >
-                      <!-- 중분류 제목 -->
-                      <div class="flex items-center gap-2 mb-2">
-                        <span class="w-1 h-4 bg-orange-500 rounded-full shrink-0"></span>
-                        <span class="text-xs font-black text-gray-800">{{ group.title }}</span>
-                      </div>
-                      <!-- 소분류 칩 태그 -->
-                      <div class="flex flex-wrap gap-1.5">
-                        <button
-                          v-for="(subItem, sIdx) in group.items"
-                          :key="sIdx"
-                          type="button"
-                          @click.stop="handleSubCategoryClick(subItem, activeMegaCat)"
-                          class="px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-orange-500 hover:text-white text-gray-700 font-medium text-xs border border-gray-200 hover:border-orange-500 transition shadow-xs hover:shadow-md active:scale-95 cursor-pointer touch-manipulation whitespace-nowrap"
-                        >
-                          {{ subItem }}
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                </template>
-
-                <!-- 카테고리 미선택 기본 상태 -->
-                <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">
-                  <div class="text-center space-y-2">
-                    <i class="fas fa-hand-pointer text-3xl text-orange-200"></i>
-                    <p>좌측 카테고리를 선택하세요</p>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-          </div>
-        </transition>
-      </div>
 
       <!-- Clean Search Results Header Bar (No Item Count, Clean Single Tag) -->
       <div v-if="hasSearched && !isLoading" class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
