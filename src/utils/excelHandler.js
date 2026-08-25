@@ -1,6 +1,62 @@
 import * as XLSX from 'xlsx';
 
 /**
+ * 바이어용 1688 대량 발주 표준 엑셀 양식 다운로드
+ * 샘플 2행 포함, 헤더: 한글상품명 | 1688 URL | 옵션명 | 수량 | 카테고리 | 사입 요청사항
+ */
+export function downloadBulkOrderTemplate() {
+  const headerRow = [
+    '한글상품명/관리명',
+    '1688 제품 URL (필수)',
+    '옵션명(색상/사이즈)',
+    '수량(개, 필수)',
+    '카테고리',
+    '사입 요청사항',
+  ];
+  const sample1 = [
+    '미니멀 USB 탁상선풍기',
+    'https://detail.1688.com/offer/7123456789.html',
+    '화이트 / 3단 풍속',
+    200,
+    '가전/생활용품',
+    '완충 포장 필수, 박스당 20개 내장',
+  ];
+  const sample2 = [
+    '스테인리스 진공 텀블러 500ml',
+    'https://detail.1688.com/offer/6987654321.html',
+    '매트 블랙 / 보온 12h',
+    500,
+    '주방/식기',
+    '로고 없이 무지 납품 요청',
+  ];
+  const guideRow = [
+    '※ 이 행은 삭제 후 입력하세요',
+    '※ 1688 상품 상세페이지 전체 URL을 붙여넣으세요',
+    '※ 색상·사이즈 등 정확한 옵션명 입력',
+    '※ 숫자만 입력 (최소 발주량 확인 필수)',
+    '※ 자유롭게 입력 (예: 의류, 생활용품)',
+    '※ 특이 포장·라벨·검수 요청사항',
+  ];
+
+  const sheetData = [headerRow, sample1, sample2, guideRow];
+  const ws = XLSX.utils.aoa_to_sheet(sheetData);
+
+  // 컬럼 너비
+  ws['!cols'] = [
+    { wch: 28 }, // 상품명
+    { wch: 46 }, // URL
+    { wch: 22 }, // 옵션
+    { wch: 14 }, // 수량
+    { wch: 18 }, // 카테고리
+    { wch: 32 }, // 요청사항
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '1688_대량발주_양식');
+  XLSX.writeFile(wb, 'EUCHS_1688_대량발주_표준양식.xlsx');
+}
+
+/**
  * EUCHS 공식 견적서 형태의 엑셀(.xlsx) 파일 생성 및 다운로드
  *
  * @param {Array<Object>} items - 견적 상품 목록

@@ -30,6 +30,17 @@
           <span>선택 품목 견적 엑셀 다운로드 ({{ selectedOrderIds.length }})</span>
         </button>
 
+        <!-- 대량 엑셀 양식 다운로드 (투어 타깃) -->
+        <button
+          type="button"
+          data-tour="bulk-excel-btn"
+          @click="openBulkExcelModal"
+          class="px-3.5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95"
+        >
+          <span>📥</span>
+          <span>대량 EXCEL 등록</span>
+        </button>
+
         <button
           type="button"
           @click="refreshData"
@@ -42,8 +53,10 @@
       </div>
     </div>
 
-    <!-- 공통 10단계 풀프로세스 스텝 바 (발주관리 포커스) -->
-    <OrderProcessStepper :counts="stepperCounts" currentSection="orders" />
+    <!-- 공통 10단계 풀프로세스 스텝 바 (발주관리 포커스) - 투어 타깃 -->
+    <div data-tour="order-tracker">
+      <OrderProcessStepper :counts="stepperCounts" currentSection="orders" />
+    </div>
 
     <!-- 통계 요약 카드 5종 (1~4단계 + 전체, 클릭 시 탭 필터링 연동) -->
     <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
@@ -1478,7 +1491,160 @@
       </div>
     </div>
 
+
   </div>
+
+  <!-- ======================================================== -->
+  <!-- 대량 EXCEL 등록 모달 -->
+  <!-- ======================================================== -->
+  <Transition name="modal-fade">
+    <div v-if="isBulkExcelModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      @click.self="closeBulkExcelModal">
+      <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-200 overflow-hidden">
+        <!-- 헤더 -->
+        <div class="px-6 py-4 bg-orange-50 border-b border-orange-100 flex items-center justify-between">
+          <div>
+            <div class="text-[11px] font-black text-orange-600 uppercase tracking-widest">BULK ORDER UPLOAD</div>
+            <h3 class="font-black text-gray-900 text-sm mt-0.5">📤 대량 EXCEL 발주 등록</h3>
+          </div>
+          <button @click="closeBulkExcelModal" class="p-1.5 rounded-lg hover:bg-orange-100 text-gray-500 transition cursor-pointer text-lg leading-none">✕</button>
+        </div>
+
+        <!-- 본문 -->
+        <div class="p-6 space-y-5">
+          <!-- 표준 양식 다운로드 -->
+          <div class="flex items-center justify-between p-4 bg-blue-50 border border-blue-200 rounded-xl">
+            <div>
+              <div class="text-xs font-black text-blue-800 mb-0.5">📥 EUCHS 표준 엑셀 양식</div>
+              <div class="text-[11px] text-blue-600">헤더·샘플 2행이 포함된 양식을 내려받아 작성하세요.</div>
+            </div>
+            <button
+              type="button"
+              @click="handleDownloadTemplate"
+              class="shrink-0 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer active:scale-95"
+            >표준 양식 다운로드</button>
+          </div>
+
+          <!-- 파일 업로드 -->
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-2">📂 엑셀 파일 업로드 (.xlsx / .xls / .csv)</label>
+            <div
+              class="border-2 border-dashed border-gray-300 rounded-xl p-6 text-center transition"
+              :class="bulkDragOver ? 'border-orange-400 bg-orange-50' : 'hover:border-gray-400'"
+              @dragover.prevent="bulkDragOver = true"
+              @dragleave="bulkDragOver = false"
+              @drop.prevent="onBulkFileDrop"
+            >
+              <div v-if="!bulkParsedItems.length" class="space-y-2">
+                <div class="text-3xl">📂</div>
+                <p class="text-sm font-bold text-gray-500">파일을 여기에 끌어다 놓거나</p>
+                <label class="cursor-pointer">
+                  <span class="px-4 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs transition inline-block">파일 선택</span>
+                  <input type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="onBulkFileSelect" />
+                </label>
+              </div>
+              <div v-else class="text-left space-y-1">
+                <div class="flex items-center justify-between mb-3">
+                  <span class="text-xs font-black text-emerald-700">✅ {{ bulkParsedItems.length }}개 상품 파싱 완료</span>
+                  <button type="button" @click="bulkParsedItems = []" class="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">다시 선택</button>
+                </div>
+                <!-- 파싱 결과 프리뷰 -->
+                <div class="max-h-40 overflow-y-auto space-y-1">
+                  <div v-for="(item, i) in bulkParsedItems" :key="i"
+                    class="flex items-center gap-2 p-2 bg-gray-50 rounded-lg text-xs"
+                  >
+                    <input type="checkbox"
+                      :checked="bulkSelectedIdxs.includes(i)"
+                      @change="toggleBulkItem(i)"
+                      class="w-3.5 h-3.5 accent-orange-500 cursor-pointer"
+                    />
+                    <span class="font-bold text-gray-800 truncate flex-1">{{ item.productName }}</span>
+                    <span class="text-gray-400 shrink-0">{{ item.quantity }}개</span>
+                    <span class="text-orange-600 shrink-0 font-mono text-[10px]">{{ item.sku || '-' }}</span>
+                  </div>
+                </div>
+                <!-- 카테고리 일괄 설정 -->
+                <div v-if="bulkSelectedIdxs.length > 0" class="pt-2">
+                  <button
+                    type="button"
+                    @click="openCategoryBatchModal"
+                    class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-100 hover:bg-purple-200 text-purple-700 font-bold text-xs transition cursor-pointer"
+                  >
+                    <span>📂</span>
+                    <span>선택 {{ bulkSelectedIdxs.length }}개 카테고리 일괄 설정</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 카테고리 필터 드롭다운 (파싱 후 노출) -->
+          <div v-if="bulkParsedItems.length > 0" class="flex items-center gap-3">
+            <label class="text-xs font-bold text-gray-700 shrink-0">카테고리 필터:</label>
+            <select v-model="bulkCategoryFilter"
+              class="flex-1 px-3 py-2 text-xs border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-500/20 bg-white"
+            >
+              <option value="">전체</option>
+              <option v-for="cat in bulkCategories" :key="cat" :value="cat">{{ cat }}</option>
+            </select>
+            <span class="text-xs text-gray-400 shrink-0">{{ filteredBulkItems.length }}개</span>
+          </div>
+        </div>
+
+        <!-- 푸터 -->
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-2">
+          <button @click="closeBulkExcelModal" class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 transition cursor-pointer">취소</button>
+          <button
+            @click="submitBulkExcel"
+            :disabled="!bulkParsedItems.length"
+            class="px-5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-black text-xs transition cursor-pointer shadow-sm"
+          >📤 {{ filteredBulkItems.length }}개 발주 목록에 추가</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
+  <!-- ======================================================== -->
+  <!-- 카테고리 일괄 설정 모달 -->
+  <!-- ======================================================== -->
+  <Transition name="modal-fade">
+    <div v-if="isCategoryBatchModalOpen"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      @click.self="isCategoryBatchModalOpen = false">
+      <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-200 overflow-hidden">
+        <div class="px-6 py-4 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
+          <h3 class="font-black text-gray-900 text-sm">📂 카테고리 일괄 설정</h3>
+          <button @click="isCategoryBatchModalOpen = false" class="p-1.5 rounded-lg hover:bg-purple-100 text-gray-500 transition cursor-pointer text-lg leading-none">✕</button>
+        </div>
+        <div class="p-6 space-y-4 text-xs">
+          <p class="text-gray-500">선택된 <strong class="text-gray-900">{{ bulkSelectedIdxs.length }}개</strong> 상품에 카테고리를 일괄 지정합니다.</p>
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">카테고리 선택 또는 직접 입력</label>
+            <input
+              v-model="batchCategoryInput"
+              type="text"
+              placeholder="예: 생활용품, 가전, 의류/패션"
+              class="w-full px-3 py-2.5 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-xs"
+              list="batch-cat-list"
+            />
+            <datalist id="batch-cat-list">
+              <option v-for="cat in PRESET_CATEGORIES" :key="cat" :value="cat" />
+            </datalist>
+          </div>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end gap-2">
+          <button @click="isCategoryBatchModalOpen = false" class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 transition cursor-pointer">취소</button>
+          <button
+            @click="applyBatchCategory"
+            :disabled="!batchCategoryInput.trim()"
+            class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs transition cursor-pointer"
+          >✅ 적용</button>
+        </div>
+      </div>
+    </div>
+  </Transition>
+
 </template>
 
 <script setup>
@@ -1511,6 +1677,7 @@ import {
   ShieldCheck
 } from 'lucide-vue-next';
 import { exportQuoteExcel } from '@/utils/excelExport';
+import { downloadBulkOrderTemplate, parseOrderExcel } from '@/utils/excelHandler';
 import { calculateImportCost, formatCurrency } from '@/utils/costCalculator';
 import {
   PIPELINE_STATUSES,
@@ -2639,4 +2806,103 @@ onMounted(async () => {
   window.addEventListener('euchs-order-status-update', loadOrdersData);
   window.addEventListener('storage', loadOrdersData);
 });
+
+// =============================================================
+// 대량 EXCEL 등록 모달 & 카테고리 일괄 설정
+// =============================================================
+const PRESET_CATEGORIES = [
+  '가전/생활용품', '의류/패션', '주방/식기', '뷰티/헬스',
+  '완구/스포츠', '사무/문구', '식품/음료', '자동차용품', '기타',
+];
+
+const isBulkExcelModalOpen   = ref(false);
+const isCategoryBatchModalOpen = ref(false);
+const bulkParsedItems  = ref([]);
+const bulkSelectedIdxs = ref([]);
+const bulkDragOver     = ref(false);
+const bulkCategoryFilter = ref('');
+const batchCategoryInput = ref('');
+
+const bulkCategories = computed(() => {
+  const cats = bulkParsedItems.value.map(i => i.category).filter(Boolean);
+  return [...new Set(cats)];
+});
+
+const filteredBulkItems = computed(() => {
+  if (!bulkCategoryFilter.value) return bulkParsedItems.value;
+  return bulkParsedItems.value.filter(i => i.category === bulkCategoryFilter.value);
+});
+
+function openBulkExcelModal() {
+  bulkParsedItems.value = [];
+  bulkSelectedIdxs.value = [];
+  bulkCategoryFilter.value = '';
+  isBulkExcelModalOpen.value = true;
+}
+function closeBulkExcelModal() { isBulkExcelModalOpen.value = false; }
+
+function handleDownloadTemplate() {
+  try { downloadBulkOrderTemplate(); }
+  catch (e) { alert('양식 다운로드 실패: ' + e.message); }
+}
+
+async function parseBulkFile(file) {
+  try {
+    const items = await parseOrderExcel(file);
+    bulkParsedItems.value = items;
+    bulkSelectedIdxs.value = items.map((_, i) => i);
+  } catch (e) {
+    alert('파일 파싱 실패: ' + e.message);
+  }
+}
+function onBulkFileSelect(e) {
+  const file = e.target.files?.[0];
+  if (file) parseBulkFile(file);
+}
+function onBulkFileDrop(e) {
+  bulkDragOver.value = false;
+  const file = e.dataTransfer?.files?.[0];
+  if (file) parseBulkFile(file);
+}
+function toggleBulkItem(i) {
+  const idx = bulkSelectedIdxs.value.indexOf(i);
+  if (idx >= 0) bulkSelectedIdxs.value.splice(idx, 1);
+  else bulkSelectedIdxs.value.push(i);
+}
+function openCategoryBatchModal() {
+  batchCategoryInput.value = '';
+  isCategoryBatchModalOpen.value = true;
+}
+function applyBatchCategory() {
+  const cat = batchCategoryInput.value.trim();
+  if (!cat) return;
+  bulkSelectedIdxs.value.forEach(i => {
+    if (bulkParsedItems.value[i]) bulkParsedItems.value[i].category = cat;
+  });
+  isCategoryBatchModalOpen.value = false;
+}
+function submitBulkExcel() {
+  const toAdd = filteredBulkItems.value.map(item => ({
+    id: `bulk-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    orderNumber: `EUC-BULK-${Date.now().toString().slice(-6)}`,
+    createdAt: new Date().toLocaleString('ko-KR'),
+    status: 'quote_pending',
+    buyerInfo: {},
+    items: [{
+      productName: item.productName || '1688 상품',
+      productUrl:  item.productUrl  || '',
+      sku:         item.sku         || '기본',
+      quantity:    item.quantity    || 1,
+      priceCny:    item.priceCny    || 0,
+      category:    item.category    || '',
+      remark:      item.remark      || '',
+    }],
+  }));
+  if (toAdd.length === 0) { alert('추가할 상품이 없습니다.'); return; }
+  const existing = getStoredOrders();
+  saveStoredOrders([...toAdd, ...existing]);
+  loadOrdersData();
+  closeBulkExcelModal();
+  alert(`✅ ${toAdd.length}개 상품이 발주 목록에 추가되었습니다.`);
+}
 </script>

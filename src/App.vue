@@ -7,6 +7,8 @@
     <QuickMenu v-if="!isStandaloneRoute" />
     <Footer v-if="!isStandaloneRoute" />
     <LoginModal />
+    <!-- 스포트라이트 온보딩 투어 (최상위, 전역 마운트) -->
+    <OnboardingTour />
   </div>
 </template>
 
@@ -17,6 +19,7 @@ import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import QuickMenu from './components/QuickMenu.vue'
 import LoginModal from './components/LoginModal.vue'
+import OnboardingTour from './components/common/OnboardingTour.vue'
 import { trackVisitor } from './lib/analytics'
 import { openLoginModal } from './lib/auth'
 

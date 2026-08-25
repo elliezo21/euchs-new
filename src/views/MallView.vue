@@ -22,6 +22,7 @@
           <div class="relative shrink-0">
             <button
               type="button"
+              data-tour="category-btn"
               @click.stop="toggleMegaMenu"
               @mouseenter="openMegaMenuOnHover"
               class="h-11 px-4 sm:px-5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white font-black text-xs sm:text-sm shadow-md shadow-orange-500/25 transition-all flex items-center gap-2 touch-manipulation select-none whitespace-nowrap cursor-pointer"
@@ -139,7 +140,7 @@
           </div>
 
           <!-- 2. 1688 한글/URL 와이드 검색 입력창 (h-11, border-2 border-orange-400) + [🔍 1688 검색] 버튼 (h-11, bg-rose-500) -->
-          <form @submit.prevent="executeSearch(1)" class="flex-1 min-w-0">
+          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="flex-1 min-w-0">
             <div class="flex items-stretch rounded-xl border-2 border-orange-400 p-0.5 bg-white shadow-xs focus-within:ring-2 focus-within:ring-orange-200 transition-all h-11">
               <div class="pl-3.5 pr-1.5 text-gray-400 flex items-center shrink-0">
                 <i class="fas fa-search text-orange-400 text-sm"></i>
@@ -552,6 +553,16 @@
 
           </nav>
         </div>
+
+        <!-- 💡 1분 화면 가이드 버튼 -->
+        <button
+          type="button"
+          @click="$emit('open-onboarding'); window.dispatchEvent(new Event('euchs:open-onboarding'))"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition cursor-pointer mb-3"
+        >
+          <span>💡</span>
+          <span>1분 화면 가이드 다시 보기</span>
+        </button>
 
         <!-- 하단 카카오 상담 CTA -->
         <div class="bg-slate-900 text-white rounded-2xl p-4 space-y-2 text-xs">
