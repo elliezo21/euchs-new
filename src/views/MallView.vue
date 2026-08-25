@@ -138,10 +138,276 @@
     </header>
 
     <!-- ======================================================== -->
-    <!-- 3. MAIN SOURCING MALL FULL WIDTH CONTENT -->
+    <!-- 3. 2-COLUMN LAYOUT: LNB SIDEBAR + RIGHT MAIN CONTENT     -->
     <!-- ======================================================== -->
-    <main class="max-w-7xl mx-auto px-2.5 sm:px-6 lg:px-8 py-4 sm:py-8 space-y-4 sm:space-y-6">
-      
+    <div class="flex gap-0 min-h-screen w-full max-w-[1720px] mx-auto px-2 lg:px-4 py-4 sm:py-6 items-start">
+
+      <!-- ====================================================== -->
+      <!-- LEFT: LNB SIDEBAR (고정 PC 전용)                        -->
+      <!-- ====================================================== -->
+      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-20 self-start mr-4">
+
+        <!-- Profile Mini Card -->
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+          <div class="p-4 bg-slate-50/80 border-b border-slate-200">
+            <!-- 로그인 상태 -->
+            <div v-if="isLoggedIn" class="flex items-center gap-3">
+              <img
+                v-if="userAvatarUrl"
+                :src="userAvatarUrl"
+                :alt="displayBuyerName"
+                class="w-10 h-10 rounded-2xl object-cover border border-orange-200 shadow-sm shrink-0"
+              />
+              <div
+                v-else
+                class="w-10 h-10 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white font-black flex items-center justify-center text-base shadow-sm shrink-0"
+              >
+                {{ (displayBuyerName || 'E').charAt(0) }}
+              </div>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="font-bold text-gray-900 text-sm truncate">{{ displayBuyerName }}</span>
+                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-black shrink-0">
+                      {{ isBusinessVerified ? 'VIP' : '회원' }}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    @click="handleMallSignOut"
+                    class="text-gray-400 hover:text-red-600 p-1 transition cursor-pointer"
+                    title="로그아웃"
+                  >
+                    <i class="fas fa-sign-out-alt text-xs"></i>
+                  </button>
+                </div>
+                <p class="text-xs text-gray-500 font-mono truncate">{{ displayBuyerEmail }}</p>
+              </div>
+            </div>
+
+            <!-- 비로그인 상태 -->
+            <div v-else class="space-y-2.5">
+              <div class="flex items-center gap-2.5 text-gray-500">
+                <div class="w-10 h-10 rounded-2xl bg-gray-200 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
+                  <i class="fas fa-user-lock"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="font-bold text-gray-800 text-xs">로그인이 필요합니다</div>
+                  <div class="text-[10px] text-gray-400">B2B 수입대행 ERP 서비스</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="openLoginModal('login')"
+                class="w-full py-2 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <i class="fas fa-sign-in-alt text-[10px]"></i>
+                <span>로그인하기</span>
+              </button>
+            </div>
+
+            <!-- 전담 매니저 표시 -->
+            <div v-if="isLoggedIn" class="mt-3 pt-2.5 border-t border-gray-200/80 flex items-center justify-between text-xs">
+              <span class="text-gray-500 font-medium">전담 매니저</span>
+              <span class="font-bold text-gray-800 flex items-center gap-1">
+                <i class="fas fa-headset text-orange-500"></i> 이유씨 1:1 배정
+              </span>
+            </div>
+          </div>
+
+          <!-- 예치금 잔액 카드 -->
+          <div v-if="isLoggedIn" class="px-4 py-3 flex items-center justify-between text-xs border-b border-slate-100">
+            <span class="text-gray-500 font-medium">예치금 잔액</span>
+            <router-link to="/dashboard/account?tab=deposit" class="font-black text-emerald-600 font-mono hover:underline">
+              ₩ {{ formatKrw(depositBalanceKrw) }}
+            </router-link>
+          </div>
+
+          <!-- LNB Navigation Tree -->
+          <nav class="p-3 space-y-0.5 text-xs">
+
+            <!-- 1. 대시보드 메인 -->
+            <router-link
+              to="/dashboard"
+              class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+              :class="route.path === '/dashboard' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+            >
+              <div class="flex items-center gap-2.5">
+                <i class="fas fa-chart-pie text-sm" :class="route.path === '/dashboard' ? 'text-amber-500' : 'text-gray-400'"></i>
+                <span>대시보드 메인</span>
+              </div>
+              <span class="px-1.5 py-0.5 text-[9px] rounded bg-amber-500 text-slate-950 font-black">ERP</span>
+            </router-link>
+
+            <!-- 2. 상품관리 (아코디언) -->
+            <div class="space-y-0.5 pt-0.5">
+              <button
+                type="button"
+                @click="toggleMenu('products')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+                :class="route.path.startsWith('/mall') ? 'text-amber-600' : ''"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-boxes-stacked text-sm" :class="route.path.startsWith('/mall') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span>상품관리</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.products ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
+              </button>
+              <div v-show="expandedMenus.products" class="pl-7 pr-1 py-1 space-y-0.5">
+                <router-link
+                  to="/mall"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg font-bold transition bg-rose-50 text-rose-600 border-r-2 border-rose-500"
+                >
+                  <span>1688 소싱몰 (현재 페이지)</span>
+                  <i class="fas fa-store text-[10px] text-rose-500"></i>
+                </router-link>
+                <router-link
+                  to="/dashboard/cart"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium"
+                >
+                  <span>장바구니 / 보관함</span>
+                  <span class="px-1.5 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono">{{ savedCount }}</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/orders"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium"
+                >
+                  <span>내 소싱 상품 목록</span>
+                </router-link>
+              </div>
+            </div>
+
+            <!-- 3. 발주관리 (아코디언) -->
+            <div class="space-y-0.5 pt-0.5">
+              <button
+                type="button"
+                @click="toggleMenu('orders')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-clipboard-list text-sm text-gray-400"></i>
+                  <span>발주관리</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.orders ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
+              </button>
+              <div v-show="expandedMenus.orders" class="pl-7 pr-1 py-1 space-y-0.5">
+                <router-link to="/dashboard/orders" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  내 주문 (주문/발주 통합)
+                </router-link>
+                <router-link to="/dashboard/orders?tab=quote" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  견적 요청/대기
+                </router-link>
+                <router-link to="/dashboard/orders?tab=purchasing" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  1688 구매 진행중
+                </router-link>
+              </div>
+            </div>
+
+            <!-- 4. 물류센터 입고/검수 -->
+            <div class="pt-0.5">
+              <router-link
+                to="/dashboard/warehouse"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
+                :class="route.path.startsWith('/dashboard/warehouse') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-warehouse text-sm" :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span>이우 물류센터 입고/검수</span>
+                </div>
+              </router-link>
+            </div>
+
+            <!-- 5. 수입 통관 & 국내배송 (아코디언) -->
+            <div class="space-y-0.5 pt-0.5">
+              <button
+                type="button"
+                @click="toggleMenu('shipping')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-ship text-sm text-gray-400"></i>
+                  <span>수입 통관 & 국내배송</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.shipping ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
+              </button>
+              <div v-show="expandedMenus.shipping" class="pl-7 pr-1 py-1 space-y-0.5">
+                <router-link to="/dashboard/logistics" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  세관 통관 조회 / C/O
+                </router-link>
+                <router-link to="/dashboard/logistics?tab=shipping" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  국내 화물 운송장 추적
+                </router-link>
+              </div>
+            </div>
+
+            <!-- 6. 계정센터 (아코디언) -->
+            <div class="space-y-0.5 pt-0.5">
+              <button
+                type="button"
+                @click="toggleMenu('account')"
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 font-bold transition text-left"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-id-card text-sm text-gray-400"></i>
+                  <span>계정센터</span>
+                </div>
+                <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.account ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
+              </button>
+              <div v-show="expandedMenus.account" class="pl-7 pr-1 py-1 space-y-0.5">
+                <router-link to="/dashboard/account?tab=address" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  수령지 주소록
+                </router-link>
+                <router-link to="/dashboard/account?tab=pccc" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  사업자/통관부호 관리
+                </router-link>
+                <router-link to="/dashboard/account?tab=deposit" class="w-full flex items-center px-3 py-1.5 rounded-lg text-left transition text-gray-600 hover:text-amber-600 hover:bg-gray-50 font-medium">
+                  예치금 충전
+                </router-link>
+              </div>
+            </div>
+
+            <!-- 7. 공지사항 & 이용가이드 -->
+            <div class="pt-0.5">
+              <router-link
+                to="/community/notice"
+                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left text-gray-700 hover:bg-gray-100 font-medium"
+              >
+                <div class="flex items-center gap-2.5">
+                  <i class="fas fa-bullhorn text-sm text-gray-400"></i>
+                  <span>공지사항 & 이용가이드</span>
+                </div>
+              </router-link>
+            </div>
+
+          </nav>
+        </div>
+
+        <!-- 하단 카카오 상담 CTA -->
+        <div class="bg-slate-900 text-white rounded-2xl p-4 space-y-2 text-xs">
+          <div class="flex items-center gap-2 text-orange-400 font-bold">
+            <i class="fas fa-comment-dots text-sm"></i>
+            <span>1:1 전담 카카오톡 상담</span>
+          </div>
+          <p class="text-slate-300 text-[11px] leading-relaxed">
+            대량 발주, 특수 검수, 맞춤 OEM 제작 문의는 전담 매니저에게 실시간 문의하세요.
+          </p>
+          <a
+            href="http://pf.kakao.com/_xmQWsK/chat"
+            target="_blank"
+            class="block w-full py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-extrabold text-center rounded-xl transition text-xs"
+          >
+            카카오톡 상담하기
+          </a>
+        </div>
+
+      </aside>
+
+      <!-- ====================================================== -->
+      <!-- RIGHT: MAIN SOURCING MALL CONTENT                       -->
+      <!-- ====================================================== -->
+      <main class="flex-1 min-w-0 space-y-4 sm:space-y-6">
+
+
       <!-- Top 3-Card Promotion Banners (Wide Layout) -->
       <div class="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
         
@@ -485,7 +751,9 @@
         </button>
       </div>
 
-    </main>
+      </main><!-- /right main content -->
+
+    </div><!-- /2-column flex wrapper -->
 
     <!-- ======================================================== -->
     <!-- 5. PRODUCT DETAIL & ORDER MODAL (Component) -->
@@ -616,7 +884,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
 import { fetchSiteSettings } from '../lib/settings'
@@ -625,7 +893,13 @@ import {
   currentUser,
   openLoginModal,
   isUserBusinessVerified,
-  handleNaverCallback
+  isBusinessVerified,
+  handleNaverCallback,
+  signOut,
+  userDisplayName,
+  userAvatarUrl,
+  userEmail,
+  getUserBusinessInfo
 } from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
@@ -855,6 +1129,48 @@ const updateSavedCount = () => {
   } catch (e) {
     savedCount.value = 0
   }
+}
+
+// ----------------------------------------------------
+// LNB Sidebar: Profile & Accordion Menu State
+// ----------------------------------------------------
+const displayBuyerName = computed(() => {
+  if (isLoggedIn.value) {
+    return userDisplayName.value || '회원'
+  }
+  return ''
+})
+
+const displayBuyerEmail = computed(() => {
+  if (isLoggedIn.value) {
+    return userEmail.value || ''
+  }
+  return ''
+})
+
+const displayCompanyName = computed(() => {
+  if (!isLoggedIn.value) return ''
+  const biz = getUserBusinessInfo(currentUser.value)
+  if (biz?.company_name) return biz.company_name
+  if (userDisplayName.value) return `${userDisplayName.value} 바이어`
+  return '바이어 회원'
+})
+
+const expandedMenus = ref({
+  products: true,
+  orders: false,
+  shipping: false,
+  account: false
+})
+
+const toggleMenu = (key) => {
+  expandedMenus.value[key] = !expandedMenus.value[key]
+}
+
+const handleMallSignOut = async () => {
+  if (!confirm('로그아웃하시겠습니까?')) return
+  await signOut()
+  router.push('/mall')
 }
 
 // ----------------------------------------------------
