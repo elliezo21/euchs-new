@@ -565,106 +565,153 @@
       </div>
 
       <!-- ======================================================== -->
-      <!-- Category Tabs (Horizontal Bar + Hover 1688 Mega Dropdown) -->
+      <!-- CNInsider Style Mega Menu Category Navigation             -->
       <!-- ======================================================== -->
       <div
         ref="categoryNavRef"
-        class="relative bg-white rounded-2xl p-2 border border-gray-200 shadow-sm z-30"
-        @mouseleave="handleCategoryLeave"
+        class="relative bg-white rounded-2xl border border-gray-200 shadow-sm z-40"
+        @mouseleave="handleMegaMenuLeave"
       >
-        <!-- Horizontal Scrollable Category Bar -->
-        <div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+        <!-- ── Top Bar: 메가메뉴 버튼 + 퀵 카테고리 탭 ── -->
+        <div class="flex items-center gap-2 px-2 py-2 overflow-x-auto no-scrollbar">
+
+          <!-- [☰ 모든 카테고리 ▾] 오렌지 메가메뉴 버튼 -->
           <button
-            v-for="cat in categories"
-            :key="cat.id"
             type="button"
-            @mouseenter="handleCategoryHover(cat)"
-            @click.stop="handleCategoryClick(cat)"
-            :class="[
-              'px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 shrink-0 cursor-pointer touch-manipulation select-none',
-              (selectedCategoryId === cat.id || hoveredCategory?.id === cat.id)
-                ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20' 
-                : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
-            ]"
+            @click.stop="toggleMegaMenu"
+            @mouseenter="openMegaMenuOnHover"
+            class="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-xl bg-orange-500 hover:bg-orange-600 active:bg-orange-700 text-white font-black text-sm shadow-md shadow-orange-500/25 transition-all touch-manipulation select-none whitespace-nowrap"
           >
-            <i :class="cat.icon"></i>
-            <span>{{ cat.name }}</span>
+            <i class="fas fa-bars text-base"></i>
+            <span>모든 카테고리</span>
             <i
-              v-if="cat.groups && cat.groups.length > 0"
               class="fas fa-chevron-down text-[10px] transition-transform duration-200"
-              :class="hoveredCategory?.id === cat.id ? 'rotate-180 opacity-100' : 'opacity-60'"
+              :class="isMegaMenuOpen ? 'rotate-180' : ''"
             ></i>
           </button>
-        </div>
 
-        <!-- 1688 Mega Dropdown Panel (Hover & Mobile Touch Lock Overlay) -->
-        <transition
-          enter-active-class="transition duration-200 ease-out"
-          enter-from-class="opacity-0 -translate-y-2 scale-98"
-          enter-to-class="opacity-100 translate-y-0 scale-100"
-          leave-active-class="transition duration-150 ease-in"
-          leave-from-class="opacity-100 translate-y-0 scale-100"
-          leave-to-class="opacity-0 -translate-y-2 scale-98"
-        >
-          <div
-            v-if="hoveredCategory && hoveredCategory.groups && hoveredCategory.groups.length > 0"
-            class="absolute left-0 right-0 top-full mt-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200/90 p-4 sm:p-6 z-50 animate-fade-in select-none max-h-[75vh] overflow-y-auto"
-            @mouseenter="clearHoverTimer"
-            @mouseleave="handleCategoryLeave"
-          >
-            <!-- Panel Header -->
-            <div class="flex items-center justify-between pb-3 mb-4 border-b border-gray-100">
-              <div class="flex items-center gap-2">
-                <span class="w-2.5 h-2.5 rounded-full bg-rose-600 animate-pulse"></span>
-                <h4 class="text-sm font-black text-gray-900 flex items-center gap-2">
-                  <i :class="hoveredCategory.icon" class="text-rose-600"></i>
-                  <span>{{ hoveredCategory.name }}</span>
-                  <span class="text-xs text-gray-400 font-normal hidden sm:inline">1688 공식 세부 소싱 카테고리</span>
-                </h4>
-              </div>
-              <button
-                type="button"
-                @click.stop="selectCategory(hoveredCategory)"
-                class="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 hover:underline cursor-pointer touch-manipulation"
-              >
-                <span>전체 상품 소싱 검색</span>
-                <i class="fas fa-arrow-right text-[10px]"></i>
-              </button>
-            </div>
+          <!-- 수직 구분선 -->
+          <div class="shrink-0 h-7 w-px bg-gray-200"></div>
 
-            <!-- Panel Subcategory Grid -->
-            <div
-              class="grid gap-4 sm:gap-6 items-start"
+          <!-- 퀵 카테고리 탭 (빠른 바로가기) -->
+          <div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
+            <button
+              v-for="qt in quickTabs"
+              :key="qt.id"
+              type="button"
+              @click.stop="selectQuickTab(qt)"
               :class="[
-                hoveredCategory.groups.length === 1 ? 'grid-cols-1' :
-                hoveredCategory.groups.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-                'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
+                'shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none',
+                selectedCategoryId === qt.id
+                  ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
               ]"
             >
-              <div
-                v-for="(group, gIdx) in hoveredCategory.groups"
-                :key="gIdx"
-                class="space-y-2.5 bg-gray-50/60 p-3.5 rounded-xl border border-gray-100"
-              >
-                <!-- Group Title -->
-                <div class="flex items-center gap-2 font-black text-xs text-gray-900 pb-1 border-b border-gray-200/60">
-                  <span class="w-1.5 h-3.5 bg-rose-500 rounded-full"></span>
-                  <span>{{ group.title }}</span>
-                </div>
+              <span>{{ qt.emoji }}</span>
+              <span>{{ qt.label }}</span>
+            </button>
+          </div>
+        </div>
 
-                <!-- Sub items chips -->
-                <div class="flex flex-wrap gap-1.5">
+        <!-- ── 2단 오르간(Organ) 메가메뉴 드롭다운 패널 ── -->
+        <transition
+          enter-active-class="transition duration-200 ease-out"
+          enter-from-class="opacity-0 -translate-y-1"
+          enter-to-class="opacity-100 translate-y-0"
+          leave-active-class="transition duration-150 ease-in"
+          leave-from-class="opacity-100 translate-y-0"
+          leave-to-class="opacity-0 -translate-y-1"
+        >
+          <div
+            v-if="isMegaMenuOpen"
+            class="absolute left-0 right-0 top-full mt-1 bg-white rounded-2xl shadow-2xl border border-gray-200/90 z-50 overflow-hidden"
+            style="max-height: 70vh;"
+            @mouseenter="clearMegaMenuTimer"
+            @mouseleave="handleMegaMenuLeave"
+          >
+            <div class="flex" style="min-height: 300px; max-height: 70vh;">
+
+              <!-- 1단: 좌측 대분류 목록 (세로 리스트) -->
+              <div class="shrink-0 bg-gray-50 border-r border-gray-200 overflow-y-auto" style="width: 210px;">
+                <div class="py-2">
                   <button
-                    v-for="(subItem, sIdx) in group.items"
-                    :key="sIdx"
+                    v-for="cat in categories"
+                    :key="cat.id"
                     type="button"
-                    @click.stop="handleSubCategoryClick(subItem, hoveredCategory)"
-                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-600 hover:text-white text-gray-700 font-bold text-xs border border-gray-200/80 hover:border-rose-600 transition shadow-2xs hover:shadow-sm cursor-pointer active:scale-95 text-left touch-manipulation"
+                    @mouseenter="handleMegaCatHover(cat)"
+                    @click.stop="handleMegaCatClick(cat)"
+                    :class="[
+                      'w-full flex items-center gap-2.5 px-4 py-2.5 text-left text-sm font-medium transition-all touch-manipulation select-none',
+                      activeMegaCat?.id === cat.id
+                        ? 'bg-orange-50 text-orange-600 font-bold border-l-4 border-orange-500 pl-3'
+                        : 'text-gray-700 hover:bg-white hover:text-orange-500 border-l-4 border-transparent'
+                    ]"
                   >
-                    {{ subItem }}
+                    <span class="text-base leading-none shrink-0">{{ cat.emoji }}</span>
+                    <span class="text-xs leading-tight">{{ cat.name }}</span>
+                    <i class="fas fa-chevron-right text-[9px] ml-auto opacity-40"></i>
                   </button>
                 </div>
               </div>
+
+              <!-- 2단: 우측 소분류 패널 -->
+              <div class="flex-1 overflow-y-auto p-5">
+                <template v-if="activeMegaCat">
+                  <!-- 패널 헤더 -->
+                  <div class="flex items-center justify-between mb-4 pb-3 border-b border-gray-100">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xl">{{ activeMegaCat.emoji }}</span>
+                      <div>
+                        <h4 class="text-sm font-black text-gray-900">{{ activeMegaCat.name }}</h4>
+                        <p class="text-[10px] text-gray-400">1688 공식 소싱 카테고리</p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      @click.stop="selectCategory(activeMegaCat)"
+                      class="flex items-center gap-1 text-xs font-bold text-orange-500 hover:text-orange-600 hover:underline transition touch-manipulation"
+                    >
+                      <span>전체 검색</span>
+                      <i class="fas fa-arrow-right text-[9px]"></i>
+                    </button>
+                  </div>
+
+                  <!-- 중분류 그룹 & 소분류 태그 그리드 -->
+                  <div class="space-y-4">
+                    <div
+                      v-for="(group, gIdx) in activeMegaCat.groups"
+                      :key="gIdx"
+                    >
+                      <!-- 중분류 제목 -->
+                      <div class="flex items-center gap-2 mb-2">
+                        <span class="w-1 h-4 bg-orange-500 rounded-full shrink-0"></span>
+                        <span class="text-xs font-black text-gray-800">{{ group.title }}</span>
+                      </div>
+                      <!-- 소분류 칩 태그 -->
+                      <div class="flex flex-wrap gap-1.5">
+                        <button
+                          v-for="(subItem, sIdx) in group.items"
+                          :key="sIdx"
+                          type="button"
+                          @click.stop="handleSubCategoryClick(subItem, activeMegaCat)"
+                          class="px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-orange-500 hover:text-white text-gray-700 font-medium text-xs border border-gray-200 hover:border-orange-500 transition shadow-xs hover:shadow-md active:scale-95 cursor-pointer touch-manipulation whitespace-nowrap"
+                        >
+                          {{ subItem }}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- 카테고리 미선택 기본 상태 -->
+                <div v-else class="h-full flex items-center justify-center text-gray-400 text-sm">
+                  <div class="text-center space-y-2">
+                    <i class="fas fa-hand-pointer text-3xl text-orange-200"></i>
+                    <p>좌측 카테고리를 선택하세요</p>
+                  </div>
+                </div>
+              </div>
+
             </div>
           </div>
         </transition>
@@ -1038,175 +1085,266 @@ const categories = [
   {
     id: 'fashion',
     name: '패션의류/이너웨어',
+    emoji: '👗',
     keyword: '여성의류',
     icon: 'fas fa-tshirt',
     groups: [
       {
         title: '여성의류',
-        items: ['원피스', '블라우스/셔츠', '티셔츠', '니트/가디건', '슬랙스/바지', '스커트', '자켓/코트']
+        items: ['원피스', '블라우스/셔츠', '티셔츠', '니트/가디건', '슬랙스/바지', '스커트', '자켓/코트', '트레이닝/홈웨어']
       },
       {
         title: '남성의류',
-        items: ['티셔츠', '셔츠', '슬랙스/청바지', '자켓/아우터', '맨투맨/후드']
+        items: ['티셔츠', '셔츠', '슬랙스/청바지', '자켓/아우터', '맨투맨/후드', '정장/세트']
       },
       {
-        title: '이너웨어',
-        items: ['잠옷/홈웨어', '속옷', '양말/스타킹']
+        title: '이너웨어/잠옷',
+        items: ['잠옷/홈웨어', '여성속옷/브라', '남성속옷', '양말/스타킹']
       }
     ]
   },
   {
     id: 'shoes_acc',
     name: '신발/가방/패션잡화',
+    emoji: '👠',
     keyword: '패션잡화 가방',
     icon: 'fas fa-shopping-bag',
     groups: [
       {
         title: '여성슈즈',
-        items: ['슬리퍼', '단화/플랫', '펌프스', '스니커즈/운동화', '샌들', '부츠']
+        items: ['슬리퍼', '단화/플랫', '펌프스/힐', '스니커즈/운동화', '샌들', '부츠/앵클부츠']
       },
       {
         title: '가방',
-        items: ['토트백', '숄더백', '크로스백', '백팩', '캔버스백', '지갑/파우치']
+        items: ['토트백', '숄더백', '크로스백', '백팩', '캔버스백', '지갑/파우치', '에코백']
       },
       {
         title: '패션잡화',
-        items: ['모자', '벨트', '선글라스', '스카프/머플러', '헤어악세사리', '주얼리/귀걸이']
+        items: ['모자/버킷햇', '벨트', '선글라스', '스카프/머플러', '헤어악세사리', '주얼리/귀걸이', '시계']
       }
     ]
   },
   {
     id: 'living',
     name: '생활/주방용품',
+    emoji: '🏠',
     keyword: '생활용품',
     icon: 'fas fa-utensils',
     groups: [
       {
         title: '주방용품',
-        items: ['텀블러/물병', '식기/접시', '조리도구', '수납/정리', '밀폐용기', '컵/머그']
+        items: ['텀블러/물병', '식기/접시', '조리도구', '밀폐용기', '컵/머그', '도마/칼', '냄비/팬']
       },
       {
         title: '욕실/청소',
-        items: ['욕실용품', '청소도구', '타월', '수납걸이']
+        items: ['욕실용품', '청소도구', '타월/수건', '수납걸이', '세탁용품']
       },
       {
         title: '생활잡화',
-        items: ['우산/양산', '실내화', '방향제', '보관함']
+        items: ['우산/양산', '실내화', '방향제', '보관함/수납', '행거/옷걸이']
       }
     ]
   },
   {
     id: 'interior',
     name: '홈인테리어/문구',
+    emoji: '🛋️',
     keyword: '인테리어 문구',
     icon: 'fas fa-couch',
     groups: [
       {
         title: '홈데코',
-        items: ['조명/무드등', '벽시계', '화병/오브제', '패브릭/쿠션', '디퓨저']
+        items: ['조명/무드등', '벽시계', '화병/오브제', '패브릭/쿠션', '디퓨저/방향', '캔들', '액자']
       },
       {
         title: '문구/오피스',
-        items: ['다이어리/노트', '필기구', '데스크정리', '스티커/포장용품']
+        items: ['다이어리/노트', '필기구', '데스크정리', '스티커', '포장용품', '파일/바인더']
       }
     ]
   },
   {
     id: 'digital',
     name: '디지털/가전/차량',
+    emoji: '📱',
     keyword: '디지털 가전',
     icon: 'fas fa-mobile-alt',
     groups: [
       {
         title: '디지털/음향',
-        items: ['블루투스 이어폰', '핸드폰 케이스', '거치대/충전기', '소형가전']
+        items: ['블루투스 이어폰', '핸드폰 케이스', '충전기/케이블', '보조배터리', '스마트워치 스트랩', '소형가전']
       },
       {
         title: '차량용품',
-        items: ['차량용 거치대', '차량 방향제', '수납포켓', '세차용품']
+        items: ['차량용 거치대', '차량 방향제', '수납포켓', '세차용품', '블랙박스 액세서리']
       }
     ]
   },
   {
     id: 'camping',
     name: '스포츠/레저/캠핑',
+    emoji: '⛺',
     keyword: '캠핑 레저',
     icon: 'fas fa-campground',
     groups: [
       {
         title: '캠핑용품',
-        items: ['캠핑의자', '캠핑테이블', '조명/랜턴', '캠핑매트', '캠핑식기']
+        items: ['캠핑의자', '캠핑테이블', '조명/랜턴', '캠핑매트', '텐트/타프', '캠핑식기']
       },
       {
         title: '운동/피트니스',
-        items: ['헬스/요가용품', '운동기구', '골프용품', '자전거용품']
+        items: ['헬스/요가용품', '운동기구', '골프용품', '자전거용품', '수영용품']
       }
     ]
   },
   {
-    id: 'pet_baby',
-    name: '펫/유아용품',
-    keyword: '뷰티 반려동물',
+    id: 'pet',
+    name: '펫(반려동물) 용품',
+    emoji: '🐶',
+    keyword: '반려동물 강아지',
     icon: 'fas fa-paw',
     groups: [
       {
-        title: '반려동물',
-        items: ['강아지옷', '반려동물 방석', '식기/급수기', '반려동물 장난감', '리드줄/하네스']
+        title: '반려동물 의류/악세서리',
+        items: ['강아지옷', '고양이 옷', '리드줄/하네스', '넥카라', '강아지 신발']
       },
       {
-        title: '유아용품',
-        items: ['유아의류', '유아장난감', '유아식기', '안전용품']
+        title: '반려동물 용품',
+        items: ['반려동물 방석', '식기/급수기', '반려동물 장난감', '켄넬/이동장', '목욕/그루밍']
+      }
+    ]
+  },
+  {
+    id: 'baby',
+    name: '유아동/완구/취미',
+    emoji: '👶',
+    keyword: '유아 완구',
+    icon: 'fas fa-baby',
+    groups: [
+      {
+        title: '유아동용품',
+        items: ['유아의류', '유아식기', '안전용품', '욕조/목욕용품', '이유식용품']
+      },
+      {
+        title: '완구/취미',
+        items: ['유아장난감', '블록/레고형', 'RC/드론', '퍼즐', '피규어/수집품']
+      }
+    ]
+  },
+  {
+    id: 'beauty',
+    name: '뷰티/미용/화장품',
+    emoji: '💄',
+    keyword: '뷰티 화장품',
+    icon: 'fas fa-spa',
+    groups: [
+      {
+        title: '스킨케어/메이크업',
+        items: ['스킨/로션', '마스크팩', '선크림', '립스틱', 'BB/CC크림', '아이섀도우']
+      },
+      {
+        title: '미용/뷰티기기',
+        items: ['고데기/헤어드라이어', '미용 롤러', '네일용품', '뷰러/브러쉬', '족욕기']
+      }
+    ]
+  },
+  {
+    id: 'tools',
+    name: '공구/산업/포장재',
+    emoji: '🔧',
+    keyword: '공구 포장재',
+    icon: 'fas fa-tools',
+    groups: [
+      {
+        title: '공구/DIY',
+        items: ['드릴/전동공구', '수공구', 'DIY부자재', '측정공구', '사다리/작업대']
+      },
+      {
+        title: '포장/물류용품',
+        items: ['박스/종이봉투', '포장테이프', '뽁뽁이/완충재', '라벨/스티커', '폴리백']
       }
     ]
   }
 ]
 
+// 퀵 카테고리 탭 (상단 빠른 바로가기)
+const quickTabs = [
+  { id: 'best', emoji: '🔥', label: '실시간 베스트', keyword: '베스트 인기상품' },
+  { id: 'fashion', emoji: '👗', label: '패션의류', keyword: '여성의류' },
+  { id: 'shoes_acc', emoji: '👠', label: '신발/잡화', keyword: '패션잡화 가방' },
+  { id: 'living', emoji: '🏠', label: '생활주방', keyword: '생활용품' },
+  { id: 'interior', emoji: '🛋️', label: '홈인테리어', keyword: '인테리어 문구' },
+  { id: 'digital', emoji: '📱', label: '디지털/가전', keyword: '디지털 가전' },
+  { id: 'camping', emoji: '⛺', label: '스포츠/레저', keyword: '캠핑 레저' },
+  { id: 'pet', emoji: '🐶', label: '펫/유아', keyword: '반려동물 강아지' },
+  { id: 'beauty', emoji: '💄', label: '뷰티', keyword: '뷰티 화장품' }
+]
+
+// ── 메가메뉴 상태 ─────────────────────────────────────────
 const selectedCategoryId = ref('fashion')
-const hoveredCategory = ref(null)
+const isMegaMenuOpen = ref(false)
+const activeMegaCat = ref(categories[0]) // 기본값: 패션의류
 const categoryNavRef = ref(null)
+let megaMenuTimer = null
+
+// 레거시 호환 (기존 코드에서 참조하는 변수)
+const hoveredCategory = ref(null)
 let categoryHoverTimer = null
 
-const handleCategoryHover = (cat) => {
-  // 터치 스크린 기기에서는 mouseenter 이벤트 무시하여 터치 고정 상태 유지
+const toggleMegaMenu = () => {
+  isMegaMenuOpen.value = !isMegaMenuOpen.value
+  if (isMegaMenuOpen.value && !activeMegaCat.value) {
+    activeMegaCat.value = categories[0]
+  }
+}
+
+const openMegaMenuOnHover = () => {
+  // PC 마우스 호버 시에만 자동 열기 (터치 디바이스 제외)
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: hover)').matches) {
+    if (megaMenuTimer) clearTimeout(megaMenuTimer)
+    isMegaMenuOpen.value = true
+    if (!activeMegaCat.value) activeMegaCat.value = categories[0]
+  }
+}
+
+const clearMegaMenuTimer = () => {
+  if (megaMenuTimer) clearTimeout(megaMenuTimer)
+}
+
+const handleMegaMenuLeave = () => {
+  // 터치 디바이스에서는 mouseleave 무시
   if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
     return
   }
-  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
-  hoveredCategory.value = cat
-}
-
-const clearHoverTimer = () => {
-  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
-}
-
-const handleCategoryLeave = () => {
-  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
-    return
-  }
-  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
-  categoryHoverTimer = setTimeout(() => {
-    hoveredCategory.value = null
+  if (megaMenuTimer) clearTimeout(megaMenuTimer)
+  megaMenuTimer = setTimeout(() => {
+    isMegaMenuOpen.value = false
   }, 250)
 }
 
-const handleCategoryClick = (cat) => {
-  if (cat.groups && cat.groups.length > 0) {
-    if (hoveredCategory.value?.id === cat.id) {
-      // 이미 열려있는 탭을 다시 누르면 닫힘
-      hoveredCategory.value = null
-    } else {
-      // 다른 대분류 탭을 누르면 소분류 메뉴가 열리고 손가락을 떼도 열린 채로 고정 (Lock)
-      if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
-      hoveredCategory.value = cat
-    }
-  } else {
-    // 소분류 그룹이 없는 단일 카테고리는 즉시 검색 실행
-    selectCategory(cat)
+const handleMegaCatHover = (cat) => {
+  // 터치 디바이스에서는 mouseenter 무시
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+    return
   }
+  if (megaMenuTimer) clearTimeout(megaMenuTimer)
+  activeMegaCat.value = cat
+}
+
+const handleMegaCatClick = (cat) => {
+  activeMegaCat.value = cat
+}
+
+const selectQuickTab = (qt) => {
+  isMegaMenuOpen.value = false
+  selectedCategoryId.value = qt.id
+  queryInput.value = qt.keyword
+  executeSearch(1)
 }
 
 const selectCategory = (cat) => {
+  if (megaMenuTimer) clearTimeout(megaMenuTimer)
   if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+  isMegaMenuOpen.value = false
   hoveredCategory.value = null
   selectedCategoryId.value = cat.id
   queryInput.value = cat.keyword || cat.name
@@ -1214,7 +1352,9 @@ const selectCategory = (cat) => {
 }
 
 const handleSubCategoryClick = (subKeyword, parentCat) => {
+  if (megaMenuTimer) clearTimeout(megaMenuTimer)
   if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+  isMegaMenuOpen.value = false
   hoveredCategory.value = null
   selectedCategoryId.value = parentCat.id
   queryInput.value = subKeyword
@@ -1223,7 +1363,28 @@ const handleSubCategoryClick = (subKeyword, parentCat) => {
 
 const handleClickOutside = (e) => {
   if (categoryNavRef.value && !categoryNavRef.value.contains(e.target)) {
+    isMegaMenuOpen.value = false
     hoveredCategory.value = null
+  }
+}
+
+// 레거시 함수 (기존 코드 호환)
+const handleCategoryHover = (cat) => {
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) return
+  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+  hoveredCategory.value = cat
+}
+const clearHoverTimer = () => { if (categoryHoverTimer) clearTimeout(categoryHoverTimer) }
+const handleCategoryLeave = () => {
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) return
+  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+  categoryHoverTimer = setTimeout(() => { hoveredCategory.value = null }, 250)
+}
+const handleCategoryClick = (cat) => {
+  if (cat.groups && cat.groups.length > 0) {
+    hoveredCategory.value = hoveredCategory.value?.id === cat.id ? null : cat
+  } else {
+    selectCategory(cat)
   }
 }
 
