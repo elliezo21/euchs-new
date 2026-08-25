@@ -24,7 +24,6 @@ import WarehouseView from '../views/dashboard/WarehouseView.vue'
 import CustomsLogisticsView from '../views/dashboard/CustomsLogisticsView.vue'
 import AccountSettingsView from '../views/dashboard/AccountSettingsView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
-import MyPageView from '../views/MyPageView.vue'
 import { currentUser, checkUserRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
@@ -95,12 +94,11 @@ const routes = [
   },
   {
     path: '/mypage',
-    name: 'mypage',
-    component: Lab1688View,
+    redirect: '/dashboard/orders'
   },
   {
     path: '/my-page',
-    redirect: '/dashboard'
+    redirect: '/dashboard/orders'
   },
   {
     path: '/auth/callback/naver',
@@ -178,21 +176,56 @@ const routes = [
   },
   {
     path: '/admin',
-    name: 'admin',
-    component: AdminView,
-    meta: { requiresAdmin: true }
-  },
-  {
-    path: '/admin/warehouse',
-    name: 'admin-warehouse',
-    component: AdminWarehouseView,
-    meta: { requiresAdmin: true }
-  },
-  {
-    path: '/admin/:pathMatch(.*)*',
-    name: 'admin-all',
-    component: AdminView,
-    meta: { requiresAdmin: true }
+    component: () => import('../layouts/AdminLayout.vue'),
+    meta: { requiresAdmin: true, isAdmin: true },
+    children: [
+      {
+        path: '',
+        name: 'admin-dashboard',
+        component: () => import('../views/admin/AdminDashboardView.vue'),
+        meta: { requiresAdmin: true, title: '스마트 종합 대시보드 | EUCHS Admin', isAdmin: true }
+      },
+      {
+        path: 'orders',
+        name: 'admin-orders',
+        component: () => import('../views/admin/AdminOrderManageView.vue'),
+        meta: { requiresAdmin: true, title: '주문·발주 관리 | EUCHS Admin', isAdmin: true }
+      },
+      {
+        path: 'warehouse',
+        name: 'admin-warehouse',
+        component: () => import('../views/admin/AdminWarehouseView.vue'),
+        meta: { requiresAdmin: true, title: '이우 창고 & 검수 WMS | EUCHS Admin', isAdmin: true }
+      },
+      {
+        path: 'settlement',
+        name: 'admin-settlement',
+        component: () => import('../views/admin/AdminSettlementView.vue'),
+        meta: { requiresAdmin: true, title: '예치금 & 정산 관리 | EUCHS Admin', isAdmin: true }
+      },
+      {
+        path: 'members',
+        name: 'admin-members',
+        component: () => import('../views/admin/AdminMembersView.vue'),
+        meta: { requiresAdmin: true, title: '회원 / 바이어 관리 | EUCHS Admin', isAdmin: true }
+      },
+      {
+        path: 'settings',
+        name: 'admin-settings',
+        component: () => import('../views/admin/AdminSettingsView.vue'),
+        meta: { requiresAdmin: true, title: '시스템 환경 설정 | EUCHS Admin', isAdmin: true }
+      },
+      {
+        path: 'notices',
+        name: 'admin-notices',
+        component: () => import('../views/admin/AdminNoticesView.vue'),
+        meta: { requiresAdmin: true, title: '공지사항 & 일정 관리 | EUCHS Admin', isAdmin: true }
+      },
+      {
+        path: ':pathMatch(.*)*',
+        redirect: '/admin'
+      }
+    ]
   },
   {
     path: '/:pathMatch(.*)*',
@@ -221,7 +254,7 @@ router.beforeEach(async (to, from, next) => {
                        to.path.startsWith('/admin/')
   const isLoginPage = to.path === '/login' || to.path === '/admin/login'
 
-  // 1. 로그인 페이지 접속 시: 이미 관리자로 로그인되어 있으면 /admin으로 이동
+  // 1. 로그인 페이지 접속 시: 이미 관리자로 로그인되어 있으면 /admin 메인 대시보드로 이동
   if (isLoginPage) {
     let user = currentUser.value
     if (!user && isSupabaseConfigured()) {
@@ -291,6 +324,30 @@ router.beforeEach(async (to, from, next) => {
 
   // 일반 공개 라우트 통과
   next()
+})
+
+// 타이틀 & 파비콘 동적 분기 (관리자 vs 사용자)
+const USER_FAVICON = 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/web/upload/favicon-9b27655ca4c28b6f3b75803b9cb7d64a.ico'
+const ADMIN_FAVICON = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23374151'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='central' text-anchor='middle' font-family='monospace' font-weight='bold' font-size='13' fill='%23fff'%3EAD%3C/text%3E%3C/svg%3E"
+
+router.afterEach((to) => {
+  const isAdminLogin = to.path === '/admin/login' || 
+    (to.path === '/login' && typeof to.query?.redirect === 'string' && to.query.redirect.startsWith('/admin'))
+  const isAdminPath = to.path === '/admin' || to.path.startsWith('/admin/') || isAdminLogin
+
+  if (isAdminPath) {
+    if (isAdminLogin) {
+      document.title = 'EUC 관리자 로그인 | EUCHS Admin'
+    } else {
+      document.title = to.meta?.title || 'EUC 관리자 솔루션 | EUCHS Admin Console'
+    }
+    const favicon = document.querySelector("link[rel='icon']")
+    if (favicon) favicon.href = ADMIN_FAVICON
+  } else {
+    document.title = '이유씨컴퍼니 (EUCHS) - 중국 무역 & 수입대행'
+    const favicon = document.querySelector("link[rel='icon']")
+    if (favicon) favicon.href = USER_FAVICON
+  }
 })
 
 export default router

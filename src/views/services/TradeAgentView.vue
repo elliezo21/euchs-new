@@ -363,11 +363,11 @@
         </div>
         <div class="flex flex-col gap-2 pt-2">
           <router-link 
-            to="/mypage" 
+            to="/dashboard/orders" 
             class="w-full py-3 bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold text-xs sm:text-sm rounded-xl shadow-md shadow-blue-500/20 transition flex items-center justify-center gap-2"
           >
             <i class="fas fa-receipt"></i>
-            <span>마이페이지 주문내역 확인</span>
+            <span>대시보드 주문/신청내역 확인</span>
           </router-link>
           <button @click="showModal = false" class="w-full py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs rounded-xl transition">
             닫기

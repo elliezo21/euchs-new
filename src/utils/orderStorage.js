@@ -3,6 +3,8 @@
  * 대시보드, 발주관리, 이우 물류센터, 통관/배송 전 뷰에서 동일한 데이터를 공유하고 실시간 동기화합니다.
  */
 import { normalizeOrderStatus } from '../lib/orderPipeline';
+import { supabase, isSupabaseConfigured } from '../lib/supabase';
+import { currentUser } from '../lib/auth';
 
 export const STORAGE_KEY_ORDERS = 'orders';
 export const STORAGE_KEY_LEGACY_ORDERS = 'euchs_erp_submitted_orders';
@@ -109,6 +111,30 @@ export const INITIAL_GLOBAL_ORDERS = [
     ]
   },
   {
+    id: 'ord-102b',
+    orderNumber: 'EUC-20260823-021',
+    inboundNo: 'INB-YW-260823-07',
+    createdAt: '2026-08-23 17:20',
+    status: 'payment_verified', // 3. 결제확인
+    buyerInfo: { ...DEFAULT_BUYER_INFO },
+    paymentInfo: {
+      paidAt: '2026-08-23 17:45',
+      payerName: '김이유',
+      method: '예치금 즉시 차감',
+    },
+    items: [
+      {
+        productName: '접이식 경량 트레킹 스틱 (폴딩 등산 스틱) 2개 세트',
+        productUrl: 'https://detail.1688.com/offer/7389012345.html',
+        imageUrl: 'https://images.unsplash.com/photo-1551632811-561732d1e306?w=160&auto=format&fit=crop&q=80',
+        sku: '알루미늄 실버 / 110~135cm 조절',
+        quantity: 200,
+        priceCny: 22.5,
+        cbm: 0.48,
+      }
+    ]
+  },
+  {
     id: 'ord-103',
     orderNumber: 'EUC-20260822-008',
     inboundNo: 'INB-YW-260822-03',
@@ -183,6 +209,7 @@ export const INITIAL_GLOBAL_ORDERS = [
     createdAt: '2026-08-17 10:45',
     status: 'customs_clearance', // 7. 세관통관
     buyerInfo: { ...DEFAULT_BUYER_INFO },
+    measuredData: { weightKg: 105.0, cbm: 0.72, cartons: 15, totalPcs: 150, defectCount: 0, inspectionDate: '2026-08-15 14:00' },
     items: [
       {
         productName: '대용량 멀티 포켓 방수 백팩 30L',
@@ -200,8 +227,9 @@ export const INITIAL_GLOBAL_ORDERS = [
     orderNumber: 'EUC-20260815-002',
     inboundNo: 'INB-YW-260815-01',
     createdAt: '2026-08-15 09:15',
-    status: 'delivered', // 8. 배송완료
+    status: 'domestic_shipping', // 8. 국내배송중
     buyerInfo: { ...DEFAULT_BUYER_INFO },
+    measuredData: { weightKg: 87.5, cbm: 0.35, cartons: 25, totalPcs: 250, defectCount: 0, inspectionDate: '2026-08-14 11:00' },
     items: [
       {
         productName: '알루미늄 3단 접이식 노트북 거치대 스탠드',
@@ -211,6 +239,26 @@ export const INITIAL_GLOBAL_ORDERS = [
         quantity: 250,
         priceCny: 15.0,
         cbm: 0.35,
+      }
+    ]
+  },
+  {
+    id: 'ord-108',
+    orderNumber: 'EUC-20260810-009',
+    inboundNo: 'INB-YW-260810-06',
+    createdAt: '2026-08-10 13:00',
+    status: 'delivered', // 8. 배송완료
+    buyerInfo: { ...DEFAULT_BUYER_INFO },
+    measuredData: { weightKg: 72.0, cbm: 0.28, cartons: 10, totalPcs: 300, defectCount: 0, inspectionDate: '2026-08-09 10:30' },
+    items: [
+      {
+        productName: '무선 LED 센서 바 감성 무드등 자석 부착형',
+        productUrl: 'https://detail.1688.com/offer/7234567891.html',
+        imageUrl: 'https://images.unsplash.com/photo-1513506003901-1e6a229e2d15?w=160&auto=format&fit=crop&q=80',
+        sku: '웜 화이트 40cm',
+        quantity: 300,
+        priceCny: 8.5,
+        cbm: 0.28,
       }
     ]
   }
@@ -234,13 +282,39 @@ export function getStoredOrders() {
 
     // 항상 EUC-20260824-V01이 누락되지 않도록 병합 보장
     const hasV01 = parsed.some(o => o.orderNumber === 'EUC-20260824-V01' || o.id === 'ord-v01');
-    if (!hasV01) {
-      const merged = [INITIAL_GLOBAL_ORDERS[0], ...parsed];
-      saveStoredOrders(merged);
-      return merged;
+    // 3단계 결제확인 샘플 병합 보장
+    const hasPaymentVerified = parsed.some(o => o.id === 'ord-102b' || o.orderNumber === 'EUC-20260823-021');
+    // 7단계 통관 샘플 병합 보장
+    const hasCustoms = parsed.some(o => o.id === 'ord-106' || o.orderNumber === 'EUC-20260817-005');
+    // 8단계 국내배송 샘플 병합 보장
+    const hasDomestic = parsed.some(o => o.id === 'ord-107' || o.orderNumber === 'EUC-20260815-002');
+    // 8단계 배송완료 샘플 병합 보장
+    const hasDelivered = parsed.some(o => o.id === 'ord-108' || o.orderNumber === 'EUC-20260810-009');
+
+    let merged = [...parsed];
+    if (!hasV01) merged = [INITIAL_GLOBAL_ORDERS[0], ...merged];
+    if (!hasPaymentVerified) {
+      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-102b');
+      if (s) merged.splice(2, 0, s); // quote_confirmed 다음 위치에 삽입
+    }
+    if (!hasCustoms) {
+      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-106');
+      if (s) merged.push(s);
+    }
+    if (!hasDomestic) {
+      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-107');
+      if (s) merged.push(s);
+    }
+    if (!hasDelivered) {
+      const s = INITIAL_GLOBAL_ORDERS.find(o => o.id === 'ord-108');
+      if (s) merged.push(s);
     }
 
-    return parsed;
+    if (!hasV01 || !hasPaymentVerified || !hasCustoms || !hasDomestic || !hasDelivered) {
+      saveStoredOrders(merged);
+    }
+
+    return merged;
   } catch (e) {
     console.error('getStoredOrders error:', e);
     return [...INITIAL_GLOBAL_ORDERS];
@@ -248,7 +322,7 @@ export function getStoredOrders() {
 }
 
 /**
- * 전역 주문 목록 저장 및 전역 이벤트 디스패치
+ * 전역 주문 목록 저장 및 Supabase DB / 전역 이벤트 디스패치
  */
 export function saveStoredOrders(orders) {
   try {
@@ -260,13 +334,176 @@ export function saveStoredOrders(orders) {
     window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: data } }));
     window.dispatchEvent(new CustomEvent('euchs-warehouse-update', { detail: { inbounds: data } }));
     window.dispatchEvent(new Event('storage'));
+
+    // Supabase DB 비동기 백그라운드 동기화 (오류 발생 시에도 UI 블로킹 방지)
+    if (isSupabaseConfigured() && data.length > 0) {
+      _syncOrdersToSupabase(data);
+    }
   } catch (e) {
     console.error('saveStoredOrders error:', e);
   }
 }
 
 /**
- * 주문 상태 업데이트 단일 함수
+ * Supabase DB orders 테이블에 주문 목록 upsert 동기화
+ */
+async function _syncOrdersToSupabase(ordersList) {
+  try {
+    const rows = ordersList.map(o => ({
+      id: String(o.id || o.orderNumber),
+      order_number: o.orderNumber || o.id,
+      inbound_no: o.inboundNo || null,
+      user_id: currentUser.value?.id || null,
+      buyer_email: o.buyerInfo?.email || o.email || currentUser.value?.email || 'buyer@euchs.com',
+      customer_name: o.buyerInfo?.companyName || o.buyerInfo?.buyerName || o.customer_name || '이유씨 바이어',
+      phone: o.buyerInfo?.phone || o.phone || '',
+      status: o.status || 'quote_pending',
+      buyer_info: o.buyerInfo || {},
+      items: o.items || [],
+      total_price_krw: o.totalPriceKrw || o.totalAmountKrw || 0,
+      total_price_rmb: o.totalPriceRmb || o.totalAmountRmb || 0,
+      first_payment: o.firstPayment || {},
+      second_payment: o.secondPayment || {},
+      measured_data: o.measuredData || {},
+      inspection_photos: o.inspectionPhotos || [],
+      vas_applied: o.vasApplied || [],
+      payment_info: o.paymentInfo || {},
+      memo: o.memo || '',
+      updated_at: new Date().toISOString()
+    }));
+
+    await supabase.from('orders').upsert(rows, { onConflict: 'id' });
+  } catch (err) {
+    console.warn('[_syncOrdersToSupabase] notice:', err);
+  }
+}
+
+/**
+ * Supabase DB orders 테이블에서 최신 주문 목록 Fetch 및 로컬 캐시 병합
+ */
+export async function fetchOrdersFromSupabase() {
+  if (!isSupabaseConfigured()) {
+    return getStoredOrders();
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('orders')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const dbOrders = data.map(row => ({
+        id: row.id,
+        orderNumber: row.order_number || row.id,
+        inboundNo: row.inbound_no || null,
+        createdAt: row.created_at || '2026-08-24 10:00',
+        status: row.status || 'quote_pending',
+        buyerInfo: row.buyer_info || {
+          companyName: row.customer_name,
+          buyerName: row.customer_name,
+          phone: row.phone,
+          email: row.buyer_email
+        },
+        items: Array.isArray(row.items) ? row.items : [],
+        totalPriceKrw: Number(row.total_price_krw) || 0,
+        totalPriceRmb: Number(row.total_price_rmb) || 0,
+        firstPayment: row.first_payment || {},
+        secondPayment: row.second_payment || {},
+        measuredData: row.measured_data || {},
+        inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
+        vasApplied: Array.isArray(row.vas_applied) ? row.vas_applied : [],
+        paymentInfo: row.payment_info || {},
+        memo: row.memo || ''
+      }));
+
+      // 로컬 스토리지에 병합 및 저장
+      const localList = getStoredOrders();
+      const mergedMap = new Map();
+      // 1) 기본 데모 데이터 등록
+      INITIAL_GLOBAL_ORDERS.forEach(o => mergedMap.set(o.id, o));
+      // 2) 로컬 데이터 덮어쓰기
+      localList.forEach(o => mergedMap.set(o.id, o));
+      // 3) Supabase DB 최신 데이터 덮어쓰기 (최우선)
+      dbOrders.forEach(o => mergedMap.set(o.id, o));
+
+      const merged = Array.from(mergedMap.values()).sort((a, b) => {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      });
+
+      localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(merged));
+      localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(merged));
+      window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: merged } }));
+      return merged;
+    }
+  } catch (err) {
+    console.warn('[fetchOrdersFromSupabase] fallback to local:', err);
+  }
+
+  return getStoredOrders();
+}
+
+/**
+ * 신규 발주 주문 저장 (로컬 + Supabase DB)
+ */
+export async function saveNewOrder(order) {
+  const list = getStoredOrders();
+  const newOrderObj = {
+    id: order.id || `ord-${Date.now()}`,
+    orderNumber: order.orderNumber || `EUC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`,
+    inboundNo: order.inboundNo || `INB-YW-${Date.now().toString().slice(-6)}`,
+    createdAt: order.createdAt || new Date().toISOString(),
+    status: order.status || 'quote_pending',
+    buyerInfo: order.buyerInfo || { ...DEFAULT_BUYER_INFO },
+    items: order.items || [],
+    totalPriceKrw: order.totalPriceKrw || 0,
+    totalPriceRmb: order.totalPriceRmb || 0,
+    firstPayment: order.firstPayment || {},
+    secondPayment: order.secondPayment || {},
+    measuredData: order.measuredData || {},
+    inspectionPhotos: order.inspectionPhotos || [],
+    vasApplied: order.vasApplied || [],
+    memo: order.memo || ''
+  };
+
+  list.unshift(newOrderObj);
+  saveStoredOrders(list);
+
+  // Supabase DB에 단건 비동기 upsert
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.from('orders').upsert({
+        id: newOrderObj.id,
+        order_number: newOrderObj.orderNumber,
+        inbound_no: newOrderObj.inboundNo,
+        user_id: currentUser.value?.id || null,
+        buyer_email: newOrderObj.buyerInfo?.email || currentUser.value?.email || 'buyer@euchs.com',
+        customer_name: newOrderObj.buyerInfo?.companyName || newOrderObj.buyerInfo?.buyerName || '이유씨 바이어',
+        phone: newOrderObj.buyerInfo?.phone || '',
+        status: newOrderObj.status,
+        buyer_info: newOrderObj.buyerInfo,
+        items: newOrderObj.items,
+        total_price_krw: newOrderObj.totalPriceKrw,
+        total_price_rmb: newOrderObj.totalPriceRmb,
+        first_payment: newOrderObj.firstPayment,
+        second_payment: newOrderObj.secondPayment,
+        measured_data: newOrderObj.measuredData,
+        inspection_photos: newOrderObj.inspectionPhotos,
+        vas_applied: newOrderObj.vasApplied,
+        memo: newOrderObj.memo,
+        created_at: newOrderObj.createdAt,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    } catch (e) {
+      console.warn('saveNewOrder Supabase DB notice:', e);
+    }
+  }
+
+  return newOrderObj;
+}
+
+/**
+ * 주문 상태 업데이트 단일 함수 (로컬 + Supabase DB)
  */
 export function updateOrderStatus(orderId, nextStatus, extraData = {}) {
   const list = getStoredOrders();
@@ -275,6 +512,27 @@ export function updateOrderStatus(orderId, nextStatus, extraData = {}) {
     target.status = nextStatus;
     Object.assign(target, extraData);
     saveStoredOrders(list);
+
+    // Supabase DB update 비동기 전송
+    if (isSupabaseConfigured()) {
+      const payload = {
+        status: nextStatus,
+        updated_at: new Date().toISOString()
+      };
+      if (extraData.measuredData) payload.measured_data = extraData.measuredData;
+      if (extraData.inspectionPhotos) payload.inspection_photos = extraData.inspectionPhotos;
+      if (extraData.secondPayment) payload.second_payment = extraData.secondPayment;
+      if (extraData.firstPayment) payload.first_payment = extraData.firstPayment;
+      if (extraData.paymentInfo) payload.payment_info = extraData.paymentInfo;
+
+      supabase
+        .from('orders')
+        .update(payload)
+        .or(`id.eq.${orderId},order_number.eq.${orderId}`)
+        .then(() => {})
+        .catch(err => console.warn('updateOrderStatus Supabase update notice:', err));
+    }
+
     return target;
   }
   return null;

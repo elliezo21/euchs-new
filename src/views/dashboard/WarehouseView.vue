@@ -117,16 +117,16 @@
     <!-- ======================================================== -->
     <div class="hidden md:block bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs divide-y divide-gray-100">
-          <thead class="bg-slate-50 text-gray-600 font-semibold uppercase tracking-wider">
+        <table class="w-full text-left text-xs divide-y divide-slate-200">
+          <thead class="bg-slate-100 text-slate-900 font-bold border-b border-slate-200">
             <tr>
-              <th class="py-3.5 px-4">입고번호 / 일시</th>
-              <th class="py-3.5 px-4">주문번호 / 거점</th>
-              <th class="py-3.5 px-4">입고 상품 및 옵션</th>
-              <th class="py-3.5 px-4 text-center">실측 계근 (중량 / CBM)</th>
-              <th class="py-3.5 px-4 text-center">검수 상태 & 실사</th>
-              <th class="py-3.5 px-4 text-center">신청된 부가작업(VAS)</th>
-              <th class="py-3.5 px-4 text-center">부가작업 신청</th>
+              <th class="py-3.5 px-4 font-bold text-slate-900">입고번호 / 일시</th>
+              <th class="py-3.5 px-4 font-bold text-slate-900">주문번호 / 거점</th>
+              <th class="py-3.5 px-4 font-bold text-slate-900">입고 상품 및 옵션</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">실측 계근 (중량 / CBM)</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">검수 상태 & 실사</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">신청된 부가작업(VAS)</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">부가작업 신청</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 bg-white">
@@ -810,17 +810,48 @@
               </table>
             </div>
 
+            <!-- 잔액 부족 경고 배너 -->
+            <div
+              v-if="showInsufficientWarning"
+              class="p-3.5 bg-rose-50 border border-rose-300 rounded-xl flex items-start gap-2.5 animate-pulse"
+            >
+              <span class="text-rose-600 text-base shrink-0 mt-0.5">⚠️</span>
+              <div class="space-y-1">
+                <div class="font-bold text-rose-800 text-xs">예치금 잔액이 부족합니다</div>
+                <p class="text-[11px] text-rose-700 leading-relaxed">
+                  현재 보유 예치금 <b>{{ formatBalance(userBalance) }}</b>으로는 결제가 불가합니다.<br>
+                  마이페이지 &gt; 예치금 관리에서 충전 후 다시 시도해 주세요.
+                </p>
+              </div>
+            </div>
+
             <!-- 보유 예치금 결제 안내 -->
             <div class="p-3.5 bg-slate-900 text-white rounded-xl flex items-center justify-between gap-3">
               <div class="flex items-center gap-2.5">
                 <CreditCard class="w-5 h-5 text-amber-400 shrink-0" />
                 <div>
-                  <span class="text-[11px] text-slate-400">보유 예치금 잔액: <b>₩15,420,000</b></span>
-                  <div class="text-xs font-bold text-white">결제 후 잔액: ₩15,287,000 (예치금 충분)</div>
+                  <span class="text-[11px] text-slate-400">보유 예치금 잔액: <b>{{ formatBalance(userBalance) }}</b></span>
+                  <div class="text-xs font-bold"
+                    :class="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)
+                      ? 'text-rose-400'
+                      : 'text-white'"
+                  >
+                    <template v-if="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)">
+                      ⚠️ 잔액 부족 — 예치금을 충전해 주세요
+                    </template>
+                    <template v-else>
+                      결제 후 잔액: {{ formatBalance(userBalance - (selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)) }} (예치금 충분)
+                    </template>
+                  </div>
                 </div>
               </div>
-              <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 text-[11px] font-bold border border-emerald-500/30">
-                즉시 차감 결제 가능
+              <span
+                class="px-2.5 py-1 rounded text-[11px] font-bold border"
+                :class="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)
+                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                  : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'"
+              >
+                {{ isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000) ? '잔액 부족' : '즉시 차감 결제 가능' }}
               </span>
             </div>
           </div>
@@ -839,16 +870,53 @@
           <button
             type="button"
             @click="handleConfirmSecondPayment"
-            :disabled="isProcessingPayment"
-            class="px-6 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-extrabold text-xs shadow-md transition active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            :disabled="isProcessingPayment || isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)"
+            class="px-6 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)
+              ? 'bg-gray-400 text-white'
+              : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'"
           >
             <RefreshCw v-if="isProcessingPayment" class="w-4 h-4 animate-spin" />
             <CreditCard v-else class="w-4 h-4" />
-            <span>💳 예치금 즉시 결제 및 선적 지시 (₩133,000)</span>
+            <span v-if="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)">
+              잔액 부족 — 충전 필요
+            </span>
+            <span v-else>
+              💳 예치금 즉시 결제 및 선적 지시 (₩{{ (selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000).toLocaleString() }})
+            </span>
           </button>
         </div>
       </div>
     </div>
+    <!-- ======================================================== -->
+    <!-- 🔔 글로벌 토스트 알림 (결제 성공 / 에러 / 잔액 부족) -->
+    <!-- ======================================================== -->
+    <Transition
+      enter-active-class="transition-all duration-300 ease-out"
+      enter-from-class="translate-y-4 opacity-0"
+      enter-to-class="translate-y-0 opacity-100"
+      leave-active-class="transition-all duration-200 ease-in"
+      leave-from-class="translate-y-0 opacity-100"
+      leave-to-class="translate-y-4 opacity-0"
+    >
+      <div
+        v-if="toast.show"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-bold min-w-[320px] max-w-[560px]"
+        :class="toast.type === 'success'
+          ? 'bg-emerald-600 text-white'
+          : 'bg-rose-600 text-white'"
+      >
+        <span class="text-lg shrink-0">{{ toast.type === 'success' ? '✅' : '⚠️' }}</span>
+        <span class="flex-1 leading-snug">{{ toast.message }}</span>
+        <button
+          type="button"
+          @click="toast.show = false"
+          class="ml-2 p-1 rounded-lg hover:bg-white/20 transition shrink-0"
+        >
+          <X class="w-4 h-4" />
+        </button>
+      </div>
+    </Transition>
   </div>
 </template>
 
@@ -878,6 +946,8 @@ import {
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
 import { updateOrderStatus } from '@/utils/orderStorage';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
+import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
+import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
 
 const route = useRoute();
 
@@ -914,12 +984,20 @@ const uploadedBarcodeFile = ref(null);
 const isProcessingPayment = ref(false);
 const barcodeFileInputRef = ref(null);
 
+// 토스트 알림 상태
+const toast = ref({ show: false, type: 'success', message: '' });
+let _toastTimer = null;
+
+// 잔액 부족 경고 상태
+const showInsufficientWarning = ref(false);
+
 const reloadData = () => {
   inbounds.value = loadStoredInbounds();
 };
 
 onMounted(() => {
   reloadData();
+  loadBalance(); // 예치금 잔액 초기 로드 (Supabase → localStorage 폴백)
   window.addEventListener('euchs-warehouse-update', reloadData);
   window.addEventListener('euchs-order-status-update', reloadData);
   window.addEventListener('storage', reloadData);
@@ -1186,6 +1264,7 @@ function submitVasApplication() {
 function openSecondPaymentModal(item) {
   selectedSecondPaymentItem.value = item;
   uploadedBarcodeFile.value = null;
+  showInsufficientWarning.value = false;
   isSecondPaymentModalOpen.value = true;
 }
 
@@ -1231,24 +1310,78 @@ function setSampleBarcodeFile() {
   };
 }
 
-function handleConfirmSecondPayment() {
-  isProcessingPayment.value = true;
-  setTimeout(() => {
-    isProcessingPayment.value = false;
-    if (selectedSecondPaymentItem.value) {
-      const item = selectedSecondPaymentItem.value;
-      const orderNo = item.orderNo || item.order?.orderNumber;
-      
-      // 전역 스토어 상태 변경 -> shipping_ready
-      updateOrderStatus(item.id || orderNo, 'shipping_ready', {
-        barcodeFile: uploadedBarcodeFile.value || null
-      });
+// ----------------------------------------------------------------
+// 토스트 알림 헬퍼
+// ----------------------------------------------------------------
+function showToast(message, type = 'success', durationMs = 4000) {
+  if (_toastTimer) clearTimeout(_toastTimer);
+  toast.value = { show: true, type, message };
+  _toastTimer = setTimeout(() => {
+    toast.value = { ...toast.value, show: false };
+  }, durationMs);
+}
 
-      const barcodeNote = uploadedBarcodeFile.value ? '바코드 부착 및 ' : '';
-      alert(`✅ 2차 결제(₩133,000원)가 성공적으로 완료되었습니다!\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 즉시 전달되었습니다.`);
-      closeSecondPaymentModal();
-      reloadData();
+// ----------------------------------------------------------------
+// 2차 결제 확정 처리 (핵심 핸들러)
+// ----------------------------------------------------------------
+async function handleConfirmSecondPayment() {
+  if (!selectedSecondPaymentItem.value || isProcessingPayment.value) return;
+
+  const item = selectedSecondPaymentItem.value;
+
+  // 결제 금액 동적 계산 (secondPayment 데이터 우선, 없으면 133,000 기본값)
+  const paymentAmount = item.secondPayment?.totalSecondPaymentKrw || 133000;
+
+  // 사전 잔액 부족 검사
+  if (isBalanceInsufficient(paymentAmount)) {
+    showInsufficientWarning.value = true;
+    showToast(
+      `예치금이 부족합니다. 현재 잔액: ${formatBalance(userBalance.value)} / 필요: ₩${paymentAmount.toLocaleString()}원`,
+      'error',
+      6000
+    );
+    return;
+  }
+
+  isProcessingPayment.value = true;
+  showInsufficientWarning.value = false;
+
+  try {
+    const result = await processSecondPayment({
+      orderId: item.id || item.order?.id,
+      orderNumber: item.orderNo || item.order?.orderNumber,
+      amount: paymentAmount,
+      barcodeFile: uploadedBarcodeFile.value || null
+    });
+
+    if (!result.success) {
+      // 잔액 부족 에러
+      if (result.errorCode === PAYMENT_ERROR.INSUFFICIENT_BALANCE) {
+        showInsufficientWarning.value = true;
+        showToast(
+          result.error || '예치금 잔액이 부족합니다. 충전 후 다시 시도해 주세요.',
+          'error',
+          6000
+        );
+        return;
+      }
+      // 기타 에러
+      showToast(result.error || '결제 처리 중 오류가 발생했습니다.', 'error');
+      return;
     }
-  }, 600);
+
+    // ✅ 결제 성공
+    showToast('2차 결제가 완료되어 선적 대기 상태로 전환되었습니다.', 'success');
+    closeSecondPaymentModal();
+
+    // 창고 목록 즉시 갱신 (이벤트 기반 - saveStoredOrders 내부에서 이미 발생)
+    reloadData();
+
+  } catch (err) {
+    console.error('[WarehouseView] handleConfirmSecondPayment 에러:', err);
+    showToast('서버 연결 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.', 'error');
+  } finally {
+    isProcessingPayment.value = false;
+  }
 }
 </script>

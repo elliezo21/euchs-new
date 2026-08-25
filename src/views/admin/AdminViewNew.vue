@@ -16,17 +16,16 @@
         <div class="flex items-center justify-between gap-3 w-full sm:w-auto">
           <div class="flex items-center gap-2.5">
             <router-link 
-              to="/" 
+              to="/admin/orders" 
               class="flex items-center gap-2 group cursor-pointer shrink-0"
-              title="EUC COMPANY 공식 메인 홈으로 이동"
+              title="EUCHS 관리자 주문관리로 이동"
             >
               <span class="text-lg sm:text-xl font-black bg-gradient-to-r from-blue-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent group-hover:opacity-80 transition tracking-tight">
                 EUC COMPANY
               </span>
             </router-link>
             <router-link
-              to="/admin"
-              @click="activeTab = 'applications'; fetchApplications()"
+              to="/admin/orders"
               class="text-[10px] sm:text-xs px-2.5 py-0.5 rounded-full bg-blue-500/20 text-blue-300 hover:bg-blue-500/30 hover:text-white border border-blue-500/30 font-bold whitespace-nowrap transition cursor-pointer"
               title="관리자 콘솔 대시보드로 이동"
             >

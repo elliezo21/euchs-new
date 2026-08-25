@@ -51,54 +51,105 @@
             </button>
           </div>
 
-          <div v-else class="relative" ref="userDropdownRef">
-            <button 
-              type="button"
-              @click="isUserMenuOpen = !isUserMenuOpen" 
-              class="flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition"
-            >
-              <img 
-                v-if="userAvatarUrl" 
-                :src="userAvatarUrl" 
-                :alt="userDisplayName" 
-                class="w-4 h-4 rounded-full object-cover border border-blue-400"
-              />
-              <div 
-                v-else 
-                class="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center"
-              >
-                {{ userDisplayName.charAt(0) }}
-              </div>
-              <span class="font-bold text-white max-w-[100px] truncate text-[11px]">{{ userDisplayName }}님</span>
-              <i class="fas fa-chevron-down text-[8px] text-slate-400 transition" :class="{ 'rotate-180': isUserMenuOpen }"></i>
-            </button>
-
-            <!-- User Dropdown Menu -->
-            <div 
-              v-if="isUserMenuOpen" 
-              class="absolute right-0 mt-1 w-44 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs"
-            >
-              <div class="px-3 py-1.5 border-b border-gray-100">
-                <p class="font-bold text-gray-900 truncate">{{ userDisplayName }}</p>
-                <p class="text-[10px] text-gray-500 truncate mt-0.5">{{ userEmail }}</p>
-              </div>
-              <router-link 
-                to="/mypage" 
-                @click="isUserMenuOpen = false" 
-                class="w-full text-left px-3 py-1.5 hover:bg-blue-50 text-blue-600 font-bold flex items-center gap-1.5 transition"
-              >
-                <i class="fas fa-file-invoice-dollar text-blue-500 text-xs"></i>
-                <span>나의 신청/견적 내역</span>
-              </router-link>
+          <div v-else class="flex items-center gap-2">
+            <div class="relative" ref="userDropdownRef">
               <button 
                 type="button"
-                @click="handleSignOut" 
-                class="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-600 font-semibold flex items-center gap-1.5 transition"
+                @click="isUserMenuOpen = !isUserMenuOpen" 
+                class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 transition cursor-pointer"
               >
-                <i class="fas fa-sign-out-alt text-xs"></i>
-                <span>로그아웃</span>
+                <img 
+                  v-if="userAvatarUrl" 
+                  :src="userAvatarUrl" 
+                  :alt="userDisplayName" 
+                  class="w-4 h-4 rounded-full object-cover border border-blue-400"
+                />
+                <div 
+                  v-else 
+                  class="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center"
+                >
+                  {{ (userDisplayName || 'U').charAt(0) }}
+                </div>
+                <span class="font-bold text-white max-w-[110px] truncate text-[11px]">{{ userDisplayName }}님</span>
+                <i class="fas fa-chevron-down text-[8px] text-slate-400 transition" :class="{ 'rotate-180': isUserMenuOpen }"></i>
               </button>
+
+              <!-- User Dropdown Menu -->
+              <div 
+                v-if="isUserMenuOpen" 
+                class="absolute right-0 mt-1 w-48 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs"
+              >
+                <div class="px-3.5 py-2 border-b border-gray-100 bg-slate-50/50">
+                  <p class="font-black text-gray-900 truncate">{{ userDisplayName }}</p>
+                  <p class="text-[10px] text-gray-500 truncate mt-0.5 font-mono">{{ userEmail }}</p>
+                </div>
+
+                <div class="py-1">
+                  <!-- 1. B2B 통합 대시보드 -->
+                  <router-link 
+                    to="/dashboard" 
+                    @click="isUserMenuOpen = false" 
+                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
+                  >
+                    <i class="fas fa-chart-pie text-blue-500 text-xs"></i>
+                    <span>B2B 통합 대시보드</span>
+                  </router-link>
+
+                  <!-- 2. 발주 & 결제 관리 -->
+                  <router-link 
+                    to="/dashboard/orders" 
+                    @click="isUserMenuOpen = false" 
+                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
+                  >
+                    <i class="fas fa-shopping-cart text-amber-500 text-xs"></i>
+                    <span>발주 & 결제 관리</span>
+                  </router-link>
+
+                  <!-- 3. 창고 & 배송 현황 -->
+                  <router-link 
+                    to="/dashboard/warehouse" 
+                    @click="isUserMenuOpen = false" 
+                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
+                  >
+                    <i class="fas fa-boxes-stacked text-teal-500 text-xs"></i>
+                    <span>창고 & 배송 현황</span>
+                  </router-link>
+
+                  <!-- 4. 계정센터 & 지갑 관리 -->
+                  <router-link 
+                    to="/dashboard/account" 
+                    @click="isUserMenuOpen = false" 
+                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
+                  >
+                    <i class="fas fa-wallet text-indigo-500 text-xs"></i>
+                    <span>계정센터 & 지갑 관리</span>
+                  </router-link>
+                </div>
+
+                <div class="border-t border-gray-100 pt-1">
+                  <!-- 5. 로그아웃 -->
+                  <button 
+                    type="button"
+                    @click="handleSignOut" 
+                    class="w-full text-left px-3.5 py-2 hover:bg-rose-50 text-rose-600 font-bold flex items-center gap-2 transition cursor-pointer"
+                  >
+                    <i class="fas fa-sign-out-alt text-xs"></i>
+                    <span>로그아웃</span>
+                  </button>
+                </div>
+              </div>
             </div>
+
+            <!-- Direct Logout Button -->
+            <button
+              type="button"
+              @click="handleSignOut"
+              class="px-2 py-0.5 rounded text-[11px] text-slate-400 hover:text-red-400 hover:bg-slate-800 transition cursor-pointer flex items-center gap-1"
+              title="로그아웃"
+            >
+              <i class="fas fa-sign-out-alt text-[10px]"></i>
+              <span>(로그아웃)</span>
+            </button>
           </div>
 
         </div>
@@ -237,14 +288,6 @@
 
         <!-- Right Quick Action / Mobile Hamburger -->
         <div class="flex items-center gap-2 sm:gap-2.5">
-          <a 
-            href="tel:010-9373-1214" 
-            class="hidden sm:flex items-center gap-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-sm hover:shadow transition"
-          >
-            <i class="fas fa-phone-alt text-[10px]"></i>
-            <span>전화상담</span>
-          </a>
-
           <!-- Mobile Saved Items Cart Widget -->
           <router-link 
             to="/dashboard"
@@ -321,16 +364,16 @@
             </div>
             <span class="text-xs font-bold text-gray-800">{{ userDisplayName }}님</span>
             <router-link 
-              to="/mypage" 
+              to="/dashboard" 
               @click="isMobileMenuOpen = false" 
               class="text-xs text-blue-600 font-bold ml-1 px-2 py-0.5 rounded bg-blue-50 border border-blue-200 transition flex items-center gap-1"
             >
-              <i class="fas fa-file-invoice"></i>
-              <span>마이페이지</span>
+              <i class="fas fa-chart-pie text-xs"></i>
+              <span>대시보드</span>
             </router-link>
             <button 
               @click="handleSignOut" 
-              class="text-xs text-red-500 hover:text-red-700 font-semibold px-2 py-0.5 rounded bg-red-50 border border-red-200 transition"
+              class="text-xs text-rose-500 hover:text-rose-700 font-semibold px-2 py-0.5 rounded bg-rose-50 border border-rose-200 transition cursor-pointer"
             >
               로그아웃
             </button>
@@ -533,6 +576,7 @@ const handleOpenLoginModal = (mode = 'login') => {
 const handleSignOut = async () => {
   isUserMenuOpen.value = false
   await signOut()
+  alert('정상적으로 로그아웃되었습니다.')
 }
 
 // 외부 클릭 감지하여 유저 드롭다운 닫기

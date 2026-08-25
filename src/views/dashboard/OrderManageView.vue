@@ -45,8 +45,8 @@
     <!-- 공통 10단계 풀프로세스 스텝 바 (발주관리 포커스) -->
     <OrderProcessStepper :counts="stepperCounts" currentSection="orders" />
 
-    <!-- 통계 요약 카드 4종 (컴팩트 슬림 디자인, 클릭 시 탭 필터링 연동) -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+    <!-- 통계 요약 카드 5종 (1~4단계 + 전체, 클릭 시 탭 필터링 연동) -->
+    <div class="grid grid-cols-2 lg:grid-cols-5 gap-3">
       <!-- 1. 전체 발주 -->
       <div
         @click="selectTab('all')"
@@ -71,7 +71,7 @@
         :class="selectedTab === 'quote_pending' ? 'border-2 border-amber-500 bg-amber-50/50 ring-1 ring-amber-500/20' : 'border-gray-200 hover:border-amber-200'"
       >
         <div class="min-w-0">
-          <span class="text-xs font-semibold text-amber-700 block truncate">견적 대기/심사</span>
+          <span class="text-xs font-semibold text-amber-700 block truncate">1. 견적 대기</span>
           <div class="text-lg font-bold text-amber-600 font-mono tracking-tight mt-0.5">
             {{ statCounts.quotePending }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
@@ -88,13 +88,30 @@
         :class="selectedTab === 'quote_confirmed' ? 'border-2 border-orange-500 bg-orange-50/50 ring-1 ring-orange-500/20' : 'border-gray-200 hover:border-orange-200'"
       >
         <div class="min-w-0">
-          <span class="text-xs font-semibold text-orange-700 block truncate">결제 대기</span>
+          <span class="text-xs font-semibold text-orange-700 block truncate">2. 결제 대기</span>
           <div class="text-lg font-bold text-orange-600 font-mono tracking-tight mt-0.5">
             {{ statCounts.quoteConfirmed }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
         </div>
         <div class="w-7 h-7 rounded-lg bg-orange-100/70 text-orange-700 flex items-center justify-center shrink-0">
           <Calculator class="w-3.5 h-3.5" />
+        </div>
+      </div>
+
+      <!-- ★ 3. 결제 확인 (신규) -->
+      <div
+        @click="selectTab('payment_verified')"
+        class="bg-white border rounded-xl py-2.5 px-3.5 shadow-2xs flex items-center justify-between cursor-pointer transition select-none"
+        :class="selectedTab === 'payment_verified' ? 'border-2 border-emerald-500 bg-emerald-50/50 ring-1 ring-emerald-500/20' : 'border-gray-200 hover:border-emerald-200'"
+      >
+        <div class="min-w-0">
+          <span class="text-xs font-semibold text-emerald-700 block truncate">3. 결제 확인</span>
+          <div class="text-lg font-bold text-emerald-600 font-mono tracking-tight mt-0.5">
+            {{ statCounts.paymentVerified }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
+          </div>
+        </div>
+        <div class="w-7 h-7 rounded-lg bg-emerald-100/70 text-emerald-700 flex items-center justify-center shrink-0">
+          <ShieldCheck class="w-3.5 h-3.5" />
         </div>
       </div>
 
@@ -105,7 +122,7 @@
         :class="selectedTab === 'purchasing' ? 'border-2 border-blue-500 bg-blue-50/50 ring-1 ring-blue-500/20' : 'border-gray-200 hover:border-blue-200'"
       >
         <div class="min-w-0">
-          <span class="text-xs font-semibold text-blue-700 block truncate">1688 구매 진행중</span>
+          <span class="text-xs font-semibold text-blue-700 block truncate">4. 1688 구매 진행중</span>
           <div class="text-lg font-bold text-blue-600 font-mono tracking-tight mt-0.5">
             {{ statCounts.purchasing }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
@@ -159,32 +176,32 @@
     <!-- ======================================================== -->
     <!-- 4. 주문 목록 데이터 테이블 (PC 뷰) -->
     <!-- ======================================================== -->
-    <div class="hidden md:block bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
+    <div class="hidden md:block bg-white border border-slate-200 rounded-2xl shadow-xs overflow-hidden">
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs divide-y divide-gray-100">
-          <thead class="bg-slate-50 text-gray-600 font-semibold uppercase tracking-wider">
+        <table class="w-full text-left text-xs divide-y divide-slate-200">
+          <thead class="bg-slate-100 text-slate-900 font-bold border-b border-slate-200">
             <tr>
-              <th class="py-3.5 px-4 w-12 text-center">
+              <th class="py-3.5 px-4 w-12 text-center font-bold text-slate-900">
                 <input
                   type="checkbox"
                   :checked="isAllSelected"
                   @change="toggleSelectAll"
-                  class="rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  class="rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
               </th>
-              <th class="py-3.5 px-4">주문번호 / 일시</th>
-              <th class="py-3.5 px-4">1688 대표 상품 정보</th>
-              <th class="py-3.5 px-4 text-center">선택 옵션 / 수량</th>
-              <th class="py-3.5 px-4 text-right">공급단가 & 총 견적금액 (DDP)</th>
-              <th class="py-3.5 px-4 text-center">진행 상태</th>
-              <th class="py-3.5 px-4 text-center">관리 액션</th>
+              <th class="py-3.5 px-4 font-bold text-slate-900">주문번호 / 일시</th>
+              <th class="py-3.5 px-4 font-bold text-slate-900">1688 대표 상품 정보</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">선택 옵션 / 수량</th>
+              <th class="py-3.5 px-4 text-right font-bold text-slate-900">공급단가 & 총 견적금액 (DDP)</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">진행 상태</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">관리 액션</th>
             </tr>
           </thead>
-          <tbody class="divide-y divide-gray-100 bg-white">
+          <tbody class="divide-y divide-slate-100 bg-white">
             <tr
               v-for="order in filteredOrders"
               :key="order.id"
-              class="hover:bg-slate-50/80 transition group"
+              class="hover:bg-slate-50 transition group"
             >
               <!-- 체크박스 -->
               <td class="py-3.5 px-4 text-center">
@@ -192,17 +209,17 @@
                   type="checkbox"
                   v-model="selectedOrderIds"
                   :value="order.id"
-                  class="rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  class="rounded border-slate-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                 />
               </td>
 
               <!-- 주문번호 & 일자 -->
               <td class="py-3.5 px-4 whitespace-nowrap font-mono">
-                <div class="font-bold text-gray-900 hover:text-amber-600 cursor-pointer" @click="openOrderDetail(order)">
+                <div class="font-bold text-slate-900 hover:text-amber-600 cursor-pointer" @click="openOrderDetail(order)">
                   {{ order.orderNumber }}
                 </div>
-                <div class="text-[11px] text-gray-400 mt-0.5 flex items-center gap-1">
-                  <Clock class="w-3 h-3" />
+                <div class="text-[11.5px] text-slate-600 font-semibold mt-0.5 flex items-center gap-1">
+                  <Clock class="w-3 h-3 text-slate-500" />
                   <span>{{ order.createdAt }}</span>
                 </div>
               </td>
@@ -213,19 +230,19 @@
                   <img
                     :src="getItemThumbnail(order)"
                     :alt="getItemTitle(order)"
-                    class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0"
+                    class="w-12 h-12 rounded-lg object-cover bg-slate-100 border border-slate-200 shrink-0"
                     @error="handleImgError"
                   />
                   <div class="space-y-0.5 flex-1 min-w-0">
                     <div
-                      class="font-bold text-gray-900 hover:text-amber-600 line-clamp-1 cursor-pointer transition"
+                      class="font-extrabold text-slate-950 hover:text-amber-600 line-clamp-1 cursor-pointer transition"
                       @click="openOrderDetail(order)"
                       :title="getItemTitle(order)"
                     >
                       {{ getItemTitle(order) }}
                     </div>
-                    <div class="text-[11px] text-gray-500 font-mono">
-                      <span>품목 <b>{{ getItemsCount(order) }}</b>건</span>
+                    <div class="text-[11.5px] text-slate-700 font-mono font-semibold">
+                      <span>품목 <b class="text-slate-950 font-bold">{{ getItemsCount(order) }}</b>건</span>
                     </div>
                   </div>
                 </div>
@@ -264,7 +281,7 @@
 
               <!-- 관리 액션 (단일화된 견적 확인 및 결제 버튼) -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
-                <div class="flex items-center justify-center gap-1.5">
+                <div class="flex items-center justify-center gap-1.5 flex-wrap">
                   <!-- 5. 입고 & 정밀검수 상태: [💳 2차 결제] 버튼 -->
                   <button
                     v-if="order.status === 'inspection_done' || order.status === 'warehouse_in'"
@@ -301,12 +318,25 @@
                     <span>견적/주문 상세</span>
                   </button>
 
+                  <!-- ★ 1~4단계 상태 전환 버튼 -->
+                  <button
+                    v-if="canAdvanceStage(order)"
+                    type="button"
+                    @click="advanceOrderStage(order)"
+                    :title="getAdvanceLabel(order)"
+                    class="px-2.5 py-1.5 rounded-xl font-bold text-[11px] transition active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
+                    :class="getAdvanceColor(order)"
+                  >
+                    <span>{{ getAdvanceLabel(order) }}</span>
+                  </button>
+
+                  <!-- ★ 동적 카카오톡 1:1 상담 -->
                   <a
-                    href="http://pf.kakao.com/_xmQWsK/chat"
+                    :href="getKakaoUrl(order)"
                     target="_blank"
                     rel="noopener noreferrer"
+                    :title="getKakaoTitle(order)"
                     class="px-2 py-1.5 rounded-xl bg-yellow-400/20 hover:bg-yellow-400/30 text-amber-900 border border-yellow-300 font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
-                    title="1:1 카카오톡 상담 문의"
                   >
                     <MessageCircle class="w-3 h-3" />
                     <span>1:1 문의</span>
@@ -733,6 +763,159 @@
           </div>
 
           <!-- ======================================================== -->
+          <!-- ② 1688 소싱 상세 정보 + 1차 결제 확인 상태 -->
+          <!-- ======================================================== -->
+          <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
+            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h4 class="font-black text-gray-900 flex items-center gap-2 text-sm">
+                <ExternalLink class="w-4 h-4 text-rose-500" />
+                <span>2. 1688 소싱 상품 정보 &amp; 1차 결제 확인</span>
+              </h4>
+              <!-- 1차 결제 상태 뱃지 -->
+              <span
+                class="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5"
+                :class="['payment_verified', 'purchasing', 'warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(normalizeOrderStatus(activeOrder.status))
+                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                  : normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'
+                    ? 'bg-orange-100 text-orange-800 border border-orange-200'
+                    : 'bg-gray-100 text-gray-600 border border-gray-200'"
+              >
+                <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+                <span>{{ ['payment_verified', 'purchasing', 'warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(normalizeOrderStatus(activeOrder.status))
+                  ? '✅ 1차 결제 확인 완료'
+                  : normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'
+                    ? '💳 결제 대기중'
+                    : '📋 견적 심사중' }}</span>
+              </span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- 좌: 1688 상품 링크 및 소싱 요약 -->
+              <div class="space-y-3">
+                <div
+                  v-for="(item, idx) in activeOrder.items || []"
+                  :key="idx"
+                  class="p-3.5 bg-slate-50 rounded-xl border border-gray-200 space-y-2"
+                >
+                  <div class="flex items-center gap-3">
+                    <img
+                      :src="item.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=80&auto=format&fit=crop&q=60'"
+                      class="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0"
+                      @error="handleImgError"
+                    />
+                    <div class="flex-1 min-w-0">
+                      <p class="font-bold text-gray-900 text-xs line-clamp-1">{{ item.productName || item.titleKo || '1688 소싱 상품' }}</p>
+                      <p v-if="item.titleZh" class="text-[10px] text-gray-400 font-mono truncate">{{ item.titleZh }}</p>
+                      <p class="text-[11px] text-gray-500 mt-0.5 font-mono">SKU: {{ item.sku || '기본 옵션' }}</p>
+                    </div>
+                  </div>
+                  <!-- 단가/환율/마진 요약 행 -->
+                  <div class="grid grid-cols-3 gap-2 text-center text-[11px]">
+                    <div class="bg-white rounded-lg p-2 border border-gray-200">
+                      <div class="text-gray-400 font-medium">1688 단가</div>
+                      <div class="font-bold text-gray-900 font-mono">¥{{ Number(item.priceCny || 0).toFixed(2) }}</div>
+                    </div>
+                    <div class="bg-white rounded-lg p-2 border border-gray-200">
+                      <div class="text-gray-400 font-medium">적용 환율</div>
+                      <div class="font-bold text-blue-700 font-mono">₩226.19</div>
+                    </div>
+                    <div class="bg-white rounded-lg p-2 border border-gray-200">
+                      <div class="text-gray-400 font-medium">원화 환산</div>
+                      <div class="font-bold text-amber-700 font-mono">₩{{ formatNumber(Math.round(Number(item.priceCny || 0) * 226.19)) }}</div>
+                    </div>
+                  </div>
+                  <!-- 1688 원본 링크 -->
+                  <a
+                    v-if="item.productUrl"
+                    :href="item.productUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-800 font-bold transition truncate"
+                  >
+                    <ExternalLink class="w-3 h-3 shrink-0" />
+                    <span class="truncate">1688 원본 상품 링크 (내부 확인용)</span>
+                  </a>
+                </div>
+              </div>
+
+              <!-- 우: 1차 결제 확인 정보 패널 -->
+              <div class="space-y-3">
+                <!-- 결제 완료 상태 -->
+                <div
+                  v-if="['payment_verified', 'purchasing', 'warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(normalizeOrderStatus(activeOrder.status))"
+                  class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2.5"
+                >
+                  <div class="flex items-center gap-2 font-bold text-emerald-800 text-xs">
+                    <CheckCircle2 class="w-4 h-4 text-emerald-600" />
+                    <span>1차 상품대금 결제 확인 완료</span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2 text-[11px]">
+                    <div class="bg-white rounded-lg p-2.5 border border-emerald-200">
+                      <div class="text-gray-400 font-medium mb-0.5">입금자명</div>
+                      <div class="font-bold text-gray-900">{{ activeOrder.buyerInfo?.buyerName || activeOrder.buyerInfo?.companyName || '이유씨글로벌' }}</div>
+                    </div>
+                    <div class="bg-white rounded-lg p-2.5 border border-emerald-200">
+                      <div class="text-gray-400 font-medium mb-0.5">결제 방식</div>
+                      <div class="font-bold text-emerald-700">예치금 즉시 차감</div>
+                    </div>
+                    <div class="bg-white rounded-lg p-2.5 border border-emerald-200 col-span-2">
+                      <div class="text-gray-400 font-medium mb-0.5">1차 결제 금액</div>
+                      <div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원</div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 결제 대기 / 견적 심사중 상태 -->
+                <div v-else class="p-4 bg-orange-50 border border-orange-200 rounded-xl space-y-2.5">
+                  <div class="flex items-center gap-2 font-bold text-orange-800 text-xs">
+                    <AlertCircle class="w-4 h-4 text-orange-500" />
+                    <span>{{ normalizeOrderStatus(activeOrder.status) === 'quote_confirmed' ? '1차 결제 대기중' : '견적 검토 및 승인 대기' }}</span>
+                  </div>
+                  <p class="text-[11px] text-orange-700 leading-relaxed">
+                    {{ normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'
+                      ? `견적이 확정되었습니다. 1차 결제 (₩${formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw)}원)를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.`
+                      : '소싱 담당자가 1688에서 상품을 확인하고 정확한 견적을 산출 중입니다. 견적 완료 후 카카오톡으로 알림을 드립니다.' }}
+                  </p>
+                </div>
+
+                <!-- 단계별 상태 전환 액션 버튼 (1~4단계) -->
+                <div v-if="canAdvanceStage(activeOrder)" class="pt-1">
+                  <button
+                    type="button"
+                    @click="advanceOrderStage(activeOrder); closeDetailModal()"
+                    class="w-full py-2.5 rounded-xl font-bold text-xs transition active:scale-95 flex items-center justify-center gap-2 shadow-md cursor-pointer"
+                    :class="getAdvanceColor(activeOrder)"
+                  >
+                    <span>{{ getAdvanceLabel(activeOrder) }}</span>
+                  </button>
+                  <p class="text-[10px] text-gray-400 text-center mt-1.5">클릭 시 다음 단계로 즉시 전환됩니다 (OrderProcessStepper 실시간 반영)</p>
+                </div>
+
+                <!-- 1688 수입 단가 마진 요약 -->
+                <div class="p-3.5 bg-slate-900 text-white rounded-xl space-y-2">
+                  <p class="text-[11px] font-bold text-amber-400">📊 수입 단가 마진 요약 (개당 도착원가 기준)</p>
+                  <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div>
+                      <span class="text-slate-400">1688 발주가:</span>
+                      <span class="text-white font-bold ml-1">¥{{ getOrderCostSummary(activeOrder).avgPriceCny.toFixed(2) }}</span>
+                    </div>
+                    <div>
+                      <span class="text-slate-400">개당 DDP:</span>
+                      <span class="text-amber-400 font-bold ml-1">₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}</span>
+                    </div>
+                    <div class="col-span-2 pt-1 border-t border-slate-700">
+                      <span class="text-slate-400">총 발주 수량:</span>
+                      <span class="text-white font-bold ml-1">{{ getOrderTotalQuantity(activeOrder) }}개</span>
+                      <span class="text-slate-400 ml-3">총 DDP:</span>
+                      <span class="text-amber-300 font-bold ml-1">₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ======================================================== -->
           <!-- ③ 하단: [3. 발주 품목 명세 (Left) & DDP 1·2차 분리 견적 계산서 (Right)] -->
           <!-- ======================================================== -->
           <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -909,13 +1092,14 @@
         <div class="px-6 py-4 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0 z-10 shadow-lg">
           <!-- 좌측: 카카오톡 전담 매니저 상담 -->
           <a
-            href="http://pf.kakao.com/_xmQWsK/chat"
+            :href="getKakaoUrl(activeOrder)"
             target="_blank"
             rel="noopener noreferrer"
+            :title="getKakaoTitle(activeOrder)"
             class="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5 shadow-xs active:scale-95"
           >
             <MessageCircle class="w-4 h-4" />
-            <span>1:1 담당 매니저 상담</span>
+            <span>1:1 담당 매니저 상담 ({{ activeOrder.orderNumber }})</span>
           </a>
 
           <!-- 우측 액션 버튼 그룹 -->
@@ -1335,7 +1519,7 @@ import {
   getOrderStatusBadgeClass
 } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { getStoredOrders, saveStoredOrders, calculatePipelineCounts } from '@/utils/orderStorage';
+import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase } from '@/utils/orderStorage';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 
 const route = useRoute();
@@ -1348,6 +1532,7 @@ const filterTabs = [
   { id: 'all', label: '전체 (All)' },
   { id: 'quote_pending', label: '1. 견적대기' },
   { id: 'quote_confirmed', label: '2. 결제대기' },
+  { id: 'payment_verified', label: '3. 결제확인' },
   { id: 'purchasing', label: '4. 구매진행' },
   { id: 'inspection_done', label: '5. 입고 & 정밀검수 (2차결제)' },
   { id: 'shipping_ready', label: '6. 선적대기' },
@@ -1568,6 +1753,12 @@ const loadOrdersData = async () => {
   isRefreshing.value = true;
   try {
     orders.value = getStoredOrders();
+    const dbOrders = await fetchOrdersFromSupabase();
+    if (Array.isArray(dbOrders) && dbOrders.length > 0) {
+      orders.value = dbOrders;
+    }
+  } catch (e) {
+    console.warn('loadOrdersData DB notice:', e);
   } finally {
     isRefreshing.value = false;
   }
@@ -1586,11 +1777,13 @@ const statCounts = computed(() => {
   const stageOrders = orders.value.filter(o => ORDER_STAGE_STATUSES.includes(normalizeOrderStatus(o.status)));
   const quotePending = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length;
   const quoteConfirmed = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length;
+  const paymentVerified = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'payment_verified').length;
   const purchasing = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length;
   return {
     total: stageOrders.length,
     quotePending,
     quoteConfirmed,
+    paymentVerified,
     purchasing
   };
 });
@@ -2006,6 +2199,7 @@ function selectTab(tabId) {
   let tabQuery = '';
   if (tabId === 'quote_pending') tabQuery = 'quote_pending';
   else if (tabId === 'quote_confirmed') tabQuery = 'quote_confirmed';
+  else if (tabId === 'payment_verified') tabQuery = 'payment_verified';
   else if (tabId === 'purchasing') tabQuery = 'purchasing';
   else if (tabId === 'inspection_done') tabQuery = 'inspection_done';
   else if (tabId === 'shipping_ready') tabQuery = 'shipping_ready';
@@ -2027,6 +2221,8 @@ watch(() => route.query.tab, (newTab) => {
     selectedTab.value = 'quote_pending';
   } else if (newTab === 'payment' || newTab === 'quote_confirmed') {
     selectedTab.value = 'quote_confirmed';
+  } else if (newTab === 'payment_verified' || newTab === 'verified') {
+    selectedTab.value = 'payment_verified';
   } else if (newTab === 'purchasing') {
     selectedTab.value = 'purchasing';
   } else if (newTab === 'inspection_done' || newTab === 'warehouse_inspection' || newTab === 'warehouse_in' || newTab === 'step_5' || newTab === 'warehouse') {
@@ -2086,6 +2282,99 @@ function formatNumber(num) {
 
 function handleImgError(e) {
   e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60';
+}
+
+// ---------------------------------------------------------
+// 카카오톡 1:1 상담 링크 (주문번호 + 상품명 동적 연동)
+// ---------------------------------------------------------
+const KAKAO_CHANNEL_URL = 'http://pf.kakao.com/_xmQWsK/chat';
+
+function getKakaoUrl(order) {
+  // 카카오톡 채널 링크 — 단순 연결 (채널 채팅창이 열리면 사용자가 주문번호 메시지 입력)
+  return KAKAO_CHANNEL_URL;
+}
+
+function getKakaoTitle(order) {
+  const no = order?.orderNumber || '';
+  const name = (order?.items?.[0]?.productName || '').slice(0, 20);
+  return `주문 ${no} (${name}) 1:1 상담`;
+}
+
+// ---------------------------------------------------------
+// 1~4단계 순차 상태 전환 액션
+// ---------------------------------------------------------
+const STATUS_ADVANCE_MAP = {
+  quote_pending: 'quote_confirmed',     // 1 → 2 (견적완료/결제대기)
+  quote_confirmed: 'payment_verified',  // 2 → 3 (결제확인)
+  payment_verified: 'purchasing',       // 3 → 4 (1688 구매진행)
+};
+
+const ADVANCE_LABEL_MAP = {
+  quote_pending: '✅ 견적 확정 (결제대기로 전환)',
+  quote_confirmed: '💳 결제확인 처리',
+  payment_verified: '🛒 1688 구매 진행 시작',
+};
+
+const ADVANCE_COLOR_MAP = {
+  quote_pending: 'bg-amber-500 hover:bg-amber-400 text-slate-900',
+  quote_confirmed: 'bg-emerald-600 hover:bg-emerald-700 text-white',
+  payment_verified: 'bg-blue-600 hover:bg-blue-700 text-white',
+};
+
+function canAdvanceStage(order) {
+  const status = normalizeOrderStatus(order?.status);
+  return status in STATUS_ADVANCE_MAP;
+}
+
+function getAdvanceLabel(order) {
+  const status = normalizeOrderStatus(order?.status);
+  return ADVANCE_LABEL_MAP[status] || '';
+}
+
+function getAdvanceColor(order) {
+  const status = normalizeOrderStatus(order?.status);
+  return ADVANCE_COLOR_MAP[status] || 'bg-slate-900 text-white';
+}
+
+function advanceOrderStage(order) {
+  if (!order) return;
+  const currentStatus = normalizeOrderStatus(order.status);
+  const nextStatus = STATUS_ADVANCE_MAP[currentStatus];
+  if (!nextStatus) return;
+
+  const label = ADVANCE_LABEL_MAP[currentStatus];
+  if (!confirm(`[${order.orderNumber}]\n${label} 처리하시겠습니까?`)) return;
+
+  // 로컬 상태 업데이트
+  order.status = nextStatus;
+
+  // orders 배열 및 localStorage 동기화
+  const target = orders.value.find(o => o.id === order.id || o.orderNumber === order.orderNumber);
+  if (target) target.status = nextStatus;
+
+  try {
+    updateOrderStatus(order.id || order.orderNumber, nextStatus, {
+      statusAdvancedAt: new Date().toISOString()
+    });
+  } catch (e) {
+    // updateOrderStatus fallback: localStorage 직접 업데이트
+    try {
+      const raw = localStorage.getItem('euchs_erp_submitted_orders');
+      if (raw) {
+        const stored = JSON.parse(raw);
+        const t = stored.find(o => o.id === order.id || o.orderNumber === order.orderNumber);
+        if (t) {
+          t.status = nextStatus;
+          localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(stored));
+          window.dispatchEvent(new Event('storage'));
+          window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orderId: order.id, status: nextStatus } }));
+        }
+      }
+    } catch (e2) { console.warn('advanceOrderStage localStorage fallback error:', e2); }
+  }
+
+  // 토스트 알림
+  alert(`✅ 상태가 [${getOrderStatusLabel(nextStatus)}]으로 전환되었습니다.`);
 }
 
 const isPaying = ref(false);

@@ -167,16 +167,99 @@ ALTER TABLE site_visits ENABLE ROW LEVEL SECURITY;
 DROP POLICY IF EXISTS "Public all site_visits" ON site_visits;
 CREATE POLICY "Public all site_visits" ON site_visits FOR ALL USING (true) WITH CHECK (true);
 
--- visitor_logs 호환 뷰/테이블
-CREATE TABLE IF NOT EXISTS visitor_logs (
-  id BIGSERIAL PRIMARY KEY,
+-- 7. 회원 프로필 & 예치금 테이블 (profiles)
+CREATE TABLE IF NOT EXISTS profiles (
+  id UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  visited_date DATE DEFAULT CURRENT_DATE,
-  page_path TEXT DEFAULT '/',
-  referrer TEXT,
-  user_agent TEXT
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  email TEXT,
+  name TEXT,
+  role TEXT DEFAULT 'user',
+  company_name TEXT DEFAULT '',
+  representative_name TEXT DEFAULT '',
+  business_number TEXT DEFAULT '',
+  pccc TEXT DEFAULT '', -- 개인/사업자 통관고유부호
+  phone TEXT DEFAULT '',
+  address TEXT DEFAULT '',
+  biz_cert_url TEXT DEFAULT '',
+  tier TEXT DEFAULT 'general', -- 'general' | 'business'
+  is_business_verified BOOLEAN DEFAULT FALSE,
+  verification_status TEXT DEFAULT 'unverified', -- 'unverified' | 'pending' | 'verified' | 'rejected'
+  balance NUMERIC DEFAULT 0,
+  memo TEXT DEFAULT ''
 );
-ALTER TABLE visitor_logs ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS "Public all visitor_logs" ON visitor_logs;
-CREATE POLICY "Public all visitor_logs" ON visitor_logs FOR ALL USING (true) WITH CHECK (true);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public all profiles" ON profiles;
+CREATE POLICY "Public all profiles" ON profiles FOR ALL USING (true) WITH CHECK (true);
+
+-- 8. 전역 발주 주문 테이블 (orders)
+CREATE TABLE IF NOT EXISTS orders (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  order_number TEXT NOT NULL,
+  inbound_no TEXT,
+  user_id UUID,
+  buyer_email TEXT,
+  status TEXT DEFAULT 'quote_pending',
+  customer_name TEXT,
+  phone TEXT,
+  buyer_info JSONB DEFAULT '{}'::jsonb,
+  items JSONB DEFAULT '[]'::jsonb,
+  total_price_krw NUMERIC DEFAULT 0,
+  total_price_rmb NUMERIC DEFAULT 0,
+  first_payment JSONB DEFAULT '{}'::jsonb,
+  second_payment JSONB DEFAULT '{}'::jsonb,
+  measured_data JSONB DEFAULT '{}'::jsonb,
+  inspection_photos JSONB DEFAULT '[]'::jsonb,
+  vas_applied JSONB DEFAULT '[]'::jsonb,
+  payment_info JSONB DEFAULT '{}'::jsonb,
+  memo TEXT DEFAULT ''
+);
+
+ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public all orders" ON orders;
+CREATE POLICY "Public all orders" ON orders FOR ALL USING (true) WITH CHECK (true);
+
+-- 9. 예치금 변동 및 정산 트랜잭션 테이블 (transactions)
+CREATE TABLE IF NOT EXISTS transactions (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id UUID,
+  buyer_email TEXT,
+  order_id TEXT,
+  order_number TEXT,
+  type TEXT NOT NULL, -- 'deposit', 'order_payment', 'shipping_payment', 'manual_add', 'manual_sub'
+  amount NUMERIC NOT NULL,
+  balance_after NUMERIC NOT NULL,
+  title TEXT NOT NULL,
+  description TEXT DEFAULT ''
+);
+
+ALTER TABLE transactions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public all transactions" ON transactions;
+CREATE POLICY "Public all transactions" ON transactions FOR ALL USING (true) WITH CHECK (true);
+
+-- 10. 무통장 충전 신청 관리 테이블 (deposit_requests)
+CREATE TABLE IF NOT EXISTS deposit_requests (
+  id TEXT PRIMARY KEY,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  user_id UUID,
+  buyer_name TEXT,
+  buyer_email TEXT,
+  depositor_name TEXT NOT NULL,
+  amount NUMERIC NOT NULL,
+  bank_name TEXT DEFAULT '기업은행',
+  account_number TEXT DEFAULT '190-134321-01-016',
+  account_holder TEXT DEFAULT '이유씨컴퍼니(조해성)',
+  status TEXT DEFAULT 'pending', -- 'pending' | 'approved' | 'rejected'
+  approved_at TIMESTAMPTZ,
+  reject_reason TEXT
+);
+
+ALTER TABLE deposit_requests ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "Public all deposit_requests" ON deposit_requests;
+CREATE POLICY "Public all deposit_requests" ON deposit_requests FOR ALL USING (true) WITH CHECK (true);
 `
+

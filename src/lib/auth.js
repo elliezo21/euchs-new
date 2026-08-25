@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { supabase, isSupabaseConfigured } from './supabase'
 
 export const currentUser = ref(null)
+export const currentUserProfile = ref(null) // Supabase profiles 테이블 데이터 (balance, company_name, pccc 등)
 export const userRole = ref('user') // 'super_admin' | 'staff' | 'user'
 export const isAuthLoading = ref(true)
 export const isLoginModalOpen = ref(false)
@@ -723,6 +724,42 @@ export const resetPasswordForEmail = async (email) => {
 }
 
 /**
+ * ⚡ 테스트 바이어 1초 간편 로그인 (Demo / Test Quick Login)
+ * 별도 비밀번호 검증 없이 즉시 바이어 계정 세션을 주입합니다.
+ */
+export const loginAsDemoBuyer = async () => {
+  const demoUser = {
+    id: 'demo-buyer-01',
+    email: 'buyer@euchs.com',
+    app_metadata: { provider: 'email', role: 'buyer' },
+    user_metadata: {
+      full_name: '이유씨 바이어',
+      name: '이유씨 바이어',
+      company_name: '(주)이유씨 글로벌 바이어',
+      phone: '010-9373-1214',
+      business_number: '123-45-67890',
+      pccc: 'P240012345678',
+      address: '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
+      is_business_verified: true
+    },
+    created_at: new Date().toISOString()
+  }
+
+  currentUser.value = demoUser
+  userRole.value = 'buyer'
+
+  try {
+    localStorage.setItem('euchs_demo_session', JSON.stringify(demoUser))
+    localStorage.setItem('euchs_business_profile_current', JSON.stringify(demoUser.user_metadata))
+    localStorage.setItem('euchs_business_profile_demo-buyer-01', JSON.stringify(demoUser.user_metadata))
+  } catch (e) {}
+
+  closeLoginModal()
+  window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: demoUser } }))
+  return { success: true, user: demoUser }
+}
+
+/**
  * 로그아웃 실행
  */
 export const signOut = async () => {
@@ -730,39 +767,78 @@ export const signOut = async () => {
     if (isSupabaseConfigured()) {
       await supabase.auth.signOut()
     }
-    currentUser.value = null
-    userRole.value = 'user'
   } catch (err) {
     console.error('SignOut Error:', err)
   } finally {
     currentUser.value = null
     userRole.value = 'user'
+    try {
+      localStorage.removeItem('euchs_demo_session')
+    } catch (e) {}
+    window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
+    window.dispatchEvent(new Event('storage'))
   }
+}
+
+/**
+ * 사용자 프로필 DB (public.profiles) 실시간 조회
+ */
+export const fetchUserProfile = async (userId) => {
+  if (!userId || !isSupabaseConfigured() || userId === 'demo-buyer-01') return null
+  try {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', userId)
+      .maybeSingle()
+
+    if (!error && data) {
+      currentUserProfile.value = data
+      try {
+        localStorage.setItem(`euchs_profile_${userId}`, JSON.stringify(data))
+      } catch (e) {}
+      return data
+    }
+  } catch (err) {
+    console.warn('fetchUserProfile error:', err)
+  }
+  return null
 }
 
 /**
  * 사용자 프로필 DB (public.profiles) 자동 생성 및 동기화
  */
 export const syncUserProfile = async (user) => {
-  if (!user || !isSupabaseConfigured()) return
+  if (!user || !isSupabaseConfigured() || user.id === 'demo-buyer-01') return
   try {
     const meta = user.user_metadata || {}
     const biz = getUserBusinessInfo(user) || {}
+    
+    // 1. 기존 DB 프로필 조회하여 기존 balance 및 설정값 보존
+    const existing = await fetchUserProfile(user.id)
+
     const profilePayload = {
       id: user.id,
       email: user.email || '',
-      full_name: meta.full_name || meta.name || biz.name || user.email?.split('@')[0] || '회원',
+      name: meta.full_name || meta.name || biz.name || user.email?.split('@')[0] || '회원',
       avatar_url: meta.avatar_url || meta.picture || '',
       phone: meta.phone || meta.mobile || biz.phone || '',
-      provider: meta.provider || user.app_metadata?.provider || 'email',
-      company_name: biz.company_name || '',
-      business_number: biz.business_number || '',
-      pccc: biz.pccc || '',
-      address: biz.address || '',
-      is_business_verified: Boolean(biz.business_number && biz.pccc),
+      company_name: biz.company_name || existing?.company_name || '',
+      representative_name: biz.name || existing?.representative_name || '',
+      business_number: biz.business_number || existing?.business_number || '',
+      pccc: biz.pccc || existing?.pccc || '',
+      address: biz.address || existing?.address || '',
+      tier: existing?.tier || (biz.business_number && biz.pccc ? 'business' : 'general'),
+      is_business_verified: Boolean(biz.business_number && biz.pccc) || Boolean(existing?.is_business_verified),
+      verification_status: existing?.verification_status || (biz.business_number && biz.pccc ? 'verified' : 'unverified'),
+      balance: existing?.balance !== undefined ? existing.balance : (Number(localStorage.getItem('euchs_user_balance')) || 15420000),
       updated_at: new Date().toISOString()
     }
-    await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' })
+    
+    const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
+    if (!error && data) {
+      currentUserProfile.value = data
+    }
   } catch (err) {
     console.warn('Profile sync notice:', err)
   }
@@ -774,6 +850,20 @@ export const syncUserProfile = async (user) => {
 let isListenerAttached = false
 
 export const initAuth = async () => {
+  // 1. 데모 세션 캐시 확인
+  try {
+    const demoRaw = localStorage.getItem('euchs_demo_session')
+    if (demoRaw) {
+      const demoUser = JSON.parse(demoRaw)
+      if (demoUser?.email) {
+        currentUser.value = demoUser
+        userRole.value = demoUser.role || 'buyer'
+        isAuthLoading.value = false
+        return
+      }
+    }
+  } catch (e) {}
+
   if (!isSupabaseConfigured()) {
     isAuthLoading.value = false
     return
@@ -797,14 +887,17 @@ export const initAuth = async () => {
   if (!isListenerAttached) {
     isListenerAttached = true
     supabase.auth.onAuthStateChange(async (_event, session) => {
-      currentUser.value = session?.user || null
-      isAuthLoading.value = false
-      if (session?.user) {
-        await checkUserRole(session.user)
-        await syncUserProfile(session.user)
-        closeLoginModal()
-      } else {
-        userRole.value = 'user'
+      // 데모 세션이 활성화되어 있지 않을 때만 Supabase 세션 적용
+      if (!localStorage.getItem('euchs_demo_session')) {
+        currentUser.value = session?.user || null
+        isAuthLoading.value = false
+        if (session?.user) {
+          await checkUserRole(session.user)
+          await syncUserProfile(session.user)
+          closeLoginModal()
+        } else {
+          userRole.value = 'user'
+        }
       }
     })
   }

@@ -183,8 +183,8 @@ const handleAdminLogin = async () => {
   try {
     const result = await adminSignIn(loginForm.value.email, loginForm.value.password)
     if (result.success) {
-      const redirectPath = route.query.redirect || '/admin'
-      router.replace(redirectPath)
+      // 관리자 로그인 시 무조건 최상위 통합 메인 대시보드(/admin)로 직행
+      router.replace('/admin')
     }
   } catch (err) {
     console.error('Admin login failed:', err)

@@ -31,10 +31,6 @@
           <router-link to="/tools/calculator" class="hover:text-amber-300 flex items-center gap-1 transition">
             <i class="fas fa-calculator text-amber-400 text-xs"></i> 관부가세 계산기
           </router-link>
-          <span class="text-slate-600">|</span>
-          <router-link to="/dashboard" class="hover:text-rose-300 flex items-center gap-1 font-bold transition">
-            <i class="fas fa-user-tie text-rose-400 text-xs"></i> B2B ERP 마이페이지
-          </router-link>
         </div>
 
       </div>
@@ -241,7 +237,7 @@
               class="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition text-center shadow-sm"
             >
               <i class="fas fa-truck-loading text-amber-400"></i>
-              <span>발주 & 배송 관리 ERP</span>
+              <span>발주 & 배송관리 마이페이지</span>
             </router-link>
           </div>
         </div>
@@ -573,6 +569,7 @@ import {
   isUserBusinessVerified
 } from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
+import { userBalance, loadBalance } from '../lib/balanceStore'
 
 const route = useRoute()
 const router = useRouter()
@@ -603,7 +600,7 @@ const selectedModalProduct = ref(null)
 const customExchangeRate = ref(226.19)
 const liveMarketRate = ref(206.19)
 const agencyFeeRate = ref(8.0)
-const depositBalanceKrw = ref(15420000)
+const depositBalanceKrw = userBalance
 
 const popularKeywords = [
   '블라우스',
@@ -916,6 +913,7 @@ const handleIncomingQuery = async () => {
 
 onMounted(async () => {
   await loadRates()
+  loadBalance()
   updateSavedCount()
   handleIncomingQuery()
 

@@ -83,15 +83,33 @@
             </router-link>
           </nav>
 
-          <!-- Right Action: Phone Contact & Mobile Hamburger -->
+          <!-- Right Action: User Auth & Mobile Hamburger -->
           <div class="flex items-center gap-2 sm:gap-3">
-            <a 
-              href="tel:010-9373-1214" 
-              class="hidden sm:flex items-center gap-1.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold px-3.5 py-1.5 rounded-full shadow-sm transition active:scale-95"
+            <!-- Desktop Auth Action -->
+            <div v-if="isLoggedIn" class="hidden sm:flex items-center gap-2">
+              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                <span class="truncate max-w-[120px]">{{ displayBuyerName }}님</span>
+              </div>
+              <button
+                type="button"
+                @click="handleDashboardSignOut"
+                class="px-3 py-1.5 rounded-lg border border-gray-200 hover:border-red-200 text-gray-600 hover:text-red-600 hover:bg-red-50 font-bold text-xs transition flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                title="로그아웃"
+              >
+                <i class="fas fa-sign-out-alt text-[11px]"></i>
+                <span>로그아웃</span>
+              </button>
+            </div>
+            <button
+              v-else
+              type="button"
+              @click="openLoginModal('login')"
+              class="hidden sm:flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition active:scale-95 cursor-pointer"
             >
-              <i class="fas fa-phone-alt text-[10px] text-blue-400"></i>
-              <span>전화상담</span>
-            </a>
+              <i class="fas fa-sign-in-alt text-[10px]"></i>
+              <span>로그인</span>
+            </button>
 
             <!-- Mobile Menu Toggle Button -->
             <button 
@@ -115,6 +133,26 @@
           <router-link to="/mall" class="block px-3 py-2 rounded-lg font-bold text-rose-600 hover:bg-rose-50">1688 실시간 소싱몰</router-link>
           <router-link to="/guide" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">EUC 안내</router-link>
           <router-link to="/community/notice" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">고객센터</router-link>
+          <div class="pt-2 border-t border-gray-100">
+            <button
+              v-if="isLoggedIn"
+              type="button"
+              @click="handleDashboardSignOut"
+              class="w-full text-left px-3 py-2 rounded-lg text-red-600 font-bold hover:bg-red-50 flex items-center gap-2"
+            >
+              <i class="fas fa-sign-out-alt"></i>
+              <span>로그아웃 ({{ displayBuyerName }}님)</span>
+            </button>
+            <button
+              v-else
+              type="button"
+              @click="openLoginModal('login'); isGnbMobileOpen = false"
+              class="w-full text-left px-3 py-2 rounded-lg text-blue-600 font-bold hover:bg-blue-50 flex items-center gap-2"
+            >
+              <i class="fas fa-sign-in-alt"></i>
+              <span>로그인</span>
+            </button>
+          </div>
         </div>
       </div>
     </header>
@@ -133,20 +171,63 @@
         <div>
           <!-- Profile Mini Card -->
           <div class="p-4 sm:p-5 border-b border-gray-200 bg-slate-50/70">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white font-black flex items-center justify-center text-base shadow-sm">
-                E
+            <!-- 1. 로그인 상태 -->
+            <div v-if="isLoggedIn" class="flex items-center gap-3">
+              <img 
+                v-if="userAvatarUrl" 
+                :src="userAvatarUrl" 
+                :alt="displayBuyerName" 
+                class="w-10 h-10 rounded-2xl object-cover border border-orange-200 shadow-sm shrink-0"
+              />
+              <div 
+                v-else
+                class="w-10 h-10 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white font-black flex items-center justify-center text-base shadow-sm shrink-0"
+              >
+                {{ (displayBuyerName || 'E').charAt(0) }}
               </div>
               <div class="flex-1 min-w-0">
-                <div class="flex items-center gap-1.5">
-                  <span class="font-bold text-gray-900 text-sm truncate">이유씨 바이어</span>
-                  <span class="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[10px] font-black">VIP</span>
+                <div class="flex items-center justify-between gap-1">
+                  <div class="flex items-center gap-1.5 min-w-0">
+                    <span class="font-bold text-gray-900 text-sm truncate">{{ displayBuyerName }}</span>
+                    <span class="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[10px] font-black shrink-0">
+                      {{ isBusinessVerified ? 'VIP' : '회원' }}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    @click="handleDashboardSignOut"
+                    class="text-gray-400 hover:text-red-600 p-1 transition cursor-pointer"
+                    title="로그아웃"
+                  >
+                    <i class="fas fa-sign-out-alt text-xs"></i>
+                  </button>
                 </div>
-                <p class="text-xs text-gray-500 font-mono truncate">buyer@euchs.com</p>
+                <p class="text-xs text-gray-500 font-mono truncate">{{ displayBuyerEmail }}</p>
               </div>
             </div>
 
-            <div class="mt-3 pt-2.5 border-t border-gray-200/80 flex items-center justify-between text-xs">
+            <!-- 2. 비로그인 상태: 로그인이 필요합니다 안내 및 로그인 버튼 -->
+            <div v-else class="space-y-2.5">
+              <div class="flex items-center gap-2.5 text-gray-500">
+                <div class="w-10 h-10 rounded-2xl bg-gray-200 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
+                  <i class="fas fa-user-lock"></i>
+                </div>
+                <div class="min-w-0">
+                  <div class="font-bold text-gray-800 text-xs">로그인이 필요합니다</div>
+                  <div class="text-[10px] text-gray-400">B2B 수입대행 ERP 서비스</div>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="openLoginModal('login')"
+                class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <i class="fas fa-sign-in-alt text-[10px]"></i>
+                <span>로그인하기</span>
+              </button>
+            </div>
+
+            <div v-if="isLoggedIn" class="mt-3 pt-2.5 border-t border-gray-200/80 flex items-center justify-between text-xs">
               <span class="text-gray-500 font-medium">전담 매니저</span>
               <span class="font-bold text-gray-800 flex items-center gap-1">
                 <i class="fas fa-headset text-orange-500"></i> 이유씨 1:1 배정
@@ -372,6 +453,35 @@
           </a>
         </div>
 
+        <!-- Sidebar Footer: User Status & Logout -->
+        <div class="p-3 border-t border-gray-200 bg-slate-50 flex items-center justify-between text-xs">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-2 h-2 rounded-full shrink-0" :class="isLoggedIn ? 'bg-emerald-500' : 'bg-gray-400'"></span>
+            <span class="font-bold text-gray-700 truncate text-[11px]">
+              {{ isLoggedIn ? displayBuyerName : '로그인 필요' }}
+            </span>
+          </div>
+          <button
+            v-if="isLoggedIn"
+            type="button"
+            @click="handleDashboardSignOut"
+            class="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer text-[11px] shrink-0"
+            title="로그아웃"
+          >
+            <i class="fas fa-sign-out-alt text-xs"></i>
+            <span>로그아웃</span>
+          </button>
+          <button
+            v-else
+            type="button"
+            @click="openLoginModal('login')"
+            class="px-2.5 py-1 rounded-lg text-blue-600 hover:bg-blue-50 font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer text-[11px] shrink-0"
+          >
+            <i class="fas fa-sign-in-alt text-xs"></i>
+            <span>로그인</span>
+          </button>
+        </div>
+
       </aside>
 
       <!-- ======================================================== -->
@@ -391,11 +501,11 @@
               <span class="px-2 py-0.5 rounded bg-orange-100 text-orange-700 text-xs font-black">
                 {{ currentMenuLabel }}
               </span>
-              <h1 class="text-xl sm:text-2xl font-bold tracking-tight text-gray-900">
+              <h1 class="text-xl sm:text-2xl font-black tracking-tight text-slate-900">
                 B2B 수입대행 통합 대시보드
               </h1>
             </div>
-            <p class="text-xs text-gray-600 font-medium mt-1">
+            <p class="text-xs text-slate-700 font-bold mt-1">
               1688 실시간 상품 소싱부터 발주, 현지 창고 검수, 세관 통관까지 원스톱으로 관리합니다.
             </p>
           </div>
@@ -439,37 +549,52 @@
           <!-- Card 1: User Profile & Rank Card -->
           <div class="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-none hover:border-gray-300 transition">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-600">바이어 계정 현황</span>
+              <span class="text-xs font-bold text-slate-800">바이어 계정 현황</span>
               <span class="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 flex items-center justify-center text-xs font-bold">
                 <i class="fas fa-user-check"></i>
               </span>
             </div>
-            <div class="mt-3 space-y-1">
-              <div class="text-lg font-bold text-gray-900 truncate">
-                {{ buyerForm.companyName || '이유씨 글로벌 바이어' }}
+            <div v-if="isLoggedIn" class="mt-3 space-y-1">
+              <div class="text-lg font-black text-slate-900 truncate">
+                {{ displayCompanyName }}
               </div>
-              <div class="flex items-center gap-2 text-xs text-gray-600">
-                <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 font-semibold text-[11px]">VIP 1</span>
-                <span>수수료율: <b class="text-orange-600">{{ agencyFeeRate }}%</b></span>
+              <div class="flex items-center gap-2 text-xs text-slate-700 font-semibold">
+                <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-900 font-bold text-[11px]">
+                  {{ isBusinessVerified ? 'VIP 바이어' : '일반 회원' }}
+                </span>
+                <span>수수료율: <b class="text-orange-600 font-extrabold">{{ agencyFeeRate }}%</b></span>
               </div>
+            </div>
+            <div v-else class="mt-3 space-y-1">
+              <div class="text-base font-bold text-slate-800">
+                로그인이 필요합니다
+              </div>
+              <button
+                type="button"
+                @click="openLoginModal('login')"
+                class="text-xs text-blue-600 hover:text-blue-700 font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <span>⚡ 1초 간편 로그인하기</span>
+                <i class="fas fa-arrow-right text-[10px]"></i>
+              </button>
             </div>
           </div>
 
           <!-- Card 2: KRW Deposit Balance Card -->
           <div class="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-none hover:border-gray-300 transition">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-600">한화 (KRW) 예치금 잔액</span>
+              <span class="text-xs font-bold text-slate-800">한화 (KRW) 예치금 잔액</span>
               <span class="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center text-xs font-bold">
                 <i class="fas fa-won-sign"></i>
               </span>
             </div>
             <div class="mt-3">
               <div class="flex items-baseline space-x-1 font-sans">
-                <span class="text-sm font-semibold text-gray-700">₩</span>
-                <span class="text-2xl font-bold tracking-tight text-gray-900">{{ formatKrw(depositBalanceKrw) }}</span>
+                <span class="text-sm font-bold text-slate-900">₩</span>
+                <span class="text-2xl font-black tracking-tight text-slate-950">{{ formatKrw(userBalance) }}</span>
               </div>
-              <div class="text-xs font-medium text-gray-500 mt-1">
-                환산 약 ¥ {{ (depositBalanceKrw / customExchangeRate).toFixed(2) }} 위안
+              <div class="text-xs font-bold text-slate-700 mt-1">
+                환산 약 ¥ {{ (userBalance / customExchangeRate).toFixed(2) }} 위안
               </div>
             </div>
           </div>
@@ -477,18 +602,18 @@
           <!-- Card 3: Foreign Currency Card (CNY / USD) -->
           <div class="bg-white border border-gray-200 rounded-xl p-5 flex flex-col justify-between shadow-none hover:border-gray-300 transition">
             <div class="flex items-center justify-between">
-              <span class="text-xs font-medium text-gray-600">외화 잔액 (CNY / USD)</span>
+              <span class="text-xs font-bold text-slate-800">외화 잔액 (CNY / USD)</span>
               <span class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center text-xs font-bold">
                 <i class="fas fa-coins"></i>
               </span>
             </div>
             <div class="mt-3 space-y-1">
               <div class="flex items-baseline space-x-1 font-sans">
-                <span class="text-sm font-semibold text-rose-600">¥</span>
-                <span class="text-xl font-bold tracking-tight text-gray-900 font-mono">0.00</span>
-                <span class="text-xs text-gray-400 font-normal ml-1">위안</span>
+                <span class="text-sm font-bold text-rose-600">¥</span>
+                <span class="text-xl font-black tracking-tight text-slate-950 font-mono">0.00</span>
+                <span class="text-xs text-slate-600 font-bold ml-1">위안</span>
               </div>
-              <div class="text-xs font-medium text-gray-500 font-mono">
+              <div class="text-xs font-bold text-slate-700 font-mono">
                 USD: $0.00 달러
               </div>
             </div>
@@ -511,23 +636,23 @@
             <div class="bg-white border border-gray-200 rounded-xl shadow-none space-y-4 p-5">
               
               <!-- 한·중 FTA C/O 및 수입통관 설정 바 -->
-              <div class="bg-orange-50/70 border border-orange-200 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
+              <div class="bg-orange-50/80 border border-orange-200 rounded-xl p-3 sm:p-3.5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs">
                 <label class="inline-flex items-center gap-2 cursor-pointer select-none">
                   <input
                     type="checkbox"
                     v-model="orderOptions.requestCo"
                     class="w-4 h-4 text-orange-600 rounded border-gray-300 focus:ring-orange-500 accent-orange-600"
                   />
-                  <span class="font-bold text-gray-900 flex flex-wrap items-center gap-1.5">
+                  <span class="font-bold text-slate-900 flex flex-wrap items-center gap-1.5">
                     <i class="fas fa-file-shield text-orange-600 text-sm"></i>
                     <span>한·중 FTA C/O(원산지증명서) 발급 신청</span>
-                    <span class="px-1.5 py-0.2 bg-orange-100 text-orange-800 rounded text-[10px] font-black border border-orange-200">
+                    <span class="px-1.5 py-0.2 bg-orange-100 text-orange-900 rounded text-[10px] font-black border border-orange-300">
                       관세 감면용 필수 서류
                     </span>
                   </span>
                 </label>
-                <div class="text-[11px] text-gray-600 font-medium flex items-center gap-1">
-                  <i class="fas fa-circle-info text-orange-500 text-xs"></i>
+                <div class="text-[11.5px] text-slate-700 font-bold flex items-center gap-1">
+                  <i class="fas fa-circle-info text-orange-600 text-xs"></i>
                   <span>발급 시 품목별 한-중 FTA 협정 관세(관세 인하 또는 0%)가 적용됩니다.</span>
                 </div>
               </div>
@@ -535,18 +660,18 @@
               <!-- Table Search & Filter Bar -->
               <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
                 <div class="flex items-center gap-2">
-                  <h2 class="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <h2 class="text-base font-black text-slate-900 flex items-center gap-2">
                     <i class="fas fa-table-list text-orange-600"></i>
                     <span>발주 대기 & 최근 주문 목록</span>
                   </h2>
-                  <span class="text-xs text-gray-500">({{ displayItemsList.length }}건)</span>
+                  <span class="text-xs font-bold text-slate-700">({{ displayItemsList.length }}건)</span>
                 </div>
 
                 <!-- Search & Filter Controls -->
                 <div class="flex flex-wrap items-center gap-2 text-xs">
                   <select
                     v-model="selectedStatusFilter"
-                    class="px-3 py-2 rounded-lg border border-gray-300 font-medium text-gray-800 outline-none focus:border-orange-500 bg-white"
+                    class="px-3 py-2 rounded-lg border border-slate-300 font-bold text-slate-900 outline-none focus:border-orange-500 bg-white"
                   >
                     <option value="all">전체 상태 보기</option>
                     <option value="cart">발주대기 보관함</option>
@@ -560,39 +685,39 @@
                       type="text"
                       v-model="tableSearchQuery"
                       placeholder="상품명, 1688 ID, 발주번호 검색"
-                      class="w-full pl-8 pr-3 py-2 rounded-lg border border-gray-300 font-medium text-gray-800 outline-none focus:border-orange-500"
+                      class="w-full pl-8 pr-3 py-2 rounded-lg border border-slate-300 font-bold text-slate-900 placeholder:text-slate-400 outline-none focus:border-orange-500"
                     />
-                    <i class="fas fa-search absolute left-2.5 top-3 text-gray-400 text-xs"></i>
+                    <i class="fas fa-search absolute left-2.5 top-3 text-slate-500 text-xs"></i>
                   </div>
                 </div>
               </div>
 
               <!-- Table View -->
-              <div class="overflow-x-auto border border-gray-200 rounded-lg">
-                <table class="w-full text-left text-xs divide-y divide-gray-200">
-                  <thead class="bg-slate-50 text-gray-600 font-semibold">
+              <div class="overflow-x-auto border border-slate-200 rounded-lg">
+                <table class="w-full text-left text-xs divide-y divide-slate-200">
+                  <thead class="bg-slate-100 text-slate-900 font-bold border-b border-slate-200">
                     <tr>
-                      <th class="py-3 px-4">구분 / 번호</th>
-                      <th class="py-3 px-4">상품 정보</th>
-                      <th class="py-3 px-4 text-center">옵션 / 규격</th>
-                      <th class="py-3 px-4 text-center">수량</th>
-                      <th class="py-3 px-4 text-right">사입 공급가 (KRW / CNY)</th>
-                      <th class="py-3 px-4 text-center">상태</th>
-                      <th class="py-3 px-4 text-center">관리</th>
+                      <th class="py-3 px-4 font-bold text-slate-900">구분 / 번호</th>
+                      <th class="py-3 px-4 font-bold text-slate-900">상품 정보</th>
+                      <th class="py-3 px-4 text-center font-bold text-slate-900">옵션 / 규격</th>
+                      <th class="py-3 px-4 text-center font-bold text-slate-900">수량</th>
+                      <th class="py-3 px-4 text-right font-bold text-slate-900">사입 공급가 (KRW / CNY)</th>
+                      <th class="py-3 px-4 text-center font-bold text-slate-900">상태</th>
+                      <th class="py-3 px-4 text-center font-bold text-slate-900">관리</th>
                     </tr>
                   </thead>
 
-                  <tbody class="divide-y divide-gray-100 bg-white">
+                  <tbody class="divide-y divide-slate-100 bg-white">
                     
                     <!-- Empty State -->
                     <tr v-if="displayItemsList.length === 0">
-                      <td colspan="7" class="py-12 text-center text-gray-400">
+                      <td colspan="7" class="py-12 text-center text-slate-500">
                         <div class="flex flex-col items-center gap-2">
-                          <i class="fas fa-inbox text-3xl text-gray-300"></i>
-                          <span class="font-medium">선택된 조건의 발주 내역이 없습니다.</span>
+                          <i class="fas fa-inbox text-3xl text-slate-400"></i>
+                          <span class="font-bold text-slate-700">선택된 조건의 발주 내역이 없습니다.</span>
                           <router-link
                             to="/mall"
-                            class="mt-2 px-4 py-2 rounded-lg bg-orange-600 text-white font-bold text-xs hover:bg-orange-700 transition shadow-sm"
+                            class="mt-2 px-4 py-2 rounded-lg bg-orange-600 text-white font-black text-xs hover:bg-orange-700 transition shadow-sm"
                           >
                             1688 상품 소싱하러 가기
                           </router-link>
@@ -604,17 +729,17 @@
                     <tr
                       v-for="(row, rIdx) in displayItemsList"
                       :key="row.id || rIdx"
-                      class="hover:bg-slate-50/80 transition"
+                      class="hover:bg-slate-50 transition"
                     >
                       <!-- 1. 구분 / 번호 -->
-                      <td class="py-3 px-4 font-mono text-gray-600 whitespace-nowrap">
+                      <td class="py-3 px-4 font-mono text-slate-800 whitespace-nowrap">
                         <span
-                          class="px-2 py-0.5 rounded text-[10px] font-bold"
-                          :class="row.type === 'cart' ? 'bg-rose-50 text-rose-700 border border-rose-200' : 'bg-blue-50 text-blue-700 border border-blue-200'"
+                          class="px-2 py-0.5 rounded text-[10px] font-black"
+                          :class="row.type === 'cart' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-blue-100 text-blue-800 border border-blue-300'"
                         >
                           {{ row.type === 'cart' ? '보관함' : '주문접수' }}
                         </span>
-                        <div class="text-[11px] text-gray-500 mt-1">
+                        <div class="text-[11.5px] text-slate-800 font-bold mt-1">
                           {{ row.orderId || `CART-${row.id?.slice(-6) || rIdx + 1}` }}
                         </div>
                       </td>
@@ -625,7 +750,7 @@
                           <img
                             :src="row.imageUrl"
                             :alt="row.titleKo"
-                            class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0"
+                            class="w-12 h-12 rounded-lg object-cover bg-slate-100 border border-slate-200 shrink-0"
                             @error="handleImageError"
                           />
                           <div class="space-y-0.5 flex-1 min-w-0">
@@ -633,41 +758,41 @@
                               :href="row.detailUrl"
                               target="_blank"
                               rel="noopener noreferrer"
-                              class="font-bold text-gray-900 hover:text-orange-600 line-clamp-2 leading-snug transition"
+                              class="font-extrabold text-slate-950 hover:text-orange-600 line-clamp-2 leading-snug transition"
                               :title="row.titleKo || row.titleZh"
                             >
                               {{ row.titleKo || row.titleZh }}
                             </a>
-                            <div class="text-[11px] text-gray-500 font-mono">
-                              1688 ID: <b>{{ row.itemId || row.id }}</b>
+                            <div class="text-[11.5px] text-slate-700 font-mono font-semibold">
+                              1688 ID: <b class="text-slate-950 font-bold">{{ row.itemId || row.id }}</b>
                             </div>
                           </div>
                         </div>
                       </td>
 
                       <!-- 3. 옵션 / 규격 -->
-                      <td class="py-3 px-4 text-center text-gray-700 font-medium whitespace-nowrap">
-                        <span v-if="row.skus && row.skus.length" class="bg-gray-100 px-2 py-1 rounded text-[11px]">
+                      <td class="py-3 px-4 text-center text-slate-800 font-semibold whitespace-nowrap">
+                        <span v-if="row.skus && row.skus.length" class="bg-slate-100 px-2 py-1 rounded text-[11px] font-bold text-slate-800">
                           {{ row.skus[0].color }} / {{ row.skus[0].size }}
-                          <span v-if="row.skus.length > 1" class="text-orange-600 font-bold ml-0.5">
+                          <span v-if="row.skus.length > 1" class="text-orange-600 font-black ml-0.5">
                             외 {{ row.skus.length - 1 }}종
                           </span>
                         </span>
-                        <span v-else class="text-gray-400">기본 옵션</span>
+                        <span v-else class="text-slate-500 font-medium">기본 옵션</span>
                       </td>
 
                       <!-- 4. 수량 -->
-                      <td class="py-3 px-4 text-center font-bold text-gray-900 font-mono whitespace-nowrap">
+                      <td class="py-3 px-4 text-center font-black text-slate-950 font-mono text-sm whitespace-nowrap">
                         {{ getItemQuantity(row) }}개
                       </td>
 
                       <!-- 5. 사입 공급가 -->
                       <td class="py-3 px-4 text-right whitespace-nowrap">
                         <div class="flex items-baseline justify-end space-x-1 font-sans">
-                          <span class="text-xs font-semibold text-gray-700">₩</span>
-                          <span class="font-bold text-gray-900 text-sm">{{ formatKrw(getItemTotalKrw(row)) }}</span>
+                          <span class="text-xs font-bold text-slate-800">₩</span>
+                          <span class="font-black text-slate-950 text-sm">{{ formatKrw(getItemTotalKrw(row)) }}</span>
                         </div>
-                        <div class="text-[11px] font-medium text-rose-600 font-mono">
+                        <div class="text-[11.5px] font-bold text-rose-600 font-mono">
                           ¥ {{ getItemTotalRmb(row).toFixed(2) }}
                         </div>
                       </td>
@@ -675,8 +800,8 @@
                       <!-- 6. 상태 -->
                       <td class="py-3 px-4 text-center whitespace-nowrap">
                         <span
-                          class="px-2.5 py-1 rounded-full text-[11px] font-bold"
-                          :class="row.type === 'cart' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'"
+                          class="px-2.5 py-1 rounded-full text-[11px] font-black"
+                          :class="row.type === 'cart' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'"
                         >
                           {{ row.status || (row.type === 'cart' ? '견적대기' : '구매진행') }}
                         </span>
@@ -688,14 +813,14 @@
                           v-if="row.type === 'cart'"
                           type="button"
                           @click="removeCartItemById(row.id)"
-                          class="px-2.5 py-1 rounded border border-gray-300 hover:border-red-400 text-gray-600 hover:text-red-600 text-xs transition"
+                          class="px-2.5 py-1 rounded border border-slate-300 hover:border-red-500 text-slate-700 hover:text-red-600 text-xs font-bold transition cursor-pointer"
                         >
                           삭제
                         </button>
                         <button
                           type="button"
                           @click="downloadRowEstimate(row)"
-                          class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-gray-700 text-xs font-medium transition"
+                          class="px-2.5 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold transition cursor-pointer"
                           title="단건 견적서 다운로드"
                         >
                           견적서
@@ -718,13 +843,13 @@
             <!-- Panel 1: 시스템 이용가이드 (튜토리얼 카드) -->
             <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-none">
               <div class="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
-                <h4 class="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
+                <h4 class="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
                   <i class="fas fa-book-open text-orange-500 text-xs mr-1"></i>
                   <span>시스템 이용가이드</span>
                 </h4>
-                <router-link to="/guide" class="text-[11px] text-gray-400 hover:text-gray-600">더보기 &gt;</router-link>
+                <router-link to="/guide" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
               </div>
-              <ul class="space-y-2 text-xs text-gray-600 font-medium">
+              <ul class="space-y-2 text-xs text-slate-800 font-bold">
                 <li class="hover:text-orange-600 cursor-pointer truncate transition">• (신) 수령주소 작성 및 관리 방법</li>
                 <li class="hover:text-orange-600 cursor-pointer truncate transition">• EUC 현지창고 입고사진/검수 확인법</li>
                 <li class="hover:text-orange-600 cursor-pointer truncate transition">• 통관 위임장 및 사업자 통관 안내</li>
@@ -736,13 +861,13 @@
             <!-- Panel 2: 자주 묻는 질문 (FAQ 카드) -->
             <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-none">
               <div class="flex items-center justify-between pb-2 mb-3 border-b border-gray-100">
-                <h4 class="text-xs font-bold text-gray-900 flex items-center space-x-1.5">
-                  <i class="fas fa-circle-question text-blue-500 text-xs mr-1"></i>
+                <h4 class="text-xs font-bold text-slate-900 flex items-center space-x-1.5">
+                  <i class="fas fa-circle-question text-blue-600 text-xs mr-1"></i>
                   <span>자주 묻는 질문 (FAQ)</span>
                 </h4>
-                <router-link to="/community/faq" class="text-[11px] text-gray-400 hover:text-gray-600">더보기 &gt;</router-link>
+                <router-link to="/community/faq" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
               </div>
-              <ul class="space-y-2 text-xs text-gray-600 font-medium">
+              <ul class="space-y-2 text-xs text-slate-800 font-bold">
                 <li class="hover:text-orange-600 cursor-pointer truncate transition">• 1688 최소 구매수량(MOQ) 협의 가능한가요?</li>
                 <li class="hover:text-orange-600 cursor-pointer truncate transition">• 예치금 충전 후 세금계산서는 언제 발행되나요?</li>
                 <li class="hover:text-orange-600 cursor-pointer truncate transition">• 한-중 FTA 원산지증명서(C/O) 발급 비용은?</li>
@@ -752,24 +877,24 @@
             </div>
 
             <!-- Panel 3: 중국 현지 물류센터 직통 안내 -->
-            <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-4 space-y-2.5 text-xs shadow-sm">
-              <div class="font-bold flex items-center gap-1.5 text-orange-400 text-xs">
+            <div class="bg-gradient-to-br from-slate-950 to-slate-900 text-white rounded-xl p-4 space-y-2.5 text-xs shadow-sm border border-slate-800">
+              <div class="font-extrabold flex items-center gap-1.5 text-amber-400 text-xs">
                 <i class="fas fa-building-flag"></i>
                 <span>🏢 EUCHS 중국 직영 물류센터 안내</span>
               </div>
-              <div class="space-y-2 text-[11px] text-slate-300">
+              <div class="space-y-2 text-[11.5px] text-slate-200">
                 <div class="flex items-center justify-between">
-                  <span class="text-slate-300 font-medium">이우(Yiwu) 전용 물류센터:</span>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-bold text-[10px] border border-emerald-500/30">
+                  <span class="text-slate-300 font-semibold">이우(Yiwu) 전용 물류센터:</span>
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-black text-[10px] border border-emerald-500/40">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     정상 가동중
                   </span>
                 </div>
-                <div class="flex items-center justify-between pt-1.5 border-t border-slate-700/80 text-slate-300">
-                  <span class="text-slate-400">한국행 해운 선적:</span>
-                  <span class="text-amber-300 font-medium">매주 4~5회 직항 출항 (정기 선적)</span>
+                <div class="flex items-center justify-between pt-1.5 border-t border-slate-800 text-slate-200">
+                  <span class="text-slate-400 font-medium">한국행 해운 선적:</span>
+                  <span class="text-amber-300 font-bold">매주 4~5회 직항 출항 (정기 선적)</span>
                 </div>
-                <div class="pt-1.5 border-t border-slate-700/80 text-[10.5px] text-slate-400 flex items-center gap-1.5">
+                <div class="pt-1.5 border-t border-slate-800 text-[11px] text-slate-300 font-medium flex items-center gap-1.5">
                   <i class="fas fa-check-circle text-emerald-400 text-[10px] shrink-0"></i>
                   <span>1688 공장 직입고 / CBM 실측 계근 / 100% 정밀 검수</span>
                 </div>
@@ -803,9 +928,59 @@ import {
 } from '../lib/orderPipeline'
 import { getStoredOrders } from '../utils/orderStorage'
 import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
+import {
+  currentUser,
+  userDisplayName,
+  userAvatarUrl,
+  userEmail,
+  isLoggedIn,
+  getUserBusinessInfo,
+  isUserBusinessVerified,
+  isBusinessVerified,
+  signOut,
+  openLoginModal
+} from '../lib/auth'
+import {
+  userBalance,
+  loadBalance,
+  formatBalance
+} from '../lib/balanceStore'
 
 const router = useRouter()
 const route = useRoute()
+
+// ----------------------------------------------------
+// Auth & Buyer Profile Single Source of Truth
+// ----------------------------------------------------
+const handleDashboardSignOut = async () => {
+  if (!confirm('정말 로그아웃하시겠습니까?')) return
+  await signOut()
+  alert('정상적으로 로그아웃되었습니다.')
+  router.push('/mall')
+}
+const displayBuyerName = computed(() => {
+  if (isLoggedIn.value) {
+    return userDisplayName.value || '회원'
+  }
+  return ''
+})
+
+const displayBuyerEmail = computed(() => {
+  if (isLoggedIn.value) {
+    return userEmail.value || ''
+  }
+  return ''
+})
+
+const displayCompanyName = computed(() => {
+  if (!isLoggedIn.value) return ''
+  const biz = getUserBusinessInfo(currentUser.value)
+  if (biz?.company_name) return biz.company_name
+  if (userDisplayName.value) {
+    return `${userDisplayName.value} 바이어`
+  }
+  return '바이어 회원'
+})
 
 // ----------------------------------------------------
 // State: GNB & LNB Accordion Tree
@@ -881,15 +1056,36 @@ const orderOptions = ref({
 
 const customExchangeRate = ref(226.19)
 const agencyFeeRate = ref(8.0)
-const depositBalanceKrw = ref(15420000)
 
 const buyerForm = ref({
   companyName: '(주)이유씨 글로벌 바이어',
-  managerName: '홍길동',
-  phone: '010-1234-5678',
+  managerName: '이유씨 바이어',
+  phone: '010-9373-1214',
   email: 'buyer@euchs.com',
-  customsCode: 'P123456789012'
+  customsCode: 'P240012345678'
 })
+
+const syncBuyerForm = () => {
+  const biz = getUserBusinessInfo(currentUser.value) || {}
+  const name = userDisplayName.value || biz.name || '이유씨 바이어'
+  const email = userEmail.value || 'buyer@euchs.com'
+  const phone = biz.phone || currentUser.value?.user_metadata?.phone || '010-9373-1214'
+  const companyName = biz.company_name || (isLoggedIn.value ? `${name} 바이어` : '(주)이유씨 글로벌 바이어')
+  const customsCode = biz.pccc || 'P240012345678'
+
+  buyerForm.value = {
+    companyName,
+    managerName: name,
+    phone,
+    email,
+    customsCode
+  }
+}
+
+watch(currentUser, () => {
+  syncBuyerForm()
+  loadBalance()
+}, { immediate: true })
 
 // ----------------------------------------------------
 // Load Data from LocalStorage & Supabase

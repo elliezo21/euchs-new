@@ -499,7 +499,7 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 5. 예치금 가상계좌 충전 신청 모달 -->
+    <!-- 5. 예치금 무통장 입금 충전 신청 모달 (공식 계좌) -->
     <!-- ======================================================== -->
     <div
       v-if="showDepositModal"
@@ -509,7 +509,7 @@
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
           <h3 class="text-sm font-bold text-gray-900 flex items-center gap-2">
             <Wallet class="w-4 h-4 text-orange-600" />
-            <span>예치금 가상계좌 충전</span>
+            <span>예치금 무통장 입금 충전 신청</span>
           </h3>
           <button @click="showDepositModal = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
             <X class="w-4 h-4" />
@@ -517,6 +517,7 @@
         </div>
 
         <div class="space-y-4 text-xs">
+          <!-- 충전 희망 금액 선택 -->
           <div>
             <label class="block font-bold text-gray-700 mb-1.5">충전 희망 금액 선택</label>
             <div class="grid grid-cols-3 gap-2">
@@ -526,43 +527,74 @@
                 type="button"
                 @click="depositAmount = amt"
                 class="py-2 px-1 rounded-xl border text-center font-mono font-bold transition cursor-pointer"
-                :class="depositAmount === amt ? 'border-orange-500 bg-orange-50 text-orange-600' : 'border-gray-200 text-gray-700 hover:bg-gray-50'"
+                :class="depositAmount === amt ? 'border-orange-500 bg-orange-50 text-orange-600 ring-2 ring-orange-500/20' : 'border-gray-200 text-gray-700 hover:bg-gray-50'"
               >
                 ₩{{ (amt / 10000).toLocaleString() }}만
               </button>
             </div>
           </div>
 
-          <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
+          <!-- 입금자명 입력 -->
+          <div>
+            <label class="block font-bold text-gray-700 mb-1">입금자명 (실제 송금인 성명/상호)</label>
+            <input
+              type="text"
+              v-model="depositDepositorName"
+              placeholder="예: 홍길동 (또는 이유씨글로벌)"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+            />
+          </div>
+
+          <!-- 공식 무통장 입금 지정 계좌 안내 카드 -->
+          <div class="bg-orange-50/70 p-4 rounded-2xl border border-orange-200 space-y-2.5">
             <div class="flex items-center justify-between font-bold text-gray-900">
               <span>최종 충전 신청액:</span>
               <span class="text-base text-orange-600 font-mono font-extrabold">₩{{ depositAmount.toLocaleString() }}</span>
             </div>
-            <div class="pt-2 border-t border-slate-200 text-[11px] text-slate-500 space-y-1">
-              <div>입금은행: <b class="text-gray-800">하나은행 (가상계좌)</b></div>
-              <div>계좌번호: <b class="text-gray-800 font-mono">128-910023-88205</b></div>
-              <div>예금주: <b class="text-gray-800">(주)이유씨컴퍼니</b></div>
+
+            <div class="pt-2 border-t border-orange-200/80 text-[11px] text-gray-700 space-y-1.5 font-medium">
+              <div class="flex justify-between items-center">
+                <span class="text-gray-500">입금은행:</span>
+                <b class="text-gray-900 font-bold">기업은행 (공식 지정 계좌)</b>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-gray-500">계좌번호:</span>
+                <div class="flex items-center gap-1.5">
+                  <b class="text-gray-900 font-mono font-black text-xs">190-134321-01-016</b>
+                  <button
+                    type="button"
+                    @click="copyBankAccount"
+                    class="px-2 py-0.5 rounded-md bg-white border border-gray-300 hover:bg-gray-50 text-[10px] font-bold text-gray-700 transition cursor-pointer shadow-xs"
+                  >
+                    📋 복사
+                  </button>
+                </div>
+              </div>
+              <div class="flex justify-between items-center">
+                <span class="text-gray-500">예금주:</span>
+                <b class="text-gray-900 font-bold">이유씨컴퍼니(조해성)</b>
+              </div>
             </div>
           </div>
 
-          <p class="text-[11px] text-slate-400 leading-relaxed">
-            입금 확인 후 10분 이내에 예치금 지갑 잔액으로 자동 반영됩니다.
+          <p class="text-[11px] text-slate-500 leading-relaxed">
+            * 입금 신청 후 위 계좌로 송금해 주시면, 관리자 확인 후 즉시 예치금 지갑으로 충전 승인됩니다.
           </p>
 
           <div class="flex items-center justify-end gap-2 pt-2">
             <button
               type="button"
               @click="showDepositModal = false"
-              class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-bold cursor-pointer"
+              class="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 font-bold cursor-pointer"
             >
-              닫기
+              취소
             </button>
             <button
               type="button"
-              @click="confirmDeposit"
-              class="px-5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold cursor-pointer"
+              @click="submitDepositRequest"
+              class="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold transition active:scale-95 cursor-pointer shadow-sm"
             >
-              충전 신청 접수
+              충전 신청하기
             </button>
           </div>
         </div>
@@ -589,81 +621,85 @@ import {
   getUserBusinessInfo,
   updateBusinessProfile
 } from '../../lib/auth'
+import {
+  userBalance,
+  loadBalance,
+  setBalance
+} from '../../lib/balanceStore'
 
 const route = useRoute()
 const router = useRouter()
 
 const activeTab = ref('address') // 'address' | 'pccc' | 'deposit'
-const walletBalance = ref(15420000)
+const walletBalance = userBalance
 const walletFilter = ref('all')
 const showAddressModal = ref(false)
 const showDepositModal = ref(false)
 const editingAddressId = ref(null)
 const depositAmount = ref(3000000)
+const depositDepositorName = ref('이유씨글로벌')
 
 const switchTab = (tabName) => {
   activeTab.value = tabName
   router.replace({ query: { ...route.query, tab: tabName } })
 }
 
-watch(() => route.query.tab, (newTab) => {
-  if (newTab === 'pccc' || newTab === 'customs') {
-    activeTab.value = 'pccc'
-  } else if (newTab === 'deposit' || newTab === 'wallet') {
-    activeTab.value = 'deposit'
-  } else {
-    activeTab.value = 'address'
-  }
-}, { immediate: true })
-
-const customsProfile = ref({
-  companyName: '(주)글로벌 커머스',
-  bizNumber: '123-45-67890',
-  customsCode: 'P123456789012',
-  contactName: '홍길동',
-  contactPhone: '010-1234-5678'
-})
-
-const loadUserCustomsProfile = () => {
-  const biz = getUserBusinessInfo(currentUser.value)
-  if (biz) {
-    if (biz.company_name) customsProfile.value.companyName = biz.company_name
-    if (biz.business_number) customsProfile.value.bizNumber = biz.business_number
-    if (biz.pccc) customsProfile.value.customsCode = biz.pccc
-    if (biz.name) customsProfile.value.contactName = biz.name
-    if (biz.phone) customsProfile.value.contactPhone = biz.phone
-  }
+const copyBankAccount = () => {
+  navigator.clipboard.writeText('190-134321-01-016')
+  alert('기업은행 190-134321-01-016 계좌번호가 클립보드에 복사되었습니다.')
 }
 
-onMounted(() => {
-  loadUserCustomsProfile()
-})
+const submitDepositRequest = () => {
+  const req = {
+    id: `DEP-${Date.now()}`,
+    createdAt: new Date().toISOString(),
+    buyerName: customsProfile.value?.companyName || '이유씨글로벌',
+    buyerEmail: currentUser.value?.email || 'buyer@euchs.com',
+    depositorName: depositDepositorName.value || '이유씨글로벌',
+    amount: depositAmount.value,
+    bankName: '기업은행',
+    accountNumber: '190-134321-01-016',
+    accountHolder: '이유씨컴퍼니(조해성)',
+    status: 'pending' // 'pending' | 'approved' | 'rejected'
+  }
 
-watch(currentUser, () => {
-  loadUserCustomsProfile()
-})
+  try {
+    const raw = localStorage.getItem('euchs_deposit_requests')
+    const list = raw ? JSON.parse(raw) : []
+    list.unshift(req)
+    localStorage.setItem('euchs_deposit_requests', JSON.stringify(list))
+    window.dispatchEvent(new CustomEvent('euchs-deposit-request', { detail: req }))
+    window.dispatchEvent(new Event('storage'))
+  } catch (e) {}
 
+  alert(`₩${depositAmount.value.toLocaleString()}원 충전 신청이 완료되었습니다.\n기업은행 190-134321-01-016 (이유씨컴퍼니(조해성)) 계좌로 입금해 주시면 확인 후 즉시 승인됩니다.`)
+  showDepositModal.value = false
+}
+
+// ----------------------------------------------------
+// 주소 및 세무/통관 프로필 상태
+// ----------------------------------------------------
 const addressList = ref([
   {
     id: 1,
     title: '본사 물류창고',
-    recipient: '홍길동 (물류팀)',
-    phone: '010-1234-5678',
-    zipCode: '10023',
-    address: '경기도 김포시 고촌읍 아라육로 123',
-    detailAddress: 'EUCHS 로지스틱스 2동 101호',
-    memo: '화물 하역장 직접 입고',
+    recipient: '김물류 대리',
+    phone: '010-9988-7766',
+    zipCode: '17520',
+    address: '경기도 안성시 일죽면 대송로 123',
+    detailAddress: 'EUCHS 로지스틱스 1층 102호',
+    memo: '하역장 지게차 하차 가능 (진입로 11톤 트럭 진입 가능)',
     isDefault: true
   },
   {
     id: 2,
-    title: '서울 제1영업소',
-    recipient: '김영수 차장',
-    phone: '010-9876-5432',
-    zipCode: '06234',
-    address: '서울특별시 강남구 테헤란로 456',
-    detailAddress: '메트로빌딩 8층',
-    memo: '경비실 보관 요망',
+    title: '인천 제2 풀필먼트 센터',
+    recipient: '박풀필 매니저',
+    phone: '010-3344-5566',
+    zipCode: '22301',
+    address: '인천광역시 중구 항동7가 45-6',
+    detailAddress: '인천항 보세물류창고 3층',
+    memo: '사전 연락 필수 (보세구역 출입 승인 필요)',
     isDefault: false
   }
 ])
@@ -678,33 +714,43 @@ const addressForm = ref({
   memo: ''
 })
 
+const customsProfile = ref({
+  companyName: '이유씨글로벌 (EUCHS GLOBAL)',
+  bizNumber: '128-86-12345',
+  customsCode: 'P123456789012',
+  contactName: '조해성 대표',
+  contactPhone: '010-8821-1688',
+  bizCertUrl: '',
+  status: 'verified'
+})
+
 const transactions = ref([
   {
-    id: 1,
-    date: '2026-08-24 11:30',
-    title: '1688 수입 발주 건 결제 승인',
-    orderNo: 'ORD-20260824-001',
-    type: 'out',
-    amount: 2480000,
+    id: 'tx-1',
+    date: '2026.08.24 14:30',
+    title: '예치금 무통장 입금 충전 (승인완료)',
+    orderNo: 'DEP-20260824-001',
+    type: 'in',
+    amount: 5000000,
     balanceAfter: 15420000
   },
   {
-    id: 2,
-    date: '2026-08-23 15:20',
-    title: '예치금 가상계좌 무통장 입금',
-    orderNo: '',
-    type: 'in',
-    amount: 5000000,
-    balanceAfter: 17900000
+    id: 'tx-2',
+    date: '2026.08.23 11:20',
+    title: '1688 수입 발주 1차 상품대금 결제',
+    orderNo: 'ORD-20260823-1688',
+    type: 'out',
+    amount: 1630000,
+    balanceAfter: 10420000
   },
   {
-    id: 3,
-    date: '2026-08-21 09:40',
-    title: '인천세관 수입 관부가세 및 해운운임 정산',
-    orderNo: 'ORD-20260820-008',
+    id: 'tx-3',
+    date: '2026.08.20 16:45',
+    title: '인천항 LCL 해상운임 및 세관 통관비 2차 정산',
+    orderNo: 'ORD-20260815-0922',
     type: 'out',
     amount: 890000,
-    balanceAfter: 12900000
+    balanceAfter: 12050000
   }
 ])
 
@@ -779,12 +825,14 @@ const setDefaultAddress = (id) => {
   })
 }
 
-const confirmDeposit = () => {
-  alert(`₩${depositAmount.value.toLocaleString()} 예치금 충전 신청이 완료되었습니다. 가상계좌로 입금해 주세요.`)
-  showDepositModal.value = false
+const downloadReceipt = (t) => {
+  alert(`[거래번호: ${t.id}]\n${t.title}\n금액: ₩${t.amount.toLocaleString()}\n발행일: ${t.date}\n전자 영수증이 발급되었습니다.`)
 }
 
-const downloadReceipt = (t) => {
-  alert(`[거래번호: ${t.id}] 전자영수증이 발급되었습니다. (정산금액: ₩${t.amount.toLocaleString()})`)
-}
+onMounted(() => {
+  if (route.query.tab) {
+    activeTab.value = route.query.tab
+  }
+  loadBalance()
+})
 </script>

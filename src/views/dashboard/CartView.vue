@@ -531,6 +531,8 @@ import {
 } from 'lucide-vue-next';
 import { exportQuoteExcel } from '@/utils/excelExport';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { getStoredOrders, saveStoredOrders, saveNewOrder } from '@/utils/orderStorage';
+import { currentUser } from '@/lib/auth';
 
 const router = useRouter();
 
@@ -874,75 +876,72 @@ async function submitSelectedOrder() {
   const randomSuffix = Math.floor(1000 + Math.random() * 9000);
   const orderNumber = `EUC-${dateCompact}-${randomSuffix}`;
 
+  // 로그인된 사용자 정보 활용 (fallback: 기본 바이어 정보)
+  const user = currentUser.value;
+  const buyerInfo = {
+    companyName: user?.companyName || user?.company_name || '이유씨 글로벌 바이어',
+    buyerName: user?.name || user?.displayName || '이유씨 바이어',
+    phone: user?.phone || '010-9373-1214',
+    email: user?.email || 'buyer@euchs.com',
+    customsCode: user?.customsCode || user?.pccc || 'P240012345678',
+    address: user?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
+    memo: '한·중 FTA C/O 신청 | 정밀검수 신청'
+  };
+
   const newOrder = {
     id: `ord-${Date.now()}`,
     orderNumber,
+    inboundNo: `INB-YW-${dateCompact}-${randomSuffix}`,
     createdAt: new Date().toLocaleString('ko-KR'),
     status: 'quote_pending',
-    buyerInfo: {
-      companyName: '이유씨 글로벌 바이어',
-      buyerName: '이유씨 바이어',
-      phone: '010-9373-1214',
-      email: 'buyer@euchs.com',
-      customsCode: 'P240012345678',
-      address: '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
-      memo: '한·중 FTA C/O 신청 | 정밀검수 신청'
-    },
+    buyerInfo,
     items: targetItems.map(it => ({
-      productName: it.titleKo,
+      productName: it.titleKo || it.productName,
       imageUrl: it.imageUrl,
       sku: it.sku,
       quantity: it.quantity || 1,
-      priceCny: it.priceCny
-    }))
+      priceCny: it.priceCny,
+      cbm: 0
+    })),
+    totalPriceKrw: targetItems.reduce((sum, it) => sum + getItemSubtotalKrw(it), 0),
+    totalPriceRmb: targetItems.reduce((sum, it) => sum + ((it.quantity || 1) * it.priceCny), 0)
   };
 
-  // 1. Supabase insert
+  // 1. Supabase orders 테이블 및 전역 orderStorage에 동기화 저장
+  try {
+    await saveNewOrder(newOrder);
+  } catch (e) {
+    console.warn('saveNewOrder error:', e);
+  }
+
+  // 2. applications 테이블 호환 백업 insert
   if (isSupabaseConfigured()) {
     try {
       await supabase.from('applications').insert([{
         service_type: 'purchasing',
         service_name: '1688 구매대행',
-        customer_name: newOrder.buyerInfo.buyerName,
-        company_name: newOrder.buyerInfo.companyName,
-        phone: newOrder.buyerInfo.phone,
-        email: newOrder.buyerInfo.email,
+        customer_name: buyerInfo.buyerName,
+        phone: buyerInfo.phone,
+        email: buyerInfo.email,
         status: 'quote_pending',
         details: {
           orderId: orderNumber,
           items: newOrder.items,
-          customsCode: newOrder.buyerInfo.customsCode
+          customsCode: buyerInfo.customsCode
         }
       }]);
-    } catch (e) {
-      console.warn('Supabase order submit error:', e);
-    }
+    } catch (e) {}
   }
 
-  // 2. LocalStorage order list update
-  try {
-    const raw = localStorage.getItem('euchs_erp_submitted_orders');
-    const orders = raw ? JSON.parse(raw) : [];
-    orders.unshift(newOrder);
-    localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(orders));
-
-    // 선택된 품목 장바구니에서 제거
-    cartItems.value = cartItems.value.filter(it => !selectedItemIds.value.includes(it.id));
-    selectedItemIds.value = [];
-    saveCartToStorage();
-  } catch (e) {
-    console.warn('LocalStorage order submit error:', e);
-  }
-
-  // 3. 글로벌 이벤트 통지
-  window.dispatchEvent(new Event('storage'));
-  window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
-    detail: { appId: newOrder.id, status: 'quote_pending' }
-  }));
+  // 3. 선택된 품목 장바구니에서 제거
+  cartItems.value = cartItems.value.filter(it => !selectedItemIds.value.includes(it.id));
+  selectedItemIds.value = [];
+  saveCartToStorage();
 
   alert(`선택된 ${targetItems.length}개 품목의 발주 신청이 정상 접수되었습니다!\n(발주번호: ${orderNumber})\n주문/발주 통합 관리 화면으로 이동합니다.`);
   router.push('/dashboard/orders?tab=quote');
 }
+
 
 // ---------------------------------------------------------
 // 엑셀 다운로드

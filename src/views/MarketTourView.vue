@@ -737,11 +737,11 @@
           <div class="flex flex-col gap-2.5 pt-1">
             <!-- 1. MyPage Confirm Button -->
             <router-link 
-              to="/mypage" 
+              to="/dashboard/orders" 
               class="w-full py-3.5 px-4 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-md hover:shadow-lg shadow-blue-500/20"
             >
               <i class="fas fa-receipt text-sm"></i>
-              <span>마이페이지 신청내역 확인</span>
+              <span>대시보드 신청내역 확인</span>
             </router-link>
 
             <!-- 2. Channel Talk Button -->

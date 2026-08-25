@@ -664,11 +664,11 @@
 
         <div class="space-y-2 pt-2">
           <router-link 
-            to="/mypage" 
+            to="/dashboard/orders" 
             class="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs sm:text-sm rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-blue-500/20"
           >
             <i class="fas fa-receipt"></i>
-            <span>마이페이지 견적내역 확인</span>
+            <span>대시보드 견적/발주내역 확인</span>
           </router-link>
           <button 
             @click="showSuccessModal = false" 

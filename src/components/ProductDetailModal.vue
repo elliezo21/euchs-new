@@ -52,16 +52,20 @@
       >
         <div
           v-if="toastMessage"
-          class="absolute top-16 left-1/2 -translate-x-1/2 z-50 bg-slate-900/95 text-white px-5 py-2.5 rounded-2xl shadow-2xl border border-slate-700 flex items-center gap-2.5 text-xs font-bold backdrop-blur-md animate-bounce-subtle"
+          class="absolute top-16 left-1/2 -translate-x-1/2 z-50 text-white px-5 py-2.5 rounded-2xl shadow-2xl border flex items-center gap-2.5 text-xs font-bold backdrop-blur-md animate-bounce-subtle"
+          :class="toastType === 'warning' ? 'bg-amber-950/95 border-amber-600 text-amber-200' : (toastType === 'info' ? 'bg-blue-950/95 border-blue-600 text-blue-200' : 'bg-slate-900/95 border-slate-700 text-emerald-300')"
         >
-          <span class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs shrink-0 shadow-xs">
-            <i class="fas fa-check"></i>
+          <span
+            class="w-6 h-6 rounded-full flex items-center justify-center text-xs shrink-0 shadow-xs"
+            :class="toastType === 'warning' ? 'bg-amber-500 text-slate-950' : (toastType === 'info' ? 'bg-blue-500 text-white' : 'bg-emerald-500 text-white')"
+          >
+            <i :class="toastType === 'warning' ? 'fas fa-exclamation' : (toastType === 'info' ? 'fas fa-info' : 'fas fa-check')"></i>
           </span>
-          <span class="text-emerald-300">{{ toastMessage }}</span>
+          <span>{{ toastMessage }}</span>
           <button
             type="button"
             @click="toastMessage = ''"
-            class="text-gray-400 hover:text-white ml-2 text-xs"
+            class="text-gray-400 hover:text-white ml-2 text-xs cursor-pointer"
           >
             <i class="fas fa-times"></i>
           </button>
@@ -199,18 +203,27 @@
 
             <!-- 2. Option Selection: Color / Style (1차 옵션) -->
             <div class="space-y-2.5">
-              <label class="block text-xs font-bold text-gray-800">
-                1차 옵션 (색상/스타일) <span class="text-rose-600">*</span>
-              </label>
+              <div class="flex items-center justify-between text-xs">
+                <label class="font-bold text-gray-800 flex items-center gap-1.5">
+                  <span>1차 옵션 (색상/스타일)</span>
+                  <span class="text-rose-600 font-bold">*</span>
+                </label>
+                <span v-if="selectedColor" class="text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                  선택: {{ selectedColor.name }}
+                </span>
+                <span v-else class="text-gray-400 text-[11px]">
+                  색상을 먼저 선택하세요
+                </span>
+              </div>
               <div class="flex flex-wrap gap-2.5">
                 <button
                   v-for="(color, cIdx) in colorOptions"
                   :key="cIdx"
                   type="button"
-                  @click="selectColor(color)"
-                  class="px-3.5 py-2 rounded-xl border text-xs font-medium transition flex items-center gap-2"
+                  @click="handleSelectColor(color)"
+                  class="px-3.5 py-2 rounded-xl border text-xs font-medium transition flex items-center gap-2 cursor-pointer active:scale-95"
                   :class="selectedColor?.name === color.name 
-                    ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-1 ring-rose-300' 
+                    ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20' 
                     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
                 >
                   <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-gray-200" />
@@ -219,20 +232,30 @@
               </div>
             </div>
 
-            <!-- 3. Option Selection: Size / Spec (2차 옵션) -->
-            <div class="space-y-2.5">
-              <label class="block text-xs font-bold text-gray-800">
-                2차 옵션 (사이즈/규격) <span class="text-rose-600">*</span>
-              </label>
+            <!-- 3. Option Selection: Size / Spec (2차 옵션 - 다중 옵션일 때만 노출) -->
+            <div v-if="hasMultipleOptions" class="space-y-2.5">
+              <div class="flex items-center justify-between text-xs">
+                <label class="font-bold text-gray-800 flex items-center gap-1.5">
+                  <span>2차 옵션 (사이즈/규격)</span>
+                  <span class="text-rose-600 font-bold">*</span>
+                </label>
+                <span v-if="!selectedColor" class="text-amber-600 font-medium text-[11px] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  ⚠️ 1차 색상을 먼저 선택해 주세요
+                </span>
+                <span v-else class="text-gray-500 text-[11px]">
+                  사이즈를 누르면 품목에 추가됩니다
+                </span>
+              </div>
               <div class="flex flex-wrap gap-2.5">
                 <button
                   v-for="(size, sIdx) in sizeOptions"
                   :key="sIdx"
                   type="button"
-                  @click="selectSize(size)"
-                  class="px-4 py-2 rounded-xl border text-xs font-medium transition"
+                  @click="handleSelectSize(size)"
+                  :disabled="!selectedColor"
+                  class="px-4 py-2 rounded-xl border text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
                   :class="selectedSize === size 
-                    ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-1 ring-rose-300' 
+                    ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20' 
                     : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
                 >
                   {{ size }}
@@ -243,8 +266,15 @@
             <!-- 4. Selected SKUs List & Quantity Adjuster -->
             <div class="space-y-2.5 pt-2 border-t border-gray-100">
               <div class="flex items-center justify-between text-xs font-bold text-gray-800">
-                <span>선택된 발주 품목 ({{ selectedSkus.length }}개)</span>
-                <span class="text-gray-400 font-normal text-[11px]">수량을 조절하세요</span>
+                <span class="flex items-center gap-1.5">
+                  <span>선택된 발주 품목</span>
+                  <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[11px] font-mono font-black">
+                    {{ selectedSkus.length }}개
+                  </span>
+                </span>
+                <span class="text-gray-400 font-normal text-[11px]">
+                  {{ selectedSkus.length > 0 ? '수량을 조절하세요' : '옵션을 선택하면 아래에 등록됩니다' }}
+                </span>
               </div>
 
               <!-- SKU Items Box -->
@@ -432,16 +462,20 @@
       <div class="sticky bottom-0 z-20 px-5 py-3.5 sm:px-8 sm:py-4 border-t border-gray-200 bg-white/95 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 shadow-lg">
         
         <div class="text-xs text-gray-500 hidden sm:block">
-          <span class="font-bold text-gray-800">총 {{ totalQuantity }}개</span> 선택됨 (합계: <b class="text-rose-600 font-mono font-bold text-sm">₩{{ formatKrw(totalPriceKrw) }}</b>)
+          <template v-if="selectedSkus.length > 0">
+            <span class="font-bold text-gray-800">총 {{ totalQuantity }}개</span> 선택됨 (합계: <b class="text-rose-600 font-mono font-bold text-sm">₩{{ formatKrw(totalPriceKrw) }}</b>)
+          </template>
+          <template v-else>
+            <span class="text-gray-400 font-medium">옵션을 선택하면 발주 금액이 계산됩니다.</span>
+          </template>
         </div>
 
         <div class="flex items-center gap-3 w-full sm:w-auto">
           <!-- 1. 보관함 담기 -->
           <button
             type="button"
-            :disabled="totalQuantity === 0"
             @click="handleAddToCart"
-            class="flex-1 sm:flex-none px-6 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs sm:text-sm border border-rose-200 transition active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="flex-1 sm:flex-none px-6 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs sm:text-sm border border-rose-200 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
           >
             <i class="fas fa-shopping-bag"></i>
             <span>발주대기 보관함 담기</span>
@@ -450,9 +484,8 @@
           <!-- 2. 즉시 발주서 작성 -->
           <button
             type="button"
-            :disabled="totalQuantity === 0"
             @click="handleInstantOrder"
-            class="flex-1 sm:flex-none px-7 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-rose-600/30 transition active:scale-95 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+            class="flex-1 sm:flex-none px-7 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-rose-600/30 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <i class="fas fa-bolt"></i>
             <span>즉시 발주서 작성</span>
@@ -494,7 +527,7 @@ const modalBodyRef = ref(null)
 const currentItem = ref(null)
 const activeImage = ref('')
 const selectedColor = ref(null)
-const selectedSize = ref('기본')
+const selectedSize = ref(null)
 const selectedSkus = ref([])
 
 const detailImages = ref([])
@@ -559,6 +592,11 @@ const sizeOptions = computed(() => {
   return ['Free (원사이즈)', 'S', 'M', 'L', 'XL']
 })
 
+// 다중 옵션 (2차 사이즈/규격 존재 여부)
+const hasMultipleOptions = computed(() => {
+  return sizeOptions.value && sizeOptions.value.length > 1
+})
+
 // 갤러리 이미지
 const galleryImages = computed(() => {
   const item = currentItem.value
@@ -590,39 +628,60 @@ const formatKrw = (val) => {
 }
 
 // ----------------------------------------------------
-// Option Selection Handlers
+// Option Selection Handlers (엄격한 단계별 유효성 검사)
 // ----------------------------------------------------
-const selectColor = (color) => {
+const handleSelectColor = (color) => {
   selectedColor.value = color
   if (color.imageUrl) {
     activeImage.value = color.imageUrl
   }
-  autoAddOrSelectSku()
+
+  // 1. 단일 옵션 상품일 경우: 1차 선택 즉시 품목 리스트에 등록
+  if (!hasMultipleOptions.value) {
+    const colorName = color.name
+    const sizeName = sizeOptions.value[0] || '기본'
+    const existing = selectedSkus.value.find(s => s.color === colorName && s.size === sizeName)
+    if (existing) {
+      existing.quantity += 1
+      showToastNotification(`[${colorName}] 수량이 1개 추가되었습니다.`)
+    } else {
+      selectedSkus.value.push({
+        color: colorName,
+        size: sizeName,
+        quantity: minOrder.value || 1
+      })
+      showToastNotification(`[${colorName}] 품목이 추가되었습니다.`)
+    }
+  } else {
+    // 2. 다중 옵션 상품일 경우: 2차 옵션 선택을 기다림 (리스트에 임의 추가 안 함)
+    selectedSize.value = null
+    showToastNotification(`[${color.name}] 선택 완료! 2차 옵션(사이즈)을 선택해 주세요.`, 'info')
+  }
 }
 
-const selectSize = (size) => {
-  selectedSize.value = size
-  autoAddOrSelectSku()
-}
-
-const autoAddOrSelectSku = () => {
+const handleSelectSize = (size) => {
+  // 1차 옵션 미선택 가드
   if (!selectedColor.value) {
-    selectedColor.value = colorOptions.value[0]
+    showToastNotification('⚠️ 1차 옵션(색상/스타일)을 먼저 선택해 주세요.', 'warning')
+    return
   }
 
+  selectedSize.value = size
   const colorName = selectedColor.value.name
-  const sizeName = selectedSize.value
+  const sizeName = size
 
-  const existing = selectedSkus.value.find(
-    s => s.color === colorName && s.size === sizeName
-  )
-
-  if (!existing) {
+  // 1차와 2차가 모두 선택 완료된 시점에만 품목 리스트에 추가
+  const existing = selectedSkus.value.find(s => s.color === colorName && s.size === sizeName)
+  if (existing) {
+    existing.quantity += 1
+    showToastNotification(`[${colorName} / ${sizeName}] 수량이 1개 추가되었습니다. (총 ${existing.quantity}개)`)
+  } else {
     selectedSkus.value.push({
       color: colorName,
       size: sizeName,
       quantity: minOrder.value || 1
     })
+    showToastNotification(`[${colorName} / ${sizeName}] 품목이 추가되었습니다.`)
   }
 }
 
@@ -742,15 +801,20 @@ const loadSellerProducts = async (item) => {
 const selectAnotherProduct = (newProduct) => {
   currentItem.value = newProduct
   activeImage.value = newProduct.imageUrl || ''
-  selectedColor.value = colorOptions.value[0]
-  selectedSize.value = sizeOptions[0]
-  selectedSkus.value = [
-    {
-      color: colorOptions.value[0]?.name || '기본',
-      size: sizeOptions[0],
-      quantity: Number(newProduct.minOrder) || 1
-    }
-  ]
+  selectedColor.value = colorOptions.value[0] || null
+  selectedSize.value = null
+  selectedSkus.value = []
+
+  // 단일 옵션 상품인 경우에만 기본 1차 품목 자동 등록
+  if (!hasMultipleOptions.value && colorOptions.value[0]) {
+    selectedSkus.value = [
+      {
+        color: colorOptions.value[0].name || '기본',
+        size: sizeOptions.value[0] || '기본',
+        quantity: Number(newProduct.minOrder) || 1
+      }
+    ]
+  }
 
   // 상단으로 부드럽게 스크롤
   if (modalBodyRef.value) {
@@ -766,10 +830,12 @@ const selectAnotherProduct = (newProduct) => {
 // Modal Actions & Toast Notification
 // ----------------------------------------------------
 const toastMessage = ref('')
+const toastType = ref('success') // 'success' | 'warning' | 'info'
 let toastTimer = null
 
-const showToastNotification = (msg) => {
+const showToastNotification = (msg, type = 'success') => {
   toastMessage.value = msg
+  toastType.value = type
   if (toastTimer) clearTimeout(toastTimer)
   toastTimer = setTimeout(() => {
     toastMessage.value = ''
@@ -781,7 +847,17 @@ const handleClose = () => {
 }
 
 const handleAddToCart = () => {
-  if (totalQuantity.value === 0 || !currentItem.value) return
+  // 1. 발주 품목 검증 가드 (미선택 시 차단)
+  if (!selectedSkus.value.length || totalQuantity.value === 0) {
+    if (hasMultipleOptions.value && selectedColor.value && !selectedSize.value) {
+      showToastNotification('⚠️ 2차 옵션(사이즈/규격)을 마저 선택해 주세요.', 'warning')
+    } else {
+      showToastNotification('⚠️ 옵션을 모두 선택한 후 담아주세요.', 'warning')
+    }
+    return
+  }
+
+  if (!currentItem.value) return
 
   try {
     const cached = localStorage.getItem('euchs_erp_saved_items')
@@ -816,15 +892,22 @@ const handleAddToCart = () => {
     window.dispatchEvent(new Event('storage'))
     emit('added-to-cart', itemToSave)
 
-    // ✅ 모달을 닫지 않고 상단에 토스트 알림 노출
-    showToastNotification(`✅ 보관함에 담겼습니다. (선택 ${selectedSkus.value.length}종 / 총 ${totalQuantity.value}개)`)
+    // ✅ 모달을 닫지 않고 상단에 성공 토스트 알림 노출
+    showToastNotification(`✅ 보관함에 담겼습니다. (선택 ${selectedSkus.value.length}종 / 총 ${totalQuantity.value}개)`, 'success')
   } catch (err) {
     console.error('Failed to add to cart:', err)
   }
 }
 
 const handleInstantOrder = () => {
-  if (totalQuantity.value === 0 || !currentItem.value) return
+  if (!selectedSkus.value.length || totalQuantity.value === 0) {
+    if (hasMultipleOptions.value && selectedColor.value && !selectedSize.value) {
+      showToastNotification('⚠️ 2차 옵션(사이즈/규격)을 마저 선택해 주세요.', 'warning')
+    } else {
+      showToastNotification('⚠️ 옵션을 모두 선택한 후 담아주세요.', 'warning')
+    }
+    return
+  }
 
   handleAddToCart()
   handleClose()
@@ -849,15 +932,21 @@ watch(() => props.product, (newVal) => {
   if (newVal) {
     currentItem.value = newVal
     activeImage.value = newVal.imageUrl || ''
-    selectedColor.value = colorOptions.value[0]
-    selectedSize.value = sizeOptions[0]
-    selectedSkus.value = [
-      {
-        color: colorOptions.value[0]?.name || '기본',
-        size: sizeOptions[0],
-        quantity: Number(newVal.minOrder) || 1
-      }
-    ]
+    selectedColor.value = colorOptions.value[0] || null
+    selectedSize.value = null
+    selectedSkus.value = []
+
+    // 단일 옵션 상품일 때만 1차 옵션 기본 등록
+    if (!hasMultipleOptions.value && colorOptions.value[0]) {
+      selectedSkus.value = [
+        {
+          color: colorOptions.value[0].name || '기본',
+          size: sizeOptions.value[0] || '기본',
+          quantity: Number(newVal.minOrder) || 1
+        }
+      ]
+    }
+
     loadProductDetailImages(newVal)
     loadSellerProducts(newVal)
   }

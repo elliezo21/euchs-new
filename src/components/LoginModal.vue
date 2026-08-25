@@ -178,6 +178,22 @@
                 <span>구글</span>
               </button>
             </div>
+
+            <!-- Test Demo Buyer 1-Click Login Button -->
+            <div class="pt-2">
+              <button
+                type="button"
+                @click="handleDemoBuyerLogin"
+                class="w-full py-3 rounded-2xl bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500 hover:from-amber-500 hover:to-rose-600 text-slate-950 font-black text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer border border-amber-300"
+              >
+                <span class="text-base">⚡</span>
+                <span class="tracking-tight text-white font-extrabold drop-shadow-xs">테스트 바이어 1초 간편 로그인</span>
+                <span class="text-[10px] bg-slate-950 text-amber-300 px-1.5 py-0.5 rounded font-mono font-bold">DEMO</span>
+              </button>
+              <p class="text-[10.5px] text-center text-slate-400 mt-1">
+                별도 인증 없이 즉시 B2B 바이어(예치금 1,542만원)로 로그인
+              </p>
+            </div>
           </div>
 
           <!-- ============================================ -->
@@ -574,12 +590,24 @@ import {
   signUpWithEmail,
   updateBusinessProfile,
   resetPasswordForEmail,
-  renderGoogleButton
+  renderGoogleButton,
+  loginAsDemoBuyer
 } from '../lib/auth'
 
 const isLoading = ref(false)
 const showPassword = ref(false)
 const forgotEmail = ref('')
+
+const handleDemoBuyerLogin = async () => {
+  isLoading.value = true
+  try {
+    await loginAsDemoBuyer()
+  } catch (err) {
+    console.error('Demo login error:', err)
+  } finally {
+    isLoading.value = false
+  }
+}
 
 const loginForm = ref({
   email: '',
