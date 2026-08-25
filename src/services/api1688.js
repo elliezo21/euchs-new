@@ -69,40 +69,60 @@ const saveToCache = (cacheMap, storageKey, key, data) => {
 }
 
 /**
- * DeepL 텍스트 번역 함수 (에러 발생 시 원문 반환으로 안전하게 Fallback)
+ * DeepL 텍스트 번역 함수 (개별 캐시 확인 ➔ 미번역 텍스트 일괄 번역 ➔ 캐시 저장)
  * @param {string|string[]} text - 번역할 텍스트 또는 텍스트 배열
- * @param {string} targetLang - 대상 언어 ('ZH' | 'KO' | 'EN' 등)
+ * @param {string} targetLang - 대상 언어 ('KO' | 'ZH' | 'EN' 등)
  * @param {string} [sourceLang] - 출발 언어 (선택 사항)
  * @returns {Promise<string|string[]>} 번역된 결과
  */
-export async function translateText(text, targetLang = 'ZH', sourceLang = null) {
+export async function translateText(text, targetLang = 'KO', sourceLang = null) {
   if (!text || (Array.isArray(text) && text.length === 0)) {
     return text
   }
 
   const isArray = Array.isArray(text)
   const textArray = isArray ? text : [text]
-
   const cleanTexts = textArray.map(t => (t ? String(t).trim() : ''))
+
   if (cleanTexts.every(t => !t)) {
     return text
   }
 
-  const cacheKey = `${targetLang}_${sourceLang || 'auto'}_${cleanTexts.join('||')}`
-  const cached = getFromCache(memoryTranslationCache, 'euchs_trans', cacheKey)
-  if (cached) {
-    return isArray ? cached : cached[0]
+  // 1. 캐시 조회: 이미 번역된 텍스트와 새로 번역할 텍스트 분리
+  const results = new Array(cleanTexts.length)
+  const missingIndices = []
+  const missingTexts = []
+
+  cleanTexts.forEach((txt, idx) => {
+    if (!txt) {
+      results[idx] = ''
+      return
+    }
+    const singleKey = `${targetLang}_${sourceLang || 'auto'}_${txt}`
+    const cached = getFromCache(memoryTranslationCache, 'euchs_trans', singleKey)
+    if (cached) {
+      results[idx] = cached
+    } else {
+      missingIndices.push(idx)
+      missingTexts.push(txt)
+    }
+  })
+
+  // 모든 텍스트가 캐시에 존재하면 즉시 반환
+  if (missingTexts.length === 0) {
+    return isArray ? results : results[0]
   }
 
-  const apiKey = CONFIG.DEEPL_API_KEY
+  // 2. 미번역 텍스트 일괄 DeepL 번역 실행
+  let translatedBatch = null
 
-  // 1. Vite Dev Server 로컬 프록시 우선 시도
+  // 2-1. Vercel Serverless / Vite Dev Server 프록시 우선 시도 (/api/deepl-translate)
   try {
     const proxyRes = await fetch('/api/deepl-translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        text: cleanTexts,
+        text: missingTexts,
         target_lang: targetLang,
         ...(sourceLang ? { source_lang: sourceLang } : {})
       })
@@ -111,52 +131,93 @@ export async function translateText(text, targetLang = 'ZH', sourceLang = null) 
     if (proxyRes.ok) {
       const result = await proxyRes.json()
       if (result.success && result.data?.translations) {
-        const translatedList = result.data.translations.map((item, idx) => item.text || cleanTexts[idx])
-        saveToCache(memoryTranslationCache, 'euchs_trans', cacheKey, translatedList)
-        return isArray ? translatedList : translatedList[0]
+        translatedBatch = result.data.translations.map((item, idx) => item.text || missingTexts[idx])
       }
     }
   } catch (err) {
-    console.debug('DeepL proxy fallback to direct API call:', err.message)
+    console.debug('[DeepL] Proxy notice:', err.message)
   }
 
-  // 2. Direct DeepL API Fallback
-  if (!apiKey) {
-    return text
+  // 2-2. Direct DeepL API Fallback
+  if (!translatedBatch && CONFIG.DEEPL_API_KEY) {
+    try {
+      const apiKey = CONFIG.DEEPL_API_KEY
+      const isFreeKey = apiKey.endsWith(':fx')
+      const endpoint = isFreeKey
+        ? 'https://api-free.deepl.com/v2/translate'
+        : 'https://api.deepl.com/v2/translate'
+
+      const directRes = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Authorization': `DeepL-Auth-Key ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: missingTexts,
+          target_lang: targetLang,
+          ...(sourceLang ? { source_lang: sourceLang } : {})
+        })
+      })
+
+      if (directRes.ok) {
+        const data = await directRes.json()
+        if (data.translations && Array.isArray(data.translations)) {
+          translatedBatch = data.translations.map((item, idx) => item.text || missingTexts[idx])
+        }
+      }
+    } catch (err) {
+      console.warn('[DeepL] Direct API notice:', err.message)
+    }
   }
+
+  // 3. 결과 매핑 및 캐시 저장
+  if (translatedBatch && translatedBatch.length === missingTexts.length) {
+    missingIndices.forEach((origIdx, batchIdx) => {
+      const trans = translatedBatch[batchIdx] || missingTexts[batchIdx]
+      results[origIdx] = trans
+      const singleKey = `${targetLang}_${sourceLang || 'auto'}_${missingTexts[batchIdx]}`
+      saveToCache(memoryTranslationCache, 'euchs_trans', singleKey, trans)
+    })
+  } else {
+    // 번역 실패 시 원문 유지
+    missingIndices.forEach((origIdx, batchIdx) => {
+      results[origIdx] = missingTexts[batchIdx]
+    })
+  }
+
+  return isArray ? results : results[0]
+}
+
+/**
+ * 상품 목록 일괄 한국어 번역 유틸 (중국어 ➔ 한국어)
+ * @param {Array} items - 상품 객체 배열
+ * @returns {Promise<Array>} 번역이 적용된 상품 목록
+ */
+export async function translateItemsBatch(items) {
+  if (!Array.isArray(items) || items.length === 0) return items
+
+  // 번역이 필요한 중국어 제목들 수집
+  const titlesToTranslate = items.map(it => it.titleZh || it.title || it.subject || '')
 
   try {
-    const isFreeKey = apiKey.endsWith(':fx')
-    const endpoint = isFreeKey
-      ? 'https://api-free.deepl.com/v2/translate'
-      : 'https://api.deepl.com/v2/translate'
+    const translatedTitles = await translateText(titlesToTranslate, 'KO', 'ZH')
+    const titleList = Array.isArray(translatedTitles) ? translatedTitles : [translatedTitles]
 
-    const directRes = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `DeepL-Auth-Key ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        text: cleanTexts,
-        target_lang: targetLang,
-        ...(sourceLang ? { source_lang: sourceLang } : {})
-      })
+    items.forEach((it, idx) => {
+      const translated = titleList[idx] || it.titleZh || it.title || ''
+      it.titleKo = translated
+      it.title = translated // MallView 템플릿 호환용
     })
-
-    if (directRes.ok) {
-      const data = await directRes.json()
-      if (data.translations && Array.isArray(data.translations)) {
-        const translatedList = data.translations.map((item, idx) => item.text || cleanTexts[idx])
-        saveToCache(memoryTranslationCache, 'euchs_trans', cacheKey, translatedList)
-        return isArray ? translatedList : translatedList[0]
-      }
-    }
   } catch (err) {
-    console.warn('[DeepL] Translation notice (fallback to source text):', err.message)
+    console.warn('[translateItemsBatch] Notice:', err.message)
+    items.forEach(it => {
+      if (!it.titleKo) it.titleKo = it.titleZh || it.title || '1688 수입 상품'
+      if (!it.title) it.title = it.titleKo
+    })
   }
 
-  return text
+  return items
 }
 
 /**
@@ -164,12 +225,14 @@ export async function translateText(text, targetLang = 'ZH', sourceLang = null) 
  * @param {string} queryZh - 중국어/한국어 검색 키워드
  * @param {number|string} page - 페이지 번호 (기본 1)
  * @param {object} [options] - 추가 옵션 { sort, price_min, price_max }
- * @returns {Promise<object>} 정규화된 1688 검색 결과
+ * @returns {Promise<object>} 정규화된 1688 검색 결과 (한국어 번역 포함)
  */
 export async function search1688(queryZh, page = 1, options = {}) {
   const query = String(queryZh || '').trim()
   if (!query) {
-    return getMockSearchResults('', page, options)
+    const mockRes = getMockSearchResults('', page, options)
+    await translateItemsBatch(mockRes.items)
+    return mockRes
   }
 
   const { sort = 'default', price_min = '', price_max = '' } = options
@@ -187,7 +250,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
   let data = null
   let isApiError = false
 
-  // 2. Vite Dev Server 로컬 프록시 우선 시도
+  // 2. Vercel Serverless / Vite Dev Server 프록시 우선 시도 (/api/1688-search)
   try {
     const params = new URLSearchParams({
       q: query,
@@ -209,7 +272,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
       isApiError = true
     }
   } catch (err) {
-    console.debug('1688 search proxy fallback to direct API call:', err.message)
+    console.debug('[1688 Search] Proxy notice:', err.message)
   }
 
   // 3. Direct RapidAPI Fallback
@@ -233,18 +296,19 @@ export async function search1688(queryZh, page = 1, options = {}) {
         data = await directRes.json()
       } else {
         isApiError = true
-        console.warn(`[1688 API] RapidAPI response status: ${directRes.status} (Switching to Mock Fallback)`)
+        console.warn(`[1688 API] RapidAPI status: ${directRes.status} (Fallback to Mock)`)
       }
     } catch (err) {
       isApiError = true
-      console.warn('[1688 API] Direct API call error, switching to Mock Fallback:', err.message)
+      console.warn('[1688 API] Direct search error:', err.message)
     }
   }
 
-  // API 호출 실패 또는 쿼터 초과(429) 시 Mock 데이터셋으로 무결점 전환
+  // API 호출 실패 또는 쿼터 초과 시 Mock 데이터셋으로 무결점 전환
   if (!data || isApiError) {
-    console.warn(`[1688 API] RapidAPI Quota/Error fallback triggered for keyword "${query}" (Returning rich Mock dataset)`)
+    console.warn(`[1688 API] Using Mock dataset for "${query}"`)
     const mockRes = getMockSearchResults(query, page, options)
+    await translateItemsBatch(mockRes.items)
     saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
     return mockRes
   }
@@ -257,7 +321,9 @@ export async function search1688(queryZh, page = 1, options = {}) {
     const settings = resultObj.settings || {}
 
     if (rawList.length === 0) {
-      return getMockSearchResults(query, page, options)
+      const mockRes = getMockSearchResults(query, page, options)
+      await translateItemsBatch(mockRes.items)
+      return mockRes
     }
 
     const items = rawList.map((entry) => {
@@ -281,11 +347,14 @@ export async function search1688(queryZh, page = 1, options = {}) {
       const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
       const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
 
+      const titleZh = it.title || it.subject || ''
+
       return {
         id: String(it.itemId || Math.random().toString(36).slice(2)),
-        titleZh: it.title || '',
+        titleZh,
         titleEn: it.titleEn || '',
         titleKo: '',
+        title: titleZh,
         price: priceNum,
         priceFormatted: priceNum.toFixed(2),
         minOrder,
@@ -298,6 +367,9 @@ export async function search1688(queryZh, page = 1, options = {}) {
         raw: it
       }
     })
+
+    // 일괄 한국어 번역 수행
+    await translateItemsBatch(items)
 
     const formattedResult = {
       rawResponse: data,
@@ -314,6 +386,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
   } catch (parseErr) {
     console.warn('[1688 API] Response parse error, using Mock Fallback:', parseErr)
     const mockRes = getMockSearchResults(query, page, options)
+    await translateItemsBatch(mockRes.items)
     saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
     return mockRes
   }
@@ -321,12 +394,23 @@ export async function search1688(queryZh, page = 1, options = {}) {
 
 /**
  * 1688 통합 파이프라인:
- * 한글 번역 ➔ 1688 검색 ➔ 결과 번역 (어떤 에러가 발생해도 Mock 데이터로 무결점 반환)
+ * 한글 검색어 ➔ 중국어 번역 ➔ 1688 검색 ➔ 결과 일괄 한글 번역 (DeepL)
  */
 export async function search1688WithTranslation(koreanQuery, page = 1, options = {}, onProgress = null) {
   const query = String(koreanQuery || '').trim()
   if (!query) {
-    return getMockSearchResults('', page, options)
+    const mockRes = getMockSearchResults('', page, options)
+    await translateItemsBatch(mockRes.items)
+    return {
+      success: true,
+      queryKo: '',
+      queryZh: '',
+      page: mockRes.page,
+      pageSize: mockRes.pageSize,
+      totalResults: mockRes.totalResults,
+      hasMore: mockRes.hasMore,
+      items: mockRes.items
+    }
   }
 
   // Step 1: 한글 검색어 ➔ 중국어 번역
@@ -337,7 +421,7 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
     if (onProgress) {
       onProgress({
         step: 1,
-        message: `한글 키워드 분석 중: "${query}"...`
+        message: `한글 키워드 분석 및 번역 중: "${query}"...`
       })
     }
 
@@ -357,44 +441,29 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
     })
   }
 
-  // Step 2: 1688 상품 검색 (API 에러 시 Mock 데이터 자동 반환)
+  // Step 2: 1688 상품 검색 (내부에서 search1688 실행 및 일괄 한국어 번역 완료)
   let searchResult
   try {
     searchResult = await search1688(queryZh, page, options)
   } catch (err) {
-    console.warn('[1688 Search] Auto fallback to Mock dataset:', err.message)
+    console.warn('[1688 Search] Fallback to Mock dataset:', err.message)
     searchResult = getMockSearchResults(query, page, options)
+    await translateItemsBatch(searchResult.items)
   }
 
   const items = searchResult.items || []
 
-  // Step 3: 상품 리스트 제목 번역 보정
-  if (items.length > 0) {
+  // Step 3: 미번역 잔여 항목 최종 점검
+  const untranslated = items.filter(it => !it.titleKo || it.titleKo === it.titleZh)
+  if (untranslated.length > 0) {
     if (onProgress) {
       onProgress({
         step: 3,
-        message: `소싱 상품 ${items.length}개의 규격 및 가격 정보를 정규화 중...`,
+        message: `소싱 상품 ${untranslated.length}개 한국어 번역 완료 중...`,
         itemsCount: items.length
       })
     }
-
-    // titleKo가 비어있는 항목에 대해서만 번역 시도
-    const untranslatedItems = items.filter(it => !it.titleKo)
-    if (untranslatedItems.length > 0) {
-      try {
-        const chineseTitles = untranslatedItems.map(item => item.titleZh || item.titleEn || '')
-        const translatedTitles = await translateText(chineseTitles, 'KO', 'ZH')
-        const titlesArray = Array.isArray(translatedTitles) ? translatedTitles : [translatedTitles]
-
-        untranslatedItems.forEach((item, index) => {
-          item.titleKo = titlesArray[index] || item.titleZh || item.titleEn
-        })
-      } catch (err) {
-        untranslatedItems.forEach((item) => {
-          item.titleKo = item.titleZh || item.titleEn || '1688 추천 소싱 상품'
-        })
-      }
-    }
+    await translateItemsBatch(untranslated)
   }
 
   if (onProgress) {
@@ -418,9 +487,9 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
 }
 
 /**
- * 1688 상품 상세 정보 & SKU 옵션 조회 (에러/429 시 Mock 상세 자동 반환)
+ * 1688 상품 상세 정보 Raw 조회
  * @param {string|number} itemId - 1688 상품 고유 ID
- * @returns {Promise<object>} 상세 데이터 및 정규화된 SKU 옵션
+ * @returns {Promise<object>}
  */
 export async function getItemDetail1688(itemId) {
   const idStr = String(itemId || '').trim()
@@ -439,7 +508,7 @@ export async function getItemDetail1688(itemId) {
 
   let data = null
 
-  // 1. Vite proxy 시도
+  // 1. Vercel / Vite Serverless 프록시 우선 시도 (/api/1688-detail)
   try {
     const proxyRes = await fetch(`/api/1688-detail?itemId=${idStr}`)
     if (proxyRes.ok) {
@@ -449,7 +518,7 @@ export async function getItemDetail1688(itemId) {
       }
     }
   } catch (err) {
-    console.debug('1688 detail proxy notice:', err.message)
+    console.debug('[1688 Detail] Proxy notice:', err.message)
   }
 
   // 2. Direct RapidAPI Fallback
@@ -466,7 +535,7 @@ export async function getItemDetail1688(itemId) {
         data = await directRes.json()
       }
     } catch (err) {
-      console.warn('1688 direct detail fetch notice:', err.message)
+      console.warn('[1688 Detail] Direct fetch notice:', err.message)
     }
   }
 
@@ -481,9 +550,9 @@ export async function getItemDetail1688(itemId) {
 }
 
 /**
- * 1688 단건 상품 ID/URL로 상세 데이터 조회 및 번역 (에러 시 Mock 상세 반환)
+ * 1688 단건 상품 ID/URL로 상세 데이터 조회 및 한국어 번역
  * @param {string|number} offerId - 1688 상품 고유 ID
- * @returns {Promise<object>} 정규화된 상품 상세 객체
+ * @returns {Promise<object>} 정규화 및 번역된 상품 상세 객체
  */
 export async function fetch1688ProductById(offerId) {
   const idStr = String(offerId || '').trim()
@@ -498,6 +567,16 @@ export async function fetch1688ProductById(offerId) {
     const rawData = await getItemDetail1688(idStr)
     const it = rawData?.result?.item || rawData?.item || rawData?.result || rawData || {}
 
+    const titleZh = it.title || it.subject || ''
+    let imageUrl = it.image || it.imageUrl || it.picUrl || ''
+    if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl
+
+    const priceStr = it.sku?.def?.price || it.price || '0'
+    const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
+
+    const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
+    const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
+
     // 갤러리 이미지 리스트 정규화
     let images = []
     if (Array.isArray(it.images) && it.images.length > 0) {
@@ -506,7 +585,7 @@ export async function fetch1688ProductById(offerId) {
       images = [imageUrl]
     }
 
-    // SKU 리스트 정규화 (1688 DataHub 응답 구조 파싱)
+    // SKU 리스트 정규화
     let parsedSkus = []
     if (Array.isArray(it.skus) && it.skus.length > 0) {
       parsedSkus = it.skus.map(s => ({
@@ -517,7 +596,6 @@ export async function fetch1688ProductById(offerId) {
         stock: parseInt(s.stock || s.quantity || '999', 10)
       }))
     } else if (Array.isArray(it.skuProps) && it.skuProps.length > 0) {
-      // skuProps 구조 파싱 (예: [{prop: '색상', values: [{name, imageUrl}]}, {prop: '사이즈', values: [{name}]}])
       const colorProp = it.skuProps.find(p => p.prop?.includes('색') || p.prop?.includes('color') || p.prop?.includes('款式') || p.prop?.includes('颜色')) || it.skuProps[0]
       const sizeProp = it.skuProps.find(p => p !== colorProp && (p.prop?.includes('사이즈') || p.prop?.includes('size') || p.prop?.includes('尺码') || p.prop?.includes('规格'))) || it.skuProps[1]
 
@@ -549,10 +627,41 @@ export async function fetch1688ProductById(offerId) {
       }
     }
 
+    // 제목 및 SKU 한국어 번역 수행
+    let titleKo = titleZh
+    try {
+      const trans = await translateText(titleZh, 'KO', 'ZH')
+      titleKo = typeof trans === 'string' ? trans : (trans[0] || titleZh)
+    } catch (e) {}
+
+    // SKU 옵션명 번역
+    if (parsedSkus.length > 0) {
+      try {
+        const optionTexts = []
+        parsedSkus.forEach(s => {
+          if (s.color && s.color !== '기본') optionTexts.push(s.color)
+          if (s.size && s.size !== 'Free') optionTexts.push(s.size)
+        })
+        if (optionTexts.length > 0) {
+          const uniqueTexts = [...new Set(optionTexts)]
+          const transUnique = await translateText(uniqueTexts, 'KO', 'ZH')
+          const transMap = {}
+          uniqueTexts.forEach((u, i) => {
+            transMap[u] = Array.isArray(transUnique) ? transUnique[i] : transUnique
+          })
+          parsedSkus.forEach(s => {
+            if (transMap[s.color]) s.color = transMap[s.color]
+            if (transMap[s.size]) s.size = transMap[s.size]
+          })
+        }
+      } catch (e) {}
+    }
+
     const normalizedProduct = {
       id: idStr,
       titleZh,
       titleKo: titleKo || titleZh,
+      title: titleKo || titleZh,
       price: priceNum,
       priceFormatted: priceNum.toFixed(2),
       minOrder,
