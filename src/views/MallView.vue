@@ -568,7 +568,8 @@
       <!-- Category Tabs (Horizontal Bar + Hover 1688 Mega Dropdown) -->
       <!-- ======================================================== -->
       <div
-        class="relative bg-white rounded-2xl p-2 border border-gray-200 shadow-sm"
+        ref="categoryNavRef"
+        class="relative bg-white rounded-2xl p-2 border border-gray-200 shadow-sm z-30"
         @mouseleave="handleCategoryLeave"
       >
         <!-- Horizontal Scrollable Category Bar -->
@@ -578,9 +579,9 @@
             :key="cat.id"
             type="button"
             @mouseenter="handleCategoryHover(cat)"
-            @click="selectCategory(cat)"
+            @click.stop="handleCategoryClick(cat)"
             :class="[
-              'px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 shrink-0 cursor-pointer',
+              'px-4 py-2.5 rounded-xl text-xs sm:text-sm font-bold whitespace-nowrap transition-all flex items-center gap-2 shrink-0 cursor-pointer touch-manipulation select-none',
               (selectedCategoryId === cat.id || hoveredCategory?.id === cat.id)
                 ? 'bg-rose-600 text-white shadow-md shadow-rose-500/20' 
                 : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
@@ -596,7 +597,7 @@
           </button>
         </div>
 
-        <!-- 1688 Mega Dropdown Panel (Hover Overlay) -->
+        <!-- 1688 Mega Dropdown Panel (Hover & Mobile Touch Lock Overlay) -->
         <transition
           enter-active-class="transition duration-200 ease-out"
           enter-from-class="opacity-0 -translate-y-2 scale-98"
@@ -607,7 +608,7 @@
         >
           <div
             v-if="hoveredCategory && hoveredCategory.groups && hoveredCategory.groups.length > 0"
-            class="absolute left-0 right-0 top-full mt-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200/90 p-5 sm:p-6 z-50 animate-fade-in select-none"
+            class="absolute left-0 right-0 top-full mt-2.5 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-gray-200/90 p-4 sm:p-6 z-50 animate-fade-in select-none max-h-[75vh] overflow-y-auto"
             @mouseenter="clearHoverTimer"
             @mouseleave="handleCategoryLeave"
           >
@@ -618,13 +619,13 @@
                 <h4 class="text-sm font-black text-gray-900 flex items-center gap-2">
                   <i :class="hoveredCategory.icon" class="text-rose-600"></i>
                   <span>{{ hoveredCategory.name }}</span>
-                  <span class="text-xs text-gray-400 font-normal">1688 공식 세부 소싱 카테고리</span>
+                  <span class="text-xs text-gray-400 font-normal hidden sm:inline">1688 공식 세부 소싱 카테고리</span>
                 </h4>
               </div>
               <button
                 type="button"
-                @click="selectCategory(hoveredCategory)"
-                class="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 hover:underline cursor-pointer"
+                @click.stop="selectCategory(hoveredCategory)"
+                class="text-xs font-bold text-rose-600 hover:text-rose-700 flex items-center gap-1 hover:underline cursor-pointer touch-manipulation"
               >
                 <span>전체 상품 소싱 검색</span>
                 <i class="fas fa-arrow-right text-[10px]"></i>
@@ -633,11 +634,11 @@
 
             <!-- Panel Subcategory Grid -->
             <div
-              class="grid gap-6 items-start"
+              class="grid gap-4 sm:gap-6 items-start"
               :class="[
                 hoveredCategory.groups.length === 1 ? 'grid-cols-1' :
                 hoveredCategory.groups.length === 2 ? 'grid-cols-1 md:grid-cols-2' :
-                'grid-cols-1 md:grid-cols-3'
+                'grid-cols-1 sm:grid-cols-2 md:grid-cols-3'
               ]"
             >
               <div
@@ -657,8 +658,8 @@
                     v-for="(subItem, sIdx) in group.items"
                     :key="sIdx"
                     type="button"
-                    @click="handleSubCategoryClick(subItem, hoveredCategory)"
-                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-600 hover:text-white text-gray-700 font-bold text-xs border border-gray-200/80 hover:border-rose-600 transition shadow-2xs hover:shadow-sm cursor-pointer active:scale-95 text-left"
+                    @click.stop="handleSubCategoryClick(subItem, hoveredCategory)"
+                    class="px-2.5 py-1.5 rounded-lg bg-white hover:bg-rose-600 hover:text-white text-gray-700 font-bold text-xs border border-gray-200/80 hover:border-rose-600 transition shadow-2xs hover:shadow-sm cursor-pointer active:scale-95 text-left touch-manipulation"
                   >
                     {{ subItem }}
                   </button>
@@ -1162,9 +1163,14 @@ const categories = [
 
 const selectedCategoryId = ref('fashion')
 const hoveredCategory = ref(null)
+const categoryNavRef = ref(null)
 let categoryHoverTimer = null
 
 const handleCategoryHover = (cat) => {
+  // 터치 스크린 기기에서는 mouseenter 이벤트 무시하여 터치 고정 상태 유지
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+    return
+  }
   if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
   hoveredCategory.value = cat
 }
@@ -1174,13 +1180,33 @@ const clearHoverTimer = () => {
 }
 
 const handleCategoryLeave = () => {
+  if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(hover: none)').matches) {
+    return
+  }
   if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
   categoryHoverTimer = setTimeout(() => {
     hoveredCategory.value = null
   }, 250)
 }
 
+const handleCategoryClick = (cat) => {
+  if (cat.groups && cat.groups.length > 0) {
+    if (hoveredCategory.value?.id === cat.id) {
+      // 이미 열려있는 탭을 다시 누르면 닫힘
+      hoveredCategory.value = null
+    } else {
+      // 다른 대분류 탭을 누르면 소분류 메뉴가 열리고 손가락을 떼도 열린 채로 고정 (Lock)
+      if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
+      hoveredCategory.value = cat
+    }
+  } else {
+    // 소분류 그룹이 없는 단일 카테고리는 즉시 검색 실행
+    selectCategory(cat)
+  }
+}
+
 const selectCategory = (cat) => {
+  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
   hoveredCategory.value = null
   selectedCategoryId.value = cat.id
   queryInput.value = cat.keyword || cat.name
@@ -1188,10 +1214,17 @@ const selectCategory = (cat) => {
 }
 
 const handleSubCategoryClick = (subKeyword, parentCat) => {
+  if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
   hoveredCategory.value = null
   selectedCategoryId.value = parentCat.id
   queryInput.value = subKeyword
   executeSearch(1)
+}
+
+const handleClickOutside = (e) => {
+  if (categoryNavRef.value && !categoryNavRef.value.contains(e.target)) {
+    hoveredCategory.value = null
+  }
 }
 
 // ----------------------------------------------------
@@ -1627,6 +1660,8 @@ onMounted(async () => {
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
   window.addEventListener('euchs-notice-update', loadMallNotices)
   window.addEventListener('storage', loadMallNotices)
+  document.addEventListener('click', handleClickOutside)
+  document.addEventListener('touchstart', handleClickOutside, { passive: true })
 })
 
 onUnmounted(() => {
@@ -1634,6 +1669,8 @@ onUnmounted(() => {
   window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
   window.removeEventListener('euchs-notice-update', loadMallNotices)
   window.removeEventListener('storage', loadMallNotices)
+  document.removeEventListener('click', handleClickOutside)
+  document.removeEventListener('touchstart', handleClickOutside)
 })
 
 watch(currentUser, () => {
