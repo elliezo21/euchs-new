@@ -253,14 +253,14 @@
               <i class="fas fa-chevron-down text-[9px] text-gray-400 group-hover:text-blue-600 transition"></i>
             </router-link>
             <div class="absolute left-0 mt-0 w-56 bg-white rounded-lg shadow-xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-50">
-              <router-link to="/tools/calculator" class="block px-3.5 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50">
-                🧮 관부가세 계산기
+              <router-link to="/support/guide" class="block px-3.5 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50">
+                📖 사이트 이용가이드
               </router-link>
               <div class="border-t border-gray-100 my-1"></div>
               <router-link to="/guide#express" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">택배 배송 요금표 안내</router-link>
-              <router-link to="/guide#sea" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">전자상 해운물류 안내</router-link>
-              <router-link to="/guide#forwarding" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">포워딩 & 수수료 안내</router-link>
-              <router-link to="/guide#refund" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">반품 및 교환 안내</router-link>
+              <router-link to="/guide#ocean" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">전자상 해운운임 안내</router-link>
+              <router-link to="/guide#fee" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">포워딩 &amp; 수수료 안내</router-link>
+              <router-link to="/guide#return" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">반품 및 교환안내</router-link>
             </div>
           </div>
 
