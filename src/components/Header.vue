@@ -2,8 +2,9 @@
   <header class="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-xs transition-all duration-200">
     <!-- Top Utility Bar for Desktop (Slim) -->
     <div class="hidden lg:block bg-slate-900 text-slate-300 text-xs py-1">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-        <div class="flex items-center gap-5">
+      <div class="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+        <!-- Left: Contact channels -->
+        <div class="flex items-center gap-4">
           <span class="flex items-center gap-1 text-slate-300 text-[11px]">
             <i class="fas fa-phone text-blue-400"></i>
             <span>상담: <strong>010-9373-1214</strong> / <strong>+86 195-2407-7350</strong></span>
@@ -23,6 +24,21 @@
             <span>카톡: <strong>이유씨컴퍼니</strong></span>
           </a>
         </div>
+
+        <!-- Center: Live Exchange Rate Badge -->
+        <div class="flex items-center gap-2 text-[11px]">
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-800/90 border border-slate-700/80 text-yellow-300 font-medium">
+            <i class="fas fa-bolt text-yellow-400 text-[10px]"></i>
+            <span>실시간 고시 환율: <strong class="text-white font-mono font-bold">1위안(CNY) = {{ customExchangeRate }}원(KRW)</strong></span>
+            <span class="text-[10px] text-slate-400 font-normal hidden xl:inline">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
+          </span>
+          <router-link to="/tools/calculator" class="text-slate-400 hover:text-yellow-300 transition flex items-center gap-1 text-[10px]">
+            <i class="fas fa-calculator text-amber-400 text-[9px]"></i>
+            <span>계산기</span>
+          </router-link>
+        </div>
+
+        <!-- Right: Social & Auth -->
         <div class="flex items-center gap-3 text-[11px]">
           <a href="https://www.youtube.com/@euccompany" target="_blank" class="flex items-center gap-1 text-red-400 hover:text-red-300 transition">
             <i class="fab fa-youtube text-xs"></i>
@@ -529,6 +545,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { fetchSiteSettings } from '../lib/settings'
 import {
   currentUser,
   isLoggedIn,
@@ -545,6 +562,34 @@ const mobileSubmenu = ref(null)
 const isUserMenuOpen = ref(false)
 const userDropdownRef = ref(null)
 const savedCount = ref(0)
+
+// Exchange rate state
+const customExchangeRate = ref(226.19)
+const liveMarketRate = ref(206.19)
+
+const loadRates = async () => {
+  try {
+    const res = await fetch('https://open.er-api.com/v6/latest/CNY')
+    if (res.ok) {
+      const data = await res.json()
+      if (data?.rates?.KRW) {
+        liveMarketRate.value = Number(data.rates.KRW.toFixed(2))
+      }
+    }
+
+    const settings = await fetchSiteSettings()
+    if (settings) {
+      if (settings.exchange_rate_mode === 'auto_margin') {
+        const margin = Number(settings.rate_margin) || 1.5
+        customExchangeRate.value = Number((liveMarketRate.value + margin).toFixed(2))
+      } else {
+        customExchangeRate.value = Number(settings.exchange_rate) || 226.19
+      }
+    }
+  } catch (err) {
+    console.warn('[Header] Rates fetch error:', err)
+  }
+}
 
 const updateSavedCount = () => {
   try {
@@ -589,6 +634,7 @@ const handleDocumentClick = (e) => {
 onMounted(() => {
   initAuth()
   updateSavedCount()
+  loadRates()
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('storage', updateSavedCount)
 })

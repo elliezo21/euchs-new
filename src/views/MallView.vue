@@ -10,37 +10,10 @@
     </transition>
 
     <!-- ======================================================== -->
-    <!-- 1. MALL TOP PROMO & EXCHANGE RATE TICKER (Slim) -->
+    <!-- 1. MALL SEARCH & BRAND HEADER (Slim & Lifted)            -->
     <!-- ======================================================== -->
-    <div class="bg-slate-900 text-white text-xs py-1.5 px-4 border-b border-slate-800">
-      <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-1.5">
-        
-        <div class="flex items-center gap-3 flex-wrap">
-          <span class="inline-flex items-center gap-1 px-2 py-0.2 rounded-full bg-rose-500/20 text-rose-300 font-bold border border-rose-400/30 text-[10px]">
-            <i class="fas fa-bolt text-rose-400"></i> 1688 직연동
-          </span>
-          
-          <div class="flex items-center gap-1.5 text-xs">
-            <span class="text-slate-400">공식 고시 환율:</span>
-            <span class="font-black text-amber-300 font-mono">1 RMB = {{ customExchangeRate }} KRW</span>
-            <span class="text-[10px] text-slate-500">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
-          </div>
-        </div>
-
-        <div class="flex items-center gap-3 text-slate-300 text-xs">
-          <router-link to="/tools/calculator" class="hover:text-amber-300 flex items-center gap-1 transition">
-            <i class="fas fa-calculator text-amber-400 text-xs"></i> 관부가세 계산기
-          </router-link>
-        </div>
-
-      </div>
-    </div>
-
-    <!-- ======================================================== -->
-    <!-- 2. MALL SEARCH & BRAND HEADER (Slim) -->
-    <!-- ======================================================== -->
-    <header class="bg-white border-b border-gray-200 py-2.5 sm:py-3 shadow-xs sticky top-0 z-30">
-      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <header class="bg-white border-b border-gray-200 py-2 sm:py-2.5 shadow-xs sticky top-0 z-30">
+      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
         
         <div class="flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
           
@@ -138,14 +111,14 @@
     </header>
 
     <!-- ======================================================== -->
-    <!-- 3. 2-COLUMN LAYOUT: LNB SIDEBAR + RIGHT MAIN CONTENT     -->
+    <!-- 2. 2-COLUMN LAYOUT: LNB SIDEBAR + RIGHT MAIN CONTENT     -->
     <!-- ======================================================== -->
-    <div class="flex gap-0 min-h-screen w-full max-w-[1720px] mx-auto px-2 lg:px-4 py-4 sm:py-6 items-start">
+    <div class="flex gap-0 min-h-screen w-full max-w-[1720px] mx-auto px-2 lg:px-4 py-3 sm:py-4 items-start">
 
       <!-- ====================================================== -->
       <!-- LEFT: LNB SIDEBAR (고정 PC 전용)                        -->
       <!-- ====================================================== -->
-      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-20 self-start mr-4">
+      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-16 self-start mr-4">
 
         <!-- Profile Mini Card -->
         <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
