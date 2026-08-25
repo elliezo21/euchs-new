@@ -126,6 +126,7 @@
 
       <!-- Table 2: 전자상 해운택배 배송요금표 -->
       <section id="sea" class="scroll-mt-24 space-y-6">
+        <span id="ocean" class="scroll-mt-24"></span>
         <div class="flex flex-wrap items-center justify-between gap-4 pb-3 border-b-2 border-blue-600">
           <div class="flex items-center gap-3">
             <span class="px-3 py-1 bg-blue-600 text-white text-xs font-black rounded">OCEAN</span>
@@ -188,12 +189,13 @@
 
       <!-- Section 3: Caution & Customs Rule -->
       <section id="forwarding" class="scroll-mt-24 bg-amber-50/80 border border-amber-200 rounded-2xl p-6 sm:p-8">
+        <span id="fee" class="scroll-mt-24"></span>
         <div class="flex items-center gap-3 mb-3">
           <div class="w-8 h-8 rounded-full bg-amber-500 text-white flex items-center justify-center font-bold">
             <i class="fas fa-triangle-exclamation text-sm"></i>
           </div>
           <h3 class="text-base sm:text-lg font-bold text-amber-950">
-            관세청 통관 규정 및 주의사항 안내
+            관세청 통관 규정 및 포워딩 &amp; 수수료 안내
           </h3>
         </div>
         <p class="text-xs sm:text-sm text-amber-900 leading-relaxed">
@@ -203,6 +205,7 @@
 
       <!-- Section 4: CS Box -->
       <section id="cs" class="scroll-mt-24 bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-3xl p-8 sm:p-12 shadow-xl">
+        <span id="return" class="scroll-mt-24"></span>
         <div class="max-w-3xl mx-auto text-center space-y-6">
           <span class="px-3 py-1 rounded-full bg-blue-500/20 text-blue-300 text-xs font-bold border border-blue-400/30">
             24H CUSTOMER SERVICE

@@ -116,6 +116,16 @@ const routes = [
     component: MarketView,
   },
   {
+    path: '/quote',
+    name: 'quote',
+    component: MarketView,
+  },
+  {
+    path: '/apply',
+    name: 'apply',
+    component: TradeAgentView,
+  },
+  {
     path: '/guide',
     name: 'guide',
     component: GuideView,
@@ -250,7 +260,11 @@ const router = createRouter({
     if (savedPosition) {
       return savedPosition
     } else if (to.hash) {
-      return { el: to.hash, behavior: 'smooth' }
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({ el: to.hash, behavior: 'smooth' })
+        }, 150)
+      })
     } else {
       return { top: 0, behavior: 'smooth' }
     }
