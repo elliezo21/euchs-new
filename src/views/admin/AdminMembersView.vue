@@ -574,6 +574,24 @@ const filteredMembers = computed(() => {
   })
 })
 
+function getTierLabel(tier) {
+  const map = {
+    business: '사업자',
+    general: '일반',
+    vip: 'VIP',
+  }
+  return map[tier] || '일반'
+}
+
+function getTierBadgeClass(tier) {
+  const map = {
+    business: 'bg-blue-100 text-blue-800 border border-blue-300',
+    general: 'bg-slate-100 text-slate-600 border border-slate-200',
+    vip: 'bg-amber-100 text-amber-800 border border-amber-300',
+  }
+  return map[tier] || 'bg-slate-100 text-slate-600 border border-slate-200'
+}
+
 function getStatusLabel(status) {
   const map = {
     verified: '🟢 인증완료',
