@@ -1,28 +1,29 @@
 <template>
   <header class="sticky top-0 z-50 bg-white border-b border-gray-100 shadow-xs transition-all duration-200">
-    <!-- Top Utility Bar for Desktop (Slim) -->
-    <div class="hidden lg:block bg-slate-900 text-slate-300 text-xs py-1.5 border-b border-slate-800">
-      <div class="max-w-[1700px] mx-auto px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-        <!-- Left: Live Exchange Rate Badge -->
-        <div class="flex items-center gap-2.5 text-[11px]">
-          <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-slate-800/90 border border-slate-700/80 text-yellow-300 font-medium">
-            <i class="fas fa-bolt text-yellow-400 text-[10px]"></i>
-            <span>실시간 고시 환율: <strong class="text-white font-mono font-bold">1위안 (CNY) = {{ customExchangeRate }}원 (KRW)</strong></span>
-            <span class="text-[10px] text-slate-400 font-normal ml-0.5 hidden xl:inline">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
+    <!-- Top Utility Bar for Desktop (Slim & Centered max-w-7xl) -->
+    <div class="hidden lg:block bg-slate-950 border-b border-slate-800/80 text-slate-300 text-xs">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-1.5 text-xs">
+        <!-- 좌측: 실시간 고시 환율 및 간이관세 계산기 바로가기 -->
+        <div class="flex items-center gap-3">
+          <span class="text-amber-300 font-semibold flex items-center gap-1.5 text-[11px]">
+            <i class="fas fa-bolt text-amber-400 text-[10px]"></i>
+            <span>실시간 고시 환율:</span>
+            <span class="font-mono text-white font-bold">1위안 (CNY) = {{ customExchangeRate }}원 (KRW)</span>
+            <span class="text-slate-400 font-normal text-[10px] ml-0.5">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
           </span>
-          <router-link to="/tools/calculator" class="text-slate-400 hover:text-yellow-300 transition flex items-center gap-1 text-[11px] font-medium">
+          <router-link to="/tools/calculator" class="text-slate-400 hover:text-white transition flex items-center gap-1 text-[11px]">
             <i class="fas fa-calculator text-amber-400 text-[10px]"></i>
             <span>간이관세 계산기</span>
           </router-link>
         </div>
 
-        <!-- Right: Social & Auth -->
-        <div class="flex items-center gap-3 text-[11px]">
-          <a href="https://www.youtube.com/@euccompany" target="_blank" class="flex items-center gap-1 text-red-400 hover:text-red-300 transition">
-            <i class="fab fa-youtube text-xs"></i>
+        <!-- 우측: 유튜브 & 사용자 계정/로그아웃 -->
+        <div class="flex items-center gap-3.5 text-[11px]">
+          <a href="https://www.youtube.com/@euccompany" target="_blank" class="flex items-center gap-1 text-slate-300 hover:text-red-400 transition">
+            <i class="fab fa-youtube text-red-500 text-xs"></i>
             <span>이유씨유튜브</span>
           </a>
-          <span class="text-slate-600">|</span>
+          <span class="text-slate-700">|</span>
 
           <!-- Desktop Login / User Profile Area -->
           <div v-if="!isLoggedIn" class="flex items-center gap-2.5">
