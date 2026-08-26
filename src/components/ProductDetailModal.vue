@@ -1274,7 +1274,8 @@ const handlePopState = (e) => {
   }
 }
 
-const handleAddToCart = () => {
+// ── 공통 장바구니 저장 헬퍼 ──
+const saveSelectedItemsToCart = () => {
   // 1. 발주 품목 검증 가드 (미선택 시 차단)
   if (!selectedSkus.value.length || totalQuantity.value === 0) {
     if (hasMultipleOptions.value && selectedColor.value && !selectedSize.value) {
@@ -1282,14 +1283,14 @@ const handleAddToCart = () => {
     } else {
       showToastNotification('⚠️ 옵션을 모두 선택한 후 담아주세요.', 'warning')
     }
-    return
+    return null
   }
 
-  if (!currentItem.value) return
+  if (!currentItem.value) return null
 
   try {
     const cartKey = getCartStorageKey()
-    const cached = localStorage.getItem(cartKey) || localStorage.getItem('euchs_erp_saved_items')
+    const cached = localStorage.getItem(cartKey)
     let cart = cached ? JSON.parse(cached) : []
     if (!Array.isArray(cart)) cart = []
 
@@ -1316,7 +1317,6 @@ const handleAddToCart = () => {
 
     cart.unshift(itemToSave)
     localStorage.setItem(cartKey, JSON.stringify(cart))
-    localStorage.setItem('euchs_erp_saved_items', JSON.stringify(cart))
 
     // Storage 이벤트 및 퀵메뉴/헤더 갱신 이벤트 디스패치
     window.dispatchEvent(new Event('storage'))
@@ -1324,25 +1324,36 @@ const handleAddToCart = () => {
     window.dispatchEvent(new CustomEvent('euchs:cart_updated', { detail: { count: cart.length } }))
     emit('added-to-cart', itemToSave)
 
-    // ✅ 모달 하단 버튼 클릭 시에만 정식 완료 토스트 알림 노출
-    showToastNotification('✅ 선택한 상품이 발주대기 보관함(장바구니)에 담겼습니다.', 'success')
+    return itemToSave
   } catch (err) {
     console.error('Failed to add to cart:', err)
+    return null
   }
 }
 
-const handleInstantOrder = () => {
-  if (!selectedSkus.value.length || totalQuantity.value === 0) {
-    if (hasMultipleOptions.value && selectedColor.value && !selectedSize.value) {
-      showToastNotification(`⚠️ 2차 옵션(${secondPropName.value})을 마저 선택해 주세요.`, 'warning')
-    } else {
-      showToastNotification('⚠️ 옵션을 모두 선택한 후 담아주세요.', 'warning')
-    }
-    return
+// 1. 발주대기 보관함 담기 (쇼핑 계속하기)
+const handleAddToCart = () => {
+  const saved = saveSelectedItemsToCart()
+  if (saved) {
+    showToastNotification('✅ 선택한 상품이 발주대기 보관함(장바구니)에 담겼습니다.', 'success')
   }
+}
 
-  handleAddToCart()
-  handleClose()
+// 2. 즉시 발주서 작성 (장바구니 /dashboard/cart 화면으로 즉시 이동)
+const handleInstantOrder = () => {
+  const saved = saveSelectedItemsToCart()
+  if (!saved) return
+
+  // 모달 닫기 & body 스크롤 복원
+  if (typeof window !== 'undefined') {
+    if (window.history.state?.modal === 'product-detail') {
+      window.history.replaceState(null, '')
+    }
+    document.body.style.overflow = 'unset'
+  }
+  emit('close')
+
+  // 장바구니/발주서 작성 화면으로 즉시 이동
   router.push('/dashboard/cart')
 }
 
