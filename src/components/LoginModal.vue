@@ -346,15 +346,14 @@
                   </div>
                   <div>
                     <label class="block text-[11px] font-bold text-slate-700 mb-1">
-                      통관고유부호 (PCCC) *
+                      통관고유부호 (PCCC) (선택 / 차후 기재 가능)
                     </label>
                     <input 
                       v-model.trim="signupForm.pccc"
                       @input="signupForm.pccc = signupForm.pccc.toUpperCase()"
                       type="text" 
-                      required
                       maxlength="13"
-                      placeholder="P240012345678" 
+                      placeholder="발주/출고 전까지 마이페이지에서 등록 가능" 
                       class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition font-mono font-bold text-blue-700 uppercase"
                     />
                   </div>
@@ -459,14 +458,13 @@
                   />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">통관고유부호 (PCCC) *</label>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">통관고유부호 (PCCC) (선택 / 차후 기재 가능)</label>
                   <input 
                     v-model.trim="verifyForm.pccc"
                     @input="verifyForm.pccc = verifyForm.pccc.toUpperCase()"
                     type="text" 
-                    required
                     maxlength="13"
-                    placeholder="P240012345678" 
+                    placeholder="발주/출고 전까지 마이페이지에서 등록 가능" 
                     class="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-300 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none text-xs text-slate-900 transition font-mono font-bold text-indigo-700 uppercase"
                   />
                 </div>
@@ -750,7 +748,7 @@ const handleEmailSignup = async () => {
   }
 
   const cleanPccc = (signupForm.value.pccc || '').trim().toUpperCase()
-  if (!validatePcccCode(cleanPccc)) {
+  if (cleanPccc && !validatePcccCode(cleanPccc)) {
     alert('통관고유부호는 P 또는 U로 시작하는 13자리여야 합니다. (예: P240012345678)')
     return
   }
@@ -769,7 +767,7 @@ const handleEmailSignup = async () => {
         name: signupForm.value.name,
         company_name: signupForm.value.company_name,
         business_number: cleanBiz,
-        pccc: cleanPccc,
+        pccc: cleanPccc || '',
         address: signupForm.value.address,
         phone: signupForm.value.phone
       }
@@ -794,7 +792,7 @@ const handleBusinessVerifySubmit = async () => {
   }
 
   const cleanPccc = (verifyForm.value.pccc || '').trim().toUpperCase()
-  if (!validatePcccCode(cleanPccc)) {
+  if (cleanPccc && !validatePcccCode(cleanPccc)) {
     alert('통관고유부호는 P 또는 U로 시작하는 13자리여야 합니다. (예: P240012345678)')
     return
   }
@@ -810,7 +808,7 @@ const handleBusinessVerifySubmit = async () => {
       name: verifyForm.value.name,
       company_name: verifyForm.value.company_name,
       business_number: cleanBiz,
-      pccc: cleanPccc,
+      pccc: cleanPccc || '',
       address: verifyForm.value.address,
       phone: verifyForm.value.phone
     })

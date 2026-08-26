@@ -479,7 +479,7 @@ export const getUserBusinessInfo = (user = currentUser.value) => {
   const address = meta.address || stored.address || ''
   const phone = meta.phone || stored.phone || user.phone || ''
   const name = meta.full_name || meta.name || stored.name || ''
-  const is_business_verified = Boolean(business_number && pccc)
+  const is_business_verified = Boolean(business_number)
 
   return {
     company_name,
@@ -498,7 +498,7 @@ export const getUserBusinessInfo = (user = currentUser.value) => {
 export const isUserBusinessVerified = (user = currentUser.value) => {
   if (!user) return false
   const biz = getUserBusinessInfo(user)
-  return Boolean(biz?.business_number && biz?.pccc)
+  return Boolean(biz?.business_number)
 }
 
 export const isBusinessVerified = computed(() => {
@@ -630,7 +630,7 @@ export const signUpWithEmail = async (email, password, businessData = {}) => {
     business_number: cleanBizNumber,
     pccc: cleanPccc,
     address: address,
-    is_business_verified: Boolean(cleanBizNumber && cleanPccc)
+    is_business_verified: Boolean(cleanBizNumber)
   }
 
   const { data, error } = await supabase.auth.signUp({
@@ -751,9 +751,9 @@ export const syncUserProfile = async (user) => {
       business_number: biz.business_number || existing?.business_number || '',
       pccc: biz.pccc || existing?.pccc || '',
       address: biz.address || existing?.address || '',
-      tier: existing?.tier || (biz.business_number && biz.pccc ? 'business' : 'general'),
-      is_business_verified: Boolean(biz.business_number && biz.pccc) || Boolean(existing?.is_business_verified),
-      verification_status: existing?.verification_status || (biz.business_number && biz.pccc ? 'verified' : 'unverified'),
+      tier: existing?.tier || (biz.business_number ? 'business' : 'general'),
+      is_business_verified: Boolean(biz.business_number) || Boolean(existing?.is_business_verified),
+      verification_status: existing?.verification_status || (biz.business_number ? 'verified' : 'unverified'),
       balance: existing?.balance !== undefined ? existing.balance : (Number(localStorage.getItem('euchs_user_balance')) || 0),
       updated_at: new Date().toISOString()
     }
