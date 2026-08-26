@@ -37,6 +37,54 @@ export const userEmail = computed(() => {
 export const isLoggedIn = computed(() => Boolean(currentUser.value))
 
 /**
+ * SSOT: 현재 로그인 사용자의 사업자 정보 (반응형 computed)
+ * - 컴포넌트에서 this.currentUserBizInfo?.company_name 으로 직접 바인딩 가능
+ * - currentUser가 변경(계정 전환/로그아웃)되면 자동으로 재평가됨
+ */
+export const currentUserBizInfo = computed(() => {
+  if (!currentUser.value) return null
+  const user = currentUser.value
+  const meta = user.user_metadata || {}
+  // DB 프로필 데이터 우선
+  const profile = currentUserProfile.value || {}
+  let stored = {}
+  try {
+    const raw = localStorage.getItem('euchs_business_profile_' + (user.id || user.email))
+    if (raw) stored = JSON.parse(raw)
+  } catch (e) {}
+
+  const company_name = profile.company_name || meta.company_name || stored.company_name || ''
+  const representative_name = profile.representative_name || profile.name || meta.full_name || meta.name || stored.name || ''
+  const business_number = profile.business_number || meta.business_number || stored.business_number || ''
+  const pccc = profile.pccc || meta.pccc || stored.pccc || ''
+  const phone = profile.phone || meta.phone || meta.mobile || stored.phone || user.phone || ''
+  const tax_email = profile.email || user.email || ''
+
+  return {
+    company_name,
+    representative_name,
+    name: representative_name,
+    business_number,
+    pccc,
+    phone,
+    tax_email,
+    is_business_verified: Boolean(business_number)
+  }
+})
+
+/**
+ * 사용자 ID 기반 장바구니 스토리지 격리 키
+ * - 로그인: euchs_cart_{userId}
+ * - 비로그인: euchs_cart_guest
+ */
+export const getCartStorageKey = () => {
+  const uid = currentUser.value?.id || 'guest'
+  return `euchs_cart_${uid}`
+}
+
+
+
+/**
  * 사용자 역할(Role) 조회 함수 (Supabase DB 및 Auth Metadata 검증)
  */
 export const checkUserRole = async (user) => {
@@ -751,6 +799,7 @@ let _isExplicitSignOut = false
  */
 export const signOut = async () => {
   _isExplicitSignOut = true
+
   try {
     if (isSupabaseConfigured()) {
       await supabase.auth.signOut()
@@ -759,17 +808,27 @@ export const signOut = async () => {
     console.error('SignOut Error:', err)
   } finally {
     currentUser.value = null
+    currentUserProfile.value = null
     userRole.value = 'user'
     try {
+      // ── 모든 세션 잔여물 완전 소거 ─────────────────────────────
       localStorage.removeItem('euchs_demo_session')
       localStorage.removeItem('euchs_admin_token')
       localStorage.removeItem('euchs_auth_user')
+      localStorage.removeItem('euchs_business_info')
+      localStorage.removeItem('euchs_tax_info')
+      localStorage.removeItem('euchs_business_profile_current')
+      // 게스트 장바구니는 비우기 (로그아웃 시 guest 장바구니 초기화)
+      localStorage.removeItem('euchs_cart_guest')
     } catch (e) {}
+    // 전역 이벤트 디스패치 — 헤더/장바구니 구독자들이 즉시 0으로 초기화
     window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
+    window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: 0 } }))
     window.dispatchEvent(new Event('storage'))
     setTimeout(() => { _isExplicitSignOut = false }, 1500)
   }
 }
+
 
 /**
  * 사용자 프로필 DB (public.profiles) 실시간 조회

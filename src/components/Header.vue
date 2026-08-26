@@ -532,7 +532,8 @@ import {
   isBusinessVerified,
   openLoginModal,
   signOut,
-  initAuth
+  initAuth,
+  getCartStorageKey
 } from '../lib/auth'
 
 const route = useRoute()
@@ -571,16 +572,39 @@ const loadRates = async () => {
 }
 
 const updateSavedCount = () => {
+  // 비로그인 상태: 장바구니 뱃지 0
+  if (!isLoggedIn.value) {
+    savedCount.value = 0
+    return
+  }
   try {
-    const cached = localStorage.getItem('euchs_erp_saved_items')
-    if (cached) {
-      const parsed = JSON.parse(cached)
+    // 사용자 격리 키 (euchs_cart_{userId}) 로 읽기
+    const cartKey = getCartStorageKey()
+    const userCart = localStorage.getItem(cartKey)
+    if (userCart) {
+      const parsed = JSON.parse(userCart)
+      savedCount.value = Array.isArray(parsed) ? parsed.length : 0
+      return
+    }
+    // 레거시 키 호환: 로그인 상태이고 격리 키가 없으면 기존 키에서 마이그레이션
+    const legacy = localStorage.getItem('euchs_erp_saved_items')
+    if (legacy) {
+      const parsed = JSON.parse(legacy)
       savedCount.value = Array.isArray(parsed) ? parsed.length : 0
     } else {
       savedCount.value = 0
     }
   } catch (e) {
     savedCount.value = 0
+  }
+}
+
+// euchs:cart-updated 이벤트 핸들러 (로그아웃 시 즉시 0으로 초기화)
+const handleCartUpdated = (e) => {
+  if (e.detail?.count !== undefined) {
+    savedCount.value = Number(e.detail.count) || 0
+  } else {
+    updateSavedCount()
   }
 }
 
@@ -616,10 +640,13 @@ onMounted(() => {
   loadRates()
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('storage', updateSavedCount)
+  window.addEventListener('euchs:cart-updated', handleCartUpdated)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
   window.removeEventListener('storage', updateSavedCount)
+  window.removeEventListener('euchs:cart-updated', handleCartUpdated)
 })
 </script>
+

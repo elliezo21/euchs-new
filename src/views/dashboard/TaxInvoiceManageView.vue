@@ -396,7 +396,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { currentUser, currentUserProfile, getUserBusinessInfo, userEmail } from '../../lib/auth'
+import { currentUserBizInfo, userEmail } from '../../lib/auth'
 import { getStoredOrders } from '../../utils/orderStorage'
 
 // ─────────────────────────────────────────────
@@ -408,8 +408,12 @@ const filterYear  = ref(new Date().getFullYear())
 const filterMonth = ref('')
 const searchQuery = ref('')
 
-const bizInfo   = ref(null)
+// SSOT: currentUserBizInfo는 auth.js에서 직접 바인딩 (반응형 computed)
+// currentUser 변경 시 자동 재평가 — 별도 ref 불필요
+const bizInfo = currentUserBizInfo
+
 const invoices  = ref([])
+
 
 // ─────────────────────────────────────────────
 // 탭 정의
@@ -564,7 +568,7 @@ function downloadStatement(inv) {
 // ─────────────────────────────────────────────
 onMounted(() => {
   try {
-    bizInfo.value = getUserBusinessInfo()
+    // bizInfo는 currentUserBizInfo computed로 자동 반응 (별도 초기화 불필요)
     const orders  = getStoredOrders()
     invoices.value = buildInvoicesFromOrders(orders)
   } catch (e) {
