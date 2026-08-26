@@ -235,7 +235,7 @@
             <tr v-if="filteredMembers.length === 0">
               <td colspan="9" class="py-12 text-center text-slate-400 space-y-2">
                 <div class="text-3xl">👥</div>
-                <p class="font-bold text-xs text-slate-600">조건에 일치하는 바이어 회원이 없습니다.</p>
+                <p class="font-bold text-xs text-slate-600">등록된 회원/바이어 내역이 없습니다.</p>
               </td>
             </tr>
           </tbody>
@@ -465,60 +465,6 @@ function copyPccc(pccc) {
   showToast(`통관부호 ${pccc}가 복사되었습니다.`)
 }
 
-// ----------------------------------------------------
-// 기본 더미 데이터 (시스템 초기화 시 활용)
-// ----------------------------------------------------
-const DEFAULT_MEMBERS = [
-  {
-    id: 'mem-1',
-    companyName: '이유씨글로벌 (주)',
-    name: '김이유',
-    representativeName: '김이유',
-    email: 'euchs_buyer@gmail.com',
-    phone: '010-9876-5432',
-    bizNumber: '123-86-12345',
-    pccc: 'P123456789012',
-    bizAddress: '인천광역시 연수구 송도미래로 30',
-    bizCertUrl: 'https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?w=600&auto=format&fit=crop&q=80',
-    tier: 'business',
-    balance: 15420000,
-    verificationStatus: 'verified',
-    createdAt: '2026-08-01T10:00:00.000Z'
-  },
-  {
-    id: 'mem-2',
-    companyName: '스타일트레이딩',
-    name: '최수현',
-    representativeName: '최수현',
-    email: 'sh_style@naver.com',
-    phone: '010-3344-5566',
-    bizNumber: '214-88-99887',
-    pccc: 'P987654321098',
-    bizAddress: '경기도 성남시 분당구 판교역로 166',
-    bizCertUrl: 'https://images.unsplash.com/photo-1568602471122-7832951cc4c5?w=600&auto=format&fit=crop&q=80',
-    tier: 'general',
-    balance: 0,
-    verificationStatus: 'pending',
-    createdAt: '2026-08-24T14:20:00.000Z'
-  },
-  {
-    id: 'mem-3',
-    companyName: '탑글로벌물류',
-    name: '박글로벌',
-    representativeName: '박글로벌',
-    email: 'topglobal@gmail.com',
-    phone: '010-7788-9900',
-    bizNumber: '603-81-44556',
-    pccc: 'P554433221100',
-    bizAddress: '부산광역시 중구 중앙대로 88',
-    bizCertUrl: '',
-    tier: 'business',
-    balance: 10000000,
-    verificationStatus: 'verified',
-    createdAt: '2026-08-20T11:15:00.000Z'
-  }
-]
-
 const membersList = ref([])
 
 // ----------------------------------------------------
@@ -632,7 +578,7 @@ async function approveMember(member) {
   saveState()
 
   // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member.id && !member.id.startsWith('mem-')) {
+  if (isSupabaseConfigured() && member.id && !String(member.id).startsWith('mem-')) {
     try {
       await supabase.from('profiles').update({
         is_business_verified: true,
@@ -649,7 +595,6 @@ async function approveMember(member) {
   selectedMember.value = null // 모달 닫기
 }
 
-
 async function rejectMember(member) {
   const reason = prompt('반려 사유를 입력하세요:', '사업자등록증 식별 불가 / 통관부호 불일치')
   if (reason === null) return
@@ -660,7 +605,7 @@ async function rejectMember(member) {
   saveState()
 
   // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member.id && !member.id.startsWith('mem-')) {
+  if (isSupabaseConfigured() && member.id && !String(member.id).startsWith('mem-')) {
     try {
       await supabase.from('profiles').update({
         is_business_verified: false,
@@ -681,7 +626,7 @@ async function saveMemberChanges(member) {
   saveState()
 
   // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member.id && !member.id.startsWith('mem-')) {
+  if (isSupabaseConfigured() && member.id && !String(member.id).startsWith('mem-')) {
     try {
       await supabase.from('profiles').update({
         company_name: member.companyName,
@@ -715,18 +660,15 @@ async function loadMembers() {
     if (raw) {
       const parsed = JSON.parse(raw)
       if (Array.isArray(parsed) && parsed.length > 0) {
-        list = parsed
+        // 기존 더미 데이터(mem- 시작 id 등)는 제외하고 실제 회원 데이터만 필터링
+        list = parsed.filter(m => m && m.id && !String(m.id).startsWith('mem-') && m.email !== 'euchs_buyer@gmail.com' && m.email !== 'sh_style@naver.com' && m.email !== 'topglobal@gmail.com')
       }
     }
   } catch (e) {
     console.warn('Failed to load local members list:', e)
   }
 
-  if (list.length === 0) {
-    list = JSON.parse(JSON.stringify(DEFAULT_MEMBERS))
-  }
-
-  // Supabase profiles 테이블에서 실제 가입 회원 병합 조회
+  // Supabase profiles 테이블에서 실제 가입 회원 조회 및 병합
   if (isSupabaseConfigured()) {
     try {
       const { data: dbProfiles, error } = await supabase
