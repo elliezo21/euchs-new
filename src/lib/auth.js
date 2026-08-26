@@ -716,9 +716,15 @@ export const resetPasswordForEmail = async (email) => {
 }
 
 /**
+ * 명시적 로그아웃 여부 플래그 (수파베이스 SDK 자체 SIGNED_OUT 오작동 방어)
+ */
+let _isExplicitSignOut = false
+
+/**
  * 로그아웃 실행
  */
 export const signOut = async () => {
+  _isExplicitSignOut = true
   try {
     if (isSupabaseConfigured()) {
       await supabase.auth.signOut()
@@ -735,6 +741,7 @@ export const signOut = async () => {
     } catch (e) {}
     window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
     window.dispatchEvent(new Event('storage'))
+    setTimeout(() => { _isExplicitSignOut = false }, 1500)
   }
 }
 
@@ -758,35 +765,31 @@ export const fetchUserProfile = async (userId) => {
       return data
     }
   } catch (err) {
-    console.warn('fetchUserProfile error:', err)
+    console.warn('Profile fetch notice:', err)
   }
   return null
 }
 
 /**
- * 사용자 프로필 DB (public.profiles) 자동 생성 및 동기화
+ * 사용자 프로필 동기화 (public.profiles 테이블 Upsert)
  */
 export const syncUserProfile = async (user) => {
   if (!user || !isSupabaseConfigured() || user.id === 'demo-buyer-01') return
   try {
     const meta = user.user_metadata || {}
     const biz = getUserBusinessInfo(user) || {}
-    
-    // 1. 기존 DB 프로필 조회하여 기존 balance 및 설정값 보존
     const existing = await fetchUserProfile(user.id)
 
     const profilePayload = {
       id: user.id,
       email: user.email || '',
-      name: meta.full_name || meta.name || biz.name || user.email?.split('@')[0] || '회원',
-      avatar_url: meta.avatar_url || meta.picture || '',
-      phone: meta.phone || meta.mobile || biz.phone || '',
+      name: meta.full_name || meta.name || user.email?.split('@')[0] || '사용자',
       company_name: biz.company_name || existing?.company_name || '',
-      representative_name: biz.name || existing?.representative_name || '',
+      representative_name: biz.representative_name || existing?.representative_name || '',
       business_number: biz.business_number || existing?.business_number || '',
       pccc: biz.pccc || existing?.pccc || '',
-      address: biz.address || existing?.address || '',
-      tier: existing?.tier || (biz.business_number ? 'business' : 'general'),
+      phone: meta.phone || meta.mobile || biz.phone || existing?.phone || '',
+      tier: biz.business_number ? 'business' : (existing?.tier || 'general'),
       is_business_verified: Boolean(biz.business_number) || Boolean(existing?.is_business_verified),
       verification_status: existing?.verification_status || (biz.business_number ? 'verified' : 'unverified'),
       balance: existing?.balance !== undefined ? existing.balance : (Number(localStorage.getItem('euchs_user_balance')) || 0),
@@ -851,8 +854,8 @@ export const initAuth = async () => {
     }
   } catch (e) {}
 
-  // ── 3. ★ 로컬 세션 동기적 최우선 복원 ────────────────────────────────
-  // 네이버/소셜/이메일 세션을 앱 시작 즉시 반영하여 F5 후에도 로그인 유지
+  // ── 3. ★ 로컬 세션(네이버/이메일/소셜) 동기적 최우선 복원 ───────────
+  // F5 새로고침 또는 앱 진입 시 지연 없이 즉시 로그인 상태 확정
   const localUser = getLocalAuthUser()
   if (localUser) {
     currentUser.value = localUser
@@ -887,7 +890,7 @@ export const initAuth = async () => {
   // ── 5. Supabase onAuthStateChange 리스너 등록 ─────────────────────────
   if (!isListenerAttached) {
     isListenerAttached = true
-    supabase.auth.onAuthStateChange(async (_event, session) => {
+    supabase.auth.onAuthStateChange(async (event, session) => {
       // 관리자/데모 세션이 활성 중이면 간섭 금지
       if (localStorage.getItem('euchs_admin_token') || localStorage.getItem('euchs_demo_session')) return
 
@@ -898,21 +901,21 @@ export const initAuth = async () => {
         await checkUserRole(session.user)
         await syncUserProfile(session.user)
         closeLoginModal()
-      } else if (_event === 'SIGNED_OUT') {
-        // ✅ 명시적 로그아웃만 처리 — 다른 이벤트에서는 로컬 세션 절대 삭제 금지
+      } else if (event === 'SIGNED_OUT' && _isExplicitSignOut) {
+        // ✅ 사용자가 명시적으로 [로그아웃]을 눌렀을 때만 완전 초기화
         currentUser.value = null
         userRole.value = 'user'
         localStorage.removeItem('euchs_auth_user')
         isAuthLoading.value = false
       } else {
-        // ✅ INITIAL_SESSION, TOKEN_REFRESHED 등 session=null 이벤트:
-        //    로컬 스토리지에 유효한 유저가 있으면 currentUser를 절대 건드리지 않음
+        // ✅ INITIAL_SESSION, TOKEN_REFRESHED, 비인가 세션 등 session=null 이벤트:
+        //    로컬 스토리지에 유효한 유저(네이버 등)가 존재하면 currentUser를 절대 null로 덮어쓰지 않고 영구 보존
         const preserved = getLocalAuthUser()
-        if (preserved && !currentUser.value) {
+        if (preserved) {
           currentUser.value = preserved
           userRole.value = preserved.role || 'buyer'
+          isAuthLoading.value = false
         }
-        // currentUser가 이미 세팅되어 있으면 그냥 유지 (null로 덮어쓰지 않음)
       }
     })
   }

@@ -1841,6 +1841,8 @@ onMounted(async () => {
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
+  window.addEventListener('euchs-auth-changed', loadBalance)
+  window.addEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.addEventListener('euchs-notice-update', loadMallNotices)
   window.addEventListener('storage', loadMallNotices)
   document.addEventListener('click', handleClickOutside)
@@ -1850,6 +1852,8 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
+  window.removeEventListener('euchs-auth-changed', loadBalance)
+  window.removeEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.removeEventListener('euchs-notice-update', loadMallNotices)
   window.removeEventListener('storage', loadMallNotices)
   document.removeEventListener('click', handleClickOutside)
