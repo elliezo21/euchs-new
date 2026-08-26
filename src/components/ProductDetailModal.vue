@@ -534,11 +534,52 @@
       </div>
 
     </div>
+
+    <!-- ======================================================== -->
+    <!-- 5. CART CONFIRMATION POPUP MODAL -->
+    <!-- ======================================================== -->
+    <div 
+      v-if="isCartConfirmModalOpen" 
+      class="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in"
+    >
+      <div class="bg-white rounded-2xl p-6 sm:p-7 max-w-sm w-full shadow-2xl text-center border border-slate-100 animate-scale-in">
+        <div class="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-3 text-xl">
+          <i class="fas fa-shopping-bag"></i>
+        </div>
+        <h3 class="text-base font-bold text-slate-900 mb-1">보관함 담기 완료</h3>
+        <p class="text-xs sm:text-sm text-slate-600 mb-6 leading-relaxed font-medium">
+          선택하신 상품이 보관함에 정상적으로 담겼습니다.<br />
+          <span class="text-slate-900 font-bold">다른제품들을 계속 주문하시겠습니까?</span>
+        </p>
+        
+        <div class="flex items-center gap-2.5">
+          <!-- 1. 계속 쇼핑하기: 팝업 및 상세창 닫고 소싱몰 상품 목록 유지 -->
+          <button 
+            type="button"
+            @click="handleContinueShopping"
+            class="flex-1 h-11 rounded-xl border border-slate-300 hover:bg-slate-50 text-slate-700 font-bold text-xs sm:text-sm transition active:scale-95 cursor-pointer"
+          >
+            계속 쇼핑하기
+          </button>
+
+          <!-- 2. 장바구니 바로가기: /dashboard/cart 로 이동 -->
+          <button 
+            type="button"
+            @click="handleGoToCart"
+            class="flex-1 h-11 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs sm:text-sm shadow-sm transition active:scale-95 cursor-pointer"
+          >
+            장바구니 바로가기
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 
@@ -554,6 +595,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'added-to-cart', 'change-product'])
+const router = useRouter()
+const isCartConfirmModalOpen = ref(false)
 
 // DOM Ref
 const modalContainerRef = ref(null)
@@ -1251,6 +1294,7 @@ const showToastNotification = (msg, type = 'success') => {
 }
 
 const handleClose = () => {
+  isCartConfirmModalOpen.value = false
   if (typeof window !== 'undefined') {
     if (window.history.state?.modal === 'product-detail') {
       window.history.back()
@@ -1369,8 +1413,28 @@ const handleSaveToCart = () => {
   const countToSave = totalQuantity.value
   const saved = saveSelectedItemsToCart()
   if (saved) {
-    showToastNotification(`🛍️ 선택한 상품(${countToSave}개)이 보관함(장바구니)에 담겼습니다.`, 'success')
+    // 중앙 확인 팝업 모달 즉시 노출
+    isCartConfirmModalOpen.value = true
   }
+}
+
+// 1. 계속 쇼핑하기: 팝업 닫고 상품 상세 모달도 함께 닫아 소싱몰 목록 유지
+const handleContinueShopping = () => {
+  isCartConfirmModalOpen.value = false
+  handleClose()
+}
+
+// 2. 장바구니 바로가기: /dashboard/cart 로 즉시 이동
+const handleGoToCart = () => {
+  isCartConfirmModalOpen.value = false
+  if (typeof window !== 'undefined') {
+    if (window.history.state?.modal === 'product-detail') {
+      window.history.replaceState(null, '')
+    }
+    document.body.style.overflow = 'unset'
+  }
+  emit('close')
+  router.push('/dashboard/cart')
 }
 
 const handleImageFallback = (e) => {
@@ -1381,7 +1445,11 @@ const handleImageFallback = (e) => {
 // ESC 키로 모달 닫기
 const handleKeyDown = (e) => {
   if (e.key === 'Escape') {
-    handleClose()
+    if (isCartConfirmModalOpen.value) {
+      isCartConfirmModalOpen.value = false
+    } else {
+      handleClose()
+    }
   }
 }
 
