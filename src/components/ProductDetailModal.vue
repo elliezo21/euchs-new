@@ -206,14 +206,14 @@
             <div class="space-y-2.5">
               <div class="flex items-center justify-between text-xs">
                 <label class="font-bold text-gray-800 flex items-center gap-1.5">
-                  <span>1차 옵션 (색상/스타일)</span>
+                  <span>1차 옵션 ({{ firstPropName }})</span>
                   <span class="text-rose-600 font-bold">*</span>
                 </label>
                 <span v-if="selectedColor" class="text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
                   선택: {{ selectedColor.name }}
                 </span>
                 <span v-else class="text-gray-400 text-[11px]">
-                  색상을 먼저 선택하세요
+                  {{ firstPropName }}을(를) 먼저 선택하세요
                 </span>
               </div>
               <div class="flex flex-wrap gap-2.5">
@@ -234,17 +234,17 @@
             </div>
 
             <!-- 3. Option Selection: Size / Spec (2차 옵션 - 다중 옵션일 때만 노출) -->
-            <div v-if="hasMultipleOptions" class="space-y-2.5">
+            <div v-if="sizeOptions && sizeOptions.length > 0" class="space-y-2.5">
               <div class="flex items-center justify-between text-xs">
                 <label class="font-bold text-gray-800 flex items-center gap-1.5">
-                  <span>2차 옵션 (사이즈/규격)</span>
+                  <span>2차 옵션 ({{ secondPropName }})</span>
                   <span class="text-rose-600 font-bold">*</span>
                 </label>
                 <span v-if="!selectedColor" class="text-amber-600 font-medium text-[11px] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                  ⚠️ 1차 색상을 먼저 선택해 주세요
+                  ⚠️ 1차 {{ firstPropName }}을(를) 먼저 선택해 주세요
                 </span>
                 <span v-else class="text-gray-500 text-[11px]">
-                  사이즈를 누르면 품목에 추가됩니다
+                  {{ secondPropName }}을(를) 누르면 품목에 추가됩니다
                 </span>
               </div>
               <div class="flex flex-wrap gap-2.5">
@@ -287,7 +287,7 @@
                 >
                   <div class="flex-1 min-w-0">
                     <div class="font-bold text-gray-900 truncate text-sm">
-                      {{ sku.color }} / {{ sku.size }}
+                      {{ [sku.color, sku.size].filter(p => p && p !== '-' && p !== 'undefined').join(' / ') || '기본 상품' }}
                     </div>
                     <div class="text-xs text-rose-600 font-mono mt-0.5 font-bold">
                       개당 ¥{{ currentUnitRmb.toFixed(2) }} (약 ₩{{ formatKrw(currentUnitRmb * exchangeRate) }})
@@ -562,42 +562,93 @@ const currentUnitRmb = computed(() => {
 })
 
 // ----------------------------------------------------
-// Options (Colors & Sizes) & Gallery
+// Dynamic Options (1차 속성 & 2차 속성) & Gallery
 // ----------------------------------------------------
+const firstPropName = computed(() => {
+  const item = currentItem.value
+  if (item?.skuProps?.[0]?.prop) {
+    return item.skuProps[0].prop
+  }
+  return '색상/스타일'
+})
+
+const secondPropName = computed(() => {
+  const item = currentItem.value
+  if (item?.skuProps?.[1]?.prop) {
+    return item.skuProps[1].prop
+  }
+  return '사이즈/규격'
+})
+
 const colorOptions = computed(() => {
   const item = currentItem.value
-  const mainImg = item?.imageUrl || ''
+  if (!item) return []
+  const mainImg = item.imageUrl || ''
   
-  if (Array.isArray(item?.skus) && item.skus.length > 0) {
-    const uniqueColors = [...new Set(item.skus.map(s => s.color).filter(Boolean))]
+  // 1. skuProps[0].values 추출 (1688 실시간 속성)
+  if (Array.isArray(item.skuProps) && item.skuProps.length > 0 && Array.isArray(item.skuProps[0]?.values) && item.skuProps[0].values.length > 0) {
+    return item.skuProps[0].values.map(v => ({
+      name: v.nameKo || v.name || v.value || '',
+      imageUrl: v.imageUrl || v.image || mainImg
+    })).filter(opt => opt.name)
+  }
+
+  // 2. raw 내부의 skuProps 추출
+  const rawSkuProps = item.raw?.skuProps || item.raw?.sku?.skuProps
+  if (Array.isArray(rawSkuProps) && rawSkuProps.length > 0 && Array.isArray(rawSkuProps[0]?.values) && rawSkuProps[0].values.length > 0) {
+    return rawSkuProps[0].values.map(v => ({
+      name: v.nameKo || v.name || v.value || '',
+      imageUrl: v.imageUrl || v.image || mainImg
+    })).filter(opt => opt.name)
+  }
+
+  // 3. skus 배열에서 1차 color 추출
+  if (Array.isArray(item.skus) && item.skus.length > 0) {
+    const uniqueColors = [...new Set(item.skus.map(s => s.color || s.propName || s.name).filter(Boolean))]
     if (uniqueColors.length > 0) {
       return uniqueColors.map(c => ({
         name: c,
-        imageUrl: item.skus.find(s => s.color === c)?.imageUrl || mainImg
+        imageUrl: item.skus.find(s => (s.color || s.propName || s.name) === c)?.imageUrl || mainImg
       }))
     }
   }
 
+  // 4. 단일 옵션 상품 기본 (하드코딩 의류 더미 제거)
   return [
-    { name: '기본 (블랙/화이트)', imageUrl: mainImg },
-    { name: '아이보리/베이지', imageUrl: mainImg },
-    { name: '네이비/그레이', imageUrl: mainImg },
-    { name: '파스텔 핑크/스카이', imageUrl: mainImg }
+    { name: '기본 상품', imageUrl: mainImg }
   ]
 })
 
 const sizeOptions = computed(() => {
   const item = currentItem.value
-  if (Array.isArray(item?.skus) && item.skus.length > 0) {
-    const uniqueSizes = [...new Set(item.skus.map(s => s.size).filter(Boolean))]
-    if (uniqueSizes.length > 0) return uniqueSizes
+  if (!item) return []
+
+  // 1. skuProps[1]?.values가 실제로 존재하는 경우에만 추출 (2차 규격/사이즈)
+  if (Array.isArray(item.skuProps) && item.skuProps.length > 1 && Array.isArray(item.skuProps[1]?.values) && item.skuProps[1].values.length > 0) {
+    return item.skuProps[1].values.map(v => v.nameKo || v.name || v.value || '').filter(Boolean)
   }
-  return ['Free (원사이즈)', 'S', 'M', 'L', 'XL']
+
+  // 2. raw 내부의 skuProps[1] 추출
+  const rawSkuProps = item.raw?.skuProps || item.raw?.sku?.skuProps
+  if (Array.isArray(rawSkuProps) && rawSkuProps.length > 1 && Array.isArray(rawSkuProps[1]?.values) && rawSkuProps[1].values.length > 0) {
+    return rawSkuProps[1].values.map(v => v.nameKo || v.name || v.value || '').filter(Boolean)
+  }
+
+  // 3. skus 배열에서 2차 옵션(size/spec) 추출
+  if (Array.isArray(item.skus) && item.skus.length > 0) {
+    const uniqueSizes = [...new Set(item.skus.map(s => s.size || s.subPropName || s.spec).filter(Boolean))]
+    if (uniqueSizes.length > 0) {
+      return uniqueSizes
+    }
+  }
+
+  // 4. 2차 옵션이 없으면 빈 배열 (하드코딩 ['Free (원사이즈)', 'S', 'M', 'L', 'XL'] 완전 제거)
+  return []
 })
 
-// 다중 옵션 (2차 사이즈/규격 존재 여부)
+// 다중 옵션 (2차 사이즈/규격 존재 여부: 1개 이상 존재할 때만 활성화)
 const hasMultipleOptions = computed(() => {
-  return sizeOptions.value && sizeOptions.value.length > 1
+  return Array.isArray(sizeOptions.value) && sizeOptions.value.length > 0
 })
 
 // 갤러리 이미지
@@ -639,22 +690,21 @@ const handleSelectColor = (color) => {
     activeImage.value = color.imageUrl
   }
 
-  // 1. 단일 옵션 상품일 경우: 1차 선택 즉시 품목 리스트에 조용히 등록 (토스트 알림 없음)
+  // 1. 단일 옵션 상품일 경우: 1차 선택 즉시 품목 리스트에 등록 (토스트 알림 없음)
   if (!hasMultipleOptions.value) {
     const colorName = color.name
-    const sizeName = sizeOptions.value[0] || '기본'
-    const existing = selectedSkus.value.find(s => s.color === colorName && s.size === sizeName)
+    const existing = selectedSkus.value.find(s => s.color === colorName)
     if (existing) {
       existing.quantity += 1
     } else {
       selectedSkus.value.push({
         color: colorName,
-        size: sizeName,
+        size: '',
         quantity: minOrder.value || 1
       })
     }
   } else {
-    // 2. 다중 옵션 상품일 경우: 2차 옵션 선택 대기 (토스트 알림 없이 선택 상태만 유지)
+    // 2. 다중 옵션 상품일 경우: 2차 옵션 선택 대기
     selectedSize.value = null
   }
 }
@@ -662,7 +712,7 @@ const handleSelectColor = (color) => {
 const handleSelectSize = (size) => {
   // 1차 옵션 미선택 가드
   if (!selectedColor.value) {
-    showToastNotification('⚠️ 1차 옵션(색상/스타일)을 먼저 선택해 주세요.', 'warning')
+    showToastNotification(`⚠️ 1차 옵션(${firstPropName.value})을 먼저 선택해 주세요.`, 'warning')
     return
   }
 
@@ -795,9 +845,31 @@ const loadSellerProducts = async (item) => {
   }
 }
 
+// 비동기 상세 데이터 및 SKU 보강 로더
+const loadFullProductData = async (item) => {
+  if (!item?.id) return
+  try {
+    const full = await fetch1688ProductById(item.id)
+    if (full && currentItem.value && String(currentItem.value.id) === String(item.id)) {
+      currentItem.value = {
+        ...currentItem.value,
+        ...full,
+        skuProps: full.skuProps?.length ? full.skuProps : currentItem.value.skuProps,
+        skus: full.skus?.length ? full.skus : currentItem.value.skus
+      }
+
+      if (!selectedColor.value && colorOptions.value.length > 0) {
+        selectedColor.value = colorOptions.value[0]
+      }
+    }
+  } catch (err) {
+    console.debug('Failed to load full product details:', err)
+  }
+}
+
 // 다른 상품 클릭 시 모달 내에서 즉시 상품 전환
 const selectAnotherProduct = (newProduct) => {
-  currentItem.value = newProduct
+  currentItem.value = { ...newProduct }
   activeImage.value = newProduct.imageUrl || ''
   selectedColor.value = colorOptions.value[0] || null
   selectedSize.value = null
@@ -807,8 +879,8 @@ const selectAnotherProduct = (newProduct) => {
   if (!hasMultipleOptions.value && colorOptions.value[0]) {
     selectedSkus.value = [
       {
-        color: colorOptions.value[0].name || '기본',
-        size: sizeOptions.value[0] || '기본',
+        color: colorOptions.value[0].name || '기본 상품',
+        size: '',
         quantity: Number(newProduct.minOrder) || 1
       }
     ]
@@ -819,6 +891,7 @@ const selectAnotherProduct = (newProduct) => {
     modalBodyRef.value.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
+  loadFullProductData(newProduct)
   loadProductDetailImages(newProduct)
   loadSellerProducts(newProduct)
   emit('change-product', newProduct)
@@ -848,7 +921,7 @@ const handleAddToCart = () => {
   // 1. 발주 품목 검증 가드 (미선택 시 차단)
   if (!selectedSkus.value.length || totalQuantity.value === 0) {
     if (hasMultipleOptions.value && selectedColor.value && !selectedSize.value) {
-      showToastNotification('⚠️ 2차 옵션(사이즈/규격)을 마저 선택해 주세요.', 'warning')
+      showToastNotification(`⚠️ 2차 옵션(${secondPropName.value})을 마저 선택해 주세요.`, 'warning')
     } else {
       showToastNotification('⚠️ 옵션을 모두 선택한 후 담아주세요.', 'warning')
     }
@@ -875,7 +948,7 @@ const handleAddToCart = () => {
       totalPriceKrw: totalPriceKrw.value,
       skus: JSON.parse(JSON.stringify(selectedSkus.value)),
       sku: selectedSkus.value.map(s => {
-        const parts = [s.color, s.size].filter(p => p && p !== 'undefined')
+        const parts = [s.color, s.size].filter(p => p && p !== 'undefined' && p !== '-')
         return (parts.length ? parts.join(' / ') : '기본 옵션') + (s.quantity ? ` (${s.quantity}개)` : '')
       }).join(', '),
       detailUrl: currentItem.value.detailUrl,
@@ -901,7 +974,7 @@ const handleAddToCart = () => {
 const handleInstantOrder = () => {
   if (!selectedSkus.value.length || totalQuantity.value === 0) {
     if (hasMultipleOptions.value && selectedColor.value && !selectedSize.value) {
-      showToastNotification('⚠️ 2차 옵션(사이즈/규격)을 마저 선택해 주세요.', 'warning')
+      showToastNotification(`⚠️ 2차 옵션(${secondPropName.value})을 마저 선택해 주세요.`, 'warning')
     } else {
       showToastNotification('⚠️ 옵션을 모두 선택한 후 담아주세요.', 'warning')
     }
@@ -930,7 +1003,7 @@ const handleKeyDown = (e) => {
 // ----------------------------------------------------
 watch(() => props.product, (newVal) => {
   if (newVal) {
-    currentItem.value = newVal
+    currentItem.value = { ...newVal }
     activeImage.value = newVal.imageUrl || ''
     selectedColor.value = colorOptions.value[0] || null
     selectedSize.value = null
@@ -940,13 +1013,14 @@ watch(() => props.product, (newVal) => {
     if (!hasMultipleOptions.value && colorOptions.value[0]) {
       selectedSkus.value = [
         {
-          color: colorOptions.value[0].name || '기본',
-          size: sizeOptions.value[0] || '기본',
+          color: colorOptions.value[0].name || '기본 상품',
+          size: '',
           quantity: Number(newVal.minOrder) || 1
         }
       ]
     }
 
+    loadFullProductData(newVal)
     loadProductDetailImages(newVal)
     loadSellerProducts(newVal)
   }

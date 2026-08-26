@@ -598,31 +598,73 @@ export async function fetch1688ProductById(offerId) {
       images = [imageUrl]
     }
 
-    // SKU 리스트 정규화
-    let parsedSkus = []
-    if (Array.isArray(it.skus) && it.skus.length > 0) {
-      parsedSkus = it.skus.map(s => ({
-        color: s.color || s.propName || s.name || '',
-        size: s.size || s.subPropName || s.spec || '',
-        price: parseFloat(s.price || priceNum),
-        imageUrl: s.imageUrl || s.image || imageUrl,
-        stock: parseInt(s.stock || s.quantity || '999', 10)
-      }))
-    } else if (Array.isArray(it.skuProps) && it.skuProps.length > 0) {
-      const colorProp = it.skuProps.find(p => p.prop?.includes('색') || p.prop?.includes('color') || p.prop?.includes('款式') || p.prop?.includes('颜色')) || it.skuProps[0]
-      const sizeProp = it.skuProps.find(p => p !== colorProp && (p.prop?.includes('사이즈') || p.prop?.includes('size') || p.prop?.includes('尺码') || p.prop?.includes('规格'))) || it.skuProps[1]
+    // SKU 속성(skuProps) 및 옵션 리스트(skuList / skus) 정규화
+    let rawSkuProps = it.skuProps || it.sku?.skuProps || it.raw?.skuProps || []
+    if (typeof rawSkuProps === 'string') {
+      try { rawSkuProps = JSON.parse(rawSkuProps) } catch (e) { rawSkuProps = [] }
+    }
 
-      const colors = colorProp?.values || []
-      const sizes = sizeProp?.values || []
+    let rawSkus = it.skus || it.skuList || it.sku?.skuList || it.raw?.skus || it.raw?.skuList || []
+    if (typeof rawSkus === 'string') {
+      try { rawSkus = JSON.parse(rawSkus) } catch (e) { rawSkus = [] }
+    }
+
+    let parsedSkuProps = []
+    let parsedSkus = []
+
+    if (Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
+      parsedSkuProps = rawSkuProps.map(p => {
+        const propName = p.prop || p.propName || p.name || p.attributeName || ''
+        const rawVals = Array.isArray(p.values) ? p.values : (Array.isArray(p.value) ? p.value : [])
+        const values = rawVals.map(v => ({
+          name: v.name || v.value || v.nameZh || v.text || '',
+          nameKo: v.nameKo || '',
+          imageUrl: v.imageUrl || v.image || v.imgUrl || v.picUrl || ''
+        })).filter(v => v.name)
+        return {
+          prop: propName,
+          propKo: p.propKo || '',
+          values
+        }
+      }).filter(p => p.values.length > 0)
+    }
+
+    if (Array.isArray(rawSkus) && rawSkus.length > 0) {
+      parsedSkus = rawSkus.map(s => {
+        let color = s.color || s.propName || s.name || ''
+        let size = s.size || s.subPropName || s.spec || ''
+        
+        // specAttrs 문자열 파싱 (예: "卡其色 大号" 또는 "0:0;1:0")
+        if (!color && !size && s.specAttrs) {
+          const parts = String(s.specAttrs).split(/\s+/)
+          color = parts[0] || ''
+          size = parts[1] || ''
+        }
+
+        return {
+          skuId: s.skuId || s.id || '',
+          color,
+          size,
+          price: parseFloat(s.price || s.consignPrice || priceNum),
+          imageUrl: s.imageUrl || s.image || imageUrl,
+          stock: parseInt(s.stock || s.quantity || s.canBookCount || '999', 10)
+        }
+      })
+    } else if (parsedSkuProps.length > 0) {
+      const firstProp = parsedSkuProps[0]
+      const secondProp = parsedSkuProps.length > 1 ? parsedSkuProps[1] : null
+
+      const colors = firstProp.values || []
+      const sizes = secondProp ? (secondProp.values || []) : []
 
       if (colors.length > 0 && sizes.length > 0) {
         colors.forEach(c => {
           sizes.forEach(s => {
             parsedSkus.push({
-              color: c.name || c.value || '기본',
-              size: s.name || s.value || 'Free',
+              color: c.name,
+              size: s.name,
               price: priceNum,
-              imageUrl: c.imageUrl || c.image || imageUrl,
+              imageUrl: c.imageUrl || imageUrl,
               stock: 999
             })
           })
@@ -630,44 +672,94 @@ export async function fetch1688ProductById(offerId) {
       } else if (colors.length > 0) {
         colors.forEach(c => {
           parsedSkus.push({
-            color: c.name || c.value || '기본',
-            size: 'Free (원사이즈)',
+            color: c.name,
+            size: '',
             price: priceNum,
-            imageUrl: c.imageUrl || c.image || imageUrl,
+            imageUrl: c.imageUrl || imageUrl,
             stock: 999
           })
         })
       }
     }
 
-    // 제목 및 SKU 한국어 번역 수행
-    let titleKo = titleZh
-    try {
-      const trans = await translateText(titleZh, 'KO', 'ZH')
-      titleKo = typeof trans === 'string' ? trans : (trans[0] || titleZh)
-    } catch (e) {}
+    // skuProps가 없는데 parsedSkus만 있는 경우, parsedSkus로부터 skuProps 역생성
+    if (parsedSkuProps.length === 0 && parsedSkus.length > 0) {
+      const colorValues = [...new Set(parsedSkus.map(s => s.color).filter(Boolean))].map(c => ({
+        name: c,
+        imageUrl: parsedSkus.find(s => s.color === c)?.imageUrl || imageUrl
+      }))
+      const sizeValues = [...new Set(parsedSkus.map(s => s.size).filter(Boolean))].map(s => ({
+        name: s
+      }))
 
-    // SKU 옵션명 번역
-    if (parsedSkus.length > 0) {
-      try {
-        const optionTexts = []
-        parsedSkus.forEach(s => {
-          if (s.color && s.color !== '기본') optionTexts.push(s.color)
-          if (s.size && s.size !== 'Free') optionTexts.push(s.size)
+      if (colorValues.length > 0) {
+        parsedSkuProps.push({
+          prop: '옵션 / 모델',
+          values: colorValues
         })
-        if (optionTexts.length > 0) {
-          const uniqueTexts = [...new Set(optionTexts)]
-          const transUnique = await translateText(uniqueTexts, 'KO', 'ZH')
-          const transMap = {}
-          uniqueTexts.forEach((u, i) => {
-            transMap[u] = Array.isArray(transUnique) ? transUnique[i] : transUnique
-          })
-          parsedSkus.forEach(s => {
-            if (transMap[s.color]) s.color = transMap[s.color]
-            if (transMap[s.size]) s.size = transMap[s.size]
-          })
+      }
+      if (sizeValues.length > 0) {
+        parsedSkuProps.push({
+          prop: '규격 / 사이즈',
+          values: sizeValues
+        })
+      }
+    }
+
+    // 번역 대상 텍스트 수집 (제목, skuProps 속성명/옵션명, SKU 색상/사이즈)
+    const textsToTranslate = []
+    if (titleZh) textsToTranslate.push(titleZh)
+
+    parsedSkuProps.forEach(p => {
+      if (p.prop) textsToTranslate.push(p.prop)
+      p.values.forEach(v => {
+        if (v.name) textsToTranslate.push(v.name)
+      })
+    })
+
+    parsedSkus.forEach(s => {
+      if (s.color) textsToTranslate.push(s.color)
+      if (s.size) textsToTranslate.push(s.size)
+    })
+
+    const uniqueTexts = [...new Set(textsToTranslate.filter(t => typeof t === 'string' && t.trim() && /[^\x00-\x7F]/.test(t)))]
+
+    let titleKo = it.titleKo || titleZh
+    if (uniqueTexts.length > 0) {
+      try {
+        const transResult = await translateText(uniqueTexts, 'KO', 'ZH')
+        const transList = Array.isArray(transResult) ? transResult : [transResult]
+        const transMap = {}
+        uniqueTexts.forEach((orig, idx) => {
+          transMap[orig] = transList[idx] || orig
+        })
+
+        if (transMap[titleZh]) {
+          titleKo = transMap[titleZh]
         }
-      } catch (e) {}
+
+        // skuProps 번역 적용
+        parsedSkuProps.forEach(p => {
+          if (p.prop && transMap[p.prop]) {
+            p.propKo = transMap[p.prop]
+            p.prop = transMap[p.prop]
+          }
+          p.values.forEach(v => {
+            if (v.name && transMap[v.name]) {
+              v.nameKo = transMap[v.name]
+              v.name = transMap[v.name]
+            }
+          })
+        })
+
+        // parsedSkus 번역 적용
+        parsedSkus.forEach(s => {
+          if (s.color && transMap[s.color]) s.color = transMap[s.color]
+          if (s.size && transMap[s.size]) s.size = transMap[s.size]
+        })
+      } catch (e) {
+        console.debug('[fetch1688ProductById] Translation notice:', e.message)
+      }
     }
 
     const normalizedProduct = {
@@ -684,6 +776,7 @@ export async function fetch1688ProductById(offerId) {
       detailUrl: `https://detail.1688.com/offer/${idStr}.html`,
       repurchaseRate: it.repurchaseRate || '94%',
       company: it.company?.name || it.shopName || '1688 인증 직영 제조공장',
+      skuProps: parsedSkuProps,
       skus: parsedSkus.length > 0 ? parsedSkus : (it.skus || []),
       descImgs: it.descImgs || it.descriptionImages || [],
       raw: it
