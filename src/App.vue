@@ -45,10 +45,19 @@ const handleOpenLoginModal = () => {
 }
 
 // 로그인 성공 후 저장된 목적지로 자동 리다이렉트
+// /mall, /dashboard 등 실제 페이지에 이미 있는 경우 이동하지 않음
 const handleLoginSuccess = () => {
   const redirectPath = sessionStorage.getItem('euchs_auth_redirect')
-  if (redirectPath && redirectPath !== route.path) {
-    sessionStorage.removeItem('euchs_auth_redirect')
+  sessionStorage.removeItem('euchs_auth_redirect')
+
+  // 현재 페이지가 홈(/)이 아닌 실제 서비스 페이지이면 → 이동 없이 그대로 머뭄
+  const currentPath = route.path
+  if (currentPath && currentPath !== '/' && currentPath !== '/login') {
+    return
+  }
+
+  // 저장된 목적지가 있고 현재와 다른 경우만 이동
+  if (redirectPath && redirectPath !== currentPath) {
     router.push(redirectPath)
   }
 }

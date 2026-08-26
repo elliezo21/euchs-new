@@ -1817,12 +1817,12 @@ onMounted(async () => {
   if (naverCode && naverState) {
     try {
       const result = await handleNaverCallback(String(naverCode), String(naverState))
-      // ✅ 로그인 성공 시 원래 머물던 페이지로 복귀
-      const dest = (result?.returnUrl && result.returnUrl !== '/mall') ? result.returnUrl : null
-      if (dest) {
+      // ✅ 원래 머물던 페이지로 복귀 (returnUrl이 /mall이거나 없으면 query만 정리)
+      const dest = result?.returnUrl
+      if (dest && dest !== '/mall' && dest !== '/' && !dest.startsWith('/?')) {
         router.replace(dest)
       } else {
-        // 원래 페이지가 /mall이거나 없으면 query만 정리
+        // /mall 또는 없으면 쿼리 파라미터(code, state)만 정리
         router.replace({ path: '/mall', query: {} })
       }
     } catch (e) {

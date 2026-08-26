@@ -194,10 +194,14 @@ export const signInWithGoogle = async () => {
     return
   }
   try {
+    // 현재 위치 기억 (OAuth 콜백 복귀 후 사용)
+    const returnUrl = window.location.pathname + window.location.search
+    localStorage.setItem('euchs_oauth_return_url', returnUrl)
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/mall`,
         queryParams: {
           access_type: 'offline',
           prompt: 'select_account'
@@ -223,10 +227,14 @@ export const signInWithKakao = async () => {
       throw new Error('Supabase 연동 설정이 필요합니다.')
     }
 
+    // 현재 위치 기억 (OAuth 콜백 복귀 후 사용)
+    const returnUrl = window.location.pathname + window.location.search
+    localStorage.setItem('euchs_oauth_return_url', returnUrl)
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'kakao',
       options: {
-        redirectTo: window.location.origin
+        redirectTo: `${window.location.origin}/mall`
       }
     })
 
