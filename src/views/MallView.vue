@@ -139,8 +139,8 @@
             </transition>
           </div>
 
-          <!-- 2. 1688 한글/URL 와이드 검색 입력창 (h-11, border-2 border-orange-400) + [🔍 1688 검색] 버튼 (h-11, bg-rose-500) -->
-          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="w-full max-w-[720px] min-w-0">
+          <!-- 2. 1688 한글/URL 와이드 검색 입력창 + [📷 사진] + [🔍 1688 검색] -->
+          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="w-full max-w-[680px] min-w-0">
             <!-- 이미지 검색 결과 모드 미리보기 뱃지 -->
             <div v-if="isImageSearchMode" class="flex items-center gap-2 mb-1.5">
               <div class="flex items-center gap-2 pl-2 pr-1 py-1 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium">
@@ -166,43 +166,46 @@
               </div>
             </div>
 
-            <!-- 검색 입력창 행 -->
-            <div class="flex items-stretch rounded-xl border-2 border-orange-400 p-0.5 bg-white shadow-xs focus-within:ring-2 focus-within:ring-orange-200 transition-all h-11">
-              <div class="pl-3.5 pr-1.5 text-gray-400 flex items-center shrink-0">
-                <i class="fas fa-search text-orange-400 text-sm"></i>
+            <!-- 검색 입력창 & 단독 버튼 묶음 -->
+            <div class="flex items-center gap-2">
+              <div class="relative flex-1 min-w-0 flex items-center">
+                <i class="fas fa-search text-orange-400 text-sm absolute left-3.5 pointer-events-none"></i>
+                <input
+                  v-model="queryInput"
+                  @input="handleSearchInputDebounced"
+                  type="text"
+                  placeholder="사진검색 ,1688 한글 상품명 또는 1688링크(URL)를 붙여넣으세요."
+                  class="w-full h-11 pl-10 pr-8 rounded-xl border-2 border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 transition bg-white shadow-xs"
+                  :disabled="isLoading"
+                />
+                <button
+                  v-if="queryInput"
+                  type="button"
+                  @click="queryInput = ''"
+                  class="absolute right-2.5 text-gray-400 hover:text-gray-600 flex items-center justify-center"
+                >
+                  <i class="fas fa-times-circle text-xs"></i>
+                </button>
               </div>
-              <input
-                v-model="queryInput"
-                @input="handleSearchInputDebounced"
-                type="text"
-                placeholder="사진검색 ,1688 한글 상품명 또는 1688링크(URL)를 붙여넣으세요."
-                class="w-full px-2 text-xs sm:text-sm font-normal text-gray-800 placeholder:text-gray-400/80 placeholder:font-light bg-transparent outline-none"
-                :disabled="isLoading"
-              />
-              <button
-                v-if="queryInput"
-                type="button"
-                @click="queryInput = ''"
-                class="px-2 text-gray-400 hover:text-gray-600 flex items-center"
-              >
-                <i class="fas fa-times-circle text-xs"></i>
-              </button>
-              <!-- 📷 사진 검색 버튼 (클릭 시 모달 오픈) -->
+
+              <!-- 📷 사진 검색 버튼 -->
               <button
                 type="button"
                 @click="openImageSearchModal"
                 :disabled="isLoading && !isImageSearchMode"
-                class="h-full px-3 sm:px-4 rounded-lg bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1 shrink-0 disabled:opacity-50 cursor-pointer mx-0.5"
-                title="사진으로 1688 유사 상품 검색"
+                class="shrink-0 h-11 px-3.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl flex items-center gap-1.5 transition active:scale-95 text-xs sm:text-sm cursor-pointer shadow-xs disabled:opacity-50"
+                title="1688 사진/이미지로 검색"
               >
                 <i class="fas fa-spinner fa-spin text-xs" v-if="isImageUploading"></i>
-                <i class="fas fa-camera text-xs" v-else></i>
-                <span class="hidden sm:inline">사진</span>
+                <i class="fas fa-camera text-xs sm:text-sm" v-else></i>
+                <span>사진</span>
               </button>
+
+              <!-- 🔍 1688 검색 버튼 -->
               <button
                 type="submit"
                 :disabled="isLoading || !queryInput.trim()"
-                class="h-full px-5 sm:px-7 rounded-lg bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-black text-xs sm:text-sm shadow-sm active:scale-95 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
+                class="shrink-0 h-11 px-5 bg-rose-400 hover:bg-rose-500 active:bg-rose-600 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 text-xs sm:text-sm cursor-pointer disabled:opacity-50"
               >
                 <i class="fas fa-spinner fa-spin text-xs" v-if="isLoading && !isImageUploading"></i>
                 <i class="fas fa-search text-xs" v-else></i>
