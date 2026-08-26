@@ -140,7 +140,7 @@
           </div>
 
           <!-- 2. 1688 한글/URL 와이드 검색 입력창 (h-11, border-2 border-orange-400) + [🔍 1688 검색] 버튼 (h-11, bg-rose-500) -->
-          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="flex-1 min-w-0">
+          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="w-full max-w-[580px] min-w-0">
             <!-- 이미지 검색 결과 모드 미리보기 뱃지 -->
             <div v-if="isImageSearchMode" class="flex items-center gap-2 mb-1.5">
               <div class="flex items-center gap-2 pl-2 pr-1 py-1 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium">
@@ -274,6 +274,17 @@
               {{ kw }}
             </button>
           </div>
+
+          <!-- 📖 이용가이드 버튼 -->
+          <router-link
+            to="/support/guide"
+            class="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all active:scale-95 border border-slate-700 whitespace-nowrap"
+            title="이유씨 B2B 시스템 통합 이용가이드 확인"
+          >
+            <i class="fas fa-book-open text-[11px] text-orange-400"></i>
+            <span>이용가이드</span>
+            <i class="fas fa-arrow-right text-[9px] text-slate-400 ml-0.5"></i>
+          </router-link>
         </div>
 
       </div>
