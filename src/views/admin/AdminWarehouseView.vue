@@ -347,6 +347,106 @@
             </select>
           </div>
 
+          <!-- 2-1. 이슈 사유 세분화 (defect_found 상태일 때만 강조 표시) -->
+          <div class="p-4 border rounded-2xl space-y-3"
+            :class="editForm.inspectionStatus === 'defect_found' ? 'bg-rose-50 border-rose-200' : 'bg-slate-50 border-slate-200'"
+          >
+            <h4 class="font-bold flex items-center gap-1.5"
+              :class="editForm.inspectionStatus === 'defect_found' ? 'text-rose-700' : 'text-slate-600'"
+            >
+              <AlertCircle class="w-4 h-4" />
+              <span>2-1. 이슈 상품 사유별 수량 입력 (6대 표준 이슈)</span>
+              <span class="text-[10px] font-normal ml-1 opacity-70">(이슈 없으면 모두 0)</span>
+            </h4>
+            <div class="grid grid-cols-2 gap-3">
+              <!-- 색상/옵션 차이 -->
+              <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                <label class="block font-bold text-slate-700 text-[11px]">🎨 색상/옵션 차이</label>
+                <div class="flex items-center gap-2">
+                  <button type="button" @click="editForm.issueDetails.colorMismatch = Math.max(0, editForm.issueDetails.colorMismatch - 1)"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">−</button>
+                  <input type="number" min="0" v-model.number="editForm.issueDetails.colorMismatch"
+                    class="flex-1 text-center px-2 py-1 rounded-lg border border-slate-200 font-mono font-bold text-rose-700 text-sm focus:outline-none" />
+                  <button type="button" @click="editForm.issueDetails.colorMismatch++"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">+</button>
+                </div>
+              </div>
+              <!-- 파손/포장 손상 -->
+              <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                <label class="block font-bold text-slate-700 text-[11px]">💥 파손/포장 손상</label>
+                <div class="flex items-center gap-2">
+                  <button type="button" @click="editForm.issueDetails.damaged = Math.max(0, editForm.issueDetails.damaged - 1)"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">−</button>
+                  <input type="number" min="0" v-model.number="editForm.issueDetails.damaged"
+                    class="flex-1 text-center px-2 py-1 rounded-lg border border-slate-200 font-mono font-bold text-rose-700 text-sm focus:outline-none" />
+                  <button type="button" @click="editForm.issueDetails.damaged++"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">+</button>
+                </div>
+              </div>
+              <!-- 오염/스크래치 불량 -->
+              <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                <label class="block font-bold text-slate-700 text-[11px]">🧹 오염/스크래치 불량</label>
+                <div class="flex items-center gap-2">
+                  <button type="button" @click="editForm.issueDetails.contaminated = Math.max(0, editForm.issueDetails.contaminated - 1)"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">−</button>
+                  <input type="number" min="0" v-model.number="editForm.issueDetails.contaminated"
+                    class="flex-1 text-center px-2 py-1 rounded-lg border border-slate-200 font-mono font-bold text-rose-700 text-sm focus:outline-none" />
+                  <button type="button" @click="editForm.issueDetails.contaminated++"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">+</button>
+                </div>
+              </div>
+              <!-- 부품/수량 부족 -->
+              <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                <label class="block font-bold text-slate-700 text-[11px]">⚠️ 부품/수량 부족</label>
+                <div class="flex items-center gap-2">
+                  <button type="button" @click="editForm.issueDetails.missingParts = Math.max(0, editForm.issueDetails.missingParts - 1)"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">−</button>
+                  <input type="number" min="0" v-model.number="editForm.issueDetails.missingParts"
+                    class="flex-1 text-center px-2 py-1 rounded-lg border border-slate-200 font-mono font-bold text-rose-700 text-sm focus:outline-none" />
+                  <button type="button" @click="editForm.issueDetails.missingParts++"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">+</button>
+                </div>
+              </div>
+              <!-- 퀄리티/마감 미달 -->
+              <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                <label class="block font-bold text-slate-700 text-[11px]">📉 퀄리티/마감 미달</label>
+                <div class="flex items-center gap-2">
+                  <button type="button" @click="editForm.issueDetails.lowQuality = Math.max(0, editForm.issueDetails.lowQuality - 1)"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">−</button>
+                  <input type="number" min="0" v-model.number="editForm.issueDetails.lowQuality"
+                    class="flex-1 text-center px-2 py-1 rounded-lg border border-slate-200 font-mono font-bold text-rose-700 text-sm focus:outline-none" />
+                  <button type="button" @click="editForm.issueDetails.lowQuality++"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">+</button>
+                </div>
+              </div>
+              <!-- 오배송/요구사항 미달 -->
+              <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
+                <label class="block font-bold text-slate-700 text-[11px]">📦 요구사항 미달/오배송</label>
+                <div class="flex items-center gap-2">
+                  <button type="button" @click="editForm.issueDetails.wrongDelivery = Math.max(0, editForm.issueDetails.wrongDelivery - 1)"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">−</button>
+                  <input type="number" min="0" v-model.number="editForm.issueDetails.wrongDelivery"
+                    class="flex-1 text-center px-2 py-1 rounded-lg border border-slate-200 font-mono font-bold text-rose-700 text-sm focus:outline-none" />
+                  <button type="button" @click="editForm.issueDetails.wrongDelivery++"
+                    class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-rose-100 text-slate-700 font-black text-base flex items-center justify-center cursor-pointer transition">+</button>
+                </div>
+              </div>
+            </div>
+            <!-- 이슈 처리 상태 -->
+            <div class="pt-2 border-t border-slate-200/60 space-y-1.5">
+              <label class="block font-bold text-slate-700 text-[11px]">🔄 반품/환불 처리 상태</label>
+              <select v-model="editForm.issueStatus"
+                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 font-bold text-slate-900 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500/20 focus:border-rose-400 cursor-pointer"
+              >
+                <option value="">이슈 없음 / 미설정</option>
+                <option value="pending_buyer">고객 확인대기</option>
+                <option value="refund_requested">1688 공장 반품/환불 진행중</option>
+                <option value="reorder_requested">공장 재출고/교환 요청</option>
+                <option value="resolved">환불/정산 완료</option>
+              </select>
+            </div>
+          </div>
+
           <!-- 3. 검수 실사 사진 등록 (드래그 & 드롭 및 파일 선택 드롭존) -->
           <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
             <div class="flex items-center justify-between">
@@ -496,6 +596,15 @@ const editForm = ref({
   inspectionStatus: 'inbound_weighed',
   inspectionNote: '',
   inspectionPhotos: [],
+  issueDetails: {
+    colorMismatch: 0,
+    damaged: 0,
+    contaminated: 0,
+    missingParts: 0,
+    lowQuality: 0,
+    wrongDelivery: 0,
+  },
+  issueStatus: '',
 });
 
 const fileInputRef = ref(null);
@@ -592,6 +701,10 @@ const openProcessModal = (item) => {
     inspectionStatus: item.inspectionStatus || 'inbound_weighed',
     inspectionNote: item.inspectionNote || '',
     inspectionPhotos: JSON.parse(JSON.stringify(item.inspectionPhotos || [])),
+    issueDetails: item.issueDetails
+      ? JSON.parse(JSON.stringify(item.issueDetails))
+      : { colorMismatch: 0, damaged: 0, contaminated: 0, missingParts: 0, lowQuality: 0, wrongDelivery: 0 },
+    issueStatus: item.issueStatus || '',
   };
   isModalOpen.value = true;
 };
@@ -697,6 +810,8 @@ const saveInboundProcessing = () => {
     inspectionStatus: editForm.value.inspectionStatus,
     inspectionNote: editForm.value.inspectionNote,
     inspectionPhotos: editForm.value.inspectionPhotos,
+    issueDetails: editForm.value.issueDetails,
+    issueStatus: editForm.value.issueStatus,
   });
 
   reloadData();

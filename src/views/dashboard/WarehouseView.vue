@@ -193,6 +193,30 @@
                     {{ getInspectionLabel(item.inspectionStatus) }}
                   </span>
 
+                  <!-- 이슈 상품 뱃지 + 브리핑 박스 -->
+                  <template v-if="hasIssue(item)">
+                    <div class="mt-0.5 w-full max-w-[220px] text-left">
+                      <!-- 이슈 수량 요약 뱃지 -->
+                      <div class="flex items-center gap-1 mb-1">
+                        <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-black">
+                          ⚠️ 이슈 {{ getTotalIssueQty(item) }}개
+                        </span>
+                        <span v-if="item.issueStatus"
+                          class="px-2 py-0.5 rounded-full border text-[10px] font-bold"
+                          :class="getIssueStatusBadgeClass(item.issueStatus)"
+                        >
+                          {{ getIssueStatusLabel(item.issueStatus) }}
+                        </span>
+                      </div>
+                      <!-- 사유 세부 브리핑 -->
+                      <div v-if="getIssueBriefing(item)"
+                        class="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[10px] text-rose-800 leading-relaxed font-medium"
+                      >
+                        {{ getIssueBriefing(item) }}
+                      </div>
+                    </div>
+                  </template>
+
                   <button
                     v-if="item.inspectionPhotos && item.inspectionPhotos.length > 0"
                     type="button"
@@ -373,7 +397,47 @@
           </p>
         </div>
 
-        <!-- 실사 사진 그리드 -->
+        <!-- 이슈 상품 세부 브리핑 박스 (이슈 있을 때만) -->
+        <div v-if="hasIssue(activeInspectionItem)"
+          class="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl space-y-2 text-xs"
+        >
+          <div class="flex items-center justify-between">
+            <span class="font-extrabold text-rose-800 flex items-center gap-1.5">
+              ⚠️ 이슈 상품 현황 — 총 {{ getTotalIssueQty(activeInspectionItem) }}개
+            </span>
+            <span v-if="activeInspectionItem?.issueStatus"
+              class="px-2 py-0.5 rounded-full border text-[10px] font-bold"
+              :class="getIssueStatusBadgeClass(activeInspectionItem.issueStatus)"
+            >
+              {{ getIssueStatusLabel(activeInspectionItem.issueStatus) }}
+            </span>
+          </div>
+          <!-- 사유 태그 목록 -->
+          <div class="flex flex-wrap gap-1.5">
+            <span v-if="activeInspectionItem?.issueDetails?.colorMismatch > 0"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+            >🎨 색상/옵션 차이: {{ activeInspectionItem.issueDetails.colorMismatch }}개</span>
+            <span v-if="activeInspectionItem?.issueDetails?.damaged > 0"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+            >💥 파손/포장 손상: {{ activeInspectionItem.issueDetails.damaged }}개</span>
+            <span v-if="activeInspectionItem?.issueDetails?.contaminated > 0"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+            >🧹 오염/스크래치: {{ activeInspectionItem.issueDetails.contaminated }}개</span>
+            <span v-if="activeInspectionItem?.issueDetails?.missingParts > 0"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+            >⚠️ 부품/수량 부족: {{ activeInspectionItem.issueDetails.missingParts }}개</span>
+            <span v-if="activeInspectionItem?.issueDetails?.lowQuality > 0"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+            >📉 퀄리티 미달: {{ activeInspectionItem.issueDetails.lowQuality }}개</span>
+            <span v-if="activeInspectionItem?.issueDetails?.wrongDelivery > 0"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+            >📦 오배송/요구사항 미달: {{ activeInspectionItem.issueDetails.wrongDelivery }}개</span>
+          </div>
+          <p class="text-[11px] text-rose-700 leading-relaxed">
+            담당 매니저가 1688 공장에 이슈를 접수하였습니다. 처리 현황은 위 상태 뱃지를 확인해주세요.
+          </p>
+        </div>
+
         <div class="flex-1 overflow-y-auto space-y-2 pr-1">
           <p class="text-xs font-bold text-gray-500">현장 촬영 실사 (클릭 시 확대)</p>
           <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
@@ -1178,6 +1242,54 @@ function getInspectionBadgeClass(status) {
 function handleImageFallback(e) {
   e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60';
 }
+
+// ---------------------------------------------------------
+// 이슈 상품 헬퍼 함수들
+// ---------------------------------------------------------
+function getTotalIssueQty(item) {
+  const d = item?.issueDetails;
+  if (!d) return 0;
+  return (d.colorMismatch || 0) + (d.damaged || 0) + (d.contaminated || 0)
+    + (d.missingParts || 0) + (d.lowQuality || 0) + (d.wrongDelivery || 0);
+}
+
+function hasIssue(item) {
+  return item?.inspectionStatus === 'defect_found' || getTotalIssueQty(item) > 0 || !!item?.issueStatus;
+}
+
+function getIssueBriefing(item) {
+  const d = item?.issueDetails;
+  if (!d) return '';
+  const parts = [];
+  if (d.colorMismatch > 0)  parts.push(`색상차이: ${d.colorMismatch}`);
+  if (d.damaged > 0)         parts.push(`파손: ${d.damaged}`);
+  if (d.contaminated > 0)    parts.push(`오염: ${d.contaminated}`);
+  if (d.missingParts > 0)    parts.push(`부품부족: ${d.missingParts}`);
+  if (d.lowQuality > 0)      parts.push(`퀄리티미달: ${d.lowQuality}`);
+  if (d.wrongDelivery > 0)   parts.push(`오배송: ${d.wrongDelivery}`);
+  return parts.join(' · ');
+}
+
+function getIssueStatusLabel(status) {
+  const map = {
+    pending_buyer: '고객 확인대기',
+    refund_requested: '1688 공장 반품/환불 진행중',
+    reorder_requested: '공장 재출고/교환 요청',
+    resolved: '환불/정산 완료',
+  };
+  return map[status] || '';
+}
+
+function getIssueStatusBadgeClass(status) {
+  const map = {
+    pending_buyer: 'bg-orange-100 text-orange-800 border-orange-300',
+    refund_requested: 'bg-blue-100 text-blue-800 border-blue-300',
+    reorder_requested: 'bg-purple-100 text-purple-800 border-purple-300',
+    resolved: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+  };
+  return map[status] || 'bg-gray-100 text-gray-600 border-gray-200';
+}
+
 
 // ---------------------------------------------------------
 // 실사 사진 모달 제어 (바이어 조회 전용)
