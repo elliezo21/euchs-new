@@ -271,7 +271,7 @@
                 >
                   <div class="flex-1 min-w-0">
                     <div class="font-bold text-gray-900 truncate text-sm">
-                      {{ [sku.color, sku.size].filter(p => p && p !== '-' && p !== 'undefined').join(' / ') || '기본 상품' }}
+                      {{ [sku.color, sku.size].filter(p => p && p !== '-' && p !== 'undefined').join(' / ') || '기본 단품' }}
                     </div>
                     <div class="text-xs text-rose-600 font-mono mt-0.5 font-bold">
                       개당 ¥{{ currentUnitRmb.toFixed(2) }} (약 ₩{{ formatKrw(currentUnitRmb * exchangeRate) }})
@@ -615,18 +615,9 @@ const currentUnitRmb = computed(() => {
 // ----------------------------------------------------
 // Dynamic Options (1차 속성 & 2차 속성) & Gallery
 // ----------------------------------------------------
-const isShoeProduct = computed(() => {
-  const item = currentItem.value || props.product || {}
-  const text = `${item.titleKo || ''} ${item.titleZh || ''} ${item.title || ''} ${item.category || ''} ${(item.keywords || []).join(' ')}`.toLowerCase()
-  return /신발|스니커즈|런닝화|운동화|구두|슬리퍼|샌들|단화|shoes|sneakers|running|footwear|运动鞋|跑步鞋|鞋|球鞋|板鞋/.test(text)
-})
-
-const isApparelProduct = computed(() => {
-  const item = currentItem.value || props.product || {}
-  const text = `${item.titleKo || ''} ${item.titleZh || ''} ${item.title || ''} ${item.category || ''} ${(item.keywords || []).join(' ')}`.toLowerCase()
-  return /티셔츠|셔츠|블라우스|원피스|바지|슬랙스|가디건|니트|팬츠|자켓|코트|반팔|긴팔|후드|맨투맨|t-shirt|shirt|dress|pants|clothes|apparel|clothing|服|裙|裤|衫|t恤|外套|毛衣/.test(text)
-})
-
+// ----------------------------------------------------
+// Dynamic Options (1차 속성 & 2차 속성) & Gallery
+// ----------------------------------------------------
 const firstPropName = computed(() => {
   const item = currentItem.value || props.product || {}
   const raw = item.raw || {}
@@ -637,7 +628,7 @@ const firstPropName = computed(() => {
   if (p && String(p).trim()) {
     return String(p).trim()
   }
-  return isShoeProduct.value || isApparelProduct.value ? '색상' : '색상/스타일'
+  return '옵션'
 })
 
 const secondPropName = computed(() => {
@@ -650,7 +641,7 @@ const secondPropName = computed(() => {
   if (p && String(p).trim()) {
     return String(p).trim()
   }
-  return isShoeProduct.value || isApparelProduct.value ? '사이즈' : '사이즈/규격'
+  return '규격/사이즈'
 })
 
 const colorOptions = computed(() => {
@@ -717,15 +708,7 @@ const colorOptions = computed(() => {
     }
   }
 
-  // 5. 카테고리 기반 스마트 기본 색상
-  if (isShoeProduct.value) {
-    return [
-      { name: '스노우 화이트', imageUrl: mainImg },
-      { name: '트리플 블랙', imageUrl: mainImg }
-    ]
-  }
-
-  // 6. 단일 옵션 상품 기본
+  // 5. 옵션이 없는 단일 상품인 경우 기본 단품 1개만 반환
   return [
     { name: '기본 단품', imageUrl: mainImg }
   ]
@@ -787,16 +770,7 @@ const sizeOptions = computed(() => {
     }
   }
 
-  // 5. 카테고리 기반 스마트 사이즈 감지 (신발 / 의류)
-  if (isShoeProduct.value) {
-    return ['240mm', '245mm', '250mm', '255mm', '260mm', '265mm', '270mm', '275mm', '280mm']
-  }
-
-  if (isApparelProduct.value) {
-    return ['S', 'M', 'L', 'XL', '2XL']
-  }
-
-  // 6. 2차 옵션이 없으면 빈 배열
+  // 5. 2차 옵션이 없으면 순수 빈 배열 (임의 생성 금지)
   return []
 })
 
