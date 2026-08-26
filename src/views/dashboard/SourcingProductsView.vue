@@ -513,17 +513,33 @@ function handleDownloadTemplate() {
 async function parseBulkFile(file) {
   try {
     const parsed = await parseOrderExcel(file);
+    if (!parsed || parsed.length === 0) {
+      alert('파싱된 상품이 없습니다. 표준 양식을 다운받아 작성한 후 다시 업로드해 주세요.\n(헤더 행: 한글상품명/관리명 | 1688 제품 URL (필수) | 옵션명(색상/사이즈) | 수량(개, 필수))');
+      return;
+    }
     bulkParsedItems.value = parsed;
-  } catch (e) { alert('파싱 실패: ' + e.message); }
+  } catch (e) {
+    console.error('[EUCHS] 엑셀 파싱 오류:', e);
+    alert('엑셀 파싱 실패: 파일 서식을 확인해 주세요.\n(' + e.message + ')');
+  }
 }
 function onBulkFileSelect(e) {
   const file = e.target.files?.[0];
+  // 동일 파일 재선택을 위해 value 리셋
+  e.target.value = '';
   if (file) parseBulkFile(file);
 }
 function onBulkFileDrop(e) {
   bulkDragOver.value = false;
   const file = e.dataTransfer?.files?.[0];
-  if (file) parseBulkFile(file);
+  if (!file) return;
+  // 확장자 검증
+  const ext = file.name.split('.').pop()?.toLowerCase();
+  if (!['xlsx', 'xls', 'csv'].includes(ext)) {
+    alert('엑셀 파일(.xlsx, .xls, .csv)만 업로드 가능합니다.');
+    return;
+  }
+  parseBulkFile(file);
 }
 function submitBulkExcel() {
   if (!bulkParsedItems.value.length) return;
@@ -543,7 +559,7 @@ function submitBulkExcel() {
   persistItems();
   const count = newItems.length;
   closeBulkExcelModal();
-  alert(`✅ ${count}개 상품이 엑셀로 등록되었습니다.`);
+  alert(`✅ ${count}개 상품이 성공적으로 등록되었습니다.`);
 }
 
 // ─── 카테고리 일괄 설정 모달 ──────────────────────────────

@@ -206,37 +206,116 @@ export function parseOrderExcel(file) {
           return resolve([]);
         }
 
-        // 헤더 컬럼 유연한 정규화 매핑 (한글/영문 다양한 헤더 지원)
+        // 헤더 컬럼 유연한 정규화 매핑
+        // EUCHS 표준 양식 헤더: 한글상품명/관리명 | 1688 제품 URL (필수) | 옵션명(색상/사이즈) | 수량(개, 필수) | 카테고리 | 사입 요청사항
         const parsedItems = rawJson
           .map((row, index) => {
             if (!row || typeof row !== 'object') return null;
 
+            // 행 값 추출: 키 배열 중 하나라도 매칭되면 반환 (부분 문자열 포함 매칭)
             const getVal = (keys) => {
+              const rowKeys = Object.keys(row);
               for (const k of keys) {
-                const matchedKey = Object.keys(row).find(
+                // 1순위: 정확한 소문자 일치
+                const exact = rowKeys.find(
                   (rk) => rk.trim().toLowerCase() === k.toLowerCase()
                 );
-                if (matchedKey && row[matchedKey] !== undefined && row[matchedKey] !== null) {
-                  return String(row[matchedKey]).trim();
+                if (exact && row[exact] !== undefined && row[exact] !== null && row[exact] !== '') {
+                  return String(row[exact]).trim();
+                }
+                // 2순위: 포함(contains) 매칭 — 헤더에 괄호·부가 설명이 붙어 있을 경우 대응
+                const partial = rowKeys.find(
+                  (rk) => rk.trim().toLowerCase().includes(k.toLowerCase())
+                );
+                if (partial && row[partial] !== undefined && row[partial] !== null && row[partial] !== '') {
+                  return String(row[partial]).trim();
                 }
               }
               return '';
             };
 
-            const url = getVal(['1688 URL', '상품 URL/ID', '상품 URL', 'URL', '링크', 'link', 'offerId', 'id']);
-            const productName = getVal(['1688 상품명', '상품명', '제품명', 'name', 'title', 'productName']);
-            const sku = getVal(['옵션(SKU)', '옵션명', '옵션', 'sku', 'spec', 'option']);
-            const rawQty = getVal(['수량', 'quantity', 'qty', 'count']);
-            const rawPrice = getVal(['단가(CNY)', '단가', '가격', 'price', 'priceCny', 'unitPrice']);
+            // 상품명: 표준 양식 '한글상품명/관리명' + 기타 가능한 헤더
+            const productName = getVal([
+              '한글상품명',
+              '한글상품명/관리명',
+              '상품명',
+              '1688 상품명',
+              '제품명',
+              'productName',
+              'name',
+              'title',
+            ]);
+
+            // 1688 URL: 표준 양식 '1688 제품 URL (필수)' + 기타
+            const url = getVal([
+              '1688 제품 URL',
+              '1688 URL',
+              '제품 URL',
+              '상품 URL/ID',
+              '상품 URL',
+              'URL',
+              '링크',
+              'link',
+              'productUrl',
+              'offerId',
+            ]);
+
+            // 옵션: 표준 양식 '옵션명(색상/사이즈)' + 기타
+            const sku = getVal([
+              '옵션명',
+              '옵션(SKU)',
+              '옵션',
+              'sku',
+              'spec',
+              'option',
+            ]);
+
+            // 수량: 표준 양식 '수량(개, 필수)' + 기타
+            const rawQty = getVal([
+              '수량',
+              'quantity',
+              'qty',
+              'count',
+            ]);
+
+            // 단가: 다운로드 양식에는 없지만 바이어가 직접 작성할 경우 대응
+            const rawPrice = getVal([
+              '단가(CNY)',
+              '단가',
+              '가격',
+              'price',
+              'priceCny',
+              'unitPrice',
+            ]);
+
+            // CBM
             const rawCbm = getVal(['예상 CBM', 'CBM', '부피', 'cbm']);
-            const remark = getVal(['비고', '메모', '요청사항', 'remark', 'memo']);
 
-            const quantity = Number(rawQty.replace(/[^0-9.]/g, '')) || 1;
-            const priceCny = Number(rawPrice.replace(/[^0-9.]/g, '')) || 0;
-            const cbm = Number(rawCbm.replace(/[^0-9.]/g, '')) || 0;
+            // 카테고리
+            const category = getVal(['카테고리', 'category']);
 
-            // 유효 데이터 검증 (URL, 상품명, SKU, 가격 중 하나라도 유의미한 값이 있는 경우)
-            if (!url && !productName && !sku && priceCny === 0) {
+            // 비고/요청사항: 표준 양식 '사입 요청사항' + 기타
+            const remark = getVal([
+              '사입 요청사항',
+              '요청사항',
+              '비고',
+              '메모',
+              'remark',
+              'memo',
+            ]);
+
+            const quantity = Number(String(rawQty).replace(/[^0-9.]/g, '')) || 1;
+            const priceCny = Number(String(rawPrice).replace(/[^0-9.]/g, '')) || 0;
+            const cbm = Number(String(rawCbm).replace(/[^0-9.]/g, '')) || 0;
+
+            // 가이드/안내 행 제거: ※로 시작하거나 '이 행은 삭제'가 포함된 경우
+            const firstVal = productName || url || sku;
+            if (firstVal.startsWith('※') || firstVal.includes('이 행은 삭제')) {
+              return null;
+            }
+
+            // 유효 데이터 검증: URL, 상품명, SKU 중 하나라도 있으면 유효
+            if (!url && !productName && !sku) {
               return null;
             }
 
@@ -249,7 +328,8 @@ export function parseOrderExcel(file) {
               priceCny: Math.max(0, priceCny),
               totalCny: Number((Math.max(1, quantity) * Math.max(0, priceCny)).toFixed(2)),
               cbm: Math.max(0, cbm),
-              remark
+              category,
+              remark,
             };
           })
           .filter((item) => item !== null);
