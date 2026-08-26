@@ -393,6 +393,13 @@ export const handleNaverCallback = async (code, state) => {
     // 전역 로그인 동기화 이벤트 디스패치
     window.dispatchEvent(new CustomEvent('euchs:login_success', { detail: { user } }))
     window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user } }))
+    // ── 장바구니 뱃지 즉시 동기화 ──
+    try {
+      const cartKey = `euchs_cart_${user.id}`
+      const raw = localStorage.getItem(cartKey)
+      const count = raw ? (JSON.parse(raw)?.length ?? 0) : 0
+      window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count } }))
+    } catch (e) {}
     window.dispatchEvent(new Event('storage'))
 
     // ✅ returnUrl: localStorage/sessionStorage에서 읽고 즉시 정리
@@ -1019,18 +1026,15 @@ export const initAuth = async () => {
           localStorage.removeItem('euchs_cart_items')
         } catch (e) {}
 
-        // ── 장바구니 뱃지 동기화: 해당 계정의 실제 담긴 수량으로 갱신 ──
-        // 계정이 바뀐 경우(또는 최초 로그인) 격리 키 기준으로 카운트 재산정
-        if (prevId !== session.user.id) {
-          try {
-            const cartKey = `euchs_cart_${session.user.id}`
-            const raw = localStorage.getItem(cartKey)
-            const count = raw ? (JSON.parse(raw)?.length ?? 0) : 0
-            window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count } }))
-            window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: session.user } }))
-          } catch (e) {
-            window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: 0 } }))
-          }
+        // ── 장바구니 뱃지 동기화: 해당 계정의 실제 담긴 수량으로 즉시 갱신 ──
+        try {
+          const cartKey = `euchs_cart_${session.user.id}`
+          const raw = localStorage.getItem(cartKey)
+          const count = raw ? (JSON.parse(raw)?.length ?? 0) : 0
+          window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count } }))
+          window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: session.user } }))
+        } catch (e) {
+          window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: 0 } }))
         }
       } else if (event === 'SIGNED_OUT' && _isExplicitSignOut) {
         // ✅ 사용자가 명시적으로 [로그아웃]을 눌렀을 때만 완전 초기화

@@ -167,8 +167,8 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
-import { isLoggedIn, getCartStorageKey } from '../lib/auth'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { isLoggedIn, currentUser, getCartStorageKey } from '../lib/auth'
 
 const isOpen = ref(false)
 const savedCount = ref(0)
@@ -180,18 +180,11 @@ const updateSavedCount = () => {
     return
   }
   try {
-    // 사용자 격리 키 우선
+    // 사용자 격리 키 (euchs_cart_{userId}) 로만 읽기 — 레거시 키 fallback 영구 제거
     const cartKey = getCartStorageKey()
     const userCart = localStorage.getItem(cartKey)
     if (userCart) {
       const parsed = JSON.parse(userCart)
-      savedCount.value = Array.isArray(parsed) ? parsed.length : 0
-      return
-    }
-    // 레거시 키 fallback (마이그레이션 호환)
-    const legacy = localStorage.getItem('euchs_erp_saved_items')
-    if (legacy) {
-      const parsed = JSON.parse(legacy)
       savedCount.value = Array.isArray(parsed) ? parsed.length : 0
     } else {
       savedCount.value = 0
@@ -201,7 +194,23 @@ const updateSavedCount = () => {
   }
 }
 
-// euchs:cart-updated 이벤트 수신 (로그아웃 시 count:0 즉시 처리)
+// ── 세션 및 로그인 반응형 감시 (소셜/일반 로그인 즉시 반영) ──
+watch(
+  () => isLoggedIn.value,
+  () => {
+    updateSavedCount()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => currentUser.value?.id,
+  () => {
+    updateSavedCount()
+  }
+)
+
+// euchs:cart-updated 이벤트 수신 (수량 변경/로그인/로그아웃 시 실시간 갱신)
 const handleCartUpdated = (e) => {
   if (e.detail?.count !== undefined) {
     savedCount.value = isLoggedIn.value ? (Number(e.detail.count) || 0) : 0
@@ -234,12 +243,14 @@ onMounted(() => {
   updateSavedCount()
   window.addEventListener('storage', updateSavedCount)
   window.addEventListener('euchs:cart-updated', handleCartUpdated)
+  window.addEventListener('euchs:cart_updated', handleCartUpdated)
   window.addEventListener('euchs-auth-changed', handleAuthChanged)
 })
 
 onUnmounted(() => {
   window.removeEventListener('storage', updateSavedCount)
   window.removeEventListener('euchs:cart-updated', handleCartUpdated)
+  window.removeEventListener('euchs:cart_updated', handleCartUpdated)
   window.removeEventListener('euchs-auth-changed', handleAuthChanged)
 })
 </script>

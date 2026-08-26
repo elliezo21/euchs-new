@@ -2001,6 +2001,7 @@ onMounted(async () => {
   window.addEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.addEventListener('euchs-auth-changed', updateSavedCount)
   window.addEventListener('euchs:cart-updated', updateSavedCount)
+  window.addEventListener('euchs:cart_updated', updateSavedCount)
   window.addEventListener('storage', updateSavedCount)
   window.addEventListener('euchs-notice-update', loadMallNotices)
   window.addEventListener('storage', loadMallNotices)
@@ -2015,12 +2016,21 @@ onUnmounted(() => {
   window.removeEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.removeEventListener('euchs-auth-changed', updateSavedCount)
   window.removeEventListener('euchs:cart-updated', updateSavedCount)
+  window.removeEventListener('euchs:cart_updated', updateSavedCount)
   window.removeEventListener('storage', updateSavedCount)
   window.removeEventListener('euchs-notice-update', loadMallNotices)
   window.removeEventListener('storage', loadMallNotices)
   document.removeEventListener('click', handleClickOutside)
   document.removeEventListener('touchstart', handleClickOutside)
 })
+
+watch(
+  () => isLoggedIn.value,
+  () => {
+    updateSavedCount()
+  },
+  { immediate: true }
+)
 
 watch(currentUser, () => {
   checkAndResumePendingProduct()

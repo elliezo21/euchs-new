@@ -522,7 +522,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { fetchSiteSettings } from '../lib/settings'
 import {
@@ -595,13 +595,33 @@ const updateSavedCount = () => {
   }
 }
 
+// ── 세션 및 로그인 반응형 감시 (소셜/일반 로그인 즉시 반영) ──
+watch(
+  () => isLoggedIn.value,
+  () => {
+    updateSavedCount()
+  },
+  { immediate: true }
+)
+
+watch(
+  () => currentUser.value?.id,
+  () => {
+    updateSavedCount()
+  }
+)
+
 // euchs:cart-updated 이벤트 핸들러 (로그아웃 시 즉시 0으로 초기화)
 const handleCartUpdated = (e) => {
   if (e.detail?.count !== undefined) {
-    savedCount.value = Number(e.detail.count) || 0
+    savedCount.value = isLoggedIn.value ? (Number(e.detail.count) || 0) : 0
   } else {
     updateSavedCount()
   }
+}
+
+const handleAuthChanged = () => {
+  updateSavedCount()
 }
 
 const toggleMobileSubmenu = (menu) => {
@@ -637,12 +657,16 @@ onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('storage', updateSavedCount)
   window.addEventListener('euchs:cart-updated', handleCartUpdated)
+  window.addEventListener('euchs:cart_updated', handleCartUpdated)
+  window.addEventListener('euchs-auth-changed', handleAuthChanged)
 })
 
 onUnmounted(() => {
   document.removeEventListener('click', handleDocumentClick)
   window.removeEventListener('storage', updateSavedCount)
   window.removeEventListener('euchs:cart-updated', handleCartUpdated)
+  window.removeEventListener('euchs:cart_updated', handleCartUpdated)
+  window.removeEventListener('euchs-auth-changed', handleAuthChanged)
 })
 </script>
 
