@@ -630,49 +630,153 @@ export async function fetch1688ProductById(offerId) {
 
   try {
     const rawData = await getItemDetail1688(idStr)
-    // 1688 DataHub는 다양한 래퍼 구조로 응답을 감쌀 수 있음
-    const it = rawData?.result?.item || rawData?.item || rawData?.data?.item || rawData?.data || rawData?.result || rawData || {}
-    console.log('[1688 fetch1688ProductById] parsed item object keys:', Object.keys(it).slice(0, 20))
-    console.log('[1688 fetch1688ProductById] sku/skuProps check:', { sku: !!it.sku, skuProps: !!it.skuProps, sku_props: !!it.sku_props, props: !!it.props })
 
-    const titleZh = it.title || it.subject || ''
-    let rawImage = it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
-                   (Array.isArray(it.images) && it.images[0]) || ''
-    let imageUrl = String(rawImage || '').trim()
-    if (imageUrl.startsWith('//')) {
-      imageUrl = 'https:' + imageUrl
-    } else if (imageUrl.startsWith('http://')) {
-      imageUrl = imageUrl.replace('http://', 'https://')
+    // ─── 1. 다계층 래퍼 구조 완전 탐색 ───────────────────────────────────
+    // 1688 DataHub + Vercel 프록시 { success, data: <RapidAPI raw> } 조합
+    // RapidAPI 원본 가능 구조:
+    //   rawData.result.item
+    //   rawData.result.data.item
+    //   rawData.result.data
+    //   rawData.data.item
+    //   rawData.data.result.item
+    //   rawData.data
+    //   rawData.item
+    //   rawData  (Mock 등)
+    const it = (
+      rawData?.result?.item ||
+      rawData?.result?.data?.item ||
+      rawData?.result?.data ||
+      rawData?.data?.item ||
+      rawData?.data?.result?.item ||
+      rawData?.data?.result ||
+      rawData?.data ||
+      rawData?.item ||
+      rawData || {}
+    )
+
+    console.log('[1688 fetch1688ProductById] parsed item keys:', Object.keys(it).slice(0, 20))
+
+    // ─── 2. rawSku: sku 서브객체 (없으면 it 자체에 직접 skuProps 가 있을 수 있음) ───
+    const rawSku = it.sku || {}
+
+    // ─── 3. rawSkuProps: 모든 가능한 키 순서대로 탐색 ─────────────────────
+    let rawSkuProps = (
+      rawSku.skuProps ||        // it.sku.skuProps
+      rawSku.sku_props ||       // it.sku.sku_props
+      rawSku.properties ||      // it.sku.properties
+      rawSku.props ||           // it.sku.props
+      it.skuProps ||            // it.skuProps
+      it.sku_props ||           // it.sku_props
+      it.props ||               // it.props
+      it.properties ||          // it.properties
+      rawSku.skuList?.length && (() => {
+        // skuList에서 역생성 시도는 아래 rawSkus 파싱 후 처리
+        return null
+      })() ||
+      null
+    )
+
+    // JSON 문자열인 경우 파싱
+    if (typeof rawSkuProps === 'string') {
+      try { rawSkuProps = JSON.parse(rawSkuProps) } catch (e) { rawSkuProps = null }
+    }
+    // 배열이 아닌 경우 null 처리
+    if (!Array.isArray(rawSkuProps)) rawSkuProps = null
+
+    console.log('[1688 fetch1688ProductById] rawSkuProps:', rawSkuProps?.length ?? 'null', rawSkuProps)
+
+    // ─── 4. rawSkus 탐색 ────────────────────────────────────────────────
+    let rawSkus = (
+      it.skus ||
+      it.skuList ||
+      rawSku.skuList ||
+      rawSku.sku_list ||
+      it.sku_list ||
+      it.raw?.skus ||
+      it.raw?.skuList ||
+      []
+    )
+    if (typeof rawSkus === 'string') {
+      try { rawSkus = JSON.parse(rawSkus) } catch (e) { rawSkus = [] }
+    }
+    if (!Array.isArray(rawSkus)) rawSkus = []
+
+    // rawSkuProps가 없고 rawSkus가 있는 경우, rawSkus에서 역추출 시도
+    if (!rawSkuProps && rawSkus.length > 0) {
+      console.log('[1688 fetch1688ProductById] Deriving skuProps from rawSkus:', rawSkus.slice(0, 2))
+      // skuList의 각 항목에서 specAttrs/propPath/attributes 파싱
+      const colorSet = new Map() // name -> imageUrl
+      const sizeSet = new Set()
+
+      rawSkus.forEach(s => {
+        // 예: specAttrs = "颜色:卡其色;尺码:240" or specId = "1627207:1232324;20509:2325"
+        const specStr = s.specAttrs || s.specId || s.propPath || s.attributes || ''
+        const parts = String(specStr).split(';')
+
+        let colorName = s.color || s.colorName || s.prop || ''
+        let sizeName = s.size || s.sizeName || s.spec || s.subPropName || ''
+
+        if (!colorName && !sizeName && parts.length >= 1) {
+          // "키:값" 형식 파싱
+          const kv0 = parts[0]?.split(':')
+          const kv1 = parts[1]?.split(':')
+          colorName = kv0 ? (kv0.length >= 2 ? kv0[kv0.length - 1] : kv0[0]) : ''
+          sizeName = kv1 ? (kv1.length >= 2 ? kv1[kv1.length - 1] : kv1[0]) : ''
+        }
+        if (colorName) colorSet.set(colorName, s.imageUrl || s.image || '')
+        if (sizeName) sizeSet.add(sizeName)
+      })
+
+      rawSkuProps = []
+      if (colorSet.size > 0) {
+        rawSkuProps.push({
+          prop: '색상/모델',
+          values: [...colorSet.entries()].map(([name, img]) => ({ name, imageUrl: img }))
+        })
+      }
+      if (sizeSet.size > 0) {
+        rawSkuProps.push({
+          prop: '사이즈/규격',
+          values: [...sizeSet].map(name => ({ name, imageUrl: '' }))
+        })
+      }
+
+      if (rawSkuProps.length === 0) rawSkuProps = null
+      console.log('[1688 fetch1688ProductById] Derived rawSkuProps from skuList:', rawSkuProps)
     }
 
-    const priceStr = it.sku?.def?.price || it.price || '0'
+    // 이 시점에 rawSkuProps이 여전히 null이면 빈 배열
+    if (!rawSkuProps) rawSkuProps = []
+
+    // ─── 5. 기본 상품 정보 추출 ────────────────────────────────────────
+    const titleZh = it.title || it.subject || ''
+
+    let rawImage = (
+      it.imageUrl || it.image || it.picUrl || it.pic_url ||
+      it.img || it.imgUrl || it.pic || it.thumbnail ||
+      rawSku.def?.imageUrl || rawSku.def?.image ||
+      (Array.isArray(it.images) && it.images[0]) || ''
+    )
+    let imageUrl = String(rawImage || '').trim()
+    if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl
+    else if (imageUrl.startsWith('http://')) imageUrl = imageUrl.replace('http://', 'https://')
+
+    const priceStr = rawSku.def?.price || it.price || '0'
     const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
 
-    const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
+    const minOrderStr = rawSku.def?.minOrder || it.minOrder || '1'
     const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
 
-    // 갤러리 이미지 리스트 정규화
     let images = []
     if (Array.isArray(it.images) && it.images.length > 0) {
-      images = it.images.map(img => (img.startsWith('//') ? 'https:' + img : img))
+      images = it.images.map(img => (String(img).startsWith('//') ? 'https:' + img : img))
     } else if (imageUrl) {
       images = [imageUrl]
     }
 
-    // 1688 DataHub의 모든 SKU 속성 키 포맷을 빠짐없이 탐색
-    let rawSkuProps = it.sku?.skuProps || it.skuProps || it.sku_props || it.sku?.sku_props || it.props || it.raw?.skuProps || []
-    if (typeof rawSkuProps === 'string') {
-      try { rawSkuProps = JSON.parse(rawSkuProps) } catch (e) { rawSkuProps = [] }
-    }
-    console.log('[1688 fetch1688ProductById] rawSkuProps length:', Array.isArray(rawSkuProps) ? rawSkuProps.length : 'not array', rawSkuProps)
-
-    let rawSkus = it.skus || it.skuList || it.sku?.skuList || it.sku_list || it.sku?.sku_list || it.raw?.skus || it.raw?.skuList || []
-    if (typeof rawSkus === 'string') {
-      try { rawSkus = JSON.parse(rawSkus) } catch (e) { rawSkus = [] }
-    }
-
     // 속성명 및 속성값 다변화 키 1:1 파싱
     let parsedSkuProps = []
+
     let parsedSkus = []
 
     if (Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
