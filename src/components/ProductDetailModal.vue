@@ -893,7 +893,11 @@ const colorOptions = computed(() => {
     }
   }
 
-  // ── Fallback: 단일 상품 (모든 옵션 소스가 없는 경우에만)
+  // ── Fallback: 로딩 중일 때는 빈 배열, 로딩 완료 후에만 단일 상품 '기본 단품' 반환
+  if (isDetailLoading.value) {
+    return []
+  }
+
   console.debug('[colorOptions] Fallback: 기본 단품 (skuProps empty or not yet loaded)')
   return [{ name: '기본 단품', imageUrl: mainImg }]
 })
@@ -1200,71 +1204,55 @@ const loadFullProductData = async (item) => {
         skuProps: mergedSkuProps,
         skus: mergedSkus
       }
-
-      // currentItem 업데이트 후 colorOptions reactive 재평가 완료
-      // → Vue computed는 동기적으로 재평가됨
-
-      // 1차 옵션 선택 갱신 (실제 옵션이 있으면 첫 번째로, 기본 단품이면 null 유지)
-      const firstRealOption = colorOptions.value.find(c => c.name !== '기본 단품')
-      if (firstRealOption) {
-        if (!selectedColor.value || selectedColor.value.name === '기본 단품' ||
-            !colorOptions.value.some(c => c.name === selectedColor.value?.name)) {
-          selectedColor.value = firstRealOption
-        }
-      } else if (colorOptions.value.length > 0 && !selectedColor.value) {
-        selectedColor.value = colorOptions.value[0]
-      }
-
-      // 단일 옵션 상품: 2차 옵션이 없고 1차 옵션이 선택된 경우 자동 발주 등록
-      if (!hasMultipleOptions.value && selectedColor.value) {
-        const alreadyRegistered = selectedSkus.value.length > 0 &&
-          selectedSkus.value[0].color === selectedColor.value.name
-        if (!alreadyRegistered) {
-          selectedSkus.value = [{
-            color: selectedColor.value.name,
-            size: '',
-            quantity: 1  // 초기 수량은 항상 1 (minOrder는 최소발주단위 참고용)
-          }]
-        }
-      }
-
-      // 공급사 찜 여부 동기화
-      checkStoreFavorite()
     }
   } catch (err) {
     console.debug('Failed to load full product details:', err)
   } finally {
     // 성공/실패 무관하게 반드시 스켈레톤 해제
     isDetailLoading.value = false
+
+    // ── 비동기 상세 로드 완료 후 조건부 기본 선택 처리 ──
+    const realColors = colorOptions.value.filter(c => c.name !== '기본 단품')
+    const hasProps = (Array.isArray(currentItem.value?.skuProps) && currentItem.value.skuProps.length > 0) ||
+                     realColors.length > 0 ||
+                     (Array.isArray(sizeOptions.value) && sizeOptions.value.length > 0)
+
+    if (hasProps && realColors.length > 0) {
+      // 1. 옵션이 있는 상품:
+      // 1차 옵션의 첫 번째 값을 selectedColor로만 활성화하고, selectedSkus는 사용자가 1차/2차 옵션을 선택하기 전까지 빈 상태 유지
+      selectedColor.value = realColors[0]
+      selectedSize.value = null
+      selectedSkus.value = []
+    } else if (!hasProps && colorOptions.value.length > 0) {
+      // 2. 진짜 단품 상품 (skuProps가 아예 없는 단일 규격 상품):
+      // 로딩이 완전히 끝난 시점에만 1차 옵션 '기본 단품' 1개를 표시하고 기본 수량(1개) 품목 등록
+      selectedColor.value = colorOptions.value[0]
+      selectedSize.value = null
+      selectedSkus.value = [
+        {
+          color: selectedColor.value.name || '기본 단품',
+          size: '',
+          quantity: 1
+        }
+      ]
+    } else {
+      selectedColor.value = null
+      selectedSize.value = null
+      selectedSkus.value = []
+    }
+
     checkStoreFavorite()
   }
 }
 
 // 다른 상품 클릭 시 모달 내에서 즉시 상품 전환
 const selectAnotherProduct = (newProduct) => {
-  currentItem.value = { ...newProduct }
+  currentItem.value = JSON.parse(JSON.stringify(newProduct))
   activeImage.value = newProduct.imageUrl || ''
+  selectedColor.value = null
   selectedSize.value = null
   selectedSkus.value = []
   checkStoreFavorite()
-
-  if (colorOptions.value.length > 0) {
-    selectedColor.value = colorOptions.value[0]
-  } else {
-    selectedColor.value = null
-  }
-
-
-  // 단일 옵션 상품인 경우에만 기본 1차 품목 자동 등록
-  if (!hasMultipleOptions.value && selectedColor.value) {
-    selectedSkus.value = [
-      {
-        color: selectedColor.value.name,
-        size: '',
-        quantity: 1  // 초기 수량은 항상 1
-      }
-    ]
-  }
 
   // 상단으로 부드럽게 스크롤
   if (modalBodyRef.value) {
@@ -1295,6 +1283,9 @@ const showToastNotification = (msg, type = 'success') => {
 
 const handleClose = () => {
   isCartConfirmModalOpen.value = false
+  selectedColor.value = null
+  selectedSize.value = null
+  selectedSkus.value = []
   if (typeof window !== 'undefined') {
     if (window.history.state?.modal === 'product-detail') {
       window.history.back()
@@ -1466,7 +1457,7 @@ watch(() => props.product, (newVal) => {
     }
 
     isDetailLoading.value = true  // 즉시 스켈레톤 표시 (API 응답 전까지)
-    currentItem.value = { ...newVal }
+    currentItem.value = JSON.parse(JSON.stringify(newVal))
     activeImage.value = newVal.imageUrl || ''
     selectedColor.value = null
     selectedSize.value = null
@@ -1479,6 +1470,10 @@ watch(() => props.product, (newVal) => {
     loadProductDetailImages(newVal)
     loadSellerProducts(newVal)
   } else {
+    currentItem.value = null
+    selectedColor.value = null
+    selectedSize.value = null
+    selectedSkus.value = []
     if (typeof document !== 'undefined') {
       document.body.style.overflow = 'unset'
     }
