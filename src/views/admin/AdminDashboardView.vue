@@ -298,35 +298,20 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 4. 메인 3열: [문의·리뷰 현황] 카드 탭 바 -->
+    <!-- 4. 메인 3열: [고객 1:1 상담 및 문의 접수 현황] 카드 -->
     <!-- ======================================================== -->
     <div class="bg-white border border-slate-200 rounded-2xl p-5 shadow-xs space-y-4">
-      <div class="flex items-center justify-between flex-wrap gap-2 border-b border-slate-100 pb-3">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-slate-800"></span>
-          <h3 class="text-sm font-black text-slate-900">고객 문의 & 지원 현황</h3>
-        </div>
-
-        <!-- 탭 바 -->
-        <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl text-xs">
-          <button
-            type="button"
-            v-for="tab in inquiryTabs"
-            :key="tab.key"
-            @click="activeInquiryTab = tab.key"
-            class="px-3 py-1 rounded-lg font-bold transition cursor-pointer"
-            :class="activeInquiryTab === tab.key ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'"
-          >
-            {{ tab.label }} <span class="font-mono" :class="tab.count > 0 ? 'text-blue-600 font-black' : 'text-slate-400'">({{ tab.count }})</span>
-          </button>
+          <h3 class="text-sm font-black text-slate-900">💬 고객 1:1 상담 및 문의 접수 현황</h3>
         </div>
       </div>
 
-      <!-- 탭 내용 영역 -->
-      <div class="py-6 text-center text-slate-400 space-y-2">
-        <div class="text-3xl">💬</div>
-        <p class="font-bold text-xs text-slate-700">현재 미답변된 {{ getTabName(activeInquiryTab) }}이 없습니다.</p>
-        <p class="text-[11px] text-slate-400">새로운 고객 문의나 톡톡 상담 접수 시 실시간 알림이 발송됩니다.</p>
+      <!-- 내용 영역: 단정한 공란 안내 -->
+      <div class="py-6 text-center text-slate-400 space-y-1.5">
+        <div class="text-2xl">💬</div>
+        <p class="font-bold text-xs text-slate-600">접수된 실시간 고객 문의 내역이 없습니다.</p>
       </div>
     </div>
 
@@ -344,7 +329,6 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 const isNoticeExpanded = ref(false);
 const isRefreshing = ref(false);
 const lastUpdatedTime = ref('방금 전');
-const activeInquiryTab = ref('talk');
 
 const orders = ref([]);
 const inbounds = ref([]);
@@ -382,18 +366,6 @@ const customsCounts = computed(() => {
   });
   return c;
 });
-
-const inquiryTabs = ref([
-  { key: 'talk', label: '톡톡 문의', count: 0 },
-  { key: 'order', label: '주문 고객 문의', count: 0 },
-  { key: 'qna', label: '상품 Q&A', count: 0 },
-  { key: 'cs', label: '고객센터', count: 0 },
-]);
-
-function getTabName(key) {
-  const map = { talk: '톡톡 문의', order: '주문 문의', qna: '상품 Q&A', cs: '고객센터 문의' };
-  return map[key] || '문의';
-}
 
 const noticesList = ref([]);
 
