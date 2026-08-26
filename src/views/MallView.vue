@@ -383,7 +383,7 @@
                 <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.products ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
               </button>
 
-              <!-- Submenu Items (CN인사이더 스타일 5종) -->
+              <!-- Submenu Items (2종 통합) -->
               <div v-show="expandedMenus.products" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
                 <!-- 🛒 장바구니 -->
                 <router-link
@@ -402,7 +402,7 @@
                     {{ savedCount }}
                   </span>
                 </router-link>
-                <!-- 📋 상품리스트 (메인) -->
+                <!-- 📋 상품리스트 / 카테고리 -->
                 <router-link
                   to="/dashboard/sourcing-products"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
@@ -410,42 +410,9 @@
                 >
                   <div class="flex items-center gap-1.5">
                     <span>📋</span>
-                    <span>상품리스트</span>
+                    <span>상품리스트 / 카테고리</span>
                   </div>
                   <span class="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
-                </router-link>
-                <!-- 📂 카테고리 -->
-                <router-link
-                  to="/dashboard/categories"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/categories' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
-                >
-                  <div class="flex items-center gap-1.5">
-                    <span>📂</span>
-                    <span>카테고리</span>
-                  </div>
-                </router-link>
-                <!-- 🏷️ 라벨설정 -->
-                <router-link
-                  to="/dashboard/labels"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/labels' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
-                >
-                  <div class="flex items-center gap-1.5">
-                    <span>🏷️</span>
-                    <span>라벨설정</span>
-                  </div>
-                </router-link>
-                <!-- 🏬 업체(상점)관리 -->
-                <router-link
-                  to="/dashboard/stores"
-                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
-                  :class="route.path === '/dashboard/stores' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
-                >
-                  <div class="flex items-center gap-1.5">
-                    <span>🏬</span>
-                    <span>업체(상점)관리</span>
-                  </div>
                 </router-link>
               </div>
             </div>

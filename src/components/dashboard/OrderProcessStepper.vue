@@ -39,21 +39,21 @@
           ]"
         >
           <!-- 파트 헤더 -->
-          <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60">
-            <div class="flex items-center gap-2">
+          <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60 gap-1.5">
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
               <span
-                class="w-2.5 h-2.5 rounded-full"
+                class="w-2.5 h-2.5 rounded-full shrink-0"
                 :class="currentSection === 'orders' ? 'bg-indigo-600 animate-pulse' : 'bg-slate-400'"
               ></span>
-              <h4 class="text-xs sm:text-sm font-black tracking-tight" :class="currentSection === 'orders' ? 'text-indigo-950' : 'text-slate-800'">
+              <h4 class="text-xs sm:text-sm font-black tracking-tight whitespace-nowrap" :class="currentSection === 'orders' ? 'text-indigo-950' : 'text-slate-800'">
                 PART 1. 발주 & 1차 결제
               </h4>
-              <span class="text-xs font-bold text-slate-400 font-mono">(1~4단계)</span>
+              <span class="text-[11px] sm:text-xs font-bold text-slate-400 font-mono whitespace-nowrap shrink-0">(1~4단계)</span>
             </div>
             <button
               type="button"
               @click="router.push('/dashboard/orders')"
-              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
+              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer shrink-0"
               :class="currentSection === 'orders' ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'"
             >
               발주관리 바로가기 ›
@@ -111,21 +111,21 @@
           ]"
         >
           <!-- 파트 헤더 -->
-          <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60">
-            <div class="flex items-center gap-2">
+          <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60 gap-1.5">
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
               <span
-                class="w-2.5 h-2.5 rounded-full"
+                class="w-2.5 h-2.5 rounded-full shrink-0"
                 :class="currentSection === 'warehouse' ? 'bg-teal-600 animate-pulse' : 'bg-slate-400'"
               ></span>
-              <h4 class="text-xs sm:text-sm font-black tracking-tight" :class="currentSection === 'warehouse' ? 'text-teal-950' : 'text-slate-800'">
+              <h4 class="text-xs sm:text-sm font-black tracking-tight whitespace-nowrap" :class="currentSection === 'warehouse' ? 'text-teal-950' : 'text-slate-800'">
                 PART 2. 이우 창고 & 검수
               </h4>
-              <span class="text-xs font-bold text-slate-400 font-mono">(5~6단계)</span>
+              <span class="text-[11px] sm:text-xs font-bold text-slate-400 font-mono whitespace-nowrap shrink-0">(5~6단계)</span>
             </div>
             <button
               type="button"
               @click="router.push('/dashboard/warehouse')"
-              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
+              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer shrink-0"
               :class="currentSection === 'warehouse' ? 'bg-teal-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'"
             >
               이우창고 ›
@@ -183,21 +183,21 @@
           ]"
         >
           <!-- 파트 헤더 -->
-          <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60">
-            <div class="flex items-center gap-2">
+          <div class="flex items-center justify-between pb-2.5 mb-3 border-b border-slate-200/60 gap-1.5">
+            <div class="flex items-center gap-1.5 min-w-0 flex-1 flex-wrap sm:flex-nowrap">
               <span
-                class="w-2.5 h-2.5 rounded-full"
+                class="w-2.5 h-2.5 rounded-full shrink-0"
                 :class="currentSection === 'customs' ? 'bg-indigo-600 animate-pulse' : 'bg-slate-400'"
               ></span>
-              <h4 class="text-xs sm:text-sm font-black tracking-tight" :class="currentSection === 'customs' ? 'text-indigo-950' : 'text-slate-800'">
+              <h4 class="text-xs sm:text-sm font-black tracking-tight whitespace-nowrap" :class="currentSection === 'customs' ? 'text-indigo-950' : 'text-slate-800'">
                 PART 3. 통관 & 국내배송
               </h4>
-              <span class="text-xs font-bold text-slate-400 font-mono">(7~8단계)</span>
+              <span class="text-[11px] sm:text-xs font-bold text-slate-400 font-mono whitespace-nowrap shrink-0">(7~8단계)</span>
             </div>
             <button
               type="button"
               @click="router.push('/dashboard/logistics')"
-              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer"
+              class="text-xs font-bold px-2.5 py-1 rounded-lg transition cursor-pointer shrink-0"
               :class="currentSection === 'customs' ? 'bg-indigo-600 text-white shadow-2xs' : 'bg-slate-200 text-slate-700 hover:bg-slate-300'"
             >
               통관·배송 ›
