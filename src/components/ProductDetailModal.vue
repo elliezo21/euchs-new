@@ -1275,6 +1275,7 @@ const handlePopState = (e) => {
 }
 
 // ── 공통 장바구니 저장 헬퍼 ──
+// 각 SKU(색상+사이즈+수량 조합)를 독립적인 별도 행으로 저장하여 옵션 혼재 방지
 const saveSelectedItemsToCart = () => {
   // 1. 발주 품목 검증 가드 (미선택 시 차단)
   if (!selectedSkus.value.length || totalQuantity.value === 0) {
@@ -1294,37 +1295,74 @@ const saveSelectedItemsToCart = () => {
     let cart = cached ? JSON.parse(cached) : []
     if (!Array.isArray(cart)) cart = []
 
-    const itemToSave = {
-      id: `${currentItem.value.id}_${Date.now()}`,
+    const baseItem = {
       itemId: currentItem.value.id,
       titleKo: currentItem.value.titleKo || currentItem.value.titleZh,
       titleZh: currentItem.value.titleZh,
       imageUrl: activeImage.value || currentItem.value.imageUrl,
-      price: currentUnitRmb.value,
-      priceCny: currentUnitRmb.value,
-      quantity: totalQuantity.value,
-      totalPriceRmb: totalPriceRmb.value,
-      totalPriceKrw: totalPriceKrw.value,
-      skus: JSON.parse(JSON.stringify(selectedSkus.value)),
-      sku: selectedSkus.value.map(s => {
-        const parts = [s.color, s.size].filter(p => p && p !== 'undefined' && p !== '-')
-        return (parts.length ? parts.join(' / ') : '기본 옵션') + (s.quantity ? ` (${s.quantity}개)` : '')
-      }).join(', '),
       detailUrl: currentItem.value.detailUrl,
       company: currentItem.value.company || '1688 공급처',
-      createdAt: new Date().toISOString()
     }
 
-    cart.unshift(itemToSave)
+    // ── SKU별 독립 행으로 분리 저장 (color+size 조합마다 별도 행) ──
+    const newRows = selectedSkus.value.map((sku, idx) => {
+      const colorStr = String(sku.color || '').trim()
+      const sizeStr = String(sku.size || '').trim()
+      const optionParts = [colorStr, sizeStr].filter(p => p && p !== '-' && p !== 'undefined')
+      const optionText = optionParts.length ? optionParts.join(' / ') : '기본 옵션'
+      const skuQty = Math.max(1, Number(sku.quantity) || 1)
+      const skuId = `${currentItem.value.id}_${colorStr || 'default'}_${sizeStr || 'none'}_${Date.now()}_${idx}`
+
+      return {
+        ...baseItem,
+        id: skuId,
+        // 옵션 독립 필드 (CartView에서 개별 렌더링용)
+        color: colorStr,
+        size: sizeStr,
+        optionName: optionText,
+        sku: optionText,
+        // 수량 및 단가 (각 SKU 행 독립)
+        quantity: skuQty,
+        priceCny: Number(currentUnitRmb.value),
+        price: Number(currentUnitRmb.value),
+        totalPriceRmb: Number((skuQty * currentUnitRmb.value).toFixed(2)),
+        totalPriceKrw: Math.round(skuQty * currentUnitRmb.value * props.exchangeRate),
+        // 단일 SKU 스냅샷 (skus 배열도 이 행만 포함)
+        skus: [{ color: colorStr, size: sizeStr, quantity: skuQty }],
+        createdAt: new Date().toISOString(),
+      }
+    })
+
+    // ── 장바구니 기존 항목과 병합: 동일 itemId+color+size 행은 qty 합산, 신규 옵션은 별도 행 추가 ──
+    for (const newRow of newRows) {
+      const existIdx = cart.findIndex(c =>
+        c.itemId === newRow.itemId &&
+        String(c.color || '') === newRow.color &&
+        String(c.size || '') === newRow.size
+      )
+      if (existIdx >= 0) {
+        // 동일 옵션 행 존재 → qty만 합산
+        cart[existIdx].quantity = (Number(cart[existIdx].quantity) || 0) + newRow.quantity
+        cart[existIdx].totalPriceRmb = Number((cart[existIdx].quantity * cart[existIdx].priceCny).toFixed(2))
+        cart[existIdx].totalPriceKrw = Math.round(cart[existIdx].quantity * cart[existIdx].priceCny * props.exchangeRate)
+      } else {
+        // 신규 옵션 행 → 독립 행으로 선두 삽입
+        cart.unshift(newRow)
+      }
+    }
+
     localStorage.setItem(cartKey, JSON.stringify(cart))
 
     // Storage 이벤트 및 퀵메뉴/헤더 갱신 이벤트 디스패치
     window.dispatchEvent(new Event('storage'))
     window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: cart.length } }))
     window.dispatchEvent(new CustomEvent('euchs:cart_updated', { detail: { count: cart.length } }))
-    emit('added-to-cart', itemToSave)
 
-    return itemToSave
+    // 대표 첫 행을 emit으로 반환 (cart-added 이벤트)
+    const representativeRow = newRows[0]
+    emit('added-to-cart', representativeRow)
+
+    return representativeRow
   } catch (err) {
     console.error('Failed to add to cart:', err)
     return null

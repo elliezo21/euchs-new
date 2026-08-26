@@ -577,16 +577,34 @@ const loadCartItems = () => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        cartItems.value = parsed.map((it, idx) => ({
-          id: it.id || `cart-${idx}-${Date.now()}`,
-          itemId: it.itemId || it.id || '1688-item',
-          titleKo: it.titleKo || it.productName || it.titleZh || '1688 소싱 품목',
-          titleZh: it.titleZh || '',
-          imageUrl: it.imageUrl || it.thumbnail,
-          priceCny: Number(it.priceCny || it.price || 15),
-          quantity: Math.max(1, Number(it.quantity || it.minOrder || 10)),
-          sku: getItemSkuText(it)
-        }));
+        cartItems.value = parsed.map((it, idx) => {
+          // ── 옵션 텍스트: color+size → optionName → sku 순으로 독립 추출 ──
+          const colorStr = String(it.color || '').trim()
+          const sizeStr = String(it.size || '').trim()
+          const optionParts = [colorStr, sizeStr].filter(p => p && p !== '-' && p !== 'undefined')
+          const resolvedOption = it.optionName ||
+            (optionParts.length ? optionParts.join(' / ') : null) ||
+            getItemSkuText(it)
+
+          return {
+            id: it.id || `cart-${idx}-${Date.now()}`,
+            itemId: it.itemId || it.id || '1688-item',
+            titleKo: it.titleKo || it.productName || it.titleZh || '1688 소싱 품목',
+            titleZh: it.titleZh || '',
+            imageUrl: it.imageUrl || it.thumbnail,
+            priceCny: Number(it.priceCny || it.price || 15),
+            quantity: Math.max(1, Number(it.quantity || it.minOrder || 1)),
+            // ── 옵션 독립 필드 (SKU별 1:1 바인딩, 절대 덮어씌우지 않음) ──
+            color: colorStr,
+            size: sizeStr,
+            optionName: resolvedOption,
+            sku: resolvedOption,
+            // 원본 데이터 보존
+            skus: it.skus || [],
+            detailUrl: it.detailUrl || '',
+            company: it.company || '1688 공급처',
+          };
+        });
         if (selectedItemIds.value.length === 0) {
           selectedItemIds.value = cartItems.value.map(it => it.id);
         }
