@@ -520,24 +520,14 @@
         </div>
 
         <div class="flex items-center gap-3 w-full sm:w-auto">
-          <!-- 1. 보관함 담기 -->
+          <!-- 🛍️ 발주대기 보관함 담기 (단일 통합 메인 액션 버튼) -->
           <button
             type="button"
-            @click="handleAddToCart"
-            class="flex-1 sm:flex-none px-6 py-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs sm:text-sm border border-rose-200 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+            @click="handleSaveToCart"
+            class="w-full sm:w-auto min-w-[240px] h-12 px-8 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer text-sm sm:text-base"
           >
             <i class="fas fa-shopping-bag"></i>
-            <span>발주대기 보관함 담기</span>
-          </button>
-
-          <!-- 2. 즉시 발주서 작성 -->
-          <button
-            type="button"
-            @click="handleInstantOrder"
-            class="flex-1 sm:flex-none px-7 py-3 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs sm:text-sm shadow-lg shadow-rose-600/30 transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-          >
-            <i class="fas fa-bolt"></i>
-            <span>즉시 발주서 작성</span>
+            <span>발주대기 보관함 담기<template v-if="totalQuantity > 0"> ({{ totalQuantity }}개)</template></span>
           </button>
         </div>
 
@@ -549,7 +539,6 @@
 
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 
@@ -565,7 +554,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'added-to-cart', 'change-product'])
-const router = useRouter()
 
 // DOM Ref
 const modalContainerRef = ref(null)
@@ -1376,30 +1364,13 @@ const saveSelectedItemsToCart = () => {
   }
 }
 
-// 1. 발주대기 보관함 담기 (쇼핑 계속하기)
-const handleAddToCart = () => {
+// ── 발주대기 보관함 담기 (단일 액션 핸들러) ──
+const handleSaveToCart = () => {
+  const countToSave = totalQuantity.value
   const saved = saveSelectedItemsToCart()
   if (saved) {
-    showToastNotification('✅ 선택한 상품이 발주대기 보관함(장바구니)에 담겼습니다.', 'success')
+    showToastNotification(`🛍️ 선택한 상품(${countToSave}개)이 보관함(장바구니)에 담겼습니다.`, 'success')
   }
-}
-
-// 2. 즉시 발주서 작성 (장바구니 /dashboard/cart 화면으로 즉시 이동)
-const handleInstantOrder = () => {
-  const saved = saveSelectedItemsToCart()
-  if (!saved) return
-
-  // 모달 닫기 & body 스크롤 복원
-  if (typeof window !== 'undefined') {
-    if (window.history.state?.modal === 'product-detail') {
-      window.history.replaceState(null, '')
-    }
-    document.body.style.overflow = 'unset'
-  }
-  emit('close')
-
-  // 장바구니/발주서 작성 화면으로 즉시 이동
-  router.push('/dashboard/cart')
 }
 
 const handleImageFallback = (e) => {
