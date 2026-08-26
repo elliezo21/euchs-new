@@ -34,7 +34,7 @@
           v-for="cat in GUIDE_CATEGORIES"
           :key="cat.key"
           type="button"
-          @click="activeCategory = cat.key"
+          @click="selectCategoryTab(cat.key)"
           class="shrink-0 px-4 py-2 rounded-full text-xs font-bold transition whitespace-nowrap cursor-pointer"
           :class="activeCategory === cat.key
             ? 'bg-slate-900 text-white shadow-sm'
@@ -154,18 +154,28 @@
 
 <script setup>
 import { ref, computed, onMounted, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { GUIDE_CATEGORIES, GUIDE_ITEMS, CATEGORY_COLOR_MAP } from '@/data/guideData.js'
 
 const route = useRoute()
+const router = useRouter()
 
 const searchQuery = ref('')
 const activeCategory = ref('all')
 
+const selectCategoryTab = (catKey) => {
+  activeCategory.value = catKey
+  if (catKey === 'all') {
+    router.replace({ path: '/support/guide' }).catch(() => {})
+  } else {
+    router.replace({ path: '/support/guide', query: { tab: catKey } }).catch(() => {})
+  }
+}
+
 // URL 쿼리 파라미터로 탭 초기화 & 감지
 onMounted(() => {
   if (route.query.tab) {
-    activeCategory.value = route.query.tab
+    activeCategory.value = String(route.query.tab)
   }
 })
 
@@ -173,11 +183,12 @@ watch(
   () => route.query.tab,
   (newTab) => {
     if (newTab) {
-      activeCategory.value = newTab
+      activeCategory.value = String(newTab)
     } else {
       activeCategory.value = 'all'
     }
-  }
+  },
+  { immediate: true }
 )
 
 const filteredGuides = computed(() => {

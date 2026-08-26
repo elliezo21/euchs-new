@@ -158,6 +158,10 @@ const routes = [
     component: () => import('../views/support/GuideView.vue'),
   },
   {
+    path: '/support/faq',
+    redirect: '/support/guide?tab=faq'
+  },
+  {
     path: '/support/guide/:id',
     name: 'support-guide-detail',
     component: () => import('../views/support/GuideDetailView.vue'),
