@@ -141,6 +141,32 @@
 
           <!-- 2. 1688 한글/URL 와이드 검색 입력창 (h-11, border-2 border-orange-400) + [🔍 1688 검색] 버튼 (h-11, bg-rose-500) -->
           <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="flex-1 min-w-0">
+            <!-- 이미지 검색 미리보기 뱃지 (파일 선택 후 노출) -->
+            <div v-if="isImageSearchMode" class="flex items-center gap-2 mb-1.5">
+              <div class="flex items-center gap-2 pl-2 pr-1 py-1 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium">
+                <img
+                  v-if="imageSearchPreviewUrl"
+                  :src="imageSearchPreviewUrl"
+                  alt="사진 검색 미리보기"
+                  class="w-6 h-6 rounded object-cover border border-orange-200"
+                />
+                <i v-else class="fas fa-image text-orange-400"></i>
+                <span v-if="isImageUploading">
+                  <i class="fas fa-spinner fa-spin mr-1"></i>이미지 업로드 중...
+                </span>
+                <span v-else>📷 사진으로 유사 상품 검색 중</span>
+                <button
+                  type="button"
+                  @click="resetImageSearch"
+                  class="ml-1 w-5 h-5 flex items-center justify-center rounded-full bg-orange-200 hover:bg-orange-400 text-orange-700 hover:text-white transition text-xs"
+                  title="이미지 검색 취소"
+                >
+                  <i class="fas fa-times"></i>
+                </button>
+              </div>
+            </div>
+
+            <!-- 검색 입력창 행 -->
             <div class="flex items-stretch rounded-xl border-2 border-orange-400 p-0.5 bg-white shadow-xs focus-within:ring-2 focus-within:ring-orange-200 transition-all h-11">
               <div class="pl-3.5 pr-1.5 text-gray-400 flex items-center shrink-0">
                 <i class="fas fa-search text-orange-400 text-sm"></i>
@@ -161,17 +187,39 @@
               >
                 <i class="fas fa-times-circle text-xs"></i>
               </button>
+              <!-- 📷 사진 검색 버튼 -->
+              <button
+                type="button"
+                @click="triggerImageUpload"
+                :disabled="isLoading || isImageUploading"
+                class="h-full px-3 sm:px-4 rounded-lg bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1 shrink-0 disabled:opacity-50 cursor-pointer mx-0.5"
+                title="사진으로 1688 유사 상품 검색"
+              >
+                <i class="fas fa-spinner fa-spin text-xs" v-if="isImageUploading"></i>
+                <i class="fas fa-camera text-xs" v-else></i>
+                <span class="hidden sm:inline">사진</span>
+              </button>
               <button
                 type="submit"
                 :disabled="isLoading || !queryInput.trim()"
                 class="h-full px-5 sm:px-7 rounded-lg bg-rose-500 hover:bg-rose-600 active:bg-rose-700 text-white font-black text-xs sm:text-sm shadow-sm active:scale-95 transition-all flex items-center gap-1.5 shrink-0 disabled:opacity-50 cursor-pointer"
               >
-                <i class="fas fa-spinner fa-spin text-xs" v-if="isLoading"></i>
+                <i class="fas fa-spinner fa-spin text-xs" v-if="isLoading && !isImageUploading"></i>
                 <i class="fas fa-search text-xs" v-else></i>
                 <span>1688 검색</span>
               </button>
             </div>
+
+            <!-- hidden file input -->
+            <input
+              id="imageSearchInput"
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              class="hidden"
+              @change="onImageFileSelected"
+            />
           </form>
+
 
           <!-- 3. 우측 발주 대기 보관함 (장바구니) — 로그인 시만 노출 -->
           <router-link
@@ -1052,7 +1100,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
+import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl } from '../services/api1688'
 import { fetchSiteSettings } from '../lib/settings'
 import {
   isLoggedIn,
@@ -1070,6 +1118,7 @@ import {
 } from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
+import { supabase } from '../lib/supabase'
 
 const route = useRoute()
 const router = useRouter()
@@ -1089,6 +1138,13 @@ const toastMessage = ref('')
 const lastQueryKo = ref('')
 const lastQueryZh = ref('')
 const items = ref([])
+
+// 이미지 검색 상태
+const imageSearchFile = ref(null)           // 선택된 File 객체
+const imageSearchPreviewUrl = ref('')       // 로컬 ObjectURL (미리보기용)
+const imageSearchPublicUrl = ref('')        // Supabase/업로드 후 공개 URL
+const isImageSearchMode = ref(false)        // 이미지 검색 모드 활성 여부
+const isImageUploading = ref(false)         // Supabase 업로드 중 스피너
 
 const selectedModalProduct = ref(null)
 
@@ -1702,8 +1758,126 @@ const handleSearchInputDebounced = () => {
 }
 
 // ----------------------------------------------------
-// Load More Products (Next Page) - B2B 권한 가드 적용
+// 📷 이미지(사진) 검색 파이프라인
 // ----------------------------------------------------
+
+/** hidden file input 클릭 트리거 */
+const triggerImageUpload = () => {
+  if (!isLoggedIn.value) {
+    showToast('사진 검색은 로그인 후 이용 가능합니다.')
+    openLoginModal()
+    return
+  }
+  document.getElementById('imageSearchInput')?.click()
+}
+
+/** 파일 선택 → Supabase 업로드 → 이미지 검색 실행 */
+const onImageFileSelected = async (e) => {
+  const file = e.target.files?.[0]
+  if (!file) return
+
+  // 타입 & 사이즈 기본 검증
+  if (!file.type.startsWith('image/')) {
+    showToast('이미지 파일(JPG, PNG, WEBP)만 업로드 가능합니다.')
+    return
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    showToast('파일 크기는 10MB 이하여야 합니다.')
+    return
+  }
+
+  // 로컬 미리보기 즉시 노출
+  if (imageSearchPreviewUrl.value) {
+    URL.revokeObjectURL(imageSearchPreviewUrl.value)
+  }
+  imageSearchPreviewUrl.value = URL.createObjectURL(file)
+  imageSearchFile.value = file
+  isImageSearchMode.value = true
+  isImageUploading.value = true
+  isLoading.value = true
+  hasSearched.value = false
+  items.value = []
+  queryInput.value = ''
+
+  try {
+    // ── Supabase Storage 업로드 시도 ──
+    let publicUrl = ''
+    try {
+      const ext = file.name.split('.').pop() || 'jpg'
+      const fileName = `imgsearch/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
+      const { error: upErr } = await supabase.storage
+        .from('notices')   // notices 버킷 재사용 (이미 public)
+        .upload(fileName, file, { upsert: true, contentType: file.type })
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from('notices').getPublicUrl(fileName)
+        publicUrl = urlData?.publicUrl || ''
+      } else {
+        console.warn('[ImageSearch] Supabase upload error:', upErr.message)
+      }
+    } catch (sbErr) {
+      console.warn('[ImageSearch] Supabase upload failed:', sbErr.message)
+    }
+
+    // Supabase 실패 시 Data URL fallback (공개 URL 없음 → API 호출 불가)
+    if (!publicUrl) {
+      showToast('이미지 업로드에 실패했습니다. Supabase Storage 버킷 설정을 확인해 주세요.')
+      isLoading.value = false
+      isImageUploading.value = false
+      return
+    }
+
+    imageSearchPublicUrl.value = publicUrl
+    isImageUploading.value = false
+
+    // ── 이미지 검색 API 호출 ──
+    console.log('[ImageSearch] Starting search with URL:', publicUrl.slice(0, 80))
+    const result = await search1688ByImageUrl(publicUrl)
+
+    if (!result.success) {
+      const errCode = result.error?.data?.code
+      if (errCode === 5011) {
+        showToast('GIF 이미지는 지원되지 않습니다. JPG/PNG/WEBP를 사용해 주세요.')
+      } else if (errCode === 5005) {
+        showToast('이미지 서버 응답이 느립니다. 잠시 후 다시 시도해 주세요.')
+      } else {
+        showToast('이미지 검색에 실패했습니다. 다른 이미지로 시도해 보세요.')
+      }
+      items.value = []
+      hasSearched.value = true
+    } else {
+      items.value = result.items || []
+      hasSearched.value = true
+      if (result.items.length === 0) {
+        showToast('유사한 상품을 찾지 못했습니다.')
+      }
+    }
+  } catch (err) {
+    console.error('[ImageSearch] Unexpected error:', err)
+    showToast('이미지 검색 중 오류가 발생했습니다.')
+    items.value = []
+    hasSearched.value = true
+  } finally {
+    isLoading.value = false
+    isImageUploading.value = false
+    // input 초기화 (같은 파일 재선택 허용)
+    e.target.value = ''
+  }
+}
+
+/** 이미지 검색 모드 취소 → 텍스트 검색 리셋 */
+const resetImageSearch = () => {
+  if (imageSearchPreviewUrl.value) {
+    URL.revokeObjectURL(imageSearchPreviewUrl.value)
+  }
+  imageSearchPreviewUrl.value = ''
+  imageSearchPublicUrl.value = ''
+  imageSearchFile.value = null
+  isImageSearchMode.value = false
+  items.value = []
+  hasSearched.value = false
+}
+
+
 const loadMoreProducts = async () => {
   // 1. 비로그인 상태 차단 -> B2B 안내 모달 노출 및 쿼터 방어
   if (!isLoggedIn.value) {

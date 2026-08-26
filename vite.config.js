@@ -241,6 +241,59 @@ function lab1688Plugin(env) {
           return
         }
 
+        // 4. 1688 DataHub 이미지 검색 프록시
+        if (req.url?.startsWith('/api/1688-image-search') && req.method === 'GET') {
+          try {
+            const reqUrl = new URL(req.url, 'http://localhost:5173')
+            const imgUrl = reqUrl.searchParams.get('imgUrl') || reqUrl.searchParams.get('img_url') || ''
+            const page = reqUrl.searchParams.get('page') || '1'
+
+            if (!imgUrl || imgUrl === 'undefined' || imgUrl === 'null') {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: '이미지 URL(imgUrl)이 누락되었습니다.' }))
+              return
+            }
+
+            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || ''
+            const rapidHost = env.VITE_RAPIDAPI_HOST || env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
+
+            if (!rapidKey) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: 'RAPIDAPI_KEY가 설정되지 않았습니다.' }))
+              return
+            }
+
+            console.log(`[vite proxy 1688-image-search] imgUrl: ${imgUrl.slice(0, 80)}... page: ${page}`)
+            const targetUrl = new URL(`https://${rapidHost}/item_search_image`)
+            targetUrl.searchParams.set('imgUrl', imgUrl)
+            targetUrl.searchParams.set('page', page)
+
+            const response = await fetch(targetUrl.toString(), {
+              headers: {
+                'x-rapidapi-key': rapidKey,
+                'x-rapidapi-host': rapidHost
+              }
+            })
+
+            const data = await response.json()
+            if (!response.ok) {
+              console.error(`[vite proxy 1688-image-search] RapidAPI error ${response.status}:`, JSON.stringify(data).slice(0, 300))
+            } else {
+              console.log(`[vite proxy 1688-image-search] OK | items: ${data?.result?.resultList?.length ?? 0}`)
+            }
+            res.statusCode = response.status
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: false, message: err.message }))
+          }
+          return
+        }
+
         next()
       })
     }

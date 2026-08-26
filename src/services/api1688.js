@@ -519,6 +519,116 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
 }
 
 /**
+ * 1688 이미지(사진) 검색
+ * 공개 접근 가능한 이미지 URL → /api/1688-image-search → resultList 표준 포맷 반환
+ * @param {string} imageUrl - 공개 접근 가능한 이미지 URL (JPEG/PNG/WEBP)
+ * @returns {Promise<{ success: boolean, items: Array, totalResults: string }>}
+ */
+export async function search1688ByImageUrl(imageUrl) {
+  const url = String(imageUrl || '').trim()
+  if (!url) {
+    console.warn('[1688 ImageSearch] imageUrl is empty')
+    return { success: false, items: [], totalResults: '0' }
+  }
+
+  console.log('[1688 ImageSearch] Calling proxy with imgUrl:', url.slice(0, 80))
+
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000) // 15초 타임아웃 (이미지 CDN 지연 대응)
+
+    const proxyRes = await fetch(`/api/1688-image-search?imgUrl=${encodeURIComponent(url)}&page=1`, {
+      signal: controller.signal
+    })
+    clearTimeout(timeout)
+
+    if (!proxyRes.ok) {
+      const errBody = await proxyRes.json().catch(() => ({}))
+      console.warn('[1688 ImageSearch] Proxy HTTP error:', proxyRes.status, errBody)
+      return { success: false, items: [], totalResults: '0', error: errBody }
+    }
+
+    const result = await proxyRes.json()
+    if (!result.success || !result.data) {
+      console.warn('[1688 ImageSearch] Proxy returned success=false:', result)
+      return { success: false, items: [], totalResults: '0', error: result }
+    }
+
+    const rawList = result.data?.result?.resultList || []
+    console.log('[1688 ImageSearch] Raw result count:', rawList.length)
+
+    if (rawList.length === 0) {
+      return { success: true, items: [], totalResults: '0' }
+    }
+
+    // search1688() 와 동일한 아이템 포맷팅 패턴 재사용
+    const items = rawList.map((entry, idx) => {
+      const it = entry.item || entry
+
+      let rawImage = it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
+                     entry.imageUrl || entry.image || entry.picUrl || entry.pic_url || entry.img || entry.imgUrl || entry.pic ||
+                     it.sku?.def?.imageUrl || it.sku?.def?.image || (Array.isArray(it.images) && it.images[0]) || ''
+
+      let imageUrl = String(rawImage || '').trim()
+      if (imageUrl.startsWith('//')) {
+        imageUrl = 'https:' + imageUrl
+      } else if (imageUrl.startsWith('http://')) {
+        imageUrl = imageUrl.replace('http://', 'https://')
+      }
+
+      let detailUrl = it.itemUrl || it.detailUrl || ''
+      if (detailUrl.startsWith('//')) {
+        detailUrl = 'https:' + detailUrl
+      } else if (!detailUrl && it.itemId) {
+        detailUrl = `https://detail.1688.com/offer/${it.itemId}.html`
+      }
+
+      const priceStr = it.sku?.def?.price || it.price || '0'
+      const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
+
+      const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
+      const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
+
+      const titleZh = it.title || it.subject || ''
+
+      return {
+        id: String(it.itemId || `imgitem-${Date.now()}-${idx}`),
+        titleZh,
+        titleEn: it.titleEn || '',
+        titleKo: '',       // translateItemsBatch로 채워짐
+        title: titleZh,
+        price: priceNum,
+        priceFormatted: priceNum.toFixed(2),
+        minOrder,
+        sales: it.sales || '0',
+        imageUrl,
+        detailUrl,
+        repurchaseRate: it.rePurchaseRate || it.repurchaseRate || '90%',
+        starLevel: parseFloat(it.averageStarRate || '5') || 5.0,
+        company: it.company?.name || it.shopName || '1688 공식 인증 공급사',
+        raw: it
+      }
+    })
+
+    // 기존 번역 파이프라인 그대로 재사용
+    await translateItemsBatch(items)
+
+    return {
+      success: true,
+      items,
+      totalResults: String(rawList.length)
+    }
+  } catch (err) {
+    if (err.name === 'AbortError') {
+      console.warn('[1688 ImageSearch] Request timed out after 15s')
+      return { success: false, items: [], totalResults: '0', error: 'timeout' }
+    }
+    console.error('[1688 ImageSearch] Unexpected error:', err)
+    return { success: false, items: [], totalResults: '0', error: err.message }
+  }
+}
+
+/**
  * 1688 상품 상세 정보 Raw 조회
  * @param {string|number} itemId - 1688 상품 고유 ID
  * @returns {Promise<object>}
