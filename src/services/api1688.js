@@ -500,7 +500,9 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
  */
 export async function getItemDetail1688(itemId) {
   const idStr = String(itemId || '').trim()
-  if (!idStr) {
+  // 빈값, "undefined", "null" 문자열 방어
+  if (!idStr || idStr === 'undefined' || idStr === 'null') {
+    console.warn('[1688 Detail] Invalid itemId provided:', itemId, '→ using Mock fallback')
     return getMockProductDetail('804895839701')
   }
 
@@ -518,13 +520,18 @@ export async function getItemDetail1688(itemId) {
 
   // 1. Vercel / Vite Serverless 프록시 우선 시도 (/api/1688-detail)
   try {
-    const proxyRes = await fetch(`/api/1688-detail?itemId=${idStr}`)
+    const proxyRes = await fetch(`/api/1688-detail?itemId=${encodeURIComponent(idStr)}`)
     if (proxyRes.ok) {
       const resJson = await proxyRes.json()
       if (resJson.success && resJson.data) {
         data = resJson.data
         console.log('[1688 Item Detail Raw Response] (via proxy):', data)
+      } else {
+        console.warn('[1688 Detail] Proxy returned success=false or no data:', resJson)
       }
+    } else {
+      const errJson = await proxyRes.json().catch(() => ({}))
+      console.warn(`[1688 Detail] Proxy HTTP ${proxyRes.status}:`, errJson)
     }
   } catch (err) {
     console.debug('[1688 Detail] Proxy notice:', err.message)
@@ -579,8 +586,17 @@ export async function getItemDetail1688(itemId) {
  * @returns {Promise<object>} 정규화 및 번역된 상품 상세 객체
  */
 export async function fetch1688ProductById(offerId) {
-  const idStr = String(offerId || '').trim()
-  if (!idStr) return getMockProductDetail('804895839701')
+  // offerId는 문자열 또는 상품 객체일 수 있음
+  let idStr
+  if (offerId && typeof offerId === 'object') {
+    idStr = String(offerId.id || offerId.offerId || offerId.num_iid || offerId.itemId || '').trim()
+  } else {
+    idStr = String(offerId || '').trim()
+  }
+  // 빈값 / "undefined" / "null" 방어
+  if (!idStr || idStr === 'undefined' || idStr === 'null') {
+    return getMockProductDetail('804895839701')
+  }
 
   const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', idStr)
   if (cachedProduct) {

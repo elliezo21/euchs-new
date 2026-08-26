@@ -187,7 +187,21 @@ function lab1688Plugin(env) {
         if (req.url?.startsWith('/api/1688-detail') && req.method === 'GET') {
           try {
             const reqUrl = new URL(req.url, 'http://localhost:5173')
-            const itemId = reqUrl.searchParams.get('itemId') || reqUrl.searchParams.get('offerId') || ''
+            // 다양한 파라미터 키 수용
+            const rawId = reqUrl.searchParams.get('itemId') ||
+                          reqUrl.searchParams.get('offerId') ||
+                          reqUrl.searchParams.get('num_iid') ||
+                          reqUrl.searchParams.get('id') || ''
+            const itemId = String(rawId).trim()
+
+            // 빈값 / "undefined" / "null" 방어
+            if (!itemId || itemId === 'undefined' || itemId === 'null') {
+              console.error('[vite proxy 1688-detail] Missing itemId. URL:', req.url)
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: '상품 ID(itemId)가 누락되었습니다.', url: req.url }))
+              return
+            }
 
             const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || ''
             const rapidHost = env.VITE_RAPIDAPI_HOST || env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
@@ -199,6 +213,7 @@ function lab1688Plugin(env) {
               return
             }
 
+            console.log(`[vite proxy 1688-detail] Requesting itemId: ${itemId}`)
             const targetUrl = new URL(`https://${rapidHost}/item_detail`)
             targetUrl.searchParams.set('itemId', itemId)
 
@@ -210,6 +225,11 @@ function lab1688Plugin(env) {
             })
 
             const data = await response.json()
+            if (!response.ok) {
+              console.error(`[vite proxy 1688-detail] RapidAPI error ${response.status}:`, JSON.stringify(data).slice(0, 300))
+            } else {
+              console.log(`[vite proxy 1688-detail] OK for itemId: ${itemId} | keys:`, Object.keys(data || {}).slice(0, 10))
+            }
             res.statusCode = response.status
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
             res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
