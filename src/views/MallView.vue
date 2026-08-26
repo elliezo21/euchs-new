@@ -141,7 +141,7 @@
 
           <!-- 2. 1688 한글/URL 와이드 검색 입력창 (h-11, border-2 border-orange-400) + [🔍 1688 검색] 버튼 (h-11, bg-rose-500) -->
           <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="flex-1 min-w-0">
-            <!-- 이미지 검색 미리보기 뱃지 (파일 선택 후 노출) -->
+            <!-- 이미지 검색 결과 모드 미리보기 뱃지 -->
             <div v-if="isImageSearchMode" class="flex items-center gap-2 mb-1.5">
               <div class="flex items-center gap-2 pl-2 pr-1 py-1 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium">
                 <img
@@ -152,9 +152,9 @@
                 />
                 <i v-else class="fas fa-image text-orange-400"></i>
                 <span v-if="isImageUploading">
-                  <i class="fas fa-spinner fa-spin mr-1"></i>이미지 업로드 중...
+                  <i class="fas fa-spinner fa-spin mr-1"></i>이미지 검색 중...
                 </span>
-                <span v-else>📷 사진으로 유사 상품 검색 중</span>
+                <span v-else>📷 사진 유사 상품 검색 결과</span>
                 <button
                   type="button"
                   @click="resetImageSearch"
@@ -179,19 +179,19 @@
                 class="w-full px-2 text-xs sm:text-sm font-normal text-gray-800 placeholder:text-gray-400/80 placeholder:font-light bg-transparent outline-none"
                 :disabled="isLoading"
               />
-              <button 
-                v-if="queryInput" 
-                type="button" 
-                @click="queryInput = ''" 
+              <button
+                v-if="queryInput"
+                type="button"
+                @click="queryInput = ''"
                 class="px-2 text-gray-400 hover:text-gray-600 flex items-center"
               >
                 <i class="fas fa-times-circle text-xs"></i>
               </button>
-              <!-- 📷 사진 검색 버튼 -->
+              <!-- 📷 사진 검색 버튼 (클릭 시 모달 오픈) -->
               <button
                 type="button"
-                @click="triggerImageUpload"
-                :disabled="isLoading || isImageUploading"
+                @click="openImageSearchModal"
+                :disabled="isLoading && !isImageSearchMode"
                 class="h-full px-3 sm:px-4 rounded-lg bg-violet-500 hover:bg-violet-600 active:bg-violet-700 text-white font-bold text-xs shadow-sm active:scale-95 transition-all flex items-center gap-1 shrink-0 disabled:opacity-50 cursor-pointer mx-0.5"
                 title="사진으로 1688 유사 상품 검색"
               >
@@ -209,18 +209,15 @@
                 <span>1688 검색</span>
               </button>
             </div>
-
-            <!-- hidden file input -->
-            <input
-              id="imageSearchInput"
-              type="file"
-              accept="image/jpeg,image/png,image/webp"
-              class="hidden"
-              @change="onImageFileSelected"
-            />
           </form>
 
-
+          <!-- 📷 이미지 검색 전용 모달 -->
+          <ImageSearchModal
+            v-model="isImageModalOpen"
+            @search-start="onImageSearchStart"
+            @search-done="onImageSearchDone"
+            @search-error="onImageSearchError"
+          />
           <!-- 3. 우측 발주 대기 보관함 (장바구니) — 로그인 시만 노출 -->
           <router-link
             v-if="isLoggedIn"
@@ -1117,6 +1114,7 @@ import {
   getCartStorageKey
 } from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
+import ImageSearchModal from '../components/mall/ImageSearchModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
 import { supabase } from '../lib/supabase'
 
@@ -1140,11 +1138,11 @@ const lastQueryZh = ref('')
 const items = ref([])
 
 // 이미지 검색 상태
-const imageSearchFile = ref(null)           // 선택된 File 객체
-const imageSearchPreviewUrl = ref('')       // 로컬 ObjectURL (미리보기용)
-const imageSearchPublicUrl = ref('')        // Supabase/업로드 후 공개 URL
-const isImageSearchMode = ref(false)        // 이미지 검색 모드 활성 여부
-const isImageUploading = ref(false)         // Supabase 업로드 중 스피너
+const isImageModalOpen = ref(false)         // 이미지 검색 모달 열림/닫힘
+const isImageSearchMode = ref(false)        // 이미지 검색 모드 활성 여부 (결과 표시 중)
+const imageSearchPreviewUrl = ref('')       // 선택된 이미지 미리보기 URL (뱃지용)
+const isImageUploading = ref(false)         // 이미지 검색 진행 중 스피너
+
 
 const selectedModalProduct = ref(null)
 
@@ -1758,120 +1756,59 @@ const handleSearchInputDebounced = () => {
 }
 
 // ----------------------------------------------------
-// 📷 이미지(사진) 검색 파이프라인
+// 📷 이미지(사진) 검색 파이프라인 (모달 방식)
 // ----------------------------------------------------
 
-/** hidden file input 클릭 트리거 */
-const triggerImageUpload = () => {
+/** 카메라 아이콘 클릭 → 이미지 검색 모달 열기 */
+const openImageSearchModal = () => {
   if (!isLoggedIn.value) {
     showToast('사진 검색은 로그인 후 이용 가능합니다.')
     openLoginModal()
     return
   }
-  document.getElementById('imageSearchInput')?.click()
+  isImageModalOpen.value = true
 }
 
-/** 파일 선택 → Supabase 업로드 → 이미지 검색 실행 */
-const onImageFileSelected = async (e) => {
-  const file = e.target.files?.[0]
-  if (!file) return
-
-  // 타입 & 사이즈 기본 검증
-  if (!file.type.startsWith('image/')) {
-    showToast('이미지 파일(JPG, PNG, WEBP)만 업로드 가능합니다.')
-    return
-  }
-  if (file.size > 10 * 1024 * 1024) {
-    showToast('파일 크기는 10MB 이하여야 합니다.')
-    return
-  }
-
-  // 로컬 미리보기 즉시 노출
+/** ImageSearchModal의 search-done 이벤트 수신 → 결과를 items에 렌더링 */
+const onImageSearchDone = ({ items: resultItems, totalResults, previewUrl }) => {
   if (imageSearchPreviewUrl.value) {
-    URL.revokeObjectURL(imageSearchPreviewUrl.value)
+    // 이전 ObjectURL 해제 (모달에서 넘어온 previewUrl은 모달이 관리)
   }
-  imageSearchPreviewUrl.value = URL.createObjectURL(file)
-  imageSearchFile.value = file
+  imageSearchPreviewUrl.value = previewUrl || ''
   isImageSearchMode.value = true
+  isImageUploading.value = false
+  isLoading.value = false
+  queryInput.value = ''
+  items.value = resultItems || []
+  hasSearched.value = true
+
+  if (!resultItems || resultItems.length === 0) {
+    showToast('유사한 상품을 찾지 못했습니다.')
+  }
+}
+
+/** ImageSearchModal의 search-start 이벤트 수신 → 로딩 상태 진입 */
+const onImageSearchStart = () => {
   isImageUploading.value = true
   isLoading.value = true
   hasSearched.value = false
   items.value = []
   queryInput.value = ''
+}
 
-  try {
-    // ── Supabase Storage 업로드 시도 ──
-    let publicUrl = ''
-    try {
-      const ext = file.name.split('.').pop() || 'jpg'
-      const fileName = `imgsearch/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
-      const { error: upErr } = await supabase.storage
-        .from('notices')   // notices 버킷 재사용 (이미 public)
-        .upload(fileName, file, { upsert: true, contentType: file.type })
-      if (!upErr) {
-        const { data: urlData } = supabase.storage.from('notices').getPublicUrl(fileName)
-        publicUrl = urlData?.publicUrl || ''
-      } else {
-        console.warn('[ImageSearch] Supabase upload error:', upErr.message)
-      }
-    } catch (sbErr) {
-      console.warn('[ImageSearch] Supabase upload failed:', sbErr.message)
-    }
-
-    // Supabase 실패 시 Data URL fallback (공개 URL 없음 → API 호출 불가)
-    if (!publicUrl) {
-      showToast('이미지 업로드에 실패했습니다. Supabase Storage 버킷 설정을 확인해 주세요.')
-      isLoading.value = false
-      isImageUploading.value = false
-      return
-    }
-
-    imageSearchPublicUrl.value = publicUrl
-    isImageUploading.value = false
-
-    // ── 이미지 검색 API 호출 ──
-    console.log('[ImageSearch] Starting search with URL:', publicUrl.slice(0, 80))
-    const result = await search1688ByImageUrl(publicUrl)
-
-    if (!result.success) {
-      const errCode = result.error?.data?.code
-      if (errCode === 5011) {
-        showToast('GIF 이미지는 지원되지 않습니다. JPG/PNG/WEBP를 사용해 주세요.')
-      } else if (errCode === 5005) {
-        showToast('이미지 서버 응답이 느립니다. 잠시 후 다시 시도해 주세요.')
-      } else {
-        showToast('이미지 검색에 실패했습니다. 다른 이미지로 시도해 보세요.')
-      }
-      items.value = []
-      hasSearched.value = true
-    } else {
-      items.value = result.items || []
-      hasSearched.value = true
-      if (result.items.length === 0) {
-        showToast('유사한 상품을 찾지 못했습니다.')
-      }
-    }
-  } catch (err) {
-    console.error('[ImageSearch] Unexpected error:', err)
-    showToast('이미지 검색 중 오류가 발생했습니다.')
-    items.value = []
-    hasSearched.value = true
-  } finally {
-    isLoading.value = false
-    isImageUploading.value = false
-    // input 초기화 (같은 파일 재선택 허용)
-    e.target.value = ''
-  }
+/** ImageSearchModal의 search-error 이벤트 수신 */
+const onImageSearchError = (err) => {
+  isImageUploading.value = false
+  isLoading.value = false
+  hasSearched.value = true
+  items.value = []
+  showToast('이미지 검색에 실패했습니다. 다른 이미지로 시도해 보세요.')
+  console.warn('[MallView] ImageSearch error:', err)
 }
 
 /** 이미지 검색 모드 취소 → 텍스트 검색 리셋 */
 const resetImageSearch = () => {
-  if (imageSearchPreviewUrl.value) {
-    URL.revokeObjectURL(imageSearchPreviewUrl.value)
-  }
   imageSearchPreviewUrl.value = ''
-  imageSearchPublicUrl.value = ''
-  imageSearchFile.value = null
   isImageSearchMode.value = false
   items.value = []
   hasSearched.value = false
