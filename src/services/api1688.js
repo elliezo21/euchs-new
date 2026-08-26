@@ -598,27 +598,28 @@ export async function fetch1688ProductById(offerId) {
       images = [imageUrl]
     }
 
-    // SKU 속성(skuProps) 및 옵션 리스트(skuList / skus) 정규화
-    let rawSkuProps = it.skuProps || it.sku?.skuProps || it.raw?.skuProps || []
+    // 1688 DataHub의 모든 SKU 속성 키 포맷을 빠짐없이 탐색
+    let rawSkuProps = it.sku?.skuProps || it.skuProps || it.sku_props || it.sku?.sku_props || it.props || it.raw?.skuProps || []
     if (typeof rawSkuProps === 'string') {
       try { rawSkuProps = JSON.parse(rawSkuProps) } catch (e) { rawSkuProps = [] }
     }
 
-    let rawSkus = it.skus || it.skuList || it.sku?.skuList || it.raw?.skus || it.raw?.skuList || []
+    let rawSkus = it.skus || it.skuList || it.sku?.skuList || it.sku_list || it.sku?.sku_list || it.raw?.skus || it.raw?.skuList || []
     if (typeof rawSkus === 'string') {
       try { rawSkus = JSON.parse(rawSkus) } catch (e) { rawSkus = [] }
     }
 
+    // 속성명 및 속성값 다변화 키 1:1 파싱
     let parsedSkuProps = []
     let parsedSkus = []
 
     if (Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
       parsedSkuProps = rawSkuProps.map(p => {
-        const propName = p.prop || p.propKo || p.propName || p.name || p.attributeName || ''
-        const rawVals = Array.isArray(p.values) ? p.values : (Array.isArray(p.value) ? p.value : [])
+        const propName = p.prop || p.propKo || p.propName || p.prop_name || p.name || p.attributeName || ''
+        const rawVals = Array.isArray(p.values) ? p.values : (Array.isArray(p.value) ? p.value : (Array.isArray(p.prop_values) ? p.prop_values : []))
         const values = rawVals.map(v => {
-          const valName = typeof v === 'string' ? v : (v.name || v.nameKo || v.value || v.nameZh || v.text || '')
-          const valImg = typeof v === 'object' ? (v.imageUrl || v.image || v.imgUrl || v.picUrl || '') : ''
+          const valName = typeof v === 'string' ? v : (v.name || v.nameKo || v.nameZh || v.value || v.prop_value_name || v.text || '')
+          const valImg = typeof v === 'object' ? (v.imageUrl || v.image_url || v.image || v.imgUrl || v.picUrl || v.pic_url || '') : ''
           return {
             name: String(valName).trim(),
             nameKo: typeof v === 'object' ? (v.nameKo || '') : '',
