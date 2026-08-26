@@ -89,12 +89,37 @@ export const getCartStorageKey = () => {
  */
 export const checkUserRole = async (user) => {
   if (!user) {
+    try {
+      const adminToken = localStorage.getItem('euchs_admin_token')
+      const authUserRaw = localStorage.getItem('euchs_auth_user')
+      if (adminToken === 'admin_authenticated' && authUserRaw) {
+        const authUser = JSON.parse(authUserRaw)
+        if (authUser?.role === 'admin' || authUser?.role === 'super_admin' || authUser?.isAdmin) {
+          userRole.value = 'super_admin'
+          return 'super_admin'
+        }
+      }
+    } catch (e) {}
+
     userRole.value = 'user'
     return 'user'
   }
 
   // 0. 객체 자체의 role / isAdmin 플래그 확인
   if (user.role === 'admin' || user.role === 'super_admin' || user.role === 'staff' || user.isAdmin) {
+    userRole.value = user.role === 'staff' ? 'staff' : 'super_admin'
+    return userRole.value
+  }
+
+  // 관리자 지정 이메일 Whitelist 우선 확인 (DB 지연 시에도 즉시 권한 보장)
+  const emailLower = (user.email || '').toLowerCase().trim()
+  const ADMIN_EMAILS = [
+    'admin@euccompany.com',
+    'master@euccompany.com',
+    'euc_admin@euccompany.com',
+    'elliezo21@gmail.com'
+  ]
+  if (ADMIN_EMAILS.includes(emailLower)) {
     userRole.value = 'super_admin'
     return 'super_admin'
   }
@@ -152,19 +177,6 @@ export const checkUserRole = async (user) => {
   if (metaRole && ['super_admin', 'staff', 'admin'].includes(metaRole)) {
     userRole.value = metaRole === 'admin' ? 'super_admin' : metaRole
     return userRole.value
-  }
-
-  // 3. 관리자 지정 이메일 Whitelist 확인
-  const emailLower = (user.email || '').toLowerCase().trim()
-  const ADMIN_EMAILS = [
-    'admin@euccompany.com',
-    'master@euccompany.com',
-    'euc_admin@euccompany.com',
-    'elliezo21@gmail.com'
-  ]
-  if (ADMIN_EMAILS.includes(emailLower)) {
-    userRole.value = 'super_admin'
-    return 'super_admin'
   }
 
   userRole.value = 'user'
@@ -1007,16 +1019,33 @@ export const initAuth = async () => {
   if (!isListenerAttached) {
     isListenerAttached = true
     supabase.auth.onAuthStateChange(async (event, session) => {
-      // 관리자/데모 세션이 활성 중이면 간섭 금지
-      if (localStorage.getItem('euchs_admin_token') || localStorage.getItem('euchs_demo_session')) return
+      // 1. 관리자 토큰이나 데모 세션이 활성 중이면 절대 세션을 파괴하지 않음
+      const adminToken = localStorage.getItem('euchs_admin_token')
+      const authUserRaw = localStorage.getItem('euchs_auth_user')
+      if (adminToken === 'admin_authenticated' && authUserRaw) {
+        try {
+          const parsed = JSON.parse(authUserRaw)
+          if (parsed?.role === 'admin' || parsed?.role === 'super_admin' || parsed?.isAdmin) {
+            currentUser.value = parsed
+            userRole.value = 'super_admin'
+            isAuthLoading.value = false
+            return
+          }
+        } catch (e) {}
+      }
+
+      if (localStorage.getItem('euchs_demo_session')) return
 
       if (session?.user) {
         // ✅ Supabase 정식 세션이 들어오면 적용 (구글/이메일 OAuth 포함)
-        const prevId = currentUser.value?.id
         currentUser.value = session.user
         isAuthLoading.value = false
-        await checkUserRole(session.user)
-        await syncUserProfile(session.user)
+        try {
+          await checkUserRole(session.user)
+          await syncUserProfile(session.user)
+        } catch (syncErr) {
+          console.debug('Session user role sync notice:', syncErr)
+        }
         closeLoginModal()
 
         // ── 레거시 공용 장바구니 키 즉시 파기 (로그인 시점에도 확실히 제거) ──
@@ -1044,7 +1073,7 @@ export const initAuth = async () => {
         isAuthLoading.value = false
       } else {
         // ✅ INITIAL_SESSION, TOKEN_REFRESHED, 비인가 세션 등 session=null 이벤트:
-        //    로컬 스토리지에 유효한 유저(네이버 등)가 존재하면 currentUser를 절대 null로 덮어쓰지 않고 영구 보존
+        //    로컬 스토리지에 유효한 유저(관리자/네이버 등)가 존재하면 currentUser를 절대 null로 덮어쓰지 않고 영구 보존
         const preserved = getLocalAuthUser()
         if (preserved) {
           currentUser.value = preserved

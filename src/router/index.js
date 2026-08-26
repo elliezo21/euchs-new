@@ -343,7 +343,14 @@ router.beforeEach(async (to, from, next) => {
     return false
   }
 
-  const isAdminAuthenticated = await checkAdminAuth()
+  let isAdminAuthenticated = false
+  try {
+    isAdminAuthenticated = await checkAdminAuth()
+  } catch (authGuardErr) {
+    console.warn('Admin guard check notice:', authGuardErr)
+    // 에러 발생 시에도 토큰이 있으면 통과
+    isAdminAuthenticated = localStorage.getItem('euchs_admin_token') === 'admin_authenticated'
+  }
 
   // 1. /login?redirect=/admin 으로 들어온 경우 -> /admin/login 으로 교정
   if (isGeneralLoginPage && typeof to.query?.redirect === 'string' && to.query.redirect.startsWith('/admin')) {
