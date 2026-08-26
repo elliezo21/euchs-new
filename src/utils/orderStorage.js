@@ -27,7 +27,7 @@ export const INITIAL_GLOBAL_ORDERS = [];
  */
 export function getStoredOrders() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY_ORDERS) || localStorage.getItem(STORAGE_KEY_LEGACY_ORDERS);
+    const raw = localStorage.getItem(STORAGE_KEY_ORDERS);
     if (!raw) {
       return [];
     }
@@ -36,12 +36,17 @@ export function getStoredOrders() {
       return [];
     }
 
-    // 과거 더미 주문(ord-v01, ord-101~108, EUC-20260824-V01 등)이 로컬스토리지에 남아있다면 자동 필터링
+    // 과거 더미 주문(ord-v01, ord-101~108, EUC-20260824-V01, CART- 더미 등)이 로컬스토리지에 남아있다면 자동 필터링
     const cleanOrders = parsed.filter(o => {
       if (!o) return false;
       const id = String(o.id || '');
-      const orderNum = String(o.orderNumber || '');
-      const isDummy = id.startsWith('ord-v0') || id.startsWith('ord-10') || orderNum.includes('20260824-V01') || orderNum.includes('20260823-014');
+      const orderNum = String(o.orderNumber || o.orderId || '');
+      const isDummy = id.startsWith('ord-v0') || 
+                      id.startsWith('ord-10') || 
+                      id.startsWith('CART-') ||
+                      orderNum.startsWith('CART-') ||
+                      orderNum.includes('20260824-V01') || 
+                      orderNum.includes('20260823-014');
       return !isDummy;
     });
 

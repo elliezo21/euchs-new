@@ -785,15 +785,19 @@
                     
                     <!-- Empty State -->
                     <tr v-if="displayItemsList.length === 0">
-                      <td colspan="7" class="py-12 text-center text-slate-500">
-                        <div class="flex flex-col items-center gap-2">
-                          <i class="fas fa-inbox text-3xl text-slate-400"></i>
-                          <span class="font-bold text-slate-700">선택된 조건의 발주 내역이 없습니다.</span>
+                      <td colspan="7" class="py-14 text-center text-slate-500">
+                        <div class="flex flex-col items-center gap-2.5 max-w-sm mx-auto">
+                          <div class="w-12 h-12 rounded-2xl bg-orange-50 text-orange-500 flex items-center justify-center text-xl shadow-xs">
+                            <i class="fas fa-inbox"></i>
+                          </div>
+                          <span class="font-bold text-slate-800 text-sm">현재 진행 중인 발주 및 주문 내역이 없습니다.</span>
+                          <p class="text-xs text-slate-400">1688 소싱몰에서 상품을 찾고 장바구니에서 간편하게 발주를 신청해 보세요.</p>
                           <router-link
                             to="/mall"
-                            class="mt-2 px-4 py-2 rounded-lg bg-orange-600 text-white font-black text-xs hover:bg-orange-700 transition shadow-sm"
+                            class="mt-2 px-5 py-2.5 rounded-xl bg-orange-600 text-white font-bold text-xs hover:bg-orange-700 active:scale-95 transition shadow-sm flex items-center gap-1.5"
                           >
-                            1688 상품 소싱하러 가기
+                            <i class="fas fa-store text-xs"></i>
+                            <span>1688 소싱몰 바로가기</span>
                           </router-link>
                         </div>
                       </td>
@@ -814,7 +818,7 @@
                           {{ row.type === 'cart' ? '보관함' : '주문접수' }}
                         </span>
                         <div class="text-[11.5px] text-slate-800 font-bold mt-1">
-                          {{ row.orderId || `CART-${row.id?.slice(-6) || rIdx + 1}` }}
+                          {{ row.orderNumber || row.orderId || row.id || `ITEM-${rIdx + 1}` }}
                         </div>
                       </td>
 
@@ -1184,23 +1188,25 @@ watch(currentUser, () => {
 // ----------------------------------------------------
 const loadDashboardData = async () => {
   try {
-    // 1. 보관함 품목 — 사용자 격리 키 우선, 레거시 키 fallback
+    // 1. 보관함 품목 — 사용자 격리 키로만 안전하게 읽기 (과거 더미 잔여물 원천 차단)
     if (!isLoggedIn.value) {
       savedItems.value = []
     } else {
+      // 레거시 더미 키 잔여물 영구 파기
+      localStorage.removeItem('euchs_erp_saved_items')
+      localStorage.removeItem('euchs_1688_saved_items')
+
       const cartKey = getCartStorageKey()
       const userCart = localStorage.getItem(cartKey)
-      const legacyCart = localStorage.getItem('euchs_erp_saved_items') || localStorage.getItem('euchs_1688_saved_items')
-      const cachedCart = userCart || legacyCart
-      if (cachedCart) {
-        const parsed = JSON.parse(cachedCart)
+      if (userCart) {
+        const parsed = JSON.parse(userCart)
         savedItems.value = Array.isArray(parsed) ? parsed : []
       } else {
         savedItems.value = []
       }
     }
 
-    // 2. 전역 일원화된 주문 데이터 조회 (LocalStorage + V01 샘플)
+    // 2. 전역 일원화된 실제 주문 데이터 조회 (더미 완전 정제)
     submittedOrders.value = getStoredOrders()
   } catch (err) {
     console.error('Failed to load dashboard data:', err)
