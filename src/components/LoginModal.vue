@@ -136,21 +136,22 @@
               <div class="flex-grow border-t border-slate-200"></div>
             </div>
 
-            <!-- 3 SOCIAL LOGIN BUTTONS (3-Column Grid) -->
-            <div class="grid grid-cols-3 gap-2">
+            <!-- 2 SOCIAL LOGIN BUTTONS (2-Column Grid) -->
+            <div class="grid grid-cols-2 gap-2.5">
               <!-- 1. Kakao Yellow Button -->
               <button 
                 type="button"
                 @click="handleKakaoLogin"
-                class="py-2.5 px-2 rounded-xl font-bold text-xs text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-2xs hover:brightness-95 cursor-pointer"
+                class="py-2.5 px-3 rounded-xl font-bold text-xs text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-2xs hover:brightness-95 cursor-pointer"
                 style="background-color: #FEE500;"
                 title="카카오 로그인"
               >
                 <i class="fas fa-comment text-amber-950 text-xs"></i>
-                <span>카카오</span>
+                <span>카카오 로그인</span>
               </button>
 
-              <!-- 2. Naver Green Button -->
+              <!-- 2. Naver Green Button (주석 처리 / 숨김) -->
+              <!--
               <button 
                 type="button"
                 @click="handleNaverLogin"
@@ -161,12 +162,13 @@
                 <span class="font-black text-[11px] bg-white text-[#03C75A] w-3.5 h-3.5 rounded-xs flex items-center justify-center">N</span>
                 <span>네이버</span>
               </button>
+              -->
 
               <!-- 3. Google Button -->
               <button 
                 type="button"
                 @click="handleGoogleLogin"
-                class="py-2.5 px-2 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                class="py-2.5 px-3 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
                 title="구글 로그인"
               >
                 <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
@@ -175,7 +177,7 @@
                   <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                   <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                 </svg>
-                <span>구글</span>
+                <span>구글 로그인</span>
               </button>
             </div>
           </div>
@@ -194,20 +196,21 @@
                 </span>
               </div>
 
-              <div class="grid grid-cols-3 gap-2">
+              <div class="grid grid-cols-2 gap-2.5">
                 <!-- 1. Kakao -->
                 <button 
                   type="button"
                   @click="handleKakaoLogin"
-                  class="py-2.5 px-2 rounded-xl font-bold text-xs text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-2xs hover:brightness-95 cursor-pointer"
+                  class="py-2.5 px-3 rounded-xl font-bold text-xs text-slate-950 transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-2xs hover:brightness-95 cursor-pointer"
                   style="background-color: #FEE500;"
                   title="카카오로 3초 간편가입"
                 >
                   <i class="fas fa-comment text-amber-950 text-xs"></i>
-                  <span>카카오</span>
+                  <span>카카오로 시작</span>
                 </button>
 
-                <!-- 2. Naver -->
+                <!-- 2. Naver (주석 처리 / 숨김) -->
+                <!--
                 <button 
                   type="button"
                   @click="handleNaverLogin"
@@ -218,12 +221,13 @@
                   <span class="font-black text-[11px] bg-white text-[#03C75A] w-3.5 h-3.5 rounded-xs flex items-center justify-center">N</span>
                   <span>네이버</span>
                 </button>
+                -->
 
                 <!-- 3. Google -->
                 <button 
                   type="button"
                   @click="handleGoogleLogin"
-                  class="py-2.5 px-2 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-1.5 shadow-2xs cursor-pointer"
+                  class="py-2.5 px-3 rounded-xl font-bold text-xs bg-white hover:bg-slate-50 border border-slate-300 text-slate-700 transition active:scale-[0.98] flex items-center justify-center gap-2 shadow-2xs cursor-pointer"
                   title="구글 계정으로 간편가입"
                 >
                   <svg class="w-3.5 h-3.5 shrink-0" viewBox="0 0 24 24">
@@ -232,7 +236,7 @@
                     <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"/>
                     <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"/>
                   </svg>
-                  <span>구글</span>
+                  <span>구글로 시작</span>
                 </button>
               </div>
             </div>
