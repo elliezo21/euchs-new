@@ -532,7 +532,7 @@ import {
 import { exportQuoteExcel } from '@/utils/excelExport';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getStoredOrders, saveStoredOrders, saveNewOrder } from '@/utils/orderStorage';
-import { currentUser } from '@/lib/auth';
+import { currentUser, getCartStorageKey, isLoggedIn } from '@/lib/auth';
 
 const router = useRouter();
 
@@ -564,8 +564,16 @@ function getItemSkuText(item) {
 // 데이터 로드 & 스토리지 동기화
 // ---------------------------------------------------------
 const loadCartItems = () => {
+  // 비로그인 시 즉시 빈 배열 반환
+  if (!isLoggedIn.value) {
+    cartItems.value = [];
+    selectedItemIds.value = [];
+    return;
+  }
   try {
-    const raw = localStorage.getItem('euchs_erp_saved_items');
+    // ── 사용자 격리 키 (euchs_cart_{userId}) 로만 읽기 — 레거시 키 절대 참조 금지 ──
+    const cartKey = getCartStorageKey();
+    const raw = localStorage.getItem(cartKey);
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -585,6 +593,7 @@ const loadCartItems = () => {
         return;
       }
     }
+    // 격리 키에 데이터 없으면 무조건 빈 배열 (레거시 키 절대 보지 않음)
     cartItems.value = [];
     selectedItemIds.value = [];
   } catch (e) {
@@ -595,7 +604,11 @@ const loadCartItems = () => {
 };
 
 const saveCartToStorage = () => {
-  localStorage.setItem('euchs_erp_saved_items', JSON.stringify(cartItems.value));
+  // ── 사용자 격리 키 (euchs_cart_{userId}) 로만 저장 ──
+  const cartKey = getCartStorageKey();
+  localStorage.setItem(cartKey, JSON.stringify(cartItems.value));
+  // 뱃지 구독자들에게 최신 카운트 즉시 알림
+  window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: cartItems.value.length } }));
   window.dispatchEvent(new Event('storage'));
 };
 
@@ -930,7 +943,15 @@ function exportCartExcel() {
 }
 
 onMounted(() => {
+  // 레거시 공용 장바구니 키 영구 파기 (진입 시마다 확실히 제거)
+  try {
+    localStorage.removeItem('euchs_erp_saved_items');
+    localStorage.removeItem('euchs_holding_items');
+    localStorage.removeItem('euchs_cart_items');
+  } catch (e) {}
+
   loadCartItems();
   window.addEventListener('storage', loadCartItems);
+  window.addEventListener('euchs:cart-updated', loadCartItems);
 });
 </script>

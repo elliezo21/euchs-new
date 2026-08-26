@@ -580,20 +580,14 @@ const updateSavedCount = () => {
     return
   }
   try {
-    // 사용자 격리 키 (euchs_cart_{userId}) 로 읽기
+    // 사용자 격리 키 (euchs_cart_{userId}) 로만 읽기 — 레거시 키 fallback 영구 제거
     const cartKey = getCartStorageKey()
     const userCart = localStorage.getItem(cartKey)
     if (userCart) {
       const parsed = JSON.parse(userCart)
       savedCount.value = Array.isArray(parsed) ? parsed.length : 0
-      return
-    }
-    // 레거시 키 호환: 로그인 상태이고 격리 키가 없으면 기존 키에서 마이그레이션
-    const legacy = localStorage.getItem('euchs_erp_saved_items')
-    if (legacy) {
-      const parsed = JSON.parse(legacy)
-      savedCount.value = Array.isArray(parsed) ? parsed.length : 0
     } else {
+      // 격리 키에 데이터 없으면 무조건 0 (레거시 키 절대 참조하지 않음)
       savedCount.value = 0
     }
   } catch (e) {

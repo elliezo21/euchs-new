@@ -818,8 +818,12 @@ export const signOut = async () => {
       localStorage.removeItem('euchs_business_info')
       localStorage.removeItem('euchs_tax_info')
       localStorage.removeItem('euchs_business_profile_current')
-      // 게스트 장바구니는 비우기 (로그아웃 시 guest 장바구니 초기화)
+      // 게스트 장바구니 초기화
       localStorage.removeItem('euchs_cart_guest')
+      // ── 레거시 공용 장바구니 키 영구 파기 (귀신 데이터 원천 차단) ──
+      localStorage.removeItem('euchs_erp_saved_items')
+      localStorage.removeItem('euchs_holding_items')
+      localStorage.removeItem('euchs_cart_items')
     } catch (e) {}
     // 전역 이벤트 디스패치 — 헤더/장바구니 구독자들이 즉시 0으로 초기화
     window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
@@ -1000,12 +1004,34 @@ export const initAuth = async () => {
       if (localStorage.getItem('euchs_admin_token') || localStorage.getItem('euchs_demo_session')) return
 
       if (session?.user) {
-        // ✅ Supabase 정식 세션이 들어오면 적용
+        // ✅ Supabase 정식 세션이 들어오면 적용 (구글/이메일 OAuth 포함)
+        const prevId = currentUser.value?.id
         currentUser.value = session.user
         isAuthLoading.value = false
         await checkUserRole(session.user)
         await syncUserProfile(session.user)
         closeLoginModal()
+
+        // ── 레거시 공용 장바구니 키 즉시 파기 (로그인 시점에도 확실히 제거) ──
+        try {
+          localStorage.removeItem('euchs_erp_saved_items')
+          localStorage.removeItem('euchs_holding_items')
+          localStorage.removeItem('euchs_cart_items')
+        } catch (e) {}
+
+        // ── 장바구니 뱃지 동기화: 해당 계정의 실제 담긴 수량으로 갱신 ──
+        // 계정이 바뀐 경우(또는 최초 로그인) 격리 키 기준으로 카운트 재산정
+        if (prevId !== session.user.id) {
+          try {
+            const cartKey = `euchs_cart_${session.user.id}`
+            const raw = localStorage.getItem(cartKey)
+            const count = raw ? (JSON.parse(raw)?.length ?? 0) : 0
+            window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count } }))
+            window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: session.user } }))
+          } catch (e) {
+            window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: 0 } }))
+          }
+        }
       } else if (event === 'SIGNED_OUT' && _isExplicitSignOut) {
         // ✅ 사용자가 명시적으로 [로그아웃]을 눌렀을 때만 완전 초기화
         currentUser.value = null
