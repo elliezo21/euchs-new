@@ -1610,27 +1610,20 @@ const checkAndResumePendingProduct = async () => {
 }
 
 // ----------------------------------------------------
-// B2B 폐쇄몰 상세 모달 오픈 (Strict B2B Guard)
+// 상품 상세 모달 오픈 (로그인 회원 전체 개방)
 // ----------------------------------------------------
 const openProductModal = (item) => {
-  pendingProductToOpen.value = item
+  pendingProductToOpen.value = null
   pendingOfferIdToOpen.value = null
 
-  // 1. 비로그인 상태 차단 -> 화면 중앙 커스텀 잠금 모달 노출
+  // 1. 비로그인 상태 차단 -> 로그인 모달 오픈
   if (!isLoggedIn.value) {
-    openB2BGuard('guest')
+    openLoginModal('login')
     return
   }
 
-  // 2. 로그인은 되었으나 사업자 정보가 없는 회원 -> 사업자 등록 안내 모달 노출
-  if (!isUserBusinessVerified(currentUser.value)) {
-    openB2BGuard('unverified')
-    return
-  }
-
-  // 3. 인증된 사업자 회원만 상세 모달 오픈
+  // 2. 로그인된 모든 회원 (사업자 인증 여부 불문) -> 즉시 상세 모달 정상 오픈
   selectedModalProduct.value = item
-  pendingProductToOpen.value = null
 }
 
 const handleModalCartAdded = (savedItem) => {
@@ -1639,31 +1632,25 @@ const handleModalCartAdded = (savedItem) => {
 }
 
 // ----------------------------------------------------
-// 1688 Direct OfferId Modal Opener (with B2B Guard)
+// 1688 Direct OfferId Modal Opener
 // ----------------------------------------------------
 const openDetailModalById = async (offerId) => {
-  pendingOfferIdToOpen.value = offerId
+  pendingOfferIdToOpen.value = null
   pendingProductToOpen.value = null
 
-  // 1. 비로그인 상태 차단 -> 커스텀 잠금 모달
+  // 1. 비로그인 상태 차단 -> 로그인 모달 오픈
   if (!isLoggedIn.value) {
-    openB2BGuard('guest')
+    openLoginModal('login')
     return
   }
 
-  // 2. 사업자 미인증 회원 차단 -> 커스텀 안내 모달
-  if (!isUserBusinessVerified(currentUser.value)) {
-    openB2BGuard('unverified')
-    return
-  }
-
+  // 2. 로그인된 모든 회원 -> 1688 상세 정보 조회 후 모달 오픈
   isLoading.value = true
   errorMessage.value = ''
 
   try {
     const product = await fetch1688ProductById(offerId)
     selectedModalProduct.value = product
-    pendingOfferIdToOpen.value = null
   } catch (err) {
     console.warn('[Mall1688] Direct detail open fallback:', err)
   } finally {
@@ -1797,21 +1784,14 @@ const resetImageSearch = () => {
 
 
 const loadMoreProducts = async () => {
-  // 1. 비로그인 상태 차단 -> B2B 안내 모달 노출 및 쿼터 방어
+  // 1. 비로그인 상태 차단 -> 로그인 모달 유도
   if (!isLoggedIn.value) {
-    showToast('추가 상품 조회 및 1688 대량 소싱은 [사업자 인증 회원] 전용 서비스입니다. 로그인 또는 사업자 정보를 등록해 주세요.')
-    openB2BGuard('guest')
+    showToast('추가 상품 조회는 회원 전용 서비스입니다. 로그인해 주세요.')
+    openLoginModal('login')
     return
   }
 
-  // 2. 로그인은 되었으나 사업자 미인증 일반회원 -> 사업자 정보 입력 안내 모달 노출
-  if (!isUserBusinessVerified(currentUser.value)) {
-    showToast('추가 상품 조회 및 1688 대량 소싱은 [사업자 인증 회원] 전용 서비스입니다. 사업자 정보를 등록해 주세요.')
-    openB2BGuard('unverified')
-    return
-  }
-
-  // 3. 인증된 사업자 바이어만 다음 페이지 호출
+  // 2. 로그인된 모든 회원이 다음 페이지 호출 가능
   const query = lastQueryKo.value || queryInput.value.trim()
   if (!query) return
 
