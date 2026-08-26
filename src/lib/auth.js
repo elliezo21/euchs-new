@@ -803,12 +803,26 @@ export const syncUserProfile = async (user) => {
 }
 
 /**
+ * 로컬 세션(euchs_auth_user)이 유효한지 빠르게 확인하는 헬퍼
+ */
+const getLocalAuthUser = () => {
+  try {
+    const raw = localStorage.getItem('euchs_auth_user')
+    if (!raw) return null
+    const user = JSON.parse(raw)
+    return (user?.id) ? user : null
+  } catch (e) {
+    return null
+  }
+}
+
+/**
  * 인증 세션 초기화 및 리스너 등록
  */
 let isListenerAttached = false
 
 export const initAuth = async () => {
-  // 1. 관리자 토큰 및 로컬 세션 확인 (F5 새로고침 유지)
+  // ── 1. 관리자 토큰 우선 확인 ─────────────────────────────────────────
   try {
     const adminToken = localStorage.getItem('euchs_admin_token')
     const authUserRaw = localStorage.getItem('euchs_auth_user')
@@ -823,7 +837,7 @@ export const initAuth = async () => {
     }
   } catch (e) {}
 
-  // 2. 데모 세션 캐시 확인
+  // ── 2. 데모 세션 확인 ─────────────────────────────────────────────────
   try {
     const demoRaw = localStorage.getItem('euchs_demo_session')
     if (demoRaw) {
@@ -837,58 +851,69 @@ export const initAuth = async () => {
     }
   } catch (e) {}
 
-  // 3. 일반 사용자 로컬 세션 캐시 확인 (네이버/소셜/이메일 세션 F5 유지)
-  try {
-    const authUserRaw = localStorage.getItem('euchs_auth_user')
-    if (authUserRaw) {
-      const authUser = JSON.parse(authUserRaw)
-      if (authUser?.id) {
-        currentUser.value = authUser
-        userRole.value = authUser.role || 'user'
-      }
-    }
-  } catch (e) {}
+  // ── 3. ★ 로컬 세션 동기적 최우선 복원 ────────────────────────────────
+  // 네이버/소셜/이메일 세션을 앱 시작 즉시 반영하여 F5 후에도 로그인 유지
+  const localUser = getLocalAuthUser()
+  if (localUser) {
+    currentUser.value = localUser
+    userRole.value = localUser.role || 'buyer'
+    // 로딩 표시를 즉시 해제 — UI가 깜빡임 없이 바로 로그인 상태로 표시됨
+    isAuthLoading.value = false
+  }
 
   if (!isSupabaseConfigured()) {
     isAuthLoading.value = false
     return
   }
 
+  // ── 4. Supabase 세션 비동기 조회 ─────────────────────────────────────
+  // getSession()이 null을 반환하더라도 로컬 세션을 절대 덮어쓰지 않음
   try {
     const { data: { session } } = await supabase.auth.getSession()
     if (session?.user) {
+      // Supabase 정식 세션이 있으면 우선 적용
       currentUser.value = session.user
+      userRole.value = 'user'
       await checkUserRole(session.user)
       await syncUserProfile(session.user)
-    } else if (!currentUser.value) {
-      userRole.value = 'user'
     }
+    // session === null 이더라도 localUser가 있으면 절대 건드리지 않음
   } catch (err) {
     console.warn('Get session fallback:', err)
   } finally {
     isAuthLoading.value = false
   }
 
+  // ── 5. Supabase onAuthStateChange 리스너 등록 ─────────────────────────
   if (!isListenerAttached) {
     isListenerAttached = true
     supabase.auth.onAuthStateChange(async (_event, session) => {
-      // 관리자 세션 또는 데모 세션이 활성화되어 있지 않을 때만 Supabase 세션 적용
-      if (!localStorage.getItem('euchs_admin_token') && !localStorage.getItem('euchs_demo_session')) {
-        if (session?.user) {
-          currentUser.value = session.user
-          isAuthLoading.value = false
-          await checkUserRole(session.user)
-          await syncUserProfile(session.user)
-          closeLoginModal()
-        } else if (_event === 'SIGNED_OUT') {
-          // 명시적 로그아웃 시에만 초기화
-          currentUser.value = null
-          userRole.value = 'user'
-          localStorage.removeItem('euchs_auth_user')
-          isAuthLoading.value = false
+      // 관리자/데모 세션이 활성 중이면 간섭 금지
+      if (localStorage.getItem('euchs_admin_token') || localStorage.getItem('euchs_demo_session')) return
+
+      if (session?.user) {
+        // ✅ Supabase 정식 세션이 들어오면 적용
+        currentUser.value = session.user
+        isAuthLoading.value = false
+        await checkUserRole(session.user)
+        await syncUserProfile(session.user)
+        closeLoginModal()
+      } else if (_event === 'SIGNED_OUT') {
+        // ✅ 명시적 로그아웃만 처리 — 다른 이벤트에서는 로컬 세션 절대 삭제 금지
+        currentUser.value = null
+        userRole.value = 'user'
+        localStorage.removeItem('euchs_auth_user')
+        isAuthLoading.value = false
+      } else {
+        // ✅ INITIAL_SESSION, TOKEN_REFRESHED 등 session=null 이벤트:
+        //    로컬 스토리지에 유효한 유저가 있으면 currentUser를 절대 건드리지 않음
+        const preserved = getLocalAuthUser()
+        if (preserved && !currentUser.value) {
+          currentUser.value = preserved
+          userRole.value = preserved.role || 'buyer'
         }
+        // currentUser가 이미 세팅되어 있으면 그냥 유지 (null로 덮어쓰지 않음)
       }
     })
   }
 }
-
