@@ -331,18 +331,6 @@
                     <span>견적/주문 상세</span>
                   </button>
 
-                  <!-- ★ 1~4단계 상태 전환 버튼 -->
-                  <button
-                    v-if="canAdvanceStage(order)"
-                    type="button"
-                    @click="advanceOrderStage(order)"
-                    :title="getAdvanceLabel(order)"
-                    class="px-2.5 py-1.5 rounded-xl font-bold text-[11px] transition active:scale-95 flex items-center gap-1 shadow-2xs cursor-pointer"
-                    :class="getAdvanceColor(order)"
-                  >
-                    <span>{{ getAdvanceLabel(order) }}</span>
-                  </button>
-
                   <!-- ★ 동적 카카오톡 1:1 상담 -->
                   <a
                     :href="getKakaoUrl(order)"
@@ -878,30 +866,26 @@
                   </div>
                 </div>
 
-                <!-- 결제 대기 / 견적 심사중 상태 -->
-                <div v-else class="p-4 bg-orange-50 border border-orange-200 rounded-xl space-y-2.5">
+                <!-- 1차 결제 대기 상태 (관리자 견적 완료 후) -->
+                <div v-else-if="normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'" class="p-4 bg-orange-50 border border-orange-200 rounded-xl space-y-2.5">
                   <div class="flex items-center gap-2 font-bold text-orange-800 text-xs">
                     <AlertCircle class="w-4 h-4 text-orange-500" />
-                    <span>{{ normalizeOrderStatus(activeOrder.status) === 'quote_confirmed' ? '1차 결제 대기중' : '견적 검토 및 승인 대기' }}</span>
+                    <span>1차 결제 대기중</span>
                   </div>
                   <p class="text-[11px] text-orange-700 leading-relaxed">
-                    {{ normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'
-                      ? `견적이 확정되었습니다. 1차 결제 (₩${formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw)}원)를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.`
-                      : '소싱 담당자가 1688에서 상품을 확인하고 정확한 견적을 산출 중입니다. 견적 완료 후 카카오톡으로 알림을 드립니다.' }}
+                    견적이 확정되었습니다. 1차 결제 (₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원)를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.
                   </p>
                 </div>
 
-                <!-- 단계별 상태 전환 액션 버튼 (1~4단계) -->
-                <div v-if="canAdvanceStage(activeOrder)" class="pt-1">
-                  <button
-                    type="button"
-                    @click="advanceOrderStage(activeOrder); closeDetailModal()"
-                    class="w-full py-2.5 rounded-xl font-bold text-xs transition active:scale-95 flex items-center justify-center gap-2 shadow-md cursor-pointer"
-                    :class="getAdvanceColor(activeOrder)"
-                  >
-                    <span>{{ getAdvanceLabel(activeOrder) }}</span>
-                  </button>
-                  <p class="text-[10px] text-gray-400 text-center mt-1.5">클릭 시 다음 단계로 즉시 전환됩니다 (OrderProcessStepper 실시간 반영)</p>
+                <!-- 견적 검토 및 승인 대기 상태 -->
+                <div v-else class="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+                  <div class="flex items-center gap-2 text-amber-800 font-bold text-xs mb-1">
+                    <AlertCircle class="w-4 h-4 text-amber-600" />
+                    <span>⚠️ 견적 검토 및 승인 대기</span>
+                  </div>
+                  <p class="text-xs text-amber-700 leading-relaxed">
+                    소싱 담당자가 1688에서 상품 재고와 단가를 확인 후 정확한 수입 견적을 산출 중입니다. 견적이 완료되면 카카오톡 알림과 함께 결제 대기 상태로 전환됩니다.
+                  </p>
                 </div>
 
                 <!-- 1688 수입 단가 마진 요약 -->
@@ -1117,9 +1101,9 @@
 
           <!-- 우측 액션 버튼 그룹 -->
           <div class="flex flex-wrap items-center justify-end gap-2.5">
-            <!-- 결제 대기 / 견적 완료 상태일 때 즉시 결제하기 메인 버튼 노출 -->
+            <!-- 1. 결제 대기 상태 (quote_confirmed): 즉시 결제 가능 -->
             <button
-              v-if="activeOrder.status === 'quote_confirmed' || activeOrder.status === 'quote_pending'"
+              v-if="normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'"
               type="button"
               @click="executeInstantPayment(activeOrder)"
               :disabled="isPaying"
@@ -1127,6 +1111,17 @@
             >
               <CreditCard class="w-4 h-4" />
               <span>💳 예치금/카드 즉시 결제하기 (₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원)</span>
+            </button>
+
+            <!-- 2. 견적 대기 상태 (quote_pending): 비활성화 및 견적 산출 중 안내 -->
+            <button
+              v-else-if="normalizeOrderStatus(activeOrder.status) === 'quote_pending'"
+              type="button"
+              disabled
+              class="px-6 py-3 rounded-xl bg-slate-100 border border-slate-200 text-slate-400 font-bold text-xs sm:text-sm flex items-center gap-2 cursor-not-allowed opacity-80"
+            >
+              <Clock class="w-4 h-4 text-slate-400" />
+              <span>⏳ 견적 산출 중 (승인 대기)</span>
             </button>
 
             <button
