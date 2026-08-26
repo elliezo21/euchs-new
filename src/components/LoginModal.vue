@@ -346,14 +346,14 @@
                   </div>
                   <div>
                     <label class="block text-[11px] font-bold text-slate-700 mb-1">
-                      통관고유부호 (PCCC) (선택 / 차후 기재 가능)
+                      통관부호(차후기재가능)
                     </label>
                     <input 
                       v-model.trim="signupForm.pccc"
                       @input="signupForm.pccc = signupForm.pccc.toUpperCase()"
                       type="text" 
                       maxlength="13"
-                      placeholder="발주/출고 전까지 마이페이지에서 등록 가능" 
+                      placeholder="P로 시작하는 13자리 (미입력 가능)" 
                       class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition font-mono font-bold text-blue-700 uppercase"
                     />
                   </div>
@@ -458,13 +458,13 @@
                   />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1">통관고유부호 (PCCC) (선택 / 차후 기재 가능)</label>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">통관부호(차후기재가능)</label>
                   <input 
                     v-model.trim="verifyForm.pccc"
                     @input="verifyForm.pccc = verifyForm.pccc.toUpperCase()"
                     type="text" 
                     maxlength="13"
-                    placeholder="발주/출고 전까지 마이페이지에서 등록 가능" 
+                    placeholder="P로 시작하는 13자리 (미입력 가능)" 
                     class="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-300 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none text-xs text-slate-900 transition font-mono font-bold text-indigo-700 uppercase"
                   />
                 </div>
