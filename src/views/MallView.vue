@@ -241,10 +241,10 @@
 
         </div>
 
-        <!-- 4. 서브 바: 퀵 카테고리 탭 (화면 정중앙 배치) -->
-        <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-center text-xs">
+        <!-- 4. 서브 바: 퀵 카테고리 탭 (모바일 좌측 시작 스크롤 & PC 중앙 정렬) -->
+        <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-start sm:justify-center text-xs w-full">
           <!-- 퀵 카테고리 탭 -->
-          <div class="flex items-center justify-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
+          <div class="flex items-center justify-start sm:justify-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 px-3 sm:px-0 w-full scroll-smooth">
             <button
               v-for="qt in quickTabs"
               :key="qt.id"
@@ -2019,5 +2019,6 @@ watch(() => route.query, () => {
 .no-scrollbar {
   -ms-overflow-style: none;
   scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
 }
 </style>
