@@ -186,67 +186,93 @@
               </div>
             </div>
 
-            <!-- 2. Option Selection: Color / Style (1차 옵션) -->
-            <div class="space-y-2.5">
-              <div class="flex items-center justify-between text-xs">
-                <label class="font-bold text-gray-800 flex items-center gap-1.5">
-                  <span>1차 옵션 ({{ firstPropName }})</span>
-                  <span class="text-rose-600 font-bold">*</span>
-                </label>
-                <span v-if="selectedColor" class="text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
-                  선택: {{ selectedColor.name }}
-                </span>
-                <span v-else class="text-gray-400 text-[11px]">
-                  {{ firstPropName }}을(를) 먼저 선택하세요
-                </span>
+            <!-- 2. Option Selection (1차 & 2차): 로딩 중 스켈레톤 / 완료 후 실제 버튼 -->
+            <div v-if="isDetailLoading" class="space-y-3 py-1">
+              <!-- 1차 옵션 스켈레톤 -->
+              <div class="space-y-2">
+                <div class="flex items-center gap-2">
+                  <div class="h-4 w-16 bg-slate-200 rounded animate-pulse"></div>
+                  <div class="h-4 w-24 bg-slate-100 rounded animate-pulse"></div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <div v-for="n in 4" :key="n" class="h-9 w-20 bg-slate-200 rounded-xl animate-pulse"></div>
+                </div>
               </div>
-              <div class="flex flex-wrap gap-2.5">
-                <button
-                  v-for="(color, cIdx) in colorOptions"
-                  :key="cIdx"
-                  type="button"
-                  @click="handleSelectColor(color)"
-                  class="px-3.5 py-2 rounded-xl border text-xs font-medium transition flex items-center gap-2 cursor-pointer active:scale-95"
-                  :class="selectedColor?.name === color.name 
-                    ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20' 
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
-                >
-                  <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-gray-200" referrerpolicy="no-referrer" />
-                  <span>{{ color.name }}</span>
-                </button>
+              <!-- 2차 옵션 스켈레톤 -->
+              <div class="space-y-2 mt-1">
+                <div class="flex items-center gap-2">
+                  <div class="h-4 w-20 bg-slate-200 rounded animate-pulse"></div>
+                  <div class="h-4 w-16 bg-slate-100 rounded animate-pulse"></div>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <div v-for="n in 5" :key="n" class="h-9 w-16 bg-slate-200 rounded-xl animate-pulse"></div>
+                </div>
               </div>
             </div>
 
-            <!-- 3. Option Selection: Size / Spec (2차 옵션 - 다중 옵션일 때만 노출) -->
-            <div v-if="sizeOptions && sizeOptions.length > 0" class="space-y-2.5">
-              <div class="flex items-center justify-between text-xs">
-                <label class="font-bold text-gray-800 flex items-center gap-1.5">
-                  <span>2차 옵션 ({{ secondPropName }})</span>
-                  <span class="text-rose-600 font-bold">*</span>
-                </label>
-                <span v-if="!selectedColor" class="text-amber-600 font-medium text-[11px] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
-                  ⚠️ 1차 {{ firstPropName }}을(를) 먼저 선택해 주세요
-                </span>
-                <span v-else class="text-gray-500 text-[11px]">
-                  {{ secondPropName }}을(를) 누르면 품목에 추가됩니다
-                </span>
+            <template v-else>
+              <!-- 2a. Option Selection: Color / Style (1차 옵션) -->
+              <div class="space-y-2.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label class="font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>1차 옵션 ({{ firstPropName }})</span>
+                    <span class="text-rose-600 font-bold">*</span>
+                  </label>
+                  <span v-if="selectedColor" class="text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                    선택: {{ selectedColor.name }}
+                  </span>
+                  <span v-else class="text-gray-400 text-[11px]">
+                    {{ firstPropName }}을(를) 먼저 선택하세요
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2.5">
+                  <button
+                    v-for="(color, cIdx) in colorOptions"
+                    :key="cIdx"
+                    type="button"
+                    @click="handleSelectColor(color)"
+                    class="px-3.5 py-2 rounded-xl border text-xs font-medium transition flex items-center gap-2 cursor-pointer active:scale-95"
+                    :class="selectedColor?.name === color.name
+                      ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
+                  >
+                    <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-gray-200" referrerpolicy="no-referrer" />
+                    <span>{{ color.name }}</span>
+                  </button>
+                </div>
               </div>
-              <div class="flex flex-wrap gap-2.5">
-                <button
-                  v-for="(size, sIdx) in sizeOptions"
-                  :key="sIdx"
-                  type="button"
-                  @click="handleSelectSize(size)"
-                  :disabled="!selectedColor"
-                  class="px-4 py-2 rounded-xl border text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
-                  :class="selectedSize === size 
-                    ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20' 
-                    : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
-                >
-                  {{ size }}
-                </button>
+
+              <!-- 2b. Option Selection: Size / Spec (2차 옵션 - 다중 옵션일 때만 노출) -->
+              <div v-if="sizeOptions && sizeOptions.length > 0" class="space-y-2.5">
+                <div class="flex items-center justify-between text-xs">
+                  <label class="font-bold text-gray-800 flex items-center gap-1.5">
+                    <span>2차 옵션 ({{ secondPropName }})</span>
+                    <span class="text-rose-600 font-bold">*</span>
+                  </label>
+                  <span v-if="!selectedColor" class="text-amber-600 font-medium text-[11px] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                    ⚠️ 1차 {{ firstPropName }}을(를) 먼저 선택해 주세요
+                  </span>
+                  <span v-else class="text-gray-500 text-[11px]">
+                    {{ secondPropName }}을(를) 누르면 품목에 추가됩니다
+                  </span>
+                </div>
+                <div class="flex flex-wrap gap-2.5">
+                  <button
+                    v-for="(size, sIdx) in sizeOptions"
+                    :key="sIdx"
+                    type="button"
+                    @click="handleSelectSize(size)"
+                    :disabled="!selectedColor"
+                    class="px-4 py-2 rounded-xl border text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
+                    :class="selectedSize === size
+                      ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
+                  >
+                    {{ size }}
+                  </button>
+                </div>
               </div>
-            </div>
+            </template>
 
             <!-- 4. Selected SKUs List & Quantity Adjuster -->
             <div class="space-y-2.5 pt-2 border-t border-gray-100">
@@ -519,6 +545,9 @@ const selectedSkus = ref([])
 
 const detailImages = ref([])
 const isLoadingDetail = ref(false)
+
+// 상품 상세 SKU 비동기 조회 중 플래그 (true = 스켈레톤, false = 실제 옵션 렌더링)
+const isDetailLoading = ref(true)
 
 const sellerProducts = ref([])
 const isLoadingSellerProducts = ref(false)
@@ -973,7 +1002,11 @@ const loadSellerProducts = async (item) => {
 
 // 비동기 상세 데이터 및 SKU 보강 로더
 const loadFullProductData = async (item) => {
-  if (!item?.id) return
+  if (!item?.id) {
+    isDetailLoading.value = false
+    return
+  }
+  isDetailLoading.value = true
   try {
     console.log('[loadFullProductData] Fetching for id:', item.id)
     const full = await fetch1688ProductById(item.id)
@@ -1004,23 +1037,20 @@ const loadFullProductData = async (item) => {
       }
 
       // currentItem 업데이트 후 colorOptions reactive 재평가 완료
-      // → Vue의 nextTick 없이도 computed는 동기적으로 재평가됨
+      // → Vue computed는 동기적으로 재평가됨
 
       // 1차 옵션 선택 갱신 (실제 옵션이 있으면 첫 번째로, 기본 단품이면 null 유지)
       const firstRealOption = colorOptions.value.find(c => c.name !== '기본 단품')
       if (firstRealOption) {
-        // 실제 옵션이 있으면 선택 (기존 선택이 없거나 유효하지 않으면 첫 번째로)
         if (!selectedColor.value || selectedColor.value.name === '기본 단품' ||
             !colorOptions.value.some(c => c.name === selectedColor.value?.name)) {
           selectedColor.value = firstRealOption
         }
       } else if (colorOptions.value.length > 0 && !selectedColor.value) {
-        // 기본 단품만 있는 단일 상품
         selectedColor.value = colorOptions.value[0]
       }
 
       // 단일 옵션 상품: 2차 옵션이 없고 1차 옵션이 선택된 경우 자동 발주 등록
-      // (selectedSkus가 비어있거나 기본 단품으로만 등록된 경우 재등록)
       if (!hasMultipleOptions.value && selectedColor.value) {
         const alreadyRegistered = selectedSkus.value.length > 0 &&
           selectedSkus.value[0].color === selectedColor.value.name
@@ -1035,6 +1065,9 @@ const loadFullProductData = async (item) => {
     }
   } catch (err) {
     console.debug('Failed to load full product details:', err)
+  } finally {
+    // 성공/실패 무관하게 반드시 스켈레톤 해제
+    isDetailLoading.value = false
   }
 }
 
@@ -1179,14 +1212,14 @@ const handleKeyDown = (e) => {
 // ----------------------------------------------------
 watch(() => props.product, (newVal) => {
   if (newVal) {
+    isDetailLoading.value = true  // 즉시 스켈레톤 표시 (API 응답 전까지)
     currentItem.value = { ...newVal }
     activeImage.value = newVal.imageUrl || ''
     selectedColor.value = null
     selectedSize.value = null
     selectedSkus.value = []
 
-    // loadFullProductData 완료 후 옵션 선택 처리 (비동기 완료 시 computed가 재평가됨)
-    // → watch 시점에서는 skuProps가 비어있을 수 있으므로 즉시 자동 선택 안 함
+    // loadFullProductData 내부 finally에서 isDetailLoading = false 처리
     loadFullProductData(newVal)
     loadProductDetailImages(newVal)
     loadSellerProducts(newVal)
