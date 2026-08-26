@@ -507,6 +507,7 @@ export async function getItemDetail1688(itemId) {
   // Quota Defense: 상세 조회 캐시 확인
   const cached = getFromCache(memoryDetailCache, 'euchs_detail_raw', idStr)
   if (cached) {
+    console.debug('[1688 Detail] Cache HIT for:', idStr)
     return cached
   }
 
@@ -522,31 +523,47 @@ export async function getItemDetail1688(itemId) {
       const resJson = await proxyRes.json()
       if (resJson.success && resJson.data) {
         data = resJson.data
+        console.log('[1688 Item Detail Raw Response] (via proxy):', data)
       }
     }
   } catch (err) {
     console.debug('[1688 Detail] Proxy notice:', err.message)
   }
 
-  // 2. Direct RapidAPI Fallback
+  // 2. Direct RapidAPI Fallback (itemId / offerId / num_iid 세 가지 파라미터 순차 시도)
   if (!data && rapidKey) {
-    try {
-      const targetUrl = `https://${rapidHost}/item_detail?itemId=${idStr}`
-      const directRes = await fetch(targetUrl, {
-        headers: {
-          'x-rapidapi-key': rapidKey,
-          'x-rapidapi-host': rapidHost
+    const paramKeys = ['itemId', 'offerId', 'num_iid']
+    for (const paramKey of paramKeys) {
+      if (data) break
+      try {
+        const targetUrl = `https://${rapidHost}/item_detail?${paramKey}=${idStr}`
+        console.log(`[1688 Detail] Trying direct API: ${targetUrl}`)
+        const directRes = await fetch(targetUrl, {
+          headers: {
+            'x-rapidapi-key': rapidKey,
+            'x-rapidapi-host': rapidHost
+          }
+        })
+        if (directRes.ok) {
+          const raw = await directRes.json()
+          // 응답 성공 여부 확인 (일부 1688 DataHub 응답은 200이지만 에러 필드 포함)
+          if (raw && !raw.error && !raw.err_msg) {
+            data = raw
+            console.log('[1688 Item Detail Raw Response]:', data)
+          } else {
+            console.debug(`[1688 Detail] API error response with ${paramKey}:`, raw)
+          }
+        } else {
+          console.debug(`[1688 Detail] HTTP ${directRes.status} for ${paramKey}`)
         }
-      })
-      if (directRes.ok) {
-        data = await directRes.json()
+      } catch (err) {
+        console.warn(`[1688 Detail] Direct fetch failed with ${paramKey}:`, err.message)
       }
-    } catch (err) {
-      console.warn('[1688 Detail] Direct fetch notice:', err.message)
     }
   }
 
   if (!data) {
+    console.warn('[1688 Detail] API failed, using Mock for id:', idStr)
     const mockDetail = getMockProductDetail(idStr)
     saveToCache(memoryDetailCache, 'euchs_detail_raw', idStr, mockDetail)
     return mockDetail
@@ -572,7 +589,10 @@ export async function fetch1688ProductById(offerId) {
 
   try {
     const rawData = await getItemDetail1688(idStr)
-    const it = rawData?.result?.item || rawData?.item || rawData?.result || rawData || {}
+    // 1688 DataHub는 다양한 래퍼 구조로 응답을 감쌀 수 있음
+    const it = rawData?.result?.item || rawData?.item || rawData?.data?.item || rawData?.data || rawData?.result || rawData || {}
+    console.log('[1688 fetch1688ProductById] parsed item object keys:', Object.keys(it).slice(0, 20))
+    console.log('[1688 fetch1688ProductById] sku/skuProps check:', { sku: !!it.sku, skuProps: !!it.skuProps, sku_props: !!it.sku_props, props: !!it.props })
 
     const titleZh = it.title || it.subject || ''
     let rawImage = it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
@@ -603,6 +623,7 @@ export async function fetch1688ProductById(offerId) {
     if (typeof rawSkuProps === 'string') {
       try { rawSkuProps = JSON.parse(rawSkuProps) } catch (e) { rawSkuProps = [] }
     }
+    console.log('[1688 fetch1688ProductById] rawSkuProps length:', Array.isArray(rawSkuProps) ? rawSkuProps.length : 'not array', rawSkuProps)
 
     let rawSkus = it.skus || it.skuList || it.sku?.skuList || it.sku_list || it.sku?.sku_list || it.raw?.skus || it.raw?.skuList || []
     if (typeof rawSkus === 'string') {

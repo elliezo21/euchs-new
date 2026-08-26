@@ -977,7 +977,9 @@ const loadSellerProducts = async (item) => {
 const loadFullProductData = async (item) => {
   if (!item?.id) return
   try {
+    console.log('[loadFullProductData] Fetching for id:', item.id)
     const full = await fetch1688ProductById(item.id)
+    console.log('[loadFullProductData] Full response skuProps:', full?.skuProps, '| skus:', full?.skus?.length)
     if (full && currentItem.value && String(currentItem.value.id) === String(item.id)) {
       // 1. 가격 보존 가드: full.price가 유효(> 0)할 때만 적용, 아니면 기존 item/props.product 가격 보존
       const rawPrice = (typeof full.price === 'number' && full.price > 0)
@@ -991,6 +993,8 @@ const loadFullProductData = async (item) => {
       const mergedSkus = (Array.isArray(full.skus) && full.skus.length > 0)
         ? full.skus
         : (currentItem.value.skus || item.skus || props.product?.skus || [])
+
+      console.log('[loadFullProductData] mergedSkuProps:', mergedSkuProps)
 
       currentItem.value = {
         ...currentItem.value,
