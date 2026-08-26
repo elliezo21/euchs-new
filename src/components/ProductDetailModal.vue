@@ -78,27 +78,36 @@
       <div ref="modalBodyRef" class="p-5 sm:p-8 md:p-10 overflow-y-auto flex-1 space-y-10 custom-scrollbar">
         
         <!-- Top Title Section -->
-        <div class="space-y-2 border-b border-gray-100 pb-5">
-          <div class="flex items-start justify-between gap-3">
-            <h2 class="text-xl sm:text-2xl font-black text-gray-900 leading-snug flex-1">
-              {{ currentItem?.titleKo || currentItem?.titleZh }}
-            </h2>
-            <!-- 1688 원본 바로가기 링크 -->
-            <a
-              :href="original1688Url"
-              target="_blank"
+        <div class="space-y-2">
+          <!-- 한글 상품 제목: 100% 폭, 줄바꿈 자연스럽게 확보 -->
+          <h2 class="w-full text-lg sm:text-xl md:text-2xl font-black text-gray-900 leading-snug break-keep">
+            {{ currentItem?.titleKo || currentItem?.titleZh }}
+          </h2>
+
+          <!-- 1688 원문 및 원본 링크 통합 라인 (제목 바로 아래) -->
+          <div class="mt-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
+            <!-- 좌측: 중국어 원문 -->
+            <div class="flex items-center gap-1.5 min-w-0 flex-1">
+              <span class="shrink-0 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded">1688 원문</span>
+              <span class="text-xs text-slate-400 truncate max-w-[280px] sm:max-w-md font-mono" :title="currentItem?.subject_trans || currentItem?.titleZh">
+                {{ currentItem?.subject_trans || currentItem?.titleZh || currentItem?.title }}
+              </span>
+            </div>
+
+            <!-- 우측: 1688 원본 링크 버튼 -->
+            <a 
+              :href="original1688Url" 
+              target="_blank" 
               rel="noopener noreferrer"
-              class="shrink-0 mt-0.5 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-50 border border-orange-200 text-orange-600 text-[11px] font-bold hover:bg-orange-100 hover:border-orange-400 transition-colors"
-              title="1688 원본 상품 페이지 새 탭으로 열기"
+              class="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold text-orange-600 bg-orange-50 border border-orange-200 hover:bg-orange-100 transition active:scale-95 shadow-xs"
+              title="1688 공식 상품 페이지 열기"
             >
-              1688링크
-              <i class="fas fa-external-link-alt text-[10px]"></i>
+              <span>1688링크</span>
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+              </svg>
             </a>
           </div>
-          <p class="text-xs text-gray-400 font-mono flex items-center gap-2 truncate" :title="currentItem?.titleZh">
-            <span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-medium shrink-0">1688 원문</span>
-            <span class="truncate">{{ currentItem?.titleZh }}</span>
-          </p>
         </div>
 
         <!-- ======================================================== -->
@@ -528,6 +537,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
+import { getCartStorageKey } from '../lib/auth'
 
 const props = defineProps({
   product: {
@@ -1148,7 +1158,22 @@ const showToastNotification = (msg, type = 'success') => {
 }
 
 const handleClose = () => {
+  if (typeof window !== 'undefined') {
+    if (window.history.state?.modal === 'product-detail') {
+      window.history.back()
+    }
+    document.body.style.overflow = 'unset'
+  }
   emit('close')
+}
+
+const handlePopState = (e) => {
+  if (props.product) {
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'unset'
+    }
+    emit('close')
+  }
 }
 
 const handleAddToCart = () => {
@@ -1165,7 +1190,8 @@ const handleAddToCart = () => {
   if (!currentItem.value) return
 
   try {
-    const cached = localStorage.getItem('euchs_erp_saved_items')
+    const cartKey = getCartStorageKey()
+    const cached = localStorage.getItem(cartKey) || localStorage.getItem('euchs_erp_saved_items')
     let cart = cached ? JSON.parse(cached) : []
     if (!Array.isArray(cart)) cart = []
 
@@ -1191,11 +1217,13 @@ const handleAddToCart = () => {
     }
 
     cart.unshift(itemToSave)
+    localStorage.setItem(cartKey, JSON.stringify(cart))
     localStorage.setItem('euchs_erp_saved_items', JSON.stringify(cart))
 
     // Storage 이벤트 및 퀵메뉴/헤더 갱신 이벤트 디스패치
     window.dispatchEvent(new Event('storage'))
-    window.dispatchEvent(new CustomEvent('euchs:cart_updated'))
+    window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: cart.length } }))
+    window.dispatchEvent(new CustomEvent('euchs:cart_updated', { detail: { count: cart.length } }))
     emit('added-to-cart', itemToSave)
 
     // ✅ 모달 하단 버튼 클릭 시에만 정식 완료 토스트 알림 노출
@@ -1237,6 +1265,13 @@ const handleKeyDown = (e) => {
 // ----------------------------------------------------
 watch(() => props.product, (newVal) => {
   if (newVal) {
+    if (typeof window !== 'undefined') {
+      if (window.history.state?.modal !== 'product-detail') {
+        window.history.pushState({ modal: 'product-detail' }, '')
+      }
+      document.body.style.overflow = 'hidden'
+    }
+
     isDetailLoading.value = true  // 즉시 스켈레톤 표시 (API 응답 전까지)
     currentItem.value = { ...newVal }
     activeImage.value = newVal.imageUrl || ''
@@ -1248,16 +1283,26 @@ watch(() => props.product, (newVal) => {
     loadFullProductData(newVal)
     loadProductDetailImages(newVal)
     loadSellerProducts(newVal)
+  } else {
+    if (typeof document !== 'undefined') {
+      document.body.style.overflow = 'unset'
+    }
   }
 }, { immediate: true })
 
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
+  window.addEventListener('popstate', handlePopState)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
+  window.removeEventListener('popstate', handlePopState)
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = 'unset'
+  }
 })
+
 </script>
 
 <style scoped>
