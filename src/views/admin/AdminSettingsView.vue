@@ -11,13 +11,13 @@
           <h2 class="text-lg sm:text-xl font-black text-slate-900">시스템 환경 및 운영 관리 설정</h2>
         </div>
         <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
-          EUCHS B2B 수입대행 ERP의 환율·수수료 기준 및 4대 핵심 서비스 카드, 메인 Hero 미디어를 관리합니다.
+          EUCHS B2B 수입대행 ERP의 환율·수수료 기준, 4대 핵심 서비스 미디어 및 운영진/직원 권한을 관리합니다.
         </p>
       </div>
 
       <div class="flex items-center gap-2 self-start sm:self-center">
         <span class="px-2.5 py-1 rounded-lg text-xs font-mono font-bold bg-slate-100 text-slate-600 border border-slate-200">
-          마지막 저장: {{ activeTab === 'rate' ? rateLastSavedTime : mediaLastSavedTime }}
+          마지막 저장: {{ activeTab === 'rate' ? rateLastSavedTime : (activeTab === 'media' ? mediaLastSavedTime : '실시간 DB 동기화') }}
         </span>
       </div>
     </div>
@@ -59,6 +59,24 @@
           :class="activeTab === 'media' ? 'bg-blue-100 text-blue-700' : 'bg-slate-300/60 text-slate-600'"
         >
           4대 카드 & Hero
+        </span>
+      </button>
+
+      <!-- 탭 3: 운영진 / 직원 권한 관리 -->
+      <button
+        type="button"
+        @click="activeTab = 'staff'"
+        class="flex-1 py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+        :class="activeTab === 'staff'
+          ? 'bg-white text-blue-700 shadow-xs ring-1 ring-slate-900/5 font-black'
+          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'"
+      >
+        <span>👥 운영진/직원 권한 관리</span>
+        <span
+          class="px-1.5 py-0.2 rounded text-[10px] font-mono"
+          :class="activeTab === 'staff' ? 'bg-blue-100 text-blue-700' : 'bg-slate-300/60 text-slate-600'"
+        >
+          {{ staffList.length }}명
         </span>
       </button>
     </div>
@@ -640,6 +658,290 @@
 
     </div>
 
+    <!-- ======================================================== -->
+    <!-- [TAB 3] 운영진 / 직원 권한 관리 -->
+    <!-- ======================================================== -->
+    <div v-show="activeTab === 'staff'" class="space-y-6">
+
+      <!-- 상단 요약 KPI & 신규 권한 등록 버튼 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <!-- 1. 총 운영진 수 -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <span class="text-xs text-slate-500 font-bold block">전체 운영진 계정</span>
+            <div class="text-2xl font-black text-slate-900 mt-1 font-mono">
+              {{ staffList.length }}<span class="text-sm font-normal text-slate-500 ml-1">명</span>
+            </div>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold text-lg">
+            👥
+          </div>
+        </div>
+
+        <!-- 2. 마스터 관리자 수 -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <span class="text-xs text-slate-500 font-bold block">마스터 관리자 (Admin)</span>
+            <div class="text-2xl font-black text-purple-700 mt-1 font-mono">
+              {{ countByRole('admin') + countByRole('super_admin') }}<span class="text-sm font-normal text-slate-500 ml-1">명</span>
+            </div>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg">
+            👑
+          </div>
+        </div>
+
+        <!-- 3. 운영 스태프 수 & 신규 등록 버튼 -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
+          <div>
+            <span class="text-xs text-slate-500 font-bold block">운영 스태프 (Staff)</span>
+            <div class="text-2xl font-black text-emerald-700 mt-1 font-mono">
+              {{ countByRole('staff') }}<span class="text-sm font-normal text-slate-500 ml-1">명</span>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="openAddStaffModal"
+            class="px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95 flex items-center gap-1.5"
+          >
+            <span>+ 직원 권한 부여</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 직원 관리 메인 카드 테이블 -->
+      <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+        <!-- 헤더 및 검색 / 필터 바 -->
+        <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
+            <h3 class="font-black text-slate-900 text-sm">운영진 및 직원 계정 권한 목록</h3>
+          </div>
+
+          <!-- 검색 & 필터 -->
+          <div class="flex items-center gap-2">
+            <select
+              v-model="staffRoleFilter"
+              class="px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">전체 권한</option>
+              <option value="admin">관리자 (Admin)</option>
+              <option value="staff">운영스태프 (Staff)</option>
+            </select>
+
+            <input
+              type="text"
+              v-model="staffSearchQuery"
+              placeholder="이름 / 이메일 / 부서 검색"
+              class="px-3.5 py-1.5 bg-white border border-slate-300 rounded-xl text-xs text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 w-44 sm:w-56"
+            />
+          </div>
+        </div>
+
+        <!-- 테이블 목록 -->
+        <div class="overflow-x-auto">
+          <table class="w-full text-left border-collapse text-xs">
+            <thead>
+              <tr class="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold">
+                <th class="py-3 px-4">직원명 / 상태</th>
+                <th class="py-3 px-4">이메일(아이디)</th>
+                <th class="py-3 px-4">현재 권한</th>
+                <th class="py-3 px-4">소속 부서 / 직급</th>
+                <th class="py-3 px-4">등록/수정일시</th>
+                <th class="py-3 px-4 text-center">권한 관리 액션</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-200/80">
+              <tr
+                v-for="member in filteredStaffList"
+                :key="member.id || member.email"
+                class="hover:bg-slate-50/70 transition"
+              >
+                <!-- 1. 직원명 / 상태 -->
+                <td class="py-3.5 px-4">
+                  <div class="flex items-center gap-2.5">
+                    <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700 text-xs">
+                      {{ (member.name || member.full_name || member.email || '직')[0] }}
+                    </div>
+                    <div>
+                      <div class="font-bold text-slate-900">
+                        {{ member.name || member.full_name || '이름 미설정' }}
+                      </div>
+                      <span class="text-[10px] text-emerald-600 font-bold">● 정상 활성</span>
+                    </div>
+                  </div>
+                </td>
+
+                <!-- 2. 이메일 -->
+                <td class="py-3.5 px-4 font-mono font-medium text-slate-700">
+                  {{ member.email }}
+                </td>
+
+                <!-- 3. 현재 권한 -->
+                <td class="py-3.5 px-4">
+                  <span
+                    class="px-2.5 py-1 rounded-lg text-[11px] font-bold border flex items-center gap-1 w-fit"
+                    :class="getRoleBadgeClass(member.role)"
+                  >
+                    <span>{{ getRoleIcon(member.role) }}</span>
+                    <span>{{ getRoleLabel(member.role) }}</span>
+                  </span>
+                </td>
+
+                <!-- 4. 소속 부서 / 직급 -->
+                <td class="py-3.5 px-4">
+                  <div class="font-bold text-slate-800">
+                    {{ member.department || '소싱운영팀' }}
+                  </div>
+                  <div class="text-[11px] text-slate-500">
+                    {{ member.position || '담당 매니저' }}
+                  </div>
+                </td>
+
+                <!-- 5. 등록일시 -->
+                <td class="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
+                  {{ member.updated_at ? new Date(member.updated_at).toLocaleDateString('ko-KR') : '2026.08.01' }}
+                </td>
+
+                <!-- 6. 액션 버튼 -->
+                <td class="py-3.5 px-4 text-center">
+                  <div class="flex items-center justify-center gap-2">
+                    <button
+                      type="button"
+                      @click="openEditStaffModal(member)"
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] transition cursor-pointer"
+                    >
+                      권한 수정
+                    </button>
+                    <button
+                      type="button"
+                      @click="revokeStaffRole(member)"
+                      class="px-2.5 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-[11px] transition cursor-pointer"
+                      title="일반 회원으로 권한 회수"
+                    >
+                      권한 회수
+                    </button>
+                  </div>
+                </td>
+              </tr>
+
+              <!-- 빈 목록 -->
+              <tr v-if="filteredStaffList.length === 0">
+                <td colspan="6" class="py-10 text-center text-slate-400">
+                  검색 조건에 일치하는 운영진/직원 계정이 없습니다.
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- 신규 직원 승인 / 권한 수정 모달 -->
+    <!-- ======================================================== -->
+    <div
+      v-if="isStaffModalOpen"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-xs"
+      @click.self="closeStaffModal"
+    >
+      <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden space-y-4 p-6">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 class="font-black text-slate-900 text-base flex items-center gap-2">
+            <span>👥</span>
+            <span>{{ staffModalMode === 'add' ? '신규 운영진 권한 부여' : '직원 권한 및 부서 수정' }}</span>
+          </h3>
+          <button
+            type="button"
+            @click="closeStaffModal"
+            class="text-slate-400 hover:text-slate-600 font-bold text-lg"
+          >
+            ✕
+          </button>
+        </div>
+
+        <form @submit.prevent="submitStaffForm" class="space-y-3.5 text-xs">
+          <!-- 1. 직원 이메일 -->
+          <div class="space-y-1">
+            <label class="font-bold text-slate-700">직원 이메일 (계정 ID)</label>
+            <input
+              type="email"
+              v-model="staffForm.email"
+              required
+              :disabled="staffModalMode === 'edit'"
+              placeholder="예: staff@euccompany.com"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-mono focus:ring-2 focus:ring-blue-500 outline-none disabled:bg-slate-100"
+            />
+          </div>
+
+          <!-- 2. 직원 이름 -->
+          <div class="space-y-1">
+            <label class="font-bold text-slate-700">직원명 (성명)</label>
+            <input
+              type="text"
+              v-model="staffForm.name"
+              required
+              placeholder="예: 김소싱, 이물류"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+            />
+          </div>
+
+          <!-- 3. 권한 선택 -->
+          <div class="space-y-1">
+            <label class="font-bold text-slate-700">부여할 시스템 권한</label>
+            <select
+              v-model="staffForm.role"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
+            >
+              <option value="staff">운영스태프 (Staff: 주문/창고/CS 관리)</option>
+              <option value="admin">마스터관리자 (Admin: 전체 설정 및 권한 제어)</option>
+              <option value="user">일반회원 (User: 관리자 콘솔 차단)</option>
+            </select>
+          </div>
+
+          <!-- 4. 소속 부서 & 직급 -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="space-y-1">
+              <label class="font-bold text-slate-700">소속 부서</label>
+              <input
+                type="text"
+                v-model="staffForm.department"
+                placeholder="예: 소싱운영팀"
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+            <div class="space-y-1">
+              <label class="font-bold text-slate-700">직급</label>
+              <input
+                type="text"
+                v-model="staffForm.position"
+                placeholder="예: 팀장 / 매니저"
+                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
+              />
+            </div>
+          </div>
+
+          <!-- 버튼 -->
+          <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+            <button
+              type="button"
+              @click="closeStaffModal"
+              class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold hover:bg-slate-100 transition"
+            >
+              취소
+            </button>
+            <button
+              type="submit"
+              class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition shadow-xs active:scale-95"
+            >
+              {{ staffModalMode === 'add' ? '✓ 권한 승인/등록' : '✓ 수정사항 저장' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- 토스트 알림창 -->
     <Transition name="toast">
       <div
@@ -656,6 +958,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import {
   currentSettings,
   fetchSiteSettings,
@@ -664,10 +967,275 @@ import {
   isVideoMedia
 } from '@/lib/settings'
 
-const activeTab = ref('rate') // 'rate' | 'media'
+const activeTab = ref('rate') // 'rate' | 'media' | 'staff'
 
 const RATE_STORAGE_KEY = 'euchs_system_settings'
 const SERVICE_MEDIA_STORAGE_KEY = 'euchs_service_media'
+const STAFF_STORAGE_KEY = 'euchs_staff_members'
+
+// ----------------------------------------------------
+// [TAB 3] 운영진 / 직원 권한 관리 상태
+// ----------------------------------------------------
+const DEFAULT_STAFF_MEMBERS = [
+  {
+    id: 'staff_master_1',
+    email: 'admin@euccompany.com',
+    name: '총괄 관리자',
+    role: 'admin',
+    department: '경영총괄',
+    position: '대표 / 마스터',
+    updated_at: '2026-08-01T00:00:00.000Z'
+  },
+  {
+    id: 'staff_sourcing_1',
+    email: 'sourcing@euccompany.com',
+    name: '김소싱',
+    role: 'staff',
+    department: '소싱운영팀',
+    position: '팀장',
+    updated_at: '2026-08-10T09:00:00.000Z'
+  },
+  {
+    id: 'staff_logistics_1',
+    email: 'logistics@euccompany.com',
+    name: '이물류',
+    role: 'staff',
+    department: '무역물류팀',
+    position: '선임 매니저',
+    updated_at: '2026-08-12T14:30:00.000Z'
+  }
+]
+
+const staffList = ref([])
+const staffSearchQuery = ref('')
+const staffRoleFilter = ref('all')
+
+const isStaffModalOpen = ref(false)
+const staffModalMode = ref('add') // 'add' | 'edit'
+const staffForm = ref({
+  id: '',
+  email: '',
+  name: '',
+  role: 'staff',
+  department: '소싱운영팀',
+  position: '매니저'
+})
+
+const filteredStaffList = computed(() => {
+  return staffList.value.filter(m => {
+    // 1. 역할 필터
+    if (staffRoleFilter.value !== 'all') {
+      if (staffRoleFilter.value === 'admin') {
+        if (m.role !== 'admin' && m.role !== 'super_admin') return false
+      } else if (m.role !== staffRoleFilter.value) {
+        return false
+      }
+    }
+    // 2. 검색어 필터
+    const q = staffSearchQuery.value.toLowerCase().trim()
+    if (!q) return true
+    const name = (m.name || m.full_name || '').toLowerCase()
+    const email = (m.email || '').toLowerCase()
+    const dept = (m.department || '').toLowerCase()
+    const pos = (m.position || '').toLowerCase()
+    return name.includes(q) || email.includes(q) || dept.includes(q) || pos.includes(q)
+  })
+})
+
+function countByRole(roleName) {
+  return staffList.value.filter(m => {
+    if (roleName === 'admin') return m.role === 'admin' || m.role === 'super_admin'
+    return m.role === roleName
+  }).length
+}
+
+function getRoleLabel(role) {
+  if (role === 'admin' || role === 'super_admin') return '마스터관리자'
+  if (role === 'staff') return '운영스태프'
+  return '일반회원'
+}
+
+function getRoleIcon(role) {
+  if (role === 'admin' || role === 'super_admin') return '👑'
+  if (role === 'staff') return '🛡️'
+  return '👤'
+}
+
+function getRoleBadgeClass(role) {
+  if (role === 'admin' || role === 'super_admin') {
+    return 'bg-purple-50 text-purple-700 border-purple-200'
+  }
+  if (role === 'staff') {
+    return 'bg-blue-50 text-blue-700 border-blue-200'
+  }
+  return 'bg-slate-100 text-slate-600 border-slate-200'
+}
+
+function openAddStaffModal() {
+  staffModalMode.value = 'add'
+  staffForm.value = {
+    id: '',
+    email: '',
+    name: '',
+    role: 'staff',
+    department: '소싱운영팀',
+    position: '매니저'
+  }
+  isStaffModalOpen.value = true
+}
+
+function openEditStaffModal(member) {
+  staffModalMode.value = 'edit'
+  staffForm.value = {
+    id: member.id || '',
+    email: member.email || '',
+    name: member.name || member.full_name || '',
+    role: member.role || 'staff',
+    department: member.department || '소싱운영팀',
+    position: member.position || '매니저'
+  }
+  isStaffModalOpen.value = true
+}
+
+function closeStaffModal() {
+  isStaffModalOpen.value = false
+}
+
+async function loadStaffMembers() {
+  let loaded = []
+
+  // 1. Supabase profiles 테이블에서 관리자/직원 조회
+  try {
+    if (isSupabaseConfigured()) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .in('role', ['admin', 'super_admin', 'staff'])
+      
+      if (!error && Array.isArray(data) && data.length > 0) {
+        loaded = data.map(p => ({
+          id: p.id,
+          email: p.email,
+          name: p.full_name || p.name || p.company_name || p.email?.split('@')[0],
+          role: p.role,
+          department: p.department || '소싱운영팀',
+          position: p.position || (p.role === 'admin' ? '대표/관리자' : '매니저'),
+          updated_at: p.updated_at || p.created_at || new Date().toISOString()
+        }))
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load staff from Supabase profiles:', e)
+  }
+
+  // 2. 로컬 스토리지 보존 및 기본 직원 병합
+  try {
+    const raw = localStorage.getItem(STAFF_STORAGE_KEY)
+    const localList = raw ? JSON.parse(raw) : DEFAULT_STAFF_MEMBERS
+    if (Array.isArray(localList)) {
+      const map = new Map()
+      // 기본/로컬 먼저 세팅
+      localList.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
+      // DB 데이터 우선 덮어쓰기
+      loaded.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
+      staffList.value = Array.from(map.values())
+    } else {
+      staffList.value = loaded.length > 0 ? loaded : DEFAULT_STAFF_MEMBERS
+    }
+  } catch (e) {
+    staffList.value = loaded.length > 0 ? loaded : DEFAULT_STAFF_MEMBERS
+  }
+}
+
+async function submitStaffForm() {
+  const mail = staffForm.value.email.toLowerCase().trim()
+  if (!mail) return
+
+  const memberData = {
+    id: staffForm.value.id || `staff_${Date.now()}`,
+    email: mail,
+    name: staffForm.value.name.trim(),
+    role: staffForm.value.role,
+    department: staffForm.value.department.trim() || '소싱운영팀',
+    position: staffForm.value.position.trim() || '매니저',
+    updated_at: new Date().toISOString()
+  }
+
+  // 1. Supabase profiles & user_roles 테이블 실시간 업데이트
+  try {
+    if (isSupabaseConfigured()) {
+      // profiles 테이블 업데이트
+      const updatePayload = {
+        role: memberData.role,
+        department: memberData.department,
+        position: memberData.position,
+        full_name: memberData.name,
+        updated_at: memberData.updated_at
+      }
+
+      if (staffForm.value.id) {
+        await supabase.from('profiles').update(updatePayload).eq('id', staffForm.value.id)
+      } else {
+        await supabase.from('profiles').update(updatePayload).eq('email', mail)
+      }
+
+      // user_roles 테이블 upsert
+      try {
+        await supabase.from('user_roles').upsert({
+          email: mail,
+          role: memberData.role,
+          updated_at: memberData.updated_at
+        })
+      } catch (err) {}
+    }
+  } catch (e) {
+    console.warn('Failed to update staff in Supabase:', e)
+  }
+
+  // 2. 로컬 staffList 및 localStorage 동기화
+  const existIdx = staffList.value.findIndex(m => m.email.toLowerCase() === mail)
+  if (existIdx >= 0) {
+    staffList.value[existIdx] = { ...staffList.value[existIdx], ...memberData }
+  } else {
+    staffList.value.unshift(memberData)
+  }
+
+  localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffList.value))
+  window.dispatchEvent(new CustomEvent('euchs-staff-update', { detail: memberData }))
+  window.dispatchEvent(new Event('storage'))
+
+  closeStaffModal()
+  showToast('운영진 권한이 성공적으로 부여/수정되었습니다.')
+}
+
+async function revokeStaffRole(member) {
+  const memberName = member.name || member.email
+  if (!confirm(`[${memberName}] 님의 운영진 권한을 회수하고 일반 회원으로 전환하시겠습니까?`)) {
+    return
+  }
+
+  const mail = (member.email || '').toLowerCase().trim()
+
+  // 1. Supabase profiles 업데이트
+  try {
+    if (isSupabaseConfigured() && mail) {
+      await supabase.from('profiles').update({ role: 'user', updated_at: new Date().toISOString() }).eq('email', mail)
+      try {
+        await supabase.from('user_roles').delete().eq('email', mail)
+      } catch (err) {}
+    }
+  } catch (e) {
+    console.warn('Failed to revoke staff in Supabase:', e)
+  }
+
+  // 2. 로컬 리스트에서 제거 또는 role: 'user' 처리
+  staffList.value = staffList.value.filter(m => (m.email || '').toLowerCase() !== mail)
+  localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffList.value))
+  window.dispatchEvent(new CustomEvent('euchs-staff-update', { detail: { email: mail, role: 'user' } }))
+  window.dispatchEvent(new Event('storage'))
+
+  showToast('운영진 권한이 회수되어 일반 회원으로 전환되었습니다.')
+}
 
 // ----------------------------------------------------
 // [TAB 1] 환율 & 운영 수수료 상태
@@ -952,6 +1520,7 @@ function resetRateToDefault() {
 
 onMounted(() => {
   loadAllSettings()
+  loadStaffMembers()
 })
 </script>
 
