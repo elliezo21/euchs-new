@@ -1821,6 +1821,7 @@ onMounted(async () => {
       const dest = result?.returnUrl
       if (dest && dest !== '/mall' && dest !== '/' && !dest.startsWith('/?')) {
         router.replace(dest)
+        return
       } else {
         // /mall 또는 없으면 쿼리 파라미터(code, state)만 정리
         router.replace({ path: '/mall', query: {} })
@@ -1829,7 +1830,6 @@ onMounted(async () => {
       console.warn('[MallView] Naver callback error:', e)
       router.replace({ path: '/mall', query: {} })
     }
-    return
   }
   // ────────────────────────────────────────────────────────────────────────
 
