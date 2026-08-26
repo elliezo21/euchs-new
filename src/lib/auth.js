@@ -194,14 +194,16 @@ export const signInWithGoogle = async () => {
     return
   }
   try {
-    // 현재 위치 기억 (OAuth 콜백 복귀 후 사용)
+    // ✅ 현재 위치 기억 — OAuth 콜백 후 App.vue checkOAuthReturnUrl()이 복귀 처리
     const returnUrl = window.location.pathname + window.location.search
     localStorage.setItem('euchs_oauth_return_url', returnUrl)
 
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/mall`,
+        // Supabase Dashboard Redirect URLs에 반드시 등록된 URL 사용
+        // Site URL(루트)로 착지한 뒤 App.vue가 returnUrl로 자동 복귀
+        redirectTo: `${window.location.origin}/`,
         queryParams: {
           access_type: 'offline',
           prompt: 'select_account'
@@ -227,14 +229,15 @@ export const signInWithKakao = async () => {
       throw new Error('Supabase 연동 설정이 필요합니다.')
     }
 
-    // 현재 위치 기억 (OAuth 콜백 복귀 후 사용)
+    // ✅ 현재 위치 기억 — OAuth 콜백 후 App.vue checkOAuthReturnUrl()이 복귀 처리
     const returnUrl = window.location.pathname + window.location.search
     localStorage.setItem('euchs_oauth_return_url', returnUrl)
 
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'kakao',
       options: {
-        redirectTo: `${window.location.origin}/mall`
+        // Supabase Dashboard Redirect URLs에 반드시 등록된 URL 사용
+        redirectTo: `${window.location.origin}/`
       }
     })
 

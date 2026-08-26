@@ -101,7 +101,10 @@ const processCallback = async () => {
       status.value = 'success'
       userName.value = result.user?.user_metadata?.full_name || result.user?.email || '회원'
       setTimeout(() => {
-        router.replace('/')
+        // ✅ 원래 머물던 페이지로 복귀 (localStorage returnUrl 우선, 없으면 /mall)
+        const returnUrl = result.returnUrl
+        const dest = (returnUrl && returnUrl !== '/' && !returnUrl.startsWith('/?')) ? returnUrl : '/mall'
+        router.replace(dest)
       }, 1200)
     } else {
       status.value = 'error'
