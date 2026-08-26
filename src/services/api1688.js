@@ -118,6 +118,8 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
 
   // 2-1. Vercel Serverless / Vite Dev Server 프록시 우선 시도 (/api/deepl-translate)
   try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 8000) // 8초 타임아웃
     const proxyRes = await fetch('/api/deepl-translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -125,8 +127,10 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
         text: missingTexts,
         target_lang: targetLang,
         ...(sourceLang ? { source_lang: sourceLang } : {})
-      })
+      }),
+      signal: controller.signal
     })
+    clearTimeout(timeout)
 
     if (proxyRes.ok) {
       const result = await proxyRes.json()
@@ -147,6 +151,8 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
         ? 'https://api-free.deepl.com/v2/translate'
         : 'https://api.deepl.com/v2/translate'
 
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 8000) // 8초 타임아웃
       const directRes = await fetch(endpoint, {
         method: 'POST',
         headers: {
@@ -157,8 +163,10 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
           text: missingTexts,
           target_lang: targetLang,
           ...(sourceLang ? { source_lang: sourceLang } : {})
-        })
+        }),
+        signal: controller.signal
       })
+      clearTimeout(timeout)
 
       if (directRes.ok) {
         const data = await directRes.json()
@@ -260,22 +268,33 @@ export async function search1688(queryZh, page = 1, options = {}) {
       ...(price_max ? { price_max } : {})
     })
 
-    const proxyRes = await fetch(`/api/1688-search?${params.toString()}`)
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
+    clearTimeout(timeout)
+
     if (proxyRes.ok) {
       const result = await proxyRes.json()
       if (result.success && result.data) {
         data = result.data
-      } else if (result.status === 429 || result.data?.message?.includes('exceeded')) {
-        isApiError = true
+        console.log('[1688 Search] Proxy success:', Object.keys(result.data || {}).slice(0, 5))
+      } else if (result.status === 429 || String(result.data?.message || '').includes('exceeded')) {
+        isApiError = true // 쿼터 초과 시 Direct도 건너뜀
+        console.warn('[1688 Search] Proxy quota exceeded, falling to Mock')
+      } else {
+        console.warn('[1688 Search] Proxy returned success=false:', result)
+        // success=false이지만 쿼터 초과가 아니면 Direct API 시도
       }
     } else {
-      isApiError = true
+      const errBody = await proxyRes.json().catch(() => ({}))
+      console.warn(`[1688 Search] Proxy HTTP ${proxyRes.status}:`, errBody)
+      // non-200이어도 isApiError = true 설정하지 않음 → Direct API 폴백 허용
     }
   } catch (err) {
-    console.debug('[1688 Search] Proxy notice:', err.message)
+    console.debug('[1688 Search] Proxy notice:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
   }
 
-  // 3. Direct RapidAPI Fallback
+  // 3. Direct RapidAPI Fallback (프록시 실패 시, 쿼터 초과는 제외)
   if (!data && !isApiError && rapidKey) {
     try {
       const targetUrl = new URL(`https://${rapidHost}/item_search`)
@@ -285,22 +304,28 @@ export async function search1688(queryZh, page = 1, options = {}) {
       if (price_min) targetUrl.searchParams.set('price_min', price_min)
       if (price_max) targetUrl.searchParams.set('price_max', price_max)
 
+      console.log('[1688 Search] Direct RapidAPI:', targetUrl.toString())
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
       const directRes = await fetch(targetUrl.toString(), {
         headers: {
           'x-rapidapi-key': rapidKey,
           'x-rapidapi-host': rapidHost
-        }
+        },
+        signal: controller.signal
       })
+      clearTimeout(timeout)
 
       if (directRes.ok) {
         data = await directRes.json()
+        console.log('[1688 Search] Direct API success:', Object.keys(data || {}).slice(0, 5))
       } else {
         isApiError = true
         console.warn(`[1688 API] RapidAPI status: ${directRes.status} (Fallback to Mock)`)
       }
     } catch (err) {
       isApiError = true
-      console.warn('[1688 API] Direct search error:', err.message)
+      console.warn('[1688 API] Direct search error:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
     }
   }
 

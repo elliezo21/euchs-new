@@ -1646,19 +1646,26 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
   errorMessage.value = ''
   currentPage.value = page
 
+  // 30초 전체 타임아웃 래핑 (DeepL/RapidAPI 무한 대기 방지)
+  const searchTimeout = new Promise((_, reject) =>
+    setTimeout(() => reject(new Error('Search timeout after 30s')), 30000)
+  )
+
   try {
-    const result = await search1688WithTranslation(
-      rawInput,
-      page,
-      { sort: sortOrder.value }
-    )
+    const result = await Promise.race([
+      search1688WithTranslation(rawInput, page, { sort: sortOrder.value }),
+      searchTimeout
+    ])
 
     items.value = result.items || []
     lastQueryKo.value = result.queryKo || rawInput
     lastQueryZh.value = result.queryZh || ''
     hasSearched.value = true
   } catch (err) {
-    console.warn('[Mall1688] Search notice:', err)
+    console.warn('[Mall1688] Search notice:', err.message || err)
+    // 에러 시에도 hasSearched를 true로 설정해 빈 결과 UI 노출 (무한 스켈레톤 방지)
+    items.value = []
+    hasSearched.value = true
   } finally {
     isLoading.value = false
   }
