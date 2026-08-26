@@ -278,7 +278,10 @@
                     <span>🛒</span>
                     <span>장바구니</span>
                   </div>
-                  <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs">
+                  <span
+                    v-if="savedItems.length > 0"
+                    class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs"
+                  >
                     {{ savedItems.length }}
                   </span>
                 </router-link>
@@ -1018,7 +1021,8 @@ import {
   isUserBusinessVerified,
   isBusinessVerified,
   signOut,
-  openLoginModal
+  openLoginModal,
+  getCartStorageKey
 } from '../lib/auth'
 import {
   userBalance,
@@ -1171,20 +1175,29 @@ const syncBuyerForm = () => {
 watch(currentUser, () => {
   syncBuyerForm()
   loadBalance()
+  loadDashboardData()  // 계정 전환/로그아웃 시 장바구니 즉시 재로드
 }, { immediate: true })
+
 
 // ----------------------------------------------------
 // Load Data from LocalStorage & Supabase
 // ----------------------------------------------------
 const loadDashboardData = async () => {
   try {
-    // 1. 보관함 품목
-    const cachedCart = localStorage.getItem('euchs_erp_saved_items') || localStorage.getItem('euchs_1688_saved_items')
-    if (cachedCart) {
-      const parsed = JSON.parse(cachedCart)
-      savedItems.value = Array.isArray(parsed) ? parsed : []
-    } else {
+    // 1. 보관함 품목 — 사용자 격리 키 우선, 레거시 키 fallback
+    if (!isLoggedIn.value) {
       savedItems.value = []
+    } else {
+      const cartKey = getCartStorageKey()
+      const userCart = localStorage.getItem(cartKey)
+      const legacyCart = localStorage.getItem('euchs_erp_saved_items') || localStorage.getItem('euchs_1688_saved_items')
+      const cachedCart = userCart || legacyCart
+      if (cachedCart) {
+        const parsed = JSON.parse(cachedCart)
+        savedItems.value = Array.isArray(parsed) ? parsed : []
+      } else {
+        savedItems.value = []
+      }
     }
 
     // 2. 전역 일원화된 주문 데이터 조회 (LocalStorage + V01 샘플)

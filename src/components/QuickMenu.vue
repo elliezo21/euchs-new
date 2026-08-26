@@ -94,9 +94,12 @@
         >
           <i class="fas fa-shopping-bag"></i>
         </button>
-        <!-- 수량 알림 배지 (우측 상단) -->
-        <span class="absolute -top-1 -right-1 bg-white text-red-600 border border-red-500 text-[10px] sm:text-xs font-black rounded-full px-1.5 py-0.2 shadow min-w-[18px] text-center leading-tight pointer-events-none font-mono">
-          {{ savedCount || 0 }}
+        <!-- 수량 알림 배지 (비로그인이거나 0개면 숨김) -->
+        <span
+          v-if="isLoggedIn && savedCount > 0"
+          class="absolute -top-1 -right-1 bg-white text-red-600 border border-red-500 text-[10px] sm:text-xs font-black rounded-full px-1.5 py-0.2 shadow min-w-[18px] text-center leading-tight pointer-events-none font-mono"
+        >
+          {{ savedCount }}
         </span>
       </div>
 
@@ -165,15 +168,30 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { isLoggedIn, getCartStorageKey } from '../lib/auth'
 
 const isOpen = ref(false)
 const savedCount = ref(0)
 
 const updateSavedCount = () => {
+  // 비로그인 상태: 즉시 0 (뱃지 숨김)
+  if (!isLoggedIn.value) {
+    savedCount.value = 0
+    return
+  }
   try {
-    const cached = localStorage.getItem('euchs_erp_saved_items')
-    if (cached) {
-      const parsed = JSON.parse(cached)
+    // 사용자 격리 키 우선
+    const cartKey = getCartStorageKey()
+    const userCart = localStorage.getItem(cartKey)
+    if (userCart) {
+      const parsed = JSON.parse(userCart)
+      savedCount.value = Array.isArray(parsed) ? parsed.length : 0
+      return
+    }
+    // 레거시 키 fallback (마이그레이션 호환)
+    const legacy = localStorage.getItem('euchs_erp_saved_items')
+    if (legacy) {
+      const parsed = JSON.parse(legacy)
       savedCount.value = Array.isArray(parsed) ? parsed.length : 0
     } else {
       savedCount.value = 0
@@ -183,23 +201,31 @@ const updateSavedCount = () => {
   }
 }
 
+// euchs:cart-updated 이벤트 수신 (로그아웃 시 count:0 즉시 처리)
+const handleCartUpdated = (e) => {
+  if (e.detail?.count !== undefined) {
+    savedCount.value = isLoggedIn.value ? (Number(e.detail.count) || 0) : 0
+  } else {
+    updateSavedCount()
+  }
+}
+
+// euchs-auth-changed 이벤트 수신 (계정 전환/로그아웃 시 즉시 재계산)
+const handleAuthChanged = () => {
+  updateSavedCount()
+}
+
 // 최상단으로 부드럽게 스크롤
 const scrollToTop = () => {
   isOpen.value = false
-  window.scrollTo({
-    top: 0,
-    behavior: 'smooth'
-  })
+  window.scrollTo({ top: 0, behavior: 'smooth' })
 }
 
 // 최하단으로 부드럽게 스크롤
 const scrollToBottom = () => {
   isOpen.value = false
   window.scrollTo({
-    top: Math.max(
-      document.body.scrollHeight,
-      document.documentElement.scrollHeight
-    ),
+    top: Math.max(document.body.scrollHeight, document.documentElement.scrollHeight),
     behavior: 'smooth'
   })
 }
@@ -207,9 +233,13 @@ const scrollToBottom = () => {
 onMounted(() => {
   updateSavedCount()
   window.addEventListener('storage', updateSavedCount)
+  window.addEventListener('euchs:cart-updated', handleCartUpdated)
+  window.addEventListener('euchs-auth-changed', handleAuthChanged)
 })
 
 onUnmounted(() => {
   window.removeEventListener('storage', updateSavedCount)
+  window.removeEventListener('euchs:cart-updated', handleCartUpdated)
+  window.removeEventListener('euchs-auth-changed', handleAuthChanged)
 })
 </script>
