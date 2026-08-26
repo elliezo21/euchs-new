@@ -5,7 +5,7 @@
  * Supabase 연결 불가 시 localStorage 값을 폴백으로 사용합니다.
  */
 import { ref } from 'vue';
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, isValidUUID } from './supabase';
 import { currentUser } from './auth';
 
 const STORAGE_KEY = 'euchs_user_balance';
@@ -49,25 +49,37 @@ function _saveToStorage(balance) {
 
 /**
  * Supabase profiles.balance 조회 → 실패 시 localStorage 폴백
+ * - user.id가 UUID가 아닐 경우 email로 안전 조회
  */
 export async function loadBalance() {
   isBalanceLoading.value = true;
   try {
-    if (isSupabaseConfigured() && currentUser.value?.id && currentUser.value.id !== 'demo-buyer-01') {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('id', currentUser.value.id)
-        .maybeSingle();
+    const user = currentUser.value;
+    if (isSupabaseConfigured() && user && user.id !== 'demo-buyer-01') {
+      let query = supabase.from('profiles').select('balance');
+      const isUUID = isValidUUID(user.id);
+      const userMail = user.email ? String(user.email).trim() : '';
 
-      if (!error && data?.balance !== undefined && data.balance !== null) {
-        userBalance.value = Number(data.balance);
-        _saveToStorage(userBalance.value);
-        return userBalance.value;
+      if (isUUID) {
+        query = query.eq('id', user.id);
+      } else if (userMail) {
+        query = query.eq('email', userMail);
+      } else {
+        query = null;
+      }
+
+      if (query) {
+        const { data, error } = await query.maybeSingle();
+
+        if (!error && data?.balance !== undefined && data.balance !== null) {
+          userBalance.value = Number(data.balance);
+          _saveToStorage(userBalance.value);
+          return userBalance.value;
+        }
       }
     }
   } catch (e) {
-    console.warn('[balanceStore] Supabase 잔액 조회 실패, localStorage 폴백 사용:', e);
+    console.debug('[balanceStore] Supabase 잔액 조회 notice:', e);
   } finally {
     isBalanceLoading.value = false;
   }
@@ -115,23 +127,43 @@ export async function applyBalanceTransaction(amount, txInfo = {}) {
   } catch (e) {}
 
   // 3. Supabase DB 영구 동기화 (profiles.balance + transactions.insert)
-  if (isSupabaseConfigured() && currentUser.value?.id && currentUser.value.id !== 'demo-buyer-01') {
+  const user = currentUser.value;
+  if (isSupabaseConfigured() && user && user.id !== 'demo-buyer-01') {
     try {
+      const isUUID = isValidUUID(user.id);
+      const userMail = user.email ? String(user.email).trim() : '';
+
       // 3-1. profiles 테이블 balance 업데이트
-      await supabase
+      let updateQuery = supabase
         .from('profiles')
         .update({
           balance: nextBalance,
           updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.value.id);
+        });
 
-      // 3-2. transactions 테이블 insert
+      if (isUUID) {
+        updateQuery = updateQuery.eq('id', user.id);
+      } else if (userMail) {
+        updateQuery = updateQuery.eq('email', userMail);
+      } else {
+        updateQuery = null;
+      }
+
+      if (updateQuery) {
+        await updateQuery;
+      }
+
+      // 3-2. transactions 테이블 insert (user_id는 UUID일 때만 넣고, 아닐 경우 null로 400 에러 방어)
+      const dbTxRecord = {
+        ...transactionRecord,
+        user_id: isUUID ? user.id : null
+      };
+
       await supabase
         .from('transactions')
-        .insert(transactionRecord);
+        .insert(dbTxRecord);
     } catch (err) {
-      console.warn('[balanceStore] Supabase DB 트랜잭션 저장 notice:', err);
+      console.debug('[balanceStore] Supabase DB 트랜잭션 저장 notice:', err);
     }
   }
 
@@ -162,13 +194,28 @@ export function setBalance(balance) {
   userBalance.value = Number(balance);
   _saveToStorage(userBalance.value);
   
-  if (isSupabaseConfigured() && currentUser.value?.id && currentUser.value.id !== 'demo-buyer-01') {
-    supabase
+  const user = currentUser.value;
+  if (isSupabaseConfigured() && user && user.id !== 'demo-buyer-01') {
+    const isUUID = isValidUUID(user.id);
+    const userMail = user.email ? String(user.email).trim() : '';
+
+    let updateQuery = supabase
       .from('profiles')
-      .update({ balance: userBalance.value, updated_at: new Date().toISOString() })
-      .eq('id', currentUser.value.id)
-      .then(() => {})
-      .catch(err => console.warn('setBalance Supabase sync notice:', err));
+      .update({ balance: userBalance.value, updated_at: new Date().toISOString() });
+
+    if (isUUID) {
+      updateQuery = updateQuery.eq('id', user.id);
+    } else if (userMail) {
+      updateQuery = updateQuery.eq('email', userMail);
+    } else {
+      updateQuery = null;
+    }
+
+    if (updateQuery) {
+      updateQuery
+        .then(() => {})
+        .catch(err => console.debug('setBalance Supabase sync notice:', err));
+    }
   }
 }
 

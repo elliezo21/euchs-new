@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { supabase, isSupabaseConfigured } from './supabase'
+import { supabase, isSupabaseConfigured, isValidUUID } from './supabase'
 
 export const currentUser = ref(null)
 export const currentUserProfile = ref(null) // Supabase profiles 테이블 데이터 (balance, company_name, pccc 등)
@@ -54,32 +54,49 @@ export const checkUserRole = async (user) => {
   // 1. Supabase user_roles 및 profiles 테이블 DB 실시간 조회
   try {
     if (isSupabaseConfigured()) {
-      // 1-1. user_roles 테이블 우선 조회
-      const { data: roleData, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .or(`user_id.eq.${user.id},email.eq.${user.email}`)
-        .maybeSingle()
+      const isUUID = isValidUUID(user.id)
+      const userMail = user.email ? String(user.email).trim() : ''
 
-      if (!roleError && roleData?.role && ['super_admin', 'staff', 'admin'].includes(roleData.role)) {
-        userRole.value = roleData.role === 'admin' ? 'super_admin' : roleData.role
-        return userRole.value
+      // 1-1. user_roles 테이블 우선 조회
+      let roleQuery = supabase.from('user_roles').select('role')
+      if (isUUID && userMail) {
+        roleQuery = roleQuery.or(`user_id.eq.${user.id},email.eq.${userMail}`)
+      } else if (isUUID) {
+        roleQuery = roleQuery.eq('user_id', user.id)
+      } else if (userMail) {
+        roleQuery = roleQuery.eq('email', userMail)
+      } else {
+        roleQuery = null
       }
 
-      // 1-2. profiles 테이블 조회
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle()
+      if (roleQuery) {
+        const { data: roleData, error: roleError } = await roleQuery.maybeSingle()
+        if (!roleError && roleData?.role && ['super_admin', 'staff', 'admin'].includes(roleData.role)) {
+          userRole.value = roleData.role === 'admin' ? 'super_admin' : roleData.role
+          return userRole.value
+        }
+      }
 
-      if (!profileError && profileData?.role && ['super_admin', 'staff', 'admin'].includes(profileData.role)) {
-        userRole.value = profileData.role === 'admin' ? 'super_admin' : profileData.role
-        return userRole.value
+      // 1-2. profiles 테이블 조회 (id가 UUID가 아니면 email로 안전 조회)
+      let profileQuery = supabase.from('profiles').select('role')
+      if (isUUID) {
+        profileQuery = profileQuery.eq('id', user.id)
+      } else if (userMail) {
+        profileQuery = profileQuery.eq('email', userMail)
+      } else {
+        profileQuery = null
+      }
+
+      if (profileQuery) {
+        const { data: profileData, error: profileError } = await profileQuery.maybeSingle()
+        if (!profileError && profileData?.role && ['super_admin', 'staff', 'admin'].includes(profileData.role)) {
+          userRole.value = profileData.role === 'admin' ? 'super_admin' : profileData.role
+          return userRole.value
+        }
       }
     }
   } catch (err) {
-    console.warn('roles / profiles DB lookup notice:', err)
+    console.debug('roles / profiles DB lookup notice:', err)
   }
 
   // 2. Auth metadata (app_metadata 또는 user_metadata) 확인
@@ -608,34 +625,43 @@ export const updateBusinessProfile = async (businessData) => {
   }
 
   // 3. Supabase Auth 사용자 메타데이터 및 profiles 테이블 DB 업데이트
-  if (isSupabaseConfigured() && currentUser.value.id) {
+  if (isSupabaseConfigured() && currentUser.value) {
     try {
-      await supabase.auth.updateUser({
-        data: payload
-      })
-
-      const profilePayload = {
-        id: currentUser.value.id,
-        email: currentUser.value.email || '',
-        name: name,
-        company_name: companyName,
-        representative_name: name,
-        business_number: cleanBizNumber,
-        pccc: cleanPccc,
-        address: address,
-        phone: phone,
-        tier: currentUserProfile.value?.tier || 'general',
-        is_business_verified: false,
-        verification_status: 'pending',
-        updated_at: new Date().toISOString()
+      const isUUID = isValidUUID(currentUser.value.id)
+      if (isUUID) {
+        await supabase.auth.updateUser({
+          data: payload
+        })
       }
 
-      const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
-      if (!error && data) {
-        currentUserProfile.value = { ...(currentUserProfile.value || {}), ...data }
+      const existing = await fetchUserProfile(currentUser.value)
+      const isTargetUUID = isUUID || isValidUUID(existing?.id)
+
+      if (isTargetUUID) {
+        const profileId = isUUID ? currentUser.value.id : existing.id
+        const profilePayload = {
+          id: profileId,
+          email: currentUser.value.email || '',
+          name: name,
+          company_name: companyName,
+          representative_name: name,
+          business_number: cleanBizNumber,
+          pccc: cleanPccc,
+          address: address,
+          phone: phone,
+          tier: currentUserProfile.value?.tier || 'general',
+          is_business_verified: false,
+          verification_status: 'pending',
+          updated_at: new Date().toISOString()
+        }
+
+        const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
+        if (!error && data) {
+          currentUserProfile.value = { ...(currentUserProfile.value || {}), ...data }
+        }
       }
     } catch (err) {
-      console.warn('Supabase updateUser business metadata notice:', err)
+      console.debug('Supabase updateUser business metadata notice:', err)
     }
   }
 
@@ -747,25 +773,35 @@ export const signOut = async () => {
 
 /**
  * 사용자 프로필 DB (public.profiles) 실시간 조회
+ * - userId가 UUID가 아닌 경우(예: kakao_xxx, naver_xxx) email 기반으로 안전 조회
  */
-export const fetchUserProfile = async (userId) => {
-  if (!userId || !isSupabaseConfigured() || userId === 'demo-buyer-01') return null
+export const fetchUserProfile = async (userIdOrUser) => {
+  if (!userIdOrUser || !isSupabaseConfigured()) return null
+  const userId = typeof userIdOrUser === 'string' ? userIdOrUser : userIdOrUser?.id
+  const userEmail = typeof userIdOrUser === 'object' ? userIdOrUser?.email : currentUser.value?.email
+  if (userId === 'demo-buyer-01') return null
+
   try {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .maybeSingle()
+    let query = supabase.from('profiles').select('*')
+    if (isValidUUID(userId)) {
+      query = query.eq('id', userId)
+    } else if (userEmail) {
+      query = query.eq('email', userEmail)
+    } else {
+      return null
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (!error && data) {
       currentUserProfile.value = data
       try {
-        localStorage.setItem(`euchs_profile_${userId}`, JSON.stringify(data))
+        if (userId) localStorage.setItem(`euchs_profile_${userId}`, JSON.stringify(data))
       } catch (e) {}
       return data
     }
   } catch (err) {
-    console.warn('Profile fetch notice:', err)
+    console.debug('Profile fetch notice:', err)
   }
   return null
 }
@@ -778,10 +814,20 @@ export const syncUserProfile = async (user) => {
   try {
     const meta = user.user_metadata || {}
     const biz = getUserBusinessInfo(user) || {}
-    const existing = await fetchUserProfile(user.id)
+    const existing = await fetchUserProfile(user)
+
+    const isTargetUUID = isValidUUID(user.id) || isValidUUID(existing?.id)
+    if (!isTargetUUID) {
+      if (existing) {
+        currentUserProfile.value = existing
+      }
+      return
+    }
+
+    const profileId = isValidUUID(user.id) ? user.id : existing.id
 
     const profilePayload = {
-      id: user.id,
+      id: profileId,
       email: user.email || '',
       name: meta.full_name || meta.name || user.email?.split('@')[0] || '사용자',
       company_name: biz.company_name || existing?.company_name || '',
@@ -801,7 +847,7 @@ export const syncUserProfile = async (user) => {
       currentUserProfile.value = data
     }
   } catch (err) {
-    console.warn('Profile sync notice:', err)
+    console.debug('Profile sync notice:', err)
   }
 }
 

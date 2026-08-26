@@ -1442,9 +1442,22 @@ const updateSavedCount = () => {
 // ----------------------------------------------------
 // LNB Sidebar: Profile & Accordion Menu State
 // ----------------------------------------------------
+const getLocalSavedUser = () => {
+  try {
+    const raw = localStorage.getItem('euchs_auth_user')
+    return raw ? JSON.parse(raw) : null
+  } catch (e) {
+    return null
+  }
+}
+
 const displayBuyerName = computed(() => {
   if (isLoggedIn.value) {
     return userDisplayName.value || '회원'
+  }
+  const local = getLocalSavedUser()
+  if (local) {
+    return local.user_metadata?.full_name || local.user_metadata?.name || local.name || local.email?.split('@')[0] || '회원'
   }
   return ''
 })
@@ -1453,14 +1466,20 @@ const displayBuyerEmail = computed(() => {
   if (isLoggedIn.value) {
     return userEmail.value || ''
   }
-  return ''
+  const local = getLocalSavedUser()
+  return local?.email || ''
 })
 
 const displayCompanyName = computed(() => {
-  if (!isLoggedIn.value) return ''
-  const biz = getUserBusinessInfo(currentUser.value)
+  if (!isLoggedIn.value) {
+    const local = getLocalSavedUser()
+    if (!local) return ''
+  }
+  const user = currentUser.value || getLocalSavedUser()
+  const biz = getUserBusinessInfo(user)
   if (biz?.company_name) return biz.company_name
-  if (userDisplayName.value) return `${userDisplayName.value} 바이어`
+  const name = userDisplayName.value || user?.name || user?.user_metadata?.full_name
+  if (name) return `${name} 바이어`
   return '바이어 회원'
 })
 
@@ -1833,15 +1852,23 @@ onMounted(async () => {
   }
   // ────────────────────────────────────────────────────────────────────────
 
+  const safeLoadBalance = () => {
+    try {
+      loadBalance().catch(err => console.debug('[MallView] safeLoadBalance notice:', err))
+    } catch (err) {
+      console.debug('[MallView] safeLoadBalance notice:', err)
+    }
+  }
+
   await loadRates()
-  loadBalance()
+  safeLoadBalance()
   loadMallNotices()
   updateSavedCount()
   handleIncomingQuery()
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
-  window.addEventListener('euchs-auth-changed', loadBalance)
+  window.addEventListener('euchs-auth-changed', safeLoadBalance)
   window.addEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.addEventListener('euchs-notice-update', loadMallNotices)
   window.addEventListener('storage', loadMallNotices)
@@ -1852,7 +1879,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
-  window.removeEventListener('euchs-auth-changed', loadBalance)
+  window.removeEventListener('euchs-auth-changed', safeLoadBalance)
   window.removeEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.removeEventListener('euchs-notice-update', loadMallNotices)
   window.removeEventListener('storage', loadMallNotices)

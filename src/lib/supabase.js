@@ -27,6 +27,16 @@ export const isSupabaseConfigured = () => {
   )
 }
 
+/**
+ * 문자열이 유효한 UUID 형식인지 검증하는 헬퍼 함수
+ * Supabase의 UUID 컬럼(id, user_id 등)에 non-UUID(예: kakao_xxx, naver_xxx) 쿼리 시 400 Bad Request 방어
+ */
+export const isValidUUID = (str) => {
+  if (!str || typeof str !== 'string') return false
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+  return uuidRegex.test(str.trim())
+}
+
 // Supabase Client Export (항상 cache: 'no-store' 및 no-cache 헤더로 실시간 최신 데이터 동기화)
 export const supabase = createClient(
   supabaseUrl,
