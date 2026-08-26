@@ -972,17 +972,19 @@ const handleSelectColor = (color) => {
     activeImage.value = color.imageUrl
   }
 
-  // 1. 단일 옵션 상품일 경우: 1차 선택 즉시 품목 리스트에 등록 (토스트 알림 없음)
+  // 1. 단일 옵션 상품일 경우: 1차 선택 즉시 품목 리스트에 등록
   if (!hasMultipleOptions.value) {
-    const colorName = color.name
+    const colorName = String(color.name || '').trim()
     const existing = selectedSkus.value.find(s => s.color === colorName)
     if (existing) {
-      existing.quantity += 1
+      // 이미 존재하면 해당 행의 quantity만 +1 (다른 행에 절대 간섭 없음)
+      existing.quantity = (Number(existing.quantity) || 1) + 1
     } else {
+      // 신규 행 추가 — 초기 수량은 항상 1 (minOrder는 최소발주단위일 뿐 수량 기본값이 아님)
       selectedSkus.value.push({
         color: colorName,
         size: '',
-        quantity: minOrder.value || 1
+        quantity: 1
       })
     }
   } else {
@@ -999,26 +1001,31 @@ const handleSelectSize = (size) => {
   }
 
   selectedSize.value = size
-  const colorName = selectedColor.value.name
-  const sizeName = size
+  const colorName = String(selectedColor.value.name || '').trim()
+  const sizeName = String(size || '').trim()
 
-  // 1차와 2차가 모두 선택 완료된 시점에 품목 리스트에 조용히 추가 (토스트 알림 없음)
+  // 1차와 2차가 모두 선택 완료된 시점에 품목 리스트에 추가
   const existing = selectedSkus.value.find(s => s.color === colorName && s.size === sizeName)
   if (existing) {
-    existing.quantity += 1
+    // 이미 존재하면 해당 행의 quantity만 +1 (다른 행에 절대 간섭 없음)
+    existing.quantity = (Number(existing.quantity) || 1) + 1
   } else {
+    // 신규 행 추가 — 초기 수량은 항상 1 (minOrder 절대 사용하지 않음)
     selectedSkus.value.push({
       color: colorName,
       size: sizeName,
-      quantity: minOrder.value || 1
+      quantity: 1
     })
   }
 }
 
+// 개별 SKU 행 수량 조절 — 오직 idx번째 행의 quantity만 독립 변경
 const updateSkuQty = (idx, delta) => {
-  if (selectedSkus.value[idx]) {
-    selectedSkus.value[idx].quantity = Math.max(1, selectedSkus.value[idx].quantity + delta)
-  }
+  const sku = selectedSkus.value[idx]
+  if (!sku) return
+  const current = Number(sku.quantity) || 1
+  // 반드시 해당 행 객체의 quantity만 수정 (다른 인덱스 행 절대 건드리지 않음)
+  selectedSkus.value[idx] = { ...sku, quantity: Math.max(1, current + delta) }
 }
 
 const removeSku = (idx) => {
@@ -1185,7 +1192,7 @@ const loadFullProductData = async (item) => {
           selectedSkus.value = [{
             color: selectedColor.value.name,
             size: '',
-            quantity: Number(currentItem.value.minOrder) || 1
+            quantity: 1  // 초기 수량은 항상 1 (minOrder는 최소발주단위 참고용)
           }]
         }
       }
@@ -1223,7 +1230,7 @@ const selectAnotherProduct = (newProduct) => {
       {
         color: selectedColor.value.name,
         size: '',
-        quantity: Number(newProduct.minOrder) || 1
+        quantity: 1  // 초기 수량은 항상 1
       }
     ]
   }

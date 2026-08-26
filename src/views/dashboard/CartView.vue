@@ -593,7 +593,8 @@ const loadCartItems = () => {
             titleZh: it.titleZh || '',
             imageUrl: it.imageUrl || it.thumbnail,
             priceCny: Number(it.priceCny || it.price || 15),
-            quantity: Math.max(1, Number(it.quantity || it.minOrder || 1)),
+            // ── 수량: 저장된 quantity만 정확히 읽기 (minOrder 폴백 절대 금지 — 뻥튀기 방지) ──
+            quantity: Math.max(1, parseInt(it.quantity, 10) || 1),
             // ── 옵션 독립 필드 (SKU별 1:1 바인딩, 절대 덮어씌우지 않음) ──
             color: colorStr,
             size: sizeStr,
