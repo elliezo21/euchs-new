@@ -168,36 +168,20 @@
                 </span>
               </div>
 
-              <!-- 3-Tier Grid -->
-              <div class="grid grid-cols-3 gap-3 pt-1">
-                <!-- Tier 1 -->
+              <!-- Dynamic Tier Grid -->
+              <div 
+                class="grid gap-3 pt-1"
+                :class="displayedPriceTiers.length === 2 ? 'grid-cols-2' : (displayedPriceTiers.length === 1 ? 'grid-cols-1' : 'grid-cols-3')"
+              >
                 <div 
+                  v-for="(tier, tIdx) in displayedPriceTiers"
+                  :key="tIdx"
                   class="bg-white rounded-2xl p-3 text-center border transition shadow-sm"
-                  :class="totalQuantity >= tier1Min && totalQuantity < tier2Min ? 'border-rose-500 ring-2 ring-rose-300 bg-rose-50/20' : 'border-rose-100'"
+                  :class="currentUnitRmb === tier.price ? 'border-rose-500 ring-2 ring-rose-300 bg-rose-50/20' : 'border-rose-100'"
                 >
-                  <div class="text-xs text-gray-500 font-medium">{{ tier1Min }}~{{ tier2Min - 1 }}개</div>
-                  <div class="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">¥ {{ tier1Price.toFixed(2) }}</div>
-                  <div class="text-[11px] text-gray-400 font-mono">약 ₩{{ formatKrw(tier1Price * exchangeRate) }}</div>
-                </div>
-
-                <!-- Tier 2 -->
-                <div 
-                  class="bg-white rounded-2xl p-3 text-center border transition shadow-sm"
-                  :class="totalQuantity >= tier2Min && totalQuantity < tier3Min ? 'border-rose-500 ring-2 ring-rose-300 bg-rose-50/20' : 'border-rose-100'"
-                >
-                  <div class="text-xs text-gray-500 font-medium">{{ tier2Min }}~{{ tier3Min - 1 }}개</div>
-                  <div class="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">¥ {{ tier2Price.toFixed(2) }}</div>
-                  <div class="text-[11px] text-gray-400 font-mono">약 ₩{{ formatKrw(tier2Price * exchangeRate) }}</div>
-                </div>
-
-                <!-- Tier 3 -->
-                <div 
-                  class="bg-white rounded-2xl p-3 text-center border transition shadow-sm"
-                  :class="totalQuantity >= tier3Min ? 'border-rose-500 ring-2 ring-rose-300 bg-rose-50/20' : 'border-rose-100'"
-                >
-                  <div class="text-xs text-gray-500 font-medium">{{ tier3Min }}개 이상</div>
-                  <div class="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">¥ {{ tier3Price.toFixed(2) }}</div>
-                  <div class="text-[11px] text-gray-400 font-mono">약 ₩{{ formatKrw(tier3Price * exchangeRate) }}</div>
+                  <div class="text-xs text-gray-500 font-medium">{{ tier.label }}</div>
+                  <div class="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">¥ {{ tier.priceFormatted }}</div>
+                  <div class="text-[11px] text-gray-400 font-mono">약 ₩{{ formatKrw(tier.priceKrw) }}</div>
                 </div>
               </div>
             </div>
@@ -540,25 +524,92 @@ const sellerProducts = ref([])
 const isLoadingSellerProducts = ref(false)
 
 // ----------------------------------------------------
-// Price Tiers (1688 수량별 단가 시뮬레이션)
+// Price Tiers (수량별 실시간 도매 단가표 계산)
 // ----------------------------------------------------
-const basePrice = computed(() => Number(currentItem.value?.price) || 20)
-const minOrder = computed(() => Number(currentItem.value?.minOrder) || 1)
+const basePrice = computed(() => {
+  const item = currentItem.value || props.product
+  const p = Number(item?.price || item?.raw?.price || props.product?.price || props.product?.raw?.price)
+  return (!isNaN(p) && p > 0) ? p : 0
+})
 
-const tier1Min = computed(() => minOrder.value)
-const tier2Min = computed(() => Math.max(10, minOrder.value * 5))
-const tier3Min = computed(() => Math.max(50, minOrder.value * 25))
+const minOrder = computed(() => {
+  const item = currentItem.value || props.product
+  const mo = parseInt(item?.minOrder || item?.raw?.minOrder || props.product?.minOrder || props.product?.raw?.minOrder || '1', 10)
+  return (!isNaN(mo) && mo > 0) ? mo : 1
+})
 
-const tier1Price = computed(() => basePrice.value)
-const tier2Price = computed(() => Number((basePrice.value * 0.92).toFixed(2)))
-const tier3Price = computed(() => Number((basePrice.value * 0.85).toFixed(2)))
+const displayedPriceTiers = computed(() => {
+  const item = currentItem.value || props.product
+  const p = basePrice.value
+  const mo = minOrder.value
 
-// 총 수량에 따른 단가 결정
+  // 1. item.priceTiers 가 정의된 경우
+  if (Array.isArray(item?.priceTiers) && item.priceTiers.length > 0) {
+    return item.priceTiers.map((tier) => {
+      const minQ = Number(tier.minQuantity || tier.min || tier.beginAmount || 1)
+      const maxQ = tier.maxQuantity || tier.max || tier.endAmount ? Number(tier.maxQuantity || tier.max || tier.endAmount) : null
+      const price = parseFloat(tier.price || tier.unitPrice || p) || p
+      return {
+        minQuantity: minQ,
+        maxQuantity: maxQ,
+        label: maxQ ? `${minQ}~${maxQ}개` : `${minQ}개 이상`,
+        price: Number(price.toFixed(2)),
+        priceFormatted: price.toFixed(2),
+        priceKrw: Math.round(price * props.exchangeRate)
+      }
+    })
+  }
+
+  // 2. 기본 3단계 수량 할인 티어 (상품 고유 basePrice 기준 동적 계산)
+  const t1Min = mo
+  const t2Min = Math.max(10, mo * 5)
+  const t3Min = Math.max(50, mo * 25)
+
+  const t1Price = Number(p.toFixed(2))
+  const t2Price = Number((p * 0.92).toFixed(2))
+  const t3Price = Number((p * 0.85).toFixed(2))
+
+  return [
+    {
+      minQuantity: t1Min,
+      maxQuantity: t2Min - 1,
+      label: `${t1Min}~${t2Min - 1}개`,
+      price: t1Price,
+      priceFormatted: t1Price.toFixed(2),
+      priceKrw: Math.round(t1Price * props.exchangeRate)
+    },
+    {
+      minQuantity: t2Min,
+      maxQuantity: t3Min - 1,
+      label: `${t2Min}~${t3Min - 1}개`,
+      price: t2Price,
+      priceFormatted: t2Price.toFixed(2),
+      priceKrw: Math.round(t2Price * props.exchangeRate)
+    },
+    {
+      minQuantity: t3Min,
+      maxQuantity: null,
+      label: `${t3Min}개 이상`,
+      price: t3Price,
+      priceFormatted: t3Price.toFixed(2),
+      priceKrw: Math.round(t3Price * props.exchangeRate)
+    }
+  ]
+})
+
+// 총 수량에 따른 현재 적용 단가 결정 (CN인사이더 스타일)
 const currentUnitRmb = computed(() => {
   const q = totalQuantity.value
-  if (q >= tier3Min.value) return tier3Price.value
-  if (q >= tier2Min.value) return tier2Price.value
-  return tier1Price.value
+  const tiers = displayedPriceTiers.value
+  if (!tiers || tiers.length === 0) return basePrice.value
+
+  for (let i = tiers.length - 1; i >= 0; i--) {
+    if (q >= tiers[i].minQuantity) {
+      return tiers[i].price
+    }
+  }
+
+  return tiers[0]?.price || basePrice.value
 })
 
 // ----------------------------------------------------
@@ -895,12 +946,24 @@ const loadFullProductData = async (item) => {
   try {
     const full = await fetch1688ProductById(item.id)
     if (full && currentItem.value && String(currentItem.value.id) === String(item.id)) {
-      const mergedSkuProps = (full.skuProps && full.skuProps.length > 0) ? full.skuProps : (currentItem.value.skuProps || [])
-      const mergedSkus = (full.skus && full.skus.length > 0) ? full.skus : (currentItem.value.skus || [])
+      // 1. 가격 보존 가드: full.price가 유효(> 0)할 때만 적용, 아니면 기존 item/props.product 가격 보존
+      const rawPrice = (typeof full.price === 'number' && full.price > 0)
+        ? full.price
+        : (Number(currentItem.value.price || item.price || props.product?.price) || 0)
+
+      const mergedSkuProps = (Array.isArray(full.skuProps) && full.skuProps.length > 0)
+        ? full.skuProps
+        : (currentItem.value.skuProps || item.skuProps || props.product?.skuProps || [])
+
+      const mergedSkus = (Array.isArray(full.skus) && full.skus.length > 0)
+        ? full.skus
+        : (currentItem.value.skus || item.skus || props.product?.skus || [])
 
       currentItem.value = {
         ...currentItem.value,
         ...full,
+        price: rawPrice,
+        priceFormatted: rawPrice > 0 ? rawPrice.toFixed(2) : (currentItem.value.priceFormatted || '0.00'),
         skuProps: mergedSkuProps,
         skus: mergedSkus
       }
