@@ -241,37 +241,26 @@
 
         </div>
 
-        <!-- 4. 서브 바: 퀵 카테고리 탭 & 이용가이드 -->
-        <div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 text-xs">
+        <!-- 4. 서브 바: 퀵 카테고리 탭 (화면 정중앙 배치) -->
+        <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-center text-xs">
           <!-- 퀵 카테고리 탭 -->
-          <div class="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
+          <div class="flex items-center justify-center gap-1.5 overflow-x-auto no-scrollbar py-0.5 max-w-full">
             <button
               v-for="qt in quickTabs"
               :key="qt.id"
               type="button"
               @click.stop="selectQuickTab(qt)"
               :class="[
-                'shrink-0 flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none',
+                'shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none cursor-pointer',
                 selectedCategoryId === qt.id
                   ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
-                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-transparent'
               ]"
             >
               <span>{{ qt.emoji }}</span>
               <span>{{ qt.label }}</span>
             </button>
           </div>
-
-          <!-- 📖 이용가이드 버튼 -->
-          <router-link
-            to="/support/guide"
-            class="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all active:scale-95 border border-slate-700 whitespace-nowrap ml-auto"
-            title="이유씨 B2B 시스템 통합 이용가이드 확인"
-          >
-            <i class="fas fa-book-open text-[11px] text-orange-400"></i>
-            <span>이용가이드</span>
-            <i class="fas fa-arrow-right text-[9px] text-slate-400 ml-0.5"></i>
-          </router-link>
         </div>
 
       </div>
