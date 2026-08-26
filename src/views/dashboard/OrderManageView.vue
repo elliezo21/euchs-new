@@ -528,39 +528,38 @@
                 <span>1. 기본 발주 & 수입 통관/배송 설정</span>
               </h4>
               <span
-                class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border"
-                :class="isOrderEditable ? 'bg-blue-50 text-blue-700 border-blue-200' : 'bg-slate-100 text-slate-700 border-slate-300'"
+                class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-blue-50 text-blue-700 border-blue-200"
               >
-                {{ isOrderEditable ? '수정 가능 (견적 심사 대기)' : '설정 확정 완료 (Readonly)' }}
+                {{ normalizeOrderStatus(activeOrder.status) === 'quote_pending' ? '설정 완료 (견적 심사중)' : '설정 확정 완료 (Readonly)' }}
               </span>
             </div>
 
-            <!-- 1-A. 편집 모드 (isOrderEditable) : 인터랙티브 토글 버튼 -->
-            <div v-if="isOrderEditable" class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- 통관방식 선택 토글 -->
+            <!-- 통관 및 배송 방식 고정 노출 (Readonly / Disabled) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <!-- 통관방식 선택 잠금 토글 -->
               <div class="space-y-1.5">
                 <label class="block text-xs font-bold text-gray-700">
-                  통관 방식 선택
+                  통관 방식 (신청값 고정)
                 </label>
                 <div class="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    @click="setCustomsClearanceType('business')"
-                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled
+                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-default pointer-events-none"
                     :class="(activeOrder.customsClearanceType || activeOrder.buyerInfo?.customsType || 'business') === 'business'
                       ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+                      : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'"
                   >
                     <i class="fas fa-building text-[11px]"></i>
                     <span>사업자 통관 (기본)</span>
                   </button>
                   <button
                     type="button"
-                    @click="setCustomsClearanceType('personal')"
-                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled
+                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-default pointer-events-none"
                     :class="(activeOrder.customsClearanceType || activeOrder.buyerInfo?.customsType) === 'personal'
                       ? 'bg-blue-600 border-blue-600 text-white shadow-xs'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+                      : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'"
                   >
                     <i class="fas fa-user text-[11px]"></i>
                     <span>개인 통관 (자가소비)</span>
@@ -568,60 +567,35 @@
                 </div>
               </div>
 
-              <!-- 배송방식 선택 토글 -->
+              <!-- 배송방식 선택 잠금 토글 -->
               <div class="space-y-1.5">
                 <label class="block text-xs font-bold text-gray-700">
-                  국내 배송 방식 선택
+                  국내 배송 방식 (신청값 고정)
                 </label>
                 <div class="grid grid-cols-2 gap-2">
                   <button
                     type="button"
-                    @click="setShippingMethod('general')"
-                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled
+                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-default pointer-events-none"
                     :class="(activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod || 'general') === 'general'
                       ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+                      : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'"
                   >
                     <i class="fas fa-truck text-[11px]"></i>
                     <span>일반 수입배송 (직배송)</span>
                   </button>
                   <button
                     type="button"
-                    @click="setShippingMethod('coupang_rocket')"
-                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                    disabled
+                    class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-default pointer-events-none"
                     :class="(activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod) === 'coupang_rocket'
                       ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
-                      : 'bg-gray-50 border-gray-200 text-gray-600 hover:bg-gray-100'"
+                      : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'"
                   >
                     <i class="fas fa-rocket text-[11px]"></i>
                     <span>쿠팡 로켓그로스 입고</span>
                   </button>
                 </div>
-              </div>
-            </div>
-
-            <!-- 1-B. 조회 전용 모드 (isOrderReadonly) : 확정된 상태 배지 고정 노출 -->
-            <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex items-center justify-between">
-                <div>
-                  <span class="text-[10px] text-gray-400 block font-bold">확정된 통관 방식</span>
-                  <span class="font-bold text-xs text-blue-700 mt-0.5 flex items-center gap-1.5">
-                    <i :class="(activeOrder.customsClearanceType || activeOrder.buyerInfo?.customsType) === 'personal' ? 'fas fa-user' : 'fas fa-building'"></i>
-                    <span>{{ (activeOrder.customsClearanceType || activeOrder.buyerInfo?.customsType) === 'personal' ? '개인 통관 (자가소비용 안심 통관)' : '사업자 통관 (세금계산서/매입자료 100% 발행)' }}</span>
-                  </span>
-                </div>
-                <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-bold">확정</span>
-              </div>
-
-              <div class="p-3.5 bg-slate-50 rounded-xl border border-gray-200 flex items-center justify-between">
-                <div>
-                  <span class="text-[10px] text-gray-400 block font-bold">확정된 국내 배송 방식</span>
-                  <span class="font-bold text-xs text-amber-700 mt-0.5 flex items-center gap-1.5">
-                    <i :class="(activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod) === 'coupang_rocket' ? 'fas fa-rocket' : 'fas fa-truck'"></i>
-                    <span>{{ (activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod) === 'coupang_rocket' ? '쿠팡 로켓그로스 입고 (밀크런 센터 직송)' : '일반 수입배송 (지정 사업장/창고 직배송)' }}</span>
-                  </span>
-                </div>
-                <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-bold">확정</span>
               </div>
             </div>
 
@@ -2122,8 +2096,8 @@ const VAS_OPTIONS = [
     id: 'inspection_precision',
     name: '정밀 검수 (전수 불량/파손 정밀 검사 & 실사 사진 전송)',
     desc: '입고 시 100% 전수 개봉하여 오염, 스크래치, 파손 여부를 정밀 검사하고 고화질 실사 사진을 전송합니다.',
-    feeLabel: '무료 기본제공',
-    badgeClass: 'text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded font-bold'
+    feeLabel: '의류: 장당 1위안(약 ₩200) | 상하세트: 2위안(약 ₩400) | 기타 공산품: 1위안(약 ₩200)',
+    badgeClass: 'text-blue-600 font-bold text-xs'
   },
   {
     id: 'origin_label',
