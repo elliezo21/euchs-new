@@ -2134,7 +2134,7 @@ const VAS_OPTIONS = [
     id: 'origin_label',
     name: '원산지 표시(MADE IN CHINA) 라벨 부착 / 봉제 작업',
     desc: '국내 세관 통관 필수 요건인 원산지 표기 스티커 부착 또는 의류/패브릭 봉제 라벨 작업을 현지에서 완벽 처리합니다.',
-    feeLabel: '개당 약 ₩50~100',
+    feeLabel: '개당 약 ₩60~100',
     badgeClass: 'text-blue-600 font-bold'
   },
   {
