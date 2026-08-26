@@ -722,9 +722,10 @@ export async function fetch1688ProductById(offerId) {
       if (s.size) textsToTranslate.push(s.size)
     })
 
-    const uniqueTexts = [...new Set(textsToTranslate.filter(t => typeof t === 'string' && t.trim() && /[^\x00-\x7F]/.test(t)))]
+    // 실제 중국어 유니코드만 번역 대상으로 필터 (한국어·일본어 등 비ASCII 문자 포함 오역 방지)
+    const uniqueTexts = [...new Set(textsToTranslate.filter(t => typeof t === 'string' && t.trim() && /[\u4e00-\u9fff\u3400-\u4dbf]/.test(t)))]
 
-    let titleKo = it.titleKo || titleZh
+    let titleKo = it.titleKo || ''
     if (uniqueTexts.length > 0) {
       try {
         const transResult = await translateText(uniqueTexts, 'KO', 'ZH')

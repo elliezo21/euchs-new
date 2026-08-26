@@ -1,6 +1,7 @@
 /**
  * EUCHS 1688 B2B Mock Dataset & Intelligent Fallback Engine
  * RapidAPI / 1688 DataHub 쿼터 소진(429) 및 네트워크 에러 시 무결점 UI 렌더링을 보장하는 고품질 데이터셋
+ * 각 상품에 skuProps (1차/2차 속성 배열)를 포함하여 ProductDetailModal 동적 옵션 렌더링 지원
  */
 
 export const MOCK_1688_PRODUCTS = [
@@ -30,11 +31,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839701.html',
     company: '광저우 이란 패션 의류 유한공사 (广州依兰服饰有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '아이보리 화이트', imageUrl: 'https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=100&auto=format&fit=crop&q=80' },
+          { name: '내추럴 베이지', imageUrl: 'https://images.unsplash.com/photo-1598554747436-c9293d6a588f?w=100&auto=format&fit=crop&q=80' },
+          { name: '스카이 블루', imageUrl: '' },
+          { name: '세이지 그린', imageUrl: '' }
+        ]
+      }
+    ],
     skus: [
-      { color: '아이보리 화이트', size: 'Free (55-66)', price: 24.50, stock: 1200 },
-      { color: '내추럴 베이지', size: 'Free (55-66)', price: 24.50, stock: 850 },
-      { color: '스카이 블루', size: 'Free (55-66)', price: 24.50, stock: 620 },
-      { color: '세이지 그린', size: 'Free (55-66)', price: 24.50, stock: 430 }
+      { color: '아이보리 화이트', size: '', price: 24.50, stock: 1200 },
+      { color: '내추럴 베이지', size: '', price: 24.50, stock: 850 },
+      { color: '스카이 블루', size: '', price: 24.50, stock: 620 },
+      { color: '세이지 그린', size: '', price: 24.50, stock: 430 }
     ]
   },
   {
@@ -60,6 +72,24 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839702.html',
     company: '항저우 치메이 원단 의류 직영공장 (杭州绮美服饰制衣厂)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '블루 플라워', imageUrl: 'https://images.unsplash.com/photo-1572804013309-59a88b7e92f1?w=100&auto=format&fit=crop&q=80' },
+          { name: '핑크 플라워', imageUrl: 'https://images.unsplash.com/photo-1496747611176-843222e1e57c?w=100&auto=format&fit=crop&q=80' }
+        ]
+      },
+      {
+        prop: '사이즈',
+        values: [
+          { name: 'S' },
+          { name: 'M' },
+          { name: 'L' },
+          { name: 'XL' }
+        ]
+      }
+    ],
     skus: [
       { color: '블루 플라워', size: 'S', price: 38.00, stock: 500 },
       { color: '블루 플라워', size: 'M', price: 38.00, stock: 800 },
@@ -89,6 +119,24 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839703.html',
     company: '동관시 밍야 텍스타일 의류공장 (东莞市明雅制衣有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '차콜 블랙', imageUrl: '' },
+          { name: '라이트 베이지', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '사이즈',
+        values: [
+          { name: 'S' },
+          { name: 'M' },
+          { name: 'L' },
+          { name: 'XL' }
+        ]
+      }
+    ],
     skus: [
       { color: '차콜 블랙', size: 'S', price: 28.50, stock: 1500 },
       { color: '차콜 블랙', size: 'M', price: 28.50, stock: 2000 },
@@ -118,6 +166,25 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839704.html',
     company: '저장성 이우시 진상 니팅 섬유공장 (浙江金尚针织有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '퓨어 화이트', imageUrl: '' },
+          { name: '매트 블랙', imageUrl: '' },
+          { name: '멜란지 그레이', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '사이즈',
+        values: [
+          { name: 'M' },
+          { name: 'L' },
+          { name: 'XL' },
+          { name: 'XXL' }
+        ]
+      }
+    ],
     skus: [
       { color: '퓨어 화이트', size: 'L', price: 14.20, stock: 3500 },
       { color: '퓨어 화이트', size: 'XL', price: 14.20, stock: 4000 },
@@ -147,10 +214,20 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839705.html',
     company: '상하이 첸위 패션 디자인 유한공사 (上海仟羽服饰有限公司)',
     starLevel: 4.8,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '크림 옐로우', imageUrl: '' },
+          { name: '소프트 민트', imageUrl: '' },
+          { name: '퓨어 화이트', imageUrl: '' }
+        ]
+      }
+    ],
     skus: [
-      { color: '크림 옐로우', size: 'Free', price: 21.00, stock: 900 },
-      { color: '소프트 민트', size: 'Free', price: 21.00, stock: 750 },
-      { color: '퓨어 화이트', size: 'Free', price: 21.00, stock: 1100 }
+      { color: '크림 옐로우', size: '', price: 21.00, stock: 900 },
+      { color: '소프트 민트', size: '', price: 21.00, stock: 750 },
+      { color: '퓨어 화이트', size: '', price: 21.00, stock: 1100 }
     ]
   },
 
@@ -178,6 +255,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839706.html',
     company: '광저우 바이윈 피혁 가방 제조공장 (广州白云区皮具制造厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '클래식 블랙', imageUrl: '' },
+          { name: '빈티지 브라운', imageUrl: '' },
+          { name: '버터 크림', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '규격',
+        values: [
+          { name: '표준 규격 (28x14cm)' }
+        ]
+      }
+    ],
     skus: [
       { color: '클래식 블랙', size: '표준 규격 (28x14cm)', price: 29.80, stock: 1500 },
       { color: '빈티지 브라운', size: '표준 규격 (28x14cm)', price: 29.80, stock: 1200 },
@@ -206,6 +299,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839707.html',
     company: '이우시 헝펑 여행용품 유한공사 (义乌市恒丰箱包有限公司)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '다크 네이비', imageUrl: '' },
+          { name: '매트 블랙', imageUrl: '' },
+          { name: '카키 그레이', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '규격',
+        values: [
+          { name: '대형 (48x26x28cm)' }
+        ]
+      }
+    ],
     skus: [
       { color: '다크 네이비', size: '대형 (48x26x28cm)', price: 32.50, stock: 800 },
       { color: '매트 블랙', size: '대형 (48x26x28cm)', price: 32.50, stock: 1200 },
@@ -234,10 +343,38 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839708.html',
     company: '푸젠성 취안저우 신발 산업 단지 직영공장 (泉州鞋业制造有限公司)',
     starLevel: 4.8,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '트리플 블랙', imageUrl: '' },
+          { name: '스노우 화이트', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '사이즈',
+        values: [
+          { name: '240mm' },
+          { name: '245mm' },
+          { name: '250mm' },
+          { name: '255mm' },
+          { name: '260mm' },
+          { name: '265mm' },
+          { name: '270mm' },
+          { name: '275mm' },
+          { name: '280mm' }
+        ]
+      }
+    ],
     skus: [
-      { color: '트리플 블랙', size: '260mm (42)', price: 42.00, stock: 500 },
-      { color: '트리플 블랙', size: '270mm (44)', price: 42.00, stock: 600 },
-      { color: '스노우 화이트', size: '260mm (42)', price: 42.00, stock: 450 }
+      { color: '트리플 블랙', size: '240mm', price: 42.00, stock: 300 },
+      { color: '트리플 블랙', size: '250mm', price: 42.00, stock: 500 },
+      { color: '트리플 블랙', size: '260mm', price: 42.00, stock: 500 },
+      { color: '트리플 블랙', size: '270mm', price: 42.00, stock: 600 },
+      { color: '트리플 블랙', size: '280mm', price: 42.00, stock: 400 },
+      { color: '스노우 화이트', size: '240mm', price: 42.00, stock: 250 },
+      { color: '스노우 화이트', size: '250mm', price: 42.00, stock: 450 },
+      { color: '스노우 화이트', size: '260mm', price: 42.00, stock: 450 }
     ]
   },
   {
@@ -262,6 +399,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839709.html',
     company: '원저우시 진펑 가죽제품 유한공사 (温州市金丰皮具有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '버클/색상',
+        values: [
+          { name: '모던 실버 버클 + 블랙', imageUrl: '' },
+          { name: '건메탈 블랙 버클 + 블랙', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '길이',
+        values: [
+          { name: '110cm' },
+          { name: '120cm' },
+          { name: '130cm' }
+        ]
+      }
+    ],
     skus: [
       { color: '모던 실버 버클 + 블랙', size: '120cm', price: 16.50, stock: 2000 },
       { color: '건메탈 블랙 버클 + 블랙', size: '120cm', price: 16.50, stock: 2500 }
@@ -289,9 +443,19 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839710.html',
     company: '타이저우 린하이 안경 제조 공업사 (台州临海眼镜制造厂)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '프레임/렌즈',
+        values: [
+          { name: '골드 프레임 + 블랙 렌즈', imageUrl: '' },
+          { name: '실버 프레임 + 그레이 렌즈', imageUrl: '' },
+          { name: '건메탈 프레임 + 브라운 렌즈', imageUrl: '' }
+        ]
+      }
+    ],
     skus: [
-      { color: '골드 프레임 + 블랙 렌즈', size: 'Free', price: 12.80, stock: 1500 },
-      { color: '실버 프레임 + 그레이 렌즈', size: 'Free', price: 12.80, stock: 1200 }
+      { color: '골드 프레임 + 블랙 렌즈', size: '', price: 12.80, stock: 1500 },
+      { color: '실버 프레임 + 그레이 렌즈', size: '', price: 12.80, stock: 1200 }
     ]
   },
 
@@ -319,6 +483,24 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839711.html',
     company: '저장성 융캉시 하오메이 스테인리스 보온컵 공장 (永康市浩美五金制品厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '매트 블랙', imageUrl: '' },
+          { name: '아이보리 화이트', imageUrl: '' },
+          { name: '세이지 그린', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '용량',
+        values: [
+          { name: '350ml' },
+          { name: '500ml' },
+          { name: '750ml' }
+        ]
+      }
+    ],
     skus: [
       { color: '매트 블랙', size: '500ml', price: 18.50, stock: 3500 },
       { color: '아이보리 화이트', size: '500ml', price: 18.50, stock: 4000 },
@@ -347,6 +529,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839712.html',
     company: '양장시 싱다 하드웨어 주방용품 공장 (阳江市兴达五金刀剪制品厂)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '색상/소재',
+        values: [
+          { name: '우드 핸들 + 모던 그레이', imageUrl: '' },
+          { name: '우드 핸들 + 크림 베이지', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '구성',
+        values: [
+          { name: '6종 세트' },
+          { name: '10종 풀세트' }
+        ]
+      }
+    ],
     skus: [
       { color: '우드 핸들 + 모던 그레이', size: '6종 세트', price: 26.00, stock: 1200 },
       { color: '우드 핸들 + 크림 베이지', size: '6종 세트', price: 26.00, stock: 1500 }
@@ -374,6 +572,15 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839713.html',
     company: '산둥성 즈보 유리제품 제조 주식회사 (山东淄博博山玻璃制品厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '구성',
+        values: [
+          { name: '4종 기본세트' },
+          { name: '8종 풀세트' }
+        ]
+      }
+    ],
     skus: [
       { color: '클리어 유리 + 화이트 캡', size: '8종 풀세트', price: 35.00, stock: 800 }
     ]
@@ -400,6 +607,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839714.html',
     company: '장쑤성 난퉁 홈텍스타일 타올 제조공장 (南通市家纺毛巾纺织厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '호텔 화이트', imageUrl: '' },
+          { name: '모던 차콜', imageUrl: '' },
+          { name: '소프트 그레이', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '구성',
+        values: [
+          { name: '3종 세트' },
+          { name: '5종 세트' }
+        ]
+      }
+    ],
     skus: [
       { color: '호텔 화이트', size: '180g (40x80cm) 5장', price: 15.00, stock: 3000 },
       { color: '모던 차콜', size: '180g (40x80cm) 5장', price: 15.00, stock: 2500 }
@@ -427,6 +651,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839715.html',
     company: '선전시 스마트홈 커피기기 테크놀로지 (深圳市智享小家电制造厂)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '매트 블랙', imageUrl: '' },
+          { name: '펄 화이트', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '충전방식',
+        values: [
+          { name: 'Type-C 충전식' },
+          { name: 'USB-A 충전식' }
+        ]
+      }
+    ],
     skus: [
       { color: '매트 블랙', size: 'Type-C 충전식', price: 48.00, stock: 900 },
       { color: '펄 화이트', size: 'Type-C 충전식', price: 48.00, stock: 650 }
@@ -456,6 +696,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839716.html',
     company: '선전시 롱화구 하이테크 전자공장 (深圳市龙华电子实业有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '스페이스 그레이', imageUrl: '' },
+          { name: '퓨어 화이트', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '충전출력',
+        values: [
+          { name: '15W 고속충전' },
+          { name: '20W 초고속충전' }
+        ]
+      }
+    ],
     skus: [
       { color: '스페이스 그레이', size: '15W 고속충전', price: 36.50, stock: 1500 },
       { color: '퓨어 화이트', size: '15W 고속충전', price: 36.50, stock: 2000 }
@@ -483,6 +739,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839717.html',
     company: '둥관시 보신 에너지 테크놀로지 (东莞市博信能源科技有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '매트 블랙', imageUrl: '' },
+          { name: '펄 화이트', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '용량',
+        values: [
+          { name: '10000mAh' },
+          { name: '20000mAh' },
+          { name: '30000mAh' }
+        ]
+      }
+    ],
     skus: [
       { color: '매트 블랙 (4라인 일체형)', size: '20000mAh', price: 41.00, stock: 2800 },
       { color: '펄 화이트 (4라인 일체형)', size: '20000mAh', price: 41.00, stock: 2100 }
@@ -510,6 +783,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839718.html',
     company: '선전시 바오안구 오디오 음향 테크 (深圳市声悦声学科技有限公司)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '매트 블랙', imageUrl: '' },
+          { name: '퓨어 화이트', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '기능',
+        values: [
+          { name: 'ANC 듀얼 마이크' },
+          { name: 'ANC + 공간음향' }
+        ]
+      }
+    ],
     skus: [
       { color: '매트 블랙', size: 'ANC 듀얼 마이크', price: 55.00, stock: 1200 },
       { color: '퓨어 화이트', size: 'ANC 듀얼 마이크', price: 55.00, stock: 1600 }
@@ -537,6 +826,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839719.html',
     company: '닝보 츠시 소형가전 제조공장 (宁波慈溪市小家电制造厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '아이보리 화이트', imageUrl: '' },
+          { name: '다크 그린', imageUrl: '' },
+          { name: '핑크 베이지', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '기능',
+        values: [
+          { name: '3단 풍속 + 자동회전' },
+          { name: '5단 풍속 + 자동회전 + 타이머' }
+        ]
+      }
+    ],
     skus: [
       { color: '아이보리 화이트', size: '3단 풍속 + 자동회전', price: 31.00, stock: 3500 },
       { color: '다크 그린', size: '3단 풍속 + 자동회전', price: 31.00, stock: 2200 }
@@ -564,6 +870,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839720.html',
     company: '선전시 징위안 정밀 금형 테크 (深圳市晶源精密五金厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '티타늄 실버', imageUrl: '' },
+          { name: '스페이스 블랙', imageUrl: '' },
+          { name: '로즈 골드', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '케이스 사이즈',
+        values: [
+          { name: '38/40/41mm' },
+          { name: '42/44/45/49mm' }
+        ]
+      }
+    ],
     skus: [
       { color: '티타늄 실버', size: '42/44/45/49mm', price: 9.80, stock: 5000 },
       { color: '스페이스 블랙', size: '42/44/45/49mm', price: 9.80, stock: 4500 }
@@ -593,9 +916,29 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839721.html',
     company: '저장성 융캉시 아웃도어 캠핑용품 공장 (浙江永康市户外露营用品厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상/스타일',
+        values: [
+          { name: '밀리터리 카키', imageUrl: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=100&auto=format&fit=crop&q=80' },
+          { name: '매트 블랙', imageUrl: '' },
+          { name: '네이비 블루', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '규격',
+        values: [
+          { name: '기본형 (단품)' },
+          { name: '고급형 (수납가방+컵홀더 포함)' }
+        ]
+      }
+    ],
     skus: [
-      { color: '카키 베이지', size: '대형 (L)', price: 35.00, stock: 1800 },
-      { color: '택티컬 블랙', size: '대형 (L)', price: 35.00, stock: 1500 }
+      { color: '밀리터리 카키', size: '기본형 (단품)', price: 35.00, stock: 1800 },
+      { color: '밀리터리 카키', size: '고급형 (수납가방+컵홀더 포함)', price: 42.00, stock: 900 },
+      { color: '매트 블랙', size: '기본형 (단품)', price: 35.00, stock: 1500 },
+      { color: '매트 블랙', size: '고급형 (수납가방+컵홀더 포함)', price: 42.00, stock: 750 },
+      { color: '네이비 블루', size: '기본형 (단품)', price: 35.00, stock: 800 }
     ]
   },
   {
@@ -620,6 +963,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839722.html',
     company: '닝보시 닝하이 조명 전자기기 공업사 (宁波宁海照明电子厂)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '브론즈 골드', imageUrl: '' },
+          { name: '올리브 그린', imageUrl: '' },
+          { name: '앤틱 실버', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '배터리',
+        values: [
+          { name: '2000mAh (USB-C 충전)' },
+          { name: '5000mAh (USB-C 고속충전)' }
+        ]
+      }
+    ],
     skus: [
       { color: '브론즈 골드', size: '2000mAh 배터리', price: 23.50, stock: 1200 },
       { color: '올리브 그린', size: '2000mAh 배터리', price: 23.50, stock: 950 }
@@ -647,6 +1007,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839723.html',
     company: '사오싱시 상위 텐트 야외레저 용품사 (绍兴上虞户外旅游用品厂)',
     starLevel: 4.8,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '포레스트 그린', imageUrl: '' },
+          { name: '샌드 베이지', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '인원/규격',
+        values: [
+          { name: '2인용 (185x120x105cm)' },
+          { name: '3-4인용 (215x215x142cm)' }
+        ]
+      }
+    ],
     skus: [
       { color: '포레스트 그린', size: '3-4인용 (215x215x142cm)', price: 68.00, stock: 650 },
       { color: '샌드 베이지', size: '3-4인용 (215x215x142cm)', price: 68.00, stock: 800 }
@@ -674,6 +1050,24 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839724.html',
     company: '장쑤성 양저우 체육 스포츠 피트니스 공장 (扬州市体育用品制造厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '더블 핑크/바이올렛', imageUrl: '' },
+          { name: '다크 블루/스카이', imageUrl: '' },
+          { name: '블랙/그레이', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '두께',
+        values: [
+          { name: '6mm (경량형)' },
+          { name: '10mm (표준형)' },
+          { name: '15mm (두꺼운형)' }
+        ]
+      }
+    ],
     skus: [
       { color: '더블 핑크/바이올렛', size: '183x61x1cm', price: 17.50, stock: 2500 },
       { color: '다크 블루/스카이', size: '183x61x1cm', price: 17.50, stock: 2000 }
@@ -701,6 +1095,15 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839725.html',
     company: '저장성 진화시 아웃도어 정밀 금속사 (金华市户外精工金属制品厂)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '구성',
+        values: [
+          { name: '3종 기본세트 (냄비+프라이팬+뚜껑)' },
+          { name: '5종 풀세트 (매쉬백 포함)' }
+        ]
+      }
+    ],
     skus: [
       { color: '티타늄 그레이', size: '3종 풀세트 (매쉬백 포함)', price: 52.00, stock: 750 }
     ]
@@ -729,6 +1132,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839726.html',
     company: '원저우시 펫 테크놀로지 전기공학 공장 (温州市爱宠电器有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상/날',
+        values: [
+          { name: '로즈 골드 + 세라믹 날', imageUrl: '' },
+          { name: '매트 실버 + 세라믹 날', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '구성',
+        values: [
+          { name: '기본 4종 빗캡 세트' },
+          { name: '풀 8종 프리미엄 세트' }
+        ]
+      }
+    ],
     skus: [
       { color: '로즈 골드 + 세라믹 날', size: '기본 4종 빗캡 세트', price: 28.00, stock: 1600 },
       { color: '매트 실버 + 세라믹 날', size: '기본 4종 빗캡 세트', price: 28.00, stock: 1200 }
@@ -756,6 +1175,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839727.html',
     company: '이우시 펫러브 목공 공예품 공장 (义乌市爱宠木业工艺品厂)',
     starLevel: 4.9,
+    skuProps: [
+      {
+        prop: '소재/색상',
+        values: [
+          { name: '내추럴 원목 + 사이잘삼', imageUrl: '' },
+          { name: '그레이 원목 + 사이잘삼', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '규격',
+        values: [
+          { name: '소형 (높이 50cm)' },
+          { name: '중형 (높이 75cm)' },
+          { name: '대형 (높이 100cm)' }
+        ]
+      }
+    ],
     skus: [
       { color: '내추럴 원목 + 사이잘삼', size: '중형 (높이 75cm)', price: 45.00, stock: 850 }
     ]
@@ -782,6 +1218,22 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839728.html',
     company: '포산시 펫 스마트 전자 디바이스 제조사 (佛山市宠智电器实业有限公司)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '소재/색상',
+        values: [
+          { name: '304 스테인리스 + 화이트', imageUrl: '' },
+          { name: '304 스테인리스 + 그레이', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '용량',
+        values: [
+          { name: '1.5L (소형)' },
+          { name: '2.5L (대용량)' }
+        ]
+      }
+    ],
     skus: [
       { color: '304 스테인리스 + 화이트', size: '2.5L 대용량', price: 34.50, stock: 1400 }
     ]
@@ -810,6 +1262,24 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839729.html',
     company: '장저우시 시계 정밀공예품 제조공장 (漳州市钟表精密工艺制品厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상/소재',
+        values: [
+          { name: '내추럴 우드', imageUrl: '' },
+          { name: '월넛 다크브라운', imageUrl: '' },
+          { name: '블랙 알루미늄', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '사이즈',
+        values: [
+          { name: '직경 25cm' },
+          { name: '직경 30cm' },
+          { name: '직경 40cm' }
+        ]
+      }
+    ],
     skus: [
       { color: '내추럴 우드', size: '직경 30cm', price: 27.00, stock: 1100 },
       { color: '월넛 다크브라운', size: '직경 30cm', price: 27.00, stock: 950 }
@@ -837,6 +1307,23 @@ export const MOCK_1688_PRODUCTS = [
     detailUrl: 'https://detail.1688.com/offer/804895839730.html',
     company: '이우시 투명 아크릴 가정용품 제조창 (义乌市晶美亚克力制品厂)',
     starLevel: 5.0,
+    skuProps: [
+      {
+        prop: '색상',
+        values: [
+          { name: '다이아몬드 크리스탈 클리어', imageUrl: '' },
+          { name: '스모크 블랙', imageUrl: '' },
+          { name: '밀키 핑크', imageUrl: '' }
+        ]
+      },
+      {
+        prop: '규격',
+        values: [
+          { name: '소형 (23x18cm)' },
+          { name: '대형 (33x23cm)' }
+        ]
+      }
+    ],
     skus: [
       { color: '다이아몬드 크리스탈 클리어', size: '대형 (33x23cm)', price: 19.50, stock: 2400 },
       { color: '스모크 블랙', size: '대형 (33x23cm)', price: 19.50, stock: 1500 }
@@ -901,7 +1388,7 @@ export function getMockSearchResults(query = '', page = 1, options = {}) {
   const startIndex = (pageNum - 1) * pageSize;
   const paginatedItems = matched.slice(startIndex, startIndex + pageSize);
 
-  // 항목 객체 정규화
+  // 항목 객체 정규화 - skuProps 포함하여 전달
   const items = paginatedItems.map(item => ({
     id: String(item.id),
     titleZh: item.titleZh,
@@ -916,7 +1403,8 @@ export function getMockSearchResults(query = '', page = 1, options = {}) {
     repurchaseRate: item.repurchaseRate,
     company: item.company,
     starLevel: item.starLevel,
-    skus: item.skus,
+    skuProps: item.skuProps || [],   // ← 핵심: skuProps 반드시 포함
+    skus: item.skus || [],
     raw: item
   }));
 
