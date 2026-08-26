@@ -295,8 +295,9 @@
 
         <!-- Right Quick Action / Mobile Hamburger -->
         <div class="flex items-center gap-2 sm:gap-2.5">
-          <!-- Mobile Saved Items Cart Widget -->
-          <router-link 
+          <!-- Mobile Saved Items Cart Widget — 로그인+1개 이상일 때만 노출 -->
+          <router-link
+            v-if="isLoggedIn && savedCount > 0"
             to="/dashboard"
             class="lg:hidden flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition text-xs shrink-0 whitespace-nowrap"
             title="발주대기 보관함"
@@ -311,6 +312,7 @@
               </span>
             </div>
           </router-link>
+
 
           <!-- Mobile Hamburger Toggle -->
           <button 

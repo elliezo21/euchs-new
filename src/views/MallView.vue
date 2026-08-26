@@ -173,8 +173,9 @@
             </div>
           </form>
 
-          <!-- 3. 우측 발주 대기 보관함 (장바구니) -->
+          <!-- 3. 우측 발주 대기 보관함 (장바구니) — 로그인 시만 노출 -->
           <router-link
+            v-if="isLoggedIn"
             to="/dashboard"
             class="hidden md:flex items-center gap-2.5 px-3.5 h-11 rounded-xl bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition group shrink-0"
             title="발주대기 보관함 바로가기"
@@ -362,7 +363,10 @@
                     <span>🛒</span>
                     <span>장바구니</span>
                   </div>
-                  <span class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs">
+                  <span
+                    v-if="isLoggedIn && savedCount > 0"
+                    class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs"
+                  >
                     {{ savedCount }}
                   </span>
                 </router-link>
@@ -1061,7 +1065,8 @@ import {
   userDisplayName,
   userAvatarUrl,
   userEmail,
-  getUserBusinessInfo
+  getUserBusinessInfo,
+  getCartStorageKey
 } from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
@@ -1426,10 +1431,24 @@ const showToast = (msg) => {
 const savedCount = ref(0)
 
 const updateSavedCount = () => {
+  // 비로그인 상태: 즉시 0 리셋
+  if (!isLoggedIn.value) {
+    savedCount.value = 0
+    return
+  }
   try {
-    const cached = localStorage.getItem('euchs_erp_saved_items')
-    if (cached) {
-      const parsed = JSON.parse(cached)
+    // 사용자 격리 키 우선 (euchs_cart_{userId})
+    const cartKey = getCartStorageKey()
+    const userCart = localStorage.getItem(cartKey)
+    if (userCart) {
+      const parsed = JSON.parse(userCart)
+      savedCount.value = Array.isArray(parsed) ? parsed.length : 0
+      return
+    }
+    // 레거시 키 fallback (마이그레이션 호환)
+    const legacy = localStorage.getItem('euchs_erp_saved_items')
+    if (legacy) {
+      const parsed = JSON.parse(legacy)
       savedCount.value = Array.isArray(parsed) ? parsed.length : 0
     } else {
       savedCount.value = 0
@@ -1877,6 +1896,9 @@ onMounted(async () => {
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
   window.addEventListener('euchs-auth-changed', safeLoadBalance)
   window.addEventListener('euchs-auth-changed', checkAndResumePendingProduct)
+  window.addEventListener('euchs-auth-changed', updateSavedCount)
+  window.addEventListener('euchs:cart-updated', updateSavedCount)
+  window.addEventListener('storage', updateSavedCount)
   window.addEventListener('euchs-notice-update', loadMallNotices)
   window.addEventListener('storage', loadMallNotices)
   document.addEventListener('click', handleClickOutside)
@@ -1888,6 +1910,9 @@ onUnmounted(() => {
   window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
   window.removeEventListener('euchs-auth-changed', safeLoadBalance)
   window.removeEventListener('euchs-auth-changed', checkAndResumePendingProduct)
+  window.removeEventListener('euchs-auth-changed', updateSavedCount)
+  window.removeEventListener('euchs:cart-updated', updateSavedCount)
+  window.removeEventListener('storage', updateSavedCount)
   window.removeEventListener('euchs-notice-update', loadMallNotices)
   window.removeEventListener('storage', loadMallNotices)
   document.removeEventListener('click', handleClickOutside)
@@ -1896,7 +1921,9 @@ onUnmounted(() => {
 
 watch(currentUser, () => {
   checkAndResumePendingProduct()
+  updateSavedCount()  // 계정 전환 시 장바구니 수량 즉시 재계산
 })
+
 
 watch(() => route.query, () => {
   handleIncomingQuery()
