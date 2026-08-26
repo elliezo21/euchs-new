@@ -79,9 +79,22 @@
         
         <!-- Top Title Section -->
         <div class="space-y-2 border-b border-gray-100 pb-5">
-          <h2 class="text-xl sm:text-2xl font-black text-gray-900 leading-snug">
-            {{ currentItem?.titleKo || currentItem?.titleZh }}
-          </h2>
+          <div class="flex items-start justify-between gap-3">
+            <h2 class="text-xl sm:text-2xl font-black text-gray-900 leading-snug flex-1">
+              {{ currentItem?.titleKo || currentItem?.titleZh }}
+            </h2>
+            <!-- 1688 원본 바로가기 링크 -->
+            <a
+              :href="original1688Url"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="shrink-0 mt-0.5 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-orange-50 border border-orange-200 text-orange-600 text-[11px] font-bold hover:bg-orange-100 hover:border-orange-400 transition-colors"
+              title="1688 원본 상품 페이지 새 탭으로 열기"
+            >
+              1688링크
+              <i class="fas fa-external-link-alt text-[10px]"></i>
+            </a>
+          </div>
           <p class="text-xs text-gray-400 font-mono flex items-center gap-2 truncate" :title="currentItem?.titleZh">
             <span class="px-1.5 py-0.5 bg-gray-100 text-gray-600 rounded text-[10px] font-medium shrink-0">1688 원문</span>
             <span class="truncate">{{ currentItem?.titleZh }}</span>
@@ -555,6 +568,18 @@ const isLoadingSellerProducts = ref(false)
 // ----------------------------------------------------
 // Dynamic Options (1차 속성 & 2차 속성) & Gallery
 // ----------------------------------------------------
+
+// 1688 원본 상품 링크 (새 탭 바로가기)
+const original1688Url = computed(() => {
+  const item = currentItem.value || props.product || {}
+  // detailUrl이 이미 유효한 URL이면 그대로 사용
+  const rawUrl = item.sourceUrl || item.detailUrl || item.url || ''
+  if (rawUrl && rawUrl.startsWith('http')) return rawUrl
+  // itemId / offerId / num_iid / id 순으로 추출
+  const pid = item.id || item.itemId || item.offerId || item.num_iid || props.product?.id || ''
+  return pid ? `https://detail.1688.com/offer/${pid}.html` : 'https://www.1688.com'
+})
+
 const firstPropName = computed(() => {
   const item = currentItem.value || props.product || {}
   const raw = item.raw || {}
