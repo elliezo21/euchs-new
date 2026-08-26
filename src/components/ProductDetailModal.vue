@@ -639,26 +639,23 @@ const handleSelectColor = (color) => {
     activeImage.value = color.imageUrl
   }
 
-  // 1. 단일 옵션 상품일 경우: 1차 선택 즉시 품목 리스트에 등록
+  // 1. 단일 옵션 상품일 경우: 1차 선택 즉시 품목 리스트에 조용히 등록 (토스트 알림 없음)
   if (!hasMultipleOptions.value) {
     const colorName = color.name
     const sizeName = sizeOptions.value[0] || '기본'
     const existing = selectedSkus.value.find(s => s.color === colorName && s.size === sizeName)
     if (existing) {
       existing.quantity += 1
-      showToastNotification(`[${colorName}] 수량이 1개 추가되었습니다.`)
     } else {
       selectedSkus.value.push({
         color: colorName,
         size: sizeName,
         quantity: minOrder.value || 1
       })
-      showToastNotification(`[${colorName}] 품목이 추가되었습니다.`)
     }
   } else {
-    // 2. 다중 옵션 상품일 경우: 2차 옵션 선택을 기다림 (리스트에 임의 추가 안 함)
+    // 2. 다중 옵션 상품일 경우: 2차 옵션 선택 대기 (토스트 알림 없이 선택 상태만 유지)
     selectedSize.value = null
-    showToastNotification(`[${color.name}] 선택 완료! 2차 옵션(사이즈)을 선택해 주세요.`, 'info')
   }
 }
 
@@ -673,18 +670,16 @@ const handleSelectSize = (size) => {
   const colorName = selectedColor.value.name
   const sizeName = size
 
-  // 1차와 2차가 모두 선택 완료된 시점에만 품목 리스트에 추가
+  // 1차와 2차가 모두 선택 완료된 시점에 품목 리스트에 조용히 추가 (토스트 알림 없음)
   const existing = selectedSkus.value.find(s => s.color === colorName && s.size === sizeName)
   if (existing) {
     existing.quantity += 1
-    showToastNotification(`[${colorName} / ${sizeName}] 수량이 1개 추가되었습니다. (총 ${existing.quantity}개)`)
   } else {
     selectedSkus.value.push({
       color: colorName,
       size: sizeName,
       quantity: minOrder.value || 1
     })
-    showToastNotification(`[${colorName} / ${sizeName}] 품목이 추가되었습니다.`)
   }
 }
 
@@ -891,12 +886,13 @@ const handleAddToCart = () => {
     cart.unshift(itemToSave)
     localStorage.setItem('euchs_erp_saved_items', JSON.stringify(cart))
 
-    // Storage 이벤트 및 emit
+    // Storage 이벤트 및 퀵메뉴/헤더 갱신 이벤트 디스패치
     window.dispatchEvent(new Event('storage'))
+    window.dispatchEvent(new CustomEvent('euchs:cart_updated'))
     emit('added-to-cart', itemToSave)
 
-    // ✅ 모달을 닫지 않고 상단에 성공 토스트 알림 노출
-    showToastNotification(`✅ 보관함에 담겼습니다. (선택 ${selectedSkus.value.length}종 / 총 ${totalQuantity.value}개)`, 'success')
+    // ✅ 모달 하단 버튼 클릭 시에만 정식 완료 토스트 알림 노출
+    showToastNotification('✅ 선택한 상품이 발주대기 보관함(장바구니)에 담겼습니다.', 'success')
   } catch (err) {
     console.error('Failed to add to cart:', err)
   }
