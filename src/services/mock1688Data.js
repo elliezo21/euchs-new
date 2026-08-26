@@ -347,8 +347,9 @@ export const MOCK_1688_PRODUCTS = [
       {
         prop: '색상',
         values: [
-          { name: '트리플 블랙', imageUrl: '' },
-          { name: '스노우 화이트', imageUrl: '' }
+          { name: '블랙', imageUrl: '' },
+          { name: '화이트', imageUrl: '' },
+          { name: '그레이', imageUrl: '' }
         ]
       },
       {
@@ -367,14 +368,11 @@ export const MOCK_1688_PRODUCTS = [
       }
     ],
     skus: [
-      { color: '트리플 블랙', size: '240mm', price: 42.00, stock: 300 },
-      { color: '트리플 블랙', size: '250mm', price: 42.00, stock: 500 },
-      { color: '트리플 블랙', size: '260mm', price: 42.00, stock: 500 },
-      { color: '트리플 블랙', size: '270mm', price: 42.00, stock: 600 },
-      { color: '트리플 블랙', size: '280mm', price: 42.00, stock: 400 },
-      { color: '스노우 화이트', size: '240mm', price: 42.00, stock: 250 },
-      { color: '스노우 화이트', size: '250mm', price: 42.00, stock: 450 },
-      { color: '스노우 화이트', size: '260mm', price: 42.00, stock: 450 }
+      { color: '블랙', size: '250mm', price: 42.00, stock: 500 },
+      { color: '블랙', size: '260mm', price: 42.00, stock: 500 },
+      { color: '화이트', size: '250mm', price: 42.00, stock: 450 },
+      { color: '화이트', size: '260mm', price: 42.00, stock: 450 },
+      { color: '그레이', size: '260mm', price: 42.00, stock: 350 }
     ]
   },
   {
@@ -1435,14 +1433,16 @@ export function getMockProductDetail(itemId) {
     };
   }
 
-  // 데이터셋에 없는 ID일 경우 동적 Mock 생성
+  // 데이터셋에 없는 ID일 경우: 임의 옵션을 복제하지 않고 순수 단품 상태로 반환
   const first = MOCK_1688_PRODUCTS[0];
   return {
     ...first,
     id: idStr || '804895839799',
-    titleKo: `1688 수입 인기 상품 (ID: ${idStr || '804895839799'})`,
-    titleZh: `1688热销推荐商品 (${idStr})`,
+    titleKo: `1688 수입 상품 (ID: ${idStr || '804895839799'})`,
+    titleZh: `1688商品 (${idStr})`,
     detailUrl: `https://detail.1688.com/offer/${idStr || '804895839799'}.html`,
-    raw: first
+    skuProps: [],
+    skus: [],
+    raw: {}
   };
 }
