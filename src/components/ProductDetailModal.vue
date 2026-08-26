@@ -156,8 +156,8 @@
             <div class="bg-gray-50 rounded-2xl p-4 border border-gray-200 text-xs space-y-2.5">
               <div class="flex items-center justify-between text-gray-700">
                 <span class="text-gray-500 font-medium">공급사 상호 (Seller):</span>
-                <span class="font-bold text-gray-900 truncate max-w-[180px]" :title="currentItem?.company">
-                  {{ currentItem?.company || '1688 인증 도매공장' }}
+                <span class="font-bold text-gray-900 truncate max-w-[180px]" :title="currentItem?.company || currentItem?.sellerName">
+                  {{ currentItem?.company || currentItem?.sellerName || '1688 인증 도매공장' }}
                 </span>
               </div>
               <div class="flex items-center justify-between text-gray-700 border-t border-gray-200/60 pt-2">
@@ -172,7 +172,21 @@
                   <i class="fas fa-check-circle text-xs"></i> EUCHS 100% 정밀검수 & 한-중 FTA 지원
                 </span>
               </div>
+
+              <!-- 단골상점 찜하기 버튼 -->
+              <div class="mt-2.5 pt-2 border-t border-slate-200/80">
+                <button
+                  type="button"
+                  @click="toggleFavoriteStore"
+                  class="w-full py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition active:scale-95 cursor-pointer shadow-xs border"
+                  :class="isStoreFavorite ? 'bg-amber-50 text-amber-600 border-amber-300 hover:bg-amber-100' : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100 hover:text-slate-900'"
+                >
+                  <i :class="isStoreFavorite ? 'fas fa-star text-amber-500' : 'far fa-star text-slate-400'"></i>
+                  <span>{{ isStoreFavorite ? '단골상점 찜 완료' : '단골상점 찜하기' }}</span>
+                </button>
+              </div>
             </div>
+
 
           </div>
 
@@ -576,8 +590,86 @@ const sellerProducts = ref([])
 const isLoadingSellerProducts = ref(false)
 
 // ----------------------------------------------------
+// Favorite Store (단골상점 찜) State & Methods
+// ----------------------------------------------------
+const LS_FAVORITE_STORES_KEY = 'euchs_favorite_stores'
+const isStoreFavorite = ref(false)
+
+const getStoreInfo = () => {
+  const item = currentItem.value || props.product || {}
+  const raw = item.raw || {}
+  const seller = raw.seller || raw.shop || {}
+  const shopName = item.company || item.sellerName || item.shopName || seller.companyName || seller.shopName || seller.name || '1688 우수 검증 제조공장'
+  const shopId = item.sellerId || item.shopId || item.userId || seller.userId || seller.memberId || item.company || item.id || 'store-1688'
+  const shopThumbnail = activeImage.value || item.imageUrl || item.images?.[0] || ''
+  return { shopId, shopName, shopThumbnail }
+}
+
+const checkStoreFavorite = () => {
+  try {
+    const { shopId, shopName } = getStoreInfo()
+    const raw = localStorage.getItem(LS_FAVORITE_STORES_KEY)
+    if (!raw) {
+      isStoreFavorite.value = false
+      return
+    }
+    const favs = JSON.parse(raw)
+    if (Array.isArray(favs)) {
+      isStoreFavorite.value = favs.some(s => s.id === shopId || s.shopId === shopId || (s.shopName && s.shopName === shopName))
+    } else {
+      isStoreFavorite.value = false
+    }
+  } catch (e) {
+    isStoreFavorite.value = false
+  }
+}
+
+const toggleFavoriteStore = () => {
+  try {
+    const { shopId, shopName, shopThumbnail } = getStoreInfo()
+    const raw = localStorage.getItem(LS_FAVORITE_STORES_KEY)
+    let favs = raw ? JSON.parse(raw) : []
+    if (!Array.isArray(favs)) favs = []
+
+    const idx = favs.findIndex(s => s.id === shopId || s.shopId === shopId || (s.shopName && s.shopName === shopName))
+
+    if (idx >= 0) {
+      favs.splice(idx, 1)
+      isStoreFavorite.value = false
+      showToastNotification('단골 상점에서 제외되었습니다.', 'warning')
+    } else {
+      const newStore = {
+        id: shopId,
+        shopId: shopId,
+        shopName: shopName,
+        shopNameKo: currentItem.value?.companyKo || '',
+        shopUrl: currentItem.value?.shopUrl || (shopId ? `https://shop.1688.com/shop/ent_shop.htm?_col=1&memberId=${shopId}` : ''),
+        orderCount: 0,
+        totalQuantity: 0,
+        totalAmountKrw: 0,
+        thumbnails: [shopThumbnail].filter(Boolean),
+        repProductImg: shopThumbnail,
+        category: currentItem.value?.categoryName || '1688 수입공장',
+        badges: ['슈퍼팩토리', '품질 검증 공장'],
+        addedAt: new Date().toISOString()
+      }
+      favs.unshift(newStore)
+      isStoreFavorite.value = true
+      showToastNotification('⭐ 단골 상점으로 등록되었습니다! (구매한 상점모음에서 확인 가능)', 'success')
+    }
+
+    localStorage.setItem(LS_FAVORITE_STORES_KEY, JSON.stringify(favs))
+    window.dispatchEvent(new Event('storage'))
+    window.dispatchEvent(new CustomEvent('euchs:stores-updated', { detail: { stores: favs } }))
+  } catch (err) {
+    console.error('Failed to toggle favorite store:', err)
+  }
+}
+
+// ----------------------------------------------------
 // Dynamic Options (1차 속성 & 2차 속성) & Gallery
 // ----------------------------------------------------
+
 
 // 1688 원본 상품 링크 (새 탭 바로가기)
 const original1688Url = computed(() => {
@@ -1097,12 +1189,16 @@ const loadFullProductData = async (item) => {
           }]
         }
       }
+
+      // 공급사 찜 여부 동기화
+      checkStoreFavorite()
     }
   } catch (err) {
     console.debug('Failed to load full product details:', err)
   } finally {
     // 성공/실패 무관하게 반드시 스켈레톤 해제
     isDetailLoading.value = false
+    checkStoreFavorite()
   }
 }
 
@@ -1112,12 +1208,14 @@ const selectAnotherProduct = (newProduct) => {
   activeImage.value = newProduct.imageUrl || ''
   selectedSize.value = null
   selectedSkus.value = []
+  checkStoreFavorite()
 
   if (colorOptions.value.length > 0) {
     selectedColor.value = colorOptions.value[0]
   } else {
     selectedColor.value = null
   }
+
 
   // 단일 옵션 상품인 경우에만 기본 1차 품목 자동 등록
   if (!hasMultipleOptions.value && selectedColor.value) {
@@ -1279,6 +1377,8 @@ watch(() => props.product, (newVal) => {
     selectedSize.value = null
     selectedSkus.value = []
 
+    checkStoreFavorite()
+
     // loadFullProductData 내부 finally에서 isDetailLoading = false 처리
     loadFullProductData(newVal)
     loadProductDetailImages(newVal)
@@ -1293,15 +1393,20 @@ watch(() => props.product, (newVal) => {
 onMounted(() => {
   window.addEventListener('keydown', handleKeyDown)
   window.addEventListener('popstate', handlePopState)
+  window.addEventListener('euchs:stores-updated', checkStoreFavorite)
+  window.addEventListener('storage', checkStoreFavorite)
 })
 
 onUnmounted(() => {
   window.removeEventListener('keydown', handleKeyDown)
   window.removeEventListener('popstate', handlePopState)
+  window.removeEventListener('euchs:stores-updated', checkStoreFavorite)
+  window.removeEventListener('storage', checkStoreFavorite)
   if (typeof document !== 'undefined') {
     document.body.style.overflow = 'unset'
   }
 })
+
 
 </script>
 

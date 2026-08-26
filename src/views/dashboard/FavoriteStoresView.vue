@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="min-h-full bg-slate-50 font-sans">
 
     <!-- ===================================================== -->
@@ -243,9 +243,10 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getStoredOrders } from '../../utils/orderStorage'
+
 
 // ─────────────────────────────────────────────
 // Constants
@@ -465,6 +466,15 @@ function addDemoFavorite() {
   saveFavoriteStores(favs)
 }
 
+const reloadStores = () => {
+  try {
+    favoriteStores.value = loadFavoriteStores()
+    hiddenIds.value = loadHiddenIds()
+  } catch (e) {
+    console.debug('[FavoriteStoresView] reloadStores error:', e)
+  }
+}
+
 // ─────────────────────────────────────────────
 // 초기화
 // ─────────────────────────────────────────────
@@ -479,5 +489,14 @@ onMounted(() => {
   } finally {
     isLoading.value = false
   }
+
+  window.addEventListener('storage', reloadStores)
+  window.addEventListener('euchs:stores-updated', reloadStores)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('storage', reloadStores)
+  window.removeEventListener('euchs:stores-updated', reloadStores)
 })
 </script>
+
