@@ -614,13 +614,17 @@ export async function fetch1688ProductById(offerId) {
 
     if (Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
       parsedSkuProps = rawSkuProps.map(p => {
-        const propName = p.prop || p.propName || p.name || p.attributeName || ''
+        const propName = p.prop || p.propKo || p.propName || p.name || p.attributeName || ''
         const rawVals = Array.isArray(p.values) ? p.values : (Array.isArray(p.value) ? p.value : [])
-        const values = rawVals.map(v => ({
-          name: v.name || v.value || v.nameZh || v.text || '',
-          nameKo: v.nameKo || '',
-          imageUrl: v.imageUrl || v.image || v.imgUrl || v.picUrl || ''
-        })).filter(v => v.name)
+        const values = rawVals.map(v => {
+          const valName = typeof v === 'string' ? v : (v.name || v.nameKo || v.value || v.nameZh || v.text || '')
+          const valImg = typeof v === 'object' ? (v.imageUrl || v.image || v.imgUrl || v.picUrl || '') : ''
+          return {
+            name: String(valName).trim(),
+            nameKo: typeof v === 'object' ? (v.nameKo || '') : '',
+            imageUrl: valImg
+          }
+        }).filter(v => v.name && v.name !== 'undefined' && v.name !== 'null')
         return {
           prop: propName,
           propKo: p.propKo || '',
