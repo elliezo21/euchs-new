@@ -1,6 +1,6 @@
 <template>
   <header 
-    :class="route.path === '/mall' || route.path.startsWith('/mall/') ? 'relative z-30' : 'sticky top-0 z-[100]'"
+    :class="route.path === '/mall' || route.path.startsWith('/mall/') ? 'relative z-[60]' : 'sticky top-0 z-[100]'"
     class="bg-white border-b border-gray-100 shadow-xs transition-all duration-200"
   >
     <!-- Top Utility Bar for Desktop (Slim & Centered max-w-7xl) -->
@@ -33,7 +33,7 @@
             <button 
               type="button"
               @click="openLoginModal('login')" 
-              class="hover:text-white transition flex items-center gap-1 text-slate-300 font-medium active:scale-95"
+              class="hover:text-white transition flex items-center gap-1 text-slate-300 font-medium active:scale-95 cursor-pointer"
             >
               <i class="fa fa-power-off text-slate-400 text-[10px]"></i>
               <span>로그인</span>
@@ -42,7 +42,7 @@
             <button 
               type="button"
               @click="openLoginModal('signup')" 
-              class="hover:text-white transition flex items-center gap-1 text-slate-300 font-medium active:scale-95"
+              class="hover:text-white transition flex items-center gap-1 text-slate-300 font-medium active:scale-95 cursor-pointer"
             >
               <i class="fa fa-user text-slate-400 text-[10px]"></i>
               <span>회원가입</span>
@@ -75,63 +75,70 @@
               <!-- User Dropdown Menu -->
               <div 
                 v-if="isUserMenuOpen" 
-                class="absolute right-0 mt-1 w-48 bg-white text-gray-800 rounded-xl shadow-xl border border-gray-100 py-1.5 z-50 text-xs"
+                class="absolute right-0 top-full mt-2 w-52 bg-white text-gray-800 rounded-xl shadow-2xl border border-gray-200/80 py-2 z-50 text-xs"
               >
-                <div class="px-3.5 py-2 border-b border-gray-100 bg-slate-50/50">
-                  <p class="font-black text-gray-900 truncate">{{ userDisplayName }}</p>
-                  <p class="text-[10px] text-gray-500 truncate mt-0.5 font-mono">{{ userEmail }}</p>
+                <div class="px-4 py-2 border-b border-gray-100 bg-slate-50/70">
+                  <div class="flex items-center justify-between gap-1">
+                    <p class="font-black text-gray-900 truncate">{{ userDisplayName }}님</p>
+                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-bold shrink-0">
+                      {{ isBusinessVerified ? 'VIP 바이어' : '일반회원' }}
+                    </span>
+                  </div>
+                  <p class="text-[11px] text-gray-500 font-medium truncate mt-0.5 font-mono">{{ userEmail }}</p>
                 </div>
 
                 <div class="py-1">
-                  <!-- 1. B2B 통합 대시보드 -->
-                  <router-link 
-                    to="/dashboard" 
-                    @click="isUserMenuOpen = false" 
-                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
-                  >
-                    <i class="fas fa-chart-pie text-blue-500 text-xs"></i>
-                    <span>B2B 통합 대시보드</span>
-                  </router-link>
-
-                  <!-- 2. 발주 & 결제 관리 -->
+                  <!-- 1. 내 주문 (주문/발주) -->
                   <router-link 
                     to="/dashboard/orders" 
                     @click="isUserMenuOpen = false" 
-                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
+                    class="w-full text-left px-4 py-2 text-slate-700 hover:bg-orange-50 hover:text-orange-600 font-medium flex items-center gap-2.5 transition"
                   >
-                    <i class="fas fa-shopping-cart text-amber-500 text-xs"></i>
-                    <span>발주 & 결제 관리</span>
+                    <span>📦</span>
+                    <span>내 주문 (주문/발주)</span>
                   </router-link>
 
-                  <!-- 3. 창고 & 배송 현황 -->
+                  <!-- 2. B2B 통합 대시보드 -->
                   <router-link 
-                    to="/dashboard/warehouse" 
+                    to="/dashboard" 
                     @click="isUserMenuOpen = false" 
-                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
+                    class="w-full text-left px-4 py-2 text-slate-700 hover:bg-orange-50 hover:text-orange-600 font-medium flex items-center gap-2.5 transition"
                   >
-                    <i class="fas fa-boxes-stacked text-teal-500 text-xs"></i>
-                    <span>창고 & 배송 현황</span>
+                    <span>📊</span>
+                    <span>B2B 통합 대시보드</span>
                   </router-link>
 
-                  <!-- 4. 계정센터 & 지갑 관리 -->
+                  <!-- 3. 1:1 상담 문의 -->
+                  <a 
+                    href="http://pf.kakao.com/_xmQWsK/chat" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    @click="isUserMenuOpen = false" 
+                    class="w-full text-left px-4 py-2 text-slate-700 hover:bg-orange-50 hover:text-orange-600 font-medium flex items-center gap-2.5 transition"
+                  >
+                    <span>💬</span>
+                    <span>1:1 상담 문의</span>
+                  </a>
+
+                  <!-- 4. 계정 설정 -->
                   <router-link 
                     to="/dashboard/account" 
                     @click="isUserMenuOpen = false" 
-                    class="w-full text-left px-3.5 py-2 hover:bg-blue-50 text-slate-800 hover:text-blue-600 font-bold flex items-center gap-2 transition"
+                    class="w-full text-left px-4 py-2 text-slate-700 hover:bg-orange-50 hover:text-orange-600 font-medium flex items-center gap-2.5 transition"
                   >
-                    <i class="fas fa-wallet text-indigo-500 text-xs"></i>
-                    <span>계정센터 & 지갑 관리</span>
+                    <span>⚙️</span>
+                    <span>계정 설정</span>
                   </router-link>
                 </div>
 
-                <div class="border-t border-gray-100 pt-1">
+                <div class="border-t border-gray-100 pt-1 mt-1">
                   <!-- 5. 로그아웃 -->
                   <button 
                     type="button"
                     @click="handleSignOut" 
-                    class="w-full text-left px-3.5 py-2 hover:bg-rose-50 text-rose-600 font-bold flex items-center gap-2 transition cursor-pointer"
+                    class="w-full text-left px-4 py-2 text-rose-600 hover:bg-rose-50 font-bold flex items-center gap-2.5 transition cursor-pointer"
                   >
-                    <i class="fas fa-sign-out-alt text-xs"></i>
+                    <span>🚪</span>
                     <span>로그아웃</span>
                   </button>
                 </div>
@@ -522,6 +529,7 @@ import {
   userDisplayName,
   userAvatarUrl,
   userEmail,
+  isBusinessVerified,
   openLoginModal,
   signOut,
   initAuth
