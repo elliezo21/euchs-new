@@ -216,6 +216,10 @@ const routes = [
     component: AdminLoginView,
   },
   {
+    path: '/reset-password',
+    redirect: '/'
+  },
+  {
     path: '/admin/login',
     name: 'admin-login',
     component: AdminLoginView,

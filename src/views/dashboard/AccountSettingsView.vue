@@ -83,6 +83,16 @@
         <Receipt class="w-4 h-4" :class="activeTab === 'deposit' ? 'text-emerald-400' : 'text-gray-400'" />
         <span>예치금 충전 / 환불 관리</span>
       </button>
+
+      <button
+        type="button"
+        @click="switchTab('security')"
+        class="px-4 py-2.5 rounded-2xl font-bold text-xs sm:text-sm transition-all flex items-center gap-2 shrink-0 cursor-pointer"
+        :class="activeTab === 'security' ? 'bg-slate-900 text-white shadow-sm' : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'"
+      >
+        <KeyRound class="w-4 h-4" :class="activeTab === 'security' ? 'text-blue-400' : 'text-gray-400'" />
+        <span>계정 보안 / 회원 탈퇴</span>
+      </button>
     </div>
     <!-- ======================================================== -->
     <div v-if="activeTab === 'address'" class="space-y-6 animate-fade-in">
@@ -396,6 +406,101 @@
     </div>
 
     <!-- ======================================================== -->
+    <!-- [TAB 4] 계정 보안 및 비밀번호 변경 / 회원 탈퇴 -->
+    <!-- ======================================================== -->
+    <div v-if="activeTab === 'security'" class="space-y-6 animate-fade-in">
+      <!-- 1. 비밀번호 변경 카드 -->
+      <div class="bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
+        <div class="flex items-center justify-between pb-4 border-b border-gray-100">
+          <div>
+            <h2 class="text-base font-bold text-gray-900 flex items-center gap-2">
+              <KeyRound class="w-5 h-5 text-indigo-600" />
+              <span>로그인 비밀번호 변경</span>
+            </h2>
+            <p class="text-xs text-gray-500 mt-1">
+              계정의 보안을 위해 영문, 숫자를 조합하여 6자 이상의 새 비밀번호를 설정해 주세요.
+            </p>
+          </div>
+          <span v-if="userEmail" class="px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-bold font-mono">
+            {{ userEmail }}
+          </span>
+        </div>
+
+        <form @submit.prevent="handleChangePassword" class="space-y-4 max-w-lg">
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1.5">새 비밀번호 (6자 이상) *</label>
+            <div class="relative">
+              <input
+                v-model="passwordForm.newPassword"
+                :type="showSecurityPassword ? 'text' : 'password'"
+                required
+                minlength="6"
+                placeholder="새로운 비밀번호를 입력하세요"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 pr-10"
+              />
+              <button
+                type="button"
+                @click="showSecurityPassword = !showSecurityPassword"
+                class="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xs cursor-pointer"
+              >
+                <i :class="showSecurityPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-bold text-gray-700 mb-1.5">새 비밀번호 확인 *</label>
+            <div class="relative">
+              <input
+                v-model="passwordForm.confirmPassword"
+                :type="showSecurityPassword ? 'text' : 'password'"
+                required
+                minlength="6"
+                placeholder="새로운 비밀번호를 다시 입력하세요"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-xs text-gray-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 pr-10"
+              />
+            </div>
+          </div>
+
+          <div class="pt-2">
+            <button
+              type="submit"
+              :disabled="isPasswordChanging"
+              class="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs shadow-sm transition active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <i v-if="isPasswordChanging" class="fas fa-spinner animate-spin"></i>
+              <span>비밀번호 변경 저장</span>
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- 2. 회원 탈퇴 (Danger Zone) 카드 -->
+      <div class="bg-red-50/40 border border-red-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-4">
+        <div class="flex items-center gap-2 text-red-700 font-bold text-base">
+          <AlertTriangle class="w-5 h-5 text-red-600" />
+          <span>회원 탈퇴 (계정 삭제)</span>
+        </div>
+        
+        <p class="text-xs text-red-800 leading-relaxed max-w-2xl">
+          회원 탈퇴 시 등록된 사업자 정보, 배송 주소록 및 미사용 예치금 잔액 환불이 제한될 수 있으며, 진행 중인 수입 대행 발주 및 통관 내역 조회가 영구히 중단됩니다.
+        </p>
+
+        <div class="pt-2">
+          <button
+            type="button"
+            @click="handleAccountWithdrawal"
+            :disabled="isWithdrawing"
+            class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm transition active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            <i v-if="isWithdrawing" class="fas fa-spinner animate-spin"></i>
+            <span>회원 탈퇴 신청하기</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
     <!-- 4. 신규/수정 배송지 추가 모달 -->
     <!-- ======================================================== -->
     <div
@@ -624,14 +729,19 @@ import {
   Edit2,
   Trash2,
   Receipt,
-  X
+  X,
+  KeyRound,
+  AlertTriangle
 } from 'lucide-vue-next'
 import {
   currentUser,
   currentUserProfile,
   userDisplayName,
+  userEmail,
   getUserBusinessInfo,
-  updateBusinessProfile
+  updateBusinessProfile,
+  updateUserPassword,
+  withdrawAccount
 } from '../../lib/auth'
 import {
   userBalance,
@@ -872,6 +982,60 @@ const setDefaultAddress = (id) => {
 
 const downloadReceipt = (t) => {
   alert(`[거래번호: ${t.id}]\n${t.title}\n금액: ₩${t.amount.toLocaleString()}\n발행일: ${t.date}\n전자 영수증이 발급되었습니다.`)
+}
+
+// ── 계정 보안 & 비밀번호 변경 / 회원 탈퇴 로직 ───────────────────────
+const passwordForm = ref({
+  newPassword: '',
+  confirmPassword: ''
+})
+const showSecurityPassword = ref(false)
+const isPasswordChanging = ref(false)
+const isWithdrawing = ref(false)
+
+const handleChangePassword = async () => {
+  if (!passwordForm.value.newPassword || passwordForm.value.newPassword.length < 6) {
+    alert('새 비밀번호는 최소 6자 이상이어야 합니다.')
+    return
+  }
+  if (passwordForm.value.newPassword !== passwordForm.value.confirmPassword) {
+    alert('새 비밀번호와 비밀번호 확인이 일치하지 않습니다.')
+    return
+  }
+
+  isPasswordChanging.value = true
+  try {
+    await updateUserPassword(passwordForm.value.newPassword)
+    alert('✅ 비밀번호가 성공적으로 변경되었습니다.')
+    passwordForm.value = { newPassword: '', confirmPassword: '' }
+  } catch (err) {
+    console.error('Password change error:', err)
+    alert(`비밀번호 변경 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
+  } finally {
+    isPasswordChanging.value = false
+  }
+}
+
+const handleAccountWithdrawal = async () => {
+  const isConfirmed = confirm(
+    '🚨 정말 회원 탈퇴를 진행하시겠습니까?\n\n- 탈퇴 시 등록된 사업자 정보 및 배송 주소록이 삭제됩니다.\n- 미사용 예치금 잔액 환불이 제한될 수 있습니다.\n- 진행 중인 발주 및 통관 내역 조회가 즉시 중단됩니다.'
+  )
+  if (!isConfirmed) return
+
+  const doubleCheck = confirm('최종 확인: 계정을 영구히 삭제하고 탈퇴하시겠습니까?')
+  if (!doubleCheck) return
+
+  isWithdrawing.value = true
+  try {
+    await withdrawAccount()
+    alert('회원 탈퇴가 정상적으로 처리되었습니다.\n그동안 이유씨컴퍼니를 이용해 주셔서 감사합니다.')
+    router.push('/')
+  } catch (err) {
+    console.error('Withdrawal error:', err)
+    alert(`탈퇴 처리 중 오류가 발생했습니다: ${err.message || '관리자에게 문의해 주세요.'}`)
+  } finally {
+    isWithdrawing.value = false
+  }
 }
 
 watch(currentUser, () => {

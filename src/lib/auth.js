@@ -809,6 +809,56 @@ export const resetPasswordForEmail = async (email) => {
 }
 
 /**
+ * 비밀번호 업데이트 (새 비밀번호 설정 / 변경)
+ */
+export const updateUserPassword = async (newPassword) => {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase 연동 설정이 필요합니다.')
+  }
+  if (!newPassword || newPassword.length < 6) {
+    throw new Error('비밀번호는 최소 6자 이상이어야 합니다.')
+  }
+  const { data, error } = await supabase.auth.updateUser({
+    password: newPassword
+  })
+  if (error) {
+    throw error
+  }
+  return data
+}
+
+/**
+ * 회원 탈퇴 (계정 비활성화 및 세션 종료)
+ */
+export const withdrawAccount = async () => {
+  if (!currentUser.value) {
+    throw new Error('로그인 상태가 아닙니다.')
+  }
+  const uid = currentUser.value.id
+  const email = currentUser.value.email
+
+  if (isSupabaseConfigured() && uid && isValidUUID(uid)) {
+    try {
+      await supabase.from('profiles').update({
+        status: 'withdrawn',
+        is_active: false,
+        updated_at: new Date().toISOString()
+      }).eq('id', uid)
+    } catch (e) {
+      console.warn('Profile withdraw update notice:', e)
+    }
+  }
+
+  try {
+    localStorage.removeItem(`euchs_cart_${uid}`)
+    localStorage.removeItem(`euchs_business_profile_${uid}`)
+    if (email) localStorage.removeItem(`euchs_business_profile_${email}`)
+  } catch (e) {}
+
+  await signOut()
+}
+
+/**
  * 명시적 로그아웃 여부 플래그 (수파베이스 SDK 자체 SIGNED_OUT 오작동 방어)
  */
 let _isExplicitSignOut = false
@@ -953,6 +1003,14 @@ const getLocalAuthUser = () => {
 let isListenerAttached = false
 
 export const initAuth = async () => {
+  // ── 0. 비밀번호 재설정(Recovery) 토큰 감지 ─────────────────────────
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash || ''
+    if (hash.includes('type=recovery') || (hash.includes('access_token=') && hash.includes('recovery'))) {
+      openLoginModal('reset_password')
+    }
+  }
+
   // ── 1. 관리자 토큰 우선 확인 ─────────────────────────────────────────
   try {
     const adminToken = localStorage.getItem('euchs_admin_token')
@@ -1035,6 +1093,15 @@ export const initAuth = async () => {
       }
 
       if (localStorage.getItem('euchs_demo_session')) return
+
+      if (event === 'PASSWORD_RECOVERY') {
+        if (session?.user) {
+          currentUser.value = session.user
+        }
+        isAuthLoading.value = false
+        openLoginModal('reset_password')
+        return
+      }
 
       if (session?.user) {
         // ✅ Supabase 정식 세션이 들어오면 적용 (구글/이메일 OAuth 포함)

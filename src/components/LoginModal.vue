@@ -555,6 +555,75 @@
             </div>
           </div>
 
+          <!-- ============================================ -->
+          <!-- 5. RESET PASSWORD MODE (인증 메일 링크 인입 시) -->
+          <!-- ============================================ -->
+          <div v-else-if="isResetPasswordMode" class="space-y-4">
+            <div class="p-3.5 bg-blue-50 rounded-2xl border border-blue-200 text-xs text-blue-900 space-y-1">
+              <p class="font-bold flex items-center gap-1.5 text-blue-950 text-sm">
+                <i class="fas fa-key text-blue-600"></i>
+                <span>비밀번호 재설정</span>
+              </p>
+              <p class="text-[11px] text-blue-800 leading-snug">
+                안전한 계정 관리를 위해 최소 6자 이상의 새 비밀번호를 입력해 주세요.
+              </p>
+            </div>
+
+            <form @submit.prevent="handleResetPasswordSubmit" class="space-y-3" autocomplete="off">
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호 (6자 이상) *</label>
+                <div class="relative">
+                  <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                    <i class="fas fa-lock"></i>
+                  </span>
+                  <input 
+                    v-model="resetPasswordForm.newPassword"
+                    :type="showNewPassword ? 'text' : 'password'" 
+                    required
+                    minlength="6"
+                    placeholder="새 비밀번호를 입력하세요" 
+                    class="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
+                  />
+                  <button 
+                    type="button" 
+                    @click="showNewPassword = !showNewPassword"
+                    class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 text-xs p-1 cursor-pointer"
+                  >
+                    <i :class="showNewPassword ? 'fas fa-eye-slash' : 'fas fa-eye'"></i>
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-xs font-bold text-slate-700 mb-1">새 비밀번호 확인 *</label>
+                <div class="relative">
+                  <span class="absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm">
+                    <i class="fas fa-check-circle"></i>
+                  </span>
+                  <input 
+                    v-model="resetPasswordForm.confirmPassword"
+                    :type="showNewPassword ? 'text' : 'password'" 
+                    required
+                    minlength="6"
+                    placeholder="새 비밀번호를 다시 입력하세요" 
+                    class="w-full pl-10 pr-10 py-3 rounded-xl bg-slate-50 border border-slate-200 focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
+                  />
+                </div>
+              </div>
+
+              <div class="pt-1">
+                <button 
+                  type="submit" 
+                  :disabled="isLoading"
+                  class="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
+                >
+                  <i v-if="isLoading" class="fas fa-spinner animate-spin text-sm"></i>
+                  <span>새 비밀번호로 저장하기</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
         </div>
       </div>
     </transition>
@@ -575,16 +644,23 @@ import {
   signInWithEmail,
   signUpWithEmail,
   updateBusinessProfile,
-  resetPasswordForEmail
+  resetPasswordForEmail,
+  updateUserPassword
 } from '../lib/auth'
 
 const isLoading = ref(false)
 const showPassword = ref(false)
+const showNewPassword = ref(false)
 const forgotEmail = ref('')
 
 const loginForm = ref({
   email: '',
   password: ''
+})
+
+const resetPasswordForm = ref({
+  newPassword: '',
+  confirmPassword: ''
 })
 
 const signupForm = ref({
@@ -612,11 +688,13 @@ const isLoginMode = computed(() => loginModalMode.value === 'login' || !loginMod
 const isSignupMode = computed(() => loginModalMode.value === 'signup' || loginModalMode.value === 'register')
 const isBusinessVerifyMode = computed(() => loginModalMode.value === 'business_verify' || loginModalMode.value === 'business' || loginModalMode.value === 'verify')
 const isForgotMode = computed(() => loginModalMode.value === 'forgot')
+const isResetPasswordMode = computed(() => loginModalMode.value === 'reset_password' || loginModalMode.value === 'reset')
 
 const modalTitle = computed(() => {
   if (isSignupMode.value) return 'B2B 사업자 회원가입'
   if (isBusinessVerifyMode.value) return 'B2B 사업자 정보 등록'
   if (isForgotMode.value) return '비밀번호 찾기'
+  if (isResetPasswordMode.value) return '새 비밀번호 설정'
   return '로그인'
 })
 
@@ -624,6 +702,7 @@ const modalSubtitle = computed(() => {
   if (isSignupMode.value) return '중국 1688 실시간 도매 소싱 및 B2B 수입대행 전용 회원가입'
   if (isBusinessVerifyMode.value) return '사업자 전용 B2B 폐쇄몰입니다. 원활한 도매 소싱을 위해 사업자정보를 입력해 주세요.'
   if (isForgotMode.value) return '가입하신 이메일로 비밀번호 재설정 링크를 보내드립니다.'
+  if (isResetPasswordMode.value) return '새로운 비밀번호를 입력하여 계정 비밀번호를 안전하게 재설정하세요.'
   return '15년 노하우 신뢰의 중국 무역 파트너 EUC COMPANY'
 })
 
@@ -841,6 +920,32 @@ const handleForgotPassword = async () => {
   } catch (err) {
     console.error('Forgot password error:', err)
     alert(`발송 실패: ${err.message || '이메일 주소를 다시 확인해 주세요.'}`)
+  } finally {
+    isLoading.value = false
+  }
+}
+
+const handleResetPasswordSubmit = async () => {
+  if (!resetPasswordForm.value.newPassword || resetPasswordForm.value.newPassword.length < 6) {
+    alert('비밀번호는 최소 6자 이상이어야 합니다.')
+    return
+  }
+  if (resetPasswordForm.value.newPassword !== resetPasswordForm.value.confirmPassword) {
+    alert('비밀번호가 일치하지 않습니다. 다시 확인해 주세요.')
+    return
+  }
+
+  isLoading.value = true
+  try {
+    await updateUserPassword(resetPasswordForm.value.newPassword)
+    alert('✅ 비밀번호가 성공적으로 변경되었습니다!\n새 비밀번호로 안전하게 로그인되었습니다.')
+    closeLoginModal()
+    resetPasswordForm.value = { newPassword: '', confirmPassword: '' }
+    window.location.hash = ''
+    window.dispatchEvent(new CustomEvent('euchs-auth-changed'))
+  } catch (err) {
+    console.error('Password update error:', err)
+    alert(`비밀번호 변경 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
   } finally {
     isLoading.value = false
   }
