@@ -12,25 +12,25 @@
     <!-- ======================================================== -->
     <!-- 1. MALL 2-TIER STICKY SEARCH & CATEGORY BAR              -->
     <!-- ======================================================== -->
-    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-200 py-3 transition-all duration-200">
-      <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
+    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-200 py-2.5 sm:py-3 transition-all duration-200">
+      <div class="max-w-[1720px] mx-auto px-2 sm:px-6 lg:px-8">
         
-        <!-- 메인 한 줄 바: [모든 카테고리] + [1688 와이드 검색창] + [보관함] -->
-        <div class="flex items-center justify-center gap-3 sm:gap-4 relative" ref="categoryNavRef" id="mall-category-bar" @mouseleave="handleMegaMenuLeave">
+        <!-- 메인 한 줄 바: [카테고리] + [1688 와이드 검색창] + [보관함] -->
+        <div class="flex items-center justify-center gap-1.5 sm:gap-4 relative" ref="categoryNavRef" id="mall-category-bar" @mouseleave="handleMegaMenuLeave">
           
-          <!-- 1. [☰ 모든 카테고리 ▾] 주황색 버튼 (오르간 메가메뉴) -->
+          <!-- 1. [☰ 카테고리 ▾] 주황색 버튼 (오르간 메가메뉴) -->
           <div class="relative shrink-0">
             <button
               type="button"
               data-tour="category-btn"
               @click.stop="toggleMegaMenu"
               @mouseenter="openMegaMenuOnHover"
-              class="h-11 px-4 sm:px-5 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white font-black text-xs sm:text-sm shadow-md shadow-orange-500/25 transition-all flex items-center gap-2 touch-manipulation select-none whitespace-nowrap cursor-pointer"
+              class="h-10 sm:h-11 px-2.5 sm:px-4 rounded-xl bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 active:scale-95 text-white font-black text-xs sm:text-sm shadow-md shadow-orange-500/25 transition-all flex items-center gap-1 sm:gap-1.5 touch-manipulation select-none whitespace-nowrap cursor-pointer shrink-0"
             >
-              <i class="fas fa-bars text-sm sm:text-base"></i>
-              <span>모든 카테고리</span>
+              <i class="fas fa-bars text-xs sm:text-sm"></i>
+              <span>카테고리</span>
               <i
-                class="fas fa-chevron-down text-[10px] transition-transform duration-200"
+                class="fas fa-chevron-down text-[9px] sm:text-[10px] transition-transform duration-200"
                 :class="isMegaMenuOpen ? 'rotate-180' : ''"
               ></i>
             </button>
@@ -140,7 +140,7 @@
           </div>
 
           <!-- 2. 1688 한글/URL 와이드 검색 입력창 + [📷 사진] + [🔍 1688 검색] -->
-          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="w-full max-w-[680px] min-w-0">
+          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="flex-1 min-w-0 max-w-[680px]">
             <!-- 이미지 검색 결과 모드 미리보기 뱃지 -->
             <div v-if="isImageSearchMode" class="flex items-center gap-2 mb-1.5">
               <div class="flex items-center gap-2 pl-2 pr-1 py-1 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium">
@@ -167,22 +167,22 @@
             </div>
 
             <!-- 검색 입력창 & 단독 버튼 묶음 -->
-            <div class="flex items-center gap-2">
+            <div class="flex-1 min-w-0 flex items-center gap-1 sm:gap-2">
               <div class="relative flex-1 min-w-0 flex items-center">
-                <i class="fas fa-search text-orange-400 text-sm absolute left-3.5 pointer-events-none"></i>
+                <i class="fas fa-search text-orange-400 text-xs sm:text-sm absolute left-2.5 sm:left-3.5 pointer-events-none"></i>
                 <input
                   v-model="queryInput"
                   @input="handleSearchInputDebounced"
                   type="text"
-                  placeholder="사진검색 ,1688 한글 상품명 또는 1688링크(URL)를 붙여넣으세요."
-                  class="w-full h-11 pl-10 pr-8 rounded-xl border-2 border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 transition bg-white shadow-xs"
+                  placeholder="사진검색, 1688 한글 상품명/링크(URL)"
+                  class="flex-1 min-w-0 w-full h-10 sm:h-11 pl-8 sm:pl-10 pr-7 sm:pr-8 rounded-xl border-2 border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 transition bg-white shadow-xs"
                   :disabled="isLoading"
                 />
                 <button
                   v-if="queryInput"
                   type="button"
                   @click="queryInput = ''"
-                  class="absolute right-2.5 text-gray-400 hover:text-gray-600 flex items-center justify-center"
+                  class="absolute right-2 sm:right-2.5 text-gray-400 hover:text-gray-600 flex items-center justify-center cursor-pointer"
                 >
                   <i class="fas fa-times-circle text-xs"></i>
                 </button>
@@ -193,23 +193,23 @@
                 type="button"
                 @click="openImageSearchModal"
                 :disabled="isLoading && !isImageSearchMode"
-                class="shrink-0 h-11 px-3.5 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl flex items-center gap-1.5 transition active:scale-95 text-xs sm:text-sm cursor-pointer shadow-xs disabled:opacity-50"
+                class="shrink-0 h-10 sm:h-11 px-2 sm:px-3 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl flex items-center justify-center gap-1 sm:gap-1.5 transition active:scale-95 text-xs sm:text-sm cursor-pointer shadow-xs disabled:opacity-50"
                 title="1688 사진/이미지로 검색"
               >
                 <i class="fas fa-spinner fa-spin text-xs" v-if="isImageUploading"></i>
                 <i class="fas fa-camera text-xs sm:text-sm" v-else></i>
-                <span>사진</span>
+                <span class="hidden sm:inline">사진</span>
               </button>
 
               <!-- 🔍 1688 검색 버튼 -->
               <button
                 type="submit"
                 :disabled="isLoading || !queryInput.trim()"
-                class="shrink-0 h-11 px-5 bg-rose-400 hover:bg-rose-500 active:bg-rose-600 text-white font-bold rounded-xl flex items-center justify-center gap-1.5 shadow-xs transition active:scale-95 text-xs sm:text-sm cursor-pointer disabled:opacity-50"
+                class="shrink-0 h-10 sm:h-11 px-2.5 sm:px-5 bg-rose-400 hover:bg-rose-500 active:bg-rose-600 text-white font-bold rounded-xl flex items-center justify-center gap-1 sm:gap-1.5 shadow-xs transition active:scale-95 text-xs sm:text-sm cursor-pointer disabled:opacity-50"
               >
                 <i class="fas fa-spinner fa-spin text-xs" v-if="isLoading && !isImageUploading"></i>
                 <i class="fas fa-search text-xs" v-else></i>
-                <span>1688 검색</span>
+                <span><span class="hidden sm:inline">1688 </span>검색</span>
               </button>
             </div>
           </form>
