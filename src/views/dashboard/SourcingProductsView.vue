@@ -26,6 +26,17 @@
           전체선택
         </label>
 
+        <!-- ★ 엑셀 일괄 업로드 상시 버튼 (신규) -->
+        <button
+          type="button"
+          @click="openBulkExcelModal"
+          class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-extrabold text-xs shadow-sm transition cursor-pointer active:scale-95"
+          title="대량 엑셀 파일로 상품을 한 번에 등록합니다"
+        >
+          <span>📤</span>
+          <span>엑셀 일괄 업로드</span>
+        </button>
+
         <!-- ★ 상품등록 ▾ 드롭다운 -->
         <div class="relative" ref="registerDropRef">
           <button
@@ -216,37 +227,76 @@
 
             <!-- 파일 업로드 드래그앤드롭 영역 -->
             <div>
+              <input
+                ref="bulkFileInputRef"
+                type="file"
+                accept=".xlsx,.xls,.csv"
+                class="hidden"
+                @change="onBulkFileSelect"
+              />
               <div
-                class="border-2 border-dashed rounded-xl transition-all"
-                :class="bulkDragOver ? 'border-orange-400 bg-orange-50' : 'border-gray-300 hover:border-gray-400 bg-white'"
+                class="border-2 border-dashed rounded-2xl p-6 transition-all cursor-pointer flex flex-col items-center justify-center text-center"
+                :class="bulkDragOver
+                  ? 'border-emerald-500 bg-emerald-50/70 scale-[0.99]'
+                  : 'border-slate-300 hover:border-emerald-500 hover:bg-emerald-50/30 bg-slate-50/50'"
                 @dragover.prevent="bulkDragOver = true"
                 @dragleave="bulkDragOver = false"
                 @drop.prevent="onBulkFileDrop"
-                style="min-height: 160px; display: flex; align-items: center; justify-content: center;"
+                @click="triggerBulkFileInput"
+                style="min-height: 180px;"
               >
                 <!-- 파일 미선택 상태 -->
-                <div v-if="!bulkParsedItems.length" class="text-center space-y-3 p-8">
-                  <div class="text-4xl">📂</div>
-                  <p class="text-sm font-bold text-gray-500">파일을 여기로 끌어오거나,</p>
-                  <label class="cursor-pointer inline-block">
-                    <span class="px-5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition border border-gray-200">업로드</span>
-                    <input type="file" accept=".xlsx,.xls,.csv" class="hidden" @change="onBulkFileSelect" />
-                  </label>
-                  <p class="text-[11px] text-gray-400">업로드 파일은 최대 20M 초과할 수 없습니다.</p>
+                <div v-if="!bulkParsedItems.length" class="space-y-2.5 py-4">
+                  <div class="w-12 h-12 rounded-2xl bg-white border border-slate-200 text-emerald-600 flex items-center justify-center mx-auto shadow-xs text-2xl">
+                    📊
+                  </div>
+                  <div>
+                    <p class="text-sm font-bold text-gray-800">
+                      파일을 여기로 끌어오거나 <span class="text-emerald-600 underline">클릭하여 업로드</span>
+                    </p>
+                    <p class="text-[11px] text-gray-400 mt-1">
+                      지원 형식: XLSX, XLS, CSV (최대 20MB)
+                    </p>
+                  </div>
+                  <div class="pt-1">
+                    <span class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-xs transition pointer-events-none">
+                      📁 엑셀 파일 선택하기
+                    </span>
+                  </div>
                 </div>
                 <!-- 파싱 완료 상태 -->
-                <div v-else class="w-full p-5">
-                  <div class="flex items-center justify-between mb-3">
-                    <span class="text-xs font-extrabold text-emerald-700">✅ {{ bulkParsedItems.length }}개 상품 파싱 완료</span>
-                    <button type="button" @click="bulkParsedItems = []" class="text-xs text-gray-400 hover:text-gray-600 cursor-pointer">다시 선택</button>
-                  </div>
-                  <div class="max-h-36 overflow-y-auto space-y-1">
-                    <div v-for="(item, i) in bulkParsedItems" :key="i"
-                      class="flex items-center gap-2 p-2 bg-white rounded-lg text-xs border border-gray-100"
+                <div v-else class="w-full p-2 text-left" @click.stop>
+                  <div class="flex items-center justify-between mb-3 pb-2 border-b border-gray-100">
+                    <div class="flex items-center gap-1.5">
+                      <span class="text-emerald-600 font-black">✅</span>
+                      <span class="text-xs font-extrabold text-emerald-800">{{ bulkParsedItems.length }}개 상품 파싱 완료</span>
+                    </div>
+                    <button
+                      type="button"
+                      @click="bulkParsedItems = []"
+                      class="text-xs text-gray-400 hover:text-red-500 font-bold cursor-pointer transition"
                     >
-                      <span class="w-5 h-5 rounded-full bg-orange-100 text-orange-700 font-black text-[10px] flex items-center justify-center shrink-0">{{ i+1 }}</span>
-                      <span class="font-bold text-gray-800 truncate flex-1">{{ item.productName }}</span>
-                      <span class="text-gray-400 shrink-0">{{ item.quantity }}개</span>
+                      다시 선택
+                    </button>
+                  </div>
+                  <div class="max-h-40 overflow-y-auto space-y-1.5 pr-1">
+                    <div
+                      v-for="(item, i) in bulkParsedItems"
+                      :key="i"
+                      class="flex items-center gap-2 p-2.5 bg-white rounded-xl text-xs border border-gray-200/80 shadow-2xs"
+                    >
+                      <span class="w-5 h-5 rounded-full bg-emerald-100 text-emerald-800 font-black text-[10px] flex items-center justify-center shrink-0">
+                        {{ i+1 }}
+                      </span>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-bold text-gray-900 truncate">{{ item.productName }}</div>
+                        <div class="text-[11px] text-gray-500 truncate">
+                          {{ item.sku ? `옵션: ${item.sku} · ` : '' }}수량: {{ item.quantity || 1 }}개
+                        </div>
+                      </div>
+                      <span class="text-xs font-mono font-bold text-emerald-600 shrink-0">
+                        {{ item.priceCny ? '¥' + Number(item.priceCny).toFixed(2) : '' }}
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -260,8 +310,10 @@
             <button
               @click="submitBulkExcel"
               :disabled="!bulkParsedItems.length"
-              class="px-6 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-50 text-white font-extrabold text-xs transition cursor-pointer shadow-sm"
-            >📤 {{ bulkParsedItems.length }}개 상품 등록</button>
+              class="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-extrabold text-xs transition cursor-pointer shadow-sm active:scale-95"
+            >
+              📤 {{ bulkParsedItems.length }}개 상품 일괄 등록
+            </button>
           </div>
         </div>
       </div>
@@ -433,13 +485,26 @@ function closeDropOnOutside(e) {
 const isBulkExcelModalOpen = ref(false);
 const bulkParsedItems = ref([]);
 const bulkDragOver = ref(false);
+const bulkFileInputRef = ref(null);
 
 function openBulkExcelModal() {
   isRegisterDropOpen.value = false;
   bulkParsedItems.value = [];
   isBulkExcelModalOpen.value = true;
 }
-function closeBulkExcelModal() { isBulkExcelModalOpen.value = false; }
+function closeBulkExcelModal() {
+  isBulkExcelModalOpen.value = false;
+  bulkParsedItems.value = [];
+  if (bulkFileInputRef.value) {
+    bulkFileInputRef.value.value = '';
+  }
+}
+
+function triggerBulkFileInput() {
+  if (bulkFileInputRef.value) {
+    bulkFileInputRef.value.click();
+  }
+}
 
 function handleDownloadTemplate() {
   try { downloadBulkOrderTemplate(); }
@@ -476,8 +541,9 @@ function submitBulkExcel() {
   }));
   items.value = [...newItems, ...items.value];
   persistItems();
+  const count = newItems.length;
   closeBulkExcelModal();
-  alert(`✅ ${newItems.length}개 상품이 상품리스트에 추가되었습니다.`);
+  alert(`✅ ${count}개 상품이 엑셀로 등록되었습니다.`);
 }
 
 // ─── 카테고리 일괄 설정 모달 ──────────────────────────────
