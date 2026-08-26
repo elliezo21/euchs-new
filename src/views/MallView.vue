@@ -16,7 +16,7 @@
       <div class="max-w-[1720px] mx-auto px-4 sm:px-6 lg:px-8">
         
         <!-- 메인 한 줄 바: [모든 카테고리] + [1688 와이드 검색창] + [보관함] -->
-        <div class="flex items-center gap-3 sm:gap-4 relative" ref="categoryNavRef" id="mall-category-bar" @mouseleave="handleMegaMenuLeave">
+        <div class="flex items-center justify-center gap-3 sm:gap-4 relative" ref="categoryNavRef" id="mall-category-bar" @mouseleave="handleMegaMenuLeave">
           
           <!-- 1. [☰ 모든 카테고리 ▾] 주황색 버튼 (오르간 메가메뉴) -->
           <div class="relative shrink-0">
@@ -140,7 +140,7 @@
           </div>
 
           <!-- 2. 1688 한글/URL 와이드 검색 입력창 (h-11, border-2 border-orange-400) + [🔍 1688 검색] 버튼 (h-11, bg-rose-500) -->
-          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="w-full max-w-[580px] min-w-0">
+          <form data-tour="search-bar" @submit.prevent="executeSearch(1)" class="w-full max-w-[720px] min-w-0">
             <!-- 이미지 검색 결과 모드 미리보기 뱃지 -->
             <div v-if="isImageSearchMode" class="flex items-center gap-2 mb-1.5">
               <div class="flex items-center gap-2 pl-2 pr-1 py-1 bg-orange-50 border border-orange-200 rounded-lg text-xs text-orange-700 font-medium">
@@ -175,7 +175,7 @@
                 v-model="queryInput"
                 @input="handleSearchInputDebounced"
                 type="text"
-                placeholder="1688 상품명 한글 입력 또는 1688 상품 링크(URL)를 붙여넣으세요"
+                placeholder="사진검색 ,1688 한글 상품명 또는 1688링크(URL)를 붙여넣으세요."
                 class="w-full px-2 text-xs sm:text-sm font-normal text-gray-800 placeholder:text-gray-400/80 placeholder:font-light bg-transparent outline-none"
                 :disabled="isLoading"
               />
@@ -238,7 +238,7 @@
 
         </div>
 
-        <!-- 4. 서브 바: 퀵 카테고리 탭 & 인기 검색어 -->
+        <!-- 4. 서브 바: 퀵 카테고리 탭 & 이용가이드 -->
         <div class="mt-2 pt-2 border-t border-gray-100 flex flex-wrap lg:flex-nowrap items-center justify-between gap-2 text-xs">
           <!-- 퀵 카테고리 탭 -->
           <div class="flex items-center gap-1 overflow-x-auto no-scrollbar py-0.5">
@@ -259,26 +259,10 @@
             </button>
           </div>
 
-          <!-- 인기 검색어 태그 -->
-          <div class="hidden xl:flex items-center gap-1.5 shrink-0 text-[11px]">
-            <span class="text-gray-400 font-semibold flex items-center gap-1">
-              <i class="fas fa-fire text-rose-500 text-[10px]"></i> 인기:
-            </span>
-            <button
-              v-for="kw in popularKeywords"
-              :key="kw"
-              type="button"
-              @click="queryInput = kw; executeSearch(1)"
-              class="px-1.5 py-0.5 rounded bg-gray-100 hover:bg-rose-50 hover:text-rose-600 text-gray-600 transition font-medium"
-            >
-              {{ kw }}
-            </button>
-          </div>
-
           <!-- 📖 이용가이드 버튼 -->
           <router-link
             to="/support/guide"
-            class="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all active:scale-95 border border-slate-700 whitespace-nowrap"
+            class="shrink-0 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition-all active:scale-95 border border-slate-700 whitespace-nowrap ml-auto"
             title="이유씨 B2B 시스템 통합 이용가이드 확인"
           >
             <i class="fas fa-book-open text-[11px] text-orange-400"></i>
