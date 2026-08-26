@@ -198,6 +198,15 @@ export async function saveNewOrder(order) {
     measuredData: order.measuredData || {},
     inspectionPhotos: order.inspectionPhotos || [],
     vasApplied: order.vasApplied || [],
+    issueDetails: order.issueDetails || {
+      colorMismatch: 0,
+      damaged: 0,
+      contaminated: 0,
+      missingParts: 0,
+      lowQuality: 0,
+      wrongDelivery: 0,
+    },
+    issueStatus: order.issueStatus || '',
     memo: order.memo || ''
   };
 
@@ -225,6 +234,8 @@ export async function saveNewOrder(order) {
         measured_data: newOrderObj.measuredData,
         inspection_photos: newOrderObj.inspectionPhotos,
         vas_applied: newOrderObj.vasApplied,
+        issue_details: newOrderObj.issueDetails,
+        issue_status: newOrderObj.issueStatus,
         memo: newOrderObj.memo,
         created_at: newOrderObj.createdAt,
         updated_at: new Date().toISOString()
@@ -254,11 +265,19 @@ export function updateOrderStatus(orderId, nextStatus, extraData = {}) {
         status: nextStatus,
         updated_at: new Date().toISOString()
       };
-      if (extraData.measuredData) payload.measured_data = extraData.measuredData;
+      // 추가 데이터 필드 선택적 동기화
+      if (extraData.measuredData)    payload.measured_data    = extraData.measuredData;
       if (extraData.inspectionPhotos) payload.inspection_photos = extraData.inspectionPhotos;
-      if (extraData.secondPayment) payload.second_payment = extraData.secondPayment;
-      if (extraData.firstPayment) payload.first_payment = extraData.firstPayment;
-      if (extraData.paymentInfo) payload.payment_info = extraData.paymentInfo;
+      if (extraData.secondPayment)   payload.second_payment   = extraData.secondPayment;
+      if (extraData.firstPayment)    payload.first_payment    = extraData.firstPayment;
+      if (extraData.paymentInfo)     payload.payment_info     = extraData.paymentInfo;
+      if (extraData.vasApplied)      payload.vas_applied      = extraData.vasApplied;
+      if (extraData.issueDetails)    payload.issue_details    = extraData.issueDetails;
+      if (extraData.issueStatus !== undefined) payload.issue_status = extraData.issueStatus;
+      if (extraData.items)           payload.items            = extraData.items;
+      if (extraData.memo !== undefined) payload.memo          = extraData.memo;
+      if (extraData.totalPriceKrw !== undefined) payload.total_price_krw = extraData.totalPriceKrw;
+      if (extraData.totalPriceRmb !== undefined) payload.total_price_rmb = extraData.totalPriceRmb;
 
       supabase
         .from('orders')
@@ -326,26 +345,51 @@ export function calculatePipelineCounts(ordersList = null) {
 
 /**
  * 창고 인바운드 모델 포맷팅 (WarehouseView용)
+ * 4단계(구매진행) 이후의 주문을 창고 모델로 변환하여 반환
  */
 export function getWarehouseInboundsFromOrders() {
   const orders = getStoredOrders();
   return orders
     .filter(o => {
       const norm = normalizeOrderStatus(o.status);
-      return ['warehouse_in', 'inspection_done', 'purchasing', 'shipping_ready', 'customs_clearance', 'delivered'].includes(norm);
+      return [
+        'purchasing', 'warehouse_in', 'inspection_done',
+        'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'
+      ].includes(norm) || o.status === 'defect_found';
     })
     .map(o => {
       const primaryItem = o.items?.[0] || {};
       const measured = o.measuredData || {};
-      const isDone = o.status === 'inspection_done' || o.status === 'shipping_ready';
+      const norm = normalizeOrderStatus(o.status);
+      const isDone = ['inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(norm);
+      const isDefect = o.status === 'defect_found';
+
+      const resolveInspectionStatus = () => {
+        if (o.inspectionStatus) return o.inspectionStatus;
+        if (isDefect) return 'defect_found';
+        if (norm === 'shipping_ready') return 'ready_to_ship';
+        if (norm === 'inspection_done') return 'inspected';
+        if (norm === 'warehouse_in') return 'inbound_weighed';
+        return 'pending_inbound';
+      };
+
+      const resolveInspectionNote = () => {
+        if (o.inspectionNote) return o.inspectionNote;
+        if (isDefect) return '이우 센터 정밀 검수 중 이슈 상품 발견. 상세 내용은 이슈 현황을 확인해 주세요.';
+        if (norm === 'inspection_done') return '이우 센터 실측 계근 및 100% 정밀 검수 완료. 2차 정산 결제 대기중.';
+        if (norm === 'shipping_ready') return '한국행 정기선적 적재 대기.';
+        if (norm === 'warehouse_in') return '이우 센터 입고 및 계근 완료.';
+        return '중국 공장에서 창고로 운송중.';
+      };
+
       return {
         id: o.id,
-        inboundNo: o.inboundNo || `INB-YW-${o.orderNumber.replace(/[^0-9]/g, '') || o.id}`,
-        inboundDate: o.createdAt || '2026-08-24 10:00',
+        inboundNo: o.inboundNo || `INB-YW-${(o.orderNumber || '').replace(/[^0-9]/g, '') || o.id}`,
+        inboundDate: o.createdAt || new Date().toISOString(),
         orderNo: o.orderNumber,
         order: o,
         buyerName: o.buyerInfo?.companyName || o.customer_name || '이유씨 바이어',
-        buyerId: 'EUCHS-VIP-8821',
+        buyerId: o.buyerInfo?.email || 'EUCHS-VIP',
         warehouse: 'yiwu',
         productName: primaryItem.productName || primaryItem.titleKo || '1688 수입 품목',
         sku: primaryItem.sku || '기본 규격',
@@ -353,20 +397,19 @@ export function getWarehouseInboundsFromOrders() {
         boxCount: measured.cartons || Math.max(1, Math.ceil((primaryItem.quantity || 100) / 10)),
         measuredWeightKg: measured.weightKg || (isDone ? 42.5 : 0),
         measuredCbm: measured.cbm || (isDone ? 0.352 : 0),
-        inspectionStatus: o.status === 'inspection_done' ? 'inspected' : o.status === 'shipping_ready' ? 'ready_to_ship' : o.status === 'warehouse_in' ? 'inbound_weighed' : 'pending_inbound',
-        inspectionNote: o.status === 'inspection_done'
-          ? '이우 센터 실측 계근 및 100% 정밀 검수 완료. 2차 정산 결제 대기중.'
-          : o.status === 'warehouse_in'
-            ? '이우 센터 입고 및 계근 완료.'
-            : o.status === 'shipping_ready'
-              ? '한국행 정기선적 적재 대기.'
-              : '중국 공장에서 창고로 운송중.',
+        inspectionStatus: resolveInspectionStatus(),
+        inspectionNote: resolveInspectionNote(),
         thumbnail: primaryItem.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
         inspectionPhotos: o.inspectionPhotos || (isDone ? [
           { url: primaryItem.imageUrl || 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&auto=format&fit=crop&q=80', caption: '정밀 실물 검수' }
         ] : []),
         vasApplied: o.vasApplied || [],
-        secondPayment: o.secondPayment || null
+        secondPayment: o.secondPayment || null,
+        issueDetails: o.issueDetails || {
+          colorMismatch: 0, damaged: 0, contaminated: 0,
+          missingParts: 0, lowQuality: 0, wrongDelivery: 0,
+        },
+        issueStatus: o.issueStatus || '',
       };
     });
 }

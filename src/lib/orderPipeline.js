@@ -21,17 +21,26 @@ export const STATUS_ALIAS_MAP = {
   // Legacy / Application default mappings
   pending: 'quote_pending',
   quote_request: 'quote_pending',
+  quote_pending: 'quote_pending',
   consulting: 'quote_confirmed',
   pending_payment: 'quote_confirmed',
   quoted: 'quote_confirmed',
+  quote_confirmed: 'quote_confirmed',
   payment_verified: 'payment_verified',
+  paid: 'payment_verified',
+  first_payment_done: 'payment_verified',
   purchasing: 'purchasing',
   purchasing_agent: 'purchasing',
   in_warehouse: 'warehouse_in',
   warehouse_in: 'warehouse_in',
+  inbound_weighed: 'warehouse_in',
+  // 검수 완료/이슈 상태
   inspection_done: 'inspection_done',
   inspecting: 'inspection_done',
-  inbound_weighed: 'warehouse_in',
+  inspected: 'inspection_done',
+  passed: 'inspection_done',
+  // 이슈 발견: defect_found → inspection_done 단계로 집계 (이슈 트래킹은 issueStatus로 별도 관리)
+  defect_found: 'inspection_done',
   shipping_ready: 'shipping_ready',
   ready_to_ship: 'shipping_ready',
   customs: 'customs_clearance',
@@ -40,7 +49,16 @@ export const STATUS_ALIAS_MAP = {
   domestic_shipping: 'domestic_shipping',
   completed: 'delivered',
   delivered: 'delivered',
-  cancelled: 'cancelled'
+  cancelled: 'cancelled',
+  // step_ 레거시 형식 대응
+  step_1: 'quote_pending',
+  step_2: 'quote_confirmed',
+  step_3: 'payment_verified',
+  step_4: 'purchasing',
+  step_5: 'warehouse_in',
+  step_6: 'shipping_ready',
+  step_7: 'customs_clearance',
+  step_8: 'domestic_shipping',
 };
 
 export function normalizeOrderStatus(status) {
