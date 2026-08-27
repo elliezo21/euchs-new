@@ -986,19 +986,23 @@
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).itemTotalKrw) }}원</span>
                   </div>
                   <div class="flex items-center justify-between py-1 border-b border-gray-100">
-                    <span class="text-gray-600">2. 수입 구매대행 & 기본 수수료 (8%)</span>
+                    <span class="text-gray-600">2. 중국 현지 택배비 (이우 물류센터 입고)</span>
+                    <span class="font-mono font-bold text-amber-700">₩{{ formatNumber(getOrderCostSummary(activeOrder).chinaFreightKrw) }}원</span>
+                  </div>
+                  <div class="flex items-center justify-between py-1 border-b border-gray-100">
+                    <span class="text-gray-600">3. 수입 구매대행 &amp; 기본 수수료 (8%)</span>
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).agencyFeeKrw) }}원</span>
                   </div>
                   <div class="flex items-center justify-between py-1 border-b border-gray-100">
-                    <span class="text-gray-600">3. 국제 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
+                    <span class="text-gray-600">4. 국제 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원</span>
                   </div>
                   <div class="flex items-center justify-between py-1 border-b border-gray-100">
-                    <span class="text-gray-600">4. 예상 수입 관세 (한-중 FTA 협정세율)</span>
+                    <span class="text-gray-600">5. 예상 수입 관세 (한-중 FTA 협정세율)</span>
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).tariffKrw) }}원</span>
                   </div>
                   <div class="flex items-center justify-between py-1 border-b border-gray-100">
-                    <span class="text-gray-600">5. 수입 부가가치세 (VAT 10% 매입세액공제)</span>
+                    <span class="text-gray-600">6. 수입 부가가치세 (VAT 10% 매입세액공제)</span>
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
                   </div>
                 </div>
@@ -1013,7 +1017,7 @@
                     <span class="text-[10px] text-blue-700 font-mono">B2B 표준</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-gray-700"><b>1차 결제</b> (상품대금 + 기본수수료):</span>
+                    <span class="text-gray-700"><b>1차 결제</b> (상품대금 + 중국택배비 + 수수료):</span>
                     <span class="font-mono font-black text-blue-800 text-sm">
                       ₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원
                     </span>
@@ -1944,6 +1948,7 @@ function getOrderCostSummary(order) {
       tariffKrw: 0,
       vatKrw: 0,
       agencyFeeKrw: 0,
+      chinaFreightKrw: 0,
       unitDdpKrw: 0
     };
   }
@@ -1972,10 +1977,33 @@ function getOrderCostSummary(order) {
     agencyFeeRate: 0.08,
   });
 
+  // 이우 물류센터 기준 중국 내 배송비 추정 (areaCode: 330782)
+  let chinaFreightRmb = 0;
+  if (totalQty > 0) {
+    if (totalQty < 10) chinaFreightRmb = 6;
+    else if (totalQty < 50) chinaFreightRmb = 8;
+    else if (totalQty < 100) chinaFreightRmb = 12;
+    else chinaFreightRmb = totalQty * 0.12;
+  }
+  const chinaFreightKrw = Math.round(chinaFreightRmb * 226.19);
+
+  // 수수료: (상품 대금 + 중국 현지 택배비) × 8%
+  const itemTotalKrw = calc.summary.itemTotalKrw;
+  const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * 0.08);
+
+  // DDP 재계산: 상품대금 + 중국택배비 + 수수료 + 해운비 + 관세 + VAT
+  const totalDdpKrw = itemTotalKrw + chinaFreightKrw + agencyFeeKrw
+    + calc.summary.shippingFeeKrw + calc.summary.tariffKrw + calc.summary.vatKrw;
+  const unitDdpKrw = totalQty > 0 ? Math.round(totalDdpKrw / totalQty) : 0;
+
   return {
     ...calc.summary,
     avgPriceCny: Number(avgPriceCny.toFixed(2)),
-    itemTotalCny: Number(totalCny.toFixed(2))
+    itemTotalCny: Number(totalCny.toFixed(2)),
+    chinaFreightKrw,
+    agencyFeeKrw,
+    totalDdpKrw,
+    unitDdpKrw
   };
 }
 
@@ -2267,8 +2295,18 @@ const syncActiveOrderToStorage = () => {
 
 function getOrderPaymentStages(order) {
   const summary = getOrderCostSummary(order);
-  const firstPaymentKrw = Math.round((summary.itemTotalKrw || 0) + (summary.agencyFeeKrw || 0));
-  const secondPaymentKrw = Math.round((summary.shippingFeeKrw || 0) + (summary.tariffKrw || 0) + (summary.vatKrw || 0));
+  // 1차 결제 = 상품 대금 + 중국 현지 택배비 + 수수료(8%)
+  const firstPaymentKrw = Math.round(
+    (summary.itemTotalKrw || 0) +
+    (summary.chinaFreightKrw || 0) +
+    (summary.agencyFeeKrw || 0)
+  );
+  // 2차 결제 = 국제 해운 물류비 + 관세 + VAT
+  const secondPaymentKrw = Math.round(
+    (summary.shippingFeeKrw || 0) +
+    (summary.tariffKrw || 0) +
+    (summary.vatKrw || 0)
+  );
   return {
     firstPaymentKrw,
     secondPaymentKrw,

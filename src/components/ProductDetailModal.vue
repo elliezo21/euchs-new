@@ -383,15 +383,25 @@
                 <span class="font-bold text-white font-mono text-sm">{{ totalQuantity }} 개</span>
               </div>
               <div class="flex items-center justify-between text-xs text-slate-300">
-                <span>상품 원가 합계:</span>
+                <span>순수 상품 원가:</span>
                 <div class="text-right">
                   <span class="font-mono text-rose-400 font-bold text-sm">¥ {{ totalPriceRmb.toFixed(2) }}</span>
                   <span class="font-mono font-black text-white ml-2.5 text-base">약 ₩ {{ formatKrw(totalPriceKrw) }}</span>
                 </div>
               </div>
-              <div class="flex items-center justify-between text-xs text-slate-300 pt-2.5 border-t border-slate-800">
-                <span>예상 대행 수수료 (8%):</span>
-                <span class="font-mono text-slate-200">약 ₩ {{ formatKrw(Math.max(10000, totalPriceKrw * 0.08)) }}</span>
+              <div class="flex items-center justify-between text-xs text-slate-300">
+                <span>중국 내 배송비 <span class="text-slate-500 text-[10px]">(이우→창고)</span>:</span>
+                <div class="text-right">
+                  <span class="font-mono text-amber-400 font-bold text-sm">¥ {{ chinaFreightRmb.toFixed(2) }}</span>
+                  <span class="font-mono text-slate-200 ml-2 text-sm">약 ₩ {{ formatKrw(chinaFreightKrw) }}</span>
+                </div>
+              </div>
+              <div class="flex items-center justify-between pt-2.5 border-t border-slate-700">
+                <span class="text-xs text-slate-300">총 예상 상품 금액 <span class="text-slate-500 text-[10px]">(원가+배송비)</span>:</span>
+                <div class="text-right">
+                  <span class="font-mono text-rose-400 font-bold text-sm">¥ {{ (totalPriceRmb + chinaFreightRmb).toFixed(2) }}</span>
+                  <span class="font-mono font-black text-amber-400 ml-2 text-base">약 ₩ {{ formatKrw(totalPriceKrw + chinaFreightKrw) }}</span>
+                </div>
               </div>
             </div>
 
@@ -992,6 +1002,27 @@ const totalPriceRmb = computed(() => {
 
 const totalPriceKrw = computed(() => {
   return Math.round(totalPriceRmb.value * props.exchangeRate)
+})
+
+// ----------------------------------------------------
+// 중국 내 배송비 추정 (이우 물류센터 기준 areaCode: 330782)
+// 1688 配送费 이우→창고 내부 배송비 추정 공식:
+//   소량(< 10개): 6 CNY (최소 배송비)
+//   10~49개: 8 CNY
+//   50~99개: 12 CNY
+//   100개+: 수량 × 0.12 CNY (대량 택배 비용)
+// ----------------------------------------------------
+const chinaFreightRmb = computed(() => {
+  const qty = totalQuantity.value
+  if (qty <= 0) return 0
+  if (qty < 10) return 6
+  if (qty < 50) return 8
+  if (qty < 100) return 12
+  return Number((qty * 0.12).toFixed(2))
+})
+
+const chinaFreightKrw = computed(() => {
+  return Math.round(chinaFreightRmb.value * props.exchangeRate)
 })
 
 const formatKrw = (val) => {
