@@ -8,13 +8,24 @@ export const isAuthLoading = ref(true)
 export const isLoginModalOpen = ref(false)
 export const loginModalMode = ref('login') // 'login' | 'signup' | 'forgot'
 
+export const ADMIN_EMAILS = [
+  'admin@euccompany.com',
+  'master@euccompany.com',
+  'euc_admin@euccompany.com',
+  'elliezo21@gmail.com',
+  'elleizo21@gmail.com',
+  'lcceuchs@gmail.com'
+]
+
 // 관리자 및 직원 여부 판별
 export const isAdminOrStaff = computed(() => {
-  return ['super_admin', 'staff', 'admin'].includes(userRole.value)
+  const r = String(userRole.value || '').toLowerCase().trim()
+  return ['super_admin', 'staff', 'admin', 'master'].includes(r)
 })
 
 export const isSuperAdmin = computed(() => {
-  return userRole.value === 'super_admin' || userRole.value === 'admin'
+  const r = String(userRole.value || '').toLowerCase().trim()
+  return r === 'super_admin' || r === 'admin' || r === 'master'
 })
 
 // 사용자 표시 이름 및 아바타 계산
@@ -94,9 +105,13 @@ export const checkUserRole = async (user) => {
       const authUserRaw = localStorage.getItem('euchs_auth_user')
       if (adminToken === 'admin_authenticated' && authUserRaw) {
         const authUser = JSON.parse(authUserRaw)
-        if (authUser?.role === 'admin' || authUser?.role === 'super_admin' || authUser?.isAdmin) {
-          userRole.value = 'super_admin'
-          return 'super_admin'
+        const role = String(authUser?.role || '').toLowerCase().trim()
+        const userMail = String(authUser?.email || '').toLowerCase().trim()
+        if (['super_admin', 'admin', 'staff', 'master'].includes(role) ||
+            authUser?.isAdmin ||
+            ADMIN_EMAILS.includes(userMail)) {
+          userRole.value = role === 'staff' ? 'staff' : 'super_admin'
+          return userRole.value
         }
       }
     } catch (e) {}
@@ -106,19 +121,14 @@ export const checkUserRole = async (user) => {
   }
 
   // 0. 객체 자체의 role / isAdmin 플래그 확인
-  if (user.role === 'admin' || user.role === 'super_admin' || user.role === 'staff' || user.isAdmin) {
-    userRole.value = user.role === 'staff' ? 'staff' : 'super_admin'
+  const directRole = String(user.role || '').toLowerCase().trim()
+  if (['admin', 'super_admin', 'staff', 'master'].includes(directRole) || user.isAdmin) {
+    userRole.value = directRole === 'staff' ? 'staff' : 'super_admin'
     return userRole.value
   }
 
   // 관리자 지정 이메일 Whitelist 우선 확인 (DB 지연 시에도 즉시 권한 보장)
-  const emailLower = (user.email || '').toLowerCase().trim()
-  const ADMIN_EMAILS = [
-    'admin@euccompany.com',
-    'master@euccompany.com',
-    'euc_admin@euccompany.com',
-    'elliezo21@gmail.com'
-  ]
+  const emailLower = String(user.email || '').toLowerCase().trim()
   if (ADMIN_EMAILS.includes(emailLower)) {
     userRole.value = 'super_admin'
     return 'super_admin'
@@ -128,7 +138,7 @@ export const checkUserRole = async (user) => {
   try {
     if (isSupabaseConfigured()) {
       const isUUID = isValidUUID(user.id)
-      const userMail = user.email ? String(user.email).trim() : ''
+      const userMail = emailLower
 
       // 1-1. user_roles 테이블 우선 조회
       let roleQuery = supabase.from('user_roles').select('role')
@@ -144,8 +154,9 @@ export const checkUserRole = async (user) => {
 
       if (roleQuery) {
         const { data: roleData, error: roleError } = await roleQuery.maybeSingle()
-        if (!roleError && roleData?.role && ['super_admin', 'staff', 'admin'].includes(roleData.role)) {
-          userRole.value = roleData.role === 'admin' ? 'super_admin' : roleData.role
+        const foundRole = String(roleData?.role || '').toLowerCase().trim()
+        if (!roleError && foundRole && ['super_admin', 'staff', 'admin', 'master'].includes(foundRole)) {
+          userRole.value = foundRole === 'staff' ? 'staff' : 'super_admin'
           return userRole.value
         }
       }
@@ -162,8 +173,9 @@ export const checkUserRole = async (user) => {
 
       if (profileQuery) {
         const { data: profileData, error: profileError } = await profileQuery.maybeSingle()
-        if (!profileError && profileData?.role && ['super_admin', 'staff', 'admin'].includes(profileData.role)) {
-          userRole.value = profileData.role === 'admin' ? 'super_admin' : profileData.role
+        const pRole = String(profileData?.role || '').toLowerCase().trim()
+        if (!profileError && pRole && ['super_admin', 'staff', 'admin', 'master'].includes(pRole)) {
+          userRole.value = pRole === 'staff' ? 'staff' : 'super_admin'
           return userRole.value
         }
       }
@@ -173,9 +185,9 @@ export const checkUserRole = async (user) => {
   }
 
   // 2. Auth metadata (app_metadata 또는 user_metadata) 확인
-  const metaRole = user.app_metadata?.role || user.user_metadata?.role
-  if (metaRole && ['super_admin', 'staff', 'admin'].includes(metaRole)) {
-    userRole.value = metaRole === 'admin' ? 'super_admin' : metaRole
+  const metaRole = String(user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase().trim()
+  if (metaRole && ['super_admin', 'staff', 'admin', 'master'].includes(metaRole)) {
+    userRole.value = metaRole === 'staff' ? 'staff' : 'super_admin'
     return userRole.value
   }
 
@@ -187,15 +199,9 @@ export const checkUserRole = async (user) => {
  * 관리자 전용 로그인 (Admin Sign In)
  */
 export const adminSignIn = async (email, password) => {
-  const emailTrimmed = (email || '').trim().toLowerCase()
-  const ADMIN_EMAILS = [
-    'admin@euccompany.com',
-    'master@euccompany.com',
-    'euc_admin@euccompany.com',
-    'elliezo21@gmail.com'
-  ]
-
+  const emailTrimmed = String(email || '').trim().toLowerCase()
   let authUser = null
+  let userProfile = null
 
   if (isSupabaseConfigured()) {
     try {
@@ -206,25 +212,64 @@ export const adminSignIn = async (email, password) => {
 
       if (!error && data?.user) {
         authUser = data.user
+      } else if (error) {
+        console.warn('Supabase admin login attempt warning:', error.message)
       }
     } catch (err) {
       console.warn('Supabase admin login attempt warning:', err)
     }
+
+    // Supabase profiles 조회
+    if (authUser) {
+      try {
+        const { data: pData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', authUser.id)
+          .maybeSingle()
+        if (pData) userProfile = pData
+      } catch (e) {}
+    } else if (ADMIN_EMAILS.includes(emailTrimmed)) {
+      try {
+        const { data: pData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('email', emailTrimmed)
+          .maybeSingle()
+        if (pData) userProfile = pData
+      } catch (e) {}
+    }
   }
 
+  const profileRole = String(userProfile?.role || authUser?.user_metadata?.role || authUser?.app_metadata?.role || '').toLowerCase().trim()
+  const isAuthorizedAdmin = ['admin', 'super_admin', 'staff', 'master'].includes(profileRole) ||
+                            ADMIN_EMAILS.includes(emailTrimmed) ||
+                            emailTrimmed === 'elleizo21@gmail.com' ||
+                            emailTrimmed === 'elliezo21@gmail.com' ||
+                            emailTrimmed === 'lcceuchs@gmail.com'
+
   // 관리자 화이트리스트 이메일이거나 Supabase 인증 성공 시
-  if (authUser || ADMIN_EMAILS.includes(emailTrimmed)) {
+  if (authUser || isAuthorizedAdmin) {
+    if (authUser && !isAuthorizedAdmin) {
+      throw new Error('관리자 또는 직원 권한(Role: Staff/Admin)이 부여되지 않은 계정입니다.')
+    }
+
+    const assignedRole = profileRole === 'staff' ? 'staff' : 'super_admin'
     const adminUser = {
-      id: authUser?.id || 'admin-master',
+      id: authUser?.id || userProfile?.id || 'admin-master',
       email: emailTrimmed,
-      name: authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '이유씨 관리자',
-      role: 'admin',
+      name: userProfile?.name || authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '이유씨 관리자',
+      role: assignedRole,
       isAdmin: true,
-      user_metadata: { full_name: '이유씨 관리자', role: 'admin' }
+      user_metadata: {
+        full_name: userProfile?.name || authUser?.user_metadata?.full_name || '이유씨 관리자',
+        role: assignedRole
+      }
     }
 
     currentUser.value = adminUser
-    userRole.value = 'super_admin'
+    currentUserProfile.value = userProfile || adminUser
+    userRole.value = assignedRole
     localStorage.setItem('euchs_auth_user', JSON.stringify(adminUser))
     localStorage.setItem('euchs_admin_token', 'admin_authenticated')
 
@@ -234,7 +279,7 @@ export const adminSignIn = async (email, password) => {
     return {
       success: true,
       user: adminUser,
-      role: 'super_admin'
+      role: assignedRole
     }
   }
 
@@ -1017,9 +1062,13 @@ export const initAuth = async () => {
     const authUserRaw = localStorage.getItem('euchs_auth_user')
     if (adminToken === 'admin_authenticated' && authUserRaw) {
       const authUser = JSON.parse(authUserRaw)
-      if (authUser?.role === 'admin' || authUser?.role === 'super_admin' || authUser?.isAdmin) {
+      const roleStr = String(authUser?.role || '').toLowerCase().trim()
+      const emailStr = String(authUser?.email || '').toLowerCase().trim()
+      if (['admin', 'super_admin', 'staff', 'master'].includes(roleStr) ||
+          authUser?.isAdmin ||
+          ADMIN_EMAILS.includes(emailStr)) {
         currentUser.value = authUser
-        userRole.value = 'super_admin'
+        userRole.value = roleStr === 'staff' ? 'staff' : 'super_admin'
         isAuthLoading.value = false
         return
       }
@@ -1083,9 +1132,13 @@ export const initAuth = async () => {
       if (adminToken === 'admin_authenticated' && authUserRaw) {
         try {
           const parsed = JSON.parse(authUserRaw)
-          if (parsed?.role === 'admin' || parsed?.role === 'super_admin' || parsed?.isAdmin) {
+          const roleStr = String(parsed?.role || '').toLowerCase().trim()
+          const emailStr = String(parsed?.email || '').toLowerCase().trim()
+          if (['admin', 'super_admin', 'staff', 'master'].includes(roleStr) ||
+              parsed?.isAdmin ||
+              ADMIN_EMAILS.includes(emailStr)) {
             currentUser.value = parsed
-            userRole.value = 'super_admin'
+            userRole.value = roleStr === 'staff' ? 'staff' : 'super_admin'
             isAuthLoading.value = false
             return
           }

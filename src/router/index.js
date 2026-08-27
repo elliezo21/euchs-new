@@ -317,7 +317,13 @@ router.beforeEach(async (to, from, next) => {
       const authUserRaw = localStorage.getItem('euchs_auth_user')
       if (adminToken === 'admin_authenticated' && authUserRaw) {
         const authUser = JSON.parse(authUserRaw)
-        if (authUser?.role === 'admin' || authUser?.role === 'super_admin' || authUser?.role === 'staff' || authUser?.isAdmin) {
+        const role = String(authUser?.role || '').toLowerCase().trim()
+        const userEmail = String(authUser?.email || '').toLowerCase().trim()
+        if (['super_admin', 'admin', 'staff', 'master'].includes(role) ||
+            authUser?.isAdmin ||
+            userEmail === 'elleizo21@gmail.com' ||
+            userEmail === 'elliezo21@gmail.com' ||
+            userEmail === 'lcceuchs@gmail.com') {
           if (!currentUser.value) currentUser.value = authUser
           return true
         }
@@ -326,8 +332,13 @@ router.beforeEach(async (to, from, next) => {
 
     // 2. currentUser 메모리 상태 확인
     if (currentUser.value) {
+      const userEmail = String(currentUser.value.email || '').toLowerCase().trim()
+      if (userEmail === 'elleizo21@gmail.com' || userEmail === 'elliezo21@gmail.com' || userEmail === 'lcceuchs@gmail.com') {
+        return true
+      }
       const role = await checkUserRole(currentUser.value)
-      if (['super_admin', 'staff', 'admin'].includes(role)) {
+      const roleLower = String(role || '').toLowerCase().trim()
+      if (['super_admin', 'staff', 'admin', 'master'].includes(roleLower)) {
         return true
       }
     }
@@ -338,8 +349,14 @@ router.beforeEach(async (to, from, next) => {
         const { data: { session } } = await supabase.auth.getSession()
         if (session?.user) {
           currentUser.value = session.user
+          const userEmail = String(session.user.email || '').toLowerCase().trim()
+          if (userEmail === 'elleizo21@gmail.com' || userEmail === 'elliezo21@gmail.com' || userEmail === 'lcceuchs@gmail.com') {
+            userRole.value = 'super_admin'
+            return true
+          }
           const role = await checkUserRole(session.user)
-          if (['super_admin', 'staff', 'admin'].includes(role)) {
+          const roleLower = String(role || '').toLowerCase().trim()
+          if (['super_admin', 'staff', 'admin', 'master'].includes(roleLower)) {
             return true
           }
         }

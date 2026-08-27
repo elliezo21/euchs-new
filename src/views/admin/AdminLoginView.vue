@@ -182,23 +182,35 @@ const handleAdminLogin = async (e) => {
   errorMessage.value = ''
 
   try {
-    const email = loginForm.value.email.trim()
+    const email = loginForm.value.email.trim().toLowerCase()
     const password = loginForm.value.password
 
     const result = await adminSignIn(email, password)
     if (result && result.success) {
+      const userRoleResolved = String(result.role || result.user?.role || 'super_admin').toLowerCase().trim()
+      const isAuthorizedAdmin = ['admin', 'super_admin', 'staff', 'master'].includes(userRoleResolved) ||
+                                email === 'elleizo21@gmail.com' ||
+                                email === 'elliezo21@gmail.com' ||
+                                email === 'lcceuchs@gmail.com'
+
+      if (!isAuthorizedAdmin) {
+        throw new Error('관리자 또는 직원 권한(Role: Staff/Admin)이 부여되지 않은 계정입니다.')
+      }
+
+      const assignedRole = userRoleResolved === 'staff' ? 'staff' : 'super_admin'
+
       // 1. 관리자 세션 정보 구성
       const adminUser = {
-        id: 'admin_master_01',
+        id: result.user?.id || 'admin_master_01',
         email: email || 'elliezo21@gmail.com',
-        name: '이유씨 관리자',
-        role: 'admin',
+        name: result.user?.name || '이유씨 관리자',
+        role: assignedRole,
         isAdmin: true
       }
 
       // 2. 반응형 전역 상태 및 로컬 스토리지에 관리자 세션 영구 주입
       currentUser.value = adminUser
-      userRole.value = 'super_admin'
+      userRole.value = assignedRole
       localStorage.setItem('euchs_auth_user', JSON.stringify(adminUser))
       localStorage.setItem('euchs_admin_token', 'admin_authenticated')
 
