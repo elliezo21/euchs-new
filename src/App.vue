@@ -7,8 +7,8 @@
     <QuickMenu v-if="!isStandaloneRoute" />
     <Footer v-if="!isStandaloneRoute" />
     <LoginModal />
-    <!-- 스포트라이트 온보딩 투어 (최상위, 전역 마운트) -->
-    <OnboardingTour />
+    <!-- 온보딩 사용가이드 모달 (/mall 또는 /dashboard 에서만 렌더링) -->
+    <OnboardingTour v-if="isOnboardingAllowed" />
   </div>
 </template>
 
@@ -25,6 +25,12 @@ import { openLoginModal } from './lib/auth'
 
 const route = useRoute()
 const router = useRouter()
+
+const isOnboardingAllowed = computed(() => {
+  const p = route.path
+  if (!p || p.startsWith('/admin') || p === '/login' || p === '/admin/login') return false
+  return p.startsWith('/mall') || p.startsWith('/dashboard')
+})
 
 const isStandaloneRoute = computed(() => {
   const p = route.path

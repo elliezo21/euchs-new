@@ -582,14 +582,14 @@
           </nav>
         </div>
 
-        <!-- 💡 1분 화면 가이드 버튼 -->
+        <!-- 💡 사용가이드 버튼 -->
         <button
           type="button"
           @click="$emit('open-onboarding'); window.dispatchEvent(new Event('euchs:open-onboarding'))"
           class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition cursor-pointer mb-3"
         >
           <span>💡</span>
-          <span>1분 화면 가이드 다시 보기</span>
+          <span>사용가이드 다시 보기</span>
         </button>
 
         <!-- 하단 카카오 상담 CTA -->
