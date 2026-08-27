@@ -748,13 +748,12 @@
           <label class="text-gray-500 font-medium">정렬:</label>
           <select
             v-model="sortOrder"
-            @change="executeSearch(1)"
-            class="bg-gray-50 border border-gray-300 rounded-xl px-3 py-1.5 text-gray-800 font-semibold focus:outline-none focus:border-rose-500"
+            class="bg-gray-50 border border-gray-300 rounded-xl px-3 py-1.5 text-gray-800 font-semibold focus:outline-none focus:border-rose-500 cursor-pointer"
           >
             <option value="default">기본 랭킹순</option>
-            <option value="salesDesc">누적 판매량 높은순</option>
-            <option value="priceAsc">가격 낮은순</option>
-            <option value="priceDesc">가격 높은순</option>
+            <option value="sales_desc">누적 판매량 높은순</option>
+            <option value="price_asc">가격 낮은순</option>
+            <option value="price_desc">가격 높은순</option>
           </select>
         </div>
       </div>
@@ -774,7 +773,7 @@
       </div>
 
       <!-- Empty State -->
-      <div v-else-if="hasSearched && items.length === 0" class="bg-white rounded-3xl p-10 sm:p-12 text-center border border-gray-200 space-y-4">
+      <div v-else-if="hasSearched && sortedProducts.length === 0" class="bg-white rounded-3xl p-10 sm:p-12 text-center border border-gray-200 space-y-4">
         <div class="w-16 h-16 mx-auto rounded-2xl bg-gray-100 text-gray-400 flex items-center justify-center text-2xl">
           <i class="fas fa-search"></i>
         </div>
@@ -789,9 +788,9 @@
       <!-- ======================================================== -->
       <!-- 3-1. PRODUCT CARDS GRID (CN인사이더 스타일 완벽 동기화) -->
       <!-- ======================================================== -->
-      <div v-else-if="items.length > 0 && !isLoading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
+      <div v-else-if="sortedProducts.length > 0 && !isLoading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-3 sm:gap-4 lg:gap-5">
         <div
-          v-for="item in items"
+          v-for="item in sortedProducts"
           :key="item.id"
           @click="openProductModal(item)"
           class="group bg-white rounded-xl border border-gray-200 hover:border-orange-500 hover:shadow-lg transition-all duration-200 flex flex-col justify-between overflow-hidden cursor-pointer"
@@ -1082,6 +1081,65 @@ const toastMessage = ref('')
 const lastQueryKo = ref('')
 const lastQueryZh = ref('')
 const items = ref([])
+
+// ----------------------------------------------------
+// 🔢 안전한 숫자 추출 & 실시간 상품 정렬 파이프라인
+// ----------------------------------------------------
+const parseNum = (val) => {
+  if (typeof val === 'number') return isNaN(val) ? 0 : val
+  if (!val) return 0
+  const s = String(val).trim()
+  // '2.8만', '10.5만' 등 만 단위 파싱
+  if (s.includes('만') || /[0-9.]+\s*만/.test(s)) {
+    const manMatch = s.match(/([0-9.]+)\s*만/)
+    if (manMatch) {
+      return (parseFloat(manMatch[1]) || 0) * 10000
+    }
+  }
+  // 중국어 万(w) 단위
+  if (/[0-9.]+\s*[wW万]/.test(s)) {
+    const wMatch = s.match(/([0-9.]+)\s*[wW万]/)
+    if (wMatch) {
+      return (parseFloat(wMatch[1]) || 0) * 10000
+    }
+  }
+  // k 단위
+  if (/[0-9.]+\s*[kK]/.test(s)) {
+    const kMatch = s.match(/([0-9.]+)\s*[kK]/)
+    if (kMatch) {
+      return (parseFloat(kMatch[1]) || 0) * 1000
+    }
+  }
+  const cleaned = s.replace(/[^0-9.]/g, '')
+  return parseFloat(cleaned) || 0
+}
+
+const getItemSales = (item) => {
+  if (!item) return 0
+  const val = item.sales || item.salesCount || item.orderCount || item.bookedCount || item.monthBookedCount || item.monthSold || item.quantity || 0
+  return parseNum(val)
+}
+
+const getItemPrice = (item) => {
+  if (!item) return 0
+  const val = item.price ?? item.priceCny ?? item.priceKrw ?? item.priceFormatted ?? 0
+  return parseNum(val)
+}
+
+const sortedProducts = computed(() => {
+  if (!items.value || !Array.isArray(items.value)) return []
+  const list = [...items.value]
+  const sort = sortOrder.value
+
+  if (sort === 'sales_desc' || sort === 'salesDesc') {
+    return list.sort((a, b) => getItemSales(b) - getItemSales(a))
+  } else if (sort === 'price_asc' || sort === 'priceAsc') {
+    return list.sort((a, b) => getItemPrice(a) - getItemPrice(b))
+  } else if (sort === 'price_desc' || sort === 'priceDesc') {
+    return list.sort((a, b) => getItemPrice(b) - getItemPrice(a))
+  }
+  return list
+})
 
 // 이미지 검색 상태
 const isImageModalOpen = ref(false)         // 이미지 검색 모달 열림/닫힘
