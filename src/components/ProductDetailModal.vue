@@ -590,7 +590,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, cleanForeignText } from '../services/api1688'
+import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, fetchSellerProducts, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 
 const props = defineProps({
@@ -715,12 +715,13 @@ const toggleFavoriteStore = () => {
 // 1688 원본 상품 링크 (새 탭 바로가기)
 const original1688Url = computed(() => {
   const item = currentItem.value || props.product || {}
-  // detailUrl이 이미 유효한 URL이면 그대로 사용
+  // 1. detailUrl / sourceUrl / url 에 이미 유효한 1688 URL이 있으면 그대로 사용
   const rawUrl = item.sourceUrl || item.detailUrl || item.url || ''
   if (rawUrl && rawUrl.startsWith('http')) return rawUrl
-  // itemId / offerId / num_iid / id 순으로 추출
-  const pid = item.id || item.itemId || item.offerId || item.num_iid || props.product?.id || ''
-  return pid ? `https://detail.1688.com/offer/${pid}.html` : 'https://www.1688.com'
+  // 2. 순수 숫자 형태의 ID 추출 (abb- 등 Otapi 불필요한 접두사 제거)
+  const rawId = item.id || item.itemId || item.offerId || item.num_iid || props.product?.id || ''
+  const cleanId = String(rawId).replace(/[^0-9]/g, '')
+  return cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : 'https://www.1688.com'
 })
 
 const displayProductTitle = computed(() => {
@@ -1003,14 +1004,60 @@ const hasMultipleOptions = computed(() => {
   return Array.isArray(sizeOptions.value) && sizeOptions.value.length > 0
 })
 
-// 갤러리 이미지
+// 갤러리 이미지: item.images → raw.PictureList / Pictures / pic_urls / itemImages 다중 탐색
 const galleryImages = computed(() => {
   const item = currentItem.value
   if (!item) return []
-  if (Array.isArray(item.images) && item.images.length > 0) {
-    return item.images
+
+  const normalizeGalleryImg = (u) => {
+    const s = String(u || '').trim()
+    if (!s) return ''
+    if (s.startsWith('//')) return 'https:' + s
+    if (s.startsWith('http://')) return s.replace('http://', 'https://')
+    return s.startsWith('http') ? s : ''
   }
-  const mainImg = item.imageUrl
+
+  // 1순위: item.images (fetch1688ProductById가 채워준 정규화 배열)
+  if (Array.isArray(item.images) && item.images.length > 0) {
+    const imgs = item.images.map(normalizeGalleryImg).filter(Boolean)
+    if (imgs.length > 0) return imgs
+  }
+
+  // 2순위: raw.PictureList (Otapi 원본)
+  const raw = item.raw || {}
+  if (Array.isArray(raw.PictureList) && raw.PictureList.length > 0) {
+    const imgs = raw.PictureList.map(p =>
+      normalizeGalleryImg(typeof p === 'string' ? p : (p.Url || p.url || p.Large || p.src || ''))
+    ).filter(Boolean)
+    if (imgs.length > 0) return imgs
+  }
+
+  // 3순위: raw.Pictures (Otapi Pictures)
+  if (Array.isArray(raw.Pictures) && raw.Pictures.length > 0) {
+    const imgs = raw.Pictures.map(p =>
+      normalizeGalleryImg(typeof p === 'string' ? p : (p.Url || p.url || p.Large || p.Medium || p.src || ''))
+    ).filter(Boolean)
+    if (imgs.length > 0) return imgs
+  }
+
+  // 4순위: raw.pic_urls / raw.picUrls / raw.itemImages
+  const altField = raw.pic_urls || raw.picUrls || raw.itemImages || raw.imgList || null
+  if (Array.isArray(altField) && altField.length > 0) {
+    const imgs = altField.map(img =>
+      normalizeGalleryImg(typeof img === 'string' ? img : (img.url || img.src || img.Url || ''))
+    ).filter(Boolean)
+    if (imgs.length > 0) return imgs
+  }
+
+  // 5순위: SKU 옵션별 이미지에서 유니크 수집 (색상 옵션마다 이미지가 있는 경우)
+  const skuImages = colorOptions.value
+    .map(c => normalizeGalleryImg(c.imageUrl || ''))
+    .filter(Boolean)
+  const uniqueSkuImages = [...new Set(skuImages)]
+  if (uniqueSkuImages.length > 1) return uniqueSkuImages  // 2장 이상일 때만
+
+  // Fallback: 메인 이미지 1장
+  const mainImg = normalizeGalleryImg(item.imageUrl || '')
   return mainImg ? [mainImg] : []
 })
 
@@ -1209,17 +1256,42 @@ const loadSellerProducts = async (item) => {
   sellerProducts.value = []
 
   try {
-    const searchKeyword = item.company || (item.titleKo ? item.titleKo.slice(0, 8) : '인기 상품')
-    const res = await search1688WithTranslation(searchKeyword, 1)
-    
-    if (res?.items && Array.isArray(res.items)) {
-      // 현재 상품 ID 제외 후 최대 6개 선정
-      sellerProducts.value = res.items
-        .filter(p => String(p.id) !== String(item.id))
-        .slice(0, 6)
+    // ─── 공급사 ID 추출 (raw 데이터 포함 다계층 탐색) ─────────────────────
+    const raw = item.raw || {}
+    const seller = raw.seller || raw.shop || raw.VendorInfo || {}
+    const sellerId = (
+      item.sellerId ||
+      item.memberId ||
+      item.shopId ||
+      item.userId ||
+      seller.memberId ||
+      seller.userId ||
+      seller.VendorId ||
+      seller.SellerId ||
+      raw.sellerId ||
+      raw.memberId ||
+      raw.shopId ||
+      raw.userId ||
+      ''
+    )
+
+    console.log('[loadSellerProducts] sellerId:', sellerId, 'for item:', item.id)
+
+    const result = await fetchSellerProducts(
+      sellerId,
+      item.id,
+      {
+        company: item.company || item.sellerName || '',
+        titleZh: item.titleZh || item.title || '',
+        titleKo: item.titleKo || ''
+      }
+    )
+
+    if (Array.isArray(result) && result.length > 0) {
+      sellerProducts.value = result
     }
   } catch (err) {
-    console.warn('Failed to load same seller products:', err)
+    console.warn('[loadSellerProducts] Failed:', err)
   } finally {
     isLoadingSellerProducts.value = false
   }
@@ -1252,13 +1324,25 @@ const loadFullProductData = async (item) => {
 
       console.log('[loadFullProductData] mergedSkuProps:', mergedSkuProps)
 
+      // images 보호 merge: full.images가 비어있으면 기존 images 보존
+      const mergedImages = (Array.isArray(full.images) && full.images.length > 0)
+        ? full.images
+        : (Array.isArray(currentItem.value.images) && currentItem.value.images.length > 0
+            ? currentItem.value.images
+            : (Array.isArray(item.images) && item.images.length > 0 ? item.images : []))
+
+      // imageUrl 보호 merge: full.imageUrl이 없으면 기존 값 보존
+      const mergedImageUrl = full.imageUrl || currentItem.value.imageUrl || item.imageUrl || ''
+
       currentItem.value = {
         ...currentItem.value,
         ...full,
         price: rawPrice,
         priceFormatted: rawPrice > 0 ? rawPrice.toFixed(2) : (currentItem.value.priceFormatted || '0.00'),
         skuProps: mergedSkuProps,
-        skus: mergedSkus
+        skus: mergedSkus,
+        images: mergedImages,
+        imageUrl: mergedImageUrl
       }
     }
   } catch (err) {

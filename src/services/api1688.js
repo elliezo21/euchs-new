@@ -1082,14 +1082,59 @@ export async function fetch1688ProductById(offerId) {
     if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl
     else if (imageUrl.startsWith('http://')) imageUrl = imageUrl.replace('http://', 'https://')
 
+    // ─── 다중 이미지 배열 파싱 (Otapi 필드 우선 순위 다중 탐색) ───────────────
     let images = []
-    if (Array.isArray(it.Pictures) && it.Pictures.length > 0) {
-      images = it.Pictures.map(p => p.Url || p.Large || p.Medium || p).filter(Boolean)
-    } else if (Array.isArray(it.images) && it.images.length > 0) {
-      images = it.images.map(img => (String(img).startsWith('//') ? 'https:' + img : img))
-    } else if (imageUrl) {
+    const normalizeImg = (u) => {
+      const s = String(u || '').trim()
+      if (!s) return ''
+      if (s.startsWith('//')) return 'https:' + s
+      if (s.startsWith('http://')) return s.replace('http://', 'https://')
+      return s.startsWith('http') ? s : ''
+    }
+
+    // 1순위: Otapi PictureList (배열 내 객체 또는 문자열)
+    if (Array.isArray(it.PictureList) && it.PictureList.length > 0) {
+      images = it.PictureList.map(p =>
+        typeof p === 'string' ? normalizeImg(p) : normalizeImg(p.Url || p.url || p.Large || p.src || '')
+      ).filter(Boolean)
+    }
+    // 2순위: Otapi Pictures
+    if (images.length === 0 && Array.isArray(it.Pictures) && it.Pictures.length > 0) {
+      images = it.Pictures.map(p =>
+        typeof p === 'string' ? normalizeImg(p) : normalizeImg(p.Url || p.url || p.Large || p.Medium || p.src || '')
+      ).filter(Boolean)
+    }
+    // 3순위: it.images (1688 DataHub)
+    if (images.length === 0 && Array.isArray(it.images) && it.images.length > 0) {
+      images = it.images.map(img =>
+        typeof img === 'string' ? normalizeImg(img) : normalizeImg(img.url || img.src || img.Url || '')
+      ).filter(Boolean)
+    }
+    // 4순위: it.pic_urls / it.picUrls / it.itemImages (다른 API 포맷)
+    const altImgField = it.pic_urls || it.picUrls || it.itemImages || it.imgList || null
+    if (images.length === 0 && Array.isArray(altImgField) && altImgField.length > 0) {
+      images = altImgField.map(img =>
+        typeof img === 'string' ? normalizeImg(img) : normalizeImg(img.url || img.src || img.Url || '')
+      ).filter(Boolean)
+    }
+    // 5순위: skuList 내 유니크 이미지 수집
+    if (images.length === 0) {
+      const skuImgs = []
+      const skuListSrc = it.skuList || rawSku.skuList || []
+      if (Array.isArray(skuListSrc)) {
+        skuListSrc.forEach(s => {
+          const u = normalizeImg(s.imageUrl || s.image || s.picUrl || '')
+          if (u && !skuImgs.includes(u)) skuImgs.push(u)
+        })
+      }
+      images = skuImgs
+    }
+    // 최종 Fallback: 메인 이미지 1장
+    if (images.length === 0 && imageUrl) {
       images = [imageUrl]
     }
+    // 중복 제거
+    images = [...new Set(images)]
 
     // 기본 단가 및 MOQ (MasterQuantity는 총 재고량이므로 MOQ로 취급하지 않음)
     const priceRange = Array.isArray(it.QuantityRanges) && it.QuantityRanges.length > 0 ? it.QuantityRanges[0] : null
@@ -1397,4 +1442,108 @@ export async function fetch1688ProductById(offerId) {
     saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, mockDetail)
     return mockDetail
   }
+}
+
+/**
+ * 공급사 ID 기반 판매자(공장) 다른 인기 상품 조회
+ * @param {string|number} sellerId - 공급사 ID (memberId / shopId / userId)
+ * @param {string|number} currentItemId - 현재 상품 ID (결과에서 제외)
+ * @param {object} [options] - { titleKo, titleZh, company } 키워드 fallback용
+ * @returns {Promise<Array>} 정규화된 공급사 인기 상품 배열 (최대 12개)
+ */
+export async function fetchSellerProducts(sellerId, currentItemId, options = {}) {
+  const sellerIdStr = String(sellerId || '').trim()
+  const currentIdStr = String(currentItemId || '').trim()
+
+  // 캐시 키: sellerId 기준
+  const cacheKey = `seller_${sellerIdStr}`
+  const cached = getFromCache(memorySearchCache, 'euchs_seller', cacheKey)
+  if (cached) {
+    // 현재 상품 제외 후 반환
+    return cached.filter(p => String(p.id) !== currentIdStr).slice(0, 12)
+  }
+
+  let items = []
+
+  // ─── 1. 공급사 ID 기반 프록시 API 시도 (/api/1688-seller-items) ─────────
+  if (sellerIdStr) {
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const proxyRes = await fetch(
+        `/api/1688-seller-items?sellerId=${encodeURIComponent(sellerIdStr)}&page=1`,
+        { signal: controller.signal }
+      )
+      clearTimeout(timeout)
+
+      if (proxyRes.ok) {
+        const result = await proxyRes.json()
+        if (result.success && Array.isArray(result.data?.items || result.items)) {
+          const rawItems = result.data?.items || result.items || []
+          items = rawItems.map((entry, idx) => {
+            const it = entry.item || entry
+            let rawImg = it.MainPictureUrl || it.imageUrl || it.image || it.picUrl || it.pic_url || ''
+            let imgUrl = String(rawImg).trim()
+            if (imgUrl.startsWith('//')) imgUrl = 'https:' + imgUrl
+            else if (imgUrl.startsWith('http://')) imgUrl = imgUrl.replace('http://', 'https://')
+
+            const itemId = String(it.Id || it.ItemId || it.itemId || it.id || `sp-${Date.now()}-${idx}`)
+            const priceRange = Array.isArray(it.QuantityRanges) ? it.QuantityRanges[0] : null
+            const price = parseFloat(
+              priceRange?.Price?.OriginalPrice || it.Price?.OriginalPrice || it.price || '0'
+            ) || 0
+            const minOrderVal = parseInt(priceRange?.MinQuantity || it.MasterQuantity || it.minOrder || '1', 10) || 1
+            const titleZh = it.Title || it.title || it.subject || ''
+
+            return {
+              id: itemId,
+              itemId,
+              titleZh,
+              titleKo: titleZh,
+              title: titleZh,
+              price,
+              priceNum: price,
+              priceCny: price,
+              priceFormatted: price.toFixed(2),
+              moq: minOrderVal,
+              minOrder: minOrderVal,
+              sales: parseInt(it.OrderCount || it.SalesCount || 0, 10),
+              imageUrl: imgUrl,
+              detailUrl: itemId ? `https://detail.1688.com/offer/${itemId}.html` : '',
+              company: it.VendorInfo?.VendorName || it.company?.name || it.shopName || options.company || '1688 공급사',
+              raw: it
+            }
+          }).filter(p => p.id && (p.titleZh || p.title))
+
+          if (items.length > 0) {
+            await translateItemsBatch(items)
+          }
+        }
+      }
+    } catch (err) {
+      console.debug('[fetchSellerProducts] Proxy notice:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
+    }
+  }
+
+  // ─── 2. Fallback: 공급사 이름 또는 상품 제목 키워드 검색 ─────────────────
+  if (items.length === 0) {
+    try {
+      // 공급사 이름이 있으면 공급사 이름으로, 없으면 상품 제목 앞 8자로 검색
+      const searchKw = options.company || (options.titleZh ? options.titleZh.slice(0, 10) : '') || (options.titleKo ? options.titleKo.slice(0, 8) : '') || '인기 도매 상품'
+      const res = await search1688WithTranslation(searchKw, 1)
+      if (res?.items && Array.isArray(res.items)) {
+        items = res.items
+      }
+    } catch (err) {
+      console.warn('[fetchSellerProducts] Keyword fallback failed:', err.message)
+    }
+  }
+
+  // 캐시 저장 (현재 상품 제외 전 전체 저장)
+  if (items.length > 0) {
+    saveToCache(memorySearchCache, 'euchs_seller', cacheKey, items)
+  }
+
+  // 현재 상품 제외 후 최대 12개 반환
+  return items.filter(p => String(p.id) !== currentIdStr).slice(0, 12)
 }
