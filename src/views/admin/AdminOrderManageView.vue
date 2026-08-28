@@ -526,21 +526,27 @@
                       >
                         {{ item.productName || '1688 수입 품목' }}
                       </span>
-                      <!-- 제외 뱃지 -->
+                      <!-- 상태 뱃지 -->
                       <span
                         v-if="item.excluded"
                         class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[10px] border border-rose-200 flex items-center gap-1"
                       >
-                        ⛔ 구매 제외: {{ item.excludeReason || '구매 추천 안 함' }}
+                        🔴 구매제외: {{ item.excludeReason || '구매 추천 안 함' }}
+                      </span>
+                      <span
+                        v-else
+                        class="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 font-bold text-[10px] border border-emerald-200 flex items-center gap-1"
+                      >
+                        🟢 구매가능
                       </span>
                     </div>
 
                     <div class="text-[11px] text-slate-500 font-mono flex items-center gap-2 flex-wrap">
                       <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">옵션: {{ item.sku || '기본 규격' }}</span>
                       <span>·</span>
-                      <span :class="item.excluded ? 'line-through' : 'font-bold text-slate-800'">수량: {{ item.quantity || 1 }}개</span>
+                      <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">수량: {{ item.quantity || 1 }}개</span>
                       <span>·</span>
-                      <span :class="item.excluded ? 'line-through' : 'font-bold text-slate-800'">단가: ¥{{ Number(item.priceCny || 0).toFixed(2) }}</span>
+                      <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">단가: ¥{{ Number(item.priceCny || 0).toFixed(2) }}</span>
                       <span>·</span>
                       <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-blue-700'">
                         소계: ₩{{ fmtN(Math.round((Number(item.priceCny || 0) * Number(item.quantity || 1)) * 226.19 * 1.08)) }}
@@ -563,39 +569,22 @@
                   </div>
                 </div>
 
-                <!-- 우측: 구매 추천 안 함 / 복구 액션 영역 (1단계 견적대기에서만 조작 가능) -->
+                <!-- 우측: 구매상태 선택 영역 (1단계 견적대기에서만 조작 가능) -->
                 <div v-if="isStatus(activeOrder, 'quote_pending')" class="shrink-0 flex items-center gap-2 self-end md:self-center">
-                  <!-- [제외 상태일 때]: 복구 버튼 -->
-                  <div v-if="item.excluded" class="flex items-center gap-2">
-                    <button
-                      type="button"
-                      @click="restoreItem(activeOrder, item, idx)"
-                      class="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
-                    >
-                      <span>↺ 다시 구매 포함</span>
-                    </button>
-                  </div>
-
-                  <!-- [포함 상태일 때]: 사유 선택 드롭다운 + 구매 추천 안 함 버튼 -->
-                  <div v-else class="flex items-center gap-2">
+                  <div class="flex items-center gap-2">
+                    <span class="text-[11px] font-bold text-slate-500 shrink-0">구매상태:</span>
                     <select
                       v-model="excludeReasonMap[idx]"
-                      class="px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-700 text-xs bg-white outline-none cursor-pointer focus:ring-2 focus:ring-rose-500/20 font-medium"
+                      @change="handleReasonChange(activeOrder, item, idx)"
+                      class="px-2.5 py-1.5 rounded-xl border text-xs bg-white outline-none cursor-pointer focus:ring-2 font-medium transition"
+                      :class="item.excluded ? 'border-rose-300 text-rose-700 bg-rose-50/50' : 'border-slate-200 text-slate-700'"
                     >
-                      <option value="" disabled selected>사유선택</option>
+                      <option value="">0. 사유선택 (정상 구매 포함)</option>
                       <option value="품절">1. 품절</option>
                       <option value="제품 퀄리티 보장 안 됨">2. 제품 퀄리티 보장 안 됨</option>
-                      <option value="가짜 재고일 확률이 있음">3. 가짜 재고일 확률이 있음</option>
+                      <option value="가짜 재고일 확률이 높음">3. 가짜 재고일 확률이 높음</option>
                       <option value="판매자를 신뢰할 수 없음">4. 판매자를 신뢰할 수 없음</option>
                     </select>
-
-                    <button
-                      type="button"
-                      @click="excludeItem(activeOrder, item, idx)"
-                      class="px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition shadow-xs flex items-center gap-1 cursor-pointer active:scale-95"
-                    >
-                      <span>⚠️ 구매 추천 안 함</span>
-                    </button>
                   </div>
                 </div>
               </div>
@@ -649,34 +638,43 @@
 
         <!-- 모달 푸터 -->
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
-          <div v-if="isStatus(activeOrder, 'quote_pending')" class="text-xs text-slate-500 font-medium">
-            * [변경사항 저장하기]를 클릭해야 최종 저장 및 바이어에게 반영됩니다.
+          <div class="flex items-center gap-2">
+            <!-- [🚫 전체 주문 취소 (품절/반려)] 버튼 (취소되지 않은 주문일 때 노출) -->
+            <button
+              v-if="!['cancelled', 'completed'].includes(normalizeOrderStatus(activeOrder.status))"
+              @click="cancelOrderEntirely(activeOrder)"
+              type="button"
+              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+              title="품목 전체 품절 및 수급 불가 시 주문 취소"
+            >
+              <span>🚫</span>
+              <span>전체 주문 취소 (품절/반려)</span>
+            </button>
+            <div v-if="isStatus(activeOrder, 'quote_pending')" class="text-xs text-slate-500 font-medium hidden md:block">
+              * [변경사항 저장] 또는 [견적 승인] 시 바이어에게 즉시 반영됩니다.
+            </div>
           </div>
-          <div v-else class="text-xs text-slate-400 font-medium">
-            * 2단계(결제대기) 이후 상태는 수정이 제한된 읽기 전용 모드입니다.
-          </div>
-          <div class="flex items-center gap-2 flex-wrap">
+
+          <div class="flex items-center gap-2 flex-wrap justify-end">
             <!-- 엑셀 다운로드 버튼 (항상 노출) -->
             <button
               @click="handle1688Excel(activeOrder)"
               type="button"
-              class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-xs transition cursor-pointer active:scale-95"
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-xs transition cursor-pointer active:scale-95"
             >
-              <span>📋</span>
-              <span>1688 사입용 엑셀</span>
+              <span>📋 1688 사입 엑셀</span>
             </button>
             <button
               @click="handleMasterExcel(activeOrder)"
               type="button"
-              class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition cursor-pointer active:scale-95"
+              class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition cursor-pointer active:scale-95"
             >
-              <span>📥</span>
-              <span>종합 주문서 엑셀</span>
+              <span>📥 종합 주문서</span>
             </button>
             <button
               @click="closeModals"
               type="button"
-              class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
+              class="px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
             >
               닫기
             </button>
@@ -684,9 +682,17 @@
               v-if="isStatus(activeOrder, 'quote_pending')"
               @click="saveDetailDraft"
               type="button"
-              class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
+              class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95"
             >
               <span>💾 변경사항 저장하기</span>
+            </button>
+            <button
+              v-if="isStatus(activeOrder, 'quote_pending')"
+              @click="approveQuoteFromDetail"
+              type="button"
+              class="px-4.5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95"
+            >
+              <span>⚡ 견적 승인 (2단계 전환)</span>
             </button>
           </div>
         </div>
@@ -837,15 +843,17 @@ function calcExcludedCost(o) {
   return Math.round(c * 226.19 * 1.08);
 }
 
-function excludeItem(order, item, idx) {
+function handleReasonChange(order, item, idx) {
   const reason = excludeReasonMap.value[idx];
   if (!reason) {
-    alert('구매 추천 안 함 사유를 선택해 주세요.');
-    return;
+    // 0. 사유선택 (정상 구매 포함) -> 롤백
+    item.excluded = false;
+    item.excludeReason = '';
+  } else {
+    // 1~4 사유 선택 -> 제외 처리
+    item.excluded = true;
+    item.excludeReason = reason;
   }
-  // 임시 상태(Draft)에서만 변경 - 즉시 저장하지 않고 프리뷰만 노출
-  item.excluded = true;
-  item.excludeReason = reason;
 }
 
 function restoreItem(order, item, idx) {
@@ -853,6 +861,20 @@ function restoreItem(order, item, idx) {
   item.excluded = false;
   item.excludeReason = null;
   excludeReasonMap.value[idx] = '';
+}
+
+function cancelOrderEntirely(order) {
+  if (!order) return;
+  if (!confirm(`[${order.orderNumber}] 주문을 '전체 취소 (품절/반려)' 처리하시겠습니까?\n취소 후에는 복구할 수 없습니다.`)) return;
+
+  updateOrderStatus(order.id, 'cancelled', {
+    cancelReason: '품목 전체 품절 및 수급 불가로 인한 관리자 취소',
+    cancelledAt: new Date().toISOString()
+  });
+
+  loadData();
+  showToast(`[${order.orderNumber}] 전체 주문 취소(반려) 처리가 완료되었습니다.`, 'error');
+  closeModals();
 }
 
 function saveDetailDraft() {
@@ -867,6 +889,49 @@ function saveDetailDraft() {
 
   loadData();
   showToast('발주 품목 상태 및 견적액이 저장되었습니다.', 'success');
+  closeModals();
+}
+
+function approveQuoteFromDetail() {
+  if (!activeOrder.value) return;
+
+  const validItems = getActiveItems(activeOrder.value);
+  if (validItems.length === 0) {
+    alert('유효한 구매 가능 품목이 없습니다. 품목을 복구하거나 전체 주문 취소를 진행해 주세요.');
+    return;
+  }
+
+  if (!confirm(`[${activeOrder.value.orderNumber}] 주문의 견적을 승인하여 2단계(결제대기)로 전환하시겠습니까?`)) return;
+
+  // 1. 발주 품목 상태 동기화 저장
+  const list = getStoredOrders();
+  const target = list.find(o => o.id === activeOrder.value.id || o.orderNumber === activeOrder.value.orderNumber);
+  if (target) {
+    target.items = JSON.parse(JSON.stringify(activeOrder.value.items || []));
+    saveStoredOrders(list);
+  }
+
+  // 2. quote_confirmed 상태로 전환 및 유효 금액 반영
+  const validTotal = calcCost(activeOrder.value);
+  updateOrderStatus(activeOrder.value.id, 'quote_confirmed', {
+    quoteInfo: {
+      firstPaymentKrw: validTotal,
+      approvedAt: new Date().toISOString(),
+      adminMemo: '관리자 품목 검토 및 견적 승인 완료'
+    }
+  });
+
+  // 3. 솔라피 알림톡 발송 (비동기 안전 방어)
+  sendOrderStatusAlimtalk({
+    type: 'quote_approved',
+    to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+    customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
+    orderNo: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
+    itemName: validItems[0]?.productName || activeOrder.value.items?.[0]?.productName || '소싱 상품'
+  }).catch(() => {});
+
+  loadData();
+  showToast(`[${activeOrder.value.orderNumber}] 견적 승인 완료 → 2단계(결제대기) 전환`, 'success');
   closeModals();
 }
 
@@ -922,7 +987,7 @@ function openDetail(o) {
   activeOrder.value = JSON.parse(JSON.stringify(o));
   excludeReasonMap.value = {};
   (activeOrder.value.items || []).forEach((item, idx) => {
-    excludeReasonMap.value[idx] = '';
+    excludeReasonMap.value[idx] = item.excluded ? (item.excludeReason || '품절') : '';
   });
   modal.value.detail = true;
 }

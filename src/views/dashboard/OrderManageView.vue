@@ -894,21 +894,35 @@
                         :src="prod.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
                         :alt="prod.productName"
                         class="w-13 h-13 rounded-xl object-cover bg-white border border-gray-200 shrink-0"
+                        :class="prod.isAllExcluded ? 'opacity-50 grayscale' : ''"
                         @error="handleImgError"
                       />
                       <div class="flex-1 min-w-0">
-                        <p class="font-bold text-gray-900 text-xs sm:text-sm line-clamp-1 leading-snug">
-                          {{ prod.productName || prod.titleKo }}
-                        </p>
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <p
+                            class="font-bold text-gray-900 text-xs sm:text-sm line-clamp-1 leading-snug"
+                            :class="prod.isAllExcluded ? 'line-through text-gray-400' : ''"
+                          >
+                            {{ prod.productName || prod.titleKo }}
+                          </p>
+                          <span
+                            v-if="prod.isAllExcluded"
+                            class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[10px] border border-rose-200"
+                          >
+                            ⛔ 구매불가: {{ prod.excludeReason || '품절' }}
+                          </span>
+                        </div>
                         <p v-if="prod.titleZh" class="text-[10px] text-gray-400 font-mono truncate" :title="prod.titleZh">
                           {{ prod.titleZh }}
                         </p>
                         <div class="flex items-center gap-2 text-[11px] text-amber-700 font-mono mt-1">
                           <span>옵션 <b>{{ prod.skus.length }}종</b></span>
                           <span>·</span>
-                          <span>합계 <b>{{ prod.totalQty }}개</b></span>
+                          <span>유효 합계 <b>{{ prod.validQty }}개</b></span>
                           <span>·</span>
-                          <span class="font-bold text-gray-900">₩{{ formatNumber(prod.totalPriceKrw) }}원</span>
+                          <span class="font-bold" :class="prod.isAllExcluded ? 'line-through text-gray-400' : 'text-gray-900'">
+                            ₩{{ formatNumber(prod.validTotalPriceKrw) }}원
+                          </span>
                         </div>
                       </div>
                     </div>
@@ -921,19 +935,41 @@
                         class="flex items-center justify-between gap-2 pt-2 first:pt-0 text-xs"
                       >
                         <div class="flex items-center gap-2 min-w-0">
-                          <span class="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0"></span>
-                          <span class="font-medium text-gray-800 truncate">
+                          <span
+                            class="w-1.5 h-1.5 rounded-full shrink-0"
+                            :class="sku.excluded ? 'bg-rose-400' : 'bg-amber-400'"
+                          ></span>
+                          <span
+                            class="font-medium truncate"
+                            :class="sku.excluded ? 'line-through text-gray-400' : 'text-gray-800'"
+                          >
                             {{ sku.optionKo }}
                           </span>
-                          <span v-if="sku.optionZh" class="text-[10px] text-gray-400 font-mono truncate">
+                          <span
+                            v-if="sku.optionZh"
+                            class="text-[10px] font-mono truncate"
+                            :class="sku.excluded ? 'line-through text-gray-300' : 'text-gray-400'"
+                          >
                             ({{ sku.optionZh }})
+                          </span>
+                          <span
+                            v-if="sku.excluded"
+                            class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[10px] border border-rose-200 shrink-0"
+                          >
+                            ⛔ 구매불가: {{ sku.excludeReason || '품절' }}
                           </span>
                         </div>
                         <div class="flex items-center gap-3 shrink-0 font-mono">
-                          <span class="text-gray-500 text-[11px]">
+                          <span
+                            class="text-[11px]"
+                            :class="sku.excluded ? 'line-through text-gray-300' : 'text-gray-500'"
+                          >
                             {{ sku.quantity }}개 × ¥{{ Number(sku.priceCny).toFixed(2) }}
                           </span>
-                          <span class="font-bold text-gray-900">
+                          <span
+                            class="font-bold"
+                            :class="sku.excluded ? 'line-through text-gray-400' : 'text-gray-900'"
+                          >
                             ₩{{ formatNumber(sku.totalKrw) }}원
                           </span>
                         </div>
@@ -1942,7 +1978,7 @@ const stepperCounts = computed(() => {
 });
 
 // ---------------------------------------------------------
-// 안전한 원가 계산 헬퍼 (getOrderCostSummary)
+// 안전한 원가 계산 헬퍼 (getOrderCostSummary - 제외 품목 차감 연동)
 // ---------------------------------------------------------
 function getOrderCostSummary(order) {
   if (!order || !Array.isArray(order.items) || order.items.length === 0) {
@@ -1966,6 +2002,9 @@ function getOrderCostSummary(order) {
   let totalCbm = 0;
 
   order.items.forEach((it) => {
+    // 관리자가 제외 처리한 품목은 DDP 계산에서 차감/제외
+    if (it.excluded) return;
+
     const q = Number(it.quantity) || 1;
     const p = Number(it.priceCny || it.price || it.unitPriceCny) || 0;
     totalQty += q;
@@ -2065,12 +2104,18 @@ function getGroupedOrderItems(rawItems) {
         company: it.company || '1688 공급처',
         skus: [],
         totalQty: 0,
+        validQty: 0,
         totalPriceCny: 0,
-        totalPriceKrw: 0
+        totalPriceKrw: 0,
+        validTotalPriceKrw: 0,
+        isAllExcluded: false,
+        excludeReason: it.excludeReason || ''
       });
     }
 
     const group = groupsMap.get(groupKey);
+    const isItemExcluded = Boolean(it.excluded);
+    const itemReason = it.excludeReason || '';
 
     if (Array.isArray(it.skus) && it.skus.length > 0) {
       it.skus.forEach((skuObj, skuIdx) => {
@@ -2084,6 +2129,9 @@ function getGroupedOrderItems(rawItems) {
         const sizeZh = skuObj.sizeZh && skuObj.sizeZh !== 'undefined' ? skuObj.sizeZh : '';
         const optZhText = [colorZh, sizeZh].filter(Boolean).join(' / ');
 
+        const isSkuExcluded = isItemExcluded || Boolean(skuObj.excluded);
+        const skuReason = itemReason || skuObj.excludeReason || '';
+
         group.skus.push({
           skuId: `${groupKey}_${skuIdx}_${Date.now()}`,
           optionKo: optText,
@@ -2093,12 +2141,19 @@ function getGroupedOrderItems(rawItems) {
           quantity: qty,
           priceCny: price,
           totalCny: Number((qty * price).toFixed(2)),
-          totalKrw: Math.round(qty * price * 226.19)
+          totalKrw: Math.round(qty * price * 226.19),
+          excluded: isSkuExcluded,
+          excludeReason: skuReason
         });
 
         group.totalQty += qty;
         group.totalPriceCny += qty * price;
         group.totalPriceKrw += Math.round(qty * price * 226.19);
+
+        if (!isSkuExcluded) {
+          group.validQty += qty;
+          group.validTotalPriceKrw += Math.round(qty * price * 226.19);
+        }
       });
     } else {
       const qty = Number(it.quantity || it.qty || 1);
@@ -2112,16 +2167,31 @@ function getGroupedOrderItems(rawItems) {
         quantity: qty,
         priceCny: price,
         totalCny: Number((qty * price).toFixed(2)),
-        totalKrw: Math.round(qty * price * 226.19)
+        totalKrw: Math.round(qty * price * 226.19),
+        excluded: isItemExcluded,
+        excludeReason: itemReason
       });
 
       group.totalQty += qty;
       group.totalPriceCny += qty * price;
       group.totalPriceKrw += Math.round(qty * price * 226.19);
+
+      if (!isItemExcluded) {
+        group.validQty += qty;
+        group.validTotalPriceKrw += Math.round(qty * price * 226.19);
+      }
     }
   });
 
-  return Array.from(groupsMap.values());
+  const groups = Array.from(groupsMap.values());
+  groups.forEach(g => {
+    g.isAllExcluded = g.skus.length > 0 && g.skus.every(s => s.excluded);
+    if (g.isAllExcluded && !g.excludeReason) {
+      g.excludeReason = g.skus.find(s => s.excludeReason)?.excludeReason || '품절';
+    }
+  });
+
+  return groups;
 }
 
 // ---------------------------------------------------------
@@ -2517,8 +2587,9 @@ function getItemsCount(order) {
 }
 
 function getOrderTotalQuantity(order) {
-  if (!Array.isArray(order.items)) return 1;
-  return order.items.reduce((acc, cur) => acc + (Number(cur.quantity) || 1), 0);
+  if (!Array.isArray(order?.items)) return 1;
+  const validItems = order.items.filter(i => !i.excluded);
+  return validItems.reduce((acc, cur) => acc + (Number(cur.quantity) || 1), 0);
 }
 
 function formatNumber(num) {
