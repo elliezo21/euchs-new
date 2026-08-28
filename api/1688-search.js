@@ -1,8 +1,9 @@
 /**
  * Vercel Serverless Function: /api/1688-search
  * 1688 DataHub RapidAPI 검색 프록시
- * - 1차 item_search 호출 및 다중 엔드포인트 우회 라우팅
- * - RapidAPI 응답 JSON을 { success: true, data: resData } 형태로 온전히 전달
+ * - 1차: item_search?q=${encodeURIComponent(q)}&page=${page}&sort=default
+ * - 2차 (1차 응답 비어있거나 205 시): item_search_suggest?q=${encodeURIComponent(q)} 또는 우회 조회
+ * - RapidAPI 응답 JSON을 { success: true, data: resData } 형태로 온전히 반환
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -28,10 +29,10 @@ export default async function handler(req, res) {
     'x-rapidapi-host': rapidHost
   }
 
-  console.log(`[1688-search] Executing search for q="${q}" page=${page} sort=${sort}`)
+  console.log(`[1688-search] Executing live search for q="${q}" page=${page} sort=${sort}`)
 
   try {
-    // 1차: 표준 item_search 호출
+    // 1차: 표준 item_search 엔드포인트 호출
     const targetUrl = new URL(`https://${rapidHost}/item_search`)
     targetUrl.searchParams.set('q', q)
     targetUrl.searchParams.set('page', String(page))
@@ -46,31 +47,32 @@ export default async function handler(req, res) {
       data = await response.json()
     } catch (jsonErr) {
       const text = await response.text().catch(() => '')
-      console.error('[1688-search] JSON parse fail. status:', response.status, 'body:', text.slice(0, 300))
+      console.error('[1688-search] 1차 JSON parse fail. status:', response.status, 'body:', text.slice(0, 300))
     }
 
     const rawList = data?.result?.resultList || data?.resultList || data?.data?.items || data?.items || []
     const isErrorStatus = data?.result?.status?.data === 'error' || (data?.result?.status?.code && data?.result?.status?.code !== 200)
 
-    // 2차: 1차 결과가 비어있거나 에러인 경우 대체 쿼리 또는 보조 파라미터 시도
-    if ((!data || rawList.length === 0 || isErrorStatus) && response.ok) {
+    // 2차: 1차 결과가 비어있거나 Code 205 등 에러인 경우 -> item_search_suggest 또는 우회 엔드포인트 즉시 시도
+    if (!data || rawList.length === 0 || isErrorStatus) {
+      console.log(`[1688-search] 1차 결과 없음/205 -> 2차 suggest 우회 엔드포인트 시도 for "${q}"`)
       try {
-        const altUrl = new URL(`https://${rapidHost}/item_search`)
-        altUrl.searchParams.set('q', q)
-        altUrl.searchParams.set('page', String(page))
-        const altRes = await fetch(altUrl.toString(), { headers })
-        if (altRes.ok) {
-          const altData = await altRes.json().catch(() => null)
-          const altList = altData?.result?.resultList || altData?.resultList || altData?.data?.items || altData?.items || []
-          if (altList.length > 0) {
-            data = altData
+        const suggestUrl = new URL(`https://${rapidHost}/item_search_suggest`)
+        suggestUrl.searchParams.set('q', q)
+        const suggestRes = await fetch(suggestUrl.toString(), { headers })
+        if (suggestRes.ok) {
+          const suggestData = await suggestRes.json().catch(() => null)
+          const suggestList = suggestData?.result?.resultList || suggestData?.resultList || suggestData?.data?.items || suggestData?.items || []
+          if (suggestList.length > 0) {
+            data = suggestData
           }
         }
-      } catch (altErr) {
-        console.warn('[1688-search] Alt search bypass notice:', altErr.message)
+      } catch (suggestErr) {
+        console.warn('[1688-search] 2차 suggest bypass error:', suggestErr.message)
       }
     }
 
+    // 클라이언트로 최종 수신된 1688 원본 JSON 객체를 { success: true, data } 형태로 반환
     return res.status(200).json({ success: true, data, status: response.status })
 
   } catch (err) {
@@ -78,4 +80,5 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: err.message || '1688 search proxy error' })
   }
 }
+
 
