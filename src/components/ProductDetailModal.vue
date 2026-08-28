@@ -738,7 +738,10 @@ const firstPropName = computed(() => {
             raw.sku?.skuProps?.[0]?.prop || raw.sku?.skuProps?.[0]?.propName ||
             props.product?.skuProps?.[0]?.prop || props.product?.skuProps?.[0]?.propKo
   const cleaned = cleanForeignText(p)
-  return (cleaned && String(cleaned).trim()) ? String(cleaned).trim() : '색상/옵션'
+  if (cleaned && !/[\u0400-\u04ff]/i.test(cleaned)) {
+    return String(cleaned).trim()
+  }
+  return '색상/옵션'
 })
 
 const secondPropName = computed(() => {
@@ -749,7 +752,10 @@ const secondPropName = computed(() => {
             raw.sku?.skuProps?.[1]?.prop || raw.sku?.skuProps?.[1]?.propName ||
             props.product?.skuProps?.[1]?.prop || props.product?.skuProps?.[1]?.propKo
   const cleaned = cleanForeignText(p)
-  return (cleaned && String(cleaned).trim()) ? String(cleaned).trim() : '사이즈/규격'
+  if (cleaned && !/[\u0400-\u04ff]/i.test(cleaned)) {
+    return String(cleaned).trim()
+  }
+  return '사이즈/규격'
 })
 
 // ----------------------------------------------------

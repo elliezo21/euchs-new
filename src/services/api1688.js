@@ -146,38 +146,61 @@ export function cleanForeignText(str) {
   if (!str || typeof str !== 'string') return ''
   let cleaned = str.trim()
 
-  // 1. "Цвет :", "Размер :", "Емкость :" 등 콜론 뒤 러시아어 병기 분리 (예: "拉链卡其-加长款 Цвет : Молния...")
-  if (/Цвет\s*:/i.test(cleaned) || /Размер\s*:/i.test(cleaned) || /Емкость\s*:/i.test(cleaned) || /Объем\s*:/i.test(cleaned)) {
-    const parts = cleaned.split(/(?:Цвет|Размер|Емкость|Объем)\s*:/i)
+  // 1. 중국어 원문 + 러시아어 혼합 패턴에서 중국어 원문만 추출
+  // 예: "拉链卡其-加长款 Цвет : Молния..." -> "拉链卡其-加长款"
+  if (/[\u4e00-\u9fff]/.test(cleaned) && /[\u0400-\u04ff]/i.test(cleaned)) {
+    const colonSplit = cleaned.split(/(?:Цвет|Размер|Емкость|Объем|Стиль|Модель|Материал|Характеристика)\s*:/i)
+    if (colonSplit[0] && /[\u4e00-\u9fff]/.test(colonSplit[0])) {
+      cleaned = colonSplit[0].trim()
+    } else {
+      // 키릴 문자 블록만 제거
+      cleaned = cleaned.replace(/[\u0400-\u04ff]+/g, '').replace(/[:：\s-]+$/, '').trim()
+    }
+  }
+
+  // 2. 콜론 뒤 러시아어 병기 분리 (중국어가 없는 경우라도 분리)
+  if (/[:：]/.test(cleaned) && /[\u0400-\u04ff]/i.test(cleaned)) {
+    const parts = cleaned.split(/(?:Цвет|Размер|Емкость|Объем|Стиль|Модель|Материал|Характеристика)\s*[:：]/i)
     if (parts[0] && parts[0].trim()) {
       cleaned = parts[0].trim()
     }
   }
 
-  // 2. 단독 속성명 치환
-  const lower = cleaned.toLowerCase().replace(/[\s\-_/()（）]+/g, '')
-  if (lower === 'цвет' || lower === 'цвета' || lower === 'color') return '색상'
-  if (lower === 'размер' || lower === 'размеры' || lower === 'size') return '사이즈'
-  if (lower === 'спецификация' || lower === 'характеристика' || lower === 'spec') return '규격'
-  if (lower === 'емкость' || lower === 'объем' || lower.includes('емкость') || lower.includes('объем') || lower === 'capacity') return '용량'
-  if (lower === 'вес' || lower === 'масса' || lower === 'weight') return '중량'
-  if (lower === 'материал' || lower === 'ткань' || lower === 'material') return '소재'
+  // 3. 단독 속성명 표준화 (공백/특수문자 무시)
+  const normKey = cleaned.toLowerCase().replace(/[\s\-_/()（）:：]+/g, '')
+  if (normKey === 'цвет' || normKey === 'цвета' || normKey === 'color' || normKey === '색상') return '색상'
+  if (normKey === 'размер' || normKey === 'размеры' || normKey === 'size' || normKey === '사이즈') return '사이즈'
+  if (normKey === 'спецификация' || normKey === 'характеристика' || normKey === 'spec' || normKey === '규격') return '규격'
+  if (normKey === 'емкость' || normKey === 'объем' || normKey.includes('емкость') || normKey.includes('объем') || normKey === 'capacity' || normKey === '용량') return '용량'
+  if (normKey === 'вес' || normKey === 'масса' || normKey === 'weight' || normKey === '중량') return '중량'
+  if (normKey === 'материал' || normKey === 'ткань' || normKey === 'material' || normKey === '소재') return '소재'
 
-  // 3. 사전 단어 치환
-  if (/[\u0400-\u04FF]/i.test(cleaned)) {
+  // 4. 사전 기반 단어/어미 치환 (긴 구문부터 순차 치환)
+  if (/[\u0400-\u04ff]/i.test(cleaned)) {
     for (const [ru, ko] of Object.entries(RU_KO_DICT)) {
       if (cleaned.toLowerCase() === ru) return ko
       const reg = new RegExp(ru.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
       cleaned = cleaned.replace(reg, ko)
     }
+
+    // 러시아어 단위 정규화
+    cleaned = cleaned
+      .replace(/(\d+)\s*мл\b/gi, '$1ml')
+      .replace(/(\d+)\s*л\b/gi, '$1L')
+      .replace(/(\d+)\s*г\b/gi, '$1g')
+      .replace(/(\d+)\s*кг\b/gi, '$1kg')
+      .replace(/(\d+)\s*см\b/gi, '$1cm')
+      .replace(/(\d+)\s*мм\b/gi, '$1mm')
+      .replace(/(\d+)\s*шт\b/gi, '$1개')
   }
 
-  // 4. "颜色 Цвет" 형태 제거
+  // 5. 불필요한 러시아어 속성 태그 및 잔여 기호 정제
   cleaned = cleaned
     .replace(/\s*Цвет\s*/gi, '')
     .replace(/\s*Размер\s*/gi, '')
     .replace(/\s*Емкость\s*/gi, '')
     .replace(/\s*Объем\s*/gi, '')
+    .replace(/^[:：\s-]+|[:：\s-]+$/g, '')
     .trim()
 
   return cleaned
