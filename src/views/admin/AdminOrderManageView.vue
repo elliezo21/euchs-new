@@ -400,7 +400,7 @@
     <!-- MODAL: 주문 상세 (PC 전용 와이드 뷰) -->
     <!-- ============================================================ -->
     <div v-if="modal.detail && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto" @click.self="closeModals">
-      <div class="bg-white rounded-3xl w-full max-w-5xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+      <div class="bg-white rounded-3xl w-full max-w-5xl md:max-w-6xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
         <!-- 모달 헤더 -->
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-3">
@@ -508,10 +508,10 @@
               <div
                 v-for="(item, idx) in activeOrder.items || []"
                 :key="idx"
-                class="p-4 transition flex flex-col md:flex-row md:items-center justify-between gap-4"
+                class="p-4 transition flex flex-col lg:flex-row lg:items-center justify-between gap-4"
                 :class="item.excluded ? 'bg-slate-100/70 opacity-75' : 'hover:bg-slate-50/60'"
               >
-                <!-- 상품 정보 & 썸네일 & 1688 링크 -->
+                <!-- 좌측: 상품 정보 & 썸네일 & 1688 링크 -->
                 <div class="flex items-start gap-3.5 min-w-0 flex-1">
                   <img
                     :src="item.imageUrl || fallbackImg"
@@ -525,19 +525,6 @@
                         :class="item.excluded ? 'line-through text-slate-400' : ''"
                       >
                         {{ item.productName || '1688 수입 품목' }}
-                      </span>
-                      <!-- 상태 뱃지 -->
-                      <span
-                        v-if="item.excluded"
-                        class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[10px] border border-rose-200 flex items-center gap-1"
-                      >
-                        🔴 구매제외: {{ item.excludeReason || '구매 추천 안 함' }}
-                      </span>
-                      <span
-                        v-else
-                        class="px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700 font-bold text-[10px] border border-emerald-200 flex items-center gap-1"
-                      >
-                        🟢 구매가능
                       </span>
                     </div>
 
@@ -554,7 +541,7 @@
                     </div>
 
                     <!-- 1688 원본 링크 버튼 -->
-                    <div class="pt-1">
+                    <div class="pt-0.5">
                       <a
                         :href="getItem1688Url(item)"
                         target="_blank"
@@ -569,15 +556,30 @@
                   </div>
                 </div>
 
-                <!-- 우측: 구매상태 선택 영역 (1단계 견적대기에서만 조작 가능) -->
-                <div v-if="isStatus(activeOrder, 'quote_pending')" class="shrink-0 flex items-center gap-2 self-end md:self-center">
-                  <div class="flex items-center gap-2">
+                <!-- 우측: 상태 뱃지 + 구매상태 선택 드롭다운 (여유로운 너비 및 찌그러짐 방지) -->
+                <div class="shrink-0 flex items-center gap-3 justify-end self-end lg:self-center">
+                  <!-- 상태 뱃지 -->
+                  <span
+                    v-if="item.excluded"
+                    class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700 font-black text-[11px] border border-rose-200 shrink-0 whitespace-nowrap"
+                  >
+                    🔴 구매제외: {{ item.excludeReason || '구매 추천 안 함' }}
+                  </span>
+                  <span
+                    v-else
+                    class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 font-bold text-[11px] border border-emerald-200 shrink-0 whitespace-nowrap"
+                  >
+                    🟢 구매가능
+                  </span>
+
+                  <!-- 1단계 견적대기 시 사유 선택 드롭다운 -->
+                  <div v-if="isStatus(activeOrder, 'quote_pending')" class="flex items-center gap-2 shrink-0">
                     <span class="text-[11px] font-bold text-slate-500 shrink-0">구매상태:</span>
                     <select
                       v-model="excludeReasonMap[idx]"
                       @change="handleReasonChange(activeOrder, item, idx)"
-                      class="px-2.5 py-1.5 rounded-xl border text-xs bg-white outline-none cursor-pointer focus:ring-2 font-medium transition"
-                      :class="item.excluded ? 'border-rose-300 text-rose-700 bg-rose-50/50' : 'border-slate-200 text-slate-700'"
+                      class="w-56 text-xs border rounded-lg py-1.5 px-2.5 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-amber-500 font-medium transition"
+                      :class="item.excluded ? 'border-rose-300 text-rose-700 bg-rose-50/50' : 'border-slate-300 text-slate-700'"
                     >
                       <option value="">0. 사유선택 (정상 구매 포함)</option>
                       <option value="품절">1. 품절</option>
@@ -636,45 +638,45 @@
 
         </div>
 
-        <!-- 모달 푸터 -->
-        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row justify-between items-center gap-3 shrink-0">
-          <div class="flex items-center gap-2">
-            <!-- [🚫 전체 주문 취소 (품절/반려)] 버튼 (취소되지 않은 주문일 때 노출) -->
+        <!-- 모달 푸터 (1줄 단일 행 완벽 수평 정렬) -->
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-4 flex-nowrap shrink-0 overflow-x-auto">
+          <!-- 좌측: 전체 취소 버튼 -->
+          <div class="shrink-0">
             <button
               v-if="!['cancelled', 'completed'].includes(normalizeOrderStatus(activeOrder.status))"
               @click="cancelOrderEntirely(activeOrder)"
               type="button"
-              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5"
+              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
               title="품목 전체 품절 및 수급 불가 시 주문 취소"
             >
               <span>🚫</span>
               <span>전체 주문 취소 (품절/반려)</span>
             </button>
-            <div v-if="isStatus(activeOrder, 'quote_pending')" class="text-xs text-slate-500 font-medium hidden md:block">
-              * [변경사항 저장] 또는 [견적 승인] 시 바이어에게 즉시 반영됩니다.
-            </div>
           </div>
 
-          <div class="flex items-center gap-2 flex-wrap justify-end">
-            <!-- 엑셀 다운로드 버튼 (항상 노출) -->
+          <!-- 우측: 엑셀 및 액션 버튼 그룹 (줄바꿈 없이 1줄 정렬) -->
+          <div class="flex items-center gap-2 shrink-0 flex-nowrap">
+            <!-- 엑셀 그룹 -->
             <button
               @click="handle1688Excel(activeOrder)"
               type="button"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-xs transition cursor-pointer active:scale-95"
+              class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-xs transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
             >
-              <span>📋 1688 사입 엑셀</span>
+              <span>📥 1688 사입 엑셀</span>
             </button>
             <button
               @click="handleMasterExcel(activeOrder)"
               type="button"
-              class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition cursor-pointer active:scale-95"
+              class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
             >
-              <span>📥 종합 주문서</span>
+              <span>📥 수입 주문서 엑셀</span>
             </button>
+
+            <!-- 액션 그룹 -->
             <button
               @click="closeModals"
               type="button"
-              class="px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
+              class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer shrink-0 whitespace-nowrap"
             >
               닫기
             </button>
@@ -682,7 +684,7 @@
               v-if="isStatus(activeOrder, 'quote_pending')"
               @click="saveDetailDraft"
               type="button"
-              class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95"
+              class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>💾 변경사항 저장하기</span>
             </button>
@@ -690,7 +692,7 @@
               v-if="isStatus(activeOrder, 'quote_pending')"
               @click="approveQuoteFromDetail"
               type="button"
-              class="px-4.5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95"
+              class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>⚡ 견적 승인 (2단계 전환)</span>
             </button>
