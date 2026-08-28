@@ -6,7 +6,7 @@
     </main>
     <QuickMenu v-if="!isStandaloneRoute" />
     <Footer v-if="!isStandaloneRoute" />
-    <LoginModal />
+    <AuthModal />
     <!-- 온보딩 사용가이드 모달 (/mall 또는 /dashboard 에서만 렌더링) -->
     <OnboardingTour v-if="isOnboardingAllowed" />
   </div>
@@ -18,7 +18,7 @@ import { useRoute, useRouter } from 'vue-router'
 import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import QuickMenu from './components/QuickMenu.vue'
-import LoginModal from './components/LoginModal.vue'
+import AuthModal from './components/AuthModal.vue'
 import OnboardingTour from './components/common/OnboardingTour.vue'
 import { trackVisitor } from './lib/analytics'
 import { openLoginModal } from './lib/auth'

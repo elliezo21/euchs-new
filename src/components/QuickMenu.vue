@@ -87,10 +87,10 @@
       <div class="relative">
         <button 
           type="button"
-          @click="$router.push('/dashboard')" 
-          class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg hover:bg-red-700 active:scale-95 transition-all text-base sm:text-lg font-bold focus:outline-none"
-          title="발주대기 보관함"
-          aria-label="발주대기 보관함"
+          @click="handleCartClick" 
+          class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg hover:bg-red-700 active:scale-95 transition-all text-base sm:text-lg font-bold focus:outline-none cursor-pointer"
+          title="장바구니 (발주대기 보관함)"
+          aria-label="장바구니 (발주대기 보관함)"
         >
           <i class="fas fa-shopping-bag"></i>
         </button>
@@ -168,10 +168,23 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { isLoggedIn, currentUser, getCartStorageKey } from '../lib/auth'
 
+const router = useRouter()
 const isOpen = ref(false)
 const savedCount = ref(0)
+
+const handleCartClick = () => {
+  isOpen.value = false
+  if (!isLoggedIn.value) {
+    window.dispatchEvent(new CustomEvent('euchs:open-auth-guard', {
+      detail: { reason: 'cart', message: '장바구니 확인 및 수입 발주 신청은 회원 전용 서비스입니다.\n로그인이나 회원가입 후 편리하게 이용해 보세요.' }
+    }))
+    return
+  }
+  router.push('/dashboard/cart')
+}
 
 const updateSavedCount = () => {
   // 비로그인 상태: 즉시 0 (뱃지 숨김)

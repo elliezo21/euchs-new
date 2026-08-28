@@ -1839,6 +1839,10 @@ const openB2BGuard = (type = 'guest') => {
   isB2BAuthGuardOpen.value = true
 }
 
+const handleOpenAuthGuardEvent = (e) => {
+  openB2BGuard('guest')
+}
+
 const closeB2BGuard = () => {
   isB2BAuthGuardOpen.value = false
 }
@@ -2228,6 +2232,7 @@ onMounted(async () => {
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
+  window.addEventListener('euchs:open-auth-guard', handleOpenAuthGuardEvent)
   window.addEventListener('euchs-auth-changed', safeLoadBalance)
   window.addEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.addEventListener('euchs-auth-changed', updateSavedCount)
@@ -2243,6 +2248,7 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
+  window.removeEventListener('euchs:open-auth-guard', handleOpenAuthGuardEvent)
   window.removeEventListener('euchs-auth-changed', safeLoadBalance)
   window.removeEventListener('euchs-auth-changed', checkAndResumePendingProduct)
   window.removeEventListener('euchs-auth-changed', updateSavedCount)
