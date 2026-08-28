@@ -275,15 +275,15 @@ export async function search1688(queryZh, page = 1, options = {}) {
 
     if (proxyRes.ok) {
       const result = await proxyRes.json()
-      if (result.success && result.data) {
-        data = result.data
-        console.log('[1688 Search] Proxy success:', Object.keys(result.data || {}).slice(0, 5))
+      if (result.success && (result.data || result.result)) {
+        data = result.data || result.result || result
+        console.log('[1688 Search] Proxy success:', Object.keys(data || {}).slice(0, 5))
       } else if (result.status === 429 || String(result.data?.message || '').includes('exceeded')) {
-        isApiError = true // 쿼터 초과 시 Direct도 건너뜀
-        console.warn('[1688 Search] Proxy quota exceeded, falling to Mock')
+        isApiError = true
+        console.warn('[1688 Search] Proxy quota exceeded')
       } else {
-        console.warn('[1688 Search] Proxy returned success=false:', result)
-        // success=false이지만 쿼터 초과가 아니면 Direct API 시도
+        data = result.data || result.result || result
+        console.log('[1688 Search] Proxy received response:', result)
       }
     } else {
       const errBody = await proxyRes.json().catch(() => ({}))

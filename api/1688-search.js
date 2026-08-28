@@ -1,8 +1,8 @@
 /**
  * Vercel Serverless Function: /api/1688-search
  * 1688 DataHub RapidAPI 정식 검색 프록시
- * - item_search?q=${encodeURIComponent(q)}&page=${page}&sort=default
- * - RapidAPI 원본 응답 JSON을 { success: true, data: resData } 형태로 클라이언트에 온전히 전달
+ * - 수신 파라미터: q, keyword, text 중 존재하는 값을 searchQuery로 확정
+ * - RapidAPI item_search 엔드포인트 호출 및 정규화 응답 반환
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -12,10 +12,10 @@ export default async function handler(req, res) {
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' })
 
   const rawQ = req.query?.q || req.query?.keyword || req.query?.text || ''
-  const q = String(rawQ).trim()
+  const searchQuery = String(rawQ).trim()
   const { page = '1', sort = 'default', price_min = '', price_max = '' } = req.query || {}
 
-  if (!q) {
+  if (!searchQuery) {
     console.error('[1688-search] Missing search keyword. query:', req.query)
     return res.status(400).json({ success: false, message: '검색 키워드(q)가 누락되었습니다.' })
   }
@@ -28,11 +28,11 @@ export default async function handler(req, res) {
     'x-rapidapi-host': rapidHost
   }
 
-  console.log(`[1688-search] Executing live item_search for q="${q}" page=${page} sort=${sort}`)
+  console.log(`[1688-search] Executing live item_search for searchQuery="${searchQuery}" page=${page} sort=${sort}`)
 
   try {
     const targetUrl = new URL(`https://${rapidHost}/item_search`)
-    targetUrl.searchParams.set('q', q)
+    targetUrl.searchParams.set('q', searchQuery)
     targetUrl.searchParams.set('page', String(page))
     targetUrl.searchParams.set('sort', sort || 'default')
     if (price_min) targetUrl.searchParams.set('price_min', price_min)
@@ -48,13 +48,23 @@ export default async function handler(req, res) {
       console.error('[1688-search] JSON parse fail. status:', response.status, 'body:', text.slice(0, 300))
     }
 
-    return res.status(200).json({ success: true, data, status: response.status })
+    const rawList = data?.result?.resultList || data?.resultList || data?.data?.items || data?.items || data?.data || []
+
+    return res.status(200).json({
+      success: true,
+      result: {
+        resultList: Array.isArray(rawList) ? rawList : []
+      },
+      data: data,
+      status: response.status
+    })
 
   } catch (err) {
     console.error('[1688-search] Proxy error:', err.message)
     return res.status(500).json({ success: false, message: err.message || '1688 search proxy error' })
   }
 }
+
 
 
 
