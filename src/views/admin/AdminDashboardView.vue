@@ -337,14 +337,20 @@ const pipelineCounts = computed(() => {
   const c = { newOrder: 0, preparing: 0, shipping: 0, delivered: 0, confirmed: 0 };
   orders.value.forEach(o => {
     const s = normalizeOrderStatus(o.status);
-    if (s === 'quote_pending' || s === 'quote_confirmed') c.newOrder++;
-    else if (s === 'payment_verified' || s === 'purchasing') c.preparing++;
-    else if (s === 'warehouse_in' || s === 'inspection_done' || s === 'shipping_ready' || s === 'customs_clearance') c.shipping++;
-    else if (s === 'domestic_shipping' || s === 'delivered') c.delivered++;
-    else if (s === 'completed') c.confirmed++;
+    // 1~2단계: 견적/결제대기
+    if (['quote_pending', 'quote_confirmed', 'payment_pending'].includes(s)) c.newOrder++;
+    // 3~4단계: 1688 구매진행
+    else if (['payment_verified', 'purchasing'].includes(s)) c.preparing++;
+    // 5~7단계: 창고/선적/통관
+    else if (['warehouse_in', 'inspecting', 'inspection_done', 'defect_found', 'shipping_ready', 'customs_clearance', 'customs_done'].includes(s)) c.shipping++;
+    // 8단계: 국내택배 인계
+    else if (s === 'domestic_shipping') c.delivered++;
+    // 수취 완료
+    else if (['delivered', 'completed'].includes(s)) c.confirmed++;
   });
   return c;
 });
+
 
 const warehouseCounts = computed(() => {
   const c = { pending: 0, inspecting: 0, weighed: 0 };
@@ -446,42 +452,45 @@ const memberStats = ref({
   pending: 0,
   rate: 100
 });
+/**
+ * ✅ [회원 통계] Supabase DB profiles 직접 집계 (Primary)
+ * - Supabase 연결 성공 시: profiles 테이블을 직접 쿼리하여 집계
+ * - 실패/오프라인 시: localStorage 기반 fallback 적용
+ */
 async function loadMemberStats() {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: dbProfiles, error: profileErr } = await supabase
+        .from('profiles')
+        .select('id, role, is_business_verified, verification_status');
+
+      if (!profileErr && Array.isArray(dbProfiles)) {
+        const total = dbProfiles.length;
+        const verified = dbProfiles.filter(
+          p => p.is_business_verified === true || p.verification_status === 'verified'
+        ).length;
+        const pending = dbProfiles.filter(
+          p => p.verification_status === 'pending'
+        ).length;
+        const rate = total > 0 ? Math.round((verified / total) * 100) : 0;
+        memberStats.value = { total, verified, pending, rate };
+        return;
+      }
+      console.warn('[AdminDashboard] Supabase profiles query error, using localStorage fallback:', profileErr);
+    } catch (e) {
+      console.warn('[AdminDashboard] Supabase profiles fetch failed, using localStorage fallback:', e);
+    }
+  }
+
+  // Fallback: localStorage 기반 회원 데이터
   let list = [];
   try {
     const raw = localStorage.getItem('euchs_admin_members') || localStorage.getItem('euchs_members_list');
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        list = [...parsed];
-      }
+      if (Array.isArray(parsed) && parsed.length > 0) list = parsed;
     }
   } catch (e) {}
-
-  if (isSupabaseConfigured()) {
-    try {
-      const { data: dbProfiles, error } = await supabase
-        .from('profiles')
-        .select('*');
-      if (!error && Array.isArray(dbProfiles) && dbProfiles.length > 0) {
-        dbProfiles.forEach(p => {
-          const idx = list.findIndex(m => m.id === p.id || (p.email && m.email === p.email));
-          const formatted = {
-            id: p.id,
-            email: p.email,
-            verificationStatus: p.verification_status || (p.is_business_verified ? 'verified' : (p.business_number ? 'pending' : 'unverified'))
-          };
-          if (idx !== -1) {
-            list[idx] = { ...list[idx], ...formatted };
-          } else {
-            list.push(formatted);
-          }
-        });
-      }
-    } catch (e) {
-      console.warn('AdminDashboard loadMemberStats supabase error:', e);
-    }
-  }
 
   if (list.length > 0) {
     const total = list.length;
@@ -495,9 +504,35 @@ async function loadMemberStats() {
   memberStats.value = { total: 0, verified: 0, pending: 0, rate: 0 };
 }
 
+
+/**
+ * ✅ [발주 파이프라인] Supabase DB orders 직접 집계 (Primary)
+ * - Supabase 연결 성공 시: DB orders 테이블 레코드를 직접 조회하여 orders.value 갱신
+ * - 실패/오프라인 시: getStoredOrders() fallback 적용
+ */
+async function loadDashboardStats() {
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: dbOrders, error } = await supabase
+        .from('orders')
+        .select('id, status, created_at');
+
+      if (!error && Array.isArray(dbOrders)) {
+        orders.value = dbOrders;
+        return;
+      }
+      console.warn('[AdminDashboard] Supabase orders query error, using localStorage fallback:', error);
+    } catch (e) {
+      console.warn('[AdminDashboard] Supabase orders fetch failed, using localStorage fallback:', e);
+    }
+  }
+  // Fallback: localStorage 기반 주문 데이터
+  orders.value = getStoredOrders();
+}
+
 function reloadStats() {
   isRefreshing.value = true;
-  orders.value = getStoredOrders();
+  loadDashboardStats();
   inbounds.value = loadStoredInbounds();
   loadDashboardNotices();
   loadMarketTourStats();
@@ -509,6 +544,7 @@ function reloadStats() {
     isRefreshing.value = false;
   }, 400);
 }
+
 
 onMounted(() => {
   reloadStats();
