@@ -332,7 +332,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'quote' || route.query.tab === 'quote_pending') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>견적 요청/대기</span>
-                  <span class="font-mono text-gray-500 text-[11px]">({{ savedItems.length }})</span>
+                  <span class="font-mono text-amber-600 text-[11px] font-bold">({{ quotePendingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=purchasing"
@@ -340,7 +340,7 @@
                   :class="route.path === '/dashboard/orders' && route.query.tab === 'purchasing' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>1688 구매 진행중</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ submittedOrders.length }})</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ purchasingCount }})</span>
                 </router-link>
               </div>
             </div>
@@ -1174,8 +1174,16 @@ const loadDashboardData = async () => {
 }
 
 // ----------------------------------------------------
-// Pipeline Count Helper
+// Pipeline Count Helper & Badges
 // ----------------------------------------------------
+const quotePendingCount = computed(() => {
+  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length
+})
+
+const purchasingCount = computed(() => {
+  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length
+})
+
 const getPipelineCount = (statusKey) => {
   if (statusKey === 'quote_pending') {
     const cartCount = savedItems.value.length
