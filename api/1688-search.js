@@ -1,6 +1,8 @@
 /**
  * Vercel Serverless Function: /api/1688-search
  * 1688 DataHub RapidAPI 검색 프록시
+ * - RapidAPI 응답을 필터링 없이 클라이언트에 그대로 전달
+ * - 파싱 및 에러 핸들링은 클라이언트(api1688.js)에서 처리
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -9,7 +11,6 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' })
 
-  // 다양한 검색어 파라미터 키 수용 (q / keyword / text)
   const rawQ = req.query?.q || req.query?.keyword || req.query?.text || ''
   const q = String(rawQ).trim()
   const { page = '1', sort = 'default', price_min = '', price_max = '' } = req.query || {}
@@ -22,18 +23,14 @@ export default async function handler(req, res) {
   const rapidKey = process.env.VITE_RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
   const rapidHost = process.env.VITE_RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
 
-  if (!rapidKey) {
-    console.error('[1688-search] RAPIDAPI_KEY not set')
-    return res.status(500).json({ success: false, message: 'RAPIDAPI_KEY 환경변수가 설정되지 않았습니다.' })
-  }
-
-  console.log(`[1688-search] Requesting q="${q}" page=${page}`)
+  console.log(`[1688-search] q="${q}" page=${page} sort=${sort}`)
 
   try {
     const targetUrl = new URL(`https://${rapidHost}/item_search`)
     targetUrl.searchParams.set('q', q)
     targetUrl.searchParams.set('page', page)
-    if (sort && sort !== 'default') targetUrl.searchParams.set('sort', sort)
+    // sort=default 항상 포함 (RapidAPI 1688 DataHub 규격)
+    targetUrl.searchParams.set('sort', sort || 'default')
     if (price_min) targetUrl.searchParams.set('price_min', price_min)
     if (price_max) targetUrl.searchParams.set('price_max', price_max)
 
@@ -49,44 +46,20 @@ export default async function handler(req, res) {
       data = await response.json()
     } catch (jsonErr) {
       const text = await response.text().catch(() => '')
-      console.error('[1688-search] Failed to parse JSON. status:', response.status, 'body:', text.slice(0, 300))
+      console.error('[1688-search] JSON parse fail. status:', response.status, 'body:', text.slice(0, 300))
       return res.status(502).json({ success: false, message: 'RapidAPI 응답 파싱 실패', status: response.status })
     }
 
-    if (!response.ok) {
-      console.error('[1688-search] RapidAPI error status:', response.status, JSON.stringify(data).slice(0, 300))
-      return res.status(response.status).json({ success: false, data, status: response.status })
-    }
+    // ── 응답 요약 로그 ──
+    const apiCode = data?.result?.status?.code
+    const resultCount = data?.result?.resultList?.length ?? data?.resultList?.length ?? 0
+    console.log(`[1688-search] HTTP=${response.status} apiCode=${apiCode ?? 'ok'} resultList=${resultCount}개 q="${q}"`)
 
-    // ── 내용 레벨 에러 감지 (HTTP 200이지만 code 205 = no results / quota exceeded) ──
-    const apiStatus = data?.result?.status
-    if (apiStatus && (apiStatus.data === 'error' || (apiStatus.code && apiStatus.code !== 200))) {
-      const errCode = apiStatus.code
-      const errMsg = apiStatus.msg ? JSON.stringify(apiStatus.msg) : String(errCode)
-      console.warn(`[1688-search] API content error code=${errCode} for q="${q}": ${errMsg}`)
-
-      // code 205: no results found (검색어에 해당하는 상품 없음 또는 API 쿼터 초과)
-      const isQuotaOrNoResult = errCode === 205 || errCode === 429 ||
-        String(errMsg).toLowerCase().includes('exceeded') ||
-        String(errMsg).toLowerCase().includes('no results')
-
-      return res.status(200).json({
-        success: false,
-        data,
-        apiCode: errCode,
-        apiError: errMsg,
-        isQuotaExceeded: isQuotaOrNoResult,
-        status: response.status
-      })
-    }
-
-    const resultCount = data?.result?.resultList?.length ?? data?.resultList?.length ?? '?'
-    console.log(`[1688-search] OK for q="${q}" | resultList: ${resultCount}개`)
-
-    return res.status(response.status).json({ success: response.ok, data, status: response.status })
+    // 수신된 전체 JSON을 그대로 클라이언트에 전달
+    return res.status(200).json({ success: true, data, status: response.status })
 
   } catch (err) {
-    console.error('[1688-search] Proxy error:', err)
-    return res.status(500).json({ success: false, message: err.message || '1688 search server error' })
+    console.error('[1688-search] Proxy error:', err.message)
+    return res.status(500).json({ success: false, message: err.message || '1688 search proxy error' })
   }
 }

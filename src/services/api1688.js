@@ -349,59 +349,50 @@ export async function search1688(queryZh, page = 1, options = {}) {
   const rapidHost = CONFIG.RAPIDAPI_HOST
 
   let data = null
-  let isApiError = false
 
   // 2. Vercel Serverless / Vite Dev Server 프록시 우선 시도 (/api/1688-search)
   try {
     const params = new URLSearchParams({
       q: query,
       page: String(page),
-      ...(sort && sort !== 'default' ? { sort } : {}),
+      sort: sort || 'default',
       ...(price_min ? { price_min } : {}),
       ...(price_max ? { price_max } : {})
     })
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    const timeout = setTimeout(() => controller.abort(), 12000) // 12초 타임아웃
     const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
     clearTimeout(timeout)
 
     if (proxyRes.ok) {
       const result = await proxyRes.json()
-      if (result.success && result.data) {
+      if (result.data) {
         data = result.data
-        console.log('[1688 Search] Proxy success:', Object.keys(result.data || {}).slice(0, 5))
-      } else if (result.isQuotaExceeded) {
-        // 프록시에서 code 205 / 429 감지됨
-        isApiError = true
-        console.warn(`[1688 Search] Proxy quota/no-result (code ${result.apiCode})`)
-      } else if (result.status === 429 || String(result.data?.message || '').includes('exceeded')) {
-        isApiError = true
-        console.warn('[1688 Search] Proxy quota exceeded')
+        console.log('[1688 Search] Proxy OK:', JSON.stringify(Object.keys(result.data || {})).slice(0, 60))
       } else {
-        console.warn('[1688 Search] Proxy returned success=false:', result.apiCode || result.status)
+        console.warn('[1688 Search] Proxy returned no data:', result)
       }
     } else {
-      const errBody = await proxyRes.json().catch(() => ({}))
-      console.warn(`[1688 Search] Proxy HTTP ${proxyRes.status}:`, errBody)
+      console.warn(`[1688 Search] Proxy HTTP ${proxyRes.status}`)
     }
   } catch (err) {
-    console.debug('[1688 Search] Proxy notice:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
+    console.debug('[1688 Search] Proxy notice:', err.name === 'AbortError' ? 'Timeout(12s)' : err.message)
   }
 
-  // 3. Direct RapidAPI Fallback (프록시 실패 시, 쿼터 초과는 제외)
-  if (!data && !isApiError && rapidKey) {
+  // 3. Direct RapidAPI Fallback (프록시 실패 시)
+  if (!data && rapidKey) {
     try {
       const targetUrl = new URL(`https://${rapidHost}/item_search`)
       targetUrl.searchParams.set('q', query)
       targetUrl.searchParams.set('page', String(page))
-      if (sort && sort !== 'default') targetUrl.searchParams.set('sort', sort)
+      targetUrl.searchParams.set('sort', sort || 'default')
       if (price_min) targetUrl.searchParams.set('price_min', price_min)
       if (price_max) targetUrl.searchParams.set('price_max', price_max)
 
       console.log('[1688 Search] Direct RapidAPI:', targetUrl.toString())
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+      const timeout = setTimeout(() => controller.abort(), 12000)
       const directRes = await fetch(targetUrl.toString(), {
         headers: {
           'x-rapidapi-key': rapidKey,
@@ -412,30 +403,19 @@ export async function search1688(queryZh, page = 1, options = {}) {
       clearTimeout(timeout)
 
       if (directRes.ok) {
-        const rawData = await directRes.json()
-
-        // ── 내용 레벨 에러 감지 (HTTP 200 이지만 code 205 등) ──
-        const apiStatus = rawData?.result?.status
-        if (apiStatus && (apiStatus.data === 'error' || (apiStatus.code && apiStatus.code !== 200))) {
-          isApiError = true
-          console.warn(`[1688 API] Direct API content error code=${apiStatus.code}:`, apiStatus.msg)
-        } else {
-          data = rawData
-          console.log('[1688 Search] Direct API success:', Object.keys(data || {}).slice(0, 5))
-        }
+        data = await directRes.json()
+        console.log('[1688 Search] Direct API response keys:', Object.keys(data || {}).slice(0, 5))
       } else {
-        isApiError = true
         console.warn(`[1688 API] RapidAPI status: ${directRes.status}`)
       }
     } catch (err) {
-      isApiError = true
-      console.warn('[1688 API] Direct search error:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
+      console.warn('[1688 API] Direct search error:', err.name === 'AbortError' ? 'Timeout(12s)' : err.message)
     }
   }
 
-  // API 호출 실패 시 → 빈 결과 반환 (더미 데이터 없음)
-  if (!data || isApiError) {
-    console.warn(`[1688 API] No result for "${query}" — returning empty (no mock fallback)`)
+  // API 응답이 없는 경우 → 빈 결과 반환
+  if (!data) {
+    console.warn(`[1688 API] No response for "${query}" — returning empty`)
     return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
   }
 
