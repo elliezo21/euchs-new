@@ -329,16 +329,13 @@ export async function search1688(queryZh, page = 1, options = {}) {
     }
   }
 
-  // API 호출 실패 또는 쿼터 초과 시 Mock 데이터셋으로 무결점 전환
-  if (!data || isApiError) {
-    console.warn(`[1688 API] Using Mock dataset for "${query}"`)
-    const mockRes = getMockSearchResults(query, page, options)
-    await translateItemsBatch(mockRes.items)
-    saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
-    return mockRes
+  // API 응답 데이터가 없는 경우
+  if (!data) {
+    console.warn(`[1688 API] No response received for "${query}"`)
+    return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
   }
 
-  // 응답 데이터 파싱 및 정규화 (다계층 안전 파서)
+  // 응답 데이터 파싱 및 정규화 (1688 DataHub 다계층 실시간 파서)
   try {
     const resData = data || {}
     const resultObj = resData?.result || resData || {}
@@ -356,10 +353,8 @@ export async function search1688(queryZh, page = 1, options = {}) {
     const settings = resultObj?.settings || resData?.result?.settings || {}
 
     if (!Array.isArray(rawList) || rawList.length === 0) {
-      console.warn(`[1688 API] Empty resultList, using Fallback dataset for "${query}"`)
-      const mockRes = getMockSearchResults(query, page, options)
-      await translateItemsBatch(mockRes.items)
-      return mockRes
+      console.warn(`[1688 API] Empty rawList for "${query}"`)
+      return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
     }
 
     const items = rawList.map((entry, idx) => {
@@ -431,11 +426,8 @@ export async function search1688(queryZh, page = 1, options = {}) {
     saveToCache(memorySearchCache, 'euchs_search', cacheKey, formattedResult)
     return formattedResult
   } catch (parseErr) {
-    console.warn('[1688 API] Response parse error, using Fallback:', parseErr)
-    const mockRes = getMockSearchResults(query, page, options)
-    await translateItemsBatch(mockRes.items)
-    saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
-    return mockRes
+    console.warn('[1688 API] Response parse error:', parseErr)
+    return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
   }
 }
 
