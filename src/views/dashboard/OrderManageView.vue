@@ -1050,16 +1050,15 @@
         <!-- C. 모달 고정 푸터 액션 바 -->
         <div class="px-6 py-4 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shrink-0 z-10 shadow-lg">
           <!-- 좌측: 카카오톡 전담 매니저 상담 -->
-          <a
-            :href="getKakaoUrl(activeOrder)"
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            type="button"
+            @click="handleKakaoConsult(activeOrder)"
             :title="getKakaoTitle(activeOrder)"
-            class="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5 shadow-xs active:scale-95"
+            class="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5 shadow-xs active:scale-95 cursor-pointer"
           >
             <MessageCircle class="w-4 h-4" />
             <span>1:1 담당 매니저 상담 ({{ activeOrder.orderNumber }})</span>
-          </a>
+          </button>
 
           <!-- 우측 액션 버튼 그룹 -->
           <div class="flex flex-wrap items-center justify-end gap-2.5">
@@ -2508,7 +2507,7 @@ function handleImgError(e) {
 // ---------------------------------------------------------
 // 카카오톡 1:1 상담 링크 (주문번호 + 상품명 동적 연동 & 프리필)
 // ---------------------------------------------------------
-const KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_KA01PF260828015419298kDuxWate0aP/chat';
+const KAKAO_CHANNEL_URL = import.meta.env.VITE_KAKAO_CHANNEL_URL || 'https://pf.kakao.com/_xmQWsK/chat';
 
 function getKakaoConsultMessage(order) {
   if (!order) return '이유씨글로벌 수입대행 1:1 상담 문의';
@@ -2519,13 +2518,11 @@ function getKakaoConsultMessage(order) {
 }
 
 function getKakaoConsultUrl(order) {
-  if (!order) return KAKAO_CHANNEL_URL;
-  const message = getKakaoConsultMessage(order);
-  return `${KAKAO_CHANNEL_URL}?extra=${encodeURIComponent(message)}`;
+  return KAKAO_CHANNEL_URL;
 }
 
 function getKakaoUrl(order) {
-  return getKakaoConsultUrl(order);
+  return KAKAO_CHANNEL_URL;
 }
 
 function getKakaoTitle(order) {
@@ -2536,17 +2533,21 @@ function getKakaoTitle(order) {
 
 function handleKakaoConsult(order) {
   if (!order) return;
+  const orderNo = order.orderNumber || order.id || '미부여';
   const message = getKakaoConsultMessage(order);
 
-  // 클립보드에 주문 정보 복사 (상담원 즉시 조회 편의)
+  // 1) 클립보드에 주문 정보 복사 (상담원 즉시 조회 편의)
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(message);
     }
   } catch (e) {}
 
-  const url = getKakaoConsultUrl(order);
-  window.open(url, '_blank', 'noopener,noreferrer');
+  // 2) 사용자 안내
+  alert(`주문 정보(발주번호: ${orderNo})가 클립보드에 복사되었습니다.\n카카오톡 1:1 상담창에 붙여넣어 문의해 주세요.`);
+
+  // 3) 공식 카카오톡 채널 채팅창 열기
+  window.open(KAKAO_CHANNEL_URL, '_blank', 'noopener,noreferrer');
 }
 
 // ---------------------------------------------------------
