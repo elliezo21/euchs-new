@@ -281,18 +281,22 @@
                 </div>
               </td>
 
-              <!-- 진행 상태 뱃지 -->
+              <!-- 진행 상태 뱃지 & 상세보기 통합 트리거 -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
-                <span
-                  class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold"
+                <button
+                  type="button"
+                  @click="openOrderDetail(order)"
+                  class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold transition shadow-2xs hover:shadow-xs active:scale-95 cursor-pointer group"
                   :class="getOrderStatusBadgeClass(order.status)"
+                  :title="`${getOrderStatusLabel(order.status)} - 클릭하여 발주서 및 DDP 견적 상세 조회`"
                 >
                   <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
                   <span>{{ getOrderStatusLabel(order.status) }}</span>
-                </span>
+                  <Eye class="w-3 h-3 opacity-60 group-hover:opacity-100 group-hover:scale-110 transition shrink-0 ml-0.5" />
+                </button>
               </td>
 
-              <!-- 관리 액션 (단일화된 견적 확인 및 결제 버튼) -->
+              <!-- 관리 액션 (단일화된 1:1 문의 및 결제 버튼) -->
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="flex items-center justify-center gap-1.5 flex-wrap">
                   <!-- 5. 입고 & 정밀검수 상태: [💳 2차 결제] 버튼 -->
@@ -307,41 +311,28 @@
                     <span>💳 2차 결제</span>
                   </button>
 
-                  <!-- 2. 견적 완료 (결제대기) 상태: [견적 확인 및 결제] -->
+                  <!-- 2. 견적 완료 (결제대기) 상태: [1차 결제] 버튼 -->
                   <button
                     v-else-if="order.status === 'quote_confirmed'"
                     type="button"
                     @click="openOrderDetail(order)"
                     class="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    title="견적 확인 및 즉시 결제"
+                    title="견적 확인 및 1차 결제"
                   >
                     <CreditCard class="w-3.5 h-3.5" />
-                    <span>견적 확인 및 결제</span>
+                    <span>1차 결제</span>
                   </button>
 
-                  <!-- 기타 상태: [견적/주문 상세] -->
+                  <!-- ★ 동적 카카오톡 1:1 상담 (단일 버튼) -->
                   <button
-                    v-else
                     type="button"
-                    @click="openOrderDetail(order)"
-                    class="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-slate-900 hover:bg-slate-800 text-white transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
-                    title="견적 및 주문 상세 확인"
-                  >
-                    <ClipboardCheck class="w-3.5 h-3.5 text-amber-400" />
-                    <span>견적/주문 상세</span>
-                  </button>
-
-                  <!-- ★ 동적 카카오톡 1:1 상담 -->
-                  <a
-                    :href="getKakaoUrl(order)"
-                    target="_blank"
-                    rel="noopener noreferrer"
+                    @click="handleKakaoConsult(order)"
                     :title="getKakaoTitle(order)"
-                    class="px-2 py-1.5 rounded-xl bg-yellow-400/20 hover:bg-yellow-400/30 text-amber-900 border border-yellow-300 font-bold text-[11px] transition active:scale-95 flex items-center gap-1"
+                    class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-[11.5px] transition shadow-2xs hover:shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
                   >
-                    <MessageCircle class="w-3 h-3" />
+                    <MessageCircle class="w-3.5 h-3.5 text-slate-900" />
                     <span>1:1 문의</span>
-                  </a>
+                  </button>
                 </div>
               </td>
             </tr>
@@ -375,23 +366,33 @@
       >
         <div class="flex items-center justify-between">
           <span class="font-mono font-bold text-gray-900 text-xs">{{ order.orderNumber }}</span>
-          <span
-            class="px-2 py-0.5 rounded-full text-[11px] font-bold"
+          <button
+            type="button"
+            @click="openOrderDetail(order)"
+            class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition active:scale-95"
             :class="getOrderStatusBadgeClass(order.status)"
+            title="클릭하여 발주서 및 견적 상세 조회"
           >
-            {{ getOrderStatusLabel(order.status) }}
-          </span>
+            <span>{{ getOrderStatusLabel(order.status) }}</span>
+            <Eye class="w-3 h-3 opacity-60" />
+          </button>
         </div>
 
         <div class="flex items-center gap-3">
           <img
             :src="getItemThumbnail(order)"
             :alt="getItemTitle(order)"
-            class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0"
+            class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0 cursor-pointer"
             @error="handleImgError"
+            @click="openOrderDetail(order)"
           />
           <div class="flex-1 min-w-0">
-            <h4 class="font-bold text-gray-900 text-xs truncate">{{ getItemTitle(order) }}</h4>
+            <h4
+              class="font-bold text-gray-900 text-xs truncate cursor-pointer hover:text-amber-600 transition"
+              @click="openOrderDetail(order)"
+            >
+              {{ getItemTitle(order) }}
+            </h4>
             <p class="text-[11px] text-gray-500 font-mono mt-0.5">
               옵션: {{ order.items?.[0]?.sku || '기본' }} · 수량: <b>{{ getOrderTotalQuantity(order) }}개</b>
             </p>
@@ -420,31 +421,22 @@
               v-else-if="order.status === 'quote_confirmed'"
               type="button"
               @click="openOrderDetail(order)"
-              class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer"
+              class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
             >
               <CreditCard class="w-3.5 h-3.5" />
-              <span>견적 확인 및 결제</span>
+              <span>1차 결제</span>
             </button>
 
-            <!-- 기타 상태 -->
+            <!-- 1:1 상담 버튼 -->
             <button
-              v-else
               type="button"
-              @click="openOrderDetail(order)"
-              class="px-3 py-1.5 rounded-xl font-bold text-xs bg-slate-900 text-white flex items-center gap-1.5 cursor-pointer"
-            >
-              <ClipboardCheck class="w-3.5 h-3.5 text-amber-400" />
-              <span>견적/주문 상세</span>
-            </button>
-            <a
-              href="http://pf.kakao.com/_xmQWsK/chat"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="p-2 rounded-xl bg-yellow-400/20 text-amber-900 border border-yellow-300 text-xs font-bold"
+              @click="handleKakaoConsult(order)"
+              class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"
               title="1:1 문의"
             >
               <MessageCircle class="w-3.5 h-3.5" />
-            </a>
+              <span>1:1 문의</span>
+            </button>
           </div>
         </div>
       </div>
@@ -2514,19 +2506,47 @@ function handleImgError(e) {
 }
 
 // ---------------------------------------------------------
-// 카카오톡 1:1 상담 링크 (주문번호 + 상품명 동적 연동)
+// 카카오톡 1:1 상담 링크 (주문번호 + 상품명 동적 연동 & 프리필)
 // ---------------------------------------------------------
-const KAKAO_CHANNEL_URL = 'http://pf.kakao.com/_xmQWsK/chat';
+const KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_KA01PF260828015419298kDuxWate0aP/chat';
+
+function getKakaoConsultMessage(order) {
+  if (!order) return '이유씨글로벌 수입대행 1:1 상담 문의';
+  const orderNo = order.orderNumber || order.id || '미부여';
+  const firstItemTitle = order.items?.[0]?.productName || order.items?.[0]?.titleKo || order.items?.[0]?.title || '1688 소싱 상품';
+  const statusLabel = getOrderStatusLabel(order.status);
+  return `[주문 문의]\n- 발주번호: ${orderNo}\n- 대표상품: ${firstItemTitle}\n- 진행상태: ${statusLabel}\n\n위 주문 건에 대해 상담 요청합니다.`;
+}
+
+function getKakaoConsultUrl(order) {
+  if (!order) return KAKAO_CHANNEL_URL;
+  const message = getKakaoConsultMessage(order);
+  return `${KAKAO_CHANNEL_URL}?extra=${encodeURIComponent(message)}`;
+}
 
 function getKakaoUrl(order) {
-  // 카카오톡 채널 링크 — 단순 연결 (채널 채팅창이 열리면 사용자가 주문번호 메시지 입력)
-  return KAKAO_CHANNEL_URL;
+  return getKakaoConsultUrl(order);
 }
 
 function getKakaoTitle(order) {
   const no = order?.orderNumber || '';
   const name = (order?.items?.[0]?.productName || '').slice(0, 20);
-  return `주문 ${no} (${name}) 1:1 상담`;
+  return `주문 ${no} (${name}) 1:1 상담 문의`;
+}
+
+function handleKakaoConsult(order) {
+  if (!order) return;
+  const message = getKakaoConsultMessage(order);
+
+  // 클립보드에 주문 정보 복사 (상담원 즉시 조회 편의)
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(message);
+    }
+  } catch (e) {}
+
+  const url = getKakaoConsultUrl(order);
+  window.open(url, '_blank', 'noopener,noreferrer');
 }
 
 // ---------------------------------------------------------
