@@ -1226,25 +1226,30 @@ const homeSections = ref([])
 const isHomeSectionsLoading = ref(false)
 
 /**
- * 홈 섹션 데이터 로더 (Daily Cache Engine)
+ * 홈 섹션 데이터 로더 (Daily Cache Engine + Mock Fallback)
  * - 오늘 날짜 캐시 존재 시 → 즉시 렌더 (API 0건)
  * - 캐시 없음 → 이전 날짜 캐시 삭제 → 섹션당 1회 API (총 4회)
- * - 429 / 네트워크 오류 시 getMockSearchResults() 자동 대체
+ * - API 결과 0건 or 실패(code 205, 타임아웃) 시 → getMockSearchResults() 즉시 Fallback
  */
 const loadHomeSections = async () => {
   if (hasSearched.value || isHomeSectionsLoading.value) return
 
   const cacheKey = getTodayCacheKey()
 
-  // 1. 오늘 날짜 캐시 있으면 즉시 사용 (API 0건)
+  // 1. 오늘 날짜 캐시 있으면 즉시 사용 (단, 빈 섹션 포함 시 무효화)
   try {
     const cached = localStorage.getItem(cacheKey)
     if (cached) {
       const parsed = JSON.parse(cached)
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      // 모든 섹션에 상품이 1개 이상 있는 경우만 캐시 사용
+      const hasValidItems = Array.isArray(parsed) && parsed.length > 0 &&
+        parsed.every(sec => Array.isArray(sec.items) && sec.items.length > 0)
+      if (hasValidItems) {
         homeSections.value = parsed
         return
       }
+      // 빈 섹션이 있으면 캐시 삭제 후 재로드
+      localStorage.removeItem(cacheKey)
     }
   } catch (e) {}
 
@@ -1293,28 +1298,39 @@ const loadHomeSections = async () => {
 
   const results = await Promise.all(
     sectionDefs.map(async (sec) => {
+      let apiItems = []
+
+      // 1차: 실시간 1688 API 시도
       try {
         const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
-        const items = (res.items || []).slice(0, 8)
-        return { ...sec, items }
+        apiItems = (res.items || []).slice(0, 8)
       } catch (e) {
-        // 429 / 오류 → mock fallback
+        apiItems = []
+      }
+
+      // 2차: API 0건 or 실패 → mock fallback 즉시 적용
+      if (apiItems.length === 0) {
         try {
           const mock = getMockSearchResults(sec.keyword)
-          return { ...sec, items: (mock.items || []).slice(0, 8) }
+          apiItems = (mock.items || []).slice(0, 8)
         } catch (me) {
-          return { ...sec, items: [] }
+          apiItems = []
         }
       }
+
+      return { ...sec, items: apiItems }
     })
   )
 
   homeSections.value = results
   isHomeSectionsLoading.value = false
 
-  // 오늘 날짜 캐시로 저장
+  // 오늘 날짜 캐시로 저장 (모든 섹션에 상품 있을 때만)
   try {
-    localStorage.setItem(cacheKey, JSON.stringify(results))
+    const allHaveItems = results.every(sec => sec.items.length > 0)
+    if (allHaveItems) {
+      localStorage.setItem(cacheKey, JSON.stringify(results))
+    }
   } catch (e) {}
 }
 
