@@ -89,28 +89,46 @@ export function saveStoredOrders(orders) {
  */
 async function _syncOrdersToSupabase(ordersList) {
   try {
-    const rows = ordersList.map(o => ({
-      id: String(o.id || o.orderNumber),
-      order_number: o.orderNumber || o.id,
-      inbound_no: o.inboundNo || null,
-      user_id: currentUser.value?.id || null,
-      buyer_email: o.buyerInfo?.email || o.email || currentUser.value?.email || 'buyer@euchs.com',
-      customer_name: o.buyerInfo?.companyName || o.buyerInfo?.buyerName || o.customer_name || '이유씨 바이어',
-      phone: o.buyerInfo?.phone || o.phone || '',
-      status: o.status || 'quote_pending',
-      buyer_info: o.buyerInfo || {},
-      items: o.items || [],
-      total_price_krw: o.totalPriceKrw || o.totalAmountKrw || 0,
-      total_price_rmb: o.totalPriceRmb || o.totalAmountRmb || 0,
-      first_payment: o.firstPayment || {},
-      second_payment: o.secondPayment || {},
-      measured_data: o.measuredData || {},
-      inspection_photos: o.inspectionPhotos || [],
-      vas_applied: o.vasApplied || [],
-      payment_info: o.paymentInfo || {},
-      memo: o.memo || '',
-      updated_at: new Date().toISOString()
-    }));
+    const rows = ordersList.map(o => {
+      const vasList = o.vasServices || o.vas_services || o.vasOptions || o.buyerInfo?.vasServices || o.buyerInfo?.vas_services || [];
+      const buyerInfoObj = {
+        ...(o.buyerInfo || {}),
+        companyName: o.buyerInfo?.companyName || o.customer_name || '이유씨 바이어',
+        buyerName: o.buyerInfo?.buyerName || o.customer_name || '이유씨 바이어',
+        phone: o.buyerInfo?.phone || o.phone || '',
+        email: o.buyerInfo?.email || o.email || 'buyer@euchs.com',
+        customsCode: o.buyerInfo?.customsCode || o.customsCode || '',
+        address: o.buyerInfo?.address || o.address || '',
+        memo: o.buyerInfo?.memo || o.memo || '',
+        customsType: o.customsType || o.customsClearanceType || o.buyerInfo?.customsType || 'business',
+        shippingType: o.shippingType || o.shippingMethod || o.buyerInfo?.shippingType || 'general',
+        vasServices: vasList,
+        vasSummary: o.vasSummary || o.buyerInfo?.vasSummary || ''
+      };
+
+      return {
+        id: String(o.id || o.orderNumber),
+        order_number: o.orderNumber || o.id,
+        inbound_no: o.inboundNo || null,
+        user_id: currentUser.value?.id || null,
+        buyer_email: buyerInfoObj.email,
+        customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName,
+        phone: buyerInfoObj.phone,
+        status: o.status || 'quote_pending',
+        buyer_info: buyerInfoObj,
+        items: o.items || [],
+        total_price_krw: o.totalPriceKrw || o.totalAmountKrw || 0,
+        total_price_rmb: o.totalPriceRmb || o.totalAmountRmb || 0,
+        first_payment: o.firstPayment || {},
+        second_payment: o.secondPayment || {},
+        measured_data: o.measuredData || {},
+        inspection_photos: o.inspectionPhotos || [],
+        vas_applied: vasList,
+        payment_info: o.paymentInfo || {},
+        memo: o.memo || '',
+        updated_at: new Date().toISOString()
+      };
+    });
 
     await supabase.from('orders').upsert(rows, { onConflict: 'id' });
   } catch (err) {
@@ -133,29 +151,54 @@ export async function fetchOrdersFromSupabase() {
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      const dbOrders = data.map(row => ({
-        id: row.id,
-        orderNumber: row.order_number || row.id,
-        inboundNo: row.inbound_no || null,
-        createdAt: row.created_at || '2026-08-24 10:00',
-        status: row.status || 'quote_pending',
-        buyerInfo: row.buyer_info || {
-          companyName: row.customer_name,
-          buyerName: row.customer_name,
-          phone: row.phone,
-          email: row.buyer_email
-        },
-        items: Array.isArray(row.items) ? row.items : [],
-        totalPriceKrw: Number(row.total_price_krw) || 0,
-        totalPriceRmb: Number(row.total_price_rmb) || 0,
-        firstPayment: row.first_payment || {},
-        secondPayment: row.second_payment || {},
-        measuredData: row.measured_data || {},
-        inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
-        vasApplied: Array.isArray(row.vas_applied) ? row.vas_applied : [],
-        paymentInfo: row.payment_info || {},
-        memo: row.memo || ''
-      }));
+      const dbOrders = data.map(row => {
+        const rawBuyerInfo = row.buyer_info || {};
+        const vasList = row.vas_applied || row.vas_services || rawBuyerInfo.vasServices || rawBuyerInfo.vas_services || [];
+        const customsType = rawBuyerInfo.customsType || rawBuyerInfo.customsClearanceType || 'business';
+        const shippingType = rawBuyerInfo.shippingType || rawBuyerInfo.shippingMethod || 'general';
+
+        const buyerInfo = {
+          ...rawBuyerInfo,
+          companyName: rawBuyerInfo.companyName || row.customer_name || '이유씨 바이어',
+          buyerName: rawBuyerInfo.buyerName || row.customer_name || '이유씨 바이어',
+          phone: rawBuyerInfo.phone || row.phone || '',
+          email: rawBuyerInfo.email || row.buyer_email || '',
+          customsCode: rawBuyerInfo.customsCode || '',
+          address: rawBuyerInfo.address || '',
+          memo: rawBuyerInfo.memo || row.memo || '',
+          customsType,
+          shippingType,
+          vasServices: vasList,
+          vasSummary: rawBuyerInfo.vasSummary || ''
+        };
+
+        return {
+          id: row.id,
+          orderNumber: row.order_number || row.id,
+          inboundNo: row.inbound_no || null,
+          createdAt: row.created_at || '2026-08-24 10:00',
+          status: row.status || 'quote_pending',
+          customsType,
+          customsClearanceType: customsType,
+          shippingType,
+          shippingMethod: shippingType,
+          vasServices: vasList,
+          vas_services: vasList,
+          vasOptions: vasList,
+          vasApplied: vasList,
+          vasSummary: buyerInfo.vasSummary || '',
+          buyerInfo,
+          items: Array.isArray(row.items) ? row.items : [],
+          totalPriceKrw: Number(row.total_price_krw) || 0,
+          totalPriceRmb: Number(row.total_price_rmb) || 0,
+          firstPayment: row.first_payment || {},
+          secondPayment: row.second_payment || {},
+          measuredData: row.measured_data || {},
+          inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
+          paymentInfo: row.payment_info || {},
+          memo: row.memo || ''
+        };
+      });
 
       // 로컬 스토리지에 병합 및 저장
       const localList = getStoredOrders();

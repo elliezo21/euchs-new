@@ -2159,29 +2159,70 @@ const VAS_OPTIONS = [
 function isVasSelected(vasId) {
   if (!activeOrder.value) return false;
   const o = activeOrder.value;
-  const list = o.vasServices || o.vas_services || o.vasOptions || o.details?.vasServices || o.details?.vas_services || [];
   
-  if (Array.isArray(list)) {
-    if (list.includes(vasId)) return true;
-    if ((vasId === 'inspection_precision' || vasId === 'inspect_precision') && (list.includes('inspection_precision') || list.includes('inspect_precision') || list.includes('precision_inspection'))) return true;
-    if ((vasId === 'barcode_label' || vasId === 'barcode') && (list.includes('barcode_label') || list.includes('barcode'))) return true;
-    if ((vasId === 'pallet_wood' || vasId === 'cushion_pack') && (list.includes('pallet_wood') || list.includes('cushion_pack'))) return true;
-    if (vasId === 'fta_co' && list.includes('fta_co')) return true;
-    if (vasId === 'origin_label' && list.includes('origin_label')) return true;
-    if (vasId === 'opp_repack' && list.includes('opp_repack')) return true;
-  } else if (typeof list === 'string' && list.length > 0) {
-    if (list.includes(vasId)) return true;
+  // 1. 모든 가능한 VAS 배열 소스 수집
+  const rawLists = [
+    o.vasServices,
+    o.vas_services,
+    o.vasOptions,
+    o.vas_options,
+    o.vasApplied,
+    o.vas_applied,
+    o.buyerInfo?.vasServices,
+    o.buyerInfo?.vas_services,
+    o.buyer_info?.vasServices,
+    o.buyer_info?.vas_services,
+    o.details?.vasServices,
+    o.details?.vas_services,
+    o.details?.vas_applied,
+    o.orderConfig?.vasServices
+  ];
+
+  const combinedList = [];
+  rawLists.forEach(list => {
+    if (Array.isArray(list)) {
+      list.forEach(item => {
+        if (typeof item === 'string') combinedList.push(item);
+        else if (item && typeof item === 'object' && item.id) combinedList.push(item.id);
+      });
+    } else if (typeof list === 'string' && list.length > 0) {
+      combinedList.push(...list.split(',').map(s => s.trim()));
+    }
+  });
+
+  // 2. 텍스트 요약 소스 수집 (vasSummary, memo 등)
+  const textSources = [
+    o.vasSummary,
+    o.buyerInfo?.vasSummary,
+    o.buyer_info?.vasSummary,
+    o.memo,
+    o.buyerInfo?.memo,
+    o.buyer_info?.memo
+  ].filter(t => typeof t === 'string' && t.trim().length > 0).join(' ');
+
+  // 3. 부가서비스 ID별 정밀 매칭
+  if (vasId === 'fta_co') {
+    if (combinedList.some(k => ['fta_co', 'fta', 'fta-co', 'co'].includes(k))) return true;
+    if (/FTA|C\/O|원산지증명서/i.test(textSources)) return true;
+  } else if (vasId === 'inspection_precision' || vasId === 'inspect_precision') {
+    if (combinedList.some(k => ['inspection_precision', 'inspect_precision', 'precision_inspection', 'precision', 'inspect'].includes(k))) return true;
+    if (/정밀\s*검수|정밀검품|전수/i.test(textSources)) return true;
+  } else if (vasId === 'origin_label') {
+    if (combinedList.some(k => ['origin_label', 'origin', 'origin_labeling', 'made_in_china'].includes(k))) return true;
+    if (/원산지|라벨링|MADE IN CHINA/i.test(textSources)) return true;
+  } else if (vasId === 'barcode_label' || vasId === 'barcode') {
+    if (combinedList.some(k => ['barcode_label', 'barcode', 'sku_barcode', 'coupang_barcode'].includes(k))) return true;
+    if (/바코드|로켓그로스|SKU/i.test(textSources)) return true;
+  } else if (vasId === 'opp_repack' || vasId === 'opp') {
+    if (combinedList.some(k => ['opp_repack', 'opp', 'repack', 'repackage'].includes(k))) return true;
+    if (/OPP|재포장|비닐/i.test(textSources)) return true;
+  } else if (vasId === 'pallet_wood' || vasId === 'cushion_pack') {
+    if (combinedList.some(k => ['pallet_wood', 'pallet', 'cushion_pack', 'cushion', 'wood_pallet', 'wooden'].includes(k))) return true;
+    if (/완충|에어캡|파렛트|목재/i.test(textSources)) return true;
   }
 
-  // vasSummary 텍스트 기반 폴백
-  if (typeof o.vasSummary === 'string' && o.vasSummary.length > 0) {
-    if (vasId === 'inspection_precision' && o.vasSummary.includes('정밀')) return true;
-    if (vasId === 'origin_label' && o.vasSummary.includes('원산지')) return true;
-    if (vasId === 'barcode_label' && o.vasSummary.includes('바코드')) return true;
-    if (vasId === 'opp_repack' && o.vasSummary.includes('OPP')) return true;
-    if (vasId === 'fta_co' && (o.vasSummary.includes('FTA') || o.vasSummary.includes('C/O'))) return true;
-    if (vasId === 'pallet_wood' && (o.vasSummary.includes('완충') || o.vasSummary.includes('파렛트'))) return true;
-  }
+  // 4. 직접 일치 검사
+  if (combinedList.includes(vasId)) return true;
 
   return false;
 }

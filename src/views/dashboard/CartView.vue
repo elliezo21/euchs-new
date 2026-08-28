@@ -1251,7 +1251,12 @@ async function confirmAndSubmitOrder() {
       email: cfg.email || 'buyer@euchs.com',
       customsCode: cfg.customsCode || 'P240012345678',
       address: cfg.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
-      memo: cfg.memo || ''
+      memo: cfg.memo || '',
+      customsType: cfg.customsType,
+      shippingType: cfg.shippingType,
+      vasServices: cfg.vasServices,
+      vas_services: cfg.vasServices,
+      vasSummary: ''
     };
 
     // VAS 라벨 텍스트 매핑
@@ -1259,6 +1264,7 @@ async function confirmAndSubmitOrder() {
       const found = vasOptions.find(v => v.id === id);
       return found ? found.label : id;
     });
+    buyerInfo.vasSummary = vasLabels.join(', ');
 
     const newOrder = {
       id: `ord-${Date.now()}`,
@@ -1267,8 +1273,13 @@ async function confirmAndSubmitOrder() {
       createdAt: new Date().toLocaleString('ko-KR'),
       status: 'quote_pending',
       customsType: cfg.customsType,
+      customsClearanceType: cfg.customsType,
       shippingType: cfg.shippingType,
+      shippingMethod: cfg.shippingType,
       vasServices: cfg.vasServices,
+      vas_services: cfg.vasServices,
+      vasOptions: cfg.vasServices,
+      vasApplied: cfg.vasServices,
       vasSummary: vasLabels.join(', '),
       buyerInfo,
       items: targetItems.map(it => ({
