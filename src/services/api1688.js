@@ -885,11 +885,12 @@ export async function fetch1688ProductById(offerId) {
     // 이 시점에 rawSkuProps이 여전히 null이면 빈 배열
     if (!rawSkuProps) rawSkuProps = []
 
-    // ─── 5. 기본 상품 정보 추출 ────────────────────────────────────────
-    const titleZh = it.title || it.subject || ''
+    // ─── 2. Otapi / 1688 기본 상품 정보 추출 ───────────────────────────
+    const titleZh = it.Title || it.title || it.subject || ''
 
+    // 메인 이미지 및 갤러리 이미지
     let rawImage = (
-      it.imageUrl || it.image || it.picUrl || it.pic_url ||
+      it.MainPictureUrl || it.imageUrl || it.image || it.picUrl || it.pic_url ||
       it.img || it.imgUrl || it.pic || it.thumbnail ||
       rawSku.def?.imageUrl || rawSku.def?.image ||
       (Array.isArray(it.images) && it.images[0]) || ''
@@ -898,70 +899,133 @@ export async function fetch1688ProductById(offerId) {
     if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl
     else if (imageUrl.startsWith('http://')) imageUrl = imageUrl.replace('http://', 'https://')
 
-    const priceStr = rawSku.def?.price || it.price || '0'
-    const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
-
-    const minOrderStr = rawSku.def?.minOrder || it.minOrder || '1'
-    const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
-
     let images = []
-    if (Array.isArray(it.images) && it.images.length > 0) {
+    if (Array.isArray(it.Pictures) && it.Pictures.length > 0) {
+      images = it.Pictures.map(p => p.Url || p.Large || p.Medium || p).filter(Boolean)
+    } else if (Array.isArray(it.images) && it.images.length > 0) {
       images = it.images.map(img => (String(img).startsWith('//') ? 'https:' + img : img))
     } else if (imageUrl) {
       images = [imageUrl]
     }
 
-    // 속성명 및 속성값 다변화 키 1:1 파싱
-    let parsedSkuProps = []
+    // 기본 단가 및 MOQ
+    const priceRange = Array.isArray(it.QuantityRanges) ? it.QuantityRanges[0] : null
+    const priceNum = parseFloat(
+      priceRange?.Price?.OriginalPrice ||
+      priceRange?.Price?.ConvertedPriceWithoutSign ||
+      it.Price?.OriginalPrice ||
+      it.Price?.ConvertedPriceWithoutSign ||
+      rawSku.def?.price || it.price || '0'
+    ) || 0
 
+    const minOrder = parseInt(
+      priceRange?.MinQuantity || it.MasterQuantity || rawSku.def?.minOrder || it.minOrder || '2', 10
+    ) || 2
+
+    // ─── 3. Otapi Attributes ➔ skuProps 파싱 ─────────────────────────────
+    let parsedSkuProps = []
     let parsedSkus = []
 
-    if (Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
-      parsedSkuProps = rawSkuProps.map(p => {
-        const propName = p.prop || p.propKo || p.propName || p.prop_name || p.name || p.attributeName || ''
-        const rawVals = Array.isArray(p.values) ? p.values : (Array.isArray(p.value) ? p.value : (Array.isArray(p.prop_values) ? p.prop_values : []))
-        const values = rawVals.map(v => {
-          const valName = typeof v === 'string' ? v : (v.name || v.nameKo || v.nameZh || v.value || v.prop_value_name || v.text || '')
-          const valImg = typeof v === 'object' ? (v.imageUrl || v.image_url || v.image || v.imgUrl || v.picUrl || v.pic_url || '') : ''
-          return {
-            name: String(valName).trim(),
-            nameKo: typeof v === 'object' ? (v.nameKo || '') : '',
-            imageUrl: valImg
+    if (Array.isArray(it.Attributes) && it.Attributes.length > 0) {
+      // Otapi 구성용 속성 그룹화 (PropertyName 기준: 颜色, 尺码, 规格 등)
+      const propMap = new Map() // propName -> Map(valName -> imageUrl)
+
+      it.Attributes.forEach(attr => {
+        const propName = String(attr.PropertyName || attr.Pid || '').trim()
+        const valName = String(attr.Value || attr.Vid || '').trim()
+        if (!propName || !valName) return
+
+        // 구성자 속성이거나 색상/사이즈/규격 관련 속성
+        const isConfig = attr.IsConfigurator ||
+          propName.includes('色') || propName.includes('尺') ||
+          propName.includes('规') || propName.includes('码') ||
+          propName.includes('款') || propName.includes('型')
+
+        if (isConfig) {
+          if (!propMap.has(propName)) {
+            propMap.set(propName, new Map())
           }
-        }).filter(v => v.name && v.name !== 'undefined' && v.name !== 'null')
-        return {
-          prop: propName,
-          propKo: p.propKo || '',
-          values
+          const valMap = propMap.get(propName)
+          const img = attr.ImageUrl || attr.MiniImageUrl || attr.SmallImageUrl || ''
+          if (!valMap.has(valName) || (!valMap.get(valName) && img)) {
+            valMap.set(valName, img)
+          }
         }
+      })
+
+      propMap.forEach((valMap, propName) => {
+        parsedSkuProps.push({
+          prop: propName,
+          propKo: '',
+          values: [...valMap.entries()].map(([name, img]) => ({
+            name,
+            nameKo: '',
+            imageUrl: img
+          }))
+        })
+      })
+    }
+
+    // ─── 4. Otapi ConfiguredItems ➔ skus 파싱 ────────────────────────────
+    if (Array.isArray(it.ConfiguredItems) && it.ConfiguredItems.length > 0) {
+      parsedSkus = it.ConfiguredItems.map((c, cIdx) => {
+        const configs = Array.isArray(c.Configurators) ? c.Configurators : []
+        const colorCfg = configs.find(cfg => String(cfg.Pid || '').includes('色')) || configs[0]
+        const sizeCfg = configs.find(cfg => cfg !== colorCfg) || (configs.length > 1 ? configs[1] : null)
+
+        const colorName = colorCfg?.Vid || colorCfg?.Value || ''
+        const sizeName = sizeCfg?.Vid || sizeCfg?.Value || ''
+
+        // 해당 색상의 썸네일 이미지 찾기
+        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => a.Value === colorName && a.ImageUrl) : null
+        const skuImg = attrMatch?.ImageUrl || imageUrl
+
+        const skuPrice = parseFloat(
+          c.Price?.OriginalPrice ||
+          c.Price?.ConvertedPriceWithoutSign ||
+          priceNum
+        ) || priceNum
+
+        return {
+          skuId: String(c.Id || `sku-${cIdx}`),
+          color: colorName,
+          size: sizeName,
+          price: skuPrice,
+          imageUrl: skuImg,
+          stock: parseInt(c.Quantity ?? '999', 10)
+        }
+      })
+    }
+
+    // 기존 1688 DataHub skuProps / rawSkus 폴백 (Otapi에서 안 나온 경우)
+    if (parsedSkuProps.length === 0 && Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
+      parsedSkuProps = rawSkuProps.map(p => {
+        const propName = p.prop || p.propKo || p.propName || p.name || ''
+        const rawVals = Array.isArray(p.values) ? p.values : []
+        const values = rawVals.map(v => ({
+          name: typeof v === 'string' ? v : (v.name || v.value || ''),
+          nameKo: '',
+          imageUrl: typeof v === 'object' ? (v.imageUrl || '') : ''
+        })).filter(v => v.name)
+        return { prop: propName, propKo: '', values }
       }).filter(p => p.values.length > 0)
     }
 
-    if (Array.isArray(rawSkus) && rawSkus.length > 0) {
-      parsedSkus = rawSkus.map(s => {
-        let color = s.color || s.propName || s.name || ''
-        let size = s.size || s.subPropName || s.spec || ''
-        
-        // specAttrs 문자열 파싱 (예: "卡其色 大号" 또는 "0:0;1:0")
-        if (!color && !size && s.specAttrs) {
-          const parts = String(s.specAttrs).split(/\s+/)
-          color = parts[0] || ''
-          size = parts[1] || ''
-        }
+    if (parsedSkus.length === 0 && Array.isArray(rawSkus) && rawSkus.length > 0) {
+      parsedSkus = rawSkus.map(s => ({
+        skuId: s.skuId || s.id || '',
+        color: s.color || s.propName || '',
+        size: s.size || s.spec || '',
+        price: parseFloat(s.price || priceNum),
+        imageUrl: s.imageUrl || imageUrl,
+        stock: parseInt(s.stock || s.quantity || '999', 10)
+      }))
+    }
 
-        return {
-          skuId: s.skuId || s.id || '',
-          color,
-          size,
-          price: parseFloat(s.price || s.consignPrice || priceNum),
-          imageUrl: s.imageUrl || s.image || imageUrl,
-          stock: parseInt(s.stock || s.quantity || s.canBookCount || '999', 10)
-        }
-      })
-    } else if (parsedSkuProps.length > 0) {
+    // skuProps만 있고 skus가 없는 경우 교차 조합 생성
+    if (parsedSkuProps.length > 0 && parsedSkus.length === 0) {
       const firstProp = parsedSkuProps[0]
       const secondProp = parsedSkuProps.length > 1 ? parsedSkuProps[1] : null
-
       const colors = firstProp.values || []
       const sizes = secondProp ? (secondProp.values || []) : []
 
