@@ -807,7 +807,7 @@
                   <!-- 썸네일 -->
                   <div class="relative aspect-square bg-gray-100 overflow-hidden">
                     <img
-                      :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'"
+                      :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80'"
                       :alt="item.titleKo || item.title || item.titleZh"
                       class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                       loading="lazy"
@@ -943,7 +943,7 @@
           <!-- Thumbnail Image -->
           <div class="relative aspect-square bg-gray-100 overflow-hidden">
             <img
-              :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'"
+              :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80'"
               :alt="item.titleKo || item.title || item.titleZh"
               class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
               loading="lazy"
@@ -1204,10 +1204,10 @@ const items = ref([])
 
 /** 섹션별 키워드 풀: 오늘 Day-of-Year 인덱스로 매일 순환 */
 const HOME_SECTION_POOLS = {
-  md:      ['감성 텀블러', '여성 린넨 셔츠', '비건레더 숄더백', '프렌치 원피스', '슬림핏 가디건'],
-  fashion: ['여성 린넨 원피스', '데일리 오버핏 티셔츠', '여성 숄더백', '패션 스니커즈', '린넨 셔츠', '플리츠 스커트'],
-  living:  ['스테인리스 텀블러', '이중진공 보온병', '포터블 보온수통', '감성 보온컵', '텀블러'],
-  sports:  ['초경량 런닝화', '비건레더 가방', '캔버스 보스턴백', '가죽 벨트', '선글라스'],
+  md:      ['316 진공 보온 텀블러', '대용량 스포츠 보틀 1000ml', '여성 린넨 셔츠', '비건레더 숄더백', '플리츠 롱 원피스'],
+  fashion: ['여성 린넨 원피스', '데일리 오버핏 티셔츠', '비건레더 숄더백', '초경량 메쉬 스니커즈', '린넨 반팔 셔츠', '플리츠 스커트'],
+  living:  ['316 스테인리스 텀블러', '대용량 스트로우 보온병', '포터블 보온수통', '이중진공 텀블러 900ml', '스포츠 보틀'],
+  sports:  ['초경량 쿠셔닝 런닝화', '방수 옥스포드 캔버스 보스턴백', '천연 소가죽 자동 버클 벨트', 'UV400 편광 선글라스'],
 }
 
 const getTodayKeyword = (pool) => {
@@ -2129,7 +2129,7 @@ const formatRmb = (val) => {
 
 const handleImageError = (e) => {
   e.target.onerror = null
-  e.target.src = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=400&auto=format&fit=crop&q=60'
+  e.target.src = 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=400&auto=format&fit=crop&q=60'
 }
 
 // ----------------------------------------------------
