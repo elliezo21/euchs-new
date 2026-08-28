@@ -923,9 +923,12 @@
           <i class="fas fa-search"></i>
         </div>
         <div class="space-y-1">
-          <h3 class="text-lg font-black text-gray-800">검색된 1688 상품이 없습니다</h3>
+          <h3 class="text-lg font-black text-gray-800">
+            <template v-if="lastQueryKo">'{{ lastQueryKo }}'에 대한 1688 검색 결과가 없습니다</template>
+            <template v-else>검색된 1688 상품이 없습니다</template>
+          </h3>
           <p class="text-xs text-gray-500 max-w-sm mx-auto">
-            다른 키워드로 검색해 보세요. (예: 텀블러, 실내화, 셔츠, 숄더백)
+            다른 키워드로 검색해 보세요. (예: 텀블러, 밀폐용기, 실내화, 셔츠, 숄더백)
           </p>
         </div>
       </div>
@@ -1596,15 +1599,15 @@ const categories = [
 
 // 퀵 카테고리 탭 (상단 빠른 바로가기)
 const quickTabs = [
-  { id: 'best', emoji: '🔥', label: '실시간 베스트', keyword: '베스트 인기상품' },
-  { id: 'fashion', emoji: '👗', label: '패션의류', keyword: '여성의류' },
-  { id: 'shoes_acc', emoji: '👠', label: '신발/잡화', keyword: '패션잡화 가방' },
-  { id: 'living', emoji: '🏠', label: '생활주방', keyword: '생활용품' },
-  { id: 'interior', emoji: '🛋️', label: '홈인테리어', keyword: '인테리어 문구' },
-  { id: 'digital', emoji: '📱', label: '디지털/가전', keyword: '디지털 가전' },
-  { id: 'camping', emoji: '⛺', label: '스포츠/레저', keyword: '캠핑 레저' },
-  { id: 'pet', emoji: '🐶', label: '펫/유아', keyword: '반려동물 강아지' },
-  { id: 'beauty', emoji: '💄', label: '뷰티', keyword: '뷰티 화장품' }
+  { id: 'best', emoji: '🔥', label: '실시간 베스트', keyword: '인기상품 베스트셀러' },
+  { id: 'fashion', emoji: '👗', label: '패션의류', keyword: '여성의류 원피스' },
+  { id: 'shoes_acc', emoji: '👠', label: '신발/잡화', keyword: '신발 가방 잡화' },
+  { id: 'living', emoji: '🏠', label: '생활주방', keyword: '주방용품 밀폐용기' },
+  { id: 'interior', emoji: '🛋️', label: '홈인테리어', keyword: '인테리어 소품' },
+  { id: 'digital', emoji: '📱', label: '디지털/가전', keyword: '스마트폰 액세서리 가전' },
+  { id: 'camping', emoji: '⛺', label: '스포츠/레저', keyword: '캠핑용품 아웃도어' },
+  { id: 'pet', emoji: '🐶', label: '펫/유아', keyword: '반려동물 강아지 용품' },
+  { id: 'beauty', emoji: '💄', label: '뷰티', keyword: '뷰티 화장품 스킨케어' }
 ]
 
 // ── 메가메뉴 상태 ─────────────────────────────────────────

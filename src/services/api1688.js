@@ -229,7 +229,7 @@ export async function translateItemsBatch(items) {
 }
 
 /**
- * 1688 DataHub 실시간 상품 검색 (API 에러/429 발생 시 고품질 Mock 데이터셋 자동 반환)
+ * 1688 DataHub 실시간 상품 검색
  * @param {string} queryZh - 중국어/한국어 검색 키워드
  * @param {number|string} page - 페이지 번호 (기본 1)
  * @param {object} [options] - 추가 옵션 { sort, price_min, price_max }
@@ -237,10 +237,10 @@ export async function translateItemsBatch(items) {
  */
 export async function search1688(queryZh, page = 1, options = {}) {
   const query = String(queryZh || '').trim()
+
+  // 빈 쿼리 → 빈 결과 반환 (더미 데이터 없음)
   if (!query) {
-    const mockRes = getMockSearchResults('', page, options)
-    await translateItemsBatch(mockRes.items)
-    return mockRes
+    return { items: [], page: 1, pageSize: 20, totalResults: '0', hasMore: false, queryZh: '' }
   }
 
   const { sort = 'default', price_min = '', price_max = '' } = options
@@ -280,15 +280,13 @@ export async function search1688(queryZh, page = 1, options = {}) {
         console.log('[1688 Search] Proxy success:', Object.keys(result.data || {}).slice(0, 5))
       } else if (result.status === 429 || String(result.data?.message || '').includes('exceeded')) {
         isApiError = true // 쿼터 초과 시 Direct도 건너뜀
-        console.warn('[1688 Search] Proxy quota exceeded, falling to Mock')
+        console.warn('[1688 Search] Proxy quota exceeded')
       } else {
         console.warn('[1688 Search] Proxy returned success=false:', result)
-        // success=false이지만 쿼터 초과가 아니면 Direct API 시도
       }
     } else {
       const errBody = await proxyRes.json().catch(() => ({}))
       console.warn(`[1688 Search] Proxy HTTP ${proxyRes.status}:`, errBody)
-      // non-200이어도 isApiError = true 설정하지 않음 → Direct API 폴백 허용
     }
   } catch (err) {
     console.debug('[1688 Search] Proxy notice:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
@@ -321,7 +319,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
         console.log('[1688 Search] Direct API success:', Object.keys(data || {}).slice(0, 5))
       } else {
         isApiError = true
-        console.warn(`[1688 API] RapidAPI status: ${directRes.status} (Fallback to Mock)`)
+        console.warn(`[1688 API] RapidAPI status: ${directRes.status}`)
       }
     } catch (err) {
       isApiError = true
@@ -329,13 +327,10 @@ export async function search1688(queryZh, page = 1, options = {}) {
     }
   }
 
-  // API 호출 실패 또는 쿼터 초과 시 Mock 데이터셋으로 무결점 전환
+  // API 호출 실패 시 → 빈 결과 반환 (더미 데이터 없음)
   if (!data || isApiError) {
-    console.warn(`[1688 API] Using Mock dataset for "${query}"`)
-    const mockRes = getMockSearchResults(query, page, options)
-    await translateItemsBatch(mockRes.items)
-    saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
-    return mockRes
+    console.warn(`[1688 API] No result for "${query}" — returning empty (no mock fallback)`)
+    return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
   }
 
   // 응답 데이터 파싱 및 정규화
@@ -345,10 +340,9 @@ export async function search1688(queryZh, page = 1, options = {}) {
     const base = resultObj.base || {}
     const settings = resultObj.settings || {}
 
+    // 실제 결과 0건 → 빈 배열 반환 (더미 대체 없음)
     if (rawList.length === 0) {
-      const mockRes = getMockSearchResults(query, page, options)
-      await translateItemsBatch(mockRes.items)
-      return mockRes
+      return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
     }
 
     const items = rawList.map((entry, idx) => {
@@ -416,11 +410,8 @@ export async function search1688(queryZh, page = 1, options = {}) {
     saveToCache(memorySearchCache, 'euchs_search', cacheKey, formattedResult)
     return formattedResult
   } catch (parseErr) {
-    console.warn('[1688 API] Response parse error, using Mock Fallback:', parseErr)
-    const mockRes = getMockSearchResults(query, page, options)
-    await translateItemsBatch(mockRes.items)
-    saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)
-    return mockRes
+    console.warn('[1688 API] Response parse error:', parseErr)
+    return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
   }
 }
 
@@ -430,18 +421,18 @@ export async function search1688(queryZh, page = 1, options = {}) {
  */
 export async function search1688WithTranslation(koreanQuery, page = 1, options = {}, onProgress = null) {
   const query = String(koreanQuery || '').trim()
+
+  // 빈 쿼리 → 빈 결과 반환 (더미 없음)
   if (!query) {
-    const mockRes = getMockSearchResults('', page, options)
-    await translateItemsBatch(mockRes.items)
     return {
       success: true,
       queryKo: '',
       queryZh: '',
-      page: mockRes.page,
-      pageSize: mockRes.pageSize,
-      totalResults: mockRes.totalResults,
-      hasMore: mockRes.hasMore,
-      items: mockRes.items
+      page: 1,
+      pageSize: 20,
+      totalResults: '0',
+      hasMore: false,
+      items: []
     }
   }
 
@@ -473,14 +464,13 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
     })
   }
 
-  // Step 2: 1688 상품 검색 (내부에서 search1688 실행 및 일괄 한국어 번역 완료)
+  // Step 2: 1688 상품 검색 (빈 결과 또는 오류 시 빈 배열 반환 — mock 없음)
   let searchResult
   try {
     searchResult = await search1688(queryZh, page, options)
   } catch (err) {
-    console.warn('[1688 Search] Fallback to Mock dataset:', err.message)
-    searchResult = getMockSearchResults(query, page, options)
-    await translateItemsBatch(searchResult.items)
+    console.warn('[1688 Search] search1688 error:', err.message)
+    searchResult = { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false }
   }
 
   const items = searchResult.items || []
