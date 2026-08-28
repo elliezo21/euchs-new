@@ -62,10 +62,15 @@ async function generateSolapiAuthHeader(key, secret) {
  * @param {string} [params.extraInfo] - 추가 메시지(실측CBM/kg, 송장번호 등)
  */
 export async function sendOrderStatusAlimtalk({ type, to, customerName, orderNo, itemName, extraInfo = "" }) {
+  const currentApiKey = getEnv('SOLAPI_API_KEY', apiKey);
+  const currentApiSecret = getEnv('SOLAPI_API_SECRET', apiSecret);
+  const currentSenderPhone = getEnv('SOLAPI_SENDER_PHONE', senderPhone);
+  const currentPfId = getEnv('SOLAPI_PF_ID', pfId);
+
   const rawTo = String(to || "").replace(/[^0-9]/g, "");
 
   // 1. API 키 미설정 또는 개발 환경일 때 Mock 로그 출력 (오류 원천 방어)
-  if (!apiKey || apiKey.includes("YOUR_") || !rawTo) {
+  if (!currentApiKey || currentApiKey.includes("YOUR_") || !rawTo) {
     console.log(
       `%c[Solapi Mock Notification] Type: ${type} | To: ${rawTo || '수신자없음'} | Order: ${orderNo} | Msg: [이유씨컴퍼니] ${customerName || '고객'}님, 주문(${orderNo}) ${itemName || '품목'}의 상태가 [${type}] 단계로 갱신되었습니다. ${extraInfo}`,
       'color: #059669; font-weight: bold;'
@@ -87,9 +92,9 @@ export async function sendOrderStatusAlimtalk({ type, to, customerName, orderNo,
     const payload = {
       message: {
         to: rawTo,
-        from: senderPhone,
+        from: currentSenderPhone,
         kakaoOptions: {
-          pfId: pfId,
+          pfId: currentPfId,
           templateId: selected.id,
           variables: {
             "#{customer_name}": customerName || "바이어",
@@ -102,7 +107,7 @@ export async function sendOrderStatusAlimtalk({ type, to, customerName, orderNo,
       }
     };
 
-    const authHeader = await generateSolapiAuthHeader(apiKey, apiSecret);
+    const authHeader = await generateSolapiAuthHeader(currentApiKey, currentApiSecret);
     const response = await fetch("https://api.solapi.com/messages/v4/send", {
       method: "POST",
       headers: {
@@ -113,6 +118,7 @@ export async function sendOrderStatusAlimtalk({ type, to, customerName, orderNo,
     });
 
     const result = await response.json();
+    console.log(`%c[Solapi Live Notification] Sent ${type} to ${rawTo}:`, 'color: #2563eb; font-weight: bold;', result);
     return result;
   } catch (error) {
     console.warn("[Solapi Send Warning]:", error.message);
