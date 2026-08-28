@@ -1601,6 +1601,31 @@
     </div>
   </Transition>
 
+  <!-- 글로벌 플로팅 토스트 알림 컴포넌트 -->
+  <Transition
+    enter-active-class="transition ease-out duration-300 transform"
+    enter-from-class="translate-y-4 opacity-0 scale-95"
+    enter-to-class="translate-y-0 opacity-100 scale-100"
+    leave-active-class="transition ease-in duration-200 transform"
+    leave-from-class="translate-y-0 opacity-100 scale-100"
+    leave-to-class="translate-y-4 opacity-0 scale-95"
+  >
+    <div
+      v-if="isToastVisible"
+      class="fixed bottom-6 right-6 z-50 flex items-center gap-3 bg-slate-900/95 text-white px-5 py-3.5 rounded-2xl shadow-2xl border border-slate-700/80 backdrop-blur-md max-w-md text-xs sm:text-sm font-bold"
+    >
+      <div class="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center shrink-0">
+        <CheckCircle2 class="w-4 h-4" />
+      </div>
+      <div class="flex-1 min-w-0 font-medium text-slate-100 leading-snug">
+        {{ toastMessage }}
+      </div>
+      <button @click="isToastVisible = false" class="text-slate-400 hover:text-white p-1 rounded-lg">
+        <X class="w-4 h-4" />
+      </button>
+    </div>
+  </Transition>
+
 </template>
 
 <script setup>
@@ -2505,9 +2530,22 @@ function handleImgError(e) {
 }
 
 // ---------------------------------------------------------
-// 카카오톡 1:1 상담 링크 (주문번호 + 상품명 동적 연동 & 프리필)
+// 카카오톡 1:1 상담 링크 (주문번호 자동 클립보드 복사 & 공식 채널 직행)
 // ---------------------------------------------------------
-const KAKAO_CHANNEL_URL = import.meta.env.VITE_KAKAO_CHANNEL_URL || 'https://pf.kakao.com/_xmQWsK/chat';
+const KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_xmQWsK/chat';
+
+const isToastVisible = ref(false);
+const toastMessage = ref('');
+let toastTimer = null;
+
+function showToast(msg, duration = 3500) {
+  toastMessage.value = msg;
+  isToastVisible.value = true;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    isToastVisible.value = false;
+  }, duration);
+}
 
 function getKakaoConsultMessage(order) {
   if (!order) return '이유씨글로벌 수입대행 1:1 상담 문의';
@@ -2536,17 +2574,17 @@ function handleKakaoConsult(order) {
   const orderNo = order.orderNumber || order.id || '미부여';
   const message = getKakaoConsultMessage(order);
 
-  // 1) 클립보드에 주문 정보 복사 (상담원 즉시 조회 편의)
+  // 1) 클립보드에 주문 정보 조용히 복사
   try {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(message);
     }
   } catch (e) {}
 
-  // 2) 사용자 안내
-  alert(`주문 정보(발주번호: ${orderNo})가 클립보드에 복사되었습니다.\n카카오톡 1:1 상담창에 붙여넣어 문의해 주세요.`);
+  // 2) 부드러운 인라인 플로팅 토스트 피드백 (alert 완전 제거)
+  showToast(`주문번호(${orderNo})가 복사되었습니다. 카카오톡 상담창에서 편하게 문의해 주세요.`);
 
-  // 3) 공식 카카오톡 채널 채팅창 열기
+  // 3) 깨끗한 순수 공식 카카오톡 채널 채팅창 새 탭 오픈
   window.open(KAKAO_CHANNEL_URL, '_blank', 'noopener,noreferrer');
 }
 
