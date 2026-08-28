@@ -380,8 +380,8 @@ export async function search1688(queryZh, page = 1, options = {}) {
       const priceStr = it.sku?.def?.price || it.price || it.priceInfo?.price || '0'
       const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
 
-      const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
-      const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
+      const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '2'
+      const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 2
 
       const titleZh = it.title || it.subject || ''
 
