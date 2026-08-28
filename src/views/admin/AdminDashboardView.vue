@@ -515,7 +515,8 @@ async function loadDashboardStats() {
     try {
       const { data: dbOrders, error } = await supabase
         .from('orders')
-        .select('id, status, created_at');
+        .select('*')
+        .order('created_at', { ascending: false });
 
       if (!error && Array.isArray(dbOrders)) {
         orders.value = dbOrders;

@@ -725,6 +725,7 @@ import { getStoredOrders, saveStoredOrders, updateOrderStatus, fetchOrdersFromSu
 import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
 const route = useRoute();
 
@@ -802,22 +803,112 @@ function handleBulkExcel() {
   catch (e) { showToast(`엑셀 생성 실패: ${e.message}`, 'error'); }
 }
 
-async function loadData() { 
-  orders.value = getStoredOrders(); 
+/**
+ * 관리자 주문 목록 로드 - Supabase DB 직접 fetch 최우선 (크로스 브라우저 동기화 핵심)
+ * Supabase 연결 성공 시 DB에서 직접 조회하고, 로컬 전용 주문과 병합하여 반환
+ */
+async function loadData() {
+  // 1단계: 로컬 캐시 즉시 표시 (UX 즉시 반응성)
+  orders.value = getStoredOrders();
   if (activeOrder.value) {
     const updated = orders.value.find(o => o.id === activeOrder.value.id || o.orderNumber === activeOrder.value.orderNumber);
     if (updated) activeOrder.value = updated;
   }
-  // Supabase DB 비동기 최신 동기화
-  const dbOrders = await fetchOrdersFromSupabase();
-  if (Array.isArray(dbOrders) && dbOrders.length > 0) {
-    orders.value = dbOrders;
+
+  // 2단계: Supabase DB 직접 fetch (타 브라우저/기기 발주 즉시 반영)
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: dbRows, error } = await supabase
+        .from('orders')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && Array.isArray(dbRows) && dbRows.length > 0) {
+        // DB row → 프론트 객체 변환
+        const dbOrders = dbRows.map(row => {
+          const rawBuyerInfo = row.buyer_info || {};
+          const vasList = row.vas_applied || row.vas_services || rawBuyerInfo.vasServices || rawBuyerInfo.vas_services || [];
+          const customsType = row.customs_type || rawBuyerInfo.customsType || rawBuyerInfo.customsClearanceType || 'business';
+          const shippingType = row.shipping_type || rawBuyerInfo.shippingType || rawBuyerInfo.shippingMethod || 'general';
+
+          const buyerInfo = {
+            ...rawBuyerInfo,
+            companyName: rawBuyerInfo.companyName || row.customer_name || '',
+            buyerName: rawBuyerInfo.buyerName || row.customer_name || '',
+            phone: rawBuyerInfo.phone || row.phone || '',
+            email: rawBuyerInfo.email || row.buyer_email || '',
+            customsCode: rawBuyerInfo.customsCode || '',
+            address: rawBuyerInfo.address || '',
+            memo: rawBuyerInfo.memo || row.memo || '',
+            customsType,
+            shippingType,
+            vasServices: vasList,
+            vasSummary: rawBuyerInfo.vasSummary || ''
+          };
+
+          return {
+            id: row.id,
+            orderNumber: row.order_number || row.id,
+            inboundNo: row.inbound_no || null,
+            createdAt: row.created_at || new Date().toISOString(),
+            status: row.status || 'quote_pending',
+            customsType,
+            customsClearanceType: customsType,
+            shippingType,
+            shippingMethod: shippingType,
+            vasServices: vasList,
+            vas_services: vasList,
+            vasOptions: vasList,
+            vasApplied: vasList,
+            vasSummary: buyerInfo.vasSummary || '',
+            buyerInfo,
+            items: Array.isArray(row.items) ? row.items : [],
+            totalPriceKrw: Number(row.total_price_krw) || 0,
+            totalPriceRmb: Number(row.total_price_rmb) || 0,
+            firstPayment: row.first_payment || {},
+            secondPayment: row.second_payment || {},
+            measuredData: row.measured_data || {},
+            inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
+            paymentInfo: row.payment_info || {},
+            memo: row.memo || ''
+          };
+        });
+
+        // DB 주문 + 로컬 전용 주문 병합 (DB 최우선)
+        const localList = getStoredOrders();
+        const mergedMap = new Map();
+        localList.forEach(o => mergedMap.set(o.id, o));    // 로컬 먼저
+        dbOrders.forEach(o => mergedMap.set(o.id, o));     // DB가 최우선 덮어쓰기
+
+        const merged = Array.from(mergedMap.values()).sort((a, b) =>
+          new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+        );
+
+        orders.value = merged;
+
+        // 모달 열린 경우 activeOrder도 갱신
+        if (activeOrder.value) {
+          const updated = merged.find(o => o.id === activeOrder.value.id || o.orderNumber === activeOrder.value.orderNumber);
+          if (updated) activeOrder.value = updated;
+        }
+        return;
+      }
+    } catch (err) {
+      console.warn('[AdminOrderManageView] Supabase fetch fallback to local:', err);
+    }
+  }
+
+  // 3단계: Fallback - 로컬 스토리지 기반
+  const fallback = await fetchOrdersFromSupabase();
+  if (Array.isArray(fallback) && fallback.length > 0) {
+    orders.value = fallback;
   }
 }
-async function refreshAll() { 
-  isRefreshing.value = true; 
-  await loadData(); 
-  setTimeout(() => { isRefreshing.value = false; }, 600); 
+
+async function refreshAll() {
+  isRefreshing.value = true;
+  await loadData();
+  setTimeout(() => { isRefreshing.value = false; }, 600);
 }
 
 // ----------------------------------------------------

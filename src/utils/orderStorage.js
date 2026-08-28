@@ -231,11 +231,12 @@ export async function fetchOrdersFromSupabase() {
  */
 export async function saveNewOrder(order) {
   const list = getStoredOrders();
+  const nowIso = new Date().toISOString();
   const newOrderObj = {
     id: order.id || `ord-${Date.now()}`,
     orderNumber: order.orderNumber || `EUC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Date.now().toString().slice(-4)}`,
     inboundNo: order.inboundNo || `INB-YW-${Date.now().toString().slice(-6)}`,
-    createdAt: order.createdAt || new Date().toISOString(),
+    createdAt: order.createdAt || nowIso,
     status: order.status || 'quote_pending',
     buyerInfo: order.buyerInfo || { ...DEFAULT_BUYER_INFO },
     items: order.items || [],
@@ -245,7 +246,11 @@ export async function saveNewOrder(order) {
     secondPayment: order.secondPayment || {},
     measuredData: order.measuredData || {},
     inspectionPhotos: order.inspectionPhotos || [],
-    vasApplied: order.vasApplied || [],
+    vasApplied: order.vasApplied || order.vasServices || order.vas_services || [],
+    vasServices: order.vasServices || order.vasApplied || order.vas_services || [],
+    vas_services: order.vas_services || order.vasServices || order.vasApplied || [],
+    customsType: order.customsType || order.buyerInfo?.customsType || 'business',
+    shippingType: order.shippingType || order.buyerInfo?.shippingType || 'general',
     issueDetails: order.issueDetails || {
       colorMismatch: 0,
       damaged: 0,
@@ -258,19 +263,20 @@ export async function saveNewOrder(order) {
     memo: order.memo || ''
   };
 
+  // 로컬 스토리지 캐시 선 저장 (Offline Fallback 보장)
   list.unshift(newOrderObj);
   saveStoredOrders(list);
 
-  // Supabase DB에 단건 비동기 upsert
+  // ── Supabase DB 우선 동기 INSERT (크로스 브라우저/기기 영구 동기화 핵심) ──
   if (isSupabaseConfigured()) {
     try {
-      await supabase.from('orders').upsert({
+      const { error } = await supabase.from('orders').upsert({
         id: newOrderObj.id,
         order_number: newOrderObj.orderNumber,
         inbound_no: newOrderObj.inboundNo,
         user_id: currentUser.value?.id || null,
-        buyer_email: newOrderObj.buyerInfo?.email || currentUser.value?.email || 'buyer@euchs.com',
-        customer_name: newOrderObj.buyerInfo?.companyName || newOrderObj.buyerInfo?.buyerName || '이유씨 바이어',
+        buyer_email: newOrderObj.buyerInfo?.email || currentUser.value?.email || '',
+        customer_name: newOrderObj.buyerInfo?.companyName || newOrderObj.buyerInfo?.buyerName || '',
         phone: newOrderObj.buyerInfo?.phone || '',
         status: newOrderObj.status,
         buyer_info: newOrderObj.buyerInfo,
@@ -282,16 +288,26 @@ export async function saveNewOrder(order) {
         measured_data: newOrderObj.measuredData,
         inspection_photos: newOrderObj.inspectionPhotos,
         vas_applied: newOrderObj.vasApplied,
+        vas_services: newOrderObj.vas_services,     // ← 핵심: VAS 직접 컬럼 저장
+        customs_type: newOrderObj.customsType,
+        shipping_type: newOrderObj.shippingType,
         issue_details: newOrderObj.issueDetails,
         issue_status: newOrderObj.issueStatus,
         memo: newOrderObj.memo,
         created_at: newOrderObj.createdAt,
-        updated_at: new Date().toISOString()
+        updated_at: nowIso
       }, { onConflict: 'id' });
+
+      if (error) {
+        console.warn('[saveNewOrder] Supabase upsert warning:', error.message);
+      }
     } catch (e) {
-      console.warn('saveNewOrder Supabase DB notice:', e);
+      console.warn('[saveNewOrder] Supabase DB notice:', e);
     }
   }
+
+  // 전역 이벤트 발행 (관리자 화면 즉시 갱신)
+  window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: list } }));
 
   return newOrderObj;
 }

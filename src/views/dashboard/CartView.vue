@@ -1270,7 +1270,7 @@ async function confirmAndSubmitOrder() {
       id: `ord-${Date.now()}`,
       orderNumber,
       inboundNo: `INB-YW-${dateCompact}-${randomSuffix}`,
-      createdAt: new Date().toLocaleString('ko-KR'),
+      createdAt: new Date().toISOString(),            // ISO 형식 통일 (크로스 브라우저 정렬 보장)
       status: 'quote_pending',
       customsType: cfg.customsType,
       customsClearanceType: cfg.customsType,
@@ -1286,6 +1286,11 @@ async function confirmAndSubmitOrder() {
         productName: it.titleKo || it.productName,
         imageUrl: it.imageUrl,
         sku: it.sku,
+        skus: it.skus || [],
+        itemId: it.itemId || it.num_iid || '',
+        productUrl: it.productUrl || it.detailUrl || '',
+        titleKo: it.titleKo || it.productName || '',
+        titleZh: it.titleZh || '',
         quantity: it.quantity || 1,
         priceCny: it.priceCny,
         cbm: 0
