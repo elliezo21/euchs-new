@@ -81,7 +81,7 @@
         <div class="space-y-2">
           <!-- 한글 상품 제목: 100% 폭, 줄바꿈 자연스럽게 확보 -->
           <h2 class="w-full text-lg sm:text-xl md:text-2xl font-black text-gray-900 leading-snug break-keep">
-            {{ currentItem?.titleKo || currentItem?.titleZh }}
+            {{ displayProductTitle }}
           </h2>
 
           <!-- 1688 원문 및 원본 링크 통합 라인 (제목 바로 아래) -->
@@ -721,6 +721,13 @@ const original1688Url = computed(() => {
   // itemId / offerId / num_iid / id 순으로 추출
   const pid = item.id || item.itemId || item.offerId || item.num_iid || props.product?.id || ''
   return pid ? `https://detail.1688.com/offer/${pid}.html` : 'https://www.1688.com'
+})
+
+const displayProductTitle = computed(() => {
+  const item = currentItem.value || props.product || {}
+  const rawTitle = item.titleKo || item.title || item.subject || item.titleZh || props.product?.titleKo || props.product?.title || ''
+  const cleaned = cleanForeignText(rawTitle)
+  return cleaned || rawTitle || '1688 실시간 도매 상품'
 })
 
 const firstPropName = computed(() => {

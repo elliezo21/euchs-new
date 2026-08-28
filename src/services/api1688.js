@@ -26,16 +26,70 @@ export const CONFIG = {
 // 🇷🇺 러시아어 및 다국어 ➔ 한국어 매핑 사전 & 정제 엔진
 // ========================================================
 export const RU_KO_DICT = {
-  // 속성명
-  'цвет': '색상',
+  // 속성명 및 스펙 레이블 (용량, 사이즈, 색상, 중량, 소재 등)
+  'емкость(объем)': '용량',
+  'емкость/объем': '용량',
+  'емкость': '용량',
+  'объем': '용량',
   'размер': '사이즈',
+  'размеры': '사이즈',
+  'цвет': '색상',
+  'цвета': '색상',
+  'вес': '중량',
+  'масса': '중량',
+  'материал': '소재',
+  'ткань': '원단/소재',
   'спецификация': '규격',
+  'характеристика': '특성/규격',
   'модель': '모델',
   'стиль': '스타일',
-  'материал': '소재',
+  'тип': '타입',
+  'вид': '종류',
+  'форма': '형태',
+  'узор': '패턴',
+  'принт': '프린트/패턴',
+  'количество': '수량',
+  'цена': '가격',
+  'высота': '높이',
+  'длина': '길이',
+  'ширина': '너비',
   'color': '색상',
   'size': '사이즈',
   'spec': '규격',
+  'capacity': '용량',
+  'weight': '중량',
+  'material': '소재',
+
+  // 용도 및 카테고리
+  'для домашнего использования': '가정용',
+  'для дома': '가정용',
+  'домашний': '가정용',
+  'домашняя': '가정용',
+  'детский': '아동용',
+  'детская': '아동용',
+  'детское': '아동용',
+  'детские': '아동용',
+  'взрослый': '성인용',
+  'взрослая': '성인용',
+  'взрослые': '성인용',
+  'мужской': '남성용',
+  'мужская': '남성용',
+  'мужские': '남성용',
+  'женский': '여성용',
+  'женская': '여성용',
+  'женские': '여성용',
+  'термос': '보온병/텀블러',
+  'термокружка': '보온 텀블러',
+  'бутылка': '보틀/물병',
+  'кружка': '머그잔/컵',
+  'нержавеющая сталь': '스테인리스 스틸',
+  'пластик': '플라스틱',
+  'стекло': '유리',
+  'керамика': '세라믹/도자기',
+  'хлопок': '면/코튼',
+  'лен': '린넨',
+  'кожа': '가죽',
+  'силикон': '실리콘',
 
   // 기본 색상
   'белый': '화이트',
@@ -92,31 +146,39 @@ export function cleanForeignText(str) {
   if (!str || typeof str !== 'string') return ''
   let cleaned = str.trim()
 
-  // 1. "Цвет :" 또는 "Размер :" 콜론 뒤 러시아어 병기 분리 (예: "拉链卡其-加长款 Цвет : Молния...")
-  if (/Цвет\s*:/i.test(cleaned) || /Размер\s*:/i.test(cleaned)) {
-    const parts = cleaned.split(/(?:Цвет|Размер)\s*:/i)
+  // 1. "Цвет :", "Размер :", "Емкость :" 등 콜론 뒤 러시아어 병기 분리 (예: "拉链卡其-加长款 Цвет : Молния...")
+  if (/Цвет\s*:/i.test(cleaned) || /Размер\s*:/i.test(cleaned) || /Емкость\s*:/i.test(cleaned) || /Объем\s*:/i.test(cleaned)) {
+    const parts = cleaned.split(/(?:Цвет|Размер|Емкость|Объем)\s*:/i)
     if (parts[0] && parts[0].trim()) {
       cleaned = parts[0].trim()
     }
   }
 
   // 2. 단독 속성명 치환
-  const lower = cleaned.toLowerCase()
-  if (lower === 'цвет' || lower === 'color') return '색상'
-  if (lower === 'размер' || lower === 'size') return '사이즈'
-  if (lower === 'спецификация' || lower === 'spec') return '규격'
+  const lower = cleaned.toLowerCase().replace(/[\s\-_/()（）]+/g, '')
+  if (lower === 'цвет' || lower === 'цвета' || lower === 'color') return '색상'
+  if (lower === 'размер' || lower === 'размеры' || lower === 'size') return '사이즈'
+  if (lower === 'спецификация' || lower === 'характеристика' || lower === 'spec') return '규격'
+  if (lower === 'емкость' || lower === 'объем' || lower.includes('емкость') || lower.includes('объем') || lower === 'capacity') return '용량'
+  if (lower === 'вес' || lower === 'масса' || lower === 'weight') return '중량'
+  if (lower === 'материал' || lower === 'ткань' || lower === 'material') return '소재'
 
   // 3. 사전 단어 치환
   if (/[\u0400-\u04FF]/i.test(cleaned)) {
     for (const [ru, ko] of Object.entries(RU_KO_DICT)) {
-      if (lower === ru) return ko
-      const reg = new RegExp(`\\b${ru}\\b`, 'gi')
+      if (cleaned.toLowerCase() === ru) return ko
+      const reg = new RegExp(ru.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi')
       cleaned = cleaned.replace(reg, ko)
     }
   }
 
   // 4. "颜色 Цвет" 형태 제거
-  cleaned = cleaned.replace(/\s*Цвет\s*/gi, '').replace(/\s*Размер\s*/gi, '').trim()
+  cleaned = cleaned
+    .replace(/\s*Цвет\s*/gi, '')
+    .replace(/\s*Размер\s*/gi, '')
+    .replace(/\s*Емкость\s*/gi, '')
+    .replace(/\s*Объем\s*/gi, '')
+    .trim()
 
   return cleaned
 }
@@ -304,22 +366,25 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
 export async function translateItemsBatch(items) {
   if (!Array.isArray(items) || items.length === 0) return items
 
-  // 번역이 필요한 중국어 제목들 수집
+  // 번역이 필요한 원문 제목들 수집
   const titlesToTranslate = items.map(it => it.titleZh || it.title || it.subject || '')
 
   try {
-    const translatedTitles = await translateText(titlesToTranslate, 'KO', 'ZH')
+    const translatedTitles = await translateText(titlesToTranslate, 'KO')
     const titleList = Array.isArray(translatedTitles) ? translatedTitles : [translatedTitles]
 
     items.forEach((it, idx) => {
       const translated = titleList[idx] || it.titleZh || it.title || ''
-      it.titleKo = translated
-      it.title = translated // MallView 템플릿 호환용
+      const cleaned = cleanForeignText(translated) || translated
+      it.titleKo = cleaned
+      it.title = cleaned // MallView 템플릿 호환용
     })
   } catch (err) {
     console.warn('[translateItemsBatch] Notice:', err.message)
     items.forEach(it => {
-      if (!it.titleKo) it.titleKo = it.titleZh || it.title || '1688 수입 상품'
+      const raw = it.titleZh || it.title || '1688 도매 상품'
+      const cleaned = cleanForeignText(raw) || raw
+      if (!it.titleKo) it.titleKo = cleaned
       if (!it.title) it.title = it.titleKo
     })
   }
@@ -1259,11 +1324,13 @@ export async function fetch1688ProductById(offerId) {
       s.size = cleanForeignText(s.size) || s.size
     })
 
+    const cleanedTitleKo = cleanForeignText(titleKo || titleZh) || titleKo || titleZh
+
     const normalizedProduct = {
       id: idStr,
       titleZh,
-      titleKo: titleKo || titleZh,
-      title: titleKo || titleZh,
+      titleKo: cleanedTitleKo,
+      title: cleanedTitleKo,
       price: priceNum,
       priceFormatted: priceNum.toFixed(2),
       minOrder,
