@@ -1233,14 +1233,20 @@ const loadHomeSections = async () => {
 
   const cacheKey = getTodayCacheKey()
 
-  // 1. 오늘 날짜 캐시 있으면 즉시 사용 (API 0건)
+  // 1. 오늘 날짜 캐시 있으면 즉시 사용 - 단, 실시간 상품이 있는 경우에만
   try {
     const cached = localStorage.getItem(cacheKey)
     if (cached) {
       const parsed = JSON.parse(cached)
-      if (Array.isArray(parsed) && parsed.length > 0) {
+      const hasRealProducts = Array.isArray(parsed) && parsed.length > 0 &&
+        parsed.some(sec => sec.items && sec.items.length > 0 &&
+          sec.items[0]?.imageUrl && !sec.items[0].imageUrl.includes('images.unsplash.com'))
+      if (hasRealProducts) {
         homeSections.value = parsed
         return
+      } else {
+        // 캐시에 더미 데이터가 있으면 삭제하고 다시 로드
+        localStorage.removeItem(cacheKey)
       }
     }
   } catch (e) {}
@@ -1292,20 +1298,11 @@ const loadHomeSections = async () => {
     sectionDefs.map(async (sec) => {
       try {
         const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
-        let items = (res.items || []).slice(0, 8)
-        if (items.length === 0) {
-          const mock = getMockSearchResults(sec.keyword)
-          items = (mock.items || []).slice(0, 8)
-        }
+        const items = (res.items || []).slice(0, 8)
         return { ...sec, items }
       } catch (e) {
-        // 429 / 오류 → mock fallback
-        try {
-          const mock = getMockSearchResults(sec.keyword)
-          return { ...sec, items: (mock.items || []).slice(0, 8) }
-        } catch (me) {
-          return { ...sec, items: [] }
-        }
+        console.warn(`[Mall] Section "${sec.id}" load error:`, e.message)
+        return { ...sec, items: [] }
       }
     })
   )
@@ -1313,10 +1310,13 @@ const loadHomeSections = async () => {
   homeSections.value = results
   isHomeSectionsLoading.value = false
 
-  // 오늘 날짜 캐시로 저장
-  try {
-    localStorage.setItem(cacheKey, JSON.stringify(results))
-  } catch (e) {}
+  // 실시간 상품이 있는 섹션만 오늘 날짜 캐시로 저장 (빈 결과는 캐시하지 않음)
+  const hasRealItems = results.some(sec => sec.items && sec.items.length > 0)
+  if (hasRealItems) {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(results))
+    } catch (e) {}
+  }
 }
 
 /**
