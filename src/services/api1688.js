@@ -30,6 +30,99 @@ const memorySearchCache = new Map()
 const memoryDetailCache = new Map()
 const memoryTranslationCache = new Map()
 
+// ========================================================
+// 한국어 → 중국어 내장 번역 사전 (DeepL 실패 시 즉시 Fallback)
+// 1688 DataHub에서 가장 많이 검색되는 카테고리/키워드 수록
+// ========================================================
+const KO_ZH_DICT = {
+  // ── 패션/의류 ──
+  '치마': '裙子', '스커트': '裙子', '원피스': '连衣裙', '블라우스': '衬衫',
+  '티셔츠': 'T恤', '티': 'T恤', '반팔': '短袖', '긴팔': '长袖',
+  '후드': '卫衣', '후드티': '连帽卫衣', '맨투맨': '卫衣', '스웨터': '毛衣',
+  '니트': '针织衫', '가디건': '开衫', '자켓': '夹克', '점퍼': '夹克',
+  '코트': '外套', '패딩': '羽绒服', '청바지': '牛仔裤', '반바지': '短裤',
+  '레깅스': '打底裤', '슬랙스': '西裤', '면바지': '棉裤', '조거팬츠': '运动裤',
+  '여성의류': '女装', '남성의류': '男装', '아동복': '童装', '언더웨어': '内衣',
+  '속옷': '内裤', '브라': '文胸', '양말': '袜子', '스타킹': '连裤袜',
+  // ── 신발/잡화 ──
+  '신발': '鞋子', '운동화': '运动鞋', '슬리퍼': '拖鞋', '샌들': '凉鞋',
+  '부츠': '靴子', '구두': '皮鞋', '로퍼': '乐福鞋', '스니커즈': '球鞋',
+  '가방': '包包', '핸드백': '手提包', '숄더백': '单肩包', '백팩': '双肩包',
+  '크로스백': '斜挎包', '클러치': '手拿包', '지갑': '钱包', '파우치': '化妆包',
+  '벨트': '腰带', '모자': '帽子', '야구모자': '棒球帽', '비니': '毛线帽',
+  '스카프': '围巾', '선글라스': '太阳镜', '안경': '眼镜', '시계': '手表',
+  '목걸이': '项链', '귀걸이': '耳环', '반지': '戒指', '팔찌': '手链',
+  // ── 생활/주방 ──
+  '밀폐용기': '保鲜盒', '반찬통': '饭盒', '도시락': '便当盒', '물병': '水杯',
+  '텀블러': '保温杯', '머그컵': '马克杯', '냄비': '锅', '프라이팬': '平底锅',
+  '냄비세트': '锅具套装', '주방용품': '厨房用品', '수저': '餐具', '젓가락': '筷子',
+  '그릇': '碗', '접시': '盘子', '컵': '杯子', '소쿠리': '洗菜篮',
+  '도마': '砧板', '칼': '刀', '주방칼': '厨刀', '주걱': '铲子',
+  '생활용품': '生活用品', '청소용품': '清洁用品', '세제': '洗涤剂', '수납박스': '收纳箱',
+  '수납': '收纳', '바구니': '收纳篮', '행거': '晾衣架', '옷걸이': '衣架',
+  '이불': '被子', '베개': '枕头', '쿠션': '抱枕', '수건': '毛巾',
+  '칫솔': '牙刷', '비누': '香皂', '샴푸': '洗发水',
+  // ── 인테리어 ──
+  '인테리어': '装饰', '소품': '摆件', '캔들': '蜡烛', '액자': '相框',
+  '거울': '镜子', '시계': '时钟', '화분': '花盆', '조명': '灯具',
+  '전등': '灯', '카펫': '地毯', '러그': '地毯', '커튼': '窗帘',
+  '테이블': '桌子', '의자': '椅子', '선반': '置物架', '책상': '书桌',
+  // ── 디지털/가전 ──
+  '이어폰': '耳机', '이어버드': '蓝牙耳机', '헤드폰': '头戴耳机',
+  '충전기': '充电器', '보조배터리': '移动电源', '케이블': '数据线',
+  '스마트폰': '手机', '폰케이스': '手机壳', '스마트워치': '智能手表',
+  '노트북': '笔记本电脑', '태블릿': '平板电脑', '마우스': '鼠标', '키보드': '键盘',
+  '웹캠': '摄像头', '스피커': '音响', '블루투스': '蓝牙',
+  // ── 뷰티/화장품 ──
+  '화장품': '化妆品', '스킨케어': '护肤品', '로션': '乳液', '크림': '面霜',
+  '세럼': '精华液', '앰플': '安瓶', '마스크팩': '面膜', '선크림': '防晒霜',
+  '파운데이션': '粉底液', '쿠션': '气垫', '립스틱': '口红', '아이새도우': '眼影',
+  '마스카라': '睫毛膏', '아이라이너': '眼线笔', '클렌징': '卸妆',
+  '향수': '香水', '네일': '指甲油', '메이크업': '彩妆',
+  // ── 스포츠/레저 ──
+  '운동': '运动', '요가': '瑜伽', '헬스': '健身', '덤벨': '哑铃',
+  '자전거': '自行车', '등산': '登山', '캠핑': '露营', '텐트': '帐篷',
+  '캠핑용품': '露营用品', '낚시': '钓鱼', '수영': '游泳', '수영복': '泳衣',
+  '아웃도어': '户外用品', '배드민턴': '羽毛球', '테니스': '网球',
+  // ── 펫/유아 ──
+  '반려동물': '宠物用品', '강아지': '狗', '고양이': '猫', '펫': '宠物',
+  '강아지옷': '宠物衣服', '고양이장난감': '猫玩具', '펫간식': '宠物零食',
+  '기저귀': '尿布', '유모차': '婴儿车', '유아용품': '婴儿用品',
+  // ── 포장/기업용 ──
+  '포장': '包装', '박스': '纸箱', '테이프': '胶带', '비닐': '塑料袋',
+  '쇼핑백': '购物袋', '선물포장': '礼品包装', '라벨': '标签',
+  // ── 문구/사무 ──
+  '노트': '笔记本', '볼펜': '圆珠笔', '연필': '铅笔', '형광펜': '荧光笔',
+  '스티커': '贴纸', '다이어리': '手账', '파일': '文件夹',
+  // ── 음식/식품 ──
+  '과자': '零食', '초콜릿': '巧克力', '커피': '咖啡', '차': '茶叶',
+  // ── 복합 키워드 ──
+  '베스트셀러': '畅销品', '인기상품': '热销商品', '신상': '新品',
+  '도매': '批发', '소싱': '采购', '수입대행': '代购'
+}
+
+/**
+ * 한글 키워드 → 중국어 내장 사전 변환
+ * DeepL API 실패 시 즉시 사용 가능한 오프라인 Fallback
+ */
+function koToZhFallback(text) {
+  if (!text) return text
+  const trimmed = text.trim()
+
+  // 1. 완전 일치 검색
+  if (KO_ZH_DICT[trimmed]) return KO_ZH_DICT[trimmed]
+
+  // 2. 부분 일치 검색 (복합 키워드 포함된 경우)
+  for (const [ko, zh] of Object.entries(KO_ZH_DICT)) {
+    if (trimmed.includes(ko)) {
+      return trimmed.replace(ko, zh)
+    }
+  }
+
+  // 3. 한글 포함 시 encodeURIComponent 인코딩으로 API 전달 가능하게 유지
+  return trimmed
+}
+
 const getFromCache = (cacheMap, storageKey, key) => {
   // 1. 메모리 캐시 조회
   if (cacheMap.has(key)) {
@@ -436,7 +529,7 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
     }
   }
 
-  // Step 1: 한글 검색어 ➔ 중국어 번역
+  // Step 1: 한글/영문 검색어 ➔ 중국어 번역 (3단계 Fallback 보장)
   let queryZh = query
   const isKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(query)
 
@@ -448,11 +541,35 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
       })
     }
 
-    try {
-      const translated = await translateText(query, 'ZH', 'KO')
-      queryZh = typeof translated === 'string' ? translated : (translated[0] || query)
-    } catch (err) {
-      queryZh = query
+    // 1-A: 내장 사전 우선 조회 (오프라인 즉시 변환 — 응답속도 최우선)
+    const dictResult = koToZhFallback(query)
+    const isDictHit = dictResult && !/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(dictResult)
+
+    if (isDictHit) {
+      queryZh = dictResult
+      console.log(`[1688 KO→ZH] Dict hit: "${query}" → "${queryZh}"`)
+    } else {
+      // 1-B: DeepL API 번역 시도 (프록시 → Direct 순서)
+      try {
+        const translated = await translateText(query, 'ZH', 'KO')
+        const candidate = typeof translated === 'string' ? translated : (translated[0] || '')
+
+        // 번역 결과가 실제로 한글이 아닌 경우에만 채택
+        if (candidate && !/[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(candidate)) {
+          queryZh = candidate
+          console.log(`[1688 KO→ZH] DeepL: "${query}" → "${queryZh}"`)
+        } else {
+          // DeepL이 한글 원문을 그대로 돌려보낸 경우 → 사전 부분 일치 재시도
+          const partialResult = koToZhFallback(query)
+          queryZh = (partialResult && partialResult !== query) ? partialResult : query
+          console.warn(`[1688 KO→ZH] DeepL returned Korean, dict fallback: "${query}" → "${queryZh}"`)
+        }
+      } catch (err) {
+        // 1-C: 모든 번역 실패 → 사전 부분 일치 마지막 시도
+        const fallbackResult = koToZhFallback(query)
+        queryZh = (fallbackResult && fallbackResult !== query) ? fallbackResult : query
+        console.warn(`[1688 KO→ZH] All translation failed, final fallback: "${query}" → "${queryZh}"`)
+      }
     }
   }
 
@@ -464,7 +581,7 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
     })
   }
 
-  // Step 2: 1688 상품 검색 (빈 결과 또는 오류 시 빈 배열 반환 — mock 없음)
+  // Step 2: 1688 상품 검색
   let searchResult
   try {
     searchResult = await search1688(queryZh, page, options)
@@ -473,9 +590,22 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
     searchResult = { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false }
   }
 
+  // Step 2-B: 번역 쿼리로 0건이면 원문 한글로 한 번 더 시도 (사전 미등록 키워드 대비)
+  if (isKorean && queryZh !== query && (!searchResult.items || searchResult.items.length === 0)) {
+    console.warn(`[1688 Search] 0 results for "${queryZh}", retrying with original: "${query}"`)
+    try {
+      const retryResult = await search1688(query, page, options)
+      if (retryResult.items && retryResult.items.length > 0) {
+        searchResult = retryResult
+      }
+    } catch (retryErr) {
+      console.warn('[1688 Search] Retry with original keyword failed:', retryErr.message)
+    }
+  }
+
   const items = searchResult.items || []
 
-  // Step 3: 미번역 잔여 항목 최종 점검
+  // Step 3: 미번역 잔여 항목 최종 점검 (중국어 → 한국어)
   const untranslated = items.filter(it => !it.titleKo || it.titleKo === it.titleZh)
   if (untranslated.length > 0) {
     if (onProgress) {
