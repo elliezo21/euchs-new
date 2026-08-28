@@ -734,7 +734,152 @@
       </div>
 
 
+
+
+      <!-- ============================================================ -->
+      <!-- HOME: CN인사이더 스타일 다단 섹션 (검색어 없을 때 = 홈 뷰)  -->
+      <!-- ============================================================ -->
+      <template v-if="!hasSearched && !isLoading && !isImageSearchMode">
+
+        <!-- 섹션 스켈레톤 (첫 API 호출 중) -->
+        <div v-if="isHomeSectionsLoading" class="space-y-8">
+          <div v-for="sk in 4" :key="sk" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+              <div class="space-y-2">
+                <div class="h-5 w-52 bg-gray-200 rounded-lg animate-pulse"></div>
+                <div class="h-3 w-64 bg-gray-100 rounded animate-pulse"></div>
+              </div>
+              <div class="h-8 w-20 bg-gray-200 rounded-xl animate-pulse"></div>
+            </div>
+            <div class="p-4">
+              <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                <div v-for="j in 8" :key="j" class="bg-gray-50 rounded-xl border border-gray-100 p-3 animate-pulse space-y-2">
+                  <div class="aspect-square bg-gray-200 rounded-xl"></div>
+                  <div class="h-3.5 bg-gray-200 rounded w-3/4"></div>
+                  <div class="h-3 bg-gray-100 rounded w-1/2"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 4개 테마 섹션 블록 -->
+        <div v-else-if="homeSections.length > 0" class="space-y-6 sm:space-y-8">
+          <section
+            v-for="section in homeSections"
+            :key="section.id"
+            class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
+          >
+            <!-- 섹션 헤더 -->
+            <div class="px-4 sm:px-5 py-3.5 sm:py-4 flex items-center justify-between border-b border-gray-100 bg-gray-50/80">
+              <div class="flex items-start gap-3 min-w-0">
+                <div class="min-w-0">
+                  <h2 class="text-sm sm:text-base font-black text-gray-900 leading-tight">{{ section.title }}</h2>
+                  <p class="text-[11px] text-gray-500 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap">
+                    <span>{{ section.subtitle }}</span>
+                    <span class="px-2 py-0.5 rounded-full bg-white border border-gray-200 text-[10px] font-bold text-gray-600 shrink-0">
+                      {{ section.keyword }}
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                @click="searchBySection(section)"
+                class="shrink-0 flex items-center gap-1 px-3 sm:px-4 py-2 rounded-xl bg-white hover:bg-orange-50 border border-gray-200 hover:border-orange-300 text-gray-700 hover:text-orange-600 font-bold text-xs shadow-xs transition-all active:scale-95 cursor-pointer whitespace-nowrap ml-3"
+              >
+                더보기 <i class="fas fa-chevron-right text-[9px]"></i>
+              </button>
+            </div>
+
+            <!-- 상품 카드 그리드 (4열 반응형) -->
+            <div class="p-3 sm:p-4">
+              <div
+                v-if="section.items && section.items.length > 0"
+                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3"
+              >
+                <div
+                  v-for="item in section.items"
+                  :key="item.id"
+                  @click="openProductModal(item)"
+                  class="group bg-white rounded-xl border border-gray-200 hover:border-orange-400 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer"
+                >
+                  <!-- 썸네일 -->
+                  <div class="relative aspect-square bg-gray-100 overflow-hidden">
+                    <img
+                      :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80'"
+                      :alt="item.titleKo || item.title || item.titleZh"
+                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                      loading="lazy"
+                      referrerpolicy="no-referrer"
+                      @error="handleImageError"
+                    />
+                    <!-- 1688 오렌지 뱃지 -->
+                    <div class="absolute top-2 left-2">
+                      <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black shadow-sm tracking-wide">
+                        1688
+                      </span>
+                    </div>
+                    <!-- MOQ 뱃지 -->
+                    <div v-if="item.minOrder && item.minOrder > 1" class="absolute top-2 right-2">
+                      <span class="px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-bold">
+                        MOQ {{ item.minOrder }}
+                      </span>
+                    </div>
+                    <!-- 구매대행 신청 호버 오버레이 -->
+                    <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/65 to-transparent py-2 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                      <span class="text-white text-[10px] font-bold flex items-center gap-1">
+                        <i class="fas fa-shopping-cart text-amber-400 text-[9px]"></i>
+                        구매대행 신청
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- 카드 정보 -->
+                  <div class="p-2.5 sm:p-3 space-y-1.5">
+                    <h3
+                      class="text-[11px] sm:text-[12px] font-medium text-gray-800 leading-snug line-clamp-2 group-hover:text-orange-600 transition"
+                      :title="item.titleKo || item.title || item.titleZh"
+                    >
+                      {{ item.titleKo || item.title || item.titleZh }}
+                    </h3>
+                    <div class="pt-1.5 border-t border-gray-100">
+                      <div class="flex items-baseline gap-1 font-mono">
+                        <span class="text-red-600 font-bold text-sm tracking-tight">
+                          ¥{{ item.priceFormatted || item.price }}
+                        </span>
+                        <span class="text-gray-400 text-[10px] font-medium">
+                          ₩{{ formatKrw((item.price || 0) * customExchangeRate) }}
+                        </span>
+                      </div>
+                      <div class="flex items-center justify-between text-[10px] text-gray-400 mt-0.5">
+                        <span>판매 <b class="text-gray-600 font-medium">{{ item.sales || '0' }}건</b></span>
+                        <span class="text-emerald-600 font-semibold">재구매 {{ item.repurchaseRate || '90%' }}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- 섹션 상품 없음 (fallback) -->
+              <div v-else class="py-8 text-center text-sm text-gray-400">
+                <i class="fas fa-box-open text-2xl text-gray-300 block mb-2"></i>
+                잠시 후 다시 시도해 주세요.
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- 홈 섹션 자체가 비어있는 경우 (최초 로드 전) -->
+        <div v-else class="py-16 text-center text-gray-400 text-sm space-y-3">
+          <i class="fas fa-store text-4xl text-gray-200 block"></i>
+          <p class="font-medium">상품을 불러오는 중입니다...</p>
+        </div>
+      </template>
+
+
       <!-- Clean Search Results Header Bar (No Item Count, Clean Single Tag) -->
+
       <div v-if="hasSearched && !isLoading" class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div class="flex items-center gap-2 text-xs sm:text-sm">
           <span class="text-gray-500 font-medium">검색어:</span>
@@ -1043,6 +1188,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl } from '../services/api1688'
+import { getMockSearchResults } from '../services/mock1688Data'
 import { fetchSiteSettings } from '../lib/settings'
 import {
   isLoggedIn,
@@ -1081,6 +1227,133 @@ const toastMessage = ref('')
 const lastQueryKo = ref('')
 const lastQueryZh = ref('')
 const items = ref([])
+
+// ============================================================
+// 🏠 CN인사이더 스타일 홈 섹션 – 날짜 기반 로테이션 + Daily Cache
+// ============================================================
+
+/** 섹션별 키워드 풀: 오늘 Day-of-Year 인덱스로 매일 순환 */
+const HOME_SECTION_POOLS = {
+  md:      ['감성 텀블러', '인테리어 조명', '미니 가전', '차량용 방향제', '블루투스 이어폰', '미니 선풍기'],
+  fashion: ['여성 린넨 원피스', '데일리 오버핏 티셔츠', '여성 숄더백', '패션 스니커즈', '린넨 셔츠', '여성 크로스백'],
+  living:  ['주방 수납함', '욕실 정리 선반', '밀폐용기 세트', '청소용품', '실내화', '텀블러'],
+  sports:  ['접이식 캠핑의자', '감성 캠핑랜턴', '홈트 요가매트', '골프 파우치', '캠핑테이블', '트레킹화'],
+}
+
+const getTodayKeyword = (pool) => {
+  const now = new Date()
+  const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000)
+  return pool[dayOfYear % pool.length]
+}
+
+const getTodayCacheKey = () =>
+  `euchs_home_daily_sections_${new Date().toISOString().slice(0, 10)}`
+
+const homeSections = ref([])
+const isHomeSectionsLoading = ref(false)
+
+/**
+ * 홈 섹션 데이터 로더 (Daily Cache Engine)
+ * - 오늘 날짜 캐시 존재 시 → 즉시 렌더 (API 0건)
+ * - 캐시 없음 → 이전 날짜 캐시 삭제 → 섹션당 1회 API (총 4회)
+ * - 429 / 네트워크 오류 시 getMockSearchResults() 자동 대체
+ */
+const loadHomeSections = async () => {
+  if (hasSearched.value || isHomeSectionsLoading.value) return
+
+  const cacheKey = getTodayCacheKey()
+
+  // 1. 오늘 날짜 캐시 있으면 즉시 사용 (API 0건)
+  try {
+    const cached = localStorage.getItem(cacheKey)
+    if (cached) {
+      const parsed = JSON.parse(cached)
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        homeSections.value = parsed
+        return
+      }
+    }
+  } catch (e) {}
+
+  // 2. 이전 날짜 캐시 일괄 삭제
+  try {
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('euchs_home_daily_sections_') && key !== cacheKey) {
+        localStorage.removeItem(key)
+      }
+    })
+  } catch (e) {}
+
+  // 3. 4개 섹션 API 병렬 호출 (총 최대 4회)
+  isHomeSectionsLoading.value = true
+
+  const sectionDefs = [
+    {
+      id:       'md',
+      title:    '🔥 오늘의 MD 추천 베스트',
+      subtitle: '매일 업데이트되는 소싱 MD 엄선 추천 상품',
+      keyword:  getTodayKeyword(HOME_SECTION_POOLS.md),
+      color:    'from-rose-500 to-orange-500',
+    },
+    {
+      id:       'fashion',
+      title:    '👗 트렌드 패션 기획전',
+      subtitle: '오늘의 패션 핫아이템 모음',
+      keyword:  getTodayKeyword(HOME_SECTION_POOLS.fashion),
+      color:    'from-violet-500 to-purple-600',
+    },
+    {
+      id:       'living',
+      title:    '🏠 생활 & 주방 아이디어 잡화',
+      subtitle: '집을 더 편리하게 만드는 베스트 잡화',
+      keyword:  getTodayKeyword(HOME_SECTION_POOLS.living),
+      color:    'from-emerald-500 to-teal-600',
+    },
+    {
+      id:       'sports',
+      title:    '⛺ 스포츠/레저 & 캠핑 테마관',
+      subtitle: '아웃도어 & 홈트 인기 상품 모음',
+      keyword:  getTodayKeyword(HOME_SECTION_POOLS.sports),
+      color:    'from-blue-500 to-indigo-600',
+    },
+  ]
+
+  const results = await Promise.all(
+    sectionDefs.map(async (sec) => {
+      try {
+        const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
+        const items = (res.items || []).slice(0, 8)
+        return { ...sec, items }
+      } catch (e) {
+        // 429 / 오류 → mock fallback
+        try {
+          const mock = getMockSearchResults(sec.keyword)
+          return { ...sec, items: (mock.items || []).slice(0, 8) }
+        } catch (me) {
+          return { ...sec, items: [] }
+        }
+      }
+    })
+  )
+
+  homeSections.value = results
+  isHomeSectionsLoading.value = false
+
+  // 오늘 날짜 캐시로 저장
+  try {
+    localStorage.setItem(cacheKey, JSON.stringify(results))
+  } catch (e) {}
+}
+
+/**
+ * 홈 섹션 [더보기 >] 클릭 → 해당 키워드로 실시간 검색 전환
+ */
+const searchBySection = (section) => {
+  queryInput.value = section.keyword
+  executeSearch(1)
+}
+
+
 
 // ----------------------------------------------------
 // 🔢 안전한 숫자 추출 & 실시간 상품 정렬 파이프라인
@@ -1938,9 +2211,9 @@ const handleIncomingQuery = async () => {
   if (q && typeof q === 'string' && q.trim()) {
     queryInput.value = q.trim()
     executeSearch(1)
-  } else if (!hasSearched.value && items.value.length === 0) {
-    queryInput.value = ''
-    executeSearch(1, '여성 원피스')
+  } else {
+    // 검색어 없음 → 홈 섹션 자동 로드 (Daily Cache 엔진)
+    loadHomeSections()
   }
 }
 
