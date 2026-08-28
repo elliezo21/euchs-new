@@ -338,14 +338,25 @@ export async function search1688(queryZh, page = 1, options = {}) {
     return mockRes
   }
 
-  // 응답 데이터 파싱 및 정규화
+  // 응답 데이터 파싱 및 정규화 (다계층 안전 파서)
   try {
-    const resultObj = data?.result || data || {}
-    const rawList = resultObj.resultList || []
-    const base = resultObj.base || {}
-    const settings = resultObj.settings || {}
+    const resData = data || {}
+    const resultObj = resData?.result || resData || {}
 
-    if (rawList.length === 0) {
+    const rawList = 
+      resultObj?.resultList || 
+      resData?.resultList || 
+      resultObj?.result?.resultList || 
+      resData?.data?.items || 
+      resData?.items || 
+      (Array.isArray(resData?.data) ? resData.data : []) || 
+      [];
+
+    const base = resultObj?.base || resData?.result?.base || {}
+    const settings = resultObj?.settings || resData?.result?.settings || {}
+
+    if (!Array.isArray(rawList) || rawList.length === 0) {
+      console.warn(`[1688 API] Empty resultList, using Fallback dataset for "${query}"`)
       const mockRes = getMockSearchResults(query, page, options)
       await translateItemsBatch(mockRes.items)
       return mockRes
@@ -366,14 +377,12 @@ export async function search1688(queryZh, page = 1, options = {}) {
         imageUrl = imageUrl.replace('http://', 'https://')
       }
 
-      let detailUrl = it.itemUrl || it.detailUrl || ''
+      let detailUrl = it.itemUrl || it.detailUrl || (it.itemId ? `https://detail.1688.com/offer/${it.itemId}.html` : '')
       if (detailUrl.startsWith('//')) {
         detailUrl = 'https:' + detailUrl
-      } else if (!detailUrl && it.itemId) {
-        detailUrl = `https://detail.1688.com/offer/${it.itemId}.html`
       }
 
-      const priceStr = it.sku?.def?.price || it.price || '0'
+      const priceStr = it.sku?.def?.price || it.price || it.priceInfo?.price || '0'
       const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
 
       const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
@@ -382,23 +391,29 @@ export async function search1688(queryZh, page = 1, options = {}) {
       const titleZh = it.title || it.subject || ''
 
       return {
-        id: String(it.itemId || `item-${Date.now()}-${idx}`),
+        id: String(it.itemId || it.offerId || it.id || `item-${Date.now()}-${idx}`),
+        itemId: String(it.itemId || it.offerId || it.id || ''),
         titleZh,
         titleEn: it.titleEn || '',
-        titleKo: '',
+        titleKo: it.titleKo || it.title || it.subject || '',
         title: titleZh,
         price: priceNum,
+        priceNum: priceNum,
+        priceCny: priceNum,
         priceFormatted: priceNum.toFixed(2),
+        moq: minOrder,
         minOrder,
-        sales: it.sales || '0',
+        sales: parseInt(it.sales || it.monthSold || 0, 10),
+        repurchaseRate: it.rePurchaseRate || it.repurchaseRate || 85,
         imageUrl: imageUrl,
         detailUrl,
-        repurchaseRate: it.repurchaseRate || '90%',
+        itemUrl: detailUrl,
+        productUrl: detailUrl,
         company: it.company?.name || it.shopName || '1688 공식 인증 공급사',
         starLevel: it.company?.starLevel || 5.0,
         raw: it
       }
-    })
+    }).filter(item => item.id && (item.title || item.titleZh))
 
     // 일괄 한국어 번역 수행
     await translateItemsBatch(items)
@@ -416,7 +431,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
     saveToCache(memorySearchCache, 'euchs_search', cacheKey, formattedResult)
     return formattedResult
   } catch (parseErr) {
-    console.warn('[1688 API] Response parse error, using Mock Fallback:', parseErr)
+    console.warn('[1688 API] Response parse error, using Fallback:', parseErr)
     const mockRes = getMockSearchResults(query, page, options)
     await translateItemsBatch(mockRes.items)
     saveToCache(memorySearchCache, 'euchs_search', cacheKey, mockRes)

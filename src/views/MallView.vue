@@ -1292,7 +1292,11 @@ const loadHomeSections = async () => {
     sectionDefs.map(async (sec) => {
       try {
         const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
-        const items = (res.items || []).slice(0, 8)
+        let items = (res.items || []).slice(0, 8)
+        if (items.length === 0) {
+          const mock = getMockSearchResults(sec.keyword)
+          items = (mock.items || []).slice(0, 8)
+        }
         return { ...sec, items }
       } catch (e) {
         // 429 / 오류 → mock fallback
