@@ -649,91 +649,77 @@
           </div>
 
           <!-- ======================================================== -->
-          <!-- ② 중단: [2. 현지 창고 부가서비스 선택 (VAS)] -->
+          <!-- ② 중단: [2. 현지 창고 부가서비스 신청 (VAS)] (Readonly 잠금) -->
           <!-- ======================================================== -->
           <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-3.5">
             <div class="flex items-center justify-between pb-2 border-b border-gray-100">
               <h4 class="font-black text-gray-900 flex items-center gap-2 text-sm sm:text-base">
-                <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
                 <span>2. 현지 창고 부가서비스 신청 (VAS: Value-Added Services)</span>
               </h4>
-              <span
-                class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border"
-                :class="isOrderEditable ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-slate-100 text-slate-700 border-slate-300'"
-              >
-                {{ isOrderEditable ? '선택 시 현지 물류센터 즉시 지시' : '신청 내역 조회 (Readonly)' }}
+              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1">
+                <i class="fas fa-lock text-[10px]"></i>
+                <span>신청 완료 (지시 확정)</span>
               </span>
             </div>
 
-            <!-- 2-A. 편집 모드 (isOrderEditable) : 인터랙티브 체크박스 카드 그리드 -->
-            <div v-if="isOrderEditable" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-              <label
+            <!-- 6종 부가서비스 카드 그리드 (Readonly / Disabled 고정) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+              <div
                 v-for="vas in VAS_OPTIONS"
                 :key="vas.id"
-                class="flex items-start gap-3 p-3.5 rounded-2xl border transition cursor-pointer select-none relative"
+                class="flex items-start gap-3 p-3.5 rounded-2xl border transition select-none relative pointer-events-none"
                 :class="isVasSelected(vas.id)
-                  ? 'bg-amber-50/70 border-amber-400 text-slate-900 shadow-xs ring-1 ring-amber-400/30'
-                  : 'bg-slate-50/60 border-gray-200 hover:border-gray-300 text-gray-700'"
+                  ? 'bg-emerald-50/70 border-emerald-400 text-slate-900 shadow-xs ring-1 ring-emerald-400/30'
+                  : 'bg-slate-50/50 border-gray-200 opacity-60 text-gray-400'"
               >
+                <!-- 체크박스 (Disabled / Readonly) -->
                 <input
                   type="checkbox"
                   :checked="isVasSelected(vas.id)"
-                  @change="toggleVasService(vas.id)"
-                  class="mt-0.5 w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
+                  disabled
+                  class="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-not-allowed shrink-0 pointer-events-none"
                 />
                 <div class="flex-1 min-w-0 space-y-1">
                   <div class="flex items-center justify-between gap-1.5">
-                    <span class="font-bold text-xs leading-snug" :class="isVasSelected(vas.id) ? 'text-amber-950' : 'text-gray-900'">
+                    <span
+                      class="font-bold text-xs leading-snug"
+                      :class="isVasSelected(vas.id) ? 'text-emerald-950 font-black' : 'text-gray-600 font-medium'"
+                    >
                       {{ vas.name }}
                     </span>
+                    <span
+                      v-if="isVasSelected(vas.id)"
+                      class="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black shrink-0 flex items-center gap-0.5"
+                    >
+                      <span>✓ 신청완료</span>
+                    </span>
+                    <span
+                      v-else
+                      class="px-1.5 py-0.2 rounded bg-gray-100 text-gray-400 text-[9px] font-medium shrink-0"
+                    >
+                      미신청
+                    </span>
                   </div>
-                  <p class="text-[11px] text-gray-500 leading-relaxed line-clamp-2">
+                  <p class="text-[11px] leading-relaxed line-clamp-2" :class="isVasSelected(vas.id) ? 'text-gray-600' : 'text-gray-400'">
                     {{ vas.desc }}
                   </p>
                   <div class="pt-0.5">
-                    <span class="text-[10px] font-mono font-bold" :class="vas.badgeClass || 'text-slate-600'">
+                    <span
+                      class="text-[10px] font-mono font-bold"
+                      :class="isVasSelected(vas.id) ? (vas.badgeClass || 'text-emerald-700') : 'text-gray-400'"
+                    >
                       {{ vas.feeLabel }}
                     </span>
                   </div>
                 </div>
-              </label>
+              </div>
             </div>
 
-            <!-- 2-B. 조회 전용 모드 (isOrderReadonly) : 신청된 배지 목록 노출 + 안내문구 -->
-            <div v-else class="space-y-3">
-              <div class="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-center gap-2">
-                <i class="fas fa-info-circle text-amber-600 shrink-0"></i>
-                <span>※ 이미 견적이 확정/진행 중인 주문으로, 부가서비스 변경은 1:1 담당 매니저에게 문의해 주세요.</span>
-              </div>
-
-              <!-- 신청된 부가서비스가 있을 때 -->
-              <div v-if="getBuyerSelectedVas().length > 0" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                <div
-                  v-for="vas in getBuyerSelectedVas()"
-                  :key="vas.id"
-                  class="p-3.5 rounded-2xl bg-emerald-50/70 border border-emerald-300/80 flex items-start gap-3 shadow-2xs"
-                >
-                  <div class="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center shrink-0 mt-0.5 text-xs font-bold shadow-xs">
-                    <i class="fas fa-check text-[10px]"></i>
-                  </div>
-                  <div class="space-y-0.5 min-w-0 flex-1">
-                    <div class="flex items-center justify-between gap-1.5">
-                      <span class="font-bold text-xs text-emerald-950 block leading-snug">
-                        {{ vas.name }}
-                      </span>
-                    </div>
-                    <span class="text-[10px] font-mono font-bold text-emerald-700">
-                      {{ vas.feeLabel }} · 현장 작업 지시됨
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <!-- 신청된 부가서비스가 없을 때 -->
-              <div v-else class="p-4 rounded-2xl bg-slate-50 border border-gray-200 text-center text-gray-500 font-medium text-xs">
-                <i class="fas fa-shield-check text-slate-400 mr-1.5"></i>
-                <span>신청된 현지 부가서비스 없음 (기본 외관 검수 및 표준 포장으로 진행됩니다)</span>
-              </div>
+            <!-- 하단 안내 문구 -->
+            <div class="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-center gap-2">
+              <i class="fas fa-info-circle text-amber-600 shrink-0"></i>
+              <span>※ 이미 접수 완료된 발주 건입니다. 부가서비스 변경/추가는 1:1 담당 매니저에게 문의해 주세요.</span>
             </div>
           </div>
 
@@ -2166,8 +2152,32 @@ const VAS_OPTIONS = [
 
 function isVasSelected(vasId) {
   if (!activeOrder.value) return false;
-  const list = activeOrder.value.vas_services || activeOrder.value.vasServices || activeOrder.value.details?.vas_services || [];
-  return Array.isArray(list) && list.includes(vasId);
+  const o = activeOrder.value;
+  const list = o.vasServices || o.vas_services || o.vasOptions || o.details?.vasServices || o.details?.vas_services || [];
+  
+  if (Array.isArray(list)) {
+    if (list.includes(vasId)) return true;
+    if ((vasId === 'inspection_precision' || vasId === 'inspect_precision') && (list.includes('inspection_precision') || list.includes('inspect_precision') || list.includes('precision_inspection'))) return true;
+    if ((vasId === 'barcode_label' || vasId === 'barcode') && (list.includes('barcode_label') || list.includes('barcode'))) return true;
+    if ((vasId === 'pallet_wood' || vasId === 'cushion_pack') && (list.includes('pallet_wood') || list.includes('cushion_pack'))) return true;
+    if (vasId === 'fta_co' && list.includes('fta_co')) return true;
+    if (vasId === 'origin_label' && list.includes('origin_label')) return true;
+    if (vasId === 'opp_repack' && list.includes('opp_repack')) return true;
+  } else if (typeof list === 'string' && list.length > 0) {
+    if (list.includes(vasId)) return true;
+  }
+
+  // vasSummary 텍스트 기반 폴백
+  if (typeof o.vasSummary === 'string' && o.vasSummary.length > 0) {
+    if (vasId === 'inspection_precision' && o.vasSummary.includes('정밀')) return true;
+    if (vasId === 'origin_label' && o.vasSummary.includes('원산지')) return true;
+    if (vasId === 'barcode_label' && o.vasSummary.includes('바코드')) return true;
+    if (vasId === 'opp_repack' && o.vasSummary.includes('OPP')) return true;
+    if (vasId === 'fta_co' && (o.vasSummary.includes('FTA') || o.vasSummary.includes('C/O'))) return true;
+    if (vasId === 'pallet_wood' && (o.vasSummary.includes('완충') || o.vasSummary.includes('파렛트'))) return true;
+  }
+
+  return false;
 }
 
 function toggleVasService(vasId) {
