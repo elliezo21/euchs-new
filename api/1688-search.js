@@ -1,8 +1,9 @@
 /**
  * Vercel Serverless Function: /api/1688-search
- * 1688 DataHub RapidAPI 정식 검색 프록시
- * - 수신 파라미터: q, keyword, text 중 존재하는 값을 searchQuery로 확정
- * - RapidAPI item_search 엔드포인트 호출 및 정규화 응답 반환
+ * Otapi 1688 RapidAPI 검색 프록시
+ * - 엔드포인트: BatchSearchItemsFrame (otapi-1688.p.rapidapi.com)
+ * - 응답 구조: Result.Items.Items.Content[] → 상품 배열
+ * - 원본 JSON을 { success: true, data: resData } 형태로 클라이언트에 전달
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -13,7 +14,7 @@ export default async function handler(req, res) {
 
   const rawQ = req.query?.q || req.query?.keyword || req.query?.text || ''
   const searchQuery = String(rawQ).trim()
-  const { page = '1', sort = 'default', price_min = '', price_max = '' } = req.query || {}
+  const { page = '1', frameSize = '40' } = req.query || {}
 
   if (!searchQuery) {
     console.error('[1688-search] Missing search keyword. query:', req.query)
@@ -21,23 +22,25 @@ export default async function handler(req, res) {
   }
 
   const rapidKey = process.env.VITE_RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
-  const rapidHost = process.env.VITE_RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
+  const rapidHost = 'otapi-1688.p.rapidapi.com'
 
   const headers = {
     'x-rapidapi-key': rapidKey,
     'x-rapidapi-host': rapidHost
   }
 
-  console.log(`[1688-search] Executing live item_search for searchQuery="${searchQuery}" page=${page} sort=${sort}`)
+  // framePosition: 페이지 오프셋 (0, 40, 80, ...)
+  const framePosition = (Math.max(1, Number(page)) - 1) * Number(frameSize)
+
+  const targetUrl = new URL(`https://${rapidHost}/BatchSearchItemsFrame`)
+  targetUrl.searchParams.set('language', 'zh')
+  targetUrl.searchParams.set('framePosition', String(framePosition))
+  targetUrl.searchParams.set('frameSize', String(frameSize))
+  targetUrl.searchParams.set('ItemTitle', searchQuery)
+
+  console.log(`[1688-search] Otapi call: ${targetUrl.toString()}`)
 
   try {
-    const targetUrl = new URL(`https://${rapidHost}/item_search`)
-    targetUrl.searchParams.set('q', searchQuery)
-    targetUrl.searchParams.set('page', String(page))
-    targetUrl.searchParams.set('sort', sort || 'default')
-    if (price_min) targetUrl.searchParams.set('price_min', price_min)
-    if (price_max) targetUrl.searchParams.set('price_max', price_max)
-
     const response = await fetch(targetUrl.toString(), { headers })
 
     let data = null
@@ -48,7 +51,8 @@ export default async function handler(req, res) {
       console.error('[1688-search] JSON parse fail. status:', response.status, 'body:', text.slice(0, 300))
     }
 
-    const rawList = data?.result?.resultList || data?.resultList || data?.data?.items || data?.items || data?.data || []
+    // Otapi 응답: data.Result.Items.Items.Content[]
+    const rawList = data?.Result?.Items?.Items?.Content || data?.Result?.Items?.Content || []
 
     return res.status(200).json({
       success: true,
@@ -64,6 +68,7 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: err.message || '1688 search proxy error' })
   }
 }
+
 
 
 

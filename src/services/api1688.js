@@ -275,15 +275,16 @@ export async function search1688(queryZh, page = 1, options = {}) {
 
     if (proxyRes.ok) {
       const result = await proxyRes.json()
-      if (result.success && (result.data || result.result)) {
+      if (result.success) {
+        // Otapi 응답: result.data 에 원본이 들어있음 (Result.Items.Items.Content[])
         data = result.data || result.result || result
-        console.log('[1688 Search] Proxy success:', Object.keys(data || {}).slice(0, 5))
+        console.log('[1688 Search] Proxy success. Otapi keys:', Object.keys(data || {}).slice(0, 5))
       } else if (result.status === 429 || String(result.data?.message || '').includes('exceeded')) {
         isApiError = true
         console.warn('[1688 Search] Proxy quota exceeded')
       } else {
-        data = result.data || result.result || result
-        console.log('[1688 Search] Proxy received response:', result)
+        data = result.data || result
+        console.log('[1688 Search] Proxy response received')
       }
     } else {
       const errBody = await proxyRes.json().catch(() => ({}))
@@ -332,38 +333,36 @@ export async function search1688(queryZh, page = 1, options = {}) {
   // API 응답 데이터가 없는 경우
   if (!data) {
     console.warn(`[1688 API] No response received for "${query}"`)
-    return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
+    return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
   }
 
-  // 응답 데이터 파싱 및 정규화 (1688 DataHub 다계층 실시간 파서)
+  // 응답 데이터 파싱 및 정규화 (Otapi 1688 실시간 파서)
   try {
     const resData = data || {}
-    const resultObj = resData?.result || resData || {}
 
-    const rawList = 
-      resultObj?.resultList || 
-      resData?.resultList || 
-      resultObj?.result?.resultList || 
-      resData?.data?.items || 
-      resData?.items || 
-      (Array.isArray(resData?.data) ? resData.data : []) || 
-      [];
-
-    const base = resultObj?.base || resData?.result?.base || {}
-    const settings = resultObj?.settings || resData?.result?.settings || {}
+    // Otapi 응답 구조: resData.Result.Items.Items.Content[]
+    // 프록시 경유 시: resData.Result.Items.Items.Content[] 또는 resData.result.resultList[]
+    const rawList =
+      resData?.Result?.Items?.Items?.Content ||
+      resData?.Result?.Items?.Content ||
+      resData?.result?.resultList ||
+      resData?.resultList ||
+      resData?.data?.Result?.Items?.Items?.Content ||
+      []
 
     if (!Array.isArray(rawList) || rawList.length === 0) {
       console.warn(`[1688 API] Empty rawList for "${query}"`)
-      return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
+      return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
     }
 
     const items = rawList.map((entry, idx) => {
+      // Otapi 필드 매핑
       const it = entry.item || entry
 
-      // 1688 DataHub 다중 이미지 필드 전수 탐색
-      let rawImage = it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
-                     entry.imageUrl || entry.image || entry.picUrl || entry.pic_url || entry.img || entry.imgUrl || entry.pic ||
-                     it.sku?.def?.imageUrl || it.sku?.def?.image || (Array.isArray(it.images) && it.images[0]) || ''
+      // Otapi 이미지: MainPictureUrl
+      let rawImage = it.MainPictureUrl || it.imageUrl || it.image || it.picUrl ||
+                     it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
+                     (Array.isArray(it.PictureList) && it.PictureList[0]) || ''
 
       let imageUrl = String(rawImage || '').trim()
       if (imageUrl.startsWith('//')) {
@@ -372,25 +371,45 @@ export async function search1688(queryZh, page = 1, options = {}) {
         imageUrl = imageUrl.replace('http://', 'https://')
       }
 
-      let detailUrl = it.itemUrl || it.detailUrl || (it.itemId ? `https://detail.1688.com/offer/${it.itemId}.html` : '')
+      // Otapi 상품 ID: it.Id 또는 it.ItemId
+      const itemId = String(it.Id || it.ItemId || it.itemId || it.offerId || it.id || `item-${Date.now()}-${idx}`)
+
+      let detailUrl = it.ItemUrl || it.itemUrl || it.detailUrl ||
+        (itemId ? `https://detail.1688.com/offer/${itemId}.html` : '')
       if (detailUrl.startsWith('//')) {
         detailUrl = 'https:' + detailUrl
       }
 
-      const priceStr = it.sku?.def?.price || it.price || it.priceInfo?.price || '0'
-      const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
+      // Otapi 가격: QuantityRanges[0].Price.OriginalPrice (위안화)
+      const priceRange = Array.isArray(it.QuantityRanges) ? it.QuantityRanges[0] : null
+      const priceNum = parseFloat(
+        priceRange?.Price?.OriginalPrice ||
+        priceRange?.Price?.ConvertedPriceWithoutSign ||
+        it.Price?.OriginalPrice ||
+        it.Price?.ConvertedPriceWithoutSign ||
+        it.price || '0'
+      ) || 0
 
-      const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '2'
-      const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 2
+      // Otapi MOQ: QuantityRanges[0].MinQuantity 또는 MasterQuantity
+      const minOrder = parseInt(
+        priceRange?.MinQuantity || it.MasterQuantity || it.minOrder || '2', 10
+      ) || 2
 
-      const titleZh = it.title || it.subject || ''
+      // Otapi 판매량: OrderCount 또는 SalesCount
+      const sales = parseInt(it.OrderCount || it.SalesCount || it.sales || 0, 10)
+
+      // Otapi 중국어 제목: it.Title
+      const titleZh = it.Title || it.title || it.subject || ''
+
+      // 공급사: VendorInfo 또는 company
+      const company = it.VendorInfo?.VendorName || it.company?.name || it.shopName || '1688 공식 인증 공급사'
 
       return {
-        id: String(it.itemId || it.offerId || it.id || `item-${Date.now()}-${idx}`),
-        itemId: String(it.itemId || it.offerId || it.id || ''),
+        id: itemId,
+        itemId,
         titleZh,
         titleEn: it.titleEn || '',
-        titleKo: it.titleKo || it.title || it.subject || '',
+        titleKo: it.titleKo || titleZh,
         title: titleZh,
         price: priceNum,
         priceNum: priceNum,
@@ -398,14 +417,14 @@ export async function search1688(queryZh, page = 1, options = {}) {
         priceFormatted: priceNum.toFixed(2),
         moq: minOrder,
         minOrder,
-        sales: parseInt(it.sales || it.monthSold || 0, 10),
+        sales,
         repurchaseRate: it.rePurchaseRate || it.repurchaseRate || 85,
-        imageUrl: imageUrl,
+        imageUrl,
         detailUrl,
         itemUrl: detailUrl,
         productUrl: detailUrl,
-        company: it.company?.name || it.shopName || '1688 공식 인증 공급사',
-        starLevel: it.company?.starLevel || 5.0,
+        company,
+        starLevel: it.company?.starLevel || it.VendorInfo?.StarLevel || 5.0,
         raw: it
       }
     }).filter(item => item.id && (item.title || item.titleZh))
@@ -413,13 +432,14 @@ export async function search1688(queryZh, page = 1, options = {}) {
     // 일괄 한국어 번역 수행
     await translateItemsBatch(items)
 
+    const totalCount = resData?.Result?.Items?.TotalCount || String(rawList.length)
     const formattedResult = {
       rawResponse: data,
       items,
-      page: parseInt(settings.page || String(page), 10),
-      pageSize: parseInt(settings.pageSize || '20', 10),
-      totalResults: base.totalResults || String(items.length),
-      hasMore: base.hasMore === 'true' || base.hasMore === true,
+      page: Number(page),
+      pageSize: 40,
+      totalResults: String(totalCount),
+      hasMore: Number(totalCount) > Number(page) * 40,
       queryZh: query
     }
 
@@ -427,7 +447,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
     return formattedResult
   } catch (parseErr) {
     console.warn('[1688 API] Response parse error:', parseErr)
-    return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
+    return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
   }
 }
 
