@@ -55,12 +55,36 @@ export default async function handler(req, res) {
 
     if (!response.ok) {
       console.error('[1688-search] RapidAPI error status:', response.status, JSON.stringify(data).slice(0, 300))
-    } else {
-      const resultCount = data?.result?.resultList?.length ?? data?.resultList?.length ?? '?'
-      console.log(`[1688-search] OK for q="${q}" | resultList: ${resultCount}개`)
+      return res.status(response.status).json({ success: false, data, status: response.status })
     }
 
+    // ── 내용 레벨 에러 감지 (HTTP 200이지만 code 205 = no results / quota exceeded) ──
+    const apiStatus = data?.result?.status
+    if (apiStatus && (apiStatus.data === 'error' || (apiStatus.code && apiStatus.code !== 200))) {
+      const errCode = apiStatus.code
+      const errMsg = apiStatus.msg ? JSON.stringify(apiStatus.msg) : String(errCode)
+      console.warn(`[1688-search] API content error code=${errCode} for q="${q}": ${errMsg}`)
+
+      // code 205: no results found (검색어에 해당하는 상품 없음 또는 API 쿼터 초과)
+      const isQuotaOrNoResult = errCode === 205 || errCode === 429 ||
+        String(errMsg).toLowerCase().includes('exceeded') ||
+        String(errMsg).toLowerCase().includes('no results')
+
+      return res.status(200).json({
+        success: false,
+        data,
+        apiCode: errCode,
+        apiError: errMsg,
+        isQuotaExceeded: isQuotaOrNoResult,
+        status: response.status
+      })
+    }
+
+    const resultCount = data?.result?.resultList?.length ?? data?.resultList?.length ?? '?'
+    console.log(`[1688-search] OK for q="${q}" | resultList: ${resultCount}개`)
+
     return res.status(response.status).json({ success: response.ok, data, status: response.status })
+
   } catch (err) {
     console.error('[1688-search] Proxy error:', err)
     return res.status(500).json({ success: false, message: err.message || '1688 search server error' })
