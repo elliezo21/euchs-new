@@ -654,10 +654,10 @@
           <div class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-3.5">
             <div class="flex items-center justify-between pb-2 border-b border-gray-100">
               <h4 class="font-black text-gray-900 flex items-center gap-2 text-sm sm:text-base">
-                <span class="w-2.5 h-2.5 rounded-full bg-purple-600"></span>
+                <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
                 <span>2. 현지 창고 부가서비스 신청 (VAS: Value-Added Services)</span>
               </h4>
-              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-200 flex items-center gap-1">
+              <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
                 <i class="fas fa-lock text-[10px]"></i>
                 <span>신청 완료 (지시 확정)</span>
               </span>
@@ -670,44 +670,44 @@
                 :key="vas.id"
                 class="flex items-start gap-3 p-3.5 rounded-2xl border transition select-none relative pointer-events-none"
                 :class="isVasSelected(vas.id)
-                  ? 'bg-emerald-50/70 border-emerald-400 text-slate-900 shadow-xs ring-1 ring-emerald-400/30'
-                  : 'bg-slate-50/50 border-gray-200 opacity-60 text-gray-400'"
+                  ? 'border-blue-500 bg-blue-50/40 text-blue-900 font-semibold shadow-xs ring-1 ring-blue-400/30'
+                  : 'border-gray-200 bg-gray-50/50 text-gray-400 opacity-60'"
               >
                 <!-- 체크박스 (Disabled / Readonly) -->
                 <input
                   type="checkbox"
                   :checked="isVasSelected(vas.id)"
                   disabled
-                  class="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 cursor-not-allowed shrink-0 pointer-events-none"
+                  class="mt-0.5 w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-not-allowed shrink-0 pointer-events-none"
                 />
                 <div class="flex-1 min-w-0 space-y-1">
                   <div class="flex items-center justify-between gap-1.5">
                     <span
                       class="font-bold text-xs leading-snug"
-                      :class="isVasSelected(vas.id) ? 'text-emerald-950 font-black' : 'text-gray-600 font-medium'"
+                      :class="isVasSelected(vas.id) ? 'text-blue-950 font-black' : 'text-gray-600 font-medium'"
                     >
                       {{ vas.name }}
                     </span>
                     <span
                       v-if="isVasSelected(vas.id)"
-                      class="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 text-[10px] font-black shrink-0 flex items-center gap-0.5"
+                      class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-black shrink-0 flex items-center gap-0.5"
                     >
                       <span>✓ 신청완료</span>
                     </span>
                     <span
                       v-else
-                      class="px-1.5 py-0.2 rounded bg-gray-100 text-gray-400 text-[9px] font-medium shrink-0"
+                      class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 text-[9px] font-medium shrink-0"
                     >
                       미신청
                     </span>
                   </div>
-                  <p class="text-[11px] leading-relaxed line-clamp-2" :class="isVasSelected(vas.id) ? 'text-gray-600' : 'text-gray-400'">
+                  <p class="text-[11px] leading-relaxed line-clamp-2" :class="isVasSelected(vas.id) ? 'text-blue-800/80' : 'text-gray-400'">
                     {{ vas.desc }}
                   </p>
                   <div class="pt-0.5">
                     <span
                       class="text-[10px] font-mono font-bold"
-                      :class="isVasSelected(vas.id) ? (vas.badgeClass || 'text-emerald-700') : 'text-gray-400'"
+                      :class="isVasSelected(vas.id) ? (vas.badgeClass || 'text-blue-700') : 'text-gray-400'"
                     >
                       {{ vas.feeLabel }}
                     </span>
@@ -717,8 +717,8 @@
             </div>
 
             <!-- 하단 안내 문구 -->
-            <div class="p-3 bg-amber-50/60 border border-amber-200/80 rounded-xl text-[11px] text-amber-800 flex items-center gap-2">
-              <i class="fas fa-info-circle text-amber-600 shrink-0"></i>
+            <div class="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl text-[11px] text-blue-900 flex items-center gap-2">
+              <i class="fas fa-info-circle text-blue-600 shrink-0"></i>
               <span>※ 이미 접수 완료된 발주 건입니다. 부가서비스 변경/추가는 1:1 담당 매니저에게 문의해 주세요.</span>
             </div>
           </div>
@@ -991,6 +991,12 @@
                     <span class="text-gray-600">6. 수입 부가가치세 (VAT 10% 매입세액공제)</span>
                     <span class="font-mono font-bold text-gray-900">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
                   </div>
+                  <div class="flex items-center justify-between py-1 border-b border-gray-100">
+                    <span class="text-gray-600">7. 현지 부가서비스 작업비 (VAS: 라벨/검수 등)</span>
+                    <span class="font-mono font-bold text-blue-600">
+                      {{ getBuyerSelectedVas().length > 0 ? `${getBuyerSelectedVas().length}개 서비스 신청 (계근 후 2차 합산)` : '기본 외관 검수 (무료)' }}
+                    </span>
+                  </div>
                 </div>
 
                 <!-- 2. CNINSIDER 표준: 1차 결제 vs 2차 결제 분리 안내 박스 -->
@@ -1000,22 +1006,22 @@
                       <i class="fas fa-coins text-blue-600"></i>
                       <span>단계별 분리 정산 안내</span>
                     </span>
-                    <span class="text-[10px] text-blue-700 font-mono">B2B 표준</span>
+                    <span class="text-[10px] text-blue-700 font-mono">B2B 수입 표준</span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-gray-700"><b>1차 결제</b> (상품대금 + 중국택배비 + 수수료):</span>
+                    <span class="text-gray-700"><b>1차 결제 대상</b> (순수 제품대금 + 중국택배비 + 8% 수수료):</span>
                     <span class="font-mono font-black text-blue-800 text-sm">
                       ₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원
                     </span>
                   </div>
                   <div class="flex items-center justify-between">
-                    <span class="text-gray-700"><b>2차 결제</b> (국제물류비 + 관부가세):</span>
+                    <span class="text-gray-700"><b>2차 결제 대상</b> (국제물류비 + 관·부가세 + 부가작업비):</span>
                     <span class="font-mono font-bold text-slate-700">
                       ₩{{ formatNumber(getOrderPaymentStages(activeOrder).secondPaymentKrw) }}원
                     </span>
                   </div>
-                  <p class="text-[10px] text-blue-600/90 leading-tight">
-                    ※ 1차 결제 완료 시 1688 공장 발주가 즉시 진행되며, 2차 비용은 국내 입항 시 정산됩니다.
+                  <p class="text-[10px] text-blue-700/90 leading-tight">
+                    ※ 1차 결제 완료 시 1688 공장 발주가 즉시 진행되며, <b>신청된 부가작업비(VAS)는 이우 창고 계근/검수 완료 시 국제물류비·관부가세와 함께 2차 결제에 합산 청구됩니다.</b>
                   </p>
                 </div>
 
@@ -2238,9 +2244,7 @@ const isOrderReadonly = computed(() => !isOrderEditable.value);
 
 const getBuyerSelectedVas = () => {
   if (!activeOrder.value) return [];
-  const list = activeOrder.value.vas_services || activeOrder.value.vasServices || activeOrder.value.details?.vas_services || [];
-  if (!Array.isArray(list) || list.length === 0) return [];
-  return VAS_OPTIONS.filter(vas => list.includes(vas.id));
+  return VAS_OPTIONS.filter(vas => isVasSelected(vas.id));
 };
 
 // ---------------------------------------------------------
