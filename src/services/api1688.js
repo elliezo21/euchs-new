@@ -1015,17 +1015,18 @@ export async function fetch1688ProductById(offerId) {
       priceRange?.MinQuantity || it.MasterQuantity || rawSku.def?.minOrder || it.minOrder || '2', 10
     ) || 2
 
-    // ─── 3. Otapi Attributes ➔ skuProps 파싱 (러시아어/외국어 사전 정제) ───
+    // ─── 3. Otapi Attributes ➔ skuProps 파싱 (Vid/Pid 중국어 원문 최우선 사용) ───
     let parsedSkuProps = []
     let parsedSkus = []
 
     if (Array.isArray(it.Attributes) && it.Attributes.length > 0) {
-      // Otapi 구성용 속성 그룹화 (PropertyName 기준: 颜色, 尺码, 规格 등)
+      // Otapi 구성용 속성 그룹화 (Pid/PropertyName 기준: 颜色, 尺码, 规格 등)
       const propMap = new Map() // propName -> Map(valName -> imageUrl)
 
       it.Attributes.forEach(attr => {
-        const rawPropName = String(attr.PropertyName || attr.Pid || '').trim()
-        const rawValName = String(attr.Value || attr.Vid || '').trim()
+        // 중국어 원문인 Pid / Vid를 1순위로 추출, 없으면 PropertyName / Value 사용
+        const rawPropName = String(attr.Pid || attr.PropertyName || '').trim()
+        const rawValName = String(attr.Vid || attr.Value || '').trim()
         if (!rawPropName || !rawValName) return
 
         const propName = cleanForeignText(rawPropName) || rawPropName
@@ -1036,7 +1037,7 @@ export async function fetch1688ProductById(offerId) {
           rawPropName.includes('色') || rawPropName.includes('尺') ||
           rawPropName.includes('规') || rawPropName.includes('码') ||
           rawPropName.includes('款') || rawPropName.includes('型') ||
-          /Цвет|Размер|Модель|Стиль/i.test(rawPropName)
+          /Цвет|Размер|Модель|Стиль|Color|Size/i.test(rawPropName)
 
         if (isConfig) {
           if (!propMap.has(propName)) {
@@ -1063,13 +1064,14 @@ export async function fetch1688ProductById(offerId) {
       })
     }
 
-    // ─── 4. Otapi ConfiguredItems ➔ skus 파싱 ────────────────────────────
+    // ─── 4. Otapi ConfiguredItems ➔ skus 파싱 (Vid 원문 우선) ───────────────
     if (Array.isArray(it.ConfiguredItems) && it.ConfiguredItems.length > 0) {
       parsedSkus = it.ConfiguredItems.map((c, cIdx) => {
         const configs = Array.isArray(c.Configurators) ? c.Configurators : []
         const colorCfg = configs.find(cfg => String(cfg.Pid || '').includes('色') || /Цвет|Color/i.test(cfg.Pid || '')) || configs[0]
         const sizeCfg = configs.find(cfg => cfg !== colorCfg) || (configs.length > 1 ? configs[1] : null)
 
+        // Vid(중국어 원문) 1순위
         const rawColorName = colorCfg?.Vid || colorCfg?.Value || ''
         const rawSizeName = sizeCfg?.Vid || sizeCfg?.Value || ''
 
@@ -1077,7 +1079,7 @@ export async function fetch1688ProductById(offerId) {
         const sizeName = cleanForeignText(rawSizeName) || rawSizeName
 
         // 해당 색상의 썸네일 이미지 찾기
-        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => (a.Value === rawColorName || a.Value === colorName) && a.ImageUrl) : null
+        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => (a.Vid === rawColorName || a.Value === rawColorName || a.Value === colorName) && a.ImageUrl) : null
         const skuImg = attrMatch?.ImageUrl || imageUrl
 
         const skuPrice = parseFloat(
