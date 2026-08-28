@@ -590,7 +590,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById } from '../services/api1688'
+import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 
 const props = defineProps({
@@ -730,7 +730,8 @@ const firstPropName = computed(() => {
             raw.skuProps?.[0]?.prop || raw.skuProps?.[0]?.propKo ||
             raw.sku?.skuProps?.[0]?.prop || raw.sku?.skuProps?.[0]?.propName ||
             props.product?.skuProps?.[0]?.prop || props.product?.skuProps?.[0]?.propKo
-  return (p && String(p).trim()) ? String(p).trim() : '옵션'
+  const cleaned = cleanForeignText(p)
+  return (cleaned && String(cleaned).trim()) ? String(cleaned).trim() : '색상/옵션'
 })
 
 const secondPropName = computed(() => {
@@ -740,7 +741,8 @@ const secondPropName = computed(() => {
             raw.skuProps?.[1]?.prop || raw.skuProps?.[1]?.propKo ||
             raw.sku?.skuProps?.[1]?.prop || raw.sku?.skuProps?.[1]?.propName ||
             props.product?.skuProps?.[1]?.prop || props.product?.skuProps?.[1]?.propKo
-  return (p && String(p).trim()) ? String(p).trim() : '규격/사이즈'
+  const cleaned = cleanForeignText(p)
+  return (cleaned && String(cleaned).trim()) ? String(cleaned).trim() : '사이즈/규격'
 })
 
 // ----------------------------------------------------
@@ -844,9 +846,10 @@ const colorOptions = computed(() => {
 
   if (skuPropsArr?.[0] && Array.isArray(skuPropsArr[0].values) && skuPropsArr[0].values.length > 0) {
     const list = skuPropsArr[0].values.map(v => {
-      const name = typeof v === 'string' ? v : (v.name || v.nameKo || v.nameZh || v.value || v.text || '')
+      const name = typeof v === 'string' ? v : (v.nameKo || v.name || v.nameZh || v.value || v.text || '')
+      const cleanedName = cleanForeignText(name) || name
       const img = typeof v === 'object' ? (v.imageUrl || v.image || v.imgUrl || v.picUrl || '') : ''
-      return { name: String(name).trim(), imageUrl: img || mainImg }
+      return { name: String(cleanedName).trim(), imageUrl: img || mainImg }
     }).filter(opt => opt.name && opt.name !== 'undefined' && opt.name !== 'null')
     if (list.length > 0) {
       console.debug('[colorOptions] Branch 1 (skuProps[0].values):', list.length, 'items')
@@ -860,9 +863,10 @@ const colorOptions = computed(() => {
     : (Array.isArray(props.product?.colors) && props.product.colors.length > 0 ? props.product.colors : null)
   if (directColors) {
     const list = directColors.map(c => {
-      const name = typeof c === 'string' ? c : (c.name || c.nameKo || c.value || '')
+      const name = typeof c === 'string' ? c : (c.nameKo || c.name || c.value || '')
+      const cleanedName = cleanForeignText(name) || name
       const img = typeof c === 'object' ? (c.imageUrl || c.image || '') : ''
-      return { name: String(name).trim(), imageUrl: img || mainImg }
+      return { name: String(cleanedName).trim(), imageUrl: img || mainImg }
     }).filter(opt => opt.name && opt.name !== 'undefined' && opt.name !== 'null')
     if (list.length > 0) {
       console.debug('[colorOptions] Branch 2 (colors array):', list.length, 'items')
@@ -874,9 +878,10 @@ const colorOptions = computed(() => {
   const rawSP = raw.skuProps || raw.sku?.skuProps || raw.sku_props || props.product?.raw?.skuProps
   if (Array.isArray(rawSP) && rawSP.length > 0 && Array.isArray(rawSP[0]?.values) && rawSP[0].values.length > 0) {
     const list = rawSP[0].values.map(v => {
-      const name = typeof v === 'string' ? v : (v.name || v.nameKo || v.nameZh || v.value || v.text || '')
+      const name = typeof v === 'string' ? v : (v.nameKo || v.name || v.nameZh || v.value || v.text || '')
+      const cleanedName = cleanForeignText(name) || name
       const img = typeof v === 'object' ? (v.imageUrl || v.image || v.imgUrl || v.picUrl || '') : ''
-      return { name: String(name).trim(), imageUrl: img || mainImg }
+      return { name: String(cleanedName).trim(), imageUrl: img || mainImg }
     }).filter(opt => opt.name && opt.name !== 'undefined' && opt.name !== 'null')
     if (list.length > 0) {
       console.debug('[colorOptions] Branch 3 (raw.skuProps[0].values):', list.length, 'items')
@@ -894,7 +899,8 @@ const colorOptions = computed(() => {
   if (skusArr.length > 0) {
     const seen = new Map()
     skusArr.forEach(s => {
-      const c = s.color || s.propName || s.name || s.colorName || ''
+      const rawC = s.color || s.propName || s.name || s.colorName || ''
+      const c = cleanForeignText(rawC) || rawC
       if (c && !seen.has(c)) seen.set(c, s.imageUrl || s.image || mainImg)
     })
     if (seen.size > 0) {
@@ -924,8 +930,9 @@ const sizeOptions = computed(() => {
 
   if (skuProps && skuProps[1] && Array.isArray(skuProps[1].values) && skuProps[1].values.length > 0) {
     const list = skuProps[1].values.map(v => {
-      const name = typeof v === 'string' ? v : (v.name || v.nameKo || v.nameZh || v.value || v.text || '')
-      return String(name).trim()
+      const name = typeof v === 'string' ? v : (v.nameKo || v.name || v.nameZh || v.value || v.text || '')
+      const cleaned = cleanForeignText(name) || name
+      return String(cleaned).trim()
     }).filter(name => name && name !== 'undefined' && name !== 'null')
 
     if (list.length > 0) return list
@@ -939,7 +946,8 @@ const sizeOptions = computed(() => {
   if (directSizes) {
     const list = directSizes.map(s => {
       const name = typeof s === 'string' ? s : (s.name || s.value || '')
-      return String(name).trim()
+      const cleaned = cleanForeignText(name) || name
+      return String(cleaned).trim()
     }).filter(Boolean)
     if (list.length > 0) return list
   }
@@ -948,8 +956,9 @@ const sizeOptions = computed(() => {
   const rawSkuProps = raw.skuProps || raw.sku?.skuProps || raw.sku_props || props.product?.raw?.skuProps
   if (Array.isArray(rawSkuProps) && rawSkuProps.length > 1 && Array.isArray(rawSkuProps[1]?.values) && rawSkuProps[1].values.length > 0) {
     const list = rawSkuProps[1].values.map(v => {
-      const name = typeof v === 'string' ? v : (v.name || v.nameKo || v.nameZh || v.value || v.text || '')
-      return String(name).trim()
+      const name = typeof v === 'string' ? v : (v.nameKo || v.name || v.nameZh || v.value || v.text || '')
+      const cleaned = cleanForeignText(name) || name
+      return String(cleaned).trim()
     }).filter(name => name && name !== 'undefined' && name !== 'null')
 
     if (list.length > 0) return list

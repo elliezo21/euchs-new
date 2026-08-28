@@ -18,8 +18,107 @@ const getEnv = (key, fallback = '') => {
 
 export const CONFIG = {
   RAPIDAPI_KEY: getEnv('RAPIDAPI_KEY', '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'),
-  RAPIDAPI_HOST: getEnv('RAPIDAPI_HOST', '1688-datahub.p.rapidapi.com'),
+  RAPIDAPI_HOST: getEnv('RAPIDAPI_HOST', 'otapi-1688.p.rapidapi.com'),
   DEEPL_API_KEY: getEnv('DEEPL_API_KEY', 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'),
+}
+
+// ========================================================
+// 🇷🇺 러시아어 및 다국어 ➔ 한국어 매핑 사전 & 정제 엔진
+// ========================================================
+export const RU_KO_DICT = {
+  // 속성명
+  'цвет': '색상',
+  'размер': '사이즈',
+  'спецификация': '규격',
+  'модель': '모델',
+  'стиль': '스타일',
+  'материал': '소재',
+  'color': '색상',
+  'size': '사이즈',
+  'spec': '규격',
+
+  // 기본 색상
+  'белый': '화이트',
+  'черный': '블랙',
+  'серый': '그레이',
+  'красный': '레드',
+  'синий': '블루',
+  'голубой': '스카이블루',
+  'зеленый': '그린',
+  'желтый': '옐로우',
+  'розовый': '핑크',
+  'фиолетовый': '퍼플',
+  'бежевый': '베이지',
+  'коричневый': '브라운',
+  'оранжевый': '오렌지',
+  'хаки': '카키',
+  'темно-серый': '차콜/다크그레이',
+  'темно-синий': '네이비',
+  'золотой': '골드',
+  'серебряный': '실버',
+  'кофейный': '커피/브라운',
+  'кремовый': '크림/아이보리',
+  'молочный': '밀키 화이트',
+  'абрикосовый': '살구/애프리콧',
+  'мятный': '민트',
+  'бордовый': '와인/버건디',
+
+  // 모델 / 규격 수식어
+  'стандарт': '기본형(표준)',
+  'стандартный': '기본형(표준)',
+  'удлиненный': '롱(길이추가)',
+  'длинный': '롱',
+  'короткий': '숏',
+  'с молнией': '지퍼형',
+  'без молнии': '기본형',
+  'большой размер': '빅사이즈',
+  'маленький': '소형',
+  'средний': '중형',
+  'большой': '대형',
+  'плю스': '플러스',
+  'набор': '세트',
+  'пара': '켤레',
+  'штука': '개',
+  'летняя': '여름용',
+  'зимняя': '겨울용',
+  'осенняя': '가을용',
+  'весенняя': '봄용'
+}
+
+/**
+ * 러시아어 / 다국어 텍스트 사전 기반 1차 치환 및 정제 함수
+ */
+export function cleanForeignText(str) {
+  if (!str || typeof str !== 'string') return ''
+  let cleaned = str.trim()
+
+  // 1. "Цвет :" 또는 "Размер :" 콜론 뒤 러시아어 병기 분리 (예: "拉链卡其-加长款 Цвет : Молния...")
+  if (/Цвет\s*:/i.test(cleaned) || /Размер\s*:/i.test(cleaned)) {
+    const parts = cleaned.split(/(?:Цвет|Размер)\s*:/i)
+    if (parts[0] && parts[0].trim()) {
+      cleaned = parts[0].trim()
+    }
+  }
+
+  // 2. 단독 속성명 치환
+  const lower = cleaned.toLowerCase()
+  if (lower === 'цвет' || lower === 'color') return '색상'
+  if (lower === 'размер' || lower === 'size') return '사이즈'
+  if (lower === 'спецификация' || lower === 'spec') return '규격'
+
+  // 3. 사전 단어 치환
+  if (/[\u0400-\u04FF]/i.test(cleaned)) {
+    for (const [ru, ko] of Object.entries(RU_KO_DICT)) {
+      if (lower === ru) return ko
+      const reg = new RegExp(`\\b${ru}\\b`, 'gi')
+      cleaned = cleaned.replace(reg, ko)
+    }
+  }
+
+  // 4. "颜色 Цвет" 형태 제거
+  cleaned = cleaned.replace(/\s*Цвет\s*/gi, '').replace(/\s*Размер\s*/gi, '').trim()
+
+  return cleaned
 }
 
 // ========================================================
@@ -916,7 +1015,7 @@ export async function fetch1688ProductById(offerId) {
       priceRange?.MinQuantity || it.MasterQuantity || rawSku.def?.minOrder || it.minOrder || '2', 10
     ) || 2
 
-    // ─── 3. Otapi Attributes ➔ skuProps 파싱 ─────────────────────────────
+    // ─── 3. Otapi Attributes ➔ skuProps 파싱 (러시아어/외국어 사전 정제) ───
     let parsedSkuProps = []
     let parsedSkus = []
 
@@ -925,15 +1024,19 @@ export async function fetch1688ProductById(offerId) {
       const propMap = new Map() // propName -> Map(valName -> imageUrl)
 
       it.Attributes.forEach(attr => {
-        const propName = String(attr.PropertyName || attr.Pid || '').trim()
-        const valName = String(attr.Value || attr.Vid || '').trim()
-        if (!propName || !valName) return
+        const rawPropName = String(attr.PropertyName || attr.Pid || '').trim()
+        const rawValName = String(attr.Value || attr.Vid || '').trim()
+        if (!rawPropName || !rawValName) return
+
+        const propName = cleanForeignText(rawPropName) || rawPropName
+        const valName = cleanForeignText(rawValName) || rawValName
 
         // 구성자 속성이거나 색상/사이즈/규격 관련 속성
         const isConfig = attr.IsConfigurator ||
-          propName.includes('色') || propName.includes('尺') ||
-          propName.includes('规') || propName.includes('码') ||
-          propName.includes('款') || propName.includes('型')
+          rawPropName.includes('色') || rawPropName.includes('尺') ||
+          rawPropName.includes('规') || rawPropName.includes('码') ||
+          rawPropName.includes('款') || rawPropName.includes('型') ||
+          /Цвет|Размер|Модель|Стиль/i.test(rawPropName)
 
         if (isConfig) {
           if (!propMap.has(propName)) {
@@ -950,10 +1053,10 @@ export async function fetch1688ProductById(offerId) {
       propMap.forEach((valMap, propName) => {
         parsedSkuProps.push({
           prop: propName,
-          propKo: '',
+          propKo: propName,
           values: [...valMap.entries()].map(([name, img]) => ({
             name,
-            nameKo: '',
+            nameKo: name,
             imageUrl: img
           }))
         })
@@ -964,14 +1067,17 @@ export async function fetch1688ProductById(offerId) {
     if (Array.isArray(it.ConfiguredItems) && it.ConfiguredItems.length > 0) {
       parsedSkus = it.ConfiguredItems.map((c, cIdx) => {
         const configs = Array.isArray(c.Configurators) ? c.Configurators : []
-        const colorCfg = configs.find(cfg => String(cfg.Pid || '').includes('色')) || configs[0]
+        const colorCfg = configs.find(cfg => String(cfg.Pid || '').includes('色') || /Цвет|Color/i.test(cfg.Pid || '')) || configs[0]
         const sizeCfg = configs.find(cfg => cfg !== colorCfg) || (configs.length > 1 ? configs[1] : null)
 
-        const colorName = colorCfg?.Vid || colorCfg?.Value || ''
-        const sizeName = sizeCfg?.Vid || sizeCfg?.Value || ''
+        const rawColorName = colorCfg?.Vid || colorCfg?.Value || ''
+        const rawSizeName = sizeCfg?.Vid || sizeCfg?.Value || ''
+
+        const colorName = cleanForeignText(rawColorName) || rawColorName
+        const sizeName = cleanForeignText(rawSizeName) || rawSizeName
 
         // 해당 색상의 썸네일 이미지 찾기
-        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => a.Value === colorName && a.ImageUrl) : null
+        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => (a.Value === rawColorName || a.Value === colorName) && a.ImageUrl) : null
         const skuImg = attrMatch?.ImageUrl || imageUrl
 
         const skuPrice = parseFloat(
@@ -994,22 +1100,25 @@ export async function fetch1688ProductById(offerId) {
     // 기존 1688 DataHub skuProps / rawSkus 폴백 (Otapi에서 안 나온 경우)
     if (parsedSkuProps.length === 0 && Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
       parsedSkuProps = rawSkuProps.map(p => {
-        const propName = p.prop || p.propKo || p.propName || p.name || ''
+        const propName = cleanForeignText(p.prop || p.propKo || p.propName || p.name || '')
         const rawVals = Array.isArray(p.values) ? p.values : []
-        const values = rawVals.map(v => ({
-          name: typeof v === 'string' ? v : (v.name || v.value || ''),
-          nameKo: '',
-          imageUrl: typeof v === 'object' ? (v.imageUrl || '') : ''
-        })).filter(v => v.name)
-        return { prop: propName, propKo: '', values }
+        const values = rawVals.map(v => {
+          const valName = cleanForeignText(typeof v === 'string' ? v : (v.name || v.value || ''))
+          return {
+            name: valName,
+            nameKo: valName,
+            imageUrl: typeof v === 'object' ? (v.imageUrl || '') : ''
+          }
+        }).filter(v => v.name)
+        return { prop: propName, propKo: propName, values }
       }).filter(p => p.values.length > 0)
     }
 
     if (parsedSkus.length === 0 && Array.isArray(rawSkus) && rawSkus.length > 0) {
       parsedSkus = rawSkus.map(s => ({
         skuId: s.skuId || s.id || '',
-        color: s.color || s.propName || '',
-        size: s.size || s.spec || '',
+        color: cleanForeignText(s.color || s.propName || ''),
+        size: cleanForeignText(s.size || s.spec || ''),
         price: parseFloat(s.price || priceNum),
         imageUrl: s.imageUrl || imageUrl,
         stock: parseInt(s.stock || s.quantity || '999', 10)
@@ -1088,13 +1197,17 @@ export async function fetch1688ProductById(offerId) {
       if (s.size) textsToTranslate.push(s.size)
     })
 
-    // 실제 중국어 유니코드만 번역 대상으로 필터 (한국어·일본어 등 비ASCII 문자 포함 오역 방지)
-    const uniqueTexts = [...new Set(textsToTranslate.filter(t => typeof t === 'string' && t.trim() && /[\u4e00-\u9fff\u3400-\u4dbf]/.test(t)))]
+    // 중국어(\u4e00-\u9fff), 키릴/러시아어(\u0400-\u04ff), 비한글 외국어 포함 문자열 번역 대상으로 필터
+    const uniqueTexts = [...new Set(textsToTranslate.filter(t => {
+      if (typeof t !== 'string' || !t.trim()) return false
+      // 한글만으로 되어 있는 경우는 제외, 외국어(중국어, 러시아어, 영문 등)가 포함된 경우 번역 대상
+      return /[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04FF]/.test(t) || /[a-zA-Z]{3,}/.test(t)
+    }))]
 
     let titleKo = it.titleKo || ''
     if (uniqueTexts.length > 0) {
       try {
-        const transResult = await translateText(uniqueTexts, 'KO', 'ZH')
+        const transResult = await translateText(uniqueTexts, 'KO')
         const transList = Array.isArray(transResult) ? transResult : [transResult]
         const transMap = {}
         uniqueTexts.forEach((orig, idx) => {
@@ -1128,6 +1241,21 @@ export async function fetch1688ProductById(offerId) {
         console.debug('[fetch1688ProductById] Translation notice:', e.message)
       }
     }
+
+    // 2차 잔여 러시아어/외국어 사전 정제 보정
+    parsedSkuProps.forEach(p => {
+      p.prop = cleanForeignText(p.prop) || p.prop
+      p.propKo = cleanForeignText(p.propKo) || p.propKo
+      p.values.forEach(v => {
+        v.name = cleanForeignText(v.name) || v.name
+        v.nameKo = cleanForeignText(v.nameKo) || v.nameKo
+      })
+    })
+
+    parsedSkus.forEach(s => {
+      s.color = cleanForeignText(s.color) || s.color
+      s.size = cleanForeignText(s.size) || s.size
+    })
 
     const normalizedProduct = {
       id: idStr,
