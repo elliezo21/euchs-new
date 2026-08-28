@@ -1029,7 +1029,7 @@
     />
 
     <!-- ======================================================== -->
-    <!-- 6. B2B AUTH GUARD MODAL (화면 중앙 커스텀 B2B 잠금 안내 팝업) -->
+    <!-- B2B 비회원 전용 상품 열람 안내 모달 (Auth Guard Modal) -->
     <!-- ======================================================== -->
     <teleport to="body">
       <transition
@@ -1047,7 +1047,7 @@
           @keydown.esc="closeB2BGuard"
         >
           <div
-            class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8 text-center text-slate-800 animate-fade-in"
+            class="relative w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-100 p-6 sm:p-8 text-center text-slate-800 animate-fade-in space-y-5"
             role="dialog"
             aria-modal="true"
           >
@@ -1062,80 +1062,50 @@
             </button>
 
             <!-- 1. 자물쇠 아이콘 -->
-            <div class="w-16 h-16 rounded-3xl bg-gradient-to-tr from-amber-500 to-orange-400 text-white flex items-center justify-center mx-auto text-2xl shadow-lg shadow-orange-500/30 mb-4">
-              <i class="fas fa-lock"></i>
+            <div class="w-16 h-16 rounded-3xl bg-amber-50 border border-amber-200 text-amber-500 flex items-center justify-center mx-auto text-2xl shadow-inner">
+              🔒
             </div>
 
-            <!-- 2. 모달 타이틀 -->
-            <div class="space-y-1 pb-3">
-              <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-rose-50 text-rose-600 border border-rose-200 text-xs font-black">
-                <i class="fas fa-shield-alt"></i> B2B 도매 회원 전용
+            <!-- 2. 모달 타이틀 & 안내 문구 -->
+            <div class="space-y-2">
+              <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-black tracking-wide">
+                B2B 수입대행 회원 전용
               </span>
-              <h3 class="text-xl font-black text-slate-900 tracking-tight pt-1">
-                B2B 사업자 전용 안내
+              <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight pt-0.5">
+                B2B 회원 전용 서비스
               </h3>
+              <p class="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-xs mx-auto">
+                1688 실시간 도매 단가 및 상품 상세 정보는 회원 전용 서비스입니다.<br />
+                로그인이나 회원가입 후 편리하게 이용해 보세요.
+              </p>
             </div>
 
-            <!-- 3. 본문 안내 문구 -->
-            <p v-if="b2bGuardType === 'guest'" class="text-xs sm:text-sm text-slate-600 leading-relaxed pb-6">
-              🔒 1688 도매 단가 열람 및 대량 소싱(추가 상품 조회)은 <strong>사업자 회원 전용</strong>입니다.<br class="hidden sm:inline" />
-              로그인이나 B2B 회원가입 후 이용해 주세요.
-            </p>
-            <p v-else class="text-xs sm:text-sm text-slate-600 leading-relaxed pb-6">
-              ⚠️ 사업자정보(사업자번호/통관부호)를 등록한 <strong>인증 바이어만</strong> 상세 도매 단가 열람 및 추가 상품 조회가 가능합니다.<br class="hidden sm:inline" />
-              사업자 정보를 등록하고 도매몰을 이용해 보세요.
-            </p>
-
-            <!-- 4. 하단 버튼 액션 그룹 -->
-            <div v-if="b2bGuardType === 'guest'" class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <!-- 3. 하단 버튼 액션 그룹 -->
+            <div class="space-y-2.5 pt-1">
               <button
                 type="button"
                 @click="handleGuardAction('login')"
-                class="w-full py-3 px-4 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
+                class="w-full py-3.5 px-4 rounded-2xl bg-slate-900 hover:bg-black text-white font-black text-xs sm:text-sm shadow-md transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
                 <i class="fas fa-key text-xs"></i>
-                <span>로그인하러 가기</span>
+                <span>🔑 로그인하러 가기</span>
               </button>
 
               <button
                 type="button"
                 @click="handleGuardAction('signup')"
-                class="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-orange-500 hover:from-rose-700 hover:to-orange-600 text-white font-bold text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
+                class="w-full py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-slate-950 font-black text-xs sm:text-sm shadow-md transition active:scale-95 flex items-center justify-center gap-2 cursor-pointer"
               >
-                <i class="fas fa-user-plus text-xs"></i>
-                <span>B2B 사업자 회원가입</span>
+                <i class="fas fa-bolt text-xs text-slate-900"></i>
+                <span>⚡ 3초 간편 회원가입</span>
               </button>
             </div>
 
-            <div v-else class="space-y-2">
-              <button
-                type="button"
-                @click="handleGuardAction('business_verify')"
-                class="w-full py-3.5 px-4 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md transition active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <i class="fas fa-building text-sm"></i>
-                <span>B2B 사업자 정보 바로 등록하기</span>
-              </button>
-
-              <button
-                type="button"
-                @click="goToAccountSettings"
-                class="w-full py-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs shadow-xs transition active:scale-[0.98] flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <i class="fas fa-cog text-xs text-slate-500"></i>
-                <span>마이페이지 계정 설정에서 등록</span>
-              </button>
-            </div>
-
-            <!-- 하단 닫기 텍스트 링크 -->
-            <div class="pt-4">
-              <button
-                type="button"
-                @click="closeB2BGuard"
-                class="text-xs text-slate-400 hover:text-slate-600 underline font-medium cursor-pointer"
-              >
-                다음에 하기
-              </button>
+            <!-- 4. 하단 부가 혜택 안내 -->
+            <div class="pt-3 border-t border-gray-100 text-[11px] text-gray-400 font-medium flex items-center justify-center gap-3">
+              <span>✓ 실시간 DDP 견적</span>
+              <span>✓ 한-중 FTA C/O 대행</span>
+              <span>✓ 이우 현지 정밀 검수</span>
             </div>
           </div>
         </div>
@@ -1883,9 +1853,9 @@ const goToAccountSettings = () => {
   router.push('/dashboard/account?tab=pccc')
 }
 
-// 사업자 인증 완료 시 방금 누른 상품 상세 모달 자동 오픈
+// 로그인 또는 인증 완료 시 방금 누른 상품 상세 모달 자동 오픈
 const checkAndResumePendingProduct = async () => {
-  if (isUserBusinessVerified(currentUser.value)) {
+  if (isLoggedIn.value) {
     closeB2BGuard()
     if (pendingProductToOpen.value) {
       const p = pendingProductToOpen.value
@@ -1900,19 +1870,20 @@ const checkAndResumePendingProduct = async () => {
 }
 
 // ----------------------------------------------------
-// 상품 상세 모달 오픈 (로그인 회원 전체 개방)
+// 상품 상세 모달 오픈 (비로그인 시 B2B 안내 모달, 로그인 회원 전체 개방)
 // ----------------------------------------------------
 const openProductModal = (item) => {
-  pendingProductToOpen.value = null
-  pendingOfferIdToOpen.value = null
-
-  // 1. 비로그인 상태 차단 -> 로그인 모달 오픈
+  // 1. 비로그인 상태 차단 -> B2B 회원 전용 안내 모달 오픈
   if (!isLoggedIn.value) {
-    openLoginModal('login')
+    pendingProductToOpen.value = item
+    pendingOfferIdToOpen.value = null
+    openB2BGuard('guest')
     return
   }
 
-  // 2. 로그인된 모든 회원 (사업자 인증 여부 불문) -> 즉시 상세 모달 정상 오픈
+  // 2. 로그인된 모든 회원 -> 즉시 상세 모달 정상 오픈
+  pendingProductToOpen.value = null
+  pendingOfferIdToOpen.value = null
   selectedModalProduct.value = item
 }
 
@@ -1925,16 +1896,17 @@ const handleModalCartAdded = (savedItem) => {
 // 1688 Direct OfferId Modal Opener
 // ----------------------------------------------------
 const openDetailModalById = async (offerId) => {
-  pendingOfferIdToOpen.value = null
-  pendingProductToOpen.value = null
-
-  // 1. 비로그인 상태 차단 -> 로그인 모달 오픈
+  // 1. 비로그인 상태 차단 -> B2B 회원 전용 안내 모달 오픈
   if (!isLoggedIn.value) {
-    openLoginModal('login')
+    pendingOfferIdToOpen.value = offerId
+    pendingProductToOpen.value = null
+    openB2BGuard('guest')
     return
   }
 
   // 2. 로그인된 모든 회원 -> 1688 상세 정보 조회 후 모달 오픈
+  pendingOfferIdToOpen.value = null
+  pendingProductToOpen.value = null
   isLoading.value = true
   errorMessage.value = ''
 
