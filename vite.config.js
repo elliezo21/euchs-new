@@ -137,32 +137,31 @@ function lab1688Plugin(env) {
           return
         }
 
-        // 2. 1688 DataHub 검색 프록시
+        // 2. Otapi 1688 검색 프록시
         if (req.url?.startsWith('/api/1688-search') && req.method === 'GET') {
           try {
             const reqUrl = new URL(req.url, 'http://localhost:5173')
-            const q = reqUrl.searchParams.get('q') || ''
+            const rawQ = reqUrl.searchParams.get('q') || reqUrl.searchParams.get('keyword') || reqUrl.searchParams.get('text') || ''
+            const q = String(rawQ).trim()
             const page = reqUrl.searchParams.get('page') || '1'
-            const sort = reqUrl.searchParams.get('sort') || 'default'
-            const priceMin = reqUrl.searchParams.get('price_min') || ''
-            const priceMax = reqUrl.searchParams.get('price_max') || ''
+            const frameSize = reqUrl.searchParams.get('frameSize') || '40'
 
-            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || ''
-            const rapidHost = env.VITE_RAPIDAPI_HOST || env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
+            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
+            const rapidHost = 'otapi-1688.p.rapidapi.com'
 
-            if (!rapidKey) {
-              res.statusCode = 500
+            if (!q) {
+              res.statusCode = 400
               res.setHeader('Content-Type', 'application/json; charset=utf-8')
-              res.end(JSON.stringify({ success: false, message: 'RAPIDAPI_KEY가 설정되지 않았습니다.' }))
+              res.end(JSON.stringify({ success: false, message: '검색 키워드(q)가 누락되었습니다.' }))
               return
             }
 
-            const targetUrl = new URL(`https://${rapidHost}/item_search`)
-            targetUrl.searchParams.set('q', q)
-            targetUrl.searchParams.set('page', page)
-            if (sort && sort !== 'default') targetUrl.searchParams.set('sort', sort)
-            if (priceMin) targetUrl.searchParams.set('price_min', priceMin)
-            if (priceMax) targetUrl.searchParams.set('price_max', priceMax)
+            const framePosition = (Math.max(1, Number(page)) - 1) * Number(frameSize)
+            const targetUrl = new URL(`https://${rapidHost}/BatchSearchItemsFrame`)
+            targetUrl.searchParams.set('language', 'zh')
+            targetUrl.searchParams.set('framePosition', String(framePosition))
+            targetUrl.searchParams.set('frameSize', String(frameSize))
+            targetUrl.searchParams.set('ItemTitle', q)
 
             const response = await fetch(targetUrl.toString(), {
               headers: {
@@ -172,9 +171,15 @@ function lab1688Plugin(env) {
             })
 
             const data = await response.json()
+            const rawList = data?.Result?.Items?.Items?.Content || data?.Result?.Items?.Content || []
             res.statusCode = response.status
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
+            res.end(JSON.stringify({
+              success: response.ok,
+              data: data,
+              result: { resultList: Array.isArray(rawList) ? rawList : [] },
+              status: response.status
+            }))
           } catch (err) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -183,18 +188,16 @@ function lab1688Plugin(env) {
           return
         }
 
-        // 3. 1688 DataHub 상품 상세 프록시
-        if (req.url?.startsWith('/api/1688-detail') && req.method === 'GET') {
+        // 3. Otapi 1688 상품 상세 프록시 (/api/1688-item-detail 및 /api/1688-detail 모두 지원)
+        if ((req.url?.startsWith('/api/1688-item-detail') || req.url?.startsWith('/api/1688-detail')) && req.method === 'GET') {
           try {
             const reqUrl = new URL(req.url, 'http://localhost:5173')
-            // 다양한 파라미터 키 수용
             const rawId = reqUrl.searchParams.get('itemId') ||
+                          reqUrl.searchParams.get('id') ||
                           reqUrl.searchParams.get('offerId') ||
-                          reqUrl.searchParams.get('num_iid') ||
-                          reqUrl.searchParams.get('id') || ''
-            const itemId = String(rawId).trim()
+                          reqUrl.searchParams.get('num_iid') || ''
+            let itemId = String(rawId).trim()
 
-            // 빈값 / "undefined" / "null" 방어
             if (!itemId || itemId === 'undefined' || itemId === 'null') {
               console.error('[vite proxy 1688-detail] Missing itemId. URL:', req.url)
               res.statusCode = 400
@@ -203,18 +206,16 @@ function lab1688Plugin(env) {
               return
             }
 
-            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || ''
-            const rapidHost = env.VITE_RAPIDAPI_HOST || env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
-
-            if (!rapidKey) {
-              res.statusCode = 500
-              res.setHeader('Content-Type', 'application/json; charset=utf-8')
-              res.end(JSON.stringify({ success: false, message: 'RAPIDAPI_KEY가 설정되지 않았습니다.' }))
-              return
+            if (/^\d+$/.test(itemId)) {
+              itemId = `abb-${itemId}`
             }
 
-            console.log(`[vite proxy 1688-detail] Requesting itemId: ${itemId}`)
-            const targetUrl = new URL(`https://${rapidHost}/item_detail`)
+            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
+            const rapidHost = 'otapi-1688.p.rapidapi.com'
+
+            console.log(`[vite proxy 1688-detail] Requesting Otapi BatchGetItemFullInfo for itemId: ${itemId}`)
+            const targetUrl = new URL(`https://${rapidHost}/BatchGetItemFullInfo`)
+            targetUrl.searchParams.set('language', 'zh')
             targetUrl.searchParams.set('itemId', itemId)
 
             const response = await fetch(targetUrl.toString(), {
@@ -225,14 +226,16 @@ function lab1688Plugin(env) {
             })
 
             const data = await response.json()
-            if (!response.ok) {
-              console.error(`[vite proxy 1688-detail] RapidAPI error ${response.status}:`, JSON.stringify(data).slice(0, 300))
-            } else {
-              console.log(`[vite proxy 1688-detail] OK for itemId: ${itemId} | keys:`, Object.keys(data || {}).slice(0, 10))
-            }
+            const itemData = data?.Result?.Item || data?.Result?.ItemFullInfo || data?.Result || data
+
             res.statusCode = response.status
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
+            res.end(JSON.stringify({
+              success: response.ok,
+              data: itemData,
+              raw: data,
+              status: response.status
+            }))
           } catch (err) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json; charset=utf-8')

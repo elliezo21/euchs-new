@@ -675,59 +675,53 @@ export async function getItemDetail1688(itemId) {
     return cached
   }
 
+  // Otapi ID 보정
+  const otapiId = /^\d+$/.test(idStr) ? `abb-${idStr}` : idStr
+
   const rapidKey = CONFIG.RAPIDAPI_KEY
-  const rapidHost = CONFIG.RAPIDAPI_HOST
+  const rapidHost = 'otapi-1688.p.rapidapi.com'
 
   let data = null
 
-  // 1. Vercel / Vite Serverless 프록시 우선 시도 (/api/1688-detail)
-  try {
-    const proxyRes = await fetch(`/api/1688-detail?itemId=${encodeURIComponent(idStr)}`)
-    if (proxyRes.ok) {
-      const resJson = await proxyRes.json()
-      if (resJson.success && resJson.data) {
-        data = resJson.data
-        console.log('[1688 Item Detail Raw Response] (via proxy):', data)
-      } else {
-        console.warn('[1688 Detail] Proxy returned success=false or no data:', resJson)
+  // 1. Vercel / Vite Serverless 프록시 우선 시도 (/api/1688-item-detail & /api/1688-detail)
+  const proxyEndpoints = ['/api/1688-item-detail', '/api/1688-detail']
+  for (const ep of proxyEndpoints) {
+    if (data) break
+    try {
+      const proxyRes = await fetch(`${ep}?itemId=${encodeURIComponent(otapiId)}`)
+      if (proxyRes.ok) {
+        const resJson = await proxyRes.json()
+        if (resJson.success && resJson.data) {
+          data = resJson.data
+          console.log(`[1688 Item Detail Response] (via ${ep}):`, data)
+        }
       }
-    } else {
-      const errJson = await proxyRes.json().catch(() => ({}))
-      console.warn(`[1688 Detail] Proxy HTTP ${proxyRes.status}:`, errJson)
+    } catch (err) {
+      console.debug(`[1688 Detail] ${ep} notice:`, err.message)
     }
-  } catch (err) {
-    console.debug('[1688 Detail] Proxy notice:', err.message)
   }
 
-  // 2. Direct RapidAPI Fallback (itemId / offerId / num_iid 세 가지 파라미터 순차 시도)
+  // 2. Direct Otapi RapidAPI Fallback
   if (!data && rapidKey) {
-    const paramKeys = ['itemId', 'offerId', 'num_iid']
-    for (const paramKey of paramKeys) {
-      if (data) break
-      try {
-        const targetUrl = `https://${rapidHost}/item_detail?${paramKey}=${idStr}`
-        console.log(`[1688 Detail] Trying direct API: ${targetUrl}`)
-        const directRes = await fetch(targetUrl, {
-          headers: {
-            'x-rapidapi-key': rapidKey,
-            'x-rapidapi-host': rapidHost
-          }
-        })
-        if (directRes.ok) {
-          const raw = await directRes.json()
-          // 응답 성공 여부 확인 (일부 1688 DataHub 응답은 200이지만 에러 필드 포함)
-          if (raw && !raw.error && !raw.err_msg) {
-            data = raw
-            console.log('[1688 Item Detail Raw Response]:', data)
-          } else {
-            console.debug(`[1688 Detail] API error response with ${paramKey}:`, raw)
-          }
-        } else {
-          console.debug(`[1688 Detail] HTTP ${directRes.status} for ${paramKey}`)
+    try {
+      const targetUrl = `https://${rapidHost}/BatchGetItemFullInfo?language=zh&itemId=${encodeURIComponent(otapiId)}`
+      console.log(`[1688 Detail] Trying direct Otapi API: ${targetUrl}`)
+      const directRes = await fetch(targetUrl, {
+        headers: {
+          'x-rapidapi-key': rapidKey,
+          'x-rapidapi-host': rapidHost
         }
-      } catch (err) {
-        console.warn(`[1688 Detail] Direct fetch failed with ${paramKey}:`, err.message)
+      })
+      if (directRes.ok) {
+        const raw = await directRes.json()
+        const itemData = raw?.Result?.Item || raw?.Result?.ItemFullInfo || raw?.Result || raw
+        if (itemData && !raw.ErrorCode?.includes?.('Error')) {
+          data = itemData
+          console.log('[1688 Item Detail Direct Response]:', data)
+        }
       }
+    } catch (err) {
+      console.warn('[1688 Detail] Direct fetch failed:', err.message)
     }
   }
 

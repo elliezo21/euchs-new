@@ -9,16 +9,17 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' })
 
-  // 다양한 파라미터 키 수용 (itemId / offerId / num_iid / id)
-  const rawId = req.query?.itemId || req.query?.offerId || req.query?.num_iid || req.query?.id || ''
+  // 다양한 파라미터 키 수용 (itemId / offerId / num_iid / id / body)
+  const rawId = req.query?.itemId || req.query?.id || req.query?.offerId || req.query?.num_iid ||
+                req.body?.itemId || req.body?.id || req.body?.offerId || ''
   let targetId = String(rawId).trim()
 
   if (!targetId || targetId === 'undefined' || targetId === 'null') {
-    console.error('[1688-item-detail] Missing or invalid itemId. query:', req.query)
+    console.error('[1688-detail] Missing or invalid itemId. query:', req.query)
     return res.status(400).json({
       success: false,
       message: '상품 ID(itemId)가 누락되었거나 유효하지 않습니다.',
-      received: req.query
+      received: { query: req.query, body: req.body }
     })
   }
 
