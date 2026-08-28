@@ -1161,7 +1161,6 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl } from '../services/api1688'
-import { getMockSearchResults } from '../services/mock1688Data'
 import { fetchSiteSettings } from '../lib/settings'
 import {
   isLoggedIn,
@@ -1226,30 +1225,25 @@ const homeSections = ref([])
 const isHomeSectionsLoading = ref(false)
 
 /**
- * 홈 섹션 데이터 로더 (Daily Cache Engine + Mock Fallback)
+ * 홈 섹션 데이터 로더 (Daily Cache Engine)
  * - 오늘 날짜 캐시 존재 시 → 즉시 렌더 (API 0건)
  * - 캐시 없음 → 이전 날짜 캐시 삭제 → 섹션당 1회 API (총 4회)
- * - API 결과 0건 or 실패(code 205, 타임아웃) 시 → getMockSearchResults() 즉시 Fallback
+ * - 실시간 1688 DataHub API 상품만 바인딩
  */
 const loadHomeSections = async () => {
   if (hasSearched.value || isHomeSectionsLoading.value) return
 
   const cacheKey = getTodayCacheKey()
 
-  // 1. 오늘 날짜 캐시 있으면 즉시 사용 (단, 빈 섹션 포함 시 무효화)
+  // 1. 오늘 날짜 캐시 있으면 즉시 사용
   try {
     const cached = localStorage.getItem(cacheKey)
     if (cached) {
       const parsed = JSON.parse(cached)
-      // 모든 섹션에 상품이 1개 이상 있는 경우만 캐시 사용
-      const hasValidItems = Array.isArray(parsed) && parsed.length > 0 &&
-        parsed.every(sec => Array.isArray(sec.items) && sec.items.length > 0)
-      if (hasValidItems) {
+      if (Array.isArray(parsed) && parsed.length > 0) {
         homeSections.value = parsed
         return
       }
-      // 빈 섹션이 있으면 캐시 삭제 후 재로드
-      localStorage.removeItem(cacheKey)
     }
   } catch (e) {}
 
@@ -1298,39 +1292,23 @@ const loadHomeSections = async () => {
 
   const results = await Promise.all(
     sectionDefs.map(async (sec) => {
-      let apiItems = []
-
-      // 1차: 실시간 1688 API 시도
       try {
         const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
-        apiItems = (res.items || []).slice(0, 8)
+        const items = (res.items || []).slice(0, 8)
+        return { ...sec, items }
       } catch (e) {
-        apiItems = []
+        console.warn(`[Mall1688] Home section load failed for ${sec.id}:`, e)
+        return { ...sec, items: [] }
       }
-
-      // 2차: API 0건 or 실패 → mock fallback 즉시 적용
-      if (apiItems.length === 0) {
-        try {
-          const mock = getMockSearchResults(sec.keyword)
-          apiItems = (mock.items || []).slice(0, 8)
-        } catch (me) {
-          apiItems = []
-        }
-      }
-
-      return { ...sec, items: apiItems }
     })
   )
 
   homeSections.value = results
   isHomeSectionsLoading.value = false
 
-  // 오늘 날짜 캐시로 저장 (모든 섹션에 상품 있을 때만)
+  // 오늘 날짜 캐시로 저장
   try {
-    const allHaveItems = results.every(sec => sec.items.length > 0)
-    if (allHaveItems) {
-      localStorage.setItem(cacheKey, JSON.stringify(results))
-    }
+    localStorage.setItem(cacheKey, JSON.stringify(results))
   } catch (e) {}
 }
 

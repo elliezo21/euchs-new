@@ -421,40 +421,35 @@ export async function search1688(queryZh, page = 1, options = {}) {
 
   // 응답 데이터 파싱 및 정규화 (1688 DataHub v4 공식 구조 기준)
   try {
-    // v4 정식: data.result.resultList
-    // v4 중첩: data.result.result.resultList (일부 엔드포인트)
-    // 구버전: data.resultList, data.data.items
-    const resultObj = data?.result || data || {}
+    const resData = data || {}
+    const resultObj = resData?.result || resData || {}
 
-    const rawList =
-      resultObj?.resultList ||
-      resultObj?.result?.resultList ||
-      data?.resultList ||
-      data?.data?.resultList ||
-      data?.data?.items ||
-      data?.items ||
-      []
+    const rawList = 
+      resultObj?.resultList || 
+      resData?.resultList || 
+      resultObj?.result?.resultList || 
+      resData?.data?.items || 
+      resData?.items || 
+      resData?.data || 
+      [];
 
-    const base = resultObj?.base || data?.result?.base || {}
-    const settings = resultObj?.settings || data?.result?.settings || {}
+    const base = resultObj?.base || resData?.result?.base || {}
+    const settings = resultObj?.settings || resData?.result?.settings || {}
 
-    console.log(`[1688 Parser] rawList type=${Array.isArray(rawList) ? 'Array' : typeof rawList}, length=${Array.isArray(rawList) ? rawList.length : 'N/A'}`)
+    console.log(`[1688 Parser] rawList length=${Array.isArray(rawList) ? rawList.length : 'N/A'}`)
 
-    // 실제 결과 0건 → 빈 배열 반환 (더미 대체 없음)
     if (!Array.isArray(rawList) || rawList.length === 0) {
       console.warn(`[1688 Parser] No resultList in response for "${query}"`)
       return { items: [], page: Number(page), pageSize: 20, totalResults: '0', hasMore: false, queryZh: query }
     }
 
-    const items = rawList.map((entry, idx) => {
-      const it = entry?.item || entry
+    const normalizedItems = rawList.map((entry, idx) => {
+      const it = entry.item || entry;
 
-      // 1688 DataHub v4 다중 이미지 필드 전수 탐색
-      let rawImage =
-        it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
-        entry.imageUrl || entry.image || entry.picUrl || entry.pic_url || entry.img ||
-        it.sku?.def?.imageUrl || it.sku?.def?.image ||
-        (Array.isArray(it.images) && it.images[0]) || ''
+      let rawImage = it.image || it.imageUrl || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
+                     entry.image || entry.imageUrl || entry.picUrl || entry.pic_url || entry.img ||
+                     it.sku?.def?.imageUrl || it.sku?.def?.image ||
+                     (Array.isArray(it.images) && it.images[0]) || '';
 
       let imageUrl = String(rawImage || '').trim()
       if (imageUrl.startsWith('//')) {
@@ -463,51 +458,52 @@ export async function search1688(queryZh, page = 1, options = {}) {
         imageUrl = imageUrl.replace('http://', 'https://')
       }
 
-      let detailUrl = it.itemUrl || it.detailUrl || ''
+      let detailUrl = it.itemUrl || it.detailUrl || (it.itemId ? `https://detail.1688.com/offer/${it.itemId}.html` : '')
       if (detailUrl.startsWith('//')) detailUrl = 'https:' + detailUrl
-      if (!detailUrl && it.itemId) detailUrl = `https://detail.1688.com/offer/${it.itemId}.html`
 
-      const priceStr = it.sku?.def?.price || it.price || it.priceInfo?.price || '0'
-      const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
+      const priceVal = it.sku?.def?.price || it.price || it.priceInfo?.price || '0';
+      const priceNum = parseFloat(String(priceVal).replace(/[^0-9.]/g, '')) || 0;
+      const minOrderVal = it.sku?.def?.minOrder || it.minOrder || 1;
+      const minOrder = parseInt(String(minOrderVal).replace(/[^0-9]/g, ''), 10) || 1;
 
-      const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
-      const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
-
-      const titleZh = it.title || it.subject || ''
+      const titleZh = it.title || it.subject || '';
 
       return {
         id: String(it.itemId || it.offerId || it.id || `item-${Date.now()}-${idx}`),
         itemId: String(it.itemId || it.offerId || it.id || ''),
-        titleZh,
-        titleEn: it.titleEn || '',
-        titleKo: '',
         title: titleZh,
+        titleZh: titleZh,
+        titleKo: it.titleKo || it.title || it.subject || '',
+        titleEn: it.titleEn || '',
+        imageUrl: imageUrl,
         price: priceNum,
+        priceNum: priceNum,
         priceCny: priceNum,
         priceFormatted: priceNum.toFixed(2),
-        minOrder,
-        sales: String(it.sales || it.monthSold || '0'),
-        imageUrl,
-        detailUrl,
+        sales: parseInt(it.sales || it.monthSold || 0, 10),
+        repurchaseRate: it.rePurchaseRate || it.repurchaseRate || 85,
+        moq: minOrder,
+        minOrder: minOrder,
+        detailUrl: detailUrl,
+        itemUrl: detailUrl,
         productUrl: detailUrl,
-        repurchaseRate: it.repurchaseRate || it.rePurchaseRate || '90%',
         company: it.company?.name || it.shopName || '1688 공식 인증 공급사',
         starLevel: it.company?.starLevel || 5.0,
         raw: it
-      }
-    }).filter(item => item.id && (item.titleZh || item.title))
+      };
+    }).filter(item => item.id && (item.title || item.titleZh));
 
-    console.log(`[1688 Parser] Parsed ${items.length} items for "${query}"`)
+    console.log(`[1688 Parser] Parsed ${normalizedItems.length} items for "${query}"`)
 
     // 일괄 한국어 번역 수행
-    await translateItemsBatch(items)
+    await translateItemsBatch(normalizedItems)
 
     const formattedResult = {
       rawResponse: data,
-      items,
+      items: normalizedItems,
       page: parseInt(settings?.page || String(page), 10),
       pageSize: parseInt(settings?.pageSize || '20', 10),
-      totalResults: base?.totalResults || String(items.length),
+      totalResults: base?.totalResults || String(normalizedItems.length),
       hasMore: base?.hasMore === 'true' || base?.hasMore === true,
       queryZh: query
     }
