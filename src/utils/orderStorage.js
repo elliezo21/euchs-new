@@ -87,57 +87,56 @@ export function saveStoredOrders(orders) {
 /**
  * Supabase DB orders 테이블에 주문 목록 upsert 동기화
  */
+/**
+ * Supabase DB applications 테이블에 주문 목록 동기화
+ */
 async function _syncOrdersToSupabase(ordersList) {
-  try {
-    const rows = ordersList.map(o => {
-      const vasList = o.vasServices || o.vas_services || o.vasOptions || o.buyerInfo?.vasServices || o.buyerInfo?.vas_services || [];
-      const buyerInfoObj = {
-        ...(o.buyerInfo || {}),
-        companyName: o.buyerInfo?.companyName || o.customer_name || '이유씨 바이어',
-        buyerName: o.buyerInfo?.buyerName || o.customer_name || '이유씨 바이어',
-        phone: o.buyerInfo?.phone || o.phone || '',
-        email: o.buyerInfo?.email || o.email || 'buyer@euchs.com',
-        customsCode: o.buyerInfo?.customsCode || o.customsCode || '',
-        address: o.buyerInfo?.address || o.address || '',
-        memo: o.buyerInfo?.memo || o.memo || '',
-        customsType: o.customsType || o.customsClearanceType || o.buyerInfo?.customsType || 'business',
-        shippingType: o.shippingType || o.shippingMethod || o.buyerInfo?.shippingType || 'general',
-        vasServices: vasList,
-        vasSummary: o.vasSummary || o.buyerInfo?.vasSummary || ''
-      };
+  if (!isSupabaseConfigured() || !Array.isArray(ordersList) || ordersList.length === 0) return;
 
-      return {
-        id: String(o.id || o.orderNumber),
-        order_number: o.orderNumber || o.id,
-        inbound_no: o.inboundNo || null,
-        user_id: currentUser.value?.id || null,
-        buyer_email: buyerInfoObj.email,
-        customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName,
-        phone: buyerInfoObj.phone,
+  try {
+    for (const o of ordersList.slice(0, 10)) {
+      const buyerInfoObj = o.buyerInfo || {};
+      const orderNo = o.orderNumber || o.orderId || o.id;
+
+      // applications 테이블에서 이미 등록된 주문이 있는지 확인 (details->>orderNumber 또는 details->>orderId)
+      const { data: existing } = await supabase
+        .from('applications')
+        .select('id, details')
+        .or(`id.eq.${typeof o.dbId === 'number' ? o.dbId : 0},memo.ilike.%${orderNo}%`)
+        .limit(1);
+
+      const appPayload = {
+        service_type: 'purchasing',
+        service_name: '1688 구매대행',
+        customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || o.customer_name || '이유씨 바이어',
+        phone: buyerInfoObj.phone || o.phone || '010-0000-0000',
+        email: buyerInfoObj.email || o.email || 'buyer@euchs.com',
         status: o.status || 'quote_pending',
-        buyer_info: buyerInfoObj,
-        items: o.items || [],
-        total_price_krw: o.totalPriceKrw || o.totalAmountKrw || 0,
-        total_price_rmb: o.totalPriceRmb || o.totalAmountRmb || 0,
-        first_payment: o.firstPayment || {},
-        second_payment: o.secondPayment || {},
-        measured_data: o.measuredData || {},
-        inspection_photos: o.inspectionPhotos || [],
-        vas_applied: vasList,
-        payment_info: o.paymentInfo || {},
-        memo: o.memo || '',
+        total_amount: Number(o.totalPriceKrw || o.totalAmountKrw || 0),
+        memo: `[${orderNo}] ${o.memo || buyerInfoObj.memo || ''}`.trim(),
+        details: o,
         updated_at: new Date().toISOString()
       };
-    });
 
-    await supabase.from('orders').upsert(rows, { onConflict: 'id' });
+      if (existing && existing.length > 0) {
+        await supabase
+          .from('applications')
+          .update(appPayload)
+          .eq('id', existing[0].id);
+      } else {
+        await supabase
+          .from('applications')
+          .insert([appPayload]);
+      }
+    }
   } catch (err) {
     console.warn('[_syncOrdersToSupabase] notice:', err);
   }
 }
 
 /**
- * Supabase DB orders 테이블에서 최신 주문 목록 Fetch 및 로컬 캐시 병합
+ * Supabase DB applications 테이블에서 최신 주문 목록 Fetch 및 로컬 캐시 병합
+ * (크롬, 엣지, 웨일, 모바일 간 100% 실시간 공유)
  */
 export async function fetchOrdersFromSupabase() {
   if (!isSupabaseConfigured()) {
@@ -146,78 +145,96 @@ export async function fetchOrdersFromSupabase() {
 
   try {
     const { data, error } = await supabase
-      .from('orders')
+      .from('applications')
       .select('*')
       .order('created_at', { ascending: false });
 
     if (!error && Array.isArray(data) && data.length > 0) {
-      const dbOrders = data.map(row => {
-        const rawBuyerInfo = row.buyer_info || {};
-        const vasList = row.vas_applied || row.vas_services || rawBuyerInfo.vasServices || rawBuyerInfo.vas_services || [];
-        const customsType = rawBuyerInfo.customsType || rawBuyerInfo.customsClearanceType || 'business';
-        const shippingType = rawBuyerInfo.shippingType || rawBuyerInfo.shippingMethod || 'general';
+      // applications 테이블 데이터 중 구매대행/수입/발주 데이터 추출 및 Order 객체로 정규화
+      const dbOrders = data
+        .filter(row => {
+          const type = String(row.service_type || '').toLowerCase();
+          const name = String(row.service_name || '').toLowerCase();
+          const det = row.details || {};
+          return (
+            type.includes('purchas') || type.includes('order') || type.includes('trade') || type.includes('import') ||
+            name.includes('구매') || name.includes('발주') || name.includes('수입') ||
+            Boolean(det.orderNumber || det.orderId || (Array.isArray(det.items) && det.items.length > 0))
+          );
+        })
+        .map(row => {
+          const det = (typeof row.details === 'object' && row.details !== null) ? row.details : {};
+          const rawBuyerInfo = det.buyerInfo || {};
+          const vasList = det.vasApplied || det.vasServices || det.vas_services || rawBuyerInfo.vasServices || [];
+          const customsType = det.customsType || rawBuyerInfo.customsType || 'business';
+          const shippingType = det.shippingType || rawBuyerInfo.shippingType || 'general';
 
-        const buyerInfo = {
-          ...rawBuyerInfo,
-          companyName: rawBuyerInfo.companyName || row.customer_name || '이유씨 바이어',
-          buyerName: rawBuyerInfo.buyerName || row.customer_name || '이유씨 바이어',
-          phone: rawBuyerInfo.phone || row.phone || '',
-          email: rawBuyerInfo.email || row.buyer_email || '',
-          customsCode: rawBuyerInfo.customsCode || '',
-          address: rawBuyerInfo.address || '',
-          memo: rawBuyerInfo.memo || row.memo || '',
-          customsType,
-          shippingType,
-          vasServices: vasList,
-          vasSummary: rawBuyerInfo.vasSummary || ''
-        };
+          const buyerInfo = {
+            companyName: rawBuyerInfo.companyName || row.customer_name || '이유씨 바이어',
+            buyerName: rawBuyerInfo.buyerName || row.customer_name || '이유씨 바이어',
+            phone: rawBuyerInfo.phone || row.phone || '',
+            email: rawBuyerInfo.email || row.email || '',
+            customsCode: rawBuyerInfo.customsCode || det.customsCode || '',
+            address: rawBuyerInfo.address || det.address || '',
+            memo: rawBuyerInfo.memo || row.memo || '',
+            customsType,
+            shippingType,
+            vasServices: vasList,
+            vasSummary: det.vasSummary || rawBuyerInfo.vasSummary || ''
+          };
 
-        return {
-          id: row.id,
-          orderNumber: row.order_number || row.id,
-          inboundNo: row.inbound_no || null,
-          createdAt: row.created_at || '2026-08-24 10:00',
-          status: row.status || 'quote_pending',
-          customsType,
-          customsClearanceType: customsType,
-          shippingType,
-          shippingMethod: shippingType,
-          vasServices: vasList,
-          vas_services: vasList,
-          vasOptions: vasList,
-          vasApplied: vasList,
-          vasSummary: buyerInfo.vasSummary || '',
-          buyerInfo,
-          items: Array.isArray(row.items) ? row.items : [],
-          totalPriceKrw: Number(row.total_price_krw) || 0,
-          totalPriceRmb: Number(row.total_price_rmb) || 0,
-          firstPayment: row.first_payment || {},
-          secondPayment: row.second_payment || {},
-          measuredData: row.measured_data || {},
-          inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
-          paymentInfo: row.payment_info || {},
-          memo: row.memo || ''
-        };
-      });
+          const orderNumber = det.orderNumber || det.orderId || `EUC-${new Date(row.created_at || Date.now()).toISOString().slice(0, 10).replace(/-/g, '')}-${String(row.id).padStart(4, '0')}`;
+          const orderId = det.id || orderNumber;
 
-      // 로컬 스토리지에 병합 및 저장
-      const localList = getStoredOrders();
-      const mergedMap = new Map();
-      // 1) 기본 데모 데이터 등록
-      INITIAL_GLOBAL_ORDERS.forEach(o => mergedMap.set(o.id, o));
-      // 2) 로컬 데이터 덮어쓰기
-      localList.forEach(o => mergedMap.set(o.id, o));
-      // 3) Supabase DB 최신 데이터 덮어쓰기 (최우선)
-      dbOrders.forEach(o => mergedMap.set(o.id, o));
+          return {
+            id: orderId,
+            dbId: row.id,
+            orderNumber,
+            inboundNo: det.inboundNo || `INB-YW-${String(row.id).padStart(6, '0')}`,
+            createdAt: row.created_at || new Date().toISOString(),
+            status: row.status || det.status || 'quote_pending',
+            customsType,
+            customsClearanceType: customsType,
+            shippingType,
+            shippingMethod: shippingType,
+            vasServices: vasList,
+            vas_services: vasList,
+            vasOptions: vasList,
+            vasApplied: vasList,
+            vasSummary: buyerInfo.vasSummary || '',
+            buyerInfo,
+            items: Array.isArray(det.items) ? det.items : (Array.isArray(row.items) ? row.items : []),
+            totalPriceKrw: Number(row.total_amount || det.totalPriceKrw || 0),
+            totalPriceRmb: Number(det.totalPriceRmb || 0),
+            firstPayment: det.firstPayment || {},
+            secondPayment: det.secondPayment || {},
+            measuredData: det.measuredData || {},
+            inspectionPhotos: Array.isArray(det.inspectionPhotos) ? det.inspectionPhotos : [],
+            paymentInfo: det.paymentInfo || {},
+            issueDetails: det.issueDetails || { colorMismatch: 0, damaged: 0, contaminated: 0, missingParts: 0, lowQuality: 0, wrongDelivery: 0 },
+            issueStatus: det.issueStatus || '',
+            memo: row.memo || det.memo || ''
+          };
+        });
 
-      const merged = Array.from(mergedMap.values()).sort((a, b) => {
-        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-      });
+      if (dbOrders.length > 0) {
+        // 로컬 스토리지에 병합 및 저장
+        const localList = getStoredOrders();
+        const mergedMap = new Map();
+        // 1) 로컬 데이터 등록
+        localList.forEach(o => mergedMap.set(o.id, o));
+        // 2) Supabase DB 데이터 덮어쓰기 (클라우드 최우선)
+        dbOrders.forEach(o => mergedMap.set(o.id, o));
 
-      localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(merged));
-      localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(merged));
-      window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: merged } }));
-      return merged;
+        const merged = Array.from(mergedMap.values()).sort((a, b) => {
+          return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+        });
+
+        localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(merged));
+        localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(merged));
+        window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: merged } }));
+        return merged;
+      }
     }
   } catch (err) {
     console.warn('[fetchOrdersFromSupabase] fallback to local:', err);
@@ -227,7 +244,7 @@ export async function fetchOrdersFromSupabase() {
 }
 
 /**
- * 신규 발주 주문 저장 (로컬 + Supabase DB)
+ * 신규 발주 주문 저장 (로컬 + Supabase DB applications 테이블 영구 동기화)
  */
 export async function saveNewOrder(order) {
   const list = getStoredOrders();
@@ -263,59 +280,53 @@ export async function saveNewOrder(order) {
     memo: order.memo || ''
   };
 
-  // 로컬 스토리지 캐시 선 저장 (Offline Fallback 보장)
+  // 1. 로컬 스토리지 캐시 선 저장 (Offline Fallback 보장)
   list.unshift(newOrderObj);
   saveStoredOrders(list);
 
-  // ── Supabase DB 우선 동기 INSERT (크로스 브라우저/기기 영구 동기화 핵심) ──
+  // 2. ── Supabase DB applications 테이블 클라우드 INSERT (크롬/엣지/웨일 실시간 동기화) ──
   if (isSupabaseConfigured()) {
     try {
-      const { error } = await supabase.from('orders').upsert({
-        id: newOrderObj.id,
-        order_number: newOrderObj.orderNumber,
-        inbound_no: newOrderObj.inboundNo,
-        user_id: currentUser.value?.id || null,
-        buyer_email: newOrderObj.buyerInfo?.email || currentUser.value?.email || '',
-        customer_name: newOrderObj.buyerInfo?.companyName || newOrderObj.buyerInfo?.buyerName || '',
-        phone: newOrderObj.buyerInfo?.phone || '',
-        status: newOrderObj.status,
-        buyer_info: newOrderObj.buyerInfo,
-        items: newOrderObj.items,
-        total_price_krw: newOrderObj.totalPriceKrw,
-        total_price_rmb: newOrderObj.totalPriceRmb,
-        first_payment: newOrderObj.firstPayment,
-        second_payment: newOrderObj.secondPayment,
-        measured_data: newOrderObj.measuredData,
-        inspection_photos: newOrderObj.inspectionPhotos,
-        vas_applied: newOrderObj.vasApplied,
-        vas_services: newOrderObj.vas_services,     // ← 핵심: VAS 직접 컬럼 저장
-        customs_type: newOrderObj.customsType,
-        shipping_type: newOrderObj.shippingType,
-        issue_details: newOrderObj.issueDetails,
-        issue_status: newOrderObj.issueStatus,
-        memo: newOrderObj.memo,
-        created_at: newOrderObj.createdAt,
-        updated_at: nowIso
-      }, { onConflict: 'id' });
+      const buyerInfoObj = newOrderObj.buyerInfo || {};
+      const { data: inserted, error } = await supabase.from('applications').insert([
+        {
+          service_type: 'purchasing',
+          service_name: '1688 구매대행',
+          customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || '이유씨 바이어',
+          phone: buyerInfoObj.phone || '010-0000-0000',
+          email: buyerInfoObj.email || 'buyer@euchs.com',
+          status: newOrderObj.status,
+          total_amount: Number(newOrderObj.totalPriceKrw || 0),
+          memo: `[${newOrderObj.orderNumber}] ${newOrderObj.memo || buyerInfoObj.memo || ''}`.trim(),
+          details: newOrderObj,
+          user_id: currentUser.value?.id || null,
+          created_at: newOrderObj.createdAt,
+          updated_at: nowIso
+        }
+      ]).select();
 
-      if (error) {
-        console.warn('[saveNewOrder] Supabase upsert warning:', error.message);
+      if (!error && inserted && inserted.length > 0) {
+        newOrderObj.dbId = inserted[0].id;
+        // 로컬 객체에 dbId 반영
+        saveStoredOrders(list);
+      } else if (error) {
+        console.warn('[saveNewOrder] Supabase applications insert warning:', error.message);
       }
     } catch (e) {
       console.warn('[saveNewOrder] Supabase DB notice:', e);
     }
   }
 
-  // 전역 이벤트 발행 (관리자 화면 즉시 갱신)
+  // 전역 이벤트 발행 (화면 즉시 갱신)
   window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: list } }));
 
   return newOrderObj;
 }
 
 /**
- * 주문 상태 업데이트 단일 함수 (로컬 + Supabase DB)
+ * 주문 상태 업데이트 단일 함수 (로컬 + Supabase DB applications 테이블 동기화)
  */
-export function updateOrderStatus(orderId, nextStatus, extraData = {}) {
+export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
   const list = getStoredOrders();
   const target = list.find(o => o.id === orderId || o.orderNumber === orderId);
   if (target) {
@@ -323,37 +334,73 @@ export function updateOrderStatus(orderId, nextStatus, extraData = {}) {
     Object.assign(target, extraData);
     saveStoredOrders(list);
 
-    // Supabase DB update 비동기 전송
+    // Supabase DB applications update 비동기 전송
     if (isSupabaseConfigured()) {
-      const payload = {
-        status: nextStatus,
-        updated_at: new Date().toISOString()
-      };
-      // 추가 데이터 필드 선택적 동기화
-      if (extraData.measuredData)    payload.measured_data    = extraData.measuredData;
-      if (extraData.inspectionPhotos) payload.inspection_photos = extraData.inspectionPhotos;
-      if (extraData.secondPayment)   payload.second_payment   = extraData.secondPayment;
-      if (extraData.firstPayment)    payload.first_payment    = extraData.firstPayment;
-      if (extraData.paymentInfo)     payload.payment_info     = extraData.paymentInfo;
-      if (extraData.vasApplied)      payload.vas_applied      = extraData.vasApplied;
-      if (extraData.issueDetails)    payload.issue_details    = extraData.issueDetails;
-      if (extraData.issueStatus !== undefined) payload.issue_status = extraData.issueStatus;
-      if (extraData.items)           payload.items            = extraData.items;
-      if (extraData.memo !== undefined) payload.memo          = extraData.memo;
-      if (extraData.totalPriceKrw !== undefined) payload.total_price_krw = extraData.totalPriceKrw;
-      if (extraData.totalPriceRmb !== undefined) payload.total_price_rmb = extraData.totalPriceRmb;
+      try {
+        const orderNo = target.orderNumber || target.orderId || target.id;
+        const nowIso = new Date().toISOString();
 
-      supabase
-        .from('orders')
-        .update(payload)
-        .or(`id.eq.${orderId},order_number.eq.${orderId}`)
-        .then(() => {})
-        .catch(err => console.warn('updateOrderStatus Supabase update notice:', err));
+        // 1) dbId가 있으면 직접 id로 업데이트
+        if (target.dbId) {
+          await supabase
+            .from('applications')
+            .update({
+              status: nextStatus,
+              details: target,
+              updated_at: nowIso
+            })
+            .eq('id', target.dbId);
+        } else {
+          // 2) memo에 orderNo가 포함된 행 찾아서 업데이트
+          const { data: match } = await supabase
+            .from('applications')
+            .select('id')
+            .ilike('memo', `%${orderNo}%`)
+            .limit(1);
+
+          if (match && match.length > 0) {
+            target.dbId = match[0].id;
+            await supabase
+              .from('applications')
+              .update({
+                status: nextStatus,
+                details: target,
+                updated_at: nowIso
+              })
+              .eq('id', match[0].id);
+          }
+        }
+      } catch (err) {
+        console.warn('updateOrderStatus Supabase update notice:', err);
+      }
     }
 
     return target;
   }
   return null;
+}
+
+/**
+ * Supabase Realtime 주문 실시간 구독 헬퍼 (크로스 브라우저 실시간 갱신)
+ */
+export function subscribeToOrders(callback) {
+  if (!isSupabaseConfigured()) return null;
+
+  try {
+    const channel = supabase
+      .channel('public:applications-orders-realtime')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
+        fetchOrdersFromSupabase().then(() => {
+          if (typeof callback === 'function') callback();
+        });
+      })
+      .subscribe();
+
+    return channel;
+  } catch (e) {
+    console.warn('[subscribeToOrders] Realtime notice:', e);
+    return null;
+  }
 }
 
 /**

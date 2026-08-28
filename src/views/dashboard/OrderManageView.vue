@@ -1665,7 +1665,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
   Search,
@@ -1703,7 +1703,7 @@ import {
   getOrderStatusBadgeClass
 } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
-import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase } from '@/utils/orderStorage';
+import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 
 const route = useRoute();
@@ -2993,10 +2993,21 @@ async function handleConfirmSecondPayment() {
 // ---------------------------------------------------------
 // Lifecycle
 // ---------------------------------------------------------
+let dashboardRealtimeChannel = null;
+
 onMounted(async () => {
   await loadOrdersData();
   window.addEventListener('euchs-order-status-update', loadOrdersData);
   window.addEventListener('storage', loadOrdersData);
+  dashboardRealtimeChannel = subscribeToOrders(loadOrdersData);
+});
+
+onUnmounted(() => {
+  window.removeEventListener('euchs-order-status-update', loadOrdersData);
+  window.removeEventListener('storage', loadOrdersData);
+  if (dashboardRealtimeChannel && typeof dashboardRealtimeChannel.unsubscribe === 'function') {
+    dashboardRealtimeChannel.unsubscribe();
+  }
 });
 
 // =============================================================
