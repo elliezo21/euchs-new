@@ -77,15 +77,21 @@
                 v-if="isUserMenuOpen" 
                 class="absolute right-0 top-full mt-2 w-52 bg-white text-gray-800 rounded-xl shadow-2xl border border-gray-200/80 py-2 z-50 text-xs"
               >
-                <div class="px-4 py-2 border-b border-gray-100 bg-slate-50/70">
+                <router-link 
+                  to="/dashboard/account?tab=security"
+                  @click="isUserMenuOpen = false"
+                  class="block px-4 py-2 border-b border-gray-100 bg-slate-50/70 hover:bg-amber-50/60 transition group cursor-pointer"
+                  title="내 계정 기본정보 및 보안 관리 바로가기"
+                >
                   <div class="flex items-center justify-between gap-1">
-                    <p class="font-black text-gray-900 truncate">{{ userDisplayName }}님</p>
+                    <p class="font-black text-gray-900 group-hover:text-amber-600 transition truncate">{{ userDisplayName }}님</p>
                     <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-bold shrink-0">
                       {{ isBusinessVerified ? 'VIP 바이어' : '일반회원' }}
                     </span>
                   </div>
                   <p class="text-[11px] text-gray-500 font-medium truncate mt-0.5 font-mono">{{ userEmail }}</p>
-                </div>
+                  <span class="text-[10px] text-amber-600 font-bold mt-1 inline-block">계정센터 바로가기 &gt;</span>
+                </router-link>
 
                 <div class="py-1">
                   <!-- 1. 내 주문 (주문/발주) -->
@@ -110,9 +116,9 @@
 
                   <!-- 3. 1:1 상담 문의 -->
                   <a 
-                    href="http://pf.kakao.com/_xmQWsK/chat" 
+                    href="https://pf.kakao.com/_xmQWsK/chat" 
                     target="_blank" 
-                    rel="noopener noreferrer"
+                    rel="noopener noreferrer" 
                     @click="isUserMenuOpen = false" 
                     class="w-full text-left px-4 py-2 text-slate-700 hover:bg-orange-50 hover:text-orange-600 font-medium flex items-center gap-2.5 transition"
                   >
@@ -120,14 +126,14 @@
                     <span>1:1 상담 문의</span>
                   </a>
 
-                  <!-- 4. 계정 설정 -->
+                  <!-- 4. 계정 설정 & 보안 -->
                   <router-link 
-                    to="/dashboard/account" 
+                    to="/dashboard/account?tab=security" 
                     @click="isUserMenuOpen = false" 
                     class="w-full text-left px-4 py-2 text-slate-700 hover:bg-orange-50 hover:text-orange-600 font-medium flex items-center gap-2.5 transition"
                   >
                     <span>⚙️</span>
-                    <span>계정 설정</span>
+                    <span>계정 설정 & 보안</span>
                   </router-link>
                 </div>
 
@@ -359,19 +365,26 @@
           </div>
 
           <div v-else class="flex items-center gap-1.5 flex-wrap">
-            <img 
-              v-if="userAvatarUrl" 
-              :src="userAvatarUrl" 
-              :alt="userDisplayName" 
-              class="w-6 h-6 rounded-full object-cover border border-blue-400"
-            />
-            <div 
-              v-else 
-              class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center"
+            <router-link 
+              to="/dashboard/account?tab=security" 
+              @click="isMobileMenuOpen = false"
+              class="flex items-center gap-1.5 hover:opacity-80 transition cursor-pointer"
+              title="내 계정센터 바로가기"
             >
-              {{ userDisplayName.charAt(0) }}
-            </div>
-            <span class="text-xs font-bold text-gray-800">{{ userDisplayName }}님</span>
+              <img 
+                v-if="userAvatarUrl" 
+                :src="userAvatarUrl" 
+                :alt="userDisplayName" 
+                class="w-6 h-6 rounded-full object-cover border border-blue-400"
+              />
+              <div 
+                v-else 
+                class="w-6 h-6 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center"
+              >
+                {{ (userDisplayName || 'U').charAt(0) }}
+              </div>
+              <span class="text-xs font-bold text-gray-800 hover:text-blue-600">{{ userDisplayName }}님</span>
+            </router-link>
             <router-link 
               to="/dashboard" 
               @click="isMobileMenuOpen = false" 

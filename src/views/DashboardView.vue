@@ -87,10 +87,14 @@
           <div class="flex items-center gap-2 sm:gap-3">
             <!-- Desktop Auth Action -->
             <div v-if="isLoggedIn" class="hidden sm:flex items-center gap-2">
-              <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-700 text-xs font-bold">
-                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
-                <span class="truncate max-w-[120px]">{{ displayBuyerName }}님</span>
-              </div>
+              <router-link
+                to="/dashboard/account?tab=security"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-800 text-xs font-bold transition cursor-pointer shadow-2xs hover:shadow-xs group"
+                title="계정센터 & 보안 정보 관리"
+              >
+                <span class="w-2 h-2 rounded-full bg-emerald-500 group-hover:scale-110 transition"></span>
+                <span class="truncate max-w-[120px] group-hover:text-amber-600 transition">{{ displayBuyerName }}님</span>
+              </router-link>
               <button
                 type="button"
                 @click="handleDashboardSignOut"
@@ -133,7 +137,16 @@
           <router-link to="/mall" class="block px-3 py-2 rounded-lg font-bold text-rose-600 hover:bg-rose-50">1688 실시간 소싱몰</router-link>
           <router-link to="/guide" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">EUC 안내</router-link>
           <router-link to="/community/notice" class="block px-3 py-2 rounded-lg text-gray-700 hover:bg-gray-50">고객센터</router-link>
-          <div class="pt-2 border-t border-gray-100">
+          <div class="pt-2 border-t border-gray-100 space-y-1">
+            <router-link
+              v-if="isLoggedIn"
+              to="/dashboard/account?tab=security"
+              @click="isGnbMobileOpen = false"
+              class="w-full text-left px-3 py-2 rounded-lg text-gray-800 font-bold hover:bg-gray-50 flex items-center gap-2"
+            >
+              <i class="fas fa-user-cog text-amber-500"></i>
+              <span>내 계정 정보 관리 ({{ displayBuyerName }}님)</span>
+            </router-link>
             <button
               v-if="isLoggedIn"
               type="button"
@@ -141,7 +154,7 @@
               class="w-full text-left px-3 py-2 rounded-lg text-red-600 font-bold hover:bg-red-50 flex items-center gap-2"
             >
               <i class="fas fa-sign-out-alt"></i>
-              <span>로그아웃 ({{ displayBuyerName }}님)</span>
+              <span>로그아웃</span>
             </button>
             <button
               v-else
@@ -150,7 +163,7 @@
               class="w-full text-left px-3 py-2 rounded-lg text-blue-600 font-bold hover:bg-blue-50 flex items-center gap-2"
             >
               <i class="fas fa-sign-in-alt"></i>
-              <span>로그인</span>
+              <span>로그인하기</span>
             </button>
           </div>
         </div>
@@ -169,71 +182,88 @@
         
         <!-- Top Section: Profile & LNB Tree -->
         <div>
-          <!-- Profile Mini Card -->
+          <!-- Profile Mini Card (클릭 시 계정센터 이동) -->
           <div class="p-4 sm:p-5 border-b border-gray-200 bg-slate-50/70">
-            <!-- 1. 로그인 상태 -->
-            <div v-if="isLoggedIn" class="flex items-center gap-3">
-              <img 
-                v-if="userAvatarUrl" 
-                :src="userAvatarUrl" 
-                :alt="displayBuyerName" 
-                class="w-10 h-10 rounded-2xl object-cover border border-orange-200 shadow-sm shrink-0"
-              />
-              <div 
-                v-else
-                class="w-10 h-10 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white font-black flex items-center justify-center text-base shadow-sm shrink-0"
-              >
-                {{ (displayBuyerName || 'E').charAt(0) }}
-              </div>
-              <div class="flex-1 min-w-0">
-                <div class="flex items-center justify-between gap-1">
-                  <div class="flex items-center gap-1.5 min-w-0">
-                    <span class="font-bold text-gray-900 text-sm truncate">{{ displayBuyerName }}</span>
-                    <span class="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[10px] font-black shrink-0">
-                      {{ isBusinessVerified ? 'VIP' : '회원' }}
-                    </span>
+              <!-- 1. 로그인 상태 -->
+              <div v-if="isLoggedIn" class="space-y-2.5">
+                <router-link 
+                  to="/dashboard/account?tab=security"
+                  class="flex items-center gap-3 p-2 -m-2 rounded-2xl hover:bg-amber-50/70 hover:border-amber-200 transition cursor-pointer group"
+                  title="내 계정 정보 & 보안 관리 바로가기"
+                >
+                  <img 
+                    v-if="userAvatarUrl" 
+                    :src="userAvatarUrl" 
+                    :alt="displayBuyerName" 
+                    class="w-10 h-10 rounded-2xl object-cover border border-orange-200 shadow-sm shrink-0 group-hover:scale-105 transition"
+                  />
+                  <div 
+                    v-else
+                    class="w-10 h-10 rounded-2xl bg-gradient-to-br from-orange-500 to-rose-600 text-white font-black flex items-center justify-center text-base shadow-sm shrink-0 group-hover:scale-105 transition"
+                  >
+                    {{ (displayBuyerName || 'E').charAt(0) }}
                   </div>
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center justify-between gap-1">
+                      <div class="flex items-center gap-1.5 min-w-0">
+                        <span class="font-bold text-gray-900 text-sm truncate group-hover:text-amber-600 transition">{{ displayBuyerName }}</span>
+                        <span class="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[10px] font-black shrink-0">
+                          {{ isBusinessVerified ? 'VIP' : '회원' }}
+                        </span>
+                      </div>
+                    </div>
+                    <p class="text-xs text-gray-500 font-mono truncate">{{ displayBuyerEmail }}</p>
+                  </div>
+                </router-link>
+
+                <div class="flex items-center justify-between pt-2 border-t border-gray-200/80 text-xs">
+                  <router-link
+                    to="/dashboard/account?tab=security"
+                    class="text-gray-500 hover:text-amber-600 font-medium flex items-center gap-1 cursor-pointer transition text-[11px]"
+                  >
+                    <i class="fas fa-user-cog text-slate-400"></i>
+                    <span>계정정보 관리 &gt;</span>
+                  </router-link>
                   <button
                     type="button"
                     @click="handleDashboardSignOut"
-                    class="text-gray-400 hover:text-red-600 p-1 transition cursor-pointer"
+                    class="text-gray-400 hover:text-red-600 p-1 transition cursor-pointer flex items-center gap-1 text-[11px]"
                     title="로그아웃"
                   >
                     <i class="fas fa-sign-out-alt text-xs"></i>
+                    <span>로그아웃</span>
                   </button>
                 </div>
-                <p class="text-xs text-gray-500 font-mono truncate">{{ displayBuyerEmail }}</p>
-              </div>
-            </div>
 
-            <!-- 2. 비로그인 상태: 로그인이 필요합니다 안내 및 로그인 버튼 -->
-            <div v-else class="space-y-2.5">
-              <div class="flex items-center gap-2.5 text-gray-500">
-                <div class="w-10 h-10 rounded-2xl bg-gray-200 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
-                  <i class="fas fa-user-lock"></i>
-                </div>
-                <div class="min-w-0">
-                  <div class="font-bold text-gray-800 text-xs">로그인이 필요합니다</div>
-                  <div class="text-[10px] text-gray-400">B2B 수입대행 ERP 서비스</div>
+                <div class="mt-2.5 pt-2 border-t border-gray-200/80 flex items-center justify-between text-xs">
+                  <span class="text-gray-500 font-medium">전담 매니저</span>
+                  <span class="font-bold text-gray-800 flex items-center gap-1">
+                    <i class="fas fa-headset text-orange-500"></i> 이유씨 1:1 배정
+                  </span>
                 </div>
               </div>
-              <button
-                type="button"
-                @click="openLoginModal('login')"
-                class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <i class="fas fa-sign-in-alt text-[10px]"></i>
-                <span>로그인하기</span>
-              </button>
-            </div>
 
-            <div v-if="isLoggedIn" class="mt-3 pt-2.5 border-t border-gray-200/80 flex items-center justify-between text-xs">
-              <span class="text-gray-500 font-medium">전담 매니저</span>
-              <span class="font-bold text-gray-800 flex items-center gap-1">
-                <i class="fas fa-headset text-orange-500"></i> 이유씨 1:1 배정
-              </span>
+              <!-- 2. 비로그인 상태: 로그인이 필요합니다 안내 및 로그인 버튼 -->
+              <div v-else class="space-y-2.5">
+                <div class="flex items-center gap-2.5 text-gray-500">
+                  <div class="w-10 h-10 rounded-2xl bg-gray-200 text-gray-500 flex items-center justify-center text-sm font-bold shrink-0">
+                    <i class="fas fa-user-lock"></i>
+                  </div>
+                  <div class="min-w-0">
+                    <div class="font-bold text-gray-800 text-xs">로그인이 필요합니다</div>
+                    <div class="text-[10px] text-gray-400">B2B 수입대행 ERP 서비스</div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  @click="openLoginModal('login')"
+                  class="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs shadow-xs transition active:scale-95 flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <i class="fas fa-sign-in-alt text-[10px]"></i>
+                  <span>로그인하기</span>
+                </button>
+              </div>
             </div>
-          </div>
 
           <!-- LNB Accordion Navigation Menu Tree -->
           <nav class="p-3 space-y-1 text-xs">
