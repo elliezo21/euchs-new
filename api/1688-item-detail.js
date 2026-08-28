@@ -40,7 +40,7 @@ export default async function handler(req, res) {
 
   try {
     const targetUrl = new URL(`https://${rapidHost}/BatchGetItemFullInfo`)
-    targetUrl.searchParams.set('language', 'zh')
+    targetUrl.searchParams.set('language', 'ko')
     targetUrl.searchParams.set('itemId', targetId)
 
     const response = await fetch(targetUrl.toString(), { headers })

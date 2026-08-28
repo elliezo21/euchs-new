@@ -769,8 +769,11 @@ const basePrice = computed(() => {
 
 const minOrder = computed(() => {
   const item = currentItem.value || props.product
-  const mo = parseInt(item?.minOrder || item?.raw?.minOrder || props.product?.minOrder || props.product?.raw?.minOrder || '1', 10)
-  return (!isNaN(mo) && mo > 0) ? mo : 1
+  let mo = parseInt(item?.minOrder || item?.raw?.minOrder || props.product?.minOrder || props.product?.raw?.minOrder || '1', 10)
+  if (isNaN(mo) || mo <= 0 || mo > 10000) {
+    mo = 1
+  }
+  return mo
 })
 
 const displayedPriceTiers = computed(() => {

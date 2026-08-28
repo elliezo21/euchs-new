@@ -158,7 +158,7 @@ function lab1688Plugin(env) {
 
             const framePosition = (Math.max(1, Number(page)) - 1) * Number(frameSize)
             const targetUrl = new URL(`https://${rapidHost}/BatchSearchItemsFrame`)
-            targetUrl.searchParams.set('language', 'zh')
+            targetUrl.searchParams.set('language', 'ko')
             targetUrl.searchParams.set('framePosition', String(framePosition))
             targetUrl.searchParams.set('frameSize', String(frameSize))
             targetUrl.searchParams.set('ItemTitle', q)
@@ -215,7 +215,7 @@ function lab1688Plugin(env) {
 
             console.log(`[vite proxy 1688-detail] Requesting Otapi BatchGetItemFullInfo for itemId: ${itemId}`)
             const targetUrl = new URL(`https://${rapidHost}/BatchGetItemFullInfo`)
-            targetUrl.searchParams.set('language', 'zh')
+            targetUrl.searchParams.set('language', 'ko')
             targetUrl.searchParams.set('itemId', itemId)
 
             const response = await fetch(targetUrl.toString(), {

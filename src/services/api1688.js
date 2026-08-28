@@ -1067,7 +1067,9 @@ export async function fetch1688ProductById(offerId) {
     if (!rawSkuProps) rawSkuProps = []
 
     // ─── 2. Otapi / 1688 기본 상품 정보 추출 ───────────────────────────
-    const titleZh = it.Title || it.title || it.subject || ''
+    // OriginalTitle(중국어 원문) 및 Title(한국어 또는 원문) 추출
+    const rawZhTitle = it.OriginalTitle || it.Title || it.title || it.subject || ''
+    const titleZh = rawZhTitle
 
     // 메인 이미지 및 갤러리 이미지
     let rawImage = (
@@ -1089,8 +1091,8 @@ export async function fetch1688ProductById(offerId) {
       images = [imageUrl]
     }
 
-    // 기본 단가 및 MOQ
-    const priceRange = Array.isArray(it.QuantityRanges) ? it.QuantityRanges[0] : null
+    // 기본 단가 및 MOQ (MasterQuantity는 총 재고량이므로 MOQ로 취급하지 않음)
+    const priceRange = Array.isArray(it.QuantityRanges) && it.QuantityRanges.length > 0 ? it.QuantityRanges[0] : null
     const priceNum = parseFloat(
       priceRange?.Price?.OriginalPrice ||
       priceRange?.Price?.ConvertedPriceWithoutSign ||
@@ -1100,32 +1102,40 @@ export async function fetch1688ProductById(offerId) {
     ) || 0
 
     const minOrder = parseInt(
-      priceRange?.MinQuantity || it.MasterQuantity || rawSku.def?.minOrder || it.minOrder || '2', 10
-    ) || 2
+      priceRange?.MinQuantity || rawSku.def?.minOrder || it.minOrder || '1', 10
+    ) || 1
 
-    // ─── 3. Otapi Attributes ➔ skuProps 파싱 (Vid/Pid 중국어 원문 최우선 사용) ───
+    // ─── 3. Otapi Attributes ➔ skuProps 파싱 (Original/Vid/Pid 1순위 사용) ───
     let parsedSkuProps = []
     let parsedSkus = []
 
     if (Array.isArray(it.Attributes) && it.Attributes.length > 0) {
-      // Otapi 구성용 속성 그룹화 (Pid/PropertyName 기준: 颜色, 尺码, 规格 등)
       const propMap = new Map() // propName -> Map(valName -> imageUrl)
 
       it.Attributes.forEach(attr => {
-        // 중국어 원문인 Pid / Vid를 1순위로 추출, 없으면 PropertyName / Value 사용
-        const rawPropName = String(attr.Pid || attr.PropertyName || '').trim()
-        const rawValName = String(attr.Vid || attr.Value || '').trim()
+        // 1순위: 한국어 번역 PropertyName / Value (language=ko 일 때), 없으면 OriginalPropertyName / OriginalValue / Pid / Vid
+        let rawPropName = String(attr.PropertyName || attr.OriginalPropertyName || attr.Pid || '').trim()
+        let rawValName = String(attr.Value || attr.OriginalValue || attr.Vid || '').trim()
+
+        // 만약 러시아어가 섞여 있으면 Original(중국어 원문)으로 대체
+        if (/[\u0400-\u04ff]/i.test(rawPropName) && attr.OriginalPropertyName) {
+          rawPropName = String(attr.OriginalPropertyName || attr.Pid || '').trim()
+        }
+        if (/[\u0400-\u04ff]/i.test(rawValName) && (attr.OriginalValue || attr.Vid)) {
+          rawValName = String(attr.OriginalValue || attr.Vid || '').trim()
+        }
+
         if (!rawPropName || !rawValName) return
 
         const propName = cleanForeignText(rawPropName) || rawPropName
         const valName = cleanForeignText(rawValName) || rawValName
 
-        // 구성자 속성이거나 색상/사이즈/규격 관련 속성
         const isConfig = attr.IsConfigurator ||
           rawPropName.includes('色') || rawPropName.includes('尺') ||
           rawPropName.includes('规') || rawPropName.includes('码') ||
           rawPropName.includes('款') || rawPropName.includes('型') ||
-          /Цвет|Размер|Модель|Стиль|Color|Size/i.test(rawPropName)
+          rawPropName.includes('容') || rawPropName.includes('量') ||
+          /색상|사이즈|규격|용량|Color|Size/i.test(propName)
 
         if (isConfig) {
           if (!propMap.has(propName)) {
@@ -1152,22 +1162,27 @@ export async function fetch1688ProductById(offerId) {
       })
     }
 
-    // ─── 4. Otapi ConfiguredItems ➔ skus 파싱 (Vid 원문 우선) ───────────────
+    // ─── 4. Otapi ConfiguredItems ➔ skus 파싱 ────────────────────────────
     if (Array.isArray(it.ConfiguredItems) && it.ConfiguredItems.length > 0) {
       parsedSkus = it.ConfiguredItems.map((c, cIdx) => {
         const configs = Array.isArray(c.Configurators) ? c.Configurators : []
-        const colorCfg = configs.find(cfg => String(cfg.Pid || '').includes('色') || /Цвет|Color/i.test(cfg.Pid || '')) || configs[0]
+        const colorCfg = configs.find(cfg => String(cfg.Pid || '').includes('色') || /Цвет|Color|색상/i.test(cfg.Pid || '')) || configs[0]
         const sizeCfg = configs.find(cfg => cfg !== colorCfg) || (configs.length > 1 ? configs[1] : null)
 
-        // Vid(중국어 원문) 1순위
-        const rawColorName = colorCfg?.Vid || colorCfg?.Value || ''
-        const rawSizeName = sizeCfg?.Vid || sizeCfg?.Value || ''
+        let rawColorName = colorCfg?.Value || colorCfg?.OriginalValue || colorCfg?.Vid || ''
+        let rawSizeName = sizeCfg?.Value || sizeCfg?.OriginalValue || sizeCfg?.Vid || ''
+
+        if (/[\u0400-\u04ff]/i.test(rawColorName) && (colorCfg?.OriginalValue || colorCfg?.Vid)) {
+          rawColorName = colorCfg.OriginalValue || colorCfg.Vid || ''
+        }
+        if (/[\u0400-\u04ff]/i.test(rawSizeName) && (sizeCfg?.OriginalValue || sizeCfg?.Vid)) {
+          rawSizeName = sizeCfg.OriginalValue || sizeCfg.Vid || ''
+        }
 
         const colorName = cleanForeignText(rawColorName) || rawColorName
         const sizeName = cleanForeignText(rawSizeName) || rawSizeName
 
-        // 해당 색상의 썸네일 이미지 찾기
-        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => (a.Vid === rawColorName || a.Value === rawColorName || a.Value === colorName) && a.ImageUrl) : null
+        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => (a.OriginalValue === rawColorName || a.Vid === rawColorName || a.Value === rawColorName) && a.ImageUrl) : null
         const skuImg = attrMatch?.ImageUrl || imageUrl
 
         const skuPrice = parseFloat(
@@ -1294,7 +1309,12 @@ export async function fetch1688ProductById(offerId) {
       return /[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04FF]/.test(t) || /[a-zA-Z]{3,}/.test(t)
     }))]
 
-    let titleKo = it.titleKo || ''
+    let titleKo = ''
+    // it.Title에 러시아어(키릴문자)가 전혀 없으면 한국어 번역문으로 즉시 사용
+    if (it.Title && !/[\u0400-\u04ff]/i.test(it.Title)) {
+      titleKo = it.Title
+    }
+
     if (uniqueTexts.length > 0) {
       try {
         const transResult = await translateText(uniqueTexts, 'KO')
