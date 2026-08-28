@@ -668,12 +668,7 @@
     </section>
 
     <!-- ======================================================== -->
-    <!-- 6. COMMUNITY & NOTICES SECTION (Real-time Rate & Notices) -->
-    <!-- ======================================================== -->
-    <CommunitySection />
-
-    <!-- ======================================================== -->
-    <!-- 7. PHOTO GALLERY SHOWCASE -->
+    <!-- 6. PHOTO GALLERY SHOWCASE -->
     <!-- ======================================================== -->
     <TradePhotos />
 
@@ -748,7 +743,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import CommunitySection from '../components/CommunitySection.vue'
 import TradePhotos from '../components/TradePhotos.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
