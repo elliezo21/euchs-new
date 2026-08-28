@@ -397,10 +397,10 @@
     </div>
 
     <!-- ============================================================ -->
-    <!-- MODAL: 주문 상세 (PC 전용 와이드 뷰) -->
+    <!-- MODAL: 주문 상세 (PC 전용 대화면 와이드 뷰 max-w-7xl) -->
     <!-- ============================================================ -->
-    <div v-if="modal.detail && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs overflow-y-auto" @click.self="closeModals">
-      <div class="bg-white rounded-3xl w-full max-w-5xl md:max-w-6xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+    <div v-if="modal.detail && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto" @click.self="closeModals">
+      <div class="w-[94vw] max-w-7xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
         <!-- 모달 헤더 -->
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-3">
@@ -578,7 +578,7 @@
                     <select
                       v-model="excludeReasonMap[idx]"
                       @change="handleReasonChange(activeOrder, item, idx)"
-                      class="w-56 text-xs border rounded-lg py-1.5 px-2.5 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-amber-500 font-medium transition"
+                      class="w-64 text-xs border border-slate-300 rounded-lg py-2 px-3 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-amber-500 font-medium transition"
                       :class="item.excluded ? 'border-rose-300 text-rose-700 bg-rose-50/50' : 'border-slate-300 text-slate-700'"
                     >
                       <option value="">0. 사유선택 (정상 구매 포함)</option>
@@ -639,7 +639,7 @@
         </div>
 
         <!-- 모달 푸터 (1줄 단일 행 완벽 수평 정렬) -->
-        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-4 flex-nowrap shrink-0 overflow-x-auto">
+        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-4 flex-nowrap shrink-0 overflow-x-auto whitespace-nowrap">
           <!-- 좌측: 전체 취소 버튼 -->
           <div class="shrink-0">
             <button
@@ -654,8 +654,13 @@
             </button>
           </div>
 
+          <!-- 중앙 안내 텍스트 -->
+          <div v-if="isStatus(activeOrder, 'quote_pending')" class="text-xs text-slate-500 font-medium px-2 shrink-0 hidden lg:block">
+            * [변경사항 저장] 또는 [견적 승인] 시 바이어에게 즉시 반영됩니다.
+          </div>
+
           <!-- 우측: 엑셀 및 액션 버튼 그룹 (줄바꿈 없이 1줄 정렬) -->
-          <div class="flex items-center gap-2 shrink-0 flex-nowrap">
+          <div class="flex items-center gap-2.5 shrink-0 flex-nowrap">
             <!-- 엑셀 그룹 -->
             <button
               @click="handle1688Excel(activeOrder)"
