@@ -409,6 +409,85 @@
     <!-- [TAB 4] 계정 보안 및 비밀번호 변경 / 회원 탈퇴 -->
     <!-- ======================================================== -->
     <div v-if="activeTab === 'security'" class="space-y-6 animate-fade-in">
+      <!-- 0. [쿠팡 윙 스타일] 회원 및 사업자 기본 정보 카드 -->
+      <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0 shadow-2xs">
+              <UserCheck class="w-5 h-5" />
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-base font-bold text-gray-900">
+                  회원 및 사업자 기본 정보
+                </h2>
+                <span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1">
+                  <ShieldCheck class="w-3.5 h-3.5" />
+                  <span>VIP 바이어 (인증 완료)</span>
+                </span>
+              </div>
+              <p class="text-xs text-gray-500 mt-0.5">
+                B2B 수입통관 및 세금계산서 발급에 등록된 기본 계정 정보입니다.
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            @click="switchTab('pccc')"
+            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer self-start sm:self-auto"
+          >
+            <span>사업자/통관정보 수정</span>
+            <ChevronRight class="w-4 h-4" />
+          </button>
+        </div>
+
+        <!-- 2열 그리드 정보 테이블 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
+          <!-- 성명 / 대표자명 -->
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            <span class="text-gray-500 font-medium">성명 / 대표자명</span>
+            <span class="font-bold text-gray-900">{{ customsProfile.contactName || currentUser?.name || currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || '조해성' }}</span>
+          </div>
+
+          <!-- 아이디 (이메일) -->
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            <span class="text-gray-500 font-medium">아이디 (이메일)</span>
+            <span class="font-bold text-gray-900 font-mono">{{ currentUser?.email || userEmail || 'buyer@euchs.com' }}</span>
+          </div>
+
+          <!-- 상호 (법인명) -->
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            <span class="text-gray-500 font-medium">상호(법인명)</span>
+            <span class="font-bold text-gray-900">{{ customsProfile.companyName || currentUser?.company_name || currentUser?.companyName || currentUser?.business_name || '천공상사' }}</span>
+          </div>
+
+          <!-- 사업자등록번호 -->
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            <span class="text-gray-500 font-medium">사업자등록번호</span>
+            <span class="font-bold text-gray-900 font-mono">{{ customsProfile.bizNumber || currentUser?.business_number || currentUser?.businessNumber || '394-12-03322' }}</span>
+          </div>
+
+          <!-- 대표 연락처 -->
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            <span class="text-gray-500 font-medium">대표 연락처</span>
+            <span class="font-bold text-gray-900 font-mono">{{ customsProfile.contactPhone || currentUser?.phone || '010-7525-0755' }}</span>
+          </div>
+
+          <!-- 통관고유부호 (PCCC) -->
+          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
+            <span class="text-gray-500 font-medium">개인/사업자 통관부호</span>
+            <span class="font-bold text-indigo-700 font-mono uppercase">{{ customsProfile.customsCode || currentUser?.pccc || 'P240012345678' }}</span>
+          </div>
+
+          <!-- 사업장 소재지 (전폭 2칸 차지) -->
+          <div class="md:col-span-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+            <span class="text-gray-500 font-medium shrink-0">사업장 소재지</span>
+            <span class="font-bold text-gray-900 text-right truncate">{{ currentUser?.address || (addressList[0] ? `${addressList[0].address} ${addressList[0].detailAddress}` : '광주광역시 북구 서방로135번길 54 1층') }}</span>
+          </div>
+        </div>
+      </div>
+
       <!-- 1. 비밀번호 변경 카드 -->
       <div class="bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
         <div class="flex items-center justify-between pb-4 border-b border-gray-100">
@@ -731,7 +810,9 @@ import {
   Receipt,
   X,
   KeyRound,
-  AlertTriangle
+  AlertTriangle,
+  UserCheck,
+  ChevronRight
 } from 'lucide-vue-next'
 import {
   currentUser,
