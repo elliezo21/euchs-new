@@ -1194,59 +1194,99 @@ const loadProductDetailImages = async (item) => {
   isLoadingDetail.value = true
   detailImages.value = []
 
-  // 1. item.raw에 이미 존재하는 이미지 확인
-  const raw = item.raw || {}
-  let extracted = []
-
-  if (Array.isArray(raw.descriptionImages) && raw.descriptionImages.length > 0) {
-    extracted = raw.descriptionImages
-  } else if (Array.isArray(raw.detailImages) && raw.detailImages.length > 0) {
-    extracted = raw.detailImages
-  } else if (Array.isArray(raw.images) && raw.images.length > 0) {
-    extracted = raw.images
-  } else if (typeof raw.description === 'string' && raw.description.includes('<img')) {
-    const matches = [...raw.description.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
-    extracted = matches.map(m => m[1])
+  const normalizeOne = (u) => {
+    if (!u || typeof u !== 'string') return ''
+    let s = u.trim()
+    if (s.startsWith('//')) s = 'https:' + s
+    if (s.startsWith('http://')) s = s.replace('http://', 'https://')
+    return s.startsWith('http') ? s : ''
   }
 
-  if (extracted.length > 0) {
-    detailImages.value = extracted.map(normalizeImgUrl).filter(Boolean)
+  // ── 헬퍼: 배열/문자열/객체에서 URL 목록 추출 ──────────────────────────
+  const extractUrls = (src) => {
+    if (!src) return []
+    if (typeof src === 'string') {
+      // HTML img 태그 파싱
+      if (src.includes('<img')) {
+        return [...src.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].map(m => normalizeOne(m[1])).filter(Boolean)
+      }
+      // 단일 URL
+      const u = normalizeOne(src)
+      return u ? [u] : []
+    }
+    if (Array.isArray(src)) {
+      return src.map(p => {
+        if (typeof p === 'string') return normalizeOne(p)
+        if (p && typeof p === 'object') return normalizeOne(p.url || p.src || p.Url || p.path || '')
+        return ''
+      }).filter(Boolean)
+    }
+    return []
+  }
+
+  // ── 탐색 우선순위 (OneBound 응답 필드 우선) ───────────────────────────
+  // currentItem.value에 이미 full 데이터가 merge된 상태일 수 있음
+  const candidate = currentItem.value || item
+  const raw = candidate.raw || {}
+
+  let imgs = []
+
+  // 1순위: OneBound desc_img (본문 상세 설명 이미지, 최우선)
+  if (!imgs.length) imgs = extractUrls(candidate.descImgs || raw.desc_img || raw.descImgs)
+  // 2순위: OneBound item_imgs (갤러리 이미지)
+  if (!imgs.length) imgs = extractUrls(candidate.images || raw.item_imgs || raw.images)
+  // 3순위: desc HTML 파싱 (OneBound desc 필드)
+  if (!imgs.length && (raw.desc || raw.description)) {
+    imgs = extractUrls(raw.desc || raw.description)
+  }
+  // 4순위: currentItem.images (fetch1688ProductById가 채운 갤러리 배열)
+  if (!imgs.length && Array.isArray(candidate.images)) {
+    imgs = extractUrls(candidate.images)
+  }
+
+  // 의류 Mock Unsplash 이미지 필터 (여성 모델 사진 완전 차단)
+  const BLOCKED_DOMAINS = ['images.unsplash.com']
+  imgs = imgs.filter(u => !BLOCKED_DOMAINS.some(d => u.includes(d)))
+
+  if (imgs.length > 0) {
+    detailImages.value = imgs
     isLoadingDetail.value = false
     return
   }
 
-  // 2. 비동기 1688 상세 API 호출
+  // ── 2. 비동기 OneBound item_get API 호출 ──────────────────────────────
   try {
     const detailData = await getItemDetail1688(item.id)
-    const resultItem = detailData?.result?.item || detailData?.item || detailData?.result || detailData || {}
-    
+    // OneBound: detailData 자체가 item 객체이거나 { item: {...} } 구조
+    const resultItem =
+      (detailData?.num_iid || detailData?.title || detailData?.item_imgs) ? detailData
+      : detailData?.item || detailData?.result?.item || detailData || {}
+
     let apiImages = []
-    if (Array.isArray(resultItem.descriptionImages)) {
-      apiImages = resultItem.descriptionImages
-    } else if (Array.isArray(resultItem.detailImages)) {
-      apiImages = resultItem.detailImages
-    } else if (Array.isArray(resultItem.images)) {
-      apiImages = resultItem.images
-    } else if (typeof resultItem.description === 'string') {
-      const matches = [...resultItem.description.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
-      apiImages = matches.map(m => m[1])
+
+    // OneBound 우선: desc_img (배열 또는 문자열)
+    if (!apiImages.length) apiImages = extractUrls(resultItem.desc_img || resultItem.descImgs)
+    // OneBound item_imgs (갤러리)
+    if (!apiImages.length) apiImages = extractUrls(resultItem.item_imgs || resultItem.images)
+    // desc HTML 파싱
+    if (!apiImages.length && (resultItem.desc || resultItem.description)) {
+      apiImages = extractUrls(resultItem.desc || resultItem.description)
     }
 
+    // Unsplash Mock 차단
+    apiImages = apiImages.filter(u => !BLOCKED_DOMAINS.some(d => u.includes(d)))
+
     if (apiImages.length > 0) {
-      detailImages.value = apiImages.map(normalizeImgUrl).filter(Boolean)
-    } else if (item.imageUrl) {
-      // Fallback 기본 썸네일
-      detailImages.value = [normalizeImgUrl(item.imageUrl)]
+      detailImages.value = apiImages
     }
+    // 이미지가 없으면 빈 배열 유지 (Mock 사진 노출 금지)
   } catch (err) {
-    console.debug('Failed to fetch detail images from API:', err)
-    if (item.imageUrl) {
-      detailImages.value = [normalizeImgUrl(item.imageUrl)]
-    }
+    console.debug('[loadProductDetailImages] API notice:', err.message)
   } finally {
     isLoadingDetail.value = false
   }
 }
+
 
 const handleDetailImageError = (idx) => {
   if (detailImages.value[idx]) {
@@ -1577,7 +1617,7 @@ const handleGoToCart = () => {
 
 const handleImageFallback = (e) => {
   e.target.onerror = null
-  e.target.src = 'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?w=500&auto=format&fit=crop&q=80'
+  e.target.style.display = 'none'  // 로드 실패한 이미지 숨김 (의류 Mock 사진 차단)
 }
 
 // ESC 키로 모달 닫기

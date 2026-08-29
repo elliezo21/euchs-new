@@ -425,9 +425,7 @@ export async function translateItemsBatch(items) {
 export async function search1688(queryZh, page = 1, options = {}) {
   const query = String(queryZh || '').trim()
   if (!query) {
-    const mockRes = getMockSearchResults('', page, options)
-    await translateItemsBatch(mockRes.items)
-    return mockRes
+    return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: '' }
   }
 
   const cacheKey = `ob_${query}_p${page}`
@@ -444,7 +442,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
   try {
     const params = new URLSearchParams({ q: query, page: String(page) })
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000)
+    const timeout = setTimeout(() => controller.abort(), 20000)
     const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
     clearTimeout(timeout)
 
@@ -452,37 +450,50 @@ export async function search1688(queryZh, page = 1, options = {}) {
       const result = await proxyRes.json()
       if (result.success && result.data) {
         data = result.data
-        console.log('[1688 Search] OneBound proxy success. Top keys:', Object.keys(data || {}).slice(0, 6))
+        console.log('[1688 Search] OneBound proxy success. Keys:', Object.keys(data || {}).slice(0, 8))
+      } else {
+        console.warn('[1688 Search] Proxy success=false or no data:', result)
       }
     } else {
       const errBody = await proxyRes.json().catch(() => ({}))
       console.warn(`[1688 Search] Proxy HTTP ${proxyRes.status}:`, errBody)
     }
   } catch (err) {
-    console.debug('[1688 Search] Proxy notice:', err.name === 'AbortError' ? 'Timeout(15s)' : err.message)
+    console.warn('[1688 Search] Proxy error:', err.name === 'AbortError' ? 'Timeout(20s)' : err.message)
   }
 
   if (!data) {
-    console.warn(`[1688 API] No response received for "${query}"`)
+    console.warn(`[1688 API] No response for "${query}"`)
     return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
   }
 
-  // ── OneBound 응답 파싱 ──────────────────────────────────────────
-  // OneBound item_search 응답 구조:
-  //   { items: { item: [...] }, page_size, ... }
+  // ── OneBound 응답 파싱 ──────────────────────────────────────────────────
   try {
     const resData = data || {}
 
-    // OneBound: resData.items.item[] (표준)
-    // 프록시 경유 시: resData.items.item[] 또는 resData.result.resultList[]
-    const rawList =
-      resData?.items?.item ||
+    // OneBound item_search 응답 다중 구조 탐색:
+    // 표준: { items: { item: [...] } }
+    // 일부 버전: { items: [...] } (items 자체가 배열)
+    // 구형: { result: { resultList: [...] } }
+    let rawList =
+      resData?.items?.item ||     // 표준 OneBound
+      resData?.item ||             // 최상위 item 배열
+      resData?.items ||            // items 자체가 배열인 경우
       resData?.result?.resultList ||
       resData?.resultList ||
       []
 
+    // items가 객체인 경우(배열 아님) 처리
+    if (rawList && !Array.isArray(rawList) && typeof rawList === 'object') {
+      rawList = Object.values(rawList)
+    }
+
     if (!Array.isArray(rawList) || rawList.length === 0) {
-      console.warn(`[1688 API] Empty rawList for "${query}". Keys:`, Object.keys(resData).slice(0, 8))
+      console.warn(`[1688 API] Empty rawList for "${query}". Data keys:`, Object.keys(resData).slice(0, 10))
+      // 오류 메시지 확인 (잔액 부족, API 오류 등)
+      if (resData.error_code || resData.error || resData.message) {
+        console.warn('[1688 API] Error from OneBound:', resData.error_code, resData.error || resData.message)
+      }
       return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
     }
 
@@ -491,54 +502,39 @@ export async function search1688(queryZh, page = 1, options = {}) {
       if (!s) return ''
       if (s.startsWith('//')) return 'https:' + s
       if (s.startsWith('http://')) return s.replace('http://', 'https://')
-      return s
+      return s.startsWith('http') ? s : ''
     }
 
     const items = rawList.map((entry, idx) => {
-      // OneBound item_search 아이템 구조
       const it = entry.item || entry
 
-      // 대표 이미지: pic_url (OneBound 표준)
-      let imageUrl = normalizeUrl(it.pic_url || it.picUrl || it.imageUrl || it.image || '')
-
-      // 상품 ID: num_iid (순수 숫자 — OneBound 표준)
+      const imageUrl = normalizeUrl(it.pic_url || it.picUrl || it.imageUrl || it.image || '')
       const itemId = String(it.num_iid || it.itemId || it.id || `item-${Date.now()}-${idx}`)
+      const cleanId = itemId.replace(/[^0-9]/g, '')
+      const detailUrl = cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : ''
 
-      const detailUrl = `https://detail.1688.com/offer/${itemId.replace(/[^0-9]/g, '')}.html`
-
-      // 가격: price (OneBound는 문자열 또는 숫자로 반환)
       const priceNum = parseFloat(String(it.price || it.priceCent || '0').replace(/[^0-9.]/g, '')) || 0
-
-      // MOQ: min_num 또는 min_order
       const minOrder = parseInt(it.min_num || it.minOrder || it.min_order || '1', 10) || 1
-
-      // 판매량: volume 또는 sales (OneBound: sold_count, volume 등)
       const sales = parseInt(it.sold_count || it.volume || it.sales || 0, 10)
-
-      // 중국어 제목: title (OneBound는 title 필드 사용)
       const titleZh = it.title || it.subject || ''
-
-      // 공급사: nick (판매자 닉네임) 또는 shop_name
-      const company = it.nick || it.shop_name || it.shopName || it.sellerName || '1688 공식 인증 공급사'
-
-      // 판매자 ID: seller_id 또는 user_num_id
+      const company = it.nick || it.shop_name || it.shopName || it.sellerName || '1688 공급사'
       const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || '')
 
       return {
-        id: itemId,
-        itemId,
+        id: cleanId || itemId,
+        itemId: cleanId || itemId,
         titleZh,
-        titleEn: it.titleEn || '',
-        titleKo: it.titleKo || titleZh,
+        titleEn: '',
+        titleKo: titleZh,
         title: titleZh,
         price: priceNum,
-        priceNum: priceNum,
+        priceNum,
         priceCny: priceNum,
         priceFormatted: priceNum.toFixed(2),
         moq: minOrder,
         minOrder,
         sales,
-        repurchaseRate: it.rePurchaseRate || it.repurchaseRate || 85,
+        repurchaseRate: it.rePurchaseRate || it.repurchaseRate || 0,
         imageUrl,
         detailUrl,
         itemUrl: detailUrl,
@@ -553,7 +549,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
     // 일괄 한국어 번역
     await translateItemsBatch(items)
 
-    const totalCount = resData?.total_results || resData?.total || String(rawList.length)
+    const totalCount = resData?.total_results || resData?.total_count || resData?.total || String(rawList.length)
     const formattedResult = {
       rawResponse: data,
       items,
@@ -573,64 +569,94 @@ export async function search1688(queryZh, page = 1, options = {}) {
 }
 
 
+
+
 /**
  * 1688 통합 파이프라인:
- * 한글 검색어 ➔ 중국어 번역 ➔ 1688 검색 ➔ 결과 일괄 한글 번역 (DeepL)
+ * 한글 검색어 ➔ 중국어 번역 ➔ 1688 OneBound 검색 ➔ 결과 일괄 한글 번역 (DeepL)
  */
+
+// ── 한글→중문 즉시 변환 사전 (DeepL 보조 / 주요 B2B 품목) ──────────────
+const KO_ZH_B2B_DICT = {
+  '치마': '裙子', '스커트': '裙子', '원피스': '连衣裙', '블라우스': '衬衫',
+  '셔츠': '衬衫', '바지': '裤子', '청바지': '牛仔裤', '티셔츠': 'T恤',
+  '자켓': '外套', '코트': '大衣', '점퍼': '夹克', '후드': '卫衣',
+  '텀블러': '保温杯', '머그': '马克杯', '컵': '杯子', '도자기': '陶瓷',
+  '가방': '包包', '핸드백': '手提包', '백팩': '双肩包', '지갑': '钱包',
+  '신발': '鞋子', '운동화': '运动鞋', '구두': '皮鞋', '슬리퍼': '拖鞋',
+  '화장품': '化妆品', '스킨케어': '护肤品', '마스크': '口罩',
+  '인형': '玩具', '장난감': '玩具', '피규어': '手办',
+  '주방': '厨房', '냄비': '锅', '프라이팬': '平底锅', '칼': '刀具',
+  '전자': '电子', '이어폰': '耳机', '케이블': '数据线', '충전기': '充电器',
+  '의자': '椅子', '테이블': '桌子', '선반': '架子', '침구': '床品',
+  '스포츠': '运动', '요가': '瑜伽', '헬스': '健身', '수영': '游泳',
+  '악세서리': '配饰', '반지': '戒指', '목걸이': '项链', '귀걸이': '耳环',
+  '문구': '文具', '노트': '笔记本', '펜': '钢笔', '파우치': '收纳袋'
+}
+
 export async function search1688WithTranslation(koreanQuery, page = 1, options = {}, onProgress = null) {
   const query = String(koreanQuery || '').trim()
   if (!query) {
-    const mockRes = getMockSearchResults('', page, options)
-    await translateItemsBatch(mockRes.items)
     return {
       success: true,
       queryKo: '',
       queryZh: '',
-      page: mockRes.page,
-      pageSize: mockRes.pageSize,
-      totalResults: mockRes.totalResults,
-      hasMore: mockRes.hasMore,
-      items: mockRes.items
+      page: Number(page),
+      pageSize: 40,
+      totalResults: '0',
+      hasMore: false,
+      items: []
     }
   }
 
   // Step 1: 한글 검색어 ➔ 중국어 번역
   let queryZh = query
-  const isKorean = /[ㄱ-ㅎ|ㅏ-ㅣ|가-힣]/.test(query)
+  const isKorean = /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(query)
 
   if (isKorean) {
-    if (onProgress) {
-      onProgress({
-        step: 1,
-        message: `한글 키워드 분석 및 번역 중: "${query}"...`
-      })
-    }
+    if (onProgress) onProgress({ step: 1, message: `한글 키워드 분석 및 번역 중: "${query}"...` })
 
-    try {
-      const translated = await translateText(query, 'ZH', 'KO')
-      queryZh = typeof translated === 'string' ? translated : (translated[0] || query)
-    } catch (err) {
-      queryZh = query
+    // 1순위: 내장 사전 즉시 조회 (타임아웃 없음, 정확도 보장)
+    const dictResult = KO_ZH_B2B_DICT[query]
+    if (dictResult) {
+      queryZh = dictResult
+      console.log(`[1688 Search] Dict hit: "${query}" → "${queryZh}"`)
+    } else {
+      // 2순위: DeepL 번역 (주요 품목 외 자유 텍스트)
+      try {
+        const translated = await translateText(query, 'ZH', 'KO')
+        const translatedStr = typeof translated === 'string' ? translated : (Array.isArray(translated) ? translated[0] : '')
+        if (translatedStr && translatedStr !== query) {
+          queryZh = translatedStr
+          console.log(`[1688 Search] DeepL: "${query}" → "${queryZh}"`)
+        }
+      } catch (err) {
+        console.warn('[1688 Search] DeepL failed, using original query:', err.message)
+        queryZh = query
+      }
     }
   }
 
-  if (onProgress) {
-    onProgress({
-      step: 2,
-      message: `1688 실시간 상품 소싱 검색 중: "${query}"...`,
-      queryZh
-    })
-  }
+  if (onProgress) onProgress({ step: 2, message: `1688 실시간 상품 소싱 검색 중: "${queryZh}"...`, queryZh })
 
-  // Step 2: 1688 상품 검색 (내부에서 search1688 실행 및 일괄 한국어 번역 완료)
+  // Step 2: 1688 OneBound 상품 검색
   let searchResult
   try {
     searchResult = await search1688(queryZh, page, options)
   } catch (err) {
-    console.warn('[1688 Search] Fallback to Mock dataset:', err.message)
-    searchResult = getMockSearchResults(query, page, options)
-    await translateItemsBatch(searchResult.items)
+    console.warn('[1688 Search] search1688 error:', err.message)
+    return {
+      success: false,
+      queryKo: query,
+      queryZh,
+      page: Number(page),
+      pageSize: 40,
+      totalResults: '0',
+      hasMore: false,
+      items: []
+    }
   }
+
 
   const items = searchResult.items || []
 
@@ -704,16 +730,25 @@ export async function search1688ByImageUrl(imageUrl) {
 
     const resData = result.data
 
-    // OneBound item_search_img 응답: { items: { item: [...] } } 또는 { result: { resultList: [...] } }
-    const rawList =
-      resData?.items?.item ||
+    // OneBound item_search_img 응답 다중 구조 탐색
+    let rawList =
+      resData?.items?.item ||     // 표준 OneBound
+      resData?.item ||             // 최상위 item 배열
+      resData?.items ||            // items 자체가 배열
       resData?.result?.resultList ||
       resData?.resultList ||
       []
 
-    console.log('[1688 ImageSearch] Raw result count:', rawList.length)
+    if (rawList && !Array.isArray(rawList) && typeof rawList === 'object') {
+      rawList = Object.values(rawList)
+    }
 
-    if (rawList.length === 0) {
+    console.log('[1688 ImageSearch] Raw result count:', Array.isArray(rawList) ? rawList.length : 0)
+
+    if (!Array.isArray(rawList) || rawList.length === 0) {
+      if (resData?.error_code || resData?.error) {
+        console.warn('[1688 ImageSearch] OneBound error:', resData.error_code, resData.error)
+      }
       return { success: true, items: [], totalResults: '0' }
     }
 
@@ -722,16 +757,13 @@ export async function search1688ByImageUrl(imageUrl) {
       if (!s) return ''
       if (s.startsWith('//')) return 'https:' + s
       if (s.startsWith('http://')) return s.replace('http://', 'https://')
-      return s
+      return s.startsWith('http') ? s : ''
     }
 
     const items = rawList.map((entry, idx) => {
       const it = entry.item || entry
 
-      // 대표 이미지: pic_url (OneBound 표준)
       const imageUrl = normalizeUrl(it.pic_url || it.picUrl || it.imageUrl || it.image || '')
-
-      // 상품 ID: num_iid
       const itemId = String(it.num_iid || it.itemId || it.id || `imgitem-${Date.now()}-${idx}`)
       const cleanId = itemId.replace(/[^0-9]/g, '')
       const detailUrl = cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : ''
@@ -739,11 +771,11 @@ export async function search1688ByImageUrl(imageUrl) {
       const priceNum = parseFloat(String(it.price || '0').replace(/[^0-9.]/g, '')) || 0
       const minOrder = parseInt(it.min_num || it.minOrder || '1', 10) || 1
       const titleZh = it.title || it.subject || ''
-      const sellerId = String(it.seller_id || it.sellerId || '')
+      const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || '')
 
       return {
-        id: itemId,
-        itemId,
+        id: cleanId || itemId,
+        itemId: cleanId || itemId,
         titleZh,
         titleEn: '',
         titleKo: '',
@@ -755,12 +787,13 @@ export async function search1688ByImageUrl(imageUrl) {
         imageUrl,
         detailUrl,
         sellerId,
-        repurchaseRate: '90%',
+        repurchaseRate: '0',
         starLevel: 5.0,
-        company: it.nick || it.shop_name || it.shopName || '1688 공식 인증 공급사',
+        company: it.nick || it.shop_name || it.shopName || '1688 공급사',
         raw: it
       }
     }).filter(i => i.id && i.titleZh)
+
 
     await translateItemsBatch(items)
 
@@ -789,7 +822,7 @@ export async function getItemDetail1688(itemId) {
   const idStr = String(itemId || '').trim()
   if (!idStr || idStr === 'undefined' || idStr === 'null') {
     console.warn('[1688 Detail] Invalid itemId:', itemId)
-    return getMockProductDetail('804895839701')
+    return null
   }
 
   // 순수 숫자 ID 추출 (abb- 접두사 등 레거시 처리)
@@ -828,10 +861,8 @@ export async function getItemDetail1688(itemId) {
   }
 
   if (!data) {
-    console.warn('[1688 Detail] API failed, using Mock for id:', cleanId)
-    const mockDetail = getMockProductDetail(cleanId)
-    saveToCache(memoryDetailCache, 'euchs_detail_raw', cleanId, mockDetail)
-    return mockDetail
+    console.warn('[1688 Detail] API failed for id:', cleanId)
+    return null
   }
 
   saveToCache(memoryDetailCache, 'euchs_detail_raw', cleanId, data)
@@ -855,7 +886,8 @@ export async function fetch1688ProductById(offerId) {
   }
   // 빈값 / "undefined" / "null" 방어
   if (!idStr || idStr === 'undefined' || idStr === 'null') {
-    return getMockProductDetail('804895839701')
+    console.warn('[fetch1688ProductById] Invalid offerId:', offerId)
+    return null
   }
 
   const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', idStr)
@@ -1245,7 +1277,7 @@ export async function fetch1688ProductById(offerId) {
       priceFormatted: priceNum.toFixed(2),
       minOrder,
       sales: it.sold_count || it.volume || it.sales || '0',
-      imageUrl: imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
+      imageUrl: imageUrl || '',
       images,
       sourceUrl,
       detailUrl: sourceUrl,
@@ -1264,10 +1296,8 @@ export async function fetch1688ProductById(offerId) {
     saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, normalizedProduct)
     return normalizedProduct
   } catch (err) {
-    console.warn('[1688 Product Fetch] Fallback to Mock product:', err.message)
-    const mockDetail = getMockProductDetail(idStr)
-    saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, mockDetail)
-    return mockDetail
+    console.warn('[1688 Product Fetch] Error:', err.message)
+    return null
   }
 }
 
