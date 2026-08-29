@@ -313,7 +313,7 @@
 
                   <!-- 2. 견적 완료 (결제대기) 상태: [1차 결제] 버튼 -->
                   <button
-                    v-else-if="order.status === 'quote_confirmed'"
+                    v-else-if="normalizeOrderStatus(order.status) === 'quote_confirmed' || order.status === 'quote_confirmed'"
                     type="button"
                     @click="openOrderDetail(order)"
                     class="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
@@ -418,7 +418,7 @@
 
             <!-- 2. 결제 대기 상태 -->
             <button
-              v-else-if="order.status === 'quote_confirmed'"
+              v-else-if="normalizeOrderStatus(order.status) === 'quote_confirmed' || order.status === 'quote_confirmed'"
               type="button"
               @click="openOrderDetail(order)"
               class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500 text-slate-950 font-black flex items-center gap-1.5 cursor-pointer shadow-2xs active:scale-95"

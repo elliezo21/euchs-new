@@ -518,87 +518,107 @@ export async function saveNewOrder(order) {
  */
 export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
   const list = getStoredOrders();
-  const target = list.find(o => o.id === orderId || o.orderNumber === orderId || String(o.dbId) === String(orderId));
-  if (target) {
+  let target = list.find(o => o.id === orderId || o.orderNumber === orderId || String(o.dbId) === String(orderId) || String(o.id) === String(orderId));
+
+  if (!target) {
+    target = {
+      id: orderId,
+      orderNumber: String(orderId).startsWith('EUC-') ? orderId : `EUC-${Date.now()}`,
+      status: nextStatus,
+      ...extraData
+    };
+    list.unshift(target);
+  } else {
     target.status = nextStatus;
     Object.assign(target, extraData);
-    saveStoredOrders(list);
+  }
 
-    // Supabase DB update 비동기 전송
-    if (isSupabaseConfigured()) {
-      try {
-        const orderNo = target.orderNumber || target.orderId || target.id;
-        const nowIso = new Date().toISOString();
+  // 1. 로컬 스토리지 즉시 캐시 저장 (즉각적 렌더링 보장)
+  saveStoredOrders(list);
 
-        // 1. orders 테이블 업데이트 (상태, 견적액, 1차/2차 결제액, 실측데이터, 검수사진, B/L, 운송장 등)
-        const orderUpdatePayload = {
-          status: nextStatus,
-          items: target.items || [],
-          total_price_krw: Number(target.totalPriceKrw || target.total_price_krw || 0),
-          total_price_rmb: Number(target.totalPriceRmb || target.total_price_rmb || 0),
-          first_payment: target.firstPayment || extraData.firstPayment || extraData.quoteInfo || {},
-          second_payment: target.secondPayment || extraData.secondPayment || {},
-          measured_data: target.measuredData || extraData.measuredData || {},
-          inspection_photos: target.inspectionPhotos || extraData.inspectionPhotos || [],
-          vas_applied: target.vasApplied || target.vasServices || [],
-          barcode_label_filename: extraData.barcodeLabelFilename || extraData.barcodeFile?.name || target.barcodeLabelFilename || null,
-          bl_no: target.bl_no || extraData.bl_no || target.blInfo?.blNumber || extraData.blInfo?.blNumber || null,
-          customs_info: target.customs_info || target.blInfo || extraData.customs_info || extraData.blInfo || {},
-          tracking_no: target.tracking_no || extraData.tracking_no || target.trackingInfo?.trackingNumber || extraData.trackingInfo?.trackingNumber || null,
-          carrier: target.carrier || extraData.carrier || target.trackingInfo?.carrier || extraData.trackingInfo?.carrier || null,
-          shipping_info: target.shipping_info || target.trackingInfo || extraData.shipping_info || extraData.trackingInfo || {},
-          memo: `[${orderNo}] ${target.memo || ''}`.trim(),
-          updated_at: nowIso
-        };
+  // 2. Supabase DB update (orders & applications)
+  if (isSupabaseConfigured()) {
+    try {
+      const orderNo = target.orderNumber || target.orderId || target.id || orderId;
+      const nowIso = new Date().toISOString();
 
-        const { error: orderUpdateErr } = await supabase
-          .from('orders')
-          .update(orderUpdatePayload)
-          .eq('order_number', orderNo);
+      // 1. orders 테이블 업데이트 (상태, 견적액, 1차/2차 결제액, 실측데이터, 검수사진, B/L, 운송장 등)
+      const orderUpdatePayload = {
+        status: nextStatus,
+        items: target.items || [],
+        total_price_krw: Number(target.totalPriceKrw || target.total_price_krw || 0),
+        total_price_rmb: Number(target.totalPriceRmb || target.total_price_rmb || 0),
+        first_payment: target.firstPayment || extraData.firstPayment || extraData.quoteInfo || {},
+        second_payment: target.secondPayment || extraData.secondPayment || {},
+        measured_data: target.measuredData || extraData.measuredData || {},
+        inspection_photos: target.inspectionPhotos || extraData.inspectionPhotos || [],
+        vas_applied: target.vasApplied || target.vasServices || [],
+        barcode_label_filename: extraData.barcodeLabelFilename || extraData.barcodeFile?.name || target.barcodeLabelFilename || null,
+        bl_no: target.bl_no || extraData.bl_no || target.blInfo?.blNumber || extraData.blInfo?.blNumber || null,
+        customs_info: target.customs_info || target.blInfo || extraData.customs_info || extraData.blInfo || {},
+        tracking_no: target.tracking_no || extraData.tracking_no || target.trackingInfo?.trackingNumber || extraData.trackingInfo?.trackingNumber || null,
+        carrier: target.carrier || extraData.carrier || target.trackingInfo?.carrier || extraData.trackingInfo?.carrier || null,
+        shipping_info: target.shipping_info || target.trackingInfo || extraData.shipping_info || extraData.trackingInfo || {},
+        memo: `[${orderNo}] ${target.memo || ''}`.trim(),
+        updated_at: nowIso
+      };
 
-        if (orderUpdateErr && isValidUUID(target.id)) {
+      const { error: orderUpdateErr, data: updatedOrders } = await supabase
+        .from('orders')
+        .update(orderUpdatePayload)
+        .eq('order_number', orderNo)
+        .select();
+
+      if (orderUpdateErr || !updatedOrders || updatedOrders.length === 0) {
+        if (target.id && isValidUUID(target.id)) {
           await supabase
             .from('orders')
             .update(orderUpdatePayload)
             .eq('id', target.id);
+        } else if (orderId && isValidUUID(orderId)) {
+          await supabase
+            .from('orders')
+            .update(orderUpdatePayload)
+            .eq('id', orderId);
         }
+      }
 
-        // 2. applications 테이블 업데이트 (호환성)
-        const appPayload = {
-          status: nextStatus,
-          total_amount: Number(target.totalPriceKrw || target.total_price_krw || 0),
-          details: target,
-          updated_at: nowIso
-        };
+      // 2. applications 테이블 업데이트 (호환성)
+      const appPayload = {
+        status: nextStatus,
+        total_amount: Number(target.totalPriceKrw || target.total_price_krw || 0),
+        details: target,
+        updated_at: nowIso
+      };
 
-        if (target.dbId && typeof target.dbId === 'number') {
+      if (target.dbId && typeof target.dbId === 'number') {
+        await supabase
+          .from('applications')
+          .update(appPayload)
+          .eq('id', target.dbId);
+      } else {
+        const { data: match } = await supabase
+          .from('applications')
+          .select('id')
+          .ilike('memo', `%${orderNo}%`)
+          .limit(1);
+
+        if (match && match.length > 0) {
+          target.dbId = match[0].id;
           await supabase
             .from('applications')
             .update(appPayload)
-            .eq('id', target.dbId);
-        } else {
-          const { data: match } = await supabase
-            .from('applications')
-            .select('id')
-            .ilike('memo', `%${orderNo}%`)
-            .limit(1);
-
-          if (match && match.length > 0) {
-            target.dbId = match[0].id;
-            await supabase
-              .from('applications')
-              .update(appPayload)
-              .eq('id', match[0].id);
-          }
+            .eq('id', match[0].id);
         }
-      } catch (err) {
-        console.warn('updateOrderStatus Supabase update notice:', err);
       }
+    } catch (err) {
+      console.warn('[updateOrderStatus Supabase update warning]:', err);
     }
-
-    return target;
   }
-  return null;
+
+  // 3. 전역 상태 갱신 이벤트 발행
+  window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orderId, status: nextStatus, target } }));
+  return target;
 }
 
 /**
