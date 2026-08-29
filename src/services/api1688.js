@@ -210,9 +210,33 @@ export function cleanForeignText(str) {
 // Quota Defense: Memory & SessionStorage Cache Layer
 // ========================================================
 const CACHE_TTL = 30 * 60 * 1000 // 30분 캐시 유지
+const CACHE_VERSION = 'ob_v3'     // OneBound 전환 후 캐시 버전 (변경 시 구형 캐시 자동 무효화)
 const memorySearchCache = new Map()
 const memoryDetailCache = new Map()
 const memoryTranslationCache = new Map()
+
+// ── 구형 Mock/Otapi 캐시 자동 플러시 ─────────────────────────────────────
+// 배포 후 브라우저에 남아있는 구형 sessionStorage 캐시 항목 제거
+;(function flushLegacyCache() {
+  try {
+    if (typeof window === 'undefined' || !window.sessionStorage) return
+    const versionKey = '__euchs_cache_version'
+    const storedVersion = window.sessionStorage.getItem(versionKey)
+    if (storedVersion !== CACHE_VERSION) {
+      // 버전 불일치: 검색/상세 캐시 전체 삭제
+      const keysToDelete = []
+      for (let i = 0; i < window.sessionStorage.length; i++) {
+        const k = window.sessionStorage.key(i)
+        if (k && (k.startsWith('euchs_search') || k.startsWith('euchs_detail') || k.startsWith('euchs_product'))) {
+          keysToDelete.push(k)
+        }
+      }
+      keysToDelete.forEach(k => window.sessionStorage.removeItem(k))
+      window.sessionStorage.setItem(versionKey, CACHE_VERSION)
+      console.log(`[EUCHS Cache] Flushed ${keysToDelete.length} legacy cache entries (→ ${CACHE_VERSION})`)
+    }
+  } catch (e) {}
+})()
 
 const getFromCache = (cacheMap, storageKey, key) => {
   // 1. 메모리 캐시 조회
@@ -442,24 +466,23 @@ export async function search1688(queryZh, page = 1, options = {}) {
   try {
     const params = new URLSearchParams({ q: query, page: String(page) })
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 20000)
+    const timeout = setTimeout(() => controller.abort(), 25000)
     const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
     clearTimeout(timeout)
 
-    if (proxyRes.ok) {
-      const result = await proxyRes.json()
-      if (result.success && result.data) {
-        data = result.data
-        console.log('[1688 Search] OneBound proxy success. Keys:', Object.keys(data || {}).slice(0, 8))
-      } else {
-        console.warn('[1688 Search] Proxy success=false or no data:', result)
-      }
+    // HTTP 레벨 에러 여부와 무관하게 본문 파싱 시도
+    const result = await proxyRes.json().catch(() => null)
+    if (!result) {
+      console.warn(`[1688 Search] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
+    } else if (result.data) {
+      // success=true이든 false이든, data가 있으면 파싱 진행
+      data = result.data
+      console.log(`[1688 Search] Proxy data received. success=${result.success} gateway=${result.gateway || 'unknown'} keys:`, Object.keys(data || {}).slice(0, 8))
     } else {
-      const errBody = await proxyRes.json().catch(() => ({}))
-      console.warn(`[1688 Search] Proxy HTTP ${proxyRes.status}:`, errBody)
+      console.warn('[1688 Search] Proxy returned no data:', result.message || JSON.stringify(result).slice(0, 200))
     }
   } catch (err) {
-    console.warn('[1688 Search] Proxy error:', err.name === 'AbortError' ? 'Timeout(20s)' : err.message)
+    console.warn('[1688 Search] Proxy fetch error:', err.name === 'AbortError' ? 'Timeout(25s)' : err.message)
   }
 
   if (!data) {
@@ -709,23 +732,23 @@ export async function search1688ByImageUrl(imageUrl) {
 
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 20000)
+    const timeout = setTimeout(() => controller.abort(), 25000)
 
     const proxyRes = await fetch(`/api/1688-image-search?imgUrl=${encodeURIComponent(url)}`, {
       signal: controller.signal
     })
     clearTimeout(timeout)
 
-    if (!proxyRes.ok) {
-      const errBody = await proxyRes.json().catch(() => ({}))
-      console.warn('[1688 ImageSearch] Proxy HTTP error:', proxyRes.status, errBody)
-      return { success: false, items: [], totalResults: '0', error: errBody }
+    const result = await proxyRes.json().catch(() => null)
+    if (!result) {
+      console.warn('[1688 ImageSearch] Proxy returned non-JSON. HTTP', proxyRes.status)
+      return { success: false, items: [], totalResults: '0', error: 'non-json response' }
     }
 
-    const result = await proxyRes.json()
-    if (!result.success || !result.data) {
-      console.warn('[1688 ImageSearch] Proxy returned success=false:', result)
-      return { success: false, items: [], totalResults: '0', error: result }
+    // success=true이든 false이든 data가 있으면 파싱 진행
+    if (!result.data) {
+      console.warn('[1688 ImageSearch] Proxy returned no data:', result.message || JSON.stringify(result).slice(0, 200))
+      return { success: false, items: [], totalResults: '0', error: result.message || 'no data' }
     }
 
     const resData = result.data
@@ -840,24 +863,23 @@ export async function getItemDetail1688(itemId) {
   // OneBound 프록시 (/api/1688-item-detail)
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000)
+    const timeout = setTimeout(() => controller.abort(), 25000)
     const proxyRes = await fetch(`/api/1688-item-detail?itemId=${encodeURIComponent(cleanId)}`, {
       signal: controller.signal
     })
     clearTimeout(timeout)
 
-    if (proxyRes.ok) {
-      const resJson = await proxyRes.json()
-      if (resJson.success && resJson.data) {
-        data = resJson.data
-        console.log('[1688 Detail] OneBound proxy success. Keys:', Object.keys(data || {}).slice(0, 10))
-      }
+    const resJson = await proxyRes.json().catch(() => null)
+    if (!resJson) {
+      console.warn(`[1688 Detail] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
+    } else if (resJson.data) {
+      data = resJson.data
+      console.log(`[1688 Detail] Proxy data received. success=${resJson.success} gateway=${resJson.gateway || 'unknown'} keys:`, Object.keys(data || {}).slice(0, 10))
     } else {
-      const errBody = await proxyRes.text().catch(() => '')
-      console.warn(`[1688 Detail] Proxy HTTP ${proxyRes.status}:`, errBody.slice(0, 200))
+      console.warn(`[1688 Detail] Proxy no data for id=${cleanId}:`, resJson.message || JSON.stringify(resJson).slice(0, 200))
     }
   } catch (err) {
-    console.debug('[1688 Detail] Proxy notice:', err.name === 'AbortError' ? 'Timeout(15s)' : err.message)
+    console.warn('[1688 Detail] Proxy fetch error:', err.name === 'AbortError' ? 'Timeout(25s)' : err.message)
   }
 
   if (!data) {
