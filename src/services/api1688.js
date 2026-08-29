@@ -1,9 +1,7 @@
 /**
- * 1688 DataHub API & DeepL Translation Service Module with Intelligent Mock Fallback
- * 이유씨컴퍼니 (EUCHS) - 1688 실시간 검색 & DeepL 번역 연동 및 429 Quota 초과 무결점 Mock 자동 전환
+ * 1688 DataHub API & DeepL Translation Service Module
+ * 이유씨컴퍼니 (EUCHS) - 1688 실시간 검색 & DeepL 번역 연동 (OneBound 순수 실데이터 전용)
  */
-
-import { getMockSearchResults, getMockProductDetail } from './mock1688Data'
 
 // ========================================================
 // 🔗 이미지 URL 정규화 — 모듈 최상단 전역 유틸 (TDZ 방지)
@@ -593,18 +591,18 @@ export async function search1688(queryZh, page = 1, options = {}) {
   }
 
   if (!data) {
-    console.warn(`[1688 API] No response for "${query}", falling back to intelligent dataset`)
-    return getMockSearchResults(query, page)
+    console.warn(`[1688 Search] No response from OneBound for "${query}". Returning empty.`)
+    return { items: [], total: 0, page, pageSize: 40, query }
   }
 
   // ── OneBound 응답 파싱 ──────────────────────────────────────────────────
   try {
     const resData = data || {}
 
-    // OneBound 에러 응답(4005, 4000 등)인 경우 즉시 mock fallback
+    // OneBound 에러 응답(4005, 4000 등)인 경우 빈 결과 반환
     if (resData.error_code || resData.error || resData.reason?.includes('已到期')) {
-      console.warn(`[1688 API] OneBound error (${resData.error_code}): ${resData.reason || resData.error}. Activating intelligent mock search.`)
-      return getMockSearchResults(query, page)
+      console.warn(`[1688 Search] OneBound error (${resData.error_code}): ${resData.reason || resData.error}. Returning empty results.`)
+      return { items: [], total: 0, page, pageSize: 40, query, error: resData.error_code }
     }
 
     // OneBound item_search 응답 다중 구조 탐색:
@@ -647,8 +645,8 @@ export async function search1688(queryZh, page = 1, options = {}) {
     if (!rawList) rawList = []
 
     if (!Array.isArray(rawList) || rawList.length === 0) {
-      console.warn(`[1688 API] Empty rawList for "${query}". Switching to intelligent mock search.`)
-      return getMockSearchResults(query, page)
+      console.warn(`[1688 Search] Empty rawList for "${query}". Returning empty.`)
+      return { items: [], total: 0, page, pageSize: 40, query }
     }
 
 
@@ -970,9 +968,14 @@ export async function search1688ByImageUrl(imageUrl) {
 
 /**
  * 1688 OneBound 상품 상세 Raw 조회
+ * In-flight 중복 요청 차단: 동일 ID를 동시에 여러 곳에서 호출해도 API는 단 1회만 실행됨
  * @param {string|number} itemId - 1688 순수 숫자 상품 ID (num_iid)
  * @returns {Promise<object>}
  */
+
+// 동일 ID에 대해 동시에 진행 중인 fetch Promise를 공유 (중복 API 호출 차단)
+const _detailInFlight = new Map()
+
 export async function getItemDetail1688(itemId) {
   const idStr = String(itemId || '').trim()
   if (!idStr || idStr === 'undefined' || idStr === 'null') {
@@ -980,47 +983,54 @@ export async function getItemDetail1688(itemId) {
     return null
   }
 
-  // 순수 숫자 ID 추출 (abb- 접두사 등 레거시 처리)
   const cleanId = idStr.replace(/[^0-9]/g, '') || idStr
 
-  // 캐시 확인
+  // 1. 캐시 HIT → API 호출 없이 즉시 반환
   const cached = getFromCache(memoryDetailCache, 'euchs_detail_raw', cleanId)
   if (cached) {
     console.debug('[1688 Detail] Cache HIT for:', cleanId)
     return cached
   }
 
-  let data = null
+  // 2. 이미 진행 중인 요청이 있으면 그 Promise를 공유 (중복 API 호출 0건)
+  if (_detailInFlight.has(cleanId)) {
+    console.debug('[1688 Detail] In-flight REUSE for:', cleanId)
+    return _detailInFlight.get(cleanId)
+  }
 
-  // OneBound 프록시 (/api/1688-item-detail)
-  try {
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
-    const proxyRes = await fetch(`/api/1688-item-detail?itemId=${encodeURIComponent(cleanId)}`, {
-      signal: controller.signal
-    })
-    clearTimeout(timeout)
+  // 3. 신규 API 호출 — Promise를 맵에 등록하여 동시 호출 공유
+  const fetchPromise = (async () => {
+    let data = null
+    try {
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000)
+      const proxyRes = await fetch(`/api/1688-item-detail?itemId=${encodeURIComponent(cleanId)}`, {
+        signal: controller.signal
+      })
+      clearTimeout(timeout)
 
-    const resJson = await proxyRes.json().catch(() => null)
-    if (!resJson) {
-      console.warn(`[1688 Detail] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
-    } else if (resJson.data && resJson.success !== false && !resJson.data.error_code && !resJson.data.error) {
-      data = resJson.data
-      console.log(`[1688 Detail] Proxy data received. keys:`, Object.keys(data || {}).slice(0, 10))
-    } else {
-      console.warn(`[1688 Detail] OneBound API Notice (${resJson?.error_code || 'error'}):`, resJson?.message || 'Data unavailable')
+      const resJson = await proxyRes.json().catch(() => null)
+      if (!resJson) {
+        console.warn(`[1688 Detail] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
+      } else if (resJson.data && resJson.success !== false && !resJson.data.error_code && !resJson.data.error) {
+        data = resJson.data
+        console.log(`[1688 Detail] Proxy OK. keys:`, Object.keys(data || {}).slice(0, 10))
+      } else {
+        console.warn(`[1688 Detail] OneBound error (${resJson?.error_code || resJson?.data?.error_code || 'unknown'}):`, resJson?.message || resJson?.data?.reason || 'Data unavailable')
+      }
+    } catch (err) {
+      console.warn('[1688 Detail] Proxy fetch error:', err.name === 'AbortError' ? '응답 지연(10s)' : err.message)
+    } finally {
+      _detailInFlight.delete(cleanId)
     }
-  } catch (err) {
-    console.warn('[1688 Detail] Proxy fetch error:', err.name === 'AbortError' ? '상세 조회 응답 지연' : err.message)
-  }
 
-  if (!data || data.error_code || data.error) {
-    console.warn('[1688 Detail] API unavailable for id:', cleanId, '- will use intelligent product detail')
-    return null
-  }
+    if (!data) return null
+    saveToCache(memoryDetailCache, 'euchs_detail_raw', cleanId, data)
+    return data
+  })()
 
-  saveToCache(memoryDetailCache, 'euchs_detail_raw', cleanId, data)
-  return data
+  _detailInFlight.set(cleanId, fetchPromise)
+  return fetchPromise
 }
 
 
@@ -1055,33 +1065,14 @@ export async function fetch1688ProductById(offerId) {
   try {
     const rawData = await getItemDetail1688(cleanNumericId)
 
-    // rawData가 없거나 에러인 경우 -> Intelligent Mock Dataset Fallback 즉시 발동
-    if (!rawData || rawData.error_code || rawData.error || (!rawData.num_iid && !rawData.title && !rawData.item)) {
-      console.warn(`[fetch1688ProductById] Activating intelligent product detail for ID: ${cleanNumericId}`)
-      const mockDetail = getMockProductDetail(cleanNumericId)
-      if (mockDetail) {
-        // mockDetail을 B2B 규격으로 정규화하여 반환
-        const normalizedMock = {
-          ...mockDetail,
-          id: cleanNumericId,
-          price: mockDetail.price || 15.80,
-          priceFormatted: (mockDetail.price || 15.80).toFixed(2),
-          priceTiers: mockDetail.priceTiers || [
-            { minQty: 1, maxQty: 9, price: Number((mockDetail.price || 15.80).toFixed(2)), label: '1~9개' },
-            { minQty: 10, maxQty: 49, price: Number(((mockDetail.price || 15.80) * 0.92).toFixed(2)), label: '10~49개' },
-            { minQty: 50, maxQty: null, price: Number(((mockDetail.price || 15.80) * 0.85).toFixed(2)), label: '50개 이상' }
-          ],
-          freight: 3.0,
-          descImgs: mockDetail.images || [],
-          skuProps: mockDetail.skuProps || [],
-          skus: mockDetail.skus || []
-        }
-        saveToCache(memoryDetailCache, 'euchs_product_parsed', cleanNumericId, normalizedMock)
-        return normalizedMock
-      }
+    // rawData가 없으면 null 반환 — 가짜 데이터로 눈속임하지 않음
+    if (!rawData) {
+      console.warn(`[fetch1688ProductById] OneBound returned no data for ID: ${cleanNumericId}`)
+      return null
     }
 
     // ─── OneBound item_get 응답 구조 탐색 ────────────────────────────────
+
     // OneBound: { item: { num_iid, title, pic_url, item_imgs, props_list, skus, seller_info, ... } }
     let it = {}
     if (rawData && typeof rawData === 'object') {

@@ -1235,14 +1235,15 @@ const loadProductDetailImages = async (item) => {
   const itemId = String(item.id || '').replace(/[^0-9]/g, '') || String(item.id || '')
 
   try {
-    // ── 항상 OneBound item_get API 직접 호출 (타이밍 의존성 제거) ────────────
-    console.log('[loadProductDetailImages] Calling getItemDetail1688 for id:', itemId)
+    // ── getItemDetail1688는 in-flight 공유 맵으로 보호됨:
+    //    loadFullProductData와 동시에 호출되어도 API는 단 1회만 실행됨
+    console.log('[loadProductDetailImages] Reusing shared getItemDetail1688 for id:', itemId)
     const rawData = await getItemDetail1688(itemId)
 
     // OneBound 응답에서 item 객체 추출
     let it = null
     if (rawData && (rawData.num_iid || rawData.title || rawData.pic_url || rawData.item_imgs || rawData.desc_img || rawData.desc)) {
-      it = rawData  // 프록시가 item을 직접 반환한 경우
+      it = rawData
     } else if (rawData?.item) {
       it = rawData.item
     } else if (rawData?.result?.item) {
@@ -1251,8 +1252,7 @@ const loadProductDetailImages = async (item) => {
       it = rawData || {}
     }
 
-    console.log('[loadProductDetailImages] OneBound item keys:', Object.keys(it || {}).slice(0, 15))
-    console.log('[loadProductDetailImages] desc_img type:', typeof it.desc_img, '| desc length:', String(it.desc || '').length, '| item_imgs count:', Array.isArray(it.item_imgs) ? it.item_imgs.length : 0)
+    console.log('[loadProductDetailImages] item keys:', Object.keys(it || {}).slice(0, 12))
 
     let imgs = []
 
@@ -1274,13 +1274,13 @@ const loadProductDetailImages = async (item) => {
       if (imgs.length) console.log(`[loadProductDetailImages] description HTML → ${imgs.length}장`)
     }
 
-    // ── 4순위: item_imgs (갤러리 이미지, desc_img가 없을 때 대체) ─────────────
+    // ── 4순위: item_imgs (갤러리 이미지) ─────────────────────────────────────
     if (!imgs.length && Array.isArray(it.item_imgs) && it.item_imgs.length > 0) {
       imgs = extractUrls(it.item_imgs)
-      if (imgs.length) console.log(`[loadProductDetailImages] item_imgs fallback → ${imgs.length}장`)
+      if (imgs.length) console.log(`[loadProductDetailImages] item_imgs → ${imgs.length}장`)
     }
 
-    // ── 5순위: currentItem.descImgs (fetch1688ProductById 결과가 먼저 온 경우) ─
+    // ── 5순위: currentItem.descImgs ─────────────────────────────────────────
     if (!imgs.length) {
       const candidate = currentItem.value || item || props.product || {}
       if (Array.isArray(candidate.descImgs) && candidate.descImgs.length > 0) {
@@ -1289,7 +1289,7 @@ const loadProductDetailImages = async (item) => {
       }
     }
 
-    // ── 6순위: currentItem.images / props.product.images (갤러리) ────────────
+    // ── 6순위: currentItem.images / props.product.images ─────────────────────
     if (!imgs.length) {
       const candidate = currentItem.value || item || props.product || {}
       const fallbackList = Array.isArray(candidate.images) && candidate.images.length > 0
@@ -1312,13 +1312,11 @@ const loadProductDetailImages = async (item) => {
     }
 
     console.log('[loadProductDetailImages] Final image count:', imgs.length)
-
     if (imgs.length > 0) {
       detailImages.value = imgs
     }
-    // 이미지 없으면 빈 배열 유지 — "제공되지 않는 상품" 문구 표시
   } catch (err) {
-    console.warn('[loadProductDetailImages] API error:', err.message)
+    console.warn('[loadProductDetailImages] error:', err.message)
   } finally {
     isLoadingDetail.value = false
   }
