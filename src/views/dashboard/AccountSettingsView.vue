@@ -828,6 +828,7 @@ import {
   userBalance,
   loadBalance
 } from '../../lib/balanceStore'
+import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
 
 const route = useRoute()
 const router = useRouter()
@@ -869,31 +870,82 @@ const copyBankAccount = () => {
   alert('기업은행 190-134321-01-016 계좌번호가 클립보드에 복사되었습니다.')
 }
 
-const submitDepositRequest = () => {
+const submitDepositRequest = async () => {
+  const amount = Number(depositAmount.value) || 0
+  if (amount <= 0) {
+    alert('충전할 금액을 10,000원 이상 선택하거나 입력해 주세요.')
+    return
+  }
+
+  const depositorName = depositDepositorName.value || customsProfile.value.companyName || customsProfile.value.contactName || userDisplayName.value || '입금자'
+  const buyerName = customsProfile.value.companyName || userDisplayName.value || '바이어 회원'
+  const buyerEmail = currentUser.value?.email || ''
+  const isUUID = currentUser.value?.id && isValidUUID(currentUser.value.id)
+  const nowIso = new Date().toISOString()
+
   const req = {
     id: `DEP-${Date.now()}`,
-    createdAt: new Date().toISOString(),
-    buyerName: customsProfile.value.companyName || userDisplayName.value || '바이어 회원',
-    buyerEmail: currentUser.value?.email || '',
-    depositorName: depositDepositorName.value || customsProfile.value.companyName || userDisplayName.value || '입금자',
-    amount: depositAmount.value,
+    createdAt: nowIso,
+    user_id: isUUID ? currentUser.value.id : null,
+    buyerName,
+    buyerEmail,
+    buyer_name: buyerName,
+    buyer_email: buyerEmail,
+    depositorName,
+    depositor_name: depositorName,
+    amount,
     bankName: '기업은행',
     accountNumber: '190-134321-01-016',
+    bank_name: '기업은행',
+    account_number: '190-134321-01-016',
     accountHolder: '이유씨컴퍼니(조해성)',
     status: 'pending' // 'pending' | 'approved' | 'rejected'
   }
 
+  // 1. Supabase DB INSERT (Primary)
+  if (isSupabaseConfigured()) {
+    try {
+      const depositPayload = {
+        user_id: isUUID ? currentUser.value.id : null,
+        buyer_email: buyerEmail,
+        buyer_name: buyerName,
+        depositor_name: depositorName,
+        amount,
+        bank_name: '기업은행',
+        account_number: '190-134321-01-016',
+        status: 'pending',
+        created_at: nowIso
+      }
+
+      const { data, error } = await supabase
+        .from('deposit_requests')
+        .insert([depositPayload])
+        .select()
+
+      if (!error && data && data.length > 0) {
+        req.id = data[0].id || req.id
+        req.dbId = data[0].id
+      }
+    } catch (err) {
+      console.warn('[AccountSettingsView] Supabase deposit_requests insert notice:', err)
+    }
+  }
+
+  // 2. 로컬 스토리지 즉시 캐시 저장
   try {
     const raw = localStorage.getItem('euchs_deposit_requests')
     const list = raw ? JSON.parse(raw) : []
     list.unshift(req)
     localStorage.setItem('euchs_deposit_requests', JSON.stringify(list))
-    window.dispatchEvent(new CustomEvent('euchs-deposit-request', { detail: req }))
-    window.dispatchEvent(new Event('storage'))
   } catch (e) {}
 
-  alert(`₩${depositAmount.value.toLocaleString()}원 충전 신청이 완료되었습니다.\n기업은행 190-134321-01-016 (이유씨컴퍼니(조해성)) 계좌로 입금해 주시면 확인 후 즉시 승인됩니다.`)
+  window.dispatchEvent(new CustomEvent('euchs-deposit-request', { detail: req }))
+  window.dispatchEvent(new CustomEvent('euchs-balance-update'))
+  window.dispatchEvent(new Event('storage'))
+
+  alert(`₩${amount.toLocaleString()}원 충전 신청이 완료되었습니다.\n기업은행 190-134321-01-016 (이유씨컴퍼니(조해성)) 계좌로 입금해 주시면 확인 후 즉시 승인됩니다.`)
   showDepositModal.value = false
+  loadTransactions()
 }
 
 // ----------------------------------------------------

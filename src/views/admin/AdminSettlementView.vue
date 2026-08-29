@@ -675,19 +675,22 @@ function getLogTypeBadge(type) {
 // 3. 충전 승인 & 반려 액션
 // ----------------------------------------------------
 async function approveDeposit(req) {
-  if (!confirm(`[${req.buyerName}] 님의 ₩${fmtN(req.amount)}원 무통장 입금을 승인하시겠습니까?\n승인 시 바이어 예치금 잔액으로 즉시 충전됩니다.`)) {
+  if (!confirm(`[${req.buyerName || req.depositorName}] 님의 ₩${fmtN(req.amount)}원 무통장 입금을 승인하시겠습니까?\n승인 시 바이어 예치금 잔액으로 즉시 충전됩니다.`)) {
     return
   }
 
+  const approvedAt = new Date().toISOString()
   req.status = 'approved'
-  req.approvedAt = new Date().toISOString()
+  req.approvedAt = approvedAt
 
   // 바이어 예치금 잔액 가산 & Supabase profiles/transactions 동기화
   await applyBalanceTransaction(Number(req.amount), {
     type: 'deposit',
     title: '예치금 무통장 입금 충전 (승인)',
     description: `입금 승인 (신청번호: ${req.id})`,
-    orderId: req.id
+    orderId: req.id,
+    userId: req.userId || req.user_id,
+    buyerEmail: req.buyerEmail || req.buyer_email
   })
 
   // Supabase deposit_requests 테이블 업데이트
@@ -695,13 +698,15 @@ async function approveDeposit(req) {
     try {
       await supabase
         .from('deposit_requests')
-        .update({ status: 'approved', approved_at: req.approvedAt })
+        .update({ status: 'approved', approved_at: approvedAt })
         .eq('id', req.id)
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[approveDeposit] Supabase update notice:', e)
+    }
   }
 
   saveState()
-  showToast(`[${req.buyerName}] 님의 ₩${fmtN(req.amount)}원 충전이 승인되었습니다.`)
+  showToast(`[${req.buyerName || req.depositorName}] 님의 ₩${fmtN(req.amount)}원 충전이 승인되었습니다.`)
 }
 
 async function rejectDeposit(req) {
@@ -718,7 +723,9 @@ async function rejectDeposit(req) {
         .from('deposit_requests')
         .update({ status: 'rejected', reject_reason: reason })
         .eq('id', req.id)
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[rejectDeposit] Supabase update notice:', e)
+    }
   }
 
   saveState()
@@ -751,20 +758,54 @@ async function handleManualAdjust() {
 }
 
 // ----------------------------------------------------
-// 로컬 스토리지 로드 & 저장
+// 로컬 스토리지 로드 & 저장 및 Supabase 실시간 동기화
 // ----------------------------------------------------
 async function loadState() {
-  try {
-    const rawReq = localStorage.getItem('euchs_deposit_requests')
-    if (rawReq) {
-      depositRequests.value = JSON.parse(rawReq)
-    } else {
+  // 1. Supabase deposit_requests 직접 조회 최우선
+  if (isSupabaseConfigured()) {
+    try {
+      const { data: dbReqs, error } = await supabase
+        .from('deposit_requests')
+        .select('*')
+        .order('created_at', { ascending: false })
+
+      if (!error && Array.isArray(dbReqs)) {
+        if (dbReqs.length > 0) {
+          depositRequests.value = dbReqs.map(r => ({
+            id: r.id,
+            dbId: r.id,
+            user_id: r.user_id,
+            userId: r.user_id,
+            createdAt: r.created_at,
+            buyerName: r.buyer_name || '바이어 회원',
+            buyerEmail: r.buyer_email || '',
+            depositorName: r.depositor_name || r.buyer_name || '입금자',
+            amount: Number(r.amount || 0),
+            bankName: r.bank_name || '기업은행',
+            accountNumber: r.account_number || '190-134321-01-016',
+            status: r.status || 'pending',
+            approvedAt: r.approved_at,
+            rejectReason: r.reject_reason
+          }))
+          localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
+        } else {
+          const rawReq = localStorage.getItem('euchs_deposit_requests')
+          depositRequests.value = rawReq ? JSON.parse(rawReq) : JSON.parse(JSON.stringify(DEFAULT_REQUESTS))
+        }
+      }
+    } catch (e) {
+      console.warn('[AdminSettlementView] Supabase fetch error:', e)
+    }
+  } else {
+    try {
+      const rawReq = localStorage.getItem('euchs_deposit_requests')
+      depositRequests.value = rawReq ? JSON.parse(rawReq) : JSON.parse(JSON.stringify(DEFAULT_REQUESTS))
+    } catch (e) {
       depositRequests.value = JSON.parse(JSON.stringify(DEFAULT_REQUESTS))
     }
-  } catch (e) {
-    depositRequests.value = JSON.parse(JSON.stringify(DEFAULT_REQUESTS))
   }
 
+  // 2. 로그 로드
   try {
     const rawLogs = localStorage.getItem('euchs_settlement_logs')
     if (rawLogs) {
@@ -775,29 +816,6 @@ async function loadState() {
   } catch (e) {
     transactionLogs.value = JSON.parse(JSON.stringify(DEFAULT_LOGS))
   }
-
-  // Supabase deposit_requests 비동기 조회 및 동기화
-  if (isSupabaseConfigured()) {
-    try {
-      const { data: dbReqs, error } = await supabase.from('deposit_requests').select('*').order('created_at', { ascending: false })
-      if (!error && Array.isArray(dbReqs) && dbReqs.length > 0) {
-        depositRequests.value = dbReqs.map(r => ({
-          id: r.id,
-          createdAt: r.created_at,
-          buyerName: r.buyer_name,
-          buyerEmail: r.buyer_email,
-          depositorName: r.depositor_name,
-          amount: Number(r.amount),
-          bankName: r.bank_name || '기업은행',
-          accountNumber: r.account_number || '190-134321-01-016',
-          status: r.status || 'pending',
-          approvedAt: r.approved_at,
-          rejectReason: r.reject_reason
-        }))
-        localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
-      }
-    } catch (e) {}
-  }
 }
 
 function saveState() {
@@ -807,6 +825,8 @@ function saveState() {
   window.dispatchEvent(new Event('storage'))
 }
 
+let realtimeChannel = null
+
 onMounted(() => {
   loadState()
   window.addEventListener('euchs-deposit-request', (e) => {
@@ -814,6 +834,19 @@ onMounted(() => {
       depositRequests.value.unshift(e.detail)
     }
   })
+  window.addEventListener('euchs-balance-update', loadState)
+  window.addEventListener('storage', loadState)
+
+  if (isSupabaseConfigured()) {
+    try {
+      realtimeChannel = supabase
+        .channel('public:deposit_requests_admin')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'deposit_requests' }, () => {
+          loadState()
+        })
+        .subscribe()
+    } catch (e) {}
+  }
 })
 </script>
 
