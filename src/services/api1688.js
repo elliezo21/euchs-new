@@ -940,20 +940,11 @@ export async function fetch1688ProductById(offerId) {
     console.log('[1688 fetch1688ProductById] OneBound item keys:', Object.keys(it || {}).slice(0, 20))
 
     // ─── SKU Props 탐색 (OneBound props_list 또는 props 필드) ─────────────
-    // OneBound: props_list = "颜色:红色;尺码:M" 또는 skus = [{properties: "...", ...}]
+    // OneBound: props_list = {"0:0":"颜色:米白色","0:1":"颜色:黑色","1:0":"尺码:35-36"}
+    //           props_img  = {"0:0":"//cbu01.alicdn.com/..."}
+    //           skus       = {sku: [{properties:"0:0;1:0", price:"15.80", ...}]}
     let rawSkuProps = null
     let rawSkus = []
-
-    // OneBound skus 배열
-    if (Array.isArray(it.skus)) {
-      rawSkus = it.skus
-    } else if (it.sku && Array.isArray(it.sku)) {
-      rawSkus = it.sku
-    }
-
-    // OneBound props_list에서 1차/2차 옵션 추출
-    // props_list 예: "1627207:1232324;20509:2325"  (숫자ID 형식)
-    // 또는 item_imgs 내 props 필드: [{properties: "颜色分类:红色", url: "..."}]
 
     // ─── URL 정규화 헬퍼 (colorMap 탐색보다 반드시 앞에 선언해야 TDZ 에러 방지) ──
     const normalizeImg = (u) => {
@@ -964,67 +955,122 @@ export async function fetch1688ProductById(offerId) {
       return s.startsWith('http') ? s : ''
     }
 
-    const colorMap = new Map() // propValue → imageUrl
-    const sizeSet = new Set()
+    // ─── OneBound skus 배열 추출 (skus.sku 중첩 구조 우선 탐색) ─────────────
+    if (it.skus && Array.isArray(it.skus.sku)) {
+      rawSkus = it.skus.sku                        // OneBound 표준: {sku: [...]}
+    } else if (Array.isArray(it.skus)) {
+      rawSkus = it.skus                            // 배열 직접 반환 형태
+    } else if (it.sku && Array.isArray(it.sku.sku)) {
+      rawSkus = it.sku.sku
+    } else if (it.sku && Array.isArray(it.sku)) {
+      rawSkus = it.sku
+    }
+    console.log('[fetch1688ProductById] rawSkus count:', rawSkus.length)
 
-    // item_imgs에서 색상 이미지 추출 (OneBound item_imgs: [{url: "...", properties: "颜色分类:红色"}])
+    // ─── 1순위: OneBound props_list 객체 → skuProps 변환 ────────────────────
+    // props_list: {"0:0":"颜色:米白色","0:1":"颜色:黑色","1:0":"尺码:35-36","1:1":"尺码:37-38"}
+    // props_img : {"0:0":"//cbu01.alicdn.com/abc.jpg"} (색상 옵션 썸네일)
+    const propsList = it.props_list || it.sku_props || null
+    const propsImg  = it.props_img  || it.prop_imgs  || {}
 
-    if (Array.isArray(it.item_imgs)) {
-      it.item_imgs.forEach(img => {
-        const imgUrl = normalizeImg(img.url || img.src || img.Url || '')
-        const props = img.properties || img.props || ''
-        if (props && imgUrl) {
-          // "颜色分类:红色" 형식 파싱
-          const parts = String(props).split(':')
-          if (parts.length >= 2) {
-            const val = parts[parts.length - 1].trim()
-            if (val && !colorMap.has(val)) colorMap.set(val, imgUrl)
-          }
+    if (propsList && typeof propsList === 'object' && !Array.isArray(propsList)) {
+      // 그룹 인덱스 → {propName, values:[{propValueId, name, imageUrl}]}
+      const propGroups = new Map()
+
+      Object.entries(propsList).forEach(([key, value]) => {
+        // key: "0:0", "0:1", "1:0" ...
+        // value: "颜色:米白色", "尺码:35-36" ...
+        const keyParts = key.split(':')
+        if (keyParts.length < 2) return
+        const groupIdx  = keyParts[0]  // "0", "1"
+        const valueSep  = String(value || '').indexOf(':')
+        if (valueSep < 0) return
+        const propName  = value.slice(0, valueSep).trim()   // "颜色"
+        const valueName = value.slice(valueSep + 1).trim()  // "米白色"
+
+        if (!propGroups.has(groupIdx)) {
+          propGroups.set(groupIdx, { propName, values: [] })
         }
+        const imgRaw  = (propsImg[key] || propsImg[`${groupIdx}_${keyParts[1]}`] || '')
+        const imageUrl = normalizeImg(imgRaw)
+        propGroups.get(groupIdx).values.push({ propValueId: key, name: valueName, imageUrl })
       })
+
+      if (propGroups.size > 0) {
+        const sorted = [...propGroups.entries()].sort((a, b) => parseInt(a[0]) - parseInt(b[0]))
+        rawSkuProps = sorted.map(([, g]) => ({ prop: g.propName, values: g.values }))
+        console.log('[fetch1688ProductById] props_list parsed skuProps:', JSON.stringify(rawSkuProps).slice(0, 300))
+      }
     }
 
-    // skus에서 속성 추출
-    rawSkus.forEach(s => {
-      // OneBound sku: { properties_name: "颜色分类:红色;尺码:M", properties: "1627207:1232324;20509:2325", ... }
-      const propName = s.properties_name || s.spec_id || s.properties || ''
-      const pairs = String(propName).split(';')
-      pairs.forEach((pair, pIdx) => {
-        const kv = pair.split(':')
-        if (kv.length >= 2) {
-          const val = kv[kv.length - 1].trim()
-          if (val) {
-            if (pIdx === 0) {
-              // img_id가 실제 이미지 URL인 경우와 imageUrl/image 필드 모두 탐색
-              const skuImgRaw = s.img_id || s.imageUrl || s.image || s.pic_url || ''
-              const skuImg = normalizeImg(skuImgRaw)
-              if (!colorMap.has(val)) colorMap.set(val, skuImg)
-            } else if (pIdx === 1) {
-              sizeSet.add(val)
+    // ─── 2순위: item_imgs.properties + skus.properties_name 방식 (props_list 없을 때) ──
+    if (!rawSkuProps || rawSkuProps.length === 0) {
+      const colorMap = new Map() // valueName → imageUrl
+      const sizeSet  = new Set()
+
+      // item_imgs에서 색상 이미지 추출
+      if (Array.isArray(it.item_imgs)) {
+        it.item_imgs.forEach(img => {
+          const imgUrl = normalizeImg(img.url || img.src || img.Url || '')
+          const props  = img.properties || img.props || ''
+          if (props && imgUrl) {
+            // "颜色分类:红色" 형식 → 마지막 콜론 뒤 값
+            const colonIdx = String(props).lastIndexOf(':')
+            if (colonIdx >= 0) {
+              const val = String(props).slice(colonIdx + 1).trim()
+              if (val && !colorMap.has(val)) colorMap.set(val, imgUrl)
             }
           }
-        }
-      })
-    })
-
-
-    if (colorMap.size > 0 || sizeSet.size > 0) {
-      rawSkuProps = []
-      if (colorMap.size > 0) {
-        rawSkuProps.push({
-          prop: '색상/옵션',
-          values: [...colorMap.entries()].map(([name, img]) => ({ name, imageUrl: img || '' }))
         })
       }
-      if (sizeSet.size > 0) {
-        rawSkuProps.push({
-          prop: '사이즈/규격',
-          values: [...sizeSet].map(name => ({ name, imageUrl: '' }))
+
+      // skus.properties_name에서 속성 추출
+      // properties_name 형식: "颜色分类:红色;尺码:M" (사람이 읽을 수 있는 형태)
+      rawSkus.forEach(sk => {
+        const propName = sk.properties_name || sk.spec_id || ''
+        if (!propName) return
+        const pairs = String(propName).split(';')
+        pairs.forEach((pair, pIdx) => {
+          const colonIdx = pair.lastIndexOf(':')
+          if (colonIdx < 0) return
+          const val = pair.slice(colonIdx + 1).trim()
+          if (!val) return
+          if (pIdx === 0) {
+            const skuImg = normalizeImg(sk.img_id || sk.imageUrl || sk.image || sk.pic_url || '')
+            if (!colorMap.has(val)) colorMap.set(val, skuImg)
+          } else if (pIdx === 1) {
+            sizeSet.add(val)
+          }
         })
+      })
+
+      if (colorMap.size > 0 || sizeSet.size > 0) {
+        rawSkuProps = []
+        if (colorMap.size > 0) {
+          rawSkuProps.push({
+            prop: '색상/옵션',
+            values: [...colorMap.entries()].map(([name, img]) => ({ name, imageUrl: img || '' }))
+          })
+        }
+        if (sizeSet.size > 0) {
+          rawSkuProps.push({
+            prop: '사이즈/규격',
+            values: [...sizeSet].map(name => ({ name, imageUrl: '' }))
+          })
+        }
       }
     }
 
     if (!rawSkuProps) rawSkuProps = []
+
+    // props_list 기반 SKU에서 properties("0:0;1:0") → 사람이 읽을 수 있는 이름 역매핑 테이블
+    const propValueNameMap = {} // "0:0" → "米白色"
+    if (propsList && typeof propsList === 'object' && !Array.isArray(propsList)) {
+      Object.entries(propsList).forEach(([key, value]) => {
+        const sep = String(value || '').indexOf(':')
+        if (sep >= 0) propValueNameMap[key] = value.slice(sep + 1).trim()
+      })
+    }
 
     // ─── 기본 상품 정보 추출 (OneBound 필드 우선) ──────────────────────────
     // 제목: title (OneBound 표준)
@@ -1108,36 +1154,55 @@ export async function fetch1688ProductById(offerId) {
 
     // OneBound skus → parsedSkus
     if (Array.isArray(rawSkus) && rawSkus.length > 0) {
-      parsedSkus = rawSkus.map((s, sIdx) => {
-        // properties_name: "颜色分类:红色;尺码:M"
-        const propNameStr = s.properties_name || s.spec_id || s.properties || ''
-        const pairs = String(propNameStr).split(';')
-        let colorName = ''
-        let sizeName = ''
-        pairs.forEach((pair, pIdx) => {
-          const kv = pair.split(':')
-          const val = kv.length >= 2 ? kv[kv.length - 1].trim() : kv[0]?.trim() || ''
-          if (pIdx === 0) colorName = val
-          else if (pIdx === 1) sizeName = val
-        })
+      parsedSkus = rawSkus.map((sk, sIdx) => {
+        // properties 형식이 "0:0;1:0" (숫자 ID) 또는 "颜色分类:红色;尺码:M" (사람이 읽는 형태)
+        const propIdStr   = sk.properties || ''          // "0:0;1:0"
+        const propNameStr = sk.properties_name || sk.spec_id || ''  // "颜色分类:红色;尺码:M"
 
-        // 색상 이미지: img_id 또는 colorMap에서 조회
+        let colorName = ''
+        let sizeName  = ''
+
+        if (propIdStr && Object.keys(propValueNameMap).length > 0) {
+          // props_list 기반 역매핑: "0:0;1:0" → ["米白色", "35-36"]
+          const ids = String(propIdStr).split(';')
+          ids.forEach((id, pIdx) => {
+            const name = propValueNameMap[id.trim()] || ''
+            if (pIdx === 0) colorName = name
+            else if (pIdx === 1) sizeName = name
+          })
+        }
+
+        // 역매핑 실패 시 properties_name("颜色分类:红色;尺码:M")에서 추출
+        if (!colorName && !sizeName && propNameStr) {
+          const pairs = String(propNameStr).split(';')
+          pairs.forEach((pair, pIdx) => {
+            const colonIdx = pair.lastIndexOf(':')
+            if (colonIdx < 0) return
+            const val = pair.slice(colonIdx + 1).trim()
+            if (pIdx === 0) colorName = val
+            else if (pIdx === 1) sizeName = val
+          })
+        }
+
+        // 색상 이미지: props_img → img_id → imageUrl 순 탐색
+        const colorPropId = String(propIdStr).split(';')[0]?.trim() || ''
         const skuImgUrl = normalizeImg(
-          s.img_id || colorMap.get(colorName) || s.imageUrl || ''
+          (propsImg && propsImg[colorPropId]) || sk.img_id || sk.imageUrl || sk.image || sk.pic_url || ''
         ) || imageUrl
 
-        const skuPrice = parseFloat(String(s.price || priceNum).replace(/[^0-9.]/g, '')) || priceNum
+        const skuPrice = parseFloat(String(sk.price || priceNum).replace(/[^0-9.]/g, '')) || priceNum
 
         return {
-          skuId: String(s.sku_id || s.skuId || s.id || `sku-${sIdx}`),
+          skuId: String(sk.sku_id || sk.skuId || sk.id || `sku-${sIdx}`),
           color: cleanForeignText(colorName) || colorName,
-          size: cleanForeignText(sizeName) || sizeName,
+          size:  cleanForeignText(sizeName)  || sizeName,
           price: skuPrice,
           imageUrl: skuImgUrl,
-          stock: parseInt(s.quantity || s.stock || '999', 10)
+          stock: parseInt(sk.quantity || sk.stock || '999', 10)
         }
       })
     }
+
 
 
 
