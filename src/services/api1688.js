@@ -24,6 +24,93 @@ function normalizeImg(u) {
   return url
 }
 
+// ========================================================
+// 📦 상세 설명 이미지 파싱 — 모듈 최상단 전역 함수 (TDZ 방지)
+// ========================================================
+function parseDescImgs(descImg, descHtml) {
+  const result = []
+  const seen = new Set()
+
+  function addUrl(raw) {
+    let u = typeof raw === 'object' ? (raw.url || raw.src || raw.Url || '') : String(raw || '')
+    u = u.trim()
+    if (u.startsWith('//')) u = 'https:' + u
+    if (u.startsWith('http://')) u = u.replace('http://', 'https://')
+    if (!u.startsWith('https://')) return
+    if (u.length < 20) return
+    if (u.startsWith('data:')) return
+    if (seen.has(u)) return
+    if (u.includes('images.unsplash.com')) return
+    seen.add(u)
+    result.push(u)
+  }
+
+  if (descImg) {
+    if (Array.isArray(descImg)) {
+      descImg.forEach(addUrl)
+    } else if (typeof descImg === 'string') {
+      const parts = descImg.split(',').map(s => s.trim()).filter(Boolean)
+      if (parts.length > 1) {
+        parts.forEach(addUrl)
+      } else {
+        addUrl(descImg)
+      }
+    }
+  }
+
+  if (descHtml && typeof descHtml === 'string' && descHtml.includes('<img')) {
+    const imgMatches = [...descHtml.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
+    imgMatches.forEach(m => addUrl(m[1]))
+    const dataSrcMatches = [...descHtml.matchAll(/<img[^>]+data-src=["']([^"']+)["']/gi)]
+    dataSrcMatches.forEach(m => addUrl(m[1]))
+  }
+
+  return result
+}
+
+// ========================================================
+// 💰 수량별 단가 구간 파싱 — 모듈 최상단 전역 함수 (TDZ 방지)
+// ========================================================
+function parsePriceTiers(item) {
+  const rawPR = item.price_range || item.quantity_prices || item.step_prices || item.priceRange || null
+  if (!rawPR) return []
+
+  let entries = []
+
+  if (Array.isArray(rawPR) && rawPR.length > 0) {
+    const first = rawPR[0]
+    if (Array.isArray(first)) {
+      // [["1","15.80"],["100","14.80"]] 형식
+      entries = rawPR.map(pair => ({
+        minQty: parseInt(String(pair[0] || '1'), 10) || 1,
+        price: parseFloat(String(pair[1] || '0')) || 0
+      }))
+    } else if (typeof first === 'object') {
+      entries = rawPR.map(obj => ({
+        minQty: parseInt(
+          String(obj.begin_amount || obj.beginAmount || obj.startQuantity || obj.min_quantity || obj.minQty || obj.min || '1'),
+          10
+        ) || 1,
+        price: parseFloat(
+          String(obj.price || obj.unitPrice || obj.unit_price || '0').replace(/[^0-9.]/g, '')
+        ) || 0
+      }))
+    }
+  }
+
+  entries = entries.filter(e => e.price > 0)
+  if (entries.length === 0) return []
+
+  entries.sort((a, b) => a.minQty - b.minQty)
+
+  return entries.map((e, idx) => {
+    const next = entries[idx + 1]
+    const maxQty = next ? next.minQty - 1 : null
+    const label = maxQty ? `${e.minQty}~${maxQty}개` : `${e.minQty}개 이상`
+    return { minQty: e.minQty, maxQty, price: Number(e.price.toFixed(2)), label }
+  })
+}
+
 // 환경 변수 기본값 로드
 const getEnv = (key, fallback = '') => {
   if (typeof import.meta !== 'undefined' && import.meta.env) {
@@ -1397,116 +1484,16 @@ export async function fetch1688ProductById(offerId) {
       '1688 인증 직영 제조공장'
     )
 
-    // ─── 본문 상세 설명 이미지 파싱 (OneBound desc_img / desc HTML) ──────────
-    // OneBound desc_img: 배열, 쉼표 구분 문자열, 단일 URL, 또는 {url} 객체 배열
-    const parseDescImgs = (descImg, descHtml) => {
-      const result = []
-      const seen = new Set()
 
-      const addUrl = (raw) => {
-        let u = typeof raw === 'object' ? (raw.url || raw.src || raw.Url || '') : String(raw || '')
-        u = u.trim()
-        // 프로토콜 없는 // 형태 URL 자동 보완 (alicdn.com 등)
-        if (u.startsWith('//')) u = 'https:' + u
-        if (u.startsWith('http://')) u = u.replace('http://', 'https://')
-        if (!u.startsWith('https://')) return   // 유효한 https URL이 아니면 무시
-        if (u.length < 20) return               // 너무 짧은 URL 필터
-        if (u.startsWith('data:')) return        // base64 빈 데이터 차단
-        if (seen.has(u)) return
-        if (u.includes('images.unsplash.com')) return
-        seen.add(u)
-        result.push(u)
-      }
-
-      // 1순위: desc_img 배열 또는 쉼표 구분 문자열
-      if (descImg) {
-        if (Array.isArray(descImg)) {
-          descImg.forEach(addUrl)
-        } else if (typeof descImg === 'string') {
-          // 쉼표로 구분된 URL 목록 (http:// 또는 // 형태 URL 모두 포함)
-          const parts = descImg.split(',').map(s => s.trim()).filter(Boolean)
-          if (parts.length > 1) {
-            parts.forEach(addUrl)
-          } else {
-            addUrl(descImg)
-          }
-        }
-      }
-
-      // 2순위: desc HTML에서 <img src="..."> 패턴 전수 추출
-      if (descHtml && typeof descHtml === 'string' && descHtml.includes('<img')) {
-        const imgMatches = [...descHtml.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
-        imgMatches.forEach(m => addUrl(m[1]))
-        // data-src (lazy loading) 패턴도 추출
-        const dataSrcMatches = [...descHtml.matchAll(/<img[^>]+data-src=["']([^"']+)["']/gi)]
-        dataSrcMatches.forEach(m => addUrl(m[1]))
-      }
-
-      return result
-    }
-
+    // ─── 본문 상세 설명 이미지 파싱 (모듈 최상단 전역 function parseDescImgs 호출) ──
     const descImgs = parseDescImgs(it.desc_img, it.desc || it.description || it.detail_html || '')
 
     console.log(`[fetch1688ProductById] descImgs count: ${descImgs.length} | from desc_img:`, Array.isArray(it.desc_img) ? it.desc_img.length : typeof it.desc_img)
 
-    // ─── 수량별 도매 단가 구간 파싱 (OneBound price_range / quantity_prices / step_prices) ─
-    // price_range 예: [["1","15.80"],["100","14.80"],["200","13.80"]]
-    // quantity_prices 예: [{begin_amount:"1",price:"15.80"},{begin_amount:"100",price:"14.80"}]
-    // step_prices 예: [{startQuantity:1,price:15.8},{startQuantity:100,price:14.8}]
-    const parsePriceTiers = () => {
-      const rawPR = it.price_range || it.quantity_prices || it.step_prices || it.priceRange || null
-
-      if (!rawPR) return []
-
-      let entries = []
-
-      if (Array.isArray(rawPR) && rawPR.length > 0) {
-        const first = rawPR[0]
-
-        if (Array.isArray(first)) {
-          // [["1","15.80"],["100","14.80"]] 형식
-          entries = rawPR.map(pair => ({
-            minQty: parseInt(String(pair[0] || '1'), 10) || 1,
-            price: parseFloat(String(pair[1] || '0')) || 0
-          }))
-        } else if (typeof first === 'object') {
-          // [{begin_amount:"1",price:"15.80"}, ...] 또는
-          // [{startQuantity:1,price:15.8}, ...] 형식
-          entries = rawPR.map(obj => ({
-            minQty: parseInt(
-              String(obj.begin_amount || obj.beginAmount || obj.startQuantity || obj.min_quantity || obj.minQty || obj.min || '1'),
-              10
-            ) || 1,
-            price: parseFloat(
-              String(obj.price || obj.unitPrice || obj.unit_price || '0').replace(/[^0-9.]/g, '')
-            ) || 0
-          }))
-        }
-      }
-
-      // 유효한 구간만 필터 (price > 0)
-      entries = entries.filter(e => e.price > 0)
-      if (entries.length === 0) return []
-
-      // minQty 오름차순 정렬
-      entries.sort((a, b) => a.minQty - b.minQty)
-
-      // maxQty 계산 (다음 구간의 minQty - 1, 마지막은 null)
-      return entries.map((e, idx) => {
-        const next = entries[idx + 1]
-        const maxQty = next ? next.minQty - 1 : null
-        const label = maxQty ? `${e.minQty}~${maxQty}개` : `${e.minQty}개 이상`
-        return {
-          minQty: e.minQty,
-          maxQty,
-          price: Number(e.price.toFixed(2)),
-          label
-        }
-      })
-    }
-
-    const priceTiers = parsePriceTiers()
+    // ─── 수량별 도매 단가 구간 파싱 (모듈 최상단 전역 function parsePriceTiers 호출) ─
+    const priceTiers = parsePriceTiers(it)
     console.log(`[fetch1688ProductById] priceTiers (${priceTiers.length}개):`, JSON.stringify(priceTiers))
+
 
     // ─── 현지 운임 추출 ──────────────────────────────────────────────────────
     const freightRaw = it.freight || it.express_fee || it.deliveryFee || it.shipping_fee || null
