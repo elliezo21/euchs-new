@@ -1088,11 +1088,50 @@ function submitMeasurement() {
 
   loadData(); showToast(`[${activeOrder.value.orderNumber}] 실측 완료 → 5단계 전환. 2차 청구 ₩${fmtN(measureTotal.value)}`); closeModals();
 }
-function advanceToShipping(o) { if(!confirm(`[${o.orderNumber}] 선적 처리 → 6단계 전환하시겠습니까?`))return; updateOrderStatus(o.id,'shipping_ready',{shippedAt:new Date().toISOString()}); loadData(); showToast(`[${o.orderNumber}] 선적처리 → 6단계 전환`); }
-function submitBLForm() { if(!blForm.value.blNumber){showToast('B/L 번호를 입력해 주세요.','error');return;} updateOrderStatus(activeOrder.value.id,'customs_clearance',{blInfo:{...blForm.value,registeredAt:new Date().toISOString()}}); loadData(); showToast(`[${activeOrder.value.orderNumber}] B/L 등록 → 7단계(세관통관) 전환`); closeModals(); }
+function advanceToShipping(o) { if(!confirm(`[${o.orderNumber}] 선적 처리 → 6단계 전환하시겠습니까?`))return; updateOrderStatus(o.id,'shipping_ready',{shippedAt:new Date().toISOString(),customsStep:'sailing'}); loadData(); showToast(`[${o.orderNumber}] 선적처리 → 6단계 전환`); }
+
+function submitBLForm() {
+  if (!blForm.value.blNumber) { showToast('B/L 번호를 입력해 주세요.', 'error'); return; }
+  const customsInfo = {
+    ...blForm.value,
+    registeredAt: new Date().toISOString()
+  };
+  updateOrderStatus(activeOrder.value.id, 'customs_clearance', {
+    bl_no: blForm.value.blNumber,
+    blInfo: customsInfo,
+    customs_info: customsInfo,
+    customsStep: 'customs'
+  });
+
+  // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
+  sendOrderStatusAlimtalk({
+    type: 'customs_clearance',
+    to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+    customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
+    orderNo: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
+    itemName: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
+    extraInfo: `B/L 번호: ${blForm.value.blNumber}`
+  }).catch(() => {});
+
+  loadData();
+  showToast(`[${activeOrder.value.orderNumber}] B/L(${blForm.value.blNumber}) 등록 → 7단계(세관통관) 전환 완료`);
+  closeModals();
+}
+
 function submitTrackingForm() {
-  if(!trackingForm.value.trackingNumber){showToast('운송장 번호를 입력해 주세요.','error');return;}
-  updateOrderStatus(activeOrder.value.id,'domestic_shipping',{trackingInfo:{...trackingForm.value,registeredAt:new Date().toISOString()}});
+  if (!trackingForm.value.trackingNumber) { showToast('운송장 번호를 입력해 주세요.', 'error'); return; }
+  const shippingInfo = {
+    ...trackingForm.value,
+    registeredAt: new Date().toISOString()
+  };
+  updateOrderStatus(activeOrder.value.id, 'domestic_shipping', {
+    tracking_no: trackingForm.value.trackingNumber,
+    carrier: trackingForm.value.carrier,
+    deliveryType: trackingForm.value.deliveryType,
+    trackingInfo: shippingInfo,
+    shipping_info: shippingInfo,
+    customsStep: 'delivery'
+  });
   
   // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
   sendOrderStatusAlimtalk({
@@ -1101,12 +1140,23 @@ function submitTrackingForm() {
     customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
     orderNo: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
     itemName: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
-    extraInfo: `송장번호: ${trackingForm.value.trackingNumber}`
+    extraInfo: `${trackingForm.value.carrier} 송장: ${trackingForm.value.trackingNumber}`
   }).catch(() => {});
 
-  loadData(); showToast(`[${activeOrder.value.orderNumber}] 송장 등록 → 8단계(국내배송) 전환`); closeModals();
+  loadData();
+  showToast(`[${activeOrder.value.orderNumber}] 국내 송장(${trackingForm.value.carrier} ${trackingForm.value.trackingNumber}) 등록 → 8단계(국내배송) 전환`);
+  closeModals();
 }
-function markDelivered(o) { if(!confirm(`[${o.orderNumber}] 배송완료 처리하시겠습니까?`))return; updateOrderStatus(o.id,'delivered',{deliveredAt:new Date().toISOString()}); loadData(); showToast(`[${o.orderNumber}] 배송완료 처리!`); }
+
+function markDelivered(o) {
+  if (!confirm(`[${o.orderNumber}] 배송완료(최종 수령) 처리하시겠습니까?`)) return;
+  updateOrderStatus(o.id, 'delivered', {
+    deliveredAt: new Date().toISOString(),
+    customsStep: 'delivered'
+  });
+  loadData();
+  showToast(`[${o.orderNumber}] 배송완료(8단계 최종완료) 처리되었습니다!`);
+}
 
 function onSync() { loadData(); }
 onMounted(() => {

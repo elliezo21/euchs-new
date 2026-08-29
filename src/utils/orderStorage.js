@@ -244,7 +244,16 @@ export async function fetchOrdersFromSupabase() {
           paymentInfo: row.payment_info || {},
           memo: row.memo || '',
           barcodeLabelUrl: row.barcode_label_url || '',
-          barcodeLabelFilename: row.barcode_label_filename || ''
+          barcodeLabelFilename: row.barcode_label_filename || '',
+          bl_no: row.bl_no || row.customs_info?.blNumber || rawBuyer.blNumber || '',
+          blInfo: row.customs_info || row.bl_info || (row.bl_no ? { blNumber: row.bl_no } : {}),
+          customs_info: row.customs_info || row.bl_info || {},
+          tracking_no: row.tracking_no || row.shipping_info?.trackingNumber || '',
+          carrier: row.carrier || row.shipping_info?.carrier || '',
+          trackingInfo: row.shipping_info || row.tracking_info || (row.tracking_no ? { trackingNumber: row.tracking_no, carrier: row.carrier } : {}),
+          shipping_info: row.shipping_info || row.tracking_info || {},
+          deliveredAt: row.delivered_at || row.shipping_info?.deliveredAt || null,
+          shippedAt: row.shipped_at || row.shipping_info?.shippedAt || null
         };
 
         fetchedMap.set(orderNumber, orderObj);
@@ -327,7 +336,16 @@ export async function fetchOrdersFromSupabase() {
               paymentInfo: det.paymentInfo || {},
               issueDetails: det.issueDetails || { colorMismatch: 0, damaged: 0, contaminated: 0, missingParts: 0, lowQuality: 0, wrongDelivery: 0 },
               issueStatus: det.issueStatus || '',
-              memo: row.memo || det.memo || ''
+              memo: row.memo || det.memo || '',
+              bl_no: det.bl_no || det.blInfo?.blNumber || rawBuyerInfo.blNumber || '',
+              blInfo: det.customs_info || det.blInfo || (det.bl_no ? { blNumber: det.bl_no } : {}),
+              customs_info: det.customs_info || det.blInfo || {},
+              tracking_no: det.tracking_no || det.trackingInfo?.trackingNumber || '',
+              carrier: det.carrier || det.trackingInfo?.carrier || '',
+              trackingInfo: det.shipping_info || det.trackingInfo || (det.tracking_no ? { trackingNumber: det.tracking_no, carrier: det.carrier } : {}),
+              shipping_info: det.shipping_info || det.trackingInfo || {},
+              deliveredAt: det.deliveredAt || det.shipping_info?.deliveredAt || null,
+              shippedAt: det.shippedAt || det.shipping_info?.shippedAt || null
             };
             fetchedMap.set(orderNumber, appOrder);
             fetchedMap.set(orderId, appOrder);
@@ -512,7 +530,7 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
         const orderNo = target.orderNumber || target.orderId || target.id;
         const nowIso = new Date().toISOString();
 
-        // 1. orders 테이블 업데이트 (상태, 견적액, 1차/2차 결제액, 실측데이터, 검수사진 등)
+        // 1. orders 테이블 업데이트 (상태, 견적액, 1차/2차 결제액, 실측데이터, 검수사진, B/L, 운송장 등)
         const orderUpdatePayload = {
           status: nextStatus,
           items: target.items || [],
@@ -524,6 +542,11 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
           inspection_photos: target.inspectionPhotos || extraData.inspectionPhotos || [],
           vas_applied: target.vasApplied || target.vasServices || [],
           barcode_label_filename: extraData.barcodeLabelFilename || extraData.barcodeFile?.name || target.barcodeLabelFilename || null,
+          bl_no: target.bl_no || extraData.bl_no || target.blInfo?.blNumber || extraData.blInfo?.blNumber || null,
+          customs_info: target.customs_info || target.blInfo || extraData.customs_info || extraData.blInfo || {},
+          tracking_no: target.tracking_no || extraData.tracking_no || target.trackingInfo?.trackingNumber || extraData.trackingInfo?.trackingNumber || null,
+          carrier: target.carrier || extraData.carrier || target.trackingInfo?.carrier || extraData.trackingInfo?.carrier || null,
+          shipping_info: target.shipping_info || target.trackingInfo || extraData.shipping_info || extraData.trackingInfo || {},
           memo: `[${orderNo}] ${target.memo || ''}`.trim(),
           updated_at: nowIso
         };
@@ -643,13 +666,13 @@ export function calculatePipelineCounts(ordersList = null) {
       counts[norm]++;
     }
 
-    // 5단계 통합 카운트: warehouse_in, inspection_done, step_5, inspecting
-    if (norm === 'warehouse_in' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting') {
+    // 5단계 통합 카운트: warehouse_in, inspection_done, step_5, inspecting, defect_found
+    if (norm === 'warehouse_in' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting' || o.status === 'defect_found') {
       counts.warehouse_inspection++;
     }
 
-    // 8단계 통합 카운트: domestic_shipping, delivered
-    if (norm === 'domestic_shipping' || norm === 'delivered' || norm === 'completed') {
+    // 8단계 통합 카운트: domestic_shipping, delivered, completed, step_8
+    if (norm === 'domestic_shipping' || norm === 'delivered' || norm === 'completed' || o.status === 'step_8' || o.status === 'domestic_delivery') {
       counts.domestic_delivered++;
     }
   });

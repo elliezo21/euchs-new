@@ -755,7 +755,8 @@ import {
   MessageCircle
 } from 'lucide-vue-next'
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue'
-import { getStoredOrders } from '@/utils/orderStorage'
+import { getStoredOrders, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage'
+import { normalizeOrderStatus } from '@/lib/orderPipeline'
 
 const route = useRoute()
 
@@ -782,6 +783,33 @@ const ftaForm = ref({
 })
 
 // ----------------------------------------------------------------
+// 국내 택배/화물 배송사별 운송장 추적 URL 빌더
+// ----------------------------------------------------------------
+function getCarrierTrackingUrl(carrier, trackingNo) {
+  if (!trackingNo) return ''
+  const c = String(carrier || '').toLowerCase()
+  if (c.includes('경동') || c.includes('kd')) {
+    return `https://kdexp.com/service/delivery/search.do?barcode=${encodeURIComponent(trackingNo)}`
+  }
+  if (c.includes('cj') || c.includes('대한통운')) {
+    return `https://trace.cjlogistics.com/next/tracking.html?wblNo=${encodeURIComponent(trackingNo)}`
+  }
+  if (c.includes('대신') || c.includes('daeshin')) {
+    return `https://www.ds3211.co.kr/freight/internalFreightSearch.do?billno=${encodeURIComponent(trackingNo)}`
+  }
+  if (c.includes('한진') || c.includes('hanjin')) {
+    return `https://www.hanjin.com/kor/CMS/DeliveryMgr/WaybillResult.do?mCode=MN038&wblnum=${encodeURIComponent(trackingNo)}`
+  }
+  if (c.includes('롯데') || c.includes('lotte')) {
+    return `https://www.lotteglogis.com/home/reservation/tracking/linkView?InvNo=${encodeURIComponent(trackingNo)}`
+  }
+  if (c.includes('쿠팡') || c.includes('로켓') || c.includes('rocket')) {
+    return 'https://rocket.coupang.com'
+  }
+  return `https://search.naver.com/search.naver?query=${encodeURIComponent((carrier || '') + ' ' + trackingNo)}`
+}
+
+// ----------------------------------------------------------------
 // 카카오톡 1:1 상담 URL 동적 생성
 // KAKAO CHANNEL: http://pf.kakao.com/_xmQWsK/chat
 // ----------------------------------------------------------------
@@ -791,51 +819,91 @@ function getKakaoUrl(item) {
   if (!item) return KAKAO_CHANNEL_URL
   const productShort = (item.productName || '').slice(0, 30)
   const orderNo = item.orderNo || ''
-  // 카카오톡 채널은 extras 파라미터로 자동 메시지 지원
-  const message = encodeURIComponent(`[${orderNo}] ${productShort} 통관·배송 문의드립니다.`)
   return `${KAKAO_CHANNEL_URL}`
-  // 참고: 카카오 채널 직접 파라미터 전달은 채널 설정 필요. 현재는 단순 채널 연결.
 }
 
 // ----------------------------------------------------------------
 // 실제 orderStorage의 주문 데이터(7~8단계 및 해상/통관/배송) 기반 상태 관리
 // ----------------------------------------------------------------
 const allLogisticsList = ref([])
+let realtimeChannel = null
 
-function mergeFromOrderStorage() {
+async function mergeFromOrderStorage() {
   try {
-    const orders = getStoredOrders()
+    const orders = await fetchOrdersFromSupabase()
     const customsOrders = orders.filter(o => {
-      const s = o.status
-      return s === 'shipping_ready' || s === 'customs_clearance' || s === 'domestic_shipping' || s === 'delivered'
+      const norm = normalizeOrderStatus(o.status)
+      return norm === 'shipping_ready' || norm === 'customs_clearance' || norm === 'domestic_shipping' || norm === 'delivered' ||
+        o.status === 'shipping_ready' || o.status === 'customs_clearance' || o.status === 'domestic_shipping' || o.status === 'delivered'
     })
+
     const list = []
     customsOrders.forEach(o => {
       const item = o.items?.[0] || {}
       const measured = o.measuredData || {}
+      const blInfo = o.blInfo || o.customs_info || {}
+      const trackingInfo = o.trackingInfo || o.shipping_info || {}
+      const normStatus = normalizeOrderStatus(o.status)
+
+      const hblNo = o.bl_no || blInfo.blNumber || o.inboundNo || `EUC-${o.orderNumber || o.id}`
+      const cargoMgtNo = blInfo.cargoMgtNo || o.cargo_mgt_no || ''
+      const vesselName = blInfo.vesselName || 'EUC EXPRESS (위해-인천)'
+      const arrivalDate = blInfo.eta || o.eta || '입항 예정'
+
+      const ftaStatus = (blInfo.ftaStatus === 'approved' || o.vasApplied?.includes('fta_co') || o.vasServices?.includes('fta_co'))
+        ? 'approved'
+        : (o.options?.requestCo || blInfo.ftaStatus === 'applying') ? 'applying' : 'none'
+      const estimatedDutySaving = Math.round(Number(o.totalPriceKrw || 0) * 0.08)
+
+      const carrier = o.carrier || trackingInfo.carrier || (o.shippingType === 'rocket' ? '쿠팡 밀크런' : '경동택배')
+      const trackingNo = o.tracking_no || trackingInfo.trackingNumber || ''
+      const trackingUrl = getCarrierTrackingUrl(carrier, trackingNo)
+      const deliveryType = trackingInfo.deliveryType || o.shippingType || (carrier.includes('쿠팡') ? 'rocket' : 'parcel')
+
+      let customsStep = 'sailing'
+      let customsStepName = '해상 선적운송'
+
+      if (normStatus === 'customs_clearance') {
+        customsStep = 'customs'
+        customsStepName = '세관 수입신고 심사중'
+      } else if (normStatus === 'domestic_shipping') {
+        customsStep = 'delivery'
+        customsStepName = '국내 배송중'
+      } else if (normStatus === 'delivered') {
+        customsStep = 'delivered'
+        customsStepName = '배송 완료'
+      }
+
       list.push({
-        id: `order-${o.id}`,
-        hblNo: o.inboundNo || `EUCHS-${o.orderNumber || o.id}`,
-        cargoMgtNo: '',
+        id: `order-${o.id || o.orderNumber}`,
+        hblNo,
+        cargoMgtNo,
         orderNo: o.orderNumber,
-        productName: item.productName || item.titleKo || '1688 수입 품목',
-        quantity: item.quantity || 0,
+        productName: item.name || item.titleKo || item.titleZh || item.productName || '1688 수입 품목',
+        quantity: item.quantity || (Array.isArray(o.items) ? o.items.reduce((s, i) => s + (Number(i.quantity) || 0), 0) : 0),
         weightKg: measured.weightKg || 0,
         cbm: measured.cbm || 0,
         departurePort: '위해(Weihai)항',
         arrivalPort: '인천(Incheon)항',
-        arrivalDate: '-',
-        vesselName: 'EUC EXPRESS',
-        customsStep: o.status === 'shipping_ready' ? 'sailing' : o.status === 'customs_clearance' ? 'customs' : o.status === 'domestic_shipping' ? 'delivery' : 'delivered',
-        customsStepName: o.status === 'shipping_ready' ? '해상 선적운송' : o.status === 'customs_clearance' ? '세관 수입신고 심사중' : o.status === 'domestic_shipping' ? '국내 배송중' : '배송 완료',
-        declarationNo: '',
-        ftaStatus: o.options?.requestCo ? 'applying' : 'none',
-        estimatedDutySaving: 0,
-        deliveryType: 'parcel',
-        courierCompany: o.status === 'domestic_shipping' || o.status === 'delivered' ? 'CJ대한통운' : '',
-        trackingNo: '',
-        trackingUrl: '',
-        stage: (o.status === 'shipping_ready' || o.status === 'customs_clearance') ? 7 : 8
+        arrivalDate,
+        vesselName,
+        customsStep,
+        customsStepName,
+        declarationNo: blInfo.declarationNo || '',
+        ftaStatus,
+        estimatedDutySaving,
+        deliveryType,
+        courierCompany: carrier,
+        trackingNo,
+        trackingUrl,
+        rocketFcCenter: trackingInfo.fcCenter || o.buyerInfo?.fcCenter || '인천4센터',
+        rocketInboundDate: trackingInfo.inboundDate || arrivalDate || '일정 협의중',
+        rocketTruckNo: trackingInfo.truckNo || '배차 진행중',
+        rocketDriverPhone: trackingInfo.driverPhone || '010-0000-0000',
+        rocketSkuCount: Array.isArray(o.items) ? o.items.length : 1,
+        barcodeLabelFilename: o.barcodeLabelFilename || '',
+        deliveryEta: trackingInfo.deliveryEta || arrivalDate,
+        stage: (normStatus === 'shipping_ready' || normStatus === 'customs_clearance') ? 7 : 8
       })
     })
     allLogisticsList.value = list
@@ -845,10 +913,11 @@ function mergeFromOrderStorage() {
   }
 }
 
-onMounted(() => {
-  mergeFromOrderStorage()
+onMounted(async () => {
+  await mergeFromOrderStorage()
   window.addEventListener('euchs-order-status-update', mergeFromOrderStorage)
   window.addEventListener('storage', mergeFromOrderStorage)
+  realtimeChannel = subscribeToOrders(mergeFromOrderStorage)
 })
 
 onUnmounted(() => {
