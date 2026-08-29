@@ -515,30 +515,56 @@ export async function search1688(queryZh, page = 1, options = {}) {
     const resData = data || {}
 
     // OneBound item_search 응답 다중 구조 탐색:
-    // 표준: { items: { item: [...] } }
+    // 표준: { items: { item: [...] }, total_results: "40" }
     // 일부 버전: { items: [...] } (items 자체가 배열)
     // 구형: { result: { resultList: [...] } }
-    let rawList =
-      resData?.items?.item ||     // 표준 OneBound
-      resData?.item ||             // 최상위 item 배열
-      resData?.items ||            // items 자체가 배열인 경우
-      resData?.result?.resultList ||
-      resData?.resultList ||
-      []
+    let rawList = null
 
-    // items가 객체인 경우(배열 아님) 처리
-    if (rawList && !Array.isArray(rawList) && typeof rawList === 'object') {
-      rawList = Object.values(rawList)
+    // 1순위: OneBound 표준 — items.item 배열
+    if (resData?.items?.item && Array.isArray(resData.items.item)) {
+      rawList = resData.items.item
     }
+    // 2순위: items 자체가 배열
+    else if (Array.isArray(resData?.items)) {
+      rawList = resData.items
+    }
+    // 3순위: 최상위 item 배열
+    else if (Array.isArray(resData?.item)) {
+      rawList = resData.item
+    }
+    // 4순위: result.resultList
+    else if (Array.isArray(resData?.result?.resultList)) {
+      rawList = resData.result.resultList
+    }
+    // 5순위: resultList 직접
+    else if (Array.isArray(resData?.resultList)) {
+      rawList = resData.resultList
+    }
+    // 6순위: data.items.item (래퍼가 있는 경우)
+    else if (resData?.data?.items?.item && Array.isArray(resData.data.items.item)) {
+      rawList = resData.data.items.item
+    }
+    // 7순위: items.item이 배열이 아닌 경우 Object.values
+    else if (resData?.items?.item && typeof resData.items.item === 'object') {
+      rawList = Object.values(resData.items.item)
+    }
+    // 8순위: items가 객체인 경우 Object.values
+    else if (resData?.items && typeof resData.items === 'object') {
+      const vals = Object.values(resData.items)
+      // 첫 번째 값이 배열이면 그게 item 목록
+      rawList = vals.length === 1 && Array.isArray(vals[0]) ? vals[0] : vals
+    }
+
+    if (!rawList) rawList = []
 
     if (!Array.isArray(rawList) || rawList.length === 0) {
       console.warn(`[1688 API] Empty rawList for "${query}". Data keys:`, Object.keys(resData).slice(0, 10))
-      // 오류 메시지 확인 (잔액 부족, API 오류 등)
       if (resData.error_code || resData.error || resData.message) {
         console.warn('[1688 API] Error from OneBound:', resData.error_code, resData.error || resData.message)
       }
       return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
     }
+
 
     const normalizeUrl = (u) => {
       const s = String(u || '').trim()
