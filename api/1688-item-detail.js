@@ -1,9 +1,10 @@
 /**
  * Vercel Serverless Function: /api/1688-item-detail
  * OneBound 1688 상품 상세 조회 프록시
- * - 공식 승인 엔드포인트: 1688global
+ * - 1차 엔드포인트: 1688global
+ * - 2차 폴백: 1688
  * - 게이트웨이: https://api-gw.onebound.cn
- * - 타임아웃: 8000ms (8초 - Vercel Serverless 10초 제한 안전 마진)
+ * - 타임아웃: 8000ms (8초)
  */
 
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
@@ -14,6 +15,32 @@ const FETCH_HEADERS = {
   'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'Referer': 'https://www.1688.com/',
   'Cache-Control': 'no-cache'
+}
+
+function isErrorResponse(data) {
+  if (!data) return true
+  const code = String(data.error_code || data.error || '')
+  const reason = String(data.reason || data.message || data.error_msg || '')
+  return code === '4005' || code === '4000' || reason.includes('已到期') || reason.includes('expired') || !!data.error
+}
+
+async function fetchDetail(endpoint, cleanNumericId, OB_KEY, OB_SECRET, timeoutMs) {
+  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_get/?key=${OB_KEY}&secret=${OB_SECRET}&num_iid=${cleanNumericId}&result_type=json`
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+
+  try {
+    console.log(`[1688-item-detail] Calling ${endpoint}:`, targetUrl.replace(/secret=[^&]+/, 'secret=***'))
+    const r = await fetch(targetUrl, { method: 'GET', headers: FETCH_HEADERS, signal: controller.signal })
+    clearTimeout(timer)
+
+    let resData = null
+    try { resData = await r.json() } catch (je) { return null }
+    return resData
+  } catch (err) {
+    clearTimeout(timer)
+    return null
+  }
 }
 
 export default async function handler(req, res) {
@@ -39,67 +66,43 @@ export default async function handler(req, res) {
   const OB_KEY = process.env.ONEBOUND_KEY || process.env.VITE_ONEBOUND_KEY || 't_821093731214'
   const OB_SECRET = process.env.ONEBOUND_SECRET || process.env.VITE_ONEBOUND_SECRET || '121412a0'
 
-  const targetUrl = `${ONEBOUND_BASE_URL}/1688global/item_get/?key=${OB_KEY}&secret=${OB_SECRET}&num_iid=${cleanNumericId}&result_type=json`
+  // 1차: 1688global 시도
+  let resData = await fetchDetail('1688global', cleanNumericId, OB_KEY, OB_SECRET, 5000)
 
-  const controller = new AbortController()
-  const timeout = setTimeout(() => controller.abort(), 8000) // 8초 제한
-
-  try {
-    console.log('[1688-item-detail] Calling 1688global item_get:', targetUrl.replace(/secret=[^&]+/, 'secret=***'))
-    const r = await fetch(targetUrl, {
-      method: 'GET',
-      headers: FETCH_HEADERS,
-      signal: controller.signal
-    })
-    clearTimeout(timeout)
-
-    let resData = null
-    try {
-      resData = await r.json()
-    } catch (je) {
-      const text = await r.text().catch(() => '')
-      console.warn('[1688-item-detail] JSON parse fail HTTP=' + r.status + ' body:', text.slice(0, 200))
-      return res.status(200).json({
-        success: false,
-        message: '상세 응답 파싱 실패 (HTTP ' + r.status + ')',
-        data: null
-      })
+  // 1688global 실패 또는 4005 에러 시 2차 1688 시도
+  if (!resData || isErrorResponse(resData)) {
+    console.warn('[1688-item-detail] 1688global failed or 4005. Trying 1688 endpoint...')
+    const fallbackData = await fetchDetail('1688', cleanNumericId, OB_KEY, OB_SECRET, 4000)
+    if (fallbackData && !isErrorResponse(fallbackData)) {
+      resData = fallbackData
     }
+  }
 
-    if (!resData) {
-      return res.status(200).json({ success: false, message: '빈 응답', data: null })
-    }
-
-    // OneBound 응답: { item: {...}, translate_result: {...}, props_list: {...}, ... }
-    // item 객체와 최상위 객체 필드를 온전히 보존하여 클라이언트에 전달
-    const itemObj = resData.item || resData.result || {}
-    const mergedData = {
-      ...resData,
-      ...itemObj,
-      raw: resData
-    }
-
-    console.log('[1688-item-detail] Success. Merged keys count:', Object.keys(mergedData).length, 'Sample:', Object.keys(mergedData).slice(0, 15))
-
-    return res.status(200).json({
-      success: true,
-      data: mergedData,
-      raw: resData,
-      status: r.status
-    })
-  } catch (err) {
-    clearTimeout(timeout)
-    const isTimeout = err.name === 'AbortError'
-    const errorMsg = isTimeout ? '상세 조회 응답이 지연되고 있습니다 (8s 타임아웃).' : (err.message || '통신 실패')
-    console.error('[1688-item-detail] Error:', errorMsg)
+  if (!resData || isErrorResponse(resData)) {
+    const errorMsg = resData?.reason || resData?.error || 'OneBound API Key 만료 또는 조회 불가 (4005)'
+    console.warn('[1688-item-detail] Final error:', errorMsg)
     return res.status(200).json({
       success: false,
       message: errorMsg,
-      isTimeout,
+      error_code: resData?.error_code || '4005',
       data: null
     })
   }
+
+  const itemObj = resData.item || resData.result || {}
+  const mergedData = {
+    ...resData,
+    ...itemObj,
+    raw: resData
+  }
+
+  return res.status(200).json({
+    success: true,
+    data: mergedData,
+    raw: resData
+  })
 }
+
 
 
 

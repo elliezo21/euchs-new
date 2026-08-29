@@ -1282,19 +1282,32 @@ const loadProductDetailImages = async (item) => {
 
     // ── 5순위: currentItem.descImgs (fetch1688ProductById 결과가 먼저 온 경우) ─
     if (!imgs.length) {
-      const candidate = currentItem.value || item
+      const candidate = currentItem.value || item || props.product || {}
       if (Array.isArray(candidate.descImgs) && candidate.descImgs.length > 0) {
         imgs = candidate.descImgs.filter(u => u && !isBlocked(u))
         if (imgs.length) console.log(`[loadProductDetailImages] currentItem.descImgs → ${imgs.length}장`)
       }
     }
 
-    // ── 6순위: currentItem.images (갤러리) ───────────────────────────────────
+    // ── 6순위: currentItem.images / props.product.images (갤러리) ────────────
     if (!imgs.length) {
-      const candidate = currentItem.value || item
-      if (Array.isArray(candidate.images) && candidate.images.length > 0) {
-        imgs = candidate.images.filter(u => u && !isBlocked(u))
-        if (imgs.length) console.log(`[loadProductDetailImages] currentItem.images → ${imgs.length}장`)
+      const candidate = currentItem.value || item || props.product || {}
+      const fallbackList = Array.isArray(candidate.images) && candidate.images.length > 0
+        ? candidate.images
+        : (Array.isArray(props.product?.images) && props.product.images.length > 0 ? props.product.images : [])
+      if (fallbackList.length > 0) {
+        imgs = fallbackList.map(u => normalizeOne(u)).filter(u => u && !isBlocked(u))
+        if (imgs.length) console.log(`[loadProductDetailImages] fallback images → ${imgs.length}장`)
+      }
+    }
+
+    // ── 7순위: 메인 대표 이미지 ──────────────────────────────────────────────
+    if (!imgs.length) {
+      const candidate = currentItem.value || item || props.product || {}
+      const mainImg = normalizeOne(candidate.imageUrl || candidate.image || props.product?.imageUrl || '')
+      if (mainImg && !isBlocked(mainImg)) {
+        imgs = [mainImg]
+        console.log('[loadProductDetailImages] main image fallback → 1장')
       }
     }
 
