@@ -785,10 +785,12 @@
             </button>
             <button
               type="button"
-              @click="submitDepositRequest"
-              class="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold transition active:scale-95 cursor-pointer shadow-sm"
+              @click.prevent="submitDepositRequest"
+              :disabled="isSubmittingDeposit"
+              class="px-5 py-2.5 rounded-xl bg-orange-600 hover:bg-orange-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold transition active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
             >
-              충전 신청하기
+              <span v-if="isSubmittingDeposit" class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              <span>{{ isSubmittingDeposit ? '신청 처리 중...' : '충전 신청하기' }}</span>
             </button>
           </div>
         </div>
@@ -845,6 +847,7 @@ const showDepositModal = ref(false)
 const editingAddressId = ref(null)
 const depositAmount = ref(1000000)
 const depositDepositorName = ref('')
+const isSubmittingDeposit = ref(false)
 const addressList = ref([])
 const addressForm = ref({
   title: '',
@@ -962,114 +965,131 @@ const loadTransactions = () => {
   transactions.value = []
 }
 
-// ==================================================// 무통장 입금 충전 신청 제출
+// ============================================================
+// 무통장 입금 충전 신청 제출
 // — 이 시점에 customsProfile, depositDepositorName, depositAmount 모두 선언 완료
+// ============================================================
 const submitDepositRequest = async () => {
-  const amount = Number(depositAmount.value) || 0
-  if (amount <= 0) {
-    alert('충전할 금액을 10,000원 이상 선택하거나 입력해 주세요.')
+  const amount = Number(depositAmount.value || 0)
+  if (!amount || amount <= 0) {
+    alert('충전하실 금액을 0원 이상 선택하거나 입력해 주세요.')
     return
   }
 
-  // UUID 정규식 검증: 정확한 36자리 UUID가 아니면 무조건 null 할당 (Postgres 400 원천 차단)
-  const isUUID = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
-  const targetUserId = isUUID(currentUser.value?.id) ? currentUser.value.id : null
-
-  // UUID 포맷 ID 생성 (deposit_requests.id가 TEXT PK이거나 UUID PK일 때 모두 완벽 대응)
-  const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
-    ? crypto.randomUUID()
-    : `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
-
-  const depositorName = (depositDepositorName.value || '').trim() || customsProfile.value.companyName || customsProfile.value.contactName || currentUser.value?.name || currentUser.value?.user_metadata?.name || userDisplayName.value || '미입력'
-  const buyerName = currentUser.value?.name || currentUser.value?.user_metadata?.name || customsProfile.value.companyName || userDisplayName.value || '바이어'
-  const buyerEmail = currentUser.value?.email || ''
-  const nowIso = new Date().toISOString()
-
-  const req = {
-    id: generatedId,
-    dbId: generatedId,
-    createdAt: nowIso,
-    created_at: nowIso,
-    user_id: targetUserId,
-    userId: targetUserId,
-    buyerName,
-    buyer_name: buyerName,
-    buyerEmail,
-    buyer_email: buyerEmail,
-    depositorName,
-    depositor_name: depositorName,
-    amount,
-    bankName: '기업은행',
-    bank_name: '기업은행',
-    accountNumber: '190-134321-01-016',
-    account_number: '190-134321-01-016',
-    accountHolder: '이유씨컴퍼니(조해성)',
-    account_holder: '이유씨컴퍼니(조해성)',
-    status: 'pending'
+  const rawDepositor = (depositDepositorName.value || '').trim() || customsProfile.value?.companyName || customsProfile.value?.contactName || currentUser.value?.name || currentUser.value?.user_metadata?.name || userDisplayName.value || ''
+  if (!rawDepositor) {
+    alert('실제 입금하실 입금자명을 입력해 주세요.')
+    return
   }
 
-  // 1. Supabase DB INSERT (Primary) — non-UUID일 경우 user_id는 null로 처리되어 400 에러 원천 방어
-  if (isSupabaseConfigured()) {
-    try {
-      const depositPayload = {
-        id: generatedId,
-        user_id: targetUserId,
-        buyer_name: buyerName,
-        buyer_email: buyerEmail,
-        depositor_name: depositorName,
-        amount: Number(amount || 0),
-        bank_name: '기업은행',
-        account_number: '190-134321-01-016',
-        account_holder: '이유씨컴퍼니(조해성)',
-        status: 'pending',
-        created_at: nowIso
-      }
-
-      const { data, error } = await supabase
-        .from('deposit_requests')
-        .insert([depositPayload])
-        .select()
-
-      if (!error && data && data.length > 0) {
-        req.id = data[0].id || req.id
-        req.dbId = data[0].id
-      } else if (error) {
-        console.warn('[DepositRequest] Supabase insert with ID notice, retrying without explicit id:', error.message)
-        const { id: _, ...payloadWithoutId } = depositPayload
-        const { data: retryData, error: retryError } = await supabase
-          .from('deposit_requests')
-          .insert([payloadWithoutId])
-          .select()
-
-        if (retryError) {
-          console.error('[DepositRequest] Supabase INSERT error:', retryError)
-          alert('신청 처리 중 서버 오류가 발생했습니다: ' + (retryError.message || retryError.details || ''))
-          return
-        }
-        if (retryData && retryData.length > 0) {
-          req.id = retryData[0].id || req.id
-          req.dbId = retryData[0].id
-        }
-      }
-    } catch (err) {
-      console.warn('[AccountSettingsView] Supabase deposit_requests insert warning:', err)
-    }
-  }
+  isSubmittingDeposit.value = true
 
   try {
-    const raw = localStorage.getItem('euchs_deposit_requests')
-    const list = raw ? JSON.parse(raw) : []
-    list.unshift(req)
-    localStorage.setItem('euchs_deposit_requests', JSON.stringify(list))
-  } catch (e) {}
+    // UUID 정규식 검증: 정확한 36자리 UUID가 아니면 무조건 null 할당 (Postgres 400 원천 차단)
+    const isUUID = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+    const targetUserId = isUUID(currentUser.value?.id) ? currentUser.value.id : null
 
-  window.dispatchEvent(new CustomEvent('euchs-deposit-request', { detail: req }))
-  window.dispatchEvent(new CustomEvent('euchs-balance-update'))
-  window.dispatchEvent(new Event('storage'))
+    // UUID 포맷 ID 생성 (deposit_requests.id가 TEXT PK이거나 UUID PK일 때 모두 완벽 대응)
+    const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 
-  alert(`₩${amount.toLocaleString()}원 충전 신청이 완료되었습니다.\n기업은행 190-134321-01-016 (이유씨컴퍼니(조해성)) 계좌로 입금해 주시면 확인 후 즉시 승인됩니다.`)
-  showDepositModal.value = false
-  loadTransactions()
+    const buyerName = currentUser.value?.name || currentUser.value?.user_metadata?.name || customsProfile.value?.companyName || userDisplayName.value || '바이어'
+    const buyerEmail = currentUser.value?.email || ''
+    const nowIso = new Date().toISOString()
+
+    const req = {
+      id: generatedId,
+      dbId: generatedId,
+      createdAt: nowIso,
+      created_at: nowIso,
+      user_id: targetUserId,
+      userId: targetUserId,
+      buyerName,
+      buyer_name: buyerName,
+      buyerEmail,
+      buyer_email: buyerEmail,
+      depositorName: rawDepositor,
+      depositor_name: rawDepositor,
+      amount,
+      bankName: '기업은행',
+      bank_name: '기업은행',
+      accountNumber: '190-134321-01-016',
+      account_number: '190-134321-01-016',
+      accountHolder: '이유씨컴퍼니(조해성)',
+      account_holder: '이유씨컴퍼니(조해성)',
+      status: 'pending'
+    }
+
+    // 1. Supabase DB INSERT (Primary) — non-UUID일 경우 user_id는 null로 처리되어 400 에러 원천 방어
+    if (isSupabaseConfigured()) {
+      try {
+        const depositPayload = {
+          id: generatedId,
+          user_id: targetUserId,
+          buyer_name: buyerName,
+          buyer_email: buyerEmail,
+          depositor_name: rawDepositor,
+          amount: Number(amount || 0),
+          bank_name: '기업은행',
+          account_number: '190-134321-01-016',
+          account_holder: '이유씨컴퍼니(조해성)',
+          status: 'pending',
+          created_at: nowIso
+        }
+
+        const { data, error } = await supabase
+          .from('deposit_requests')
+          .insert([depositPayload])
+          .select()
+
+        if (!error && data && data.length > 0) {
+          req.id = data[0].id || req.id
+          req.dbId = data[0].id
+        } else if (error) {
+          console.warn('[DepositRequest] Supabase insert with ID notice, retrying without explicit id:', error.message)
+          const { id: _, ...payloadWithoutId } = depositPayload
+          const { data: retryData, error: retryError } = await supabase
+            .from('deposit_requests')
+            .insert([payloadWithoutId])
+            .select()
+
+          if (retryError) {
+            console.error('[DepositRequest] Supabase INSERT error:', retryError)
+            alert('서버 등록 중 오류가 발생했습니다: ' + (retryError.message || retryError.details || ''))
+            return
+          }
+          if (retryData && retryData.length > 0) {
+            req.id = retryData[0].id || req.id
+            req.dbId = retryData[0].id
+          }
+        }
+      } catch (err) {
+        console.warn('[AccountSettingsView] Supabase deposit_requests insert warning:', err)
+      }
+    }
+
+    // 2. 로컬 스토리지 즉시 캐시 저장 (Fallback & 빠른 UI 렌더링)
+    try {
+      const raw = localStorage.getItem('euchs_deposit_requests')
+      const list = raw ? JSON.parse(raw) : []
+      list.unshift(req)
+      localStorage.setItem('euchs_deposit_requests', JSON.stringify(list))
+    } catch (e) {}
+
+    window.dispatchEvent(new CustomEvent('euchs-deposit-request', { detail: req }))
+    window.dispatchEvent(new CustomEvent('euchs-balance-update'))
+    window.dispatchEvent(new Event('storage'))
+
+    alert(`무통장 입금 충전 신청이 정상 접수되었습니다.\n\n- 신청금액: ₩${amount.toLocaleString()}원\n- 입금계좌: 기업은행 190-134321-01-016 (이유씨컴퍼니(조해성))\n- 입금자명: ${rawDepositor}\n\n입금 확인 후 관리자가 승인하면 예치금 잔액에 즉시 반영됩니다.`)
+    showDepositModal.value = false
+    loadTransactions()
+  } catch (globalErr) {
+    console.error('[DepositRequest] Unexpected error:', globalErr)
+    alert('신청 처리 중 예기치 못한 오류가 발생했습니다: ' + (globalErr.message || globalErr))
+  } finally {
+    isSubmittingDeposit.value = false
+  }
 }
 
 const saveCustomsInfo = async () => {
