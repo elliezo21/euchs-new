@@ -789,16 +789,20 @@ const displayedPriceTiers = computed(() => {
   const p = basePrice.value
   const mo = minOrder.value
 
-  // 1. item.priceTiers 가 정의된 경우
-  if (Array.isArray(item?.priceTiers) && item.priceTiers.length > 0) {
-    return item.priceTiers.map((tier) => {
-      const minQ = Number(tier.minQuantity || tier.min || tier.beginAmount || 1)
-      const maxQ = tier.maxQuantity || tier.max || tier.endAmount ? Number(tier.maxQuantity || tier.max || tier.endAmount) : null
-      const price = parseFloat(tier.price || tier.unitPrice || p) || p
+  // ── 1. item.priceTiers (api1688.js → fetch1688ProductById가 파싱한 1688 원본 구간) ──
+  const rawTiers = item?.priceTiers || item?.raw?.priceTiers || props.product?.priceTiers || null
+
+  if (Array.isArray(rawTiers) && rawTiers.length > 0) {
+    return rawTiers.map((tier) => {
+      const minQ   = Number(tier.minQty || tier.minQuantity || tier.min || tier.beginAmount || 1)
+      const maxQ   = (tier.maxQty != null || tier.maxQuantity != null)
+        ? Number(tier.maxQty ?? tier.maxQuantity)
+        : null
+      const price  = parseFloat(tier.price || tier.unitPrice || p) || p
       return {
         minQuantity: minQ,
         maxQuantity: maxQ,
-        label: maxQ ? `${minQ}~${maxQ}개` : `${minQ}개 이상`,
+        label: tier.label || (maxQ ? `${minQ}~${maxQ}개` : `${minQ}개 이상`),
         price: Number(price.toFixed(2)),
         priceFormatted: price.toFixed(2),
         priceKrw: Math.round(price * props.exchangeRate)
@@ -806,42 +810,21 @@ const displayedPriceTiers = computed(() => {
     })
   }
 
-  // 2. 기본 3단계 수량 할인 티어 (상품 고유 basePrice 기준 동적 계산)
-  const t1Min = mo
-  const t2Min = Math.max(10, mo * 5)
-  const t3Min = Math.max(50, mo * 25)
-
-  const t1Price = Number(p.toFixed(2))
-  const t2Price = Number((p * 0.92).toFixed(2))
-  const t3Price = Number((p * 0.85).toFixed(2))
+  // ── 2. 원본 구간이 없으면 단일 가격 카드 1개만 (가상 할인 구간 생성 절대 금지) ──
+  if (!p || p <= 0) return []
 
   return [
     {
-      minQuantity: t1Min,
-      maxQuantity: t2Min - 1,
-      label: `${t1Min}~${t2Min - 1}개`,
-      price: t1Price,
-      priceFormatted: t1Price.toFixed(2),
-      priceKrw: Math.round(t1Price * props.exchangeRate)
-    },
-    {
-      minQuantity: t2Min,
-      maxQuantity: t3Min - 1,
-      label: `${t2Min}~${t3Min - 1}개`,
-      price: t2Price,
-      priceFormatted: t2Price.toFixed(2),
-      priceKrw: Math.round(t2Price * props.exchangeRate)
-    },
-    {
-      minQuantity: t3Min,
+      minQuantity: mo,
       maxQuantity: null,
-      label: `${t3Min}개 이상`,
-      price: t3Price,
-      priceFormatted: t3Price.toFixed(2),
-      priceKrw: Math.round(t3Price * props.exchangeRate)
+      label: `${mo}개 이상`,
+      price: Number(p.toFixed(2)),
+      priceFormatted: p.toFixed(2),
+      priceKrw: Math.round(p * props.exchangeRate)
     }
   ]
 })
+
 
 // 총 수량에 따른 현재 적용 단가 결정 (CN인사이더 스타일)
 const currentUnitRmb = computed(() => {
@@ -1085,20 +1068,34 @@ const totalPriceKrw = computed(() => {
 
 // ----------------------------------------------------
 // 중국 내 배송비 추정 (이우 물류센터 기준 areaCode: 330782)
-// 1688 配送费 이우→창고 내부 배송비 추정 공식:
-//   소량(< 10개): 6 CNY (최소 배송비)
-//   10~49개: 8 CNY
-//   50~99개: 12 CNY
-//   100개+: 수량 × 0.12 CNY (대량 택배 비용)
+// 우선순위: 1) item.freight / item.express_fee (1688 원본) 2) 수량 스케일 기본값 (최소 ¥3.00)
 // ----------------------------------------------------
 const chinaFreightRmb = computed(() => {
   const qty = totalQuantity.value
   if (qty <= 0) return 0
-  if (qty < 10) return 6
-  if (qty < 50) return 8
-  if (qty < 100) return 12
-  return Number((qty * 0.12).toFixed(2))
+
+  // 1688 원본 운임 추출 (fetch1688ProductById가 세팅한 freight 필드 우선)
+  const item = currentItem.value || props.product
+  const rawFreight = item?.freight ?? item?.raw?.freight ?? item?.raw?.express_fee ?? null
+  const baseFreight = (rawFreight != null && rawFreight > 0)
+    ? Number(rawFreight)
+    : null  // 원본 없으면 null → 기본값 로직 사용
+
+  if (baseFreight !== null) {
+    // 원본 운임이 있으면 수량 비례 스케일 적용 (대량 시 합리적 배송비)
+    if (qty < 10) return baseFreight
+    if (qty < 50) return Number((baseFreight * 1.3).toFixed(2))
+    if (qty < 100) return Number((baseFreight * 1.8).toFixed(2))
+    return Number((qty * 0.10).toFixed(2))
+  }
+
+  // 원본 운임 없을 때 기본값 (기존 ¥6.00 → ¥3.00으로 하향 보정)
+  if (qty < 10) return 3
+  if (qty < 50) return 5
+  if (qty < 100) return 8
+  return Number((qty * 0.10).toFixed(2))
 })
+
 
 const chinaFreightKrw = computed(() => {
   return Math.round(chinaFreightRmb.value * props.exchangeRate)
@@ -1198,10 +1195,11 @@ const loadProductDetailImages = async (item) => {
   const normalizeOne = (u) => {
     if (!u || typeof u !== 'string') return ''
     let s = u.trim()
+    // 프로토콜 없는 // 형태 URL 자동 보완 (alicdn.com 등)
     if (s.startsWith('//')) s = 'https:' + s
     if (s.startsWith('http://')) s = s.replace('http://', 'https://')
     if (s.startsWith('data:') || s.length < 20) return ''  // base64/빈 데이터 차단
-    return s.startsWith('http') ? s : ''
+    return s.startsWith('https://') ? s : ''
   }
 
   const BLOCKED = ['images.unsplash.com', 'picsum.photos']
@@ -1221,8 +1219,8 @@ const loadProductDetailImages = async (item) => {
         // HTML img 태그 파싱 (src 및 data-src)
         ;[...src.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].forEach(m => add(m[1]))
         ;[...src.matchAll(/<img[^>]+data-src=["']([^"']+)["']/gi)].forEach(m => add(m[1]))
-      } else if (src.includes(',') && src.includes('http')) {
-        // 쉼표 구분 URL 목록
+      } else if (src.includes(',')) {
+        // 쉼표 구분 URL 목록 (http:// 또는 // 형태 모두 지원)
         src.split(',').map(s => s.trim()).filter(Boolean).forEach(add)
       } else {
         add(src)
@@ -1232,6 +1230,7 @@ const loadProductDetailImages = async (item) => {
     }
     return results
   }
+
 
   const itemId = String(item.id || '').replace(/[^0-9]/g, '') || String(item.id || '')
 
