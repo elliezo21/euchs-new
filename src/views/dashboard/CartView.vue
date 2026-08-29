@@ -1299,50 +1299,29 @@ async function confirmAndSubmitOrder() {
       totalPriceRmb: targetItems.reduce((sum, it) => sum + ((it.quantity || 1) * it.priceCny), 0)
     };
 
-    // 1. Supabase orders 테이블 및 전역 orderStorage에 동기화 저장
-    await saveNewOrder(newOrder);
+    // 1. Supabase orders 테이블 및 전역 orderStorage에 영구 저장 (DB 실패 시 로컬스토리지 자동 폴백)
+    const savedOrder = await saveNewOrder(newOrder);
+    const finalOrderNumber = savedOrder?.orderNumber || orderNumber;
 
-    // 2. applications 테이블 호환 백업 insert
-    if (isSupabaseConfigured()) {
-      try {
-        await supabase.from('applications').insert([{
-          service_type: 'purchasing',
-          service_name: '1688 구매대행',
-          customer_name: buyerInfo.buyerName,
-          phone: buyerInfo.phone,
-          email: buyerInfo.email,
-          status: 'quote_pending',
-          details: {
-            orderId: orderNumber,
-            items: newOrder.items,
-            customsCode: buyerInfo.customsCode,
-            customsType: cfg.customsType,
-            shippingType: cfg.shippingType,
-            vasServices: cfg.vasServices
-          }
-        }]);
-      } catch (e) {}
-    }
-
-    // 3. 솔라피 알림톡 발송 (비동기 트리거, 오류 안전 방어)
+    // 2. 솔라피 알림톡 발송 (비동기 트리거, 오류 안전 방어)
     const customsLabel = cfg.customsType === 'business' ? '사업자통관' : '개인통관';
     const shipLabel = cfg.shippingType === 'rocket' ? '쿠팡로켓직납' : '일반직배송';
     sendOrderStatusAlimtalk({
       type: 'order_received',
       to: buyerInfo.phone,
       customerName: buyerInfo.buyerName,
-      orderNo: orderNumber,
+      orderNo: finalOrderNumber,
       itemName: newOrder.items[0]?.productName || '1688 소싱 품목',
       extraInfo: `통관: ${customsLabel} / 배송: ${shipLabel}`
     }).catch(() => {});
 
-    // 4. 선택된 품목 장바구니에서 제거
+    // 3. 선택된 품목 장바구니에서 제거
     cartItems.value = cartItems.value.filter(it => !selectedItemIds.value.includes(it.id));
     selectedItemIds.value = [];
     saveCartToStorage();
 
     isOrderConfigModalOpen.value = false;
-    alert(`선택된 ${targetItems.length}개 품목의 수입 발주서가 정상 접수되었습니다!\n(발주번호: ${orderNumber})\n주문/발주 통합 관리(1. 견적대기) 화면으로 이동합니다.`);
+    alert(`선택된 ${targetItems.length}개 품목의 수입 발주서가 정상 접수되었습니다!\n(발주번호: ${finalOrderNumber})\n주문/발주 통합 관리(1. 견적대기) 화면으로 이동합니다.`);
     router.push('/dashboard/orders?tab=quote');
   } catch (error) {
     console.error('Submit order error:', error);
