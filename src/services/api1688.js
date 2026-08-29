@@ -954,10 +954,21 @@ export async function fetch1688ProductById(offerId) {
     // OneBound props_list에서 1차/2차 옵션 추출
     // props_list 예: "1627207:1232324;20509:2325"  (숫자ID 형식)
     // 또는 item_imgs 내 props 필드: [{properties: "颜色分类:红色", url: "..."}]
+
+    // ─── URL 정규화 헬퍼 (colorMap 탐색보다 반드시 앞에 선언해야 TDZ 에러 방지) ──
+    const normalizeImg = (u) => {
+      const s = String(u || '').trim()
+      if (!s) return ''
+      if (s.startsWith('//')) return 'https:' + s
+      if (s.startsWith('http://')) return s.replace('http://', 'https://')
+      return s.startsWith('http') ? s : ''
+    }
+
     const colorMap = new Map() // propValue → imageUrl
     const sizeSet = new Set()
 
     // item_imgs에서 색상 이미지 추출 (OneBound item_imgs: [{url: "...", properties: "颜色分类:红色"}])
+
     if (Array.isArray(it.item_imgs)) {
       it.item_imgs.forEach(img => {
         const imgUrl = normalizeImg(img.url || img.src || img.Url || '')
@@ -984,7 +995,10 @@ export async function fetch1688ProductById(offerId) {
           const val = kv[kv.length - 1].trim()
           if (val) {
             if (pIdx === 0) {
-              if (!colorMap.has(val)) colorMap.set(val, s.img_id || s.imageUrl || '')
+              // img_id가 실제 이미지 URL인 경우와 imageUrl/image 필드 모두 탐색
+              const skuImgRaw = s.img_id || s.imageUrl || s.image || s.pic_url || ''
+              const skuImg = normalizeImg(skuImgRaw)
+              if (!colorMap.has(val)) colorMap.set(val, skuImg)
             } else if (pIdx === 1) {
               sizeSet.add(val)
             }
@@ -992,6 +1006,7 @@ export async function fetch1688ProductById(offerId) {
         }
       })
     })
+
 
     if (colorMap.size > 0 || sizeSet.size > 0) {
       rawSkuProps = []
@@ -1016,16 +1031,10 @@ export async function fetch1688ProductById(offerId) {
     const titleZh = it.title || it.subject || it.Title || ''
 
     // 메인 이미지: pic_url (OneBound 표준)
-    const normalizeImg = (u) => {
-      const s = String(u || '').trim()
-      if (!s) return ''
-      if (s.startsWith('//')) return 'https:' + s
-      if (s.startsWith('http://')) return s.replace('http://', 'https://')
-      return s.startsWith('http') ? s : ''
-    }
     let imageUrl = normalizeImg(
       it.pic_url || it.picUrl || it.MainPictureUrl || it.imageUrl || it.image || ''
     )
+
 
     // ─── 다중 갤러리 이미지 배열 파싱 (OneBound item_imgs 우선) ──────────────
     let images = []
