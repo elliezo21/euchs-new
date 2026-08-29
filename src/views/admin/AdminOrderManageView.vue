@@ -930,7 +930,15 @@ function approveQuoteFromDetail() {
 
   // 2. quote_confirmed 상태로 전환 및 유효 금액 반영
   const validTotal = calcCost(activeOrder.value);
+  const validCny = Number(calcCny(activeOrder.value));
   updateOrderStatus(activeOrder.value.id, 'quote_confirmed', {
+    items: activeOrder.value.items || [],
+    totalPriceKrw: validTotal,
+    totalPriceRmb: validCny,
+    firstPayment: {
+      firstPaymentKrw: validTotal,
+      approvedAt: new Date().toISOString()
+    },
     quoteInfo: {
       firstPaymentKrw: validTotal,
       approvedAt: new Date().toISOString(),
@@ -1016,9 +1024,32 @@ const quoteTotal = computed(() => {
 
 function submitQuoteApproval() {
   if (!quoteForm.value.priceCny) { showToast('단가를 입력해 주세요.','error'); return; }
-  updateOrderStatus(activeOrder.value.id, 'quote_confirmed', { quoteInfo: { priceCny: quoteForm.value.priceCny, quantity: quoteForm.value.quantity, exchangeRate: quoteForm.value.exchangeRate, agencyFeeRate: quoteForm.value.agencyFeeRate, firstPaymentKrw: quoteTotal.value, approvedAt: new Date().toISOString(), adminMemo: quoteForm.value.memo } });
-  const list = getStoredOrders(); const t = list.find(o=>o.id===activeOrder.value.id);
-  if (t?.items?.[0]) { t.items[0].priceCny=quoteForm.value.priceCny; t.items[0].quantity=quoteForm.value.quantity; saveStoredOrders(list); }
+  const firstPaymentKrw = quoteTotal.value;
+  const list = getStoredOrders();
+  const t = list.find(o => o.id === activeOrder.value.id);
+  if (t?.items?.[0]) {
+    t.items[0].priceCny = quoteForm.value.priceCny;
+    t.items[0].quantity = quoteForm.value.quantity;
+    t.totalPriceKrw = firstPaymentKrw;
+    saveStoredOrders(list);
+  }
+  updateOrderStatus(activeOrder.value.id, 'quote_confirmed', {
+    items: t?.items || activeOrder.value.items || [],
+    totalPriceKrw: firstPaymentKrw,
+    firstPayment: {
+      firstPaymentKrw,
+      approvedAt: new Date().toISOString()
+    },
+    quoteInfo: {
+      priceCny: quoteForm.value.priceCny,
+      quantity: quoteForm.value.quantity,
+      exchangeRate: quoteForm.value.exchangeRate,
+      agencyFeeRate: quoteForm.value.agencyFeeRate,
+      firstPaymentKrw,
+      approvedAt: new Date().toISOString(),
+      adminMemo: quoteForm.value.memo
+    }
+  });
   
   // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
   sendOrderStatusAlimtalk({

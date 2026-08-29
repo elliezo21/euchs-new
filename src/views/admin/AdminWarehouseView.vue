@@ -800,10 +800,10 @@ const removePhoto = (idx) => {
   editForm.value.inspectionPhotos.splice(idx, 1);
 };
 
-const saveInboundProcessing = () => {
+const saveInboundProcessing = async () => {
   if (!editForm.value.id) return;
 
-  updateStoredInboundItem(editForm.value.id, {
+  await updateStoredInboundItem(editForm.value.id, {
     measuredWeightKg: editForm.value.measuredWeightKg,
     measuredCbm: editForm.value.measuredCbm,
     boxCount: editForm.value.boxCount,
@@ -816,7 +816,7 @@ const saveInboundProcessing = () => {
 
   reloadData();
   isModalOpen.value = false;
-  alert('입고 및 검수 데이터가 성공적으로 저장되었으며 바이어 화면에 즉시 반영되었습니다.');
+  alert('입고 및 검수 데이터가 성공적으로 저장되었으며 바이어 화면(5단계 검수완료 & 2차 결제 활성화)에 즉시 반영되었습니다.');
 };
 
 const resetStore = () => {

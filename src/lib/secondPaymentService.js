@@ -1,10 +1,10 @@
 /**
  * EUCHS B2B ERP - 2차 결제 서비스 레이어
  *
- * Supabase RPC(process_second_payment) 우선 호출 → 실패 시 localStorage 폴백
- * 원자적 트랜잭션: 잔액 차감 + 거래내역 생성 + 주문 상태(→ shipping_ready) 전환
+ * Supabase RPC(process_second_payment) 우선 호출 → 실패 시 JavaScript DB 트랜잭션 및 localStorage 폴백
+ * 원자적 트랜잭션: profiles.balance 차감 + transactions 내역 생성 + orders.status(→ shipping_ready) 전환
  */
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, isSupabaseConfigured, isValidUUID } from './supabase';
 import { currentUser } from './auth';
 import { deductBalance, setBalance, isBalanceInsufficient, userBalance } from './balanceStore';
 import { updateOrderStatus } from '@/utils/orderStorage';
@@ -25,7 +25,7 @@ export const PAYMENT_ERROR = {
 // ----------------------------------------------------------------
 
 /**
- * 2차 결제 처리 (Supabase RPC → 로컬 폴백)
+ * 2차 결제 처리 (Supabase RPC → DB 직접 처리 → 로컬 폴백)
  *
  * @param {Object} params
  * @param {string} params.orderId       주문 ID (로컬 ID 또는 UUID)
@@ -44,31 +44,47 @@ export async function processSecondPayment({ orderId, orderNumber, amount, barco
     };
   }
 
-  // ② Supabase RPC 시도
-  if (isSupabaseConfigured() && currentUser.value?.id) {
+  const extraData = {
+    secondPaymentCompletedAt: new Date().toISOString(),
+    secondPaymentAmount: amount,
+    secondPayment: {
+      totalSecondPaymentKrw: amount,
+      paidAt: new Date().toISOString()
+    }
+  };
+  if (barcodeFile) {
+    extraData.barcodeFile = barcodeFile;
+    extraData.barcodeLabelFilename = barcodeFile.name;
+  }
+
+  // ② Supabase RPC 시도 (orderId가 UUID 형식일 때)
+  const isUUID = orderId && isValidUUID(orderId);
+  if (isSupabaseConfigured() && currentUser.value?.id && isUUID) {
     try {
       const result = await _callSupabaseRPC({ orderId, amount });
       if (result.success) {
-        // Supabase RPC 성공: new_balance 로 동기화
         setBalance(result.newBalance);
 
-        // 라벨 첨부파일이 있는 경우 orders 테이블 업데이트
         if (barcodeFile) {
           await _updateOrderBarcodeLabel(orderId, barcodeFile);
         }
 
+        // 프론트 및 orders/applications 테이블 상태 즉시 동기화
+        await updateOrderStatus(orderId, 'shipping_ready', extraData);
+
         return { success: true, newBalance: result.newBalance };
       }
-      // RPC 에러 처리
-      return _handleRpcError(result.error);
+      // RPC 에러 중 특정 검증 에러는 바로 반환
+      if (result.error && (result.error.includes('잔액 부족') || result.error.includes('불가한 주문 상태'))) {
+        return _handleRpcError(result.error);
+      }
     } catch (err) {
-      // 네트워크 오류 등 → 로컬 폴백으로 계속 진행
-      console.warn('[secondPaymentService] Supabase RPC 실패, 로컬 폴백 진행:', err.message);
+      console.warn('[secondPaymentService] Supabase RPC 실패, 직접 DB 업데이트 및 로컬 폴백 진행:', err.message);
     }
   }
 
-  // ③ 로컬 폴백: localStorage 기반 처리
-  return _processLocalFallback({ orderId, orderNumber, amount, barcodeFile });
+  // ③ JS/DB 직접 연동 폴백 처리: balanceStore.deductBalance + updateOrderStatus('shipping_ready')
+  return _processLocalFallback({ orderId, orderNumber, amount, barcodeFile, extraData });
 }
 
 // ----------------------------------------------------------------
@@ -131,27 +147,22 @@ function _handleRpcError(errorMessage) {
 }
 
 /**
- * 로컬 폴백: localStorage 기반 원자적(?) 처리
- * 실제 DB 트랜잭션은 아니지만 순서대로 실행합니다.
+ * 로컬/JS 폴백: profiles.balance 차감 + transactions INSERT + orders status 전환
  */
-function _processLocalFallback({ orderId, orderNumber, amount, barcodeFile }) {
+async function _processLocalFallback({ orderId, orderNumber, amount, barcodeFile, extraData = {} }) {
   try {
-    // 잔액 차감
-    const newBalance = deductBalance(amount);
+    // 1. profiles.balance 차감 및 transactions 테이블에 영구 적재
+    const newBalance = await deductBalance(amount, {
+      type: 'payment',
+      title: '2차 운임 및 통관비용 결제',
+      orderId,
+      orderNumber,
+      description: `주문(${orderNumber || orderId}) 이우 센터 실측 2차 정산 결제`
+    });
 
-    // 주문 상태 → shipping_ready 전환 (localStorage 업데이트 + 이벤트 발생)
-    const extraData = {
-      secondPaymentCompletedAt: new Date().toISOString(),
-      secondPaymentAmount: amount
-    };
-    if (barcodeFile) {
-      extraData.barcodeFile = barcodeFile;
-      extraData.barcodeLabelFilename = barcodeFile.name;
-    }
-
-    // orderId 또는 orderNumber로 매칭 시도
-    const updated = updateOrderStatus(orderId, 'shipping_ready', extraData)
-      || updateOrderStatus(orderNumber, 'shipping_ready', extraData);
+    // 2. 주문 상태 → shipping_ready 전환 (Supabase orders/applications + localStorage)
+    const updated = (await updateOrderStatus(orderId, 'shipping_ready', extraData))
+      || (await updateOrderStatus(orderNumber, 'shipping_ready', extraData));
 
     if (!updated) {
       console.warn('[secondPaymentService] 주문을 찾지 못해 상태 전환 실패:', orderId, orderNumber);
@@ -159,7 +170,7 @@ function _processLocalFallback({ orderId, orderNumber, amount, barcodeFile }) {
 
     return { success: true, newBalance, isLocalFallback: true };
   } catch (err) {
-    console.error('[secondPaymentService] 로컬 폴백 처리 실패:', err);
+    console.error('[secondPaymentService] 결제 처리 실패:', err);
     return {
       success: false,
       errorCode: PAYMENT_ERROR.UNKNOWN,
@@ -174,14 +185,20 @@ function _processLocalFallback({ orderId, orderNumber, amount, barcodeFile }) {
 async function _updateOrderBarcodeLabel(orderId, barcodeFile) {
   if (!isSupabaseConfigured()) return;
   try {
-    await supabase
-      .from('orders')
-      .update({
-        barcode_label_filename: barcodeFile.name,
-        updated_at: new Date().toISOString()
-      })
-      .eq('id', orderId);
+    const isUUID = isValidUUID(orderId);
+    let query = supabase.from('orders').update({
+      barcode_label_filename: barcodeFile.name,
+      updated_at: new Date().toISOString()
+    });
+
+    if (isUUID) {
+      query = query.eq('id', orderId);
+    } else {
+      query = query.eq('order_number', orderId);
+    }
+
+    await query;
   } catch (e) {
-    console.warn('[secondPaymentService] 바코드 라벨 업데이트 실패 (무시):', e);
+    console.warn('[secondPaymentService] 바코드 라벨 업데이트 notice:', e);
   }
 }

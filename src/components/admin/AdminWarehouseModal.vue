@@ -463,37 +463,15 @@ const saveInboundProcessing = async () => {
     }
   }
 
-  // 2. Warehouse Store 공유 상태 업데이트 (바이어 /dashboard/warehouse 화면 즉시 반영)
-  const storedList = loadStoredInbounds();
-  const idx = storedList.findIndex(i => i.id === inboundForm.value.id || i.orderNo === app.orderNo);
-
-  const inboundPayload = {
-    id: inboundForm.value.id,
-    inboundNo: inboundForm.value.inboundNo,
-    inboundDate: new Date().toLocaleString('ko-KR', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }),
-    orderNo: app.orderNo || `EUC-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-${String(app.id || '01').padStart(3, '0')}`,
-    buyerName: app.customer_name || '(주)바이어',
-    buyerId: app.email || `BUYER-${app.id || '01'}`,
-    warehouse: 'yiwu',
-    productName: getTargetProductName(),
-    sku: app.details?.items?.[0]?.skus?.[0]?.color || '기본 규격',
-    quantity: app.details?.items?.[0]?.quantity || 100,
-    boxCount: inboundForm.value.boxCount,
+  // 2. Warehouse Store 및 전역 orders 테이블 연동 업데이트
+  await updateStoredInboundItem(inboundForm.value.id || app.orderNo || app.id, {
     measuredWeightKg: inboundForm.value.measuredWeightKg,
     measuredCbm: inboundForm.value.measuredCbm,
+    boxCount: inboundForm.value.boxCount,
     inspectionStatus: autoStatus,
     inspectionNote: inboundForm.value.inspectionNote,
-    thumbnail: app.details?.items?.[0]?.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
-    inspectionPhotos: inboundForm.value.inspectionPhotos,
-    vasApplied: matchedVas(storedList, inboundForm.value.id)
-  };
-
-  if (idx !== -1) {
-    storedList[idx] = { ...storedList[idx], ...inboundPayload };
-  } else {
-    storedList.unshift(inboundPayload);
-  }
-  saveStoredInbounds(storedList);
+    inspectionPhotos: inboundForm.value.inspectionPhotos
+  });
 
   isSaving.value = false;
   closeModal();

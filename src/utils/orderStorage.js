@@ -512,28 +512,46 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
         const orderNo = target.orderNumber || target.orderId || target.id;
         const nowIso = new Date().toISOString();
 
-        // 1. orders 테이블 업데이트
-        await supabase
+        // 1. orders 테이블 업데이트 (상태, 견적액, 1차/2차 결제액, 실측데이터, 검수사진 등)
+        const orderUpdatePayload = {
+          status: nextStatus,
+          items: target.items || [],
+          total_price_krw: Number(target.totalPriceKrw || target.total_price_krw || 0),
+          total_price_rmb: Number(target.totalPriceRmb || target.total_price_rmb || 0),
+          first_payment: target.firstPayment || extraData.firstPayment || extraData.quoteInfo || {},
+          second_payment: target.secondPayment || extraData.secondPayment || {},
+          measured_data: target.measuredData || extraData.measuredData || {},
+          inspection_photos: target.inspectionPhotos || extraData.inspectionPhotos || [],
+          vas_applied: target.vasApplied || target.vasServices || [],
+          barcode_label_filename: extraData.barcodeLabelFilename || extraData.barcodeFile?.name || target.barcodeLabelFilename || null,
+          memo: `[${orderNo}] ${target.memo || ''}`.trim(),
+          updated_at: nowIso
+        };
+
+        const { error: orderUpdateErr } = await supabase
           .from('orders')
-          .update({
-            status: nextStatus,
-            second_payment: target.secondPayment || extraData.secondPayment || {},
-            measured_data: target.measuredData || extraData.measuredData || {},
-            inspection_photos: target.inspectionPhotos || extraData.inspectionPhotos || [],
-            barcode_label_filename: extraData.barcodeLabelFilename || extraData.barcodeFile?.name || target.barcodeLabelFilename || null,
-            updated_at: nowIso
-          })
+          .update(orderUpdatePayload)
           .eq('order_number', orderNo);
 
-        // 2. applications 테이블 업데이트
+        if (orderUpdateErr && isValidUUID(target.id)) {
+          await supabase
+            .from('orders')
+            .update(orderUpdatePayload)
+            .eq('id', target.id);
+        }
+
+        // 2. applications 테이블 업데이트 (호환성)
+        const appPayload = {
+          status: nextStatus,
+          total_amount: Number(target.totalPriceKrw || target.total_price_krw || 0),
+          details: target,
+          updated_at: nowIso
+        };
+
         if (target.dbId && typeof target.dbId === 'number') {
           await supabase
             .from('applications')
-            .update({
-              status: nextStatus,
-              details: target,
-              updated_at: nowIso
-            })
+            .update(appPayload)
             .eq('id', target.dbId);
         } else {
           const { data: match } = await supabase
@@ -546,11 +564,7 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
             target.dbId = match[0].id;
             await supabase
               .from('applications')
-              .update({
-                status: nextStatus,
-                details: target,
-                updated_at: nowIso
-              })
+              .update(appPayload)
               .eq('id', match[0].id);
           }
         }
