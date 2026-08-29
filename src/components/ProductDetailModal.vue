@@ -715,10 +715,17 @@ const toggleFavoriteStore = () => {
 // 1688 원본 상품 링크 (새 탭 바로가기)
 const original1688Url = computed(() => {
   const item = currentItem.value || props.product || {}
-  // 1. detailUrl / sourceUrl / url 에 이미 유효한 1688 URL이 있으면 그대로 사용
+  const raw = item.raw || {}
+
+  // 1순위: Otapi 원본 URL 필드 (TaobaoItemUrl, ExternalItemUrl, ItemUrl)
+  const otapiUrl = raw.TaobaoItemUrl || raw.ExternalItemUrl || raw.ItemUrl || ''
+  if (otapiUrl && otapiUrl.startsWith('http')) return otapiUrl
+
+  // 2순위: 정규화된 sourceUrl / detailUrl
   const rawUrl = item.sourceUrl || item.detailUrl || item.url || ''
   if (rawUrl && rawUrl.startsWith('http')) return rawUrl
-  // 2. 순수 숫자 형태의 ID 추출 (abb- 등 Otapi 불필요한 접두사 제거)
+
+  // 3순위: 순수 숫자 ID 추출 (abb- 등 Otapi 접두사 제거) → 1688 URL 생성
   const rawId = item.id || item.itemId || item.offerId || item.num_iid || props.product?.id || ''
   const cleanId = String(rawId).replace(/[^0-9]/g, '')
   return cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : 'https://www.1688.com'

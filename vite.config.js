@@ -209,6 +209,10 @@ function lab1688Plugin(env) {
             if (/^\d+$/.test(itemId)) {
               itemId = `abb-${itemId}`
             }
+            // 이중 접두사 방어: abb-abb- 가 생기지 않도록
+            if (itemId.startsWith('abb-abb-')) {
+              itemId = itemId.replace(/^abb-/, '')
+            }
 
             const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
             const rapidHost = 'otapi-1688.p.rapidapi.com'

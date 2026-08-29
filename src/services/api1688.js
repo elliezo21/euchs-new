@@ -871,17 +871,21 @@ export async function getItemDetail1688(itemId) {
   let data = null
 
   // 1. Vercel / Vite Serverless 프록시 우선 시도 (/api/1688-item-detail & /api/1688-detail)
+  // ⚠️ 프록시 자체에서 abb- 접두사 보정을 하므로, 순수 idStr 그대로 전달 (이중 접두사 방지)
   const proxyEndpoints = ['/api/1688-item-detail', '/api/1688-detail']
   for (const ep of proxyEndpoints) {
     if (data) break
     try {
-      const proxyRes = await fetch(`${ep}?itemId=${encodeURIComponent(otapiId)}`)
+      const proxyRes = await fetch(`${ep}?itemId=${encodeURIComponent(idStr)}`)
       if (proxyRes.ok) {
         const resJson = await proxyRes.json()
         if (resJson.success && resJson.data) {
           data = resJson.data
-          console.log(`[1688 Item Detail Response] (via ${ep}):`, data)
+          console.log(`[1688 Item Detail Response] (via ${ep}):`, typeof data, Object.keys(data || {}).slice(0, 8))
         }
+      } else {
+        const errBody = await proxyRes.text().catch(() => '')
+        console.warn(`[1688 Detail] ${ep} HTTP ${proxyRes.status}:`, errBody.slice(0, 200))
       }
     } catch (err) {
       console.debug(`[1688 Detail] ${ep} notice:`, err.message)
@@ -949,30 +953,29 @@ export async function fetch1688ProductById(offerId) {
   try {
     const rawData = await getItemDetail1688(idStr)
 
-    // ─── 1. 다계층 래퍼 구조 완전 탐색 ───────────────────────────────────
-    // 1688 DataHub + Vercel 프록시 { success, data: <RapidAPI raw> } 조합
-    // RapidAPI 원본 가능 구조:
-    //   rawData.result.item
-    //   rawData.result.data.item
-    //   rawData.result.data
-    //   rawData.data.item
-    //   rawData.data.result.item
-    //   rawData.data
-    //   rawData.item
-    //   rawData  (Mock 등)
-    const it = (
-      rawData?.result?.item ||
-      rawData?.result?.data?.item ||
-      rawData?.result?.data ||
-      rawData?.data?.item ||
-      rawData?.data?.result?.item ||
-      rawData?.data?.result ||
-      rawData?.data ||
-      rawData?.item ||
-      rawData || {}
-    )
+    // ─── 1. 다계층 래퍼 구조 완전 탐색 ───────────────────────────────────────
+    // Otapi BatchGetItemFullInfo 응답: { Result: { Item: {...} } } or { Result: [{...}] }
+    // 프록시가 data?.Result?.Item 을 추출해 반환 → rawData 가 이미 Item 객체일 수 있음
+    // 아래 순서대로 탐색하여 실제 상품 객체(it)를 확정
+    let it = null
 
-    console.log('[1688 fetch1688ProductById] parsed item keys:', Object.keys(it).slice(0, 20))
+    // 프록시 반환 케이스: rawData 자체가 Item (Title, PictureList 등 Otapi 필드가 바로 있음)
+    if (rawData && (rawData.Title || rawData.MainPictureUrl || rawData.PictureList || rawData.Attributes)) {
+      it = rawData
+    }
+    // Otapi Result.Item (단건)
+    if (!it) it = rawData?.Result?.Item || rawData?.result?.item || null
+    // Otapi Result (배열인 경우 첫 번째 항목)
+    if (!it && Array.isArray(rawData?.Result)) it = rawData.Result[0] || null
+    if (!it && Array.isArray(rawData?.result)) it = rawData.result[0] || null
+    // 중첩 래퍼
+    if (!it) it = rawData?.Result?.ItemFullInfo || rawData?.Result || null
+    if (!it) it = rawData?.data?.item || rawData?.data?.result?.item || rawData?.data?.result || rawData?.data || null
+    if (!it) it = rawData?.item || rawData || {}
+    // 배열로 온 경우 첫번째 선택
+    if (Array.isArray(it)) it = it[0] || {}
+
+    console.log('[1688 fetch1688ProductById] parsed item keys:', Object.keys(it || {}).slice(0, 20))
 
     // ─── 2. rawSku: sku 서브객체 (없으면 it 자체에 직접 skuProps 가 있을 수 있음) ───
     const rawSku = it.sku || {}
@@ -1414,6 +1417,31 @@ export async function fetch1688ProductById(offerId) {
 
     const cleanedTitleKo = cleanForeignText(titleKo || titleZh) || titleKo || titleZh
 
+    // ─── 원본 1688 URL 추출 (Otapi 필드 우선, 없으면 cleanId 기반 생성) ─────
+    // Otapi 응답에 TaobaoItemUrl, ExternalItemUrl, ItemUrl 등이 있는 경우 최우선 사용
+    const rawSourceUrl = (
+      it.TaobaoItemUrl || it.ExternalItemUrl || it.ItemUrl || it.itemUrl ||
+      it.sourceUrl || it.detailUrl || it.url || ''
+    )
+    const cleanNumericId = idStr.replace(/[^0-9]/g, '')
+    const sourceUrl = (rawSourceUrl && rawSourceUrl.startsWith('http'))
+      ? rawSourceUrl
+      : (cleanNumericId ? `https://detail.1688.com/offer/${cleanNumericId}.html` : 'https://www.1688.com')
+
+    // ─── 공급사 ID 추출 (VendorInfo 우선) ──────────────────────────────────
+    const vendorInfo = it.VendorInfo || it.vendorInfo || {}
+    const extractedSellerId = (
+      vendorInfo.VendorId || vendorInfo.MemberId || vendorInfo.UserId ||
+      it.sellerId || it.memberId || it.shopId || it.userId || it.VendorId || ''
+    )
+
+    // ─── 공급사 이름 (VendorInfo.VendorName 최우선) ─────────────────────────
+    const companyName = (
+      vendorInfo.VendorName || vendorInfo.ShopName ||
+      it.company?.name || it.shopName || it.sellerName ||
+      '1688 인증 직영 제조공장'
+    )
+
     const normalizedProduct = {
       id: idStr,
       titleZh,
@@ -1422,12 +1450,16 @@ export async function fetch1688ProductById(offerId) {
       price: priceNum,
       priceFormatted: priceNum.toFixed(2),
       minOrder,
-      sales: it.sales || '1.5만+',
+      sales: it.OrderCount || it.SalesCount || it.sales || '1.5만+',
       imageUrl: imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
       images,
-      detailUrl: `https://detail.1688.com/offer/${idStr}.html`,
-      repurchaseRate: it.repurchaseRate || '94%',
-      company: it.company?.name || it.shopName || '1688 인증 직영 제조공장',
+      sourceUrl,
+      detailUrl: sourceUrl,
+      repurchaseRate: it.repurchaseRate || it.RepurchaseRate || '94%',
+      company: companyName,
+      sellerId: String(extractedSellerId),
+      memberId: String(extractedSellerId),
+      shopId: String(extractedSellerId),
       skuProps: parsedSkuProps,
       skus: parsedSkus.length > 0 ? parsedSkus : (it.skus || []),
       descImgs: it.descImgs || it.descriptionImages || [],

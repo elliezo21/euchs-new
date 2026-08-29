@@ -1,6 +1,12 @@
 /**
- * Vercel Serverless Function: /api/1688-item-detail
+ * Vercel Serverless Function: /api/1688-detail
  * Otapi 1688 RapidAPI 상품 상세 조회 프록시 (BatchGetItemFullInfo)
+ * /api/1688-item-detail 의 별칭 엔드포인트
+ *
+ * [수정 이력]
+ * - abb- 이중 접두사 방지: 이미 abb- 로 시작하면 그대로 사용
+ * - 에러 로깅 강화: Otapi 응답 상태/본문 상세 기록
+ * - 응답 원본 통과: raw 필드 포함 전달 (클라이언트 파싱 지원)
  */
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -9,7 +15,7 @@ export default async function handler(req, res) {
   if (req.method === 'OPTIONS') return res.status(200).end()
   if (req.method !== 'GET') return res.status(405).json({ success: false, message: 'Method not allowed' })
 
-  // 다양한 파라미터 키 수용 (itemId / offerId / num_iid / id / body)
+  // 다양한 파라미터 키 수용 (itemId / offerId / num_iid / id)
   const rawId = req.query?.itemId || req.query?.id || req.query?.offerId || req.query?.num_iid ||
                 req.body?.itemId || req.body?.id || req.body?.offerId || ''
   let targetId = String(rawId).trim()
@@ -19,13 +25,19 @@ export default async function handler(req, res) {
     return res.status(400).json({
       success: false,
       message: '상품 ID(itemId)가 누락되었거나 유효하지 않습니다.',
-      received: { query: req.query, body: req.body }
+      received: { query: req.query }
     })
   }
 
-  // Otapi ID 규격 보정: 숫자만 있는 경우 'abb-' 접두사 추가
+  // Otapi ID 규격 보정:
+  //   - 순수 숫자 → 'abb-숫자' 추가
+  //   - 이미 'abb-' 로 시작하면 그대로 사용 (이중 변환 방지)
   if (/^\d+$/.test(targetId)) {
     targetId = `abb-${targetId}`
+  }
+  // 'abb-abb-...' 이중 접두사 방어
+  if (targetId.startsWith('abb-abb-')) {
+    targetId = targetId.replace(/^abb-/, '')
   }
 
   const rapidKey = process.env.VITE_RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
@@ -36,7 +48,7 @@ export default async function handler(req, res) {
     'x-rapidapi-host': rapidHost
   }
 
-  console.log(`[1688-item-detail] Requesting Otapi BatchGetItemFullInfo for itemId: ${targetId}`)
+  console.log(`[1688-detail] Requesting Otapi BatchGetItemFullInfo for itemId: ${targetId}`)
 
   try {
     const targetUrl = new URL(`https://${rapidHost}/BatchGetItemFullInfo`)
@@ -50,12 +62,20 @@ export default async function handler(req, res) {
       data = await response.json()
     } catch (jsonErr) {
       const text = await response.text().catch(() => '')
-      console.error('[1688-item-detail] Failed to parse JSON. status:', response.status, 'body:', text.slice(0, 300))
+      console.error('[1688-detail] Failed to parse JSON. status:', response.status, 'body:', text.slice(0, 300))
       return res.status(502).json({ success: false, message: 'Otapi 응답 파싱 실패', status: response.status })
     }
 
-    // Result.Item 또는 Result.ItemFullInfo 또는 Result
-    const itemData = data?.Result?.Item || data?.Result?.ItemFullInfo || data?.Result || data
+    if (!response.ok) {
+      console.error(`[1688-detail] Otapi HTTP ${response.status} for itemId: ${targetId}`, JSON.stringify(data).slice(0, 300))
+    }
+
+    // Result.Item 또는 Result.ItemFullInfo 또는 Result 순서대로 추출
+    let itemData = data?.Result?.Item || data?.Result?.ItemFullInfo || null
+    if (!itemData && Array.isArray(data?.Result)) {
+      itemData = data.Result[0] || null
+    }
+    if (!itemData) itemData = data?.Result || data
 
     return res.status(200).json({
       success: true,
@@ -64,9 +84,7 @@ export default async function handler(req, res) {
       status: response.status
     })
   } catch (err) {
-    console.error('[1688-item-detail] Proxy error:', err)
+    console.error('[1688-detail] Proxy error:', err)
     return res.status(500).json({ success: false, message: err.message || '1688 detail server error' })
   }
 }
-
-
