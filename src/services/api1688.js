@@ -1290,6 +1290,53 @@ export async function fetch1688ProductById(offerId) {
       '1688 인증 직영 제조공장'
     )
 
+    // ─── 본문 상세 설명 이미지 파싱 (OneBound desc_img / desc HTML) ──────────
+    // OneBound desc_img: 배열, 쉼표 구분 문자열, 단일 URL, 또는 {url} 객체 배열
+    const parseDescImgs = (descImg, descHtml) => {
+      const result = []
+      const seen = new Set()
+
+      const addUrl = (raw) => {
+        const u = normalizeImg(typeof raw === 'object' ? (raw.url || raw.src || raw.Url || '') : String(raw || ''))
+        if (u && !seen.has(u) && !u.includes('images.unsplash.com')) {
+          // 1x1 gif / base64 빈 데이터 필터
+          if (u.startsWith('data:') || u.length < 20) return
+          seen.add(u)
+          result.push(u)
+        }
+      }
+
+      // 1순위: desc_img 배열 또는 쉼표 구분 문자열
+      if (descImg) {
+        if (Array.isArray(descImg)) {
+          descImg.forEach(addUrl)
+        } else if (typeof descImg === 'string') {
+          // 쉼표로 구분된 URL 목록인지 체크
+          const parts = descImg.split(',').map(s => s.trim()).filter(Boolean)
+          if (parts.length > 1) {
+            parts.forEach(addUrl)
+          } else {
+            addUrl(descImg)
+          }
+        }
+      }
+
+      // 2순위: desc HTML에서 <img src="..."> 패턴 전수 추출
+      if (descHtml && typeof descHtml === 'string' && descHtml.includes('<img')) {
+        const imgMatches = [...descHtml.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)]
+        imgMatches.forEach(m => addUrl(m[1]))
+        // data-src (lazy loading) 패턴도 추출
+        const dataSrcMatches = [...descHtml.matchAll(/<img[^>]+data-src=["']([^"']+)["']/gi)]
+        dataSrcMatches.forEach(m => addUrl(m[1]))
+      }
+
+      return result
+    }
+
+    const descImgs = parseDescImgs(it.desc_img, it.desc || it.description || it.detail_html || '')
+
+    console.log(`[fetch1688ProductById] descImgs count: ${descImgs.length} | from desc_img:`, Array.isArray(it.desc_img) ? it.desc_img.length : typeof it.desc_img)
+
     const normalizedProduct = {
       id: cleanNumericId || idStr,
       titleZh,
@@ -1310,7 +1357,7 @@ export async function fetch1688ProductById(offerId) {
       shopId: extractedSellerId,
       skuProps: parsedSkuProps,
       skus: parsedSkus.length > 0 ? parsedSkus : [],
-      descImgs: Array.isArray(it.desc_img) ? it.desc_img.map(d => normalizeImg(d.url || d)) : [],
+      descImgs,
       raw: it
     }
 

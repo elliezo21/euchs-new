@@ -1190,98 +1190,123 @@ const normalizeImgUrl = (url) => {
 }
 
 const loadProductDetailImages = async (item) => {
-  if (!item) return
+  if (!item?.id) return
   isLoadingDetail.value = true
   detailImages.value = []
 
+  // ── URL 정규화 헬퍼 ──────────────────────────────────────────────────────
   const normalizeOne = (u) => {
     if (!u || typeof u !== 'string') return ''
     let s = u.trim()
     if (s.startsWith('//')) s = 'https:' + s
     if (s.startsWith('http://')) s = s.replace('http://', 'https://')
+    if (s.startsWith('data:') || s.length < 20) return ''  // base64/빈 데이터 차단
     return s.startsWith('http') ? s : ''
   }
 
-  // ── 헬퍼: 배열/문자열/객체에서 URL 목록 추출 ──────────────────────────
+  const BLOCKED = ['images.unsplash.com', 'picsum.photos']
+  const isBlocked = (u) => BLOCKED.some(d => u.includes(d))
+
+  // ── 다중 소스에서 URL 목록 추출 (배열/쉼표문자열/HTML/단일URL) ───────────
   const extractUrls = (src) => {
     if (!src) return []
+    const results = []
+    const seen = new Set()
+    const add = (raw) => {
+      const u = normalizeOne(typeof raw === 'object' ? (raw.url || raw.src || raw.Url || '') : String(raw || ''))
+      if (u && !seen.has(u) && !isBlocked(u)) { seen.add(u); results.push(u) }
+    }
     if (typeof src === 'string') {
-      // HTML img 태그 파싱
       if (src.includes('<img')) {
-        return [...src.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].map(m => normalizeOne(m[1])).filter(Boolean)
+        // HTML img 태그 파싱 (src 및 data-src)
+        ;[...src.matchAll(/<img[^>]+src=["']([^"']+)["']/gi)].forEach(m => add(m[1]))
+        ;[...src.matchAll(/<img[^>]+data-src=["']([^"']+)["']/gi)].forEach(m => add(m[1]))
+      } else if (src.includes(',') && src.includes('http')) {
+        // 쉼표 구분 URL 목록
+        src.split(',').map(s => s.trim()).filter(Boolean).forEach(add)
+      } else {
+        add(src)
       }
-      // 단일 URL
-      const u = normalizeOne(src)
-      return u ? [u] : []
+    } else if (Array.isArray(src)) {
+      src.forEach(add)
     }
-    if (Array.isArray(src)) {
-      return src.map(p => {
-        if (typeof p === 'string') return normalizeOne(p)
-        if (p && typeof p === 'object') return normalizeOne(p.url || p.src || p.Url || p.path || '')
-        return ''
-      }).filter(Boolean)
-    }
-    return []
+    return results
   }
 
-  // ── 탐색 우선순위 (OneBound 응답 필드 우선) ───────────────────────────
-  // currentItem.value에 이미 full 데이터가 merge된 상태일 수 있음
-  const candidate = currentItem.value || item
-  const raw = candidate.raw || {}
+  const itemId = String(item.id || '').replace(/[^0-9]/g, '') || String(item.id || '')
 
-  let imgs = []
-
-  // 1순위: OneBound desc_img (본문 상세 설명 이미지, 최우선)
-  if (!imgs.length) imgs = extractUrls(candidate.descImgs || raw.desc_img || raw.descImgs)
-  // 2순위: OneBound item_imgs (갤러리 이미지)
-  if (!imgs.length) imgs = extractUrls(candidate.images || raw.item_imgs || raw.images)
-  // 3순위: desc HTML 파싱 (OneBound desc 필드)
-  if (!imgs.length && (raw.desc || raw.description)) {
-    imgs = extractUrls(raw.desc || raw.description)
-  }
-  // 4순위: currentItem.images (fetch1688ProductById가 채운 갤러리 배열)
-  if (!imgs.length && Array.isArray(candidate.images)) {
-    imgs = extractUrls(candidate.images)
-  }
-
-  // 의류 Mock Unsplash 이미지 필터 (여성 모델 사진 완전 차단)
-  const BLOCKED_DOMAINS = ['images.unsplash.com']
-  imgs = imgs.filter(u => !BLOCKED_DOMAINS.some(d => u.includes(d)))
-
-  if (imgs.length > 0) {
-    detailImages.value = imgs
-    isLoadingDetail.value = false
-    return
-  }
-
-  // ── 2. 비동기 OneBound item_get API 호출 ──────────────────────────────
   try {
-    const detailData = await getItemDetail1688(item.id)
-    // OneBound: detailData 자체가 item 객체이거나 { item: {...} } 구조
-    const resultItem =
-      (detailData?.num_iid || detailData?.title || detailData?.item_imgs) ? detailData
-      : detailData?.item || detailData?.result?.item || detailData || {}
+    // ── 항상 OneBound item_get API 직접 호출 (타이밍 의존성 제거) ────────────
+    console.log('[loadProductDetailImages] Calling getItemDetail1688 for id:', itemId)
+    const rawData = await getItemDetail1688(itemId)
 
-    let apiImages = []
-
-    // OneBound 우선: desc_img (배열 또는 문자열)
-    if (!apiImages.length) apiImages = extractUrls(resultItem.desc_img || resultItem.descImgs)
-    // OneBound item_imgs (갤러리)
-    if (!apiImages.length) apiImages = extractUrls(resultItem.item_imgs || resultItem.images)
-    // desc HTML 파싱
-    if (!apiImages.length && (resultItem.desc || resultItem.description)) {
-      apiImages = extractUrls(resultItem.desc || resultItem.description)
+    // OneBound 응답에서 item 객체 추출
+    let it = null
+    if (rawData && (rawData.num_iid || rawData.title || rawData.pic_url || rawData.item_imgs || rawData.desc_img || rawData.desc)) {
+      it = rawData  // 프록시가 item을 직접 반환한 경우
+    } else if (rawData?.item) {
+      it = rawData.item
+    } else if (rawData?.result?.item) {
+      it = rawData.result.item
+    } else {
+      it = rawData || {}
     }
 
-    // Unsplash Mock 차단
-    apiImages = apiImages.filter(u => !BLOCKED_DOMAINS.some(d => u.includes(d)))
+    console.log('[loadProductDetailImages] OneBound item keys:', Object.keys(it || {}).slice(0, 15))
+    console.log('[loadProductDetailImages] desc_img type:', typeof it.desc_img, '| desc length:', String(it.desc || '').length, '| item_imgs count:', Array.isArray(it.item_imgs) ? it.item_imgs.length : 0)
 
-    if (apiImages.length > 0) {
-      detailImages.value = apiImages
+    let imgs = []
+
+    // ── 1순위: desc_img (OneBound 본문 상세 설명 이미지, 최우선) ──────────────
+    if (it.desc_img) {
+      imgs = extractUrls(it.desc_img)
+      if (imgs.length) console.log(`[loadProductDetailImages] desc_img → ${imgs.length}장`)
     }
-    // 이미지가 없으면 빈 배열 유지 (Mock 사진 노출 금지)
+
+    // ── 2순위: desc HTML 파싱 ────────────────────────────────────────────────
+    if (!imgs.length && it.desc) {
+      imgs = extractUrls(it.desc)
+      if (imgs.length) console.log(`[loadProductDetailImages] desc HTML → ${imgs.length}장`)
+    }
+
+    // ── 3순위: description / detail_html 필드 ───────────────────────────────
+    if (!imgs.length && (it.description || it.detail_html)) {
+      imgs = extractUrls(it.description || it.detail_html)
+      if (imgs.length) console.log(`[loadProductDetailImages] description HTML → ${imgs.length}장`)
+    }
+
+    // ── 4순위: item_imgs (갤러리 이미지, desc_img가 없을 때 대체) ─────────────
+    if (!imgs.length && Array.isArray(it.item_imgs) && it.item_imgs.length > 0) {
+      imgs = extractUrls(it.item_imgs)
+      if (imgs.length) console.log(`[loadProductDetailImages] item_imgs fallback → ${imgs.length}장`)
+    }
+
+    // ── 5순위: currentItem.descImgs (fetch1688ProductById 결과가 먼저 온 경우) ─
+    if (!imgs.length) {
+      const candidate = currentItem.value || item
+      if (Array.isArray(candidate.descImgs) && candidate.descImgs.length > 0) {
+        imgs = candidate.descImgs.filter(u => u && !isBlocked(u))
+        if (imgs.length) console.log(`[loadProductDetailImages] currentItem.descImgs → ${imgs.length}장`)
+      }
+    }
+
+    // ── 6순위: currentItem.images (갤러리) ───────────────────────────────────
+    if (!imgs.length) {
+      const candidate = currentItem.value || item
+      if (Array.isArray(candidate.images) && candidate.images.length > 0) {
+        imgs = candidate.images.filter(u => u && !isBlocked(u))
+        if (imgs.length) console.log(`[loadProductDetailImages] currentItem.images → ${imgs.length}장`)
+      }
+    }
+
+    console.log('[loadProductDetailImages] Final image count:', imgs.length)
+
+    if (imgs.length > 0) {
+      detailImages.value = imgs
+    }
+    // 이미지 없으면 빈 배열 유지 — "제공되지 않는 상품" 문구 표시
   } catch (err) {
-    console.debug('[loadProductDetailImages] API notice:', err.message)
+    console.warn('[loadProductDetailImages] API error:', err.message)
   } finally {
     isLoadingDetail.value = false
   }
