@@ -962,6 +962,8 @@ const loadTransactions = () => {
   transactions.value = []
 }
 
+// ==================================================// 무통장 입금 충전 신청 제출
+// — 이 시점에 customsProfile, depositDepositorName, depositAmount 모두 선언 완료
 const submitDepositRequest = async () => {
   const amount = Number(depositAmount.value) || 0
   if (amount <= 0) {
@@ -969,15 +971,18 @@ const submitDepositRequest = async () => {
     return
   }
 
+  // UUID 정규식 검증: 정확한 36자리 UUID가 아니면 무조건 null 할당 (Postgres 400 원천 차단)
+  const isUUID = (v) => typeof v === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)
+  const targetUserId = isUUID(currentUser.value?.id) ? currentUser.value.id : null
+
+  // UUID 포맷 ID 생성 (deposit_requests.id가 TEXT PK이거나 UUID PK일 때 모두 완벽 대응)
   const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
     ? crypto.randomUUID()
     : `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
 
-  const depositorName = depositDepositorName.value || customsProfile.value.companyName || customsProfile.value.contactName || userDisplayName.value || '입금자'
-  const buyerName = customsProfile.value.companyName || userDisplayName.value || '바이어 회원'
+  const depositorName = (depositDepositorName.value || '').trim() || customsProfile.value.companyName || customsProfile.value.contactName || currentUser.value?.name || currentUser.value?.user_metadata?.name || userDisplayName.value || '미입력'
+  const buyerName = currentUser.value?.name || currentUser.value?.user_metadata?.name || customsProfile.value.companyName || userDisplayName.value || '바이어'
   const buyerEmail = currentUser.value?.email || ''
-  const isUUID = currentUser.value?.id && isValidUUID(currentUser.value.id)
-  const validUserId = isUUID ? currentUser.value.id : null
   const nowIso = new Date().toISOString()
 
   const req = {
@@ -985,8 +990,8 @@ const submitDepositRequest = async () => {
     dbId: generatedId,
     createdAt: nowIso,
     created_at: nowIso,
-    user_id: validUserId,
-    userId: validUserId,
+    user_id: targetUserId,
+    userId: targetUserId,
     buyerName,
     buyer_name: buyerName,
     buyerEmail,
@@ -1003,15 +1008,16 @@ const submitDepositRequest = async () => {
     status: 'pending'
   }
 
+  // 1. Supabase DB INSERT (Primary) — non-UUID일 경우 user_id는 null로 처리되어 400 에러 원천 방어
   if (isSupabaseConfigured()) {
     try {
       const depositPayload = {
         id: generatedId,
-        user_id: validUserId,
-        buyer_email: buyerEmail,
+        user_id: targetUserId,
         buyer_name: buyerName,
+        buyer_email: buyerEmail,
         depositor_name: depositorName,
-        amount,
+        amount: Number(amount || 0),
         bank_name: '기업은행',
         account_number: '190-134321-01-016',
         account_holder: '이유씨컴퍼니(조해성)',
@@ -1028,12 +1034,19 @@ const submitDepositRequest = async () => {
         req.id = data[0].id || req.id
         req.dbId = data[0].id
       } else if (error) {
+        console.warn('[DepositRequest] Supabase insert with ID notice, retrying without explicit id:', error.message)
         const { id: _, ...payloadWithoutId } = depositPayload
         const { data: retryData, error: retryError } = await supabase
           .from('deposit_requests')
           .insert([payloadWithoutId])
           .select()
-        if (!retryError && retryData && retryData.length > 0) {
+
+        if (retryError) {
+          console.error('[DepositRequest] Supabase INSERT error:', retryError)
+          alert('신청 처리 중 서버 오류가 발생했습니다: ' + (retryError.message || retryError.details || ''))
+          return
+        }
+        if (retryData && retryData.length > 0) {
           req.id = retryData[0].id || req.id
           req.dbId = retryData[0].id
         }

@@ -826,7 +826,7 @@ async function handleManualAdjust() {
 // ----------------------------------------------------
 async function loadState() {
   // 1. Supabase deposit_requests 직통 조회 (최우선 정규 데이터 소스)
-  let dbList = []
+  let dbList = null
   if (isSupabaseConfigured()) {
     try {
       const { data, error } = await supabase
@@ -834,54 +834,58 @@ async function loadState() {
         .select('*')
         .order('created_at', { ascending: false })
       if (!error && Array.isArray(data)) {
-        dbList = data  // data.length === 0도 유효 — 빈 배열이면 신청 없음
+        dbList = data
       }
     } catch (err) {
       console.warn('[AdminSettlement] Supabase fetch error, fallbacking:', err)
     }
   }
 
-  // 2. 로컬 스토리지 데이터 로드 (DB 오프라인 폴백)
-  let localRequests = []
-  try {
-    const rawReq = localStorage.getItem('euchs_deposit_requests')
-    if (rawReq) {
-      const parsed = JSON.parse(rawReq)
-      if (Array.isArray(parsed)) localRequests = parsed
-    }
-  } catch (e) {}
-
-  // 3. 데이터 소스 결정
-  //    - DB 데이터가 있으면 DB 우선 + 로컬 병합 (로컬에만 있는 신청 건 보완)
-  //    - DB/로컬 모두 빈 경우에만 더미 DEFAULT_REQUESTS 표시
-  const mergedMap = new Map()
-
-  if (dbList.length === 0 && localRequests.length === 0) {
-    // 완전 빈 상태 → 더미 데이터 폴백
-    DEFAULT_REQUESTS.forEach(r => {
-      const norm = normalizeDepositRequest(r)
-      if (norm) mergedMap.set(String(norm.id), norm)
-    })
-  } else {
-    // 로컬 먼저 맵핑 (낮은 우선순위)
-    localRequests.forEach(r => {
-      const norm = normalizeDepositRequest(r)
-      if (norm) mergedMap.set(String(norm.id), norm)
-    })
-    // DB 데이터로 최신 상태 덮어쓰기 (높은 우선순위)
-    dbList.forEach(r => {
-      const norm = normalizeDepositRequest(r)
-      if (norm) mergedMap.set(String(norm.id), norm)
-    })
-  }
-
-  depositRequests.value = Array.from(mergedMap.values())
-    .sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))
-
-  // 4. 로컬 캐시 갱신 (DB 데이터가 있을 때만 덮어씀)
-  if (dbList.length > 0 || localRequests.length > 0) {
+  if (dbList !== null && dbList.length > 0) {
+    depositRequests.value = dbList.map(r => ({
+      id: r.id,
+      dbId: r.id,
+      user_id: r.user_id,
+      userId: r.user_id,
+      buyerName: r.buyer_name || '바이어',
+      buyer_name: r.buyer_name || '바이어',
+      buyerEmail: r.buyer_email || '',
+      buyer_email: r.buyer_email || '',
+      depositorName: r.depositor_name || '미입력',
+      depositor_name: r.depositor_name || '미입력',
+      amount: Number(r.amount || 0),
+      bankName: r.bank_name || '기업은행',
+      bank_name: r.bank_name || '기업은행',
+      accountNumber: r.account_number || '190-134321-01-016',
+      account_number: r.account_number || '190-134321-01-016',
+      status: r.status || 'pending',
+      createdAt: r.created_at || new Date().toISOString(),
+      created_at: r.created_at || new Date().toISOString(),
+      approvedAt: r.approved_at,
+      approved_at: r.approved_at,
+      rejectReason: r.reject_reason,
+      reject_reason: r.reject_reason
+    }))
     localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
+  } else {
+    // 2. 로컬 스토리지 데이터 로드 (DB 오프라인/대체 폴백)
+    let localRequests = []
+    try {
+      const rawReq = localStorage.getItem('euchs_deposit_requests')
+      if (rawReq) {
+        const parsed = JSON.parse(rawReq)
+        if (Array.isArray(parsed)) localRequests = parsed
+      }
+    } catch (e) {}
+
+    if (localRequests.length > 0) {
+      depositRequests.value = localRequests.map(r => normalizeDepositRequest(r)).filter(Boolean)
+    } else {
+      depositRequests.value = DEFAULT_REQUESTS.map(r => normalizeDepositRequest(r)).filter(Boolean)
+    }
   }
+
+  depositRequests.value.sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))
 
   // 5. 트랜잭션 로그 로드
   try {
