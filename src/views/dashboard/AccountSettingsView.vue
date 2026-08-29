@@ -877,28 +877,37 @@ const submitDepositRequest = async () => {
     return
   }
 
+  const generatedId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : `dep_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`
+
   const depositorName = depositDepositorName.value || customsProfile.value.companyName || customsProfile.value.contactName || userDisplayName.value || '입금자'
   const buyerName = customsProfile.value.companyName || userDisplayName.value || '바이어 회원'
   const buyerEmail = currentUser.value?.email || ''
   const isUUID = currentUser.value?.id && isValidUUID(currentUser.value.id)
+  const validUserId = isUUID ? currentUser.value.id : null
   const nowIso = new Date().toISOString()
 
   const req = {
-    id: `DEP-${Date.now()}`,
+    id: generatedId,
+    dbId: generatedId,
     createdAt: nowIso,
-    user_id: isUUID ? currentUser.value.id : null,
+    created_at: nowIso,
+    user_id: validUserId,
+    userId: validUserId,
     buyerName,
-    buyerEmail,
     buyer_name: buyerName,
+    buyerEmail,
     buyer_email: buyerEmail,
     depositorName,
     depositor_name: depositorName,
     amount,
     bankName: '기업은행',
-    accountNumber: '190-134321-01-016',
     bank_name: '기업은행',
+    accountNumber: '190-134321-01-016',
     account_number: '190-134321-01-016',
     accountHolder: '이유씨컴퍼니(조해성)',
+    account_holder: '이유씨컴퍼니(조해성)',
     status: 'pending' // 'pending' | 'approved' | 'rejected'
   }
 
@@ -906,13 +915,15 @@ const submitDepositRequest = async () => {
   if (isSupabaseConfigured()) {
     try {
       const depositPayload = {
-        user_id: isUUID ? currentUser.value.id : null,
+        id: generatedId,
+        user_id: validUserId,
         buyer_email: buyerEmail,
         buyer_name: buyerName,
         depositor_name: depositorName,
         amount,
         bank_name: '기업은행',
         account_number: '190-134321-01-016',
+        account_holder: '이유씨컴퍼니(조해성)',
         status: 'pending',
         created_at: nowIso
       }
@@ -925,13 +936,24 @@ const submitDepositRequest = async () => {
       if (!error && data && data.length > 0) {
         req.id = data[0].id || req.id
         req.dbId = data[0].id
+      } else if (error) {
+        console.warn('[AccountSettingsView] deposit_requests insert with ID notice, retrying without explicit id:', error.message)
+        const { id: _, ...payloadWithoutId } = depositPayload
+        const { data: retryData, error: retryError } = await supabase
+          .from('deposit_requests')
+          .insert([payloadWithoutId])
+          .select()
+        if (!retryError && retryData && retryData.length > 0) {
+          req.id = retryData[0].id || req.id
+          req.dbId = retryData[0].id
+        }
       }
     } catch (err) {
-      console.warn('[AccountSettingsView] Supabase deposit_requests insert notice:', err)
+      console.warn('[AccountSettingsView] Supabase deposit_requests insert warning:', err)
     }
   }
 
-  // 2. 로컬 스토리지 즉시 캐시 저장
+  // 2. 로컬 스토리지 즉시 캐시 저장 (Fallback & 빠른 UI 렌더링)
   try {
     const raw = localStorage.getItem('euchs_deposit_requests')
     const list = raw ? JSON.parse(raw) : []

@@ -485,7 +485,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { userBalance, setBalance, applyBalanceTransaction } from '@/lib/balanceStore'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 
 const activeSubTab = ref('requests') // 'requests' | 'logs'
 const reqFilter = ref('all')
@@ -671,6 +671,45 @@ function getLogTypeBadge(type) {
   return map[type] || 'bg-slate-100 text-slate-700'
 }
 
+function normalizeDepositRequest(r) {
+  if (!r) return null
+  const createdAt = r.createdAt || r.created_at || new Date().toISOString()
+  const id = String(r.id || r.dbId || (r.created_at ? 'dep_' + new Date(r.created_at).getTime() : 'dep_' + Date.now()))
+  const buyerName = r.buyerName || r.buyer_name || '바이어 회원'
+  const buyerEmail = r.buyerEmail || r.buyer_email || ''
+  const depositorName = r.depositorName || r.depositor_name || buyerName || '입금자'
+  const amount = Number(r.amount || 0)
+  const status = r.status || 'pending'
+  const approvedAt = r.approvedAt || r.approved_at || null
+  const rejectReason = r.rejectReason || r.reject_reason || null
+  const userId = r.userId || r.user_id || null
+
+  return {
+    id,
+    dbId: r.dbId || (isValidUUID(id) ? id : null),
+    userId,
+    user_id: userId,
+    createdAt,
+    created_at: createdAt,
+    buyerName,
+    buyer_name: buyerName,
+    buyerEmail,
+    buyer_email: buyerEmail,
+    depositorName,
+    depositor_name: depositorName,
+    amount,
+    bankName: r.bankName || r.bank_name || '기업은행',
+    bank_name: r.bank_name || r.bankName || '기업은행',
+    accountNumber: r.accountNumber || r.account_number || '190-134321-01-016',
+    account_number: r.account_number || r.accountNumber || '190-134321-01-016',
+    status,
+    approvedAt,
+    approved_at: approvedAt,
+    rejectReason,
+    reject_reason: rejectReason
+  }
+}
+
 // ----------------------------------------------------
 // 3. 충전 승인 & 반려 액션
 // ----------------------------------------------------
@@ -682,8 +721,9 @@ async function approveDeposit(req) {
   const approvedAt = new Date().toISOString()
   req.status = 'approved'
   req.approvedAt = approvedAt
+  req.approved_at = approvedAt
 
-  // 바이어 예치금 잔액 가산 & Supabase profiles/transactions 동기화
+  // 1. 바이어 예치금 잔액 가산 & Supabase profiles/transactions 동기화
   await applyBalanceTransaction(Number(req.amount), {
     type: 'deposit',
     title: '예치금 무통장 입금 충전 (승인)',
@@ -693,19 +733,34 @@ async function approveDeposit(req) {
     buyerEmail: req.buyerEmail || req.buyer_email
   })
 
-  // Supabase deposit_requests 테이블 업데이트
+  // 2. Supabase deposit_requests 테이블 업데이트
   if (isSupabaseConfigured()) {
     try {
-      await supabase
-        .from('deposit_requests')
-        .update({ status: 'approved', approved_at: approvedAt })
-        .eq('id', req.id)
+      if (isValidUUID(req.id)) {
+        await supabase
+          .from('deposit_requests')
+          .update({ status: 'approved', approved_at: approvedAt })
+          .eq('id', req.id)
+      } else {
+        const { error: updErr } = await supabase
+          .from('deposit_requests')
+          .update({ status: 'approved', approved_at: approvedAt })
+          .eq('id', req.id)
+        if (updErr && req.user_id) {
+          await supabase
+            .from('deposit_requests')
+            .update({ status: 'approved', approved_at: approvedAt })
+            .eq('user_id', req.user_id)
+            .eq('status', 'pending')
+        }
+      }
     } catch (e) {
       console.warn('[approveDeposit] Supabase update notice:', e)
     }
   }
 
   saveState()
+  window.dispatchEvent(new CustomEvent('euchs-balance-update'))
   showToast(`[${req.buyerName || req.depositorName}] 님의 ₩${fmtN(req.amount)}원 충전이 승인되었습니다.`)
 }
 
@@ -715,20 +770,29 @@ async function rejectDeposit(req) {
 
   req.status = 'rejected'
   req.rejectReason = reason
+  req.reject_reason = reason
 
   // Supabase deposit_requests 테이블 업데이트
   if (isSupabaseConfigured()) {
     try {
-      await supabase
-        .from('deposit_requests')
-        .update({ status: 'rejected', reject_reason: reason })
-        .eq('id', req.id)
+      if (isValidUUID(req.id)) {
+        await supabase
+          .from('deposit_requests')
+          .update({ status: 'rejected', reject_reason: reason })
+          .eq('id', req.id)
+      } else {
+        await supabase
+          .from('deposit_requests')
+          .update({ status: 'rejected', reject_reason: reason })
+          .eq('id', req.id)
+      }
     } catch (e) {
       console.warn('[rejectDeposit] Supabase update notice:', e)
     }
   }
 
   saveState()
+  window.dispatchEvent(new CustomEvent('euchs-balance-update'))
   showToast('충전 신청이 반려 처리되었습니다.')
 }
 
@@ -761,51 +825,57 @@ async function handleManualAdjust() {
 // 로컬 스토리지 로드 & 저장 및 Supabase 실시간 동기화
 // ----------------------------------------------------
 async function loadState() {
-  // 1. Supabase deposit_requests 직접 조회 최우선
+  // 1. Supabase Fetch 시도
+  let dbList = []
   if (isSupabaseConfigured()) {
     try {
-      const { data: dbReqs, error } = await supabase
+      const { data, error } = await supabase
         .from('deposit_requests')
         .select('*')
         .order('created_at', { ascending: false })
-
-      if (!error && Array.isArray(dbReqs)) {
-        if (dbReqs.length > 0) {
-          depositRequests.value = dbReqs.map(r => ({
-            id: r.id,
-            dbId: r.id,
-            user_id: r.user_id,
-            userId: r.user_id,
-            createdAt: r.created_at,
-            buyerName: r.buyer_name || '바이어 회원',
-            buyerEmail: r.buyer_email || '',
-            depositorName: r.depositor_name || r.buyer_name || '입금자',
-            amount: Number(r.amount || 0),
-            bankName: r.bank_name || '기업은행',
-            accountNumber: r.account_number || '190-134321-01-016',
-            status: r.status || 'pending',
-            approvedAt: r.approved_at,
-            rejectReason: r.reject_reason
-          }))
-          localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
-        } else {
-          const rawReq = localStorage.getItem('euchs_deposit_requests')
-          depositRequests.value = rawReq ? JSON.parse(rawReq) : JSON.parse(JSON.stringify(DEFAULT_REQUESTS))
-        }
+      if (!error && Array.isArray(data) && data.length > 0) {
+        dbList = data
       }
-    } catch (e) {
-      console.warn('[AdminSettlementView] Supabase fetch error:', e)
-    }
-  } else {
-    try {
-      const rawReq = localStorage.getItem('euchs_deposit_requests')
-      depositRequests.value = rawReq ? JSON.parse(rawReq) : JSON.parse(JSON.stringify(DEFAULT_REQUESTS))
-    } catch (e) {
-      depositRequests.value = JSON.parse(JSON.stringify(DEFAULT_REQUESTS))
+    } catch (err) {
+      console.warn('[AdminSettlement] Supabase fetch error, fallbacking:', err)
     }
   }
 
-  // 2. 로그 로드
+  // 2. 로컬 스토리지 데이터 로드
+  let localRequests = []
+  try {
+    const rawReq = localStorage.getItem('euchs_deposit_requests')
+    if (rawReq) {
+      const parsed = JSON.parse(rawReq)
+      if (Array.isArray(parsed)) localRequests = parsed
+    }
+  } catch (e) {}
+
+  // 3. 로컬과 DB 데이터 병합 (중복 방지 & DB 지연/RLS 방어)
+  const mergedMap = new Map()
+  
+  if (dbList.length === 0 && localRequests.length === 0) {
+    DEFAULT_REQUESTS.forEach(r => {
+      const norm = normalizeDepositRequest(r)
+      if (norm) mergedMap.set(String(norm.id), norm)
+    })
+  } else {
+    // 로컬 데이터 먼저 맵핑
+    localRequests.forEach(r => {
+      const norm = normalizeDepositRequest(r)
+      if (norm) mergedMap.set(String(norm.id), norm)
+    })
+    // DB 데이터로 최신 상태 덮어쓰기
+    dbList.forEach(r => {
+      const norm = normalizeDepositRequest(r)
+      if (norm) mergedMap.set(String(norm.id), norm)
+    })
+  }
+
+  depositRequests.value = Array.from(mergedMap.values()).sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))
+  localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
+
+  // 4. 로그 로드
   try {
     const rawLogs = localStorage.getItem('euchs_settlement_logs')
     if (rawLogs) {
@@ -831,7 +901,11 @@ onMounted(() => {
   loadState()
   window.addEventListener('euchs-deposit-request', (e) => {
     if (e.detail) {
-      depositRequests.value.unshift(e.detail)
+      const norm = normalizeDepositRequest(e.detail)
+      if (norm) {
+        depositRequests.value.unshift(norm)
+        saveState()
+      }
     }
   })
   window.addEventListener('euchs-balance-update', loadState)
