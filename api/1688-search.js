@@ -1,23 +1,17 @@
 /**
  * Vercel Serverless Function: /api/1688-search
  * OneBound 1688 키워드 검색 프록시
- * - 공식 승인 엔드포인트: 1688global (1순위 다이렉트 호출)
- * - 1차 게이트웨이: https://api-gw.onebound.cn  (공식 중국 메인 게이트웨이)
- * - 2차 게이트웨이: https://api-gw.onebound.net  (보조 게이트웨이)
- * - 폴백 엔드포인트: 1688
- * - User-Agent 헤더로 봇 차단 방지
- * - fetch failed 시 안전한 빈 결과 반환 (500 폭사 방지)
+ * - 공식 승인 엔드포인트: 1688global
+ * - 게이트웨이: https://api-gw.onebound.cn
+ * - 타임아웃: 8000ms (8초 - Vercel Serverless 10초 제한 안전 마진)
  */
 
-const OB_GATEWAYS = [
-  'https://api-gw.onebound.cn',
-  'https://api-gw.onebound.net'
-]
+const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
 
 const FETCH_HEADERS = {
   'Accept': 'application/json, text/plain, */*',
   'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
-  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
   'Referer': 'https://www.1688.com/',
   'Cache-Control': 'no-cache'
 }
@@ -25,68 +19,6 @@ const FETCH_HEADERS = {
 const SAFE_EMPTY = {
   success: false,
   data: { items: { item: [] }, total_results: '0', page_size: '0' }
-}
-
-// 4005 key已到期 에러 감지 헬퍼
-function is4005Expired(data) {
-  if (!data) return false
-  const code = String(data.error_code || data.error || '')
-  const reason = String(data.reason || data.message || data.error_msg || '')
-  return code === '4005' || reason.includes('已到期') || reason.includes('expired') || reason.includes('4005')
-}
-
-async function fetchOnce(url, timeoutMs) {
-  const controller = new AbortController()
-  const timer = setTimeout(function() { controller.abort() }, timeoutMs)
-  try {
-    console.log('[1688-search] Trying: ' + url.replace(/secret=[^&]+/, 'secret=***'))
-    const r = await fetch(url, { method: 'GET', headers: FETCH_HEADERS, signal: controller.signal })
-    clearTimeout(timer)
-    let data
-    try { data = await r.json() } catch (je) {
-      const text = await r.text().catch(function() { return '' })
-      console.warn('[1688-search] JSON parse error status=' + r.status + ' body:', text.slice(0, 200))
-      return { ok: false, data: null, error: 'JSON parse failed (HTTP ' + r.status + ')' }
-    }
-    if (!data) return { ok: false, data: null, error: 'Empty response' }
-    console.log('[1688-search] Response keys:', Object.keys(data).slice(0, 8))
-    return { ok: true, data: data, status: r.status }
-  } catch (err) {
-    clearTimeout(timer)
-    const cause = err.cause ? ' | cause: ' + String(err.cause) : ''
-    const reason = err.name === 'AbortError' ? ('Timeout(' + timeoutMs + 'ms)') : (err.message + cause)
-    console.error('[1688-search] Fetch error: ' + reason)
-    return { ok: false, data: null, error: reason }
-  }
-}
-
-async function fetchWithFallback(endpoint, queryZh, page, OB_KEY, OB_SECRET, timeoutMs) {
-  let lastErr = null
-  for (const gateway of OB_GATEWAYS) {
-    const url = gateway + '/' + endpoint + '/item_search/?key=' + OB_KEY + '&secret=' + OB_SECRET +
-      '&q=' + encodeURIComponent(queryZh) + '&page=' + page + '&result_type=json'
-    const res = await fetchOnce(url, timeoutMs)
-    if (!res.ok) { lastErr = res.error; continue }
-
-    // 4005 key已到期 감지 시 다른 엔드포인트 시도
-    if (is4005Expired(res.data)) {
-      console.warn('[1688-search] 4005 key已到期 from ' + gateway + '/' + endpoint)
-      if (endpoint === '1688global') {
-        console.log('[1688-search] 1688global failed with 4005, fallback to 1688 endpoint...')
-        return await fetchWithFallback('1688', queryZh, page, OB_KEY, OB_SECRET, timeoutMs)
-      } else if (endpoint === '1688') {
-        console.log('[1688-search] 1688 failed with 4005, fallback to 1688global endpoint...')
-        return await fetchWithFallback('1688global', queryZh, page, OB_KEY, OB_SECRET, timeoutMs)
-      }
-      return { ok: false, data: null, error: '4005: API key expired on all endpoints' }
-    }
-
-    console.log('[1688-search] OK from ' + gateway + '/' + endpoint + ' HTTP ' + res.status)
-    return { ok: true, data: res.data, status: res.status, gateway: gateway + '/' + endpoint }
-  }
-  const msg = lastErr || 'All OneBound gateways failed'
-  console.error('[1688-search] ALL gateways failed:', msg)
-  return { ok: false, data: null, error: msg }
 }
 
 export default async function handler(req, res) {
@@ -107,22 +39,54 @@ export default async function handler(req, res) {
   const OB_KEY = process.env.ONEBOUND_KEY || process.env.VITE_ONEBOUND_KEY || 't_821093731214'
   const OB_SECRET = process.env.ONEBOUND_SECRET || process.env.VITE_ONEBOUND_SECRET || '121412a0'
 
-  // 1순위: 1688global 공식 인터페이스 다이렉트 호출 (실패 시 1688 폴백)
-  const result = await fetchWithFallback('1688global', queryZh, page, OB_KEY, OB_SECRET, 18000)
+  const targetUrl = `${ONEBOUND_BASE_URL}/1688global/item_search/?key=${OB_KEY}&secret=${OB_SECRET}&q=${encodeURIComponent(queryZh)}&page=${page}&result_type=json`
 
-  if (!result.ok || !result.data) {
+  const controller = new AbortController()
+  const timeout = setTimeout(() => controller.abort(), 8000) // 8초 제한
+
+  try {
+    console.log('[1688-search] Calling 1688global search:', targetUrl.replace(/secret=[^&]+/, 'secret=***'))
+    const r = await fetch(targetUrl, {
+      method: 'GET',
+      headers: FETCH_HEADERS,
+      signal: controller.signal
+    })
+    clearTimeout(timeout)
+
+    let resData = null
+    try {
+      resData = await r.json()
+    } catch (je) {
+      const text = await r.text().catch(() => '')
+      console.warn('[1688-search] JSON parse fail HTTP=' + r.status + ' body:', text.slice(0, 200))
+      return res.status(200).json(Object.assign({
+        success: false,
+        message: '검색 응답 파싱 실패 (HTTP ' + r.status + ')'
+      }, SAFE_EMPTY))
+    }
+
+    if (!resData) {
+      return res.status(200).json(Object.assign({ success: false, message: '빈 응답' }, SAFE_EMPTY))
+    }
+
+    console.log('[1688-search] Success. Keys:', Object.keys(resData).slice(0, 10))
+    return res.status(200).json({
+      success: true,
+      data: resData,
+      status: r.status
+    })
+  } catch (err) {
+    clearTimeout(timeout)
+    const isTimeout = err.name === 'AbortError'
+    const errorMsg = isTimeout ? '검색 응답이 지연되고 있습니다 (8s 타임아웃).' : (err.message || '통신 실패')
+    console.error('[1688-search] Error:', errorMsg)
     return res.status(200).json(Object.assign({
       success: false,
-      message: result.error || 'OneBound 통신 실패'
+      message: errorMsg,
+      isTimeout
     }, SAFE_EMPTY))
   }
-
-  return res.status(200).json({
-    success: true,
-    data: result.data,
-    gateway: result.gateway,
-    status: result.status
-  })
 }
+
 
 

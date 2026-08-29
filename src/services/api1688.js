@@ -573,7 +573,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
   try {
     const params = new URLSearchParams({ q: query, page: String(page) })
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 25000)
+    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
     clearTimeout(timeout)
 
@@ -584,17 +584,17 @@ export async function search1688(queryZh, page = 1, options = {}) {
     } else if (result.data) {
       // success=true이든 false이든, data가 있으면 파싱 진행
       data = result.data
-      console.log(`[1688 Search] Proxy data received. success=${result.success} gateway=${result.gateway || 'unknown'} keys:`, Object.keys(data || {}).slice(0, 8))
+      console.log(`[1688 Search] Proxy data received. success=${result.success} keys:`, Object.keys(data || {}).slice(0, 8))
     } else {
       console.warn('[1688 Search] Proxy returned no data:', result.message || JSON.stringify(result).slice(0, 200))
     }
   } catch (err) {
-    console.warn('[1688 Search] Proxy fetch error:', err.name === 'AbortError' ? 'Timeout(25s)' : err.message)
+    console.warn('[1688 Search] Proxy fetch error:', err.name === 'AbortError' ? '검색 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.' : err.message)
   }
 
   if (!data) {
     console.warn(`[1688 API] No response for "${query}"`)
-    return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
+    return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query, message: '검색 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.' }
   }
 
   // ── OneBound 응답 파싱 ──────────────────────────────────────────────────
@@ -996,7 +996,7 @@ export async function getItemDetail1688(itemId) {
   // OneBound 프록시 (/api/1688-item-detail)
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 25000)
+    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     const proxyRes = await fetch(`/api/1688-item-detail?itemId=${encodeURIComponent(cleanId)}`, {
       signal: controller.signal
     })
@@ -1007,12 +1007,12 @@ export async function getItemDetail1688(itemId) {
       console.warn(`[1688 Detail] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
     } else if (resJson.data) {
       data = resJson.data
-      console.log(`[1688 Detail] Proxy data received. success=${resJson.success} gateway=${resJson.gateway || 'unknown'} keys:`, Object.keys(data || {}).slice(0, 10))
+      console.log(`[1688 Detail] Proxy data received. success=${resJson.success} keys:`, Object.keys(data || {}).slice(0, 10))
     } else {
       console.warn(`[1688 Detail] Proxy no data for id=${cleanId}:`, resJson.message || JSON.stringify(resJson).slice(0, 200))
     }
   } catch (err) {
-    console.warn('[1688 Detail] Proxy fetch error:', err.name === 'AbortError' ? 'Timeout(25s)' : err.message)
+    console.warn('[1688 Detail] Proxy fetch error:', err.name === 'AbortError' ? '상세 조회 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.' : err.message)
   }
 
   if (!data) {
@@ -1045,32 +1045,30 @@ export async function fetch1688ProductById(offerId) {
     return null
   }
 
-  const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', idStr)
+  // 순수 숫자 ID 상단 즉시 추출
+  const cleanNumericId = idStr.replace(/[^0-9]/g, '') || idStr
+
+  const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', cleanNumericId)
   if (cachedProduct) {
     return cachedProduct
   }
 
   try {
-    const rawData = await getItemDetail1688(idStr)
+    const rawData = await getItemDetail1688(cleanNumericId)
 
     // ─── OneBound item_get 응답 구조 탐색 ────────────────────────────────
     // OneBound: { item: { num_iid, title, pic_url, item_imgs, props_list, skus, seller_info, ... } }
-    // 프록시가 item 객체를 추출해 반환 → rawData가 이미 item 객체일 수 있음
-    let it = null
-
-    // 1순위: rawData 자체가 OneBound item 객체 (num_iid 또는 title이 있는 경우)
-    if (rawData && (rawData.num_iid || rawData.title || rawData.pic_url || rawData.item_imgs)) {
-      it = rawData
+    // 원본 데이터가 중첩되어 있든 펼쳐져 있든 모든 필드를 하나의 it 객체로 통합
+    let it = {}
+    if (rawData && typeof rawData === 'object') {
+      const subItem = rawData.item || rawData.result?.item || rawData.result || rawData.data?.item || rawData.data || {}
+      it = {
+        ...rawData,
+        ...(typeof subItem === 'object' && !Array.isArray(subItem) ? subItem : {})
+      }
     }
-    // 2순위: rawData.item (OneBound 표준 래퍼)
-    if (!it) it = rawData?.item || null
-    // 3순위: 기타 중첩 래퍼
-    if (!it) it = rawData?.result?.item || rawData?.result || null
-    if (!it) it = rawData?.data?.item || rawData?.data || null
-    if (!it) it = rawData || {}
-    if (Array.isArray(it)) it = it[0] || {}
 
-    console.log('[1688 fetch1688ProductById] OneBound item keys:', Object.keys(it || {}).slice(0, 20))
+    console.log('[1688 fetch1688ProductById] OneBound item merged keys:', Object.keys(it).slice(0, 20))
 
     // ─── SKU Props 및 속성 맵 최상단 선언 (ReferenceError 방지) ─────────────
     // OneBound: props_list = {"0:0":"颜色:米白色","0:1":"颜色:黑色","1:0":"尺码:35-36"}
@@ -1081,6 +1079,7 @@ export async function fetch1688ProductById(offerId) {
     const colorMap = new Map() // valueName 또는 propId → imageUrl
     const sizeSet = new Set()
     const propValueNameMap = {} // "0:0" → "米白色"
+
 
     // ─── OneBound skus 배열 추출 (skus.sku 중첩 구조 우선 탐색) ─────────────
     if (it.skus && Array.isArray(it.skus.sku)) {
@@ -1466,9 +1465,9 @@ export async function fetch1688ProductById(offerId) {
     const cleanedTitleKo = cleanForeignText(titleKo || titleZh) || titleKo || titleZh
 
     // ─── 원본 1688 URL (OneBound num_iid 기반) ─────────────────────────────
-    const cleanNumericId = (it.num_iid || idStr).toString().replace(/[^0-9]/g, '')
-    const sourceUrl = cleanNumericId
-      ? `https://detail.1688.com/offer/${cleanNumericId}.html`
+    const finalNumericId = cleanNumericId || (it.num_iid || idStr).toString().replace(/[^0-9]/g, '')
+    const sourceUrl = finalNumericId
+      ? `https://detail.1688.com/offer/${finalNumericId}.html`
       : 'https://www.1688.com'
 
     // ─── 공급사 ID / 이름 추출 (OneBound seller_info 우선) ────────────────
