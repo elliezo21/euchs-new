@@ -1,16 +1,17 @@
 /**
  * Vercel Serverless Function: /api/1688-search
  * OneBound 1688 키워드 검색 프록시
- * - 1차 게이트웨이: https://api-gw.onebound.net  (기본)
- * - 2차 폴백:      https://api-gw.onebound.cn   (연결 실패 시)
- * - 3차 폴백:      1688global 엔드포인트        (4005 key已到期 에러 시)
+ * - 공식 승인 엔드포인트: 1688global (1순위 다이렉트 호출)
+ * - 1차 게이트웨이: https://api-gw.onebound.cn  (공식 중국 메인 게이트웨이)
+ * - 2차 게이트웨이: https://api-gw.onebound.net  (보조 게이트웨이)
+ * - 폴백 엔드포인트: 1688
  * - User-Agent 헤더로 봇 차단 방지
  * - fetch failed 시 안전한 빈 결과 반환 (500 폭사 방지)
  */
 
 const OB_GATEWAYS = [
-  'https://api-gw.onebound.net',
-  'https://api-gw.onebound.cn'
+  'https://api-gw.onebound.cn',
+  'https://api-gw.onebound.net'
 ]
 
 const FETCH_HEADERS = {
@@ -67,14 +68,16 @@ async function fetchWithFallback(endpoint, queryZh, page, OB_KEY, OB_SECRET, tim
     const res = await fetchOnce(url, timeoutMs)
     if (!res.ok) { lastErr = res.error; continue }
 
-    // 4005 key已到期 감지 → 1688global 폴백 (1회)
+    // 4005 key已到期 감지 시 다른 엔드포인트 시도
     if (is4005Expired(res.data)) {
       console.warn('[1688-search] 4005 key已到期 from ' + gateway + '/' + endpoint)
-      if (endpoint === '1688') {
-        console.log('[1688-search] Switching to 1688global endpoint...')
+      if (endpoint === '1688global') {
+        console.log('[1688-search] 1688global failed with 4005, fallback to 1688 endpoint...')
+        return await fetchWithFallback('1688', queryZh, page, OB_KEY, OB_SECRET, timeoutMs)
+      } else if (endpoint === '1688') {
+        console.log('[1688-search] 1688 failed with 4005, fallback to 1688global endpoint...')
         return await fetchWithFallback('1688global', queryZh, page, OB_KEY, OB_SECRET, timeoutMs)
       }
-      console.error('[1688-search] 1688global also returned 4005. Giving up.')
       return { ok: false, data: null, error: '4005: API key expired on all endpoints' }
     }
 
@@ -104,8 +107,8 @@ export default async function handler(req, res) {
   const OB_KEY = process.env.ONEBOUND_KEY || process.env.VITE_ONEBOUND_KEY || 't_821093731214'
   const OB_SECRET = process.env.ONEBOUND_SECRET || process.env.VITE_ONEBOUND_SECRET || '121412a0'
 
-  // 1차: 1688 → 4005 감지 시 1688global 자동 폴백
-  const result = await fetchWithFallback('1688', queryZh, page, OB_KEY, OB_SECRET, 18000)
+  // 1순위: 1688global 공식 인터페이스 다이렉트 호출 (실패 시 1688 폴백)
+  const result = await fetchWithFallback('1688global', queryZh, page, OB_KEY, OB_SECRET, 18000)
 
   if (!result.ok || !result.data) {
     return res.status(200).json(Object.assign({
@@ -121,4 +124,5 @@ export default async function handler(req, res) {
     status: result.status
   })
 }
+
 

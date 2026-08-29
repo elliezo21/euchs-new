@@ -985,14 +985,15 @@ export async function fetch1688ProductById(offerId) {
 
     console.log('[1688 fetch1688ProductById] OneBound item keys:', Object.keys(it || {}).slice(0, 20))
 
-    // ─── SKU Props 탐색 (OneBound props_list 또는 props 필드) ─────────────
+    // ─── SKU Props 및 속성 맵 최상단 선언 (ReferenceError 방지) ─────────────
     // OneBound: props_list = {"0:0":"颜色:米白色","0:1":"颜色:黑色","1:0":"尺码:35-36"}
     //           props_img  = {"0:0":"//cbu01.alicdn.com/..."}
     //           skus       = {sku: [{properties:"0:0;1:0", price:"15.80", ...}]}
     let rawSkuProps = null
     let rawSkus = []
-
-    // ─── URL 정규화 헬퍼 (colorMap 탐색보다 반드시 앞에 선언해야 TDZ 에러 방지) ──
+    const colorMap = new Map() // valueName 또는 propId → imageUrl
+    const sizeSet = new Set()
+    const propValueNameMap = {} // "0:0" → "米白色"
 
     // ─── OneBound skus 배열 추출 (skus.sku 중첩 구조 우선 탐색) ─────────────
     if (it.skus && Array.isArray(it.skus.sku)) {
@@ -1027,11 +1028,16 @@ export async function fetch1688ProductById(offerId) {
         const propName  = value.slice(0, valueSep).trim()   // "颜色"
         const valueName = value.slice(valueSep + 1).trim()  // "米白色"
 
+        propValueNameMap[key] = valueName
+
         if (!propGroups.has(groupIdx)) {
           propGroups.set(groupIdx, { propName, values: [] })
         }
         const imgRaw  = (propsImg[key] || propsImg[`${groupIdx}_${keyParts[1]}`] || '')
         const imageUrl = normalizeImg(imgRaw)
+        if (imageUrl && !colorMap.has(valueName)) {
+          colorMap.set(valueName, imageUrl)
+        }
         propGroups.get(groupIdx).values.push({ propValueId: key, name: valueName, imageUrl })
       })
 
@@ -1044,9 +1050,6 @@ export async function fetch1688ProductById(offerId) {
 
     // ─── 2순위: item_imgs.properties + skus.properties_name 방식 (props_list 없을 때) ──
     if (!rawSkuProps || rawSkuProps.length === 0) {
-      const colorMap = new Map() // valueName → imageUrl
-      const sizeSet  = new Set()
-
       // item_imgs에서 색상 이미지 추출
       if (Array.isArray(it.item_imgs)) {
         it.item_imgs.forEach(img => {
@@ -1101,15 +1104,6 @@ export async function fetch1688ProductById(offerId) {
     }
 
     if (!rawSkuProps) rawSkuProps = []
-
-    // props_list 기반 SKU에서 properties("0:0;1:0") → 사람이 읽을 수 있는 이름 역매핑 테이블
-    const propValueNameMap = {} // "0:0" → "米白色"
-    if (propsList && typeof propsList === 'object' && !Array.isArray(propsList)) {
-      Object.entries(propsList).forEach(([key, value]) => {
-        const sep = String(value || '').indexOf(':')
-        if (sep >= 0) propValueNameMap[key] = value.slice(sep + 1).trim()
-      })
-    }
 
     // ─── 기본 상품 정보 추출 (OneBound 필드 우선) ──────────────────────────
     // 제목: title (OneBound 표준)
