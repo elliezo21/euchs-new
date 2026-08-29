@@ -151,15 +151,15 @@
             <span class="text-xs font-mono text-slate-400">({{ depositRequests.length }}건)</span>
           </div>
 
-          <!-- 상태 필터 -->
+          <!-- 상태 필터 (전체 탭 제거, 기본값: 승인 대기) -->
           <div class="flex items-center gap-1.5 text-xs">
             <button
-              v-for="st in ['all', 'pending', 'approved', 'rejected']"
+              v-for="st in ['pending', 'approved', 'rejected']"
               :key="st"
               type="button"
-              @click="reqFilter = st"
+              @click="depositFilter = st"
               class="px-2.5 py-1 rounded-lg font-bold transition cursor-pointer"
-              :class="reqFilter === st ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+              :class="depositFilter === st ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
             >
               {{ getReqFilterLabel(st) }}
             </button>
@@ -189,19 +189,19 @@
                 <!-- 신청번호 / 일시 -->
                 <td class="py-3.5 px-4 font-mono">
                   <div class="font-bold text-slate-900">{{ req.id }}</div>
-                  <div class="text-[10px] text-slate-400 mt-0.5">{{ formatDate(req.createdAt) }}</div>
+                  <div class="text-[10px] text-slate-400 mt-0.5">{{ formatDate(req.createdAt || req.created_at) }}</div>
                 </td>
 
                 <!-- 바이어 상호 (아이디) -->
                 <td class="py-3.5 px-4">
-                  <div class="font-bold text-slate-900 text-xs">{{ req.buyerName }}</div>
-                  <div class="text-[10px] text-slate-400 font-mono">{{ req.buyerEmail }}</div>
+                  <div class="font-bold text-slate-900 text-xs">{{ req.buyerName || req.buyer_name }}</div>
+                  <div class="text-[10px] text-slate-400 font-mono">{{ req.buyerEmail || req.buyer_email }}</div>
                 </td>
 
                 <!-- 입금자명 -->
                 <td class="py-3.5 px-4">
                   <span class="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
-                    {{ req.depositorName }}
+                    {{ req.depositorName || req.depositor_name }}
                   </span>
                 </td>
 
@@ -486,9 +486,10 @@
 import { ref, computed, onMounted } from 'vue'
 import { userBalance, setBalance, applyBalanceTransaction } from '@/lib/balanceStore'
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
+import { currentUser } from '@/lib/auth'
 
 const activeSubTab = ref('requests') // 'requests' | 'logs'
-const reqFilter = ref('all')
+const depositFilter = ref('pending') // 기본 활성 탭: [⏳ 승인 대기]
 const logTypeFilter = ref('all')
 const logSearchQuery = ref('')
 const showManualModal = ref(false)
@@ -517,6 +518,43 @@ function formatDate(dateStr) {
 function copyAccount() {
   navigator.clipboard.writeText('190-134321-01-016')
   showToast('기업은행 190-134321-01-016 계좌번호가 복사되었습니다.')
+}
+
+/**
+ * 브라우저 내장 Web Audio API를 활용한 "딩동" 알림음 합성 생성기 (외부 mp3 의존성 없음)
+ */
+const playNotificationSound = () => {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext
+    if (!AudioContextClass) return
+    const audioCtx = new AudioContextClass()
+
+    // 1단계: "딩" (587.33Hz - D5)
+    const osc1 = audioCtx.createOscillator()
+    const gain1 = audioCtx.createGain()
+    osc1.type = 'sine'
+    osc1.frequency.setValueAtTime(587.33, audioCtx.currentTime)
+    gain1.gain.setValueAtTime(0.3, audioCtx.currentTime)
+    gain1.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.3)
+    osc1.connect(gain1)
+    gain1.connect(audioCtx.destination)
+    osc1.start(audioCtx.currentTime)
+    osc1.stop(audioCtx.currentTime + 0.3)
+
+    // 2단계: "동" (880.00Hz - A5)
+    const osc2 = audioCtx.createOscillator()
+    const gain2 = audioCtx.createGain()
+    osc2.type = 'sine'
+    osc2.frequency.setValueAtTime(880.00, audioCtx.currentTime + 0.15)
+    gain2.gain.setValueAtTime(0.35, audioCtx.currentTime + 0.15)
+    gain2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.65)
+    osc2.connect(gain2)
+    gain2.connect(audioCtx.destination)
+    osc2.start(audioCtx.currentTime + 0.15)
+    osc2.stop(audioCtx.currentTime + 0.65)
+  } catch (e) {
+    console.warn('[Sound] Web Audio play notice:', e)
+  }
 }
 
 // ----------------------------------------------------
@@ -569,12 +607,11 @@ const pendingTotalAmount = computed(() => {
 })
 
 const filteredDepositRequests = computed(() => {
-  if (reqFilter.value === 'all') return depositRequests.value
-  return depositRequests.value.filter(r => r.status === reqFilter.value)
+  return depositRequests.value.filter(r => r.status === depositFilter.value)
 })
 
 function getReqFilterLabel(st) {
-  const map = { all: '전체', pending: '승인 대기', approved: '승인 완료', rejected: '반려됨' }
+  const map = { pending: '⏳ 승인 대기', approved: '✓ 승인 완료', rejected: '반려됨' }
   return map[st] || st
 }
 
@@ -714,60 +751,98 @@ function normalizeDepositRequest(r) {
 // 3. 충전 승인 & 반려 액션
 // ----------------------------------------------------
 async function approveDeposit(req) {
-  if (!confirm(`[${req.buyerName || req.depositorName}] 님의 ₩${fmtN(req.amount)}원 무통장 입금을 승인하시겠습니까?\n승인 시 바이어 예치금 잔액으로 즉시 충전됩니다.`)) {
+  const buyerTitle = req.buyerName || req.buyer_name || req.depositorName || req.depositor_name || '바이어'
+  if (!confirm(`[${buyerTitle}] 님의 ₩${fmtN(req.amount)}원 무통장 입금을 승인하시겠습니까?\n승인 시 바이어 예치금 잔액으로 즉시 충전됩니다.`)) {
     return
   }
 
   const approvedAt = new Date().toISOString()
+  const targetEmail = (req.buyerEmail || req.buyer_email || '').trim()
+  const targetUserId = req.userId || req.user_id
+  let buyerNextBalance = null
+
+  // 1. Supabase deposit_requests 테이블 업데이트 (status = 'approved')
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase
+        .from('deposit_requests')
+        .update({ status: 'approved', approved_at: approvedAt })
+        .eq('id', req.id)
+
+      // 2. 대상 바이어의 profiles 테이블 balance 증가 (이메일 및 UUID 안전 처리)
+      if (targetEmail || (targetUserId && isValidUUID(targetUserId))) {
+        let profileQuery = supabase.from('profiles').select('id, balance, email')
+        if (targetUserId && isValidUUID(targetUserId)) {
+          profileQuery = profileQuery.eq('id', targetUserId)
+        } else if (targetEmail) {
+          profileQuery = profileQuery.eq('email', targetEmail)
+        } else {
+          profileQuery = null
+        }
+
+        if (profileQuery) {
+          const { data: userProfile, error: pErr } = await profileQuery.maybeSingle()
+          if (!pErr && userProfile) {
+            buyerNextBalance = (Number(userProfile.balance) || 0) + Number(req.amount || 0)
+            await supabase
+              .from('profiles')
+              .update({ balance: buyerNextBalance, updated_at: approvedAt })
+              .eq('id', userProfile.id)
+          }
+        }
+      }
+
+      // 3. transactions 테이블에 정산 트랜잭션 기록
+      await supabase.from('transactions').insert({
+        id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+        user_id: targetUserId && isValidUUID(targetUserId) ? targetUserId : null,
+        buyer_email: targetEmail || 'buyer@euchs.com',
+        order_id: req.id,
+        type: 'deposit',
+        amount: Number(req.amount),
+        balance_after: buyerNextBalance !== null ? buyerNextBalance : Number(req.amount),
+        title: '예치금 무통장 입금 충전 (관리자 승인)',
+        description: `입금 승인 완료 (신청번호: ${req.id}, 입금자: ${req.depositorName || req.depositor_name})`,
+        created_at: approvedAt
+      })
+    } catch (e) {
+      console.warn('[approveDeposit] Supabase balance credit notice:', e)
+    }
+  }
+
+  // 4. 로컬 상태 업데이트 (승인 완료로 상태 변경 -> 승인 대기 뷰에서 즉시 소거)
   req.status = 'approved'
   req.approvedAt = approvedAt
   req.approved_at = approvedAt
 
-  // 1. 바이어 예치금 잔액 가산 & Supabase profiles/transactions 동기화
-  await applyBalanceTransaction(Number(req.amount), {
-    type: 'deposit',
-    title: '예치금 무통장 입금 충전 (승인)',
-    description: `입금 승인 (신청번호: ${req.id})`,
-    orderId: req.id,
-    userId: req.userId || req.user_id,
-    buyerEmail: req.buyerEmail || req.buyer_email
-  })
+  const target = depositRequests.value.find(d => d.id === req.id)
+  if (target) {
+    target.status = 'approved'
+    target.approvedAt = approvedAt
+    target.approved_at = approvedAt
+  }
 
-  // 2. Supabase deposit_requests 테이블 업데이트
-  if (isSupabaseConfigured()) {
-    try {
-      if (isValidUUID(req.id)) {
-        await supabase
-          .from('deposit_requests')
-          .update({ status: 'approved', approved_at: approvedAt })
-          .eq('id', req.id)
-      } else {
-        const { error: updErr } = await supabase
-          .from('deposit_requests')
-          .update({ status: 'approved', approved_at: approvedAt })
-          .eq('id', req.id)
-        if (updErr && req.user_id) {
-          await supabase
-            .from('deposit_requests')
-            .update({ status: 'approved', approved_at: approvedAt })
-            .eq('user_id', req.user_id)
-            .eq('status', 'pending')
-        }
-      }
-    } catch (e) {
-      console.warn('[approveDeposit] Supabase update notice:', e)
-    }
+  // 현재 관리자 화면에서 로그인한 계정이 대상 바이어 본인인 경우 로컬 balanceStore도 동기화
+  if (currentUser.value && (currentUser.value.email === targetEmail || currentUser.value.id === targetUserId)) {
+    applyBalanceTransaction(Number(req.amount), {
+      type: 'deposit',
+      title: '예치금 무통장 입금 충전 (승인)',
+      description: `입금 승인 (신청번호: ${req.id})`
+    })
   }
 
   saveState()
   window.dispatchEvent(new CustomEvent('euchs-balance-update'))
-  showToast(`[${req.buyerName || req.depositorName}] 님의 ₩${fmtN(req.amount)}원 충전이 승인되었습니다.`)
+  window.dispatchEvent(new CustomEvent('euchs-balance-updated'))
+  window.dispatchEvent(new Event('storage'))
+  showToast(`[${buyerTitle}] 님의 ₩${fmtN(req.amount)}원 충전이 승인되었습니다.`)
 }
 
 async function rejectDeposit(req) {
   const reason = prompt('반려 사유를 입력하세요:', '입금자명 불일치 또는 입금 미확인')
   if (reason === null) return
 
+  const approvedAt = new Date().toISOString()
   req.status = 'rejected'
   req.rejectReason = reason
   req.reject_reason = reason
@@ -775,24 +850,26 @@ async function rejectDeposit(req) {
   // Supabase deposit_requests 테이블 업데이트
   if (isSupabaseConfigured()) {
     try {
-      if (isValidUUID(req.id)) {
-        await supabase
-          .from('deposit_requests')
-          .update({ status: 'rejected', reject_reason: reason })
-          .eq('id', req.id)
-      } else {
-        await supabase
-          .from('deposit_requests')
-          .update({ status: 'rejected', reject_reason: reason })
-          .eq('id', req.id)
-      }
+      await supabase
+        .from('deposit_requests')
+        .update({ status: 'rejected', reject_reason: reason, approved_at: approvedAt })
+        .eq('id', req.id)
     } catch (e) {
       console.warn('[rejectDeposit] Supabase update notice:', e)
     }
   }
 
+  const target = depositRequests.value.find(d => d.id === req.id)
+  if (target) {
+    target.status = 'rejected'
+    target.rejectReason = reason
+    target.reject_reason = reason
+  }
+
   saveState()
   window.dispatchEvent(new CustomEvent('euchs-balance-update'))
+  window.dispatchEvent(new CustomEvent('euchs-balance-updated'))
+  window.dispatchEvent(new Event('storage'))
   showToast('충전 신청이 반려 처리되었습니다.')
 }
 
@@ -851,8 +928,8 @@ async function loadState() {
       buyer_name: r.buyer_name || '바이어',
       buyerEmail: r.buyer_email || '',
       buyer_email: r.buyer_email || '',
-      depositorName: r.depositor_name || '미입력',
-      depositor_name: r.depositor_name || '미입력',
+      depositorName: r.depositor_name || r.account_holder || '미입력',
+      depositor_name: r.depositor_name || r.account_holder || '미입력',
       amount: Number(r.amount || 0),
       bankName: r.bank_name || '기업은행',
       bank_name: r.bank_name || '기업은행',
@@ -911,27 +988,77 @@ let realtimeChannel = null
 
 onMounted(() => {
   loadState()
+
+  // 1. 동일 브라우저 탭 간 로컬 이벤트 감지
   window.addEventListener('euchs-deposit-request', (e) => {
     if (e.detail) {
       const norm = normalizeDepositRequest(e.detail)
       if (norm) {
-        depositRequests.value.unshift(norm)
+        const idx = depositRequests.value.findIndex(d => d.id === norm.id)
+        if (idx >= 0) {
+          depositRequests.value[idx] = norm
+        } else {
+          depositRequests.value.unshift(norm)
+        }
+        playNotificationSound()
         saveState()
+        depositFilter.value = 'pending'
       }
     }
   })
   window.addEventListener('euchs-balance-update', loadState)
+  window.addEventListener('euchs-balance-updated', loadState)
   window.addEventListener('storage', loadState)
 
+  // 2. Supabase Realtime 리스너 (원격 바이어 실시간 신청 감지)
   if (isSupabaseConfigured()) {
     try {
       realtimeChannel = supabase
-        .channel('public:deposit_requests_admin')
-        .on('postgres_changes', { event: '*', schema: 'public', table: 'deposit_requests' }, () => {
+        .channel('admin_deposit_listener')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'deposit_requests' }, (payload) => {
+          const newRecord = payload.new
+          if (!newRecord) return
+
+          playNotificationSound()
+          const newRow = {
+            id: newRecord.id,
+            dbId: newRecord.id,
+            user_id: newRecord.user_id,
+            userId: newRecord.user_id,
+            buyerName: newRecord.buyer_name || '바이어',
+            buyer_name: newRecord.buyer_name || '바이어',
+            buyerEmail: newRecord.buyer_email || '',
+            buyer_email: newRecord.buyer_email || '',
+            depositorName: newRecord.depositor_name || newRecord.account_holder || '미입력',
+            depositor_name: newRecord.depositor_name || newRecord.account_holder || '미입력',
+            amount: Number(newRecord.amount || 0),
+            bankName: newRecord.bank_name || '기업은행',
+            bank_name: newRecord.bank_name || '기업은행',
+            accountNumber: newRecord.account_number || '190-134321-01-016',
+            account_number: newRecord.account_number || '190-134321-01-016',
+            status: newRecord.status || 'pending',
+            createdAt: newRecord.created_at || new Date().toISOString(),
+            created_at: newRecord.created_at || new Date().toISOString()
+          }
+
+          const existingIndex = depositRequests.value.findIndex(d => d.id === newRow.id)
+          if (existingIndex >= 0) {
+            depositRequests.value[existingIndex] = newRow
+          } else {
+            depositRequests.value.unshift(newRow)
+          }
+          saveState()
+          depositFilter.value = 'pending' // 신규 건 감지 시 즉시 승인대기 탭으로 전환
+
+          alert(`🔔 [신규 무통장 입금 신청 접수]\n\n- 입금자명: ${newRow.depositorName}\n- 신청금액: ₩${newRow.amount.toLocaleString()}원\n- 바이어: ${newRow.buyerName} (${newRow.buyerEmail})\n\n통장 입금 내역을 확인해 주세요!`)
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'deposit_requests' }, () => {
           loadState()
         })
         .subscribe()
-    } catch (e) {}
+    } catch (e) {
+      console.warn('[AdminSettlement] Realtime subscription notice:', e)
+    }
   }
 })
 </script>

@@ -277,7 +277,7 @@ export function subscribeToBalance(callback) {
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, (payload) => {
         const updated = payload?.new;
         const user = currentUser.value;
-        if (updated && (updated.id === user?.id || updated.email === user?.email)) {
+        if (updated && (updated.id === user?.id || (user?.email && updated.email === user.email))) {
           if (updated.balance !== undefined && updated.balance !== null) {
             userBalance.value = Number(updated.balance);
             _saveToStorage(userBalance.value);
@@ -293,3 +293,11 @@ export function subscribeToBalance(callback) {
     return null;
   }
 }
+
+// 브라우저 전역 잔액 갱신 이벤트 수신
+if (typeof window !== 'undefined') {
+  window.addEventListener('euchs-balance-updated', () => {
+    loadBalance();
+  });
+}
+
