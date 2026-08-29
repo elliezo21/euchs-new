@@ -825,7 +825,7 @@ async function handleManualAdjust() {
 // 로컬 스토리지 로드 & 저장 및 Supabase 실시간 동기화
 // ----------------------------------------------------
 async function loadState() {
-  // 1. Supabase Fetch 시도
+  // 1. Supabase deposit_requests 직통 조회 (최우선 정규 데이터 소스)
   let dbList = []
   if (isSupabaseConfigured()) {
     try {
@@ -833,15 +833,15 @@ async function loadState() {
         .from('deposit_requests')
         .select('*')
         .order('created_at', { ascending: false })
-      if (!error && Array.isArray(data) && data.length > 0) {
-        dbList = data
+      if (!error && Array.isArray(data)) {
+        dbList = data  // data.length === 0도 유효 — 빈 배열이면 신청 없음
       }
     } catch (err) {
       console.warn('[AdminSettlement] Supabase fetch error, fallbacking:', err)
     }
   }
 
-  // 2. 로컬 스토리지 데이터 로드
+  // 2. 로컬 스토리지 데이터 로드 (DB 오프라인 폴백)
   let localRequests = []
   try {
     const rawReq = localStorage.getItem('euchs_deposit_requests')
@@ -851,31 +851,39 @@ async function loadState() {
     }
   } catch (e) {}
 
-  // 3. 로컬과 DB 데이터 병합 (중복 방지 & DB 지연/RLS 방어)
+  // 3. 데이터 소스 결정
+  //    - DB 데이터가 있으면 DB 우선 + 로컬 병합 (로컬에만 있는 신청 건 보완)
+  //    - DB/로컬 모두 빈 경우에만 더미 DEFAULT_REQUESTS 표시
   const mergedMap = new Map()
-  
+
   if (dbList.length === 0 && localRequests.length === 0) {
+    // 완전 빈 상태 → 더미 데이터 폴백
     DEFAULT_REQUESTS.forEach(r => {
       const norm = normalizeDepositRequest(r)
       if (norm) mergedMap.set(String(norm.id), norm)
     })
   } else {
-    // 로컬 데이터 먼저 맵핑
+    // 로컬 먼저 맵핑 (낮은 우선순위)
     localRequests.forEach(r => {
       const norm = normalizeDepositRequest(r)
       if (norm) mergedMap.set(String(norm.id), norm)
     })
-    // DB 데이터로 최신 상태 덮어쓰기
+    // DB 데이터로 최신 상태 덮어쓰기 (높은 우선순위)
     dbList.forEach(r => {
       const norm = normalizeDepositRequest(r)
       if (norm) mergedMap.set(String(norm.id), norm)
     })
   }
 
-  depositRequests.value = Array.from(mergedMap.values()).sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))
-  localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
+  depositRequests.value = Array.from(mergedMap.values())
+    .sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))
 
-  // 4. 로그 로드
+  // 4. 로컬 캐시 갱신 (DB 데이터가 있을 때만 덮어씀)
+  if (dbList.length > 0 || localRequests.length > 0) {
+    localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
+  }
+
+  // 5. 트랜잭션 로그 로드
   try {
     const rawLogs = localStorage.getItem('euchs_settlement_logs')
     if (rawLogs) {

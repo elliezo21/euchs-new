@@ -833,18 +833,11 @@ import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
 const route = useRoute()
 const router = useRouter()
 
-const activeTab = ref(route.query.tab || 'address') // 'address' | 'pccc' | 'deposit'
+// ============================================================
+// PHASE 1: 모든 ref / computed 선언
+// ============================================================
 
-watch(
-  () => route.query.tab,
-  (newTab) => {
-    if (newTab) {
-      activeTab.value = newTab
-    }
-  },
-  { immediate: true }
-)
-
+const activeTab = ref(route.query.tab || 'address')
 const walletBalance = userBalance
 const walletFilter = ref('all')
 const showAddressModal = ref(false)
@@ -852,6 +845,33 @@ const showDepositModal = ref(false)
 const editingAddressId = ref(null)
 const depositAmount = ref(1000000)
 const depositDepositorName = ref('')
+const addressList = ref([])
+const addressForm = ref({
+  title: '',
+  recipient: '',
+  phone: '',
+  zipCode: '',
+  address: '',
+  detailAddress: '',
+  memo: ''
+})
+const customsProfile = ref({
+  companyName: '',
+  bizNumber: '',
+  customsCode: '',
+  contactName: '',
+  contactPhone: '',
+  bizCertUrl: '',
+  status: 'unverified'
+})
+const transactions = ref([])
+const passwordForm = ref({
+  newPassword: '',
+  confirmPassword: ''
+})
+const showSecurityPassword = ref(false)
+const isPasswordChanging = ref(false)
+const isWithdrawing = ref(false)
 
 const buyerCustomerId = computed(() => {
   if (!currentUser.value) return 'EUCHS-GUEST'
@@ -859,6 +879,15 @@ const buyerCustomerId = computed(() => {
   const cleanSuffix = rawId.replace(/[^a-zA-Z0-9]/g, '').slice(-4).toUpperCase() || 'B2B'
   return `EUCHS-${cleanSuffix}`
 })
+
+const filteredTransactions = computed(() => {
+  if (walletFilter.value === 'all') return transactions.value
+  return transactions.value.filter(t => t.type === walletFilter.value)
+})
+
+// ============================================================
+// PHASE 2: 함수 정의
+// ============================================================
 
 const switchTab = (tabName) => {
   activeTab.value = tabName
@@ -868,6 +897,69 @@ const switchTab = (tabName) => {
 const copyBankAccount = () => {
   navigator.clipboard.writeText('190-134321-01-016')
   alert('기업은행 190-134321-01-016 계좌번호가 클립보드에 복사되었습니다.')
+}
+
+const loadAddresses = () => {
+  const storageKey = 'euchs_user_addresses_' + (currentUser.value?.id || 'guest')
+  try {
+    const raw = localStorage.getItem(storageKey)
+    if (raw) {
+      const parsed = JSON.parse(raw)
+      if (Array.isArray(parsed)) {
+        addressList.value = parsed
+        return
+      }
+    }
+  } catch (e) {}
+  addressList.value = []
+}
+
+const saveAddressesToStorage = () => {
+  const storageKey = 'euchs_user_addresses_' + (currentUser.value?.id || 'guest')
+  try {
+    localStorage.setItem(storageKey, JSON.stringify(addressList.value))
+  } catch (e) {}
+}
+
+const loadCustomsProfile = () => {
+  const biz = getUserBusinessInfo(currentUser.value) || {}
+  const p = currentUserProfile.value || {}
+  
+  customsProfile.value = {
+    companyName: p.company_name || biz.company_name || '',
+    bizNumber: p.business_number || biz.business_number || '',
+    customsCode: p.pccc || biz.pccc || '',
+    contactName: p.representative_name || p.name || biz.name || currentUser.value?.user_metadata?.full_name || currentUser.value?.user_metadata?.name || '',
+    contactPhone: p.phone || biz.phone || currentUser.value?.phone || '',
+    bizCertUrl: p.biz_cert_url || '',
+    status: p.verification_status || (biz.business_number && biz.pccc ? 'pending' : 'unverified')
+  }
+
+  if (!depositDepositorName.value) {
+    depositDepositorName.value = customsProfile.value.companyName || customsProfile.value.contactName || userDisplayName.value || ''
+  }
+}
+
+const loadTransactions = () => {
+  try {
+    const raw = localStorage.getItem('euchs_deposit_requests')
+    if (raw) {
+      const list = JSON.parse(raw)
+      if (Array.isArray(list) && list.length > 0) {
+        transactions.value = list.map(t => ({
+          id: t.id,
+          date: t.createdAt ? new Date(t.createdAt).toLocaleString('ko-KR') : '-',
+          title: `예치금 무통장 입금 충전 (${t.status === 'approved' ? '승인완료' : (t.status === 'rejected' ? '반려' : '심사중')})`,
+          orderNo: t.id,
+          type: 'in',
+          amount: t.amount,
+          balanceAfter: walletBalance.value
+        }))
+        return
+      }
+    }
+  } catch (e) {}
+  transactions.value = []
 }
 
 const submitDepositRequest = async () => {
@@ -908,10 +1000,9 @@ const submitDepositRequest = async () => {
     account_number: '190-134321-01-016',
     accountHolder: '이유씨컴퍼니(조해성)',
     account_holder: '이유씨컴퍼니(조해성)',
-    status: 'pending' // 'pending' | 'approved' | 'rejected'
+    status: 'pending'
   }
 
-  // 1. Supabase DB INSERT (Primary)
   if (isSupabaseConfigured()) {
     try {
       const depositPayload = {
@@ -937,7 +1028,6 @@ const submitDepositRequest = async () => {
         req.id = data[0].id || req.id
         req.dbId = data[0].id
       } else if (error) {
-        console.warn('[AccountSettingsView] deposit_requests insert with ID notice, retrying without explicit id:', error.message)
         const { id: _, ...payloadWithoutId } = depositPayload
         const { data: retryData, error: retryError } = await supabase
           .from('deposit_requests')
@@ -953,7 +1043,6 @@ const submitDepositRequest = async () => {
     }
   }
 
-  // 2. 로컬 스토리지 즉시 캐시 저장 (Fallback & 빠른 UI 렌더링)
   try {
     const raw = localStorage.getItem('euchs_deposit_requests')
     const list = raw ? JSON.parse(raw) : []
@@ -969,101 +1058,6 @@ const submitDepositRequest = async () => {
   showDepositModal.value = false
   loadTransactions()
 }
-
-// ----------------------------------------------------
-// 주소 및 세무/통관 프로필 상태 (동적 로드)
-// ----------------------------------------------------
-const addressList = ref([])
-
-const addressForm = ref({
-  title: '',
-  recipient: '',
-  phone: '',
-  zipCode: '',
-  address: '',
-  detailAddress: '',
-  memo: ''
-})
-
-const customsProfile = ref({
-  companyName: '',
-  bizNumber: '',
-  customsCode: '',
-  contactName: '',
-  contactPhone: '',
-  bizCertUrl: '',
-  status: 'unverified'
-})
-
-const loadCustomsProfile = () => {
-  const biz = getUserBusinessInfo(currentUser.value) || {}
-  const p = currentUserProfile.value || {}
-  
-  customsProfile.value = {
-    companyName: p.company_name || biz.company_name || '',
-    bizNumber: p.business_number || biz.business_number || '',
-    customsCode: p.pccc || biz.pccc || '',
-    contactName: p.representative_name || p.name || biz.name || currentUser.value?.user_metadata?.full_name || currentUser.value?.user_metadata?.name || '',
-    contactPhone: p.phone || biz.phone || currentUser.value?.phone || '',
-    bizCertUrl: p.biz_cert_url || '',
-    status: p.verification_status || (biz.business_number && biz.pccc ? 'pending' : 'unverified')
-  }
-
-  if (!depositDepositorName.value) {
-    depositDepositorName.value = customsProfile.value.companyName || customsProfile.value.contactName || userDisplayName.value || ''
-  }
-}
-
-const loadAddresses = () => {
-  const storageKey = 'euchs_user_addresses_' + (currentUser.value?.id || 'guest')
-  try {
-    const raw = localStorage.getItem(storageKey)
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed)) {
-        addressList.value = parsed
-        return
-      }
-    }
-  } catch (e) {}
-  addressList.value = []
-}
-
-const saveAddressesToStorage = () => {
-  const storageKey = 'euchs_user_addresses_' + (currentUser.value?.id || 'guest')
-  try {
-    localStorage.setItem(storageKey, JSON.stringify(addressList.value))
-  } catch (e) {}
-}
-
-const transactions = ref([])
-
-const loadTransactions = () => {
-  try {
-    const raw = localStorage.getItem('euchs_deposit_requests')
-    if (raw) {
-      const list = JSON.parse(raw)
-      if (Array.isArray(list) && list.length > 0) {
-        transactions.value = list.map(t => ({
-          id: t.id,
-          date: t.createdAt ? new Date(t.createdAt).toLocaleString('ko-KR') : '-',
-          title: `예치금 무통장 입금 충전 (${t.status === 'approved' ? '승인완료' : (t.status === 'rejected' ? '반려' : '심사중')})`,
-          orderNo: t.id,
-          type: 'in',
-          amount: t.amount,
-          balanceAfter: walletBalance.value
-        }))
-        return
-      }
-    }
-  } catch (e) {}
-  transactions.value = []
-}
-
-const filteredTransactions = computed(() => {
-  if (walletFilter.value === 'all') return transactions.value
-  return transactions.value.filter(t => t.type === walletFilter.value)
-})
 
 const saveCustomsInfo = async () => {
   try {
@@ -1139,14 +1133,6 @@ const downloadReceipt = (t) => {
   alert(`[거래번호: ${t.id}]\n${t.title}\n금액: ₩${t.amount.toLocaleString()}\n발행일: ${t.date}\n전자 영수증이 발급되었습니다.`)
 }
 
-// ── 계정 보안 & 비밀번호 변경 / 회원 탈퇴 로직 ───────────────────────
-const passwordForm = ref({
-  newPassword: '',
-  confirmPassword: ''
-})
-const showSecurityPassword = ref(false)
-const isPasswordChanging = ref(false)
-const isWithdrawing = ref(false)
 
 const handleChangePassword = async () => {
   if (!passwordForm.value.newPassword || passwordForm.value.newPassword.length < 6) {
@@ -1192,6 +1178,18 @@ const handleAccountWithdrawal = async () => {
     isWithdrawing.value = false
   }
 }
+
+// ============================================================
+// PHASE 3: watch / onMounted 등록
+// ============================================================
+
+watch(
+  () => route.query.tab,
+  (newTab) => {
+    if (newTab) activeTab.value = newTab
+  },
+  { immediate: true }
+)
 
 watch(currentUser, () => {
   loadCustomsProfile()
