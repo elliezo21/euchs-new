@@ -5,6 +5,25 @@
 
 import { getMockSearchResults, getMockProductDetail } from './mock1688Data'
 
+// ========================================================
+// 🔗 이미지 URL 정규화 — 모듈 최상단 전역 유틸 (TDZ 방지)
+// ========================================================
+/**
+ * 이미지 URL을 https:// 로 정규화. 모든 파서에서 공유.
+ * - //cdn.com/... → https://cdn.com/...
+ * - http://... → https://...
+ * - 빈 문자열 / data: / 짧은 URL → '' 반환
+ */
+function normalizeImg(u) {
+  if (!u || typeof u !== 'string') return ''
+  let url = u.trim()
+  if (url.startsWith('//')) url = 'https:' + url
+  if (url.startsWith('http://')) url = url.replace('http://', 'https://')
+  if (!url.startsWith('https://')) return ''
+  if (url.length < 20 || url.startsWith('data:')) return ''
+  return url
+}
+
 // 환경 변수 기본값 로드
 const getEnv = (key, fallback = '') => {
   if (typeof import.meta !== 'undefined' && import.meta.env) {
@@ -21,6 +40,7 @@ export const CONFIG = {
   ONEBOUND_SECRET: getEnv('ONEBOUND_SECRET', '121412a0'),
   DEEPL_API_KEY: getEnv('DEEPL_API_KEY', 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'),
 }
+
 
 // ========================================================
 // 🇷🇺 러시아어 및 다국어 ➔ 한국어 매핑 사전 & 정제 엔진
@@ -947,13 +967,6 @@ export async function fetch1688ProductById(offerId) {
     let rawSkus = []
 
     // ─── URL 정규화 헬퍼 (colorMap 탐색보다 반드시 앞에 선언해야 TDZ 에러 방지) ──
-    const normalizeImg = (u) => {
-      const s = String(u || '').trim()
-      if (!s) return ''
-      if (s.startsWith('//')) return 'https:' + s
-      if (s.startsWith('http://')) return s.replace('http://', 'https://')
-      return s.startsWith('http') ? s : ''
-    }
 
     // ─── OneBound skus 배열 추출 (skus.sku 중첩 구조 우선 탐색) ─────────────
     if (it.skus && Array.isArray(it.skus.sku)) {
