@@ -17,8 +17,8 @@ const getEnv = (key, fallback = '') => {
 }
 
 export const CONFIG = {
-  RAPIDAPI_KEY: getEnv('RAPIDAPI_KEY', '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'),
-  RAPIDAPI_HOST: getEnv('RAPIDAPI_HOST', 'otapi-1688.p.rapidapi.com'),
+  ONEBOUND_KEY: getEnv('ONEBOUND_KEY', 't_821093731214'),
+  ONEBOUND_SECRET: getEnv('ONEBOUND_SECRET', '121412a0'),
   DEEPL_API_KEY: getEnv('DEEPL_API_KEY', 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'),
 }
 
@@ -416,10 +416,10 @@ export async function translateItemsBatch(items) {
 }
 
 /**
- * 1688 DataHub 실시간 상품 검색 (API 에러/429 발생 시 고품질 Mock 데이터셋 자동 반환)
+ * 1688 OneBound 실시간 상품 검색
  * @param {string} queryZh - 중국어/한국어 검색 키워드
  * @param {number|string} page - 페이지 번호 (기본 1)
- * @param {object} [options] - 추가 옵션 { sort, price_min, price_max }
+ * @param {object} [options] - 추가 옵션
  * @returns {Promise<object>} 정규화된 1688 검색 결과 (한국어 번역 포함)
  */
 export async function search1688(queryZh, page = 1, options = {}) {
@@ -430,166 +430,99 @@ export async function search1688(queryZh, page = 1, options = {}) {
     return mockRes
   }
 
-  const { sort = 'default', price_min = '', price_max = '' } = options
-  const cacheKey = `${query}_p${page}_s${sort}_min${price_min}_max${price_max}`
+  const cacheKey = `ob_${query}_p${page}`
 
-  // 1. Quota Defense: 캐시 확인
+  // 캐시 확인
   const cached = getFromCache(memorySearchCache, 'euchs_search', cacheKey)
   if (cached) {
     return cached
   }
 
-  const rapidKey = CONFIG.RAPIDAPI_KEY
-  const rapidHost = CONFIG.RAPIDAPI_HOST
-
   let data = null
-  let isApiError = false
 
-  // 2. Vercel Serverless / Vite Dev Server 프록시 우선 시도 (/api/1688-search)
+  // Vercel Serverless / Vite Dev Server 프록시 (/api/1688-search)
   try {
-    const params = new URLSearchParams({
-      q: query,
-      page: String(page),
-      ...(sort && sort !== 'default' ? { sort } : {}),
-      ...(price_min ? { price_min } : {}),
-      ...(price_max ? { price_max } : {})
-    })
-
+    const params = new URLSearchParams({ q: query, page: String(page) })
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    const timeout = setTimeout(() => controller.abort(), 15000)
     const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
     clearTimeout(timeout)
 
     if (proxyRes.ok) {
       const result = await proxyRes.json()
-      if (result.success) {
-        // Otapi 응답: result.data 에 원본이 들어있음 (Result.Items.Items.Content[])
-        data = result.data || result.result || result
-        console.log('[1688 Search] Proxy success. Otapi keys:', Object.keys(data || {}).slice(0, 5))
-      } else if (result.status === 429 || String(result.data?.message || '').includes('exceeded')) {
-        isApiError = true
-        console.warn('[1688 Search] Proxy quota exceeded')
-      } else {
-        data = result.data || result
-        console.log('[1688 Search] Proxy response received')
+      if (result.success && result.data) {
+        data = result.data
+        console.log('[1688 Search] OneBound proxy success. Top keys:', Object.keys(data || {}).slice(0, 6))
       }
     } else {
       const errBody = await proxyRes.json().catch(() => ({}))
       console.warn(`[1688 Search] Proxy HTTP ${proxyRes.status}:`, errBody)
-      // non-200이어도 isApiError = true 설정하지 않음 → Direct API 폴백 허용
     }
   } catch (err) {
-    console.debug('[1688 Search] Proxy notice:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
+    console.debug('[1688 Search] Proxy notice:', err.name === 'AbortError' ? 'Timeout(15s)' : err.message)
   }
 
-  // 3. Direct RapidAPI Fallback (프록시 실패 시, 쿼터 초과는 제외)
-  if (!data && !isApiError && rapidKey) {
-    try {
-      const targetUrl = new URL(`https://${rapidHost}/item_search`)
-      targetUrl.searchParams.set('q', query)
-      targetUrl.searchParams.set('page', String(page))
-      if (sort && sort !== 'default') targetUrl.searchParams.set('sort', sort)
-      if (price_min) targetUrl.searchParams.set('price_min', price_min)
-      if (price_max) targetUrl.searchParams.set('price_max', price_max)
-
-      console.log('[1688 Search] Direct RapidAPI:', targetUrl.toString())
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
-      const directRes = await fetch(targetUrl.toString(), {
-        headers: {
-          'x-rapidapi-key': rapidKey,
-          'x-rapidapi-host': rapidHost
-        },
-        signal: controller.signal
-      })
-      clearTimeout(timeout)
-
-      if (directRes.ok) {
-        data = await directRes.json()
-        console.log('[1688 Search] Direct API success:', Object.keys(data || {}).slice(0, 5))
-      } else {
-        isApiError = true
-        console.warn(`[1688 API] RapidAPI status: ${directRes.status} (Fallback to Mock)`)
-      }
-    } catch (err) {
-      isApiError = true
-      console.warn('[1688 API] Direct search error:', err.name === 'AbortError' ? 'Timeout(10s)' : err.message)
-    }
-  }
-
-  // API 응답 데이터가 없는 경우
   if (!data) {
     console.warn(`[1688 API] No response received for "${query}"`)
     return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
   }
 
-  // 응답 데이터 파싱 및 정규화 (Otapi 1688 실시간 파서)
+  // ── OneBound 응답 파싱 ──────────────────────────────────────────
+  // OneBound item_search 응답 구조:
+  //   { items: { item: [...] }, page_size, ... }
   try {
     const resData = data || {}
 
-    // Otapi 응답 구조: resData.Result.Items.Items.Content[]
-    // 프록시 경유 시: resData.Result.Items.Items.Content[] 또는 resData.result.resultList[]
+    // OneBound: resData.items.item[] (표준)
+    // 프록시 경유 시: resData.items.item[] 또는 resData.result.resultList[]
     const rawList =
-      resData?.Result?.Items?.Items?.Content ||
-      resData?.Result?.Items?.Content ||
+      resData?.items?.item ||
       resData?.result?.resultList ||
       resData?.resultList ||
-      resData?.data?.Result?.Items?.Items?.Content ||
       []
 
     if (!Array.isArray(rawList) || rawList.length === 0) {
-      console.warn(`[1688 API] Empty rawList for "${query}"`)
+      console.warn(`[1688 API] Empty rawList for "${query}". Keys:`, Object.keys(resData).slice(0, 8))
       return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
     }
 
+    const normalizeUrl = (u) => {
+      const s = String(u || '').trim()
+      if (!s) return ''
+      if (s.startsWith('//')) return 'https:' + s
+      if (s.startsWith('http://')) return s.replace('http://', 'https://')
+      return s
+    }
+
     const items = rawList.map((entry, idx) => {
-      // Otapi 필드 매핑
+      // OneBound item_search 아이템 구조
       const it = entry.item || entry
 
-      // Otapi 이미지: MainPictureUrl
-      let rawImage = it.MainPictureUrl || it.imageUrl || it.image || it.picUrl ||
-                     it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
-                     (Array.isArray(it.PictureList) && it.PictureList[0]) || ''
+      // 대표 이미지: pic_url (OneBound 표준)
+      let imageUrl = normalizeUrl(it.pic_url || it.picUrl || it.imageUrl || it.image || '')
 
-      let imageUrl = String(rawImage || '').trim()
-      if (imageUrl.startsWith('//')) {
-        imageUrl = 'https:' + imageUrl
-      } else if (imageUrl.startsWith('http://')) {
-        imageUrl = imageUrl.replace('http://', 'https://')
-      }
+      // 상품 ID: num_iid (순수 숫자 — OneBound 표준)
+      const itemId = String(it.num_iid || it.itemId || it.id || `item-${Date.now()}-${idx}`)
 
-      // Otapi 상품 ID: it.Id 또는 it.ItemId
-      const itemId = String(it.Id || it.ItemId || it.itemId || it.offerId || it.id || `item-${Date.now()}-${idx}`)
+      const detailUrl = `https://detail.1688.com/offer/${itemId.replace(/[^0-9]/g, '')}.html`
 
-      let detailUrl = it.ItemUrl || it.itemUrl || it.detailUrl ||
-        (itemId ? `https://detail.1688.com/offer/${itemId}.html` : '')
-      if (detailUrl.startsWith('//')) {
-        detailUrl = 'https:' + detailUrl
-      }
+      // 가격: price (OneBound는 문자열 또는 숫자로 반환)
+      const priceNum = parseFloat(String(it.price || it.priceCent || '0').replace(/[^0-9.]/g, '')) || 0
 
-      // Otapi 가격: QuantityRanges[0].Price.OriginalPrice (위안화)
-      const priceRange = Array.isArray(it.QuantityRanges) ? it.QuantityRanges[0] : null
-      const priceNum = parseFloat(
-        priceRange?.Price?.OriginalPrice ||
-        priceRange?.Price?.ConvertedPriceWithoutSign ||
-        it.Price?.OriginalPrice ||
-        it.Price?.ConvertedPriceWithoutSign ||
-        it.price || '0'
-      ) || 0
+      // MOQ: min_num 또는 min_order
+      const minOrder = parseInt(it.min_num || it.minOrder || it.min_order || '1', 10) || 1
 
-      // Otapi MOQ: QuantityRanges[0].MinQuantity 또는 MasterQuantity
-      const minOrder = parseInt(
-        priceRange?.MinQuantity || it.MasterQuantity || it.minOrder || '2', 10
-      ) || 2
+      // 판매량: volume 또는 sales (OneBound: sold_count, volume 등)
+      const sales = parseInt(it.sold_count || it.volume || it.sales || 0, 10)
 
-      // Otapi 판매량: OrderCount 또는 SalesCount
-      const sales = parseInt(it.OrderCount || it.SalesCount || it.sales || 0, 10)
+      // 중국어 제목: title (OneBound는 title 필드 사용)
+      const titleZh = it.title || it.subject || ''
 
-      // Otapi 중국어 제목: it.Title
-      const titleZh = it.Title || it.title || it.subject || ''
+      // 공급사: nick (판매자 닉네임) 또는 shop_name
+      const company = it.nick || it.shop_name || it.shopName || it.sellerName || '1688 공식 인증 공급사'
 
-      // 공급사: VendorInfo 또는 company
-      const company = it.VendorInfo?.VendorName || it.company?.name || it.shopName || '1688 공식 인증 공급사'
+      // 판매자 ID: seller_id 또는 user_num_id
+      const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || '')
 
       return {
         id: itemId,
@@ -611,15 +544,16 @@ export async function search1688(queryZh, page = 1, options = {}) {
         itemUrl: detailUrl,
         productUrl: detailUrl,
         company,
-        starLevel: it.company?.starLevel || it.VendorInfo?.StarLevel || 5.0,
+        sellerId,
+        starLevel: parseFloat(it.score || it.starLevel || '5') || 5.0,
         raw: it
       }
     }).filter(item => item.id && (item.title || item.titleZh))
 
-    // 일괄 한국어 번역 수행
+    // 일괄 한국어 번역
     await translateItemsBatch(items)
 
-    const totalCount = resData?.Result?.Items?.TotalCount || String(rawList.length)
+    const totalCount = resData?.total_results || resData?.total || String(rawList.length)
     const formattedResult = {
       rawResponse: data,
       items,
@@ -637,6 +571,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
     return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
   }
 }
+
 
 /**
  * 1688 통합 파이프라인:
@@ -733,9 +668,8 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
 }
 
 /**
- * 1688 이미지(사진) 검색
- * 공개 접근 가능한 이미지 URL → /api/1688-image-search → resultList 표준 포맷 반환
- * @param {string} imageUrl - 공개 접근 가능한 이미지 URL (JPEG/PNG/WEBP)
+ * 1688 이미지(사진) 검색 — OneBound item_search_img
+ * @param {string} imageUrl - 공개 접근 가능한 이미지 URL
  * @returns {Promise<{ success: boolean, items: Array, totalResults: string }>}
  */
 export async function search1688ByImageUrl(imageUrl) {
@@ -745,13 +679,13 @@ export async function search1688ByImageUrl(imageUrl) {
     return { success: false, items: [], totalResults: '0' }
   }
 
-  console.log('[1688 ImageSearch] Calling proxy with imgUrl:', url.slice(0, 80))
+  console.log('[1688 ImageSearch] Calling OneBound proxy with imgUrl:', url.slice(0, 80))
 
   try {
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 15000) // 15초 타임아웃 (이미지 CDN 지연 대응)
+    const timeout = setTimeout(() => controller.abort(), 20000)
 
-    const proxyRes = await fetch(`/api/1688-image-search?imgUrl=${encodeURIComponent(url)}&page=1`, {
+    const proxyRes = await fetch(`/api/1688-image-search?imgUrl=${encodeURIComponent(url)}`, {
       signal: controller.signal
     })
     clearTimeout(timeout)
@@ -768,63 +702,66 @@ export async function search1688ByImageUrl(imageUrl) {
       return { success: false, items: [], totalResults: '0', error: result }
     }
 
-    const rawList = result.data?.result?.resultList || []
+    const resData = result.data
+
+    // OneBound item_search_img 응답: { items: { item: [...] } } 또는 { result: { resultList: [...] } }
+    const rawList =
+      resData?.items?.item ||
+      resData?.result?.resultList ||
+      resData?.resultList ||
+      []
+
     console.log('[1688 ImageSearch] Raw result count:', rawList.length)
 
     if (rawList.length === 0) {
       return { success: true, items: [], totalResults: '0' }
     }
 
-    // search1688() 와 동일한 아이템 포맷팅 패턴 재사용
+    const normalizeUrl = (u) => {
+      const s = String(u || '').trim()
+      if (!s) return ''
+      if (s.startsWith('//')) return 'https:' + s
+      if (s.startsWith('http://')) return s.replace('http://', 'https://')
+      return s
+    }
+
     const items = rawList.map((entry, idx) => {
       const it = entry.item || entry
 
-      let rawImage = it.imageUrl || it.image || it.picUrl || it.pic_url || it.img || it.imgUrl || it.pic || it.thumbnail ||
-                     entry.imageUrl || entry.image || entry.picUrl || entry.pic_url || entry.img || entry.imgUrl || entry.pic ||
-                     it.sku?.def?.imageUrl || it.sku?.def?.image || (Array.isArray(it.images) && it.images[0]) || ''
+      // 대표 이미지: pic_url (OneBound 표준)
+      const imageUrl = normalizeUrl(it.pic_url || it.picUrl || it.imageUrl || it.image || '')
 
-      let imageUrl = String(rawImage || '').trim()
-      if (imageUrl.startsWith('//')) {
-        imageUrl = 'https:' + imageUrl
-      } else if (imageUrl.startsWith('http://')) {
-        imageUrl = imageUrl.replace('http://', 'https://')
-      }
+      // 상품 ID: num_iid
+      const itemId = String(it.num_iid || it.itemId || it.id || `imgitem-${Date.now()}-${idx}`)
+      const cleanId = itemId.replace(/[^0-9]/g, '')
+      const detailUrl = cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : ''
 
-      let detailUrl = it.itemUrl || it.detailUrl || ''
-      if (detailUrl.startsWith('//')) {
-        detailUrl = 'https:' + detailUrl
-      } else if (!detailUrl && it.itemId) {
-        detailUrl = `https://detail.1688.com/offer/${it.itemId}.html`
-      }
-
-      const priceStr = it.sku?.def?.price || it.price || '0'
-      const priceNum = parseFloat(String(priceStr).replace(/[^0-9.]/g, '')) || 0
-
-      const minOrderStr = it.sku?.def?.minOrder || it.minOrder || '1'
-      const minOrder = parseInt(String(minOrderStr).replace(/[^0-9]/g, ''), 10) || 1
-
+      const priceNum = parseFloat(String(it.price || '0').replace(/[^0-9.]/g, '')) || 0
+      const minOrder = parseInt(it.min_num || it.minOrder || '1', 10) || 1
       const titleZh = it.title || it.subject || ''
+      const sellerId = String(it.seller_id || it.sellerId || '')
 
       return {
-        id: String(it.itemId || `imgitem-${Date.now()}-${idx}`),
+        id: itemId,
+        itemId,
         titleZh,
-        titleEn: it.titleEn || '',
-        titleKo: '',       // translateItemsBatch로 채워짐
+        titleEn: '',
+        titleKo: '',
         title: titleZh,
         price: priceNum,
         priceFormatted: priceNum.toFixed(2),
         minOrder,
-        sales: it.sales || '0',
+        sales: parseInt(it.sold_count || it.volume || '0', 10),
         imageUrl,
         detailUrl,
-        repurchaseRate: it.rePurchaseRate || it.repurchaseRate || '90%',
-        starLevel: parseFloat(it.averageStarRate || '5') || 5.0,
-        company: it.company?.name || it.shopName || '1688 공식 인증 공급사',
+        sellerId,
+        repurchaseRate: '90%',
+        starLevel: 5.0,
+        company: it.nick || it.shop_name || it.shopName || '1688 공식 인증 공급사',
         raw: it
       }
-    })
+    }).filter(i => i.id && i.titleZh)
 
-    // 기존 번역 파이프라인 그대로 재사용
     await translateItemsBatch(items)
 
     return {
@@ -834,7 +771,7 @@ export async function search1688ByImageUrl(imageUrl) {
     }
   } catch (err) {
     if (err.name === 'AbortError') {
-      console.warn('[1688 ImageSearch] Request timed out after 15s')
+      console.warn('[1688 ImageSearch] Request timed out after 20s')
       return { success: false, items: [], totalResults: '0', error: 'timeout' }
     }
     console.error('[1688 ImageSearch] Unexpected error:', err)
@@ -842,90 +779,66 @@ export async function search1688ByImageUrl(imageUrl) {
   }
 }
 
+
 /**
- * 1688 상품 상세 정보 Raw 조회
- * @param {string|number} itemId - 1688 상품 고유 ID
+ * 1688 OneBound 상품 상세 Raw 조회
+ * @param {string|number} itemId - 1688 순수 숫자 상품 ID (num_iid)
  * @returns {Promise<object>}
  */
 export async function getItemDetail1688(itemId) {
   const idStr = String(itemId || '').trim()
-  // 빈값, "undefined", "null" 문자열 방어
   if (!idStr || idStr === 'undefined' || idStr === 'null') {
-    console.warn('[1688 Detail] Invalid itemId provided:', itemId, '→ using Mock fallback')
+    console.warn('[1688 Detail] Invalid itemId:', itemId)
     return getMockProductDetail('804895839701')
   }
 
-  // Quota Defense: 상세 조회 캐시 확인
-  const cached = getFromCache(memoryDetailCache, 'euchs_detail_raw', idStr)
+  // 순수 숫자 ID 추출 (abb- 접두사 등 레거시 처리)
+  const cleanId = idStr.replace(/[^0-9]/g, '') || idStr
+
+  // 캐시 확인
+  const cached = getFromCache(memoryDetailCache, 'euchs_detail_raw', cleanId)
   if (cached) {
-    console.debug('[1688 Detail] Cache HIT for:', idStr)
+    console.debug('[1688 Detail] Cache HIT for:', cleanId)
     return cached
   }
 
-  // Otapi ID 보정
-  const otapiId = /^\d+$/.test(idStr) ? `abb-${idStr}` : idStr
-
-  const rapidKey = CONFIG.RAPIDAPI_KEY
-  const rapidHost = 'otapi-1688.p.rapidapi.com'
-
   let data = null
 
-  // 1. Vercel / Vite Serverless 프록시 우선 시도 (/api/1688-item-detail & /api/1688-detail)
-  // ⚠️ 프록시 자체에서 abb- 접두사 보정을 하므로, 순수 idStr 그대로 전달 (이중 접두사 방지)
-  const proxyEndpoints = ['/api/1688-item-detail', '/api/1688-detail']
-  for (const ep of proxyEndpoints) {
-    if (data) break
-    try {
-      const proxyRes = await fetch(`${ep}?itemId=${encodeURIComponent(idStr)}`)
-      if (proxyRes.ok) {
-        const resJson = await proxyRes.json()
-        if (resJson.success && resJson.data) {
-          data = resJson.data
-          console.log(`[1688 Item Detail Response] (via ${ep}):`, typeof data, Object.keys(data || {}).slice(0, 8))
-        }
-      } else {
-        const errBody = await proxyRes.text().catch(() => '')
-        console.warn(`[1688 Detail] ${ep} HTTP ${proxyRes.status}:`, errBody.slice(0, 200))
-      }
-    } catch (err) {
-      console.debug(`[1688 Detail] ${ep} notice:`, err.message)
-    }
-  }
+  // OneBound 프록시 (/api/1688-item-detail)
+  try {
+    const controller = new AbortController()
+    const timeout = setTimeout(() => controller.abort(), 15000)
+    const proxyRes = await fetch(`/api/1688-item-detail?itemId=${encodeURIComponent(cleanId)}`, {
+      signal: controller.signal
+    })
+    clearTimeout(timeout)
 
-  // 2. Direct Otapi RapidAPI Fallback
-  if (!data && rapidKey) {
-    try {
-      const targetUrl = `https://${rapidHost}/BatchGetItemFullInfo?language=zh&itemId=${encodeURIComponent(otapiId)}`
-      console.log(`[1688 Detail] Trying direct Otapi API: ${targetUrl}`)
-      const directRes = await fetch(targetUrl, {
-        headers: {
-          'x-rapidapi-key': rapidKey,
-          'x-rapidapi-host': rapidHost
-        }
-      })
-      if (directRes.ok) {
-        const raw = await directRes.json()
-        const itemData = raw?.Result?.Item || raw?.Result?.ItemFullInfo || raw?.Result || raw
-        if (itemData && !raw.ErrorCode?.includes?.('Error')) {
-          data = itemData
-          console.log('[1688 Item Detail Direct Response]:', data)
-        }
+    if (proxyRes.ok) {
+      const resJson = await proxyRes.json()
+      if (resJson.success && resJson.data) {
+        data = resJson.data
+        console.log('[1688 Detail] OneBound proxy success. Keys:', Object.keys(data || {}).slice(0, 10))
       }
-    } catch (err) {
-      console.warn('[1688 Detail] Direct fetch failed:', err.message)
+    } else {
+      const errBody = await proxyRes.text().catch(() => '')
+      console.warn(`[1688 Detail] Proxy HTTP ${proxyRes.status}:`, errBody.slice(0, 200))
     }
+  } catch (err) {
+    console.debug('[1688 Detail] Proxy notice:', err.name === 'AbortError' ? 'Timeout(15s)' : err.message)
   }
 
   if (!data) {
-    console.warn('[1688 Detail] API failed, using Mock for id:', idStr)
-    const mockDetail = getMockProductDetail(idStr)
-    saveToCache(memoryDetailCache, 'euchs_detail_raw', idStr, mockDetail)
+    console.warn('[1688 Detail] API failed, using Mock for id:', cleanId)
+    const mockDetail = getMockProductDetail(cleanId)
+    saveToCache(memoryDetailCache, 'euchs_detail_raw', cleanId, mockDetail)
     return mockDetail
   }
 
-  saveToCache(memoryDetailCache, 'euchs_detail_raw', idStr, data)
+  saveToCache(memoryDetailCache, 'euchs_detail_raw', cleanId, data)
   return data
 }
+
+
 
 /**
  * 1688 단건 상품 ID/URL로 상세 데이터 조회 및 한국어 번역
@@ -953,106 +866,85 @@ export async function fetch1688ProductById(offerId) {
   try {
     const rawData = await getItemDetail1688(idStr)
 
-    // ─── 1. 다계층 래퍼 구조 완전 탐색 ───────────────────────────────────────
-    // Otapi BatchGetItemFullInfo 응답: { Result: { Item: {...} } } or { Result: [{...}] }
-    // 프록시가 data?.Result?.Item 을 추출해 반환 → rawData 가 이미 Item 객체일 수 있음
-    // 아래 순서대로 탐색하여 실제 상품 객체(it)를 확정
+    // ─── OneBound item_get 응답 구조 탐색 ────────────────────────────────
+    // OneBound: { item: { num_iid, title, pic_url, item_imgs, props_list, skus, seller_info, ... } }
+    // 프록시가 item 객체를 추출해 반환 → rawData가 이미 item 객체일 수 있음
     let it = null
 
-    // 프록시 반환 케이스: rawData 자체가 Item (Title, PictureList 등 Otapi 필드가 바로 있음)
-    if (rawData && (rawData.Title || rawData.MainPictureUrl || rawData.PictureList || rawData.Attributes)) {
+    // 1순위: rawData 자체가 OneBound item 객체 (num_iid 또는 title이 있는 경우)
+    if (rawData && (rawData.num_iid || rawData.title || rawData.pic_url || rawData.item_imgs)) {
       it = rawData
     }
-    // Otapi Result.Item (단건)
-    if (!it) it = rawData?.Result?.Item || rawData?.result?.item || null
-    // Otapi Result (배열인 경우 첫 번째 항목)
-    if (!it && Array.isArray(rawData?.Result)) it = rawData.Result[0] || null
-    if (!it && Array.isArray(rawData?.result)) it = rawData.result[0] || null
-    // 중첩 래퍼
-    if (!it) it = rawData?.Result?.ItemFullInfo || rawData?.Result || null
-    if (!it) it = rawData?.data?.item || rawData?.data?.result?.item || rawData?.data?.result || rawData?.data || null
-    if (!it) it = rawData?.item || rawData || {}
-    // 배열로 온 경우 첫번째 선택
+    // 2순위: rawData.item (OneBound 표준 래퍼)
+    if (!it) it = rawData?.item || null
+    // 3순위: 기타 중첩 래퍼
+    if (!it) it = rawData?.result?.item || rawData?.result || null
+    if (!it) it = rawData?.data?.item || rawData?.data || null
+    if (!it) it = rawData || {}
     if (Array.isArray(it)) it = it[0] || {}
 
-    console.log('[1688 fetch1688ProductById] parsed item keys:', Object.keys(it || {}).slice(0, 20))
+    console.log('[1688 fetch1688ProductById] OneBound item keys:', Object.keys(it || {}).slice(0, 20))
 
-    // ─── 2. rawSku: sku 서브객체 (없으면 it 자체에 직접 skuProps 가 있을 수 있음) ───
-    const rawSku = it.sku || {}
+    // ─── SKU Props 탐색 (OneBound props_list 또는 props 필드) ─────────────
+    // OneBound: props_list = "颜色:红色;尺码:M" 또는 skus = [{properties: "...", ...}]
+    let rawSkuProps = null
+    let rawSkus = []
 
-    // ─── 3. rawSkuProps: 모든 가능한 키 순서대로 탐색 ─────────────────────
-    let rawSkuProps = (
-      rawSku.skuProps ||        // it.sku.skuProps
-      rawSku.sku_props ||       // it.sku.sku_props
-      rawSku.properties ||      // it.sku.properties
-      rawSku.props ||           // it.sku.props
-      it.skuProps ||            // it.skuProps
-      it.sku_props ||           // it.sku_props
-      it.props ||               // it.props
-      it.properties ||          // it.properties
-      rawSku.skuList?.length && (() => {
-        // skuList에서 역생성 시도는 아래 rawSkus 파싱 후 처리
-        return null
-      })() ||
-      null
-    )
-
-    // JSON 문자열인 경우 파싱
-    if (typeof rawSkuProps === 'string') {
-      try { rawSkuProps = JSON.parse(rawSkuProps) } catch (e) { rawSkuProps = null }
+    // OneBound skus 배열
+    if (Array.isArray(it.skus)) {
+      rawSkus = it.skus
+    } else if (it.sku && Array.isArray(it.sku)) {
+      rawSkus = it.sku
     }
-    // 배열이 아닌 경우 null 처리
-    if (!Array.isArray(rawSkuProps)) rawSkuProps = null
 
-    console.log('[1688 fetch1688ProductById] rawSkuProps:', rawSkuProps?.length ?? 'null', rawSkuProps)
+    // OneBound props_list에서 1차/2차 옵션 추출
+    // props_list 예: "1627207:1232324;20509:2325"  (숫자ID 형식)
+    // 또는 item_imgs 내 props 필드: [{properties: "颜色分类:红色", url: "..."}]
+    const colorMap = new Map() // propValue → imageUrl
+    const sizeSet = new Set()
 
-    // ─── 4. rawSkus 탐색 ────────────────────────────────────────────────
-    let rawSkus = (
-      it.skus ||
-      it.skuList ||
-      rawSku.skuList ||
-      rawSku.sku_list ||
-      it.sku_list ||
-      it.raw?.skus ||
-      it.raw?.skuList ||
-      []
-    )
-    if (typeof rawSkus === 'string') {
-      try { rawSkus = JSON.parse(rawSkus) } catch (e) { rawSkus = [] }
-    }
-    if (!Array.isArray(rawSkus)) rawSkus = []
-
-    // rawSkuProps가 없고 rawSkus가 있는 경우, rawSkus에서 역추출 시도
-    if (!rawSkuProps && rawSkus.length > 0) {
-      console.log('[1688 fetch1688ProductById] Deriving skuProps from rawSkus:', rawSkus.slice(0, 2))
-      // skuList의 각 항목에서 specAttrs/propPath/attributes 파싱
-      const colorSet = new Map() // name -> imageUrl
-      const sizeSet = new Set()
-
-      rawSkus.forEach(s => {
-        // 예: specAttrs = "颜色:卡其色;尺码:240" or specId = "1627207:1232324;20509:2325"
-        const specStr = s.specAttrs || s.specId || s.propPath || s.attributes || ''
-        const parts = String(specStr).split(';')
-
-        let colorName = s.color || s.colorName || s.prop || ''
-        let sizeName = s.size || s.sizeName || s.spec || s.subPropName || ''
-
-        if (!colorName && !sizeName && parts.length >= 1) {
-          // "키:값" 형식 파싱
-          const kv0 = parts[0]?.split(':')
-          const kv1 = parts[1]?.split(':')
-          colorName = kv0 ? (kv0.length >= 2 ? kv0[kv0.length - 1] : kv0[0]) : ''
-          sizeName = kv1 ? (kv1.length >= 2 ? kv1[kv1.length - 1] : kv1[0]) : ''
+    // item_imgs에서 색상 이미지 추출 (OneBound item_imgs: [{url: "...", properties: "颜色分类:红色"}])
+    if (Array.isArray(it.item_imgs)) {
+      it.item_imgs.forEach(img => {
+        const imgUrl = normalizeImg(img.url || img.src || img.Url || '')
+        const props = img.properties || img.props || ''
+        if (props && imgUrl) {
+          // "颜色分类:红色" 형식 파싱
+          const parts = String(props).split(':')
+          if (parts.length >= 2) {
+            const val = parts[parts.length - 1].trim()
+            if (val && !colorMap.has(val)) colorMap.set(val, imgUrl)
+          }
         }
-        if (colorName) colorSet.set(colorName, s.imageUrl || s.image || '')
-        if (sizeName) sizeSet.add(sizeName)
       })
+    }
 
+    // skus에서 속성 추출
+    rawSkus.forEach(s => {
+      // OneBound sku: { properties_name: "颜色分类:红色;尺码:M", properties: "1627207:1232324;20509:2325", ... }
+      const propName = s.properties_name || s.spec_id || s.properties || ''
+      const pairs = String(propName).split(';')
+      pairs.forEach((pair, pIdx) => {
+        const kv = pair.split(':')
+        if (kv.length >= 2) {
+          const val = kv[kv.length - 1].trim()
+          if (val) {
+            if (pIdx === 0) {
+              if (!colorMap.has(val)) colorMap.set(val, s.img_id || s.imageUrl || '')
+            } else if (pIdx === 1) {
+              sizeSet.add(val)
+            }
+          }
+        }
+      })
+    })
+
+    if (colorMap.size > 0 || sizeSet.size > 0) {
       rawSkuProps = []
-      if (colorSet.size > 0) {
+      if (colorMap.size > 0) {
         rawSkuProps.push({
-          prop: '색상/모델',
-          values: [...colorSet.entries()].map(([name, img]) => ({ name, imageUrl: img }))
+          prop: '색상/옵션',
+          values: [...colorMap.entries()].map(([name, img]) => ({ name, imageUrl: img || '' }))
         })
       }
       if (sizeSet.size > 0) {
@@ -1061,32 +953,15 @@ export async function fetch1688ProductById(offerId) {
           values: [...sizeSet].map(name => ({ name, imageUrl: '' }))
         })
       }
-
-      if (rawSkuProps.length === 0) rawSkuProps = null
-      console.log('[1688 fetch1688ProductById] Derived rawSkuProps from skuList:', rawSkuProps)
     }
 
-    // 이 시점에 rawSkuProps이 여전히 null이면 빈 배열
     if (!rawSkuProps) rawSkuProps = []
 
-    // ─── 2. Otapi / 1688 기본 상품 정보 추출 ───────────────────────────
-    // OriginalTitle(중국어 원문) 및 Title(한국어 또는 원문) 추출
-    const rawZhTitle = it.OriginalTitle || it.Title || it.title || it.subject || ''
-    const titleZh = rawZhTitle
+    // ─── 기본 상품 정보 추출 (OneBound 필드 우선) ──────────────────────────
+    // 제목: title (OneBound 표준)
+    const titleZh = it.title || it.subject || it.Title || ''
 
-    // 메인 이미지 및 갤러리 이미지
-    let rawImage = (
-      it.MainPictureUrl || it.imageUrl || it.image || it.picUrl || it.pic_url ||
-      it.img || it.imgUrl || it.pic || it.thumbnail ||
-      rawSku.def?.imageUrl || rawSku.def?.image ||
-      (Array.isArray(it.images) && it.images[0]) || ''
-    )
-    let imageUrl = String(rawImage || '').trim()
-    if (imageUrl.startsWith('//')) imageUrl = 'https:' + imageUrl
-    else if (imageUrl.startsWith('http://')) imageUrl = imageUrl.replace('http://', 'https://')
-
-    // ─── 다중 이미지 배열 파싱 (Otapi 필드 우선 순위 다중 탐색) ───────────────
-    let images = []
+    // 메인 이미지: pic_url (OneBound 표준)
     const normalizeImg = (u) => {
       const s = String(u || '').trim()
       if (!s) return ''
@@ -1094,43 +969,41 @@ export async function fetch1688ProductById(offerId) {
       if (s.startsWith('http://')) return s.replace('http://', 'https://')
       return s.startsWith('http') ? s : ''
     }
+    let imageUrl = normalizeImg(
+      it.pic_url || it.picUrl || it.MainPictureUrl || it.imageUrl || it.image || ''
+    )
 
-    // 1순위: Otapi PictureList (배열 내 객체 또는 문자열)
-    if (Array.isArray(it.PictureList) && it.PictureList.length > 0) {
-      images = it.PictureList.map(p =>
-        typeof p === 'string' ? normalizeImg(p) : normalizeImg(p.Url || p.url || p.Large || p.src || '')
+    // ─── 다중 갤러리 이미지 배열 파싱 (OneBound item_imgs 우선) ──────────────
+    let images = []
+
+    // 1순위: OneBound item_imgs (배열의 각 객체에서 url 추출)
+    if (Array.isArray(it.item_imgs) && it.item_imgs.length > 0) {
+      images = it.item_imgs.map(p =>
+        normalizeImg(typeof p === 'string' ? p : (p.url || p.src || p.Url || ''))
       ).filter(Boolean)
     }
-    // 2순위: Otapi Pictures
-    if (images.length === 0 && Array.isArray(it.Pictures) && it.Pictures.length > 0) {
-      images = it.Pictures.map(p =>
-        typeof p === 'string' ? normalizeImg(p) : normalizeImg(p.Url || p.url || p.Large || p.Medium || p.src || '')
-      ).filter(Boolean)
-    }
-    // 3순위: it.images (1688 DataHub)
+    // 2순위: OneBound images 배열 (일반 이미지 목록)
     if (images.length === 0 && Array.isArray(it.images) && it.images.length > 0) {
       images = it.images.map(img =>
-        typeof img === 'string' ? normalizeImg(img) : normalizeImg(img.url || img.src || img.Url || '')
+        normalizeImg(typeof img === 'string' ? img : (img.url || img.src || img.Url || ''))
       ).filter(Boolean)
     }
-    // 4순위: it.pic_urls / it.picUrls / it.itemImages (다른 API 포맷)
+    // 3순위: Otapi PictureList (폴백)
+    if (images.length === 0 && Array.isArray(it.PictureList) && it.PictureList.length > 0) {
+      images = it.PictureList.map(p =>
+        normalizeImg(typeof p === 'string' ? p : (p.Url || p.url || p.Large || p.src || ''))
+      ).filter(Boolean)
+    }
+    // 4순위: pic_urls / picUrls / itemImages
     const altImgField = it.pic_urls || it.picUrls || it.itemImages || it.imgList || null
     if (images.length === 0 && Array.isArray(altImgField) && altImgField.length > 0) {
       images = altImgField.map(img =>
-        typeof img === 'string' ? normalizeImg(img) : normalizeImg(img.url || img.src || img.Url || '')
+        normalizeImg(typeof img === 'string' ? img : (img.url || img.src || img.Url || ''))
       ).filter(Boolean)
     }
-    // 5순위: skuList 내 유니크 이미지 수집
-    if (images.length === 0) {
-      const skuImgs = []
-      const skuListSrc = it.skuList || rawSku.skuList || []
-      if (Array.isArray(skuListSrc)) {
-        skuListSrc.forEach(s => {
-          const u = normalizeImg(s.imageUrl || s.image || s.picUrl || '')
-          if (u && !skuImgs.includes(u)) skuImgs.push(u)
-        })
-      }
-      images = skuImgs
+    // 5순위: SKU 이미지 수집 (colorMap에서 추출)
+    if (images.length === 0 && colorMap.size > 0) {
+      images = [...colorMap.values()].filter(Boolean)
     }
     // 최종 Fallback: 메인 이미지 1장
     if (images.length === 0 && imageUrl) {
@@ -1139,124 +1012,27 @@ export async function fetch1688ProductById(offerId) {
     // 중복 제거
     images = [...new Set(images)]
 
-    // 기본 단가 및 MOQ (MasterQuantity는 총 재고량이므로 MOQ로 취급하지 않음)
-    const priceRange = Array.isArray(it.QuantityRanges) && it.QuantityRanges.length > 0 ? it.QuantityRanges[0] : null
+
+
+    // ─── 가격 및 MOQ 추출 (OneBound 필드 우선) ──────────────────────────
+    // OneBound price: 문자열 "12.5" 또는 숫자
     const priceNum = parseFloat(
-      priceRange?.Price?.OriginalPrice ||
-      priceRange?.Price?.ConvertedPriceWithoutSign ||
-      it.Price?.OriginalPrice ||
-      it.Price?.ConvertedPriceWithoutSign ||
-      rawSku.def?.price || it.price || '0'
+      String(it.price || it.Price || it.priceKrw || '0').replace(/[^0-9.]/g, '')
     ) || 0
 
-    const minOrder = parseInt(
-      priceRange?.MinQuantity || rawSku.def?.minOrder || it.minOrder || '1', 10
-    ) || 1
+    const minOrder = parseInt(it.min_num || it.minOrder || it.min_order || '1', 10) || 1
 
-    // ─── 3. Otapi Attributes ➔ skuProps 파싱 (Original/Vid/Pid 1순위 사용) ───
+    // ─── parsedSkuProps / parsedSkus 구성 ─────────────────────────────────
+    // rawSkuProps (item_imgs + skus에서 추출된 옵션)를 parsedSkuProps로 변환
     let parsedSkuProps = []
     let parsedSkus = []
 
-    if (Array.isArray(it.Attributes) && it.Attributes.length > 0) {
-      const propMap = new Map() // propName -> Map(valName -> imageUrl)
-
-      it.Attributes.forEach(attr => {
-        // 1순위: 한국어 번역 PropertyName / Value (language=ko 일 때), 없으면 OriginalPropertyName / OriginalValue / Pid / Vid
-        let rawPropName = String(attr.PropertyName || attr.OriginalPropertyName || attr.Pid || '').trim()
-        let rawValName = String(attr.Value || attr.OriginalValue || attr.Vid || '').trim()
-
-        // 만약 러시아어가 섞여 있으면 Original(중국어 원문)으로 대체
-        if (/[\u0400-\u04ff]/i.test(rawPropName) && attr.OriginalPropertyName) {
-          rawPropName = String(attr.OriginalPropertyName || attr.Pid || '').trim()
-        }
-        if (/[\u0400-\u04ff]/i.test(rawValName) && (attr.OriginalValue || attr.Vid)) {
-          rawValName = String(attr.OriginalValue || attr.Vid || '').trim()
-        }
-
-        if (!rawPropName || !rawValName) return
-
-        const propName = cleanForeignText(rawPropName) || rawPropName
-        const valName = cleanForeignText(rawValName) || rawValName
-
-        const isConfig = attr.IsConfigurator ||
-          rawPropName.includes('色') || rawPropName.includes('尺') ||
-          rawPropName.includes('规') || rawPropName.includes('码') ||
-          rawPropName.includes('款') || rawPropName.includes('型') ||
-          rawPropName.includes('容') || rawPropName.includes('量') ||
-          /색상|사이즈|규격|용량|Color|Size/i.test(propName)
-
-        if (isConfig) {
-          if (!propMap.has(propName)) {
-            propMap.set(propName, new Map())
-          }
-          const valMap = propMap.get(propName)
-          const img = attr.ImageUrl || attr.MiniImageUrl || attr.SmallImageUrl || ''
-          if (!valMap.has(valName) || (!valMap.get(valName) && img)) {
-            valMap.set(valName, img)
-          }
-        }
-      })
-
-      propMap.forEach((valMap, propName) => {
-        parsedSkuProps.push({
-          prop: propName,
-          propKo: propName,
-          values: [...valMap.entries()].map(([name, img]) => ({
-            name,
-            nameKo: name,
-            imageUrl: img
-          }))
-        })
-      })
-    }
-
-    // ─── 4. Otapi ConfiguredItems ➔ skus 파싱 ────────────────────────────
-    if (Array.isArray(it.ConfiguredItems) && it.ConfiguredItems.length > 0) {
-      parsedSkus = it.ConfiguredItems.map((c, cIdx) => {
-        const configs = Array.isArray(c.Configurators) ? c.Configurators : []
-        const colorCfg = configs.find(cfg => String(cfg.Pid || '').includes('色') || /Цвет|Color|색상/i.test(cfg.Pid || '')) || configs[0]
-        const sizeCfg = configs.find(cfg => cfg !== colorCfg) || (configs.length > 1 ? configs[1] : null)
-
-        let rawColorName = colorCfg?.Value || colorCfg?.OriginalValue || colorCfg?.Vid || ''
-        let rawSizeName = sizeCfg?.Value || sizeCfg?.OriginalValue || sizeCfg?.Vid || ''
-
-        if (/[\u0400-\u04ff]/i.test(rawColorName) && (colorCfg?.OriginalValue || colorCfg?.Vid)) {
-          rawColorName = colorCfg.OriginalValue || colorCfg.Vid || ''
-        }
-        if (/[\u0400-\u04ff]/i.test(rawSizeName) && (sizeCfg?.OriginalValue || sizeCfg?.Vid)) {
-          rawSizeName = sizeCfg.OriginalValue || sizeCfg.Vid || ''
-        }
-
-        const colorName = cleanForeignText(rawColorName) || rawColorName
-        const sizeName = cleanForeignText(rawSizeName) || rawSizeName
-
-        const attrMatch = Array.isArray(it.Attributes) ? it.Attributes.find(a => (a.OriginalValue === rawColorName || a.Vid === rawColorName || a.Value === rawColorName) && a.ImageUrl) : null
-        const skuImg = attrMatch?.ImageUrl || imageUrl
-
-        const skuPrice = parseFloat(
-          c.Price?.OriginalPrice ||
-          c.Price?.ConvertedPriceWithoutSign ||
-          priceNum
-        ) || priceNum
-
-        return {
-          skuId: String(c.Id || `sku-${cIdx}`),
-          color: colorName,
-          size: sizeName,
-          price: skuPrice,
-          imageUrl: skuImg,
-          stock: parseInt(c.Quantity ?? '999', 10)
-        }
-      })
-    }
-
-    // 기존 1688 DataHub skuProps / rawSkus 폴백 (Otapi에서 안 나온 경우)
-    if (parsedSkuProps.length === 0 && Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
+    if (Array.isArray(rawSkuProps) && rawSkuProps.length > 0) {
       parsedSkuProps = rawSkuProps.map(p => {
-        const propName = cleanForeignText(p.prop || p.propKo || p.propName || p.name || '')
+        const propName = cleanForeignText(p.prop || p.propKo || p.propName || p.name || '') || (p.prop || '')
         const rawVals = Array.isArray(p.values) ? p.values : []
         const values = rawVals.map(v => {
-          const valName = cleanForeignText(typeof v === 'string' ? v : (v.name || v.value || ''))
+          const valName = cleanForeignText(typeof v === 'string' ? v : (v.name || v.value || '')) || (v.name || '')
           return {
             name: valName,
             nameKo: valName,
@@ -1267,16 +1043,40 @@ export async function fetch1688ProductById(offerId) {
       }).filter(p => p.values.length > 0)
     }
 
-    if (parsedSkus.length === 0 && Array.isArray(rawSkus) && rawSkus.length > 0) {
-      parsedSkus = rawSkus.map(s => ({
-        skuId: s.skuId || s.id || '',
-        color: cleanForeignText(s.color || s.propName || ''),
-        size: cleanForeignText(s.size || s.spec || ''),
-        price: parseFloat(s.price || priceNum),
-        imageUrl: s.imageUrl || imageUrl,
-        stock: parseInt(s.stock || s.quantity || '999', 10)
-      }))
+    // OneBound skus → parsedSkus
+    if (Array.isArray(rawSkus) && rawSkus.length > 0) {
+      parsedSkus = rawSkus.map((s, sIdx) => {
+        // properties_name: "颜色分类:红色;尺码:M"
+        const propNameStr = s.properties_name || s.spec_id || s.properties || ''
+        const pairs = String(propNameStr).split(';')
+        let colorName = ''
+        let sizeName = ''
+        pairs.forEach((pair, pIdx) => {
+          const kv = pair.split(':')
+          const val = kv.length >= 2 ? kv[kv.length - 1].trim() : kv[0]?.trim() || ''
+          if (pIdx === 0) colorName = val
+          else if (pIdx === 1) sizeName = val
+        })
+
+        // 색상 이미지: img_id 또는 colorMap에서 조회
+        const skuImgUrl = normalizeImg(
+          s.img_id || colorMap.get(colorName) || s.imageUrl || ''
+        ) || imageUrl
+
+        const skuPrice = parseFloat(String(s.price || priceNum).replace(/[^0-9.]/g, '')) || priceNum
+
+        return {
+          skuId: String(s.sku_id || s.skuId || s.id || `sku-${sIdx}`),
+          color: cleanForeignText(colorName) || colorName,
+          size: cleanForeignText(sizeName) || sizeName,
+          price: skuPrice,
+          imageUrl: skuImgUrl,
+          stock: parseInt(s.quantity || s.stock || '999', 10)
+        }
+      })
     }
+
+
 
     // skuProps만 있고 skus가 없는 경우 교차 조합 생성
     if (parsedSkuProps.length > 0 && parsedSkus.length === 0) {
@@ -1358,9 +1158,9 @@ export async function fetch1688ProductById(offerId) {
     }))]
 
     let titleKo = ''
-    // it.Title에 러시아어(키릴문자)가 전혀 없으면 한국어 번역문으로 즉시 사용
-    if (it.Title && !/[\u0400-\u04ff]/i.test(it.Title)) {
-      titleKo = it.Title
+    // titleZh가 순수 한국어면 바로 사용, 아니면 번역
+    if (titleZh && !/[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04ff]/.test(titleZh)) {
+      titleKo = titleZh
     }
 
     if (uniqueTexts.length > 0) {
@@ -1417,54 +1217,49 @@ export async function fetch1688ProductById(offerId) {
 
     const cleanedTitleKo = cleanForeignText(titleKo || titleZh) || titleKo || titleZh
 
-    // ─── 원본 1688 URL 추출 (Otapi 필드 우선, 없으면 cleanId 기반 생성) ─────
-    // Otapi 응답에 TaobaoItemUrl, ExternalItemUrl, ItemUrl 등이 있는 경우 최우선 사용
-    const rawSourceUrl = (
-      it.TaobaoItemUrl || it.ExternalItemUrl || it.ItemUrl || it.itemUrl ||
-      it.sourceUrl || it.detailUrl || it.url || ''
-    )
-    const cleanNumericId = idStr.replace(/[^0-9]/g, '')
-    const sourceUrl = (rawSourceUrl && rawSourceUrl.startsWith('http'))
-      ? rawSourceUrl
-      : (cleanNumericId ? `https://detail.1688.com/offer/${cleanNumericId}.html` : 'https://www.1688.com')
+    // ─── 원본 1688 URL (OneBound num_iid 기반) ─────────────────────────────
+    const cleanNumericId = (it.num_iid || idStr).toString().replace(/[^0-9]/g, '')
+    const sourceUrl = cleanNumericId
+      ? `https://detail.1688.com/offer/${cleanNumericId}.html`
+      : 'https://www.1688.com'
 
-    // ─── 공급사 ID 추출 (VendorInfo 우선) ──────────────────────────────────
-    const vendorInfo = it.VendorInfo || it.vendorInfo || {}
-    const extractedSellerId = (
-      vendorInfo.VendorId || vendorInfo.MemberId || vendorInfo.UserId ||
-      it.sellerId || it.memberId || it.shopId || it.userId || it.VendorId || ''
+    // ─── 공급사 ID / 이름 추출 (OneBound seller_info 우선) ────────────────
+    // OneBound: seller_info = { seller_id, user_num_id, seller_name, nick, ... }
+    const sellerInfo = it.seller_info || it.sellerInfo || {}
+    const extractedSellerId = String(
+      sellerInfo.seller_id || sellerInfo.user_num_id || sellerInfo.userId ||
+      it.seller_id || it.sellerId || it.user_num_id || ''
     )
-
-    // ─── 공급사 이름 (VendorInfo.VendorName 최우선) ─────────────────────────
     const companyName = (
-      vendorInfo.VendorName || vendorInfo.ShopName ||
-      it.company?.name || it.shopName || it.sellerName ||
+      sellerInfo.seller_name || sellerInfo.nick || sellerInfo.shopName ||
+      it.nick || it.shopName || it.sellerName || it.company?.name ||
       '1688 인증 직영 제조공장'
     )
 
     const normalizedProduct = {
-      id: idStr,
+      id: cleanNumericId || idStr,
       titleZh,
       titleKo: cleanedTitleKo,
       title: cleanedTitleKo,
       price: priceNum,
       priceFormatted: priceNum.toFixed(2),
       minOrder,
-      sales: it.OrderCount || it.SalesCount || it.sales || '1.5만+',
+      sales: it.sold_count || it.volume || it.sales || '0',
       imageUrl: imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=600&auto=format&fit=crop&q=80',
       images,
       sourceUrl,
       detailUrl: sourceUrl,
-      repurchaseRate: it.repurchaseRate || it.RepurchaseRate || '94%',
+      repurchaseRate: it.repurchaseRate || '90%',
       company: companyName,
-      sellerId: String(extractedSellerId),
-      memberId: String(extractedSellerId),
-      shopId: String(extractedSellerId),
+      sellerId: extractedSellerId,
+      memberId: extractedSellerId,
+      shopId: extractedSellerId,
       skuProps: parsedSkuProps,
-      skus: parsedSkus.length > 0 ? parsedSkus : (it.skus || []),
-      descImgs: it.descImgs || it.descriptionImages || [],
+      skus: parsedSkus.length > 0 ? parsedSkus : [],
+      descImgs: Array.isArray(it.desc_img) ? it.desc_img.map(d => normalizeImg(d.url || d)) : [],
       raw: it
     }
+
 
     saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, normalizedProduct)
     return normalizedProduct
@@ -1514,22 +1309,23 @@ export async function fetchSellerProducts(sellerId, currentItemId, options = {})
           const rawItems = result.data?.items || result.items || []
           items = rawItems.map((entry, idx) => {
             const it = entry.item || entry
-            let rawImg = it.MainPictureUrl || it.imageUrl || it.image || it.picUrl || it.pic_url || ''
-            let imgUrl = String(rawImg).trim()
-            if (imgUrl.startsWith('//')) imgUrl = 'https:' + imgUrl
-            else if (imgUrl.startsWith('http://')) imgUrl = imgUrl.replace('http://', 'https://')
+            const imgUrl = (() => {
+              const raw = it.pic_url || it.picUrl || it.imageUrl || it.image || it.MainPictureUrl || ''
+              const s = String(raw).trim()
+              if (s.startsWith('//')) return 'https:' + s
+              if (s.startsWith('http://')) return s.replace('http://', 'https://')
+              return s
+            })()
 
-            const itemId = String(it.Id || it.ItemId || it.itemId || it.id || `sp-${Date.now()}-${idx}`)
-            const priceRange = Array.isArray(it.QuantityRanges) ? it.QuantityRanges[0] : null
-            const price = parseFloat(
-              priceRange?.Price?.OriginalPrice || it.Price?.OriginalPrice || it.price || '0'
-            ) || 0
-            const minOrderVal = parseInt(priceRange?.MinQuantity || it.MasterQuantity || it.minOrder || '1', 10) || 1
-            const titleZh = it.Title || it.title || it.subject || ''
+            const itemId = String(it.num_iid || it.itemId || it.id || `sp-${Date.now()}-${idx}`)
+            const cleanId = itemId.replace(/[^0-9]/g, '')
+            const price = parseFloat(String(it.price || '0').replace(/[^0-9.]/g, '')) || 0
+            const minOrderVal = parseInt(it.min_num || it.minOrder || '1', 10) || 1
+            const titleZh = it.title || it.subject || ''
 
             return {
-              id: itemId,
-              itemId,
+              id: cleanId || itemId,
+              itemId: cleanId || itemId,
               titleZh,
               titleKo: titleZh,
               title: titleZh,
@@ -1539,13 +1335,14 @@ export async function fetchSellerProducts(sellerId, currentItemId, options = {})
               priceFormatted: price.toFixed(2),
               moq: minOrderVal,
               minOrder: minOrderVal,
-              sales: parseInt(it.OrderCount || it.SalesCount || 0, 10),
+              sales: parseInt(it.sold_count || it.volume || 0, 10),
               imageUrl: imgUrl,
-              detailUrl: itemId ? `https://detail.1688.com/offer/${itemId}.html` : '',
-              company: it.VendorInfo?.VendorName || it.company?.name || it.shopName || options.company || '1688 공급사',
+              detailUrl: cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : '',
+              company: it.nick || it.shop_name || it.shopName || options.company || '1688 공급사',
               raw: it
             }
           }).filter(p => p.id && (p.titleZh || p.title))
+
 
           if (items.length > 0) {
             await translateItemsBatch(items)
@@ -1579,3 +1376,4 @@ export async function fetchSellerProducts(sellerId, currentItemId, options = {})
   // 현재 상품 제외 후 최대 12개 반환
   return items.filter(p => String(p.id) !== currentIdStr).slice(0, 12)
 }
+
