@@ -86,26 +86,27 @@ export function saveStoredOrders(orders) {
 }
 
 /**
- * Supabase DB orders 및 applications 테이블에 주문 목록 동기화
+ * 로컬 주문 목록을 Supabase DB (orders + applications 테이블)와 안전하게 동기화 (백그라운드 비동기)
  */
 async function _syncOrdersToSupabase(ordersList) {
-  if (!isSupabaseConfigured() || !Array.isArray(ordersList) || ordersList.length === 0) return;
+  if (_isSyncingOrders || !isSupabaseConfigured() || !Array.isArray(ordersList) || ordersList.length === 0) return;
 
+  _isSyncingOrders = true;
   try {
     const user = currentUser.value;
     const isUUID = user?.id && isValidUUID(user.id);
     const nowIso = new Date().toISOString();
 
-    for (const o of ordersList.slice(0, 15)) {
+    for (const o of ordersList.slice(0, 10)) {
       const buyerInfoObj = o.buyerInfo || {};
       const orderNo = o.orderNumber || o.orderId || o.id;
+      if (!orderNo) continue;
 
       // 1. orders 테이블 upsert
       try {
         const orderRow = {
-          ...(isValidUUID(o.id) ? { id: o.id } : {}),
-          order_number: orderNo,
-          order_no: orderNo,
+          order_number: String(orderNo),
+          order_no: String(orderNo),
           inbound_no: o.inboundNo || `INB-YW-${String(orderNo).replace(/[^0-9]/g, '')}`,
           user_id: isUUID ? user.id : null,
           buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
@@ -127,6 +128,11 @@ async function _syncOrdersToSupabase(ordersList) {
           updated_at: nowIso
         };
 
+        // UUID인 경우에만 id 필드 포함 (비-UUID 문자열 전송 시 Postgres 22P02 에러 방어)
+        if (o.id && isValidUUID(o.id)) {
+          orderRow.id = o.id;
+        }
+
         // orders 테이블에 order_number 기준으로 존재 여부 확인 후 upsert
         const { data: existingOrder } = await supabase
           .from('orders')
@@ -140,7 +146,7 @@ async function _syncOrdersToSupabase(ordersList) {
           await supabase.from('orders').insert([{ ...orderRow, created_at: o.createdAt || nowIso }]);
         }
       } catch (errOrder) {
-        console.debug('[_syncOrdersToSupabase] orders table sync notice:', errOrder);
+        // 백그라운드 동기화 오류는 사용자 콘솔을 오염시키지 않도록 조용히 방어
       }
 
       // 2. applications 테이블 호환 동기화
@@ -175,7 +181,9 @@ async function _syncOrdersToSupabase(ordersList) {
       }
     }
   } catch (err) {
-    console.warn('[_syncOrdersToSupabase] notice:', err);
+    // 동기화 예외 방어
+  } finally {
+    _isSyncingOrders = false;
   }
 }
 
