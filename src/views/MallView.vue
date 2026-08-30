@@ -2287,6 +2287,20 @@ const formatDate = (dateStr) => {
 // ----------------------------------------------------
 // Lifecycle & Route Query Watcher
 // ----------------------------------------------------
+
+/**
+ * safeLoadBalance — 컴포넌트 스코프 최상위 선언
+ * onMounted / onUnmounted 양쪽에서 동일 참조로 addEventListener / removeEventListener가
+ * 정상 쌍을 이루도록 onMounted 클로저 바깥에 위치시킴.
+ * (이전: onMounted 내부 const → onUnmounted에서 ReferenceError 발생)
+ */
+const safeLoadBalance = () => {
+  try {
+    loadBalance().catch(err => console.debug('[MallView] safeLoadBalance notice:', err))
+  } catch (err) {
+    console.debug('[MallView] safeLoadBalance notice:', err)
+  }
+}
 const handleIncomingQuery = async () => {
   const offerId = route.query.offerId
   if (offerId && typeof offerId === 'string' && offerId.trim()) {
@@ -2326,14 +2340,6 @@ onMounted(async () => {
     }
   }
   // ────────────────────────────────────────────────────────────────────────
-
-  const safeLoadBalance = () => {
-    try {
-      loadBalance().catch(err => console.debug('[MallView] safeLoadBalance notice:', err))
-    } catch (err) {
-      console.debug('[MallView] safeLoadBalance notice:', err)
-    }
-  }
 
   await loadRates()
   safeLoadBalance()

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vercel Serverless Function: /api/1688-item-detail
  * OneBound 1688global 상품 상세 조회 프록시
  * - 1차 엔드포인트: 1688global (강제 직결, 정식 세션 바인딩)
@@ -53,11 +53,11 @@ function isErrorResponse(data) {
   return false
 }
 
-async function fetchDetail(endpoint, cleanNumericId, OB_KEY, OB_SECRET, OB_SESSION, timeoutMs) {
-  const sessionParam = OB_SESSION
-    ? `&session=${encodeURIComponent(OB_SESSION)}&session_id=${encodeURIComponent(OB_SESSION)}`
-    : ''
-  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_get/?key=${OB_KEY}&secret=${OB_SECRET}${sessionParam}&num_iid=${cleanNumericId}&result_type=json`
+async function fetchDetail(endpoint, cleanNumericId, OB_KEY, OB_SECRET, timeoutMs) {
+  // 공식 문서(open.onebound.cn/help/api/1688global.item_get.html) 확인:
+  // 1688global/item_get 필수 파라미터는 key·secret·num_iid 세 가지만 요구.
+  // session/session_id는 미지원 파라미터 → 추가하지 않음.
+  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_get/?key=${OB_KEY}&secret=${OB_SECRET}&num_iid=${cleanNumericId}&result_type=json`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -114,19 +114,24 @@ export default async function handler(req, res) {
     return res.status(400).json({ success: false, message: '유효한 숫자 ID가 없습니다. id=' + targetId, data: null })
   }
 
-  const OB_KEY     = process.env.ONEBOUND_KEY     || process.env.VITE_ONEBOUND_KEY     || 't_821093731214'
-  const OB_SECRET  = process.env.ONEBOUND_SECRET  || process.env.VITE_ONEBOUND_SECRET  || '121412a0'
-  const OB_SESSION = process.env.ONEBOUND_SESSION || process.env.VITE_ONEBOUND_SESSION || 'c349df22-2929-4571-8d32-c25412728b33'
+  // 환경변수에서만 인증키 로드 (평문 하드코딩 금지 원칙 준수)
+  const OB_KEY    = process.env.ONEBOUND_KEY    || process.env.VITE_ONEBOUND_KEY    || ''
+  const OB_SECRET = process.env.ONEBOUND_SECRET || process.env.VITE_ONEBOUND_SECRET || ''
 
-  // 1차: 1688global 강제 직결 (정식 세션 바인딩)
-  let resData = await fetchDetail('1688global', cleanNumericId, OB_KEY, OB_SECRET, OB_SESSION, 7000)
+  if (!OB_KEY || !OB_SECRET) {
+    console.error('[1688-item-detail] ONEBOUND_KEY 또는 ONEBOUND_SECRET 환경변수가 설정되지 않았습니다.')
+    return res.status(500).json({ success: false, message: 'API 인증 환경변수 누락', data: null })
+  }
+
+  // 1차: 1688global 직결 (정식 개통 경로, session 파라미터 불필요 확인됨)
+  let resData = await fetchDetail('1688global', cleanNumericId, OB_KEY, OB_SECRET, 7000)
 
   // 1688global 에러(4013 포함) 시에만 2차 1688 폴백
   if (!resData || isErrorResponse(resData)) {
     const errCode = resData?.error_code || 'no-data'
     const errMsg  = resData?.reason || resData?.error || 'unknown'
     console.warn(`[1688-item-detail] 1688global failed (${errCode}: ${errMsg}). Trying 1688 fallback...`)
-    const fallbackData = await fetchDetail('1688', cleanNumericId, OB_KEY, OB_SECRET, OB_SESSION, 5000)
+    const fallbackData = await fetchDetail('1688', cleanNumericId, OB_KEY, OB_SECRET, 5000)
     if (fallbackData && !isErrorResponse(fallbackData)) {
       resData = fallbackData
     }
