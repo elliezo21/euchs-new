@@ -919,7 +919,7 @@ async function saveDetailDraft() {
           items: items,
           updated_at: new Date().toISOString()
         })
-        .eq('order_number', orderNum);
+        .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`);
     } catch (e) {
       console.debug('[saveDetailDraft] Supabase update notice:', e);
     }

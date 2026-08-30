@@ -99,19 +99,20 @@ async function _syncOrdersToSupabase(ordersList) {
     for (const o of ordersList.slice(0, 15)) {
       const buyerInfoObj = o.buyerInfo || {};
       const orderNo = o.orderNumber || o.orderId || o.id;
-      const orderId = String(o.id || orderNo);
 
       // 1. orders 테이블 upsert
       try {
         const orderRow = {
-          id: orderId,
+          ...(isValidUUID(o.id) ? { id: o.id } : {}),
           order_number: orderNo,
+          order_no: orderNo,
           inbound_no: o.inboundNo || `INB-YW-${String(orderNo).replace(/[^0-9]/g, '')}`,
           user_id: isUUID ? user.id : null,
           buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
           status: o.status || 'quote_pending',
           customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || o.customer_name || '이유씨 바이어',
           phone: buyerInfoObj.phone || o.phone || '010-0000-0000',
+          customer_phone: buyerInfoObj.phone || o.phone || '010-0000-0000',
           buyer_info: buyerInfoObj,
           items: Array.isArray(o.items) ? o.items : [],
           total_price_krw: Number(o.totalPriceKrw || o.total_price_krw || o.totalAmountKrw || 0),
@@ -130,11 +131,11 @@ async function _syncOrdersToSupabase(ordersList) {
         const { data: existingOrder } = await supabase
           .from('orders')
           .select('id, order_number')
-          .eq('order_number', orderNo)
+          .or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`)
           .limit(1);
 
         if (existingOrder && existingOrder.length > 0) {
-          await supabase.from('orders').update(orderRow).eq('order_number', orderNo);
+          await supabase.from('orders').update(orderRow).or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`);
         } else {
           await supabase.from('orders').insert([{ ...orderRow, created_at: o.createdAt || nowIso }]);
         }
