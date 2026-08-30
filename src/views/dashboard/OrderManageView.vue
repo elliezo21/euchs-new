@@ -1483,9 +1483,6 @@
       </div>
     </div>
 
-
-  </div>
-
   <!-- ======================================================== -->
   <!-- 대량 EXCEL 등록 모달 -->
   <!-- ======================================================== -->
@@ -1661,7 +1658,7 @@
       </button>
     </div>
   </Transition>
-
+  </div>
 </template>
 
 <script setup>
@@ -1704,6 +1701,8 @@ import {
 } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
+import { userBalance, applyBalanceTransaction } from '@/lib/balanceStore';
+import { currentUser } from '@/lib/auth';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 
 const route = useRoute();
@@ -1724,6 +1723,9 @@ const filterTabs = [
   { id: 'delivered', label: '8. 배송완료' },
 ];
 
+// =========================================================
+// [PHASE 1] 모든 ref / reactive 상태 최상단 일괄 선언 (TDZ 방어)
+// =========================================================
 const selectedTab = ref('all');
 const searchQuery = ref('');
 const dateFilter = ref('all');
@@ -1731,9 +1733,27 @@ const sortBy = ref('latest');
 const selectedOrderIds = ref([]);
 const isRefreshing = ref(false);
 
-// 모달 상태
+// 1차 결제 & 주문 상세 모달 상태
 const isDetailModalOpen = ref(false);
 const activeOrder = ref(null);
+const isPaying = ref(false);
+
+// 2차 결제 & 바코드 업로드 모달 상태
+const isSecondPaymentModalOpen = ref(false);
+const selectedSecondPaymentOrder = ref(null);
+const uploadedBarcodeFile = ref(null);
+const barcodeFileInputRef = ref(null);
+const isProcessingPayment = ref(false);
+const previewPhotoUrl = ref(null);
+
+// 대량 EXCEL 등록 모달 상태
+const isBulkExcelModalOpen = ref(false);
+const isCategoryBatchModalOpen = ref(false);
+const bulkParsedItems = ref([]);
+const bulkSelectedIdxs = ref([]);
+const bulkDragOver = ref(false);
+const bulkCategoryFilter = ref('');
+const batchCategoryInput = ref('');
 
 // ---------------------------------------------------------
 // 기본 바이어 정보
@@ -2736,64 +2756,84 @@ function advanceOrderStage(order) {
   alert(`✅ 상태가 [${getOrderStatusLabel(nextStatus)}]으로 전환되었습니다.`);
 }
 
-const isPaying = ref(false);
-
 async function executeInstantPayment(order) {
   if (!order) return;
   const cost = getOrderCostSummary(order);
-  const totalWon = formatNumber(cost.totalDdpKrw);
+  const totalCost = Number(cost.totalDdpKrw) || 0;
+  const totalWon = formatNumber(totalCost);
 
-  if (!confirm(`총 결제 예정 금액 [ ₩${totalWon}원 ]을 예치금/카드로 즉시 결제 승인하시겠습니까?`)) {
+  // 1. 바이어 예치금 잔액 확인
+  const currentBal = Number(userBalance.value || 0);
+  if (currentBal < totalCost) {
+    alert(`예치금 잔액이 부족합니다.\n\n- 보유 예치금: ₩${formatNumber(currentBal)}원\n- 결제 필요액: ₩${totalWon}원\n- 부족액: ₩${formatNumber(totalCost - currentBal)}원\n\n[계정 설정 > 예치금 지갑]에서 먼저 예치금을 충전해 주세요.`);
+    return;
+  }
+
+  if (!confirm(`총 결제 예정 금액 [ ₩${totalWon}원 ]을 예치금에서 즉시 결제 승인하시겠습니까?\n결제 시 중국 현지 1688 구매진행(사입) 단계로 전환됩니다.`)) {
     return;
   }
 
   isPaying.value = true;
   try {
-    // 1. 상태를 'purchasing' (4. 1688 공장 구매진행)으로 변경
+    // 2. 예치금 차감 트랜잭션 적용 (로컬 + Supabase profiles.balance 차감 + transactions 테이블 기록)
+    await applyBalanceTransaction(-totalCost, {
+      type: 'order_payment',
+      title: `1688 1차 상품대금 결제 (${order.orderNumber || order.id})`,
+      description: `1차 DDP 상품대금 결제 승인 (주문번호: ${order.orderNumber || order.id})`,
+      orderId: order.id,
+      orderNumber: order.orderNumber,
+      buyerEmail: currentUser.value?.email || order.buyerInfo?.email || ''
+    });
+
+    // 3. 상태를 'purchasing' (4. 1688 공장 구매진행)으로 변경
     const nextStatus = 'purchasing';
     order.status = nextStatus;
 
-    // 2. Supabase 업데이트
+    // 4. Supabase DB 업데이트 (문자열 orderId로 인한 applications 400 에러 원천 방어)
     if (isSupabaseConfigured() && order.id) {
       try {
-        await supabase
-          .from('applications')
-          .update({
-            status: nextStatus,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', order.id);
-      } catch (e) {
-        console.warn('Supabase status update error:', e);
-      }
-    }
-
-    // 3. LocalStorage 업데이트
-    try {
-      const raw = localStorage.getItem('euchs_erp_submitted_orders');
-      if (raw) {
-        const localOrders = JSON.parse(raw);
-        const idx = localOrders.findIndex(o => o.id === order.id || o.orderNumber === order.orderNumber);
-        if (idx !== -1) {
-          localOrders[idx].status = nextStatus;
-          localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(localOrders));
+        const isNumericId = !isNaN(Number(order.id)) && Number(order.id) > 0;
+        if (isNumericId) {
+          await supabase
+            .from('applications')
+            .update({
+              status: nextStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', Number(order.id));
+        } else {
+          const orderNum = order.orderNumber || String(order.id);
+          await supabase
+            .from('orders')
+            .update({
+              status: nextStatus,
+              updated_at: new Date().toISOString()
+            })
+            .eq('order_number', orderNum);
         }
+      } catch (e) {
+        console.warn('[executeInstantPayment] Supabase status update notice:', e);
       }
-    } catch (e) {
-      console.warn('LocalStorage status update error:', e);
     }
 
-    // 4. 이벤트 통지
+    // 5. LocalStorage 및 주문 목록 동기화
+    const target = orders.value.find(o => o.id === order.id || o.orderNumber === order.orderNumber);
+    if (target) target.status = nextStatus;
+    saveStoredOrders(orders.value);
+
+    // 6. 전역 동기화 이벤트 통지
     window.dispatchEvent(new Event('storage'));
+    window.dispatchEvent(new CustomEvent('euchs-balance-update'));
+    window.dispatchEvent(new CustomEvent('euchs-balance-updated'));
     window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
-      detail: { appId: order.id, status: nextStatus }
+      detail: { appId: order.id, orderId: order.id, status: nextStatus }
     }));
 
-    alert(`결제가 성공적으로 승인되었습니다!\n(발주번호: ${order.orderNumber})\n중국 현지 1688 공장 구매 진행(사입) 단계로 진입합니다.`);
+    alert(`✅ 결제가 성공적으로 승인되었습니다!\n\n- 결제금액: ₩${totalWon}원\n- 차감 후 예치금 잔액: ₩${formatNumber(userBalance.value)}원\n- 발주번호: ${order.orderNumber || order.id}\n\n중국 현지 1688 공장 구매 진행(사입) 단계로 진입합니다.`);
     closeDetailModal();
   } catch (err) {
     console.error('Payment error:', err);
-    alert('결제 처리 중 오류가 발생했습니다: ' + err.message);
+    alert('결제 처리 중 오류가 발생했습니다: ' + (err.message || err));
   } finally {
     isPaying.value = false;
   }
@@ -2861,15 +2901,8 @@ function exportSingleQuote(order) {
 }
 
 // ---------------------------------------------------------
-// 2차 결제 & 바코드 업로드 모달 상태 및 핸들러 (Step 6 검수완료)
+// 2차 결제 & 바코드 업로드 모달 핸들러 (Step 6 검수완료)
 // ---------------------------------------------------------
-const isSecondPaymentModalOpen = ref(false);
-const selectedSecondPaymentOrder = ref(null);
-const uploadedBarcodeFile = ref(null);
-const barcodeFileInputRef = ref(null);
-const isProcessingPayment = ref(false);
-const previewPhotoUrl = ref(null);
-
 const defaultInspectionPhotos = [
   {
     url: 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&auto=format&fit=crop&q=80',
@@ -2960,20 +2993,36 @@ async function handleConfirmSecondPayment() {
         orders.value[idx].barcodeFile = uploadedBarcodeFile.value || null;
       }
 
-      // Update in Supabase if configured
+      // Update in Supabase if configured (400 방어: 숫자 ID일 때만 applications.id 조회)
       if (isSupabaseConfigured()) {
         try {
-          await supabase
-            .from('applications')
-            .update({
-              status: 'shipping_ready',
-              details: {
-                ...(order.details || {}),
+          const isNumericId = !isNaN(Number(order.id)) && Number(order.id) > 0;
+          if (isNumericId) {
+            await supabase
+              .from('applications')
+              .update({
                 status: 'shipping_ready',
-                barcodeFile: uploadedBarcodeFile.value || null
-              }
-            })
-            .eq('id', order.id);
+                details: {
+                  ...(order.details || {}),
+                  status: 'shipping_ready',
+                  barcodeFile: uploadedBarcodeFile.value || null
+                }
+              })
+              .eq('id', Number(order.id));
+          } else {
+            const orderNum = order.orderNumber || String(order.id);
+            await supabase
+              .from('orders')
+              .update({
+                status: 'shipping_ready',
+                details: {
+                  ...(order.details || {}),
+                  status: 'shipping_ready',
+                  barcodeFile: uploadedBarcodeFile.value || null
+                }
+              })
+              .eq('order_number', orderNum);
+          }
         } catch (e) {
           console.warn('Supabase update warning:', e);
         }
@@ -3017,14 +3066,6 @@ const PRESET_CATEGORIES = [
   '가전/생활용품', '의류/패션', '주방/식기', '뷰티/헬스',
   '완구/스포츠', '사무/문구', '식품/음료', '자동차용품', '기타',
 ];
-
-const isBulkExcelModalOpen   = ref(false);
-const isCategoryBatchModalOpen = ref(false);
-const bulkParsedItems  = ref([]);
-const bulkSelectedIdxs = ref([]);
-const bulkDragOver     = ref(false);
-const bulkCategoryFilter = ref('');
-const batchCategoryInput = ref('');
 
 const bulkCategories = computed(() => {
   const cats = bulkParsedItems.value.map(i => i.category).filter(Boolean);
