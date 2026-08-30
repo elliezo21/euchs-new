@@ -47,18 +47,30 @@ function _saveToStorage(balance) {
 // Public API
 // ----------------------------------------------------------------
 
+let isFetchingBalance = false;
+let lastFetchTime = 0;
+
 /**
  * Supabase profiles.balance 조회 → 실패 시 localStorage 폴백
+ * - 무한 폴링 루프 방어: 최소 5초 쿨다운 디바운스 적용
  * - user.id가 UUID일 때 id로 조회, 아닐 경우 email로 안전 조회
  */
-export async function loadBalance() {
+export async function loadBalance(force = false) {
+  const now = Date.now();
+  if (isFetchingBalance) return userBalance.value;
+  if (!force && now - lastFetchTime < 5000) return userBalance.value;
+
+  isFetchingBalance = true;
+  lastFetchTime = now;
   isBalanceLoading.value = true;
+
   try {
     const user = currentUser.value;
     if (isSupabaseConfigured() && user && user.id !== 'demo-buyer-01') {
-      let query = supabase.from('profiles').select('balance');
       const isUUID = isValidUUID(user.id);
       const userMail = user.email ? String(user.email).trim() : '';
+
+      let query = supabase.from('profiles').select('balance');
 
       if (isUUID) {
         query = query.eq('id', user.id);
@@ -75,6 +87,8 @@ export async function loadBalance() {
           userBalance.value = Number(data.balance);
           _saveToStorage(userBalance.value);
           return userBalance.value;
+        } else if (error) {
+          console.debug('[balanceStore] Profile query notice:', error.message);
         }
       }
     }
@@ -82,11 +96,20 @@ export async function loadBalance() {
     console.debug('[balanceStore] Supabase 잔액 조회 notice:', e);
   } finally {
     isBalanceLoading.value = false;
+    isFetchingBalance = false;
   }
 
   // 폴백: localStorage 값 사용
   userBalance.value = _loadFromStorage();
   return userBalance.value;
+}
+
+/**
+ * 특정 사용자 대상 잔액 안전 조회 헬퍼
+ */
+export async function fetchUserBalance(user) {
+  if (!user) return userBalance.value;
+  return loadBalance(true);
 }
 
 /**

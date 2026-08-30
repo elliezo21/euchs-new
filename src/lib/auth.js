@@ -771,6 +771,18 @@ export const updateBusinessProfile = async (businessData) => {
         if (!error && data) {
           currentUserProfile.value = { ...(currentUserProfile.value || {}), ...data }
         }
+      } else if (currentUser.value?.email) {
+        const updatePayload = {
+          name: name,
+          company_name: companyName,
+          representative_name: name,
+          business_number: cleanBizNumber,
+          pccc: cleanPccc,
+          address: address,
+          phone: phone,
+          updated_at: new Date().toISOString()
+        }
+        await supabase.from('profiles').update(updatePayload).eq('email', currentUser.value.email)
       }
     } catch (err) {
       console.debug('Supabase updateUser business metadata notice:', err)
@@ -997,6 +1009,18 @@ export const syncUserProfile = async (user) => {
     if (!isTargetUUID) {
       if (existing) {
         currentUserProfile.value = existing
+      }
+      if (user.email) {
+        const updatePayload = {
+          name: meta.full_name || meta.name || user.email?.split('@')[0] || '사용자',
+          company_name: biz.company_name || existing?.company_name || '',
+          representative_name: biz.representative_name || existing?.representative_name || '',
+          business_number: biz.business_number || existing?.business_number || '',
+          pccc: biz.pccc || existing?.pccc || '',
+          phone: meta.phone || meta.mobile || biz.phone || existing?.phone || '',
+          updated_at: new Date().toISOString()
+        }
+        await supabase.from('profiles').update(updatePayload).eq('email', user.email)
       }
       return
     }
