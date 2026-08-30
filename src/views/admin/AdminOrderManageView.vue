@@ -816,7 +816,8 @@ async function loadData() {
     console.warn('[AdminOrderManageView] Supabase fetch error:', err);
   }
 
-  if (activeOrder.value) {
+  // 상세 모달이 열려있는 동안에는 사용자가 편집 중인 activeOrder(품목 제외 등)를 덮어쓰지 않음
+  if (activeOrder.value && !modal.value.detail) {
     const updated = orders.value.find(o => o.id === activeOrder.value.id || o.orderNumber === activeOrder.value.orderNumber);
     if (updated) activeOrder.value = updated;
   }
@@ -868,6 +869,10 @@ function handleReasonChange(order, item, idx) {
     // 1~4 사유 선택 -> 제외 처리
     item.excluded = true;
     item.excludeReason = reason;
+  }
+  if (order?.items && order.items[idx]) {
+    order.items[idx].excluded = item.excluded;
+    order.items[idx].excludeReason = item.excludeReason;
   }
 }
 
