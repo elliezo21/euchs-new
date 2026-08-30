@@ -43,10 +43,8 @@
             class="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400" />
         </div>
         <div class="flex items-center gap-1 flex-wrap">
-          <button @click="filterByStatus('all')" class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition"
-            :class="activeFilter === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">전체</button>
           <button v-for="stage in PIPELINE_STAGES" :key="stage.key" @click="filterByStatus(stage.key)"
-            class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition whitespace-nowrap"
+            class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition whitespace-nowrap cursor-pointer shadow-2xs"
             :class="activeFilter === stage.key ? stage.tabActive : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
             {{ stage.shortLabel }}
             <span v-if="stageCounts[stage.key]" class="ml-1 font-mono">({{ stageCounts[stage.key] }})</span>
@@ -745,7 +743,7 @@ const PIPELINE_STAGES = [
 
 const orders = ref([]);
 const isRefreshing = ref(false);
-const activeFilter = ref('all');
+const activeFilter = ref('quote_pending');
 let realtimeChannel = null;
 
 // URL 쿼리 파라미터(?status=... 또는 ?tab=...) 감지하여 탭 자동 전환
@@ -1002,7 +1000,7 @@ const filteredOrders = computed(() => {
   return list.sort((a,b) => new Date(b.createdAt) - new Date(a.createdAt));
 });
 
-function filterByStatus(k) { activeFilter.value = activeFilter.value === k ? 'all' : k; }
+function filterByStatus(k) { activeFilter.value = k; }
 function getStatusItem(s) { return getOrderStatusItem(s); }
 function isStatus(o, k) { return normalizeOrderStatus(o?.status) === k; }
 function getTotalQty(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i) => s+(Number(i.quantity)||0),0); }
