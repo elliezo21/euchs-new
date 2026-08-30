@@ -220,7 +220,7 @@ export const adminSignIn = async (email, password) => {
     }
 
     // Supabase profiles 조회
-    if (authUser) {
+    if (authUser && isValidUUID(authUser.id)) {
       try {
         const { data: pData } = await supabase
           .from('profiles')
@@ -229,7 +229,7 @@ export const adminSignIn = async (email, password) => {
           .maybeSingle()
         if (pData) userProfile = pData
       } catch (e) {}
-    } else if (ADMIN_EMAILS.includes(emailTrimmed)) {
+    } else if (emailTrimmed) {
       try {
         const { data: pData } = await supabase
           .from('profiles')
@@ -967,17 +967,20 @@ export const signOut = async () => {
 export const fetchUserProfile = async (userIdOrUser) => {
   if (!userIdOrUser || !isSupabaseConfigured()) return null
   const userId = typeof userIdOrUser === 'string' ? userIdOrUser : userIdOrUser?.id
-  const userEmail = typeof userIdOrUser === 'object' ? userIdOrUser?.email : currentUser.value?.email
+  const userEmail = typeof userIdOrUser === 'object' ? (userIdOrUser?.email || currentUser.value?.email) : currentUser.value?.email
   if (userId === 'demo-buyer-01') return null
+
+  const isUUID = userId && isValidUUID(userId)
+  const cleanEmail = userEmail ? String(userEmail).trim().toLowerCase() : ''
+
+  if (!isUUID && !cleanEmail) return null
 
   try {
     let query = supabase.from('profiles').select('*')
-    if (isValidUUID(userId)) {
+    if (isUUID) {
       query = query.eq('id', userId)
-    } else if (userEmail) {
-      query = query.eq('email', userEmail)
     } else {
-      return null
+      query = query.eq('email', cleanEmail)
     }
 
     const { data, error } = await query.maybeSingle()
@@ -1005,7 +1008,7 @@ export const syncUserProfile = async (user) => {
     const biz = getUserBusinessInfo(user) || {}
     const existing = await fetchUserProfile(user)
 
-    const isTargetUUID = isValidUUID(user.id) || isValidUUID(existing?.id)
+    const isTargetUUID = (user.id && isValidUUID(user.id)) || (existing?.id && isValidUUID(existing.id))
     if (!isTargetUUID) {
       if (existing) {
         currentUserProfile.value = existing
@@ -1020,16 +1023,16 @@ export const syncUserProfile = async (user) => {
           phone: meta.phone || meta.mobile || biz.phone || existing?.phone || '',
           updated_at: new Date().toISOString()
         }
-        await supabase.from('profiles').update(updatePayload).eq('email', user.email)
+        await supabase.from('profiles').update(updatePayload).eq('email', String(user.email).trim().toLowerCase())
       }
       return
     }
 
-    const profileId = isValidUUID(user.id) ? user.id : existing.id
+    const profileId = (user.id && isValidUUID(user.id)) ? user.id : existing.id
 
     const profilePayload = {
       id: profileId,
-      email: user.email || '',
+      email: user.email ? String(user.email).trim().toLowerCase() : '',
       name: meta.full_name || meta.name || user.email?.split('@')[0] || '사용자',
       company_name: biz.company_name || existing?.company_name || '',
       representative_name: biz.representative_name || existing?.representative_name || '',

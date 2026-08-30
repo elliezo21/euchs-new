@@ -958,7 +958,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import {
   currentSettings,
   fetchSiteSettings,
@@ -1173,9 +1173,9 @@ async function submitStaffForm() {
         updated_at: memberData.updated_at
       }
 
-      if (staffForm.value.id) {
+      if (staffForm.value.id && isValidUUID(staffForm.value.id)) {
         await supabase.from('profiles').update(updatePayload).eq('id', staffForm.value.id)
-      } else {
+      } else if (mail) {
         await supabase.from('profiles').update(updatePayload).eq('email', mail)
       }
 

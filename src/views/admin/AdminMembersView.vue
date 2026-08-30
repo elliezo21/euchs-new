@@ -441,7 +441,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { supabase, isSupabaseConfigured } from '../../lib/supabase'
+import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
 
 const MEMBERS_STORAGE_KEY = 'euchs_admin_members'
 
@@ -620,14 +620,19 @@ async function approveMember(member) {
   saveState()
 
   // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member.id && !String(member.id).startsWith('mem-')) {
+  if (isSupabaseConfigured() && member) {
     try {
-      await supabase.from('profiles').update({
+      const updateData = {
         is_business_verified: true,
         verification_status: 'verified',
         tier: 'business',
         updated_at: new Date().toISOString()
-      }).eq('id', member.id)
+      }
+      if (member.id && isValidUUID(member.id)) {
+        await supabase.from('profiles').update(updateData).eq('id', member.id)
+      } else if (member.email) {
+        await supabase.from('profiles').update(updateData).eq('email', String(member.email).trim().toLowerCase())
+      }
     } catch (e) {
       console.warn('Supabase profile approve error:', e)
     }
@@ -648,14 +653,19 @@ async function rejectMember(member) {
   saveState()
 
   // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member.id && !String(member.id).startsWith('mem-')) {
+  if (isSupabaseConfigured() && member) {
     try {
-      await supabase.from('profiles').update({
+      const updateData = {
         is_business_verified: false,
         verification_status: 'rejected',
         tier: 'general',
         updated_at: new Date().toISOString()
-      }).eq('id', member.id)
+      }
+      if (member.id && isValidUUID(member.id)) {
+        await supabase.from('profiles').update(updateData).eq('id', member.id)
+      } else if (member.email) {
+        await supabase.from('profiles').update(updateData).eq('email', String(member.email).trim().toLowerCase())
+      }
     } catch (e) {
       console.warn('Supabase profile reject error:', e)
     }
@@ -670,9 +680,9 @@ async function saveMemberChanges(member) {
   saveState()
 
   // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member.id && !String(member.id).startsWith('mem-')) {
+  if (isSupabaseConfigured() && member) {
     try {
-      await supabase.from('profiles').update({
+      const updateData = {
         company_name: member.companyName || '',
         representative_name: member.representativeName || '',
         name: member.name || '',
@@ -684,7 +694,12 @@ async function saveMemberChanges(member) {
         verification_status: member.verificationStatus || 'unverified',
         is_business_verified: member.verificationStatus === 'verified',
         updated_at: new Date().toISOString()
-      }).eq('id', member.id)
+      }
+      if (member.id && isValidUUID(member.id)) {
+        await supabase.from('profiles').update(updateData).eq('id', member.id)
+      } else if (member.email) {
+        await supabase.from('profiles').update(updateData).eq('email', String(member.email).trim().toLowerCase())
+      }
     } catch (e) {
       console.warn('Supabase profile update error:', e)
     }

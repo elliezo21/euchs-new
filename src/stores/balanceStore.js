@@ -67,33 +67,29 @@ export async function loadBalance(force = false) {
   try {
     const user = currentUser.value;
     if (isSupabaseConfigured() && user && user.id !== 'demo-buyer-01') {
-      const isUUID = isValidUUID(user.id);
-      const userMail = user.email ? String(user.email).trim() : '';
+      const isUUID = user.id && isValidUUID(user.id);
+      const userMail = user.email ? String(user.email).trim().toLowerCase() : '';
 
-      let query = supabase.from('profiles').select('balance');
+      if (isUUID || userMail) {
+        let query = supabase.from('profiles').select('balance');
 
-      if (isUUID) {
-        query = query.eq('id', user.id);
-      } else if (userMail) {
-        query = query.eq('email', userMail);
-      } else {
-        query = null;
-      }
+        if (isUUID) {
+          query = query.eq('id', user.id);
+        } else {
+          query = query.eq('email', userMail);
+        }
 
-      if (query) {
         const { data, error } = await query.maybeSingle();
 
         if (!error && data && data.balance !== undefined && data.balance !== null) {
           userBalance.value = Number(data.balance);
           _saveToStorage(userBalance.value);
           return userBalance.value;
-        } else if (error) {
-          console.debug('[balanceStore] Profile query notice:', error.message);
         }
       }
     }
   } catch (e) {
-    console.debug('[balanceStore] Supabase 잔액 조회 notice:', e);
+    // 안전한 예외 방어
   } finally {
     isBalanceLoading.value = false;
     isFetchingBalance = false;
