@@ -579,12 +579,23 @@ export async function search1688(queryZh, page = 1, options = {}) {
     const result = await proxyRes.json().catch(() => null)
     if (!result) {
       console.warn(`[1688 Search] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
-    } else if (result.data) {
-      // success=true이든 false이든, data가 있으면 파싱 진행
-      data = result.data
-      console.log(`[1688 Search] Proxy data received. success=${result.success} keys:`, Object.keys(data || {}).slice(0, 8))
     } else {
-      console.warn('[1688 Search] Proxy returned no data:', result.message || JSON.stringify(result).slice(0, 200))
+      // ── 다계층 응답 구조 안전 추출 ──────────────────────────────
+      // 프록시 래퍼: { success, data } / { success, raw } / 또는 결과가 직접 최상위
+      if (result.data && typeof result.data === 'object') {
+        data = result.data
+      } else if (result.raw && typeof result.raw === 'object') {
+        // "return raw data" 경우: { success, raw: {...실제 데이터...} }
+        data = result.raw
+      } else if (result.items || result.item || result.resultList || result.result) {
+        // 프록시 래퍼 없이 최상위가 직접 검색 결과인 경우
+        data = result
+      } else if (result.success !== undefined && !result.data) {
+        // success=true인데 data가 없고 결과 필드도 없는 경우 result 자체 시도
+        data = result
+      }
+      console.log(`[1688 Search] Proxy data received. success=${result.success} dataKeys:`,
+        Object.keys(data || {}).slice(0, 10))
     }
   } catch (err) {
     console.warn('[1688 Search] Proxy fetch error:', err.name === 'AbortError' ? '검색 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.' : err.message)

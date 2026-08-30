@@ -1222,18 +1222,58 @@ const getTodayCacheKey = () =>
 const homeSections = ref([])
 const isHomeSectionsLoading = ref(false)
 
+const SESSION_CACHE_KEY = 'euchs_home_md_best_cache'
+const SESSION_CACHE_DATE_KEY = 'euchs_home_md_best_cache_date'
+
 /**
- * 홈 섹션 데이터 로더 (Daily Cache Engine)
- * - 오늘 날짜 캐시 존재 시 → 즉시 렌더 (API 0건)
- * - 캐시 없음 → 이전 날짜 캐시 삭제 → 섹션당 1회 API (총 4회)
- * - 429 / 네트워크 오류 시 getMockSearchResults() 자동 대체
+ * 이미 수신된 1688 응답에서 상품 배열을 안전하게 추출하는 다계층 파서
+ * 추가 API 호출 없이 클라이언트 메모리의 raw data에서 직접 추출
+ */
+const extract1688Items = (res) => {
+  if (!res) return []
+  if (Array.isArray(res)) return res
+  if (Array.isArray(res.items)) return res.items
+  if (res.items && Array.isArray(res.items.item)) return res.items.item
+  if (res.data && Array.isArray(res.data)) return res.data
+  if (res.data && Array.isArray(res.data.items?.item)) return res.data.items.item
+  if (res.data && Array.isArray(res.data.items)) return res.data.items
+  if (res.raw && Array.isArray(res.raw.items?.item)) return res.raw.items.item
+  if (res.raw && Array.isArray(res.raw.items)) return res.raw.items
+  if (res.raw && Array.isArray(res.raw)) return res.raw
+  if (Array.isArray(res.result?.resultList)) return res.result.resultList
+  if (Array.isArray(res.resultList)) return res.resultList
+  if (Array.isArray(res.item)) return res.item
+  if (res.items && typeof res.items === 'object') return Object.values(res.items)
+  return []
+}
+
+/**
+ * 홈 섹션 데이터 로더 (SessionStorage 24h 캐시 + Daily Cache Engine)
+ * - sessionStorage 캐시(당일) 있으면 → 즉시 렌더 (API 0회)
+ * - localStorage 날짜 캐시 있으면 → 즉시 렌더 (API 0회)
+ * - 캐시 없음 → 섹션당 1회 API (총 4회) 후 sessionStorage + localStorage에 이중 저장
  */
 const loadHomeSections = async () => {
   if (hasSearched.value || isHomeSectionsLoading.value) return
 
   const cacheKey = getTodayCacheKey()
+  const today = new Date().toISOString().slice(0, 10)
 
-  // 1. 오늘 날짜 캐시 있으면 즉시 사용 - 단, 실시간 상품이 있는 경우에만
+  // 0. sessionStorage 24시간 캐시 우선 확인 (탭 이동/새로고침 API 완전 차단)
+  try {
+    const cachedDate = sessionStorage.getItem(SESSION_CACHE_DATE_KEY)
+    const cachedRaw = sessionStorage.getItem(SESSION_CACHE_KEY)
+    if (cachedDate === today && cachedRaw) {
+      const parsed = JSON.parse(cachedRaw)
+      const hasRealItems = Array.isArray(parsed) && parsed.some(sec => sec.items && sec.items.length > 0)
+      if (hasRealItems) {
+        homeSections.value = parsed
+        return
+      }
+    }
+  } catch (e) {}
+
+  // 1. 오늘 날짜 localStorage 캐시 확인 (실제 상품이 있는 경우에만)
   try {
     const cached = localStorage.getItem(cacheKey)
     if (cached) {
@@ -1243,9 +1283,12 @@ const loadHomeSections = async () => {
           sec.items[0]?.imageUrl && !sec.items[0].imageUrl.includes('images.unsplash.com'))
       if (hasRealProducts) {
         homeSections.value = parsed
+        try {
+          sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(parsed))
+          sessionStorage.setItem(SESSION_CACHE_DATE_KEY, today)
+        } catch (e) {}
         return
       } else {
-        // 캐시에 더미 데이터가 있으면 삭제하고 다시 로드
         localStorage.removeItem(cacheKey)
       }
     }
@@ -1260,7 +1303,7 @@ const loadHomeSections = async () => {
     })
   } catch (e) {}
 
-  // 3. 4개 섹션 API 병렬 호출 (총 최대 4회)
+  // 3. 4개 섹션 API 병렬 호출
   isHomeSectionsLoading.value = true
 
   const sectionDefs = [
@@ -1298,8 +1341,38 @@ const loadHomeSections = async () => {
     sectionDefs.map(async (sec) => {
       try {
         const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
-        const items = (res.items || []).slice(0, 8)
-        return { ...sec, items }
+
+        // extract1688Items로 다계층 파싱 (이미 수신된 raw data에서 안전 추출)
+        let extracted = extract1688Items(res)
+
+        // search1688WithTranslation이 정상 반환한 경우 items가 직접 존재
+        if (Array.isArray(res.items) && res.items.length > 0) {
+          extracted = res.items
+        }
+
+        // 상품 필드 안전 매핑 (Uncaught TypeError 방지)
+        const safeItems = extracted.slice(0, 8).map((item, idx) => {
+          const raw = item.raw || item
+          return {
+            id: item.id || item.itemId || raw.num_iid || `item-${idx}`,
+            itemId: item.itemId || item.id || '',
+            titleKo: item.titleKo || item.title || item.titleZh || raw.title || raw.subject || '1688 도매 상품',
+            titleZh: item.titleZh || item.title || raw.title || '',
+            title: item.title || item.titleKo || item.titleZh || raw.title || '1688 도매 상품',
+            imageUrl: item.imageUrl || item.pic_url || item.img || raw.pic_url || raw.picUrl || raw.image || '',
+            price: item.price || item.priceNum || item.priceCny || parseFloat(String(raw.price || '0').replace(/[^0-9.]/g, '')) || 0,
+            priceNum: item.priceNum || item.price || 0,
+            priceFormatted: item.priceFormatted || String(item.price || 0),
+            priceCny: item.priceCny || item.price || 0,
+            minOrder: item.minOrder || item.moq || parseInt(raw.min_num || '1', 10) || 1,
+            sales: item.sales || parseInt(raw.sold_count || raw.volume || '0', 10) || 0,
+            repurchaseRate: item.repurchaseRate || raw.rePurchaseRate || '',
+            detailUrl: item.detailUrl || item.itemUrl || '',
+            company: item.company || raw.nick || raw.shop_name || '1688 공급사',
+          }
+        }).filter(item => item.id && (item.titleKo || item.title))
+
+        return { ...sec, items: safeItems }
       } catch (e) {
         console.warn(`[Mall] Section "${sec.id}" load error:`, e.message)
         return { ...sec, items: [] }
@@ -1310,9 +1383,13 @@ const loadHomeSections = async () => {
   homeSections.value = results
   isHomeSectionsLoading.value = false
 
-  // 실시간 상품이 있는 섹션만 오늘 날짜 캐시로 저장 (빈 결과는 캐시하지 않음)
+  // 실시간 상품이 있는 경우 sessionStorage + localStorage 이중 캐싱
   const hasRealItems = results.some(sec => sec.items && sec.items.length > 0)
   if (hasRealItems) {
+    try {
+      sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(results))
+      sessionStorage.setItem(SESSION_CACHE_DATE_KEY, today)
+    } catch (e) {}
     try {
       localStorage.setItem(cacheKey, JSON.stringify(results))
     } catch (e) {}
