@@ -7,6 +7,8 @@ import { normalizeOrderStatus } from '../lib/orderPipeline';
 import { supabase, isSupabaseConfigured, isValidUUID } from '../lib/supabase';
 import { currentUser } from '../lib/auth';
 
+let _isSyncingOrders = false;
+
 export const STORAGE_KEY_ORDERS = 'orders';
 export const STORAGE_KEY_LEGACY_ORDERS = 'euchs_erp_submitted_orders';
 export const STORAGE_KEY_CART = 'euchs_1688_saved_items';

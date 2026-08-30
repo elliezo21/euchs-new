@@ -228,8 +228,8 @@
     <!-- ============================================================ -->
     <!-- MODAL: 실측 입력 (4→5) -->
     <!-- ============================================================ -->
-    <div v-if="modal.measurement && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
+    <div v-if="modal.measurement && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
+      <div class="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden my-auto" @click.stop>
         <div class="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
           <div>
             <div class="text-[11px] font-bold text-indigo-700 uppercase tracking-wide">📦 4단계 → 5단계 전환</div>
@@ -238,62 +238,196 @@
           <button @click="closeModals" class="p-1.5 rounded-lg hover:bg-indigo-100 text-slate-500 transition cursor-pointer text-lg leading-none">✕</button>
         </div>
         <div class="p-6 space-y-4 text-xs">
-          <div class="p-3 bg-slate-50 rounded-xl border font-mono text-[11px]">
-            <span class="text-slate-500">주문:</span> <span class="font-bold">{{ activeOrder.orderNumber }}</span>
-            <span class="mx-2 text-slate-300">|</span>
-            <span class="text-slate-500">상품:</span> <span class="truncate">{{ activeOrder.items?.[0]?.productName }}</span>
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-2">📐 박스 치수 (가로 × 세로 × 높이, cm)</label>
-            <div class="grid grid-cols-3 gap-2">
-              <input v-model.number="measureForm.lengthCm" type="number" placeholder="가로 (L)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
-              <input v-model.number="measureForm.widthCm" type="number" placeholder="세로 (W)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
-              <input v-model.number="measureForm.heightCm" type="number" placeholder="높이 (H)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
+          <!-- 주문/상품 요약 -->
+          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px]">
+            <div class="flex items-center justify-between">
+              <div>
+                <span class="text-slate-500 font-bold">주문번호:</span> <span class="font-black text-slate-800 ml-1">{{ activeOrder.orderNumber }}</span>
+              </div>
+              <span class="text-indigo-600 font-bold">발주수량 {{ getTotalQty(activeOrder) }}개</span>
+            </div>
+            <div class="text-slate-600 mt-1 truncate font-sans text-xs">
+              {{ activeOrder.items?.[0]?.productName || '1688 수입 품목' }}
             </div>
           </div>
+
+          <!-- 실측 모드 선택 (개별 단품 vs 카톤 박스) -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block font-bold text-slate-700">📐 실측 치수 기준 선택</label>
+              <span class="text-[11px] text-slate-400 font-medium">* 입력한 치수의 기준을 선택하세요</span>
+            </div>
+            <div class="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                @click="measureForm.measureMode = 'piece'"
+                class="py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                :class="measureForm.measureMode === 'piece'
+                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
+              >
+                <span>🧴 개별 상품 기준</span>
+                <span class="text-[10px] opacity-80">(치수 × 총수량)</span>
+              </button>
+              <button
+                type="button"
+                @click="measureForm.measureMode = 'carton'"
+                class="py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                :class="measureForm.measureMode === 'carton'
+                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
+                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
+              >
+                <span>📦 1카톤(박스) 기준</span>
+                <span class="text-[10px] opacity-80">(치수 × 카톤수)</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- 치수 입력 3개 -->
+          <div>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block font-bold text-slate-700">
+                {{ measureForm.measureMode === 'piece' ? '개별 단품 치수 (cm)' : '1개 카톤(박스) 치수 (cm)' }}
+              </label>
+              <span v-if="calcUnitCbm > 0" class="text-[11px] text-indigo-600 font-mono font-bold">
+                1개 부피: {{ calcUnitCbm.toFixed(6) }} CBM
+              </span>
+            </div>
+            <div class="grid grid-cols-3 gap-2">
+              <div>
+                <input v-model.number="measureForm.lengthCm" type="number" step="0.1" placeholder="가로 (L)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
+                <span class="text-[10px] text-slate-400 mt-0.5 block text-center">가로 (cm)</span>
+              </div>
+              <div>
+                <input v-model.number="measureForm.widthCm" type="number" step="0.1" placeholder="세로 (W)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
+                <span class="text-[10px] text-slate-400 mt-0.5 block text-center">세로 (cm)</span>
+              </div>
+              <div>
+                <input v-model.number="measureForm.heightCm" type="number" step="0.1" placeholder="높이 (H)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
+                <span class="text-[10px] text-slate-400 mt-0.5 block text-center">높이 (cm)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 무게, 카톤수, 총수량 -->
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="block font-bold text-slate-700 mb-1">실측 무게 (kg) *</label>
-              <input v-model.number="measureForm.weightKg" type="number" step="0.1" placeholder="예: 42.5" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
+              <label class="block font-bold text-slate-700 mb-1">총 실측 무게 (kg) *</label>
+              <input v-model.number="measureForm.weightKg" type="number" step="0.1" placeholder="예: 42.5" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs font-bold text-slate-900" />
             </div>
             <div>
-              <label class="block font-bold text-slate-700 mb-1">카톤 수 (CTN)</label>
-              <input v-model.number="measureForm.cartons" type="number" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
+              <label class="block font-bold text-slate-700 mb-1" :class="measureForm.measureMode === 'carton' ? 'text-indigo-700' : ''">
+                카톤 수 (CTN) {{ measureForm.measureMode === 'carton' ? '★' : '' }}
+              </label>
+              <input v-model.number="measureForm.cartons" type="number" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
             </div>
             <div>
-              <label class="block font-bold text-slate-700 mb-1">총 수량 (PCS)</label>
-              <input v-model.number="measureForm.totalPcs" type="number" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
+              <label class="block font-bold text-slate-700 mb-1" :class="measureForm.measureMode === 'piece' ? 'text-indigo-700' : ''">
+                총 수량 (PCS) {{ measureForm.measureMode === 'piece' ? '★' : '' }}
+              </label>
+              <input v-model.number="measureForm.totalPcs" type="number" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
             </div>
           </div>
-          <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-xl space-y-2 font-mono text-xs">
+
+          <!-- CBM 및 2차 정산 청구 금액 요약 박스 -->
+          <div class="p-4 bg-indigo-50/80 border border-indigo-200 rounded-2xl space-y-2.5 font-mono text-xs shadow-xs">
             <div class="flex justify-between items-center">
-              <span class="text-slate-600">산출 CBM (L×W×H/1,000,000)</span>
-              <span class="font-black text-indigo-800 text-sm">{{ calcCbmFromMeasure.toFixed(4) }} CBM</span>
+              <div>
+                <span class="text-slate-600 font-bold block text-xs">산출 총 CBM</span>
+                <span class="text-[10px] text-slate-500 font-normal">
+                  <template v-if="measureForm.measureMode === 'piece'">
+                    {{ calcUnitCbm.toFixed(6) }} CBM × {{ measureForm.totalPcs || 1 }}개
+                  </template>
+                  <template v-else>
+                    {{ calcUnitCbm.toFixed(6) }} CBM × {{ measureForm.cartons || 1 }}박스
+                  </template>
+                </span>
+              </div>
+              <span class="font-black text-indigo-700 text-base">{{ calcCbmFromMeasure.toFixed(4) }} CBM</span>
             </div>
-            <div class="grid grid-cols-3 gap-2 text-center text-[11px] pt-2 border-t border-indigo-200">
+            <div class="grid grid-cols-3 gap-2 text-center text-[11px] pt-2 border-t border-indigo-200/80">
               <div>
-                <div class="text-slate-400">해운 LCL 운임</div>
-                <div class="font-black text-slate-800">₩{{ fmtN(measureShipping) }}</div>
+                <div class="text-slate-500">해운 LCL 운임</div>
+                <div class="font-black text-slate-800 mt-0.5">₩{{ fmtN(measureShipping) }}</div>
+                <div class="text-[9px] text-slate-400">최소 0.05 CBM 기준</div>
               </div>
               <div>
-                <div class="text-slate-400">관부가세 예상</div>
-                <div class="font-black text-slate-800">₩{{ fmtN(measureTax) }}</div>
+                <div class="text-slate-500">관부가세 예상 (18%)</div>
+                <div class="font-black text-slate-800 mt-0.5">₩{{ fmtN(measureTax) }}</div>
+                <div class="text-[9px] text-slate-400">1차 상품대금 기준</div>
               </div>
               <div>
-                <div class="text-slate-400">2차 청구 합계</div>
-                <div class="font-black text-indigo-700 text-sm">₩{{ fmtN(measureTotal) }}</div>
+                <div class="text-indigo-600 font-bold">2차 청구 합계</div>
+                <div class="font-black text-indigo-700 text-sm mt-0.5">₩{{ fmtN(measureTotal) }}</div>
+                <div class="text-[9px] text-indigo-500">바이어 예치금 청구</div>
               </div>
             </div>
           </div>
+
+          <!-- 검수 실사 사진 업로드 (드래그 & 드롭 + 파일 선택) -->
           <div>
-            <label class="block font-bold text-slate-700 mb-1">📸 검수 실사 사진 URL (쉼표로 구분, 선택)</label>
-            <textarea v-model="measureForm.photoUrls" rows="2" placeholder="https://... , https://..." class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 text-xs font-mono resize-none"></textarea>
-            <p class="text-[10px] text-slate-400 mt-1">입력 시 고객 화면에 검수 사진으로 자동 표시</p>
+            <div class="flex items-center justify-between mb-1.5">
+              <label class="block font-bold text-slate-700">📸 검수 실사 사진 등록</label>
+              <span class="text-[11px] text-slate-400">등록된 사진: {{ measurePhotos.length }}장</span>
+            </div>
+
+            <!-- 숨겨진 파일 인풋 -->
+            <input
+              type="file"
+              ref="photoFileInput"
+              multiple
+              accept="image/*"
+              class="hidden"
+              @change="handlePhotoSelect"
+            />
+
+            <!-- 드래그 앤 드롭 영역 -->
+            <div
+              @dragover.prevent
+              @drop.prevent="handlePhotoDrop"
+              @click="triggerPhotoUpload"
+              class="border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/30 hover:bg-indigo-50/60 rounded-2xl p-4 text-center cursor-pointer transition select-none flex flex-col items-center justify-center gap-1.5"
+            >
+              <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-base">
+                📷
+              </div>
+              <div class="text-xs font-bold text-slate-700">
+                <span class="text-indigo-600 underline">클릭하여 사진 선택</span> 또는 사진 파일을 여기로 드래그하세요
+              </div>
+              <div class="text-[10px] text-slate-400">
+                JPG, PNG, WEBP 지원 · 다중 선택 가능 · 고객 화면에 실물 검수 사진으로 자동 노출
+              </div>
+            </div>
+
+            <!-- 업로드된 사진 썸네일 그리드 -->
+            <div v-if="measurePhotos.length > 0" class="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
+              <div
+                v-for="(photo, pIdx) in measurePhotos"
+                :key="pIdx"
+                class="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100"
+              >
+                <img :src="photo.url" class="w-full h-full object-cover" />
+                <button
+                  type="button"
+                  @click.stop="removePhoto(pIdx)"
+                  class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center transition cursor-pointer"
+                  title="사진 삭제"
+                >
+                  ✕
+                </button>
+                <div class="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[9px] text-white truncate text-center">
+                  검수 {{ pIdx + 1 }}
+                </div>
+              </div>
+            </div>
           </div>
         </div>
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
           <button @click="closeModals" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer">취소</button>
-          <button @click="submitMeasurement" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-md cursor-pointer">📦 2차 정산 청구 (5단계 전환)</button>
+          <button @click="submitMeasurement" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-md cursor-pointer flex items-center gap-1.5">
+            <span>📦</span>
+            <span>2차 정산 청구 (5단계 전환)</span>
+          </button>
         </div>
       </div>
     </div>
@@ -762,7 +896,10 @@ const searchQuery = ref('');
 const activeOrder = ref(null);
 const modal = ref({ quoteApproval: false, measurement: false, blForm: false, trackingForm: false, detail: false });
 const quoteForm = ref({ priceCny: 0, quantity: 100, exchangeRate: 226.19, agencyFeeRate: 8, memo: '' });
-const measureForm = ref({ lengthCm: 0, widthCm: 0, heightCm: 0, weightKg: 0, cartons: 1, totalPcs: 100, photoUrls: '' });
+const measureForm = ref({ measureMode: 'piece', lengthCm: 0, widthCm: 0, heightCm: 0, weightKg: 0, cartons: 1, totalPcs: 100 });
+const measurePhotos = ref([]);
+const photoFileInput = ref(null);
+const isUploadingPhoto = ref(false);
 const blForm = ref({ blNumber: '', cargoMgtNo: '', vesselName: '', eta: '', ftaStatus: 'none' });
 const trackingForm = ref({ deliveryType: 'parcel', carrier: '경동택배', trackingNumber: '', fcCenter: '' });
 const excludeReasonMap = ref({});
@@ -1059,7 +1196,95 @@ function openQuoteApproval(o) {
   modal.value.quoteApproval = true;
 }
 
-function openMeasurementForm(o) { activeOrder.value=o; measureForm.value={lengthCm:0,widthCm:0,heightCm:0,weightKg:0,cartons:1,totalPcs:getTotalQty(o),photoUrls:''}; modal.value.measurement=true; }
+// ----------------------------------------------------
+// 검수 실사 사진 업로드 핸들러 (드래그 & 드롭 + 파일 선택 + Base64 Fallback)
+// ----------------------------------------------------
+function triggerPhotoUpload() {
+  if (photoFileInput.value) {
+    photoFileInput.value.click();
+  }
+}
+
+async function handlePhotoFile(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  
+  // 1. Supabase Storage 'notices' 버킷 업로드 시도
+  try {
+    if (isSupabaseConfigured()) {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fileName = `inspection_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const { data, error } = await supabase.storage.from('notices').upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
+      if (!error && data?.path) {
+        const { data: publicUrlData } = supabase.storage.from('notices').getPublicUrl(data.path);
+        if (publicUrlData?.publicUrl) {
+          measurePhotos.value.push({ url: publicUrlData.publicUrl, name: file.name });
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.debug('[handlePhotoFile] Storage fallback to base64:', e);
+  }
+
+  // 2. Base64 Fallback (100% 안정적 동작)
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    measurePhotos.value.push({ url: e.target.result, name: file.name });
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handlePhotoSelect(e) {
+  const files = e.target.files;
+  if (!files || files.length === 0) return;
+  isUploadingPhoto.value = true;
+  for (let i = 0; i < files.length; i++) {
+    await handlePhotoFile(files[i]);
+  }
+  isUploadingPhoto.value = false;
+  if (photoFileInput.value) photoFileInput.value.value = '';
+}
+
+async function handlePhotoDrop(e) {
+  const files = e.dataTransfer.files;
+  if (!files || files.length === 0) return;
+  isUploadingPhoto.value = true;
+  for (let i = 0; i < files.length; i++) {
+    await handlePhotoFile(files[i]);
+  }
+  isUploadingPhoto.value = false;
+}
+
+function removePhoto(idx) {
+  measurePhotos.value.splice(idx, 1);
+}
+
+function openMeasurementForm(o) {
+  activeOrder.value = o;
+  const totalQty = getTotalQty(o) || (o.items?.[0]?.quantity || 100);
+  const existing = o.measuredData || {};
+  
+  measureForm.value = {
+    measureMode: existing.measureMode || (existing.cartons && existing.cartons > 1 ? 'carton' : 'piece'),
+    lengthCm: existing.lengthCm || 0,
+    widthCm: existing.widthCm || 0,
+    heightCm: existing.heightCm || 0,
+    weightKg: existing.weightKg || 0,
+    cartons: existing.cartons || 1,
+    totalPcs: existing.totalPcs || totalQty
+  };
+
+  const rawPhotos = Array.isArray(o.inspectionPhotos) ? o.inspectionPhotos : (o.inspection_photos || []);
+  measurePhotos.value = rawPhotos.map((p, idx) => {
+    if (typeof p === 'string') return { url: p, name: `검수 사진 ${idx + 1}` };
+    return { url: p.url || '', name: p.caption || `검수 사진 ${idx + 1}` };
+  }).filter(p => p.url);
+
+  modal.value.measurement = true;
+}
 function openBLForm(o) { activeOrder.value=o; const eta=new Date(); eta.setDate(eta.getDate()+14); blForm.value={blNumber:'',cargoMgtNo:'',vesselName:'',eta:eta.toISOString().split('T')[0],ftaStatus:'none'}; modal.value.blForm=true; }
 function openTrackingForm(o) { activeOrder.value=o; trackingForm.value={deliveryType:'parcel',carrier:'경동택배',trackingNumber:'',fcCenter:''}; modal.value.trackingForm=true; }
 function openDetail(o) {
@@ -1168,19 +1393,49 @@ async function startPurchasing(o) {
   }
 }
 
-const calcCbmFromMeasure = computed(() => { const f=measureForm.value; if(!f.lengthCm||!f.widthCm||!f.heightCm)return 0; return (f.lengthCm*f.widthCm*f.heightCm)/1000000; });
-const measureShipping = computed(() => Math.round(Math.max(0.05,calcCbmFromMeasure.value)*85000));
-const measureTax = computed(() => activeOrder.value ? Math.round(calcCost(activeOrder.value)*0.18) : 0);
+// ----------------------------------------------------
+// CBM 계산식 (단품 부피 × 총수량 OR 카톤 부피 × 카톤수)
+// ----------------------------------------------------
+const calcUnitCbm = computed(() => {
+  const f = measureForm.value;
+  if (!f.lengthCm || !f.widthCm || !f.heightCm) return 0;
+  return (Number(f.lengthCm) * Number(f.widthCm) * Number(f.heightCm)) / 1000000;
+});
+
+const calcCbmFromMeasure = computed(() => {
+  const f = measureForm.value;
+  const unit = calcUnitCbm.value;
+  if (unit <= 0) return 0;
+  if (f.measureMode === 'piece') {
+    const qty = Math.max(1, Number(f.totalPcs) || 1);
+    return Number((unit * qty).toFixed(4));
+  } else {
+    const ctn = Math.max(1, Number(f.cartons) || 1);
+    return Number((unit * ctn).toFixed(4));
+  }
+});
+
+const measureShipping = computed(() => Math.round(Math.max(0.05, calcCbmFromMeasure.value) * 85000));
+const measureTax = computed(() => activeOrder.value ? Math.round(calcCost(activeOrder.value) * 0.18) : 0);
 const measureTotal = computed(() => measureShipping.value + measureTax.value);
 
 async function submitMeasurement() {
-  if (!measureForm.value.weightKg) { showToast('실측 무게를 입력해 주세요.','error'); return; }
+  if (!measureForm.value.weightKg) { showToast('실측 무게를 입력해 주세요.', 'error'); return; }
   const cbm = calcCbmFromMeasure.value || Number(getCbm(activeOrder.value));
-  const photos = measureForm.value.photoUrls ? measureForm.value.photoUrls.split(',').map((url,i)=>({url:url.trim(),caption:`검수 사진 ${i+1}`})).filter(p=>p.url) : [];
+  
+  const photos = measurePhotos.value.map((p, i) => ({
+    url: p.url,
+    caption: `검수 사진 ${i + 1}`
+  }));
   
   try {
-    await updateOrderStatus(activeOrder.value.id, 'inspection_done', {
+    const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
+    await updateOrderStatus(targetOrderId, 'inspection_done', {
       measuredData: {
+        lengthCm: measureForm.value.lengthCm,
+        widthCm: measureForm.value.widthCm,
+        heightCm: measureForm.value.heightCm,
+        measureMode: measureForm.value.measureMode,
         weightKg: measureForm.value.weightKg,
         cbm: Number(cbm.toFixed(4)),
         cartons: measureForm.value.cartons,
@@ -1188,7 +1443,8 @@ async function submitMeasurement() {
         defectCount: 0,
         inspectionDate: new Date().toLocaleString('ko-KR')
       },
-      inspectionPhotos: photos.length ? photos : (activeOrder.value.inspectionPhotos || []),
+      inspectionPhotos: photos,
+      inspection_photos: photos,
       secondPayment: {
         shippingFeeKrw: measureShipping.value,
         customsFeeKrw: measureTax.value,
