@@ -897,18 +897,36 @@ function cancelOrderEntirely(order) {
   closeModals();
 }
 
-function saveDetailDraft() {
+async function saveDetailDraft() {
   if (!activeOrder.value) return;
 
+  const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
+  const orderNum = activeOrder.value.orderNumber || targetOrderId;
+  const items = JSON.parse(JSON.stringify(activeOrder.value.items || []));
+
   const list = getStoredOrders();
-  const target = list.find(o => o.id === activeOrder.value.id || o.orderNumber === activeOrder.value.orderNumber);
+  const target = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
   if (target) {
-    target.items = JSON.parse(JSON.stringify(activeOrder.value.items || []));
-    saveStoredOrders(list); // 1회만 이벤트 디스패치 및 일괄 저장
+    target.items = items;
+    saveStoredOrders(list);
   }
 
-  loadData();
-  showToast('발주 품목 상태 및 견적액이 저장되었습니다.', 'success');
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase
+        .from('orders')
+        .update({
+          items: items,
+          updated_at: new Date().toISOString()
+        })
+        .eq('order_number', orderNum);
+    } catch (e) {
+      console.debug('[saveDetailDraft] Supabase update notice:', e);
+    }
+  }
+
+  await loadData();
+  showToast('발주 품목 상태 및 견적액이 안전하게 저장되었습니다.', 'success');
   closeModals();
 }
 

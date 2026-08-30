@@ -99,10 +99,12 @@ async function _syncOrdersToSupabase(ordersList) {
     for (const o of ordersList.slice(0, 15)) {
       const buyerInfoObj = o.buyerInfo || {};
       const orderNo = o.orderNumber || o.orderId || o.id;
+      const orderId = String(o.id || orderNo);
 
       // 1. orders 테이블 upsert
       try {
         const orderRow = {
+          id: orderId,
           order_number: orderNo,
           inbound_no: o.inboundNo || `INB-YW-${String(orderNo).replace(/[^0-9]/g, '')}`,
           user_id: isUUID ? user.id : null,
