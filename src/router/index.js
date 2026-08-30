@@ -12,7 +12,6 @@ import NoticeView from '../views/community/NoticeView.vue'
 import FaqView from '../views/community/FaqView.vue'
 import AdminView from '../views/admin/AdminViewNew.vue'
 import AdminLoginView from '../views/admin/AdminLoginView.vue'
-import AdminWarehouseView from '../views/admin/AdminWarehouseView.vue'
 import CalculatorView from '../views/tools/CalculatorView.vue'
 import Lab1688View from '../views/Lab1688View.vue'
 import MallView from '../views/MallView.vue'
@@ -470,6 +469,35 @@ router.beforeEach(async (to, from, next) => {
 
   // 일반 공개 라우트 통과
   next()
+})
+
+// ── Dynamic chunk load failure auto-recovery ────────────────────────────
+// Vercel 재배포 후 구형 청크 해시 불일치로 발생하는 "Failed to fetch
+// dynamically imported module" 에러를 감지해 자동으로 페이지를 재로드합니다.
+// 무한 루프 방지: sessionStorage 플래그가 있으면 두 번째 재로드를 막습니다.
+router.onError((error, to) => {
+  const isChunkLoadFailed =
+    error?.message?.includes('Failed to fetch dynamically imported module') ||
+    error?.message?.includes('Importing a module script failed') ||
+    error?.message?.includes('Unable to preload CSS for') ||
+    error?.name === 'ChunkLoadError'
+
+  if (isChunkLoadFailed) {
+    const targetPath = to?.fullPath || window.location.pathname
+    console.warn('[Router] Chunk load failed. Auto reloading to fetch latest build chunks:', targetPath)
+
+    const reloadKey = `euchs_chunk_reload_${targetPath}`
+    if (!sessionStorage.getItem(reloadKey)) {
+      sessionStorage.setItem(reloadKey, '1')
+      // 기존 청크 캐시 무효화를 위해 하드 리로드
+      window.location.href = targetPath
+    } else {
+      // 두 번 이상 실패하면 플래그를 제거하고 루트로 이동 (무한 루프 안전망)
+      sessionStorage.removeItem(reloadKey)
+      console.warn('[Router] Chunk reload retry failed. Navigating to home.')
+      window.location.href = '/'
+    }
+  }
 })
 
 // 타이틀 & 파비콘 동적 분기 (관리자 vs 사용자)

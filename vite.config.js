@@ -328,9 +328,14 @@ export default defineConfig(({ mode }) => {
       open: true
     },
     build: {
-      chunkSizeWarningLimit: 1000,
+      // 청크 사이즈 경고 임계값 상향 (MallView 등 대형 청크 경고 억제)
+      chunkSizeWarningLimit: 1600,
       rollupOptions: {
         output: {
+          // 청크 파일명에 [hash]를 명시적으로 포함 → 배포 후 브라우저 캐시 자동 무효화 보장
+          chunkFileNames: 'assets/[name]-[hash].js',
+          entryFileNames: 'assets/[name]-[hash].js',
+          assetFileNames: 'assets/[name]-[hash].[ext]',
           manualChunks: {
             'vue-vendor': ['vue', 'vue-router'],
             'supabase-vendor': ['@supabase/supabase-js']
