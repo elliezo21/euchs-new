@@ -611,45 +611,62 @@ export async function search1688(queryZh, page = 1, options = {}) {
   try {
     const resData = data || {}
 
-    // OneBound 에러 응답(4005, 4000 등)인 경우 빈 결과 반환
-    if (resData.error_code || resData.error || resData.reason?.includes('已到期')) {
-      console.warn(`[1688 Search] OneBound error (${resData.error_code}): ${resData.reason || resData.error}. Returning empty results.`)
-      return { items: [], total: 0, page, pageSize: 40, query, error: resData.error_code }
+    // OneBound 에러 응답 검출 — 0000/ok 는 정상 성공, 4005/4000 만 에러
+    const obErrCode = String(resData.error_code || '').trim()
+    const obErrField = String(resData.error || '').trim().toLowerCase()
+    const obReason = String(resData.reason || resData.message || '').toLowerCase()
+    const isSuccess = obErrCode === '0' || obErrCode === '0000' || obErrField === 'ok' || obErrField === 'success'
+    const isRealError = !isSuccess && (
+      obErrCode === '4005' || obErrCode === '4000' || obErrCode === '4001' ||
+      obReason.includes('已到期') || obReason.includes('expired') || obReason.includes('invalid key')
+    )
+
+    if (isRealError) {
+      console.warn(`[1688 Search] OneBound error (${obErrCode}): ${obReason || obErrField}. Returning empty results.`)
+      return { items: [], total: 0, page, pageSize: 40, query, error: obErrCode }
     }
+
+    // 응답 구조 디버그 로깅
+    console.log('[1688 Search] resData keys:', Object.keys(resData).slice(0, 12))
+    if (resData.items) console.log('[1688 Search] items type:', typeof resData.items, Array.isArray(resData.items) ? `array[${resData.items.length}]` : JSON.stringify(resData.items).slice(0, 120))
 
     // OneBound item_search 응답 다중 구조 탐색:
     let rawList = null
 
     // 1순위: OneBound 표준 — items.item 배열
-    if (resData?.items?.item && Array.isArray(resData.items.item)) {
+    if (resData?.items?.item && Array.isArray(resData.items.item) && resData.items.item.length > 0) {
       rawList = resData.items.item
     }
     // 2순위: items 자체가 배열
-    else if (Array.isArray(resData?.items)) {
+    else if (Array.isArray(resData?.items) && resData.items.length > 0) {
       rawList = resData.items
     }
     // 3순위: 최상위 item 배열
-    else if (Array.isArray(resData?.item)) {
+    else if (Array.isArray(resData?.item) && resData.item.length > 0) {
       rawList = resData.item
     }
     // 4순위: result.resultList
-    else if (Array.isArray(resData?.result?.resultList)) {
+    else if (Array.isArray(resData?.result?.resultList) && resData.result.resultList.length > 0) {
       rawList = resData.result.resultList
     }
     // 5순위: resultList 직접
-    else if (Array.isArray(resData?.resultList)) {
+    else if (Array.isArray(resData?.resultList) && resData.resultList.length > 0) {
       rawList = resData.resultList
     }
     // 6순위: data.items.item (래퍼가 있는 경우)
     else if (resData?.data?.items?.item && Array.isArray(resData.data.items.item)) {
       rawList = resData.data.items.item
     }
-    // 7순위: items.item이 배열이 아닌 경우 Object.values
-    else if (resData?.items?.item && typeof resData.items.item === 'object') {
+    // 7순위: data.items 배열
+    else if (resData?.data?.items && Array.isArray(resData.data.items)) {
+      rawList = resData.data.items
+    }
+    // 8순위: items.item이 배열이 아닌 경우 Object.values
+    else if (resData?.items?.item && typeof resData.items.item === 'object' && !Array.isArray(resData.items.item)) {
       rawList = Object.values(resData.items.item)
     }
-    // 8순위: items가 객체인 경우 Object.values
-    else if (resData?.items && typeof resData.items === 'object') {
+    // 9순위: items가 객체인 경우 Object.values
+    else if (resData?.items && typeof resData.items === 'object' && !Array.isArray(resData.items)) {
       const vals = Object.values(resData.items)
       rawList = vals.length === 1 && Array.isArray(vals[0]) ? vals[0] : vals
     }

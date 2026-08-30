@@ -2045,7 +2045,37 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
       searchTimeout
     ])
 
-    items.value = result.items || []
+    // extract1688Items로 다계층 파싱 — search1688WithTranslation이 이미 정규화된 items를 반환하지만
+    // 만약 비어있으면 rawResponse/result 자체에서 다시 한번 추출 시도
+    let parsedItems = (result.items && result.items.length > 0)
+      ? result.items
+      : extract1688Items(result.rawResponse || result)
+
+    // 필드 안전 매핑 — 카드 렌더에 필요한 최소 필드 보장
+    if (parsedItems.length > 0 && !parsedItems[0].imageUrl && !parsedItems[0].titleKo) {
+      parsedItems = parsedItems.map((item, idx) => {
+        const raw = item.raw || item
+        return {
+          id: item.id || raw.num_iid || raw.item_id || raw.id || `item-${idx}`,
+          itemId: item.itemId || raw.num_iid || '',
+          titleKo: item.titleKo || item.title || raw.title || raw.name || raw.subject || '1688 도매 상품',
+          titleZh: item.titleZh || raw.title || '',
+          title: item.title || item.titleKo || raw.title || '1688 도매 상품',
+          imageUrl: item.imageUrl || raw.pic_url || raw.pic || raw.img || raw.image || '',
+          price: item.price || item.priceNum || parseFloat(String(raw.price || raw.promotion_price || '0').replace(/[^0-9.]/g, '')) || 0,
+          priceNum: item.priceNum || item.price || 0,
+          priceFormatted: item.priceFormatted || String(item.price || 0),
+          minOrder: item.minOrder || item.moq || parseInt(raw.min_num || '1', 10) || 1,
+          sales: item.sales || parseInt(raw.sold_count || raw.salesCount || raw.volume || '0', 10) || 0,
+          repurchaseRate: item.repurchaseRate || '',
+          detailUrl: item.detailUrl || item.itemUrl || '',
+          company: item.company || raw.nick || raw.shop_name || '1688 공급사',
+        }
+      }).filter(item => item.id && (item.titleKo || item.title))
+    }
+
+    console.log(`[Mall1688] Search complete: ${parsedItems.length}개 상품 바인딩`)
+    items.value = parsedItems
     lastQueryKo.value = result.queryKo || rawInput
     lastQueryZh.value = result.queryZh || ''
     hasSearched.value = true

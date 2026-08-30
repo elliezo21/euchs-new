@@ -19,9 +19,21 @@ const FETCH_HEADERS = {
 
 function isErrorResponse(data) {
   if (!data) return true
-  const code = String(data.error_code || data.error || '')
-  const reason = String(data.reason || data.message || data.error_msg || '')
-  return code === '4005' || code === '4000' || reason.includes('已到期') || reason.includes('expired') || !!data.error
+  const code = String(data.error_code || '').trim()
+  const errField = String(data.error || '').trim().toLowerCase()
+  const reason = String(data.reason || data.message || data.error_msg || '').toLowerCase()
+
+  // OneBound 정상 응답: error_code=0000, error=ok → 에러로 처리하지 않음
+  if (code === '0' || code === '0000' || errField === 'ok' || errField === 'success') return false
+
+  // 진짜 에러: 4005(자격증명 만료), 4000(파라미터 오류) 등
+  if (code === '4005' || code === '4000' || code === '4001' || code === '4002') return true
+  if (reason.includes('已到期') || reason.includes('expired') || reason.includes('invalid key')) return true
+
+  // 상품 데이터가 있으면 에러가 아님
+  if (data.item || data.items || data.result) return false
+
+  return false
 }
 
 async function fetchDetail(endpoint, cleanNumericId, OB_KEY, OB_SECRET, OB_SESSION, timeoutMs) {
