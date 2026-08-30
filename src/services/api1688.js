@@ -1041,12 +1041,31 @@ export async function getItemDetail1688(itemId) {
       const resJson = await proxyRes.json().catch(() => null)
       if (!resJson) {
         console.warn(`[1688 Detail] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
-      } else if (resJson.data && resJson.success !== false && !resJson.data.error_code && !resJson.data.error) {
+      } else if (resJson.success === true && resJson.data) {
+        // 프록시가 success=true로 명시한 경우 → 정상 데이터로 수락
         data = resJson.data
         console.log(`[1688 Detail] Proxy OK. keys:`, Object.keys(data || {}).slice(0, 10))
+      } else if (resJson.success === false) {
+        // 프록시가 success=false로 명시한 경우 → 에러 (4013 포함)
+        const ec = resJson.error_code || resJson.data?.error_code || 'unknown'
+        const em = resJson.message || resJson.data?.reason || resJson.data?.error || 'Data unavailable'
+        console.warn(`[1688 Detail] OneBound error (${ec}): ${em}`)
+      } else if (resJson.data) {
+        // success 필드 없어도 data가 있으면 내용 검사
+        const d = resJson.data
+        const errCode = String(d.error_code || '').trim()
+        const errField = String(d.error || '').trim().toLowerCase()
+        const isOk = (errCode === '0' || errCode === '0000' || errField === 'ok' || errField === 'success' || d.item || d.num_iid || d.title)
+        if (isOk) {
+          data = d
+          console.log(`[1688 Detail] Proxy OK (no-success-field). keys:`, Object.keys(data || {}).slice(0, 10))
+        } else {
+          console.warn(`[1688 Detail] OneBound error (${errCode}): ${d.reason || d.error_msg || errField}`)
+        }
       } else {
-        console.warn(`[1688 Detail] OneBound error (${resJson?.error_code || resJson?.data?.error_code || 'unknown'}):`, resJson?.message || resJson?.data?.reason || 'Data unavailable')
+        console.warn(`[1688 Detail] OneBound error (${resJson?.error_code || 'unknown'}):`, resJson?.message || 'Data unavailable')
       }
+
     } catch (err) {
       console.warn('[1688 Detail] Proxy fetch error:', err.name === 'AbortError' ? '응답 지연(10s)' : err.message)
     } finally {
