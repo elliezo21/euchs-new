@@ -462,23 +462,23 @@ async function loadMemberStats() {
     try {
       const { data: dbProfiles, error: profileErr } = await supabase
         .from('profiles')
-        .select('id, role, is_business_verified, verification_status');
+        .select('id, role');
 
       if (!profileErr && Array.isArray(dbProfiles)) {
         const total = dbProfiles.length;
         const verified = dbProfiles.filter(
-          p => p.is_business_verified === true || p.verification_status === 'verified'
+          p => p && (p.role === 'admin' || p.role === 'super_admin' || p.role === 'business' || p.is_business_verified === true || p.verification_status === 'verified')
         ).length;
         const pending = dbProfiles.filter(
-          p => p.verification_status === 'pending'
+          p => p && p.verification_status === 'pending'
         ).length;
-        const rate = total > 0 ? Math.round((verified / total) * 100) : 0;
+        const rate = total > 0 ? Math.round((verified / total) * 100) : 100;
         memberStats.value = { total, verified, pending, rate };
         return;
       }
-      console.warn('[AdminDashboard] Supabase profiles query error, using localStorage fallback:', profileErr);
+      console.warn('[AdminDashboard] Supabase profiles query notice, using fallback:', profileErr?.message || profileErr);
     } catch (e) {
-      console.warn('[AdminDashboard] Supabase profiles fetch failed, using localStorage fallback:', e);
+      console.warn('[AdminDashboard] Supabase profiles fetch notice, using fallback:', e?.message || e);
     }
   }
 

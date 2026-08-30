@@ -483,7 +483,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { userBalance, setBalance, applyBalanceTransaction } from '@/lib/balanceStore'
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
@@ -1060,6 +1060,20 @@ onMounted(() => {
       console.warn('[AdminSettlement] Realtime subscription notice:', e)
     }
   }
+})
+
+onUnmounted(() => {
+  if (realtimeChannel && isSupabaseConfigured()) {
+    try {
+      supabase.removeChannel(realtimeChannel)
+    } catch (e) {
+      console.debug('[AdminSettlement] Channel remove notice:', e)
+    }
+    realtimeChannel = null
+  }
+  window.removeEventListener('euchs-balance-update', loadState)
+  window.removeEventListener('euchs-balance-updated', loadState)
+  window.removeEventListener('storage', loadState)
 })
 </script>
 

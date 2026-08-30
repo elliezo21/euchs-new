@@ -979,11 +979,29 @@ const STAFF_STORAGE_KEY = 'euchs_staff_members'
 const DEFAULT_STAFF_MEMBERS = [
   {
     id: 'staff_master_1',
+    email: 'elleizo21@gmail.com',
+    name: '총괄 대표',
+    role: 'super_admin',
+    department: '경영총괄',
+    position: '대표 (총괄 운영 매니저)',
+    updated_at: '2026-08-01T00:00:00.000Z'
+  },
+  {
+    id: 'staff_master_2',
+    email: 'elliezo21@gmail.com',
+    name: '총괄 대표',
+    role: 'super_admin',
+    department: '경영총괄',
+    position: '대표 (총괄 운영 매니저)',
+    updated_at: '2026-08-01T00:00:00.000Z'
+  },
+  {
+    id: 'staff_master_3',
     email: 'admin@euccompany.com',
     name: '총괄 관리자',
-    role: 'admin',
+    role: 'super_admin',
     department: '경영총괄',
-    position: '대표 / 마스터',
+    position: '대표 (총괄 운영 매니저)',
     updated_at: '2026-08-01T00:00:00.000Z'
   },
   {
@@ -1113,15 +1131,19 @@ async function loadStaffMembers() {
         .in('role', ['admin', 'super_admin', 'staff'])
       
       if (!error && Array.isArray(data) && data.length > 0) {
-        loaded = data.map(p => ({
-          id: p.id,
-          email: p.email,
-          name: p.full_name || p.name || p.company_name || p.email?.split('@')[0],
-          role: p.role,
-          department: p.department || '소싱운영팀',
-          position: p.position || (p.role === 'admin' ? '대표/관리자' : '매니저'),
-          updated_at: p.updated_at || p.created_at || new Date().toISOString()
-        }))
+        loaded = data.map(p => {
+          const mail = String(p.email || '').toLowerCase().trim()
+          const isMaster = mail === 'elleizo21@gmail.com' || mail === 'elliezo21@gmail.com' || mail === 'admin@euccompany.com'
+          return {
+            id: p.id,
+            email: p.email,
+            name: p.full_name || p.name || p.company_name || (isMaster ? '총괄 대표' : p.email?.split('@')[0]),
+            role: isMaster ? 'super_admin' : p.role,
+            department: isMaster ? '경영총괄' : (p.department || '소싱운영팀'),
+            position: isMaster ? '대표 (총괄 운영 매니저)' : (p.position || (p.role === 'admin' ? '대표/관리자' : '매니저')),
+            updated_at: p.updated_at || p.created_at || new Date().toISOString()
+          }
+        })
       }
     }
   } catch (e) {
@@ -1132,18 +1154,44 @@ async function loadStaffMembers() {
   try {
     const raw = localStorage.getItem(STAFF_STORAGE_KEY)
     const localList = raw ? JSON.parse(raw) : DEFAULT_STAFF_MEMBERS
+    const map = new Map()
+    
+    // 기본 직원 먼저 세팅
+    DEFAULT_STAFF_MEMBERS.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
+    
+    // 로컬 스토리지 데이터 병합
     if (Array.isArray(localList)) {
-      const map = new Map()
-      // 기본/로컬 먼저 세팅
       localList.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
-      // DB 데이터 우선 덮어쓰기
-      loaded.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
-      staffList.value = Array.from(map.values())
-    } else {
-      staffList.value = loaded.length > 0 ? loaded : DEFAULT_STAFF_MEMBERS
     }
+    
+    // DB 데이터 병합
+    loaded.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
+
+    // 대표 관리자 계정 정보 무결성 보장
+    const masterEmails = ['elleizo21@gmail.com', 'elliezo21@gmail.com']
+    masterEmails.forEach(mail => {
+      if (map.has(mail)) {
+        const item = map.get(mail)
+        item.role = 'super_admin'
+        item.department = '경영총괄'
+        item.position = '대표 (총괄 운영 매니저)'
+        item.name = item.name || '총괄 대표'
+      } else {
+        map.set(mail, {
+          id: `staff_${mail.replace(/[^a-z0-9]/g, '_')}`,
+          email: mail,
+          name: '총괄 대표',
+          role: 'super_admin',
+          department: '경영총괄',
+          position: '대표 (총괄 운영 매니저)',
+          updated_at: new Date().toISOString()
+        })
+      }
+    })
+
+    staffList.value = Array.from(map.values())
   } catch (e) {
-    staffList.value = loaded.length > 0 ? loaded : DEFAULT_STAFF_MEMBERS
+    staffList.value = DEFAULT_STAFF_MEMBERS
   }
 }
 
