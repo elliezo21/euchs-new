@@ -167,8 +167,8 @@
     <!-- ============================================================ -->
     <!-- MODAL: 견적 승인 (1→2) -->
     <!-- ============================================================ -->
-    <div v-if="modal.quoteApproval && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" @click.self="closeModals">
-      <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden">
+    <div v-if="modal.quoteApproval && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
         <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
           <div>
             <div class="text-[11px] font-bold text-amber-700 uppercase tracking-wide">📋 1단계 → 2단계 전환</div>
@@ -228,8 +228,8 @@
     <!-- ============================================================ -->
     <!-- MODAL: 실측 입력 (4→5) -->
     <!-- ============================================================ -->
-    <div v-if="modal.measurement && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" @click.self="closeModals">
-      <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden">
+    <div v-if="modal.measurement && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
         <div class="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
           <div>
             <div class="text-[11px] font-bold text-indigo-700 uppercase tracking-wide">📦 4단계 → 5단계 전환</div>
@@ -301,8 +301,8 @@
     <!-- ============================================================ -->
     <!-- MODAL: B/L 등록 (6→7) -->
     <!-- ============================================================ -->
-    <div v-if="modal.blForm && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" @click.self="closeModals">
-      <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden">
+    <div v-if="modal.blForm && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
         <div class="px-6 py-4 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
           <div>
             <div class="text-[11px] font-bold text-purple-700 uppercase tracking-wide">📄 6단계 → 7단계 전환</div>
@@ -349,8 +349,8 @@
     <!-- ============================================================ -->
     <!-- MODAL: 운송장 등록 (7→8) -->
     <!-- ============================================================ -->
-    <div v-if="modal.trackingForm && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" @click.self="closeModals">
-      <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden">
+    <div v-if="modal.trackingForm && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+      <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
         <div class="px-6 py-4 bg-violet-50 border-b border-violet-100 flex items-center justify-between">
           <div>
             <div class="text-[11px] font-bold text-violet-700 uppercase tracking-wide">🚚 7단계 → 8단계 전환</div>
@@ -397,8 +397,8 @@
     <!-- ============================================================ -->
     <!-- MODAL: 주문 상세 (PC 전용 대화면 와이드 뷰 max-w-7xl) -->
     <!-- ============================================================ -->
-    <div v-if="modal.detail && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto" @click.self="closeModals">
-      <div class="w-[94vw] max-w-7xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col">
+    <div v-if="modal.detail && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
+      <div class="w-[94vw] max-w-7xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col" @click.stop>
         <!-- 모달 헤더 -->
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-3">
