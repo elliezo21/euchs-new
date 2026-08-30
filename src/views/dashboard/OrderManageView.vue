@@ -2761,6 +2761,9 @@ async function executeInstantPayment(order) {
   const cost = getOrderCostSummary(order);
   const totalCost = Number(cost.totalDdpKrw) || 0;
   const totalWon = formatNumber(totalCost);
+  const orderId = order.id || order.orderNumber || order.order_no || order.orderId;
+  const orderNo = order.orderNumber || order.order_no || order.id || 'EUC-ORD';
+  const nowIso = new Date().toISOString();
 
   // 1. 바이어 예치금 잔액 확인
   const currentBal = Number(userBalance.value || 0);
@@ -2778,58 +2781,101 @@ async function executeInstantPayment(order) {
     // 2. 예치금 차감 트랜잭션 적용 (로컬 + Supabase profiles.balance 차감 + transactions 테이블 기록)
     await applyBalanceTransaction(-totalCost, {
       type: 'order_payment',
-      title: `1688 1차 상품대금 결제 (${order.orderNumber || order.id})`,
-      description: `1차 DDP 상품대금 결제 승인 (주문번호: ${order.orderNumber || order.id})`,
-      orderId: order.id,
-      orderNumber: order.orderNumber,
+      title: `1688 1차 상품대금 결제 (${orderNo})`,
+      description: `1차 DDP 상품대금 결제 승인 (주문번호: ${orderNo})`,
+      orderId: order.id || orderId,
+      orderNumber: orderNo,
       buyerEmail: currentUser.value?.email || order.buyerInfo?.email || ''
     });
 
     // 3. 상태를 'purchasing' (4. 1688 공장 구매진행)으로 변경
     const nextStatus = 'purchasing';
     order.status = nextStatus;
+    order.step = 4;
+    order.paid_at = nowIso;
+    order.paidAt = nowIso;
+    order.firstPayment = {
+      ...(order.firstPayment || {}),
+      paid: true,
+      paidAt: nowIso,
+      amount: totalCost
+    };
 
-    // 4. Supabase DB 업데이트 (문자열 orderId로 인한 applications 400 에러 원천 방어)
-    if (isSupabaseConfigured() && order.id) {
-      try {
-        const isNumericId = !isNaN(Number(order.id)) && Number(order.id) > 0;
-        if (isNumericId) {
-          await supabase
-            .from('applications')
-            .update({
-              status: nextStatus,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', Number(order.id));
-        } else {
-          const orderNum = order.orderNumber || String(order.id);
-          await supabase
-            .from('orders')
-            .update({
-              status: nextStatus,
-              updated_at: new Date().toISOString()
-            })
-            .eq('order_number', orderNum);
+    // 4. orders.value 반응형 배열 내 타깃 주문 갱신
+    const target = orders.value.find(o =>
+      o.id === order.id ||
+      o.orderNumber === order.orderNumber ||
+      o.orderNumber === orderNo ||
+      o.id === orderId ||
+      o.order_no === orderNo
+    );
+    if (target) {
+      target.status = nextStatus;
+      target.step = 4;
+      target.paid_at = nowIso;
+      target.paidAt = nowIso;
+      target.firstPayment = {
+        ...(target.firstPayment || {}),
+        paid: true,
+        paidAt: nowIso,
+        amount: totalCost
+      };
+    }
+
+    // 5. 로컬스토리지 모든 키(orders, euchs_erp_submitted_orders, euchs_orders 등) 덮어쓰기 저장
+    try {
+      ['orders', 'euchs_erp_submitted_orders', 'euchs_orders', 'euchs_active_orders'].forEach(key => {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach(item => {
+                if (item.id === order.id || item.orderNumber === orderNo || item.order_no === orderNo || item.id === orderId) {
+                  item.status = nextStatus;
+                  item.step = 4;
+                  item.paid_at = nowIso;
+                  item.paidAt = nowIso;
+                }
+              });
+              localStorage.setItem(key, JSON.stringify(parsed));
+            }
+          } catch (e) {}
         }
-      } catch (e) {
-        console.warn('[executeInstantPayment] Supabase status update notice:', e);
+      });
+    } catch (e) {}
+    saveStoredOrders(orders.value);
+
+    // 6. Supabase DB 비동기 상태 갱신 (orders & applications)
+    if (isSupabaseConfigured()) {
+      try {
+        await updateOrderStatus(orderId, nextStatus, {
+          step: 4,
+          paid_at: nowIso,
+          paid_amount: totalCost,
+          firstPayment: {
+            paid: true,
+            paidAt: nowIso,
+            amount: totalCost
+          }
+        });
+      } catch (dbErr) {
+        console.warn('[Payment] Supabase order status sync notice:', dbErr);
       }
     }
 
-    // 5. LocalStorage 및 주문 목록 동기화
-    const target = orders.value.find(o => o.id === order.id || o.orderNumber === order.orderNumber);
-    if (target) target.status = nextStatus;
-    saveStoredOrders(orders.value);
-
-    // 6. 전역 동기화 이벤트 통지
+    // 7. 전역 동기화 이벤트 통지
     window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('euchs-balance-update'));
     window.dispatchEvent(new CustomEvent('euchs-balance-updated'));
     window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
-      detail: { appId: order.id, orderId: order.id, status: nextStatus }
+      detail: { appId: order.id, orderId, status: nextStatus }
     }));
 
-    alert(`✅ 결제가 성공적으로 승인되었습니다!\n\n- 결제금액: ₩${totalWon}원\n- 차감 후 예치금 잔액: ₩${formatNumber(userBalance.value)}원\n- 발주번호: ${order.orderNumber || order.id}\n\n중국 현지 1688 공장 구매 진행(사입) 단계로 진입합니다.`);
+    // 8. 탭을 즉시 '4. 1688 구매진행' (purchasing)으로 자동 전환
+    selectTab('purchasing');
+
+    alert(`✅ 1차 결제가 성공적으로 완료되었습니다!\n\n- 결제금액: ₩${totalWon}원\n- 차감 후 예치금 잔액: ₩${formatNumber(userBalance.value)}원\n- 발주번호: ${orderNo}\n\n[4. 1688 구매진행] 단계로 이동합니다.`);
     closeDetailModal();
   } catch (err) {
     console.error('Payment error:', err);
