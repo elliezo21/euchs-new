@@ -123,6 +123,7 @@ const getEnv = (key, fallback = '') => {
 export const CONFIG = {
   ONEBOUND_KEY: getEnv('ONEBOUND_KEY', 't_821093731214'),
   ONEBOUND_SECRET: getEnv('ONEBOUND_SECRET', '121412a0'),
+  ONEBOUND_SESSION: getEnv('ONEBOUND_SESSION', 'c349df22-2929-4571-8d32-c25412728b33'),
   DEEPL_API_KEY: getEnv('DEEPL_API_KEY', 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'),
 }
 

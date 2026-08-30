@@ -29,13 +29,14 @@ function isErrorResponse(data) {
   return code === '4005' || code === '4000' || reason.includes('已到期') || reason.includes('expired') || !!data.error
 }
 
-async function fetchSearch(endpoint, queryZh, page, OB_KEY, OB_SECRET, timeoutMs) {
-  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_search/?key=${OB_KEY}&secret=${OB_SECRET}&q=${encodeURIComponent(queryZh)}&page=${page}&result_type=json`
+async function fetchSearch(endpoint, queryZh, page, OB_KEY, OB_SECRET, OB_SESSION, timeoutMs) {
+  const sessionParam = OB_SESSION ? `&session=${encodeURIComponent(OB_SESSION)}&session_id=${encodeURIComponent(OB_SESSION)}` : ''
+  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_search/?key=${OB_KEY}&secret=${OB_SECRET}${sessionParam}&q=${encodeURIComponent(queryZh)}&page=${page}&result_type=json`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
   try {
-    console.log(`[1688-search] Calling ${endpoint}:`, targetUrl.replace(/secret=[^&]+/, 'secret=***'))
+    console.log(`[1688-search] Calling ${endpoint}:`, targetUrl.replace(/secret=[^&]+/, 'secret=***').replace(/session=[^&]+/, 'session=***').replace(/session_id=[^&]+/, 'session_id=***'))
     const r = await fetch(targetUrl, { method: 'GET', headers: FETCH_HEADERS, signal: controller.signal })
     clearTimeout(timer)
 
@@ -65,14 +66,15 @@ export default async function handler(req, res) {
 
   const OB_KEY = process.env.ONEBOUND_KEY || process.env.VITE_ONEBOUND_KEY || 't_821093731214'
   const OB_SECRET = process.env.ONEBOUND_SECRET || process.env.VITE_ONEBOUND_SECRET || '121412a0'
+  const OB_SESSION = process.env.ONEBOUND_SESSION || process.env.VITE_ONEBOUND_SESSION || 'c349df22-2929-4571-8d32-c25412728b33'
 
-  // 1차: 1688global 시도
-  let resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000)
+  // 1차: 1688global 시도 (신규 인가 세션 적용)
+  let resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, OB_SESSION, 5000)
 
   // 1688global이 실패하거나 4005 에러인 경우 2차 1688 시도
   if (!resData || isErrorResponse(resData)) {
     console.warn('[1688-search] 1688global failed or 4005. Trying 1688 endpoint...')
-    const fallbackData = await fetchSearch('1688', queryZh, page, OB_KEY, OB_SECRET, 4000)
+    const fallbackData = await fetchSearch('1688', queryZh, page, OB_KEY, OB_SECRET, OB_SESSION, 4000)
     if (fallbackData && !isErrorResponse(fallbackData)) {
       resData = fallbackData
     }

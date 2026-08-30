@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vercel Serverless Function: /api/1688-image-search
  * OneBound 1688 이미지(사진) 검색 프록시
  * - 1차 게이트웨이: https://api-gw.onebound.net
@@ -76,7 +76,9 @@ export default async function handler(req, res) {
 
   const OB_KEY = process.env.ONEBOUND_KEY || process.env.VITE_ONEBOUND_KEY || 't_821093731214'
   const OB_SECRET = process.env.ONEBOUND_SECRET || process.env.VITE_ONEBOUND_SECRET || '121412a0'
-  const path = '/1688/item_search_img/?key=' + OB_KEY + '&secret=' + OB_SECRET + '&img_url=' + encodeURIComponent(imgUrl) + '&result_type=json'
+  const OB_SESSION = process.env.ONEBOUND_SESSION || process.env.VITE_ONEBOUND_SESSION || 'c349df22-2929-4571-8d32-c25412728b33'
+  const sessionParam = OB_SESSION ? `&session=${encodeURIComponent(OB_SESSION)}&session_id=${encodeURIComponent(OB_SESSION)}` : ''
+  const path = '/1688/item_search_img/?key=' + OB_KEY + '&secret=' + OB_SECRET + sessionParam + '&img_url=' + encodeURIComponent(imgUrl) + '&result_type=json'
 
   const result = await fetchWithFallback(path, 20000)
 
