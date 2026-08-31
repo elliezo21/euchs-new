@@ -137,17 +137,13 @@ function lab1688Plugin(env) {
           return
         }
 
-        // 2. Otapi 1688 검색 프록시
+        // 2. OneBound 1688global 키워드 검색 프록시 (Vercel api/1688-search.js와 동일 로직)
         if (req.url?.startsWith('/api/1688-search') && req.method === 'GET') {
           try {
             const reqUrl = new URL(req.url, 'http://localhost:5173')
             const rawQ = reqUrl.searchParams.get('q') || reqUrl.searchParams.get('keyword') || reqUrl.searchParams.get('text') || ''
             const q = String(rawQ).trim()
             const page = reqUrl.searchParams.get('page') || '1'
-            const frameSize = reqUrl.searchParams.get('frameSize') || '40'
-
-            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
-            const rapidHost = 'otapi-1688.p.rapidapi.com'
 
             if (!q) {
               res.statusCode = 400
@@ -156,30 +152,54 @@ function lab1688Plugin(env) {
               return
             }
 
-            const framePosition = (Math.max(1, Number(page)) - 1) * Number(frameSize)
-            const targetUrl = new URL(`https://${rapidHost}/BatchSearchItemsFrame`)
-            targetUrl.searchParams.set('language', 'ko')
-            targetUrl.searchParams.set('framePosition', String(framePosition))
-            targetUrl.searchParams.set('frameSize', String(frameSize))
-            targetUrl.searchParams.set('ItemTitle', q)
+            // 환경변수에서만 인증키 로드 (평문 하드코딩 금지 원칙)
+            const obKey    = env.ONEBOUND_KEY    || env.VITE_ONEBOUND_KEY    || ''
+            const obSecret = env.ONEBOUND_SECRET || env.VITE_ONEBOUND_SECRET || ''
 
-            const response = await fetch(targetUrl.toString(), {
-              headers: {
-                'x-rapidapi-key': rapidKey,
-                'x-rapidapi-host': rapidHost
-              }
-            })
+            if (!obKey || !obSecret) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: 'ONEBOUND_KEY 또는 ONEBOUND_SECRET 환경변수가 설정되지 않았습니다.' }))
+              return
+            }
 
-            const data = await response.json()
-            const rawList = data?.Result?.Items?.Items?.Content || data?.Result?.Items?.Content || []
-            res.statusCode = response.status
+            // 확정 스펙: 1688global/item_search (session 파라미터 불필요)
+            const targetUrl = `https://api-gw.onebound.cn/1688global/item_search/?key=${obKey}&secret=${obSecret}&q=${encodeURIComponent(q)}&page=${page}&result_type=json`
+            console.log(`[vite proxy 1688-search] Calling 1688global: q="${q}" page=${page}`)
+
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 10000)
+            let response, data
+            try {
+              response = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                  'Accept': 'application/json, text/plain, */*',
+                  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                  'Referer': 'https://www.1688.com/',
+                  'Cache-Control': 'no-cache'
+                },
+                signal: controller.signal
+              })
+              clearTimeout(timer)
+              data = await response.json().catch(() => null)
+            } catch (fetchErr) {
+              clearTimeout(timer)
+              console.error('[vite proxy 1688-search] fetch error:', fetchErr.message)
+              res.statusCode = 502
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: fetchErr.message }))
+              return
+            }
+
+            const errCode = String(data?.error_code || '').trim()
+            const itemCount = data?.items?.item?.length || 0
+            console.log(`[vite proxy 1688-search] response: error_code=${errCode} items=${itemCount}`)
+
+            res.statusCode = 200
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(JSON.stringify({
-              success: response.ok,
-              data: data,
-              result: { resultList: Array.isArray(rawList) ? rawList : [] },
-              status: response.status
-            }))
+            res.end(JSON.stringify({ success: true, data: data }))
           } catch (err) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -248,12 +268,11 @@ function lab1688Plugin(env) {
           return
         }
 
-        // 4. 1688 DataHub 이미지 검색 프록시
+        // 4. OneBound 1688global 이미지 검색 프록시 (Vercel api/1688-image-search.js와 동일 로직)
         if (req.url?.startsWith('/api/1688-image-search') && req.method === 'GET') {
           try {
             const reqUrl = new URL(req.url, 'http://localhost:5173')
             const imgUrl = reqUrl.searchParams.get('imgUrl') || reqUrl.searchParams.get('img_url') || ''
-            const page = reqUrl.searchParams.get('page') || '1'
 
             if (!imgUrl || imgUrl === 'undefined' || imgUrl === 'null') {
               res.statusCode = 400
@@ -262,37 +281,54 @@ function lab1688Plugin(env) {
               return
             }
 
-            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || ''
-            const rapidHost = env.VITE_RAPIDAPI_HOST || env.RAPIDAPI_HOST || process.env.RAPIDAPI_HOST || '1688-datahub.p.rapidapi.com'
+            // 환경변수에서만 인증키 로드
+            const obKey    = env.ONEBOUND_KEY    || env.VITE_ONEBOUND_KEY    || ''
+            const obSecret = env.ONEBOUND_SECRET || env.VITE_ONEBOUND_SECRET || ''
 
-            if (!rapidKey) {
+            if (!obKey || !obSecret) {
               res.statusCode = 500
               res.setHeader('Content-Type', 'application/json; charset=utf-8')
-              res.end(JSON.stringify({ success: false, message: 'RAPIDAPI_KEY가 설정되지 않았습니다.' }))
+              res.end(JSON.stringify({ success: false, message: 'ONEBOUND_KEY 또는 ONEBOUND_SECRET 환경변수가 설정되지 않았습니다.' }))
               return
             }
 
-            console.log(`[vite proxy 1688-image-search] imgUrl: ${imgUrl.slice(0, 80)}... page: ${page}`)
-            const targetUrl = new URL(`https://${rapidHost}/item_search_image`)
-            targetUrl.searchParams.set('imgUrl', imgUrl)
-            targetUrl.searchParams.set('page', page)
+            // 확정 스펙: 1688global/item_search_img + imgid=공개URL + cache=no + lang=zh-CN
+            const targetUrl = `https://api-gw.onebound.cn/1688global/item_search_img/?key=${obKey}&secret=${obSecret}&imgid=${encodeURIComponent(imgUrl)}&cache=no&lang=zh-CN`
+            console.log(`[vite proxy 1688-image-search] Calling 1688global imgid: ${imgUrl.slice(0, 80)}...`)
 
-            const response = await fetch(targetUrl.toString(), {
-              headers: {
-                'x-rapidapi-key': rapidKey,
-                'x-rapidapi-host': rapidHost
-              }
-            })
-
-            const data = await response.json()
-            if (!response.ok) {
-              console.error(`[vite proxy 1688-image-search] RapidAPI error ${response.status}:`, JSON.stringify(data).slice(0, 300))
-            } else {
-              console.log(`[vite proxy 1688-image-search] OK | items: ${data?.result?.resultList?.length ?? 0}`)
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 20000)
+            let response, data
+            try {
+              response = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                  'Accept': 'application/json, text/plain, */*',
+                  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+                  'Referer': 'https://www.1688.com/',
+                  'Cache-Control': 'no-cache'
+                },
+                signal: controller.signal
+              })
+              clearTimeout(timer)
+              data = await response.json().catch(() => null)
+            } catch (fetchErr) {
+              clearTimeout(timer)
+              console.error('[vite proxy 1688-image-search] fetch error:', fetchErr.message)
+              res.statusCode = 502
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: fetchErr.message }))
+              return
             }
-            res.statusCode = response.status
+
+            const errCode = String(data?.error_code || '').trim()
+            const itemCount = data?.items?.item?.length || 0
+            console.log(`[vite proxy 1688-image-search] response: error_code=${errCode} items=${itemCount}`)
+
+            res.statusCode = 200
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
+            res.end(JSON.stringify({ success: true, data: data }))
           } catch (err) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
