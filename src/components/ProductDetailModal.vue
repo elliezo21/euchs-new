@@ -204,8 +204,18 @@
                 </span>
               </div>
 
-              <!-- Dynamic Tier Grid -->
+              <!-- 로딩 중 스켈레톤 (3칸 티어) -->
+              <div v-if="isDetailLoading" class="grid grid-cols-3 gap-3 pt-1">
+                <div v-for="n in 3" :key="n" class="bg-white rounded-2xl p-3 text-center border border-rose-100/80 shadow-xs animate-pulse space-y-2">
+                  <div class="h-3 w-16 bg-slate-200 rounded mx-auto"></div>
+                  <div class="h-5 w-20 bg-rose-200/80 rounded mx-auto"></div>
+                  <div class="h-3 w-14 bg-slate-100 rounded mx-auto"></div>
+                </div>
+              </div>
+
+              <!-- Dynamic Tier Grid (로딩 완료 후) -->
               <div 
+                v-else
                 class="grid gap-3 pt-1"
                 :class="displayedPriceTiers.length === 2 ? 'grid-cols-2' : (displayedPriceTiers.length === 1 ? 'grid-cols-1' : 'grid-cols-3')"
               >
@@ -223,25 +233,44 @@
             </div>
 
             <!-- 2. Option Selection (1차 & 2차): 로딩 중 스켈레톤 / 완료 후 실제 버튼 -->
-            <div v-if="isDetailLoading" class="space-y-3 py-1">
+            <div v-if="isDetailLoading" class="space-y-4 py-1">
               <!-- 1차 옵션 스켈레톤 -->
-              <div class="space-y-2">
-                <div class="flex items-center gap-2">
-                  <div class="h-4 w-16 bg-slate-200 rounded animate-pulse"></div>
-                  <div class="h-4 w-24 bg-slate-100 rounded animate-pulse"></div>
+              <div class="space-y-2.5">
+                <div class="flex items-center justify-between text-xs">
+                  <div class="flex items-center gap-1.5">
+                    <div class="h-3.5 w-20 bg-slate-200 rounded animate-pulse"></div>
+                    <div class="h-3.5 w-3 bg-rose-200 rounded animate-pulse"></div>
+                  </div>
+                  <div class="h-3 w-28 bg-slate-100 rounded animate-pulse"></div>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                  <div v-for="n in 4" :key="n" class="h-9 w-20 bg-slate-200 rounded-xl animate-pulse"></div>
+                <div class="flex flex-wrap gap-2.5">
+                  <div 
+                    v-for="n in 4" 
+                    :key="n" 
+                    class="h-9 px-3.5 rounded-xl border border-gray-200 bg-white shadow-xs animate-pulse flex items-center gap-2"
+                  >
+                    <div class="w-5 h-5 rounded-full bg-slate-200 shrink-0"></div>
+                    <div class="h-3.5 w-12 bg-slate-200 rounded"></div>
+                  </div>
                 </div>
               </div>
               <!-- 2차 옵션 스켈레톤 -->
-              <div class="space-y-2 mt-1">
-                <div class="flex items-center gap-2">
-                  <div class="h-4 w-20 bg-slate-200 rounded animate-pulse"></div>
-                  <div class="h-4 w-16 bg-slate-100 rounded animate-pulse"></div>
+              <div class="space-y-2.5 pt-1">
+                <div class="flex items-center justify-between text-xs">
+                  <div class="flex items-center gap-1.5">
+                    <div class="h-3.5 w-24 bg-slate-200 rounded animate-pulse"></div>
+                    <div class="h-3.5 w-3 bg-rose-200 rounded animate-pulse"></div>
+                  </div>
+                  <div class="h-3 w-36 bg-slate-100 rounded animate-pulse"></div>
                 </div>
-                <div class="flex flex-wrap gap-2">
-                  <div v-for="n in 5" :key="n" class="h-9 w-16 bg-slate-200 rounded-xl animate-pulse"></div>
+                <div class="flex flex-wrap gap-2.5">
+                  <div 
+                    v-for="n in 5" 
+                    :key="n" 
+                    class="h-9 w-16 rounded-xl border border-gray-200 bg-white shadow-xs animate-pulse flex items-center justify-center"
+                  >
+                    <div class="h-3.5 w-8 bg-slate-200 rounded"></div>
+                  </div>
                 </div>
               </div>
             </div>
