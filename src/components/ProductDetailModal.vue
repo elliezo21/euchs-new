@@ -173,7 +173,8 @@
                 </span>
               </div>
 
-              <!-- 단골상점 찜하기 버튼 -->
+              <!-- 단골상점 찜하기 버튼 (item_search_shop API 미구독으로 임시 비활성화 / 추후 구독 시 복구) -->
+              <!--
               <div class="mt-2.5 pt-2 border-t border-slate-200/80">
                 <button
                   type="button"
@@ -185,6 +186,7 @@
                   <span>{{ isStoreFavorite ? '단골상점 찜 완료' : '단골상점 찜하기' }}</span>
                 </button>
               </div>
+              -->
             </div>
 
 
@@ -439,66 +441,32 @@
         </div>
 
         <!-- ======================================================== -->
-        <!-- 2. 1688 DETAIL IMAGES LIST (Vertical Continuous Rendering) -->
+        <!-- 2. SIMILAR PRODUCTS RECOMMENDATION GRID -->
         <!-- ======================================================== -->
-        <div class="pt-8 border-t border-gray-100 space-y-4">
-          <div class="flex items-center justify-between">
-            <h3 class="text-base sm:text-lg font-black text-gray-900 flex items-center gap-2">
-              <i class="fas fa-images text-rose-600"></i>
-              <span>1688 상품 상세 정보 & 설명 이미지</span>
-            </h3>
-            <span class="text-xs text-gray-400 font-medium">1688 중국 본토 공식 상세페이지 실시간 연동</span>
-          </div>
-
-          <div class="flex flex-col items-center bg-gray-50/80 p-3 sm:p-6 rounded-3xl border border-gray-200/80 min-h-[200px]">
-            <template v-if="detailImages.length">
-              <div class="w-full max-w-4xl space-y-2">
-                <img
-                  v-for="(imgUrl, idx) in detailImages"
-                  :key="idx"
-                  :src="imgUrl"
-                  :alt="`상세 이미지 ${idx + 1}`"
-                  loading="lazy"
-                  referrerpolicy="no-referrer"
-                  class="w-full h-auto block rounded-xl shadow-sm border border-gray-100"
-                  @error="handleDetailImageError(idx)"
-                />
-              </div>
-            </template>
-            <div v-else-if="isLoadingDetail" class="py-16 text-center text-gray-400 text-xs sm:text-sm flex flex-col items-center gap-3">
-              <i class="fas fa-spinner fa-spin text-rose-500 text-2xl"></i>
-              <span>1688 고화질 상세페이지 이미지를 불러오는 중입니다...</span>
-            </div>
-            <div v-else class="py-16 text-center text-gray-400 text-xs sm:text-sm">
-              상세 이미지를 불러오는 중이거나 제공되지 않는 상품입니다.
-            </div>
-          </div>
-        </div>
-
-        <!-- ======================================================== -->
-        <!-- 3. SAME SELLER / SUPPLIER POPULAR PRODUCTS GRID -->
-        <!-- ======================================================== -->
-        <div class="pt-8 border-t border-gray-100 space-y-4">
+        <div v-if="isLoadingSellerProducts || sellerProducts.length > 0" class="pt-8 border-t border-gray-100 space-y-4">
           <div class="flex items-center justify-between">
             <div class="space-y-0.5">
               <h3 class="text-base sm:text-lg font-black text-gray-900 flex items-center gap-2">
-                <i class="fas fa-store text-blue-600"></i>
-                <span>이 공급업체의 다른 인기 상품</span>
+                <i class="fas fa-th-large text-rose-500"></i>
+                <span>비슷한 상품 더 보기</span>
               </h3>
               <p class="text-xs text-gray-500">
-                <b class="text-gray-800">{{ currentItem?.company || '동일 제조공장' }}</b>의 다른 추천 베스트셀러 상품입니다. 클릭 시 해당 상품으로 전환됩니다.
+                동일 카테고리의 유사 상품입니다. 클릭 시 해당 상품으로 전환됩니다.
               </p>
             </div>
 
-            <span v-if="sellerProducts.length" class="text-xs font-bold text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-200">
+            <span v-if="sellerProducts.length" class="text-xs font-bold text-rose-600 bg-rose-50 px-3 py-1 rounded-full border border-rose-200">
               총 {{ sellerProducts.length }}개
             </span>
           </div>
 
-          <!-- Loading State -->
-          <div v-if="isLoadingSellerProducts" class="py-12 text-center text-gray-400 text-xs flex flex-col items-center gap-2">
-            <i class="fas fa-spinner fa-spin text-blue-500 text-xl"></i>
-            <span>동일 업체의 인기 상품을 조회 중입니다...</span>
+          <!-- Loading State (스켈레톤) -->
+          <div v-if="isLoadingSellerProducts" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 sm:gap-4">
+            <div v-for="n in 6" :key="n" class="bg-white rounded-2xl border border-gray-100 p-2.5 animate-pulse">
+              <div class="aspect-square bg-gray-200 rounded-xl mb-2"></div>
+              <div class="h-2.5 bg-gray-200 rounded w-3/4 mb-1.5"></div>
+              <div class="h-2.5 bg-gray-200 rounded w-1/2"></div>
+            </div>
           </div>
 
           <!-- Products Grid -->
@@ -535,12 +503,45 @@
               </div>
             </div>
           </div>
+        </div>
 
-          <!-- Empty State -->
-          <div v-else class="py-8 text-center text-gray-400 text-xs bg-gray-50 rounded-2xl">
-            이 공급업체의 추가 등록 상품이 없습니다.
+        <!-- ======================================================== -->
+        <!-- 3. 1688 DETAIL IMAGES LIST (Vertical Continuous Rendering) -->
+        <!-- ======================================================== -->
+        <div class="pt-8 border-t border-gray-100 space-y-4">
+          <div class="flex items-center justify-between">
+            <h3 class="text-base sm:text-lg font-black text-gray-900 flex items-center gap-2">
+              <i class="fas fa-images text-rose-600"></i>
+              <span>1688 상품 상세 정보 & 설명 이미지</span>
+            </h3>
+            <span class="text-xs text-gray-400 font-medium">1688 중국 본토 공식 상세페이지 실시간 연동</span>
+          </div>
+
+          <div class="flex flex-col items-center bg-gray-50/80 p-3 sm:p-6 rounded-3xl border border-gray-200/80 min-h-[200px]">
+            <template v-if="detailImages.length">
+              <div class="w-full max-w-4xl space-y-2">
+                <img
+                  v-for="(imgUrl, idx) in detailImages"
+                  :key="idx"
+                  :src="imgUrl"
+                  :alt="`상세 이미지 ${idx + 1}`"
+                  loading="lazy"
+                  referrerpolicy="no-referrer"
+                  class="w-full h-auto block rounded-xl shadow-sm border border-gray-100"
+                  @error="handleDetailImageError(idx)"
+                />
+              </div>
+            </template>
+            <div v-else-if="isLoadingDetail" class="py-16 text-center text-gray-400 text-xs sm:text-sm flex flex-col items-center gap-3">
+              <i class="fas fa-spinner fa-spin text-rose-500 text-2xl"></i>
+              <span>1688 고화질 상세페이지 이미지를 불러오는 중입니다...</span>
+            </div>
+            <div v-else class="py-16 text-center text-gray-400 text-xs sm:text-sm">
+              상세 이미지를 불러오는 중이거나 제공되지 않는 상품입니다.
+            </div>
           </div>
         </div>
+
 
       </div>
 
@@ -619,7 +620,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, fetchSellerProducts, cleanForeignText } from '../services/api1688'
+import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 
 const props = defineProps({
@@ -1359,54 +1360,70 @@ const handleDetailImageError = (idx) => {
 }
 
 // ----------------------------------------------------
-// Same Seller (공급사) Other Products Loader
+// Similar Products Loader (카테고리 유사 상품 추천)
+// 1순위: 대표 이미지 URL로 image search (카테고리 정확도 높음)
+// 2순위(fallback): titleZh 키워드 검색
 // ----------------------------------------------------
-const loadSellerProducts = async (item) => {
+const loadSimilarProducts = async (item) => {
   if (!item) return
   isLoadingSellerProducts.value = true
   sellerProducts.value = []
 
+  const currentId = String(item.id || '')
+
+  // 헬퍼: 자기 자신 제외 + 최대 12개
+  const filterResults = (items) =>
+    (items || []).filter(p => String(p.id || '') !== currentId).slice(0, 12)
+
   try {
-    // ─── 공급사 ID 추출 (raw 데이터 포함 다계층 탐색) ─────────────────────
-    const raw = item.raw || {}
-    const seller = raw.seller || raw.shop || raw.VendorInfo || {}
-    const sellerId = (
-      item.sellerId ||
-      item.memberId ||
-      item.shopId ||
-      item.userId ||
-      seller.memberId ||
-      seller.userId ||
-      seller.VendorId ||
-      seller.SellerId ||
-      raw.sellerId ||
-      raw.memberId ||
-      raw.shopId ||
-      raw.userId ||
-      ''
-    )
+    // ─── 1순위: 대표 이미지 URL로 이미지 검색 ────────────────────────────
+    // currentItem.imageUrl은 fetch1688ProductById 완료 후 채워진 it.pic_url 기반 정규화 URL
+    const imgUrl = item.imageUrl || item.images?.[0] || ''
 
-    console.log('[loadSellerProducts] sellerId:', sellerId, 'for item:', item.id)
-
-    const result = await fetchSellerProducts(
-      sellerId,
-      item.id,
-      {
-        company: item.company || item.sellerName || '',
-        titleZh: item.titleZh || item.title || '',
-        titleKo: item.titleKo || ''
+    if (imgUrl) {
+      try {
+        const imgResult = await search1688ByImageUrl(imgUrl)
+        if (imgResult?.success && imgResult.items?.length > 0) {
+          const filtered = filterResults(imgResult.items)
+          if (filtered.length > 0) {
+            sellerProducts.value = filtered
+            return  // 성공 → fallback 불필요
+          }
+        }
+        // 이미지 검색 결과가 비어있으면 fallback으로 진행
+        console.warn('[loadSimilarProducts] Image search returned no results, falling back to keyword search')
+      } catch (imgErr) {
+        // 이미지 검색 실패(네트워크 오류 등) → 증상 은폐 없이 로그 후 fallback
+        console.warn('[loadSimilarProducts] Image search failed:', imgErr.message, '→ falling back to keyword search')
       }
-    )
+    }
 
-    if (Array.isArray(result) && result.length > 0) {
-      sellerProducts.value = result
+    // ─── 2순위 fallback: titleZh 키워드 검색 ─────────────────────────────
+    const titleZh = String(item.titleZh || item.title || '').trim()
+    if (!titleZh) return
+
+    // 한자 앞 4글자 추출 (영문/숫자 제거 후)
+    const hanziOnly = titleZh.replace(/[a-zA-Z0-9\s\-_.()（）【】]/g, ' ').trim()
+    const keyword = hanziOnly.length >= 2
+      ? hanziOnly.replace(/\s+/g, '').slice(0, 4)
+      : titleZh.trim().split(/[\s\-_]/)[0].slice(0, 8)
+
+    if (!keyword || keyword.length < 2) return
+
+    const kwResult = await search1688WithTranslation(keyword, 1)
+    if (!kwResult?.items?.length) return
+
+    const filtered = filterResults(kwResult.items)
+    if (filtered.length > 0) {
+      sellerProducts.value = filtered
     }
   } catch (err) {
-    console.warn('[loadSellerProducts] Failed:', err)
+    console.warn('[loadSimilarProducts] Unexpected error:', err.message)
   } finally {
     isLoadingSellerProducts.value = false
   }
 }
+
 
 // 비동기 상세 데이터 및 SKU 보강 로더
 const loadFullProductData = async (item) => {
@@ -1493,6 +1510,12 @@ const loadFullProductData = async (item) => {
     }
 
     checkStoreFavorite()
+
+    // ── 상세 API 완료 후 titleZh가 채워진 currentItem으로 유사 상품 검색 ──
+    if (currentItem.value) {
+      loadSimilarProducts(currentItem.value)
+    }
+
   }
 }
 
@@ -1512,7 +1535,8 @@ const selectAnotherProduct = (newProduct) => {
 
   loadFullProductData(newProduct)
   loadProductDetailImages(newProduct)
-  loadSellerProducts(newProduct)
+  // loadSellerProducts는 loadFullProductData finally 완료 후 sellerId가 채워진
+  // currentItem.value를 기준으로 자동 호출됨 (중복 호출 방지)
   emit('change-product', newProduct)
 }
 
@@ -1717,9 +1741,9 @@ watch(() => props.product, (newVal) => {
     checkStoreFavorite()
 
     // loadFullProductData 내부 finally에서 isDetailLoading = false 처리
+    // + titleZh가 채워진 후 loadSimilarProducts 호출 (유사 상품 키워드 검색)
     loadFullProductData(newVal)
     loadProductDetailImages(newVal)
-    loadSellerProducts(newVal)
   } else {
     currentItem.value = null
     selectedColor.value = null

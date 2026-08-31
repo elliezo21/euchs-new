@@ -1129,9 +1129,10 @@ export async function fetch1688ProductById(offerId) {
         ...rawData,
         ...(typeof subItem === 'object' && !Array.isArray(subItem) ? subItem : {})
       }
+      // ─── OneBound item_get: vite proxy가 이미 { ...resData, ...resData.item, raw:resData } 로 병합해서 반환함 ─
+      // → it에는 item 내부 필드(seller_info, nick, props_list, skus 등)가 최상위에 이미 올라와 있음
+      // ※ seller_info.user_num_id / seller_id / shop_id 는 1688global API에서 제공되지 않음 (확인 완료)
     }
-
-    console.log('[1688 fetch1688ProductById] OneBound item merged keys:', Object.keys(it).slice(0, 20))
 
     // ─── SKU Props 및 속성 맵 최상단 선언 (ReferenceError 방지) ─────────────
     // OneBound: props_list = {"0:0":"颜色:米白色","0:1":"颜色:黑色","1:0":"尺码:35-36"}
@@ -1546,7 +1547,6 @@ export async function fetch1688ProductById(offerId) {
       '1688 인증 직영 제조공장'
     )
 
-
     // ─── 본문 상세 설명 이미지 파싱 (모듈 최상단 전역 function parseDescImgs 호출) ──
     const descImgs = parseDescImgs(it.desc_img, it.desc || it.description || it.detail_html || '')
 
@@ -1609,13 +1609,16 @@ export async function fetchSellerProducts(sellerId, currentItemId, options = {})
   const sellerIdStr = String(sellerId || '').trim()
   const currentIdStr = String(currentItemId || '').trim()
 
-  // 캐시 키: sellerId 기준
-  const cacheKey = `seller_${sellerIdStr}`
+  // 캐시 키: sellerId 우선, 없으면 상품 ID로 스코프 격리
+  // (sellerId가 빈 문자열이면 'seller_'가 되어 모든 상품이 동일 캐시를 공유하는 버그 방지)
+  const cacheKey = `seller_${sellerIdStr || currentIdStr}`
   const cached = getFromCache(memorySearchCache, 'euchs_seller', cacheKey)
   if (cached) {
     // 현재 상품 제외 후 반환
     return cached.filter(p => String(p.id) !== currentIdStr).slice(0, 12)
   }
+
+  console.log('[fetchSellerProducts] called: sellerId=', sellerIdStr || '(empty)', '| currentItemId=', currentIdStr, '| cacheKey=', cacheKey)
 
   let items = []
 
@@ -1681,14 +1684,26 @@ export async function fetchSellerProducts(sellerId, currentItemId, options = {})
     }
   }
 
-  // ─── 2. Fallback: 공급사 이름 또는 상품 제목 키워드 검색 ─────────────────
-  if (items.length === 0) {
+  // ─── 2. sellerId가 없으면 키워드 fallback 사용 안 함 ────────────────────
+  // (sellerId 없이 company/titleZh로 키워드 검색하면 엉뚱한 카테고리 상품이
+  //  나오는 케이스가 확인됨. 정확한 공급사 ID 없으면 섹션을 미표시하는 것이 올바름)
+  if (items.length === 0 && !sellerIdStr) {
+    console.log('[fetchSellerProducts] sellerId empty → skip fallback, returning empty (section will be hidden)')
+    return []
+  }
+
+  // ─── 3. sellerId는 있지만 seller-items API 결과가 없을 때만 제한적 fallback ─
+  // (sellerId가 있는데 상품 목록이 없는 경우 → 해당 공급사의 같은 카테고리 키워드로 재검색)
+  if (items.length === 0 && sellerIdStr) {
+    console.log('[fetchSellerProducts] sellerId present but seller-items empty → limited keyword fallback')
     try {
-      // 공급사 이름이 있으면 공급사 이름으로, 없으면 상품 제목 앞 8자로 검색
-      const searchKw = options.company || (options.titleZh ? options.titleZh.slice(0, 10) : '') || (options.titleKo ? options.titleKo.slice(0, 8) : '') || '인기 도매 상품'
-      const res = await search1688WithTranslation(searchKw, 1)
-      if (res?.items && Array.isArray(res.items)) {
-        items = res.items
+      // titleZh의 첫 단어(카테고리) 기준 검색 (공급사 이름은 엉뚱한 결과 유발)
+      const kw = (options.titleZh ? options.titleZh.slice(0, 8) : '') || (options.titleKo ? options.titleKo.slice(0, 6) : '')
+      if (kw) {
+        const res = await search1688WithTranslation(kw, 1)
+        if (res?.items && Array.isArray(res.items)) {
+          items = res.items
+        }
       }
     } catch (err) {
       console.warn('[fetchSellerProducts] Keyword fallback failed:', err.message)

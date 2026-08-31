@@ -208,7 +208,70 @@ function lab1688Plugin(env) {
           return
         }
 
-        // 3. Otapi 1688 상품 상세 프록시 (/api/1688-item-detail 및 /api/1688-detail 모두 지원)
+        // 3. OneBound 1688global 공급사 상품 목록 프록시 (/api/1688-seller-items)
+        // 1688global/item_search_shop?nick=_sopid@XXX 로 공급사 상품 목록 조회
+        // ※ 현재 OneBound 구독 플랜에 item_search_shop 미포함 (4005 권한없음)
+        //   → nick(_sopid)으로 권한 추가 시 재활성화 가능 (QQ:3142401606)
+        if (req.url?.startsWith('/api/1688-seller-items') && req.method === 'GET') {
+          try {
+            const reqUrl = new URL(req.url, 'http://localhost:5173')
+            const nick = reqUrl.searchParams.get('nick') || reqUrl.searchParams.get('sellerId') || ''
+            const page = reqUrl.searchParams.get('page') || '1'
+
+            if (!nick) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: 'nick 파라미터 누락' }))
+              return
+            }
+
+            const obKey    = env.ONEBOUND_KEY    || env.VITE_ONEBOUND_KEY    || ''
+            const obSecret = env.ONEBOUND_SECRET || env.VITE_ONEBOUND_SECRET || ''
+
+            if (!obKey || !obSecret) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: 'ONEBOUND_KEY/SECRET 환경변수 누락' }))
+              return
+            }
+
+            const targetUrl = `https://api-gw.onebound.cn/1688global/item_search_shop/?key=${obKey}&secret=${obSecret}&nick=${encodeURIComponent(nick)}&page=${page}&result_type=json`
+
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 12000)
+            let resData
+            try {
+              const response = await fetch(targetUrl, {
+                method: 'GET',
+                headers: { 'Accept': 'application/json', 'Cache-Control': 'no-cache' },
+                signal: controller.signal
+              })
+              clearTimeout(timer)
+              resData = await response.json().catch(() => null)
+            } catch (fetchErr) {
+              clearTimeout(timer)
+              res.statusCode = 502
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: fetchErr.message }))
+              return
+            }
+
+            const errCode = String(resData?.error_code || '').trim()
+            const items = resData?.items?.item || resData?.items || []
+
+            res.statusCode = 200
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: !errCode || errCode === '0' || errCode === '0000', data: resData, items: Array.isArray(items) ? items : [], error_code: errCode }))
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: false, message: err.message }))
+          }
+          return
+        }
+
+        // 4. OneBound 1688global 상품 상세 프록시 (/api/1688-item-detail 및 /api/1688-detail 모두 지원)
+        // ※ Vercel api/1688-item-detail.js와 동일한 OneBound 1688global 코드 경로 (로컬/프로덕션 통일)
         if ((req.url?.startsWith('/api/1688-item-detail') || req.url?.startsWith('/api/1688-detail')) && req.method === 'GET') {
           try {
             const reqUrl = new URL(req.url, 'http://localhost:5173')
@@ -216,50 +279,88 @@ function lab1688Plugin(env) {
                           reqUrl.searchParams.get('id') ||
                           reqUrl.searchParams.get('offerId') ||
                           reqUrl.searchParams.get('num_iid') || ''
-            let itemId = String(rawId).trim()
+            const itemId = String(rawId).trim()
 
             if (!itemId || itemId === 'undefined' || itemId === 'null') {
-              console.error('[vite proxy 1688-detail] Missing itemId. URL:', req.url)
               res.statusCode = 400
               res.setHeader('Content-Type', 'application/json; charset=utf-8')
-              res.end(JSON.stringify({ success: false, message: '상품 ID(itemId)가 누락되었습니다.', url: req.url }))
+              res.end(JSON.stringify({ success: false, message: '상품 ID(itemId)가 누락되었습니다.' }))
               return
             }
 
-            if (/^\d+$/.test(itemId)) {
-              itemId = `abb-${itemId}`
+            const cleanId = itemId.replace(/[^0-9]/g, '')
+            if (!cleanId) {
+              res.statusCode = 400
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: '유효한 숫자 ID가 없습니다. id=' + itemId }))
+              return
             }
-            // 이중 접두사 방어: abb-abb- 가 생기지 않도록
-            if (itemId.startsWith('abb-abb-')) {
-              itemId = itemId.replace(/^abb-/, '')
+
+            // 환경변수에서만 인증키 로드 (평문 하드코딩 금지 원칙)
+            const obKey    = env.ONEBOUND_KEY    || env.VITE_ONEBOUND_KEY    || ''
+            const obSecret = env.ONEBOUND_SECRET || env.VITE_ONEBOUND_SECRET || ''
+
+            if (!obKey || !obSecret) {
+              res.statusCode = 500
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: 'ONEBOUND_KEY 또는 ONEBOUND_SECRET 환경변수가 설정되지 않았습니다.' }))
+              return
             }
 
-            const rapidKey = env.VITE_RAPIDAPI_KEY || env.RAPIDAPI_KEY || process.env.RAPIDAPI_KEY || '20d03f9184msh8c73018b9231001p17e8d2jsn30ae4ee1634a'
-            const rapidHost = 'otapi-1688.p.rapidapi.com'
+            // 확정 스펙: 1688global/item_get (session 파라미터 불필요)
+            const targetUrl = `https://api-gw.onebound.cn/1688global/item_get/?key=${obKey}&secret=${obSecret}&num_iid=${cleanId}&result_type=json`
+            console.log(`[vite proxy 1688-detail] Calling OneBound 1688global for itemId: ${cleanId}`)
 
-            console.log(`[vite proxy 1688-detail] Requesting Otapi BatchGetItemFullInfo for itemId: ${itemId}`)
-            const targetUrl = new URL(`https://${rapidHost}/BatchGetItemFullInfo`)
-            targetUrl.searchParams.set('language', 'ko')
-            targetUrl.searchParams.set('itemId', itemId)
+            const controller = new AbortController()
+            const timer = setTimeout(() => controller.abort(), 10000)
+            let response, resData
+            try {
+              response = await fetch(targetUrl, {
+                method: 'GET',
+                headers: {
+                  'Accept': 'application/json, text/plain, */*',
+                  'Accept-Language': 'zh-CN,zh;q=0.9,en;q=0.8',
+                  'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+                  'Referer': 'https://www.1688.com/',
+                  'Cache-Control': 'no-cache'
+                },
+                signal: controller.signal
+              })
+              clearTimeout(timer)
+              resData = await response.json().catch(() => null)
+            } catch (fetchErr) {
+              clearTimeout(timer)
+              console.error('[vite proxy 1688-detail] fetch error:', fetchErr.message)
+              res.statusCode = 502
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: fetchErr.message }))
+              return
+            }
 
-            const response = await fetch(targetUrl.toString(), {
-              headers: {
-                'x-rapidapi-key': rapidKey,
-                'x-rapidapi-host': rapidHost
-              }
-            })
+            const errCode = String(resData?.error_code || '').trim()
+            const hasItem = !!resData?.item
+            console.log(`[vite proxy 1688-detail] response: error_code=${errCode} hasItem=${hasItem}`)
+            // ── 진단: item 내부 seller 필드 로깅 ──
+            if (resData?.item) {
+              const it = resData.item
+              console.log('[vite proxy 1688-detail] item keys:', Object.keys(it).slice(0, 30))
+              console.log('[vite proxy 1688-detail] seller fields → seller_info:', JSON.stringify(it.seller_info || null), '| seller_id:', it.seller_id, '| user_num_id:', it.user_num_id, '| nick:', it.nick, '| shop_id:', it.shop_id)
+            }
 
-            const data = await response.json()
-            const itemData = data?.Result?.Item || data?.Result?.ItemFullInfo || data?.Result || data
+            if (!hasItem && errCode && errCode !== '0' && errCode !== '0000') {
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, message: resData?.reason || resData?.error || 'OneBound error', error_code: errCode, data: null }))
+              return
+            }
 
-            res.statusCode = response.status
+            // Vercel api/1688-item-detail.js와 동일한 방식으로 item 객체 병합 반환
+            const itemObj = resData?.item || resData?.result || {}
+            const mergedData = { ...resData, ...itemObj, raw: resData }
+
+            res.statusCode = 200
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(JSON.stringify({
-              success: response.ok,
-              data: itemData,
-              raw: data,
-              status: response.status
-            }))
+            res.end(JSON.stringify({ success: true, data: mergedData, raw: resData }))
           } catch (err) {
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
