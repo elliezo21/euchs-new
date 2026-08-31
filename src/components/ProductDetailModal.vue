@@ -299,7 +299,7 @@
                     type="button"
                     @click="handleSelectColor(color)"
                     class="px-3.5 py-2 rounded-xl border text-xs font-medium transition flex items-center gap-2 cursor-pointer active:scale-95"
-                    :class="selectedColor?.name === color.name
+                    :class="selectedColor === color
                       ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
                   >
@@ -329,13 +329,15 @@
                     :key="sIdx"
                     type="button"
                     @click="handleSelectSize(size)"
-                    :disabled="!selectedColor"
-                    class="px-4 py-2 rounded-xl border text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white"
+                    :disabled="!selectedColor || sizeStockMap[size] === 0"
+                    class="px-4 py-2 rounded-xl border text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white flex flex-col items-center leading-tight"
                     :class="selectedSize === size
                       ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
                   >
-                    {{ size }}
+                    <span>{{ size }}</span>
+                    <span v-if="sizeStockMap[size] === 0" class="text-[9px] text-gray-400 font-normal">품절</span>
+                    <span v-else-if="typeof sizeStockMap[size] === 'number'" class="text-[9px] text-gray-400 font-normal">재고 {{ sizeStockMap[size] }}</span>
                   </button>
                 </div>
               </div>
@@ -1017,6 +1019,34 @@ const sizeOptions = computed(() => {
 
   // 5. 2차 옵션이 없으면 순수 빈 배열 (임의 생성 금지)
   return []
+})
+
+const sizeStockMap = computed(() => {
+  const item = currentItem.value || props.product || {}
+  const skus = (Array.isArray(item.skus) && item.skus.length > 0)
+    ? item.skus
+    : (Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : [])
+
+  const map = {}
+  if (skus.length === 0) return map
+
+  const selColorName = selectedColor.value?.name || ''
+  const isSingleAxis = !selColorName || selColorName === '기본 단품'
+
+  skus.forEach(sk => {
+    if (!sk.size) return
+    const matches = isSingleAxis || sk.color === selColorName
+    if (!matches) return
+
+    const stockVal = typeof sk.stock === 'number' ? sk.stock : parseInt(sk.stock, 10)
+    if (Number.isNaN(stockVal)) return
+
+    if (map[sk.size] === undefined || stockVal > map[sk.size]) {
+      map[sk.size] = stockVal
+    }
+  })
+
+  return map
 })
 
 // 다중 옵션 (2차 사이즈/규격 존재 여부: 1개 이상 존재할 때만 활성화)

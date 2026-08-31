@@ -1155,7 +1155,6 @@ export async function fetch1688ProductById(offerId) {
     } else if (it.sku && Array.isArray(it.sku)) {
       rawSkus = it.sku
     }
-    console.log('[fetch1688ProductById] rawSkus count:', rawSkus.length)
 
     // ─── 1순위: OneBound props_list 객체 → skuProps 변환 ────────────────────
     // props_list: {"0:0":"颜色:米白色","0:1":"颜色:黑色","1:0":"尺码:35-36","1:1":"尺码:37-38"}
@@ -1375,20 +1374,23 @@ export async function fetch1688ProductById(offerId) {
 
         const skuPrice = parseFloat(String(sk.price || priceNum).replace(/[^0-9.]/g, '')) || priceNum
 
+
         return {
           skuId: String(sk.sku_id || sk.skuId || sk.id || `sku-${sIdx}`),
           color: cleanForeignText(colorName) || colorName,
           size:  cleanForeignText(sizeName)  || sizeName,
           price: skuPrice,
           imageUrl: skuImgUrl,
-          stock: parseInt(sk.quantity || sk.stock || '999', 10)
+          stock: (() => {
+            const q = sk.quantity
+            const s = sk.stock
+            if (q !== undefined && q !== null && q !== '') return parseInt(q, 10)
+            if (s !== undefined && s !== null && s !== '') return parseInt(s, 10)
+            return 999
+          })()
         }
       })
     }
-
-
-
-
     // skuProps만 있고 skus가 없는 경우 교차 조합 생성
     if (parsedSkuProps.length > 0 && parsedSkus.length === 0) {
       const firstProp = parsedSkuProps[0]
@@ -1506,6 +1508,7 @@ export async function fetch1688ProductById(offerId) {
           if (s.color && transMap[s.color]) s.color = transMap[s.color]
           if (s.size && transMap[s.size]) s.size = transMap[s.size]
         })
+
       } catch (e) {
         console.debug('[fetch1688ProductById] Translation notice:', e.message)
       }
