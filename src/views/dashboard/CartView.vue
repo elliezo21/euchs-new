@@ -327,23 +327,23 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 4. 옵션 변경/추가 소형 팝업 (실제 1688 데이터 기반) -->
+    <!-- 4. 옵션 변경/추가 소형 팝업 (색상 → 사이즈 2단계 선택) -->
     <!-- ======================================================== -->
     <div
       v-if="isOptionModalOpen && editingItem"
       class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
       @click.self="closeOptionModal"
     >
-      <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto text-xs text-gray-700">
-        <!-- 모달 헤더 -->
+      <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto text-xs text-gray-700">
+        <!-- 헤더 -->
         <div class="flex items-center justify-between pb-3 border-b border-gray-200">
           <div class="flex items-center gap-2">
             <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
               <Settings2 class="w-4 h-4" />
             </div>
             <div>
-              <h3 class="text-base font-bold text-gray-900">상품 옵션 변경 및 색상 선택</h3>
-              <p class="text-[11px] text-gray-500 mt-0.5">1688 실시간 재고 기준 · 색상별 수량 설정 후 적용</p>
+              <h3 class="text-base font-bold text-gray-900">상품 옵션 변경 및 색상/사이즈 선택</h3>
+              <p class="text-[11px] text-gray-500 mt-0.5">1688 실시간 재고 기준 · 색상 선택 → 사이즈별 수량 설정</p>
             </div>
           </div>
           <button @click="closeOptionModal" class="text-gray-400 hover:text-gray-900 p-1.5 rounded-xl hover:bg-gray-100 transition">
@@ -351,7 +351,7 @@
           </button>
         </div>
 
-        <!-- 상품 기본 정보 미니 카드 -->
+        <!-- 상품 미니 카드 -->
         <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-gray-200">
           <img
             :src="editingItem.imageUrl || editingItem.thumbnail"
@@ -368,89 +368,116 @@
           </div>
         </div>
 
-        <!-- SKU 색상 목록 및 수량 조절 -->
-        <div class="space-y-3">
+        <!-- 1단계: 색상 칩 선택 -->
+        <div v-if="modalColors.length > 1" class="space-y-2">
+          <div class="flex items-center gap-1.5">
+            <Layers class="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span class="font-bold text-gray-800 text-[11px]">① 색상 선택</span>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button
+              v-for="c in modalColors"
+              :key="c.color"
+              type="button"
+              @click="modalSelectedColor = c.color"
+              :disabled="c.isSoldOut"
+              class="px-3 py-1.5 rounded-xl text-[11px] font-bold border transition active:scale-95"
+              :class="modalSelectedColor === c.color
+                ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
+                : c.isSoldOut
+                  ? 'bg-gray-50 text-gray-300 border-gray-200 cursor-not-allowed'
+                  : 'bg-white text-gray-700 border-gray-300 hover:border-amber-400 hover:bg-amber-50'"
+            >
+              {{ c.colorKo || c.color }}
+              <span v-if="c.isSoldOut" class="ml-1 text-gray-400">(품절)</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2단계: 선택된 색상의 사이즈별 stepper -->
+        <div class="space-y-2">
           <div class="flex items-center justify-between">
-            <h4 class="font-bold text-gray-900 flex items-center gap-1.5">
-              <Layers class="w-4 h-4 text-amber-500" />
-              <span>색상별 발주 수량 설정</span>
-            </h4>
+            <div class="flex items-center gap-1.5">
+              <Layers class="w-3.5 h-3.5 text-amber-500 shrink-0" />
+              <span class="font-bold text-gray-800 text-[11px]">
+                {{ modalColors.length > 1 ? '② 사이즈별 발주 수량' : '발주 수량 설정' }}
+              </span>
+            </div>
             <span class="text-[11px] text-gray-400">수량 0 = 미선택</span>
           </div>
 
           <div class="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden bg-white">
             <div
-              v-for="sku in modalSkuList"
-              :key="sku.id"
-              class="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 transition"
+              v-for="row in modalFilteredRows"
+              :key="row.id"
+              class="px-4 py-3 flex items-center justify-between gap-3 hover:bg-slate-50 transition"
               :class="{
-                'bg-amber-50/40': sku.quantity > 0,
-                'opacity-50': sku.stock !== Infinity && sku.stock === 0,
+                'bg-amber-50/40': row.quantity > 0,
+                'opacity-40': row.stock !== Infinity && row.stock === 0,
               }"
             >
+              <!-- 사이즈 + 재고 정보 -->
               <div class="flex-1 min-w-0">
                 <div class="flex items-center gap-2 flex-wrap">
-                  <span class="font-bold text-gray-900 text-xs">{{ sku.colorKo || sku.color }}</span>
+                  <!-- 색상이 1개뿐이면 색상명 표시, 여러 색상이면 사이즈만 -->
+                  <span class="font-bold text-gray-900 text-xs">
+                    <template v-if="modalColors.length === 1">{{ row.colorKo || row.color }}</template>
+                    <template v-if="row.size">{{ row.size }}</template>
+                    <template v-if="modalColors.length === 1 && !row.size">기본 옵션</template>
+                  </span>
+                  <span v-if="row.isCurrent" class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">현재</span>
                   <span
-                    v-if="sku.isCurrent"
-                    class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black"
-                  >현재 색상</span>
-                  <span
-                    v-if="sku.stock !== Infinity && sku.stock === 0"
+                    v-if="row.stock !== Infinity && row.stock === 0"
                     class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-bold"
                   >품절</span>
                   <span
-                    v-else-if="sku.stock !== Infinity"
+                    v-else-if="row.stock !== Infinity"
                     class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-bold"
-                  >재고 {{ sku.stock }}개</span>
+                  >재고 {{ row.stock }}개</span>
                 </div>
                 <div class="text-[11px] text-gray-400 font-mono mt-0.5">
-                  단가: ¥{{ sku.priceCny.toFixed(2) }}
-                  (₩{{ formatNumber(Math.round(sku.priceCny * 226.19)) }}원)
-                  <template v-if="sku.size"> · {{ sku.size }}</template>
+                  ¥{{ row.priceCny.toFixed(2) }} (₩{{ formatNumber(Math.round(row.priceCny * 226.19)) }}원)
                 </div>
               </div>
 
               <!-- Stepper -->
-              <div class="flex items-center gap-3 shrink-0">
+              <div class="flex items-center gap-2 shrink-0">
                 <div class="inline-flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
                   <button
                     type="button"
-                    @click="decreaseSkuQty(sku)"
-                    :disabled="sku.stock !== Infinity && sku.stock === 0"
+                    @click="decreaseSkuQty(row)"
+                    :disabled="row.stock !== Infinity && row.stock === 0"
                     class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition font-bold disabled:opacity-30"
                   >-</button>
                   <input
                     type="number"
                     min="0"
-                    :max="sku.stock === Infinity ? undefined : sku.stock"
-                    :value="sku.quantity"
-                    :disabled="sku.stock !== Infinity && sku.stock === 0"
-                    @change="clampSkuQty(sku, $event.target.value); $event.target.value = sku.quantity"
+                    :max="row.stock === Infinity ? undefined : row.stock"
+                    :value="row.quantity"
+                    :disabled="row.stock !== Infinity && row.stock === 0"
+                    @change="clampSkuQty(row, $event.target.value); $event.target.value = row.quantity"
                     class="w-12 h-7 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none disabled:opacity-30"
                   />
                   <button
                     type="button"
-                    @click="increaseSkuQty(sku)"
-                    :disabled="sku.stock !== Infinity && sku.stock === 0"
+                    @click="increaseSkuQty(row)"
+                    :disabled="row.stock !== Infinity && row.stock === 0"
                     class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition font-bold disabled:opacity-30"
                   >+</button>
                 </div>
                 <div class="w-20 text-right font-mono font-bold text-amber-600 text-xs">
-                  ₩{{ formatNumber(Math.round((sku.quantity || 0) * sku.priceCny * 226.19)) }}
+                  ₩{{ formatNumber(Math.round((row.quantity || 0) * row.priceCny * 226.19)) }}
                 </div>
               </div>
             </div>
           </div>
         </div>
 
-        <!-- 요약 및 액션 버튼 -->
+        <!-- 전체 선택 합계 요약 -->
         <div class="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-2xl flex items-center justify-between text-xs">
           <div>
             <span class="text-gray-500 font-medium">설정된 총 발주 수량</span>
-            <div class="font-bold text-gray-900 font-mono text-sm">
-              총 {{ modalTotalQuantity }}개 ({{ modalSelectedSkuCount }}개 옵션)
-            </div>
+            <div class="font-bold text-gray-900 font-mono text-sm">총 {{ modalTotalQuantity }}개 ({{ modalSelectedSkuCount }}개 옵션)</div>
           </div>
           <div class="text-right">
             <span class="text-gray-500 font-medium">예상 합계 금액</span>
@@ -458,6 +485,7 @@
           </div>
         </div>
 
+        <!-- 액션 버튼 -->
         <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
           <button
             type="button"
@@ -1126,7 +1154,7 @@ function decreaseSkuQty(sku) {
   sku.quantity = Math.max(0, (sku.quantity || 0) - 1);
 }
 
-// "옵션 변경/추가" 버튼 클릭: 1688 SKU 데이터 조회 → 소형 팝업 오픈
+// "옵션 변경/추가" 버튼 클릭: 1688 SKU 데이터 조회 → 소형 팝업 오픈 (색상×사이즈 조합)
 async function openOptionModal(item) {
   if (isOptionFetching.value) return;
 
@@ -1150,59 +1178,56 @@ async function openOptionModal(item) {
     }
 
     const skus = Array.isArray(full.skus) && full.skus.length > 0 ? full.skus : [];
+    const basePrice = Number(full.price || item.priceCny || 15);
 
     if (skus.length === 0) {
-      // SKU 정보 없는 경우: 단일 행으로 구성
+      // SKU 정보 없는 경우: 단일 행
       modalSkuList.value = [{
         id: `sku-0-${Date.now()}`,
         color: '',
         colorKo: item.titleKo || '기본 옵션',
         size: '',
         stock: Infinity,
-        priceCny: Number(item.priceCny || full.price || 15),
+        priceCny: basePrice,
         quantity: Number(item.quantity) || 1,
         isCurrent: true,
       }];
+      modalSelectedColor.value = '';
     } else {
-      // SKU 배열에서 색상 기준으로 그룹화: 색상별 재고 최댓값 사용
-      // (size가 있는 상품은 color 단위로만 표시하되, size별 재고 합산 안 함 — 최댓값 표시)
-      const colorMap = new Map(); // key: colorZh, value: { stock, priceCny, hasSizes }
-      for (const sk of skus) {
-        const colorKey = String(sk.color || '기본 단품').trim();
-        const skStock = parseStock(sk.stock);
-        const existing = colorMap.get(colorKey);
-        if (!existing) {
-          colorMap.set(colorKey, {
-            stock: skStock === Infinity ? Infinity : skStock,
-            priceCny: Number(sk.price || sk.priceCny || full.price || 15),
-            hasSizes: !!sk.size,
-          });
-        } else {
-          // 같은 색상의 여러 사이즈 중 재고 최댓값 사용
-          if (skStock !== Infinity) {
-            existing.stock = existing.stock === Infinity ? skStock : Math.max(existing.stock, skStock);
-          }
-        }
-      }
+      // ── 색상×사이즈 조합을 각각 독립 행으로 구성 ──
+      // isCurrent: 기존 장바구니 행의 color+size와 일치하는 조합 선표시
+      const currentColorZh = String(item.color || '').trim();
+      const currentColorKo = translateColorName(currentColorZh);
+      const currentSize   = String(item.size || '').trim();
 
-      modalSkuList.value = Array.from(colorMap.entries()).map(([colorZh, info], idx) => {
+      modalSkuList.value = skus.map((sk, idx) => {
+        const colorZh = String(sk.color || '기본 단품').trim();
         const colorKo = translateColorName(colorZh);
-        const isCurrentColor = colorZh === item.color || colorKo === item.color;
+        const size    = String(sk.size || '').trim();
+        const stock   = parseStock(sk.stock);
+        const price   = Number(sk.price || sk.priceCny || basePrice);
+
+        // 현재 색상 판별: 중문→한글 번역 양쪽으로 비교
+        const colorMatch = colorZh === currentColorZh || colorKo === currentColorKo;
+        const sizeMatch  = !currentSize || size === currentSize || !size;
+        const isCurrent  = colorMatch && sizeMatch;
+
         return {
           id: `sku-${idx}-${Date.now()}`,
           color: colorZh,
           colorKo,
-          size: info.hasSizes ? '(사이즈 다양)' : '',
-          stock: info.stock,
-          priceCny: info.priceCny,
-          quantity: isCurrentColor ? (Number(item.quantity) || 1) : 0,
-          isCurrent: isCurrentColor,
+          size,
+          stock,
+          priceCny: price,
+          quantity: isCurrent ? (Number(item.quantity) || 1) : 0,
+          isCurrent,
         };
       });
 
-      // 현재 선택된 색상 초기 설정
+      // 초기 선택 색상: 현재 행의 색상(매칭 시) 또는 첫 번째 색상
       const currentEntry = modalSkuList.value.find(s => s.isCurrent);
-      modalSelectedColor.value = currentEntry?.color || '';
+      const firstColor   = modalSkuList.value[0]?.color || '';
+      modalSelectedColor.value = currentEntry?.color || firstColor;
     }
 
     isOptionModalOpen.value = true;
@@ -1222,6 +1247,29 @@ function closeOptionModal() {
   modalSelectedColor.value = '';
 }
 
+// 팝업 내 색상 목록 (중복 제거, 순서 유지)
+const modalColors = computed(() => {
+  const seen = new Set();
+  return modalSkuList.value.filter(s => {
+    if (seen.has(s.color)) return false;
+    seen.add(s.color);
+    return true;
+  }).map(s => ({
+    color: s.color,
+    colorKo: s.colorKo,
+    // 해당 색상의 모든 사이즈가 품절이면 색상 자체를 품절로 표시
+    isSoldOut: modalSkuList.value
+      .filter(r => r.color === s.color)
+      .every(r => r.stock !== Infinity && r.stock === 0),
+  }));
+});
+
+// 선택된 색상의 사이즈 행 목록
+const modalFilteredRows = computed(() => {
+  if (!modalSelectedColor.value) return modalSkuList.value;
+  return modalSkuList.value.filter(s => s.color === modalSelectedColor.value);
+});
+
 // 팝업 합계 computed
 const modalTotalQuantity = computed(() =>
   modalSkuList.value.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0)
@@ -1233,6 +1281,7 @@ const modalTotalKrw = computed(() => Math.round(modalTotalCny.value * 226.19));
 const modalSelectedSkuCount = computed(() =>
   modalSkuList.value.filter(s => (s.quantity || 0) > 0).length
 );
+
 
 // 팝업 "적용" 버튼: localStorage에 새 행 직접 저장 후 handleEditModalCartAdded로 기존 행 제거
 function applyOptionChanges() {
@@ -1248,19 +1297,23 @@ function applyOptionChanges() {
   try {
     const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
 
-    // 각 선택된 SKU를 독립 행으로 추가
-    const newRows = validSkus.map((sku, i) => ({
-      ...JSON.parse(JSON.stringify(baseItem)),
-      id: `cart-sku-${Date.now()}-${i}`,
-      color: sku.color,
-      optionName: sku.colorKo || sku.color,
-      sku: sku.colorKo || sku.color,
-      quantity: sku.quantity,
-      priceCny: sku.priceCny,
-      stock: sku.stock === Infinity ? undefined : sku.stock,
-      skus: [{ color: sku.color, size: '', quantity: sku.quantity }],
-      createdAt: new Date().toISOString(),
-    }));
+    // 각 선택된 SKU를 독립 행으로 추가 (color+size 조합 정확히 보존)
+    const newRows = validSkus.map((sku, i) => {
+      const optLabel = [sku.colorKo || sku.color, sku.size].filter(Boolean).join(' / ');
+      return {
+        ...JSON.parse(JSON.stringify(baseItem)),
+        id: `cart-sku-${Date.now()}-${i}`,
+        color: sku.color,
+        size: sku.size,
+        optionName: optLabel,
+        sku: optLabel,
+        quantity: sku.quantity,
+        priceCny: sku.priceCny,
+        stock: sku.stock === Infinity ? undefined : sku.stock,
+        skus: [{ color: sku.color, size: sku.size, quantity: sku.quantity }],
+        createdAt: new Date().toISOString(),
+      };
+    });
 
     // 기존 행(oldId)은 handleEditModalCartAdded에서 제거하므로 여기서는 추가만
     const merged = [...stored, ...newRows];
