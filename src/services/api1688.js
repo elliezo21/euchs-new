@@ -129,6 +129,95 @@ export const CONFIG = {
 
 
 // ========================================================
+// 🇨🇳 중국어 색상명 ➔ 한국어 고정 매핑 사전
+// ========================================================
+// 목적: DeepL이 같은 원문(예: 粉红色, 桃色)을 호출마다 다르게 번역하는
+//       비결정성을 원천 차단하기 위한 확정 매핑.
+//
+// 원칙:
+//   1. 원문이 다르면 한글도 반드시 다르게 지정 (粉色 vs 粉红色 구분 등)
+//   2. 실측 확인된 원문(971978146063 상품 + 1688 표준 색상)만 포함
+//   3. 매핑에 없는 새 색상은 런타임에 DeepL 번역 후 runtimeColorMap에 추가
+// ========================================================
+export const ZH_KO_COLOR_MAP = {
+  // ── 기본 단색 (한글식 표기 통일) ─────────────────────────
+  '黑色':   '검은색',
+  '白色':   '흰색',
+  '灰色':   '회색',
+  '深灰色': '진회색',
+  '浅灰色': '연회색',
+  '红色':   '빨간색',
+  '深红色': '진빨간색',
+  '蓝色':   '파란색',
+  '深蓝色': '진파란색',
+  '浅蓝色': '연파란색',
+  '天蓝色': '하늘색',          // 실측 확인 (971978146063)
+  '宝蓝色': '코발트블루',      // 한글 고유 표현 없음
+  '藏青色': '남색',
+  '绿色':   '초록색',
+  '深绿色': '진초록색',
+  '浅绿色': '연초록색',        // 실측 확인 (971978146063)
+  '墨绿色': '짙은초록색',
+  '黄色':   '노란색',
+  '米黄色': '베이지노란색',
+  '橙色':   '주황색',
+  '紫色':   '보라색',
+  '浅紫色': '연보라색',
+  '棕色':   '갈색',
+  '咖啡色': '커피색',
+  '米色':   '베이지색',
+  '卡其色': '카키색',
+  '金色':   '금색',
+  '银色':   '은색',
+  '玫瑰金': '로즈골드',        // 한글 고유 표현 없음
+
+  // ── 핑크/복숭아 계열 — 3자 모두 서로 다른 이름 ──────────
+  // ⚠ 粉色·粉红色·桃色는 DeepL이 모두 "분홍색/복숭아색"으로 겹치므로
+  //   아래와 같이 명확히 구분하여 고정함
+  '粉色':   '분홍색',          // pale pink — 가장 일반적인 분홍
+  '粉红色': '진분홍색',        // 粉色보다 붉은 핑크 (粉+紅 합성) — "분홍색"과 구분
+  '桃色':   '복숭아색',        // 실측 확인 (971978146063) — peach tone
+  '浅粉色': '연분홍색',
+  '深粉色': '짙은분홍색',
+  '玫瑰色': '장미색',
+  '玫红色': '장미빨간색',
+  '珊瑚色': '산호색',
+  '橙红色': '주황빨간색',
+  '桔红色': '주황빨간색',      // 실측 확인 (971978146063) — 桔/橘 동의어, 橙红色와 동일
+
+  // ── 복합 색상 (실측 확인된 항목) ─────────────────────────
+  '黑色绿底': '검은색(초록밑창)',   // 971978146063 실측
+  '黑色红底': '검은색(빨간밑창)',   // 971978146063 실측
+  '白色蓝底': '흰색(파란밑창)',     // 971978146063 실측
+
+  // ── 기타 자주 등장하는 색상 ──────────────────────────────
+  '象牙白': '아이보리',
+  '奶白色': '우유색',
+  '透明':   '투명',
+  '荧光黄': '형광노란색',
+  '荧光绿': '형광초록색',
+  '荧光粉': '형광분홍색',
+  '军绿色': '군용초록색',
+  '薄荷绿': '민트초록색',
+  '水蓝色': '물빛파란색',
+  '冰蓝色': '얼음빛파란색',
+  '紫红色': '보라빨간색',
+  '酒红色': '와인빨간색',
+  '枣红色': '대추빨간색',
+  '砖红色': '벽돌빨간색',
+  '土黄色': '황토색',
+  '芥黄色': '겨자색',
+  '柠檬黄': '레몬노란색',
+  '杏色':   '살구색',
+  '肤色':   '살색',
+  '裸色':   '누드색',
+}
+
+// 런타임 보조 맵 — DeepL 번역 결과를 세션 내에서 누적, 새 색상 일관성 보장
+// (export 안 함 — 모듈 내부에서만 사용)
+const runtimeColorMap = {}
+
+// ========================================================
 // 🇷🇺 러시아어 및 다국어 ➔ 한국어 매핑 사전 & 정제 엔진
 // ========================================================
 export const RU_KO_DICT = {
@@ -1374,7 +1463,6 @@ export async function fetch1688ProductById(offerId) {
 
         const skuPrice = parseFloat(String(sk.price || priceNum).replace(/[^0-9.]/g, '')) || priceNum
 
-
         return {
           skuId: String(sk.sku_id || sk.skuId || sk.id || `sku-${sIdx}`),
           color: cleanForeignText(colorName) || colorName,
@@ -1463,15 +1551,63 @@ export async function fetch1688ProductById(offerId) {
       if (s.size) textsToTranslate.push(s.size)
     })
 
-    // 중국어(\u4e00-\u9fff), 키릴/러시아어(\u0400-\u04ff), 비한글 외국어 포함 문자열 번역 대상으로 필터
+    // ── 4단계 번역 파이프라인 ───────────────────────────────────────────────
+    // 1순위: ZH_KO_COLOR_MAP 고정 사전 (코드 레벨, 비결정성 완전 차단)
+    // 2순위: runtimeColorMap (세션 내 DeepL 결과 누적, 새 색상 일관성)
+    // 3순위: memoryTranslationCache + sessionStorage (캐시)
+    // 4순위: DeepL API (위 세 곳 모두 miss인 경우만)
+    // DeepL 번역 결과는 runtimeColorMap에 저장 → 세션 내 재사용
+    // ─────────────────────────────────────────────────────────────────────────
+    const NEEDS_TRANSLATE_RE = /[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04FF]/
+
+    // 통합 선적용 맵 조합: 고정사전 + 런타임맵 + 세션캐시
+    const preApplied = {}
+    ;[...new Set(textsToTranslate)].forEach(txt => {
+      if (!txt || typeof txt !== 'string') return
+      if (!NEEDS_TRANSLATE_RE.test(txt)) return  // 이미 한글/영문
+
+      // 1순위: 고정 사전
+      if (ZH_KO_COLOR_MAP[txt]) {
+        preApplied[txt] = ZH_KO_COLOR_MAP[txt]
+        return
+      }
+      // 2순위: 런타임 누적 맵
+      if (runtimeColorMap[txt]) {
+        preApplied[txt] = runtimeColorMap[txt]
+        return
+      }
+      // 3순위: 세션/메모리 캐시
+      const cKey = `KO_auto_${txt}`
+      const hit = getFromCache(memoryTranslationCache, 'euchs_trans', cKey)
+      if (hit) preApplied[txt] = hit
+    })
+
+    // 선적용 실행 (1~3순위 hit 항목)
+    if (Object.keys(preApplied).length > 0) {
+      parsedSkuProps.forEach(p => {
+        if (p.prop && preApplied[p.prop]) { p.propKo = preApplied[p.prop]; p.prop = preApplied[p.prop] }
+        p.values.forEach(v => {
+          if (v.name && preApplied[v.name]) { v.nameKo = preApplied[v.name]; v.name = preApplied[v.name] }
+        })
+      })
+      parsedSkus.forEach(s => {
+        if (s.color && preApplied[s.color]) s.color = preApplied[s.color]
+        if (s.size  && preApplied[s.size])  s.size  = preApplied[s.size]
+      })
+    }
+
+    // 4순위: 아직 중국어/외국어가 남은 텍스트만 DeepL 호출
+    // ⚠️ 버그 수정 (이전): textsToTranslate 원본 기준으로 필터해서 preApplied 완료 텍스트도
+    //    DeepL로 전송됐음 → ZH_KO_COLOR_MAP 히트여도 DeepL 결과가 덮어쓸 수 있었음.
+    // ✅ 수정 후: preApplied에 이미 등록된 텍스트(= 고정사전·런타임맵·세션캐시 히트)는
+    //    DeepL 호출 대상에서 명시적으로 제외 → 완벽한 일관성 보장.
     const uniqueTexts = [...new Set(textsToTranslate.filter(t => {
       if (typeof t !== 'string' || !t.trim()) return false
-      // 한글만으로 되어 있는 경우는 제외, 외국어(중국어, 러시아어, 영문 등)가 포함된 경우 번역 대상
+      if (preApplied[t]) return false  // ← 핵심 수정: 이미 매핑 완료된 텍스트 제외
       return /[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04FF]/.test(t) || /[a-zA-Z]{3,}/.test(t)
     }))]
 
     let titleKo = ''
-    // titleZh가 순수 한국어면 바로 사용, 아니면 번역
     if (titleZh && !/[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04ff]/.test(titleZh)) {
       titleKo = titleZh
     }
@@ -1489,7 +1625,7 @@ export async function fetch1688ProductById(offerId) {
           titleKo = transMap[titleZh]
         }
 
-        // skuProps 번역 적용
+        // skuProps DeepL 결과 적용
         parsedSkuProps.forEach(p => {
           if (p.prop && transMap[p.prop]) {
             p.propKo = transMap[p.prop]
@@ -1503,10 +1639,21 @@ export async function fetch1688ProductById(offerId) {
           })
         })
 
-        // parsedSkus 번역 적용
+        // parsedSkus DeepL 결과 적용 + runtimeColorMap 누적
         parsedSkus.forEach(s => {
-          if (s.color && transMap[s.color]) s.color = transMap[s.color]
+          if (s.color && transMap[s.color]) {
+            // 새 색상 DeepL 결과 → 세션 내 일관성을 위해 runtimeColorMap에 저장
+            if (NEEDS_TRANSLATE_RE.test(s.color)) runtimeColorMap[s.color] = transMap[s.color]
+            s.color = transMap[s.color]
+          }
           if (s.size && transMap[s.size]) s.size = transMap[s.size]
+        })
+        // skuProps values도 새 색상이면 runtimeColorMap에 저장
+        parsedSkuProps.forEach(p => {
+          p.values.forEach(v => {
+            const origName = uniqueTexts.find(t => transMap[t] === v.name)
+            if (origName && NEEDS_TRANSLATE_RE.test(origName)) runtimeColorMap[origName] = v.name
+          })
         })
 
       } catch (e) {
