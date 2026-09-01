@@ -385,8 +385,10 @@
                     </button>
                     <input
                       type="number"
-                      v-model.number="sku.quantity"
+                      :value="sku.quantity"
                       min="1"
+                      :max="getSkuStock(sku.color, sku.size) === Infinity ? undefined : getSkuStock(sku.color, sku.size)"
+                      @change="onSkuQtyInput(skuIdx, $event)"
                       class="w-14 h-8 bg-white border border-gray-300 rounded-xl text-center font-bold font-mono text-gray-900 text-xs focus:ring-1 focus:ring-rose-500"
                     />
                     <button
@@ -1059,6 +1061,39 @@ const sizeStockMap = computed(() => {
   return map
 })
 
+// 색상별 재고 맵 (단일 옵션 상품 — size 없는 경우를 위한 보조 맵)
+const colorStockMap = computed(() => {
+  const item = currentItem.value || props.product || {}
+  const skus = (Array.isArray(item.skus) && item.skus.length > 0)
+    ? item.skus
+    : (Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : [])
+  const map = {}
+  skus.forEach(sk => {
+    if (!sk.color) return
+    const stockVal = typeof sk.stock === 'number' ? sk.stock : parseInt(sk.stock, 10)
+    if (isNaN(stockVal)) return
+    const key = String(sk.color).trim()
+    if (map[key] === undefined || stockVal > map[key]) map[key] = stockVal
+  })
+  return map
+})
+
+// 색상+사이즈 조합의 재고 상한 반환.
+// - 2차 옵션(size) 있을 경우 → sizeStockMap (selectedColor 기준으로 이미 필터링됨)
+// - 1차 옵션(color)만 있을 경우 → colorStockMap
+// - 재고 미파악(undefined/NaN) → Infinity (상한 없음으로 동작)
+const getSkuStock = (color, size) => {
+  if (size && String(size).trim() !== '') {
+    const v = sizeStockMap.value[String(size).trim()]
+    if (typeof v === 'number' && !isNaN(v)) return v
+  }
+  if (color && String(color).trim() !== '') {
+    const v = colorStockMap.value[String(color).trim()]
+    if (typeof v === 'number' && !isNaN(v)) return v
+  }
+  return Infinity
+}
+
 // 다중 옵션 (2차 사이즈/규격 존재 여부: 1개 이상 존재할 때만 활성화)
 const hasMultipleOptions = computed(() => {
   return Array.isArray(sizeOptions.value) && sizeOptions.value.length > 0
@@ -1190,8 +1225,14 @@ const handleSelectColor = (color) => {
     const colorName = String(color.name || '').trim()
     const existing = selectedSkus.value.find(s => s.color === colorName)
     if (existing) {
-      // 이미 존재하면 해당 행의 quantity만 +1 (다른 행에 절대 간섭 없음)
-      existing.quantity = (Number(existing.quantity) || 1) + 1
+      // 이미 존재하면 해당 행의 quantity만 +1 — 재고 상한 체크 포함
+      const nextQty = (Number(existing.quantity) || 1) + 1
+      const stockLimit = getSkuStock(colorName, '')
+      if (stockLimit !== Infinity && nextQty > stockLimit) {
+        showToastNotification(`⚠️ 재고는 최대 ${stockLimit}개까지만 담을 수 있습니다.`, 'warning')
+        return
+      }
+      existing.quantity = nextQty
     } else {
       // 신규 행 추가 — 초기 수량은 항상 1 (minOrder는 최소발주단위일 뿐 수량 기본값이 아님)
       selectedSkus.value.push({
@@ -1220,8 +1261,14 @@ const handleSelectSize = (size) => {
   // 1차와 2차가 모두 선택 완료된 시점에 품목 리스트에 추가
   const existing = selectedSkus.value.find(s => s.color === colorName && s.size === sizeName)
   if (existing) {
-    // 이미 존재하면 해당 행의 quantity만 +1 (다른 행에 절대 간섭 없음)
-    existing.quantity = (Number(existing.quantity) || 1) + 1
+    // 이미 존재하면 해당 행의 quantity만 +1 — 재고 상한 체크 포함
+    const nextQty = (Number(existing.quantity) || 1) + 1
+    const stockLimit = getSkuStock(colorName, sizeName)
+    if (stockLimit !== Infinity && nextQty > stockLimit) {
+      showToastNotification(`⚠️ 재고는 최대 ${stockLimit}개까지만 담을 수 있습니다.`, 'warning')
+      return
+    }
+    existing.quantity = nextQty
   } else {
     // 신규 행 추가 — 초기 수량은 항상 1 (minOrder 절대 사용하지 않음)
     selectedSkus.value.push({
@@ -1237,8 +1284,33 @@ const updateSkuQty = (idx, delta) => {
   const sku = selectedSkus.value[idx]
   if (!sku) return
   const current = Number(sku.quantity) || 1
+  const next = Math.max(1, current + delta)
+  // 증가 방향일 때만 재고 상한 체크
+  if (delta > 0) {
+    const stockLimit = getSkuStock(sku.color, sku.size)
+    if (next > stockLimit) {
+      showToastNotification(`⚠️ 재고는 최대 ${stockLimit}개까지만 담을 수 있습니다.`, 'warning')
+      selectedSkus.value[idx] = { ...sku, quantity: stockLimit }
+      return
+    }
+  }
   // 반드시 해당 행 객체의 quantity만 수정 (다른 인덱스 행 절대 건드리지 않음)
-  selectedSkus.value[idx] = { ...sku, quantity: Math.max(1, current + delta) }
+  selectedSkus.value[idx] = { ...sku, quantity: next }
+}
+
+// 직접 입력 시 재고 상한 클램핑
+const onSkuQtyInput = (idx, e) => {
+  const sku = selectedSkus.value[idx]
+  if (!sku) return
+  const val = Math.max(1, parseInt(e.target.value, 10) || 1)
+  const stockLimit = getSkuStock(sku.color, sku.size)
+  if (stockLimit !== Infinity && val > stockLimit) {
+    showToastNotification(`⚠️ 재고는 최대 ${stockLimit}개까지만 담을 수 있습니다.`, 'warning')
+    selectedSkus.value[idx] = { ...sku, quantity: stockLimit }
+    e.target.value = stockLimit
+    return
+  }
+  selectedSkus.value[idx] = { ...sku, quantity: val }
 }
 
 const removeSku = (idx) => {
@@ -1661,7 +1733,11 @@ const saveSelectedItemsToCart = () => {
       const sizeStr = String(sku.size || '').trim()
       const optionParts = [colorStr, sizeStr].filter(p => p && p !== '-' && p !== 'undefined')
       const optionText = optionParts.length ? optionParts.join(' / ') : '기본 옵션'
-      const skuQty = Math.max(1, Number(sku.quantity) || 1)
+      // 저장 직전에도 재고 상한으로 한 번 더 클램핑 (직접 입력 후 바로 담기 버튼 누른 경우 방어)
+      const stockLimit = getSkuStock(colorStr, sizeStr)
+      const skuQty = stockLimit === Infinity
+        ? Math.max(1, Number(sku.quantity) || 1)
+        : Math.min(stockLimit, Math.max(1, Number(sku.quantity) || 1))
       const skuId = `${currentItem.value.id}_${colorStr || 'default'}_${sizeStr || 'none'}_${Date.now()}_${idx}`
 
       return {
@@ -1674,6 +1750,8 @@ const saveSelectedItemsToCart = () => {
         sku: optionText,
         // 수량 및 단가 (각 SKU 행 독립)
         quantity: skuQty,
+        // 재고 상한 — CartView 수량 조절 시 활용. 미파악이면 undefined (상한 없음)
+        stock: stockLimit === Infinity ? undefined : stockLimit,
         priceCny: Number(currentUnitRmb.value),
         price: Number(currentUnitRmb.value),
         totalPriceRmb: Number((skuQty * currentUnitRmb.value).toFixed(2)),
@@ -1692,10 +1770,16 @@ const saveSelectedItemsToCart = () => {
         String(c.size || '') === newRow.size
       )
       if (existIdx >= 0) {
-        // 동일 옵션 행 존재 → qty만 합산
-        cart[existIdx].quantity = (Number(cart[existIdx].quantity) || 0) + newRow.quantity
+        // 동일 옵션 행 존재 → qty 합산 후 재고 상한 클램핑
+        const mergedQty = (Number(cart[existIdx].quantity) || 0) + newRow.quantity
+        const cartStock = typeof cart[existIdx].stock === 'number' ? cart[existIdx].stock
+          : typeof newRow.stock === 'number' ? newRow.stock
+          : Infinity
+        cart[existIdx].quantity = cartStock === Infinity ? mergedQty : Math.min(cartStock, mergedQty)
         cart[existIdx].totalPriceRmb = Number((cart[existIdx].quantity * cart[existIdx].priceCny).toFixed(2))
         cart[existIdx].totalPriceKrw = Math.round(cart[existIdx].quantity * cart[existIdx].priceCny * props.exchangeRate)
+        // stock 필드 최신 정보로 갱신
+        if (newRow.stock !== undefined) cart[existIdx].stock = newRow.stock
       } else {
         // 신규 옵션 행 → 독립 행으로 선두 삽입
         cart.unshift(newRow)

@@ -1,5 +1,16 @@
 <template>
   <div class="space-y-6 pb-28">
+    <!-- 재고 초과 안내 토스트 -->
+    <Transition name="fade">
+      <div
+        v-if="stockLimitToast"
+        class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[9999] px-5 py-3 bg-gray-900 text-white text-sm font-bold rounded-2xl shadow-xl flex items-center gap-2 whitespace-nowrap pointer-events-none"
+      >
+        <span>⚠️</span>
+        <span>{{ stockLimitToast }}</span>
+      </div>
+    </Transition>
+
     <!-- ======================================================== -->
     <!-- 1. 페이지 헤더 & 통계 요약 카드 4종 -->
     <!-- ======================================================== -->
@@ -848,6 +859,15 @@ const sortBy = ref('latest');
 const selectedItemIds = ref([]);
 const cartItems = ref([]);
 
+// 재고 초과 안내 토스트
+const stockLimitToast = ref('');
+let stockLimitToastTimer = null;
+function showStockToast(msg) {
+  stockLimitToast.value = msg;
+  if (stockLimitToastTimer) clearTimeout(stockLimitToastTimer);
+  stockLimitToastTimer = setTimeout(() => { stockLimitToast.value = ''; }, 3000);
+}
+
 // 옵션 모달 상태
 const isOptionModalOpen = ref(false);
 const editingItem = ref(null);
@@ -990,7 +1010,13 @@ function handleImgError(e) {
 // 수량 조절 Stepper
 // ---------------------------------------------------------
 function increaseQty(item) {
-  item.quantity = (Number(item.quantity) || 1) + 1;
+  const stock = typeof item.stock === 'number' ? item.stock : Infinity;
+  const next = (Number(item.quantity) || 1) + 1;
+  if (stock !== Infinity && next > stock) {
+    showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
+    return;
+  }
+  item.quantity = next;
   saveCartToStorage();
 }
 
@@ -1004,7 +1030,14 @@ function decreaseQty(item) {
 function onQtyInput(item, e) {
   const val = parseInt(e.target.value, 10);
   if (!isNaN(val) && val >= 1) {
-    item.quantity = val;
+    const stock = typeof item.stock === 'number' ? item.stock : Infinity;
+    if (stock !== Infinity && val > stock) {
+      showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
+      item.quantity = stock;
+      e.target.value = stock;
+    } else {
+      item.quantity = val;
+    }
     saveCartToStorage();
   }
 }
@@ -1362,3 +1395,14 @@ onMounted(() => {
   window.addEventListener('euchs:cart-updated', loadCartItems);
 });
 </script>
+
+<style scoped>
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.2s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+</style>
