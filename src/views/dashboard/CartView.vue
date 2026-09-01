@@ -327,14 +327,152 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 4. 옵션 변경/추가 — ProductDetailModal 재사용 (edit 모드) -->
+    <!-- 4. 옵션 변경/추가 소형 팝업 (실제 1688 데이터 기반) -->
     <!-- ======================================================== -->
-    <ProductDetailModal
-      :product="editingProduct"
-      mode="edit"
-      @close="handleEditModalClose"
-      @added-to-cart="handleEditModalCartAdded"
-    />
+    <div
+      v-if="isOptionModalOpen && editingItem"
+      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+      @click.self="closeOptionModal"
+    >
+      <div class="bg-white rounded-3xl max-w-xl w-full p-6 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto text-xs text-gray-700">
+        <!-- 모달 헤더 -->
+        <div class="flex items-center justify-between pb-3 border-b border-gray-200">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+              <Settings2 class="w-4 h-4" />
+            </div>
+            <div>
+              <h3 class="text-base font-bold text-gray-900">상품 옵션 변경 및 색상 선택</h3>
+              <p class="text-[11px] text-gray-500 mt-0.5">1688 실시간 재고 기준 · 색상별 수량 설정 후 적용</p>
+            </div>
+          </div>
+          <button @click="closeOptionModal" class="text-gray-400 hover:text-gray-900 p-1.5 rounded-xl hover:bg-gray-100 transition">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- 상품 기본 정보 미니 카드 -->
+        <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-gray-200">
+          <img
+            :src="editingItem.imageUrl || editingItem.thumbnail"
+            :alt="editingItem.titleKo"
+            class="w-12 h-12 rounded-xl object-cover bg-white border border-gray-200 shrink-0"
+            @error="handleImgError"
+          />
+          <div class="flex-1 min-w-0">
+            <p class="font-bold text-gray-900 truncate">{{ editingItem.titleKo || editingItem.productName }}</p>
+            <p class="text-[11px] text-gray-500 font-mono mt-0.5">
+              기본 단가: <b>¥{{ getItemUnitPriceCny(editingItem).toFixed(2) }}</b>
+              (약 ₩{{ formatNumber(Math.round(getItemUnitPriceCny(editingItem) * 226.19)) }}원)
+            </p>
+          </div>
+        </div>
+
+        <!-- SKU 색상 목록 및 수량 조절 -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-gray-900 flex items-center gap-1.5">
+              <Layers class="w-4 h-4 text-amber-500" />
+              <span>색상별 발주 수량 설정</span>
+            </h4>
+            <span class="text-[11px] text-gray-400">수량 0 = 미선택</span>
+          </div>
+
+          <div class="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden bg-white">
+            <div
+              v-for="sku in modalSkuList"
+              :key="sku.id"
+              class="p-3.5 flex items-center justify-between gap-3 hover:bg-slate-50 transition"
+              :class="{
+                'bg-amber-50/40': sku.quantity > 0,
+                'opacity-50': sku.stock !== Infinity && sku.stock === 0,
+              }"
+            >
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <span class="font-bold text-gray-900 text-xs">{{ sku.colorKo || sku.color }}</span>
+                  <span
+                    v-if="sku.isCurrent"
+                    class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black"
+                  >현재 색상</span>
+                  <span
+                    v-if="sku.stock !== Infinity && sku.stock === 0"
+                    class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-bold"
+                  >품절</span>
+                  <span
+                    v-else-if="sku.stock !== Infinity"
+                    class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-bold"
+                  >재고 {{ sku.stock }}개</span>
+                </div>
+                <div class="text-[11px] text-gray-400 font-mono mt-0.5">
+                  단가: ¥{{ sku.priceCny.toFixed(2) }}
+                  (₩{{ formatNumber(Math.round(sku.priceCny * 226.19)) }}원)
+                  <template v-if="sku.size"> · {{ sku.size }}</template>
+                </div>
+              </div>
+
+              <!-- Stepper -->
+              <div class="flex items-center gap-3 shrink-0">
+                <div class="inline-flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                  <button
+                    type="button"
+                    @click="decreaseSkuQty(sku)"
+                    :disabled="sku.stock !== Infinity && sku.stock === 0"
+                    class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition font-bold disabled:opacity-30"
+                  >-</button>
+                  <input
+                    type="number"
+                    min="0"
+                    :max="sku.stock === Infinity ? undefined : sku.stock"
+                    :value="sku.quantity"
+                    :disabled="sku.stock !== Infinity && sku.stock === 0"
+                    @change="clampSkuQty(sku, $event.target.value); $event.target.value = sku.quantity"
+                    class="w-12 h-7 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none disabled:opacity-30"
+                  />
+                  <button
+                    type="button"
+                    @click="increaseSkuQty(sku)"
+                    :disabled="sku.stock !== Infinity && sku.stock === 0"
+                    class="w-7 h-7 flex items-center justify-center text-gray-500 hover:bg-gray-100 transition font-bold disabled:opacity-30"
+                  >+</button>
+                </div>
+                <div class="w-20 text-right font-mono font-bold text-amber-600 text-xs">
+                  ₩{{ formatNumber(Math.round((sku.quantity || 0) * sku.priceCny * 226.19)) }}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 요약 및 액션 버튼 -->
+        <div class="p-3.5 bg-amber-50/60 border border-amber-200/80 rounded-2xl flex items-center justify-between text-xs">
+          <div>
+            <span class="text-gray-500 font-medium">설정된 총 발주 수량</span>
+            <div class="font-bold text-gray-900 font-mono text-sm">
+              총 {{ modalTotalQuantity }}개 ({{ modalSelectedSkuCount }}개 옵션)
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-gray-500 font-medium">예상 합계 금액</span>
+            <div class="text-base font-black text-amber-600 font-mono">₩{{ formatNumber(modalTotalKrw) }}원</div>
+          </div>
+        </div>
+
+        <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            @click="closeOptionModal"
+            class="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition"
+          >취소</button>
+          <button
+            type="button"
+            @click="applyOptionChanges"
+            :disabled="modalTotalQuantity === 0"
+            class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black transition shadow-sm active:scale-95 cursor-pointer"
+          >장바구니에 옵션 적용하기</button>
+        </div>
+      </div>
+    </div>
 
     <!-- ======================================================== -->
     <!-- 4-2. 1688 수입 발주서 작성 & 통관/배송/VAS 설정 모달 -->
@@ -695,8 +833,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import ProductDetailModal from '@/components/ProductDetailModal.vue';
-import { fetch1688ProductById } from '@/services/api1688';
+import { fetch1688ProductById, ZH_KO_COLOR_MAP } from '@/services/api1688';
 import {
   ShoppingCart,
   CheckSquare,
@@ -741,15 +878,14 @@ function showStockToast(msg) {
   stockLimitToastTimer = setTimeout(() => { stockLimitToast.value = ''; }, 3000);
 }
 
-// 옵션 변경 모달 상태 — ProductDetailModal 재사용
-const editingProduct = ref(null);     // ProductDetailModal에 넘길 상품 객체 (fetch1688ProductById 결과)
-const editingCartItemId = ref(null);  // 교체 대상 장바구니 행 id
-const isOptionFetching = ref(false);  // 상품 데이터 조회 중 로딩 상태
+// 옵션 변경 소형 팝업 상태
+const isOptionModalOpen = ref(false);   // 팝업 표시 여부
+const editingItem = ref(null);          // 팝업을 연 장바구니 행 (기본 정보 표시용)
+const editingCartItemId = ref(null);    // 교체 대상 장바구니 행 id (handleEditModalCartAdded에서 사용)
+const isOptionFetching = ref(false);    // 1688 API 조회 중
+const modalSkuList = ref([]);           // 팝업에 표시할 SKU 행 목록 (color/size/stock/quantity)
+const modalSelectedColor = ref('');     // 팝업 내 선택된 색상 (사이즈 필터링용)
 
-// (레거시 호환: 더미 옵션 모달용 ref — 아래 template에서 참조하지 않도록 교체됨)
-const isOptionModalOpen = ref(false);
-const editingItem = ref(null);
-const modalSkuList = ref([]);
 
 // 발주 설정 모달 상태 및 VAS 옵션
 const isOrderConfigModalOpen = ref(false);
@@ -941,15 +1077,64 @@ function onQtyInput(item, e) {
 }
 
 // ---------------------------------------------------------
-// 옵션 변경 모달 — ProductDetailModal 재사용
+// 옵션 변경 소형 팝업 — fetch1688ProductById + 색상별 재고 표시
 // ---------------------------------------------------------
 
-// "옵션 변경/추가" 버튼 클릭: 실제 1688 SKU 데이터 조회 후 ProductDetailModal을 edit 모드로 오픈
+// 색상명 번역 헬퍼 (ZH_KO_COLOR_MAP 우선, 없으면 원문 유지)
+function translateColorName(zhName) {
+  if (!zhName) return '';
+  const mapped = ZH_KO_COLOR_MAP[zhName.trim()];
+  if (mapped) return mapped;
+  // 부분 매칭: 사전 키 중 zhName에 포함된 것 우선
+  for (const [zh, ko] of Object.entries(ZH_KO_COLOR_MAP)) {
+    if (zhName.includes(zh)) return zhName.replace(zh, ko);
+  }
+  return zhName;
+}
+
+// 재고 파싱 헬퍼 (string|number → number, 불명 → Infinity)
+function parseStock(raw) {
+  if (typeof raw === 'number' && !isNaN(raw)) return raw;
+  if (raw !== undefined && raw !== null && raw !== '' && !isNaN(Number(raw))) return Number(raw);
+  return Infinity;
+}
+
+// 팝업 내 클램핑+토스트 (modalSkuList 행에 사용)
+function clampSkuQty(sku, newVal) {
+  const stock = parseStock(sku.stock);
+  const val = Math.max(0, parseInt(newVal, 10) || 0);
+  if (stock !== Infinity && val > stock) {
+    showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
+    sku.quantity = stock;
+  } else {
+    sku.quantity = val;
+  }
+}
+
+function increaseSkuQty(sku) {
+  const stock = parseStock(sku.stock);
+  const next = (sku.quantity || 0) + 1;
+  if (stock !== Infinity && next > stock) {
+    showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
+    sku.quantity = stock;
+  } else {
+    sku.quantity = next;
+  }
+}
+
+function decreaseSkuQty(sku) {
+  sku.quantity = Math.max(0, (sku.quantity || 0) - 1);
+}
+
+// "옵션 변경/추가" 버튼 클릭: 1688 SKU 데이터 조회 → 소형 팝업 오픈
 async function openOptionModal(item) {
   if (isOptionFetching.value) return;
 
+  editingItem.value = item;
   editingCartItemId.value = item.id;
   isOptionFetching.value = true;
+  modalSkuList.value = [];
+  modalSelectedColor.value = '';
 
   try {
     const productId = item.itemId || item.id;
@@ -964,17 +1149,63 @@ async function openOptionModal(item) {
       return;
     }
 
-    // ProductDetailModal의 :product prop에 넘길 객체 구성
-    editingProduct.value = {
-      ...full,
-      // CartView의 현재 행 정보로 기본값 보완 (full이 일부 필드 누락할 경우 방어)
-      id: full.id || productId,
-      titleKo: full.titleKo || item.titleKo || full.titleZh || '',
-      titleZh: full.titleZh || '',
-      imageUrl: full.imageUrl || item.imageUrl || '',
-      detailUrl: full.detailUrl || item.detailUrl || '',
-      company: full.company || item.company || '1688 공급처',
-    };
+    const skus = Array.isArray(full.skus) && full.skus.length > 0 ? full.skus : [];
+
+    if (skus.length === 0) {
+      // SKU 정보 없는 경우: 단일 행으로 구성
+      modalSkuList.value = [{
+        id: `sku-0-${Date.now()}`,
+        color: '',
+        colorKo: item.titleKo || '기본 옵션',
+        size: '',
+        stock: Infinity,
+        priceCny: Number(item.priceCny || full.price || 15),
+        quantity: Number(item.quantity) || 1,
+        isCurrent: true,
+      }];
+    } else {
+      // SKU 배열에서 색상 기준으로 그룹화: 색상별 재고 최댓값 사용
+      // (size가 있는 상품은 color 단위로만 표시하되, size별 재고 합산 안 함 — 최댓값 표시)
+      const colorMap = new Map(); // key: colorZh, value: { stock, priceCny, hasSizes }
+      for (const sk of skus) {
+        const colorKey = String(sk.color || '기본 단품').trim();
+        const skStock = parseStock(sk.stock);
+        const existing = colorMap.get(colorKey);
+        if (!existing) {
+          colorMap.set(colorKey, {
+            stock: skStock === Infinity ? Infinity : skStock,
+            priceCny: Number(sk.price || sk.priceCny || full.price || 15),
+            hasSizes: !!sk.size,
+          });
+        } else {
+          // 같은 색상의 여러 사이즈 중 재고 최댓값 사용
+          if (skStock !== Infinity) {
+            existing.stock = existing.stock === Infinity ? skStock : Math.max(existing.stock, skStock);
+          }
+        }
+      }
+
+      modalSkuList.value = Array.from(colorMap.entries()).map(([colorZh, info], idx) => {
+        const colorKo = translateColorName(colorZh);
+        const isCurrentColor = colorZh === item.color || colorKo === item.color;
+        return {
+          id: `sku-${idx}-${Date.now()}`,
+          color: colorZh,
+          colorKo,
+          size: info.hasSizes ? '(사이즈 다양)' : '',
+          stock: info.stock,
+          priceCny: info.priceCny,
+          quantity: isCurrentColor ? (Number(item.quantity) || 1) : 0,
+          isCurrent: isCurrentColor,
+        };
+      });
+
+      // 현재 선택된 색상 초기 설정
+      const currentEntry = modalSkuList.value.find(s => s.isCurrent);
+      modalSelectedColor.value = currentEntry?.color || '';
+    }
+
+    isOptionModalOpen.value = true;
   } catch (err) {
     console.error('[openOptionModal] fetch 실패:', err);
     alert('상품 정보 조회 중 오류가 발생했습니다.');
@@ -983,14 +1214,77 @@ async function openOptionModal(item) {
   }
 }
 
-// ProductDetailModal이 edit 모드에서 닫힐 때 (담기 완료 또는 취소)
-function handleEditModalClose() {
-  editingProduct.value = null;
+function closeOptionModal() {
+  isOptionModalOpen.value = false;
+  editingItem.value = null;
   editingCartItemId.value = null;
+  modalSkuList.value = [];
+  modalSelectedColor.value = '';
 }
 
-// ProductDetailModal의 @added-to-cart: 새 행(들)이 localStorage에 저장됨
-// → 교체 대상 기존 행을 메모리 + localStorage 양쪽에서 제거하고 재로드
+// 팝업 합계 computed
+const modalTotalQuantity = computed(() =>
+  modalSkuList.value.reduce((acc, s) => acc + (Number(s.quantity) || 0), 0)
+);
+const modalTotalCny = computed(() =>
+  modalSkuList.value.reduce((acc, s) => acc + ((Number(s.quantity) || 0) * s.priceCny), 0)
+);
+const modalTotalKrw = computed(() => Math.round(modalTotalCny.value * 226.19));
+const modalSelectedSkuCount = computed(() =>
+  modalSkuList.value.filter(s => (s.quantity || 0) > 0).length
+);
+
+// 팝업 "적용" 버튼: localStorage에 새 행 직접 저장 후 handleEditModalCartAdded로 기존 행 제거
+function applyOptionChanges() {
+  const validSkus = modalSkuList.value.filter(s => (s.quantity || 0) > 0);
+  if (validSkus.length === 0) {
+    alert('최소 1개 이상의 옵션 수량을 입력해 주세요.');
+    return;
+  }
+
+  const baseItem = editingItem.value;
+  const cartKey = getCartStorageKey();
+
+  try {
+    const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
+
+    // 각 선택된 SKU를 독립 행으로 추가
+    const newRows = validSkus.map((sku, i) => ({
+      ...JSON.parse(JSON.stringify(baseItem)),
+      id: `cart-sku-${Date.now()}-${i}`,
+      color: sku.color,
+      optionName: sku.colorKo || sku.color,
+      sku: sku.colorKo || sku.color,
+      quantity: sku.quantity,
+      priceCny: sku.priceCny,
+      stock: sku.stock === Infinity ? undefined : sku.stock,
+      skus: [{ color: sku.color, size: '', quantity: sku.quantity }],
+      createdAt: new Date().toISOString(),
+    }));
+
+    // 기존 행(oldId)은 handleEditModalCartAdded에서 제거하므로 여기서는 추가만
+    const merged = [...stored, ...newRows];
+    localStorage.setItem(cartKey, JSON.stringify(merged));
+    window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: merged.length } }));
+    window.dispatchEvent(new Event('storage'));
+  } catch (e) {
+    console.error('[applyOptionChanges] 저장 실패:', e);
+    alert('저장 중 오류가 발생했습니다.');
+    return;
+  }
+
+  // 팝업 닫기 전에 편집 중인 cartItemId 유지 → handleEditModalCartAdded가 삭제
+  const savedOldId = editingCartItemId.value;
+  isOptionModalOpen.value = false;
+  editingItem.value = null;
+  modalSkuList.value = [];
+  modalSelectedColor.value = '';
+  // editingCartItemId는 handleEditModalCartAdded가 읽어야 하므로 그 호출 직전까지 유지
+  editingCartItemId.value = savedOldId;
+  handleEditModalCartAdded();
+}
+
+// 기존 행 삭제 + localStorage 동기화 (localStorage 중복 부활 버그 수정 포함, 수정 금지)
 function handleEditModalCartAdded() {
   const oldId = editingCartItemId.value;
 
@@ -1002,8 +1296,7 @@ function handleEditModalCartAdded() {
       selectedItemIds.value = selectedItemIds.value.filter(sid => sid !== oldId);
     }
 
-    // 2. localStorage에서도 제거 (ProductDetailModal이 새 행을 저장했지만 기존 행은 남겨둠)
-    //    loadCartItems()가 localStorage를 전체 재로드하므로, 여기서 먼저 제거해야 부활 방지
+    // 2. localStorage에서도 제거
     try {
       const cartKey = getCartStorageKey();
       const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
@@ -1014,10 +1307,11 @@ function handleEditModalCartAdded() {
     }
   }
 
+  editingCartItemId.value = null;
+
   // 3. localStorage 재로드 (새 행 반영)
   loadCartItems();
 }
-
 
 
 // ---------------------------------------------------------
