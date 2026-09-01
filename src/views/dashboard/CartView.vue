@@ -14,7 +14,7 @@
     <!-- ======================================================== -->
     <!-- 1. 페이지 헤더 & 통계 요약 카드 4종 -->
     <!-- ======================================================== -->
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+    <div class="pb-4 border-b border-gray-200">
       <div>
         <div class="flex items-center gap-2">
           <span class="px-2.5 py-0.5 rounded-full bg-amber-500/10 text-amber-700 text-xs font-black tracking-wide border border-amber-500/20">
@@ -27,27 +27,6 @@
         <p class="text-xs sm:text-sm text-gray-500 mt-1">
           1688 소싱몰에서 담은 상품의 옵션과 수량을 확인하고, 선택한 품목을 즉시 발주합니다.
         </p>
-      </div>
-
-      <!-- 상단 액션 버튼 그룹 -->
-      <div class="flex flex-wrap items-center gap-2 shrink-0">
-        <router-link
-          to="/mall"
-          class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95 animate-pulse"
-        >
-          <Plus class="w-4 h-4 text-amber-400" />
-          <span>1688 상품 추가 담기</span>
-        </router-link>
-
-        <button
-          type="button"
-          @click="exportCartExcel"
-          :disabled="cartItems.length === 0"
-          class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95"
-        >
-          <FileSpreadsheet class="w-4 h-4" />
-          <span>장바구니 엑셀 다운로드</span>
-        </button>
       </div>
     </div>
 
@@ -124,12 +103,30 @@
         />
       </div>
 
-      <div class="flex items-center gap-2 text-xs">
+      <div class="flex flex-wrap items-center gap-2 text-xs">
+        <router-link
+          to="/mall"
+          class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95 animate-pulse shrink-0"
+        >
+          <Plus class="w-4 h-4 text-amber-400" />
+          <span>1688 상품 추가 담기</span>
+        </router-link>
+
+        <button
+          type="button"
+          @click="exportCartExcel"
+          :disabled="cartItems.length === 0"
+          class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95 shrink-0"
+        >
+          <FileSpreadsheet class="w-4 h-4" />
+          <span>장바구니 엑셀 다운로드</span>
+        </button>
+
         <button
           type="button"
           @click="deleteSelected"
           :disabled="selectedItemIds.length === 0"
-          class="px-3.5 py-2 rounded-xl border border-gray-200 hover:bg-rose-50 text-gray-600 hover:text-rose-600 font-bold transition disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-600 flex items-center gap-1.5"
+          class="px-3.5 py-2 rounded-xl border border-gray-200 hover:bg-rose-50 text-gray-600 hover:text-rose-600 font-bold transition disabled:opacity-40 disabled:hover:bg-transparent disabled:hover:text-gray-600 flex items-center gap-1.5 shrink-0"
         >
           <Trash2 class="w-3.5 h-3.5" />
           <span>선택 품목 삭제</span>
@@ -137,7 +134,7 @@
 
         <select
           v-model="sortBy"
-          class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 outline-none cursor-pointer"
+          class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 text-xs font-bold text-gray-700 outline-none cursor-pointer shrink-0"
         >
           <option value="latest">최근 담은순</option>
           <option value="priceHigh">금액 높은순</option>
