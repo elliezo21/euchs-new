@@ -250,8 +250,10 @@
                   <input
                     type="number"
                     min="1"
+                    :max="(typeof item.stock === 'number' && !isNaN(item.stock)) ? item.stock : undefined"
                     :value="item.quantity || 1"
                     @input="onQtyInput(item, $event)"
+                    @change="onQtyInput(item, $event)"
                     class="w-14 h-8 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none focus:bg-amber-50/50"
                   />
                   <button
@@ -952,6 +954,10 @@ const loadCartItems = () => {
             size: sizeStr,
             optionName: resolvedOption,
             sku: resolvedOption,
+            // ── 재고 상한 필드 보존 (수량 조절 시 클램핑에 사용) ──
+            stock: (typeof it.stock === 'number' && !isNaN(it.stock))
+              ? it.stock
+              : (it.stock !== undefined && it.stock !== null && it.stock !== '' && !isNaN(Number(it.stock)) ? Number(it.stock) : undefined),
             // 원본 데이터 보존
             skus: it.skus || [],
             detailUrl: it.detailUrl || '',
@@ -1010,10 +1016,17 @@ function handleImgError(e) {
 // 수량 조절 Stepper
 // ---------------------------------------------------------
 function increaseQty(item) {
-  const stock = typeof item.stock === 'number' ? item.stock : Infinity;
-  const next = (Number(item.quantity) || 1) + 1;
+  const rawStock = item.stock;
+  const stock = (typeof rawStock === 'number' && !isNaN(rawStock))
+    ? rawStock
+    : (rawStock !== undefined && rawStock !== null && rawStock !== '' && !isNaN(Number(rawStock)) ? Number(rawStock) : Infinity);
+  
+  const current = Number(item.quantity) || 1;
+  const next = current + 1;
   if (stock !== Infinity && next > stock) {
     showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
+    item.quantity = stock;
+    saveCartToStorage();
     return;
   }
   item.quantity = next;
@@ -1030,7 +1043,11 @@ function decreaseQty(item) {
 function onQtyInput(item, e) {
   const val = parseInt(e.target.value, 10);
   if (!isNaN(val) && val >= 1) {
-    const stock = typeof item.stock === 'number' ? item.stock : Infinity;
+    const rawStock = item.stock;
+    const stock = (typeof rawStock === 'number' && !isNaN(rawStock))
+      ? rawStock
+      : (rawStock !== undefined && rawStock !== null && rawStock !== '' && !isNaN(Number(rawStock)) ? Number(rawStock) : Infinity);
+    
     if (stock !== Infinity && val > stock) {
       showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
       item.quantity = stock;
@@ -1038,6 +1055,11 @@ function onQtyInput(item, e) {
     } else {
       item.quantity = val;
     }
+    saveCartToStorage();
+  } else if (isNaN(val) || val < 1) {
+    // 빈 값이거나 0 이하 입력 시 기본값 1로 복구
+    item.quantity = 1;
+    e.target.value = 1;
     saveCartToStorage();
   }
 }

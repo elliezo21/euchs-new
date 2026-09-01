@@ -1079,16 +1079,50 @@ const colorStockMap = computed(() => {
 })
 
 // 색상+사이즈 조합의 재고 상한 반환.
-// - 2차 옵션(size) 있을 경우 → sizeStockMap (selectedColor 기준으로 이미 필터링됨)
-// - 1차 옵션(color)만 있을 경우 → colorStockMap
-// - 재고 미파악(undefined/NaN) → Infinity (상한 없음으로 동작)
+// 1순위: 원본 skus 배열에서 color+size 또는 단일 옵션 정확 매칭 탐색
+// 2순위: sizeStockMap / colorStockMap 폴백
+// 3순위: 재고 미파악(undefined/NaN) → Infinity (상한 없음으로 동작)
 const getSkuStock = (color, size) => {
-  if (size && String(size).trim() !== '') {
-    const v = sizeStockMap.value[String(size).trim()]
+  const item = currentItem.value || props.product || {}
+  const skus = (Array.isArray(item.skus) && item.skus.length > 0)
+    ? item.skus
+    : (Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : [])
+
+  const cStr = String(color || '').trim()
+  const sStr = String(size || '').trim()
+
+  // 1. skus 배열에서 color + size 정확 매칭
+  if (skus.length > 0) {
+    if (cStr && sStr) {
+      const match = skus.find(sk => String(sk.color || '').trim() === cStr && String(sk.size || '').trim() === sStr)
+      if (match && match.stock !== undefined && match.stock !== null && match.stock !== '') {
+        const val = typeof match.stock === 'number' ? match.stock : parseInt(match.stock, 10)
+        if (!isNaN(val)) return val
+      }
+    }
+    if (sStr) {
+      const match = skus.find(sk => String(sk.size || '').trim() === sStr)
+      if (match && match.stock !== undefined && match.stock !== null && match.stock !== '') {
+        const val = typeof match.stock === 'number' ? match.stock : parseInt(match.stock, 10)
+        if (!isNaN(val)) return val
+      }
+    }
+    if (cStr) {
+      const match = skus.find(sk => String(sk.color || '').trim() === cStr)
+      if (match && match.stock !== undefined && match.stock !== null && match.stock !== '') {
+        const val = typeof match.stock === 'number' ? match.stock : parseInt(match.stock, 10)
+        if (!isNaN(val)) return val
+      }
+    }
+  }
+
+  // 2. computed 맵 폴백
+  if (sStr) {
+    const v = sizeStockMap.value[sStr]
     if (typeof v === 'number' && !isNaN(v)) return v
   }
-  if (color && String(color).trim() !== '') {
-    const v = colorStockMap.value[String(color).trim()]
+  if (cStr) {
+    const v = colorStockMap.value[cStr]
     if (typeof v === 'number' && !isNaN(v)) return v
   }
   return Infinity
