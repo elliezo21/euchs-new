@@ -410,7 +410,7 @@
         <!-- 안내 메시지 -->
         <div class="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3.5 text-xs text-blue-700 leading-snug">
           <strong>견적 산출 완료 시</strong> 카카오톡 알림톡으로 안내드립니다.<br>
-          평균 산출 소요시간: <strong>영업일 기준 1~2일</strong>
+          평균 산출 소요시간: <strong>당일(1~2시간내)</strong> 품절 상품 퀄리티를 종합적으로 확인 후
         </div>
       </div>
 
