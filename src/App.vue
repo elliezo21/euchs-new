@@ -38,7 +38,6 @@ const isStandaloneRoute = computed(() => {
     p.startsWith('/admin') || 
     p === '/login' || 
     p === '/admin/login' ||
-    p.startsWith('/dashboard') ||
     p.startsWith('/mypage') ||
     p.startsWith('/my-page') ||
     p.startsWith('/lab')
