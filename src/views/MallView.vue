@@ -172,7 +172,7 @@
                 <i class="fas fa-search text-orange-400 text-xs sm:text-sm absolute left-2.5 sm:left-3.5 pointer-events-none"></i>
                 <input
                   v-model="queryInput"
-                  @input="handleSearchInputDebounced"
+                  @keydown.enter.prevent="executeSearch(1)"
                   type="text"
                   placeholder="사진검색, 1688 한글 상품명/링크(URL)"
                   class="flex-1 min-w-0 w-full h-10 sm:h-11 pl-8 sm:pl-10 pr-7 sm:pr-8 rounded-xl border-2 border-orange-400 focus:border-orange-500 focus:ring-2 focus:ring-orange-200 outline-none text-xs sm:text-sm text-slate-800 placeholder:text-slate-400 transition bg-white shadow-xs"
@@ -2006,13 +2006,9 @@ const openDetailModalById = async (offerId) => {
 }
 
 // ----------------------------------------------------
-// 1688 Search & AI Execution (with 500ms Debounce & Quota Defense)
+// 1688 Search & AI Execution
 // ----------------------------------------------------
-let searchDebounceTimer = null
-
 const executeSearch = async (page = 1, overrideKeyword = null) => {
-  clearTimeout(searchDebounceTimer)
-
   const rawInput = (overrideKeyword !== null ? overrideKeyword : queryInput.value).trim()
   if (!rawInput) return
 
@@ -2086,17 +2082,6 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
     hasSearched.value = true
   } finally {
     isLoading.value = false
-  }
-}
-
-// 500ms 디바운스 검색어 입력 핸들러
-const handleSearchInputDebounced = () => {
-  clearTimeout(searchDebounceTimer)
-  const val = queryInput.value.trim()
-  if (val.length >= 2) {
-    searchDebounceTimer = setTimeout(() => {
-      executeSearch(1)
-    }, 500)
   }
 }
 
