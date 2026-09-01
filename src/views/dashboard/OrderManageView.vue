@@ -748,38 +748,63 @@
                 <div
                   v-for="(item, idx) in activeOrder.items || []"
                   :key="idx"
-                  class="p-3.5 bg-slate-50 rounded-xl border border-gray-200 space-y-2"
+                  class="p-3.5 rounded-xl border space-y-2 transition"
+                  :class="item.excluded
+                    ? 'bg-rose-50/60 border-rose-200/80 opacity-75'
+                    : 'bg-slate-50 border-gray-200'"
                 >
                   <div class="flex items-center gap-3">
                     <img
                       :src="item.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=80&auto=format&fit=crop&q=60'"
                       class="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0"
+                      :class="item.excluded ? 'grayscale opacity-50' : ''"
                       @error="handleImgError"
                     />
                     <div class="flex-1 min-w-0">
-                      <p class="font-bold text-gray-900 text-xs line-clamp-1">{{ item.productName || item.titleKo || '1688 소싱 상품' }}</p>
-                      <p v-if="item.titleZh" class="text-[10px] text-gray-400 font-mono truncate">{{ item.titleZh }}</p>
-                      <p class="text-[11px] text-gray-500 mt-0.5 font-mono">SKU: {{ item.sku || '기본 옵션' }}</p>
+                      <div class="flex items-center gap-2 flex-wrap mb-0.5">
+                        <p
+                          class="font-bold text-xs line-clamp-1"
+                          :class="item.excluded ? 'line-through text-gray-400' : 'text-gray-900'"
+                        >
+                          {{ item.productName || item.titleKo || '1688 소싱 상품' }}
+                        </p>
+                        <span
+                          v-if="item.excluded"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[10px] border border-rose-200 shrink-0"
+                        >
+                          ⛔ {{ item.excludeReason || '구매 제외' }}
+                        </span>
+                      </div>
+                      <p v-if="item.titleZh" class="text-[10px] font-mono truncate" :class="item.excluded ? 'text-gray-300' : 'text-gray-400'">{{ item.titleZh }}</p>
+                      <p class="text-[11px] mt-0.5 font-mono" :class="item.excluded ? 'text-gray-300 line-through' : 'text-gray-500'">SKU: {{ item.sku || '기본 옵션' }}</p>
                     </div>
                   </div>
                   <!-- 단가/환율/마진 요약 행 -->
-                  <div class="grid grid-cols-3 gap-2 text-center text-[11px]">
+                  <div class="grid grid-cols-3 gap-2 text-center text-[11px]" :class="item.excluded ? 'opacity-40' : ''">
                     <div class="bg-white rounded-lg p-2 border border-gray-200">
                       <div class="text-gray-400 font-medium">1688 단가</div>
-                      <div class="font-bold text-gray-900 font-mono">¥{{ Number(item.priceCny || 0).toFixed(2) }}</div>
+                      <div class="font-bold font-mono" :class="item.excluded ? 'line-through text-gray-400' : 'text-gray-900'">¥{{ Number(item.priceCny || 0).toFixed(2) }}</div>
                     </div>
                     <div class="bg-white rounded-lg p-2 border border-gray-200">
                       <div class="text-gray-400 font-medium">적용 환율</div>
-                      <div class="font-bold text-blue-700 font-mono">₩226.19</div>
+                      <div class="font-bold font-mono" :class="item.excluded ? 'text-gray-400' : 'text-blue-700'">₩226.19</div>
                     </div>
                     <div class="bg-white rounded-lg p-2 border border-gray-200">
                       <div class="text-gray-400 font-medium">원화 환산</div>
-                      <div class="font-bold text-amber-700 font-mono">₩{{ formatNumber(Math.round(Number(item.priceCny || 0) * 226.19)) }}</div>
+                      <div class="font-bold font-mono" :class="item.excluded ? 'line-through text-gray-400' : 'text-amber-700'">₩{{ formatNumber(Math.round(Number(item.priceCny || 0) * 226.19)) }}</div>
                     </div>
+                  </div>
+                  <!-- 결제 제외 안내 (품절 품목) -->
+                  <div
+                    v-if="item.excluded"
+                    class="flex items-center gap-1.5 px-3 py-1.5 bg-rose-100/80 border border-rose-200/80 rounded-lg text-[10px] text-rose-700 font-bold"
+                  >
+                    <span>⚠️</span>
+                    <span>이 품목은 결제 대상에서 제외됩니다. 위 DDP 정산 금액에 포함되지 않습니다.</span>
                   </div>
                   <!-- 1688 원본 링크 -->
                   <a
-                    v-if="item.productUrl"
+                    v-if="item.productUrl && !item.excluded"
                     :href="item.productUrl"
                     target="_blank"
                     rel="noopener noreferrer"
