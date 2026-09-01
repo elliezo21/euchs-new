@@ -169,7 +169,7 @@
 
     <!-- Main Navigation Bar (Slim) -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="flex justify-between items-center h-14 sm:h-15">
+      <div class="flex justify-between items-center h-14 sm:h-16">
         <!-- Logo -->
         <router-link to="/" class="flex-shrink-0 flex items-center">
           <img 

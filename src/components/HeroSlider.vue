@@ -93,14 +93,14 @@
     <!-- Navigation Arrows -->
     <button 
       @click="prevSlide" 
-      class="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-sm transition border border-white/10"
+      class="absolute left-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-sm transition border border-white/10"
       aria-label="이전 슬라이드"
     >
       <i class="fas fa-chevron-left text-lg"></i>
     </button>
     <button 
       @click="nextSlide" 
-      class="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-13 sm:h-13 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-sm transition border border-white/10"
+      class="absolute right-4 top-1/2 -translate-y-1/2 z-20 w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-black/40 hover:bg-black/70 text-white flex items-center justify-center backdrop-blur-sm transition border border-white/10"
       aria-label="다음 슬라이드"
     >
       <i class="fas fa-chevron-right text-lg"></i>
