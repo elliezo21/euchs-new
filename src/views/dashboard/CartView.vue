@@ -990,19 +990,34 @@ function handleEditModalClose() {
 }
 
 // ProductDetailModal의 @added-to-cart: 새 행(들)이 localStorage에 저장됨
-// → 교체 대상 기존 행을 cartItems에서 제거하고 새로 로드
+// → 교체 대상 기존 행을 메모리 + localStorage 양쪽에서 제거하고 재로드
 function handleEditModalCartAdded() {
-  if (editingCartItemId.value) {
-    // 교체 대상 기존 행 삭제
-    const idx = cartItems.value.findIndex(it => it.id === editingCartItemId.value);
+  const oldId = editingCartItemId.value;
+
+  if (oldId) {
+    // 1. 메모리에서 제거
+    const idx = cartItems.value.findIndex(it => it.id === oldId);
     if (idx >= 0) {
       cartItems.value.splice(idx, 1);
-      selectedItemIds.value = selectedItemIds.value.filter(sid => sid !== editingCartItemId.value);
+      selectedItemIds.value = selectedItemIds.value.filter(sid => sid !== oldId);
+    }
+
+    // 2. localStorage에서도 제거 (ProductDetailModal이 새 행을 저장했지만 기존 행은 남겨둠)
+    //    loadCartItems()가 localStorage를 전체 재로드하므로, 여기서 먼저 제거해야 부활 방지
+    try {
+      const cartKey = getCartStorageKey();
+      const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
+      const filtered = stored.filter(it => it.id !== oldId);
+      localStorage.setItem(cartKey, JSON.stringify(filtered));
+    } catch (e) {
+      console.warn('[handleEditModalCartAdded] localStorage 기존 행 제거 실패:', e);
     }
   }
-  // localStorage에 이미 ProductDetailModal이 새 행을 저장했으므로 다시 로드
+
+  // 3. localStorage 재로드 (새 행 반영)
   loadCartItems();
 }
+
 
 
 // ---------------------------------------------------------
