@@ -565,14 +565,19 @@
         </div>
 
         <div class="flex items-center gap-3 w-full sm:w-auto">
-          <!-- 🛍️ 발주대기 보관함 담기 (단일 통합 메인 액션 버튼) -->
+          <!-- 🛍️ 발주대기 보관함 담기 / 옵션 변경 적용 (mode에 따라 분기) -->
           <button
             type="button"
             @click="handleSaveToCart"
             class="w-full sm:w-auto min-w-[240px] h-12 px-8 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer text-sm sm:text-base"
           >
             <i class="fas fa-shopping-bag"></i>
-            <span>발주대기 보관함 담기<template v-if="totalQuantity > 0"> ({{ totalQuantity }}개)</template></span>
+            <span v-if="mode === 'edit'">
+              옵션 변경 적용<template v-if="totalQuantity > 0"> ({{ totalQuantity }}개)</template>
+            </span>
+            <span v-else>
+              발주대기 보관함 담기<template v-if="totalQuantity > 0"> ({{ totalQuantity }}개)</template>
+            </span>
           </button>
         </div>
 
@@ -636,6 +641,12 @@ const props = defineProps({
   exchangeRate: {
     type: Number,
     default: 226.19
+  },
+  // 'view': 소싱몰 신규 담기 모드 (기본)
+  // 'edit': 장바구니 기존 행 옵션 교체 모드
+  mode: {
+    type: String,
+    default: 'view'
   }
 })
 
@@ -1838,13 +1849,17 @@ const saveSelectedItemsToCart = () => {
   }
 }
 
-// ── 발주대기 보관함 담기 (단일 액션 핸들러) ──
+// ── 발주대기 보관함 담기 / 옵션 변경 적용 (mode에 따라 분기) ──
 const handleSaveToCart = () => {
-  const countToSave = totalQuantity.value
   const saved = saveSelectedItemsToCart()
   if (saved) {
-    // 중앙 확인 팝업 모달 즉시 노출
-    isCartConfirmModalOpen.value = true
+    if (props.mode === 'edit') {
+      // edit 모드: confirm 팝업 없이 즉시 닫기 (CartView에서 @added-to-cart로 기존 행 교체 처리)
+      handleClose()
+    } else {
+      // view 모드: 기존 confirm 팝업 노출
+      isCartConfirmModalOpen.value = true
+    }
   }
 }
 
