@@ -14,294 +14,296 @@
     class="fixed inset-0 z-[130] flex items-start justify-center pt-20 pb-28 px-4 bg-black/70 backdrop-blur-xs animate-fade-in h-full"
     @click.self="handleClose"
   >
-    <div class="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-full overflow-y-auto text-sm text-gray-700">
-      <!-- 모달 헤더 -->
-      <div class="flex items-center justify-between pb-4 border-b border-gray-200">
-        <div class="flex items-center gap-3">
-          <div class="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shadow-xs shrink-0">
-            <FileText class="w-5 h-5" />
+    <div class="bg-white rounded-3xl max-w-3xl w-full shadow-2xl max-h-full overflow-hidden flex flex-col">
+      <div class="p-6 sm:p-8 space-y-6 overflow-y-auto text-sm text-gray-700 flex-1 custom-modal-scroll">
+        <!-- 모달 헤더 -->
+        <div class="flex items-center justify-between pb-4 border-b border-gray-200">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-bold shadow-xs shrink-0">
+              <FileText class="w-5 h-5" />
+            </div>
+            <div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <h3 class="text-lg sm:text-xl font-black text-gray-900">
+                  1688 수입 발주서 작성 &amp; 설정
+                </h3>
+                <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-xs">
+                  1. 견적요청 단계
+                </span>
+              </div>
+              <p class="text-xs text-gray-500 mt-0.5">
+                통관 방식, 국내 배송 방식, 현지 창고 부가서비스(VAS)를 선택 후 최종 제출합니다.
+              </p>
+            </div>
           </div>
-          <div>
-            <div class="flex items-center gap-2 flex-wrap">
-              <h3 class="text-lg sm:text-xl font-black text-gray-900">
-                1688 수입 발주서 작성 &amp; 설정
-              </h3>
-              <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-xs">
-                1. 견적요청 단계
-              </span>
-            </div>
-            <p class="text-xs text-gray-500 mt-0.5">
-              통관 방식, 국내 배송 방식, 현지 창고 부가서비스(VAS)를 선택 후 최종 제출합니다.
-            </p>
-          </div>
-        </div>
-        <button
-          type="button"
-          @click="handleClose"
-          class="text-gray-400 hover:text-gray-900 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer shrink-0"
-        >
-          <X class="w-5 h-5" />
-        </button>
-      </div>
-
-      <!-- 1. 통관 방식 선택 (버튼 토글) -->
-      <div class="space-y-3">
-        <label class="font-bold text-gray-900 flex items-center gap-1.5 text-sm">
-          <ShieldCheck class="w-4 h-4 text-blue-600" />
-          <span>수입 통관 방식 선택</span>
-          <span class="text-rose-500 font-normal text-xs">*필수</span>
-        </label>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <!-- 사업자 통관 -->
           <button
             type="button"
-            @click="orderConfig.customsType = 'business'"
-            class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
-            :class="orderConfig.customsType === 'business'
-              ? 'bg-amber-50/70 border-amber-500 ring-2 ring-amber-500/20'
-              : 'bg-white border-gray-200 hover:border-gray-300'"
+            @click="handleClose"
+            class="text-gray-400 hover:text-gray-900 p-1.5 rounded-xl hover:bg-gray-100 transition cursor-pointer shrink-0"
           >
-            <div
-              class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
-              :class="orderConfig.customsType === 'business' ? 'border-amber-600 bg-amber-600' : 'border-gray-300'"
-            >
-              <div v-if="orderConfig.customsType === 'business'" class="w-2 h-2 rounded-full bg-white"></div>
-            </div>
-            <div class="space-y-1">
-              <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
-                <Building2 class="w-4 h-4 text-amber-600" />
-                <span>사업자 통관 (B2B 수입)</span>
-                <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">추천</span>
-              </div>
-              <p class="text-xs text-gray-500 leading-snug">
-                정식 수입신고필증 발급, 부가세 매입세액 공제 및 비용 처리
-              </p>
-            </div>
-          </button>
-
-          <!-- 개인 통관 -->
-          <button
-            type="button"
-            @click="orderConfig.customsType = 'personal'"
-            class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
-            :class="orderConfig.customsType === 'personal'
-              ? 'bg-amber-50/70 border-amber-500 ring-2 ring-amber-500/20'
-              : 'bg-white border-gray-200 hover:border-gray-300'"
-          >
-            <div
-              class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
-              :class="orderConfig.customsType === 'personal' ? 'border-amber-600 bg-amber-600' : 'border-gray-300'"
-            >
-              <div v-if="orderConfig.customsType === 'personal'" class="w-2 h-2 rounded-full bg-white"></div>
-            </div>
-            <div class="space-y-1">
-              <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
-                <User class="w-4 h-4 text-gray-600" />
-                <span>개인 통관 (자가사용)</span>
-              </div>
-              <p class="text-xs text-gray-500 leading-snug">
-                개인통관고유부호(PCCC) 기반 자가소비용 간이 수입 통관
-              </p>
-            </div>
+            <X class="w-5 h-5" />
           </button>
         </div>
-      </div>
 
-      <!-- 2. 국내 배송 방식 선택 (버튼 토글) -->
-      <div class="space-y-3">
-        <label class="font-bold text-gray-900 flex items-center gap-1.5 text-sm">
-          <Truck class="w-4 h-4 text-emerald-600" />
-          <span>국내 배송 / 입고 방식</span>
-          <span class="text-rose-500 font-normal text-xs">*필수</span>
-        </label>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <!-- 일반 수입배송 -->
-          <button
-            type="button"
-            @click="orderConfig.shippingType = 'general'"
-            class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
-            :class="orderConfig.shippingType === 'general'
-              ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-500/20'
-              : 'bg-white border-gray-200 hover:border-gray-300'"
-          >
-            <div
-              class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
-              :class="orderConfig.shippingType === 'general' ? 'border-emerald-600 bg-emerald-600' : 'border-gray-300'"
-            >
-              <div v-if="orderConfig.shippingType === 'general'" class="w-2 h-2 rounded-full bg-white"></div>
-            </div>
-            <div class="space-y-1">
-              <div class="font-bold text-gray-900 text-sm">일반 수입배송 (직배송)</div>
-              <p class="text-xs text-gray-500 leading-snug">
-                화주 사업장/창고 주소지로 택배 또는 경동화물 직배송
-              </p>
-            </div>
-          </button>
-
-          <!-- 쿠팡 로켓그로스 입고 -->
-          <button
-            type="button"
-            @click="orderConfig.shippingType = 'rocket'"
-            class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
-            :class="orderConfig.shippingType === 'rocket'
-              ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-500/20'
-              : 'bg-white border-gray-200 hover:border-gray-300'"
-          >
-            <div
-              class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
-              :class="orderConfig.shippingType === 'rocket' ? 'border-emerald-600 bg-emerald-600' : 'border-gray-300'"
-            >
-              <div v-if="orderConfig.shippingType === 'rocket'" class="w-2 h-2 rounded-full bg-white"></div>
-            </div>
-            <div class="space-y-1">
-              <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
-                <span>🚀 쿠팡 로켓그로스 입고</span>
-                <span class="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-black">직납</span>
-              </div>
-              <p class="text-xs text-gray-500 leading-snug">
-                바코드 부착/파레트 래핑 후 지정 FC센터 밀크런 트럭 직납
-              </p>
-            </div>
-          </button>
-        </div>
-      </div>
-
-      <!-- 3. 현지 창고 부가서비스 (VAS) 6종 체크박스 -->
-      <div class="space-y-3">
-        <div class="flex items-center justify-between">
+        <!-- 1. 통관 방식 선택 (버튼 토글) -->
+        <div class="space-y-3">
           <label class="font-bold text-gray-900 flex items-center gap-1.5 text-sm">
-            <PackageCheck class="w-4 h-4 text-purple-600" />
-            <span>현지 물류센터 부가서비스 (VAS)</span>
+            <ShieldCheck class="w-4 h-4 text-blue-600" />
+            <span>수입 통관 방식 선택</span>
+            <span class="text-rose-500 font-normal text-xs">*필수</span>
           </label>
-          <span class="text-xs text-gray-400">다중 선택 가능</span>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- 사업자 통관 -->
+            <button
+              type="button"
+              @click="orderConfig.customsType = 'business'"
+              class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
+              :class="orderConfig.customsType === 'business'
+                ? 'bg-amber-50/70 border-amber-500 ring-2 ring-amber-500/20'
+                : 'bg-white border-gray-200 hover:border-gray-300'"
+            >
+              <div
+                class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
+                :class="orderConfig.customsType === 'business' ? 'border-amber-600 bg-amber-600' : 'border-gray-300'"
+              >
+                <div v-if="orderConfig.customsType === 'business'" class="w-2 h-2 rounded-full bg-white"></div>
+              </div>
+              <div class="space-y-1">
+                <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                  <Building2 class="w-4 h-4 text-amber-600" />
+                  <span>사업자 통관 (B2B 수입)</span>
+                  <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">추천</span>
+                </div>
+                <p class="text-xs text-gray-500 leading-snug">
+                  정식 수입신고필증 발급, 부가세 매입세액 공제 및 비용 처리
+                </p>
+              </div>
+            </button>
+
+            <!-- 개인 통관 -->
+            <button
+              type="button"
+              @click="orderConfig.customsType = 'personal'"
+              class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
+              :class="orderConfig.customsType === 'personal'
+                ? 'bg-amber-50/70 border-amber-500 ring-2 ring-amber-500/20'
+                : 'bg-white border-gray-200 hover:border-gray-300'"
+            >
+              <div
+                class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
+                :class="orderConfig.customsType === 'personal' ? 'border-amber-600 bg-amber-600' : 'border-gray-300'"
+              >
+                <div v-if="orderConfig.customsType === 'personal'" class="w-2 h-2 rounded-full bg-white"></div>
+              </div>
+              <div class="space-y-1">
+                <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                  <User class="w-4 h-4 text-gray-600" />
+                  <span>개인 통관 (자가사용)</span>
+                </div>
+                <p class="text-xs text-gray-500 leading-snug">
+                  개인통관고유부호(PCCC) 기반 자가소비용 간이 수입 통관
+                </p>
+              </div>
+            </button>
+          </div>
         </div>
-        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-          <label
-            v-for="vas in vasOptions"
-            :key="vas.id"
-            class="p-3 rounded-xl border transition flex items-start gap-2 cursor-pointer select-none"
-            :class="orderConfig.vasServices.includes(vas.id)
-              ? 'bg-purple-50/60 border-purple-400 text-purple-900'
-              : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'"
-          >
-            <input
-              type="checkbox"
-              :value="vas.id"
-              v-model="orderConfig.vasServices"
-              class="rounded border-gray-300 text-purple-600 focus:ring-purple-500 mt-0.5 shrink-0"
-            />
-            <div class="min-w-0">
-              <div class="font-bold text-xs leading-tight">{{ vas.label }}</div>
-              <div class="text-[11px] text-gray-400 leading-tight mt-0.5">{{ vas.desc }}</div>
+
+        <!-- 2. 국내 배송 방식 선택 (버튼 토글) -->
+        <div class="space-y-3">
+          <label class="font-bold text-gray-900 flex items-center gap-1.5 text-sm">
+            <Truck class="w-4 h-4 text-emerald-600" />
+            <span>국내 배송 / 입고 방식</span>
+            <span class="text-rose-500 font-normal text-xs">*필수</span>
+          </label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <!-- 일반 수입배송 -->
+            <button
+              type="button"
+              @click="orderConfig.shippingType = 'general'"
+              class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
+              :class="orderConfig.shippingType === 'general'
+                ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-500/20'
+                : 'bg-white border-gray-200 hover:border-gray-300'"
+            >
+              <div
+                class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
+                :class="orderConfig.shippingType === 'general' ? 'border-emerald-600 bg-emerald-600' : 'border-gray-300'"
+              >
+                <div v-if="orderConfig.shippingType === 'general'" class="w-2 h-2 rounded-full bg-white"></div>
+              </div>
+              <div class="space-y-1">
+                <div class="font-bold text-gray-900 text-sm">일반 수입배송 (직배송)</div>
+                <p class="text-xs text-gray-500 leading-snug">
+                  화주 사업장/창고 주소지로 택배 또는 경동화물 직배송
+                </p>
+              </div>
+            </button>
+
+            <!-- 쿠팡 로켓그로스 입고 -->
+            <button
+              type="button"
+              @click="orderConfig.shippingType = 'rocket'"
+              class="p-4 rounded-2xl border text-left transition flex items-start gap-3 cursor-pointer"
+              :class="orderConfig.shippingType === 'rocket'
+                ? 'bg-emerald-50/70 border-emerald-500 ring-2 ring-emerald-500/20'
+                : 'bg-white border-gray-200 hover:border-gray-300'"
+            >
+              <div
+                class="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-0.5 transition"
+                :class="orderConfig.shippingType === 'rocket' ? 'border-emerald-600 bg-emerald-600' : 'border-gray-300'"
+              >
+                <div v-if="orderConfig.shippingType === 'rocket'" class="w-2 h-2 rounded-full bg-white"></div>
+              </div>
+              <div class="space-y-1">
+                <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+                  <span>🚀 쿠팡 로켓그로스 입고</span>
+                  <span class="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-black">직납</span>
+                </div>
+                <p class="text-xs text-gray-500 leading-snug">
+                  바코드 부착/파레트 래핑 후 지정 FC센터 밀크런 트럭 직납
+                </p>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- 3. 현지 창고 부가서비스 (VAS) 6종 체크박스 -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
+            <label class="font-bold text-gray-900 flex items-center gap-1.5 text-sm">
+              <PackageCheck class="w-4 h-4 text-purple-600" />
+              <span>현지 물류센터 부가서비스 (VAS)</span>
+            </label>
+            <span class="text-xs text-gray-400">다중 선택 가능</span>
+          </div>
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            <label
+              v-for="vas in vasOptions"
+              :key="vas.id"
+              class="p-3 rounded-xl border transition flex items-start gap-2 cursor-pointer select-none"
+              :class="orderConfig.vasServices.includes(vas.id)
+                ? 'bg-purple-50/60 border-purple-400 text-purple-900'
+                : 'bg-white border-gray-200 hover:bg-gray-50 text-gray-700'"
+            >
+              <input
+                type="checkbox"
+                :value="vas.id"
+                v-model="orderConfig.vasServices"
+                class="rounded border-gray-300 text-purple-600 focus:ring-purple-500 mt-0.5 shrink-0"
+              />
+              <div class="min-w-0">
+                <div class="font-bold text-xs leading-tight">{{ vas.label }}</div>
+                <div class="text-[11px] text-gray-400 leading-tight mt-0.5">{{ vas.desc }}</div>
+              </div>
+            </label>
+          </div>
+        </div>
+
+        <!-- 4. 바이어 & 수취인 배송지 정보 (실시간 확인 및 편집) -->
+        <div class="space-y-4 p-4 sm:p-5 bg-slate-50 border border-gray-200 rounded-2xl">
+          <div class="flex items-center justify-between border-b border-gray-200 pb-3">
+            <span class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
+              <Building2 class="w-4 h-4 text-amber-600" />
+              <span>바이어 및 수취인 배송 정보</span>
+            </span>
+            <span class="text-xs text-gray-400">발주서 및 통관 서류에 자동 반영</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs font-semibold text-gray-600 block mb-1.5">상호명 (회사명)</label>
+              <input
+                type="text"
+                v-model="orderConfig.companyName"
+                placeholder="예: 이유씨글로벌파트너스"
+                class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
+              />
             </div>
-          </label>
+            <div>
+              <label class="text-xs font-semibold text-gray-600 block mb-1.5">성명 (담당자명)</label>
+              <input
+                type="text"
+                v-model="orderConfig.buyerName"
+                placeholder="예: 홍길동"
+                class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
+              />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600 block mb-1.5">연락처 (휴대폰)</label>
+              <input
+                type="text"
+                v-model="orderConfig.phone"
+                placeholder="010-0000-0000"
+                class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium font-mono"
+              />
+            </div>
+            <div>
+              <label class="text-xs font-semibold text-gray-600 block mb-1.5">통관부호 (PCCC / 사업자번호)</label>
+              <input
+                type="text"
+                v-model="orderConfig.customsCode"
+                placeholder="P로 시작하는 13자리 또는 사업자번호"
+                class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium font-mono"
+              />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="text-xs font-semibold text-gray-600 block mb-1.5">국내 배송지 주소</label>
+              <input
+                type="text"
+                v-model="orderConfig.address"
+                placeholder="수령지 기본 주소 및 상세 주소"
+                class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
+              />
+            </div>
+            <div class="sm:col-span-2">
+              <label class="text-xs font-semibold text-gray-600 block mb-1.5">발주 요청 메모 (선택)</label>
+              <input
+                type="text"
+                v-model="orderConfig.memo"
+                placeholder="검수 요청사항 또는 물류 특이사항을 입력해 주세요."
+                class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
+              />
+            </div>
+          </div>
         </div>
-      </div>
 
-      <!-- 4. 바이어 & 수취인 배송지 정보 (실시간 확인 및 편집) -->
-      <div class="space-y-4 p-4 sm:p-5 bg-slate-50 border border-gray-200 rounded-2xl">
-        <div class="flex items-center justify-between border-b border-gray-200 pb-3">
-          <span class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
-            <Building2 class="w-4 h-4 text-amber-600" />
-            <span>바이어 및 수취인 배송 정보</span>
-          </span>
-          <span class="text-xs text-gray-400">발주서 및 통관 서류에 자동 반영</span>
+        <!-- 5. 선택 품목 요약 박스 -->
+        <div class="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
+          <div>
+            <span class="text-gray-600 font-medium text-sm">발주 대상 품목</span>
+            <div class="font-bold text-gray-900 font-mono text-base mt-1">
+              총 {{ items.length }}종 ({{ totalQuantity }}개)
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-gray-600 font-medium text-sm">1688 예상 상품대금</span>
+            <div class="text-lg font-black text-amber-600 font-mono mt-1">
+              ₩{{ formatNumber(totalKrw) }}원
+              <span class="text-sm text-gray-400 font-normal ml-1">(¥{{ totalCny.toFixed(2) }})</span>
+            </div>
+          </div>
         </div>
 
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <div>
-            <label class="text-xs font-semibold text-gray-600 block mb-1.5">상호명 (회사명)</label>
-            <input
-              type="text"
-              v-model="orderConfig.companyName"
-              placeholder="예: 이유씨글로벌파트너스"
-              class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
-            />
-          </div>
-          <div>
-            <label class="text-xs font-semibold text-gray-600 block mb-1.5">성명 (담당자명)</label>
-            <input
-              type="text"
-              v-model="orderConfig.buyerName"
-              placeholder="예: 홍길동"
-              class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
-            />
-          </div>
-          <div>
-            <label class="text-xs font-semibold text-gray-600 block mb-1.5">연락처 (휴대폰)</label>
-            <input
-              type="text"
-              v-model="orderConfig.phone"
-              placeholder="010-0000-0000"
-              class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium font-mono"
-            />
-          </div>
-          <div>
-            <label class="text-xs font-semibold text-gray-600 block mb-1.5">통관부호 (PCCC / 사업자번호)</label>
-            <input
-              type="text"
-              v-model="orderConfig.customsCode"
-              placeholder="P로 시작하는 13자리 또는 사업자번호"
-              class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium font-mono"
-            />
-          </div>
-          <div class="sm:col-span-2">
-            <label class="text-xs font-semibold text-gray-600 block mb-1.5">국내 배송지 주소</label>
-            <input
-              type="text"
-              v-model="orderConfig.address"
-              placeholder="수령지 기본 주소 및 상세 주소"
-              class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
-            />
-          </div>
-          <div class="sm:col-span-2">
-            <label class="text-xs font-semibold text-gray-600 block mb-1.5">발주 요청 메모 (선택)</label>
-            <input
-              type="text"
-              v-model="orderConfig.memo"
-              placeholder="검수 요청사항 또는 물류 특이사항을 입력해 주세요."
-              class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
-            />
-          </div>
+        <!-- 모달 하단 액션 버튼 -->
+        <div class="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+          <button
+            type="button"
+            @click="handleClose"
+            class="px-5 py-3 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition cursor-pointer text-sm"
+          >
+            취소
+          </button>
+          <button
+            type="button"
+            @click="handleSubmit"
+            :disabled="isSubmitting || items.length === 0"
+            class="px-7 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-sm transition shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
+          >
+            <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
+            <Send v-else class="w-4 h-4" />
+            <span>{{ isSubmitting ? '발주서 접수 중...' : '수입 발주서 최종 제출 (견적 요청)' }}</span>
+          </button>
         </div>
-      </div>
-
-      <!-- 5. 선택 품목 요약 박스 -->
-      <div class="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
-        <div>
-          <span class="text-gray-600 font-medium text-sm">발주 대상 품목</span>
-          <div class="font-bold text-gray-900 font-mono text-base mt-1">
-            총 {{ items.length }}종 ({{ totalQuantity }}개)
-          </div>
-        </div>
-        <div class="text-right">
-          <span class="text-gray-600 font-medium text-sm">1688 예상 상품대금</span>
-          <div class="text-lg font-black text-amber-600 font-mono mt-1">
-            ₩{{ formatNumber(totalKrw) }}원
-            <span class="text-sm text-gray-400 font-normal ml-1">(¥{{ totalCny.toFixed(2) }})</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 모달 하단 액션 버튼 -->
-      <div class="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
-        <button
-          type="button"
-          @click="handleClose"
-          class="px-5 py-3 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition cursor-pointer text-sm"
-        >
-          취소
-        </button>
-        <button
-          type="button"
-          @click="handleSubmit"
-          :disabled="isSubmitting || items.length === 0"
-          class="px-7 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 disabled:opacity-50 text-slate-950 font-black text-sm transition shadow-md flex items-center gap-2 active:scale-95 cursor-pointer"
-        >
-          <Loader2 v-if="isSubmitting" class="w-4 h-4 animate-spin" />
-          <Send v-else class="w-4 h-4" />
-          <span>{{ isSubmitting ? '발주서 접수 중...' : '수입 발주서 최종 제출 (견적 요청)' }}</span>
-        </button>
       </div>
     </div>
   </div>
@@ -315,122 +317,121 @@
     v-if="isOpen && showSuccessModal"
     class="fixed inset-0 z-[130] flex items-start justify-center pt-20 pb-28 px-4 bg-black/70 backdrop-blur-xs animate-fade-in h-full"
   >
-    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl text-sm text-gray-700 max-h-full overflow-y-auto">
-
-      <!-- 헤더: 체크 아이콘 + 완료 문구 -->
-      <div class="flex flex-col items-center text-center pb-5 border-b border-gray-100">
-        <div class="w-16 h-16 rounded-2xl bg-emerald-500 flex items-center justify-center mb-4 shadow-md">
-          <CheckCircle2 class="w-9 h-9 text-white" />
-        </div>
-        <h3 class="text-xl font-black text-gray-900 leading-tight">발주 접수 완료!</h3>
-        <p class="text-xs text-gray-500 mt-1.5">수입 발주서가 정상 접수되어 견적 심사가 시작됩니다.</p>
-      </div>
-
-      <!-- 발주 정보 요약 -->
-      <div class="mt-5 space-y-3">
-
-        <!-- 발주번호 -->
-        <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5">
-          <span class="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
-            <FileText class="w-4 h-4" />
-            발주번호
-          </span>
-          <span class="font-black text-base text-amber-800 font-mono tracking-wider">
-            {{ successOrderData.orderNumber }}
-          </span>
+    <div class="bg-white rounded-3xl max-w-2xl w-full shadow-2xl text-sm text-gray-700 max-h-full overflow-hidden flex flex-col">
+      <div class="p-6 sm:p-8 overflow-y-auto flex-1 custom-modal-scroll">
+        <!-- 헤더: 체크 아이콘 + 완료 문구 -->
+        <div class="flex flex-col items-center text-center pb-5 border-b border-gray-100">
+          <div class="w-16 h-16 rounded-2xl bg-emerald-500 flex items-center justify-center mb-4 shadow-md">
+            <CheckCircle2 class="w-9 h-9 text-white" />
+          </div>
+          <h3 class="text-xl font-black text-gray-900 leading-tight">발주 접수 완료!</h3>
+          <p class="text-xs text-gray-500 mt-1.5">수입 발주서가 정상 접수되어 견적 심사가 시작됩니다.</p>
         </div>
 
-        <!-- 상세 정보 그리드 -->
-        <div class="bg-slate-50 border border-gray-200 rounded-2xl divide-y divide-gray-100">
-
-          <!-- 발주 상태 -->
-          <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-xs text-gray-500 font-medium">발주 상태</span>
-            <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200">
-              견적 대기
+        <!-- 발주 정보 요약 -->
+        <div class="mt-5 space-y-3">
+          <!-- 발주번호 -->
+          <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3.5">
+            <span class="text-xs font-semibold text-amber-700 flex items-center gap-1.5">
+              <FileText class="w-4 h-4" />
+              발주번호
+            </span>
+            <span class="font-black text-base text-amber-800 font-mono tracking-wider">
+              {{ successOrderData.orderNumber }}
             </span>
           </div>
 
-          <!-- 주문 일시 -->
-          <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-xs text-gray-500 font-medium">주문 일시</span>
-            <span class="font-semibold text-gray-800 font-mono text-xs">{{ successOrderData.createdAtDisplay }}</span>
-          </div>
+          <!-- 상세 정보 그리드 -->
+          <div class="bg-slate-50 border border-gray-200 rounded-2xl divide-y divide-gray-100">
+            <!-- 발주 상태 -->
+            <div class="flex items-center justify-between px-4 py-3">
+              <span class="text-xs text-gray-500 font-medium">발주 상태</span>
+              <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-xs border border-amber-200">
+                견적 대기
+              </span>
+            </div>
 
-          <!-- 주문 상품 -->
-          <div class="px-4 py-3">
-            <div class="flex items-start justify-between gap-3">
-              <span class="text-xs text-gray-500 font-medium shrink-0">주문 상품</span>
-              <div class="text-right">
-                <template v-if="successOrderData.items.length === 1">
-                  <span class="font-semibold text-gray-800 text-xs leading-snug block">
-                    {{ successOrderData.items[0].name }}
-                  </span>
-                </template>
-                <template v-else-if="successOrderData.items.length <= 3">
-                  <span
-                    v-for="(item, idx) in successOrderData.items"
-                    :key="idx"
-                    class="font-semibold text-gray-800 text-xs leading-snug block"
-                  >
-                    {{ item.name }}
-                  </span>
-                </template>
-                <template v-else>
-                  <span class="font-semibold text-gray-800 text-xs leading-snug block">
-                    {{ successOrderData.items[0].name }}
-                  </span>
-                  <span class="text-[11px] text-gray-400 mt-0.5 block">
-                    외 {{ successOrderData.items.length - 1 }}개 상품
-                  </span>
-                </template>
+            <!-- 주문 일시 -->
+            <div class="flex items-center justify-between px-4 py-3">
+              <span class="text-xs text-gray-500 font-medium">주문 일시</span>
+              <span class="font-semibold text-gray-800 font-mono text-xs">{{ successOrderData.createdAtDisplay }}</span>
+            </div>
+
+            <!-- 주문 상품 -->
+            <div class="px-4 py-3">
+              <div class="flex items-start justify-between gap-3">
+                <span class="text-xs text-gray-500 font-medium shrink-0">주문 상품</span>
+                <div class="text-right">
+                  <template v-if="successOrderData.items.length === 1">
+                    <span class="font-semibold text-gray-800 text-xs leading-snug block">
+                      {{ successOrderData.items[0].name }}
+                    </span>
+                  </template>
+                  <template v-else-if="successOrderData.items.length <= 3">
+                    <span
+                      v-for="(item, idx) in successOrderData.items"
+                      :key="idx"
+                      class="font-semibold text-gray-800 text-xs leading-snug block"
+                    >
+                      {{ item.name }}
+                    </span>
+                  </template>
+                  <template v-else>
+                    <span class="font-semibold text-gray-800 text-xs leading-snug block">
+                      {{ successOrderData.items[0].name }}
+                    </span>
+                    <span class="text-[11px] text-gray-400 mt-0.5 block">
+                      외 {{ successOrderData.items.length - 1 }}개 상품
+                    </span>
+                  </template>
+                </div>
               </div>
+            </div>
+
+            <!-- 총 주문 수량 -->
+            <div class="flex items-center justify-between px-4 py-3">
+              <span class="text-xs text-gray-500 font-medium">총 주문 수량</span>
+              <span class="font-bold text-gray-800 font-mono text-sm">{{ formatNumber(successOrderData.totalQty) }}개</span>
+            </div>
+
+            <!-- 위안화 총액 -->
+            <div class="flex items-center justify-between px-4 py-3">
+              <span class="text-xs text-gray-500 font-medium">위안화 총액 (CNY)</span>
+              <span class="font-bold text-gray-800 font-mono text-sm">¥{{ successOrderData.totalCny }}</span>
+            </div>
+
+            <!-- 결제 예상 금액 -->
+            <div class="flex items-center justify-between px-4 py-3">
+              <span class="text-xs text-gray-500 font-medium">결제 예상 금액 (KRW)</span>
+              <span class="font-black text-amber-600 font-mono text-base">₩{{ formatNumber(successOrderData.totalKrw) }}원</span>
             </div>
           </div>
 
-          <!-- 총 주문 수량 -->
-          <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-xs text-gray-500 font-medium">총 주문 수량</span>
-            <span class="font-bold text-gray-800 font-mono text-sm">{{ formatNumber(successOrderData.totalQty) }}개</span>
-          </div>
-
-          <!-- 위안화 총액 -->
-          <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-xs text-gray-500 font-medium">위안화 총액 (CNY)</span>
-            <span class="font-bold text-gray-800 font-mono text-sm">¥{{ successOrderData.totalCny }}</span>
-          </div>
-
-          <!-- 결제 예상 금액 -->
-          <div class="flex items-center justify-between px-4 py-3">
-            <span class="text-xs text-gray-500 font-medium">결제 예상 금액 (KRW)</span>
-            <span class="font-black text-amber-600 font-mono text-base">₩{{ formatNumber(successOrderData.totalKrw) }}원</span>
+          <!-- 안내 메시지 -->
+          <div class="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3.5 text-xs text-blue-700 leading-snug">
+            <strong>견적 산출 완료 시</strong> 카카오톡 알림톡으로 안내드립니다.<br>
+            평균 산출 소요시간: <strong>당일(1~2시간내)</strong> 품절 상품 퀄리티를 종합적으로 확인 후
           </div>
         </div>
 
-        <!-- 안내 메시지 -->
-        <div class="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3.5 text-xs text-blue-700 leading-snug">
-          <strong>견적 산출 완료 시</strong> 카카오톡 알림톡으로 안내드립니다.<br>
-          평균 산출 소요시간: <strong>당일(1~2시간내)</strong> 품절 상품 퀄리티를 종합적으로 확인 후
+        <!-- 하단 액션 버튼 2개 -->
+        <div class="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+          <button
+            type="button"
+            @click="handleContinueShopping"
+            class="flex-1 px-4 py-3.5 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition cursor-pointer text-sm text-center"
+          >
+            계속 쇼핑하기
+          </button>
+          <button
+            type="button"
+            @click="handleGoToOrders"
+            class="flex-1 px-4 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition shadow-md flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
+          >
+            <ArrowRight class="w-4 h-4" />
+            주문 내역으로 이동
+          </button>
         </div>
-      </div>
-
-      <!-- 하단 액션 버튼 2개 -->
-      <div class="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
-        <button
-          type="button"
-          @click="handleContinueShopping"
-          class="flex-1 px-4 py-3.5 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition cursor-pointer text-sm text-center"
-        >
-          계속 쇼핑하기
-        </button>
-        <button
-          type="button"
-          @click="handleGoToOrders"
-          class="flex-1 px-4 py-3.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition shadow-md flex items-center justify-center gap-2 active:scale-95 cursor-pointer"
-        >
-          <ArrowRight class="w-4 h-4" />
-          주문 내역으로 이동
-        </button>
       </div>
     </div>
   </div>
@@ -753,3 +754,24 @@ const handleSubmit = async () => {
   }
 };
 </script>
+
+<style scoped>
+.custom-modal-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+.custom-modal-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-modal-scroll::-webkit-scrollbar-track {
+  background: transparent;
+  margin: 12px 0;
+}
+.custom-modal-scroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 9999px;
+}
+.custom-modal-scroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+</style>
