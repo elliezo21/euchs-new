@@ -11,7 +11,7 @@
   -->
   <div
     v-if="isOpen && !showSuccessModal"
-    class="fixed inset-0 z-[130] flex items-start justify-center pt-20 pb-28 px-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+    class="fixed inset-0 z-[130] flex items-start justify-center pt-20 pb-28 px-4 bg-black/70 backdrop-blur-xs animate-fade-in h-full"
     @click.self="handleClose"
   >
     <div class="bg-white rounded-3xl max-w-3xl w-full p-6 sm:p-8 shadow-2xl space-y-6 max-h-full overflow-y-auto text-sm text-gray-700">
@@ -313,9 +313,9 @@
   -->
   <div
     v-if="isOpen && showSuccessModal"
-    class="fixed inset-0 z-[130] flex items-start justify-center pt-20 pb-28 px-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+    class="fixed inset-0 z-[130] flex items-start justify-center pt-20 pb-28 px-4 bg-black/70 backdrop-blur-xs animate-fade-in h-full"
   >
-    <div class="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-8 shadow-2xl text-sm text-gray-700 max-h-full overflow-y-auto">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-8 shadow-2xl text-sm text-gray-700 max-h-full overflow-y-auto">
 
       <!-- 헤더: 체크 아이콘 + 완료 문구 -->
       <div class="flex flex-col items-center text-center pb-5 border-b border-gray-100">
