@@ -410,7 +410,7 @@
             <button
               v-if="savedItems.length > 0"
               type="button"
-              @click="submitCartAsOrder"
+              @click="openOrderModal"
               class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 active:scale-95 animate-pulse"
             >
               <i class="fas fa-paper-plane"></i>
@@ -818,6 +818,14 @@
 
     </div>
 
+    <!-- 발주 설정 모달 (장바구니와 동일한 공통 컴포넌트) -->
+    <OrderConfigModal
+      :isOpen="isOrderModalOpen"
+      :items="savedItems"
+      @close="isOrderModalOpen = false"
+      @submitted="handleDashboardOrderSubmitted"
+    />
+
   </div>
 </template>
 
@@ -837,6 +845,7 @@ import {
 } from '../lib/orderPipeline'
 import { getStoredOrders } from '../utils/orderStorage'
 import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
+import OrderConfigModal from '../components/dashboard/OrderConfigModal.vue'
 import {
   currentUser,
   userDisplayName,
@@ -1134,81 +1143,21 @@ const displayItemsList = computed(() => {
 })
 
 // ----------------------------------------------------
-// Actions
+// Actions: 발주 설정 모달 및 보관함 관리
 // ----------------------------------------------------
-const submitCartAsOrder = async () => {
+const isOrderModalOpen = ref(false)
+
+const openOrderModal = () => {
   if (savedItems.value.length === 0) {
     alert('보관함에 담긴 상품이 없습니다. 1688 상품을 먼저 소싱해 주세요.')
     router.push('/mall')
     return
   }
+  isOrderModalOpen.value = true
+}
 
-  const dateCompact = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  const randomSuffix = Math.floor(1000 + Math.random() * 9000)
-  const orderNumber = `EUC-${dateCompact}-${randomSuffix}`
-
-  const newOrder = {
-    id: `ord-${Date.now()}`,
-    orderNumber,
-    createdAt: new Date().toLocaleString('ko-KR'),
-    status: 'quote_pending',
-    buyerInfo: {
-      companyName: buyerForm.value.companyName || '이유씨 글로벌 바이어',
-      buyerName: buyerForm.value.managerName || '이유씨 바이어',
-      phone: buyerForm.value.contactPhone || '010-9373-1214',
-      email: buyerForm.value.email || 'buyer@euchs.com',
-      customsCode: buyerForm.value.customsCode || 'P240012345678',
-      address: '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
-      memo: `한·중 FTA C/O: ${orderOptions.value.requestCo ? '신청' : '미신청'} | 정밀검수: 신청`
-    },
-    items: JSON.parse(JSON.stringify(savedItems.value))
-  }
-
-  // 1. Supabase 등록
-  if (isSupabaseConfigured()) {
-    try {
-      await supabase.from('applications').insert([{
-        service_type: 'purchasing',
-        service_name: '1688 구매대행',
-        customer_name: newOrder.buyerInfo.buyerName,
-        company_name: newOrder.buyerInfo.companyName,
-        phone: newOrder.buyerInfo.phone,
-        email: newOrder.buyerInfo.email,
-        status: 'quote_pending',
-        details: {
-          orderId: orderNumber,
-          items: newOrder.items,
-          customsCode: newOrder.buyerInfo.customsCode,
-          requestCo: orderOptions.value.requestCo
-        }
-      }])
-    } catch (e) {
-      console.warn('Supabase insert application error:', e)
-    }
-  }
-
-  // 2. LocalStorage 등록
-  try {
-    const raw = localStorage.getItem('euchs_erp_submitted_orders')
-    const localOrders = raw ? JSON.parse(raw) : []
-    localOrders.unshift(newOrder)
-    localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(localOrders))
-
-    // 장바구니 비우기
-    savedItems.value = []
-    localStorage.setItem('euchs_erp_saved_items', '[]')
-  } catch (e) {
-    console.warn('LocalStorage order submit error:', e)
-  }
-
-  // 3. 글로벌 이벤트 통지
-  window.dispatchEvent(new Event('storage'))
-  window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
-    detail: { appId: newOrder.id, status: 'quote_pending' }
-  }))
-
-  alert(`발주 견적 신청이 완료되었습니다! (발주번호: ${orderNumber})\n주문/발주 통합 관리 화면으로 이동합니다.`)
-  router.push('/dashboard/orders?tab=quote')
+const handleDashboardOrderSubmitted = () => {
+  loadDashboardData()
 }
 
 const removeCartItemById = (id) => {
