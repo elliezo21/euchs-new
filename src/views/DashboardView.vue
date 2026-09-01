@@ -1170,7 +1170,7 @@ watch(currentUser, () => {
   syncBuyerForm()
   loadBalance()
   loadDashboardData()  // 계정 전환/로그아웃 시 장바구니 즉시 재로드
-}, { immediate: true })
+})
 
 
 // ----------------------------------------------------
@@ -1443,6 +1443,8 @@ const downloadRowEstimate = (row) => {
 // Lifecycle
 // ----------------------------------------------------
 onMounted(async () => {
+  syncBuyerForm()
+  loadBalance()
   await loadDashboardData()
 
   try {
