@@ -2918,6 +2918,10 @@ async function executeInstantPayment(order) {
 }
 
 function openOrderDetail(order, mode = 'detail') {
+  // buyerInfo가 없거나 null인 오래된/bulk 데이터 방어: 항상 유효한 객체 보장
+  if (!order.buyerInfo || typeof order.buyerInfo !== 'object') {
+    order = { ...order, buyerInfo: { ...defaultBuyerInfo } };
+  }
   activeOrder.value = order;
   isDetailModalOpen.value = true;
 }
@@ -3209,7 +3213,13 @@ function submitBulkExcel() {
     orderNumber: `EUC-BULK-${Date.now().toString().slice(-6)}`,
     createdAt: new Date().toLocaleString('ko-KR'),
     status: 'quote_pending',
-    buyerInfo: {},
+    buyerInfo: {
+      ...defaultBuyerInfo,
+      companyName: currentUser.value?.user_metadata?.companyName || currentUser.value?.user_metadata?.company_name || defaultBuyerInfo.companyName,
+      buyerName: currentUser.value?.user_metadata?.name || currentUser.value?.email?.split('@')[0] || defaultBuyerInfo.buyerName,
+      email: currentUser.value?.email || defaultBuyerInfo.email,
+      phone: currentUser.value?.user_metadata?.phone || defaultBuyerInfo.phone,
+    },
     items: [{
       productName: item.productName || '1688 상품',
       productUrl:  item.productUrl  || '',
