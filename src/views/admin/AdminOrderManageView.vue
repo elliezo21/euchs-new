@@ -132,8 +132,6 @@
                 </td>
                 <td class="py-3 px-4 text-center">
                   <div class="flex items-center justify-center gap-1.5 flex-wrap">
-                    <button v-if="isStatus(order,'quote_pending')" @click="openQuoteApproval(order)"
-                      class="px-3 py-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📋 견적 승인</button>
                     <button v-if="isStatus(order,'quote_confirmed')" @click="confirmPayment(order)"
                       class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">💳 결제 확인</button>
                     <button v-if="isStatus(order,'payment_verified')" @click="startPurchasing(order)"
@@ -164,66 +162,6 @@
         </div>
       </div>
 
-    <!-- ============================================================ -->
-    <!-- MODAL: 견적 승인 (1→2) -->
-    <!-- ============================================================ -->
-    <div v-if="modal.quoteApproval && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div class="bg-white rounded-2xl w-full max-w-lg shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
-        <div class="px-6 py-4 bg-amber-50 border-b border-amber-100 flex items-center justify-between">
-          <div>
-            <div class="text-[11px] font-bold text-amber-700 uppercase tracking-wide">📋 1단계 → 2단계 전환</div>
-            <h3 class="font-black text-slate-900 text-sm mt-0.5">1차 견적 확정 및 결제대기 전환</h3>
-          </div>
-          <button @click="closeModals" class="p-1.5 rounded-lg hover:bg-amber-100 text-slate-500 transition cursor-pointer text-lg leading-none">✕</button>
-        </div>
-        <div class="p-6 space-y-4 text-xs">
-          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200">
-            <div class="font-bold text-slate-700 font-mono text-[11px]">{{ activeOrder.orderNumber }}</div>
-            <div class="text-slate-500 mt-0.5 truncate">{{ activeOrder.items?.[0]?.productName }}</div>
-          </div>
-          <div class="grid grid-cols-2 gap-3">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">1688 단가 (¥ 위안) *</label>
-              <input v-model.number="quoteForm.priceCny" type="number" step="0.01" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 font-mono text-xs" placeholder="예: 18.50" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">발주 수량 (개)</label>
-              <input v-model.number="quoteForm.quantity" type="number" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 font-mono text-xs" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">적용 환율 (₩/¥)</label>
-              <input v-model.number="quoteForm.exchangeRate" type="number" step="0.01" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 font-mono text-xs" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">수수료율 (%)</label>
-              <input v-model.number="quoteForm.agencyFeeRate" type="number" step="0.5" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-400 font-mono text-xs" />
-            </div>
-          </div>
-          <div class="p-4 bg-amber-50 border border-amber-200 rounded-xl space-y-2 font-mono text-xs">
-            <div class="flex justify-between text-slate-700">
-              <span>상품 대금 (¥{{ fmtN(quoteForm.priceCny * quoteForm.quantity) }})</span>
-              <span class="font-bold">₩{{ fmtN(Math.round(quoteForm.priceCny * quoteForm.quantity * quoteForm.exchangeRate)) }}</span>
-            </div>
-            <div class="flex justify-between text-slate-700">
-              <span>수수료 ({{ quoteForm.agencyFeeRate }}%)</span>
-              <span class="font-bold">₩{{ fmtN(Math.round(quoteForm.priceCny * quoteForm.quantity * quoteForm.exchangeRate * quoteForm.agencyFeeRate / 100)) }}</span>
-            </div>
-            <div class="flex justify-between font-black text-amber-800 border-t border-amber-200 pt-2">
-              <span>1차 결제 예정액</span>
-              <span class="text-sm">₩{{ fmtN(quoteTotal) }}</span>
-            </div>
-          </div>
-          <div>
-            <label class="block font-bold text-slate-700 mb-1">관리자 메모 (고객 전달)</label>
-            <textarea v-model="quoteForm.memo" rows="2" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/30 text-xs resize-none" placeholder="예: 포장 단위 변경 요청 반영함"></textarea>
-          </div>
-        </div>
-        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-          <button @click="closeModals" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer">취소</button>
-          <button @click="submitQuoteApproval" class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-black text-xs transition shadow-md cursor-pointer">✅ 1차 견적서 승인 발행 (2단계 전환)</button>
-        </div>
-      </div>
-    </div>
 
     <!-- ============================================================ -->
     <!-- MODAL: 실측 입력 (4→5) -->
@@ -894,8 +832,7 @@ watch(
 
 const searchQuery = ref('');
 const activeOrder = ref(null);
-const modal = ref({ quoteApproval: false, measurement: false, blForm: false, trackingForm: false, detail: false });
-const quoteForm = ref({ priceCny: 0, quantity: 100, exchangeRate: 226.19, agencyFeeRate: 8, memo: '' });
+const modal = ref({ measurement: false, blForm: false, trackingForm: false, detail: false });
 const measureForm = ref({ measureMode: 'piece', lengthCm: 0, widthCm: 0, heightCm: 0, weightKg: 0, cartons: 1, totalPcs: 100 });
 const measurePhotos = ref([]);
 const photoFileInput = ref(null);
@@ -1170,31 +1107,7 @@ function calcCny(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i)
 function fmtN(n) { return Math.round(Number(n)||0).toLocaleString('ko-KR'); }
 
 function showToast(msg, type='success') { clearTimeout(toastTimer); toast.value={show:true,message:msg,type}; toastTimer=setTimeout(()=>{toast.value.show=false;},3200); }
-function closeModals() { modal.value={quoteApproval:false,measurement:false,blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; }
-
-function openQuoteApproval(o) {
-  activeOrder.value = o;
-  const firstItem = o.items?.[0] || {};
-  let price = Number(firstItem.priceCny || firstItem.priceRmb || firstItem.price || firstItem.unitPrice || 0);
-  const qty = getTotalQty(o) || Number(firstItem.quantity || 100);
-  if (!price && o.totalPriceRmb && qty) {
-    price = Number((o.totalPriceRmb / qty).toFixed(2));
-  }
-  if (!price && o.totalPriceKrw && qty) {
-    price = Number((o.totalPriceKrw / (qty * 226.19 * 1.08)).toFixed(2));
-  }
-  if (!price || price <= 0) {
-    price = 10;
-  }
-  quoteForm.value = {
-    priceCny: price,
-    quantity: qty || 100,
-    exchangeRate: 226.19,
-    agencyFeeRate: 8,
-    memo: o.memo || ''
-  };
-  modal.value.quoteApproval = true;
-}
+function closeModals() { modal.value={measurement:false,blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; }
 
 // ----------------------------------------------------
 // 검수 실사 사진 업로드 핸들러 (드래그 & 드롭 + 파일 선택 + Base64 Fallback)
@@ -1295,76 +1208,6 @@ function openDetail(o) {
     excludeReasonMap.value[idx] = item.excluded ? (item.excludeReason || '품절') : '';
   });
   modal.value.detail = true;
-}
-
-const quoteTotal = computed(() => {
-  const base = (quoteForm.value.priceCny || 0) * (quoteForm.value.quantity || 0) * (quoteForm.value.exchangeRate || 226.19);
-  return Math.round(base * (1 + (quoteForm.value.agencyFeeRate || 8) / 100));
-});
-
-async function submitQuoteApproval() {
-  if (!activeOrder.value) return;
-
-  const priceCny = Number(quoteForm.value.priceCny || 0);
-  if (priceCny <= 0) {
-    showToast('단가를 입력해 주세요.', 'error');
-    return;
-  }
-
-  const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
-  const orderNum = activeOrder.value.orderNumber || targetOrderId;
-  const firstPaymentKrw = quoteTotal.value || calcCost(activeOrder.value);
-  const validCny = Number((priceCny * (quoteForm.value.quantity || 1)).toFixed(2));
-
-  try {
-    const list = getStoredOrders();
-    const t = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
-    if (t?.items?.[0]) {
-      t.items[0].priceCny = priceCny;
-      t.items[0].quantity = quoteForm.value.quantity;
-      t.totalPriceKrw = firstPaymentKrw;
-      t.totalPriceRmb = validCny;
-      saveStoredOrders(list);
-    }
-
-    const nextStatus = 'quote_confirmed';
-    await updateOrderStatus(targetOrderId, nextStatus, {
-      items: t?.items || activeOrder.value.items || [],
-      totalPriceKrw: firstPaymentKrw,
-      totalPriceRmb: validCny,
-      quote_confirmed_at: new Date().toISOString(),
-      first_payment_pending: true,
-      firstPayment: {
-        firstPaymentKrw,
-        approvedAt: new Date().toISOString()
-      },
-      quoteInfo: {
-        priceCny,
-        quantity: quoteForm.value.quantity,
-        exchangeRate: quoteForm.value.exchangeRate,
-        agencyFeeRate: quoteForm.value.agencyFeeRate,
-        firstPaymentKrw,
-        approvedAt: new Date().toISOString(),
-        adminMemo: quoteForm.value.memo || '관리자 1차 견적 승인 확정'
-      }
-    });
-    
-    // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
-    sendOrderStatusAlimtalk({
-      type: 'quote_approved',
-      to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
-      customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
-      orderNo: orderNum,
-      itemName: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품'
-    }).catch(() => {});
-
-    showToast(`[${orderNum}] 견적 승인 → 2단계(결제대기) 전환 완료`, 'success');
-    closeModals();
-    await loadData();
-  } catch (err) {
-    console.error('[submitQuoteApproval error]:', err);
-    showToast(`견적 승인 처리 중 오류가 발생했습니다: ${err.message}`, 'error');
-  }
 }
 
 async function confirmPayment(o) {
