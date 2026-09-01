@@ -295,16 +295,17 @@
                 <div class="flex flex-wrap gap-2.5">
                   <button
                     v-for="(color, cIdx) in colorOptions"
-                    :key="cIdx"
+                    :key="color.colorId || cIdx"
                     type="button"
                     @click="handleSelectColor(color)"
-                    class="px-3.5 py-2 rounded-xl border text-xs font-medium transition flex items-center gap-2 cursor-pointer active:scale-95"
-                    :class="selectedColor === color
-                      ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
+                    class="px-3.5 py-2 rounded-xl border-2 text-xs font-medium transition-all flex items-center gap-2 cursor-pointer active:scale-95"
+                    :class="selectedColorId === color.colorId
+                      ? 'border-rose-600 bg-rose-500 text-white font-bold shadow-md ring-2 ring-rose-400/50'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700'"
                   >
-                    <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-gray-200" referrerpolicy="no-referrer" />
+                    <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-white/50" referrerpolicy="no-referrer" />
                     <span>{{ color.name }}</span>
+                    <i v-if="selectedColorId === color.colorId" class="fas fa-check text-[10px]"></i>
                   </button>
                 </div>
               </div>
@@ -330,14 +331,14 @@
                     type="button"
                     @click="handleSelectSize(size)"
                     :disabled="!selectedColor || sizeStockMap[size] === 0 || sizeStockMap[size] === undefined"
-                    class="px-4 py-2 rounded-xl border text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white flex flex-col items-center leading-tight"
+                    class="px-4 py-2 rounded-xl border-2 text-xs font-medium transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white flex flex-col items-center leading-tight"
                     :class="selectedSize === size
-                      ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
+                      ? 'border-rose-600 bg-rose-500 text-white font-bold shadow-md ring-2 ring-rose-400/50'
+                      : 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700'"
                   >
                     <span>{{ size }}</span>
                     <span v-if="sizeStockMap[size] === 0 || sizeStockMap[size] === undefined" class="text-[9px] text-gray-400 font-normal">품절</span>
-                    <span v-else-if="typeof sizeStockMap[size] === 'number'" class="text-[9px] text-gray-400 font-normal">재고 {{ sizeStockMap[size] }}</span>
+                    <span v-else-if="typeof sizeStockMap[size] === 'number'" :class="selectedSize === size ? 'text-[9px] text-rose-200 font-normal' : 'text-[9px] text-gray-400 font-normal'">재고 {{ sizeStockMap[size] }}</span>
                   </button>
                 </div>
               </div>
@@ -650,6 +651,7 @@ const modalBodyRef = ref(null)
 const currentItem = ref(null)
 const activeImage = ref('')
 const selectedColor = ref(null)
+const selectedColorId = ref(null)  // colorOptions 재계산 후에도 안정적인 ID 비교용
 const selectedSize = ref(null)
 const selectedSkus = ref([])
 
@@ -884,11 +886,13 @@ const colorOptions = computed(() => {
     : (Array.isArray(props.product?.skuProps) && props.product.skuProps.length > 0 ? props.product.skuProps : null)
 
   if (skuPropsArr?.[0] && Array.isArray(skuPropsArr[0].values) && skuPropsArr[0].values.length > 0) {
-    const list = skuPropsArr[0].values.map(v => {
+    const list = skuPropsArr[0].values.map((v, i) => {
       const name = typeof v === 'string' ? v : (v.nameKo || v.name || v.nameZh || v.value || v.text || '')
       const cleanedName = cleanForeignText(name) || name
       const img = typeof v === 'object' ? (v.imageUrl || v.image || v.imgUrl || v.picUrl || '') : ''
-      return { name: String(cleanedName).trim(), imageUrl: img || mainImg }
+      // colorId: propValueId(있으면) 또는 인덱스 기반 안정 ID — 재계산 후에도 동일 값 보장
+      const colorId = (typeof v === 'object' && v.propValueId) ? String(v.propValueId) : `_b1_${i}`
+      return { colorId, name: String(cleanedName).trim(), imageUrl: img || mainImg }
     }).filter(opt => opt.name && opt.name !== 'undefined' && opt.name !== 'null')
     if (list.length > 0) {
       console.debug('[colorOptions] Branch 1 (skuProps[0].values):', list.length, 'items')
@@ -901,11 +905,12 @@ const colorOptions = computed(() => {
     ? item.colors
     : (Array.isArray(props.product?.colors) && props.product.colors.length > 0 ? props.product.colors : null)
   if (directColors) {
-    const list = directColors.map(c => {
+    const list = directColors.map((c, i) => {
       const name = typeof c === 'string' ? c : (c.nameKo || c.name || c.value || '')
       const cleanedName = cleanForeignText(name) || name
       const img = typeof c === 'object' ? (c.imageUrl || c.image || '') : ''
-      return { name: String(cleanedName).trim(), imageUrl: img || mainImg }
+      const colorId = `_b2_${i}`
+      return { colorId, name: String(cleanedName).trim(), imageUrl: img || mainImg }
     }).filter(opt => opt.name && opt.name !== 'undefined' && opt.name !== 'null')
     if (list.length > 0) {
       console.debug('[colorOptions] Branch 2 (colors array):', list.length, 'items')
@@ -916,11 +921,12 @@ const colorOptions = computed(() => {
   // ── Branch 3: raw.skuProps[0].values
   const rawSP = raw.skuProps || raw.sku?.skuProps || raw.sku_props || props.product?.raw?.skuProps
   if (Array.isArray(rawSP) && rawSP.length > 0 && Array.isArray(rawSP[0]?.values) && rawSP[0].values.length > 0) {
-    const list = rawSP[0].values.map(v => {
+    const list = rawSP[0].values.map((v, i) => {
       const name = typeof v === 'string' ? v : (v.nameKo || v.name || v.nameZh || v.value || v.text || '')
       const cleanedName = cleanForeignText(name) || name
       const img = typeof v === 'object' ? (v.imageUrl || v.image || v.imgUrl || v.picUrl || '') : ''
-      return { name: String(cleanedName).trim(), imageUrl: img || mainImg }
+      const colorId = (typeof v === 'object' && v.propValueId) ? String(v.propValueId) : `_b3_${i}`
+      return { colorId, name: String(cleanedName).trim(), imageUrl: img || mainImg }
     }).filter(opt => opt.name && opt.name !== 'undefined' && opt.name !== 'null')
     if (list.length > 0) {
       console.debug('[colorOptions] Branch 3 (raw.skuProps[0].values):', list.length, 'items')
@@ -944,7 +950,11 @@ const colorOptions = computed(() => {
     })
     if (seen.size > 0) {
       console.debug('[colorOptions] Branch 4 (skus color):', seen.size, 'items')
-      return [...seen.entries()].map(([name, imageUrl]) => ({ name: String(name).trim(), imageUrl: imageUrl || mainImg }))
+      return [...seen.entries()].map(([name, imageUrl], i) => ({
+        colorId: `_b4_${i}`,
+        name: String(name).trim(),
+        imageUrl: imageUrl || mainImg
+      }))
     }
   }
 
@@ -954,7 +964,7 @@ const colorOptions = computed(() => {
   }
 
   console.debug('[colorOptions] Fallback: 기본 단품 (skuProps empty or not yet loaded)')
-  return [{ name: '기본 단품', imageUrl: mainImg }]
+  return [{ colorId: '_fallback', name: '기본 단품', imageUrl: mainImg }]
 })
 
 
@@ -1170,6 +1180,7 @@ const formatKrw = (val) => {
 // ----------------------------------------------------
 const handleSelectColor = (color) => {
   selectedColor.value = color
+  selectedColorId.value = color?.colorId ?? null  // ← 안정적 ID 동기화
   if (color.imageUrl) {
     activeImage.value = color.imageUrl
   }
@@ -1519,12 +1530,14 @@ const loadFullProductData = async (item) => {
       // 1. 옵션이 있는 상품:
       // 1차 옵션의 첫 번째 값을 selectedColor로만 활성화하고, selectedSkus는 사용자가 1차/2차 옵션을 선택하기 전까지 빈 상태 유지
       selectedColor.value = realColors[0]
+      selectedColorId.value = realColors[0]?.colorId ?? null
       selectedSize.value = null
       selectedSkus.value = []
     } else if (!hasProps && colorOptions.value.length > 0) {
       // 2. 진짜 단품 상품 (skuProps가 아예 없는 단일 규격 상품):
       // 로딩이 완전히 끝난 시점에만 1차 옵션 '기본 단품' 1개를 표시하고 기본 수량(1개) 품목 등록
       selectedColor.value = colorOptions.value[0]
+      selectedColorId.value = colorOptions.value[0]?.colorId ?? null
       selectedSize.value = null
       selectedSkus.value = [
         {
@@ -1535,6 +1548,7 @@ const loadFullProductData = async (item) => {
       ]
     } else {
       selectedColor.value = null
+      selectedColorId.value = null
       selectedSize.value = null
       selectedSkus.value = []
     }
@@ -1554,6 +1568,7 @@ const selectAnotherProduct = (newProduct) => {
   currentItem.value = JSON.parse(JSON.stringify(newProduct))
   activeImage.value = newProduct.imageUrl || ''
   selectedColor.value = null
+  selectedColorId.value = null
   selectedSize.value = null
   selectedSkus.value = []
   checkStoreFavorite()
@@ -1589,6 +1604,7 @@ const showToastNotification = (msg, type = 'success') => {
 const handleClose = () => {
   isCartConfirmModalOpen.value = false
   selectedColor.value = null
+  selectedColorId.value = null
   selectedSize.value = null
   selectedSkus.value = []
   if (typeof window !== 'undefined') {
@@ -1765,6 +1781,7 @@ watch(() => props.product, (newVal) => {
     currentItem.value = JSON.parse(JSON.stringify(newVal))
     activeImage.value = newVal.imageUrl || ''
     selectedColor.value = null
+    selectedColorId.value = null
     selectedSize.value = null
     selectedSkus.value = []
 
@@ -1777,6 +1794,7 @@ watch(() => props.product, (newVal) => {
   } else {
     currentItem.value = null
     selectedColor.value = null
+    selectedColorId.value = null
     selectedSize.value = null
     selectedSkus.value = []
     if (typeof document !== 'undefined') {
