@@ -2,8 +2,10 @@
   <!-- ======================================================== -->
   <!-- 1688 수입 발주서 작성 & 통관/배송/VAS 설정 모달 (공통) -->
   <!-- ======================================================== -->
+
+  <!-- ① 발주 설정 모달 -->
   <div
-    v-if="isOpen"
+    v-if="isOpen && !showSuccessModal"
     class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
     @click.self="handleClose"
   >
@@ -17,7 +19,7 @@
           <div>
             <div class="flex items-center gap-2">
               <h3 class="text-base sm:text-lg font-black text-gray-900">
-                1688 수입 발주서 작성 & 설정
+                1688 수입 발주서 작성 &amp; 설정
               </h3>
               <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
                 1. 견적요청 단계
@@ -300,6 +302,131 @@
       </div>
     </div>
   </div>
+
+  <!-- ② 발주 완료 모달 (alert() 대체) -->
+  <div
+    v-if="isOpen && showSuccessModal"
+    class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+  >
+    <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl text-xs text-gray-700 max-h-[92vh] overflow-y-auto">
+
+      <!-- 헤더: 체크 아이콘 + 완료 문구 -->
+      <div class="flex flex-col items-center text-center pb-5 border-b border-gray-100">
+        <div class="w-14 h-14 rounded-2xl bg-emerald-500 flex items-center justify-center mb-3 shadow-md">
+          <CheckCircle2 class="w-8 h-8 text-white" />
+        </div>
+        <h3 class="text-lg font-black text-gray-900 leading-tight">발주 접수 완료!</h3>
+        <p class="text-[11px] text-gray-500 mt-1">수입 발주서가 정상 접수되어 견적 심사가 시작됩니다.</p>
+      </div>
+
+      <!-- 발주 정보 요약 -->
+      <div class="mt-5 space-y-3">
+
+        <!-- 발주번호 -->
+        <div class="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+          <span class="text-[11px] font-semibold text-amber-700 flex items-center gap-1.5">
+            <FileText class="w-3.5 h-3.5" />
+            발주번호
+          </span>
+          <span class="font-black text-sm text-amber-800 font-mono tracking-wider">
+            {{ successOrderData.orderNumber }}
+          </span>
+        </div>
+
+        <!-- 상세 정보 그리드 -->
+        <div class="bg-slate-50 border border-gray-200 rounded-2xl divide-y divide-gray-100">
+
+          <!-- 발주 상태 -->
+          <div class="flex items-center justify-between px-4 py-2.5">
+            <span class="text-[11px] text-gray-500 font-medium">발주 상태</span>
+            <span class="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px] border border-amber-200">
+              견적 대기
+            </span>
+          </div>
+
+          <!-- 주문 일시 -->
+          <div class="flex items-center justify-between px-4 py-2.5">
+            <span class="text-[11px] text-gray-500 font-medium">주문 일시</span>
+            <span class="font-semibold text-gray-800 font-mono text-[11px]">{{ successOrderData.createdAtDisplay }}</span>
+          </div>
+
+          <!-- 주문 상품 -->
+          <div class="px-4 py-2.5">
+            <div class="flex items-start justify-between gap-2">
+              <span class="text-[11px] text-gray-500 font-medium shrink-0">주문 상품</span>
+              <div class="text-right">
+                <template v-if="successOrderData.items.length === 1">
+                  <span class="font-semibold text-gray-800 text-[11px] leading-snug block">
+                    {{ successOrderData.items[0].name }}
+                  </span>
+                </template>
+                <template v-else-if="successOrderData.items.length <= 3">
+                  <span
+                    v-for="(item, idx) in successOrderData.items"
+                    :key="idx"
+                    class="font-semibold text-gray-800 text-[11px] leading-snug block"
+                  >
+                    {{ item.name }}
+                  </span>
+                </template>
+                <template v-else>
+                  <span class="font-semibold text-gray-800 text-[11px] leading-snug block">
+                    {{ successOrderData.items[0].name }}
+                  </span>
+                  <span class="text-[10px] text-gray-400 mt-0.5 block">
+                    외 {{ successOrderData.items.length - 1 }}개 상품
+                  </span>
+                </template>
+              </div>
+            </div>
+          </div>
+
+          <!-- 총 주문 수량 -->
+          <div class="flex items-center justify-between px-4 py-2.5">
+            <span class="text-[11px] text-gray-500 font-medium">총 주문 수량</span>
+            <span class="font-bold text-gray-800 font-mono">{{ formatNumber(successOrderData.totalQty) }}개</span>
+          </div>
+
+          <!-- 위안화 총액 -->
+          <div class="flex items-center justify-between px-4 py-2.5">
+            <span class="text-[11px] text-gray-500 font-medium">위안화 총액 (CNY)</span>
+            <span class="font-bold text-gray-800 font-mono">¥{{ successOrderData.totalCny }}</span>
+          </div>
+
+          <!-- 결제 예상 금액 -->
+          <div class="flex items-center justify-between px-4 py-2.5">
+            <span class="text-[11px] text-gray-500 font-medium">결제 예상 금액 (KRW)</span>
+            <span class="font-black text-amber-600 font-mono text-sm">₩{{ formatNumber(successOrderData.totalKrw) }}원</span>
+          </div>
+        </div>
+
+        <!-- 안내 메시지 -->
+        <div class="bg-blue-50 border border-blue-200 rounded-2xl px-4 py-3 text-[11px] text-blue-700 leading-snug">
+          <strong>견적 산출 완료 시</strong> 카카오톡 알림톡으로 안내드립니다.<br>
+          평균 산출 소요시간: <strong>영업일 기준 1~2일</strong>
+        </div>
+      </div>
+
+      <!-- 하단 액션 버튼 2개 -->
+      <div class="mt-6 flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+        <button
+          type="button"
+          @click="handleContinueShopping"
+          class="flex-1 px-4 py-3 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition cursor-pointer text-xs text-center"
+        >
+          계속 쇼핑하기
+        </button>
+        <button
+          type="button"
+          @click="handleGoToOrders"
+          class="flex-1 px-4 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition shadow-md flex items-center justify-center gap-1.5 active:scale-95 cursor-pointer"
+        >
+          <ArrowRight class="w-4 h-4" />
+          주문 내역으로 이동
+        </button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -314,7 +441,9 @@ import {
   Truck,
   PackageCheck,
   Send,
-  Loader2
+  Loader2,
+  CheckCircle2,
+  ArrowRight
 } from 'lucide-vue-next';
 import { currentUser, getCartStorageKey } from '@/lib/auth';
 import { saveNewOrder } from '@/utils/orderStorage';
@@ -339,6 +468,18 @@ const emit = defineEmits(['close', 'submitted']);
 const router = useRouter();
 
 const isSubmitting = ref(false);
+
+// ─── 완료 모달 상태 ───────────────────────────────────────────
+const showSuccessModal = ref(false);
+const successOrderData = ref({
+  orderNumber: '',
+  createdAtDisplay: '',
+  items: [],          // [{ name: string }]
+  totalQty: 0,
+  totalCny: '0.00',
+  totalKrw: 0
+});
+// ──────────────────────────────────────────────────────────────
 
 const vasOptions = [
   { id: 'fta_co', label: '한-중 FTA C/O', desc: '원산지증명서 발급 (관세 0~4% 감면)' },
@@ -384,6 +525,8 @@ watch(
   (newVal) => {
     if (newVal) {
       syncUserInfo();
+      // 모달이 다시 열리면 완료 모달 상태 초기화
+      showSuccessModal.value = false;
     }
   },
   { immediate: true }
@@ -406,6 +549,17 @@ function formatNumber(num) {
   return Math.round(Number(num) || 0).toLocaleString('ko-KR');
 }
 
+/** ISO 문자열 → "YYYY.MM.DD HH:MM" 한국 로컬 표시 */
+function formatDateTimeKo(isoStr) {
+  try {
+    const d = new Date(isoStr);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}.${pad(d.getMonth() + 1)}.${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  } catch {
+    return isoStr || '';
+  }
+}
+
 const totalQuantity = computed(() => {
   return props.items.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
 });
@@ -420,7 +574,21 @@ const totalKrw = computed(() => {
 
 const handleClose = () => {
   if (isSubmitting.value) return;
+  showSuccessModal.value = false;
   emit('close');
+};
+
+// "계속 쇼핑하기" — 완료 모달 + OrderConfigModal 닫기, 현재 화면 유지
+const handleContinueShopping = () => {
+  showSuccessModal.value = false;
+  emit('close');
+};
+
+// "주문 내역으로 이동" — 모달 닫고 발주 목록(견적 대기 탭)으로 이동
+const handleGoToOrders = () => {
+  showSuccessModal.value = false;
+  emit('close');
+  router.push('/dashboard/orders?tab=quote_pending');
 };
 
 const handleSubmit = async () => {
@@ -461,11 +629,13 @@ const handleSubmit = async () => {
     });
     buyerInfo.vasSummary = vasLabels.join(', ');
 
+    const createdAt = new Date().toISOString();
+
     const newOrder = {
       id: `ord-${Date.now()}`,
       orderNumber,
       inboundNo: `INB-YW-${dateCompact}-${randomSuffix}`,
-      createdAt: new Date().toISOString(), // ISO 형식 통일 (크로스 브라우저 정렬 보장)
+      createdAt, // ISO 형식 통일 (크로스 브라우저 정렬 보장)
       status: 'quote_pending',
       customsType: cfg.customsType,
       customsClearanceType: cfg.customsType,
@@ -546,12 +716,24 @@ const handleSubmit = async () => {
     );
 
     emit('submitted', { orderNumber: finalOrderNumber, items: targetItems });
-    emit('close');
 
-    alert(
-      `선택된 ${targetItems.length}개 품목의 수입 발주서가 정상 접수되었습니다!\n(발주번호: ${finalOrderNumber})\n주문/발주 통합 관리(1. 견적대기) 화면으로 이동합니다.`
-    );
-    router.push('/dashboard/orders?tab=quote');
+    // 5. 완료 모달에 표시할 데이터 세팅 후 표시 (alert 대체)
+    const computedTotalCny = targetItems.reduce((sum, it) => sum + getItemSubtotalCny(it), 0);
+    const computedTotalKrw = targetItems.reduce((sum, it) => sum + getItemSubtotalKrw(it), 0);
+    const computedTotalQty = targetItems.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
+
+    successOrderData.value = {
+      orderNumber: finalOrderNumber,
+      createdAtDisplay: formatDateTimeKo(createdAt),
+      items: targetItems.map((it) => ({
+        name: it.titleKo || it.productName || '1688 상품'
+      })),
+      totalQty: computedTotalQty,
+      totalCny: computedTotalCny.toFixed(2),
+      totalKrw: computedTotalKrw
+    };
+    showSuccessModal.value = true;
+
   } catch (error) {
     console.error('Submit order error:', error);
     alert('발주서 접수 중 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.');
