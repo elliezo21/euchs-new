@@ -560,6 +560,7 @@
             @click="openOrderModal"
             :disabled="selectedItemIds.length === 0"
             class="px-6 py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black text-sm shadow-md transition flex items-center gap-2 active:scale-95 cursor-pointer"
+            :class="{ 'animate-pulse': selectedItemIds.length > 0 }"
           >
             <Send class="w-4 h-4" />
             <span>선택 상품 바로주문 (발주신청)</span>
