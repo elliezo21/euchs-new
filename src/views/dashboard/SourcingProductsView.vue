@@ -195,7 +195,7 @@
     <!-- ===================================================== -->
     <Transition name="modal-fade">
       <div v-if="isBulkExcelModalOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
         @click.self="closeBulkExcelModal">
         <div class="bg-white rounded-2xl w-full max-w-xl shadow-2xl border border-gray-200 overflow-hidden">
 
@@ -324,7 +324,7 @@
     <!-- ===================================================== -->
     <Transition name="modal-fade">
       <div v-if="isCategoryBatchModalOpen"
-        class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
         @click.self="isCategoryBatchModalOpen = false">
         <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-200 overflow-hidden">
           <div class="px-6 py-4 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
@@ -362,7 +362,7 @@
     <!-- 간편 URL 등록 모달 -->
     <Transition name="modal-fade">
       <div v-if="isUrlModalOpen"
-        class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+        class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
         @click.self="isUrlModalOpen = false">
         <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-gray-200 overflow-hidden">
           <div class="px-6 py-4 border-b border-gray-200 flex items-center justify-between">

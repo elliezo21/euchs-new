@@ -4,10 +4,10 @@
   <!-- ======================================================== -->
   <div
     v-if="isOpen"
-    class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
+    class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/70 backdrop-blur-xs animate-fade-in"
     @click.self="handleClose"
   >
-    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-6 max-h-[92vh] overflow-y-auto text-xs text-gray-700">
+    <div class="bg-white rounded-3xl max-w-2xl w-full p-6 sm:p-7 shadow-2xl space-y-6 max-h-[90vh] overflow-y-auto text-xs text-gray-700">
       <!-- 모달 헤더 -->
       <div class="flex items-center justify-between pb-4 border-b border-gray-200">
         <div class="flex items-center gap-2.5">

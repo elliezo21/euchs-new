@@ -353,7 +353,7 @@
     <!-- ======================================================== -->
     <!-- 5. 정밀 검수 실사 사진 확인 모달 -->
     <!-- ======================================================== -->
-    <div v-if="isPhotoModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div v-if="isPhotoModalOpen" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" @click="closePhotoModal"></div>
 
       <div class="relative bg-white rounded-3xl max-w-3xl w-full p-6 shadow-2xl space-y-5 border border-gray-100 max-h-[90vh] flex flex-col">
@@ -479,7 +479,7 @@
     <!-- 이미지 라이트박스 팝업 -->
     <div
       v-if="lightboxUrl"
-      class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
+      class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/85 backdrop-blur-sm"
       @click="lightboxUrl = null"
     >
       <img
@@ -499,7 +499,7 @@
     <!-- ======================================================== -->
     <!-- 6. 부가작업(VAS) 신청 모달 -->
     <!-- ======================================================== -->
-    <div v-if="isVasModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div v-if="isVasModalOpen" class="fixed inset-0 z-[110] flex items-center justify-center p-4">
       <div class="absolute inset-0 bg-slate-900/60 backdrop-blur-xs" @click="closeVasModal"></div>
 
       <div class="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-gray-100 max-h-[90vh] flex flex-col">
@@ -592,7 +592,7 @@
     <!-- ======================================================== -->
     <div
       v-if="isSecondPaymentModalOpen && selectedSecondPaymentItem"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
+      class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in"
       @click.self="closeSecondPaymentModal"
     >
       <div class="relative w-full max-w-3xl max-h-[92vh] bg-white rounded-3xl shadow-2xl flex flex-col overflow-hidden border border-gray-100">

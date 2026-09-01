@@ -447,7 +447,7 @@
     <!-- ======================================================== -->
     <div
       v-if="isDetailModalOpen && activeOrder"
-      class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto"
+      class="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto"
       @click.self="closeDetailModal"
     >
       <div class="bg-white rounded-3xl max-w-5xl lg:max-w-6xl w-full flex flex-col shadow-2xl relative border border-gray-200 overflow-hidden font-sans my-auto max-h-[92vh]">
@@ -1148,7 +1148,7 @@
     <!-- ======================================================== -->
     <div
       v-if="isSecondPaymentModalOpen && selectedSecondPaymentOrder"
-      class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto"
+      class="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto"
       @click.self="closeSecondPaymentModal"
     >
       <div class="bg-white rounded-3xl max-w-4xl w-full max-h-[92vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
@@ -1469,7 +1469,7 @@
     <!-- ======================================================== -->
     <div
       v-if="previewPhotoUrl"
-      class="fixed inset-0 z-60 flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in"
+      class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/90 backdrop-blur-md animate-fade-in"
       @click="previewPhotoUrl = null"
     >
       <div class="relative max-w-4xl max-h-[90vh] w-full flex flex-col items-center">
@@ -1488,7 +1488,7 @@
   <!-- ======================================================== -->
   <Transition name="modal-fade">
     <div v-if="isBulkExcelModalOpen"
-      class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       @click.self="closeBulkExcelModal">
       <div class="bg-white rounded-2xl w-full max-w-2xl shadow-2xl border border-gray-200 overflow-hidden">
         <!-- 헤더 -->
@@ -1599,7 +1599,7 @@
   <!-- ======================================================== -->
   <Transition name="modal-fade">
     <div v-if="isCategoryBatchModalOpen"
-      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+      class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
       @click.self="isCategoryBatchModalOpen = false">
       <div class="bg-white rounded-2xl w-full max-w-sm shadow-2xl border border-gray-200 overflow-hidden">
         <div class="px-6 py-4 bg-purple-50 border-b border-purple-100 flex items-center justify-between">

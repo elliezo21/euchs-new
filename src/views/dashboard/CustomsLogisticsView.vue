@@ -590,7 +590,7 @@
     <!-- ======================================================== -->
     <!-- 모달 A: 한·중 FTA C/O 신청 -->
     <!-- ======================================================== -->
-    <div v-if="showFtaModal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+    <div v-if="showFtaModal" class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div class="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-5 border border-gray-100">
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
           <div class="flex items-center gap-2">
@@ -648,7 +648,7 @@
     <!-- ======================================================== -->
     <!-- 모달 B: 통관 상세 타임라인 -->
     <!-- ======================================================== -->
-    <div v-if="selectedDetail" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+    <div v-if="selectedDetail" class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
       <div class="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl space-y-5 border border-gray-100 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
           <div>
