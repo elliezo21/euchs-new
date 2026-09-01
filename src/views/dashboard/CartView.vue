@@ -30,10 +30,10 @@
       </div>
 
       <!-- 상단 액션 버튼 그룹 -->
-      <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap items-center gap-2 shrink-0">
         <router-link
           to="/mall"
-          class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95"
+          class="px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95 animate-pulse"
         >
           <Plus class="w-4 h-4 text-amber-400" />
           <span>1688 상품 추가 담기</span>
