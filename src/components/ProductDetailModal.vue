@@ -329,14 +329,14 @@
                     :key="sIdx"
                     type="button"
                     @click="handleSelectSize(size)"
-                    :disabled="!selectedColor || sizeStockMap[size] === 0"
+                    :disabled="!selectedColor || sizeStockMap[size] === 0 || sizeStockMap[size] === undefined"
                     class="px-4 py-2 rounded-xl border text-xs font-medium transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white flex flex-col items-center leading-tight"
                     :class="selectedSize === size
                       ? 'border-rose-600 bg-rose-50 text-rose-700 font-bold shadow-sm ring-2 ring-rose-500/20'
                       : 'border-gray-200 bg-white text-gray-700 hover:border-gray-300 hover:bg-gray-50'"
                   >
                     <span>{{ size }}</span>
-                    <span v-if="sizeStockMap[size] === 0" class="text-[9px] text-gray-400 font-normal">품절</span>
+                    <span v-if="sizeStockMap[size] === 0 || sizeStockMap[size] === undefined" class="text-[9px] text-gray-400 font-normal">품절</span>
                     <span v-else-if="typeof sizeStockMap[size] === 'number'" class="text-[9px] text-gray-400 font-normal">재고 {{ sizeStockMap[size] }}</span>
                   </button>
                 </div>
