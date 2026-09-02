@@ -101,13 +101,31 @@ function parsePriceTiers(item) {
 
   entries.sort((a, b) => a.minQty - b.minQty)
 
-  return entries.map((e, idx) => {
-    const next = entries[idx + 1]
+  // ── 동일 단가 연속 구간 병합 ──────────────────────────────────────────────
+  // 정렬 후 연속된 항목의 price가 같으면 하나로 병합 (중복 박스 제거)
+  // 예: [{minQty:1,price:16.80},{minQty:1,price:16.80},{minQty:130,price:15.80}]
+  //   → [{minQty:1,price:16.80},{minQty:130,price:15.80}]
+  const merged = []
+  for (const e of entries) {
+    const last = merged[merged.length - 1]
+    if (last && Math.abs(last.price - e.price) < 0.001) {
+      // 동일 단가 → 앞 항목의 minQty 유지, 범위는 다음 항목으로 자동 확장
+      continue
+    }
+    merged.push({ minQty: e.minQty, price: e.price })
+  }
+
+  if (merged.length === 0) return []
+
+  return merged.map((e, idx) => {
+    const next = merged[idx + 1]
     const maxQty = next ? next.minQty - 1 : null
     const label = maxQty ? `${e.minQty}~${maxQty}개` : `${e.minQty}개 이상`
     return { minQty: e.minQty, maxQty, price: Number(e.price.toFixed(2)), label }
   })
 }
+
+
 
 // 환경 변수 기본값 로드
 const getEnv = (key, fallback = '') => {

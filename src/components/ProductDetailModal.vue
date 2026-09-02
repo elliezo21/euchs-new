@@ -840,11 +840,6 @@ const displayedPriceTiers = computed(() => {
   // 수량 구간이 2개 이상인 경우 → 수량별 가격 상품. SKU 가격 무시하고 기존대로 표시.
   const rawTiers = item?.priceTiers || item?.raw?.priceTiers || props.product?.priceTiers || null
 
-  // TEMP DEBUG: 어떤 경로로 rawTiers가 들어오는지 확인
-  console.log('[displayedPriceTiers] item.priceTiers:', JSON.stringify(item?.priceTiers ?? 'NONE'))
-  console.log('[displayedPriceTiers] item.raw.priceTiers:', JSON.stringify(item?.raw?.priceTiers ?? 'NONE'))
-  console.log('[displayedPriceTiers] rawTiers 최종:', JSON.stringify(rawTiers))
-
   if (Array.isArray(rawTiers) && rawTiers.length > 1) {
 
     return rawTiers.map((tier) => {
