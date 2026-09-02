@@ -689,10 +689,13 @@ async function loadData() {
   orders.value = getStoredOrders();
   try {
     const latest = await fetchOrdersFromSupabase({ isAdmin: true });
-    if (Array.isArray(latest) && latest.length > 0) {
+    // DB 응답 성공: 0건도 DB를 신뢰하여 그대로 반영 (삭제된 레코드 반영)
+    // catch 블록으로 빠지면 로컬 캐시(위 getStoredOrders)를 유지 (네트워크 실패 fallback)
+    if (Array.isArray(latest)) {
       orders.value = latest;
     }
   } catch (err) {
+    // 네트워크 에러 등 호출 자체가 실패한 경우 — 로컬 캐시 유지 (화면 공백 방지)
     console.warn('[AdminOrderManageView] Supabase fetch error:', err);
   }
 

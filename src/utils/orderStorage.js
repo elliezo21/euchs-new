@@ -420,8 +420,20 @@ export async function fetchOrdersFromSupabase(options = {}) {
     console.debug('[fetchOrdersFromSupabase] applications fetch notice:', errApps);
   }
 
-  // 3. 로컬 캐시와 병합
+  // 3. 결과 처리
   const uniqueOrders = Array.from(new Set(fetchedMap.values()));
+
+  // ── 어드민 모드: DB 결과를 그대로 덮어쓰기 (로컬 캐시 병합 없음) ──────────
+  // DB에서 삭제한 레코드가 로컬 캐시로 인해 부활하는 현상을 방지.
+  // 어드민에서는 DB가 진실(source of truth)이므로 0건도 그대로 반영.
+  if (adminMode) {
+    localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(uniqueOrders));
+    localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(uniqueOrders));
+    window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: uniqueOrders } }));
+    return uniqueOrders;
+  }
+
+  // ── 일반 바이어: 로컬 캐시와 병합 (오프라인 임시 저장 주문 보존) ──────────
   if (uniqueOrders.length > 0) {
     const localList = getStoredOrders();
     const mergedMap = new Map();
