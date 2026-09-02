@@ -1156,7 +1156,7 @@ const saveArrivalInspection = async () => {
 
   isSaving.value = false;
   emit('saved', { tab: 'arrival', status: autoStatus });
-  alert(`5-A 도착검수 저장 완료. (${verifiedCount.value}/${checkableItemCount.value}건 확인)`);
+  closeModal();
 };
 
 // ─────────────────────────────────────
@@ -1320,10 +1320,7 @@ const saveIssueData = async () => {
   });
 
   isSaving.value = false;
-  const msg = hasIssue
-    ? `5-C 이슈 저장 완료. 총 ${totalIssueQty.value}개 이슈 등록, 검수 상태 → "불량 발견".`
-    : '5-C 저장 완료. 이슈 없음으로 기록됩니다.';
   emit('saved', { tab: 'issue', issueDetails, issueStatus, inspectionStatus: newInspectionStatus });
-  alert(msg);
+  closeModal();
 };
 </script>
