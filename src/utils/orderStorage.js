@@ -88,6 +88,24 @@ export function saveStoredOrders(orders) {
 }
 
 /**
+ * localStorage + 이벤트만 저장 — _syncOrdersToSupabase 트리거 없음
+ * saveNewOrder 내부 전용: DB INSERT는 saveNewOrder가 직접 1회 실행하므로
+ * _syncOrdersToSupabase를 추가로 트리거하면 중복 INSERT 발생 (BL-1 레이스 컨디션)
+ */
+function _saveLocalOnly(orders) {
+  try {
+    const data = Array.isArray(orders) ? orders : [];
+    localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(data));
+    localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(data));
+    window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: data } }));
+    window.dispatchEvent(new CustomEvent('euchs-warehouse-update', { detail: { inbounds: data } }));
+    window.dispatchEvent(new Event('storage'));
+  } catch (e) {
+    console.error('_saveLocalOnly error:', e);
+  }
+}
+
+/**
  * 로컬 주문 목록을 Supabase DB (orders + applications 테이블)와 안전하게 동기화 (백그라운드 비동기)
  */
 async function _syncOrdersToSupabase(ordersList) {
@@ -440,8 +458,10 @@ export async function saveNewOrder(order) {
   };
 
   // 1. 로컬 스토리지 캐시 선 저장 (Offline Fallback 보장)
+  // _saveLocalOnly 사용: DB INSERT는 아래 2-1에서 1회만 직접 실행하므로
+  // saveStoredOrders를 쓰면 _syncOrdersToSupabase가 추가로 트리거되어 중복 INSERT 발생
   list.unshift(newOrderObj);
-  saveStoredOrders(list);
+  _saveLocalOnly(list);
 
   // 2. Supabase DB 클라우드 INSERT (orders 테이블 primary, applications 테이블 compatibility)
   if (isSupabaseConfigured()) {
@@ -481,7 +501,7 @@ export async function saveNewOrder(order) {
       if (!orderErr && insertedOrder && insertedOrder.length > 0) {
         newOrderObj.dbId = insertedOrder[0].id;
         newOrderObj.id = String(insertedOrder[0].id);
-        saveStoredOrders(list);
+        _saveLocalOnly(list); // id 갱신 후 로컬만 업데이트, DB 재동기화 불필요
       } else if (orderErr) {
         console.warn('[saveNewOrder] Supabase orders table notice:', orderErr.message);
       }
@@ -513,7 +533,7 @@ export async function saveNewOrder(order) {
 
       if (insertedApp && insertedApp.length > 0 && !newOrderObj.dbId) {
         newOrderObj.dbId = insertedApp[0].id;
-        saveStoredOrders(list);
+        _saveLocalOnly(list); // id 갱신 후 로컬만 업데이트
       }
     } catch (eApp) {
       console.warn('[saveNewOrder] applications insert notice:', eApp);
@@ -788,8 +808,8 @@ export function getWarehouseInboundsFromOrders() {
         sku: primaryItem.sku || '기본 규격',
         quantity: primaryItem.quantity || 100,
         boxCount: measured.cartons || Math.max(1, Math.ceil((primaryItem.quantity || 100) / 10)),
-        measuredWeightKg: measured.weightKg || (isDone ? 42.5 : 0),
-        measuredCbm: measured.cbm || (isDone ? 0.352 : 0),
+        measuredWeightKg: Number(measured.weightKg || 0),
+        measuredCbm: Number(measured.cbm || 0),
         inspectionStatus: resolveInspectionStatus(),
         inspectionNote: resolveInspectionNote(),
         thumbnail: primaryItem.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
