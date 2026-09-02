@@ -9,7 +9,9 @@ export const PIPELINE_STATUSES = [
   { key: 'payment_verified', code: 3, label: '3. 입금/결제 확인', shortLabel: '결제확인', badgeClass: 'bg-blue-100 text-blue-800 border border-blue-200' },
   { key: 'purchasing', code: 4, label: '4. 1688 공장 구매진행', shortLabel: '구매진행', badgeClass: 'bg-indigo-100 text-indigo-800 border border-indigo-200' },
   { key: 'warehouse_in', code: 5, label: '5. 입고 & 정밀검수', shortLabel: '입고/검수', badgeClass: 'bg-teal-100 text-teal-800 border border-teal-200' },
-  { key: 'inspection_done', code: 5, label: '5. 정밀검수/실측완료', shortLabel: '정밀검수', badgeClass: 'bg-teal-100 text-teal-800 border border-teal-200' },
+  { key: 'arrival_checking', code: 5, label: '5-A. 품목별 도착검수 진행중', shortLabel: '도착검수중', badgeClass: 'bg-teal-100 text-teal-700 border border-teal-200' },
+  { key: 'arrival_done', code: 5, label: '5-A. 품목별 도착검수 완료', shortLabel: '도착검수완료', badgeClass: 'bg-teal-200 text-teal-800 border border-teal-300' },
+  { key: 'inspection_done', code: 5, label: '5-B. 박스포장/실측완료 (2차 결제 대기)', shortLabel: '정밀검수', badgeClass: 'bg-teal-100 text-teal-800 border border-teal-200' },
   { key: 'shipping_ready', code: 6, label: '6. 한국행 선적/출고대기', shortLabel: '선적대기', badgeClass: 'bg-purple-100 text-purple-800 border border-purple-200' },
   { key: 'customs_clearance', code: 7, label: '7. 세관 수입통관 진행', shortLabel: '수입통관', badgeClass: 'bg-violet-100 text-violet-800 border border-violet-200' },
   { key: 'domestic_shipping', code: 8, label: '8. 국내 화물/택배 배송중', shortLabel: '국내배송', badgeClass: 'bg-sky-100 text-sky-800 border border-sky-200' },
@@ -34,6 +36,9 @@ export const STATUS_ALIAS_MAP = {
   in_warehouse: 'warehouse_in',
   warehouse_in: 'warehouse_in',
   inbound_weighed: 'warehouse_in',
+  // 5-A 품목별 도착검수 substatus (code 5 동일 단계, warehouse_in으로 정규화)
+  arrival_checking: 'warehouse_in',
+  arrival_done: 'warehouse_in',
   // 검수 완료/이슈 상태
   inspection_done: 'inspection_done',
   inspecting: 'inspection_done',

@@ -189,6 +189,24 @@
             </div>
           </div>
 
+          <!-- 5-A 미검수 품목 경고 배너 -->
+          <div v-if="getUnverifiedItemCount(activeOrder) > 0"
+            class="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5">
+            <span class="text-amber-500 text-base shrink-0">⚠️</span>
+            <div class="space-y-1 text-xs">
+              <p class="font-bold text-amber-800">
+                5-A 도착검수 미완료 품목 {{ getUnverifiedItemCount(activeOrder) }}개
+              </p>
+              <p class="text-amber-700 leading-relaxed">
+                {{ getUnverifiedItemNames(activeOrder) }}
+              </p>
+              <p class="text-amber-600 text-[11px]">
+                AdminWarehouseView(이우 WMS) → [입고·검수 처리] → 5-A 탭에서 품목별 도착확인을 먼저 완료해 주세요.
+                미완료 상태로 저장하면 검수 가드가 우회됩니다.
+              </p>
+            </div>
+          </div>
+
           <!-- 실측 모드 선택 (개별 단품 vs 카톤 박스) -->
           <div>
             <div class="flex items-center justify-between mb-1.5">
@@ -1106,6 +1124,58 @@ function calcCost(o) { const c=(o.items||[]).filter(i => !i.excluded).reduce((s,
 function calcCny(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0).toFixed(2); }
 function fmtN(n) { return Math.round(Number(n)||0).toLocaleString('ko-KR'); }
 
+/**
+ * 5-A 미검수 품목 수 반환 (AdminWarehouseModal 5-B와 동일 조건)
+ * - item.excluded === true 인 품목은 카운트 제외
+ * - measuredData.items[idx].verified === true 인 품목도 제외
+ * - measuredData.items 배열 없음 + cbm/weightKg > 0 → 구버전 완료 주문 → 0 반환
+ * - measuredData.items 배열 없음 + cbm/weightKg == 0 → 5-A 미저장 신규 → 전체 미검수로 카운트
+ */
+function getUnverifiedItemCount(o) {
+  if (!o) return 0;
+  const items = o.items || [];
+  const mdItems = o.measuredData?.items;
+
+  if (!Array.isArray(mdItems)) {
+    const md = o.measuredData || {};
+    // 구버전 flat: cbm 또는 무게가 이미 입력된 완료 주문 → 0 (경고 불필요)
+    if ((md.cbm > 0) || (md.weightKg > 0)) return 0;
+    // 5-A 한 번도 저장 안 한 신규 주문 → excluded 아닌 품목 전부가 미검수
+    return items.filter(item => !item.excluded).length;
+  }
+
+  return items.filter((item, idx) => {
+    if (item.excluded) return false; // 품절/제외 → 검수 불필요
+    return !(mdItems[idx]?.verified === true);
+  }).length;
+}
+
+/**
+ * 미검수 품목 이름 목록을 ", " 구분 문자열로 반환
+ */
+function getUnverifiedItemNames(o) {
+  if (!o) return '';
+  const items = o.items || [];
+  const mdItems = o.measuredData?.items;
+
+  if (!Array.isArray(mdItems)) {
+    const md = o.measuredData || {};
+    if ((md.cbm > 0) || (md.weightKg > 0)) return '';
+    return items
+      .filter(item => !item.excluded)
+      .map(item => item.optionName || item.sku || item.titleKo || '품목')
+      .join(', ');
+  }
+
+  return items
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item, idx }) => !item.excluded && !(mdItems[idx]?.verified === true))
+    .map(({ item }) => item.optionName || item.sku || item.titleKo || '품목')
+    .join(', ');
+}
+
+
+
 function showToast(msg, type='success') { clearTimeout(toastTimer); toast.value={show:true,message:msg,type}; toastTimer=setTimeout(()=>{toast.value.show=false;},3200); }
 function closeModals() { modal.value={measurement:false,blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; }
 
@@ -1264,28 +1334,62 @@ const measureTotal = computed(() => measureShipping.value + measureTax.value);
 
 async function submitMeasurement() {
   if (!measureForm.value.weightKg) { showToast('실측 무게를 입력해 주세요.', 'error'); return; }
+
+  // ── 5-A 미검수 품목 차단 가드 (AdminWarehouseModal 5-B와 동일 조건) ──
+  const unverifiedCount = getUnverifiedItemCount(activeOrder.value);
+  if (unverifiedCount > 0) {
+    showToast(
+      `5-A 도착검수 미완료 품목 ${unverifiedCount}개: ${getUnverifiedItemNames(activeOrder.value)} — 이우 WMS에서 품목별 도착확인을 완료해 주세요.`,
+      'error'
+    );
+    return;
+  }
+
   const cbm = calcCbmFromMeasure.value || Number(getCbm(activeOrder.value));
-  
+  const inspectionDate = new Date().toLocaleString('ko-KR');
+
+
   const photos = measurePhotos.value.map((p, i) => ({
     url: p.url,
     caption: `검수 사진 ${i + 1}`
   }));
-  
+
+  // v2 measuredData 구조: box 서브객체 + 레거시 flat 필드 병행 저장
+  const existingMd = activeOrder.value.measuredData || {};
+  const newMeasuredData = {
+    // 기존 5-A items 배열 보존 (있으면)
+    ...(Array.isArray(existingMd.items) ? {
+      items: existingMd.items,
+      allItemsVerified: existingMd.allItemsVerified ?? true,
+    } : {}),
+    box: {
+      lengthCm: measureForm.value.lengthCm,
+      widthCm: measureForm.value.widthCm,
+      heightCm: measureForm.value.heightCm,
+      measureMode: measureForm.value.measureMode,
+      weightKg: measureForm.value.weightKg,
+      cbm: Number(cbm.toFixed(4)),
+      cartons: measureForm.value.cartons,
+      totalPcs: measureForm.value.totalPcs,
+      settledAt: new Date().toISOString(),
+    },
+    // 레거시 flat 필드 (WarehouseView.vue 등 기존 읽기 코드 호환)
+    lengthCm: measureForm.value.lengthCm,
+    widthCm: measureForm.value.widthCm,
+    heightCm: measureForm.value.heightCm,
+    measureMode: measureForm.value.measureMode,
+    weightKg: measureForm.value.weightKg,
+    cbm: Number(cbm.toFixed(4)),
+    cartons: measureForm.value.cartons,
+    totalPcs: measureForm.value.totalPcs,
+    defectCount: 0,
+    inspectionDate,
+  };
+
   try {
     const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
     await updateOrderStatus(targetOrderId, 'inspection_done', {
-      measuredData: {
-        lengthCm: measureForm.value.lengthCm,
-        widthCm: measureForm.value.widthCm,
-        heightCm: measureForm.value.heightCm,
-        measureMode: measureForm.value.measureMode,
-        weightKg: measureForm.value.weightKg,
-        cbm: Number(cbm.toFixed(4)),
-        cartons: measureForm.value.cartons,
-        totalPcs: measureForm.value.totalPcs,
-        defectCount: 0,
-        inspectionDate: new Date().toLocaleString('ko-KR')
-      },
+      measuredData: newMeasuredData,
       inspectionPhotos: photos,
       inspection_photos: photos,
       secondPayment: {
@@ -1295,7 +1399,7 @@ async function submitMeasurement() {
         totalSecondPaymentKrw: measureTotal.value
       }
     });
-    
+
     // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
     sendOrderStatusAlimtalk({
       type: 'warehouse_in',
@@ -1313,6 +1417,7 @@ async function submitMeasurement() {
     showToast(`실측 저장 실패: ${err.message}`, 'error');
   }
 }
+
 
 async function advanceToShipping(o) {
   if (!confirm(`[${o.orderNumber}] 선적 처리 → 6단계 전환하시겠습니까?`)) return;
