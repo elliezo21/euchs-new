@@ -453,7 +453,7 @@ import {
   CheckCircle2,
   ArrowRight
 } from 'lucide-vue-next';
-import { currentUser, getCartStorageKey } from '@/lib/auth';
+import { currentUser, currentUserBizInfo, getCartStorageKey } from '@/lib/auth';
 import { saveNewOrder } from '@/utils/orderStorage';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 
@@ -511,19 +511,22 @@ const orderConfig = ref({
   memo: ''
 });
 
-// 바이어 폼 기본값 채우기
+// 바이어 폼 기본값 채우기 — currentUserBizInfo(profiles DB + localStorage SSOT) 우선 사용
 const syncUserInfo = () => {
-  const user = currentUser.value;
+  const biz = currentUserBizInfo.value || {};   // profiles DB → user_metadata → stored 통합값
+  const user = currentUser.value || {};
+
   orderConfig.value = {
     customsType: 'business',
     shippingType: 'general',
     vasServices: orderConfig.value.vasServices?.length ? orderConfig.value.vasServices : ['fta_co'],
-    companyName: user?.companyName || user?.company_name || '이유씨글로벌파트너스',
-    buyerName: user?.name || user?.displayName || '이유씨 바이어',
-    phone: user?.phone || '010-9373-1214',
-    email: user?.email || 'buyer@euchs.com',
-    customsCode: user?.customsCode || user?.pccc || 'P240012345678',
-    address: user?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
+    // 계정 정보가 없으면 빈 문자열 — 사용자가 직접 입력
+    companyName:  biz.company_name         || '',
+    buyerName:    biz.representative_name  || biz.name || user.email?.split('@')[0] || '',
+    phone:        biz.phone                || '',
+    email:        biz.tax_email            || user.email || '',
+    customsCode:  biz.pccc                 || '',
+    address:      biz.address              || '',
     memo: ''
   };
 };
@@ -620,18 +623,18 @@ const handleSubmit = async () => {
 
     const cfg = orderConfig.value;
     const buyerInfo = {
-      companyName: cfg.companyName || '이유씨글로벌파트너스',
-      buyerName: cfg.buyerName || '이유씨 바이어',
-      phone: cfg.phone || '010-9373-1214',
-      email: cfg.email || 'buyer@euchs.com',
-      customsCode: cfg.customsCode || 'P240012345678',
-      address: cfg.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층',
-      memo: cfg.memo || '',
-      customsType: cfg.customsType,
+      companyName:  cfg.companyName  || '',
+      buyerName:    cfg.buyerName    || '',
+      phone:        cfg.phone        || '',
+      email:        cfg.email        || '',
+      customsCode:  cfg.customsCode  || '',
+      address:      cfg.address      || '',
+      memo:         cfg.memo         || '',
+      customsType:  cfg.customsType,
       shippingType: cfg.shippingType,
-      vasServices: cfg.vasServices,
+      vasServices:  cfg.vasServices,
       vas_services: cfg.vasServices,
-      vasSummary: ''
+      vasSummary:   ''
     };
 
     // VAS 라벨 텍스트 매핑
