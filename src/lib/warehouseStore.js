@@ -157,15 +157,17 @@ export async function updateStoredInboundItem(inboundId, updates) {
     totalSecondPaymentKrw: (shippingFeeKrw + customsFeeKrw) || 133000,
   };
 
-  // 진행 상태 매핑
-  let nextOrderStatus = 'inspection_done';
+  // 진행 상태 매핑 (inspectionStatus가 undefined면 기존 주문 status 유지)
   const s = updates.inspectionStatus;
+  let nextOrderStatus;
   if (s === 'defect_found') nextOrderStatus = 'defect_found';
   else if (s === 'ready_to_ship') nextOrderStatus = 'shipping_ready';
   else if (s === 'pending_inbound') nextOrderStatus = 'purchasing';
   else if (s === 'inbound_weighed' || s === 'warehouse_in') nextOrderStatus = 'warehouse_in';
   else if (s === 'arrival_done' || s === 'arrival_checking') nextOrderStatus = 'warehouse_in';
-  else if (s === 'inspection_done') nextOrderStatus = 'inspection_done';
+  else if (s === 'inspection_done' || s === 'inspected') nextOrderStatus = 'inspection_done';
+  else nextOrderStatus = targetOrder?.status || 'warehouse_in'; // undefined → 기존 status 보존
+
 
   const extraData = {
     measuredData,

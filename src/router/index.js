@@ -241,12 +241,6 @@ const routes = [
         meta: { requiresAdmin: true, title: '주문·발주 관리 | EUCHS Admin', isAdmin: true }
       },
       {
-        path: 'warehouse',
-        name: 'admin-warehouse',
-        component: () => import('../views/admin/AdminWarehouseView.vue'),
-        meta: { requiresAdmin: true, title: '이우 창고 & 검수 WMS | EUCHS Admin', isAdmin: true }
-      },
-      {
         path: 'settlement',
         name: 'admin-settlement',
         component: () => import('../views/admin/AdminSettlementView.vue'),

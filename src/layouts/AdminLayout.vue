@@ -93,18 +93,6 @@
           </span>
         </router-link>
 
-        <!-- 2. 이우 창고 & 검수 WMS -->
-        <router-link
-          to="/admin/warehouse"
-          class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition group"
-          :class="isActiveRoute('/admin/warehouse')
-            ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'"
-        >
-          <Warehouse class="w-4 h-4 text-slate-400 group-hover:text-white" :class="isActiveRoute('/admin/warehouse') ? 'text-white' : ''" />
-          <span class="flex-1">이우 창고 & 검수 WMS</span>
-        </router-link>
-
         <div class="pt-3 px-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Management & Settings
         </div>
@@ -239,7 +227,6 @@ import { useRoute, useRouter } from 'vue-router'
 import {
   LayoutDashboard,
   ClipboardList,
-  Warehouse,
   Wallet,
   Users,
   Bell,
@@ -264,9 +251,6 @@ const pendingOrdersCount = ref(0)
 const currentRouteTitle = computed(() => {
   if (route.path.includes('/admin/orders')) {
     return '주문·발주 관리'
-  }
-  if (route.path.includes('/admin/warehouse')) {
-    return '이우 창고 & 검수 WMS'
   }
   if (route.path.includes('/admin/settlement')) {
     return '예치금 & 정산 관리'

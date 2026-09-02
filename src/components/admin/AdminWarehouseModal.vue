@@ -64,7 +64,7 @@
       </div>
 
       <!-- ────────────────────────────────── -->
-      <!-- 탭 전환 (5-A / 5-B) -->
+      <!-- 탭 전환 (5-A / 5-B / 5-C) -->
       <!-- ────────────────────────────────── -->
       <div class="flex gap-1 p-1 bg-slate-800 rounded-2xl">
         <button
@@ -97,7 +97,23 @@
             class="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-amber-500/30 text-amber-300"
           >미완료</span>
         </button>
+        <button
+          type="button"
+          @click="activeTab = 'issue'"
+          class="flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+          :class="activeTab === 'issue'
+            ? 'bg-rose-700 text-white shadow'
+            : 'text-slate-400 hover:text-slate-200 hover:bg-slate-700'"
+        >
+          <i class="fas fa-triangle-exclamation"></i>
+          <span>5-C 이슈 &amp; 클레임</span>
+          <span
+            v-if="totalIssueQty > 0"
+            class="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-rose-500/40 text-rose-200"
+          >{{ totalIssueQty }}</span>
+        </button>
       </div>
+
 
       <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
       <!-- 탭 5-A: 품목별 도착검수 -->
@@ -448,9 +464,151 @@
         </div>
       </div>
 
+      <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+      <!-- 탭 5-C: 이슈 & 클레임 -->
+      <!-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ -->
+      <div v-if="activeTab === 'issue'" class="space-y-4">
+        <!-- 안내 문구 -->
+        <div class="p-3.5 bg-rose-950/40 border border-rose-500/30 rounded-2xl">
+          <p class="font-bold text-rose-300 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-triangle-exclamation text-rose-400"></i>
+            <span>이슈 상품 현황 입력 (주문 전체 단위)</span>
+          </p>
+          <p class="text-[11px] text-rose-400/80 mt-1">
+            이슈가 없으면 모두 0으로 둔 채 저장하지 않아도 됩니다. 저장 시 이슈 수량 합계 &gt; 0이면 검수 상태가 "불량 발견"으로 자동 지정됩니다.
+          </p>
+        </div>
+
+        <!-- 이슈 사유별 수량 입력 (6종) -->
+        <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+          <h4 class="font-bold text-rose-400 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-list-check"></i>
+            <span>이슈 사유별 수량</span>
+            <span v-if="totalIssueQty > 0" class="ml-auto text-rose-300 font-mono">총 {{ totalIssueQty }}개</span>
+          </h4>
+          <div class="grid grid-cols-2 gap-3">
+            <!-- 색상/옵션 차이 -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-1.5">
+              <label class="block font-bold text-slate-300 text-[11px]">🎨 색상/옵션 차이</label>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="issueForm.colorMismatch = Math.max(0, issueForm.colorMismatch - 1)"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">-</button>
+                <input type="number" min="0" v-model.number="issueForm.colorMismatch"
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-500" />
+                <button type="button" @click="issueForm.colorMismatch++"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">+</button>
+              </div>
+            </div>
+            <!-- 파손/포장 손상 -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-1.5">
+              <label class="block font-bold text-slate-300 text-[11px]">💥 파손/포장 손상</label>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="issueForm.damaged = Math.max(0, issueForm.damaged - 1)"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">-</button>
+                <input type="number" min="0" v-model.number="issueForm.damaged"
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-500" />
+                <button type="button" @click="issueForm.damaged++"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">+</button>
+              </div>
+            </div>
+            <!-- 오염/스크래치 -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-1.5">
+              <label class="block font-bold text-slate-300 text-[11px]">🧹 오염/스크래치</label>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="issueForm.contaminated = Math.max(0, issueForm.contaminated - 1)"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">-</button>
+                <input type="number" min="0" v-model.number="issueForm.contaminated"
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-500" />
+                <button type="button" @click="issueForm.contaminated++"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">+</button>
+              </div>
+            </div>
+            <!-- 부품/수량 부족 -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-1.5">
+              <label class="block font-bold text-slate-300 text-[11px]">⚠️ 부품/수량 부족</label>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="issueForm.missingParts = Math.max(0, issueForm.missingParts - 1)"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">-</button>
+                <input type="number" min="0" v-model.number="issueForm.missingParts"
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-500" />
+                <button type="button" @click="issueForm.missingParts++"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">+</button>
+              </div>
+            </div>
+            <!-- 퀄리티/마감 미달 -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-1.5">
+              <label class="block font-bold text-slate-300 text-[11px]">📉 퀄리티/마감 미달</label>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="issueForm.lowQuality = Math.max(0, issueForm.lowQuality - 1)"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">-</button>
+                <input type="number" min="0" v-model.number="issueForm.lowQuality"
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-500" />
+                <button type="button" @click="issueForm.lowQuality++"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">+</button>
+              </div>
+            </div>
+            <!-- 오배송/요구사항 미달 -->
+            <div class="bg-slate-900 border border-slate-700 rounded-xl p-3 space-y-1.5">
+              <label class="block font-bold text-slate-300 text-[11px]">📦 오배송/요구사항 미달</label>
+              <div class="flex items-center gap-2">
+                <button type="button" @click="issueForm.wrongDelivery = Math.max(0, issueForm.wrongDelivery - 1)"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">-</button>
+                <input type="number" min="0" v-model.number="issueForm.wrongDelivery"
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-slate-800 border border-slate-700 text-white font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-500" />
+                <button type="button" @click="issueForm.wrongDelivery++"
+                  class="w-7 h-7 rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-bold text-xs transition">+</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 반품/환불 처리 상태 -->
+        <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-2">
+          <h4 class="font-bold text-rose-400 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-rotate-left"></i>
+            <span>반품/환불 처리 상태</span>
+          </h4>
+          <select
+            v-model="issueForm.issueStatus"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-slate-700 text-white font-bold text-xs focus:outline-none focus:border-rose-500 cursor-pointer"
+          >
+            <option value="">없음 (이슈 없는 경우)</option>
+            <option value="pending_buyer">고객 확인대기</option>
+            <option value="refund_requested">1688 공장 반품/환불 진행중</option>
+            <option value="reorder_requested">공장 재출고/교환 요청</option>
+            <option value="resolved">환불/정산 완료</option>
+          </select>
+          <p v-if="totalIssueQty > 0 && !issueForm.issueStatus" class="text-[11px] text-amber-400">
+            이슈가 있으면 처리 상태를 선택해 주세요.
+          </p>
+        </div>
+
+        <!-- 5-C 저장 버튼 -->
+        <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
+          <button
+            type="button"
+            @click="closeModal"
+            class="px-4 py-2.5 rounded-xl border border-slate-700 text-slate-300 font-bold hover:bg-slate-800 transition"
+          >
+            닫기
+          </button>
+          <button
+            type="button"
+            :disabled="isSaving"
+            @click="saveIssueData"
+            class="px-5 py-2.5 rounded-xl bg-rose-700 hover:bg-rose-600 text-white font-black transition shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
+          >
+            <i v-if="isSaving" class="fas fa-spinner animate-spin"></i>
+            <i v-else class="fas fa-triangle-exclamation"></i>
+            <span>5-C 이슈 저장</span>
+          </button>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
+
 
 <script setup>
 import { ref, computed, watch } from 'vue';
@@ -490,6 +648,18 @@ const boxForm = ref({
   cartons: 1,
   totalPcs: 0,
 });
+
+// ─── 5-C: 이슈 & 클레임 ───
+const issueForm = ref({
+  colorMismatch: 0,
+  damaged: 0,
+  contaminated: 0,
+  missingParts: 0,
+  lowQuality: 0,
+  wrongDelivery: 0,
+  issueStatus: '',
+});
+
 
 // ─── 소견 공유 (5-B에서 편집) ───
 const inboundForm = ref({
@@ -576,6 +746,18 @@ const initFormData = () => {
     weightKg: box.weightKg || md.weightKg || 0,
     cartons: box.cartons || md.cartons || 1,
     totalPcs: box.totalPcs || md.totalPcs || rawItems.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || 0,
+  };
+
+  // 5-C issueForm 복원 (기존 주문의 issueDetails 하위 호환)
+  const issue = found?.issueDetails || details.issueDetails || {};
+  issueForm.value = {
+    colorMismatch: Number(issue.colorMismatch) || 0,
+    damaged: Number(issue.damaged) || 0,
+    contaminated: Number(issue.contaminated) || 0,
+    missingParts: Number(issue.missingParts) || 0,
+    lowQuality: Number(issue.lowQuality) || 0,
+    wrongDelivery: Number(issue.wrongDelivery) || 0,
+    issueStatus: found?.issueStatus || details.issueStatus || '',
   };
 };
 
@@ -892,5 +1074,81 @@ const saveBoxMeasurement = async () => {
   isSaving.value = false;
   closeModal();
   emit('saved', { tab: 'box', status: 'inspection_done', secondPayment });
+};
+
+// ─────────────────────────────────────
+// 5-C 이슈 합계 computed
+// ─────────────────────────────────────
+const totalIssueQty = computed(() => {
+  const f = issueForm.value;
+  return (
+    (Number(f.colorMismatch) || 0) +
+    (Number(f.damaged) || 0) +
+    (Number(f.contaminated) || 0) +
+    (Number(f.missingParts) || 0) +
+    (Number(f.lowQuality) || 0) +
+    (Number(f.wrongDelivery) || 0)
+  );
+});
+
+// ─────────────────────────────────────
+// 5-C 저장
+// ─────────────────────────────────────
+const saveIssueData = async () => {
+  isSaving.value = true;
+  const app = props.application || {};
+  const currentDetails = app.details || {};
+
+  const issueDetails = {
+    colorMismatch: Number(issueForm.value.colorMismatch) || 0,
+    damaged: Number(issueForm.value.damaged) || 0,
+    contaminated: Number(issueForm.value.contaminated) || 0,
+    missingParts: Number(issueForm.value.missingParts) || 0,
+    lowQuality: Number(issueForm.value.lowQuality) || 0,
+    wrongDelivery: Number(issueForm.value.wrongDelivery) || 0,
+  };
+  const issueStatus = issueForm.value.issueStatus || '';
+
+  // 이슈 있으면 inspectionStatus = 'defect_found', 없으면 현재 유지
+  const hasIssue = totalIssueQty.value > 0;
+  const newInspectionStatus = hasIssue ? 'defect_found' : undefined;
+
+  const updatedDetails = {
+    ...currentDetails,
+    issueDetails,
+    issueStatus,
+    ...(newInspectionStatus ? { inspectionStatus: newInspectionStatus } : {}),
+  };
+
+  if (app.id) {
+    try {
+      if (newInspectionStatus) {
+        await updateApplicationOrderStatus(app.id, 'defect_found');
+      }
+      if (isSupabaseConfigured()) {
+        await supabase.from('applications').update({
+          details: updatedDetails,
+          ...(newInspectionStatus ? { status: 'defect_found' } : {}),
+          updated_at: new Date().toISOString(),
+        }).eq('id', app.id);
+      }
+    } catch (err) {
+      console.warn('[AdminWarehouseModal] 5-C Supabase update:', err);
+    }
+  }
+
+  // warehouseStore / localStorage 동기화
+  await updateStoredInboundItem(inboundForm.value.id || app.orderNo || app.id, {
+    issueDetails,
+    issueStatus,
+    ...(newInspectionStatus ? { inspectionStatus: newInspectionStatus } : {}),
+  });
+
+  isSaving.value = false;
+  const msg = hasIssue
+    ? `5-C 이슈 저장 완료. 총 ${totalIssueQty.value}개 이슈 등록, 검수 상태 → "불량 발견".`
+    : '5-C 저장 완료. 이슈 없음으로 기록됩니다.';
+  emit('saved', { tab: 'issue', issueDetails, issueStatus, inspectionStatus: newInspectionStatus });
+  alert(msg);
 };
 </script>

@@ -173,40 +173,11 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 3. 메인 2열: 4분할 업무 현황 카드 그리드 (화이트 박스 & 컬러 뱃지) -->
+    <!-- 3. 메인 2열: 3분할 업무 현황 카드 그리드 (화이트 박스 & 컬러 뱃지) -->
     <!-- ======================================================== -->
-    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      <!-- 1. 검수관리 -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between hover:shadow-md transition">
-        <div>
-          <div class="flex items-center justify-between">
-            <span class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
-              <span>⛔ 검수관리 (이우 WMS)</span>
-            </span>
-            <router-link to="/admin/warehouse" class="text-[11px] text-blue-600 hover:underline font-bold">이동 ➔</router-link>
-          </div>
-          <div class="mt-3 space-y-2 text-xs">
-            <div class="flex justify-between items-center text-slate-600">
-              <span>입고 & 검수전</span>
-              <span class="font-bold font-mono text-slate-900">{{ warehouseCounts.pending }}건</span>
-            </div>
-            <div class="flex justify-between items-center text-slate-600">
-              <span>정밀검수 진행중</span>
-              <span class="font-bold font-mono text-orange-600">{{ warehouseCounts.inspecting }}건</span>
-            </div>
-            <div class="flex justify-between items-center text-slate-600">
-              <span>실측·계근 완료</span>
-              <span class="font-bold font-mono text-emerald-600">{{ warehouseCounts.weighed }}건</span>
-            </div>
-          </div>
-        </div>
-        <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
-          <span>불량 발생률</span>
-          <span class="text-emerald-600 font-bold">0.0% (양호)</span>
-        </div>
-      </div>
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-      <!-- 2. 통관관리 -->
+      <!-- 1. 통관관리 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between hover:shadow-md transition">
         <div>
           <div class="flex items-center justify-between">
@@ -323,15 +294,14 @@ import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { RefreshCw, ChevronRight } from 'lucide-vue-next';
 import { getStoredOrders } from '@/utils/orderStorage';
 import { normalizeOrderStatus } from '@/lib/orderPipeline';
-import { loadStoredInbounds } from '@/lib/warehouseStore';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+
 
 const isNoticeExpanded = ref(false);
 const isRefreshing = ref(false);
 const lastUpdatedTime = ref('방금 전');
 
 const orders = ref([]);
-const inbounds = ref([]);
 
 const pipelineCounts = computed(() => {
   const c = { newOrder: 0, preparing: 0, shipping: 0, delivered: 0, confirmed: 0 };
@@ -347,17 +317,6 @@ const pipelineCounts = computed(() => {
     else if (s === 'domestic_shipping') c.delivered++;
     // 수취 완료
     else if (['delivered', 'completed'].includes(s)) c.confirmed++;
-  });
-  return c;
-});
-
-
-const warehouseCounts = computed(() => {
-  const c = { pending: 0, inspecting: 0, weighed: 0 };
-  inbounds.value.forEach(i => {
-    if (i.inspectionStatus === 'pending_inbound') c.pending++;
-    else if (i.inspectionStatus === 'inspecting') c.inspecting++;
-    else if (i.inspectionStatus === 'inbound_weighed' || i.inspectionStatus === 'passed') c.weighed++;
   });
   return c;
 });
@@ -534,8 +493,8 @@ async function loadDashboardStats() {
 function reloadStats() {
   isRefreshing.value = true;
   loadDashboardStats();
-  inbounds.value = loadStoredInbounds();
   loadDashboardNotices();
+
   loadMarketTourStats();
   loadCustomTradeStats();
   loadMemberStats();
