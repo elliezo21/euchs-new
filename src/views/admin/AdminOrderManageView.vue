@@ -1000,6 +1000,38 @@ async function handleWarehouseSaved(payload) {
   await loadData();
 }
 
+// ─────────────────────────────────────
+// 2단계: 결제 확인 → payment_verified
+// ─────────────────────────────────────
+async function confirmPayment(o) {
+  if (!confirm(`[${o.orderNumber}] 결제 입금 확인 후 3단계 전환하시겠습니까?`)) return;
+  try {
+    await updateOrderStatus(o.id, 'payment_verified', {
+      paymentInfo: { confirmedAt: new Date().toISOString() }
+    });
+    showToast(`[${o.orderNumber}] 결제확인 → 3단계 전환 완료`);
+    await loadData();
+  } catch (err) {
+    showToast(`처리 실패: ${err.message}`, 'error');
+  }
+}
+
+// ─────────────────────────────────────
+// 3단계: 1688 구매 시작 → purchasing
+// ─────────────────────────────────────
+async function startPurchasing(o) {
+  if (!confirm(`[${o.orderNumber}] 1688 구매 시작 → 4단계 전환하시겠습니까?`)) return;
+  try {
+    await updateOrderStatus(o.id, 'purchasing', {
+      purchaseStartedAt: new Date().toISOString()
+    });
+    showToast(`[${o.orderNumber}] 1688 구매시작 → 4단계 전환 완료`);
+    await loadData();
+  } catch (err) {
+    showToast(`처리 실패: ${err.message}`, 'error');
+  }
+}
+
 function openBLForm(o) { activeOrder.value=o; const eta=new Date(); eta.setDate(eta.getDate()+14); blForm.value={blNumber:'',cargoMgtNo:'',vesselName:'',eta:eta.toISOString().split('T')[0],ftaStatus:'none'}; modal.value.blForm=true; }
 function openTrackingForm(o) { activeOrder.value=o; trackingForm.value={deliveryType:'parcel',carrier:'경동택배',trackingNumber:'',fcCenter:''}; modal.value.trackingForm=true; }
 function openDetail(o) {
