@@ -512,7 +512,27 @@ export async function saveNewOrder(order) {
   // 2. Supabase DB 클라우드 INSERT (orders 테이블 primary, applications 테이블 compatibility)
   if (isSupabaseConfigured()) {
     const user = currentUser.value;
+
+    // ★ Fix: 관리자 세션으로 주문 생성 차단 (user_id 오염 방지)
+    // saveNewOrder는 바이어 전용 함수입니다. 관리자 화면은 이 함수를 호출하지 않으므로
+    // 관리자의 다른 기능(조회, 상태 변경 등)에는 영향이 없습니다.
+    if (user?.isAdmin === true || ['super_admin', 'admin', 'master'].includes(String(user?.role || '').toLowerCase())) {
+      throw new Error(
+        '주문 생성 실패: 관리자 세션이 감지되었습니다. ' +
+        '바이어 계정으로 다시 로그인한 후 시도해 주세요.'
+      );
+    }
+
+    // ★ Fix: 유효한 Supabase UUID 없이 주문 생성 차단
+    // null user_id로 저장되면 해당 주문이 어느 계정에도 귀속되지 않아 바이어 화면에서 조회 불가.
     const isUUID = user?.id && isValidUUID(user.id);
+    if (!isUUID) {
+      throw new Error(
+        '주문 생성 실패: 로그인 세션을 확인할 수 없습니다. ' +
+        '다시 로그인한 후 시도해 주세요.'
+      );
+    }
+
     const buyerInfoObj = newOrderObj.buyerInfo || {};
 
     // 2-1. orders 테이블 insert
@@ -520,7 +540,7 @@ export async function saveNewOrder(order) {
       const orderDbRow = {
         order_number: newOrderObj.orderNumber,
         inbound_no: newOrderObj.inboundNo,
-        user_id: isUUID ? user.id : null,
+        user_id: user.id,
         buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
         status: newOrderObj.status,
         customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || '이유씨 바이어',

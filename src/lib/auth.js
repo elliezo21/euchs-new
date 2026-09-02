@@ -621,6 +621,17 @@ export const signInWithEmail = async (email, password) => {
   }
 
   currentUser.value = data.user
+
+  // ★ Fix: 관리자 잔류 토큰 소거 (admin → buyer 계정 전환 시 user_id 오염 방지)
+  // 같은 브라우저에서 관리자 로그인 후 바이어로 전환하면 euchs_admin_token과
+  // euchs_auth_user가 localStorage에 남아 initAuth()가 관리자 UUID로 복원하는 버그를 차단.
+  try {
+    localStorage.removeItem('euchs_admin_token')
+    localStorage.setItem('euchs_auth_user', JSON.stringify(data.user))
+  } catch (e) {
+    console.warn('[signInWithEmail] localStorage cleanup notice:', e)
+  }
+
   closeLoginModal()
   return data
 }
