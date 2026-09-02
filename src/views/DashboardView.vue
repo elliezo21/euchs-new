@@ -197,6 +197,14 @@
                   <span class="font-mono text-amber-600 text-[11px] font-bold">({{ quotePendingCount }})</span>
                 </router-link>
                 <router-link
+                  to="/dashboard/orders?tab=payment"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/orders' && (route.query.tab === 'payment' || route.query.tab === 'quote_confirmed') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>결제대기</span>
+                  <span class="font-mono text-orange-600 text-[11px] font-bold">({{ paymentPendingCount }})</span>
+                </router-link>
+                <router-link
                   to="/dashboard/orders?tab=purchasing"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
                   :class="route.path === '/dashboard/orders' && route.query.tab === 'purchasing' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
@@ -1052,6 +1060,10 @@ const quotePendingCount = computed(() => {
 
 const purchasingCount = computed(() => {
   return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length
+})
+
+const paymentPendingCount = computed(() => {
+  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length
 })
 
 const getPipelineCount = (statusKey) => {

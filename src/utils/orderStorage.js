@@ -723,7 +723,7 @@ export function getWarehouseInboundsFromOrders() {
     .filter(o => {
       const norm = normalizeOrderStatus(o.status);
       return [
-        'purchasing', 'warehouse_in', 'inspection_done',
+        'warehouse_in', 'inspection_done',
         'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'
       ].includes(norm) || o.status === 'defect_found';
     })

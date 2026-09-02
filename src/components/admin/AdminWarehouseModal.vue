@@ -243,7 +243,8 @@
 <script setup>
 import { ref, watch } from 'vue';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
-import { updateStoredInboundItem, loadStoredInbounds, saveStoredInbounds } from '../../lib/warehouseStore';
+import { updateStoredInboundItem, saveStoredInbounds } from '../../lib/warehouseStore';
+import { getStoredOrders } from '../../utils/orderStorage';
 import { updateApplicationOrderStatus } from '../../lib/orderPipeline';
 
 const props = defineProps({
@@ -284,18 +285,27 @@ watch(() => props.modelValue, (newVal) => {
 const initFormData = () => {
   const app = props.application || {};
   const details = app.details || {};
-  const storedList = loadStoredInbounds();
-  const matched = storedList.find(i => i.orderNo === app.orderNo || i.id === details.inboundId || (app.customer_name && i.buyerName?.includes(app.customer_name)));
+
+  // 단계(stage) 무관하게 모든 주문에서 기존 실측 데이터를 복원해야 하므로
+  // getWarehouseInboundsFromOrders()(5단계 이상 필터) 경유 없이 직접 getStoredOrders() 참조
+  const allOrders = getStoredOrders();
+  const matchedOrder = allOrders.find(o =>
+    o.orderNumber === app.orderNo ||
+    o.id === app.id ||
+    o.id === details.inboundId ||
+    (app.customer_name && (o.buyerInfo?.companyName?.includes(app.customer_name) || o.customer_name?.includes(app.customer_name)))
+  );
+  const measured = matchedOrder?.measuredData || {};
 
   inboundForm.value = {
-    id: matched?.id || details.inboundId || `inb-app-${app.id || Date.now()}`,
-    inboundNo: matched?.inboundNo || details.inboundNo || `INB-YW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${String(app.id || '01').padStart(2, '0')}`,
-    measuredWeightKg: matched?.measuredWeightKg ?? details.measuredWeightKg ?? (details.weightKg || 0),
-    measuredCbm: matched?.measuredCbm ?? details.measuredCbm ?? (details.cbm || 0),
-    boxCount: matched?.boxCount ?? details.boxCount ?? 1,
-    inspectionStatus: matched?.inspectionStatus || details.inspectionStatus || 'inbound_weighed',
-    inspectionNote: matched?.inspectionNote || details.inspectionNote || '',
-    inspectionPhotos: JSON.parse(JSON.stringify(matched?.inspectionPhotos || details.inspectionPhotos || []))
+    id: matchedOrder?.id || details.inboundId || `inb-app-${app.id || Date.now()}`,
+    inboundNo: matchedOrder?.inboundNo || details.inboundNo || `INB-YW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${String(app.id || '01').padStart(2, '0')}`,
+    measuredWeightKg: measured.weightKg ?? details.measuredWeightKg ?? (details.weightKg || 0),
+    measuredCbm: measured.cbm ?? details.measuredCbm ?? (details.cbm || 0),
+    boxCount: measured.cartons ?? details.boxCount ?? 1,
+    inspectionStatus: matchedOrder?.inspectionStatus || details.inspectionStatus || 'inbound_weighed',
+    inspectionNote: matchedOrder?.inspectionNote || details.inspectionNote || '',
+    inspectionPhotos: JSON.parse(JSON.stringify(matchedOrder?.inspectionPhotos || details.inspectionPhotos || []))
   };
 };
 
