@@ -1130,8 +1130,9 @@ const saveArrivalInspection = async () => {
   const currentDetails = app.details || {};
   const measuredData = _buildMeasuredData(false);
 
-  // 상태 결정: 전체 verified → arrival_done, 아니면 warehouse_in 유지
-  const autoStatus = allItemsVerified.value ? 'arrival_done' : 'warehouse_in';
+  // 5-A 도착검수 sub-status (details 내부 기록용 — 최상위 order status는 변경하지 않음)
+  // 최상위 status 승격은 5-B(CBM/박스포장) 저장 완료 시에만 발생
+  const arrivalSubStatus = allItemsVerified.value ? 'arrival_done' : 'arrival_checking';
 
   const updatedDetails = {
     ...currentDetails,
@@ -1139,33 +1140,32 @@ const saveArrivalInspection = async () => {
     inboundNo: inboundForm.value.inboundNo,
     measuredData,
     inspectionNote: inboundForm.value.inspectionNote,
+    // 5-A sub-status: details 레벨에만 기록 (파이프라인 최상위 status 불변)
+    arrivalSubStatus,
   };
 
-  if (app.id) {
-    try {
-      await updateApplicationOrderStatus(app.id, autoStatus);
-      if (isSupabaseConfigured()) {
-        await supabase.from('applications').update({
-          details: updatedDetails,
-          status: autoStatus,
-          updated_at: new Date().toISOString(),
-        }).eq('id', app.id);
-      }
-    } catch (err) {
-      console.warn('[AdminWarehouseModal] 5-A Supabase update:', err);
-    }
+  // Bug A 수정: 5-A 저장 시 최상위 status(updateApplicationOrderStatus)를 호출하지 않음
+  // details 컬럼만 갱신하여 도착검수 데이터를 저장
+  if (app.id && isSupabaseConfigured()) {
+    await supabase.from('applications').update({
+      details: updatedDetails,
+      updated_at: new Date().toISOString(),
+    }).eq('id', app.id);
   }
 
+  // Bug A 수정: inspectionStatus를 전달하지 않아 warehouseStore → orderStorage 경로의
+  // status 업데이트도 차단 (warehouseStore L169: undefined → 기존 status 보존 분기로 진입)
   await updateStoredInboundItem(inboundForm.value.id || app.orderNo || app.id, {
     measuredData,
     inspectionNote: inboundForm.value.inspectionNote,
-    inspectionStatus: autoStatus,
+    // inspectionStatus 생략 → warehouseStore가 기존 order.status를 그대로 유지
     inspectionPhotos: matchedOrder.value?.inspectionPhotos || [],
   });
 
   isSaving.value = false;
-  emit('saved', { tab: 'arrival', status: autoStatus });
-  closeModal();
+  emit('saved', { tab: 'arrival', status: arrivalSubStatus });
+  // Bug B 수정: closeModal() 제거 → 모달 유지한 채 5-B 탭으로 자동 전환
+  activeTab.value = 'box';
 };
 
 // ─────────────────────────────────────

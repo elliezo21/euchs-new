@@ -739,7 +739,12 @@ export function getWarehouseInboundsFromOrders() {
         if (isDefect) return 'defect_found';
         if (norm === 'shipping_ready') return 'ready_to_ship';
         if (norm === 'inspection_done') return 'inspected';
-        if (norm === 'warehouse_in') return 'inbound_weighed';
+        if (norm === 'warehouse_in') {
+          // Bug C 수정: 실제 계근 데이터(measured.weightKg)가 존재할 때만 'inbound_weighed' 반환.
+          // measured.weightKg는 5-B 박스포장 저장(_buildMeasuredData(true)) 시에만 양수로 채워짐.
+          // 5-A 도착검수만 완료된 상태에서는 weightKg=0이므로 'pending_inbound' 반환.
+          return Number(measured.weightKg) > 0 ? 'inbound_weighed' : 'pending_inbound';
+        }
         return 'pending_inbound';
       };
 
