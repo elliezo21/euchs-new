@@ -54,7 +54,11 @@ export function getStoredOrders() {
     });
 
     if (cleanOrders.length !== parsed.length) {
-      saveStoredOrders(cleanOrders);
+      // localStorage만 정리 — saveStoredOrders 미사용 (이유: getStoredOrders는 read-only 함수여야 함)
+      // saveStoredOrders를 쓰면 _syncOrdersToSupabase가 트리거되어 신규 주문 생성 시 중복 INSERT 발생
+      // DB에 더미가 남는 문제는 별도 일회성 정리로 처리할 것 (이 경로에서 DB sync는 불필요)
+      localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(cleanOrders));
+      localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(cleanOrders));
     }
 
     return cleanOrders;
