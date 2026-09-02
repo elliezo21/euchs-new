@@ -765,22 +765,28 @@ const initFormData = () => {
   const app = props.application || {};
   const details = app.details || {};
 
+  // ── localStorage 보조 조회: exact match만 허용 (고객명 부분일치 제거)
+  // 용도: 이전 세션에서 저장한 measuredData/inspectionStatus 등 WMS 진행 데이터 병합
+  // rawItems / inspectionPhotos는 반드시 props(openWarehouseModal이 넘긴 값)를 1차로 사용
   const allOrders = getStoredOrders();
   const found = allOrders.find(o =>
     o.orderNumber === app.orderNo ||
     o.id === app.id ||
-    o.id === details.inboundId ||
-    (app.customer_name && (
-      o.buyerInfo?.companyName?.includes(app.customer_name) ||
-      o.customer_name?.includes(app.customer_name)
-    ))
+    o.id === details.inboundId
+    // ❌ 고객명 부분일치(includes) 제거: 짧은 이름/공통 단어로 엉뚱한 주문 오매칭 방지
   );
   matchedOrder.value = found || null;
 
+  // ── measuredData: exact match found에서 가져오되, props 보조 허용
   const md = found?.measuredData || details.measuredData || {};
-  const rawItems = found?.items || details.items || [];
 
-  // 공통 폼
+  // ── rawItems: props.details.items를 1차 소스로 사용
+  //    found.items는 절대 덮어쓰지 않음 (다른 주문의 품목이 표시되는 버그 원인)
+  const rawItems = (details.items && details.items.length > 0)
+    ? details.items
+    : (found?.items || []);
+
+  // 공통 폼 (inboundId/No/Note는 found 기반 유지 — WMS 진행 연속성)
   inboundForm.value = {
     id: found?.id || details.inboundId || `inb-app-${app.id || Date.now()}`,
     inboundNo: found?.inboundNo || details.inboundNo ||
@@ -793,7 +799,7 @@ const initFormData = () => {
 
   // measuredData.items 복원 (구버전 하위 호환)
   if (md.items && Array.isArray(md.items)) {
-    // 신버전: items 배열 있음
+    // 신버전: items 배열 있음 → 저장된 검수 진행 상태(수량/verified/사진) 복원
     arrivalItems.value = md.items.map((ai, idx) => ({
       itemIdx: ai.itemIdx ?? idx,
       itemId: ai.itemId || rawItems[idx]?.id || '',
@@ -819,7 +825,7 @@ const initFormData = () => {
     }));
   }
 
-  // 5-B box 폼 복원
+  // 5-B box 폼 복원 (found 기반 유지 — 저장했던 CBM 수치 연속성)
   const box = md.box || {};
   boxForm.value = {
     measureMode: box.measureMode || md.measureMode || 'carton',
@@ -831,7 +837,7 @@ const initFormData = () => {
     totalPcs: box.totalPcs || md.totalPcs || rawItems.reduce((s, i) => s + (Number(i.quantity) || 0), 0) || 0,
   };
 
-  // 5-C issueForm 복원 (기존 주문의 issueDetails 하위 호환)
+  // 5-C issueForm 복원 (found 기반 유지 — 저장했던 이슈 데이터 연속성)
   const issue = found?.issueDetails || details.issueDetails || {};
   issueForm.value = {
     colorMismatch: Number(issue.colorMismatch) || 0,
@@ -843,8 +849,11 @@ const initFormData = () => {
     issueStatus: found?.issueStatus || details.issueStatus || '',
   };
 
-  // 5-B 검수 실사 사진 복원 (기존 주문 하위 호환)
-  const rawPhotos = found?.inspectionPhotos || details.inspectionPhotos || found?.inspection_photos || [];
+  // ── 5-B 검수 실사 사진: props.details.inspectionPhotos를 1차 소스로 사용
+  //    found.inspectionPhotos로 덮어쓰지 않음 (다른 주문 사진이 표시되는 버그 원인)
+  const rawPhotos = (details.inspectionPhotos && details.inspectionPhotos.length > 0)
+    ? details.inspectionPhotos
+    : (found?.inspectionPhotos || found?.inspection_photos || []);
   inspectionPhotos.value = rawPhotos
     .map((p, idx) => {
       if (typeof p === 'string') return { url: p, caption: `검수 사진 ${idx + 1}` };
