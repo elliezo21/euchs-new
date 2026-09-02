@@ -440,6 +440,7 @@
                   :class="route.path === '/dashboard/orders' && (!route.query.tab || route.query.tab === 'all') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>내 주문 (주문/발주 통합 관리)</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ submittedOrders.length }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=quote"
@@ -447,6 +448,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'quote' || route.query.tab === 'quote_pending') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>견적 요청/대기</span>
+                  <span class="font-mono text-amber-600 text-[11px] font-bold">({{ quotePendingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=payment"
@@ -454,6 +456,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'payment' || route.query.tab === 'quote_confirmed') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>결제대기</span>
+                  <span class="font-mono text-orange-600 text-[11px] font-bold">({{ paymentPendingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=purchasing"
@@ -461,8 +464,10 @@
                   :class="route.path === '/dashboard/orders' && route.query.tab === 'purchasing' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>1688 구매 진행중</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ purchasingCount }})</span>
                 </router-link>
               </div>
+
             </div>
 
             <!-- 4. EUC 창고 (단일 메뉴) -->
@@ -1185,6 +1190,8 @@ import ProductDetailModal from '../components/ProductDetailModal.vue'
 import ImageSearchModal from '../components/mall/ImageSearchModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
 import { supabase } from '../lib/supabase'
+import { normalizeOrderStatus } from '../lib/orderPipeline'
+import { getStoredOrders } from '../utils/orderStorage'
 
 const route = useRoute()
 const router = useRouter()
@@ -1200,6 +1207,22 @@ const isLoadingMore = ref(false)
 const hasSearched = ref(false)
 const errorMessage = ref('')
 const toastMessage = ref('')
+
+// ----------------------------------------------------
+// 발주관리 사이드바 뱃지용 주문 데이터 (DashboardView와 동일 소스/로직)
+// ----------------------------------------------------
+const submittedOrders = ref([])
+
+const quotePendingCount = computed(() =>
+  submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length
+)
+const paymentPendingCount = computed(() =>
+  submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length
+)
+const purchasingCount = computed(() =>
+  submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length
+)
+
 
 const lastQueryKo = ref('')
 const lastQueryZh = ref('')
@@ -2338,6 +2361,8 @@ onMounted(async () => {
   loadMallNotices()
   updateSavedCount()
   handleIncomingQuery()
+  // 발주관리 뱃지용 주문 카운트 로드
+  submittedOrders.value = getStoredOrders()
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
