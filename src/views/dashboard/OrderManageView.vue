@@ -1234,19 +1234,19 @@
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div class="text-[11px] text-gray-500 font-medium">실측 총 중량 (Weight)</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
-                  {{ selectedSecondPaymentOrder.measuredData?.weightKg || 42.5 }} kg
+                  {{ selectedSecondPaymentOrder.measuredData?.weightKg != null ? selectedSecondPaymentOrder.measuredData.weightKg + ' kg' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div class="text-[11px] text-gray-500 font-medium">실측 총 체적 (Volume)</div>
                 <div class="text-base font-extrabold text-teal-700 font-mono mt-0.5">
-                  {{ selectedSecondPaymentOrder.measuredData?.cbm || 0.352 }} CBM
+                  {{ selectedSecondPaymentOrder.measuredData?.cbm != null ? selectedSecondPaymentOrder.measuredData.cbm + ' CBM' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div class="text-[11px] text-gray-500 font-medium">포장 카톤 & 수량</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
-                  {{ selectedSecondPaymentOrder.measuredData?.cartons || 12 }} CTN (120 PCS)
+                  {{ selectedSecondPaymentOrder.measuredData?.cartons != null ? selectedSecondPaymentOrder.measuredData.cartons + ' CTN' : '-' }} ({{ selectedSecondPaymentOrder.measuredData?.totalPcs != null ? selectedSecondPaymentOrder.measuredData.totalPcs + ' PCS' : '-' }})
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
@@ -1865,8 +1865,8 @@ const defaultMockOrders = [
     status: 'inspection_done',
     buyerInfo: { ...defaultBuyerInfo },
     measuredData: {
-      weightKg: 42.5,
-      cbm: 0.352,
+      weightKg: null,
+      cbm: null,
       cartons: 12,
       totalPcs: 120,
       defectCount: 0,
@@ -1879,7 +1879,7 @@ const defaultMockOrders = [
       },
       {
         url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
-        caption: '2. 정밀 계근 및 CBM 체적 실측 (42.5kg / 0.352CBM)'
+        caption: '2. 정밀 계근 및 CBM 체적 실측'
       },
       {
         url: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop&q=80',
@@ -3005,7 +3005,7 @@ const defaultInspectionPhotos = [
   },
   {
     url: 'https://images.unsplash.com/photo-1586528116311-ad8dd3c8310d?w=600&auto=format&fit=crop&q=80',
-    caption: '2. 정밀 계근 및 CBM 체적 실측 (42.5kg / 0.352CBM)'
+    caption: '2. 정밀 계근 및 CBM 체적 실측'
   },
   {
     url: 'https://images.unsplash.com/photo-1553413077-190dd305871c?w=600&auto=format&fit=crop&q=80',

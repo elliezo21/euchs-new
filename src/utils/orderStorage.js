@@ -785,7 +785,7 @@ export function calculatePipelineCounts(ordersList = null) {
  */
 export function getWarehouseInboundsFromOrders() {
   const orders = getStoredOrders();
-  return orders
+  const mapped = orders
     .filter(o => {
       const norm = normalizeOrderStatus(o.status);
       return [
@@ -853,9 +853,9 @@ export function getWarehouseInboundsFromOrders() {
         productName: primaryItem.productName || primaryItem.titleKo || '1688 수입 품목',
         sku: primaryItem.sku || '기본 규격',
         quantity: primaryItem.quantity || 100,
-        boxCount: measured.cartons || Math.max(1, Math.ceil((primaryItem.quantity || 100) / 10)),
-        measuredWeightKg: Number(measured.weightKg || 0),
-        measuredCbm: Number(measured.cbm || 0),
+        boxCount: measured.cartons != null ? measured.cartons : Math.max(1, Math.ceil((primaryItem.quantity || 100) / 10)),
+        measuredWeightKg: measured.weightKg != null ? Number(measured.weightKg) : null,
+        measuredCbm: measured.cbm != null ? Number(measured.cbm) : null,
         inspectionStatus: resolveInspectionStatus(),
         inspectionNote: resolveInspectionNote(),
         thumbnail: primaryItem.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=80',
@@ -871,4 +871,14 @@ export function getWarehouseInboundsFromOrders() {
         issueStatus: o.issueStatus || '',
       };
     });
+
+  // De-duplication: 동일 주문 ID(order_number 또는 id)가 중복 반환되지 않도록 방어
+  const seenKeys = new Set();
+  return mapped.filter(item => {
+    const key = item.orderNo || item.id;
+    if (!key || seenKeys.has(key)) return false;
+    seenKeys.add(key);
+    return true;
+  });
 }
+

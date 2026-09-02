@@ -624,19 +624,19 @@
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div class="text-[11px] text-gray-500 font-medium">실측 총 중량 (Weight)</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
-                  {{ selectedSecondPaymentItem.measuredWeightKg || 42.5 }} kg
+                  {{ selectedSecondPaymentItem.measuredWeightKg != null ? selectedSecondPaymentItem.measuredWeightKg + ' kg' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div class="text-[11px] text-gray-500 font-medium">실측 총 체적 (Volume)</div>
                 <div class="text-base font-extrabold text-teal-700 font-mono mt-0.5">
-                  {{ selectedSecondPaymentItem.measuredCbm || 0.352 }} CBM
+                  {{ selectedSecondPaymentItem.measuredCbm != null ? selectedSecondPaymentItem.measuredCbm + ' CBM' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
                 <div class="text-[11px] text-gray-500 font-medium">포장 카톤 & 수량</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
-                  {{ selectedSecondPaymentItem.boxCount || 12 }} CTN ({{ selectedSecondPaymentItem.quantity || 120 }} PCS)
+                  {{ selectedSecondPaymentItem.boxCount != null ? selectedSecondPaymentItem.boxCount + ' CTN' : '-' }} ({{ selectedSecondPaymentItem.quantity != null ? selectedSecondPaymentItem.quantity + ' PCS' : '-' }})
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
