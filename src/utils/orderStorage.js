@@ -72,6 +72,8 @@ export function getStoredOrders() {
  * 전역 주문 목록 저장 및 Supabase DB / 전역 이벤트 디스패치
  */
 export function saveStoredOrders(orders) {
+  // ⚠️ TEMP DEBUG — 원인 확정 후 즉시 제거 예정
+  console.trace('[saveStoredOrders] called from:');
   try {
     const data = Array.isArray(orders) ? orders : [];
     localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(data));
