@@ -688,7 +688,7 @@ function handleBulkExcel() {
 async function loadData() {
   orders.value = getStoredOrders();
   try {
-    const latest = await fetchOrdersFromSupabase();
+    const latest = await fetchOrdersFromSupabase({ isAdmin: true });
     if (Array.isArray(latest) && latest.length > 0) {
       orders.value = latest;
     }

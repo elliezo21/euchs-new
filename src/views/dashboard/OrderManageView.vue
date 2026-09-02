@@ -1983,7 +1983,7 @@ const defaultMockOrders = [
   }
 ];
 
-const orders = ref([...defaultMockOrders]);
+const orders = ref([]);
 
 const loadOrdersData = async () => {
   isRefreshing.value = true;

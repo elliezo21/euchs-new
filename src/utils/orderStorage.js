@@ -213,9 +213,24 @@ async function _syncOrdersToSupabase(ordersList) {
 
 /**
  * Supabase DB (orders + applications) 테이블에서 최신 주문 목록 Fetch 및 로컬 캐시 병합
+ * @param {Object} options
+ * @param {boolean} [options.isAdmin=false] - true 시 user_id 필터 없이 전체 조회 (어드민 전용)
  */
-export async function fetchOrdersFromSupabase() {
+export async function fetchOrdersFromSupabase(options = {}) {
   if (!isSupabaseConfigured()) {
+    return getStoredOrders();
+  }
+
+  // 어드민 모드 판별: options.isAdmin 명시 시 전체 조회
+  const adminMode = options.isAdmin === true;
+
+  // 일반 바이어: 필터에 사용할 uid 확인 (UUID 형식만 유효)
+  const user = currentUser.value;
+  const uid = user?.id && isValidUUID(user.id) ? user.id : null;
+
+  // 안전 처리: 일반 바이어인데 uid가 없으면(네이버 로컬세션·auth 로딩 중 등)
+  // 전체 조회 대신 로컬 캐시만 반환하여 타 계정 데이터 노출을 원천 차단
+  if (!adminMode && !uid) {
     return getStoredOrders();
   }
 
@@ -223,10 +238,17 @@ export async function fetchOrdersFromSupabase() {
 
   // 1. Supabase orders 테이블 조회 (Primary)
   try {
-    const { data: ordersData, error: ordersError } = await supabase
+    let ordersQuery = supabase
       .from('orders')
       .select('*')
       .order('created_at', { ascending: false });
+
+    // 일반 바이어(uid 확정)이면 user_id 필터 적용
+    if (!adminMode && uid) {
+      ordersQuery = ordersQuery.eq('user_id', uid);
+    }
+
+    const { data: ordersData, error: ordersError } = await ordersQuery;
 
     if (!ordersError && Array.isArray(ordersData) && ordersData.length > 0) {
       ordersData.forEach(row => {
@@ -301,10 +323,17 @@ export async function fetchOrdersFromSupabase() {
 
   // 2. Supabase applications 테이블 조회 (Secondary/Compatibility)
   try {
-    const { data: appsData, error: appsError } = await supabase
+    let appsQuery = supabase
       .from('applications')
       .select('*')
       .order('created_at', { ascending: false });
+
+    // 일반 바이어(uid 확정)이면 user_id 필터 적용
+    if (!adminMode && uid) {
+      appsQuery = appsQuery.eq('user_id', uid);
+    }
+
+    const { data: appsData, error: appsError } = await appsQuery;
 
     if (!appsError && Array.isArray(appsData) && appsData.length > 0) {
       appsData
@@ -417,6 +446,7 @@ export async function fetchOrdersFromSupabase() {
 
   return getStoredOrders();
 }
+
 
 /**
  * 신규 발주 주문 저장 (로컬 + Supabase DB orders/applications 테이블 영구 동기화)
