@@ -763,18 +763,30 @@ function restoreItem(order, item, idx) {
   excludeReasonMap.value[idx] = '';
 }
 
-function cancelOrderEntirely(order) {
+const isInternalUpdate = ref(false);
+
+async function cancelOrderEntirely(order) {
   if (!order) return;
   if (!confirm(`[${order.orderNumber}] 주문을 '전체 취소 (품절/반려)' 처리하시겠습니까?\n취소 후에는 복구할 수 없습니다.`)) return;
 
-  updateOrderStatus(order.id, 'cancelled', {
-    cancelReason: '품목 전체 품절 및 수급 불가로 인한 관리자 취소',
-    cancelledAt: new Date().toISOString()
-  });
+  const prevStatus = order.status;
+  const target = orders.value.find(o => o.id === order.id || o.orderNumber === order.orderNumber);
+  if (target) target.status = 'cancelled';
 
-  loadData();
-  showToast(`[${order.orderNumber}] 전체 주문 취소(반려) 처리가 완료되었습니다.`, 'error');
-  closeModals();
+  isInternalUpdate.value = true;
+  try {
+    await updateOrderStatus(order.id, 'cancelled', {
+      cancelReason: '품목 전체 품절 및 수급 불가로 인한 관리자 취소',
+      cancelledAt: new Date().toISOString()
+    });
+    showToast(`[${order.orderNumber}] 전체 주문 취소(반려) 처리가 완료되었습니다.`, 'error');
+    closeModals();
+  } catch (err) {
+    if (target) target.status = prevStatus;
+    showToast(`전체 주문 취소 처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  }
 }
 
 async function saveDetailDraft() {
@@ -784,30 +796,42 @@ async function saveDetailDraft() {
   const orderNum = activeOrder.value.orderNumber || targetOrderId;
   const items = JSON.parse(JSON.stringify(activeOrder.value.items || []));
 
-  const list = getStoredOrders();
-  const target = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
+  const target = orders.value.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
+  const prevItems = target ? JSON.parse(JSON.stringify(target.items || [])) : [];
+
   if (target) {
     target.items = items;
-    saveStoredOrders(list);
   }
 
-  if (isSupabaseConfigured()) {
-    try {
-      await supabase
+  isInternalUpdate.value = true;
+  try {
+    const list = getStoredOrders();
+    const storedTarget = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
+    if (storedTarget) {
+      storedTarget.items = items;
+      saveStoredOrders(list);
+    }
+
+    if (isSupabaseConfigured()) {
+      const { error: dbErr } = await supabase
         .from('orders')
         .update({
           items: items,
           updated_at: new Date().toISOString()
         })
         .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`);
-    } catch (e) {
-      console.debug('[saveDetailDraft] Supabase update notice:', e);
+      if (dbErr) throw dbErr;
     }
-  }
 
-  await loadData();
-  showToast('발주 품목 상태 및 견적액이 안전하게 저장되었습니다.', 'success');
-  closeModals();
+    showToast('발주 품목 상태 및 견적액이 안전하게 저장되었습니다.', 'success');
+    closeModals();
+  } catch (e) {
+    if (target) target.items = prevItems;
+    console.error('[saveDetailDraft error]:', e);
+    showToast(`발주 품목 상태 저장 실패: ${e.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  }
 }
 
 async function approveQuoteFromDetail() {
@@ -825,20 +849,36 @@ async function approveQuoteFromDetail() {
   const orderNum = activeOrder.value.orderNumber || targetOrderId;
   const validTotal = calcCost(activeOrder.value);
   const validCny = Number(calcCny(activeOrder.value));
+  const newItems = JSON.parse(JSON.stringify(activeOrder.value.items || []));
 
+  const target = orders.value.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
+  const prevStatus = target ? target.status : null;
+  const prevItems = target ? JSON.parse(JSON.stringify(target.items || [])) : [];
+  const prevPriceKrw = target ? target.totalPriceKrw : undefined;
+  const prevPriceRmb = target ? target.totalPriceRmb : undefined;
+
+  // 1. 낙관적 업데이트 — 해당 행만 직접 갱신
+  const nextStatus = 'quote_confirmed';
+  if (target) {
+    target.status = nextStatus;
+    target.items = newItems;
+    target.totalPriceKrw = validTotal;
+    target.totalPriceRmb = validCny;
+  }
+
+  isInternalUpdate.value = true;
   try {
-    // 1. 발주 품목 상태 동기화 저장
+    // 2. 발주 품목 상태 로컬스토리지 저장
     const list = getStoredOrders();
-    const target = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
-    if (target) {
-      target.items = JSON.parse(JSON.stringify(activeOrder.value.items || []));
+    const storedTarget = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
+    if (storedTarget) {
+      storedTarget.items = newItems;
       saveStoredOrders(list);
     }
 
-    // 2. quote_confirmed 상태로 전환 및 유효 금액 반영
-    const nextStatus = 'quote_confirmed';
+    // 3. quote_confirmed 상태로 전환 및 DB 반영 (await로 결과 확인)
     await updateOrderStatus(targetOrderId, nextStatus, {
-      items: activeOrder.value.items || [],
+      items: newItems,
       totalPriceKrw: validTotal,
       totalPriceRmb: validCny,
       quote_confirmed_at: new Date().toISOString(),
@@ -854,7 +894,7 @@ async function approveQuoteFromDetail() {
       }
     });
 
-    // 3. 솔라피 알림톡 발송 (비동기 안전 방어)
+    // 4. 솔라피 알림톡 발송 (비동기 안전 방어)
     sendOrderStatusAlimtalk({
       type: 'quote_approved',
       to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
@@ -865,10 +905,18 @@ async function approveQuoteFromDetail() {
 
     showToast(`[${orderNum}] 견적 승인 완료 → 2단계(결제대기) 전환`, 'success');
     closeModals();
-    await loadData();
   } catch (err) {
+    // 5. 실패 시 원래 상태로 롤백
+    if (target) {
+      target.status = prevStatus;
+      target.items = prevItems;
+      if (prevPriceKrw !== undefined) target.totalPriceKrw = prevPriceKrw;
+      if (prevPriceRmb !== undefined) target.totalPriceRmb = prevPriceRmb;
+    }
     console.error('[approveQuoteFromDetail error]:', err);
     showToast(`견적 승인 처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
   }
 }
 
@@ -995,9 +1043,30 @@ function openWarehouseModal(o) {
 }
 
 async function handleWarehouseSaved(payload) {
+  const targetOrderNo = payload?.orderNo || warehouseModalTarget.value?.orderNo;
+  const targetId = payload?.orderId || warehouseModalTarget.value?.id;
+  const target = orders.value.find(o => o.id === targetId || o.orderNumber === targetOrderNo || o.inboundNo === targetOrderNo);
+
+  if (target) {
+    if (payload.status) target.status = payload.status;
+    if (payload.measuredData) target.measuredData = payload.measuredData;
+    if (payload.secondPayment) target.secondPayment = payload.secondPayment;
+    if (payload.inspectionPhotos) target.inspectionPhotos = payload.inspectionPhotos;
+    if (payload.issueDetails) target.issueDetails = payload.issueDetails;
+    if (payload.issueStatus) target.issueStatus = payload.issueStatus;
+    if (payload.measuredWeightKg !== undefined && target.measuredData) {
+      target.measuredData.weightKg = payload.measuredWeightKg;
+    }
+    if (payload.measuredCbm !== undefined && target.measuredData) {
+      target.measuredData.cbm = payload.measuredCbm;
+    }
+    if (payload.boxCount !== undefined && target.measuredData) {
+      target.measuredData.cartons = payload.boxCount;
+    }
+  }
+
   const label = payload.tab === 'box' ? '5-B CBM 정산' : payload.tab === 'issue' ? '5-C 이슈' : '5-A 도착검수';
-  showToast(`[${warehouseModalTarget.value?.orderNo}] ${label} 저장 완료`);
-  await loadData();
+  showToast(`[${targetOrderNo || '주문'}] ${label} 저장 완료`);
 }
 
 // ─────────────────────────────────────
@@ -1005,14 +1074,21 @@ async function handleWarehouseSaved(payload) {
 // ─────────────────────────────────────
 async function confirmPayment(o) {
   if (!confirm(`[${o.orderNumber}] 결제 입금 확인 후 3단계 전환하시겠습니까?`)) return;
+  const prevStatus = o.status;
+  const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
+  if (target) target.status = 'payment_verified';
+
+  isInternalUpdate.value = true;
   try {
     await updateOrderStatus(o.id, 'payment_verified', {
       paymentInfo: { confirmedAt: new Date().toISOString() }
     });
     showToast(`[${o.orderNumber}] 결제확인 → 3단계 전환 완료`);
-    await loadData();
   } catch (err) {
+    if (target) target.status = prevStatus;
     showToast(`처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
   }
 }
 
@@ -1021,14 +1097,21 @@ async function confirmPayment(o) {
 // ─────────────────────────────────────
 async function startPurchasing(o) {
   if (!confirm(`[${o.orderNumber}] 1688 구매 시작 → 4단계 전환하시겠습니까?`)) return;
+  const prevStatus = o.status;
+  const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
+  if (target) target.status = 'purchasing';
+
+  isInternalUpdate.value = true;
   try {
     await updateOrderStatus(o.id, 'purchasing', {
       purchaseStartedAt: new Date().toISOString()
     });
     showToast(`[${o.orderNumber}] 1688 구매시작 → 4단계 전환 완료`);
-    await loadData();
   } catch (err) {
+    if (target) target.status = prevStatus;
     showToast(`처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
   }
 }
 
@@ -1047,15 +1130,22 @@ function openDetail(o) {
 
 async function advanceToShipping(o) {
   if (!confirm(`[${o.orderNumber}] 선적 처리 → 6단계 전환하시겠습니까?`)) return;
+  const prevStatus = o.status;
+  const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
+  if (target) target.status = 'shipping_ready';
+
+  isInternalUpdate.value = true;
   try {
     await updateOrderStatus(o.id, 'shipping_ready', {
       shippedAt: new Date().toISOString(),
       customsStep: 'sailing'
     });
     showToast(`[${o.orderNumber}] 선적처리 → 6단계 전환 완료`);
-    await loadData();
   } catch (err) {
+    if (target) target.status = prevStatus;
     showToast(`선적 처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
   }
 }
 
@@ -1065,6 +1155,18 @@ async function submitBLForm() {
     ...blForm.value,
     registeredAt: new Date().toISOString()
   };
+
+  const target = orders.value.find(x => x.id === activeOrder.value?.id || x.orderNumber === activeOrder.value?.orderNumber);
+  const prevStatus = target ? target.status : null;
+  const prevBl = target ? target.blInfo : null;
+
+  if (target) {
+    target.status = 'customs_clearance';
+    target.bl_no = blForm.value.blNumber;
+    target.blInfo = customsInfo;
+  }
+
+  isInternalUpdate.value = true;
   try {
     await updateOrderStatus(activeOrder.value.id, 'customs_clearance', {
       bl_no: blForm.value.blNumber,
@@ -1085,9 +1187,14 @@ async function submitBLForm() {
 
     showToast(`[${activeOrder.value.orderNumber}] B/L(${blForm.value.blNumber}) 등록 → 7단계(세관통관) 전환 완료`);
     closeModals();
-    await loadData();
   } catch (err) {
+    if (target) {
+      target.status = prevStatus;
+      target.blInfo = prevBl;
+    }
     showToast(`B/L 등록 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
   }
 }
 
@@ -1097,6 +1204,19 @@ async function submitTrackingForm() {
     ...trackingForm.value,
     registeredAt: new Date().toISOString()
   };
+
+  const target = orders.value.find(x => x.id === activeOrder.value?.id || x.orderNumber === activeOrder.value?.orderNumber);
+  const prevStatus = target ? target.status : null;
+  const prevTracking = target ? target.trackingInfo : null;
+
+  if (target) {
+    target.status = 'domestic_shipping';
+    target.tracking_no = trackingForm.value.trackingNumber;
+    target.carrier = trackingForm.value.carrier;
+    target.trackingInfo = shippingInfo;
+  }
+
+  isInternalUpdate.value = true;
   try {
     await updateOrderStatus(activeOrder.value.id, 'domestic_shipping', {
       tracking_no: trackingForm.value.trackingNumber,
@@ -1119,32 +1239,47 @@ async function submitTrackingForm() {
 
     showToast(`[${activeOrder.value.orderNumber}] 국내 송장(${trackingForm.value.carrier} ${trackingForm.value.trackingNumber}) 등록 → 8단계(국내배송) 전환`);
     closeModals();
-    await loadData();
   } catch (err) {
+    if (target) {
+      target.status = prevStatus;
+      target.trackingInfo = prevTracking;
+    }
     showToast(`송장 등록 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
   }
 }
 
 async function markDelivered(o) {
   if (!confirm(`[${o.orderNumber}] 배송완료(최종 수령) 처리하시겠습니까?`)) return;
+  const prevStatus = o.status;
+  const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
+  if (target) target.status = 'delivered';
+
+  isInternalUpdate.value = true;
   try {
     await updateOrderStatus(o.id, 'delivered', {
       deliveredAt: new Date().toISOString(),
       customsStep: 'delivered'
     });
     showToast(`[${o.orderNumber}] 배송완료(8단계 최종완료) 처리되었습니다!`);
-    await loadData();
   } catch (err) {
+    if (target) target.status = prevStatus;
     showToast(`배송완료 처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
   }
 }
 
-function onSync() { loadData(); }
+function onSync() {
+  if (isInternalUpdate.value) return;
+  loadData();
+}
 onMounted(() => {
   loadData();
   window.addEventListener('euchs-order-status-update', onSync);
   window.addEventListener('storage', onSync);
-  realtimeChannel = subscribeToOrders(loadData);
+  realtimeChannel = subscribeToOrders(onSync);
 });
 onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', onSync);

@@ -2788,6 +2788,8 @@ function advanceOrderStage(order) {
   alert(`✅ 상태가 [${getOrderStatusLabel(nextStatus)}]으로 전환되었습니다.`);
 }
 
+const isInternalOrderUpdate = ref(false);
+
 async function executeInstantPayment(order) {
   if (!order) return;
   const cost = getOrderCostSummary(order);
@@ -2809,6 +2811,18 @@ async function executeInstantPayment(order) {
   }
 
   isPaying.value = true;
+  isInternalOrderUpdate.value = true;
+
+  const target = orders.value.find(o =>
+    o.id === order.id ||
+    o.orderNumber === order.orderNumber ||
+    o.orderNumber === orderNo ||
+    o.id === orderId ||
+    o.order_no === orderNo
+  );
+  const prevStatus = target ? target.status : order.status;
+  const prevStep = target ? target.step : order.step;
+
   try {
     // 2. 예치금 차감 트랜잭션 적용 (로컬 + Supabase profiles.balance 차감 + transactions 테이블 기록)
     await applyBalanceTransaction(-totalCost, {
@@ -2834,13 +2848,6 @@ async function executeInstantPayment(order) {
     };
 
     // 4. orders.value 반응형 배열 내 타깃 주문 갱신
-    const target = orders.value.find(o =>
-      o.id === order.id ||
-      o.orderNumber === order.orderNumber ||
-      o.orderNumber === orderNo ||
-      o.id === orderId ||
-      o.order_no === orderNo
-    );
     if (target) {
       target.status = nextStatus;
       target.step = 4;
@@ -2897,7 +2904,6 @@ async function executeInstantPayment(order) {
     }
 
     // 7. 전역 동기화 이벤트 통지
-    window.dispatchEvent(new Event('storage'));
     window.dispatchEvent(new CustomEvent('euchs-balance-update'));
     window.dispatchEvent(new CustomEvent('euchs-balance-updated'));
     window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
@@ -2910,10 +2916,17 @@ async function executeInstantPayment(order) {
     alert(`✅ 1차 결제가 성공적으로 완료되었습니다!\n\n- 결제금액: ₩${totalWon}원\n- 차감 후 예치금 잔액: ₩${formatNumber(userBalance.value)}원\n- 발주번호: ${orderNo}\n\n[4. 1688 구매진행] 단계로 이동합니다.`);
     closeDetailModal();
   } catch (err) {
+    if (target) {
+      target.status = prevStatus;
+      target.step = prevStep;
+    }
+    order.status = prevStatus;
+    order.step = prevStep;
     console.error('Payment error:', err);
     alert('결제 처리 중 오류가 발생했습니다: ' + (err.message || err));
   } finally {
     isPaying.value = false;
+    setTimeout(() => { isInternalOrderUpdate.value = false; }, 400);
   }
 }
 
@@ -3060,65 +3073,80 @@ function setSampleBarcodeFile() {
 }
 
 async function handleConfirmSecondPayment() {
+  if (!selectedSecondPaymentOrder.value) return;
+
+  const order = selectedSecondPaymentOrder.value;
+  const prevStatus = order.status;
+  const prevBarcodeFile = order.barcodeFile;
+
   isProcessingPayment.value = true;
-  setTimeout(async () => {
-    isProcessingPayment.value = false;
-    if (selectedSecondPaymentOrder.value) {
-      const order = selectedSecondPaymentOrder.value;
-      order.status = 'shipping_ready';
-      order.barcodeFile = uploadedBarcodeFile.value || null;
+  isInternalOrderUpdate.value = true;
 
-      // Update in orders list
-      const idx = orders.value.findIndex(o => o.id === order.id);
-      if (idx !== -1) {
-        orders.value[idx].status = 'shipping_ready';
-        orders.value[idx].barcodeFile = uploadedBarcodeFile.value || null;
+  // 1. 낙관적 업데이트 — 로컬 배열 직접 갱신
+  order.status = 'shipping_ready';
+  order.barcodeFile = uploadedBarcodeFile.value || null;
+
+  const idx = orders.value.findIndex(o => o.id === order.id || o.orderNumber === order.orderNumber);
+  if (idx !== -1) {
+    orders.value[idx].status = 'shipping_ready';
+    orders.value[idx].barcodeFile = uploadedBarcodeFile.value || null;
+  }
+
+  try {
+    // 2. Supabase DB 비동기 업데이트 (await로 결과 확인)
+    if (isSupabaseConfigured()) {
+      const isNumericId = !isNaN(Number(order.id)) && Number(order.id) > 0;
+      if (isNumericId) {
+        const { error: appErr } = await supabase
+          .from('applications')
+          .update({
+            status: 'shipping_ready',
+            details: {
+              ...(order.details || {}),
+              status: 'shipping_ready',
+              barcodeFile: uploadedBarcodeFile.value || null
+            }
+          })
+          .eq('id', Number(order.id));
+        if (appErr) throw appErr;
+      } else {
+        const orderNum = order.orderNumber || String(order.id);
+        const { error: ordErr } = await supabase
+          .from('orders')
+          .update({
+            status: 'shipping_ready',
+            details: {
+              ...(order.details || {}),
+              status: 'shipping_ready',
+              barcodeFile: uploadedBarcodeFile.value || null
+            }
+          })
+          .eq('order_number', orderNum);
+        if (ordErr) throw ordErr;
       }
-
-      // Update in Supabase if configured (400 방어: 숫자 ID일 때만 applications.id 조회)
-      if (isSupabaseConfigured()) {
-        try {
-          const isNumericId = !isNaN(Number(order.id)) && Number(order.id) > 0;
-          if (isNumericId) {
-            await supabase
-              .from('applications')
-              .update({
-                status: 'shipping_ready',
-                details: {
-                  ...(order.details || {}),
-                  status: 'shipping_ready',
-                  barcodeFile: uploadedBarcodeFile.value || null
-                }
-              })
-              .eq('id', Number(order.id));
-          } else {
-            const orderNum = order.orderNumber || String(order.id);
-            await supabase
-              .from('orders')
-              .update({
-                status: 'shipping_ready',
-                details: {
-                  ...(order.details || {}),
-                  status: 'shipping_ready',
-                  barcodeFile: uploadedBarcodeFile.value || null
-                }
-              })
-              .eq('order_number', orderNum);
-          }
-        } catch (e) {
-          console.warn('Supabase update warning:', e);
-        }
-      }
-
-      // Sync with global order storage
-      saveStoredOrders(orders.value);
-
-      const fee = order.secondPayment?.totalSecondPaymentKrw || 133000;
-      const barcodeNote = uploadedBarcodeFile.value ? '바코드 부착 및 ' : '';
-      alert(`✅ 2차 결제(₩${formatNumber(fee)}원)가 성공적으로 완료되었습니다!\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 즉시 전달되었습니다.`);
-      closeSecondPaymentModal();
     }
-  }, 600);
+
+    // 3. 로컬 스토리지 동기화
+    saveStoredOrders(orders.value);
+
+    const fee = order.secondPayment?.totalSecondPaymentKrw || 133000;
+    const barcodeNote = uploadedBarcodeFile.value ? '바코드 부착 및 ' : '';
+    alert(`✅ 2차 결제(₩${formatNumber(fee)}원)가 성공적으로 완료되었습니다!\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 즉시 전달되었습니다.`);
+    closeSecondPaymentModal();
+  } catch (e) {
+    // 4. 실패 시 롤백
+    if (idx !== -1) {
+      orders.value[idx].status = prevStatus;
+      orders.value[idx].barcodeFile = prevBarcodeFile;
+    }
+    order.status = prevStatus;
+    order.barcodeFile = prevBarcodeFile;
+    console.error('[handleConfirmSecondPayment error]:', e);
+    alert('2차 결제 처리 중 오류가 발생했습니다: ' + (e.message || e));
+  } finally {
+    isProcessingPayment.value = false;
+    setTimeout(() => { isInternalOrderUpdate.value = false; }, 400);
+  }
 }
 
 // ---------------------------------------------------------
@@ -3126,16 +3154,21 @@ async function handleConfirmSecondPayment() {
 // ---------------------------------------------------------
 let dashboardRealtimeChannel = null;
 
+function onSyncOrders() {
+  if (isInternalOrderUpdate.value) return;
+  loadOrdersData();
+}
+
 onMounted(async () => {
   await loadOrdersData();
-  window.addEventListener('euchs-order-status-update', loadOrdersData);
-  window.addEventListener('storage', loadOrdersData);
-  dashboardRealtimeChannel = subscribeToOrders(loadOrdersData);
+  window.addEventListener('euchs-order-status-update', onSyncOrders);
+  window.addEventListener('storage', onSyncOrders);
+  dashboardRealtimeChannel = subscribeToOrders(onSyncOrders);
 });
 
 onUnmounted(() => {
-  window.removeEventListener('euchs-order-status-update', loadOrdersData);
-  window.removeEventListener('storage', loadOrdersData);
+  window.removeEventListener('euchs-order-status-update', onSyncOrders);
+  window.removeEventListener('storage', onSyncOrders);
   if (dashboardRealtimeChannel && typeof dashboardRealtimeChannel.unsubscribe === 'function') {
     dashboardRealtimeChannel.unsubscribe();
   }

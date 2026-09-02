@@ -1163,7 +1163,14 @@ const saveArrivalInspection = async () => {
   });
 
   isSaving.value = false;
-  emit('saved', { tab: 'arrival', status: arrivalSubStatus });
+  emit('saved', {
+    tab: 'arrival',
+    orderId: app.id,
+    orderNo: app.orderNo || app.id,
+    status: arrivalSubStatus,
+    measuredData,
+    inspectionNote: inboundForm.value.inspectionNote,
+  });
   // Bug B 수정: closeModal() 제거 → 모달 유지한 채 5-B 탭으로 자동 전환
   activeTab.value = 'box';
 };
@@ -1256,7 +1263,18 @@ const saveBoxMeasurement = async () => {
 
   isSaving.value = false;
   closeModal();
-  emit('saved', { tab: 'box', status: 'inspection_done', secondPayment });
+  emit('saved', {
+    tab: 'box',
+    orderId: app.id,
+    orderNo: app.orderNo || app.id,
+    status: 'inspection_done',
+    secondPayment,
+    measuredData,
+    measuredWeightKg: boxForm.value.weightKg,
+    measuredCbm: calcTotalCbm.value,
+    boxCount: boxForm.value.cartons,
+    inspectionPhotos: savedPhotos,
+  });
 };
 
 
@@ -1329,7 +1347,14 @@ const saveIssueData = async () => {
   });
 
   isSaving.value = false;
-  emit('saved', { tab: 'issue', issueDetails, issueStatus, inspectionStatus: newInspectionStatus });
+  emit('saved', {
+    tab: 'issue',
+    orderId: app.id,
+    orderNo: app.orderNo || app.id,
+    issueDetails,
+    issueStatus,
+    inspectionStatus: newInspectionStatus,
+  });
   closeModal();
 };
 </script>

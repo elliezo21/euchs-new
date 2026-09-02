@@ -737,14 +737,32 @@ export function getWarehouseInboundsFromOrders() {
       const resolveInspectionStatus = () => {
         if (o.inspectionStatus) return o.inspectionStatus;
         if (isDefect) return 'defect_found';
+
+        // 파이프라인 단계 순서 기준 전체 분기 커버
+        // — 5단계(warehouse_in) 이후 모든 상태는 최소 'inspected' 이상 반환
+
+        // 8단계: 국내 배송중 / 배송완료 (실측·검수 이미 완료된 상태)
+        if (norm === 'domestic_shipping' || norm === 'delivered') return 'inspected';
+
+        // 7단계: 수입통관 (한국행 선적 이후 → 선적대기 배지)
+        if (norm === 'customs_clearance') return 'ready_to_ship';
+
+        // 6단계: 한국행 선적 대기
         if (norm === 'shipping_ready') return 'ready_to_ship';
+
+        // 5-B 완료 / 정밀검수 완료
         if (norm === 'inspection_done') return 'inspected';
+
+        // 5단계: 입고 & 정밀검수 (Bug C 수정 유지)
+        // measured.weightKg > 0 → 5-B 계근 완료('inbound_weighed')
+        // measured.weightKg = 0 → 5-A 도착검수만 완료('pending_inbound')
         if (norm === 'warehouse_in') {
-          // Bug C 수정: 실제 계근 데이터(measured.weightKg)가 존재할 때만 'inbound_weighed' 반환.
-          // measured.weightKg는 5-B 박스포장 저장(_buildMeasuredData(true)) 시에만 양수로 채워짐.
-          // 5-A 도착검수만 완료된 상태에서는 weightKg=0이므로 'pending_inbound' 반환.
           return Number(measured.weightKg) > 0 ? 'inbound_weighed' : 'pending_inbound';
         }
+
+        // 1~4단계: 견적·결제·구매진행 (창고 뷰 필터에서 원래 걸러지지만, 방어적으로 명시)
+        // quote_pending / quote_confirmed / payment_verified / purchasing
+        // cancelled: WarehouseView filter 에서 제외되므로 실제 도달 안 하나 명시적 처리
         return 'pending_inbound';
       };
 
