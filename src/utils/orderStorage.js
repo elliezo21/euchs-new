@@ -703,19 +703,19 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
 /**
  * Supabase Realtime 주문 실시간 구독 헬퍼 (크로스 브라우저 실시간 갱신)
  */
-export function subscribeToOrders(callback) {
+export function subscribeToOrders(callback, options = {}) {
   if (!isSupabaseConfigured()) return null;
 
   try {
     const channel = supabase
       .channel('public:orders-applications-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrdersFromSupabase().then(() => {
+        fetchOrdersFromSupabase(options).then(() => {
           if (typeof callback === 'function') callback();
         });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
-        fetchOrdersFromSupabase().then(() => {
+        fetchOrdersFromSupabase(options).then(() => {
           if (typeof callback === 'function') callback();
         });
       })

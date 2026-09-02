@@ -1282,7 +1282,7 @@ onMounted(() => {
   loadData();
   window.addEventListener('euchs-order-status-update', onSync);
   window.addEventListener('storage', onSync);
-  realtimeChannel = subscribeToOrders(onSync);
+  realtimeChannel = subscribeToOrders(onSync, { isAdmin: true });
 });
 onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', onSync);
