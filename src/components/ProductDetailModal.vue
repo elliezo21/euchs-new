@@ -836,10 +836,11 @@ const displayedPriceTiers = computed(() => {
   const p = basePrice.value
   const mo = minOrder.value
 
-  // ── 1. item.priceTiers (api1688.js → fetch1688ProductById가 파싱한 1688 원본 구간) ──
+  // ── 1. item.priceTiers (api1688.js → fetch1688ProductById가 파싱한 1688 원본 수량 구간) ──
+  // 수량 구간이 2개 이상인 경우 → 수량별 가격 상품. SKU 가격 무시하고 기존대로 표시.
   const rawTiers = item?.priceTiers || item?.raw?.priceTiers || props.product?.priceTiers || null
 
-  if (Array.isArray(rawTiers) && rawTiers.length > 0) {
+  if (Array.isArray(rawTiers) && rawTiers.length > 1) {
     return rawTiers.map((tier) => {
       const minQ   = Number(tier.minQty || tier.minQuantity || tier.min || tier.beginAmount || 1)
       const maxQ   = (tier.maxQty != null || tier.maxQuantity != null)
@@ -857,7 +858,80 @@ const displayedPriceTiers = computed(() => {
     })
   }
 
-  // ── 2. 원본 구간이 없으면 단일 가격 카드 1개만 (가상 할인 구간 생성 절대 금지) ──
+  // ── 2. SKU별 가격 상품: skus 배열에서 선택된 옵션 조합의 price를 참조 ──
+  // 판단 조건: item.skus가 있고, SKU간 price가 다른 경우 (색상별 가격 상품)
+  const skusArr = (
+    Array.isArray(item?.skus) && item.skus.length > 0 ? item.skus :
+    Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : []
+  )
+
+  if (skusArr.length > 0) {
+    const hasPriceVariation = skusArr.some(s => Math.abs((s.price || 0) - (skusArr[0].price || 0)) > 0.001)
+
+    if (hasPriceVariation) {
+      const colorName = selectedColor.value?.name?.trim() || ''
+      const sizeName  = selectedSize.value ? String(selectedSize.value).trim() : ''
+
+      let resolvedPrice = null
+
+      if (colorName) {
+        if (sizeName) {
+          // 색상+사이즈 완전 매칭
+          const matched = skusArr.find(s =>
+            String(s.color || '').trim() === colorName &&
+            String(s.size || '').trim() === sizeName
+          )
+          resolvedPrice = matched?.price ?? null
+        }
+
+        if (resolvedPrice === null) {
+          // 사이즈 미선택 또는 매칭 실패 → 해당 색상 내 최저가
+          const colorSkus = skusArr.filter(s => String(s.color || '').trim() === colorName)
+          if (colorSkus.length > 0) {
+            resolvedPrice = Math.min(...colorSkus.map(s => s.price || Infinity).filter(v => v < Infinity))
+            if (resolvedPrice === Infinity) resolvedPrice = null
+          }
+        }
+      }
+
+      // 옵션 미선택 상태: 전체 SKU 최저가 표시
+      if (resolvedPrice === null) {
+        const allPrices = skusArr.map(s => s.price || 0).filter(v => v > 0)
+        resolvedPrice = allPrices.length > 0 ? Math.min(...allPrices) : p
+      }
+
+      if (resolvedPrice && resolvedPrice > 0) {
+        return [{
+          minQuantity: mo,
+          maxQuantity: null,
+          label: `${mo}개 이상`,
+          price: Number(resolvedPrice.toFixed(2)),
+          priceFormatted: resolvedPrice.toFixed(2),
+          priceKrw: Math.round(resolvedPrice * props.exchangeRate)
+        }]
+      }
+    }
+  }
+
+  // ── 3. priceTiers가 1개인 경우 그대로 사용 ──
+  if (Array.isArray(rawTiers) && rawTiers.length === 1) {
+    const tier = rawTiers[0]
+    const minQ  = Number(tier.minQty || tier.minQuantity || tier.min || tier.beginAmount || 1)
+    const maxQ  = (tier.maxQty != null || tier.maxQuantity != null)
+      ? Number(tier.maxQty ?? tier.maxQuantity)
+      : null
+    const price = parseFloat(tier.price || tier.unitPrice || p) || p
+    return [{
+      minQuantity: minQ,
+      maxQuantity: maxQ,
+      label: tier.label || (maxQ ? `${minQ}~${maxQ}개` : `${minQ}개 이상`),
+      price: Number(price.toFixed(2)),
+      priceFormatted: price.toFixed(2),
+      priceKrw: Math.round(price * props.exchangeRate)
+    }]
+  }
+
+  // ── 4. 구간도 없고 SKU 가격 변동도 없는 경우: 단일 대표 가격 1개 ──
   if (!p || p <= 0) return []
 
   return [
@@ -871,6 +945,7 @@ const displayedPriceTiers = computed(() => {
     }
   ]
 })
+
 
 
 // 총 수량에 따른 현재 적용 단가 결정 (CN인사이더 스타일)
