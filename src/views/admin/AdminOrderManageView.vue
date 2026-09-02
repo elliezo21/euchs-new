@@ -136,8 +136,9 @@
                       class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">💳 결제 확인</button>
                     <button v-if="isStatus(order,'payment_verified')" @click="startPurchasing(order)"
                       class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🛒 구매 시작</button>
-                    <button v-if="isStatus(order,'purchasing')" @click="openMeasurementForm(order)"
-                      class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📦 실측 입력</button>
+                    <button v-if="isStatus(order,'purchasing')" @click="openWarehouseModal(order)"
+                      class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📦 입고·검수</button>
+
                     <button v-if="isStatus(order,'inspection_done') || isStatus(order,'warehouse_in')" @click="advanceToShipping(order)"
                       class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🚢 선적 처리</button>
                     <button v-if="isStatus(order,'shipping_ready')" @click="openBLForm(order)"
@@ -164,229 +165,13 @@
 
 
     <!-- ============================================================ -->
-    <!-- MODAL: 실측 입력 (4→5) -->
+    <!-- AdminWarehouseModal: 5-A/5-B/5-C 입고·검수 (신버전) -->
     <!-- ============================================================ -->
-    <div v-if="modal.measurement && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/40 backdrop-blur-sm overflow-y-auto">
-      <div class="bg-white rounded-3xl w-full max-w-xl shadow-2xl border border-slate-200 overflow-hidden my-auto" @click.stop>
-        <div class="px-6 py-4 bg-indigo-50 border-b border-indigo-100 flex items-center justify-between">
-          <div>
-            <div class="text-[11px] font-bold text-indigo-700 uppercase tracking-wide">📦 4단계 → 5단계 전환</div>
-            <h3 class="font-black text-slate-900 text-sm mt-0.5">이우 창고 실측 & 2차 정산 청구</h3>
-          </div>
-          <button @click="closeModals" class="p-1.5 rounded-lg hover:bg-indigo-100 text-slate-500 transition cursor-pointer text-lg leading-none">✕</button>
-        </div>
-        <div class="p-6 space-y-4 text-xs">
-          <!-- 주문/상품 요약 -->
-          <div class="p-3 bg-slate-50 rounded-xl border border-slate-200 font-mono text-[11px]">
-            <div class="flex items-center justify-between">
-              <div>
-                <span class="text-slate-500 font-bold">주문번호:</span> <span class="font-black text-slate-800 ml-1">{{ activeOrder.orderNumber }}</span>
-              </div>
-              <span class="text-indigo-600 font-bold">발주수량 {{ getTotalQty(activeOrder) }}개</span>
-            </div>
-            <div class="text-slate-600 mt-1 truncate font-sans text-xs">
-              {{ activeOrder.items?.[0]?.productName || '1688 수입 품목' }}
-            </div>
-          </div>
-
-          <!-- 5-A 미검수 품목 경고 배너 -->
-          <div v-if="getUnverifiedItemCount(activeOrder) > 0"
-            class="p-3 bg-amber-50 border border-amber-300 rounded-xl flex items-start gap-2.5">
-            <span class="text-amber-500 text-base shrink-0">⚠️</span>
-            <div class="space-y-1 text-xs">
-              <p class="font-bold text-amber-800">
-                5-A 도착검수 미완료 품목 {{ getUnverifiedItemCount(activeOrder) }}개
-              </p>
-              <p class="text-amber-700 leading-relaxed">
-                {{ getUnverifiedItemNames(activeOrder) }}
-              </p>
-              <p class="text-amber-600 text-[11px]">
-                AdminWarehouseView(이우 WMS) → [입고·검수 처리] → 5-A 탭에서 품목별 도착확인을 먼저 완료해 주세요.
-                미완료 상태로 저장하면 검수 가드가 우회됩니다.
-              </p>
-            </div>
-          </div>
-
-          <!-- 실측 모드 선택 (개별 단품 vs 카톤 박스) -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block font-bold text-slate-700">📐 실측 치수 기준 선택</label>
-              <span class="text-[11px] text-slate-400 font-medium">* 입력한 치수의 기준을 선택하세요</span>
-            </div>
-            <div class="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                @click="measureForm.measureMode = 'piece'"
-                class="py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                :class="measureForm.measureMode === 'piece'
-                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
-              >
-                <span>🧴 개별 상품 기준</span>
-                <span class="text-[10px] opacity-80">(치수 × 총수량)</span>
-              </button>
-              <button
-                type="button"
-                @click="measureForm.measureMode = 'carton'"
-                class="py-2 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
-                :class="measureForm.measureMode === 'carton'
-                  ? 'bg-indigo-600 border-indigo-600 text-white shadow-xs'
-                  : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'"
-              >
-                <span>📦 1카톤(박스) 기준</span>
-                <span class="text-[10px] opacity-80">(치수 × 카톤수)</span>
-              </button>
-            </div>
-          </div>
-
-          <!-- 치수 입력 3개 -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block font-bold text-slate-700">
-                {{ measureForm.measureMode === 'piece' ? '개별 단품 치수 (cm)' : '1개 카톤(박스) 치수 (cm)' }}
-              </label>
-              <span v-if="calcUnitCbm > 0" class="text-[11px] text-indigo-600 font-mono font-bold">
-                1개 부피: {{ calcUnitCbm.toFixed(6) }} CBM
-              </span>
-            </div>
-            <div class="grid grid-cols-3 gap-2">
-              <div>
-                <input v-model.number="measureForm.lengthCm" type="number" step="0.1" placeholder="가로 (L)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
-                <span class="text-[10px] text-slate-400 mt-0.5 block text-center">가로 (cm)</span>
-              </div>
-              <div>
-                <input v-model.number="measureForm.widthCm" type="number" step="0.1" placeholder="세로 (W)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
-                <span class="text-[10px] text-slate-400 mt-0.5 block text-center">세로 (cm)</span>
-              </div>
-              <div>
-                <input v-model.number="measureForm.heightCm" type="number" step="0.1" placeholder="높이 (H)" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
-                <span class="text-[10px] text-slate-400 mt-0.5 block text-center">높이 (cm)</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- 무게, 카톤수, 총수량 -->
-          <div class="grid grid-cols-3 gap-3">
-            <div>
-              <label class="block font-bold text-slate-700 mb-1">총 실측 무게 (kg) *</label>
-              <input v-model.number="measureForm.weightKg" type="number" step="0.1" placeholder="예: 42.5" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs font-bold text-slate-900" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1" :class="measureForm.measureMode === 'carton' ? 'text-indigo-700' : ''">
-                카톤 수 (CTN) {{ measureForm.measureMode === 'carton' ? '★' : '' }}
-              </label>
-              <input v-model.number="measureForm.cartons" type="number" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
-            </div>
-            <div>
-              <label class="block font-bold text-slate-700 mb-1" :class="measureForm.measureMode === 'piece' ? 'text-indigo-700' : ''">
-                총 수량 (PCS) {{ measureForm.measureMode === 'piece' ? '★' : '' }}
-              </label>
-              <input v-model.number="measureForm.totalPcs" type="number" min="1" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-400 font-mono text-xs" />
-            </div>
-          </div>
-
-          <!-- CBM 및 2차 정산 청구 금액 요약 박스 -->
-          <div class="p-4 bg-indigo-50/80 border border-indigo-200 rounded-2xl space-y-2.5 font-mono text-xs shadow-xs">
-            <div class="flex justify-between items-center">
-              <div>
-                <span class="text-slate-600 font-bold block text-xs">산출 총 CBM</span>
-                <span class="text-[10px] text-slate-500 font-normal">
-                  <template v-if="measureForm.measureMode === 'piece'">
-                    {{ calcUnitCbm.toFixed(6) }} CBM × {{ measureForm.totalPcs || 1 }}개
-                  </template>
-                  <template v-else>
-                    {{ calcUnitCbm.toFixed(6) }} CBM × {{ measureForm.cartons || 1 }}박스
-                  </template>
-                </span>
-              </div>
-              <span class="font-black text-indigo-700 text-base">{{ calcCbmFromMeasure.toFixed(4) }} CBM</span>
-            </div>
-            <div class="grid grid-cols-3 gap-2 text-center text-[11px] pt-2 border-t border-indigo-200/80">
-              <div>
-                <div class="text-slate-500">해운 LCL 운임</div>
-                <div class="font-black text-slate-800 mt-0.5">₩{{ fmtN(measureShipping) }}</div>
-                <div class="text-[9px] text-slate-400">최소 0.05 CBM 기준</div>
-              </div>
-              <div>
-                <div class="text-slate-500">관부가세 예상 (18%)</div>
-                <div class="font-black text-slate-800 mt-0.5">₩{{ fmtN(measureTax) }}</div>
-                <div class="text-[9px] text-slate-400">1차 상품대금 기준</div>
-              </div>
-              <div>
-                <div class="text-indigo-600 font-bold">2차 청구 합계</div>
-                <div class="font-black text-indigo-700 text-sm mt-0.5">₩{{ fmtN(measureTotal) }}</div>
-                <div class="text-[9px] text-indigo-500">바이어 예치금 청구</div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 검수 실사 사진 업로드 (드래그 & 드롭 + 파일 선택) -->
-          <div>
-            <div class="flex items-center justify-between mb-1.5">
-              <label class="block font-bold text-slate-700">📸 검수 실사 사진 등록</label>
-              <span class="text-[11px] text-slate-400">등록된 사진: {{ measurePhotos.length }}장</span>
-            </div>
-
-            <!-- 숨겨진 파일 인풋 -->
-            <input
-              type="file"
-              ref="photoFileInput"
-              multiple
-              accept="image/*"
-              class="hidden"
-              @change="handlePhotoSelect"
-            />
-
-            <!-- 드래그 앤 드롭 영역 -->
-            <div
-              @dragover.prevent
-              @drop.prevent="handlePhotoDrop"
-              @click="triggerPhotoUpload"
-              class="border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/30 hover:bg-indigo-50/60 rounded-2xl p-4 text-center cursor-pointer transition select-none flex flex-col items-center justify-center gap-1.5"
-            >
-              <div class="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 text-base">
-                📷
-              </div>
-              <div class="text-xs font-bold text-slate-700">
-                <span class="text-indigo-600 underline">클릭하여 사진 선택</span> 또는 사진 파일을 여기로 드래그하세요
-              </div>
-              <div class="text-[10px] text-slate-400">
-                JPG, PNG, WEBP 지원 · 다중 선택 가능 · 고객 화면에 실물 검수 사진으로 자동 노출
-              </div>
-            </div>
-
-            <!-- 업로드된 사진 썸네일 그리드 -->
-            <div v-if="measurePhotos.length > 0" class="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
-              <div
-                v-for="(photo, pIdx) in measurePhotos"
-                :key="pIdx"
-                class="relative group aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-100"
-              >
-                <img :src="photo.url" class="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  @click.stop="removePhoto(pIdx)"
-                  class="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/70 hover:bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center transition cursor-pointer"
-                  title="사진 삭제"
-                >
-                  ✕
-                </button>
-                <div class="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[9px] text-white truncate text-center">
-                  검수 {{ pIdx + 1 }}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-          <button @click="closeModals" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer">취소</button>
-          <button @click="submitMeasurement" class="px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition shadow-md cursor-pointer flex items-center gap-1.5">
-            <span>📦</span>
-            <span>2차 정산 청구 (5단계 전환)</span>
-          </button>
-        </div>
-      </div>
-    </div>
+    <AdminWarehouseModal
+      v-model="showWarehouseModal"
+      :application="warehouseModalTarget"
+      @saved="handleWarehouseSaved"
+    />
 
     <!-- ============================================================ -->
     <!-- MODAL: B/L 등록 (6→7) -->
@@ -814,6 +599,8 @@ import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
+
 
 const route = useRoute();
 
@@ -850,11 +637,12 @@ watch(
 
 const searchQuery = ref('');
 const activeOrder = ref(null);
-const modal = ref({ measurement: false, blForm: false, trackingForm: false, detail: false });
-const measureForm = ref({ measureMode: 'piece', lengthCm: 0, widthCm: 0, heightCm: 0, weightKg: 0, cartons: 1, totalPcs: 100 });
-const measurePhotos = ref([]);
-const photoFileInput = ref(null);
-const isUploadingPhoto = ref(false);
+const modal = ref({ blForm: false, trackingForm: false, detail: false });
+
+// 신버전 AdminWarehouseModal (5-A/5-B/5-C) state
+const showWarehouseModal = ref(false);
+const warehouseModalTarget = ref(null);
+
 const blForm = ref({ blNumber: '', cargoMgtNo: '', vesselName: '', eta: '', ftaStatus: 'none' });
 const trackingForm = ref({ deliveryType: 'parcel', carrier: '경동택배', trackingNumber: '', fcCenter: '' });
 const excludeReasonMap = ref({});
@@ -1177,97 +965,41 @@ function getUnverifiedItemNames(o) {
 
 
 function showToast(msg, type='success') { clearTimeout(toastTimer); toast.value={show:true,message:msg,type}; toastTimer=setTimeout(()=>{toast.value.show=false;},3200); }
-function closeModals() { modal.value={measurement:false,blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; }
+function closeModals() { modal.value={blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; }
+
 
 // ----------------------------------------------------
-// 검수 실사 사진 업로드 핸들러 (드래그 & 드롭 + 파일 선택 + Base64 Fallback)
+// AdminWarehouseModal (5-A/5-B/5-C) 진입점
 // ----------------------------------------------------
-function triggerPhotoUpload() {
-  if (photoFileInput.value) {
-    photoFileInput.value.click();
-  }
-}
-
-async function handlePhotoFile(file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  
-  // 1. Supabase Storage 'notices' 버킷 업로드 시도
-  try {
-    if (isSupabaseConfigured()) {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = `inspection_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      const { data, error } = await supabase.storage.from('notices').upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true
-      });
-      if (!error && data?.path) {
-        const { data: publicUrlData } = supabase.storage.from('notices').getPublicUrl(data.path);
-        if (publicUrlData?.publicUrl) {
-          measurePhotos.value.push({ url: publicUrlData.publicUrl, name: file.name });
-          return;
-        }
-      }
-    }
-  } catch (e) {
-    console.debug('[handlePhotoFile] Storage fallback to base64:', e);
-  }
-
-  // 2. Base64 Fallback (100% 안정적 동작)
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    measurePhotos.value.push({ url: e.target.result, name: file.name });
+function openWarehouseModal(o) {
+  // AdminWarehouseModal은 application 객체 형태를 받으므로 order → application 형태로 변환
+  const appLike = {
+    id: o.id,
+    orderNo: o.orderNumber,
+    customer_name: o.buyerInfo?.companyName || o.buyerInfo?.buyerName || o.buyerName || '',
+    phone: o.buyerInfo?.phone || o.buyerPhone || '',
+    service_type: 'purchasing',
+    details: {
+      inboundId: o.id,
+      inboundNo: o.inboundNo || o.orderNumber,
+      items: o.items || [],
+      measuredData: o.measuredData,
+      inspectionPhotos: o.inspectionPhotos || o.inspection_photos || [],
+      inspectionNote: o.inspectionNote || '',
+      issueDetails: o.issueDetails,
+      issueStatus: o.issueStatus,
+    },
   };
-  reader.readAsDataURL(file);
+  warehouseModalTarget.value = appLike;
+  showWarehouseModal.value = true;
 }
 
-async function handlePhotoSelect(e) {
-  const files = e.target.files;
-  if (!files || files.length === 0) return;
-  isUploadingPhoto.value = true;
-  for (let i = 0; i < files.length; i++) {
-    await handlePhotoFile(files[i]);
-  }
-  isUploadingPhoto.value = false;
-  if (photoFileInput.value) photoFileInput.value.value = '';
+async function handleWarehouseSaved(payload) {
+  const label = payload.tab === 'box' ? '5-B CBM 정산' : payload.tab === 'issue' ? '5-C 이슈' : '5-A 도착검수';
+  showToast(`[${warehouseModalTarget.value?.orderNo}] ${label} 저장 완료`);
+  await loadData();
 }
 
-async function handlePhotoDrop(e) {
-  const files = e.dataTransfer.files;
-  if (!files || files.length === 0) return;
-  isUploadingPhoto.value = true;
-  for (let i = 0; i < files.length; i++) {
-    await handlePhotoFile(files[i]);
-  }
-  isUploadingPhoto.value = false;
-}
-
-function removePhoto(idx) {
-  measurePhotos.value.splice(idx, 1);
-}
-
-function openMeasurementForm(o) {
-  activeOrder.value = o;
-  const totalQty = getTotalQty(o) || (o.items?.[0]?.quantity || 100);
-  const existing = o.measuredData || {};
-  
-  measureForm.value = {
-    measureMode: existing.measureMode || (existing.cartons && existing.cartons > 1 ? 'carton' : 'piece'),
-    lengthCm: existing.lengthCm || 0,
-    widthCm: existing.widthCm || 0,
-    heightCm: existing.heightCm || 0,
-    weightKg: existing.weightKg || 0,
-    cartons: existing.cartons || 1,
-    totalPcs: existing.totalPcs || totalQty
-  };
-
-  const rawPhotos = Array.isArray(o.inspectionPhotos) ? o.inspectionPhotos : (o.inspection_photos || []);
-  measurePhotos.value = rawPhotos.map((p, idx) => {
-    if (typeof p === 'string') return { url: p, name: `검수 사진 ${idx + 1}` };
-    return { url: p.url || '', name: p.caption || `검수 사진 ${idx + 1}` };
-  }).filter(p => p.url);
-
-  modal.value.measurement = true;
-}
 function openBLForm(o) { activeOrder.value=o; const eta=new Date(); eta.setDate(eta.getDate()+14); blForm.value={blNumber:'',cargoMgtNo:'',vesselName:'',eta:eta.toISOString().split('T')[0],ftaStatus:'none'}; modal.value.blForm=true; }
 function openTrackingForm(o) { activeOrder.value=o; trackingForm.value={deliveryType:'parcel',carrier:'경동택배',trackingNumber:'',fcCenter:''}; modal.value.trackingForm=true; }
 function openDetail(o) {
@@ -1278,144 +1010,6 @@ function openDetail(o) {
     excludeReasonMap.value[idx] = item.excluded ? (item.excludeReason || '품절') : '';
   });
   modal.value.detail = true;
-}
-
-async function confirmPayment(o) {
-  if (!confirm(`[${o.orderNumber}] 결제 입금 확인 → 3단계 전환하시겠습니까?`)) return;
-  try {
-    await updateOrderStatus(o.id, 'payment_verified', {
-      paymentInfo: { confirmedAt: new Date().toISOString() }
-    });
-    showToast(`[${o.orderNumber}] 결제확인 → 3단계 전환 완료`);
-    await loadData();
-  } catch (err) {
-    showToast(`처리 실패: ${err.message}`, 'error');
-  }
-}
-
-async function startPurchasing(o) {
-  if (!confirm(`[${o.orderNumber}] 1688 구매 시작 → 4단계 전환하시겠습니까?`)) return;
-  try {
-    await updateOrderStatus(o.id, 'purchasing', {
-      purchaseStartedAt: new Date().toISOString()
-    });
-    showToast(`[${o.orderNumber}] 1688 구매시작 → 4단계 전환 완료`);
-    await loadData();
-  } catch (err) {
-    showToast(`처리 실패: ${err.message}`, 'error');
-  }
-}
-
-// ----------------------------------------------------
-// CBM 계산식 (단품 부피 × 총수량 OR 카톤 부피 × 카톤수)
-// ----------------------------------------------------
-const calcUnitCbm = computed(() => {
-  const f = measureForm.value;
-  if (!f.lengthCm || !f.widthCm || !f.heightCm) return 0;
-  return (Number(f.lengthCm) * Number(f.widthCm) * Number(f.heightCm)) / 1000000;
-});
-
-const calcCbmFromMeasure = computed(() => {
-  const f = measureForm.value;
-  const unit = calcUnitCbm.value;
-  if (unit <= 0) return 0;
-  if (f.measureMode === 'piece') {
-    const qty = Math.max(1, Number(f.totalPcs) || 1);
-    return Number((unit * qty).toFixed(4));
-  } else {
-    const ctn = Math.max(1, Number(f.cartons) || 1);
-    return Number((unit * ctn).toFixed(4));
-  }
-});
-
-const measureShipping = computed(() => Math.round(Math.max(0.05, calcCbmFromMeasure.value) * 85000));
-const measureTax = computed(() => activeOrder.value ? Math.round(calcCost(activeOrder.value) * 0.18) : 0);
-const measureTotal = computed(() => measureShipping.value + measureTax.value);
-
-async function submitMeasurement() {
-  if (!measureForm.value.weightKg) { showToast('실측 무게를 입력해 주세요.', 'error'); return; }
-
-  // ── 5-A 미검수 품목 차단 가드 (AdminWarehouseModal 5-B와 동일 조건) ──
-  const unverifiedCount = getUnverifiedItemCount(activeOrder.value);
-  if (unverifiedCount > 0) {
-    showToast(
-      `5-A 도착검수 미완료 품목 ${unverifiedCount}개: ${getUnverifiedItemNames(activeOrder.value)} — 이우 WMS에서 품목별 도착확인을 완료해 주세요.`,
-      'error'
-    );
-    return;
-  }
-
-  const cbm = calcCbmFromMeasure.value || Number(getCbm(activeOrder.value));
-  const inspectionDate = new Date().toLocaleString('ko-KR');
-
-
-  const photos = measurePhotos.value.map((p, i) => ({
-    url: p.url,
-    caption: `검수 사진 ${i + 1}`
-  }));
-
-  // v2 measuredData 구조: box 서브객체 + 레거시 flat 필드 병행 저장
-  const existingMd = activeOrder.value.measuredData || {};
-  const newMeasuredData = {
-    // 기존 5-A items 배열 보존 (있으면)
-    ...(Array.isArray(existingMd.items) ? {
-      items: existingMd.items,
-      allItemsVerified: existingMd.allItemsVerified ?? true,
-    } : {}),
-    box: {
-      lengthCm: measureForm.value.lengthCm,
-      widthCm: measureForm.value.widthCm,
-      heightCm: measureForm.value.heightCm,
-      measureMode: measureForm.value.measureMode,
-      weightKg: measureForm.value.weightKg,
-      cbm: Number(cbm.toFixed(4)),
-      cartons: measureForm.value.cartons,
-      totalPcs: measureForm.value.totalPcs,
-      settledAt: new Date().toISOString(),
-    },
-    // 레거시 flat 필드 (WarehouseView.vue 등 기존 읽기 코드 호환)
-    lengthCm: measureForm.value.lengthCm,
-    widthCm: measureForm.value.widthCm,
-    heightCm: measureForm.value.heightCm,
-    measureMode: measureForm.value.measureMode,
-    weightKg: measureForm.value.weightKg,
-    cbm: Number(cbm.toFixed(4)),
-    cartons: measureForm.value.cartons,
-    totalPcs: measureForm.value.totalPcs,
-    defectCount: 0,
-    inspectionDate,
-  };
-
-  try {
-    const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
-    await updateOrderStatus(targetOrderId, 'inspection_done', {
-      measuredData: newMeasuredData,
-      inspectionPhotos: photos,
-      inspection_photos: photos,
-      secondPayment: {
-        shippingFeeKrw: measureShipping.value,
-        customsFeeKrw: measureTax.value,
-        vasFeeKrw: 0,
-        totalSecondPaymentKrw: measureTotal.value
-      }
-    });
-
-    // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
-    sendOrderStatusAlimtalk({
-      type: 'warehouse_in',
-      to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
-      customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
-      orderNo: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
-      itemName: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
-      extraInfo: `실측: ${Number(cbm.toFixed(4)) || '-'} CBM / ${measureForm.value.weightKg || '-'} kg`
-    }).catch(() => {});
-
-    showToast(`[${activeOrder.value.orderNumber}] 실측 완료 → 5단계 전환. 2차 청구 ₩${fmtN(measureTotal.value)}`);
-    closeModals();
-    await loadData();
-  } catch (err) {
-    showToast(`실측 저장 실패: ${err.message}`, 'error');
-  }
 }
 
 

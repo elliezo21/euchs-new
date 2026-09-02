@@ -439,6 +439,62 @@
           ></textarea>
         </div>
 
+        <!-- 검수 실사 사진 업로드 -->
+        <div class="p-4 bg-slate-950/60 border border-slate-800 rounded-2xl space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-indigo-400 flex items-center gap-1.5 text-xs">
+              <i class="fas fa-camera"></i>
+              <span>4. 검수 실사 사진 등록</span>
+            </h4>
+            <span class="text-[11px] text-slate-500 font-mono">{{ inspectionPhotos.length }}장 등록</span>
+          </div>
+
+          <!-- 숨겨진 파일 인풋 -->
+          <input
+            type="file"
+            ref="photoFileInputRef"
+            multiple
+            accept="image/png, image/jpeg, image/webp, image/jpg"
+            class="hidden"
+            @change="handleInspectionPhotoSelect"
+          />
+
+          <!-- 드래그 앤 드롭 영역 -->
+          <div
+            @dragover.prevent
+            @drop.prevent="handleInspectionPhotoDrop"
+            @click="triggerInspectionPhotoUpload"
+            class="border-2 border-dashed border-indigo-700/50 hover:border-indigo-500 bg-indigo-950/20 hover:bg-indigo-950/40 rounded-2xl p-4 text-center cursor-pointer transition select-none flex flex-col items-center justify-center gap-1.5"
+          >
+            <i class="fas fa-cloud-arrow-up text-2xl text-indigo-500"></i>
+            <div class="text-xs font-bold text-slate-300">
+              <span class="text-indigo-400 underline">클릭하여 사진 선택</span> 또는 드래그
+            </div>
+            <div class="text-[10px] text-slate-500">JPG, PNG, WEBP · 다중 선택 가능 · 바이어 화면에 자동 노출</div>
+          </div>
+
+          <!-- 업로드된 사진 썸네일 그리드 -->
+          <div v-if="inspectionPhotos.length > 0" class="grid grid-cols-3 gap-2">
+            <div
+              v-for="(photo, pIdx) in inspectionPhotos"
+              :key="pIdx"
+              class="relative rounded-xl overflow-hidden border border-slate-700 bg-slate-900 aspect-square group"
+            >
+              <img :src="photo.url" class="w-full h-full object-cover" />
+              <button
+                type="button"
+                @click.stop="removeInspectionPhoto(pIdx)"
+                class="absolute top-1 right-1 p-1 rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white transition opacity-0 group-hover:opacity-100 active:scale-90"
+              >
+                <i class="fas fa-trash text-[10px]"></i>
+              </button>
+              <div class="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-0.5 text-[9px] text-white truncate text-center">
+                검수 {{ pIdx + 1 }}
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 5-B 저장 버튼 -->
         <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-800">
           <button
@@ -616,6 +672,8 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { updateStoredInboundItem } from '../../lib/warehouseStore';
 import { getStoredOrders } from '../../utils/orderStorage';
 import { updateApplicationOrderStatus } from '../../lib/orderPipeline';
+import { sendOrderStatusAlimtalk } from '../../services/notificationService';
+
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -667,6 +725,12 @@ const inboundForm = ref({
   inboundNo: '',
   inspectionNote: '',
 });
+
+// ─── 5-B: 검수 실사 사진 ───
+const inspectionPhotos = ref([]); // { url, caption }[]
+const photoFileInputRef = ref(null);
+const isUploadingPhoto = ref(false);
+
 
 // ─────────────────────────────────────
 // 초기화: 모달 오픈 시 기존 데이터 복원
@@ -759,6 +823,15 @@ const initFormData = () => {
     wrongDelivery: Number(issue.wrongDelivery) || 0,
     issueStatus: found?.issueStatus || details.issueStatus || '',
   };
+
+  // 5-B 검수 실사 사진 복원 (기존 주문 하위 호환)
+  const rawPhotos = found?.inspectionPhotos || details.inspectionPhotos || found?.inspection_photos || [];
+  inspectionPhotos.value = rawPhotos
+    .map((p, idx) => {
+      if (typeof p === 'string') return { url: p, caption: `검수 사진 ${idx + 1}` };
+      return { url: p.url || '', caption: p.caption || `검수 사진 ${idx + 1}` };
+    })
+    .filter(p => p.url);
 };
 
 function _makeArrivalItem(idx, item) {
@@ -928,6 +1001,64 @@ const getTargetProductName = () => {
 const closeModal = () => emit('update:modelValue', false);
 
 // ─────────────────────────────────────
+// 5-B 검수 실사 사진 업로드 핸들러
+// ─────────────────────────────────────
+function triggerInspectionPhotoUpload() {
+  if (photoFileInputRef.value) photoFileInputRef.value.click();
+}
+
+async function _uploadInspectionPhoto(file) {
+  if (!file || !file.type.startsWith('image/')) return;
+  // Supabase Storage 업로드 시도
+  if (isSupabaseConfigured()) {
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const fileName = `inspection_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+      const { data, error } = await supabase.storage.from('notices').upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true,
+      });
+      if (!error && data?.path) {
+        const { data: pub } = supabase.storage.from('notices').getPublicUrl(data.path);
+        if (pub?.publicUrl) {
+          inspectionPhotos.value.push({ url: pub.publicUrl, caption: file.name.replace(/\.[^/.]+$/, '') });
+          return;
+        }
+      }
+    } catch {}
+  }
+  // Base64 Fallback
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    inspectionPhotos.value.push({ url: e.target.result, caption: file.name.replace(/\.[^/.]+$/, '') });
+  };
+  reader.readAsDataURL(file);
+}
+
+async function handleInspectionPhotoSelect(e) {
+  const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+  isUploadingPhoto.value = true;
+  for (const file of files) await _uploadInspectionPhoto(file);
+  isUploadingPhoto.value = false;
+  if (e.target) e.target.value = '';
+}
+
+async function handleInspectionPhotoDrop(e) {
+  const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
+  if (!files.length) return;
+  isUploadingPhoto.value = true;
+  for (const file of files) await _uploadInspectionPhoto(file);
+  isUploadingPhoto.value = false;
+}
+
+function removeInspectionPhoto(idx) {
+  inspectionPhotos.value.splice(idx, 1);
+}
+
+
+
+// ─────────────────────────────────────
 // 공통 measuredData 빌더
 // ─────────────────────────────────────
 function _buildMeasuredData(includeBox = false) {
@@ -1033,6 +1164,12 @@ const saveBoxMeasurement = async () => {
     totalSecondPaymentKrw: calcTotal.value,
   };
 
+  // inspectionPhotos 정규화 (저장 포맷)
+  const savedPhotos = inspectionPhotos.value.map((p, i) => ({
+    url: p.url,
+    caption: p.caption || `검수 사진 ${i + 1}`,
+  }));
+
   const updatedDetails = {
     ...currentDetails,
     inboundId: inboundForm.value.id,
@@ -1042,6 +1179,7 @@ const saveBoxMeasurement = async () => {
     measuredCbm: calcTotalCbm.value,
     boxCount: boxForm.value.cartons,
     inspectionNote: inboundForm.value.inspectionNote,
+    inspectionPhotos: savedPhotos,
     secondPayment,
   };
 
@@ -1068,13 +1206,25 @@ const saveBoxMeasurement = async () => {
     inspectionNote: inboundForm.value.inspectionNote,
     measuredData,
     secondPayment,
-    inspectionPhotos: matchedOrder.value?.inspectionPhotos || [],
+    inspectionPhotos: savedPhotos,
   });
+
+  // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
+  const order = matchedOrder.value;
+  sendOrderStatusAlimtalk({
+    type: 'warehouse_in',
+    to: order?.buyerInfo?.phone || order?.buyer_phone || order?.buyerPhone || app.phone,
+    customerName: order?.buyerInfo?.buyerName || order?.buyerInfo?.companyName || order?.buyer_name || app.customer_name,
+    orderNo: order?.orderNumber || order?.order_no || order?.id || inboundForm.value.inboundNo,
+    itemName: order?.items?.[0]?.titleKo || order?.items?.[0]?.name || order?.product_name || getTargetProductName(),
+    extraInfo: `실측: ${calcTotalCbm.value.toFixed(4)} CBM / ${boxForm.value.weightKg} kg`,
+  }).catch(() => {});
 
   isSaving.value = false;
   closeModal();
   emit('saved', { tab: 'box', status: 'inspection_done', secondPayment });
 };
+
 
 // ─────────────────────────────────────
 // 5-C 이슈 합계 computed
