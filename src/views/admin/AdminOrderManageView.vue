@@ -15,25 +15,31 @@
       </div>
     </div>
 
-    <!-- 8단계 파이프라인 요약 지표 카드 -->
-    <div class="grid grid-cols-2 sm:grid-cols-4 xl:grid-cols-8 gap-2">
+    <!-- 9단계 파이프라인 요약 지표 카드 (한 줄 정렬 유지 + 글자 크기 확대) -->
+    <div class="overflow-x-auto pb-1.5 custom-scrollbar">
+      <div class="flex items-stretch gap-2.5 min-w-[980px]">
         <div
           v-for="stage in PIPELINE_STAGES"
           :key="stage.key"
           @click="filterByStatus(stage.key)"
-          class="bg-white border rounded-xl p-3 cursor-pointer transition select-none hover:shadow-md"
+          class="flex-1 min-w-[100px] bg-white border rounded-2xl p-3.5 cursor-pointer transition select-none hover:shadow-md flex flex-col justify-between"
           :class="activeFilter === stage.key
             ? ['border-2', stage.activeBorder, stage.activeBg, 'shadow-sm'].join(' ')
             : 'border-slate-200 hover:border-slate-300'"
         >
-          <div :class="[stage.iconBg, 'w-7 h-7 rounded-lg flex items-center justify-center text-sm mb-2']">{{ stage.icon }}</div>
-          <div class="text-[10px] font-bold text-slate-500 truncate leading-none">{{ stage.shortLabel }}</div>
-          <div :class="[stage.textColor, 'text-xl font-black font-mono mt-1 leading-none']">
-            {{ stageCounts[stage.key] || 0 }}
+          <div class="flex items-center justify-between mb-2">
+            <div :class="[stage.iconBg, 'w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-2xs']">{{ stage.icon }}</div>
+            <span class="text-[11px] font-bold text-slate-400 font-mono">건</span>
           </div>
-          <div class="text-[10px] text-slate-400 mt-0.5">건</div>
+          <div>
+            <div class="text-xs font-black text-slate-700 truncate leading-snug tracking-tight" :title="stage.shortLabel">{{ stage.shortLabel }}</div>
+            <div :class="[stage.textColor, 'text-2xl font-black font-mono mt-1 leading-none']">
+              {{ stageCounts[stage.key] || 0 }}
+            </div>
+          </div>
         </div>
       </div>
+    </div>
 
       <!-- 필터 & 검색 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center gap-3">
@@ -136,11 +142,20 @@
                       class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">💳 결제 확인</button>
                     <button v-if="isStatus(order,'payment_verified')" @click="startPurchasing(order)"
                       class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🛒 구매 시작</button>
-                    <button v-if="isStatus(order,'purchasing')" @click="openWarehouseModal(order)"
-                      class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📦 입고·검수</button>
 
-                    <button v-if="isStatus(order,'inspection_done') || isStatus(order,'warehouse_in')" @click="advanceToShipping(order)"
-                      class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🚢 선적 처리</button>
+                    <!-- 4단계(구매진행): 상세 버튼만 노출 (창고 도착 확인은 savePurchasingInfo가 자동 처리) -->
+
+                    <!-- 5단계 배송중(warehouse_in): 5-A 도착검수 팝업만 노출 -->
+                    <button v-if="isStatus(order,'warehouse_in')" @click="openWarehouseModal(order, 'arrival')"
+                      class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📦 도착검수 (5-A)</button>
+
+                    <!-- 5단계 입고완료(arrival_done / inspection_done): 5-B CBM 정산 팝업 노출 -->
+                    <button v-if="isWarehouseArrived(order)" @click="openWarehouseModal(order, 'box')"
+                      class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">⚖️ CBM 정산 (5-B)</button>
+                    <!-- 입고완료에서 선적 처리 -->
+                    <button v-if="isWarehouseArrived(order)" @click="advanceToShipping(order)"
+                      class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🚢 선적 처리</button>
+
                     <button v-if="isStatus(order,'shipping_ready')" @click="openBLForm(order)"
                       class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📄 B/L 등록</button>
                     <button v-if="isStatus(order,'customs_clearance')" @click="openTrackingForm(order)"
@@ -150,6 +165,7 @@
                     <button @click="openDetail(order)"
                       class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[11px] transition active:scale-95 cursor-pointer">상세</button>
                   </div>
+
                 </td>
               </tr>
               <tr v-if="filteredOrders.length === 0">
@@ -381,7 +397,7 @@
               <div
                 v-for="(item, idx) in activeOrder.items || []"
                 :key="idx"
-                class="p-4 transition flex flex-col lg:flex-row lg:items-center justify-between gap-4"
+                class="p-4 transition flex flex-col lg:flex-row lg:flex-wrap lg:items-center justify-between gap-4"
                 :class="item.excluded ? 'bg-slate-100/70 opacity-75' : 'hover:bg-slate-50/60'"
               >
                 <!-- 좌측: 상품 정보 & 썸네일 & 1688 링크 -->
@@ -445,8 +461,8 @@
                     🟢 구매가능
                   </span>
 
-                  <!-- 1단계 견적대기 시 사유 선택 드롭다운 -->
-                  <div v-if="isStatus(activeOrder, 'quote_pending')" class="flex items-center gap-2 shrink-0">
+                  <!-- 1단계 견적대기 또는 4단계 구매진행 시 사유 선택 드롭다운 -->
+                  <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'purchasing')" class="flex items-center gap-2 shrink-0">
                     <span class="text-[11px] font-bold text-slate-500 shrink-0">구매상태:</span>
                     <select
                       v-model="excludeReasonMap[idx]"
@@ -456,11 +472,79 @@
                     >
                       <option value="">0. 사유선택 (정상 구매 포함)</option>
                       <option value="품절">1. 품절</option>
-                      <option value="제품 퀄리티 보장 안 됨">2. 제품 퀄리티 보장 안 됨</option>
-                      <option value="가짜 재고일 확률이 높음">3. 가짜 재고일 확률이 높음</option>
-                      <option value="판매자를 신뢰할 수 없음">4. 판매자를 신뢰할 수 없음</option>
+                      <option value="공장 환불 처리">2. 공장 환불 처리</option>
+                      <option value="제품 퀄리티 보장 안 됨">3. 제품 퀄리티 보장 안 됨</option>
+                      <option value="가짜 재고일 확률이 높음">4. 가짜 재고일 확률이 높음</option>
+                      <option value="판매자를 신뢰할 수 없음">5. 판매자를 신뢰할 수 없음</option>
                     </select>
                   </div>
+                </div>
+
+
+                <!-- ── 4. 구매진행 단계: 품목별 중국 내륙 배송 정보 입력 ── -->
+                <!-- 배지: 저장된 item 값 기준 / 폼: purchaseInfoDraft[idx] 임시값 / 저장 버튼으로 DB 반영 -->
+                <div
+                  v-if="isStatus(activeOrder, 'purchasing') && !item.excluded"
+                  class="w-full bg-indigo-50/60 border border-indigo-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center flex-wrap gap-2.5"
+                >
+                  <span class="text-[11px] font-black text-indigo-700 shrink-0">🚚 중국 내륙 배송 정보</span>
+
+                  <!-- 서브상태 배지: 반드시 저장된 item.chinaTrackingNo 기준으로만 표시 -->
+                  <span
+                    v-if="item.chinaTrackingNo && item.chinaTrackingNo.trim()"
+                    class="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[10px] shrink-0 whitespace-nowrap"
+                  >📦 내륙배송중</span>
+                  <span
+                    v-else
+                    class="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 border border-amber-200 font-bold text-[10px] shrink-0 whitespace-nowrap"
+                  >⏳ 업체발송대기</span>
+
+                  <!-- 구매번호 (draft 바인딩) -->
+                  <div class="flex items-center gap-1.5">
+                    <label class="text-[11px] font-bold text-slate-500 shrink-0">구매번호</label>
+                    <input
+                      v-model="purchaseInfoDraft[idx].purchaseNo"
+                      type="text"
+                      placeholder="1688 구매번호"
+                      class="w-36 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
+                    />
+                  </div>
+
+                  <!-- 중국 택배사 드롭다운 (draft 바인딩) -->
+                  <div class="flex items-center gap-1.5 shrink-0">
+                    <label class="text-[11px] font-bold text-slate-500 shrink-0">택배사</label>
+                    <select
+                      v-model="purchaseInfoDraft[idx].chinaCarrier"
+                      class="text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-indigo-400 font-medium transition"
+                    >
+                      <option value="">선택</option>
+                      <option value="중통(ZTO)">중통(ZTO)</option>
+                      <option value="순풍(SF)">순풍(SF)</option>
+                      <option value="윈다(YTO)">윈다(YTO)</option>
+                      <option value="중국우정(EMS)">중국우정(EMS)</option>
+                      <option value="기타">기타</option>
+                    </select>
+                  </div>
+
+                  <!-- 중국 송장번호 (draft 바인딩) -->
+                  <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                    <label class="text-[11px] font-bold text-slate-500 shrink-0">송장번호</label>
+                    <input
+                      v-model="purchaseInfoDraft[idx].chinaTrackingNo"
+                      type="text"
+                      placeholder="중국 내륙 송장번호"
+                      class="flex-1 min-w-0 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
+                    />
+                  </div>
+
+                  <!-- 품목별 저장 버튼 -->
+                  <button
+                    type="button"
+                    @click="savePurchasingInfo(item, idx)"
+                    class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
+                  >
+                    <span>💾 저장</span>
+                  </button>
                 </div>
               </div>
             </div>
@@ -612,11 +696,13 @@ const PIPELINE_STAGES = [
   { key: 'quote_confirmed',     icon: '💳', shortLabel: '2. 결제대기', textColor: 'text-orange-600',  iconBg: 'bg-orange-100',  activeBorder: 'border-orange-500',  activeBg: 'bg-orange-50',  tabActive: 'bg-orange-500 text-white' },
   { key: 'payment_verified',    icon: '✅', shortLabel: '3. 결제확인', textColor: 'text-emerald-600', iconBg: 'bg-emerald-100', activeBorder: 'border-emerald-500', activeBg: 'bg-emerald-50', tabActive: 'bg-emerald-600 text-white' },
   { key: 'purchasing',          icon: '🛒', shortLabel: '4. 구매진행', textColor: 'text-blue-600',    iconBg: 'bg-blue-100',    activeBorder: 'border-blue-500',    activeBg: 'bg-blue-50',    tabActive: 'bg-blue-600 text-white' },
-  { key: 'warehouse_inspection',icon: '📦', shortLabel: '5. 입고검수', textColor: 'text-teal-600',    iconBg: 'bg-teal-100',    activeBorder: 'border-teal-500',    activeBg: 'bg-teal-50',    tabActive: 'bg-teal-600 text-white' },
+  { key: 'shipping_in_transit', icon: '🚚', shortLabel: '5. 배송중',   textColor: 'text-teal-600',    iconBg: 'bg-teal-100',    activeBorder: 'border-teal-500',    activeBg: 'bg-teal-50',    tabActive: 'bg-teal-600 text-white' },
+  { key: 'warehouse_arrived',   icon: '📦', shortLabel: '5. 입고완료', textColor: 'text-indigo-600',  iconBg: 'bg-indigo-100',  activeBorder: 'border-indigo-500',  activeBg: 'bg-indigo-50',  tabActive: 'bg-indigo-600 text-white' },
   { key: 'shipping_ready',      icon: '🚢', shortLabel: '6. 선적대기', textColor: 'text-purple-600',  iconBg: 'bg-purple-100',  activeBorder: 'border-purple-500',  activeBg: 'bg-purple-50',  tabActive: 'bg-purple-600 text-white' },
   { key: 'customs_clearance',   icon: '📑', shortLabel: '7. 세관통관', textColor: 'text-violet-600',  iconBg: 'bg-violet-100',  activeBorder: 'border-violet-500',  activeBg: 'bg-violet-50',  tabActive: 'bg-violet-600 text-white' },
-  { key: 'domestic_delivered',  icon: '🚚', shortLabel: '8. 국내배송', textColor: 'text-sky-600',     iconBg: 'bg-sky-100',     activeBorder: 'border-sky-500',     activeBg: 'bg-sky-50',     tabActive: 'bg-sky-600 text-white' },
+  { key: 'domestic_delivered',  icon: '🏠', shortLabel: '8. 국내배송', textColor: 'text-sky-600',     iconBg: 'bg-sky-100',     activeBorder: 'border-sky-500',     activeBg: 'bg-sky-50',     tabActive: 'bg-sky-600 text-white' },
 ];
+
 
 const orders = ref([]);
 const isRefreshing = ref(false);
@@ -646,6 +732,8 @@ const warehouseModalTarget = ref(null);
 const blForm = ref({ blNumber: '', cargoMgtNo: '', vesselName: '', eta: '', ftaStatus: 'none' });
 const trackingForm = ref({ deliveryType: 'parcel', carrier: '경동택배', trackingNumber: '', fcCenter: '' });
 const excludeReasonMap = ref({});
+// 구매진행 단계 중국 내륙 배송 정보 draft (입력 중인 임시값 — 저장 버튼 클릭 후에만 item에 반영)
+const purchaseInfoDraft = ref({});
 const toast = ref({ show: false, message: '', type: 'success' });
 let toastTimer = null;
 
@@ -792,7 +880,38 @@ async function cancelOrderEntirely(order) {
   }
 }
 
-async function saveDetailDraft() {
+// ─────────────────────────────────────
+// 4단계: 품목별 중국 내륙 배송 정보 저장
+// ─────────────────────────────────────
+async function savePurchasingInfo(item, idx) {
+  if (!activeOrder.value) return;
+  const draft = purchaseInfoDraft.value[idx];
+  if (!draft) return;
+
+  // draft → activeOrder.items[idx]에 반영 (여기서 처음으로 item 객체에 쓴다)
+  item.purchaseNo      = draft.purchaseNo.trim();
+  item.chinaCarrier    = draft.chinaCarrier;
+  item.chinaTrackingNo = draft.chinaTrackingNo.trim();
+
+  // closeAfter:false — 팝업을 닫지 않고 items만 저장 (나머지 품목 이어서 입력 가능)
+  await saveDetailDraft({ closeAfter: false });
+
+  // 저장 성공 후 draft를 현재 저장값과 동기화 (재열람 시 일관성)
+  purchaseInfoDraft.value[idx] = {
+    purchaseNo:      item.purchaseNo,
+    chinaCarrier:    item.chinaCarrier,
+    chinaTrackingNo: item.chinaTrackingNo,
+  };
+
+  // ★ 자동화: 모든 유효 품목에 송장번호 입력 완료 시 창고 도착 확인 자동 전환
+  // ★ 향후 1688 자동발주 API 콜백에서도 confirmWarehouseArrival()을 직접 호출해 재사용 가능
+  if (allItemsHaveTrackingNo(activeOrder.value)) {
+    await confirmWarehouseArrival(activeOrder.value, { silent: true });
+  }
+}
+
+
+async function saveDetailDraft({ closeAfter = true } = {}) {
   if (!activeOrder.value) return;
 
   const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
@@ -827,7 +946,7 @@ async function saveDetailDraft() {
     }
 
     showToast('발주 품목 상태 및 견적액이 안전하게 저장되었습니다.', 'success');
-    closeModals();
+    if (closeAfter) closeModals();
   } catch (e) {
     if (target) target.items = prevItems;
     console.error('[saveDetailDraft error]:', e);
@@ -924,14 +1043,15 @@ async function approveQuoteFromDetail() {
 }
 
 const stageCounts = computed(() => {
-  const c = { quote_pending:0, quote_confirmed:0, payment_verified:0, purchasing:0, warehouse_inspection:0, shipping_ready:0, customs_clearance:0, domestic_delivered:0 };
+  const c = { quote_pending:0, quote_confirmed:0, payment_verified:0, purchasing:0, shipping_in_transit:0, warehouse_arrived:0, shipping_ready:0, customs_clearance:0, domestic_delivered:0 };
   orders.value.forEach(o => {
     const n = normalizeOrderStatus(o.status);
     if (n === 'quote_pending') c.quote_pending++;
     else if (n === 'quote_confirmed') c.quote_confirmed++;
     else if (n === 'payment_verified') c.payment_verified++;
     else if (n === 'purchasing') c.purchasing++;
-    else if (n === 'warehouse_in' || n === 'inspection_done') c.warehouse_inspection++;
+    else if (n === 'warehouse_in') c.shipping_in_transit++;                        // 배송중
+    else if (n === 'arrival_done' || n === 'inspection_done') c.warehouse_arrived++; // 입고완료
     else if (n === 'shipping_ready') c.shipping_ready++;
     else if (n === 'customs_clearance') c.customs_clearance++;
     else if (n === 'domestic_shipping' || n === 'delivered') c.domestic_delivered++;
@@ -939,11 +1059,13 @@ const stageCounts = computed(() => {
   return c;
 });
 
+
 const filteredOrders = computed(() => {
   let list = [...orders.value];
   if (activeFilter.value !== 'all') {
     const k = activeFilter.value;
-    if (k === 'warehouse_inspection') list = list.filter(o => ['warehouse_in','inspection_done'].includes(normalizeOrderStatus(o.status)));
+    if (k === 'shipping_in_transit') list = list.filter(o => normalizeOrderStatus(o.status) === 'warehouse_in');
+    else if (k === 'warehouse_arrived') list = list.filter(o => ['arrival_done','inspection_done'].includes(normalizeOrderStatus(o.status)));
     else if (k === 'domestic_delivered') list = list.filter(o => ['domestic_shipping','delivered','completed'].includes(normalizeOrderStatus(o.status)));
     else list = list.filter(o => normalizeOrderStatus(o.status) === k);
   }
@@ -956,7 +1078,14 @@ const filteredOrders = computed(() => {
 
 function filterByStatus(k) { activeFilter.value = k; }
 function getStatusItem(s) { return getOrderStatusItem(s); }
+// isStatus: arrival_done은 입고완료 그룹 → 'arrival_done' 또는 'inspection_done' 직접 비교
 function isStatus(o, k) { return normalizeOrderStatus(o?.status) === k; }
+// 입고완료 그룹 여부 (배지·버튼 조건 등에서 arrival_done + inspection_done 묶음 처리용)
+function isWarehouseArrived(o) {
+  const n = normalizeOrderStatus(o?.status);
+  return n === 'arrival_done' || n === 'inspection_done';
+}
+
 function getTotalQty(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i) => s+(Number(i.quantity)||0),0); }
 function getCbm(o) { return Number((o.measuredData?.cbm)||(o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.cbm)||0),0)).toFixed(3); }
 function calcCost(o) { const c=(o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0); return Math.round(c*226.19*1.08); }
@@ -1022,14 +1151,21 @@ function closeModals() { modal.value={blForm:false,trackingForm:false,detail:fal
 // ----------------------------------------------------
 // AdminWarehouseModal (5-A/5-B/5-C) 진입점
 // ----------------------------------------------------
-function openWarehouseModal(o) {
+function openWarehouseModal(o, initialTab = null) {
   // AdminWarehouseModal은 application 객체 형태를 받으므로 order → application 형태로 변환
+  // initialTab이 없으면 status 기준으로 자동 결정
+  // - warehouse_in(배송중) → 'arrival' (5-A)
+  // - arrival_done / inspection_done (입고완료) → 'box' (5-B)
+  const n = normalizeOrderStatus(o.status);
+  const tab = initialTab || (n === 'warehouse_in' ? 'arrival' : 'box');
+
   const appLike = {
     id: o.id,
     orderNo: o.orderNumber,
     customer_name: o.buyerInfo?.companyName || o.buyerInfo?.buyerName || o.buyerName || '',
     phone: o.buyerInfo?.phone || o.buyerPhone || '',
     service_type: 'purchasing',
+    initialTab: tab,
     details: {
       inboundId: o.id,
       inboundNo: o.inboundNo || o.orderNumber,
@@ -1044,6 +1180,7 @@ function openWarehouseModal(o) {
   warehouseModalTarget.value = appLike;
   showWarehouseModal.value = true;
 }
+
 
 async function handleWarehouseSaved(payload) {
   const targetOrderNo = payload?.orderNo || warehouseModalTarget.value?.orderNo;
@@ -1118,14 +1255,75 @@ async function startPurchasing(o) {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 4단계(구매진행) → 5단계(입고검수) 전환 로직
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * 유효 품목(excluded=false) 전원에 chinaTrackingNo가 입력됐는지 확인.
+ * 창고 도착 확인 버튼 활성화 조건.
+ * ★ 향후 1688 자동발주 API 연동 시 이 함수로 트리거 조건 판별 재사용 가능.
+ */
+function allItemsHaveTrackingNo(order) {
+  const activeItems = (order.items || []).filter(i => !i.excluded);
+  if (activeItems.length === 0) return false;
+  return activeItems.every(i => typeof i.chinaTrackingNo === 'string' && i.chinaTrackingNo.trim() !== '');
+}
+
+/**
+ * 창고 도착 확인 → orders.status를 'warehouse_in'으로 전환.
+ * ★ 향후 1688 자동발주 API 콜백에서도 이 함수를 직접 호출해 재사용 가능.
+ *   - silent:true → confirm 팝업 없이 자동 전환 (savePurchasingInfo 자동화 경로)
+ *   - silent:false (기본) → 수동 확인 팝업 표시
+ */
+async function confirmWarehouseArrival(order, { silent = false } = {}) {
+  // 방어 검사: 유효 품목에 모두 송장번호가 있어야 전환 가능
+  if (!allItemsHaveTrackingNo(order)) {
+    showToast('모든 품목의 송장번호를 먼저 입력·저장해주세요.', 'error');
+    return;
+  }
+  // 자동 경로(silent)가 아닌 경우에만 수동 confirm 팝업 표시
+  if (!silent) {
+    if (!confirm(`[${order.orderNumber}] 이우 창고 도착 확인 → 배송중(5단계)으로 전환하시겠습니까?`)) return;
+  }
+
+  const prevStatus = order.status;
+  const target = orders.value.find(x => x.id === order.id || x.orderNumber === order.orderNumber);
+  if (target) target.status = 'warehouse_in';  // 낙관적 업데이트
+
+  isInternalUpdate.value = true;
+  try {
+    await updateOrderStatus(order.id, 'warehouse_in', {
+      warehouseArrivedAt: new Date().toISOString(),
+    });
+    const msg = silent
+      ? `[${order.orderNumber}] 전 품목 송장 입력 완료 → 배송중(5단계) 자동 전환 ✅`
+      : `[${order.orderNumber}] 창고 도착 확인 → 배송중(5단계) 전환 완료`;
+    showToast(msg);
+  } catch (err) {
+    if (target) target.status = prevStatus;  // 실패 시 롤백
+    showToast(`처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  }
+}
+
+
 function openBLForm(o) { activeOrder.value=o; const eta=new Date(); eta.setDate(eta.getDate()+14); blForm.value={blNumber:'',cargoMgtNo:'',vesselName:'',eta:eta.toISOString().split('T')[0],ftaStatus:'none'}; modal.value.blForm=true; }
 function openTrackingForm(o) { activeOrder.value=o; trackingForm.value={deliveryType:'parcel',carrier:'경동택배',trackingNumber:'',fcCenter:''}; modal.value.trackingForm=true; }
 function openDetail(o) {
   // 원본 보호를 위해 deep copy로 임시 상태 생성
   activeOrder.value = JSON.parse(JSON.stringify(o));
   excludeReasonMap.value = {};
+  purchaseInfoDraft.value = {};
   (activeOrder.value.items || []).forEach((item, idx) => {
     excludeReasonMap.value[idx] = item.excluded ? (item.excludeReason || '품절') : '';
+    // 저장된 값을 draft 초기값으로 로드 (모달 열 때마다 DB 값 기준으로 시작)
+    purchaseInfoDraft.value[idx] = {
+      purchaseNo:      item.purchaseNo      || '',
+      chinaCarrier:    item.chinaCarrier    || '',
+      chinaTrackingNo: item.chinaTrackingNo || '',
+    };
   });
   modal.value.detail = true;
 }

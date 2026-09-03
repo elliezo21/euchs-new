@@ -164,7 +164,8 @@ export async function updateStoredInboundItem(inboundId, updates) {
   else if (s === 'ready_to_ship') nextOrderStatus = 'shipping_ready';
   else if (s === 'pending_inbound') nextOrderStatus = 'purchasing';
   else if (s === 'inbound_weighed' || s === 'warehouse_in') nextOrderStatus = 'warehouse_in';
-  else if (s === 'arrival_done' || s === 'arrival_checking') nextOrderStatus = 'warehouse_in';
+  else if (s === 'arrival_checking') nextOrderStatus = 'warehouse_in';
+  else if (s === 'arrival_done') nextOrderStatus = 'arrival_done';   // 입고완료 그룹
   else if (s === 'inspection_done' || s === 'inspected') nextOrderStatus = 'inspection_done';
   else nextOrderStatus = targetOrder?.status || 'warehouse_in'; // undefined → 기존 status 보존
 

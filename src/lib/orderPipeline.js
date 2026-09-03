@@ -36,9 +36,9 @@ export const STATUS_ALIAS_MAP = {
   in_warehouse: 'warehouse_in',
   warehouse_in: 'warehouse_in',
   inbound_weighed: 'warehouse_in',
-  // 5-A 품목별 도착검수 substatus (code 5 동일 단계, warehouse_in으로 정규화)
-  arrival_checking: 'warehouse_in',
-  arrival_done: 'warehouse_in',
+  // 5-A 품목별 도착검수 substatus
+  arrival_checking: 'warehouse_in',   // 검수 진행중 → 배송중 그룹
+  arrival_done: 'arrival_done',        // 검수 완료 → 입고완료 그룹 (독립 status)
   // 검수 완료/이슈 상태
   inspection_done: 'inspection_done',
   inspecting: 'inspection_done',

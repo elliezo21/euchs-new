@@ -71,7 +71,9 @@
       <!-- 탭 전환 (5-A / 5-B / 5-C) -->
       <!-- ────────────────────────────────── -->
       <div class="flex gap-1 p-1 bg-slate-100 rounded-2xl">
+        <!-- 5-A 탭: 배송중(도착검수) 모드일 때만 노출 -->
         <button
+          v-if="!isArrivalDoneMode"
           type="button"
           @click="activeTab = 'arrival'"
           class="flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
@@ -86,7 +88,10 @@
             :class="activeTab === 'arrival' ? 'bg-teal-500/30 text-teal-100' : 'bg-slate-200 text-slate-500'"
           >{{ verifiedCount }}/{{ checkableItemCount }}</span>
         </button>
+
+        <!-- 5-B 탭: 입고완료(CBM 정산) 모드일 때만 노출 -->
         <button
+          v-if="!isArrivalTransitMode"
           type="button"
           @click="activeTab = 'box'"
           class="flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
@@ -101,7 +106,10 @@
             class="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-amber-100 text-amber-700"
           >미완료</span>
         </button>
+
+        <!-- 5-C 탭: 배송중(도착검수) 모드일 때만 노출 -->
         <button
+          v-if="!isArrivalDoneMode"
           type="button"
           @click="activeTab = 'issue'"
           class="flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
@@ -692,7 +700,7 @@ import { ref, computed, watch } from 'vue';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { updateStoredInboundItem } from '../../lib/warehouseStore';
 import { getStoredOrders } from '../../utils/orderStorage';
-import { updateApplicationOrderStatus } from '../../lib/orderPipeline';
+import { updateApplicationOrderStatus, normalizeOrderStatus } from '../../lib/orderPipeline';
 import { sendOrderStatusAlimtalk } from '../../services/notificationService';
 
 
@@ -705,6 +713,25 @@ const emit = defineEmits(['update:modelValue', 'saved']);
 
 // ─── 탭 상태 ───
 const activeTab = ref('arrival');
+
+// ─── 탭 표시 조건 판별 (배송중: 5-A/5-C만, 입고완료: 5-B만) ───
+const normalizedStatus = computed(() => {
+  return normalizeOrderStatus(props.application?.status);
+});
+
+// 배송중(도착검수) 모드: warehouse_in 상태이거나 initialTab === 'arrival'
+const isArrivalTransitMode = computed(() => {
+  if (props.application?.initialTab === 'box') return false;
+  if (props.application?.initialTab === 'arrival') return true;
+  return normalizedStatus.value === 'warehouse_in';
+});
+
+// 입고완료(CBM정산) 모드: arrival_done, inspection_done 상태이거나 initialTab === 'box'
+const isArrivalDoneMode = computed(() => {
+  if (props.application?.initialTab === 'box') return true;
+  if (props.application?.initialTab === 'arrival') return false;
+  return normalizedStatus.value === 'arrival_done' || normalizedStatus.value === 'inspection_done';
+});
 
 // ─── 공통 상태 ───
 const isSaving = ref(false);
@@ -758,7 +785,12 @@ const isUploadingPhoto = ref(false);
 // ─────────────────────────────────────
 watch(() => props.modelValue, (newVal) => {
   if (newVal && props.application) {
-    activeTab.value = 'arrival';
+    // 입고완료 모드인 경우 5-B('box')로, 배송중인 경우 5-A('arrival')로 시작
+    if (isArrivalDoneMode.value) {
+      activeTab.value = 'box';
+    } else {
+      activeTab.value = props.application.initialTab || 'arrival';
+    }
     initFormData();
   }
 });
@@ -1132,8 +1164,9 @@ const saveArrivalInspection = async () => {
   const currentDetails = app.details || {};
   const measuredData = _buildMeasuredData(false);
 
-  // 5-A 도착검수 sub-status (details 내부 기록용 — 최상위 order status는 변경하지 않음)
-  // 최상위 status 승격은 5-B(CBM/박스포장) 저장 완료 시에만 발생
+  // 5-A 도착검수 sub-status 결정
+  // - 모든 품목 확인 완료 → arrival_done (최상위 status도 arrival_done으로 승격 → 입고완료 탭)
+  // - 진행중 → details에만 arrival_checking 기록, 최상위 status는 warehouse_in 유지
   const arrivalSubStatus = allItemsVerified.value ? 'arrival_done' : 'arrival_checking';
 
   const updatedDetails = {
@@ -1142,25 +1175,32 @@ const saveArrivalInspection = async () => {
     inboundNo: inboundForm.value.inboundNo,
     measuredData,
     inspectionNote: inboundForm.value.inspectionNote,
-    // 5-A sub-status: details 레벨에만 기록 (파이프라인 최상위 status 불변)
     arrivalSubStatus,
   };
 
-  // Bug A 수정: 5-A 저장 시 최상위 status(updateApplicationOrderStatus)를 호출하지 않음
-  // details 컬럼만 갱신하여 도착검수 데이터를 저장
   if (app.id && isSupabaseConfigured()) {
-    await supabase.from('applications').update({
-      details: updatedDetails,
-      updated_at: new Date().toISOString(),
-    }).eq('id', app.id);
+    // allItemsVerified이면 최상위 status를 arrival_done으로 승격
+    if (allItemsVerified.value) {
+      await updateApplicationOrderStatus(app.id, 'arrival_done');
+      await supabase.from('applications').update({
+        details: updatedDetails,
+        status: 'arrival_done',
+        updated_at: new Date().toISOString(),
+      }).eq('id', app.id);
+    } else {
+      // 미완료: details만 갱신 (최상위 status = warehouse_in 유지)
+      await supabase.from('applications').update({
+        details: updatedDetails,
+        updated_at: new Date().toISOString(),
+      }).eq('id', app.id);
+    }
   }
 
-  // Bug A 수정: inspectionStatus를 전달하지 않아 warehouseStore → orderStorage 경로의
-  // status 업데이트도 차단 (warehouseStore L169: undefined → 기존 status 보존 분기로 진입)
   await updateStoredInboundItem(inboundForm.value.id || app.orderNo || app.id, {
     measuredData,
     inspectionNote: inboundForm.value.inspectionNote,
-    // inspectionStatus 생략 → warehouseStore가 기존 order.status를 그대로 유지
+    // allItemsVerified이면 inspectionStatus를 arrival_done으로 → warehouseStore가 arrival_done으로 저장
+    ...(allItemsVerified.value ? { inspectionStatus: 'arrival_done' } : {}),
     inspectionPhotos: matchedOrder.value?.inspectionPhotos || [],
   });
 
@@ -1173,8 +1213,12 @@ const saveArrivalInspection = async () => {
     measuredData,
     inspectionNote: inboundForm.value.inspectionNote,
   });
-  // Bug B 수정: closeModal() 제거 → 모달 유지한 채 5-B 탭으로 자동 전환
-  activeTab.value = 'box';
+  // 배송중 모드에서는 5-B 탭이 숨겨져 있으므로, 전체 도착 확인 완료(arrival_done) 시 모달을 닫고 입고완료 탭으로 이동
+  if (allItemsVerified.value) {
+    closeModal();
+  } else {
+    activeTab.value = 'arrival';
+  }
 };
 
 // ─────────────────────────────────────

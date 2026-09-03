@@ -774,6 +774,14 @@
                         >
                           ⛔ {{ item.excludeReason || '구매 제외' }}
                         </span>
+                        <!-- 4. 구매진행 단계 서브상태 배지 (chinaTrackingNo 유무 기준) -->
+                        <span
+                          v-if="normalizeOrderStatus(activeOrder.status) === 'purchasing' && !item.excluded"
+                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-black text-[10px] border shrink-0 whitespace-nowrap"
+                          :class="item.chinaTrackingNo?.trim() ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200'"
+                        >
+                          {{ item.chinaTrackingNo?.trim() ? '📦 내륙배송중' : '⏳ 업체발송대기' }}
+                        </span>
                       </div>
                       <p v-if="item.titleZh" class="text-[10px] font-mono truncate" :class="item.excluded ? 'text-gray-300' : 'text-gray-400'">{{ item.titleZh }}</p>
                       <p class="text-[11px] mt-0.5 font-mono" :class="item.excluded ? 'text-gray-300 line-through' : 'text-gray-500'">SKU: {{ item.sku || '기본 옵션' }}</p>
