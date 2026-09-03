@@ -1056,55 +1056,87 @@
                   </div>
                 </div>
 
-                <!-- 2. CNINSIDER 표준: 1차 결제 vs 2차 결제 분리 안내 박스 -->
-                <div class="bg-blue-50/70 border border-blue-200/80 rounded-2xl p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
-                  <div class="font-bold text-blue-950 flex items-center justify-between border-b border-blue-200/60 pb-2">
-                    <span class="flex items-center gap-1.5 font-black text-xs sm:text-sm">
-                      <i class="fas fa-coins text-blue-600"></i>
-                      <span>단계별 분리 정산 안내</span>
+                <!-- 2. 예상 참고용 구역: DDP 최종 총 견적 & 2차 결제 예상액 분리 안내 -->
+                <div class="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
+                  <div class="font-bold text-slate-800 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
+                    <span class="flex items-center gap-1.5 font-black text-xs sm:text-sm text-slate-700">
+                      <Info class="w-4 h-4 text-slate-500" />
+                      <span>DDP 견적 총괄 &amp; 2차 정산 예정</span>
                     </span>
-                    <span class="text-[11px] text-blue-700 font-mono font-bold bg-blue-100 px-2 py-0.5 rounded">B2B 수입 표준</span>
-                  </div>
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="text-gray-700 font-medium text-xs sm:text-sm"><b>1차 결제 대상</b> (순수 제품대금 + 중국택배비 + 8% 수수료):</span>
-                    <span class="font-mono font-black text-blue-800 text-sm sm:text-base whitespace-nowrap">
-                      ₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원
+                    <span class="text-[11px] text-amber-800 font-bold bg-amber-100/90 border border-amber-300/80 px-2 py-0.5 rounded-md">
+                      ※ 예상 참고용 — 실측 후 2차 결제 시 확정
                     </span>
                   </div>
+
+                  <!-- 2차 결제 예상액 -->
                   <div class="flex items-center justify-between gap-2">
-                    <span class="text-gray-700 font-medium text-xs sm:text-sm"><b>2차 결제 대상</b> (국제물류비 + 관·부가세 + 부가작업비):</span>
-                    <span class="font-mono font-black text-slate-700 text-sm sm:text-base whitespace-nowrap">
+                    <span class="text-slate-600 font-medium text-xs sm:text-sm">
+                      <b>2차 결제 대상</b> (국제 해운 물류비 + 관·부가세 + 부가작업비):
+                    </span>
+                    <span class="font-mono font-bold text-slate-800 text-sm sm:text-base whitespace-nowrap">
                       ₩{{ formatNumber(getOrderPaymentStages(activeOrder).secondPaymentKrw) }}원
                     </span>
                   </div>
-                  <p class="text-xs text-blue-800/90 leading-relaxed pt-1.5 border-t border-blue-200/50">
-                    ※ 1차 결제 완료 시 1688 공장 발주가 즉시 진행되며, <b>신청된 부가작업비(VAS)는 이우 창고 계근/검수 완료 시 국제물류비·관부가세와 함께 2차 결제에 합산 청구됩니다.</b>
-                  </p>
-                </div>
 
-                <!-- 3. 최종 DDP 총 견적 금액 강조 카드 -->
-                <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 sm:p-6 shadow-lg space-y-3">
-                  <div class="flex items-center justify-between text-xs sm:text-sm text-slate-300">
-                    <span class="font-bold text-amber-400 flex items-center gap-1.5">
-                      <span class="w-2 h-2 rounded-full bg-amber-400"></span>
-                      최종 예상 총 견적금액 (DDP)
-                    </span>
-                    <span class="text-xs text-slate-400 font-mono">세금·운임 일체 포함</span>
-                  </div>
-                  <div class="flex items-baseline justify-between pt-1">
-                    <span class="text-xs sm:text-sm text-slate-400">총 결제 예정액:</span>
+                  <!-- 최종 DDP 총 견적 금액 (참고용) -->
+                  <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/70">
+                    <div>
+                      <span class="text-slate-600 font-medium text-xs sm:text-sm">
+                        최종 예상 총 견적금액 (DDP):
+                      </span>
+                      <div class="text-[11px] text-slate-400 font-mono mt-0.5">
+                        세금·운임 일체 포함 · 개당 도착원가 약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원
+                      </div>
+                    </div>
                     <div class="text-right">
-                      <div class="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
+                      <div class="font-mono font-bold text-slate-700 text-sm sm:text-base whitespace-nowrap">
                         ₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원
                       </div>
-                      <div class="text-xs text-slate-400 font-mono mt-0.5">
+                      <div class="text-[11px] text-slate-400 font-mono mt-0.5">
                         (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 환산)
                       </div>
                     </div>
                   </div>
-                  <div class="flex items-center justify-between pt-3 border-t border-slate-700/80 text-xs sm:text-sm text-slate-300 font-mono">
-                    <span>개당 도착원가 환산:</span>
-                    <span class="font-bold text-white text-sm sm:text-base">약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원 / 개</span>
+
+                  <p class="text-xs text-slate-500 leading-relaxed pt-2 border-t border-slate-200/60">
+                    ※ 국제 해운 운임 및 관·부가세는 중국 이우 물류센터 입고 후 <b>실제 중량/부피(CBM) 실측 계근</b>을 거쳐 2차 결제 시 최종 확정 정산됩니다.
+                  </p>
+                </div>
+
+                <!-- 3. 화면 최하단 메인 강조 박스: 1차 결제 예정액 (지금 결제할 금액) -->
+                <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 sm:p-6 shadow-xl space-y-3.5 border border-slate-700/80">
+                  <div class="flex items-center justify-between text-xs sm:text-sm">
+                    <span class="font-bold text-amber-400 flex items-center gap-2">
+                      <span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span>지금 결제할 금액 (1차 결제 대상)</span>
+                    </span>
+                    <span class="text-[11px] text-emerald-300 font-bold bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">
+                      즉시 공장 발주 진행
+                    </span>
+                  </div>
+
+                  <div class="flex items-baseline justify-between pt-1">
+                    <div>
+                      <span class="text-xs sm:text-sm text-slate-300 font-bold">1차 결제 예정액:</span>
+                      <div class="text-[11px] text-slate-400 font-normal mt-0.5">
+                        순수 제품대금 + 중국 현지 운임 + 구매 수수료 (8%)
+                      </div>
+                    </div>
+                    <div class="text-right">
+                      <div class="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
+                        ₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원
+                      </div>
+                      <div class="text-xs text-slate-400 font-mono mt-0.5">
+                        (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 제품대금 기준)
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center justify-between pt-3 border-t border-slate-700/80 text-xs text-slate-300">
+                    <span class="text-emerald-400 font-medium flex items-center gap-1.5">
+                      <CheckCircle2 class="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>1차 결제 완료 즉시 1688 공장 발주 및 사입이 시작됩니다.</span>
+                    </span>
                   </div>
                 </div>
 
