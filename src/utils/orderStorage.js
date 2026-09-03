@@ -731,14 +731,10 @@ export function subscribeToOrders(callback, options = {}) {
     const channel = supabase
       .channel('public:orders-applications-realtime')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, () => {
-        fetchOrdersFromSupabase(options).then(() => {
-          if (typeof callback === 'function') callback();
-        });
+        if (typeof callback === 'function') callback();
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'applications' }, () => {
-        fetchOrdersFromSupabase(options).then(() => {
-          if (typeof callback === 'function') callback();
-        });
+        if (typeof callback === 'function') callback();
       })
       .subscribe();
 

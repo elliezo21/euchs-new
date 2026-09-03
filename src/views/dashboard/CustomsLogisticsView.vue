@@ -923,6 +923,9 @@ onMounted(async () => {
 onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', mergeFromOrderStorage)
   window.removeEventListener('storage', mergeFromOrderStorage)
+  if (realtimeChannel && typeof realtimeChannel.unsubscribe === 'function') {
+    realtimeChannel.unsubscribe()
+  }
 })
 
 // ----------------------------------------------------------------
