@@ -318,5 +318,13 @@ if (typeof window !== 'undefined') {
   window.addEventListener('euchs-balance-updated', () => {
     loadBalance();
   });
+
+  // 로그아웃 시 예치금 잔액 ref 즉시 0으로 초기화
+  // (localStorage는 signOut()에서 이미 제거되므로, 여기서는 반응형 상태만 리셋)
+  window.addEventListener('euchs-auth-changed', (e) => {
+    if (!e.detail?.user) {
+      userBalance.value = 0;
+    }
+  });
 }
 

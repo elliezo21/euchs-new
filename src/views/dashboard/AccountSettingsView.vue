@@ -800,7 +800,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Wallet,
@@ -1242,5 +1242,36 @@ onMounted(() => {
   loadCustomsProfile()
   loadAddresses()
   loadTransactions()
+  window.addEventListener('euchs-auth-changed', onAccountAuthChanged)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('euchs-auth-changed', onAccountAuthChanged)
+})
+
+// ----------------------------------------------------
+// Auth 상태 변경 핸들러 — 로그아웃 시 계정 정보 즉시 초기화
+// ----------------------------------------------------
+const onAccountAuthChanged = (e) => {
+  if (!e.detail?.user) {
+    // 로그아웃: 사업자 정보, 배송지 목록, 거래 내역 즉시 초기화
+    customsProfile.value = {
+      companyName: '',
+      bizNumber: '',
+      customsCode: '',
+      contactName: '',
+      contactPhone: '',
+      bizCertUrl: '',
+      status: 'unverified'
+    }
+    addressList.value = []
+    transactions.value = []
+  } else {
+    // 로그인 또는 계정 전환: 해당 계정 데이터 재로드
+    loadCustomsProfile()
+    loadAddresses()
+    loadTransactions()
+    loadBalance()
+  }
+}
 </script>

@@ -838,7 +838,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { fetchSiteSettings } from '../lib/settings'
 import { exportQuoteExcel } from '../utils/excelExport'
@@ -1263,5 +1263,29 @@ onMounted(async () => {
   window.addEventListener('storage', loadDashboardData)
   window.addEventListener('euchs-order-status-update', loadDashboardData)
   window.addEventListener('euchs-warehouse-update', loadDashboardData)
+  window.addEventListener('euchs-auth-changed', onAuthChanged)
 })
+
+onUnmounted(() => {
+  window.removeEventListener('storage', loadDashboardData)
+  window.removeEventListener('euchs-order-status-update', loadDashboardData)
+  window.removeEventListener('euchs-warehouse-update', loadDashboardData)
+  window.removeEventListener('euchs-auth-changed', onAuthChanged)
+})
+
+// ----------------------------------------------------
+// Auth 상태 변경 핸들러 — 로그아웃 시 화면 데이터 즉시 초기화
+// ----------------------------------------------------
+const onAuthChanged = (e) => {
+  if (!e.detail?.user) {
+    // 로그아웃: 모든 주문·보관함 데이터 즉시 비우기
+    submittedOrders.value = []
+    savedItems.value = []
+  } else {
+    // 로그인 또는 계정 전환: 해당 계정 데이터 재로드
+    loadDashboardData()
+    loadBalance()
+    syncBuyerForm()
+  }
+}
 </script>

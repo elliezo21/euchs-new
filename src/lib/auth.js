@@ -964,6 +964,9 @@ export const signOut = async () => {
       // ── 전역 주문 키 소거 (타 계정 주문 노출 원천 차단) ──────────
       localStorage.removeItem('orders')
       localStorage.removeItem('euchs_erp_submitted_orders')
+      // ── 잔액·거래 내역 소거 (로그아웃 후 화면 데이터 잔류 방지) ──
+      localStorage.removeItem('euchs_user_balance')
+      localStorage.removeItem('euchs_deposit_requests')
     } catch (e) {}
     // 전역 이벤트 디스패치 — 헤더/장바구니 구독자들이 즉시 0으로 초기화
     window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
