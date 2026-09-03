@@ -429,7 +429,8 @@ export async function fetchOrdersFromSupabase(options = {}) {
   if (adminMode) {
     localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(uniqueOrders));
     localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(uniqueOrders));
-    window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: uniqueOrders } }));
+    // 이벤트 발사 없음 — fetchOrdersFromSupabase는 순수 조회 함수.
+    // 이벤트는 실제 상태변경 함수(saveStoredOrders, updateOrderStatus, saveNewOrder)가 담당.
     return uniqueOrders;
   }
 
@@ -452,7 +453,7 @@ export async function fetchOrdersFromSupabase(options = {}) {
 
     localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(merged));
     localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(merged));
-    window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: merged } }));
+    // 이벤트 발사 없음 — 순수 조회 함수. 이벤트는 상태변경 함수가 담당.
     return merged;
   }
 
