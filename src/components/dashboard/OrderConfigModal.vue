@@ -673,7 +673,11 @@ const handleSubmit = async () => {
         titleZh: it.titleZh || '',
         quantity: it.quantity || 1,
         priceCny: getItemUnitPriceCny(it),
-        cbm: 0
+        cbm: 0,
+        // ── seller 정보 (1688 공급사) ──
+        company: it.company || it.sellerName || '',
+        sellerId: it.sellerId || it.memberId || it.shopId || '',
+        sellerName: it.sellerName || it.company || '',
       })),
       totalPriceKrw: targetItems.reduce((sum, it) => sum + getItemSubtotalKrw(it), 0),
       totalPriceRmb: targetItems.reduce((sum, it) => sum + getItemSubtotalCny(it), 0)

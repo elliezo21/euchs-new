@@ -692,6 +692,9 @@ const loadCartItems = () => {
             skus: it.skus || [],
             detailUrl: it.detailUrl || '',
             company: it.company || '1688 공급처',
+            // ── seller 정보 보존 ──
+            sellerId: it.sellerId || it.memberId || it.shopId || '',
+            sellerName: it.sellerName || it.company || '1688 공급처',
           };
         });
         if (selectedItemIds.value.length === 0) {

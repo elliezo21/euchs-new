@@ -1846,6 +1846,9 @@ const saveSelectedItemsToCart = () => {
       imageUrl: activeImage.value || currentItem.value.imageUrl,
       detailUrl: currentItem.value.detailUrl,
       company: currentItem.value.company || '1688 공급처',
+      // ── seller 정보 보존 (OrderConfigModal items 매핑까지 흘러가야 함) ──
+      sellerId: currentItem.value.sellerId || currentItem.value.memberId || currentItem.value.shopId || '',
+      sellerName: currentItem.value.company || currentItem.value.sellerName || '1688 공급처',
     }
 
     // ── SKU별 독립 행으로 분리 저장 (color+size 조합마다 별도 행) ──
