@@ -539,6 +539,7 @@ export async function saveNewOrder(order) {
     try {
       const orderDbRow = {
         order_number: newOrderObj.orderNumber,
+        order_no: newOrderObj.orderNumber,
         inbound_no: newOrderObj.inboundNo,
         user_id: user.id,
         buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
