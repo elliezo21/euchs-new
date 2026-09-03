@@ -1704,16 +1704,47 @@ export async function fetch1688ProductById(offerId) {
 
     // ─── 공급사 ID / 이름 추출 (OneBound seller_info 우선) ────────────────
     // OneBound: seller_info = { seller_id, user_num_id, seller_name, nick, ... }
+    // nick 필드는 '_sopid@...' 형태의 내부 추적 코드가 담길 수 있으므로
+    // 상호명 후보에서 제외 (isSopidNick 가드). shop_name 우선 사용.
     const sellerInfo = it.seller_info || it.sellerInfo || {}
-    const extractedSellerId = String(
-      sellerInfo.seller_id || sellerInfo.user_num_id || sellerInfo.userId ||
-      it.seller_id || it.sellerId || it.user_num_id || ''
-    )
-    const companyName = (
-      sellerInfo.seller_name || sellerInfo.nick || sellerInfo.shopName ||
-      it.nick || it.shopName || it.sellerName || it.company?.name ||
-      '1688 인증 직영 제조공장'
-    )
+
+    /** 1688 내부 판매자 닉네임 코드(_sopid@ 접두사) 판별 */
+    function isSopidNick(s) {
+      return typeof s === 'string' && s.startsWith('_sopid@')
+    }
+
+    /** 유효한 공급사 상호명을 후보 배열에서 순서대로 찾아 반환 */
+    function pickValidCompanyName(si, item) {
+      const candidates = [
+        si?.seller_name,
+        si?.shop_name,
+        si?.shopName,
+        (si?.nick && !isSopidNick(si.nick)) ? si.nick : null,
+        item?.shopName,
+        item?.sellerName,
+        (item?.nick && !isSopidNick(item.nick)) ? item.nick : null,
+        item?.company?.name,
+      ]
+      return candidates.find(v => typeof v === 'string' && v.trim() !== '') || '1688 인증 직영 제조공장'
+    }
+
+    /** 유효한 공급사 ID를 후보 배열에서 순서대로 찾아 반환 (빈 문자열·null 건너뜀) */
+    function pickValidSellerId(si, item) {
+      const candidates = [
+        si?.seller_id,
+        si?.user_num_id,
+        si?.userId,
+        item?.seller_id,
+        item?.sellerId,
+        item?.user_num_id,
+        item?.shop_id,
+      ]
+      const found = candidates.find(v => v !== null && v !== undefined && String(v).trim() !== '')
+      return found !== undefined ? String(found) : ''
+    }
+
+    const companyName = pickValidCompanyName(sellerInfo, it)
+    const extractedSellerId = pickValidSellerId(sellerInfo, it)
 
     // ─── 본문 상세 설명 이미지 파싱 (모듈 최상단 전역 function parseDescImgs 호출) ──
     const descImgs = parseDescImgs(it.desc_img, it.desc || it.description || it.detail_html || '')
