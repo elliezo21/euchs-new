@@ -851,7 +851,7 @@ import {
   getOrderStatusShortLabel,
   getOrderStatusBadgeClass
 } from '../lib/orderPipeline'
-import { getStoredOrders } from '../utils/orderStorage'
+import { getStoredOrders, fetchOrdersFromSupabase } from '../utils/orderStorage'
 import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
 import OrderConfigModal from '../components/dashboard/OrderConfigModal.vue'
 import {
@@ -1045,7 +1045,18 @@ const loadDashboardData = async () => {
     }
 
     // 2. 전역 일원화된 실제 주문 데이터 조회 (더미 완전 정제)
+    // 로컬 캐시를 먼저 반영해 즉각적인 렌더링을 보장하고,
+    // Supabase 조회 완료 후 DB 데이터로 덮어써 정확한 건수를 표시한다.
     submittedOrders.value = getStoredOrders()
+    try {
+      const dbOrders = await fetchOrdersFromSupabase()
+      if (Array.isArray(dbOrders) && dbOrders.length > 0) {
+        submittedOrders.value = dbOrders
+      }
+    } catch (dbErr) {
+      console.warn('[loadDashboardData] Supabase fetch notice:', dbErr)
+      // 실패 시 로컬 캐시를 그대로 유지 (이미 위에서 할당됨)
+    }
   } catch (err) {
     console.error('Failed to load dashboard data:', err)
   }
