@@ -483,7 +483,7 @@
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div class="space-y-0.5">
             <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700">
-              Value-Added Services
+              추가부가작업
             </span>
             <h3 class="text-base font-bold text-gray-900">현지 부가작업(VAS) 신청</h3>
           </div>
@@ -1047,7 +1047,7 @@ const WAREHOUSE_TABS = [
   {
     key: 'pending_inbound',
     icon: '📦',
-    shortLabel: '1. 입고대기',
+    shortLabel: '1. 배송중',
     textColor: 'text-amber-600',
     iconBg: 'bg-amber-100',
     activeBorder: 'border-amber-500',

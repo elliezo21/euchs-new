@@ -145,6 +145,43 @@
           </div>
         </div>
 
+        <!-- ── 고객 신청 부가작업(VAS) 섹션 (vasApplied가 있을 때만 표시) ── -->
+        <div v-if="arrivalVasItems.length > 0" class="p-4 bg-orange-50 border border-orange-200 rounded-2xl space-y-3">
+          <div class="flex items-center justify-between">
+            <h4 class="font-bold text-orange-700 flex items-center gap-1.5 text-xs">
+              <i class="fas fa-screwdriver-wrench text-orange-500"></i>
+              <span>고객 신청 부가작업 ({{ arrivalVasItems.length }}건) — 가격 확정 입력</span>
+            </h4>
+            <span class="text-[10px] font-black bg-orange-100 text-orange-700 border border-orange-300 px-2 py-0.5 rounded-full">
+              합계: ₩{{ arrivalVasTotal.toLocaleString() }}
+            </span>
+          </div>
+          <p class="text-[11px] text-orange-600">고객이 창고 입고 단계에서 신청한 항목입니다. 가격을 확정 입력하세요.</p>
+          <div class="space-y-2">
+            <div
+              v-for="(vas, vIdx) in arrivalVasItems"
+              :key="vIdx"
+              class="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-orange-200"
+            >
+              <i class="fas fa-check-circle text-orange-400 text-xs shrink-0"></i>
+              <span class="flex-1 text-xs font-medium text-orange-900 min-w-0">
+                {{ vas.name }}
+                <span v-if="vas.id === 'custom'" class="ml-1 text-[10px] text-orange-500 font-normal">(커스텀)</span>
+              </span>
+              <div class="flex items-center gap-1 shrink-0">
+                <span class="text-slate-400 text-xs">₩</span>
+                <input
+                  type="number"
+                  v-model.number="vas.adminPrice"
+                  min="0"
+                  placeholder="0"
+                  class="w-24 px-2 py-1 rounded-lg border border-orange-300 text-xs font-mono text-right focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-300 text-orange-900"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 품목 없음 안내 -->
         <div v-if="!orderItems || orderItems.length === 0" class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-slate-400">
           <i class="fas fa-box text-2xl mb-2 block text-slate-300"></i>
@@ -470,29 +507,45 @@
             <div
               v-for="vas in vasAdminItems"
               :key="vas.id"
-              class="flex items-center gap-3 p-2.5 rounded-xl bg-white border transition"
-              :class="vas.checked ? 'border-violet-400' : 'border-slate-200'"
+              class="flex items-center gap-3 p-2.5 rounded-xl border transition"
+              :class="[
+                vas.buyerRequested
+                  ? (vas.checked ? 'bg-white border-violet-400' : 'bg-white border-slate-200')
+                  : 'bg-slate-50 border-slate-200 opacity-40'
+              ]"
             >
-              <input
-                type="checkbox"
-                v-model="vas.checked"
-                class="rounded border-gray-300 text-violet-600 focus:ring-violet-500 shrink-0"
-              />
-              <span class="flex-1 text-xs font-medium" :class="vas.checked ? 'text-violet-900' : 'text-slate-500'">
-                {{ vas.name }}
-              </span>
+              <!-- 바이어 신청 항목: 체크박스 잠금(항상 checked, disabled), 가격입력만 활성 -->
+              <!-- 미신청 항목: 체크박스+가격 모두 disabled, 흐리게 -->
+              <div class="relative shrink-0">
+                <input
+                  type="checkbox"
+                  :checked="vas.checked"
+                  :disabled="true"
+                  class="rounded border-gray-300 shrink-0 cursor-not-allowed"
+                  :class="vas.buyerRequested ? 'text-violet-600' : 'text-slate-300'"
+                />
+                <!-- 잠금 아이콘: 바이어 신청 항목에만 표시 -->
+                <i v-if="vas.buyerRequested" class="fas fa-lock absolute -top-1 -right-1 text-[8px] text-violet-500"></i>
+              </div>
+              <div class="flex-1 min-w-0">
+                <span class="text-xs font-medium" :class="vas.buyerRequested ? 'text-violet-900' : 'text-slate-400'">
+                  {{ vas.name }}
+                </span>
+                <span v-if="vas.buyerRequested" class="ml-1.5 text-[9px] bg-violet-100 text-violet-600 border border-violet-200 px-1 rounded font-black">고객신청</span>
+                <span v-else class="ml-1.5 text-[9px] text-slate-400">(미신청)</span>
+              </div>
               <div class="flex items-center gap-1 shrink-0">
                 <span class="text-slate-400 text-xs">₩</span>
                 <input
                   type="number"
                   v-model.number="vas.price"
                   min="0"
-                  :disabled="!vas.checked"
+                  :disabled="!vas.buyerRequested"
                   placeholder="0"
                   class="w-24 px-2 py-1 rounded-lg border text-xs font-mono text-right focus:outline-none transition"
-                  :class="vas.checked
+                  :class="vas.buyerRequested
                     ? 'border-violet-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-300 text-violet-900'
-                    : 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'"
+                    : 'border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed'"
                 />
               </div>
             </div>
@@ -840,6 +893,19 @@ const vasAdminItems = ref([
   { id: 'pallet_wood',         name: '목재 파렛트 / 에어캡 특수 완충 포장', checked: false, price: 0 },
 ]);
 
+// ─── 5-A: 고객 신청 부가작업(vasApplied) 관리자 가격 입력 ───
+// 기본 단가 매핑 (기존 항목은 pre-fill, 커스텀은 0)
+const VAS_UNIT_PRICE_MAP = {
+  box_carton: 3500,
+  pallet_wrap: 30000,
+};
+const arrivalVasItems = ref([]); // [{ id, name, adminPrice }]
+
+// 고객 신청 부가작업 합계
+const arrivalVasTotal = computed(() =>
+  arrivalVasItems.value.reduce((sum, v) => sum + (Number(v.adminPrice) || 0), 0)
+);
+
 
 // ─────────────────────────────────────
 // 초기화: 모달 오픈 시 기존 데이터 복원
@@ -965,12 +1031,26 @@ const initFormData = () => {
     ...(details.vasServices || []),
   ];
   vasAdminItems.value = vasAdminItems.value.map(item => {
+    const isRequested = buyerVasIds.includes(item.id);
     if (savedVasAdmin) {
       const saved = savedVasAdmin.find(s => s.id === item.id);
-      return saved ? { ...item, checked: !!saved.checked, price: Number(saved.price) || 0 } : item;
+      if (saved) {
+        return { ...item, checked: !!saved.checked, price: Number(saved.price) || 0, buyerRequested: isRequested };
+      }
     }
     // 저장 데이터 없으면 바이어 신청 항목은 자동 체크
-    return { ...item, checked: buyerVasIds.includes(item.id), price: 0 };
+    return { ...item, checked: isRequested, price: 0, buyerRequested: isRequested };
+  });
+
+  // arrivalVasItems 초기화: app.vasApplied (창고 입고 단계 VAS 신청) 복원
+  const rawVasApplied = app.vasApplied || details.vasApplied || found?.vasApplied || [];
+  const savedArrivalVas = md.arrivalVasData || found?.arrivalVasData || null;
+  arrivalVasItems.value = rawVasApplied.map(v => {
+    // 저장된 adminPrice 복원
+    const savedPrice = savedArrivalVas?.find(s => s.id === v.id && s.name === v.name)?.adminPrice;
+    // 기본 단가 pre-fill (box_carton: 3500, pallet_wrap: 30000, 커스텀: 0)
+    const defaultPrice = savedPrice !== undefined ? savedPrice : (VAS_UNIT_PRICE_MAP[v.id] || 0);
+    return { id: v.id, name: v.name, adminPrice: Number(defaultPrice) || 0 };
   });
 };
 
@@ -1118,13 +1198,15 @@ const calcTax = computed(() => {
   const totalKrw = Number(matchedOrder.value?.totalPriceKrw || props.application?.total_amount || 0);
   return Math.round(totalKrw * 0.18);
 });
-// calcTotal: 2차 결제 청구 총액 = VAS 관리자 입력 체크 항목 합계 (해운비·관부가세 제외)
-// 해운비(calcShipping)는 참고용 예상치이며 2차 청구 합계에 포함하지 않음
-const calcTotal = computed(() =>
-  vasAdminItems.value
+// calcTotal: 2차 결제 청구 총액
+// = 5-B vasAdminItems 체크 항목 합계 + 5-A arrivalVasItems(고객신청 부가작업) 합계
+// (해운비·관부가세 제외)
+const calcTotal = computed(() => {
+  const vasAdminSum = vasAdminItems.value
     .filter(item => item.checked)
-    .reduce((sum, item) => sum + (Number(item.price) || 0), 0)
-);
+    .reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+  return vasAdminSum + arrivalVasTotal.value;
+});
 
 // ─────────────────────────────────────
 // VAS / 상품명 헬퍼
@@ -1256,6 +1338,13 @@ const saveArrivalInspection = async () => {
   // - 모든 품목 확인 완료 → arrival_done (최상위 status도 arrival_done으로 승격 → 입고완료 탭)
   // - 진행중 → details에만 arrival_checking 기록, 최상위 status는 warehouse_in 유지
   const arrivalSubStatus = allItemsVerified.value ? 'arrival_done' : 'arrival_checking';
+
+  // 5-A 고객신청 부가작업 가격 데이터 직렬화 (measuredData에 포함해 저장)
+  const arrivalVasData = arrivalVasItems.value.map(v => ({
+    id: v.id, name: v.name, adminPrice: Number(v.adminPrice) || 0
+  }));
+  measuredData.arrivalVasData = arrivalVasData;
+  measuredData.arrivalVasTotal = arrivalVasTotal.value;
 
   const updatedDetails = {
     ...currentDetails,
