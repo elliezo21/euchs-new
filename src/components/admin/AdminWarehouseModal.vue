@@ -436,14 +436,17 @@
           </div>
           <div class="grid grid-cols-3 gap-2 text-center text-[11px] pt-2 border-t border-indigo-200">
             <div>
-              <div class="text-slate-500">해운 LCL 운임</div>
-              <div class="font-black text-slate-800 mt-0.5">₩{{ calcShipping.toLocaleString() }}</div>
-              <div class="text-[9px] text-slate-400">최소 0.05 CBM</div>
+              <div class="text-slate-500 flex items-center justify-center gap-1">
+                해운 LCL 운임
+                <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
+              </div>
+              <div class="font-black text-slate-400 mt-0.5">₩{{ calcShipping.toLocaleString() }}</div>
+              <div class="text-[9px] text-amber-600 font-bold">실측 후 별도 청구</div>
             </div>
             <div>
               <div class="text-slate-500 flex items-center justify-center gap-1">
                 관부가세 예상
-                <span class="text-[8px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
+                <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
               </div>
               <div class="font-black text-slate-400 mt-0.5">₩{{ calcTax.toLocaleString() }}</div>
               <div class="text-[9px] text-amber-600 font-bold">세관 직납 (청구 제외)</div>
@@ -451,7 +454,47 @@
             <div>
               <div class="text-indigo-700 font-bold">2차 청구 합계</div>
               <div class="font-black text-indigo-700 text-sm mt-0.5">₩{{ calcTotal.toLocaleString() }}</div>
-              <div class="text-[9px] text-indigo-500">해운비+VAS (세금 제외)</div>
+              <div class="text-[9px] text-indigo-500">VAS 작업비 합계</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- VAS 관리자 가격 입력 섹션 -->
+        <div class="p-4 bg-violet-50 border border-violet-200 rounded-2xl space-y-3">
+          <h4 class="font-bold text-violet-700 flex items-center gap-1.5 text-xs">
+            <i class="fas fa-screwdriver-wrench"></i>
+            <span>2-B. 현지 부가작업(VAS) 관리자 가격 입력</span>
+          </h4>
+          <p class="text-[11px] text-violet-600">체크된 항목의 금액만 2차 청구 합계에 합산됩니다. (C/O 항목은 관세사 별도 청구)</p>
+          <div class="space-y-2">
+            <div
+              v-for="vas in vasAdminItems"
+              :key="vas.id"
+              class="flex items-center gap-3 p-2.5 rounded-xl bg-white border transition"
+              :class="vas.checked ? 'border-violet-400' : 'border-slate-200'"
+            >
+              <input
+                type="checkbox"
+                v-model="vas.checked"
+                class="rounded border-gray-300 text-violet-600 focus:ring-violet-500 shrink-0"
+              />
+              <span class="flex-1 text-xs font-medium" :class="vas.checked ? 'text-violet-900' : 'text-slate-500'">
+                {{ vas.name }}
+              </span>
+              <div class="flex items-center gap-1 shrink-0">
+                <span class="text-slate-400 text-xs">₩</span>
+                <input
+                  type="number"
+                  v-model.number="vas.price"
+                  min="0"
+                  :disabled="!vas.checked"
+                  placeholder="0"
+                  class="w-24 px-2 py-1 rounded-lg border text-xs font-mono text-right focus:outline-none transition"
+                  :class="vas.checked
+                    ? 'border-violet-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-300 text-violet-900'
+                    : 'border-slate-200 bg-slate-50 text-slate-300 cursor-not-allowed'"
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -787,6 +830,16 @@ const inspectionPhotos = ref([]); // { url, caption }[]
 const photoFileInputRef = ref(null);
 const isUploadingPhoto = ref(false);
 
+// ─── 5-B: VAS 관리자 가격 입력 ───
+// fta_co 항목은 관세사 별도 청구이므로 여기서 제외
+const vasAdminItems = ref([
+  { id: 'inspection_precision', name: '정밀 검수 (전수 불량/파손 검사)', checked: false, price: 0 },
+  { id: 'origin_label',        name: '원산지 표시(MADE IN CHINA) 라벨 부착/봉제', checked: false, price: 0 },
+  { id: 'barcode_label',       name: '바코드 / 쿠팡 로켓그로스 바코드 부착', checked: false, price: 0 },
+  { id: 'opp_repack',          name: 'OPP 재포장 / 세트 합포장 작업', checked: false, price: 0 },
+  { id: 'pallet_wood',         name: '목재 파렛트 / 에어캡 특수 완충 포장', checked: false, price: 0 },
+]);
+
 
 // ─────────────────────────────────────
 // 초기화: 모달 오픈 시 기존 데이터 복원
@@ -902,6 +955,23 @@ const initFormData = () => {
       return { url: p.url || '', caption: p.caption || `검수 사진 ${idx + 1}` };
     })
     .filter(p => p.url);
+
+  // vasAdminItems 복원: 저장된 vasAdminData가 있으면 복원, 없으면 바이어 신청 목록에서 체크 초기화
+  const savedVasAdmin = md.vasAdminData || found?.vasAdminData || null;
+  const buyerVasIds = [
+    ...(app.vas_services || []),
+    ...(app.vasServices || []),
+    ...(details.vas_services || []),
+    ...(details.vasServices || []),
+  ];
+  vasAdminItems.value = vasAdminItems.value.map(item => {
+    if (savedVasAdmin) {
+      const saved = savedVasAdmin.find(s => s.id === item.id);
+      return saved ? { ...item, checked: !!saved.checked, price: Number(saved.price) || 0 } : item;
+    }
+    // 저장 데이터 없으면 바이어 신청 항목은 자동 체크
+    return { ...item, checked: buyerVasIds.includes(item.id), price: 0 };
+  });
 };
 
 function _makeArrivalItem(idx, item) {
@@ -1048,8 +1118,13 @@ const calcTax = computed(() => {
   const totalKrw = Number(matchedOrder.value?.totalPriceKrw || props.application?.total_amount || 0);
   return Math.round(totalKrw * 0.18);
 });
-// calcTotal: 2차 결제 청구 총액 = 해운비 + VAS만 (관부가세 제외 — 세관 직납)
-const calcTotal = computed(() => calcShipping.value);
+// calcTotal: 2차 결제 청구 총액 = VAS 관리자 입력 체크 항목 합계 (해운비·관부가세 제외)
+// 해운비(calcShipping)는 참고용 예상치이며 2차 청구 합계에 포함하지 않음
+const calcTotal = computed(() =>
+  vasAdminItems.value
+    .filter(item => item.checked)
+    .reduce((sum, item) => sum + (Number(item.price) || 0), 0)
+);
 
 // ─────────────────────────────────────
 // VAS / 상품명 헬퍼
@@ -1258,11 +1333,18 @@ const saveBoxMeasurement = async () => {
   const currentDetails = app.details || {};
   const measuredData = _buildMeasuredData(true);
 
+  const vasCheckedFee = vasAdminItems.value
+    .filter(item => item.checked)
+    .reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+
   const secondPayment = {
-    shippingFeeKrw: calcShipping.value,
-    customsFeeKrw: calcTax.value,            // 참고용 — 세관 직납 예상액 (청구 미포함)
-    vasFeeKrw: 0,
-    totalSecondPaymentKrw: calcTotal.value,  // 해운비+VAS만 (관부가세 제외)
+    shippingFeeKrw: calcShipping.value,        // 참고용 — 별도 청구
+    customsFeeKrw: calcTax.value,              // 참고용 — 세관 직납 예상액 (청구 미포함)
+    vasFeeKrw: vasCheckedFee,                  // VAS 작업비 합계 (체크된 항목만)
+    totalSecondPaymentKrw: calcTotal.value,    // VAS 합계만 (해운비·관부가세 제외)
+    vasAdminData: vasAdminItems.value.map(item => ({
+      id: item.id, checked: item.checked, price: Number(item.price) || 0
+    })),
   };
 
   // inspectionPhotos 정규화 (저장 포맷)

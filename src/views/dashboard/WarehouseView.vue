@@ -534,6 +534,54 @@
               <span class="text-gray-400 text-[10px] block">/ {{ vas.unit }}</span>
             </div>
           </div>
+
+          <!-- 기타 커스텀 작업 섹션 -->
+          <div class="pt-1">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-bold text-gray-700 text-[11px]">기타 커스텀 작업</span>
+              <button
+                type="button"
+                @click="addCustomVasItem"
+                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-[11px] border border-orange-200 transition"
+              >
+                <span>+ 항목 추가</span>
+              </button>
+            </div>
+            <!-- 커스텀 항목 입력 행 -->
+            <div
+              v-for="(cItem, cIdx) in customVasItems"
+              :key="cIdx"
+              class="flex items-center gap-2 p-3 rounded-xl border border-dashed border-orange-300 bg-orange-50/30 mb-2"
+            >
+              <input
+                type="text"
+                v-model="cItem.name"
+                placeholder="작업명 (예: 이형 박스 절단 가공)"
+                class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-300 text-xs focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-300"
+              />
+              <div class="flex items-center gap-1 shrink-0">
+                <span class="text-gray-500 text-xs">₩</span>
+                <input
+                  type="number"
+                  v-model.number="cItem.price"
+                  min="0"
+                  placeholder="금액"
+                  class="w-24 px-2 py-1.5 rounded-lg border border-gray-300 text-xs font-mono text-right focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-300"
+                />
+              </div>
+              <button
+                type="button"
+                @click="removeCustomVasItem(cIdx)"
+                class="p-1 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition shrink-0"
+                title="삭제"
+              >
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <p v-if="customVasItems.length === 0" class="text-[11px] text-gray-400 text-center py-1">
+              목록에 없는 작업이 있으면 항목 추가 버튼을 눌러 직접 입력하세요.
+            </p>
+          </div>
         </div>
 
         <!-- 합산 금액 및 신청 버튼 -->
@@ -1089,6 +1137,8 @@ const lightboxUrl = ref(null);
 const isVasModalOpen = ref(false);
 const activeVasItem = ref(null);
 const selectedVasIds = ref([]);
+// 기타 커스텀 작업 항목 (자유입력, 여러 개 가능)
+const customVasItems = ref([]); // [{ id, name, price }]
 
 // 2차 결제 모달 상태
 const isSecondPaymentModalOpen = ref(false);
@@ -1127,36 +1177,12 @@ onUnmounted(() => {
 // ---------------------------------------------------------
 const vasOptions = [
   {
-    id: 'origin_sticker',
-    name: '원산지(MADE IN CHINA) 스티커 라벨 부착',
-    description: '세관 통관 필수 원산지 표기 스티커를 개별 상품에 정밀 부착합니다.',
-    unitPrice: 60,
-    unit: '개당',
-    calcType: 'qty',
-  },
-  {
-    id: 'origin_sewing',
-    name: '원산지 직조/봉제 라벨 재봉 작업',
-    description: '의류, 패브릭 제품에 봉제 라벨을 미싱으로 부착합니다.',
-    unitPrice: 250,
-    unit: '개당',
-    calcType: 'qty',
-  },
-  {
     id: 'box_carton',
     name: '수출용 5중 강화 카톤 박스 교체 포장',
     description: '중국 내수용 취약 박스를 고강도 수출용 5T 박스로 전체 환적 포장합니다.',
     unitPrice: 3500,
     unit: '박스당',
     calcType: 'box',
-  },
-  {
-    id: 'bubble_wrap',
-    name: '고급 완충 에어캡(뾱뾱이) 2중 완충 포장',
-    description: '파손 위험이 있는 유리, 도자기, 전자제품 완충 포장을 진행합니다.',
-    unitPrice: 300,
-    unit: '개당',
-    calcType: 'qty',
   },
   {
     id: 'pallet_wrap',
@@ -1324,7 +1350,10 @@ function previewImage(url) {
 // ---------------------------------------------------------
 function openVasModal(item) {
   activeVasItem.value = item;
-  selectedVasIds.value = item.vasApplied ? item.vasApplied.map((v) => v.id) : [];
+  selectedVasIds.value = item.vasApplied ? item.vasApplied.filter(v => v.id !== 'custom').map((v) => v.id) : [];
+  // 기존에 저장된 커스텀 항목 복원
+  const savedCustom = item.vasApplied ? item.vasApplied.filter(v => v.id === 'custom') : [];
+  customVasItems.value = savedCustom.map(v => ({ id: v.id, name: v.name, price: v.price || 0 }));
   isVasModalOpen.value = true;
 }
 
@@ -1332,6 +1361,7 @@ function closeVasModal() {
   isVasModalOpen.value = false;
   activeVasItem.value = null;
   selectedVasIds.value = [];
+  customVasItems.value = [];
 }
 
 function toggleVasOption(vasId) {
@@ -1342,12 +1372,21 @@ function toggleVasOption(vasId) {
   }
 }
 
+// 기타 커스텀 항목 추가/삭제
+function addCustomVasItem() {
+  customVasItems.value.push({ id: 'custom', name: '', price: 0 });
+}
+function removeCustomVasItem(idx) {
+  customVasItems.value.splice(idx, 1);
+}
+
 const calculatedVasTotal = computed(() => {
   if (!activeVasItem.value) return 0;
   const qty = activeVasItem.value.quantity || 1;
   const box = activeVasItem.value.boxCount || 1;
 
-  return selectedVasIds.value.reduce((total, id) => {
+  // 기본 옵션 합산
+  const standardTotal = selectedVasIds.value.reduce((total, id) => {
     const vas = vasOptions.find((v) => v.id === id);
     if (!vas) return total;
     if (vas.calcType === 'qty') {
@@ -1358,28 +1397,45 @@ const calculatedVasTotal = computed(() => {
       return total + vas.unitPrice;
     }
   }, 0);
+
+  // 커스텀 항목 합산 (입력된 금액 그대로)
+  const customTotal = customVasItems.value.reduce((total, item) => {
+    const p = Number(item.price) || 0;
+    return total + p;
+  }, 0);
+
+  return standardTotal + customTotal;
 });
 
 function submitVasApplication() {
   if (!activeVasItem.value) return;
 
+  // 기본 항목
   const appliedList = selectedVasIds.value.map((id) => {
     const vas = vasOptions.find((v) => v.id === id);
     return { id: vas.id, name: vas.name.split(' ')[0] };
   });
 
-  activeVasItem.value.vasApplied = appliedList;
+  // 커스텀 항목 (이름이 있는 것만)
+  const customList = customVasItems.value
+    .filter(item => item.name.trim())
+    .map(item => ({ id: 'custom', name: item.name.trim(), price: Number(item.price) || 0 }));
+
+  const allApplied = [...appliedList, ...customList];
+
+  activeVasItem.value.vasApplied = allApplied;
 
   // 로컬 스토리지에 업데이트 동기화
   const list = [...inbounds.value];
   const idx = list.findIndex(i => i.id === activeVasItem.value.id);
   if (idx !== -1) {
-    list[idx] = { ...list[idx], vasApplied: appliedList };
+    list[idx] = { ...list[idx], vasApplied: allApplied };
     saveStoredInbounds(list);
   }
 
   closeVasModal();
 }
+
 
 // ---------------------------------------------------------
 // 2차 결제 모달 제어

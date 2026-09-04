@@ -2319,7 +2319,7 @@ const VAS_OPTIONS = [
     id: 'fta_co',
     name: '한-중 FTA 원산지증명서(C/O) 발급 신청',
     desc: '수입 관세를 최대 0~5%까지 절감할 수 있는 상공회의소 공식 한-중 FTA 협정세율 C/O를 현지에서 발급합니다.',
-    feeLabel: '관세 절감 필수',
+    feeLabel: '관세사 별도 청구',
     badgeClass: 'text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded font-bold'
   },
   {

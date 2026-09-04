@@ -156,9 +156,9 @@ export async function updateStoredInboundItem(inboundId, updates) {
 
   const secondPayment = updates.secondPayment || {
     shippingFeeKrw,
-    customsFeeKrw,      // 참고용 — totalSecondPaymentKrw에서 제외
-    vasFeeKrw: 0,
-    totalSecondPaymentKrw: shippingFeeKrw || 133000, // 해운비+VAS만 청구 (관부가세 제외)
+    customsFeeKrw,        // 참고용 — totalSecondPaymentKrw에서 제외
+    vasFeeKrw: 0,         // VAS 작업비 (관리자 입력 전 기본값 0)
+    totalSecondPaymentKrw: 0, // VAS 합계 (관리자 입력 후 확정)
   };
 
   // 진행 상태 매핑 (inspectionStatus가 undefined면 기존 주문 status 유지)
