@@ -1059,10 +1059,25 @@
                     <span class="text-[9px] text-blue-600 font-medium">창고 실측 후 청구</span>
                   </div>
                   <div class="px-3 space-y-0 divide-y divide-gray-100 bg-white">
-                    <div class="flex items-center justify-between py-1.5">
-                      <span class="text-gray-600 font-medium">4. 국제 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
-                      <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원</span>
+                    <div class="flex items-start justify-between py-1.5 gap-2">
+                      <div>
+                        <span class="text-gray-600 font-medium">
+                          4. 국제 해운 물류비
+                          <span v-if="getOrderCostSummary(activeOrder).shippingConfirmed" class="text-[9px] text-blue-600 font-bold ml-1">
+                            (실측 {{ getOrderCostSummary(activeOrder).cbm }} CBM)
+                          </span>
+                          <span v-else class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">미확정</span>
+                        </span>
+                        <div v-if="!getOrderCostSummary(activeOrder).shippingConfirmed" class="text-[10px] text-amber-600 mt-0.5">
+                          이우 창고 도착 후 5-B 계근 시 확정
+                        </div>
+                      </div>
+                      <span v-if="getOrderCostSummary(activeOrder).shippingConfirmed" class="font-mono font-black text-gray-900 text-xs sm:text-sm whitespace-nowrap shrink-0">
+                        ₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원
+                      </span>
+                      <span v-else class="font-mono font-bold text-amber-500 text-xs sm:text-sm whitespace-nowrap shrink-0">-</span>
                     </div>
+
                     <div class="flex items-center justify-between py-1.5">
                       <span class="text-gray-600 font-medium">7. 현지 부가서비스 작업비 (VAS)</span>
                       <span class="font-mono font-black text-blue-600 text-xs sm:text-sm">
@@ -1127,13 +1142,19 @@
                   </div>
 
                   <!-- 2차 결제 예상액 -->
-                  <div class="flex items-center justify-between gap-2">
-                    <span class="text-slate-600 font-medium text-xs sm:text-sm">
-                      <b>2차 결제 대상</b> (국제 해운 물류비 + VAS — <span class="text-amber-700 font-bold">관·부가세 제외</span>):
-                    </span>
-                    <span class="font-mono font-bold text-slate-800 text-sm sm:text-base whitespace-nowrap">
+                  <div class="flex items-start justify-between gap-2">
+                    <div>
+                      <span class="text-slate-600 font-medium text-xs sm:text-sm">
+                        <b>2차 결제 대상</b> (국제 해운 물류비 + VAS — <span class="text-amber-700 font-bold">관·부가세 제외</span>):
+                      </span>
+                      <div v-if="!getOrderCostSummary(activeOrder).shippingConfirmed" class="text-[10px] text-amber-600 mt-0.5">
+                        해운비 실측 후 합산 예정 (VAS 별도)
+                      </div>
+                    </div>
+                    <span v-if="getOrderCostSummary(activeOrder).shippingConfirmed" class="font-mono font-bold text-slate-800 text-sm sm:text-base whitespace-nowrap">
                       ₩{{ formatNumber(getOrderPaymentStages(activeOrder).secondPaymentKrw) }}원
                     </span>
+                    <span v-else class="font-mono font-bold text-amber-500 text-sm sm:text-base whitespace-nowrap">-</span>
                   </div>
 
                   <!-- 최종 DDP 총 견적 금액 (참고용) -->
@@ -1143,13 +1164,17 @@
                         최종 예상 총 견적금액 (DDP):
                       </span>
                       <div class="text-[11px] text-slate-400 font-mono mt-0.5">
-                        운임 포함 (관·부가세 별도/세관 직납) · 개당 도착원가 약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원
+                        <span v-if="getOrderCostSummary(activeOrder).shippingConfirmed">
+                          운임 포함 (관·부가세 별도/세관 직납) · 개당 도착원가 약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원
+                        </span>
+                        <span v-else class="text-amber-600">해운비 미확정 — 실측 후 총액 확정</span>
                       </div>
                     </div>
                     <div class="text-right">
-                      <div class="font-mono font-bold text-slate-700 text-sm sm:text-base whitespace-nowrap">
+                      <div v-if="getOrderCostSummary(activeOrder).shippingConfirmed" class="font-mono font-bold text-slate-700 text-sm sm:text-base whitespace-nowrap">
                         ₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원
                       </div>
+                      <div v-else class="font-mono font-bold text-amber-500 text-sm sm:text-base whitespace-nowrap">-</div>
                       <div class="text-[11px] text-slate-400 font-mono mt-0.5">
                         (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 환산)
                       </div>
@@ -1815,7 +1840,7 @@ import {
 } from 'lucide-vue-next';
 import { exportQuoteExcel } from '@/utils/excelExport';
 import { downloadBulkOrderTemplate, parseOrderExcel } from '@/utils/excelHandler';
-import { calculateImportCost, formatCurrency } from '@/utils/costCalculator';
+
 import {
   PIPELINE_STATUSES,
   normalizeOrderStatus,
@@ -2131,8 +2156,9 @@ function getOrderCostSummary(order) {
       itemTotalCny: 0,
       itemTotalKrw: 0,
       avgPriceCny: 0,
-      cbm: 0.1,
+      cbm: 0,
       shippingFeeKrw: 0,
+      shippingConfirmed: false,
       tariffKrw: 0,
       vatKrw: 0,
       agencyFeeKrw: 0,
@@ -2143,7 +2169,6 @@ function getOrderCostSummary(order) {
 
   let totalCny = 0;
   let totalQty = 0;
-  let totalCbm = 0;
 
   order.items.forEach((it) => {
     // 관리자가 제외 처리한 품목은 DDP 계산에서 차감/제외
@@ -2153,25 +2178,25 @@ function getOrderCostSummary(order) {
     const p = Number(it.priceCny || it.price || it.unitPriceCny) || 0;
     totalQty += q;
     totalCny += p * q;
-    totalCbm += Number(it.cbm) || (0.002 * q);
   });
 
   const avgPriceCny = totalQty > 0 ? totalCny / totalQty : 0;
   // site_settings 연동 (fallback: 하드코딩 기본값)
   const exchangeRate = Number(currentSettings.value?.exchange_rate) || 226.19;
-  const seaCbmRate  = Number(currentSettings.value?.sea_cbm_rate)  || 85000;
+  const seaCbmRate  = Number(currentSettings.value?.sea_cbm_rate)  || 98000;
   const agencyRate  = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
 
-  const calc = calculateImportCost({
-    productPriceCny: avgPriceCny,
-    quantity: totalQty,
-    exchangeRate,
-    cbm: Math.max(0.05, Number(totalCbm.toFixed(3))),
-    shippingRatePerCbm: seaCbmRate,
-    tariffRate: 0.08,
-    vatRate: 0.10,
-    agencyFeeRate: agencyRate,
-  });
+  // ── 5-B 실측 CBM 확인 (measuredData.cbm 또는 measuredData.box.cbm) ──
+  const md = order.measuredData || order.measured_data || {};
+  const measuredCbm = Number(md.cbm || md.box?.cbm || 0);
+  const shippingConfirmed = measuredCbm > 0; // 실측값 존재 여부
+
+  // 해운비: 5-B 완료(실측 CBM 있음)이면 실측값 기반, 아니면 0(미확정)
+  const cbm = shippingConfirmed ? Number(measuredCbm.toFixed(4)) : 0;
+  const shippingFeeKrw = shippingConfirmed ? Math.round(cbm * seaCbmRate) : 0;
+
+  // 상품 대금 원화 환산
+  const itemTotalKrw = Math.round(totalCny * exchangeRate);
 
   // 이우 물류센터 기준 중국 내 배송비 추정 (areaCode: 330782)
   let chinaFreightRmb = 0;
@@ -2181,23 +2206,32 @@ function getOrderCostSummary(order) {
     else if (totalQty < 100) chinaFreightRmb = 12;
     else chinaFreightRmb = totalQty * 0.12;
   }
-  const chinaFreightKrw = Math.round(chinaFreightRmb * 226.19);
+  const chinaFreightKrw = Math.round(chinaFreightRmb * exchangeRate);
 
   // 수수료: (상품 대금 + 중국 현지 택배비) × 수수료율 (settings 연동)
-  const itemTotalKrw = calc.summary.itemTotalKrw;
   const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * agencyRate);
+
+  // 관세·부가세 추정 (참고용 — 세관 직납)
+  const dutiableValueKrw = itemTotalKrw + shippingFeeKrw;
+  const tariffKrw = Math.round(dutiableValueKrw * 0.08);
+  const vatKrw = Math.round((dutiableValueKrw + tariffKrw) * 0.10);
 
   // DDP 재계산: 상품대금 + 중국택배비 + 수수료 + 해운비 + 관세 + VAT
   const totalDdpKrw = itemTotalKrw + chinaFreightKrw + agencyFeeKrw
-    + calc.summary.shippingFeeKrw + calc.summary.tariffKrw + calc.summary.vatKrw;
+    + shippingFeeKrw + tariffKrw + vatKrw;
   const unitDdpKrw = totalQty > 0 ? Math.round(totalDdpKrw / totalQty) : 0;
 
   return {
-    ...calc.summary,
     avgPriceCny: Number(avgPriceCny.toFixed(2)),
     itemTotalCny: Number(totalCny.toFixed(2)),
+    itemTotalKrw,
     chinaFreightKrw,
     agencyFeeKrw,
+    cbm,
+    shippingFeeKrw,
+    shippingConfirmed,
+    tariffKrw,
+    vatKrw,
     totalDdpKrw,
     unitDdpKrw
   };
