@@ -441,14 +441,17 @@
               <div class="text-[9px] text-slate-400">최소 0.05 CBM</div>
             </div>
             <div>
-              <div class="text-slate-500">관부가세 예상 (18%)</div>
-              <div class="font-black text-slate-800 mt-0.5">₩{{ calcTax.toLocaleString() }}</div>
-              <div class="text-[9px] text-slate-400">1차 상품대금 기준</div>
+              <div class="text-slate-500 flex items-center justify-center gap-1">
+                관부가세 예상
+                <span class="text-[8px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
+              </div>
+              <div class="font-black text-slate-400 mt-0.5">₩{{ calcTax.toLocaleString() }}</div>
+              <div class="text-[9px] text-amber-600 font-bold">세관 직납 (청구 제외)</div>
             </div>
             <div>
               <div class="text-indigo-700 font-bold">2차 청구 합계</div>
               <div class="font-black text-indigo-700 text-sm mt-0.5">₩{{ calcTotal.toLocaleString() }}</div>
-              <div class="text-[9px] text-indigo-500">바이어 예치금 청구</div>
+              <div class="text-[9px] text-indigo-500">해운비+VAS (세금 제외)</div>
             </div>
           </div>
         </div>
@@ -696,13 +699,18 @@
 
 
 <script setup>
-import { ref, computed, watch } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { updateStoredInboundItem } from '../../lib/warehouseStore';
 import { getStoredOrders } from '../../utils/orderStorage';
 import { updateApplicationOrderStatus, normalizeOrderStatus } from '../../lib/orderPipeline';
 import { sendOrderStatusAlimtalk } from '../../services/notificationService';
+import { currentSettings, fetchSiteSettings } from '../../lib/settings';
 
+
+onMounted(async () => {
+  await fetchSiteSettings();
+});
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -1031,12 +1039,17 @@ const calcTotalCbm = computed(() => {
   }
 });
 
-const calcShipping = computed(() => Math.round(Math.max(0.05, calcTotalCbm.value) * 85000));
+const calcShipping = computed(() => {
+  const cbmRate = Number(currentSettings.value?.sea_cbm_rate) || 85000;
+  return Math.round(Math.max(0.05, calcTotalCbm.value) * cbmRate);
+});
+// calcTax: 세관 직납 예상 관부가세 (참고용 표시 전용 — 2차 청구 합계에 미포함)
 const calcTax = computed(() => {
   const totalKrw = Number(matchedOrder.value?.totalPriceKrw || props.application?.total_amount || 0);
   return Math.round(totalKrw * 0.18);
 });
-const calcTotal = computed(() => calcShipping.value + calcTax.value);
+// calcTotal: 2차 결제 청구 총액 = 해운비 + VAS만 (관부가세 제외 — 세관 직납)
+const calcTotal = computed(() => calcShipping.value);
 
 // ─────────────────────────────────────
 // VAS / 상품명 헬퍼
@@ -1202,6 +1215,7 @@ const saveArrivalInspection = async () => {
     // allItemsVerified이면 inspectionStatus를 arrival_done으로 → warehouseStore가 arrival_done으로 저장
     ...(allItemsVerified.value ? { inspectionStatus: 'arrival_done' } : {}),
     inspectionPhotos: matchedOrder.value?.inspectionPhotos || [],
+    seaCbmRate: Number(currentSettings.value?.sea_cbm_rate) || 85000,
   });
 
   isSaving.value = false;
@@ -1246,9 +1260,9 @@ const saveBoxMeasurement = async () => {
 
   const secondPayment = {
     shippingFeeKrw: calcShipping.value,
-    customsFeeKrw: calcTax.value,
+    customsFeeKrw: calcTax.value,            // 참고용 — 세관 직납 예상액 (청구 미포함)
     vasFeeKrw: 0,
-    totalSecondPaymentKrw: calcTotal.value,
+    totalSecondPaymentKrw: calcTotal.value,  // 해운비+VAS만 (관부가세 제외)
   };
 
   // inspectionPhotos 정규화 (저장 포맷)
@@ -1294,6 +1308,7 @@ const saveBoxMeasurement = async () => {
     measuredData,
     secondPayment,
     inspectionPhotos: savedPhotos,
+    seaCbmRate: Number(currentSettings.value?.sea_cbm_rate) || 85000,
   });
 
   // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)

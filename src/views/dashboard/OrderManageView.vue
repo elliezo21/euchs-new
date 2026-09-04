@@ -1030,39 +1030,89 @@
                   </span>
                 </div>
 
-                <!-- 1. 원가 상세 세부 항목 -->
-                <div class="space-y-2 text-xs sm:text-sm">
-                  <div class="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600 font-medium">1. 순수 1688 제품 대금 (¥{{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }})</span>
-                    <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).itemTotalKrw) }}원</span>
+                <!-- 1. 1차 결제 구역: 1번(상품대금) + 2번(현지택배비) + 3번(수수료) -->
+                <div class="space-y-0 text-xs sm:text-sm border border-emerald-200 rounded-2xl overflow-hidden">
+                  <div class="flex items-center justify-between px-3 py-1.5 bg-emerald-50 border-b border-emerald-200">
+                    <span class="text-[10px] font-black text-emerald-800 tracking-wide">💳 1차 결제 항목</span>
+                    <span class="text-[9px] text-emerald-600 font-medium">발주 즉시 결제</span>
                   </div>
-                  <div class="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600 font-medium">2. 중국 현지 택배비 (이우 물류센터 입고)</span>
-                    <span class="font-mono font-black text-amber-700 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).chinaFreightKrw) }}원</span>
-                  </div>
-                  <div class="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600 font-medium">3. 수입 구매대행 &amp; 기본 수수료 (8%)</span>
-                    <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).agencyFeeKrw) }}원</span>
-                  </div>
-                  <div class="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600 font-medium">4. 국제 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
-                    <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원</span>
-                  </div>
-                  <div class="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600 font-medium">5. 예상 수입 관세 (한-중 FTA 협정세율)</span>
-                    <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).tariffKrw) }}원</span>
-                  </div>
-                  <div class="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600 font-medium">6. 수입 부가가치세 (VAT 10% 매입세액공제)</span>
-                    <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
-                  </div>
-                  <div class="flex items-center justify-between py-1.5 border-b border-gray-100">
-                    <span class="text-gray-600 font-medium">7. 현지 부가서비스 작업비 (VAS)</span>
-                    <span class="font-mono font-black text-blue-600 text-xs sm:text-sm">
-                      {{ getBuyerSelectedVas().length > 0 ? `${getBuyerSelectedVas().length}개 신청 (2차 합산)` : '기본 외관 검수 (무료)' }}
-                    </span>
+                  <div class="px-3 space-y-0 divide-y divide-gray-100 bg-white">
+                    <div class="flex items-center justify-between py-1.5">
+                      <span class="text-gray-600 font-medium">1. 순수 1688 제품 대금 (¥{{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }})</span>
+                      <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).itemTotalKrw) }}원</span>
+                    </div>
+                    <div class="flex items-center justify-between py-1.5">
+                      <span class="text-gray-600 font-medium">2. 중국 현지 택배비 (이우 물류센터 입고)</span>
+                      <span class="font-mono font-black text-amber-700 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).chinaFreightKrw) }}원</span>
+                    </div>
+                    <div class="flex items-center justify-between py-1.5">
+                      <span class="text-gray-600 font-medium">3. 수입 구매대행 &amp; 기본 수수료 (8%)</span>
+                      <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).agencyFeeKrw) }}원</span>
+                    </div>
                   </div>
                 </div>
+
+                <!-- 2. 2차 결제 구역: 4번(국제해운물류비) + 7번(VAS) -->
+                <div class="space-y-0 text-xs sm:text-sm border border-blue-200 rounded-2xl overflow-hidden mt-2">
+                  <div class="flex items-center justify-between px-3 py-1.5 bg-blue-50 border-b border-blue-200">
+                    <span class="text-[10px] font-black text-blue-800 tracking-wide">🚢 2차 결제 항목 (입고 후 청구)</span>
+                    <span class="text-[9px] text-blue-600 font-medium">창고 실측 후 청구</span>
+                  </div>
+                  <div class="px-3 space-y-0 divide-y divide-gray-100 bg-white">
+                    <div class="flex items-center justify-between py-1.5">
+                      <span class="text-gray-600 font-medium">4. 국제 해운 물류비 (예상 {{ getOrderCostSummary(activeOrder).cbm }} CBM)</span>
+                      <span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).shippingFeeKrw) }}원</span>
+                    </div>
+                    <div class="flex items-center justify-between py-1.5">
+                      <span class="text-gray-600 font-medium">7. 현지 부가서비스 작업비 (VAS)</span>
+                      <span class="font-mono font-black text-blue-600 text-xs sm:text-sm">
+                        {{ getBuyerSelectedVas().length > 0 ? `${getBuyerSelectedVas().length}개 신청 (2차 합산)` : '기본 외관 검수 (무료)' }}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 2. 참고용 세금 안내 구역 — 당사 청구 제외, 세관 직납 -->
+                <div class="space-y-0 text-xs sm:text-sm border border-amber-200 rounded-2xl overflow-hidden mt-2">
+                  <!-- 구역 헤더 -->
+                  <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-b border-amber-200">
+                    <span class="text-[10px] font-black text-amber-700 tracking-wide">📋 참고용 세금 안내</span>
+                    <span class="text-[9px] text-amber-600 font-medium">당사 청구 제외 — 세관 직납</span>
+                  </div>
+                  <div class="px-3 space-y-0 divide-y divide-amber-100 bg-amber-50/40">
+                    <!-- 5. 예상 관세 -->
+                    <div class="flex items-start justify-between py-1.5 gap-2">
+                      <div>
+                        <span class="text-gray-600 font-medium">
+                          5. 예상 수입 관세
+                          <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">추정치/참고용</span>
+                        </span>
+                        <div class="text-[10px] text-slate-400 mt-0.5">
+                          {{ isVasSelected('fta_co') ? '한-중 FTA 협정세율 (0~4% 감면 예정)' : '일반 MFN 세율 기준 (C/O 신청 시 0~4%로 경감 가능)' }}
+                        </div>
+                      </div>
+                      <span class="font-mono font-black text-slate-400 text-xs sm:text-sm whitespace-nowrap shrink-0">₩{{ formatNumber(getOrderCostSummary(activeOrder).tariffKrw) }}원</span>
+                    </div>
+                    <!-- 6. 수입 부가세 -->
+                    <div class="flex items-start justify-between py-1.5 gap-2">
+                      <div>
+                        <span class="text-gray-600 font-medium">
+                          6. 수입 부가가치세
+                          <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">추정치/참고용</span>
+                        </span>
+                        <div class="text-[10px] text-slate-400 mt-0.5">VAT 10% 매입세액공제 대상</div>
+                      </div>
+                      <span class="font-mono font-black text-slate-400 text-xs sm:text-sm whitespace-nowrap shrink-0">₩{{ formatNumber(getOrderCostSummary(activeOrder).vatKrw) }}원</span>
+                    </div>
+                  </div>
+                  <!-- 세관 직납 안내 박스 -->
+                  <div class="px-3 py-2.5 bg-amber-50 border-t border-amber-200 text-[10px] text-amber-800 leading-relaxed">
+                    <span class="font-black text-amber-700">※ 관세 및 수입 부가세 세관 직납 안내</span><br/>
+                    위 5·6번 금액은 품목별 협정세율에 따른 단순 추정치이며 <b>당사 2차 결제 금액에 포함되지 않습니다.</b> 물품 국내 입항 시 세관(관세사)에서 수입신고필증과 함께 납부고지서가 발급되며, 고지서의 가상계좌를 통해 세관에 직접 납부해 주시면 됩니다. (납부 즉시 홈택스에 수입세금계산서 자동 발행)
+                  </div>
+                </div>
+
+
 
                 <!-- 2. 예상 참고용 구역: DDP 최종 총 견적 & 2차 결제 예상액 분리 안내 -->
                 <div class="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
@@ -1079,7 +1129,7 @@
                   <!-- 2차 결제 예상액 -->
                   <div class="flex items-center justify-between gap-2">
                     <span class="text-slate-600 font-medium text-xs sm:text-sm">
-                      <b>2차 결제 대상</b> (국제 해운 물류비 + 관·부가세 + 부가작업비):
+                      <b>2차 결제 대상</b> (국제 해운 물류비 + VAS — <span class="text-amber-700 font-bold">관·부가세 제외</span>):
                     </span>
                     <span class="font-mono font-bold text-slate-800 text-sm sm:text-base whitespace-nowrap">
                       ₩{{ formatNumber(getOrderPaymentStages(activeOrder).secondPaymentKrw) }}원
@@ -1093,7 +1143,7 @@
                         최종 예상 총 견적금액 (DDP):
                       </span>
                       <div class="text-[11px] text-slate-400 font-mono mt-0.5">
-                        세금·운임 일체 포함 · 개당 도착원가 약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원
+                        운임 포함 (관·부가세 별도/세관 직납) · 개당 도착원가 약 ₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}원
                       </div>
                     </div>
                     <div class="text-right">
@@ -1107,9 +1157,10 @@
                   </div>
 
                   <p class="text-xs text-slate-500 leading-relaxed pt-2 border-t border-slate-200/60">
-                    ※ 국제 해운 운임 및 관·부가세는 중국 이우 물류센터 입고 후 <b>실제 중량/부피(CBM) 실측 계근</b>을 거쳐 2차 결제 시 최종 확정 정산됩니다.
+                    ※ 국제 해운 운임은 중국 이우 물류센터 입고 후 <b>실제 중량/부피(CBM) 실측 계근</b>을 거쳐 2차 결제 시 최종 확정 정산됩니다.
                   </p>
                 </div>
+
 
                 <!-- 3. 화면 최하단 메인 강조 박스: 1차 결제 예정액 (지금 결제할 금액) -->
                 <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 sm:p-6 shadow-xl space-y-3.5 border border-slate-700/80">
@@ -1772,6 +1823,7 @@ import {
   getOrderStatusBadgeClass
 } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
 import { userBalance, applyBalanceTransaction } from '@/lib/balanceStore';
 import { currentUser } from '@/lib/auth';
@@ -2105,15 +2157,20 @@ function getOrderCostSummary(order) {
   });
 
   const avgPriceCny = totalQty > 0 ? totalCny / totalQty : 0;
+  // site_settings 연동 (fallback: 하드코딩 기본값)
+  const exchangeRate = Number(currentSettings.value?.exchange_rate) || 226.19;
+  const seaCbmRate  = Number(currentSettings.value?.sea_cbm_rate)  || 85000;
+  const agencyRate  = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
+
   const calc = calculateImportCost({
     productPriceCny: avgPriceCny,
     quantity: totalQty,
-    exchangeRate: 226.19,
+    exchangeRate,
     cbm: Math.max(0.05, Number(totalCbm.toFixed(3))),
-    shippingRatePerCbm: 85000,
+    shippingRatePerCbm: seaCbmRate,
     tariffRate: 0.08,
     vatRate: 0.10,
-    agencyFeeRate: 0.08,
+    agencyFeeRate: agencyRate,
   });
 
   // 이우 물류센터 기준 중국 내 배송비 추정 (areaCode: 330782)
@@ -2126,9 +2183,9 @@ function getOrderCostSummary(order) {
   }
   const chinaFreightKrw = Math.round(chinaFreightRmb * 226.19);
 
-  // 수수료: (상품 대금 + 중국 현지 택배비) × 8%
+  // 수수료: (상품 대금 + 중국 현지 택배비) × 수수료율 (settings 연동)
   const itemTotalKrw = calc.summary.itemTotalKrw;
-  const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * 0.08);
+  const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * agencyRate);
 
   // DDP 재계산: 상품대금 + 중국택배비 + 수수료 + 해운비 + 관세 + VAT
   const totalDdpKrw = itemTotalKrw + chinaFreightKrw + agencyFeeKrw
@@ -2534,11 +2591,11 @@ function getOrderPaymentStages(order) {
     (summary.chinaFreightKrw || 0) +
     (summary.agencyFeeKrw || 0)
   );
-  // 2차 결제 = 국제 해운 물류비 + 관세 + VAT
+  // 2차 결제 = 국제 해운 물류비 + VAS (관세·부가세 제외 — 세관 직납)
+  // ★ 관세·부가세는 세관(관세사)이 바이어에게 납부고지서 직접 발송 → 당사 청구 불가
   const secondPaymentKrw = Math.round(
-    (summary.shippingFeeKrw || 0) +
-    (summary.tariffKrw || 0) +
-    (summary.vatKrw || 0)
+    (summary.shippingFeeKrw || 0)
+    // tariffKrw, vatKrw 제외
   );
   return {
     firstPaymentKrw,
@@ -3011,8 +3068,8 @@ function exportSelectedQuotes() {
     const fileName = exportQuoteExcel(
       allItems,
       targetOrders[0]?.buyerInfo || defaultBuyerInfo,
-      226.19,
-      0.08
+      Number(currentSettings.value?.exchange_rate) || 226.19,
+      (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100
     );
     alert(`선택된 ${targetOrders.length}건의 공식 견적서(${fileName})가 다운로드되었습니다.`);
   } catch (err) {
@@ -3029,7 +3086,12 @@ function exportSingleQuote(order) {
       orderNo: order.orderNumber,
       buyerName: order.buyerInfo?.buyerName || order.customer_name
     }));
-    exportQuoteExcel(items, order.buyerInfo || defaultBuyerInfo, 226.19, 0.08);
+    exportQuoteExcel(
+      items,
+      order.buyerInfo || defaultBuyerInfo,
+      Number(currentSettings.value?.exchange_rate) || 226.19,
+      (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100
+    );
   } catch (err) {
     console.error('Single quote export error:', err);
   }
@@ -3200,6 +3262,7 @@ function onSyncOrders() {
 }
 
 onMounted(async () => {
+  await fetchSiteSettings();
   await loadOrdersData();
   window.addEventListener('euchs-order-status-update', onSyncOrders);
   window.addEventListener('storage', onSyncOrders);

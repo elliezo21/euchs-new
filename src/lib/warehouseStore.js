@@ -90,6 +90,7 @@ export function normalizeMeasuredData(md, orderItems = []) {
  *   - measuredWeightKg, measuredCbm, boxCount: 레거시 flat 방식으로도 받음 (5-B 저장 시)
  *   - secondPayment: 2차 정산 금액 객체
  *   - inspectionStatus, inspectionNote, inspectionPhotos: 기존 필드
+ *   - seaCbmRate: CBM당 해운 단가 (site_settings.sea_cbm_rate, 기본값 85000)
  */
 export async function updateStoredInboundItem(inboundId, updates) {
   const orders = getStoredOrders();
@@ -145,16 +146,19 @@ export async function updateStoredInboundItem(inboundId, updates) {
   }
 
   // 2차 결제 청구액 계산 (secondPayment가 직접 전달되지 않은 경우 자동 계산)
+  // ★ 관세·부가세는 세관이 바이어에게 직접 납부고지서 발송 → 2차 청구 합계에서 제외
+  // ★ customsFeeKrw는 참고용으로만 저장 (실제 청구에 미포함)
+  const seaCbmRate = Number(updates.seaCbmRate) || 85000; // site_settings.sea_cbm_rate fallback
   const cbmForCalc = measuredData.cbm || measuredData.box?.cbm || 0;
-  const shippingFeeKrw = Math.round(Math.max(0.05, cbmForCalc) * 85000);
+  const shippingFeeKrw = Math.round(Math.max(0.05, cbmForCalc) * seaCbmRate);
   const itemTotalKrw = Number(targetOrder?.totalPriceKrw || 0);
-  const customsFeeKrw = Math.round(itemTotalKrw * 0.18);
+  const customsFeeKrw = Math.round(itemTotalKrw * 0.18); // 참고용 (청구 미포함)
 
   const secondPayment = updates.secondPayment || {
     shippingFeeKrw,
-    customsFeeKrw,
+    customsFeeKrw,      // 참고용 — totalSecondPaymentKrw에서 제외
     vasFeeKrw: 0,
-    totalSecondPaymentKrw: (shippingFeeKrw + customsFeeKrw) || 133000,
+    totalSecondPaymentKrw: shippingFeeKrw || 133000, // 해운비+VAS만 청구 (관부가세 제외)
   };
 
   // 진행 상태 매핑 (inspectionStatus가 undefined면 기존 주문 status 유지)
