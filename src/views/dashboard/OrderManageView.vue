@@ -715,183 +715,78 @@
             </div>
           </div>
 
-          <!-- ======================================================== -->
-          <!-- ② 1688 소싱 상세 정보 + 1차 결제 확인 상태 -->
-          <!-- ======================================================== -->
-          <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-xs space-y-4">
-            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
-              <h4 class="font-black text-gray-900 flex items-center gap-2 text-sm">
-                <ExternalLink class="w-4 h-4 text-rose-500" />
-                <span>2. 1688 소싱 상품 정보 &amp; 1차 결제 확인</span>
-              </h4>
-              <!-- 1차 결제 상태 뱃지 -->
-              <span
-                class="px-2.5 py-1 rounded-full text-[11px] font-bold flex items-center gap-1.5"
-                :class="['payment_verified', 'purchasing', 'warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(normalizeOrderStatus(activeOrder.status))
-                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                  : normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'
-                    ? 'bg-orange-100 text-orange-800 border border-orange-200'
-                    : 'bg-gray-100 text-gray-600 border border-gray-200'"
-              >
-                <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
-                <span>{{ ['payment_verified', 'purchasing', 'warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(normalizeOrderStatus(activeOrder.status))
-                  ? '✅ 1차 결제 확인 완료'
-                  : normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'
-                    ? '💳 결제 대기중'
-                    : '📋 견적 심사중' }}</span>
-              </span>
-            </div>
 
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <!-- 좌: 1688 상품 링크 및 소싱 요약 -->
-              <div class="space-y-3">
-                <div
-                  v-for="(item, idx) in activeOrder.items || []"
-                  :key="idx"
-                  class="p-3.5 rounded-xl border space-y-2 transition"
-                  :class="item.excluded
-                    ? 'bg-rose-50/60 border-rose-200/80 opacity-75'
-                    : 'bg-slate-50 border-gray-200'"
-                >
-                  <div class="flex items-center gap-3">
-                    <img
-                      :src="item.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=80&auto=format&fit=crop&q=60'"
-                      class="w-12 h-12 rounded-lg object-cover border border-gray-200 shrink-0"
-                      :class="item.excluded ? 'grayscale opacity-50' : ''"
-                      @error="handleImgError"
-                    />
-                    <div class="flex-1 min-w-0">
-                      <div class="flex items-center gap-2 flex-wrap mb-0.5">
-                        <p
-                          class="font-bold text-xs line-clamp-1"
-                          :class="item.excluded ? 'line-through text-gray-400' : 'text-gray-900'"
-                        >
-                          {{ item.productName || item.titleKo || '1688 소싱 상품' }}
-                        </p>
-                        <span
-                          v-if="item.excluded"
-                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[10px] border border-rose-200 shrink-0"
-                        >
-                          ⛔ {{ item.excludeReason || '구매 제외' }}
-                        </span>
-                        <!-- 4. 구매진행 단계 서브상태 배지 (chinaTrackingNo 유무 기준) -->
-                        <span
-                          v-if="normalizeOrderStatus(activeOrder.status) === 'purchasing' && !item.excluded"
-                          class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-black text-[10px] border shrink-0 whitespace-nowrap"
-                          :class="item.chinaTrackingNo?.trim() ? 'bg-blue-100 text-blue-700 border-blue-200' : 'bg-amber-100 text-amber-700 border-amber-200'"
-                        >
-                          {{ item.chinaTrackingNo?.trim() ? '📦 내륙배송중' : '⏳ 업체발송대기' }}
-                        </span>
-                      </div>
-                      <p v-if="item.titleZh" class="text-[10px] font-mono truncate" :class="item.excluded ? 'text-gray-300' : 'text-gray-400'">{{ item.titleZh }}</p>
-                      <p class="text-[11px] mt-0.5 font-mono" :class="item.excluded ? 'text-gray-300 line-through' : 'text-gray-500'">SKU: {{ item.sku || '기본 옵션' }}</p>
-                    </div>
+          <!-- ======================================================== -->
+          <!-- ② VAS 하단: [견적 검토 안내] + [수입 단가 마진 요약] 2열 그리드 -->
+          <!-- ======================================================== -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- 좌: 결제 상태 안내 박스 -->
+            <div>
+              <!-- 결제 완료 상태 -->
+              <div
+                v-if="['payment_verified', 'purchasing', 'warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(normalizeOrderStatus(activeOrder.status))"
+                class="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl space-y-2.5 h-full"
+              >
+                <div class="flex items-center gap-2 font-bold text-emerald-800 text-xs">
+                  <CheckCircle2 class="w-4 h-4 text-emerald-600" />
+                  <span>1차 상품대금 결제 확인 완료</span>
+                </div>
+                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                  <div class="bg-white rounded-lg p-2.5 border border-emerald-200">
+                    <div class="text-gray-400 font-medium mb-0.5">입금자명</div>
+                    <div class="font-bold text-gray-900">{{ activeOrder.buyerInfo?.buyerName || activeOrder.buyerInfo?.companyName || '이유씨글로벌' }}</div>
                   </div>
-                  <!-- 단가/환율/마진 요약 행 -->
-                  <div class="grid grid-cols-3 gap-2 text-center text-[11px]" :class="item.excluded ? 'opacity-40' : ''">
-                    <div class="bg-white rounded-lg p-2 border border-gray-200">
-                      <div class="text-gray-400 font-medium">1688 단가</div>
-                      <div class="font-bold font-mono" :class="item.excluded ? 'line-through text-gray-400' : 'text-gray-900'">¥{{ Number(item.priceCny || 0).toFixed(2) }}</div>
-                    </div>
-                    <div class="bg-white rounded-lg p-2 border border-gray-200">
-                      <div class="text-gray-400 font-medium">적용 환율</div>
-                      <div class="font-bold font-mono" :class="item.excluded ? 'text-gray-400' : 'text-blue-700'">₩226.19</div>
-                    </div>
-                    <div class="bg-white rounded-lg p-2 border border-gray-200">
-                      <div class="text-gray-400 font-medium">원화 환산</div>
-                      <div class="font-bold font-mono" :class="item.excluded ? 'line-through text-gray-400' : 'text-amber-700'">₩{{ formatNumber(Math.round(Number(item.priceCny || 0) * 226.19)) }}</div>
-                    </div>
+                  <div class="bg-white rounded-lg p-2.5 border border-emerald-200">
+                    <div class="text-gray-400 font-medium mb-0.5">결제 방식</div>
+                    <div class="font-bold text-emerald-700">예치금 즉시 차감</div>
                   </div>
-                  <!-- 결제 제외 안내 (품절 품목) -->
-                  <div
-                    v-if="item.excluded"
-                    class="flex items-center gap-1.5 px-3 py-1.5 bg-rose-100/80 border border-rose-200/80 rounded-lg text-[10px] text-rose-700 font-bold"
-                  >
-                    <span>⚠️</span>
-                    <span>이 품목은 결제 대상에서 제외됩니다. 위 DDP 정산 금액에 포함되지 않습니다.</span>
+                  <div class="bg-white rounded-lg p-2.5 border border-emerald-200 col-span-2">
+                    <div class="text-gray-400 font-medium mb-0.5">1차 결제 금액</div>
+                    <div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원</div>
                   </div>
-                  <!-- 1688 원본 링크 -->
-                  <a
-                    v-if="item.productUrl && !item.excluded"
-                    :href="item.productUrl"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    class="flex items-center gap-1.5 text-[11px] text-blue-600 hover:text-blue-800 font-bold transition truncate"
-                  >
-                    <ExternalLink class="w-3 h-3 shrink-0" />
-                    <span class="truncate">1688 원본 상품 링크 (내부 확인용)</span>
-                  </a>
                 </div>
               </div>
 
-              <!-- 우: 1차 결제 확인 정보 패널 -->
-              <div class="space-y-3">
-                <!-- 결제 완료 상태 -->
-                <div
-                  v-if="['payment_verified', 'purchasing', 'warehouse_in', 'inspection_done', 'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'].includes(normalizeOrderStatus(activeOrder.status))"
-                  class="p-4 bg-emerald-50 border border-emerald-200 rounded-xl space-y-2.5"
-                >
-                  <div class="flex items-center gap-2 font-bold text-emerald-800 text-xs">
-                    <CheckCircle2 class="w-4 h-4 text-emerald-600" />
-                    <span>1차 상품대금 결제 확인 완료</span>
-                  </div>
-                  <div class="grid grid-cols-2 gap-2 text-[11px]">
-                    <div class="bg-white rounded-lg p-2.5 border border-emerald-200">
-                      <div class="text-gray-400 font-medium mb-0.5">입금자명</div>
-                      <div class="font-bold text-gray-900">{{ activeOrder.buyerInfo?.buyerName || activeOrder.buyerInfo?.companyName || '이유씨글로벌' }}</div>
-                    </div>
-                    <div class="bg-white rounded-lg p-2.5 border border-emerald-200">
-                      <div class="text-gray-400 font-medium mb-0.5">결제 방식</div>
-                      <div class="font-bold text-emerald-700">예치금 즉시 차감</div>
-                    </div>
-                    <div class="bg-white rounded-lg p-2.5 border border-emerald-200 col-span-2">
-                      <div class="text-gray-400 font-medium mb-0.5">1차 결제 금액</div>
-                      <div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원</div>
-                    </div>
-                  </div>
+              <!-- 1차 결제 대기 상태 (관리자 견적 완료 후) -->
+              <div v-else-if="normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'" class="p-4 bg-orange-50 border border-orange-200 rounded-2xl space-y-2.5 h-full">
+                <div class="flex items-center gap-2 font-bold text-orange-800 text-xs">
+                  <AlertCircle class="w-4 h-4 text-orange-500" />
+                  <span>1차 결제 대기중</span>
                 </div>
+                <p class="text-[11px] text-orange-700 leading-relaxed">
+                  견적이 확정되었습니다. 1차 결제 (₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원)를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.
+                </p>
+              </div>
 
-                <!-- 1차 결제 대기 상태 (관리자 견적 완료 후) -->
-                <div v-else-if="normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'" class="p-4 bg-orange-50 border border-orange-200 rounded-xl space-y-2.5">
-                  <div class="flex items-center gap-2 font-bold text-orange-800 text-xs">
-                    <AlertCircle class="w-4 h-4 text-orange-500" />
-                    <span>1차 결제 대기중</span>
-                  </div>
-                  <p class="text-[11px] text-orange-700 leading-relaxed">
-                    견적이 확정되었습니다. 1차 결제 (₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원)를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.
-                  </p>
+              <!-- 견적 검토 및 승인 대기 상태 -->
+              <div v-else class="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2 h-full">
+                <div class="flex items-center gap-2 text-amber-800 font-bold text-xs mb-1">
+                  <AlertCircle class="w-4 h-4 text-amber-600" />
+                  <span>⚠️ 견적 검토 및 승인 대기</span>
                 </div>
+                <p class="text-xs text-amber-700 leading-relaxed">
+                  소싱 담당자가 1688에서 상품 재고와 단가를 확인 후 정확한 수입 견적을 산출 중입니다. 견적이 완료되면 카카오톡 알림과 함께 결제 대기 상태로 전환됩니다.
+                </p>
+              </div>
+            </div>
 
-                <!-- 견적 검토 및 승인 대기 상태 -->
-                <div v-else class="p-4 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
-                  <div class="flex items-center gap-2 text-amber-800 font-bold text-xs mb-1">
-                    <AlertCircle class="w-4 h-4 text-amber-600" />
-                    <span>⚠️ 견적 검토 및 승인 대기</span>
-                  </div>
-                  <p class="text-xs text-amber-700 leading-relaxed">
-                    소싱 담당자가 1688에서 상품 재고와 단가를 확인 후 정확한 수입 견적을 산출 중입니다. 견적이 완료되면 카카오톡 알림과 함께 결제 대기 상태로 전환됩니다.
-                  </p>
+            <!-- 우: 수입 단가 마진 요약 (검은색 박스) -->
+            <div class="p-4 bg-slate-900 text-white rounded-2xl space-y-2.5 h-full">
+              <p class="text-[11px] font-bold text-amber-400">📊 수입 단가 마진 요약 (개당 도착원가 기준)</p>
+              <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+                <div>
+                  <span class="text-slate-400">1688 발주가:</span>
+                  <span class="text-white font-bold ml-1">¥{{ getOrderCostSummary(activeOrder).avgPriceCny.toFixed(2) }}</span>
                 </div>
-
-                <!-- 1688 수입 단가 마진 요약 -->
-                <div class="p-3.5 bg-slate-900 text-white rounded-xl space-y-2">
-                  <p class="text-[11px] font-bold text-amber-400">📊 수입 단가 마진 요약 (개당 도착원가 기준)</p>
-                  <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
-                    <div>
-                      <span class="text-slate-400">1688 발주가:</span>
-                      <span class="text-white font-bold ml-1">¥{{ getOrderCostSummary(activeOrder).avgPriceCny.toFixed(2) }}</span>
-                    </div>
-                    <div>
-                      <span class="text-slate-400">개당 DDP:</span>
-                      <span class="text-amber-400 font-bold ml-1">₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}</span>
-                    </div>
-                    <div class="col-span-2 pt-1 border-t border-slate-700">
-                      <span class="text-slate-400">총 발주 수량:</span>
-                      <span class="text-white font-bold ml-1">{{ getOrderTotalQuantity(activeOrder) }}개</span>
-                      <span class="text-slate-400 ml-3">총 DDP:</span>
-                      <span class="text-amber-300 font-bold ml-1">₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}</span>
-                    </div>
-                  </div>
+                <div>
+                  <span class="text-slate-400">개당 DDP:</span>
+                  <span class="text-amber-400 font-bold ml-1">₩{{ formatNumber(getOrderCostSummary(activeOrder).unitDdpKrw) }}</span>
+                </div>
+                <div class="col-span-2 pt-1.5 border-t border-slate-700">
+                  <span class="text-slate-400">총 발주 수량:</span>
+                  <span class="text-white font-bold ml-1">{{ getOrderTotalQuantity(activeOrder) }}개</span>
+                  <span class="text-slate-400 ml-3">총 DDP:</span>
+                  <span class="text-amber-300 font-bold ml-1">₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}</span>
                 </div>
               </div>
             </div>
@@ -915,37 +810,47 @@
                   </span>
                 </div>
 
-                <div class="space-y-4 max-h-[520px] overflow-y-auto pr-1.5 custom-scrollbar">
+                <div class="space-y-4 max-h-[680px] overflow-y-auto pr-1.5 custom-scrollbar">
                   <div
                     v-for="(prod, pIdx) in getGroupedOrderItems(activeOrder.items)"
                     :key="prod.groupKey || pIdx"
                     class="p-4 sm:p-5 bg-slate-50/80 border border-gray-200 rounded-2xl space-y-3.5"
                   >
-                    <!-- Group Header: Product Info -->
-                    <div class="flex items-start gap-3.5 border-b border-gray-200/80 pb-3.5">
+                  <div class="flex items-start gap-4 border-b border-gray-200/80 pb-4">
                       <img
                         :src="prod.imageUrl || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=160&auto=format&fit=crop&q=60'"
                         :alt="prod.productName"
-                        class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover bg-white border border-gray-200 shrink-0 shadow-xs"
+                        class="w-20 h-20 sm:w-24 sm:h-24 rounded-xl object-cover bg-white border border-gray-200 shrink-0 shadow-xs"
                         :class="prod.isAllExcluded ? 'opacity-50 grayscale' : ''"
                         @error="handleImgError"
                       />
                       <div class="flex-1 min-w-0">
-                        <div class="flex items-center gap-2 flex-wrap">
+                        <div class="flex items-start justify-between gap-2 flex-wrap">
                           <p
-                            class="font-bold text-gray-900 text-sm sm:text-base line-clamp-2 leading-snug"
+                            class="font-bold text-gray-900 text-sm sm:text-base line-clamp-2 leading-snug flex-1"
                             :class="prod.isAllExcluded ? 'line-through text-gray-400' : ''"
                           >
                             {{ prod.productName || prod.titleKo }}
                           </p>
-                          <span
-                            v-if="prod.isAllExcluded"
-                            class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-xs border border-rose-200 shrink-0"
+                          <!-- 🔗 1688 원본 링크 버튼 -->
+                          <a
+                            v-if="prod.productUrl"
+                            :href="prod.productUrl"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition text-[11px] font-bold shrink-0 whitespace-nowrap"
                           >
-                            ⛔ 구매불가: {{ prod.excludeReason || '품절' }}
-                          </span>
+                            <ExternalLink class="w-3 h-3 shrink-0" />
+                            <span>1688 원본 링크 ↗</span>
+                          </a>
                         </div>
-                        <p v-if="prod.titleZh" class="text-xs text-gray-400 font-mono truncate mt-0.5" :title="prod.titleZh">
+                        <span
+                          v-if="prod.isAllExcluded"
+                          class="inline-flex items-center mt-1 px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-xs border border-rose-200"
+                        >
+                          ⛔ 구매불가: {{ prod.excludeReason || '품절' }}
+                        </span>
+                        <p v-if="prod.titleZh" class="text-xs text-gray-400 font-mono truncate mt-1" :title="prod.titleZh">
                           {{ prod.titleZh }}
                         </p>
                         <div class="flex items-center gap-2 flex-wrap text-xs sm:text-sm text-amber-800 font-mono mt-2">
@@ -963,6 +868,7 @@
                         </div>
                       </div>
                     </div>
+
 
                     <!-- Group Sub-items: Option / SKU List -->
                     <div class="space-y-2 divide-y divide-gray-200/60">
