@@ -179,35 +179,17 @@ export async function applyBalanceTransaction(amount, txInfo = {}) {
       }
 
       // 3-2. transactions 테이블 insert
-      const dbTxRecord = {
-        user_id: isUUID ? user.id : null,
-        order_id: isOrderUUID ? txInfo.orderId : null,
-        type: txInfo.type || (delta >= 0 ? 'deposit' : 'payment'),
-        amount: delta,
-        description: txInfo.description || txInfo.title || (delta >= 0 ? '예치금 충전' : '1688 발주 대금 결제'),
-        metadata: {
-          order_id: txInfo.orderId || null,
-          order_number: txInfo.orderNumber || null,
-          balance_after: nextBalance,
-          title: txInfo.title || (delta >= 0 ? '예치금 충전' : '발주 대금 결제'),
-          buyer_email: userMail || 'buyer@euchs.com'
-        },
-        created_at: nowIso
-      };
-
+      // transactionRecord는 스키마(id PK, balance_after NOT NULL, title NOT NULL 등) 완전 일치
+      // fix: 기존 dbTxRecord는 NOT NULL 컬럼(id, balance_after, title) 누락 + 없는 컬럼(metadata) 전송으로 400 에러 발생
       const { error: txErr } = await supabase
         .from('transactions')
-        .insert(dbTxRecord);
-
+        .insert({
+          ...transactionRecord,
+          user_id: isUUID ? user.id : null,
+          order_id: isOrderUUID ? txInfo.orderId : null
+        });
       if (txErr) {
-        // 테이블 스키마 차이(TEXT id / UUID)에 대비한 보조 insert 시도
-        await supabase
-          .from('transactions')
-          .insert({
-            ...transactionRecord,
-            user_id: isUUID ? user.id : null,
-            order_id: isOrderUUID ? txInfo.orderId : null
-          });
+        console.warn('[balanceStore] transactions INSERT 경고:', txErr.message, txErr.code);
       }
     } catch (err) {
       console.warn('[balanceStore] Supabase DB 트랜잭션 저장 notice (fallback active):', err);
