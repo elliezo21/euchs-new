@@ -537,7 +537,7 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { fetchSiteSettings } from '../lib/settings'
+import { getEffectiveExchangeRate } from '../utils/exchangeRate'
 import {
   currentUser,
   isLoggedIn,
@@ -564,23 +564,9 @@ const liveMarketRate = ref(206.19)
 
 const loadRates = async () => {
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/CNY')
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.rates?.KRW) {
-        liveMarketRate.value = Number(data.rates.KRW.toFixed(2))
-      }
-    }
-
-    const settings = await fetchSiteSettings()
-    if (settings) {
-      if (settings.exchange_rate_mode === 'auto_margin') {
-        const margin = Number(settings.rate_margin) || 1.5
-        customExchangeRate.value = Number((liveMarketRate.value + margin).toFixed(2))
-      } else {
-        customExchangeRate.value = Number(settings.exchange_rate) || 226.19
-      }
-    }
+    const { effectiveRate, liveMarketRate: market } = await getEffectiveExchangeRate();
+    customExchangeRate.value = effectiveRate;
+    if (market !== null) liveMarketRate.value = market;
   } catch (err) {
     console.warn('[Header] Rates fetch error:', err)
   }

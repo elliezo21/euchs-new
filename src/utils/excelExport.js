@@ -6,17 +6,25 @@ import * as XLSX from 'xlsx';
 /**
  * 장바구니/발주 대기 품목을 공식 B2B 견적서 엑셀(.xlsx) 파일로 출력 및 다운로드
  *
+ * 계산 구조 — 고객화면 getOrderCostSummary().chargeableKrw 와 동일:
+ *   chargeableKrw = 상품대금 + 중국내륙택배비 + 수수료(상품+택배 × agencyFeeRate) + 해운비
+ *   (관세·부가세는 세관 직납이므로 제외)
+ *
  * @param {Array<Object>} items - 견적 대상 상품 목록
  * @param {Object} [buyerInfo={}] - 바이어/발주자 정보
- * @param {string} [buyerInfo.companyName] - 회사/상호명
- * @param {string} [buyerInfo.buyerName] - 담당자명
- * @param {string} [buyerInfo.phone] - 연락처
- * @param {string} [buyerInfo.email] - 이메일
- * @param {string} [buyerInfo.customsCode] - 통관고유부호
- * @param {number} [exchangeRate=226.19] - 적용 환율 (KRW/CNY)
+ * @param {number} [exchangeRate=226.19] - 적용 환율 (KRW/CNY) — currentSettings.exchange_rate 전달
  * @param {number} [agencyFeeRate=0.08] - 대행 수수료율 (기본 8%)
+ * @param {number} [seaCbmRate=98000] - 해운비 (원/CBM) — currentSettings.sea_cbm_rate 전달
+ * @param {number|null} [cbm=null] - 실측 CBM (있으면 사용, 없으면 미확정으로 표기)
  */
-export function exportQuoteExcel(items = [], buyerInfo = {}, exchangeRate = 226.19, agencyFeeRate = 0.08) {
+export function exportQuoteExcel(
+  items = [],
+  buyerInfo = {},
+  exchangeRate = 226.19,
+  agencyFeeRate = 0.08,
+  seaCbmRate = 98000,
+  cbm = null
+) {
   if (!XLSX || !XLSX.utils) {
     throw new Error('XLSX 라이브러리가 로드되지 않았습니다.');
   }
@@ -65,9 +73,22 @@ export function exportQuoteExcel(items = [], buyerInfo = {}, exchangeRate = 226.
     ];
   });
 
-  const agencyFeeKrw = Math.round(totalProductKrw * agencyFeeRate);
-  const estimatedShippingKrw = Math.max(85000, Math.round(totalQty * 1200));
-  const grandTotalKrw = totalProductKrw + agencyFeeKrw + estimatedShippingKrw;
+  // 중국 내륙 택배비: 수량 기반 단계별 추정 (고객화면 동일 로직)
+  const chinaFreightRmb = totalQty <= 10 ? 6 : totalQty <= 30 ? 8 : totalQty <= 100 ? 10 : 12;
+  const chinaFreightKrw = Math.round(chinaFreightRmb * exchangeRate);
+
+  // 수수료: (상품대금 + 중국택배비) × 수수료율
+  const agencyFeeKrw = Math.round((totalProductKrw + chinaFreightKrw) * agencyFeeRate);
+
+  // 해운비: 실측 CBM 있으면 사용, 없으면 미확정(0)
+  const cbmNum = Number(cbm) || 0;
+  const shippingFeeKrw = cbmNum > 0 ? Math.round(cbmNum * seaCbmRate) : 0;
+  const shippingLabel = cbmNum > 0
+    ? `${shippingFeeKrw.toLocaleString()}원 (실측 ${cbmNum.toFixed(3)} CBM × ${seaCbmRate.toLocaleString()}원)`
+    : '미확정 (창고 입고 후 실측 CBM 기준 확정)';
+
+  // 실제 청구액 (관세·부가세 제외 — 세관 직납)
+  const chargeableKrw = totalProductKrw + chinaFreightKrw + agencyFeeKrw + shippingFeeKrw;
 
   // 상단 메타 헤더 블록 구성
   const headerData = [
@@ -77,8 +98,8 @@ export function exportQuoteExcel(items = [], buyerInfo = {}, exchangeRate = 226.
     ['바이어 상호명', buyerInfo.companyName || '(주)이유씨 글로벌 바이어', '', '담당자 / 연락처', `${buyerInfo.buyerName || '담당자'} / ${buyerInfo.phone || '010-1234-5678'}`],
     ['이메일', buyerInfo.email || 'buyer@euchs.co.kr', '', '개인/사업자통관부호', buyerInfo.customsCode || 'P123456789012'],
     ['적용 고시환율', `1 CNY = ${exchangeRate.toFixed(2)} KRW`, '', '대행 수수료율', `${(agencyFeeRate * 100).toFixed(1)}%`],
-    ['총 발주 품목수', `${safeItems.length}개 품목 (총 ${totalQty.toLocaleString()}개)`, '', '최종 견적 총액(₩)', grandTotalKrw],
-    ['비고 / 안내사항', '본 견적서는 1688 실시간 상품대 및 예상 해운비/수수료를 포함하며, 최종 관부가세는 인천/평택 세관 수입신고 시 확정됩니다.'],
+    ['총 발주 품목수', `${safeItems.length}개 품목 (총 ${totalQty.toLocaleString()}개)`, '', '실제 청구 예정액(₩)', chargeableKrw],
+    ['비고 / 안내사항', '본 견적서는 1688 상품대, 중국택배비, 수수료, 해운비(실측 기준)를 포함합니다. 관세·부가세는 세관 직납이며 본 청구에 포함되지 않습니다.'],
     [],
     // 테이블 컬럼 헤더
     ['No', '발주번호', '1688 상품명', '상품 ID', '선택 옵션(SKU)', '수량', '단가(CNY)', '단가(KRW)', '품목 소계(KRW)', '비고']
@@ -102,9 +123,11 @@ export function exportQuoteExcel(items = [], buyerInfo = {}, exchangeRate = 226.
     [],
     ['[견적 비용 상세 정산서]'],
     ['1. 1688 상품대 총액 (KRW)', totalProductKrw],
-    ['2. EUCHS 수입대행 수수료 (8%)', agencyFeeKrw],
-    ['3. 현지 물류 및 해운선적 기본비용', estimatedShippingKrw],
-    ['★ 최종 수입 견적 총액 (DDP 기준 예상)', grandTotalKrw]
+    ['2. 중국 내륙 택배비 (KRW)', chinaFreightKrw],
+    ['3. EUCHS 수입대행 수수료', agencyFeeKrw],
+    ['4. 국제 해운비 (KRW)', cbmNum > 0 ? shippingFeeKrw : '미확정 — 입고 실측 후 확정'],
+    ['★ 실제 청구 예정액 (관세·부가세 제외)', chargeableKrw],
+    ['※ 관세·부가세', '세관 직납 — 당사 청구 대상 아님']
   ];
 
   const sheetData = [...headerData, ...itemRows, totalRow, ...feeSummaryRows];

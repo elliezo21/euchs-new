@@ -966,6 +966,7 @@ import {
   saveSiteSettings,
   isVideoMedia
 } from '@/lib/settings'
+import { fetchLiveMarketRate } from '@/utils/exchangeRate'
 
 const activeTab = ref('rate') // 'rate' | 'media' | 'staff'
 
@@ -1407,10 +1408,15 @@ const parsedHeroEmbed = computed(() => {
   return ''
 })
 
-function refreshLiveRate() {
-  const simulated = +(206.19 + (Math.random() * 0.8 - 0.4)).toFixed(2)
-  rateForm.value.baseLiveRate = simulated
-  showToast(`실시간 고시환율이 갱신되었습니다. (₩${simulated})`)
+async function refreshLiveRate() {
+  showToast('실시간 고시환율 조회 중...');
+  const market = await fetchLiveMarketRate();
+  if (market !== null) {
+    rateForm.value.baseLiveRate = market;
+    showToast(`실시간 고시환율이 갱신되었습니다. (₩${market} / CNY, open.er-api.com)`);
+  } else {
+    showToast('환율 조회 실패 — 네트워크를 확인하거나 수동으로 입력해 주세요.', 'error');
+  }
 }
 
 // ----------------------------------------------------
@@ -1489,24 +1495,42 @@ async function loadAllSettings() {
   }
 }
 
-function saveRateSettings() {
+async function saveRateSettings() {
   const now = new Date()
   const dateStr = `${now.getFullYear()}.${String(now.getMonth()+1).padStart(2,'0')}.${String(now.getDate()).padStart(2,'0')} ${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}`
 
+  const appliedRate = calculatedAppliedRate.value;
   const dataToSave = {
     ...rateForm.value,
-    appliedRate: calculatedAppliedRate.value,
+    appliedRate,
     updatedAt: dateStr
   }
 
+  // 1. localStorage 저장 (기존 유지 — AdminSettings 화면 자체 복원용)
   localStorage.setItem(RATE_STORAGE_KEY, JSON.stringify(dataToSave))
   rateLastSavedTime.value = dateStr
 
+  // 2. Supabase site_settings 테이블에 영구 저장 (핵심 수정)
+  //    exchange_rate = 실제 적용환율, exchange_rate_mode, rate_margin, agency_fee_rate 등 반영
+  try {
+    await saveSiteSettings({
+      ...currentSettings.value,
+      exchange_rate_mode: rateForm.value.exchangeRateMode === 'auto' ? 'auto_margin' : 'manual',
+      exchange_rate: appliedRate,
+      rate_margin: Number(rateForm.value.rateMargin) || 1.5,
+      agency_fee_rate: Number(rateForm.value.agencyFeeRate) || 8.0,
+      sea_cbm_rate: Number(rateForm.value.oceanFreightPerCbm) || 98000,
+      customs_clearance_fee: Number(rateForm.value.customsBrokerFee) || 33000,
+      fta_co_fee: Number(rateForm.value.ftaCoIssuanceFee) || 33000,
+    })
+    showToast('환율 및 운영 수수료 설정이 저장되었습니다. (Supabase DB 반영 완료)')
+  } catch (err) {
+    console.error('[AdminSettings] saveRateSettings DB error:', err)
+    showToast('로컬 저장 완료 (DB 저장 실패 — 네트워크 확인 필요)')
+  }
+
   window.dispatchEvent(new CustomEvent('euchs-settings-update', { detail: dataToSave }))
   window.dispatchEvent(new CustomEvent('euchs-rate-update', { detail: dataToSave }))
-  window.dispatchEvent(new Event('storage'))
-
-  showToast('환율 및 운영 수수료 설정이 저장되었습니다.')
 }
 
 async function saveMediaCard(cardKey) {

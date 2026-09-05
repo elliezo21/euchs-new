@@ -683,6 +683,7 @@ import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
 
 
@@ -827,7 +828,9 @@ function getExcludedItems(o) {
 function calcExcludedCost(o) {
   const ex = getExcludedItems(o);
   const c = ex.reduce((s, i) => s + (Number(i.priceCny || 0) * Number(i.quantity || 1)), 0);
-  return Math.round(c * 226.19 * 1.08);
+  const rate = Number(currentSettings.value?.exchange_rate) || 226.19;
+  const agencyRate = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
+  return Math.round(c * rate * (1 + agencyRate));
 }
 
 function handleReasonChange(order, item, idx) {
@@ -1093,7 +1096,23 @@ function isWarehouseArrived(o) {
 
 function getTotalQty(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i) => s+(Number(i.quantity)||0),0); }
 function getCbm(o) { return Number((o.measuredData?.cbm)||(o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.cbm)||0),0)).toFixed(3); }
-function calcCost(o) { const c=(o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0); return Math.round(c*226.19*1.08); }
+function calcCost(o) {
+  const rate = Number(currentSettings.value?.exchange_rate) || 226.19;
+  const agencyRate = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
+  const activeItems = (o.items || []).filter(i => !i.excluded);
+  const totalQty = activeItems.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
+  const itemTotalCny = activeItems.reduce((s, i) => s + (Number(i.priceCny || 0) * Number(i.quantity || 0)), 0);
+  const itemTotalKrw = Math.round(itemTotalCny * rate);
+  // 중국 내륙 택배비: 수량 기반 추정 (고객화면 getOrderCostSummary와 동일 로직)
+  const chinaFreightRmb = totalQty <= 10 ? 6 : totalQty <= 30 ? 8 : totalQty <= 100 ? 10 : 12;
+  const chinaFreightKrw = Math.round(chinaFreightRmb * rate);
+  const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * agencyRate);
+  // 해운비: 실측 CBM 있으면 사용, 없으면 0 (미확정)
+  const cbm = Number(o.measuredData?.cbm) || 0;
+  const seaCbmRate = Number(currentSettings.value?.sea_cbm_rate) || 98000;
+  const shippingFeeKrw = cbm > 0 ? Math.round(cbm * seaCbmRate) : 0;
+  return itemTotalKrw + chinaFreightKrw + agencyFeeKrw + shippingFeeKrw; // chargeableKrw (관세/부가세 제외)
+}
 function calcCny(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0).toFixed(2); }
 function fmtN(n) { return Math.round(Number(n)||0).toLocaleString('ko-KR'); }
 
@@ -1516,6 +1535,7 @@ function onSyncDebounced() {
   }, 1000);
 }
 onMounted(() => {
+  fetchSiteSettings(); // calcCost/calcExcludedCost 환율·수수료 설정 로드
   loadData();
   window.addEventListener('euchs-order-status-update', onSyncDebounced);
   realtimeChannel = subscribeToOrders(onSyncDebounced, { isAdmin: true });

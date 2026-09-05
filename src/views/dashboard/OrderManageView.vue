@@ -3034,7 +3034,9 @@ function exportSingleQuote(order) {
       items,
       order.buyerInfo || defaultBuyerInfo,
       Number(currentSettings.value?.exchange_rate) || 226.19,
-      (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100
+      (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100,
+      Number(currentSettings.value?.sea_cbm_rate) || 98000,
+      Number(order.measuredData?.cbm) || null
     );
   } catch (err) {
     console.error('Single quote export error:', err);
