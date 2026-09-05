@@ -793,16 +793,15 @@ async function approveDeposit(req) {
       }
 
       // 3. transactions 테이블에 정산 트랜잭션 기록
+      // 실제 라이브 스키마: id(uuid 자동생성), user_id, user_email, type, amount, balance_after, order_no, description, created_at
       await supabase.from('transactions').insert({
-        id: `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
         user_id: targetUserId && isValidUUID(targetUserId) ? targetUserId : null,
-        buyer_email: targetEmail || 'buyer@euchs.com',
-        order_id: req.id,
+        user_email: targetEmail || null,
         type: 'deposit',
         amount: Number(req.amount),
         balance_after: buyerNextBalance !== null ? buyerNextBalance : Number(req.amount),
-        title: '예치금 무통장 입금 충전 (관리자 승인)',
-        description: `입금 승인 완료 (신청번호: ${req.id}, 입금자: ${req.depositorName || req.depositor_name})`,
+        order_no: req.orderNumber || req.order_no || null,
+        description: `예치금 무통장 입금 충전 (관리자 승인) | 입금 승인 완료 (신청번호: ${req.id}, 입금자: ${req.depositorName || req.depositor_name})`,
         created_at: approvedAt
       })
     } catch (e) {

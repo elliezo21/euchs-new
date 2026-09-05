@@ -125,18 +125,18 @@ export async function applyBalanceTransaction(amount, txInfo = {}) {
   const txId = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
   const user = currentUser.value;
   const isUUID = user?.id && isValidUUID(user.id);
-  const isOrderUUID = txInfo.orderId && isValidUUID(txInfo.orderId);
 
+  // localStorage 캐시용 레코드 (로컬 전용 — id는 로컬 식별자로만 사용)
   const transactionRecord = {
     id: txId,
     created_at: nowIso,
     user_id: isUUID ? user.id : null,
-    buyer_email: user?.email || 'buyer@euchs.com',
-    order_id: txInfo.orderId || null,
-    order_number: txInfo.orderNumber || null,
+    user_email: user?.email || null,
+    order_no: txInfo.orderNumber || null,
     type: txInfo.type || (delta >= 0 ? 'deposit' : 'order_payment'),
     amount: delta,
     balance_after: nextBalance,
+    // title은 DB에 없으므로 로컬 캐시에서만 유지, description에 합쳐서 보관
     title: txInfo.title || (delta >= 0 ? '예치금 충전' : '발주 대금 결제'),
     description: txInfo.description || ''
   };
@@ -179,14 +179,25 @@ export async function applyBalanceTransaction(amount, txInfo = {}) {
       }
 
       // 3-2. transactions 테이블 insert
-      // transactionRecord는 스키마(id PK, balance_after NOT NULL, title NOT NULL 등) 완전 일치
-      // fix: 기존 dbTxRecord는 NOT NULL 컬럼(id, balance_after, title) 누락 + 없는 컬럼(metadata) 전송으로 400 에러 발생
+      // 실제 라이브 스키마(9컬럼): id(uuid 자동생성), user_id, user_email, type, amount,
+      //   balance_after, order_no, description, created_at
+      // 제거된 필드: id(TEXT코드생성), buyer_email, order_id, order_number, title
+      const titleText = txInfo.title || (delta >= 0 ? '예치금 충전' : '발주 대금 결제');
+      const descText = txInfo.description
+        ? `${titleText} | ${txInfo.description}`
+        : titleText;
+
       const { error: txErr } = await supabase
         .from('transactions')
         .insert({
-          ...transactionRecord,
           user_id: isUUID ? user.id : null,
-          order_id: isOrderUUID ? txInfo.orderId : null
+          user_email: userMail || null,
+          order_no: txInfo.orderNumber || null,
+          type: txInfo.type || (delta >= 0 ? 'deposit' : 'order_payment'),
+          amount: delta,
+          balance_after: nextBalance,
+          description: descText,
+          created_at: nowIso
         });
       if (txErr) {
         console.warn('[balanceStore] transactions INSERT 경고:', txErr.message, txErr.code);
