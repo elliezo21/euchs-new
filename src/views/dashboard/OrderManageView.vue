@@ -205,7 +205,7 @@
               <th class="py-3.5 px-4 font-bold text-slate-900">주문번호 / 일시</th>
               <th class="py-3.5 px-4 font-bold text-slate-900">1688 대표 상품 정보</th>
               <th class="py-3.5 px-4 text-center font-bold text-slate-900">선택 옵션 / 수량</th>
-              <th class="py-3.5 px-4 text-right font-bold text-slate-900">공급단가 & 총 견적금액 (DDP)</th>
+              <th class="py-3.5 px-4 text-right font-bold text-slate-900">공급단가 & 결제 예정금액</th>
               <th class="py-3.5 px-4 text-center font-bold text-slate-900">진행 상태</th>
               <th class="py-3.5 px-4 text-center font-bold text-slate-900">관리 액션</th>
             </tr>
@@ -271,10 +271,10 @@
                 </div>
               </td>
 
-              <!-- 공급단가 및 총 견적 금액 (DDP) -->
+              <!-- 공급단가 및 결제 예정금액 (관세·부가세 제외) -->
               <td class="py-3.5 px-4 text-right whitespace-nowrap font-mono">
                 <div class="text-sm font-bold text-gray-900">
-                  ₩{{ formatNumber(getOrderCostSummary(order).totalDdpKrw) }}원
+                  ₩{{ formatNumber(getOrderCostSummary(order).chargeableKrw) }}원
                 </div>
                 <div class="text-[11px] text-gray-400">
                   (단가 ¥{{ getOrderCostSummary(order).avgPriceCny.toFixed(2) }} / 합계 ¥{{ getOrderCostSummary(order).itemTotalCny.toFixed(2) }})
@@ -397,7 +397,7 @@
               옵션: {{ order.items?.[0]?.sku || '기본' }} · 수량: <b>{{ getOrderTotalQuantity(order) }}개</b>
             </p>
             <p class="text-xs font-bold text-amber-600 font-mono mt-0.5">
-              ₩{{ formatNumber(getOrderCostSummary(order).totalDdpKrw) }}원
+              ₩{{ formatNumber(getOrderCostSummary(order).chargeableKrw) }}원
             </p>
           </div>
         </div>
@@ -2577,9 +2577,9 @@ const filteredOrders = computed(() => {
   } else if (sortBy.value === 'oldest') {
     list.sort((a, b) => new Date(a.createdAt) - new Date(b.createdAt));
   } else if (sortBy.value === 'priceHigh') {
-    list.sort((a, b) => getOrderCostSummary(b).totalDdpKrw - getOrderCostSummary(a).totalDdpKrw);
+    list.sort((a, b) => getOrderCostSummary(b).chargeableKrw - getOrderCostSummary(a).chargeableKrw);
   } else if (sortBy.value === 'priceLow') {
-    list.sort((a, b) => getOrderCostSummary(a).totalDdpKrw - getOrderCostSummary(b).totalDdpKrw);
+    list.sort((a, b) => getOrderCostSummary(a).chargeableKrw - getOrderCostSummary(b).chargeableKrw);
   }
 
   return list;
