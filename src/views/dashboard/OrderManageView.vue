@@ -580,7 +580,7 @@
                     type="button"
                     disabled
                     class="py-2.5 px-3 rounded-xl border text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-default pointer-events-none"
-                    :class="(activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod) === 'coupang_rocket'
+                    :class="(activeOrder.shippingMethod || activeOrder.buyerInfo?.shippingMethod) === 'rocket'
                       ? 'bg-amber-600 border-amber-600 text-white shadow-xs'
                       : 'bg-gray-100 border-gray-200 text-gray-400 opacity-60'"
                   >
