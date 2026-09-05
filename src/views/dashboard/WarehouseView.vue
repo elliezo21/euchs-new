@@ -239,10 +239,12 @@
                     v-else
                     type="button"
                     @click="openVasModal(item)"
-                    class="px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer"
+                    :class="item.vasApplied && item.vasApplied.length > 0
+                      ? 'px-2.5 py-1 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer'
+                      : 'px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer'"
                   >
                     <Wrench class="w-3 h-3" />
-                    <span>추가부가작업 신청</span>
+                    <span>{{ item.vasApplied && item.vasApplied.length > 0 ? '신청내역 보기' : '추가부가작업 신청' }}</span>
                   </button>
                 </div>
               </td>
@@ -482,10 +484,16 @@
       <div class="relative bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl space-y-4 border border-gray-100 max-h-[90vh] flex flex-col">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div class="space-y-0.5">
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700">
-              추가부가작업
+            <span
+              :class="isVasReadOnly
+                ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700'
+                : 'px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700'"
+            >
+              {{ isVasReadOnly ? '신청 완료' : '추가부가작업' }}
             </span>
-            <h3 class="text-base font-bold text-gray-900">현지 부가작업(VAS) 신청</h3>
+            <h3 class="text-base font-bold text-gray-900">
+              {{ isVasReadOnly ? '부가작업(VAS) 신청 내역' : '현지 부가작업(VAS) 신청' }}
+            </h3>
           </div>
           <button
             type="button"
@@ -510,19 +518,23 @@
           <div
             v-for="vas in vasOptions"
             :key="vas.id"
-            class="p-3.5 rounded-2xl border transition cursor-pointer flex items-start justify-between gap-3"
-            :class="selectedVasIds.includes(vas.id)
-              ? 'bg-orange-50/50 border-orange-400'
-              : 'bg-white border-gray-200 hover:border-gray-300'"
-            @click="toggleVasOption(vas.id)"
+            class="p-3.5 rounded-2xl border transition flex items-start justify-between gap-3"
+            :class="[
+              selectedVasIds.includes(vas.id)
+                ? 'bg-orange-50/50 border-orange-400'
+                : 'bg-white border-gray-200',
+              isVasReadOnly ? 'opacity-70 cursor-not-allowed' : 'cursor-pointer hover:border-gray-300'
+            ]"
+            @click="!isVasReadOnly && toggleVasOption(vas.id)"
           >
             <div class="flex items-start gap-2.5">
               <input
                 type="checkbox"
                 :checked="selectedVasIds.includes(vas.id)"
-                class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500"
+                :disabled="isVasReadOnly"
+                class="mt-0.5 rounded border-gray-300 text-orange-600 focus:ring-orange-500 disabled:cursor-not-allowed"
                 @click.stop
-                @change="toggleVasOption(vas.id)"
+                @change="!isVasReadOnly && toggleVasOption(vas.id)"
               />
               <div>
                 <p class="font-bold text-gray-900">{{ vas.name }}</p>
@@ -540,6 +552,7 @@
             <div class="flex items-center justify-between mb-2">
               <span class="font-bold text-gray-700 text-[11px]">기타 커스텀 작업</span>
               <button
+                v-if="!isVasReadOnly"
                 type="button"
                 @click="addCustomVasItem"
                 class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-[11px] border border-orange-200 transition"
@@ -556,10 +569,14 @@
               <input
                 type="text"
                 v-model="cItem.name"
-                placeholder="작업명 (예: 이형 박스 절단 가공)"
-                class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-300 text-xs focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-300"
+                :readonly="isVasReadOnly"
+                :placeholder="isVasReadOnly ? '' : '작업명 (예: 이형 박스 절단 가공)'"
+                :class="isVasReadOnly
+                  ? 'flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs bg-gray-50 text-gray-600 cursor-not-allowed'
+                  : 'flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-300 text-xs focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-300'"
               />
               <button
+                v-if="!isVasReadOnly"
                 type="button"
                 @click="removeCustomVasItem(cIdx)"
                 class="p-1 rounded-lg text-gray-400 hover:text-rose-500 hover:bg-rose-50 transition shrink-0"
@@ -568,21 +585,35 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
             </div>
-            <p v-if="customVasItems.length === 0" class="text-[11px] text-gray-400 text-center py-1">
+            <p v-if="customVasItems.length === 0 && !isVasReadOnly" class="text-[11px] text-gray-400 text-center py-1">
               목록에 없는 작업이 있으면 항목 추가 버튼을 눌러 직접 입력하세요.
+            </p>
+            <p v-if="customVasItems.length === 0 && isVasReadOnly" class="text-[11px] text-gray-400 text-center py-1">
+              커스텀 작업 신청 내역이 없습니다.
             </p>
           </div>
         </div>
 
-        <!-- 합산 금액 및 신청 버튼 -->
+        <!-- 합산 금액 및 버튼 -->
         <div class="pt-3 border-t border-gray-100 flex items-center justify-between">
           <div>
-            <span class="text-[11px] text-gray-500">예상 부가작업 총액</span>
+            <span class="text-[11px] text-gray-500">{{ isVasReadOnly ? '신청 부가작업 총액' : '예상 부가작업 총액' }}</span>
             <div class="text-lg font-black text-orange-600 font-mono">
               ₩{{ calculatedVasTotal.toLocaleString() }}
             </div>
           </div>
-          <div class="flex items-center gap-2 text-xs">
+          <!-- 읽기전용: "닫기"만 표시 -->
+          <div v-if="isVasReadOnly" class="flex items-center gap-2 text-xs">
+            <button
+              type="button"
+              @click="closeVasModal"
+              class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold hover:bg-gray-50 transition"
+            >
+              닫기
+            </button>
+          </div>
+          <!-- 신청 가능: "취소/신청 완료" -->
+          <div v-else class="flex items-center gap-2 text-xs">
             <button
               type="button"
               @click="closeVasModal"
@@ -1375,6 +1406,11 @@ function removeCustomVasItem(idx) {
   customVasItems.value.splice(idx, 1);
 }
 
+// 이미 신청 완료된 항목이면 읽기전용 (관리자 확정 여부와 무관)
+const isVasReadOnly = computed(() =>
+  Array.isArray(activeVasItem.value?.vasApplied) && activeVasItem.value.vasApplied.length > 0
+);
+
 const calculatedVasTotal = computed(() => {
   if (!activeVasItem.value) return 0;
   const qty = activeVasItem.value.quantity || 1;
@@ -1410,7 +1446,7 @@ async function submitVasApplication() {
     .map((id) => {
       const vas = vasOptions.find((v) => v.id === id);
       if (!vas) return null; // 삭제된 구버전 항목 id는 스킵
-      return { id: vas.id, name: vas.name.split(' ')[0] };
+      return { id: vas.id, name: vas.name };
     })
     .filter(Boolean);
 
