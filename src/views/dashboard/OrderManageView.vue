@@ -1105,14 +1105,11 @@
                     </span>
                   </div>
 
-                  <div class="flex items-baseline justify-between pt-1">
-                    <div>
+                  <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 sm:gap-4 pt-1">
+                    <div class="shrink-0">
                       <span class="text-xs sm:text-sm text-slate-300 font-bold">1차 결제 예정액:</span>
-                      <div class="text-[11px] text-slate-400 font-normal mt-0.5">
-                        제품대금 + 중국 현지 운임 + 구매수수료 <span class="text-amber-400">(관세·부가세·해운비는 별도 — 해운비는 실측 후 2차 청구)</span>
-                      </div>
                     </div>
-                    <div class="text-right">
+                    <div class="text-left sm:text-right shrink-0">
                       <div class="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
                         ₩{{ formatNumber(getOrderCostSummary(activeOrder).chargeableKrw) }}원
                       </div>
@@ -1120,6 +1117,9 @@
                         (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 기준 환산)
                       </div>
                     </div>
+                  </div>
+                  <div class="text-[11px] text-slate-400 font-normal leading-relaxed break-keep">
+                    제품대금 + 중국 현지 운임 + 구매수수료 <span class="text-amber-400">(관세·부가세·해운비는 별도 — 해운비는 실측 후 2차 청구)</span>
                   </div>
 
                   <div class="flex items-center justify-between pt-3 border-t border-slate-700/80 text-xs text-slate-300">
