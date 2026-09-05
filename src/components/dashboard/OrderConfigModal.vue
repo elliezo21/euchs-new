@@ -491,9 +491,9 @@ const successOrderData = ref({
 
 const vasOptions = [
   { id: 'fta_co', label: '한-중 FTA C/O', desc: '원산지증명서 발급 (관세 0~4% 감면)' },
-  { id: 'inspect_precision', label: '정밀 검수 (유료)', desc: '전수 외관/불량/수량 정밀 체크' },
+  { id: 'inspection_precision', label: '정밀 검수 (유료)', desc: '전수 외관/불량/수량 정밀 체크' },
   { id: 'origin_label', label: '원산지 라벨링', desc: 'MADE IN CHINA 스티커/봉제/불박' },
-  { id: 'barcode', label: '바코드 부착', desc: '쿠팡 바코드 및 상품 SKU 라벨링' },
+  { id: 'barcode_label', label: '바코드 부착', desc: '쿠팡 바코드 및 상품 SKU 라벨링' },
   { id: 'opp_repack', label: 'OPP 재포장', desc: '개별 투명 비닐 깔끔 재포장' },
   { id: 'cushion_pack', label: '특수 완충 포장', desc: '파손 방지용 에어캡/보강 패키징' }
 ];

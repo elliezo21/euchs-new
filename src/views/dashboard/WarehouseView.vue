@@ -103,7 +103,7 @@
               <th class="py-3.5 px-4 text-center font-bold text-slate-900">실측 계근 (중량 / CBM)</th>
               <th class="py-3.5 px-4 text-center font-bold text-slate-900">검수 상태 & 실사</th>
               <th class="py-3.5 px-4 text-center font-bold text-slate-900">신청된 부가작업(VAS)</th>
-              <th class="py-3.5 px-4 text-center font-bold text-slate-900">부가작업 신청</th>
+              <th class="py-3.5 px-4 text-center font-bold text-slate-900">추가부가작업 신청</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-100 bg-white">
@@ -242,7 +242,7 @@
                     class="px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer"
                   >
                     <Wrench class="w-3 h-3" />
-                    <span>부가작업 신청</span>
+                    <span>추가부가작업 신청</span>
                   </button>
                 </div>
               </td>
@@ -559,16 +559,6 @@
                 placeholder="작업명 (예: 이형 박스 절단 가공)"
                 class="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-300 text-xs focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-300"
               />
-              <div class="flex items-center gap-1 shrink-0">
-                <span class="text-gray-500 text-xs">₩</span>
-                <input
-                  type="number"
-                  v-model.number="cItem.price"
-                  min="0"
-                  placeholder="금액"
-                  class="w-24 px-2 py-1.5 rounded-lg border border-gray-300 text-xs font-mono text-right focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-300"
-                />
-              </div>
               <button
                 type="button"
                 @click="removeCustomVasItem(cIdx)"
@@ -1034,6 +1024,7 @@ import {
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
 import { updateOrderStatus } from '@/utils/orderStorage';
+import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
 import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
@@ -1353,7 +1344,7 @@ function openVasModal(item) {
   selectedVasIds.value = item.vasApplied ? item.vasApplied.filter(v => v.id !== 'custom').map((v) => v.id) : [];
   // 기존에 저장된 커스텀 항목 복원
   const savedCustom = item.vasApplied ? item.vasApplied.filter(v => v.id === 'custom') : [];
-  customVasItems.value = savedCustom.map(v => ({ id: v.id, name: v.name, price: v.price || 0 }));
+  customVasItems.value = savedCustom.map(v => ({ id: v.id, name: v.name, price: 0 }));
   isVasModalOpen.value = true;
 }
 
@@ -1407,7 +1398,7 @@ const calculatedVasTotal = computed(() => {
   return standardTotal + customTotal;
 });
 
-function submitVasApplication() {
+async function submitVasApplication() {
   if (!activeVasItem.value) return;
 
   // 기본 항목
@@ -1419,7 +1410,7 @@ function submitVasApplication() {
   // 커스텀 항목 (이름이 있는 것만)
   const customList = customVasItems.value
     .filter(item => item.name.trim())
-    .map(item => ({ id: 'custom', name: item.name.trim(), price: Number(item.price) || 0 }));
+    .map(item => ({ id: 'custom', name: item.name.trim(), price: 0 }));
 
   const allApplied = [...appliedList, ...customList];
 
@@ -1429,8 +1420,28 @@ function submitVasApplication() {
   const list = [...inbounds.value];
   const idx = list.findIndex(i => i.id === activeVasItem.value.id);
   if (idx !== -1) {
-    list[idx] = { ...list[idx], vasApplied: allApplied };
+    list[idx] = { ...list[idx], vasApplied: allApplied, warehouseVasApplied: allApplied };
     saveStoredInbounds(list);
+  }
+
+  // Supabase warehouse_vas_applied 컬럼에도 저장 (백그라운드, 실패해도 UX 차단 안 함)
+  if (isSupabaseConfigured()) {
+    const orderNo = activeVasItem.value.orderNo || activeVasItem.value.order?.orderNumber;
+    const orderId = activeVasItem.value.order?.dbId;
+    try {
+      if (orderId) {
+        await supabase.from('orders')
+          .update({ warehouse_vas_applied: allApplied, updated_at: new Date().toISOString() })
+          .eq('id', orderId);
+      } else if (orderNo) {
+        await supabase.from('orders')
+          .update({ warehouse_vas_applied: allApplied, updated_at: new Date().toISOString() })
+          .or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`);
+      }
+    } catch (e) {
+      // warehouse_vas_applied 컬럼이 아직 없는 경우 조용히 무시
+      console.debug('[WarehouseView] warehouse_vas_applied 저장 실패 (컬럼 미존재일 수 있음):', e?.message);
+    }
   }
 
   closeVasModal();

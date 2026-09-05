@@ -1167,9 +1167,10 @@ function openWarehouseModal(o, initialTab = null) {
     service_type: 'purchasing',
     initialTab: tab,
     // ─ 견적서 단계 VAS 신청 (OrderConfigModal에서 선택한 항목, 자동체크 복원용)
-    vas_services: o.vas_services || o.vasServices || o.vasApplied?.filter(v => v.id !== 'custom').map(v => v.id) || [],
+    vas_services: o.vas_services || o.vasServices || [],
     vasServices:  o.vasServices  || o.vas_services || [],
-    // ─ 창고 입고 후 VAS 신청 (WarehouseView에서 신청한 항목 — 5-A 섹션 표시용)
+    // ─ 창고 입고 후 VAS 신청 — warehouseVasApplied가 실제 데이터, vasApplied는 fallback
+    warehouseVasApplied: o.warehouseVasApplied || [],
     vasApplied: o.vasApplied || [],
     total_amount: o.totalPriceKrw || o.total_amount || 0,
     details: {
@@ -1184,6 +1185,7 @@ function openWarehouseModal(o, initialTab = null) {
       vas_services: o.vas_services || o.vasServices || [],
       vasServices:  o.vasServices  || o.vas_services || [],
       vasApplied:   o.vasApplied   || [],
+      warehouseVasApplied: o.warehouseVasApplied || [],
     },
   };
   warehouseModalTarget.value = appLike;

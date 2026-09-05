@@ -891,6 +891,7 @@ const vasAdminItems = ref([
   { id: 'barcode_label',       name: '바코드 / 쿠팡 로켓그로스 바코드 부착', checked: false, price: 0 },
   { id: 'opp_repack',          name: 'OPP 재포장 / 세트 합포장 작업', checked: false, price: 0 },
   { id: 'pallet_wood',         name: '목재 파렛트 / 에어캡 특수 완충 포장', checked: false, price: 0 },
+  { id: 'cushion_pack',        name: '특수 완충 포장 (에어캡/보강 패키징)', checked: false, price: 0 },
 ]);
 
 // ─── 5-A: 고객 신청 부가작업(vasApplied) 관리자 가격 입력 ───
@@ -1042,16 +1043,20 @@ const initFormData = () => {
     return { ...item, checked: isRequested, price: 0, buyerRequested: isRequested };
   });
 
-  // arrivalVasItems 초기화: app.vasApplied (창고 입고 단계 VAS 신청) 복원
-  const rawVasApplied = app.vasApplied || details.vasApplied || found?.vasApplied || [];
+  // arrivalVasItems 초기화: warehouseVasApplied (창고 입고 단계 VAS 신청 — 실제 데이터)
+  // vasApplied는 견적서 VAS와 오염될 수 있어 사용하지 않음
+  const rawVasApplied = app.warehouseVasApplied || details.warehouseVasApplied
+    || found?.warehouseVasApplied || [];
   const savedArrivalVas = md.arrivalVasData || found?.arrivalVasData || null;
-  arrivalVasItems.value = rawVasApplied.map(v => {
-    // 저장된 adminPrice 복원
-    const savedPrice = savedArrivalVas?.find(s => s.id === v.id && s.name === v.name)?.adminPrice;
-    // 기본 단가 pre-fill (box_carton: 3500, pallet_wrap: 30000, 커스텀: 0)
-    const defaultPrice = savedPrice !== undefined ? savedPrice : (VAS_UNIT_PRICE_MAP[v.id] || 0);
-    return { id: v.id, name: v.name, adminPrice: Number(defaultPrice) || 0 };
-  });
+  arrivalVasItems.value = rawVasApplied
+    .filter(v => v && (v.name || v.id))   // 방어: 문자열 id만 있는 경우 제거
+    .map(v => {
+      // 저장된 adminPrice 복원
+      const savedPrice = savedArrivalVas?.find(s => s.id === v.id && s.name === v.name)?.adminPrice;
+      // 기본 단가 pre-fill (box_carton: 3500, pallet_wrap: 30000, 커스텀: 0)
+      const defaultPrice = savedPrice !== undefined ? savedPrice : (VAS_UNIT_PRICE_MAP[v.id] || 0);
+      return { id: v.id, name: v.name, adminPrice: Number(defaultPrice) || 0 };
+    });
 };
 
 function _makeArrivalItem(idx, item) {
@@ -1217,7 +1222,8 @@ const VAS_OPTIONS_MAP = {
   barcode_label: { id: 'barcode_label', name: '바코드 라벨링(쿠팡/스토어)', icon: 'fas fa-barcode' },
   opp_repack: { id: 'opp_repack', name: 'OPP 재포장/합포장', icon: 'fas fa-box-open' },
   fta_co: { id: 'fta_co', name: '한-중 FTA C/O 발급', icon: 'fas fa-file-invoice' },
-  pallet_wood: { id: 'pallet_wood', name: '목재 파렛트/완충 보강', icon: 'fas fa-cubes' }
+  pallet_wood: { id: 'pallet_wood', name: '목재 파렛트/완충 보강', icon: 'fas fa-cubes' },
+  cushion_pack: { id: 'cushion_pack', name: '특수 완충 포장(에어캡/보강)', icon: 'fas fa-shield-halved' },
 };
 
 const getAppVasServices = () => {

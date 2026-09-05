@@ -310,7 +310,9 @@ export async function fetchOrdersFromSupabase(options = {}) {
           trackingInfo: row.shipping_info || row.tracking_info || (row.tracking_no ? { trackingNumber: row.tracking_no, carrier: row.carrier } : {}),
           shipping_info: row.shipping_info || row.tracking_info || {},
           deliveredAt: row.delivered_at || row.shipping_info?.deliveredAt || null,
-          shippedAt: row.shipped_at || row.shipping_info?.shippedAt || null
+          shippedAt: row.shipped_at || row.shipping_info?.shippedAt || null,
+          // 창고 입고 단계 VAS 신청 (WarehouseView에서 저장, fallback 없이 실제 데이터만)
+          warehouseVasApplied: Array.isArray(row.warehouse_vas_applied) ? row.warehouse_vas_applied : [],
         };
 
         fetchedMap.set(orderNumber, orderObj);
@@ -881,6 +883,7 @@ export function getWarehouseInboundsFromOrders() {
           { url: primaryItem.imageUrl || 'https://images.unsplash.com/photo-1506152983158-b4a74a01c721?w=600&auto=format&fit=crop&q=80', caption: '정밀 실물 검수' }
         ] : []),
         vasApplied: o.vasApplied || [],
+        warehouseVasApplied: o.warehouseVasApplied || [],
         secondPayment: o.secondPayment || null,
         issueDetails: o.issueDetails || {
           colorMismatch: 0, damaged: 0, contaminated: 0,
