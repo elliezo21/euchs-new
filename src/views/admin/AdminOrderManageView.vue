@@ -994,8 +994,13 @@ async function approveQuoteFromDetail() {
     const list = getStoredOrders();
     const storedTarget = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
     if (storedTarget) {
+      storedTarget.status = nextStatus; // fix: status 변경 누락 수정 (quote_confirmed 저장 안 되던 버그)
       storedTarget.items = newItems;
       saveStoredOrders(list);
+    } else {
+      // storedTarget null 케이스: localStorage에 해당 주문이 없거나 id/orderNumber 불일치
+      // updateOrderStatus 내부에서 saveStoredOrders를 호출하므로 중복 저장 방지를 위해 여기서는 로그만 출력
+      console.warn('[approveQuoteFromDetail] storedTarget not found in localStorage — targetOrderId:', targetOrderId, 'orderNum:', orderNum, '/ list length:', list.length, '/ ids:', list.map(o => o.orderNumber));
     }
 
     // 3. quote_confirmed 상태로 전환 및 DB 반영 (await로 결과 확인)
