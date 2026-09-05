@@ -742,7 +742,7 @@
                   </div>
                   <div class="bg-white rounded-lg p-2.5 border border-emerald-200 col-span-2">
                     <div class="text-gray-400 font-medium mb-0.5">1차 결제 금액</div>
-                    <div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원</div>
+                    <div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).chargeableKrw) }}원</div>
                   </div>
                 </div>
               </div>
@@ -754,7 +754,7 @@
                   <span>1차 결제 대기중</span>
                 </div>
                 <p class="text-[11px] text-orange-700 leading-relaxed">
-                  견적이 확정되었습니다. 결제 예정액 (₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원)을 확인하고 결제를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.
+                  견적이 확정되었습니다. 결제 예정액 (₩{{ formatNumber(getOrderCostSummary(activeOrder).chargeableKrw) }}원, 관세·부가세 별도/세관 직납)을 확인하고 결제를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.
                 </p>
               </div>
 
@@ -1107,14 +1107,14 @@
 
                   <div class="flex items-baseline justify-between pt-1">
                     <div>
-                      <span class="text-xs sm:text-sm text-slate-300 font-bold">결제 예정액(전액):</span>
+                      <span class="text-xs sm:text-sm text-slate-300 font-bold">1차 결제 예정액:</span>
                       <div class="text-[11px] text-slate-400 font-normal mt-0.5">
-                        제품대금 + 중국 현지 운임 + 구매수수료 + 해운비 + 관세 + 부가세
+                        제품대금 + 중국 현지 운임 + 구매수수료 + 해운비 <span class="text-amber-400">(관세·부가세 별도 — 세관 직납)</span>
                       </div>
                     </div>
                     <div class="text-right">
                       <div class="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
-                        ₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원
+                        ₩{{ formatNumber(getOrderCostSummary(activeOrder).chargeableKrw) }}원
                       </div>
                       <div class="text-xs text-slate-400 font-mono mt-0.5">
                         (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 기준 환산)
@@ -1161,7 +1161,7 @@
               class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 animate-pulse"
             >
               <CreditCard class="w-4 h-4" />
-              <span>💳 예치금/카드 즉시 결제하기 (₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원)</span>
+              <span>💳 예치금/카드 즉시 결제하기 (₩{{ formatNumber(getOrderCostSummary(activeOrder).chargeableKrw) }}원)</span>
             </button>
 
             <!-- 2. 견적 대기 상태 (quote_pending): 비활성화 및 견적 산출 중 안내 -->
@@ -2059,6 +2059,7 @@ function getOrderCostSummary(order) {
   if (!order || !Array.isArray(order.items) || order.items.length === 0) {
     return {
       totalDdpKrw: 0,
+      chargeableKrw: 0,
       itemTotalCny: 0,
       itemTotalKrw: 0,
       avgPriceCny: 0,
@@ -2117,14 +2118,16 @@ function getOrderCostSummary(order) {
   // 수수료: (상품 대금 + 중국 현지 택배비) × 수수료율 (settings 연동)
   const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * agencyRate);
 
-  // 관세·부가세 추정 (참고용 — 세관 직납)
+  // 관세·부가세 추정 (참고용 — 세관 직납, 당사 청구 대상 아님)
   const dutiableValueKrw = itemTotalKrw + shippingFeeKrw;
   const tariffKrw = Math.round(dutiableValueKrw * 0.08);
   const vatKrw = Math.round((dutiableValueKrw + tariffKrw) * 0.10);
 
-  // DDP 재계산: 상품대금 + 중국택배비 + 수수료 + 해운비 + 관세 + VAT
-  const totalDdpKrw = itemTotalKrw + chinaFreightKrw + agencyFeeKrw
-    + shippingFeeKrw + tariffKrw + vatKrw;
+  // 실제 당사 청구액: 상품대금 + 중국택배비 + 수수료 + 해운비 (관세·부가세 제외 — 세관 직납)
+  const chargeableKrw = itemTotalKrw + chinaFreightKrw + agencyFeeKrw + shippingFeeKrw;
+
+  // 참고용 DDP 총 예상비용: 세관 직납분(관세+VAT) 포함 총액 (화면 "DDP 견적 총괄" 섹션 전용)
+  const totalDdpKrw = chargeableKrw + tariffKrw + vatKrw;
   const unitDdpKrw = totalQty > 0 ? Math.round(totalDdpKrw / totalQty) : 0;
 
   return {
@@ -2138,7 +2141,8 @@ function getOrderCostSummary(order) {
     shippingConfirmed,
     tariffKrw,
     vatKrw,
-    totalDdpKrw,
+    chargeableKrw,  // 실제 당사 청구액 (관세·부가세 제외)
+    totalDdpKrw,    // 참고용 DDP 총액 (관세·부가세 포함, 화면 참고용 섹션 전용)
     unitDdpKrw
   };
 }
@@ -2830,7 +2834,7 @@ const isInternalOrderUpdate = ref(false);
 async function executeInstantPayment(order) {
   if (!order) return;
   const cost = getOrderCostSummary(order);
-  const totalCost = Number(cost.totalDdpKrw) || 0;
+  const totalCost = Number(cost.chargeableKrw) || 0; // 관세·부가세 제외(세관 직납) — 실제 당사 청구액
   const totalWon = formatNumber(totalCost);
   const orderId = order.id || order.orderNumber || order.order_no || order.orderId;
   const orderNo = order.orderNumber || order.order_no || order.id || 'EUC-ORD';
