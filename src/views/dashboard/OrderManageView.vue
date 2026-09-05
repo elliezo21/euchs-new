@@ -1109,7 +1109,7 @@
                     <div>
                       <span class="text-xs sm:text-sm text-slate-300 font-bold">1차 결제 예정액:</span>
                       <div class="text-[11px] text-slate-400 font-normal mt-0.5">
-                        제품대금 + 중국 현지 운임 + 구매수수료 + 해운비 <span class="text-amber-400">(관세·부가세 별도 — 세관 직납)</span>
+                        제품대금 + 중국 현지 운임 + 구매수수료 <span class="text-amber-400">(관세·부가세·해운비는 별도 — 해운비는 실측 후 2차 청구)</span>
                       </div>
                     </div>
                     <div class="text-right">
