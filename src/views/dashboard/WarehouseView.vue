@@ -1054,7 +1054,7 @@ import {
   RefreshCw
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
-import { updateOrderStatus } from '@/utils/orderStorage';
+import { updateOrderStatus, getStoredOrders, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
@@ -1459,12 +1459,39 @@ async function submitVasApplication() {
 
   activeVasItem.value.vasApplied = allApplied;
 
-  // 로컬 스토리지에 업데이트 동기화
+  // ① euchs_warehouse_inbounds_data 키 갱신 (WarehouseView용)
   const list = [...inbounds.value];
   const idx = list.findIndex(i => i.id === activeVasItem.value.id);
   if (idx !== -1) {
     list[idx] = { ...list[idx], vasApplied: allApplied, warehouseVasApplied: allApplied };
     saveStoredInbounds(list);
+  }
+
+  // ② orders 키도 직접 패치 (AdminOrderManageView용)
+  // saveStoredOrders는 _syncOrdersToSupabase를 트리거하므로 사용하지 않고 직접 패치
+  try {
+    const item = activeVasItem.value;
+    const matchId    = item.order?.id || item.id;
+    const matchNo    = item.orderNo || item.order?.orderNumber;
+    const matchInbNo = item.inboundNo;
+    const storedOrders = getStoredOrders();
+    const oIdx = storedOrders.findIndex(o =>
+      (matchId    && (o.id === matchId    || o.orderNumber === matchId)) ||
+      (matchNo    && (o.orderNumber === matchNo    || o.id === matchNo)) ||
+      (matchInbNo && (o.inboundNo === matchInbNo))
+    );
+    if (oIdx !== -1) {
+      storedOrders[oIdx] = {
+        ...storedOrders[oIdx],
+        warehouseVasApplied: allApplied,
+        // vasApplied는 견적서VAS 필드를 건드리면 안 되므로 orders에서는 갱신 안 함
+      };
+      localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(storedOrders));
+      // 레거시 키도 동기화
+      localStorage.setItem('euchs_erp_submitted_orders', JSON.stringify(storedOrders));
+    }
+  } catch (e) {
+    console.debug('[WarehouseView] orders 키 패치 실패:', e?.message);
   }
 
   // Supabase warehouse_vas_applied 컬럼에도 저장 (백그라운드, 실패해도 UX 차단 안 함)

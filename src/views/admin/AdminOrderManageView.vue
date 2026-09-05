@@ -1159,6 +1159,18 @@ function openWarehouseModal(o, initialTab = null) {
   const n = normalizeOrderStatus(o.status);
   const tab = initialTab || (n === 'warehouse_in' ? 'arrival' : 'box');
 
+  // 작업 C: 캐시된 orders ref 대신 localStorage 최신값으로 warehouseVasApplied 보강
+  // (고객이 VAS 신청 직후 바로 관리자 모달을 열 때 캐시 미반영 방지)
+  let freshWVA = o.warehouseVasApplied;
+  try {
+    const fresh = getStoredOrders().find(x =>
+      x.id === o.id || x.orderNumber === o.orderNumber || x.inboundNo === o.inboundNo
+    );
+    if (fresh?.warehouseVasApplied?.length) {
+      freshWVA = fresh.warehouseVasApplied;
+    }
+  } catch (_) { /* localStorage 읽기 실패 시 기존 값 유지 */ }
+
   const appLike = {
     id: o.id,
     orderNo: o.orderNumber,
@@ -1169,8 +1181,8 @@ function openWarehouseModal(o, initialTab = null) {
     // ─ 견적서 단계 VAS 신청 (문자열 배열, 빈 배열 씹힘 방지)
     vas_services: (o.vas_services?.length ? o.vas_services : null) || (o.vasServices?.length ? o.vasServices : null) || [],
     vasServices:  (o.vasServices?.length  ? o.vasServices  : null) || (o.vas_services?.length ? o.vas_services : null) || [],
-    // ─ 창고 입고 후 VAS 신청 — warehouseVasApplied가 실제 데이터, vasApplied는 fallback
-    warehouseVasApplied: o.warehouseVasApplied || [],
+    // ─ 창고 입고 후 VAS 신청 — freshWVA(localStorage 최신값) 우선
+    warehouseVasApplied: freshWVA || o.warehouseVasApplied || [],
     vasApplied: o.vasApplied || [],
     total_amount: o.totalPriceKrw || o.total_amount || 0,
     details: {
@@ -1185,7 +1197,7 @@ function openWarehouseModal(o, initialTab = null) {
       vas_services: (o.vas_services?.length ? o.vas_services : null) || (o.vasServices?.length ? o.vasServices : null) || [],
       vasServices:  (o.vasServices?.length  ? o.vasServices  : null) || (o.vas_services?.length ? o.vas_services : null) || [],
       vasApplied:   o.vasApplied   || [],
-      warehouseVasApplied: o.warehouseVasApplied || [],
+      warehouseVasApplied: freshWVA || o.warehouseVasApplied || [],
     },
   };
   warehouseModalTarget.value = appLike;
