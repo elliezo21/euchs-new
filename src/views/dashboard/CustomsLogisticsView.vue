@@ -913,16 +913,25 @@ async function mergeFromOrderStorage() {
   }
 }
 
+// 디바운스 래퍼: Realtime/이벤트 폭주 시에도 최소 1초에 1회만 실행
+let _logisticsSyncTimer = null;
+function mergeFromOrderStorageDebounced() {
+  if (_logisticsSyncTimer) clearTimeout(_logisticsSyncTimer);
+  _logisticsSyncTimer = setTimeout(() => {
+    _logisticsSyncTimer = null;
+    mergeFromOrderStorage();
+  }, 1000);
+}
+
 onMounted(async () => {
   await mergeFromOrderStorage()
-  window.addEventListener('euchs-order-status-update', mergeFromOrderStorage)
-  window.addEventListener('storage', mergeFromOrderStorage)
-  realtimeChannel = subscribeToOrders(mergeFromOrderStorage)
+  window.addEventListener('euchs-order-status-update', mergeFromOrderStorageDebounced)
+  realtimeChannel = subscribeToOrders(mergeFromOrderStorageDebounced)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('euchs-order-status-update', mergeFromOrderStorage)
-  window.removeEventListener('storage', mergeFromOrderStorage)
+  window.removeEventListener('euchs-order-status-update', mergeFromOrderStorageDebounced)
+  if (_logisticsSyncTimer) clearTimeout(_logisticsSyncTimer);
   if (realtimeChannel && typeof realtimeChannel.unsubscribe === 'function') {
     realtimeChannel.unsubscribe()
   }

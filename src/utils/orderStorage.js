@@ -108,7 +108,8 @@ export function saveStoredOrders(orders) {
     // 전역 동기화 이벤트 발생
     window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: data } }));
     window.dispatchEvent(new CustomEvent('euchs-warehouse-update', { detail: { inbounds: data } }));
-    window.dispatchEvent(new Event('storage'));
+    // fix: raw 'storage' 이벤트 제거 — 위 커스텀 이벤트로 충분, raw storage는 무한 폴링 루프 유발
+    // (삭제됨: window.dispatchEvent(new Event('storage')))
 
     // Supabase DB 비동기 백그라운드 동기화
     if (isSupabaseConfigured() && data.length > 0) {
@@ -131,7 +132,7 @@ function _saveLocalOnly(orders) {
     localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(data));
     window.dispatchEvent(new CustomEvent('euchs-order-status-update', { detail: { orders: data } }));
     window.dispatchEvent(new CustomEvent('euchs-warehouse-update', { detail: { inbounds: data } }));
-    window.dispatchEvent(new Event('storage'));
+    // fix: raw 'storage' 이벤트 제거 — 위 커스텀 이벤트로 충분, raw storage는 무한 폴링 루프 유발
   } catch (e) {
     console.error('_saveLocalOnly error:', e);
   }
