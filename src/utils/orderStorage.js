@@ -25,6 +25,34 @@ export const DEFAULT_BUYER_INFO = {
 
 export const INITIAL_GLOBAL_ORDERS = [];
 
+// ─────────────────────────────────────────────────────────────────────────────
+// VAS 배열 Fallback 헬퍼
+// 문제: JS에서 [] (빈 배열)은 truthy → `A || B`에서 A가 [] 이어도 B로 넘어가지 않음
+// 해결: 길이 > 0 인 첫 번째 배열을 반환
+// ─────────────────────────────────────────────────────────────────────────────
+function firstNonEmptyArray(...arrays) {
+  for (const arr of arrays) {
+    if (Array.isArray(arr) && arr.length > 0) return arr;
+  }
+  return [];
+}
+
+/** 문자열 배열만 허용 (견적서VAS: ['origin_label', ...] 형태) */
+function firstStringVasArray(...arrays) {
+  for (const arr of arrays) {
+    if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'string') return arr;
+  }
+  return [];
+}
+
+/** 객체 배열만 허용 (창고VAS: [{id,name,...}] 형태) */
+function firstObjectVasArray(...arrays) {
+  for (const arr of arrays) {
+    if (Array.isArray(arr) && arr.length > 0 && typeof arr[0] === 'object') return arr;
+  }
+  return [];
+}
+
 /**
  * 전역 주문 목록 조회 (실제 저장된 주문만 반환, 더미 자동 정제)
  */
@@ -146,7 +174,7 @@ async function _syncOrdersToSupabase(ordersList) {
           second_payment: o.secondPayment || o.second_payment || {},
           measured_data: o.measuredData || o.measured_data || {},
           inspection_photos: Array.isArray(o.inspectionPhotos) ? o.inspectionPhotos : (o.inspection_photos || []),
-          vas_applied: o.vasApplied || o.vasServices || o.vas_applied || [],
+          vas_applied: firstStringVasArray(o.vasServices, o.vas_services, o.vas_applied, o.vasApplied),
           payment_info: o.paymentInfo || o.payment_info || {},
           memo: `[${orderNo}] ${o.memo || buyerInfoObj.memo || ''}`.trim(),
           updated_at: nowIso
@@ -253,7 +281,7 @@ export async function fetchOrdersFromSupabase(options = {}) {
     if (!ordersError && Array.isArray(ordersData) && ordersData.length > 0) {
       ordersData.forEach(row => {
         const rawBuyer = row.buyer_info || {};
-        const vasList = row.vas_applied || rawBuyer.vasServices || [];
+        const vasList = firstNonEmptyArray(row.vas_applied, rawBuyer.vasServices);
         const customsType = rawBuyer.customsType || 'business';
         const shippingType = rawBuyer.shippingType || 'general';
 
@@ -352,7 +380,7 @@ export async function fetchOrdersFromSupabase(options = {}) {
         .forEach(row => {
           const det = (typeof row.details === 'object' && row.details !== null) ? row.details : {};
           const rawBuyerInfo = det.buyerInfo || {};
-          const vasList = det.vasApplied || det.vasServices || det.vas_services || rawBuyerInfo.vasServices || [];
+          const vasList = firstStringVasArray(det.vasServices, det.vas_services, rawBuyerInfo.vasServices, det.vasApplied);
           const customsType = det.customsType || rawBuyerInfo.customsType || 'business';
           const shippingType = det.shippingType || rawBuyerInfo.shippingType || 'general';
 
@@ -489,9 +517,10 @@ export async function saveNewOrder(order) {
     secondPayment: order.secondPayment || {},
     measuredData: order.measuredData || {},
     inspectionPhotos: Array.isArray(order.inspectionPhotos) ? order.inspectionPhotos : [],
-    vasApplied: order.vasApplied || order.vasServices || order.vas_services || [],
-    vasServices: order.vasServices || order.vasApplied || order.vas_services || [],
-    vas_services: order.vas_services || order.vasServices || order.vasApplied || [],
+    // 창고VAS (객체배열)와 견적서VAS (문자열배열)를 타입 기반으로 독립 유지
+    vasApplied:   firstObjectVasArray(order.vasApplied, order.vasServices, order.vas_services),
+    vasServices:  firstStringVasArray(order.vasServices, order.vas_services, order.vasApplied),
+    vas_services: firstStringVasArray(order.vas_services, order.vasServices, order.vasApplied),
     customsType: order.customsType || order.buyerInfo?.customsType || 'business',
     shippingType: order.shippingType || order.buyerInfo?.shippingType || 'general',
     issueDetails: order.issueDetails || {
@@ -655,7 +684,7 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
         second_payment: target.secondPayment || extraData.secondPayment || {},
         measured_data: target.measuredData || extraData.measuredData || {},
         inspection_photos: target.inspectionPhotos || extraData.inspectionPhotos || [],
-        vas_applied: target.vasApplied || target.vasServices || [],
+        vas_applied: firstStringVasArray(target.vasServices, target.vas_services, target.vasApplied),
         barcode_label_filename: extraData.barcodeLabelFilename || extraData.barcodeFile?.name || target.barcodeLabelFilename || null,
         bl_no: target.bl_no || extraData.bl_no || target.blInfo?.blNumber || extraData.blInfo?.blNumber || null,
         customs_info: target.customs_info || target.blInfo || extraData.customs_info || extraData.blInfo || {},

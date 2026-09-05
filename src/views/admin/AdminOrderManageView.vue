@@ -1166,9 +1166,9 @@ function openWarehouseModal(o, initialTab = null) {
     phone: o.buyerInfo?.phone || o.buyerPhone || '',
     service_type: 'purchasing',
     initialTab: tab,
-    // ─ 견적서 단계 VAS 신청 (OrderConfigModal에서 선택한 항목, 자동체크 복원용)
-    vas_services: o.vas_services || o.vasServices || [],
-    vasServices:  o.vasServices  || o.vas_services || [],
+    // ─ 견적서 단계 VAS 신청 (문자열 배열, 빈 배열 씹힘 방지)
+    vas_services: (o.vas_services?.length ? o.vas_services : null) || (o.vasServices?.length ? o.vasServices : null) || [],
+    vasServices:  (o.vasServices?.length  ? o.vasServices  : null) || (o.vas_services?.length ? o.vas_services : null) || [],
     // ─ 창고 입고 후 VAS 신청 — warehouseVasApplied가 실제 데이터, vasApplied는 fallback
     warehouseVasApplied: o.warehouseVasApplied || [],
     vasApplied: o.vasApplied || [],
@@ -1182,8 +1182,8 @@ function openWarehouseModal(o, initialTab = null) {
       inspectionNote: o.inspectionNote || '',
       issueDetails: o.issueDetails,
       issueStatus: o.issueStatus,
-      vas_services: o.vas_services || o.vasServices || [],
-      vasServices:  o.vasServices  || o.vas_services || [],
+      vas_services: (o.vas_services?.length ? o.vas_services : null) || (o.vasServices?.length ? o.vasServices : null) || [],
+      vasServices:  (o.vasServices?.length  ? o.vasServices  : null) || (o.vas_services?.length ? o.vas_services : null) || [],
       vasApplied:   o.vasApplied   || [],
       warehouseVasApplied: o.warehouseVasApplied || [],
     },
