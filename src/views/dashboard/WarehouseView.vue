@@ -1341,7 +1341,11 @@ function previewImage(url) {
 // ---------------------------------------------------------
 function openVasModal(item) {
   activeVasItem.value = item;
-  selectedVasIds.value = item.vasApplied ? item.vasApplied.filter(v => v.id !== 'custom').map((v) => v.id) : [];
+  // 현재 vasOptions에 존재하는 id만 복원 (삭제된 구버전 항목 id 필터링)
+  const validVasIds = new Set(vasOptions.map(v => v.id));
+  selectedVasIds.value = item.vasApplied
+    ? item.vasApplied.filter(v => v.id !== 'custom' && validVasIds.has(v.id)).map(v => v.id)
+    : [];
   // 기존에 저장된 커스텀 항목 복원
   const savedCustom = item.vasApplied ? item.vasApplied.filter(v => v.id === 'custom') : [];
   customVasItems.value = savedCustom.map(v => ({ id: v.id, name: v.name, price: 0 }));
@@ -1402,10 +1406,13 @@ async function submitVasApplication() {
   if (!activeVasItem.value) return;
 
   // 기본 항목
-  const appliedList = selectedVasIds.value.map((id) => {
-    const vas = vasOptions.find((v) => v.id === id);
-    return { id: vas.id, name: vas.name.split(' ')[0] };
-  });
+  const appliedList = selectedVasIds.value
+    .map((id) => {
+      const vas = vasOptions.find((v) => v.id === id);
+      if (!vas) return null; // 삭제된 구버전 항목 id는 스킵
+      return { id: vas.id, name: vas.name.split(' ')[0] };
+    })
+    .filter(Boolean);
 
   // 커스텀 항목 (이름이 있는 것만)
   const customList = customVasItems.value
