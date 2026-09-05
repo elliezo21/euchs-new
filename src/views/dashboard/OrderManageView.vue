@@ -742,7 +742,7 @@
                   </div>
                   <div class="bg-white rounded-lg p-2.5 border border-emerald-200 col-span-2">
                     <div class="text-gray-400 font-medium mb-0.5">1차 결제 금액</div>
-                    <div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원</div>
+                    <div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원</div>
                   </div>
                 </div>
               </div>
@@ -754,7 +754,7 @@
                   <span>1차 결제 대기중</span>
                 </div>
                 <p class="text-[11px] text-orange-700 leading-relaxed">
-                  견적이 확정되었습니다. 1차 결제 (₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원)를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.
+                  견적이 확정되었습니다. 결제 예정액 (₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원)을 확인하고 결제를 진행해 주세요. 결제 확인 즉시 1688 공장 발주가 시작됩니다.
                 </p>
               </div>
 
@@ -1107,17 +1107,17 @@
 
                   <div class="flex items-baseline justify-between pt-1">
                     <div>
-                      <span class="text-xs sm:text-sm text-slate-300 font-bold">1차 결제 예정액:</span>
+                      <span class="text-xs sm:text-sm text-slate-300 font-bold">결제 예정액(전액):</span>
                       <div class="text-[11px] text-slate-400 font-normal mt-0.5">
-                        순수 제품대금 + 중국 현지 운임 + 구매 수수료 (8%)
+                        제품대금 + 중국 현지 운임 + 구매수수료 + 해운비 + 관세 + 부가세
                       </div>
                     </div>
                     <div class="text-right">
                       <div class="text-2xl sm:text-3xl font-black text-amber-400 font-mono tracking-tight">
-                        ₩{{ formatNumber(getOrderPaymentStages(activeOrder).firstPaymentKrw) }}원
+                        ₩{{ formatNumber(getOrderCostSummary(activeOrder).totalDdpKrw) }}원
                       </div>
                       <div class="text-xs text-slate-400 font-mono mt-0.5">
-                        (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 제품대금 기준)
+                        (¥ {{ getOrderCostSummary(activeOrder).itemTotalCny.toFixed(2) }} 위안 기준 환산)
                       </div>
                     </div>
                   </div>
