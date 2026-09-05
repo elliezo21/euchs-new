@@ -637,7 +637,7 @@
                   </div>
 
                   <p class="text-[11px] text-slate-400 leading-relaxed">
-                    네이버/하나은행 실시간 고시 환율에 사장님이 설정한 마진(가산금)을 더하여 최종 적용 환율을 자동 산출합니다.
+                    국제 외환시장 실시간 환율(open.er-api.com)에 관리자가 설정한 마진(가산금)을 더하여 최종 적용 환율을 자동 산출합니다.
                   </p>
 
                   <div class="pt-2">
@@ -679,7 +679,7 @@
               <div class="p-3 bg-slate-900/80 rounded-xl border border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                 <div class="inline-flex items-center gap-2 text-slate-300">
                   <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                  <span class="text-[11px] text-slate-400">현재 네이버/하나은행 실시간 기준 환율:</span>
+                  <span class="text-[11px] text-slate-400">현재 국제 실시간 기준 환율(open.er-api.com):</span>
                   <strong class="text-emerald-400 font-bold">
                     1 CNY = {{ liveRefRate > 0 ? `${liveRefRate} KRW` : '조회 중...' }}
                   </strong>
@@ -951,7 +951,7 @@
               </button>
             </div>
 
-          </form>��주얼 설정값 저장하기' }}</span>
+          </form>비주얼 설정값 저장하기' }}</span>
               </button>
             </div>
 

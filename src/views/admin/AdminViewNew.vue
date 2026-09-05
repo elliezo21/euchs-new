@@ -708,7 +708,7 @@
               </div>
             </div>
             <span class="text-[11px] text-slate-400 hidden sm:inline-block">
-              현재 네이버 실시간 기준가: <strong class="text-amber-300">{{ liveRefRate }}원</strong>
+              현재 국제 실시간 기준가(open.er-api.com): <strong class="text-amber-300">{{ liveRefRate }}원</strong>
             </span>
           </div>
 

@@ -119,7 +119,7 @@
                 <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-100 text-blue-700 border border-blue-200">권장 표준</span>
               </div>
               <p class="text-xs text-slate-500 leading-relaxed pl-6.5">
-                국제/네이버 기준 실시간 고시환율에 안전 마진(스프레드)을 자동으로 합산하여 적용합니다.
+                국제 외환시장 실시간 환율(open.er-api.com)에 안전 마진(스프레드)을 자동으로 합산하여 적용합니다.
               </p>
             </label>
 
@@ -173,7 +173,7 @@
                   />
                   <span class="absolute right-3.5 top-2.5 text-xs text-slate-400 font-bold">원</span>
                 </div>
-                <p class="text-[11px] text-slate-400 font-mono">* 네이버 금융 / KEB하나은행 매매기준율</p>
+                <p class="text-[11px] text-slate-400 font-mono">* 국제 외환시장 실시간 환율 (open.er-api.com 기준)</p>
               </div>
 
               <!-- 2. 설정 마진 (환위험 헤지) -->
