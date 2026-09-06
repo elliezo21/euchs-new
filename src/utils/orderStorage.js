@@ -144,9 +144,21 @@ function _saveLocalOnly(orders) {
 async function _syncOrdersToSupabase(ordersList) {
   if (_isSyncingOrders || !isSupabaseConfigured() || !Array.isArray(ordersList) || ordersList.length === 0) return;
 
+  // [수정 C] 관리자 세션이면 바이어 주문 동기화를 건너뜀.
+  // 관리자의 상태 변경(saveDetailDraft, approveQuoteFromDetail, updateOrderStatus)은
+  // 이미 각 함수 내에서 supabase.from('orders').update()를 직접 호출하므로 _sync 불필요.
+  // 이 early return이 없으면 관리자 UUID가 기존 바이어 주문의 user_id를 덮어씀.
+  const _syncUser = currentUser.value;
+  if (
+    _syncUser?.isAdmin === true ||
+    ['super_admin', 'admin', 'master'].includes(String(_syncUser?.role || '').toLowerCase())
+  ) {
+    return;
+  }
+
   _isSyncingOrders = true;
   try {
-    const user = currentUser.value;
+    const user = _syncUser;
     const isUUID = user?.id && isValidUUID(user.id);
     const nowIso = new Date().toISOString();
 
@@ -157,11 +169,13 @@ async function _syncOrdersToSupabase(ordersList) {
 
       // 1. orders 테이블 upsert
       try {
-        const orderRow = {
+        // [수정 A] INSERT/UPDATE 페이로드를 분리: user_id는 신규 INSERT 시에만 포함.
+        // 기존 행 UPDATE 시 user_id를 포함하면 현재 로그인 세션(관리자 포함)의 UUID로
+        // 원래 주문 소유자의 user_id가 덮어써지는 버그 발생. 주문 상태 변경이 소유자를 바꿀 이유 없음.
+        const orderRowBase = {
           order_number: String(orderNo),
           order_no: String(orderNo),
           inbound_no: o.inboundNo || `INB-YW-${String(orderNo).replace(/[^0-9]/g, '')}`,
-          user_id: isUUID ? user.id : null,
           buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
           status: o.status || 'quote_pending',
           customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || o.customer_name || '이유씨 바이어',
@@ -181,9 +195,14 @@ async function _syncOrdersToSupabase(ordersList) {
           updated_at: nowIso
         };
 
+        // INSERT 전용: user_id 포함 (신규 생성 시 소유자 등록)
+        const orderRowInsert = { ...orderRowBase, user_id: isUUID ? user.id : null };
+        // UPDATE 전용: user_id 제외 (기존 소유자 보호)
+        const orderRowUpdate = orderRowBase;
+
         // UUID인 경우에만 id 필드 포함 (비-UUID 문자열 전송 시 Postgres 22P02 에러 방어)
         if (o.id && isValidUUID(o.id)) {
-          orderRow.id = o.id;
+          orderRowInsert.id = o.id;
         }
 
         // orders 테이블에 order_number 기준으로 존재 여부 확인 후 upsert
@@ -194,9 +213,11 @@ async function _syncOrdersToSupabase(ordersList) {
           .limit(1);
 
         if (existingOrder && existingOrder.length > 0) {
-          await supabase.from('orders').update(orderRow).or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`);
+          // 기존 행: user_id 없는 페이로드로 UPDATE (소유자 보호)
+          await supabase.from('orders').update(orderRowUpdate).or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`);
         } else {
-          await supabase.from('orders').insert([{ ...orderRow, created_at: o.createdAt || nowIso }]);
+          // 신규 행: user_id 포함하여 INSERT
+          await supabase.from('orders').insert([{ ...orderRowInsert, created_at: o.createdAt || nowIso }]);
         }
       } catch (errOrder) {
         // 백그라운드 동기화 오류는 사용자 콘솔을 오염시키지 않도록 조용히 방어
@@ -204,7 +225,8 @@ async function _syncOrdersToSupabase(ordersList) {
 
       // 2. applications 테이블 호환 동기화
       try {
-        const appPayload = {
+        // [수정 B] applications도 동일하게 INSERT/UPDATE 페이로드 분리 (user_id 보호)
+        const appPayloadBase = {
           service_type: 'purchasing',
           service_name: '1688 구매대행',
           customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || o.customer_name || '이유씨 바이어',
@@ -214,9 +236,12 @@ async function _syncOrdersToSupabase(ordersList) {
           total_amount: Number(o.totalPriceKrw || o.total_price_krw || o.totalAmountKrw || 0),
           memo: `[${orderNo}] ${o.memo || buyerInfoObj.memo || ''}`.trim(),
           details: o,
-          user_id: isUUID ? user.id : null,
           updated_at: nowIso
         };
+
+        // INSERT 전용: user_id 포함 / UPDATE 전용: user_id 제외
+        const appPayloadInsert = { ...appPayloadBase, user_id: isUUID ? user.id : null };
+        const appPayloadUpdate = appPayloadBase;
 
         const { data: existingApp } = await supabase
           .from('applications')
@@ -225,9 +250,9 @@ async function _syncOrdersToSupabase(ordersList) {
           .limit(1);
 
         if (existingApp && existingApp.length > 0) {
-          await supabase.from('applications').update(appPayload).eq('id', existingApp[0].id);
+          await supabase.from('applications').update(appPayloadUpdate).eq('id', existingApp[0].id);
         } else {
-          await supabase.from('applications').insert([{ ...appPayload, created_at: o.createdAt || nowIso }]);
+          await supabase.from('applications').insert([{ ...appPayloadInsert, created_at: o.createdAt || nowIso }]);
         }
       } catch (errApp) {
         console.debug('[_syncOrdersToSupabase] applications table sync notice:', errApp);
