@@ -161,10 +161,10 @@
             <div
               v-for="(vas, vIdx) in arrivalVasItems"
               :key="vIdx"
-              class="flex items-center gap-3 p-2.5 rounded-xl bg-white border border-orange-200"
+              class="flex items-start gap-3 p-2.5 rounded-xl bg-white border border-orange-200"
             >
-              <i class="fas fa-check-circle text-orange-400 text-xs shrink-0"></i>
-              <span class="flex-1 text-xs font-medium text-orange-900 min-w-0">
+              <i class="fas fa-check-circle text-orange-400 text-xs shrink-0 mt-0.5"></i>
+              <span class="flex-1 text-xs font-medium text-orange-900 min-w-0 break-words">
                 {{ vas.name }}
                 <span v-if="vas.id === 'custom'" class="ml-1 text-[10px] text-orange-500 font-normal">(커스텀)</span>
               </span>
