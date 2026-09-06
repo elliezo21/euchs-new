@@ -628,6 +628,11 @@ export const signInWithEmail = async (email, password) => {
   try {
     localStorage.removeItem('euchs_admin_token')
     localStorage.setItem('euchs_auth_user', JSON.stringify(data.user))
+    // ★ Fix: 전역 주문 캐시 소거 — 관리자가 열람한 전 계정 주문 목록이 공용 orders 키에
+    //    남아있으면, 바이어 재로그인 후 loadOrdersData()의 getStoredOrders() 선-표시 단계에서
+    //    타 계정 주문이 순간 노출되는 오염 발생. signOut()이 이미 소거하지만 타이밍 갭 방어용.
+    localStorage.removeItem('orders')
+    localStorage.removeItem('euchs_erp_submitted_orders')
   } catch (e) {
     console.warn('[signInWithEmail] localStorage cleanup notice:', e)
   }

@@ -1045,12 +1045,15 @@ const loadDashboardData = async () => {
     }
 
     // 2. 전역 일원화된 실제 주문 데이터 조회 (더미 완전 정제)
-    // 로컬 캐시를 먼저 반영해 즉각적인 렌더링을 보장하고,
-    // Supabase 조회 완료 후 DB 데이터로 덮어써 정확한 건수를 표시한다.
-    submittedOrders.value = getStoredOrders()
+    // 로컬 캐시를 uid 필터 후 선-표시, Supabase 조회 완료 후 DB 데이터로 덮어씀
+    const _dashUid = currentUser.value?.id
+    const _dashCached = getStoredOrders()
+    submittedOrders.value = _dashUid
+      ? _dashCached.filter(o => o.user_id === _dashUid)
+      : []
     try {
       const dbOrders = await fetchOrdersFromSupabase()
-      if (Array.isArray(dbOrders) && dbOrders.length > 0) {
+      if (Array.isArray(dbOrders)) {
         submittedOrders.value = dbOrders
       }
     } catch (dbErr) {

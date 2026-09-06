@@ -330,6 +330,7 @@ export async function fetchOrdersFromSupabase(options = {}) {
 
         const orderObj = {
           id: orderId,
+          user_id: row.user_id || null,   // 필터링·병합 시 uid 매칭에 반드시 필요
           dbId: row.id,
           orderNumber,
           inboundNo: row.inbound_no || `INB-YW-${String(orderNumber).replace(/[^0-9]/g, '')}`,
@@ -431,6 +432,7 @@ export async function fetchOrdersFromSupabase(options = {}) {
           if (!fetchedMap.has(orderNumber)) {
             const appOrder = {
               id: orderId,
+              user_id: row.user_id || null,   // 필터링·병합 시 uid 매칭에 반드시 필요
               dbId: row.id,
               orderNumber,
               inboundNo: det.inboundNo || `INB-YW-${String(row.id).padStart(6, '0')}`,
@@ -479,25 +481,31 @@ export async function fetchOrdersFromSupabase(options = {}) {
   // 3. 결과 처리
   const uniqueOrders = Array.from(new Set(fetchedMap.values()));
 
-  // ── 어드민 모드: DB 결과를 그대로 덮어쓰기 (로컬 캐시 병합 없음) ──────────
+  // ── 어드민 모드: DB 결과를 그대로 반환 (로컬 캐시 병합 없음) ──────────
   // DB에서 삭제한 레코드가 로컬 캐시로 인해 부활하는 현상을 방지.
   // 어드민에서는 DB가 진실(source of truth)이므로 0건도 그대로 반영.
+  // ⚠️ 관리자 fetch 결과를 바이어 공용 키(STORAGE_KEY_ORDERS)에 쓰지 않음:
+  //    전 계정 주문이 공용 캐시에 남으면 로그아웃 후 바이어 재로그인 시 타 계정 주문이
+  //    loadOrdersData()의 getStoredOrders() 선-표시 단계에서 화면에 노출되는 오염 발생.
   if (adminMode) {
-    localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(uniqueOrders));
-    localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(uniqueOrders));
-    // 이벤트 발사 없음 — fetchOrdersFromSupabase는 순수 조회 함수.
-    // 이벤트는 실제 상태변경 함수(saveStoredOrders, updateOrderStatus, saveNewOrder)가 담당.
     return uniqueOrders;
   }
 
   // ── 일반 바이어: 로컬 캐시와 병합 (오프라인 임시 저장 주문 보존) ──────────
+  // ⚠️ localList를 uid로 필터링 후 병합:
+  //    필터 없이 전체 캐시를 병합하면 관리자가 남긴 타 계정 주문이 섞여 노출되는 버그 발생.
+  //    user_id가 없거나 uid와 다른 항목은 오염된 캐시로 간주하여 제외.
   if (uniqueOrders.length > 0) {
     const localList = getStoredOrders();
     const mergedMap = new Map();
-    localList.forEach(o => {
-      const key = o.orderNumber || o.id;
-      mergedMap.set(key, o);
-    });
+    // uid와 일치하는 캐시 항목만 선-삽입 (타 계정 캐시 완전 차단)
+    localList
+      .filter(o => o.user_id === uid)
+      .forEach(o => {
+        const key = o.orderNumber || o.id;
+        mergedMap.set(key, o);
+      });
+    // DB 결과로 덮어씀 (DB가 source of truth)
     uniqueOrders.forEach(o => {
       const key = o.orderNumber || o.id;
       mergedMap.set(key, o);
@@ -822,17 +830,6 @@ export function calculatePipelineCounts(ordersList = null) {
     delivered: 0,
     domestic_delivered: 0
   };
-
-  // 장바구니/보관함 수량 가산 (1단계)
-  try {
-    const savedCart = localStorage.getItem(STORAGE_KEY_CART);
-    if (savedCart) {
-      const parsedCart = JSON.parse(savedCart);
-      if (Array.isArray(parsedCart)) {
-        counts.quote_pending += parsedCart.length;
-      }
-    }
-  } catch (e) {}
 
   orders.forEach(o => {
     const norm = normalizeOrderStatus(o.status);

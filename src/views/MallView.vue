@@ -1191,7 +1191,7 @@ import ImageSearchModal from '../components/mall/ImageSearchModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
 import { supabase } from '../lib/supabase'
 import { normalizeOrderStatus } from '../lib/orderPipeline'
-import { getStoredOrders } from '../utils/orderStorage'
+import { getStoredOrders, fetchOrdersFromSupabase } from '../utils/orderStorage'
 
 const route = useRoute()
 const router = useRouter()
@@ -2361,8 +2361,17 @@ onMounted(async () => {
   loadMallNotices()
   updateSavedCount()
   handleIncomingQuery()
-  // 발주관리 뱃지용 주문 카운트 로드
-  submittedOrders.value = getStoredOrders()
+  // 발주관리 뱃지용 주문 카운트 로드 — 현재 로그인 uid로 필터링 후 DB 결과로 교체
+  // getStoredOrders() 직접 호출 시 관리자 캐시(전 계정 주문)가 섞일 수 있어 uid 필터 적용
+  const _badgeUid = currentUser.value?.id
+  const _cachedOrders = getStoredOrders()
+  submittedOrders.value = _badgeUid
+    ? _cachedOrders.filter(o => o.user_id === _badgeUid)
+    : []
+  // DB 결과로 교체 (백그라운드 — 실패해도 캐시 필터 결과 유지)
+  fetchOrdersFromSupabase().then(dbOrders => {
+    if (Array.isArray(dbOrders)) submittedOrders.value = dbOrders
+  }).catch(() => {})
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)

@@ -67,7 +67,7 @@
         :class="selectedTab === 'all' ? 'border-2 border-slate-900 bg-slate-50 ring-1 ring-slate-900/10' : 'border-gray-200 hover:border-gray-300'"
       >
         <div class="min-w-0">
-          <span class="text-xs font-semibold text-slate-500 block truncate">전체 발주</span>
+          <span class="text-xs font-semibold text-slate-500 block truncate">진행중 발주</span>
           <div class="text-lg font-bold text-gray-900 font-mono tracking-tight mt-0.5">
             {{ statCounts.total }}<span class="text-xs font-normal text-gray-400 ml-0.5">건</span>
           </div>
@@ -2011,9 +2011,17 @@ const orders = ref([]);
 const loadOrdersData = async () => {
   isRefreshing.value = true;
   try {
-    orders.value = getStoredOrders();
+    // [캐시 선-표시] 현재 로그인 uid와 user_id가 일치하는 항목만 노출
+    // 관리자가 남긴 전 계정 캐시(orders키)에 타 계정 주문이 섞여있어도 화면에 노출되지 않음
+    const uid = currentUser.value?.id;
+    const cachedAll = getStoredOrders();
+    orders.value = uid
+      ? cachedAll.filter(o => o.user_id === uid)
+      : [];
+
+    // [DB 조회] 배열 응답이면 0건이어도 반드시 교체 (신규 유저·정상 케이스 모두 보장)
     const dbOrders = await fetchOrdersFromSupabase();
-    if (Array.isArray(dbOrders) && dbOrders.length > 0) {
+    if (Array.isArray(dbOrders)) {
       orders.value = dbOrders;
     }
   } catch (e) {
