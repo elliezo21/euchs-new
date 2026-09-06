@@ -239,12 +239,12 @@
                     v-else
                     type="button"
                     @click="openVasModal(item)"
-                    :class="item.vasApplied && item.vasApplied.length > 0
+                    :class="item.warehouseVasApplied && item.warehouseVasApplied.length > 0
                       ? 'px-2.5 py-1 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer'
                       : 'px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer'"
                   >
                     <Wrench class="w-3 h-3" />
-                    <span>{{ item.vasApplied && item.vasApplied.length > 0 ? '신청내역 보기' : '추가부가작업 신청' }}</span>
+                    <span>{{ item.warehouseVasApplied && item.warehouseVasApplied.length > 0 ? '신청내역 보기' : '추가부가작업 신청' }}</span>
                   </button>
                 </div>
               </td>
@@ -1374,11 +1374,11 @@ function openVasModal(item) {
   activeVasItem.value = item;
   // 현재 vasOptions에 존재하는 id만 복원 (삭제된 구버전 항목 id 필터링)
   const validVasIds = new Set(vasOptions.map(v => v.id));
-  selectedVasIds.value = item.vasApplied
-    ? item.vasApplied.filter(v => v.id !== 'custom' && validVasIds.has(v.id)).map(v => v.id)
+  selectedVasIds.value = item.warehouseVasApplied
+    ? item.warehouseVasApplied.filter(v => v.id !== 'custom' && validVasIds.has(v.id)).map(v => v.id)
     : [];
   // 기존에 저장된 커스텀 항목 복원
-  const savedCustom = item.vasApplied ? item.vasApplied.filter(v => v.id === 'custom') : [];
+  const savedCustom = item.warehouseVasApplied ? item.warehouseVasApplied.filter(v => v.id === 'custom') : [];
   customVasItems.value = savedCustom.map(v => ({ id: v.id, name: v.name, price: 0 }));
   isVasModalOpen.value = true;
 }
@@ -1408,7 +1408,7 @@ function removeCustomVasItem(idx) {
 
 // 이미 신청 완료된 항목이면 읽기전용 (관리자 확정 여부와 무관)
 const isVasReadOnly = computed(() =>
-  Array.isArray(activeVasItem.value?.vasApplied) && activeVasItem.value.vasApplied.length > 0
+  Array.isArray(activeVasItem.value?.warehouseVasApplied) && activeVasItem.value.warehouseVasApplied.length > 0
 );
 
 const calculatedVasTotal = computed(() => {
