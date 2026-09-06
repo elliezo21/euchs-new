@@ -857,8 +857,8 @@ export function calculatePipelineCounts(ordersList = null) {
       counts[norm]++;
     }
 
-    // 5단계 통합 카운트: warehouse_in, inspection_done, step_5, inspecting, defect_found
-    if (norm === 'warehouse_in' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting' || o.status === 'defect_found') {
+    // 5단계 통합 카운트: warehouse_in, arrival_done, inspection_done, step_5, inspecting, defect_found
+    if (norm === 'warehouse_in' || norm === 'arrival_done' || norm === 'inspection_done' || o.status === 'step_5' || o.status === 'inspecting' || o.status === 'defect_found') {
       counts.warehouse_inspection++;
     }
 
@@ -881,7 +881,7 @@ export function getWarehouseInboundsFromOrders() {
     .filter(o => {
       const norm = normalizeOrderStatus(o.status);
       return [
-        'warehouse_in', 'inspection_done',
+        'warehouse_in', 'arrival_done', 'inspection_done',
         'shipping_ready', 'customs_clearance', 'domestic_shipping', 'delivered'
       ].includes(norm) || o.status === 'defect_found';
     })
@@ -911,6 +911,9 @@ export function getWarehouseInboundsFromOrders() {
         // 5-B 완료 / 정밀검수 완료
         if (norm === 'inspection_done') return 'inspected';
 
+        // 5-A 완료 / 현지입고완료 (도착검수 완료)
+        if (norm === 'arrival_done') return 'arrival_done';
+
         // 5단계: 입고 & 정밀검수 (Bug C 수정 유지)
         // measured.weightKg > 0 → 5-B 계근 완료('inbound_weighed')
         // measured.weightKg = 0 → 5-A 도착검수만 완료('pending_inbound')
@@ -929,6 +932,7 @@ export function getWarehouseInboundsFromOrders() {
         if (isDefect) return '이우 센터 정밀 검수 중 이슈 상품 발견. 상세 내용은 이슈 현황을 확인해 주세요.';
         if (norm === 'inspection_done') return '이우 센터 실측 계근 및 100% 정밀 검수 완료. 2차 정산 결제 대기중.';
         if (norm === 'shipping_ready') return '한국행 정기선적 적재 대기.';
+        if (norm === 'arrival_done') return '이우 센터 현지 입고 및 품목별 도착검수 완료.';
         if (norm === 'warehouse_in') return '이우 센터 입고 및 계근 완료.';
         return '중국 공장에서 창고로 운송중.';
       };

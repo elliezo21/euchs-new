@@ -309,7 +309,7 @@ const part2Steps = [
   {
     code: 5,
     key: 'warehouse_inspection',
-    keys: ['warehouse_in', 'inspection_done', 'warehouse_inspection', 'step_5', 'inspecting'],
+    keys: ['warehouse_in', 'arrival_done', 'inspection_done', 'warehouse_inspection', 'step_5', 'inspecting'],
     label: '5. 입고 & 정밀검수',
     section: 'warehouse',
     route: '/dashboard/warehouse'

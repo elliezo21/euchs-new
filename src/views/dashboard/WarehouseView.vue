@@ -1117,6 +1117,9 @@ const WAREHOUSE_TABS = [
 // ---------------------------------------------------------
 function getItemTabKey(item) {
   const st = item.inspectionStatus;
+  if (st === 'arrival_done') {
+    return 'arrival_done';
+  }
   if (st === 'pending_inbound') {
     // 5-A 완료 여부: measuredData.allItemsVerified 또는 inspection_photos > 0
     const allVerified = item.order?.measuredData?.allItemsVerified === true;
@@ -1269,6 +1272,7 @@ function getInspectionLabel(status) {
   }
   const map = {
     pending_inbound: '입고 대기',
+    arrival_done: '현지 입고 완료',
     inbound_weighed: '실측 계근 완료',
     inspecting: '정밀 검수 진행중',
     inspected: '실측 & 검수완료',
@@ -1287,6 +1291,7 @@ function getInspectionBadgeClass(status) {
   }
   const map = {
     pending_inbound: 'bg-amber-50 text-amber-700 border border-amber-200',
+    arrival_done: 'bg-blue-50 text-blue-700 border border-blue-200 font-bold',
     inbound_weighed: 'bg-blue-50 text-blue-700 border border-blue-200',
     inspecting: 'bg-orange-50 text-orange-700 border border-orange-200',
     inspected: 'bg-teal-50 text-teal-700 border border-teal-200 font-bold',
