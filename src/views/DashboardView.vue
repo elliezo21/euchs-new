@@ -534,7 +534,16 @@
           <div class="flex-1 min-w-0 w-full space-y-6">
             
             <!-- B. ORDER PROCESS STEPPER (공통 10단계 풀프로세스 스텝 바) -->
-            <OrderProcessStepper currentSection="dashboard" />
+            <OrderProcessStepper currentSection="dashboard" :orders="submittedOrders" />
+
+            <!-- DB 조회 오류 배너 -->
+            <div v-if="orderFetchError" class="flex items-center gap-3 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+              <span class="text-lg">⚠️</span>
+              <span class="flex-1">주문 데이터를 불러올 수 없습니다. 네트워크 연결을 확인하고 다시 시도해 주세요.</span>
+              <button @click="loadDashboardData" class="shrink-0 px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 font-medium text-red-700 transition">
+                다시 시도
+              </button>
+            </div>
 
             <!-- C. RECENT ORDERS & WAITING ITEMS COMPREHENSIVE TABLE -->
             <div class="bg-white border border-gray-200 rounded-xl shadow-none space-y-4 p-5">
@@ -980,6 +989,8 @@ const tableSearchQuery = ref('')
 
 const savedItems = ref([])
 const submittedOrders = ref([])
+const orderFetchError = ref(false)
+
 
 const orderOptions = ref({
   requestCo: true, // 한·중 FTA C/O(원산지증명서) 발급 신청 기본 선택
@@ -1045,7 +1056,7 @@ const loadDashboardData = async () => {
     }
 
     // 2. 전역 일원화된 실제 주문 데이터 조회 (더미 완전 정제)
-    // 로컬 캐시를 uid 필터 후 선-표시, Supabase 조회 완료 후 DB 데이터로 덮어씀
+    orderFetchError.value = false
     const _dashUid = currentUser.value?.id
     const _dashCached = getStoredOrders()
     submittedOrders.value = _dashUid
@@ -1057,13 +1068,16 @@ const loadDashboardData = async () => {
         submittedOrders.value = dbOrders
       }
     } catch (dbErr) {
-      console.warn('[loadDashboardData] Supabase fetch notice:', dbErr)
-      // 실패 시 로컬 캐시를 그대로 유지 (이미 위에서 할당됨)
+      // DB 조회 실패 → 캐시 선표시도 제거하고 오류 상태 표시
+      submittedOrders.value = []
+      orderFetchError.value = true
+      console.warn('[loadDashboardData] Supabase fetch error:', dbErr)
     }
   } catch (err) {
     console.error('Failed to load dashboard data:', err)
   }
 }
+
 
 // ----------------------------------------------------
 // Pipeline Count Helper & Badges

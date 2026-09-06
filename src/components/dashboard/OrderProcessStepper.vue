@@ -249,7 +249,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { normalizeOrderStatus } from '../../lib/orderPipeline'
 import { calculatePipelineCounts } from '../../utils/orderStorage'
@@ -262,6 +262,11 @@ const props = defineProps({
   },
   counts: {
     type: Object,
+    default: null
+  },
+  // 부모가 이미 fetch한 주문 배열을 전달하면 중복 DB 조회 없이 재사용
+  orders: {
+    type: Array,
     default: null
   }
 })
@@ -358,7 +363,9 @@ const totalActiveCount = computed(() => {
 })
 
 const loadInternalCounts = () => {
-  internalCounts.value = calculatePipelineCounts()
+  // orders prop이 전달되면 재사용 (DB 중복 조회 방지)
+  // 없으면 localStorage fallback (DashboardView, CustomsLogisticsView, WarehouseView)
+  internalCounts.value = calculatePipelineCounts(Array.isArray(props.orders) ? props.orders : null)
 }
 
 const getStepCount = (step) => {
@@ -412,6 +419,11 @@ const handleStepClick = (step) => {
     router.push(step.route)
   }
 }
+
+// orders prop 변경 시 카운트 자동 재계산 (부모 fetch 완료 후 반영)
+watch(() => props.orders, () => {
+  loadInternalCounts()
+}, { deep: false })
 
 onMounted(() => {
   loadInternalCounts()

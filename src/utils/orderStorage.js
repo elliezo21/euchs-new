@@ -232,11 +232,11 @@ async function _syncOrdersToSupabase(ordersList) {
 }
 
 /**
- * Supabase DB에서 최신 주문 목록 Fetch 및 로컬 캐시 병합
- * - 관리자 모드(isAdmin:true): orders 테이블만 조회 (단일 진실 소스)
- * - 바이어 모드: orders + applications(레거시 호환) 조회 후 user_id 필터링
+ * Supabase DB orders 테이블에서 최신 주문 목록 Fetch 및 로컬 캐시 병합
+ * - 모든 모드: orders 테이블 단독 조회 (단일 진실 소스)
+ * - applications 테이블은 비주문 신청서 전용으로 역할 분리 — 주문 조회에서 완전 제외
  * @param {Object} options
- * @param {boolean} [options.isAdmin=false] - true 시 user_id 필터 없이 전체 조회, applications 병합 제외
+ * @param {boolean} [options.isAdmin=false] - true 시 user_id 필터 없이 전체 조회, 로컬 캐시 병합 제외
  */
 export async function fetchOrdersFromSupabase(options = {}) {
   if (!isSupabaseConfigured()) {
@@ -259,6 +259,7 @@ export async function fetchOrdersFromSupabase(options = {}) {
   const fetchedMap = new Map();
 
   // 1. Supabase orders 테이블 조회 (Primary)
+  let dbFetchSuccess = false; // DB 쿼리 성공 여부 (0건도 성공으로 간주)
   try {
     let ordersQuery = supabase
       .from('orders')
@@ -272,183 +273,91 @@ export async function fetchOrdersFromSupabase(options = {}) {
 
     const { data: ordersData, error: ordersError } = await ordersQuery;
 
-    if (!ordersError && Array.isArray(ordersData) && ordersData.length > 0) {
-      ordersData.forEach(row => {
-        const rawBuyer = row.buyer_info || {};
-        const vasList = firstNonEmptyArray(row.vas_applied, rawBuyer.vasServices);
-        const customsType = rawBuyer.customsType || 'business';
-        const shippingType = rawBuyer.shippingType || 'general';
+    if (!ordersError) {
+      dbFetchSuccess = true; // 쿼리 자체는 성공 (0건이어도 성공)
+      if (Array.isArray(ordersData) && ordersData.length > 0) {
+        ordersData.forEach(row => {
+          const rawBuyer = row.buyer_info || {};
+          const vasList = firstNonEmptyArray(row.vas_applied, rawBuyer.vasServices);
+          const customsType = rawBuyer.customsType || 'business';
+          const shippingType = rawBuyer.shippingType || 'general';
 
-        const buyerInfo = {
-          companyName: rawBuyer.companyName || row.customer_name || '이유씨 바이어',
-          buyerName: rawBuyer.buyerName || row.customer_name || '이유씨 바이어',
-          phone: rawBuyer.phone || row.phone || '',
-          email: rawBuyer.email || row.buyer_email || '',
-          customsCode: rawBuyer.customsCode || '',
-          address: rawBuyer.address || '',
-          memo: rawBuyer.memo || row.memo || '',
-          customsType,
-          shippingType,
-          vasServices: vasList,
-          vasSummary: rawBuyer.vasSummary || ''
-        };
+          const buyerInfo = {
+            companyName: rawBuyer.companyName || row.customer_name || '이유씨 바이어',
+            buyerName: rawBuyer.buyerName || row.customer_name || '이유씨 바이어',
+            phone: rawBuyer.phone || row.phone || '',
+            email: rawBuyer.email || row.buyer_email || '',
+            customsCode: rawBuyer.customsCode || '',
+            address: rawBuyer.address || '',
+            memo: rawBuyer.memo || row.memo || '',
+            customsType,
+            shippingType,
+            vasServices: vasList,
+            vasSummary: rawBuyer.vasSummary || ''
+          };
 
-        const orderNumber = row.order_number || `EUC-${new Date(row.created_at || Date.now()).toISOString().slice(0, 10).replace(/-/g, '')}-${String(row.id).slice(-4)}`;
-        const orderId = String(row.id || orderNumber);
+          const orderNumber = row.order_number || `EUC-${new Date(row.created_at || Date.now()).toISOString().slice(0, 10).replace(/-/g, '')}-${String(row.id).slice(-4)}`;
+          const orderId = String(row.id || orderNumber);
 
-        const orderObj = {
-          id: orderId,
-          user_id: row.user_id || null,   // 필터링·병합 시 uid 매칭에 반드시 필요
-          dbId: row.id,
-          orderNumber,
-          inboundNo: row.inbound_no || `INB-YW-${String(orderNumber).replace(/[^0-9]/g, '')}`,
-          createdAt: row.created_at || new Date().toISOString(),
-          status: row.status || 'quote_pending',
-          customsType,
-          customsClearanceType: customsType,
-          shippingType,
-          shippingMethod: shippingType,
-          vasServices: vasList,
-          vas_services: vasList,
-          vasOptions: vasList,
-          vasApplied: vasList,
-          vasSummary: buyerInfo.vasSummary || '',
-          buyerInfo,
-          items: Array.isArray(row.items) ? row.items : [],
-          totalPriceKrw: Number(row.total_price_krw || 0),
-          totalPriceRmb: Number(row.total_price_rmb || 0),
-          firstPayment: row.first_payment || {},
-          secondPayment: row.second_payment || {},
-          measuredData: row.measured_data || {},
-          inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
-          paymentInfo: row.payment_info || {},
-          memo: row.memo || '',
-          barcodeLabelUrl: row.barcode_label_url || '',
-          barcodeLabelFilename: row.barcode_label_filename || '',
-          bl_no: row.bl_no || row.customs_info?.blNumber || rawBuyer.blNumber || '',
-          blInfo: row.customs_info || row.bl_info || (row.bl_no ? { blNumber: row.bl_no } : {}),
-          customs_info: row.customs_info || row.bl_info || {},
-          tracking_no: row.tracking_no || row.shipping_info?.trackingNumber || '',
-          carrier: row.carrier || row.shipping_info?.carrier || '',
-          trackingInfo: row.shipping_info || row.tracking_info || (row.tracking_no ? { trackingNumber: row.tracking_no, carrier: row.carrier } : {}),
-          shipping_info: row.shipping_info || row.tracking_info || {},
-          deliveredAt: row.delivered_at || row.shipping_info?.deliveredAt || null,
-          shippedAt: row.shipped_at || row.shipping_info?.shippedAt || null,
-          // 창고 입고 단계 VAS 신청 (WarehouseView에서 저장, fallback 없이 실제 데이터만)
-          warehouseVasApplied: Array.isArray(row.warehouse_vas_applied) ? row.warehouse_vas_applied : [],
-        };
+          const orderObj = {
+            id: orderId,
+            user_id: row.user_id || null,   // 필터링·병합 시 uid 매칭에 반드시 필요
+            dbId: row.id,
+            orderNumber,
+            inboundNo: row.inbound_no || `INB-YW-${String(orderNumber).replace(/[^0-9]/g, '')}`,
+            createdAt: row.created_at || new Date().toISOString(),
+            status: row.status || 'quote_pending',
+            customsType,
+            customsClearanceType: customsType,
+            shippingType,
+            shippingMethod: shippingType,
+            vasServices: vasList,
+            vas_services: vasList,
+            vasOptions: vasList,
+            vasApplied: vasList,
+            vasSummary: buyerInfo.vasSummary || '',
+            buyerInfo,
+            items: Array.isArray(row.items) ? row.items : [],
+            totalPriceKrw: Number(row.total_price_krw || 0),
+            totalPriceRmb: Number(row.total_price_rmb || 0),
+            firstPayment: row.first_payment || {},
+            secondPayment: row.second_payment || {},
+            measuredData: row.measured_data || {},
+            inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
+            paymentInfo: row.payment_info || {},
+            memo: row.memo || '',
+            barcodeLabelUrl: row.barcode_label_url || '',
+            barcodeLabelFilename: row.barcode_label_filename || '',
+            bl_no: row.bl_no || row.customs_info?.blNumber || rawBuyer.blNumber || '',
+            blInfo: row.customs_info || row.bl_info || (row.bl_no ? { blNumber: row.bl_no } : {}),
+            customs_info: row.customs_info || row.bl_info || {},
+            tracking_no: row.tracking_no || row.shipping_info?.trackingNumber || '',
+            carrier: row.carrier || row.shipping_info?.carrier || '',
+            trackingInfo: row.shipping_info || row.tracking_info || (row.tracking_no ? { trackingNumber: row.tracking_no, carrier: row.carrier } : {}),
+            shipping_info: row.shipping_info || row.tracking_info || {},
+            deliveredAt: row.delivered_at || row.shipping_info?.deliveredAt || null,
+            shippedAt: row.shipped_at || row.shipping_info?.shippedAt || null,
+            // 창고 입고 단계 VAS 신청 (WarehouseView에서 저장, fallback 없이 실제 데이터만)
+            warehouseVasApplied: Array.isArray(row.warehouse_vas_applied) ? row.warehouse_vas_applied : [],
+          };
 
-        fetchedMap.set(orderNumber, orderObj);
-        fetchedMap.set(orderId, orderObj);
-      });
+          fetchedMap.set(orderNumber, orderObj);
+          fetchedMap.set(orderId, orderObj);
+        });
+      }
+    } else {
+      console.debug('[fetchOrdersFromSupabase] orders query error:', ordersError);
     }
   } catch (errOrders) {
     console.debug('[fetchOrdersFromSupabase] orders fetch notice:', errOrders);
   }
 
-  // 2. Supabase applications 테이블 조회 (바이어 모드 전용 — 레거시 주문 호환성)
-  // ⚠️ 관리자 모드에서는 orders 테이블이 단일 진실 소스 → applications 병합 완전 제외
-  //    (applications의 시장투어·운임견적 등 비주문 데이터가 주문 목록에 섞이는 문제 방지)
-  if (!adminMode) {
-    try {
-      let appsQuery = supabase
-        .from('applications')
-        .select('*')
-        .order('created_at', { ascending: false });
 
-      // 일반 바이어(uid 확정)이면 user_id 필터 적용
-      if (uid) {
-        appsQuery = appsQuery.eq('user_id', uid);
-      }
+  // 2. Supabase applications 테이블 조회 제거됨
+  // ※ applications 테이블은 시장투어·운임견적 등 비주문 신청서 전용으로 역할 분리.
+  //    모든 주문은 orders 테이블에만 저장되므로 2차 조회 불필요.
 
-      const { data: appsData, error: appsError } = await appsQuery;
 
-      if (!appsError && Array.isArray(appsData) && appsData.length > 0) {
-        appsData
-          .filter(row => {
-            const type = String(row.service_type || '').toLowerCase();
-            const name = String(row.service_name || '').toLowerCase();
-            const det = row.details || {};
-            return (
-              type.includes('purchas') || type.includes('order') || type.includes('trade') || type.includes('import') ||
-              name.includes('구매') || name.includes('발주') || name.includes('수입') ||
-              Boolean(det.orderNumber || det.orderId || (Array.isArray(det.items) && det.items.length > 0))
-            );
-          })
-          .forEach(row => {
-            const det = (typeof row.details === 'object' && row.details !== null) ? row.details : {};
-            const rawBuyerInfo = det.buyerInfo || {};
-            const vasList = firstStringVasArray(det.vasServices, det.vas_services, rawBuyerInfo.vasServices, det.vasApplied);
-            const customsType = det.customsType || rawBuyerInfo.customsType || 'business';
-            const shippingType = det.shippingType || rawBuyerInfo.shippingType || 'general';
-
-            const buyerInfo = {
-              companyName: rawBuyerInfo.companyName || row.customer_name || '이유씨 바이어',
-              buyerName: rawBuyerInfo.buyerName || row.customer_name || '이유씨 바이어',
-              phone: rawBuyerInfo.phone || row.phone || '',
-              email: rawBuyerInfo.email || row.email || '',
-              customsCode: rawBuyerInfo.customsCode || det.customsCode || '',
-              address: rawBuyerInfo.address || det.address || '',
-              memo: rawBuyerInfo.memo || row.memo || '',
-              customsType,
-              shippingType,
-              vasServices: vasList,
-              vasSummary: det.vasSummary || rawBuyerInfo.vasSummary || ''
-            };
-
-            const orderNumber = det.orderNumber || det.orderId || `EUC-${new Date(row.created_at || Date.now()).toISOString().slice(0, 10).replace(/-/g, '')}-${String(row.id).padStart(4, '0')}`;
-            const orderId = det.id || orderNumber;
-
-            // orders 테이블 데이터가 이미 있으면 덮어쓰지 않음
-            if (!fetchedMap.has(orderNumber)) {
-              const appOrder = {
-                id: orderId,
-                user_id: row.user_id || null,   // 필터링·병합 시 uid 매칭에 반드시 필요
-                dbId: row.id,
-                orderNumber,
-                inboundNo: det.inboundNo || `INB-YW-${String(row.id).padStart(6, '0')}`,
-                createdAt: row.created_at || new Date().toISOString(),
-                status: row.status || det.status || 'quote_pending',
-                customsType,
-                customsClearanceType: customsType,
-                shippingType,
-                shippingMethod: shippingType,
-                vasServices: vasList,
-                vas_services: vasList,
-                vasOptions: vasList,
-                vasApplied: vasList,
-                vasSummary: buyerInfo.vasSummary || '',
-                buyerInfo,
-                items: Array.isArray(det.items) ? det.items : (Array.isArray(row.items) ? row.items : []),
-                totalPriceKrw: Number(row.total_amount || det.totalPriceKrw || 0),
-                totalPriceRmb: Number(det.totalPriceRmb || 0),
-                firstPayment: det.firstPayment || {},
-                secondPayment: det.secondPayment || {},
-                measuredData: det.measuredData || {},
-                inspectionPhotos: Array.isArray(det.inspectionPhotos) ? det.inspectionPhotos : [],
-                paymentInfo: det.paymentInfo || {},
-                issueDetails: det.issueDetails || { colorMismatch: 0, damaged: 0, contaminated: 0, missingParts: 0, lowQuality: 0, wrongDelivery: 0 },
-                issueStatus: det.issueStatus || '',
-                memo: row.memo || det.memo || '',
-                bl_no: det.bl_no || det.blInfo?.blNumber || rawBuyerInfo.blNumber || '',
-                blInfo: det.customs_info || det.blInfo || (det.bl_no ? { blNumber: det.bl_no } : {}),
-                customs_info: det.customs_info || det.blInfo || {},
-                tracking_no: det.tracking_no || det.trackingInfo?.trackingNumber || '',
-                carrier: det.carrier || det.trackingInfo?.carrier || '',
-                trackingInfo: det.shipping_info || det.trackingInfo || (det.tracking_no ? { trackingNumber: det.tracking_no, carrier: det.carrier } : {}),
-                shipping_info: det.shipping_info || det.trackingInfo || {},
-                deliveredAt: det.deliveredAt || det.shipping_info?.deliveredAt || null,
-                shippedAt: det.shippedAt || det.shipping_info?.shippedAt || null
-              };
-              fetchedMap.set(orderNumber, appOrder);
-              fetchedMap.set(orderId, appOrder);
-            }
-          });
-      }
-    } catch (errApps) {
-      console.debug('[fetchOrdersFromSupabase] applications fetch notice:', errApps);
-    }
-  } // end !adminMode applications block
 
   // 3. 결과 처리
   const uniqueOrders = Array.from(new Set(fetchedMap.values()));
@@ -463,38 +372,27 @@ export async function fetchOrdersFromSupabase(options = {}) {
     return uniqueOrders;
   }
 
-  // ── 일반 바이어: 로컬 캐시와 병합 (오프라인 임시 저장 주문 보존) ──────────
-  // ⚠️ localList를 uid로 필터링 후 병합:
-  //    필터 없이 전체 캐시를 병합하면 관리자가 남긴 타 계정 주문이 섞여 노출되는 버그 발생.
-  //    user_id가 없거나 uid와 다른 항목은 오염된 캐시로 간주하여 제외.
-  if (uniqueOrders.length > 0) {
-    const localList = getStoredOrders();
-    const mergedMap = new Map();
-    // uid와 일치하는 캐시 항목만 선-삽입 (타 계정 캐시 완전 차단)
-    localList
-      .filter(o => o.user_id === uid)
-      .forEach(o => {
-        const key = o.orderNumber || o.id;
-        mergedMap.set(key, o);
-      });
-    // DB 결과로 덮어씀 (DB가 source of truth)
-    uniqueOrders.forEach(o => {
-      const key = o.orderNumber || o.id;
-      mergedMap.set(key, o);
-    });
-
-    const merged = Array.from(mergedMap.values()).sort((a, b) => {
-      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
-    });
-
-    localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(merged));
-    localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(merged));
-    // 이벤트 발사 없음 — 순수 조회 함수. 이벤트는 상태변경 함수가 담당.
-    return merged;
+  // ── 일반 바이어: DB 결과가 진실의 기준 (source of truth) ──────────
+  // DB 조회 성공 시(0건 포함) DB 결과만 반환하고 localStorage를 그 결과로 갱신.
+  // DB 조회 실패 시 throw — 호출부가 명시적으로 오류 UI를 표시해야 함.
+  // (이전 방식의 localStorage fallback은 "삭제된 주문이 부활"하는 구조적 버그를 유발)
+  if (dbFetchSuccess) {
+    const sorted = [...uniqueOrders].sort((a, b) =>
+      new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    );
+    // localStorage를 DB 결과로 갱신 (다음 번 오프라인 참조용)
+    localStorage.setItem(STORAGE_KEY_ORDERS, JSON.stringify(sorted));
+    localStorage.setItem(STORAGE_KEY_LEGACY_ORDERS, JSON.stringify(sorted));
+    return sorted;
   }
 
-  return getStoredOrders();
+  // DB 조회 실패(네트워크 오류, 응답 에러) → 호출부가 오류 UI 표시하도록 throw
+  throw new Error('ORDER_FETCH_FAILED');
 }
+
+
+
+
 
 
 /**
@@ -790,9 +688,10 @@ export function calculatePipelineCounts(ordersList = null) {
 /**
  * 창고 인바운드 모델 포맷팅 (WarehouseView용)
  * 4단계(구매진행) 이후의 주문을 창고 모델로 변환하여 반환
+ * @param {Array|null} ordersList - 외부에서 이미 fetch한 주문 배열. null이면 localStorage fallback
  */
-export function getWarehouseInboundsFromOrders() {
-  const orders = getStoredOrders();
+export function getWarehouseInboundsFromOrders(ordersList = null) {
+  const orders = Array.isArray(ordersList) ? ordersList : getStoredOrders();
   const mapped = orders
     .filter(o => {
       const norm = normalizeOrderStatus(o.status);

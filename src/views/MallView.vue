@@ -2368,10 +2368,14 @@ onMounted(async () => {
   submittedOrders.value = _badgeUid
     ? _cachedOrders.filter(o => o.user_id === _badgeUid)
     : []
-  // DB 결과로 교체 (백그라운드 — 실패해도 캐시 필터 결과 유지)
+  // DB 결과로 교체 (백그라운드) — 실패 시 빈 배열로 유지 (뱃지 카운트가 잘못된 캐시를 보여주지 않도록)
   fetchOrdersFromSupabase().then(dbOrders => {
     if (Array.isArray(dbOrders)) submittedOrders.value = dbOrders
-  }).catch(() => {})
+  }).catch(e => {
+    submittedOrders.value = []
+    console.warn('[MallView] 주문 뱃지 fetch 실패:', e)
+  })
+
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)

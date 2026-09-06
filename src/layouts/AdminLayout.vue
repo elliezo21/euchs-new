@@ -239,7 +239,8 @@ import {
   RefreshCw
 } from 'lucide-vue-next'
 import { signOut } from '@/lib/auth'
-import { getStoredOrders } from '@/utils/orderStorage'
+import { getStoredOrders, fetchOrdersFromSupabase } from '@/utils/orderStorage'
+import { normalizeOrderStatus } from '@/lib/orderPipeline'
 
 const route = useRoute()
 const router = useRouter()
@@ -274,12 +275,28 @@ const isActiveRoute = (path) => {
   return route.path === path || route.path.startsWith(path + '/')
 }
 
-const updatePendingBadge = () => {
+const updatePendingBadge = async () => {
+  // 즉시: 로컬 캐시로 빠른 선표시 (normalize 적용)
   try {
-    const list = getStoredOrders()
-    pendingOrdersCount.value = list.filter(o => o.status === 'quote_pending' || o.status === 'quote_confirmed').length
+    const cached = getStoredOrders();
+    pendingOrdersCount.value = cached.filter(o => {
+      const s = normalizeOrderStatus(o.status);
+      return s === 'quote_pending' || s === 'quote_confirmed' || s === 'payment_pending';
+    }).length;
   } catch (e) {
-    pendingOrdersCount.value = 0
+    pendingOrdersCount.value = 0;
+  }
+  // DB에서 정확한 값으로 교체 (백그라운드)
+  try {
+    const dbOrders = await fetchOrdersFromSupabase({ isAdmin: true });
+    if (Array.isArray(dbOrders)) {
+      pendingOrdersCount.value = dbOrders.filter(o => {
+        const s = normalizeOrderStatus(o.status);
+        return s === 'quote_pending' || s === 'quote_confirmed' || s === 'payment_pending';
+      }).length;
+    }
+  } catch (e) {
+    // 네트워크 실패 시 로컬 캐시 값 유지
   }
 }
 

@@ -53,6 +53,15 @@
       </div>
     </div>
 
+    <!-- DB 조회 오류 배너 -->
+    <div v-if="fetchError" class="flex items-center gap-3 px-4 py-3 mb-4 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+      <span class="text-lg">⚠️</span>
+      <span class="flex-1">주문 데이터를 불러올 수 없습니다. 네트워크 연결을 확인하고 다시 시도해 주세요.</span>
+      <button @click="loadOrdersData" class="shrink-0 px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 font-medium text-red-700 transition">
+        다시 시도
+      </button>
+    </div>
+
     <!-- 공통 10단계 풀프로세스 스텝 바 (발주관리 포커스) - 투어 타깃 -->
     <div data-tour="order-tracker">
       <OrderProcessStepper :counts="stepperCounts" currentSection="orders" />
@@ -2007,29 +2016,35 @@ const defaultMockOrders = [
 ];
 
 const orders = ref([]);
+const fetchError = ref(false); // DB 조회 실패 여부
+
 
 const loadOrdersData = async () => {
   isRefreshing.value = true;
+  fetchError.value = false;
   try {
     // [캐시 선-표시] 현재 로그인 uid와 user_id가 일치하는 항목만 노출
-    // 관리자가 남긴 전 계정 캐시(orders키)에 타 계정 주문이 섞여있어도 화면에 노출되지 않음
     const uid = currentUser.value?.id;
     const cachedAll = getStoredOrders();
     orders.value = uid
       ? cachedAll.filter(o => o.user_id === uid)
       : [];
 
-    // [DB 조회] 배열 응답이면 0건이어도 반드시 교체 (신규 유저·정상 케이스 모두 보장)
+    // [DB 조회] 실패 시 fetchOrdersFromSupabase가 throw → catch에서 오류 상태 처리
     const dbOrders = await fetchOrdersFromSupabase();
     if (Array.isArray(dbOrders)) {
       orders.value = dbOrders;
     }
   } catch (e) {
-    console.warn('loadOrdersData DB notice:', e);
+    // DB 조회 실패 → 캐시 선-표시 데이터도 제거하고 오류 상태로 전환
+    orders.value = [];
+    fetchError.value = true;
+    console.warn('loadOrdersData DB error:', e);
   } finally {
     isRefreshing.value = false;
   }
 };
+
 
 const refreshData = async () => {
   await loadOrdersData();

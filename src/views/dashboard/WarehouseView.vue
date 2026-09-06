@@ -27,7 +27,16 @@
     </div>
 
     <!-- 공통 10단계 풀프로세스 스텝 바 (이우창고/검수 포커스) -->
-    <OrderProcessStepper currentSection="warehouse" />
+    <OrderProcessStepper currentSection="warehouse" :orders="orders" />
+
+    <!-- DB 조회 오류 배너 -->
+    <div v-if="fetchError" class="flex items-center gap-3 px-4 py-3 mt-2 rounded-xl bg-red-50 border border-red-200 text-red-700 text-sm">
+      <span class="text-lg">⚠️</span>
+      <span class="flex-1">창고 데이터를 불러올 수 없습니다. 네트워크 연결을 확인하고 다시 시도해 주세요.</span>
+      <button @click="reloadData" class="shrink-0 px-3 py-1 rounded-lg bg-red-100 hover:bg-red-200 font-medium text-red-700 transition">
+        다시 시도
+      </button>
+    </div>
 
     <!-- ======================================================== -->
     <!-- 2. 4단계 확정 탭 필터 (AdminOrderManageView 탭 패턴 재사용) -->
@@ -1054,7 +1063,7 @@ import {
   RefreshCw
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
-import { updateOrderStatus, getStoredOrders, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
+import { updateOrderStatus, getStoredOrders, getWarehouseInboundsFromOrders, fetchOrdersFromSupabase, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
@@ -1179,9 +1188,31 @@ let _toastTimer = null;
 // 잔액 부족 경고 상태
 const showInsufficientWarning = ref(false);
 
-const reloadData = () => {
+// DB 조회 결과 원본 (OrderProcessStepper 트래커에 전달)
+const orders = ref([]);
+const fetchError = ref(false); // DB 조회 실패 여부
+
+const reloadData = async () => {
+  fetchError.value = false;
+  // 즉시: localStorage 기반 선표시 (화면 공백 방지)
   inbounds.value = loadStoredInbounds();
+
+  // DB 조회 후 교체 (orders 테이블 단일 진실 소스)
+  try {
+    const dbOrders = await fetchOrdersFromSupabase();
+    if (Array.isArray(dbOrders)) {
+      orders.value = dbOrders;
+      inbounds.value = getWarehouseInboundsFromOrders(dbOrders);
+    }
+  } catch (e) {
+    // DB 조회 실패 → 선표시 캐시도 제거하고 오류 상태로 전환
+    orders.value = [];
+    inbounds.value = [];
+    fetchError.value = true;
+    console.warn('[WarehouseView] DB fetch failed:', e);
+  }
 };
+
 
 onMounted(() => {
   reloadData();
