@@ -890,7 +890,6 @@ const vasAdminItems = ref([
   { id: 'origin_label',        name: '원산지 표시(MADE IN CHINA) 라벨 부착/봉제', checked: false, price: 0 },
   { id: 'barcode_label',       name: '바코드 / 쿠팡 로켓그로스 바코드 부착', checked: false, price: 0 },
   { id: 'opp_repack',          name: 'OPP 재포장 / 세트 합포장 작업', checked: false, price: 0 },
-  { id: 'pallet_wood',         name: '목재 파렛트 / 에어캡 특수 완충 포장', checked: false, price: 0 },
   { id: 'cushion_pack',        name: '특수 완충 포장 (에어캡/보강 패키징)', checked: false, price: 0 },
 ]);
 
@@ -1234,7 +1233,6 @@ const VAS_OPTIONS_MAP = {
   barcode_label: { id: 'barcode_label', name: '바코드 라벨링(쿠팡/스토어)',   icon: 'fas fa-barcode' },
   opp_repack:    { id: 'opp_repack',    name: 'OPP 재포장/합포장',             icon: 'fas fa-box-open' },
   fta_co:        { id: 'fta_co',        name: '한-중 FTA C/O 발급',           icon: 'fas fa-file-invoice' },
-  pallet_wood:   { id: 'pallet_wood',   name: '목재 파렛트/완충 보강',         icon: 'fas fa-cubes' },
   cushion_pack:  { id: 'cushion_pack',  name: '특수 완충 포장(에어캡/보강)',   icon: 'fas fa-shield-halved' },
   // ── 구버전 id (하위호환) ──
   inspect_precision:    { id: 'inspect_precision',    name: '정밀 검수(실사 사진)',      icon: 'fas fa-magnifying-glass' },
