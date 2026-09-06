@@ -603,43 +603,63 @@ export async function saveNewOrder(order) {
 
     // 2-1. orders 테이블 insert
     try {
-      const orderDbRow = {
-        order_number: newOrderObj.orderNumber,
-        order_no: newOrderObj.orderNumber,
-        inbound_no: newOrderObj.inboundNo,
-        user_id: user.id,
-        buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
-        status: newOrderObj.status,
-        customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || '이유씨 바이어',
-        phone: buyerInfoObj.phone || '010-0000-0000',
-        buyer_info: buyerInfoObj,
-        items: newOrderObj.items,
-        total_price_krw: newOrderObj.totalPriceKrw,
-        total_price_rmb: newOrderObj.totalPriceRmb,
-        first_payment: newOrderObj.firstPayment,
-        second_payment: newOrderObj.secondPayment,
-        measured_data: newOrderObj.measuredData,
-        inspection_photos: newOrderObj.inspectionPhotos,
-        vas_applied: newOrderObj.vasApplied,
-        memo: `[${newOrderObj.orderNumber}] ${newOrderObj.memo || buyerInfoObj.memo || ''}`.trim(),
-        created_at: newOrderObj.createdAt,
-        updated_at: nowIso
-      };
+      // ★ Fix: INSERT 직전 Supabase SDK 세션(JWT) 확인
+      // currentUser.value(auth.js 시스템)와 Supabase SDK 내부 JWT는 별개 시스템이므로,
+      // 페이지 새로고침 후 JWT가 만료/소실된 경우 auth.uid()=null → RLS 42501 차단.
+      // getSession()으로 SDK 세션을 직접 확인해 JWT 없으면 INSERT를 건너뜀.
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      if (!currentSession) {
+        console.error(
+          '[saveNewOrder] orders INSERT 건너뜀: Supabase 세션(JWT)이 없습니다.',
+          '주문번호:', newOrderObj.orderNumber,
+          '— currentUser.id는 있지만 Supabase SDK JWT가 없는 상태입니다.',
+          '해결: 다시 로그인하면 JWT가 갱신되어 orders 테이블에 정상 저장됩니다.'
+        );
+        // JWT 없으면 RLS를 통과할 수 없으므로 orders INSERT를 건너뜀.
+        // 아래 applications INSERT는 JWT 없이도 가능하므로 계속 진행.
+      } else {
+        const orderDbRow = {
+          order_number: newOrderObj.orderNumber,
+          order_no: newOrderObj.orderNumber,
+          inbound_no: newOrderObj.inboundNo,
+          user_id: user.id,
+          buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
+          status: newOrderObj.status,
+          customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || '이유씨 바이어',
+          phone: buyerInfoObj.phone || '010-0000-0000',
+          buyer_info: buyerInfoObj,
+          items: newOrderObj.items,
+          total_price_krw: newOrderObj.totalPriceKrw,
+          total_price_rmb: newOrderObj.totalPriceRmb,
+          first_payment: newOrderObj.firstPayment,
+          second_payment: newOrderObj.secondPayment,
+          measured_data: newOrderObj.measuredData,
+          inspection_photos: newOrderObj.inspectionPhotos,
+          vas_applied: newOrderObj.vasApplied,
+          memo: `[${newOrderObj.orderNumber}] ${newOrderObj.memo || buyerInfoObj.memo || ''}`.trim(),
+          created_at: newOrderObj.createdAt,
+          updated_at: nowIso
+        };
 
-      const { data: insertedOrder, error: orderErr } = await supabase
-        .from('orders')
-        .insert([orderDbRow])
-        .select();
+        const { data: insertedOrder, error: orderErr } = await supabase
+          .from('orders')
+          .insert([orderDbRow])
+          .select();
 
-      if (!orderErr && insertedOrder && insertedOrder.length > 0) {
-        newOrderObj.dbId = insertedOrder[0].id;
-        newOrderObj.id = String(insertedOrder[0].id);
-        _saveLocalOnly(list); // id 갱신 후 로컬만 업데이트, DB 재동기화 불필요
-      } else if (orderErr) {
-        console.warn('[saveNewOrder] Supabase orders table notice:', orderErr.message);
+        if (!orderErr && insertedOrder && insertedOrder.length > 0) {
+          newOrderObj.dbId = insertedOrder[0].id;
+          newOrderObj.id = String(insertedOrder[0].id);
+          _saveLocalOnly(list); // id 갱신 후 로컬만 업데이트, DB 재동기화 불필요
+        } else if (orderErr) {
+          console.error(
+            '[saveNewOrder] orders INSERT 실패:',
+            orderErr.code, orderErr.message,
+            '| 주문번호:', newOrderObj.orderNumber
+          );
+        }
       }
     } catch (eOrder) {
-      console.warn('[saveNewOrder] orders insert error (fallback active):', eOrder);
+      console.error('[saveNewOrder] orders INSERT 예외 (fallback 진행):', eOrder);
     }
 
     // 2-2. applications 테이블 insert (호환성)
@@ -669,7 +689,7 @@ export async function saveNewOrder(order) {
         _saveLocalOnly(list); // id 갱신 후 로컬만 업데이트
       }
     } catch (eApp) {
-      console.warn('[saveNewOrder] applications insert notice:', eApp);
+      console.error('[saveNewOrder] applications INSERT 실패 — 이 주문은 DB에 저장되지 않습니다:', eApp);
     }
   }
 
