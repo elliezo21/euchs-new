@@ -673,7 +673,7 @@ export const getUserBusinessInfo = (user = currentUser.value) => {
 }
 
 /**
- * 사업자 인증 여부 검증 함수
+ * 사업자 인증 여부 검증 함수 (user_metadata.business_number 존재 여부 — 하위 호환용)
  */
 export const isUserBusinessVerified = (user = currentUser.value) => {
   if (!user) return false
@@ -681,13 +681,33 @@ export const isUserBusinessVerified = (user = currentUser.value) => {
   return Boolean(biz?.business_number)
 }
 
+/**
+ * ✅ 진짜 인증 기준: profiles.is_business_verified (DB 단일 기준)
+ * - super_admin/admin은 항상 true (접근 제한 불필요)
+ * - 일반 회원은 DB profiles.is_business_verified 값만 사용
+ */
 export const isBusinessVerified = computed(() => {
-  return isUserBusinessVerified(currentUser.value)
+  // 관리자는 항상 인증된 것으로 처리
+  const role = String(userRole.value || '').toLowerCase()
+  if (['super_admin', 'admin', 'staff', 'master'].includes(role)) return true
+  // DB 조회 결과 우선
+  if (currentUserProfile.value !== null) {
+    return Boolean(currentUserProfile.value?.is_business_verified)
+  }
+  // DB 결과 없으면 false (미인증으로 처리)
+  return false
 })
 
 /**
- * B2B 사업자 프로필 업데이트 함수
+ * 인증 단계 상태: 'unverified' | 'pending' | 'verified'
  */
+export const verificationStatus = computed(() => {
+  const role = String(userRole.value || '').toLowerCase()
+  if (['super_admin', 'admin', 'staff', 'master'].includes(role)) return 'verified'
+  if (currentUserProfile.value?.is_business_verified) return 'verified'
+  return currentUserProfile.value?.verification_status ?? 'unverified'
+})
+
 export const updateBusinessProfile = async (businessData) => {
   if (!currentUser.value) {
     throw new Error('로그인이 필요합니다.')
@@ -767,6 +787,16 @@ export const updateBusinessProfile = async (businessData) => {
 
       if (isTargetUUID) {
         const profileId = isUUID ? currentUser.value.id : existing.id
+
+        // 🛡️ 인증 상태/등급은 기존 DB 값이 있으면 절대 덮어쓰지 않음
+        // - 무니님처럼 SQL로 인증 완료된 계정이 폼 저장 한 번으로 초기화되는 사고 방지
+        const safeIsBusinessVerified = existing?.is_business_verified ?? false
+        const safeVerificationStatus = existing?.verification_status ?? 'pending'
+        const safeTier = existing?.tier ?? 'general'
+
+        // 🛡️ address: 폼에서 안 넘겨준 경우(빈 문자열) 기존 값 보존
+        const safeAddress = address || existing?.address || ''
+
         const profilePayload = {
           id: profileId,
           email: currentUser.value.email || '',
@@ -775,16 +805,18 @@ export const updateBusinessProfile = async (businessData) => {
           representative_name: name,
           business_number: cleanBizNumber,
           pccc: cleanPccc,
-          address: address,
+          address: safeAddress,
           phone: phone,
-          tier: currentUserProfile.value?.tier || 'general',
-          is_business_verified: false,
-          verification_status: 'pending',
+          tier: safeTier,
+          is_business_verified: safeIsBusinessVerified,
+          verification_status: safeVerificationStatus,
           updated_at: new Date().toISOString()
         }
 
         const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
-        if (!error && data) {
+        if (error) {
+          console.warn('[updateBusinessProfile] profiles upsert 실패:', error.message, error.code)
+        } else if (data) {
           currentUserProfile.value = { ...(currentUserProfile.value || {}), ...data }
         }
       } else if (currentUser.value?.email) {
@@ -794,14 +826,14 @@ export const updateBusinessProfile = async (businessData) => {
           representative_name: name,
           business_number: cleanBizNumber,
           pccc: cleanPccc,
-          address: address,
           phone: phone,
           updated_at: new Date().toISOString()
         }
+        // email 경로에서는 인증 상태/address 건드리지 않음 (UPDATE 미포함)
         await supabase.from('profiles').update(updatePayload).eq('email', currentUser.value.email)
       }
     } catch (err) {
-      console.debug('Supabase updateUser business metadata notice:', err)
+      console.warn('[updateBusinessProfile] Supabase 업데이트 실패:', err?.message || err)
     }
   }
 
@@ -1025,55 +1057,54 @@ export const fetchUserProfile = async (userIdOrUser) => {
  */
 export const syncUserProfile = async (user) => {
   if (!user || !isSupabaseConfigured() || user.id === 'demo-buyer-01') return
+
+  // 🛡️ UUID 가드: 유효한 UUID가 없으면 upsert 시도 자체를 하지 않음
+  if (!isValidUUID(user.id)) {
+    console.warn('[syncUserProfile] user.id가 UUID 형식이 아님 — upsert 건너뜀:', user.id)
+    return
+  }
+
+  // 🛡️ email 가드: email이 없으면 NOT NULL 제약 위반 → upsert 건너뜀
+  const userEmail = user.email ? String(user.email).trim().toLowerCase() : ''
+  if (!userEmail) {
+    console.warn('[syncUserProfile] user.email이 없음 — upsert 건너뜀')
+    return
+  }
+
   try {
     const meta = user.user_metadata || {}
     const biz = getUserBusinessInfo(user) || {}
     const existing = await fetchUserProfile(user)
 
-    const isTargetUUID = (user.id && isValidUUID(user.id)) || (existing?.id && isValidUUID(existing.id))
-    if (!isTargetUUID) {
-      if (existing) {
-        currentUserProfile.value = existing
-      }
-      if (user.email) {
-        const updatePayload = {
-          name: meta.full_name || meta.name || user.email?.split('@')[0] || '사용자',
-          company_name: biz.company_name || existing?.company_name || '',
-          representative_name: biz.representative_name || existing?.representative_name || '',
-          business_number: biz.business_number || existing?.business_number || '',
-          pccc: biz.pccc || existing?.pccc || '',
-          phone: meta.phone || meta.mobile || biz.phone || existing?.phone || '',
-          updated_at: new Date().toISOString()
-        }
-        await supabase.from('profiles').update(updatePayload).eq('email', String(user.email).trim().toLowerCase())
-      }
-      return
-    }
-
-    const profileId = (user.id && isValidUUID(user.id)) ? user.id : existing.id
+    // 🛡️ 인증 상태/등급은 DB에 이미 있는 값을 절대 초기화하지 않음
+    const safeIsBusinessVerified = existing?.is_business_verified ?? false
+    const safeVerificationStatus = existing?.verification_status ?? 'unverified'
+    const safeTier = existing?.tier ?? 'general'
 
     const profilePayload = {
-      id: profileId,
-      email: user.email ? String(user.email).trim().toLowerCase() : '',
+      id: user.id,
+      email: userEmail,
       name: meta.full_name || meta.name || user.email?.split('@')[0] || '사용자',
       company_name: biz.company_name || existing?.company_name || '',
-      representative_name: biz.representative_name || existing?.representative_name || '',
+      representative_name: biz.representative_name || biz.name || existing?.representative_name || '',
       business_number: biz.business_number || existing?.business_number || '',
       pccc: biz.pccc || existing?.pccc || '',
       phone: meta.phone || meta.mobile || biz.phone || existing?.phone || '',
-      tier: biz.business_number ? 'business' : (existing?.tier || 'general'),
-      is_business_verified: Boolean(biz.business_number) || Boolean(existing?.is_business_verified),
-      verification_status: existing?.verification_status || (biz.business_number ? 'verified' : 'unverified'),
-      balance: existing?.balance !== undefined ? existing.balance : (Number(localStorage.getItem('euchs_user_balance')) || 0),
+      tier: safeTier,
+      is_business_verified: safeIsBusinessVerified,
+      verification_status: safeVerificationStatus,
+      // balance 제외: balanceStore.js가 전담 관리 (upsert로 덮어쓰면 안 됨)
       updated_at: new Date().toISOString()
     }
-    
+
     const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
-    if (!error && data) {
+    if (error) {
+      console.warn('[syncUserProfile] profiles upsert 실패:', error.message, '(code:', error.code, ')')
+    } else if (data) {
       currentUserProfile.value = data
     }
   } catch (err) {
-    console.debug('Profile sync notice:', err)
+    console.warn('[syncUserProfile] 예외 발생:', err?.message || err)
   }
 }
 

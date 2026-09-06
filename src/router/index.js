@@ -25,7 +25,7 @@ import AccountSettingsView from '../views/dashboard/AccountSettingsView.vue'
 import FavoriteStoresView from '../views/dashboard/FavoriteStoresView.vue'
 import TaxInvoiceManageView from '../views/dashboard/TaxInvoiceManageView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
-import { currentUser, checkUserRole } from '../lib/auth'
+import { currentUser, checkUserRole, userRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 const routes = [

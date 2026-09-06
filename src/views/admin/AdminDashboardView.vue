@@ -422,17 +422,16 @@ async function loadMemberStats() {
     try {
       const { data: dbProfiles, error: profileErr } = await supabase
         .from('profiles')
-        .select('id, role');
+        .select('id, role, is_business_verified, verification_status')
+        // 관리자 계정은 통계 대상에서 제외
+        .not('role', 'in', '("super_admin","admin","staff","master")');
 
       if (!profileErr && Array.isArray(dbProfiles)) {
         const total = dbProfiles.length;
-        const verified = dbProfiles.filter(
-          p => p && (p.role === 'admin' || p.role === 'super_admin' || p.role === 'business' || p.is_business_verified === true || p.verification_status === 'verified')
-        ).length;
-        const pending = dbProfiles.filter(
-          p => p && p.verification_status === 'pending'
-        ).length;
-        const rate = total > 0 ? Math.round((verified / total) * 100) : 100;
+        // 인증완료 = is_business_verified === true (단일 기준)
+        const verified = dbProfiles.filter(p => p?.is_business_verified === true).length;
+        const pending = dbProfiles.filter(p => p?.verification_status === 'pending' && !p?.is_business_verified).length;
+        const rate = total > 0 ? Math.round((verified / total) * 100) : 0;
         memberStats.value = { total, verified, pending, rate };
         return;
       }

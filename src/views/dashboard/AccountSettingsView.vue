@@ -237,7 +237,7 @@
                   v-model="customsProfile.contactName"
                   placeholder="수입 담당자 성명"
                   required
-                  class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-medium"
                 />
               </div>
               <div>
@@ -250,6 +250,16 @@
                   class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono"
                 />
               </div>
+            </div>
+
+            <div>
+              <label class="block font-bold text-gray-700 mb-1">사업장 소재지 (주소)</label>
+              <input
+                type="text"
+                v-model="customsProfile.address"
+                placeholder="서울특별시 강남구 테헤란로 123 4층"
+                class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              />
             </div>
 
             <div class="pt-2 flex items-center justify-end">
@@ -421,9 +431,25 @@
                 <h2 class="text-base font-bold text-gray-900">
                   회원 및 사업자 기본 정보
                 </h2>
-                <span class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1">
+                <!-- 3단계 인증 배지: DB profiles.is_business_verified 단일 기준 -->
+                <span
+                  v-if="verificationStatus === 'verified'"
+                  class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1"
+                >
                   <ShieldCheck class="w-3.5 h-3.5" />
                   <span>VIP 바이어 (인증 완료)</span>
+                </span>
+                <span
+                  v-else-if="verificationStatus === 'pending'"
+                  class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold flex items-center gap-1"
+                >
+                  <span>심사 중</span>
+                </span>
+                <span
+                  v-else
+                  class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-bold flex items-center gap-1"
+                >
+                  <span>미인증</span>
                 </span>
               </div>
               <p class="text-xs text-gray-500 mt-0.5">
@@ -824,7 +850,9 @@ import {
   getUserBusinessInfo,
   updateBusinessProfile,
   updateUserPassword,
-  withdrawAccount
+  withdrawAccount,
+  isBusinessVerified,
+  verificationStatus
 } from '../../lib/auth'
 import {
   userBalance,
@@ -864,6 +892,7 @@ const customsProfile = ref({
   customsCode: '',
   contactName: '',
   contactPhone: '',
+  address: '',
   bizCertUrl: '',
   status: 'unverified'
 })
@@ -934,8 +963,10 @@ const loadCustomsProfile = () => {
     customsCode: p.pccc || biz.pccc || '',
     contactName: p.representative_name || p.name || biz.name || currentUser.value?.user_metadata?.full_name || currentUser.value?.user_metadata?.name || '',
     contactPhone: p.phone || biz.phone || currentUser.value?.phone || '',
+    address: p.address || biz.address || currentUser.value?.user_metadata?.address || '',
     bizCertUrl: p.biz_cert_url || '',
-    status: p.verification_status || (biz.business_number && biz.pccc ? 'pending' : 'unverified')
+    // 인증 상태: profiles DB 기준 단일화 (user_metadata.business_number 기준 폐기)
+    status: p.is_business_verified ? 'verified' : (p.verification_status || 'unverified')
   }
 
   if (!depositDepositorName.value) {
@@ -1099,7 +1130,8 @@ const saveCustomsInfo = async () => {
       business_number: customsProfile.value.bizNumber,
       pccc: customsProfile.value.customsCode,
       name: customsProfile.value.contactName,
-      phone: customsProfile.value.contactPhone
+      phone: customsProfile.value.contactPhone,
+      address: customsProfile.value.address   // 사업장 소재지 추가
     })
     alert('수입 통관 & 세무 증빙 정보가 안전하게 저장되었습니다.')
     loadCustomsProfile()

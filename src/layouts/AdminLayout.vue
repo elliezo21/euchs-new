@@ -86,10 +86,9 @@
           <span class="flex-1">주문·발주 관리</span>
           <span
             v-if="pendingOrdersCount > 0"
-            class="px-1.5 py-0.5 rounded-full text-[10px] font-mono font-black"
-            :class="isActiveRoute('/admin/orders') ? 'bg-white text-blue-600' : 'bg-amber-500 text-slate-950'"
+            class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap bg-amber-500 text-white"
           >
-            {{ pendingOrdersCount }}
+            신규 {{ pendingOrdersCount }}
           </span>
         </router-link>
 
