@@ -3151,35 +3151,15 @@ async function handleConfirmSecondPayment() {
   try {
     // 2. Supabase DB 비동기 업데이트 (await로 결과 확인)
     if (isSupabaseConfigured()) {
-      const isNumericId = !isNaN(Number(order.id)) && Number(order.id) > 0;
-      if (isNumericId) {
-        const { error: appErr } = await supabase
-          .from('applications')
-          .update({
-            status: 'shipping_ready',
-            details: {
-              ...(order.details || {}),
-              status: 'shipping_ready',
-              barcodeFile: uploadedBarcodeFile.value || null
-            }
-          })
-          .eq('id', Number(order.id));
-        if (appErr) throw appErr;
-      } else {
-        const orderNum = order.orderNumber || String(order.id);
-        const { error: ordErr } = await supabase
-          .from('orders')
-          .update({
-            status: 'shipping_ready',
-            details: {
-              ...(order.details || {}),
-              status: 'shipping_ready',
-              barcodeFile: uploadedBarcodeFile.value || null
-            }
-          })
-          .eq('order_number', orderNum);
-        if (ordErr) throw ordErr;
-      }
+      const orderNum = order.orderNumber || String(order.id);
+      const { error: ordErr } = await supabase
+        .from('orders')
+        .update({
+          status: 'shipping_ready',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('order_number', orderNum);
+      if (ordErr) throw ordErr;
     }
 
     // 3. 로컬 스토리지 동기화

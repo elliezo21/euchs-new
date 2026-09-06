@@ -1386,17 +1386,23 @@ const saveArrivalInspection = async () => {
     // allItemsVerified이면 최상위 status를 arrival_done으로 승격
     if (allItemsVerified.value) {
       await updateApplicationOrderStatus(app.id, 'arrival_done');
-      await supabase.from('applications').update({
-        details: updatedDetails,
-        status: 'arrival_done',
-        updated_at: new Date().toISOString(),
-      }).eq('id', app.id);
+      const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
+      if (orderNo) {
+        await supabase.from('orders').update({
+          status: 'arrival_done',
+          measured_data: updatedDetails.measuredData || {},
+          updated_at: new Date().toISOString(),
+        }).eq('order_number', orderNo);
+      }
     } else {
-      // 미완료: details만 갱신 (최상위 status = warehouse_in 유지)
-      await supabase.from('applications').update({
-        details: updatedDetails,
-        updated_at: new Date().toISOString(),
-      }).eq('id', app.id);
+      // 미완료: measured_data만 갱신 (최상위 status = warehouse_in 유지)
+      const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
+      if (orderNo) {
+        await supabase.from('orders').update({
+          measured_data: updatedDetails.measuredData || {},
+          updated_at: new Date().toISOString(),
+        }).eq('order_number', orderNo);
+      }
     }
   }
 
@@ -1486,11 +1492,16 @@ const saveBoxMeasurement = async () => {
     try {
       await updateApplicationOrderStatus(app.id, 'inspection_done');
       if (isSupabaseConfigured()) {
-        await supabase.from('applications').update({
-          details: updatedDetails,
-          status: 'inspection_done',
-          updated_at: new Date().toISOString(),
-        }).eq('id', app.id);
+        const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
+        if (orderNo) {
+          await supabase.from('orders').update({
+            status: 'inspection_done',
+            measured_data: measuredData,
+            second_payment: secondPayment,
+            inspection_photos: savedPhotos,
+            updated_at: new Date().toISOString(),
+          }).eq('order_number', orderNo);
+        }
       }
     } catch (err) {
       console.warn('[AdminWarehouseModal] 5-B Supabase update:', err);
@@ -1587,11 +1598,13 @@ const saveIssueData = async () => {
         await updateApplicationOrderStatus(app.id, 'defect_found');
       }
       if (isSupabaseConfigured()) {
-        await supabase.from('applications').update({
-          details: updatedDetails,
-          ...(newInspectionStatus ? { status: 'defect_found' } : {}),
-          updated_at: new Date().toISOString(),
-        }).eq('id', app.id);
+        const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
+        if (orderNo) {
+          await supabase.from('orders').update({
+            ...(newInspectionStatus ? { status: 'defect_found' } : {}),
+            updated_at: new Date().toISOString(),
+          }).eq('order_number', orderNo);
+        }
       }
     } catch (err) {
       console.warn('[AdminWarehouseModal] 5-C Supabase update:', err);

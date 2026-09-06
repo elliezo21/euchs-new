@@ -1055,17 +1055,18 @@ const stageCounts = computed(() => {
   orders.value.forEach(o => {
     const n = normalizeOrderStatus(o.status);
     if (n === 'quote_pending') c.quote_pending++;
-    else if (n === 'quote_confirmed') c.quote_confirmed++;
+    else if (n === 'quote_confirmed' || n === 'payment_pending') c.quote_confirmed++; // payment_pending은 alias map 미등록
     else if (n === 'payment_verified') c.payment_verified++;
     else if (n === 'purchasing') c.purchasing++;
-    else if (n === 'warehouse_in') c.shipping_in_transit++;                        // 배송중
-    else if (n === 'arrival_done' || n === 'inspection_done') c.warehouse_arrived++; // 입고완료
+    else if (n === 'warehouse_in') c.shipping_in_transit++;                                      // 배송중
+    else if (n === 'arrival_done' || n === 'inspection_done') c.warehouse_arrived++;             // 입고완료
     else if (n === 'shipping_ready') c.shipping_ready++;
-    else if (n === 'customs_clearance') c.customs_clearance++;
+    else if (n === 'customs_clearance' || n === 'customs_done') c.customs_clearance++;           // customs_done 포함
     else if (n === 'domestic_shipping' || n === 'delivered') c.domestic_delivered++;
   });
   return c;
 });
+
 
 
 const filteredOrders = computed(() => {

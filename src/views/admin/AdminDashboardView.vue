@@ -292,7 +292,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { RefreshCw, ChevronRight } from 'lucide-vue-next';
-import { getStoredOrders } from '@/utils/orderStorage';
+import { getStoredOrders, fetchOrdersFromSupabase } from '@/utils/orderStorage';
 import { normalizeOrderStatus } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 
@@ -307,19 +307,20 @@ const pipelineCounts = computed(() => {
   const c = { newOrder: 0, preparing: 0, shipping: 0, delivered: 0, confirmed: 0 };
   orders.value.forEach(o => {
     const s = normalizeOrderStatus(o.status);
-    // 1~2단계: 견적/결제대기
+    // 1~2단계: 견적/결제대기 (payment_pending은 alias map 미등록이므로 명시적으로 포함)
     if (['quote_pending', 'quote_confirmed', 'payment_pending'].includes(s)) c.newOrder++;
     // 3~4단계: 1688 구매진행
     else if (['payment_verified', 'purchasing'].includes(s)) c.preparing++;
-    // 5~7단계: 창고/선적/통관
-    else if (['warehouse_in', 'inspecting', 'inspection_done', 'defect_found', 'shipping_ready', 'customs_clearance', 'customs_done'].includes(s)) c.shipping++;
+    // 5~7단계: 창고/선적/통관 (arrival_done, customs_done 포함)
+    else if (['warehouse_in', 'arrival_done', 'inspection_done', 'shipping_ready', 'customs_clearance', 'customs_done'].includes(s)) c.shipping++;
     // 8단계: 국내택배 인계
     else if (s === 'domestic_shipping') c.delivered++;
     // 수취 완료
-    else if (['delivered', 'completed'].includes(s)) c.confirmed++;
+    else if (s === 'delivered') c.confirmed++;
   });
   return c;
 });
+
 
 const customsCounts = computed(() => {
   const c = { inProgress: 0, taxPending: 0, cleared: 0 };
@@ -465,26 +466,20 @@ async function loadMemberStats() {
 
 
 /**
- * ✅ [발주 파이프라인] Supabase DB orders 직접 집계 (Primary)
- * - Supabase 연결 성공 시: DB orders 테이블 레코드를 직접 조회하여 orders.value 갱신
+ * ✅ [발주 파이프라인] fetchOrdersFromSupabase({ isAdmin: true }) 통합 조회
+ * - AdminOrderManageView와 동일한 데이터 소스 사용 → 카운트 일치 보장
+ * - Supabase orders 테이블 단독 조회 (applications 병행 조회 없음)
  * - 실패/오프라인 시: getStoredOrders() fallback 적용
  */
 async function loadDashboardStats() {
-  if (isSupabaseConfigured()) {
-    try {
-      const { data: dbOrders, error } = await supabase
-        .from('orders')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (!error && Array.isArray(dbOrders)) {
-        orders.value = dbOrders;
-        return;
-      }
-      console.warn('[AdminDashboard] Supabase orders query error, using localStorage fallback:', error);
-    } catch (e) {
-      console.warn('[AdminDashboard] Supabase orders fetch failed, using localStorage fallback:', e);
+  try {
+    const latest = await fetchOrdersFromSupabase({ isAdmin: true });
+    if (Array.isArray(latest)) {
+      orders.value = latest;
+      return;
     }
+  } catch (e) {
+    console.warn('[AdminDashboard] fetchOrdersFromSupabase failed, using localStorage fallback:', e);
   }
   // Fallback: localStorage 기반 주문 데이터
   orders.value = getStoredOrders();
