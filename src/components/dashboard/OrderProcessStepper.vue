@@ -370,37 +370,38 @@ const loadInternalCounts = () => {
 
 const getStepCount = (step) => {
   if (props.counts) {
-    let customSum = 0
-    let hasCustomKey = false
-
-    // 1. 단일 키 매칭
+    // 집계키(step.key)가 counts에 있으면 단독 사용.
+    // ⚠️ 이전 방식(집계키 + 개별키 모두 합산)은 이중합산 버그를 유발:
+    //    예) warehouse_inspection(2) + warehouse_in(1) = 3 (실제: 2건)
+    //        domestic_delivered(1) + domestic_shipping(1) = 2 (실제: 1건)
     if (typeof props.counts[step.key] === 'number') {
-      customSum += props.counts[step.key]
-      hasCustomKey = true
+      return props.counts[step.key]
     }
-
-    // 2. 복합 키 매칭
-    if (Array.isArray(step.keys)) {
-      step.keys.forEach(k => {
-        if (k !== step.key && typeof props.counts[k] === 'number') {
-          customSum += props.counts[k]
-          hasCustomKey = true
-        }
-      })
-    }
-
-    if (hasCustomKey) return customSum
+    // 집계키가 없을 때만 개별키 합산 (step.key 자신 제외)
+    let sum = 0
+    step.keys.forEach(k => {
+      if (k !== step.key && typeof props.counts[k] === 'number') {
+        sum += props.counts[k]
+      }
+    })
+    return sum
   }
 
+  // internalCounts 경로 (orders prop 또는 localStorage fallback)
+  // 집계키 우선 사용 — 개별키 합산과의 이중합산 방지
+  if (typeof internalCounts.value[step.key] === 'number') {
+    return internalCounts.value[step.key]
+  }
+  // 집계키가 없을 때만 개별키 합산 (step.key 자신 제외)
   let total = 0
   step.keys.forEach(k => {
-    total += (internalCounts.value[k] || 0)
+    if (k !== step.key) {
+      total += (internalCounts.value[k] || 0)
+    }
   })
-  if (total === 0 && internalCounts.value[step.key]) {
-    total = internalCounts.value[step.key]
-  }
   return total
 }
+
 
 const handleStepClick = (step) => {
   const code = typeof step === 'number' ? step : (step?.code || 1)
