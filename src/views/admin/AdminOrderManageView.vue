@@ -485,66 +485,86 @@
                 <!-- 배지: 저장된 item 값 기준 / 폼: purchaseInfoDraft[idx] 임시값 / 저장 버튼으로 DB 반영 -->
                 <div
                   v-if="isStatus(activeOrder, 'purchasing') && !item.excluded"
-                  class="w-full bg-indigo-50/60 border border-indigo-200 rounded-xl p-3 flex flex-col sm:flex-row sm:items-center flex-wrap gap-2.5"
+                  class="w-full bg-indigo-50/60 border border-indigo-200 rounded-xl p-3 flex flex-col gap-2.5"
                 >
-                  <span class="text-[11px] font-black text-indigo-700 shrink-0">🚚 중국 내륙 배송 정보</span>
+                  <!-- 헤더: 타이틀 + subStatus 배지 + 발주계정 -->
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="text-[11px] font-black text-indigo-700 shrink-0">🚚 중국 내륙 배송 정보</span>
 
-                  <!-- 서브상태 배지: 반드시 저장된 item.chinaTrackingNo 기준으로만 표시 -->
-                  <span
-                    v-if="item.chinaTrackingNo && item.chinaTrackingNo.trim()"
-                    class="px-2 py-0.5 rounded-md bg-blue-100 text-blue-700 border border-blue-200 font-bold text-[10px] shrink-0 whitespace-nowrap"
-                  >📦 내륙배송중</span>
-                  <span
-                    v-else
-                    class="px-2 py-0.5 rounded-md bg-amber-100 text-amber-700 border border-amber-200 font-bold text-[10px] shrink-0 whitespace-nowrap"
-                  >⏳ 업체발송대기</span>
+                    <!-- subStatus 배지: 저장된 item 기준, 하위호환 유추 포함 -->
+                    <span
+                      class="px-2 py-0.5 rounded-md border font-bold text-[10px] shrink-0 whitespace-nowrap"
+                      :class="getItemSubStatusBadge(item).cls"
+                    >{{ getItemSubStatusBadge(item).label }}</span>
 
-                  <!-- 구매번호 (draft 바인딩) -->
-                  <div class="flex items-center gap-1.5">
-                    <label class="text-[11px] font-bold text-slate-500 shrink-0">구매번호</label>
-                    <input
-                      v-model="purchaseInfoDraft[idx].purchaseNo"
-                      type="text"
-                      placeholder="1688 구매번호"
-                      class="w-36 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
-                    />
+                    <!-- 발주 계정 표시 (현재 고정값 calvinli06) -->
+                    <span v-if="item.purchaseAccount || item.purchaseNo" class="text-[10px] text-slate-400 font-mono shrink-0">
+                      계정: {{ item.purchaseAccount || 'calvinli06' }}
+                    </span>
                   </div>
 
-                  <!-- 중국 택배사 드롭다운 (draft 바인딩) -->
-                  <div class="flex items-center gap-1.5 shrink-0">
-                    <label class="text-[11px] font-bold text-slate-500 shrink-0">택배사</label>
-                    <select
-                      v-model="purchaseInfoDraft[idx].chinaCarrier"
-                      class="text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-indigo-400 font-medium transition"
+                  <!-- 입력 폼 행 -->
+                  <div class="flex sm:flex-row flex-col sm:items-center flex-wrap gap-2.5">
+                    <!-- 구매번호 (draft 바인딩) -->
+                    <div class="flex items-center gap-1.5">
+                      <label class="text-[11px] font-bold text-slate-500 shrink-0">구매번호</label>
+                      <input
+                        v-model="purchaseInfoDraft[idx].purchaseNo"
+                        type="text"
+                        placeholder="1688 구매번호"
+                        class="w-36 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
+                      />
+                    </div>
+
+                    <!-- 중국 택배사 드롭다운 (draft 바인딩) -->
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <label class="text-[11px] font-bold text-slate-500 shrink-0">택배사</label>
+                      <select
+                        v-model="purchaseInfoDraft[idx].chinaCarrier"
+                        class="text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-indigo-400 font-medium transition"
+                      >
+                        <option value="">선택</option>
+                        <option value="중통(ZTO)">중통(ZTO)</option>
+                        <option value="순풍(SF)">순풍(SF)</option>
+                        <option value="윈다(YTO)">윈다(YTO)</option>
+                        <option value="중국우정(EMS)">중국우정(EMS)</option>
+                        <option value="기타">기타</option>
+                      </select>
+                    </div>
+
+                    <!-- 중국 송장번호 (draft 바인딩) -->
+                    <div class="flex items-center gap-1.5 flex-1 min-w-0">
+                      <label class="text-[11px] font-bold text-slate-500 shrink-0">송장번호</label>
+                      <input
+                        v-model="purchaseInfoDraft[idx].chinaTrackingNo"
+                        type="text"
+                        placeholder="중국 내륙 송장번호"
+                        class="flex-1 min-w-0 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
+                      />
+                    </div>
+
+                    <!-- 수동 저장 버튼 -->
+                    <button
+                      type="button"
+                      @click="savePurchasingInfo(item, idx)"
+                      class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
                     >
-                      <option value="">선택</option>
-                      <option value="중통(ZTO)">중통(ZTO)</option>
-                      <option value="순풍(SF)">순풍(SF)</option>
-                      <option value="윈다(YTO)">윈다(YTO)</option>
-                      <option value="중국우정(EMS)">중국우정(EMS)</option>
-                      <option value="기타">기타</option>
-                    </select>
-                  </div>
+                      <span>💾 저장</span>
+                    </button>
 
-                  <!-- 중국 송장번호 (draft 바인딩) -->
-                  <div class="flex items-center gap-1.5 flex-1 min-w-0">
-                    <label class="text-[11px] font-bold text-slate-500 shrink-0">송장번호</label>
-                    <input
-                      v-model="purchaseInfoDraft[idx].chinaTrackingNo"
-                      type="text"
-                      placeholder="중국 내륙 송장번호"
-                      class="flex-1 min-w-0 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
-                    />
+                    <!-- 1688 자동발주 버튼 (Phase 3 예정 — 현재 비활성화) -->
+                    <!-- TODO Phase 3: 실제 1688 API 자동발주 연동 시 disabled 제거 및 handler 연결 -->
+                    <button
+                      type="button"
+                      disabled
+                      @click="showToast('1688 자동발주 기능은 곧 지원 예정입니다.', 'success')"
+                      class="shrink-0 px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 font-bold text-[11px] cursor-not-allowed flex items-center gap-1 whitespace-nowrap border border-slate-300"
+                      title="Phase 3에서 실제 1688 API 자동발주 연동 예정"
+                    >
+                      <span>🤖 1688 자동발주</span>
+                      <span class="text-[9px] font-normal opacity-70">(준비중)</span>
+                    </button>
                   </div>
-
-                  <!-- 품목별 저장 버튼 -->
-                  <button
-                    type="button"
-                    @click="savePurchasingInfo(item, idx)"
-                    class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
-                  >
-                    <span>💾 저장</span>
-                  </button>
                 </div>
               </div>
             </div>
@@ -895,6 +915,16 @@ async function savePurchasingInfo(item, idx) {
   item.purchaseNo      = draft.purchaseNo.trim();
   item.chinaCarrier    = draft.chinaCarrier;
   item.chinaTrackingNo = draft.chinaTrackingNo.trim();
+  // Phase 3에서 실제 1688 API 자동발주 계정 선택 지원 예정 — 지금은 고정값
+  item.purchaseAccount = 'calvinli06';
+  // subStatus 자동 전환: chinaTrackingNo 있으면 shipping, purchaseNo 있으면 purchase_done, 둘 다 없으면 purchase_pending
+  if (item.chinaTrackingNo) {
+    item.subStatus = 'shipping';
+  } else if (item.purchaseNo) {
+    item.subStatus = 'purchase_done';
+  } else {
+    item.subStatus = 'purchase_pending';
+  }
 
   // closeAfter:false — 팝업을 닫지 않고 items만 저장 (나머지 품목 이어서 입력 가능)
   await saveDetailDraft({ closeAfter: false });
@@ -1172,9 +1202,41 @@ function getUnverifiedItemNames(o) {
     .join(', ');
 }
 
+// ----------------------------------------------------
+// 1688 발주 subStatus 배지 헬퍼 (하위호환 포함)
+// item.subStatus 명시 → 그대로 사용
+// item.subStatus 없는 기존 데이터 → chinaTrackingNo/purchaseNo 유추
+// ----------------------------------------------------
+function getItemSubStatusBadge(item) {
+  // subStatus 명시적 값이 있으면 최우선
+  let s = item.subStatus;
 
+  // 하위호환: subStatus 없는 기존 데이터는 기존 필드로 유추
+  if (!s) {
+    const hasTracking = typeof item.chinaTrackingNo === 'string' && item.chinaTrackingNo.trim() !== '';
+    const hasPurchaseNo = typeof item.purchaseNo === 'string' && item.purchaseNo.trim() !== '';
+    if (hasTracking) {
+      // 송장번호까지 있으면 내륙배송중으로 유추 (arrived는 명시적 subStatus로만 구분)
+      s = 'shipping';
+    } else if (hasPurchaseNo) {
+      // 구매번호만 있으면 발주완료
+      s = 'purchase_done';
+    } else {
+      s = 'purchase_pending';
+    }
+  }
+
+  const map = {
+    purchase_pending: { label: '⏳ 발주대기',     cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    purchase_done:    { label: '🛒 발주완료',     cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+    shipping:         { label: '🚚 내륙배송중',   cls: 'bg-purple-100 text-purple-700 border-purple-200' },
+    arrived:          { label: '📦 이우창고도착', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+  };
+  return map[s] || map.purchase_pending;
+}
 
 function showToast(msg, type='success') { clearTimeout(toastTimer); toast.value={show:true,message:msg,type}; toastTimer=setTimeout(()=>{toast.value.show=false;},3200); }
+
 function closeModals() { modal.value={blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; }
 
 
@@ -1376,6 +1438,8 @@ function openDetail(o) {
       purchaseNo:      item.purchaseNo      || '',
       chinaCarrier:    item.chinaCarrier    || '',
       chinaTrackingNo: item.chinaTrackingNo || '',
+      subStatus:       item.subStatus       || '',   // 빈 문자열 → 배지 헬퍼가 기존 필드로 유추
+      purchaseAccount: item.purchaseAccount || 'calvinli06',
     };
   });
   modal.value.detail = true;
