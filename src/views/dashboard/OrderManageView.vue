@@ -1165,7 +1165,7 @@
             <button
               v-if="normalizeOrderStatus(activeOrder.status) === 'quote_confirmed'"
               type="button"
-              @click="executeInstantPayment(activeOrder)"
+              @click="openInstantPaymentConfirm(activeOrder)"
               :disabled="isPaying"
               class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 animate-pulse"
             >
@@ -1721,6 +1721,27 @@
       </button>
     </div>
   </Transition>
+    <!-- ConfirmSaveModal: 주문 상태 전환 (바이어) -->
+    <ConfirmSaveModal
+      v-model="confirmAdvanceStage"
+      :title="`[${pendingAdvanceOrder?.orderNumber}]\n${pendingAdvanceLabel} 처리할까요?`"
+      variant="blue"
+      icon="check"
+      confirmText="확인"
+      @confirm="executeAdvanceOrderStage"
+    />
+
+    <!-- ConfirmSaveModal: 1차 결제 -->
+    <ConfirmSaveModal
+      v-model="confirmInstantPayment"
+      :title="`총 결제 예정 금액 [ ₩${pendingInstantPaymentWon}원 ]을 예치금에서 결제 승인할까요?`"
+      description="결제 시 중국 현지 1688 구매진행(사입) 단계로 전환됩니다."
+      variant="save"
+      icon="check"
+      confirmText="결제 승인"
+      @confirm="executeInstantPayment"
+    />
+
     <!-- ConfirmSaveModal: 수령 주소 변경 -->
     <ConfirmSaveModal
       v-model="confirmSaveOrderAddress"
@@ -1812,6 +1833,12 @@ const isDetailModalOpen = ref(false);
 const activeOrder = ref(null);
 const isPaying = ref(false);
 const confirmSaveOrderAddress = ref(false);
+const confirmAdvanceStage = ref(false);
+const pendingAdvanceOrder = ref(null);
+const pendingAdvanceLabel = ref('');
+const confirmInstantPayment = ref(false);
+const pendingInstantPaymentOrder = ref(null);
+const pendingInstantPaymentWon = ref('0');
 
 // 2차 결제 & 바코드 업로드 모달 상태
 const isSecondPaymentModalOpen = ref(false);
@@ -2829,7 +2856,17 @@ function advanceOrderStage(order) {
   if (!nextStatus) return;
 
   const label = ADVANCE_LABEL_MAP[currentStatus];
-  if (!confirm(`[${order.orderNumber}]\n${label} 처리하시겠습니까?`)) return;
+  pendingAdvanceOrder.value = order;
+  pendingAdvanceLabel.value = label;
+  confirmAdvanceStage.value = true;
+}
+
+function executeAdvanceOrderStage() {
+  const order = pendingAdvanceOrder.value;
+  if (!order) return;
+  const currentStatus = normalizeOrderStatus(order.status);
+  const nextStatus = STATUS_ADVANCE_MAP[currentStatus];
+  if (!nextStatus) return;
 
   // 로컬 상태 업데이트
   order.status = nextStatus;
@@ -2865,26 +2902,30 @@ function advanceOrderStage(order) {
 
 const isInternalOrderUpdate = ref(false);
 
-async function executeInstantPayment(order) {
+function openInstantPaymentConfirm(order) {
   if (!order) return;
   const cost = getOrderCostSummary(order);
-  const totalCost = Number(cost.chargeableKrw) || 0; // 관세·부가세 제외(세관 직납) — 실제 당사 청구액
+  const totalCost = Number(cost.chargeableKrw) || 0;
   const totalWon = formatNumber(totalCost);
-  const orderId = order.id || order.orderNumber || order.order_no || order.orderId;
-  const orderNo = order.orderNumber || order.order_no || order.id || 'EUC-ORD';
-  const nowIso = new Date().toISOString();
-
-  // 1. 바이어 예치금 잔액 확인
   const currentBal = Number(userBalance.value || 0);
   if (currentBal < totalCost) {
     alert(`예치금 잔액이 부족합니다.\n\n- 보유 예치금: ₩${formatNumber(currentBal)}원\n- 결제 필요액: ₩${totalWon}원\n- 부족액: ₩${formatNumber(totalCost - currentBal)}원\n\n[계정 설정 > 예치금 지갑]에서 먼저 예치금을 충전해 주세요.`);
     return;
   }
+  pendingInstantPaymentOrder.value = order;
+  pendingInstantPaymentWon.value = totalWon;
+  confirmInstantPayment.value = true;
+}
 
-  if (!confirm(`총 결제 예정 금액 [ ₩${totalWon}원 ]을 예치금에서 즉시 결제 승인하시겠습니까?\n결제 시 중국 현지 1688 구매진행(사입) 단계로 전환됩니다.`)) {
-    return;
-  }
-
+async function executeInstantPayment() {
+  const order = pendingInstantPaymentOrder.value;
+  if (!order) return;
+  const cost = getOrderCostSummary(order);
+  const totalCost = Number(cost.chargeableKrw) || 0;
+  const totalWon = formatNumber(totalCost);
+  const orderId = order.id || order.orderNumber || order.order_no || order.orderId;
+  const orderNo = order.orderNumber || order.order_no || order.id || 'EUC-ORD';
+  const nowIso = new Date().toISOString();
   isPaying.value = true;
   isInternalOrderUpdate.value = true;
 

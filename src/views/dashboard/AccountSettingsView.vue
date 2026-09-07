@@ -756,6 +756,39 @@
         </div>
       </div>
     </div>
+    <!-- ConfirmSaveModal: 주소 삭제 -->
+    <ConfirmSaveModal
+      v-model="confirmDeleteAddress"
+      title="해당 주소지를 삭제할까요?"
+      description="삭제 후에는 복구할 수 없습니다."
+      variant="red"
+      icon="warn"
+      confirmText="삭제"
+      @confirm="executeDeleteAddress"
+    />
+
+    <!-- ConfirmSaveModal: 회원 탈퇴 1차 확인 -->
+    <ConfirmSaveModal
+      v-model="confirmWithdrawal1"
+      title="🚨 정말 회원 탈퇴를 진행하시겠습니까?"
+      description="탈퇴 시 사업자 정보 및 배송 주소록이 삭제되고, 미사용 예치금 환불이 제한될 수 있습니다."
+      variant="red"
+      icon="warn"
+      confirmText="계속"
+      @confirm="handleWithdrawalStep2"
+    />
+
+    <!-- ConfirmSaveModal: 회원 탈퇴 2차 최종 확인 -->
+    <ConfirmSaveModal
+      v-model="confirmWithdrawal2"
+      title="최종 확인: 계정을 영구히 삭제하고 탈퇴하시겠습니까?"
+      description="이 작업은 되돌릴 수 없습니다."
+      variant="red"
+      icon="warn"
+      confirmText="탈퇴"
+      @confirm="executeWithdrawal"
+    />
+
     <!-- ConfirmSaveModal: 통관 정보 저장 -->
     <ConfirmSaveModal
       v-model="confirmSaveCustoms"
@@ -827,6 +860,10 @@ const walletFilter = ref('all')
 // ConfirmSaveModal 상태
 const confirmSaveCustoms = ref(false)
 const confirmSaveAddress = ref(false)
+const confirmDeleteAddress = ref(false)
+const pendingDeleteAddressId = ref(null)
+const confirmWithdrawal1 = ref(false)
+const confirmWithdrawal2 = ref(false)
 const showAddressModal = ref(false)
 const showDepositModal = ref(false)
 const editingAddressId = ref(null)
@@ -1138,10 +1175,15 @@ const saveAddress = () => {
 }
 
 const deleteAddress = (id) => {
-  if (confirm('해당 주소지를 삭제하시겠습니까?')) {
-    addressList.value = addressList.value.filter(a => a.id !== id)
-    saveAddressesToStorage()
-  }
+  pendingDeleteAddressId.value = id
+  confirmDeleteAddress.value = true
+}
+
+const executeDeleteAddress = () => {
+  const id = pendingDeleteAddressId.value
+  if (!id) return
+  addressList.value = addressList.value.filter(a => a.id !== id)
+  saveAddressesToStorage()
 }
 
 const setDefaultAddress = (id) => {
@@ -1180,14 +1222,15 @@ const handleChangePassword = async () => {
 }
 
 const handleAccountWithdrawal = async () => {
-  const isConfirmed = confirm(
-    '🚨 정말 회원 탈퇴를 진행하시겠습니까?\n\n- 탈퇴 시 등록된 사업자 정보 및 배송 주소록이 삭제됩니다.\n- 미사용 예치금 잔액 환불이 제한될 수 있습니다.\n- 진행 중인 발주 및 통관 내역 조회가 즉시 중단됩니다.'
-  )
-  if (!isConfirmed) return
+  confirmWithdrawal1.value = true
+}
 
-  const doubleCheck = confirm('최종 확인: 계정을 영구히 삭제하고 탈퇴하시겠습니까?')
-  if (!doubleCheck) return
+const handleWithdrawalStep2 = () => {
+  // 1차 확인 후 2차 최종 확인 모달
+  confirmWithdrawal2.value = true
+}
 
+const executeWithdrawal = async () => {
   isWithdrawing.value = true
   try {
     await withdrawAccount()

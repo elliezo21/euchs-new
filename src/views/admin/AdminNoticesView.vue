@@ -324,6 +324,17 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 공지 삭제 -->
+    <ConfirmSaveModal
+      v-model="confirmDeleteNotice"
+      title="해당 공지사항을 정말 삭제할까요?"
+      description="삭제 후에는 복구할 수 없습니다."
+      variant="red"
+      icon="warn"
+      confirmText="삭제"
+      @confirm="executeDeleteNotice"
+    />
+
     <!-- ConfirmSaveModal: 공지 게시/수정 -->
     <ConfirmSaveModal
       v-model="confirmSaveNotice"
@@ -346,6 +357,8 @@ const formRef = ref(null)
 const noticeFileInput = ref(null)
 const editingId = ref(null)
 const confirmSaveNotice = ref(false)
+const confirmDeleteNotice = ref(false)
+const pendingDeleteNoticeId = ref(null)
 const filterCategory = ref('all')
 const searchQuery = ref('')
 
@@ -607,13 +620,18 @@ function resetNoticeForm() {
 }
 
 function deleteNotice(id) {
-  if (confirm('해당 공지사항을 정말 삭제하시겠습니까?')) {
-    noticesList.value = noticesList.value.filter(n => n.id !== id)
-    saveToStorage()
-    showToast('공지사항이 삭제되었습니다.')
-    if (editingId.value === id) {
-      resetNoticeForm()
-    }
+  pendingDeleteNoticeId.value = id
+  confirmDeleteNotice.value = true
+}
+
+function executeDeleteNotice() {
+  const id = pendingDeleteNoticeId.value
+  if (!id) return
+  noticesList.value = noticesList.value.filter(n => n.id !== id)
+  saveToStorage()
+  showToast('공지사항이 삭제되었습니다.')
+  if (editingId.value === id) {
+    resetNoticeForm()
   }
 }
 

@@ -398,6 +398,17 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 소싱 리스트 삭제 -->
+    <ConfirmSaveModal
+      v-model="confirmDeleteSourcing"
+      :title="`선택한 ${selectedIds.length}개 상품을 삭제할까요?`"
+      description="삭제 후에는 복구할 수 없습니다."
+      variant="red"
+      icon="warn"
+      confirmText="삭제"
+      @confirm="executeDeleteSelected"
+    />
+
   </div>
 </template>
 
@@ -405,6 +416,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { downloadBulkOrderTemplate, parseOrderExcel } from '@/utils/excelHandler';
 import { getStoredOrders, saveStoredOrders } from '@/utils/orderStorage';
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 
 // ─── 프리셋 카테고리 ──────────────────────────────────────
 const PRESET_CATEGORIES = [
@@ -414,6 +426,7 @@ const PRESET_CATEGORIES = [
 
 // ─── 상품 목록 State ──────────────────────────────────────
 const items = ref([]);
+const confirmDeleteSourcing = ref(false);
 const selectedIds = ref([]);
 const searchQuery = ref('');
 const categoryFilter = ref('');
@@ -452,7 +465,9 @@ function removeItem(id) {
 }
 function deleteSelected() {
   if (!selectedIds.value.length) return;
-  if (!confirm(`선택한 ${selectedIds.value.length}개 상품을 삭제하시겠습니까?`)) return;
+  confirmDeleteSourcing.value = true;
+}
+function executeDeleteSelected() {
   items.value = items.value.filter(i => !selectedIds.value.includes(i.id));
   selectedIds.value = [];
   persistItems();

@@ -31,9 +31,23 @@
                   stroke-linecap="round"
                   stroke-linejoin="round"
                 >
+               <!-- 저장(disk) 아이콘 -->
+                <template v-if="icon === 'save'">
                   <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z" />
                   <polyline points="17 21 17 13 7 13 7 21" />
                   <polyline points="7 3 7 8 15 8" />
+                </template>
+                <!-- 경고 삼각형 아이콘 (삭제/취소/해제류) -->
+                <template v-else-if="icon === 'warn'">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                  <line x1="12" y1="9" x2="12" y2="13" />
+                  <line x1="12" y1="17" x2="12.01" y2="17" />
+                </template>
+                <!-- 체크 아이콘 (승인/전환류) -->
+                <template v-else>
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                  <polyline points="22 4 12 14.01 9 11.01" />
+                </template>
                 </svg>
               </div>
 
@@ -78,8 +92,10 @@ const props = defineProps({
   description: { type: String, default: '' },
   confirmText: { type: String, default: '저장' },
   cancelText: { type: String, default: '취소' },
-  /** 'save'(기본, slate) | 'blue' | 'amber' | 'purple' | 'orange' */
+  /** 'save' | 'blue' | 'amber' | 'purple' | 'orange' | 'red' */
   variant: { type: String, default: 'save' },
+  /** 'save'(디스크) | 'warn'(삼각형 경고) | 'check'(체크) */
+  icon: { type: String, default: 'save' },
 })
 
 const emit = defineEmits(['update:modelValue', 'confirm'])
@@ -96,6 +112,7 @@ const iconBgClass = computed(() => {
     amber:  'bg-amber-50',
     purple: 'bg-purple-50',
     orange: 'bg-orange-50',
+    red:    'bg-red-50',
   }
   return map[props.variant] ?? map.save
 })
@@ -107,6 +124,7 @@ const iconClass = computed(() => {
     amber:  'text-amber-600',
     purple: 'text-purple-600',
     orange: 'text-orange-600',
+    red:    'text-red-600',
   }
   return map[props.variant] ?? map.save
 })
@@ -118,6 +136,7 @@ const confirmBtnClass = computed(() => {
     amber:  'bg-amber-500 hover:bg-amber-400 !text-slate-950',
     purple: 'bg-purple-600 hover:bg-purple-700',
     orange: 'bg-orange-600 hover:bg-orange-700',
+    red:    'bg-red-600 hover:bg-red-700',
   }
   return map[props.variant] ?? map.save
 })

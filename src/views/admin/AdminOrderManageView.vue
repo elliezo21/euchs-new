@@ -692,13 +692,84 @@
       </div>
     </Transition>
 
-    <!-- ConfirmSaveModal: 주문 변경사항 저장 -->
+    <!-- ConfirmSaveModal: 주문상세 변경사항 저장 -->
     <ConfirmSaveModal
       v-model="confirmSaveOrder"
       title="주문 정보를 저장할까요?"
       variant="save"
       confirmText="저장"
       @confirm="saveDetailDraft"
+    />
+
+    <!-- ConfirmSaveModal: 전체 주문 취소 -->
+    <ConfirmSaveModal
+      v-model="confirmCancelOrder"
+      :title="`[${pendingCancelOrder?.orderNumber}] 주문을 전체 취소(품절/반려) 처리할까요?`"
+      description="취소 후에는 복구할 수 없습니다."
+      variant="red"
+      icon="warn"
+      confirmText="취소 처리"
+      @confirm="executeCancelOrder"
+    />
+
+    <!-- ConfirmSaveModal: 견적 승인 2단계 전환 -->
+    <ConfirmSaveModal
+      v-model="confirmApproveQuote"
+      :title="`[${activeOrder?.orderNumber}] 주문의 견적을 승인하여 2단계(결제대기)로 전환할까요?`"
+      variant="blue"
+      icon="check"
+      confirmText="승인"
+      @confirm="approveQuoteFromDetail"
+    />
+
+    <!-- ConfirmSaveModal: 3단계 전환 (결제 확인) -->
+    <ConfirmSaveModal
+      v-model="confirmPayment3"
+      :title="`[${pendingConfirmPayment?.orderNumber}] 결제 입금 확인 후 3단계 전환할까요?`"
+      variant="blue"
+      icon="check"
+      confirmText="확인"
+      @confirm="executeConfirmPayment"
+    />
+
+    <!-- ConfirmSaveModal: 4단계 전환 (1688 구매 시작) -->
+    <ConfirmSaveModal
+      v-model="confirmPurchase4"
+      :title="`[${pendingStartPurchasing?.orderNumber}] 1688 구매 시작 → 4단계 전환할까요?`"
+      variant="blue"
+      icon="check"
+      confirmText="구매 시작"
+      @confirm="executeStartPurchasing"
+    />
+
+    <!-- ConfirmSaveModal: 5단계 전환 (창고 도착 확인) -->
+    <ConfirmSaveModal
+      v-model="confirmWarehouseArrival5"
+      :title="`[${pendingWarehouseOrder?.orderNumber}] 이우 창고 도착 확인 → 배송중(5단계)으로 전환할까요?`"
+      variant="blue"
+      icon="check"
+      confirmText="확인"
+      @confirm="executeWarehouseArrival"
+    />
+
+    <!-- ConfirmSaveModal: 6단계 전환 (선적 처리) -->
+    <ConfirmSaveModal
+      v-model="confirmShipping6"
+      :title="`[${pendingShippingOrder?.orderNumber}] 선적 처리 → 6단계 전환할까요?`"
+      variant="blue"
+      icon="check"
+      confirmText="선적 처리"
+      @confirm="executeAdvanceToShipping"
+    />
+
+    <!-- ConfirmSaveModal: 배송완료 처리 -->
+    <ConfirmSaveModal
+      v-model="confirmDelivered9"
+      :title="`[${pendingDeliveredOrder?.orderNumber}] 배송완료(최종 수령) 처리할까요?`"
+      variant="save"
+      icon="check"
+      confirmText="완료 처리"
+      @confirm="executeMarkDelivered"
     />
 
   </div>
@@ -768,6 +839,21 @@ const excludeReasonMap = ref({});
 const purchaseInfoDraft = ref({});
 const toast = ref({ show: false, message: '', type: 'success' });
 let toastTimer = null;
+
+// ConfirmSaveModal 상태 — 기존 confirm() 교체용
+const confirmCancelOrder = ref(false);          // 3번: 전체 주문 취소
+const pendingCancelOrder = ref(null);
+const confirmApproveQuote = ref(false);         // 4번: 견적 승인 2단계
+const confirmPayment3 = ref(false);             // 5번: 3단계 전환
+const pendingConfirmPayment = ref(null);
+const confirmPurchase4 = ref(false);            // 6번: 4단계 전환
+const pendingStartPurchasing = ref(null);
+const confirmWarehouseArrival5 = ref(false);    // 7번: 5단계 전환
+const pendingWarehouseOrder = ref(null);
+const confirmShipping6 = ref(false);            // 8번: 6단계 전환
+const pendingShippingOrder = ref(null);
+const confirmDelivered9 = ref(false);           // 9번: 배송완료
+const pendingDeliveredOrder = ref(null);
 
 // 체크박스 다중 선택 (일괄 엑셀용)
 const selectedOrderIds = ref(new Set());
@@ -892,7 +978,13 @@ const isInternalUpdate = ref(false);
 
 async function cancelOrderEntirely(order) {
   if (!order) return;
-  if (!confirm(`[${order.orderNumber}] 주문을 '전체 취소 (품절/반려)' 처리하시겠습니까?\n취소 후에는 복구할 수 없습니다.`)) return;
+  pendingCancelOrder.value = order;
+  confirmCancelOrder.value = true;
+}
+
+async function executeCancelOrder() {
+  const order = pendingCancelOrder.value;
+  if (!order) return;
 
   const prevStatus = order.status;
   const target = orders.value.find(o => o.id === order.id || o.orderNumber === order.orderNumber);
@@ -1014,7 +1106,11 @@ async function approveQuoteFromDetail() {
     return;
   }
 
-  if (!confirm(`[${activeOrder.value.orderNumber}] 주문의 견적을 승인하여 2단계(결제대기)로 전환하시겠습니까?`)) return;
+  if (!confirmApproveQuote.value) {
+    confirmApproveQuote.value = true;
+    return;
+  }
+  confirmApproveQuote.value = false;
 
   const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
   const orderNum = activeOrder.value.orderNumber || targetOrderId;
@@ -1339,7 +1435,12 @@ async function handleWarehouseSaved(payload) {
 // 2단계: 결제 확인 → payment_verified
 // ─────────────────────────────────────
 async function confirmPayment(o) {
-  if (!confirm(`[${o.orderNumber}] 결제 입금 확인 후 3단계 전환하시겠습니까?`)) return;
+  pendingConfirmPayment.value = o;
+  confirmPayment3.value = true;
+}
+async function executeConfirmPayment() {
+  const o = pendingConfirmPayment.value;
+  if (!o) return;
   const prevStatus = o.status;
   const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
   if (target) target.status = 'payment_verified';
@@ -1362,7 +1463,12 @@ async function confirmPayment(o) {
 // 3단계: 1688 구매 시작 → purchasing
 // ─────────────────────────────────────
 async function startPurchasing(o) {
-  if (!confirm(`[${o.orderNumber}] 1688 구매 시작 → 4단계 전환하시겠습니까?`)) return;
+  pendingStartPurchasing.value = o;
+  confirmPurchase4.value = true;
+}
+async function executeStartPurchasing() {
+  const o = pendingStartPurchasing.value;
+  if (!o) return;
   const prevStatus = o.status;
   const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
   if (target) target.status = 'purchasing';
@@ -1408,9 +1514,11 @@ async function confirmWarehouseArrival(order, { silent = false } = {}) {
     showToast('모든 품목의 송장번호를 먼저 입력·저장해주세요.', 'error');
     return;
   }
-  // 자동 경로(silent)가 아닌 경우에만 수동 confirm 팝업 표시
+  // 자동 경로(silent)가 아닌 경우에만 수동 모달 표시
   if (!silent) {
-    if (!confirm(`[${order.orderNumber}] 이우 창고 도착 확인 → 배송중(5단계)으로 전환하시겠습니까?`)) return;
+    pendingWarehouseOrder.value = order;
+    confirmWarehouseArrival5.value = true;
+    return;
   }
 
   const prevStatus = order.status;
@@ -1435,6 +1543,12 @@ async function confirmWarehouseArrival(order, { silent = false } = {}) {
 }
 
 
+async function executeWarehouseArrival() {
+  const order = pendingWarehouseOrder.value;
+  if (!order) return;
+  await confirmWarehouseArrival(order, { silent: true });
+}
+
 function openBLForm(o) { activeOrder.value=o; const eta=new Date(); eta.setDate(eta.getDate()+14); blForm.value={blNumber:'',cargoMgtNo:'',vesselName:'',eta:eta.toISOString().split('T')[0],ftaStatus:'none'}; modal.value.blForm=true; }
 function openTrackingForm(o) { activeOrder.value=o; trackingForm.value={deliveryType:'parcel',carrier:'경동택배',trackingNumber:'',fcCenter:''}; modal.value.trackingForm=true; }
 function openDetail(o) {
@@ -1458,7 +1572,12 @@ function openDetail(o) {
 
 
 async function advanceToShipping(o) {
-  if (!confirm(`[${o.orderNumber}] 선적 처리 → 6단계 전환하시겠습니까?`)) return;
+  pendingShippingOrder.value = o;
+  confirmShipping6.value = true;
+}
+async function executeAdvanceToShipping() {
+  const o = pendingShippingOrder.value;
+  if (!o) return;
   const prevStatus = o.status;
   const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
   if (target) target.status = 'shipping_ready';
@@ -1580,7 +1699,12 @@ async function submitTrackingForm() {
 }
 
 async function markDelivered(o) {
-  if (!confirm(`[${o.orderNumber}] 배송완료(최종 수령) 처리하시겠습니까?`)) return;
+  pendingDeliveredOrder.value = o;
+  confirmDelivered9.value = true;
+}
+async function executeMarkDelivered() {
+  const o = pendingDeliveredOrder.value;
+  if (!o) return;
   const prevStatus = o.status;
   const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
   if (target) target.status = 'delivered';

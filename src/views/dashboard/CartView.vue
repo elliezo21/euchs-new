@@ -566,6 +566,26 @@
       </div>
     </div>
 
+    <!-- ConfirmSaveModal: 개별 품목 삭제 -->
+    <ConfirmSaveModal
+      v-model="confirmRemoveItem"
+      title="해당 품목을 장바구니에서 삭제할까요?"
+      variant="red"
+      icon="warn"
+      confirmText="삭제"
+      @confirm="executeRemoveItem"
+    />
+
+    <!-- ConfirmSaveModal: 선택 품목 전체 삭제 -->
+    <ConfirmSaveModal
+      v-model="confirmDeleteSelected"
+      :title="`선택한 ${selectedItemIds.length}개 품목을 장바구니에서 삭제할까요?`"
+      variant="red"
+      icon="warn"
+      confirmText="삭제"
+      @confirm="executeDeleteSelected"
+    />
+
   </div>
 </template>
 
@@ -601,6 +621,7 @@ import { getStoredOrders, saveStoredOrders, saveNewOrder } from '@/utils/orderSt
 import { currentUser, getCartStorageKey, isLoggedIn } from '@/lib/auth';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 
 const router = useRouter();
 
@@ -608,6 +629,9 @@ const searchQuery = ref('');
 const sortBy = ref('latest');
 const selectedItemIds = ref([]);
 const cartItems = ref([]);
+const confirmRemoveItem = ref(false);
+const pendingRemoveItemId = ref(null);
+const confirmDeleteSelected = ref(false);
 
 // 재고 초과 안내 토스트
 const stockLimitToast = ref('');
@@ -1127,20 +1151,27 @@ function toggleSelectAll(e) {
 // 삭제 액션
 // ---------------------------------------------------------
 function removeItem(id) {
-  if (confirm('해당 품목을 장바구니에서 삭제하시겠습니까?')) {
-    cartItems.value = cartItems.value.filter(it => it.id !== id);
-    selectedItemIds.value = selectedItemIds.value.filter(itemId => itemId !== id);
-    saveCartToStorage();
-  }
+  pendingRemoveItemId.value = id;
+  confirmRemoveItem.value = true;
+}
+
+function executeRemoveItem() {
+  const id = pendingRemoveItemId.value;
+  if (!id) return;
+  cartItems.value = cartItems.value.filter(it => it.id !== id);
+  selectedItemIds.value = selectedItemIds.value.filter(itemId => itemId !== id);
+  saveCartToStorage();
 }
 
 function deleteSelected() {
   if (selectedItemIds.value.length === 0) return;
-  if (confirm(`선택한 ${selectedItemIds.value.length}개 품목을 장바구니에서 삭제하시겠습니까?`)) {
-    cartItems.value = cartItems.value.filter(it => !selectedItemIds.value.includes(it.id));
-    selectedItemIds.value = [];
-    saveCartToStorage();
-  }
+  confirmDeleteSelected.value = true;
+}
+
+function executeDeleteSelected() {
+  cartItems.value = cartItems.value.filter(it => !selectedItemIds.value.includes(it.id));
+  selectedItemIds.value = [];
+  saveCartToStorage();
 }
 
 // ---------------------------------------------------------

@@ -436,6 +436,17 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 사업자 인증 승인 -->
+    <ConfirmSaveModal
+      v-model="confirmApprovalMember"
+      :title="`[${pendingApprovalMember?.companyName || pendingApprovalMember?.name || '바이어'}] 님의 사업자 인증을 승인할까요?`"
+      description="승인 시 '사업자회원' 등급으로 자동 전환됩니다."
+      variant="blue"
+      icon="check"
+      confirmText="승인"
+      @confirm="approveMember(pendingApprovalMember)"
+    />
+
     <!-- ConfirmSaveModal: 회원 정보 저장 -->
     <ConfirmSaveModal
       v-model="confirmSaveMember"
@@ -459,6 +470,8 @@ const statusFilter = ref('all')
 const searchQuery = ref('')
 const selectedMember = ref(null)
 const confirmSaveMember = ref(false)
+const confirmApprovalMember = ref(false)
+const pendingApprovalMember = ref(null)
 const isFatalError = ref(false)
 const fatalErrorMessage = ref('')
 
@@ -618,9 +631,8 @@ function openDetailModal(member) {
 
 function quickApprove(member) {
   if (!member) return
-  if (confirm(`[${member.companyName || member.name || '바이어'}] 님의 사업자 인증을 승인하시겠습니까?\n승인 시 '사업자회원' 등급으로 자동 전환됩니다.`)) {
-    approveMember(member)
-  }
+  pendingApprovalMember.value = member
+  confirmApprovalMember.value = true
 }
 
 async function approveMember(member) {

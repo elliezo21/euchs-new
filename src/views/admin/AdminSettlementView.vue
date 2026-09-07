@@ -479,6 +479,17 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 예치금 승인 -->
+    <ConfirmSaveModal
+      v-model="confirmApproveDeposit"
+      :title="`[${pendingDepositReq?.buyerName || pendingDepositReq?.buyer_name || '바이어'}] 님의 ₩${pendingDepositReq ? fmtN(pendingDepositReq.amount) : ''}원 무통장 입금을 승인할까요?`"
+      description="승인 시 바이어 예치금 잔액으로 즉시 충전됩니다."
+      variant="blue"
+      icon="check"
+      confirmText="승인"
+      @confirm="executeApproveDeposit"
+    />
+
   </div>
 </template>
 
@@ -487,12 +498,15 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { userBalance, setBalance, applyBalanceTransaction } from '@/lib/balanceStore'
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const activeSubTab = ref('requests') // 'requests' | 'logs'
 const depositFilter = ref('pending') // 기본 활성 탭: [⏳ 승인 대기]
 const logTypeFilter = ref('all')
 const logSearchQuery = ref('')
 const showManualModal = ref(false)
+const confirmApproveDeposit = ref(false)
+const pendingDepositReq = ref(null)
 
 const toast = ref({ show: false, message: '' })
 let toastTimer = null
@@ -751,10 +765,14 @@ function normalizeDepositRequest(r) {
 // 3. 충전 승인 & 반려 액션
 // ----------------------------------------------------
 async function approveDeposit(req) {
+  pendingDepositReq.value = req
+  confirmApproveDeposit.value = true
+}
+
+async function executeApproveDeposit() {
+  const req = pendingDepositReq.value
+  if (!req) return
   const buyerTitle = req.buyerName || req.buyer_name || req.depositorName || req.depositor_name || '바이어'
-  if (!confirm(`[${buyerTitle}] 님의 ₩${fmtN(req.amount)}원 무통장 입금을 승인하시겠습니까?\n승인 시 바이어 예치금 잔액으로 즉시 충전됩니다.`)) {
-    return
-  }
 
   const approvedAt = new Date().toISOString()
   const targetEmail = (req.buyerEmail || req.buyer_email || '').trim()

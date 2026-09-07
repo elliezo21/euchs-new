@@ -953,6 +953,27 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 운영진 권한 해제 -->
+    <ConfirmSaveModal
+      v-model="confirmRevokeStaff"
+      :title="`[${pendingRevokeStaffMember?.name || pendingRevokeStaffMember?.email}] 님의 운영진 권한을 회수할까요?`"
+      description="해당 계정이 일반 회원으로 즉시 전환됩니다."
+      variant="red"
+      icon="warn"
+      confirmText="권한 해제"
+      @confirm="executeRevokeStaffRole"
+    />
+
+    <!-- ConfirmSaveModal: 환율 기본값 초기화 -->
+    <ConfirmSaveModal
+      v-model="confirmResetRate"
+      title="환율 및 수수료 설정을 기본 권장값으로 초기화할까요?"
+      variant="amber"
+      icon="warn"
+      confirmText="초기화"
+      @confirm="executeResetRateToDefault"
+    />
+
     <!-- ConfirmSaveModal: 환율·수수료 -->
     <ConfirmSaveModal
       v-model="confirmModal.rate"
@@ -1003,6 +1024,10 @@ const activeTab = ref('rate') // 'rate' | 'media' | 'staff'
 
 // ConfirmSaveModal 상태
 const confirmModal = ref({ rate: false, hero: false, staff: false })
+// 기존 confirm() 교체용
+const confirmRevokeStaff = ref(false)
+const pendingRevokeStaffMember = ref(null)
+const confirmResetRate = ref(false)
 
 const RATE_STORAGE_KEY = 'euchs_system_settings'
 const SERVICE_MEDIA_STORAGE_KEY = 'euchs_service_media'
@@ -1310,10 +1335,14 @@ async function submitStaffForm() {
 }
 
 async function revokeStaffRole(member) {
+  pendingRevokeStaffMember.value = member
+  confirmRevokeStaff.value = true
+}
+
+async function executeRevokeStaffRole() {
+  const member = pendingRevokeStaffMember.value
+  if (!member) return
   const memberName = member.name || member.email
-  if (!confirm(`[${memberName}] 님의 운영진 권한을 회수하고 일반 회원으로 전환하시겠습니까?`)) {
-    return
-  }
 
   const mail = (member.email || '').toLowerCase().trim()
 
@@ -1636,10 +1665,12 @@ async function saveHeroSettings() {
 }
 
 function resetRateToDefault() {
-  if (confirm('환율 및 수수료 설정을 기본 권장값으로 초기화하시겠습니까?')) {
-    rateForm.value = { ...DEFAULT_RATE_SETTINGS }
-    saveRateSettings()
-  }
+  confirmResetRate.value = true
+}
+
+function executeResetRateToDefault() {
+  rateForm.value = { ...DEFAULT_RATE_SETTINGS }
+  saveRateSettings()
 }
 
 onMounted(() => {
