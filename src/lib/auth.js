@@ -79,7 +79,8 @@ export const currentUserBizInfo = computed(() => {
     pccc,
     phone,
     tax_email,
-    is_business_verified: Boolean(business_number)
+    // ✅ DB profiles.is_business_verified 단일 기준 (관리자 승인값 그대로)
+    is_business_verified: currentUserProfile.value?.is_business_verified ?? false
   }
 })
 
@@ -700,12 +701,14 @@ export const isBusinessVerified = computed(() => {
 
 /**
  * 인증 단계 상태: 'unverified' | 'pending' | 'verified'
+ * is_business_verified AND verification_status === 'verified' 둘 다 충족해야 'verified' 반환
  */
 export const verificationStatus = computed(() => {
   const role = String(userRole.value || '').toLowerCase()
   if (['super_admin', 'admin', 'staff', 'master'].includes(role)) return 'verified'
-  if (currentUserProfile.value?.is_business_verified) return 'verified'
-  return currentUserProfile.value?.verification_status ?? 'unverified'
+  const profile = currentUserProfile.value
+  if (profile?.is_business_verified && profile?.verification_status === 'verified') return 'verified'
+  return profile?.verification_status ?? 'unverified'
 })
 
 export const updateBusinessProfile = async (businessData) => {
@@ -863,7 +866,7 @@ export const signUpWithEmail = async (email, password, businessData = {}) => {
     business_number: cleanBizNumber,
     pccc: cleanPccc,
     address: address,
-    is_business_verified: Boolean(cleanBizNumber)
+    is_business_verified: false // 가입 시 항상 미인증으로 시작 — 관리자 승인 후에만 true
   }
 
   const { data, error } = await supabase.auth.signUp({

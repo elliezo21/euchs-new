@@ -186,12 +186,41 @@
               <ShieldCheck class="w-5 h-5 text-indigo-600" />
               <h2 class="text-sm font-bold text-gray-900">수입 통관 & 세무 증빙 정보</h2>
             </div>
+            <!-- 3단계 인증 배지: DB profiles.is_business_verified 단일 기준 -->
             <span
-              class="text-[11px] font-bold px-2 py-0.5 rounded"
-              :class="customsProfile.status === 'verified' ? 'text-emerald-600 bg-emerald-50' : (customsProfile.status === 'pending' ? 'text-amber-600 bg-amber-50' : 'text-slate-500 bg-slate-100')"
+              v-if="verificationStatus === 'verified'"
+              class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1"
             >
-              {{ customsProfile.status === 'verified' ? '인증완료' : (customsProfile.status === 'pending' ? '심사대기' : '미인증') }}
+              <ShieldCheck class="w-3.5 h-3.5" />
+              <span>VIP 바이어 (인증 완료)</span>
             </span>
+            <span
+              v-else-if="verificationStatus === 'pending'"
+              class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold flex items-center gap-1"
+            >
+              <span>심사 중</span>
+            </span>
+            <span
+              v-else
+              class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-bold flex items-center gap-1"
+            >
+              <span>미인증</span>
+            </span>
+          </div>
+
+          <!-- 기본 계정 정보 (읽기 전용: 성명, 이메일) -->
+          <div class="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-1 text-xs">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <span class="text-[11px] text-gray-500 block font-medium">회원 성명</span>
+                <span class="font-bold text-gray-900 block truncate">{{ currentUser?.name || currentUser?.user_metadata?.full_name || userDisplayName || '바이어' }}</span>
+              </div>
+              <div>
+                <span class="text-[11px] text-gray-500 block font-medium">아이디 (이메일)</span>
+                <span class="font-bold text-gray-900 font-mono block truncate">{{ currentUser?.email || userEmail || '-' }}</span>
+              </div>
+            </div>
+            <p class="text-[10px] text-gray-400 pt-0.5">※ 회원 성명과 이메일은 가입 시 등록된 고유 계정 정보입니다.</p>
           </div>
 
           <form @submit.prevent="saveCustomsInfo" class="space-y-3.5 text-xs">
@@ -419,101 +448,6 @@
     <!-- [TAB 4] 계정 보안 및 비밀번호 변경 / 회원 탈퇴 -->
     <!-- ======================================================== -->
     <div v-if="activeTab === 'security'" class="space-y-6 animate-fade-in">
-      <!-- 0. [쿠팡 윙 스타일] 회원 및 사업자 기본 정보 카드 -->
-      <div class="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-gray-100">
-          <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center font-bold shrink-0 shadow-2xs">
-              <UserCheck class="w-5 h-5" />
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h2 class="text-base font-bold text-gray-900">
-                  회원 및 사업자 기본 정보
-                </h2>
-                <!-- 3단계 인증 배지: DB profiles.is_business_verified 단일 기준 -->
-                <span
-                  v-if="verificationStatus === 'verified'"
-                  class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1"
-                >
-                  <ShieldCheck class="w-3.5 h-3.5" />
-                  <span>VIP 바이어 (인증 완료)</span>
-                </span>
-                <span
-                  v-else-if="verificationStatus === 'pending'"
-                  class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold flex items-center gap-1"
-                >
-                  <span>심사 중</span>
-                </span>
-                <span
-                  v-else
-                  class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-bold flex items-center gap-1"
-                >
-                  <span>미인증</span>
-                </span>
-              </div>
-              <p class="text-xs text-gray-500 mt-0.5">
-                B2B 수입통관 및 세금계산서 발급에 등록된 기본 계정 정보입니다.
-              </p>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            @click="switchTab('pccc')"
-            class="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold transition shadow-xs active:scale-95 cursor-pointer self-start sm:self-auto"
-          >
-            <span>사업자/통관정보 수정</span>
-            <ChevronRight class="w-4 h-4" />
-          </button>
-        </div>
-
-        <!-- 2열 그리드 정보 테이블 -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5 text-xs">
-          <!-- 성명 / 대표자명 -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-            <span class="text-gray-500 font-medium">성명 / 대표자명</span>
-            <span class="font-bold text-gray-900">{{ customsProfile.contactName || currentUser?.name || currentUser?.user_metadata?.full_name || currentUser?.user_metadata?.name || '조해성' }}</span>
-          </div>
-
-          <!-- 아이디 (이메일) -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-            <span class="text-gray-500 font-medium">아이디 (이메일)</span>
-            <span class="font-bold text-gray-900 font-mono">{{ currentUser?.email || userEmail || 'buyer@euchs.com' }}</span>
-          </div>
-
-          <!-- 상호 (법인명) -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-            <span class="text-gray-500 font-medium">상호(법인명)</span>
-            <span class="font-bold text-gray-900">{{ customsProfile.companyName || currentUser?.company_name || currentUser?.companyName || currentUser?.business_name || '천공상사' }}</span>
-          </div>
-
-          <!-- 사업자등록번호 -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-            <span class="text-gray-500 font-medium">사업자등록번호</span>
-            <span class="font-bold text-gray-900 font-mono">{{ customsProfile.bizNumber || currentUser?.business_number || currentUser?.businessNumber || '394-12-03322' }}</span>
-          </div>
-
-          <!-- 대표 연락처 -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-            <span class="text-gray-500 font-medium">대표 연락처</span>
-            <span class="font-bold text-gray-900 font-mono">{{ customsProfile.contactPhone || currentUser?.phone || '010-7525-0755' }}</span>
-          </div>
-
-          <!-- 통관고유부호 (PCCC) -->
-          <div class="p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex items-center justify-between">
-            <span class="text-gray-500 font-medium">개인/사업자 통관부호</span>
-            <span class="font-bold text-indigo-700 font-mono uppercase">{{ customsProfile.customsCode || currentUser?.pccc || 'P240012345678' }}</span>
-          </div>
-
-          <!-- 사업장 소재지 (전폭 2칸 차지) -->
-          <div class="md:col-span-2 p-3.5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
-            <span class="text-gray-500 font-medium shrink-0">사업장 소재지</span>
-            <span class="font-bold text-gray-900 text-right truncate">{{ currentUser?.address || (addressList[0] ? `${addressList[0].address} ${addressList[0].detailAddress}` : '광주광역시 북구 서방로135번길 54 1층') }}</span>
-          </div>
-        </div>
-      </div>
-
       <!-- 1. 비밀번호 변경 카드 -->
       <div class="bg-white border border-gray-200 rounded-3xl p-6 sm:p-8 shadow-xs space-y-5">
         <div class="flex items-center justify-between pb-4 border-b border-gray-100">
