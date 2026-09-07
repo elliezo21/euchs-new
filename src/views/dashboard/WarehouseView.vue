@@ -129,7 +129,14 @@
 
               <!-- 주문번호 / 거점 -->
               <td class="py-3.5 px-4 whitespace-nowrap">
-                <div class="font-mono text-gray-700 font-bold">{{ item.orderNo }}</div>
+                <div
+                  class="font-mono text-gray-800 font-bold hover:text-amber-600 cursor-pointer transition inline-flex items-center gap-1 group/ord"
+                  @click="openOrderDetail(item)"
+                  title="주문 상세정보 보기"
+                >
+                  <span class="group-hover/ord:underline">{{ item.orderNo }}</span>
+                  <Info class="w-3 h-3 text-gray-400 group-hover/ord:text-amber-600 opacity-0 group-hover/ord:opacity-100 transition shrink-0" />
+                </div>
                 <div class="mt-1">
                   <span class="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800">
                     이우(Yiwu) 창고
@@ -139,15 +146,21 @@
 
               <!-- 상품 및 옵션 -->
               <td class="py-3.5 px-4">
-                <div class="flex items-center gap-3 min-w-[240px]">
+                <div
+                  class="flex items-center gap-3 min-w-[240px] cursor-pointer group/prod"
+                  @click="openOrderDetail(item)"
+                  title="상품 및 주문 상세정보 보기"
+                >
                   <img
                     :src="item.thumbnail"
                     :alt="item.productName"
-                    class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0"
+                    class="w-12 h-12 rounded-lg object-cover bg-gray-100 border border-gray-200 shrink-0 group-hover/prod:opacity-85 transition"
                     @error="handleImageFallback"
                   />
                   <div class="space-y-0.5 flex-1 min-w-0">
-                    <p class="font-bold text-gray-900 line-clamp-1">{{ item.productName }}</p>
+                    <p class="font-bold text-gray-900 line-clamp-1 group-hover/prod:text-amber-600 group-hover/prod:underline transition">
+                      {{ item.productName }}
+                    </p>
                     <p class="text-[11px] text-gray-500">옵션: {{ item.sku }} · <b>{{ item.quantity }}개</b> ({{ item.boxCount }} CTN)</p>
                   </div>
                 </div>
@@ -206,7 +219,7 @@
                   <button
                     v-if="item.inspectionPhotos && item.inspectionPhotos.length > 0"
                     type="button"
-                    @click="openInspectionModal(item)"
+                    @click.stop="openInspectionModal(item)"
                     class="text-[11px] text-orange-600 hover:text-orange-700 font-bold flex items-center gap-1 hover:underline"
                   >
                     <Camera class="w-3 h-3" />
@@ -236,7 +249,7 @@
                   <button
                     v-if="item.order?.status === 'inspection_done' || item.inspectionStatus === 'inspected'"
                     type="button"
-                    @click="openSecondPaymentModal(item)"
+                    @click.stop="openSecondPaymentModal(item)"
                     class="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer animate-pulse"
                     title="현지 실측 검수 확인 및 2차 결제"
                   >
@@ -247,7 +260,7 @@
                   <button
                     v-else
                     type="button"
-                    @click="openVasModal(item)"
+                    @click.stop="openVasModal(item)"
                     :class="item.warehouseVasApplied && item.warehouseVasApplied.length > 0
                       ? 'px-2.5 py-1 rounded-lg bg-violet-50 hover:bg-violet-100 text-violet-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer'
                       : 'px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs transition flex items-center gap-1 cursor-pointer'"
@@ -283,9 +296,13 @@
       >
         <!-- 카드 헤더 -->
         <div class="flex items-center justify-between pb-2 border-b border-gray-100">
-          <div>
-            <span class="font-mono font-bold text-xs text-gray-900">{{ item.inboundNo }}</span>
-            <span class="text-[11px] text-gray-400 ml-2">({{ item.inboundDate }})</span>
+          <div
+            class="cursor-pointer group/mord"
+            @click="openOrderDetail(item)"
+            title="주문 상세정보 보기"
+          >
+            <span class="font-mono font-bold text-xs text-gray-900 group-hover/mord:text-amber-600 group-hover/mord:underline">{{ item.inboundNo }}</span>
+            <span class="text-[11px] text-gray-500 font-mono font-semibold ml-1.5">({{ item.orderNo }})</span>
           </div>
           <span
             class="px-2 py-0.5 rounded-full text-[10px] font-bold"
@@ -296,15 +313,19 @@
         </div>
 
         <!-- 상품 정보 -->
-        <div class="flex items-start gap-3">
+        <div
+          class="flex items-start gap-3 cursor-pointer group/mprod"
+          @click="openOrderDetail(item)"
+          title="상품 및 주문 상세정보 보기"
+        >
           <img
             :src="item.thumbnail"
             :alt="item.productName"
-            class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0"
+            class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0 group-hover/mprod:opacity-85 transition"
             @error="handleImageFallback"
           />
           <div class="flex-1 min-w-0 space-y-1">
-            <h4 class="font-bold text-xs text-gray-900 line-clamp-1">{{ item.productName }}</h4>
+            <h4 class="font-bold text-xs text-gray-900 line-clamp-1 group-hover/mprod:text-amber-600 group-hover/mprod:underline transition">{{ item.productName }}</h4>
             <p class="text-[11px] text-gray-500">옵션: {{ item.sku }} · <b>{{ item.quantity }}개</b></p>
             <div class="flex items-center gap-2 font-mono text-[11px] text-gray-700">
               <span v-if="item.measuredWeightKg > 0">실측: <b>{{ item.measuredWeightKg }}kg</b></span>
@@ -319,7 +340,7 @@
         <div class="grid grid-cols-2 gap-2 pt-2 border-t border-gray-100 text-xs">
           <button
             type="button"
-            @click="openInspectionModal(item)"
+            @click.stop="openInspectionModal(item)"
             :disabled="!item.inspectionPhotos || item.inspectionPhotos.length === 0"
             class="py-2 rounded-xl bg-gray-100 hover:bg-gray-200 disabled:opacity-50 text-gray-700 font-bold transition flex items-center justify-center gap-1.5"
           >
@@ -328,12 +349,349 @@
           </button>
           <button
             type="button"
-            @click="openVasModal(item)"
+            @click.stop="openVasModal(item)"
             class="py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold transition flex items-center justify-center gap-1.5"
           >
             <Wrench class="w-3.5 h-3.5" />
             <span>부가작업</span>
           </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- 4-3. 주문 및 창고 입고 상세 모달 -->
+    <!-- ======================================================== -->
+    <div
+      v-if="isOrderDetailModalOpen && selectedOrderDetail"
+      class="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
+      @click.self="closeOrderDetailModal"
+    >
+      <div class="bg-white rounded-3xl max-w-4xl w-full flex flex-col shadow-2xl relative border border-gray-200 overflow-hidden font-sans my-auto max-h-[92vh]">
+        <!-- 모달 헤더 -->
+        <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/90 backdrop-blur-xs shrink-0">
+          <div class="flex items-center gap-3">
+            <span
+              class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold"
+              :class="getInspectionBadgeClass(selectedOrderDetail.inspectionStatus)"
+            >
+              <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
+              {{ getInspectionLabel(selectedOrderDetail.inspectionStatus) }}
+            </span>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-xs font-bold text-gray-900 bg-white px-2 py-0.5 rounded-lg border border-gray-200">
+                  주문번호: {{ selectedOrderDetail.orderNo }}
+                </span>
+                <span class="text-[11px] text-gray-400 font-mono hidden sm:inline">
+                  입고번호: {{ selectedOrderDetail.inboundNo }}
+                </span>
+              </div>
+              <h3 class="text-base sm:text-lg font-black text-gray-900 mt-0.5">
+                이우 물류센터 입고 & 검수 상세정보
+              </h3>
+            </div>
+          </div>
+          <button
+            type="button"
+            @click="closeOrderDetailModal"
+            class="p-2 text-gray-400 hover:text-gray-600 rounded-xl hover:bg-gray-100 transition cursor-pointer"
+            title="닫기"
+          >
+            <X class="w-5 h-5" />
+          </button>
+        </div>
+
+        <!-- 모달 본문 (스크롤) -->
+        <div class="p-6 overflow-y-auto flex-1 space-y-5 text-xs text-gray-700 bg-slate-50/30">
+          
+          <!-- 1. 핵심 입고 요약 카드 4종 그리드 -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <!-- 주문/입고 번호 -->
+            <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
+              <span class="text-[11px] text-gray-400 font-medium block">발주 및 입고 번호</span>
+              <div class="font-mono font-bold text-gray-900 text-xs truncate">{{ selectedOrderDetail.orderNo }}</div>
+              <div class="font-mono text-[10px] text-gray-500 truncate">{{ selectedOrderDetail.inboundNo }}</div>
+            </div>
+
+            <!-- 입고 일시 및 거점 -->
+            <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
+              <span class="text-[11px] text-gray-400 font-medium block">물류 거점 / 입고일시</span>
+              <div class="font-bold text-amber-800 text-xs flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+                이우(Yiwu) 물류센터
+              </div>
+              <div class="text-[10px] text-gray-500 font-mono truncate">{{ selectedOrderDetail.inboundDate }}</div>
+            </div>
+
+            <!-- 실측 계근 (중량 / CBM) -->
+            <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
+              <span class="text-[11px] text-gray-400 font-medium block">실측 계근 (중량/부피)</span>
+              <div v-if="selectedOrderDetail.measuredWeightKg > 0 || selectedOrderDetail.measuredCbm > 0" class="space-y-0.5">
+                <div class="font-bold text-gray-900 font-mono text-xs">
+                  {{ selectedOrderDetail.measuredWeightKg || 0 }} kg
+                  <span class="text-blue-600 ml-1">({{ selectedOrderDetail.measuredCbm || 0 }} CBM)</span>
+                </div>
+                <div class="text-[10px] text-gray-500">포장 수량: {{ selectedOrderDetail.boxCount || 1 }} CTN</div>
+              </div>
+              <div v-else class="text-gray-400 italic text-[11px] pt-1">
+                현지 계근 대기중
+              </div>
+            </div>
+
+            <!-- 검수 상태 -->
+            <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
+              <span class="text-[11px] text-gray-400 font-medium block">검수 진행 단계</span>
+              <div class="font-bold text-teal-700 text-xs truncate">
+                {{ getInspectionLabel(selectedOrderDetail.inspectionStatus) }}
+              </div>
+              <div class="text-[10px] text-gray-500 truncate">
+                {{ selectedOrderDetail.inspectionPhotos?.length > 0 ? `실사 사진 ${selectedOrderDetail.inspectionPhotos.length}장 등록` : '기본 입고 검수' }}
+              </div>
+            </div>
+          </div>
+
+          <!-- 검수 소견 및 이슈 현황 박스 -->
+          <div class="p-4 bg-white border border-gray-200 rounded-2xl space-y-2 shadow-2xs">
+            <div class="flex items-center justify-between border-b border-gray-100 pb-2">
+              <span class="font-bold text-gray-900 text-xs flex items-center gap-1.5">
+                <ShieldCheck class="w-4 h-4 text-teal-600" />
+                현지 검수원 종합 소견
+              </span>
+              <span
+                class="px-2 py-0.5 rounded text-[10px] font-bold"
+                :class="getInspectionBadgeClass(selectedOrderDetail.inspectionStatus)"
+              >
+                {{ getInspectionLabel(selectedOrderDetail.inspectionStatus) }}
+              </span>
+            </div>
+            <p class="text-gray-600 text-xs leading-relaxed">
+              {{ selectedOrderDetail.inspectionNote || '특이사항 없이 정상 입고 및 검수 완료되었습니다.' }}
+            </p>
+
+            <!-- 이슈 상품 브리핑 (이슈 발생 시) -->
+            <div
+              v-if="hasIssue(selectedOrderDetail)"
+              class="mt-3 p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-1.5"
+            >
+              <div class="flex items-center justify-between">
+                <span class="font-black text-rose-800 text-xs flex items-center gap-1">
+                  ⚠️ 검수 중 이슈 발생 — 총 {{ getTotalIssueQty(selectedOrderDetail) }}개
+                </span>
+                <span
+                  v-if="selectedOrderDetail.issueStatus"
+                  class="px-2 py-0.5 rounded-full border text-[10px] font-bold"
+                  :class="getIssueStatusBadgeClass(selectedOrderDetail.issueStatus)"
+                >
+                  {{ getIssueStatusLabel(selectedOrderDetail.issueStatus) }}
+                </span>
+              </div>
+              <p v-if="getIssueBriefing(selectedOrderDetail)" class="text-[11px] text-rose-700 leading-relaxed">
+                {{ getIssueBriefing(selectedOrderDetail) }}
+              </p>
+            </div>
+          </div>
+
+          <!-- 2. 상품 명세 & 1688 원본 정보 -->
+          <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+              <h4 class="font-black text-gray-900 text-sm flex items-center gap-2">
+                <Package class="w-4 h-4 text-amber-500" />
+                <span>입고 상품 명세</span>
+              </h4>
+              <span class="text-xs font-bold text-gray-500 font-mono">
+                총 수량: {{ selectedOrderDetail.quantity }}개
+              </span>
+            </div>
+
+            <div class="space-y-4">
+              <div
+                v-for="(prod, pIdx) in getGroupedOrderItems(selectedOrderDetail.order?.items && selectedOrderDetail.order.items.length > 0 ? selectedOrderDetail.order.items : [selectedOrderDetail])"
+                :key="prod.groupKey || pIdx"
+                class="p-4 bg-slate-50 border border-gray-200/80 rounded-2xl space-y-3"
+              >
+                <!-- 상품 헤더 & 1688 링크 -->
+                <div class="flex items-start gap-3.5">
+                  <img
+                    :src="prod.imageUrl"
+                    :alt="prod.productName"
+                    class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl object-cover bg-white border border-gray-200 shrink-0 shadow-2xs"
+                    @error="handleImageFallback"
+                  />
+                  <div class="flex-1 min-w-0 space-y-1.5">
+                    <div class="flex items-start justify-between gap-2 flex-wrap">
+                      <p class="font-bold text-gray-900 text-xs sm:text-sm line-clamp-2 leading-snug flex-1">
+                        {{ prod.productName || prod.titleKo }}
+                      </p>
+                      <a
+                        v-if="prod.productUrl"
+                        :href="prod.productUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition text-[11px] font-bold shrink-0"
+                        title="1688 원본 상품 페이지 열기"
+                      >
+                        <span>1688 원본</span>
+                        <ExternalLink class="w-3 h-3" />
+                      </a>
+                    </div>
+                    <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                      <span class="font-mono">총 {{ prod.totalQty }}개</span>
+                      <span v-if="prod.company" class="text-gray-400">· {{ prod.company }}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 옵션(SKU) 목록 테이블 -->
+                <div class="overflow-x-auto bg-white rounded-xl border border-gray-200">
+                  <table class="w-full text-left text-xs">
+                    <thead class="bg-gray-50 text-gray-600 font-bold border-b border-gray-200 text-[11px]">
+                      <tr>
+                        <th class="py-2 px-3">선택 옵션 규격 (SKU)</th>
+                        <th class="py-2 px-3 text-center w-24">신청 수량</th>
+                        <th class="py-2 px-3 text-right w-28">단가</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-100">
+                      <tr v-for="(sku, sIdx) in prod.skus" :key="sIdx" class="hover:bg-slate-50/50">
+                        <td class="py-2 px-3 text-gray-800 font-medium">
+                          {{ sku.sku || '기본 규격' }}
+                        </td>
+                        <td class="py-2 px-3 text-center font-bold text-gray-900 font-mono">
+                          {{ sku.quantity }}개
+                        </td>
+                        <td class="py-2 px-3 text-right font-mono text-gray-600">
+                          <span v-if="sku.unitPriceKrw">₩{{ Number(sku.unitPriceKrw).toLocaleString() }}</span>
+                          <span v-else-if="sku.unitPrice">¥{{ sku.unitPrice }}</span>
+                          <span v-else class="text-gray-400">-</span>
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. 신청된 부가작업(VAS) 현황 -->
+          <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-3">
+            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h4 class="font-black text-gray-900 text-xs flex items-center gap-1.5">
+                <Wrench class="w-4 h-4 text-orange-600" />
+                <span>신청된 창고 부가작업 (VAS)</span>
+              </h4>
+              <button
+                type="button"
+                @click="openVasModal(selectedOrderDetail); closeOrderDetailModal()"
+                class="text-[11px] text-orange-600 hover:text-orange-700 font-bold hover:underline"
+              >
+                + 부가작업 변경/추가
+              </button>
+            </div>
+
+            <div v-if="(selectedOrderDetail.vasApplied && selectedOrderDetail.vasApplied.length > 0) || (selectedOrderDetail.warehouseVasApplied && selectedOrderDetail.warehouseVasApplied.length > 0)">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div
+                  v-for="(vas, vIdx) in (selectedOrderDetail.vasApplied || selectedOrderDetail.warehouseVasApplied)"
+                  :key="vIdx"
+                  class="p-2.5 bg-orange-50/50 border border-orange-200/70 rounded-xl flex items-center justify-between"
+                >
+                  <div class="flex items-center gap-2">
+                    <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
+                    <span class="font-bold text-gray-800 text-xs">{{ vas.name }}</span>
+                  </div>
+                  <span v-if="vas.price" class="font-mono text-orange-700 font-bold text-xs">
+                    ₩{{ Number(vas.price).toLocaleString() }}
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div v-else class="p-3 bg-gray-50 rounded-xl text-center text-gray-400 text-xs">
+              신청된 부가작업이 없습니다. 원하시면 우측 상단 '부가작업 변경/추가'를 통해 신청할 수 있습니다.
+            </div>
+          </div>
+
+          <!-- 4. 실사 사진 미리보기 (있을 경우) -->
+          <div
+            v-if="selectedOrderDetail.inspectionPhotos && selectedOrderDetail.inspectionPhotos.length > 0"
+            class="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-3"
+          >
+            <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+              <h4 class="font-black text-gray-900 text-xs flex items-center gap-1.5">
+                <Camera class="w-4 h-4 text-orange-600" />
+                <span>현지 정밀 검수 실사 사진 ({{ selectedOrderDetail.inspectionPhotos.length }}장)</span>
+              </h4>
+              <button
+                type="button"
+                @click="openInspectionModal(selectedOrderDetail); closeOrderDetailModal()"
+                class="text-[11px] text-orange-600 hover:text-orange-700 font-bold hover:underline"
+              >
+                전체 갤러리 보기 ➔
+              </button>
+            </div>
+            <div class="flex items-center gap-2 overflow-x-auto pb-1">
+              <img
+                v-for="(photo, pIdx) in selectedOrderDetail.inspectionPhotos.slice(0, 5)"
+                :key="pIdx"
+                :src="photo.url || photo"
+                class="w-16 h-16 rounded-xl object-cover border border-gray-200 cursor-pointer hover:opacity-80 transition shrink-0"
+                @click="openInspectionModal(selectedOrderDetail); closeOrderDetailModal()"
+              />
+              <div
+                v-if="selectedOrderDetail.inspectionPhotos.length > 5"
+                @click="openInspectionModal(selectedOrderDetail); closeOrderDetailModal()"
+                class="w-16 h-16 rounded-xl bg-gray-100 border border-gray-200 flex items-center justify-center text-xs font-bold text-gray-500 cursor-pointer hover:bg-gray-200 transition shrink-0"
+              >
+                +{{ selectedOrderDetail.inspectionPhotos.length - 5 }}장
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- 모달 푸터 -->
+        <div class="px-6 py-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/90 shrink-0">
+          <button
+            type="button"
+            @click="closeOrderDetailModal"
+            class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-white transition cursor-pointer"
+          >
+            닫기
+          </button>
+
+          <div class="flex items-center gap-2">
+            <!-- 실사 사진 버튼 -->
+            <button
+              v-if="selectedOrderDetail.inspectionPhotos && selectedOrderDetail.inspectionPhotos.length > 0"
+              type="button"
+              @click="openInspectionModal(selectedOrderDetail); closeOrderDetailModal()"
+              class="px-3.5 py-2 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-xs transition flex items-center gap-1.5 cursor-pointer"
+            >
+              <Camera class="w-3.5 h-3.5" />
+              <span>실사 사진 ({{ selectedOrderDetail.inspectionPhotos.length }})</span>
+            </button>
+
+            <!-- 부가작업 버튼 -->
+            <button
+              type="button"
+              @click="openVasModal(selectedOrderDetail); closeOrderDetailModal()"
+              class="px-3.5 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-2xs"
+            >
+              <Wrench class="w-3.5 h-3.5" />
+              <span>부가작업 신청</span>
+            </button>
+
+            <!-- 2차 결제 버튼 -->
+            <button
+              v-if="selectedOrderDetail.order?.status === 'inspection_done' || selectedOrderDetail.inspectionStatus === 'inspected'"
+              type="button"
+              @click="openSecondPaymentModal(selectedOrderDetail); closeOrderDetailModal()"
+              class="px-4 py-2 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-600 hover:from-teal-600 hover:to-emerald-700 text-white font-bold text-xs transition flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+            >
+              <CreditCard class="w-3.5 h-3.5" />
+              <span>💳 2차 결제 진행</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1060,7 +1418,8 @@ import {
   UploadCloud,
   FileText,
   Info,
-  RefreshCw
+  RefreshCw,
+  ExternalLink
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
 import { updateOrderStatus, getStoredOrders, getWarehouseInboundsFromOrders, fetchOrdersFromSupabase, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
@@ -1167,6 +1526,10 @@ watch(() => route.query.tab, (newTab) => {
 const isPhotoModalOpen = ref(false);
 const activeInspectionItem = ref(null);
 const lightboxUrl = ref(null);
+
+// 주문 및 창고 입고 상세 모달 상태
+const isOrderDetailModalOpen = ref(false);
+const selectedOrderDetail = ref(null);
 
 const isVasModalOpen = ref(false);
 const activeVasItem = ref(null);
@@ -1385,6 +1748,63 @@ function getIssueStatusBadgeClass(status) {
   return map[status] || 'bg-gray-100 text-gray-600 border-gray-200';
 }
 
+
+// ---------------------------------------------------------
+// 주문 및 창고 입고 상세 모달 제어
+// ---------------------------------------------------------
+function openOrderDetail(item) {
+  if (!item.order && orders.value?.length > 0) {
+    const matched = orders.value.find(o => o.orderNumber === item.orderNo || o.id === item.id);
+    if (matched) {
+      item.order = matched;
+    }
+  }
+  selectedOrderDetail.value = item;
+  isOrderDetailModalOpen.value = true;
+}
+
+function closeOrderDetailModal() {
+  isOrderDetailModalOpen.value = false;
+  selectedOrderDetail.value = null;
+}
+
+function getGroupedOrderItems(rawItems) {
+  if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
+  const groupsMap = new Map();
+
+  rawItems.forEach((it, originalIdx) => {
+    const prodId = it.itemId || (it.id && !String(it.id).includes('_') ? it.id : null) || '';
+    const prodUrl = it.productUrl || it.url || it.detailUrl || it.link || '';
+    const prodName = it.productName || it.titleKo || it.name || it.titleZh || `품목-${originalIdx + 1}`;
+    const groupKey = prodId ? `id_${prodId}` : (prodUrl ? `url_${prodUrl}` : `name_${prodName}`);
+
+    if (!groupsMap.has(groupKey)) {
+      groupsMap.set(groupKey, {
+        groupKey,
+        itemId: prodId,
+        productName: it.productName || it.titleKo || it.name || '1688 수입 상품',
+        titleKo: it.titleKo || it.productName || it.name || '',
+        imageUrl: it.imageUrl || it.image || it.thumbnail || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60',
+        productUrl: prodUrl || (prodId ? `https://detail.1688.com/offer/${prodId}.html` : ''),
+        company: it.company || '1688 공급처',
+        skus: [],
+        totalQty: 0,
+      });
+    }
+
+    const grp = groupsMap.get(groupKey);
+    const qty = Number(it.quantity || 1);
+    grp.skus.push({
+      sku: it.sku || it.spec || it.optionName || '기본 규격',
+      quantity: qty,
+      unitPrice: it.unitPrice || it.price || 0,
+      unitPriceKrw: it.unitPriceKrw || (it.price && it.price > 500 ? it.price : 0),
+    });
+    grp.totalQty += qty;
+  });
+
+  return Array.from(groupsMap.values());
+}
 
 // ---------------------------------------------------------
 // 실사 사진 모달 제어 (바이어 조회 전용)
