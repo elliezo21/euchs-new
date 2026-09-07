@@ -173,7 +173,15 @@ async function _syncOrdersToSupabase(ordersList) {
         // [수정 A] INSERT/UPDATE 페이로드를 분리: user_id는 신규 INSERT 시에만 포함.
         // 기존 행 UPDATE 시 user_id를 포함하면 현재 로그인 세션(관리자 포함)의 UUID로
         // 원래 주문 소유자의 user_id가 덮어써지는 버그 발생. 주문 상태 변경이 소유자를 바꿀 이유 없음.
-        const orderRowBase = {
+        //
+        // [수정 B] INSERT용 전체 페이로드와 UPDATE용 최소 페이로드를 완전히 분리.
+        // 이 백그라운드 동기화의 목적은 "바이어 초기 제출 데이터(주문번호·바이어정보·메모)"를
+        // DB에 등록하는 것. status·결제·검수 데이터는 이미 전담 함수
+        // (updateOrderStatus / saveDetailDraft / 결제 서비스)가 독립적으로 write함.
+        // localStorage 캐시값이 stale한 경우 이 동기화가 실수로 상태값을 덮어쓰는 것을 방지.
+
+        // INSERT 전용: 신규 주문 등록 시 사용하는 전체 필드 (초기값 포함)
+        const orderRowInsert = {
           order_number: String(orderNo),
           order_no: String(orderNo),
           inbound_no: o.inboundNo || `INB-YW-${String(orderNo).replace(/[^0-9]/g, '')}`,
@@ -193,20 +201,35 @@ async function _syncOrdersToSupabase(ordersList) {
           vas_applied: firstStringVasArray(o.vasServices, o.vas_services, o.vas_applied, o.vasApplied),
           payment_info: o.paymentInfo || o.payment_info || {},
           memo: `[${orderNo}] ${o.memo || buyerInfoObj.memo || ''}`.trim(),
+          user_id: isUUID ? user.id : null,
           updated_at: nowIso
         };
 
-        // INSERT 전용: user_id 포함 (신규 생성 시 소유자 등록)
-        const orderRowInsert = { ...orderRowBase, user_id: isUUID ? user.id : null };
-        // UPDATE 전용: user_id 제외 (기존 소유자 보호)
-        const orderRowUpdate = orderRowBase;
+        // UPDATE 전용: 바이어 식별·메모 등 안전한 필드만 포함
+        // ⚠️ status / first_payment / second_payment / payment_info / items /
+        //    total_price_krw / total_price_rmb / vas_applied / measured_data /
+        //    inspection_photos 는 여기서 절대 write하지 않음.
+        //    이 필드들은 updateOrderStatus / saveDetailDraft / 결제 서비스가 전담.
+        //    localStorage 캐시 미스(stale 값)가 DB 상태를 덮어쓰는 것을 원천 방지.
+        const orderRowUpdate = {
+          order_number: String(orderNo),
+          order_no: String(orderNo),
+          inbound_no: o.inboundNo || `INB-YW-${String(orderNo).replace(/[^0-9]/g, '')}`,
+          buyer_email: buyerInfoObj.email || user?.email || 'buyer@euchs.com',
+          customer_name: buyerInfoObj.companyName || buyerInfoObj.buyerName || o.customer_name || '이유씨 바이어',
+          phone: buyerInfoObj.phone || o.phone || '010-0000-0000',
+          customer_phone: buyerInfoObj.phone || o.phone || '010-0000-0000',
+          buyer_info: buyerInfoObj,
+          memo: `[${orderNo}] ${o.memo || buyerInfoObj.memo || ''}`.trim(),
+          updated_at: nowIso
+        };
 
         // UUID인 경우에만 id 필드 포함 (비-UUID 문자열 전송 시 Postgres 22P02 에러 방어)
         if (o.id && isValidUUID(o.id)) {
           orderRowInsert.id = o.id;
         }
 
-        // orders 테이블에 order_number 기준으로 존재 여부 확인 후 upsert
+        // orders 테이블에 order_number 기준으로 존재 여부 확인 후 INSERT or UPDATE
         const { data: existingOrder } = await supabase
           .from('orders')
           .select('id, order_number')
@@ -214,10 +237,10 @@ async function _syncOrdersToSupabase(ordersList) {
           .limit(1);
 
         if (existingOrder && existingOrder.length > 0) {
-          // 기존 행: user_id 없는 페이로드로 UPDATE (소유자 보호)
+          // 기존 행: 안전 필드만 포함된 UPDATE (소유자·결제·상태 보호)
           await supabase.from('orders').update(orderRowUpdate).or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`);
         } else {
-          // 신규 행: user_id 포함하여 INSERT
+          // 신규 행: user_id 포함 전체 초기값으로 INSERT
           await supabase.from('orders').insert([{ ...orderRowInsert, created_at: o.createdAt || nowIso }]);
         }
       } catch (errOrder) {

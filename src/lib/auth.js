@@ -792,11 +792,10 @@ export const updateBusinessProfile = async (businessData) => {
         const profileId = isUUID ? currentUser.value.id : existing.id
 
         // 🛡️ 인증 상태/등급은 기존 DB 값이 있으면 절대 덮어쓰지 않음
-        // - 무니님처럼 SQL로 인증 완료된 계정이 폼 저장 한 번으로 초기화되는 사고 방지
-        const safeIsBusinessVerified = existing?.is_business_verified ?? false
-        const safeVerificationStatus = existing?.verification_status ?? 'unverified'
-        const safeTier = existing?.tier ?? 'general'
-
+        // - fetchUserProfile이 null을 반환한 경우(네트워크 지연·신규 계정 등)에는
+        //   is_business_verified / verification_status / tier 를 payload에서 완전히 제외.
+        //   ?? false / ?? 'unverified' / ?? 'general' fallback을 쓰면
+        //   이미 DB에 verified로 저장된 계정이 upsert 한 번으로 초기화되는 사고 발생.
         // 🛡️ address: 폼에서 안 넘겨준 경우(빈 문자열) 기존 값 보존
         const safeAddress = address || existing?.address || ''
 
@@ -810,10 +809,14 @@ export const updateBusinessProfile = async (businessData) => {
           pccc: cleanPccc,
           address: safeAddress,
           phone: phone,
-          tier: safeTier,
-          is_business_verified: safeIsBusinessVerified,
-          verification_status: safeVerificationStatus,
           updated_at: new Date().toISOString()
+        }
+
+        // existing이 있을 때만 인증 상태 필드를 포함 — null이면 해당 필드를 제외해 DB 기존값 보존
+        if (existing) {
+          profilePayload.tier = existing.tier ?? 'general'
+          profilePayload.is_business_verified = existing.is_business_verified ?? false
+          profilePayload.verification_status = existing.verification_status ?? 'unverified'
         }
 
         const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
@@ -1080,9 +1083,10 @@ export const syncUserProfile = async (user) => {
     const existing = await fetchUserProfile(user)
 
     // 🛡️ 인증 상태/등급은 DB에 이미 있는 값을 절대 초기화하지 않음
-    const safeIsBusinessVerified = existing?.is_business_verified ?? false
-    const safeVerificationStatus = existing?.verification_status ?? 'unverified'
-    const safeTier = existing?.tier ?? 'general'
+    // - fetchUserProfile이 null을 반환한 경우(네트워크 지연·신규 가입 직후 등)에는
+    //   is_business_verified / verification_status / tier 를 payload에서 완전히 제외.
+    //   ?? false / ?? 'unverified' / ?? 'general' fallback을 쓰면
+    //   이미 DB에 verified로 저장된 계정이 로그인 한 번으로 초기화되는 사고 발생.
 
     const profilePayload = {
       id: user.id,
@@ -1093,11 +1097,15 @@ export const syncUserProfile = async (user) => {
       business_number: biz.business_number || existing?.business_number || '',
       pccc: biz.pccc || existing?.pccc || '',
       phone: meta.phone || meta.mobile || biz.phone || existing?.phone || '',
-      tier: safeTier,
-      is_business_verified: safeIsBusinessVerified,
-      verification_status: safeVerificationStatus,
       // balance 제외: balanceStore.js가 전담 관리 (upsert로 덮어쓰면 안 됨)
       updated_at: new Date().toISOString()
+    }
+
+    // existing이 있을 때만 인증 상태 필드를 포함 — null이면 해당 필드를 제외해 DB 기존값 보존
+    if (existing) {
+      profilePayload.tier = existing.tier ?? 'general'
+      profilePayload.is_business_verified = existing.is_business_verified ?? false
+      profilePayload.verification_status = existing.verification_status ?? 'unverified'
     }
 
     const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
