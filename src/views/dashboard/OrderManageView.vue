@@ -3277,16 +3277,42 @@ onMounted(async () => {
   await fetchSiteSettings();
   await loadOrdersData();
   window.addEventListener('euchs-order-status-update', onSyncOrdersDebounced);
+  window.addEventListener('euchs-auth-changed', onAuthChanged);
   dashboardRealtimeChannel = subscribeToOrders(onSyncOrdersDebounced);
 });
 
 onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', onSyncOrdersDebounced);
+  window.removeEventListener('euchs-auth-changed', onAuthChanged);
   if (_orderSyncTimer) clearTimeout(_orderSyncTimer);
   if (dashboardRealtimeChannel && typeof dashboardRealtimeChannel.unsubscribe === 'function') {
     dashboardRealtimeChannel.unsubscribe();
   }
 });
+
+// ----------------------------------------------------
+// Auth 상태 변경 핸들러 — 로그아웃 시 화면 데이터 즉시 초기화
+// ----------------------------------------------------
+const onAuthChanged = (e) => {
+  if (!e.detail?.user) {
+    // 로그아웃: 주문 목록, 모달 데이터, 선택 상태 즉시 비우기
+    orders.value = [];
+    activeOrder.value = null;
+    selectedOrderIds.value = [];
+    selectedSecondPaymentOrder.value = null;
+    pendingAdvanceOrder.value = null;
+    pendingInstantPaymentOrder.value = null;
+    bulkParsedItems.value = [];
+    bulkSelectedIdxs.value = [];
+    isDetailModalOpen.value = false;
+    isSecondPaymentModalOpen.value = false;
+    isBulkExcelModalOpen.value = false;
+    isCategoryBatchModalOpen.value = false;
+  } else {
+    // 로그인 또는 계정 전환: 해당 계정 데이터 재로드
+    loadOrdersData();
+  }
+};
 
 // =============================================================
 // 대량 EXCEL 등록 모달 & 카테고리 일괄 설정
