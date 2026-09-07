@@ -794,7 +794,7 @@ export const updateBusinessProfile = async (businessData) => {
         // 🛡️ 인증 상태/등급은 기존 DB 값이 있으면 절대 덮어쓰지 않음
         // - 무니님처럼 SQL로 인증 완료된 계정이 폼 저장 한 번으로 초기화되는 사고 방지
         const safeIsBusinessVerified = existing?.is_business_verified ?? false
-        const safeVerificationStatus = existing?.verification_status ?? 'pending'
+        const safeVerificationStatus = existing?.verification_status ?? 'unverified'
         const safeTier = existing?.tier ?? 'general'
 
         // 🛡️ address: 폼에서 안 넘겨준 경우(빈 문자열) 기존 값 보존

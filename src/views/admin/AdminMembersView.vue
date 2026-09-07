@@ -682,6 +682,10 @@ async function saveMemberChanges(member) {
   // Supabase DB profiles 테이블 동기화
   if (isSupabaseConfigured() && member) {
     try {
+      // ⚠️ 주의: verification_status / is_business_verified 는 이 함수에서 절대 write하지 않음.
+      // 이 두 필드는 approveMember() / rejectMember() 에서만 명시적으로 변경해야 함.
+      // 일반 정보 저장 시 로컬 캐시값(추정 fallback)으로 DB를 덮어쓰면
+      // 이미 승인된 계정의 인증 상태가 'pending'으로 초기화되는 버그가 발생함.
       const updateData = {
         company_name: member.companyName || '',
         representative_name: member.representativeName || '',
@@ -691,8 +695,6 @@ async function saveMemberChanges(member) {
         pccc: member.pccc || '',
         address: member.bizAddress || '',
         tier: member.tier || 'general',
-        verification_status: member.verificationStatus || 'unverified',
-        is_business_verified: member.verificationStatus === 'verified',
         updated_at: new Date().toISOString()
       }
       if (member.id && isValidUUID(member.id)) {
