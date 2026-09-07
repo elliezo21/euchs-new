@@ -571,9 +571,14 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
       const nowIso = new Date().toISOString();
 
       // 1. orders 테이블 업데이트 (상태, 견적액, 1차/2차 결제액, 실측데이터, 검수사진, B/L, 운송장 등)
+      // ⚠️ 주의: target은 localStorage에서 읽어온 객체이며, 관리자 모드에서는 DB 캐시가 localStorage에
+      //   저장되지 않으므로 target의 items/price/payment 등이 비어있을 수 있습니다.
+      // ⚠️ items는 saveDetailDraft/savePurchasingInfo가 전담 저장합니다.
+      //   여기서 items를 포함시키면 빈 배열([])로 기존 DB items를 덮어쓰는 데이터 손실 버그가 발생합니다.
       const orderUpdatePayload = {
         status: nextStatus,
-        items: target.items || [],
+        // items: 이 함수에서는 절대 포함하지 않음 — 전담 저장 경로: saveDetailDraft / savePurchasingInfo
+        //   (포함 시 localStorage 캐시 미스로 items=[]가 DB를 덮어써 상품 데이터 손실 발생)
         total_price_krw: Number(target.totalPriceKrw || target.total_price_krw || 0),
         total_price_rmb: Number(target.totalPriceRmb || target.total_price_rmb || 0),
         first_payment: target.firstPayment || extraData.firstPayment || extraData.quoteInfo || {},
@@ -590,6 +595,19 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
         memo: `[${orderNo}] ${target.memo || ''}`.trim(),
         updated_at: nowIso
       };
+
+      // 방어 코드 B: 비어있는 값이 DB 기존 데이터를 덮어쓰지 않도록 payload에서 제외
+      // localStorage 캐시 미스(관리자 모드 등)로 target 필드가 빈 값이 될 경우 대비
+      if (!orderUpdatePayload.total_price_krw) delete orderUpdatePayload.total_price_krw;
+      if (!orderUpdatePayload.total_price_rmb) delete orderUpdatePayload.total_price_rmb;
+      if (!orderUpdatePayload.first_payment || Object.keys(orderUpdatePayload.first_payment).length === 0) delete orderUpdatePayload.first_payment;
+      if (!orderUpdatePayload.second_payment || Object.keys(orderUpdatePayload.second_payment).length === 0) delete orderUpdatePayload.second_payment;
+      if (!orderUpdatePayload.measured_data || Object.keys(orderUpdatePayload.measured_data).length === 0) delete orderUpdatePayload.measured_data;
+      if (!orderUpdatePayload.inspection_photos || orderUpdatePayload.inspection_photos.length === 0) delete orderUpdatePayload.inspection_photos;
+      // 만약 나중에 실수로 items가 payload에 추가되더라도 빈 배열이면 제거 (최후 안전장치)
+      if (orderUpdatePayload.items !== undefined && (!Array.isArray(orderUpdatePayload.items) || orderUpdatePayload.items.length === 0)) {
+        delete orderUpdatePayload.items;
+      }
 
       const { error: orderUpdateErr, data: updatedOrders } = await supabase
         .from('orders')
