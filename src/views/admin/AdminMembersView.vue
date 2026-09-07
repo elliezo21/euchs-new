@@ -682,10 +682,11 @@ async function saveMemberChanges(member) {
   // Supabase DB profiles 테이블 동기화
   if (isSupabaseConfigured() && member) {
     try {
-      // ⚠️ 주의: verification_status / is_business_verified 는 이 함수에서 절대 write하지 않음.
-      // 이 두 필드는 approveMember() / rejectMember() 에서만 명시적으로 변경해야 함.
-      // 일반 정보 저장 시 로컬 캐시값(추정 fallback)으로 DB를 덮어쓰면
-      // 이미 승인된 계정의 인증 상태가 'pending'으로 초기화되는 버그가 발생함.
+      // ⚠️ 주의: verification_status / is_business_verified / tier 는 아래 정책에 따라 제한됨.
+      // - verification_status / is_business_verified: approveMember() / rejectMember() 전담.
+      // - tier: member.tier가 명시적으로 존재하는 경우에만 포함.
+      //   member.tier가 null/undefined이면 payload에서 제외 — DB 기존 tier 값 보존.
+      //   || 'general' fallback을 쓰면 이미 'business'로 설정된 등급이 덮어써지는 버그 발생.
       const updateData = {
         company_name: member.companyName || '',
         representative_name: member.representativeName || '',
@@ -694,8 +695,11 @@ async function saveMemberChanges(member) {
         business_number: member.bizNumber || '',
         pccc: member.pccc || '',
         address: member.bizAddress || '',
-        tier: member.tier || 'general',
         updated_at: new Date().toISOString()
+      }
+      // tier는 값이 있을 때만 명시적으로 포함 — falsy이면 제외해 DB 기존값 보존
+      if (member.tier) {
+        updateData.tier = member.tier
       }
       if (member.id && isValidUUID(member.id)) {
         await supabase.from('profiles').update(updateData).eq('id', member.id)

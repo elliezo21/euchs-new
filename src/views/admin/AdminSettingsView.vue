@@ -1109,7 +1109,10 @@ function openEditStaffModal(member) {
     id: member.id || '',
     email: member.email || '',
     name: member.name || member.full_name || '',
-    role: member.role || 'staff',
+    // ⚠️ role은 member.role 그대로 — falsy이면 빈 문자열 유지.
+    // submitStaffForm에서 role이 falsy이면 payload에서 제외해 DB 기존값 보존.
+    // || 'staff' fallback을 쓰면 실제 'admin'/'super_admin'이 'staff'로 덮어써질 수 있음.
+    role: member.role || '',
     department: member.department || '소싱운영팀',
     position: member.position || '매니저'
   }
@@ -1214,12 +1217,20 @@ async function submitStaffForm() {
   try {
     if (isSupabaseConfigured()) {
       // profiles 테이블 업데이트
+      // ⚠️ role은 staffForm.value.role이 명시적으로 존재하는 경우에만 포함.
+      //   staffForm이 localStorage 캐시 기반 member.role로 채워지는데,
+      //   캐시가 없거나 member.role이 없으면 || 'staff' fallback이 적용되어
+      //   실제 'admin'/'super_admin'을 덮어쓸 수 있음.
+      //   role이 없으면 payload에서 제외 — DB 기존 role 보존.
       const updatePayload = {
-        role: memberData.role,
         department: memberData.department,
         position: memberData.position,
         full_name: memberData.name,
         updated_at: memberData.updated_at
+      }
+      // role은 값이 있을 때만 명시적으로 포함 — falsy이면 제외해 DB 기존값 보존
+      if (staffForm.value.role) {
+        updatePayload.role = staffForm.value.role
       }
 
       if (staffForm.value.id && isValidUUID(staffForm.value.id)) {
@@ -1228,14 +1239,16 @@ async function submitStaffForm() {
         await supabase.from('profiles').update(updatePayload).eq('email', mail)
       }
 
-      // user_roles 테이블 upsert
-      try {
-        await supabase.from('user_roles').upsert({
-          email: mail,
-          role: memberData.role,
-          updated_at: memberData.updated_at
-        })
-      } catch (err) {}
+      // user_roles 테이블 upsert (role이 있을 때만)
+      if (staffForm.value.role) {
+        try {
+          await supabase.from('user_roles').upsert({
+            email: mail,
+            role: staffForm.value.role,
+            updated_at: memberData.updated_at
+          })
+        } catch (err) {}
+      }
     }
   } catch (e) {
     console.warn('Failed to update staff in Supabase:', e)
