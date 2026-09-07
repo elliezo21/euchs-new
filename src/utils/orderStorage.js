@@ -544,15 +544,52 @@ export async function saveNewOrder(order) {
           newOrderObj.id = String(insertedOrder[0].id);
           _saveLocalOnly(list); // id 갱신 후 로컬만 업데이트, DB 재동기화 불필요
         } else if (orderErr) {
-          console.error(
-            '[saveNewOrder] orders INSERT 실패:',
-            orderErr.code, orderErr.message,
-            '| 주문번호:', newOrderObj.orderNumber
-          );
+          if (orderErr.code === '23505') {
+            // ★ UNIQUE 제약 위반 (orders_order_number_unique) — 1회 자동 재시도
+            // order_number는 EUC-YYYYMMDD-{1000~9999} 형식이므로 새 suffix를 생성하면
+            // 충돌 없이 저장될 가능성이 높음. 재시도 후에도 실패하면 throw로 Fail-Fast.
+            console.warn(
+              '[saveNewOrder] 23505 UNIQUE 위반 감지 — 새 order_number로 1회 재시도.',
+              '원래 번호:', newOrderObj.orderNumber
+            );
+            const retrySuffix = Math.floor(1000 + Math.random() * 9000);
+            const retryNumber  = `EUC-${dateCompact}-${retrySuffix}`;
+            orderDbRow.order_number = retryNumber;
+            orderDbRow.order_no     = retryNumber;
+            orderDbRow.memo         = `[${retryNumber}] ${newOrderObj.memo || buyerInfoObj.memo || ''}`.trim();
+            newOrderObj.orderNumber = retryNumber;
+            newOrderObj.inboundNo   = `INB-YW-${dateCompact}-${retrySuffix}`;
+
+            const { data: retryData, error: retryErr } = await supabase
+              .from('orders')
+              .insert([orderDbRow])
+              .select();
+
+            if (!retryErr && retryData && retryData.length > 0) {
+              newOrderObj.dbId = retryData[0].id;
+              newOrderObj.id   = String(retryData[0].id);
+              _saveLocalOnly(list);
+            } else {
+              // 재시도도 실패 — 호출부 catch 블록이 사용자에게 alert를 띄우도록 throw
+              throw new Error(
+                '주문 처리 중 일시적인 오류가 발생했습니다. 잠시 후 다시 시도해 주세요. (ERR: duplicate order_number)'
+              );
+            }
+          } else {
+            // 그 외 DB 에러 — 기존 동작 유지 (console.error, fallback 진행)
+            console.error(
+              '[saveNewOrder] orders INSERT 실패:',
+              orderErr.code, orderErr.message,
+              '| 주문번호:', newOrderObj.orderNumber
+            );
+          }
         }
       }
     } catch (eOrder) {
-      console.error('[saveNewOrder] orders INSERT 예외 (fallback 진행):', eOrder);
+      // Fail-Fast: INSERT 블록에서 throw된 에러(23505 재시도 실패 포함)를 호출부로 전달
+      // 호출부(OrderConfigModal)의 catch → alert()가 사용자에게 명확히 안내함
+      console.error('[saveNewOrder] orders INSERT 오류:', eOrder.message || eOrder);
+      throw eOrder;
     }
   }
 
