@@ -664,7 +664,7 @@
             </button>
             <button
               v-if="isStatus(activeOrder, 'quote_pending')"
-              @click="saveDetailDraft"
+              @click="confirmSaveOrder = true"
               type="button"
               class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
@@ -692,6 +692,15 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 주문 변경사항 저장 -->
+    <ConfirmSaveModal
+      v-model="confirmSaveOrder"
+      title="주문 정보를 저장할까요?"
+      variant="save"
+      confirmText="저장"
+      @confirm="saveDetailDraft"
+    />
+
   </div>
 </template>
 
@@ -705,6 +714,7 @@ import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 
 
 const route = useRoute();
@@ -745,6 +755,7 @@ watch(
 const searchQuery = ref('');
 const activeOrder = ref(null);
 const modal = ref({ blForm: false, trackingForm: false, detail: false });
+const confirmSaveOrder = ref(false);
 
 // 신버전 AdminWarehouseModal (5-A/5-B/5-C) state
 const showWarehouseModal = ref(false);

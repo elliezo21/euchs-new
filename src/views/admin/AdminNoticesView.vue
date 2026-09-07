@@ -42,7 +42,7 @@
         </span>
       </div>
 
-      <form @submit.prevent="handleSubmitNotice" class="p-6 space-y-4">
+      <form @submit.prevent="confirmSaveNotice = true" class="p-6 space-y-4">
         <!-- 1열: 카테고리 + 뱃지 라벨 + 상단 고정 핀 (3단 그리드) -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
           <!-- 1) 분류 카테고리 -->
@@ -324,17 +324,28 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 공지 게시/수정 -->
+    <ConfirmSaveModal
+      v-model="confirmSaveNotice"
+      :title="editingId ? '수정 내용을 저장할까요?' : '공지사항을 게시할까요?'"
+      variant="blue"
+      :confirmText="editingId ? '저장' : '게시'"
+      @confirm="handleSubmitNotice"
+    />
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
 
 const formRef = ref(null)
 const noticeFileInput = ref(null)
 const editingId = ref(null)
+const confirmSaveNotice = ref(false)
 const filterCategory = ref('all')
 const searchQuery = ref('')
 

@@ -405,7 +405,7 @@
                 <button
                   v-else
                   type="button"
-                  @click="saveMemberChanges(selectedMember)"
+                  @click="confirmSaveMember = true"
                   class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-sm"
                 >
                   ✓ 변경사항 저장
@@ -436,18 +436,29 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 회원 정보 저장 -->
+    <ConfirmSaveModal
+      v-model="confirmSaveMember"
+      title="회원 정보를 저장할까요?"
+      variant="blue"
+      confirmText="저장"
+      @confirm="saveMemberChanges(selectedMember)"
+    />
+
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const MEMBERS_STORAGE_KEY = 'euchs_admin_members'
 
 const statusFilter = ref('all')
 const searchQuery = ref('')
 const selectedMember = ref(null)
+const confirmSaveMember = ref(false)
 const isFatalError = ref(false)
 const fatalErrorMessage = ref('')
 

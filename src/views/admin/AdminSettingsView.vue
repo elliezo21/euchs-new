@@ -349,7 +349,7 @@
 
           <button
             type="button"
-            @click="saveRateSettings"
+            @click="confirmModal.rate = true"
             class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-sm flex items-center gap-2 active:scale-95"
           >
             <span>✓ 환율·수수료 설정 저장하기</span>
@@ -647,7 +647,7 @@
           <div class="flex justify-end pt-2">
             <button
               type="button"
-              @click="saveHeroSettings"
+              @click="confirmModal.hero = true"
               class="px-6 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition cursor-pointer shadow-sm flex items-center gap-2 active:scale-95"
             >
               <span>✓ 메인 상단 비주얼(Hero) 설정 저장하기</span>
@@ -861,7 +861,7 @@
           </button>
         </div>
 
-        <form @submit.prevent="submitStaffForm" class="space-y-3.5 text-xs">
+        <form @submit.prevent="confirmModal.staff = true" class="space-y-3.5 text-xs">
           <!-- 1. 직원 이메일 -->
           <div class="space-y-1">
             <label class="font-bold text-slate-700">직원 이메일 (계정 ID)</label>
@@ -953,6 +953,36 @@
       </div>
     </Transition>
 
+    <!-- ConfirmSaveModal: 환율·수수료 -->
+    <ConfirmSaveModal
+      v-model="confirmModal.rate"
+      title="환율·수수료 설정을 저장할까요?"
+      description="전체 바이어의 견적 계산에 즉시 반영됩니다."
+      variant="blue"
+      confirmText="저장"
+      @confirm="saveRateSettings"
+    />
+
+    <!-- ConfirmSaveModal: Hero 설정 -->
+    <ConfirmSaveModal
+      v-model="confirmModal.hero"
+      title="메인 화면 설정을 저장할까요?"
+      description="저장 즉시 홈페이지 상단 화면에 반영됩니다."
+      variant="purple"
+      confirmText="저장"
+      @confirm="saveHeroSettings"
+    />
+
+    <!-- ConfirmSaveModal: 운영진 권한 -->
+    <ConfirmSaveModal
+      v-model="confirmModal.staff"
+      title="운영진 권한을 저장할까요?"
+      description="해당 계정의 관리자 권한이 즉시 변경됩니다."
+      variant="save"
+      confirmText="저장"
+      @confirm="submitStaffForm"
+    />
+
   </div>
 </template>
 
@@ -967,8 +997,12 @@ import {
   isVideoMedia
 } from '@/lib/settings'
 import { fetchLiveMarketRate } from '@/utils/exchangeRate'
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const activeTab = ref('rate') // 'rate' | 'media' | 'staff'
+
+// ConfirmSaveModal 상태
+const confirmModal = ref({ rate: false, hero: false, staff: false })
 
 const RATE_STORAGE_KEY = 'euchs_system_settings'
 const SERVICE_MEDIA_STORAGE_KEY = 'euchs_service_media'

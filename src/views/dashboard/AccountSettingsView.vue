@@ -223,7 +223,7 @@
             <p class="text-[10px] text-gray-400 pt-0.5">※ 회원 성명과 이메일은 가입 시 등록된 고유 계정 정보입니다.</p>
           </div>
 
-          <form @submit.prevent="saveCustomsInfo" class="space-y-3.5 text-xs">
+          <form @submit.prevent="confirmSaveCustoms = true" class="space-y-3.5 text-xs">
             <div>
               <label class="block font-bold text-gray-700 mb-1">상호명 (법인/개인사업자)</label>
               <input
@@ -556,7 +556,7 @@
           </button>
         </div>
 
-        <form @submit.prevent="saveAddress" class="space-y-3 text-xs">
+        <form @submit.prevent="confirmSaveAddress = true" class="space-y-3 text-xs">
           <div>
             <label class="block font-bold text-gray-700 mb-1">배송지 별칭 (예: 본사 창고, 1매장)</label>
             <input
@@ -756,6 +756,25 @@
         </div>
       </div>
     </div>
+    <!-- ConfirmSaveModal: 통관 정보 저장 -->
+    <ConfirmSaveModal
+      v-model="confirmSaveCustoms"
+      title="통관 정보를 저장할까요?"
+      description="사업자등록번호, PCCC 등 수입통관에 사용됩니다."
+      variant="save"
+      confirmText="저장"
+      @confirm="saveCustomsInfo"
+    />
+
+    <!-- ConfirmSaveModal: 배송지 저장 -->
+    <ConfirmSaveModal
+      v-model="confirmSaveAddress"
+      title="배송지를 저장할까요?"
+      variant="orange"
+      confirmText="저장"
+      @confirm="saveAddress"
+    />
+
   </div>
 </template>
 
@@ -793,6 +812,7 @@ import {
   loadBalance
 } from '../../lib/balanceStore'
 import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -804,6 +824,9 @@ const router = useRouter()
 const activeTab = ref(route.query.tab || 'address')
 const walletBalance = userBalance
 const walletFilter = ref('all')
+// ConfirmSaveModal 상태
+const confirmSaveCustoms = ref(false)
+const confirmSaveAddress = ref(false)
 const showAddressModal = ref(false)
 const showDepositModal = ref(false)
 const editingAddressId = ref(null)

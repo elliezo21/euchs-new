@@ -626,7 +626,7 @@
                   <button
                     v-if="isOrderEditable"
                     type="button"
-                    @click="isEditingAddress ? saveAddress() : startEditAddress()"
+                    @click="isEditingAddress ? confirmSaveOrderAddress = true : startEditAddress()"
                     class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
                   >
                     {{ isEditingAddress ? '[저장]' : '[주소 변경]' }}
@@ -1721,6 +1721,15 @@
       </button>
     </div>
   </Transition>
+    <!-- ConfirmSaveModal: 수령 주소 변경 -->
+    <ConfirmSaveModal
+      v-model="confirmSaveOrderAddress"
+      title="배송 주소를 변경할까요?"
+      variant="orange"
+      confirmText="변경"
+      @confirm="saveAddress"
+    />
+
   </div>
 </template>
 
@@ -1768,6 +1777,7 @@ import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrder
 import { userBalance, applyBalanceTransaction } from '@/lib/balanceStore';
 import { currentUser } from '@/lib/auth';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
+import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -1801,6 +1811,7 @@ const isRefreshing = ref(false);
 const isDetailModalOpen = ref(false);
 const activeOrder = ref(null);
 const isPaying = ref(false);
+const confirmSaveOrderAddress = ref(false);
 
 // 2차 결제 & 바코드 업로드 모달 상태
 const isSecondPaymentModalOpen = ref(false);
