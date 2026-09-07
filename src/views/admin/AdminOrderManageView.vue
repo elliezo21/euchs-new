@@ -938,14 +938,19 @@ async function saveDetailDraft({ closeAfter = true } = {}) {
     }
 
     if (isSupabaseConfigured()) {
-      const { error: dbErr } = await supabase
+      const { error: dbErr, data: updatedRows } = await supabase
         .from('orders')
         .update({
           items: items,
           updated_at: new Date().toISOString()
         })
-        .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`);
+        .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
+        .select('id, order_number');
       if (dbErr) throw dbErr;
+      // 0 rows affected = RLS 차단 또는 행 없음 → 저장 실패로 처리 (Fail-Fast)
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(`DB 저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다. (0 rows affected)`);
+      }
     }
 
     showToast('발주 품목 상태 및 견적액이 안전하게 저장되었습니다.', 'success');

@@ -595,23 +595,36 @@ export async function updateOrderStatus(orderId, nextStatus, extraData = {}) {
         .from('orders')
         .update(orderUpdatePayload)
         .eq('order_number', orderNo)
-        .select();
+        .select('id, order_number');
 
-      if (orderUpdateErr || !updatedOrders || updatedOrders.length === 0) {
-        if (target.id && isValidUUID(target.id)) {
-          await supabase
+      let dbSuccess = !orderUpdateErr && updatedOrders && updatedOrders.length > 0;
+
+      // 1차(order_number 기준) 실패 시 2차: UUID id 기준 재시도
+      if (!dbSuccess) {
+        const fallbackId = (target.id && isValidUUID(target.id)) ? target.id
+          : (orderId && isValidUUID(orderId)) ? orderId
+          : null;
+
+        if (fallbackId) {
+          const { error: fallbackErr, data: fallbackRows } = await supabase
             .from('orders')
             .update(orderUpdatePayload)
-            .eq('id', target.id);
-        } else if (orderId && isValidUUID(orderId)) {
-          await supabase
-            .from('orders')
-            .update(orderUpdatePayload)
-            .eq('id', orderId);
+            .eq('id', fallbackId)
+            .select('id, order_number');
+          dbSuccess = !fallbackErr && fallbackRows && fallbackRows.length > 0;
+          if (fallbackErr) {
+            console.error('[updateOrderStatus] fallback update error:', fallbackErr);
+          }
         }
       }
+
+      // 1차 + 2차 모두 0 rows affected = RLS 차단 또는 행 없음 → Fail-Fast
+      if (!dbSuccess) {
+        throw new Error(`DB 상태 저장 실패: 주문(${orderNo})을 찾을 수 없거나 권한이 없습니다. (0 rows affected — RLS 차단 의심)`);
+      }
     } catch (err) {
-      console.warn('[updateOrderStatus Supabase update warning]:', err);
+      console.error('[updateOrderStatus] Supabase update failed:', err);
+      throw err; // 호출부에서 "저장 실패" 토스트 처리하도록 re-throw
     }
   }
 
