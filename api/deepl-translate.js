@@ -10,7 +10,12 @@ export default async function handler(req, res) {
   if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' })
 
   const { text, target_lang, source_lang } = req.body || {}
-  const deeplKey = process.env.VITE_DEEPL_API_KEY || process.env.DEEPL_API_KEY || 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'
+  const deeplKey = process.env.DEEPL_API_KEY || process.env.VITE_DEEPL_API_KEY || ''
+
+  if (!deeplKey) {
+    console.error('[deepl-translate] DEEPL_API_KEY 환경변수가 설정되지 않았습니다.')
+    return res.status(500).json({ success: false, message: 'DEEPL_API_KEY 환경변수가 설정되지 않았습니다.' })
+  }
 
   if (!text || (Array.isArray(text) && text.length === 0)) {
     return res.status(200).json({ success: true, data: { translations: [] } })

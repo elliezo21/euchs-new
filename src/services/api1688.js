@@ -138,10 +138,7 @@ const getEnv = (key, fallback = '') => {
   return fallback
 }
 
-export const CONFIG = {
-  ONEBOUND_SESSION: getEnv('ONEBOUND_SESSION', 'c349df22-2929-4571-8d32-c25412728b33'),
-  DEEPL_API_KEY: getEnv('DEEPL_API_KEY', 'a2f4e6d2-ed34-4c8c-8ed3-beb80e473d71:fx'),
-}
+export const CONFIG = {}
 
 
 // ========================================================
@@ -535,7 +532,7 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
   // 2. 미번역 텍스트 일괄 DeepL 번역 실행
   let translatedBatch = null
 
-  // 2-1. Vercel Serverless / Vite Dev Server 프록시 우선 시도 (/api/deepl-translate)
+  // 2. Vercel Serverless / Vite Dev Server 프록시 단일 번역 파이프라인 (/api/deepl-translate)
   try {
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 8000) // 8초 타임아웃
@@ -555,46 +552,17 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
       const result = await proxyRes.json()
       if (result.success && result.data?.translations) {
         translatedBatch = result.data.translations.map((item, idx) => item.text || missingTexts[idx])
+      } else {
+        console.error('[DeepL Proxy Error] 응답 성공 플래그 실패:', result?.message || 'Translation returned unsuccessful')
       }
+    } else {
+      console.error(`[DeepL Proxy Error] HTTP ${proxyRes.status} 상태 코드 수신 (${proxyRes.statusText})`)
     }
   } catch (err) {
-    console.debug('[DeepL] Proxy notice:', err.message)
-  }
-
-  // 2-2. Direct DeepL API Fallback
-  if (!translatedBatch && CONFIG.DEEPL_API_KEY) {
-    try {
-      const apiKey = CONFIG.DEEPL_API_KEY
-      const isFreeKey = apiKey.endsWith(':fx')
-      const endpoint = isFreeKey
-        ? 'https://api-free.deepl.com/v2/translate'
-        : 'https://api.deepl.com/v2/translate'
-
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), 8000) // 8초 타임아웃
-      const directRes = await fetch(endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `DeepL-Auth-Key ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          text: missingTexts,
-          target_lang: targetLang,
-          ...(sourceLang ? { source_lang: sourceLang } : {})
-        }),
-        signal: controller.signal
-      })
-      clearTimeout(timeout)
-
-      if (directRes.ok) {
-        const data = await directRes.json()
-        if (data.translations && Array.isArray(data.translations)) {
-          translatedBatch = data.translations.map((item, idx) => item.text || missingTexts[idx])
-        }
-      }
-    } catch (err) {
-      console.warn('[DeepL] Direct API notice:', err.message)
+    if (err.name === 'AbortError') {
+      console.error('[DeepL Proxy Error] 번역 서버리스 요청 8초 타임아웃 초과')
+    } else {
+      console.error('[DeepL Proxy Error] 번역 서버리스 통신 오류:', err.message)
     }
   }
 
