@@ -980,7 +980,7 @@ const STAFF_STORAGE_KEY = 'euchs_staff_members'
 const DEFAULT_STAFF_MEMBERS = [
   {
     id: 'staff_master_1',
-    email: 'elleizo21@gmail.com',
+    email: 'elliezo21@gmail.com',
     name: '총괄 대표',
     role: 'super_admin',
     department: '경영총괄',
@@ -1137,7 +1137,7 @@ async function loadStaffMembers() {
       if (!error && Array.isArray(data) && data.length > 0) {
         loaded = data.map(p => {
           const mail = String(p.email || '').toLowerCase().trim()
-          const isMaster = mail === 'elleizo21@gmail.com' || mail === 'elliezo21@gmail.com' || mail === 'admin@euccompany.com'
+          const isMaster = mail === 'elliezo21@gmail.com' || mail === 'admin@euccompany.com'
           return {
             id: p.id,
             email: p.email,
@@ -1163,16 +1163,21 @@ async function loadStaffMembers() {
     // 기본 직원 먼저 세팅
     DEFAULT_STAFF_MEMBERS.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
     
-    // 로컬 스토리지 데이터 병합
+    // 로컬 스토리지 데이터 병합 (과거 오타 이메일 캐시 제외)
     if (Array.isArray(localList)) {
-      localList.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
+      localList.forEach(m => {
+        const email = String(m?.email || '').toLowerCase().trim()
+        if (email && email !== 'elleizo21@gmail.com') {
+          map.set(email, m)
+        }
+      })
     }
     
     // DB 데이터 병합
     loaded.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
 
     // 대표 관리자 계정 정보 무결성 보장
-    const masterEmails = ['elleizo21@gmail.com', 'elliezo21@gmail.com']
+    const masterEmails = ['elliezo21@gmail.com']
     masterEmails.forEach(mail => {
       if (map.has(mail)) {
         const item = map.get(mail)
