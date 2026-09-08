@@ -711,7 +711,39 @@ export const verificationStatus = computed(() => {
   return profile?.verification_status ?? 'unverified'
 })
 
+/**
+ * 사업자/통관 정보 형식 검증 (재사용 가능 유틸)
+ * @param {Object} data - { companyName, bizNumber, customsCode, contactName, contactPhone, address }
+ * @returns {{ valid: boolean, errors: string[] }}
+ */
+export function validateBusinessInfo(data) {
+  const errors = []
+  const bizNum = (data.bizNumber || '').replace(/[^0-9]/g, '')
+  const pccc   = (data.customsCode || '').trim().toUpperCase()
+
+  // 필수 항목 공백 체크
+  if (!(data.companyName || '').trim())   errors.push('상호명을 입력해주세요.')
+  if (!bizNum)                             errors.push('사업자등록번호를 입력해주세요.')
+  if (!pccc)                               errors.push('통관부호(PCCC)를 입력해주세요.')
+  if (!(data.contactName || '').trim())   errors.push('담당자 성명을 입력해주세요.')
+  if (!(data.contactPhone || '').trim())  errors.push('비상연락처를 입력해주세요.')
+  if (!(data.address || '').trim())       errors.push('사업장 소재지를 입력해주세요.')
+
+  // 사업자등록번호: 정확히 10자리 숫자
+  if (bizNum && bizNum.length !== 10) {
+    errors.push(`사업자등록번호는 10자리 숫자여야 합니다. (현재 ${bizNum.length}자리)`)
+  }
+
+  // PCCC: P로 시작하는 13자리 (P + 숫자 12자리)
+  if (pccc && !/^P\d{12}$/.test(pccc)) {
+    errors.push(`통관부호(PCCC)는 P로 시작하는 13자리(P+숫자 12자리) 형식이어야 합니다. (예: P240012345678)`)
+  }
+
+  return { valid: errors.length === 0, errors }
+}
+
 export const updateBusinessProfile = async (businessData) => {
+
   if (!currentUser.value) {
     throw new Error('로그인이 필요합니다.')
   }
@@ -796,9 +828,8 @@ export const updateBusinessProfile = async (businessData) => {
         //   is_business_verified / verification_status / tier 를 payload에서 완전히 제외.
         //   ?? false / ?? 'unverified' / ?? 'general' fallback을 쓰면
         //   이미 DB에 verified로 저장된 계정이 upsert 한 번으로 초기화되는 사고 발생.
-        // 🛡️ address: 폼에서 안 넘겨준 경우(빈 문자열) 기존 값 보존
-        const safeAddress = address || existing?.address || ''
-
+        // ⚠️ address 컬럼은 profiles 테이블에 실제 존재하지 않음 (PGRST204 방어)
+        // address는 localStorage/user_metadata에만 보관. DB 스키마에 address 추가 시 복원 예정.
         const profilePayload = {
           id: profileId,
           email: currentUser.value.email || '',
@@ -807,7 +838,6 @@ export const updateBusinessProfile = async (businessData) => {
           representative_name: name,
           business_number: cleanBizNumber,
           pccc: cleanPccc,
-          address: safeAddress,
           phone: phone,
           updated_at: new Date().toISOString()
         }
