@@ -2950,30 +2950,32 @@ async function executeInstantPayment() {
       buyerEmail: currentUser.value?.email || order.buyerInfo?.email || ''
     });
 
-    // 3. 상태를 'purchasing' (4. 1688 공장 구매진행)으로 변경
-    const nextStatus = 'purchasing';
+    // 3. 상태를 'payment_verified' (3. 결제확인)으로 변경 — 관리자가 결제 확인 후 1688 구매 시작
+    const nextStatus = 'payment_verified';
     order.status = nextStatus;
-    order.step = 4;
+    order.step = 3;
     order.paid_at = nowIso;
     order.paidAt = nowIso;
     order.firstPayment = {
       ...(order.firstPayment || {}),
       paid: true,
       paidAt: nowIso,
-      amount: totalCost
+      amount: totalCost,
+      paymentMethod: 'deposit'
     };
 
     // 4. orders.value 반응형 배열 내 타깃 주문 갱신
     if (target) {
       target.status = nextStatus;
-      target.step = 4;
+      target.step = 3;
       target.paid_at = nowIso;
       target.paidAt = nowIso;
       target.firstPayment = {
         ...(target.firstPayment || {}),
         paid: true,
         paidAt: nowIso,
-        amount: totalCost
+        amount: totalCost,
+        paymentMethod: 'deposit'
       };
     }
 
@@ -2988,7 +2990,7 @@ async function executeInstantPayment() {
               parsed.forEach(item => {
                 if (item.id === order.id || item.orderNumber === orderNo || item.order_no === orderNo || item.id === orderId) {
                   item.status = nextStatus;
-                  item.step = 4;
+                  item.step = 3;
                   item.paid_at = nowIso;
                   item.paidAt = nowIso;
                 }
@@ -3005,13 +3007,14 @@ async function executeInstantPayment() {
     if (isSupabaseConfigured()) {
       try {
         await updateOrderStatus(orderId, nextStatus, {
-          step: 4,
+          step: 3,
           paid_at: nowIso,
           paid_amount: totalCost,
           firstPayment: {
             paid: true,
             paidAt: nowIso,
-            amount: totalCost
+            amount: totalCost,
+            paymentMethod: 'deposit'
           }
         });
       } catch (dbErr) {
@@ -3026,10 +3029,10 @@ async function executeInstantPayment() {
       detail: { appId: order.id, orderId, status: nextStatus }
     }));
 
-    // 8. 탭을 즉시 '4. 1688 구매진행' (purchasing)으로 자동 전환
-    selectTab('purchasing');
+    // 8. 탭을 '3. 결제확인' (payment_verified)으로 이동 — 관리자가 결제 확인 후 1688 구매 시작 진행
+    selectTab('payment_verified');
 
-    alert(`✅ 1차 결제가 성공적으로 완료되었습니다!\n\n- 결제금액: ₩${totalWon}원\n- 차감 후 예치금 잔액: ₩${formatNumber(userBalance.value)}원\n- 발주번호: ${orderNo}\n\n[4. 1688 구매진행] 단계로 이동합니다.`);
+    alert(`✅ 예치금 결제가 완료되었습니다!\n\n- 결제금액: ₩${totalWon}원\n- 차감 후 예치금 잔액: ₩${formatNumber(userBalance.value)}원\n- 발주번호: ${orderNo}\n\n[3. 결제확인] 단계로 전환되었습니다.\n관리자 확인 후 1688 구매가 진행될 예정입니다.`);
     closeDetailModal();
   } catch (err) {
     if (target) {
