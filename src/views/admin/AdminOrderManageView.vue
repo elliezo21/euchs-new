@@ -143,9 +143,7 @@
 
                     <!-- 3단계(결제확인) 및 4단계(구매진행): 상세 버튼 안에서 구매 시작 및 배송 관리 처리 -->
 
-                    <!-- 5단계 배송중(warehouse_in): 5-A 도착검수 팝업만 노출 -->
-                    <button v-if="isStatus(order,'warehouse_in')" @click="openWarehouseModal(order, 'arrival')"
-                      class="px-3 py-1.5 rounded-lg bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📦 도착검수 (5-A)</button>
+                    <!-- 5단계 배송중(warehouse_in): 상세 버튼 안에서 도착검수(5-A) 처리 — 목록 버튼 제거 -->
 
                     <!-- 5단계 입고완료(arrival_done / inspection_done): 5-B CBM 정산 팝업 노출 -->
                     <button v-if="isWarehouseArrived(order)" @click="openWarehouseModal(order, 'box')"
@@ -287,7 +285,7 @@
     <!-- MODAL: 주문 상세 (PC 전용 대화면 와이드 뷰 max-w-7xl) -->
     <!-- ============================================================ -->
     <div v-if="modal.detail && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
-      <div class="w-[94vw] max-w-7xl bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col" @click.stop>
+      <div class="w-[96vw] max-w-[1400px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col" @click.stop>
         <!-- 모달 헤더 -->
         <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
           <div class="flex items-center gap-3">
@@ -523,10 +521,19 @@
                       >
                         <option value="">선택</option>
                         <option value="중통(ZTO)">중통(ZTO)</option>
+                        <option value="신통(STO)">신통(STO)</option>
                         <option value="순풍(SF)">순풍(SF)</option>
                         <option value="윈다(YTO)">윈다(YTO)</option>
                         <option value="중국우정(EMS)">중국우정(EMS)</option>
                         <option value="기타">기타</option>
+                        <!-- 안전장치: 자동동기화 시 매핑 테이블에 없는 택배사가 오면 동적으로 추가.
+                             매핑된 값은 위 고정 옵션과 겹쳐서 자동 선택됨. 겹치지 않으면 이 옵션으로 표시.
+                             조건: 현재 draft 값이 비어있지 않고 위의 고정 옵션 목록 밖의 값일 때만 표시 -->
+                        <option
+                          v-if="purchaseInfoDraft[idx]?.chinaCarrier &&
+                                !['중통(ZTO)','신통(STO)','순풍(SF)','윈다(YTO)','중국우정(EMS)','기타'].includes(purchaseInfoDraft[idx].chinaCarrier)"
+                          :value="purchaseInfoDraft[idx].chinaCarrier"
+                        >{{ purchaseInfoDraft[idx].chinaCarrier }} (자동)</option>
                       </select>
                     </div>
 
@@ -549,6 +556,23 @@
                     >
                       <span>💾 저장</span>
                     </button>
+
+                    <!-- 1688 배송정보 자동동기화 버튼 (purchaseNo 있을 때만 표시) -->
+                    <button
+                      v-if="item.purchaseNo"
+                      type="button"
+                      @click="syncLogistics(item, idx)"
+                      :disabled="syncingLogistics[idx]"
+                      class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
+                      :class="syncingLogistics[idx]
+                        ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                        : 'bg-sky-500 hover:bg-sky-600 text-white'"
+                      title="1688 판매자가 등록한 운송장번호를 자동으로 가져옵니다"
+                    >
+                      <span v-if="syncingLogistics[idx]">⏳ 조회 중…</span>
+                      <span v-else>🔄 배송정보 동기화</span>
+                    </button>
+
 
                     <!-- ── 발주 실패 배지 (purchaseError 있을 때만 표시) ── -->
                     <div
@@ -605,8 +629,39 @@
             </div>
           </div>
 
-          <!-- 3. 통관 및 배송 B/L / 송장 추가 정보 (있을 때만 표시) -->
-          <div v-if="activeOrder.blInfo || activeOrder.trackingInfo" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- ─── 5. 배송중(warehouse_in) 단계: 중국 내륙 배송 정보 (읽기 전용) ─── -->
+          <!-- 이 단계에서는 B/L·국내운송 데이터가 아직 없으므로, 대신 품목별 중국 내 배송정보를 표시 -->
+          <div v-if="isStatus(activeOrder, 'warehouse_in')" class="grid grid-cols-1 gap-3">
+            <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs space-y-2">
+              <div class="font-bold text-indigo-800 mb-2 flex items-center gap-1.5">
+                <span>🚚 중국 내륙 배송 정보</span>
+                <span class="text-[10px] font-normal text-indigo-500">(읽기 전용 — 편집은 4.구매진행 단계에서)</span>
+              </div>
+              <template v-for="(item, idx) in (activeOrder.items || [])" :key="idx">
+                <div v-if="!item.excluded" class="flex items-start gap-3 py-1.5 border-b border-indigo-100 last:border-0">
+                  <span class="text-[10px] text-indigo-400 font-mono shrink-0 mt-0.5">품목 {{ idx + 1 }}</span>
+                  <div class="min-w-0 flex-1">
+                    <p class="text-[11px] text-slate-700 font-medium truncate mb-1">
+                      {{ item.productName || item.title || item.name || '1688 수입 품목' }}
+                    </p>
+                    <div class="flex items-center gap-3 flex-wrap">
+                      <span class="flex items-center gap-1">
+                        <span class="text-slate-400">택배사:</span>
+                        <span class="font-bold text-indigo-700">{{ mapCarrier('', item.chinaCarrier) || item.chinaCarrier || '—' }}</span>
+                      </span>
+                      <span class="flex items-center gap-1 font-mono">
+                        <span class="text-slate-400">운송장:</span>
+                        <span class="font-bold text-indigo-900">{{ item.chinaTrackingNo || '—' }}</span>
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </template>
+            </div>
+          </div>
+
+          <!-- 3. 통관 및 배송 B/L / 송장 추가 정보 (warehouse_in 단계 제외 — 7단계 이후에만 노출) -->
+          <div v-if="!isStatus(activeOrder, 'warehouse_in') && (activeOrder.blInfo || activeOrder.trackingInfo)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div v-if="activeOrder.blInfo" class="p-4 bg-purple-50 border border-purple-200 rounded-2xl font-mono text-xs space-y-1.5">
               <div class="font-bold text-purple-800 text-xs mb-1 flex items-center gap-1">
                 <span>📄 선하증권 (B/L) 통관 정보</span>
@@ -701,6 +756,16 @@
               class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>🛒 1688 구매 시작</span>
+            </button>
+
+            <!-- 5. 배송중(warehouse_in) 단계: 도착검수(5-A) 팝업 열기 — 목록 버튼 제거 후 모달 안으로 통합 -->
+            <button
+              v-if="isStatus(activeOrder, 'warehouse_in')"
+              @click="openWarehouseModal(activeOrder, 'arrival')"
+              type="button"
+              class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+            >
+              <span>📦 도착검수 (5-A)</span>
             </button>
           </div>
         </div>
@@ -859,6 +924,9 @@ const trackingForm = ref({ deliveryType: 'parcel', carrier: '경동택배', trac
 const excludeReasonMap = ref({});
 // 구매진행 단계 중국 내륙 배송 정보 draft (입력 중인 임시값 — 저장 버튼 클릭 후에만 item에 반영)
 const purchaseInfoDraft = ref({});
+// 1688 배송정보 자동동기화 로딩 상태 (idx → boolean)
+// Phase 3: syncLogistics() 함수는 이 상태만 관리, 트리거(버튼 vs 폴링)와 무관하게 재사용 가능
+const syncingLogistics = ref({});
 const toast = ref({ show: false, message: '', type: 'success' });
 let toastTimer = null;
 
@@ -1071,6 +1139,103 @@ async function savePurchasingInfo(item, idx) {
   // ★ 향후 1688 자동발주 API 콜백에서도 confirmWarehouseArrival()을 직접 호출해 재사용 가능
   if (allItemsHaveTrackingNo(activeOrder.value)) {
     await confirmWarehouseArrival(activeOrder.value, { silent: true });
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────
+// 1688 배송정보 자동동기화 핵심 함수 (Phase 3 확장 포인트)
+// ─────────────────────────────────────────────────────────────────────
+// 이 함수는 "조회 로직" 전체를 담당한다.
+// 현재는 관리자 버튼(아래 template의 @click)이 얇은 wrapper로 호출하지만,
+// Phase 3에서 자동 폴링 시스템이 이 함수를 직접 호출하는 방식으로 교체 가능.
+// item, idx 외에 caller 정보(버튼 vs 폴링)를 넘길 필요 없음.
+
+// 1688 API 택배사 코드/한자명 → 드롭다운 옵션 값 매핑 헬퍼
+// ⚠️  실측 확인 범위:
+//   - STO (申通快递): EUC-20260908-6586 실주문으로 직접 확인됨 ✅
+//   - 나머지(ZTO/SF/YTO/YUNDA/EMS 등): 1688 공개 문서 기반 추정.
+//     실제 주문이 들어올 때까지는 추측 값임. 틀릴 수 있음.
+// 매핑 테이블에 없는 값은 rawCarrier 그대로 반환 →
+// 템플릿의 fallback 동적 옵션(v-if)이 드롭다운에 표시 (빈칸 방지)
+function mapCarrier(code, name) {
+  const codeUpper = (code || '').toUpperCase()
+  const nameStr   = name || ''
+  // code 기준 우선 매핑
+  if (codeUpper === 'STO' || nameStr.includes('申通')) return '신통(STO)' // 실측 확인
+  if (codeUpper === 'ZTO' || nameStr.includes('中通')) return '중통(ZTO)' // 추정
+  if (codeUpper === 'SF'  || nameStr.includes('顺丰')) return '순풍(SF)'  // 추정
+  if (codeUpper === 'YTO' || nameStr.includes('圆通')) return '원통(YTO)' // 추정 (원통 ≠ 윈다)
+  if (codeUpper === 'YUNDA' || nameStr.includes('韵达')) return '윈다(YTO)' // 추정 — ⚠️ 기존 드롭다운의 "윈다(YTO)" 오표기 그대로 맞춤
+  if (codeUpper === 'EMS'  || nameStr.includes('邮政') || nameStr.includes('EMS')) return '중국우정(EMS)' // 추정
+  // 매핑 실패 → 원본 반환, 템플릿 fallback 옵션이 잡음
+  return nameStr || codeUpper || '기타'
+}
+
+async function syncLogistics(item, idx) {
+  const purchaseNo = item.purchaseNo?.trim()
+  if (!purchaseNo) {
+    showToast('1688 구매번호(purchaseNo)가 없습니다. 먼저 구매번호를 입력하고 저장해주세요.', 'error')
+    return
+  }
+
+  syncingLogistics.value = { ...syncingLogistics.value, [idx]: true }
+
+  try {
+    const resp = await fetch('/api/1688-order-logistics', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ orderId: purchaseNo }),
+    })
+
+    const data = await resp.json()
+
+    if (!data.success) {
+      // errorType별 구체적인 메시지 구분
+      if (data.errorType === 'no_logistics_info' || data.errorType === 'empty_logistics') {
+        showToast('아직 발송 전이거나 1688 판매자가 운송장을 아직 등록하지 않았습니다.', 'error')
+      } else if (data.errorType === 'timeout') {
+        showToast('원바운드 API 응답 타임아웃 — 잠시 후 다시 시도해주세요.', 'error')
+      } else if (data.errorType === 'network_error') {
+        showToast('원바운드 API 통신 오류 — 인터넷 연결을 확인해주세요.', 'error')
+      } else {
+        showToast(`배송정보 조회 실패: ${data.message || '알 수 없는 오류'}`, 'error')
+      }
+      return
+    }
+
+    // 성공: draft 및 item에 즉시 반영
+    // carrierCode(STO 등)와 carrier(한자명)를 모두 넘겨 매핑 정확도 향상
+    const carrier    = mapCarrier(data.carrierCode, data.carrier)
+    const trackingNo = data.trackingNo || ''
+
+    if (!trackingNo) {
+      showToast('운송장번호가 비어 있습니다 — 판매자가 아직 등록하지 않은 것으로 보입니다.', 'error')
+      return
+    }
+
+    // draft 업데이트 (input 창에도 즉시 표시)
+    if (purchaseInfoDraft.value[idx]) {
+      purchaseInfoDraft.value[idx].chinaCarrier    = carrier
+      purchaseInfoDraft.value[idx].chinaTrackingNo = trackingNo
+    }
+
+    // item에도 반영 후 기존 savePurchasingInfo 흐름 재사용 (DB 저장 포함)
+    item.chinaCarrier    = carrier
+    item.chinaTrackingNo = trackingNo
+
+    await savePurchasingInfo(item, idx)
+
+    showToast(
+      `✅ 배송정보 동기화 완료 — ${carrier || '(택배사 미상)'} / 운송장: ${trackingNo}`,
+      'success'
+    )
+  } catch (err) {
+    console.error('[syncLogistics] 예외 발생:', err)
+    showToast(`배송정보 동기화 중 오류 발생: ${err.message}`, 'error')
+  } finally {
+    const next = { ...syncingLogistics.value }
+    delete next[idx]
+    syncingLogistics.value = next
   }
 }
 

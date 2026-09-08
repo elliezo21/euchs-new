@@ -1,6 +1,11 @@
 import { defineConfig, loadEnv } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import path from 'path'
+// 로컬 개발용: api/1688-order-logistics.js의 실제 handler를 직접 import
+// (로직 중복 없이 Vercel 배포본과 동일한 코드 재사용)
+// 주의: 이 import는 vite.config.js가 ES Module이기 때문에 가능함
+import logisticsHandler from './api/1688-order-logistics.js'
+
 
 // 네이버 OAuth2 로컬 개발 프록시/미들웨어 플러그인
 function naverAuthPlugin(env) {
@@ -435,6 +440,41 @@ function lab1688Plugin(env) {
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
             res.end(JSON.stringify({ success: false, message: err.message }))
           }
+          return
+        }
+
+        // 5. 1688 물류(운송장) 자동조회 — api/1688-order-logistics.js handler 직접 재사용
+        // 로직 중복 없이 import한 handler 그대로 호출 (돈 관련 없는 읽기 전용 API라 로컬 허용)
+        // 어댑터 역할:
+        //   ① req.body 파싱 (Vercel: 자동, Vite connect: raw stream)
+        //   ② process.env 주입 (Vite loadEnv는 process.env에 반영 안 함)
+        //   ③ res 래핑 (Vercel: res.status(200).json(), Vite: res.statusCode + res.end())
+        if (req.url?.startsWith('/api/1688-order-logistics') && req.method === 'POST') {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            // ① req.body 주입
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            // ② process.env 주입
+            if (!process.env.ONEBOUND_KEY)    process.env.ONEBOUND_KEY    = env.ONEBOUND_KEY    || ''
+            if (!process.env.ONEBOUND_SECRET) process.env.ONEBOUND_SECRET = env.ONEBOUND_SECRET || ''
+            // ③ res 래핑: Vercel의 res.status(code).json(body) → Vite의 res.statusCode + res.end()
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await logisticsHandler(req, wrappedRes)
+          })
           return
         }
 
