@@ -140,10 +140,8 @@
                   <div class="flex items-center justify-center gap-1.5 flex-wrap">
                     <button v-if="isStatus(order,'quote_confirmed')" @click="confirmPayment(order)"
                       class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">💳 결제 확인</button>
-                    <button v-if="isStatus(order,'payment_verified')" @click="startPurchasing(order)"
-                      class="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🛒 구매 시작</button>
 
-                    <!-- 4단계(구매진행): 상세 버튼만 노출 (창고 도착 확인은 savePurchasingInfo가 자동 처리) -->
+                    <!-- 3단계(결제확인) 및 4단계(구매진행): 상세 버튼 안에서 구매 시작 및 배송 관리 처리 -->
 
                     <!-- 5단계 배송중(warehouse_in): 5-A 도착검수 팝업만 노출 -->
                     <button v-if="isStatus(order,'warehouse_in')" @click="openWarehouseModal(order, 'arrival')"
@@ -694,6 +692,16 @@
             >
               <span>⚡ 견적 승인 (2단계 전환)</span>
             </button>
+
+            <!-- 3. 결제확인 단계: 1688 구매 시작 모달 열기 -->
+            <button
+              v-if="isStatus(activeOrder, 'payment_verified')"
+              @click="startPurchasingFromDetail"
+              type="button"
+              class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+            >
+              <span>🛒 1688 구매 시작</span>
+            </button>
           </div>
         </div>
       </div>
@@ -748,10 +756,10 @@
       @confirm="executeConfirmPayment"
     />
 
-    <!-- PurchaseConfirmModal: 4단계 전환 (1688 실제 발주) — 와이드 전용 모달 -->
+    <!-- PurchaseConfirmModal: 4단계 전환 (1688 실제 발주) — 상세모달 위의 독립 팝업 -->
     <PurchaseConfirmModal
       v-model="confirmPurchase4"
-      :order="pendingStartPurchasing"
+      :order="activeOrder || pendingStartPurchasing"
       @confirm="executeStartPurchasing"
     />
 
@@ -860,7 +868,7 @@ const pendingCancelOrder = ref(null);
 const confirmApproveQuote = ref(false);         // 4번: 견적 승인 2단계
 const confirmPayment3 = ref(false);             // 5번: 3단계 전환
 const pendingConfirmPayment = ref(null);
-const confirmPurchase4 = ref(false);            // 6번: 4단계 전환
+const confirmPurchase4 = ref(false);            // 6번: 4단계 전환 (PurchaseConfirmModal)
 const pendingStartPurchasing = ref(null);
 const confirmWarehouseArrival5 = ref(false);    // 7번: 5단계 전환
 const pendingWarehouseOrder = ref(null);
@@ -868,6 +876,12 @@ const confirmShipping6 = ref(false);            // 8번: 6단계 전환
 const pendingShippingOrder = ref(null);
 const confirmDelivered9 = ref(false);           // 9번: 배송완료
 const pendingDeliveredOrder = ref(null);
+
+function startPurchasingFromDetail() {
+  if (!activeOrder.value) return;
+  pendingStartPurchasing.value = activeOrder.value;
+  confirmPurchase4.value = true;
+}
 
 // 체크박스 다중 선택 (일괄 엑셀용)
 const selectedOrderIds = ref(new Set());
@@ -1551,7 +1565,7 @@ async function startPurchasing(o) {
   confirmPurchase4.value = true;
 }
 async function executeStartPurchasing() {
-  const o = pendingStartPurchasing.value;
+  const o = pendingStartPurchasing.value || activeOrder.value;
   if (!o) return;
 
   const activeItems = (o.items || []).filter(i => !i.excluded);
@@ -1624,6 +1638,9 @@ async function executeStartPurchasing() {
   if (failed.length === 0) {
     // 전부 성공 → purchasing으로 정상 전환
     if (target) target.status = 'purchasing';
+    if (activeOrder.value && (activeOrder.value.id === o.id || activeOrder.value.orderNumber === o.orderNumber)) {
+      activeOrder.value.status = 'purchasing';
+    }
     isInternalUpdate.value = true;
     try {
       await updateOrderStatus(o.id, 'purchasing', { purchaseStartedAt: new Date().toISOString() });
@@ -1632,6 +1649,7 @@ async function executeStartPurchasing() {
       showToast(`[${o.orderNumber}] ${succeeded.length}개 품목 발주 완료 → 4단계 전환`);
     } catch (err) {
       if (target) target.status = prevStatus;
+      if (activeOrder.value) activeOrder.value.status = prevStatus;
       showToast(`상태 저장 실패: ${err.message}`, 'error');
     } finally {
       setTimeout(() => { isInternalUpdate.value = false; }, 400);
@@ -1639,6 +1657,9 @@ async function executeStartPurchasing() {
 
   } else if (succeeded.length > 0) {
     // 일부 성공 — order.status는 payment_verified 유지, items만 저장
+    if (activeOrder.value && (activeOrder.value.id === o.id || activeOrder.value.orderNumber === o.orderNumber)) {
+      activeOrder.value.items = o.items;
+    }
     isInternalUpdate.value = true;
     try {
       await saveDetailDraft({ closeAfter: false });
