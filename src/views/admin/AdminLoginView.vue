@@ -189,7 +189,6 @@ const handleAdminLogin = async (e) => {
     if (result && result.success) {
       const userRoleResolved = String(result.role || result.user?.role || 'super_admin').toLowerCase().trim()
       const isAuthorizedAdmin = ['admin', 'super_admin', 'staff', 'master'].includes(userRoleResolved) ||
-                                email === 'elleizo21@gmail.com' ||
                                 email === 'elliezo21@gmail.com' ||
                                 email === 'lcceuchs@gmail.com'
 

@@ -314,7 +314,6 @@ router.beforeEach(async (to, from, next) => {
         const userEmail = String(authUser?.email || '').toLowerCase().trim()
         if (['super_admin', 'admin', 'staff', 'master'].includes(role) ||
             authUser?.isAdmin ||
-            userEmail === 'elleizo21@gmail.com' ||
             userEmail === 'elliezo21@gmail.com' ||
             userEmail === 'lcceuchs@gmail.com') {
           if (!currentUser.value) currentUser.value = authUser
@@ -326,7 +325,7 @@ router.beforeEach(async (to, from, next) => {
     // 2. currentUser 메모리 상태 확인
     if (currentUser.value) {
       const userEmail = String(currentUser.value.email || '').toLowerCase().trim()
-      if (userEmail === 'elleizo21@gmail.com' || userEmail === 'elliezo21@gmail.com' || userEmail === 'lcceuchs@gmail.com') {
+      if (userEmail === 'elliezo21@gmail.com' || userEmail === 'lcceuchs@gmail.com') {
         return true
       }
       const role = await checkUserRole(currentUser.value)
@@ -343,7 +342,7 @@ router.beforeEach(async (to, from, next) => {
         if (session?.user) {
           currentUser.value = session.user
           const userEmail = String(session.user.email || '').toLowerCase().trim()
-          if (userEmail === 'elleizo21@gmail.com' || userEmail === 'elliezo21@gmail.com' || userEmail === 'lcceuchs@gmail.com') {
+          if (userEmail === 'elliezo21@gmail.com' || userEmail === 'lcceuchs@gmail.com') {
             userRole.value = 'super_admin'
             return true
           }

@@ -1222,11 +1222,11 @@ async function loadStaffMembers() {
     // 기본 직원 먼저 세팅
     DEFAULT_STAFF_MEMBERS.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
     
-    // 로컬 스토리지 데이터 병합 (과거 오타 이메일 캐시 제외)
+    // 로컬 스토리지 데이터 병합
     if (Array.isArray(localList)) {
       localList.forEach(m => {
         const email = String(m?.email || '').toLowerCase().trim()
-        if (email && email !== 'elleizo21@gmail.com') {
+        if (email) {
           map.set(email, m)
         }
       })

@@ -13,7 +13,6 @@ export const ADMIN_EMAILS = [
   'master@euccompany.com',
   'euc_admin@euccompany.com',
   'elliezo21@gmail.com',
-  'elleizo21@gmail.com',
   'lcceuchs@gmail.com'
 ]
 
@@ -244,47 +243,44 @@ export const adminSignIn = async (email, password) => {
 
   const profileRole = String(userProfile?.role || authUser?.user_metadata?.role || authUser?.app_metadata?.role || '').toLowerCase().trim()
   const isAuthorizedAdmin = ['admin', 'super_admin', 'staff', 'master'].includes(profileRole) ||
-                            ADMIN_EMAILS.includes(emailTrimmed) ||
-                            emailTrimmed === 'elleizo21@gmail.com' ||
-                            emailTrimmed === 'elliezo21@gmail.com' ||
-                            emailTrimmed === 'lcceuchs@gmail.com'
+                            ADMIN_EMAILS.includes(emailTrimmed)
 
-  // 관리자 화이트리스트 이메일이거나 Supabase 인증 성공 시
-  if (authUser || isAuthorizedAdmin) {
-    if (authUser && !isAuthorizedAdmin) {
-      throw new Error('관리자 또는 직원 권한(Role: Staff/Admin)이 부여되지 않은 계정입니다.')
-    }
+  // Supabase 실제 인증(authUser)을 반드시 통과해야 하며, AND 화이트리스트 이메일이어야 함
+  if (!authUser) {
+    throw new Error('관리자 계정 정보가 일치하지 않거나 비밀번호가 올바르지 않습니다.')
+  }
 
-    const assignedRole = profileRole === 'staff' ? 'staff' : 'super_admin'
-    const adminUser = {
-      id: authUser?.id || userProfile?.id || 'admin-master',
-      email: emailTrimmed,
-      name: userProfile?.name || authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '이유씨 관리자',
-      role: assignedRole,
-      isAdmin: true,
-      user_metadata: {
-        full_name: userProfile?.name || authUser?.user_metadata?.full_name || '이유씨 관리자',
-        role: assignedRole
-      }
-    }
+  if (!isAuthorizedAdmin) {
+    throw new Error('관리자 또는 직원 권한(Role: Staff/Admin)이 부여되지 않은 계정입니다.')
+  }
 
-    currentUser.value = adminUser
-    currentUserProfile.value = userProfile || adminUser
-    userRole.value = assignedRole
-    localStorage.setItem('euchs_auth_user', JSON.stringify(adminUser))
-    localStorage.setItem('euchs_admin_token', 'admin_authenticated')
-
-    window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: adminUser } }))
-    window.dispatchEvent(new Event('storage'))
-
-    return {
-      success: true,
-      user: adminUser,
+  const assignedRole = profileRole === 'staff' ? 'staff' : 'super_admin'
+  const adminUser = {
+    id: authUser.id,
+    email: emailTrimmed,
+    name: userProfile?.name || authUser?.user_metadata?.full_name || authUser?.user_metadata?.name || '이유씨 관리자',
+    role: assignedRole,
+    isAdmin: true,
+    user_metadata: {
+      full_name: userProfile?.name || authUser?.user_metadata?.full_name || '이유씨 관리자',
       role: assignedRole
     }
   }
 
-  throw new Error('관리자 또는 직원 권한(Role: Staff/Admin)이 부여되지 않은 계정이거나 비밀번호가 올바르지 않습니다.')
+  currentUser.value = adminUser
+  currentUserProfile.value = userProfile || adminUser
+  userRole.value = assignedRole
+  localStorage.setItem('euchs_auth_user', JSON.stringify(adminUser))
+  localStorage.setItem('euchs_admin_token', 'admin_authenticated')
+
+  window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: adminUser } }))
+  window.dispatchEvent(new Event('storage'))
+
+  return {
+    success: true,
+    user: adminUser,
+    role: assignedRole
+  }
 }
 
 /**
