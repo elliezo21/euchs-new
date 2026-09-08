@@ -552,17 +552,19 @@
                       <span>💾 저장</span>
                     </button>
 
-                    <!-- 1688 자동발주 버튼 (Phase 3 예정 — 현재 비활성화) -->
-                    <!-- TODO Phase 3: 실제 1688 API 자동발주 연동 시 disabled 제거 및 handler 연결 -->
+                    <!-- 1688 자동발주 버튼 (Phase 3 — 개별 재시도용, executeStartPurchasing 실패 품목에 사용) -->
                     <button
                       type="button"
-                      disabled
-                      @click="showToast('1688 자동발주 기능은 곧 지원 예정입니다.', 'success')"
-                      class="shrink-0 px-3 py-1.5 rounded-lg bg-slate-200 text-slate-400 font-bold text-[11px] cursor-not-allowed flex items-center gap-1 whitespace-nowrap border border-slate-300"
-                      title="Phase 3에서 실제 1688 API 자동발주 연동 예정"
+                      :disabled="!(item.num_iid || item.itemId || item.id)"
+                      @click="executeItemAutoOrder(item, activeOrder)"
+                      class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 whitespace-nowrap transition active:scale-95"
+                      :class="(item.num_iid || item.itemId || item.id)
+                        ? 'bg-orange-500 hover:bg-orange-600 text-white cursor-pointer shadow-xs'
+                        : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'"
+                      :title="(item.num_iid || item.itemId || item.id) ? '이 품목만 1688에 개별 발주' : '1688 상품 ID가 없어 자동발주 불가'"
                     >
                       <span>🤖 1688 자동발주</span>
-                      <span class="text-[9px] font-normal opacity-70">(준비중)</span>
+                      <span v-if="item.purchaseError" class="text-[9px] font-normal opacity-80">(재시도)</span>
                     </button>
                   </div>
                 </div>
@@ -732,13 +734,10 @@
       @confirm="executeConfirmPayment"
     />
 
-    <!-- ConfirmSaveModal: 4단계 전환 (1688 구매 시작) -->
-    <ConfirmSaveModal
+    <!-- PurchaseConfirmModal: 4단계 전환 (1688 실제 발주) — 와이드 전용 모달 -->
+    <PurchaseConfirmModal
       v-model="confirmPurchase4"
-      :title="`[${pendingStartPurchasing?.orderNumber}] 1688 구매 시작 → 4단계 전환할까요?`"
-      variant="blue"
-      icon="check"
-      confirmText="구매 시작"
+      :order="pendingStartPurchasing"
       @confirm="executeStartPurchasing"
     />
 
@@ -786,6 +785,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
+import PurchaseConfirmModal from '@/components/admin/PurchaseConfirmModal.vue';
 
 
 const route = useRoute();
@@ -1192,6 +1192,76 @@ async function approveQuoteFromDetail() {
   }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// 발주 확인 모달 description: 품목 상세 정보를 상품별로 그룹핑하여 조립
+//
+// 구조 이해:
+//   order.items = 옵션(SKU) 선택 시 옵션별로 각각 독립 행으로 저장됨.
+//   예) 민트초록/M × 1, 민트초록/S × 1, 분홍/L × 1 → items에 3개 행
+//   → 같은 상품의 여러 옵션 행을 itemId 기준으로 그룹핑해서 표시.
+// ─────────────────────────────────────────────────────────────────────────────
+const purchaseOrderDescription = computed(() => {
+  const o = pendingStartPurchasing.value;
+  if (!o) return '';
+  const activeItems = (o.items || []).filter(i => !i.excluded);
+  if (activeItems.length === 0) return '유효 품목이 없습니다.';
+
+  const CNY_TO_KRW = 226.19;
+
+  // ── 상품별 그룹핑 (itemId || productName 기준) ──────────────────────────
+  const groups = [];
+  const seen = new Map(); // key: groupKey → groups 인덱스
+
+  for (const item of activeItems) {
+    // 동일 상품 식별 키: itemId가 있으면 itemId, 없으면 productName
+    const groupKey = String(item.itemId || item.num_iid || item.id || item.productName || '기타');
+    if (!seen.has(groupKey)) {
+      seen.set(groupKey, groups.length);
+      groups.push({
+        name: item.productName || item.titleKo || '상품',
+        rows: [],
+      });
+    }
+    const g = groups[seen.get(groupKey)];
+    const qty = Number(item.quantity) || 1;
+    const unitCny = Number(item.priceCny) || 0;
+    const subtotalKrw = Math.round(unitCny * qty * CNY_TO_KRW * 1.08);
+    g.rows.push({ sku: item.sku || '', qty, subtotalKrw });
+  }
+
+  // ── 텍스트 조립 ──────────────────────────────────────────────────────────
+  const lines = [];
+  for (const g of groups) {
+    // 같은 상품에 옵션이 1개뿐이면 한 줄로 표시
+    if (g.rows.length === 1) {
+      const r = g.rows[0];
+      const skuPart = r.sku ? ` [${r.sku}]` : '';
+      lines.push(`• ${g.name}${skuPart} × ${r.qty}개  ₩${r.subtotalKrw.toLocaleString()}`);
+    } else {
+      // 옵션이 여러 개면 상품명 헤더 + 들여쓰기 옵션 행
+      const groupTotal = g.rows.reduce((s, r) => s + r.subtotalKrw, 0);
+      lines.push(`• ${g.name}  (₩${groupTotal.toLocaleString()})`);
+      for (const r of g.rows) {
+        const skuPart = r.sku ? `[${r.sku}] ` : '';
+        lines.push(`  └ ${skuPart}× ${r.qty}개  ₩${r.subtotalKrw.toLocaleString()}`);
+      }
+    }
+  }
+
+  // ── 전체 합계 ────────────────────────────────────────────────────────────
+  const totalKrw = activeItems.reduce((sum, item) => {
+    const unitCny = Number(item.priceCny) || 0;
+    const qty = Number(item.quantity) || 1;
+    return sum + Math.round(unitCny * qty * CNY_TO_KRW * 1.08);
+  }, 0);
+
+  lines.push(`───────────────`);
+  lines.push(`합계: ₩${totalKrw.toLocaleString()} (품목 행 ${activeItems.length}개)`);
+  lines.push(`주문번호: ${o.orderNumber}`);
+
+  return lines.join('\n');
+});
+
 const stageCounts = computed(() => {
   const c = { quote_pending:0, quote_confirmed:0, payment_verified:0, purchasing:0, shipping_in_transit:0, warehouse_arrived:0, shipping_ready:0, customs_clearance:0, domestic_delivered:0 };
   orders.value.forEach(o => {
@@ -1464,28 +1534,147 @@ async function executeConfirmPayment() {
 // ─────────────────────────────────────
 async function startPurchasing(o) {
   pendingStartPurchasing.value = o;
+  // ── 디버그: 실제 items 구조 확인용 (원인 분석 후 제거 예정) ──
+  console.log('[DEBUG startPurchasing] order.items 전체:', JSON.parse(JSON.stringify(o.items || [])));
+  console.log('[DEBUG startPurchasing] items.length:', (o.items || []).length);
+  console.log('[DEBUG startPurchasing] excluded 제외 activeItems:', (o.items || []).filter(i => !i.excluded).map(i => ({
+    productName: i.productName, sku: i.sku, quantity: i.quantity, priceCny: i.priceCny, excluded: i.excluded
+  })));
   confirmPurchase4.value = true;
 }
 async function executeStartPurchasing() {
   const o = pendingStartPurchasing.value;
   if (!o) return;
+
+  const activeItems = (o.items || []).filter(i => !i.excluded);
+  if (activeItems.length === 0) {
+    showToast('발주할 유효 품목이 없습니다.', 'error');
+    return;
+  }
+
+  // ── 품목별 1688 API 순차 발주 ─────────────────────────────────────────────
+  // ★ 중요: specId(1688 내부 SKU 숫자 ID)는 현재 orders.items에 저장되지 않음.
+  //   item.sku는 옵션 텍스트("빨강/M")이고 specId 숫자가 아님.
+  //   따라서 specId는 빈 문자열로 전달 → 1688 API가 offerId만으로 단일 규격 발주 처리.
+  //   추후 SKU 선택 단계에서 specId를 함께 저장하도록 개선 필요.
+  const results = [];
+  for (const item of activeItems) {
+    const numIid = String(item.num_iid || item.itemId || item.id || '');
+    if (!numIid) {
+      results.push({ item, success: false, error: '1688 상품 ID(numIid)가 없음' });
+      continue;
+    }
+    try {
+      const res = await fetch('/api/1688-order-create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          numIid,
+          specId: item.specId || '',   // ★ 현재 DB에 미저장 — 빈 문자열로 전달
+          quantity: Number(item.quantity) || 1,
+          orderNumber: o.orderNumber,
+          confirmToken: 'EUCHS_ORDER_CONFIRMED',
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        item.subStatus = 'purchase_done';
+        item.purchaseNo = String(data.orderId || '');
+        item.purchaseAccount = 'calvinli06';
+        results.push({ item, success: true, orderId: data.orderId });
+      } else {
+        item.purchaseError = data.message || '발주 실패';
+        item.subStatus = 'purchase_pending';
+        results.push({ item, success: false, error: data.message });
+      }
+    } catch (fetchErr) {
+      item.purchaseError = fetchErr.message;
+      item.subStatus = 'purchase_pending';
+      results.push({ item, success: false, error: fetchErr.message });
+    }
+  }
+
+  const succeeded = results.filter(r => r.success);
+  const failed    = results.filter(r => !r.success);
+
+  // ── 결과에 따라 order.status 전환 여부 결정 ───────────────────────────────
   const prevStatus = o.status;
   const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
-  if (target) target.status = 'purchasing';
 
-  isInternalUpdate.value = true;
-  try {
-    await updateOrderStatus(o.id, 'purchasing', {
-      purchaseStartedAt: new Date().toISOString()
-    });
-    showToast(`[${o.orderNumber}] 1688 구매시작 → 4단계 전환 완료`);
-  } catch (err) {
-    if (target) target.status = prevStatus;
-    showToast(`처리 실패: ${err.message}`, 'error');
-  } finally {
-    setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  if (failed.length === 0) {
+    // 전부 성공 → purchasing으로 정상 전환
+    if (target) target.status = 'purchasing';
+    isInternalUpdate.value = true;
+    try {
+      await updateOrderStatus(o.id, 'purchasing', { purchaseStartedAt: new Date().toISOString() });
+      // items 변경사항(subStatus, purchaseNo) 저장
+      await saveDetailDraft({ closeAfter: false });
+      showToast(`[${o.orderNumber}] ${succeeded.length}개 품목 발주 완료 → 4단계 전환`);
+    } catch (err) {
+      if (target) target.status = prevStatus;
+      showToast(`상태 저장 실패: ${err.message}`, 'error');
+    } finally {
+      setTimeout(() => { isInternalUpdate.value = false; }, 400);
+    }
+
+  } else if (succeeded.length > 0) {
+    // 일부 성공 — order.status는 payment_verified 유지, items만 저장
+    isInternalUpdate.value = true;
+    try {
+      await saveDetailDraft({ closeAfter: false });
+      showToast(
+        `[${o.orderNumber}] ${succeeded.length}개 성공, ${failed.length}개 실패 — 실패 품목은 상세보기에서 개별 재시도 가능합니다.`,
+        'error'
+      );
+    } finally {
+      setTimeout(() => { isInternalUpdate.value = false; }, 400);
+    }
+
+  } else {
+    // 전부 실패 — order.status 변경 없음
+    showToast(`[${o.orderNumber}] 전체 발주 실패 (${failed.length}개) — 로그를 확인하세요.`, 'error');
   }
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 개별 품목 1688 자동발주 (executeStartPurchasing과 동일 로직 재사용)
+// 상세 팝업 내 "🤖 1688 자동발주" 버튼에서 호출
+// ─────────────────────────────────────────────────────────────────────────────
+async function executeItemAutoOrder(item, order) {
+  const numIid = String(item.num_iid || item.itemId || item.id || '');
+  if (!numIid) {
+    showToast(`상품 ID(numIid)가 없어 자동발주 불가`, 'error');
+    return;
+  }
+  try {
+    const res = await fetch('/api/1688-order-create', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        numIid,
+        specId: item.specId || '',
+        quantity: Number(item.quantity) || 1,
+        orderNumber: order?.orderNumber || '',
+        confirmToken: 'EUCHS_ORDER_CONFIRMED',
+      }),
+    });
+    const data = await res.json();
+    if (data.success) {
+      item.subStatus = 'purchase_done';
+      item.purchaseNo = String(data.orderId || '');
+      item.purchaseAccount = 'calvinli06';
+      await saveDetailDraft({ closeAfter: false });
+      showToast(`품목 개별 발주 완료 (1688 orderId: ${data.orderId})`);
+    } else {
+      item.purchaseError = data.message || '발주 실패';
+      showToast(`개별 발주 실패: ${data.message}`, 'error');
+    }
+  } catch (err) {
+    item.purchaseError = err.message;
+    showToast(`개별 발주 통신 오류: ${err.message}`, 'error');
+  }
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4단계(구매진행) → 5단계(입고검수) 전환 로직
