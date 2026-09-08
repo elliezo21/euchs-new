@@ -686,7 +686,7 @@
             </button>
             <button
               v-if="isStatus(activeOrder, 'quote_pending')"
-              @click="approveQuoteFromDetail"
+              @click="openApproveQuoteConfirm"
               type="button"
               class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
@@ -1125,21 +1125,21 @@ async function saveDetailDraft({ closeAfter = true } = {}) {
   }
 }
 
-async function approveQuoteFromDetail() {
+// 견적 승인 모달 열기 (버튼 클릭 전용 — 유효성 검사 후 confirmApproveQuote만 true로 설정)
+function openApproveQuoteConfirm() {
   if (!activeOrder.value) return;
-
   const validItems = getActiveItems(activeOrder.value);
   if (validItems.length === 0) {
     alert('유효한 구매 가능 품목이 없습니다. 품목을 복구하거나 전체 주문 취소를 진행해 주세요.');
     return;
   }
+  confirmApproveQuote.value = true;
+}
 
-  if (!confirmApproveQuote.value) {
-    confirmApproveQuote.value = true;
-    return;
-  }
-  confirmApproveQuote.value = false;
-
+// 견적 승인 실제 실행 (@confirm 콜백 전용 — 모달 오픈 로직 없음)
+async function approveQuoteFromDetail() {
+  if (!activeOrder.value) return;
+  const validItems = getActiveItems(activeOrder.value);
   const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
   const orderNum = activeOrder.value.orderNumber || targetOrderId;
   const validTotal = calcCost(activeOrder.value);
