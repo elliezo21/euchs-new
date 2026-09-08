@@ -835,16 +835,17 @@ import {
   userEmail,
   getUserBusinessInfo,
   updateBusinessProfile,
+  validateBusinessInfo,
   updateUserPassword,
   withdrawAccount,
   isBusinessVerified,
   verificationStatus
 } from '../../lib/auth'
+import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
 import {
   userBalance,
   loadBalance
 } from '../../lib/balanceStore'
-import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const route = useRoute()
@@ -1118,22 +1119,98 @@ const submitDepositRequest = async () => {
 }
 
 const saveCustomsInfo = async () => {
+  // 1. 형식 검증 실행
+  const validation = validateBusinessInfo(customsProfile.value)
+
   try {
+    // 2. 저장은 검증 여부와 무관하게 항상 실행 (임시저장 허용)
     await updateBusinessProfile({
       company_name: customsProfile.value.companyName,
       business_number: customsProfile.value.bizNumber,
       pccc: customsProfile.value.customsCode,
       name: customsProfile.value.contactName,
       phone: customsProfile.value.contactPhone,
-      address: customsProfile.value.address   // 사업장 소재지 추가
+      address: customsProfile.value.address
     })
-    alert('수입 통관 & 세무 증빙 정보가 안전하게 저장되었습니다.')
-    loadCustomsProfile()
   } catch (err) {
-    console.warn('saveCustomsInfo notice:', err)
-    alert('수입 통관 & 세무 정보가 안전하게 저장되었습니다.')
+    // Fail-Fast: 저장 자체 실패 시 에러 표시, 성공 토스트 금지
+    console.error('[saveCustomsInfo] 저장 실패:', err)
+    alert('저장 중 오류가 발생했습니다: ' + (err.message || err))
+    return
   }
+
+  // 3. 검증 실패: 저장은 됐지만 자동승인 안 됨 — 에러 항목 명시
+  if (!validation.valid) {
+    alert(
+      '통관 정보가 저장되었습니다. (심사 대기 유지)\n\n' +
+      '아래 항목을 수정하면 즉시 인증완료로 전환됩니다:\n' +
+      validation.errors.map(e => '• ' + e).join('\n')
+    )
+    loadCustomsProfile()
+    return
+  }
+
+  // 4. 검증 통과: 자동 인증완료 처리 (관리자 approveMember와 동일한 DB 페이로드)
+  const user = currentUser.value
+  if (isSupabaseConfigured() && user) {
+    try {
+      const approvePayload = {
+        is_business_verified: true,
+        verification_status: 'verified',
+        tier: 'business',
+        updated_at: new Date().toISOString()
+      }
+      let dbResult = null
+      if (user.id && isValidUUID(user.id)) {
+        const { data, error } = await supabase.from('profiles').update(approvePayload).eq('id', user.id).select('id')
+        if (error) throw error
+        dbResult = data
+      } else if (user.email) {
+        const { data, error } = await supabase.from('profiles').update(approvePayload).eq('email', String(user.email).trim().toLowerCase()).select('id')
+        if (error) throw error
+        dbResult = data
+      }
+
+      // Fail-Fast: 0 rows affected
+      if (!dbResult || dbResult.length === 0) {
+        throw new Error('인증 상태 업데이트 실패: 해당 프로필을 찾을 수 없습니다. (0 rows affected)')
+      }
+
+      // 인메모리 갱신
+      if (currentUserProfile.value) {
+        currentUserProfile.value.is_business_verified = true
+        currentUserProfile.value.verification_status = 'verified'
+        currentUserProfile.value.tier = 'business'
+      }
+      // localStorage 관리자 목록도 동기화
+      try {
+        const rawMembers = localStorage.getItem('euchs_admin_members')
+        if (rawMembers) {
+          const members = JSON.parse(rawMembers)
+          const idx = members.findIndex(m => m.id === user.id || m.email === user.email)
+          if (idx >= 0) {
+            members[idx].verificationStatus = 'verified'
+            members[idx].tier = 'business'
+            localStorage.setItem('euchs_admin_members', JSON.stringify(members))
+            window.dispatchEvent(new CustomEvent('euchs-member-update', { detail: members }))
+          }
+        }
+      } catch (e) {}
+
+      alert('✅ 통관 정보가 저장되고 사업자 인증이 완료되었습니다!\n이제 모든 서비스를 이용하실 수 있습니다.')
+    } catch (approveErr) {
+      // 저장은 성공했으나 자동승인 DB 업데이트 실패
+      console.error('[saveCustomsInfo] 자동 승인 DB 업데이트 실패:', approveErr)
+      alert('정보가 저장되었지만 자동 인증 처리 중 오류가 발생했습니다.\n관리자에게 문의해주세요.\n오류: ' + (approveErr.message || approveErr))
+    }
+  } else {
+    // Supabase 미설정 환경 (로컬 fallback)
+    alert('통관 & 세무 증빙 정보가 저장되었습니다.')
+  }
+
+  loadCustomsProfile()
 }
+
 
 const openAddressModal = (addr = null) => {
   if (addr) {
