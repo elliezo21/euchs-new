@@ -839,7 +839,8 @@ import {
   updateUserPassword,
   withdrawAccount,
   isBusinessVerified,
-  verificationStatus
+  verificationStatus,
+  fetchUserProfile
 } from '../../lib/auth'
 import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
 import {
@@ -1333,7 +1334,10 @@ watch(
   { immediate: true }
 )
 
-watch(currentUser, () => {
+watch(currentUser, async (newVal) => {
+  if (newVal) {
+    await fetchUserProfile(newVal)
+  }
   loadCustomsProfile()
   loadAddresses()
   loadTransactions()
@@ -1343,9 +1347,12 @@ watch(currentUserProfile, () => {
   loadCustomsProfile()
 })
 
-onMounted(() => {
+onMounted(async () => {
   if (route.query.tab) {
     activeTab.value = route.query.tab
+  }
+  if (currentUser.value) {
+    await fetchUserProfile(currentUser.value)
   }
   loadBalance()
   loadCustomsProfile()
