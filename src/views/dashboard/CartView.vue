@@ -251,9 +251,9 @@
                   </button>
                   <input
                     type="number"
-                    min="1"
+                    :min="item.minOrder || 1"
                     :max="(typeof item.stock === 'number' && !isNaN(item.stock)) ? item.stock : undefined"
-                    :value="item.quantity || 1"
+                    :value="item.quantity || item.minOrder || 1"
                     @input="onQtyInput(item, $event)"
                     @change="onQtyInput(item, $event)"
                     class="w-14 h-8 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none focus:bg-amber-50/50"
@@ -699,6 +699,8 @@ const loadCartItems = () => {
             itemId: it.itemId || it.id || '1688-item',
             num_iid: it.num_iid || it.itemId || '',
             specId: it.specId || '',
+            // ── 최소 주문 수량 — CartView 수량 하한으로 사용 (없으면 1) ──
+            minOrder: Math.max(1, parseInt(it.minOrder || it.min_num || '1', 10) || 1),
             titleKo: it.titleKo || it.productName || it.titleZh || '1688 소싱 품목',
             titleZh: it.titleZh || '',
             imageUrl: it.imageUrl || it.thumbnail,
@@ -794,15 +796,20 @@ function increaseQty(item) {
 }
 
 function decreaseQty(item) {
-  if ((Number(item.quantity) || 1) > 1) {
-    item.quantity = (Number(item.quantity) || 1) - 1;
+  const mo = Math.max(1, parseInt(item.minOrder || '1', 10) || 1);
+  const current = Number(item.quantity) || mo;
+  if (current > mo) {
+    item.quantity = current - 1;
     saveCartToStorage();
+  } else if (mo > 1) {
+    showStockToast(`최소 주문 수량은 ${mo}개입니다.`);
   }
 }
 
 function onQtyInput(item, e) {
+  const mo = Math.max(1, parseInt(item.minOrder || '1', 10) || 1);
   const val = parseInt(e.target.value, 10);
-  if (!isNaN(val) && val >= 1) {
+  if (!isNaN(val) && val >= mo) {
     const rawStock = item.stock;
     const stock = (typeof rawStock === 'number' && !isNaN(rawStock))
       ? rawStock
@@ -816,10 +823,11 @@ function onQtyInput(item, e) {
       item.quantity = val;
     }
     saveCartToStorage();
-  } else if (isNaN(val) || val < 1) {
-    // 빈 값이거나 0 이하 입력 시 기본값 1로 복구
-    item.quantity = 1;
-    e.target.value = 1;
+  } else if (isNaN(val) || val < mo) {
+    // 빈 값이거나 minOrder 미만 입력 시 minOrder로 복구
+    if (mo > 1) showStockToast(`최소 주문 수량은 ${mo}개입니다.`);
+    item.quantity = mo;
+    e.target.value = mo;
     saveCartToStorage();
   }
 }

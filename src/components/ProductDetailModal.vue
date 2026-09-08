@@ -386,7 +386,7 @@
                     <input
                       type="number"
                       :value="sku.quantity"
-                      min="1"
+                      :min="minOrder"
                       :max="getSkuStock(sku.color, sku.size) === Infinity ? undefined : getSkuStock(sku.color, sku.size)"
                       @change="onSkuQtyInput(skuIdx, $event)"
                       class="w-14 h-8 bg-white border border-gray-300 rounded-xl text-center font-bold font-mono text-gray-900 text-xs focus:ring-1 focus:ring-rose-500"
@@ -1440,8 +1440,14 @@ const handleSelectSize = (size) => {
 const updateSkuQty = (idx, delta) => {
   const sku = selectedSkus.value[idx]
   if (!sku) return
-  const current = Number(sku.quantity) || 1
-  const next = Math.max(1, current + delta)
+  const mo = minOrder.value
+  const current = Number(sku.quantity) || mo
+  const next = Math.max(mo, current + delta)
+  // 감소 방향이고 최솟값 도달 시 안내 (minOrder > 1 인 경우만)
+  if (delta < 0 && next === mo && mo > 1 && current === mo) {
+    showToastNotification(`⚠️ 최소 주문 수량은 ${mo}개입니다.`, 'warning')
+    return
+  }
   // 증가 방향일 때만 재고 상한 체크
   if (delta > 0) {
     const stockLimit = getSkuStock(sku.color, sku.size)
@@ -1459,7 +1465,14 @@ const updateSkuQty = (idx, delta) => {
 const onSkuQtyInput = (idx, e) => {
   const sku = selectedSkus.value[idx]
   if (!sku) return
-  const val = Math.max(1, parseInt(e.target.value, 10) || 1)
+  const mo = minOrder.value
+  const val = Math.max(mo, parseInt(e.target.value, 10) || mo)
+  if (val < mo) {
+    showToastNotification(`⚠️ 최소 주문 수량은 ${mo}개입니다.`, 'warning')
+    selectedSkus.value[idx] = { ...sku, quantity: mo }
+    e.target.value = mo
+    return
+  }
   const stockLimit = getSkuStock(sku.color, sku.size)
   if (stockLimit !== Infinity && val > stockLimit) {
     showToastNotification(`⚠️ 재고는 최대 ${stockLimit}개까지만 담을 수 있습니다.`, 'warning')
@@ -1887,6 +1900,14 @@ const saveSelectedItemsToCart = () => {
       sellerName: currentItem.value.company || currentItem.value.sellerName || '1688 공급처',
     }
 
+    // 2. 최소 주문 수량(min_num) 검증 가드 — 모든 SKU 행에 대해 체크
+    const mo = minOrder.value
+    const underMinSkus = selectedSkus.value.filter(s => (Number(s.quantity) || 1) < mo)
+    if (underMinSkus.length > 0) {
+      showToastNotification(`⚠️ 최소 주문 수량은 ${mo}개입니다. 수량을 ${mo}개 이상으로 조정해주세요.`, 'warning')
+      return null
+    }
+
     // ── SKU별 독립 행으로 분리 저장 (color+size 조합마다 별도 행) ──
     const newRows = selectedSkus.value.map((sku, idx) => {
       const colorStr = String(sku.color || '').trim()
@@ -1896,8 +1917,8 @@ const saveSelectedItemsToCart = () => {
       // 저장 직전에도 재고 상한으로 한 번 더 클램핑 (직접 입력 후 바로 담기 버튼 누른 경우 방어)
       const stockLimit = getSkuStock(colorStr, sizeStr)
       const skuQty = stockLimit === Infinity
-        ? Math.max(1, Number(sku.quantity) || 1)
-        : Math.min(stockLimit, Math.max(1, Number(sku.quantity) || 1))
+        ? Math.max(mo, Number(sku.quantity) || mo)
+        : Math.min(stockLimit, Math.max(mo, Number(sku.quantity) || mo))
       const skuId = `${currentItem.value.id}_${colorStr || 'default'}_${sizeStr || 'none'}_${Date.now()}_${idx}`
 
       return {
@@ -1913,6 +1934,8 @@ const saveSelectedItemsToCart = () => {
         specId: sku.specId || getSkuSpecId(colorStr, sizeStr),
         // num_iid: 1688 상품 숫자 ID. baseItem.itemId와 동일하지만 발주 쪽 명시적 필드명으로도 저장.
         num_iid: String(currentItem.value.id || ''),
+        // minOrder: 1688 최소 주문 수량 — CartView 수량 조절 시 하한으로 사용
+        minOrder: mo,
         // 수량 및 단가 (각 SKU 행 독립)
         quantity: skuQty,
         // 재고 상한 — CartView 수량 조절 시 활용. 미파악이면 undefined (상한 없음)
