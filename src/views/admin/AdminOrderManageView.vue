@@ -552,20 +552,34 @@
                       <span>💾 저장</span>
                     </button>
 
-                    <!-- 1688 자동발주 버튼 (Phase 3 — 개별 재시도용, executeStartPurchasing 실패 품목에 사용) -->
-                    <button
-                      type="button"
-                      :disabled="!(item.num_iid || item.itemId || item.id)"
-                      @click="executeItemAutoOrder(item, activeOrder)"
-                      class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 whitespace-nowrap transition active:scale-95"
-                      :class="(item.num_iid || item.itemId || item.id)
-                        ? 'bg-orange-500 hover:bg-orange-600 text-white cursor-pointer shadow-xs'
-                        : 'bg-slate-200 text-slate-400 cursor-not-allowed border border-slate-300'"
-                      :title="(item.num_iid || item.itemId || item.id) ? '이 품목만 1688에 개별 발주' : '1688 상품 ID가 없어 자동발주 불가'"
+                    <!-- ── 발주 실패 배지 (purchaseError 있을 때만 표시) ── -->
+                    <div
+                      v-if="item.purchaseError"
+                      class="w-full mt-1 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"
                     >
-                      <span>🤖 1688 자동발주</span>
-                      <span v-if="item.purchaseError" class="text-[9px] font-normal opacity-80">(재시도)</span>
-                    </button>
+                      <span class="text-rose-600 text-sm shrink-0 mt-0.5">⚠️</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="text-[11px] font-bold text-rose-700 leading-snug">
+                          발주 실패: {{ item.purchaseError }}
+                        </p>
+                        <p v-if="item.purchaseErrorAt" class="text-[10px] text-rose-400 font-mono mt-0.5">
+                          {{ new Date(item.purchaseErrorAt).toLocaleString('ko-KR') }}
+                        </p>
+                      </div>
+                      <!-- 재시도 버튼 — 실패 품목에만 노출 -->
+                      <button
+                        type="button"
+                        :disabled="!(item.num_iid || item.itemId || item.id)"
+                        @click="executeItemAutoOrder(item, activeOrder)"
+                        class="shrink-0 self-center px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 whitespace-nowrap transition active:scale-95 cursor-pointer shadow-xs"
+                        :class="(item.num_iid || item.itemId || item.id)
+                          ? 'bg-rose-600 hover:bg-rose-700 text-white'
+                          : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
+                        :title="(item.num_iid || item.itemId || item.id) ? '이 품목 1688 발주 재시도' : '1688 상품 ID가 없어 재시도 불가'"
+                      >
+                        🔄 재시도
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1534,12 +1548,6 @@ async function executeConfirmPayment() {
 // ─────────────────────────────────────
 async function startPurchasing(o) {
   pendingStartPurchasing.value = o;
-  // ── 디버그: 실제 items 구조 확인용 (원인 분석 후 제거 예정) ──
-  console.log('[DEBUG startPurchasing] order.items 전체:', JSON.parse(JSON.stringify(o.items || [])));
-  console.log('[DEBUG startPurchasing] items.length:', (o.items || []).length);
-  console.log('[DEBUG startPurchasing] excluded 제외 activeItems:', (o.items || []).filter(i => !i.excluded).map(i => ({
-    productName: i.productName, sku: i.sku, quantity: i.quantity, priceCny: i.priceCny, excluded: i.excluded
-  })));
   confirmPurchase4.value = true;
 }
 async function executeStartPurchasing() {
@@ -1561,7 +1569,12 @@ async function executeStartPurchasing() {
   for (const item of activeItems) {
     const numIid = String(item.num_iid || item.itemId || item.id || '');
     if (!numIid) {
-      results.push({ item, success: false, error: '1688 상품 ID(numIid)가 없음' });
+      // numIid 없음 → 발주 시도 불가, 실패로 기록
+      const errMsg = '1688 상품 ID(numIid)가 없어 자동발주 불가';
+      item.purchaseError    = errMsg;
+      item.purchaseErrorAt  = new Date().toISOString();
+      item.subStatus        = 'purchase_pending';
+      results.push({ item, success: false, error: errMsg });
       continue;
     }
     try {
@@ -1578,18 +1591,25 @@ async function executeStartPurchasing() {
       });
       const data = await res.json();
       if (data.success) {
-        item.subStatus = 'purchase_done';
-        item.purchaseNo = String(data.orderId || '');
+        // ── 성공: 에러 필드 초기화, subStatus/purchaseNo 업데이트
+        item.subStatus       = 'purchase_done';
+        item.purchaseNo      = String(data.orderId || '');
         item.purchaseAccount = 'calvinli06';
+        item.purchaseError   = null;   // 이전 에러 초기화
+        item.purchaseErrorAt = null;
         results.push({ item, success: true, orderId: data.orderId });
       } else {
-        item.purchaseError = data.message || '발주 실패';
-        item.subStatus = 'purchase_pending';
+        // ── 실패: 에러 메시지 + 발생 시각 기록
+        item.purchaseError   = data.message || '발주 실패';
+        item.purchaseErrorAt = new Date().toISOString();
+        item.subStatus       = 'purchase_pending';
         results.push({ item, success: false, error: data.message });
       }
     } catch (fetchErr) {
-      item.purchaseError = fetchErr.message;
-      item.subStatus = 'purchase_pending';
+      // ── 통신 오류: 에러 메시지 + 발생 시각 기록
+      item.purchaseError   = fetchErr.message;
+      item.purchaseErrorAt = new Date().toISOString();
+      item.subStatus       = 'purchase_pending';
       results.push({ item, success: false, error: fetchErr.message });
     }
   }
@@ -1660,17 +1680,22 @@ async function executeItemAutoOrder(item, order) {
     });
     const data = await res.json();
     if (data.success) {
-      item.subStatus = 'purchase_done';
-      item.purchaseNo = String(data.orderId || '');
+      // ── 재시도 성공: 에러 배지 해제, subStatus/purchaseNo 업데이트
+      item.subStatus       = 'purchase_done';
+      item.purchaseNo      = String(data.orderId || '');
       item.purchaseAccount = 'calvinli06';
+      item.purchaseError   = null;   // 에러 배지 제거
+      item.purchaseErrorAt = null;
       await saveDetailDraft({ closeAfter: false });
       showToast(`품목 개별 발주 완료 (1688 orderId: ${data.orderId})`);
     } else {
-      item.purchaseError = data.message || '발주 실패';
+      item.purchaseError   = data.message || '발주 실패';
+      item.purchaseErrorAt = new Date().toISOString();
       showToast(`개별 발주 실패: ${data.message}`, 'error');
     }
   } catch (err) {
-    item.purchaseError = err.message;
+    item.purchaseError   = err.message;
+    item.purchaseErrorAt = new Date().toISOString();
     showToast(`개별 발주 통신 오류: ${err.message}`, 'error');
   }
 }
