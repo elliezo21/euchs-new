@@ -1575,12 +1575,9 @@ async function executeStartPurchasing() {
   }
 
   // ── 품목별 1688 API 순차 발주 ─────────────────────────────────────────────
-  // ★ 중요: specId(1688 내부 SKU 숫자 ID)는 현재 orders.items에 저장되지 않음.
-  //   item.sku는 옵션 텍스트("빨강/M")이고 specId 숫자가 아님.
-  //   따라서 specId는 빈 문자열로 전달 → 1688 API가 offerId만으로 단일 규격 발주 처리.
-  //   추후 SKU 선택 단계에서 specId를 함께 저장하도록 개선 필요.
   const results = [];
   for (const item of activeItems) {
+    // num_iid: 장바구니 담기 시점에 저장된 1688 상품 숫자 ID
     const numIid = String(item.num_iid || item.itemId || item.id || '');
     if (!numIid) {
       // numIid 없음 → 발주 시도 불가, 실패로 기록
@@ -1591,13 +1588,18 @@ async function executeStartPurchasing() {
       results.push({ item, success: false, error: errMsg });
       continue;
     }
+    // specId: 장바구니 담기 시점에 저장된 1688 SKU spec_id(32자리 hex)
+    // 이 값이 비어있으면 /api/1688-order-create에서 400 에러 발생
+    if (!item.specId) {
+      console.warn('[executeStartPurchasing] specId 없음 — 이 주문은 신규 장바구니 흐름으로 재생성 필요:', item);
+    }
     try {
       const res = await fetch('/api/1688-order-create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           numIid,
-          specId: item.specId || '',   // ★ 현재 DB에 미저장 — 빈 문자열로 전달
+          specId: item.specId || '',
           quantity: Number(item.quantity) || 1,
           orderNumber: o.orderNumber,
           confirmToken: 'EUCHS_ORDER_CONFIRMED',

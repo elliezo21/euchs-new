@@ -1215,6 +1215,40 @@ const getSkuStock = (color, size) => {
   return Infinity
 }
 
+// color+size 조합에 해당하는 1688 spec_id(32자리 hex) 반환.
+// parsedSkus(api1688.js에서 specId 필드로 보존)에서 정확 매칭.
+// 매칭 실패 시 '' 반환 — 발주 시 400 방지를 위해 반드시 채워야 하는 값.
+const getSkuSpecId = (color, size) => {
+  const item = currentItem.value || props.product || {}
+  const skus = (Array.isArray(item.skus) && item.skus.length > 0)
+    ? item.skus
+    : (Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : [])
+
+  const cStr = String(color || '').trim()
+  const sStr = String(size || '').trim()
+
+  if (skus.length > 0) {
+    // 1. color + size 정확 매칭
+    if (cStr && sStr) {
+      const match = skus.find(sk => String(sk.color || '').trim() === cStr && String(sk.size || '').trim() === sStr)
+      if (match?.specId) return String(match.specId)
+    }
+    // 2. size만 매칭 (단일 색상 상품)
+    if (sStr) {
+      const match = skus.find(sk => String(sk.size || '').trim() === sStr)
+      if (match?.specId) return String(match.specId)
+    }
+    // 3. color만 매칭 (단일 규격 상품)
+    if (cStr) {
+      const match = skus.find(sk => String(sk.color || '').trim() === cStr)
+      if (match?.specId) return String(match.specId)
+    }
+    // 4. 단일 SKU 상품 — 첫 번째 행
+    if (skus.length === 1 && skus[0].specId) return String(skus[0].specId)
+  }
+  return ''
+}
+
 // 다중 옵션 (2차 사이즈/규격 존재 여부: 1개 이상 존재할 때만 활성화)
 const hasMultipleOptions = computed(() => {
   return Array.isArray(sizeOptions.value) && sizeOptions.value.length > 0
@@ -1359,6 +1393,7 @@ const handleSelectColor = (color) => {
       selectedSkus.value.push({
         color: colorName,
         size: '',
+        specId: getSkuSpecId(colorName, ''),
         quantity: 1
       })
     }
@@ -1395,6 +1430,7 @@ const handleSelectSize = (size) => {
     selectedSkus.value.push({
       color: colorName,
       size: sizeName,
+      specId: getSkuSpecId(colorName, sizeName),
       quantity: 1
     })
   }
@@ -1872,6 +1908,11 @@ const saveSelectedItemsToCart = () => {
         size: sizeStr,
         optionName: optionText,
         sku: optionText,
+        // ── 1688 발주 API 필수 필드 ──
+        // specId: 선택된 SKU의 spec_id(32자리 hex). 발주 시 400 방지.
+        specId: sku.specId || getSkuSpecId(colorStr, sizeStr),
+        // num_iid: 1688 상품 숫자 ID. baseItem.itemId와 동일하지만 발주 쪽 명시적 필드명으로도 저장.
+        num_iid: String(currentItem.value.id || ''),
         // 수량 및 단가 (각 SKU 행 독립)
         quantity: skuQty,
         // 재고 상한 — CartView 수량 조절 시 활용. 미파악이면 undefined (상한 없음)

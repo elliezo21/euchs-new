@@ -1449,6 +1449,7 @@ export async function fetch1688ProductById(offerId) {
 
         return {
           skuId: String(sk.sku_id || sk.skuId || sk.id || `sku-${sIdx}`),
+          specId: String(sk.spec_id || ''),   // ← 1688 발주 API 필수값 보존
           color: cleanForeignText(colorName) || colorName,
           size:  cleanForeignText(sizeName)  || sizeName,
           price: skuPrice,

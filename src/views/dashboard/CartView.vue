@@ -697,6 +697,8 @@ const loadCartItems = () => {
           return {
             id: it.id || `cart-${idx}-${Date.now()}`,
             itemId: it.itemId || it.id || '1688-item',
+            num_iid: it.num_iid || it.itemId || '',
+            specId: it.specId || '',
             titleKo: it.titleKo || it.productName || it.titleZh || '1688 소싱 품목',
             titleZh: it.titleZh || '',
             imageUrl: it.imageUrl || it.thumbnail,
@@ -715,6 +717,7 @@ const loadCartItems = () => {
             // 원본 데이터 보존
             skus: it.skus || [],
             detailUrl: it.detailUrl || '',
+            productUrl: it.productUrl || it.detailUrl || '',
             company: it.company || '1688 공급처',
             // ── seller 정보 보존 ──
             sellerId: it.sellerId || it.memberId || it.shopId || '',
