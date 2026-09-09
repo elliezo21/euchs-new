@@ -74,23 +74,63 @@
           Operations
         </div>
 
-        <!-- 1. 주문·발주 관리 -->
-        <router-link
-          to="/admin/orders"
-          class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition group"
-          :class="isActiveRoute('/admin/orders')
-            ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'"
-        >
-          <ClipboardList class="w-4 h-4 text-slate-400 group-hover:text-white" :class="isActiveRoute('/admin/orders') ? 'text-white' : ''" />
-          <span class="flex-1">주문·발주 관리</span>
-          <span
-            v-if="pendingOrdersCount > 0"
-            class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap bg-amber-500 text-white"
+        <!-- 1. 주문·발주 관리 (아코디언 서브메뉴) -->
+        <div>
+          <!-- 부모 메뉴 버튼 -->
+          <button
+            @click="isOrdersMenuOpen = !isOrdersMenuOpen"
+            class="w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition group"
+            :class="isOrdersGroupActive
+              ? 'bg-blue-600/20 text-blue-300'
+              : 'text-slate-300 hover:text-white hover:bg-slate-800/80'"
           >
-            신규 {{ pendingOrdersCount }}
-          </span>
-        </router-link>
+            <ClipboardList class="w-4 h-4 shrink-0" :class="isOrdersGroupActive ? 'text-blue-300' : 'text-slate-400 group-hover:text-white'" />
+            <span class="flex-1 text-left">주문·발주 관리</span>
+            <span
+              v-if="pendingOrdersCount > 0 && !isOrdersMenuOpen"
+              class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold whitespace-nowrap bg-amber-500 text-white"
+            >
+              신규 {{ pendingOrdersCount }}
+            </span>
+            <ChevronDown
+              class="w-3.5 h-3.5 shrink-0 transition-transform duration-200"
+              :class="isOrdersMenuOpen ? 'rotate-180 text-blue-300' : 'text-slate-500'"
+            />
+          </button>
+
+          <!-- 서브메뉴 (펼침/접힘) -->
+          <div v-show="isOrdersMenuOpen" class="mt-1 ml-4 pl-3 border-l border-slate-700/60 space-y-0.5">
+            <!-- 1-1. 주문·발주 파이프라인 -->
+            <router-link
+              to="/admin/orders"
+              class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition"
+              :class="isActiveRoute('/admin/orders')
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'"
+            >
+              <span class="w-1 h-1 rounded-full shrink-0" :class="isActiveRoute('/admin/orders') ? 'bg-white' : 'bg-slate-600'"></span>
+              <span class="flex-1">주문·발주 파이프라인</span>
+              <span
+                v-if="pendingOrdersCount > 0"
+                class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-bold bg-amber-500 text-white"
+              >
+                {{ pendingOrdersCount }}
+              </span>
+            </router-link>
+
+            <!-- 1-2. 취소·반품·교환 현황 -->
+            <router-link
+              to="/admin/orders/cancelled"
+              class="flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold transition"
+              :class="isActiveRoute('/admin/orders/cancelled')
+                ? 'bg-blue-600 text-white shadow-sm'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/60'"
+            >
+              <span class="w-1 h-1 rounded-full shrink-0" :class="isActiveRoute('/admin/orders/cancelled') ? 'bg-white' : 'bg-slate-600'"></span>
+              <span class="flex-1">취소·반품·교환 현황</span>
+            </router-link>
+          </div>
+        </div>
 
         <div class="pt-3 px-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Management & Settings
@@ -233,6 +273,7 @@ import {
   LogOut,
   ExternalLink,
   ChevronRight,
+  ChevronDown,
   Menu,
   X,
   RefreshCw
@@ -247,23 +288,16 @@ const router = useRouter()
 const isMobileMenuOpen = ref(false)
 const isRefreshing = ref(false)
 const pendingOrdersCount = ref(0)
+// 주문·발주 관리 서브메뉴 펼침 상태 — /admin/orders/* 경로 진입 시 자동 펼침
+const isOrdersMenuOpen = ref(false)
 
 const currentRouteTitle = computed(() => {
-  if (route.path.includes('/admin/orders')) {
-    return '주문·발주 관리'
-  }
-  if (route.path.includes('/admin/settlement')) {
-    return '예치금 & 정산 관리'
-  }
-  if (route.path.includes('/admin/members')) {
-    return '회원 / 바이어 관리'
-  }
-  if (route.path.includes('/admin/settings')) {
-    return '시스템 환경 설정'
-  }
-  if (route.path.includes('/admin/notices')) {
-    return '공지 & 소식 설정'
-  }
+  if (route.path === '/admin/orders/cancelled') return '취소·반품·교환 현황'
+  if (route.path.includes('/admin/orders')) return '주문·발주 관리'
+  if (route.path.includes('/admin/settlement')) return '예치금 & 정산 관리'
+  if (route.path.includes('/admin/members')) return '회원 / 바이어 관리'
+  if (route.path.includes('/admin/settings')) return '시스템 환경 설정'
+  if (route.path.includes('/admin/notices')) return '공지 & 소식 설정'
   return '스마트 종합 대시보드'
 })
 
@@ -271,8 +305,12 @@ const isActiveRoute = (path) => {
   if (path === '/admin') {
     return route.path === '/admin' || route.path === '/admin/'
   }
-  return route.path === path || route.path.startsWith(path + '/')
+  // exact match 우선, 그 다음 하위경로 포함 (단, /admin/orders는 /admin/orders/cancelled를 포함하지 않음)
+  return route.path === path
 }
+
+// 주문 메뉴 그룹 active 여부 (파이프라인 + 취소현황 모두 포함)
+const isOrdersGroupActive = computed(() => route.path.startsWith('/admin/orders'))
 
 const updatePendingBadge = async () => {
   // 즉시: 로컬 캐시로 빠른 선표시 (normalize 적용)
@@ -328,6 +366,8 @@ onMounted(() => {
   updatePendingBadge()
   window.addEventListener('euchs-order-status-update', updatePendingBadge)
   window.addEventListener('storage', updatePendingBadge)
+  // 현재 경로가 /admin/orders/* 이면 서브메뉴 자동 펼침
+  if (route.path.startsWith('/admin/orders')) isOrdersMenuOpen.value = true
 })
 
 onUnmounted(() => {

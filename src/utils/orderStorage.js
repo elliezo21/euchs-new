@@ -370,6 +370,9 @@ export async function fetchOrdersFromSupabase(options = {}) {
               : undefined,
             // 창고 입고 단계 VAS 신청 (WarehouseView에서 저장, fallback 없이 실제 데이터만)
             warehouseVasApplied: Array.isArray(row.warehouse_vas_applied) ? row.warehouse_vas_applied : [],
+            // 환불완료 체크 (관리자 수동 — status='cancelled'인 경우만 유의미)
+            refundCompleted: row.refund_completed === true,
+            refundCompletedAt: row.refund_completed_at || null,
           };
 
           fetchedMap.set(orderNumber, orderObj);

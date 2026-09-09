@@ -870,7 +870,30 @@
 
           </div>
 
-          <!-- 중앙 안내 텍스트 -->
+          <!-- 취소된 주문 전용: 환불완료 체크 섹션 -->
+          <div
+            v-if="isStatus(activeOrder, 'cancelled')"
+            class="mx-0 px-4 py-3 bg-rose-50 border-t border-rose-100 flex items-center justify-between gap-4"
+          >
+            <div class="text-xs text-rose-700">
+              <span class="font-bold">⚠ 취소된 주문</span> —
+              <span v-if="activeOrder.refundCompleted" class="text-emerald-700 font-bold">
+                ✅ 환불완료 처리됨 ({{ activeOrder.refundCompletedAt ? new Date(activeOrder.refundCompletedAt).toLocaleString('ko-KR') : '' }})
+              </span>
+              <span v-else class="text-rose-600">환불 처리 전입니다. 입금 여부 확인 후 환불완료 처리하세요.</span>
+            </div>
+            <button
+              v-if="!activeOrder.refundCompleted"
+              @click="markRefundCompletedFromDetail(activeOrder)"
+              :disabled="isMarkingRefund"
+              type="button"
+              class="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-400 bg-emerald-50 text-emerald-700 font-bold text-xs hover:bg-emerald-100 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+            >
+              {{ isMarkingRefund ? '처리중…' : '✅ 환불완료 처리' }}
+            </button>
+          </div>
+
+
           <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="text-xs text-slate-500 font-medium px-2 shrink-0 hidden lg:block">
             * [변경사항 저장] 시 단가·총액이 바이어에게 즉시 반영됩니다.
           </div>
@@ -1112,6 +1135,7 @@ const searchQuery = ref('');
 const activeOrder = ref(null);
 const modal = ref({ blForm: false, trackingForm: false, detail: false });
 const confirmSaveOrder = ref(false);
+const isMarkingRefund = ref(false); // 취소된 주문 상세에서 환불완료 처리 중 로딩 상태
 
 // 신버전 AdminWarehouseModal (5-A/5-B/5-C) state
 const showWarehouseModal = ref(false);
@@ -1398,6 +1422,44 @@ async function executeRejectOrder() {
     showToast(`반려 처리 실패: ${err.message}`, 'error');
   } finally {
     setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 주문 상세 모달 — 취소된 주문 환불완료 처리 (status='cancelled' 전용)
+// ─────────────────────────────────────────────────────────────────────────────
+async function markRefundCompletedFromDetail(order) {
+  if (!order) return;
+  const orderNum = order.orderNumber;
+  const orderId = order.id;
+
+  isMarkingRefund.value = true;
+  try {
+    if (!isSupabaseConfigured()) throw new Error('Supabase 미연결 상태');
+    const now = new Date().toISOString();
+    const { error, data } = await supabase
+      .from('orders')
+      .update({ refund_completed: true, refund_completed_at: now })
+      .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
+      .select('id, order_number');
+    if (error) throw error;
+    if (!data || data.length === 0) throw new Error(`저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다.`);
+    // 낙관적 업데이트: activeOrder + orders 목록 동시 반영
+    if (activeOrder.value) {
+      activeOrder.value.refundCompleted = true;
+      activeOrder.value.refundCompletedAt = now;
+    }
+    const target = orders.value.find(o => o.id === orderId || o.orderNumber === orderNum);
+    if (target) {
+      target.refundCompleted = true;
+      target.refundCompletedAt = now;
+    }
+    showToast(`[${orderNum}] 환불완료 처리되었습니다.`, 'success');
+  } catch (e) {
+    console.error('[markRefundCompletedFromDetail]', e);
+    showToast(`환불완료 처리 실패: ${e.message}`, 'error');
+  } finally {
+    isMarkingRefund.value = false;
   }
 }
 

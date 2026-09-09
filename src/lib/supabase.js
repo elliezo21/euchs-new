@@ -259,7 +259,10 @@ CREATE TABLE IF NOT EXISTS orders (
   inspection_photos JSONB DEFAULT '[]'::jsonb,
   vas_applied JSONB DEFAULT '[]'::jsonb,
   payment_info JSONB DEFAULT '{}'::jsonb,
-  memo TEXT DEFAULT ''
+  memo TEXT DEFAULT '',
+  -- 환불완료 처리 (1차 구현: 관리자 수동 체크 — 시스템 자동 환불 없음)
+  refund_completed BOOLEAN DEFAULT false,
+  refund_completed_at TIMESTAMPTZ DEFAULT NULL
 );
 
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;

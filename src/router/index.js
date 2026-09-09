@@ -241,6 +241,12 @@ const routes = [
         meta: { requiresAdmin: true, title: '주문·발주 관리 | EUCHS Admin', isAdmin: true }
       },
       {
+        path: 'orders/cancelled',
+        name: 'admin-cancelled',
+        component: () => import('../views/admin/AdminCancelledView.vue'),
+        meta: { requiresAdmin: true, title: '취소·반품·교환 현황 | EUCHS Admin', isAdmin: true }
+      },
+      {
         path: 'settlement',
         name: 'admin-settlement',
         component: () => import('../views/admin/AdminSettlementView.vue'),
