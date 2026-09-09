@@ -802,6 +802,7 @@ import { getStoredOrders } from '../../utils/orderStorage';
 import { updateApplicationOrderStatus, normalizeOrderStatus } from '../../lib/orderPipeline';
 import { sendOrderStatusAlimtalk } from '../../services/notificationService';
 import { currentSettings, fetchSiteSettings } from '../../lib/settings';
+import { VAS_OPTIONS_MAP } from '../../utils/vasOptions';
 
 
 onMounted(async () => {
@@ -1226,21 +1227,9 @@ const calcTotal = computed(() => {
 // ─────────────────────────────────────
 // VAS / 상품명 헬퍼
 // ─────────────────────────────────────
-const VAS_OPTIONS_MAP = {
-  // ── 현재 id (신버전) ──
-  inspection_precision: { id: 'inspection_precision', name: '정밀 검수(실사 사진)', icon: 'fas fa-magnifying-glass' },
-  origin_label:  { id: 'origin_label',  name: '원산지 라벨(MADE IN CHINA)',   icon: 'fas fa-tag' },
-  barcode_label: { id: 'barcode_label', name: '바코드 라벨링(쿠팡/스토어)',   icon: 'fas fa-barcode' },
-  opp_repack:    { id: 'opp_repack',    name: 'OPP 재포장/합포장',             icon: 'fas fa-box-open' },
-  fta_co:        { id: 'fta_co',        name: '한-중 FTA C/O 발급',           icon: 'fas fa-file-invoice' },
-  cushion_pack:  { id: 'cushion_pack',  name: '특수 완충 포장(에어캡/보강)',   icon: 'fas fa-shield-halved' },
-  // ── 구버전 id (하위호환) ──
-  inspect_precision:    { id: 'inspect_precision',    name: '정밀 검수(실사 사진)',      icon: 'fas fa-magnifying-glass' },
-  precision_inspection: { id: 'precision_inspection', name: '정밀 검수(실사 사진)',      icon: 'fas fa-magnifying-glass' },
-  barcode:              { id: 'barcode',              name: '바코드 라벨링(쿠팡/스토어)', icon: 'fas fa-barcode' },
-  sku_barcode:          { id: 'sku_barcode',          name: '바코드 라벨링(쿠팡/스토어)', icon: 'fas fa-barcode' },
-  coupang_barcode:      { id: 'coupang_barcode',      name: '바코드 라벨링(쿠팡/스토어)', icon: 'fas fa-barcode' },
-};
+// VAS_OPTIONS_MAP → ../../utils/vasOptions.js 에서 import
+
+
 
 const getAppVasServices = () => {
   const app = props.application || {};

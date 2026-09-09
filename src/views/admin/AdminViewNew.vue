@@ -2278,6 +2278,7 @@ import {
   getOrderStatusBadgeClass,
   updateApplicationOrderStatus
 } from '../../lib/orderPipeline'
+import { VAS_OPTIONS_MAP } from '../../utils/vasOptions'
 
 const router = useRouter()
 const route = useRoute()
@@ -2560,14 +2561,9 @@ const openAppDetail = async (app) => {
 // ----------------------------------------------------
 const formatNumber = (num) => Number(num || 0).toLocaleString('ko-KR')
 
-const VAS_OPTIONS_MAP = {
-  inspection_precision: { id: 'inspection_precision', name: '정밀 검수(실사 사진)', icon: 'fas fa-magnifying-glass' },
-  origin_label: { id: 'origin_label', name: '원산지 라벨(MADE IN CHINA)', icon: 'fas fa-tag' },
-  barcode_label: { id: 'barcode_label', name: '바코드 라벨링(쿠팡/스토어)', icon: 'fas fa-barcode' },
-  opp_repack: { id: 'opp_repack', name: 'OPP 재포장/합포장', icon: 'fas fa-box-open' },
-  fta_co: { id: 'fta_co', name: '한-중 FTA C/O 발급', icon: 'fas fa-file-invoice' },
-  pallet_wood: { id: 'pallet_wood', name: '목재 파렛트/완충 보강', icon: 'fas fa-cubes' }
-}
+// VAS_OPTIONS_MAP → ../../utils/vasOptions.js 에서 import
+
+
 
 const getAppVasServices = (app) => {
   if (!app) return []

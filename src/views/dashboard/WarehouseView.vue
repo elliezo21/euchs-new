@@ -236,7 +236,7 @@
                     :key="vIdx"
                     class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-medium"
                   >
-                    {{ vas.name }}
+                    {{ resolveVasLabel(vas) }}
                   </span>
                 </div>
                 <span v-else class="text-gray-400 text-[11px]">없음</span>
@@ -598,7 +598,7 @@
                 >
                   <div class="flex items-center gap-2">
                     <span class="w-1.5 h-1.5 rounded-full bg-orange-500"></span>
-                    <span class="font-bold text-gray-800 text-xs">{{ vas.name }}</span>
+                    <span class="font-bold text-gray-800 text-xs">{{ resolveVasLabel(vas) }}</span>
                   </div>
                   <span v-if="vas.price" class="font-mono text-orange-700 font-bold text-xs">
                     ₩{{ Number(vas.price).toLocaleString() }}
@@ -1428,6 +1428,7 @@ import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue'
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
 import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
+import { resolveVasLabel } from '@/utils/vasOptions';
 
 const route = useRoute();
 
