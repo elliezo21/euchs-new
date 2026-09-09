@@ -552,18 +552,96 @@
           </div>
         </div>
 
-        <!-- 전달 소견 -->
-        <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
+        <!-- 전달 소견 (드롭다운 팝오버) -->
+        <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
           <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-xs">
             <i class="fas fa-file-pen"></i>
             <span>3. 현지 검수원 종합 소견 (바이어 표시)</span>
           </h4>
-          <textarea
-            v-model="inboundForm.inspectionNote"
-            rows="3"
-            placeholder="수량 전수 일치 여부, 외관 상태 등을 기재하세요."
-            class="w-full p-3 rounded-xl bg-white border border-slate-300 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 leading-relaxed"
-          ></textarea>
+
+          <!-- 드롭다운 트리거 + 패널 -->
+          <div class="relative">
+            <!-- 트리거 버튼 -->
+            <button
+              type="button"
+              class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs transition cursor-pointer text-left"
+              :class="inboundForm.inspectionNote
+                ? 'bg-white border-slate-300 text-slate-700 hover:border-indigo-400'
+                : 'bg-orange-50 border-orange-400 text-orange-700 hover:border-orange-500'"
+              @click="isNoteDropdownOpen = !isNoteDropdownOpen"
+            >
+              <span class="flex items-center gap-2 min-w-0">
+                <!-- 미선택 상태: 경고 아이콘 + 안내 -->
+                <template v-if="!inboundForm.inspectionNote">
+                  <i class="fas fa-triangle-exclamation text-orange-500 shrink-0"></i>
+                  <span class="font-bold text-orange-700">⚠️ 소견을 선택해 주세요</span>
+                </template>
+                <!-- 선택 완료 상태: 체크 + 선택값 -->
+                <template v-else>
+                  <i class="fas fa-check-circle text-indigo-500 shrink-0"></i>
+                  <span class="font-medium text-slate-800 truncate">{{ inboundForm.inspectionNote }}</span>
+                </template>
+              </span>
+              <i
+                class="fas fa-chevron-down text-[10px] shrink-0 ml-2 transition-transform duration-150"
+                :class="isNoteDropdownOpen
+                  ? 'rotate-180 text-indigo-500'
+                  : (inboundForm.inspectionNote ? 'text-slate-400' : 'text-orange-400')"
+              ></i>
+            </button>
+
+            <!-- 바깥클릭 닫힘용 투명 backdrop -->
+            <div
+              v-if="isNoteDropdownOpen"
+              class="fixed inset-0 z-[70]"
+              @click="isNoteDropdownOpen = false"
+            ></div>
+
+            <!-- 드롭다운 패널 (오버레이, 아래 콘텐츠 위에 뜸) -->
+            <div
+              v-if="isNoteDropdownOpen"
+              class="absolute left-0 right-0 top-full mt-1.5 z-[71] bg-white rounded-2xl border border-slate-200 shadow-2xl overflow-hidden"
+            >
+              <div class="p-1.5 space-y-0.5">
+                <button
+                  v-for="opt in INSPECTION_NOTE_OPTIONS"
+                  :key="opt.id"
+                  type="button"
+                  class="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left transition cursor-pointer"
+                  :class="inboundForm.inspectionNoteId === opt.id
+                    ? 'bg-indigo-50 text-indigo-900'
+                    : 'hover:bg-slate-50 text-slate-700'"
+                  @click="inboundForm.inspectionNoteId = opt.id; inboundForm.inspectionNote = opt.text; isNoteDropdownOpen = false"
+                >
+                  <!-- 라디오 도트 -->
+                  <span
+                    class="mt-0.5 w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition"
+                    :class="inboundForm.inspectionNoteId === opt.id
+                      ? 'border-indigo-600 bg-indigo-600'
+                      : 'border-slate-300 bg-white'"
+                  >
+                    <span
+                      v-if="inboundForm.inspectionNoteId === opt.id"
+                      class="w-1.5 h-1.5 rounded-full bg-white"
+                    ></span>
+                  </span>
+                  <span
+                    class="text-xs leading-relaxed"
+                    :class="inboundForm.inspectionNoteId === opt.id ? 'font-bold' : 'font-medium'"
+                  >{{ opt.text }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 바이어 화면 미리보기 -->
+          <div
+            v-if="inboundForm.inspectionNote"
+            class="px-3 py-2 bg-indigo-100/60 border border-indigo-200 rounded-xl text-[11px] text-indigo-800 flex items-start gap-1.5"
+          >
+            <i class="fas fa-eye mt-0.5 shrink-0 text-indigo-500"></i>
+            <span><strong>바이어 화면 표시:</strong> {{ inboundForm.inspectionNote }}</span>
+          </div>
         </div>
 
         <!-- 검수 실사 사진 업로드 -->
@@ -803,6 +881,7 @@ import { updateApplicationOrderStatus, normalizeOrderStatus } from '../../lib/or
 import { sendOrderStatusAlimtalk } from '../../services/notificationService';
 import { currentSettings, fetchSiteSettings } from '../../lib/settings';
 import { VAS_OPTIONS_MAP } from '../../utils/vasOptions';
+import { INSPECTION_NOTE_OPTIONS, findOptionIdByText } from '../../utils/inspectionNoteOptions';
 
 
 onMounted(async () => {
@@ -872,11 +951,15 @@ const issueForm = ref({
 });
 
 
+// ─── 소견 드롭다운 열림/닫힘 상태 ───
+const isNoteDropdownOpen = ref(false); // 항상 닫힌 채로 시작
+
 // ─── 소견 공유 (5-B에서 편집) ───
 const inboundForm = ref({
   id: '',
   inboundNo: '',
   inspectionNote: '',
+  inspectionNoteId: null,   // 라디오 선택 ID (INSPECTION_NOTE_OPTIONS[].id)
 });
 
 // ─── 5-B: 검수 실사 사진 ───
@@ -949,12 +1032,16 @@ const initFormData = () => {
     : (found?.items || []);
 
   // 공통 폼 (inboundId/No/Note는 found 기반 유지 — WMS 진행 연속성)
+  const restoredNote = found?.inspectionNote || details.inspectionNote || '';
   inboundForm.value = {
     id: found?.id || details.inboundId || `inb-app-${app.id || Date.now()}`,
     inboundNo: found?.inboundNo || details.inboundNo ||
       `INB-YW-${new Date().toISOString().slice(2, 10).replace(/-/g, '')}-${String(app.id || '01').padStart(2, '0')}`,
-    inspectionNote: found?.inspectionNote || details.inspectionNote || '',
+    inspectionNote: restoredNote,
+    inspectionNoteId: findOptionIdByText(restoredNote),  // 저장된 텍스트 → 라디오 선택 복원
   };
+  // 드롭다운은 항상 닫힌 채로 시작 (isNoteDropdownOpen 기본값 false 유지)
+  isNoteDropdownOpen.value = false;
 
   // items 복원
   orderItems.value = rawItems;
@@ -1377,20 +1464,34 @@ const saveArrivalInspection = async () => {
       await updateApplicationOrderStatus(app.id, 'arrival_done');
       const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
       if (orderNo) {
-        await supabase.from('orders').update({
+        const { error: dbErr } = await supabase.from('orders').update({
           status: 'arrival_done',
           measured_data: updatedDetails.measuredData || {},
+          inspection_note: inboundForm.value.inspectionNote || null,
           updated_at: new Date().toISOString(),
         }).eq('order_number', orderNo);
+        if (dbErr) {
+          console.error('[AdminWarehouseModal] 5-A DB 저장 실패:', dbErr);
+          isSaving.value = false;
+          alert(`⚠️ 저장 실패: ${dbErr.message}\n\n다시 시도해 주세요.`);
+          return;
+        }
       }
     } else {
       // 미완료: measured_data만 갱신 (최상위 status = warehouse_in 유지)
       const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
       if (orderNo) {
-        await supabase.from('orders').update({
+        const { error: dbErr } = await supabase.from('orders').update({
           measured_data: updatedDetails.measuredData || {},
+          inspection_note: inboundForm.value.inspectionNote || null,
           updated_at: new Date().toISOString(),
         }).eq('order_number', orderNo);
+        if (dbErr) {
+          console.error('[AdminWarehouseModal] 5-A DB 저장 실패:', dbErr);
+          isSaving.value = false;
+          alert(`⚠️ 저장 실패: ${dbErr.message}\n\n다시 시도해 주세요.`);
+          return;
+        }
       }
     }
   }
@@ -1448,14 +1549,18 @@ const saveBoxMeasurement = async () => {
     .filter(item => item.checked)
     .reduce((sum, item) => sum + (Number(item.price) || 0), 0);
 
+  // vasAdminData를 measuredData에도 포함: initFormData 복원 시 md.vasAdminData를 읽으므로 경로 일치 필수
+  const vasAdminData = vasAdminItems.value.map(item => ({
+    id: item.id, checked: item.checked, price: Number(item.price) || 0
+  }));
+  measuredData.vasAdminData = vasAdminData;
+
   const secondPayment = {
     shippingFeeKrw: calcShipping.value,        // 참고용 — 별도 청구
     customsFeeKrw: calcTax.value,              // 참고용 — 세관 직납 예상액 (청구 미포함)
     vasFeeKrw: vasCheckedFee,                  // VAS 작업비 합계 (체크된 항목만)
     totalSecondPaymentKrw: calcTotal.value,    // VAS 합계만 (해운비·관부가세 제외)
-    vasAdminData: vasAdminItems.value.map(item => ({
-      id: item.id, checked: item.checked, price: Number(item.price) || 0
-    })),
+    vasAdminData,                              // 하위호환: secondPayment에도 유지
   };
 
   // inspectionPhotos 정규화 (저장 포맷)
@@ -1478,22 +1583,25 @@ const saveBoxMeasurement = async () => {
   };
 
   if (app.id) {
-    try {
-      await updateApplicationOrderStatus(app.id, 'inspection_done');
-      if (isSupabaseConfigured()) {
-        const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
-        if (orderNo) {
-          await supabase.from('orders').update({
-            status: 'inspection_done',
-            measured_data: measuredData,
-            second_payment: secondPayment,
-            inspection_photos: savedPhotos,
-            updated_at: new Date().toISOString(),
-          }).eq('order_number', orderNo);
+    await updateApplicationOrderStatus(app.id, 'inspection_done');
+    if (isSupabaseConfigured()) {
+      const orderNo = app.orderNo || matchedOrder.value?.orderNumber;
+      if (orderNo) {
+        const { error: dbErr } = await supabase.from('orders').update({
+          status: 'inspection_done',
+          measured_data: measuredData,
+          second_payment: secondPayment,
+          inspection_photos: savedPhotos,
+          inspection_note: inboundForm.value.inspectionNote || null,
+          updated_at: new Date().toISOString(),
+        }).eq('order_number', orderNo);
+        if (dbErr) {
+          console.error('[AdminWarehouseModal] 5-B DB 저장 실패:', dbErr);
+          isSaving.value = false;
+          alert(`⚠️ 저장 실패: ${dbErr.message}\n\n다시 시도해 주세요.`);
+          return;
         }
       }
-    } catch (err) {
-      console.warn('[AdminWarehouseModal] 5-B Supabase update:', err);
     }
   }
 

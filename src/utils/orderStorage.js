@@ -346,6 +346,7 @@ export async function fetchOrdersFromSupabase(options = {}) {
             firstPayment: row.first_payment || {},
             secondPayment: row.second_payment || {},
             measuredData: row.measured_data || {},
+            inspectionNote: row.inspection_note || '',   // 관리자 검수원 소견 (orders.inspection_note 컬럼)
             inspectionPhotos: Array.isArray(row.inspection_photos) ? row.inspection_photos : [],
             paymentInfo: row.payment_info || {},
             memo: row.memo || '',

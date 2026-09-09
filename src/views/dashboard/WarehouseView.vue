@@ -367,7 +367,7 @@
       class="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
       @click.self="closeOrderDetailModal"
     >
-      <div class="bg-white rounded-3xl max-w-4xl w-full flex flex-col shadow-2xl relative border border-gray-200 overflow-hidden font-sans my-auto max-h-[92vh]">
+      <div class="bg-white rounded-3xl max-w-5xl w-full flex flex-col shadow-2xl relative border border-gray-200 overflow-hidden font-sans my-auto max-h-[92vh]">
         <!-- 모달 헤더 -->
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/90 backdrop-blur-xs shrink-0">
           <div class="flex items-center gap-3">
@@ -561,8 +561,7 @@
                           {{ sku.quantity }}개
                         </td>
                         <td class="py-2 px-3 text-right font-mono text-gray-600">
-                          <span v-if="sku.unitPriceKrw">₩{{ Number(sku.unitPriceKrw).toLocaleString() }}</span>
-                          <span v-else-if="sku.unitPrice">¥{{ sku.unitPrice }}</span>
+                          <span v-if="sku.unitPrice">¥{{ Number(sku.unitPrice).toFixed(2) }}</span>
                           <span v-else class="text-gray-400">-</span>
                         </td>
                       </tr>
@@ -1806,11 +1805,12 @@ function getGroupedOrderItems(rawItems) {
 
     const grp = groupsMap.get(groupKey);
     const qty = Number(it.quantity || 1);
+    const price = Number(it.priceCny || it.unitPrice || it.price || 0);
     grp.skus.push({
       sku: it.sku || it.spec || it.optionName || '기본 규격',
       quantity: qty,
-      unitPrice: it.unitPrice || it.price || 0,
-      unitPriceKrw: it.unitPriceKrw || (it.price && it.price > 500 ? it.price : 0),
+      unitPrice: price,
+      unitPriceKrw: it.unitPriceKrw || 0,
     });
     grp.totalQty += qty;
   });
