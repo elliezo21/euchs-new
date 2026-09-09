@@ -202,7 +202,7 @@
                   <i class="fas fa-tags text-rose-600"></i> 수량별 실시간 도매 단가
                 </span>
                 <span class="text-xs text-gray-500 font-mono">
-                  적용 환율: 1 RMB = {{ exchangeRate }}원
+                  적용 환율: 1 RMB = {{ effectiveExchangeRate }}원
                 </span>
               </div>
 
@@ -370,7 +370,7 @@
                       {{ [sku.color, sku.size].filter(p => p && p !== '-' && p !== 'undefined').join(' / ') || '기본 단품' }}
                     </div>
                     <div class="text-xs text-rose-600 font-mono mt-0.5 font-bold">
-                      개당 ¥{{ currentUnitRmb.toFixed(2) }} (약 ₩{{ formatKrw(currentUnitRmb * exchangeRate) }})
+                      개당 ¥{{ currentUnitRmb.toFixed(2) }} (약 ₩{{ formatKrw(currentUnitRmb * effectiveExchangeRate) }})
                     </div>
                   </div>
 
@@ -503,7 +503,7 @@
                 </h4>
                 <div class="flex items-baseline justify-between pt-1">
                   <span class="text-xs font-black text-rose-600 font-mono">¥ {{ sp.priceFormatted || sp.price }}</span>
-                  <span class="text-[10px] text-gray-400 font-mono">₩{{ formatKrw(Number(sp.price) * exchangeRate) }}</span>
+                  <span class="text-[10px] text-gray-400 font-mono">₩{{ formatKrw(Number(sp.price) * effectiveExchangeRate) }}</span>
                 </div>
               </div>
             </div>
@@ -632,6 +632,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
+import { currentSettings, fetchSiteSettings } from '../lib/settings'
 
 const props = defineProps({
   product: {
@@ -640,7 +641,7 @@ const props = defineProps({
   },
   exchangeRate: {
     type: Number,
-    default: 226.19
+    default: 0
   },
   // 'view': 소싱몰 신규 담기 모드 (기본)
   // 'edit': 장바구니 기존 행 옵션 교체 모드
@@ -648,6 +649,10 @@ const props = defineProps({
     type: String,
     default: 'view'
   }
+})
+
+const effectiveExchangeRate = computed(() => {
+  return Number(props.exchangeRate) || Number(currentSettings.value?.exchange_rate) || 200.0
 })
 
 const emit = defineEmits(['close', 'added-to-cart', 'change-product'])
@@ -854,7 +859,7 @@ const displayedPriceTiers = computed(() => {
         label: tier.label || (maxQ ? `${minQ}~${maxQ}개` : `${minQ}개 이상`),
         price: Number(price.toFixed(2)),
         priceFormatted: price.toFixed(2),
-        priceKrw: Math.round(price * props.exchangeRate)
+        priceKrw: Math.round(price * effectiveExchangeRate.value)
       }
     })
   }
@@ -908,7 +913,7 @@ const displayedPriceTiers = computed(() => {
           label: `${mo}개 이상`,
           price: Number(resolvedPrice.toFixed(2)),
           priceFormatted: resolvedPrice.toFixed(2),
-          priceKrw: Math.round(resolvedPrice * props.exchangeRate)
+          priceKrw: Math.round(resolvedPrice * effectiveExchangeRate.value)
         }]
       }
     }
@@ -928,7 +933,7 @@ const displayedPriceTiers = computed(() => {
       label: tier.label || (maxQ ? `${minQ}~${maxQ}개` : `${minQ}개 이상`),
       price: Number(price.toFixed(2)),
       priceFormatted: price.toFixed(2),
-      priceKrw: Math.round(price * props.exchangeRate)
+      priceKrw: Math.round(price * effectiveExchangeRate.value)
     }]
   }
 
@@ -942,7 +947,7 @@ const displayedPriceTiers = computed(() => {
       label: `${mo}개 이상`,
       price: Number(p.toFixed(2)),
       priceFormatted: p.toFixed(2),
-      priceKrw: Math.round(p * props.exchangeRate)
+      priceKrw: Math.round(p * effectiveExchangeRate.value)
     }
   ]
 })
@@ -1323,7 +1328,7 @@ const totalPriceRmb = computed(() => {
 })
 
 const totalPriceKrw = computed(() => {
-  return Math.round(totalPriceRmb.value * props.exchangeRate)
+  return Math.round(totalPriceRmb.value * effectiveExchangeRate.value)
 })
 
 // ----------------------------------------------------
@@ -1358,7 +1363,7 @@ const chinaFreightRmb = computed(() => {
 
 
 const chinaFreightKrw = computed(() => {
-  return Math.round(chinaFreightRmb.value * props.exchangeRate)
+  return Math.round(chinaFreightRmb.value * effectiveExchangeRate.value)
 })
 
 const formatKrw = (val) => {
@@ -1898,6 +1903,10 @@ const saveSelectedItemsToCart = () => {
       // ── seller 정보 보존 (OrderConfigModal items 매핑까지 흘러가야 함) ──
       sellerId: currentItem.value.sellerId || currentItem.value.memberId || currentItem.value.shopId || '',
       sellerName: currentItem.value.company || currentItem.value.sellerName || '1688 공급처',
+      // ── 중국 현지 운임 (fetch1688ProductById 파싱값, 包邮=0 포함) ──
+      // null: API에서 운임 정보 없음(구 데이터 등) → 관리자 모달에서 수량기반 추정치로 폴백
+      // 0: 包邮(무료배송) 확인됨 → 관리자 모달에서 ₩0으로 표시
+      freight: currentItem.value.freight ?? null,
     }
 
     // 2. 최소 주문 수량(min_num) 검증 가드 — 모든 SKU 행에 대해 체크
@@ -1943,7 +1952,7 @@ const saveSelectedItemsToCart = () => {
         priceCny: Number(currentUnitRmb.value),
         price: Number(currentUnitRmb.value),
         totalPriceRmb: Number((skuQty * currentUnitRmb.value).toFixed(2)),
-        totalPriceKrw: Math.round(skuQty * currentUnitRmb.value * props.exchangeRate),
+        totalPriceKrw: Math.round(skuQty * currentUnitRmb.value * effectiveExchangeRate.value),
         // 단일 SKU 스냅샷 (skus 배열도 이 행만 포함)
         skus: [{ color: colorStr, size: sizeStr, quantity: skuQty }],
         createdAt: new Date().toISOString(),
@@ -1965,7 +1974,7 @@ const saveSelectedItemsToCart = () => {
           : Infinity
         cart[existIdx].quantity = cartStock === Infinity ? mergedQty : Math.min(cartStock, mergedQty)
         cart[existIdx].totalPriceRmb = Number((cart[existIdx].quantity * cart[existIdx].priceCny).toFixed(2))
-        cart[existIdx].totalPriceKrw = Math.round(cart[existIdx].quantity * cart[existIdx].priceCny * props.exchangeRate)
+        cart[existIdx].totalPriceKrw = Math.round(cart[existIdx].quantity * cart[existIdx].priceCny * effectiveExchangeRate.value)
         // stock 필드 최신 정보로 갱신
         if (newRow.stock !== undefined) cart[existIdx].stock = newRow.stock
       } else {

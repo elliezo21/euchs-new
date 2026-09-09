@@ -1207,6 +1207,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl } from '../services/api1688'
 import { getMockSearchResults } from '../services/mock1688Data'
 import { fetchSiteSettings } from '../lib/settings'
+import { fetchLiveMarketRate } from '../utils/exchangeRate'
 import {
   isLoggedIn,
   currentUser,
@@ -2269,23 +2270,16 @@ const loadMoreProducts = async () => {
 // ----------------------------------------------------
 const loadRates = async () => {
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/CNY')
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.rates?.KRW) {
-        liveMarketRate.value = Number(data.rates.KRW.toFixed(2))
-      }
+    const { rate: market } = await fetchLiveMarketRate(false)
+    if (market !== null && !isNaN(market)) {
+      liveMarketRate.value = market
     }
 
     const settings = await fetchSiteSettings()
     if (settings) {
       agencyFeeRate.value = Number(settings.agency_fee_rate) || 8.0
-      if (settings.exchange_rate_mode === 'auto_margin') {
-        const margin = Number(settings.rate_margin) || 1.5
-        customExchangeRate.value = Number((liveMarketRate.value + margin).toFixed(2))
-      } else {
-        customExchangeRate.value = Number(settings.exchange_rate) || 226.19
-      }
+      // SSOT: 관리자 설정 공식 결제환율(DB 저장값) 하나로 통일
+      customExchangeRate.value = Number(settings.exchange_rate) || 226.19
     }
   } catch (err) {
     console.warn('Rates fetch error:', err)

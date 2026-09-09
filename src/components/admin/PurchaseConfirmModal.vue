@@ -166,6 +166,8 @@
 
 <script setup>
 import { computed } from 'vue'
+import { currentSettings } from '@/lib/settings'
+import { krwFromCny } from '@/utils/orderCostCalculator'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -198,7 +200,18 @@ function getItem1688Url(item) {
   return 'https://www.1688.com'
 }
 
-const CNY_TO_KRW = 226.19
+// 환율: 스냅샷 정책 준수 (승인된 주문은 고정 환율)
+const exchangeRate = computed(() => {
+  const o = props.order;
+  const snapshot = o?.snapshotExchangeRate ?? o?.firstPayment?.snapshotExchangeRate;
+  if (snapshot !== undefined && snapshot !== null && !isNaN(Number(snapshot))) {
+    return Number(snapshot);
+  }
+  return Number(currentSettings.value?.exchange_rate) || 200.0;
+})
+
+// itemGroups: 상품대금만 표시 (수수료 별도 — 발주확인 모달은 1688 실제 발주 금액 확인용)
+// 반올림 정책: 품목별 subtotalKrw는 행 표시 전용, 합계는 totalKrw(CNY합산→1번환산) 사용
 const itemGroups = computed(() => {
   const groups = []
   const seen = new Map()
@@ -211,16 +224,18 @@ const itemGroups = computed(() => {
     const g = groups[seen.get(groupKey)]
     const qty = Number(item.quantity) || 1
     const unitCny = Number(item.priceCny) || 0
-    g.rows.push({ sku: item.sku || '', qty, unitCny, subtotalKrw: Math.round(unitCny * qty * CNY_TO_KRW * 1.08) })
+    // 품목 행 표시용: 상품대금만 (수수료 미포함 — 수수료는 견적서에서 별도 안내)
+    g.rows.push({ sku: item.sku || '', qty, unitCny, subtotalKrw: krwFromCny(unitCny * qty, exchangeRate.value) })
   }
   return groups
 })
 
+// 반올림 정책: CNY 전체 합산 후 마지막 1번 환산
 const totalCny = computed(() =>
   activeItems.value.reduce((s, i) => s + (Number(i.priceCny) || 0) * (Number(i.quantity) || 1), 0)
 )
 const totalKrw = computed(() =>
-  activeItems.value.reduce((s, i) => s + Math.round((Number(i.priceCny)||0)*(Number(i.quantity)||1)*CNY_TO_KRW*1.08), 0)
+  krwFromCny(totalCny.value, exchangeRate.value)
 )
 
 const vasServices = computed(() => {

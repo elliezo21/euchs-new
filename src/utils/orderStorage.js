@@ -360,6 +360,14 @@ export async function fetchOrdersFromSupabase(options = {}) {
             shipping_info: row.shipping_info || row.tracking_info || {},
             deliveredAt: row.delivered_at || row.shipping_info?.deliveredAt || null,
             shippedAt: row.shipped_at || row.shipping_info?.shippedAt || null,
+            // 관리자 수동 수정 택배비 (first_payment JSONB 내부 우선, 없으면 undefined — calcCost에서 수량기반 추정으로 폴백)
+            chinaFreightRmb: (row.first_payment?.chinaFreightRmb !== null && row.first_payment?.chinaFreightRmb !== undefined)
+              ? Number(row.first_payment.chinaFreightRmb)
+              : (row.china_freight_rmb !== null && row.china_freight_rmb !== undefined ? Number(row.china_freight_rmb) : undefined),
+            // 승인 시점 환율 스냅샷 (quote_confirmed 이후 금액 고정용 — 없으면 undefined → 최신 설정값 폴백)
+            snapshotExchangeRate: (row.first_payment?.snapshotExchangeRate !== null && row.first_payment?.snapshotExchangeRate !== undefined)
+              ? Number(row.first_payment.snapshotExchangeRate)
+              : undefined,
             // 창고 입고 단계 VAS 신청 (WarehouseView에서 저장, fallback 없이 실제 데이터만)
             warehouseVasApplied: Array.isArray(row.warehouse_vas_applied) ? row.warehouse_vas_applied : [],
           };

@@ -65,7 +65,7 @@
         <div class="space-y-1">
           <span class="text-xs font-bold text-blue-700">실시간 기준 환율</span>
           <div class="text-2xl font-extrabold text-blue-600 font-mono">
-            ₩226.19
+            ₩{{ exchangeRate.toFixed(2) }}
           </div>
           <p class="text-[11px] text-blue-600/70">1 RMB (위안화)</p>
         </div>
@@ -74,16 +74,25 @@
         </div>
       </div>
 
-      <!-- 4. 선택 품목 예상 공급가 -->
+      <!-- 4. 선택 품목 예상 공급가 & 예상 총액 -->
       <div class="bg-white border border-gray-200 rounded-2xl p-4 sm:p-5 shadow-xs flex items-center justify-between">
-        <div class="space-y-1">
+        <div class="space-y-1 min-w-0 flex-1">
           <span class="text-xs font-bold text-emerald-700">선택 품목 공급가 합계</span>
           <div class="text-xl sm:text-2xl font-extrabold text-emerald-600 font-mono">
             ₩{{ formatNumber(selectedTotalKrw) }}
           </div>
-          <p class="text-[11px] text-emerald-600/70">약 ¥ {{ selectedTotalCny.toFixed(2) }} 위안</p>
+          <p class="text-[11px] text-emerald-600/70">약 ¥{{ selectedTotalCny.toFixed(2) }} 위안 (상품대금만)</p>
+          <div v-if="selectedItems.length > 0" class="pt-1.5 border-t border-gray-100 space-y-0.5">
+            <div class="text-[11px] text-gray-500 font-medium">예상 총액 <span class="text-gray-400">(견적서 확정)</span></div>
+            <div class="text-[11px] text-gray-600 font-mono">
+              상품 <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.itemTotalKrw) }}</b>
+              + 택배 <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
+              + 수수료 <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.agencyFeeKrw) }}</b>
+            </div>
+            <div class="text-xs font-black text-amber-600 font-mono">= ₩{{ formatNumber(selectedEstimatedCost.chargeableKrw) }}</div>
+          </div>
         </div>
-        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+        <div class="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 ml-3">
           <Calculator class="w-5 h-5" />
         </div>
       </div>
@@ -275,7 +284,7 @@
                   ¥{{ getItemUnitPriceCny(item).toFixed(2) }}
                 </div>
                 <div class="text-[11px] text-gray-400">
-                  약 ₩{{ formatNumber(Math.round(getItemUnitPriceCny(item) * 226.19)) }}원
+                  약 ₩{{ formatNumber(Math.round(getItemUnitPriceCny(item) * exchangeRate)) }}원
                 </div>
               </td>
 
@@ -360,7 +369,7 @@
             <p class="font-bold text-gray-900 truncate">{{ editingItem.titleKo || editingItem.productName }}</p>
             <p class="text-[11px] text-gray-500 font-mono mt-0.5">
               기본 단가: <b>¥{{ getItemUnitPriceCny(editingItem).toFixed(2) }}</b>
-              (약 ₩{{ formatNumber(Math.round(getItemUnitPriceCny(editingItem) * 226.19)) }}원)
+              (약 ₩{{ formatNumber(Math.round(getItemUnitPriceCny(editingItem) * exchangeRate)) }}원)
             </p>
           </div>
         </div>
@@ -433,7 +442,7 @@
                   >재고 {{ row.stock }}개</span>
                 </div>
                 <div class="text-[11px] text-gray-400 font-mono mt-0.5">
-                  ¥{{ row.priceCny.toFixed(2) }} (₩{{ formatNumber(Math.round(row.priceCny * 226.19)) }}원)
+                  ¥{{ row.priceCny.toFixed(2) }} (₩{{ formatNumber(Math.round(row.priceCny * exchangeRate)) }}원)
                 </div>
               </div>
 
@@ -463,7 +472,7 @@
                   >+</button>
                 </div>
                 <div class="w-20 text-right font-mono font-bold text-amber-600 text-xs">
-                  ₩{{ formatNumber(Math.round((row.quantity || 0) * row.priceCny * 226.19)) }}
+                  ₩{{ formatNumber(Math.round((row.quantity || 0) * row.priceCny * exchangeRate)) }}
                 </div>
               </div>
             </div>
@@ -505,6 +514,7 @@
     <OrderConfigModal
       :isOpen="isOrderConfigModalOpen"
       :items="selectedItems"
+      :exchangeRate="exchangeRate"
       @close="isOrderConfigModalOpen = false"
       @submitted="handleOrderSubmitted"
     />
@@ -546,9 +556,17 @@
             <div class="text-[11px] text-gray-500 font-medium">
               선택 품목: <b class="text-gray-900">{{ selectedItems.length }}종</b> (총 <b class="text-gray-900">{{ selectedTotalQuantity }}개</b>)
             </div>
-            <div class="text-base sm:text-lg font-black text-amber-600 font-mono">
-              합계 ₩{{ formatNumber(selectedTotalKrw) }}원
+            <div class="text-sm font-bold text-gray-700 font-mono">
+              상품대금 ₩{{ formatNumber(selectedTotalKrw) }}원
               <span class="text-xs text-gray-400 font-normal ml-1">(¥{{ selectedTotalCny.toFixed(2) }})</span>
+            </div>
+            <div v-if="selectedItems.length > 0" class="text-[11px] text-gray-500 font-mono">
+              + 택배 <b class="text-gray-700">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
+              + 수수료 <b class="text-gray-700">₩{{ formatNumber(selectedEstimatedCost.agencyFeeKrw) }}</b>
+            </div>
+            <div v-if="selectedItems.length > 0" class="text-base sm:text-lg font-black text-amber-600 font-mono">
+              <span class="text-xs font-bold text-amber-700 mr-1">= 예상 총액</span>₩{{ formatNumber(selectedEstimatedCost.chargeableKrw) }}원
+              <span class="text-[10px] text-gray-400 font-normal block sm:inline sm:ml-1">(견적서에서 확정)</span>
             </div>
           </div>
 
@@ -620,10 +638,13 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getStoredOrders, saveStoredOrders, saveNewOrder } from '@/utils/orderStorage';
 import { currentUser, getCartStorageKey, isLoggedIn } from '@/lib/auth';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
+import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
+import { krwFromCny, calcCartTotal, calcCartEstimatedCost } from '@/utils/orderCostCalculator';
 
 const router = useRouter();
+const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
 
 const searchQuery = ref('');
 const sortBy = ref('latest');
@@ -753,6 +774,7 @@ const saveCartToStorage = () => {
 
 // ---------------------------------------------------------
 // 단가 및 합계 계산 헬퍼
+// 반올림 정책: CNY 합계 → krwFromCny 1번. 품목별 소계는 표시 전용.
 // ---------------------------------------------------------
 function getItemUnitPriceCny(item) {
   return Number(item.priceCny || item.price || 15);
@@ -762,8 +784,9 @@ function getItemSubtotalCny(item) {
   return getItemUnitPriceCny(item) * (Number(item.quantity) || 1);
 }
 
+/** 품목별 소계(원화) — 정렬/개별 표시 전용. 합계는 반드시 selectedTotalKrw (CNY합산→1번환산) 사용 */
 function getItemSubtotalKrw(item) {
-  return Math.round(getItemSubtotalCny(item) * 226.19);
+  return krwFromCny(getItemSubtotalCny(item), exchangeRate.value);
 }
 
 function formatNumber(num) {
@@ -774,9 +797,14 @@ function handleImgError(e) {
   e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60';
 }
 
-// ---------------------------------------------------------
-// 수량 조절 Stepper
-// ---------------------------------------------------------
+// 수량 변경 시 item.skus[0].quantity도 동기화하는 헬퍼
+// (단일 SKU 행: skus.length===1 인 경우에만 — 다중 SKU 행은 옵션팝업으로만 편집)
+function syncSkuQty(item) {
+  if (Array.isArray(item.skus) && item.skus.length === 1) {
+    item.skus[0].quantity = item.quantity;
+  }
+}
+
 function increaseQty(item) {
   const rawStock = item.stock;
   const stock = (typeof rawStock === 'number' && !isNaN(rawStock))
@@ -788,10 +816,12 @@ function increaseQty(item) {
   if (stock !== Infinity && next > stock) {
     showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
     item.quantity = stock;
+    syncSkuQty(item);
     saveCartToStorage();
     return;
   }
   item.quantity = next;
+  syncSkuQty(item);
   saveCartToStorage();
 }
 
@@ -800,6 +830,7 @@ function decreaseQty(item) {
   const current = Number(item.quantity) || mo;
   if (current > mo) {
     item.quantity = current - 1;
+    syncSkuQty(item);
     saveCartToStorage();
   } else if (mo > 1) {
     showStockToast(`최소 주문 수량은 ${mo}개입니다.`);
@@ -822,12 +853,14 @@ function onQtyInput(item, e) {
     } else {
       item.quantity = val;
     }
+    syncSkuQty(item);
     saveCartToStorage();
   } else if (isNaN(val) || val < mo) {
     // 빈 값이거나 minOrder 미만 입력 시 minOrder로 복구
     if (mo > 1) showStockToast(`최소 주문 수량은 ${mo}개입니다.`);
     item.quantity = mo;
     e.target.value = mo;
+    syncSkuQty(item);
     saveCartToStorage();
   }
 }
@@ -1005,7 +1038,10 @@ const modalTotalQuantity = computed(() =>
 const modalTotalCny = computed(() =>
   modalSkuList.value.reduce((acc, s) => acc + ((Number(s.quantity) || 0) * s.priceCny), 0)
 );
-const modalTotalKrw = computed(() => Math.round(modalTotalCny.value * 226.19));
+const modalTotalKrw = computed(() =>
+  modalSkuList.value.reduce((acc, s) =>
+    acc + krwFromCny((Number(s.quantity) || 0) * s.priceCny, exchangeRate.value), 0)  // 확정 공식
+);
 const modalSelectedSkuCount = computed(() =>
   modalSkuList.value.filter(s => (s.quantity || 0) > 0).length
 );
@@ -1137,7 +1173,25 @@ const selectedTotalCny = computed(() => {
 });
 
 const selectedTotalKrw = computed(() => {
-  return Math.round(selectedTotalCny.value * 226.19);
+  // 품목별 krwFromCny 후 합산 (화면표시 일치 원칙 — getItemSubtotalKrw와 동일)
+  return selectedItems.value.reduce((acc, cur) => acc + krwFromCny(getItemSubtotalCny(cur), exchangeRate.value), 0);
+});
+
+// 예상 총액 계산 (수수료, 현지택배비 포함 - calcCartEstimatedCost SSOT 재사용)
+const selectedEstimatedCost = computed(() => {
+  if (selectedItems.value.length === 0) {
+    return {
+      itemTotalKrw: 0,
+      chinaFreightKrw: 0,
+      agencyFeeKrw: 0,
+      chargeableKrw: 0
+    };
+  }
+  return calcCartEstimatedCost(selectedItems.value, {
+    exchange_rate: exchangeRate.value,
+    agency_fee_rate: currentSettings.value?.agency_fee_rate,
+    sea_cbm_rate: currentSettings.value?.sea_cbm_rate
+  });
 });
 
 // ---------------------------------------------------------
@@ -1212,8 +1266,8 @@ function exportCartExcel() {
     const fileName = exportQuoteExcel(
       cartItems.value,
       { companyName: '장바구니 발주 대기 품목' },
-      226.19,
-      0.08
+      exchangeRate.value,
+      (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100
     );
     alert(`장바구니 견적서 엑셀 파일(${fileName})이 정상 다운로드되었습니다.`);
   } catch (e) {
@@ -1229,6 +1283,7 @@ onMounted(() => {
     localStorage.removeItem('euchs_cart_items');
   } catch (e) {}
 
+  fetchSiteSettings();
   loadCartItems();
   window.addEventListener('storage', loadCartItems);
   window.addEventListener('euchs:cart-updated', loadCartItems);

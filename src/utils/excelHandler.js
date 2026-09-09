@@ -1,4 +1,5 @@
 import * as XLSX from 'xlsx';
+import { krwFromCny } from '@/utils/orderCostCalculator';
 
 /**
  * 바이어용 1688 대량 발주 표준 엑셀 양식 다운로드
@@ -500,8 +501,8 @@ export function exportAdminMasterOrderExcel(order, exchangeRate = 226.19) {
     .map((item, idx) => {
       const qty      = Number(item.quantity || 1);
       const priceCny = Number(item.priceCny || 0);
-      const priceKrw = Math.round(priceCny * exchangeRate);
-      const subKrw   = priceKrw * qty;
+      const priceKrw = krwFromCny(priceCny, exchangeRate);  // 단가 원화 (표시용)
+      const subKrw   = krwFromCny(priceCny * qty, exchangeRate);  // 확정 공식
       const taxKrw   = Math.round(subKrw * TAX_RATE);
       const feeKrw   = Math.round(subKrw * AGY_RATE);
       const finalKrw = subKrw + taxKrw + feeKrw;
@@ -597,7 +598,11 @@ export function exportAdminBulkOrderExcel(orders, exchangeRate = 226.19) {
     const items  = (order.items || []).filter(i => !i.excluded);
     const totalCny = items.reduce((s, i) => s + Number(i.priceCny||0)*Number(i.quantity||1), 0);
     const totalQty = items.reduce((s, i) => s + Number(i.quantity||1), 0);
-    const totalKrw = Math.round(totalCny * exchangeRate);
+    const totalKrw = items.reduce((s, i) => {
+      const qty = Number(i.quantity || 1);
+      const pCny = Number(i.priceCny || 0);
+      return s + krwFromCny(pCny * qty, exchangeRate);  // 확정 공식
+    }, 0);
     const feeKrw   = Math.round(totalKrw * AGY_RATE);
     const finalKrw = totalKrw + feeKrw;
     const buyer    = order.buyerInfo || {};
@@ -652,8 +657,8 @@ export function exportAdminBulkOrderExcel(orders, exchangeRate = 226.19) {
       }
       const qty    = Number(item.quantity || 1);
       const pCny   = Number(item.priceCny || 0);
-      const pKrw   = Math.round(pCny * exchangeRate);
-      const subKrw = pKrw * qty;
+      const pKrw   = krwFromCny(pCny, exchangeRate);  // 단가 원화 (표시용)
+      const subKrw = krwFromCny(pCny * qty, exchangeRate);  // 확정 공식
       const feeKrw = Math.round(subKrw * AGY_RATE);
 
       rows.push([

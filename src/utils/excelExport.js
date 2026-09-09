@@ -2,6 +2,7 @@
  * EUCHS B2B 수입대행 공식 견적서 XLSX 엑셀 생성 및 다운로드 유틸리티
  */
 import * as XLSX from 'xlsx';
+import { krwFromCny, estimateFreightRmb } from '@/utils/orderCostCalculator';
 
 /**
  * 장바구니/발주 대기 품목을 공식 B2B 견적서 엑셀(.xlsx) 파일로 출력 및 다운로드
@@ -47,8 +48,8 @@ export function exportQuoteExcel(
   const itemRows = safeItems.map((item, index) => {
     const qty = Number(item.quantity || item.orderQty) || 1;
     const priceCny = Number(item.priceCny || item.price || item.unitPriceCny || item.productPriceCny) || 0;
-    const priceKrw = Math.round(priceCny * exchangeRate);
-    const subtotalKrw = priceKrw * qty;
+    const priceKrw = krwFromCny(priceCny, exchangeRate);  // 단가 원화 (표시용)
+    const subtotalKrw = krwFromCny(priceCny * qty, exchangeRate);  // 확정 공식: krwFromCny(단가×수량, rate)
     const subtotalCny = Number((priceCny * qty).toFixed(2));
     const orderNo = item.orderNumber || item.orderNo || `ORD-${dateCompact}-${String(index + 1).padStart(3, '0')}`;
     const offerId = item.id || item.offerId || item.itemId || '-';
@@ -74,11 +75,12 @@ export function exportQuoteExcel(
   });
 
   // 중국 내륙 택배비: 수량 기반 단계별 추정 (고객화면 동일 로직)
-  const chinaFreightRmb = totalQty <= 10 ? 6 : totalQty <= 30 ? 8 : totalQty <= 100 ? 10 : 12;
-  const chinaFreightKrw = Math.round(chinaFreightRmb * exchangeRate);
+  const chinaFreightRmb = estimateFreightRmb(totalQty);
+  const chinaFreightKrw = krwFromCny(chinaFreightRmb, exchangeRate);
 
-  // 수수료: (상품대금 + 중국택배비) × 수수료율
-  const agencyFeeKrw = Math.round((totalProductKrw + chinaFreightKrw) * agencyFeeRate);
+  // 수수료: 상품대금 기준만 적용 (택배비 제외), 최소 ₩10,000
+  const rawAgencyFee = Math.round(totalProductKrw * agencyFeeRate);
+  const agencyFeeKrw = Math.max(rawAgencyFee, 10000);
 
   // 해운비: 실측 CBM 있으면 사용, 없으면 미확정(0)
   const cbmNum = Number(cbm) || 0;

@@ -254,6 +254,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchSiteSettings } from '@/lib/settings'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { fetchLiveMarketRate } from '@/utils/exchangeRate'
 
 const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
 
@@ -352,18 +353,15 @@ function loadNotices() {
 }
 
 const fetchExchangeRate = async () => {
-  let liveNum = 230.0
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/CNY')
-    if (!res.ok) throw new Error('환율 API 호출 실패')
-    const data = await res.json()
-    if (data && data.rates && data.rates.KRW) {
-      liveNum = Number(data.rates.KRW.toFixed(2))
-      liveRate.value = liveNum.toFixed(2)
+    const { rate: marketRate } = await fetchLiveMarketRate(false)
+    if (marketRate !== null && !isNaN(marketRate)) {
+      liveRate.value = marketRate.toFixed(2)
+    } else {
+      liveRate.value = null
     }
   } catch (err) {
-    liveRate.value = '230.00'
-    liveNum = 230.0
+    liveRate.value = null
   }
 
   try {
@@ -372,13 +370,8 @@ const fetchExchangeRate = async () => {
       rateMode.value = settings.exchange_rate_mode || 'manual'
       rateMargin.value = Number(settings.rate_margin) || 1.5
 
-      if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
-        const calculated = Number((liveNum + rateMargin.value).toFixed(2))
-        customRate.value = String(calculated)
-      } else {
-        const fixed = Number(settings.exchange_rate) || 230
-        customRate.value = String(fixed)
-      }
+      // SSOT: 항상 관리자 설정 공식 결제환율(DB 저장값) 표시
+      customRate.value = String(Number(settings.exchange_rate) || 230)
     }
   } catch (e) {
     console.warn('CommunitySection settings fetch fallback:', e)

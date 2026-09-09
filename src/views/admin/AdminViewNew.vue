@@ -2631,6 +2631,7 @@ const get1688ProductUrl = (it) => {
 // 동일 1688 상품 기준 그룹핑 헬퍼 (Admin & Buyer 공통 로직)
 const getGroupedItems = (rawItems) => {
   if (!Array.isArray(rawItems) || rawItems.length === 0) return []
+  const exchangeRate = Number(settingsForm.value?.exchange_rate) || 200.0
 
   const groupsMap = new Map()
 
@@ -2681,12 +2682,12 @@ const getGroupedItems = (rawItems) => {
           quantity: qty,
           priceCny: price,
           totalCny: Number((qty * price).toFixed(2)),
-          totalKrw: Math.round(qty * price * 226.19)
+          totalKrw: Math.round(qty * price * exchangeRate)
         })
 
         group.totalQty += qty
         group.totalPriceCny += qty * price
-        group.totalPriceKrw += Math.round(qty * price * 226.19)
+        group.totalPriceKrw += Math.round(qty * price * exchangeRate)
       })
     } else {
       const qty = Number(it.quantity || it.qty || 1)
@@ -2701,12 +2702,12 @@ const getGroupedItems = (rawItems) => {
         quantity: qty,
         priceCny: price,
         totalCny: Number((qty * price).toFixed(2)),
-        totalKrw: Math.round(qty * price * 226.19)
+        totalKrw: Math.round(qty * price * exchangeRate)
       })
 
       group.totalQty += qty
       group.totalPriceCny += qty * price
-      group.totalPriceKrw += Math.round(qty * price * 226.19)
+      group.totalPriceKrw += Math.round(qty * price * exchangeRate)
     }
   })
 

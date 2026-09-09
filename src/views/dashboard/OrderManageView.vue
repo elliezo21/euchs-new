@@ -495,7 +495,7 @@
 
         <!-- B. 모달 본문 (CNINSIDER Reference Standard Layout: Top-to-Bottom + 2-Column bottom) -->
         <div class="p-6 sm:p-8 overflow-y-auto flex-1 space-y-6 custom-scrollbar text-xs text-gray-700 bg-slate-50/40">
-          
+
           <!-- 5. 입고 & 정밀검수 상태일 때 2차 결제 바로가기 강조 배너 -->
           <div
             v-if="activeOrder.status === 'inspection_done' || activeOrder.status === 'warehouse_in'"
@@ -812,7 +812,7 @@
                 <div class="flex items-center justify-between pb-3 border-b border-gray-100">
                   <h4 class="font-black text-gray-900 flex items-center gap-2 text-sm sm:text-base">
                     <Package class="w-5 h-5 text-amber-500" />
-                    <span>3. 발주 신청 품목 명세 (총 {{ getGroupedOrderItems(activeOrder.items).length }}개 상품)</span>
+                    <span>3. 발주 신청 품목 명세 (총 {{ getGroupedOrderItems(activeOrder.items, activeOrder).length }}개 상품)</span>
                   </h4>
                   <span class="text-xs sm:text-sm font-bold text-amber-700 font-mono bg-amber-50 border border-amber-200 px-2.5 py-0.5 rounded-full">
                     총 수량: {{ getOrderTotalQuantity(activeOrder) }}개
@@ -821,7 +821,7 @@
 
                 <div class="space-y-4 max-h-[680px] overflow-y-auto pr-1.5 custom-scrollbar">
                   <div
-                    v-for="(prod, pIdx) in getGroupedOrderItems(activeOrder.items)"
+                    v-for="(prod, pIdx) in getGroupedOrderItems(activeOrder.items, activeOrder)"
                     :key="prod.groupKey || pIdx"
                     class="p-4 sm:p-5 bg-slate-50/80 border border-gray-200 rounded-2xl space-y-3.5"
                   >
@@ -941,7 +941,7 @@
                     <span>DDP 공식 견적 & 단계별 정산</span>
                   </h4>
                   <span class="text-xs text-gray-500 font-mono bg-gray-100 px-2.5 py-0.5 rounded-full">
-                    환율: ₩226.19/CNY
+                    환율: ₩{{ Number((normalizeOrderStatus(activeOrder?.status) !== 'quote_pending' && (activeOrder?.snapshotExchangeRate ?? activeOrder?.firstPayment?.snapshotExchangeRate)) || currentSettings?.exchange_rate || 226.19).toFixed(2) }}/CNY
                   </span>
                 </div>
 
@@ -1797,6 +1797,7 @@ import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
 import { userBalance, applyBalanceTransaction } from '@/lib/balanceStore';
 import { currentUser } from '@/lib/auth';
+import { calcOrderCost, krwFromCny, resolveExchangeRate, resolveItemQty } from '@/utils/orderCostCalculator';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 
@@ -2114,97 +2115,29 @@ const stepperCounts = computed(() => {
 });
 
 // ---------------------------------------------------------
-// 안전한 원가 계산 헬퍼 (getOrderCostSummary - 제외 품목 차감 연동)
+// 안전한 원가 계산 헬퍼 — 공용 orderCostCalculator 래퍼
+// 반환 필드명은 기존 템플릿 호환을 위해 유지
 // ---------------------------------------------------------
 function getOrderCostSummary(order) {
-  if (!order || !Array.isArray(order.items) || order.items.length === 0) {
-    return {
-      totalDdpKrw: 0,
-      chargeableKrw: 0,
-      itemTotalCny: 0,
-      itemTotalKrw: 0,
-      avgPriceCny: 0,
-      cbm: 0,
-      shippingFeeKrw: 0,
-      shippingConfirmed: false,
-      tariffKrw: 0,
-      vatKrw: 0,
-      agencyFeeKrw: 0,
-      chinaFreightKrw: 0,
-      unitDdpKrw: 0
-    };
-  }
-
-  let totalCny = 0;
-  let totalQty = 0;
-
-  order.items.forEach((it) => {
-    // 관리자가 제외 처리한 품목은 DDP 계산에서 차감/제외
-    if (it.excluded) return;
-
-    const q = Number(it.quantity) || 1;
-    const p = Number(it.priceCny || it.price || it.unitPriceCny) || 0;
-    totalQty += q;
-    totalCny += p * q;
+  const r = calcOrderCost(order, {
+    exchange_rate: currentSettings.value?.exchange_rate,
+    agency_fee_rate: currentSettings.value?.agency_fee_rate,
+    sea_cbm_rate: currentSettings.value?.sea_cbm_rate,
   });
-
-  const avgPriceCny = totalQty > 0 ? totalCny / totalQty : 0;
-  // site_settings 연동 (fallback: 하드코딩 기본값)
-  const exchangeRate = Number(currentSettings.value?.exchange_rate) || 226.19;
-  const seaCbmRate  = Number(currentSettings.value?.sea_cbm_rate)  || 98000;
-  const agencyRate  = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
-
-  // ── 5-B 실측 CBM 확인 (measuredData.cbm 또는 measuredData.box.cbm) ──
-  const md = order.measuredData || order.measured_data || {};
-  const measuredCbm = Number(md.cbm || md.box?.cbm || 0);
-  const shippingConfirmed = measuredCbm > 0; // 실측값 존재 여부
-
-  // 해운비: 5-B 완료(실측 CBM 있음)이면 실측값 기반, 아니면 0(미확정)
-  const cbm = shippingConfirmed ? Number(measuredCbm.toFixed(4)) : 0;
-  const shippingFeeKrw = shippingConfirmed ? Math.round(cbm * seaCbmRate) : 0;
-
-  // 상품 대금 원화 환산
-  const itemTotalKrw = Math.round(totalCny * exchangeRate);
-
-  // 이우 물류센터 기준 중국 내 배송비 추정 (areaCode: 330782)
-  let chinaFreightRmb = 0;
-  if (totalQty > 0) {
-    if (totalQty < 10) chinaFreightRmb = 6;
-    else if (totalQty < 50) chinaFreightRmb = 8;
-    else if (totalQty < 100) chinaFreightRmb = 12;
-    else chinaFreightRmb = totalQty * 0.12;
-  }
-  const chinaFreightKrw = Math.round(chinaFreightRmb * exchangeRate);
-
-  // 수수료: (상품 대금 + 중국 현지 택배비) × 수수료율 (settings 연동)
-  const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * agencyRate);
-
-  // 관세·부가세 추정 (참고용 — 세관 직납, 당사 청구 대상 아님)
-  const dutiableValueKrw = itemTotalKrw + shippingFeeKrw;
-  const tariffKrw = Math.round(dutiableValueKrw * 0.08);
-  const vatKrw = Math.round((dutiableValueKrw + tariffKrw) * 0.10);
-
-  // 실제 당사 청구액: 상품대금 + 중국택배비 + 수수료 + 해운비 (관세·부가세 제외 — 세관 직납)
-  const chargeableKrw = itemTotalKrw + chinaFreightKrw + agencyFeeKrw + shippingFeeKrw;
-
-  // 참고용 DDP 총 예상비용: 세관 직납분(관세+VAT) 포함 총액 (화면 "DDP 견적 총괄" 섹션 전용)
-  const totalDdpKrw = chargeableKrw + tariffKrw + vatKrw;
-  const unitDdpKrw = totalQty > 0 ? Math.round(totalDdpKrw / totalQty) : 0;
-
   return {
-    avgPriceCny: Number(avgPriceCny.toFixed(2)),
-    itemTotalCny: Number(totalCny.toFixed(2)),
-    itemTotalKrw,
-    chinaFreightKrw,
-    agencyFeeKrw,
-    cbm,
-    shippingFeeKrw,
-    shippingConfirmed,
-    tariffKrw,
-    vatKrw,
-    chargeableKrw,  // 실제 당사 청구액 (관세·부가세 제외)
-    totalDdpKrw,    // 참고용 DDP 총액 (관세·부가세 포함, 화면 참고용 섹션 전용)
-    unitDdpKrw
+    avgPriceCny: r.avgPriceCny,
+    itemTotalCny: r.itemTotalCny,
+    itemTotalKrw: r.itemTotalKrw,
+    chinaFreightKrw: r.chinaFreightKrw,
+    agencyFeeKrw: r.agencyFeeKrw,
+    cbm: r.cbm,
+    shippingFeeKrw: r.shippingFeeKrw,
+    shippingConfirmed: r.shippingConfirmed,
+    tariffKrw: r.tariffKrw,
+    vatKrw: r.vatKrw,
+    chargeableKrw: r.chargeableKrw,
+    totalDdpKrw: r.totalDdpKrw,
+    unitDdpKrw: r.unitDdpKrw,
   };
 }
 
@@ -2234,8 +2167,11 @@ function formatSkuText(it) {
   return '기본 규격';
 }
 
-function getGroupedOrderItems(rawItems) {
+function getGroupedOrderItems(rawItems, order = null) {
   if (!Array.isArray(rawItems) || rawItems.length === 0) return [];
+  // 환율: resolveExchangeRate SSOT 사용 — getOrderCostSummary와 동일한 환율 보장
+  const settingsRate = Number(currentSettings.value?.exchange_rate) || 200.0;
+  const exchangeRate = resolveExchangeRate(order, settingsRate);
 
   const groupsMap = new Map();
 
@@ -2295,18 +2231,18 @@ function getGroupedOrderItems(rawItems) {
           quantity: qty,
           priceCny: price,
           totalCny: Number((qty * price).toFixed(2)),
-          totalKrw: Math.round(qty * price * 226.19),
+          totalKrw: krwFromCny(qty * price, exchangeRate),
           excluded: isSkuExcluded,
           excludeReason: skuReason
         });
 
         group.totalQty += qty;
         group.totalPriceCny += qty * price;
-        group.totalPriceKrw += Math.round(qty * price * 226.19);
+        group.totalPriceKrw += krwFromCny(qty * price, exchangeRate);
 
         if (!isSkuExcluded) {
           group.validQty += qty;
-          group.validTotalPriceKrw += Math.round(qty * price * 226.19);
+          group.validTotalPriceKrw += krwFromCny(qty * price, exchangeRate);
         }
       });
     } else {
@@ -2321,18 +2257,18 @@ function getGroupedOrderItems(rawItems) {
         quantity: qty,
         priceCny: price,
         totalCny: Number((qty * price).toFixed(2)),
-        totalKrw: Math.round(qty * price * 226.19),
+        totalKrw: krwFromCny(qty * price, exchangeRate),
         excluded: isItemExcluded,
         excludeReason: itemReason
       });
 
       group.totalQty += qty;
       group.totalPriceCny += qty * price;
-      group.totalPriceKrw += Math.round(qty * price * 226.19);
+      group.totalPriceKrw += krwFromCny(qty * price, exchangeRate);
 
       if (!isItemExcluded) {
         group.validQty += qty;
-        group.validTotalPriceKrw += Math.round(qty * price * 226.19);
+        group.validTotalPriceKrw += krwFromCny(qty * price, exchangeRate);
       }
     }
   });
@@ -2743,7 +2679,7 @@ function getItemsCount(order) {
 function getOrderTotalQuantity(order) {
   if (!Array.isArray(order?.items)) return 1;
   const validItems = order.items.filter(i => !i.excluded);
-  return validItems.reduce((acc, cur) => acc + (Number(cur.quantity) || 1), 0);
+  return validItems.reduce((acc, cur) => acc + resolveItemQty(cur), 0);
 }
 
 function formatNumber(num) {
@@ -3087,10 +3023,16 @@ function exportSelectedQuotes() {
   });
 
   try {
+    const firstOrder = targetOrders[0];
+    const snapshotRate = firstOrder?.snapshotExchangeRate ?? firstOrder?.firstPayment?.snapshotExchangeRate;
+    const settingsRate = Number(currentSettings.value?.exchange_rate) || 226.19;
+    const isApproved = firstOrder ? normalizeOrderStatus(firstOrder.status) !== 'quote_pending' : false;
+    const exportRate = (isApproved && snapshotRate !== undefined && snapshotRate !== null && !isNaN(Number(snapshotRate)))
+      ? Number(snapshotRate) : settingsRate;
     const fileName = exportQuoteExcel(
       allItems,
       targetOrders[0]?.buyerInfo || defaultBuyerInfo,
-      Number(currentSettings.value?.exchange_rate) || 226.19,
+      exportRate,
       (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100
     );
     alert(`선택된 ${targetOrders.length}건의 공식 견적서(${fileName})가 다운로드되었습니다.`);
@@ -3103,6 +3045,11 @@ function exportSelectedQuotes() {
 function exportSingleQuote(order) {
   if (!order) return;
   try {
+    const snapshotRate = order.snapshotExchangeRate ?? order.firstPayment?.snapshotExchangeRate;
+    const settingsRate = Number(currentSettings.value?.exchange_rate) || 226.19;
+    const isApproved = normalizeOrderStatus(order.status) !== 'quote_pending';
+    const exportRate = (isApproved && snapshotRate !== undefined && snapshotRate !== null && !isNaN(Number(snapshotRate)))
+      ? Number(snapshotRate) : settingsRate;
     const items = (order.items || []).map(it => ({
       ...it,
       orderNo: order.orderNumber,
@@ -3111,7 +3058,7 @@ function exportSingleQuote(order) {
     exportQuoteExcel(
       items,
       order.buyerInfo || defaultBuyerInfo,
-      Number(currentSettings.value?.exchange_rate) || 226.19,
+      exportRate,
       (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100,
       Number(currentSettings.value?.sea_cbm_rate) || 98000,
       Number(order.measuredData?.cbm) || null

@@ -559,8 +559,8 @@ const userDropdownRef = ref(null)
 const savedCount = ref(0)
 
 // Exchange rate state
-const customExchangeRate = ref(226.19)
-const liveMarketRate = ref(206.19)
+const customExchangeRate = ref(200.0)
+const liveMarketRate = ref(200.0)
 
 const loadRates = async () => {
   try {

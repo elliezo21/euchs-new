@@ -156,13 +156,23 @@
               <div class="space-y-1.5">
                 <div class="flex items-center justify-between">
                   <label class="text-xs font-bold text-slate-700">실시간 기준 고시환율 (KRW/CNY)</label>
-                  <button
-                    type="button"
-                    @click="refreshLiveRate"
-                    class="text-[11px] text-blue-600 hover:underline font-bold flex items-center gap-0.5 cursor-pointer"
-                  >
-                    <span>갱신 ↻</span>
-                  </button>
+                  <div class="flex items-center gap-1.5">
+                    <select
+                      v-model="rateForm.refreshInterval"
+                      class="h-6 text-[11px] font-medium text-slate-700 bg-white border border-slate-300 rounded-md px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
+                      title="실시간 고시환율 캐시 자동 갱신 주기"
+                    >
+                      <option value="daily">매일 (자정)</option>
+                      <option value="weekly">매주 (월요일)</option>
+                    </select>
+                    <button
+                      type="button"
+                      @click="refreshLiveRate"
+                      class="text-[11px] text-blue-600 hover:underline font-bold flex items-center gap-0.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <span>갱신 ↻</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="relative">
                   <input
@@ -1017,7 +1027,7 @@ import {
   saveSiteSettings,
   isVideoMedia
 } from '@/lib/settings'
-import { fetchLiveMarketRate } from '@/utils/exchangeRate'
+import { fetchLiveMarketRate, setRefreshInterval } from '@/utils/exchangeRate'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const activeTab = ref('rate') // 'rate' | 'media' | 'staff'
@@ -1372,10 +1382,11 @@ async function executeRevokeStaffRole() {
 // ----------------------------------------------------
 const DEFAULT_RATE_SETTINGS = {
   exchangeRateMode: 'auto', // 'auto' | 'manual'
-  manualRate: 231.0,
-  baseLiveRate: 206.19,
-  rateMargin: 20.0,
-  appliedRate: 226.19,
+  refreshInterval: 'daily', // 'daily' | 'weekly' — 자동 갱신 주기
+  manualRate: 200.0,
+  baseLiveRate: 200.0,
+  rateMargin: 1.5,
+  appliedRate: 201.5,
   agencyFeeRate: 8,
   minAgencyFee: 10000,
   oceanFreightPerCbm: 98000,
@@ -1491,7 +1502,7 @@ const parsedHeroEmbed = computed(() => {
 
 async function refreshLiveRate() {
   showToast('실시간 고시환율 조회 중...');
-  const market = await fetchLiveMarketRate();
+  const { rate: market } = await fetchLiveMarketRate(true); // forceRefresh: 캐시 무시하고 즉시 API 호출 (갱신↻ 버튼 전용)
   if (market !== null) {
     rateForm.value.baseLiveRate = market;
     showToast(`실시간 고시환율이 갱신되었습니다. (₩${market} / CNY, open.er-api.com)`);
@@ -1540,7 +1551,7 @@ function handleHeroFileUpload(e) {
 // 데이터 로드 & 저장
 // ----------------------------------------------------
 async function loadAllSettings() {
-  // 1. 환율 설정 로드
+  // 1. localStorage 1차 복원 (즉각 UI 렌더링)
   try {
     const rawRate = localStorage.getItem(RATE_STORAGE_KEY)
     if (rawRate) {
@@ -1552,10 +1563,22 @@ async function loadAllSettings() {
     console.warn('Failed to load rate settings:', e)
   }
 
-  // 2. 사이트 설정 및 서비스 카드 미디어 로드
+  // 2. Supabase site_settings 로드 & 최신 실시간 고시환율 자동 동기화
   try {
     const settings = await fetchSiteSettings()
     if (settings) {
+      // 환율 설정 DB 값 동기화
+      rateForm.value.exchangeRateMode = settings.exchange_rate_mode === 'manual' ? 'manual' : 'auto'
+      rateForm.value.rateMargin = Number(settings.rate_margin) !== undefined && !isNaN(Number(settings.rate_margin)) ? Number(settings.rate_margin) : 1.5
+      rateForm.value.manualRate = Number(settings.exchange_rate) || 200.0
+      if (settings.exchange_rate_refresh_interval) {
+        rateForm.value.refreshInterval = settings.exchange_rate_refresh_interval
+      }
+      if (settings.agency_fee_rate !== undefined) rateForm.value.agencyFeeRate = Number(settings.agency_fee_rate) || 8.0
+      if (settings.sea_cbm_rate !== undefined) rateForm.value.oceanFreightPerCbm = Number(settings.sea_cbm_rate) || 98000
+      if (settings.customs_clearance_fee !== undefined) rateForm.value.customsBrokerFee = Number(settings.customs_clearance_fee) || 33000
+      if (settings.fta_co_fee !== undefined) rateForm.value.ftaCoIssuanceFee = Number(settings.fta_co_fee) || 33000
+
       // Hero 배경 로드
       heroForm.value.hero_media_type = settings.hero_media_type || 'video_mp4'
       heroForm.value.hero_media_url = settings.hero_media_url || ''
@@ -1573,6 +1596,33 @@ async function loadAllSettings() {
     }
   } catch (e) {
     console.warn('Failed to load site settings from lib:', e)
+  }
+
+  // 3. 실시간 고시환율 로드:
+  //    - 캐시 히트(fromCache=true): 오늘 이미 조회된 값 → baseLiveRate UI 업데이트
+  //    - API 신규 호출(fromCache=false): 자정 이후 새날 첫 방문, 또는 캐시 없음
+  //      → 새 값을 캐시에 저장하지만 baseLiveRate UI는 DB 기반값(exchange_rate - rate_margin)을 유지
+  //      → 관리자가 "갱신↻" 버튼을 명시적으로 눌러야만 UI에 반영
+  try {
+    const { rate: liveMarket, fromCache } = await fetchLiveMarketRate(false)
+    if (liveMarket !== null && !isNaN(liveMarket)) {
+      if (fromCache) {
+        // 오늘 캐시값 → UI에 바로 반영 (하루 종일 고정값이므로 안전)
+        rateForm.value.baseLiveRate = liveMarket
+      } else {
+        // 자정 이후 API 신규 호출 → 캐시 저장은 됐지만 UI는 DB값 기반으로 복원
+        // (관리자가 저장 버튼을 명시적으로 누르기 전까지 DB의 exchange_rate를 건드리지 않음)
+        const dbExchangeRate = Number(rateForm.value.manualRate) || 200.0
+        const dbMargin = Number(rateForm.value.rateMargin) || 1.5
+        // DB에 이미 저장된 baseLiveRate 역산값으로 복원 (exchange_rate - margin)
+        const dbBasedLiveRate = Math.round((dbExchangeRate - dbMargin) * 100) / 100
+        rateForm.value.baseLiveRate = dbBasedLiveRate
+        // 새 캐시값은 참고용 토스트로만 알림 (UI를 몰래 바꾸지 않음)
+        console.info(`[환율 자동갱신] 새 고시환율 ${liveMarket}원이 캐시에 저장됨. UI 반영은 "갱신↻" 버튼을 눌러주세요.`)
+      }
+    }
+  } catch (e) {
+    console.warn('Auto fetch live market rate error:', e)
   }
 }
 
@@ -1599,11 +1649,14 @@ async function saveRateSettings() {
       exchange_rate_mode: rateForm.value.exchangeRateMode === 'auto' ? 'auto_margin' : 'manual',
       exchange_rate: appliedRate,
       rate_margin: Number(rateForm.value.rateMargin) || 1.5,
+      exchange_rate_refresh_interval: rateForm.value.refreshInterval || 'daily',
       agency_fee_rate: Number(rateForm.value.agencyFeeRate) || 8.0,
       sea_cbm_rate: Number(rateForm.value.oceanFreightPerCbm) || 98000,
       customs_clearance_fee: Number(rateForm.value.customsBrokerFee) || 33000,
       fta_co_fee: Number(rateForm.value.ftaCoIssuanceFee) || 33000,
     })
+    // 환율 캐시 주기도 즉시 반영 (exchangeRate.js localStorage 동기 업데이트)
+    setRefreshInterval(rateForm.value.refreshInterval || 'daily')
     showToast('환율 및 운영 수수료 설정이 저장되었습니다. (Supabase DB 반영 완료)')
   } catch (err) {
     console.error('[AdminSettings] saveRateSettings DB error:', err)

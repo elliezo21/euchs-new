@@ -14,7 +14,7 @@
     class="fixed inset-0 z-[130] flex items-start justify-center pt-20 pb-28 px-4 bg-black/70 backdrop-blur-xs animate-fade-in h-full"
     @click.self="handleClose"
   >
-    <div class="bg-white rounded-3xl max-w-3xl w-full shadow-2xl max-h-full overflow-hidden flex flex-col">
+    <div class="bg-white rounded-3xl max-w-5xl w-full shadow-2xl max-h-full overflow-hidden flex flex-col">
       <div class="p-6 sm:p-8 space-y-6 overflow-y-auto text-sm text-gray-700 flex-1 custom-modal-scroll">
         <!-- 모달 헤더 -->
         <div class="flex items-center justify-between pb-4 border-b border-gray-200">
@@ -43,6 +43,45 @@
           >
             <X class="w-5 h-5" />
           </button>
+        </div>
+
+        <!-- 발주 품목 목록 섹션 -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="font-bold text-gray-900 text-sm">📦 발주 대상 품목</span>
+            <span class="text-xs text-gray-400">총 {{ items.length }}종 {{ totalQuantity }}개</span>
+          </div>
+          <div class="border border-gray-200 rounded-2xl overflow-hidden">
+            <table class="w-full text-xs">
+              <thead class="bg-gray-50 border-b border-gray-200">
+                <tr>
+                  <th class="text-left px-3 py-2 font-bold text-gray-600">상품명 / 옵션</th>
+                  <th class="text-center px-3 py-2 font-bold text-gray-600 w-14">수량</th>
+                  <th class="text-right px-3 py-2 font-bold text-gray-600 w-24">단가</th>
+                  <th class="text-right px-3 py-2 font-bold text-gray-600 w-28">소계</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-gray-100">
+                <tr v-for="item in items" :key="item.id || item.specId" class="hover:bg-gray-50/50">
+                  <td class="px-3 py-2.5">
+                    <div class="font-medium text-gray-900 leading-snug line-clamp-1">{{ item.titleKo || item.productName || '1688 상품' }}</div>
+                    <div v-if="item.sku || item.optionName" class="text-gray-400 text-[11px] mt-0.5">{{ item.sku || item.optionName }}</div>
+                  </td>
+                  <td class="px-3 py-2.5 text-center font-mono text-gray-700">{{ item.quantity }}</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-gray-700">¥{{ Number(item.priceCny || item.price || 0).toFixed(2) }}</td>
+                  <td class="px-3 py-2.5 text-right font-mono font-bold text-gray-900">
+                    ₩{{ formatNumber(getItemSubtotalKrw(item)) }}
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot class="bg-gray-50 border-t border-gray-200">
+                <tr>
+                  <td colspan="3" class="px-3 py-2 text-right text-xs font-bold text-gray-600">상품대금 합계</td>
+                  <td class="px-3 py-2 text-right font-mono font-black text-gray-900">₩{{ formatNumber(totalKrw) }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
         </div>
 
         <!-- 1. 통관 방식 선택 (버튼 토글) -->
@@ -267,19 +306,29 @@
           </div>
         </div>
 
-        <!-- 5. 선택 품목 요약 박스 -->
-        <div class="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl flex items-center justify-between">
-          <div>
-            <span class="text-gray-600 font-medium text-sm">발주 대상 품목</span>
-            <div class="font-bold text-gray-900 font-mono text-base mt-1">
-              총 {{ items.length }}종 ({{ totalQuantity }}개)
+        <!-- 5. 예상 총액 breakdown 박스 -->
+        <div class="p-4 bg-amber-50/70 border border-amber-200 rounded-2xl">
+          <div class="font-bold text-amber-900 text-xs mb-3">💰 예상 결제 금액 (견적서에서 최종 확정)</div>
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
+              <div class="text-[10px] text-gray-500 font-medium mb-1">상품대금</div>
+              <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.itemTotalKrw) }}</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.itemTotalCny?.toFixed(2) }}</div>
             </div>
-          </div>
-          <div class="text-right">
-            <span class="text-gray-600 font-medium text-sm">1688 예상 상품대금</span>
-            <div class="text-lg font-black text-amber-600 font-mono mt-1">
-              ₩{{ formatNumber(totalKrw) }}원
-              <span class="text-sm text-gray-400 font-normal ml-1">(¥{{ totalCny.toFixed(2) }})</span>
+            <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
+              <div class="text-[10px] text-gray-500 font-medium mb-1">예상 택배비</div>
+              <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.chinaFreightKrw) }}</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.chinaFreightRmb?.toFixed(2) }}</div>
+            </div>
+            <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
+              <div class="text-[10px] text-gray-500 font-medium mb-1">구매대행 수수료</div>
+              <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.agencyFeeKrw) }}</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">상품대금 × 8%</div>
+            </div>
+            <div class="bg-amber-100 border border-amber-300 rounded-xl p-3 text-center">
+              <div class="text-[10px] text-amber-800 font-bold mb-1">예상 총액</div>
+              <div class="font-black text-amber-700 font-mono text-base">₩{{ formatNumber(estimatedCost.chargeableKrw) }}</div>
+              <div class="text-[10px] text-amber-600 mt-0.5">* 견적서에서 확정</div>
             </div>
           </div>
         </div>
@@ -400,10 +449,21 @@
               <span class="font-bold text-gray-800 font-mono text-sm">¥{{ successOrderData.totalCny }}</span>
             </div>
 
-            <!-- 결제 예상 금액 -->
+            <!-- 1688 상품대금 -->
             <div class="flex items-center justify-between px-4 py-3">
-              <span class="text-xs text-gray-500 font-medium">결제 예상 금액 (KRW)</span>
-              <span class="font-black text-amber-600 font-mono text-base">₩{{ formatNumber(successOrderData.totalKrw) }}원</span>
+              <span class="text-xs text-gray-500 font-medium">예상 상품대금 (KRW)</span>
+              <span class="font-bold text-gray-800 font-mono text-sm">₩{{ formatNumber(successOrderData.totalKrw) }}원</span>
+            </div>
+
+            <!-- 예상 총액 (수수료·택배비 포함) -->
+            <div class="flex items-center justify-between px-4 py-3 bg-amber-50/50">
+              <div>
+                <span class="text-xs text-amber-900 font-bold block">예상 총 결제금액</span>
+                <span class="text-[10px] text-amber-700 font-normal block">(수수료·택배비 포함, 견적서 확정)</span>
+              </div>
+              <span class="font-black text-amber-600 font-mono text-base">
+                ₩{{ formatNumber(successOrderData.estimatedChargeableKrw || successOrderData.totalKrw) }}원
+              </span>
             </div>
           </div>
 
@@ -457,6 +517,9 @@ import { currentUser, currentUserBizInfo, getCartStorageKey } from '@/lib/auth';
 import { saveNewOrder } from '@/utils/orderStorage';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 
+import { currentSettings, fetchSiteSettings } from '@/lib/settings';
+import { krwFromCny, calcCartEstimatedCost } from '@/utils/orderCostCalculator';
+
 const props = defineProps({
   isOpen: {
     type: Boolean,
@@ -468,8 +531,12 @@ const props = defineProps({
   },
   exchangeRate: {
     type: Number,
-    default: 226.19
+    default: 0
   }
+});
+
+const effectiveRate = computed(() => {
+  return Number(props.exchangeRate) || Number(currentSettings.value?.exchange_rate) || 200.0;
 });
 
 const emit = defineEmits(['close', 'submitted']);
@@ -548,6 +615,7 @@ watch(
 );
 
 // 계산 헬퍼
+// 반올림 정책: CNY 합계를 먼저 구한 뒤 krwFromCny로 1번만 환산
 function getItemUnitPriceCny(item) {
   return Number(item.priceCny || item.price || 15);
 }
@@ -556,8 +624,9 @@ function getItemSubtotalCny(item) {
   return getItemUnitPriceCny(item) * (Number(item.quantity) || 1);
 }
 
+/** 품목별 소계(원화) — 행 표시 전용. 합계는 totalKrw(CNY합산→1번환산) 사용 */
 function getItemSubtotalKrw(item) {
-  return Math.round(getItemSubtotalCny(item) * props.exchangeRate);
+  return krwFromCny(getItemSubtotalCny(item), effectiveRate.value);
 }
 
 function formatNumber(num) {
@@ -583,8 +652,26 @@ const totalCny = computed(() => {
   return props.items.reduce((sum, it) => sum + getItemSubtotalCny(it), 0);
 });
 
+// 반올림 정책: 품목별 krwFromCny 합산 (화면표시 일치 원칙 — getItemSubtotalKrw와 동일)
 const totalKrw = computed(() => {
-  return props.items.reduce((sum, it) => sum + getItemSubtotalKrw(it), 0);
+  return props.items.reduce((sum, it) => sum + krwFromCny(getItemSubtotalCny(it), effectiveRate.value), 0);
+});
+
+// 예상 총액 계산 (수수료, 현지택배비 포함 - calcCartEstimatedCost SSOT 재사용)
+const estimatedCost = computed(() => {
+  if (!props.items || props.items.length === 0) {
+    return {
+      itemTotalKrw: 0,
+      chinaFreightKrw: 0,
+      agencyFeeKrw: 0,
+      chargeableKrw: 0
+    };
+  }
+  return calcCartEstimatedCost(props.items, {
+    exchange_rate: effectiveRate.value,
+    agency_fee_rate: currentSettings.value?.agency_fee_rate,
+    sea_cbm_rate: currentSettings.value?.sea_cbm_rate
+  });
 });
 
 const handleClose = () => {
@@ -673,13 +760,22 @@ const handleSubmit = async () => {
         productUrl: it.productUrl || it.detailUrl || '',
         titleKo: it.titleKo || it.productName || '',
         titleZh: it.titleZh || '',
-        quantity: it.quantity || 1,
+        quantity: (() => {
+          // 저장 시 quantity를 skus 합계로 정규화 — 스테퍼 미동기화 방어
+          if (Array.isArray(it.skus) && it.skus.length > 0) {
+            const skuSum = it.skus.reduce((s, sk) => s + (Number(sk.quantity || sk.qty) || 0), 0);
+            if (skuSum > 0) return skuSum;
+          }
+          return it.quantity || 1;
+        })(),
         priceCny: getItemUnitPriceCny(it),
         cbm: 0,
         // ── seller 정보 (1688 공급사) ──
         company: it.company || it.sellerName || '',
         sellerId: it.sellerId || it.memberId || it.shopId || '',
         sellerName: it.sellerName || it.company || '',
+        // ── 중국 현지 운임 (1688 등록값 pass-through, null=정보없음, 0=包邮) ──
+        freight: it.freight ?? null,
       })),
       totalPriceKrw: targetItems.reduce((sum, it) => sum + getItemSubtotalKrw(it), 0),
       totalPriceRmb: targetItems.reduce((sum, it) => sum + getItemSubtotalCny(it), 0)
@@ -740,8 +836,13 @@ const handleSubmit = async () => {
 
     // 5. 완료 모달에 표시할 데이터 세팅 후 표시
     const computedTotalCny = targetItems.reduce((sum, it) => sum + getItemSubtotalCny(it), 0);
-    const computedTotalKrw = targetItems.reduce((sum, it) => sum + getItemSubtotalKrw(it), 0);
+    const computedTotalKrw = targetItems.reduce((sum, it) => sum + krwFromCny(getItemSubtotalCny(it), effectiveRate.value), 0);
     const computedTotalQty = targetItems.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
+    const computedEstimated = calcCartEstimatedCost(targetItems, {
+      exchange_rate: effectiveRate.value,
+      agency_fee_rate: currentSettings.value?.agency_fee_rate,
+      sea_cbm_rate: currentSettings.value?.sea_cbm_rate
+    });
 
     successOrderData.value = {
       orderNumber: finalOrderNumber,
@@ -751,7 +852,8 @@ const handleSubmit = async () => {
       })),
       totalQty: computedTotalQty,
       totalCny: computedTotalCny.toFixed(2),
-      totalKrw: computedTotalKrw
+      totalKrw: computedTotalKrw,
+      estimatedChargeableKrw: computedEstimated.chargeableKrw
     };
     showSuccessModal.value = true;
 

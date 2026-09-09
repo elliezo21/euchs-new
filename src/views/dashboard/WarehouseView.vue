@@ -1234,7 +1234,7 @@
                 <h4 class="font-bold text-sm text-gray-900">3. 💳 2차 결제 청구 명세서 (선적 전 최종 정산)</h4>
               </div>
               <span class="text-xs text-gray-500 font-mono">
-                기준 환율: <b>226.19원 / 1 CNY</b>
+                기준 환율: <b>{{ activeOrderExchangeRate.toFixed(2) }}원 / 1 CNY</b>
               </span>
             </div>
 
@@ -1427,8 +1427,18 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
 import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
+import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 
 const route = useRoute();
+
+const activeOrderExchangeRate = computed(() => {
+  const o = activeOrder.value;
+  const snapshot = o?.snapshotExchangeRate ?? o?.firstPayment?.snapshotExchangeRate;
+  if (snapshot !== undefined && snapshot !== null && !isNaN(Number(snapshot))) {
+    return Number(snapshot);
+  }
+  return Number(currentSettings.value?.exchange_rate) || 200.0;
+});
 
 // ---------------------------------------------------------
 // 4단계 탭 필터 정의 (AdminOrderManageView PIPELINE_STAGES 패턴 재사용)
@@ -1578,6 +1588,7 @@ const reloadData = async () => {
 
 
 onMounted(() => {
+  fetchSiteSettings();
   reloadData();
   loadBalance(); // 예치금 잔액 초기 로드 (Supabase → localStorage 폴백)
   window.addEventListener('euchs-warehouse-update', reloadData);

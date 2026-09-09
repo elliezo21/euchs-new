@@ -37,6 +37,40 @@ export const isValidUUID = (str) => {
   return uuidRegex.test(str.trim())
 }
 
+/**
+ * Edge "Tracking Prevention" / Safari ITP 대응 스토리지 래퍼
+ * - localStorage 접근 가능하면 그대로 사용
+ * - 차단된 경우(보안 정책, 트래킹 방지 등) sessionStorage로 자동 폴백
+ * - 세션 만료 전까지 로그인 유지 가능 (탭 닫으면 재로그인 필요)
+ */
+function createSafeStorage() {
+  // localStorage 접근 가능한지 테스트
+  const canUseLocalStorage = (() => {
+    try {
+      const testKey = '__euchs_storage_test__';
+      window.localStorage.setItem(testKey, '1');
+      window.localStorage.removeItem(testKey);
+      return true;
+    } catch {
+      return false;
+    }
+  })();
+
+  const store = canUseLocalStorage ? window.localStorage : window.sessionStorage;
+
+  return {
+    getItem: (key) => {
+      try { return store.getItem(key); } catch { return null; }
+    },
+    setItem: (key, value) => {
+      try { store.setItem(key, value); } catch { /* 무시 */ }
+    },
+    removeItem: (key) => {
+      try { store.removeItem(key); } catch { /* 무시 */ }
+    },
+  };
+}
+
 // Supabase Client Export (항상 cache: 'no-store' 및 no-cache 헤더로 실시간 최신 데이터 동기화)
 export const supabase = createClient(
   supabaseUrl,
@@ -46,7 +80,7 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storage: window.localStorage
+      storage: createSafeStorage()  // Edge/Safari 트래킹 방지 대응 — localStorage 불가시 sessionStorage 폴백
     },
     global: {
       headers: {

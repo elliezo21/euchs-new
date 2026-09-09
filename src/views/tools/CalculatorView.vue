@@ -687,6 +687,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchSiteSettings, DEFAULT_SETTINGS } from '@/lib/settings'
+import { fetchLiveMarketRate } from '@/utils/exchangeRate'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { currentUser, userDisplayName } from '@/lib/auth'
 
@@ -819,19 +820,16 @@ const exchangeRateModeBadgeText = computed(() => {
 const reloadSettingsAndRates = async () => {
   isFetchingRate.value = true
   try {
-    // 1. 실시간 시장 환율 참고치 로드
-    let fetchedLiveRate = 230.0
+    // 1. 실시간 기준 고시환율 (참고치) 로드
+    let fetchedLiveRate = 200.0
     try {
-      const res = await fetch('https://open.er-api.com/v6/latest/CNY')
-      if (res.ok) {
-        const data = await res.json()
-        if (data?.rates?.KRW) {
-          fetchedLiveRate = Number(data.rates.KRW.toFixed(2))
-          liveMarketRate.value = fetchedLiveRate
-        }
+      const { rate: market } = await fetchLiveMarketRate(false)
+      if (market !== null && !isNaN(market)) {
+        fetchedLiveRate = market
+        liveExchangeRate.value = market
       }
     } catch (e) {
-      console.warn('Live rate API fetch fallback:', e)
+      console.warn('Live rate fetch error:', e)
     }
 
     // 2. Supabase site_settings에서 관리자 설정값 불러오기
@@ -844,15 +842,8 @@ const reloadSettingsAndRates = async () => {
       customsClearanceFee.value = Number(settings.customs_clearance_fee) || DEFAULT_SETTINGS.customs_clearance_fee
       ftaCoFee.value = Number(settings.fta_co_fee) || DEFAULT_SETTINGS.fta_co_fee
 
-      // 모드별 환율 자동 계산 및 적용
-      if (exchangeRateMode.value === 'auto_margin') {
-        // 실시간 환율 + 관리자 마진
-        const calculatedRate = Number((fetchedLiveRate + rateMargin.value).toFixed(1))
-        customExchangeRate.value = calculatedRate
-      } else {
-        // 수동 고정 환율
-        customExchangeRate.value = Number(settings.exchange_rate) || 230
-      }
+      // SSOT: 관리자 설정 공식 결제환율(DB 저장값) 하나로 통일
+      customExchangeRate.value = Number(settings.exchange_rate) || 230
     }
   } catch (err) {
     console.warn('Reload settings error:', err)

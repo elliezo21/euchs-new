@@ -418,10 +418,27 @@
                       <span>·</span>
                       <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">수량: {{ item.quantity || 1 }}개</span>
                       <span>·</span>
-                      <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">단가: ¥{{ Number(item.priceCny || 0).toFixed(2) }}</span>
+                      <!-- 1·2단계(견적대기/결제대기): 관리자가 단가를 직접 수정 가능 -->
+                      <span v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="flex items-center gap-1">
+                        <span class="text-slate-400 shrink-0">단가:</span>
+                        <span class="text-slate-400 shrink-0">¥</span>
+                        <input
+                          type="number"
+                          :value="Number(item.priceCny || 0)"
+                          @change="e => { item.priceCny = Math.max(0, parseFloat(e.target.value) || 0) }"
+                          min="0"
+                          step="0.01"
+                          :disabled="item.excluded"
+                          class="w-20 text-xs border border-amber-300 rounded-md py-0.5 px-1.5 bg-amber-50 outline-none focus:ring-2 focus:ring-amber-400 font-mono transition text-slate-900 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                          title="관리자 단가 수정 (저장 버튼으로 반영됩니다)"
+                        />
+                        <span class="text-amber-600 font-bold text-[10px] shrink-0">✏️</span>
+                      </span>
+                      <!-- 3단계 이후: 읽기 전용 단가 표시 -->
+                      <span v-else :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">단가: ¥{{ Number(item.priceCny || 0).toFixed(2) }}</span>
                       <span>·</span>
                       <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-blue-700'">
-                        소계: ₩{{ fmtN(Math.round((Number(item.priceCny || 0) * Number(item.quantity || 1)) * 226.19 * 1.08)) }}
+                      소계: ₩{{ fmtN(krwFromCny(Number(item.priceCny || 0) * Number(item.quantity || 1), getEffectiveRate(activeOrder))) }}
                       </span>
                     </div>
 
@@ -617,14 +634,82 @@
                 </span>
               </div>
 
-              <div class="flex items-center gap-3">
-                <span class="text-xs text-slate-500">1차 결제/견적 유효 총액:</span>
-                <span class="text-lg font-black text-slate-900 font-mono">
-                  ₩{{ fmtN(calcCost(activeOrder)) }}
-                </span>
-                <span class="text-xs text-slate-400 font-mono">
-                  (¥{{ calcCny(activeOrder) }})
-                </span>
+              <div class="flex flex-col items-end gap-1">
+                <!-- 1·2단계(견적대기/결제대기): 예상 내륙 택배비 — 수동 수정 가능 input -->
+                <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="flex flex-col items-end gap-1">
+                  <div class="flex items-center gap-2 text-[11px] text-slate-500">
+                    <span>중국 내륙 택배비 (¥):</span>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      class="w-20 px-2 py-0.5 rounded-md border font-mono text-xs font-bold focus:outline-none focus:ring-1"
+                      :class="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
+                        ? 'border-emerald-400 bg-emerald-50 text-emerald-800 focus:ring-emerald-400'
+                        : 'border-indigo-300 bg-indigo-50 text-indigo-800 focus:ring-indigo-400'"
+                      :value="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
+                        ? activeOrder.chinaFreightRmb
+                        : (() => { const qty = getActiveItems(activeOrder).reduce((s,i)=>s+(Number(i.quantity)||0),0); return qty <= 10 ? 6 : qty <= 30 ? 8 : qty <= 100 ? 10 : 12; })()"
+                      @change="e => { activeOrder.chinaFreightRmb = Math.max(0, parseFloat(e.target.value) || 0) }"
+                    />
+                    <span class="text-[10px]"
+                      :class="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
+                        ? 'text-emerald-600 font-bold'
+                        : 'text-slate-400'">
+                      {{ activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
+                        ? '✏️ 수동수정'
+                        : '수량기반 추정' }}
+                    </span>
+                    <span class="text-slate-400 font-mono text-[10px]">
+                      ≈ ₩{{ fmtN(Math.round(
+                        (activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
+                          ? activeOrder.chinaFreightRmb
+                          : (() => { const qty = getActiveItems(activeOrder).reduce((s,i)=>s+(Number(i.quantity)||0),0); return qty <= 10 ? 6 : qty <= 30 ? 8 : qty <= 100 ? 10 : 12; })()
+                        ) * getEffectiveRate(activeOrder)
+                      )) }}
+                    </span>
+                  </div>
+                  <div class="text-[10px] text-slate-400">
+                    * 1차 견적 참고용. 실제 운임은 구매 진행 후 확정되며 최종 정산 시 반영됩니다.
+                  </div>
+                </div>
+                <!-- 단가 수정 안내 (1·2단계만) -->
+
+                <!-- 단가/택배비 수정 안내 (1·2단계만) -->
+                <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="text-[10px] text-amber-600 font-medium">
+                  ✏️ 단가·택배비 수정 후 총액이 자동 재계산됩니다. 저장 버튼으로 확정하세요.
+                </div>
+                <div class="flex items-center gap-3">
+                  <span class="text-xs text-slate-500">1차 결제/견적 유효 총액:</span>
+                  <span class="text-lg font-black text-slate-900 font-mono">
+                    ₩{{ fmtN(calcCost(activeOrder)) }}
+                  </span>
+                  <span class="text-xs text-slate-400 font-mono">
+                    (¥{{ calcCny(activeOrder) }})
+                  </span>
+                </div>
+                <!-- 금액 breakdown: 상품값 + 택배비 + 수수료 구성 표시 -->
+                <div class="text-xs text-slate-500 text-right font-mono leading-snug">
+                  상품값 ₩{{ fmtN(calcCostDetail(activeOrder).itemTotalKrw) }}
+                  + 택배비 ₩{{ fmtN(calcCostDetail(activeOrder).chinaFreightKrw) }}
+                  + 수수료 ₩{{ fmtN(calcCostDetail(activeOrder).agencyFeeKrw) }}
+                  <span v-if="calcCostDetail(activeOrder).shippingFeeKrw > 0">
+                    + 해운비 ₩{{ fmtN(calcCostDetail(activeOrder).shippingFeeKrw) }}
+                  </span>
+                  = <span class="font-black text-slate-700">₩{{ fmtN(calcCostDetail(activeOrder).chargeableKrw) }}</span>
+                </div>
+                <!-- 환율 breakdown: quote_pending은 고시+마진(소수점2자리), 승인 이후는 스냅샷 환율 표시 -->
+                <div class="text-[11px] text-slate-400 text-right leading-snug">
+                  <template v-if="isStatus(activeOrder, 'quote_pending')">
+                    적용환율 ₩{{ fmtRate(getEffectiveRate(activeOrder)) }}/CNY
+                    <span v-if="currentSettings?.rate_margin" class="text-slate-400">
+                      (고시 {{ fmtRate(currentSettings.exchange_rate - currentSettings.rate_margin) }} + 마진 {{ fmtRate(currentSettings.rate_margin) }}원)
+                    </span>
+                  </template>
+                  <template v-else>
+                    승인 고정 환율 ₩{{ fmtRate(getEffectiveRate(activeOrder)) }}/CNY
+                  </template>
+                </div>
               </div>
             </div>
           </div>
@@ -660,8 +745,17 @@
             </div>
           </div>
 
-          <!-- 3. 통관 및 배송 B/L / 송장 추가 정보 (warehouse_in 단계 제외 — 7단계 이후에만 노출) -->
-          <div v-if="!isStatus(activeOrder, 'warehouse_in') && (activeOrder.blInfo || activeOrder.trackingInfo)" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- 3. 통관 및 배송 B/L / 송장 추가 정보 (1~2단계 및 warehouse_in 단계 제외 — 6단계 이후에만 노출) -->
+          <!-- ⚠️ 견적대기(quote_pending) / 결제대기(quote_confirmed) 단계에서는 blInfo·trackingInfo가 없으므로 표시 안 됨 -->
+          <div
+            v-if="
+              !isStatus(activeOrder, 'quote_pending') &&
+              !isStatus(activeOrder, 'quote_confirmed') &&
+              !isStatus(activeOrder, 'warehouse_in') &&
+              (activeOrder.blInfo || activeOrder.trackingInfo)
+            "
+            class="grid grid-cols-1 sm:grid-cols-2 gap-3"
+          >
             <div v-if="activeOrder.blInfo" class="p-4 bg-purple-50 border border-purple-200 rounded-2xl font-mono text-xs space-y-1.5">
               <div class="font-bold text-purple-800 text-xs mb-1 flex items-center gap-1">
                 <span>📄 선하증권 (B/L) 통관 정보</span>
@@ -701,8 +795,8 @@
           </div>
 
           <!-- 중앙 안내 텍스트 -->
-          <div v-if="isStatus(activeOrder, 'quote_pending')" class="text-xs text-slate-500 font-medium px-2 shrink-0 hidden lg:block">
-            * [변경사항 저장] 또는 [견적 승인] 시 바이어에게 즉시 반영됩니다.
+          <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="text-xs text-slate-500 font-medium px-2 shrink-0 hidden lg:block">
+            * [변경사항 저장] 시 단가·총액이 바이어에게 즉시 반영됩니다.
           </div>
 
           <!-- 우측: 엑셀 및 액션 버튼 그룹 (줄바꿈 없이 1줄 정렬) -->
@@ -731,8 +825,9 @@
             >
               닫기
             </button>
+            <!-- 1단계(견적대기) + 2단계(결제대기): 변경사항(단가 등) 저장 — 동일한 saveDetailDraft 재사용 -->
             <button
-              v-if="isStatus(activeOrder, 'quote_pending')"
+              v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')"
               @click="confirmSaveOrder = true"
               type="button"
               class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
@@ -868,6 +963,7 @@ import { getStoredOrders, saveStoredOrders, updateOrderStatus, fetchOrdersFromSu
 import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
+import { calcOrderCost, krwFromCny, resolveExchangeRate, estimateFreightRmb } from '@/utils/orderCostCalculator';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
@@ -1041,7 +1137,7 @@ function getExcludedItems(o) {
 function calcExcludedCost(o) {
   const ex = getExcludedItems(o);
   const c = ex.reduce((s, i) => s + (Number(i.priceCny || 0) * Number(i.quantity || 1)), 0);
-  const rate = Number(currentSettings.value?.exchange_rate) || 226.19;
+  const rate = getEffectiveRate(o);
   const agencyRate = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
   return Math.round(c * rate * (1 + agencyRate));
 }
@@ -1246,12 +1342,32 @@ async function saveDetailDraft({ closeAfter = true } = {}) {
   const targetOrderId = activeOrder.value.id || activeOrder.value.orderNumber;
   const orderNum = activeOrder.value.orderNumber || targetOrderId;
   const items = JSON.parse(JSON.stringify(activeOrder.value.items || []));
+  // 관리자 수동 수정 택배비 — null이면 저장하지 않음(수량 기반 추정 유지)
+  const chinaFreightRmb = activeOrder.value.chinaFreightRmb !== undefined
+    ? activeOrder.value.chinaFreightRmb
+    : null;
 
   const target = orders.value.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
   const prevItems = target ? JSON.parse(JSON.stringify(target.items || [])) : [];
+  const prevFreight = target ? target.chinaFreightRmb : undefined;
+  const prevFirstPayment = target ? JSON.parse(JSON.stringify(target.firstPayment || {})) : {};
+
+  // 기존 firstPayment 안전하게 병합
+  const existingFirstPayment = activeOrder.value.firstPayment || activeOrder.value.first_payment || {};
+  const updatedFirstPayment = {
+    ...existingFirstPayment,
+    ...(chinaFreightRmb !== null ? { chinaFreightRmb } : {})
+  };
+  if (chinaFreightRmb === null && updatedFirstPayment.chinaFreightRmb !== undefined) {
+    delete updatedFirstPayment.chinaFreightRmb;
+  }
+  activeOrder.value.firstPayment = updatedFirstPayment;
 
   if (target) {
     target.items = items;
+    if (chinaFreightRmb !== null) target.chinaFreightRmb = chinaFreightRmb;
+    else delete target.chinaFreightRmb;
+    target.firstPayment = updatedFirstPayment;
   }
 
   isInternalUpdate.value = true;
@@ -1260,16 +1376,22 @@ async function saveDetailDraft({ closeAfter = true } = {}) {
     const storedTarget = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
     if (storedTarget) {
       storedTarget.items = items;
+      if (chinaFreightRmb !== null) storedTarget.chinaFreightRmb = chinaFreightRmb;
+      else delete storedTarget.chinaFreightRmb;
+      storedTarget.firstPayment = updatedFirstPayment;
       saveStoredOrders(list);
     }
 
     if (isSupabaseConfigured()) {
+      // items 및 first_payment 컬럼 업데이트 (기존 first_payment 보존 병합)
+      const updatePayload = {
+        items: items,
+        first_payment: updatedFirstPayment,
+        updated_at: new Date().toISOString()
+      };
       const { error: dbErr, data: updatedRows } = await supabase
         .from('orders')
-        .update({
-          items: items,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
         .select('id, order_number');
       if (dbErr) throw dbErr;
@@ -1282,7 +1404,12 @@ async function saveDetailDraft({ closeAfter = true } = {}) {
     showToast('발주 품목 상태 및 견적액이 안전하게 저장되었습니다.', 'success');
     if (closeAfter) closeModals();
   } catch (e) {
-    if (target) target.items = prevItems;
+    if (target) {
+      target.items = prevItems;
+      if (prevFreight !== undefined) target.chinaFreightRmb = prevFreight;
+      else delete target.chinaFreightRmb;
+      target.firstPayment = prevFirstPayment;
+    }
     console.error('[saveDetailDraft error]:', e);
     showToast(`발주 품목 상태 저장 실패: ${e.message}`, 'error');
   } finally {
@@ -1341,17 +1468,50 @@ async function approveQuoteFromDetail() {
       console.warn('[approveQuoteFromDetail] storedTarget not found in localStorage — targetOrderId:', targetOrderId, 'orderNum:', orderNum, '/ list length:', list.length, '/ ids:', list.map(o => o.orderNumber));
     }
 
-    // 3. quote_confirmed 상태로 전환 및 DB 반영 (await로 결과 확인)
+    // 3. [핵심] 견적 승인 전 items(수정된 단가 포함)와 first_payment(수동 수정 택배비 포함)를 DB에 먼저 저장
+    //    updateOrderStatus는 items를 payload에서 의도적으로 제외하므로
+    //    별도 쿼리로 items 컬럼을 먼저 갱신해야 고객 화면에 단가가 반영됨.
+    const existingFirstPayment = activeOrder.value.firstPayment || activeOrder.value.first_payment || {};
+    const snapshotRate = Number(currentSettings.value?.exchange_rate) || 226.19;
+    const updatedFirstPayment = {
+      ...existingFirstPayment,
+      firstPaymentKrw: validTotal,
+      approvedAt: new Date().toISOString(),
+      snapshotExchangeRate: snapshotRate, // 승인 시점 환율 고정 — 이후 설정 변경과 무관하게 금액 유지
+      ...(activeOrder.value.chinaFreightRmb !== null && activeOrder.value.chinaFreightRmb !== undefined
+        ? { chinaFreightRmb: activeOrder.value.chinaFreightRmb }
+        : {})
+    };
+    activeOrder.value.firstPayment = updatedFirstPayment;
+    if (target) {
+      target.firstPayment = updatedFirstPayment;
+    }
+
+    if (isSupabaseConfigured()) {
+      const approvePayload = {
+        items: newItems,
+        first_payment: updatedFirstPayment,
+        updated_at: new Date().toISOString()
+      };
+      const { error: itemsErr, data: itemsRows } = await supabase
+        .from('orders')
+        .update(approvePayload)
+        .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
+        .select('id, order_number');
+      if (itemsErr) throw itemsErr;
+      if (!itemsRows || itemsRows.length === 0) {
+        throw new Error(`items DB 저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다. (0 rows affected)`);
+      }
+    }
+
+    // 4. quote_confirmed 상태로 전환 및 DB 반영 (await로 결과 확인)
     await updateOrderStatus(targetOrderId, nextStatus, {
       items: newItems,
       totalPriceKrw: validTotal,
       totalPriceRmb: validCny,
       quote_confirmed_at: new Date().toISOString(),
       first_payment_pending: true,
-      firstPayment: {
-        firstPaymentKrw: validTotal,
-        approvedAt: new Date().toISOString()
-      },
+      firstPayment: updatedFirstPayment,
       quoteInfo: {
         firstPaymentKrw: validTotal,
         approvedAt: new Date().toISOString(),
@@ -1399,12 +1559,14 @@ const purchaseOrderDescription = computed(() => {
   const activeItems = (o.items || []).filter(i => !i.excluded);
   if (activeItems.length === 0) return '유효 품목이 없습니다.';
 
-  const CNY_TO_KRW = 226.19;
+  const rate = getEffectiveRate(o); // 스냅샷 우선, 없으면 최신 설정 환율
+  const agencyRate = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
 
   // ── 상품별 그룹핑 (itemId || productName 기준) ──────────────────────────
   const groups = [];
   const seen = new Map(); // key: groupKey → groups 인덱스
 
+  let itemsTotalKrw = 0;
   for (const item of activeItems) {
     // 동일 상품 식별 키: itemId가 있으면 itemId, 없으면 productName
     const groupKey = String(item.itemId || item.num_iid || item.id || item.productName || '기타');
@@ -1418,9 +1580,14 @@ const purchaseOrderDescription = computed(() => {
     const g = groups[seen.get(groupKey)];
     const qty = Number(item.quantity) || 1;
     const unitCny = Number(item.priceCny) || 0;
-    const subtotalKrw = Math.round(unitCny * qty * CNY_TO_KRW * 1.08);
+    const subtotalKrw = krwFromCny(unitCny * qty, rate);
+    itemsTotalKrw += subtotalKrw;
     g.rows.push({ sku: item.sku || '', qty, subtotalKrw });
   }
+
+  // 수수료: 상품대금 기준만, 최소 ₩10,000
+  const rawFee = Math.round(itemsTotalKrw * agencyRate);
+  const agencyFeeKrw = Math.max(rawFee, 10000);
 
   // ── 텍스트 조립 ──────────────────────────────────────────────────────────
   const lines = [];
@@ -1442,14 +1609,10 @@ const purchaseOrderDescription = computed(() => {
   }
 
   // ── 전체 합계 ────────────────────────────────────────────────────────────
-  const totalKrw = activeItems.reduce((sum, item) => {
-    const unitCny = Number(item.priceCny) || 0;
-    const qty = Number(item.quantity) || 1;
-    return sum + Math.round(unitCny * qty * CNY_TO_KRW * 1.08);
-  }, 0);
+  const totalKrw = itemsTotalKrw + agencyFeeKrw;
 
   lines.push(`───────────────`);
-  lines.push(`합계: ₩${totalKrw.toLocaleString()} (품목 행 ${activeItems.length}개)`);
+  lines.push(`합계: ₩${totalKrw.toLocaleString()} (품목 행 ${activeItems.length}개, 수수료 포함)`);
   lines.push(`주문번호: ${o.orderNumber}`);
 
   return lines.join('\n');
@@ -1500,27 +1663,46 @@ function isWarehouseArrived(o) {
   return n === 'arrival_done' || n === 'inspection_done';
 }
 
+/**
+ * 주문별 유효 환율 반환 — orderCostCalculator.resolveExchangeRate 래퍼
+ * 템플릿에서 직접 호출하는 코드가 있으므로 이름 유지
+ */
+function getEffectiveRate(o) {
+  return resolveExchangeRate(o, Number(currentSettings.value?.exchange_rate) || 200.0);
+}
+
 function getTotalQty(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i) => s+(Number(i.quantity)||0),0); }
 function getCbm(o) { return Number((o.measuredData?.cbm)||(o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.cbm)||0),0)).toFixed(3); }
+
+/** 총 청구액(chargeableKrw) 반환 — 공용 calcOrderCost 래퍼 */
 function calcCost(o) {
-  const rate = Number(currentSettings.value?.exchange_rate) || 226.19;
-  const agencyRate = (Number(currentSettings.value?.agency_fee_rate) || 8.0) / 100;
-  const activeItems = (o.items || []).filter(i => !i.excluded);
-  const totalQty = activeItems.reduce((s, i) => s + (Number(i.quantity) || 0), 0);
-  const itemTotalCny = activeItems.reduce((s, i) => s + (Number(i.priceCny || 0) * Number(i.quantity || 0)), 0);
-  const itemTotalKrw = Math.round(itemTotalCny * rate);
-  // 중국 내륙 택배비: 수량 기반 추정 (고객화면 getOrderCostSummary와 동일 로직)
-  const chinaFreightRmb = totalQty <= 10 ? 6 : totalQty <= 30 ? 8 : totalQty <= 100 ? 10 : 12;
-  const chinaFreightKrw = Math.round(chinaFreightRmb * rate);
-  const agencyFeeKrw = Math.round((itemTotalKrw + chinaFreightKrw) * agencyRate);
-  // 해운비: 실측 CBM 있으면 사용, 없으면 0 (미확정)
-  const cbm = Number(o.measuredData?.cbm) || 0;
-  const seaCbmRate = Number(currentSettings.value?.sea_cbm_rate) || 98000;
-  const shippingFeeKrw = cbm > 0 ? Math.round(cbm * seaCbmRate) : 0;
-  return itemTotalKrw + chinaFreightKrw + agencyFeeKrw + shippingFeeKrw; // chargeableKrw (관세/부가세 제외)
+  return calcOrderCost(o, {
+    exchange_rate: currentSettings.value?.exchange_rate,
+    agency_fee_rate: currentSettings.value?.agency_fee_rate,
+    sea_cbm_rate: currentSettings.value?.sea_cbm_rate,
+  }).chargeableKrw;
 }
-function calcCny(o) { return (o.items||[]).filter(i => !i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0).toFixed(2); }
+
+/** 세부 구성항목 객체 반환 — 공용 calcOrderCost 래퍼 (breakdown 표시용) */
+function calcCostDetail(o) {
+  const r = calcOrderCost(o, {
+    exchange_rate: currentSettings.value?.exchange_rate,
+    agency_fee_rate: currentSettings.value?.agency_fee_rate,
+    sea_cbm_rate: currentSettings.value?.sea_cbm_rate,
+  });
+  return {
+    itemTotalKrw: r.itemTotalKrw,
+    chinaFreightKrw: r.chinaFreightKrw,
+    agencyFeeKrw: r.agencyFeeKrw,
+    shippingFeeKrw: r.shippingFeeKrw,
+    chargeableKrw: r.chargeableKrw,
+  };
+}
+
+function calcCny(o) { return (o.items||[]).filter(i =>!i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0).toFixed(2); }
 function fmtN(n) { return Math.round(Number(n)||0).toLocaleString('ko-KR'); }
+/** 환율 전용 포맷터 — 소수점 2자리 */
+function fmtRate(n) { return Number(n || 0).toFixed(2); }
 
 /**
  * 5-A 미검수 품목 수 반환 (AdminWarehouseModal 5-B와 동일 조건)
@@ -1956,6 +2138,13 @@ function openTrackingForm(o) { activeOrder.value=o; trackingForm.value={delivery
 function openDetail(o) {
   // 원본 보호를 위해 deep copy로 임시 상태 생성
   activeOrder.value = JSON.parse(JSON.stringify(o));
+  if (activeOrder.value.chinaFreightRmb === undefined && activeOrder.value.firstPayment?.chinaFreightRmb !== undefined) {
+    activeOrder.value.chinaFreightRmb = Number(activeOrder.value.firstPayment.chinaFreightRmb);
+  }
+  // 승인 시점 환율 스냅샷 복원 (firstPayment에서 루트 레벨로)
+  if (activeOrder.value.snapshotExchangeRate === undefined && activeOrder.value.firstPayment?.snapshotExchangeRate !== undefined) {
+    activeOrder.value.snapshotExchangeRate = Number(activeOrder.value.firstPayment.snapshotExchangeRate);
+  }
   excludeReasonMap.value = {};
   purchaseInfoDraft.value = {};
   (activeOrder.value.items || []).forEach((item, idx) => {

@@ -746,6 +746,7 @@ import { useRouter } from 'vue-router'
 import TradePhotos from '../components/TradePhotos.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { fetchLiveMarketRate } from '../utils/exchangeRate'
 
 const router = useRouter()
 
@@ -1023,19 +1024,17 @@ const fetchNoticesFeed = async () => {
 }
 
 const fetchLiveRateAndSettings = async () => {
-  let liveNum = 230.0
   try {
-    const res = await fetch('https://open.er-api.com/v6/latest/CNY')
-    if (res.ok) {
-      const data = await res.json()
-      if (data?.rates?.KRW) {
-        liveNum = Number(data.rates.KRW.toFixed(2))
-        liveRate.value = liveNum.toFixed(2)
-      }
+    // 국제 고시환율: 참고치 표시 전용 (공용 캐시 유틸 사용)
+    const { rate: marketRate } = await fetchLiveMarketRate(false)
+    if (marketRate !== null && !isNaN(marketRate)) {
+      liveRate.value = marketRate.toFixed(2)
+    } else {
+      liveRate.value = null
     }
   } catch (err) {
-    console.warn('Live rate API fetch fallback:', err)
-    liveRate.value = '230.00'
+    console.warn('Live rate fetch fallback:', err)
+    liveRate.value = null
   }
 
   try {
@@ -1048,19 +1047,23 @@ const fetchLiveRateAndSettings = async () => {
       customsClearanceFee.value = Number(settings.customs_clearance_fee) || 33000
       ftaCoFee.value = Number(settings.fta_co_fee) || 33000
 
-      if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
-        const calculated = Number((liveNum + rateMargin.value).toFixed(2))
-        customRate.value = String(calculated)
-      } else {
-        const fixed = Number(settings.exchange_rate) || 230
-        customRate.value = String(fixed)
-      }
+      // 배너 메인 숫자: 항상 관리자 설정 공식 결제환율(DB 저장값)
+      // auto_margin 모드여도 관리자가 "저장" 시 DB에 기록된 exchange_rate가 공식 기준
+      customRate.value = String(Number(settings.exchange_rate) || 230)
       setTimeout(attemptAutoplayVideos, 50)
     }
   } catch (e) {
     console.warn('Settings load fallback:', e)
   }
 }
+
+// 배너 서브텍스트: 환율 모드 설명
+const rateModeDesc = computed(() => {
+  if (rateMode.value === 'auto_margin' || rateMode.value === 'auto') {
+    return `(실시간 + ${rateMargin.value}원 마진 적용 결제환율)`
+  }
+  return `(공식 고정 결제환율)`
+})
 
 const openNoticeModal = (item) => {
   selectedNotice.value = item

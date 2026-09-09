@@ -1724,10 +1724,15 @@ export async function fetch1688ProductById(offerId) {
 
 
     // ─── 현지 운임 추출 ──────────────────────────────────────────────────────
-    const freightRaw = it.freight || it.express_fee || it.deliveryFee || it.shipping_fee || null
-    const freightValue = freightRaw
-      ? (parseFloat(String(freightRaw).replace(/[^0-9.]/g, '')) || null)
-      : null
+    // ⚠️ 包邮(무료배송) 상품은 freight=0으로 내려옴 — || null 패턴은 0을 null로 처리하므로
+    //   freightRaw가 0인 경우를 별도 처리해서 0을 유지(包邮 정확히 표시)
+    const freightRawCandidates = [it.freight, it.express_fee, it.deliveryFee, it.shipping_fee]
+    const freightRawFound = freightRawCandidates.find(v => v !== null && v !== undefined && v !== '')
+    let freightValue = null
+    if (freightRawFound !== undefined) {
+      const parsed = parseFloat(String(freightRawFound).replace(/[^0-9.]/g, ''))
+      freightValue = isNaN(parsed) ? null : parsed  // 0은 0으로 유지 (包邮 = 무료배송)
+    }
 
     const normalizedProduct = {
       id: cleanNumericId || idStr,
@@ -1754,7 +1759,6 @@ export async function fetch1688ProductById(offerId) {
       freight: freightValue, // 원본 현지 운임 (없으면 null)
       raw: it
     }
-
 
     saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, normalizedProduct)
     return normalizedProduct
