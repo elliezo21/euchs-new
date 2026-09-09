@@ -844,16 +844,30 @@
           <div class="py-4 flex items-center justify-between gap-4 flex-nowrap overflow-x-auto whitespace-nowrap">
           <!-- 좌측: 전체 취소 버튼 -->
           <div class="shrink-0">
+            <!-- 1단계 견적대기 전용: 전체반려(폐기) 버튼 -->
             <button
-              v-if="!['cancelled', 'completed'].includes(normalizeOrderStatus(activeOrder.status))"
+              v-if="isStatus(activeOrder, 'quote_pending')"
+              @click="rejectOrderFromDetail(activeOrder)"
+              type="button"
+              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+              title="견적대기 단계 전체 반려(폐기) 처리"
+            >
+              <span>🚫</span>
+              <span>전체반려(폐기)</span>
+            </button>
+
+            <!-- 2~8단계 전용: 주문 취소·환불 버튼 -->
+            <button
+              v-if="['quote_confirmed','payment_verified','purchasing','warehouse_in','arrival_done','inspection_done','shipping_ready','customs_clearance','customs_done','domestic_shipping'].includes(normalizeOrderStatus(activeOrder.status))"
               @click="cancelOrderEntirely(activeOrder)"
               type="button"
               class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-              title="품목 전체 품절 및 수급 불가 시 주문 취소"
+              title="결제대기 이후 단계 주문 취소·환불 처리"
             >
-              <span>🚫</span>
-              <span>전체 주문 취소 (품절/반려)</span>
+              <span>🔴</span>
+              <span>주문 취소·환불</span>
             </button>
+
           </div>
 
           <!-- 중앙 안내 텍스트 -->
@@ -962,15 +976,26 @@
       @confirm="saveDetailDraft"
     />
 
-    <!-- ConfirmSaveModal: 전체 주문 취소 -->
+    <!-- ConfirmSaveModal: 주문 취소·환불 (결제대기~국내배송) -->
     <ConfirmSaveModal
       v-model="confirmCancelOrder"
-      :title="`[${pendingCancelOrder?.orderNumber}] 주문을 전체 취소(품절/반려) 처리할까요?`"
-      description="취소 후에는 복구할 수 없습니다."
+      :title="`[${pendingCancelOrder?.orderNumber}] 주문을 취소·환불 처리할까요?`"
+      :description="cancelModalDescription"
       variant="red"
       icon="warn"
       confirmText="취소 처리"
       @confirm="executeCancelOrder"
+    />
+
+    <!-- ConfirmSaveModal: 전체반려(폐기) — 견적대기 전용 -->
+    <ConfirmSaveModal
+      v-model="confirmRejectOrder"
+      :title="`[${pendingRejectOrder?.orderNumber}] 주문을 전체반려(폐기) 처리할까요?`"
+      description="전체반려 후에는 복구할 수 없습니다. 견적대기 단계이므로 환불 처리는 필요하지 않습니다."
+      variant="red"
+      icon="warn"
+      confirmText="전체반려 처리"
+      @confirm="executeRejectOrder"
     />
 
     <!-- ConfirmSaveModal: 견적 승인 2단계 전환 -->
@@ -1104,8 +1129,10 @@ const toast = ref({ show: false, message: '', type: 'success' });
 let toastTimer = null;
 
 // ConfirmSaveModal 상태 — 기존 confirm() 교체용
-const confirmCancelOrder = ref(false);          // 3번: 전체 주문 취소
+const confirmCancelOrder = ref(false);          // 취소·환불 (결제대기~국내배송)
 const pendingCancelOrder = ref(null);
+const confirmRejectOrder = ref(false);          // 반려 (견적대기 전용)
+const pendingRejectOrder = ref(null);
 const confirmApproveQuote = ref(false);         // 4번: 견적 승인 2단계
 const confirmPayment3 = ref(false);             // 5번: 3단계 전환
 const pendingConfirmPayment = ref(null);
@@ -1325,7 +1352,54 @@ function restoreItem(order, item, idx) {
   excludeReasonMap.value[idx] = '';
 }
 
+
 const isInternalUpdate = ref(false);
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 취소·환불 모달 동적 안내 문구 — 결제대기(quote_confirmed)와 결제확인 이상 분기
+// ─────────────────────────────────────────────────────────────────────────────
+const cancelModalDescription = computed(() => {
+  if (!pendingCancelOrder.value) return '취소 후에는 복구할 수 없습니다.';
+  const s = normalizeOrderStatus(pendingCancelOrder.value.status);
+  if (s === 'quote_confirmed') {
+    // 결제대기 단계 — 입금 확인 전/후 불분명
+    return '입금 여부가 불분명하니 확인 후 처리하세요.';
+  }
+  // payment_verified 이상 (구매진행, 창고/선적 등 포함) — 결제확인 완료 이력
+  return '환불 목록과 금액을 정확히 확인 후 처리하세요.';
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 견적대기 전용 반려 (rejected)
+// ─────────────────────────────────────────────────────────────────────────────
+async function rejectOrderFromDetail(order) {
+  if (!order) return;
+  pendingRejectOrder.value = order;
+  confirmRejectOrder.value = true;
+}
+
+async function executeRejectOrder() {
+  const order = pendingRejectOrder.value;
+  if (!order) return;
+  const prevStatus = order.status;
+  const target = orders.value.find(o => o.id === order.id || o.orderNumber === order.orderNumber);
+  if (target) target.status = 'rejected';
+
+  isInternalUpdate.value = true;
+  try {
+    await updateOrderStatus(order.id, 'rejected', {
+      rejectReason: '견적대기 단계 전체 반려 (품절/수급불가)',
+      rejectedAt: new Date().toISOString()
+    });
+    showToast(`[${order.orderNumber}] 반려 처리 완료`, 'error');
+    closeModals();
+  } catch (err) {
+    if (target) target.status = prevStatus;
+    showToast(`반려 처리 실패: ${err.message}`, 'error');
+  } finally {
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  }
+}
 
 async function cancelOrderEntirely(order) {
   if (!order) return;

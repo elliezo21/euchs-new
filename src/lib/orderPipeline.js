@@ -16,7 +16,8 @@ export const PIPELINE_STATUSES = [
   { key: 'customs_clearance', code: 7, label: '7. 세관 수입통관 진행', shortLabel: '수입통관', badgeClass: 'bg-violet-100 text-violet-800 border border-violet-200' },
   { key: 'domestic_shipping', code: 8, label: '8. 국내 화물/택배 배송중', shortLabel: '국내배송', badgeClass: 'bg-sky-100 text-sky-800 border border-sky-200' },
   { key: 'delivered', code: 8, label: '8. 배송완료 (수령완료)', shortLabel: '배송완료', badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
-  { key: 'cancelled', code: 0, label: '주문 취소 / 환불', shortLabel: '주문취소', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' }
+  { key: 'cancelled', code: 0, label: '주문 취소 / 환불', shortLabel: '주문취소', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' },
+  { key: 'rejected', code: 0, label: '반려 (견적대기 전체반려)', shortLabel: '반려', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' }
 ];
 
 export const STATUS_ALIAS_MAP = {
@@ -55,6 +56,7 @@ export const STATUS_ALIAS_MAP = {
   completed: 'delivered',
   delivered: 'delivered',
   cancelled: 'cancelled',
+  rejected: 'rejected',
   // step_ 레거시 형식 대응
   step_1: 'quote_pending',
   step_2: 'quote_confirmed',
