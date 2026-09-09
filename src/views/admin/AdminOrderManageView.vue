@@ -779,7 +779,69 @@
         </div>
 
         <!-- 모달 푸터 (1줄 단일 행 완벽 수평 정렬) -->
-        <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-4 flex-nowrap shrink-0 overflow-x-auto whitespace-nowrap">
+        <div class="px-6 bg-slate-50 border-t border-slate-200 shrink-0">
+
+          <!-- ── 수동발주 완료 인라인 팝업 패널 (payment_verified 단계 + 팝업 열릴 때만) ── -->
+          <div
+            v-if="showManualOrderPopup && isStatus(activeOrder, 'payment_verified')"
+            class="py-4 border-b border-amber-200"
+          >
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-col gap-3">
+              <div class="flex items-center gap-2">
+                <span class="text-sm">✍️</span>
+                <p class="text-xs font-bold text-amber-800">1688 수동발주 완료 처리</p>
+              </div>
+              <p class="text-[11px] text-amber-700 leading-relaxed">
+                각 품목의 1688 주문번호를 입력 후 "저장하고 넘기기"를 누르면
+                <strong>수동발주완료(✍️)</strong>로 기록되고 주문이 <strong>4단계(구매진행)</strong>로 전환됩니다.
+              </p>
+
+              <!-- 유효 품목(excluded=false)만 표시 — 원본 items 인덱스 기준 -->
+              <div class="flex flex-col gap-2">
+                <div
+                  v-for="(item, idx) in (activeOrder.items || []).map((item, idx) => ({ item, idx })).filter(({ item }) => !item.excluded)"
+                  :key="idx"
+                  class="flex items-center gap-2 flex-wrap"
+                >
+                  <span class="text-[11px] font-bold text-slate-700 shrink-0 min-w-0 flex-1 truncate">
+                    {{ item.item.productName || `품목 ${idx + 1}` }}
+                  </span>
+                  <input
+                    v-model="manualOrderNoDraft[item.idx]"
+                    type="text"
+                    placeholder="1688 주문번호 입력"
+                    class="w-48 text-xs border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
+                  />
+                </div>
+              </div>
+
+              <!-- 에러 메시지 -->
+              <p v-if="manualOrderError" class="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                <span>⚠️</span><span>{{ manualOrderError }}</span>
+              </p>
+
+              <!-- 저장 / 취소 버튼 -->
+              <div class="flex justify-end gap-2">
+                <button
+                  type="button"
+                  @click="showManualOrderPopup = false; manualOrderNoDraft = {}; manualOrderError = ''"
+                  class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                >취소</button>
+                <button
+                  type="button"
+                  @click="executeManualOrderComplete"
+                  :disabled="isSubmittingManualOrder"
+                  class="px-4 py-1.5 text-xs rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                >
+                  <span v-if="isSubmittingManualOrder">⏳ 저장 중…</span>
+                  <span v-else>💾 저장하고 넘기기</span>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- 기존 버튼 행 -->
+          <div class="py-4 flex items-center justify-between gap-4 flex-nowrap overflow-x-auto whitespace-nowrap">
           <!-- 좌측: 전체 취소 버튼 -->
           <div class="shrink-0">
             <button
@@ -843,6 +905,19 @@
               <span>⚡ 견적 승인 (2단계 전환)</span>
             </button>
 
+            <!-- [NEW] 3. 결제확인 단계: 수동발주 완료 버튼 — 자동발주 없이 직접 1688에 주문을 넣은 경우 사용 -->
+            <button
+              v-if="isStatus(activeOrder, 'payment_verified')"
+              @click="showManualOrderPopup = !showManualOrderPopup; manualOrderError = ''"
+              type="button"
+              class="px-4 py-2.5 rounded-xl border border-amber-300 font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+              :class="showManualOrderPopup
+                ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
+                : 'bg-amber-50 text-amber-700 hover:bg-amber-100'"
+            >
+              <span>✍️ 1688 수동발주 완료</span>
+            </button>
+
             <!-- 3. 결제확인 단계: 1688 구매 시작 모달 열기 -->
             <button
               v-if="isStatus(activeOrder, 'payment_verified')"
@@ -863,11 +938,13 @@
               <span>📦 도착검수 (5-A)</span>
             </button>
           </div>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- 토스트 -->
+
     <Transition name="toast">
       <div v-if="toast.show" class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5"
         :class="toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'">
@@ -1040,6 +1117,88 @@ const confirmShipping6 = ref(false);            // 8번: 6단계 전환
 const pendingShippingOrder = ref(null);
 const confirmDelivered9 = ref(false);           // 9번: 배송완료
 const pendingDeliveredOrder = ref(null);
+
+// ── 수동발주 완료 팝업 상태 (자동발주 로직과 완전 분리) ──────────────────────
+const showManualOrderPopup  = ref(false);   // 팝업 토글
+const manualOrderNoDraft    = ref({});      // 품목 객체 → 주문번호 임시 입력값 (WeakMap 대신 객체 key=item 참조 index)
+const isSubmittingManualOrder = ref(false); // 저장 중 로딩 상태
+const manualOrderError      = ref('');      // 인라인 에러 메시지
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1688 수동발주 완료 처리 (자동발주 executeStartPurchasing과 완전 별도 경로)
+// payment_verified 단계에서 관리자가 이미 1688에 직접 주문을 넣은 경우,
+// 주문번호를 수동 입력해 item에 기록하고 purchasing 단계로 전환
+// ─────────────────────────────────────────────────────────────────────────────
+async function executeManualOrderComplete() {
+  if (!activeOrder.value) return;
+
+  // 유효 품목(excluded=false)만 대상 — 원본 items 배열 인덱스 보존
+  const activeItems = (activeOrder.value.items || [])
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item }) => !item.excluded);
+
+  if (activeItems.length === 0) {
+    manualOrderError.value = '처리할 유효 품목이 없습니다.';
+    return;
+  }
+
+  // ── 입력값 검증: 유효 품목 전원에 주문번호가 입력돼야 함 ────────────────────
+  const missingCount = activeItems.filter(
+    ({ idx }) => !(manualOrderNoDraft.value[idx] || '').trim()
+  ).length;
+  if (missingCount > 0) {
+    manualOrderError.value = `1688 주문번호가 비어있는 품목이 ${missingCount}개 있습니다. 모두 입력해주세요.`;
+    return;
+  }
+
+  manualOrderError.value = '';
+  isSubmittingManualOrder.value = true;
+
+  const o = activeOrder.value;
+  const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
+  const prevStatus = target ? target.status : null;
+
+  try {
+    // ── 품목별 수동발주 필드 기록 ────────────────────────────────────────────
+    for (const { item, idx } of activeItems) {
+      item.purchaseNo      = (manualOrderNoDraft.value[idx] || '').trim();
+      item.subStatus       = 'purchase_done_manual';
+      item.isManualOrder   = true;
+      item.manualOrderAt   = new Date().toISOString();
+      item.purchaseAccount = 'manual';
+      item.purchaseError   = null;   // 기존 에러 배지 초기화
+      item.purchaseErrorAt = null;
+    }
+
+    // ── order.status → purchasing 전환 (낙관적 업데이트) ─────────────────────
+    if (target) target.status = 'purchasing';
+    activeOrder.value.status = 'purchasing';
+
+    isInternalUpdate.value = true;
+
+    // ── Supabase order.status 저장 ────────────────────────────────────────────
+    await updateOrderStatus(o.id, 'purchasing', { purchaseStartedAt: new Date().toISOString() });
+
+    // ── items JSONB 저장 (0 rows affected 시 saveDetailDraft 내부에서 throw) ──
+    await saveDetailDraft({ closeAfter: false });
+
+    // ── 성공 후 팝업 상태 초기화 ─────────────────────────────────────────────
+    showManualOrderPopup.value = false;
+    manualOrderNoDraft.value = {};
+    showToast(`[${o.orderNumber}] 수동발주 완료 처리 → 4단계(구매진행) 전환`, 'success');
+
+  } catch (err) {
+    // ── 실패 시 낙관적 업데이트 롤백 ─────────────────────────────────────────
+    if (target) target.status = prevStatus;
+    if (activeOrder.value) activeOrder.value.status = prevStatus;
+    console.error('[executeManualOrderComplete error]:', err);
+    manualOrderError.value = `저장 실패: ${err.message}`;
+  } finally {
+    isSubmittingManualOrder.value = false;
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  }
+}
 
 function startPurchasingFromDetail() {
   if (!activeOrder.value) return;
@@ -1779,10 +1938,11 @@ function getItemSubStatusBadge(item) {
   }
 
   const map = {
-    purchase_pending: { label: '⏳ 발주대기',     cls: 'bg-amber-100 text-amber-700 border-amber-200' },
-    purchase_done:    { label: '🛒 발주완료',     cls: 'bg-blue-100 text-blue-700 border-blue-200' },
-    shipping:         { label: '🚚 내륙배송중',   cls: 'bg-purple-100 text-purple-700 border-purple-200' },
-    arrived:          { label: '📦 이우창고도착', cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    purchase_pending:      { label: '⏳ 발주대기',      cls: 'bg-amber-100 text-amber-700 border-amber-200' },
+    purchase_done:         { label: '🛒 발주완료',      cls: 'bg-blue-100 text-blue-700 border-blue-200' },
+    purchase_done_manual:  { label: '✍️ 수동발주완료',  cls: 'bg-orange-100 text-orange-700 border-orange-200' },
+    shipping:              { label: '🚚 내륙배송중',    cls: 'bg-purple-100 text-purple-700 border-purple-200' },
+    arrived:               { label: '📦 이우창고도착',  cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
   };
   return map[s] || map.purchase_pending;
 }
