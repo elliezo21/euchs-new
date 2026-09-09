@@ -786,23 +786,72 @@
             v-if="showManualOrderPopup && isStatus(activeOrder, 'payment_verified')"
             class="py-4 border-b border-amber-200"
           >
-            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-col gap-3">
-              <div class="flex items-center gap-2">
-                <span class="text-sm">✍️</span>
-                <p class="text-xs font-bold text-amber-800">1688 수동발주 완료 처리</p>
+            <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 flex flex-col gap-3 max-h-[60vh]">
+              <!-- 상단 헤더 (shrink-0) -->
+              <div class="shrink-0 space-y-1">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm">✍️</span>
+                    <p class="text-xs font-bold text-amber-800">1688 수동발주 완료 처리</p>
+                  </div>
+                  <span class="text-[11px] font-mono font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                    총 {{ (activeOrder.items || []).filter(i => !i.excluded).length }}개 품목
+                  </span>
+                </div>
+                <p class="text-[11px] text-amber-700 leading-relaxed">
+                  각 품목의 1688 주문번호를 입력 후 "저장하고 넘기기"를 누르면
+                  <strong>수동발주완료(✍️)</strong>로 기록되고 주문이 <strong>4단계(구매진행)</strong>로 전환됩니다.
+                </p>
               </div>
-              <p class="text-[11px] text-amber-700 leading-relaxed">
-                각 품목의 1688 주문번호를 입력 후 "저장하고 넘기기"를 누르면
-                <strong>수동발주완료(✍️)</strong>로 기록되고 주문이 <strong>4단계(구매진행)</strong>로 전환됩니다.
-              </p>
 
-              <!-- 유효 품목(excluded=false)만 표시 — 원본 items 인덱스 기준 -->
-              <div class="flex flex-col gap-2">
+              <!-- 전체선택 + 일괄입력 행 (shrink-0) -->
+              <div class="shrink-0 flex items-center gap-2 flex-wrap bg-amber-100/60 border border-amber-200 rounded-lg px-3 py-2">
+                <!-- 전체선택 체크박스 -->
+                <label class="flex items-center gap-1.5 cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    :checked="manualAllChecked"
+                    :indeterminate.prop="manualSomeChecked && !manualAllChecked"
+                    @change="toggleManualAllChecked"
+                    class="w-3.5 h-3.5 rounded accent-amber-500 cursor-pointer"
+                  />
+                  <span class="text-[11px] font-bold text-amber-800">전체선택</span>
+                </label>
+                <span class="text-amber-300 text-[10px]">|</span>
+                <!-- 일괄 주문번호 입력 -->
+                <input
+                  v-model="manualBulkNo"
+                  type="text"
+                  placeholder="일괄 적용할 1688 주문번호"
+                  class="flex-1 min-w-[140px] text-xs border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
+                  @keydown.enter.prevent="applyManualBulk"
+                />
+                <button
+                  type="button"
+                  @click="applyManualBulk"
+                  :disabled="!manualBulkNo.trim() || manualCheckedIdxs.size === 0"
+                  class="shrink-0 px-3 py-1.5 text-xs rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >일괄 적용</button>
+                <span v-if="manualCheckedIdxs.size > 0" class="text-[10px] text-amber-700 font-medium shrink-0">
+                  {{ manualCheckedIdxs.size }}개 선택됨
+                </span>
+              </div>
+
+              <!-- 유효 품목(excluded=false) 목록 (스크롤 영역: max-h 제한 + overscroll-contain) -->
+              <div class="overflow-y-auto overscroll-contain max-h-[35vh] pr-1.5 space-y-2 custom-scrollbar">
                 <div
                   v-for="(item, idx) in (activeOrder.items || []).map((item, idx) => ({ item, idx })).filter(({ item }) => !item.excluded)"
                   :key="idx"
-                  class="flex items-center gap-2 flex-wrap"
+                  class="flex items-center gap-2 flex-wrap bg-white/70 p-2 rounded-lg border transition"
+                  :class="manualCheckedIdxs.has(item.idx) ? 'border-amber-400 bg-amber-50/60' : 'border-amber-200/70'"
                 >
+                  <!-- 체크박스 -->
+                  <input
+                    type="checkbox"
+                    :checked="manualCheckedIdxs.has(item.idx)"
+                    @change="toggleManualItemCheck(item.idx)"
+                    class="w-3.5 h-3.5 rounded accent-amber-500 cursor-pointer shrink-0"
+                  />
                   <span class="text-[11px] font-bold text-slate-700 shrink-0 min-w-0 flex-1 truncate">
                     {{ item.item.productName || `품목 ${idx + 1}` }}
                   </span>
@@ -810,32 +859,38 @@
                     v-model="manualOrderNoDraft[item.idx]"
                     type="text"
                     placeholder="1688 주문번호 입력"
-                    class="w-48 text-xs border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
+                    class="w-44 text-xs border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
                   />
                 </div>
               </div>
 
-              <!-- 에러 메시지 -->
-              <p v-if="manualOrderError" class="text-[11px] text-rose-600 font-bold flex items-center gap-1">
-                <span>⚠️</span><span>{{ manualOrderError }}</span>
-              </p>
+              <!-- 에러 메시지 및 저장/취소 버튼 (하단 고정: shrink-0 pt-2 border-t border-amber-200/80) -->
+              <div class="shrink-0 pt-2 border-t border-amber-200/80 flex items-center justify-between gap-2 flex-wrap">
+                <!-- 에러 메시지 -->
+                <p v-if="manualOrderError" class="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                  <span>⚠️</span><span>{{ manualOrderError }}</span>
+                </p>
+                <div v-else class="text-[10px] text-amber-600 font-medium">
+                  * 1688 주문번호를 입력하지 않은 품목은 기존 주문번호를 유지합니다.
+                </div>
 
-              <!-- 저장 / 취소 버튼 -->
-              <div class="flex justify-end gap-2">
-                <button
-                  type="button"
-                  @click="showManualOrderPopup = false; manualOrderNoDraft = {}; manualOrderError = ''"
-                  class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-                >취소</button>
-                <button
-                  type="button"
-                  @click="executeManualOrderComplete"
-                  :disabled="isSubmittingManualOrder"
-                  class="px-4 py-1.5 text-xs rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
-                >
-                  <span v-if="isSubmittingManualOrder">⏳ 저장 중…</span>
-                  <span v-else>💾 저장하고 넘기기</span>
-                </button>
+                <!-- 저장 / 취소 버튼 -->
+                <div class="flex items-center justify-end gap-2 ml-auto">
+                  <button
+                    type="button"
+                    @click="showManualOrderPopup = false; manualOrderNoDraft = {}; manualOrderError = ''; manualCheckedIdxs = new Set(); manualBulkNo = ''"
+                    class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                  >취소</button>
+                  <button
+                    type="button"
+                    @click="executeManualOrderComplete"
+                    :disabled="isSubmittingManualOrder"
+                    class="px-4 py-1.5 text-xs rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-xs"
+                  >
+                    <span v-if="isSubmittingManualOrder">⏳ 저장 중…</span>
+                    <span v-else>💾 저장하고 넘기기</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>
@@ -965,6 +1020,16 @@
               <span>🛒 1688 구매 시작</span>
             </button>
 
+            <!-- 4. 구매진행(purchasing) 단계: 배송중(5단계) 수동 전환 버튼 -->
+            <button
+              v-if="isStatus(activeOrder, 'purchasing')"
+              @click="confirmWarehouseArrival(activeOrder, { silent: false })"
+              type="button"
+              class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+            >
+              <span>🚚 배송중(5단계) 전환</span>
+            </button>
+
             <!-- 5. 배송중(warehouse_in) 단계: 도착검수(5-A) 팝업 열기 — 목록 버튼 제거 후 모달 안으로 통합 -->
             <button
               v-if="isStatus(activeOrder, 'warehouse_in')"
@@ -1051,10 +1116,11 @@
     <!-- ConfirmSaveModal: 5단계 전환 (창고 도착 확인) -->
     <ConfirmSaveModal
       v-model="confirmWarehouseArrival5"
-      :title="`[${pendingWarehouseOrder?.orderNumber}] 이우 창고 도착 확인 → 배송중(5단계)으로 전환할까요?`"
-      variant="blue"
-      icon="check"
-      confirmText="확인"
+      :title="warehouseArrivalModalTitle"
+      :description="warehouseArrivalModalDesc"
+      :variant="warehouseArrivalModalVariant"
+      :icon="warehouseArrivalModalIcon"
+      confirmText="배송중 전환"
       @confirm="executeWarehouseArrival"
     />
 
@@ -1164,6 +1230,49 @@ const confirmPurchase4 = ref(false);            // 6번: 4단계 전환 (Purchas
 const pendingStartPurchasing = ref(null);
 const confirmWarehouseArrival5 = ref(false);    // 7번: 5단계 전환
 const pendingWarehouseOrder = ref(null);
+
+// 5단계 수동 전환 확인 모달 문구 및 스타일 분기 (송장 미입력 품목 유무에 따름)
+const missingTrackingItemsCount = computed(() => {
+  const o = pendingWarehouseOrder.value;
+  if (!o) return 0;
+  const activeItems = (o.items || []).map((item, idx) => {
+    if (item.excluded) return null;
+    const trackingNo = (purchaseInfoDraft.value?.[idx]?.chinaTrackingNo !== undefined && activeOrder.value?.id === o.id)
+      ? purchaseInfoDraft.value[idx].chinaTrackingNo
+      : item.chinaTrackingNo;
+    return { ...item, chinaTrackingNo: trackingNo };
+  }).filter(Boolean);
+
+  if (activeItems.length === 0) return 0;
+  return activeItems.filter(i => !i.chinaTrackingNo || !String(i.chinaTrackingNo).trim()).length;
+});
+
+const warehouseArrivalModalTitle = computed(() => {
+  const o = pendingWarehouseOrder.value;
+  if (!o) return '';
+  const missingCount = missingTrackingItemsCount.value;
+  if (missingCount > 0) {
+    return `[${o.orderNumber}] ${missingCount}개 품목은 아직 중국 송장번호가 없습니다. 그래도 배송중 단계로 넘기시겠습니까?`;
+  }
+  return `[${o.orderNumber}] 이우 창고 도착 확인 → 배송중(5단계)으로 전환할까요?`;
+});
+
+const warehouseArrivalModalDesc = computed(() => {
+  const missingCount = missingTrackingItemsCount.value;
+  if (missingCount > 0) {
+    return '중국 내륙 배송 송장번호가 비어있는 상태로 배송중(5단계)으로 강제 전환됩니다.';
+  }
+  return '이우 창고 도착 확인 후 배송중(5단계)으로 전환합니다.';
+});
+
+const warehouseArrivalModalVariant = computed(() => {
+  return missingTrackingItemsCount.value > 0 ? 'orange' : 'blue';
+});
+
+const warehouseArrivalModalIcon = computed(() => {
+  return missingTrackingItemsCount.value > 0 ? 'warn' : 'check';
+});
+
 const confirmShipping6 = ref(false);            // 8번: 6단계 전환
 const pendingShippingOrder = ref(null);
 const confirmDelivered9 = ref(false);           // 9번: 배송완료
@@ -1174,6 +1283,52 @@ const showManualOrderPopup  = ref(false);   // 팝업 토글
 const manualOrderNoDraft    = ref({});      // 품목 객체 → 주문번호 임시 입력값 (WeakMap 대신 객체 key=item 참조 index)
 const isSubmittingManualOrder = ref(false); // 저장 중 로딩 상태
 const manualOrderError      = ref('');      // 인라인 에러 메시지
+
+// ── 체크박스 · 일괄입력 상태 ──────────────────────────────────────────────────
+const manualCheckedIdxs = ref(new Set()); // 체크된 품목 원본 인덱스 집합
+const manualBulkNo      = ref('');        // 일괄 적용 주문번호 입력값
+
+/** 현재 유효 품목 인덱스 목록 (체크박스 전체선택 계산용) */
+function getManualActiveIdxs() {
+  if (!activeOrder.value) return [];
+  return (activeOrder.value.items || [])
+    .map((item, idx) => ({ item, idx }))
+    .filter(({ item }) => !item.excluded)
+    .map(({ idx }) => idx);
+}
+
+const manualAllChecked = computed(() => {
+  const idxs = getManualActiveIdxs();
+  return idxs.length > 0 && idxs.every(i => manualCheckedIdxs.value.has(i));
+});
+
+const manualSomeChecked = computed(() =>
+  getManualActiveIdxs().some(i => manualCheckedIdxs.value.has(i))
+);
+
+function toggleManualItemCheck(idx) {
+  const next = new Set(manualCheckedIdxs.value);
+  if (next.has(idx)) next.delete(idx);
+  else next.add(idx);
+  manualCheckedIdxs.value = next;
+}
+
+function toggleManualAllChecked() {
+  const idxs = getManualActiveIdxs();
+  if (manualAllChecked.value) {
+    manualCheckedIdxs.value = new Set();
+  } else {
+    manualCheckedIdxs.value = new Set(idxs);
+  }
+}
+
+function applyManualBulk() {
+  const val = manualBulkNo.value.trim();
+  if (!val || manualCheckedIdxs.value.size === 0) return;
+  const next = { ...manualOrderNoDraft.value };
+  manualCheckedIdxs.value.forEach(idx => { next[idx] = val; });
+  manualOrderNoDraft.value = next;
+}
 
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1237,6 +1392,8 @@ async function executeManualOrderComplete() {
     // ── 성공 후 팝업 상태 초기화 ─────────────────────────────────────────────
     showManualOrderPopup.value = false;
     manualOrderNoDraft.value = {};
+    manualCheckedIdxs.value = new Set();
+    manualBulkNo.value = '';
     showToast(`[${o.orderNumber}] 수동발주 완료 처리 → 4단계(구매진행) 전환`, 'success');
 
   } catch (err) {
@@ -2389,12 +2546,7 @@ function allItemsHaveTrackingNo(order) {
  *   - silent:false (기본) → 수동 확인 팝업 표시
  */
 async function confirmWarehouseArrival(order, { silent = false } = {}) {
-  // 방어 검사: 유효 품목에 모두 송장번호가 있어야 전환 가능
-  if (!allItemsHaveTrackingNo(order)) {
-    showToast('모든 품목의 송장번호를 먼저 입력·저장해주세요.', 'error');
-    return;
-  }
-  // 자동 경로(silent)가 아닌 경우에만 수동 모달 표시
+  // 수동 경로(silent: false): 송장번호 입력 여부와 무관하게 확인 모달을 열어 관리자 승인 후 강제 전환 지원
   if (!silent) {
     pendingWarehouseOrder.value = order;
     confirmWarehouseArrival5.value = true;
@@ -2404,18 +2556,26 @@ async function confirmWarehouseArrival(order, { silent = false } = {}) {
   const prevStatus = order.status;
   const target = orders.value.find(x => x.id === order.id || x.orderNumber === order.orderNumber);
   if (target) target.status = 'warehouse_in';  // 낙관적 업데이트
+  if (activeOrder.value && (activeOrder.value.id === order.id || activeOrder.value.orderNumber === order.orderNumber)) {
+    activeOrder.value.status = 'warehouse_in';
+  }
 
   isInternalUpdate.value = true;
   try {
     await updateOrderStatus(order.id, 'warehouse_in', {
       warehouseArrivedAt: new Date().toISOString(),
     });
-    const msg = silent
-      ? `[${order.orderNumber}] 전 품목 송장 입력 완료 → 배송중(5단계) 자동 전환 ✅`
-      : `[${order.orderNumber}] 창고 도착 확인 → 배송중(5단계) 전환 완료`;
+    const msg = allItemsHaveTrackingNo(order)
+      ? (silent
+          ? `[${order.orderNumber}] 전 품목 송장 입력 완료 → 배송중(5단계) 자동 전환 ✅`
+          : `[${order.orderNumber}] 창고 도착 확인 → 배송중(5단계) 전환 완료`)
+      : `[${order.orderNumber}] 창고 도착 확인(미등록 송장 포함) → 배송중(5단계) 전환 완료`;
     showToast(msg);
   } catch (err) {
     if (target) target.status = prevStatus;  // 실패 시 롤백
+    if (activeOrder.value && (activeOrder.value.id === order.id || activeOrder.value.orderNumber === order.orderNumber)) {
+      activeOrder.value.status = prevStatus;
+    }
     showToast(`처리 실패: ${err.message}`, 'error');
   } finally {
     setTimeout(() => { isInternalUpdate.value = false; }, 400);
@@ -2426,6 +2586,34 @@ async function confirmWarehouseArrival(order, { silent = false } = {}) {
 async function executeWarehouseArrival() {
   const order = pendingWarehouseOrder.value;
   if (!order) return;
+
+  // 상세 모달에서 편집 중이던 draft가 있다면 items에 반영 후 DB 저장
+  if (activeOrder.value && (activeOrder.value.id === order.id || activeOrder.value.orderNumber === order.orderNumber)) {
+    let hasDraftChanges = false;
+    (activeOrder.value.items || []).forEach((item, idx) => {
+      const draft = purchaseInfoDraft.value?.[idx];
+      if (draft) {
+        if (draft.purchaseNo !== undefined && draft.purchaseNo.trim() !== (item.purchaseNo || '')) {
+          item.purchaseNo = draft.purchaseNo.trim();
+          hasDraftChanges = true;
+        }
+        if (draft.chinaCarrier !== undefined && draft.chinaCarrier !== (item.chinaCarrier || '')) {
+          item.chinaCarrier = draft.chinaCarrier;
+          hasDraftChanges = true;
+        }
+        if (draft.chinaTrackingNo !== undefined && draft.chinaTrackingNo.trim() !== (item.chinaTrackingNo || '')) {
+          item.chinaTrackingNo = draft.chinaTrackingNo.trim();
+          hasDraftChanges = true;
+        }
+        if (item.chinaTrackingNo) item.subStatus = 'shipping';
+        else if (item.purchaseNo) item.subStatus = 'purchase_done';
+      }
+    });
+    if (hasDraftChanges) {
+      await saveDetailDraft({ closeAfter: false });
+    }
+  }
+
   await confirmWarehouseArrival(order, { silent: true });
 }
 
