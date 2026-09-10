@@ -18,7 +18,7 @@
       <div class="flex items-center gap-2 self-start sm:self-center">
         <button
           type="button"
-          @click="showManualModal = true"
+          @click="openManualModal()"
           class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
         >
           <span>+ 예치금 수동 조정 (관리자 권한)</span>
@@ -518,12 +518,16 @@
           <div class="space-y-1">
             <label class="block font-bold text-slate-700">대상 바이어</label>
             <select
-              v-model="manualForm.buyerName"
+              v-model="manualForm.buyerProfile"
+              required
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
             >
-              <option value="이유씨글로벌">이유씨글로벌 (buyer@euchs.com)</option>
-              <option value="(주)케이커머스">(주)케이커머스 (kcommerce@naver.com)</option>
-              <option value="탑글로벌무역">탑글로벌무역 (topglobal@gmail.com)</option>
+              <option :value="null" disabled>— 바이어를 선택하세요 —</option>
+              <option
+                v-for="buyer in buyerProfiles"
+                :key="buyer.id"
+                :value="buyer"
+              >{{ buyer.label }} ({{ buyer.email }}) — ₩{{ buyer.balance.toLocaleString('ko-KR') }}</option>
             </select>
           </div>
 
@@ -634,6 +638,15 @@ const depositFilter = ref('pending') // 기본 활성 탭: [⏳ 승인 대기]
 const logTypeFilter = ref('all')
 const logSearchQuery = ref('')
 const showManualModal = ref(false)
+
+function openManualModal() {
+  // 매번 열 때 이전 선택값 초기화
+  manualForm.value.buyerProfile = null
+  manualForm.value.action = 'add'
+  manualForm.value.amount = 100000
+  manualForm.value.reason = '관리자 수동 지급'
+  showManualModal.value = true
+}
 const confirmApproveDeposit = ref(false)
 const pendingDepositReq = ref(null)
 
@@ -828,24 +841,36 @@ const DEFAULT_LOGS = [
 const transactionLogs = ref([])
 
 const currentTotalBalance = ref(0)
+const buyerProfiles = ref([]) // 수동 조정 드롭다운용 바이어 목록 { id, email, name, balance }
 
-// 전체 바이어 예치금 합계 — loadState()와 독립된 별도 함수
+// 전체 바이어 예치금 합계 + 드롭다운용 바이어 목록 — loadState()와 독립된 별도 함수
 // AdminMembersView.vue의 실제 동작 패턴과 동일하게 사용
 async function fetchTotalBalance() {
   if (!isSupabaseConfigured()) return
   try {
     const { data: profileRows, error: profileErr } = await supabase
       .from('profiles')
-      .select('id, balance')
+      .select('id, email, name, company_name, representative_name, balance, role')
       .order('created_at', { ascending: false })
     if (profileErr) {
       console.warn('[AdminSettlement] profiles SELECT 에러:', JSON.stringify(profileErr))
       return
     }
     if (Array.isArray(profileRows)) {
-      currentTotalBalance.value = profileRows.reduce(
+      // KPI: 전체 바이어 잔액 합산 (관리자 계정 제외)
+      const ADMIN_ROLES = ['super_admin', 'admin', 'staff', 'master']
+      const buyerRows = profileRows.filter(p => !ADMIN_ROLES.includes(p.role))
+      currentTotalBalance.value = buyerRows.reduce(
         (sum, p) => sum + (Number(p.balance) || 0), 0
       )
+      // 드롭다운용: 표시명 + 식별자 포함
+      buyerProfiles.value = buyerRows.map(p => ({
+        id: p.id,
+        email: p.email || '',
+        balance: Number(p.balance) || 0,
+        // AdminMembersView.vue와 동일한 표시명 우선순위
+        label: (p.company_name || p.name || p.representative_name || p.email?.split('@')[0] || '바이어')
+      }))
     }
   } catch (e) {
     console.warn('[AdminSettlement] fetchTotalBalance 예외:', e)
@@ -1058,26 +1083,121 @@ async function rejectDeposit(req) {
 // 4. 수동 조정 모달 핸들러
 // ----------------------------------------------------
 const manualForm = ref({
-  buyerName: '이유씨글로벌',
-  action: 'add', // 'add' | 'sub'
+  buyerProfile: null, // { id, email, label, balance } — 드롭다운 선택값
+  action: 'add',      // 'add' | 'sub'
   amount: 100000,
   reason: '관리자 수동 지급'
 })
 
+/**
+ * 관리자가 특정 바이어의 잔액을 직접 조정
+ * applyBalanceTransaction(currentUser 기반)을 사용하지 않고
+ * 대상 바이어 ID를 명시적으로 받아 처리 — 관리자 본인 잔액 오변동 방지
+ */
+async function adminAdjustBuyerBalance(targetProfile, delta, txInfo = {}) {
+  if (!targetProfile?.id || !isValidUUID(targetProfile.id)) {
+    alert('유효한 바이어를 선택해 주세요.')
+    return false
+  }
+  if (!isSupabaseConfigured()) {
+    alert('Supabase 연결을 확인해 주세요.')
+    return false
+  }
+
+  const nowIso = new Date().toISOString()
+
+  try {
+    // 1. 대상 바이어의 현재 잔액 조회
+    const { data: profileData, error: fetchErr } = await supabase
+      .from('profiles')
+      .select('id, balance')
+      .eq('id', targetProfile.id)
+      .maybeSingle()
+
+    if (fetchErr || !profileData) {
+      console.warn('[adminAdjustBuyerBalance] 프로필 조회 실패:', fetchErr)
+      alert('바이어 프로필 조회에 실패했습니다.')
+      return false
+    }
+
+    const prevBalance = Number(profileData.balance) || 0
+    const nextBalance = Math.max(0, prevBalance + delta)
+
+    // 2. profiles.balance 업데이트 (대상 바이어 ID 명시)
+    const { error: updateErr } = await supabase
+      .from('profiles')
+      .update({ balance: nextBalance, updated_at: nowIso })
+      .eq('id', targetProfile.id)
+
+    if (updateErr) {
+      console.warn('[adminAdjustBuyerBalance] profiles UPDATE 실패:', updateErr)
+      alert('잔액 업데이트에 실패했습니다: ' + updateErr.message)
+      return false
+    }
+
+    // 3. transactions 기록 (대상 바이어 user_id/email 명시)
+    const titleText = txInfo.title || (delta >= 0 ? '관리자 수동 지급' : '관리자 수동 차감')
+    const descText = txInfo.description ? `${titleText} | ${txInfo.description}` : titleText
+
+    const { error: txErr } = await supabase
+      .from('transactions')
+      .insert({
+        user_id: targetProfile.id,
+        user_email: targetProfile.email || null,
+        type: txInfo.type || (delta >= 0 ? 'manual_add' : 'manual_sub'),
+        amount: delta,
+        balance_after: nextBalance,
+        description: descText,
+        created_at: nowIso
+      })
+
+    if (txErr) {
+      console.warn('[adminAdjustBuyerBalance] transactions INSERT 경고:', txErr.message)
+    }
+
+    // 4. buyerProfiles 목록의 해당 바이어 잔액 즉시 갱신 (새 배열 생성 금지 — v-model 참조 유지)
+    const idx = buyerProfiles.value.findIndex(p => p.id === targetProfile.id)
+    if (idx >= 0) {
+      buyerProfiles.value[idx].balance = nextBalance
+    }
+
+    // 5. 총 보관 예치금 KPI: 전체 재조회 대신 delta만 반영 (buyerProfiles 배열 교체 방지)
+    currentTotalBalance.value = Math.max(0, (currentTotalBalance.value || 0) + delta)
+
+    return { success: true, prevBalance, nextBalance }
+  } catch (e) {
+    console.warn('[adminAdjustBuyerBalance] 예외:', e)
+    alert('수동 조정 처리 중 오류가 발생했습니다.')
+    return false
+  }
+}
+
 async function handleManualAdjust() {
+  const target = manualForm.value.buyerProfile
+  if (!target) {
+    alert('대상 바이어를 선택해 주세요.')
+    return
+  }
+
   const isAdd = manualForm.value.action === 'add'
   const delta = isAdd ? Number(manualForm.value.amount) : -Number(manualForm.value.amount)
 
-  await applyBalanceTransaction(delta, {
+  const result = await adminAdjustBuyerBalance(target, delta, {
     type: isAdd ? 'manual_add' : 'manual_sub',
     title: isAdd ? `관리자 수동 지급: ${manualForm.value.reason}` : `관리자 수동 차감: ${manualForm.value.reason}`,
     description: manualForm.value.reason
   })
 
-  saveState()
-  showManualModal.value = false
-  showToast(`예치금이 성공적으로 ${isAdd ? '지급' : '차감'}되었습니다. (변동 후: ₩${fmtN(userBalance.value)})`)
+  if (result && result.success) {
+    showManualModal.value = false  // 먼저 닫아서 storage 이벤트 전 UI 안정화
+    saveState()
+    showToast(
+      `[${target.label}] 예치금이 ${isAdd ? '지급' : '차감'}되었습니다.` +
+      ` (₩${fmtN(result.prevBalance)} → ₩${fmtN(result.nextBalance)})`
+    )
+  }
 }
+
 
 // ----------------------------------------------------
 // 로컬 스토리지 로드 & 저장 및 Supabase 실시간 동기화
