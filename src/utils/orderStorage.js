@@ -897,3 +897,40 @@ export function getWarehouseInboundsFromOrders(ordersList = null) {
   });
 }
 
+/**
+ * 창고 인바운드 아이템의 4대 탭 키 판정 헬퍼 (WarehouseView 및 사이드바 공통)
+ */
+export function getItemTabKey(item) {
+  const st = item.inspectionStatus;
+  if (st === 'arrival_done') {
+    return 'arrival_done';
+  }
+  if (st === 'pending_inbound') {
+    const allVerified = item.order?.measuredData?.allItemsVerified === true;
+    const hasPhotos = Array.isArray(item.inspectionPhotos) && item.inspectionPhotos.length > 0;
+    return (allVerified || hasPhotos) ? 'arrival_done' : 'pending_inbound';
+  }
+  if (st === 'inbound_weighed' || st === 'inspected' || st === 'inspection_done' || st === 'defect_found') {
+    return 'inbound_weighed';
+  }
+  if (st === 'ready_to_ship') {
+    return 'ready_to_ship';
+  }
+  return 'pending_inbound';
+}
+
+/**
+ * 주문 목록으로부터 이우 물류센터 4개 탭 카운트 집계
+ * @param {Array} orders - 주문 배열
+ * @returns {{ pending_inbound: number, arrival_done: number, inbound_weighed: number, ready_to_ship: number }}
+ */
+export function getWarehouseTabCounts(orders = null) {
+  const inbounds = getWarehouseInboundsFromOrders(orders);
+  const c = { pending_inbound: 0, arrival_done: 0, inbound_weighed: 0, ready_to_ship: 0 };
+  inbounds.forEach(item => {
+    const k = getItemTabKey(item);
+    if (k in c) c[k]++;
+  });
+  return c;
+}
+

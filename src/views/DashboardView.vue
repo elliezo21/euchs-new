@@ -205,6 +205,14 @@
                   <span class="font-mono text-orange-600 text-[11px] font-bold">({{ paymentPendingCount }})</span>
                 </router-link>
                 <router-link
+                  to="/dashboard/orders?tab=payment_verified"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/orders' && (route.query.tab === 'payment_verified' || route.query.tab === 'verified') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>결제확인</span>
+                  <span class="font-mono text-emerald-600 text-[11px] font-bold">({{ paymentVerifiedCount }})</span>
+                </router-link>
+                <router-link
                   to="/dashboard/orders?tab=purchasing"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
                   :class="route.path === '/dashboard/orders' && route.query.tab === 'purchasing' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
@@ -223,19 +231,67 @@
               </div>
             </div>
 
-            <!-- 4. EUC 창고 (단일 메뉴) -->
-            <div class="pt-1">
-              <router-link
-                to="/dashboard/warehouse"
-                class="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl transition text-left"
-                :class="route.path.startsWith('/dashboard/warehouse') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500 shadow-xs' : 'text-gray-700 hover:bg-gray-100 font-medium'"
+            <!-- 4. EUC 창고 (아코디언) -->
+            <div class="space-y-0.5 pt-1">
+              <div
+                class="w-full flex items-center justify-between px-3.5 py-2 rounded-xl text-gray-700 hover:bg-gray-50 transition text-left cursor-pointer group"
+                :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-600 font-bold' : 'font-medium'"
               >
-                <div class="flex items-center gap-2.5">
-                  <i class="fas fa-warehouse text-base" :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-500' : 'text-gray-400'"></i>
-                  <span>이우 물류센터 입고/검수</span>
-                </div>
-                <span class="text-[9px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold">100%</span>
-              </router-link>
+                <!-- 대분류 클릭 시 /dashboard/warehouse 기본 페이지로 이동 -->
+                <router-link
+                  to="/dashboard/warehouse"
+                  class="flex items-center gap-2.5 flex-1 min-w-0"
+                  @click.stop
+                >
+                  <i class="fas fa-warehouse text-sm" :class="route.path.startsWith('/dashboard/warehouse') ? 'text-amber-500' : 'text-gray-400'"></i>
+                  <span class="truncate">이우 물류센터 입고/검수</span>
+                </router-link>
+                <!-- 아코디언 펼침/접힘 토글 버튼 -->
+                <button
+                  type="button"
+                  @click="toggleMenu('warehouse')"
+                  class="p-1 -mr-1 rounded-md hover:bg-gray-200/60 text-gray-400 transition"
+                  title="하위 메뉴 토글"
+                >
+                  <i class="fas fa-chevron-down text-[10px] transition-transform duration-200" :class="expandedMenus.warehouse ? 'rotate-180 text-amber-500' : 'text-gray-400'"></i>
+                </button>
+              </div>
+
+              <!-- Submenu Items: 4개 탭 연동 -->
+              <div v-show="expandedMenus.warehouse" class="pl-7 pr-1 py-1 space-y-0.5 transition-all">
+                <router-link
+                  to="/dashboard/warehouse?tab=pending_inbound"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/warehouse' && route.query.tab === 'pending_inbound' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>배송중</span>
+                  <span class="font-mono text-amber-600 text-[11px] font-bold">({{ warehouseTabCounts.pending_inbound }})</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/warehouse?tab=arrival_done"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/warehouse' && route.query.tab === 'arrival_done' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>현지입고완료</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ warehouseTabCounts.arrival_done }})</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/warehouse?tab=inbound_weighed"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/warehouse' && (route.query.tab === 'inbound_weighed' || route.query.tab === 'inspection') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>실측&검수완료</span>
+                  <span class="font-mono text-teal-600 text-[11px] font-bold">({{ warehouseTabCounts.inbound_weighed }})</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/warehouse?tab=ready_to_ship"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/warehouse' && (route.query.tab === 'ready_to_ship' || route.query.tab === 'shipping_ready') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>한국행 선적대기</span>
+                  <span class="font-mono text-purple-600 text-[11px] font-bold">({{ warehouseTabCounts.ready_to_ship }})</span>
+                </router-link>
+              </div>
             </div>
 
             <!-- 5. 수입 통관 & 국내배송 (아코디언) -->
@@ -869,7 +925,7 @@ import {
   getOrderStatusBadgeClass,
   getOrderStatsByUser
 } from '../lib/orderPipeline'
-import { getStoredOrders, fetchOrdersFromSupabase } from '../utils/orderStorage'
+import { getStoredOrders, fetchOrdersFromSupabase, getWarehouseTabCounts } from '../utils/orderStorage'
 import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
 import OrderConfigModal from '../components/dashboard/OrderConfigModal.vue'
 import {
@@ -941,6 +997,7 @@ const activeMenuId = ref('dashboard_main')
 const expandedMenus = ref({
   products: true,
   orders: true,
+  warehouse: true,
   shipping: true,
   account: true
 })
@@ -950,6 +1007,8 @@ watch(() => route.path, (newPath) => {
     expandedMenus.value.products = true
   } else if (newPath.startsWith('/dashboard/orders')) {
     expandedMenus.value.orders = true
+  } else if (newPath.startsWith('/dashboard/warehouse')) {
+    expandedMenus.value.warehouse = true
   } else if (newPath.startsWith('/dashboard/logistics')) {
     expandedMenus.value.shipping = true
   } else if (newPath.startsWith('/dashboard/account')) {
@@ -1118,9 +1177,11 @@ const loadDashboardData = async () => {
 const orderStats = computed(() => getOrderStatsByUser(submittedOrders.value))
 
 // 기존 템플릿 참조 이름 유지 (computed 위임으로 교체)
-const quotePendingCount   = computed(() => orderStats.value.byStage.quote_pending)
-const purchasingCount     = computed(() => orderStats.value.byStage.purchasing)
-const paymentPendingCount = computed(() => orderStats.value.byStage.quote_confirmed)
+const quotePendingCount     = computed(() => orderStats.value.byStage.quote_pending)
+const paymentPendingCount   = computed(() => orderStats.value.byStage.quote_confirmed)
+const paymentVerifiedCount  = computed(() => orderStats.value.byStage.payment_verified)
+const purchasingCount       = computed(() => orderStats.value.byStage.purchasing)
+const warehouseTabCounts    = computed(() => getWarehouseTabCounts(submittedOrders.value))
 
 const getPipelineCount = (statusKey) => {
   if (statusKey === 'quote_pending') {

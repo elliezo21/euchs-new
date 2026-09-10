@@ -1421,7 +1421,7 @@ import {
   ExternalLink
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
-import { updateOrderStatus, getStoredOrders, getWarehouseInboundsFromOrders, fetchOrdersFromSupabase, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
+import { updateOrderStatus, getStoredOrders, getWarehouseInboundsFromOrders, getItemTabKey, fetchOrdersFromSupabase, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
@@ -1487,34 +1487,6 @@ const WAREHOUSE_TABS = [
 ];
 
 // ---------------------------------------------------------
-// 탭 판정 헬퍼 (배타적 분류)
-// Tab1 입고대기:      inspectionStatus === 'pending_inbound' AND allItemsVerified !== true
-// Tab2 현지입고완료:  inspectionStatus === 'pending_inbound' AND allItemsVerified === true
-// Tab3 실측&검수완료: inspectionStatus === 'inbound_weighed' | 'inspected' | 'inspection_done' | 'defect_found'
-// Tab4 한국행 선적대기: inspectionStatus === 'ready_to_ship'
-// ---------------------------------------------------------
-function getItemTabKey(item) {
-  const st = item.inspectionStatus;
-  if (st === 'arrival_done') {
-    return 'arrival_done';
-  }
-  if (st === 'pending_inbound') {
-    // 5-A 완료 여부: measuredData.allItemsVerified 또는 inspection_photos > 0
-    const allVerified = item.order?.measuredData?.allItemsVerified === true;
-    const hasPhotos = Array.isArray(item.inspectionPhotos) && item.inspectionPhotos.length > 0;
-    return (allVerified || hasPhotos) ? 'arrival_done' : 'pending_inbound';
-  }
-  if (st === 'inbound_weighed' || st === 'inspected' || st === 'inspection_done' || st === 'defect_found') {
-    return 'inbound_weighed';
-  }
-  if (st === 'ready_to_ship') {
-    return 'ready_to_ship';
-  }
-  // fallback: inspected 계열도 inbound_weighed 탭으로
-  return 'pending_inbound';
-}
-
-// ---------------------------------------------------------
 // 상태 필터 & 검색어 & 스토어 데이터
 // ---------------------------------------------------------
 const inbounds = ref([]);
@@ -1523,12 +1495,23 @@ const statusFilter = ref('all'); // 기존 호환성 유지 (route.query.tab wat
 const activeTabFilter = ref('all'); // 4단계 탭 필터 ('all' | 탭 key)
 
 watch(() => route.query.tab, (newTab) => {
-  if (newTab === 'inspection') {
+  if (!newTab || newTab === 'all') {
+    activeTabFilter.value = 'all';
+    statusFilter.value = 'all';
+  } else if (newTab === 'pending_inbound' || newTab === 'shipping_in_transit' || newTab === 'in_transit') {
+    activeTabFilter.value = 'pending_inbound';
+  } else if (newTab === 'arrival_done' || newTab === 'warehouse_arrived' || newTab === 'arrived') {
+    activeTabFilter.value = 'arrival_done';
+  } else if (newTab === 'inbound_weighed' || newTab === 'inspection' || newTab === 'inspection_done' || newTab === 'inspected') {
+    activeTabFilter.value = 'inbound_weighed';
     statusFilter.value = 'inspected';
+  } else if (newTab === 'ready_to_ship' || newTab === 'shipping_ready') {
+    activeTabFilter.value = 'ready_to_ship';
   } else if (newTab === 'vas') {
+    activeTabFilter.value = 'all';
     statusFilter.value = 'all';
-  } else if (newTab === 'all' || !newTab) {
-    statusFilter.value = 'all';
+  } else {
+    activeTabFilter.value = newTab;
   }
 }, { immediate: true });
 
