@@ -827,9 +827,30 @@ const DEFAULT_LOGS = [
 
 const transactionLogs = ref([])
 
-const currentTotalBalance = computed(() => {
-  return userBalance.value || 0
-})
+const currentTotalBalance = ref(0)
+
+// 전체 바이어 예치금 합계 — loadState()와 독립된 별도 함수
+// AdminMembersView.vue의 실제 동작 패턴과 동일하게 사용
+async function fetchTotalBalance() {
+  if (!isSupabaseConfigured()) return
+  try {
+    const { data: profileRows, error: profileErr } = await supabase
+      .from('profiles')
+      .select('id, balance')
+      .order('created_at', { ascending: false })
+    if (profileErr) {
+      console.warn('[AdminSettlement] profiles SELECT 에러:', JSON.stringify(profileErr))
+      return
+    }
+    if (Array.isArray(profileRows)) {
+      currentTotalBalance.value = profileRows.reduce(
+        (sum, p) => sum + (Number(p.balance) || 0), 0
+      )
+    }
+  } catch (e) {
+    console.warn('[AdminSettlement] fetchTotalBalance 예외:', e)
+  }
+}
 
 const firstPaymentSum = ref(41200000)
 const secondPaymentSum = ref(6840000)
@@ -1148,6 +1169,7 @@ let realtimeChannel = null
 
 onMounted(() => {
   loadState()
+  fetchTotalBalance()
 
   // 1. 동일 브라우저 탭 간 로컬 이벤트 감지
   window.addEventListener('euchs-deposit-request', (e) => {
@@ -1166,8 +1188,8 @@ onMounted(() => {
       }
     }
   })
-  window.addEventListener('euchs-balance-update', loadState)
-  window.addEventListener('euchs-balance-updated', loadState)
+  window.addEventListener('euchs-balance-update', () => { loadState(); fetchTotalBalance() })
+  window.addEventListener('euchs-balance-updated', () => { loadState(); fetchTotalBalance() })
   window.addEventListener('storage', loadState)
 
   // 2. Supabase Realtime 리스너 (원격 바이어 실시간 신청 감지)
