@@ -646,23 +646,64 @@
                         </div>
                       </div>
 
-                      <!-- 결제 전: 결제실행 버튼 -->
-                      <div v-else class="flex flex-col gap-1.5">
-                        <button
-                          type="button"
-                          :disabled="payingProtocol.has(idx)"
-                          @click="executeProtocolPay(item, activeOrder, idx)"
-                          class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs"
-                          :class="payingProtocol.has(idx)
-                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
-                            : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'"
-                          title="1688 알리페이 면제결제(protocolPay.preparePay) 실행"
-                        >
-                          <span v-if="payingProtocol.has(idx)">⏳ 결제 처리 중…</span>
-                          <span v-else>💳 1688 결제실행</span>
-                        </button>
+                      <!-- 결제 전: crossBorderPay 결제 링크 방식 -->
+                      <div v-else class="flex flex-col gap-2">
 
-                        <!-- 결제 에러 배지 (이전 결제 시도 실패 시) -->
+                        <!-- ① 링크 발급 대기 중(payLinkIssued에 없는 상태): 결제링크 발급 버튼 -->
+                        <template v-if="!payLinkIssued[idx]">
+                          <!-- calvinli06 계정 안내 문구 -->
+                          <p class="text-[10px] text-slate-500 leading-snug">
+                            ⚠️ 새 창은 <strong class="text-slate-700">calvinli06</strong> 계정으로 1688에 로그인된 상태에서 열어야 합니다.
+                          </p>
+                          <button
+                            type="button"
+                            :disabled="payLinkLoading.has(idx)"
+                            @click="executeCrossBorderPayLink(item, activeOrder, idx)"
+                            class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs"
+                            :class="payLinkLoading.has(idx)
+                              ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                              : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'"
+                            title="1688 결제 링크를 새 창으로 열어 관리자가 직접 결제합니다"
+                          >
+                            <span v-if="payLinkLoading.has(idx)">⏳ 링크 발급 중…</span>
+                            <span v-else>💳 1688 결제링크 열기</span>
+                          </button>
+                        </template>
+
+                        <!-- ② 링크 발급 완료, 관리자 수동 확인 대기 중 -->
+                        <template v-else>
+                          <div class="flex flex-col gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            <p class="text-[11px] font-bold text-amber-800 leading-snug">
+                              🔗 결제 창이 열렸습니다. 아래 단계를 따라주세요:
+                            </p>
+                            <ol class="text-[10px] text-amber-700 space-y-0.5 pl-3 list-decimal">
+                              <li><strong>calvinli06</strong> 계정으로 1688 로그인 확인</li>
+                              <li>결제 완료 후 아래 [결제완료 확인] 클릭</li>
+                            </ol>
+                            <div class="flex items-center gap-2 mt-1 flex-wrap">
+                              <!-- 결제완료 확인 버튼 -->
+                              <button
+                                type="button"
+                                @click="confirmAlipayPaid(item, activeOrder, idx)"
+                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition active:scale-95 shadow-xs whitespace-nowrap"
+                                title="1688에서 결제를 완료한 경우 클릭하면 결제완료로 저장됩니다"
+                              >
+                                ✅ 결제완료 확인
+                              </button>
+                              <!-- 창 재발급 버튼 (창이 닫혔을 경우) -->
+                              <button
+                                type="button"
+                                @click="window.open(payLinkIssued[idx], '_blank', 'noopener,noreferrer')"
+                                class="shrink-0 px-2.5 py-1.5 rounded-lg font-bold text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer transition active:scale-95 whitespace-nowrap"
+                                title="결제 창을 다시 열기"
+                              >
+                                🔄 창 다시 열기
+                              </button>
+                            </div>
+                          </div>
+                        </template>
+
+                        <!-- 결제 에러 배지 -->
                         <div
                           v-if="item.payError"
                           class="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"
@@ -670,7 +711,7 @@
                           <span class="text-rose-600 text-sm shrink-0 mt-0.5">⚠️</span>
                           <div class="min-w-0 flex-1">
                             <p class="text-[11px] font-bold text-rose-700 leading-snug">
-                              결제 실패: {{ item.payError }}
+                              결제 링크 오류: {{ item.payError }}
                             </p>
                             <p v-if="item.payErrorAt" class="text-[10px] text-rose-400 font-mono mt-0.5">
                               {{ new Date(item.payErrorAt).toLocaleString('ko-KR') }}
@@ -678,6 +719,7 @@
                           </div>
                         </div>
                       </div>
+
                     </div>
 
                   </div>
@@ -1352,6 +1394,12 @@ const manualBulkNo      = ref('');        // 일괄 적용 주문번호 입력�
 
 // ── 1688 결제실행(protocolPay) 로딩 상태 (수동발주/자동발주 로직과 완전 분리) ─
 const payingProtocol = ref(new Set()); // 결제 진행 중인 품목 인덱스 집합 (버튼 스피너용)
+
+// ── 1688 crossBorderPay 결제 링크 발급 상태 ───────────────────────────────
+// payLinkLoading: 링크 발급 API 호출 중인 품목 인덱스 집합 (버튼 스피너)
+// payLinkIssued : idx → payUrl 매핑 (링크 발급 완료, 관리자 확인 대기 중)
+const payLinkLoading = ref(new Set());
+const payLinkIssued  = ref({});        // { [idx]: payUrl }
 
 /** 현재 유효 품목 인덱스 목록 (체크박스 전체선택 계산용) */
 function getManualActiveIdxs() {
@@ -2654,6 +2702,85 @@ async function executeProtocolPay(item, order, idx) {
   }
 }
 
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1688 crossBorderPay 결제 링크 발급 — protocolPay 대체
+//
+// cb(cross-border) 타입 주문에서 protocolPay.preparePay 대신 사용.
+// 실결제를 자동 실행하지 않고, 결제 URL을 새 창으로 열어
+// 관리자가 1688 사이트에서 직접 완료하는 방식.
+//
+// 흐름:
+//   1. /api/1688-crossborder-pay POST → payUrl 수신
+//   2. window.open(payUrl) → 관리자가 calvinli06 계정으로 결제
+//   3. 관리자가 [결제완료 확인] 버튼 수동 클릭
+//   4. item.alipayPaid = true 저장 (confirmAlipayPaid)
+// ─────────────────────────────────────────────────────────────────────────────
+async function executeCrossBorderPayLink(item, order, idx) {
+  if (!item || !item.purchaseNo) {
+    showToast('1688 주문번호(purchaseNo)가 없어 결제 링크를 발급할 수 없습니다.', 'error');
+    return;
+  }
+
+  // 로딩 ON
+  const next = new Set(payLinkLoading.value);
+  next.add(idx);
+  payLinkLoading.value = next;
+
+  try {
+    const res = await fetch('/api/1688-crossborder-pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tradeId: item.purchaseNo }),
+    });
+    const data = await res.json();
+
+    if (data.success && data.payUrl) {
+      // 링크 발급 성공 → 새 창 열기 + 확인 대기 상태로 전환
+      window.open(data.payUrl, '_blank', 'noopener,noreferrer');
+
+      const issued = { ...payLinkIssued.value };
+      issued[idx] = data.payUrl;
+      payLinkIssued.value = issued;
+
+      item.payError  = null;   // 이전 에러 배지 제거
+      item.payErrorAt = null;
+      showToast(`결제 링크가 새 창으로 열렸습니다. 1688에서 결제 완료 후 [결제완료 확인] 버튼을 눌러주세요.`, 'success');
+    } else {
+      // 링크 발급 실패
+      item.payError   = data.message || '결제 링크 발급 실패';
+      item.payErrorAt = new Date().toISOString();
+      showToast(`결제 링크 발급 실패: ${data.message}`, 'error');
+    }
+  } catch (fetchErr) {
+    // 통신 오류 — 침묵 금지
+    item.payError   = fetchErr.message;
+    item.payErrorAt = new Date().toISOString();
+    showToast(`결제 링크 통신 오류: ${fetchErr.message}`, 'error');
+  } finally {
+    const done = new Set(payLinkLoading.value);
+    done.delete(idx);
+    payLinkLoading.value = done;
+  }
+}
+
+/** 관리자가 1688에서 결제를 완료한 후 직접 클릭하는 확인 버튼 핸들러 */
+async function confirmAlipayPaid(item, order, idx) {
+  if (!item) return;
+
+  item.alipayPaid    = true;
+  item.alipayPaidAt  = new Date().toISOString();
+  item.payError      = null;
+  item.payErrorAt    = null;
+
+  // 확인 대기 상태 해제
+  const issued = { ...payLinkIssued.value };
+  delete issued[idx];
+  payLinkIssued.value = issued;
+
+  await saveDetailDraft({ closeAfter: false });
+  showToast(`[${order?.orderNumber}] 1688 결제완료로 표시되었습니다. (tradeId: ${item.purchaseNo})`);
+}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4단계(구매진행) → 5단계(입고검수) 전환 로직
