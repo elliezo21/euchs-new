@@ -272,12 +272,15 @@
     <div class="flex gap-0 min-h-screen w-full max-w-[1720px] mx-auto px-2 lg:px-4 py-3 sm:py-4 items-start">
 
       <!-- ====================================================== -->
-      <!-- LEFT: LNB SIDEBAR (고정 PC 전용)                        -->
+      <!-- LEFT: LNB SIDEBAR (고정 PC 전용 - 독립 스크롤 적용) -->
       <!-- ====================================================== -->
-      <aside class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-28 self-start mr-4">
+      <aside 
+        class="hidden lg:flex w-60 xl:w-64 shrink-0 flex-col gap-3 sticky top-[7.5rem] self-start mr-4 max-h-[calc(100vh-8.5rem)] overflow-y-auto overscroll-contain pr-1.5 custom-sidebar-scroll"
+        style="position: sticky; top: 7.5rem;"
+      >
 
         <!-- Profile Mini Card -->
-        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden">
+        <div class="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-hidden shrink-0">
           <div class="p-4 bg-slate-50/80 border-b border-slate-200">
             <!-- 로그인 상태 -->
             <div v-if="isLoggedIn" class="flex items-center gap-3">
@@ -598,14 +601,14 @@
         <button
           type="button"
           @click="$emit('open-onboarding'); window.dispatchEvent(new Event('euchs:open-onboarding'))"
-          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition cursor-pointer mb-3"
+          class="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border-2 border-dashed border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-700 font-bold text-xs transition cursor-pointer mb-3 shrink-0"
         >
           <span>💡</span>
           <span>사용가이드 다시 보기</span>
         </button>
 
         <!-- 하단 카카오 상담 CTA -->
-        <div class="bg-slate-900 text-white rounded-2xl p-4 space-y-2 text-xs">
+        <div class="bg-slate-900 text-white rounded-2xl p-4 space-y-2 text-xs shrink-0">
           <div class="flex items-center gap-2 text-orange-400 font-bold">
             <i class="fas fa-comment-dots text-sm"></i>
             <span>1:1 전담 카카오톡 상담</span>
@@ -1954,7 +1957,8 @@ const expandedMenus = ref({
 })
 
 watch(() => route.path, (newPath) => {
-  if (newPath.startsWith('/dashboard/cart') || newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/mall') || newPath.startsWith('/dashboard/stores')) {
+  // 특정 하위 페이지 직접 접근 시에만 해당 메뉴 오픈 (/mall 첫 진입 시는 전부 접힘 유지)
+  if (newPath.startsWith('/dashboard/cart') || newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/dashboard/stores')) {
     expandedMenus.value.products = true
   } else if (newPath.startsWith('/dashboard/orders')) {
     expandedMenus.value.orders = true
@@ -1963,7 +1967,7 @@ watch(() => route.path, (newPath) => {
   } else if (newPath.startsWith('/dashboard/account')) {
     expandedMenus.value.account = true
   }
-}, { immediate: true })
+})
 
 const toggleMenu = (key) => {
   expandedMenus.value[key] = !expandedMenus.value[key]
@@ -2478,6 +2482,24 @@ watch(() => route.query, () => {
 </script>
 
 <style scoped>
+.custom-sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #94a3b8 transparent;
+}
+.custom-sidebar-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-sidebar-scroll::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 9999px;
+}
+.custom-sidebar-scroll::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }

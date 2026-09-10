@@ -89,8 +89,8 @@
           type="button"
           @click="handleCartClick" 
           class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-red-600 text-white flex items-center justify-center shadow-lg hover:bg-red-700 active:scale-95 transition-all text-base sm:text-lg font-bold focus:outline-none cursor-pointer"
-          title="장바구니 (발주대기 보관함)"
-          aria-label="장바구니 (발주대기 보관함)"
+          title="1688 실시간 소싱몰 메인"
+          aria-label="1688 실시간 소싱몰 메인"
         >
           <i class="fas fa-shopping-bag"></i>
         </button>
@@ -177,13 +177,7 @@ const savedCount = ref(0)
 
 const handleCartClick = () => {
   isOpen.value = false
-  if (!isLoggedIn.value) {
-    window.dispatchEvent(new CustomEvent('euchs:open-auth-guard', {
-      detail: { reason: 'cart', message: '장바구니 확인 및 수입 발주 신청은 회원 전용 서비스입니다.\n로그인이나 회원가입 후 편리하게 이용해 보세요.' }
-    }))
-    return
-  }
-  router.push('/dashboard/cart')
+  router.push('/mall')
 }
 
 const updateSavedCount = () => {
