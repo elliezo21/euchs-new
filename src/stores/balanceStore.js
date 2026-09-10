@@ -261,36 +261,18 @@ export function deductBalance(amount, txInfo = {}) {
 }
 
 /**
- * 잔액 직접 설정 (Supabase / 관리자 수동 조정 시 사용)
- * @param {number} balance 새 잔액
+ * 로컬 잔액 상태를 지정한 값으로 동기화합니다.
+ *
+ * ⚠️ 이 함수는 로컬 상태(ref + localStorage)만 갱신합니다.
+ * DB(profiles.balance)는 건드리지 않습니다.
+ * 반드시 RPC 등으로 DB 반영이 완료된 최종값을 인자로 넘겨야 합니다.
+ * DB를 직접 갱신해야 하는 경우에는 applyBalanceTransaction()을 사용하세요.
+ *
+ * @param {number} balance RPC 등이 확정한 최신 잔액 (DB 반영 완료 상태)
  */
 export function setBalance(balance) {
   userBalance.value = Number(balance);
   _saveToStorage(userBalance.value);
-  
-  const user = currentUser.value;
-  if (isSupabaseConfigured() && user && user.id !== 'demo-buyer-01') {
-    const isUUID = isValidUUID(user.id);
-    const userMail = user.email ? String(user.email).trim() : '';
-
-    let updateQuery = supabase
-      .from('profiles')
-      .update({ balance: userBalance.value, updated_at: new Date().toISOString() });
-
-    if (isUUID) {
-      updateQuery = updateQuery.eq('id', user.id);
-    } else if (userMail) {
-      updateQuery = updateQuery.eq('email', userMail);
-    } else {
-      updateQuery = null;
-    }
-
-    if (updateQuery) {
-      updateQuery
-        .then(() => {})
-        .catch(err => console.debug('setBalance Supabase sync notice:', err));
-    }
-  }
 }
 
 /**
