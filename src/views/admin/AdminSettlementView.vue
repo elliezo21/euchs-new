@@ -37,7 +37,10 @@
         <div class="text-2xl font-black font-mono text-slate-900">
           ₩{{ fmtN(currentTotalBalance) }}
         </div>
-        <p class="text-[11px] text-slate-400 font-medium">전체 바이어 보관 예치금 실시간 합계</p>
+        <p class="text-[11px] text-slate-400 font-medium">전체 바이어 보관 예치금 실시간 합계 (관리자 계정 제외)</p>
+        <p v-if="adminTotalBalance > 0" class="text-[10px] text-slate-400 font-medium">
+          관리자 계정 잔액 별도: ₩{{ fmtN(adminTotalBalance) }} (합계 미포함)
+        </p>
       </div>
 
       <!-- KPI 2: 무통장 충전 승인 대기 -->
@@ -529,6 +532,7 @@
                 :value="buyer"
               >{{ buyer.label }} ({{ buyer.email }}) — ₩{{ buyer.balance.toLocaleString('ko-KR') }}</option>
             </select>
+            <p class="text-[10px] text-slate-400 mt-1">관리자 계정(super_admin/admin/staff)은 대상에서 제외됩니다.</p>
           </div>
 
           <!-- 지급 / 차감 선택 -->
@@ -841,6 +845,7 @@ const DEFAULT_LOGS = [
 const transactionLogs = ref([])
 
 const currentTotalBalance = ref(0)
+const adminTotalBalance = ref(0)  // 관리자 role 계정 잔액 합산 (KPI 합계 미포함, 별도 표시용)
 const buyerProfiles = ref([]) // 수동 조정 드롭다운용 바이어 목록 { id, email, name, balance }
 
 // 전체 바이어 예치금 합계 + 드롭다운용 바이어 목록 — loadState()와 독립된 별도 함수
@@ -860,7 +865,12 @@ async function fetchTotalBalance() {
       // KPI: 전체 바이어 잔액 합산 (관리자 계정 제외)
       const ADMIN_ROLES = ['super_admin', 'admin', 'staff', 'master']
       const buyerRows = profileRows.filter(p => !ADMIN_ROLES.includes(p.role))
+      const adminRows = profileRows.filter(p => ADMIN_ROLES.includes(p.role))
       currentTotalBalance.value = buyerRows.reduce(
+        (sum, p) => sum + (Number(p.balance) || 0), 0
+      )
+      // 관리자 계정 잔액 별도 합산 (보조 표시용)
+      adminTotalBalance.value = adminRows.reduce(
         (sum, p) => sum + (Number(p.balance) || 0), 0
       )
       // 드롭다운용: 표시명 + 식별자 포함
@@ -961,62 +971,111 @@ async function approveDeposit(req) {
 async function executeApproveDeposit() {
   const req = pendingDepositReq.value
   if (!req) return
-  const buyerTitle = req.buyerName || req.buyer_name || req.depositorName || req.depositor_name || '바이어'
 
+  // 이중 클릭 방지: 모달 즉시 닫기
+  confirmApproveDeposit.value = false
+  pendingDepositReq.value = null
+
+  const buyerTitle = req.buyerName || req.buyer_name || req.depositorName || req.depositor_name || '바이어'
   const approvedAt = new Date().toISOString()
   const targetEmail = (req.buyerEmail || req.buyer_email || '').trim()
   const targetUserId = req.userId || req.user_id
-  let buyerNextBalance = null
+  const requestDbId = req.dbId  // 실제 DB UUID (로컬 신청은 null)
 
-  // 1. Supabase deposit_requests 테이블 업데이트 (status = 'approved')
-  if (isSupabaseConfigured()) {
+  // ──────────────────────────────────────────────────────
+  // [경로 A] DB 신청 → approve_deposit RPC (원자적 처리)
+  // ──────────────────────────────────────────────────────
+  if (isSupabaseConfigured() && requestDbId && isValidUUID(requestDbId)) {
+    const { data: rpcData, error: rpcErr } = await supabase.rpc('approve_deposit', {
+      p_request_id: requestDbId
+    })
+
+    if (rpcErr) {
+      // RPC RAISE EXCEPTION 메시지는 한국어로 사용자 친화적으로 작성돼 있음
+      console.warn('[executeApproveDeposit] RPC 오류:', rpcErr.message)
+      alert(`입금 승인 처리 실패:\n${rpcErr.message}`)
+      return
+    }
+
+    // RPC 성공: data.new_balance로 KPI 갱신 (profiles 재조회 없음)
+    if (rpcData?.new_balance != null) {
+      const delta = Number(req.amount) || 0
+      currentTotalBalance.value = Math.max(0, (currentTotalBalance.value || 0) + delta)
+      // buyerProfiles 목록 해당 바이어 잔액도 갱신
+      const idx = buyerProfiles.value.findIndex(p =>
+        (targetUserId && p.id === targetUserId) || (targetEmail && p.email === targetEmail)
+      )
+      if (idx >= 0) {
+        buyerProfiles.value[idx].balance = Number(rpcData.new_balance)
+      }
+    }
+
+    // 관리자 세션이 대상 바이어 본인인 경우 로컬 balanceStore도 동기화
+    if (currentUser.value && (currentUser.value.email === targetEmail || currentUser.value.id === targetUserId)) {
+      applyBalanceTransaction(Number(req.amount), {
+        type: 'deposit',
+        title: '예치금 무통장 입금 충전 (승인)',
+        description: `입금 승인 (신청번호: ${requestDbId})`
+      })
+    }
+
+  // ──────────────────────────────────────────────────────
+  // [경로 B] 로컬 전용 신청 → 기존 직접 처리 (폴백)
+  // ──────────────────────────────────────────────────────
+  } else if (isSupabaseConfigured()) {
     try {
-      await supabase
-        .from('deposit_requests')
-        .update({ status: 'approved', approved_at: approvedAt })
-        .eq('id', req.id)
+      // B-1. deposit_requests status 업데이트
+      if (requestDbId) {
+        await supabase
+          .from('deposit_requests')
+          .update({ status: 'approved', approved_at: approvedAt })
+          .eq('id', requestDbId)
+      }
 
-      // 2. 대상 바이어의 profiles 테이블 balance 증가 (이메일 및 UUID 안전 처리)
+      // B-2. profiles.balance 증가
+      let buyerNextBalance = null
       if (targetEmail || (targetUserId && isValidUUID(targetUserId))) {
         let profileQuery = supabase.from('profiles').select('id, balance, email')
         if (targetUserId && isValidUUID(targetUserId)) {
           profileQuery = profileQuery.eq('id', targetUserId)
         } else if (targetEmail) {
           profileQuery = profileQuery.eq('email', targetEmail)
-        } else {
-          profileQuery = null
         }
-
-        if (profileQuery) {
-          const { data: userProfile, error: pErr } = await profileQuery.maybeSingle()
-          if (!pErr && userProfile) {
-            buyerNextBalance = (Number(userProfile.balance) || 0) + Number(req.amount || 0)
-            await supabase
-              .from('profiles')
-              .update({ balance: buyerNextBalance, updated_at: approvedAt })
-              .eq('id', userProfile.id)
-          }
+        const { data: userProfile, error: pErr } = await profileQuery.maybeSingle()
+        if (!pErr && userProfile) {
+          buyerNextBalance = (Number(userProfile.balance) || 0) + Number(req.amount || 0)
+          await supabase
+            .from('profiles')
+            .update({ balance: buyerNextBalance, updated_at: approvedAt })
+            .eq('id', userProfile.id)
         }
       }
 
-      // 3. transactions 테이블에 정산 트랜잭션 기록
-      // 실제 라이브 스키마: id(uuid 자동생성), user_id, user_email, type, amount, balance_after, order_no, description, created_at
+      // B-3. transactions INSERT
       await supabase.from('transactions').insert({
         user_id: targetUserId && isValidUUID(targetUserId) ? targetUserId : null,
         user_email: targetEmail || null,
         type: 'deposit',
         amount: Number(req.amount),
         balance_after: buyerNextBalance !== null ? buyerNextBalance : Number(req.amount),
-        order_no: req.orderNumber || req.order_no || null,
+        order_no: null,
         description: `예치금 무통장 입금 충전 (관리자 승인) | 입금 승인 완료 (신청번호: ${req.id}, 입금자: ${req.depositorName || req.depositor_name})`,
         created_at: approvedAt
       })
+
+      // KPI 갱신
+      const delta = Number(req.amount) || 0
+      currentTotalBalance.value = Math.max(0, (currentTotalBalance.value || 0) + delta)
     } catch (e) {
-      console.warn('[approveDeposit] Supabase balance credit notice:', e)
+      console.warn('[executeApproveDeposit] 로컬 폴백 처리 오류:', e)
+      alert(`입금 승인 처리 중 오류가 발생했습니다.\n${e?.message || ''}`)
+      return
     }
   }
 
-  // 4. 로컬 상태 업데이트 (승인 완료로 상태 변경 -> 승인 대기 뷰에서 즉시 소거)
+  // ──────────────────────────────────────────────────────
+  // 공통: 로컬 UI 상태 갱신 (경로 A/B 공통)
+  // ──────────────────────────────────────────────────────
   req.status = 'approved'
   req.approvedAt = approvedAt
   req.approved_at = approvedAt
@@ -1026,15 +1085,6 @@ async function executeApproveDeposit() {
     target.status = 'approved'
     target.approvedAt = approvedAt
     target.approved_at = approvedAt
-  }
-
-  // 현재 관리자 화면에서 로그인한 계정이 대상 바이어 본인인 경우 로컬 balanceStore도 동기화
-  if (currentUser.value && (currentUser.value.email === targetEmail || currentUser.value.id === targetUserId)) {
-    applyBalanceTransaction(Number(req.amount), {
-      type: 'deposit',
-      title: '예치금 무통장 입금 충전 (승인)',
-      description: `입금 승인 (신청번호: ${req.id})`
-    })
   }
 
   saveState()

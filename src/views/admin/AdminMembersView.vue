@@ -175,9 +175,16 @@
 
                 <!-- 회사명 & 등급 -->
                 <td class="py-3.5 px-4">
-                  <div class="flex items-center gap-1.5">
+                  <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="font-bold text-slate-900 text-xs">{{ m?.companyName || '개인 바이어' }}</span>
+                    <!-- 관리자 계정 뱃지 (super_admin/admin/staff/master) -->
                     <span
+                      v-if="['super_admin','admin','staff','master'].includes(m?.role)"
+                      class="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200"
+                    >관리자 계정</span>
+                    <!-- 기존 tier 뱃지 -->
+                    <span
+                      v-else
                       class="px-2 py-0.5 rounded text-[10px] font-bold"
                       :class="getTierBadgeClass(m?.tier)"
                     >
@@ -785,6 +792,7 @@ async function loadMembers() {
               bizAddress: p.address || '',
               bizCertUrl: p.biz_cert_url || '',
               tier: p.tier || (p.is_business_verified ? 'business' : 'general'),
+              role: p.role || 'user',
               balance: Number(p.balance) || 0,
               verificationStatus: p.verification_status || (p.is_business_verified ? 'verified' : (p.business_number ? 'pending' : 'unverified')),
               createdAt: p.created_at || new Date().toISOString()
