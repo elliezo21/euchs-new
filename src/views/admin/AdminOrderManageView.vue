@@ -619,10 +619,72 @@
                         🔄 재시도
                       </button>
                     </div>
+
+
+                    <!-- ── 1688 결제실행(protocolPay) 버튼 ── -->
+                    <!-- 노출 조건: fastCreateOrder 자동발주 성공 품목에만 표시 -->
+                    <!--   - subStatus === 'purchase_done' (자동발주 성공)      -->
+                    <!--   - !isManualOrder (수동발주 완료 경로 제외)            -->
+                    <!--   - purchaseNo 존재 (1688 orderId 있음)                -->
+                    <!--   - !alipayPaid (아직 결제 전)                         -->
+                    <!-- 수동발주(subStatus=purchase_done_manual)에는 노출 안 함  -->
+                    <div
+                      v-if="item.subStatus === 'purchase_done' && !item.isManualOrder && item.purchaseNo"
+                      class="w-full mt-1.5"
+                    >
+                      <!-- 결제완료 상태 표시 -->
+                      <div
+                        v-if="item.alipayPaid"
+                        class="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg"
+                      >
+                        <span class="text-emerald-600 text-sm shrink-0">✅</span>
+                        <div class="min-w-0 flex-1">
+                          <p class="text-[11px] font-bold text-emerald-700">1688 알리페이 결제완료</p>
+                          <p v-if="item.alipayPaidAt" class="text-[10px] text-emerald-500 font-mono mt-0.5">
+                            {{ new Date(item.alipayPaidAt).toLocaleString('ko-KR') }}
+                          </p>
+                        </div>
+                      </div>
+
+                      <!-- 결제 전: 결제실행 버튼 -->
+                      <div v-else class="flex flex-col gap-1.5">
+                        <button
+                          type="button"
+                          :disabled="payingProtocol.has(idx)"
+                          @click="executeProtocolPay(item, activeOrder, idx)"
+                          class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs"
+                          :class="payingProtocol.has(idx)
+                            ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                            : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'"
+                          title="1688 알리페이 면제결제(protocolPay.preparePay) 실행"
+                        >
+                          <span v-if="payingProtocol.has(idx)">⏳ 결제 처리 중…</span>
+                          <span v-else>💳 1688 결제실행</span>
+                        </button>
+
+                        <!-- 결제 에러 배지 (이전 결제 시도 실패 시) -->
+                        <div
+                          v-if="item.payError"
+                          class="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"
+                        >
+                          <span class="text-rose-600 text-sm shrink-0 mt-0.5">⚠️</span>
+                          <div class="min-w-0 flex-1">
+                            <p class="text-[11px] font-bold text-rose-700 leading-snug">
+                              결제 실패: {{ item.payError }}
+                            </p>
+                            <p v-if="item.payErrorAt" class="text-[10px] text-rose-400 font-mono mt-0.5">
+                              {{ new Date(item.payErrorAt).toLocaleString('ko-KR') }}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
                   </div>
                 </div>
               </div>
             </div>
+
 
             <!-- 하단 금액 요약 바 (제외 품목 자동 반영) -->
             <div class="bg-slate-50 p-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -1287,6 +1349,9 @@ const manualOrderError      = ref('');      // 인라인 에러 메시지
 // ── 체크박스 · 일괄입력 상태 ──────────────────────────────────────────────────
 const manualCheckedIdxs = ref(new Set()); // 체크된 품목 원본 인덱스 집합
 const manualBulkNo      = ref('');        // 일괄 적용 주문번호 입력값
+
+// ── 1688 결제실행(protocolPay) 로딩 상태 (수동발주/자동발주 로직과 완전 분리) ─
+const payingProtocol = ref(new Set()); // 결제 진행 중인 품목 인덱스 집합 (버튼 스피너용)
 
 /** 현재 유효 품목 인덱스 목록 (체크박스 전체선택 계산용) */
 function getManualActiveIdxs() {
@@ -2520,6 +2585,72 @@ async function executeItemAutoOrder(item, order) {
     item.purchaseError   = err.message;
     item.purchaseErrorAt = new Date().toISOString();
     showToast(`개별 발주 통신 오류: ${err.message}`, 'error');
+  }
+}
+
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 1688 결제실행(protocolPay.preparePay) — 자동발주/수동발주 로직과 완전 별도 경로
+//
+// 호출 조건:
+//   item.subStatus === 'purchase_done'   (fastCreateOrder 자동발주 성공 경로만)
+//   !item.isManualOrder                  (수동발주 완료 경로 제외)
+//   item.purchaseNo                      (1688 orderId 존재)
+//   !item.alipayPaid                     (아직 결제 전)
+//
+// 성공 판정: /api/1688-protocol-pay 에서 2단계 중첩 검사 완료 후 success 반환
+//   → 성공 시에만 item.alipayPaid = true 저장 (Silent Failure 방지)
+// ─────────────────────────────────────────────────────────────────────────────
+async function executeProtocolPay(item, order, idx) {
+  if (!item || !item.purchaseNo) {
+    showToast('1688 주문번호(purchaseNo)가 없어 결제 불가합니다.', 'error');
+    return;
+  }
+
+  // 로딩 ON
+  const next = new Set(payingProtocol.value);
+  next.add(idx);
+  payingProtocol.value = next;
+
+  try {
+    const res = await fetch('/api/1688-protocol-pay', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action: 'pay',
+        tradeId: item.purchaseNo,
+      }),
+    });
+    const data = await res.json();
+
+    if (data.success) {
+      // ── 결제 성공: 상태 필드 갱신 후 Supabase 저장 ──────────────────────
+      item.alipayPaid    = true;
+      item.alipayPaidAt  = new Date().toISOString();
+      item.payError      = null;   // 이전 에러 배지 제거
+
+      await saveDetailDraft({ closeAfter: false });
+      showToast(
+        `[${order?.orderNumber}] 1688 결제 완료 (tradeId: ${item.purchaseNo})`,
+        'success'
+      );
+    } else {
+      // ── 결제 실패: 상태 변경 없음, 에러 메시지 노출 ──────────────────────
+      // data.message에는 outer_error_code + inner_error_code 포함된 원문이 들어있음
+      item.payError    = data.message || '1688 결제 실패 (상세 에러 서버 로그 확인)';
+      item.payErrorAt  = new Date().toISOString();
+      showToast(`결제 실패: ${data.message}`, 'error');
+    }
+  } catch (fetchErr) {
+    // ── 통신 오류 — 침묵 금지 ────────────────────────────────────────────
+    item.payError   = fetchErr.message;
+    item.payErrorAt = new Date().toISOString();
+    showToast(`결제 통신 오류: ${fetchErr.message}`, 'error');
+  } finally {
+    // 로딩 OFF (항상 실행)
+    const done = new Set(payingProtocol.value);
+    done.delete(idx);
+    payingProtocol.value = done;
   }
 }
 
