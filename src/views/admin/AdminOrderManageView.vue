@@ -1003,16 +1003,16 @@
           <div class="py-4 flex items-center justify-between gap-4 flex-nowrap overflow-x-auto whitespace-nowrap">
           <!-- 좌측: 전체 취소 버튼 -->
           <div class="shrink-0">
-            <!-- 1단계 견적대기 전용: 전체반려(폐기) 버튼 -->
+            <!-- 1단계 견적대기 전용: 주문서반려(폐기) 버튼 -->
             <button
               v-if="isStatus(activeOrder, 'quote_pending')"
               @click="rejectOrderFromDetail(activeOrder)"
               type="button"
               class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
-              title="견적대기 단계 전체 반려(폐기) 처리"
+              title="견적대기 단계 주문서 반려(폐기) 처리"
             >
               <span>🚫</span>
-              <span>전체반려(폐기)</span>
+              <span>주문서반려(폐기)</span>
             </button>
 
             <!-- 2~8단계 전용: 주문 취소·환불 버튼 -->
@@ -1179,14 +1179,14 @@
       @confirm="executeCancelOrder"
     />
 
-    <!-- ConfirmSaveModal: 전체반려(폐기) — 견적대기 전용 -->
+    <!-- ConfirmSaveModal: 주문서반려(폐기) — 견적대기 전용 -->
     <ConfirmSaveModal
       v-model="confirmRejectOrder"
-      :title="`[${pendingRejectOrder?.orderNumber}] 주문을 전체반려(폐기) 처리할까요?`"
-      description="전체반려 후에는 복구할 수 없습니다. 견적대기 단계이므로 환불 처리는 필요하지 않습니다."
+      :title="`[${pendingRejectOrder?.orderNumber}] 주문을 주문서반려(폐기) 처리할까요?`"
+      description="주문서반려 후에는 복구할 수 없습니다. 견적대기 단계이므로 환불 처리는 필요하지 않습니다."
       variant="red"
       icon="warn"
-      confirmText="전체반려 처리"
+      confirmText="주문서반려 처리"
       @confirm="executeRejectOrder"
     />
 
@@ -1682,7 +1682,7 @@ async function executeRejectOrder() {
   isInternalUpdate.value = true;
   try {
     await updateOrderStatus(order.id, 'rejected', {
-      rejectReason: '견적대기 단계 전체 반려 (품절/수급불가)',
+      rejectReason: '견적대기 단계 주문서 반려 (품절/수급불가)',
       rejectedAt: new Date().toISOString()
     });
     showToast(`[${order.orderNumber}] 반려 처리 완료`, 'error');

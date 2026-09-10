@@ -1,18 +1,26 @@
-<template>
+﻿<template>
   <div class="space-y-6">
 
     <!-- Page Title -->
     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2">
       <div>
         <h2 class="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
-          <span>🗂 취소·반품·교환 현황</span>
+          <span>🗂 취소·반품 내역</span>
         </h2>
-        <p class="text-xs text-slate-500 mt-0.5">주문서반려(폐기)·취소·환불 처리된 주문을 조회하고 환불완료를 기록합니다.</p>
+        <p class="text-xs text-slate-500 mt-0.5">취소·환불 및 주문서반려 처리된 내 주문을 조회합니다.</p>
       </div>
+      <button
+        @click="loadOrders"
+        type="button"
+        :disabled="isLoading"
+        class="shrink-0 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 text-xs font-bold hover:bg-slate-50 transition disabled:opacity-50 cursor-pointer"
+      >
+        {{ isLoading ? '불러오는 중…' : '🔄 새로고침' }}
+      </button>
     </div>
 
-    <!-- 요약 카드 4개 (환불대기 / 환불완료 / 반품완료 / 교환진행중) -->
-    <div class="grid grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+    <!-- 요약 카드 3개 -->
+    <div class="grid grid-cols-3 gap-3 sm:gap-4">
 
       <!-- 카드 1: 환불대기 -->
       <button
@@ -33,7 +41,7 @@
         <div class="text-2xl sm:text-3xl font-black text-slate-900">
           {{ refundPendingOrders.length }}<span class="text-sm sm:text-base font-bold text-slate-400 ml-1">건</span>
         </div>
-        <div class="text-xs text-slate-500 mt-1 truncate">수동 환불 확인 필요</div>
+        <div class="text-xs text-slate-500 mt-1 truncate">취소 처리 후 환불 대기중</div>
       </button>
 
       <!-- 카드 2: 환불완료 -->
@@ -55,34 +63,30 @@
         <div class="text-2xl sm:text-3xl font-black text-slate-900">
           {{ refundDoneOrders.length }}<span class="text-sm sm:text-base font-bold text-slate-400 ml-1">건</span>
         </div>
-        <div class="text-xs text-slate-500 mt-1 truncate">환불 처리 완료 건</div>
+        <div class="text-xs text-slate-500 mt-1 truncate">환불 처리 완료된 건</div>
       </button>
 
-      <!-- 카드 3: 반품완료 (0건 고정 — 미구현) -->
-      <div
-        class="rounded-2xl border-2 border-slate-200 bg-white p-4 sm:p-5 cursor-not-allowed opacity-60"
-        title="반품 기능은 추후 별도 프로젝트에서 구현 예정입니다"
+      <!-- 카드 3: 주문서반려 -->
+      <button
+        @click="activeTab = 'rejected'"
+        type="button"
+        class="rounded-2xl border-2 p-4 sm:p-5 text-left transition cursor-pointer"
+        :class="activeTab === 'rejected'
+          ? 'border-orange-500 bg-orange-50/80 shadow-md shadow-orange-100'
+          : 'border-slate-200 bg-white hover:border-orange-300 hover:bg-orange-50/30'"
       >
         <div class="flex items-center justify-between gap-2 mb-3">
-          <span class="text-2xl">↩️</span>
-          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">반품완료</span>
+          <span class="text-2xl">🚫</span>
+          <span
+            class="text-xs font-bold px-2 py-0.5 rounded-full"
+            :class="activeTab === 'rejected' ? 'bg-orange-500 text-white' : 'bg-orange-100 text-orange-700'"
+          >주문서반려</span>
         </div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-400">0<span class="text-sm sm:text-base font-bold text-slate-300 ml-1">건</span></div>
-        <div class="text-xs text-slate-400 mt-1 truncate">반품 기능 준비 중</div>
-      </div>
-
-      <!-- 카드 4: 교환진행중 (0건 고정 — 미구현) -->
-      <div
-        class="rounded-2xl border-2 border-slate-200 bg-white p-4 sm:p-5 cursor-not-allowed opacity-60"
-        title="교환 기능은 추후 별도 프로젝트에서 구현 예정입니다"
-      >
-        <div class="flex items-center justify-between gap-2 mb-3">
-          <span class="text-2xl">🔄</span>
-          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">교환진행중</span>
+        <div class="text-2xl sm:text-3xl font-black text-slate-900">
+          {{ rejectedOrders.length }}<span class="text-sm sm:text-base font-bold text-slate-400 ml-1">건</span>
         </div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-400">0<span class="text-sm sm:text-base font-bold text-slate-300 ml-1">건</span></div>
-        <div class="text-xs text-slate-400 mt-1 truncate">교환 기능 준비 중</div>
-      </div>
+        <div class="text-xs text-slate-500 mt-1 truncate">견적대기 단계 반려(폐기)</div>
+      </button>
     </div>
 
     <!-- 목록 영역 -->
@@ -119,17 +123,16 @@
             <thead class="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th class="px-4 py-3 text-left font-bold text-slate-600">주문번호</th>
-                <th class="px-4 py-3 text-left font-bold text-slate-600">바이어</th>
                 <th class="px-4 py-3 text-left font-bold text-slate-600 hidden md:table-cell">상품</th>
                 <th class="px-4 py-3 text-right font-bold text-slate-600">금액</th>
                 <th class="px-4 py-3 text-center font-bold text-slate-600">상태</th>
                 <th class="px-4 py-3 text-center font-bold text-slate-600">처리일시</th>
-                <th v-if="activeTab !== 'rejected'" class="px-4 py-3 text-center font-bold text-slate-600">환불완료</th>
+                <th v-if="activeTab !== 'rejected'" class="px-4 py-3 text-center font-bold text-slate-600">환불상태</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="currentTabOrders.length === 0">
-                <td :colspan="activeTab !== 'rejected' ? 7 : 6" class="px-4 py-10 text-center text-slate-400">
+                <td :colspan="activeTab !== 'rejected' ? 6 : 5" class="px-4 py-10 text-center text-slate-400">
                   해당 내역이 없습니다.
                 </td>
               </tr>
@@ -139,10 +142,7 @@
                 class="hover:bg-slate-50/60 transition"
               >
                 <td class="px-4 py-3 font-mono font-bold text-slate-800">{{ order.orderNumber }}</td>
-                <td class="px-4 py-3 text-slate-700">
-                  {{ order.buyerInfo?.companyName || order.buyerInfo?.buyerName || order.buyerName || '-' }}
-                </td>
-                <td class="px-4 py-3 text-slate-600 hidden md:table-cell max-w-[160px] truncate">
+                <td class="px-4 py-3 text-slate-600 hidden md:table-cell max-w-[200px] truncate">
                   {{ order.items?.[0]?.productName || '-' }}
                   <span v-if="order.items?.length > 1" class="text-slate-400"> 외 {{ order.items.length - 1 }}종</span>
                 </td>
@@ -162,19 +162,14 @@
                 <td class="px-4 py-3 text-center text-slate-500 font-mono">
                   {{ formatDate(order.updatedAt || order.createdAt) }}
                 </td>
-                <!-- 환불완료 버튼 — rejected 탭엔 없음 -->
+                <!-- 환불상태 — rejected 탭엔 없음 -->
                 <td v-if="activeTab !== 'rejected'" class="px-4 py-3 text-center">
-                  <button
-                    v-if="!order.refundCompleted"
-                    @click="markRefundDone(order)"
-                    :disabled="markingIds.has(order.id || order.orderNumber)"
-                    class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-600 text-[10px] font-bold hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-                  >
-                    {{ markingIds.has(order.id || order.orderNumber) ? '처리중…' : '환불완료 처리' }}
-                  </button>
-                  <span v-else class="inline-flex flex-col items-center gap-0.5 text-emerald-600 font-bold text-[10px]">
+                  <span v-if="order.refundCompleted" class="inline-flex flex-col items-center gap-0.5 text-emerald-600 font-bold text-[10px]">
                     ✅ 환불완료
                     <span class="text-slate-400 font-mono text-[9px]">{{ formatDate(order.refundCompletedAt) }}</span>
+                  </span>
+                  <span v-else class="inline-flex items-center gap-1 text-amber-600 font-bold text-[10px]">
+                    ⏳ 환불 처리중
                   </span>
                 </td>
               </tr>
@@ -184,54 +179,44 @@
       </div>
     </template>
 
-    <!-- 토스트 -->
-    <Transition name="toast">
-      <div
-        v-if="toast.show"
-        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5"
-        :class="toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'"
-      >
-        <span>{{ toast.type === 'success' ? '✅' : '❌' }}</span>
-        <span>{{ toast.message }}</span>
-      </div>
-    </Transition>
-
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { fetchOrdersFromSupabase } from '@/utils/orderStorage'
-import { normalizeOrderStatus } from '@/lib/orderPipeline'
+import { normalizeOrderStatus, getOrderStatsByUser } from '@/lib/orderPipeline'
 import { calcOrderCost } from '@/utils/orderCostCalculator'
 import { currentSettings, fetchSiteSettings } from '@/lib/settings'
 
 const orders = ref([])
 const isLoading = ref(true)
 const activeTab = ref('refund_pending')
-const markingIds = ref(new Set())
-const toast = ref({ show: false, message: '', type: 'success' })
-let toastTimer = null
 
 async function loadOrders() {
   isLoading.value = true
   try {
     fetchSiteSettings()
-    const result = await fetchOrdersFromSupabase({ isAdmin: true })
+    // fetchOrdersFromSupabase()는 바이어 모드에서 user_id eq 필터를 자동 적용하므로
+    // RLS + 코드 레벨 이중 보호로 본인 주문만 반환됨
+    const result = await fetchOrdersFromSupabase()
     orders.value = Array.isArray(result) ? result : []
   } catch (e) {
-    console.error('[AdminCancelledView] loadOrders error:', e)
+    console.error('[BuyerCancelledView] loadOrders error:', e)
+    orders.value = []
   } finally {
     isLoading.value = false
   }
 }
 
+// getOrderStatsByUser로 cancelled/rejected 분류
+const orderStats = computed(() => getOrderStatsByUser(orders.value))
+
 const cancelledOrders = computed(() =>
-  orders.value.filter(o => normalizeOrderStatus(o.status) === 'cancelled')
+  orderStats.value._cancelled.filter(o => normalizeOrderStatus(o.status) === 'cancelled')
 )
 const rejectedOrders = computed(() =>
-  orders.value.filter(o => normalizeOrderStatus(o.status) === 'rejected')
+  orderStats.value._cancelled.filter(o => normalizeOrderStatus(o.status) === 'rejected')
 )
 const refundPendingOrders = computed(() =>
   cancelledOrders.value.filter(o => !o.refundCompleted)
@@ -241,9 +226,9 @@ const refundDoneOrders = computed(() =>
 )
 
 const tabs = computed(() => [
-  { key: 'refund_pending', label: '환불대기', count: refundPendingOrders.value.length },
-  { key: 'refund_done',    label: '환불완료', count: refundDoneOrders.value.length },
-  { key: 'rejected',       label: '주문서반려(폐기)', count: rejectedOrders.value.length },
+  { key: 'refund_pending', label: '환불대기',   count: refundPendingOrders.value.length },
+  { key: 'refund_done',    label: '환불완료',   count: refundDoneOrders.value.length },
+  { key: 'rejected',       label: '주문서반려', count: rejectedOrders.value.length },
 ])
 
 const currentTabOrders = computed(() => {
@@ -253,9 +238,6 @@ const currentTabOrders = computed(() => {
   return []
 })
 
-/**
- * 주문 금액 반환 — 저장된 확정 금액 우선, 없으면 items 기반 원가 계산
- */
 function getOrderAmount(order) {
   if (!order) return 0
   const direct = Number(order.totalPriceKrw || order.total_price_krw || order.firstPayment?.firstPaymentKrw || 0)
@@ -272,38 +254,6 @@ function getOrderAmount(order) {
   }
 }
 
-async function markRefundDone(order) {
-  const orderId = order.id
-  const orderNum = order.orderNumber
-  if (!orderId && !orderNum) return
-
-  markingIds.value = new Set([...markingIds.value, orderId || orderNum])
-  try {
-    if (!isSupabaseConfigured()) throw new Error('Supabase 미연결 상태')
-    const now = new Date().toISOString()
-    const { error, data } = await supabase
-      .from('orders')
-      .update({ refund_completed: true, refund_completed_at: now })
-      .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
-      .select('id, order_number')
-    if (error) throw error
-    if (!data || data.length === 0) throw new Error(`저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다.`)
-    const target = orders.value.find(o => o.id === orderId || o.orderNumber === orderNum)
-    if (target) {
-      target.refundCompleted = true
-      target.refundCompletedAt = now
-    }
-    showToast(`[${orderNum}] 환불완료 처리되었습니다.`, 'success')
-  } catch (e) {
-    console.error('[markRefundDone]', e)
-    showToast(`환불완료 처리 실패: ${e.message}`, 'error')
-  } finally {
-    const newSet = new Set(markingIds.value)
-    newSet.delete(orderId || orderNum)
-    markingIds.value = newSet
-  }
-}
-
 function fmtN(n) {
   return Math.round(Number(n) || 0).toLocaleString('ko-KR')
 }
@@ -316,18 +266,10 @@ function formatDate(dateStr) {
     + ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
 }
 
-function showToast(message, type = 'success') {
-  clearTimeout(toastTimer)
-  toast.value = { show: true, message, type }
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
-}
-
 onMounted(() => {
   loadOrders()
 })
 </script>
 
 <style scoped>
-.toast-enter-active, .toast-leave-active { transition: all 0.25s ease; }
-.toast-enter-from, .toast-leave-to { opacity: 0; transform: translateY(10px); }
 </style>

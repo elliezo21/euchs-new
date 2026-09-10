@@ -450,7 +450,7 @@
                   :class="route.path === '/dashboard/orders' && (!route.query.tab || route.query.tab === 'all') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>내 주문 (주문/발주 통합 관리)</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ submittedOrders.length }})</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ orderStats.inProgress }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=quote"
@@ -475,6 +475,14 @@
                 >
                   <span>1688 구매 진행중</span>
                   <span class="font-mono text-blue-600 text-[11px] font-bold">({{ purchasingCount }})</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/cancelled"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/cancelled' ? 'bg-rose-500/10 text-rose-600 font-bold border-r-2 border-rose-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>취소·반품 내역</span>
+                  <span v-if="orderStats.cancelled > 0" class="font-mono text-rose-500 text-[11px] font-bold">({{ orderStats.cancelled }})</span>
                 </router-link>
               </div>
 
@@ -1238,8 +1246,8 @@ import ProductDetailModal from '../components/ProductDetailModal.vue'
 import ImageSearchModal from '../components/mall/ImageSearchModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
 import { supabase } from '../lib/supabase'
-import { normalizeOrderStatus } from '../lib/orderPipeline'
-import { getStoredOrders, fetchOrdersFromSupabase } from '../utils/orderStorage'
+import { normalizeOrderStatus, getOrderStatsByUser } from '../lib/orderPipeline'
+import { fetchOrdersFromSupabase } from '../utils/orderStorage'
 
 const route = useRoute()
 const router = useRouter()
@@ -1257,19 +1265,16 @@ const errorMessage = ref('')
 const toastMessage = ref('')
 
 // ----------------------------------------------------
-// 발주관리 사이드바 뱃지용 주문 데이터 (DashboardView와 동일 소스/로직)
+// 발주관리 사이드바 뱃지용 주문 데이터 — getOrderStatsByUser로 중앙화
 // ----------------------------------------------------
 const submittedOrders = ref([])
 
-const quotePendingCount = computed(() =>
-  submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length
-)
-const paymentPendingCount = computed(() =>
-  submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length
-)
-const purchasingCount = computed(() =>
-  submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length
-)
+const orderStats = computed(() => getOrderStatsByUser(submittedOrders.value))
+
+// 기존 템플릿 참조 이름 유지
+const quotePendingCount   = computed(() => orderStats.value.byStage.quote_pending)
+const paymentPendingCount = computed(() => orderStats.value.byStage.quote_confirmed)
+const purchasingCount     = computed(() => orderStats.value.byStage.purchasing)
 
 
 const lastQueryKo = ref('')
@@ -2422,14 +2427,7 @@ onMounted(async () => {
   loadMallNotices()
   updateSavedCount()
   handleIncomingQuery()
-  // 발주관리 뱃지용 주문 카운트 로드 — 현재 로그인 uid로 필터링 후 DB 결과로 교체
-  // getStoredOrders() 직접 호출 시 관리자 캐시(전 계정 주문)가 섞일 수 있어 uid 필터 적용
-  const _badgeUid = currentUser.value?.id
-  const _cachedOrders = getStoredOrders()
-  submittedOrders.value = _badgeUid
-    ? _cachedOrders.filter(o => o.user_id === _badgeUid)
-    : []
-  // DB 결과로 교체 (백그라운드) — 실패 시 빈 배열로 유지 (뱃지 카운트가 잘못된 캐시를 보여주지 않도록)
+  // 발주관리 뱃지용 주문 카운트 로드 — DB 결과를 단 1회만 set (캐시 선-표시 제거로 깜빡임 방지)
   fetchOrdersFromSupabase().then(dbOrders => {
     if (Array.isArray(dbOrders)) submittedOrders.value = dbOrders
   }).catch(e => {

@@ -186,7 +186,7 @@
                   :class="route.path === '/dashboard/orders' && (!route.query.tab || route.query.tab === 'all') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>내 주문 (주문/발주 통합 관리)</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ submittedOrders.length }})</span>
+                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ orderStats.inProgress }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=quote"
@@ -211,6 +211,14 @@
                 >
                   <span>1688 구매 진행중</span>
                   <span class="font-mono text-blue-600 text-[11px] font-bold">({{ purchasingCount }})</span>
+                </router-link>
+                <router-link
+                  to="/dashboard/cancelled"
+                  class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
+                  :class="route.path === '/dashboard/cancelled' ? 'bg-rose-500/10 text-rose-600 font-bold border-r-2 border-rose-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
+                >
+                  <span>취소·반품 내역</span>
+                  <span v-if="orderStats.cancelled > 0" class="font-mono text-rose-500 text-[11px] font-bold">({{ orderStats.cancelled }})</span>
                 </router-link>
               </div>
             </div>
@@ -858,7 +866,8 @@ import {
   normalizeOrderStatus,
   getOrderStatusLabel,
   getOrderStatusShortLabel,
-  getOrderStatusBadgeClass
+  getOrderStatusBadgeClass,
+  getOrderStatsByUser
 } from '../lib/orderPipeline'
 import { getStoredOrders, fetchOrdersFromSupabase } from '../utils/orderStorage'
 import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
@@ -1035,40 +1044,64 @@ watch(currentUser, () => {
 // ----------------------------------------------------
 // Load Data from LocalStorage & Supabase
 // ----------------------------------------------------
-const loadDashboardData = async () => {
+
+/**
+ * 장바구니(보관함)만 localStorage에서 읽기 — DB 호출 없음.
+ *
+ * ⚠️ 'storage' window 이벤트에 연결되는 유일한 핸들러.
+ * 이유: fetchOrdersFromSupabase()가 완료되면 localStorage.setItem('orders', ...)을 씀.
+ *       이 쓰기가 다른 탭의 'storage' 이벤트를 발화 → 그 탭이 loadDashboardData()를 호출
+ *       → 다시 fetchOrdersFromSupabase() → localStorage.setItem() → 원래 탭의 'storage' 발화
+ *       → 크로스탭 무한루프 & API 폭주 (orders?select... 요청이 수백 개 쌓이는 원인)
+ *
+ * 따라서 'storage' 이벤트로는 cart 키에만 반응하고, orders 키 변경은 무시한다.
+ */
+const loadSavedItemsOnly = () => {
   try {
-    // 1. 보관함 품목 — 사용자 격리 키로만 안전하게 읽기 (과거 더미 잔여물 원천 차단)
     if (!isLoggedIn.value) {
       savedItems.value = []
-    } else {
-      // 레거시 더미 키 잔여물 영구 파기
-      localStorage.removeItem('euchs_erp_saved_items')
-      localStorage.removeItem('euchs_1688_saved_items')
-
-      const cartKey = getCartStorageKey()
-      const userCart = localStorage.getItem(cartKey)
-      if (userCart) {
-        const parsed = JSON.parse(userCart)
-        savedItems.value = Array.isArray(parsed) ? parsed : []
-      } else {
-        savedItems.value = []
-      }
+      return
     }
+    const cartKey = getCartStorageKey()
+    const userCart = localStorage.getItem(cartKey)
+    if (userCart) {
+      const parsed = JSON.parse(userCart)
+      savedItems.value = Array.isArray(parsed) ? parsed : []
+    } else {
+      savedItems.value = []
+    }
+  } catch (e) {
+    console.warn('[loadSavedItemsOnly] error:', e)
+  }
+}
 
-    // 2. 전역 일원화된 실제 주문 데이터 조회 (더미 완전 정제)
+/**
+ * 'storage' 이벤트 핸들러 — cart 키 변경에만 반응, orders 키는 무시.
+ * orders 키에도 반응하면 크로스탭 무한루프 발생 (위 주석 참조).
+ */
+const onStorageEvent = (e) => {
+  const cartKey = getCartStorageKey()
+  // e.key가 null이면 localStorage.clear() 호출 → 전체 갱신
+  if (e.key === null || e.key === cartKey) {
+    loadSavedItemsOnly()
+  }
+  // orders / euchs_erp_submitted_orders 키 변경은 의도적으로 무시
+}
+
+const loadDashboardData = async () => {
+  try {
+    // 1. 보관함 품목 — localStorage에서 동기적으로 읽기
+    loadSavedItemsOnly()
+
+    // 2. 주문 데이터 조회 — DB 결과를 단 1회만 set (캐시 선-표시 제거로 깜빡임 방지)
+    // 캐시 pre-render는 사이드바 뱃지가 캐시값→DB값으로 깜빡이는 regression을 유발하므로 제거.
     orderFetchError.value = false
-    const _dashUid = currentUser.value?.id
-    const _dashCached = getStoredOrders()
-    submittedOrders.value = _dashUid
-      ? _dashCached.filter(o => o.user_id === _dashUid)
-      : []
     try {
       const dbOrders = await fetchOrdersFromSupabase()
       if (Array.isArray(dbOrders)) {
         submittedOrders.value = dbOrders
       }
     } catch (dbErr) {
-      // DB 조회 실패 → 캐시 선표시도 제거하고 오류 상태 표시
       submittedOrders.value = []
       orderFetchError.value = true
       console.warn('[loadDashboardData] Supabase fetch error:', dbErr)
@@ -1080,27 +1113,20 @@ const loadDashboardData = async () => {
 
 
 // ----------------------------------------------------
-// Pipeline Count Helper & Badges
+// Pipeline Count Helper & Badges — getOrderStatsByUser로 중앙화
 // ----------------------------------------------------
-const quotePendingCount = computed(() => {
-  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length
-})
+const orderStats = computed(() => getOrderStatsByUser(submittedOrders.value))
 
-const purchasingCount = computed(() => {
-  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length
-})
-
-const paymentPendingCount = computed(() => {
-  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length
-})
+// 기존 템플릿 참조 이름 유지 (computed 위임으로 교체)
+const quotePendingCount   = computed(() => orderStats.value.byStage.quote_pending)
+const purchasingCount     = computed(() => orderStats.value.byStage.purchasing)
+const paymentPendingCount = computed(() => orderStats.value.byStage.quote_confirmed)
 
 const getPipelineCount = (statusKey) => {
   if (statusKey === 'quote_pending') {
-    const cartCount = savedItems.value.length
-    const orderCount = submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length
-    return cartCount + orderCount
+    return savedItems.value.length + orderStats.value.byStage.quote_pending
   }
-  return submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === statusKey).length
+  return orderStats.value.byStage[statusKey] ?? submittedOrders.value.filter(o => normalizeOrderStatus(o.status) === statusKey).length
 }
 
 // ----------------------------------------------------
@@ -1277,14 +1303,14 @@ onMounted(async () => {
     console.warn('Dashboard settings load error:', e)
   }
 
-  window.addEventListener('storage', loadDashboardData)
+  window.addEventListener('storage', onStorageEvent)
   window.addEventListener('euchs-order-status-update', loadDashboardData)
   window.addEventListener('euchs-warehouse-update', loadDashboardData)
   window.addEventListener('euchs-auth-changed', onAuthChanged)
 })
 
 onUnmounted(() => {
-  window.removeEventListener('storage', loadDashboardData)
+  window.removeEventListener('storage', onStorageEvent)
   window.removeEventListener('euchs-order-status-update', loadDashboardData)
   window.removeEventListener('euchs-warehouse-update', loadDashboardData)
   window.removeEventListener('euchs-auth-changed', onAuthChanged)

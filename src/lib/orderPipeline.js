@@ -17,7 +17,7 @@ export const PIPELINE_STATUSES = [
   { key: 'domestic_shipping', code: 8, label: '8. 국내 화물/택배 배송중', shortLabel: '국내배송', badgeClass: 'bg-sky-100 text-sky-800 border border-sky-200' },
   { key: 'delivered', code: 8, label: '8. 배송완료 (수령완료)', shortLabel: '배송완료', badgeClass: 'bg-emerald-100 text-emerald-800 border border-emerald-200' },
   { key: 'cancelled', code: 0, label: '주문 취소 / 환불', shortLabel: '주문취소', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' },
-  { key: 'rejected', code: 0, label: '반려 (견적대기 전체반려)', shortLabel: '반려', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' }
+  { key: 'rejected', code: 0, label: '반려 (견적대기 주문서반려)', shortLabel: '반려', badgeClass: 'bg-rose-100 text-rose-800 border border-rose-200' }
 ];
 
 export const STATUS_ALIAS_MAP = {
@@ -139,4 +139,83 @@ export async function updateApplicationOrderStatus(appId, newStatus) {
   }));
 
   return normalized;
+}
+
+/**
+ * 바이어 화면 전용 주문 통계 중앙 집계 함수
+ *
+ * 사이드바 뱃지·발주관리 KPI·취소내역 화면 등 모든 바이어 화면이
+ * 이 함수 하나만 호출하면 동일한 기준으로 카운트를 얻을 수 있다.
+ *
+ * @param {Array} orders - fetchOrdersFromSupabase() 결과 (user_id 필터 이미 적용됨)
+ * @returns {{
+ *   total: number,
+ *   inProgress: number,
+ *   completed: number,
+ *   cancelled: number,
+ *   byStage: {
+ *     quote_pending: number,
+ *     quote_confirmed: number,
+ *     payment_verified: number,
+ *     purchasing: number,
+ *     warehousing: number,
+ *     shipping: number
+ *   },
+ *   byCancelled: {
+ *     refund_pending: number,
+ *     refund_done: number,
+ *     rejected: number
+ *   },
+ *   _inProgress: Array,
+ *   _completed: Array,
+ *   _cancelled: Array
+ * }}
+ */
+export function getOrderStatsByUser(orders) {
+  if (!Array.isArray(orders)) orders = [];
+
+  const IN_PROGRESS_STATUSES = [
+    'quote_pending', 'quote_confirmed', 'payment_verified', 'purchasing',
+    'warehouse_in', 'arrival_checking', 'arrival_done', 'inspection_done',
+    'shipping_ready', 'customs_clearance', 'domestic_shipping'
+  ];
+  const WAREHOUSING_STATUSES = ['warehouse_in', 'arrival_checking', 'arrival_done', 'inspection_done'];
+  const SHIPPING_STATUSES    = ['shipping_ready', 'customs_clearance', 'domestic_shipping'];
+
+  const norm = (o) => normalizeOrderStatus(o.status);
+
+  const inProgressArr = orders.filter(o => IN_PROGRESS_STATUSES.includes(norm(o)));
+  const completedArr  = orders.filter(o => norm(o) === 'delivered');
+  const cancelledArr  = orders.filter(o => norm(o) === 'cancelled' || norm(o) === 'rejected');
+
+  return {
+    // ── 최상위 집계 ──────────────────────────────────────────
+    total:      orders.length,       // DB 전체 (status 무관)
+    inProgress: inProgressArr.length, // 1~8단계 진행중 (cancelled/delivered 제외)
+    completed:  completedArr.length,  // 배송완료
+    cancelled:  cancelledArr.length,  // 취소+주문서반려 합산
+
+    // ── 진행중 서브분류 ──────────────────────────────────────
+    byStage: {
+      quote_pending:    inProgressArr.filter(o => norm(o) === 'quote_pending').length,
+      quote_confirmed:  inProgressArr.filter(o => norm(o) === 'quote_confirmed').length,
+      payment_verified: inProgressArr.filter(o => norm(o) === 'payment_verified').length,
+      purchasing:       inProgressArr.filter(o => norm(o) === 'purchasing').length,
+      warehousing:      inProgressArr.filter(o => WAREHOUSING_STATUSES.includes(norm(o))).length,
+      shipping:         inProgressArr.filter(o => SHIPPING_STATUSES.includes(norm(o))).length,
+    },
+
+    // ── 취소/반려 서브분류 ───────────────────────────────────
+    byCancelled: {
+      refund_pending: cancelledArr.filter(o => norm(o) === 'cancelled' && !o.refundCompleted).length,
+      refund_done:    cancelledArr.filter(o => norm(o) === 'cancelled' && o.refundCompleted === true).length,
+      rejected:       cancelledArr.filter(o => norm(o) === 'rejected').length,
+    },
+
+    // ── 원본 배열 (화면에서 직접 필터 없이 사용) ────────────
+    _orders:     orders,
+    _inProgress: inProgressArr,
+    _completed:  completedArr,
+    _cancelled:  cancelledArr,
+  };
 }

@@ -24,6 +24,7 @@ import CustomsLogisticsView from '../views/dashboard/CustomsLogisticsView.vue'
 import AccountSettingsView from '../views/dashboard/AccountSettingsView.vue'
 import FavoriteStoresView from '../views/dashboard/FavoriteStoresView.vue'
 import TaxInvoiceManageView from '../views/dashboard/TaxInvoiceManageView.vue'
+import BuyerCancelledView from '../views/dashboard/BuyerCancelledView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
 import { currentUser, checkUserRole, userRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
@@ -101,6 +102,11 @@ const routes = [
         path: 'tax-invoice',
         name: 'dashboard-tax-invoice',
         component: TaxInvoiceManageView,
+      },
+      {
+        path: 'cancelled',
+        name: 'dashboard-cancelled',
+        component: BuyerCancelledView,
       },
     ],
   },

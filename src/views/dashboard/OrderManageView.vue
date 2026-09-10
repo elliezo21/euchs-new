@@ -1790,7 +1790,8 @@ import {
   PIPELINE_STATUSES,
   normalizeOrderStatus,
   getOrderStatusLabel,
-  getOrderStatusBadgeClass
+  getOrderStatusBadgeClass,
+  getOrderStatsByUser
 } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
@@ -2090,24 +2091,20 @@ const refreshData = async () => {
 };
 
 // ---------------------------------------------------------
-// 통계 요약 (4대 KPI - 1~4단계 발주/사입 관리 대상)
+// 통계 요약 (4대 KPI) — getOrderStatsByUser로 중앙화
 // ---------------------------------------------------------
-const ORDER_STAGE_STATUSES = ['quote_pending', 'quote_confirmed', 'payment_verified', 'purchasing'];
+const orderStats = computed(() => getOrderStatsByUser(orders.value));
 
-const statCounts = computed(() => {
-  const stageOrders = orders.value.filter(o => ORDER_STAGE_STATUSES.includes(normalizeOrderStatus(o.status)));
-  const quotePending = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'quote_pending').length;
-  const quoteConfirmed = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'quote_confirmed').length;
-  const paymentVerified = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'payment_verified').length;
-  const purchasing = stageOrders.filter(o => normalizeOrderStatus(o.status) === 'purchasing').length;
-  return {
-    total: stageOrders.length,
-    quotePending,
-    quoteConfirmed,
-    paymentVerified,
-    purchasing
-  };
-});
+const statCounts = computed(() => ({
+  total:          orderStats.value.byStage.quote_pending
+                + orderStats.value.byStage.quote_confirmed
+                + orderStats.value.byStage.payment_verified
+                + orderStats.value.byStage.purchasing,
+  quotePending:    orderStats.value.byStage.quote_pending,
+  quoteConfirmed:  orderStats.value.byStage.quote_confirmed,
+  paymentVerified: orderStats.value.byStage.payment_verified,
+  purchasing:      orderStats.value.byStage.purchasing,
+}));
 
 // 상단 8단계 풀프로세스 트래커 실시간 집계 (전역 동기화)
 const stepperCounts = computed(() => {
@@ -2547,7 +2544,9 @@ function getOrderPaymentStages(order) {
 
 const filteredOrders = computed(() => {
   // 1~4단계(발주/사입 진행) 주문만 발주관리 테이블 목록에 노출 (5~8단계는 창고/통관 전용 페이지로 격리)
-  let list = orders.value.filter(ord => ORDER_STAGE_STATUSES.includes(normalizeOrderStatus(ord.status)));
+  // orderStats._inProgress는 1~8단계 전체이므로, 이 화면에서는 1~4단계만 추출
+  const STAGE_4 = ['quote_pending', 'quote_confirmed', 'payment_verified', 'purchasing'];
+  let list = orderStats.value._inProgress.filter(ord => STAGE_4.includes(normalizeOrderStatus(ord.status)));
 
   // 1. 탭 필터링
   if (selectedTab.value !== 'all') {
