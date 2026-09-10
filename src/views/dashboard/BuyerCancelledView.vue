@@ -182,21 +182,31 @@
     </template>
 
   </div>
+
+  <!-- 주문 상세 모달 오버레이 — 배경은 취소·반품 내역 그대로 유지 -->
+  <OrderDetailModal
+    v-if="selectedOrder"
+    :order="selectedOrder"
+    :is-paying="false"
+    @close="selectedOrder = null"
+    @request-pay="() => {}"
+    @request-second-payment="() => {}"
+    @request-export="() => {}"
+  />
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { fetchOrdersFromSupabase } from '@/utils/orderStorage'
 import { normalizeOrderStatus, getOrderStatsByUser } from '@/lib/orderPipeline'
 import { calcOrderCost } from '@/utils/orderCostCalculator'
 import { currentSettings, fetchSiteSettings } from '@/lib/settings'
-
-const router = useRouter()
+import OrderDetailModal from '@/components/dashboard/OrderDetailModal.vue'
 
 const orders = ref([])
 const isLoading = ref(true)
 const activeTab = ref('refund_pending')
+const selectedOrder = ref(null)  // 선택된 주문 — 여기에 값이 있으면 모달이 열림
 
 async function loadOrders() {
   isLoading.value = true
@@ -272,16 +282,12 @@ function formatDate(dateStr) {
 }
 
 /**
- * 취소내역 행 클릭 시 원본 주문 상세로 이동 (A 기능)
- * OrderManageView가 route.query.orderNumber를 감지해 자동 오픈
+ * 취소내역 행 클릭 시 페이지 이동 없이 그 자리에서 주문 상세 모달 오픈
+ * URL/배경 화면/사이드바 활성 메뉴 모두 유지됨
  */
 function goToOrder(order) {
-  const orderNumber = order.orderNumber || order.id
-  if (!orderNumber) return
-  router.push({
-    path: '/dashboard/orders',
-    query: { orderNumber },
-  })
+  if (!order) return
+  selectedOrder.value = order
 }
 
 onMounted(() => {
