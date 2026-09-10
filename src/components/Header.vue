@@ -301,22 +301,25 @@
 
         <!-- Right Quick Action / Mobile Hamburger -->
         <div class="flex items-center gap-2 sm:gap-2.5">
-          <!-- Mobile Saved Items Cart Widget — 로그인+1개 이상일 때만 노출 -->
+          <!-- Mobile MyPage Widget — 로그인 시 노출 (보관 상품 있을 때만 배지 표시) -->
           <router-link
-            v-if="isLoggedIn && savedCount > 0"
+            v-if="isLoggedIn"
             to="/dashboard"
-            class="lg:hidden flex items-center gap-2 px-2.5 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 border border-rose-200/80 transition text-xs shrink-0 whitespace-nowrap"
-            title="발주대기 보관함"
+            class="lg:hidden flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition text-xs shrink-0 whitespace-nowrap text-gray-700"
+            title="마이페이지"
+            aria-label="마이페이지"
           >
-            <div class="w-6 h-6 rounded-lg bg-white shadow-sm flex items-center justify-center text-rose-600 border border-rose-100 shrink-0">
-              <i class="fas fa-shopping-bag text-xs"></i>
-            </div>
-            <div class="flex flex-col text-left leading-none">
-              <span class="text-[9px] text-gray-500 font-medium">발주대기</span>
-              <span class="text-[11px] font-black text-rose-600 font-mono mt-0.5">
-                {{ savedCount }}건 보관중
+            <div class="relative w-6 h-6 rounded-lg bg-white shadow-xs flex items-center justify-center text-gray-600 border border-gray-200/80 shrink-0">
+              <i class="fas fa-user text-xs"></i>
+              <!-- 보관 상품 개수 배지 -->
+              <span
+                v-if="savedCount > 0"
+                class="absolute -top-1.5 -right-1.5 bg-rose-600 text-white font-bold text-[9px] min-w-[15px] h-[15px] px-1 rounded-full flex items-center justify-center shadow-xs leading-none"
+              >
+                {{ savedCount > 99 ? '99+' : savedCount }}
               </span>
             </div>
+            <span class="text-xs font-semibold text-gray-700">마이페이지</span>
           </router-link>
 
 

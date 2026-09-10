@@ -221,20 +221,27 @@
             @search-done="onImageSearchDone"
             @search-error="onImageSearchError"
           />
-          <!-- 3. 우측 발주 대기 보관함 (장바구니) — 로그인 시만 노출 -->
+          <!-- 3. 우측 마이페이지 바로가기 — 로그인 시 노출 (보관 상품 있을 때만 배지 표시) -->
           <router-link
             v-if="isLoggedIn"
             to="/dashboard"
-            class="hidden md:flex items-center gap-2.5 px-3.5 h-11 rounded-xl bg-gray-50 hover:bg-rose-50 border border-gray-200 hover:border-rose-200 transition group shrink-0"
-            title="발주대기 보관함 바로가기"
+            class="hidden md:flex items-center gap-2.5 px-3.5 h-11 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition group shrink-0 text-gray-700"
+            title="마이페이지 바로가기"
+            aria-label="마이페이지 바로가기"
           >
-            <div class="w-7 h-7 rounded-lg bg-white text-rose-600 shadow-xs flex items-center justify-center text-xs group-hover:scale-105 transition border border-gray-100">
-              <i class="fas fa-shopping-bag"></i>
+            <div class="relative w-7 h-7 rounded-lg bg-white text-gray-600 shadow-xs flex items-center justify-center text-xs group-hover:scale-105 transition border border-gray-200/80 shrink-0">
+              <i class="fas fa-user"></i>
+              <!-- 보관 상품 개수 배지 -->
+              <span
+                v-if="savedCount > 0"
+                class="absolute -top-1.5 -right-1.5 bg-rose-600 text-white font-bold text-[10px] min-w-[17px] h-[17px] px-1 rounded-full flex items-center justify-center shadow-xs leading-none"
+              >
+                {{ savedCount > 99 ? '99+' : savedCount }}
+              </span>
             </div>
             <div class="text-left leading-none">
-              <div class="text-[9px] text-gray-500 font-medium">발주 대기</div>
-              <div class="text-xs font-black text-gray-900 group-hover:text-rose-600 font-mono mt-0.5">
-                {{ savedCount }}건
+              <div class="text-xs font-bold text-gray-800 group-hover:text-gray-900">
+                마이페이지
               </div>
             </div>
           </router-link>
