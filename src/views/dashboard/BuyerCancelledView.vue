@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="space-y-6">
 
     <!-- Page Title -->
@@ -139,7 +139,9 @@
               <tr
                 v-for="order in currentTabOrders"
                 :key="order.id || order.orderNumber"
-                class="hover:bg-slate-50/60 transition"
+                class="hover:bg-blue-50/40 transition cursor-pointer"
+                :title="`클릭하면 [${order.orderNumber}] 주문 상세로 이동합니다`"
+                @click="goToOrder(order)"
               >
                 <td class="px-4 py-3 font-mono font-bold text-slate-800">{{ order.orderNumber }}</td>
                 <td class="px-4 py-3 text-slate-600 hidden md:table-cell max-w-[200px] truncate">
@@ -184,10 +186,13 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { fetchOrdersFromSupabase } from '@/utils/orderStorage'
 import { normalizeOrderStatus, getOrderStatsByUser } from '@/lib/orderPipeline'
 import { calcOrderCost } from '@/utils/orderCostCalculator'
 import { currentSettings, fetchSiteSettings } from '@/lib/settings'
+
+const router = useRouter()
 
 const orders = ref([])
 const isLoading = ref(true)
@@ -264,6 +269,19 @@ function formatDate(dateStr) {
   if (isNaN(d.getTime())) return '-'
   return d.toLocaleDateString('ko-KR', { month: '2-digit', day: '2-digit' })
     + ' ' + d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * 취소내역 행 클릭 시 원본 주문 상세로 이동 (A 기능)
+ * OrderManageView가 route.query.orderNumber를 감지해 자동 오픈
+ */
+function goToOrder(order) {
+  const orderNumber = order.orderNumber || order.id
+  if (!orderNumber) return
+  router.push({
+    path: '/dashboard/orders',
+    query: { orderNumber },
+  })
 }
 
 onMounted(() => {

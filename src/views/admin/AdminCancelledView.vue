@@ -124,12 +124,13 @@
                 <th class="px-4 py-3 text-right font-bold text-slate-600">금액</th>
                 <th class="px-4 py-3 text-center font-bold text-slate-600">상태</th>
                 <th class="px-4 py-3 text-center font-bold text-slate-600">처리일시</th>
+                <th v-if="activeTab === 'refund_pending'" class="px-4 py-3 text-right font-bold text-amber-700">환불예정금액</th>
                 <th v-if="activeTab !== 'rejected'" class="px-4 py-3 text-center font-bold text-slate-600">환불완료</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="currentTabOrders.length === 0">
-                <td :colspan="activeTab !== 'rejected' ? 7 : 6" class="px-4 py-10 text-center text-slate-400">
+                <td :colspan="activeTab === 'refund_pending' ? 8 : activeTab !== 'rejected' ? 7 : 6" class="px-4 py-10 text-center text-slate-400">
                   해당 내역이 없습니다.
                 </td>
               </tr>
@@ -162,6 +163,12 @@
                 <td class="px-4 py-3 text-center text-slate-500 font-mono">
                   {{ formatDate(order.updatedAt || order.createdAt) }}
                 </td>
+                <!-- 환불예정금액 — 환불대기 탭에만 표시 -->
+                <td v-if="activeTab === 'refund_pending'" class="px-4 py-3 text-right">
+                  <span class="font-mono font-bold text-amber-700 text-[11px]">
+                    ₩{{ fmtN(getRefundAmount(order)) }}
+                  </span>
+                </td>
                 <!-- 환불완료 버튼 — rejected 탭엔 없음 -->
                 <td v-if="activeTab !== 'rejected'" class="px-4 py-3 text-center">
                   <button
@@ -170,7 +177,11 @@
                     :disabled="markingIds.has(order.id || order.orderNumber)"
                     class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-600 text-[10px] font-bold hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
-                    {{ markingIds.has(order.id || order.orderNumber) ? '처리중…' : '환불완료 처리' }}
+                    <template v-if="markingIds.has(order.id || order.orderNumber)">처리중…</template>
+                    <template v-else>
+                      환불완료 처리
+                      <span v-if="activeTab === 'refund_pending'" class="ml-0.5 text-emerald-700">(₩{{ fmtN(getRefundAmount(order)) }})</span>
+                    </template>
                   </button>
                   <span v-else class="inline-flex flex-col items-center gap-0.5 text-emerald-600 font-bold text-[10px]">
                     ✅ 환불완료
@@ -201,7 +212,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import { fetchOrdersFromSupabase } from '@/utils/orderStorage'
 import { normalizeOrderStatus } from '@/lib/orderPipeline'
 import { calcOrderCost } from '@/utils/orderCostCalculator'
@@ -254,7 +265,7 @@ const currentTabOrders = computed(() => {
 })
 
 /**
- * 주문 금액 반환 — 저장된 확정 금액 우선, 없으면 items 기반 원가 계산
+ * 표시용 주문 금액 (전체 금액 — 헤더 "금액" 컬럼용)
  */
 function getOrderAmount(order) {
   if (!order) return 0
@@ -272,34 +283,115 @@ function getOrderAmount(order) {
   }
 }
 
-async function markRefundDone(order) {
-  const orderId = order.id
-  const orderNum = order.orderNumber
-  if (!orderId && !orderNum) return
+/**
+ * 환불 기준 금액 — first_payment.firstPaymentKrw (결제확인 시점 확정 금액) 우선
+ * 없으면 totalPriceKrw, total_price_krw 순으로 폴백
+ */
+function getRefundAmount(order) {
+  if (!order) return 0
+  return Number(
+    order.firstPayment?.firstPaymentKrw ||
+    order.totalPriceKrw ||
+    order.total_price_krw ||
+    0
+  )
+}
 
-  markingIds.value = new Set([...markingIds.value, orderId || orderNum])
+/**
+ * 환불완료 처리 — process_refund RPC 원자적 처리
+ *
+ * 이중 환불 3중 방지:
+ *   레이어 1(UI)   : refundCompleted=true 이면 버튼 비표시
+ *   레이어 2(함수) : 진입 직전 refundCompleted 재확인
+ *   레이어 3(DB)   : RPC 내부 FOR UPDATE + WHERE refund_completed=false
+ */
+async function markRefundDone(order) {
+  const orderId   = order.id
+  const orderNum  = order.orderNumber
+
+  // ── 레이어 2: 함수 가드 ────────────────────────────────────────────────
+  if (order.refundCompleted) {
+    showToast('이미 환불 처리된 주문입니다.', 'error')
+    return
+  }
+
+  // ── 환불 기준 금액 확인 ───────────────────────────────────────────────
+  const refundAmount = getRefundAmount(order)
+  if (!refundAmount || refundAmount <= 0) {
+    showToast(
+      `[${orderNum}] 환불 기준 금액을 확인할 수 없습니다. ` +
+      '(first_payment.firstPaymentKrw 및 totalPriceKrw 모두 없음) — 수동 처리 필요',
+      'error'
+    )
+    return
+  }
+
+  // ── 바이어 식별자 확인 ────────────────────────────────────────────────
+  const buyerUserId = (order.user_id && isValidUUID(order.user_id)) ? order.user_id : null
+  const buyerEmail  = (
+    order.buyerInfo?.email ||
+    order.buyer_email ||
+    order.buyerEmail ||
+    ''
+  ).trim() || null
+
+  if (!buyerUserId && !buyerEmail) {
+    showToast(
+      `[${orderNum}] 바이어 식별 정보(user_id/email)가 없어 예치금 환불 불가 — 수동 처리 필요`,
+      'error'
+    )
+    return
+  }
+
+  if (!isSupabaseConfigured()) {
+    showToast('Supabase 미연결 상태입니다.', 'error')
+    return
+  }
+
+  // ── RPC 호출 ──────────────────────────────────────────────────────────
+  const markKey = orderId || orderNum
+  markingIds.value = new Set([...markingIds.value, markKey])
+
   try {
-    if (!isSupabaseConfigured()) throw new Error('Supabase 미연결 상태')
-    const now = new Date().toISOString()
-    const { error, data } = await supabase
-      .from('orders')
-      .update({ refund_completed: true, refund_completed_at: now })
-      .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
-      .select('id, order_number')
+    const { data, error } = await supabase.rpc('process_refund', {
+      p_order_id:     orderId     || '',
+      p_order_number: orderNum    || '',
+      p_user_id:      buyerUserId || null,
+      p_user_email:   buyerEmail  || null,
+      p_amount:       refundAmount,
+    })
+
     if (error) throw error
-    if (!data || data.length === 0) throw new Error(`저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다.`)
+
+    // RPC가 성공 HTTP 200이어도 success:false를 반환하면 에러로 처리 (Silent Failure 방지)
+    if (!data || data.success !== true) {
+      throw new Error(`RPC 응답 이상 — success 필드 없음 (data: ${JSON.stringify(data)})`)
+    }
+
+    // RPC 반환값에서 새 잔액 추출
+    const newBalance = data?.new_balance ?? null
+
+    // ── 로컬 상태 즉시 반영 ───────────────────────────────────────────
     const target = orders.value.find(o => o.id === orderId || o.orderNumber === orderNum)
     if (target) {
-      target.refundCompleted = true
-      target.refundCompletedAt = now
+      target.refundCompleted   = true
+      target.refundCompletedAt = new Date().toISOString()
     }
-    showToast(`[${orderNum}] 환불완료 처리되었습니다.`, 'success')
+
+    const balanceMsg = newBalance !== null
+      ? ` → 고객 잔액 ₩${fmtN(newBalance)}원`
+      : ''
+    showToast(
+      `[${orderNum}] ₩${fmtN(refundAmount)}원 환불 완료${balanceMsg}`,
+      'success'
+    )
   } catch (e) {
-    console.error('[markRefundDone]', e)
-    showToast(`환불완료 처리 실패: ${e.message}`, 'error')
+    console.error('[markRefundDone] RPC 실패:', e)
+    // RPC 에러 메시지를 그대로 표시 (이중환불·프로필없음·주문없음 구분 가능)
+    showToast(`환불 처리 실패: ${e.message || e}`, 'error')
   } finally {
     const newSet = new Set(markingIds.value)
-    newSet.delete(orderId || orderNum)
+    newSet.delete(markKey)
     markingIds.value = newSet
   }
 }
@@ -319,7 +411,7 @@ function formatDate(dateStr) {
 function showToast(message, type = 'success') {
   clearTimeout(toastTimer)
   toast.value = { show: true, message, type }
-  toastTimer = setTimeout(() => { toast.value.show = false }, 3000)
+  toastTimer = setTimeout(() => { toast.value.show = false }, 4000)
 }
 
 onMounted(() => {

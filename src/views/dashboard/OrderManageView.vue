@@ -3228,6 +3228,35 @@ onMounted(async () => {
   window.addEventListener('euchs-order-status-update', onSyncOrdersDebounced);
   window.addEventListener('euchs-auth-changed', onAuthChanged);
   dashboardRealtimeChannel = subscribeToOrders(onSyncOrdersDebounced);
+
+  // A 기능: 취소내역에서 넘어온 경우 해당 주문 상세 자동 오픈
+  _tryOpenOrderFromQuery();
+});
+
+/**
+ * route.query.orderNumber에 해당하는 주문을 찾아 상세 모달을 자동으로 엽니다.
+ * BuyerCancelledView에서 행 클릭 시 router.push({ query: { orderNumber } })로 진입.
+ */
+function _tryOpenOrderFromQuery() {
+  const targetOrderNum = route.query.orderNumber;
+  if (!targetOrderNum) return;
+  const target = orders.value.find(
+    o => o.orderNumber === targetOrderNum || o.id === targetOrderNum
+  );
+  if (target) {
+    openOrderDetail(target);
+  }
+}
+
+// 같은 페이지에서 쿼리 파라미터만 바뀔 때 대응 (pushState 없이 replace인 경우 포함)
+watch(() => route.query.orderNumber, (newOrderNum) => {
+  if (!newOrderNum) return;
+  const target = orders.value.find(
+    o => o.orderNumber === newOrderNum || o.id === newOrderNum
+  );
+  if (target) {
+    openOrderDetail(target);
+  }
 });
 
 onUnmounted(() => {
