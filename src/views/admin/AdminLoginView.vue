@@ -130,6 +130,7 @@
 <script setup>
 import { ref, onMounted, nextTick } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { supabase } from '@/lib/supabase'
 import { currentUser, userRole, adminSignIn } from '@/lib/auth'
 
 const router = useRouter()
@@ -185,35 +186,21 @@ const handleAdminLogin = async (e) => {
     const email = loginForm.value.email.trim().toLowerCase()
     const password = loginForm.value.password
 
+    // adminSignIn이 내부에서 Supabase Auth + currentUser + userRole + localStorage 전부 처리
     const result = await adminSignIn(email, password)
+
     if (result && result.success) {
-      const userRoleResolved = String(result.role || result.user?.role || 'super_admin').toLowerCase().trim()
-      const isAuthorizedAdmin = ['admin', 'super_admin', 'staff', 'master'].includes(userRoleResolved) ||
-                                email === 'elliezo21@gmail.com' ||
-                                email === 'lcceuchs@gmail.com'
-
-      if (!isAuthorizedAdmin) {
-        throw new Error('관리자 또는 직원 권한(Role: Staff/Admin)이 부여되지 않은 계정입니다.')
+      // result.user?.id 없음 = Supabase 로그인 실패 신호 → 폴백 없이 에러 처리
+      if (!result.user?.id) {
+        throw new Error('Supabase 인증 세션이 생성되지 않았습니다. 이메일/비밀번호를 확인해 주세요.')
       }
 
-      const assignedRole = userRoleResolved === 'staff' ? 'staff' : 'super_admin'
+      // Supabase SDK의 storage(sb-*-auth-token) flush 완료 대기
+      // — 이 await 없이 바로 router.replace하면 마운트된 컴포넌트의 DB 쿼리가
+      //   세션 없는 익명 요청으로 나가서 RLS에 막혀 0건 반환되는 현상 발생
+      await supabase.auth.getSession()
 
-      // 1. 관리자 세션 정보 구성
-      const adminUser = {
-        id: result.user?.id || 'admin_master_01',
-        email: email || 'elliezo21@gmail.com',
-        name: result.user?.name || '이유씨 관리자',
-        role: assignedRole,
-        isAdmin: true
-      }
-
-      // 2. 반응형 전역 상태 및 로컬 스토리지에 관리자 세션 영구 주입
-      currentUser.value = adminUser
-      userRole.value = assignedRole
-      localStorage.setItem('euchs_auth_user', JSON.stringify(adminUser))
-      localStorage.setItem('euchs_admin_token', 'admin_authenticated')
-
-      // 3. 리다이렉트 쿼리와 무관하게 최상위 스마트 종합 대시보드(/admin)로 즉시 직행
+      // /admin으로 이동 (adminSignIn이 세션 전부 세팅 완료된 이후)
       await router.replace('/admin')
     } else {
       errorMessage.value = result?.error || '관리자 계정 정보가 일치하지 않거나 접근 권한이 없습니다.'
