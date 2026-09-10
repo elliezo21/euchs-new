@@ -1,5 +1,45 @@
 <template>
   <div class="min-h-screen bg-slate-50 font-sans p-4 sm:p-6 lg:p-8 space-y-6">
+
+    <!-- ======================================================== -->
+    <!-- [AUTH LOADING] 인증 완료 전 스켈레톤 (FOUC 방지)         -->
+    <!-- isAuthLoading이 true인 동안만 표시 — 실제 데이터 없이    -->
+    <!-- 틀린 기본값(미인증/0건/일반바이어)을 보여주지 않음       -->
+    <!-- ======================================================== -->
+    <div v-if="isAuthLoading" class="animate-pulse space-y-6">
+      <!-- 헤더 스켈레톤 -->
+      <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-gray-200">
+        <div class="space-y-2">
+          <div class="h-5 w-40 bg-gray-200 rounded-full"></div>
+          <div class="h-4 w-72 bg-gray-100 rounded-full"></div>
+        </div>
+        <div class="h-12 w-48 bg-gray-200 rounded-2xl"></div>
+      </div>
+      <!-- 탭 스켈레톤 -->
+      <div class="flex gap-2 pb-1">
+        <div class="h-9 w-32 bg-gray-200 rounded-2xl"></div>
+        <div class="h-9 w-36 bg-gray-100 rounded-2xl"></div>
+        <div class="h-9 w-36 bg-gray-100 rounded-2xl"></div>
+        <div class="h-9 w-32 bg-gray-100 rounded-2xl"></div>
+      </div>
+      <!-- 본문 스켈레톤 -->
+      <div class="bg-white border border-gray-200 rounded-3xl p-6 space-y-4">
+        <div class="h-5 w-48 bg-gray-200 rounded-full"></div>
+        <div class="h-4 w-full bg-gray-100 rounded-full"></div>
+        <div class="h-4 w-3/4 bg-gray-100 rounded-full"></div>
+        <div class="h-4 w-1/2 bg-gray-100 rounded-full"></div>
+        <div class="grid grid-cols-2 gap-4 mt-4">
+          <div class="h-10 bg-gray-100 rounded-xl"></div>
+          <div class="h-10 bg-gray-100 rounded-xl"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- [실제 UI] 인증 완료 후에만 렌더링                        -->
+    <!-- ======================================================== -->
+    <template v-else>
+
     <!-- ======================================================== -->
     <!-- 1. 페이지 헤더 & 예치금 잔액 요약 -->
     <!-- ======================================================== -->
@@ -355,17 +395,61 @@
     <!-- TAB 3: 예치금 지갑 & 결제/충전 내역 (activeTab === 'deposit') -->
     <!-- ======================================================== -->
     <div v-else-if="activeTab === 'deposit'" class="space-y-6 animate-fade-in">
+
+      <!-- 잔액 3단 표시 카드 -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <!-- 보유 잔액 -->
+        <div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-1">
+          <p class="text-[11px] text-gray-500 font-medium">보유 잔액</p>
+          <p class="text-xl font-black font-mono text-gray-900">₩{{ walletBalance.toLocaleString() }}</p>
+          <p class="text-[10px] text-gray-400">전체 예치금 잔액</p>
+        </div>
+        <!-- 출금 신청 중(동결) -->
+        <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-xs space-y-1">
+          <p class="text-[11px] text-amber-700 font-medium">출금 신청 중(동결)</p>
+          <p class="text-xl font-black font-mono text-amber-700">₩{{ heldBalance.toLocaleString() }}</p>
+          <p class="text-[10px] text-amber-600/80">관리자 처리 완료 시 차감</p>
+        </div>
+        <!-- 사용 가능 잔액 -->
+        <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-xs space-y-1">
+          <p class="text-[11px] text-emerald-700 font-medium">사용 가능 잔액</p>
+          <p class="text-xl font-black font-mono text-emerald-700">₩{{ availableBalance.toLocaleString() }}</p>
+          <p class="text-[10px] text-emerald-600/80">주문 결제 가능 금액</p>
+        </div>
+      </div>
+
+      <!-- 액션 버튼 행 -->
+      <div class="flex items-center gap-2">
+        <button
+          type="button"
+          @click="showDepositModal = true"
+          class="px-4 py-2 rounded-xl bg-orange-600 hover:bg-orange-700 text-white font-bold text-xs transition active:scale-95 shadow-xs cursor-pointer flex items-center gap-1.5"
+        >
+          <Wallet class="w-3.5 h-3.5" />
+          충전하기
+        </button>
+        <button
+          type="button"
+          @click="openWithdrawModal"
+          class="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition active:scale-95 shadow-xs cursor-pointer flex items-center gap-1.5"
+        >
+          <ArrowUpFromLine class="w-3.5 h-3.5" />
+          출금 신청
+        </button>
+      </div>
+
+      <!-- 거래 내역 카드 -->
       <div class="bg-white border border-gray-200 rounded-3xl p-6 shadow-xs space-y-4">
         <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-gray-100">
           <div>
             <h2 class="text-sm font-bold text-gray-900 flex items-center gap-2">
               <Receipt class="w-4 h-4 text-emerald-600" />
-              <span>예치금 충전 & 정산 거래 내역서</span>
+              <span>예치금 전체 거래 내역</span>
             </h2>
-            <p class="text-xs text-gray-500 mt-0.5">발주 결제, 해운 운임 정산 및 예치금 충전 이력입니다.</p>
+            <p class="text-xs text-gray-500 mt-0.5">충전·결제·환불·출금 전체 이력입니다.</p>
           </div>
 
-          <div class="flex items-center gap-2 text-xs">
+          <div class="flex items-center gap-1.5 text-xs flex-wrap">
             <button
               type="button"
               @click="walletFilter = 'all'"
@@ -376,19 +460,35 @@
             </button>
             <button
               type="button"
-              @click="walletFilter = 'in'"
+              @click="walletFilter = 'deposit'"
               class="px-2.5 py-1 rounded-lg font-bold transition cursor-pointer"
-              :class="walletFilter === 'in' ? 'bg-slate-900 text-white' : 'text-gray-600 hover:bg-gray-100'"
+              :class="walletFilter === 'deposit' ? 'bg-blue-600 text-white' : 'text-blue-600 hover:bg-blue-50'"
             >
               충전(+)
             </button>
             <button
               type="button"
-              @click="walletFilter = 'out'"
+              @click="walletFilter = 'order_payment'"
               class="px-2.5 py-1 rounded-lg font-bold transition cursor-pointer"
-              :class="walletFilter === 'out' ? 'bg-slate-900 text-white' : 'text-gray-600 hover:bg-gray-100'"
+              :class="walletFilter === 'order_payment' ? 'bg-rose-600 text-white' : 'text-rose-600 hover:bg-rose-50'"
             >
-              출금/정산(-)
+              결제(-)
+            </button>
+            <button
+              type="button"
+              @click="walletFilter = 'refund'"
+              class="px-2.5 py-1 rounded-lg font-bold transition cursor-pointer"
+              :class="walletFilter === 'refund' ? 'bg-emerald-600 text-white' : 'text-emerald-600 hover:bg-emerald-50'"
+            >
+              환불(+)
+            </button>
+            <button
+              type="button"
+              @click="walletFilter = 'withdrawal'"
+              class="px-2.5 py-1 rounded-lg font-bold transition cursor-pointer"
+              :class="walletFilter === 'withdrawal' ? 'bg-orange-600 text-white' : 'text-orange-600 hover:bg-orange-50'"
+            >
+              출금(-)
             </button>
           </div>
         </div>
@@ -398,44 +498,44 @@
             <thead class="bg-gray-50 border-b border-gray-200 text-gray-600 font-bold uppercase">
               <tr>
                 <th class="py-2.5 px-4">거래일시</th>
-                <th class="py-2.5 px-4">거래 항목 및 주문번호</th>
+                <th class="py-2.5 px-4">거래 항목</th>
                 <th class="py-2.5 px-4">구분</th>
                 <th class="py-2.5 px-4 text-right">변동 금액</th>
                 <th class="py-2.5 px-4 text-right">거래 후 잔액</th>
-                <th class="py-2.5 px-4 text-center">증빙/영수증</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-gray-100">
+              <tr v-if="isTransactionsLoading">
+                <td colspan="5" class="py-8 text-center text-gray-400 text-xs">
+                  <span class="inline-block w-4 h-4 border-2 border-gray-300 border-t-blue-500 rounded-full animate-spin mr-2 align-middle"></span>
+                  거래 내역을 불러오는 중...
+                </td>
+              </tr>
+              <tr v-else-if="filteredTransactions.length === 0">
+                <td colspan="5" class="py-10 text-center space-y-1">
+                  <div class="text-2xl">📋</div>
+                  <p class="text-xs text-gray-500 font-medium">거래 내역이 없습니다.</p>
+                </td>
+              </tr>
               <tr v-for="t in filteredTransactions" :key="t.id" class="hover:bg-gray-50">
-                <td class="py-3 px-4 font-mono text-gray-500">{{ t.date }}</td>
+                <td class="py-3 px-4 font-mono text-gray-500 text-[11px]">{{ t.date }}</td>
                 <td class="py-3 px-4">
                   <div class="font-bold text-gray-900">{{ t.title }}</div>
-                  <div class="text-[10px] text-gray-400 font-mono">{{ t.orderNo || '-' }}</div>
+                  <div v-if="t.orderNo" class="text-[10px] text-gray-400 font-mono">{{ t.orderNo }}</div>
                 </td>
                 <td class="py-3 px-4">
-                  <span
-                    class="px-2 py-0.5 rounded text-[10px] font-bold"
-                    :class="t.type === 'in' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700'"
-                  >
-                    {{ t.type === 'in' ? '예치금 충전' : '발주 결제' }}
+                  <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="getTxTypeBadge(t.rawType)">
+                    {{ getTxTypeLabel(t.rawType) }}
                   </span>
                 </td>
                 <td
                   class="py-3 px-4 text-right font-mono font-bold"
-                  :class="t.type === 'in' ? 'text-emerald-600' : 'text-rose-600'"
+                  :class="t.amount >= 0 ? 'text-emerald-600' : 'text-rose-600'"
                 >
-                  {{ t.type === 'in' ? '+' : '-' }}₩{{ t.amount.toLocaleString() }}
+                  {{ t.amount >= 0 ? '+' : '' }}₩{{ Math.abs(t.amount).toLocaleString() }}
                 </td>
                 <td class="py-3 px-4 text-right font-mono font-bold text-gray-800">
-                  ₩{{ t.balanceAfter.toLocaleString() }}
-                </td>
-                <td class="py-3 px-4 text-center">
-                  <button
-                    @click="downloadReceipt(t)"
-                    class="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold text-[10px] transition cursor-pointer"
-                  >
-                    전자영수증
-                  </button>
+                  ₩{{ Number(t.balanceAfter || 0).toLocaleString() }}
                 </td>
               </tr>
             </tbody>
@@ -756,6 +856,158 @@
         </div>
       </div>
     </div>
+    <!-- ======================================================== -->
+    <!-- 출금 신청 모달                                            -->
+    <!-- ======================================================== -->
+    <div
+      v-if="showWithdrawModal"
+      class="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+    >
+      <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-gray-100">
+        <div class="flex items-center justify-between pb-3 border-b border-gray-100">
+          <h3 class="text-sm font-bold text-gray-900 flex items-center gap-2">
+            <ArrowUpFromLine class="w-4 h-4 text-slate-700" />
+            <span>예치금 출금 신청</span>
+          </h3>
+          <button @click="showWithdrawModal = false" class="text-gray-400 hover:text-gray-600 cursor-pointer">
+            <X class="w-4 h-4" />
+          </button>
+        </div>
+
+        <!-- 가용 잔액 안내 -->
+        <div class="bg-emerald-50 rounded-2xl p-3 border border-emerald-200 text-xs">
+          <div class="flex items-center justify-between">
+            <span class="text-emerald-700 font-medium">출금 가능 잔액</span>
+            <span class="text-emerald-800 font-black font-mono">₩{{ availableBalance.toLocaleString() }}</span>
+          </div>
+          <p class="text-[10px] text-emerald-600/80 mt-0.5">보유 잔액(₩{{ walletBalance.toLocaleString() }}) - 동결(₩{{ heldBalance.toLocaleString() }})</p>
+        </div>
+
+        <div class="space-y-3 text-xs">
+          <!-- 출금 금액 -->
+          <div class="space-y-1">
+            <label class="block font-bold text-gray-700">출금 금액 (원)</label>
+            <div class="relative">
+              <input
+                type="number"
+                v-model.number="withdrawForm.amount"
+                :min="MIN_WITHDRAWAL_AMOUNT"
+                :max="availableBalance"
+                step="10000"
+                placeholder="출금하실 금액을 입력하세요"
+                class="w-full px-3.5 py-2.5 rounded-xl border font-mono font-bold text-gray-900 bg-white outline-none focus:ring-2 transition"
+                :class="withdrawAmountError
+                  ? 'border-rose-400 focus:ring-rose-500/20'
+                  : 'border-gray-200 focus:ring-slate-500/20'"
+              />
+              <span class="absolute right-3.5 top-2.5 text-xs text-gray-400 font-bold">원</span>
+            </div>
+            <!-- 이중 검증 에러 메시지 -->
+            <p v-if="withdrawAmountError" class="text-rose-600 text-[11px] font-medium">{{ withdrawAmountError }}</p>
+            <p v-else class="text-[10px] text-gray-400">최소 {{ MIN_WITHDRAWAL_AMOUNT.toLocaleString() }}원 이상</p>
+          </div>
+
+          <!-- 은행명 -->
+          <div class="space-y-1">
+            <label class="block font-bold text-gray-700">은행명</label>
+            <input
+              type="text"
+              v-model="withdrawForm.bankName"
+              placeholder="예: 기업은행, 국민은행, 카카오뱅크"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 outline-none focus:ring-2 focus:ring-slate-500/20"
+            />
+          </div>
+
+          <!-- 계좌번호 -->
+          <div class="space-y-1">
+            <label class="block font-bold text-gray-700">계좌번호</label>
+            <input
+              type="text"
+              v-model="withdrawForm.accountNumber"
+              placeholder="예: 123-456789-01-234"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 font-mono text-gray-900 outline-none focus:ring-2 focus:ring-slate-500/20"
+            />
+          </div>
+
+          <!-- 예금주 -->
+          <div class="space-y-1">
+            <label class="block font-bold text-gray-700">예금주</label>
+            <input
+              type="text"
+              v-model="withdrawForm.accountHolder"
+              placeholder="예: 홍길동 (또는 이유씨글로벌)"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-gray-200 text-gray-900 outline-none focus:ring-2 focus:ring-slate-500/20"
+            />
+          </div>
+
+          <p class="text-[11px] text-slate-500 leading-relaxed bg-slate-50 rounded-xl p-3">
+            * 출금 신청 즉시 해당 금액이 동결됩니다. 관리자가 계좌이체 후 완료처리 시 잔액에서 실제 차감됩니다. 반려 시 동결이 해제됩니다.
+          </p>
+
+          <div class="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+            <button
+              type="button"
+              @click="showWithdrawModal = false"
+              class="px-4 py-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 font-bold cursor-pointer"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              @click="submitWithdrawRequest"
+              :disabled="isSubmittingWithdraw || !!withdrawAmountError || !withdrawForm.amount || !withdrawForm.bankName || !withdrawForm.accountNumber || !withdrawForm.accountHolder"
+              class="px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 disabled:opacity-40 disabled:cursor-not-allowed text-white font-bold transition active:scale-95 cursor-pointer shadow-sm flex items-center gap-1.5"
+            >
+              <span v-if="isSubmittingWithdraw" class="inline-block w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+              <span>{{ isSubmittingWithdraw ? '신청 중...' : '출금 신청하기' }}</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
+    <!-- 출금 결과 알림 팝업 (완료/반려)                          -->
+    <!-- ======================================================== -->
+    <div
+      v-if="withdrawNotification"
+      class="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in"
+    >
+      <div class="bg-white rounded-3xl max-w-sm w-full p-6 shadow-2xl border border-gray-100 space-y-4 text-center">
+        <div class="text-3xl">
+          {{ withdrawNotification.status === 'completed' ? '✅' : '❌' }}
+        </div>
+        <div>
+          <h3 class="text-base font-black text-gray-900">
+            {{ withdrawNotification.status === 'completed' ? '출금 완료' : '출금 반려' }}
+          </h3>
+          <p class="text-sm text-gray-600 mt-2 leading-relaxed">{{ withdrawNotification.message }}</p>
+          <p v-if="withdrawNotification.adminNote" class="text-xs text-rose-600 mt-2 font-medium bg-rose-50 rounded-xl p-2">
+            반려 사유: {{ withdrawNotification.adminNote }}
+          </p>
+        </div>
+        <button
+          type="button"
+          @click="confirmWithdrawNotification"
+          class="w-full px-4 py-2.5 rounded-xl bg-slate-900 text-white font-bold text-sm cursor-pointer hover:bg-slate-800 transition"
+        >
+          확인
+        </button>
+      </div>
+    </div>
+
+    <!-- 토스트 알림 -->
+    <Transition name="toast">
+      <div
+        v-if="accountToast.show"
+        class="fixed bottom-6 right-6 z-[130] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5"
+        :class="accountToast.variant === 'error' ? 'bg-rose-600 text-white' : 'bg-emerald-600 text-white'"
+      >
+        <span>{{ accountToast.variant === 'error' ? '❌' : '✅' }}</span>
+        <span>{{ accountToast.message }}</span>
+      </div>
+    </Transition>
+
     <!-- ConfirmSaveModal: 주소 삭제 -->
     <ConfirmSaveModal
       v-model="confirmDeleteAddress"
@@ -808,6 +1060,9 @@
       @confirm="saveAddress"
     />
 
+    </template>
+    <!-- /v-else: 인증 완료 후 실제 UI 끝 -->
+
   </div>
 </template>
 
@@ -826,7 +1081,8 @@ import {
   KeyRound,
   AlertTriangle,
   UserCheck,
-  ChevronRight
+  ChevronRight,
+  ArrowUpFromLine
 } from 'lucide-vue-next'
 import {
   currentUser,
@@ -840,17 +1096,24 @@ import {
   withdrawAccount,
   isBusinessVerified,
   verificationStatus,
-  fetchUserProfile
+  fetchUserProfile,
+  isAuthLoading
 } from '../../lib/auth'
 import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
 import {
   userBalance,
-  loadBalance
+  heldBalance,
+  loadBalance,
 } from '../../lib/balanceStore'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const route = useRoute()
 const router = useRouter()
+
+// ============================================================
+// 출금 신청 관련 상수 — 변경 시 이 한 곳만 수정
+// ============================================================
+const MIN_WITHDRAWAL_AMOUNT = 10000
 
 // ============================================================
 // PHASE 1: 모든 ref / computed 선언
@@ -868,10 +1131,28 @@ const confirmWithdrawal1 = ref(false)
 const confirmWithdrawal2 = ref(false)
 const showAddressModal = ref(false)
 const showDepositModal = ref(false)
+// 출금 신청 모달 상태
+const showWithdrawModal = ref(false)
+const isSubmittingWithdraw = ref(false)
+const withdrawForm = ref({
+  amount: 0,
+  bankName: '',
+  accountNumber: '',
+  accountHolder: ''
+})
+// 출금 결과 알림 팝업
+const withdrawNotification = ref(null) // { status, message, adminNote, requestId }
+// 토스트 알림
+const accountToast = ref({ show: false, message: '', variant: 'success' })
+let accountToastTimer = null
+// Realtime 채널
+let withdrawRealtimeChannel = null
+
 const editingAddressId = ref(null)
 const depositAmount = ref(1000000)
 const depositDepositorName = ref('')
 const isSubmittingDeposit = ref(false)
+const isTransactionsLoading = ref(false)
 const addressList = ref([])
 const addressForm = ref({
   title: '',
@@ -908,10 +1189,30 @@ const buyerCustomerId = computed(() => {
   return `EUCHS-${cleanSuffix}`
 })
 
+// 가용 잔액 (보유 - 동결)
+const availableBalance = computed(() =>
+  Math.max(0, (userBalance.value || 0) - (heldBalance.value || 0))
+)
+
+// 출금 금액 이중 검증 에러메시지 (최소금액 AND 가용잔액 초과 동시 검사)
+const withdrawAmountError = computed(() => {
+  const amt = Number(withdrawForm.value.amount || 0)
+  if (!amt) return ''
+  if (amt < MIN_WITHDRAWAL_AMOUNT) {
+    return `최소 출금 금액은 ${MIN_WITHDRAWAL_AMOUNT.toLocaleString()}원 이상입니다.`
+  }
+  if (amt > availableBalance.value) {
+    return `출금 가능 잔액(₩${availableBalance.value.toLocaleString()})을 초과합니다.`
+  }
+  return ''
+})
+
+// 거래 타입별 필터 (deposit/order_payment/refund/withdrawal/all)
 const filteredTransactions = computed(() => {
   if (walletFilter.value === 'all') return transactions.value
-  return transactions.value.filter(t => t.type === walletFilter.value)
+  return transactions.value.filter(t => t.rawType === walletFilter.value)
 })
+
 
 // ============================================================
 // PHASE 2: 함수 정의
@@ -970,26 +1271,116 @@ const loadCustomsProfile = () => {
   }
 }
 
-const loadTransactions = () => {
+// 거래 타입별 라벨
+function getTxTypeLabel(rawType) {
+  const map = {
+    deposit: '예치금 충전',
+    order_payment: '발주 결제',
+    shipping_payment: '운임·통관 결제',
+    refund: '환불',
+    withdrawal: '예치금 출금',
+    manual_add: '관리자 지급',
+    manual_sub: '관리자 차감'
+  }
+  return map[rawType] || rawType || '기타'
+}
+
+// 거래 타입별 배지 색상
+function getTxTypeBadge(rawType) {
+  const map = {
+    deposit:          'bg-blue-100 text-blue-800 border border-blue-200',
+    order_payment:    'bg-rose-100 text-rose-800 border border-rose-200',
+    shipping_payment: 'bg-purple-100 text-purple-800 border border-purple-200',
+    refund:           'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    withdrawal:       'bg-orange-100 text-orange-800 border border-orange-200',
+    manual_add:       'bg-teal-100 text-teal-800 border border-teal-200',
+    manual_sub:       'bg-gray-100 text-gray-800 border border-gray-200'
+  }
+  return map[rawType] || 'bg-slate-100 text-slate-700'
+}
+
+// 토스트 표시 헬퍼
+function showAccountToast(message, variant = 'success') {
+  clearTimeout(accountToastTimer)
+  accountToast.value = { show: true, message, variant }
+  accountToastTimer = setTimeout(() => {
+    accountToast.value.show = false
+  }, 4000)
+}
+
+// transactions 테이블 + localStorage deposit_requests를 합쳐서 최신순 표시
+const loadTransactions = async () => {
+  isTransactionsLoading.value = true
+  const user = currentUser.value
+  let dbRows = []
+
+  // 1. Supabase transactions 테이블 조회
+  if (isSupabaseConfigured() && user) {
+    try {
+      const isUUID = user.id && isValidUUID(user.id)
+      const userMail = user.email ? String(user.email).trim().toLowerCase() : ''
+
+      let q = supabase
+        .from('transactions')
+        .select('id, created_at, type, amount, balance_after, order_no, description')
+        .order('created_at', { ascending: false })
+        .limit(200)
+
+      if (isUUID) {
+        q = q.eq('user_id', user.id)
+      } else if (userMail) {
+        q = q.eq('user_email', userMail)
+      }
+
+      const { data, error } = await q
+      if (!error && Array.isArray(data)) {
+        dbRows = data.map(r => ({
+          id: r.id,
+          date: r.created_at ? new Date(r.created_at).toLocaleString('ko-KR') : '-',
+          title: r.description || getTxTypeLabel(r.type),
+          orderNo: r.order_no || null,
+          rawType: r.type,
+          amount: Number(r.amount || 0),
+          balanceAfter: Number(r.balance_after || 0),
+          createdAt: r.created_at
+        }))
+      }
+    } catch (e) {
+      console.warn('[loadTransactions] Supabase 조회 오류:', e)
+    }
+  }
+
+  // 2. localStorage euchs_deposit_requests (승인된 충전내역 — DB 없는 환경 폴백 병합)
   try {
     const raw = localStorage.getItem('euchs_deposit_requests')
     if (raw) {
       const list = JSON.parse(raw)
-      if (Array.isArray(list) && list.length > 0) {
-        transactions.value = list.map(t => ({
-          id: t.id,
-          date: t.createdAt ? new Date(t.createdAt).toLocaleString('ko-KR') : '-',
-          title: `예치금 무통장 입금 충전 (${t.status === 'approved' ? '승인완료' : (t.status === 'rejected' ? '반려' : '심사중')})`,
-          orderNo: t.id,
-          type: 'in',
-          amount: t.amount,
-          balanceAfter: walletBalance.value
-        }))
-        return
+      if (Array.isArray(list)) {
+        const localRows = list
+          .filter(t => t.status === 'approved') // 승인 완료된 것만
+          .map(t => ({
+            id: 'local_' + (t.id || t.createdAt),
+            date: t.createdAt ? new Date(t.createdAt).toLocaleString('ko-KR') : '-',
+            title: `예치금 무통장 입금 충전 (${t.depositorName || t.depositor_name || '입금자'})`,
+            orderNo: t.id || null,
+            rawType: 'deposit',
+            amount: Number(t.amount || 0),
+            balanceAfter: Number(t.amount || 0),
+            createdAt: t.createdAt || t.created_at || new Date().toISOString()
+          }))
+        // DB에 없는 로컬 항목만 추가 (중복 방지)
+        const dbIds = new Set(dbRows.map(r => String(r.id)))
+        for (const row of localRows) {
+          if (!dbIds.has(String(row.id))) dbRows.push(row)
+        }
       }
     }
   } catch (e) {}
-  transactions.value = []
+
+  // 3. 최신순 정렬
+  dbRows.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+  transactions.value = dbRows
+  isTransactionsLoading.value = false
 }
 
 // ============================================================
@@ -1323,6 +1714,187 @@ const executeWithdrawal = async () => {
 }
 
 // ============================================================
+// 출금 신청 관련 함수
+// ============================================================
+
+/** 출금 신청 모달 열기 (폼 초기화) */
+function openWithdrawModal() {
+  withdrawForm.value = { amount: 0, bankName: '', accountNumber: '', accountHolder: '' }
+  showWithdrawModal.value = true
+}
+
+/** 출금 신청 제출 → request_withdrawal RPC 호출 */
+async function submitWithdrawRequest() {
+  if (withdrawAmountError.value) return
+
+  const user = currentUser.value
+  if (!user) {
+    showAccountToast('로그인이 필요합니다.', 'error')
+    return
+  }
+
+  if (!isSupabaseConfigured()) {
+    showAccountToast('Supabase 연결이 필요합니다.', 'error')
+    return
+  }
+
+  const { amount, bankName, accountNumber, accountHolder } = withdrawForm.value
+  if (!amount || !bankName || !accountNumber || !accountHolder) {
+    showAccountToast('모든 항목을 입력해주세요.', 'error')
+    return
+  }
+
+  isSubmittingWithdraw.value = true
+  try {
+    const isUUID = user.id && isValidUUID(user.id)
+    const { data, error } = await supabase.rpc('request_withdrawal', {
+      p_user_id:        isUUID ? user.id : null,
+      p_user_email:     user.email || '',
+      p_amount:         Number(amount),
+      p_bank_name:      bankName.trim(),
+      p_account_number: accountNumber.trim(),
+      p_account_holder: accountHolder.trim()
+    })
+
+    if (error) throw error
+    if (!data?.success) throw new Error('출금 신청 처리 실패')
+
+    // 성공: 모달 닫기, 잔액 갱신, 토스트
+    showWithdrawModal.value = false
+    await loadBalance(true) // held_balance 포함 즉시 갱신
+    showAccountToast('출금신청요청이 완료되었습니다.')
+  } catch (err) {
+    console.error('[submitWithdrawRequest] Error:', err)
+    showAccountToast(err.message || '출금 신청 중 오류가 발생했습니다.', 'error')
+  } finally {
+    isSubmittingWithdraw.value = false
+  }
+}
+
+/**
+ * 출금 결과 알림 팝업 닫기 + customer_notified_at 기록
+ * mark_withdraw_notified RPC를 호출 (SECURITY DEFINER — 본인 건 여부를 DB에서 검증)
+ * 테이블에 고객 UPDATE RLS는 없음 — 이 함수가 유일한 업데이트 경로
+ */
+async function confirmWithdrawNotification() {
+  const notif = withdrawNotification.value
+  const requestId = notif?.requestId || null
+  // 팝업 즉시 닫기 (UX 우선)
+  withdrawNotification.value = null
+
+  if (requestId && isSupabaseConfigured()) {
+    try {
+      const { data, error } = await supabase.rpc('mark_withdraw_notified', {
+        p_request_id: requestId
+      })
+
+      if (error) {
+        console.error('[confirmWithdrawNotification] RPC 오류:', error)
+        showAccountToast('알림 확인 기록에 실패했습니다. 새로고침 시 알림이 다시 표시될 수 있습니다.', 'error')
+        return
+      }
+
+      // data.already_notified: true면 이미 기록된 건 — 정상 (멱등)
+      console.debug('[confirmWithdrawNotification] 완료:', data)
+    } catch (e) {
+      console.error('[confirmWithdrawNotification] 예외:', e)
+    }
+  }
+
+  // 잔액 및 거래내역 갱신
+  await loadBalance(true)
+  await loadTransactions()
+}
+
+/**
+ * 미확인 출금 결과 건 체크 — onMounted 시 실행
+ * customer_notified_at이 null인 completed/rejected 건이 있으면 팝업 표시
+ */
+async function checkPendingWithdrawNotifications() {
+  const user = currentUser.value
+  if (!user || !isSupabaseConfigured()) return
+
+  try {
+    const isUUID = user.id && isValidUUID(user.id)
+    let q = supabase
+      .from('withdraw_requests')
+      .select('id, status, amount, admin_note, customer_notified_at')
+      .in('status', ['completed', 'rejected'])
+      .is('customer_notified_at', null)
+      .order('processed_at', { ascending: false })
+      .limit(1)
+
+    if (isUUID) q = q.eq('user_id', user.id)
+    else q = q.eq('user_email', user.email || '')
+
+    const { data, error } = await q
+    if (!error && Array.isArray(data) && data.length > 0) {
+      const req = data[0]
+      withdrawNotification.value = {
+        requestId: req.id,
+        status: req.status,
+        message: req.status === 'completed'
+          ? '출금신청이 완료되었습니다. 신청하신 계좌를 확인해주세요.'
+          : '출금신청이 반려되었습니다. 동결됐던 금액은 다시 사용 가능합니다.',
+        adminNote: req.admin_note || null
+      }
+    }
+  } catch (e) {
+    console.warn('[checkPendingWithdrawNotifications]:', e)
+  }
+}
+
+/** Supabase Realtime 구독 — withdraw_requests 변경 감지 */
+function setupWithdrawRealtime() {
+  if (!isSupabaseConfigured()) return
+
+  const user = currentUser.value
+  if (!user) return
+
+  const channelName = `customer_withdraw_listener_${user.id || user.email || 'anon'}`
+  if (withdrawRealtimeChannel) {
+    supabase.removeChannel(withdrawRealtimeChannel)
+    withdrawRealtimeChannel = null
+  }
+
+  withdrawRealtimeChannel = supabase
+    .channel(channelName)
+    .on('postgres_changes', {
+      event: 'UPDATE',
+      schema: 'public',
+      table: 'withdraw_requests'
+    }, async (payload) => {
+      const updated = payload?.new
+      if (!updated) return
+
+      // 이 유저의 건인지 확인
+      const isUUID = user.id && isValidUUID(user.id)
+      const isMine = isUUID
+        ? updated.user_id === user.id
+        : updated.user_email === user.email
+
+      if (!isMine) return
+
+      // customer_notified_at이 이미 기록된 건은 무시 (재노출 방지)
+      if (updated.customer_notified_at) return
+
+      if (updated.status === 'completed' || updated.status === 'rejected') {
+        withdrawNotification.value = {
+          requestId: updated.id,
+          status: updated.status,
+          message: updated.status === 'completed'
+            ? '출금신청이 완료되었습니다. 신청하신 계좌를 확인해주세요.'
+            : '출금신청이 반려되었습니다. 동결됐던 금액은 다시 사용 가능합니다.',
+          adminNote: updated.admin_note || null
+        }
+        // 잔액 즉시 갱신
+        await loadBalance(true)
+      }
+    })
+    .subscribe()
+}
+
+// ============================================================
 // PHASE 3: watch / onMounted 등록
 // ============================================================
 
@@ -1341,6 +1913,8 @@ watch(currentUser, async (newVal) => {
   loadCustomsProfile()
   loadAddresses()
   loadTransactions()
+  setupWithdrawRealtime()
+  checkPendingWithdrawNotifications()
 })
 
 watch(currentUserProfile, () => {
@@ -1358,11 +1932,19 @@ onMounted(async () => {
   loadCustomsProfile()
   loadAddresses()
   loadTransactions()
+  // 출금 신청 Realtime 구독 + 미확인 알림 체크
+  setupWithdrawRealtime()
+  checkPendingWithdrawNotifications()
   window.addEventListener('euchs-auth-changed', onAccountAuthChanged)
 })
 
 onUnmounted(() => {
   window.removeEventListener('euchs-auth-changed', onAccountAuthChanged)
+  if (withdrawRealtimeChannel) {
+    supabase.removeChannel(withdrawRealtimeChannel)
+    withdrawRealtimeChannel = null
+  }
+  clearTimeout(accountToastTimer)
 })
 
 // ----------------------------------------------------
@@ -1382,12 +1964,20 @@ const onAccountAuthChanged = (e) => {
     }
     addressList.value = []
     transactions.value = []
+    // 출금 채널 정리
+    if (withdrawRealtimeChannel) {
+      supabase.removeChannel(withdrawRealtimeChannel)
+      withdrawRealtimeChannel = null
+    }
+    withdrawNotification.value = null
   } else {
     // 로그인 또는 계정 전환: 해당 계정 데이터 재로드
     loadCustomsProfile()
     loadAddresses()
     loadTransactions()
     loadBalance()
+    setupWithdrawRealtime()
+    checkPendingWithdrawNotifications()
   }
 }
 </script>

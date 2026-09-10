@@ -100,7 +100,7 @@
       </button>
     </div>
 
-    <!-- 4. 2단 서브 탭 바 -->
+    <!-- 4. 3단 서브 탭 바 -->
     <div class="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl border border-slate-200/80 text-xs sm:text-sm font-bold">
       <!-- 탭 1: 무통장 충전 신청 관리 -->
       <button
@@ -120,7 +120,25 @@
         </span>
       </button>
 
-      <!-- 탭 2: 전체 예치금 변동 & 정산 로그 -->
+      <!-- 탭 2: 출금 신청 관리 -->
+      <button
+        type="button"
+        @click="activeSubTab = 'withdrawals'"
+        class="flex-1 py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2 cursor-pointer"
+        :class="activeSubTab === 'withdrawals'
+          ? 'bg-white text-orange-700 shadow-xs ring-1 ring-slate-900/5 font-black'
+          : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/60'"
+      >
+        <span>💸 출금 신청 관리</span>
+        <span
+          class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+          :class="pendingWithdrawals.length > 0 ? 'bg-orange-500 text-white animate-pulse' : 'bg-slate-300/60 text-slate-600'"
+        >
+          {{ pendingWithdrawals.length }}건
+        </span>
+      </button>
+
+      <!-- 탭 3: 전체 예치금 변동 & 정산 로그 -->
       <button
         type="button"
         @click="activeSubTab = 'logs'"
@@ -368,6 +386,117 @@
     </div>
 
     <!-- ======================================================== -->
+    <!-- [TAB 2] 출금 신청 관리                                   -->
+    <!-- ======================================================== -->
+    <div v-show="activeSubTab === 'withdrawals'" class="space-y-4">
+      <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+        <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+            <h3 class="font-black text-slate-900 text-sm">출금 신청 목록</h3>
+            <span class="text-xs font-mono text-slate-400">({{ withdrawalRequests.length }}건)</span>
+          </div>
+          <!-- 상태 필터 -->
+          <div class="flex items-center gap-1.5 text-xs">
+            <button
+              v-for="st in ['pending', 'completed', 'rejected']"
+              :key="st"
+              type="button"
+              @click="withdrawalFilter = st"
+              class="px-3 py-1 rounded-lg font-bold transition cursor-pointer"
+              :class="withdrawalFilter === st
+                ? (st === 'pending' ? 'bg-orange-600 text-white' : st === 'completed' ? 'bg-emerald-600 text-white' : 'bg-slate-700 text-white')
+                : 'bg-white border border-slate-200 text-slate-700 hover:bg-slate-50'"
+            >
+              {{ st === 'pending' ? '⏳ 대기' : st === 'completed' ? '✅ 완료' : '❌ 반려' }}
+            </button>
+          </div>
+        </div>
+
+        <div class="overflow-x-auto">
+          <table class="w-full text-left text-xs">
+            <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
+              <tr>
+                <th class="py-3 px-4">신청일시</th>
+                <th class="py-3 px-4">바이어 정보</th>
+                <th class="py-3 px-4 text-right">출금액</th>
+                <th class="py-3 px-4">은행 / 계좌번호 / 예금주</th>
+                <th class="py-3 px-4 text-center">상태</th>
+                <th class="py-3 px-4 text-center">처리</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-100">
+              <tr v-if="isWithdrawalsLoading">
+                <td colspan="6" class="py-8 text-center text-slate-400 text-xs">
+                  <span class="inline-block w-4 h-4 border-2 border-slate-200 border-t-orange-500 rounded-full animate-spin mr-2 align-middle"></span>
+                  출금 신청 내역을 불러오는 중...
+                </td>
+              </tr>
+              <tr v-else-if="filteredWithdrawals.length === 0">
+                <td colspan="6" class="py-12 text-center text-slate-400 space-y-1">
+                  <div class="text-2xl">💸</div>
+                  <p class="font-bold text-xs text-slate-600">출금 신청 내역이 없습니다.</p>
+                </td>
+              </tr>
+              <tr v-for="req in filteredWithdrawals" :key="req.id" class="hover:bg-slate-50">
+                <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                  {{ req.requested_at ? new Date(req.requested_at).toLocaleString('ko-KR') : '-' }}
+                </td>
+                <td class="py-3.5 px-4">
+                  <div class="font-bold text-slate-900">{{ req.user_email }}</div>
+                </td>
+                <td class="py-3.5 px-4 text-right font-mono font-black text-orange-700">
+                  ₩{{ fmtN(req.amount) }}
+                </td>
+                <td class="py-3.5 px-4">
+                  <div class="font-bold text-slate-900">{{ req.bank_name }}</div>
+                  <div class="font-mono text-[11px] text-slate-500">{{ req.account_number }}</div>
+                  <div class="text-[11px] text-slate-600">{{ req.account_holder }}</div>
+                </td>
+                <td class="py-3.5 px-4 text-center">
+                  <span
+                    class="px-2 py-1 rounded-lg text-[10px] font-bold"
+                    :class="req.status === 'pending'
+                      ? 'bg-amber-100 text-amber-800'
+                      : req.status === 'completed'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : 'bg-slate-100 text-slate-600'"
+                  >
+                    {{ req.status === 'pending' ? '대기' : req.status === 'completed' ? '완료' : '반려' }}
+                  </span>
+                </td>
+                <td class="py-3.5 px-4">
+                  <div v-if="req.status === 'pending'" class="flex items-center justify-center gap-1.5">
+                    <!-- 계좌이체 완료 버튼 -->
+                    <button
+                      type="button"
+                      @click="executeCompleteWithdrawal(req)"
+                      class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer active:scale-95 shadow-xs"
+                    >
+                      계좌이체 완료
+                    </button>
+                    <!-- 반려 버튼 -->
+                    <button
+                      type="button"
+                      @click="executeRejectWithdrawal(req)"
+                      class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] transition cursor-pointer active:scale-95 shadow-xs"
+                    >
+                      반려
+                    </button>
+                  </div>
+                  <div v-else class="text-center text-[11px] text-slate-400">
+                    {{ req.processed_at ? new Date(req.processed_at).toLocaleDateString('ko-KR') : '-' }}
+                    <div v-if="req.admin_note" class="text-rose-500 text-[10px]">{{ req.admin_note }}</div>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
     <!-- 5. 바이어 예치금 수동 조정 모달 (관리자 권한) -->
     <!-- ======================================================== -->
     <div
@@ -500,13 +629,27 @@ import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
-const activeSubTab = ref('requests') // 'requests' | 'logs'
+const activeSubTab = ref('requests') // 'requests' | 'withdrawals' | 'logs'
 const depositFilter = ref('pending') // 기본 활성 탭: [⏳ 승인 대기]
 const logTypeFilter = ref('all')
 const logSearchQuery = ref('')
 const showManualModal = ref(false)
 const confirmApproveDeposit = ref(false)
 const pendingDepositReq = ref(null)
+
+// 출금 신청 관련 상태
+const withdrawalRequests = ref([])
+const withdrawalFilter = ref('pending')
+const isWithdrawalsLoading = ref(false)
+let withdrawAdminRealtimeChannel = null
+
+const pendingWithdrawals = computed(() =>
+  withdrawalRequests.value.filter(r => r.status === 'pending')
+)
+
+const filteredWithdrawals = computed(() =>
+  withdrawalRequests.value.filter(r => r.status === withdrawalFilter.value)
+)
 
 const toast = ref({ show: false, message: '' })
 let toastTimer = null
@@ -1076,8 +1219,105 @@ onMounted(() => {
     } catch (e) {
       console.warn('[AdminSettlement] Realtime subscription notice:', e)
     }
+
+    // 3. 출금 신청 Realtime 구독 (INSERT → 알림, UPDATE → 목록 갱신)
+    try {
+      withdrawAdminRealtimeChannel = supabase
+        .channel('admin_withdraw_listener')
+        .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'withdraw_requests' }, (payload) => {
+          const newRecord = payload.new
+          if (!newRecord) return
+
+          playNotificationSound()
+          withdrawalRequests.value.unshift(newRecord)
+          withdrawalFilter.value = 'pending'
+          showToast(`🔔 출금 신청 접수: ${newRecord.user_email} — ₩${fmtN(newRecord.amount)}`)
+        })
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'withdraw_requests' }, () => {
+          loadWithdrawals()
+        })
+        .subscribe()
+    } catch (e) {
+      console.warn('[AdminSettlement] Withdraw Realtime subscription notice:', e)
+    }
   }
+
+  // 4. 출금 신청 초기 로드
+  loadWithdrawals()
 })
+
+// ----------------------------------------------------
+// 출금 신청 목록 로드
+// ----------------------------------------------------
+async function loadWithdrawals() {
+  if (!isSupabaseConfigured()) return
+  isWithdrawalsLoading.value = true
+  try {
+    const { data, error } = await supabase
+      .from('withdraw_requests')
+      .select('id, user_id, user_email, amount, bank_name, account_number, account_holder, status, requested_at, processed_at, admin_note')
+      .order('requested_at', { ascending: false })
+      .limit(200)
+
+    if (!error && Array.isArray(data)) {
+      withdrawalRequests.value = data
+    }
+  } catch (e) {
+    console.warn('[loadWithdrawals]:', e)
+  } finally {
+    isWithdrawalsLoading.value = false
+  }
+}
+
+// ----------------------------------------------------
+// 출금 완료 처리 → complete_withdrawal RPC
+// ----------------------------------------------------
+async function executeCompleteWithdrawal(req) {
+  const confirmed = confirm(
+    `[출금 완료 처리]\n\n바이어: ${req.user_email}\n출금액: ₩${fmtN(req.amount)}\n계좌: ${req.bank_name} ${req.account_number} (${req.account_holder})\n\n계좌이체 완료 후 이 버튼을 누르세요.\n실제 잔액 차감이 즉시 처리됩니다.`
+  )
+  if (!confirmed) return
+
+  try {
+    const { data, error } = await supabase.rpc('complete_withdrawal', {
+      p_request_id: req.id
+    })
+    if (error) throw error
+    if (!data?.success) throw new Error('완료 처리 실패')
+
+    showToast('출금 처리가 완료되었습니다.')
+    await loadWithdrawals()
+  } catch (err) {
+    console.error('[executeCompleteWithdrawal]:', err)
+    alert(`출금 완료 처리 오류: ${err.message}`)
+  }
+}
+
+// ----------------------------------------------------
+// 출금 반려 처리 → reject_withdrawal RPC
+// ----------------------------------------------------
+async function executeRejectWithdrawal(req) {
+  const adminNote = prompt(
+    `[출금 반려 처리]\n\n바이어: ${req.user_email}\n출금액: ₩${fmtN(req.amount)}\n\n반려 사유를 입력하세요 (비워두면 사유 없음):`,
+    ''
+  )
+  if (adminNote === null) return // 취소
+
+  try {
+    const { data, error } = await supabase.rpc('reject_withdrawal', {
+      p_request_id: req.id,
+      p_admin_note: adminNote.trim() || null
+    })
+    if (error) throw error
+    if (!data?.success) throw new Error('반려 처리 실패')
+
+    showToast('반려 처리가 완료되었습니다.')
+    await loadWithdrawals()
+  } catch (err) {
+    console.error('[executeRejectWithdrawal]:', err)
+    alert(`출금 반려 처리 오류: ${err.message}`)
+  }
+}
 
 onUnmounted(() => {
   if (realtimeChannel && isSupabaseConfigured()) {
@@ -1087,6 +1327,14 @@ onUnmounted(() => {
       console.debug('[AdminSettlement] Channel remove notice:', e)
     }
     realtimeChannel = null
+  }
+  if (withdrawAdminRealtimeChannel && isSupabaseConfigured()) {
+    try {
+      supabase.removeChannel(withdrawAdminRealtimeChannel)
+    } catch (e) {
+      console.debug('[AdminSettlement] Withdraw channel remove notice:', e)
+    }
+    withdrawAdminRealtimeChannel = null
   }
   window.removeEventListener('euchs-balance-update', loadState)
   window.removeEventListener('euchs-balance-updated', loadState)

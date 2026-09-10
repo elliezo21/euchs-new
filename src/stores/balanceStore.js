@@ -9,12 +9,14 @@ import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
 import { currentUser } from '@/lib/auth';
 
 const STORAGE_KEY = 'euchs_user_balance';
+const HELD_STORAGE_KEY = 'euchs_user_held_balance';
 const DEFAULT_BALANCE = 0; // 신규/비로그인 기본값 (원)
 
 // ----------------------------------------------------------------
 // 반응형 예치금 잔액 상태
 // ----------------------------------------------------------------
 export const userBalance = ref(_loadFromStorage());
+export const heldBalance = ref(_loadHeldFromStorage()); // 출금 신청 동결 금액
 export const isBalanceLoading = ref(false);
 
 /** localStorage에서 잔액 로드 */
@@ -31,6 +33,20 @@ function _loadFromStorage() {
   return DEFAULT_BALANCE;
 }
 
+/** localStorage에서 동결 잔액 로드 */
+function _loadHeldFromStorage() {
+  try {
+    const raw = localStorage.getItem(HELD_STORAGE_KEY);
+    if (raw !== null) {
+      const parsed = Number(raw);
+      if (!isNaN(parsed) && parsed >= 0) return parsed;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return 0;
+}
+
 /** localStorage에 잔액 저장 및 갱신 이벤트 발생 */
 function _saveToStorage(balance) {
   try {
@@ -43,6 +59,15 @@ function _saveToStorage(balance) {
   }
 }
 
+/** localStorage에 동결 잔액 저장 */
+function _saveHeldToStorage(held) {
+  try {
+    localStorage.setItem(HELD_STORAGE_KEY, String(Math.max(0, held)));
+  } catch (e) {
+    console.warn('[balanceStore] held_balance localStorage 저장 실패:', e);
+  }
+}
+
 // ----------------------------------------------------------------
 // Public API
 // ----------------------------------------------------------------
@@ -51,7 +76,7 @@ let isFetchingBalance = false;
 let lastFetchTime = 0;
 
 /**
- * Supabase profiles.balance 조회 → 실패 시 localStorage 폴백
+ * Supabase profiles.balance + held_balance 조회 → 실패 시 localStorage 폴백
  * - 무한 폴링 루프 방어: 최소 5초 쿨다운 디바운스 적용
  * - user.id가 UUID일 때 id로 조회, 아닐 경우 email로 안전 조회
  */
@@ -71,7 +96,7 @@ export async function loadBalance(force = false) {
       const userMail = user.email ? String(user.email).trim().toLowerCase() : '';
 
       if (isUUID || userMail) {
-        let query = supabase.from('profiles').select('balance');
+        let query = supabase.from('profiles').select('balance, held_balance');
 
         if (isUUID) {
           query = query.eq('id', user.id);
@@ -81,9 +106,17 @@ export async function loadBalance(force = false) {
 
         const { data, error } = await query.maybeSingle();
 
-        if (!error && data && data.balance !== undefined && data.balance !== null) {
-          userBalance.value = Number(data.balance);
-          _saveToStorage(userBalance.value);
+        if (!error && data) {
+          if (data.balance !== undefined && data.balance !== null) {
+            userBalance.value = Number(data.balance);
+            _saveToStorage(userBalance.value);
+          }
+          // held_balance (컬럼이 없는 구버전 DB 호환: undefined면 0으로 처리)
+          const held = data.held_balance !== undefined && data.held_balance !== null
+            ? Number(data.held_balance)
+            : 0;
+          heldBalance.value = Math.max(0, held);
+          _saveHeldToStorage(heldBalance.value);
           return userBalance.value;
         }
       }
@@ -97,6 +130,7 @@ export async function loadBalance(force = false) {
 
   // 폴백: localStorage 값 사용
   userBalance.value = _loadFromStorage();
+  heldBalance.value = _loadHeldFromStorage();
   return userBalance.value;
 }
 
@@ -269,12 +303,23 @@ export function formatBalance(amount) {
 }
 
 /**
- * 잔액 부족 여부 확인
+ * 가용 잔액 부족 여부 확인
+ * — 가용 잔액 = balance - held_balance (출금 신청 동결 금액 제외)
+ * — 주문 결제 시 이 함수 기준으로 차단
  * @param {number} required 필요 금액
  * @returns {boolean}
  */
 export function isBalanceInsufficient(required) {
-  return userBalance.value < required;
+  const available = (userBalance.value || 0) - (heldBalance.value || 0);
+  return available < required;
+}
+
+/**
+ * 가용 잔액 반환 헬퍼
+ * @returns {number}
+ */
+export function getAvailableBalance() {
+  return Math.max(0, (userBalance.value || 0) - (heldBalance.value || 0));
 }
 
 /**
@@ -293,8 +338,13 @@ export function subscribeToBalance(callback) {
           if (updated.balance !== undefined && updated.balance !== null) {
             userBalance.value = Number(updated.balance);
             _saveToStorage(userBalance.value);
-            if (typeof callback === 'function') callback(userBalance.value);
           }
+          // held_balance 실시간 갱신
+          if (updated.held_balance !== undefined && updated.held_balance !== null) {
+            heldBalance.value = Math.max(0, Number(updated.held_balance));
+            _saveHeldToStorage(heldBalance.value);
+          }
+          if (typeof callback === 'function') callback(userBalance.value);
         }
       })
       .subscribe();
@@ -317,7 +367,7 @@ if (typeof window !== 'undefined') {
   window.addEventListener('euchs-auth-changed', (e) => {
     if (!e.detail?.user) {
       userBalance.value = 0;
+      heldBalance.value = 0;
     }
   });
 }
-
