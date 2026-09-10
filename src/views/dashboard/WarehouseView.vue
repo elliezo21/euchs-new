@@ -1432,7 +1432,7 @@ import { resolveVasLabel } from '@/utils/vasOptions';
 const route = useRoute();
 
 const activeOrderExchangeRate = computed(() => {
-  const o = activeOrder.value;
+  const o = selectedSecondPaymentItem.value;
   const snapshot = o?.snapshotExchangeRate ?? o?.firstPayment?.snapshotExchangeRate;
   if (snapshot !== undefined && snapshot !== null && !isNaN(Number(snapshot))) {
     return Number(snapshot);
