@@ -254,7 +254,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { fetchSiteSettings } from '@/lib/settings'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { fetchLiveMarketRate } from '@/utils/exchangeRate'
+
 
 const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
 
@@ -354,24 +354,18 @@ function loadNotices() {
 
 const fetchExchangeRate = async () => {
   try {
-    const { rate: marketRate } = await fetchLiveMarketRate(false)
-    if (marketRate !== null && !isNaN(marketRate)) {
-      liveRate.value = marketRate.toFixed(2)
-    } else {
-      liveRate.value = null
-    }
-  } catch (err) {
-    liveRate.value = null
-  }
-
-  try {
     const settings = await fetchSiteSettings()
     if (settings) {
       rateMode.value = settings.exchange_rate_mode || 'manual'
       rateMargin.value = Number(settings.rate_margin) || 1.5
-
-      // SSOT: 항상 관리자 설정 공식 결제환율(DB 저장값) 표시
-      customRate.value = String(Number(settings.exchange_rate) || 230)
+      // 국제 고시환율: DB live_market_rate 직접 사용
+      if (settings.live_market_rate != null && !isNaN(Number(settings.live_market_rate))) {
+        liveRate.value = Number(settings.live_market_rate).toFixed(2)
+      } else {
+        liveRate.value = null
+      }
+      // 공식 결제환율: DB exchange_rate 직접 사용
+      customRate.value = settings.exchange_rate != null ? String(Number(settings.exchange_rate)) : null
     }
   } catch (e) {
     console.warn('CommunitySection settings fetch fallback:', e)
@@ -426,17 +420,14 @@ onMounted(() => {
   window.addEventListener('storage', loadNotices)
 
   const intervalId = setInterval(() => {
-    fetchExchangeRate()
     fetchNoticesFromSupabase()
   }, 10 * 60 * 1000)
 
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('focus', fetchExchangeRate)
 
   onUnmounted(() => {
     clearInterval(intervalId)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
-    window.removeEventListener('focus', fetchExchangeRate)
   })
 })
 </script>

@@ -1400,7 +1400,7 @@ onMounted(async () => {
     const settings = await fetchSiteSettings()
     if (settings) {
       agencyFeeRate.value = Number(settings.agency_fee_rate) || 8.0
-      customExchangeRate.value = Number(settings.exchange_rate) || 226.19
+      customExchangeRate.value = settings.exchange_rate != null ? Number(settings.exchange_rate) : null
     }
   } catch (e) {
     console.warn('Dashboard settings load error:', e)

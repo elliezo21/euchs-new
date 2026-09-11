@@ -687,7 +687,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchSiteSettings, DEFAULT_SETTINGS } from '@/lib/settings'
-import { fetchLiveMarketRate } from '@/utils/exchangeRate'
+
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { currentUser, userDisplayName } from '@/lib/auth'
 
@@ -820,19 +820,7 @@ const exchangeRateModeBadgeText = computed(() => {
 const reloadSettingsAndRates = async () => {
   isFetchingRate.value = true
   try {
-    // 1. 실시간 기준 고시환율 (참고치) 로드
-    let fetchedLiveRate = 200.0
-    try {
-      const { rate: market } = await fetchLiveMarketRate(false)
-      if (market !== null && !isNaN(market)) {
-        fetchedLiveRate = market
-        liveExchangeRate.value = market
-      }
-    } catch (e) {
-      console.warn('Live rate fetch error:', e)
-    }
-
-    // 2. Supabase site_settings에서 관리자 설정값 불러오기
+    // Supabase site_settings에서 관리자 설정값 + 서버 갱신 환율 불러오기
     const settings = await fetchSiteSettings()
     if (settings) {
       exchangeRateMode.value = settings.exchange_rate_mode || 'manual'
@@ -842,8 +830,12 @@ const reloadSettingsAndRates = async () => {
       customsClearanceFee.value = Number(settings.customs_clearance_fee) || DEFAULT_SETTINGS.customs_clearance_fee
       ftaCoFee.value = Number(settings.fta_co_fee) || DEFAULT_SETTINGS.fta_co_fee
 
-      // SSOT: 관리자 설정 공식 결제환율(DB 저장값) 하나로 통일
-      customExchangeRate.value = Number(settings.exchange_rate) || 230
+      // 국제 고시환율: DB live_market_rate 직접 사용
+      if (settings.live_market_rate != null && !isNaN(Number(settings.live_market_rate))) {
+        liveExchangeRate.value = Number(settings.live_market_rate)
+      }
+      // 공식 결제환율: DB exchange_rate 직접 사용
+      customExchangeRate.value = settings.exchange_rate != null ? Number(settings.exchange_rate) : null
     }
   } catch (err) {
     console.warn('Reload settings error:', err)

@@ -1027,7 +1027,7 @@ import {
   saveSiteSettings,
   isVideoMedia
 } from '@/lib/settings'
-import { fetchLiveMarketRate, setRefreshInterval } from '@/utils/exchangeRate'
+import { invokeRateFetch } from '@/utils/exchangeRate'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const activeTab = ref('rate') // 'rate' | 'media' | 'staff'
@@ -1383,10 +1383,10 @@ async function executeRevokeStaffRole() {
 const DEFAULT_RATE_SETTINGS = {
   exchangeRateMode: 'auto', // 'auto' | 'manual'
   refreshInterval: 'daily', // 'daily' | 'weekly' — 자동 갱신 주기
-  manualRate: 200.0,
-  baseLiveRate: 200.0,
+  manualRate: null,
+  baseLiveRate: null,
   rateMargin: 1.5,
-  appliedRate: 201.5,
+  appliedRate: null,
   agencyFeeRate: 8,
   minAgencyFee: 10000,
   oceanFreightPerCbm: 98000,
@@ -1501,13 +1501,17 @@ const parsedHeroEmbed = computed(() => {
 })
 
 async function refreshLiveRate() {
-  showToast('실시간 고시환율 조회 중...');
-  const { rate: market } = await fetchLiveMarketRate(true); // forceRefresh: 캐시 무시하고 즉시 API 호출 (갱신↻ 버튼 전용)
-  if (market !== null) {
-    rateForm.value.baseLiveRate = market;
-    showToast(`실시간 고시환율이 갱신되었습니다. (₩${market} / CNY, open.er-api.com)`);
+  showToast('실시간 고시환율 갱신 중 (서버 요청)...');
+  const result = await invokeRateFetch();
+  if (result.success) {
+    // Edge Function 성공 → 최신 DB 값 재로드해서 UI 반영
+    const settings = await fetchSiteSettings()
+    if (settings && settings.live_market_rate != null) {
+      rateForm.value.baseLiveRate = Number(settings.live_market_rate)
+    }
+    showToast(`실시간 고시환율 갱신 완료 (₩${result.live_market_rate} / CNY)`)
   } else {
-    showToast('환율 조회 실패 — 네트워크를 확인하거나 수동으로 입력해 주세요.', 'error');
+    showToast('환율 갱신 실패 — Edge Function 오류: ' + (result.error || '알 수 없는 오류'), 'error')
   }
 }
 
@@ -1570,7 +1574,7 @@ async function loadAllSettings() {
       // 환율 설정 DB 값 동기화
       rateForm.value.exchangeRateMode = settings.exchange_rate_mode === 'manual' ? 'manual' : 'auto'
       rateForm.value.rateMargin = Number(settings.rate_margin) !== undefined && !isNaN(Number(settings.rate_margin)) ? Number(settings.rate_margin) : 1.5
-      rateForm.value.manualRate = Number(settings.exchange_rate) || 200.0
+      rateForm.value.manualRate = settings.exchange_rate != null ? Number(settings.exchange_rate) : null
       if (settings.exchange_rate_refresh_interval) {
         rateForm.value.refreshInterval = settings.exchange_rate_refresh_interval
       }
@@ -1598,31 +1602,14 @@ async function loadAllSettings() {
     console.warn('Failed to load site settings from lib:', e)
   }
 
-  // 3. 실시간 고시환율 로드:
-  //    - 캐시 히트(fromCache=true): 오늘 이미 조회된 값 → baseLiveRate UI 업데이트
-  //    - API 신규 호출(fromCache=false): 자정 이후 새날 첫 방문, 또는 캐시 없음
-  //      → 새 값을 캐시에 저장하지만 baseLiveRate UI는 DB 기반값(exchange_rate - rate_margin)을 유지
-  //      → 관리자가 "갱신↻" 버튼을 명시적으로 눌러야만 UI에 반영
+  // 3. 실시간 고시환율: DB의 live_market_rate 직접 사용 (서버가 매일 갱신)
   try {
-    const { rate: liveMarket, fromCache } = await fetchLiveMarketRate(false)
-    if (liveMarket !== null && !isNaN(liveMarket)) {
-      if (fromCache) {
-        // 오늘 캐시값 → UI에 바로 반영 (하루 종일 고정값이므로 안전)
-        rateForm.value.baseLiveRate = liveMarket
-      } else {
-        // 자정 이후 API 신규 호출 → 캐시 저장은 됐지만 UI는 DB값 기반으로 복원
-        // (관리자가 저장 버튼을 명시적으로 누르기 전까지 DB의 exchange_rate를 건드리지 않음)
-        const dbExchangeRate = Number(rateForm.value.manualRate) || 200.0
-        const dbMargin = Number(rateForm.value.rateMargin) || 1.5
-        // DB에 이미 저장된 baseLiveRate 역산값으로 복원 (exchange_rate - margin)
-        const dbBasedLiveRate = Math.round((dbExchangeRate - dbMargin) * 100) / 100
-        rateForm.value.baseLiveRate = dbBasedLiveRate
-        // 새 캐시값은 참고용 토스트로만 알림 (UI를 몰래 바꾸지 않음)
-        console.info(`[환율 자동갱신] 새 고시환율 ${liveMarket}원이 캐시에 저장됨. UI 반영은 "갱신↻" 버튼을 눌러주세요.`)
-      }
+    const liveMarketRate = settings?.live_market_rate
+    if (liveMarketRate != null && !isNaN(Number(liveMarketRate))) {
+      rateForm.value.baseLiveRate = Number(liveMarketRate)
     }
   } catch (e) {
-    console.warn('Auto fetch live market rate error:', e)
+    console.warn('live_market_rate load error:', e)
   }
 }
 
@@ -1655,8 +1642,6 @@ async function saveRateSettings() {
       customs_clearance_fee: Number(rateForm.value.customsBrokerFee) || 33000,
       fta_co_fee: Number(rateForm.value.ftaCoIssuanceFee) || 33000,
     })
-    // 환율 캐시 주기도 즉시 반영 (exchangeRate.js localStorage 동기 업데이트)
-    setRefreshInterval(rateForm.value.refreshInterval || 'daily')
     showToast('환율 및 운영 수수료 설정이 저장되었습니다. (Supabase DB 반영 완료)')
   } catch (err) {
     console.error('[AdminSettings] saveRateSettings DB error:', err)

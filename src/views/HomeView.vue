@@ -265,7 +265,7 @@
                 <h3 class="text-xs font-bold text-slate-400 uppercase">중국 위안화 (CNY/RMB)</h3>
                 <div class="flex items-baseline gap-2 mt-1">
                   <span class="text-3xl sm:text-4xl font-black text-white">
-                    1 RMB = {{ customRate }}원
+                    1 RMB = {{ customRate ?? '—' }}원
                   </span>
                 </div>
                 <span class="text-xs font-semibold text-blue-300 mt-1 block">
@@ -746,7 +746,7 @@ import { useRouter } from 'vue-router'
 import TradePhotos from '../components/TradePhotos.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { fetchLiveMarketRate } from '../utils/exchangeRate'
+
 
 const router = useRouter()
 
@@ -1025,31 +1025,25 @@ const fetchNoticesFeed = async () => {
 
 const fetchLiveRateAndSettings = async () => {
   try {
-    // 국제 고시환율: 참고치 표시 전용 (공용 캐시 유틸 사용)
-    const { rate: marketRate } = await fetchLiveMarketRate(false)
-    if (marketRate !== null && !isNaN(marketRate)) {
-      liveRate.value = marketRate.toFixed(2)
-    } else {
-      liveRate.value = null
-    }
-  } catch (err) {
-    console.warn('Live rate fetch fallback:', err)
-    liveRate.value = null
-  }
-
-  try {
     const settings = await fetchSiteSettings()
     if (settings) {
       rateMode.value = settings.exchange_rate_mode || 'manual'
-      rateMargin.value = Number(settings.rate_margin) || 1.5
+      rateMargin.value = Number(settings.rate_margin) ?? 1.5
       agencyFeeRate.value = Number(settings.agency_fee_rate) || 8
       seaCbmRate.value = Number(settings.sea_cbm_rate) || 98000
       customsClearanceFee.value = Number(settings.customs_clearance_fee) || 33000
       ftaCoFee.value = Number(settings.fta_co_fee) || 33000
 
-      // 배너 메인 숫자: 항상 관리자 설정 공식 결제환율(DB 저장값)
-      // auto_margin 모드여도 관리자가 "저장" 시 DB에 기록된 exchange_rate가 공식 기준
-      customRate.value = String(Number(settings.exchange_rate) || 230)
+      // 국제 고시환율: DB의 live_market_rate 직접 사용 (서버가 매일 갱신)
+      if (settings.live_market_rate != null && !isNaN(Number(settings.live_market_rate))) {
+        liveRate.value = Number(settings.live_market_rate).toFixed(2)
+      } else {
+        liveRate.value = null
+      }
+
+      // 공식 결제 환율: DB의 exchange_rate 직접 사용
+      // auto_margin 모드에서도 서버(Edge Function)가 계산해서 저장하므로 프론트 재계산 불필요
+      customRate.value = settings.exchange_rate != null ? String(Number(settings.exchange_rate)) : null
       setTimeout(attemptAutoplayVideos, 50)
     }
   } catch (e) {
@@ -1183,14 +1177,11 @@ onMounted(() => {
     userInteractionListenerRegistered = true
   }
 
-  const intervalId = setInterval(fetchLiveRateAndSettings, 10 * 60 * 1000)
+
   document.addEventListener('visibilitychange', handleVisibilityChange)
-  window.addEventListener('focus', fetchLiveRateAndSettings)
 
   onUnmounted(() => {
-    clearInterval(intervalId)
     document.removeEventListener('visibilitychange', handleVisibilityChange)
-    window.removeEventListener('focus', fetchLiveRateAndSettings)
     if (typeof window !== 'undefined') {
       window.removeEventListener('euchs-settings-updated', handleSettingsSync)
       window.removeEventListener('euchs-notice-update', fetchNoticesFeed)

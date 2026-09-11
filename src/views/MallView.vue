@@ -1282,7 +1282,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl } from '../services/api1688'
 import { getMockSearchResults } from '../services/mock1688Data'
 import { fetchSiteSettings } from '../lib/settings'
-import { fetchLiveMarketRate } from '../utils/exchangeRate'
+
 import {
   isLoggedIn,
   currentUser,
@@ -2348,16 +2348,15 @@ const loadMoreProducts = async () => {
 // ----------------------------------------------------
 const loadRates = async () => {
   try {
-    const { rate: market } = await fetchLiveMarketRate(false)
-    if (market !== null && !isNaN(market)) {
-      liveMarketRate.value = market
-    }
-
     const settings = await fetchSiteSettings()
     if (settings) {
       agencyFeeRate.value = Number(settings.agency_fee_rate) || 8.0
-      // SSOT: 관리자 설정 공식 결제환율(DB 저장값) 하나로 통일
-      customExchangeRate.value = Number(settings.exchange_rate) || 226.19
+      // 국제 고시환율: DB live_market_rate 직접 사용
+      if (settings.live_market_rate != null && !isNaN(Number(settings.live_market_rate))) {
+        liveMarketRate.value = Number(settings.live_market_rate)
+      }
+      // 공식 결제환율: DB exchange_rate 직접 사용
+      customExchangeRate.value = settings.exchange_rate != null ? Number(settings.exchange_rate) : null
     }
   } catch (err) {
     console.warn('Rates fetch error:', err)
