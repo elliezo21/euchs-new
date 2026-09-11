@@ -298,18 +298,30 @@
           </div>
         </nav>
 
-
         <!-- Right Quick Action / Mobile Hamburger -->
         <div class="flex items-center gap-2 sm:gap-2.5">
 
-
-          <!-- Mobile Hamburger Toggle -->
-          <button 
-            @click="isMobileMenuOpen = !isMobileMenuOpen"
-            class="lg:hidden p-2 rounded-xl text-gray-700 hover:bg-gray-100 hover:text-blue-600 focus:outline-none transition"
-            aria-label="메뉴 열기"
+          <!-- 모바일 전용: 주문발주메뉴 버튼 (/dashboard 경로에서만 표시) -->
+          <!-- 클릭 시 DashboardView.vue의 사이드바 드로어 오픈 -->
+          <button
+            v-if="route.path.startsWith('/dashboard')"
+            type="button"
+            @click="openDashboardSidebar()"
+            class="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-amber-400 hover:bg-amber-500 text-amber-900 text-xs font-bold transition active:scale-95 shadow-sm shrink-0"
+            aria-label="주문발주메뉴 열기"
           >
-            <i :class="isMobileMenuOpen ? 'fas fa-times text-xl' : 'fas fa-bars text-xl'"></i>
+            <i class="fas fa-bars text-[11px]"></i>
+            <span>주문발주메뉴</span>
+          </button>
+
+          <!-- Mobile Hamburger Toggle → "≡ 메인메뉴" 텍스트 라벨 형태로 변경 -->
+          <button
+            @click="isMobileMenuOpen = !isMobileMenuOpen"
+            class="md:hidden flex items-center gap-1.5 px-3 py-1.5 rounded-full text-gray-700 border border-gray-300 hover:bg-gray-100 hover:text-blue-600 text-xs font-bold transition active:scale-95 focus:outline-none"
+            aria-label="메인메뉴 열기"
+          >
+            <i :class="isMobileMenuOpen ? 'fas fa-times text-[11px]' : 'fas fa-bars text-[11px]'"></i>
+            <span>메인메뉴</span>
           </button>
         </div>
       </div>
@@ -540,6 +552,11 @@ const mobileSubmenu = ref(null)
 const isUserMenuOpen = ref(false)
 const userDropdownRef = ref(null)
 const savedCount = ref(0)
+
+// 대시보드 사이드바 드로어 열기 (DashboardView.vue가 수신)
+const openDashboardSidebar = () => {
+  window.dispatchEvent(new CustomEvent('euchs:open-dashboard-sidebar'))
+}
 
 // Exchange rate state
 const customExchangeRate = ref(200.0)

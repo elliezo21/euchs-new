@@ -485,19 +485,6 @@
       <!-- ======================================================== -->
       <main class="flex-1 flex flex-col min-h-0 overflow-x-hidden">
 
-        <!-- 모바일 전용 상단 바: 햄버거(☰) + 현재 페이지 제목 -->
-        <!-- md 이상에서는 숨김 (md:hidden) -->
-        <div class="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-30 shrink-0">
-          <button
-            type="button"
-            @click="isMobileSidebarOpen = true"
-            class="w-9 h-9 flex items-center justify-center rounded-xl bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold transition active:scale-95 shrink-0"
-            aria-label="메뉴 열기"
-          >
-            <i class="fas fa-bars text-sm"></i>
-          </button>
-          <span class="font-bold text-gray-800 text-sm truncate">{{ currentMenuLabel || '마이페이지' }}</span>
-        </div>
 
         <!-- 기존 콘텐츠 영역 (스크롤 가능) -->
         <div class="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto overflow-x-hidden">
@@ -1425,6 +1412,8 @@ onMounted(async () => {
   window.addEventListener('euchs-auth-changed', onAuthChanged)
   // ESC 키로 모바일 사이드바 닫기
   window.addEventListener('keydown', onKeyDown)
+  // Header.vue의 "주문발주메뉴" 버튼 → 대시보드 사이드바 열기
+  window.addEventListener('euchs:open-dashboard-sidebar', openDashboardSidebar)
 })
 
 onUnmounted(() => {
@@ -1433,7 +1422,10 @@ onUnmounted(() => {
   window.removeEventListener('euchs-warehouse-update', loadDashboardData)
   window.removeEventListener('euchs-auth-changed', onAuthChanged)
   window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('euchs:open-dashboard-sidebar', openDashboardSidebar)
 })
+
+const openDashboardSidebar = () => { isMobileSidebarOpen.value = !isMobileSidebarOpen.value }
 
 // ESC 키 핸들러 — 모바일 드로어가 열려있을 때만 닫음
 const onKeyDown = (e) => {
