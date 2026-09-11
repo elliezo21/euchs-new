@@ -2037,7 +2037,9 @@ async function approveQuoteFromDetail() {
     //    updateOrderStatus는 items를 payload에서 의도적으로 제외하므로
     //    별도 쿼리로 items 컬럼을 먼저 갱신해야 고객 화면에 단가가 반영됨.
     const existingFirstPayment = activeOrder.value.firstPayment || activeOrder.value.first_payment || {};
-    const snapshotRate = Number(currentSettings.value?.exchange_rate) || 226.19;
+    const snapshotRate = currentSettings.value?.exchange_rate != null
+      ? Number(currentSettings.value.exchange_rate)
+      : null;
     const updatedFirstPayment = {
       ...existingFirstPayment,
       firstPaymentKrw: validTotal,

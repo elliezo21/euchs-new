@@ -99,7 +99,7 @@ export function resolveExchangeRate(order, settingsRate) {
       return Number(snapshot);
     }
   }
-  return Number(settingsRate) || 200.0;
+  return settingsRate != null ? Number(settingsRate) : null;
 }
 
 /**

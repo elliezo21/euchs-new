@@ -1593,23 +1593,17 @@ async function loadAllSettings() {
       serviceCardsList.value.forEach(card => {
         card.mediaUrl = media[card.key] || ''
       })
-
       if (settings.updated_at) {
         mediaLastSavedTime.value = new Date(settings.updated_at).toLocaleString('ko-KR')
+      }
+
+      // 실시간 고시환율: DB의 live_market_rate 직접 사용 (서버가 매일 갱신)
+      if (settings.live_market_rate != null && !isNaN(Number(settings.live_market_rate))) {
+        rateForm.value.baseLiveRate = Number(settings.live_market_rate)
       }
     }
   } catch (e) {
     console.warn('Failed to load site settings from lib:', e)
-  }
-
-  // 3. 실시간 고시환율: DB의 live_market_rate 직접 사용 (서버가 매일 갱신)
-  try {
-    const liveMarketRate = settings?.live_market_rate
-    if (liveMarketRate != null && !isNaN(Number(liveMarketRate))) {
-      rateForm.value.baseLiveRate = Number(liveMarketRate)
-    }
-  } catch (e) {
-    console.warn('live_market_rate load error:', e)
   }
 }
 
