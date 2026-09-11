@@ -1,0 +1,39 @@
+﻿{
+  "name": "이유씨컴퍼니 EUCHS",
+  "short_name": "EUCHS",
+  "description": "중국 구매대행 및 이우 창고 관리 B2B ERP",
+  "start_url": "/admin",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='28' fill='%230f172a'/><text x='50%25' y='54%25' font-family='sans-serif' font-weight='900' font-size='72' fill='%23ffffff' text-anchor='middle' dominant-baseline='middle'>E</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='64' fill='%230f172a'/><text x='50%25' y='54%25' font-family='sans-serif' font-weight='900' font-size='200' fill='%23ffffff' text-anchor='middle' dominant-baseline='middle'>E</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "이우 창고 입고 스캔",
+      "short_name": "입고 스캔",
+      "description": "중국 택배 송장 바코드 스캔으로 창고 입고검수 처리",
+      "url": "/admin/warehouse-scan",
+      "icons": [
+        {
+          "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 96'><rect width='96' height='96' rx='16' fill='%230d9488'/><text x='50%25' y='54%25' font-family='sans-serif' font-weight='900' font-size='52' fill='%23ffffff' text-anchor='middle' dominant-baseline='middle'>S</text></svg>",
+          "sizes": "96x96",
+          "type": "image/svg+xml"
+        }
+      ]
+    }
+  ]
+}

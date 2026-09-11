@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
+    "html5-qrcode": "^2.3.8",
     "lucide-vue-next": "^0.359.0",
     "vue": "^3.4.21",
     "vue-router": "^4.3.0",

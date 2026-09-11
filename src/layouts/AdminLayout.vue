@@ -132,6 +132,19 @@
           </div>
         </div>
 
+        <!-- 이우 창고 입고 스캔 -->
+        <router-link
+          to="/admin/warehouse-scan"
+          class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition group"
+          :class="isActiveRoute('/admin/warehouse-scan')
+            ? 'bg-teal-600 text-white shadow-sm shadow-teal-600/30'
+            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'"
+        >
+          <i class="fas fa-barcode w-4 text-center text-slate-400 group-hover:text-white" :class="isActiveRoute('/admin/warehouse-scan') ? 'text-white' : ''"></i>
+          <span class="flex-1">이우 창고 입고 스캔</span>
+          <span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-teal-500/20 text-teal-300 border border-teal-400/30">WMS</span>
+        </router-link>
+
         <div class="pt-3 px-3 pb-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
           Management & Settings
         </div>
@@ -257,6 +270,27 @@
 
     </div>
 
+    <!-- ============================================================ -->
+    <!-- 이우 창고 입고 스캔 플로팅 버튼                                -->
+    <!-- QuickMenu.vue 카카오 버튼 패턴 참고 (동일 w-11/w-12 원형 스타일) -->
+    <!-- /admin/warehouse-scan 페이지에서는 숨김 (중복 불필요)           -->
+    <!-- ============================================================ -->
+    <router-link
+      v-if="!route.path.includes('/admin/warehouse-scan')"
+      to="/admin/warehouse-scan"
+      class="fixed right-3.5 sm:right-5 bottom-20 sm:bottom-24 z-40
+             w-11 h-11 sm:w-12 sm:h-12 rounded-full
+             bg-teal-600 hover:bg-teal-700 active:scale-95
+             text-white shadow-lg hover:shadow-xl
+             flex items-center justify-center
+             transition-all duration-200
+             border border-teal-500/40 hover:-translate-y-0.5"
+      title="이우 창고 입고 스캔"
+      aria-label="이우 창고 입고 스캔"
+    >
+      <i class="fas fa-barcode text-lg"></i>
+    </router-link>
+
   </div>
 </template>
 
@@ -299,6 +333,7 @@ const currentRouteTitle = computed(() => {
   if (route.path.includes('/admin/members')) return '회원 / 바이어 관리'
   if (route.path.includes('/admin/settings')) return '시스템 환경 설정'
   if (route.path.includes('/admin/notices')) return '공지 & 소식 설정'
+  if (route.path.includes('/admin/warehouse-scan')) return '이우 창고 입고 스캔'
   return '스마트 종합 대시보드'
 })
 

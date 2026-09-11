@@ -277,6 +277,12 @@ const routes = [
         meta: { requiresAdmin: true, title: '공지사항 & 일정 관리 | EUCHS Admin', isAdmin: true }
       },
       {
+        path: 'warehouse-scan',
+        name: 'admin-warehouse-scan',
+        component: () => import('../views/admin/AdminWarehouseScanView.vue'),
+        meta: { requiresAdmin: true, title: '이우 창고 입고 스캔 | EUCHS Admin', isAdmin: true }
+      },
+      {
         path: ':pathMatch(.*)*',
         redirect: '/admin'
       }

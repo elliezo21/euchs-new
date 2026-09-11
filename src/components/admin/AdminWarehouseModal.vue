@@ -260,18 +260,22 @@
                   </div>
                 </div>
 
-                <!-- 품목 도착 사진 (드래그앤드롭 + 클릭 업로드) -->
+                <!-- 품목 도착 사진 (2단 구조: 카메라 직행 메인 + 파일선택 보조) -->
                 <div>
                   <div class="flex items-center justify-between mb-2">
                     <label class="text-[11px] font-bold text-slate-500">도착 증빙 사진 ({{ getArrivalItem(idx).arrivalPhotos.length }}장)</label>
-                    <button
-                      type="button"
-                      @click="triggerItemPhotoInput(idx)"
-                      class="text-[11px] text-teal-600 hover:text-teal-700 font-bold flex items-center gap-1"
-                    >
-                      <i class="fas fa-plus-circle"></i> 사진 추가
-                    </button>
                   </div>
+
+                  <!-- [숨김] ① 카메라 직행 input (capture="environment") — 모바일 후면 카메라 바로 실행 -->
+                  <input
+                    type="file"
+                    :ref="el => { if(el) itemPhotoCameraRefs[idx] = el }"
+                    accept="image/*"
+                    capture="environment"
+                    class="hidden"
+                    @change="handleItemPhotoSelect($event, idx)"
+                  />
+                  <!-- [숨김] ② 기존 파일선택 input (PC/앨범, 다중 선택 가능) -->
                   <input
                     type="file"
                     :ref="el => { if(el) itemPhotoRefs[idx] = el }"
@@ -280,40 +284,86 @@
                     class="hidden"
                     @change="handleItemPhotoSelect($event, idx)"
                   />
-                  <!-- 드롭존: 클릭 + 드래그앤드롭 -->
+
+                  <!-- 메인 버튼: 사진 바로 촬영 (시각적 주인공) -->
+                  <button
+                    type="button"
+                    @click="triggerItemPhotoCamera(idx)"
+                    class="w-full py-3 rounded-xl font-bold text-sm transition active:scale-95 shadow-sm flex items-center justify-center gap-2.5 mb-2.5
+                           bg-teal-600 hover:bg-teal-500 text-white border border-teal-500"
+                  >
+                    <i class="fas fa-camera text-base"></i>
+                    <span>사진 바로 촬영하기</span>
+                  </button>
+
+                  <!-- 등록된 사진 썸네일 그리드 -->
+                  <div
+                    v-if="getArrivalItem(idx).arrivalPhotos.length > 0"
+                    class="grid grid-cols-4 gap-2 mb-2"
+                  >
+                    <div
+                      v-for="(photo, pIdx) in getArrivalItem(idx).arrivalPhotos"
+                      :key="pIdx"
+                      class="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-square group"
+                      style="max-width: 80px;"
+                    >
+                      <img :src="photo.url" class="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        @click.stop="removeItemPhoto(idx, pIdx)"
+                        class="absolute top-0.5 right-0.5 p-0.5 rounded bg-rose-600/90 hover:bg-rose-600 text-white transition opacity-0 group-hover:opacity-100 active:scale-90"
+                      >
+                        <i class="fas fa-trash text-[9px]"></i>
+                      </button>
+                    </div>
+                  </div>
+
+                  <!-- 보조 드롭존: PC/앨범에서 파일 선택 (축소) -->
                   <div
                     @dragover.prevent.stop
                     @drop.prevent.stop="handleItemPhotoDrop($event, idx)"
                     @click="triggerItemPhotoInput(idx)"
-                    class="border-2 border-dashed border-slate-300 hover:border-teal-400 bg-slate-50 hover:bg-teal-50/40 rounded-xl p-3 text-center cursor-pointer transition select-none"
-                    :class="getArrivalItem(idx).arrivalPhotos.length > 0 ? 'py-2' : 'py-4'"
+                    class="border border-dashed border-slate-300 hover:border-teal-400 bg-slate-50 hover:bg-teal-50/30 rounded-xl px-3 py-2 text-center cursor-pointer transition select-none"
                   >
-                    <!-- 사진 썸네일 그리드 -->
-                    <div
-                      v-if="getArrivalItem(idx).arrivalPhotos.length > 0"
-                      class="grid grid-cols-4 gap-2 mb-2"
-                      @click.stop
-                    >
-                      <div
-                        v-for="(photo, pIdx) in getArrivalItem(idx).arrivalPhotos"
-                        :key="pIdx"
-                        class="relative rounded-lg overflow-hidden border border-slate-200 bg-slate-100 aspect-square group"
-                        style="max-width: 80px;"
-                      >
-                        <img :src="photo.url" class="w-full h-full object-cover" />
-                        <button
-                          type="button"
-                          @click.stop="removeItemPhoto(idx, pIdx)"
-                          class="absolute top-0.5 right-0.5 p-0.5 rounded bg-rose-600/90 hover:bg-rose-600 text-white transition opacity-0 group-hover:opacity-100 active:scale-90"
-                        >
-                          <i class="fas fa-trash text-[9px]"></i>
-                        </button>
-                      </div>
-                    </div>
                     <div class="flex items-center justify-center gap-1.5 text-slate-400 text-[11px]">
-                      <i class="fas fa-cloud-arrow-up text-sm text-slate-300"></i>
-                      <span v-if="getArrivalItem(idx).arrivalPhotos.length === 0">클릭하거나 드래그로 사진 추가 (선택사항)</span>
-                      <span v-else class="text-teal-600 font-bold">+ 사진 더 추가</span>
+                      <i class="fas fa-folder-open text-xs text-slate-300"></i>
+                      <span>또는 PC/앨범에서 파일 선택 (드래그 가능)</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 품목 도착 동영상 — 점검 중 안내 (촬영/파일선택 버튼 비활성화) -->
+                <div>
+                  <div class="flex items-center justify-between mb-2">
+                    <label class="text-[11px] font-bold text-slate-500">도착 증빙 동영상 ({{ getArrivalItem(idx).arrivalVideos?.length ?? 0 }}개, 선택)</label>
+                  </div>
+
+                  <!-- 점검 중 안내 배너 (동영상 첨부 기능 임시 비활성화) -->
+                  <div class="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700 font-medium">
+                    <i class="fas fa-triangle-exclamation text-amber-500 shrink-0"></i>
+                    <span>동영상 첨부 기능은 현재 점검 중입니다. 사진으로 증빙해 주세요.</span>
+                  </div>
+
+                  <!-- 이미 저장된 동영상 목록 (기존 데이터 표시 유지) -->
+                  <div
+                    v-if="getArrivalItem(idx).arrivalVideos?.length > 0"
+                    class="space-y-1.5 mt-2"
+                  >
+                    <div
+                      v-for="(vid, vIdx) in getArrivalItem(idx).arrivalVideos"
+                      :key="vIdx"
+                      class="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100 text-xs"
+                    >
+                      <i class="fas fa-video text-purple-400 shrink-0"></i>
+                      <span class="flex-1 truncate text-slate-700 font-mono">{{ vid.caption }}</span>
+                      <a :href="vid.url" target="_blank" class="text-purple-600 hover:underline font-bold shrink-0">보기</a>
+                      <button
+                        type="button"
+                        @click="removeItemVideo(idx, vIdx)"
+                        class="text-rose-400 hover:text-rose-600 transition shrink-0"
+                      >
+                        <i class="fas fa-trash text-[10px]"></i>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -893,7 +943,7 @@ const props = defineProps({
   application: { type: Object, default: () => ({}) }
 });
 
-const emit = defineEmits(['update:modelValue', 'saved']);
+const emit = defineEmits(['update:modelValue', 'saved', 'camera-triggered', 'modal-closed']);
 
 // ─── 탭 상태 ───
 const activeTab = ref('arrival');
@@ -926,7 +976,10 @@ const matchedOrder = ref(null);
 // ─── 5-A: 품목별 도착검수 ───
 const orderItems = ref([]); // order.items[] 원본 참조
 const arrivalItems = ref([]); // measuredData.items 편집본
-const itemPhotoRefs = ref({}); // { [idx]: HTMLInputElement }
+const itemPhotoRefs = ref({}); // { [idx]: HTMLInputElement } — 파일 선택(PC/앨범)
+const itemVideoRefs = ref({}); // { [idx]: HTMLInputElement } — 동영상 파일 선택(PC)
+const itemPhotoCameraRefs = ref({}); // { [idx]: HTMLInputElement } — 카메라 직행(capture="environment")
+const itemVideoCameraRefs = ref({}); // { [idx]: HTMLInputElement } — 동영상 촬영 직행
 
 // ─── 5-B: 박스포장 & CBM ───
 const boxForm = ref({
@@ -1055,6 +1108,7 @@ const initFormData = () => {
       quantityArrived: ai.quantityArrived ?? rawItems[idx]?.quantity ?? 0,
       verified: ai.verified ?? false,
       arrivalPhotos: Array.isArray(ai.arrivalPhotos) ? JSON.parse(JSON.stringify(ai.arrivalPhotos)) : [],
+      arrivalVideos: Array.isArray(ai.arrivalVideos) ? JSON.parse(JSON.stringify(ai.arrivalVideos)) : [],
       verifiedAt: ai.verifiedAt || null,
     }));
     // rawItems보다 arrivalItems가 적으면 나머지 추가
@@ -1164,6 +1218,7 @@ function _makeArrivalItem(idx, item) {
     quantityArrived: item?.quantity || 0,
     verified: false,
     arrivalPhotos: [],
+    arrivalVideos: [], // 도착 증빙 동영상 (선택 첨부) — [{url, caption}]
     verifiedAt: null,
   };
 }
@@ -1227,6 +1282,41 @@ function triggerItemPhotoInput(idx) {
   if (el) el.click();
 }
 
+// 카메라 직행 트리거 (capture="environment" input — 모바일에서 카메라 앱 즉시 실행)
+// 데스크톱에서는 capture 속성이 무시되고 일반 파일 탐색기가 열리는 것이 정상 스펙
+// ★ input.click() 직전에 5-A 폼 상태 스냅샷을 부모에 emit → 탭 리로드 후 복원용
+function _emitCameraSnapshot() {
+  const app = props.application || {};
+  emit('camera-triggered', {
+    orderId: app.id || '',
+    orderNo: app.orderNo || '',
+    tab: activeTab.value,
+    // arrivalItems 전체 deep copy (quantityArrived, verified, verifiedAt, arrivalPhotos, arrivalVideos)
+    arrivalItems: JSON.parse(JSON.stringify(arrivalItems.value)),
+    // inspectionNote / inspectionNoteId
+    inspectionNote: inboundForm.value.inspectionNote,
+    inspectionNoteId: inboundForm.value.inspectionNoteId,
+    // 부가작업 가격
+    arrivalVasItems: JSON.parse(JSON.stringify(arrivalVasItems.value)),
+  });
+}
+
+function triggerItemPhotoCamera(idx) {
+  const el = itemPhotoCameraRefs.value[idx];
+  if (el) {
+    _emitCameraSnapshot();
+    el.click();
+  }
+}
+
+function triggerItemVideoCamera(idx) {
+  const el = itemVideoCameraRefs.value[idx];
+  if (el) {
+    _emitCameraSnapshot();
+    el.click();
+  }
+}
+
 async function handleItemPhotoSelect(e, idx) {
   const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
   if (!files.length) return;
@@ -1262,6 +1352,52 @@ async function _uploadPhotosToItem(files, idx) {
 
 function removeItemPhoto(itemIdx, photoIdx) {
   getArrivalItem(itemIdx).arrivalPhotos.splice(photoIdx, 1);
+}
+
+// ─── 5-A: 동영상 업로드/삭제 (arrivalVideos) ───
+function triggerItemVideoInput(idx) {
+  const el = itemVideoRefs.value[idx];
+  if (el) el.click();
+}
+
+async function handleItemVideoSelect(e, idx) {
+  const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('video/'));
+  if (!files.length) return;
+  await _uploadVideosToItem(files, idx);
+  if (e.target) e.target.value = '';
+}
+
+async function _uploadVideosToItem(files, idx) {
+  const ai = getArrivalItem(idx);
+  if (!ai.arrivalVideos) ai.arrivalVideos = [];
+  for (const file of files) {
+    let url = '';
+    if (isSupabaseConfigured()) {
+      try {
+        const ext = file.name.split('.').pop() || 'mp4';
+        // 'notices' 버킷 재사용 (기존 이미지 업로드와 동일한 버킷)
+        const name = `arrival_video_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+        const { data, error } = await supabase.storage.from('notices').upload(name, file, { cacheControl: '3600', upsert: true });
+        if (!error && data) {
+          const { data: pub } = supabase.storage.from('notices').getPublicUrl(name);
+          if (pub?.publicUrl) url = pub.publicUrl;
+        }
+      } catch (uploadErr) {
+        console.error('[AdminWarehouseModal] 동영상 업로드 실패:', uploadErr);
+      }
+    }
+    // 동영상은 Base64 fallback 불가(용량 제한) — URL이 없으면 이름만 저장하고 사용자에게 알림
+    if (!url) {
+      console.warn('[AdminWarehouseModal] 동영상 Storage 업로드 실패 — URL 없음:', file.name);
+      continue;
+    }
+    ai.arrivalVideos.push({ url, caption: file.name.replace(/\.[^/.]+$/, '') });
+  }
+}
+
+function removeItemVideo(itemIdx, videoIdx) {
+  const ai = getArrivalItem(itemIdx);
+  if (ai.arrivalVideos) ai.arrivalVideos.splice(videoIdx, 1);
 }
 
 function _toBase64(file) {
@@ -1339,7 +1475,10 @@ const getTargetProductName = () => {
   return app.memo || (app.customer_name + ' 고객 발주 건');
 };
 
-const closeModal = () => emit('update:modelValue', false);
+const closeModal = () => {
+  emit('modal-closed'); // 부모(ScanView)에 닫기 알림 → sessionStorage 정리
+  emit('update:modelValue', false);
+};
 
 // ─────────────────────────────────────
 // 5-B 검수 실사 사진 업로드 핸들러

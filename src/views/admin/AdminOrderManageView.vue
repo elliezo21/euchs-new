@@ -629,18 +629,28 @@
                       class="w-full mt-1.5"
                     >
 
-                      <!-- ━━ 상태 3: 결제완료 확정 — 텍스트만, 버튼 없음 ━━ -->
+                      <!-- ━━ 상태 3: 결제완료 확정 ━━ -->
                       <div
                         v-if="item.alipayPaid"
-                        class="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg"
+                        class="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg"
                       >
-                        <span class="text-emerald-600 text-sm shrink-0">✅</span>
-                        <div class="min-w-0 flex-1">
-                          <p class="text-[11px] font-bold text-emerald-700">1688 알리페이 결제완료</p>
-                          <p v-if="item.alipayPaidAt" class="text-[10px] text-emerald-500 font-mono mt-0.5">
-                            {{ new Date(item.alipayPaidAt).toLocaleString('ko-KR') }}
-                          </p>
+                        <div class="flex items-center gap-2 min-w-0">
+                          <span class="text-emerald-600 text-sm shrink-0">✅</span>
+                          <div class="min-w-0">
+                            <p class="text-[11px] font-bold text-emerald-700">1688 알리페이 결제완료</p>
+                            <p v-if="item.alipayPaidAt" class="text-[10px] text-emerald-500 font-mono mt-0.5">
+                              {{ new Date(item.alipayPaidAt).toLocaleString('ko-KR') }}
+                            </p>
+                          </div>
                         </div>
+                        <!-- 창 다시 열기: payLinkUrl 있을 때만 표시, API 호출 없이 URL만 새 탭으로 열기 -->
+                        <button
+                          v-if="item.payLinkUrl"
+                          type="button"
+                          @click="openPayLinkUrl(item.payLinkUrl)"
+                          class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
+                          title="기존에 발급된 결제 링크를 새 탭으로 다시 엽니다 (API 재호출 없음)"
+                        >🔗 창 다시 열기</button>
                       </div>
 
                       <!-- ━━ 상태 1 · 2: 결제 전 ━━ -->
@@ -667,19 +677,29 @@
                           </button>
                         </template>
 
-                        <!-- 상태 2: 링크 발급됨, 결제완료 확정 대기 — 안내 문구 + 확인 버튼 -->
+                        <!-- 상태 2: 링크 발급됨, 결제완료 확정 대기 — 안내 문구 + 버튼 그룹 -->
                         <template v-else>
-                          <div class="flex items-center gap-3 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                          <div class="flex items-center gap-2 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
                             <p class="text-[10px] text-amber-700 leading-snug shrink min-w-0">
                               🔗 <strong class="text-amber-800">calvinli06</strong> 계정으로 결제 완료 후 확인 버튼을 눌러주세요.
                             </p>
-                            <button
-                              type="button"
-                              :disabled="payLinkLoading.has(idx)"
-                              @click="confirmAlipayPaid(item, activeOrder, idx)"
-                              class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                              title="1688에서 결제를 완료한 경우 클릭하면 결제완료로 저장됩니다"
-                            >✅ 결제완료 확인</button>
+                            <div class="flex items-center gap-1.5 shrink-0">
+                              <button
+                                type="button"
+                                :disabled="payLinkLoading.has(idx)"
+                                @click="confirmAlipayPaid(item, activeOrder, idx)"
+                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                title="1688에서 결제를 완료한 경우 클릭하면 결제완료로 저장됩니다"
+                              >✅ 결제완료 확인</button>
+                              <!-- 창 다시 열기: payLinkUrl 있을 때만, API 호출 없이 URL만 새 탭으로 열기 -->
+                              <button
+                                v-if="item.payLinkUrl"
+                                type="button"
+                                @click="openPayLinkUrl(item.payLinkUrl)"
+                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
+                                title="기존에 발급된 결제 링크를 새 탭으로 다시 엽니다 (API 재호출 없음)"
+                              >🔗 창 다시 열기</button>
+                            </div>
                           </div>
                         </template>
 
@@ -2340,6 +2360,18 @@ function showToast(msg, type='success') { clearTimeout(toastTimer); toast.value=
 
 function closeModals() { modal.value={blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; payLinkIssued.value={}; }
 
+/**
+ * 저장된 결제 URL을 새 탭으로 여는 헬퍼.
+ * Vue 3 script setup에서는 템플릿 인라인 window.open()이 동작하지 않으므로
+ * (TypeError: Cannot read properties of undefined (reading 'open'))
+ * 이 함수를 통해 script 스코프에서 window에 안전하게 접근한다.
+ * URL이 없거나 빈 값이면 아무 동작도 하지 않음 (에러 던지지 않음).
+ */
+function openPayLinkUrl(url) {
+  if (!url) return;
+  window.open(url, '_blank', 'noopener,noreferrer');
+}
+
 
 // ----------------------------------------------------
 // AdminWarehouseModal (5-A/5-B/5-C) 진입점
@@ -2730,6 +2762,7 @@ async function executeCrossBorderPayLink(item, order, idx) {
       // ② item 객체에 영속 필드 기록 (새로고침/재진입 후 복원용)
       item.payLinkIssued   = true;
       item.payLinkIssuedAt = new Date().toISOString();
+      item.payLinkUrl      = data.payUrl;   // ← URL 문자열 영속화 (창 다시 열기용)
       item.payError   = null;   // 이전 에러 배지 제거
       item.payErrorAt = null;
 
