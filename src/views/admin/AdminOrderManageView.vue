@@ -623,16 +623,13 @@
 
                     <!-- ── 1688 결제실행(protocolPay) 버튼 ── -->
                     <!-- 노출 조건: fastCreateOrder 자동발주 성공 품목에만 표시 -->
-                    <!--   - subStatus === 'purchase_done' (자동발주 성공)      -->
-                    <!--   - !isManualOrder (수동발주 완료 경로 제외)            -->
-                    <!--   - purchaseNo 존재 (1688 orderId 있음)                -->
-                    <!--   - !alipayPaid (아직 결제 전)                         -->
-                    <!-- 수동발주(subStatus=purchase_done_manual)에는 노출 안 함  -->
+                    <!-- 노출 조건: subStatus=purchase_done + 자동발주(isManualOrder=false) + purchaseNo 존재 -->
                     <div
                       v-if="item.subStatus === 'purchase_done' && !item.isManualOrder && item.purchaseNo"
                       class="w-full mt-1.5"
                     >
-                      <!-- 결제완료 상태 표시 -->
+
+                      <!-- ━━ 상태 3: 결제완료 확정 — 텍스트만, 버튼 없음 ━━ -->
                       <div
                         v-if="item.alipayPaid"
                         class="flex items-center gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg"
@@ -646,10 +643,10 @@
                         </div>
                       </div>
 
-                      <!-- 결제 전: crossBorderPay 결제 링크 방식 -->
+                      <!-- ━━ 상태 1 · 2: 결제 전 ━━ -->
                       <div v-else class="flex flex-col gap-2">
 
-                        <!-- ① 링크 발급 대기 중(payLinkIssued에 없는 상태): 결제링크 발급 버튼 -->
+                        <!-- 상태 1: 링크 미발급 — "1688 결제링크 열기" 버튼 -->
                         <template v-if="!payLinkIssued[idx]">
                           <!-- calvinli06 계정 안내 문구 -->
                           <p class="text-[10px] text-slate-500 leading-snug">
@@ -670,36 +667,19 @@
                           </button>
                         </template>
 
-                        <!-- ② 링크 발급 완료, 관리자 수동 확인 대기 중 -->
+                        <!-- 상태 2: 링크 발급됨, 결제완료 확정 대기 — 안내 문구 + 확인 버튼 -->
                         <template v-else>
-                          <div class="flex flex-col gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-                            <p class="text-[11px] font-bold text-amber-800 leading-snug">
-                              🔗 결제 창이 열렸습니다. 아래 단계를 따라주세요:
+                          <div class="flex items-center gap-3 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
+                            <p class="text-[10px] text-amber-700 leading-snug shrink min-w-0">
+                              🔗 <strong class="text-amber-800">calvinli06</strong> 계정으로 결제 완료 후 확인 버튼을 눌러주세요.
                             </p>
-                            <ol class="text-[10px] text-amber-700 space-y-0.5 pl-3 list-decimal">
-                              <li><strong>calvinli06</strong> 계정으로 1688 로그인 확인</li>
-                              <li>결제 완료 후 아래 [결제완료 확인] 클릭</li>
-                            </ol>
-                            <div class="flex items-center gap-2 mt-1 flex-wrap">
-                              <!-- 결제완료 확인 버튼 -->
-                              <button
-                                type="button"
-                                @click="confirmAlipayPaid(item, activeOrder, idx)"
-                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer transition active:scale-95 shadow-xs whitespace-nowrap"
-                                title="1688에서 결제를 완료한 경우 클릭하면 결제완료로 저장됩니다"
-                              >
-                                ✅ 결제완료 확인
-                              </button>
-                              <!-- 창 재발급 버튼 (창이 닫혔을 경우) -->
-                              <button
-                                type="button"
-                                @click="window.open(payLinkIssued[idx], '_blank', 'noopener,noreferrer')"
-                                class="shrink-0 px-2.5 py-1.5 rounded-lg font-bold text-[10px] bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer transition active:scale-95 whitespace-nowrap"
-                                title="결제 창을 다시 열기"
-                              >
-                                🔄 창 다시 열기
-                              </button>
-                            </div>
+                            <button
+                              type="button"
+                              :disabled="payLinkLoading.has(idx)"
+                              @click="confirmAlipayPaid(item, activeOrder, idx)"
+                              class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                              title="1688에서 결제를 완료한 경우 클릭하면 결제완료로 저장됩니다"
+                            >✅ 결제완료 확인</button>
                           </div>
                         </template>
 
@@ -719,6 +699,7 @@
                           </div>
                         </div>
                       </div>
+
 
                     </div>
 
@@ -2357,7 +2338,7 @@ function getItemSubStatusBadge(item) {
 
 function showToast(msg, type='success') { clearTimeout(toastTimer); toast.value={show:true,message:msg,type}; toastTimer=setTimeout(()=>{toast.value.show=false;},3200); }
 
-function closeModals() { modal.value={blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; }
+function closeModals() { modal.value={blForm:false,trackingForm:false,detail:false}; activeOrder.value=null; payLinkIssued.value={}; }
 
 
 // ----------------------------------------------------
@@ -2741,18 +2722,25 @@ async function executeCrossBorderPayLink(item, order, idx) {
       // 링크 발급 성공 → 새 창 열기 + 확인 대기 상태로 전환
       window.open(data.payUrl, '_blank', 'noopener,noreferrer');
 
+      // ① 세션 내 즉시 UI 전환: payUrl 실제값으로 저장 (창 다시 열기 가능)
       const issued = { ...payLinkIssued.value };
       issued[idx] = data.payUrl;
       payLinkIssued.value = issued;
 
-      item.payError  = null;   // 이전 에러 배지 제거
+      // ② item 객체에 영속 필드 기록 (새로고침/재진입 후 복원용)
+      item.payLinkIssued   = true;
+      item.payLinkIssuedAt = new Date().toISOString();
+      item.payError   = null;   // 이전 에러 배지 제거
       item.payErrorAt = null;
+
+      // ③ Supabase items JSONB에 즉시 저장 — 모달 닫아도 상태 유지
+      await saveDetailDraft({ closeAfter: false });
       showToast(`결제 링크가 새 창으로 열렸습니다. 1688에서 결제 완료 후 [결제완료 확인] 버튼을 눌러주세요.`, 'success');
     } else {
-      // 링크 발급 실패
-      item.payError   = data.message || '결제 링크 발급 실패';
+      // 링크 발급 실패 (1688/OneBound 일시 오류일 수 있으므로 재시도 안내 포함)
+      item.payError   = (data.message || '결제 링크 발급 실패') + ' — 잠시 후 다시 시도해주세요.';
       item.payErrorAt = new Date().toISOString();
-      showToast(`결제 링크 발급 실패: ${data.message}`, 'error');
+      showToast(`결제 링크 발급 실패: ${data.message} — 잠시 후 다시 시도해주세요.`, 'error');
     }
   } catch (fetchErr) {
     // 통신 오류 — 침묵 금지
@@ -2769,20 +2757,20 @@ async function executeCrossBorderPayLink(item, order, idx) {
 /** 관리자가 1688에서 결제를 완료한 후 직접 클릭하는 확인 버튼 핸들러 */
 async function confirmAlipayPaid(item, order, idx) {
   if (!item) return;
+  if (!confirm('정말 1688에서 결제를 완료하셨나요?\n\n이 작업은 [재발급] 버튼을 누르기 전까지 되돌릴 수 없습니다.')) return;
 
   item.alipayPaid    = true;
   item.alipayPaidAt  = new Date().toISOString();
   item.payError      = null;
   item.payErrorAt    = null;
 
-  // 확인 대기 상태 해제
-  const issued = { ...payLinkIssued.value };
-  delete issued[idx];
-  payLinkIssued.value = issued;
+  // payLinkIssued ref는 유지 — amber 박스가 살아있어야 disabled 버튼 + 재발급 버튼 표시 가능
+  // (기존: delete issued[idx] → 제거됨)
 
   await saveDetailDraft({ closeAfter: false });
   showToast(`[${order?.orderNumber}] 1688 결제완료로 표시되었습니다. (tradeId: ${item.purchaseNo})`);
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 4단계(구매진행) → 5단계(입고검수) 전환 로직
@@ -2891,6 +2879,8 @@ function openDetail(o) {
   }
   excludeReasonMap.value = {};
   purchaseInfoDraft.value = {};
+  // payLinkIssued ref 초기화 후 DB 저장 이력 복원
+  payLinkIssued.value = {};
   (activeOrder.value.items || []).forEach((item, idx) => {
     excludeReasonMap.value[idx] = item.excluded ? (item.excludeReason || '품절') : '';
     // 저장된 값을 draft 초기값으로 로드 (모달 열 때마다 DB 값 기준으로 시작)
@@ -2901,6 +2891,13 @@ function openDetail(o) {
       subStatus:       item.subStatus       || '',   // 빈 문자열 → 배지 헬퍼가 기존 필드로 유추
       purchaseAccount: item.purchaseAccount || 'calvinli06',
     };
+    // 이전 세션에서 결제링크를 발급한 이력이 있으면 sentinel 값으로 복원
+    // '__issued__': payUrl 없이 "결제완료 확인" UI 분기 진입 + "링크 재발급" 버튼 표시
+    if (item.payLinkIssued && !item.alipayPaid) {
+      const issued = { ...payLinkIssued.value };
+      issued[idx] = '__issued__';
+      payLinkIssued.value = issued;
+    }
   });
   modal.value.detail = true;
 }

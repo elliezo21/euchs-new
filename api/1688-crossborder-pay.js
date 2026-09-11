@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Vercel Serverless Function: /api/1688-crossborder-pay
  * OneBound 1688global alibaba.crossBorderPay.url.get 프록시
  *
@@ -155,13 +155,28 @@ export default async function handler(req, res) {
 
   // 조건 2+3: response.success + payUrl
   if (innerSuccess !== 'true' || !payUrl) {
-    console.warn('[1688-crossborder-pay] 결제 링크 발급 실패:', {
+    // ── 로깅 보강: 다음 번 같은 오류 시 원인을 즉시 확정할 수 있도록
+    //   raw 응답의 최상위 키 목록 + response 내부 에러 필드를 모두 기록
+    console.warn('[1688-crossborder-pay] ❌ 결제 링크 발급 실패 — 상세 진단:', {
       tradeId: tradeIdStr,
+      // 외부(OneBound 게이트웨이) 레벨
       outer_error_code: outerCode,
+      outer_reason: outerReason || '(없음)',
+      // 내부(1688 API 응답) 레벨
       response_success: innerSuccess,
-      payUrl: payUrl || '(없음)',
+      response_payUrl: payUrl || '(없음)',
+      // 내부 response 에러 상세 (인증 만료·타입 불일치 등 구분용)
+      response_error_code:    innerResp?.error_code    ?? '(없음)',
+      response_error_message: innerResp?.error_message ?? '(없음)',
+      response_exception:     innerResp?.exception     ?? '(없음)',
+      response_request_id:    innerResp?.request_id    ?? '(없음)',
+      // 최상위 응답 키 목록 (구조 파악용)
+      raw_top_level_keys: Object.keys(resData || {}),
+      response_keys:      Object.keys(innerResp || {}),
+      // raw 전체 (필요 시 전체 구조 확인)
       full_response: resData,
       timestamp: new Date().toISOString(),
+      hint: '1688/OneBound 일시 오류라면 재시도 시 정상 성공 가능',
     })
     return res.status(200).json({
       success: false,
