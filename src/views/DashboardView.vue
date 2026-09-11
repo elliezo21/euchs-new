@@ -5,12 +5,40 @@
     <!-- ======================================================== -->
     <!-- MAIN WORKSPACE (사이드바 + 메인 본문 2단 분할) -->
     <!-- ======================================================== -->
-    <div class="flex-1 flex flex-col md:flex-row">
-      
+    <div class="flex-1 flex md:flex-row">
+
       <!-- ======================================================== -->
-      <!-- 1. LEFT SIDEBAR (CN인사이더 B2B 아코디언 LNB 메뉴바) -->
+      <!-- 모바일 딤 배경 오버레이 (md 이상에서 숨김)              -->
+      <!-- isMobileSidebarOpen 일 때만 표시, 클릭 시 닫힘          -->
       <!-- ======================================================== -->
-      <aside class="w-full md:w-64 bg-white border-r border-gray-200 shrink-0 flex flex-col justify-between select-none">
+      <div
+        v-if="isMobileSidebarOpen"
+        class="fixed inset-0 z-40 bg-black/50 md:hidden"
+        @click="closeMobileSidebar"
+        aria-hidden="true"
+      />
+
+      <!-- ======================================================== -->
+      <!-- 1. LEFT SIDEBAR (CN인사이더 B2B 아코디언 LNB 메뉴바)   -->
+      <!-- 모바일: fixed overlay (z-50), PC(md+): static 컬럼     -->
+      <!-- ======================================================== -->
+      <aside
+        class="
+          bg-white border-r border-gray-200 shrink-0 flex flex-col justify-between select-none
+          fixed inset-y-0 left-0 z-50 w-72 transition-transform duration-300
+          md:static md:z-auto md:w-64 md:translate-x-0 md:transition-none
+        "
+        :class="isMobileSidebarOpen ? 'translate-x-0' : '-translate-x-full md:translate-x-0'"
+      >
+        <!-- 모바일 전용: 사이드바 상단 닫기(X) 버튼 -->
+        <button
+          type="button"
+          @click="closeMobileSidebar"
+          class="md:hidden absolute top-3 right-3 z-10 w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition"
+          aria-label="메뉴 닫기"
+        >
+          <i class="fas fa-times text-sm"></i>
+        </button>
         
         <!-- Top Section: Profile & LNB Tree -->
         <div>
@@ -455,8 +483,25 @@
       <!-- ======================================================== -->
       <!-- 2. RIGHT MAIN CONTENT AREA -->
       <!-- ======================================================== -->
-      <main class="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-x-hidden">
-        
+      <main class="flex-1 flex flex-col min-h-0 overflow-x-hidden">
+
+        <!-- 모바일 전용 상단 바: 햄버거(☰) + 현재 페이지 제목 -->
+        <!-- md 이상에서는 숨김 (md:hidden) -->
+        <div class="md:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-200 sticky top-0 z-30 shrink-0">
+          <button
+            type="button"
+            @click="isMobileSidebarOpen = true"
+            class="w-9 h-9 flex items-center justify-center rounded-xl bg-amber-400 hover:bg-amber-500 text-amber-900 font-bold transition active:scale-95 shrink-0"
+            aria-label="메뉴 열기"
+          >
+            <i class="fas fa-bars text-sm"></i>
+          </button>
+          <span class="font-bold text-gray-800 text-sm truncate">{{ currentMenuLabel || '마이페이지' }}</span>
+        </div>
+
+        <!-- 기존 콘텐츠 영역 (스크롤 가능) -->
+        <div class="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto overflow-x-hidden">
+
         <!-- Nested Router View for /dashboard/orders, /dashboard/warehouse -->
         <router-view v-if="route.path !== '/dashboard'" />
 
@@ -895,6 +940,7 @@
         </div>
         </template>
 
+        </div><!-- end 콘텐츠 wrapper (flex-1 overflow-y-auto) -->
       </main>
 
     </div>
@@ -994,6 +1040,12 @@ const displayCompanyName = computed(() => {
 // ----------------------------------------------------
 const activeMenuId = ref('dashboard_main')
 
+// ── 모바일 사이드바 드로어 상태 ──────────────────────────────
+// 초기값 false: 모바일에서 기본으로 메인 콘텐츠가 바로 보임
+// PC(md+)에서는 이 값과 무관하게 aside가 항상 표시됨 (CSS로 분리)
+const isMobileSidebarOpen = ref(false)
+const closeMobileSidebar = () => { isMobileSidebarOpen.value = false }
+
 const expandedMenus = ref({
   products: true,
   orders: true,
@@ -1003,6 +1055,9 @@ const expandedMenus = ref({
 })
 
 watch(() => route.path, (newPath) => {
+  // 라우트 변경 시 모바일 사이드바 자동 닫힘 (메뉴 클릭 후 페이지 이동)
+  closeMobileSidebar()
+
   if (newPath.startsWith('/dashboard/cart') || newPath.startsWith('/dashboard/sourcing-products') || newPath.startsWith('/mall') || newPath.startsWith('/dashboard/stores')) {
     expandedMenus.value.products = true
   } else if (newPath.startsWith('/dashboard/orders')) {
@@ -1368,6 +1423,8 @@ onMounted(async () => {
   window.addEventListener('euchs-order-status-update', loadDashboardData)
   window.addEventListener('euchs-warehouse-update', loadDashboardData)
   window.addEventListener('euchs-auth-changed', onAuthChanged)
+  // ESC 키로 모바일 사이드바 닫기
+  window.addEventListener('keydown', onKeyDown)
 })
 
 onUnmounted(() => {
@@ -1375,7 +1432,13 @@ onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', loadDashboardData)
   window.removeEventListener('euchs-warehouse-update', loadDashboardData)
   window.removeEventListener('euchs-auth-changed', onAuthChanged)
+  window.removeEventListener('keydown', onKeyDown)
 })
+
+// ESC 키 핸들러 — 모바일 드로어가 열려있을 때만 닫음
+const onKeyDown = (e) => {
+  if (e.key === 'Escape') closeMobileSidebar()
+}
 
 // ----------------------------------------------------
 // Auth 상태 변경 핸들러 — 로그아웃 시 화면 데이터 즉시 초기화
