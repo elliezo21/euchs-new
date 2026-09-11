@@ -221,44 +221,29 @@
             @search-done="onImageSearchDone"
             @search-error="onImageSearchError"
           />
-          <!-- 3. 우측 마이페이지 바로가기 — 로그인 시 노출 (보관 상품 있을 때만 배지 표시) -->
-          <router-link
-            v-if="isLoggedIn"
-            to="/dashboard"
-            class="hidden md:flex items-center gap-2.5 px-3.5 h-11 rounded-xl bg-gray-50 hover:bg-gray-100 border border-gray-200 transition group shrink-0 text-gray-700"
-            title="마이페이지 바로가기"
-            aria-label="마이페이지 바로가기"
-          >
-            <div class="relative w-7 h-7 rounded-lg bg-white text-gray-600 shadow-xs flex items-center justify-center text-xs group-hover:scale-105 transition border border-gray-200/80 shrink-0">
-              <i class="fas fa-user"></i>
-              <!-- 보관 상품 개수 배지 -->
-              <span
-                v-if="savedCount > 0"
-                class="absolute -top-1.5 -right-1.5 bg-rose-600 text-white font-bold text-[10px] min-w-[17px] h-[17px] px-1 rounded-full flex items-center justify-center shadow-xs leading-none"
-              >
-                {{ savedCount > 99 ? '99+' : savedCount }}
-              </span>
-            </div>
-            <div class="text-left leading-none">
-              <div class="text-xs font-bold text-gray-800 group-hover:text-gray-900">
-                마이페이지
-              </div>
-            </div>
-          </router-link>
 
         </div>
 
-        <!-- 4. 서브 바: 퀵 카테고리 탭 (모바일 좌측 시작 스크롤 & PC 중앙 정렬) -->
-        <div class="mt-2 pt-2 border-t border-gray-100 flex items-center justify-start sm:justify-center text-xs w-full">
-          <!-- 퀵 카테고리 탭 -->
-          <div class="flex items-center justify-start sm:justify-center gap-1.5 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 px-3 sm:px-0 w-full scroll-smooth">
+        <!-- 4. 서브 바: 퀵 카테고리 탭 + 마이페이지 버튼 -->
+        <!--
+          PC(sm+): sm:justify-center → 탭+버튼 그룹 정중앙 정렬
+          [좌] 탭 목록: overflow-x-auto 가로 스크롤, 탭 내용만큼 너비
+          [우] 버튼: shrink-0, 항상 노출
+               모바일: "주문발주" (짧게) + 테두리/음영으로 배경과 경계
+               PC(sm+): "마이페이지"
+        -->
+        <div class="mt-2 pt-2 border-t border-gray-100 flex items-center w-full sm:justify-center">
+
+          <!-- [좌] 퀵 카테고리 탭 (가로 스크롤) -->
+          <!-- 모바일: text-[10px] px-2로 축소하여 공간 확보 / PC: text-xs px-3 원본 유지 -->
+          <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 px-2 sm:px-0 min-w-0 scroll-smooth">
             <button
               v-for="qt in quickTabs"
               :key="qt.id"
               type="button"
               @click.stop="selectQuickTab(qt)"
               :class="[
-                'shrink-0 flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none cursor-pointer',
+                'shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none cursor-pointer',
                 selectedCategoryId === qt.id
                   ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-transparent'
@@ -268,6 +253,22 @@
               <span>{{ qt.label }}</span>
             </button>
           </div>
+
+          <!-- [우] 마이페이지 버튼 -->
+          <!-- shrink-0: 탭 스크롤에도 항상 노출 -->
+          <!-- amber(노란색 계열) 배경 + ring-pulse 애니메이션으로 카테고리 탭과 확실히 구분 -->
+          <!-- 모바일: 아이콘 + "주문발주" / PC(sm+): 아이콘 + "마이페이지" -->
+          <router-link
+            to="/dashboard"
+            class="mall-mypage-btn shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 ml-1.5 sm:ml-2 text-[10px] sm:text-xs font-bold whitespace-nowrap touch-manipulation select-none cursor-pointer text-amber-900 bg-amber-400 hover:bg-amber-500 rounded-lg border border-amber-300 transition-colors mr-1 sm:mr-0"
+            title="마이페이지"
+            aria-label="마이페이지"
+          >
+            <i class="fas fa-user text-[10px] sm:text-xs"></i>
+            <span class="sm:hidden">주문발주</span>
+            <span class="hidden sm:inline">마이페이지</span>
+          </router-link>
+
         </div>
 
       </div>
@@ -2467,13 +2468,11 @@ onMounted(async () => {
   if (naverCode && naverState) {
     try {
       const result = await handleNaverCallback(String(naverCode), String(naverState))
-      // ✅ 원래 머물던 페이지로 복귀 (returnUrl이 /mall이거나 없으면 query만 정리)
       const dest = result?.returnUrl
       if (dest && dest !== '/mall' && dest !== '/' && !dest.startsWith('/?')) {
         router.replace(dest)
         return
       } else {
-        // /mall 또는 없으면 쿼리 파라미터(code, state)만 정리
         router.replace({ path: '/mall', query: {} })
       }
     } catch (e) {
@@ -2488,14 +2487,12 @@ onMounted(async () => {
   loadMallNotices()
   updateSavedCount()
   handleIncomingQuery()
-  // 발주관리 뱃지용 주문 카운트 로드 — DB 결과를 단 1회만 set (캐시 선-표시 제거로 깜빡임 방지)
   fetchOrdersFromSupabase().then(dbOrders => {
     if (Array.isArray(dbOrders)) submittedOrders.value = dbOrders
   }).catch(e => {
     submittedOrders.value = []
     console.warn('[MallView] 주문 뱃지 fetch 실패:', e)
   })
-
 
   window.addEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.addEventListener('euchs:login_success', checkAndResumePendingProduct)
@@ -2587,5 +2584,23 @@ watch(() => route.query, () => {
   -ms-overflow-style: none;
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
+}
+
+/* ── 주문발주/마이페이지 버튼 ring-pulse 애니메이션 ─────────────────────
+   box-shadow로 amber ring이 바깥으로 번졌다가 사라지는 은은한 반복
+   2.5s 주기 / ease-out으로 급격하지 않게 / 콘텐츠 레이아웃에 영향 없음 */
+@keyframes mallMypagePulse {
+  0% {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 0 rgba(251, 191, 36, 0.55);
+  }
+  65% {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 6px rgba(251, 191, 36, 0);
+  }
+  100% {
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08), 0 0 0 0 rgba(251, 191, 36, 0);
+  }
+}
+.mall-mypage-btn {
+  animation: mallMypagePulse 2.5s ease-out infinite;
 }
 </style>
