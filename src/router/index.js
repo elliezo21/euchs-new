@@ -316,6 +316,16 @@ router.beforeEach(async (to, from, next) => {
 
   // 관리자 세션 유효성 판별 헬퍼 (로컬 토큰 + 세션 + 화이트리스트 통합)
   const checkAdminAuth = async () => {
+    // ★ 0단계: Supabase SDK 내부 세션 초기화 대기 (cold load 시 RLS 보장)
+    // 새 탭에서 /admin을 직접 열면 SDK가 localStorage의 sb-*-auth-token을
+    // 읽어 내부 세션을 확정하기 전에 이 가드가 실행될 수 있음.
+    // getSession()은 SDK의 initializePromise를 await한 뒤 캐시된 세션을
+    // 반환하므로 네트워크 호출 없이 ~0ms. 이 호출이 없으면 이후 DB 쿼리에서
+    // auth.uid()가 null이 되어 RLS가 0건을 반환함.
+    if (isSupabaseConfigured()) {
+      try { await supabase.auth.getSession() } catch (e) {}
+    }
+
     // 1. localStorage 관리자 토큰 및 유저 캐시 확인 (새로고침 즉시 통과 보장)
     try {
       const adminToken = localStorage.getItem('euchs_admin_token')

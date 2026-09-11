@@ -281,6 +281,7 @@ import {
 import { signOut } from '@/lib/auth'
 import { getStoredOrders, fetchOrdersFromSupabase } from '@/utils/orderStorage'
 import { normalizeOrderStatus } from '@/lib/orderPipeline'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 
 const route = useRoute()
 const router = useRouter()
@@ -362,7 +363,11 @@ const openFeatureNotice = (featureName) => {
   alert(`[${featureName}] 기능은 다음 패치에 추가 연동될 예정입니다.\n현재는 [주문·발주 관리] 및 [이우 창고 & 검수 WMS]를 이용하실 수 있습니다.`)
 }
 
-onMounted(() => {
+onMounted(async () => {
+  // ★ Supabase SDK 세션 복원 대기 (이중 방어)
+  if (isSupabaseConfigured()) {
+    try { await supabase.auth.getSession() } catch (e) {}
+  }
   updatePendingBadge()
   window.addEventListener('euchs-order-status-update', updatePendingBadge)
   window.addEventListener('storage', updatePendingBadge)

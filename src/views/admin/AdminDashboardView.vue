@@ -500,7 +500,12 @@ function reloadStats() {
 }
 
 
-onMounted(() => {
+onMounted(async () => {
+  // ★ Supabase SDK 세션 복원 대기 (이중 방어 — 라우터 가드에서 이미 처리되지만 안전 확보)
+  // cold load 시 auth.uid()가 null인 상태에서 DB 쿼리가 나가 0건 반환되는 현상 방지
+  if (isSupabaseConfigured()) {
+    try { await supabase.auth.getSession() } catch (e) {}
+  }
   reloadStats();
   window.addEventListener('euchs-order-status-update', reloadStats);
   window.addEventListener('euchs-warehouse-update', reloadStats);
