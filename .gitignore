@@ -31,3 +31,13 @@ dist-ssr
 
 # Supabase CLI cache
 supabase/.temp/
+
+# Capacitor Android — 빌드 산출물/캐시만 제외 (android/ 폴더 자체는 git 포함)
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+
+# Android 릴리즈 키스토어 (절대 커밋 금지)
+*.keystore
+*.jks

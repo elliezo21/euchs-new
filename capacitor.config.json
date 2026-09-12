@@ -1,0 +1,19 @@
+{
+  "appId": "com.euchs.warehouse",
+  "appName": "이유씨관리자",
+  "webDir": "dist",
+  "server": {
+    "url": "https://euchs.co.kr/admin/login",
+    "androidScheme": "https",
+    "cleartext": false,
+    "allowNavigation": [
+      "*.euchs.co.kr",
+      "euchs.co.kr"
+    ]
+  },
+  "android": {
+    "allowMixedContent": false,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}
