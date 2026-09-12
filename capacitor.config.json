@@ -14,6 +14,7 @@
   "android": {
     "allowMixedContent": false,
     "captureInput": true,
-    "webContentsDebuggingEnabled": true
+    "webContentsDebuggingEnabled": true,
+    "appendUserAgent": "EuchsAdmin/2.0"
   }
 }
