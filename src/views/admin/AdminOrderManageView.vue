@@ -819,14 +819,19 @@
             </div>
           </div>
 
-          <!-- ─── 5. 배송중(warehouse_in) 단계: 중국 내륙 배송 정보 (읽기 전용) ─── -->
-          <!-- 이 단계에서는 B/L·국내운송 데이터가 아직 없으므로, 대신 품목별 중국 내 배송정보를 표시 -->
-          <div v-if="isStatus(activeOrder, 'warehouse_in')" class="grid grid-cols-1 gap-3">
+          <!-- ─── 중국 내륙 배송 정보 + 快递100 타임라인 ─── -->
+          <!-- 표시 조건: 품목 중 chinaTrackingNo가 있는 것이 하나라도 있으면 표시 -->
+          <!-- (warehouse_in 단계 한정 아님 — 구매진행/배송중/입고완료 단계 모두 표시) -->
+          <div
+            v-if="(activeOrder.items || []).some(i => !i.excluded && i.chinaTrackingNo)"
+            class="grid grid-cols-1 gap-3"
+          >
             <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs space-y-2">
               <div class="font-bold text-indigo-800 mb-2 flex items-center gap-1.5">
                 <span>🚚 중국 내륙 배송 정보</span>
                 <span class="text-[10px] font-normal text-indigo-500">(읽기 전용 — 편집은 4.구매진행 단계에서)</span>
               </div>
+              <!-- 품목 목록 (모두 표시) -->
               <template v-for="(item, idx) in (activeOrder.items || [])" :key="idx">
                 <div v-if="!item.excluded" class="flex items-start gap-3 py-1.5 border-b border-indigo-100 last:border-0">
                   <span class="text-[10px] text-indigo-400 font-mono shrink-0 mt-0.5">품목 {{ idx + 1 }}</span>
@@ -845,6 +850,30 @@
                       </span>
                     </div>
                   </div>
+                </div>
+              </template>
+
+              <!-- 快递100 타임라인: 운송장번호 기준 그룹핑 (중복 제거, 중복 API 호출 방지) -->
+              <template v-for="group in adminTrackingGroups" :key="`tl-${group.trackingNo}`">
+                <div class="mt-3 pt-3 border-t border-indigo-100">
+                  <!-- 합포장: 이 운송장에 묶인 품목 이름 표시 -->
+                  <p v-if="group.items.length > 1" class="text-[10px] text-slate-500 mb-2 leading-tight">
+                    포함 품목:
+                    <span class="font-medium">
+                      {{ group.items.slice(0, 2).map(({item}) => item.productName || '품목').join(', ') }}
+                      {{ group.items.length > 2 ? ` 외 ${group.items.length - 2}건` : '' }}
+                    </span>
+                  </p>
+                  <ChinaLogisticsTimeline
+                    :trackingNo="group.trackingNo"
+                    :traces="group.primaryItem.chinaLogisticsTrace || []"
+                    :currentStatus="group.primaryItem.chinaLogisticsStatus || ''"
+                    :updatedAt="group.primaryItem.chinaLogisticsUpdatedAt || ''"
+                    :isLoading="adminTrackingLoadingMap[`${activeOrder.id}-${group.trackingNo}`] || false"
+                    :error="adminTrackingErrorMap[`${activeOrder.id}-${group.trackingNo}`] || null"
+                    :isAdmin="true"
+                    @refresh="adminRefreshTracking(group.primaryItem, activeOrder.id, group.trackingNo)"
+                  />
                 </div>
               </template>
             </div>
@@ -1264,7 +1293,8 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
-import PurchaseConfirmModal from '@/components/admin/PurchaseConfirmModal.vue';
+import PurchaseConfirmModal from '@/components/admin/PurchaseConfirmModal.vue'
+import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue'
 
 
 const route = useRoute();
@@ -1322,6 +1352,117 @@ const purchaseInfoDraft = ref({});
 const syncingLogistics = ref({});
 const toast = ref({ show: false, message: '', type: 'success' });
 let toastTimer = null;
+
+// ---------------------------------------------------------
+// 快递100 배송 조회 상태 관리 (관리자 화면용)
+// ⚠️ 표시 전용 — orders.status/item.subStatus 자동 변경 없음
+// ---------------------------------------------------------
+const adminTrackingLoadingMap = ref({})  // { [`${orderId}-${trackingNo}`]: boolean }
+const adminTrackingErrorMap   = ref({})  // { [`${orderId}-${trackingNo}`]: string|null }
+
+// chinaCarrier 필드에서 快递100 택배사 코드 추출
+// 형식: "중통(ZTO)" → "zto", "원통(YTO)" → "yto", "신통(STO)" → "sto"
+// 추출 실패 시 '' 반환 → API에서 자동판별로 폴백
+function extractCarrierCode(chinaCarrier) {
+  if (!chinaCarrier) return ''
+  const m = chinaCarrier.match(/\(([A-Za-z0-9]+)\)/)
+  return m ? m[1].toLowerCase() : ''
+}
+
+// 운송장번호 기준으로 품목 그룹핑 (중복 타임라인 / 중복 API 호출 방지)
+const adminTrackingGroups = computed(() => {
+  if (!activeOrder.value?.items) return []
+  const seen = new Map()
+  ;(activeOrder.value.items || []).forEach((item, idx) => {
+    if (item.excluded || !item.chinaTrackingNo) return
+    const tn = item.chinaTrackingNo
+    if (!seen.has(tn)) {
+      seen.set(tn, { trackingNo: tn, primaryItem: item, items: [{ item, idx }] })
+    } else {
+      seen.get(tn).items.push({ item, idx })
+    }
+  })
+  return Array.from(seen.values())
+})
+
+// trackingNo를 key로 사용 (idx 기반 중복 제거)
+async function adminRefreshTracking(item, orderId, trackingNo) {
+  const key = `${orderId}-${trackingNo}`
+  if (!item?.chinaTrackingNo) return
+
+  adminTrackingLoadingMap.value = { ...adminTrackingLoadingMap.value, [key]: true }
+  adminTrackingErrorMap.value   = { ...adminTrackingErrorMap.value,   [key]: null }
+
+  try {
+    const carrierCode = extractCarrierCode(item.chinaCarrier)
+    const res = await fetch('/api/kuaidi100-track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chinaTrackingNo: item.chinaTrackingNo,
+        carrierCode,     // "중통(ZTO)" → "zto", 없으면 '' (자동판별)
+      }),
+    })
+    const data = await res.json()
+
+    if (data.success) {
+      // ⚠️ subStatus 등 상태 필드 절대 변경 안 함 — 표시용 필드만 업데이트
+      item.chinaLogisticsStatus    = data.statusText || ''
+      item.chinaLogisticsTrace     = data.traces     || []
+      item.chinaLogisticsUpdatedAt = new Date().toISOString()
+
+      // 같은 운송장을 공유하는 다른 품목에도 동일 데이터 동기화 (합포장)
+      if (activeOrder.value?.items) {
+        activeOrder.value.items.forEach(other => {
+          if (!other.excluded && other.chinaTrackingNo === item.chinaTrackingNo && other !== item) {
+            other.chinaLogisticsStatus    = item.chinaLogisticsStatus
+            other.chinaLogisticsTrace     = item.chinaLogisticsTrace
+            other.chinaLogisticsUpdatedAt = item.chinaLogisticsUpdatedAt
+          }
+        })
+      }
+
+      // Supabase 저장
+      await adminPersistTrackingToSupabase(item, orderId)
+    } else {
+      adminTrackingErrorMap.value = { ...adminTrackingErrorMap.value, [key]: data.message || '조회 실패' }
+    }
+  } catch (e) {
+    console.warn('[AdminOrderManageView] adminRefreshTracking 오류:', e.message)
+    adminTrackingErrorMap.value = { ...adminTrackingErrorMap.value, [key]: '네트워크 오류' }
+  } finally {
+    adminTrackingLoadingMap.value = { ...adminTrackingLoadingMap.value, [key]: false }
+  }
+}
+
+async function adminPersistTrackingToSupabase(item, orderId) {
+  if (!isSupabaseConfigured()) return
+  try {
+    const { data: orderRow, error: fetchErr } = await supabase
+      .from('orders')
+      .select('items')
+      .eq('id', orderId)
+      .single()
+    if (fetchErr || !orderRow) return
+
+    const updatedItems = (orderRow.items || []).map(i => {
+      if (i.id === item.id || i.chinaTrackingNo === item.chinaTrackingNo) {
+        return {
+          ...i,
+          chinaLogisticsStatus:    item.chinaLogisticsStatus,
+          chinaLogisticsTrace:     item.chinaLogisticsTrace,
+          chinaLogisticsUpdatedAt: item.chinaLogisticsUpdatedAt,
+        }
+      }
+      return i
+    })
+
+    await supabase.from('orders').update({ items: updatedItems }).eq('id', orderId)
+    console.log('[AdminOrderManageView] 배송 이력 Supabase 저장 완료:', orderId)
+  } catch (e) {
+    console.warn('[AdminOrderManageView] adminPersistTrackingToSupabase 오류:', e.message)
+  }
+}
 
 // ConfirmSaveModal 상태 — 기존 confirm() 교체용
 const confirmCancelOrder = ref(false);          // 취소·환불 (결제대기~국내배송)
@@ -1801,6 +1942,12 @@ async function savePurchasingInfo(item, idx) {
   // ★ 향후 1688 자동발주 API 콜백에서도 confirmWarehouseArrival()을 직접 호출해 재사용 가능
   if (allItemsHaveTrackingNo(activeOrder.value)) {
     await confirmWarehouseArrival(activeOrder.value, { silent: true });
+  }
+
+  // ★ chinaTrackingNo 최초 저장 시 快递100 자동 1회 조회 (할당량 절약: 저장 시 1회만)
+  if (item.chinaTrackingNo && !item.chinaLogisticsTrace?.length) {
+    // 비동기로 호출 — 저장 흐름 블로킹 없이 백그라운드 실행
+    adminRefreshTracking(item, activeOrder.value.id, idx)
   }
 }
 
@@ -2933,6 +3080,16 @@ function openDetail(o) {
     }
   });
   modal.value.detail = true;
+
+  // ── 캐시 없으면 자동 1회 조회 (운송장 기준 중복 제거, 할당량 절약) ──
+  const seenTracking = new Set()
+  ;(activeOrder.value.items || []).forEach((item) => {
+    if (!item.chinaTrackingNo) return
+    if (item.chinaLogisticsTrace && item.chinaLogisticsTrace.length > 0) return  // 캐시 있으면 스킵
+    if (seenTracking.has(item.chinaTrackingNo)) return  // 같은 운송장 중복 스킵
+    seenTracking.add(item.chinaTrackingNo)
+    adminRefreshTracking(item, activeOrder.value.id, item.chinaTrackingNo)
+  })
 }
 
 

@@ -5,6 +5,8 @@ import path from 'path'
 // (로직 중복 없이 Vercel 배포본과 동일한 코드 재사용)
 // 주의: 이 import는 vite.config.js가 ES Module이기 때문에 가능함
 import logisticsHandler from './api/1688-order-logistics.js'
+// 로컬 개발용: api/kuaidi100-track.js handler 직접 import (동일 패턴)
+import kuaidi100TrackHandler from './api/kuaidi100-track.js'
 
 
 // 네이버 OAuth2 로컬 개발 프록시/미들웨어 플러그인
@@ -474,6 +476,36 @@ function lab1688Plugin(env) {
               end: res.end.bind(res),
             })
             await logisticsHandler(req, wrappedRes)
+          })
+          return
+        }
+
+        // 6. 快递100 실시간 배송조회 — api/kuaidi100-track.js handler 직접 재사용
+        // 동일 어댑터 패턴: req.body 파싱 + process.env 주입 + res 래핑
+        if (req.url?.startsWith('/api/kuaidi100-track') && req.method === 'POST') {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            // 환경변수 주입 (loadEnv → process.env)
+            if (!process.env.KUAIDI100_KEY)      process.env.KUAIDI100_KEY      = env.KUAIDI100_KEY      || ''
+            if (!process.env.KUAIDI100_CUSTOMER) process.env.KUAIDI100_CUSTOMER = env.KUAIDI100_CUSTOMER || ''
+            if (!process.env.DEEPL_API_KEY)      process.env.DEEPL_API_KEY      = env.DEEPL_API_KEY      || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await kuaidi100TrackHandler(req, wrappedRes)
           })
           return
         }

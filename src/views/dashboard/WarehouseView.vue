@@ -492,6 +492,27 @@
             </div>
           </div>
 
+          <!-- ─── 중국 내륙 배송 타임라인 (chinaTrackingNo 있는 경우만 표시) ─── -->
+          <div
+            v-if="selectedOrderDetail.chinaTrackingNo"
+            class="bg-white border border-indigo-100 rounded-2xl p-5 shadow-2xs"
+          >
+            <div class="flex items-center gap-1.5 pb-3 border-b border-indigo-100 mb-3">
+              <span class="font-black text-xs text-indigo-800">중국 내륙 배송 현황</span>
+              <span class="text-[10px] text-indigo-400">(표시 전용 — 입고 확정은 바코드 스캔으로 처리)</span>
+            </div>
+            <ChinaLogisticsTimeline
+              :trackingNo="selectedOrderDetail.chinaTrackingNo"
+              :traces="selectedOrderDetail.chinaLogisticsTrace || []"
+              :currentStatus="selectedOrderDetail.chinaLogisticsStatus || ''"
+              :updatedAt="selectedOrderDetail.chinaLogisticsUpdatedAt || ''"
+              :isLoading="trackingLoadingMap[selectedOrderDetail.id] || false"
+              :error="trackingErrorMap[selectedOrderDetail.id] || null"
+              :isAdmin="false"
+              @refresh="refreshTracking(selectedOrderDetail)"
+            />
+          </div>
+
           <!-- 2. 상품 명세 & 1688 원본 정보 -->
           <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-4">
             <div class="flex items-center justify-between pb-3 border-b border-gray-100">
@@ -1424,6 +1445,7 @@ import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
 import { updateOrderStatus, getStoredOrders, getWarehouseInboundsFromOrders, getItemTabKey, fetchOrdersFromSupabase, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
+import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue';
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
 import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
@@ -1547,6 +1569,91 @@ const showInsufficientWarning = ref(false);
 // DB 조회 결과 원본 (OrderProcessStepper 트래커에 전달)
 const orders = ref([]);
 const fetchError = ref(false); // DB 조회 실패 여부
+
+// ---------------------------------------------------------
+// 快递100 배송 조회 상태 관리
+// ⚠️ 표시 전용 — orders.status/item.subStatus 자동 변경 없음
+// ---------------------------------------------------------
+const trackingLoadingMap = ref({})  // { [itemId]: boolean }
+const trackingErrorMap   = ref({})  // { [itemId]: string|null }
+
+// chinaCarrier에서 快递100 택배사 코드 추출 ("중통(ZTO)" → "zto")
+function extractCarrierCode(chinaCarrier) {
+  if (!chinaCarrier) return ''
+  const m = chinaCarrier.match(/\(([A-Za-z0-9]+)\)/)
+  return m ? m[1].toLowerCase() : ''
+}
+
+async function refreshTracking(item) {
+  const id = item?.id
+  if (!id || !item?.chinaTrackingNo) return
+
+  trackingLoadingMap.value = { ...trackingLoadingMap.value, [id]: true }
+  trackingErrorMap.value   = { ...trackingErrorMap.value,   [id]: null }
+
+  try {
+    const carrierCode = extractCarrierCode(item.chinaCarrier)
+    const res = await fetch('/api/kuaidi100-track', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chinaTrackingNo: item.chinaTrackingNo,
+        carrierCode,     // "중통(ZTO)" → "zto", 없으면 '' (자동판별)
+      }),
+    })
+    const data = await res.json()
+
+    if (data.success) {
+      // ⚠️ item 상태 필드(subStatus 등)는 절대 변경하지 않음 — 표시용 필드만 업데이트
+      item.chinaLogisticsStatus    = data.statusText || ''
+      item.chinaLogisticsTrace     = data.traces     || []
+      item.chinaLogisticsUpdatedAt = new Date().toISOString()
+
+      // Supabase에 물류 이력 저장 (orders.items JSONB 업데이트)
+      await persistTrackingToSupabase(item)
+    } else {
+      trackingErrorMap.value = { ...trackingErrorMap.value, [id]: data.message || '조회 실패' }
+    }
+  } catch (e) {
+    console.warn('[WarehouseView] refreshTracking 오류:', e.message)
+    trackingErrorMap.value = { ...trackingErrorMap.value, [id]: '네트워크 오류' }
+  } finally {
+    trackingLoadingMap.value = { ...trackingLoadingMap.value, [id]: false }
+  }
+}
+
+async function persistTrackingToSupabase(item) {
+  if (!isSupabaseConfigured()) return
+  if (!item?.orderId && !item?.order?.id) return
+
+  const orderId = item.orderId || item.order?.id
+  try {
+    // orders 행의 items 배열에서 해당 item 갱신
+    const { data: orderRow, error: fetchErr } = await supabase
+      .from('orders')
+      .select('items')
+      .eq('id', orderId)
+      .single()
+    if (fetchErr || !orderRow) return
+
+    const updatedItems = (orderRow.items || []).map(i => {
+      if (i.id === item.id || i.chinaTrackingNo === item.chinaTrackingNo) {
+        return {
+          ...i,
+          chinaLogisticsStatus:    item.chinaLogisticsStatus,
+          chinaLogisticsTrace:     item.chinaLogisticsTrace,
+          chinaLogisticsUpdatedAt: item.chinaLogisticsUpdatedAt,
+        }
+      }
+      return i
+    })
+
+    await supabase.from('orders').update({ items: updatedItems }).eq('id', orderId)
+    console.log('[WarehouseView] 배송 이력 Supabase 저장 완료:', orderId)
+  } catch (e) {
+    console.warn('[WarehouseView] persistTrackingToSupabase 오류:', e.message)
+  }
+}
 
 const reloadData = async () => {
   fetchError.value = false;
@@ -1755,6 +1862,12 @@ function openOrderDetail(item) {
   }
   selectedOrderDetail.value = item;
   isOrderDetailModalOpen.value = true;
+
+  // ── 캐시 없으면 자동 1회 조회 (할당량 절약: 캐시 있으면 스킵) ──────────
+  // chinaTrackingNo는 있는데 chinaLogisticsTrace가 비어있는 "오래된 주문" 대응
+  if (item.chinaTrackingNo && (!item.chinaLogisticsTrace || item.chinaLogisticsTrace.length === 0)) {
+    refreshTracking(item)
+  }
 }
 
 function closeOrderDetailModal() {
