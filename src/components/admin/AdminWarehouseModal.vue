@@ -1339,13 +1339,64 @@ async function handleItemPhotoDrop(e, idx) {
   await _uploadPhotosToItem(files, idx);
 }
 
+
+// ─── 이미지 압축 헬퍼 (Canvas 기반, HTML5 표준) ───
+// 최대 1280px, JPEG quality 0.75 → 장당 약 300~500KB 목표
+// 이미지가 아닌 파일(동영상 등)은 원본 그대로 반환
+async function compressImage(file, maxPx = 1280, quality = 0.75) {
+  if (!file.type.startsWith('image/')) return file;
+  return new Promise((resolve) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      let { width, height } = img;
+      // 최대 해상도 제한 (비율 유지)
+      if (width > maxPx || height > maxPx) {
+        if (width >= height) {
+          height = Math.round((height * maxPx) / width);
+          width = maxPx;
+        } else {
+          width = Math.round((width * maxPx) / height);
+          height = maxPx;
+        }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) { resolve(file); return; } // 압축 실패 시 원본 사용
+          const compressed = new File(
+            [blob],
+            file.name.replace(/\.[^/.]+$/, '') + '.jpg',
+            { type: 'image/jpeg' }
+          );
+          resolve(compressed);
+        },
+        'image/jpeg',
+        quality
+      );
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      resolve(file); // 로드 실패 시 원본 사용
+    };
+    img.src = objectUrl;
+  });
+}
+
 async function _uploadPhotosToItem(files, idx) {
   const ai = getArrivalItem(idx);
-  for (const file of files) {
+  for (const rawFile of files) {
+    // 업로드 전 이미지 압축 (실패해도 원본으로 fallback)
+    const file = await compressImage(rawFile);
     let url = '';
     if (isSupabaseConfigured()) {
       try {
-        const ext = file.name.split('.').pop() || 'jpg';
+        const ext = 'jpg'; // 압축 후 항상 JPEG
         const name = `arrival_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
         const { data, error } = await supabase.storage.from('notices').upload(name, file, { cacheControl: '3600', upsert: true });
         if (!error && data) {
@@ -1355,9 +1406,10 @@ async function _uploadPhotosToItem(files, idx) {
       } catch {}
     }
     if (!url) url = await _toBase64(file);
-    ai.arrivalPhotos.push({ url, caption: file.name.replace(/\.[^/.]+$/, '') });
+    ai.arrivalPhotos.push({ url, caption: rawFile.name.replace(/\.[^/.]+$/, '') });
   }
 }
+
 
 function removeItemPhoto(itemIdx, photoIdx) {
   getArrivalItem(itemIdx).arrivalPhotos.splice(photoIdx, 1);
