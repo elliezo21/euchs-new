@@ -303,7 +303,13 @@ async function startCamera() {
     await html5QrCode.start(
       { facingMode: 'environment' },
       { fps: 10, qrbox: { width: 280, height: 160 } },
-      (decodedText) => { scanInput.value = decodedText.trim(); scanStatus.value = 'idle'; stopCamera(); handleScan(); },
+      (decodedText) => {
+        if (!isCameraOpen.value) return; // 중복 콜백 방지 — stopCamera() 후 재진입 차단
+        scanInput.value = decodedText.trim();
+        scanStatus.value = 'idle';
+        stopCamera(); // 즉시 isCameraOpen.value = false (이후 콜백 차단)
+        handleScan(); // 스캔 성공 → 자동 조회
+      },
       (_errorMsg) => {}
     );
   } catch (err) {
@@ -316,7 +322,7 @@ async function startCamera() {
 async function stopCamera() {
   isCameraOpen.value = false;
   if (html5QrCode) { try { await html5QrCode.stop(); } catch (_) {} html5QrCode = null; }
-  nextTick(() => { scanInputRef.value?.focus(); });
+  // 자동 포커스 제거 — 스캔 성공 시 모달이 열리므로 background focus 불필요
 }
 
 // ── 유틸 ──────────────────────────────────────────────────────
@@ -337,16 +343,10 @@ function showToast(message, type = 'success', durationMs = 4000) {
 
 // ── 생명주기 ──────────────────────────────────────────────────
 onMounted(async () => {
-  // ★ 정상 첫 진입: sessionStorage 없음 → 즉시 return (성능 영향 없음)
-  // 카메라 복귀 후 탭 리로드: sessionStorage 감지 → 오버레이 → 복원
   const restored = await _tryRestoreFromCamera();
-
-  // 복원 성공(모달 열림) 시에는 배경 입력창에 focus 주지 않음
-  // — 모달 열린 채로 scanInputRef.focus()를 주면 안드로이드에서
-  //   이후 카메라 input.click() 시 키보드가 올라오는 버그 원인이 됨
-  if (!restored) {
-    nextTick(() => { scanInputRef.value?.focus(); });
-  }
+  // 자동 포커스 제거 — 페이지 진입 시 모바일 키보드 자동 팝업 방지
+  // 사용자가 직접 입력창을 탭하면 정상적으로 포커스/키보드가 뜸
+  void restored; // lint 경고 방지
 });
 
 onUnmounted(() => {
