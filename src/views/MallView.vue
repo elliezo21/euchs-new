@@ -1279,7 +1279,7 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl } from '../services/api1688'
+import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, translateItemsBatch } from '../services/api1688'
 import { getMockSearchResults } from '../services/mock1688Data'
 import { fetchSiteSettings } from '../lib/settings'
 
@@ -2190,12 +2190,12 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
     return
   }
 
-  // [분기 B] 일반 검색어인 경우 -> 한-중 번역 및 1688 소싱 목록 검색 진행
+  // [분기 B] 일반 검색어인 경우 → 한-중 번역 및 1688 소싱 목록 검색 진행
   isLoading.value = true
   errorMessage.value = ''
   currentPage.value = page
 
-  // 30초 전체 타임아웃 래핑 (DeepL/RapidAPI 무한 대기 방지)
+  // 30초 전체 타임아웃 래핑 (OneBound API 무한 대기 방지)
   const searchTimeout = new Promise((_, reject) =>
     setTimeout(() => reject(new Error('Search timeout after 30s')), 30000)
   )
@@ -2240,6 +2240,21 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
     lastQueryKo.value = result.queryKo || rawInput
     lastQueryZh.value = result.queryZh || ''
     hasSearched.value = true
+
+    // ── 백그라운드 번역 폴백 ─────────────────────────────────────────────
+    // search1688WithTranslation 내부에서 번역이 실패/타임아웃된 경우,
+    // 화면에는 이미 titleZh(중국어 원문)로 카드가 표시되어 있음.
+    // 미번역 항목(titleKo === titleZh)을 백그라운드에서 재시도해 제목만 교체.
+    const stillUntranslated = parsedItems.filter(it => !it.titleKo || it.titleKo === it.titleZh)
+    if (stillUntranslated.length > 0) {
+      console.log(`[Mall1688] 백그라운드 번역 재시도: ${stillUntranslated.length}건`)
+      translateItemsBatch(stillUntranslated).catch(err => {
+        console.warn('[Mall1688] 백그라운드 번역 실패 (원문 유지):', err.message)
+      })
+      // translateItemsBatch는 items 배열 객체를 직접 변경 → Vue 반응성으로 카드 제목 자동 갱신
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
   } catch (err) {
     console.warn('[Mall1688] Search notice:', err.message || err)
     // 에러 시에도 hasSearched를 true로 설정해 빈 결과 UI 노출 (무한 스켈레톤 방지)
