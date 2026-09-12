@@ -5,6 +5,7 @@
     <!-- 1. LEFT DARK NAVY LNB SIDEBAR (스마트스토어 센터 형태) -->
     <!-- ============================================================ -->
     <aside
+      v-if="!isWarehouseScan"
       class="w-full md:w-64 bg-slate-900 text-slate-200 flex flex-col shrink-0 border-r border-slate-800 select-none z-30 transition-all duration-200"
     >
       <!-- Brand Logo / Admin Title -->
@@ -216,7 +217,7 @@
     <div class="flex-1 flex flex-col min-w-0 bg-slate-50">
 
       <!-- TOP WHITE GNB HEADER -->
-      <header class="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-4 sticky top-0 z-20 shadow-xs">
+      <header v-if="!isWarehouseScan" class="h-14 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-4 sticky top-0 z-20 shadow-xs">
         <!-- Left: Page Title & Breadcrumb -->
         <div class="flex items-center gap-3 min-w-0">
           <h1 class="text-sm sm:text-base font-black text-slate-900 truncate">
@@ -325,6 +326,10 @@ const isRefreshing = ref(false)
 const pendingOrdersCount = ref(0)
 // 주문·발주 관리 서브메뉴 펼침 상태 — /admin/orders/* 경로 진입 시 자동 펼침
 const isOrdersMenuOpen = ref(false)
+
+// 창고 스캔 전용: 사이드바 + 상단 헤더 숨김 (이 페이지에만 적용)
+const isWarehouseScan = computed(() => route.name === 'admin-warehouse-scan')
+
 
 const currentRouteTitle = computed(() => {
   if (route.path === '/admin/orders/cancelled') return '취소·반품·교환 현황'

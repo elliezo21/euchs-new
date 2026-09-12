@@ -932,6 +932,9 @@ import { sendOrderStatusAlimtalk } from '../../services/notificationService';
 import { currentSettings, fetchSiteSettings } from '../../lib/settings';
 import { VAS_OPTIONS_MAP } from '../../utils/vasOptions';
 import { INSPECTION_NOTE_OPTIONS, findOptionIdByText } from '../../utils/inspectionNoteOptions';
+// Capacitor 네이티브 카메라 분기 (네이티브 앱에서만 Camera 플러그인 사용)
+import { Capacitor } from '@capacitor/core';
+
 
 
 onMounted(async () => {
@@ -1301,13 +1304,39 @@ function _emitCameraSnapshot() {
   });
 }
 
-function triggerItemPhotoCamera(idx) {
-  const el = itemPhotoCameraRefs.value[idx];
-  if (el) {
-    _emitCameraSnapshot();
-    el.click();
+async function triggerItemPhotoCamera(idx) {
+  if (Capacitor.isNativePlatform()) {
+    // 네이티브 앱: @capacitor/camera 플러그인 사용
+    // — 탭 리로드/데이터 유실 없이 카메라 앱 호출 가능
+    try {
+      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      const photo = await Camera.getPhoto({
+        resultType: CameraResultType.Uri,
+        source: CameraSource.Camera,
+        quality: 80,
+      });
+      if (photo?.webPath) {
+        const response = await fetch(photo.webPath);
+        const blob = await response.blob();
+        const file = new File([blob], `arrival_${Date.now()}.jpg`, { type: 'image/jpeg' });
+        await _uploadPhotosToItem([file], idx);
+      }
+    } catch (err) {
+      // 사용자가 촬영 취소한 경우는 무시
+      if (err?.message !== 'User cancelled photos app') {
+        console.error('[AdminWarehouseModal] 네이티브 카메라 오류:', err);
+      }
+    }
+  } else {
+    // 웹/PWA: 기존 input capture 방식 100% 유지 (절대 삭제 금지)
+    const el = itemPhotoCameraRefs.value[idx];
+    if (el) {
+      _emitCameraSnapshot();
+      el.click();
+    }
   }
 }
+
 
 function triggerItemVideoCamera(idx) {
   const el = itemVideoCameraRefs.value[idx];

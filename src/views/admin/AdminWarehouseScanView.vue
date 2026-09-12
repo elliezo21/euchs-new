@@ -28,40 +28,47 @@
       </router-link>
     </div>
     <!-- 메인 -->
-    <div class="flex-1 flex flex-col items-center justify-start pt-6 pb-10 px-4 space-y-5 max-w-lg mx-auto w-full">
-      <div class="w-full space-y-2">
-        <label class="block text-xs font-bold text-slate-400 tracking-wide uppercase">운송장 번호 입력 (스캐너 또는 수동 입력)</label>
-        <div class="relative">
-          <input ref="scanInputRef" v-model="scanInput" type="text" inputmode="numeric" placeholder="바코드를 스캔하거나 운송장번호를 입력하세요" class="w-full px-4 py-4 bg-slate-800 border-2 rounded-2xl text-white placeholder-slate-500 text-base font-mono focus:outline-none transition border-slate-600 focus:border-teal-500 focus:bg-slate-800/80" :class="scanStatus === 'error' ? 'border-rose-500' : scanStatus === 'success' ? 'border-teal-500' : ''" @keydown.enter.prevent="handleScan" @input="scanStatus = 'idle'" autofocus />
-          <button v-if="scanInput" type="button" @click="clearInput" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"><i class="fas fa-xmark text-lg"></i></button>
-        </div>
-        <div v-if="scanStatus === 'error'" class="flex items-center gap-2 text-rose-400 text-xs font-bold px-1">
-          <i class="fas fa-circle-exclamation"></i><span>{{ errorMessage }}</span>
-          <a href="/admin/orders" class="ml-auto text-rose-300 hover:text-white underline underline-offset-2 font-bold transition">수동 검색 →</a>
-        </div>
-        <div v-else-if="scanStatus === 'searching'" class="flex items-center gap-2 text-teal-400 text-xs font-bold px-1"><i class="fas fa-circle-notch animate-spin"></i><span>주문 매칭 중...</span></div>
-        <div v-else class="text-[11px] text-slate-500 px-1">Enter 키 또는 스캐너 입력 시 자동 검색 · 블루투스/유선 스캐너 모두 지원</div>
-      </div>
-      <button type="button" @click="handleScan" :disabled="!scanInput.trim() || scanStatus === 'searching'" class="w-full py-4 rounded-2xl font-black text-base transition active:scale-95 shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed bg-teal-600 hover:bg-teal-500 text-white">
-        <i class="fas fa-magnifying-glass text-lg"></i><span>운송장 조회</span>
-      </button>
-      <div class="w-full space-y-2">
+    <!-- 전체를 두 영역으로 분리: 상단 고정(카메라) + 하단 스크롤(입력/이력) -->
+    <div class="flex-1 flex flex-col w-full max-w-lg mx-auto overflow-hidden">
+
+      <!-- ① 카메라 스캔 영역 — 상단 고정, 키보드가 올라와도 밀리지 않음 -->
+      <div class="flex-shrink-0 px-4 pt-4 pb-2 space-y-2">
         <button type="button" @click="toggleCamera" class="w-full py-3.5 rounded-2xl font-bold text-sm transition active:scale-95 flex items-center justify-center gap-2.5 border-2 border-slate-600 hover:border-teal-500 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white" :class="isCameraOpen ? 'border-teal-500 text-teal-400' : ''">
           <i :class="isCameraOpen ? 'fas fa-video-slash' : 'fas fa-camera'" class="text-base"></i>
           <span>{{ isCameraOpen ? '카메라 스캔 중지' : '카메라로 스캔' }}</span>
         </button>
         <div v-show="isCameraOpen" class="w-full rounded-2xl overflow-hidden border-2 border-teal-500/40 bg-slate-800"><div id="qr-reader" class="w-full"></div></div>
       </div>
-      <div class="w-full flex items-center gap-3">
-        <div class="flex-1 h-px bg-slate-700"></div><span class="text-[11px] text-slate-500 font-mono">최근 스캔 이력</span><div class="flex-1 h-px bg-slate-700"></div>
-      </div>
-      <div class="w-full space-y-2">
-        <div v-if="scanHistory.length === 0" class="text-center py-6 text-slate-500 text-xs"><i class="fas fa-clock-rotate-left text-2xl mb-2 block"></i>스캔 이력이 없습니다</div>
-        <div v-for="(item, idx) in scanHistory" :key="idx" class="flex items-center gap-3 px-4 py-3 rounded-xl border text-xs font-mono" :class="item.success ? 'bg-teal-900/30 border-teal-700/40 text-teal-300' : 'bg-rose-900/30 border-rose-700/40 text-rose-400'">
-          <i :class="item.success ? 'fas fa-check-circle text-teal-400' : 'fas fa-times-circle text-rose-400'"></i>
-          <span class="flex-1 truncate">{{ item.trackingNo }}</span>
-          <span class="text-[10px] opacity-60">{{ item.time }}</span>
-          <span v-if="item.success" class="text-[10px] text-teal-400 font-bold">{{ item.orderNo }}</span>
+
+      <!-- ② 입력창 + 조회버튼 + 이력 — 스크롤 가능 영역 -->
+      <div class="flex-1 overflow-y-auto px-4 pb-10 space-y-5 pt-2">
+        <div class="w-full space-y-2">
+          <label class="block text-xs font-bold text-slate-400 tracking-wide uppercase">운송장 번호 입력 (스캐너 또는 수동 입력)</label>
+          <div class="relative">
+            <input ref="scanInputRef" v-model="scanInput" type="text" inputmode="numeric" placeholder="바코드를 스캔하거나 운송장번호를 입력하세요" class="w-full px-4 py-4 bg-slate-800 border-2 rounded-2xl text-white placeholder-slate-500 text-base font-mono focus:outline-none transition border-slate-600 focus:border-teal-500 focus:bg-slate-800/80" :class="scanStatus === 'error' ? 'border-rose-500' : scanStatus === 'success' ? 'border-teal-500' : ''" @keydown.enter.prevent="handleScan" @input="scanStatus = 'idle'" autofocus />
+            <button v-if="scanInput" type="button" @click="clearInput" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"><i class="fas fa-xmark text-lg"></i></button>
+          </div>
+          <div v-if="scanStatus === 'error'" class="flex items-center gap-2 text-rose-400 text-xs font-bold px-1">
+            <i class="fas fa-circle-exclamation"></i><span>{{ errorMessage }}</span>
+            <a href="/admin/orders" class="ml-auto text-rose-300 hover:text-white underline underline-offset-2 font-bold transition">수동 검색 →</a>
+          </div>
+          <div v-else-if="scanStatus === 'searching'" class="flex items-center gap-2 text-teal-400 text-xs font-bold px-1"><i class="fas fa-circle-notch animate-spin"></i><span>주문 매칭 중...</span></div>
+          <div v-else class="text-[11px] text-slate-500 px-1">Enter 키 또는 스캐너 입력 시 자동 검색 · 블루투스/유선 스캐너 모두 지원</div>
+        </div>
+        <button type="button" @click="handleScan" :disabled="!scanInput.trim() || scanStatus === 'searching'" class="w-full py-4 rounded-2xl font-black text-base transition active:scale-95 shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed bg-teal-600 hover:bg-teal-500 text-white">
+          <i class="fas fa-magnifying-glass text-lg"></i><span>운송장 조회</span>
+        </button>
+        <div class="w-full flex items-center gap-3">
+          <div class="flex-1 h-px bg-slate-700"></div><span class="text-[11px] text-slate-500 font-mono">최근 스캔 이력</span><div class="flex-1 h-px bg-slate-700"></div>
+        </div>
+        <div class="w-full space-y-2">
+          <div v-if="scanHistory.length === 0" class="text-center py-6 text-slate-500 text-xs"><i class="fas fa-clock-rotate-left text-2xl mb-2 block"></i>스캔 이력이 없습니다</div>
+          <div v-for="(item, idx) in scanHistory" :key="idx" class="flex items-center gap-3 px-4 py-3 rounded-xl border text-xs font-mono" :class="item.success ? 'bg-teal-900/30 border-teal-700/40 text-teal-300' : 'bg-rose-900/30 border-rose-700/40 text-rose-400'">
+            <i :class="item.success ? 'fas fa-check-circle text-teal-400' : 'fas fa-times-circle text-rose-400'"></i>
+            <span class="flex-1 truncate">{{ item.trackingNo }}</span>
+            <span class="text-[10px] opacity-60">{{ item.time }}</span>
+            <span v-if="item.success" class="text-[10px] text-teal-400 font-bold">{{ item.orderNo }}</span>
+          </div>
         </div>
       </div>
     </div>
