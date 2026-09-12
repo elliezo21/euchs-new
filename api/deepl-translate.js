@@ -98,7 +98,7 @@ async function callPapagoTranslate(text, clientId, clientSecret, source = 'zh-CN
 
   try {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 8000) // 8초 타임아웃
+    const timer = setTimeout(() => controller.abort(), 5000) // 5초 타임아웃 (정상 응답 ~1초)
 
     const res = await fetch(PAPAGO_API_URL, {
       method: 'POST',
@@ -126,7 +126,7 @@ async function callPapagoTranslate(text, clientId, clientSecret, source = 'zh-CN
     }
     return translated
   } catch (err) {
-    console.error('[papago-translate] ❌ fetch 오류:', err.name === 'AbortError' ? '8초 타임아웃' : err.message)
+    console.error('[papago-translate] ❌ fetch 오류:', err.name === 'AbortError' ? '5초 타임아웃' : err.message)
     return null
   }
 }
@@ -171,12 +171,11 @@ export default async function handler(req, res) {
 
   console.log(`[papago-translate] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget}`)
 
-  // ── 병렬 2개 동시 처리 + 실패 시 즉시 1회 재시도 ───────────────────────
-  // ▸ 순차 처리(이전) → 20건 × 300ms + 100ms 간격 = ~8초 → 10초 타임아웃 초과
-  // ▸ 병렬 2개(현재) → ceil(20/2) × 300ms = ~3초 → 타임아웃 여유 충분
-  // ▸ 100ms 항목 간 간격 제거 — Rate Limit 초과 미발생 실측 확인
-  // ▸ 재시도 딜레이 제거 — 8초 fetch timeout으로 이미 cold start 대응 완료
-  const CONCURRENCY = 2
+  // ── 병렬 5개 동시 처리 + 실패 시 즉시 1회 재시도 ───────────────────────
+  // ▸ 단건 정상 응답: ~1초 (실측)
+  // ▸ 병렬 5개 → 20건 기준 ceil(20/5)=4배치 × ~1초 = ~4초 → 타임아웃 여유 충분
+  // ▸ 5초 fetch timeout: 정상 1초 대비 여유 충분, 비정상 시 빠른 재시도 유도
+  const CONCURRENCY = 5
   const translations    = new Array(cleanTexts.length)
   let   translationErrors = 0
 
