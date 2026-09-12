@@ -1306,16 +1306,23 @@ function _emitCameraSnapshot() {
 }
 
 async function triggerItemPhotoCamera(idx) {
-  if (Capacitor.isNativePlatform()) {
+  // [진단] 함수 진입 + 플랫폼 확인
+  const isNative = Capacitor.isNativePlatform();
+  const capPlatform = Capacitor.getPlatform();
+  console.log('[CAM-DIAG] triggerItemPhotoCamera called, idx=', idx, 'isNative=', isNative, 'platform=', capPlatform);
+
+  if (isNative) {
     // 네이티브 앱: @capacitor/camera 플러그인 사용
-    // — 탭 리로드/데이터 유실 없이 카메라 직접 호출
     try {
+      console.log('[CAM-DIAG] Camera object:', typeof Camera, !!Camera?.checkPermissions);
       // 권한 확인 → 없으면 요청 (권한 팝업 표시)
       const permStatus = await Camera.checkPermissions();
+      console.log('[CAM-DIAG] permStatus:', JSON.stringify(permStatus));
       if (permStatus.camera !== 'granted') {
         const reqResult = await Camera.requestPermissions({ permissions: ['camera'] });
+        console.log('[CAM-DIAG] reqResult:', JSON.stringify(reqResult));
         if (reqResult.camera !== 'granted') {
-          console.warn('[AdminWarehouseModal] 카메라 권한 거부됨');
+          console.warn('[CAM-DIAG] 카메라 권한 거부됨');
           return;
         }
       }
@@ -1324,6 +1331,7 @@ async function triggerItemPhotoCamera(idx) {
         source: CameraSource.Camera,
         quality: 80,
       });
+      console.log('[CAM-DIAG] photo:', photo?.webPath);
       if (photo?.webPath) {
         const response = await fetch(photo.webPath);
         const blob = await response.blob();
@@ -1333,18 +1341,22 @@ async function triggerItemPhotoCamera(idx) {
     } catch (err) {
       // 사용자가 촬영 취소한 경우는 무시, 그 외는 반드시 로그
       if (err?.message !== 'User cancelled photos app') {
-        console.error('[AdminWarehouseModal] 네이티브 카메라 오류:', err?.message || err);
+        console.error('[CAM-DIAG] 네이티브 카메라 오류:', err?.message || err);
       }
     }
   } else {
     // 웹/PWA: 기존 input capture 방식 100% 유지 (절대 삭제 금지)
+    console.log('[CAM-DIAG] 웹 분기 → input.click()');
     const el = itemPhotoCameraRefs.value[idx];
     if (el) {
       _emitCameraSnapshot();
       el.click();
+    } else {
+      console.warn('[CAM-DIAG] itemPhotoCameraRefs[idx] 없음, idx=', idx);
     }
   }
 }
+
 
 
 function triggerItemVideoCamera(idx) {
