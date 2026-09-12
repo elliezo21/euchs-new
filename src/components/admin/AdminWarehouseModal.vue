@@ -1315,33 +1315,44 @@ async function triggerItemPhotoCamera(idx) {
   } catch (e) {
     alert('[진단 에러] ' + e.message);
   }
-  // [진단] 함수 진입 + 플랫폼 확인
+
   const isNative = Capacitor.isNativePlatform();
   const capPlatform = Capacitor.getPlatform();
-  console.log('[CAM-DIAG] triggerItemPhotoCamera called, idx=', idx, 'isNative=', isNative, 'platform=', capPlatform);
-
+  console.log('[CAM-DIAG] isNative=', isNative, 'platform=', capPlatform);
 
   if (isNative) {
-    // 네이티브 앱: @capacitor/camera 플러그인 사용
     try {
-      console.log('[CAM-DIAG] Camera object:', typeof Camera, !!Camera?.checkPermissions);
-      // 권한 확인 → 없으면 요청 (권한 팝업 표시)
+      // 단계 1: 권한 체크
+      alert('[단계1] Camera.checkPermissions 호출 시작. Camera존재=' + (typeof Camera));
       const permStatus = await Camera.checkPermissions();
-      console.log('[CAM-DIAG] permStatus:', JSON.stringify(permStatus));
+      alert('[단계1] 권한체크결과: ' + JSON.stringify(permStatus));
+
       if (permStatus.camera !== 'granted') {
+        // 단계 2: 권한 요청
+        alert('[단계2] 권한없음 → requestPermissions 호출');
         const reqResult = await Camera.requestPermissions({ permissions: ['camera'] });
-        console.log('[CAM-DIAG] reqResult:', JSON.stringify(reqResult));
+        alert('[단계2] 권한요청결과: ' + JSON.stringify(reqResult));
         if (reqResult.camera !== 'granted') {
-          console.warn('[CAM-DIAG] 카메라 권한 거부됨');
+          alert('[단계2] 권한 거부됨 → 종료');
           return;
         }
       }
-      const photo = await Camera.getPhoto({
-        resultType: CameraResultType.Uri,
-        source: CameraSource.Camera,
-        quality: 80,
-      });
-      console.log('[CAM-DIAG] photo:', photo?.webPath);
+
+      // 단계 3: getPhoto 호출
+      alert('[단계3] getPhoto 호출 시작');
+      let photo;
+      try {
+        photo = await Camera.getPhoto({
+          resultType: CameraResultType.Uri,
+          source: CameraSource.Camera,
+          quality: 80,
+        });
+        alert('[단계3] getPhoto 완료: webPath=' + photo?.webPath);
+      } catch (photoErr) {
+        alert('[단계3] getPhoto 에러: ' + (photoErr?.message || photoErr?.code || JSON.stringify(photoErr)));
+        return;
+      }
+
       if (photo?.webPath) {
         const response = await fetch(photo.webPath);
         const blob = await response.blob();
@@ -1349,7 +1360,7 @@ async function triggerItemPhotoCamera(idx) {
         await _uploadPhotosToItem([file], idx);
       }
     } catch (err) {
-      // 사용자가 촬영 취소한 경우는 무시, 그 외는 반드시 로그
+      alert('[전체catch] 에러: ' + (err?.message || err?.code || JSON.stringify(err)));
       if (err?.message !== 'User cancelled photos app') {
         console.error('[CAM-DIAG] 네이티브 카메라 오류:', err?.message || err);
       }
@@ -1366,6 +1377,7 @@ async function triggerItemPhotoCamera(idx) {
     }
   }
 }
+
 
 
 
