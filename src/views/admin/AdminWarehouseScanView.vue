@@ -45,7 +45,7 @@
         <div class="w-full space-y-2">
           <label class="block text-xs font-bold text-slate-400 tracking-wide uppercase">운송장 번호 입력 (스캐너 또는 수동 입력)</label>
           <div class="relative">
-            <input ref="scanInputRef" v-model="scanInput" type="text" inputmode="numeric" placeholder="바코드를 스캔하거나 운송장번호를 입력하세요" class="w-full px-4 py-4 bg-slate-800 border-2 rounded-2xl text-white placeholder-slate-500 text-base font-mono focus:outline-none transition border-slate-600 focus:border-teal-500 focus:bg-slate-800/80" :class="scanStatus === 'error' ? 'border-rose-500' : scanStatus === 'success' ? 'border-teal-500' : ''" @keydown.enter.prevent="handleScan" @input="scanStatus = 'idle'" autofocus />
+            <input ref="scanInputRef" v-model="scanInput" type="text" inputmode="numeric" placeholder="바코드를 스캔하거나 운송장번호를 입력하세요" class="w-full px-4 py-4 bg-slate-800 border-2 rounded-2xl text-white placeholder-slate-500 text-base font-mono focus:outline-none transition border-slate-600 focus:border-teal-500 focus:bg-slate-800/80" :class="scanStatus === 'error' ? 'border-rose-500' : scanStatus === 'success' ? 'border-teal-500' : ''" @keydown.enter.prevent="handleScan" @input="scanStatus = 'idle'" />
             <button v-if="scanInput" type="button" @click="clearInput" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"><i class="fas fa-xmark text-lg"></i></button>
           </div>
           <div v-if="scanStatus === 'error'" class="flex items-center gap-2 text-rose-400 text-xs font-bold px-1">
