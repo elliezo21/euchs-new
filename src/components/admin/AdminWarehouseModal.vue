@@ -934,6 +934,7 @@ import { VAS_OPTIONS_MAP } from '../../utils/vasOptions';
 import { INSPECTION_NOTE_OPTIONS, findOptionIdByText } from '../../utils/inspectionNoteOptions';
 // Capacitor 네이티브 카메라 분기 (네이티브 앱에서만 Camera 플러그인 사용)
 import { Capacitor } from '@capacitor/core';
+import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
 
 
 
@@ -1307,9 +1308,17 @@ function _emitCameraSnapshot() {
 async function triggerItemPhotoCamera(idx) {
   if (Capacitor.isNativePlatform()) {
     // 네이티브 앱: @capacitor/camera 플러그인 사용
-    // — 탭 리로드/데이터 유실 없이 카메라 앱 호출 가능
+    // — 탭 리로드/데이터 유실 없이 카메라 직접 호출
     try {
-      const { Camera, CameraResultType, CameraSource } = await import('@capacitor/camera');
+      // 권한 확인 → 없으면 요청 (권한 팝업 표시)
+      const permStatus = await Camera.checkPermissions();
+      if (permStatus.camera !== 'granted') {
+        const reqResult = await Camera.requestPermissions({ permissions: ['camera'] });
+        if (reqResult.camera !== 'granted') {
+          console.warn('[AdminWarehouseModal] 카메라 권한 거부됨');
+          return;
+        }
+      }
       const photo = await Camera.getPhoto({
         resultType: CameraResultType.Uri,
         source: CameraSource.Camera,
@@ -1322,9 +1331,9 @@ async function triggerItemPhotoCamera(idx) {
         await _uploadPhotosToItem([file], idx);
       }
     } catch (err) {
-      // 사용자가 촬영 취소한 경우는 무시
+      // 사용자가 촬영 취소한 경우는 무시, 그 외는 반드시 로그
       if (err?.message !== 'User cancelled photos app') {
-        console.error('[AdminWarehouseModal] 네이티브 카메라 오류:', err);
+        console.error('[AdminWarehouseModal] 네이티브 카메라 오류:', err?.message || err);
       }
     }
   } else {
