@@ -534,13 +534,16 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
   // Vercel Serverless / Vite Dev Server 프록시 단일 번역 파이프라인 (/api/deepl-translate 경로 유지)
   let translatedBatch = null
   let apiErrorReason  = null
+  // 항목 수 기반 동적 타임아웃: 기본 15초 + 항목당 1.5초 (최대 60초)
+  // 병렬 2개 처리 → 20건 정상 시 ~3초, 타임아웃은 45초로 충분한 여유
+  const dynamicTimeout = Math.min(15000 + missingTexts.length * 1500, 60000)
 
   try {
     // translationStatus lazy import — 순환 의존 방지 및 SSR/Node 환경 안전
     const { markTranslationSuccess, markTranslationError } = await import('./translationStatus.js')
 
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+    const timeout = setTimeout(() => controller.abort(), dynamicTimeout)
     const proxyRes = await fetch('/api/deepl-translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -579,7 +582,7 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
   } catch (err) {
     let reason
     if (err.name === 'AbortError') {
-      reason = '번역 서버리스 요청 10초 타임아웃 초과'
+      reason = `번역 서버리스 요청 타임아웃 초과 (${Math.round(dynamicTimeout / 1000)}초, ${missingTexts.length}건)`
     } else {
       reason = `번역 서버리스 통신 오류: ${err.message}`
     }

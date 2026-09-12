@@ -171,35 +171,42 @@ export default async function handler(req, res) {
 
   console.log(`[papago-translate] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget}`)
 
-  // ── 순차 실행 + 실패 시 1회 재시도 ──────────────────────────────────────
-  // Vercel 환경에서 Promise.allSettled 병렬 호출 시 간헐적 fetch 실패 확인됨(2026-09).
-  // 파파고는 배치 미지원(호출당 1건)이므로 순차 처리해도 충분.
-  // 실패 항목은 1회 재시도 후에도 실패 시에만 원문 반환.
+  // ── 병렬 2개 동시 처리 + 실패 시 즉시 1회 재시도 ───────────────────────
+  // ▸ 순차 처리(이전) → 20건 × 300ms + 100ms 간격 = ~8초 → 10초 타임아웃 초과
+  // ▸ 병렬 2개(현재) → ceil(20/2) × 300ms = ~3초 → 타임아웃 여유 충분
+  // ▸ 100ms 항목 간 간격 제거 — Rate Limit 초과 미발생 실측 확인
+  // ▸ 재시도 딜레이 제거 — 8초 fetch timeout으로 이미 cold start 대응 완료
+  const CONCURRENCY = 2
   const translations    = new Array(cleanTexts.length)
   let   translationErrors = 0
 
-  for (let i = 0; i < cleanTexts.length; i++) {
-    const t = cleanTexts[i]
+  for (let start = 0; start < cleanTexts.length; start += CONCURRENCY) {
+    const chunk = cleanTexts.slice(start, start + CONCURRENCY)
 
-    // 항목 간 100ms 간격 (첫 번째 제외) — 파파고 Rate Limit 대응
-    if (i > 0) await new Promise(resolve => setTimeout(resolve, 100))
+    const settled = await Promise.allSettled(
+      chunk.map(t => callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget))
+    )
 
-    let result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
+    // 실패 항목 즉시 재시도 (딜레이 없음)
+    const retries = await Promise.allSettled(
+      settled.map((result, j) => {
+        if (result.status === 'fulfilled' && result.value) return Promise.resolve(result.value)
+        console.warn(`[papago-translate] ⚠️ 항목[${start + j}] 1차 실패, 즉시 재시도...`)
+        return callPapagoTranslate(chunk[j], clientId, clientSecret, papagoSource, papagoTarget)
+      })
+    )
 
-    // 실패 시 1회 재시도 (콜드 스타트 네트워크 초기화 대기 + 재시도)
-    if (!result) {
-      console.warn(`[papago-translate] ⚠️ 항목[${i}] 1차 실패, 500ms 후 재시도...`)
-      await new Promise(resolve => setTimeout(resolve, 500))
-      result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
-    }
-
-    if (result) {
-      translations[i] = { text: result }
-    } else {
-      translationErrors++
-      console.error(`[papago-translate] ❌ 항목[${i}] 재시도 후에도 실패, 원문 반환: "${t.slice(0, 20)}"`)
-      translations[i] = { text: t }
-    }
+    retries.forEach((result, j) => {
+      const origIdx  = start + j
+      const origText = cleanTexts[origIdx]
+      if (result.status === 'fulfilled' && result.value) {
+        translations[origIdx] = { text: result.value }
+      } else {
+        translationErrors++
+        console.error(`[papago-translate] ❌ 항목[${origIdx}] 재시도 후에도 실패, 원문 반환: "${origText.slice(0, 20)}"`)
+        translations[origIdx] = { text: origText }
+      }
+    })
   }
 
   // 전체 실패 여부 판정
