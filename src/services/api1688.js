@@ -1,6 +1,6 @@
 /**
- * 1688 DataHub API & DeepL Translation Service Module
- * 이유씨컴퍼니 (EUCHS) - 1688 실시간 검색 & DeepL 번역 연동 (OneBound 순수 실데이터 전용)
+ * 1688 DataHub API & Translation Service Module
+ * 이유씨컴퍼니 (EUCHS) - 1688 실시간 검색 & 파파고 번역 연동 (OneBound 순수 실데이터 전용)
  */
 
 // ========================================================
@@ -144,13 +144,13 @@ export const CONFIG = {}
 // ========================================================
 // 🇨🇳 중국어 색상명 ➔ 한국어 고정 매핑 사전
 // ========================================================
-// 목적: DeepL이 같은 원문(예: 粉红色, 桃色)을 호출마다 다르게 번역하는
+// 목적: 번역 API가 같은 원문(예: 粉红色, 桃色)을 호출마다 다르게 번역하는
 //       비결정성을 원천 차단하기 위한 확정 매핑.
 //
 // 원칙:
 //   1. 원문이 다르면 한글도 반드시 다르게 지정 (粉色 vs 粉红色 구분 등)
 //   2. 실측 확인된 원문(971978146063 상품 + 1688 표준 색상)만 포함
-//   3. 매핑에 없는 새 색상은 런타임에 DeepL 번역 후 runtimeColorMap에 추가
+//   3. 매핑에 없는 새 색상은 런타임에 번역 후 runtimeColorMap에 추가
 // ========================================================
 export const ZH_KO_COLOR_MAP = {
   // ── 기본 단색 (한글식 표기 통일) ─────────────────────────
@@ -185,7 +185,7 @@ export const ZH_KO_COLOR_MAP = {
   '玫瑰金': '로즈골드',        // 한글 고유 표현 없음
 
   // ── 핑크/복숭아 계열 — 3자 모두 서로 다른 이름 ──────────
-  // ⚠ 粉色·粉红色·桃色는 DeepL이 모두 "분홍색/복숭아색"으로 겹치므로
+  // ⚠ 粉色·粉红色·桃色는 번역기가 모두 "분홍색/복숭아색"으로 겹치므로
   //   아래와 같이 명확히 구분하여 고정함
   '粉色':   '분홍색',          // pale pink — 가장 일반적인 분홍
   '粉红色': '진분홍색',        // 粉色보다 붉은 핑크 (粉+紅 합성) — "분홍색"과 구분
@@ -226,7 +226,7 @@ export const ZH_KO_COLOR_MAP = {
   '裸色':   '누드색',
 }
 
-// 런타임 보조 맵 — DeepL 번역 결과를 세션 내에서 누적, 새 색상 일관성 보장
+// 런타임 보조 맵 — 번역 결과를 세션 내에서 누적, 새 색상 일관성 보장
 // (export 안 함 — 모듈 내부에서만 사용)
 const runtimeColorMap = {}
 
@@ -486,7 +486,6 @@ const saveToCache = (cacheMap, storageKey, key, data) => {
 
 /**
  * 파파고 텍스트 번역 함수 (개별 캐시 확인 ➔ 미번역 텍스트 일괄 번역 ➔ 캐시 저장)
- * (구 이름: DeepL 텍스트 번역 함수 — DeepL 할당량 초과(2026-09)로 파파고로 교체)
  * @param {string|string[]} text - 번역할 텍스트 또는 텍스트 배열
  * @param {string} targetLang - 대상 언어 ('KO' | 'ZH' | 'EN' 등)
  * @param {string} [sourceLang] - 출발 언어 (선택 사항)
@@ -531,11 +530,11 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
   }
 
   // 2. 미번역 텍스트 일괄 파파고 번역 실행
-  // Vercel Serverless / Vite Dev Server 프록시 단일 번역 파이프라인 (/api/deepl-translate 경로 유지)
+  // Vercel Serverless / Vite Dev Server 프록시 단일 번역 파이프라인 (/api/translate)
   let translatedBatch = null
   let apiErrorReason  = null
   // 항목 수 기반 동적 타임아웃: 기본 15초 + 항목당 1.5초 (최대 60초)
-  // 병렬 2개 처리 → 20건 정상 시 ~3초, 타임아웃은 45초로 충분한 여유
+  // 병렬 5개 처리 → 20건 정상 시 ~3.5초, 타임아웃은 45초로 충분한 여유
   const dynamicTimeout = Math.min(15000 + missingTexts.length * 1500, 60000)
 
   try {
@@ -544,7 +543,7 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
 
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), dynamicTimeout)
-    const proxyRes = await fetch('/api/deepl-translate', {
+    const proxyRes = await fetch('/api/translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -860,10 +859,10 @@ export async function search1688(queryZh, page = 1, options = {}) {
 
 /**
  * 1688 통합 파이프라인:
- * 한글 검색어 ➔ 중국어 번역 ➔ 1688 OneBound 검색 ➔ 결과 일괄 한글 번역 (DeepL)
+ * 한글 검색어 ➔ 중국어 번역 ➔ 1688 OneBound 검색 ➔ 결과 일괄 한글 번역 (파파고)
  */
 
-// ── 한글→중문 즉시 변환 사전 (DeepL 보조 / 주요 B2B 품목) ──────────────
+// ── 한글→중문 즉시 변환 사전 (파파고 보조 / 주요 B2B 품목) ──────────────
 const KO_ZH_B2B_DICT = {
   '치마': '裙子', '스커트': '裙子', '원피스': '连衣裙', '블라우스': '衬衫',
   '셔츠': '衬衫', '바지': '裤子', '청바지': '牛仔裤', '티셔츠': 'T恤',
@@ -909,16 +908,16 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
       queryZh = dictResult
       console.log(`[1688 Search] Dict hit: "${query}" → "${queryZh}"`)
     } else {
-      // 2순위: DeepL 번역 (주요 품목 외 자유 텍스트)
+      // 2순위: 파파고 번역 (주요 품목 외 자유 텍스트)
       try {
         const translated = await translateText(query, 'ZH', 'KO')
         const translatedStr = typeof translated === 'string' ? translated : (Array.isArray(translated) ? translated[0] : '')
         if (translatedStr && translatedStr !== query) {
           queryZh = translatedStr
-          console.log(`[1688 Search] DeepL: "${query}" → "${queryZh}"`)
+          console.log(`[1688 Search] Papago: "${query}" → "${queryZh}"`)
         }
       } catch (err) {
-        console.warn('[1688 Search] DeepL failed, using original query:', err.message)
+        console.warn('[1688 Search] Translation failed, using original query:', err.message)
         queryZh = query
       }
     }
@@ -1570,10 +1569,10 @@ export async function fetch1688ProductById(offerId) {
 
     // ── 4단계 번역 파이프라인 ───────────────────────────────────────────────
     // 1순위: ZH_KO_COLOR_MAP 고정 사전 (코드 레벨, 비결정성 완전 차단)
-    // 2순위: runtimeColorMap (세션 내 DeepL 결과 누적, 새 색상 일관성)
+    // 2순위: runtimeColorMap (세션 내 번역 결과 누적, 새 색상 일관성)
     // 3순위: memoryTranslationCache + sessionStorage (캐시)
-    // 4순위: DeepL API (위 세 곳 모두 miss인 경우만)
-    // DeepL 번역 결과는 runtimeColorMap에 저장 → 세션 내 재사용
+    // 4순위: 파파고 API (위 세 곳 모두 miss인 경우만)
+    // 번역 결과는 runtimeColorMap에 저장 → 세션 내 재사용
     // ─────────────────────────────────────────────────────────────────────────
     const NEEDS_TRANSLATE_RE = /[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04FF]/
 
@@ -1613,11 +1612,11 @@ export async function fetch1688ProductById(offerId) {
       })
     }
 
-    // 4순위: 아직 중국어/외국어가 남은 텍스트만 DeepL 호출
+    // 4순위: 아직 중국어/외국어가 남은 텍스트만 번역 API 호출
     // ⚠️ 버그 수정 (이전): textsToTranslate 원본 기준으로 필터해서 preApplied 완료 텍스트도
-    //    DeepL로 전송됐음 → ZH_KO_COLOR_MAP 히트여도 DeepL 결과가 덮어쓸 수 있었음.
+    //    번역기로 전송됐음 → ZH_KO_COLOR_MAP 히트여도 번역 결과가 덮어쓸 수 있었음.
     // ✅ 수정 후: preApplied에 이미 등록된 텍스트(= 고정사전·런타임맵·세션캐시 히트)는
-    //    DeepL 호출 대상에서 명시적으로 제외 → 완벽한 일관성 보장.
+    //    번역 API 호출 대상에서 명시적으로 제외 → 완벽한 일관성 보장.
     const uniqueTexts = [...new Set(textsToTranslate.filter(t => {
       if (typeof t !== 'string' || !t.trim()) return false
       if (preApplied[t]) return false  // ← 핵심 수정: 이미 매핑 완료된 텍스트 제외
@@ -1642,7 +1641,7 @@ export async function fetch1688ProductById(offerId) {
           titleKo = transMap[titleZh]
         }
 
-        // skuProps DeepL 결과 적용
+        // skuProps 번역 결과 적용
         parsedSkuProps.forEach(p => {
           if (p.prop && transMap[p.prop]) {
             p.propKo = transMap[p.prop]
@@ -1656,10 +1655,10 @@ export async function fetch1688ProductById(offerId) {
           })
         })
 
-        // parsedSkus DeepL 결과 적용 + runtimeColorMap 누적
+        // parsedSkus 번역 결과 적용 + runtimeColorMap 누적
         parsedSkus.forEach(s => {
           if (s.color && transMap[s.color]) {
-            // 새 색상 DeepL 결과 → 세션 내 일관성을 위해 runtimeColorMap에 저장
+            // 새 색상 번역 결과 → 세션 내 일관성을 위해 runtimeColorMap에 저장
             if (NEEDS_TRANSLATE_RE.test(s.color)) runtimeColorMap[s.color] = transMap[s.color]
             s.color = transMap[s.color]
           }

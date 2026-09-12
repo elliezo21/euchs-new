@@ -1107,7 +1107,7 @@ const activeOrderCount = computed(() => {
 })
 
 // ----------------------------------------------------
-// 1688 Search & DeepL Translation Pipeline
+// 1688 Search & Translation Pipeline
 // ----------------------------------------------------
 const queryInput = ref('')
 const sortOrder = ref('default')

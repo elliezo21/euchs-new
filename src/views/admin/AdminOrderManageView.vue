@@ -1403,6 +1403,7 @@ async function adminRefreshTracking(item, orderId, trackingNo) {
         carrierCode,     // "중통(ZTO)" → "zto", 없으면 '' (자동판별)
       }),
     })
+
     const data = await res.json()
 
     if (data.success) {
@@ -1947,7 +1948,7 @@ async function savePurchasingInfo(item, idx) {
   // ★ chinaTrackingNo 최초 저장 시 快递100 자동 1회 조회 (할당량 절약: 저장 시 1회만)
   if (item.chinaTrackingNo && !item.chinaLogisticsTrace?.length) {
     // 비동기로 호출 — 저장 흐름 블로킹 없이 백그라운드 실행
-    adminRefreshTracking(item, activeOrder.value.id, idx)
+    adminRefreshTracking(item, activeOrder.value.id, item.chinaTrackingNo)
   }
 }
 

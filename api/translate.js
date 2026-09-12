@@ -1,12 +1,11 @@
 /**
- * Vercel Serverless Function: /api/papago-translate (엔드포인트 경로는 /api/deepl-translate 유지)
+ * Vercel Serverless Function: /api/translate
  * 네이버 파파고 NMT API 번역 프록시
  *
  * ⚠️  설계 원칙 (AGENTS.md 준수):
  *   - 실패를 조용히 숨기지 않음 — 키 누락·API 오류 모두 ERROR 레벨 로그 + 응답에 translationErrors 포함
  *   - secret은 서버사이드 환경변수에서만 로드 (클라이언트 번들 미노출)
- *   - 응답 형식은 기존 DeepL 호환 유지: { success, data: { translations: [{text}] }, translationErrors }
- *     → 호출부(api1688.js) 코드 변경 최소화
+ *   - 응답 형식: { success, data: { translations: [{text}] }, translationErrors }
  *
  * 인증 환경변수:
  *   NAVER_PAPAGO_CLIENT_ID      — 네이버 클라우드 API Key ID
@@ -20,64 +19,7 @@
  *   제한   : 1회 호출당 text 1개 (배치 미지원) — Promise.allSettled로 병렬 처리
  */
 
-// ── [구 방식 — DeepL, 주석 보존] ──────────────────────────────────────────
-// DeepL 할당량 초과(2026-09)로 파파고로 교체. 아래 코드는 참고용으로 보존.
-/*
-export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization')
-  if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'POST') return res.status(405).json({ success: false, message: 'Method not allowed' })
-
-  const { text, target_lang, source_lang } = req.body || {}
-  const deeplKey = process.env.DEEPL_API_KEY || process.env.VITE_DEEPL_API_KEY || ''
-
-  if (!deeplKey) {
-    console.error('[deepl-translate] DEEPL_API_KEY 환경변수가 설정되지 않았습니다.')
-    return res.status(500).json({ success: false, message: 'DEEPL_API_KEY 환경변수가 설정되지 않았습니다.' })
-  }
-
-  if (!text || (Array.isArray(text) && text.length === 0)) {
-    return res.status(200).json({ success: true, data: { translations: [] } })
-  }
-
-  const textArray = Array.isArray(text) ? text : [text]
-  const cleanTexts = textArray.map(t => (t ? String(t).trim() : ''))
-
-  try {
-    const isFreeKey = deeplKey.endsWith(':fx')
-    const deeplEndpoint = isFreeKey
-      ? 'https://api-free.deepl.com/v2/translate'
-      : 'https://api.deepl.com/v2/translate'
-
-    const payload = {
-      text: cleanTexts,
-      target_lang: target_lang || 'KO'
-    }
-    if (source_lang) {
-      payload.source_lang = source_lang
-    }
-
-    const response = await fetch(deeplEndpoint, {
-      method: 'POST',
-      headers: {
-        'Authorization': `DeepL-Auth-Key ${deeplKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(payload)
-    })
-
-    const data = await response.json()
-    return res.status(response.status).json({ success: response.ok, data, status: response.status })
-  } catch (err) {
-    console.error('[deepl-translate] Proxy error:', err)
-    return res.status(500).json({ success: false, message: err.message || 'Translation server error' })
-  }
-}
-*/
-
-// ── [신규] 파파고 API 상수 ───────────────────────────────────────────────
+// ── 파파고 API 상수 ───────────────────────────────────────────────
 const PAPAGO_API_URL     = 'https://papago.apigw.ntruss.com/nmt/v1/translation'
 // 파파고 병렬 처리 동시 호출 상한 (Rate Limit 미명시 — 보수적으로 5개)
 const PAPAGO_CONCURRENCY = 5
@@ -161,11 +103,11 @@ export default async function handler(req, res) {
   const textArray  = Array.isArray(text) ? text : [text]
   const cleanTexts = textArray.map(t => (t ? String(t).trim() : ''))
 
-  // ── 언어쌍 결정 (DeepL 형식 KO/ZH → 파파고 형식 ko/zh-CN 변환) ───────
+  // ── 언어쌍 결정 (표준 코드 KO/ZH → 파파고 형식 ko/zh-CN 변환) ───────
   const rawTarget = (target_lang || 'KO').toLowerCase()
   const rawSource = (source_lang || '').toLowerCase()
 
-  // DeepL: ZH → 파파고: zh-CN
+  // ZH → 파파고: zh-CN
   const papagoTarget = rawTarget === 'zh' ? 'zh-CN' : rawTarget
   const papagoSource = rawSource === 'zh' ? 'zh-CN' : (rawSource || 'zh-CN')
 

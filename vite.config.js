@@ -92,13 +92,12 @@ function naverAuthPlugin(env) {
 }
 
 // 1688 DataHub & 파파고 번역 로컬 프록시 미들웨어 플러그인
-// (구 이름: lab-1688-deepl-plugin — DeepL 할당량 초과(2026-09)로 파파고로 교체)
 function lab1688Plugin(env) {
-  // ── [신규] 파파고 API 상수 ──────────────────────────────────────────────
+  // ── 파파고 API 상수 ──────────────────────────────────────────────
   const PAPAGO_API_URL     = 'https://papago.apigw.ntruss.com/nmt/v1/translation'
   const PAPAGO_CONCURRENCY = 5
 
-  // ── [신규] 파파고 단일 텍스트 번역 함수 (로컬 프록시용) ─────────────────
+  // ── 파파고 단일 텍스트 번역 함수 (로컬 프록시용) ─────────────────
   async function callPapagoTranslate(text, clientId, clientSecret, source, target) {
     if (!text || !text.trim()) return null
     const body = new URLSearchParams({ source, target, text: text.trim() })
@@ -134,47 +133,12 @@ function lab1688Plugin(env) {
     name: 'lab-1688-papago-plugin',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
-        // 1. 번역 프록시 (엔드포인트 경로 /api/deepl-translate 유지 — 호출부 무수정)
-        if (req.url?.startsWith('/api/deepl-translate') && req.method === 'POST') {
+        // 1. 번역 프록시 (/api/translate)
+        if (req.url?.startsWith('/api/translate') && req.method === 'POST') {
           let body = ''
           req.on('data', (chunk) => { body += chunk })
           req.on('end', async () => {
-            // ── [구 방식 — DeepL, 주석 보존] ───────────────────────────────
-            // DeepL 할당량 초과(2026-09)로 파파고로 교체. 아래 코드는 참고용 보존.
-            /*
-            try {
-              const { text, target_lang, source_lang } = JSON.parse(body || '{}')
-              const deeplKey = env.DEEPL_API_KEY || env.VITE_DEEPL_API_KEY || process.env.DEEPL_API_KEY || ''
-              if (!deeplKey) {
-                res.statusCode = 500
-                res.setHeader('Content-Type', 'application/json; charset=utf-8')
-                res.end(JSON.stringify({ success: false, message: 'DEEPL_API_KEY가 설정되지 않았습니다.' }))
-                return
-              }
-              const isFreeKey = deeplKey.endsWith(':fx')
-              const deeplEndpoint = isFreeKey
-                ? 'https://api-free.deepl.com/v2/translate'
-                : 'https://api.deepl.com/v2/translate'
-              const response = await fetch(deeplEndpoint, {
-                method: 'POST',
-                headers: { 'Authorization': `DeepL-Auth-Key ${deeplKey}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  text: Array.isArray(text) ? text : [text],
-                  target_lang: target_lang || 'ZH',
-                  ...(source_lang ? { source_lang } : {})
-                })
-              })
-              const data = await response.json()
-              res.statusCode = response.status
-              res.setHeader('Content-Type', 'application/json; charset=utf-8')
-              res.end(JSON.stringify({ success: response.ok, data, status: response.status }))
-            } catch (err) {
-              res.statusCode = 500
-              res.setHeader('Content-Type', 'application/json; charset=utf-8')
-              res.end(JSON.stringify({ success: false, message: err.message }))
-            }
-            */
-            // ── [신규] 파파고 번역 ─────────────────────────────────────────
+            // ── 파파고 번역 ─────────────────────────────────────────
             try {
               const { text, target_lang, source_lang } = JSON.parse(body || '{}')
               const clientId     = env.NAVER_PAPAGO_CLIENT_ID     || process.env.NAVER_PAPAGO_CLIENT_ID     || ''
@@ -198,7 +162,7 @@ function lab1688Plugin(env) {
               const textArray  = Array.isArray(text) ? text : [text]
               const cleanTexts = textArray.map(t => (t ? String(t).trim() : ''))
 
-              // DeepL 언어코드 → 파파고 변환 (ZH → zh-CN, KO → ko)
+              // 언어코드 변환 (ZH → zh-CN, KO → ko)
               const rawTarget    = (target_lang || 'KO').toLowerCase()
               const rawSource    = (source_lang || '').toLowerCase()
               const papagoTarget = rawTarget === 'zh' ? 'zh-CN' : rawTarget
@@ -596,7 +560,6 @@ function lab1688Plugin(env) {
             // 환경변수 주입 (loadEnv → process.env)
             if (!process.env.KUAIDI100_KEY)              process.env.KUAIDI100_KEY              = env.KUAIDI100_KEY              || ''
             if (!process.env.KUAIDI100_CUSTOMER)         process.env.KUAIDI100_CUSTOMER         = env.KUAIDI100_CUSTOMER         || ''
-            if (!process.env.DEEPL_API_KEY)              process.env.DEEPL_API_KEY              = env.DEEPL_API_KEY              || ''
             if (!process.env.NAVER_PAPAGO_CLIENT_ID)     process.env.NAVER_PAPAGO_CLIENT_ID     = env.NAVER_PAPAGO_CLIENT_ID     || ''
             if (!process.env.NAVER_PAPAGO_CLIENT_SECRET) process.env.NAVER_PAPAGO_CLIENT_SECRET = env.NAVER_PAPAGO_CLIENT_SECRET || ''
             const wrappedRes = Object.assign(Object.create(res), {

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Vercel Serverless Function: /api/kuaidi100-track
  * 快递100 실시간 즉시조회 API
  *
@@ -12,9 +12,19 @@
  *
  * 인증: 환경변수에서만 로드 (평문 하드코딩 절대 금지)
  *   - KUAIDI100_KEY, KUAIDI100_CUSTOMER
+ *   - NAVER_PAPAGO_CLIENT_ID, NAVER_PAPAGO_CLIENT_SECRET (번역용)
  */
 
 import crypto from 'crypto'
+
+// ── 파파고 API 상수 (스펙 고정, 실수로 바뀌지 않게 상수 선언) ────────────
+// 공식 문서: https://api.ncloud-docs.com/docs/ai-naver-papagonmt-translation
+const PAPAGO_API_URL     = 'https://papago.apigw.ntruss.com/nmt/v1/translation'
+const PAPAGO_SOURCE_LANG = 'zh-CN'   // 중국어 간체 (※ 'zh'는 N2MT02 오류 발생)
+const PAPAGO_TARGET_LANG = 'ko'      // 한국어
+// 파파고 Text Translation: 1회 호출당 text 하나만 지원 (배치 미지원)
+// 병렬 처리 동시 호출 상한 (문서에 Rate Limit 명시 없음 — 보수적으로 5개 제한)
+const PAPAGO_CONCURRENCY = 5
 
 // 快递100 state 코드 → 한국어 상태 텍스트 매핑
 const STATE_LABEL_MAP = {
@@ -44,40 +54,31 @@ function translateApiMessage(rawMsg) {
   if (m.includes('该单号') && m.includes('已存在')) return '이미 구독 중인 운송장입니다.'
   return `배송 조회 실패 (${m})`
 }
-// ── 快递100 배송 이벤트 중국어 → 한국어 변환 ──────────────────────────────
-// 정규식으로 상태 동사 + 지명을 분리하여 "지명 + 한국어 상태"로 조합
-// 매핑에 없는 패턴은 "배송 진행 중"으로 대체 (원문 중국어 절대 미노출)
-// ※ DeepL 할당량 소진 시 이 함수로 동작 (정규식 기반 폴백)
+
+// ── [구 방식 — 정규식 기반, 주석 처리 보존] ──────────────────────────────
+// 快递100 배송 이벤트 중국어 → 한국어 변환 (정규식/키워드 매칭)
+// 새 문장 패턴이 나올 때마다 누락이 반복되어 파파고 API 방식으로 교체됨
+// 파파고 호출 완전 실패 시 최후 폴백으로 참고 가능
+/*
 function translateTraceContext(ctx) {
   if (!ctx) return '배송 진행 중'
   const s = ctx.trim()
 
-  // ── 헬퍼: 지명 추출 ────────────────────────────────────────────────────
-  // 패턴:
-  //   【金华市】快件已到达 浙江义乌市...  → 【金华市】
-  //   快件已到达 广东惠州中转中心，...   → 到达 뒤 한자 추출
-  //   전화번호(【0573-88931111】)는 지명이 아님 → 제외
   function extractLoc(text) {
     const m = text.match(/【(.+?)】/) || text.match(/\[(.+?)\]/)
     if (m) {
       const c = m[1]
-      // 전화번호(숫자·하이픈·괄호만)는 지명이 아님
       if (/^[\d\-（()）\s]+$/.test(c)) return null
       return c.slice(0, 6)
     }
-    // 已到达/已发往 뒤 한자 지명
     const m2 = text.match(/(?:已到达|到达|已发往|发往)\s*([\u4e00-\u9fff]{2,10})/)
     if (m2) return m2[1].slice(0, 6)
     return null
   }
 
-  // ── [신규] "출발지 → 목적지" 화살표 경로형 ───────────────────────────
-  // 예: "义乌集散中心 → 浙江省金华市青岩刘村转运中心"
-  //     "[义乌] → 浙江省杭州市" 등
   if (s.includes('→')) {
     const parts = s.split('→').map(p => p.trim())
     if (parts.length === 2) {
-      // 각 부분에서 한자 지명 추출 (최대 6글자)
       const fromRaw = parts[0].replace(/【|】|\[|\]/g, '').replace(/[\d\-\s（()）]+/g, '').trim()
       const toRaw   = parts[1].replace(/【|】|\[|\]/g, '').replace(/[\d\-\s（()）]+/g, '').trim()
       const from = fromRaw.match(/([\u4e00-\u9fff]{2,10})/)?.[1]?.slice(0, 6) || ''
@@ -92,7 +93,6 @@ function translateTraceContext(ctx) {
   const loc = extractLoc(s)
   const locLabel = loc ? `[${loc}] ` : ''
 
-  // ── 주요 상태 동사 매핑 (구체적인 것 먼저) ────────────────────────────
   if (s.includes('已签收') || s.includes('签收'))    return `${locLabel}수령 완료`
   if (s.includes('已投递') || s.includes('正在派送') || s.includes('派送中') || s.includes('派件'))
                                                      return `${locLabel}배달 중`
@@ -120,21 +120,102 @@ function translateTraceContext(ctx) {
   if (s.includes('分拣'))                             return `${locLabel}분류 처리`
   if (s.includes('在途'))                             return `${locLabel}이동 중`
 
-  // ── [신규] 상태 키워드 없이 순수 주소/지명만 나열된 경우 ──────────────
-  // 예: "河北省邢台市南宫市东区..."
-  // 문장 전체에서 첫 번째 한자 지명 덩어리를 추출해 "OOO 경유"로 표시
   if (/[\u4e00-\u9fff]/.test(s)) {
     const addrMatch = s.match(/([\u4e00-\u9fff\s]{4,20})/)
     if (addrMatch) {
       const addrLabel = addrMatch[1].trim().slice(0, 8)
       return `[${addrLabel}] 경유`
     }
-    // 한자는 있지만 추출 실패 시 중립 폴백
     return loc ? `${locLabel}경유` : '배송 진행 중'
   }
 
-  // 한국어/영어/숫자만 있는 경우 그대로
   return s.slice(0, 20) || '배송 진행 중'
+}
+*/
+
+// ── [신규] 네이버 파파고 API — 단일 텍스트 번역 ──────────────────────────
+// 공식 스펙:
+//   URL    : https://papago.apigw.ntruss.com/nmt/v1/translation (POST)
+//   헤더   : x-ncp-apigw-api-key-id (Client ID), x-ncp-apigw-api-key (Client Secret)
+//   바디   : source=zh-CN & target=ko & text=...  (application/x-www-form-urlencoded)
+//   응답   : { message: { result: { translatedText: "..." } } }
+//   배치   : 미지원 — text 파라미터는 단수 String (호출당 최대 5,000자)
+// 실패 시 null 반환 (호출측에서 폴백 처리)
+async function callPapagoTranslate(text, clientId, clientSecret) {
+  if (!text || !text.trim()) return null
+
+  const body = new URLSearchParams({
+    source: PAPAGO_SOURCE_LANG,
+    target: PAPAGO_TARGET_LANG,
+    text:   text.trim(),
+  })
+
+  try {
+    const res = await fetch(PAPAGO_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type':           'application/x-www-form-urlencoded',
+        'x-ncp-apigw-api-key-id': clientId,
+        'x-ncp-apigw-api-key':    clientSecret,
+      },
+      body: body.toString(),
+    })
+
+    if (!res.ok) {
+      const errText = await res.text().catch(() => '')
+      console.warn(`[papago] HTTP ${res.status} — ${errText.slice(0, 200)}`)
+      return null
+    }
+
+    const data = await res.json()
+    const translated = data?.message?.result?.translatedText
+    if (!translated) {
+      console.warn('[papago] 응답에 translatedText 없음:', JSON.stringify(data).slice(0, 200))
+      return null
+    }
+    return translated
+  } catch (err) {
+    console.warn('[papago] fetch 오류:', err.message)
+    return null
+  }
+}
+
+// ── [신규] 배송 이력 전체 병렬 번역 ─────────────────────────────────────
+// 배치 미지원이므로 Promise.allSettled로 병렬 처리
+// PAPAGO_CONCURRENCY(5)개씩 묶어 순차 처리 → 과도한 동시 요청 방지
+// 개별 실패 항목 → '배송 진행 중' 폴백 (나머지는 정상 처리)
+async function translateTracesWithPapago(rawContexts, clientId, clientSecret) {
+  const results = new Array(rawContexts.length).fill('배송 진행 중')
+
+  // 빈 항목 인덱스 건너뜀
+  const validIndices = rawContexts
+    .map((ctx, i) => ({ ctx, i }))
+    .filter(({ ctx }) => ctx && ctx.trim())
+
+  console.log(`[papago] 번역 시작: 총 ${validIndices.length}건 (청크=${PAPAGO_CONCURRENCY})`)
+
+  // PAPAGO_CONCURRENCY개씩 청크 분할
+  for (let start = 0; start < validIndices.length; start += PAPAGO_CONCURRENCY) {
+    const chunk = validIndices.slice(start, start + PAPAGO_CONCURRENCY)
+
+    const settled = await Promise.allSettled(
+      chunk.map(({ ctx }) => callPapagoTranslate(ctx, clientId, clientSecret))
+    )
+
+    settled.forEach((result, j) => {
+      const { i } = chunk[j]
+      if (result.status === 'fulfilled' && result.value) {
+        results[i] = result.value
+      } else {
+        // 개별 실패 — 중국어 원문 미노출, 중립 폴백
+        console.warn(`[papago] idx=${i} 번역 실패, 폴백 사용. reason=`, result.reason?.message || result.value)
+        results[i] = '배송 진행 중'
+      }
+    })
+  }
+
+  console.log(`[papago] 번역 완료: ${results.filter(r => r !== '배송 진행 중').length}/${validIndices.length}건 성공`)
+  return results
 }
 
 
@@ -178,7 +259,7 @@ export default async function handler(req, res) {
     yt:        'yuantong',
   }
   const rawCode = (carrierCode && String(carrierCode).trim().toLowerCase()) || ''
-  const comCode = CARRIER_CODE_MAP[rawCode] || rawCode  // 매핑 있으면 변환, 없으면 그대로
+  const comCode = CARRIER_CODE_MAP[rawCode] || rawCode
 
   // ── 환경변수에서만 인증정보 로드 ─────────────────────────────────────
   const KEY      = process.env.KUAIDI100_KEY      || ''
@@ -196,8 +277,16 @@ export default async function handler(req, res) {
     })
   }
 
+  // ── 파파고 인증정보 로드 ──────────────────────────────────────────────
+  const PAPAGO_CLIENT_ID     = process.env.NAVER_PAPAGO_CLIENT_ID     || ''
+  const PAPAGO_CLIENT_SECRET = process.env.NAVER_PAPAGO_CLIENT_SECRET || ''
+  const papagoAvailable = !!(PAPAGO_CLIENT_ID && PAPAGO_CLIENT_SECRET)
+
+  if (!papagoAvailable) {
+    console.warn('[kuaidi100-track] ⚠️ NAVER_PAPAGO_CLIENT_ID / NAVER_PAPAGO_CLIENT_SECRET 미설정 — 번역 폴백 모드')
+  }
+
   // ── param JSON 조립 ───────────────────────────────────────────────────
-  // com: 제공된 택배사 코드 우선, 없으면 '' (자동판별)
   const paramObj = {
     com:      comCode,
     num:      trackingNoStr,
@@ -206,15 +295,14 @@ export default async function handler(req, res) {
   }
   const paramStr = JSON.stringify(paramObj)
 
-  // ── MD5 서명 생성 (서버사이드 전용, 클라이언트 미노출) ────────────────
-  // sign = MD5(param + KEY + customer).toUpperCase()
+  // ── MD5 서명 생성 ─────────────────────────────────────────────────────
   const sign = crypto
     .createHash('md5')
     .update(paramStr + KEY + CUSTOMER)
     .digest('hex')
     .toUpperCase()
 
-  // ── 요청 Body (application/x-www-form-urlencoded 필수!) ───────────────
+  // ── 요청 Body ─────────────────────────────────────────────────────────
   const formBody = new URLSearchParams({
     customer: CUSTOMER,
     sign,
@@ -222,9 +310,10 @@ export default async function handler(req, res) {
   })
 
   console.log('[kuaidi100-track] 조회 시작:', {
-    num: trackingNoStr.slice(0, 6) + '***',
-    com: comCode || '(자동판별)',
-    timestamp: new Date().toISOString(),
+    num:            trackingNoStr.slice(0, 6) + '***',
+    com:            comCode || '(자동판별)',
+    papagoAvailable,
+    timestamp:      new Date().toISOString(),
   })
 
   // ── 10초 타임아웃 ─────────────────────────────────────────────────────
@@ -269,7 +358,7 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── 응답 로그 (운송장번호 앞 6자리만 노출) ────────────────────────────
+  // ── 응답 로그 ─────────────────────────────────────────────────────────
   console.log('[kuaidi100-track] 快递100 응답:', {
     num:       trackingNoStr.slice(0, 6) + '***',
     status:    raw?.status,
@@ -283,7 +372,6 @@ export default async function handler(req, res) {
   // ── 실패 판정 ─────────────────────────────────────────────────────────
   if (!raw || raw.status !== '200') {
     const rawMsg = raw?.message || ''
-    // 알려진 快递100 오류 메시지 → 한국어 매핑
     const msg = translateApiMessage(rawMsg)
     console.warn('[kuaidi100-track] ❌ API 실패:', { status: raw?.status, message: rawMsg })
     return res.status(200).json({
@@ -306,11 +394,22 @@ export default async function handler(req, res) {
   const stateStr   = String(raw.state ?? '0')
   const statusText = STATE_LABEL_MAP[stateStr] || '배송중'
 
-  // traces: 快递100 응답은 최신순(index 0 = 가장 최근)
-  // context는 정규식 기반 번역 함수로 한국어 변환 (원문 중국어 미노출)
-  const traces = raw.data.map(d => ({
+  // ── 파파고 번역 (배치 미지원 → Promise.allSettled 병렬 처리) ──────────
+  const rawContexts = raw.data.map(d => d.context || '')
+
+  let translatedContexts
+  if (papagoAvailable) {
+    translatedContexts = await translateTracesWithPapago(
+      rawContexts, PAPAGO_CLIENT_ID, PAPAGO_CLIENT_SECRET
+    )
+  } else {
+    // 파파고 미설정: 중국어 원문 미노출, 전부 폴백
+    translatedContexts = rawContexts.map(() => '배송 진행 중')
+  }
+
+  const traces = raw.data.map((d, i) => ({
     time:       d.time     || d.ftime || '',
-    context:    translateTraceContext(d.context || ''),
+    context:    translatedContexts[i] || '배송 진행 중',
     contextRaw: d.context  || '',   // 디버그용 원문 보존 (화면에 미표시)
     location:   d.location || '',
   }))
@@ -321,7 +420,8 @@ export default async function handler(req, res) {
     state:             stateStr,
     statusText,
     traceCount:        traces.length,
-    contextRawSamples: raw.data.slice(0, 3).map(d => d.context),
+    papagoUsed:        papagoAvailable,
+    translatedSamples: traces.slice(0, 3).map(t => t.context),
     timestamp:         new Date().toISOString(),
   })
 
