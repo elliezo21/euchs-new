@@ -1394,7 +1394,66 @@ const extract1688Items = (res) => {
  * - sessionStorage 캐시(당일) 있으면 → 즉시 렌더 (API 0회)
  * - localStorage 날짜 캐시 있으면 → 즉시 렌더 (API 0회)
  * - 캐시 없음 → 섹션당 1회 API (총 4회) 후 sessionStorage + localStorage에 이중 저장
+ * - 오염된 캐시(한자 포함 titleKo) 감지 시 캐시 무시 → API 재호출 후 재번역
  */
+
+// 한자 포함 여부 판별 (번역 실패 감지용)
+const HAS_CJK_RE = /[\u4e00-\u9fff\u3400-\u4dbf]/
+
+/**
+ * 섹션 배열에 오염된 캐시(번역 실패 → 한자 남은) 항목이 있는지 검사
+ * @param {Array} sections
+ * @returns {boolean} true = 오염됨
+ */
+const isCacheCorrupted = (sections) => {
+  if (!Array.isArray(sections)) return true
+  for (const sec of sections) {
+    if (!sec.items || sec.items.length === 0) continue
+    for (const item of sec.items) {
+      const ko = item.titleKo || item.title || ''
+      if (HAS_CJK_RE.test(ko)) return true // 한자 남아있으면 오염
+    }
+  }
+  return false
+}
+
+/**
+ * 섹션 내 미번역 항목(titleKo === titleZh 또는 한자 포함)을 백그라운드 재번역
+ * translateItemsBatch()가 items 배열을 직접 변경 → Vue 반응성으로 카드 자동 갱신
+ */
+const retranslateCorruptedSections = (sections) => {
+  const untranslated = []
+  sections.forEach(sec => {
+    if (!sec.items) return
+    sec.items.forEach(item => {
+      const ko = item.titleKo || item.title || ''
+      if (HAS_CJK_RE.test(ko) || ko === item.titleZh) {
+        untranslated.push(item)
+      }
+    })
+  })
+  if (untranslated.length === 0) return
+  console.log(`[Mall] 오염된 캐시 재번역 백그라운드 시작: ${untranslated.length}건`)
+  translateItemsBatch(untranslated).then(() => {
+    // translateItemsBatch가 item.titleKo / item.title을 직접 변경하므로
+    // Vue 반응성이 자동으로 카드 제목을 갱신함
+    // 번역 완료 후 정상 캐시로 덮어쓰기
+    const today = new Date().toISOString().slice(0, 10)
+    const cacheKey = getTodayCacheKey()
+    const currentSections = homeSections.value
+    if (!isCacheCorrupted(currentSections)) {
+      try {
+        sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(currentSections))
+        sessionStorage.setItem(SESSION_CACHE_DATE_KEY, today)
+        localStorage.setItem(cacheKey, JSON.stringify(currentSections))
+        console.log('[Mall] 재번역 완료 — 정상 캐시로 갱신 완료')
+      } catch (e) {}
+    }
+  }).catch(err => {
+    console.warn('[Mall] 백그라운드 재번역 실패 (원문 유지):', err.message)
+  })
+}
+
 const loadHomeSections = async () => {
   if (hasSearched.value || isHomeSectionsLoading.value) return
 
@@ -1409,7 +1468,17 @@ const loadHomeSections = async () => {
       const parsed = JSON.parse(cachedRaw)
       const hasRealItems = Array.isArray(parsed) && parsed.some(sec => sec.items && sec.items.length > 0)
       if (hasRealItems) {
-        homeSections.value = parsed
+        if (isCacheCorrupted(parsed)) {
+          // 오염된 캐시: 화면에 먼저 원문 표시 후 백그라운드 재번역
+          console.warn('[Mall] sessionStorage 캐시 오염 감지(한자 포함) — 백그라운드 재번역 시작')
+          homeSections.value = parsed
+          sessionStorage.removeItem(SESSION_CACHE_KEY)
+          sessionStorage.removeItem(SESSION_CACHE_DATE_KEY)
+          localStorage.removeItem(cacheKey)
+          retranslateCorruptedSections(homeSections.value)
+        } else {
+          homeSections.value = parsed
+        }
         return
       }
     }
@@ -1424,6 +1493,14 @@ const loadHomeSections = async () => {
         parsed.some(sec => sec.items && sec.items.length > 0 &&
           sec.items[0]?.imageUrl && !sec.items[0].imageUrl.includes('images.unsplash.com'))
       if (hasRealProducts) {
+        if (isCacheCorrupted(parsed)) {
+          // 오염된 캐시: 화면에 먼저 원문 표시 후 백그라운드 재번역
+          console.warn('[Mall] localStorage 캐시 오염 감지(한자 포함) — 백그라운드 재번역 시작')
+          homeSections.value = parsed
+          localStorage.removeItem(cacheKey)
+          retranslateCorruptedSections(homeSections.value)
+          return
+        }
         homeSections.value = parsed
         try {
           sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(parsed))
@@ -1525,9 +1602,10 @@ const loadHomeSections = async () => {
   homeSections.value = results
   isHomeSectionsLoading.value = false
 
-  // 실시간 상품이 있는 경우 sessionStorage + localStorage 이중 캐싱
+  // 번역 성공 검증 후 캐시 저장 — 한자 남은 항목이 하나라도 있으면 저장 안 함
+  // (이전 버그: 번역 실패 상태도 그대로 캐시에 저장 → 이후 진입 시 중국어 노출 반복)
   const hasRealItems = results.some(sec => sec.items && sec.items.length > 0)
-  if (hasRealItems) {
+  if (hasRealItems && !isCacheCorrupted(results)) {
     try {
       sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(results))
       sessionStorage.setItem(SESSION_CACHE_DATE_KEY, today)
@@ -1535,6 +1613,12 @@ const loadHomeSections = async () => {
     try {
       localStorage.setItem(cacheKey, JSON.stringify(results))
     } catch (e) {}
+    console.log('[Mall] 번역 성공 검증 완료 — 홈 섹션 캐시 저장')
+  } else if (hasRealItems) {
+    // 일부 미번역 항목 존재: 화면에는 표시하되 캐시에는 저장하지 않음
+    // 미번역 항목 백그라운드 재시도
+    console.warn('[Mall] 일부 번역 실패(한자 잔존) — 캐시 저장 보류, 백그라운드 재번역 시작')
+    retranslateCorruptedSections(results)
   }
 }
 
