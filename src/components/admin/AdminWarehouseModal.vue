@@ -1306,10 +1306,20 @@ function _emitCameraSnapshot() {
 }
 
 async function triggerItemPhotoCamera(idx) {
+  // [임시 진단] 화면에서 직접 확인용 — 확인 후 제거 예정
+  try {
+    const capVal = typeof window.Capacitor !== 'undefined'
+      ? window.Capacitor.isNativePlatform()
+      : 'Capacitor객체없음';
+    alert('[진단] native=' + capVal);
+  } catch (e) {
+    alert('[진단 에러] ' + e.message);
+  }
   // [진단] 함수 진입 + 플랫폼 확인
   const isNative = Capacitor.isNativePlatform();
   const capPlatform = Capacitor.getPlatform();
   console.log('[CAM-DIAG] triggerItemPhotoCamera called, idx=', idx, 'isNative=', isNative, 'platform=', capPlatform);
+
 
   if (isNative) {
     // 네이티브 앱: @capacitor/camera 플러그인 사용
