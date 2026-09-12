@@ -63,11 +63,23 @@
         </div>
         <div class="w-full space-y-2">
           <div v-if="scanHistory.length === 0" class="text-center py-6 text-slate-500 text-xs"><i class="fas fa-clock-rotate-left text-2xl mb-2 block"></i>스캔 이력이 없습니다</div>
-          <div v-for="(item, idx) in scanHistory" :key="idx" class="flex items-center gap-3 px-4 py-3 rounded-xl border text-xs font-mono" :class="item.success ? 'bg-teal-900/30 border-teal-700/40 text-teal-300' : 'bg-rose-900/30 border-rose-700/40 text-rose-400'">
-            <i :class="item.success ? 'fas fa-check-circle text-teal-400' : 'fas fa-times-circle text-rose-400'"></i>
+          <div
+            v-for="(item, idx) in scanHistory" :key="idx"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl border text-xs font-mono transition-all"
+            :class="[
+              item.success ? 'bg-teal-900/30 border-teal-700/40 text-teal-300' : 'bg-rose-900/30 border-rose-700/40 text-rose-400',
+              item.success && item.order ? 'cursor-pointer active:scale-95 active:brightness-110' : ''
+            ]"
+            @click="reopenHistory(item)"
+          >
+            <i :class="item.success ? 'fas fa-check-circle text-teal-400 flex-shrink-0' : 'fas fa-times-circle text-rose-400 flex-shrink-0'"></i>
             <span class="flex-1 truncate">{{ item.trackingNo }}</span>
-            <span class="text-[10px] opacity-60">{{ item.time }}</span>
-            <span v-if="item.success" class="text-[10px] text-teal-400 font-bold">{{ item.orderNo }}</span>
+            <!-- 우측: 시각 / 주문번호 / 고객명 세로 스택 -->
+            <div class="flex-shrink-0 text-right leading-tight space-y-0.5">
+              <div class="text-[10px] opacity-60">{{ item.time }}</div>
+              <div v-if="item.success && item.orderNo" class="text-[10px] text-teal-400 font-bold">{{ item.orderNo }}</div>
+              <div v-if="item.customerName" class="text-[9px] text-slate-400 max-w-[80px] truncate">{{ item.customerName }}</div>
+            </div>
           </div>
         </div>
       </div>
@@ -159,7 +171,7 @@ async function handleScan() {
     }
 
     scanStatus.value = 'success';
-    addHistory(trackingNo, true, matchedOrder.orderNumber || matchedOrder.id);
+    addHistory(trackingNo, true, matchedOrder.orderNumber || matchedOrder.id, matchedOrder);
     openWarehouseModal(matchedOrder);
 
   } catch (err) {
@@ -328,12 +340,20 @@ async function stopCamera() {
 // ── 유틸 ──────────────────────────────────────────────────────
 function clearInput() { scanInput.value = ''; scanStatus.value = 'idle'; errorMessage.value = ''; }
 
-function addHistory(trackingNo, success, orderNo) {
+function addHistory(trackingNo, success, orderNo, order = null) {
   const now = new Date();
   const time = `${String(now.getHours()).padStart(2,'0')}:${String(now.getMinutes()).padStart(2,'0')}:${String(now.getSeconds()).padStart(2,'0')}`;
-  scanHistory.value.unshift({ trackingNo, success, orderNo, time });
+  const customerName = order?.buyerInfo?.companyName || order?.buyerInfo?.buyerName || order?.buyerName || '';
+  scanHistory.value.unshift({ trackingNo, success, orderNo, time, customerName, order });
   if (scanHistory.value.length > 5) scanHistory.value.pop();
 }
+
+// 이력 항목 클릭 → 해당 주문 모달 재오픈
+function reopenHistory(item) {
+  if (!item.success || !item.order) return;
+  openWarehouseModal(item.order);
+}
+
 
 function showToast(message, type = 'success', durationMs = 4000) {
   if (_toastTimer) clearTimeout(_toastTimer);
