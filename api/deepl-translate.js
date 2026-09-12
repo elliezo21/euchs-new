@@ -166,33 +166,30 @@ export default async function handler(req, res) {
 
   console.log(`[papago-translate] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget}`)
 
-  // ── PAPAGO_CONCURRENCY개씩 청크 분할 병렬 번역 ────────────────────────
+  // ── 순차 실행 + 실패 시 1회 재시도 ──────────────────────────────────────
+  // Vercel 환경에서 Promise.allSettled 병렬 호출 시 간헐적 fetch 실패 확인됨(2026-09).
+  // 파파고는 배치 미지원(호출당 1건)이므로 순차 처리해도 충분.
+  // 실패 항목은 1회 재시도 후에도 실패 시에만 원문 반환.
   const translations    = new Array(cleanTexts.length)
   let   translationErrors = 0
 
-  for (let start = 0; start < cleanTexts.length; start += PAPAGO_CONCURRENCY) {
-    const chunk = cleanTexts.slice(start, start + PAPAGO_CONCURRENCY)
+  for (let i = 0; i < cleanTexts.length; i++) {
+    const t = cleanTexts[i]
+    let result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
 
-    const settled = await Promise.allSettled(
-      chunk.map(t => callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget))
-    )
+    // 실패 시 1회 재시도 (네트워크 간헐적 오류 대응)
+    if (!result) {
+      console.warn(`[papago-translate] ⚠️ 항목[${i}] 1차 실패, 재시도...`)
+      result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
+    }
 
-    settled.forEach((result, j) => {
-      const origIdx = start + j
-      const origText = cleanTexts[origIdx]
-
-      if (result.status === 'fulfilled' && result.value) {
-        translations[origIdx] = { text: result.value }
-      } else {
-        // 개별 실패 — 원문 반환 + 에러 카운터 증가
-        translationErrors++
-        console.error(
-          `[papago-translate] ❌ 항목[${origIdx}] 번역 실패, 원문 반환. reason=`,
-          result.reason?.message || result.value || '(null 반환)'
-        )
-        translations[origIdx] = { text: origText }
-      }
-    })
+    if (result) {
+      translations[i] = { text: result }
+    } else {
+      translationErrors++
+      console.error(`[papago-translate] ❌ 항목[${i}] 재시도 후에도 실패, 원문 반환: "${t.slice(0, 20)}"`)
+      translations[i] = { text: t }
+    }
   }
 
   // 전체 실패 여부 판정
