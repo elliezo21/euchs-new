@@ -1311,10 +1311,12 @@ async function triggerItemPhotoCamera(idx) {
     const capVal = typeof window.Capacitor !== 'undefined'
       ? window.Capacitor.isNativePlatform()
       : 'Capacitor객체없음';
-    alert('[진단] native=' + capVal);
+    const pluginKeys = Object.keys(window.Capacitor?.Plugins || {}).join(',') || '없음';
+    alert('[진단] native=' + capVal + '\n등록플러그인: ' + pluginKeys);
   } catch (e) {
     alert('[진단 에러] ' + e.message);
   }
+
 
   const isNative = Capacitor.isNativePlatform();
   const capPlatform = Capacitor.getPlatform();
