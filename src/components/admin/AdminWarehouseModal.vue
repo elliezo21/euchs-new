@@ -933,8 +933,7 @@ import { currentSettings, fetchSiteSettings } from '../../lib/settings';
 import { VAS_OPTIONS_MAP } from '../../utils/vasOptions';
 import { INSPECTION_NOTE_OPTIONS, findOptionIdByText } from '../../utils/inspectionNoteOptions';
 // Capacitor 네이티브 카메라 분기 (네이티브 앱에서만 Camera 플러그인 사용)
-import { Capacitor } from '@capacitor/core';
-import { Camera, CameraResultType, CameraSource } from '@capacitor/camera';
+
 
 
 
@@ -1305,87 +1304,16 @@ function _emitCameraSnapshot() {
   });
 }
 
-async function triggerItemPhotoCamera(idx) {
-  // [임시 진단] 화면에서 직접 확인용 — 확인 후 제거 예정
-  try {
-    const capVal = typeof window.Capacitor !== 'undefined'
-      ? window.Capacitor.isNativePlatform()
-      : 'Capacitor객체없음';
-    const pluginKeys = Object.keys(window.Capacitor?.Plugins || {}).join(',') || '없음';
-    alert('[진단] native=' + capVal + '\n등록플러그인: ' + pluginKeys);
-  } catch (e) {
-    alert('[진단 에러] ' + e.message);
+function triggerItemPhotoCamera(idx) {
+  // 네이티브/웹 공통 — HTML5 input capture 방식 (capture="environment")
+  // 네이티브 앱 WebView에서도 동일하게 작동, 탭 리로드 없이 파일 선택 트리거
+  const el = itemPhotoCameraRefs.value[idx];
+  if (el) {
+    _emitCameraSnapshot();
+    el.click();
   }
-
-  const isNative = Capacitor.isNativePlatform();
-  console.log('[CAM-DIAG] isNative=', isNative);
-
-  if (isNative) {
-    try {
-      // 호출 시점에 직접 window.Capacitor.Plugins.Camera 접근
-      // (모듈 로드 시 web fallback 바인딩 타이밍 문제 우회)
-      const NativeCamera = window.Capacitor?.Plugins?.Camera;
-      alert('[단계1] NativeCamera존재=' + (!!NativeCamera) + ', type=' + (typeof NativeCamera));
-
-      if (!NativeCamera) {
-        alert('[오류] window.Capacitor.Plugins.Camera 없음 — 네이티브 플러그인 미등록');
-        return;
-      }
-
-      // 권한 체크
-      const permStatus = await NativeCamera.checkPermissions();
-      alert('[단계1] 권한체크결과: ' + JSON.stringify(permStatus));
-
-      if (permStatus.camera !== 'granted') {
-        alert('[단계2] 권한없음 → requestPermissions 호출');
-        const reqResult = await NativeCamera.requestPermissions({ permissions: ['camera'] });
-        alert('[단계2] 권한요청결과: ' + JSON.stringify(reqResult));
-        if (reqResult.camera !== 'granted') {
-          alert('[단계2] 권한 거부됨 → 종료');
-          return;
-        }
-      }
-
-      // getPhoto 호출 — 리터럴 값 사용 (CameraResultType.Uri='uri', CameraSource.Camera='CAMERA')
-      alert('[단계3] getPhoto 호출 시작');
-      let photo;
-      try {
-        photo = await NativeCamera.getPhoto({
-          resultType: 'uri',
-          source: 'CAMERA',
-          quality: 80,
-        });
-        alert('[단계3] getPhoto 완료: webPath=' + photo?.webPath);
-      } catch (photoErr) {
-        alert('[단계3] getPhoto 에러: ' + (photoErr?.message || photoErr?.code || JSON.stringify(photoErr)));
-        return;
-      }
-
-      if (photo?.webPath) {
-        const response = await fetch(photo.webPath);
-        const blob = await response.blob();
-        const file = new File([blob], `arrival_${Date.now()}.jpg`, { type: 'image/jpeg' });
-        await _uploadPhotosToItem([file], idx);
-      }
-    } catch (err) {
-      alert('[전체catch] 에러: ' + (err?.message || err?.code || JSON.stringify(err)));
-      if (err?.message !== 'User cancelled photos app') {
-        console.error('[CAM-DIAG] 네이티브 카메라 오류:', err?.message || err);
-      }
-    }
-  } else {
-    // 웹/PWA: 기존 input capture 방식 100% 유지 (절대 삭제 금지)
-    console.log('[CAM-DIAG] 웹 분기 → input.click()');
-    const el = itemPhotoCameraRefs.value[idx];
-    if (el) {
-      _emitCameraSnapshot();
-      el.click();
-    } else {
-      console.warn('[CAM-DIAG] itemPhotoCameraRefs[idx] 없음, idx=', idx);
-    }
-  }
-
 }
+
 
 
 
