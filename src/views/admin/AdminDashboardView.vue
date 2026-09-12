@@ -2,6 +2,48 @@
   <div class="space-y-5 select-none">
 
     <!-- ======================================================== -->
+    <!-- 0. 번역 서비스 상태 배지 (번역 실패 시 관리자에게 가시적 알림) -->
+    <!-- translationStatus.checked: 번역이 최소 1회 시도된 후에만 표시  -->
+    <!-- ======================================================== -->
+    <div
+      v-if="translationStatus.checked"
+      :class="[
+        'flex items-center justify-between gap-3 px-4 py-2 rounded-xl border text-xs font-medium shadow-xs',
+        translationStatus.ok
+          ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900'
+          : 'bg-red-50/80 border-red-300 text-red-900 animate-pulse'
+      ]"
+    >
+      <div class="flex items-center gap-2">
+        <span :class="['w-2 h-2 rounded-full shrink-0', translationStatus.ok ? 'bg-emerald-500' : 'bg-red-500']"></span>
+        <span class="font-bold">번역 서비스</span>
+        <span :class="translationStatus.ok ? 'text-emerald-700' : 'text-red-700'">
+          {{ translationStatus.ok ? '정상' : '⚠️ 번역 오류 — 원문 표시 중' }}
+        </span>
+        <span v-if="!translationStatus.ok && translationStatus.errorMsg" class="text-red-600 font-mono text-[11px] hidden sm:inline">
+          ({{ translationStatus.errorMsg.slice(0, 60) }})
+        </span>
+      </div>
+      <div class="flex items-center gap-3">
+        <span v-if="!translationStatus.ok" class="text-[11px] text-red-500 font-mono hidden md:inline">
+          누적 실패 {{ translationStatus.totalErrors }}회
+        </span>
+        <button
+          v-if="!translationStatus.ok"
+          type="button"
+          @click="resetTranslation"
+          class="text-[11px] text-red-700 hover:text-red-900 underline font-bold cursor-pointer"
+          title="번역 오류 상태 초기화"
+        >
+          상태 초기화
+        </button>
+        <span class="text-[11px] opacity-50 font-mono hidden sm:inline">
+          {{ translationStatus.ok ? (translationStatus.successAt ? formatDate(translationStatus.successAt) : '') : (translationStatus.errorAt ? formatDate(translationStatus.errorAt) : '') }}
+        </span>
+      </div>
+    </div>
+
+    <!-- ======================================================== -->
     <!-- 1. 최상단 시스템 공지 롤링/슬림 배너 (스마트스토어 센터 형태) -->
     <!-- ======================================================== -->
     <div v-if="urgentNotice" class="bg-amber-50/80 border border-amber-200/80 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-amber-900 shadow-xs">
@@ -295,6 +337,12 @@ import { RefreshCw, ChevronRight } from 'lucide-vue-next';
 import { getStoredOrders, fetchOrdersFromSupabase } from '@/utils/orderStorage';
 import { normalizeOrderStatus } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { translationStatus, resetTranslationStatus } from '@/services/translationStatus';
+
+// 번역 오류 상태 초기화 (관리자 수동 리셋)
+function resetTranslation() {
+  resetTranslationStatus()
+}
 
 
 const isNoticeExpanded = ref(false);

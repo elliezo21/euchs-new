@@ -485,7 +485,8 @@ const saveToCache = (cacheMap, storageKey, key, data) => {
 }
 
 /**
- * DeepL 텍스트 번역 함수 (개별 캐시 확인 ➔ 미번역 텍스트 일괄 번역 ➔ 캐시 저장)
+ * 파파고 텍스트 번역 함수 (개별 캐시 확인 ➔ 미번역 텍스트 일괄 번역 ➔ 캐시 저장)
+ * (구 이름: DeepL 텍스트 번역 함수 — DeepL 할당량 초과(2026-09)로 파파고로 교체)
  * @param {string|string[]} text - 번역할 텍스트 또는 텍스트 배열
  * @param {string} targetLang - 대상 언어 ('KO' | 'ZH' | 'EN' 등)
  * @param {string} [sourceLang] - 출발 언어 (선택 사항)
@@ -529,13 +530,17 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
     return isArray ? results : results[0]
   }
 
-  // 2. 미번역 텍스트 일괄 DeepL 번역 실행
+  // 2. 미번역 텍스트 일괄 파파고 번역 실행
+  // Vercel Serverless / Vite Dev Server 프록시 단일 번역 파이프라인 (/api/deepl-translate 경로 유지)
   let translatedBatch = null
+  let apiErrorReason  = null
 
-  // 2. Vercel Serverless / Vite Dev Server 프록시 단일 번역 파이프라인 (/api/deepl-translate)
   try {
+    // translationStatus lazy import — 순환 의존 방지 및 SSR/Node 환경 안전
+    const { markTranslationSuccess, markTranslationError } = await import('./translationStatus.js')
+
     const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 8000) // 8초 타임아웃
+    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     const proxyRes = await fetch('/api/deepl-translate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -552,18 +557,39 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
       const result = await proxyRes.json()
       if (result.success && result.data?.translations) {
         translatedBatch = result.data.translations.map((item, idx) => item.text || missingTexts[idx])
+
+        // ── 실패 감지: translationErrors > 0 이면 부분 실패로 기록 ──────
+        if (result.translationErrors > 0) {
+          apiErrorReason = `파파고 부분 실패 — ${result.translationErrors}/${missingTexts.length}건 원문 반환 중`
+          console.error(`[파파고 번역] ❌ ${apiErrorReason}`)
+          markTranslationError(apiErrorReason)
+        } else {
+          markTranslationSuccess(missingTexts.length)
+        }
       } else {
-        console.error('[DeepL Proxy Error] 응답 성공 플래그 실패:', result?.message || 'Translation returned unsuccessful')
+        apiErrorReason = result?.message || '번역 응답 성공 플래그 실패'
+        console.error('[파파고 번역] ❌ 응답 성공 플래그 실패:', apiErrorReason)
+        markTranslationError(apiErrorReason)
       }
     } else {
-      console.error(`[DeepL Proxy Error] HTTP ${proxyRes.status} 상태 코드 수신 (${proxyRes.statusText})`)
+      apiErrorReason = `HTTP ${proxyRes.status} (${proxyRes.statusText})`
+      console.error(`[파파고 번역] ❌ HTTP ${proxyRes.status} 상태 코드 수신 (${proxyRes.statusText})`)
+      markTranslationError(apiErrorReason)
     }
   } catch (err) {
+    let reason
     if (err.name === 'AbortError') {
-      console.error('[DeepL Proxy Error] 번역 서버리스 요청 8초 타임아웃 초과')
+      reason = '번역 서버리스 요청 10초 타임아웃 초과'
     } else {
-      console.error('[DeepL Proxy Error] 번역 서버리스 통신 오류:', err.message)
+      reason = `번역 서버리스 통신 오류: ${err.message}`
     }
+    console.error(`[파파고 번역] ❌ ${reason}`)
+    // translationStatus import가 실패했을 수도 있으므로 별도 try
+    try {
+      const { markTranslationError } = await import('./translationStatus.js')
+      markTranslationError(reason)
+    } catch (_) {}
+    apiErrorReason = reason
   }
 
   // 3. 결과 매핑 및 캐시 저장
@@ -571,11 +597,14 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
     missingIndices.forEach((origIdx, batchIdx) => {
       const trans = translatedBatch[batchIdx] || missingTexts[batchIdx]
       results[origIdx] = trans
-      const singleKey = `${targetLang}_${sourceLang || 'auto'}_${missingTexts[batchIdx]}`
-      saveToCache(memoryTranslationCache, 'euchs_trans', singleKey, trans)
+      // 원문과 동일한(번역 실패) 항목은 캐시 저장 안 함 → 다음 호출 시 재시도
+      if (trans !== missingTexts[batchIdx]) {
+        const singleKey = `${targetLang}_${sourceLang || 'auto'}_${missingTexts[batchIdx]}`
+        saveToCache(memoryTranslationCache, 'euchs_trans', singleKey, trans)
+      }
     })
   } else {
-    // 번역 실패 시 원문 유지
+    // 번역 완전 실패 시 원문 유지 (사이트 깨짐 방지 원칙)
     missingIndices.forEach((origIdx, batchIdx) => {
       results[origIdx] = missingTexts[batchIdx]
     })
