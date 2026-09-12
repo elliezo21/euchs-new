@@ -1317,22 +1317,28 @@ async function triggerItemPhotoCamera(idx) {
     alert('[진단 에러] ' + e.message);
   }
 
-
   const isNative = Capacitor.isNativePlatform();
-  const capPlatform = Capacitor.getPlatform();
-  console.log('[CAM-DIAG] isNative=', isNative, 'platform=', capPlatform);
+  console.log('[CAM-DIAG] isNative=', isNative);
 
   if (isNative) {
     try {
-      // 단계 1: 권한 체크
-      alert('[단계1] Camera.checkPermissions 호출 시작. Camera존재=' + (typeof Camera));
-      const permStatus = await Camera.checkPermissions();
+      // 호출 시점에 직접 window.Capacitor.Plugins.Camera 접근
+      // (모듈 로드 시 web fallback 바인딩 타이밍 문제 우회)
+      const NativeCamera = window.Capacitor?.Plugins?.Camera;
+      alert('[단계1] NativeCamera존재=' + (!!NativeCamera) + ', type=' + (typeof NativeCamera));
+
+      if (!NativeCamera) {
+        alert('[오류] window.Capacitor.Plugins.Camera 없음 — 네이티브 플러그인 미등록');
+        return;
+      }
+
+      // 권한 체크
+      const permStatus = await NativeCamera.checkPermissions();
       alert('[단계1] 권한체크결과: ' + JSON.stringify(permStatus));
 
       if (permStatus.camera !== 'granted') {
-        // 단계 2: 권한 요청
         alert('[단계2] 권한없음 → requestPermissions 호출');
-        const reqResult = await Camera.requestPermissions({ permissions: ['camera'] });
+        const reqResult = await NativeCamera.requestPermissions({ permissions: ['camera'] });
         alert('[단계2] 권한요청결과: ' + JSON.stringify(reqResult));
         if (reqResult.camera !== 'granted') {
           alert('[단계2] 권한 거부됨 → 종료');
@@ -1340,13 +1346,13 @@ async function triggerItemPhotoCamera(idx) {
         }
       }
 
-      // 단계 3: getPhoto 호출
+      // getPhoto 호출 — 리터럴 값 사용 (CameraResultType.Uri='uri', CameraSource.Camera='CAMERA')
       alert('[단계3] getPhoto 호출 시작');
       let photo;
       try {
-        photo = await Camera.getPhoto({
-          resultType: CameraResultType.Uri,
-          source: CameraSource.Camera,
+        photo = await NativeCamera.getPhoto({
+          resultType: 'uri',
+          source: 'CAMERA',
           quality: 80,
         });
         alert('[단계3] getPhoto 완료: webPath=' + photo?.webPath);
@@ -1378,6 +1384,7 @@ async function triggerItemPhotoCamera(idx) {
       console.warn('[CAM-DIAG] itemPhotoCameraRefs[idx] 없음, idx=', idx);
     }
   }
+
 }
 
 
