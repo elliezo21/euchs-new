@@ -97,6 +97,9 @@ async function callPapagoTranslate(text, clientId, clientSecret, source = 'zh-CN
   const body = new URLSearchParams({ source, target, text: text.trim() })
 
   try {
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), 8000) // 8초 타임아웃
+
     const res = await fetch(PAPAGO_API_URL, {
       method: 'POST',
       headers: {
@@ -105,7 +108,9 @@ async function callPapagoTranslate(text, clientId, clientSecret, source = 'zh-CN
         'x-ncp-apigw-api-key':    clientSecret,
       },
       body: body.toString(),
+      signal: controller.signal,
     })
+    clearTimeout(timer)
 
     if (!res.ok) {
       const errText = await res.text().catch(() => '')
@@ -121,7 +126,7 @@ async function callPapagoTranslate(text, clientId, clientSecret, source = 'zh-CN
     }
     return translated
   } catch (err) {
-    console.error('[papago-translate] ❌ fetch 오류:', err.message)
+    console.error('[papago-translate] ❌ fetch 오류:', err.name === 'AbortError' ? '8초 타임아웃' : err.message)
     return null
   }
 }
@@ -177,9 +182,10 @@ export default async function handler(req, res) {
     const t = cleanTexts[i]
     let result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
 
-    // 실패 시 1회 재시도 (네트워크 간헐적 오류 대응)
+    // 실패 시 1회 재시도 (콜드 스타트 네트워크 초기화 대기 + 재시도)
     if (!result) {
-      console.warn(`[papago-translate] ⚠️ 항목[${i}] 1차 실패, 재시도...`)
+      console.warn(`[papago-translate] ⚠️ 항목[${i}] 1차 실패, 300ms 후 재시도...`)
+      await new Promise(resolve => setTimeout(resolve, 300))
       result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
     }
 
