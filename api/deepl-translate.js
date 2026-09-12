@@ -180,12 +180,16 @@ export default async function handler(req, res) {
 
   for (let i = 0; i < cleanTexts.length; i++) {
     const t = cleanTexts[i]
+
+    // 항목 간 100ms 간격 (첫 번째 제외) — 파파고 Rate Limit 대응
+    if (i > 0) await new Promise(resolve => setTimeout(resolve, 100))
+
     let result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
 
     // 실패 시 1회 재시도 (콜드 스타트 네트워크 초기화 대기 + 재시도)
     if (!result) {
-      console.warn(`[papago-translate] ⚠️ 항목[${i}] 1차 실패, 300ms 후 재시도...`)
-      await new Promise(resolve => setTimeout(resolve, 300))
+      console.warn(`[papago-translate] ⚠️ 항목[${i}] 1차 실패, 500ms 후 재시도...`)
+      await new Promise(resolve => setTimeout(resolve, 500))
       result = await callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget)
     }
 
