@@ -796,9 +796,9 @@ const handleEmailLogin = async () => {
   try {
     await signInWithEmail(loginForm.value.email, loginForm.value.password)
     // 로그인 성공 — closeLoginModal()은 signInWithEmail 내부에서 자동 호출됨
-    // 페이지 이동 없이 현재 위치에서 GNB/UI 상태만 즉시 갱신
+    // euchs-auth-changed는 auth.js onAuthStateChange(SIGNED_IN)에서 자동 dispatch됨
+    // → 여기서 중복 dispatch하면 MallView.onAuthChanged → fetchOrdersFromSupabase()가 2회 실행됨
     window.dispatchEvent(new CustomEvent('euchs:login_success'))
-    window.dispatchEvent(new CustomEvent('euchs-auth-changed'))
     resetAllForms()
   } catch (err) {
     console.error('Email login error:', err)
