@@ -2197,28 +2197,29 @@ const openProductModal = (item) => {
   pendingProductToOpen.value = null
   pendingOfferIdToOpen.value = null
   selectedModalProduct.value = item
+  recordRecentlyViewed(item)
+}
 
-  // 최근 본 상품 기록 (백그라운드, 실패해도 무시)
-  if (currentUser.value?.id && item) {
-    const itemId = String(item.id || item.num_iid || item.offerId || '')
-    if (itemId) {
-      const snapshot = {
-        id: itemId,
-        titleKo: item.titleKo || '',
-        title: item.titleZh || item.title || '',
-        price: item.price || item.priceMin || '',
-        priceFormatted: item.priceFormatted || item.price || '',
-        imageUrl: item.imageUrl || item.pic_url || item.img || ''
-      }
-      supabase.from('recently_viewed').upsert(
-        { user_id: currentUser.value.id, item_id: itemId, item_data: snapshot, viewed_at: new Date().toISOString() },
-        { onConflict: 'user_id,item_id' }
-      ).then(() => {
-        // 최근 본 상품 컴포넌트 새로고침
-        recentlyViewedRef.value?.reload()
-      }).catch(() => {}) // 조용히 실패
-    }
+// ── 최근 본 상품 기록 공통 헬퍼 ─────────────────────────────────
+// openProductModal / openDetailModalById 양쪽에서 호출
+function recordRecentlyViewed(item) {
+  if (!currentUser.value?.id || !item) return
+  const itemId = String(item.id || item.num_iid || item.offerId || '')
+  if (!itemId) return
+  const snapshot = {
+    id: itemId,
+    titleKo: item.titleKo || '',
+    title: item.titleZh || item.title || '',
+    price: item.price || item.priceMin || '',
+    priceFormatted: item.priceFormatted || item.price || '',
+    imageUrl: item.imageUrl || item.pic_url || item.img || ''
   }
+  supabase.from('recently_viewed').upsert(
+    { user_id: currentUser.value.id, item_id: itemId, item_data: snapshot, viewed_at: new Date().toISOString() },
+    { onConflict: 'user_id,item_id' }
+  ).then(() => {
+    recentlyViewedRef.value?.reload()
+  }).catch(() => {}) // 백그라운드 실패 무시
 }
 
 const handleModalCartAdded = (savedItem) => {
@@ -2255,6 +2256,7 @@ const openDetailModalById = async (offerId) => {
   try {
     const product = await fetch1688ProductById(offerId)
     selectedModalProduct.value = product
+    recordRecentlyViewed(product)  // ← recently_viewed 기록 추가
   } catch (err) {
     console.warn('[Mall1688] Direct detail open fallback:', err)
   } finally {
