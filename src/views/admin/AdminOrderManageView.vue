@@ -11,7 +11,7 @@
       </div>
       <div class="flex items-center gap-2 text-xs font-mono text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs self-start sm:self-auto">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
-        <span>실시간 동기화 중 · 총 <strong class="text-slate-900">{{ orders.length }}</strong>건</span>
+        <span>실시간 동기화 중 · 총 <strong class="text-slate-900">{{ activeOrdersCount }}</strong>건</span>
       </div>
     </div>
 
@@ -2425,9 +2425,18 @@ const purchaseOrderDescription = computed(() => {
   return lines.join('\n');
 });
 
+// 활성 파이프라인 주문 (cancelled / rejected 제외)
+const INACTIVE_STATUSES = new Set(['cancelled', 'rejected'])
+const activeOrders = computed(() =>
+  orders.value.filter(o => !INACTIVE_STATUSES.has(normalizeOrderStatus(o.status)))
+)
+
+// 총 건수 배지용 (cancelled / rejected 제외)
+const activeOrdersCount = computed(() => activeOrders.value.length)
+
 const stageCounts = computed(() => {
   const c = { quote_pending:0, quote_confirmed:0, payment_verified:0, purchasing:0, shipping_in_transit:0, warehouse_arrived:0, shipping_ready:0, customs_clearance:0, domestic_delivered:0 };
-  orders.value.forEach(o => {
+  activeOrders.value.forEach(o => {
     const n = normalizeOrderStatus(o.status);
     if (n === 'quote_pending') c.quote_pending++;
     else if (n === 'quote_confirmed' || n === 'payment_pending') c.quote_confirmed++; // payment_pending은 alias map 미등록
