@@ -675,6 +675,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
   // Vercel Serverless / Vite Dev Server 프록시 (/api/1688-search)
   try {
     const params = new URLSearchParams({ q: query, page: String(page) })
+    if (options && options.cat) params.set('cat', String(options.cat))
     const controller = new AbortController()
     const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
     const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })

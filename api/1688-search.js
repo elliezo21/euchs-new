@@ -41,9 +41,10 @@ function isErrorResponse(data) {
   return false
 }
 
-async function fetchSearch(endpoint, queryZh, page, OB_KEY, OB_SECRET, timeoutMs) {
+async function fetchSearch(endpoint, queryZh, page, OB_KEY, OB_SECRET, timeoutMs, cat = null) {
   // 공식 문서 확인: 1688global/item_search는 key·secret·q·page만 요구. session 불필요.
-  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_search/?key=${OB_KEY}&secret=${OB_SECRET}&q=${encodeURIComponent(queryZh)}&page=${page}&result_type=json`
+  const catParam = cat ? `&cat=${encodeURIComponent(cat)}` : ''
+  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_search/?key=${OB_KEY}&secret=${OB_SECRET}&q=${encodeURIComponent(queryZh)}&page=${page}&result_type=json${catParam}`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -75,6 +76,7 @@ export default async function handler(req, res) {
   const rawQ = req.query && (req.query.q || req.query.keyword || req.query.text) || ''
   const queryZh = String(rawQ).trim()
   const page = String((req.query && req.query.page) || '1').trim()
+  const cat = (req.query && req.query.cat) ? String(req.query.cat).trim() : null
 
   if (!queryZh) {
     return res.status(400).json(Object.assign({ success: false, message: '검색 키워드(q)가 누락되었습니다.' }, SAFE_EMPTY))
@@ -90,12 +92,12 @@ export default async function handler(req, res) {
   }
 
   // 1차: 1688global 시도 (session 파라미터 불필요)
-  let resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000)
+  let resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000, cat)
 
   // 1688global이 실패하거나 4005 에러인 경우 2차 1688 시도
   if (!resData || isErrorResponse(resData)) {
     console.warn('[1688-search] 1688global failed or error. Trying 1688 endpoint...')
-    const fallbackData = await fetchSearch('1688', queryZh, page, OB_KEY, OB_SECRET, 4000)
+    const fallbackData = await fetchSearch('1688', queryZh, page, OB_KEY, OB_SECRET, 4000, cat)
     if (fallbackData && !isErrorResponse(fallbackData)) {
       resData = fallbackData
     }

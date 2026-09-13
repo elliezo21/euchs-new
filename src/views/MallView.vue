@@ -115,7 +115,7 @@
                               v-for="(subItem, sIdx) in group.items"
                               :key="sIdx"
                               type="button"
-                              @click.stop="handleSubCategoryClick(subItem, activeMegaCat)"
+                              @click.stop="handleSubCategoryClick(subItem, activeMegaCat, group.title)"
                               class="px-3 py-1.5 rounded-lg bg-gray-50 hover:bg-orange-500 hover:text-white text-gray-700 font-medium text-xs border border-gray-200 hover:border-orange-500 transition shadow-xs hover:shadow-md active:scale-95 cursor-pointer touch-manipulation whitespace-nowrap"
                             >
                               {{ subItem }}
@@ -1986,13 +1986,57 @@ const selectCategory = (cat) => {
   executeSearch(1)
 }
 
-const handleSubCategoryClick = (subKeyword, parentCat) => {
+// ── 소분류 cid 매핑 테이블 (표본 2~3개 검증으로 안정 확인된 항목만) ──────────────
+// 키: "그룹타이틀|소분류명" 형식
+const SUBCATEGORY_CID_MAP = {
+  // 패션의류/이너웨어
+  '남성의류|티셔츠':      315,
+  '남성의류|셔츠':        314,
+  '남성의류|자켓/아우터': 317,
+  '이너웨어/잠옷|잠옷/홈웨어':  1037924,
+  '이너웨어/잠옷|양말/스타킹':  122468001,
+  // 신발/가방/패션잡화
+  '여성슈즈|슬리퍼':        201548713,
+  '여성슈즈|단화/플랫':     126506005,
+  '여성슈즈|부츠/앵클부츠': 1034353,
+  '가방|토트백':    201548714,
+  '가방|크로스백':  201580619,
+  '가방|캔버스백':  201554511,
+  '가방|지갑/파우치': 1031751,
+  '패션잡화|모자/버킷햇':  1048323,
+  '패션잡화|선글라스':     1043131,
+  '패션잡화|스카프/머플러': 1031922,
+  '패션잡화|헤어악세사리': 127490005,
+  '패션잡화|시계':         124264005,
+}
+
+const selectedSubCatCid = ref(null)
+
+const handleSubCategoryClick = (subKeyword, parentCat, groupTitle = '') => {
   if (megaMenuTimer) clearTimeout(megaMenuTimer)
   if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
   isMegaMenuOpen.value = false
   hoveredCategory.value = null
   selectedCategoryId.value = parentCat.id
-  queryInput.value = subKeyword
+
+  // ── 1. cid 우선 검색 (안정 검증된 17개) ────────────────────────────────
+  const cidKey = `${groupTitle}|${subKeyword}`
+  const cid = SUBCATEGORY_CID_MAP[cidKey] || null
+  selectedSubCatCid.value = cid
+
+  // ── 2. 결합 키워드: 성별 구분 대분류일 때만 "여성"/"남성" 접두어 추가 ─────
+  // 여성의류 > 티셔츠 → "여성 티셔츠"  (파파고 → 女装T恤)
+  // 남성의류 > 티셔츠 → "남성 티셔츠"  (파파고 → 男装T恤)
+  // 그 외 모든 그룹(이너웨어, 여성슈즈, 가방, 패션잡화 등) → subKeyword 단독
+  let combinedKeyword = subKeyword
+  if (groupTitle === '여성의류') {
+    combinedKeyword = `여성 ${subKeyword}`
+  } else if (groupTitle === '남성의류') {
+    combinedKeyword = `남성 ${subKeyword}`
+  }
+  // ↑ 다른 그룹은 subKeyword 그대로 — 접두어 없음
+
+  queryInput.value = combinedKeyword
   executeSearch(1)
 }
 
@@ -2286,7 +2330,14 @@ const executeSearch = async (page = 1, overrideKeyword = null) => {
 
   try {
     const result = await Promise.race([
-      search1688WithTranslation(rawInput, page, { sort: sortOrder.value }),
+      search1688WithTranslation(
+        rawInput,
+        page,
+        {
+          sort: sortOrder.value,
+          ...(selectedSubCatCid.value ? { cat: selectedSubCatCid.value } : {})
+        }
+      ),
       searchTimeout
     ])
 
