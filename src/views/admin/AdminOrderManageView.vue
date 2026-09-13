@@ -2823,6 +2823,21 @@ async function executeStartPurchasing() {
     return;
   }
 
+  // ── 🔍 진단: 진입 시점 items 전체 스냅샷 (실시간 확인용) ──────────────────
+  console.group(`[executeStartPurchasing] 📋 진입 — orderNumber: ${o.orderNumber}`);
+  console.log('전체 items 개수:', (o.items || []).length, '/ 유효(비제외):', activeItems.length);
+  activeItems.forEach((item, i) => {
+    console.log(`  items[${i}]`, {
+      productName: item.productName || '',
+      num_iid: item.num_iid || '',
+      itemId:  item.itemId  || '',
+      sellerId: item.sellerId || '(없음)',
+      subStatus: item.subStatus || '(없음)',
+      purchaseNo: item.purchaseNo || '(없음)',
+    });
+  });
+  console.groupEnd();
+
   // ── 그룹핑: 우선순위 sellerId → num_iid → 독립 그룹 ─────────────────────────
   // 1순위: sellerId 있는 품목 → 같은 sellerId끼리 1개 그룹
   // 2순위: sellerId 없지만 num_iid 동일한 품목 → 같은 num_iid끼리 1개 그룹
@@ -2875,6 +2890,22 @@ async function executeStartPurchasing() {
       }
     }
   }
+
+  // ── 🔍 진단: 그룹핑 결과 요약 ───────────────────────────────────────────
+  console.group(`[executeStartPurchasing] 📦 그룹핑 완료 — ${groups.length}개 그룹`);
+  groups.forEach((g, gi) => {
+    console.log(`  그룹[${gi}] key="${g.groupKey || '독립'}" itemCount=${g.items.length}`, {
+      groupKey: g.groupKey,
+      items: g.items.map(it => ({
+        productName: it.productName || '',
+        num_iid: it.num_iid || '',
+        specId: it.specId || '',
+        subStatus: it.subStatus || '',
+      })),
+      indices: g.indices,
+    });
+  });
+  console.groupEnd();
 
   // ── 세션 1회 획득 (전체 그룹 공유) ─────────────────────────────────────
   const { data: { session: _sess } } = await supabase.auth.getSession();
