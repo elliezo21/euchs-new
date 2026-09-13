@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div class="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
 
     <!-- 헤더 -->
@@ -38,6 +38,9 @@
               <p class="font-bold text-slate-800 text-sm truncate">{{ banner.title || '(제목 없음)' }}</p>
               <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', banner.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500']">
                 {{ banner.is_active ? '노출중' : '비활성' }}
+              </span>
+              <span :class="['px-2 py-0.5 rounded text-[10px] font-bold border', banner.slot === 'right' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200']">
+                {{ banner.slot === 'right' ? '오른쪽 칸' : '왼쪽 칸' }}
               </span>
             </div>
             <p class="text-xs text-slate-400 mt-0.5 truncate">
@@ -80,9 +83,28 @@
               <button @click="closeModal" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer text-lg">✕</button>
             </div>
 
+            <!-- 슬롯 선택 (왼쪽/오른쪽 칸) -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 칸 <span class="text-rose-500">*</span></label>
+              <div class="grid grid-cols-2 gap-2">
+                <label
+                  v-for="opt in [{ value: 'left', label: '왼쪽 칸', sub: '어두운 OEM 카드 영역', color: 'indigo' }, { value: 'right', label: '오른쪽 칸', sub: '주황 프로모 카드 영역', color: 'orange' }]"
+                  :key="opt.value"
+                  :class="['flex flex-col gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition',
+                    form.slot === opt.value
+                      ? (opt.color === 'indigo' ? 'border-indigo-500 bg-indigo-50' : 'border-orange-500 bg-orange-50')
+                      : 'border-slate-200 hover:border-slate-300 bg-white']"
+                >
+                  <input type="radio" v-model="form.slot" :value="opt.value" class="sr-only" />
+                  <span :class="['text-xs font-black', form.slot === opt.value ? (opt.color === 'indigo' ? 'text-indigo-700' : 'text-orange-700') : 'text-slate-700']">{{ opt.label }}</span>
+                  <span class="text-[10px] text-slate-400 font-medium">{{ opt.sub }}</span>
+                </label>
+              </div>
+            </div>
+
             <!-- 이미지 업로드 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">배너 이미지 <span class="text-rose-500">*</span></label>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">배너 이미지 <span class="text-slate-400 font-medium">(없으면 그라데이션 배경 사용)</span></label>
               <div class="relative">
                 <div v-if="form.image_url" class="mb-2 rounded-xl overflow-hidden bg-slate-100 h-32 relative">
                   <img :src="form.image_url" alt="미리보기" class="w-full h-full object-cover" />
@@ -120,10 +142,47 @@
               <input v-model="form.title" type="text" placeholder="예: OEM/ODM 배너 2026년 9월" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
             </div>
 
-            <!-- 서브 문구 -->
+            <!-- 서브 문구 (레거시 — 호환 유지) -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">서브 문구 (배너 하단 노출, 선택)</label>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">서브 문구 <span class="text-slate-400 font-medium">(하단 자막, 선택)</span></label>
               <input v-model="form.subtitle" type="text" placeholder="예: 2026 베스트 소싱 기획전 – 지금 확인하세요" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+            </div>
+
+            <!-- 카드 텍스트 콘텐츠 구분선 -->
+            <div class="border-t border-slate-100 pt-1">
+              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3">카드 텍스트 콘텐츠</p>
+
+              <!-- 라벨 뱃지 -->
+              <div class="space-y-3">
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5">상단 라벨 뱃지 <span class="text-slate-400 font-medium">(예: B2B CUSTOM MADE)</span></label>
+                  <input v-model="form.label" type="text" placeholder="예: B2B CUSTOM MADE / 2026 베스트 소싱 기획전" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                </div>
+
+                <!-- 제목 (heading) -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5">카드 큰 제목 <span class="text-slate-400 font-medium">(예: OEM / ODM 제작관)</span></label>
+                  <input v-model="form.heading" type="text" placeholder="예: OEM / ODM 제작관" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                </div>
+
+                <!-- 설명 문구 -->
+                <div>
+                  <label class="block text-xs font-bold text-slate-700 mb-1.5">설명 문구</label>
+                  <textarea v-model="form.description" rows="2" placeholder="예: 로고 인쇄, 커스텀 패키지, 금형 사출 제작까지 1:1 밀착 대행합니다." class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+                </div>
+
+                <!-- CTA 버튼 -->
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">버튼 문구</label>
+                    <input v-model="form.button_text" type="text" placeholder="예: 맞춤 제작 상담 신청" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-bold text-slate-700 mb-1.5">버튼 링크</label>
+                    <input v-model="form.button_url" type="text" placeholder="예: /services/trade-agent" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                  </div>
+                </div>
+              </div>
             </div>
 
             <!-- 노출 순서 -->
@@ -188,11 +247,17 @@ const editingBanner = ref(null)
 const formError = ref('')
 
 const defaultForm = () => ({
+  slot: 'left',
   image_url: '',
   link_url: '',
   link_type: 'internal',
   title: '',
   subtitle: '',
+  label: '',
+  heading: '',
+  description: '',
+  button_text: '',
+  button_url: '',
   display_order: 0,
   is_active: true,
   start_date: null,
