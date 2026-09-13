@@ -705,128 +705,32 @@
       <main class="flex-1 min-w-0 space-y-4 sm:space-y-6">
 
 
-      <!-- Top 3-Card Promotion Banners (Wide Layout) -->
-      <div class="grid grid-cols-1 md:grid-cols-12 gap-3 sm:gap-4">
-        
-        <!-- Banner 1: ODM / OEM 맞춤제작 전용관 (4 cols) -->
-        <div class="md:col-span-4 bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between relative overflow-hidden group">
-          <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
-          
-          <div class="space-y-2 relative z-10">
-            <span class="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] font-black border border-indigo-400/40 uppercase">
-              B2B CUSTOM MADE
-            </span>
-            <h3 class="text-lg sm:text-xl font-black text-white leading-tight">
-              1688 공장 직거래<br />
-              <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400">
-                OEM / ODM 제작관
-              </span>
-            </h3>
-            <p class="text-xs text-slate-300 leading-relaxed line-clamp-2">
-              로고 인쇄, 커스텀 패키지, 금형 사출 제작까지 15년 전담 무역 MD가 1:1로 밀착 대행합니다.
-            </p>
-          </div>
+      <!-- ============================================================ -->
+      <!-- 배너 롤링 섹션 (DB 기반 동적 배너, fallback: 기존 3-카드)    -->
+      <!-- ============================================================ -->
+      <MallBanner
+        :deposit-balance="depositBalanceKrw"
+        @search="(keyword) => { queryInput = keyword; executeSearch(1) }"
+      />
 
-          <div class="pt-4 relative z-10">
-            <router-link
-              to="/services/trade-agent"
-              class="w-full py-2.5 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-md shadow-indigo-600/30 text-center"
-            >
-              <span>맞춤 제작 상담 신청</span>
-              <i class="fas fa-arrow-right text-[10px]"></i>
-            </router-link>
-          </div>
-        </div>
-
-        <!-- Banner 2: 메인 1688 프로모션 배너 (5 cols) -->
-        <div class="md:col-span-5 bg-gradient-to-r from-rose-500 via-orange-500 to-amber-500 text-white rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between relative overflow-hidden">
-          <div class="space-y-2 relative z-10">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-black">
-              <i class="fas fa-star text-yellow-300"></i>
-              <span>2026 베스트 소싱 기획전</span>
-            </div>
-            <h3 class="text-xl sm:text-2xl font-black text-white tracking-tight leading-tight">
-              중국 최고 검증 공장의<br />
-              트렌드 신상품 특가전
-            </h3>
-            <p class="text-xs text-white/90 leading-relaxed line-clamp-2">
-              실시간 판매량 1위 아이템부터 마진율 높은 틈새 상품까지, AI 실시간 번역으로 간편하게 발주하세요.
-            </p>
-          </div>
-
-          <div class="pt-4 flex flex-wrap items-center gap-1.5 relative z-10">
-            <button
-              v-for="chip in promoChips"
-              :key="chip"
-              type="button"
-              @click="queryInput = chip; executeSearch(1)"
-              class="px-2.5 py-1 rounded-lg bg-white/20 hover:bg-white text-white hover:text-rose-600 text-xs font-bold backdrop-blur-md transition shadow-sm"
-            >
-              {{ chip }} &rarr;
-            </button>
-          </div>
-        </div>
-
-        <!-- Banner 3: 바이어 퀵 박스 & 통관 공지 (3 cols) -->
-        <div class="md:col-span-3 bg-white border border-gray-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between space-y-3">
-          <div class="space-y-2.5">
-            <div class="flex items-center justify-between">
-              <span class="text-[11px] font-extrabold text-gray-500 uppercase">BUYER QUICK HUB</span>
-              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            </div>
-            
-            <div class="bg-gray-50 p-3 rounded-2xl border border-gray-200/80 space-y-1">
-              <div class="text-[11px] text-gray-500">예치금 지갑 잔액</div>
-              <div class="text-base font-black text-emerald-600 font-mono">
-                ₩ {{ formatKrw(depositBalanceKrw) }}
-              </div>
-              <div class="text-[10px] text-gray-400 font-mono">
-                (약 ¥ {{ formatRmb(depositBalanceKrw / customExchangeRate) }})
-              </div>
-            </div>
-
-            <div 
-              class="space-y-1 text-xs p-2.5 rounded-2xl bg-slate-50 hover:bg-rose-50/70 border border-gray-200/70 transition cursor-pointer group select-none"
-              @click="openNoticeModal(latestMallNotice)"
-              title="클릭하여 공지사항 상세 보기"
-            >
-              <div class="font-bold text-gray-800 flex items-center justify-between gap-1">
-                <span class="flex items-center gap-1.5 text-[11px] text-rose-600 font-black">
-                  <i class="fas fa-bullhorn"></i> 실시간 소싱 공지
-                </span>
-                <span v-if="latestMallNotice?.badge" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
-                  {{ latestMallNotice.badge }}
-                </span>
-              </div>
-              <p class="text-[11px] font-bold text-gray-800 group-hover:text-rose-600 leading-snug line-clamp-2 transition">
-                {{ latestMallNotice?.title || '[공지] 1688 상품 주문 시 직영 물류센터 24시간 검수 후 안전 출고됩니다.' }}
-              </p>
-              <span class="text-[10px] text-gray-400 font-mono block">
-                {{ formatDate(latestMallNotice?.created_at || latestMallNotice?.createdAt) }}
-              </span>
-            </div>
-          </div>
-
-          <div>
-            <router-link
-              to="/dashboard"
-              class="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition text-center shadow-sm"
-            >
-              <i class="fas fa-truck-loading text-amber-400"></i>
-              <span>발주 & 배송관리 마이페이지</span>
-            </router-link>
-          </div>
-        </div>
-
-      </div>
-
-
-
+      <!-- ============================================================ -->
+      <!-- 카테고리 이미지 카드 그리드 (전체 대분류 9개)                -->
+      <!-- ============================================================ -->
+      <MallCategoryGrid
+        :display-categories="categoryCardsForGrid"
+        @select="selectCategory"
+      />
 
       <!-- ============================================================ -->
       <!-- HOME: CN인사이더 스타일 다단 섹션 (검색어 없을 때 = 홈 뷰)  -->
       <!-- ============================================================ -->
       <template v-if="!hasSearched && !isLoading && !isImageSearchMode">
+
+        <!-- 최근 본 상품 섹션 (로그인 사용자 전용) -->
+        <MallRecentlyViewed
+          ref="recentlyViewedRef"
+          @open="openProductModal"
+        />
 
         <!-- 섹션 스켈레톤 (첫 API 호출 중) -->
         <div v-if="isHomeSectionsLoading" class="space-y-8">
@@ -1301,6 +1205,9 @@ import {
 } from '../lib/auth'
 import ProductDetailModal from '../components/ProductDetailModal.vue'
 import ImageSearchModal from '../components/mall/ImageSearchModal.vue'
+import MallBanner from '../components/mall/MallBanner.vue'
+import MallCategoryGrid from '../components/mall/MallCategoryGrid.vue'
+import MallRecentlyViewed from '../components/mall/MallRecentlyViewed.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
 import { supabase } from '../lib/supabase'
 import { normalizeOrderStatus, getOrderStatsByUser } from '../lib/orderPipeline'
@@ -1716,6 +1623,9 @@ const popularKeywords = [
   '스마트워치스트랩'
 ]
 
+// 🐛 Bug fix: promoChips was referenced in template but never defined
+const promoChips = ['텀블러', '블라우스', '셔츠', '숄더백', '실내화']
+
 const categories = [
   {
     id: 'fashion',
@@ -1784,7 +1694,7 @@ const categories = [
     id: 'interior',
     name: '홈인테리어/문구',
     emoji: '🛋️',
-    keyword: '인테리어 문구',
+    keyword: '인테리어 소품',
     icon: 'fas fa-couch',
     groups: [
       {
@@ -1907,12 +1817,43 @@ const quickTabs = [
   { id: 'fashion', emoji: '👗', label: '패션의류', keyword: '여성의류' },
   { id: 'shoes_acc', emoji: '👠', label: '신발/잡화', keyword: '패션잡화 가방' },
   { id: 'living', emoji: '🏠', label: '생활주방', keyword: '생활용품' },
-  { id: 'interior', emoji: '🛋️', label: '홈인테리어', keyword: '인테리어 문구' },
+  { id: 'interior', emoji: '🛋️', label: '홈인테리어', keyword: '인테리어 소품' },
   { id: 'digital', emoji: '📱', label: '디지털/가전', keyword: '디지털 가전' },
   { id: 'camping', emoji: '⛺', label: '스포츠/레저', keyword: '캠핑 레저' },
   { id: 'pet', emoji: '🐶', label: '펫/유아', keyword: '반려동물 강아지' },
   { id: 'beauty', emoji: '💄', label: '뷰티', keyword: '뷰티 화장품' }
 ]
+
+// 카테고리 이미지 카드 그리드용 데이터
+// quickTabs 9개 대분류에 대표 이미지 URL 매핑 (추후 관리자 편집 가능)
+const CATEGORY_IMAGES = {
+  best:     'https://images.unsplash.com/photo-1607082348824-0a96f2a4b9da?w=600&auto=format&fit=crop&q=80',
+  fashion:  'https://images.unsplash.com/photo-1512436991641-6745cdb1723f?w=600&auto=format&fit=crop&q=80',
+  shoes_acc:'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=600&auto=format&fit=crop&q=80',
+  living:   'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=600&auto=format&fit=crop&q=80',
+  interior: 'https://images.unsplash.com/photo-1616486338812-3dadae4b4ace?w=600&auto=format&fit=crop&q=80',
+  digital:  'https://images.unsplash.com/photo-1468495244123-6c6c332eeece?w=600&auto=format&fit=crop&q=80',
+  camping:  'https://images.unsplash.com/photo-1504851149312-7a075b496cc7?w=600&auto=format&fit=crop&q=80',
+  pet:      'https://images.unsplash.com/photo-1587300003388-59208cc962cb?w=600&auto=format&fit=crop&q=80',
+  beauty:   'https://images.unsplash.com/photo-1596462502278-27bfdc403348?w=600&auto=format&fit=crop&q=80',
+}
+
+const CATEGORY_SHORT_NAMES = {
+  best: '베스트', fashion: '패션의류', shoes_acc: '신발/잡화',
+  living: '생활주방', interior: '홈인테리어', digital: '디지털/가전',
+  camping: '스포츠/레저', pet: '펫/유아', beauty: '뷰티'
+}
+
+const categoryCardsForGrid = computed(() =>
+  quickTabs.map(tab => ({
+    ...tab,
+    imageUrl: CATEGORY_IMAGES[tab.id] || '',
+    shortName: CATEGORY_SHORT_NAMES[tab.id] || tab.label
+  }))
+)
+
+// 최근 본 상품 컴포넌트 ref
+const recentlyViewedRef = ref(null)
 
 // ── 메가메뉴 상태 ─────────────────────────────────────────
 const selectedCategoryId = ref('fashion')
@@ -2255,6 +2196,28 @@ const openProductModal = (item) => {
   pendingProductToOpen.value = null
   pendingOfferIdToOpen.value = null
   selectedModalProduct.value = item
+
+  // 최근 본 상품 기록 (백그라운드, 실패해도 무시)
+  if (currentUser.value?.id && item) {
+    const itemId = String(item.id || item.num_iid || item.offerId || '')
+    if (itemId) {
+      const snapshot = {
+        id: itemId,
+        titleKo: item.titleKo || '',
+        title: item.titleZh || item.title || '',
+        price: item.price || item.priceMin || '',
+        priceFormatted: item.priceFormatted || item.price || '',
+        imageUrl: item.imageUrl || item.pic_url || item.img || ''
+      }
+      supabase.from('recently_viewed').upsert(
+        { user_id: currentUser.value.id, item_id: itemId, item_data: snapshot, viewed_at: new Date().toISOString() },
+        { onConflict: 'user_id,item_id' }
+      ).then(() => {
+        // 최근 본 상품 컴포넌트 새로고침
+        recentlyViewedRef.value?.reload()
+      }).catch(() => {}) // 조용히 실패
+    }
+  }
 }
 
 const handleModalCartAdded = (savedItem) => {
