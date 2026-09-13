@@ -845,7 +845,7 @@
                       </div>
                       <div class="flex items-center justify-between text-[10px] text-gray-400 mt-0.5">
                         <span>판매 <b class="text-gray-600 font-medium">{{ item.sales || '0' }}건</b></span>
-                        <span class="text-emerald-600 font-semibold">재구매 {{ item.repurchaseRate || '90%' }}</span>
+                        <span v-if="item.repurchaseRate" class="text-emerald-600 font-semibold">재구매 {{ item.repurchaseRate }}</span>
                       </div>
                     </div>
                   </div>
@@ -979,9 +979,10 @@
                 </span>
               </div>
 
-              <!-- 3열: 메타 정보 (재구매율, 총판매량) -->
+              <!-- 3열: 메타 정보 (재구매율 있을 때만, 총판매량) -->
               <div class="flex items-center justify-between text-[11px] text-gray-400">
-                <span>재구매율: <b class="text-gray-600 font-normal">{{ item.repurchaseRate || '91%' }}</b></span>
+                <span v-if="item.repurchaseRate">재구매율: <b class="text-gray-600 font-normal">{{ item.repurchaseRate }}</b></span>
+                <span v-else></span>
                 <span>총판매량: <b class="text-gray-600 font-normal">{{ item.sales || '0' }}건</b></span>
               </div>
             </div>

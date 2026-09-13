@@ -160,11 +160,17 @@
                   {{ currentItem?.company || currentItem?.sellerName || '1688 인증 도매공장' }}
                 </span>
               </div>
-              <div class="flex items-center justify-between text-gray-700 border-t border-gray-200/60 pt-2">
+              <!-- 재구매율: API가 실제 값을 제공할 때만 표시 (가짜 폴백 표시 금지) -->
+              <div v-if="currentItem?.repurchaseRate" class="flex items-center justify-between text-gray-700 border-t border-gray-200/60 pt-2">
                 <span class="text-gray-500 font-medium">재구매율 / 판매량:</span>
                 <span class="font-bold text-gray-900">
-                  <b class="text-rose-600">{{ currentItem?.repurchaseRate || '91%' }}</b> (누적 {{ currentItem?.sales || '0' }}건)
+                  <b class="text-rose-600">{{ currentItem.repurchaseRate }}</b> (누적 {{ currentItem?.sales || '0' }}건)
                 </span>
+              </div>
+              <!-- 재구매율 없을 때: 판매량만 표시 -->
+              <div v-else-if="currentItem?.sales" class="flex items-center justify-between text-gray-700 border-t border-gray-200/60 pt-2">
+                <span class="text-gray-500 font-medium">누적 판매량:</span>
+                <span class="font-bold text-gray-900">{{ currentItem.sales }}건</span>
               </div>
               <div class="flex items-center justify-between text-gray-700 border-t border-gray-200/60 pt-2">
                 <span class="text-gray-500 font-medium">통관/검수 보장:</span>

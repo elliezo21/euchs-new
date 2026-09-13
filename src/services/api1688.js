@@ -1779,7 +1779,7 @@ export async function fetch1688ProductById(offerId) {
       images,
       sourceUrl,
       detailUrl: sourceUrl,
-      repurchaseRate: it.repurchaseRate || '90%',
+      repurchaseRate: it.repurchaseRate || '',  // API 미제공 시 빈 문자열 (가짜값 표시 금지)
       company: companyName,
       sellerId: extractedSellerId,
       memberId: extractedSellerId,
