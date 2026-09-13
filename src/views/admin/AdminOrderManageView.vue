@@ -285,28 +285,33 @@
     <!-- MODAL: 주문 상세 (PC 전용 대화면 와이드 뷰 max-w-7xl) -->
     <!-- ============================================================ -->
     <div v-if="modal.detail && activeOrder" class="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-xs overflow-y-auto">
-      <div class="w-[96vw] max-w-[1400px] bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden my-auto max-h-[92vh] flex flex-col" @click.stop>
-        <!-- 모달 헤더 -->
-        <div class="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0">
+      <div
+        class="w-[96vw] max-w-[1400px] rounded-2xl shadow-2xl overflow-hidden my-auto max-h-[92vh] flex flex-col border-[3px]"
+        :class="activeOrderModalClass"
+        :style="{ backgroundColor: activeOrderPalette.bg, borderColor: activeOrderPalette.bg }"
+        @click.stop
+      >
+        <!-- 모달 헤더 (단계별 배경색 영역) -->
+        <div class="px-6 py-4 border-b flex items-center justify-between shrink-0" :class="activeOrderHeaderClass">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl bg-slate-800 text-white flex items-center justify-center font-bold text-sm">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm" :class="activeOrderIconClass">
               📋
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <span class="font-mono font-black text-slate-900 text-base">{{ activeOrder.orderNumber }}</span>
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold" :class="getStatusItem(activeOrder.status).badgeClass">
+                <span class="font-mono font-black text-base" :class="activeOrderTitleClass">{{ activeOrder.orderNumber }}</span>
+                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold" :class="activeOrderStatusBadgeClass">
                   {{ getStatusItem(activeOrder.status).shortLabel }}
                 </span>
               </div>
-              <div class="text-xs text-slate-400 font-mono mt-0.5">접수일시: {{ activeOrder.createdAt }} · EUC 수입대행 발주서</div>
+              <div class="text-xs font-mono mt-0.5" :class="activeOrderSubtextClass">접수일시: {{ activeOrder.createdAt }} · EUC 수입대행 발주서</div>
             </div>
           </div>
-          <button @click="closeModals" class="p-1.5 rounded-lg hover:bg-slate-200 text-slate-500 transition cursor-pointer text-lg leading-none">✕</button>
+          <button @click="closeModals" class="p-1.5 rounded-lg transition cursor-pointer text-lg leading-none" :class="activeOrderCloseClass">✕</button>
         </div>
 
-        <!-- 모달 본문 (와이드 스크롤) -->
-        <div class="p-6 space-y-5 text-xs overflow-y-auto flex-1">
+        <!-- 모달 본문 (내부 콘텐츠는 항상 흰 배경 유지) -->
+        <div class="p-6 space-y-5 text-xs overflow-y-auto flex-1 bg-white">
 
           <!-- 1. 바이어 & 수취인 핵심 정보 (3단 와이드 풀-스크린 그리드, 실측 칸 완전 제거) -->
           <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
@@ -2373,6 +2378,76 @@ function filterByStatus(k) { activeFilter.value = k; }
 function getStatusItem(s) { return getOrderStatusItem(s); }
 // isStatus: arrival_done은 입고완료 그룹 → 'arrival_done' 또는 'inspection_done' 직접 비교
 function isStatus(o, k) { return normalizeOrderStatus(o?.status) === k; }
+
+// ── 관리자 주문 상세 모달 단계별 배경색 (최종 확정) ──────────────────────────
+// 견적대기#F1EFE8 / 결제대기#F09595 / 결제확인#FAEEDA / 구매진행#3C3C3A(흰글자)
+// 배송중#FAC775 / 입고완료#97C459 / 선적대기#378ADD(흰글자) / 세관통관#CECBF6 / 국내배송#F4C0D1
+const STATUS_MODAL_PALETTE = {
+  quote_pending:    { bg: '#F1EFE8', dark: false },
+  quote_confirmed:  { bg: '#F09595', dark: false },  // 결제대기 — 진한 살구
+  payment_verified: { bg: '#FAEEDA', dark: false },
+  purchasing:       { bg: '#3C3C3A', dark: true  },  // 구매진행 — 어두움 → 흰 글자
+  warehouse_in:     { bg: '#FAC775', dark: false },  // 배송중 — 진한 황금
+  arrival_checking: { bg: '#FAC775', dark: false },  // 배송중(검수중) — 동일
+  arrival_done:     { bg: '#97C459', dark: false },  // 입고완료 — 진한 초록
+  inspection_done:  { bg: '#97C459', dark: false },  // 입고완료(검수완료) — 동일
+  shipping_ready:   { bg: '#378ADD', dark: true  },  // 선적대기 — 진한 파랑 → 흰 글자
+  customs_clearance:{ bg: '#CECBF6', dark: false },
+  domestic_shipping:{ bg: '#F4C0D1', dark: false },
+  delivered:        { bg: '#F4C0D1', dark: false },
+};
+
+const activeOrderPalette = computed(() => {
+  if (!activeOrder.value) return { bg: '#ffffff', dark: false };
+  const norm = normalizeOrderStatus(activeOrder.value.status);
+  return STATUS_MODAL_PALETTE[norm] || { bg: '#ffffff', dark: false };
+});
+
+// 모달 컨테이너: 배경색 + 테두리색을 status별로 인라인 스타일로 적용
+const activeOrderModalClass = computed(() => {
+  return 'border-[3px]';
+});
+
+// 헤더 영역: border-b 색상 조정 (dark=흰 구분선 / light=검정 구분선)
+const activeOrderHeaderClass = computed(() => {
+  const { dark } = activeOrderPalette.value;
+  return dark ? 'border-white/20' : 'border-black/10';
+});
+
+// 아이콘 배경 (dark=반투명 흰 bg / light=슬레이트 bg — 아이콘은 항상 흰 글자)
+const activeOrderIconClass = computed(() => {
+  const { dark } = activeOrderPalette.value;
+  return dark ? 'bg-white/20 text-white' : 'bg-slate-800 text-white';
+});
+
+// 주문번호 텍스트: dark=흰색, 나머지=검정
+const activeOrderTitleClass = computed(() => {
+  const { dark } = activeOrderPalette.value;
+  return dark ? 'text-white' : 'text-gray-900';
+});
+
+// 상태 뱃지: dark=흰색 계열, 나머지=검정 계열 단일 스타일
+// (badgeClass는 단계마다 색이 달라 혼재되므로 dark:false 시 검정으로 통일)
+const activeOrderStatusBadgeClass = computed(() => {
+  const { dark } = activeOrderPalette.value;
+  if (dark) return 'bg-white/20 text-white border border-white/30';
+  return 'bg-black/10 text-gray-900 border border-black/10';
+});
+
+// 날짜·부제목 텍스트: dark=반투명 흰색, 나머지=검정
+const activeOrderSubtextClass = computed(() => {
+  const { dark } = activeOrderPalette.value;
+  return dark ? 'text-white/60' : 'text-gray-900';
+});
+
+// 닫기 버튼: dark=반투명 흰색, 나머지=검정
+const activeOrderCloseClass = computed(() => {
+  const { dark } = activeOrderPalette.value;
+  return dark
+    ? 'hover:bg-white/20 text-white/70 hover:text-white'
+    : 'hover:bg-black/10 text-gray-900 hover:text-gray-900';
+});
+
 // 입고완료 그룹 여부 (배지·버튼 조건 등에서 arrival_done + inspection_done 묶음 처리용)
 function isWarehouseArrived(o) {
   const n = normalizeOrderStatus(o?.status);
