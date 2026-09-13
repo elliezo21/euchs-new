@@ -2647,12 +2647,30 @@ async function executeStartPurchasing() {
   const activeItems = (o.items || []).filter(i => !i.excluded);
   if (activeItems.length === 0) {
     showToast('발주할 유효 품목이 없습니다.', 'error');
+    confirmPurchase4.value = false;  // 빈 아이템: 즉시 닫기(로딩할 것 없음)
     return;
   }
+
+  // ── 모달은 닫지 않음 ─────────────────────────────────────────────────────
+  // PurchaseConfirmModal의 isPurchasing=true(버튼 잠금+스피너)가 유지된 상태에서
+  // API 응답이 돌아올 때까지 사용자에게 진행 상황이 보여야 한다.
+  // confirmPurchase4=false는 모든 API 호출과 toast 표시가 끝난 후에만 호출.
 
   // ── 품목별 1688 API 순차 발주 ─────────────────────────────────────────────
   const results = [];
   for (const item of activeItems) {
+    // ── 클라이언트 멱등성 가드 (1차 방어선) ──────────────────────────────────
+    // 이미 발주 완료된 품목(purchase_done + purchaseNo 존재)은 재발주 없이 성공으로 간주
+    if (item.subStatus === 'purchase_done' && item.purchaseNo) {
+      console.log('[executeStartPurchasing] ⏭️ 이미 발주 완료된 품목 스킵:', {
+        orderNumber: o.orderNumber,
+        purchaseNo: item.purchaseNo,
+        productName: item.productName || item.sku || '',
+      });
+      results.push({ item, success: true, orderId: item.purchaseNo, skipped: true });
+      continue;
+    }
+
     // num_iid: 장바구니 담기 시점에 저장된 1688 상품 숫자 ID
     const numIid = String(item.num_iid || item.itemId || item.id || '');
     if (!numIid) {
@@ -2670,14 +2688,20 @@ async function executeStartPurchasing() {
       console.warn('[executeStartPurchasing] specId 없음 — 이 주문은 신규 장바구니 흐름으로 재생성 필요:', item);
     }
     try {
+      const { data: { session: _sess } } = await supabase.auth.getSession();
       const res = await fetch('/api/1688-order-create', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...((_sess?.access_token) ? { 'Authorization': `Bearer ${_sess.access_token}` } : {}),
+        },
         body: JSON.stringify({
           numIid,
           specId: item.specId || '',
           quantity: Number(item.quantity) || 1,
           orderNumber: o.orderNumber,
+          orderId: o.id,           // DB 멱등성 가드용 — Supabase orders.id
+          itemIndex: (o.items || []).indexOf(item),  // 품목 인덱스
           confirmToken: 'EUCHS_ORDER_CONFIRMED',
         }),
       });
@@ -2694,14 +2718,15 @@ async function executeStartPurchasing() {
         // ── 실패: 에러 메시지 + 발생 시각 기록
         item.purchaseError   = data.message || '발주 실패';
         item.purchaseErrorAt = new Date().toISOString();
-        item.subStatus       = 'purchase_pending';
+        // purchase_requesting → purchase_pending 롤백 (서버가 대신 처리하지만 클라이언트도 동기화)
+        if (item.subStatus === 'purchase_requesting') item.subStatus = 'purchase_pending';
         results.push({ item, success: false, error: data.message });
       }
     } catch (fetchErr) {
       // ── 통신 오류: 에러 메시지 + 발생 시각 기록
       item.purchaseError   = fetchErr.message;
       item.purchaseErrorAt = new Date().toISOString();
-      item.subStatus       = 'purchase_pending';
+      if (item.subStatus === 'purchase_requesting') item.subStatus = 'purchase_pending';
       results.push({ item, success: false, error: fetchErr.message });
     }
   }
@@ -2753,6 +2778,11 @@ async function executeStartPurchasing() {
     // 전부 실패 — order.status 변경 없음
     showToast(`[${o.orderNumber}] 전체 발주 실패 (${failed.length}개) — 로그를 확인하세요.`, 'error');
   }
+
+  // ── 모든 API 완료 후 모달 닫기 ───────────────────────────────────────────
+  // toast가 뜬 직후에 닫혀야 하므로 여기가 유일한 닫기 지점
+  // watch(modelValue) → isPurchasing=false 자동 리셋
+  confirmPurchase4.value = false;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -2766,9 +2796,13 @@ async function executeItemAutoOrder(item, order) {
     return;
   }
   try {
+    const { data: { session: _sess2 } } = await supabase.auth.getSession();
     const res = await fetch('/api/1688-order-create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...((_sess2?.access_token) ? { 'Authorization': `Bearer ${_sess2.access_token}` } : {}),
+      },
       body: JSON.stringify({
         numIid,
         specId: item.specId || '',

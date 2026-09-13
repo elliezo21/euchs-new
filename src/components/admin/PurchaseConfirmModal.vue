@@ -4,6 +4,7 @@
       <div
         v-if="modelValue && order"
         class="fixed inset-0 z-[9999] flex items-center justify-center p-3 sm:p-4 bg-black/55 backdrop-blur-xs overflow-y-auto"
+        @click="isPurchasing ? null : $emit('update:modelValue', false)"
       >
         <Transition name="pcm-scale">
           <div
@@ -20,7 +21,11 @@
                   <p class="text-[11px] text-red-500 font-medium mt-0.5">확정 시 실제 1688 판매자에게 주문이 발송되고 결제가 연동됩니다.</p>
                 </div>
               </div>
-              <button @click="$emit('update:modelValue', false)" class="p-1.5 rounded-lg hover:bg-red-100 text-slate-500 transition cursor-pointer text-lg leading-none shrink-0">✕</button>
+              <button
+                @click="isPurchasing ? null : $emit('update:modelValue', false)"
+                :disabled="isPurchasing"
+                class="p-1.5 rounded-lg hover:bg-red-100 text-slate-500 transition cursor-pointer text-lg leading-none shrink-0 disabled:opacity-40 disabled:cursor-not-allowed"
+              >✕</button>
             </div>
 
             <!-- § 본문 -->
@@ -148,9 +153,39 @@
 
             <!-- § 하단 액션 -->
             <div class="px-5 py-4 border-t border-slate-200 bg-slate-50 rounded-b-2xl shrink-0 space-y-2.5">
+              <!-- 발주 진행 중 안내 배너 -->
+              <div v-if="isPurchasing" class="flex items-center gap-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-bold">
+                <svg class="w-4 h-4 shrink-0 animate-spin text-amber-600" fill="none" viewBox="0 0 24 24">
+                  <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                  <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                </svg>
+                <span>1688 발주 요청 중입니다. 완료될 때까지 창을 닫거나 재클릭하지 마세요.</span>
+              </div>
               <div class="flex items-center gap-2.5">
-                <button type="button" class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 active:scale-95 transition cursor-pointer" @click="$emit('update:modelValue', false)">취소</button>
-                <button type="button" class="flex-1 px-4 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-black text-sm active:scale-95 transition shadow-sm cursor-pointer" @click="handleConfirm">🚨 발주 확정</button>
+                <button
+                  type="button"
+                  :disabled="isPurchasing"
+                  class="flex-1 px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 active:scale-95 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+                  @click="isPurchasing ? null : $emit('update:modelValue', false)"
+                >취소</button>
+                <button
+                  type="button"
+                  :disabled="isPurchasing"
+                  class="flex-1 px-4 py-2.5 rounded-xl font-black text-sm active:scale-95 transition shadow-sm disabled:cursor-not-allowed disabled:active:scale-100"
+                  :class="isPurchasing
+                    ? 'bg-red-300 text-white cursor-not-allowed'
+                    : 'bg-red-600 hover:bg-red-700 text-white cursor-pointer'"
+                  @click="handleConfirm"
+                >
+                  <span v-if="isPurchasing" class="flex items-center justify-center gap-2">
+                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                      <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+                      <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                    </svg>
+                    발주 처리 중…
+                  </span>
+                  <span v-else>🚨 발주 확정</span>
+                </button>
               </div>
               <div class="text-center">
                 <button type="button" class="text-[11px] text-slate-400 hover:text-slate-600 underline underline-offset-2 transition cursor-pointer" @click="showCancelNotice">이미 발주된 건 취소/환불 신청하기</button>
@@ -165,7 +200,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { currentSettings } from '@/lib/settings'
 import { krwFromCny } from '@/utils/orderCostCalculator'
 
@@ -174,6 +209,12 @@ const props = defineProps({
   order: { type: Object, default: null },
 })
 const emit = defineEmits(['update:modelValue', 'confirm'])
+
+// ── 발주 진행 잠금 상태 ────────────────────────────────────────────────────
+// true인 동안 취소·닫기·재클릭이 모두 차단됨
+// 부모(AdminOrderManageView)의 executeStartPurchasing() 완료 후
+// confirmPurchase4.value = false 로 모달이 닫히면 자동 초기화됨
+const isPurchasing = ref(false)
 
 const fallbackImg = 'data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 56 56"><rect width="56" height="56" rx="8" fill="%23f1f5f9"/><text x="28" y="36" font-size="22" text-anchor="middle" fill="%23cbd5e1">📦</text></svg>'
 
@@ -284,8 +325,23 @@ function vasLabel(vas) {
   return String(vas)
 }
 
-function handleConfirm() { emit('update:modelValue', false); emit('confirm') }
-function showCancelNotice() { alert('발주 취소/환불 신청 기능은 준비 중입니다.\n긴급 취소는 운영팀에 직접 연락해 주세요.') }
+function handleConfirm() {
+  if (isPurchasing.value) return  // 이중 클릭 완전 차단
+  isPurchasing.value = true
+  // 모달은 닫지 않음 — 부모 executeStartPurchasing()이 완료된 후
+  // confirmPurchase4.value = false 로 내려줘야만 닫힘
+  emit('confirm')
+}
+function showCancelNotice() {
+  if (isPurchasing.value) return  // 발주 중 취소 요청 무시
+  alert('발주 취소/환불 신청 기능은 준비 중입니다.\n긴급 취소는 운영팀에 직접 연락해 주세요.')
+}
+
+// 모달이 닫힐 때(modelValue → false) isPurchasing 리셋
+// 부모가 confirmPurchase4 = false 로 모달을 닫아주면 자동 초기화됨
+watch(() => props.modelValue, (val) => {
+  if (!val) isPurchasing.value = false
+})
 </script>
 
 <style scoped>
