@@ -2823,14 +2823,18 @@ async function executeStartPurchasing() {
     return;
   }
 
-  // ── sellerId 기준으로 그룹핑 ─────────────────────────────────────────────
-  // sellerId가 있는 품목 → 같은 sellerId끼리 1개 그룹
-  // sellerId가 빈 문자열('')인 품목 → 품목마다 독립 그룹(개별 발주 폴백)
-  const groups = [];   // [{ sellerId, items: [item], indices: [idx] }]
+  // ── 그룹핑: 우선순위 sellerId → num_iid → 독립 그룹 ─────────────────────────
+  // 1순위: sellerId 있는 품목 → 같은 sellerId끼리 1개 그룹
+  // 2순위: sellerId 없지만 num_iid 동일한 품목 → 같은 num_iid끼리 1개 그룹
+  //         (같은 상품의 다른 옵션 = 같은 판매자 → 묶음 발주 가능)
+  // 3순위: sellerId도 num_iid도 없음 → 독립 그룹(단건 발주 폴백)
+  // 그룹 내부 key: 'seller:{sellerId}' 또는 'item:{num_iid}' — 서로 섞이지 않도록 prefix 구분
+  const groups = [];   // [{ groupKey, sellerId, items: [item], indices: [idx] }]
 
   for (const item of activeItems) {
     const originalIdx = (o.items || []).indexOf(item);
-    const sid = (item.sellerId || '').trim();
+    const sid    = (item.sellerId || '').trim();
+    const numIid = String(item.num_iid || item.itemId || item.id || '').trim();
 
     // 이미 발주 완료된 품목은 스킵
     if (item.subStatus === 'purchase_done' && item.purchaseNo) {
@@ -2842,16 +2846,32 @@ async function executeStartPurchasing() {
       continue;
     }
 
-    if (!sid) {
-      // sellerId 없음 → 독립 그룹 (기존 단건 발주와 동일)
-      groups.push({ sellerId: '', items: [item], indices: [originalIdx] });
+    let groupKey;
+    if (sid) {
+      groupKey = `seller:${sid}`;
+    } else if (numIid) {
+      groupKey = `item:${numIid}`;   // fallback: 같은 상품ID → 같은 판매자로 간주
     } else {
-      const existing = groups.find(g => g.sellerId === sid);
+      groupKey = null;               // 독립 그룹(단건 폴백)
+    }
+
+    console.log('[executeStartPurchasing] 그룹핑:', {
+      productName: item.productName || '',
+      sid: sid || '(없음)',
+      numIid: numIid || '(없음)',
+      groupKey: groupKey || '(독립)',
+    });
+
+    if (!groupKey) {
+      // sellerId도 num_iid도 없음 → 독립 그룹
+      groups.push({ groupKey: null, sellerId: '', items: [item], indices: [originalIdx] });
+    } else {
+      const existing = groups.find(g => g.groupKey === groupKey);
       if (existing) {
         existing.items.push(item);
         existing.indices.push(originalIdx);
       } else {
-        groups.push({ sellerId: sid, items: [item], indices: [originalIdx] });
+        groups.push({ groupKey, sellerId: sid, items: [item], indices: [originalIdx] });
       }
     }
   }
