@@ -404,20 +404,23 @@ const openFeatureNotice = (featureName) => {
 }
 
 onMounted(async () => {
-  // ★ Supabase SDK 세션 복원 대기 (이중 방어)
+  // ★ Supabase SDK 세션 복원 대기 (이중 방어) — cold load 0건 표시 방어
   if (isSupabaseConfigured()) {
     try { await supabase.auth.getSession() } catch (e) {}
   }
   updatePendingBadge()
   window.addEventListener('euchs-order-status-update', updatePendingBadge)
-  window.addEventListener('storage', updatePendingBadge)
+  // ⚠️ storage 리스너 제거: triggerGlobalRefresh가 new Event('storage')를 dispatch하므로
+  //   updatePendingBadge → fetchOrdersFromSupabase → storage event 재발사 → 무한루프 발생.
+  //   배지 갱신은 위 euchs-order-status-update 커스텀 이벤트로 충분.
+  // (삭제됨: window.addEventListener('storage', updatePendingBadge))
   // 현재 경로가 /admin/orders/* 이면 서브메뉴 자동 펼침
   if (route.path.startsWith('/admin/orders')) isOrdersMenuOpen.value = true
 })
 
 onUnmounted(() => {
   window.removeEventListener('euchs-order-status-update', updatePendingBadge)
-  window.removeEventListener('storage', updatePendingBadge)
+  // (삭제됨: window.removeEventListener('storage', updatePendingBadge))
 })
 </script>
 
