@@ -1,11 +1,11 @@
-﻿<template>
+<template>
   <!-- 카테고리 이미지 카드 그리드 섹션 -->
   <section class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
     <!-- 헤더 -->
     <div class="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
       <div>
         <h2 class="text-sm sm:text-base font-black text-gray-900">🏬 전체 카테고리</h2>
-        <p class="text-[11px] text-gray-500 mt-0.5 font-medium">9개 대분류 · 1688 실시간 소싱</p>
+
       </div>
       <span class="px-2.5 py-1 rounded-full bg-orange-50 border border-orange-200 text-orange-600 text-[10px] font-black">ALL</span>
     </div>

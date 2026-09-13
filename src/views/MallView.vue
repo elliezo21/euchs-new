@@ -771,9 +771,6 @@
                   <h2 class="text-sm sm:text-base font-black text-gray-900 leading-tight">{{ section.title }}</h2>
                   <p class="text-[11px] text-gray-500 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap">
                     <span>{{ section.subtitle }}</span>
-                    <span class="px-2 py-0.5 rounded-full bg-white border border-gray-200 text-[10px] font-bold text-gray-600 shrink-0">
-                      {{ section.keyword }}
-                    </span>
                   </p>
                 </div>
               </div>
