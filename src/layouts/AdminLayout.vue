@@ -183,10 +183,23 @@
             : 'text-slate-300 hover:text-white hover:bg-slate-800/80'"
         >
           <Bell class="w-4 h-4 text-slate-400 group-hover:text-white" :class="isActiveRoute('/admin/notices') ? 'text-white' : ''" />
-          <span class="flex-1">공지 & 소식 설정</span>
+          <span class="flex-1">공지 &amp; 소식 설정</span>
         </router-link>
 
-        <!-- 6. 시스템 환경 설정 (환율/수수료) -->
+        <!-- 6. 메인 배너 관리 -->
+        <router-link
+          to="/admin/banners"
+          class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition group"
+          :class="isActiveRoute('/admin/banners')
+            ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'"
+        >
+          <i class="fas fa-images w-4 text-center text-slate-400 group-hover:text-white" :class="isActiveRoute('/admin/banners') ? 'text-white' : ''"></i>
+          <span class="flex-1">메인 배너 관리</span>
+          <span class="px-1.5 py-0.5 rounded text-[9px] font-black bg-orange-500/20 text-orange-300 border border-orange-400/30">NEW</span>
+        </router-link>
+
+        <!-- 7. 시스템 환경 설정 (환율/수수료) -->
         <router-link
           to="/admin/settings"
           class="flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition group"
