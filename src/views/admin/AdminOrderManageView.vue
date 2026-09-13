@@ -41,6 +41,19 @@
       </div>
     </div>
 
+      <!-- 🚨 수동확인 필요 경고 배너 (manual_check_required 주문 있을 때만 노출) -->
+      <div
+        v-if="attentionCount > 0"
+        @click="filterByStatus('needs_attention')"
+        class="flex items-center gap-3 px-4 py-2.5 bg-red-50 border border-red-300 rounded-2xl cursor-pointer hover:bg-red-100 transition select-none"
+      >
+        <span class="text-red-600 text-base shrink-0 animate-pulse">🚨</span>
+        <p class="text-[11px] font-black text-red-700 flex-1">
+          수동 확인이 필요한 발주 이상 주문 {{ attentionCount }}건이 있습니다 — 클릭해서 바로 확인
+        </p>
+        <span class="text-[10px] text-red-400 shrink-0 font-mono">→ 필터 적용</span>
+      </div>
+
       <!-- 필터 & 검색 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-xs flex flex-col md:flex-row items-stretch md:items-center gap-3">
         <div class="relative flex-1 max-w-sm">
@@ -54,6 +67,19 @@
             :class="activeFilter === stage.key ? stage.tabActive : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
             {{ stage.shortLabel }}
             <span v-if="stageCounts[stage.key]" class="ml-1 font-mono">({{ stageCounts[stage.key] }})</span>
+          </button>
+          <!-- 구분선 -->
+          <span class="w-px h-5 bg-slate-300 mx-1 shrink-0"></span>
+          <!-- 🚨 수동확인 필요 필터 버튼 -->
+          <button
+            @click="filterByStatus('needs_attention')"
+            class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition whitespace-nowrap cursor-pointer shadow-2xs border"
+            :class="activeFilter === 'needs_attention'
+              ? 'bg-red-600 text-white border-red-700'
+              : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'"
+          >
+            🚨 확인필요
+            <span v-if="attentionCount > 0" class="ml-1 font-mono">({{ attentionCount }})</span>
           </button>
         </div>
       </div>
@@ -131,6 +157,11 @@
                     <span class="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
                     {{ getStatusItem(order.status).shortLabel }}
                   </span>
+                  <!-- 🚨 수동확인 필요 오버레이 뱃지 (그룹발주 이상 주문) -->
+                  <span
+                    v-if="order.items?.some(i => i.subStatus === 'manual_check_required')"
+                    class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-black bg-red-600 text-white"
+                  >🚨 수동확인</span>
                 </td>
                 <td class="py-3 px-4 text-right font-mono">
                   <div class="font-black text-slate-900 text-xs">₩{{ fmtN(calcCost(order)) }}</div>
@@ -596,7 +627,33 @@
                     </button>
 
 
+                    <!-- ── 수동확인 필요 (1688 발주 성공 but DB 기록 실패 또는 타임아웃) ── -->
+                    <div
+                      v-if="item.subStatus === 'manual_check_required'"
+                      class="w-full mt-1 flex items-start gap-2 bg-red-50 border-2 border-red-500 rounded-lg px-3 py-2"
+                    >
+                      <span class="text-red-600 text-base shrink-0 mt-0.5">🚨</span>
+                      <div class="min-w-0 flex-1">
+                        <p class="text-[11px] font-black text-red-700 leading-snug">
+                          수동 확인 필요
+                          <span v-if="item.purchaseNo" class="font-mono ml-1">1688 발주번호: {{ item.purchaseNo }}</span>
+                        </p>
+                        <p class="text-[10px] text-red-500 mt-0.5 leading-relaxed">
+                          <template v-if="item.purchaseNo">
+                            1688 주문은 생성됐으나 DB 기록이 실패했습니다. 1688 콘솔에서 확인 후 구매번호를 수동 입력해 주세요. (이중발주 방지 — 자동 재시도 불가)
+                          </template>
+                          <template v-else>
+                            1688 API 타임아웃 등으로 주문 생성 여부가 불확실합니다. 1688 콘솔을 직접 확인한 후 수동 입력하거나 재시도하세요.
+                          </template>
+                        </p>
+                        <p v-if="item.purchaseErrorAt" class="text-[10px] text-red-400 font-mono mt-0.5">
+                          {{ new Date(item.purchaseErrorAt).toLocaleString('ko-KR') }}
+                        </p>
+                      </div>
+                    </div>
+
                     <!-- ── 발주 실패 배지 (purchaseError 있을 때만 표시) ── -->
+
                     <div
                       v-if="item.purchaseError"
                       class="w-full mt-1 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"
@@ -1944,6 +2001,35 @@ async function savePurchasingInfo(item, idx) {
     chinaTrackingNo: item.chinaTrackingNo,
   };
 
+  // ── 그룹 자동 동기화: 같은 purchaseNo 형제 품목에 carrier/trackingNo 전파 ──
+  // 묶음발주로 같은 1688 orderId를 공유하는 품목들은 택배사/송장번호도 동일
+  const savedPurchaseNo = item.purchaseNo;
+  if (savedPurchaseNo && activeOrder.value) {
+    const items = activeOrder.value.items || [];
+    const siblings = items.filter((other, otherIdx) =>
+      otherIdx !== idx &&
+      !other.excluded &&
+      other.purchaseNo === savedPurchaseNo
+    );
+    if (siblings.length > 0) {
+      for (const sibling of siblings) {
+        sibling.chinaCarrier    = item.chinaCarrier;
+        sibling.chinaTrackingNo = item.chinaTrackingNo;
+        if (sibling.chinaTrackingNo) sibling.subStatus = 'shipping';
+        else if (sibling.purchaseNo)  sibling.subStatus = 'purchase_done';
+        // draft도 즉시 동기화 (UI 입력칸 반영)
+        const sibIdx = items.indexOf(sibling);
+        if (sibIdx >= 0 && purchaseInfoDraft.value[sibIdx]) {
+          purchaseInfoDraft.value[sibIdx].chinaCarrier    = item.chinaCarrier;
+          purchaseInfoDraft.value[sibIdx].chinaTrackingNo = item.chinaTrackingNo;
+        }
+      }
+      // 형제 품목 변경사항 포함 일괄 저장
+      await saveDetailDraft({ closeAfter: false });
+      showToast(`${siblings.length}개 그룹 품목에 택배사/송장번호 자동 동기화됨`);
+    }
+  }
+
   // ★ 자동화: 모든 유효 품목에 송장번호 입력 완료 시 창고 도착 확인 자동 전환
   // ★ 향후 1688 자동발주 API 콜백에서도 confirmWarehouseArrival()을 직접 호출해 재사용 가능
   if (allItemsHaveTrackingNo(activeOrder.value)) {
@@ -2356,6 +2442,13 @@ const stageCounts = computed(() => {
   return c;
 });
 
+// 🚨 수동확인 필요(manual_check_required) 품목이 1개라도 있는 주문 카운트
+const attentionCount = computed(() =>
+  orders.value.filter(o =>
+    (o.items || []).some(i => i.subStatus === 'manual_check_required')
+  ).length
+);
+
 
 
 const filteredOrders = computed(() => {
@@ -2365,6 +2458,9 @@ const filteredOrders = computed(() => {
     if (k === 'shipping_in_transit') list = list.filter(o => normalizeOrderStatus(o.status) === 'warehouse_in');
     else if (k === 'warehouse_arrived') list = list.filter(o => ['arrival_done','inspection_done'].includes(normalizeOrderStatus(o.status)));
     else if (k === 'domestic_delivered') list = list.filter(o => ['domestic_shipping','delivered','completed'].includes(normalizeOrderStatus(o.status)));
+    else if (k === 'needs_attention') list = list.filter(o =>
+      (o.items || []).some(i => i.subStatus === 'manual_check_required')
+    );
     else list = list.filter(o => normalizeOrderStatus(o.status) === k);
   }
   if (searchQuery.value.trim()) {
@@ -2575,6 +2671,7 @@ function getItemSubStatusBadge(item) {
     purchase_done_manual:  { label: '✍️ 수동발주완료',  cls: 'bg-orange-100 text-orange-700 border-orange-200' },
     shipping:              { label: '🚚 내륙배송중',    cls: 'bg-purple-100 text-purple-700 border-purple-200' },
     arrived:               { label: '📦 이우창고도착',  cls: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
+    manual_check_required: { label: '🚨 수동확인필요',  cls: 'bg-red-600 text-white border-red-700' },
   };
   return map[s] || map.purchase_pending;
 }
@@ -2722,99 +2819,155 @@ async function executeStartPurchasing() {
   const activeItems = (o.items || []).filter(i => !i.excluded);
   if (activeItems.length === 0) {
     showToast('발주할 유효 품목이 없습니다.', 'error');
-    confirmPurchase4.value = false;  // 빈 아이템: 즉시 닫기(로딩할 것 없음)
+    confirmPurchase4.value = false;
     return;
   }
 
-  // ── 모달은 닫지 않음 ─────────────────────────────────────────────────────
-  // PurchaseConfirmModal의 isPurchasing=true(버튼 잠금+스피너)가 유지된 상태에서
-  // API 응답이 돌아올 때까지 사용자에게 진행 상황이 보여야 한다.
-  // confirmPurchase4=false는 모든 API 호출과 toast 표시가 끝난 후에만 호출.
+  // ── sellerId 기준으로 그룹핑 ─────────────────────────────────────────────
+  // sellerId가 있는 품목 → 같은 sellerId끼리 1개 그룹
+  // sellerId가 빈 문자열('')인 품목 → 품목마다 독립 그룹(개별 발주 폴백)
+  const groups = [];   // [{ sellerId, items: [item], indices: [idx] }]
 
-  // ── 품목별 1688 API 순차 발주 ─────────────────────────────────────────────
-  const results = [];
   for (const item of activeItems) {
-    // ── 클라이언트 멱등성 가드 (1차 방어선) ──────────────────────────────────
-    // 이미 발주 완료된 품목(purchase_done + purchaseNo 존재)은 재발주 없이 성공으로 간주
+    const originalIdx = (o.items || []).indexOf(item);
+    const sid = (item.sellerId || '').trim();
+
+    // 이미 발주 완료된 품목은 스킵
     if (item.subStatus === 'purchase_done' && item.purchaseNo) {
-      console.log('[executeStartPurchasing] ⏭️ 이미 발주 완료된 품목 스킵:', {
+      console.log('[executeStartPurchasing] ⏭️ 이미 발주 완료 스킵:', {
         orderNumber: o.orderNumber,
         purchaseNo: item.purchaseNo,
         productName: item.productName || item.sku || '',
       });
-      results.push({ item, success: true, orderId: item.purchaseNo, skipped: true });
       continue;
     }
 
-    // num_iid: 장바구니 담기 시점에 저장된 1688 상품 숫자 ID
-    const numIid = String(item.num_iid || item.itemId || item.id || '');
-    if (!numIid) {
-      // numIid 없음 → 발주 시도 불가, 실패로 기록
-      const errMsg = '1688 상품 ID(numIid)가 없어 자동발주 불가';
-      item.purchaseError    = errMsg;
-      item.purchaseErrorAt  = new Date().toISOString();
-      item.subStatus        = 'purchase_pending';
-      results.push({ item, success: false, error: errMsg });
-      continue;
-    }
-    // specId: 장바구니 담기 시점에 저장된 1688 SKU spec_id(32자리 hex)
-    // 이 값이 비어있으면 /api/1688-order-create에서 400 에러 발생
-    if (!item.specId) {
-      console.warn('[executeStartPurchasing] specId 없음 — 이 주문은 신규 장바구니 흐름으로 재생성 필요:', item);
-    }
-    try {
-      const { data: { session: _sess } } = await supabase.auth.getSession();
-      const res = await fetch('/api/1688-order-create', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...((_sess?.access_token) ? { 'Authorization': `Bearer ${_sess.access_token}` } : {}),
-        },
-        body: JSON.stringify({
-          numIid,
-          specId: item.specId || '',
-          quantity: Number(item.quantity) || 1,
-          orderNumber: o.orderNumber,
-          orderId: o.id,           // DB 멱등성 가드용 — Supabase orders.id
-          itemIndex: (o.items || []).indexOf(item),  // 품목 인덱스
-          confirmToken: 'EUCHS_ORDER_CONFIRMED',
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        // ── 성공: 에러 필드 초기화, subStatus/purchaseNo 업데이트
-        item.subStatus       = 'purchase_done';
-        item.purchaseNo      = String(data.orderId || '');
-        item.purchaseAccount = 'calvinli06';
-        item.purchaseError   = null;   // 이전 에러 초기화
-        item.purchaseErrorAt = null;
-        results.push({ item, success: true, orderId: data.orderId });
+    if (!sid) {
+      // sellerId 없음 → 독립 그룹 (기존 단건 발주와 동일)
+      groups.push({ sellerId: '', items: [item], indices: [originalIdx] });
+    } else {
+      const existing = groups.find(g => g.sellerId === sid);
+      if (existing) {
+        existing.items.push(item);
+        existing.indices.push(originalIdx);
       } else {
-        // ── 실패: 에러 메시지 + 발생 시각 기록
-        item.purchaseError   = data.message || '발주 실패';
-        item.purchaseErrorAt = new Date().toISOString();
-        // purchase_requesting → purchase_pending 롤백 (서버가 대신 처리하지만 클라이언트도 동기화)
-        if (item.subStatus === 'purchase_requesting') item.subStatus = 'purchase_pending';
-        results.push({ item, success: false, error: data.message });
+        groups.push({ sellerId: sid, items: [item], indices: [originalIdx] });
       }
-    } catch (fetchErr) {
-      // ── 통신 오류: 에러 메시지 + 발생 시각 기록
-      item.purchaseError   = fetchErr.message;
-      item.purchaseErrorAt = new Date().toISOString();
-      if (item.subStatus === 'purchase_requesting') item.subStatus = 'purchase_pending';
-      results.push({ item, success: false, error: fetchErr.message });
     }
   }
 
+  // ── 세션 1회 획득 (전체 그룹 공유) ─────────────────────────────────────
+  const { data: { session: _sess } } = await supabase.auth.getSession();
+  const authHeaders = {
+    'Content-Type': 'application/json',
+    ...(_sess?.access_token ? { 'Authorization': `Bearer ${_sess.access_token}` } : {}),
+  };
+
+  const results = [];   // { success, items, indices, orderId, error, skipped }
+
+  // ── 그룹별 순차 발주 ─────────────────────────────────────────────────────
+  for (const group of groups) {
+    const { sellerId, items: gItems, indices: gIndices } = group;
+
+    // numIid 없는 품목이 있으면 해당 그룹 전체 실패 처리
+    const missingNumIid = gItems.find(i => !String(i.num_iid || i.itemId || i.id || ''));
+    if (missingNumIid) {
+      const errMsg = '1688 상품 ID(numIid)가 없어 자동발주 불가';
+      for (const it of gItems) {
+        it.purchaseError   = errMsg;
+        it.purchaseErrorAt = new Date().toISOString();
+        it.subStatus       = 'purchase_pending';
+      }
+      results.push({ success: false, items: gItems, indices: gIndices, error: errMsg });
+      continue;
+    }
+
+    try {
+      let body;
+      if (gItems.length === 1) {
+        // 단건 폴백(그룹이 1개이거나 sellerId 없음) → 기존 단건 모드
+        const item = gItems[0];
+        const numIid = String(item.num_iid || item.itemId || item.id || '');
+        body = {
+          numIid,
+          specId:       item.specId || '',
+          quantity:     Number(item.quantity) || 1,
+          orderNumber:  o.orderNumber,
+          orderId:      o.id,
+          itemIndex:    gIndices[0],
+          confirmToken: 'EUCHS_ORDER_CONFIRMED',
+        };
+      } else {
+        // 그룹 모드 → items[] + itemIndices[]
+        body = {
+          items: gItems.map(it => ({
+            numIid:   String(it.num_iid || it.itemId || it.id || ''),
+            specId:   it.specId || '',
+            quantity: Number(it.quantity) || 1,
+          })),
+          itemIndices:  gIndices,
+          orderNumber:  o.orderNumber,
+          orderId:      o.id,
+          confirmToken: 'EUCHS_ORDER_CONFIRMED',
+        };
+      }
+
+      const res = await fetch('/api/1688-order-create', {
+        method:  'POST',
+        headers: authHeaders,
+        body:    JSON.stringify(body),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        const purchaseNo = String(data.orderId || '');
+        // 그룹 내 모든 품목에 같은 purchaseNo 기록
+        for (const it of gItems) {
+          it.subStatus       = 'purchase_done';
+          it.purchaseNo      = purchaseNo;
+          it.purchaseAccount = 'calvinli06';
+          it.purchaseError   = null;
+          it.purchaseErrorAt = null;
+        }
+        // 1688 성공했으나 DB 기록 실패 경고
+        if (data.warning) {
+          console.warn('[executeStartPurchasing][GROUP] ⚠️ DB 기록 실패 경고:', data.warning);
+          for (const it of gItems) {
+            it.subStatus = 'manual_check_required';
+          }
+        }
+        results.push({ success: true, items: gItems, indices: gIndices, orderId: data.orderId });
+      } else {
+        const errMsg = data.message || '발주 실패';
+        for (const it of gItems) {
+          it.purchaseError   = errMsg;
+          it.purchaseErrorAt = new Date().toISOString();
+          if (it.subStatus === 'purchase_requesting') it.subStatus = 'purchase_pending';
+          // manual_check_required(타임아웃 경우)는 서버가 이미 설정 — 덮어쓰지 않음
+          if (it.subStatus !== 'manual_check_required') it.subStatus = 'purchase_pending';
+        }
+        results.push({ success: false, items: gItems, indices: gIndices, error: errMsg });
+      }
+    } catch (fetchErr) {
+      const errMsg = fetchErr.message;
+      for (const it of gItems) {
+        it.purchaseError   = errMsg;
+        it.purchaseErrorAt = new Date().toISOString();
+        if (it.subStatus === 'purchase_requesting') it.subStatus = 'purchase_pending';
+      }
+      results.push({ success: false, items: gItems, indices: gIndices, error: errMsg });
+    }
+  }
+
+  // ── 결과 집계 ─────────────────────────────────────────────────────────────
   const succeeded = results.filter(r => r.success);
   const failed    = results.filter(r => !r.success);
 
-  // ── 결과에 따라 order.status 전환 여부 결정 ───────────────────────────────
   const prevStatus = o.status;
   const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
 
   if (failed.length === 0) {
-    // 전부 성공 → purchasing으로 정상 전환
+    // 전부 성공 → purchasing 전환
     if (target) target.status = 'purchasing';
     if (activeOrder.value && (activeOrder.value.id === o.id || activeOrder.value.orderNumber === o.orderNumber)) {
       activeOrder.value.status = 'purchasing';
@@ -2822,9 +2975,9 @@ async function executeStartPurchasing() {
     isInternalUpdate.value = true;
     try {
       await updateOrderStatus(o.id, 'purchasing', { purchaseStartedAt: new Date().toISOString() });
-      // items 변경사항(subStatus, purchaseNo) 저장
       await saveDetailDraft({ closeAfter: false });
-      showToast(`[${o.orderNumber}] ${succeeded.length}개 품목 발주 완료 → 4단계 전환`);
+      const totalItems = succeeded.reduce((s, r) => s + r.items.length, 0);
+      showToast(`[${o.orderNumber}] ${totalItems}개 품목 발주 완료 → 4단계 전환`);
     } catch (err) {
       if (target) target.status = prevStatus;
       if (activeOrder.value) activeOrder.value.status = prevStatus;
@@ -2834,15 +2987,17 @@ async function executeStartPurchasing() {
     }
 
   } else if (succeeded.length > 0) {
-    // 일부 성공 — order.status는 payment_verified 유지, items만 저장
+    // 일부 성공
     if (activeOrder.value && (activeOrder.value.id === o.id || activeOrder.value.orderNumber === o.orderNumber)) {
       activeOrder.value.items = o.items;
     }
     isInternalUpdate.value = true;
     try {
       await saveDetailDraft({ closeAfter: false });
+      const sucItems = succeeded.reduce((s, r) => s + r.items.length, 0);
+      const failItems = failed.reduce((s, r) => s + r.items.length, 0);
       showToast(
-        `[${o.orderNumber}] ${succeeded.length}개 성공, ${failed.length}개 실패 — 실패 품목은 상세보기에서 개별 재시도 가능합니다.`,
+        `[${o.orderNumber}] ${sucItems}개 성공, ${failItems}개 실패 — 실패 품목은 상세보기에서 개별 재시도 가능합니다.`,
         'error'
       );
     } finally {
@@ -2850,13 +3005,11 @@ async function executeStartPurchasing() {
     }
 
   } else {
-    // 전부 실패 — order.status 변경 없음
-    showToast(`[${o.orderNumber}] 전체 발주 실패 (${failed.length}개) — 로그를 확인하세요.`, 'error');
+    // 전부 실패
+    const failItems = failed.reduce((s, r) => s + r.items.length, 0);
+    showToast(`[${o.orderNumber}] 전체 발주 실패 (${failItems}개) — 로그를 확인하세요.`, 'error');
   }
 
-  // ── 모든 API 완료 후 모달 닫기 ───────────────────────────────────────────
-  // toast가 뜬 직후에 닫혀야 하므로 여기가 유일한 닫기 지점
-  // watch(modelValue) → isPurchasing=false 자동 리셋
   confirmPurchase4.value = false;
 }
 

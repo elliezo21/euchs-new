@@ -99,6 +99,44 @@ async function callRpc(fnName, args) {
 }
 
 /**
+ * 긴급 공지 INSERT — 1688 발주 CRITICAL 장애 시 관리자 대시보드 배너로 노출
+ * notices 테이블 (title, content, category, is_pinned, is_important) INSERT
+ * 실패해도 예외를 밖으로 던지지 않음 — 마지막 보루는 console.error
+ */
+async function insertCriticalNotice({ china1688OrderId, orderId, itemIndices, errorMsg }) {
+  const { url, serviceRoleKey } = getServiceRoleConfig()
+  if (!url || !serviceRoleKey) return
+  try {
+    await fetch(`${url}/rest/v1/notices`, {
+      method: 'POST',
+      headers: {
+        'apikey': serviceRoleKey,
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=minimal',
+      },
+      body: JSON.stringify({
+        title: `🚨 [CRITICAL] 1688 발주 DB 기록 실패 — 수동 확인 필요`,
+        content: [
+          `1688 orderId: ${china1688OrderId}`,
+          `orders.id: ${orderId}`,
+          `itemIndices: [${(itemIndices || []).join(', ')}]`,
+          `오류: ${errorMsg}`,
+          `시각: ${new Date().toISOString()}`,
+        ].join('\n'),
+        category: 'system',
+        is_pinned: true,
+        is_important: true,
+        created_at: new Date().toISOString(),
+      }),
+    })
+  } catch (noticeErr) {
+    // notices INSERT도 실패(DB 완전 장애) → 콘솔에만 남김
+    console.error('[1688-order-create] 🚨🚨 notices INSERT 실패 (DB 완전 불가):', noticeErr.message)
+  }
+}
+
+/**
  * 관리자 세션 토큰 검증
  * Authorization: Bearer <token> 헤더를 받아 다음 두 단계로 검증:
  *   1. GET /auth/v1/user — 유효한 Supabase 세션인지 확인, 이메일 추출
@@ -238,6 +276,286 @@ export default async function handler(req, res) {
       message: '발주 확인 토큰이 없거나 올바르지 않습니다. 확인 절차를 거쳐 다시 시도하세요.',
     })
   }
+
+  // ══════════════════════════════════════════════════════════════
+  // ── 그룹 모드 분기 (items[] 배열이 있을 때) ──────────────────
+  // 같은 sellerId 품목들을 1688 주문 1건으로 묶어 발주
+  // ══════════════════════════════════════════════════════════════
+  const { items: groupItems, itemIndices: groupItemIndices } = req.body || {}
+
+  if (Array.isArray(groupItems) && groupItems.length > 0) {
+    // ── 그룹 파라미터 검증 ─────────────────────────────────────
+    if (!orderNumber || !orderId || !Array.isArray(groupItemIndices) || groupItemIndices.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: '그룹 발주 모드: orderNumber, orderId, itemIndices 배열이 모두 필요합니다.',
+      })
+    }
+    if (groupItems.length !== groupItemIndices.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'items 배열과 itemIndices 배열의 길이가 일치해야 합니다.',
+      })
+    }
+    for (const it of groupItems) {
+      const q = Number(it.quantity)
+      if (!it.numIid || !it.specId || !Number.isInteger(q) || q < 1 || q > 999) {
+        return res.status(400).json({
+          success: false,
+          message: `그룹 품목 파라미터 오류: numIid=${it.numIid} specId=${it.specId} quantity=${it.quantity}`,
+        })
+      }
+    }
+
+    // ── 환경변수 로드 ───────────────────────────────────────────
+    const OB_KEY     = process.env.ONEBOUND_KEY     || ''
+    const OB_SECRET  = process.env.ONEBOUND_SECRET  || ''
+    const OB_SESSION = process.env.ONEBOUND_SESSION || ''
+
+    if (!OB_KEY || !OB_SECRET || !OB_SESSION) {
+      return res.status(500).json({
+        success: false,
+        message: 'API 인증 환경변수 누락 (ONEBOUND_KEY / ONEBOUND_SECRET / ONEBOUND_SESSION)',
+      })
+    }
+
+    // ── 그룹 잠금: claim_group_purchase_slot ────────────────────
+    const { data: claimResult, error: claimError } = await callRpc('claim_group_purchase_slot', {
+      p_order_id:     orderId,
+      p_item_indices: groupItemIndices,
+    })
+
+    if (claimError) {
+      console.warn('[1688-order-create][GROUP] ⚠️ claim_group_purchase_slot RPC 오류:', {
+        euchs_orderNumber: orderNumber,
+        orderId,
+        groupItemIndices,
+        error: claimError,
+        timestamp: new Date().toISOString(),
+      })
+      return res.status(500).json({ success: false, message: 'DB 잠금 RPC 오류: ' + claimError })
+    }
+
+    const { ok: claimOk, code: claimCode, message: claimMsg, purchaseNo: existingPno } = claimResult || {}
+
+    if (!claimOk) {
+      console.warn('[1688-order-create][GROUP] ⛔ 그룹 잠금 차단 (Abort):', {
+        euchs_orderNumber: orderNumber,
+        orderId,
+        groupItemIndices,
+        code: claimCode,
+        claimMsg,
+        timestamp: new Date().toISOString(),
+      })
+      return res.status(409).json({
+        success: false,
+        message: claimMsg || '그룹 내 품목 중 이미 발주 중이거나 완료된 건이 있어 전체 발주를 중단합니다.',
+        code: claimCode || 'GROUP_ABORT',
+        ...(existingPno ? { purchaseNo: existingPno } : {}),
+      })
+    }
+
+    // ── cargoParamList 다건 조립 ────────────────────────────────
+    const cargoParamList = groupItems.map(it => ({
+      offerId:  String(it.numIid),
+      specId:   String(it.specId),
+      quantity: Number(it.quantity),
+    }))
+
+    const oArgsGroup = {
+      flow: 'general',
+      addressParam: { addressId: ADDRESS_ID },
+      cargoParamList,
+    }
+
+    const paramsGroup = new URLSearchParams({
+      key:     OB_KEY,
+      secret:  OB_SECRET,
+      method:  'com.alibaba.trade/alibaba.trade.fastCreateOrder',
+      session: OB_SESSION,
+      _o_args: JSON.stringify(oArgsGroup),
+      lang:    'zh-CN',
+    })
+
+    const targetUrlGroup = `${ONEBOUND_BASE_URL}/1688global/custom?${paramsGroup.toString()}`
+
+    console.log('[1688-order-create][GROUP] 🚀 그룹 발주 시도:', {
+      euchs_orderNumber: orderNumber,
+      adminEmail,
+      orderId,
+      groupItemIndices,
+      cargoCount: cargoParamList.length,
+      timestamp: new Date().toISOString(),
+    })
+
+    // ── 12초 타임아웃 ───────────────────────────────────────────
+    const ctrlGroup = new AbortController()
+    const timerGroup = setTimeout(() => ctrlGroup.abort(), 12000)
+
+    let resDataGroup = null
+    try {
+      const r = await fetch(targetUrlGroup, {
+        method: 'GET',
+        headers: FETCH_HEADERS,
+        signal: ctrlGroup.signal,
+      })
+      clearTimeout(timerGroup)
+
+      try {
+        resDataGroup = await r.json()
+      } catch (je) {
+        // JSON 파싱 실패 → pending 롤백
+        await callRpc('release_group_purchase_slot', {
+          p_order_id:     orderId,
+          p_item_indices: groupItemIndices,
+          p_success:      false,
+          p_error_msg:    '원바운드 JSON 파싱 실패',
+        })
+        return res.status(502).json({ success: false, message: '원바운드 API 응답 파싱 실패' })
+      }
+    } catch (fetchErr) {
+      clearTimeout(timerGroup)
+
+      const isTimeout = fetchErr.name === 'AbortError'
+      const errLabel = isTimeout ? '타임아웃 (12초)' : fetchErr.message
+
+      console.warn(`[1688-order-create][GROUP] ${isTimeout ? '⏱️' : '❌'} 1688 API 오류 — unknown_ordered 처리:`, {
+        euchs_orderNumber: orderNumber,
+        orderId,
+        groupItemIndices,
+        error: errLabel,
+        timestamp: new Date().toISOString(),
+      })
+
+      // ── unknown_ordered: pending 롤백 후 subStatus 덮어씌우기 ─
+      // 1) 먼저 pending 롤백 (release_group_purchase_slot p_success=false)
+      await callRpc('release_group_purchase_slot', {
+        p_order_id:     orderId,
+        p_item_indices: groupItemIndices,
+        p_success:      false,
+        p_error_msg:    `unknown_ordered — ${errLabel}`,
+      })
+      // 2) subStatus를 unknown_ordered로 재UPDATE (단순 JSONB patch)
+      //    mark_group_manual_check를 purchaseNo='' 로 호출하여 status만 변경
+      await callRpc('mark_group_manual_check', {
+        p_order_id:     orderId,
+        p_item_indices: groupItemIndices,
+        p_purchase_no:  '',
+        p_error_msg:    `unknown_ordered — 1688 주문 생성 여부 불확실: ${errLabel}`,
+      })
+      // 실제 subStatus 값을 unknown_ordered로 쓰기 위해 별도 SQL UPDATE 필요하나,
+      // mark_group_manual_check는 manual_check_required를 쓴다.
+      // → 대신 notices INSERT로 관리자에게 알리고, 화면에서 manual_check_required 뱃지로 표시.
+      //   (unknown_ordered와 manual_check_required 모두 needs_attention 필터에 포함됨)
+      await insertCriticalNotice({
+        china1688OrderId: '(불확실 — 타임아웃)',
+        orderId,
+        itemIndices: groupItemIndices,
+        errorMsg: `unknown_ordered: ${errLabel}`,
+      })
+
+      return res.status(504).json({
+        success: false,
+        message: `1688 API 오류 (${errLabel}) — 주문 생성 여부 불확실. 관리자 화면에서 수동 확인 필요.`,
+        code: 'UNKNOWN_ORDERED',
+      })
+    }
+
+    // ── 그룹 응답 분석 ─────────────────────────────────────────
+    const errCodeGroup = String(resDataGroup?.error_code || '').trim()
+    const errMsgGroup  = resDataGroup?.reason || resDataGroup?.error || ''
+    const isErrGroup   = errCodeGroup && errCodeGroup !== '0' && errCodeGroup !== '0000'
+
+    console.log('[1688-order-create][GROUP] 원바운드 응답:', {
+      euchs_orderNumber: orderNumber,
+      error_code: resDataGroup?.error_code,
+      reason: resDataGroup?.reason,
+      hasResponse: !!resDataGroup?.response,
+      orderId: resDataGroup?.response?.orderId || null,
+      timestamp: new Date().toISOString(),
+    })
+
+    if (isErrGroup) {
+      // 1688 명확한 에러 → pending 롤백 (재시도 허용)
+      await callRpc('release_group_purchase_slot', {
+        p_order_id:     orderId,
+        p_item_indices: groupItemIndices,
+        p_success:      false,
+        p_error_msg:    errMsgGroup || `OneBound 오류 (${errCodeGroup})`,
+      })
+      return res.status(200).json({
+        success: false,
+        message: errMsgGroup || `OneBound 오류 (code: ${errCodeGroup})`,
+        code: errCodeGroup,
+        raw: resDataGroup,
+      })
+    }
+
+    // ── 그룹 발주 성공 ─────────────────────────────────────────
+    const respGroup       = resDataGroup?.response || {}
+    const china1688OrderId = respGroup?.orderId || respGroup?.result?.orderId || null
+
+    console.log('[1688-order-create][GROUP] ✅ 그룹 발주 성공:', {
+      euchs_orderNumber: orderNumber,
+      china_orderId: china1688OrderId,
+      groupItemIndices,
+      cargoCount: cargoParamList.length,
+      timestamp: new Date().toISOString(),
+    })
+
+    // ── DB 기록: release_group_purchase_slot ────────────────────
+    // ⚠️ 여기서부터 1688 API를 절대 재호출하지 않음 (이중 발주 방지)
+    const { data: releaseResult, error: releaseError } = await callRpc('release_group_purchase_slot', {
+      p_order_id:     orderId,
+      p_item_indices: groupItemIndices,
+      p_success:      true,
+      p_purchase_no:  String(china1688OrderId || ''),
+    })
+
+    if (releaseError || !releaseResult?.ok) {
+      const dbErrMsg = releaseError || releaseResult?.message || 'release_group_purchase_slot 실패'
+
+      console.error('[1688-order-create][GROUP] 🚨 CRITICAL — DB 반영 실패 (1688 발주는 성공):', {
+        china1688OrderId,
+        orderId,
+        groupItemIndices,
+        error: dbErrMsg,
+        timestamp: new Date().toISOString(),
+      })
+
+      // manual_check_required 표시 시도
+      await callRpc('mark_group_manual_check', {
+        p_order_id:     orderId,
+        p_item_indices: groupItemIndices,
+        p_purchase_no:  String(china1688OrderId || ''),
+        p_error_msg:    `DB 반영 실패: ${dbErrMsg}`,
+      })
+
+      // 관리자 대시보드 배너 INSERT 시도
+      await insertCriticalNotice({
+        china1688OrderId: String(china1688OrderId || ''),
+        orderId,
+        itemIndices: groupItemIndices,
+        errorMsg: dbErrMsg,
+      })
+
+      // 1688 주문은 생성됐으므로 success:true 반환 (클라이언트가 warning 처리)
+      return res.status(200).json({
+        success: true,
+        orderId: china1688OrderId,
+        warning: 'DB_UPDATE_FAILED — 수동 확인 필요 (이중 발주 방지를 위해 API 재시도 금지)',
+      })
+    }
+
+    return res.status(200).json({
+      success: true,
+      orderId: china1688OrderId,
+      raw: resDataGroup,
+    })
+  }
+  // ══════════════════════════════════════════════════════════════
+  // ── 이하 기존 단건 모드 (items[] 없음) — 코드 변경 없음 ──────
+  // ══════════════════════════════════════════════════════════════
 
   // ── 필수 파라미터 엄격 검증 ───────────────────────────────────────────
   if (!numIid || !specId || !quantity || !orderNumber) {
