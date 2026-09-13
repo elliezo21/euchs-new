@@ -136,18 +136,53 @@
       </div>
     </div>
 
-    <!-- BUYER QUICK HUB (col-span-3): 항상 고정, DB 배너와 무관 -->
+    <!-- ============================================================== -->
+    <!-- BUYER QUICK HUB (col-span-3): 항상 고정, DB 배너와 무관         -->
+    <!-- 원본: 0798ee6 커밋 MallView.vue Banner3 섹션 그대로 이식         -->
+    <!-- ============================================================== -->
     <div class="md:col-span-3 bg-white border border-gray-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between space-y-3">
       <div class="space-y-2.5">
         <div class="flex items-center justify-between">
           <span class="text-[11px] font-extrabold text-gray-500 uppercase">BUYER QUICK HUB</span>
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         </div>
+
+        <!-- 예치금 잔액 (KRW + RMB) -->
         <div class="bg-gray-50 p-3 rounded-2xl border border-gray-200/80 space-y-1">
           <div class="text-[11px] text-gray-500">예치금 지갑 잔액</div>
-          <div class="text-base font-black text-emerald-600 font-mono">₩ {{ formatKrw(depositBalance) }}</div>
+          <div class="text-base font-black text-emerald-600 font-mono">
+            ₩ {{ formatKrw(depositBalance) }}
+          </div>
+          <div v-if="exchangeRate" class="text-[10px] text-gray-400 font-mono">
+            (≈ ¥ {{ formatRmb(depositBalance / exchangeRate) }})
+          </div>
+        </div>
+
+        <!-- 실시간 소싱 공지 카드 (원본 구조 그대로) -->
+        <div
+          v-if="latestNotice"
+          class="space-y-1 text-xs p-2.5 rounded-2xl bg-slate-50 hover:bg-rose-50/70 border border-gray-200/70 transition cursor-pointer group select-none"
+          @click="$emit('open-notice', latestNotice)"
+          title="클릭하여 공지사항 상세 보기"
+        >
+          <div class="font-bold text-gray-800 flex items-center justify-between gap-1">
+            <span class="flex items-center gap-1.5 text-[11px] text-rose-600 font-black">
+              <i class="fas fa-bullhorn"></i> 실시간 소싱 공지
+            </span>
+            <span v-if="latestNotice.badge" class="px-1.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
+              {{ latestNotice.badge }}
+            </span>
+          </div>
+          <p class="text-[11px] font-bold text-gray-800 group-hover:text-rose-600 leading-snug line-clamp-2 transition">
+            {{ latestNotice.title || '[공지] 1688 상품 주문 후 직영 물류센터 24시간 검수 후 안전 출고됩니다.' }}
+          </p>
+          <span class="text-[10px] text-gray-400 font-mono block">
+            {{ formatDate(latestNotice.created_at || latestNotice.createdAt) }}
+          </span>
         </div>
       </div>
+
+      <!-- 발주 & 배송관리 버튼 -->
       <div>
         <router-link to="/dashboard" class="w-full py-2.5 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition text-center shadow-sm">
           <i class="fas fa-truck-loading text-amber-400"></i>
@@ -164,9 +199,11 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase } from '../../lib/supabase'
 
 const props = defineProps({
-  depositBalance: { type: Number, default: 0 }
+  depositBalance: { type: Number, default: 0 },
+  exchangeRate:   { type: Number, default: 0 },
+  latestNotice:   { type: Object, default: null }
 })
-const emit = defineEmits(['search'])
+const emit = defineEmits(['search', 'open-notice'])
 
 const promoChips = ['텀블러', '블라우스', '셔츠', '숄더백', '실내화']
 
@@ -219,6 +256,18 @@ function isExternal(url) { return url ? url.startsWith('http://') || url.startsW
 function formatKrw(v) {
   if (!v || isNaN(v)) return '0'
   return Math.floor(Number(v)).toLocaleString('ko-KR')
+}
+
+function formatRmb(val) {
+  if (!val || isNaN(val)) return '0.00'
+  return Number(val).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')
+}
+
+function formatDate(val) {
+  if (!val) return ''
+  const d = new Date(val)
+  if (isNaN(d.getTime())) return ''
+  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`
 }
 
 onMounted(loadBanners)

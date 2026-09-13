@@ -710,7 +710,10 @@
       <!-- ============================================================ -->
       <MallBanner
         :deposit-balance="depositBalanceKrw"
+        :exchange-rate="customExchangeRate"
+        :latest-notice="latestMallNotice"
         @search="(keyword) => { queryInput = keyword; executeSearch(1) }"
+        @open-notice="openNoticeModal"
       />
 
       <!-- ============================================================ -->
