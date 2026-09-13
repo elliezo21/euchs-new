@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <!-- 최근 본 상품 섹션 (로그인 사용자만) -->
   <section v-if="isLoggedIn && items.length > 0" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
     <!-- 헤더 -->
@@ -78,7 +78,7 @@ async function loadRecentlyViewed() {
       items.value = data
     }
   } catch (e) {
-    console.warn('[RecentlyViewed] 로드 실패:', e)
+    console.error('[RecentlyViewed] 로드 실패 (code:', e?.code, '):', e?.message || e)
   }
 }
 

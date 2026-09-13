@@ -2202,10 +2202,27 @@ const openProductModal = (item) => {
 
 // ── 최근 본 상품 기록 공통 헬퍼 ─────────────────────────────────
 // openProductModal / openDetailModalById 양쪽에서 호출
-function recordRecentlyViewed(item) {
+// ★ Fix: adminSignIn 경로에서 euchs_admin_token이 잔류하면 initAuth가
+//   Supabase getSession()을 건너뜀 → auth.uid()=null → RLS 42501 발생.
+//   insert 전 실제 Supabase Auth 세션을 확인해 JWT가 없으면 스킵.
+async function recordRecentlyViewed(item) {
   if (!currentUser.value?.id || !item) return
   const itemId = String(item.id || item.num_iid || item.offerId || '')
   if (!itemId) return
+
+  // Supabase Auth 세션 확인 — 세션(JWT)이 없으면 auth.uid()=null → RLS 거부
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      // 관리자 토큰 경로 또는 세션 만료: RLS INSERT 불가 → 조용히 스킵
+      console.warn('[RecentlyViewed] Supabase Auth 세션 없음 — insert 스킵 (관리자 토큰 경로 또는 세션 만료)')
+      return
+    }
+  } catch (e) {
+    console.error('[RecentlyViewed] getSession 실패:', e?.message || e)
+    return
+  }
+
   const snapshot = {
     id: itemId,
     titleKo: item.titleKo || '',
@@ -2219,7 +2236,9 @@ function recordRecentlyViewed(item) {
     { onConflict: 'user_id,item_id' }
   ).then(() => {
     recentlyViewedRef.value?.reload()
-  }).catch(() => {}) // 백그라운드 실패 무시
+  }).catch((err) => {
+    console.error('[RecentlyViewed] upsert 실패:', err?.message || err)
+  })
 }
 
 const handleModalCartAdded = (savedItem) => {
