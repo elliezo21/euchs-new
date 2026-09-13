@@ -666,6 +666,18 @@
         </div>
       </div>
 
+      <!-- ======================================================== -->
+      <!-- 섹션 3: 메인 배너 관리 (롤링 배너 CRUD)                  -->
+      <!-- ======================================================== -->
+      <div class="border-t border-slate-200 pt-6">
+        <div class="flex items-center gap-2 mb-4">
+          <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+          <h3 class="font-black text-slate-900 text-sm">3. 메인 소싱몰 롤링 배너 관리</h3>
+          <span class="ml-auto text-xs text-slate-400 font-medium">/mall 상단 자동 롤링 배너 · Supabase banners 테이블</span>
+        </div>
+        <AdminBannersView />
+      </div>
+
     </div>
 
     <!-- ======================================================== -->
@@ -1029,6 +1041,10 @@ import {
 } from '@/lib/settings'
 import { invokeRateFetch } from '@/utils/exchangeRate'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
+import AdminBannersView from '@/views/admin/AdminBannersView.vue'
+// NOTE: banners 버킷은 notices 버킷과 별도 신규 생성. 추후 미디어 업로드 기능
+// 확장 시에는 기존 site_settings 미디어 관리 패턴(service_media JSON 컬럼) 먼저
+// 확인하고 재사용 가능성 검토할 것.
 
 const activeTab = ref('rate') // 'rate' | 'media' | 'staff'
 

@@ -277,10 +277,9 @@ const routes = [
         meta: { requiresAdmin: true, title: '공지사항 & 일정 관리 | EUCHS Admin', isAdmin: true }
       },
       {
+        // /admin/banners는 /admin/settings 내 "메인 동영상 & 미디어 관리" 탭으로 통합됨
         path: 'banners',
-        name: 'admin-banners',
-        component: () => import('../views/admin/AdminBannersView.vue'),
-        meta: { requiresAdmin: true, title: '메인 배너 관리 | EUCHS Admin', isAdmin: true }
+        redirect: '/admin/settings'
       },
       {
         path: 'warehouse-scan',
