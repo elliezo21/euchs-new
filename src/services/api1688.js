@@ -486,6 +486,13 @@ const saveToCache = (cacheMap, storageKey, key, data) => {
 
 /**
  * 파파고 텍스트 번역 함수 (개별 캐시 확인 ➔ 미번역 텍스트 일괄 번역 ➔ 캐시 저장)
+ *
+ * ── 킬스위치 ─────────────────────────────────────────────────────────────
+ * VITE_TRANSLATION_ENABLED=false (또는 미설정) 이면 /api/translate 호출을
+ * 아예 건너뛰고 원문을 그대로 반환한다.
+ * 재활성화 시: .env + Vercel 환경변수에서 VITE_TRANSLATION_ENABLED=true 로 변경.
+ * ─────────────────────────────────────────────────────────────────────────
+ *
  * @param {string|string[]} text - 번역할 텍스트 또는 텍스트 배열
  * @param {string} targetLang - 대상 언어 ('KO' | 'ZH' | 'EN' 등)
  * @param {string} [sourceLang] - 출발 언어 (선택 사항)
@@ -493,6 +500,13 @@ const saveToCache = (cacheMap, storageKey, key, data) => {
  */
 export async function translateText(text, targetLang = 'KO', sourceLang = null) {
   if (!text || (Array.isArray(text) && text.length === 0)) {
+    return text
+  }
+
+  // ── 킬스위치: 번역 서비스 비활성화 상태이면 즉시 원문 반환 ──────────────
+  // VITE_TRANSLATION_ENABLED=true 일 때만 실제 번역 API 호출
+  if (import.meta.env.VITE_TRANSLATION_ENABLED !== 'true') {
+    // 원문 그대로 반환 (배열/단일 형태 유지)
     return text
   }
 
@@ -805,7 +819,8 @@ export async function search1688(queryZh, page = 1, options = {}) {
       const sales = parseInt(it.sold_count || it.volume || it.sales || 0, 10)
       const titleZh = it.title || it.subject || ''
       const company = it.nick || it.shop_name || it.shopName || it.sellerName || '1688 공급사'
-      const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || '')
+      // 실측: 1688global API는 seller_id/user_num_id를 빈값으로 반환; nick(_sopid@...)이 유일한 판매자 식별자
+      const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || it.nick || '')
 
       return {
         id: cleanId || itemId,
@@ -1058,7 +1073,8 @@ export async function search1688ByImageUrl(imageUrl) {
       const priceNum = parseFloat(String(it.price || '0').replace(/[^0-9.]/g, '')) || 0
       const minOrder = parseInt(it.min_num || it.minOrder || '1', 10) || 1
       const titleZh = it.title || it.subject || ''
-      const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || '')
+      // 실측: 1688global API는 seller_id/user_num_id를 빈값으로 반환; nick(_sopid@...)이 유일한 판매자 식별자
+      const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || it.nick || '')
 
       return {
         id: cleanId || itemId,
@@ -1727,7 +1743,15 @@ export async function fetch1688ProductById(offerId) {
       return candidates.find(v => typeof v === 'string' && v.trim() !== '') || '1688 인증 직영 제조공장'
     }
 
-    /** 유효한 공급사 ID를 후보 배열에서 순서대로 찾아 반환 (빈 문자열·null 건너뜀) */
+    /** 유효한 공급사 ID를 후보 배열에서 순서대로 찾아 반환 (빈 문자열·null 건너뜀)
+     *
+     * 실측 확인(2026-09-13, 상품 857430136660):
+     *   - 1688global/item_get: seller_id='', user_num_id='', shop_id='' → 모두 빈값
+     *   - item.nick = '_sopid@BBBeCMKYW2pAB2gKvC0HmrN3Q' ← 실제 채워지는 유일한 식별자
+     *   - '_sopid@...' 형식 = 1688의 openUid 체계 (com.alibaba.account API에서 toOpenUid로 사용)
+     *   - seller_info.nick 동일값 반환 확인
+     * → nick(_sopid@...)을 마지막 폴백으로 추가: 숫자 ID가 모두 비어있을 때만 사용
+     */
     function pickValidSellerId(si, item) {
       const candidates = [
         si?.seller_id,
@@ -1737,6 +1761,11 @@ export async function fetch1688ProductById(offerId) {
         item?.sellerId,
         item?.user_num_id,
         item?.shop_id,
+        // ── 마지막 폴백: nick(_sopid@... = 1688 openUid) ──────────────────
+        // 실측: 1688global API는 위 숫자 ID를 모두 빈값으로 반환하고
+        // nick만 채워서 내려줌. 그룹핑 키로 사용 가능 (판매자 고유값).
+        si?.nick,
+        item?.nick,
       ]
       const found = candidates.find(v => v !== null && v !== undefined && String(v).trim() !== '')
       return found !== undefined ? String(found) : ''
