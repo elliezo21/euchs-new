@@ -636,7 +636,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
+import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, fetch1688FreightEstimate, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
 import { estimateFreightRmb } from '../utils/orderCostCalculator'
@@ -1341,29 +1341,34 @@ const totalPriceKrw = computed(() => {
 
 // ----------------------------------------------------
 // 중국 내 배송비 (이우 물류센터 기준, 1688 실비 SSOT)
-// 우선순위:
-//   1) item.freight (1688 실비, 0=包邮 무료배송 포함 — ">= 0"이면 유효값)
-//   2) estimateFreightRmb(qty) — 1688이 freight를 아예 안 줄 때만 최후 폴백
-// ⚠️ 수량 구간별 배율 곱셈(qty<10/50/100 스케일링) 완전 삭제 (2026-09-14):
-//    item.freight는 "품목 수량 기준 총 배송비" 정의로 변경됨 — 배율 재계산 불필요
-// ⚠️ 包邮(rawFreight > 0) 버그 수정 → rawFreight >= 0 (0=무료배송은 유효값)
+// ✅ SSOT 원칙 (2026-09-14 수정):
+//   item.freight는 api1688.js의 fetch1688ProductById()가 이미 안전하게 파싱한 단일 소스.
+//   raw.freight / raw.express_fee 를 이 computed에서 직접 재파싱하지 않음.
+//   이유: express_fee: "" (빈 문자열) 등을 직접 읽으면 JS 타입 강제변환으로
+//         "" >= 0 → true (""가 0으로 변환됨) → ¥0 오판정 발생.
+//   freight = null  → 아직 미확인 또는 1688이 안 줌 → estimate 호출 대기 중 → 추정치 표시
+//   freight = 0     → 실제 包邮(무료배송) — api1688.js에서 parseFloat("")=NaN→null로 이미 처리됨
+//                     실제 0이 들어오면 진짜 包邮로 신뢰
+//   freight > 0     → 실비 (order-preview sumCarriage 기반, 단위: CNY)
 // ----------------------------------------------------
 const chinaFreightRmb = computed(() => {
   const qty = totalQuantity.value
   if (qty <= 0) return 0
 
   const item = currentItem.value || props.product
-  const rawFreight = item?.freight ?? item?.raw?.freight ?? item?.raw?.express_fee ?? null
+  // ⚠️ item?.raw?.freight / item?.raw?.express_fee 재파싱 금지
+  //    api1688.js가 이미 null/숫자로 정규화한 item.freight를 그대로 사용
+  const freight = item?.freight
 
-  // 0=包邮(무료배송) 포함, rawFreight >= 0 이면 실비로 사용 (배율 곱셈 없음)
-  if (rawFreight !== null && rawFreight !== undefined) {
-    const parsed = parseFloat(rawFreight)
-    if (!isNaN(parsed) && parsed >= 0) return parsed
+  if (freight !== null && freight !== undefined && !isNaN(Number(freight))) {
+    return Number(freight)  // 0 = 包邮, > 0 = 실비
   }
 
-  // 1688이 freight를 아예 안 줄 때만 수량기반 추정 폴백
+  // null/undefined: freight 미확인 → 수량기반 추정 폴백 (estimate 완료 시 reactive 갱신)
   return estimateFreightRmb(qty)
 })
+
+
 
 
 
@@ -1766,12 +1771,35 @@ const loadFullProductData = async (item) => {
         images: mergedImages,
         imageUrl: mergedImageUrl
       }
+
+      // ── freight null이면 order-preview로 실비 보완 (C안: 컴포넌트에서 명시 호출) ──
+      // background async가 normalizedProduct를 직접 수정해도 currentItem.value reactive 갱신이
+      // 안 되는 문제를 해결: 여기서 명시적으로 호출하고 currentItem.value를 spread로 재할당.
+      // 조건: fetch1688ProductById()가 반환한 full.freight가 null인 경우에만 호출
+      //       (full.freight = 0 은 包邮 — 호출 불필요)
+      if (full.freight === null || full.freight === undefined) {
+        const firstSpecId = full.skus?.[0]?.specId || mergedSkus?.[0]?.specId
+        if (firstSpecId) {
+          // 비동기 호출: loadFullProductData를 블로킹하지 않음
+          fetch1688FreightEstimate(item.id, firstSpecId, 1)
+            .then(estimatedFreight => {
+              // 아직 같은 상품을 보고 있는지 확인 (모달 전환 중 덮어쓰기 방지)
+              if (estimatedFreight !== null && currentItem.value && String(currentItem.value.id) === String(item.id)) {
+                // spread 재할당으로 Vue reactive 시스템이 변화를 감지하도록 강제
+                currentItem.value = { ...currentItem.value, freight: estimatedFreight }
+                console.log(`[loadFullProductData] freight estimate 완료: ${item.id} → ¥${estimatedFreight}`)
+              }
+            })
+            .catch(e => console.warn('[loadFullProductData] freight estimate 오류:', e.message))
+        }
+      }
     }
   } catch (err) {
     console.debug('Failed to load full product details:', err)
   } finally {
     // 성공/실패 무관하게 반드시 스켈레톤 해제
     isDetailLoading.value = false
+
 
     // ── 비동기 상세 로드 완료 후 조건부 기본 선택 처리 ──
     const realColors = colorOptions.value.filter(c => c.name !== '기본 단품')
