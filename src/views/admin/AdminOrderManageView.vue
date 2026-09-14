@@ -1351,7 +1351,7 @@ import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { calcOrderCost, krwFromCny, resolveExchangeRate, estimateFreightRmb } from '@/utils/orderCostCalculator';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
@@ -1912,11 +1912,17 @@ async function markRefundCompletedFromDetail(order) {
   try {
     if (!isSupabaseConfigured()) throw new Error('Supabase 미연결 상태');
     const now = new Date().toISOString();
-    const { error, data } = await supabase
-      .from('orders')
-      .update({ refund_completed: true, refund_completed_at: now })
-      .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
-      .select('id, order_number');
+    const { error, data } = await (() => {
+      // ⚠️ .or() 필터는 PostgREST UPDATE에서 신뢰할 수 없음 → dbId/UUID 우선, 없으면 order_number fallback
+      const dbUuid = order.dbId || (isValidUUID(orderId) ? orderId : null);
+      let q = supabase.from('orders').update({ refund_completed: true, refund_completed_at: now });
+      if (dbUuid && isValidUUID(dbUuid)) {
+        q = q.eq('id', dbUuid);
+      } else {
+        q = q.eq('order_number', orderNum);
+      }
+      return q.select('id, order_number');
+    })();
     if (error) throw error;
     if (!data || data.length === 0) throw new Error(`저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다.`);
     // 낙관적 업데이트: activeOrder + orders 목록 동시 반영
@@ -2194,11 +2200,16 @@ async function saveDetailDraft({ closeAfter = true } = {}) {
         first_payment: updatedFirstPayment,
         updated_at: new Date().toISOString()
       };
-      const { error: dbErr, data: updatedRows } = await supabase
-        .from('orders')
-        .update(updatePayload)
-        .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
-        .select('id, order_number');
+      // ⚠️ .or() 필터는 PostgREST UPDATE에서 RLS와 결합 시 신뢰할 수 없음.
+      // dbId(UUID)가 있으면 .eq('id', uuid)를 우선 사용하고, 없으면 order_number로 fallback.
+      const dbUuid = activeOrder.value.dbId || (isValidUUID(targetOrderId) ? targetOrderId : null);
+      let updateQuery = supabase.from('orders').update(updatePayload);
+      if (dbUuid && isValidUUID(dbUuid)) {
+        updateQuery = updateQuery.eq('id', dbUuid);
+      } else {
+        updateQuery = updateQuery.eq('order_number', orderNum);
+      }
+      const { error: dbErr, data: updatedRows } = await updateQuery.select('id, order_number');
       if (dbErr) throw dbErr;
       // 0 rows affected = RLS 차단 또는 행 없음 → 저장 실패로 처리 (Fail-Fast)
       if (!updatedRows || updatedRows.length === 0) {
@@ -2300,11 +2311,15 @@ async function approveQuoteFromDetail() {
         first_payment: updatedFirstPayment,
         updated_at: new Date().toISOString()
       };
-      const { error: itemsErr, data: itemsRows } = await supabase
-        .from('orders')
-        .update(approvePayload)
-        .or(`order_number.eq.${orderNum},order_no.eq.${orderNum}`)
-        .select('id, order_number');
+      // ⚠️ .or() 필터는 PostgREST UPDATE에서 신뢰할 수 없음 → dbId/UUID 우선, 없으면 order_number fallback
+      const dbUuid = activeOrder.value.dbId || (isValidUUID(targetOrderId) ? targetOrderId : null);
+      let approveQuery = supabase.from('orders').update(approvePayload);
+      if (dbUuid && isValidUUID(dbUuid)) {
+        approveQuery = approveQuery.eq('id', dbUuid);
+      } else {
+        approveQuery = approveQuery.eq('order_number', orderNum);
+      }
+      const { error: itemsErr, data: itemsRows } = await approveQuery.select('id, order_number');
       if (itemsErr) throw itemsErr;
       if (!itemsRows || itemsRows.length === 0) {
         throw new Error(`items DB 저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다. (0 rows affected)`);

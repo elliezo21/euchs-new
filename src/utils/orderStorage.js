@@ -238,7 +238,15 @@ async function _syncOrdersToSupabase(ordersList) {
 
         if (existingOrder && existingOrder.length > 0) {
           // 기존 행: 안전 필드만 포함된 UPDATE (소유자·결제·상태 보호)
-          await supabase.from('orders').update(orderRowUpdate).or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`);
+          // ⚠️ .or() 필터는 PostgREST UPDATE에서 신뢰할 수 없음 → SELECT로 가져온 UUID 우선 사용
+          const existingUuid = existingOrder[0]?.id;
+          let syncQuery = supabase.from('orders').update(orderRowUpdate);
+          if (existingUuid && isValidUUID(existingUuid)) {
+            syncQuery = syncQuery.eq('id', existingUuid);
+          } else {
+            syncQuery = syncQuery.eq('order_number', orderNo);
+          }
+          await syncQuery;
         } else {
           // 신규 행: user_id 포함 전체 초기값으로 INSERT
           await supabase.from('orders').insert([{ ...orderRowInsert, created_at: o.createdAt || nowIso }]);

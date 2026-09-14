@@ -2070,7 +2070,8 @@ async function submitVasApplication() {
       } else if (orderNo) {
         await supabase.from('orders')
           .update({ warehouse_vas_applied: allApplied, updated_at: new Date().toISOString() })
-          .or(`order_number.eq.${orderNo},order_no.eq.${orderNo}`);
+          // ⚠️ .or() 필터는 PostgREST UPDATE에서 신뢰할 수 없음 → order_number 단일 .eq()로 교체
+          .eq('order_number', orderNo);
       }
     } catch (e) {
       // warehouse_vas_applied 컬럼이 아직 없는 경우 조용히 무시
