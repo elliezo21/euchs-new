@@ -639,6 +639,8 @@ import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
+import { estimateFreightRmb } from '../utils/orderCostCalculator'
+
 
 const props = defineProps({
   product: {
@@ -1338,34 +1340,32 @@ const totalPriceKrw = computed(() => {
 })
 
 // ----------------------------------------------------
-// 중국 내 배송비 추정 (이우 물류센터 기준 areaCode: 330782)
-// 우선순위: 1) item.freight / item.express_fee (1688 원본) 2) 수량 스케일 기본값 (최소 ¥3.00)
+// 중국 내 배송비 (이우 물류센터 기준, 1688 실비 SSOT)
+// 우선순위:
+//   1) item.freight (1688 실비, 0=包邮 무료배송 포함 — ">= 0"이면 유효값)
+//   2) estimateFreightRmb(qty) — 1688이 freight를 아예 안 줄 때만 최후 폴백
+// ⚠️ 수량 구간별 배율 곱셈(qty<10/50/100 스케일링) 완전 삭제 (2026-09-14):
+//    item.freight는 "품목 수량 기준 총 배송비" 정의로 변경됨 — 배율 재계산 불필요
+// ⚠️ 包邮(rawFreight > 0) 버그 수정 → rawFreight >= 0 (0=무료배송은 유효값)
 // ----------------------------------------------------
 const chinaFreightRmb = computed(() => {
   const qty = totalQuantity.value
   if (qty <= 0) return 0
 
-  // 1688 원본 운임 추출 (fetch1688ProductById가 세팅한 freight 필드 우선)
   const item = currentItem.value || props.product
   const rawFreight = item?.freight ?? item?.raw?.freight ?? item?.raw?.express_fee ?? null
-  const baseFreight = (rawFreight != null && rawFreight > 0)
-    ? Number(rawFreight)
-    : null  // 원본 없으면 null → 기본값 로직 사용
 
-  if (baseFreight !== null) {
-    // 원본 운임이 있으면 수량 비례 스케일 적용 (대량 시 합리적 배송비)
-    if (qty < 10) return baseFreight
-    if (qty < 50) return Number((baseFreight * 1.3).toFixed(2))
-    if (qty < 100) return Number((baseFreight * 1.8).toFixed(2))
-    return Number((qty * 0.10).toFixed(2))
+  // 0=包邮(무료배송) 포함, rawFreight >= 0 이면 실비로 사용 (배율 곱셈 없음)
+  if (rawFreight !== null && rawFreight !== undefined) {
+    const parsed = parseFloat(rawFreight)
+    if (!isNaN(parsed) && parsed >= 0) return parsed
   }
 
-  // 원본 운임 없을 때 기본값 (기존 ¥6.00 → ¥3.00으로 하향 보정)
-  if (qty < 10) return 3
-  if (qty < 50) return 5
-  if (qty < 100) return 8
-  return Number((qty * 0.10).toFixed(2))
+  // 1688이 freight를 아예 안 줄 때만 수량기반 추정 폴백
+  return estimateFreightRmb(qty)
 })
+
+
 
 
 const chinaFreightKrw = computed(() => {

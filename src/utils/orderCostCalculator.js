@@ -205,10 +205,11 @@ export function calcOrderCost(order, settings = {}) {
   });
   const avgPriceCny = totalQty > 0 ? itemTotalCny / totalQty : 0;
 
-  // 3. 중국 내륙 택배비 — 3단계 우선순위
+  // 3. 중국 내륙 택배비 — 3단계 우선순위 (SSOT)
   //   1순위: 관리자 수동 입력값 (order.chinaFreightRmb / firstPayment.chinaFreightRmb)
-  //   2순위: 1688 등록 운임 (item.freight × qty 합산, 0=包邮 유효, null만 폴백)
-  //   3순위: 수량 기반 추정
+  //   2순위: 1688 실비 (item.freight — "품목 수량 기준 총 배송비", 0=包邮 유효, null만 폴백)
+  //          여러 품목 있으면 품목별 총 운임 단순 합산 (× qty 없음 — freight 자체가 이미 수량 반영값)
+  //   3순위: 수량기반 추정치 (estimateFreightRmb — 1688이 freight를 아예 안 줄 때 최후 폴백)
   const customFreight =
     (order.chinaFreightRmb !== null && order.chinaFreightRmb !== undefined)
       ? Number(order.chinaFreightRmb)
@@ -217,8 +218,10 @@ export function calcOrderCost(order, settings = {}) {
         : null;
 
   let chinaFreightRmb;
+  let chinaFreightOrigin; // 'custom' | '1688_exact' | 'estimated'
   if (customFreight !== null) {
     chinaFreightRmb = customFreight;
+    chinaFreightOrigin = 'custom';
   } else {
     let itemFreightSum = 0;
     let allFreightKnown = true;
@@ -227,12 +230,16 @@ export function calcOrderCost(order, settings = {}) {
         allFreightKnown = false;
         break;
       }
-      itemFreightSum += Number(i.freight) * resolveItemQty(i);  // 수량도 skus 우선
+      // ※ item.freight = 해당 품목의 수량 기준 총 배송비 (개당 단가가 아님)
+      //    따라서 수량 곱셈 없이 단순 합산 (× resolveItemQty(i) 제거)
+      itemFreightSum += Number(i.freight);
     }
     if (allFreightKnown) {
       chinaFreightRmb = Number(itemFreightSum.toFixed(2));
+      chinaFreightOrigin = '1688_exact';
     } else {
       chinaFreightRmb = estimateFreightRmb(totalQty);
+      chinaFreightOrigin = 'estimated';
     }
   }
   const chinaFreightKrw = krwFromCny(chinaFreightRmb, exchangeRate);  // 마지막 1번 환산
@@ -264,6 +271,7 @@ export function calcOrderCost(order, settings = {}) {
     itemTotalKrw,
     chinaFreightRmb,
     chinaFreightKrw,
+    chinaFreightOrigin,  // 'custom' | '1688_exact' | 'estimated'
     agencyFeeKrw,
     cbm,
     shippingFeeKrw,
@@ -277,3 +285,4 @@ export function calcOrderCost(order, settings = {}) {
     unitDdpKrw,
   };
 }
+

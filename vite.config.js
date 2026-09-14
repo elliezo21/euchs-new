@@ -7,6 +7,9 @@ import path from 'path'
 import logisticsHandler from './api/1688-order-logistics.js'
 // 로컬 개발용: api/kuaidi100-track.js handler 직접 import (동일 패턴)
 import kuaidi100TrackHandler from './api/kuaidi100-track.js'
+// 로컬 개발용: api/1688-freight-estimate.js handler 직접 import (동일 패턴)
+import freightEstimateHandler from './api/1688-freight-estimate.js'
+
 
 
 // 네이버 OAuth2 로컬 개발 프록시/미들웨어 플러그인
@@ -581,11 +584,44 @@ function lab1688Plugin(env) {
           return
         }
 
+        // 7. 1688 freight estimate (중국 내륙 택배비 실비 조회) — api/1688-freight-estimate.js handler 직접 재사용
+        // GET /api/1688-freight-estimate?offerId=...&specId=...&quantity=...
+        if (req.url?.startsWith('/api/1688-freight-estimate') && req.method === 'GET') {
+          try {
+            const reqUrl = new URL(req.url, 'http://localhost:5173')
+            req.query = Object.fromEntries(reqUrl.searchParams.entries())
+            if (!process.env.ONEBOUND_KEY)     process.env.ONEBOUND_KEY     = env.ONEBOUND_KEY     || ''
+            if (!process.env.ONEBOUND_SECRET)  process.env.ONEBOUND_SECRET  = env.ONEBOUND_SECRET  || ''
+            if (!process.env.ONEBOUND_SESSION) process.env.ONEBOUND_SESSION = env.ONEBOUND_SESSION || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await freightEstimateHandler(req, wrappedRes)
+          } catch (err) {
+            res.statusCode = 500
+            res.setHeader('Content-Type', 'application/json; charset=utf-8')
+            res.end(JSON.stringify({ success: false, freight: null, message: err.message }))
+          }
+          return
+        }
+
         next()
       })
     }
   }
 }
+
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {

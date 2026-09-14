@@ -816,25 +816,30 @@
                         : 'border-indigo-300 bg-indigo-50 text-indigo-800 focus:ring-indigo-400'"
                       :value="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                         ? activeOrder.chinaFreightRmb
-                        : (() => { const qty = getActiveItems(activeOrder).reduce((s,i)=>s+(Number(i.quantity)||0),0); return qty <= 10 ? 6 : qty <= 30 ? 8 : qty <= 100 ? 10 : 12; })()"
+                        : calcCostDetail(activeOrder).chinaFreightRmb"
                       @change="e => { activeOrder.chinaFreightRmb = Math.max(0, parseFloat(e.target.value) || 0) }"
                     />
                     <span class="text-[10px]"
                       :class="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                         ? 'text-emerald-600 font-bold'
-                        : 'text-slate-400'">
+                        : calcCostDetail(activeOrder).chinaFreightOrigin === '1688_exact'
+                          ? 'text-blue-600 font-semibold'
+                          : 'text-slate-400'">
                       {{ activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                         ? '✏️ 수동수정'
-                        : '수량기반 추정' }}
+                        : calcCostDetail(activeOrder).chinaFreightOrigin === '1688_exact'
+                          ? '1688 실비'
+                          : '수량기반 추정' }}
                     </span>
                     <span class="text-slate-400 font-mono text-[10px]">
                       ≈ ₩{{ fmtN(Math.round(
                         (activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                           ? activeOrder.chinaFreightRmb
-                          : (() => { const qty = getActiveItems(activeOrder).reduce((s,i)=>s+(Number(i.quantity)||0),0); return qty <= 10 ? 6 : qty <= 30 ? 8 : qty <= 100 ? 10 : 12; })()
+                          : calcCostDetail(activeOrder).chinaFreightRmb
                         ) * getEffectiveRate(activeOrder)
                       )) }}
                     </span>
+
                   </div>
                   <div class="text-[10px] text-slate-400">
                     * 1차 견적 참고용. 실제 운임은 구매 진행 후 확정되며 최종 정산 시 반영됩니다.
@@ -2603,12 +2608,15 @@ function calcCostDetail(o) {
   });
   return {
     itemTotalKrw: r.itemTotalKrw,
+    chinaFreightRmb: r.chinaFreightRmb,
     chinaFreightKrw: r.chinaFreightKrw,
+    chinaFreightOrigin: r.chinaFreightOrigin,  // 'custom' | '1688_exact' | 'estimated'
     agencyFeeKrw: r.agencyFeeKrw,
     shippingFeeKrw: r.shippingFeeKrw,
     chargeableKrw: r.chargeableKrw,
   };
 }
+
 
 function calcCny(o) { return (o.items||[]).filter(i =>!i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0).toFixed(2); }
 function fmtN(n) { return Math.round(Number(n)||0).toLocaleString('ko-KR'); }

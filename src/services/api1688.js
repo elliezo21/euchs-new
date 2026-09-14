@@ -1204,6 +1204,66 @@ export async function getItemDetail1688(itemId) {
 
 
 
+// ── freight estimate in-flight 중복 호출 차단 ─────────────────────────────
+// 동일 offerId에 대해 동시에 진행 중인 freight estimate Promise 공유
+const _freightInFlight = new Map()
+
+/**
+ * 1688 상품의 실제 중국 내륙 택배비 조회 (alibaba.createOrder.preview sumCarriage 기반)
+ *
+ * ※ 설계 결정 (2026-09-14 실제 API 호출 테스트):
+ *   - product.freight.estimate: 1688global/custom 구독에서 미지원 (error_code 5000, 4가지 변형 모두 실패)
+ *   - alibaba.createOrder.preview: 정상 동작 (error_code 0000, sumCarriage 반환)
+ *   - 실측: offerId=788598752048(妙洁神奇抹布), qty=2 → sumCarriage=200 → ¥2.00
+ *
+ * @param {string|number} offerId - 1688 상품 ID
+ * @param {string} specId - SKU spec ID (32자리 hex). 미제공 시 null 반환.
+ * @param {number} [quantity=1] - 수량 (기본 1)
+ * @returns {Promise<number|null>} CNY 총 운임 (수량 전체 기준) 또는 null
+ */
+export async function fetch1688FreightEstimate(offerId, specId, quantity = 1) {
+  const idStr = String(offerId || '').replace(/[^0-9]/g, '')
+  if (!idStr || !specId) {
+    console.debug('[fetch1688FreightEstimate] offerId 또는 specId 없음 — null 반환')
+    return null
+  }
+
+  const inFlightKey = `${idStr}_${specId}_${quantity}`
+  if (_freightInFlight.has(inFlightKey)) {
+    console.debug('[fetch1688FreightEstimate] In-flight 공유:', inFlightKey)
+    return _freightInFlight.get(inFlightKey)
+  }
+
+  const promise = (async () => {
+    try {
+      const url = `/api/1688-freight-estimate?offerId=${idStr}&specId=${encodeURIComponent(specId)}&quantity=${quantity}`
+      console.log('[fetch1688FreightEstimate] 호출:', url)
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(15000),
+      })
+      const data = await res.json().catch(() => null)
+      if (data?.success && data.freight !== null && data.freight !== undefined) {
+        const freight = Number(data.freight)
+        console.log(`[fetch1688FreightEstimate] 성공: offerId=${idStr} freight=¥${freight}`)
+        return freight
+      }
+      console.debug(`[fetch1688FreightEstimate] 미제공: offerId=${idStr}`, data?.message || '')
+      return null
+    } catch (err) {
+      console.warn('[fetch1688FreightEstimate] 오류 — null 폴백:', err.message)
+      return null
+    } finally {
+      _freightInFlight.delete(inFlightKey)
+    }
+  })()
+
+  _freightInFlight.set(inFlightKey, promise)
+  return promise
+}
+
+
 /**
  * 1688 단건 상품 ID/URL로 상세 데이터 조회 및 한국어 번역
  * @param {string|number} offerId - 1688 상품 고유 ID
@@ -1784,6 +1844,7 @@ export async function fetch1688ProductById(offerId) {
     console.log(`[fetch1688ProductById] priceTiers (${priceTiers.length}개):`, JSON.stringify(priceTiers))
 
 
+
     // ─── 현지 운임 추출 ──────────────────────────────────────────────────────
     // ⚠️ 包邮(무료배송) 상품은 freight=0으로 내려옴 — || null 패턴은 0을 null로 처리하므로
     //   freightRaw가 0인 경우를 별도 처리해서 0을 유지(包邮 정확히 표시)
@@ -1817,11 +1878,36 @@ export async function fetch1688ProductById(offerId) {
       skus: parsedSkus.length > 0 ? parsedSkus : [],
       descImgs,
       priceTiers,          // 1688 원본 수량 티어 (없으면 빈 배열)
-      freight: freightValue, // 원본 현지 운임 (없으면 null)
+      freight: freightValue, // 수량 전체 기준 총 배송비 (CNY). 없으면 null.
       raw: it
     }
 
+    // 먼저 item_get 결과를 캐시에 저장 (freight=null 포함)
     saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, normalizedProduct)
+
+    // ── freight null 시 alibaba.createOrder.preview로 실비 보완 ─────────────
+    // item_get이 운임을 제공하지 않을 때만 호출 (0=包邮는 유효한 실비이므로 호출 불필요)
+    // specId: 첫 번째 SKU의 specId 사용 (상세페이지 첫 진입 기준 수량=1)
+    if (freightValue === null && parsedSkus.length > 0 && parsedSkus[0]?.specId) {
+      const firstSpecId = parsedSkus[0].specId
+      // 비동기 호출 — await 없이 background로 실행하여 상세페이지 렌더링을 블로킹하지 않음
+      // 완료되면 캐시를 업데이트하여 이후 접근 시 실비 반영
+      fetch1688FreightEstimate(cleanNumericId || idStr, firstSpecId, 1)
+        .then(estimatedFreight => {
+          if (estimatedFreight !== null) {
+            // 캐시에서 현재 객체를 가져와 freight 업데이트 후 재저장
+            const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', idStr)
+            if (cachedProduct) {
+              cachedProduct.freight = estimatedFreight
+              saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, cachedProduct)
+              console.log(`[fetch1688ProductById] freight estimate 업데이트: ${idStr} → ¥${estimatedFreight}`)
+            }
+            normalizedProduct.freight = estimatedFreight
+          }
+        })
+        .catch(e => console.warn('[fetch1688ProductById] freight estimate 오류:', e.message))
+    }
+
     return normalizedProduct
   } catch (err) {
     console.warn('[1688 Product Fetch] Error:', err.message)
