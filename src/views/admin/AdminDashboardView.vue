@@ -2,11 +2,27 @@
   <div class="space-y-5 select-none">
 
     <!-- ======================================================== -->
-    <!-- 0. 번역 서비스 상태 배지 (번역 실패 시 관리자에게 가시적 알림) -->
-    <!-- translationStatus.checked: 번역이 최소 1회 시도된 후에만 표시  -->
+    <!-- 0. 번역 서비스 상태 배지                                   -->
+    <!-- 킬스위치(VITE_TRANSLATION_ENABLED=false): 중립 "일시 중지"  -->
+    <!-- 킬스위치 해제 + 시도 후: 정상 / 오류 배지                    -->
     <!-- ======================================================== -->
+
+    <!-- 0-A. 킬스위치 활성 상태 — 항상 표시 (checked 불필요) -->
     <div
-      v-if="translationStatus.checked"
+      v-if="translationPaused"
+      class="flex items-center justify-between gap-3 px-4 py-2 rounded-xl border text-xs font-medium shadow-xs bg-slate-50/80 border-slate-200 text-slate-600"
+    >
+      <div class="flex items-center gap-2">
+        <span class="w-2 h-2 rounded-full shrink-0 bg-slate-400"></span>
+        <span class="font-bold">번역 서비스</span>
+        <span class="text-slate-500">일시 중지 중 — 원문 표시 중</span>
+      </div>
+      <span class="text-[11px] opacity-50 font-mono hidden sm:inline">VITE_TRANSLATION_ENABLED=false</span>
+    </div>
+
+    <!-- 0-B. 킬스위치 해제 상태 — 기존 정상/오류 배지 -->
+    <div
+      v-else-if="translationStatus.checked"
       :class="[
         'flex items-center justify-between gap-3 px-4 py-2 rounded-xl border text-xs font-medium shadow-xs',
         translationStatus.ok
@@ -338,6 +354,10 @@ import { getStoredOrders, fetchOrdersFromSupabase } from '@/utils/orderStorage';
 import { normalizeOrderStatus } from '@/lib/orderPipeline';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { translationStatus, resetTranslationStatus } from '@/services/translationStatus';
+
+// ── 번역 킬스위치 상태 ─────────────────────────────────────────────────────
+// VITE_TRANSLATION_ENABLED=true 일 때만 번역 활성. false / 미설정 = 일시 중지 상태.
+const translationPaused = import.meta.env.VITE_TRANSLATION_ENABLED !== 'true'
 
 // 번역 오류 상태 초기화 (관리자 수동 리셋)
 function resetTranslation() {

@@ -87,6 +87,20 @@ export default async function handler(req, res) {
   const clientId     = process.env.NAVER_PAPAGO_CLIENT_ID     || ''
   const clientSecret = process.env.NAVER_PAPAGO_CLIENT_SECRET || ''
 
+  // ── 서버사이드 킬스위치 ───────────────────────────────────────────────
+  // TRANSLATION_ENABLED=true 일 때만 Papago 호출.
+  // false / 미설정이면 원문 그대로 반환 (success:true → 클라이언트 오류 카운트 미증가)
+  // 재활성화 시: Vercel 환경변수 TRANSLATION_ENABLED=true 로 변경.
+  if (process.env.TRANSLATION_ENABLED !== 'true') {
+    const textArray = Array.isArray(text) ? text : [text]
+    return res.status(200).json({
+      success: true,
+      data: { translations: textArray.map(t => ({ text: t || '' })) },
+      translationErrors: 0,
+      paused: true, // 킬스위치 활성 표시 (로그/모니터링용)
+    })
+  }
+
   if (!clientId || !clientSecret) {
     console.error('[papago-translate] ❌ NAVER_PAPAGO_CLIENT_ID / NAVER_PAPAGO_CLIENT_SECRET 환경변수 미설정 — 번역 불가')
     return res.status(500).json({
