@@ -585,33 +585,57 @@ function lab1688Plugin(env) {
         }
 
         // 7. 1688 freight estimate (중국 내륙 택배비 실비 조회) — api/1688-freight-estimate.js handler 직접 재사용
-        // GET /api/1688-freight-estimate?offerId=...&specId=...&quantity=...
-        if (req.url?.startsWith('/api/1688-freight-estimate') && req.method === 'GET') {
-          try {
-            const reqUrl = new URL(req.url, 'http://localhost:5173')
-            req.query = Object.fromEntries(reqUrl.searchParams.entries())
-            if (!process.env.ONEBOUND_KEY)     process.env.ONEBOUND_KEY     = env.ONEBOUND_KEY     || ''
-            if (!process.env.ONEBOUND_SECRET)  process.env.ONEBOUND_SECRET  = env.ONEBOUND_SECRET  || ''
-            if (!process.env.ONEBOUND_SESSION) process.env.ONEBOUND_SESSION = env.ONEBOUND_SESSION || ''
-            const wrappedRes = Object.assign(Object.create(res), {
-              status(code) {
-                res.statusCode = code
-                return {
-                  json(body) {
-                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
-                    res.end(JSON.stringify(body))
-                  },
-                  end() { res.end() },
-                }
-              },
-              setHeader: res.setHeader.bind(res),
-              end: res.end.bind(res),
-            })
-            await freightEstimateHandler(req, wrappedRes)
-          } catch (err) {
+        // GET  /api/1688-freight-estimate?offerId=...&specId=...&quantity=...
+        // POST /api/1688-freight-estimate  body: { cargoParamList: [{ offerId, specId, quantity }] }
+        if (req.url?.startsWith('/api/1688-freight-estimate') && (req.method === 'GET' || req.method === 'POST')) {
+          // 환경변수 주입 (Vite loadEnv는 process.env에 반영 안 함)
+          if (!process.env.ONEBOUND_KEY)     process.env.ONEBOUND_KEY     = env.ONEBOUND_KEY     || ''
+          if (!process.env.ONEBOUND_SECRET)  process.env.ONEBOUND_SECRET  = env.ONEBOUND_SECRET  || ''
+          if (!process.env.ONEBOUND_SESSION) process.env.ONEBOUND_SESSION = env.ONEBOUND_SESSION || ''
+
+          // res 래핑: Vercel의 res.status(code).json(body) → Vite의 res.statusCode + res.end()
+          const wrappedRes = Object.assign(Object.create(res), {
+            status(code) {
+              res.statusCode = code
+              return {
+                json(body) {
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                  res.end(JSON.stringify(body))
+                },
+                end() { res.end() },
+              }
+            },
+            setHeader: res.setHeader.bind(res),
+            end: res.end.bind(res),
+          })
+
+          const respondError = (err) => {
+            console.error('[vite proxy 1688-freight-estimate] 처리 오류:', err?.message || err)
             res.statusCode = 500
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
-            res.end(JSON.stringify({ success: false, freight: null, message: err.message }))
+            res.end(JSON.stringify({ success: false, freight: null, message: err?.message || String(err) }))
+          }
+
+          try {
+            if (req.method === 'GET') {
+              const reqUrl = new URL(req.url, 'http://localhost:5173')
+              req.query = Object.fromEntries(reqUrl.searchParams.entries())
+              await freightEstimateHandler(req, wrappedRes)
+            } else {
+              // POST: req.body 파싱 (Vercel: 자동, Vite connect: raw stream)
+              let rawBody = ''
+              req.on('data', (chunk) => { rawBody += chunk })
+              req.on('end', async () => {
+                try {
+                  try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+                  await freightEstimateHandler(req, wrappedRes)
+                } catch (err) {
+                  respondError(err)
+                }
+              })
+            }
+          } catch (err) {
+            respondError(err)
           }
           return
         }
