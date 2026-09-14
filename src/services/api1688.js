@@ -418,7 +418,7 @@ export function cleanForeignText(str) {
 // Quota Defense: Memory & SessionStorage Cache Layer
 // ========================================================
 const CACHE_TTL = 30 * 60 * 1000 // 30분 캐시 유지
-const CACHE_VERSION = 'ob_v3'     // OneBound 전환 후 캐시 버전 (변경 시 구형 캐시 자동 무효화)
+const CACHE_VERSION = 'ob_v4'     // freight 캐시 키 구조 변경 (offerId_specId_minOrder) — 구형 오염 캐시 자동 무효화
 const memorySearchCache = new Map()
 const memoryDetailCache = new Map()
 const memoryTranslationCache = new Map()
@@ -435,7 +435,7 @@ const memoryTranslationCache = new Map()
       const keysToDelete = []
       for (let i = 0; i < window.sessionStorage.length; i++) {
         const k = window.sessionStorage.key(i)
-        if (k && (k.startsWith('euchs_search') || k.startsWith('euchs_detail') || k.startsWith('euchs_product'))) {
+        if (k && (k.startsWith('euchs_search') || k.startsWith('euchs_detail') || k.startsWith('euchs_product') || k.startsWith('euchs_freight'))) {
           keysToDelete.push(k)
         }
       }
@@ -1204,40 +1204,70 @@ export async function getItemDetail1688(itemId) {
 
 
 
-// ── freight estimate in-flight 중복 호출 차단 ─────────────────────────────
-// 동일 offerId에 대해 동시에 진행 중인 freight estimate Promise 공유
-const _freightInFlight = new Map()
+// ── freight estimate 전용 독립 캐시 (key: offerId_specId_minOrder) ──────────
+// 상품 캐시(euchs_product_parsed)와 분리하여 quantity 구조 변경 시 독립 무효화 가능
+const _freightEstimateCache = new Map()
+const FREIGHT_CACHE_STORAGE_KEY = 'euchs_freight'
+
+/** specId 유효성 검사 — 32자리 hex 형식만 허용
+ *  "0:0", "1:2345" 같은 short properties 형식은 order-preview specId로 사용 불가
+ *  → 스킵하고 null 반환 → 3순위 수량기반 추정 폴백 */
+function isValidSpecId(specId) {
+  return typeof specId === 'string' && /^[0-9a-f]{32}$/i.test(specId)
+}
 
 /**
  * 1688 상품의 실제 중국 내륙 택배비 조회 (alibaba.createOrder.preview sumCarriage 기반)
  *
  * ※ 설계 결정 (2026-09-14 실제 API 호출 테스트):
- *   - product.freight.estimate: 1688global/custom 구독에서 미지원 (error_code 5000, 4가지 변형 모두 실패)
- *   - alibaba.createOrder.preview: 정상 동작 (error_code 0000, sumCarriage 반환)
- *   - 실측: offerId=788598752048(妙洁神奇抹布), qty=2 → sumCarriage=200 → ¥2.00
+ *   - product.freight.estimate: 1688global/custom 구독에서 미지원 (error_code 5000)
+ *   - alibaba.createOrder.preview: 정상 동작 (sumCarriage 반환, 단위: 분(fen))
+ *   - 실측: offerId=788598752048(妙洁神奇抹布), qty=2(MOQ) → sumCarriage=200 → ¥2.00
  *
- * @param {string|number} offerId - 1688 상품 ID
- * @param {string} specId - SKU spec ID (32자리 hex). 미제공 시 null 반환.
- * @param {number} [quantity=1] - 수량 (기본 1)
- * @returns {Promise<number|null>} CNY 총 운임 (수량 전체 기준) 또는 null
+ * ⚠️ quantity는 반드시 MOQ(minOrder) 이상으로 호출해야 의미있는 값을 받음
+ *    qty=1 < MOQ=2 → sumCarriage=0 반환 (신뢰 불가) — 호출 측에서 minOrder 사용 필수
+ *
+ * ⚠️ 수량별 운임 변동 실측 결과 (2026-09-14, offerId=788598752048):
+ *    qty  2~5 → ¥2.00 | qty 10 → ¥3.00 | qty 20+ → ¥0.00(包邮 전환 추정)
+ *    → 상세페이지 참고용 추정치 목적상 minOrder 기준 1회 조회+캐시로 충분
+ *
+ * @param {string|number} offerId   - 1688 상품 ID
+ * @param {string}        specId    - SKU spec ID (32자리 hex 형식만 유효)
+ * @param {number}        quantity  - 조회 수량 (반드시 minOrder 이상으로 전달할 것)
+ * @returns {Promise<number|null>}  CNY 총 운임 (수량 전체 기준) 또는 null
  */
 export async function fetch1688FreightEstimate(offerId, specId, quantity = 1) {
   const idStr = String(offerId || '').replace(/[^0-9]/g, '')
-  if (!idStr || !specId) {
-    console.debug('[fetch1688FreightEstimate] offerId 또는 specId 없음 — null 반환')
+  if (!idStr) return null
+
+  // ── specId 유효성: 32자리 hex 형식이 아니면 스킵 ────────────────────────
+  // "0:0", "1:2345" 등 short-format은 order-preview에서 sumCarriage:undefined 반환
+  if (!isValidSpecId(specId)) {
+    console.debug(`[fetch1688FreightEstimate] specId 무효(short-format): "${specId}" → 스킵, 폴백 사용`)
     return null
   }
 
-  const inFlightKey = `${idStr}_${specId}_${quantity}`
-  if (_freightInFlight.has(inFlightKey)) {
-    console.debug('[fetch1688FreightEstimate] In-flight 공유:', inFlightKey)
-    return _freightInFlight.get(inFlightKey)
+  const qty = Math.max(1, parseInt(quantity, 10) || 1)
+  // 캐시 키: offerId_specId_minOrder (quantity=minOrder로 호출됨)
+  const cacheKey = `${idStr}_${specId}_${qty}`
+
+  // ── 1. 전용 캐시 HIT: API 호출 없이 즉시 반환 ───────────────────────────
+  const cached = getFromCache(_freightEstimateCache, FREIGHT_CACHE_STORAGE_KEY, cacheKey)
+  if (cached !== null && cached !== undefined) {
+    console.debug(`[fetch1688FreightEstimate] Cache HIT: key=${cacheKey} → ¥${cached}`)
+    return cached
+  }
+
+  // ── 2. in-flight 중복 차단: 동일 키 요청이 진행 중이면 Promise 공유 ─────
+  if (_freightInFlight.has(cacheKey)) {
+    console.debug('[fetch1688FreightEstimate] In-flight 공유:', cacheKey)
+    return _freightInFlight.get(cacheKey)
   }
 
   const promise = (async () => {
     try {
-      const url = `/api/1688-freight-estimate?offerId=${idStr}&specId=${encodeURIComponent(specId)}&quantity=${quantity}`
-      console.log('[fetch1688FreightEstimate] 호출:', url)
+      const url = `/api/1688-freight-estimate?offerId=${idStr}&specId=${encodeURIComponent(specId)}&quantity=${qty}`
+      console.log(`[fetch1688FreightEstimate] 호출: key=${cacheKey}`, url)
       const res = await fetch(url, {
         method: 'GET',
         headers: { 'Content-Type': 'application/json' },
@@ -1246,22 +1276,26 @@ export async function fetch1688FreightEstimate(offerId, specId, quantity = 1) {
       const data = await res.json().catch(() => null)
       if (data?.success && data.freight !== null && data.freight !== undefined) {
         const freight = Number(data.freight)
-        console.log(`[fetch1688FreightEstimate] 성공: offerId=${idStr} freight=¥${freight}`)
+        // ── 전용 캐시에 저장 (TTL 30분, 키: offerId_specId_minOrder) ──────
+        saveToCache(_freightEstimateCache, FREIGHT_CACHE_STORAGE_KEY, cacheKey, freight)
+        console.log(`[fetch1688FreightEstimate] 성공: offerId=${idStr} qty=${qty} freight=¥${freight} → 캐시 저장`)
         return freight
       }
-      console.debug(`[fetch1688FreightEstimate] 미제공: offerId=${idStr}`, data?.message || '')
+      console.debug(`[fetch1688FreightEstimate] 미제공: offerId=${idStr} qty=${qty}`, data?.message || '')
       return null
     } catch (err) {
       console.warn('[fetch1688FreightEstimate] 오류 — null 폴백:', err.message)
       return null
     } finally {
-      _freightInFlight.delete(inFlightKey)
+      _freightInFlight.delete(cacheKey)
     }
   })()
 
-  _freightInFlight.set(inFlightKey, promise)
+  _freightInFlight.set(cacheKey, promise)
   return promise
 }
+
+
 
 
 /**
@@ -1887,20 +1921,22 @@ export async function fetch1688ProductById(offerId) {
 
     // ── freight null 시 alibaba.createOrder.preview로 실비 보완 ─────────────
     // item_get이 운임을 제공하지 않을 때만 호출 (0=包邮는 유효한 실비이므로 호출 불필요)
-    // specId: 첫 번째 SKU의 specId 사용 (상세페이지 첫 진입 기준 수량=1)
+    // ⚠️ quantity = minOrder: qty=1 등 MOQ 미만 호출 시 sumCarriage=0(신뢰 불가) 반환 확인됨
+    //    → 반드시 minOrder 이상으로 호출해야 정확한 운임을 받음
+    // ⚠️ specId는 isValidSpecId(32자리 hex) 검사를 fetch1688FreightEstimate 내부에서 수행
     if (freightValue === null && parsedSkus.length > 0 && parsedSkus[0]?.specId) {
       const firstSpecId = parsedSkus[0].specId
       // 비동기 호출 — await 없이 background로 실행하여 상세페이지 렌더링을 블로킹하지 않음
-      // 완료되면 캐시를 업데이트하여 이후 접근 시 실비 반영
-      fetch1688FreightEstimate(cleanNumericId || idStr, firstSpecId, 1)
+      // 완료되면 freight 전용 캐시에 저장 (ProductDetailModal에서 동일 키로 cache HIT)
+      fetch1688FreightEstimate(cleanNumericId || idStr, firstSpecId, minOrder)
         .then(estimatedFreight => {
           if (estimatedFreight !== null) {
-            // 캐시에서 현재 객체를 가져와 freight 업데이트 후 재저장
+            // 상품 캐시에도 반영 (다음 fetch1688ProductById 캐시 HIT 시 freight 포함)
             const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', idStr)
             if (cachedProduct) {
               cachedProduct.freight = estimatedFreight
               saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, cachedProduct)
-              console.log(`[fetch1688ProductById] freight estimate 업데이트: ${idStr} → ¥${estimatedFreight}`)
+              console.log(`[fetch1688ProductById] freight estimate 업데이트: ${idStr} qty=${minOrder} → ¥${estimatedFreight}`)
             }
             normalizedProduct.freight = estimatedFreight
           }
@@ -1914,6 +1950,7 @@ export async function fetch1688ProductById(offerId) {
     return null
   }
 }
+
 
 /**
  * 공급사 ID 기반 판매자(공장) 다른 인기 상품 조회

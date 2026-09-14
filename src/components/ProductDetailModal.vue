@@ -1777,22 +1777,27 @@ const loadFullProductData = async (item) => {
       // 안 되는 문제를 해결: 여기서 명시적으로 호출하고 currentItem.value를 spread로 재할당.
       // 조건: fetch1688ProductById()가 반환한 full.freight가 null인 경우에만 호출
       //       (full.freight = 0 은 包邮 — 호출 불필요)
+      // ⚠️ quantity = full.minOrder: qty=1 등 MOQ 미만 호출 시 sumCarriage=0(신뢰 불가)
+      //    실측 확인: offerId=788598752048, qty=1 → ¥0.00, qty=2(MOQ) → ¥2.00
       if (full.freight === null || full.freight === undefined) {
         const firstSpecId = full.skus?.[0]?.specId || mergedSkus?.[0]?.specId
+        const moq = full.minOrder || 1  // MOQ 기준으로 호출해야 신뢰 가능한 운임 반환
         if (firstSpecId) {
           // 비동기 호출: loadFullProductData를 블로킹하지 않음
-          fetch1688FreightEstimate(item.id, firstSpecId, 1)
+          // fetch1688FreightEstimate 내부에서 freight 전용 캐시 확인 → HIT 시 API 호출 없음
+          fetch1688FreightEstimate(item.id, firstSpecId, moq)
             .then(estimatedFreight => {
               // 아직 같은 상품을 보고 있는지 확인 (모달 전환 중 덮어쓰기 방지)
               if (estimatedFreight !== null && currentItem.value && String(currentItem.value.id) === String(item.id)) {
                 // spread 재할당으로 Vue reactive 시스템이 변화를 감지하도록 강제
                 currentItem.value = { ...currentItem.value, freight: estimatedFreight }
-                console.log(`[loadFullProductData] freight estimate 완료: ${item.id} → ¥${estimatedFreight}`)
+                console.log(`[loadFullProductData] freight estimate 완료: ${item.id} qty=${moq}(MOQ) → ¥${estimatedFreight}`)
               }
             })
             .catch(e => console.warn('[loadFullProductData] freight estimate 오류:', e.message))
         }
       }
+
     }
   } catch (err) {
     console.debug('Failed to load full product details:', err)
