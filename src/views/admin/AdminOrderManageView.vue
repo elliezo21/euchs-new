@@ -822,14 +822,16 @@
                     <span class="text-[10px]"
                       :class="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                         ? 'text-emerald-600 font-bold'
-                        : calcCostDetail(activeOrder).chinaFreightOrigin === '1688_exact'
+                        : (calcCostDetail(activeOrder).chinaFreightOrigin === '1688_exact' || calcCostDetail(activeOrder).chinaFreightOrigin === '1688_seller')
                           ? 'text-blue-600 font-semibold'
                           : 'text-slate-400'">
                       {{ activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                         ? '✏️ 수동수정'
                         : calcCostDetail(activeOrder).chinaFreightOrigin === '1688_exact'
                           ? '1688 실비'
-                          : '수량기반 추정' }}
+                          : calcCostDetail(activeOrder).chinaFreightOrigin === '1688_seller'
+                            ? 'seller 실측'
+                            : '수량기반 추정' }}
                     </span>
                     <span class="text-slate-400 font-mono text-[10px]">
                       ≈ ₩{{ fmtN(Math.round(

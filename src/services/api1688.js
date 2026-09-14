@@ -1300,6 +1300,45 @@ export async function fetch1688FreightEstimate(offerId, specId, quantity = 1) {
 
 
 /**
+ * 1688 여러 SKU(cargoParamList)의 중국 내륙 택배비 합계 조회 (배열 POST)
+ *
+ * seller 그룹별 1회 호출 전용 — alibaba.createOrder.preview 의 cargoParamList 배열 입력.
+ * 반환 freight = 해당 배열 전체 SKU의 합계 운임(CNY). sumCarriage=0이면 包邮(무료)로 0을 반환.
+ *
+ * @param {Array} cargoList - [{ offerId|numIid, specId, quantity }, ...]
+ * @returns {Promise<number|null>}  CNY 합계 운임 (전체 수량 기준) 또는 null(조회 불가)
+ */
+export async function fetch1688FreightEstimateBatch(cargoList = []) {
+  const items = (Array.isArray(cargoList) ? cargoList : [])
+    .map((it) => ({
+      offerId: String(it?.offerId ?? it?.numIid ?? it?.num_iid ?? '').replace(/[^0-9]/g, ''),
+      specId: String(it?.specId ?? ''),
+      quantity: Math.max(1, parseInt(it?.quantity, 10) || 1),
+    }))
+    .filter((it) => it.offerId && isValidSpecId(it.specId))
+
+  if (items.length === 0) return null
+
+  try {
+    const res = await fetch('/api/1688-freight-estimate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ cargoParamList: items }),
+      signal: AbortSignal.timeout(15000),
+    })
+    const data = await res.json().catch(() => null)
+    if (data?.success && data.freight !== null && data.freight !== undefined) {
+      return Number(data.freight)
+    }
+    console.debug('[fetch1688FreightEstimateBatch] 미제공:', data?.message || '')
+    return null
+  } catch (err) {
+    console.warn('[fetch1688FreightEstimateBatch] 오류 — null 폴백:', err.message)
+    return null
+  }
+}
+
+/**
  * 1688 단건 상품 ID/URL로 상세 데이터 조회 및 한국어 번역
  * @param {string|number} offerId - 1688 상품 고유 ID
  * @returns {Promise<object>} 정규화 및 번역된 상품 상세 객체

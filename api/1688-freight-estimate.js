@@ -12,8 +12,11 @@
  *     → response.orderPreviewResuslt[0].sumCarriage (단위: 분(fen), ÷100 = 위안)
  *     실측: offerId=788598752048, qty=2 → sumCarriage=200 → ¥2.00 (2026-09-14)
  *
- * 요청: GET /api/1688-freight-estimate?offerId=...&specId=...&quantity=...
- * 응답: { success: true, freight: <CNY float> }
+ * 요청 (하위호환 유지):
+ *   1) 단일 SKU (기존): GET /api/1688-freight-estimate?offerId=...&specId=...&quantity=...
+ *   2) 배열 (여러 SKU): POST /api/1688-freight-estimate
+ *        body: { cargoParamList: [{ offerId|numIid, specId, quantity }, ...] }
+ * 응답: { success: true, freight: <CNY float> }  ← cargoParamList 전체 합계 운임(CNY)
  *        | { success: false, freight: null, message: ... }
  *
  * 인증: 환경변수에서만 (평문 하드코딩 절대 금지)
@@ -39,31 +42,47 @@ const FETCH_HEADERS = {
 export default async function handler(req, res) {
   // CORS
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'GET') {
-    return res.status(405).json({ success: false, freight: null, message: 'GET 요청만 허용됩니다.' })
+  if (req.method !== 'GET' && req.method !== 'POST') {
+    return res.status(405).json({ success: false, freight: null, message: 'GET 또는 POST 요청만 허용됩니다.' })
   }
 
-  const { offerId, specId, quantity } = req.query || {}
+  // ── 입력 파싱 (하위호환 유지) ─────────────────────────────────────────────
+  // 1) POST body: { cargoParamList: [{ offerId|numIid, specId, quantity }] }  ← 배열(여러 SKU)
+  // 2) GET query: ?offerId=...&specId=...&quantity=...  ← 기존 단일 SKU 방식 그대로 동작
+  let cargoList = []
 
-  if (!offerId) {
+  if (req.method === 'POST') {
+    const body = req.body || {}
+    if (Array.isArray(body.cargoParamList) && body.cargoParamList.length > 0) {
+      cargoList = body.cargoParamList
+        .filter((it) => it && (it.offerId || it.numIid) && it.specId)
+        .map((it) => ({
+          offerId: String(it.offerId ?? it.numIid),
+          specId: String(it.specId),
+          quantity: Math.max(1, parseInt(it.quantity, 10) || 1),
+        }))
+    }
+  } else {
+    const { offerId, specId, quantity } = req.query || {}
+    if (offerId && specId) {
+      cargoList = [{
+        offerId: String(offerId),
+        specId: String(specId),
+        quantity: Math.max(1, parseInt(quantity, 10) || 1),
+      }]
+    }
+  }
+
+  if (cargoList.length === 0) {
     return res.status(400).json({
       success: false,
       freight: null,
-      message: '필수 파라미터 누락: offerId가 필요합니다.',
+      message: '필수 파라미터 누락: cargoParamList(배열) 또는 offerId/specId/quantity가 필요합니다.',
     })
   }
-  if (!specId) {
-    return res.status(400).json({
-      success: false,
-      freight: null,
-      message: '필수 파라미터 누락: specId(SKU ID)가 필요합니다. 상세페이지에서 첫 번째 SKU의 specId를 전달하세요.',
-    })
-  }
-
-  const totalNum = Math.max(1, parseInt(quantity, 10) || 1)
 
   // 환경변수에서만 인증정보 로드
   const OB_KEY     = process.env.ONEBOUND_KEY     || ''
@@ -87,13 +106,7 @@ export default async function handler(req, res) {
   const oArgs = {
     flow: 'general',
     addressParam: { addressId: ADDRESS_ID },
-    cargoParamList: [
-      {
-        offerId: String(offerId),
-        specId: String(specId),
-        quantity: totalNum,
-      },
-    ],
+    cargoParamList: cargoList,
   }
 
   const params = new URLSearchParams({
@@ -111,9 +124,8 @@ export default async function handler(req, res) {
     url: targetUrl
       .replace(/secret=[^\&]+/, 'secret=***')
       .replace(/session=[^\&]+/, 'session=***'),
-    offerId,
-    specId,
-    quantity: totalNum,
+    cargoCount: cargoList.length,
+    cargoParamList: cargoList,
   })
 
   const controller = new AbortController()
@@ -175,7 +187,7 @@ export default async function handler(req, res) {
   // 분(fen) → 위안(CNY)
   const freightCny = Number((Number(sumCarriage) / 100).toFixed(2))
 
-  console.log('[1688-freight-estimate] 성공:', { offerId, specId, quantity: totalNum, sumCarriage, freightCny })
+  console.log('[1688-freight-estimate] 성공:', { cargoCount: cargoList.length, cargoParamList: cargoList, sumCarriage, freightCny })
 
   return res.status(200).json({
     success: true,

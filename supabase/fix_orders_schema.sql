@@ -17,3 +17,4 @@ ALTER TABLE orders ADD COLUMN IF NOT EXISTS total_price_krw  NUMERIC DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS total_price_rmb  NUMERIC DEFAULT 0;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS first_payment    JSONB DEFAULT '{}'::jsonb;
 ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_info     JSONB DEFAULT '{}'::jsonb;
+ALTER TABLE orders ADD COLUMN IF NOT EXISTS seller_groups    JSONB DEFAULT '[]'::jsonb;

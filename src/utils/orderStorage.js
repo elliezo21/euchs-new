@@ -373,6 +373,10 @@ export async function fetchOrdersFromSupabase(options = {}) {
             chinaFreightRmb: (row.first_payment?.chinaFreightRmb !== null && row.first_payment?.chinaFreightRmb !== undefined)
               ? Number(row.first_payment.chinaFreightRmb)
               : (row.china_freight_rmb !== null && row.china_freight_rmb !== undefined ? Number(row.china_freight_rmb) : undefined),
+            // seller 그룹별 실측 운임 (first_payment JSONB 내부, 발주서 접수 시 배열 호출 합산값)
+            sellerFreightRmb: (row.first_payment?.sellerFreightRmb !== null && row.first_payment?.sellerFreightRmb !== undefined)
+              ? Number(row.first_payment.sellerFreightRmb)
+              : undefined,
             // 승인 시점 환율 스냅샷 (quote_confirmed 이후 금액 고정용 — 없으면 undefined → 최신 설정값 폴백)
             snapshotExchangeRate: (row.first_payment?.snapshotExchangeRate !== null && row.first_payment?.snapshotExchangeRate !== undefined)
               ? Number(row.first_payment.snapshotExchangeRate)
@@ -450,6 +454,11 @@ export async function saveNewOrder(order) {
   const orderNumber = order.orderNumber || `EUC-${dateCompact}-${randomSuffix}`;
   const inboundNo = order.inboundNo || `INB-YW-${dateCompact}-${randomSuffix}`;
 
+  // seller 그룹별 실측 운임 — 발주서 접수 시 배열 호출 합산값 (null=미확정)
+  const sellerFreightRmb = (order.sellerFreightRmb !== null && order.sellerFreightRmb !== undefined)
+    ? Number(order.sellerFreightRmb)
+    : null;
+
   const newOrderObj = {
     id: order.id || `ord-${Date.now()}`,
     orderNumber,
@@ -458,9 +467,14 @@ export async function saveNewOrder(order) {
     status: order.status || 'quote_pending',
     buyerInfo: order.buyerInfo || { ...DEFAULT_BUYER_INFO },
     items: Array.isArray(order.items) ? order.items : [],
+    sellerGroups: Array.isArray(order.sellerGroups) ? order.sellerGroups : [],
+    sellerFreightRmb,
     totalPriceKrw: Number(order.totalPriceKrw || 0),
     totalPriceRmb: Number(order.totalPriceRmb || 0),
-    firstPayment: order.firstPayment || {},
+    firstPayment: {
+      ...(order.firstPayment || {}),
+      ...(sellerFreightRmb !== null ? { sellerFreightRmb } : {}),
+    },
     secondPayment: order.secondPayment || {},
     measuredData: order.measuredData || {},
     inspectionPhotos: Array.isArray(order.inspectionPhotos) ? order.inspectionPhotos : [],
@@ -542,6 +556,7 @@ export async function saveNewOrder(order) {
           phone: buyerInfoObj.phone || '010-0000-0000',
           buyer_info: buyerInfoObj,
           items: newOrderObj.items,
+          seller_groups: newOrderObj.sellerGroups,
           total_price_krw: newOrderObj.totalPriceKrw,
           total_price_rmb: newOrderObj.totalPriceRmb,
           first_payment: newOrderObj.firstPayment,

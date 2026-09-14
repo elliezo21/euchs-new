@@ -516,9 +516,10 @@ import {
 import { currentUser, currentUserBizInfo, getCartStorageKey } from '@/lib/auth';
 import { saveNewOrder } from '@/utils/orderStorage';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
+import { fetch1688FreightEstimateBatch } from '@/services/api1688';
 
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
-import { krwFromCny, calcCartEstimatedCost } from '@/utils/orderCostCalculator';
+import { krwFromCny, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
 
 const props = defineProps({
   isOpen: {
@@ -733,6 +734,96 @@ const handleSubmit = async () => {
 
     const createdAt = new Date().toISOString();
 
+    // ── 그룹핑: 우선순위 sellerId → num_iid → 독립 그룹 ─────────────────────────
+    // 1순위: sellerId 있는 품목 → 같은 sellerId끼리 1개 그룹
+    // 2순위: sellerId 없지만 num_iid 동일한 품목 → 같은 num_iid끼리 1개 그룹
+    //         (같은 상품의 다른 옵션 = 같은 판매자 → 묶음 발주 가능)
+    // 3순위: sellerId도 num_iid도 없음 → 독립 그룹(단건 발주 폴백)
+    // 그룹 내부 key: 'seller:{sellerId}' 또는 'item:{num_iid}' — 서로 섞이지 않도록 prefix 구분
+    const groups = [];   // [{ groupKey, sellerId, items: [item], indices: [idx] }]
+
+    for (const item of targetItems) {
+      const originalIdx = targetItems.indexOf(item);
+      const sid    = (item.sellerId || '').trim();
+      const numIid = String(item.num_iid || item.itemId || item.id || '').trim();
+
+      let groupKey;
+      if (sid) {
+        groupKey = `seller:${sid}`;
+      } else if (numIid) {
+        groupKey = `item:${numIid}`;   // fallback: 같은 상품ID → 같은 판매자로 간주
+      } else {
+        groupKey = null;               // 독립 그룹(단건 폴백)
+      }
+
+      if (!groupKey) {
+        // sellerId도 num_iid도 없음 → 독립 그룹
+        groups.push({ groupKey: null, sellerId: '', items: [item], indices: [originalIdx] });
+      } else {
+        const existing = groups.find(g => g.groupKey === groupKey);
+        if (existing) {
+          existing.items.push(item);
+          existing.indices.push(originalIdx);
+        } else {
+          groups.push({ groupKey, sellerId: sid, items: [item], indices: [originalIdx] });
+        }
+      }
+    }
+
+    // ── 3단계: seller 그룹별 실제 중국 내륙 운임 조회 (배열 POST 호출) ──────────
+    // 각 seller는 독립 발주/배송 단위이므로 그룹별 1회씩 preview를 호출해 합산.
+    // 모든 그룹 조회 성공 시에만 sellerFreightRmb 확정 (일부 실패 시 null → 기존 폴백 유지)
+    const groupFreightResults = await Promise.all(
+      groups.map(async (g) => {
+        const cargoList = g.items
+          .map((it) => ({
+            offerId: String(it.num_iid || it.itemId || ''),
+            specId: String(it.specId || ''),
+            quantity: resolveItemQty(it),
+          }))
+          .filter((c) => c.offerId && c.specId)
+        if (cargoList.length === 0) return null
+        const freight = await fetch1688FreightEstimateBatch(cargoList)
+        if (freight !== null && freight !== undefined) {
+          g.freightRmb = Number(freight) // 그룹별 운임 (추적용)
+        }
+        return freight
+      })
+    )
+    const allGroupFreightKnown = groupFreightResults.every((f) => f !== null && f !== undefined)
+    const sellerFreightRmb = allGroupFreightKnown
+      ? Number(groupFreightResults.reduce((sum, f) => sum + Number(f), 0).toFixed(2))
+      : null
+
+    const orderItems = targetItems.map((it) => ({
+      productName: it.titleKo || it.productName || '',
+      imageUrl: it.imageUrl || '',
+      sku: it.sku || '',
+      skus: it.skus || [],
+      itemId: it.itemId || it.num_iid || '',
+      num_iid: it.num_iid || it.itemId || '',    // ← 1688 상품 숫자 ID (발주 필수)
+      specId: it.specId || '',                    // ← 1688 SKU spec_id (발주 필수)
+      productUrl: it.productUrl || it.detailUrl || '',
+      titleKo: it.titleKo || it.productName || '',
+      titleZh: it.titleZh || '',
+      quantity: (() => {
+        // 저장 시 quantity를 skus 합계로 정규화 — 스테퍼 미동기화 방어
+        if (Array.isArray(it.skus) && it.skus.length > 0) {
+          const skuSum = it.skus.reduce((s, sk) => s + (Number(sk.quantity || sk.qty) || 0), 0);
+          if (skuSum > 0) return skuSum;
+        }
+        return it.quantity || 1;
+      })(),
+      priceCny: getItemUnitPriceCny(it),
+      cbm: 0,
+      // ── seller 정보 (1688 공급사) ──
+      company: it.company || it.sellerName || '',
+      sellerId: it.sellerId || it.memberId || it.shopId || '',
+      sellerName: it.sellerName || it.company || '',
+      // ── 중국 현지 운임 (1688 등록값 pass-through, null=정보없음, 0=包邮) ──
+      freight: it.freight ?? null,
+    }));
+
     const newOrder = {
       id: `ord-${Date.now()}`,
       orderNumber,
@@ -749,34 +840,9 @@ const handleSubmit = async () => {
       vasApplied: cfg.vasServices,
       vasSummary: vasLabels.join(', '),
       buyerInfo,
-      items: targetItems.map((it) => ({
-        productName: it.titleKo || it.productName || '',
-        imageUrl: it.imageUrl || '',
-        sku: it.sku || '',
-        skus: it.skus || [],
-        itemId: it.itemId || it.num_iid || '',
-        num_iid: it.num_iid || it.itemId || '',    // ← 1688 상품 숫자 ID (발주 필수)
-        specId: it.specId || '',                    // ← 1688 SKU spec_id (발주 필수)
-        productUrl: it.productUrl || it.detailUrl || '',
-        titleKo: it.titleKo || it.productName || '',
-        titleZh: it.titleZh || '',
-        quantity: (() => {
-          // 저장 시 quantity를 skus 합계로 정규화 — 스테퍼 미동기화 방어
-          if (Array.isArray(it.skus) && it.skus.length > 0) {
-            const skuSum = it.skus.reduce((s, sk) => s + (Number(sk.quantity || sk.qty) || 0), 0);
-            if (skuSum > 0) return skuSum;
-          }
-          return it.quantity || 1;
-        })(),
-        priceCny: getItemUnitPriceCny(it),
-        cbm: 0,
-        // ── seller 정보 (1688 공급사) ──
-        company: it.company || it.sellerName || '',
-        sellerId: it.sellerId || it.memberId || it.shopId || '',
-        sellerName: it.sellerName || it.company || '',
-        // ── 중국 현지 운임 (1688 등록값 pass-through, null=정보없음, 0=包邮) ──
-        freight: it.freight ?? null,
-      })),
+      items: orderItems,
+      sellerGroups: groups,
+      sellerFreightRmb,
       totalPriceKrw: targetItems.reduce((sum, it) => sum + getItemSubtotalKrw(it), 0),
       totalPriceRmb: targetItems.reduce((sum, it) => sum + getItemSubtotalCny(it), 0)
     };

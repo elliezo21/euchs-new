@@ -27,8 +27,9 @@
  *
  * ── 택배비 우선순위 ────────────────────────────────────────────────
  *   1순위: 관리자 수동 입력 (order.chinaFreightRmb / firstPayment.chinaFreightRmb)
- *   2순위: 1688 등록 운임 (item.freight × qty 합산, 0=包邮 유효)
- *   3순위: 수량 기반 추정
+ *   2순위: seller 그룹별 실측 운임 (order.sellerFreightRmb — 발주서 접수 시 배열 호출 합산)
+ *   3순위: 1688 등록 운임 (item.freight × qty 합산, 0=包邮 유효)
+ *   4순위: 수량 기반 추정
  *
  * ── 환율 우선순위 (스냅샷 정책) ───────────────────────────────────
  *   quote_confirmed 이상: snapshotExchangeRate 우선 (DB 고정값)
@@ -205,11 +206,12 @@ export function calcOrderCost(order, settings = {}) {
   });
   const avgPriceCny = totalQty > 0 ? itemTotalCny / totalQty : 0;
 
-  // 3. 중국 내륙 택배비 — 3단계 우선순위 (SSOT)
+  // 3. 중국 내륙 택배비 — 4단계 우선순위 (SSOT)
   //   1순위: 관리자 수동 입력값 (order.chinaFreightRmb / firstPayment.chinaFreightRmb)
-  //   2순위: 1688 실비 (item.freight — "품목 수량 기준 총 배송비", 0=包邮 유효, null만 폴백)
+  //   2순위: seller 그룹별 실측 운임 (order.sellerFreightRmb — 발주서 접수 시 배열 호출 합산)
+  //   3순위: 1688 실비 (item.freight — "품목 수량 기준 총 배송비", 0=包邮 유효, null만 폴백)
   //          여러 품목 있으면 품목별 총 운임 단순 합산 (× qty 없음 — freight 자체가 이미 수량 반영값)
-  //   3순위: 수량기반 추정치 (estimateFreightRmb — 1688이 freight를 아예 안 줄 때 최후 폴백)
+  //   4순위: 수량기반 추정치 (estimateFreightRmb — 1688이 freight를 아예 안 줄 때 최후 폴백)
   const customFreight =
     (order.chinaFreightRmb !== null && order.chinaFreightRmb !== undefined)
       ? Number(order.chinaFreightRmb)
@@ -217,11 +219,23 @@ export function calcOrderCost(order, settings = {}) {
         ? Number(order.firstPayment.chinaFreightRmb)
         : null;
 
+  // seller 그룹별 실측 운임 — 발주서 접수 시 1688 createOrder.preview 배열 호출 합산값
+  // (first_payment JSONB에 영속 — chinaFreightRmb와 동일한 저장 경로)
+  const sellerFreight =
+    (order.sellerFreightRmb !== null && order.sellerFreightRmb !== undefined)
+      ? Number(order.sellerFreightRmb)
+      : (order.firstPayment?.sellerFreightRmb !== null && order.firstPayment?.sellerFreightRmb !== undefined)
+        ? Number(order.firstPayment.sellerFreightRmb)
+        : null;
+
   let chinaFreightRmb;
-  let chinaFreightOrigin; // 'custom' | '1688_exact' | 'estimated'
+  let chinaFreightOrigin; // 'custom' | '1688_seller' | '1688_exact' | 'estimated'
   if (customFreight !== null) {
     chinaFreightRmb = customFreight;
     chinaFreightOrigin = 'custom';
+  } else if (sellerFreight !== null) {
+    chinaFreightRmb = sellerFreight;
+    chinaFreightOrigin = '1688_seller';
   } else {
     let itemFreightSum = 0;
     let allFreightKnown = true;
@@ -271,7 +285,7 @@ export function calcOrderCost(order, settings = {}) {
     itemTotalKrw,
     chinaFreightRmb,
     chinaFreightKrw,
-    chinaFreightOrigin,  // 'custom' | '1688_exact' | 'estimated'
+    chinaFreightOrigin,  // 'custom' | '1688_seller' | '1688_exact' | 'estimated'
     agencyFeeKrw,
     cbm,
     shippingFeeKrw,
