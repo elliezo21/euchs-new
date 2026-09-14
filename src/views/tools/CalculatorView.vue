@@ -72,26 +72,15 @@
           </div>
         </div>
 
-        <!-- Custom Rate Adjustment & Refresh -->
-        <div class="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-gray-200 text-xs">
-          <span class="font-bold text-gray-700">적용 환율 변경:</span>
-          <div class="flex items-center gap-1">
-            <input 
-              v-model.number="customExchangeRate" 
-              type="number" 
-              step="0.1" 
-              class="w-20 p-1.5 bg-white border border-gray-300 rounded-lg text-center font-black text-blue-600 outline-none focus:border-blue-500"
-            />
-            <span class="text-gray-500 font-bold">원</span>
-          </div>
-          <button 
-            @click="reloadSettingsAndRates" 
-            class="px-2.5 py-1.5 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-lg font-semibold transition"
-            title="공식 설정 환율 새로고침"
-          >
-            <i class="fas fa-sync-alt" :class="{ 'animate-spin': isFetchingRate }"></i>
-          </button>
-        </div>
+        <!-- Refresh Button Only (read-only rate, no manual input) -->
+        <button
+          @click="reloadSettingsAndRates"
+          class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-gray-600 rounded-lg text-xs font-semibold transition"
+          title="공식 설정 환율 새로고침"
+        >
+          <i class="fas fa-sync-alt" :class="{ 'animate-spin': isFetchingRate }"></i>
+          <span>환율 새로고침</span>
+        </button>
 
       </div>
 
@@ -538,7 +527,7 @@
               <span>무역 견적 산출 팁</span>
             </h4>
             <ul class="space-y-1 text-[11px] list-disc list-inside leading-relaxed text-gray-500">
-              <li><strong>공식 적용 환율</strong>: 관리자 환경설정에 등록된 고시 환율이 우선 적용됩니다.</li>
+              <li><strong>공식 적용 환율</strong>: 실시간 국제 시세 기반으로 산출한 이유씨컴퍼니 공식 환율이 적용됩니다.</li>
               <li><strong>구매대행 수수료</strong>: 순수 제품가의 {{ agencyFeePercent }}%가 책정됩니다 (최소 수수료 1만원).</li>
               <li><strong>CBM(입방미터)</strong>: 화물의 가로(m) × 세로(m) × 높이(m)를 곱한 부피 단위입니다.</li>
               <li><strong>원산지증명서(C/O)</strong>: 중국산 제품 수입 시 한-중 FTA 협정세율을 적용받아 관세를 0%로 면제받을 수 있습니다.</li>
@@ -687,6 +676,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { fetchSiteSettings, DEFAULT_SETTINGS } from '@/lib/settings'
+import { getEffectiveExchangeRate } from '@/utils/exchangeRate'
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { currentUser, userDisplayName } from '@/lib/auth'
@@ -830,12 +820,11 @@ const reloadSettingsAndRates = async () => {
       customsClearanceFee.value = Number(settings.customs_clearance_fee) || DEFAULT_SETTINGS.customs_clearance_fee
       ftaCoFee.value = Number(settings.fta_co_fee) || DEFAULT_SETTINGS.fta_co_fee
 
-      // 국제 고시환율: DB live_market_rate 직접 사용
-      if (settings.live_market_rate != null && !isNaN(Number(settings.live_market_rate))) {
-        liveExchangeRate.value = Number(settings.live_market_rate)
-      }
-      // 공식 결제환율: DB exchange_rate 직접 사용
-      customExchangeRate.value = settings.exchange_rate != null ? Number(settings.exchange_rate) : null
+      // 공용 util 함수(헤더와 동일한 경로)로 환율 획득
+      // getEffectiveExchangeRate(settings)는 settingsOverride를 받으므로 이미 fetch한 settings 재사용
+      const { effectiveRate, liveMarketRate: market } = await getEffectiveExchangeRate(settings)
+      customExchangeRate.value = effectiveRate ?? DEFAULT_SETTINGS.exchange_rate
+      if (market !== null) liveMarketRate.value = market
     }
   } catch (err) {
     console.warn('Reload settings error:', err)
