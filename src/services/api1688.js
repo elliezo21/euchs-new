@@ -1208,6 +1208,7 @@ export async function getItemDetail1688(itemId) {
 // 상품 캐시(euchs_product_parsed)와 분리하여 quantity 구조 변경 시 독립 무효화 가능
 const _freightEstimateCache = new Map()
 const FREIGHT_CACHE_STORAGE_KEY = 'euchs_freight'
+const _freightInFlight = new Map()
 
 /** specId 유효성 검사 — 32자리 hex 형식만 허용
  *  "0:0", "1:2345" 같은 short properties 형식은 order-preview specId로 사용 불가
@@ -1324,6 +1325,7 @@ export async function fetch1688ProductById(offerId) {
   if (cachedProduct) {
     return cachedProduct
   }
+
 
   try {
     const rawData = await getItemDetail1688(cleanNumericId)
