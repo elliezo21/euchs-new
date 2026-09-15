@@ -1960,30 +1960,9 @@ export async function fetch1688ProductById(offerId) {
     // 먼저 item_get 결과를 캐시에 저장 (freight=null 포함)
     saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, normalizedProduct)
 
-    // ── freight null 시 alibaba.createOrder.preview로 실비 보완 ─────────────
-    // item_get이 운임을 제공하지 않을 때만 호출 (0=包邮는 유효한 실비이므로 호출 불필요)
-    // ⚠️ quantity = minOrder: qty=1 등 MOQ 미만 호출 시 sumCarriage=0(신뢰 불가) 반환 확인됨
-    //    → 반드시 minOrder 이상으로 호출해야 정확한 운임을 받음
-    // ⚠️ specId는 isValidSpecId(32자리 hex) 검사를 fetch1688FreightEstimate 내부에서 수행
-    if (freightValue === null && parsedSkus.length > 0 && parsedSkus[0]?.specId) {
-      const firstSpecId = parsedSkus[0].specId
-      // 비동기 호출 — await 없이 background로 실행하여 상세페이지 렌더링을 블로킹하지 않음
-      // 완료되면 freight 전용 캐시에 저장 (ProductDetailModal에서 동일 키로 cache HIT)
-      fetch1688FreightEstimate(cleanNumericId || idStr, firstSpecId, minOrder)
-        .then(estimatedFreight => {
-          if (estimatedFreight !== null) {
-            // 상품 캐시에도 반영 (다음 fetch1688ProductById 캐시 HIT 시 freight 포함)
-            const cachedProduct = getFromCache(memoryDetailCache, 'euchs_product_parsed', idStr)
-            if (cachedProduct) {
-              cachedProduct.freight = estimatedFreight
-              saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, cachedProduct)
-              console.log(`[fetch1688ProductById] freight estimate 업데이트: ${idStr} qty=${minOrder} → ¥${estimatedFreight}`)
-            }
-            normalizedProduct.freight = estimatedFreight
-          }
-        })
-        .catch(e => console.warn('[fetch1688ProductById] freight estimate 오류:', e.message))
-    }
+    // ── freight 배경 자동 호출 제거 (2026-09-15) ────────────────────────────────
+    // 운임은 CartView seller 그룹 배치 호출(fetch1688FreightEstimateBatch)에서만 계산.
+    // item_get에서 freight가 직접 내려오는 경우(freightValue 숫자)는 그대로 normalizedProduct.freight에 저장됨.
 
     return normalizedProduct
   } catch (err) {

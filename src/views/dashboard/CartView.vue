@@ -86,7 +86,24 @@
             <div class="text-[11px] text-gray-500 font-medium">예상 총액 <span class="text-gray-400">(견적서 확정)</span></div>
             <div class="text-[11px] text-gray-600 font-mono">
               상품 <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.itemTotalKrw) }}</b>
-              + 택배 <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
+              + 택배
+              <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
+              <span
+                v-if="freightCalcState === 'loading'"
+                class="px-1 py-0.5 rounded text-[9px] font-black bg-sky-100 text-sky-600"
+              >계산중</span>
+              <span
+                v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_seller'"
+                class="px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700"
+              >묶음</span>
+              <span
+                v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_exact'"
+                class="px-1 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-500"
+              >합산</span>
+              <span
+                v-else-if="selectedEstimatedCost.chinaFreightOrigin === 'estimated'"
+                class="px-1 py-0.5 rounded text-[9px] font-black bg-gray-100 text-gray-400"
+              >추정</span>
               + 수수료 <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.agencyFeeKrw) }}</b>
             </div>
             <div class="text-xs font-black text-amber-600 font-mono">= ₩{{ formatNumber(selectedEstimatedCost.chargeableKrw) }}</div>
@@ -515,6 +532,7 @@
       :isOpen="isOrderConfigModalOpen"
       :items="selectedItems"
       :exchangeRate="exchangeRate"
+      :sellerFreightRmb="sellerFreightRmb"
       @close="isOrderConfigModalOpen = false"
       @submitted="handleOrderSubmitted"
     />
@@ -561,7 +579,28 @@
               <span class="text-xs text-gray-400 font-normal ml-1">(¥{{ selectedTotalCny.toFixed(2) }})</span>
             </div>
             <div v-if="selectedItems.length > 0" class="text-[11px] text-gray-500 font-mono">
-              + 택배 <b class="text-gray-700">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
+              + 택배
+              <b class="text-gray-700">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
+              <!-- 자동 배치 계산 중 -->
+              <span
+                v-if="freightCalcState === 'loading'"
+                class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-sky-100 text-sky-600 flex items-center gap-0.5"
+              ><Loader2 class="w-2.5 h-2.5 animate-spin inline-block" /> 계산 중</span>
+              <!-- 진짜 묶음 배치 결과 (자동 계산 성공) -->
+              <span
+                v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_seller'"
+                class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700"
+              >묶음 실비</span>
+              <!-- item.freight 단순합산 (배치 전/실패, 상품별 단건 preview 합) -->
+              <span
+                v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_exact'"
+                class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-500"
+              >항목합산</span>
+              <!-- 수량 기반 추정치 (freight 정보 없는 상품 포함 시) -->
+              <span
+                v-else-if="selectedEstimatedCost.chinaFreightOrigin === 'estimated'"
+                class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-gray-100 text-gray-500"
+              >추정치</span>
               + 수수료 <b class="text-gray-700">₩{{ formatNumber(selectedEstimatedCost.agencyFeeKrw) }}</b>
             </div>
             <div v-if="selectedItems.length > 0" class="text-base sm:text-lg font-black text-amber-600 font-mono">
@@ -569,6 +608,8 @@
               <span class="text-[10px] text-gray-400 font-normal block sm:inline sm:ml-1">(견적서에서 확정)</span>
             </div>
           </div>
+
+
 
           <button
             type="button"
@@ -608,9 +649,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, watch, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
-import { fetch1688ProductById, ZH_KO_COLOR_MAP } from '@/services/api1688';
+import { fetch1688ProductById, fetch1688FreightEstimateBatch, ZH_KO_COLOR_MAP } from '@/services/api1688';
 import {
   ShoppingCart,
   CheckSquare,
@@ -641,7 +682,7 @@ import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
-import { krwFromCny, calcCartTotal, calcCartEstimatedCost } from '@/utils/orderCostCalculator';
+import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
 
 const router = useRouter();
 const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
@@ -673,6 +714,99 @@ const modalSelectedColor = ref('');     // 팝업 내 선택된 색상 (사이�
 
 // 발주 설정 모달 상태
 const isOrderConfigModalOpen = ref(false);
+
+// ─── seller 그룹 배치 운임 계산 ────────────────────────────────────────────────
+// sellerFreightRmb: 배치 호출 성공 시 저장되는 전체 운임(CNY 합계). null=미계산/실패.
+// freightCalcState: 'idle' | 'loading' | 'done' | 'error'
+const sellerFreightRmb = ref(null);
+const freightCalcState = ref('idle'); // 'idle' | 'loading' | 'done' | 'error'
+
+/**
+ * 선택된 품목을 sellerId 기준으로 그룹핑하여 fetch1688FreightEstimateBatch를 그룹별 1회 호출.
+ * 모든 그룹 성공 시 → sellerFreightRmb 확정 (calcCartEstimatedCost 2순위로 반영).
+ * 일부 실패 시 → sellerFreightRmb = null (기존 item.freight 단순합산 또는 추정치 폴백).
+ */
+async function calcSellerBatchFreight() {
+  const items = selectedItems.value;
+  if (items.length === 0) {
+    sellerFreightRmb.value = null;
+    freightCalcState.value = 'idle';
+    return;
+  }
+
+  freightCalcState.value = 'loading';
+  sellerFreightRmb.value = null;
+
+  try {
+    // ── sellerId 기준 그룹핑 (OrderConfigModal.handleSubmit과 동일 로직) ──
+    const groups = [];
+    for (const item of items) {
+      const sid    = (item.sellerId || '').trim();
+      const numIid = String(item.num_iid || item.itemId || item.id || '').trim();
+      let groupKey;
+      if (sid) {
+        groupKey = `seller:${sid}`;
+      } else if (numIid) {
+        groupKey = `item:${numIid}`;
+      } else {
+        groupKey = null;
+      }
+      if (!groupKey) {
+        groups.push({ groupKey: null, items: [item] });
+      } else {
+        const existing = groups.find(g => g.groupKey === groupKey);
+        if (existing) {
+          existing.items.push(item);
+        } else {
+          groups.push({ groupKey, items: [item] });
+        }
+      }
+    }
+
+    console.group('[CartView] calcSellerBatchFreight — seller 그룹별 배치 운임 조회');
+    console.log('그룹 수:', groups.length, '| 그룹:', groups.map(g => `${g.groupKey}(${g.items.length}종)`));
+
+    // ── 그룹별 배치 호출 ──
+    const results = await Promise.all(
+      groups.map(async (g) => {
+        const cargoList = g.items
+          .map(it => ({
+            offerId: String(it.num_iid || it.itemId || ''),
+            specId:  String(it.specId || ''),
+            quantity: resolveItemQty(it),
+          }))
+          .filter(c => c.offerId && c.specId);
+        if (cargoList.length === 0) {
+          console.log(`  ↳ ${g.groupKey}: specId 없음 → null`);
+          return null;
+        }
+        const freight = await fetch1688FreightEstimateBatch(cargoList);
+        console.log(`  ↳ ${g.groupKey}(${cargoList.length}종): ¥${freight}`);
+        return freight;
+      })
+    );
+
+    console.log('배치 결과:', results);
+    console.groupEnd();
+
+    const allKnown = results.every(f => f !== null && f !== undefined);
+    if (allKnown) {
+      sellerFreightRmb.value = Number(results.reduce((s, f) => s + Number(f), 0).toFixed(2));
+      freightCalcState.value = 'done';
+      console.log('[CartView] sellerFreightRmb 확정:', sellerFreightRmb.value, '¥');
+    } else {
+      // 일부 실패 → null 유지(폴백으로 흐름)
+      sellerFreightRmb.value = null;
+      freightCalcState.value = 'error';
+      console.warn('[CartView] 배치 운임 일부 실패 → item.freight 폴백 또는 추정치 사용');
+    }
+  } catch (e) {
+    console.error('[CartView] calcSellerBatchFreight 오류:', e);
+    sellerFreightRmb.value = null;
+    freightCalcState.value = 'error';
+  }
+}
+
 
 
 function getItemSkuText(item) {
@@ -745,11 +879,18 @@ const loadCartItems = () => {
             // ── seller 정보 보존 ──
             sellerId: it.sellerId || it.memberId || it.shopId || '',
             sellerName: it.sellerName || it.company || '1688 공급처',
+            // ── 중국 현지 운임 보존 (null=API 미제공, 0=包邮) ──
+            // undefined/누락이면 null로 정규화하여 orderCostCalculator의 추정 폴백을 정확히 트리거
+            freight: (it.freight !== undefined && it.freight !== null) ? Number(it.freight) : null,
           };
         });
         if (selectedItemIds.value.length === 0) {
           selectedItemIds.value = cartItems.value.map(it => it.id);
         }
+        // ※ sellerFreightRmb/freightCalcState는 여기서 리셋하지 않음.
+        // watch(selectedItems)가 품목/수량 실제 변경을 감지해서 재계산하며,
+        // loadCartItems가 호출될 때마다 리셋하면 storage 이벤트 루프로
+        // 무한 재계산이 발생함 (2026-09-15 버그 수정).
         return;
       }
     }
@@ -767,9 +908,12 @@ const saveCartToStorage = () => {
   // ── 사용자 격리 키 (euchs_cart_{userId}) 로만 저장 ──
   const cartKey = getCartStorageKey();
   localStorage.setItem(cartKey, JSON.stringify(cartItems.value));
-  // 뱃지 구독자들에게 최신 카운트 즉시 알림
+  // 뱃지 구독자들에게 최신 카운트 즉시 알림 (커스텀 이벤트만 — native storage는 dispatch 안 함)
+  // ※ window.dispatchEvent(new Event('storage'))를 제거함:
+  //    native storage 이벤트는 "다른 탭"에서만 발화해야 하는 것이 브라우저 설계.
+  //    같은 탭에서 수동 dispatch하면 CartView의 loadCartItems가 재호출되어
+  //    sellerFreightRmb 재계산 루프를 유발함 (2026-09-15 버그 수정).
   window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: cartItems.value.length } }));
-  window.dispatchEvent(new Event('storage'));
 };
 
 // ---------------------------------------------------------
@@ -1183,15 +1327,22 @@ const selectedEstimatedCost = computed(() => {
     return {
       itemTotalKrw: 0,
       chinaFreightKrw: 0,
+      chinaFreightOrigin: 'estimated',
       agencyFeeKrw: 0,
       chargeableKrw: 0
     };
   }
-  return calcCartEstimatedCost(selectedItems.value, {
-    exchange_rate: exchangeRate.value,
-    agency_fee_rate: currentSettings.value?.agency_fee_rate,
-    sea_cbm_rate: currentSettings.value?.sea_cbm_rate
-  });
+  // sellerFreightRmb가 있으면 2순위로 반영(진짜 묶음 계산값),
+  // 없으면 item.freight 단순합산(3순위) 또는 수량추정(4순위)으로 폴백
+  return calcCartEstimatedCost(
+    selectedItems.value,
+    {
+      exchange_rate: exchangeRate.value,
+      agency_fee_rate: currentSettings.value?.agency_fee_rate,
+      sea_cbm_rate: currentSettings.value?.sea_cbm_rate
+    },
+    sellerFreightRmb.value  // null이면 무시됨
+  );
 });
 
 // ---------------------------------------------------------
@@ -1204,12 +1355,42 @@ const isAllSelected = computed(() => {
   );
 });
 
+// ─── 자동 재계산 디바운스 ─────────────────────────────────────────────────────
+// ※ selectedItems computed 선언(위) 이후에 위치해야 ReferenceError 없음
+// 수량/품목/선택 변경 후 1초 내 추가 변경이 없으면 배치 호출 1회 실행
+let freightDebounceTimer = null;
+
+function triggerFreightDebounced() {
+  if (freightDebounceTimer) clearTimeout(freightDebounceTimer);
+  freightCalcState.value = 'loading'; // 즉시 loading 표시 (UX 즉각성)
+  freightDebounceTimer = setTimeout(() => {
+    calcSellerBatchFreight();
+  }, 1000);
+}
+
+// 선택 아이템(id·quantity·specId)이 바뀔 때마다 자동 재계산
+watch(
+  () => selectedItems.value.map(it => `${it.id}:${it.quantity}:${it.specId}`).join(','),
+  (newVal, oldVal) => {
+    if (newVal === oldVal) return;
+    if (selectedItems.value.length === 0) {
+      sellerFreightRmb.value = null;
+      freightCalcState.value = 'idle';
+      return;
+    }
+    triggerFreightDebounced();
+  }
+);
+
 function toggleSelectAll(e) {
   if (e.target.checked) {
     selectedItemIds.value = filteredItems.value.map(it => it.id);
   } else {
     selectedItemIds.value = [];
   }
+  // 선택 변경 시 배치 운임 결과 리셋 (구 선택 기준 결과가 잔류하지 않도록)
+  sellerFreightRmb.value = null;
+  freightCalcState.value = 'idle';
 }
 
 // ---------------------------------------------------------
@@ -1285,7 +1466,16 @@ onMounted(() => {
 
   fetchSiteSettings();
   loadCartItems();
-  window.addEventListener('storage', loadCartItems);
+  // 마운트 직후 자동 배치 운임 계산 — 선택 아이템이 있으면 즉시 시작
+  if (selectedItems.value.length > 0) {
+    calcSellerBatchFreight();
+  }
+  // ※ 'storage' 네이티브 이벤트 리스너는 등록하지 않음 (2026-09-15 버그 수정).
+  //    auth.js, DashboardView 등 다른 컴포넌트가 window.dispatchEvent(new Event('storage'))를
+  //    발사할 때마다 loadCartItems가 재호출되어 sellerFreightRmb를 초기화하는 루프가 생김.
+  //    장바구니 변경 알림은 'euchs:cart-updated' 커스텀 이벤트만으로 충분.
+  //    (다른 탭에서 실제 localStorage 변경이 생기면 native storage 이벤트가 발화하지만
+  //     그 케이스는 사용자가 같은 탭에서 장바구니를 직접 보고 있으므로 무시해도 무방)
   window.addEventListener('euchs:cart-updated', loadCartItems);
 });
 </script>

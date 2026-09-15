@@ -316,7 +316,24 @@
               <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.itemTotalCny?.toFixed(2) }}</div>
             </div>
             <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
-              <div class="text-[10px] text-gray-500 font-medium mb-1">예상 택배비</div>
+              <div class="text-[10px] text-gray-500 font-medium mb-1">
+                예상 택배비
+                <!-- 진짜 seller 묶음 배치 결과 -->
+                <span
+                  v-if="estimatedCost.chinaFreightOrigin === '1688_seller'"
+                  class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700"
+                >묶음 실비</span>
+                <!-- item.freight 단순합산 (배치 전/실패) -->
+                <span
+                  v-else-if="estimatedCost.chinaFreightOrigin === '1688_exact'"
+                  class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-500"
+                >항목합산</span>
+                <!-- 수량기반 추정 -->
+                <span
+                  v-else-if="estimatedCost.chinaFreightOrigin === 'estimated'"
+                  class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-gray-100 text-gray-400"
+                >추정치</span>
+              </div>
               <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.chinaFreightKrw) }}</div>
               <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.chinaFreightRmb?.toFixed(2) }}</div>
             </div>
@@ -533,6 +550,12 @@ const props = defineProps({
   exchangeRate: {
     type: Number,
     default: 0
+  },
+  // CartView에서 "배송비 계산" 버튼으로 미리 계산한 seller 그룹 배치 운임(CNY).
+  // null이면 보관함(DashboardView) 경로 등 미계산 상태 → handleSubmit에서 자체 배치 호출 폴백.
+  sellerFreightRmb: {
+    type: Number,
+    default: null
   }
 });
 
@@ -659,20 +682,27 @@ const totalKrw = computed(() => {
 });
 
 // 예상 총액 계산 (수수료, 현지택배비 포함 - calcCartEstimatedCost SSOT 재사용)
+// props.sellerFreightRmb가 있으면 2순위로 반영(CartView 배치 호출 결과),
+// 없으면 item.freight 단순합산(3순위) 또는 수량추정(4순위) 폴백
 const estimatedCost = computed(() => {
   if (!props.items || props.items.length === 0) {
     return {
       itemTotalKrw: 0,
       chinaFreightKrw: 0,
+      chinaFreightOrigin: 'estimated',
       agencyFeeKrw: 0,
       chargeableKrw: 0
     };
   }
-  return calcCartEstimatedCost(props.items, {
-    exchange_rate: effectiveRate.value,
-    agency_fee_rate: currentSettings.value?.agency_fee_rate,
-    sea_cbm_rate: currentSettings.value?.sea_cbm_rate
-  });
+  return calcCartEstimatedCost(
+    props.items,
+    {
+      exchange_rate: effectiveRate.value,
+      agency_fee_rate: currentSettings.value?.agency_fee_rate,
+      sea_cbm_rate: currentSettings.value?.sea_cbm_rate
+    },
+    props.sellerFreightRmb  // null이면 무시됨
+  );
 });
 
 const handleClose = () => {
@@ -770,30 +800,40 @@ const handleSubmit = async () => {
       }
     }
 
-    // ── 3단계: seller 그룹별 실제 중국 내륙 운임 조회 (배열 POST 호출) ──────────
-    // 각 seller는 독립 발주/배송 단위이므로 그룹별 1회씩 preview를 호출해 합산.
-    // 모든 그룹 조회 성공 시에만 sellerFreightRmb 확정 (일부 실패 시 null → 기존 폴백 유지)
-    const groupFreightResults = await Promise.all(
-      groups.map(async (g) => {
-        const cargoList = g.items
-          .map((it) => ({
-            offerId: String(it.num_iid || it.itemId || ''),
-            specId: String(it.specId || ''),
-            quantity: resolveItemQty(it),
-          }))
-          .filter((c) => c.offerId && c.specId)
-        if (cargoList.length === 0) return null
-        const freight = await fetch1688FreightEstimateBatch(cargoList)
-        if (freight !== null && freight !== undefined) {
-          g.freightRmb = Number(freight) // 그룹별 운임 (추적용)
-        }
-        return freight
-      })
-    )
-    const allGroupFreightKnown = groupFreightResults.every((f) => f !== null && f !== undefined)
-    const sellerFreightRmb = allGroupFreightKnown
-      ? Number(groupFreightResults.reduce((sum, f) => sum + Number(f), 0).toFixed(2))
-      : null
+    // ── 3단계: seller 그룹별 실제 중국 내륙 운임 ──────────────────────────────
+    // 우선순위:
+    //   1) props.sellerFreightRmb — CartView "배송비 계산" 버튼으로 미리 계산한 값 (API 호출 0회)
+    //   2) 없으면(null) → 보관함(DashboardView) 경로 등 → 그룹별 배치 호출 폴백
+    let sellerFreightRmb;
+    if (props.sellerFreightRmb !== null && props.sellerFreightRmb !== undefined) {
+      // CartView에서 이미 계산됨 → 재호출 없이 그대로 사용
+      sellerFreightRmb = Number(props.sellerFreightRmb);
+      console.log('[OrderConfigModal] sellerFreightRmb prop 재사용 (API 호출 0회):', sellerFreightRmb, '¥');
+    } else {
+      // 보관함 경로 또는 "배송비 계산" 미실행 시 → 자체 배치 호출 폴백
+      console.log('[OrderConfigModal] sellerFreightRmb prop 없음 → 자체 배치 호출');
+      const groupFreightResults = await Promise.all(
+        groups.map(async (g) => {
+          const cargoList = g.items
+            .map((it) => ({
+              offerId: String(it.num_iid || it.itemId || ''),
+              specId: String(it.specId || ''),
+              quantity: resolveItemQty(it),
+            }))
+            .filter((c) => c.offerId && c.specId)
+          if (cargoList.length === 0) return null
+          const freight = await fetch1688FreightEstimateBatch(cargoList)
+          if (freight !== null && freight !== undefined) {
+            g.freightRmb = Number(freight) // 그룹별 운임 (추적용)
+          }
+          return freight
+        })
+      )
+      const allGroupFreightKnown = groupFreightResults.every((f) => f !== null && f !== undefined)
+      sellerFreightRmb = allGroupFreightKnown
+        ? Number(groupFreightResults.reduce((sum, f) => sum + Number(f), 0).toFixed(2))
+        : null
+    }
 
     const orderItems = targetItems.map((it) => ({
       productName: it.titleKo || it.productName || '',
@@ -904,11 +944,15 @@ const handleSubmit = async () => {
     const computedTotalCny = targetItems.reduce((sum, it) => sum + getItemSubtotalCny(it), 0);
     const computedTotalKrw = targetItems.reduce((sum, it) => sum + krwFromCny(getItemSubtotalCny(it), effectiveRate.value), 0);
     const computedTotalQty = targetItems.reduce((sum, it) => sum + (Number(it.quantity) || 1), 0);
-    const computedEstimated = calcCartEstimatedCost(targetItems, {
-      exchange_rate: effectiveRate.value,
-      agency_fee_rate: currentSettings.value?.agency_fee_rate,
-      sea_cbm_rate: currentSettings.value?.sea_cbm_rate
-    });
+    const computedEstimated = calcCartEstimatedCost(
+      targetItems,
+      {
+        exchange_rate: effectiveRate.value,
+        agency_fee_rate: currentSettings.value?.agency_fee_rate,
+        sea_cbm_rate: currentSettings.value?.sea_cbm_rate
+      },
+      sellerFreightRmb  // handleSubmit에서 이미 결정된 값(prop 재사용 또는 배치 호출 결과)
+    );
 
     successOrderData.value = {
       orderNumber: finalOrderNumber,

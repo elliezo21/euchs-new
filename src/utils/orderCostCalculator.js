@@ -153,14 +153,17 @@ export function calcCartTotal(items, rate) {
  * 장바구니/발주모달 단계의 예상 총액 계산 (수수료, 현지택배비 포함)
  * 주문 객체 생성 전이므로 calcOrderCost({ items, status: 'quote_pending' }, settings)를 직접 호출하여 동일한 계산 SSOT 보장.
  *
- * @param {Array} items - 장바구니/발주 아이템 배열
- * @param {Object} settings - { exchange_rate, agency_fee_rate, sea_cbm_rate }
+ * @param {Array}  items             - 장바구니/발주 아이템 배열
+ * @param {Object} settings          - { exchange_rate, agency_fee_rate, sea_cbm_rate }
+ * @param {number|null} sellerFreightRmb - seller 그룹 배치 호출 결과 운임(CNY). null이면 item.freight 합산→추정 폴백.
  * @returns {Object} calcOrderCost 반환 객체 (itemTotalKrw, chinaFreightKrw, agencyFeeKrw, chargeableKrw 등)
  */
-export function calcCartEstimatedCost(items, settings = {}) {
+export function calcCartEstimatedCost(items, settings = {}, sellerFreightRmb = null) {
   const pseudoOrder = {
     status: 'quote_pending',
-    items: Array.isArray(items) ? items : []
+    items: Array.isArray(items) ? items : [],
+    // sellerFreightRmb: 배치 호출 성공 시 2순위로 반영 (null이면 3순위 item.freight 합산으로 흐름)
+    ...(sellerFreightRmb !== null && sellerFreightRmb !== undefined ? { sellerFreightRmb } : {}),
   };
   return calcOrderCost(pseudoOrder, settings);
 }

@@ -431,18 +431,11 @@
                   <span class="font-mono font-black text-white ml-2.5 text-base">약 ₩ {{ formatKrw(totalPriceKrw) }}</span>
                 </div>
               </div>
-              <div class="flex items-center justify-between text-xs text-slate-300">
-                <span>중국 내 배송비 <span class="text-slate-500 text-[10px]">(이우→창고)</span>:</span>
-                <div class="text-right">
-                  <span class="font-mono text-amber-400 font-bold text-sm">¥ {{ chinaFreightRmb.toFixed(2) }}</span>
-                  <span class="font-mono text-slate-200 ml-2 text-sm">약 ₩ {{ formatKrw(chinaFreightKrw) }}</span>
-                </div>
-              </div>
               <div class="flex items-center justify-between pt-2.5 border-t border-slate-700">
-                <span class="text-xs text-slate-300">총 예상 상품 금액 <span class="text-slate-500 text-[10px]">(원가+배송비)</span>:</span>
+                <span class="text-xs text-slate-300">순수 상품 원가:</span>
                 <div class="text-right">
-                  <span class="font-mono text-rose-400 font-bold text-sm">¥ {{ (totalPriceRmb + chinaFreightRmb).toFixed(2) }}</span>
-                  <span class="font-mono font-black text-amber-400 ml-2 text-base">약 ₩ {{ formatKrw(totalPriceKrw + chinaFreightKrw) }}</span>
+                  <span class="font-mono text-rose-400 font-bold text-sm">¥ {{ totalPriceRmb.toFixed(2) }}</span>
+                  <span class="font-mono font-black text-amber-400 ml-2 text-base">약 ₩ {{ formatKrw(totalPriceKrw) }}</span>
                 </div>
               </div>
             </div>
@@ -636,10 +629,10 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, fetch1688FreightEstimate, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
+import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey } from '../lib/auth'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
-import { estimateFreightRmb } from '../utils/orderCostCalculator'
+
 
 
 const props = defineProps({
@@ -1339,44 +1332,6 @@ const totalPriceKrw = computed(() => {
   return Math.round(totalPriceRmb.value * effectiveExchangeRate.value)
 })
 
-// ----------------------------------------------------
-// 중국 내 배송비 (이우 물류센터 기준, 1688 실비 SSOT)
-// ✅ SSOT 원칙 (2026-09-14 수정):
-//   item.freight는 api1688.js의 fetch1688ProductById()가 이미 안전하게 파싱한 단일 소스.
-//   raw.freight / raw.express_fee 를 이 computed에서 직접 재파싱하지 않음.
-//   이유: express_fee: "" (빈 문자열) 등을 직접 읽으면 JS 타입 강제변환으로
-//         "" >= 0 → true (""가 0으로 변환됨) → ¥0 오판정 발생.
-//   freight = null  → 아직 미확인 또는 1688이 안 줌 → estimate 호출 대기 중 → 추정치 표시
-//   freight = 0     → 실제 包邮(무료배송) — api1688.js에서 parseFloat("")=NaN→null로 이미 처리됨
-//                     실제 0이 들어오면 진짜 包邮로 신뢰
-//   freight > 0     → 실비 (order-preview sumCarriage 기반, 단위: CNY)
-// ----------------------------------------------------
-const chinaFreightRmb = computed(() => {
-  const qty = totalQuantity.value
-  if (qty <= 0) return 0
-
-  const item = currentItem.value || props.product
-  // ⚠️ item?.raw?.freight / item?.raw?.express_fee 재파싱 금지
-  //    api1688.js가 이미 null/숫자로 정규화한 item.freight를 그대로 사용
-  const freight = item?.freight
-
-  if (freight !== null && freight !== undefined && !isNaN(Number(freight))) {
-    return Number(freight)  // 0 = 包邮, > 0 = 실비
-  }
-
-  // null/undefined: freight 미확인 → 수량기반 추정 폴백 (estimate 완료 시 reactive 갱신)
-  return estimateFreightRmb(qty)
-})
-
-
-
-
-
-
-const chinaFreightKrw = computed(() => {
-  return Math.round(chinaFreightRmb.value * effectiveExchangeRate.value)
-})
-
 const formatKrw = (val) => {
   return Math.round(val || 0).toLocaleString('ko-KR')
 }
@@ -1773,23 +1728,10 @@ const loadFullProductData = async (item) => {
         imageUrl: mergedImageUrl
       }
 
-      // ── freight null이면 order-preview로 실비 보완 (C안: 컴포넌트에서 명시 호출) ──
-      // ⚠️ quantity = full.minOrder: qty=1 등 MOQ 미만 호출 시 sumCarriage=0(신뢰 불가)
-      //    실측 확인: offerId=788598752048, qty=1 → ¥0.00, qty=2(MOQ) → ¥2.00
-      if (full.freight === null || full.freight === undefined) {
-        const firstSpecId = full.skus?.[0]?.specId || mergedSkus?.[0]?.specId
-        const moq = full.minOrder || 1
-        if (firstSpecId) {
-          fetch1688FreightEstimate(item.id, firstSpecId, moq)
-            .then(estimatedFreight => {
-              if (estimatedFreight !== null && currentItem.value && String(currentItem.value.id) === String(item.id)) {
-                currentItem.value = { ...currentItem.value, freight: estimatedFreight }
-                console.log(`[loadFullProductData] freight estimate 완료: ${item.id} qty=${moq}(MOQ) → ¥${estimatedFreight}`)
-              }
-            })
-            .catch(e => console.warn('[loadFullProductData] freight estimate 오류:', e.message))
-        }
-      }
+      // ── freight 배경 자동 호출 제거 (2026-09-15) ─────────────────────────────
+      // 이유: 상세 진입만 해도 freight-estimate API가 나가는 불필요한 호출이었음.
+      // 운임은 CartView에서 담기 후 seller 그룹 단위 배치 호출(fetch1688FreightEstimateBatch)로만 계산.
+      // item.freight는 담기 시점에 currentItem.value.freight(null 또는 api1688.js가 item_get에서 파싱한 값)으로 저장됨.
 
     }
   } catch (err) {
