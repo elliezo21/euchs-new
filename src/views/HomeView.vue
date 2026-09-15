@@ -257,7 +257,7 @@
                   실시간 환율 연동
                 </span>
                 <span class="text-[11px] text-slate-400 flex items-center gap-1">
-                  <i class="fas fa-sync-alt text-[10px] animate-spin-slow"></i> 10분 자동 갱신
+                  <i class="fas fa-calendar-check text-[10px]"></i> 매일 KST 09:00 갱신
                 </span>
               </div>
 

@@ -63,8 +63,8 @@
 
             <!-- Bottom refresh note -->
             <div class="mt-4 pt-3 border-t border-white/20 text-center text-[11px] text-blue-100 flex items-center justify-center gap-1.5">
-              <i class="fas fa-arrows-rotate text-xs animate-spin-slow"></i>
-              <span>10분마다 실시간 환율 자동 동기화</span>
+              <i class="fas fa-calendar-check text-xs"></i>
+              <span>매일 KST 09:00 서버 자동 갱신</span>
             </div>
           </div>
         </div>

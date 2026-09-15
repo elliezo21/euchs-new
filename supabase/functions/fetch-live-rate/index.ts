@@ -1,4 +1,4 @@
-﻿// Supabase Edge Function: fetch-live-rate
+// Supabase Edge Function: fetch-live-rate
 // Deploy: supabase functions deploy fetch-live-rate --no-verify-jwt
 //
 // 환경변수 (Edge Function Secrets에 설정 필요):
@@ -86,11 +86,11 @@ serve(async (req) => {
     const rateMode = settings?.exchange_rate_mode || "manual"
     const rateMargin = Number(settings?.rate_margin) || 0
 
-    // 4. 업데이트 페이로드 구성 (KST 기준 갱신 시각)
-    const nowKst = new Date(Date.now() + 9 * 60 * 60 * 1000)
+    // 4. 업데이트 페이로드 구성 (UTC 기준 갱신 시각 — TIMESTAMPTZ 컬럼이므로 UTC 저장이 올바름)
+    const nowUtc = new Date()
     const updatePayload = {
       live_market_rate: roundedLiveRate,
-      rate_last_updated_at: nowKst.toISOString(),
+      rate_last_updated_at: nowUtc.toISOString(),
     }
 
     // auto_margin: exchange_rate 자동 계산
@@ -125,7 +125,7 @@ serve(async (req) => {
         live_market_rate: roundedLiveRate,
         exchange_rate: newExchangeRate,
         mode: rateMode,
-        updated_at: nowKst.toISOString(),
+        updated_at: nowUtc.toISOString(),
       }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     )

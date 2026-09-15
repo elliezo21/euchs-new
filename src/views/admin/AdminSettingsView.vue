@@ -157,14 +157,10 @@
                 <div class="flex items-center justify-between">
                   <label class="text-xs font-bold text-slate-700">실시간 기준 고시환율 (KRW/CNY)</label>
                   <div class="flex items-center gap-1.5">
-                    <select
-                      v-model="rateForm.refreshInterval"
-                      class="h-6 text-[11px] font-medium text-slate-700 bg-white border border-slate-300 rounded-md px-1.5 py-0 focus:ring-1 focus:ring-blue-500 focus:border-blue-500 outline-none cursor-pointer"
-                      title="실시간 고시환율 캐시 자동 갱신 주기"
-                    >
-                      <option value="daily">매일 (자정)</option>
-                      <option value="weekly">매주 (월요일)</option>
-                    </select>
+                    <span
+                      class="h-6 inline-flex items-center px-2 text-[11px] font-medium text-slate-500 bg-slate-100 border border-slate-200 rounded-md whitespace-nowrap"
+                      title="매일 KST 09:00 서버 자동 갱신 (pg_cron)"
+                    >매일 KST 09:00 자동 갱신</span>
                     <button
                       type="button"
                       @click="refreshLiveRate"
@@ -1398,7 +1394,6 @@ async function executeRevokeStaffRole() {
 // ----------------------------------------------------
 const DEFAULT_RATE_SETTINGS = {
   exchangeRateMode: 'auto', // 'auto' | 'manual'
-  refreshInterval: 'daily', // 'daily' | 'weekly' — 자동 갱신 주기
   manualRate: null,
   baseLiveRate: null,
   rateMargin: 1.5,
@@ -1591,9 +1586,6 @@ async function loadAllSettings() {
       rateForm.value.exchangeRateMode = settings.exchange_rate_mode === 'manual' ? 'manual' : 'auto'
       rateForm.value.rateMargin = Number(settings.rate_margin) !== undefined && !isNaN(Number(settings.rate_margin)) ? Number(settings.rate_margin) : 1.5
       rateForm.value.manualRate = settings.exchange_rate != null ? Number(settings.exchange_rate) : null
-      if (settings.exchange_rate_refresh_interval) {
-        rateForm.value.refreshInterval = settings.exchange_rate_refresh_interval
-      }
       if (settings.agency_fee_rate !== undefined) rateForm.value.agencyFeeRate = Number(settings.agency_fee_rate) || 8.0
       if (settings.sea_cbm_rate !== undefined) rateForm.value.oceanFreightPerCbm = Number(settings.sea_cbm_rate) || 98000
       if (settings.customs_clearance_fee !== undefined) rateForm.value.customsBrokerFee = Number(settings.customs_clearance_fee) || 33000
@@ -1646,7 +1638,6 @@ async function saveRateSettings() {
       exchange_rate_mode: rateForm.value.exchangeRateMode === 'auto' ? 'auto_margin' : 'manual',
       exchange_rate: appliedRate,
       rate_margin: Number(rateForm.value.rateMargin) || 1.5,
-      exchange_rate_refresh_interval: rateForm.value.refreshInterval || 'daily',
       agency_fee_rate: Number(rateForm.value.agencyFeeRate) || 8.0,
       sea_cbm_rate: Number(rateForm.value.oceanFreightPerCbm) || 98000,
       customs_clearance_fee: Number(rateForm.value.customsBrokerFee) || 33000,

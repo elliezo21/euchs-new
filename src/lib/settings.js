@@ -24,7 +24,6 @@ export const DEFAULT_SETTINGS = {
   exchange_rate_mode: 'manual', // 'manual' | 'auto_margin'
   exchange_rate: 230.0,
   rate_margin: 1.5,
-  exchange_rate_refresh_interval: 'daily', // 'daily' | 'weekly' — 자동 갱신 주기
   agency_fee_rate: 8.0,
   sea_cbm_rate: 98000,
   customs_clearance_fee: 33000,
@@ -78,7 +77,6 @@ export const fetchSiteSettings = async () => {
           id: data.id || 'default',
           exchange_rate: Number(data.exchange_rate) || 230.0,
           rate_margin: Number(data.rate_margin) || 1.5,
-          exchange_rate_refresh_interval: data.service_media?.exchange_rate_refresh_interval || 'daily',
           agency_fee_rate: Number(data.agency_fee_rate) || 8.0,
           sea_cbm_rate: Number(data.sea_cbm_rate) || 98000,
           customs_clearance_fee: Number(data.customs_clearance_fee) || 33000,
@@ -199,7 +197,6 @@ export const saveSiteSettings = async (settings) => {
     card2: settings.service_media?.card2 || settings.service_card_media_purchasing || '',
     card3: settings.service_media?.card3 || settings.service_card_media_trade || '',
     card4: settings.service_media?.card4 || settings.service_card_media_tour || '',
-    exchange_rate_refresh_interval: settings.exchange_rate_refresh_interval || 'daily'
   }
 
   const payload = {
