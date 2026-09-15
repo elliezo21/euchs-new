@@ -475,6 +475,7 @@
                       <span>·</span>
                       <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-blue-700'">
                       소계: ₩{{ fmtN(krwFromCny(Number(item.priceCny || 0) * Number(item.quantity || 1), getEffectiveRate(activeOrder))) }}
+                      <span class="text-slate-400 font-normal">(¥{{ (Number(item.priceCny || 0) * Number(item.quantity || 1)).toFixed(2) }})</span>
                       </span>
                     </div>
 
@@ -864,9 +865,9 @@
                 </div>
                 <!-- 금액 breakdown: 상품값 + 택배비 + 수수료 구성 표시 -->
                 <div class="text-xs text-slate-500 text-right font-mono leading-snug">
-                  상품값 ₩{{ fmtN(calcCostDetail(activeOrder).itemTotalKrw) }}
-                  + 택배비 ₩{{ fmtN(calcCostDetail(activeOrder).chinaFreightKrw) }}
-                  + 수수료 ₩{{ fmtN(calcCostDetail(activeOrder).agencyFeeKrw) }}
+                  상품값 ₩{{ fmtN(calcCostDetail(activeOrder).itemTotalKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).itemTotalCny?.toFixed(2) }})</span>
+                  + 택배비 ₩{{ fmtN(calcCostDetail(activeOrder).chinaFreightKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).chinaFreightRmb?.toFixed(2) }})</span>
+                  + 수수료 ₩{{ fmtN(calcCostDetail(activeOrder).agencyFeeKrw) }}<span class="text-slate-400"> (¥{{ (calcCostDetail(activeOrder).agencyFeeKrw / getEffectiveRate(activeOrder)).toFixed(2) }})</span>
                   <span v-if="calcCostDetail(activeOrder).shippingFeeKrw > 0">
                     + 해운비 ₩{{ fmtN(calcCostDetail(activeOrder).shippingFeeKrw) }}
                   </span>

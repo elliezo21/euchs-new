@@ -407,6 +407,7 @@
             </p>
             <p class="text-xs font-bold text-amber-600 font-mono mt-0.5">
               ₩{{ formatNumber(getOrderCostSummary(order).chargeableKrw) }}원
+              <span class="text-gray-400 font-normal">(¥{{ getOrderCostSummary(order).itemTotalCny?.toFixed(2) }})</span>
             </p>
           </div>
         </div>

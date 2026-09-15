@@ -77,7 +77,7 @@
               <tfoot class="bg-gray-50 border-t border-gray-200">
                 <tr>
                   <td colspan="3" class="px-3 py-2 text-right text-xs font-bold text-gray-600">상품대금 합계</td>
-                  <td class="px-3 py-2 text-right font-mono font-black text-gray-900">₩{{ formatNumber(totalKrw) }}</td>
+                  <td class="px-3 py-2 text-right font-mono font-black text-gray-900">₩{{ formatNumber(totalKrw) }} <span class="font-normal text-gray-400 text-[11px]">(¥{{ totalCny.toFixed(2) }})</span></td>
                 </tr>
               </tfoot>
             </table>
@@ -340,7 +340,7 @@
             <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
               <div class="text-[10px] text-gray-500 font-medium mb-1">구매대행 수수료</div>
               <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.agencyFeeKrw) }}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5">상품대금 × 8%</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ (estimatedCost.agencyFeeKrw / estimatedCost.exchangeRate).toFixed(2) }} (상품대금×8%)</div>
             </div>
             <div class="bg-amber-100 border border-amber-300 rounded-xl p-3 text-center">
               <div class="text-[10px] text-amber-800 font-bold mb-1">예상 총액</div>

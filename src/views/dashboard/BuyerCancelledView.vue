@@ -150,6 +150,7 @@
                 </td>
                 <td class="px-4 py-3 text-right font-mono font-bold text-slate-900">
                   ₩{{ fmtN(getOrderAmount(order)) }}
+                  <span class="text-slate-400 font-normal text-[11px]">(¥{{ getOrderAmountCny(order) }})</span>
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
@@ -266,6 +267,21 @@ function getOrderAmount(order) {
     return cost.chargeableKrw || cost.itemTotalKrw || 0
   } catch (e) {
     return 0
+  }
+}
+
+/** 취소 주문 CNY 합계 표시용 — calcOrderCost 재사용, 계산 로직 미변경 */
+function getOrderAmountCny(order) {
+  if (!order) return '0.00'
+  try {
+    const cost = calcOrderCost(order, {
+      exchange_rate: currentSettings.value?.exchange_rate,
+      agency_fee_rate: currentSettings.value?.agency_fee_rate,
+      sea_cbm_rate: currentSettings.value?.sea_cbm_rate,
+    })
+    return (cost.itemTotalCny || 0).toFixed(2)
+  } catch (e) {
+    return '0.00'
   }
 }
 

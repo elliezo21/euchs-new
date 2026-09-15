@@ -37,6 +37,7 @@
         <div class="text-2xl font-black font-mono text-slate-900">
           ₩{{ fmtN(currentTotalBalance) }}
         </div>
+        <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-slate-400 font-mono">≈ ¥{{ (currentTotalBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
         <p class="text-[11px] text-slate-400 font-medium">전체 바이어 보관 예치금 실시간 합계 (관리자 계정 제외)</p>
         <p v-if="adminTotalBalance > 0" class="text-[10px] text-slate-400 font-medium">
           관리자 계정 잔액 별도: ₩{{ fmtN(adminTotalBalance) }} (합계 미포함)
@@ -67,6 +68,7 @@
         <div class="text-2xl font-black font-mono text-slate-900">
           ₩{{ fmtN(firstPaymentSum) }}
         </div>
+        <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-slate-400 font-mono">≈ ¥{{ (firstPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
         <p class="text-[11px] text-slate-400 font-medium">당월 1688 수입 상품대금 누적</p>
       </div>
 
@@ -79,6 +81,7 @@
         <div class="text-2xl font-black font-mono text-slate-900">
           ₩{{ fmtN(secondPaymentSum) }}
         </div>
+        <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-slate-400 font-mono">≈ ¥{{ (secondPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
         <p class="text-[11px] text-slate-400 font-medium">해운 LCL 운임 및 세관 통관비 누적</p>
       </div>
     </div>
@@ -635,6 +638,7 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { userBalance, setBalance, applyBalanceTransaction } from '@/lib/balanceStore'
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
+import { currentSettings, fetchSiteSettings } from '@/lib/settings'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const activeSubTab = ref('requests') // 'requests' | 'withdrawals' | 'logs'
@@ -1340,6 +1344,7 @@ let realtimeChannel = null
 onMounted(() => {
   loadState()
   fetchTotalBalance()
+  fetchSiteSettings()
 
   // 1. 동일 브라우저 탭 간 로컬 이벤트 감지
   window.addEventListener('euchs-deposit-request', (e) => {

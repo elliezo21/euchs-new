@@ -67,6 +67,7 @@
           <span class="text-[11px] text-gray-400 font-medium">나의 예치금 잔액</span>
           <div class="text-base font-extrabold text-gray-900 font-mono">
             ₩{{ walletBalance.toLocaleString() }}
+            <span v-if="currentSettings?.exchange_rate" class="text-gray-400 font-normal text-[11px]">(¥{{ (walletBalance / currentSettings.exchange_rate).toFixed(2) }})</span>
           </div>
         </div>
         <button
@@ -402,18 +403,21 @@
         <div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-1">
           <p class="text-[11px] text-gray-500 font-medium">보유 잔액</p>
           <p class="text-xl font-black font-mono text-gray-900">₩{{ walletBalance.toLocaleString() }}</p>
+          <p v-if="currentSettings?.exchange_rate" class="text-[10px] text-gray-400">¥{{ (walletBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
           <p class="text-[10px] text-gray-400">전체 예치금 잔액</p>
         </div>
         <!-- 출금 신청 중(동결) -->
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-xs space-y-1">
           <p class="text-[11px] text-amber-700 font-medium">출금 신청 중(동결)</p>
           <p class="text-xl font-black font-mono text-amber-700">₩{{ heldBalance.toLocaleString() }}</p>
+          <p v-if="currentSettings?.exchange_rate" class="text-[10px] text-amber-600/80">¥{{ (heldBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
           <p class="text-[10px] text-amber-600/80">관리자 처리 완료 시 차감</p>
         </div>
         <!-- 사용 가능 잔액 -->
         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-xs space-y-1">
           <p class="text-[11px] text-emerald-700 font-medium">사용 가능 잔액</p>
           <p class="text-xl font-black font-mono text-emerald-700">₩{{ availableBalance.toLocaleString() }}</p>
+          <p v-if="currentSettings?.exchange_rate" class="text-[10px] text-emerald-600/80">¥{{ (availableBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
           <p class="text-[10px] text-emerald-600/80">주문 결제 가능 금액</p>
         </div>
       </div>
@@ -1105,6 +1109,7 @@ import {
   heldBalance,
   loadBalance,
 } from '../../lib/balanceStore'
+import { currentSettings, fetchSiteSettings } from '@/lib/settings'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const route = useRoute()
@@ -1935,6 +1940,7 @@ onMounted(async () => {
   // 출금 신청 Realtime 구독 + 미확인 알림 체크
   setupWithdrawRealtime()
   checkPendingWithdrawNotifications()
+  fetchSiteSettings()
   window.addEventListener('euchs-auth-changed', onAccountAuthChanged)
 })
 
