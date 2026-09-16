@@ -142,6 +142,13 @@
       <div v-if="step7Items.length === 0" class="bg-white border border-dashed border-gray-300 rounded-2xl py-10 text-center text-gray-400">
         <ShieldAlert class="w-8 h-8 mx-auto text-gray-300 mb-2" />
         <p class="text-sm font-bold text-gray-500">현재 통관 진행 중인 화물이 없습니다.</p>
+        <router-link
+          to="/mall"
+          class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
+        >
+          <Plus class="w-4 h-4" />
+          <span>1688 상품 소싱하러 가기</span>
+        </router-link>
       </div>
 
       <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -299,6 +306,13 @@
       <div v-if="step8Items.length === 0" class="bg-white border border-dashed border-gray-300 rounded-2xl py-10 text-center text-gray-400">
         <Truck class="w-8 h-8 mx-auto text-gray-300 mb-2" />
         <p class="text-sm font-bold text-gray-500">현재 국내 배송 중인 화물이 없습니다.</p>
+        <router-link
+          to="/mall"
+          class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
+        >
+          <Plus class="w-4 h-4" />
+          <span>1688 상품 소싱하러 가기</span>
+        </router-link>
       </div>
 
       <div v-else class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -580,6 +594,14 @@
               <td colspan="7" class="py-14 text-center text-gray-400">
                 <Search class="w-8 h-8 mx-auto text-gray-300 mb-2" />
                 <p class="font-bold text-gray-500">검색 결과가 없습니다.</p>
+                <router-link
+                  v-if="!searchQuery.trim() && statusFilter === 'all'"
+                  to="/mall"
+                  class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
+                >
+                  <Plus class="w-4 h-4" />
+                  <span>1688 상품 소싱하러 가기</span>
+                </router-link>
               </td>
             </tr>
           </tbody>
@@ -752,7 +774,7 @@ import { useRoute } from 'vue-router'
 import {
   Ship, Truck, ShieldAlert, Award, Search, ExternalLink, Copy,
   CheckCircle2, Clock, FileCheck, ShieldCheck, X, ChevronRight,
-  MessageCircle
+  MessageCircle, Plus
 } from 'lucide-vue-next'
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue'
 import { getStoredOrders, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage'

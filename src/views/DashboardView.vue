@@ -513,26 +513,6 @@
           </div>
 
           <div class="flex items-center gap-2">
-            <button
-              v-if="savedItems.length > 0"
-              type="button"
-              @click="openOrderModal"
-              class="px-4 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition flex items-center gap-1.5 active:scale-95 animate-pulse"
-            >
-              <i class="fas fa-paper-plane"></i>
-              <span>보관함 견적/발주 신청 ({{ savedItems.length }}건)</span>
-            </button>
-
-            <button
-              type="button"
-              @click="downloadEstimateExcel"
-              :disabled="savedItems.length === 0 && submittedOrders.length === 0"
-              class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5 disabled:opacity-50"
-            >
-              <i class="fas fa-file-excel"></i>
-              <span>전체 견적 엑셀 다운로드</span>
-            </button>
-            
             <router-link
               to="/mall"
               class="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs shadow-sm transition flex items-center gap-1.5"
@@ -540,6 +520,44 @@
               <i class="fas fa-plus text-amber-400"></i>
               <span>1688 상품 소싱하기</span>
             </router-link>
+
+            <button
+              type="button"
+              @click="loadDashboardData"
+              class="px-3 py-2 rounded-xl bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95"
+              title="대시보드 새로고침"
+            >
+              <i class="fas fa-rotate-right" :class="{ 'fa-spin': isDashboardRefreshing }"></i>
+              <span>새로고침</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- ======================================================== -->
+        <!-- 오늘 할 일 바 -->
+        <!-- ======================================================== -->
+        <div class="flex items-center gap-7 bg-white border border-gray-200 rounded-2xl px-[22px] py-4">
+          <span class="text-[12.5px] font-bold text-gray-500 shrink-0">오늘 할 일</span>
+          <span class="text-[13px] text-gray-500 shrink-0">
+            안녕하세요, <b class="text-slate-900">{{ displayBuyerName || '회원' }}</b>님
+          </span>
+
+          <div class="flex flex-wrap items-center gap-7">
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-orange-500 shrink-0"></span>
+              <span class="text-[13px] text-gray-500">결제 확인 필요</span>
+              <span class="text-sm font-bold text-blue-600">{{ paymentPendingCount }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-purple-500 shrink-0"></span>
+              <span class="text-[13px] text-gray-500">한국 입고 예정</span>
+              <span class="text-sm font-bold text-blue-600">{{ todoInboundExpectedCount }}</span>
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-violet-500 shrink-0"></span>
+              <span class="text-[13px] text-gray-500">통관 진행중</span>
+              <span class="text-sm font-bold text-blue-600">{{ getPipelineCount('customs_clearance') }}</span>
+            </div>
           </div>
         </div>
 
@@ -934,14 +952,6 @@
 
     </div>
 
-    <!-- 발주 설정 모달 (장바구니와 동일한 공통 컴포넌트) -->
-    <OrderConfigModal
-      :isOpen="isOrderModalOpen"
-      :items="savedItems"
-      @close="isOrderModalOpen = false"
-      @submitted="handleDashboardOrderSubmitted"
-    />
-
   </div>
 </template>
 
@@ -962,7 +972,6 @@ import {
 } from '../lib/orderPipeline'
 import { getStoredOrders, fetchOrdersFromSupabase, getWarehouseTabCounts } from '../utils/orderStorage'
 import OrderProcessStepper from '../components/dashboard/OrderProcessStepper.vue'
-import OrderConfigModal from '../components/dashboard/OrderConfigModal.vue'
 import {
   currentUser,
   userDisplayName,
@@ -1191,7 +1200,10 @@ const onStorageEvent = (e) => {
   // orders / euchs_erp_submitted_orders 키 변경은 의도적으로 무시
 }
 
+const isDashboardRefreshing = ref(false)
+
 const loadDashboardData = async () => {
+  isDashboardRefreshing.value = true
   try {
     // 1. 보관함 품목 — localStorage에서 동기적으로 읽기
     loadSavedItemsOnly()
@@ -1211,6 +1223,8 @@ const loadDashboardData = async () => {
     }
   } catch (err) {
     console.error('Failed to load dashboard data:', err)
+  } finally {
+    isDashboardRefreshing.value = false
   }
 }
 
@@ -1226,6 +1240,11 @@ const paymentPendingCount   = computed(() => orderStats.value.byStage.quote_conf
 const paymentVerifiedCount  = computed(() => orderStats.value.byStage.payment_verified)
 const purchasingCount       = computed(() => orderStats.value.byStage.purchasing)
 const warehouseTabCounts    = computed(() => getWarehouseTabCounts(submittedOrders.value))
+
+// "오늘 할 일" 바 - 한국 입고 예정 (본인 주문 중 선적대기~통관 단계, 국내배송 진입 전)
+const todoInboundExpectedCount = computed(() =>
+  submittedOrders.value.filter(o => ['shipping_ready', 'customs_clearance'].includes(normalizeOrderStatus(o.status))).length
+)
 
 const getPipelineCount = (statusKey) => {
   if (statusKey === 'quote_pending') {
@@ -1314,23 +1333,8 @@ const displayItemsList = computed(() => {
 })
 
 // ----------------------------------------------------
-// Actions: 발주 설정 모달 및 보관함 관리
+// Actions: 보관함 관리
 // ----------------------------------------------------
-const isOrderModalOpen = ref(false)
-
-const openOrderModal = () => {
-  if (savedItems.value.length === 0) {
-    alert('보관함에 담긴 상품이 없습니다. 1688 상품을 먼저 소싱해 주세요.')
-    router.push('/mall')
-    return
-  }
-  isOrderModalOpen.value = true
-}
-
-const handleDashboardOrderSubmitted = () => {
-  loadDashboardData()
-}
-
 const removeCartItemById = (id) => {
   if (confirm('해당 품목을 보관함에서 삭제하시겠습니까?')) {
     savedItems.value = savedItems.value.filter(it => it.id !== id)
@@ -1346,34 +1350,6 @@ const handleImageError = (e) => {
 // ----------------------------------------------------
 // Excel Download
 // ----------------------------------------------------
-const downloadEstimateExcel = () => {
-  const targetItems = displayItemsList.value
-  if (targetItems.length === 0) {
-    alert('견적서로 출력할 상품 또는 발주 대기 항목이 없습니다.')
-    return
-  }
-
-  try {
-    const fileName = exportQuoteExcel(
-      targetItems,
-      {
-        companyName: buyerForm.value.companyName,
-        buyerName: buyerForm.value.managerName,
-        phone: buyerForm.value.contactPhone,
-        email: buyerForm.value.email,
-        customsCode: buyerForm.value.customsCode,
-        memo: `한·중 FTA C/O: ${orderOptions.value.requestCo ? '신청' : '미신청'} | 정밀검수: 신청`
-      },
-      customExchangeRate.value,
-      agencyFeeRate.value / 100
-    )
-    alert(`공식 견적서 파일(${fileName})이 정상적으로 다운로드되었습니다.`)
-  } catch (err) {
-    console.error('견적서 엑셀 다운로드 오류:', err)
-    alert(`견적서 엑셀 다운로드 중 오류가 발생했습니다: ${err.message}`)
-  }
-}
-
 const downloadRowEstimate = (row) => {
   try {
     exportQuoteExcel(

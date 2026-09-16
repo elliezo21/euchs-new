@@ -133,7 +133,13 @@
             <tbody class="divide-y divide-slate-100">
               <tr v-if="currentTabOrders.length === 0">
                 <td :colspan="activeTab !== 'rejected' ? 6 : 5" class="px-4 py-10 text-center text-slate-400">
-                  해당 내역이 없습니다.
+                  <p>해당 내역이 없습니다.</p>
+                  <router-link
+                    to="/mall"
+                    class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
+                  >
+                    <span>1688 상품 소싱하러 가기</span>
+                  </router-link>
                 </td>
               </tr>
               <tr

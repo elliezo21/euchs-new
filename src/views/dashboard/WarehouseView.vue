@@ -280,6 +280,13 @@
                 <Box class="w-10 h-10 mx-auto text-gray-300 mb-2 stroke-[1.5]" />
                 <p class="font-bold text-gray-600 text-sm">입고 내역이 없습니다.</p>
                 <p class="text-xs text-gray-400">검색 조건 또는 검수 상태 필터를 변경해보세요.</p>
+                <router-link
+                  to="/mall"
+                  class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
+                >
+                  <Plus class="w-4 h-4" />
+                  <span>1688 상품 소싱하러 가기</span>
+                </router-link>
               </td>
             </tr>
           </tbody>
@@ -1455,6 +1462,7 @@ import {
   Filter,
   X,
   Box,
+  Plus,
   Maximize2,
   CreditCard,
   Package,
