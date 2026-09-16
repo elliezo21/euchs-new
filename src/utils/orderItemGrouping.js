@@ -40,3 +40,28 @@ export function groupItemsByPurchase(items) {
   });
   return Array.from(groupsMap.values());
 }
+
+// 快递100 "배달완료" 상태 텍스트 — api/kuaidi100-track.js STATE_LABEL_MAP['3']와
+// 동일한 문자열이어야 매칭되므로 값을 바꾸지 말 것.
+const CHINA_DELIVERED_STATUS_TEXT = '배달완료';
+
+// 상품(item) 단위로 중국 내륙 택배 배지 표시용 라벨/색상을 계산.
+// WarehouseView.vue / OrderDetailModal.vue의 상품별 인라인 배지가 공용으로 사용.
+export function getChinaTrackingBadge(item) {
+  const trackingNo = item?.chinaTrackingNo || '';
+  if (!trackingNo) {
+    return {
+      label: '판매자 발송준비중',
+      badgeClass: 'bg-slate-100 text-slate-500 border border-slate-200',
+    };
+  }
+  const carrier = item.chinaCarrier || '택배사 확인중';
+  const status = item.chinaLogisticsStatus || '배송중';
+  const isDelivered = status === CHINA_DELIVERED_STATUS_TEXT;
+  return {
+    label: `${carrier} · ${status}`,
+    badgeClass: isDelivered
+      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+      : 'bg-blue-50 text-blue-700 border border-blue-200',
+  };
+}

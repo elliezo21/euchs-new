@@ -87,6 +87,12 @@ export function getOrderStatusLabel(status) {
   return getOrderStatusItem(status).label;
 }
 
+// purchasing(4단계, 1688 공장 구매진행) 이상 단계 여부.
+// 중국 내륙 배송(택배) 관련 UI는 구매 진행 전(1~3단계)에는 노출되면 안 되므로 이 가드로 판정한다.
+export function isPurchaseStageOrLater(status) {
+  return (getOrderStatusItem(status).code || 0) >= 4;
+}
+
 export function getOrderStatusShortLabel(status) {
   return getOrderStatusItem(status).shortLabel;
 }

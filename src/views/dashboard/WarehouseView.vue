@@ -501,60 +501,6 @@
             </div>
           </div>
 
-          <!-- ─── 중국 내륙 배송 현황 (구매번호 단위 그룹, DB 캐시 값만 표시) ─── -->
-          <div
-            v-if="purchaseTrackingGroups.length > 0"
-            class="bg-white border border-indigo-100 rounded-2xl p-5 shadow-2xs space-y-3"
-          >
-            <div class="flex items-center gap-1.5 pb-3 border-b border-indigo-100 mb-1">
-              <span class="font-black text-xs text-indigo-800">중국 내륙 배송 현황</span>
-            </div>
-            <div class="space-y-2">
-              <div
-                v-for="group in purchaseTrackingGroups"
-                :key="group.purchaseNo"
-                class="border border-indigo-100 rounded-xl overflow-hidden"
-              >
-                <button
-                  type="button"
-                  @click="toggleTrackingGroup(group.purchaseNo)"
-                  class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 bg-indigo-50/60 hover:bg-indigo-50 transition text-left cursor-pointer"
-                >
-                  <span class="flex items-center gap-1.5 min-w-0 text-xs font-bold text-indigo-900 truncate">
-                    <template v-if="group.primaryItem.chinaTrackingNo">
-                      <span>🚚 {{ group.primaryItem.chinaCarrier || '택배사 확인중' }} · {{ group.primaryItem.chinaLogisticsStatus || '배송중' }}</span>
-                    </template>
-                    <template v-else>
-                      <span class="text-slate-500">🚚 구매 진행중 · 택배정보 대기</span>
-                    </template>
-                  </span>
-                  <ChevronDown
-                    class="w-4 h-4 text-indigo-400 shrink-0 transition-transform"
-                    :class="expandedTrackingGroups[group.purchaseNo] ? 'rotate-180' : ''"
-                  />
-                </button>
-                <div
-                  v-if="expandedTrackingGroups[group.purchaseNo] && group.primaryItem.chinaTrackingNo"
-                  class="px-3.5 py-3 bg-white border-t border-indigo-100"
-                >
-                  <ChinaLogisticsTimeline
-                    :trackingNo="group.primaryItem.chinaTrackingNo"
-                    :traces="group.primaryItem.chinaLogisticsTrace || []"
-                    :currentStatus="group.primaryItem.chinaLogisticsStatus || ''"
-                    :updatedAt="group.primaryItem.chinaLogisticsUpdatedAt || ''"
-                    hide-refresh-button
-                  />
-                </div>
-                <div
-                  v-else-if="expandedTrackingGroups[group.purchaseNo]"
-                  class="px-3.5 py-3 bg-white border-t border-indigo-100 text-[11px] text-slate-400"
-                >
-                  아직 중국 내륙 운송장이 발급되지 않았습니다. 구매 진행 후 순차 업데이트됩니다.
-                </div>
-              </div>
-            </div>
-          </div>
-
           <!-- 2. 상품 명세 & 1688 원본 정보 -->
           <div class="bg-white border border-gray-200 rounded-2xl p-5 shadow-2xs space-y-4">
             <div class="flex items-center justify-between pb-3 border-b border-gray-100">
@@ -630,6 +576,41 @@
                       </tr>
                     </tbody>
                   </table>
+                </div>
+
+                <!-- 중국 내륙 배송 현황 (상품별 인라인 배지, 구매진행 4단계 이후만 노출) -->
+                <div
+                  v-if="isPurchaseStageOrLater(selectedOrderDetail.order?.status)"
+                  class="rounded-xl overflow-hidden"
+                >
+                  <button
+                    type="button"
+                    :disabled="!prod.chinaTrackingNo"
+                    @click="prod.chinaTrackingNo && toggleTrackingGroup(prod.purchaseNo || prod.groupKey)"
+                    class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left transition"
+                    :class="[getChinaTrackingBadge(prod).badgeClass, prod.chinaTrackingNo ? 'cursor-pointer' : 'cursor-default']"
+                  >
+                    <span class="text-[11px] font-bold flex items-center gap-1 truncate">
+                      🚚 {{ getChinaTrackingBadge(prod).label }}
+                    </span>
+                    <ChevronDown
+                      v-if="prod.chinaTrackingNo"
+                      class="w-3.5 h-3.5 shrink-0 transition-transform"
+                      :class="expandedTrackingGroups[prod.purchaseNo || prod.groupKey] ? 'rotate-180' : ''"
+                    />
+                  </button>
+                  <div
+                    v-if="prod.chinaTrackingNo && expandedTrackingGroups[prod.purchaseNo || prod.groupKey]"
+                    class="px-3 py-2.5 bg-white border border-t-0 border-gray-200 rounded-b-xl -mt-px"
+                  >
+                    <ChinaLogisticsTimeline
+                      :trackingNo="prod.chinaTrackingNo"
+                      :traces="prod.chinaLogisticsTrace || []"
+                      :currentStatus="prod.chinaLogisticsStatus || ''"
+                      :updatedAt="prod.chinaLogisticsUpdatedAt || ''"
+                      hide-refresh-button
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1494,7 +1475,8 @@ import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '
 import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { resolveVasLabel } from '@/utils/vasOptions';
-import { resolveProductGroupIdentity, groupItemsByPurchase } from '@/utils/orderItemGrouping';
+import { resolveProductGroupIdentity, getChinaTrackingBadge } from '@/utils/orderItemGrouping';
+import { isPurchaseStageOrLater } from '@/lib/orderPipeline';
 
 const route = useRoute();
 
@@ -1616,14 +1598,13 @@ const orders = ref([]);
 const fetchError = ref(false); // DB 조회 실패 여부
 
 // ---------------------------------------------------------
-// 중국 내륙 배송(구매진행) 현황 — purchaseNo 기준 그룹, DB 캐시 값만 표시
+// 중국 내륙 배송(구매진행) 현황 — 상품(item)별 인라인 배지, DB 캐시 값만 표시
 // ⚠️ 고객 화면: 快递100 API 재호출 없음 (새로고침은 관리자 화면 전용 정책 유지)
 // ---------------------------------------------------------
 const expandedTrackingGroups = ref({})
 function toggleTrackingGroup(purchaseNo) {
   expandedTrackingGroups.value = { ...expandedTrackingGroups.value, [purchaseNo]: !expandedTrackingGroups.value[purchaseNo] }
 }
-const purchaseTrackingGroups = computed(() => groupItemsByPurchase(selectedOrderDetail.value?.order?.items))
 
 const reloadData = async () => {
   fetchError.value = false;
@@ -1866,6 +1847,13 @@ function getGroupedOrderItems(rawItems) {
         company: it.company || '1688 공급처',
         skus: [],
         totalQty: 0,
+        // 중국 내륙 택배 정보(구매진행 이후 채워짐) — 같은 상품 그룹의 첫 아이템 값을 대표로 사용
+        purchaseNo: it.purchaseNo || '',
+        chinaCarrier: it.chinaCarrier || '',
+        chinaTrackingNo: it.chinaTrackingNo || '',
+        chinaLogisticsStatus: it.chinaLogisticsStatus || '',
+        chinaLogisticsTrace: it.chinaLogisticsTrace || [],
+        chinaLogisticsUpdatedAt: it.chinaLogisticsUpdatedAt || '',
       });
     }
 
