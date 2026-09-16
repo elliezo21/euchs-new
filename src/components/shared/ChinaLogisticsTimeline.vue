@@ -16,6 +16,7 @@
         </div>
       </div>
       <button
+        v-if="!hideRefreshButton"
         type="button"
         @click="$emit('refresh')"
         :disabled="isLoading"
@@ -158,6 +159,8 @@ const props = defineProps({
   isLoading:     { type: Boolean,        default: false },
   error:         { type: [String, null], default: null },
   isAdmin:       { type: Boolean,        default: false },
+  /** true면 새로고침 버튼 자체를 숨김 (고객 화면 — 快递100 API 재호출 방지) */
+  hideRefreshButton: { type: Boolean,    default: false },
 })
 
 defineEmits(['refresh'])

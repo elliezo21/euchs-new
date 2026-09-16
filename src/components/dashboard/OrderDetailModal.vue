@@ -421,6 +421,63 @@
             </div>
           </div>
         </div>
+
+        <!-- ④ 중국 내륙 배송 현황 (1688 구매진행 단계 이후, 구매번호 단위) -->
+        <div
+          v-if="purchaseTrackingGroups.length > 0"
+          class="bg-white border border-gray-200 rounded-2xl p-5 sm:p-6 shadow-xs space-y-3"
+        >
+          <div class="flex items-center justify-between pb-2 border-b border-gray-100">
+            <h4 class="font-black text-gray-900 flex items-center gap-2 text-sm sm:text-base">
+              <Truck class="w-4.5 h-4.5 text-indigo-600" />
+              <span>4. 중국 내륙 배송 현황 (1688 → 이우 물류센터)</span>
+            </h4>
+          </div>
+          <div class="space-y-2">
+            <div
+              v-for="group in purchaseTrackingGroups"
+              :key="group.purchaseNo"
+              class="border border-indigo-100 rounded-xl overflow-hidden"
+            >
+              <button
+                type="button"
+                @click="toggleTrackingGroup(group.purchaseNo)"
+                class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 bg-indigo-50/60 hover:bg-indigo-50 transition text-left cursor-pointer"
+              >
+                <span class="flex items-center gap-1.5 min-w-0 text-xs sm:text-sm font-bold text-indigo-900 truncate">
+                  <template v-if="group.primaryItem.chinaTrackingNo">
+                    <span>🚚 {{ group.primaryItem.chinaCarrier || '택배사 확인중' }} · {{ group.primaryItem.chinaLogisticsStatus || '배송중' }}</span>
+                  </template>
+                  <template v-else>
+                    <span class="text-slate-500">🚚 구매 진행중 · 택배정보 대기</span>
+                  </template>
+                </span>
+                <ChevronDown
+                  class="w-4 h-4 text-indigo-400 shrink-0 transition-transform"
+                  :class="expandedTrackingGroups[group.purchaseNo] ? 'rotate-180' : ''"
+                />
+              </button>
+              <div
+                v-if="expandedTrackingGroups[group.purchaseNo] && group.primaryItem.chinaTrackingNo"
+                class="px-3.5 py-3 bg-white border-t border-indigo-100"
+              >
+                <ChinaLogisticsTimeline
+                  :trackingNo="group.primaryItem.chinaTrackingNo"
+                  :traces="group.primaryItem.chinaLogisticsTrace || []"
+                  :currentStatus="group.primaryItem.chinaLogisticsStatus || ''"
+                  :updatedAt="group.primaryItem.chinaLogisticsUpdatedAt || ''"
+                  hide-refresh-button
+                />
+              </div>
+              <div
+                v-else-if="expandedTrackingGroups[group.purchaseNo]"
+                class="px-3.5 py-3 bg-white border-t border-indigo-100 text-[11px] text-slate-400"
+              >
+                아직 중국 내륙 운송장이 발급되지 않았습니다. 구매 진행 후 순차 업데이트됩니다.
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- C. 모달 고정 푸터 -->
@@ -479,7 +536,7 @@
 import { computed, ref } from 'vue'
 import {
   X, CreditCard, Truck, Package, Calculator, ExternalLink,
-  CheckCircle2, AlertCircle, MessageCircle, FileSpreadsheet, Clock, Info
+  CheckCircle2, AlertCircle, MessageCircle, FileSpreadsheet, Clock, Info, ChevronDown
 } from 'lucide-vue-next'
 import {
   normalizeOrderStatus,
@@ -489,6 +546,8 @@ import {
 import { calcOrderCost, resolveExchangeRate, resolveItemQty } from '@/utils/orderCostCalculator'
 import { currentSettings } from '@/lib/settings'
 import { exportQuoteExcel } from '@/utils/excelExport'
+import { resolveProductGroupIdentity, groupItemsByPurchase } from '@/utils/orderItemGrouping'
+import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 const props = defineProps({
@@ -521,6 +580,13 @@ const editAddressInput = ref('')
 const localToastVisible = ref(false)
 const localToastMsg = ref('')
 let _toastTimer = null
+
+// ── 중국 내륙 배송(구매진행) 현황 — purchaseNo 기준 그룹, DB 캐시 값만 표시 ──
+const expandedTrackingGroups = ref({})
+function toggleTrackingGroup(purchaseNo) {
+  expandedTrackingGroups.value = { ...expandedTrackingGroups.value, [purchaseNo]: !expandedTrackingGroups.value[purchaseNo] }
+}
+const purchaseTrackingGroups = computed(() => groupItemsByPurchase(props.order?.items))
 
 // ── Computed ─────────────────────────────────────────────────────────────
 const isOrderEditable = computed(() => normalizeOrderStatus(props.order.status) === 'quote_pending')
@@ -610,10 +676,7 @@ function getGroupedOrderItems(rawItems, order = null) {
   const exchangeRate = resolveExchangeRate(order, settingsRate)
   const groupsMap = new Map()
   rawItems.forEach((it, originalIdx) => {
-    const prodId = it.itemId || (it.id && !String(it.id).includes('_') ? it.id : null) || ''
-    const prodUrl = it.productUrl || it.url || it.detailUrl || it.link || ''
-    const prodName = it.productName || it.titleKo || it.name || it.titleZh || `상품-${originalIdx + 1}`
-    const groupKey = prodId ? `id_${prodId}` : (prodUrl ? `url_${prodUrl}` : `name_${prodName}`)
+    const { groupKey, prodId, prodUrl } = resolveProductGroupIdentity(it, `상품-${originalIdx + 1}`)
     if (!groupsMap.has(groupKey)) {
       groupsMap.set(groupKey, { groupKey, itemId: prodId, productName: it.productName || it.titleKo || it.name || '1688 소싱 상품', titleKo: it.titleKo || it.productName || it.name || '', titleZh: it.titleZh || '', imageUrl: it.imageUrl || it.image || it.imgUrl || it.productImage || it.thumbnail || '', productUrl: prodUrl, skus: [], validQty: 0, validTotalPriceKrw: 0, isAllExcluded: false, excludeReason: '' })
     }

@@ -367,7 +367,7 @@
       class="fixed inset-0 z-[110] flex items-center justify-center p-3 sm:p-4 md:p-6 bg-slate-900/60 backdrop-blur-xs overflow-y-auto"
       @click.self="closeOrderDetailModal"
     >
-      <div class="bg-white rounded-3xl max-w-5xl w-full flex flex-col shadow-2xl relative border border-gray-200 overflow-hidden font-sans my-auto max-h-[92vh]">
+      <div class="bg-white rounded-3xl w-[96vw] max-w-[1400px] flex flex-col shadow-2xl relative border border-gray-200 overflow-hidden font-sans my-auto max-h-[92vh]">
         <!-- 모달 헤더 -->
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/90 backdrop-blur-xs shrink-0">
           <div class="flex items-center gap-3">
@@ -466,7 +466,7 @@
               </span>
             </div>
             <p class="text-gray-600 text-xs leading-relaxed">
-              {{ selectedOrderDetail.inspectionNote || '특이사항 없이 정상 입고 및 검수 완료되었습니다.' }}
+              {{ selectedOrderDetail.inspectionNote || '아직 등록된 소견이 없습니다.' }}
             </p>
 
             <!-- 이슈 상품 브리핑 (이슈 발생 시) -->
@@ -492,25 +492,59 @@
             </div>
           </div>
 
-          <!-- ─── 중국 내륙 배송 타임라인 (chinaTrackingNo 있는 경우만 표시) ─── -->
+          <!-- ─── 중국 내륙 배송 현황 (구매번호 단위 그룹, DB 캐시 값만 표시) ─── -->
           <div
-            v-if="selectedOrderDetail.chinaTrackingNo"
-            class="bg-white border border-indigo-100 rounded-2xl p-5 shadow-2xs"
+            v-if="purchaseTrackingGroups.length > 0"
+            class="bg-white border border-indigo-100 rounded-2xl p-5 shadow-2xs space-y-3"
           >
-            <div class="flex items-center gap-1.5 pb-3 border-b border-indigo-100 mb-3">
+            <div class="flex items-center gap-1.5 pb-3 border-b border-indigo-100 mb-1">
               <span class="font-black text-xs text-indigo-800">중국 내륙 배송 현황</span>
               <span class="text-[10px] text-indigo-400">(표시 전용 — 입고 확정은 바코드 스캔으로 처리)</span>
             </div>
-            <ChinaLogisticsTimeline
-              :trackingNo="selectedOrderDetail.chinaTrackingNo"
-              :traces="selectedOrderDetail.chinaLogisticsTrace || []"
-              :currentStatus="selectedOrderDetail.chinaLogisticsStatus || ''"
-              :updatedAt="selectedOrderDetail.chinaLogisticsUpdatedAt || ''"
-              :isLoading="trackingLoadingMap[selectedOrderDetail.id] || false"
-              :error="trackingErrorMap[selectedOrderDetail.id] || null"
-              :isAdmin="false"
-              @refresh="refreshTracking(selectedOrderDetail)"
-            />
+            <div class="space-y-2">
+              <div
+                v-for="group in purchaseTrackingGroups"
+                :key="group.purchaseNo"
+                class="border border-indigo-100 rounded-xl overflow-hidden"
+              >
+                <button
+                  type="button"
+                  @click="toggleTrackingGroup(group.purchaseNo)"
+                  class="w-full flex items-center justify-between gap-2 px-3.5 py-2.5 bg-indigo-50/60 hover:bg-indigo-50 transition text-left cursor-pointer"
+                >
+                  <span class="flex items-center gap-1.5 min-w-0 text-xs font-bold text-indigo-900 truncate">
+                    <template v-if="group.primaryItem.chinaTrackingNo">
+                      <span>🚚 {{ group.primaryItem.chinaCarrier || '택배사 확인중' }} · {{ group.primaryItem.chinaLogisticsStatus || '배송중' }}</span>
+                    </template>
+                    <template v-else>
+                      <span class="text-slate-500">🚚 구매 진행중 · 택배정보 대기</span>
+                    </template>
+                  </span>
+                  <ChevronDown
+                    class="w-4 h-4 text-indigo-400 shrink-0 transition-transform"
+                    :class="expandedTrackingGroups[group.purchaseNo] ? 'rotate-180' : ''"
+                  />
+                </button>
+                <div
+                  v-if="expandedTrackingGroups[group.purchaseNo] && group.primaryItem.chinaTrackingNo"
+                  class="px-3.5 py-3 bg-white border-t border-indigo-100"
+                >
+                  <ChinaLogisticsTimeline
+                    :trackingNo="group.primaryItem.chinaTrackingNo"
+                    :traces="group.primaryItem.chinaLogisticsTrace || []"
+                    :currentStatus="group.primaryItem.chinaLogisticsStatus || ''"
+                    :updatedAt="group.primaryItem.chinaLogisticsUpdatedAt || ''"
+                    hide-refresh-button
+                  />
+                </div>
+                <div
+                  v-else-if="expandedTrackingGroups[group.purchaseNo]"
+                  class="px-3.5 py-3 bg-white border-t border-indigo-100 text-[11px] text-slate-400"
+                >
+                  아직 중국 내륙 운송장이 발급되지 않았습니다. 구매 진행 후 순차 업데이트됩니다.
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- 2. 상품 명세 & 1688 원본 정보 -->
@@ -759,7 +793,7 @@
             </span>
           </div>
           <p class="text-slate-600 leading-relaxed">
-            {{ activeInspectionItem?.inspectionNote || '특이사항 없이 정상 입고 및 검수 완료되었습니다.' }}
+            {{ activeInspectionItem?.inspectionNote || '아직 등록된 소견이 없습니다.' }}
           </p>
         </div>
 
@@ -1439,7 +1473,8 @@ import {
   FileText,
   Info,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  ChevronDown
 } from 'lucide-vue-next';
 import { loadStoredInbounds, saveStoredInbounds } from '@/lib/warehouseStore';
 import { updateOrderStatus, getStoredOrders, getWarehouseInboundsFromOrders, getItemTabKey, fetchOrdersFromSupabase, STORAGE_KEY_ORDERS } from '@/utils/orderStorage';
@@ -1450,6 +1485,7 @@ import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '
 import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { resolveVasLabel } from '@/utils/vasOptions';
+import { resolveProductGroupIdentity, groupItemsByPurchase } from '@/utils/orderItemGrouping';
 
 const route = useRoute();
 
@@ -1571,89 +1607,14 @@ const orders = ref([]);
 const fetchError = ref(false); // DB 조회 실패 여부
 
 // ---------------------------------------------------------
-// 快递100 배송 조회 상태 관리
-// ⚠️ 표시 전용 — orders.status/item.subStatus 자동 변경 없음
+// 중국 내륙 배송(구매진행) 현황 — purchaseNo 기준 그룹, DB 캐시 값만 표시
+// ⚠️ 고객 화면: 快递100 API 재호출 없음 (새로고침은 관리자 화면 전용 정책 유지)
 // ---------------------------------------------------------
-const trackingLoadingMap = ref({})  // { [itemId]: boolean }
-const trackingErrorMap   = ref({})  // { [itemId]: string|null }
-
-// chinaCarrier에서 快递100 택배사 코드 추출 ("중통(ZTO)" → "zto")
-function extractCarrierCode(chinaCarrier) {
-  if (!chinaCarrier) return ''
-  const m = chinaCarrier.match(/\(([A-Za-z0-9]+)\)/)
-  return m ? m[1].toLowerCase() : ''
+const expandedTrackingGroups = ref({})
+function toggleTrackingGroup(purchaseNo) {
+  expandedTrackingGroups.value = { ...expandedTrackingGroups.value, [purchaseNo]: !expandedTrackingGroups.value[purchaseNo] }
 }
-
-async function refreshTracking(item) {
-  const id = item?.id
-  if (!id || !item?.chinaTrackingNo) return
-
-  trackingLoadingMap.value = { ...trackingLoadingMap.value, [id]: true }
-  trackingErrorMap.value   = { ...trackingErrorMap.value,   [id]: null }
-
-  try {
-    const carrierCode = extractCarrierCode(item.chinaCarrier)
-    const res = await fetch('/api/kuaidi100-track', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chinaTrackingNo: item.chinaTrackingNo,
-        carrierCode,     // "중통(ZTO)" → "zto", 없으면 '' (자동판별)
-      }),
-    })
-    const data = await res.json()
-
-    if (data.success) {
-      // ⚠️ item 상태 필드(subStatus 등)는 절대 변경하지 않음 — 표시용 필드만 업데이트
-      item.chinaLogisticsStatus    = data.statusText || ''
-      item.chinaLogisticsTrace     = data.traces     || []
-      item.chinaLogisticsUpdatedAt = new Date().toISOString()
-
-      // Supabase에 물류 이력 저장 (orders.items JSONB 업데이트)
-      await persistTrackingToSupabase(item)
-    } else {
-      trackingErrorMap.value = { ...trackingErrorMap.value, [id]: data.message || '조회 실패' }
-    }
-  } catch (e) {
-    console.warn('[WarehouseView] refreshTracking 오류:', e.message)
-    trackingErrorMap.value = { ...trackingErrorMap.value, [id]: '네트워크 오류' }
-  } finally {
-    trackingLoadingMap.value = { ...trackingLoadingMap.value, [id]: false }
-  }
-}
-
-async function persistTrackingToSupabase(item) {
-  if (!isSupabaseConfigured()) return
-  if (!item?.orderId && !item?.order?.id) return
-
-  const orderId = item.orderId || item.order?.id
-  try {
-    // orders 행의 items 배열에서 해당 item 갱신
-    const { data: orderRow, error: fetchErr } = await supabase
-      .from('orders')
-      .select('items')
-      .eq('id', orderId)
-      .single()
-    if (fetchErr || !orderRow) return
-
-    const updatedItems = (orderRow.items || []).map(i => {
-      if (i.id === item.id || i.chinaTrackingNo === item.chinaTrackingNo) {
-        return {
-          ...i,
-          chinaLogisticsStatus:    item.chinaLogisticsStatus,
-          chinaLogisticsTrace:     item.chinaLogisticsTrace,
-          chinaLogisticsUpdatedAt: item.chinaLogisticsUpdatedAt,
-        }
-      }
-      return i
-    })
-
-    await supabase.from('orders').update({ items: updatedItems }).eq('id', orderId)
-    console.log('[WarehouseView] 배송 이력 Supabase 저장 완료:', orderId)
-  } catch (e) {
-    console.warn('[WarehouseView] persistTrackingToSupabase 오류:', e.message)
-  }
-}
+const purchaseTrackingGroups = computed(() => groupItemsByPurchase(selectedOrderDetail.value?.order?.items))
 
 const reloadData = async () => {
   fetchError.value = false;
@@ -1766,7 +1727,7 @@ function getInspectionLabel(status) {
     return '실측 & 검수완료';
   }
   const map = {
-    pending_inbound: '입고 대기',
+    pending_inbound: '배송중',
     arrival_done: '현지 입고 완료',
     inbound_weighed: '실측 계근 완료',
     inspecting: '정밀 검수 진행중',
@@ -1862,12 +1823,6 @@ function openOrderDetail(item) {
   }
   selectedOrderDetail.value = item;
   isOrderDetailModalOpen.value = true;
-
-  // ── 캐시 없으면 자동 1회 조회 (할당량 절약: 캐시 있으면 스킵) ──────────
-  // chinaTrackingNo는 있는데 chinaLogisticsTrace가 비어있는 "오래된 주문" 대응
-  if (item.chinaTrackingNo && (!item.chinaLogisticsTrace || item.chinaLogisticsTrace.length === 0)) {
-    refreshTracking(item)
-  }
 }
 
 function closeOrderDetailModal() {
@@ -1880,10 +1835,7 @@ function getGroupedOrderItems(rawItems) {
   const groupsMap = new Map();
 
   rawItems.forEach((it, originalIdx) => {
-    const prodId = it.itemId || (it.id && !String(it.id).includes('_') ? it.id : null) || '';
-    const prodUrl = it.productUrl || it.url || it.detailUrl || it.link || '';
-    const prodName = it.productName || it.titleKo || it.name || it.titleZh || `품목-${originalIdx + 1}`;
-    const groupKey = prodId ? `id_${prodId}` : (prodUrl ? `url_${prodUrl}` : `name_${prodName}`);
+    const { groupKey, prodId, prodUrl } = resolveProductGroupIdentity(it, `품목-${originalIdx + 1}`);
 
     if (!groupsMap.has(groupKey)) {
       groupsMap.set(groupKey, {

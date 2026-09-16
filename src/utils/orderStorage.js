@@ -874,7 +874,11 @@ export function getWarehouseInboundsFromOrders(ordersList = null) {
         if (norm === 'inspection_done') return '이우 센터 실측 계근 및 100% 정밀 검수 완료. 2차 정산 결제 대기중.';
         if (norm === 'shipping_ready') return '한국행 정기선적 적재 대기.';
         if (norm === 'arrival_done') return '이우 센터 현지 입고 및 품목별 도착검수 완료.';
-        if (norm === 'warehouse_in') return '이우 센터 입고 및 계근 완료.';
+        if (norm === 'warehouse_in') {
+          return Number(measured.weightKg) > 0
+            ? '이우 센터 입고 접수 완료. 정밀 검수 대기중입니다.'
+            : '아직 이우 창고 도착 전입니다. 도착 후 검수 정보가 표시됩니다.';
+        }
         return '중국 공장에서 창고로 운송중.';
       };
 

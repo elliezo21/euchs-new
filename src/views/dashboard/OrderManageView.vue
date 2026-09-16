@@ -1057,6 +1057,7 @@ import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrder
 import { userBalance, applyBalanceTransaction } from '@/lib/balanceStore';
 import { currentUser } from '@/lib/auth';
 import { calcOrderCost, krwFromCny, resolveExchangeRate, resolveItemQty } from '@/utils/orderCostCalculator';
+import { resolveProductGroupIdentity } from '@/utils/orderItemGrouping';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import OrderDetailModal from '@/components/dashboard/OrderDetailModal.vue';
@@ -1432,11 +1433,7 @@ function getGroupedOrderItems(rawItems, order = null) {
   const groupsMap = new Map();
 
   rawItems.forEach((it, originalIdx) => {
-    const prodId = it.itemId || (it.id && !String(it.id).includes('_') ? it.id : null) || '';
-    const prodUrl = it.productUrl || it.url || it.detailUrl || it.link || '';
-    const prodName = it.productName || it.titleKo || it.name || it.titleZh || `상품-${originalIdx + 1}`;
-    
-    const groupKey = prodId ? `id_${prodId}` : (prodUrl ? `url_${prodUrl}` : `name_${prodName}`);
+    const { groupKey, prodId, prodUrl } = resolveProductGroupIdentity(it, `상품-${originalIdx + 1}`);
 
     if (!groupsMap.has(groupKey)) {
       groupsMap.set(groupKey, {
