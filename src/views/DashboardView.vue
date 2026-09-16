@@ -487,7 +487,9 @@
 
 
         <!-- 기존 콘텐츠 영역 (스크롤 가능) -->
-        <div class="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto overflow-x-hidden">
+        <div
+          class="flex-1 p-4 sm:p-6 lg:p-8 space-y-6 overflow-y-auto overflow-x-hidden bg-[#dbe2ea]"
+        >
 
         <!-- Nested Router View for /dashboard/orders, /dashboard/warehouse -->
         <router-view v-if="route.path !== '/dashboard'" />
