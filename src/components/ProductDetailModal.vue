@@ -1,7 +1,7 @@
 <template>
   <div 
     v-if="product" 
-    class="fixed inset-0 z-[70] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
+    class="fixed inset-0 z-[150] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/70 backdrop-blur-sm overflow-y-auto animate-fade-in"
     @click.self="handleClose"
   >
     <!-- 1. Modal Container (max-w-7xl) -->
@@ -589,7 +589,7 @@
     <!-- ======================================================== -->
     <div 
       v-if="isCartConfirmModalOpen" 
-      class="fixed inset-0 z-[80] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in"
+      class="fixed inset-0 z-[160] flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fade-in"
     >
       <div class="bg-white rounded-2xl p-6 sm:p-7 max-w-sm w-full shadow-2xl text-center border border-slate-100 animate-scale-in">
         <div class="w-12 h-12 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center mx-auto mb-3 text-xl">

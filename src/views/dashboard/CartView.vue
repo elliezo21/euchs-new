@@ -242,7 +242,11 @@
               @error="handleImgError"
             />
             <div class="space-y-1 flex-1 min-w-0">
-              <div class="font-bold text-gray-900 text-xs line-clamp-2 leading-snug">
+              <div
+                class="font-bold text-gray-900 text-xs line-clamp-2 leading-snug cursor-pointer hover:text-amber-700 hover:underline underline-offset-2 transition"
+                @click="openProductDetail(item)"
+                title="상세보기"
+              >
                 {{ item.titleKo || item.productName || item.titleZh }}
               </div>
               <div class="flex items-center gap-2 flex-wrap">
@@ -257,6 +261,17 @@
                   <Settings2 v-else class="w-3 h-3" />
                   <span>{{ isOptionFetching && editingCartItemId === item.id ? '조회중...' : '옵션 변경/추가' }}</span>
                 </button>
+                <a
+                  v-if="item.productUrl"
+                  :href="item.productUrl"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[10px] font-bold transition active:scale-95 shadow-2xs"
+                  title="1688 원본 상품 페이지 새 창 열기"
+                  @click.stop
+                >
+                  <ExternalLink class="w-3 h-3" /><span>1688 원본 링크 ↗</span>
+                </a>
               </div>
               <span class="inline-block px-2 py-0.5 rounded-lg bg-slate-100 text-gray-700 font-medium text-[11px] max-w-[200px] truncate">
                 {{ getItemSkuText(item) }}
@@ -509,6 +524,16 @@
       @submitted="handleOrderSubmitted"
     />
 
+    <!-- ======================================================== -->
+    <!-- 4-3. 상품 상세보기 모달 (MallView와 동일 컴포넌트 재사용) -->
+    <!-- ======================================================== -->
+    <ProductDetailModal
+      :product="selectedDetailProduct"
+      :exchange-rate="exchangeRate"
+      @close="selectedDetailProduct = null"
+      @change-product="selectedDetailProduct = $event"
+    />
+
 
     <!-- ======================================================== -->
     <!-- 5. 하단 고정 종합 액션 바 (Sticky Bottom Action Bar) -->
@@ -646,7 +671,8 @@ import {
   ShieldCheck,
   PackageCheck,
   Sparkles,
-  Loader2
+  Loader2,
+  ExternalLink
 } from 'lucide-vue-next';
 import { exportQuoteExcel } from '@/utils/excelExport';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
@@ -656,6 +682,7 @@ import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
+import ProductDetailModal from '@/components/ProductDetailModal.vue';
 import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
 import { getSellerGroupKey } from '@/utils/sellerGrouping';
 
@@ -689,6 +716,22 @@ const modalSelectedColor = ref('');     // 팝업 내 선택된 색상 (사이�
 
 // 발주 설정 모달 상태
 const isOrderConfigModalOpen = ref(false);
+
+// 상품 상세보기 모달 상태 (ProductDetailModal 재사용 — MallView.openProductModal 패턴)
+const selectedDetailProduct = ref(null);
+
+// 장바구니 행 클릭 시 상세보기 모달 오픈
+// ★ 주의: 장바구니 행의 item.id는 ProductDetailModal이 fetch1688ProductById에 사용하는
+//   1688 실제 상품 번호가 아니라 SKU 행 구분용 합성 키(`${itemId}_${color}_${size}_...`)임.
+//   실제 1688 offer id는 itemId/num_iid에 보존되어 있으므로 id로 재매핑해서 넘긴다.
+function openProductDetail(item) {
+  if (!item) return;
+  selectedDetailProduct.value = {
+    ...item,
+    id: item.itemId || item.num_iid || item.id,
+    price: item.priceCny ?? item.price,
+  };
+}
 
 // ─── seller 그룹 배치 운임 계산 ────────────────────────────────────────────────
 // sellerFreightRmb: 배치 호출 성공 시 저장되는 전체 운임(CNY 합계). null=미계산/실패.

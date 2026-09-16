@@ -64,7 +64,24 @@
               <tbody class="divide-y divide-gray-100">
                 <tr v-for="item in items" :key="item.id || item.specId" class="hover:bg-gray-50/50">
                   <td class="px-3 py-2.5">
-                    <div class="font-medium text-gray-900 leading-snug line-clamp-1">{{ item.titleKo || item.productName || '1688 상품' }}</div>
+                    <div class="flex items-center gap-1.5 min-w-0">
+                      <span
+                        class="font-medium text-gray-900 leading-snug line-clamp-1 cursor-pointer hover:text-amber-700 hover:underline underline-offset-2 transition min-w-0"
+                        @click="openProductDetail(item)"
+                        title="상세보기"
+                      >{{ item.titleKo || item.productName || '1688 상품' }}</span>
+                      <a
+                        v-if="item.productUrl"
+                        :href="item.productUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[10px] font-bold transition active:scale-95 shrink-0"
+                        title="1688 원본 상품 페이지 새 창 열기"
+                        @click.stop
+                      >
+                        <ExternalLink class="w-3 h-3" /><span>1688 원본 링크 ↗</span>
+                      </a>
+                    </div>
                     <div v-if="item.sku || item.optionName" class="text-gray-400 text-[11px] mt-0.5">{{ item.sku || item.optionName }}</div>
                   </td>
                   <td class="px-3 py-2.5 text-center font-mono text-gray-700">{{ item.quantity }}</td>
@@ -512,6 +529,16 @@
       </div>
     </div>
   </div>
+
+  <!-- ======================================================== -->
+  <!-- ③ 상품 상세보기 모달 (MallView와 동일 컴포넌트 재사용) -->
+  <!-- ======================================================== -->
+  <ProductDetailModal
+    :product="selectedDetailProduct"
+    :exchange-rate="effectiveRate"
+    @close="selectedDetailProduct = null"
+    @change-product="selectedDetailProduct = $event"
+  />
 </template>
 
 <script setup>
@@ -528,12 +555,14 @@ import {
   Send,
   Loader2,
   CheckCircle2,
-  ArrowRight
+  ArrowRight,
+  ExternalLink
 } from 'lucide-vue-next';
 import { currentUser, currentUserBizInfo, getCartStorageKey } from '@/lib/auth';
 import { saveNewOrder } from '@/utils/orderStorage';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { fetch1688FreightEstimateBatch } from '@/services/api1688';
+import ProductDetailModal from '@/components/ProductDetailModal.vue';
 
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import { krwFromCny, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
@@ -567,6 +596,22 @@ const emit = defineEmits(['close', 'submitted']);
 const router = useRouter();
 
 const isSubmitting = ref(false);
+
+// 상품 상세보기 모달 상태 (ProductDetailModal 재사용 — MallView.openProductModal 패턴)
+const selectedDetailProduct = ref(null);
+
+// 발주 대상 품목 행 클릭 시 상세보기 모달 오픈
+// ★ 주의: 발주 품목 행의 item.id는 ProductDetailModal이 fetch1688ProductById에 사용하는
+//   1688 실제 상품 번호가 아니라 SKU 행 구분용 합성 키일 수 있음.
+//   실제 1688 offer id는 itemId/num_iid에 보존되어 있으므로 id로 재매핑해서 넘긴다.
+function openProductDetail(item) {
+  if (!item) return;
+  selectedDetailProduct.value = {
+    ...item,
+    id: item.itemId || item.num_iid || item.id,
+    price: item.priceCny ?? item.price,
+  };
+}
 
 // ─── 완료 모달 상태 ───────────────────────────────────────────
 const showSuccessModal = ref(false);
