@@ -425,10 +425,28 @@
               </div>
             </div>
 
-            <div class="divide-y divide-slate-100">
+            <div class="p-3 space-y-4">
               <div
-                v-for="(item, idx) in activeOrder.items || []"
-                :key="idx"
+                v-for="group in activeOrderItemGroups"
+                :key="group.groupKey"
+                class="border border-slate-200 rounded-xl overflow-hidden"
+              >
+                <!-- 판매자 카드 헤더 -->
+                <div class="bg-slate-50/80 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
+                  <div class="flex items-center gap-2">
+                    <span class="font-bold text-slate-700 text-xs">🏬 {{ group.displayName }}</span>
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">{{ group.items.length }}개 품목</span>
+                  </div>
+                  <div class="text-right font-mono">
+                    <span class="text-[11px] text-slate-400">판매자 소계</span>
+                    <span class="text-xs font-bold text-blue-700 ml-1">₩{{ fmtN(getGroupSubtotalKrw(group, activeOrder)) }}</span>
+                  </div>
+                </div>
+
+                <div class="divide-y divide-slate-100">
+                <div
+                  v-for="{ item, originalIndex: idx } in group.items"
+                  :key="idx"
                 class="p-4 transition flex flex-col lg:flex-row lg:flex-wrap lg:items-center justify-between gap-4"
                 :class="item.excluded ? 'bg-slate-100/70 opacity-75' : 'hover:bg-slate-50/60'"
               >
@@ -787,6 +805,8 @@
                     </div>
 
                   </div>
+                </div>
+              </div>
                 </div>
               </div>
             </div>
@@ -1359,7 +1379,7 @@ import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { calcOrderCost, krwFromCny, resolveExchangeRate, estimateFreightRmb } from '@/utils/orderCostCalculator';
-import { getSellerGroupKey } from '@/utils/sellerGrouping';
+import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
@@ -2536,6 +2556,41 @@ const activeOrderPalette = computed(() => {
 const activeOrderModalClass = computed(() => {
   return 'border-[3px]';
 });
+
+/**
+ * 발주 상품 목록 판매자별 카드 그룹핑 (조회 전용 UI).
+ * getSellerGroupKey는 CartView.vue와 공유(sellerId 우선, 없으면 num_iid 폴백).
+ * 각 항목은 { item, originalIndex }로 감싸 activeOrder.items 원본 배열 인덱스를 보존한다.
+ * — excludeReasonMap[idx]/purchaseInfoDraft[idx] 등 기존 idx 바인딩이 그대로 정확한
+ *   품목을 가리키게 하려면 그룹 내부에서 재인덱싱하면 안 된다.
+ */
+const activeOrderItemGroups = computed(() => {
+  const items = activeOrder.value?.items || [];
+  const groupMap = new Map();
+  let seq = 1;
+  items.forEach((item, originalIndex) => {
+    const key = getSellerGroupKey(item);
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        groupKey: key,
+        displayName: getSellerDisplayName(item, seq++),
+        items: [],
+      });
+    }
+    groupMap.get(key).items.push({ item, originalIndex });
+  });
+  return Array.from(groupMap.values());
+});
+
+// 판매자 카드 소계(KRW) — 제외되지 않은(유효) 품목만 합산 (하단 총액 요약과 동일한 "유효 구매" 기준)
+function getGroupSubtotalKrw(group, order) {
+  const rate = getEffectiveRate(order);
+  const cny = group.items.reduce((sum, { item }) => {
+    if (item.excluded) return sum;
+    return sum + Number(item.priceCny || 0) * Number(item.quantity || 1);
+  }, 0);
+  return krwFromCny(cny, rate);
+}
 
 // 헤더 영역: border-b 색상 조정 (dark=흰 구분선 / light=검정 구분선)
 const activeOrderHeaderClass = computed(() => {

@@ -680,6 +680,10 @@ const isLoadingDetail = ref(false)
 // 상품 상세 SKU 비동기 조회 중 플래그 (true = 스켈레톤, false = 실제 옵션 렌더링)
 const isDetailLoading = ref(true)
 
+// fetch1688ProductById(item_get) 실패 플래그 — true면 currentItem.value가 검색결과의
+// 빈약한 데이터(sellerId 미포함 등) 그대로라는 뜻. 담기 시 이 값으로 차단한다.
+const productLoadFailed = ref(false)
+
 const sellerProducts = ref([])
 const isLoadingSellerProducts = ref(false)
 
@@ -1686,11 +1690,13 @@ const loadFullProductData = async (item) => {
     return
   }
   isDetailLoading.value = true
+  productLoadFailed.value = false
   try {
     console.log('[loadFullProductData] Fetching for id:', item.id)
     const full = await fetch1688ProductById(item.id)
     console.log('[loadFullProductData] Full response skuProps:', full?.skuProps, '| skus:', full?.skus?.length)
-    if (full && currentItem.value && String(currentItem.value.id) === String(item.id)) {
+    const isStillActiveItem = currentItem.value && String(currentItem.value.id) === String(item.id)
+    if (full && isStillActiveItem) {
 
       // 1. 가격 보존 가드: full.price가 유효(> 0)할 때만 적용, 아니면 기존 item/props.product 가격 보존
       const rawPrice = (typeof full.price === 'number' && full.price > 0)
@@ -1733,9 +1739,17 @@ const loadFullProductData = async (item) => {
       // 운임은 CartView에서 담기 후 seller 그룹 단위 배치 호출(fetch1688FreightEstimateBatch)로만 계산.
       // item.freight는 담기 시점에 currentItem.value.freight(null 또는 api1688.js가 item_get에서 파싱한 값)으로 저장됨.
 
+    } else if (!full && isStillActiveItem) {
+      // item_get 실패(타임아웃/4013 등) — currentItem.value는 검색결과의 빈약한 데이터(sellerId 미포함) 그대로.
+      // 이 상태로 담기가 되면 orders.items에 sellerId="" 로 저장되는 버그로 이어지므로 차단 플래그를 세운다.
+      console.warn('[loadFullProductData] fetch1688ProductById 실패 — productLoadFailed=true, id:', item.id)
+      productLoadFailed.value = true
     }
   } catch (err) {
     console.debug('Failed to load full product details:', err)
+    if (currentItem.value && String(currentItem.value.id) === String(item.id)) {
+      productLoadFailed.value = true
+    }
   } finally {
     // 성공/실패 무관하게 반드시 스켈레톤 해제
     isDetailLoading.value = false
@@ -1849,6 +1863,14 @@ const handlePopState = (e) => {
 // ── 공통 장바구니 저장 헬퍼 ──
 // 각 SKU(색상+사이즈+수량 조합)를 독립적인 별도 행으로 저장하여 옵션 혼재 방지
 const saveSelectedItemsToCart = () => {
+  // 0. 상품 상세 정보(item_get) 로드 실패 가드 — sellerId 등 필수 정보가 검색결과의
+  //    빈약한 데이터 그대로일 수 있으므로 담기를 막고 재시도한다.
+  if (productLoadFailed.value) {
+    showToastNotification('⚠️ 상품 정보를 불러오지 못했습니다. 다시 시도해주세요.', 'warning')
+    if (currentItem.value) loadFullProductData(currentItem.value)
+    return null
+  }
+
   // 1. 발주 품목 검증 가드 (미선택 시 차단)
   if (!selectedSkus.value.length || totalQuantity.value === 0) {
     if (hasMultipleOptions.value && selectedColor.value && !selectedSize.value) {
