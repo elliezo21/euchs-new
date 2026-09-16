@@ -185,183 +185,141 @@
     </div>
 
     <!-- ======================================================== -->
-    <!-- 3. 장바구니 품목 테이블 (CNINSIDER 표준 포맷) -->
+    <!-- 3. 장바구니 품목 — 판매자별 그룹 카드 -->
     <!-- ======================================================== -->
-    <div class="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
-      <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs divide-y divide-gray-100">
-          <thead class="bg-slate-50 text-gray-600 font-semibold uppercase tracking-wider">
-            <tr>
-              <th class="py-3.5 px-4 w-12 text-center">
-                <input
-                  type="checkbox"
-                  :checked="isAllSelected"
-                  @change="toggleSelectAll"
-                  class="rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-              </th>
-              <th class="py-3.5 px-4">상품 정보</th>
-              <th class="py-3.5 px-4 text-center">옵션 / 규격 (SKU)</th>
-              <th class="py-3.5 px-4 text-center w-36">발주 수량</th>
-              <th class="py-3.5 px-4 text-right">1688 공급 단가</th>
-              <th class="py-3.5 px-4 text-right">품목 합계 금액 (KRW)</th>
-              <th class="py-3.5 px-4 text-center w-20">관리</th>
-            </tr>
-          </thead>
-          <tbody class="divide-y divide-gray-100 bg-white">
-            <tr
-              v-for="item in filteredItems"
-              :key="item.id"
-              class="hover:bg-slate-50/80 transition group"
-            >
-              <!-- 1. 체크박스 -->
-              <td class="py-3.5 px-4 text-center">
-                <input
-                  type="checkbox"
-                  v-model="selectedItemIds"
-                  :value="item.id"
-                  class="rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
-                />
-              </td>
 
-              <!-- 2. 상품 정보 (외부 링크 전면 제거 + 옵션 변경 버튼 배치) -->
-              <td class="py-3.5 px-4">
-                <div class="flex items-center gap-3 min-w-[280px]">
-                  <img
-                    :src="item.imageUrl || item.thumbnail || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
-                    :alt="item.titleKo || item.productName"
-                    class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0"
-                    @error="handleImgError"
-                  />
-                  <div class="space-y-1 flex-1 min-w-0">
-                    <div class="font-bold text-gray-900 line-clamp-2 leading-snug">
-                      {{ item.titleKo || item.productName || item.titleZh }}
-                    </div>
-                    <div class="flex items-center gap-2">
-                      <span class="text-[11px] text-gray-400 font-mono">
-                        상품 ID: <b class="text-gray-600">{{ item.itemId || item.id }}</b>
-                      </span>
-                      <button
-                        type="button"
-                        @click="openOptionModal(item)"
-                        :disabled="isOptionFetching && editingCartItemId === item.id"
-                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold transition active:scale-95 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
-                        title="색상·사이즈 옵션 변경 또는 다중 옵션 추가"
-                      >
-                        <Loader2
-                          v-if="isOptionFetching && editingCartItemId === item.id"
-                          class="w-3 h-3 text-amber-600 animate-spin"
-                        />
-                        <Settings2 v-else class="w-3 h-3 text-amber-600" />
-                        <span>{{ isOptionFetching && editingCartItemId === item.id ? '조회중...' : '옵션 변경/추가' }}</span>
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              </td>
+    <!-- 빈 상태 -->
+    <div v-if="filteredItems.length === 0" class="bg-white border border-gray-200 rounded-2xl shadow-xs py-20 text-center text-gray-400 text-xs">
+      <ShoppingCart class="w-12 h-12 mx-auto text-gray-300 mb-3" />
+      <p class="text-sm font-bold text-gray-700">장바구니에 담긴 1688 소싱 품목이 없습니다.</p>
+      <p class="text-xs text-gray-400 mt-1">1688 소싱몰에서 원하는 상품을 찾아 장바구니에 담아보세요.</p>
+      <router-link
+        to="/mall"
+        class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
+      >
+        <Plus class="w-4 h-4" />
+        <span>1688 상품 소싱하러 가기</span>
+      </router-link>
+    </div>
 
-              <!-- 3. 옵션 / 규격 -->
-              <td class="py-3.5 px-4 text-center whitespace-nowrap">
-                <div class="space-y-1">
-                  <span class="inline-block px-2.5 py-1 rounded-lg bg-slate-100 text-gray-800 font-medium text-[11px] max-w-[150px] truncate">
-                    {{ getItemSkuText(item) }}
-                  </span>
-                  <div>
-                    <button
-                      type="button"
-                      @click="openOptionModal(item)"
-                      class="text-[10px] text-amber-700 hover:text-amber-900 font-bold hover:underline cursor-pointer"
-                    >
-                      옵션 수정 &gt;
-                    </button>
-                  </div>
-                </div>
-              </td>
+    <!-- 판매자 그룹 카드 루프 -->
+    <div
+      v-for="group in sellerGroups"
+      :key="group.groupKey"
+      class="bg-white rounded-2xl p-5 mb-8 shadow-sm"
+    >
+      <!-- ── 카드 헤더 ── -->
+      <div class="flex items-center justify-between mb-4">
+        <div class="flex items-center gap-2.5">
+          <input
+            type="checkbox"
+            :checked="isGroupSelected(group)"
+            @change="toggleGroupSelect(group, $event)"
+            class="w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
+          />
+          <span class="text-sm font-black text-slate-800">🏬 {{ group.displayName }}</span>
+          <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">{{ group.items.length }}개 품목</span>
+        </div>
+        <div class="text-right font-mono">
+          <div class="text-[11px] text-gray-400">상품 소계</div>
+          <div class="text-sm font-bold text-amber-600">₩{{ formatNumber(getGroupSubtotalKrw(group)) }}</div>
+        </div>
+      </div>
 
-              <!-- 4. 발주 수량 조절 Stepper (+/-) -->
-              <td class="py-3.5 px-4 text-center whitespace-nowrap">
-                <div class="inline-flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
-                  <button
-                    type="button"
-                    @click="decreaseQty(item)"
-                    class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer"
-                    title="수량 감소"
-                  >
-                    -
-                  </button>
-                  <input
-                    type="number"
-                    :min="item.minOrder || 1"
-                    :max="(typeof item.stock === 'number' && !isNaN(item.stock)) ? item.stock : undefined"
-                    :value="item.quantity || item.minOrder || 1"
-                    @input="onQtyInput(item, $event)"
-                    @change="onQtyInput(item, $event)"
-                    class="w-14 h-8 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none focus:bg-amber-50/50"
-                  />
-                  <button
-                    type="button"
-                    @click="increaseQty(item)"
-                    class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer"
-                    title="수량 증가"
-                  >
-                    +
-                  </button>
-                </div>
-              </td>
-
-              <!-- 5. 1688 공급 단가 (CNY / KRW) -->
-              <td class="py-3.5 px-4 text-right whitespace-nowrap font-mono">
-                <div class="text-xs font-bold text-gray-900">
-                  ¥{{ getItemUnitPriceCny(item).toFixed(2) }}
-                </div>
-                <div class="text-[11px] text-gray-400">
-                  약 ₩{{ formatNumber(Math.round(getItemUnitPriceCny(item) * exchangeRate)) }}원
-                </div>
-              </td>
-
-              <!-- 6. 품목 합계 금액 (KRW / CNY) -->
-              <td class="py-3.5 px-4 text-right whitespace-nowrap font-mono">
-                <div class="text-sm font-bold text-amber-600">
-                  ₩{{ formatNumber(getItemSubtotalKrw(item)) }}원
-                </div>
-                <div class="text-[11px] text-gray-400">
-                  (¥ {{ getItemSubtotalCny(item).toFixed(2) }} 위안)
-                </div>
-              </td>
-
-              <!-- 7. 개별 삭제 버튼 -->
-              <td class="py-3.5 px-4 text-center whitespace-nowrap">
+      <!-- ── 카드 바디: 품목 행 ── -->
+      <div class="divide-y divide-slate-100">
+        <div
+          v-for="item in group.items"
+          :key="item.id"
+          class="py-3.5 flex flex-col sm:flex-row sm:items-center gap-3"
+        >
+          <!-- 상품 정보 -->
+          <div class="flex items-start gap-3 flex-1 min-w-0">
+            <img
+              :src="item.imageUrl || item.thumbnail || 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60'"
+              :alt="item.titleKo || item.productName"
+              class="w-14 h-14 rounded-xl object-cover bg-gray-100 border border-gray-200 shrink-0"
+              @error="handleImgError"
+            />
+            <div class="space-y-1 flex-1 min-w-0">
+              <div class="font-bold text-gray-900 text-xs line-clamp-2 leading-snug">
+                {{ item.titleKo || item.productName || item.titleZh }}
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="text-[11px] text-gray-400 font-mono">ID: <b class="text-gray-600">{{ item.itemId || item.id }}</b></span>
                 <button
                   type="button"
-                  @click="removeItem(item.id)"
-                  class="px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-rose-300 hover:bg-rose-50 text-gray-400 hover:text-rose-600 transition font-bold text-[11px] flex items-center gap-1 mx-auto active:scale-95 cursor-pointer"
-                  title="장바구니에서 삭제"
+                  @click="openOptionModal(item)"
+                  :disabled="isOptionFetching && editingCartItemId === item.id"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold transition active:scale-95 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  <Trash2 class="w-3.5 h-3.5" />
-                  <span>삭제</span>
+                  <Loader2 v-if="isOptionFetching && editingCartItemId === item.id" class="w-3 h-3 animate-spin" />
+                  <Settings2 v-else class="w-3 h-3" />
+                  <span>{{ isOptionFetching && editingCartItemId === item.id ? '조회중...' : '옵션 변경/추가' }}</span>
                 </button>
-              </td>
-            </tr>
+              </div>
+              <span class="inline-block px-2 py-0.5 rounded-lg bg-slate-100 text-gray-700 font-medium text-[11px] max-w-[200px] truncate">
+                {{ getItemSkuText(item) }}
+              </span>
+            </div>
+          </div>
 
-            <!-- Empty State -->
-            <tr v-if="filteredItems.length === 0">
-              <td colspan="7" class="py-20 text-center text-gray-400 text-xs">
-                <ShoppingCart class="w-12 h-12 mx-auto text-gray-300 mb-3" />
-                <p class="text-sm font-bold text-gray-700">장바구니에 담긴 1688 소싱 품목이 없습니다.</p>
-                <p class="text-xs text-gray-400 mt-1">1688 소싱몰에서 원하는 상품을 찾아 장바구니에 담아보세요.</p>
-                <router-link
-                  to="/mall"
-                  class="mt-4 inline-flex items-center gap-1.5 px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl transition shadow-sm active:scale-95"
-                >
-                  <Plus class="w-4 h-4" />
-                  <span>1688 상품 소싱하러 가기</span>
-                </router-link>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+          <!-- 우측: 수량 + 단가 + 합계 + 삭제 -->
+          <div class="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
+            <div class="inline-flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
+              <button type="button" @click="decreaseQty(item)"
+                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">-</button>
+              <input
+                type="number"
+                :min="item.minOrder || 1"
+                :max="(typeof item.stock === 'number' && !isNaN(item.stock)) ? item.stock : undefined"
+                :value="item.quantity || item.minOrder || 1"
+                @input="onQtyInput(item, $event)"
+                @change="onQtyInput(item, $event)"
+                class="w-14 h-8 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none focus:bg-amber-50/50"
+              />
+              <button type="button" @click="increaseQty(item)"
+                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">+</button>
+            </div>
+            <div class="text-right font-mono w-24 shrink-0">
+              <div class="text-xs font-bold text-gray-900">¥{{ getItemUnitPriceCny(item).toFixed(2) }}</div>
+              <div class="text-[11px] text-gray-400">₩{{ formatNumber(Math.round(getItemUnitPriceCny(item) * exchangeRate)) }}</div>
+            </div>
+            <div class="text-right font-mono w-24 shrink-0">
+              <div class="text-sm font-bold text-amber-600">₩{{ formatNumber(getItemSubtotalKrw(item)) }}</div>
+              <div class="text-[11px] text-gray-400">¥{{ getItemSubtotalCny(item).toFixed(2) }}</div>
+            </div>
+            <button
+              type="button"
+              @click="removeItem(item.id)"
+              class="text-red-500 hover:text-red-700 hover:bg-red-50 border border-red-200 rounded-lg px-2.5 py-1 text-xs font-bold transition cursor-pointer active:scale-95 shrink-0"
+              title="장바구니에서 삭제"
+            >✕</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── 카드 푸터 ── -->
+      <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-4 text-xs font-mono flex-wrap">
+        <span class="text-gray-500">상품소계 <b class="text-gray-800">₩{{ formatNumber(getGroupSubtotalKrw(group)) }}</b></span>
+        <span class="text-gray-400">+</span>
+        <span class="text-gray-500">
+          판매자 배송비
+          <template v-if="sellerFreightMap[group.groupKey] !== undefined">
+            <b class="text-blue-700 ml-1">¥{{ Number(sellerFreightMap[group.groupKey]).toFixed(2) }}</b>
+            <span class="text-gray-400 ml-1">(₩{{ formatNumber(Math.round(sellerFreightMap[group.groupKey] * exchangeRate)) }})</span>
+          </template>
+          <span v-else-if="freightCalcState === 'loading'" class="text-sky-500 font-bold ml-1">계산중…</span>
+          <span v-else class="text-gray-400 ml-1">—</span>
+        </span>
+        <span class="text-gray-400">=</span>
+        <span class="font-black text-slate-800">합계 ₩{{ formatNumber(getGroupTotalKrw(group)) }}</span>
       </div>
     </div>
+
+
+
+
 
     <!-- ======================================================== -->
     <!-- 4. 옵션 변경/추가 소형 팝업 (색상 → 사이즈 2단계 선택) -->
@@ -733,9 +691,100 @@ const isOrderConfigModalOpen = ref(false);
 
 // ─── seller 그룹 배치 운임 계산 ────────────────────────────────────────────────
 // sellerFreightRmb: 배치 호출 성공 시 저장되는 전체 운임(CNY 합계). null=미계산/실패.
+// sellerFreightMap: groupKey → 그룹별 개별 운임(CNY). 카드 푸터 표시용.
 // freightCalcState: 'idle' | 'loading' | 'done' | 'error'
 const sellerFreightRmb = ref(null);
+const sellerFreightMap = ref({});
 const freightCalcState = ref('idle'); // 'idle' | 'loading' | 'done' | 'error'
+
+/**
+ * 판매자 그룹 키 생성 함수.
+ * AdminOrderManageView.executeStartPurchasing의 그룹핑 기준과 동일하게 유지할 것.
+ * ① sellerId 있으면 seller:{sellerId}
+ * ② 없으면 item:{num_iid} — num_iid 우선 (itemId 폴백)
+ */
+function getSellerGroupKey(item) {
+  const sid = (item.sellerId || '').trim();
+  if (sid) return `seller:${sid}`;
+  const numIid = String(item.num_iid || item.itemId || item.id || '').trim();
+  return `item:${numIid}`;
+}
+
+/**
+ * 플레이스홀더 판매자 이름 목록 (표시 이름 후보에서 제외)
+ * — 이 값들은 실제 공급사 이름이 아닌 폴백 기본값.
+ */
+const SELLER_PLACEHOLDER_NAMES = ['1688 공급사', '1688 공급처', '1688 인증 직영 제조공장'];
+
+/**
+ * 판매자 카드 표시 이름 결정.
+ * sellerName / company가 플레이스홀더가 아니면 그대로 사용, 아니면 "판매자 {seq}"
+ */
+function getSellerDisplayName(item, seq) {
+  const raw = item.sellerName || item.company || '';
+  if (raw && !SELLER_PLACEHOLDER_NAMES.includes(raw)) return raw;
+  return `판매자 ${seq}`;
+}
+
+/**
+ * filteredItems를 sellerId 기준으로 그룹핑한 배열.
+ * 등장 순서(seq)를 기록하여 getSellerDisplayName에서 "판매자 1, 2, ..."로 표시.
+ */
+const sellerGroups = computed(() => {
+  const groupMap = new Map();
+  let seq = 1;
+  for (const item of filteredItems.value) {
+    const key = getSellerGroupKey(item);
+    if (!groupMap.has(key)) {
+      groupMap.set(key, {
+        groupKey: key,
+        displayName: getSellerDisplayName(item, seq++),
+        items: [],
+      });
+    }
+    groupMap.get(key).items.push(item);
+  }
+  return Array.from(groupMap.values());
+});
+
+/** 그룹 내 모든 품목이 selectedItemIds에 포함돼있는지 확인 */
+function isGroupSelected(group) {
+  return group.items.length > 0 && group.items.every(it => selectedItemIds.value.includes(it.id));
+}
+
+/** 그룹 체크박스 토글: 그룹 전체 추가 or 제거 */
+function toggleGroupSelect(group, event) {
+  const ids = group.items.map(it => it.id);
+  if (event.target.checked) {
+    const newIds = [...selectedItemIds.value];
+    for (const id of ids) {
+      if (!newIds.includes(id)) newIds.push(id);
+    }
+    selectedItemIds.value = newIds;
+  } else {
+    selectedItemIds.value = selectedItemIds.value.filter(id => !ids.includes(id));
+  }
+}
+
+/** 그룹 상품 소계(KRW) — 표시 전용 */
+function getGroupSubtotalKrw(group) {
+  return group.items.reduce((acc, it) => acc + getItemSubtotalKrw(it), 0);
+}
+
+/**
+ * 그룹 합계(KRW) = 상품소계 + 판매자 배송비(sellerFreightMap에 있으면 포함).
+ * sellerFreightMap에 없으면 상품소계만 반환.
+ */
+function getGroupTotalKrw(group) {
+  const subtotal = getGroupSubtotalKrw(group);
+  const freightRmb = sellerFreightMap.value[group.groupKey];
+  if (freightRmb !== undefined) {
+    return subtotal + Math.round(freightRmb * exchangeRate.value);
+  }
+  return subtotal;
+}
+
+
 
 /**
  * 선택된 품목을 sellerId 기준으로 그룹핑하여 fetch1688FreightEstimateBatch를 그룹별 1회 호출.
@@ -754,30 +803,14 @@ async function calcSellerBatchFreight() {
   sellerFreightRmb.value = null;
 
   try {
-    // ── sellerId 기준 그룹핑 (OrderConfigModal.handleSubmit과 동일 로직) ──
-    const groups = [];
+    // ── getSellerGroupKey 기준 그룹핑 (AdminOrderManageView.executeStartPurchasing과 동일 기준) ──
+    const groupMap = new Map();
     for (const item of items) {
-      const sid    = (item.sellerId || '').trim();
-      const numIid = String(item.num_iid || item.itemId || item.id || '').trim();
-      let groupKey;
-      if (sid) {
-        groupKey = `seller:${sid}`;
-      } else if (numIid) {
-        groupKey = `item:${numIid}`;
-      } else {
-        groupKey = null;
-      }
-      if (!groupKey) {
-        groups.push({ groupKey: null, items: [item] });
-      } else {
-        const existing = groups.find(g => g.groupKey === groupKey);
-        if (existing) {
-          existing.items.push(item);
-        } else {
-          groups.push({ groupKey, items: [item] });
-        }
-      }
+      const key = getSellerGroupKey(item);
+      if (!groupMap.has(key)) groupMap.set(key, []);
+      groupMap.get(key).push(item);
     }
+    const groups = Array.from(groupMap.entries()).map(([key, its]) => ({ groupKey: key, items: its }));
 
     console.group('[CartView] calcSellerBatchFreight — seller 그룹별 배치 운임 조회');
     console.log('그룹 수:', groups.length, '| 그룹:', groups.map(g => `${g.groupKey}(${g.items.length}종)`));
@@ -794,20 +827,29 @@ async function calcSellerBatchFreight() {
           .filter(c => c.offerId && c.specId);
         if (cargoList.length === 0) {
           console.log(`  ↳ ${g.groupKey}: specId 없음 → null`);
-          return null;
+          return { groupKey: g.groupKey, freight: null };
         }
         const freight = await fetch1688FreightEstimateBatch(cargoList);
         console.log(`  ↳ ${g.groupKey}(${cargoList.length}종): ¥${freight}`);
-        return freight;
+        return { groupKey: g.groupKey, freight };
       })
     );
 
     console.log('배치 결과:', results);
     console.groupEnd();
 
-    const allKnown = results.every(f => f !== null && f !== undefined);
+    // ── sellerFreightMap 업데이트: 각 그룹의 freight 저장 ──
+    const newMap = {};
+    for (const r of results) {
+      if (r.freight !== null && r.freight !== undefined) {
+        newMap[r.groupKey] = Number(r.freight);
+      }
+    }
+    sellerFreightMap.value = newMap;
+
+    const allKnown = results.every(r => r.freight !== null && r.freight !== undefined);
     if (allKnown) {
-      sellerFreightRmb.value = Number(results.reduce((s, f) => s + Number(f), 0).toFixed(2));
+      sellerFreightRmb.value = Number(results.reduce((s, r) => s + Number(r.freight), 0).toFixed(2));
       freightCalcState.value = 'done';
       console.log('[CartView] sellerFreightRmb 확정:', sellerFreightRmb.value, '¥');
     } else {
@@ -819,9 +861,11 @@ async function calcSellerBatchFreight() {
   } catch (e) {
     console.error('[CartView] calcSellerBatchFreight 오류:', e);
     sellerFreightRmb.value = null;
+    sellerFreightMap.value = {};
     freightCalcState.value = 'error';
   }
 }
+
 
 
 
