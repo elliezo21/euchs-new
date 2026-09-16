@@ -1359,6 +1359,7 @@ import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
 import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { calcOrderCost, krwFromCny, resolveExchangeRate, estimateFreightRmb } from '@/utils/orderCostCalculator';
+import { getSellerGroupKey } from '@/utils/sellerGrouping';
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
@@ -2896,14 +2897,10 @@ async function executeStartPurchasing() {
       continue;
     }
 
-    let groupKey;
-    if (sid) {
-      groupKey = `seller:${sid}`;
-    } else if (numIid) {
-      groupKey = `item:${numIid}`;   // fallback: 같은 상품ID → 같은 판매자로 간주
-    } else {
-      groupKey = null;               // 독립 그룹(단건 폴백)
-    }
+    // 공용 유틸(getSellerGroupKey)로 위임 — sid 있으면 seller:{sid}, 없으면 item:{numIid}.
+    // sid/numIid 둘 다 없는 극단 케이스만 'item:'(빈 접미사) → null로 정규화해 기존 독립 그룹 동작 보존.
+    let groupKey = getSellerGroupKey(item);
+    if (groupKey === 'item:') groupKey = null;   // 독립 그룹(단건 폴백)
 
     console.log('[executeStartPurchasing] 그룹핑:', {
       productName: item.productName || '',

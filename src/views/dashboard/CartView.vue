@@ -657,6 +657,7 @@ import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
+import { getSellerGroupKey } from '@/utils/sellerGrouping';
 
 const router = useRouter();
 const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
@@ -696,19 +697,6 @@ const isOrderConfigModalOpen = ref(false);
 const sellerFreightRmb = ref(null);
 const sellerFreightMap = ref({});
 const freightCalcState = ref('idle'); // 'idle' | 'loading' | 'done' | 'error'
-
-/**
- * 판매자 그룹 키 생성 함수.
- * AdminOrderManageView.executeStartPurchasing의 그룹핑 기준과 동일하게 유지할 것.
- * ① sellerId 있으면 seller:{sellerId}
- * ② 없으면 item:{num_iid} — num_iid 우선 (itemId 폴백)
- */
-function getSellerGroupKey(item) {
-  const sid = (item.sellerId || '').trim();
-  if (sid) return `seller:${sid}`;
-  const numIid = String(item.num_iid || item.itemId || item.id || '').trim();
-  return `item:${numIid}`;
-}
 
 /**
  * 플레이스홀더 판매자 이름 목록 (표시 이름 후보에서 제외)
