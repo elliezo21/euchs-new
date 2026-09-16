@@ -124,7 +124,7 @@
               <!-- 입고번호 / 일시 -->
               <td class="py-3.5 px-4 whitespace-nowrap font-mono">
                 <div class="font-bold text-gray-900">{{ item.inboundNo }}</div>
-                <div class="text-[11px] text-gray-400 mt-0.5">{{ item.inboundDate }}</div>
+                <div class="text-[11px] text-gray-400 mt-0.5">{{ formatInboundDate(item.inboundDate) }}</div>
               </td>
 
               <!-- 주문번호 / 거점 -->
@@ -185,8 +185,10 @@
               <td class="py-3.5 px-4 text-center whitespace-nowrap">
                 <div class="flex flex-col items-center gap-1.5">
                   <span
-                    class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold"
+                    class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold cursor-pointer hover:opacity-80 transition"
                     :class="getInspectionBadgeClass(item.inspectionStatus)"
+                    @click="openOrderDetail(item)"
+                    title="주문 상세정보 보기"
                   >
                     <span class="w-1.5 h-1.5 rounded-full bg-current"></span>
                     {{ getInspectionLabel(item.inspectionStatus) }}
@@ -305,8 +307,10 @@
             <span class="text-[11px] text-gray-500 font-mono font-semibold ml-1.5">({{ item.orderNo }})</span>
           </div>
           <span
-            class="px-2 py-0.5 rounded-full text-[10px] font-bold"
+            class="px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer hover:opacity-80 transition"
             :class="getInspectionBadgeClass(item.inspectionStatus)"
+            @click="openOrderDetail(item)"
+            title="주문 상세정보 보기"
           >
             {{ getInspectionLabel(item.inspectionStatus) }}
           </span>
@@ -421,7 +425,12 @@
                 <span class="w-2 h-2 rounded-full bg-amber-500"></span>
                 이우(Yiwu) 물류센터
               </div>
-              <div class="text-[10px] text-gray-500 font-mono truncate">{{ selectedOrderDetail.inboundDate }}</div>
+              <div v-if="selectedOrderDetail.inspectionStatus !== 'pending_inbound'" class="text-[10px] text-gray-500 font-mono truncate">
+                {{ formatInboundDate(selectedOrderDetail.inboundDate) }}
+              </div>
+              <div v-else class="text-gray-400 italic text-[11px] pt-1">
+                입고 후 표시됩니다
+              </div>
             </div>
 
             <!-- 실측 계근 (중량 / CBM) -->
@@ -499,7 +508,6 @@
           >
             <div class="flex items-center gap-1.5 pb-3 border-b border-indigo-100 mb-1">
               <span class="font-black text-xs text-indigo-800">중국 내륙 배송 현황</span>
-              <span class="text-[10px] text-indigo-400">(표시 전용 — 입고 확정은 바코드 스캔으로 처리)</span>
             </div>
             <div class="space-y-2">
               <div
@@ -704,15 +712,7 @@
         </div>
 
         <!-- 모달 푸터 -->
-        <div class="px-6 py-4 border-t border-gray-100 flex flex-wrap items-center justify-between gap-2 bg-slate-50/90 shrink-0">
-          <button
-            type="button"
-            @click="closeOrderDetailModal"
-            class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-white transition cursor-pointer"
-          >
-            닫기
-          </button>
-
+        <div class="px-6 py-4 border-t border-gray-100 flex flex-wrap items-center justify-end gap-2 bg-slate-50/90 shrink-0">
           <div class="flex items-center gap-2">
             <!-- 실사 사진 버튼 -->
             <button
@@ -723,6 +723,15 @@
             >
               <Camera class="w-3.5 h-3.5" />
               <span>실사 사진 ({{ selectedOrderDetail.inspectionPhotos.length }})</span>
+            </button>
+
+            <!-- 닫기 버튼 -->
+            <button
+              type="button"
+              @click="closeOrderDetailModal"
+              class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-white transition cursor-pointer"
+            >
+              닫기
             </button>
 
             <!-- 부가작업 버튼 -->
@@ -864,7 +873,7 @@
 
         <!-- 모달 푸터 -->
         <div class="pt-3 border-t border-gray-100 flex items-center justify-between text-xs">
-          <span class="text-gray-400">촬영 일시: {{ activeInspectionItem?.inboundDate }}</span>
+          <span class="text-gray-400">촬영 일시: {{ formatInboundDate(activeInspectionItem?.inboundDate) }}</span>
           <button
             type="button"
             @click="closePhotoModal"
@@ -1720,6 +1729,15 @@ function resetFilters() {
 // ---------------------------------------------------------
 // 검수 상태 뱃지 헬퍼
 // ---------------------------------------------------------
+// ISO 원본 문자열("2026-09-16T05:47:07.207+00:00")을 "YYYY-MM-DD HH:mm"로 변환
+function formatInboundDate(dateStr) {
+  if (!dateStr) return '-';
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
 function getInspectionLabel(status) {
   if (!status) return '진행중';
   const norm = String(status).toLowerCase();
