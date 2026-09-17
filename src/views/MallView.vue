@@ -737,7 +737,7 @@
 
         <!-- 섹션 스켈레톤 (첫 API 호출 중) -->
         <div v-if="isHomeSectionsLoading" class="space-y-8">
-          <div v-for="sk in 4" :key="sk" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div v-for="sk in 6" :key="sk" class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div class="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <div class="space-y-2">
                 <div class="h-5 w-52 bg-gray-200 rounded-lg animate-pulse"></div>
@@ -757,10 +757,10 @@
           </div>
         </div>
 
-        <!-- 4개 테마 섹션 블록 -->
+        <!-- 6개 테마 섹션 블록 (CN인사이더 스타일: 섹션 테마 배너 + 상품그리드, 좌/우 번갈아 배치) -->
         <div v-else-if="homeSections.length > 0" class="space-y-6 sm:space-y-8">
           <section
-            v-for="section in homeSections"
+            v-for="(section, sIdx) in homeSections"
             :key="section.id"
             class="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden"
           >
@@ -783,79 +783,122 @@
               </button>
             </div>
 
-            <!-- 상품 카드 그리드 (4열 반응형) -->
+            <!-- 섹션 테마 배너(왼/오 번갈아) + 상품 카드 그리드 -->
             <div class="p-3 sm:p-4">
               <div
-                v-if="section.items && section.items.length > 0"
-                class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3"
+                class="flex flex-col gap-3 sm:gap-4"
+                :class="sIdx % 2 === 0 ? 'lg:flex-row' : 'lg:flex-row-reverse'"
               >
+                <!-- 섹션 테마 배너 (관리자가 banners.section_key로 직접 편집, 미등록 시 미노출) -->
                 <div
-                  v-for="item in section.items"
-                  :key="item.id"
-                  @click="openProductModal(item)"
-                  class="group bg-white rounded-xl border border-gray-200 hover:border-orange-400 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer"
+                  v-if="sectionBanners[section.id]"
+                  class="lg:w-[280px] xl:w-[320px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-between p-5 text-white min-h-[200px]"
+                  :style="sectionBanners[section.id].image_url
+                    ? `background: url('${sectionBanners[section.id].image_url}') center/cover no-repeat;`
+                    : `background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);`"
                 >
-                  <!-- 썸네일 -->
-                  <div class="relative aspect-square bg-gray-100 overflow-hidden">
-                    <img
-                      :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80'"
-                      :alt="item.titleKo || item.title || item.titleZh"
-                      class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      loading="lazy"
-                      referrerpolicy="no-referrer"
-                      @error="handleImageError"
-                    />
-                    <!-- 1688 오렌지 뱃지 -->
-                    <div class="absolute top-2 left-2">
-                      <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black shadow-sm tracking-wide">
-                        1688
-                      </span>
-                    </div>
-                    <!-- MOQ 뱃지 -->
-                    <div v-if="item.minOrder && item.minOrder > 1" class="absolute top-2 right-2">
-                      <span class="px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-bold">
-                        MOQ {{ item.minOrder }}
-                      </span>
-                    </div>
-                    <!-- 구매대행 신청 호버 오버레이 -->
-                    <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/65 to-transparent py-2 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                      <span class="text-white text-[10px] font-bold flex items-center gap-1">
-                        <i class="fas fa-shopping-cart text-amber-400 text-[9px]"></i>
-                        구매대행 신청
-                      </span>
-                    </div>
+                  <div v-if="sectionBanners[section.id].image_url" class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none"></div>
+                  <div class="space-y-2 relative z-10">
+                    <span v-if="sectionBanners[section.id].label" class="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-black uppercase inline-block">
+                      {{ sectionBanners[section.id].label }}
+                    </span>
+                    <h4 v-if="sectionBanners[section.id].heading" class="text-base sm:text-lg font-black leading-tight">
+                      {{ sectionBanners[section.id].heading }}
+                    </h4>
+                    <p v-if="sectionBanners[section.id].description" class="text-xs text-white/80 leading-relaxed line-clamp-3">
+                      {{ sectionBanners[section.id].description }}
+                    </p>
                   </div>
-
-                  <!-- 카드 정보 -->
-                  <div class="p-2.5 sm:p-3 space-y-1.5">
-                    <h3
-                      class="text-[11px] sm:text-[12px] font-medium text-gray-800 leading-snug line-clamp-2 group-hover:text-orange-600 transition"
-                      :title="item.titleKo || item.title || item.titleZh"
+                  <div class="pt-4 relative z-10">
+                    <component
+                      :is="isSectionBannerExternal(sectionBanners[section.id]) ? 'a' : 'router-link'"
+                      v-if="sectionBanners[section.id].button_text || sectionBanners[section.id].button_url || sectionBanners[section.id].link_url"
+                      :to="!isSectionBannerExternal(sectionBanners[section.id]) ? (sectionBanners[section.id].button_url || sectionBanners[section.id].link_url) : undefined"
+                      :href="isSectionBannerExternal(sectionBanners[section.id]) ? (sectionBanners[section.id].button_url || sectionBanners[section.id].link_url) : undefined"
+                      :target="isSectionBannerExternal(sectionBanners[section.id]) ? '_blank' : undefined"
+                      class="w-full py-2.5 px-4 rounded-xl bg-white/90 hover:bg-white text-slate-900 font-bold text-xs flex items-center justify-center gap-1.5 transition text-center"
                     >
-                      {{ item.titleKo || item.title || item.titleZh }}
-                    </h3>
-                    <div class="pt-1.5 border-t border-gray-100">
-                      <div class="flex items-baseline gap-1 font-mono">
-                        <span class="text-red-600 font-bold text-sm tracking-tight">
-                          ¥{{ item.priceFormatted || item.price }}
-                        </span>
-                        <span class="text-gray-400 text-[10px] font-medium">
-                          ₩{{ formatKrw((item.price || 0) * customExchangeRate) }}
-                        </span>
-                      </div>
-                      <div class="flex items-center justify-between text-[10px] text-gray-400 mt-0.5">
-                        <span>판매 <b class="text-gray-600 font-medium">{{ item.sales || '0' }}건</b></span>
-                        <span v-if="item.repurchaseRate" class="text-emerald-600 font-semibold">재구매 {{ item.repurchaseRate }}</span>
-                      </div>
-                    </div>
+                      <span>{{ sectionBanners[section.id].button_text || '자세히 보기' }}</span>
+                      <i class="fas fa-arrow-right text-[10px]"></i>
+                    </component>
                   </div>
                 </div>
-              </div>
 
-              <!-- 섹션 상품 없음 (fallback) -->
-              <div v-else class="py-8 text-center text-sm text-gray-400">
-                <i class="fas fa-box-open text-2xl text-gray-300 block mb-2"></i>
-                잠시 후 다시 시도해 주세요.
+                <!-- 상품 카드 그리드 (4열 반응형, 배너 미등록 시 전체 너비) -->
+                <div class="flex-1 min-w-0">
+                  <div
+                    v-if="section.items && section.items.length > 0"
+                    class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3"
+                  >
+                    <div
+                      v-for="item in section.items"
+                      :key="item.id"
+                      @click="openProductModal(item)"
+                      class="group bg-white rounded-xl border border-gray-200 hover:border-orange-400 hover:shadow-lg transition-all duration-200 overflow-hidden cursor-pointer"
+                    >
+                      <!-- 썸네일 -->
+                      <div class="relative aspect-square bg-gray-100 overflow-hidden">
+                        <img
+                          :src="item.imageUrl || item.pic_url || item.img || 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80'"
+                          :alt="item.titleKo || item.title || item.titleZh"
+                          class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                          loading="lazy"
+                          referrerpolicy="no-referrer"
+                          @error="handleImageError"
+                        />
+                        <!-- 1688 오렌지 뱃지 -->
+                        <div class="absolute top-2 left-2">
+                          <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black shadow-sm tracking-wide">
+                            1688
+                          </span>
+                        </div>
+                        <!-- MOQ 뱃지 -->
+                        <div v-if="item.minOrder && item.minOrder > 1" class="absolute top-2 right-2">
+                          <span class="px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-bold">
+                            MOQ {{ item.minOrder }}
+                          </span>
+                        </div>
+                        <!-- 구매대행 신청 호버 오버레이 -->
+                        <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/65 to-transparent py-2 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                          <span class="text-white text-[10px] font-bold flex items-center gap-1">
+                            <i class="fas fa-shopping-cart text-amber-400 text-[9px]"></i>
+                            구매대행 신청
+                          </span>
+                        </div>
+                      </div>
+
+                      <!-- 카드 정보 -->
+                      <div class="p-2.5 sm:p-3 space-y-1.5">
+                        <h3
+                          class="text-[11px] sm:text-[12px] font-medium text-gray-800 leading-snug line-clamp-2 group-hover:text-orange-600 transition"
+                          :title="item.titleKo || item.title || item.titleZh"
+                        >
+                          {{ item.titleKo || item.title || item.titleZh }}
+                        </h3>
+                        <div class="pt-1.5 border-t border-gray-100">
+                          <div class="flex items-baseline gap-1 font-mono">
+                            <span class="text-red-600 font-bold text-sm tracking-tight">
+                              ¥{{ item.priceFormatted || item.price }}
+                            </span>
+                            <span class="text-gray-400 text-[10px] font-medium">
+                              ₩{{ formatKrw((item.price || 0) * customExchangeRate) }}
+                            </span>
+                          </div>
+                          <div class="flex items-center justify-between text-[10px] text-gray-400 mt-0.5">
+                            <span>판매 <b class="text-gray-600 font-medium">{{ item.sales || '0' }}건</b></span>
+                            <span v-if="item.repurchaseRate" class="text-emerald-600 font-semibold">재구매 {{ item.repurchaseRate }}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- 섹션 상품 없음 (fallback) -->
+                  <div v-else class="py-8 text-center text-sm text-gray-400">
+                    <i class="fas fa-box-open text-2xl text-gray-300 block mb-2"></i>
+                    잠시 후 다시 시도해 주세요.
+                  </div>
+                </div>
               </div>
             </div>
           </section>
@@ -1252,12 +1295,20 @@ const items = ref([])
 // 🏠 CN인사이더 스타일 홈 섹션 – 날짜 기반 로테이션 + Daily Cache
 // ============================================================
 
-/** 섹션별 키워드 풀: 오늘 Day-of-Year 인덱스로 매일 순환 */
+/**
+ * 섹션별 키워드 풀: 오늘 Day-of-Year 인덱스로 매일 순환
+ * md 제외 5개 풀은 좌측 사이드바 메가메뉴 categories[] 배열의 실제 소분류 태그를 그대로 재사용함
+ * (categories[].id: fashion / living / camping / digital / beauty 그룹의 items 참조)
+ * → 섹션 라벨과 실제 노출 상품이 정확히 일치하도록 보장, 신규 카테고리 임의 추측 없음
+ */
 const HOME_SECTION_POOLS = {
-  md:      ['316 진공 보온 텀블러', '대용량 스포츠 보틀 1000ml', '여성 린넨 셔츠', '비건레더 숄더백', '플리츠 롱 원피스'],
-  fashion: ['여성 린넨 원피스', '데일리 오버핏 티셔츠', '비건레더 숄더백', '초경량 메쉬 스니커즈', '린넨 반팔 셔츠', '플리츠 스커트'],
-  living:  ['316 스테인리스 텀블러', '대용량 스트로우 보온병', '포터블 보온수통', '이중진공 텀블러 900ml', '스포츠 보틀'],
-  sports:  ['초경량 쿠셔닝 런닝화', '방수 옥스포드 캔버스 보스턴백', '천연 소가죽 자동 버클 벨트', 'UV400 편광 선글라스'],
+  // 특정 카테고리에 종속되지 않는 범용 "오늘의 MD 베스트" — quickTabs 'best' 키워드와 동일 계열, 타 섹션과 중복 없음
+  md:      ['베스트 인기상품', '신상품 인기템', '온라인 셀러 인기 아이템'],
+  fashion: ['원피스', '블라우스 셔츠', '니트 가디건', '슬랙스 바지', '자켓 코트', '맨투맨 후드'],
+  living:  ['텀블러 물병', '식기 접시', '밀폐용기', '욕실용품 청소도구', '수납 정리함', '우산 양산'],
+  sports:  ['캠핑의자 캠핑테이블', '캠핑랜턴 캠핑매트', '텐트 타프', '헬스 요가용품', '골프용품', '자전거용품'],
+  digital: ['블루투스 이어폰', '핸드폰 케이스', '충전기 케이블', '보조배터리', '차량용 거치대', '블랙박스 액세서리'],
+  beauty:  ['스킨 로션', '마스크팩', '선크림', '립스틱 메이크업', '고데기 헤어드라이어', '네일용품'],
 }
 
 const getTodayKeyword = (pool) => {
@@ -1266,14 +1317,18 @@ const getTodayKeyword = (pool) => {
   return pool[dayOfYear % pool.length]
 }
 
+// v2: 섹션-키워드 매핑 수정(가방/보온병 오염 제거) + 6섹션 확장에 따른 캐시 버전업
+// 구버전 캐시(4섹션, 오염된 키워드)가 오늘자 캐시로 남아있어도 무시하고 재조회하도록 키 자체를 분리
+const HOME_SECTIONS_CACHE_VERSION = 'v2'
+
 const getTodayCacheKey = () =>
-  `euchs_home_daily_sections_${new Date().toISOString().slice(0, 10)}`
+  `euchs_home_daily_sections_${HOME_SECTIONS_CACHE_VERSION}_${new Date().toISOString().slice(0, 10)}`
 
 const homeSections = ref([])
 const isHomeSectionsLoading = ref(false)
 
-const SESSION_CACHE_KEY = 'euchs_home_md_best_cache'
-const SESSION_CACHE_DATE_KEY = 'euchs_home_md_best_cache_date'
+const SESSION_CACHE_KEY = `euchs_home_md_best_cache_${HOME_SECTIONS_CACHE_VERSION}`
+const SESSION_CACHE_DATE_KEY = `euchs_home_md_best_cache_date_${HOME_SECTIONS_CACHE_VERSION}`
 
 /**
  * 이미 수신된 1688 응답에서 상품 배열을 안전하게 추출하는 다계층 파서
@@ -1462,6 +1517,20 @@ const loadHomeSections = async () => {
       keyword:  getTodayKeyword(HOME_SECTION_POOLS.sports),
       color:    'from-blue-500 to-indigo-600',
     },
+    {
+      id:       'digital',
+      title:    '📱 디지털/가전 잇템',
+      subtitle: '이어폰부터 차량용품까지 인기 디지털 아이템',
+      keyword:  getTodayKeyword(HOME_SECTION_POOLS.digital),
+      color:    'from-slate-500 to-slate-700',
+    },
+    {
+      id:       'beauty',
+      title:    '💄 뷰티 & 화장품 셀렉트',
+      subtitle: '스킨케어부터 뷰티기기까지 인기 뷰티템',
+      keyword:  getTodayKeyword(HOME_SECTION_POOLS.beauty),
+      color:    'from-pink-500 to-rose-500',
+    },
   ]
 
   const results = await Promise.all(
@@ -1538,7 +1607,39 @@ const searchBySection = (section) => {
   executeSearch(1)
 }
 
+// ============================================================
+// 🖼️ 홈 섹션별 배너 (banners.section_key, 관리자 CMS 편집)
+// CN인사이더 스타일: 섹션마다 배너 이미지 + 상품그리드, section_key당 1건(display_order 최솟값)
+// ============================================================
+const sectionBanners = ref({})
 
+async function loadSectionBanners() {
+  try {
+    const now = new Date().toISOString().slice(0, 10)
+    const { data, error } = await supabase
+      .from('banners')
+      .select('*')
+      .not('section_key', 'is', null)
+      .eq('is_active', true)
+      .or(`start_date.is.null,start_date.lte.${now}`)
+      .or(`end_date.is.null,end_date.gte.${now}`)
+      .order('display_order', { ascending: true })
+    if (error || !Array.isArray(data)) return
+    const map = {}
+    for (const b of data) {
+      // section_key당 display_order가 가장 낮은 1건만 채택 (이미 order asc 정렬됨)
+      if (!map[b.section_key]) map[b.section_key] = b
+    }
+    sectionBanners.value = map
+  } catch (e) {
+    console.warn('[Mall] 섹션 배너 로드 실패:', e)
+  }
+}
+
+function isSectionBannerExternal(banner) {
+  const url = banner?.button_url || banner?.link_url
+  return url ? url.startsWith('http://') || url.startsWith('https://') : false
+}
 
 // ----------------------------------------------------
 // 🔢 안전한 숫자 추출 & 실시간 상품 정렬 파이프라인
@@ -2620,6 +2721,7 @@ onMounted(async () => {
   safeLoadBalance()
   loadMallNotices()
   updateSavedCount()
+  loadSectionBanners()
   handleIncomingQuery()
   fetchOrdersFromSupabase().then(dbOrders => {
     if (Array.isArray(dbOrders)) submittedOrders.value = dbOrders

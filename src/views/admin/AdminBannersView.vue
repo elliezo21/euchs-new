@@ -39,7 +39,12 @@
               <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', banner.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500']">
                 {{ banner.is_active ? '노출중' : '비활성' }}
               </span>
-              <span :class="['px-2 py-0.5 rounded text-[10px] font-bold border', banner.slot === 'right' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200']">
+              <template v-if="banner.section_key">
+                <span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-purple-50 text-purple-600 border-purple-200">
+                  {{ SECTION_LABELS[banner.section_key] || banner.section_key }} 섹션배너
+                </span>
+              </template>
+              <span v-else :class="['px-2 py-0.5 rounded text-[10px] font-bold border', banner.slot === 'right' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200']">
                 {{ banner.slot === 'right' ? '오른쪽 칸' : '왼쪽 칸' }}
               </span>
             </div>
@@ -83,8 +88,31 @@
               <button @click="closeModal" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer text-lg">✕</button>
             </div>
 
-            <!-- 슬롯 선택 (왼쪽/오른쪽 칸) -->
+            <!-- 배너 유형: 상단 히어로(왼쪽/오른쪽 칸) vs 홈 섹션 테마 배너 -->
             <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">배너 유형 <span class="text-rose-500">*</span></label>
+              <div class="grid grid-cols-2 gap-2">
+                <label
+                  :class="['flex flex-col gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition',
+                    !form.section_key ? 'border-slate-800 bg-slate-50' : 'border-slate-200 hover:border-slate-300 bg-white']"
+                >
+                  <input type="radio" :checked="!form.section_key" @change="form.section_key = null" class="sr-only" />
+                  <span :class="['text-xs font-black', !form.section_key ? 'text-slate-800' : 'text-slate-700']">상단 히어로 배너</span>
+                  <span class="text-[10px] text-slate-400 font-medium">메인 상단 왼쪽/오른쪽 칸</span>
+                </label>
+                <label
+                  :class="['flex flex-col gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition',
+                    form.section_key ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:border-slate-300 bg-white']"
+                >
+                  <input type="radio" :checked="!!form.section_key" @change="form.section_key = form.section_key || SECTION_OPTIONS[0].value" class="sr-only" />
+                  <span :class="['text-xs font-black', form.section_key ? 'text-purple-700' : 'text-slate-700']">홈 섹션 테마 배너</span>
+                  <span class="text-[10px] text-slate-400 font-medium">6개 테마 섹션 옆 배너</span>
+                </label>
+              </div>
+            </div>
+
+            <!-- 히어로 배너: 왼쪽/오른쪽 칸 선택 -->
+            <div v-if="!form.section_key">
               <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 칸 <span class="text-rose-500">*</span></label>
               <div class="grid grid-cols-2 gap-2">
                 <label
@@ -100,6 +128,15 @@
                   <span class="text-[10px] text-slate-400 font-medium">{{ opt.sub }}</span>
                 </label>
               </div>
+            </div>
+
+            <!-- 섹션 배너: 어느 테마 섹션에 붙을지 선택 -->
+            <div v-else>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 섹션 <span class="text-rose-500">*</span></label>
+              <select v-model="form.section_key" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition">
+                <option v-for="opt in SECTION_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+              <p class="text-[10px] text-slate-400 mt-1">섹션당 1건만 노출됩니다(노출순서가 가장 낮은 배너 우선). 배너 좌/우 위치는 섹션 순서에 따라 자동 결정됩니다.</p>
             </div>
 
             <!-- 이미지 업로드 -->
@@ -246,8 +283,20 @@ const isUploading = ref(false)
 const editingBanner = ref(null)
 const formError = ref('')
 
+// 홈 섹션 테마 배너용 section_key 옵션 — MallView.vue의 HOME_SECTION_POOLS/sectionDefs와 동일한 6개 id/라벨
+const SECTION_OPTIONS = [
+  { value: 'md',      label: '🔥 오늘의 MD 추천 베스트' },
+  { value: 'fashion', label: '👗 트렌드 패션 기획전' },
+  { value: 'living',  label: '🏠 생활 & 주방 아이디어 잡화' },
+  { value: 'sports',  label: '⛺ 스포츠/레저 & 캠핑 테마관' },
+  { value: 'digital', label: '📱 디지털/가전 잇템' },
+  { value: 'beauty',  label: '💄 뷰티 & 화장품 셀렉트' },
+]
+const SECTION_LABELS = Object.fromEntries(SECTION_OPTIONS.map(o => [o.value, o.label]))
+
 const defaultForm = () => ({
   slot: 'left',
+  section_key: null,
   image_url: '',
   link_url: '',
   link_type: 'internal',
