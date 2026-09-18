@@ -2070,6 +2070,39 @@ async function savePurchasingInfo(item, idx) {
     await confirmWarehouseArrival(activeOrder.value, { silent: true });
   }
 
+  // 솔라피 알림톡 발송 — type: 'warehouse_in' (주문 내 전 품목 chinaTrackingNo 등록 완료 시
+  // 1회만 발송, 중국 내륙 배송 시작 안내). 템플릿 미승인 + 중복발송 방지용 DB 컬럼
+  // (china_shipping_notified_at) 마이그레이션 미승인 상태라 당분간 비활성화.
+  // 활성화 전 필요 작업:
+  //   1) 솔라피 콘솔 템플릿 승인 후 api/send-alimtalk.js TEMPLATE_MAP.warehouse_in.id 교체
+  //   2) DB 마이그레이션 승인·실행: ALTER TABLE orders ADD COLUMN IF NOT EXISTS
+  //      china_shipping_notified_at TIMESTAMPTZ;
+  //   3) 아래 주석 해제
+  // if (allItemsHaveTrackingNo(activeOrder.value) && !activeOrder.value.chinaShippingNotifiedAt) {
+  //   const notifiedAt = new Date().toISOString();
+  //   activeOrder.value.chinaShippingNotifiedAt = notifiedAt; // 로컬 즉시 반영 — 같은 세션 내 중복 재저장 방어
+  //   if (isSupabaseConfigured()) {
+  //     const orderNo = activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id;
+  //     // 공용 updateOrderStatus() 화이트리스트 payload에는 없는 전용 컬럼이라 별도 UPDATE로 격리
+  //     // (다른 상태전환 흐름에 영향 주지 않도록 독립 호출)
+  //     supabase.from('orders').update({ china_shipping_notified_at: notifiedAt }).eq('order_number', orderNo)
+  //       .then(({ error }) => { if (error) console.warn('[warehouse_in 알림] 발송플래그 저장 실패:', error.message); });
+  //   }
+  //   fetch('/api/send-alimtalk', {
+  //     method: 'POST',
+  //     headers: { 'Content-Type': 'application/json' },
+  //     body: JSON.stringify({
+  //       type: 'warehouse_in',
+  //       phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+  //       variables: {
+  //         customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
+  //         order_no: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
+  //         item_count: String((activeOrder.value.items || []).filter(i => !i.excluded).length)
+  //       }
+  //     })
+  //   }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+  // }
+
   // ★ chinaTrackingNo 최초 저장 시 快递100 자동 1회 조회 (할당량 절약: 저장 시 1회만)
   if (item.chinaTrackingNo && !item.chinaLogisticsTrace?.length) {
     // 비동기로 호출 — 저장 흐름 블로킹 없이 백그라운드 실행

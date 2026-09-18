@@ -25,10 +25,15 @@ const SOLAPI_SEND_URL = 'https://api.solapi.com/messages/v4/send'
 // - payment_verified / shipping_ready / delivered: 템플릿 미승인·미작성.
 //   프론트엔드 호출부(executeConfirmPayment / executeAdvanceToShipping / executeMarkDelivered)는
 //   전부 비활성화 상태로 배선만 해둠.
+// - warehouse_in: 2026-09-18 신규 추가 — 4→5단계(구매진행→창고도착) 전환, 즉 orders.status가
+//   실제로 'warehouse_in'이 되는 시점(confirmWarehouseArrival)과 이름을 그대로 맞춤. 주문 내
+//   전 품목 chinaTrackingNo 등록 완료 시 1회 발송. 템플릿 미승인·DB 마이그레이션 미승인 상태라
+//   프론트엔드 호출부(AdminOrderManageView.vue savePurchasingInfo)는 비활성화 상태로 배선만 해둠.
 const TEMPLATE_MAP = {
   order_received:    { id: 'KA01TP260828021306814oWRr7AWUkoK', title: '발주 접수 안내' },
   quote_approved:    { id: 'KA01TP2608280215538854ebnj9KLVEu', title: '1차 견적 승인 안내' },
   payment_verified:  { id: 'TEMPLATE_PAYMENT_VERIFIED',       title: '결제 확인 안내' },
+  warehouse_in:      { id: 'TEMPLATE_WAREHOUSE_IN',           title: '중국 내륙 배송 시작 안내' },
   inspection_done:   { id: 'KA01TP260828021801426d0kKn3PyMqH', title: '이우 창고 입고 및 계근 완료 안내' },
   shipping_ready:    { id: 'TEMPLATE_SHIPPING_READY',         title: '한국행 선적 처리 안내' },
   customs_clearance: { id: 'KA01TP260828021927661SVzSUvZEXdI', title: '세관 통관 및 국내배송 시작 안내' },
