@@ -2893,6 +2893,24 @@ async function executeConfirmPayment() {
     await updateOrderStatus(o.id, 'payment_verified', {
       paymentInfo: { confirmedAt: new Date().toISOString() }
     });
+
+    // 솔라피 알림톡 발송 — payment_verified 템플릿 미승인(2026-09-18)으로 당분간 비활성화.
+    // 템플릿 승인·ID 확정 후 주석 해제하고 api/send-alimtalk.js TEMPLATE_MAP.payment_verified.id를
+    // 실제 값으로 교체할 것.
+    // fetch('/api/send-alimtalk', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     type: 'payment_verified',
+    //     phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
+    //     variables: {
+    //       customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
+    //       order_no: o.orderNumber || o.order_no || o.id,
+    //       paid_amount: `${(o.totalPriceKrw || o.total_amount || 0).toLocaleString('ko-KR')}원`
+    //     }
+    //   })
+    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+
     showToast(`[${o.orderNumber}] 결제확인 → 3단계 전환 완료`);
   } catch (err) {
     if (target) target.status = prevStatus;
@@ -3517,6 +3535,24 @@ async function executeAdvanceToShipping() {
       shippedAt: new Date().toISOString(),
       customsStep: 'sailing'
     });
+
+    // 솔라피 알림톡 발송 — shipping_ready 템플릿 미승인(2026-09-18)으로 당분간 비활성화.
+    // 템플릿 승인·ID 확정 후 주석 해제하고 api/send-alimtalk.js TEMPLATE_MAP.shipping_ready.id를
+    // 실제 값으로 교체할 것.
+    // fetch('/api/send-alimtalk', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     type: 'shipping_ready',
+    //     phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
+    //     variables: {
+    //       customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
+    //       order_no: o.orderNumber || o.order_no || o.id,
+    //       item_name: o.items?.[0]?.name || o.items?.[0]?.title || o.items?.[0]?.titleKo || o.product_name || '소싱 상품'
+    //     }
+    //   })
+    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+
     showToast(`[${o.orderNumber}] 선적처리 → 6단계 전환 완료`);
   } catch (err) {
     if (target) target.status = prevStatus;
@@ -3658,6 +3694,23 @@ async function executeMarkDelivered() {
       deliveredAt: new Date().toISOString(),
       customsStep: 'delivered'
     });
+
+    // 솔라피 알림톡 발송 — delivered 템플릿 미승인(2026-09-18)으로 당분간 비활성화.
+    // 템플릿 승인·ID 확정 후 주석 해제하고 api/send-alimtalk.js TEMPLATE_MAP.delivered.id를
+    // 실제 값으로 교체할 것.
+    // fetch('/api/send-alimtalk', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     type: 'delivered',
+    //     phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
+    //     variables: {
+    //       customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
+    //       order_no: o.orderNumber || o.order_no || o.id
+    //     }
+    //   })
+    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+
     showToast(`[${o.orderNumber}] 배송완료(8단계 최종완료) 처리되었습니다!`);
   } catch (err) {
     if (target) target.status = prevStatus;

@@ -8,24 +8,32 @@
  * - 엔드포인트: https://api.solapi.com/messages/v4/send
  * - API 키 미설정 시 Mock 로그로 안전 폴백
  *
- * ⚠️ TEMPLATE_MAP의 id 값은 전부 placeholder — 솔라피 콘솔에서 확인한 실제 승인
- *    템플릿ID로 교체 전까지는 실 발송 시 솔라피 API가 오류를 반환한다(Mock 폴백 경로는 정상 동작).
+ * ⚠️ TEMPLATE_MAP의 id 값 중 실제 솔라피 콘솔 승인ID로 확정된 것은 inspection_done 하나뿐이고
+ *    나머지는 전부 placeholder — 실제 승인 템플릿ID로 교체 전까지는 실 발송 시 솔라피 API가
+ *    오류를 반환한다(Mock 폴백 경로는 정상 동작).
  */
 
 import crypto from 'crypto'
 
 const SOLAPI_SEND_URL = 'https://api.solapi.com/messages/v4/send'
 
-// TODO: 솔라피 콘솔 승인 템플릿ID로 교체 필요 (현재 전부 placeholder)
-// shipping_started: 전용 템플릿 미승인(2026-09-18 확인) — 프론트엔드 호출부(AdminOrderManageView.vue
-// submitTrackingForm)에서 당분간 비활성화됨. 승인 후 이 항목의 id를 채우고 호출부 주석 해제할 것.
+// TODO: 아래 키들은 솔라피 콘솔 승인 템플릿ID로 교체 필요 (inspection_done 제외 전부 placeholder)
+// - shipping_started: 전용 템플릿 미승인(2026-09-18 확인) — 문구를 "국내 택배 배송 시작"으로
+//   수정해 재승인 신청 예정. 프론트엔드 호출부(AdminOrderManageView.vue submitTrackingForm)는
+//   당분간 비활성화 상태 유지.
+// - payment_verified / shipping_ready / delivered: 2026-09-18 신규 추가, 템플릿 미승인·미작성.
+//   프론트엔드 호출부(executeConfirmPayment / executeAdvanceToShipping / executeMarkDelivered)는
+//   전부 비활성화 상태로 배선만 해둠.
 const TEMPLATE_MAP = {
-  order_received:    { id: 'TEMPLATE_ORDER_RECEIVED',    title: '발주 접수 안내' },
-  quote_approved:    { id: 'TEMPLATE_QUOTE_APPROVED',    title: '1차 견적 승인 안내' },
-  warehouse_in:      { id: 'TEMPLATE_WAREHOUSE_IN',      title: '이우 창고 입고 및 계근 완료 안내' },
-  customs_clearance: { id: 'TEMPLATE_CUSTOMS_CLEARANCE', title: '세관 통관 및 국내배송 시작 안내' },
-  shipping_started:  { id: 'TEMPLATE_SHIPPING_STARTED',  title: '국내 배송/송장 등록 안내' },
-  signup_welcome:    { id: 'TEMPLATE_SIGNUP_WELCOME',    title: '신규 회원가입 환영 안내' },
+  order_received:    { id: 'TEMPLATE_ORDER_RECEIVED',       title: '발주 접수 안내' },
+  quote_approved:    { id: 'TEMPLATE_QUOTE_APPROVED',       title: '1차 견적 승인 안내' },
+  payment_verified:  { id: 'TEMPLATE_PAYMENT_VERIFIED',     title: '결제 확인 안내' },
+  inspection_done:   { id: 'KA01TP260828021801426d0kKn3PyMqH', title: '이우 창고 입고 및 계근 완료 안내' },
+  shipping_ready:    { id: 'TEMPLATE_SHIPPING_READY',       title: '한국행 선적 처리 안내' },
+  customs_clearance: { id: 'TEMPLATE_CUSTOMS_CLEARANCE',    title: '세관 통관 및 국내배송 시작 안내' },
+  shipping_started:  { id: 'TEMPLATE_SHIPPING_STARTED',     title: '국내 배송/송장 등록 안내' },
+  delivered:         { id: 'TEMPLATE_DELIVERED',            title: '배송완료 안내' },
+  signup_welcome:    { id: 'TEMPLATE_SIGNUP_WELCOME',       title: '신규 회원가입 환영 안내' },
 }
 
 function generateSolapiAuthHeader(key, secret) {

@@ -1817,12 +1817,14 @@ const saveBoxMeasurement = async () => {
   });
 
   // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
+  // type: 'inspection_done' — 실제 orders.status 전환값과 이름을 일치시킴(과거 'warehouse_in'
+  // 이었으나, 이 호출은 orders.status='inspection_done'(계근/실측완료) 시점에 걸려있어 개명함)
   const order = matchedOrder.value;
   fetch('/api/send-alimtalk', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      type: 'warehouse_in',
+      type: 'inspection_done',
       phoneNumber: order?.buyerInfo?.phone || order?.buyer_phone || order?.buyerPhone || app.phone,
       variables: {
         customer_name: order?.buyerInfo?.buyerName || order?.buyerInfo?.companyName || order?.buyer_name || app.customer_name || '바이어',
