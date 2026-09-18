@@ -573,9 +573,11 @@ const costSummary = computed(() => {
     sea_cbm_rate: currentSettings.value?.sea_cbm_rate,
   })
   return {
+    exchangeRate: r.exchangeRate,
     avgPriceCny: r.avgPriceCny,
     itemTotalCny: r.itemTotalCny,
     itemTotalKrw: r.itemTotalKrw,
+    chinaFreightRmb: r.chinaFreightRmb,
     chinaFreightKrw: r.chinaFreightKrw,
     agencyFeeKrw: r.agencyFeeKrw,
     cbm: r.cbm,

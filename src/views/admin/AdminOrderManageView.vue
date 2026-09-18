@@ -2666,6 +2666,7 @@ function calcCostDetail(o) {
     sea_cbm_rate: currentSettings.value?.sea_cbm_rate,
   });
   return {
+    itemTotalCny: r.itemTotalCny,
     itemTotalKrw: r.itemTotalKrw,
     chinaFreightRmb: r.chinaFreightRmb,
     chinaFreightKrw: r.chinaFreightKrw,
