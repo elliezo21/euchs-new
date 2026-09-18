@@ -41,6 +41,28 @@ function isErrorResponse(data) {
   return false
 }
 
+// ── 근본 원인 후보 대응 ────────────────────────────────────────────────
+// 간헐적으로 OneBound가 error_code 없이(=isErrorResponse 상 "에러 아님") success 형태를
+// 유지한 채 items/item/result 자체가 비어있는 부실한 응답을 줄 때가 있음(레이트리밋/일시적
+// 응답 누락으로 추정, 확정 아님). isErrorResponse만으로는 이 경우를 걸러내지 못해 1688 폴백
+// 엔드포인트로 재시도하지 않고 그대로 빈 결과를 success:true로 내려보내던 문제를 방지하기 위한
+// 별도 체크.
+function hasUsableItems(data) {
+  if (!data) return false
+  if (data.items) {
+    if (Array.isArray(data.items)) return data.items.length > 0
+    if (Array.isArray(data.items.item)) return data.items.item.length > 0
+    if (typeof data.items === 'object') return Object.keys(data.items).length > 0
+  }
+  if (Array.isArray(data.item)) return data.item.length > 0
+  if (data.result) {
+    if (Array.isArray(data.result.resultList)) return data.result.resultList.length > 0
+    if (typeof data.result === 'object') return Object.keys(data.result).length > 0
+  }
+  if (Array.isArray(data.resultList)) return data.resultList.length > 0
+  return false
+}
+
 async function fetchSearch(endpoint, queryZh, page, OB_KEY, OB_SECRET, timeoutMs, cat = null) {
   // 공식 문서 확인: 1688global/item_search는 key·secret·q·page만 요구. session 불필요.
   const catParam = cat ? `&cat=${encodeURIComponent(cat)}` : ''
@@ -94,11 +116,20 @@ export default async function handler(req, res) {
   // 1차: 1688global 시도 (session 파라미터 불필요)
   let resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000, cat)
 
-  // 1688global이 실패하거나 4005 에러인 경우 2차 1688 시도
-  if (!resData || isErrorResponse(resData)) {
-    console.warn('[1688-search] 1688global failed or error. Trying 1688 endpoint...')
+  // 1688global이 실패/에러이거나, 에러 코드 없이 success 형태이지만 items가 비어있는
+  // "부실한 응답"(간헐적 실패의 근본 원인 후보)인 경우에도 2차 1688 엔드포인트 시도
+  if (!resData || isErrorResponse(resData) || !hasUsableItems(resData)) {
+    if (resData && !isErrorResponse(resData) && !hasUsableItems(resData)) {
+      console.warn(`[1688-search] 1688global returned no error but no usable items for "${queryZh}". rawKeys=`,
+        Object.keys(resData), 'snapshot=', JSON.stringify(resData).slice(0, 300))
+    } else {
+      console.warn('[1688-search] 1688global failed or error. Trying 1688 endpoint...')
+    }
     const fallbackData = await fetchSearch('1688', queryZh, page, OB_KEY, OB_SECRET, 4000, cat)
-    if (fallbackData && !isErrorResponse(fallbackData)) {
+    if (fallbackData && !isErrorResponse(fallbackData) && hasUsableItems(fallbackData)) {
+      resData = fallbackData
+    } else if (fallbackData && !isErrorResponse(fallbackData) && !resData) {
+      // 1688global 완전 무응답 + 1688 폴백도 부실하지만, 최소한 파싱 가능한 형태는 있음 → 그대로 사용
       resData = fallbackData
     }
   }

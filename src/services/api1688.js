@@ -684,190 +684,223 @@ export async function search1688(queryZh, page = 1, options = {}) {
     return cached
   }
 
-  let data = null
+  // ── 완화책: 응답이 비정상적으로 부실(빈 rawList)하거나 통신 자체가 실패했을 때
+  // 즉시 "잠시 후 다시 시도해 주세요"로 처리하지 않고 짧은 간격을 두고 재시도.
+  // (동일 키워드가 새로고침 직후엔 바로 성공하는 간헐적 패턴 완화 목적 — 근본 원인은
+  //  OneBound 게이트웨이 쪽 일시적 응답 부실/레이트리밋으로 추정, 확정 아님)
+  const MAX_ATTEMPTS = 2
+  const RETRY_DELAY_MS = 700
+  const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms))
 
-  // Vercel Serverless / Vite Dev Server 프록시 (/api/1688-search)
-  try {
-    const params = new URLSearchParams({ q: query, page: String(page) })
-    if (options && options.cat) params.set('cat', String(options.cat))
-    const controller = new AbortController()
-    const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
-    const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
-    clearTimeout(timeout)
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    let data = null
 
-    // HTTP 레벨 에러 여부와 무관하게 본문 파싱 시도
-    const result = await proxyRes.json().catch(() => null)
-    if (!result) {
-      console.warn(`[1688 Search] Proxy returned non-JSON. HTTP ${proxyRes.status}`)
-    } else {
-      // ── 다계층 응답 구조 안전 추출 ──────────────────────────────
-      // 프록시 래퍼: { success, data } / { success, raw } / 또는 결과가 직접 최상위
-      if (result.data && typeof result.data === 'object') {
-        data = result.data
-      } else if (result.raw && typeof result.raw === 'object') {
-        // "return raw data" 경우: { success, raw: {...실제 데이터...} }
-        data = result.raw
-      } else if (result.items || result.item || result.resultList || result.result) {
-        // 프록시 래퍼 없이 최상위가 직접 검색 결과인 경우
-        data = result
-      } else if (result.success !== undefined && !result.data) {
-        // success=true인데 data가 없고 결과 필드도 없는 경우 result 자체 시도
-        data = result
+    // Vercel Serverless / Vite Dev Server 프록시 (/api/1688-search)
+    try {
+      const params = new URLSearchParams({ q: query, page: String(page) })
+      if (options && options.cat) params.set('cat', String(options.cat))
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
+      const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
+      clearTimeout(timeout)
+
+      // HTTP 레벨 에러 여부와 무관하게 본문 파싱 시도
+      const result = await proxyRes.json().catch(() => null)
+      if (!result) {
+        console.warn(`[1688 Search] Proxy returned non-JSON. HTTP ${proxyRes.status} (attempt ${attempt}/${MAX_ATTEMPTS})`)
+      } else {
+        // ── 다계층 응답 구조 안전 추출 ──────────────────────────────
+        // 프록시 래퍼: { success, data } / { success, raw } / 또는 결과가 직접 최상위
+        if (result.data && typeof result.data === 'object') {
+          data = result.data
+        } else if (result.raw && typeof result.raw === 'object') {
+          // "return raw data" 경우: { success, raw: {...실제 데이터...} }
+          data = result.raw
+        } else if (result.items || result.item || result.resultList || result.result) {
+          // 프록시 래퍼 없이 최상위가 직접 검색 결과인 경우
+          data = result
+        } else if (result.success !== undefined && !result.data) {
+          // success=true인데 data가 없고 결과 필드도 없는 경우 result 자체 시도
+          data = result
+        }
+        console.log(`[1688 Search] Proxy data received (attempt ${attempt}/${MAX_ATTEMPTS}). success=${result.success} dataKeys:`,
+          Object.keys(data || {}).slice(0, 10))
       }
-      console.log(`[1688 Search] Proxy data received. success=${result.success} dataKeys:`,
-        Object.keys(data || {}).slice(0, 10))
-    }
-  } catch (err) {
-    console.warn('[1688 Search] Proxy fetch error:', err.name === 'AbortError' ? '검색 응답이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.' : err.message)
-  }
-
-  if (!data) {
-    console.warn(`[1688 Search] No response from OneBound for "${query}". Returning empty.`)
-    return { items: [], total: 0, page, pageSize: 40, query }
-  }
-
-  // ── OneBound 응답 파싱 ──────────────────────────────────────────────────
-  try {
-    const resData = data || {}
-
-    // OneBound 에러 응답 검출 — 0000/ok 는 정상 성공, 4005/4000 만 에러
-    const obErrCode = String(resData.error_code || '').trim()
-    const obErrField = String(resData.error || '').trim().toLowerCase()
-    const obReason = String(resData.reason || resData.message || '').toLowerCase()
-    const isSuccess = obErrCode === '0' || obErrCode === '0000' || obErrField === 'ok' || obErrField === 'success'
-    const isRealError = !isSuccess && (
-      obErrCode === '4005' || obErrCode === '4000' || obErrCode === '4001' ||
-      obReason.includes('已到期') || obReason.includes('expired') || obReason.includes('invalid key')
-    )
-
-    if (isRealError) {
-      console.warn(`[1688 Search] OneBound error (${obErrCode}): ${obReason || obErrField}. Returning empty results.`)
-      return { items: [], total: 0, page, pageSize: 40, query, error: obErrCode }
+    } catch (err) {
+      console.warn(`[1688 Search] Proxy fetch error (attempt ${attempt}/${MAX_ATTEMPTS}):`, err.name === 'AbortError' ? '검색 응답이 지연되고 있습니다.' : err.message)
     }
 
-    // 응답 구조 디버그 로깅
-    console.log('[1688 Search] resData keys:', Object.keys(resData).slice(0, 12))
-    if (resData.items) console.log('[1688 Search] items type:', typeof resData.items, Array.isArray(resData.items) ? `array[${resData.items.length}]` : JSON.stringify(resData.items).slice(0, 120))
-
-    // OneBound item_search 응답 다중 구조 탐색:
-    let rawList = null
-
-    // 1순위: OneBound 표준 — items.item 배열
-    if (resData?.items?.item && Array.isArray(resData.items.item) && resData.items.item.length > 0) {
-      rawList = resData.items.item
-    }
-    // 2순위: items 자체가 배열
-    else if (Array.isArray(resData?.items) && resData.items.length > 0) {
-      rawList = resData.items
-    }
-    // 3순위: 최상위 item 배열
-    else if (Array.isArray(resData?.item) && resData.item.length > 0) {
-      rawList = resData.item
-    }
-    // 4순위: result.resultList
-    else if (Array.isArray(resData?.result?.resultList) && resData.result.resultList.length > 0) {
-      rawList = resData.result.resultList
-    }
-    // 5순위: resultList 직접
-    else if (Array.isArray(resData?.resultList) && resData.resultList.length > 0) {
-      rawList = resData.resultList
-    }
-    // 6순위: data.items.item (래퍼가 있는 경우)
-    else if (resData?.data?.items?.item && Array.isArray(resData.data.items.item)) {
-      rawList = resData.data.items.item
-    }
-    // 7순위: data.items 배열
-    else if (resData?.data?.items && Array.isArray(resData.data.items)) {
-      rawList = resData.data.items
-    }
-    // 8순위: items.item이 배열이 아닌 경우 Object.values
-    else if (resData?.items?.item && typeof resData.items.item === 'object' && !Array.isArray(resData.items.item)) {
-      rawList = Object.values(resData.items.item)
-    }
-    // 9순위: items가 객체인 경우 Object.values
-    else if (resData?.items && typeof resData.items === 'object' && !Array.isArray(resData.items)) {
-      const vals = Object.values(resData.items)
-      rawList = vals.length === 1 && Array.isArray(vals[0]) ? vals[0] : vals
-    }
-
-    if (!rawList) rawList = []
-
-    if (!Array.isArray(rawList) || rawList.length === 0) {
-      console.warn(`[1688 Search] Empty rawList for "${query}". Returning empty.`)
+    if (!data) {
+      if (attempt < MAX_ATTEMPTS) {
+        console.warn(`[1688 Search] No response from OneBound for "${query}" — retrying in ${RETRY_DELAY_MS}ms (attempt ${attempt}/${MAX_ATTEMPTS})`)
+        await sleep(RETRY_DELAY_MS)
+        continue
+      }
+      console.warn(`[1688 Search] No response from OneBound for "${query}" after ${MAX_ATTEMPTS} attempts. Returning empty.`)
       return { items: [], total: 0, page, pageSize: 40, query }
     }
 
+    // ── OneBound 응답 파싱 ──────────────────────────────────────────────────
+    try {
+      const resData = data || {}
 
-    const normalizeUrl = (u) => {
-      const s = String(u || '').trim()
-      if (!s) return ''
-      if (s.startsWith('//')) return 'https:' + s
-      if (s.startsWith('http://')) return s.replace('http://', 'https://')
-      return s.startsWith('http') ? s : ''
-    }
+      // OneBound 에러 응답 검출 — 0000/ok 는 정상 성공, 4005/4000 만 에러
+      const obErrCode = String(resData.error_code || '').trim()
+      const obErrField = String(resData.error || '').trim().toLowerCase()
+      const obReason = String(resData.reason || resData.message || '').toLowerCase()
+      const isSuccess = obErrCode === '0' || obErrCode === '0000' || obErrField === 'ok' || obErrField === 'success'
+      const isRealError = !isSuccess && (
+        obErrCode === '4005' || obErrCode === '4000' || obErrCode === '4001' ||
+        obReason.includes('已到期') || obReason.includes('expired') || obReason.includes('invalid key')
+      )
 
-    const items = rawList.map((entry, idx) => {
-      const it = entry.item || entry
-
-      const imageUrl = normalizeUrl(it.pic_url || it.picUrl || it.imageUrl || it.image || '')
-      const itemId = String(it.num_iid || it.itemId || it.id || `item-${Date.now()}-${idx}`)
-      const cleanId = itemId.replace(/[^0-9]/g, '')
-      const detailUrl = cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : ''
-
-      const priceNum = parseFloat(String(it.price || it.priceCent || '0').replace(/[^0-9.]/g, '')) || 0
-      const minOrder = parseInt(it.min_num || it.minOrder || it.min_order || '1', 10) || 1
-      const sales = parseInt(it.sold_count || it.volume || it.sales || 0, 10)
-      const titleZh = it.title || it.subject || ''
-      const company = it.nick || it.shop_name || it.shopName || it.sellerName || '1688 공급사'
-      // 실측: 1688global API는 seller_id/user_num_id를 빈값으로 반환; nick(_sopid@...)이 유일한 판매자 식별자
-      const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || it.nick || '')
-
-      return {
-        id: cleanId || itemId,
-        itemId: cleanId || itemId,
-        titleZh,
-        titleEn: '',
-        titleKo: titleZh,
-        title: titleZh,
-        price: priceNum,
-        priceNum,
-        priceCny: priceNum,
-        priceFormatted: priceNum.toFixed(2),
-        moq: minOrder,
-        minOrder,
-        sales,
-        repurchaseRate: it.rePurchaseRate || it.repurchaseRate || 0,
-        imageUrl,
-        detailUrl,
-        itemUrl: detailUrl,
-        productUrl: detailUrl,
-        company,
-        sellerId,
-        starLevel: parseFloat(it.score || it.starLevel || '5') || 5.0,
-        raw: it
+      if (isRealError) {
+        // 확정 에러(키 만료/파라미터 오류)는 재시도해도 동일하게 실패하므로 즉시 반환
+        console.warn(`[1688 Search] OneBound error (${obErrCode}): ${obReason || obErrField}. Returning empty results.`)
+        return { items: [], total: 0, page, pageSize: 40, query, error: obErrCode }
       }
-    }).filter(item => item.id && (item.title || item.titleZh))
 
-    // 일괄 한국어 번역
-    await translateItemsBatch(items)
+      // 응답 구조 디버그 로깅
+      console.log('[1688 Search] resData keys:', Object.keys(resData).slice(0, 12))
+      if (resData.items) console.log('[1688 Search] items type:', typeof resData.items, Array.isArray(resData.items) ? `array[${resData.items.length}]` : JSON.stringify(resData.items).slice(0, 120))
 
-    const totalCount = resData?.total_results || resData?.total_count || resData?.total || String(rawList.length)
-    const formattedResult = {
-      rawResponse: data,
-      items,
-      page: Number(page),
-      pageSize: 40,
-      totalResults: String(totalCount),
-      hasMore: Number(totalCount) > Number(page) * 40,
-      queryZh: query
+      // OneBound item_search 응답 다중 구조 탐색:
+      let rawList = null
+
+      // 1순위: OneBound 표준 — items.item 배열
+      if (resData?.items?.item && Array.isArray(resData.items.item) && resData.items.item.length > 0) {
+        rawList = resData.items.item
+      }
+      // 2순위: items 자체가 배열
+      else if (Array.isArray(resData?.items) && resData.items.length > 0) {
+        rawList = resData.items
+      }
+      // 3순위: 최상위 item 배열
+      else if (Array.isArray(resData?.item) && resData.item.length > 0) {
+        rawList = resData.item
+      }
+      // 4순위: result.resultList
+      else if (Array.isArray(resData?.result?.resultList) && resData.result.resultList.length > 0) {
+        rawList = resData.result.resultList
+      }
+      // 5순위: resultList 직접
+      else if (Array.isArray(resData?.resultList) && resData.resultList.length > 0) {
+        rawList = resData.resultList
+      }
+      // 6순위: data.items.item (래퍼가 있는 경우)
+      else if (resData?.data?.items?.item && Array.isArray(resData.data.items.item)) {
+        rawList = resData.data.items.item
+      }
+      // 7순위: data.items 배열
+      else if (resData?.data?.items && Array.isArray(resData.data.items)) {
+        rawList = resData.data.items
+      }
+      // 8순위: items.item이 배열이 아닌 경우 Object.values
+      else if (resData?.items?.item && typeof resData.items.item === 'object' && !Array.isArray(resData.items.item)) {
+        rawList = Object.values(resData.items.item)
+      }
+      // 9순위: items가 객체인 경우 Object.values
+      else if (resData?.items && typeof resData.items === 'object' && !Array.isArray(resData.items)) {
+        const vals = Object.values(resData.items)
+        rawList = vals.length === 1 && Array.isArray(vals[0]) ? vals[0] : vals
+      }
+
+      if (!rawList) rawList = []
+
+      if (!Array.isArray(rawList) || rawList.length === 0) {
+        // ── 진단용 상세 로깅: "success=true인데 내용이 부실한" 응답의 실제 구조 기록 ──
+        console.warn(`[1688 Search] Empty rawList for "${query}" (attempt ${attempt}/${MAX_ATTEMPTS}). ` +
+          `error_code=${obErrCode || '(none)'} error=${obErrField || '(none)'} reason=${obReason || '(none)'} ` +
+          `rawKeys=${JSON.stringify(Object.keys(resData))} rawSnapshot=${JSON.stringify(resData).slice(0, 500)}`)
+
+        if (attempt < MAX_ATTEMPTS) {
+          console.warn(`[1688 Search] Retrying "${query}" in ${RETRY_DELAY_MS}ms (attempt ${attempt}/${MAX_ATTEMPTS})...`)
+          await sleep(RETRY_DELAY_MS)
+          continue
+        }
+        console.warn(`[1688 Search] Empty rawList for "${query}" after ${MAX_ATTEMPTS} attempts. Returning empty.`)
+        return { items: [], total: 0, page, pageSize: 40, query }
+      }
+
+
+      const normalizeUrl = (u) => {
+        const s = String(u || '').trim()
+        if (!s) return ''
+        if (s.startsWith('//')) return 'https:' + s
+        if (s.startsWith('http://')) return s.replace('http://', 'https://')
+        return s.startsWith('http') ? s : ''
+      }
+
+      const items = rawList.map((entry, idx) => {
+        const it = entry.item || entry
+
+        const imageUrl = normalizeUrl(it.pic_url || it.picUrl || it.imageUrl || it.image || '')
+        const itemId = String(it.num_iid || it.itemId || it.id || `item-${Date.now()}-${idx}`)
+        const cleanId = itemId.replace(/[^0-9]/g, '')
+        const detailUrl = cleanId ? `https://detail.1688.com/offer/${cleanId}.html` : ''
+
+        const priceNum = parseFloat(String(it.price || it.priceCent || '0').replace(/[^0-9.]/g, '')) || 0
+        const minOrder = parseInt(it.min_num || it.minOrder || it.min_order || '1', 10) || 1
+        const sales = parseInt(it.sold_count || it.volume || it.sales || 0, 10)
+        const titleZh = it.title || it.subject || ''
+        const company = it.nick || it.shop_name || it.shopName || it.sellerName || '1688 공급사'
+        // 실측: 1688global API는 seller_id/user_num_id를 빈값으로 반환; nick(_sopid@...)이 유일한 판매자 식별자
+        const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || it.nick || '')
+
+        return {
+          id: cleanId || itemId,
+          itemId: cleanId || itemId,
+          titleZh,
+          titleEn: '',
+          titleKo: titleZh,
+          title: titleZh,
+          price: priceNum,
+          priceNum,
+          priceCny: priceNum,
+          priceFormatted: priceNum.toFixed(2),
+          moq: minOrder,
+          minOrder,
+          sales,
+          repurchaseRate: it.rePurchaseRate || it.repurchaseRate || 0,
+          imageUrl,
+          detailUrl,
+          itemUrl: detailUrl,
+          productUrl: detailUrl,
+          company,
+          sellerId,
+          starLevel: parseFloat(it.score || it.starLevel || '5') || 5.0,
+          raw: it
+        }
+      }).filter(item => item.id && (item.title || item.titleZh))
+
+      // 일괄 한국어 번역
+      await translateItemsBatch(items)
+
+      const totalCount = resData?.total_results || resData?.total_count || resData?.total || String(rawList.length)
+      const formattedResult = {
+        rawResponse: data,
+        items,
+        page: Number(page),
+        pageSize: 40,
+        totalResults: String(totalCount),
+        hasMore: Number(totalCount) > Number(page) * 40,
+        queryZh: query
+      }
+
+      saveToCache(memorySearchCache, 'euchs_search', cacheKey, formattedResult)
+      return formattedResult
+    } catch (parseErr) {
+      console.warn(`[1688 API] Response parse error (attempt ${attempt}/${MAX_ATTEMPTS}):`, parseErr)
+      if (attempt < MAX_ATTEMPTS) {
+        await sleep(RETRY_DELAY_MS)
+        continue
+      }
+      return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
     }
-
-    saveToCache(memorySearchCache, 'euchs_search', cacheKey, formattedResult)
-    return formattedResult
-  } catch (parseErr) {
-    console.warn('[1688 API] Response parse error:', parseErr)
-    return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
   }
+
+  // 이론상 도달하지 않음 (루프가 항상 return으로 종료) — 방어적 폴백
+  return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
 }
 
 
