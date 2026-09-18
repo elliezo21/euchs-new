@@ -1,10 +1,11 @@
 /**
  * Vercel Serverless Function: /api/1688-item-detail
  * OneBound 1688global 상품 상세 조회 프록시
- * - 1차 엔드포인트: 1688global (강제 직결, 정식 세션 바인딩)
- * - 2차 폴백: 1688 (1688global 완전 실패 시만)
+ * - 엔드포인트: 1688global 단독 사용 (강제 직결, 정식 세션 바인딩)
+ *   (2026-09-18부로 "1688" non-global 폴백 제거 — OneBound 계정 매니저가 해당 계정에서
+ *    1688 플랫폼 item_get/item_search 사용 중단 안내)
  * - 게이트웨이: https://api-gw.onebound.cn
- * - 타임아웃: 7000ms / 5000ms
+ * - 타임아웃: 7000ms
  */
 
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
@@ -123,19 +124,11 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: 'API 인증 환경변수 누락', data: null })
   }
 
-  // 1차: 1688global 직결 (정식 개통 경로, session 파라미터 불필요 확인됨)
-  let resData = await fetchDetail('1688global', cleanNumericId, OB_KEY, OB_SECRET, 7000)
-
-  // 1688global 에러(4013 포함) 시에만 2차 1688 폴백
-  if (!resData || isErrorResponse(resData)) {
-    const errCode = resData?.error_code || 'no-data'
-    const errMsg  = resData?.reason || resData?.error || 'unknown'
-    console.warn(`[1688-item-detail] 1688global failed (${errCode}: ${errMsg}). Trying 1688 fallback...`)
-    const fallbackData = await fetchDetail('1688', cleanNumericId, OB_KEY, OB_SECRET, 5000)
-    if (fallbackData && !isErrorResponse(fallbackData)) {
-      resData = fallbackData
-    }
-  }
+  // 1688global 단독 사용 (정식 개통 경로, session 파라미터 불필요 확인됨)
+  // ⚠️ 2026-09-18: OneBound 계정 매니저 확인 — "1688"(non-global) 플랫폼의 item_get/
+  // item_search는 해당 계정에서 사용 불가 판정(그날 13회 시도 전부 실패, 실제조회수 0).
+  // 매니저가 명시적으로 이 두 API는 쓰지 말라고 안내해 2차 폴백 호출을 제거함.
+  const resData = await fetchDetail('1688global', cleanNumericId, OB_KEY, OB_SECRET, 7000)
 
   // 최종 에러 처리
   if (!resData || isErrorResponse(resData)) {

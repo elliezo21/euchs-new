@@ -1,8 +1,8 @@
 /**
  * Vercel Serverless Function: /api/1688-search
  * OneBound 1688 키워드 검색 프록시
- * - 1차 엔드포인트: 1688global
- * - 2차 폴백: 1688
+ * - 엔드포인트: 1688global 단독 사용 (2026-09-18부로 "1688" non-global 폴백 제거 —
+ *   OneBound 계정 매니저가 해당 계정에서 1688 플랫폼 item_get/item_search 사용 중단 안내)
  * - 게이트웨이: https://api-gw.onebound.cn
  * - 타임아웃: 8000ms (8초)
  */
@@ -92,20 +92,12 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: 'API 인증 환경변수 누락', data: null })
   }
 
-  // 1차: 1688global 시도 (session 파라미터 불필요)
-  let resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000, cat)
-
-  // 1688global이 무응답이거나 명확한 에러코드(4000/4001/4002/4005/4010)일 때만 2차 1688
-  // 엔드포인트로 폴백. 에러코드 없이 단순히 items가 비어있는 애매한 케이스는 폴백을 타지
-  // 않고 그대로 반환 — 섹션당 최악 호출수(클라 재시도 2 × 서버 폴백 2 = 4)를 줄이기 위한
-  // 의도적 축소. (일일 호출 한도 압박 상황 대응 — 클라이언트 재시도로 실패율은 별도 방어)
-  if (!resData || isErrorResponse(resData)) {
-    console.warn('[1688-search] 1688global failed or error. Trying 1688 endpoint...')
-    const fallbackData = await fetchSearch('1688', queryZh, page, OB_KEY, OB_SECRET, 4000, cat)
-    if (fallbackData && !isErrorResponse(fallbackData)) {
-      resData = fallbackData
-    }
-  }
+  // 1688global만 사용 (session 파라미터 불필요)
+  // ⚠️ 2026-09-18: OneBound 계정 매니저 확인 — "1688"(non-global) 플랫폼의 item_get/
+  // item_search는 해당 계정에서 사용 불가 판정(오늘 13회 시도 전부 실패, 실제조회수 0).
+  // 매니저가 명시적으로 이 두 API는 쓰지 말라고 안내해 2차 폴백 호출을 제거함.
+  // 1688global은 같은 날 1,095회 정상 성공 중이라 이쪽만 사용.
+  const resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000, cat)
 
   // 최종 응답 검증
   if (!resData || isErrorResponse(resData)) {
