@@ -9,9 +9,11 @@
  * - API 키 미설정 시 Mock 로그로 안전 폴백
  *
  * ⚠️ TEMPLATE_MAP의 id 값 중 order_received/quote_approved/inspection_done/customs_clearance/
- *    signup_welcome 5개는 솔라피 콘솔 승인ID로 확정됨. 나머지(payment_verified/shipping_ready/
- *    shipping_started/delivered)는 전부 placeholder — 실제 승인 템플릿ID로 교체 전까지는
- *    해당 유형 실 발송 시 솔라피 API가 오류를 반환한다(Mock 폴백 경로는 정상 동작).
+ *    signup_welcome 5개는 솔라피 콘솔에서 승인 완료됨. warehouse_in/payment_verified/
+ *    shipping_ready/delivered 4개는 2026-09-18 승인 신청 접수(ID 발급, 승인은 3~4일 소요
+ *    예정) — 승인 전까지 이 ID로 실발송 시도 시 솔라피 API가 오류를 반환한다. shipping_started만
+ *    여전히 placeholder(문구 수정 후 재신청 예정). 프론트엔드 호출부는 9개 전부 비활성화
+ *    상태로 유지 중이라 지금 당장은 실발송 자체가 일어나지 않는다(Mock 폴백 경로는 정상 동작).
  */
 
 import crypto from 'crypto'
@@ -19,26 +21,26 @@ import crypto from 'crypto'
 const SOLAPI_SEND_URL = 'https://api.solapi.com/messages/v4/send'
 
 // 2026-09-18: 5개 템플릿ID 확정 반영(order_received/quote_approved/inspection_done/
-// customs_clearance/signup_welcome). 나머지는 여전히 미승인 — placeholder·비활성화 유지.
+// customs_clearance/signup_welcome).
+// 2026-09-18(추가): warehouse_in/payment_verified/shipping_ready/delivered 4개는 솔라피
+// 승인 신청 접수(ID 발급, 승인까지 3~4일 소요 예정) — 승인 확정 전까지 프론트엔드 호출부는
+// 계속 비활성화(주석 처리) 상태 유지. 승인 확인되면 해당 호출부만 별도로 주석 해제할 것.
 // - shipping_started: 전용 템플릿 미승인 — 문구를 "국내 택배 배송 시작"으로 수정해 재승인
 //   신청 예정. 프론트엔드 호출부(AdminOrderManageView.vue submitTrackingForm)는 당분간 비활성화.
-// - payment_verified / shipping_ready / delivered: 템플릿 미승인·미작성.
-//   프론트엔드 호출부(executeConfirmPayment / executeAdvanceToShipping / executeMarkDelivered)는
-//   전부 비활성화 상태로 배선만 해둠.
-// - warehouse_in: 2026-09-18 신규 추가 — 4→5단계(구매진행→창고도착) 전환, 즉 orders.status가
-//   실제로 'warehouse_in'이 되는 시점(confirmWarehouseArrival)과 이름을 그대로 맞춤. 주문 내
-//   전 품목 chinaTrackingNo 등록 완료 시 1회 발송. 템플릿 미승인·DB 마이그레이션 미승인 상태라
+// - warehouse_in: 4→5단계(구매진행→창고도착) 전환, 즉 orders.status가 실제로 'warehouse_in'이
+//   되는 시점(confirmWarehouseArrival)과 이름을 그대로 맞춤. 주문 내 전 품목 chinaTrackingNo
+//   등록 완료 시 1회 발송. DB 마이그레이션(china_shipping_notified_at)도 별도 승인 필요 —
 //   프론트엔드 호출부(AdminOrderManageView.vue savePurchasingInfo)는 비활성화 상태로 배선만 해둠.
 const TEMPLATE_MAP = {
   order_received:    { id: 'KA01TP260828021306814oWRr7AWUkoK', title: '발주 접수 안내' },
   quote_approved:    { id: 'KA01TP2608280215538854ebnj9KLVEu', title: '1차 견적 승인 안내' },
-  payment_verified:  { id: 'TEMPLATE_PAYMENT_VERIFIED',       title: '결제 확인 안내' },
-  warehouse_in:      { id: 'TEMPLATE_WAREHOUSE_IN',           title: '중국 내륙 배송 시작 안내' },
+  payment_verified:  { id: 'KA01TP260918131340001RNoE5duJvT9', title: '결제 확인 안내' },
+  warehouse_in:      { id: 'KA01TP260918131106393hpAaAFSF9RI', title: '중국 내륙 배송 시작 안내' },
   inspection_done:   { id: 'KA01TP260828021801426d0kKn3PyMqH', title: '이우 창고 입고 및 계근 완료 안내' },
-  shipping_ready:    { id: 'TEMPLATE_SHIPPING_READY',         title: '한국행 선적 처리 안내' },
+  shipping_ready:    { id: 'KA01TP260918131514168CTNvBu2lhis', title: '한국행 선적 처리 안내' },
   customs_clearance: { id: 'KA01TP260828021927661SVzSUvZEXdI', title: '세관 통관 및 국내배송 시작 안내' },
   shipping_started:  { id: 'TEMPLATE_SHIPPING_STARTED',       title: '국내 배송/송장 등록 안내' },
-  delivered:         { id: 'TEMPLATE_DELIVERED',              title: '배송완료 안내' },
+  delivered:         { id: 'KA01TP260918131642612pbudlbetiMr', title: '배송완료 안내' },
   signup_welcome:    { id: 'KA01TP260828022516623Dxtrjba8JjJ', title: '신규 회원가입 환영 안내' },
 }
 
