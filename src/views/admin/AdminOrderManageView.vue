@@ -1377,7 +1377,6 @@ import { useRoute } from 'vue-router';
 import { getStoredOrders, saveStoredOrders, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
 import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
-import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { calcOrderCost, krwFromCny, resolveExchangeRate, estimateFreightRmb } from '@/utils/orderCostCalculator';
 import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
@@ -2371,13 +2370,19 @@ async function approveQuoteFromDetail() {
     });
 
     // 4. 솔라피 알림톡 발송 (비동기 안전 방어)
-    sendOrderStatusAlimtalk({
-      type: 'quote_approved',
-      to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
-      customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
-      orderNo: orderNum,
-      itemName: validItems[0]?.productName || activeOrder.value.items?.[0]?.productName || '소싱 상품'
-    }).catch(() => {});
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'quote_approved',
+        phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+        variables: {
+          customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
+          order_no: orderNum,
+          item_name: validItems[0]?.productName || activeOrder.value.items?.[0]?.productName || '소싱 상품'
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     showToast(`[${orderNum}] 견적 승인 완료 → 2단계(결제대기) 전환`, 'success');
     closeModals();
@@ -3548,14 +3553,20 @@ async function submitBLForm() {
     });
 
     // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
-    sendOrderStatusAlimtalk({
-      type: 'customs_clearance',
-      to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
-      customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
-      orderNo: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
-      itemName: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
-      extraInfo: `B/L 번호: ${blForm.value.blNumber}`
-    }).catch(() => {});
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'customs_clearance',
+        phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+        variables: {
+          customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
+          order_no: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
+          item_name: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
+          extra_info: `B/L 번호: ${blForm.value.blNumber}`
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     showToast(`[${activeOrder.value.orderNumber}] B/L(${blForm.value.blNumber}) 등록 → 7단계(세관통관) 전환 완료`);
     closeModals();
@@ -3599,15 +3610,23 @@ async function submitTrackingForm() {
       customsStep: 'delivery'
     });
     
-    // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
-    sendOrderStatusAlimtalk({
-      type: 'shipping_started',
-      to: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
-      customerName: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName,
-      orderNo: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
-      itemName: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
-      extraInfo: `${trackingForm.value.carrier} 송장: ${trackingForm.value.trackingNumber}`
-    }).catch(() => {});
+    // 솔라피 알림톡 발송 — shipping_started 전용 템플릿이 솔라피 콘솔에 아직 승인되지 않아
+    // 당분간 비활성화 (2026-09-18 확인). 템플릿 승인·ID 확정 후 주석 해제하고
+    // api/send-alimtalk.js TEMPLATE_MAP.shipping_started.id를 실제 값으로 교체할 것.
+    // fetch('/api/send-alimtalk', {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({
+    //     type: 'shipping_started',
+    //     phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+    //     variables: {
+    //       customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
+    //       order_no: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
+    //       item_name: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
+    //       extra_info: `${trackingForm.value.carrier} 송장: ${trackingForm.value.trackingNumber}`
+    //     }
+    //   })
+    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     showToast(`[${activeOrder.value.orderNumber}] 국내 송장(${trackingForm.value.carrier} ${trackingForm.value.trackingNumber}) 등록 → 8단계(국내배송) 전환`);
     closeModals();

@@ -560,7 +560,6 @@ import {
 } from 'lucide-vue-next';
 import { currentUser, currentUserBizInfo, getCartStorageKey } from '@/lib/auth';
 import { saveNewOrder } from '@/utils/orderStorage';
-import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { fetch1688FreightEstimateBatch } from '@/services/api1688';
 import ProductDetailModal from '@/components/ProductDetailModal.vue';
 
@@ -939,14 +938,20 @@ const handleSubmit = async () => {
     // 2. 솔라피 알림톡 발송 (비동기 트리거, 오류 안전 방어)
     const customsLabel = cfg.customsType === 'business' ? '사업자통관' : '개인통관';
     const shipLabel = cfg.shippingType === 'rocket' ? '쿠팡로켓직납' : '일반직배송';
-    sendOrderStatusAlimtalk({
-      type: 'order_received',
-      to: buyerInfo.phone,
-      customerName: buyerInfo.buyerName,
-      orderNo: finalOrderNumber,
-      itemName: newOrder.items[0]?.productName || '1688 소싱 품목',
-      extraInfo: `통관: ${customsLabel} / 배송: ${shipLabel}`
-    }).catch(() => {});
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'order_received',
+        phoneNumber: buyerInfo.phone,
+        variables: {
+          customer_name: buyerInfo.buyerName || '바이어',
+          order_no: finalOrderNumber,
+          item_name: newOrder.items[0]?.productName || '1688 소싱 품목',
+          extra_info: `통관: ${customsLabel} / 배송: ${shipLabel}`
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     // 3. 사용자 장바구니에서 제출된 품목 제거
     try {

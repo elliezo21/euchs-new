@@ -928,7 +928,6 @@ import { supabase, isSupabaseConfigured } from '../../lib/supabase';
 import { updateStoredInboundItem } from '../../lib/warehouseStore';
 import { getStoredOrders } from '../../utils/orderStorage';
 import { updateApplicationOrderStatus, normalizeOrderStatus } from '../../lib/orderPipeline';
-import { sendOrderStatusAlimtalk } from '../../services/notificationService';
 import { currentSettings, fetchSiteSettings } from '../../lib/settings';
 import { VAS_OPTIONS_MAP } from '../../utils/vasOptions';
 import { INSPECTION_NOTE_OPTIONS, findOptionIdByText } from '../../utils/inspectionNoteOptions';
@@ -1819,14 +1818,20 @@ const saveBoxMeasurement = async () => {
 
   // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
   const order = matchedOrder.value;
-  sendOrderStatusAlimtalk({
-    type: 'warehouse_in',
-    to: order?.buyerInfo?.phone || order?.buyer_phone || order?.buyerPhone || app.phone,
-    customerName: order?.buyerInfo?.buyerName || order?.buyerInfo?.companyName || order?.buyer_name || app.customer_name,
-    orderNo: order?.orderNumber || order?.order_no || order?.id || inboundForm.value.inboundNo,
-    itemName: order?.items?.[0]?.titleKo || order?.items?.[0]?.name || order?.product_name || getTargetProductName(),
-    extraInfo: `실측: ${calcTotalCbm.value.toFixed(4)} CBM / ${boxForm.value.weightKg} kg`,
-  }).catch(() => {});
+  fetch('/api/send-alimtalk', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      type: 'warehouse_in',
+      phoneNumber: order?.buyerInfo?.phone || order?.buyer_phone || order?.buyerPhone || app.phone,
+      variables: {
+        customer_name: order?.buyerInfo?.buyerName || order?.buyerInfo?.companyName || order?.buyer_name || app.customer_name || '바이어',
+        order_no: order?.orderNumber || order?.order_no || order?.id || inboundForm.value.inboundNo,
+        item_name: order?.items?.[0]?.titleKo || order?.items?.[0]?.name || order?.product_name || getTargetProductName(),
+        extra_info: `실측: ${calcTotalCbm.value.toFixed(4)} CBM / ${boxForm.value.weightKg} kg`
+      }
+    })
+  }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
   isSaving.value = false;
   closeModal();

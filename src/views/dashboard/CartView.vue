@@ -678,7 +678,6 @@ import { exportQuoteExcel } from '@/utils/excelExport';
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { getStoredOrders, saveStoredOrders, saveNewOrder } from '@/utils/orderStorage';
 import { currentUser, getCartStorageKey, isLoggedIn } from '@/lib/auth';
-import { sendOrderStatusAlimtalk } from '@/services/notificationService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';

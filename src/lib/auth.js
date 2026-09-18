@@ -921,6 +921,21 @@ export const signUpWithEmail = async (email, password, businessData = {}) => {
       localStorage.setItem('euchs_business_profile_' + (data.user.id || data.user.email), JSON.stringify(metaData))
       localStorage.setItem('euchs_business_profile_current', JSON.stringify(metaData))
     } catch (e) {}
+
+    // 솔라피 알림톡 발송 (비동기, 오류 안전 방어)
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'signup_welcome',
+        phoneNumber: phone,
+        variables: {
+          customer_name: name || companyName || '고객',
+          company_name: companyName || '-',
+          signup_date: new Date(data.user.created_at || Date.now()).toLocaleDateString('ko-KR')
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message))
   }
 
   return data
