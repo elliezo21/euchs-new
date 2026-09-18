@@ -1358,6 +1358,12 @@ export async function fetch1688FreightEstimate(offerId, specId, quantity = 1) {
  * @param {Array} cargoList - [{ offerId|numIid, specId, quantity }, ...]
  * @returns {Promise<number|null>}  CNY 합계 운임 (전체 수량 기준) 또는 null(조회 불가)
  */
+// ── freight batch 전용 독립 캐시 (key: 정렬된 offerId_specId_quantity 조합) ──
+// 단건 캐시(_freightEstimateCache)와 분리 — 조합 단위 캐시이므로 키 구조가 다름
+const _freightEstimateBatchCache = new Map()
+const FREIGHT_BATCH_CACHE_STORAGE_KEY = 'euchs_freight_batch'
+const _freightBatchInFlight = new Map()
+
 export async function fetch1688FreightEstimateBatch(cargoList = []) {
   const items = (Array.isArray(cargoList) ? cargoList : [])
     .map((it) => ({
@@ -1369,23 +1375,54 @@ export async function fetch1688FreightEstimateBatch(cargoList = []) {
 
   if (items.length === 0) return null
 
-  try {
-    const res = await fetch('/api/1688-freight-estimate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ cargoParamList: items }),
-      signal: AbortSignal.timeout(15000),
-    })
-    const data = await res.json().catch(() => null)
-    if (data?.success && data.freight !== null && data.freight !== undefined) {
-      return Number(data.freight)
-    }
-    console.debug('[fetch1688FreightEstimateBatch] 미제공:', data?.message || '')
-    return null
-  } catch (err) {
-    console.warn('[fetch1688FreightEstimateBatch] 오류 — null 폴백:', err.message)
-    return null
+  // 캐시 키: seller그룹 구성(offerId_specId_quantity)을 정렬 후 조합 → 배열 순서가
+  // 달라도(체크박스 토글 순서 변화 등) 동일 조합이면 같은 키로 인식됨
+  const cacheKey = items
+    .map((it) => `${it.offerId}_${it.specId}_${it.quantity}`)
+    .sort()
+    .join('|')
+
+  // ── 1. 전용 캐시 HIT: API 호출 없이 즉시 반환 ───────────────────────────
+  const cached = getFromCache(_freightEstimateBatchCache, FREIGHT_BATCH_CACHE_STORAGE_KEY, cacheKey)
+  if (cached !== null && cached !== undefined) {
+    console.debug(`[fetch1688FreightEstimateBatch] Cache HIT: key=${cacheKey} → ¥${cached}`)
+    return cached
   }
+
+  // ── 2. in-flight 중복 차단: 동일 키 요청이 진행 중이면 Promise 공유 ─────
+  if (_freightBatchInFlight.has(cacheKey)) {
+    console.debug('[fetch1688FreightEstimateBatch] In-flight 공유:', cacheKey)
+    return _freightBatchInFlight.get(cacheKey)
+  }
+
+  const promise = (async () => {
+    try {
+      const res = await fetch('/api/1688-freight-estimate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ cargoParamList: items }),
+        signal: AbortSignal.timeout(15000),
+      })
+      const data = await res.json().catch(() => null)
+      if (data?.success && data.freight !== null && data.freight !== undefined) {
+        const freight = Number(data.freight)
+        // ── 전용 캐시에 저장 (TTL 30분) ──────────────────────────────────
+        saveToCache(_freightEstimateBatchCache, FREIGHT_BATCH_CACHE_STORAGE_KEY, cacheKey, freight)
+        console.log(`[fetch1688FreightEstimateBatch] 성공: key=${cacheKey} freight=¥${freight} → 캐시 저장`)
+        return freight
+      }
+      console.debug('[fetch1688FreightEstimateBatch] 미제공:', data?.message || '')
+      return null
+    } catch (err) {
+      console.warn('[fetch1688FreightEstimateBatch] 오류 — null 폴백:', err.message)
+      return null
+    } finally {
+      _freightBatchInFlight.delete(cacheKey)
+    }
+  })()
+
+  _freightBatchInFlight.set(cacheKey, promise)
+  return promise
 }
 
 /**
