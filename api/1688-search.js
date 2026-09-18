@@ -31,35 +31,14 @@ function isErrorResponse(data) {
   // OneBound 정상 응답: error_code=0000, error=ok → 에러로 처리하지 않음
   if (code === '0' || code === '0000' || errField === 'ok' || errField === 'success') return false
 
-  // 진짜 에러: 4005(자격증명 만료), 4000(파라미터 오류) 등
-  if (code === '4005' || code === '4000' || code === '4001' || code === '4002') return true
+  // 진짜 에러: 4005(자격증명 만료), 4000(파라미터 오류), 4010(동시요청 부하 시 실측 확인 —
+  // "不存在相应的数据信息api_init", 문서상 "API not found"지만 실측상 동시 burst에서만 발생) 등
+  if (code === '4005' || code === '4000' || code === '4001' || code === '4002' || code === '4010') return true
   if (reason.includes('已到期') || reason.includes('expired') || reason.includes('invalid key')) return true
 
   // 상품 데이터가 있으면 에러가 아님
   if (data.items || data.item || data.result) return false
 
-  return false
-}
-
-// ── 근본 원인 후보 대응 ────────────────────────────────────────────────
-// 간헐적으로 OneBound가 error_code 없이(=isErrorResponse 상 "에러 아님") success 형태를
-// 유지한 채 items/item/result 자체가 비어있는 부실한 응답을 줄 때가 있음(레이트리밋/일시적
-// 응답 누락으로 추정, 확정 아님). isErrorResponse만으로는 이 경우를 걸러내지 못해 1688 폴백
-// 엔드포인트로 재시도하지 않고 그대로 빈 결과를 success:true로 내려보내던 문제를 방지하기 위한
-// 별도 체크.
-function hasUsableItems(data) {
-  if (!data) return false
-  if (data.items) {
-    if (Array.isArray(data.items)) return data.items.length > 0
-    if (Array.isArray(data.items.item)) return data.items.item.length > 0
-    if (typeof data.items === 'object') return Object.keys(data.items).length > 0
-  }
-  if (Array.isArray(data.item)) return data.item.length > 0
-  if (data.result) {
-    if (Array.isArray(data.result.resultList)) return data.result.resultList.length > 0
-    if (typeof data.result === 'object') return Object.keys(data.result).length > 0
-  }
-  if (Array.isArray(data.resultList)) return data.resultList.length > 0
   return false
 }
 
@@ -116,20 +95,14 @@ export default async function handler(req, res) {
   // 1차: 1688global 시도 (session 파라미터 불필요)
   let resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000, cat)
 
-  // 1688global이 실패/에러이거나, 에러 코드 없이 success 형태이지만 items가 비어있는
-  // "부실한 응답"(간헐적 실패의 근본 원인 후보)인 경우에도 2차 1688 엔드포인트 시도
-  if (!resData || isErrorResponse(resData) || !hasUsableItems(resData)) {
-    if (resData && !isErrorResponse(resData) && !hasUsableItems(resData)) {
-      console.warn(`[1688-search] 1688global returned no error but no usable items for "${queryZh}". rawKeys=`,
-        Object.keys(resData), 'snapshot=', JSON.stringify(resData).slice(0, 300))
-    } else {
-      console.warn('[1688-search] 1688global failed or error. Trying 1688 endpoint...')
-    }
+  // 1688global이 무응답이거나 명확한 에러코드(4000/4001/4002/4005/4010)일 때만 2차 1688
+  // 엔드포인트로 폴백. 에러코드 없이 단순히 items가 비어있는 애매한 케이스는 폴백을 타지
+  // 않고 그대로 반환 — 섹션당 최악 호출수(클라 재시도 2 × 서버 폴백 2 = 4)를 줄이기 위한
+  // 의도적 축소. (일일 호출 한도 압박 상황 대응 — 클라이언트 재시도로 실패율은 별도 방어)
+  if (!resData || isErrorResponse(resData)) {
+    console.warn('[1688-search] 1688global failed or error. Trying 1688 endpoint...')
     const fallbackData = await fetchSearch('1688', queryZh, page, OB_KEY, OB_SECRET, 4000, cat)
-    if (fallbackData && !isErrorResponse(fallbackData) && hasUsableItems(fallbackData)) {
-      resData = fallbackData
-    } else if (fallbackData && !isErrorResponse(fallbackData) && !resData) {
-      // 1688global 완전 무응답 + 1688 폴백도 부실하지만, 최소한 파싱 가능한 형태는 있음 → 그대로 사용
+    if (fallbackData && !isErrorResponse(fallbackData)) {
       resData = fallbackData
     }
   }

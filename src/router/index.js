@@ -114,6 +114,7 @@ const routes = [
     path: '/lab/1688-search',
     name: 'lab-1688-search',
     component: Lab1688View,
+    meta: { requiresAdmin: true },
   },
   {
     path: '/lab/1688',
