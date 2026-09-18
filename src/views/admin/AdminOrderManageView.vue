@@ -2071,37 +2071,36 @@ async function savePurchasingInfo(item, idx) {
   }
 
   // 솔라피 알림톡 발송 — type: 'warehouse_in' (주문 내 전 품목 chinaTrackingNo 등록 완료 시
-  // 1회만 발송, 중국 내륙 배송 시작 안내). 템플릿 미승인 + 중복발송 방지용 DB 컬럼
-  // (china_shipping_notified_at) 마이그레이션 미승인 상태라 당분간 비활성화.
-  // 활성화 전 필요 작업:
-  //   1) 솔라피 콘솔 템플릿 승인 후 api/send-alimtalk.js TEMPLATE_MAP.warehouse_in.id 교체
-  //   2) DB 마이그레이션 승인·실행: ALTER TABLE orders ADD COLUMN IF NOT EXISTS
-  //      china_shipping_notified_at TIMESTAMPTZ;
-  //   3) 아래 주석 해제
-  // if (allItemsHaveTrackingNo(activeOrder.value) && !activeOrder.value.chinaShippingNotifiedAt) {
-  //   const notifiedAt = new Date().toISOString();
-  //   activeOrder.value.chinaShippingNotifiedAt = notifiedAt; // 로컬 즉시 반영 — 같은 세션 내 중복 재저장 방어
-  //   if (isSupabaseConfigured()) {
-  //     const orderNo = activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id;
-  //     // 공용 updateOrderStatus() 화이트리스트 payload에는 없는 전용 컬럼이라 별도 UPDATE로 격리
-  //     // (다른 상태전환 흐름에 영향 주지 않도록 독립 호출)
-  //     supabase.from('orders').update({ china_shipping_notified_at: notifiedAt }).eq('order_number', orderNo)
-  //       .then(({ error }) => { if (error) console.warn('[warehouse_in 알림] 발송플래그 저장 실패:', error.message); });
-  //   }
-  //   fetch('/api/send-alimtalk', {
-  //     method: 'POST',
-  //     headers: { 'Content-Type': 'application/json' },
-  //     body: JSON.stringify({
-  //       type: 'warehouse_in',
-  //       phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
-  //       variables: {
-  //         customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
-  //         order_no: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
-  //         item_count: String((activeOrder.value.items || []).filter(i => !i.excluded).length)
-  //       }
-  //     })
-  //   }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
-  // }
+  // 1회만 발송, 중국 내륙 배송 시작 안내). 2026-09-18 활성화 완료.
+  // ⚠️ 중복발송 방지용 DB 컬럼(china_shipping_notified_at)이 아직 마이그레이션되지 않아,
+  //    같은 브라우저 세션 내 재저장은 막아주지만 새로고침/재로그인 후 완료된 주문을 다시
+  //    저장하면 중복 발송될 수 있음 — 컬럼 추가 후에는 아래 코드 변경 없이 그대로 안전해짐.
+  //    마이그레이션 SQL: ALTER TABLE orders ADD COLUMN IF NOT EXISTS
+  //    china_shipping_notified_at TIMESTAMPTZ;
+  if (allItemsHaveTrackingNo(activeOrder.value) && !activeOrder.value.chinaShippingNotifiedAt) {
+    const notifiedAt = new Date().toISOString();
+    activeOrder.value.chinaShippingNotifiedAt = notifiedAt; // 로컬 즉시 반영 — 같은 세션 내 중복 재저장 방어
+    if (isSupabaseConfigured()) {
+      const orderNo = activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id;
+      // 공용 updateOrderStatus() 화이트리스트 payload에는 없는 전용 컬럼이라 별도 UPDATE로 격리
+      // (다른 상태전환 흐름에 영향 주지 않도록 독립 호출)
+      supabase.from('orders').update({ china_shipping_notified_at: notifiedAt }).eq('order_number', orderNo)
+        .then(({ error }) => { if (error) console.warn('[warehouse_in 알림] 발송플래그 저장 실패:', error.message); });
+    }
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'warehouse_in',
+        phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+        variables: {
+          customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
+          order_no: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
+          item_count: String((activeOrder.value.items || []).filter(i => !i.excluded).length)
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+  }
 
   // ★ chinaTrackingNo 최초 저장 시 快递100 자동 1회 조회 (할당량 절약: 저장 시 1회만)
   if (item.chinaTrackingNo && !item.chinaLogisticsTrace?.length) {
@@ -2927,22 +2926,20 @@ async function executeConfirmPayment() {
       paymentInfo: { confirmedAt: new Date().toISOString() }
     });
 
-    // 솔라피 알림톡 발송 — payment_verified 템플릿 미승인(2026-09-18)으로 당분간 비활성화.
-    // 템플릿 승인·ID 확정 후 주석 해제하고 api/send-alimtalk.js TEMPLATE_MAP.payment_verified.id를
-    // 실제 값으로 교체할 것.
-    // fetch('/api/send-alimtalk', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     type: 'payment_verified',
-    //     phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
-    //     variables: {
-    //       customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
-    //       order_no: o.orderNumber || o.order_no || o.id,
-    //       paid_amount: `${(o.totalPriceKrw || o.total_amount || 0).toLocaleString('ko-KR')}원`
-    //     }
-    //   })
-    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+    // 솔라피 알림톡 발송 — payment_verified. 2026-09-18 활성화 완료.
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'payment_verified',
+        phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
+        variables: {
+          customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
+          order_no: o.orderNumber || o.order_no || o.id,
+          paid_amount: `${(o.totalPriceKrw || o.total_amount || 0).toLocaleString('ko-KR')}원`
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     showToast(`[${o.orderNumber}] 결제확인 → 3단계 전환 완료`);
   } catch (err) {
@@ -3569,22 +3566,20 @@ async function executeAdvanceToShipping() {
       customsStep: 'sailing'
     });
 
-    // 솔라피 알림톡 발송 — shipping_ready 템플릿 미승인(2026-09-18)으로 당분간 비활성화.
-    // 템플릿 승인·ID 확정 후 주석 해제하고 api/send-alimtalk.js TEMPLATE_MAP.shipping_ready.id를
-    // 실제 값으로 교체할 것.
-    // fetch('/api/send-alimtalk', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     type: 'shipping_ready',
-    //     phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
-    //     variables: {
-    //       customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
-    //       order_no: o.orderNumber || o.order_no || o.id,
-    //       item_name: o.items?.[0]?.name || o.items?.[0]?.title || o.items?.[0]?.titleKo || o.product_name || '소싱 상품'
-    //     }
-    //   })
-    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+    // 솔라피 알림톡 발송 — shipping_ready. 2026-09-18 활성화 완료.
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'shipping_ready',
+        phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
+        variables: {
+          customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
+          order_no: o.orderNumber || o.order_no || o.id,
+          item_name: o.items?.[0]?.name || o.items?.[0]?.title || o.items?.[0]?.titleKo || o.product_name || '소싱 상품'
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     showToast(`[${o.orderNumber}] 선적처리 → 6단계 전환 완료`);
   } catch (err) {
@@ -3679,23 +3674,24 @@ async function submitTrackingForm() {
       customsStep: 'delivery'
     });
     
-    // 솔라피 알림톡 발송 — shipping_started 전용 템플릿이 솔라피 콘솔에 아직 승인되지 않아
-    // 당분간 비활성화 (2026-09-18 확인). 템플릿 승인·ID 확정 후 주석 해제하고
-    // api/send-alimtalk.js TEMPLATE_MAP.shipping_started.id를 실제 값으로 교체할 것.
-    // fetch('/api/send-alimtalk', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     type: 'shipping_started',
-    //     phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
-    //     variables: {
-    //       customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
-    //       order_no: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
-    //       item_name: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
-    //       extra_info: `${trackingForm.value.carrier} 송장: ${trackingForm.value.trackingNumber}`
-    //     }
-    //   })
-    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+    // 솔라피 알림톡 발송 — shipping_started. 2026-09-18 활성화 완료.
+    // ⚠️ TEMPLATE_MAP.shipping_started.id는 아직 placeholder(승인 신청조차 미접수) —
+    //    승인 신청 후 발급되는 실제 ID로 교체 전까지는 호출할 때마다 100% 실패 응답만 반환됨
+    //    (재시도 없는 1회성 요청이라 안전하게 무해함).
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'shipping_started',
+        phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
+        variables: {
+          customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
+          order_no: activeOrder.value.orderNumber || activeOrder.value.order_no || activeOrder.value.id,
+          item_name: activeOrder.value.items?.[0]?.name || activeOrder.value.items?.[0]?.title || activeOrder.value.items?.[0]?.titleKo || activeOrder.value.product_name || '소싱 상품',
+          extra_info: `${trackingForm.value.carrier} 송장: ${trackingForm.value.trackingNumber}`
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     showToast(`[${activeOrder.value.orderNumber}] 국내 송장(${trackingForm.value.carrier} ${trackingForm.value.trackingNumber}) 등록 → 8단계(국내배송) 전환`);
     closeModals();
@@ -3728,21 +3724,19 @@ async function executeMarkDelivered() {
       customsStep: 'delivered'
     });
 
-    // 솔라피 알림톡 발송 — delivered 템플릿 미승인(2026-09-18)으로 당분간 비활성화.
-    // 템플릿 승인·ID 확정 후 주석 해제하고 api/send-alimtalk.js TEMPLATE_MAP.delivered.id를
-    // 실제 값으로 교체할 것.
-    // fetch('/api/send-alimtalk', {
-    //   method: 'POST',
-    //   headers: { 'Content-Type': 'application/json' },
-    //   body: JSON.stringify({
-    //     type: 'delivered',
-    //     phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
-    //     variables: {
-    //       customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
-    //       order_no: o.orderNumber || o.order_no || o.id
-    //     }
-    //   })
-    // }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
+    // 솔라피 알림톡 발송 — delivered. 2026-09-18 활성화 완료.
+    fetch('/api/send-alimtalk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'delivered',
+        phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
+        variables: {
+          customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
+          order_no: o.orderNumber || o.order_no || o.id
+        }
+      })
+    }).catch((err) => console.warn('[알림톡 발송 요청 실패]', err.message));
 
     showToast(`[${o.orderNumber}] 배송완료(8단계 최종완료) 처리되었습니다!`);
   } catch (err) {
