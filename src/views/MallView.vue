@@ -1374,6 +1374,10 @@ const getTodayCacheKey = () =>
 
 const homeSections = ref([])
 const isHomeSectionsLoading = ref(false)
+// 모달 열고 닫을 때 popstate → route.query watcher 재실행으로 loadHomeSections()가
+// 다시 불려도, 이미 한 번 로드된 홈 화면을 스켈레톤으로 리셋하지 않기 위한 1회성 가드.
+// 컴포넌트 인스턴스 스코프의 일반 ref라 새로고침(F5) 시에는 자동으로 false로 리셋됨.
+const hasLoadedHomeSections = ref(false)
 
 const SESSION_CACHE_KEY = `euchs_home_md_best_cache_${HOME_SECTIONS_CACHE_VERSION}`
 const SESSION_CACHE_DATE_KEY = `euchs_home_md_best_cache_date_${HOME_SECTIONS_CACHE_VERSION}`
@@ -1531,7 +1535,7 @@ const retranslateCorruptedSections = (sections) => {
 }
 
 const loadHomeSections = async () => {
-  if (hasSearched.value || isHomeSectionsLoading.value) return
+  if (hasSearched.value || isHomeSectionsLoading.value || hasLoadedHomeSections.value) return
 
   // 상품 캐시 히트/미스와 무관하게 항상 최신 키워드풀 반영 (배너이미지 오버라이드 포함)
   await loadSectionKeywordPools()
@@ -1559,6 +1563,7 @@ const loadHomeSections = async () => {
         } else {
           homeSections.value = parsed
         }
+        hasLoadedHomeSections.value = true
         return
       }
     }
@@ -1579,6 +1584,7 @@ const loadHomeSections = async () => {
           homeSections.value = parsed
           localStorage.removeItem(cacheKey)
           retranslateCorruptedSections(homeSections.value)
+          hasLoadedHomeSections.value = true
           return
         }
         homeSections.value = parsed
@@ -1586,6 +1592,7 @@ const loadHomeSections = async () => {
           sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(parsed))
           sessionStorage.setItem(SESSION_CACHE_DATE_KEY, today)
         } catch (e) {}
+        hasLoadedHomeSections.value = true
         return
       } else {
         localStorage.removeItem(cacheKey)
@@ -1719,6 +1726,7 @@ const loadHomeSections = async () => {
   )
 
   homeSections.value = results
+  hasLoadedHomeSections.value = true
   isHomeSectionsLoading.value = false
 
   // 번역 성공 검증 후 캐시 저장 — 한자 남은 항목이 하나라도 있으면 저장 안 함
