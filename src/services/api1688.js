@@ -637,6 +637,20 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
 export async function translateItemsBatch(items) {
   if (!Array.isArray(items) || items.length === 0) return items
 
+  // ── 목록/제목 번역 전용 킬스위치 ─────────────────────────────────────────
+  // VITE_TRANSLATION_ENABLED(옵션 모달 fetch1688ProductById용)와는 별개 플래그.
+  // 기본값 false → 목록은 계속 원문 유지, 옵션 모달 번역만 재활성화하기 위한 분리.
+  // 재활성화 시: VITE_TRANSLATION_LIST_ENABLED=true 로 변경.
+  if (import.meta.env.VITE_TRANSLATION_LIST_ENABLED !== 'true') {
+    items.forEach(it => {
+      const raw = it.titleZh || it.title || it.subject || '1688 도매 상품'
+      const cleaned = cleanForeignText(raw) || raw
+      if (!it.titleKo) it.titleKo = cleaned
+      if (!it.title) it.title = it.titleKo
+    })
+    return items
+  }
+
   // 번역이 필요한 원문 제목들 수집
   const titlesToTranslate = items.map(it => it.titleZh || it.title || it.subject || '')
 
