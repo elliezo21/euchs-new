@@ -1423,7 +1423,11 @@ async function loadServerSectionCache(sectionIds, today) {
  * 자체를 완벽히 막지는 못하지만, 이후 방문자부터는 확실히 API 호출 없이 재사용됨)
  */
 async function saveServerSectionCache(sectionKey, today, items) {
-  if (!Array.isArray(items) || items.length === 0) return
+  if (!Array.isArray(items) || items.length === 0) {
+    console.warn(`[Mall][ServerCache] saveServerSectionCache 호출됐지만 items 없음: section=${sectionKey}`)
+    return
+  }
+  console.log(`[Mall][ServerCache] POST 시작: section=${sectionKey} date=${today} items=${items.length}`)
   try {
     const res = await fetch(SECTION_CACHE_API, {
       method: 'POST',
@@ -1432,9 +1436,10 @@ async function saveServerSectionCache(sectionKey, today, items) {
       signal: AbortSignal.timeout(8000),
     })
     const json = await res.json().catch(() => null)
-    if (!json?.success) console.warn('[Mall] 서버 섹션 캐시 저장 실패:', sectionKey, json?.message || `HTTP ${res.status}`)
+    if (!json?.success) console.warn('[Mall][ServerCache] 저장 실패:', sectionKey, 'HTTP', res.status, json?.message)
+    else console.log(`[Mall][ServerCache] 저장 성공: section=${sectionKey}`)
   } catch (e) {
-    console.warn('[Mall] 서버 섹션 캐시 저장 예외:', sectionKey, e.message)
+    console.warn('[Mall][ServerCache] 저장 예외:', sectionKey, e.message)
   }
 }
 
@@ -1690,11 +1695,19 @@ const loadHomeSections = async () => {
           }
         }).filter(item => item.id && (item.titleKo || item.title))
 
-        // 서버 공용 캐시에 저장 — 번역이 정상 완료된(한자 잔존 없는) 결과만 저장.
-        // 오염된 결과를 저장하면 그날 다른 모든 방문자에게도 미번역 상태가 그대로 노출되므로
-        // 저장 전 검증 필수 (브라우저 캐시 저장 시 검증하는 것과 동일 기준)
-        if (safeItems.length > 0 && !isCacheCorrupted([{ items: safeItems }])) {
+        // 서버 공용 캐시에 저장 — 번역 완료 여부(isCacheCorrupted)는 검증하지 않음.
+        // ⚠️ 2026-09-18 조사 결과: 운영 서버는 VITE_TRANSLATION_ENABLED가 꺼진 상태로 빌드되어
+        // 있어(api1688.js:932 주석, 관리자 대시보드 "번역 일시 중지 중" 배지 참고) titleKo가
+        // 항상 중국어 원문 그대로임 → isCacheCorrupted가 실질적으로 항상 true를 반환해
+        // 캐시 저장이 영구적으로 스킵되는 문제가 있었음. 캐시 여부와 무관하게 화면에 보이는
+        // titleKo 값(번역 상태)은 동일하므로, 번역 완료 검증 없이 있는 그대로 저장해 호출량
+        // 절감 목적을 달성함 (브라우저 localStorage/sessionStorage 저장 조건은 원래 로직 그대로
+        // 별도 유지 — 이 서버 캐시 저장 조건만 변경).
+        if (safeItems.length > 0) {
+          console.log(`[Mall][ServerCache] 저장 조건 충족 → saveServerSectionCache 호출: section=${sec.id}`)
           saveServerSectionCache(sec.id, today, safeItems)
+        } else {
+          console.warn(`[Mall][ServerCache] 저장 스킵(빈 결과): section=${sec.id}`)
         }
 
         return { ...sec, items: safeItems }
