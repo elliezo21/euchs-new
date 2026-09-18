@@ -87,12 +87,22 @@
           섹션당 활성 항목이 하나도 없으면 코드 내장 폴백 키워드가 대신 사용됩니다.
         </p>
       </div>
-      <button type="button" @click="openAddPoolModal"
-        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-sm transition cursor-pointer shrink-0 ml-4">
-        <i class="fas fa-plus text-xs"></i>
-        키워드 추가
-      </button>
+      <div class="flex items-center gap-2 shrink-0 ml-4">
+        <button type="button" @click="invalidateTodaySectionCache" :disabled="isCacheInvalidating"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 font-bold text-sm transition cursor-pointer">
+          <i :class="['fas text-xs', isCacheInvalidating ? 'fa-spinner fa-spin' : 'fa-rotate']"></i>
+          오늘 캐시 초기화
+        </button>
+        <button type="button" @click="openAddPoolModal"
+          class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-sm transition cursor-pointer">
+          <i class="fas fa-plus text-xs"></i>
+          키워드 추가
+        </button>
+      </div>
     </div>
+    <p v-if="cacheInvalidateStatus" class="text-xs -mt-3" :class="cacheInvalidateStatus.ok ? 'text-emerald-600' : 'text-rose-600'">
+      {{ cacheInvalidateStatus.message }}
+    </p>
 
     <!-- 카드 B: 섹션 키워드 풀 목록 -->
     <div class="space-y-4">
@@ -627,6 +637,38 @@ function isTodaysPoolPick(item) {
   if (activeList.length === 0) return false
   const idx = getTodayIndex(activeList.length)
   return activeList[idx]?.id === item.id
+}
+
+// 몰메인 서버 공용 캐시(home_section_cache) 오늘자 강제 초기화 — 관리자가 키워드/배너를
+// 바꾼 직후 "오늘 이미 캐시된 옛 결과"가 그대로 노출되는 걸 막기 위한 수동 무효화 버튼.
+// 삭제만 하면 다음 방문자가 loadHomeSections()에서 캐시 미스로 판단해 자동으로 재수집함.
+// home_section_cache는 RLS로 anon 직접 접근이 막혀 있어, 반드시 api/home-section-cache.js
+// DELETE(관리자 세션 토큰 검증)를 거쳐야 한다 — api/1688-order-create.js 호출 패턴과 동일하게
+// supabase.auth.getSession()의 access_token을 Authorization: Bearer로 전달.
+const isCacheInvalidating = ref(false)
+const cacheInvalidateStatus = ref(null)
+
+async function invalidateTodaySectionCache() {
+  if (!confirm('오늘 저장된 몰메인 6섹션 서버 캐시를 모두 삭제하시겠습니까?\n다음 방문자부터 1688 검색이 다시 실행됩니다.')) return
+  isCacheInvalidating.value = true
+  cacheInvalidateStatus.value = null
+  try {
+    const today = new Date().toISOString().slice(0, 10)
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session?.access_token) throw new Error('관리자 세션이 없습니다. 다시 로그인해 주세요.')
+
+    const res = await fetch(`/api/home-section-cache?date=${encodeURIComponent(today)}`, {
+      method: 'DELETE',
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+    })
+    const json = await res.json().catch(() => null)
+    if (!json?.success) throw new Error(json?.message || `HTTP ${res.status}`)
+    cacheInvalidateStatus.value = { ok: true, message: '오늘자 캐시를 초기화했습니다. 다음 방문자부터 새로 수집됩니다.' }
+  } catch (err) {
+    cacheInvalidateStatus.value = { ok: false, message: '초기화 실패: ' + (err.message || '알 수 없는 오류') }
+  } finally {
+    isCacheInvalidating.value = false
+  }
 }
 
 async function loadKeywordPools() {

@@ -1378,6 +1378,66 @@ const isHomeSectionsLoading = ref(false)
 const SESSION_CACHE_KEY = `euchs_home_md_best_cache_${HOME_SECTIONS_CACHE_VERSION}`
 const SESSION_CACHE_DATE_KEY = `euchs_home_md_best_cache_date_${HOME_SECTIONS_CACHE_VERSION}`
 
+// ============================================================
+// 🌐 서버 공용 캐시 (home_section_cache 테이블, api/home-section-cache.js 경유) — 1차 방어선
+// sessionStorage/localStorage(2차 방어선, 같은 브라우저 재방문용)보다 먼저 확인.
+// 하루 중 특정 섹션을 "최초로" 요청한 방문자만 1688 API를 호출하고 결과를 이 테이블에
+// 저장 → 같은 날 다른 모든 방문자는 이 값을 그대로 재사용(API 호출 0회로 수렴).
+// home_section_cache는 RLS로 공개 접근이 완전히 막혀 있어(anon 정책 없음), 브라우저는
+// 이 테이블에 직접 접근할 수 없고 반드시 서버리스 프록시(api/home-section-cache.js,
+// service_role key 사용)를 거쳐야 한다 — 1688-search.js가 OneBound를 중계하는 구조와 동일.
+// section_keyword_pools(오늘의 키워드 선택 로직)와는 무관 — 이미 선택된 키워드로
+// 검색한 "결과"만 저장한다.
+// ============================================================
+const SECTION_CACHE_API = '/api/home-section-cache'
+
+/**
+ * 오늘 날짜로 이미 저장된 섹션들의 payload를 한 번의 요청으로 조회
+ * @param {string[]} sectionIds
+ * @param {string} today - YYYY-MM-DD
+ * @returns {Promise<Map<string, Array>>} section_key → items 배열
+ */
+async function loadServerSectionCache(sectionIds, today) {
+  const map = new Map()
+  try {
+    const qs = new URLSearchParams({ sections: sectionIds.join(','), date: today }).toString()
+    const res = await fetch(`${SECTION_CACHE_API}?${qs}`, { signal: AbortSignal.timeout(8000) })
+    const json = await res.json().catch(() => null)
+    if (!json?.success || !json.data) {
+      console.warn('[Mall] 서버 섹션 캐시 조회 실패:', json?.message || `HTTP ${res.status}`)
+      return map
+    }
+    for (const [sectionKey, items] of Object.entries(json.data)) {
+      if (Array.isArray(items) && items.length > 0) map.set(sectionKey, items)
+    }
+  } catch (e) {
+    console.warn('[Mall] 서버 섹션 캐시 조회 예외:', e.message)
+  }
+  return map
+}
+
+/**
+ * 신규로 1688에서 가져온 섹션 결과를 서버 공용 캐시에 저장 (같은 날 다른 방문자가 재사용)
+ * section_key+cached_date 유니크 제약 기준 upsert — 동시에 여러 방문자가 "오늘 첫 방문"으로
+ * 캐시 미스 판정을 받아도 중복 행 없이 마지막 저장값으로 수렴함 (그 순간의 중복 API 호출
+ * 자체를 완벽히 막지는 못하지만, 이후 방문자부터는 확실히 API 호출 없이 재사용됨)
+ */
+async function saveServerSectionCache(sectionKey, today, items) {
+  if (!Array.isArray(items) || items.length === 0) return
+  try {
+    const res = await fetch(SECTION_CACHE_API, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sectionKey, cachedDate: today, payload: items }),
+      signal: AbortSignal.timeout(8000),
+    })
+    const json = await res.json().catch(() => null)
+    if (!json?.success) console.warn('[Mall] 서버 섹션 캐시 저장 실패:', sectionKey, json?.message || `HTTP ${res.status}`)
+  } catch (e) {
+    console.warn('[Mall] 서버 섹션 캐시 저장 예외:', sectionKey, e.message)
+  }
+}
+
 /**
  * 이미 수신된 1688 응답에서 상품 배열을 안전하게 추출하는 다계층 파서
  * 추가 API 호출 없이 클라이언트 메모리의 raw data에서 직접 추출
@@ -1585,8 +1645,18 @@ const loadHomeSections = async () => {
     },
   ]
 
+  // 3-1. 서버 공용 캐시(home_section_cache) 조회 — 오늘 다른 방문자가 이미 채워둔 섹션은
+  // 1688 API 호출 없이 그대로 재사용
+  const serverCacheMap = await loadServerSectionCache(sectionDefs.map(s => s.id), today)
+
   const results = await Promise.all(
     sectionDefs.map(async (sec) => {
+      // 서버 캐시 HIT: API 호출 없이 즉시 사용
+      const serverCachedItems = serverCacheMap.get(sec.id)
+      if (Array.isArray(serverCachedItems) && serverCachedItems.length > 0) {
+        return { ...sec, items: serverCachedItems }
+      }
+
       try {
         const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
 
@@ -1619,6 +1689,13 @@ const loadHomeSections = async () => {
             company: item.company || raw.nick || raw.shop_name || '1688 공급사',
           }
         }).filter(item => item.id && (item.titleKo || item.title))
+
+        // 서버 공용 캐시에 저장 — 번역이 정상 완료된(한자 잔존 없는) 결과만 저장.
+        // 오염된 결과를 저장하면 그날 다른 모든 방문자에게도 미번역 상태가 그대로 노출되므로
+        // 저장 전 검증 필수 (브라우저 캐시 저장 시 검증하는 것과 동일 기준)
+        if (safeItems.length > 0 && !isCacheCorrupted([{ items: safeItems }])) {
+          saveServerSectionCache(sec.id, today, safeItems)
+        }
 
         return { ...sec, items: safeItems }
       } catch (e) {
