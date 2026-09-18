@@ -792,12 +792,11 @@
                 <!-- 섹션 테마 배너 (관리자가 banners.section_key로 직접 편집, 미등록 시 미노출) -->
                 <div
                   v-if="sectionBanners[section.id]"
-                  class="lg:w-[280px] xl:w-[320px] shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-between p-5 text-white min-h-[200px]"
+                  class="aspect-video lg:aspect-[4/9] lg:w-[280px] xl:w-[320px] self-start shrink-0 rounded-2xl overflow-hidden relative flex flex-col justify-between p-5 text-white"
                   :style="sectionBanners[section.id].image_url
                     ? `background: url('${sectionBanners[section.id].image_url}') center/cover no-repeat;`
                     : `background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);`"
                 >
-                  <div v-if="sectionBanners[section.id].image_url" class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent pointer-events-none"></div>
                   <div class="space-y-2 relative z-10">
                     <span v-if="sectionBanners[section.id].label" class="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-black uppercase inline-block">
                       {{ sectionBanners[section.id].label }}
@@ -1301,8 +1300,10 @@ const items = ref([])
  * (categories[].id: fashion / living / camping / digital / beauty 그룹의 items 참조)
  * → 섹션 라벨과 실제 노출 상품이 정확히 일치하도록 보장, 신규 카테고리 임의 추측 없음
  */
+// ⚠️ DB(section_keyword_pools 테이블)가 비어있거나 로드 실패했을 때만 쓰는 비상 폴백값.
+// 정상 상태에서는 아래 값이 아니라 관리자 페이지(/admin/banners → "섹션 키워드 풀" 탭)에서
+// 관리하는 section_keyword_pools 테이블 데이터가 우선 사용됨 (getTodaySectionPick 참고)
 const HOME_SECTION_POOLS = {
-  // 특정 카테고리에 종속되지 않는 범용 "오늘의 MD 베스트" — quickTabs 'best' 키워드와 동일 계열, 타 섹션과 중복 없음
   md:      ['베스트 인기상품', '신상품 인기템', '온라인 셀러 인기 아이템'],
   fashion: ['원피스', '블라우스 셔츠', '니트 가디건', '슬랙스 바지', '자켓 코트', '맨투맨 후드'],
   living:  ['텀블러 물병', '식기 접시', '밀폐용기', '욕실용품 청소도구', '수납 정리함', '우산 양산'],
@@ -1311,15 +1312,62 @@ const HOME_SECTION_POOLS = {
   beauty:  ['스킨 로션', '마스크팩', '선크림', '립스틱 메이크업', '고데기 헤어드라이어', '네일용품'],
 }
 
-const getTodayKeyword = (pool) => {
+// 날짜를 숫자로 변환해 풀 개수로 나눈 나머지 — 순수 계산식, 크론/스케줄러 없음.
+// 날짜가 바뀌면(자정) 이 값이 자동으로 바뀌어 다음 인덱스의 키워드가 선택됨.
+const getTodayIndex = (len) => {
   const now = new Date()
   const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000)
-  return pool[dayOfYear % pool.length]
+  return dayOfYear % len
 }
 
-// v2: 섹션-키워드 매핑 수정(가방/보온병 오염 제거) + 6섹션 확장에 따른 캐시 버전업
-// 구버전 캐시(4섹션, 오염된 키워드)가 오늘자 캐시로 남아있어도 무시하고 재조회하도록 키 자체를 분리
-const HOME_SECTIONS_CACHE_VERSION = 'v2'
+const getTodayKeyword = (pool) => pool[getTodayIndex(pool.length)]
+
+// ============================================================
+// 🗂️ 섹션 키워드 풀 (관리자 편집, DB: section_keyword_pools)
+// banners.section_key(고정 노출 배너)와는 별개 — 이건 "키워드+배너이미지 세트"를
+// 날짜 인덱스로 로테이션하는 풀. 세트에 배너이미지가 있으면 섹션 배너 영역의
+// image_url을 그 날의 것으로 덮어씀(라벨/설명/버튼 등 텍스트는 banners.section_key 값 유지).
+// ============================================================
+const sectionKeywordPools = ref({}) // { md: [{id,keyword,banner_image_url,sort_order}, ...], ... }
+
+async function loadSectionKeywordPools() {
+  try {
+    const { data, error } = await supabase
+      .from('section_keyword_pools')
+      .select('*')
+      .eq('is_active', true)
+      .order('section_key', { ascending: true })
+      .order('sort_order', { ascending: true })
+    if (error || !Array.isArray(data)) return
+    const grouped = {}
+    for (const row of data) {
+      if (!grouped[row.section_key]) grouped[row.section_key] = []
+      grouped[row.section_key].push(row)
+    }
+    sectionKeywordPools.value = grouped
+  } catch (e) {
+    console.warn('[Mall] 섹션 키워드 풀 로드 실패 — 하드코딩 폴백 사용:', e)
+  }
+}
+
+/**
+ * 섹션의 "오늘의 선택" 결정 — DB 풀 우선, 비어있으면 하드코딩 HOME_SECTION_POOLS 폴백
+ * @returns {{ keyword: string, bannerImageUrl: string, fromDb: boolean }}
+ */
+function getTodaySectionPick(sectionId) {
+  const dbPool = sectionKeywordPools.value[sectionId]
+  if (Array.isArray(dbPool) && dbPool.length > 0) {
+    const idx = getTodayIndex(dbPool.length)
+    const picked = dbPool[idx]
+    return { keyword: picked.keyword, bannerImageUrl: picked.banner_image_url || '', fromDb: true }
+  }
+  const fallbackPool = HOME_SECTION_POOLS[sectionId] || []
+  return { keyword: getTodayKeyword(fallbackPool), bannerImageUrl: '', fromDb: false }
+}
+
+// v3: 하드코딩 배열 → section_keyword_pools DB 풀 방식 전환에 따른 캐시 버전업
+// (v2까지의 캐시된 결과는 어느 소스로 뽑혔는지 알 수 없으므로 폐기하고 재조회)
+const HOME_SECTIONS_CACHE_VERSION = 'v3'
 
 const getTodayCacheKey = () =>
   `euchs_home_daily_sections_${HOME_SECTIONS_CACHE_VERSION}_${new Date().toISOString().slice(0, 10)}`
@@ -1420,6 +1468,10 @@ const retranslateCorruptedSections = (sections) => {
 const loadHomeSections = async () => {
   if (hasSearched.value || isHomeSectionsLoading.value) return
 
+  // 상품 캐시 히트/미스와 무관하게 항상 최신 키워드풀 반영 (배너이미지 오버라이드 포함)
+  await loadSectionKeywordPools()
+  applySectionPoolBannerOverrides()
+
   const cacheKey = getTodayCacheKey()
   const today = new Date().toISOString().slice(0, 10)
 
@@ -1485,7 +1537,7 @@ const loadHomeSections = async () => {
     })
   } catch (e) {}
 
-  // 3. 4개 섹션 API 병렬 호출
+  // 3. 6개 섹션 API 병렬 호출 (키워드풀은 함수 시작 시 이미 로드됨)
   isHomeSectionsLoading.value = true
 
   const sectionDefs = [
@@ -1493,42 +1545,42 @@ const loadHomeSections = async () => {
       id:       'md',
       title:    '🔥 오늘의 MD 추천 베스트',
       subtitle: '매일 업데이트되는 소싱 MD 엄선 추천 상품',
-      keyword:  getTodayKeyword(HOME_SECTION_POOLS.md),
+      keyword:  getTodaySectionPick('md').keyword,
       color:    'from-rose-500 to-orange-500',
     },
     {
       id:       'fashion',
       title:    '👗 트렌드 패션 기획전',
       subtitle: '오늘의 패션 핫아이템 모음',
-      keyword:  getTodayKeyword(HOME_SECTION_POOLS.fashion),
+      keyword:  getTodaySectionPick('fashion').keyword,
       color:    'from-violet-500 to-purple-600',
     },
     {
       id:       'living',
       title:    '🏠 생활 & 주방 아이디어 잡화',
       subtitle: '집을 더 편리하게 만드는 베스트 잡화',
-      keyword:  getTodayKeyword(HOME_SECTION_POOLS.living),
+      keyword:  getTodaySectionPick('living').keyword,
       color:    'from-emerald-500 to-teal-600',
     },
     {
       id:       'sports',
       title:    '⛺ 스포츠/레저 & 캠핑 테마관',
       subtitle: '아웃도어 & 홈트 인기 상품 모음',
-      keyword:  getTodayKeyword(HOME_SECTION_POOLS.sports),
+      keyword:  getTodaySectionPick('sports').keyword,
       color:    'from-blue-500 to-indigo-600',
     },
     {
       id:       'digital',
       title:    '📱 디지털/가전 잇템',
       subtitle: '이어폰부터 차량용품까지 인기 디지털 아이템',
-      keyword:  getTodayKeyword(HOME_SECTION_POOLS.digital),
+      keyword:  getTodaySectionPick('digital').keyword,
       color:    'from-slate-500 to-slate-700',
     },
     {
       id:       'beauty',
       title:    '💄 뷰티 & 화장품 셀렉트',
       subtitle: '스킨케어부터 뷰티기기까지 인기 뷰티템',
-      keyword:  getTodayKeyword(HOME_SECTION_POOLS.beauty),
+      keyword:  getTodaySectionPick('beauty').keyword,
       color:    'from-pink-500 to-rose-500',
     },
   ]
@@ -1639,6 +1691,23 @@ async function loadSectionBanners() {
 function isSectionBannerExternal(banner) {
   const url = banner?.button_url || banner?.link_url
   return url ? url.startsWith('http://') || url.startsWith('https://') : false
+}
+
+// section_keyword_pools에서 오늘 선택된 세트에 banner_image_url이 있으면
+// 섹션 배너 영역의 image_url만 덮어씀 (label/heading/description/버튼 등 텍스트는
+// banners.section_key 행 값을 그대로 유지 — 관리자가 그쪽에서 편집한 문구를 보존)
+function applySectionPoolBannerOverrides() {
+  const SECTION_IDS = ['md', 'fashion', 'living', 'sports', 'digital', 'beauty']
+  const next = { ...sectionBanners.value }
+  let changed = false
+  for (const id of SECTION_IDS) {
+    const pick = getTodaySectionPick(id)
+    if (pick.bannerImageUrl) {
+      next[id] = { ...(next[id] || {}), image_url: pick.bannerImageUrl }
+      changed = true
+    }
+  }
+  if (changed) sectionBanners.value = next
 }
 
 // ----------------------------------------------------
@@ -2721,7 +2790,10 @@ onMounted(async () => {
   safeLoadBalance()
   loadMallNotices()
   updateSavedCount()
-  loadSectionBanners()
+  // loadHomeSections()도 내부에서 applySectionPoolBannerOverrides()를 호출하지만,
+  // 이 프로미스가 그보다 늦게 끝나면 sectionBanners.value 전체 교체로 오버라이드가
+  // 덮어써질 수 있어 완료 후 한 번 더 재적용한다 (idempotent, 순서 무관하게 항상 최종 반영)
+  loadSectionBanners().then(() => applySectionPoolBannerOverrides())
   handleIncomingQuery()
   fetchOrdersFromSupabase().then(dbOrders => {
     if (Array.isArray(dbOrders)) submittedOrders.value = dbOrders

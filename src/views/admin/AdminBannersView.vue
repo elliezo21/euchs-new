@@ -1,10 +1,10 @@
 <template>
   <div class="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
 
-    <!-- 헤더 -->
+    <!-- 카드 A 헤더: 배너 관리 -->
     <div class="flex items-center justify-between">
       <div>
-        <h1 class="text-xl font-black text-slate-900">메인 배너 관리</h1>
+        <h1 class="text-xl font-black text-slate-900">배너 관리</h1>
         <p class="text-sm text-slate-500 mt-0.5">메인 소싱몰 상단 롤링 배너를 관리합니다.</p>
       </div>
       <button type="button" @click="openAddModal"
@@ -14,7 +14,7 @@
       </button>
     </div>
 
-    <!-- 배너 목록 -->
+    <!-- 카드 A: 배너 목록 -->
     <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
       <div v-if="isLoading" class="p-8 text-center text-slate-400">
         <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>불러오는 중...
@@ -73,6 +73,92 @@
               class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition cursor-pointer">
               삭제
             </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카드 B 헤더: 섹션 키워드 풀 -->
+    <div class="flex items-center justify-between pt-2">
+      <div>
+        <h2 class="text-xl font-black text-slate-900">섹션 키워드 풀</h2>
+        <p class="text-sm text-slate-500 mt-0.5">
+          홈 섹션 6개가 매일(날짜 기반 자동 로테이션, 크론 없음) 순서대로 아래 키워드로 1688 검색을 수행합니다.
+          섹션당 활성 항목이 하나도 없으면 코드 내장 폴백 키워드가 대신 사용됩니다.
+        </p>
+      </div>
+      <button type="button" @click="openAddPoolModal"
+        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-sm transition cursor-pointer shrink-0 ml-4">
+        <i class="fas fa-plus text-xs"></i>
+        키워드 추가
+      </button>
+    </div>
+
+    <!-- 카드 B: 섹션 키워드 풀 목록 -->
+    <div class="space-y-4">
+      <!-- 섹션 선택 pill -->
+      <div class="flex items-center gap-2 flex-wrap">
+        <button v-for="opt in SECTION_OPTIONS" :key="opt.value" type="button"
+          @click="selectedPoolSection = opt.value"
+          :class="['px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer',
+            selectedPoolSection === opt.value ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300']">
+          {{ opt.label }}
+        </button>
+      </div>
+
+      <div class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+        <div v-if="isPoolLoading" class="p-8 text-center text-slate-400">
+          <i class="fas fa-spinner fa-spin text-2xl mb-2 block"></i>불러오는 중...
+        </div>
+        <div v-else-if="filteredPoolItems.length === 0" class="p-10 text-center text-slate-400">
+          <i class="fas fa-tags text-4xl mb-3 block text-slate-200"></i>
+          <p class="font-bold">이 섹션에 등록된 키워드가 없습니다.</p>
+          <p class="text-sm mt-1">코드 내장 폴백 키워드로 동작 중입니다. "키워드 추가"로 등록해 보세요.</p>
+        </div>
+        <div v-else class="divide-y divide-slate-100">
+          <div v-for="(item, idx) in filteredPoolItems" :key="item.id"
+            class="flex items-center gap-4 p-4 hover:bg-slate-50 transition">
+            <!-- 순서 이동 -->
+            <div class="flex flex-col gap-0.5 shrink-0">
+              <button type="button" @click="movePoolItem(item, -1)" :disabled="idx === 0"
+                class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 text-xs cursor-pointer">▲</button>
+              <button type="button" @click="movePoolItem(item, 1)" :disabled="idx === filteredPoolItems.length - 1"
+                class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 text-xs cursor-pointer">▼</button>
+            </div>
+            <!-- 썸네일 -->
+            <div class="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center">
+              <img v-if="item.banner_image_url" :src="item.banner_image_url" alt="배너"
+                class="w-full h-full object-cover" @error="handleImgError" />
+              <i v-else class="fas fa-image text-slate-300"></i>
+            </div>
+            <!-- 정보 -->
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center gap-2 flex-wrap">
+                <p class="font-bold text-slate-800 text-sm truncate">{{ item.keyword }}</p>
+                <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', item.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500']">
+                  {{ item.is_active ? '활성' : '비활성' }}
+                </span>
+                <span v-if="isTodaysPoolPick(item)" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                  오늘 선택됨
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 mt-0.5">순서 {{ idx + 1 }} / {{ filteredPoolItems.length }}</p>
+            </div>
+            <!-- 액션 버튼 -->
+            <div class="flex items-center gap-2 shrink-0">
+              <button type="button" @click="togglePoolActive(item)"
+                :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer', item.is_active ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700']">
+                {{ item.is_active ? '비활성화' : '활성화' }}
+              </button>
+              <button type="button" @click="openEditPoolModal(item)"
+                class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition cursor-pointer">
+                수정
+              </button>
+              <button type="button" @click="deletePoolItem(item)"
+                class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition cursor-pointer">
+                삭제
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -268,11 +354,93 @@
         </div>
       </transition>
     </teleport>
+
+    <!-- 섹션 키워드 풀 추가/수정 모달 -->
+    <teleport to="body">
+      <transition name="fade">
+        <div v-if="isPoolModalOpen" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" @click.self="closePoolModal">
+          <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-6 space-y-5">
+            <div class="flex items-center justify-between">
+              <h2 class="text-base font-black text-slate-900">{{ editingPoolItem ? '키워드 수정' : '키워드 추가' }}</h2>
+              <button @click="closePoolModal" class="text-slate-400 hover:text-slate-600 p-1 cursor-pointer text-lg">✕</button>
+            </div>
+
+            <!-- 노출 섹션 -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 섹션 <span class="text-rose-500">*</span></label>
+              <select v-model="poolForm.section_key" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
+                <option v-for="opt in SECTION_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
+              </select>
+            </div>
+
+            <!-- 검색 키워드 -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">1688 검색 키워드(한글 또는 중국어) <span class="text-rose-500">*</span></label>
+              <input v-model="poolForm.keyword" type="text" placeholder="예: 보조배터리 또는 充电宝" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition" />
+              <p class="text-[10px] text-slate-400 mt-1">한글 입력 시 사전/번역 API로 중국어 변환, 중국어 직접 입력 시 그대로 검색에 사용됩니다.</p>
+            </div>
+
+            <!-- 배너 이미지 업로드 (선택) -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">이 키워드가 선택된 날 노출할 배너 이미지 <span class="text-slate-400 font-medium">(선택, 없으면 섹션 고정배너 유지)</span></label>
+              <p class="text-[10px] text-slate-500 mb-2 leading-relaxed">
+                권장 업로드 규격: <span class="font-bold text-slate-700">400 × 900px (세로형, 비율 4:9)</span> —
+                PC에서는 이 비율 그대로, 모바일에서는 배너가 가로로 짧아져(16:9) 자동으로 다시 크롭됩니다.
+                다른 비율을 올려도 레이아웃이 깨지지 않고 가운데 기준으로 잘려서 채워집니다.
+              </p>
+              <div class="relative">
+                <div v-if="poolForm.banner_image_url" class="mb-2 flex items-start gap-3">
+                  <div class="w-28 aspect-[4/9] rounded-xl overflow-hidden bg-slate-100 relative shrink-0">
+                    <img :src="poolForm.banner_image_url" alt="PC 크롭 미리보기" class="w-full h-full object-cover" />
+                    <button @click="poolForm.banner_image_url = ''" class="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white text-xs hover:bg-black/70 flex items-center justify-center cursor-pointer">✕</button>
+                  </div>
+                  <div class="flex-1 aspect-video rounded-xl overflow-hidden bg-slate-100 relative">
+                    <img :src="poolForm.banner_image_url" alt="모바일 크롭 미리보기" class="w-full h-full object-cover" />
+                  </div>
+                </div>
+                <p v-if="poolForm.banner_image_url" class="text-[10px] text-slate-400 mb-2">왼쪽: PC(4:9) 크롭 미리보기 · 오른쪽: 모바일(16:9) 크롭 미리보기</p>
+                <label class="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 hover:border-purple-400 rounded-xl cursor-pointer transition text-sm text-slate-500 hover:text-purple-600">
+                  <i class="fas fa-cloud-upload-alt"></i>
+                  <span>{{ isPoolUploading ? '업로드 중...' : '이미지 클릭하여 업로드 (JPEG/PNG/WebP, 5MB 이하)' }}</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handlePoolImageUpload" :disabled="isPoolUploading" />
+                </label>
+              </div>
+            </div>
+
+            <!-- 활성 상태 -->
+            <div>
+              <label class="block text-xs font-bold text-slate-700 mb-1.5">활성 상태</label>
+              <div class="flex items-center h-10">
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" v-model="poolForm.is_active" class="sr-only peer" />
+                  <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
+                  <span class="ml-2 text-sm font-medium text-slate-700">{{ poolForm.is_active ? '활성' : '비활성' }}</span>
+                </label>
+              </div>
+              <p class="text-[10px] text-slate-400 mt-1">비활성 항목은 로테이션 대상에서 제외됩니다(순서/인덱스도 재계산됨).</p>
+            </div>
+
+            <!-- 에러 메시지 -->
+            <p v-if="poolFormError" class="text-xs text-rose-600 font-bold">{{ poolFormError }}</p>
+
+            <!-- 저장 버튼 -->
+            <div class="flex gap-3 pt-2">
+              <button type="button" @click="closePoolModal" class="flex-1 py-3 rounded-2xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition cursor-pointer">취소</button>
+              <button type="button" @click="savePoolItem" :disabled="isPoolSaving"
+                class="flex-1 py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-sm shadow-sm transition cursor-pointer flex items-center justify-center gap-2">
+                <i v-if="isPoolSaving" class="fas fa-spinner fa-spin text-xs"></i>
+                {{ isPoolSaving ? '저장 중...' : (editingPoolItem ? '수정 저장' : '키워드 추가') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </transition>
+    </teleport>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { supabase } from '../../lib/supabase'
 
 const banners = ref([])
@@ -416,7 +584,176 @@ function handleImgError(e) {
   e.target.src = 'https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=400&auto=format&fit=crop&q=60'
 }
 
-onMounted(loadBanners)
+// ============================================================
+// 섹션 키워드 풀 관리 (section_keyword_pools 테이블)
+// MallView.vue의 홈 섹션 6개가 매일 이 테이블에서 활성 키워드를 로테이션함
+// ============================================================
+const keywordPools = ref([])
+const isPoolLoading = ref(false)
+const selectedPoolSection = ref(SECTION_OPTIONS[0].value)
+const isPoolModalOpen = ref(false)
+const isPoolSaving = ref(false)
+const isPoolUploading = ref(false)
+const editingPoolItem = ref(null)
+const poolFormError = ref('')
+
+const defaultPoolForm = () => ({
+  section_key: selectedPoolSection.value,
+  keyword: '',
+  banner_image_url: '',
+  sort_order: 0,
+  is_active: true,
+})
+const poolForm = ref(defaultPoolForm())
+
+const filteredPoolItems = computed(() =>
+  keywordPools.value
+    .filter(p => p.section_key === selectedPoolSection.value)
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+)
+
+// MallView.vue getTodayIndex()와 동일한 순수 계산식(날짜→일련번호→나머지) — 관리자 화면에
+// "오늘 어떤 항목이 실제로 선택되는지" 미리 보여주기 위한 것으로, 실제 로테이션은 프론트 쪽에서 계산됨
+function getTodayIndex(len) {
+  const now = new Date()
+  const dayOfYear = Math.floor((now - new Date(now.getFullYear(), 0, 0)) / 86400000)
+  return dayOfYear % len
+}
+
+function isTodaysPoolPick(item) {
+  if (!item.is_active) return false
+  const activeList = filteredPoolItems.value.filter(p => p.is_active)
+  if (activeList.length === 0) return false
+  const idx = getTodayIndex(activeList.length)
+  return activeList[idx]?.id === item.id
+}
+
+async function loadKeywordPools() {
+  isPoolLoading.value = true
+  try {
+    const { data, error } = await supabase
+      .from('section_keyword_pools')
+      .select('*')
+      .order('section_key', { ascending: true })
+      .order('sort_order', { ascending: true })
+    if (!error && data) keywordPools.value = data
+  } finally {
+    isPoolLoading.value = false
+  }
+}
+
+function openAddPoolModal() {
+  editingPoolItem.value = null
+  poolForm.value = defaultPoolForm()
+  poolFormError.value = ''
+  isPoolModalOpen.value = true
+}
+
+function openEditPoolModal(item) {
+  editingPoolItem.value = item
+  poolForm.value = { ...item }
+  poolFormError.value = ''
+  isPoolModalOpen.value = true
+}
+
+function closePoolModal() {
+  isPoolModalOpen.value = false
+  editingPoolItem.value = null
+  poolFormError.value = ''
+}
+
+async function handlePoolImageUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file) return
+  if (file.size > 5 * 1024 * 1024) {
+    poolFormError.value = '5MB 이하의 이미지만 업로드 가능합니다.'
+    return
+  }
+  isPoolUploading.value = true
+  poolFormError.value = ''
+  try {
+    const ext = file.name.split('.').pop()
+    const fileName = `pool_${Date.now()}.${ext}`
+    const { data, error } = await supabase.storage
+      .from('banners')
+      .upload(fileName, file, { cacheControl: '3600', upsert: true })
+    if (error) throw error
+    const { data: urlData } = supabase.storage.from('banners').getPublicUrl(data.path)
+    poolForm.value.banner_image_url = urlData.publicUrl
+  } catch (err) {
+    poolFormError.value = '이미지 업로드 실패: ' + (err.message || '알 수 없는 오류')
+  } finally {
+    isPoolUploading.value = false
+  }
+}
+
+async function savePoolItem() {
+  if (!poolForm.value.keyword || !poolForm.value.keyword.trim()) {
+    poolFormError.value = '키워드를 입력해 주세요.'
+    return
+  }
+  isPoolSaving.value = true
+  poolFormError.value = ''
+  try {
+    const payload = { ...poolForm.value }
+    if (!editingPoolItem.value) {
+      // 신규 추가 시 해당 섹션의 마지막 순서 다음으로 자동 배치
+      const sectionItems = keywordPools.value.filter(p => p.section_key === payload.section_key)
+      payload.sort_order = sectionItems.length > 0 ? Math.max(...sectionItems.map(p => p.sort_order)) + 1 : 0
+    }
+
+    let error
+    if (editingPoolItem.value) {
+      ;({ error } = await supabase.from('section_keyword_pools').update(payload).eq('id', editingPoolItem.value.id))
+    } else {
+      delete payload.id
+      ;({ error } = await supabase.from('section_keyword_pools').insert(payload))
+    }
+    if (error) throw error
+    closePoolModal()
+    await loadKeywordPools()
+  } catch (err) {
+    poolFormError.value = '저장 실패: ' + (err.message || '알 수 없는 오류')
+  } finally {
+    isPoolSaving.value = false
+  }
+}
+
+async function togglePoolActive(item) {
+  const { error } = await supabase.from('section_keyword_pools').update({ is_active: !item.is_active }).eq('id', item.id)
+  if (!error) item.is_active = !item.is_active
+}
+
+async function deletePoolItem(item) {
+  if (!confirm(`"${item.keyword}" 키워드를 삭제하시겠습니까?`)) return
+  const { error } = await supabase.from('section_keyword_pools').delete().eq('id', item.id)
+  if (!error) keywordPools.value = keywordPools.value.filter(p => p.id !== item.id)
+}
+
+// 같은 섹션 내 인접 항목과 sort_order를 맞바꿔 순서 이동 (드래그 없이 안정적으로 구현)
+async function movePoolItem(item, direction) {
+  const list = filteredPoolItems.value
+  const idx = list.findIndex(p => p.id === item.id)
+  const targetIdx = idx + direction
+  if (targetIdx < 0 || targetIdx >= list.length) return
+  const target = list[targetIdx]
+  const itemNewOrder = target.sort_order
+  const targetNewOrder = item.sort_order
+  const [{ error: e1 }, { error: e2 }] = await Promise.all([
+    supabase.from('section_keyword_pools').update({ sort_order: itemNewOrder }).eq('id', item.id),
+    supabase.from('section_keyword_pools').update({ sort_order: targetNewOrder }).eq('id', target.id),
+  ])
+  if (!e1 && !e2) {
+    item.sort_order = itemNewOrder
+    target.sort_order = targetNewOrder
+  }
+}
+
+onMounted(() => {
+  loadBanners()
+  loadKeywordPools()
+})
 </script>
 
 <style scoped>
