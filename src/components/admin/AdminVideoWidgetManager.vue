@@ -51,16 +51,41 @@
         </label>
       </div>
 
-      <!-- 유튜브 선택 시: URL 입력만 -->
+      <!-- 유튜브 선택 시: 링크 입력 (최대 3개, 2개 이상이면 끝까지 재생 후 순서대로 자동 전환) -->
       <div v-if="form.sourceType === 'youtube'" class="space-y-2">
-        <label class="text-xs font-bold text-slate-800">유튜브 링크</label>
-        <input
-          type="text"
-          v-model="form.youtubeUrl"
-          placeholder="예: https://www.youtube.com/shorts/XXXXXXXXXXX"
-          class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xs outline-none focus:ring-2 focus:ring-rose-500"
-        />
-        <p class="text-[11px] text-slate-500">세로(Shorts) 영상을 권장합니다. 가로 영상은 9:16 틀에 맞춰 가운데가 잘려 보입니다.</p>
+        <div class="flex items-center justify-between">
+          <label class="text-xs font-bold text-slate-800">유튜브 링크 (최대 {{ maxUrls }}개)</label>
+          <button
+            type="button"
+            :disabled="form.youtubeUrls.length >= maxUrls"
+            @click="addUrl"
+            class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-700 hover:text-white font-bold text-[11px] border border-rose-200 hover:border-rose-500 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50 disabled:hover:text-rose-700 disabled:hover:border-rose-200"
+          >
+            + 링크 추가
+          </button>
+        </div>
+        <div v-for="(_, i) in form.youtubeUrls" :key="i" class="flex items-center gap-2">
+          <span class="w-5 shrink-0 text-center text-[11px] font-black text-slate-400">{{ i + 1 }}</span>
+          <input
+            type="text"
+            v-model="form.youtubeUrls[i]"
+            placeholder="예: https://www.youtube.com/shorts/XXXXXXXXXXX"
+            class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xs outline-none focus:ring-2 focus:ring-rose-500"
+          />
+          <button
+            type="button"
+            :aria-label="`${i + 1}번 링크 삭제`"
+            @click="removeUrl(i)"
+            class="w-9 h-9 shrink-0 rounded-xl bg-white hover:bg-rose-50 text-slate-400 hover:text-rose-600 border border-slate-300 hover:border-rose-300 transition cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+        <p class="text-[11px] text-slate-500">
+          세로(Shorts) 영상을 권장합니다. 가로 영상은 9:16 틀에 맞춰 가운데가 잘려 보입니다.
+          링크가 2개 이상이면 각 영상을 끝까지 재생한 뒤 다음 영상으로 자동 전환되고, 마지막 다음에는 처음으로 돌아갑니다.
+          1개면 무한 반복합니다.
+        </p>
       </div>
 
       <!-- 업로드 선택 시: mp4 업로드 버튼만 -->
@@ -122,8 +147,10 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
-import { fetchSiteSettings, saveVideoWidgetSettings } from '@/lib/settings'
+import { fetchSiteSettings, saveVideoWidgetSettings, VIDEO_WIDGET_MAX_YOUTUBE_URLS } from '@/lib/settings'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
+
+const maxUrls = VIDEO_WIDGET_MAX_YOUTUBE_URLS
 
 const sourceOptions = [
   { value: 'youtube', label: '유튜브 링크' },
@@ -133,7 +160,7 @@ const sourceOptions = [
 const form = ref({
   enabled: false,
   sourceType: 'youtube',
-  youtubeUrl: '',
+  youtubeUrls: [''], // 입력창은 최소 1개 항상 표시
   uploadUrl: ''
 })
 const fileInput = ref(null)
@@ -149,12 +176,28 @@ const isValidYoutube = (raw) => {
   return /^[A-Za-z0-9_-]{11}$/.test(v)
 }
 
+function addUrl() {
+  if (form.value.youtubeUrls.length < maxUrls) form.value.youtubeUrls.push('')
+}
+
+function removeUrl(i) {
+  form.value.youtubeUrls.splice(i, 1)
+  // 최소 1개 입력창은 항상 유지 (마지막 하나를 지우면 빈 입력창으로 대체)
+  if (form.value.youtubeUrls.length === 0) form.value.youtubeUrls.push('')
+}
+
 async function load() {
   const s = await fetchSiteSettings()
+  // 배열이 비어 있으면 레거시 단일 링크로 폴백(하위호환)
+  const urls = s.video_widget_youtube_urls.length
+    ? s.video_widget_youtube_urls
+    : s.video_widget_youtube_url
+      ? [s.video_widget_youtube_url]
+      : []
   form.value = {
     enabled: s.video_widget_enabled === true,
     sourceType: s.video_widget_source_type === 'upload' ? 'upload' : 'youtube',
-    youtubeUrl: s.video_widget_youtube_url || '',
+    youtubeUrls: urls.length ? urls.slice(0, maxUrls) : [''],
     uploadUrl: s.video_widget_upload_url || ''
   }
   if (s.updated_at) statusMsg.value = '마지막 저장: ' + new Date(s.updated_at).toLocaleString('ko-KR')
@@ -199,10 +242,18 @@ async function handleUpload(e) {
 
 function requestSave() {
   errorMsg.value = ''
+  if (form.value.sourceType === 'youtube') {
+    // 채워진 링크는 전부 유효해야 함 (잘못된 링크가 조용히 무시되어 로테이션에서 빠지는 것 방지)
+    const badIdx = form.value.youtubeUrls.findIndex((u) => u.trim() && !isValidYoutube(u))
+    if (badIdx !== -1) {
+      errorMsg.value = `${badIdx + 1}번 유튜브 링크가 올바르지 않습니다. (watch / youtu.be / shorts / embed 링크 또는 11자리 영상 ID)`
+      return
+    }
+  }
   // 켜져 있는데 선택한 소스가 비어 있으면 저장 차단 (화면엔 안 뜨는 위젯이 "저장 성공"으로 보이는 것 방지)
   if (form.value.enabled) {
-    if (form.value.sourceType === 'youtube' && !isValidYoutube(form.value.youtubeUrl)) {
-      errorMsg.value = '유튜브 링크가 올바르지 않습니다. (watch / youtu.be / shorts / embed 링크 또는 11자리 영상 ID)'
+    if (form.value.sourceType === 'youtube' && !form.value.youtubeUrls.some((u) => u.trim())) {
+      errorMsg.value = '유튜브 링크를 1개 이상 입력해 주세요.'
       return
     }
     if (form.value.sourceType === 'upload' && !form.value.uploadUrl) {
@@ -220,7 +271,7 @@ async function save() {
     await saveVideoWidgetSettings({
       enabled: form.value.enabled,
       sourceType: form.value.sourceType,
-      youtubeUrl: form.value.youtubeUrl,
+      youtubeUrls: form.value.youtubeUrls,
       uploadUrl: form.value.uploadUrl
     })
     statusMsg.value = '저장 완료: ' + new Date().toLocaleString('ko-KR')

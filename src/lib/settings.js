@@ -42,10 +42,14 @@ export const DEFAULT_SETTINGS = {
   // 9:16 영상 위젯 (긴급공지 팝업(popups 테이블)과 완전 별개)
   video_widget_enabled: false,
   video_widget_source_type: 'youtube', // 'youtube' | 'upload'
-  video_widget_youtube_url: '',
+  video_widget_youtube_url: '', // 레거시 단일 링크 (video_widget_youtube_urls 가 비었을 때만 폴백으로 사용)
+  video_widget_youtube_urls: [], // 로테이션용 유튜브 링크 배열 (최대 3개)
   video_widget_upload_url: '',
   updated_at: new Date().toISOString()
 }
+
+// 9:16 영상 위젯 유튜브 링크 최대 등록 개수
+export const VIDEO_WIDGET_MAX_YOUTUBE_URLS = 3
 
 // 전역 공유 설정 상태
 export const currentSettings = ref({ ...DEFAULT_SETTINGS })
@@ -97,6 +101,9 @@ export const fetchSiteSettings = async () => {
           video_widget_enabled: data.video_widget_enabled === true,
           video_widget_source_type: data.video_widget_source_type === 'upload' ? 'upload' : 'youtube',
           video_widget_youtube_url: data.video_widget_youtube_url || '',
+          video_widget_youtube_urls: Array.isArray(data.video_widget_youtube_urls)
+            ? data.video_widget_youtube_urls.filter((u) => typeof u === 'string' && u.trim())
+            : [],
           video_widget_upload_url: data.video_widget_upload_url || '',
           updated_at: data.updated_at || new Date().toISOString()
         }
@@ -197,19 +204,26 @@ export const updateServiceMedia = async (mediaObj) => {
 }
 
 /**
- * 9:16 영상 위젯 전용 저장 — site_settings video_widget_* 4개 컬럼만 UPDATE
+ * 9:16 영상 위젯 전용 저장 — site_settings video_widget_* 컬럼만 UPDATE
  * (다른 설정 저장 로직과 payload가 섞이지 않도록 분리. DB 성공 후에만 메모리/캐시 반영)
+ * youtubeUrls: 빈 문자열 제외, 최대 VIDEO_WIDGET_MAX_YOUTUBE_URLS 개까지만 저장.
+ * 레거시 단일 컬럼(video_widget_youtube_url)은 삭제하지 않고 첫 번째 링크로 동기화해 하위호환 유지.
  */
-export const saveVideoWidgetSettings = async ({ enabled, sourceType, youtubeUrl, uploadUrl }) => {
+export const saveVideoWidgetSettings = async ({ enabled, sourceType, youtubeUrls, uploadUrl }) => {
   if (!isSupabaseConfigured()) {
     throw new Error('Supabase 설정이 필요합니다.')
   }
 
   const rowId = currentSettings.value.id || 'default'
+  const cleanedUrls = (Array.isArray(youtubeUrls) ? youtubeUrls : [])
+    .map((u) => (typeof u === 'string' ? u.trim() : ''))
+    .filter(Boolean)
+    .slice(0, VIDEO_WIDGET_MAX_YOUTUBE_URLS)
   const patch = {
     video_widget_enabled: enabled === true,
     video_widget_source_type: sourceType === 'upload' ? 'upload' : 'youtube',
-    video_widget_youtube_url: (youtubeUrl || '').trim(),
+    video_widget_youtube_urls: cleanedUrls,
+    video_widget_youtube_url: cleanedUrls[0] || '',
     video_widget_upload_url: (uploadUrl || '').trim()
   }
 
