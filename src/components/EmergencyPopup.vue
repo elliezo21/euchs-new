@@ -10,7 +10,7 @@
       aria-label="긴급공지"
     >
       <!-- 본문: 이미지 / 롤링 이미지 / 유튜브 -->
-      <div class="relative flex-1 min-h-0 bg-slate-900">
+      <div class="relative w-full shrink-0 bg-slate-900" :style="mediaStyle(p)">
         <template v-if="p.media_type === 'video_youtube'">
           <iframe
             v-if="youtubeId(p.youtube_url)"
@@ -135,19 +135,35 @@ const BASE_POS = {
   'bottom-left': { css: { bottom: '16px', left: '16px' }, tx: '0px', ty: '0px' },
   'bottom-right': { css: { bottom: '16px', right: '16px' }, tx: '0px', ty: '0px' }
 }
-const BAR_HEIGHT = 36 // 하단 바 높이(px) — 영상 비율 계산에 포함
+const BAR_HEIGHT = 36 // 하단 바 높이(px)
+const BORDER_PX = 2 // 컨테이너 border(위아래/좌우 1px씩)
+const VIEWPORT_MARGIN = 24 // 뷰포트 가장자리 여백 합계
+
+// 미디어 영역(이미지/영상) 크기: width_px × height_px (영상은 비율로 계산). 하단 바(36px)는 그 아래에 별도로 붙음
+const mediaSize = (p) => {
+  const w = Number(p.width_px) || 400
+  const h =
+    p.media_type === 'video_youtube'
+      ? Math.round(p.video_aspect_ratio === '16:9' ? (w * 9) / 16 : (w * 16) / 9)
+      : Number(p.height_px) || 500
+  return { w, h }
+}
+
+// 미디어 영역은 항상 설정한 가로:세로 비율 유지 (뷰포트가 작으면 비율 그대로 축소)
+const mediaStyle = (p) => {
+  const { w, h } = mediaSize(p)
+  return { aspectRatio: `${w} / ${h}` }
+}
 
 const popupStyle = (p, idx) => {
   const base = BASE_POS[p.position_preset] || BASE_POS.center
-  const w = Number(p.width_px) || 400
-  let h = Number(p.height_px) || 500
-  if (p.media_type === 'video_youtube') {
-    h = Math.round(p.video_aspect_ratio === '16:9' ? (w * 9) / 16 : (w * 16) / 9) + BAR_HEIGHT
-  }
+  const { w, h } = mediaSize(p)
+  // 가로 상한 3개 중 가장 작은 값이 적용되고, 세로는 auto(= 가로 × 비율 + 하단 바).
+  //  1) 설정 가로  2) 뷰포트 가로 - 여백  3) 세로가 뷰포트에 들어오도록 역산한 가로 → 가로/세로에 같은 배율이 적용됨
+  const fitHeightWidth = `calc((100vh - ${VIEWPORT_MARGIN + BAR_HEIGHT + BORDER_PX}px) * ${w} / ${h} + ${BORDER_PX}px)`
   return {
     ...base.css,
-    width: `min(${w}px, calc(100vw - 24px))`,
-    height: `min(${h}px, calc(100vh - 24px))`,
+    width: `min(${w}px, calc(100vw - ${VIEWPORT_MARGIN}px), ${fitHeightWidth})`,
     transform: `translate(calc(${base.tx} + ${Number(p.offset_x) || 0}px), calc(${base.ty} + ${Number(p.offset_y) || 0}px))`,
     zIndex: 9000 + idx
   }
