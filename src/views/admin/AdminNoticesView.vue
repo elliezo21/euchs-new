@@ -349,6 +349,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
 const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
