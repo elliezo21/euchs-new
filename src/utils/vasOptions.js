@@ -1,13 +1,12 @@
 /**
  * VAS (Value Added Services) 공용 옵션 맵 & 헬퍼
  *
- * 이전에는 AdminWarehouseModal.vue, AdminViewNew.vue, PurchaseConfirmModal.vue 세 곳에
+ * 이전에는 AdminWarehouseModal.vue, AdminViewNew.vue(현재 삭제됨), PurchaseConfirmModal.vue 세 곳에
  * 동일한 맵이 각각 정의되어 항목 추가/변경 시 반드시 세 곳을 모두 수정해야 하는 구조적 문제가 있었음.
  * 이 파일로 단일화하여 모든 컴포넌트가 동일한 데이터를 공유합니다.
  *
  * 사용처:
  *   - src/components/admin/AdminWarehouseModal.vue
- *   - src/views/admin/AdminViewNew.vue
  *   - src/views/dashboard/WarehouseView.vue
  */
 
