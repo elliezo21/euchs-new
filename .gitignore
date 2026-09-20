@@ -41,3 +41,4 @@ android/local.properties
 # Android 릴리즈 키스토어 (절대 커밋 금지)
 *.keystore
 *.jks
+graphify-out/
