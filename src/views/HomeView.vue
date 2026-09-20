@@ -1,11 +1,17 @@
 <template>
   <div class="bg-slate-50 text-slate-900 font-sans selection:bg-blue-600 selection:text-white">
-    
+
+    <!-- 긴급공지 팝업 (popups 테이블) — 9:16 영상 위젯과 별개 컴포넌트 -->
+    <EmergencyPopup />
+
     <!-- ======================================================== -->
     <!-- 1. HERO SECTION (Global Trade Visual with Autoplay Video Background) -->
     <!-- ======================================================== -->
     <section class="relative bg-slate-950 text-white overflow-hidden pt-16 pb-20 sm:pt-28 sm:pb-36 min-h-[620px] flex items-center justify-center">
-      
+
+      <!-- 9:16 영상 위젯 (히어로 우측 여백, xl↑) — 긴급공지 팝업과 별개 컴포넌트 -->
+      <VideoWidget9x16 />
+
       <!-- Video / Media Background Layer -->
       <div class="absolute inset-0 w-full h-full overflow-hidden pointer-events-none select-none z-0">
         
@@ -744,6 +750,8 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import TradePhotos from '../components/TradePhotos.vue'
+import EmergencyPopup from '../components/EmergencyPopup.vue'
+import VideoWidget9x16 from '../components/VideoWidget9x16.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
@@ -1111,6 +1119,8 @@ const attemptAutoplayVideos = () => {
   if (typeof document === 'undefined') return
   const videoElements = document.querySelectorAll('video')
   videoElements.forEach((video) => {
+    // 소리 켜짐 상태로 재생해야 하는 영상(9:16 위젯 라이트박스)은 강제 음소거 대상에서 제외
+    if (video.dataset.keepSound === 'true') return
     video.muted = true
     video.playsInline = true
     video.setAttribute('muted', '')

@@ -674,6 +674,12 @@
         <AdminBannersView />
       </div>
 
+      <!-- 섹션 4: 긴급공지 팝업 (popups 테이블) — 섹션 5와 완전 독립 -->
+      <AdminPopupManager />
+
+      <!-- 섹션 5: 9:16 영상 위젯 (site_settings video_widget_*) — 섹션 4와 완전 독립 -->
+      <AdminVideoWidgetManager />
+
     </div>
 
     <!-- ======================================================== -->
@@ -1038,6 +1044,8 @@ import {
 import { invokeRateFetch } from '@/utils/exchangeRate'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 import AdminBannersView from '@/views/admin/AdminBannersView.vue'
+import AdminPopupManager from '@/components/admin/AdminPopupManager.vue'
+import AdminVideoWidgetManager from '@/components/admin/AdminVideoWidgetManager.vue'
 // NOTE: banners 버킷은 notices 버킷과 별도 신규 생성. 추후 미디어 업로드 기능
 // 확장 시에는 기존 site_settings 미디어 관리 패턴(service_media JSON 컬럼) 먼저
 // 확인하고 재사용 가능성 검토할 것.

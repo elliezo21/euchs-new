@@ -39,6 +39,11 @@ export const DEFAULT_SETTINGS = {
     card3: '',
     card4: ''
   },
+  // 9:16 영상 위젯 (긴급공지 팝업(popups 테이블)과 완전 별개)
+  video_widget_enabled: false,
+  video_widget_source_type: 'youtube', // 'youtube' | 'upload'
+  video_widget_youtube_url: '',
+  video_widget_upload_url: '',
   updated_at: new Date().toISOString()
 }
 
@@ -89,6 +94,10 @@ export const fetchSiteSettings = async () => {
           service_card_media_purchasing: normalizedMedia.card2,
           service_card_media_trade: normalizedMedia.card3,
           service_card_media_tour: normalizedMedia.card4,
+          video_widget_enabled: data.video_widget_enabled === true,
+          video_widget_source_type: data.video_widget_source_type === 'upload' ? 'upload' : 'youtube',
+          video_widget_youtube_url: data.video_widget_youtube_url || '',
+          video_widget_upload_url: data.video_widget_upload_url || '',
           updated_at: data.updated_at || new Date().toISOString()
         }
 
@@ -185,6 +194,51 @@ export const updateServiceMedia = async (mediaObj) => {
   }
 
   return normalized
+}
+
+/**
+ * 9:16 영상 위젯 전용 저장 — site_settings video_widget_* 4개 컬럼만 UPDATE
+ * (다른 설정 저장 로직과 payload가 섞이지 않도록 분리. DB 성공 후에만 메모리/캐시 반영)
+ */
+export const saveVideoWidgetSettings = async ({ enabled, sourceType, youtubeUrl, uploadUrl }) => {
+  if (!isSupabaseConfigured()) {
+    throw new Error('Supabase 설정이 필요합니다.')
+  }
+
+  const rowId = currentSettings.value.id || 'default'
+  const patch = {
+    video_widget_enabled: enabled === true,
+    video_widget_source_type: sourceType === 'upload' ? 'upload' : 'youtube',
+    video_widget_youtube_url: (youtubeUrl || '').trim(),
+    video_widget_upload_url: (uploadUrl || '').trim()
+  }
+
+  const { data, error } = await supabase
+    .from('site_settings')
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq('id', rowId)
+    .select('id')
+
+  if (error) {
+    console.error('[SiteSettings] Supabase video_widget save error:', error)
+    throw new Error(error.message || '영상 위젯 설정 저장 실패')
+  }
+  if (!data || data.length === 0) {
+    throw new Error(`site_settings 행(id=${rowId})을 찾을 수 없어 저장되지 않았습니다.`)
+  }
+
+  currentSettings.value = { ...currentSettings.value, ...patch }
+  try {
+    localStorage.setItem('euchs_site_settings', JSON.stringify(currentSettings.value))
+  } catch (e) {
+    console.warn('[SiteSettings] localStorage 캐시 갱신 실패:', e)
+  }
+
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('euchs-settings-updated', { detail: currentSettings.value }))
+  }
+
+  return patch
 }
 
 /**
