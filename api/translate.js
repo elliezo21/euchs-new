@@ -19,6 +19,8 @@
  *   제한   : 1회 호출당 text 1개 (배치 미지원) — Promise.allSettled로 병렬 처리
  */
 
+import { lookupCachedTranslations, saveTranslationsToCache } from './_translationCache.js'
+
 // ── 파파고 API 상수 ───────────────────────────────────────────────
 const PAPAGO_API_URL     = 'https://papago.apigw.ntruss.com/nmt/v1/translation'
 // 파파고 병렬 처리 동시 호출 상한 (Rate Limit 미명시 — 보수적으로 5개)
@@ -125,18 +127,41 @@ export default async function handler(req, res) {
   const papagoTarget = rawTarget === 'zh' ? 'zh-CN' : rawTarget
   const papagoSource = rawSource === 'zh' ? 'zh-CN' : (rawSource || 'zh-CN')
 
-  console.log(`[papago-translate] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget}`)
+  // ── 서버 공용 캐시 배치 조회 (IN 쿼리 1회) ─────────────────────────────
+  // TRANSLATION_CACHE_ENABLED=true 일 때만 동작. 조회 실패·타임아웃은 전부
+  // "캐시 미스"로 강등되어 아래 파파고 흐름이 그대로 진행된다(사용자 영향 없음).
+  const cacheHitMap = await lookupCachedTranslations(cleanTexts, papagoSource, papagoTarget)
+
+  const translations      = new Array(cleanTexts.length)
+  const pendingIndices    = []
+  let   translationErrors = 0
+
+  cleanTexts.forEach((t, idx) => {
+    const hit = t ? cacheHitMap.get(t) : null
+    if (hit) {
+      translations[idx] = { text: hit }
+    } else {
+      // 빈 문자열도 pending에 남긴다 — 기존 translationErrors 집계 동작을 그대로 보존
+      pendingIndices.push(idx)
+    }
+  })
+
+  const cacheHits = cleanTexts.length - pendingIndices.length
+  console.log(
+    `[papago-translate] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget} ` +
+    `| 캐시 히트 ${cacheHits}건 / 파파고 호출 ${pendingIndices.length}건`
+  )
 
   // ── 병렬 5개 동시 처리 + 실패 시 즉시 1회 재시도 ───────────────────────
   // ▸ 단건 정상 응답: ~1초 (실측)
   // ▸ 병렬 5개 → 20건 기준 ceil(20/5)=4배치 × ~1초 = ~4초 → 타임아웃 여유 충분
   // ▸ 5초 fetch timeout: 정상 1초 대비 여유 충분, 비정상 시 빠른 재시도 유도
   const CONCURRENCY = 5
-  const translations    = new Array(cleanTexts.length)
-  let   translationErrors = 0
+  const newlyTranslated = [] // 캐시 저장 대상 (파파고 번역에 실제로 성공한 항목만)
 
-  for (let start = 0; start < cleanTexts.length; start += CONCURRENCY) {
-    const chunk = cleanTexts.slice(start, start + CONCURRENCY)
+  for (let start = 0; start < pendingIndices.length; start += CONCURRENCY) {
+    const idxChunk = pendingIndices.slice(start, start + CONCURRENCY)
+    const chunk    = idxChunk.map(i => cleanTexts[i])
 
     const settled = await Promise.allSettled(
       chunk.map(t => callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget))
@@ -146,22 +171,31 @@ export default async function handler(req, res) {
     const retries = await Promise.allSettled(
       settled.map((result, j) => {
         if (result.status === 'fulfilled' && result.value) return Promise.resolve(result.value)
-        console.warn(`[papago-translate] ⚠️ 항목[${start + j}] 1차 실패, 즉시 재시도...`)
+        console.warn(`[papago-translate] ⚠️ 항목[${idxChunk[j]}] 1차 실패, 즉시 재시도...`)
         return callPapagoTranslate(chunk[j], clientId, clientSecret, papagoSource, papagoTarget)
       })
     )
 
     retries.forEach((result, j) => {
-      const origIdx  = start + j
+      const origIdx  = idxChunk[j]
       const origText = cleanTexts[origIdx]
       if (result.status === 'fulfilled' && result.value) {
         translations[origIdx] = { text: result.value }
+        newlyTranslated.push({ sourceText: origText, translatedText: result.value })
       } else {
         translationErrors++
         console.error(`[papago-translate] ❌ 항목[${origIdx}] 재시도 후에도 실패, 원문 반환: "${origText.slice(0, 20)}"`)
         translations[origIdx] = { text: origText }
       }
     })
+  }
+
+  // ── 신규 번역분 캐시 저장 (bulk upsert 1회) ────────────────────────────
+  // 서버리스 함수는 응답 후 즉시 동결될 수 있어 fire-and-forget이 유실되므로 await 한다.
+  // 저장 실패는 내부에서 warn 로그만 남기고 삼켜지므로 응답에는 영향이 없다.
+  if (newlyTranslated.length > 0) {
+    const saved = await saveTranslationsToCache(newlyTranslated, papagoSource, papagoTarget)
+    if (saved > 0) console.log(`[papago-translate] 💾 캐시 저장 ${saved}건`)
   }
 
   // 전체 실패 여부 판정

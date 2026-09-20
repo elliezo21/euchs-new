@@ -9,6 +9,8 @@ import logisticsHandler from './api/1688-order-logistics.js'
 import kuaidi100TrackHandler from './api/kuaidi100-track.js'
 // 로컬 개발용: api/1688-freight-estimate.js handler 직접 import (동일 패턴)
 import freightEstimateHandler from './api/1688-freight-estimate.js'
+// 번역 캐시는 운영(api/translate.js)과 로컬 dev 프록시가 같은 헬퍼를 공유한다
+import { lookupCachedTranslations, saveTranslationsToCache } from './api/_translationCache.js'
 
 
 
@@ -171,27 +173,56 @@ function lab1688Plugin(env) {
               const papagoTarget = rawTarget === 'zh' ? 'zh-CN' : rawTarget
               const papagoSource = rawSource === 'zh' ? 'zh-CN' : (rawSource || 'zh-CN')
 
-              console.log(`[vite papago proxy] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget}`)
+              // ── 서버 공용 캐시 배치 조회 (운영 api/translate.js와 동일 헬퍼) ──
+              // 조회 실패·타임아웃은 전부 캐시 미스로 강등되어 아래 파파고 흐름이 그대로 진행된다.
+              const cacheHitMap = await lookupCachedTranslations(cleanTexts, papagoSource, papagoTarget, env)
 
-              const translations    = new Array(cleanTexts.length)
+              const translations      = new Array(cleanTexts.length)
+              const pendingIndices    = []
               let   translationErrors = 0
 
-              for (let start = 0; start < cleanTexts.length; start += PAPAGO_CONCURRENCY) {
-                const chunk = cleanTexts.slice(start, start + PAPAGO_CONCURRENCY)
+              cleanTexts.forEach((t, idx) => {
+                const hit = t ? cacheHitMap.get(t) : null
+                if (hit) {
+                  translations[idx] = { text: hit }
+                } else {
+                  // 빈 문자열도 pending에 남긴다 — 기존 translationErrors 집계 동작 보존
+                  pendingIndices.push(idx)
+                }
+              })
+
+              const cacheHits = cleanTexts.length - pendingIndices.length
+              console.log(
+                `[vite papago proxy] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget} ` +
+                `| 캐시 히트 ${cacheHits}건 / 파파고 호출 ${pendingIndices.length}건`
+              )
+
+              const newlyTranslated = [] // 캐시 저장 대상 (파파고 성공분만)
+
+              for (let start = 0; start < pendingIndices.length; start += PAPAGO_CONCURRENCY) {
+                const idxChunk = pendingIndices.slice(start, start + PAPAGO_CONCURRENCY)
+                const chunk    = idxChunk.map(i => cleanTexts[i])
                 const settled = await Promise.allSettled(
                   chunk.map(t => callPapagoTranslate(t, clientId, clientSecret, papagoSource, papagoTarget))
                 )
                 settled.forEach((result, j) => {
-                  const origIdx  = start + j
+                  const origIdx  = idxChunk[j]
                   const origText = cleanTexts[origIdx]
                   if (result.status === 'fulfilled' && result.value) {
                     translations[origIdx] = { text: result.value }
+                    newlyTranslated.push({ sourceText: origText, translatedText: result.value })
                   } else {
                     translationErrors++
                     console.error(`[vite papago proxy] ❌ 항목[${origIdx}] 번역 실패, 원문 반환. reason=`, result.reason?.message || '(null)')
                     translations[origIdx] = { text: origText }
                   }
                 })
+              }
+
+              // ── 신규 번역분 캐시 저장 (bulk upsert 1회) ──────────────────
+              if (newlyTranslated.length > 0) {
+                const saved = await saveTranslationsToCache(newlyTranslated, papagoSource, papagoTarget, env)
+                if (saved > 0) console.log(`[vite papago proxy] 💾 캐시 저장 ${saved}건`)
               }
 
               if (translationErrors > 0) {
