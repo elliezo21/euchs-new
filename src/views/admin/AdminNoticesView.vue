@@ -53,11 +53,7 @@
               required
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium text-xs bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
-              <option value="schedule">업무일정 (연휴/마감)</option>
-              <option value="event">이벤트 & 프로모션</option>
-              <option value="system">시스템 & 서버안내</option>
-              <option value="customs">세관 & 통관소식</option>
-              <option value="general">일반 공지사항</option>
+              <option v-for="cat in NOTICE_CATEGORIES" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
             </select>
           </div>
 
@@ -169,7 +165,8 @@
 
             <button
               type="submit"
-              class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95"
+              :disabled="isSaving || isUploadingImage"
+              class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>{{ editingId ? '✓ 공지 수정 완료' : '✓ 공지 등록하기' }}</span>
             </button>
@@ -196,11 +193,7 @@
             class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 outline-none font-medium cursor-pointer"
           >
             <option value="all">전체 카테고리</option>
-            <option value="schedule">업무일정</option>
-            <option value="event">이벤트</option>
-            <option value="system">시스템안내</option>
-            <option value="customs">세관통관</option>
-            <option value="general">일반공지</option>
+            <option v-for="cat in NOTICE_CATEGORIES" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
           </select>
 
           <input
@@ -351,7 +344,9 @@
 import { ref, computed, onMounted } from 'vue'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
+import { NOTICE_CATEGORIES } from '@/utils/noticeCategories'
 
+// 다른 화면(HomeView/MallView/AdminDashboardView 등)이 읽는 캐시 키 — DB 조회 결과를 동기화용으로만 기록
 const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
 
 const formRef = ref(null)
@@ -362,51 +357,8 @@ const confirmDeleteNotice = ref(false)
 const pendingDeleteNoticeId = ref(null)
 const filterCategory = ref('all')
 const searchQuery = ref('')
-
-const DEFAULT_NOTICES = [
-  {
-    id: 'notice-1',
-    category: 'system',
-    category_name: '업무일정',
-    badge: '긴급점검',
-    is_pinned: true,
-    is_important: true,
-    title: 'EUCHS 차세대 B2B 수입대행 ERP 시스템 정기 데이터베이스 점검 안내',
-    summary: '실시간 1688 API 주문 및 화물 트래킹 연동 안정화를 위한 서버 점검',
-    thumbnail_url: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
-    image: 'https://images.unsplash.com/photo-1558494949-ef010cbdcc31?w=600&auto=format&fit=crop&q=80',
-    content: '안녕하세요, 이유씨컴퍼니입니다.\n\n보다 안정적인 1688 실시간 상품 연동 및 화물 위치 추적 서비스를 제공하기 위해 정기 서버 및 데이터베이스 최적화 작업을 진행합니다.\n\n- 작업 일시: 2026년 8월 26일 (수) 새벽 02:00 ~ 04:00 (약 2시간)\n- 영향 범위: 작업 시간 중 일시적인 주문서 작성 지연이 발생할 수 있습니다.\n\n바이어 여러분의 너른 양해 부탁드립니다.',
-    created_at: '2026-08-25T09:00:00.000Z'
-  },
-  {
-    id: 'notice-2',
-    category: 'schedule',
-    category_name: '이벤트',
-    badge: '모집중',
-    is_pinned: true,
-    is_important: true,
-    title: '제43기 중국 이우(푸텐) 도매시장 사입 조사단 참가 바이어 모집',
-    summary: '전담 통역 및 1:1 공장 섭외 포함 4박 5일 풀패키지 투어 선착순 모집',
-    thumbnail_url: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=80',
-    image: 'https://images.unsplash.com/photo-1544620347-c4fd4a3d5957?w=600&auto=format&fit=crop&q=80',
-    content: '중국 이우 푸텐시장 1~5구 전 구역을 전담 매니저와 함께 동행하는 43기 이우 시장조사 투어 접수가 시작되었습니다.\n\n- 일정: 2026년 9월 16일 ~ 9월 20일 (4박 5일)\n- 모집 인원: 선착순 12명 (잔여 5석)\n- 혜택: 전담 통역, 픽업, 호텔, 공장 섭외 풀패키지 지원',
-    created_at: '2026-08-23T14:30:00.000Z'
-  },
-  {
-    id: 'notice-3',
-    category: 'customs',
-    category_name: '통관·물류',
-    badge: '통관',
-    is_pinned: false,
-    is_important: false,
-    title: '한-중 FTA 원산지증명서(C/O) 발급 및 관세 감면 실무 가이드',
-    summary: '정식 수입신고 시 FTA 협정관세 0~4% 감면 적용 절차 안내',
-    thumbnail_url: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=600&auto=format&fit=crop&q=80',
-    image: 'https://images.unsplash.com/photo-1578575437130-527eed3abbec?w=600&auto=format&fit=crop&q=80',
-    content: '중국 수입 시 한-중 FTA 협정관세를 적용받기 위한 원산지증명서(C/O) 발급 절차 및 서류 안내입니다.\n\n당사 창고에서 출고 전 발급 대행을 원스톱으로 지원해 드립니다.',
-    created_at: '2026-08-20T09:15:00.000Z'
-  }
-]
+const isSaving = ref(false)
+const isUploadingImage = ref(false)
 
 const noticesList = ref([])
 
@@ -440,8 +392,8 @@ const filteredNotices = computed(() => {
 
   if (searchQuery.value.trim()) {
     const q = searchQuery.value.toLowerCase()
-    list = list.filter(n => 
-      (n.title || '').toLowerCase().includes(q) || 
+    list = list.filter(n =>
+      (n.title || '').toLowerCase().includes(q) ||
       (n.summary || '').toLowerCase().includes(q)
     )
   }
@@ -455,22 +407,16 @@ const filteredNotices = computed(() => {
 })
 
 function getCategoryLabel(cat) {
-  const map = {
-    schedule: '업무일정',
-    event: '이벤트',
-    system: '시스템안내',
-    customs: '세관통관',
-    general: '일반공지'
-  }
-  return map[cat] || '공지'
+  return NOTICE_CATEGORIES.find(c => c.id === cat)?.name || '공지'
 }
 
 function getCategoryBadgeStyle(cat) {
   const map = {
     schedule: 'bg-amber-50 text-amber-700 border border-amber-200',
     event: 'bg-rose-50 text-rose-700 border border-rose-200',
-    system: 'bg-blue-50 text-blue-700 border border-blue-200',
+    logistics: 'bg-teal-50 text-teal-700 border border-teal-200',
     customs: 'bg-purple-50 text-purple-700 border border-purple-200',
+    system: 'bg-blue-50 text-blue-700 border border-blue-200',
     general: 'bg-slate-100 text-slate-700 border border-slate-200'
   }
   return map[cat] || 'bg-slate-100 text-slate-700 border border-slate-200'
@@ -494,99 +440,160 @@ function triggerNoticeImageUpload() {
   }
 }
 
-function handleNoticeImageUpload(e) {
-  const file = e.target?.files?.[0]
+// 썸네일을 Supabase Storage(notices 버킷)에 업로드하고 공개 URL을 폼에 반영
+// (blob: 임시 URL은 다른 브라우저에서 깨지므로 DB에 저장하면 안 됨)
+async function handleNoticeImageUpload(e) {
+  const input = e.target
+  const file = input?.files?.[0]
   if (!file) return
 
-  const fileUrl = URL.createObjectURL(file)
-  noticeForm.value.thumbnail_url = fileUrl
-  showToast('이미지가 선택되었습니다.')
-  e.target.value = ''
-}
-
-function loadNotices() {
-  try {
-    const raw = localStorage.getItem(NOTICES_STORAGE_KEY) || localStorage.getItem('euchs_notices')
-    if (raw) {
-      const parsed = JSON.parse(raw)
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        noticesList.value = parsed
-        return
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to load notices:', e)
+  if (!isSupabaseConfigured()) {
+    alert('Supabase 연동이 필요합니다.')
+    input.value = ''
+    return
   }
-  noticesList.value = JSON.parse(JSON.stringify(DEFAULT_NOTICES))
-  saveToStorage()
+
+  isUploadingImage.value = true
+  try {
+    const fileExt = file.name.split('.').pop()
+    const filePath = `notice_thumbnails/notice_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+
+    const { error: uploadError } = await supabase.storage
+      .from('notices')
+      .upload(filePath, file, { cacheControl: '3600', upsert: false })
+
+    if (uploadError) {
+      console.error('Notice image upload error:', uploadError)
+      alert('이미지 업로드 실패: ' + uploadError.message)
+      return
+    }
+
+    const { data: publicUrlData } = supabase.storage.from('notices').getPublicUrl(filePath)
+    noticeForm.value.thumbnail_url = publicUrlData.publicUrl
+    showToast('이미지가 업로드되었습니다.')
+  } catch (err) {
+    console.error('Notice image upload exception:', err)
+    alert('이미지 업로드 중 오류가 발생했습니다: ' + (err.message || err))
+  } finally {
+    isUploadingImage.value = false
+    input.value = ''
+  }
 }
 
-function saveToStorage() {
+// DB(notices 테이블)에서 공지 목록 조회 — 성공 여부 반환
+async function fetchNotices() {
+  if (!isSupabaseConfigured()) {
+    alert('Supabase 연동이 필요합니다.')
+    return false
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('notices')
+      .select('*')
+      .neq('category', 'system_config')
+      .order('created_at', { ascending: false })
+
+    if (error) {
+      console.error('Fetch notices error:', error)
+      alert('공지사항 목록을 불러오지 못했습니다: ' + error.message)
+      return false
+    }
+
+    noticesList.value = data || []
+    return true
+  } catch (err) {
+    console.error('Fetch notices exception:', err)
+    alert('공지사항 목록을 불러오는 중 오류가 발생했습니다: ' + (err.message || err))
+    return false
+  }
+}
+
+// 다른 화면(같은 브라우저)에 공지 변경 알림 — 기존 euchs-notice-update 이벤트 발행 로직 유지
+function publishNoticeUpdate() {
   localStorage.setItem(NOTICES_STORAGE_KEY, JSON.stringify(noticesList.value))
   localStorage.setItem('euchs_notices', JSON.stringify(noticesList.value))
   window.dispatchEvent(new CustomEvent('euchs-notice-update', { detail: noticesList.value }))
   window.dispatchEvent(new Event('storage'))
-
-  // Supabase notices 테이블 비동기 백그라운드 동기화
-  if (isSupabaseConfigured() && noticesList.value.length > 0) {
-    const rows = noticesList.value.map(n => ({
-      id: isNaN(Number(n.id)) ? undefined : Number(n.id),
-      title: n.title,
-      category: n.category || 'general',
-      category_name: getCategoryLabel(n.category),
-      badge: n.badge || '공지',
-      is_pinned: Boolean(n.is_pinned),
-      is_important: Boolean(n.is_pinned),
-      summary: n.summary || '',
-      content: n.content || '',
-      thumbnail_url: n.thumbnail_url || '',
-      created_at: n.created_at || new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    }))
-
-    supabase.from('notices').upsert(rows).then(() => {}).catch(err => console.warn('Supabase notices upsert notice:', err))
-  }
 }
 
-function handleSubmitNotice() {
+// 저장/삭제 성공 후: DB에서 다시 불러와 목록 갱신 + 변경 알림
+async function refetchAndPublish() {
+  const ok = await fetchNotices()
+  if (ok) publishNoticeUpdate()
+}
+
+async function handleSubmitNotice() {
+  if (isSaving.value) return
+
   if (!noticeForm.value.title.trim()) {
     alert('공지 제목을 입력해 주세요.')
     return
   }
 
-  if (editingId.value) {
-    // 수정 모드
-    const target = noticesList.value.find(n => n.id === editingId.value)
-    if (target) {
-      target.category = noticeForm.value.category
-      target.badge = noticeForm.value.badge
-      target.is_pinned = noticeForm.value.is_pinned
-      target.title = noticeForm.value.title
-      target.summary = noticeForm.value.summary
-      target.thumbnail_url = noticeForm.value.thumbnail_url
-      target.content = noticeForm.value.content
-      target.updated_at = new Date().toISOString()
-    }
-    showToast('공지사항이 성공적으로 수정되었습니다.')
-  } else {
-    // 신규 등록 모드
-    const newNotice = {
-      id: `notice-${Date.now()}`,
-      category: noticeForm.value.category,
-      badge: noticeForm.value.badge || '공지',
-      is_pinned: Boolean(noticeForm.value.is_pinned),
-      title: noticeForm.value.title,
-      summary: noticeForm.value.summary,
-      thumbnail_url: noticeForm.value.thumbnail_url,
-      content: noticeForm.value.content,
-      created_at: new Date().toISOString()
-    }
-    noticesList.value.unshift(newNotice)
-    showToast('신규 공지사항이 성공적으로 등록되었습니다.')
+  if (!isSupabaseConfigured()) {
+    alert('Supabase 연동이 필요합니다.')
+    return
   }
 
-  saveToStorage()
-  resetNoticeForm()
+  // id/created_at/updated_at 은 보내지 않음 (id·created_at은 DB 기본값, updated_at 컬럼은 테이블에 없음)
+  const form = noticeForm.value
+  const payload = {
+    title: form.title.trim(),
+    category: form.category,
+    category_name: getCategoryLabel(form.category),
+    badge: (form.badge || '').trim() || '공지',
+    is_pinned: Boolean(form.is_pinned),
+    is_important: Boolean(form.is_pinned),
+    summary: form.summary || '',
+    content: form.content || '',
+    thumbnail_url: form.thumbnail_url || '',
+    image: form.thumbnail_url || ''
+  }
+
+  isSaving.value = true
+  try {
+    if (editingId.value !== null) {
+      // 수정 모드
+      const { data, error } = await supabase
+        .from('notices')
+        .update(payload)
+        .eq('id', editingId.value)
+        .select()
+
+      if (error) {
+        console.error('Supabase notice update error:', error)
+        alert('공지사항 수정 실패: ' + error.message)
+        return
+      }
+      if (!data || data.length === 0) {
+        console.error('Supabase notice update affected 0 rows. id =', editingId.value)
+        alert('공지사항 수정 실패: 수정할 공지를 찾지 못했습니다.')
+        return
+      }
+      showToast('공지사항이 성공적으로 수정되었습니다.')
+    } else {
+      // 신규 등록 모드
+      const { error } = await supabase
+        .from('notices')
+        .insert([payload])
+
+      if (error) {
+        console.error('Supabase notice insert error:', error)
+        alert('공지사항 등록 실패: ' + error.message)
+        return
+      }
+      showToast('신규 공지사항이 성공적으로 등록되었습니다.')
+    }
+
+    resetNoticeForm()
+    await refetchAndPublish()
+  } catch (err) {
+    console.error('Notice save exception:', err)
+    alert('공지 저장 중 오류가 발생했습니다: ' + (err.message || err))
+  } finally {
+    isSaving.value = false
+  }
 }
 
 function startEdit(item) {
@@ -597,7 +604,7 @@ function startEdit(item) {
     is_pinned: Boolean(item.is_pinned),
     title: item.title || '',
     summary: item.summary || '',
-    thumbnail_url: item.thumbnail_url || '',
+    thumbnail_url: item.thumbnail_url || item.image || '',
     content: item.content || ''
   }
   scrollToForm()
@@ -625,19 +632,47 @@ function deleteNotice(id) {
   confirmDeleteNotice.value = true
 }
 
-function executeDeleteNotice() {
+async function executeDeleteNotice() {
   const id = pendingDeleteNoticeId.value
-  if (!id) return
-  noticesList.value = noticesList.value.filter(n => n.id !== id)
-  saveToStorage()
-  showToast('공지사항이 삭제되었습니다.')
-  if (editingId.value === id) {
-    resetNoticeForm()
+  if (id === null || id === undefined) return
+
+  if (!isSupabaseConfigured()) {
+    alert('Supabase 연동이 필요합니다.')
+    return
+  }
+
+  try {
+    const { data, error } = await supabase
+      .from('notices')
+      .delete()
+      .eq('id', id)
+      .select()
+
+    if (error) {
+      console.error('Supabase notice delete error:', error)
+      alert('공지사항 삭제 실패: ' + error.message)
+      return
+    }
+    if (!data || data.length === 0) {
+      console.error('Supabase notice delete affected 0 rows. id =', id)
+      alert('공지사항 삭제 실패: 삭제할 공지를 찾지 못했습니다.')
+      return
+    }
+
+    showToast('공지사항이 삭제되었습니다.')
+    if (editingId.value === id) {
+      resetNoticeForm()
+    }
+    pendingDeleteNoticeId.value = null
+    await refetchAndPublish()
+  } catch (err) {
+    console.error('Notice delete exception:', err)
+    alert('공지 삭제 중 오류가 발생했습니다: ' + (err.message || err))
   }
 }
 
 onMounted(() => {
-  loadNotices()
+  fetchNotices()
 })
 </script>
 

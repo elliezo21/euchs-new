@@ -229,6 +229,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { NOTICE_CATEGORIES } from '@/utils/noticeCategories'
 
 const activeCategory = ref('all')
 const searchQuery = ref('')
@@ -240,9 +241,7 @@ const defaultImage = 'https://ecimg.cafe24img.com/pg164b02477358068/elliezo26/we
 
 const categories = [
   { id: 'all', name: '전체' },
-  { id: 'schedule', name: '업무일정' },
-  { id: 'logistics', name: '통관·물류' },
-  { id: 'event', name: '이벤트' }
+  ...NOTICE_CATEGORIES
 ]
 
 const NOTICES_STORAGE_KEY = 'euchs_admin_notices'
