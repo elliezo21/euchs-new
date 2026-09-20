@@ -35,9 +35,21 @@
         tabindex="-1"
         title="영상 위젯"
       ></iframe>
-      <span class="absolute bottom-2 right-2 px-2 py-0.5 rounded-full bg-black/60 text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
+      <span class="absolute bottom-2 right-8 px-2 py-0.5 rounded-full bg-black/60 text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
         🔊 크게 보기
       </span>
+    </button>
+
+    <!-- 접기(X): 카드 button 안에 두면 button 중첩(잘못된 HTML)이라 형제 요소로 두고,
+         카드 하단 "🔊 크게 보기" 라벨 바로 오른쪽(라벨 right-8 = X 20px + 여백 8px + 간격 4px)에 나란히 겹쳐 배치.
+         @click.stop 으로 라이트박스가 열리지 않도록 확실히 차단 -->
+    <button
+      type="button"
+      class="absolute bottom-2 right-2 z-10 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 text-white text-[10px] font-bold leading-none flex items-center justify-center backdrop-blur-sm transition cursor-pointer"
+      aria-label="영상 위젯 접기"
+      @click.stop="dismissWidget"
+    >
+      ✕
     </button>
 
     <!-- 라이트박스 (소리 켜짐) -->
@@ -111,10 +123,34 @@ const youtubeId = computed(() => {
   return /^[A-Za-z0-9_-]{11}$/.test(raw) ? raw : ''
 })
 
-const isVisible = computed(() => {
+// 설정상 그릴 수 있는 상태인가 (켜짐 + 선택한 소스 유효)
+const hasSource = computed(() => {
   if (!enabled.value) return false
   return sourceType.value === 'upload' ? !!uploadUrl.value : !!youtubeId.value
 })
+
+// 접기(X): sessionStorage 유지 → 같은 탭 새로고침엔 계속 숨김, 탭을 닫고 새로 방문하면 다시 표시
+const DISMISS_KEY = 'video_widget_dismissed'
+const readDismissed = () => {
+  try {
+    return sessionStorage.getItem(DISMISS_KEY) === '1'
+  } catch (e) {
+    console.warn('[VideoWidget] sessionStorage 읽기 실패:', e)
+    return false
+  }
+}
+// setup 단계에서 동기 초기화 — onMounted 로 읽으면 첫 렌더에 잠깐 보였다 사라짐
+const isDismissed = ref(readDismissed())
+const dismissWidget = () => {
+  isDismissed.value = true
+  try {
+    sessionStorage.setItem(DISMISS_KEY, '1')
+  } catch (e) {
+    console.warn('[VideoWidget] 접기 상태 저장 실패:', e)
+  }
+}
+
+const isVisible = computed(() => hasSource.value && !isDismissed.value)
 
 const buildEmbedUrl = (muted) => {
   const id = youtubeId.value
@@ -167,7 +203,7 @@ const onKeydown = (e) => {
 watch(
   [enabled, sourceType, youtubeId, uploadUrl],
   () => {
-    if (!enabled.value || isVisible.value) return
+    if (!enabled.value || hasSource.value) return
     if (sourceType.value === 'youtube') {
       console.warn(
         '[VideoWidget] 유튜브 영상 ID를 추출하지 못해 위젯을 그리지 않습니다. video_widget_youtube_url =',
