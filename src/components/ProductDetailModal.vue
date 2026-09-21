@@ -2070,6 +2070,41 @@ const saveSelectedItemsToCart = () => {
       return null
     }
 
+    // 3. 옵션 미선택 / 옵션 파싱 실패 가드 ────────────────────────────────
+    //    raw(OneBound 원본)에 옵션이 있는데 파싱 결과가 비면 colorOptions가
+    //    '기본 단품' 폴백(1097행)으로 떨어져 옵션 없이 담긴다. 이때 응답 자체는
+    //    성공이라 productLoadFailed가 false여서 기존 가드로는 잡히지 않았다.
+    //    raw 구조 판정 기준은 api1688.js:1506-1519의 추출부와 동일하게 맞춘다.
+    const rawItem = currentItem.value.raw || {}
+    const rawPropsList = rawItem.props_list || rawItem.sku_props || null
+    const rawSkuArr =
+      (rawItem.skus && Array.isArray(rawItem.skus.sku)) ? rawItem.skus.sku
+      : Array.isArray(rawItem.skus) ? rawItem.skus
+      : (rawItem.sku && Array.isArray(rawItem.sku.sku)) ? rawItem.sku.sku
+      : (rawItem.sku && Array.isArray(rawItem.sku)) ? rawItem.sku
+      : []
+    const rawHasOptions =
+      (rawPropsList && typeof rawPropsList === 'object' && !Array.isArray(rawPropsList)
+        && Object.keys(rawPropsList).length > 0) ||
+      rawSkuArr.length > 0
+    const parsedHasOptions =
+      (Array.isArray(currentItem.value.skuProps) && currentItem.value.skuProps.length > 0) ||
+      (Array.isArray(currentItem.value.skus) && currentItem.value.skus.length > 0)
+
+    if (rawHasOptions && !parsedHasOptions) {
+      showToastNotification('⚠️ 상품 옵션 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.', 'warning')
+      loadFullProductData(currentItem.value)
+      return null
+    }
+    //    두 번째 조건은 "화면에 실제 선택 가능한 옵션이 있는가"로 판정한다.
+    //    1688이 무SKU 단품에도 색상명 없는 skus 1개를 주는 경우가 있어
+    //    parsedHasOptions만으로는 진짜 단품을 오차단한다. 기준은 1782행 realColors와 동일.
+    const realColorOptions = colorOptions.value.filter(c => c.name !== '기본 단품')
+    if (realColorOptions.length > 0 && selectedSkus.value.some(s => String(s.color || '').trim() === '기본 단품')) {
+      showToastNotification('⚠️ 옵션을 선택해 주세요.', 'warning')
+      return null
+    }
+
     // ── SKU별 독립 행으로 분리 저장 (color+size 조합마다 별도 행) ──
     const newRows = selectedSkus.value.map((sku, idx) => {
       const colorStr = String(sku.color || '').trim()
@@ -2098,6 +2133,14 @@ const saveSelectedItemsToCart = () => {
         num_iid: String(currentItem.value.id || ''),
         // minOrder: 1688 최소 주문 수량 — CartView 수량 조절 시 하한으로 사용
         minOrder: mo,
+        // hasOptions: 담을 당시 화면에 실제 선택 가능한 옵션이 있었는지.
+        //   CartView 발주 가드가 "옵션 미선택 행"과 "진짜 단품"을 구분하는 데 사용한다.
+        //   (장바구니 행 데이터만으로는 구분할 수 없어 담기 시점에 기록해 둔다)
+        //   기준은 rawHasOptions(원본)가 아니라 realColorOptions다. 1688이 무SKU 단품에도
+        //   색상명 없는 skus 1개를 주는 경우 rawHasOptions=true가 되어 발주 가드가
+        //   진짜 단품을 오차단한다. "옵션이 있는데 파싱이 비어 미선택으로 담기는" 결함은
+        //   위 첫 번째 가드(rawHasOptions && !parsedHasOptions)가 막는다.
+        hasOptions: realColorOptions.length > 0,
         // 수량 및 단가 (각 SKU 행 독립)
         quantity: skuQty,
         // 재고 상한 — CartView 수량 조절 시 활용. 미파악이면 undefined (상한 없음)
