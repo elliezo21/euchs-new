@@ -697,6 +697,8 @@ export async function search1688(queryZh, page = 1, options = {}) {
   //    같은 키워드를 검색한 사용자에게 그대로 서빙되어 검색 결과가 10건으로 잘린다.
   //    (options.sort는 키에 넣지 않는다 — 정렬은 MallView의 sortedProducts computed가
   //     클라이언트에서 처리하며 API 요청·응답을 바꾸지 않으므로 캐시를 쪼갤 이유가 없다.)
+  //    카테고리 구분자는 여기서 따로 넣지 않는다 — queryZh 자체가 소분류마다 다르므로
+  //    (여성의류>티셔츠=女士T恤 / 남성의류>티셔츠=男士T恤) 키가 이미 분리된다.
   const cacheKey = `ob_${query}_p${page}${maxItems > 0 ? `_m${maxItems}` : ''}`
 
   // 캐시 확인
@@ -719,7 +721,6 @@ export async function search1688(queryZh, page = 1, options = {}) {
     // Vercel Serverless / Vite Dev Server 프록시 (/api/1688-search)
     try {
       const params = new URLSearchParams({ q: query, page: String(page) })
-      if (options && options.cat) params.set('cat', String(options.cat))
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
       const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
@@ -1001,7 +1002,16 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
   let queryZh = query
   const isKorean = /[ㄱ-ㅎㅏ-ㅣ가-힣]/.test(query)
 
-  if (isKorean) {
+  // options.keywordZh: 호출부가 확정된 중국어 키워드를 갖고 있을 때 번역을 건너뛴다.
+  // (몰 메가메뉴 소분류 — categories.keyword_zh. 파파고 결과가 호출마다 달라져
+  //  같은 카테고리에서 성별이 섞이던 문제를 없애고 파파고 호출도 1회 줄인다.)
+  // 화면에 보이는 검색어(queryKo)는 한글 그대로 유지된다.
+  const presetZh = String(options?.keywordZh || '').trim()
+
+  if (presetZh) {
+    queryZh = presetZh
+    console.log(`[1688 Search] Preset zh keyword: "${query}" → "${queryZh}" (번역 생략)`)
+  } else if (isKorean) {
     if (onProgress) onProgress({ step: 1, message: `한글 키워드 분석 및 번역 중: "${query}"...` })
 
     // 1순위: 내장 사전 즉시 조회 (타임아웃 없음, 정확도 보장)

@@ -1238,6 +1238,7 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, translateItemsBatch } from '../services/api1688'
+import { fetchSubCategoryKeywordMap, subCategoryKey } from '@/lib/mallCategories'
 import { getMockSearchResults } from '../services/mock1688Data'
 import { fetchSiteSettings } from '../lib/settings'
 
@@ -1300,6 +1301,9 @@ const warehouseTabCounts    = computed(() => getWarehouseTabCounts(submittedOrde
 
 const lastQueryKo = ref('')
 const lastQueryZh = ref('')
+// 현재 결과가 메가메뉴 소분류로 들어온 것이면 그 소분류의 확정 중국어 키워드.
+// 그 외 경로(검색창·퀵탭·배너·홈 섹션)에서는 executeSearch가 ''로 덮어쓴다.
+const activeCategoryKeywordZh = ref('')
 const items = ref([])
 
 // ============================================================
@@ -2261,48 +2265,37 @@ const selectCategory = (cat, source = 'mega') => {
   executeSearch(1, null, majorName)
 }
 
-// ── 소분류 cid 매핑 테이블 (표본 2~3개 검증으로 안정 확인된 항목만) ──────────────
-// 키: "그룹타이틀|소분류명" 형식
-const SUBCATEGORY_CID_MAP = {
-  // 패션의류/이너웨어
-  '남성의류|티셔츠':      315,
-  '남성의류|셔츠':        314,
-  '남성의류|자켓/아우터': 317,
-  '이너웨어/잠옷|잠옷/홈웨어':  1037924,
-  '이너웨어/잠옷|양말/스타킹':  122468001,
-  // 신발/가방/패션잡화
-  '여성슈즈|슬리퍼':        201548713,
-  '여성슈즈|단화/플랫':     126506005,
-  '여성슈즈|부츠/앵클부츠': 1034353,
-  '가방|토트백':    201548714,
-  '가방|크로스백':  201580619,
-  '가방|캔버스백':  201554511,
-  '가방|지갑/파우치': 1031751,
-  '패션잡화|모자/버킷햇':  1048323,
-  '패션잡화|선글라스':     1043131,
-  '패션잡화|스카프/머플러': 1031922,
-  '패션잡화|헤어악세사리': 127490005,
-  '패션잡화|시계':         124264005,
+// ── 소분류 → 중국어 키워드 맵 (Supabase categories.keyword_zh, level 3) ─────────
+// 세션 내 1회 조회. 메가메뉴를 열기 전에 미리 받아두어 클릭 시 대기가 없도록 한다.
+const subCatKeywordMap = ref(new Map())
+
+const preloadSubCategoryKeywords = async () => {
+  try {
+    subCatKeywordMap.value = await fetchSubCategoryKeywordMap()
+  } catch (err) {
+    // 맵이 비면 아래 폴백(한글 조합 키워드 → 파파고)으로 검색은 계속 동작한다.
+    console.error('[MallView] 소분류 키워드 맵 로드 실패:', err.message)
+  }
 }
 
-const selectedSubCatCid = ref(null)
-
-const handleSubCategoryClick = (subKeyword, parentCat, groupTitle = '') => {
+const handleSubCategoryClick = async (subKeyword, parentCat, groupTitle = '') => {
   if (megaMenuTimer) clearTimeout(megaMenuTimer)
   if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
   isMegaMenuOpen.value = false
   hoveredCategory.value = null
   selectedCategoryId.value = parentCat.id
 
-  // ── 1. cid 우선 검색 (안정 검증된 17개) ────────────────────────────────
-  const cidKey = `${groupTitle}|${subKeyword}`
-  const cid = SUBCATEGORY_CID_MAP[cidKey] || null
-  selectedSubCatCid.value = cid
+  // ── 1. DB의 확정 중국어 키워드 조회 ─────────────────────────────────────
+  // 여성의류>티셔츠=女士T恤 / 남성의류>티셔츠=男士T恤 처럼 성별이 분리되어 있어
+  // 번역을 거치지 않고 그대로 검색하면 결과가 고정되고 성별 혼입이 사라진다.
+  // (cid_1688 은 OneBound가 cat 파라미터를 무시하는 것이 실측되어 사용하지 않는다 —
+  //  근거는 src/lib/mallCategories.js 주석 참조)
+  if (subCatKeywordMap.value.size === 0) await preloadSubCategoryKeywords()
+  const keywordZh = subCatKeywordMap.value.get(subCategoryKey(groupTitle, subKeyword)) || ''
 
-  // ── 2. 결합 키워드: 성별 구분 대분류일 때만 "여성"/"남성" 접두어 추가 ─────
-  // 여성의류 > 티셔츠 → "여성 티셔츠"  (파파고 → 女装T恤)
-  // 남성의류 > 티셔츠 → "남성 티셔츠"  (파파고 → 男装T恤)
-  // 그 외 모든 그룹(이너웨어, 여성슈즈, 가방, 패션잡화 등) → subKeyword 단독
+  // ── 2. 화면에 표시할 한글 키워드 ────────────────────────────────────────
+  // 성별 구분 대분류일 때만 "여성"/"남성" 접두어를 붙인다.
+  // keywordZh를 못 찾았을 때는 이 한글이 그대로 파파고 번역 경로로 들어간다(기존 동작).
   let combinedKeyword = subKeyword
   if (groupTitle === '여성의류') {
     combinedKeyword = `여성 ${subKeyword}`
@@ -2311,9 +2304,13 @@ const handleSubCategoryClick = (subKeyword, parentCat, groupTitle = '') => {
   }
   // ↑ 다른 그룹은 subKeyword 그대로 — 접두어 없음
 
+  if (!keywordZh) {
+    console.warn(`[MallView] keyword_zh 미발견: "${subCategoryKey(groupTitle, subKeyword)}" → 한글 "${combinedKeyword}"로 번역 검색합니다.`)
+  }
+
   queryInput.value = combinedKeyword
   // 소분류로 들어온 목록도 해당 대분류로 자동 지정
-  executeSearch(1, null, MEGA_CAT_TO_MAJOR[parentCat.id] || '')
+  executeSearch(1, null, MEGA_CAT_TO_MAJOR[parentCat.id] || '', keywordZh)
 }
 
 const handleClickOutside = (e) => {
@@ -2628,11 +2625,16 @@ const openDetailModalById = async (offerId) => {
 // ----------------------------------------------------
 // categoryName: 카테고리/네비를 눌러 들어온 검색일 때만 대분류 이름이 넘어온다.
 // 검색창·배너·섹션 더보기 등 그 외 경로는 기본값('')으로 미분류 처리된다.
-const executeSearch = async (page = 1, overrideKeyword = null, categoryName = '') => {
+// keywordZh: 메가메뉴 소분류 클릭에서만 넘어오는 확정 중국어 키워드(번역 생략용).
+//   ⚠ 인자로만 받고 내부 상태에 남겨두지 않는다 — 호출마다 activeCategoryKeywordZh를
+//     반드시 덮어써서, 이전 카테고리 키워드가 다음 검색에 따라붙지 않게 한다.
+const executeSearch = async (page = 1, overrideKeyword = null, categoryName = '', keywordZh = '') => {
   const rawInput = (overrideKeyword !== null ? overrideKeyword : queryInput.value).trim()
   if (!rawInput) return
 
   entryCategoryName.value = categoryName || ''
+  // 카테고리 경로가 아니면 ''로 초기화된다(더보기 페이징이 이 값을 그대로 재사용한다).
+  activeCategoryKeywordZh.value = String(keywordZh || '').trim()
 
   // 1688 URL 패턴 체크 (예: detail.1688.com/offer/804895839729.html, offerId=804895839729 등)
   const urlMatch = rawInput.match(/offer\/(\d+)\.html/) || rawInput.match(/[?&]offerId=(\d+)/) || rawInput.match(/[?&]itemId=(\d+)/)
@@ -2664,7 +2666,7 @@ const executeSearch = async (page = 1, overrideKeyword = null, categoryName = ''
         page,
         {
           sort: sortOrder.value,
-          ...(selectedSubCatCid.value ? { cat: selectedSubCatCid.value } : {})
+          ...(activeCategoryKeywordZh.value ? { keywordZh: activeCategoryKeywordZh.value } : {})
         }
       ),
       searchTimeout
@@ -2808,7 +2810,12 @@ const loadMoreProducts = async () => {
     const result = await search1688WithTranslation(
       query,
       nextPage,
-      { sort: sortOrder.value }
+      {
+        sort: sortOrder.value,
+        // 소분류 결과의 2페이지 이후도 1페이지와 같은 중국어 키워드로 이어받는다.
+        // (없으면 같은 한글이 파파고에서 다르게 번역되어 다른 카테고리가 섞일 수 있다.)
+        ...(activeCategoryKeywordZh.value ? { keywordZh: activeCategoryKeywordZh.value } : {})
+      }
     )
 
     if (result.items && result.items.length > 0) {
@@ -2973,6 +2980,8 @@ onMounted(async () => {
   safeLoadBalance()
   loadMallNotices()
   updateSavedCount()
+  // 메가메뉴 소분류 클릭 시 대기 없이 중국어 키워드를 쓰도록 미리 받아둔다(세션 1회).
+  preloadSubCategoryKeywords()
   // loadHomeSections()도 내부에서 applySectionPoolBannerOverrides()를 호출하지만,
   // 이 프로미스가 그보다 늦게 끝나면 sectionBanners.value 전체 교체로 오버라이드가
   // 덮어써질 수 있어 완료 후 한 번 더 재적용한다 (idempotent, 순서 무관하게 항상 최종 반영)

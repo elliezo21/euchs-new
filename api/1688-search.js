@@ -42,10 +42,15 @@ function isErrorResponse(data) {
   return false
 }
 
-async function fetchSearch(endpoint, queryZh, page, OB_KEY, OB_SECRET, timeoutMs, cat = null) {
+async function fetchSearch(endpoint, queryZh, page, OB_KEY, OB_SECRET, timeoutMs) {
   // 공식 문서 확인: 1688global/item_search는 key·secret·q·page만 요구. session 불필요.
-  const catParam = cat ? `&cat=${encodeURIComponent(cat)}` : ''
-  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_search/?key=${OB_KEY}&secret=${OB_SECRET}&q=${encodeURIComponent(queryZh)}&page=${page}&result_type=json${catParam}`
+  //
+  // ⚠️ cat(分类ID)은 전달하지 않는다. 문서에는 선택 파라미터로 적혀 있지만
+  //    2026-09-22 실측 결과 게이트웨이가 응답 call_args에 echo만 하고 검색에는
+  //    반영하지 않는다: q=女士T恤 + cat=1035237(전동공구) 호출이
+  //    cat=1031919(티셔츠) 호출과 상위 8건이 순서까지 동일한 여성 티셔츠를 반환.
+  //    카테고리 구분은 클라이언트가 categories.keyword_zh로 q를 정확히 지정해 처리한다.
+  const targetUrl = `${ONEBOUND_BASE_URL}/${endpoint}/item_search/?key=${OB_KEY}&secret=${OB_SECRET}&q=${encodeURIComponent(queryZh)}&page=${page}&result_type=json`
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), timeoutMs)
 
@@ -77,7 +82,6 @@ export default async function handler(req, res) {
   const rawQ = req.query && (req.query.q || req.query.keyword || req.query.text) || ''
   const queryZh = String(rawQ).trim()
   const page = String((req.query && req.query.page) || '1').trim()
-  const cat = (req.query && req.query.cat) ? String(req.query.cat).trim() : null
 
   if (!queryZh) {
     return res.status(400).json(Object.assign({ success: false, message: '검색 키워드(q)가 누락되었습니다.' }, SAFE_EMPTY))
@@ -97,7 +101,7 @@ export default async function handler(req, res) {
   // item_search는 해당 계정에서 사용 불가 판정(오늘 13회 시도 전부 실패, 실제조회수 0).
   // 매니저가 명시적으로 이 두 API는 쓰지 말라고 안내해 2차 폴백 호출을 제거함.
   // 1688global은 같은 날 1,095회 정상 성공 중이라 이쪽만 사용.
-  const resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000, cat)
+  const resData = await fetchSearch('1688global', queryZh, page, OB_KEY, OB_SECRET, 5000)
 
   // 최종 응답 검증
   if (!resData || isErrorResponse(resData)) {
