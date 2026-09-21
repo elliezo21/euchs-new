@@ -1511,6 +1511,35 @@ function openOrderModal() {
     alert('발주 신청할 상품을 먼저 선택해 주세요.');
     return;
   }
+
+  // ── 1688 최소 주문 수량(min_num) 최종 방어선 ─────────────────────────────
+  // 담기 시점 가드(ProductDetailModal)만으로는 부족하다:
+  //   ① 장바구니에서 일부 행만 체크해 발주하면 합계가 MOQ 미만일 수 있고
+  //   ② 행을 삭제하거나 옵션 변경 팝업으로 수량을 낮춰 합계가 MOQ 미만으로 떨어질 수도 있다.
+  // 실제로 1688에 발주되는 단위는 "체크된 행"이므로, 여기서 같은 상품(num_iid)끼리
+  // 묶어 합계를 검증하지 않으면 결제 후 관리자 발주 시점에
+  // BOOKED_LESS_THAN_LEAST_QUANTITY로 뒤늦게 터진다(2026-09-08 0f98d11 참조).
+  const groups = new Map();
+  for (const it of targetItems) {
+    const key = offerGroupKey(it);
+    if (!groups.has(key)) {
+      groups.set(key, { name: it.titleKo || it.titleZh || '1688 상품', moq: 1, rows: [] });
+    }
+    const g = groups.get(key);
+    g.rows.push(it);
+    // 같은 상품이면 MOQ는 동일해야 하지만, 구 데이터 혼재 시 보수적으로 큰 값을 적용
+    g.moq = Math.max(g.moq, resolveMoq(it.minOrder));
+  }
+  const violations = [];
+  for (const g of groups.values()) {
+    const total = sumQty(g.rows);
+    if (total < g.moq) violations.push(`${g.name} (현재 ${total}개 / 최소 ${g.moq}개)`);
+  }
+  if (violations.length > 0) {
+    showStockToast(`1688 최소 주문 수량 미달 상품이 있습니다 — ${violations.join(', ')}`);
+    return;
+  }
+
   isOrderConfigModalOpen.value = true;
 }
 
