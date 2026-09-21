@@ -1888,6 +1888,13 @@ const isImageUploading = ref(false)         // 이미지 검색 진행 중 스�
 
 const selectedModalProduct = ref(null)
 
+// 딥링크(/mall?offerId=...) 1회 소비 가드.
+// 모달 닫기(history.back) → popstate → vue-router가 동일 URL로도 pop 내비게이션을 1회
+// 수행 → route.query watcher 재발화 → URL에 남은 offerId로 모달이 다시 열리는 무한 루프를 차단.
+// URL은 그대로 두므로 주소 복사/재공유 가능하고,
+// 컴포넌트 스코프 ref라 새로고침(F5) 시 자동 리셋되어 F5 재오픈 동작은 유지된다.
+const consumedOfferId = ref('')
+
 const customExchangeRate = ref(226.19)
 const liveMarketRate = ref(206.19)
 const agencyFeeRate = ref(8.0)
@@ -2914,11 +2921,20 @@ const safeLoadBalance = () => {
   }
 }
 const handleIncomingQuery = async () => {
-  const offerId = route.query.offerId
-  if (offerId && typeof offerId === 'string' && offerId.trim()) {
-    await openDetailModalById(offerId.trim())
+  const rawOfferId = route.query.offerId
+  const offerId = typeof rawOfferId === 'string' ? rawOfferId.trim() : ''
+
+  if (offerId) {
+    // 이번 진입에서 이미 연 offerId면 재오픈하지 않는다 (popstate 루프 차단).
+    if (consumedOfferId.value === offerId) return
+    // await 이전에 먼저 기록해 동시 재진입도 막는다.
+    consumedOfferId.value = offerId
+    await openDetailModalById(offerId)
     return
   }
+
+  // URL에서 offerId가 사라진 경우 → 다음 딥링크를 위해 소비 기록 해제
+  consumedOfferId.value = ''
 
   const q = route.query.q
   if (q && typeof q === 'string' && q.trim()) {
