@@ -63,6 +63,14 @@
           </span>
           <span>{{ toastMessage }}</span>
           <button
+            v-if="toastLink"
+            type="button"
+            @click="goToSavedProductList"
+            class="ml-1 px-2 py-0.5 rounded-lg bg-white/15 hover:bg-white/25 text-white font-bold text-xs underline underline-offset-2 transition cursor-pointer"
+          >
+            보러가기
+          </button>
+          <button
             type="button"
             @click="toastMessage = ''"
             class="text-gray-400 hover:text-white ml-2 text-xs cursor-pointer"
@@ -424,13 +432,6 @@
                 <span>총 발주 수량:</span>
                 <span class="font-bold text-white font-mono text-sm">{{ totalQuantity }} 개</span>
               </div>
-              <div class="flex items-center justify-between text-xs text-slate-300">
-                <span>순수 상품 원가:</span>
-                <div class="text-right">
-                  <span class="font-mono text-rose-400 font-bold text-sm">¥ {{ totalPriceRmb.toFixed(2) }}</span>
-                  <span class="font-mono font-black text-white ml-2.5 text-base">약 ₩ {{ formatKrw(totalPriceKrw) }}</span>
-                </div>
-              </div>
               <div class="flex items-center justify-between pt-2.5 border-t border-slate-700">
                 <span class="text-xs text-slate-300">순수 상품 원가:</span>
                 <div class="text-right">
@@ -564,11 +565,27 @@
         </div>
 
         <div class="flex items-center gap-3 w-full sm:w-auto">
+          <!-- ★ 내상품리스트(찜) 토글 -->
+          <button
+            type="button"
+            @click="toggleSavedProduct"
+            :disabled="isSavedProductBusy"
+            class="shrink-0 h-12 px-4 sm:px-5 rounded-xl border-2 font-bold text-sm flex items-center justify-center gap-2 transition active:scale-95 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+            :class="isProductSaved
+              ? 'border-amber-400 bg-amber-50 text-amber-600 hover:bg-amber-100'
+              : 'border-gray-300 bg-white text-gray-600 hover:bg-gray-50 hover:text-amber-600 hover:border-amber-300'"
+            :title="isProductSaved ? '내상품리스트에서 빼기' : '내상품리스트에 담기'"
+          >
+            <i v-if="isSavedProductBusy" class="fas fa-spinner fa-spin"></i>
+            <i v-else :class="isProductSaved ? 'fas fa-star text-amber-500' : 'far fa-star'"></i>
+            <span class="whitespace-nowrap">{{ isProductSaved ? '찜 완료' : '찜하기' }}</span>
+          </button>
+
           <!-- 🛍️ 발주대기 보관함 담기 / 옵션 변경 적용 (mode에 따라 분기) -->
           <button
             type="button"
             @click="handleSaveToCart"
-            class="w-full sm:w-auto min-w-[240px] h-12 px-8 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer text-sm sm:text-base"
+            class="flex-1 sm:flex-none sm:w-auto min-w-[200px] sm:min-w-[240px] h-12 px-6 sm:px-8 bg-rose-500 hover:bg-rose-600 active:scale-95 text-white font-bold rounded-xl shadow-md flex items-center justify-center gap-2 transition cursor-pointer text-sm sm:text-base"
           >
             <i class="fas fa-shopping-bag"></i>
             <span v-if="mode === 'edit'">
@@ -630,8 +647,9 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
-import { getCartStorageKey } from '../lib/auth'
+import { getCartStorageKey, isLoggedIn, openLoginModal } from '../lib/auth'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
+import { findSavedProduct, saveProduct, removeSavedProduct, resolveMajorCategoryId } from '../lib/savedProducts'
 
 
 
@@ -649,6 +667,12 @@ const props = defineProps({
   mode: {
     type: String,
     default: 'view'
+  },
+  // 찜할 때 자동 지정할 대분류 이름(categories.name_ko).
+  // 카테고리/네비로 들어온 목록에서만 채워지고, 그 외(키워드·사진 검색 등)는 빈 문자열.
+  autoCategoryName: {
+    type: String,
+    default: ''
   }
 })
 
@@ -1807,6 +1831,7 @@ const selectAnotherProduct = (newProduct) => {
   selectedSize.value = null
   selectedSkus.value = []
   checkStoreFavorite()
+  checkSavedProduct()
 
   // 상단으로 부드럽게 스크롤
   if (modalBodyRef.value) {
@@ -1825,15 +1850,131 @@ const selectAnotherProduct = (newProduct) => {
 // ----------------------------------------------------
 const toastMessage = ref('')
 const toastType = ref('success') // 'success' | 'warning' | 'info'
+const toastLink = ref(false)     // true면 토스트에 '보러가기'(내상품리스트) 버튼 노출
 let toastTimer = null
 
-const showToastNotification = (msg, type = 'success') => {
+const showToastNotification = (msg, type = 'success', withLink = false) => {
   toastMessage.value = msg
   toastType.value = type
+  toastLink.value = withLink
   if (toastTimer) clearTimeout(toastTimer)
   toastTimer = setTimeout(() => {
     toastMessage.value = ''
+    toastLink.value = false
   }, 3000)
+}
+
+// ----------------------------------------------------
+// 내상품리스트(찜) 토글 — saved_products
+// ----------------------------------------------------
+const savedProductRowId = ref(null)
+const isSavedProductBusy = ref(false)
+const isProductSaved = computed(() => Boolean(savedProductRowId.value))
+
+// 1688 offerId — recently_viewed / 장바구니 itemId와 동일 기준
+const currentItemId = computed(() =>
+  String(currentItem.value?.id || props.product?.id || '')
+)
+
+const checkSavedProduct = async () => {
+  savedProductRowId.value = null
+  if (!isLoggedIn.value || !currentItemId.value) return
+  try {
+    const row = await findSavedProduct(currentItemId.value)
+    savedProductRowId.value = row?.id || null
+  } catch (err) {
+    // 조회 실패 시 빈 별로 표시하되 원인은 반드시 남긴다 (토글 시 에러 토스트로 재노출됨)
+    console.error('[ProductDetailModal] 찜 상태 조회 실패:', err.message)
+  }
+}
+
+// 카드 표시 + 모달 재오픈에 필요한 최소 정보만 저장 (1688 원본 응답 전체 저장 금지)
+const buildSavedItemData = () => {
+  const item = currentItem.value || props.product || {}
+  const images = galleryImages.value.slice(0, 5)
+  return {
+    itemId: currentItemId.value,
+    titleKo: displayProductTitle.value,
+    titleZh: item.titleZh || item.title || '',
+    imageUrl: activeImage.value || item.imageUrl || images[0] || '',
+    images,
+    priceTiers: displayedPriceTiers.value.map(t => ({
+      label: t.label,
+      minQuantity: t.minQuantity,
+      maxQuantity: t.maxQuantity,
+      price: t.price
+    })),
+    minOrder: minOrder.value,
+    sellerName: item.company || item.sellerName || '',
+    productUrl: original1688Url.value
+  }
+}
+
+// '보러가기' → 내상품리스트로 이동 (handleGoToCart와 동일한 history 처리 패턴)
+const goToSavedProductList = () => {
+  toastMessage.value = ''
+  toastLink.value = false
+  if (typeof window !== 'undefined') {
+    if (window.history.state?.modal === 'product-detail') {
+      window.history.replaceState(null, '')
+    }
+    document.body.style.overflow = 'unset'
+  }
+  emit('close')
+  router.push('/dashboard/sourcing-products')
+}
+
+const toggleSavedProduct = async () => {
+  if (isSavedProductBusy.value) return
+
+  if (!isLoggedIn.value) {
+    showToastNotification('⚠️ 로그인이 필요한 기능입니다.', 'warning')
+    openLoginModal('login')
+    return
+  }
+  if (!currentItemId.value) {
+    showToastNotification('⚠️ 상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'warning')
+    return
+  }
+
+  isSavedProductBusy.value = true
+  try {
+    if (savedProductRowId.value) {
+      await removeSavedProduct(currentItemId.value)
+      savedProductRowId.value = null
+      showToastNotification('내상품리스트에서 뺐어요', 'info')
+    } else {
+      // 카테고리 자동 지정: 진입 경로가 대분류/소분류일 때만 값이 넘어온다.
+      let categoryId = null
+      if (props.autoCategoryName) {
+        try {
+          categoryId = await resolveMajorCategoryId(props.autoCategoryName)
+        } catch (catErr) {
+          // 카테고리 조회 실패는 찜 자체를 막지 않고 '미분류'로 저장 (원인은 로그로 남김)
+          console.error('[ProductDetailModal] 대분류 매핑 실패 — 미분류로 저장합니다:', catErr.message)
+        }
+      }
+
+      const saved = await saveProduct({
+        itemId: currentItemId.value,
+        titleZh: currentItem.value?.titleZh || currentItem.value?.title || '',
+        imageUrl: activeImage.value || currentItem.value?.imageUrl || '',
+        // 장바구니 저장(priceCny)과 동일 기준 — 수량 구간이 적용된 현재 단가
+        snapshotPrice: Number(currentUnitRmb.value),
+        itemData: buildSavedItemData(),
+        categoryId
+      })
+      savedProductRowId.value = saved.id
+      showToastNotification('내상품리스트에 담았어요', 'success', true)
+    }
+  } catch (err) {
+    console.error('[ProductDetailModal] 찜 처리 실패:', err)
+    showToastNotification(`⚠️ ${err.message}`, 'warning')
+    // 실패 원인이 중복(이미 담김)일 수 있으므로 실제 상태를 다시 맞춘다
+    checkSavedProduct()
+  } finally {
+    isSavedProductBusy.value = false
+  }
 }
 
 const handleClose = () => {
@@ -2067,6 +2208,7 @@ watch(() => props.product, (newVal) => {
     selectedSkus.value = []
 
     checkStoreFavorite()
+    checkSavedProduct()
 
     // loadFullProductData 내부 finally에서 isDetailLoading = false 처리
     // + titleZh가 채워진 후 loadSimilarProducts 호출 (유사 상품 키워드 검색)
@@ -2078,6 +2220,7 @@ watch(() => props.product, (newVal) => {
     selectedColorId.value = null
     selectedSize.value = null
     selectedSkus.value = []
+    savedProductRowId.value = null
     if (typeof document !== 'undefined') {
       document.body.style.overflow = 'unset'
     }

@@ -413,7 +413,7 @@
                     {{ savedCount }}
                   </span>
                 </router-link>
-                <!-- 📋 상품리스트 / 카테고리 -->
+                <!-- 📋 내상품리스트 -->
                 <router-link
                   to="/dashboard/sourcing-products"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
@@ -421,7 +421,7 @@
                 >
                   <div class="flex items-center gap-1.5">
                     <span>📋</span>
-                    <span>상품리스트 / 카테고리</span>
+                    <span>내상품리스트</span>
                   </div>
                   <span class="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
                 </router-link>
@@ -721,7 +721,7 @@
       <!-- ============================================================ -->
       <MallCategoryGrid
         :display-categories="categoryCardsForGrid"
-        @select="selectCategory"
+        @select="(cat) => selectCategory(cat, 'quick')"
       />
 
       <!-- ============================================================ -->
@@ -1054,9 +1054,20 @@
     <!-- ======================================================== -->
     <!-- 5. PRODUCT DETAIL & ORDER MODAL (Component) -->
     <!-- ======================================================== -->
+    <!-- 로그아웃 확인 모달 -->
+    <ConfirmSaveModal
+      v-model="isSignOutConfirmOpen"
+      title="로그아웃하시겠습니까?"
+      variant="red"
+      icon="warn"
+      confirmText="로그아웃"
+      @confirm="executeMallSignOut"
+    />
+
     <ProductDetailModal
       :product="selectedModalProduct"
       :exchange-rate="customExchangeRate"
+      :auto-category-name="autoSaveCategoryName"
       @close="selectedModalProduct = null"
       @added-to-cart="handleModalCartAdded"
       @change-product="selectedModalProduct = $event"
@@ -1251,6 +1262,7 @@ import ImageSearchModal from '../components/mall/ImageSearchModal.vue'
 import MallBanner from '../components/mall/MallBanner.vue'
 import MallCategoryGrid from '../components/mall/MallCategoryGrid.vue'
 import MallRecentlyViewed from '../components/mall/MallRecentlyViewed.vue'
+import ConfirmSaveModal from '../components/common/ConfirmSaveModal.vue'
 import { userBalance, loadBalance } from '../lib/balanceStore'
 import { supabase } from '../lib/supabase'
 import { normalizeOrderStatus, getOrderStatsByUser } from '../lib/orderPipeline'
@@ -2124,8 +2136,47 @@ const categoryCardsForGrid = computed(() =>
 // 최근 본 상품 컴포넌트 ref
 const recentlyViewedRef = ref(null)
 
+// ── 찜(내상품리스트) 카테고리 자동 지정용 매핑 ──────────────────────────
+// 몰 카테고리 id → Supabase categories(level=1).name_ko
+// 메가메뉴(대분류/소분류)는 DB 대분류와 1:1로 대응된다.
+const MEGA_CAT_TO_MAJOR = {
+  fashion:   '패션의류/이너웨어',
+  shoes_acc: '신발/가방/패션잡화',
+  living:    '생활/주방용품',
+  interior:  '홈인테리어/문구',
+  digital:   '디지털/가전/차량',
+  camping:   '스포츠/레저/캠핑',
+  pet:       '펫(반려동물) 용품',
+  baby:      '유아동/완구/취미',
+  beauty:    '뷰티/미용/화장품',
+  tools:     '공구/산업/포장재',
+}
+// 상단 네비(퀵탭) / 카테고리 이미지 카드 → DB 대분류
+// best(실시간 베스트)는 카테고리가 아니고, pet(펫/유아)은 반려동물+유아동이
+// 섞여 있어 판단 불가이므로 둘 다 매핑하지 않는다(= 미분류).
+const QUICK_TAB_TO_MAJOR = {
+  fashion:   '패션의류/이너웨어',
+  shoes_acc: '신발/가방/패션잡화',
+  living:    '생활/주방용품',
+  interior:  '홈인테리어/문구',
+  digital:   '디지털/가전/차량',
+  camping:   '스포츠/레저/캠핑',
+  beauty:    '뷰티/미용/화장품',
+}
+
+// 현재 검색 결과가 어떤 대분류 경로로 들어온 것인지 (키워드/URL/사진 검색은 빈 값)
+const entryCategoryName = ref('')
+
+// ProductDetailModal에 넘길 자동 카테고리 이름.
+// 홈(추천 섹션·최근 본 상품)과 사진 검색 결과에서는 항상 미분류로 저장한다.
+const autoSaveCategoryName = computed(() => {
+  if (!hasSearched.value || isImageSearchMode.value) return ''
+  return entryCategoryName.value || ''
+})
+
 // ── 메가메뉴 상태 ─────────────────────────────────────────
-const selectedCategoryId = ref('fashion')
+// 초기값 null = 아무 탭도 선택 표시하지 않음 (탭/카테고리를 누를 때만 대입됨)
+const selectedCategoryId = ref(null)
 const isMegaMenuOpen = ref(false)
 const activeMegaCat = ref(categories[0]) // 기본값: 패션의류
 const categoryNavRef = ref(null)
@@ -2183,17 +2234,22 @@ const selectQuickTab = (qt) => {
   isMegaMenuOpen.value = false
   selectedCategoryId.value = qt.id
   queryInput.value = qt.keyword
-  executeSearch(1)
+  executeSearch(1, null, QUICK_TAB_TO_MAJOR[qt.id] || '')
 }
 
-const selectCategory = (cat) => {
+// source: 'mega'  = 카테고리 드롭다운의 대분류 '전체 검색'
+//         'quick' = 몰 메인 카테고리 이미지 카드(퀵탭과 동일 id 체계)
+const selectCategory = (cat, source = 'mega') => {
   if (megaMenuTimer) clearTimeout(megaMenuTimer)
   if (categoryHoverTimer) clearTimeout(categoryHoverTimer)
   isMegaMenuOpen.value = false
   hoveredCategory.value = null
   selectedCategoryId.value = cat.id
   queryInput.value = cat.keyword || cat.name
-  executeSearch(1)
+  const majorName = source === 'quick'
+    ? (QUICK_TAB_TO_MAJOR[cat.id] || '')
+    : (MEGA_CAT_TO_MAJOR[cat.id] || '')
+  executeSearch(1, null, majorName)
 }
 
 // ── 소분류 cid 매핑 테이블 (표본 2~3개 검증으로 안정 확인된 항목만) ──────────────
@@ -2247,7 +2303,8 @@ const handleSubCategoryClick = (subKeyword, parentCat, groupTitle = '') => {
   // ↑ 다른 그룹은 subKeyword 그대로 — 접두어 없음
 
   queryInput.value = combinedKeyword
-  executeSearch(1)
+  // 소분류로 들어온 목록도 해당 대분류로 자동 지정
+  executeSearch(1, null, MEGA_CAT_TO_MAJOR[parentCat.id] || '')
 }
 
 const handleClickOutside = (e) => {
@@ -2385,8 +2442,14 @@ const toggleMenu = (key) => {
   expandedMenus.value[key] = !expandedMenus.value[key]
 }
 
-const handleMallSignOut = async () => {
-  if (!confirm('로그아웃하시겠습니까?')) return
+// 로그아웃 확인: window.confirm 대신 프로젝트 공통 ConfirmSaveModal 사용
+const isSignOutConfirmOpen = ref(false)
+
+const handleMallSignOut = () => {
+  isSignOutConfirmOpen.value = true
+}
+
+const executeMallSignOut = async () => {
   await signOut()
   router.push('/mall')
 }
@@ -2554,9 +2617,13 @@ const openDetailModalById = async (offerId) => {
 // ----------------------------------------------------
 // 1688 Search & AI Execution
 // ----------------------------------------------------
-const executeSearch = async (page = 1, overrideKeyword = null) => {
+// categoryName: 카테고리/네비를 눌러 들어온 검색일 때만 대분류 이름이 넘어온다.
+// 검색창·배너·섹션 더보기 등 그 외 경로는 기본값('')으로 미분류 처리된다.
+const executeSearch = async (page = 1, overrideKeyword = null, categoryName = '') => {
   const rawInput = (overrideKeyword !== null ? overrideKeyword : queryInput.value).trim()
   if (!rawInput) return
+
+  entryCategoryName.value = categoryName || ''
 
   // 1688 URL 패턴 체크 (예: detail.1688.com/offer/804895839729.html, offerId=804895839729 등)
   const urlMatch = rawInput.match(/offer\/(\d+)\.html/) || rawInput.match(/[?&]offerId=(\d+)/) || rawInput.match(/[?&]itemId=(\d+)/)

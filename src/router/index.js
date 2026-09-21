@@ -58,15 +58,14 @@ const routes = [
         name: 'dashboard-sourcing-products',
         component: SourcingProductsView,
       },
+      // 구 경로 호환: 같은 화면을 세 경로로 띄우지 않고 내상품리스트로 통일
       {
         path: 'categories',
-        name: 'dashboard-categories',
-        component: SourcingProductsView,
+        redirect: '/dashboard/sourcing-products',
       },
       {
         path: 'labels',
-        name: 'dashboard-labels',
-        component: SourcingProductsView,
+        redirect: '/dashboard/sourcing-products',
       },
       {
         path: 'orders',

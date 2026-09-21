@@ -176,7 +176,7 @@
                     {{ savedItems.length }}
                   </span>
                 </router-link>
-                <!-- 📋 상품리스트 / 카테고리 -->
+                <!-- 📋 내상품리스트 -->
                 <router-link
                   to="/dashboard/sourcing-products"
                   class="w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-left transition"
@@ -184,7 +184,7 @@
                 >
                   <div class="flex items-center gap-1.5">
                     <span>📋</span>
-                    <span>상품리스트 / 카테고리</span>
+                    <span>내상품리스트</span>
                   </div>
                   <span class="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
                 </router-link>
