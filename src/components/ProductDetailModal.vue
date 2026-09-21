@@ -1663,7 +1663,8 @@ const loadSimilarProducts = async (item) => {
 
     if (imgUrl) {
       try {
-        const imgResult = await search1688ByImageUrl(imgUrl)
+        // filterResults가 자기 자신 1건을 제외하고 12건을 쓰므로 13건만 번역
+        const imgResult = await search1688ByImageUrl(imgUrl, { maxItems: 13 })
         if (imgResult?.success && imgResult.items?.length > 0) {
           const filtered = filterResults(imgResult.items)
           if (filtered.length > 0) {

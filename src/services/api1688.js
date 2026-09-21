@@ -1062,9 +1062,13 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
 /**
  * 1688 이미지(사진) 검색 — OneBound item_search_img
  * @param {string} imageUrl - 공개 접근 가능한 이미지 URL
+ * @param {Object} [options]
+ * @param {number} [options.maxItems=0] - 번역 전에 상위 N건으로 잘라 불필요한 번역을 막는다.
+ *   0(미지정)이면 기존 동작(전량 번역) 그대로 유지.
+ *   상위 일부만 화면에 쓰는 호출부(비슷한 상품 12건)에서 지정한다.
  * @returns {Promise<{ success: boolean, items: Array, totalResults: string }>}
  */
-export async function search1688ByImageUrl(imageUrl) {
+export async function search1688ByImageUrl(imageUrl, { maxItems = 0 } = {}) {
   const url = String(imageUrl || '').trim()
   if (!url) {
     console.warn('[1688 ImageSearch] imageUrl is empty')
@@ -1162,11 +1166,14 @@ export async function search1688ByImageUrl(imageUrl) {
     }).filter(i => i.id && i.titleZh)
 
 
-    await translateItemsBatch(items)
+    // 화면에서 상위 일부만 쓰는 호출부(비슷한 상품 12건)를 위해 번역 전에 자른다.
+    // maxItems=0이면 기존과 동일하게 전량 번역.
+    const target = maxItems > 0 ? items.slice(0, maxItems) : items
+    await translateItemsBatch(target)
 
     return {
       success: true,
-      items,
+      items: target,
       totalResults: String(rawList.length)
     }
   } catch (err) {
