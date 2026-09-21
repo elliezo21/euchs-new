@@ -6,23 +6,23 @@
     @drop.prevent
   >
     <div
-      class="bg-white border border-slate-200 rounded-3xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto text-slate-800 text-xs custom-scrollbar"
+      class="bg-white border border-slate-200 rounded-3xl max-w-3xl w-full p-6 sm:p-7 shadow-2xl space-y-5 max-h-[90vh] overflow-y-auto text-slate-800 text-sm custom-scrollbar"
       @click.stop
     >
       <!-- 모달 헤더 -->
       <div class="flex items-center justify-between pb-3 border-b border-slate-200">
         <div>
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-black bg-amber-100 text-amber-700 border border-amber-200">
               EUC WMS · 이우 창고 입고&검수
             </span>
-            <span class="font-mono text-xs text-slate-400 font-bold">
+            <span class="font-mono text-sm text-slate-400 font-bold">
               {{ inboundForm.inboundNo || 'INB-YW-NEW' }}
             </span>
           </div>
           <h3 class="text-base font-bold text-slate-900 mt-1 flex items-center gap-2">
             <span>{{ application?.customer_name || '신청자' }}님의 발주 입고/검수 처리</span>
-            <span v-if="application?.phone" class="text-xs text-slate-400 font-normal font-mono">({{ application.phone }})</span>
+            <span v-if="application?.phone" class="text-sm text-slate-400 font-normal font-mono">({{ application.phone }})</span>
           </h3>
         </div>
         <button @click="closeModal" class="text-slate-400 hover:text-slate-700 p-1 transition rounded-lg hover:bg-slate-100">
@@ -33,13 +33,13 @@
       <!-- 품목 및 주문 요약 -->
       <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl flex items-center justify-between gap-3">
         <div class="min-w-0">
-          <p class="font-bold text-slate-900 truncate text-xs">{{ getTargetProductName() }}</p>
-          <p class="text-[11px] text-slate-500 font-mono mt-0.5">
+          <p class="font-bold text-slate-900 truncate text-sm">{{ getTargetProductName() }}</p>
+          <p class="text-xs text-slate-500 font-mono mt-0.5">
             접수일: {{ application?.created_at ? new Date(application.created_at).toLocaleDateString('ko-KR') : '-' }} ·
             발주금액: <b class="text-amber-600">{{ Number(application?.total_amount || 0).toLocaleString() }}원</b>
           </p>
         </div>
-        <span class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200 shrink-0">
+        <span class="px-2.5 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200 shrink-0">
           이우(Yiwu) 물류센터
         </span>
       </div>
@@ -47,11 +47,11 @@
       <!-- 부가서비스(VAS) 요청 내역 -->
       <div v-if="getAppVasServices().length" class="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl space-y-2">
         <div class="flex items-center justify-between">
-          <span class="font-bold text-amber-700 flex items-center gap-1.5 text-xs">
+          <span class="font-bold text-amber-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-screwdriver-wrench text-amber-500"></i>
             <span>바이어 현장 부가서비스(VAS) 요청 (총 {{ getAppVasServices().length }}건)</span>
           </span>
-          <span class="text-[10px] text-amber-700 font-mono font-bold bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
+          <span class="text-xs text-amber-700 font-mono font-bold bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
             검수/출고 전 필수 작업
           </span>
         </div>
@@ -59,9 +59,9 @@
           <span
             v-for="vas in getAppVasServices()"
             :key="vas.id"
-            class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-xs font-bold flex items-center gap-1.5 shadow-2xs"
+            class="px-2.5 py-1 rounded-lg bg-amber-100 text-amber-800 border border-amber-200 text-sm font-bold flex items-center gap-1.5 shadow-2xs"
           >
-            <i class="fas fa-check text-[9px] text-amber-500"></i>
+            <i class="fas fa-check text-[11px] text-amber-500"></i>
             <span>{{ vas.name }}</span>
           </span>
         </div>
@@ -76,7 +76,7 @@
           v-if="!isArrivalDoneMode"
           type="button"
           @click="activeTab = 'arrival'"
-          class="flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+          class="flex-1 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
           :class="activeTab === 'arrival'
             ? 'bg-teal-600 text-white shadow'
             : 'text-slate-500 hover:text-slate-700 hover:bg-white'"
@@ -84,7 +84,7 @@
           <i class="fas fa-box-open"></i>
           <span>5-A 품목별 도착검수</span>
           <span
-            class="text-[10px] px-1.5 py-0.5 rounded-full font-black"
+            class="text-xs px-1.5 py-0.5 rounded-full font-black"
             :class="activeTab === 'arrival' ? 'bg-teal-500/30 text-teal-100' : 'bg-slate-200 text-slate-500'"
           >{{ verifiedCount }}/{{ checkableItemCount }}</span>
         </button>
@@ -94,7 +94,7 @@
           v-if="!isArrivalTransitMode"
           type="button"
           @click="activeTab = 'box'"
-          class="flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+          class="flex-1 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
           :class="activeTab === 'box'
             ? 'bg-indigo-600 text-white shadow'
             : 'text-slate-500 hover:text-slate-700 hover:bg-white'"
@@ -103,7 +103,7 @@
           <span>5-B 박스포장 &amp; CBM 정산</span>
           <span
             v-if="!allItemsVerified && checkableItemCount > 0"
-            class="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-amber-100 text-amber-700"
+            class="text-xs px-1.5 py-0.5 rounded-full font-black bg-amber-100 text-amber-700"
           >미완료</span>
         </button>
 
@@ -112,7 +112,7 @@
           v-if="!isArrivalDoneMode"
           type="button"
           @click="activeTab = 'issue'"
-          class="flex-1 py-2.5 rounded-xl text-xs font-bold transition flex items-center justify-center gap-2"
+          class="flex-1 py-2.5 rounded-xl text-sm font-bold transition flex items-center justify-center gap-2"
           :class="activeTab === 'issue'
             ? 'bg-rose-600 text-white shadow'
             : 'text-slate-500 hover:text-slate-700 hover:bg-white'"
@@ -121,7 +121,7 @@
           <span>5-C 이슈 &amp; 클레임</span>
           <span
             v-if="totalIssueQty > 0"
-            class="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-rose-100 text-rose-700"
+            class="text-xs px-1.5 py-0.5 rounded-full font-black bg-rose-100 text-rose-700"
           >{{ totalIssueQty }}</span>
         </button>
       </div>
@@ -133,7 +133,7 @@
       <div v-if="activeTab === 'arrival'" class="space-y-4">
         <!-- 전체 진행률 헤더 -->
         <div class="flex items-center justify-between">
-          <h4 class="font-bold text-teal-700 flex items-center gap-1.5 text-xs">
+          <h4 class="font-bold text-teal-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-clipboard-check"></i>
             <span>품목별 도착 확인 ({{ verifiedCount }}/{{ checkableItemCount }} 완료)</span>
           </h4>
@@ -148,34 +148,34 @@
         <!-- ── 고객 신청 부가작업(VAS) 섹션 (vasApplied가 있을 때만 표시) ── -->
         <div v-if="arrivalVasItems.length > 0" class="p-4 bg-orange-50 border border-orange-200 rounded-2xl space-y-3">
           <div class="flex items-center justify-between">
-            <h4 class="font-bold text-orange-700 flex items-center gap-1.5 text-xs">
+            <h4 class="font-bold text-orange-700 flex items-center gap-1.5 text-sm">
               <i class="fas fa-screwdriver-wrench text-orange-500"></i>
               <span>고객 신청 부가작업 ({{ arrivalVasItems.length }}건) — 가격 확정 입력</span>
             </h4>
-            <span class="text-[10px] font-black bg-orange-100 text-orange-700 border border-orange-300 px-2 py-0.5 rounded-full">
+            <span class="text-xs font-black bg-orange-100 text-orange-700 border border-orange-300 px-2 py-0.5 rounded-full">
               합계: ₩{{ arrivalVasTotal.toLocaleString() }}
             </span>
           </div>
-          <p class="text-[11px] text-orange-600">고객이 창고 입고 단계에서 신청한 항목입니다. 가격을 확정 입력하세요.</p>
+          <p class="text-xs text-orange-600">고객이 창고 입고 단계에서 신청한 항목입니다. 가격을 확정 입력하세요.</p>
           <div class="space-y-2">
             <div
               v-for="(vas, vIdx) in arrivalVasItems"
               :key="vIdx"
               class="flex items-start gap-3 p-2.5 rounded-xl bg-white border border-orange-200"
             >
-              <i class="fas fa-check-circle text-orange-400 text-xs shrink-0 mt-0.5"></i>
-              <span class="flex-1 text-xs font-medium text-orange-900 min-w-0 break-words">
+              <i class="fas fa-check-circle text-orange-400 text-sm shrink-0 mt-0.5"></i>
+              <span class="flex-1 text-sm font-medium text-orange-900 min-w-0 break-words">
                 {{ vas.name }}
-                <span v-if="vas.id === 'custom'" class="ml-1 text-[10px] text-orange-500 font-normal">(커스텀)</span>
+                <span v-if="vas.id === 'custom'" class="ml-1 text-xs text-orange-500 font-normal">(커스텀)</span>
               </span>
               <div class="flex items-center gap-1 shrink-0">
-                <span class="text-slate-400 text-xs">₩</span>
+                <span class="text-slate-400 text-sm">₩</span>
                 <input
                   type="number"
                   v-model.number="vas.adminPrice"
                   min="0"
                   placeholder="0"
-                  class="w-24 px-2 py-1 rounded-lg border border-orange-300 text-xs font-mono text-right focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-300 text-orange-900"
+                  class="w-24 px-2 py-1 rounded-lg border border-orange-300 text-sm font-mono text-right focus:outline-none focus:border-orange-500 focus:ring-1 focus:ring-orange-300 text-orange-900"
                 />
               </div>
             </div>
@@ -185,7 +185,7 @@
         <!-- 품목 없음 안내 -->
         <div v-if="!orderItems || orderItems.length === 0" class="p-6 rounded-2xl bg-slate-50 border border-slate-200 text-center text-slate-400">
           <i class="fas fa-box text-2xl mb-2 block text-slate-300"></i>
-          <p>주문 품목 정보가 없습니다.<br><span class="text-[11px]">주문 데이터에 items[] 배열이 비어 있습니다.</span></p>
+          <p>주문 품목 정보가 없습니다.<br><span class="text-xs">주문 데이터에 items[] 배열이 비어 있습니다.</span></p>
         </div>
 
         <!-- 품목 카드 목록 -->
@@ -210,21 +210,21 @@
                   @error="$event.target.style.display='none'"
                 />
                 <div class="flex-1 min-w-0">
-                  <p class="font-bold text-slate-900 text-xs line-clamp-1">{{ item.titleKo || item.productName || '1688 품목' }}</p>
-                  <p class="text-[11px] text-slate-500 mt-0.5">
+                  <p class="font-bold text-slate-900 text-sm line-clamp-1">{{ item.titleKo || item.productName || '1688 품목' }}</p>
+                  <p class="text-xs text-slate-500 mt-0.5">
                     옵션: <span class="text-slate-700 font-semibold">{{ item.optionName || item.sku || item.color || '기본' }}</span>
                     · 발주: <span class="text-amber-600 font-bold">{{ item.quantity || 0 }}개</span>
                   </p>
                 </div>
                 <!-- 품절/제외 뱃지 또는 완료 뱃지 -->
                 <div class="shrink-0">
-                  <span v-if="item.excluded" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-500 text-[10px] font-bold border border-slate-200">
+                  <span v-if="item.excluded" class="px-2 py-1 rounded-lg bg-slate-100 text-slate-500 text-xs font-bold border border-slate-200">
                     품절/제외
                   </span>
-                  <span v-else-if="itemVerified(idx)" class="px-2 py-1 rounded-lg bg-teal-100 text-teal-700 text-[10px] font-bold border border-teal-200 flex items-center gap-1">
+                  <span v-else-if="itemVerified(idx)" class="px-2 py-1 rounded-lg bg-teal-100 text-teal-700 text-xs font-bold border border-teal-200 flex items-center gap-1">
                     <i class="fas fa-check"></i> 확인완료
                   </span>
-                  <span v-else class="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200">
+                  <span v-else class="px-2 py-1 rounded-lg bg-amber-50 text-amber-700 text-xs font-bold border border-amber-200">
                     미확인
                   </span>
                 </div>
@@ -235,13 +235,13 @@
                 <!-- 도착 수량 확인 -->
                 <div class="grid grid-cols-2 gap-3">
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-500 mb-1">도착 확인 수량</label>
+                    <label class="block text-xs font-bold text-slate-500 mb-1">도착 확인 수량</label>
                     <input
                       type="number"
                       min="0"
                       :value="getArrivalItem(idx).quantityArrived"
                       @input="setArrivalQty(idx, $event.target.value)"
-                      class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 text-xs"
+                      class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20 text-sm"
                       :placeholder="`발주: ${item.quantity}개`"
                     />
                   </div>
@@ -249,7 +249,7 @@
                     <button
                       type="button"
                       @click="toggleVerify(idx)"
-                      class="w-full py-2 rounded-xl font-bold text-xs transition active:scale-95"
+                      class="w-full py-2 rounded-xl font-bold text-sm transition active:scale-95"
                       :class="itemVerified(idx)
                         ? 'bg-teal-600 hover:bg-teal-500 text-white'
                         : 'bg-slate-100 hover:bg-teal-50 text-slate-600 border border-slate-300 hover:border-teal-300'"
@@ -263,7 +263,7 @@
                 <!-- 품목 도착 사진 (2단 구조: 카메라 직행 메인 + 파일선택 보조) -->
                 <div>
                   <div class="flex items-center justify-between mb-2">
-                    <label class="text-[11px] font-bold text-slate-500">도착 증빙 사진 ({{ getArrivalItem(idx).arrivalPhotos.length }}장)</label>
+                    <label class="text-xs font-bold text-slate-500">도착 증빙 사진 ({{ getArrivalItem(idx).arrivalPhotos.length }}장)</label>
                   </div>
 
                   <!-- [숨김] ① 카메라 직행 input (capture="environment") — 모바일 후면 카메라 바로 실행 -->
@@ -289,7 +289,7 @@
                   <button
                     type="button"
                     @click="triggerItemPhotoCamera(idx)"
-                    class="w-full py-3 rounded-xl font-bold text-sm transition active:scale-95 shadow-sm flex items-center justify-center gap-2.5 mb-2.5
+                    class="w-full py-3 rounded-xl font-bold text-base transition active:scale-95 shadow-sm flex items-center justify-center gap-2.5 mb-2.5
                            bg-teal-600 hover:bg-teal-500 text-white border border-teal-500"
                   >
                     <i class="fas fa-camera text-base"></i>
@@ -313,7 +313,7 @@
                         @click.stop="removeItemPhoto(idx, pIdx)"
                         class="absolute top-0.5 right-0.5 p-0.5 rounded bg-rose-600/90 hover:bg-rose-600 text-white transition opacity-0 group-hover:opacity-100 active:scale-90"
                       >
-                        <i class="fas fa-trash text-[9px]"></i>
+                        <i class="fas fa-trash text-[11px]"></i>
                       </button>
                     </div>
                   </div>
@@ -325,8 +325,8 @@
                     @click="triggerItemPhotoInput(idx)"
                     class="border border-dashed border-slate-300 hover:border-teal-400 bg-slate-50 hover:bg-teal-50/30 rounded-xl px-3 py-2 text-center cursor-pointer transition select-none"
                   >
-                    <div class="flex items-center justify-center gap-1.5 text-slate-400 text-[11px]">
-                      <i class="fas fa-folder-open text-xs text-slate-300"></i>
+                    <div class="flex items-center justify-center gap-1.5 text-slate-400 text-xs">
+                      <i class="fas fa-folder-open text-sm text-slate-300"></i>
                       <span>또는 PC/앨범에서 파일 선택 (드래그 가능)</span>
                     </div>
                   </div>
@@ -335,11 +335,11 @@
                 <!-- 품목 도착 동영상 — 점검 중 안내 (촬영/파일선택 버튼 비활성화) -->
                 <div>
                   <div class="flex items-center justify-between mb-2">
-                    <label class="text-[11px] font-bold text-slate-500">도착 증빙 동영상 ({{ getArrivalItem(idx).arrivalVideos?.length ?? 0 }}개, 선택)</label>
+                    <label class="text-xs font-bold text-slate-500">도착 증빙 동영상 ({{ getArrivalItem(idx).arrivalVideos?.length ?? 0 }}개, 선택)</label>
                   </div>
 
                   <!-- 점검 중 안내 배너 (동영상 첨부 기능 임시 비활성화) -->
-                  <div class="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 text-xs text-amber-700 font-medium">
+                  <div class="w-full flex items-center gap-2.5 px-3.5 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-700 font-medium">
                     <i class="fas fa-triangle-exclamation text-amber-500 shrink-0"></i>
                     <span>동영상 첨부 기능은 현재 점검 중입니다. 사진으로 증빙해 주세요.</span>
                   </div>
@@ -352,7 +352,7 @@
                     <div
                       v-for="(vid, vIdx) in getArrivalItem(idx).arrivalVideos"
                       :key="vIdx"
-                      class="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100 text-xs"
+                      class="flex items-center gap-2 px-3 py-2 rounded-xl bg-purple-50 border border-purple-100 text-sm"
                     >
                       <i class="fas fa-video text-purple-400 shrink-0"></i>
                       <span class="flex-1 truncate text-slate-700 font-mono">{{ vid.caption }}</span>
@@ -362,7 +362,7 @@
                         @click="removeItemVideo(idx, vIdx)"
                         class="text-rose-400 hover:text-rose-600 transition shrink-0"
                       >
-                        <i class="fas fa-trash text-[10px]"></i>
+                        <i class="fas fa-trash text-xs"></i>
                       </button>
                     </div>
                   </div>
@@ -403,7 +403,7 @@
           v-if="checkableItemCount > 0 && !allItemsVerified"
           class="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl space-y-2"
         >
-          <p class="font-bold text-amber-700 flex items-center gap-1.5 text-xs">
+          <p class="font-bold text-amber-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-triangle-exclamation text-amber-500"></i>
             <span>미확인 품목이 있습니다 ({{ checkableItemCount - verifiedCount }}건)</span>
           </p>
@@ -411,12 +411,12 @@
             <span
               v-for="(item, idx) in unverifiedItems"
               :key="idx"
-              class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-bold border border-amber-200"
+              class="px-2 py-0.5 rounded-lg bg-amber-100 text-amber-800 text-xs font-bold border border-amber-200"
             >
               {{ item.optionName || item.sku || item.titleKo || `품목 ${item.idx + 1}` }}
             </span>
           </div>
-          <p class="text-[11px] text-amber-600">
+          <p class="text-xs text-amber-600">
             5-B CBM 저장은 모든 품목 도착확인 완료 후 가능합니다. 품절/구매제외 품목은 5-A 탭에서 해당 품목의 상태를 변경 시 즉시 반영됩니다.
           </p>
         </div>
@@ -424,12 +424,12 @@
         <!-- 전체 검수 완료 확인 뱃지 -->
         <div v-if="allItemsVerified || checkableItemCount === 0" class="p-3 bg-teal-50 border border-teal-200 rounded-2xl flex items-center gap-2">
           <i class="fas fa-circle-check text-teal-500"></i>
-          <span class="text-xs text-teal-700 font-bold">5-A 도착검수 완료 — 박스 포장 및 CBM 정산을 진행하세요.</span>
+          <span class="text-sm text-teal-700 font-bold">5-A 도착검수 완료 — 박스 포장 및 CBM 정산을 진행하세요.</span>
         </div>
 
         <!-- CBM 측정 모드 선택 -->
         <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-          <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-xs">
+          <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-ruler-combined"></i>
             <span>1. 박스 치수 기준 선택</span>
           </h4>
@@ -437,80 +437,80 @@
             <button
               type="button"
               @click="boxForm.measureMode = 'piece'"
-              class="py-2 px-3 rounded-xl border text-xs font-bold transition"
+              class="py-2 px-3 rounded-xl border text-sm font-bold transition"
               :class="boxForm.measureMode === 'piece'
                 ? 'bg-indigo-600 border-indigo-600 text-white'
                 : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'"
             >
-              🧴 개별 단품 기준 <span class="text-[10px] opacity-70">(치수×총수량)</span>
+              🧴 개별 단품 기준 <span class="text-xs opacity-70">(치수×총수량)</span>
             </button>
             <button
               type="button"
               @click="boxForm.measureMode = 'carton'"
-              class="py-2 px-3 rounded-xl border text-xs font-bold transition"
+              class="py-2 px-3 rounded-xl border text-sm font-bold transition"
               :class="boxForm.measureMode === 'carton'
                 ? 'bg-indigo-600 border-indigo-600 text-white'
                 : 'bg-white border-slate-300 text-slate-600 hover:bg-slate-50'"
             >
-              📦 1카톤(박스) 기준 <span class="text-[10px] opacity-70">(치수×카톤수)</span>
+              📦 1카톤(박스) 기준 <span class="text-xs opacity-70">(치수×카톤수)</span>
             </button>
           </div>
         </div>
 
         <!-- 치수 입력 -->
         <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-          <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-xs">
+          <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-weight-scale"></i>
             <span>2. {{ boxForm.measureMode === 'piece' ? '개별 단품' : '1개 카톤(박스)' }} 치수 입력 (cm)</span>
           </h4>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="block font-bold text-slate-500 mb-1 text-[11px]">가로 (cm)</label>
+              <label class="block font-bold text-slate-500 mb-1 text-xs">가로 (cm)</label>
               <input type="number" step="0.1" v-model.number="boxForm.lengthCm" placeholder="0.0"
-                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs" />
+                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm" />
             </div>
             <div>
-              <label class="block font-bold text-slate-500 mb-1 text-[11px]">세로 (cm)</label>
+              <label class="block font-bold text-slate-500 mb-1 text-xs">세로 (cm)</label>
               <input type="number" step="0.1" v-model.number="boxForm.widthCm" placeholder="0.0"
-                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs" />
+                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm" />
             </div>
             <div>
-              <label class="block font-bold text-slate-500 mb-1 text-[11px]">높이 (cm)</label>
+              <label class="block font-bold text-slate-500 mb-1 text-xs">높이 (cm)</label>
               <input type="number" step="0.1" v-model.number="boxForm.heightCm" placeholder="0.0"
-                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs" />
+                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm" />
             </div>
           </div>
           <div class="grid grid-cols-3 gap-3">
             <div>
-              <label class="block font-bold text-slate-500 mb-1 text-[11px]">실측 중량 (kg)</label>
+              <label class="block font-bold text-slate-500 mb-1 text-xs">실측 중량 (kg)</label>
               <input type="number" step="0.1" v-model.number="boxForm.weightKg" placeholder="0.0"
-                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs" />
+                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm" />
             </div>
             <div>
-              <label class="block font-bold text-slate-500 mb-1 text-[11px]"
+              <label class="block font-bold text-slate-500 mb-1 text-xs"
                 :class="boxForm.measureMode === 'carton' ? 'text-indigo-600' : ''">
                 카톤 수 (CTN) {{ boxForm.measureMode === 'carton' ? '★' : '' }}
               </label>
               <input type="number" min="1" v-model.number="boxForm.cartons" placeholder="1"
-                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs" />
+                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm" />
             </div>
             <div>
-              <label class="block font-bold text-slate-500 mb-1 text-[11px]"
+              <label class="block font-bold text-slate-500 mb-1 text-xs"
                 :class="boxForm.measureMode === 'piece' ? 'text-indigo-600' : ''">
                 총 수량 (PCS) {{ boxForm.measureMode === 'piece' ? '★' : '' }}
               </label>
               <input type="number" min="1" v-model.number="boxForm.totalPcs" placeholder="100"
-                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-xs" />
+                class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono font-bold focus:outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm" />
             </div>
           </div>
         </div>
 
         <!-- CBM 자동 계산 + 2차 정산 요약 -->
-        <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-3 font-mono text-xs">
+        <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl space-y-3 font-mono text-sm">
           <div class="flex justify-between items-center">
             <div>
-              <span class="text-slate-600 font-bold block text-xs">산출 총 CBM</span>
-              <span class="text-[10px] text-slate-500">
+              <span class="text-slate-600 font-bold block text-sm">산출 총 CBM</span>
+              <span class="text-xs text-slate-500">
                 <template v-if="boxForm.measureMode === 'piece'">
                   {{ calcUnitCbm.toFixed(6) }} CBM × {{ boxForm.totalPcs || 1 }}개
                 </template>
@@ -521,38 +521,38 @@
             </div>
             <span class="font-black text-indigo-700 text-base">{{ calcTotalCbm.toFixed(4) }} CBM</span>
           </div>
-          <div class="grid grid-cols-3 gap-2 text-center text-[11px] pt-2 border-t border-indigo-200">
+          <div class="grid grid-cols-3 gap-2 text-center text-xs pt-2 border-t border-indigo-200">
             <div>
               <div class="text-slate-500 flex items-center justify-center gap-1">
                 해운 LCL 운임
-                <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
+                <span class="text-[11px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
               </div>
               <div class="font-black text-slate-400 mt-0.5">₩{{ calcShipping.toLocaleString() }}</div>
-              <div class="text-[9px] text-amber-600 font-bold">실측 후 별도 청구</div>
+              <div class="text-[11px] text-amber-600 font-bold">실측 후 별도 청구</div>
             </div>
             <div>
               <div class="text-slate-500 flex items-center justify-center gap-1">
                 관부가세 예상
-                <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
+                <span class="text-[11px] bg-amber-100 text-amber-700 border border-amber-300 px-1 rounded font-black">참고용</span>
               </div>
               <div class="font-black text-slate-400 mt-0.5">₩{{ calcTax.toLocaleString() }}</div>
-              <div class="text-[9px] text-amber-600 font-bold">세관 직납 (청구 제외)</div>
+              <div class="text-[11px] text-amber-600 font-bold">세관 직납 (청구 제외)</div>
             </div>
             <div>
               <div class="text-indigo-700 font-bold">2차 청구 합계</div>
-              <div class="font-black text-indigo-700 text-sm mt-0.5">₩{{ calcTotal.toLocaleString() }}</div>
-              <div class="text-[9px] text-indigo-500">VAS 작업비 합계</div>
+              <div class="font-black text-indigo-700 text-base mt-0.5">₩{{ calcTotal.toLocaleString() }}</div>
+              <div class="text-[11px] text-indigo-500">VAS 작업비 합계</div>
             </div>
           </div>
         </div>
 
         <!-- VAS 관리자 가격 입력 섹션 -->
         <div class="p-4 bg-violet-50 border border-violet-200 rounded-2xl space-y-3">
-          <h4 class="font-bold text-violet-700 flex items-center gap-1.5 text-xs">
+          <h4 class="font-bold text-violet-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-screwdriver-wrench"></i>
             <span>2-B. 현지 부가작업(VAS) 관리자 가격 입력</span>
           </h4>
-          <p class="text-[11px] text-violet-600">체크된 항목의 금액만 2차 청구 합계에 합산됩니다. (C/O 항목은 관세사 별도 청구)</p>
+          <p class="text-xs text-violet-600">체크된 항목의 금액만 2차 청구 합계에 합산됩니다. (C/O 항목은 관세사 별도 청구)</p>
           <div class="space-y-2">
             <div
               v-for="vas in vasAdminItems"
@@ -575,24 +575,24 @@
                   :class="vas.buyerRequested ? 'text-violet-600' : 'text-slate-300'"
                 />
                 <!-- 잠금 아이콘: 바이어 신청 항목에만 표시 -->
-                <i v-if="vas.buyerRequested" class="fas fa-lock absolute -top-1 -right-1 text-[8px] text-violet-500"></i>
+                <i v-if="vas.buyerRequested" class="fas fa-lock absolute -top-1 -right-1 text-[11px] text-violet-500"></i>
               </div>
               <div class="flex-1 min-w-0">
-                <span class="text-xs font-medium" :class="vas.buyerRequested ? 'text-violet-900' : 'text-slate-400'">
+                <span class="text-sm font-medium" :class="vas.buyerRequested ? 'text-violet-900' : 'text-slate-400'">
                   {{ vas.name }}
                 </span>
-                <span v-if="vas.buyerRequested" class="ml-1.5 text-[9px] bg-violet-100 text-violet-600 border border-violet-200 px-1 rounded font-black">고객신청</span>
-                <span v-else class="ml-1.5 text-[9px] text-slate-400">(미신청)</span>
+                <span v-if="vas.buyerRequested" class="ml-1.5 text-[11px] bg-violet-100 text-violet-600 border border-violet-200 px-1 rounded font-black">고객신청</span>
+                <span v-else class="ml-1.5 text-[11px] text-slate-400">(미신청)</span>
               </div>
               <div class="flex items-center gap-1 shrink-0">
-                <span class="text-slate-400 text-xs">₩</span>
+                <span class="text-slate-400 text-sm">₩</span>
                 <input
                   type="number"
                   v-model.number="vas.price"
                   min="0"
                   :disabled="!vas.buyerRequested"
                   placeholder="0"
-                  class="w-24 px-2 py-1 rounded-lg border text-xs font-mono text-right focus:outline-none transition"
+                  class="w-24 px-2 py-1 rounded-lg border text-sm font-mono text-right focus:outline-none transition"
                   :class="vas.buyerRequested
                     ? 'border-violet-300 focus:border-violet-500 focus:ring-1 focus:ring-violet-300 text-violet-900'
                     : 'border-slate-200 bg-slate-100 text-slate-300 cursor-not-allowed'"
@@ -604,7 +604,7 @@
 
         <!-- 전달 소견 (드롭다운 팝오버) -->
         <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2.5">
-          <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-xs">
+          <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-file-pen"></i>
             <span>3. 현지 검수원 종합 소견 (바이어 표시)</span>
           </h4>
@@ -614,7 +614,7 @@
             <!-- 트리거 버튼 -->
             <button
               type="button"
-              class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs transition cursor-pointer text-left"
+              class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-sm transition cursor-pointer text-left"
               :class="inboundForm.inspectionNote
                 ? 'bg-white border-slate-300 text-slate-700 hover:border-indigo-400'
                 : 'bg-orange-50 border-orange-400 text-orange-700 hover:border-orange-500'"
@@ -633,7 +633,7 @@
                 </template>
               </span>
               <i
-                class="fas fa-chevron-down text-[10px] shrink-0 ml-2 transition-transform duration-150"
+                class="fas fa-chevron-down text-xs shrink-0 ml-2 transition-transform duration-150"
                 :class="isNoteDropdownOpen
                   ? 'rotate-180 text-indigo-500'
                   : (inboundForm.inspectionNote ? 'text-slate-400' : 'text-orange-400')"
@@ -676,7 +676,7 @@
                     ></span>
                   </span>
                   <span
-                    class="text-xs leading-relaxed"
+                    class="text-sm leading-relaxed"
                     :class="inboundForm.inspectionNoteId === opt.id ? 'font-bold' : 'font-medium'"
                   >{{ opt.text }}</span>
                 </button>
@@ -687,7 +687,7 @@
           <!-- 바이어 화면 미리보기 -->
           <div
             v-if="inboundForm.inspectionNote"
-            class="px-3 py-2 bg-indigo-100/60 border border-indigo-200 rounded-xl text-[11px] text-indigo-800 flex items-start gap-1.5"
+            class="px-3 py-2 bg-indigo-100/60 border border-indigo-200 rounded-xl text-xs text-indigo-800 flex items-start gap-1.5"
           >
             <i class="fas fa-eye mt-0.5 shrink-0 text-indigo-500"></i>
             <span><strong>바이어 화면 표시:</strong> {{ inboundForm.inspectionNote }}</span>
@@ -697,11 +697,11 @@
         <!-- 검수 실사 사진 업로드 -->
         <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
           <div class="flex items-center justify-between">
-            <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-xs">
+            <h4 class="font-bold text-indigo-700 flex items-center gap-1.5 text-sm">
               <i class="fas fa-camera"></i>
               <span>4. 검수 실사 사진 등록</span>
             </h4>
-            <span class="text-[11px] text-slate-400 font-mono">{{ inspectionPhotos.length }}장 등록</span>
+            <span class="text-xs text-slate-400 font-mono">{{ inspectionPhotos.length }}장 등록</span>
           </div>
 
           <!-- 숨겨진 파일 인풋 -->
@@ -722,10 +722,10 @@
             class="border-2 border-dashed border-indigo-200 hover:border-indigo-400 bg-indigo-50/30 hover:bg-indigo-50/60 rounded-2xl p-4 text-center cursor-pointer transition select-none flex flex-col items-center justify-center gap-1.5"
           >
             <i class="fas fa-cloud-arrow-up text-2xl text-indigo-400"></i>
-            <div class="text-xs font-bold text-slate-600">
+            <div class="text-sm font-bold text-slate-600">
               <span class="text-indigo-600 underline">클릭하여 사진 선택</span> 또는 드래그
             </div>
-            <div class="text-[10px] text-slate-400">JPG, PNG, WEBP · 다중 선택 가능 · 바이어 화면에 자동 노출</div>
+            <div class="text-xs text-slate-400">JPG, PNG, WEBP · 다중 선택 가능 · 바이어 화면에 자동 노출</div>
           </div>
 
           <!-- 업로드된 사진 썸네일 그리드 -->
@@ -741,9 +741,9 @@
                 @click.stop="removeInspectionPhoto(pIdx)"
                 class="absolute top-1 right-1 p-1 rounded-lg bg-rose-600/90 hover:bg-rose-600 text-white transition opacity-0 group-hover:opacity-100 active:scale-90"
               >
-                <i class="fas fa-trash text-[10px]"></i>
+                <i class="fas fa-trash text-xs"></i>
               </button>
-              <div class="absolute bottom-0 inset-x-0 bg-black/50 px-1.5 py-0.5 text-[9px] text-white truncate text-center">
+              <div class="absolute bottom-0 inset-x-0 bg-black/50 px-1.5 py-0.5 text-[11px] text-white truncate text-center">
                 검수 {{ pIdx + 1 }}
               </div>
             </div>
@@ -781,18 +781,18 @@
       <div v-if="activeTab === 'issue'" class="space-y-4">
         <!-- 안내 문구 -->
         <div class="p-3.5 bg-rose-50 border border-rose-200 rounded-2xl">
-          <p class="font-bold text-rose-700 flex items-center gap-1.5 text-xs">
+          <p class="font-bold text-rose-700 flex items-center gap-1.5 text-sm">
             <i class="fas fa-triangle-exclamation text-rose-500"></i>
             <span>이슈 상품 현황 입력 (주문 전체 단위)</span>
           </p>
-          <p class="text-[11px] text-rose-500 mt-1">
+          <p class="text-xs text-rose-500 mt-1">
             이슈가 없으면 모두 0으로 둔 채 저장하지 않아도 됩니다. 저장 시 이슈 수량 합계 &gt; 0이면 검수 상태가 "불량 발견"으로 자동 지정됩니다.
           </p>
         </div>
 
         <!-- 이슈 사유별 수량 입력 (6종) -->
         <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
-          <h4 class="font-bold text-rose-600 flex items-center gap-1.5 text-xs">
+          <h4 class="font-bold text-rose-600 flex items-center gap-1.5 text-sm">
             <i class="fas fa-list-check"></i>
             <span>이슈 사유별 수량</span>
             <span v-if="totalIssueQty > 0" class="ml-auto text-rose-600 font-mono">총 {{ totalIssueQty }}개</span>
@@ -800,74 +800,74 @@
           <div class="grid grid-cols-2 gap-3">
             <!-- 색상/옵션 차이 -->
             <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
-              <label class="block font-bold text-slate-600 text-[11px]">🎨 색상/옵션 차이</label>
+              <label class="block font-bold text-slate-600 text-xs">🎨 색상/옵션 차이</label>
               <div class="flex items-center gap-2">
                 <button type="button" @click="issueForm.colorMismatch = Math.max(0, issueForm.colorMismatch - 1)"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">-</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">-</button>
                 <input type="number" min="0" v-model.number="issueForm.colorMismatch"
-                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-400" />
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm text-center focus:outline-none focus:border-rose-400" />
                 <button type="button" @click="issueForm.colorMismatch++"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">+</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">+</button>
               </div>
             </div>
             <!-- 파손/포장 손상 -->
             <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
-              <label class="block font-bold text-slate-600 text-[11px]">💥 파손/포장 손상</label>
+              <label class="block font-bold text-slate-600 text-xs">💥 파손/포장 손상</label>
               <div class="flex items-center gap-2">
                 <button type="button" @click="issueForm.damaged = Math.max(0, issueForm.damaged - 1)"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">-</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">-</button>
                 <input type="number" min="0" v-model.number="issueForm.damaged"
-                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-400" />
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm text-center focus:outline-none focus:border-rose-400" />
                 <button type="button" @click="issueForm.damaged++"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">+</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">+</button>
               </div>
             </div>
             <!-- 오염/스크래치 -->
             <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
-              <label class="block font-bold text-slate-600 text-[11px]">🧹 오염/스크래치</label>
+              <label class="block font-bold text-slate-600 text-xs">🧹 오염/스크래치</label>
               <div class="flex items-center gap-2">
                 <button type="button" @click="issueForm.contaminated = Math.max(0, issueForm.contaminated - 1)"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">-</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">-</button>
                 <input type="number" min="0" v-model.number="issueForm.contaminated"
-                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-400" />
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm text-center focus:outline-none focus:border-rose-400" />
                 <button type="button" @click="issueForm.contaminated++"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">+</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">+</button>
               </div>
             </div>
             <!-- 부품/수량 부족 -->
             <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
-              <label class="block font-bold text-slate-600 text-[11px]">⚠️ 부품/수량 부족</label>
+              <label class="block font-bold text-slate-600 text-xs">⚠️ 부품/수량 부족</label>
               <div class="flex items-center gap-2">
                 <button type="button" @click="issueForm.missingParts = Math.max(0, issueForm.missingParts - 1)"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">-</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">-</button>
                 <input type="number" min="0" v-model.number="issueForm.missingParts"
-                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-400" />
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm text-center focus:outline-none focus:border-rose-400" />
                 <button type="button" @click="issueForm.missingParts++"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">+</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">+</button>
               </div>
             </div>
             <!-- 퀄리티/마감 미달 -->
             <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
-              <label class="block font-bold text-slate-600 text-[11px]">📉 퀄리티/마감 미달</label>
+              <label class="block font-bold text-slate-600 text-xs">📉 퀄리티/마감 미달</label>
               <div class="flex items-center gap-2">
                 <button type="button" @click="issueForm.lowQuality = Math.max(0, issueForm.lowQuality - 1)"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">-</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">-</button>
                 <input type="number" min="0" v-model.number="issueForm.lowQuality"
-                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-400" />
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm text-center focus:outline-none focus:border-rose-400" />
                 <button type="button" @click="issueForm.lowQuality++"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">+</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">+</button>
               </div>
             </div>
             <!-- 오배송/요구사항 미달 -->
             <div class="bg-white border border-slate-200 rounded-xl p-3 space-y-1.5">
-              <label class="block font-bold text-slate-600 text-[11px]">📦 오배송/요구사항 미달</label>
+              <label class="block font-bold text-slate-600 text-xs">📦 오배송/요구사항 미달</label>
               <div class="flex items-center gap-2">
                 <button type="button" @click="issueForm.wrongDelivery = Math.max(0, issueForm.wrongDelivery - 1)"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">-</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">-</button>
                 <input type="number" min="0" v-model.number="issueForm.wrongDelivery"
-                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-xs text-center focus:outline-none focus:border-rose-400" />
+                  class="flex-1 px-2 py-1.5 rounded-lg bg-white border border-slate-300 text-slate-900 font-mono font-bold text-sm text-center focus:outline-none focus:border-rose-400" />
                 <button type="button" @click="issueForm.wrongDelivery++"
-                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition border border-slate-200">+</button>
+                  class="w-7 h-7 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-sm transition border border-slate-200">+</button>
               </div>
             </div>
           </div>
@@ -875,13 +875,13 @@
 
         <!-- 반품/환불 처리 상태 -->
         <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-2">
-          <h4 class="font-bold text-rose-600 flex items-center gap-1.5 text-xs">
+          <h4 class="font-bold text-rose-600 flex items-center gap-1.5 text-sm">
             <i class="fas fa-rotate-left"></i>
             <span>반품/환불 처리 상태</span>
           </h4>
           <select
             v-model="issueForm.issueStatus"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 font-bold text-xs focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20 cursor-pointer"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-800 font-bold text-sm focus:outline-none focus:border-rose-400 focus:ring-2 focus:ring-rose-400/20 cursor-pointer"
           >
             <option value="">없음 (이슈 없는 경우)</option>
             <option value="pending_buyer">고객 확인대기</option>
@@ -889,7 +889,7 @@
             <option value="reorder_requested">공장 재출고/교환 요청</option>
             <option value="resolved">환불/정산 완료</option>
           </select>
-          <p v-if="totalIssueQty > 0 && !issueForm.issueStatus" class="text-[11px] text-amber-600">
+          <p v-if="totalIssueQty > 0 && !issueForm.issueStatus" class="text-xs text-amber-600">
             이슈가 있으면 처리 상태를 선택해 주세요.
           </p>
         </div>

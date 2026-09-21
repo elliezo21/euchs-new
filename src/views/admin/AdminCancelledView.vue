@@ -7,7 +7,7 @@
         <h2 class="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
           <span>🗂 취소·반품·교환 현황</span>
         </h2>
-        <p class="text-xs text-slate-500 mt-0.5">주문서반려(폐기)·취소·환불 처리된 주문을 조회하고 환불완료를 기록합니다.</p>
+        <p class="text-sm text-slate-500 mt-0.5">주문서반려(폐기)·취소·환불 처리된 주문을 조회하고 환불완료를 기록합니다.</p>
       </div>
     </div>
 
@@ -26,14 +26,14 @@
         <div class="flex items-center justify-between gap-2 mb-3">
           <span class="text-2xl">⏳</span>
           <span
-            class="text-xs font-bold px-2 py-0.5 rounded-full"
+            class="text-sm font-bold px-2 py-0.5 rounded-full"
             :class="activeTab === 'refund_pending' ? 'bg-amber-500 text-white' : 'bg-amber-100 text-amber-700'"
           >환불대기</span>
         </div>
         <div class="text-2xl sm:text-3xl font-black text-slate-900">
-          {{ refundPendingOrders.length }}<span class="text-sm sm:text-base font-bold text-slate-400 ml-1">건</span>
+          {{ refundPendingOrders.length }}<span class="text-base sm:text-base font-bold text-slate-400 ml-1">건</span>
         </div>
-        <div class="text-xs text-slate-500 mt-1 truncate">수동 환불 확인 필요</div>
+        <div class="text-sm text-slate-500 mt-1 truncate">수동 환불 확인 필요</div>
       </button>
 
       <!-- 카드 2: 환불완료 -->
@@ -48,14 +48,14 @@
         <div class="flex items-center justify-between gap-2 mb-3">
           <span class="text-2xl">✅</span>
           <span
-            class="text-xs font-bold px-2 py-0.5 rounded-full"
+            class="text-sm font-bold px-2 py-0.5 rounded-full"
             :class="activeTab === 'refund_done' ? 'bg-emerald-600 text-white' : 'bg-emerald-100 text-emerald-700'"
           >환불완료</span>
         </div>
         <div class="text-2xl sm:text-3xl font-black text-slate-900">
-          {{ refundDoneOrders.length }}<span class="text-sm sm:text-base font-bold text-slate-400 ml-1">건</span>
+          {{ refundDoneOrders.length }}<span class="text-base sm:text-base font-bold text-slate-400 ml-1">건</span>
         </div>
-        <div class="text-xs text-slate-500 mt-1 truncate">환불 처리 완료 건</div>
+        <div class="text-sm text-slate-500 mt-1 truncate">환불 처리 완료 건</div>
       </button>
 
       <!-- 카드 3: 반품완료 (0건 고정 — 미구현) -->
@@ -65,10 +65,10 @@
       >
         <div class="flex items-center justify-between gap-2 mb-3">
           <span class="text-2xl">↩️</span>
-          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">반품완료</span>
+          <span class="text-sm font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">반품완료</span>
         </div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-400">0<span class="text-sm sm:text-base font-bold text-slate-300 ml-1">건</span></div>
-        <div class="text-xs text-slate-400 mt-1 truncate">반품 기능 준비 중</div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-400">0<span class="text-base sm:text-base font-bold text-slate-300 ml-1">건</span></div>
+        <div class="text-sm text-slate-400 mt-1 truncate">반품 기능 준비 중</div>
       </div>
 
       <!-- 카드 4: 교환진행중 (0건 고정 — 미구현) -->
@@ -78,15 +78,15 @@
       >
         <div class="flex items-center justify-between gap-2 mb-3">
           <span class="text-2xl">🔄</span>
-          <span class="text-xs font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">교환진행중</span>
+          <span class="text-sm font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-400">교환진행중</span>
         </div>
-        <div class="text-2xl sm:text-3xl font-black text-slate-400">0<span class="text-sm sm:text-base font-bold text-slate-300 ml-1">건</span></div>
-        <div class="text-xs text-slate-400 mt-1 truncate">교환 기능 준비 중</div>
+        <div class="text-2xl sm:text-3xl font-black text-slate-400">0<span class="text-base sm:text-base font-bold text-slate-300 ml-1">건</span></div>
+        <div class="text-sm text-slate-400 mt-1 truncate">교환 기능 준비 중</div>
       </div>
     </div>
 
     <!-- 목록 영역 -->
-    <div v-if="isLoading" class="flex items-center justify-center py-16 text-slate-400 text-sm">
+    <div v-if="isLoading" class="flex items-center justify-center py-16 text-slate-400 text-base">
       <span class="animate-spin mr-2">⏳</span> 불러오는 중…
     </div>
 
@@ -99,13 +99,13 @@
             v-for="tab in tabs"
             :key="tab.key"
             @click="activeTab = tab.key"
-            class="flex-1 px-4 py-3 text-xs font-bold transition border-b-2"
+            class="flex-1 px-4 py-3 text-sm font-bold transition border-b-2"
             :class="activeTab === tab.key
               ? (tab.key === 'refund_pending' ? 'border-amber-500 text-amber-700 bg-white' : tab.key === 'refund_done' ? 'border-emerald-500 text-emerald-700 bg-white' : 'border-orange-500 text-orange-700 bg-white')
               : 'border-transparent text-slate-500 hover:text-slate-700'"
           >
             {{ tab.label }}
-            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-black"
+            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-xs font-black"
               :class="activeTab === tab.key
                 ? (tab.key === 'refund_pending' ? 'bg-amber-500 text-white' : tab.key === 'refund_done' ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white')
                 : 'bg-slate-200 text-slate-600'"
@@ -115,7 +115,7 @@
 
         <!-- 목록 테이블 -->
         <div class="overflow-x-auto">
-          <table class="w-full text-xs">
+          <table class="w-full text-sm">
             <thead class="bg-slate-50 border-b border-slate-200">
               <tr>
                 <th class="px-4 py-3 text-left font-bold text-slate-600">주문번호</th>
@@ -152,7 +152,7 @@
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-bold border"
                     :class="order.status === 'rejected'
                       ? 'bg-orange-100 text-orange-700 border-orange-200'
                       : 'bg-rose-100 text-rose-700 border-rose-200'"
@@ -165,7 +165,7 @@
                 </td>
                 <!-- 환불예정금액 — 환불대기 탭에만 표시 -->
                 <td v-if="activeTab === 'refund_pending'" class="px-4 py-3 text-right">
-                  <span class="font-mono font-bold text-amber-700 text-[11px]">
+                  <span class="font-mono font-bold text-amber-700 text-xs">
                     ₩{{ fmtN(getRefundAmount(order)) }}
                   </span>
                 </td>
@@ -175,7 +175,7 @@
                     v-if="!order.refundCompleted"
                     @click="markRefundDone(order)"
                     :disabled="markingIds.has(order.id || order.orderNumber)"
-                    class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-600 text-[10px] font-bold hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-600 text-xs font-bold hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                   >
                     <template v-if="markingIds.has(order.id || order.orderNumber)">처리중…</template>
                     <template v-else>
@@ -183,9 +183,9 @@
                       <span v-if="activeTab === 'refund_pending'" class="ml-0.5 text-emerald-700">(₩{{ fmtN(getRefundAmount(order)) }})</span>
                     </template>
                   </button>
-                  <span v-else class="inline-flex flex-col items-center gap-0.5 text-emerald-600 font-bold text-[10px]">
+                  <span v-else class="inline-flex flex-col items-center gap-0.5 text-emerald-600 font-bold text-xs">
                     ✅ 환불완료
-                    <span class="text-slate-400 font-mono text-[9px]">{{ formatDate(order.refundCompletedAt) }}</span>
+                    <span class="text-slate-400 font-mono text-[11px]">{{ formatDate(order.refundCompletedAt) }}</span>
                   </span>
                 </td>
               </tr>
@@ -199,7 +199,7 @@
     <Transition name="toast">
       <div
         v-if="toast.show"
-        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5"
+        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5"
         :class="toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'"
       >
         <span>{{ toast.type === 'success' ? '✅' : '❌' }}</span>

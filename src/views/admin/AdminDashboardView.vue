@@ -10,21 +10,21 @@
     <!-- 0-A. 킬스위치 활성 상태 — 항상 표시 (checked 불필요) -->
     <div
       v-if="translationPaused"
-      class="flex items-center justify-between gap-3 px-4 py-2 rounded-xl border text-xs font-medium shadow-xs bg-slate-50/80 border-slate-200 text-slate-600"
+      class="flex items-center justify-between gap-3 px-4 py-2 rounded-xl border text-sm font-medium shadow-xs bg-slate-50/80 border-slate-200 text-slate-600"
     >
       <div class="flex items-center gap-2">
         <span class="w-2 h-2 rounded-full shrink-0 bg-slate-400"></span>
         <span class="font-bold">번역 서비스</span>
         <span class="text-slate-500">일시 중지 중 — 원문 표시 중</span>
       </div>
-      <span class="text-[11px] opacity-50 font-mono hidden sm:inline">VITE_TRANSLATION_ENABLED=false</span>
+      <span class="text-xs opacity-50 font-mono hidden sm:inline">VITE_TRANSLATION_ENABLED=false</span>
     </div>
 
     <!-- 0-B. 킬스위치 해제 상태 — 기존 정상/오류 배지 -->
     <div
       v-else-if="translationStatus.checked"
       :class="[
-        'flex items-center justify-between gap-3 px-4 py-2 rounded-xl border text-xs font-medium shadow-xs',
+        'flex items-center justify-between gap-3 px-4 py-2 rounded-xl border text-sm font-medium shadow-xs',
         translationStatus.ok
           ? 'bg-emerald-50/80 border-emerald-200/80 text-emerald-900'
           : 'bg-red-50/80 border-red-300 text-red-900 animate-pulse'
@@ -36,24 +36,24 @@
         <span :class="translationStatus.ok ? 'text-emerald-700' : 'text-red-700'">
           {{ translationStatus.ok ? '정상' : '⚠️ 번역 오류 — 원문 표시 중' }}
         </span>
-        <span v-if="!translationStatus.ok && translationStatus.errorMsg" class="text-red-600 font-mono text-[11px] hidden sm:inline">
+        <span v-if="!translationStatus.ok && translationStatus.errorMsg" class="text-red-600 font-mono text-xs hidden sm:inline">
           ({{ translationStatus.errorMsg.slice(0, 60) }})
         </span>
       </div>
       <div class="flex items-center gap-3">
-        <span v-if="!translationStatus.ok" class="text-[11px] text-red-500 font-mono hidden md:inline">
+        <span v-if="!translationStatus.ok" class="text-xs text-red-500 font-mono hidden md:inline">
           누적 실패 {{ translationStatus.totalErrors }}회
         </span>
         <button
           v-if="!translationStatus.ok"
           type="button"
           @click="resetTranslation"
-          class="text-[11px] text-red-700 hover:text-red-900 underline font-bold cursor-pointer"
+          class="text-xs text-red-700 hover:text-red-900 underline font-bold cursor-pointer"
           title="번역 오류 상태 초기화"
         >
           상태 초기화
         </button>
-        <span class="text-[11px] opacity-50 font-mono hidden sm:inline">
+        <span class="text-xs opacity-50 font-mono hidden sm:inline">
           {{ translationStatus.ok ? (translationStatus.successAt ? formatDate(translationStatus.successAt) : '') : (translationStatus.errorAt ? formatDate(translationStatus.errorAt) : '') }}
         </span>
       </div>
@@ -62,29 +62,29 @@
     <!-- ======================================================== -->
     <!-- 1. 최상단 시스템 공지 롤링/슬림 배너 (스마트스토어 센터 형태) -->
     <!-- ======================================================== -->
-    <div v-if="urgentNotice" class="bg-amber-50/80 border border-amber-200/80 rounded-xl px-4 py-2.5 flex items-center justify-between text-xs text-amber-900 shadow-xs">
+    <div v-if="urgentNotice" class="bg-amber-50/80 border border-amber-200/80 rounded-xl px-4 py-2.5 flex items-center justify-between text-sm text-amber-900 shadow-xs">
       <div class="flex items-center gap-2 overflow-hidden flex-1 cursor-pointer" @click="isNoticeExpanded = !isNoticeExpanded">
-        <span class="px-1.5 py-0.5 rounded bg-amber-500 text-white font-black text-[10px] shrink-0">
+        <span class="px-1.5 py-0.5 rounded bg-amber-500 text-white font-black text-xs shrink-0">
           {{ urgentNotice.badge || urgentNotice.category_name || '시스템' }}
         </span>
-        <p class="truncate font-medium text-[11px] sm:text-xs">
+        <p class="truncate font-medium text-xs sm:text-sm">
           {{ urgentNotice.title }}
         </p>
-        <span class="text-amber-700/60 text-[11px] font-mono hidden md:inline shrink-0">
+        <span class="text-amber-700/60 text-xs font-mono hidden md:inline shrink-0">
           {{ formatDate(urgentNotice.created_at || urgentNotice.createdAt) }}
         </span>
       </div>
       <button
         type="button"
         @click="isNoticeExpanded = !isNoticeExpanded"
-        class="text-amber-700 hover:text-amber-900 font-bold text-[11px] flex items-center gap-1 shrink-0 ml-2 cursor-pointer"
+        class="text-amber-700 hover:text-amber-900 font-bold text-xs flex items-center gap-1 shrink-0 ml-2 cursor-pointer"
       >
         <span>{{ isNoticeExpanded ? '접기 ▲' : '펼치기 ▼' }}</span>
       </button>
     </div>
 
     <!-- 공지 확장 시 상세 내용 -->
-    <div v-if="isNoticeExpanded && urgentNotice" class="p-4 bg-white border border-amber-200 rounded-xl text-xs text-slate-700 space-y-2 shadow-xs animate-fade-in">
+    <div v-if="isNoticeExpanded && urgentNotice" class="p-4 bg-white border border-amber-200 rounded-xl text-sm text-slate-700 space-y-2 shadow-xs animate-fade-in">
       <p class="font-bold text-slate-900">📢 {{ urgentNotice.title }}</p>
       <p class="text-slate-600 leading-relaxed whitespace-pre-line">
         {{ urgentNotice.content || urgentNotice.summary }}
@@ -100,14 +100,14 @@
         <div class="flex items-center justify-between flex-wrap gap-2">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-            <h3 class="text-sm font-black text-slate-900">발주·배송 진행 현황</h3>
-            <span class="text-[11px] text-slate-400 font-mono">(실시간 주문 파이프라인)</span>
+            <h3 class="text-base font-black text-slate-900">발주·배송 진행 현황</h3>
+            <span class="text-xs text-slate-400 font-mono">(실시간 주문 파이프라인)</span>
           </div>
 
           <div class="flex items-center gap-3">
             <router-link
               to="/admin/orders"
-              class="text-blue-600 hover:text-blue-700 hover:underline font-bold text-xs flex items-center gap-0.5"
+              class="text-blue-600 hover:text-blue-700 hover:underline font-bold text-sm flex items-center gap-0.5"
             >
               <span>주문관리 바로가기</span>
               <ChevronRight class="w-3.5 h-3.5" />
@@ -118,7 +118,7 @@
             <button
               type="button"
               @click="reloadStats"
-              class="text-[11px] text-slate-400 hover:text-slate-700 flex items-center gap-1 font-mono cursor-pointer"
+              class="text-xs text-slate-400 hover:text-slate-700 flex items-center gap-1 font-mono cursor-pointer"
               title="실시간 통계 새로고침"
             >
               <span>{{ lastUpdatedTime }}</span>
@@ -134,11 +134,11 @@
             to="/admin/orders?status=quote_pending"
             class="group p-3 rounded-xl bg-slate-50 hover:bg-amber-50/50 border border-slate-100 hover:border-amber-200 transition"
           >
-            <div class="text-[11px] font-bold text-slate-500 group-hover:text-amber-600 mb-1">견적/결제대기</div>
+            <div class="text-xs font-bold text-slate-500 group-hover:text-amber-600 mb-1">견적/결제대기</div>
             <div class="text-xl sm:text-2xl font-black font-mono text-slate-900 group-hover:text-amber-600">
               {{ pipelineCounts.newOrder }}
             </div>
-            <div class="text-[10px] text-slate-400 mt-0.5">1~2단계</div>
+            <div class="text-xs text-slate-400 mt-0.5">1~2단계</div>
           </router-link>
 
           <!-- 2. 1688 구매진행 -->
@@ -146,11 +146,11 @@
             to="/admin/orders?status=purchasing"
             class="group p-3 rounded-xl bg-slate-50 hover:bg-blue-50/50 border border-slate-100 hover:border-blue-200 transition"
           >
-            <div class="text-[11px] font-bold text-slate-500 group-hover:text-blue-600 mb-1">1688 구매진행</div>
+            <div class="text-xs font-bold text-slate-500 group-hover:text-blue-600 mb-1">1688 구매진행</div>
             <div class="text-xl sm:text-2xl font-black font-mono text-slate-900 group-hover:text-blue-600">
               {{ pipelineCounts.preparing }}
             </div>
-            <div class="text-[10px] text-slate-400 mt-0.5">3~4단계</div>
+            <div class="text-xs text-slate-400 mt-0.5">3~4단계</div>
           </router-link>
 
           <!-- 3. 창고/선적/통관 -->
@@ -158,11 +158,11 @@
             to="/admin/orders?status=warehouse_inspection"
             class="group p-3 rounded-xl bg-slate-50 hover:bg-teal-50/50 border border-slate-100 hover:border-teal-200 transition"
           >
-            <div class="text-[11px] font-bold text-slate-500 group-hover:text-teal-600 mb-1">창고/선적/통관</div>
+            <div class="text-xs font-bold text-slate-500 group-hover:text-teal-600 mb-1">창고/선적/통관</div>
             <div class="text-xl sm:text-2xl font-black font-mono text-teal-600">
               {{ pipelineCounts.shipping }}
             </div>
-            <div class="text-[10px] text-slate-400 mt-0.5">5~7단계</div>
+            <div class="text-xs text-slate-400 mt-0.5">5~7단계</div>
           </router-link>
 
           <!-- 4. 국내택배 인계 -->
@@ -170,11 +170,11 @@
             to="/admin/orders?status=domestic_delivered"
             class="group p-3 rounded-xl bg-slate-50 hover:bg-sky-50/50 border border-slate-100 hover:border-sky-200 transition"
           >
-            <div class="text-[11px] font-bold text-slate-500 group-hover:text-sky-600 mb-1">국내택배 인계</div>
+            <div class="text-xs font-bold text-slate-500 group-hover:text-sky-600 mb-1">국내택배 인계</div>
             <div class="text-xl sm:text-2xl font-black font-mono text-slate-900 group-hover:text-sky-600">
               {{ pipelineCounts.delivered }}
             </div>
-            <div class="text-[10px] text-slate-400 mt-0.5">8단계</div>
+            <div class="text-xs text-slate-400 mt-0.5">8단계</div>
           </router-link>
 
           <!-- 5. 수취 완료 -->
@@ -182,11 +182,11 @@
             to="/admin/orders?status=domestic_delivered"
             class="group p-3 rounded-xl bg-slate-50 hover:bg-emerald-50/50 border border-slate-100 hover:border-emerald-200 transition"
           >
-            <div class="text-[11px] font-bold text-slate-500 group-hover:text-emerald-600 mb-1">수취 완료</div>
+            <div class="text-xs font-bold text-slate-500 group-hover:text-emerald-600 mb-1">수취 완료</div>
             <div class="text-xl sm:text-2xl font-black font-mono text-emerald-600">
               {{ pipelineCounts.confirmed }}
             </div>
-            <div class="text-[10px] text-slate-400 mt-0.5">배송완료</div>
+            <div class="text-xs text-slate-400 mt-0.5">배송완료</div>
           </router-link>
         </div>
       </div>
@@ -197,20 +197,20 @@
           <div class="flex items-center justify-between mb-2">
             <div class="flex items-center gap-2">
               <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-              <h3 class="text-sm font-black text-slate-900">이우 시장투어 조사단</h3>
+              <h3 class="text-base font-black text-slate-900">이우 시장투어 조사단</h3>
             </div>
-            <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">모집중</span>
+            <span class="px-2 py-0.5 rounded text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">모집중</span>
           </div>
-          <p class="text-xs text-slate-500 leading-relaxed">
+          <p class="text-sm text-slate-500 leading-relaxed">
             중국 이우 푸텐시장 1~5구 현지 바이어 동행 소싱 투어 신청 접수 현황입니다.
           </p>
         </div>
 
         <div class="p-3.5 bg-slate-50 rounded-xl border border-slate-100 flex items-center justify-between">
           <div>
-            <div class="text-[11px] text-slate-400 font-bold">실시간 참가 신청 현황</div>
+            <div class="text-xs text-slate-400 font-bold">실시간 참가 신청 현황</div>
             <div class="text-lg font-black text-slate-900 mt-0.5 font-mono">
-              {{ marketTourCount }}건 <span class="text-xs text-slate-500 font-normal">({{ marketTourCount > 0 ? '접수 확인' : '접수 대기' }})</span>
+              {{ marketTourCount }}건 <span class="text-sm text-slate-500 font-normal">({{ marketTourCount > 0 ? '접수 확인' : '접수 대기' }})</span>
             </div>
           </div>
           <div class="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center text-lg">
@@ -222,7 +222,7 @@
           <router-link
             to="/guide/market-tour"
             target="_blank"
-            class="w-full text-center py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition shadow-xs"
+            class="w-full text-center py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition shadow-xs"
           >
             투어 신청 안내 페이지 열기 ↗
           </router-link>
@@ -239,12 +239,12 @@
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between hover:shadow-md transition">
         <div>
           <div class="flex items-center justify-between">
-            <span class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+            <span class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
               <span>❗ 세관 통관 관리</span>
             </span>
-            <router-link to="/admin/orders" class="text-[11px] text-blue-600 hover:underline font-bold">이동 ➔</router-link>
+            <router-link to="/admin/orders" class="text-xs text-blue-600 hover:underline font-bold">이동 ➔</router-link>
           </div>
-          <div class="mt-3 space-y-2 text-xs">
+          <div class="mt-3 space-y-2 text-sm">
             <div class="flex justify-between items-center text-slate-600">
               <span>통관 진행중 (유니패스)</span>
               <span class="font-bold font-mono text-slate-900">{{ customsCounts.inProgress }}건</span>
@@ -259,7 +259,7 @@
             </div>
           </div>
         </div>
-        <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
+        <div class="pt-2 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between font-mono">
           <span>평균 소요일</span>
           <span class="text-slate-700 font-bold">인천항 1.8일</span>
         </div>
@@ -269,12 +269,12 @@
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between hover:shadow-md transition">
         <div>
           <div class="flex items-center justify-between">
-            <span class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+            <span class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
               <span>🏬 OEM·ODM 무역대행</span>
             </span>
-            <span class="text-[10px] text-slate-400 font-mono">B2B 맞춤</span>
+            <span class="text-xs text-slate-400 font-mono">B2B 맞춤</span>
           </div>
-          <div class="mt-3 space-y-2 text-xs">
+          <div class="mt-3 space-y-2 text-sm">
             <div class="flex justify-between items-center text-slate-600">
               <span>신규 의뢰 접수</span>
               <span class="font-bold font-mono text-slate-900">{{ customTradeCounts.new }}건</span>
@@ -289,7 +289,7 @@
             </div>
           </div>
         </div>
-        <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
+        <div class="pt-2 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between font-mono">
           <span>맞춤 생산 프로세스</span>
           <span class="text-blue-600 font-bold">1:1 전담 매칭</span>
         </div>
@@ -299,12 +299,12 @@
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-3 flex flex-col justify-between hover:shadow-md transition">
         <div>
           <div class="flex items-center justify-between">
-            <span class="font-bold text-xs text-slate-800 flex items-center gap-1.5">
+            <span class="font-bold text-sm text-slate-800 flex items-center gap-1.5">
               <span>👥 플랫폼 회원 & 바이어</span>
             </span>
-            <router-link to="/admin/members" class="text-[11px] text-blue-600 hover:underline font-bold">회원관리 ➔</router-link>
+            <router-link to="/admin/members" class="text-xs text-blue-600 hover:underline font-bold">회원관리 ➔</router-link>
           </div>
-          <div class="mt-3 space-y-2 text-xs">
+          <div class="mt-3 space-y-2 text-sm">
             <div class="flex justify-between items-center text-slate-600">
               <span>총 가입 회원</span>
               <span class="font-bold font-mono text-slate-900">{{ memberStats.total }}명</span>
@@ -319,7 +319,7 @@
             </div>
           </div>
         </div>
-        <div class="pt-2 border-t border-slate-100 text-[11px] text-slate-400 flex items-center justify-between font-mono">
+        <div class="pt-2 border-t border-slate-100 text-xs text-slate-400 flex items-center justify-between font-mono">
           <span>B2B 인증 완료율</span>
           <span class="text-emerald-600 font-bold">{{ memberStats.rate }}%</span>
         </div>
@@ -333,14 +333,14 @@
       <div class="flex items-center justify-between border-b border-slate-100 pb-3">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-slate-800"></span>
-          <h3 class="text-sm font-black text-slate-900">💬 고객 1:1 상담 및 문의 접수 현황</h3>
+          <h3 class="text-base font-black text-slate-900">💬 고객 1:1 상담 및 문의 접수 현황</h3>
         </div>
       </div>
 
       <!-- 내용 영역: 단정한 공란 안내 -->
       <div class="py-6 text-center text-slate-400 space-y-1.5">
         <div class="text-2xl">💬</div>
-        <p class="font-bold text-xs text-slate-600">접수된 실시간 고객 문의 내역이 없습니다.</p>
+        <p class="font-bold text-sm text-slate-600">접수된 실시간 고객 문의 내역이 없습니다.</p>
       </div>
     </div>
 

@@ -7,9 +7,9 @@
         <h2 class="text-lg sm:text-xl font-black text-slate-900 flex items-center gap-2">
           <span>📋 주문·발주 파이프라인 통합 관리</span>
         </h2>
-        <p class="text-xs text-slate-500 mt-0.5">1~8단계 전체 소싱 및 통관·배송 현황을 실시간 모니터링하고 관리자 승인/처리를 진행합니다.</p>
+        <p class="text-sm text-slate-500 mt-0.5">1~8단계 전체 소싱 및 통관·배송 현황을 실시간 모니터링하고 관리자 승인/처리를 진행합니다.</p>
       </div>
-      <div class="flex items-center gap-2 text-xs font-mono text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs self-start sm:self-auto">
+      <div class="flex items-center gap-2 text-sm font-mono text-slate-500 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-xs self-start sm:self-auto">
         <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse inline-block"></span>
         <span>실시간 동기화 중 · 총 <strong class="text-slate-900">{{ activeOrdersCount }}</strong>건</span>
       </div>
@@ -29,10 +29,10 @@
         >
           <div class="flex items-center justify-between mb-2">
             <div :class="[stage.iconBg, 'w-8 h-8 rounded-xl flex items-center justify-center text-base shadow-2xs']">{{ stage.icon }}</div>
-            <span class="text-[11px] font-bold text-slate-400 font-mono">건</span>
+            <span class="text-xs font-bold text-slate-400 font-mono">건</span>
           </div>
           <div>
-            <div class="text-xs font-black text-slate-700 truncate leading-snug tracking-tight" :title="stage.shortLabel">{{ stage.shortLabel }}</div>
+            <div class="text-sm font-black text-slate-700 truncate leading-snug tracking-tight" :title="stage.shortLabel">{{ stage.shortLabel }}</div>
             <div :class="[stage.textColor, 'text-2xl font-black font-mono mt-1 leading-none']">
               {{ stageCounts[stage.key] || 0 }}
             </div>
@@ -48,10 +48,10 @@
         class="flex items-center gap-3 px-4 py-2.5 bg-red-50 border border-red-300 rounded-2xl cursor-pointer hover:bg-red-100 transition select-none"
       >
         <span class="text-red-600 text-base shrink-0 animate-pulse">🚨</span>
-        <p class="text-[11px] font-black text-red-700 flex-1">
+        <p class="text-xs font-black text-red-700 flex-1">
           수동 확인이 필요한 발주 이상 주문 {{ attentionCount }}건이 있습니다 — 클릭해서 바로 확인
         </p>
-        <span class="text-[10px] text-red-400 shrink-0 font-mono">→ 필터 적용</span>
+        <span class="text-xs text-red-400 shrink-0 font-mono">→ 필터 적용</span>
       </div>
 
       <!-- 필터 & 검색 -->
@@ -59,11 +59,11 @@
         <div class="relative flex-1 max-w-sm">
           <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0"/></svg>
           <input type="text" v-model="searchQuery" placeholder="주문번호, 고객사명, 상품명 검색"
-            class="w-full pl-9 pr-4 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400" />
+            class="w-full pl-9 pr-4 py-2 text-sm border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-400" />
         </div>
         <div class="flex items-center gap-1 flex-wrap">
           <button v-for="stage in PIPELINE_STAGES" :key="stage.key" @click="filterByStatus(stage.key)"
-            class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition whitespace-nowrap cursor-pointer shadow-2xs"
+            class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer shadow-2xs"
             :class="activeFilter === stage.key ? stage.tabActive : 'bg-slate-100 text-slate-600 hover:bg-slate-200'">
             {{ stage.shortLabel }}
             <span v-if="stageCounts[stage.key]" class="ml-1 font-mono">({{ stageCounts[stage.key] }})</span>
@@ -73,7 +73,7 @@
           <!-- 🚨 수동확인 필요 필터 버튼 -->
           <button
             @click="filterByStatus('needs_attention')"
-            class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition whitespace-nowrap cursor-pointer shadow-2xs border"
+            class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer shadow-2xs border"
             :class="activeFilter === 'needs_attention'
               ? 'bg-red-600 text-white border-red-700'
               : 'bg-red-50 text-red-600 hover:bg-red-100 border-red-200'"
@@ -89,19 +89,19 @@
 
         <!-- 일괄 액션 툴바 (선택 건 있을 때만 강조) -->
         <div class="flex items-center justify-between gap-3 px-4 py-3 border-b border-slate-200 bg-slate-50/70">
-          <div class="flex items-center gap-2 text-xs">
+          <div class="flex items-center gap-2 text-sm">
             <label class="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 font-medium">
               <input type="checkbox" :checked="allSelected" @change="toggleSelectAll" class="w-3.5 h-3.5 rounded cursor-pointer accent-slate-800" />
               <span>전체 선택</span>
             </label>
-            <span v-if="selectedOrders.length > 0" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-[11px]">
+            <span v-if="selectedOrders.length > 0" class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-bold text-xs">
               {{ selectedOrders.length }}건 선택됨
             </span>
           </div>
           <button
             @click="handleBulkExcel"
             :disabled="selectedOrders.length === 0"
-            class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition active:scale-95 cursor-pointer shadow-xs"
+            class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition active:scale-95 cursor-pointer shadow-xs"
             :class="selectedOrders.length > 0
               ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
               : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
@@ -113,16 +113,16 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
+          <table class="w-full text-left text-sm">
             <thead class="bg-slate-50 border-b border-slate-200 text-slate-500 font-bold uppercase tracking-wide">
               <tr>
                 <th class="py-3 px-3 w-8"></th>
-                <th class="py-3 px-4 w-48">주문번호 / 일시</th>
+                <th class="py-3 px-4 w-44">주문번호 / 일시</th>
                 <th class="py-3 px-4 min-w-[220px]">상품 정보</th>
                 <th class="py-3 px-4 text-center">수량 / CBM</th>
-                <th class="py-3 px-4 text-center">진행 단계</th>
+                <th class="py-3 px-4 text-center min-w-[140px]">진행 단계</th>
                 <th class="py-3 px-4 text-right">견적 금액</th>
-                <th class="py-3 px-4 text-center min-w-[240px]">관리자 액션</th>
+                <th class="py-3 px-4 text-center min-w-[210px]">관리자 액션</th>
               </tr>
             </thead>
             <tbody class="divide-y divide-slate-100">
@@ -135,42 +135,42 @@
                   />
                 </td>
                 <td class="py-3 px-4">
-                  <div class="font-mono font-black text-slate-800 text-[11px]">{{ order.orderNumber }}</div>
-                  <div class="text-[10px] text-slate-400 mt-0.5">{{ order.createdAt }}</div>
-                  <div class="text-[10px] text-slate-500 font-bold mt-0.5">{{ order.buyerInfo?.companyName || '이유씨글로벌' }}</div>
+                  <div class="font-mono font-black text-slate-800 text-xs">{{ order.orderNumber }}</div>
+                  <div class="text-xs text-slate-400 mt-0.5">{{ order.createdAt }}</div>
+                  <div class="text-xs text-slate-500 font-bold mt-0.5">{{ order.buyerInfo?.companyName || '이유씨글로벌' }}</div>
                 </td>
                 <td class="py-3 px-4">
                   <div class="flex items-center gap-2.5">
                     <img :src="order.items?.[0]?.imageUrl || fallbackImg" class="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0" @error="imgFallback" />
                     <div class="min-w-0">
-                      <div class="font-bold text-slate-800 line-clamp-1 text-xs">{{ order.items?.[0]?.productName || '1688 수입 품목' }}</div>
-                      <div class="text-[10px] text-slate-400 font-mono mt-0.5">{{ order.items?.[0]?.sku || '기본 옵션' }}</div>
+                      <div class="font-bold text-slate-800 line-clamp-1 text-sm">{{ order.items?.[0]?.productName || '1688 수입 품목' }}</div>
+                      <div class="text-xs text-slate-400 font-mono mt-0.5">{{ order.items?.[0]?.sku || '기본 옵션' }}</div>
                     </div>
                   </div>
                 </td>
                 <td class="py-3 px-4 text-center font-mono">
                   <div class="font-bold text-slate-800">{{ getTotalQty(order) }}개</div>
-                  <div class="text-[10px] text-slate-400">{{ getCbm(order) }} CBM</div>
+                  <div class="text-xs text-slate-400">{{ getCbm(order) }} CBM</div>
                 </td>
                 <td class="py-3 px-4 text-center">
-                  <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold" :class="getStatusItem(order.status).badgeClass">
+                  <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full whitespace-nowrap text-xs font-bold" :class="getStatusItem(order.status).badgeClass">
                     <span class="w-1.5 h-1.5 rounded-full bg-current shrink-0"></span>
                     {{ getStatusItem(order.status).shortLabel }}
                   </span>
                   <!-- 🚨 수동확인 필요 오버레이 뱃지 (그룹발주 이상 주문) -->
                   <span
                     v-if="order.items?.some(i => i.subStatus === 'manual_check_required')"
-                    class="ml-1 inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-black bg-red-600 text-white"
+                    class="ml-1 inline-flex items-center whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-black bg-red-600 text-white"
                   >🚨 수동확인</span>
                 </td>
                 <td class="py-3 px-4 text-right font-mono">
-                  <div class="font-black text-slate-900 text-xs">₩{{ fmtN(calcCost(order)) }}</div>
-                  <div class="text-[10px] text-slate-400">¥{{ calcCny(order) }}</div>
+                  <div class="font-black text-slate-900 text-sm">₩{{ fmtN(calcCost(order)) }}</div>
+                  <div class="text-xs text-slate-400">¥{{ calcCny(order) }}</div>
                 </td>
                 <td class="py-3 px-4 text-center">
                   <div class="flex items-center justify-center gap-1.5 flex-wrap">
                     <button v-if="isStatus(order,'quote_confirmed')" @click="confirmPayment(order)"
-                      class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">💳 결제 확인</button>
+                      class="px-3 py-1.5 rounded-lg bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs">💳 결제 확인</button>
 
                     <!-- 3단계(결제확인) 및 4단계(구매진행): 상세 버튼 안에서 구매 시작 및 배송 관리 처리 -->
 
@@ -178,27 +178,27 @@
 
                     <!-- 5단계 입고완료(arrival_done / inspection_done): 5-B CBM 정산 팝업 노출 -->
                     <button v-if="isWarehouseArrived(order)" @click="openWarehouseModal(order, 'box')"
-                      class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">⚖️ CBM 정산 (5-B)</button>
+                      class="px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs">⚖️ CBM 정산 (5-B)</button>
                     <!-- 입고완료에서 선적 처리 -->
                     <button v-if="isWarehouseArrived(order)" @click="advanceToShipping(order)"
-                      class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🚢 선적 처리</button>
+                      class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs">🚢 선적 처리</button>
 
                     <button v-if="isStatus(order,'shipping_ready')" @click="openBLForm(order)"
-                      class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">📄 B/L 등록</button>
+                      class="px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs">📄 B/L 등록</button>
                     <button v-if="isStatus(order,'customs_clearance')" @click="openTrackingForm(order)"
-                      class="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">🚚 송장 등록</button>
+                      class="px-3 py-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs">🚚 송장 등록</button>
                     <button v-if="isStatus(order,'domestic_shipping')" @click="markDelivered(order)"
-                      class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-xs">✅ 배송완료</button>
+                      class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs">✅ 배송완료</button>
                     <button @click="openDetail(order)"
-                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-[11px] transition active:scale-95 cursor-pointer">상세</button>
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold text-xs transition active:scale-95 cursor-pointer">상세</button>
                   </div>
 
                 </td>
               </tr>
               <tr v-if="filteredOrders.length === 0">
-                <td colspan="6" class="py-16 text-center text-slate-400">
+                <td colspan="7" class="py-16 text-center text-slate-400">
                   <div class="text-3xl mb-2">📭</div>
-                  <p class="font-bold text-sm">해당 조건의 주문이 없습니다</p>
+                  <p class="font-bold text-base">해당 조건의 주문이 없습니다</p>
                 </td>
               </tr>
             </tbody>
@@ -223,34 +223,34 @@
       <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
         <div class="px-6 py-4 bg-purple-50 border-b border-purple-100 flex items-center justify-between">
           <div>
-            <div class="text-[11px] font-bold text-purple-700 uppercase tracking-wide">📄 6단계 → 7단계 전환</div>
-            <h3 class="font-black text-slate-900 text-sm mt-0.5">선하증권(B/L) 및 통관 정보 등록</h3>
+            <div class="text-xs font-bold text-purple-700 uppercase tracking-wide">📄 6단계 → 7단계 전환</div>
+            <h3 class="font-black text-slate-900 text-base mt-0.5">선하증권(B/L) 및 통관 정보 등록</h3>
           </div>
           <button @click="closeModals" class="p-1.5 rounded-lg hover:bg-purple-100 text-slate-500 transition cursor-pointer text-lg leading-none">✕</button>
         </div>
-        <div class="p-6 space-y-3 text-xs">
-          <div class="p-3 bg-slate-50 rounded-xl border font-mono text-[11px]">{{ activeOrder.orderNumber }}</div>
+        <div class="p-6 space-y-3 text-sm">
+          <div class="p-3 bg-slate-50 rounded-xl border font-mono text-xs">{{ activeOrder.orderNumber }}</div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">선하증권(B/L) 번호 *</label>
-            <input v-model="blForm.blNumber" type="text" placeholder="예: OOLU2608240001" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 font-mono uppercase text-xs" />
+            <input v-model="blForm.blNumber" type="text" placeholder="예: OOLU2608240001" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 font-mono uppercase text-sm" />
           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">화물관리번호 (Cargo Mgt No.)</label>
-            <input v-model="blForm.cargoMgtNo" type="text" placeholder="예: ICNA260824000123" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 font-mono uppercase text-xs" />
+            <input v-model="blForm.cargoMgtNo" type="text" placeholder="예: ICNA260824000123" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 focus:border-purple-400 font-mono uppercase text-sm" />
           </div>
           <div class="grid grid-cols-2 gap-3">
             <div>
               <label class="block font-bold text-slate-700 mb-1">선박명</label>
-              <input v-model="blForm.vesselName" type="text" placeholder="예: COSCO HARMONY" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-xs" />
+              <input v-model="blForm.vesselName" type="text" placeholder="예: COSCO HARMONY" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-sm" />
             </div>
             <div>
               <label class="block font-bold text-slate-700 mb-1">입항 예정일 (ETA)</label>
-              <input v-model="blForm.eta" type="date" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-xs" />
+              <input v-model="blForm.eta" type="date" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-sm" />
             </div>
           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">FTA C/O 발급 상태</label>
-            <select v-model="blForm.ftaStatus" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-xs bg-white">
+            <select v-model="blForm.ftaStatus" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/30 text-sm bg-white">
               <option value="none">해당없음</option>
               <option value="applying">C/O 발급 신청중</option>
               <option value="approved">C/O 발급완료 (관세 0% 적용)</option>
@@ -258,8 +258,8 @@
           </div>
         </div>
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-          <button @click="closeModals" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer">취소</button>
-          <button @click="submitBLForm" :disabled="!blForm.blNumber" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-xs transition shadow-md cursor-pointer">📄 통관 정보 등록 (7단계 전환)</button>
+          <button @click="closeModals" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 transition cursor-pointer">취소</button>
+          <button @click="submitBLForm" :disabled="!blForm.blNumber" class="px-5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-black text-sm transition shadow-md cursor-pointer">📄 통관 정보 등록 (7단계 전환)</button>
         </div>
       </div>
     </div>
@@ -271,19 +271,19 @@
       <div class="bg-white rounded-2xl w-full max-w-md shadow-2xl border border-slate-200 overflow-hidden" @click.stop>
         <div class="px-6 py-4 bg-violet-50 border-b border-violet-100 flex items-center justify-between">
           <div>
-            <div class="text-[11px] font-bold text-violet-700 uppercase tracking-wide">🚚 7단계 → 8단계 전환</div>
-            <h3 class="font-black text-slate-900 text-sm mt-0.5">국내 운송장 번호 등록</h3>
+            <div class="text-xs font-bold text-violet-700 uppercase tracking-wide">🚚 7단계 → 8단계 전환</div>
+            <h3 class="font-black text-slate-900 text-base mt-0.5">국내 운송장 번호 등록</h3>
           </div>
           <button @click="closeModals" class="p-1.5 rounded-lg hover:bg-violet-100 text-slate-500 transition cursor-pointer text-lg leading-none">✕</button>
         </div>
-        <div class="p-6 space-y-3 text-xs">
-          <div class="p-3 bg-slate-50 rounded-xl border font-mono text-[11px]">{{ activeOrder.orderNumber }}</div>
+        <div class="p-6 space-y-3 text-sm">
+          <div class="p-3 bg-slate-50 rounded-xl border font-mono text-xs">{{ activeOrder.orderNumber }}</div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">배송 유형</label>
             <div class="grid grid-cols-3 gap-2">
               <button v-for="t in [['cargo','화물'], ['parcel','택배'], ['rocket','로켓그로스']]" :key="t[0]"
                 @click="trackingForm.deliveryType = t[0]"
-                class="py-2 rounded-xl border text-[11px] font-bold transition cursor-pointer"
+                class="py-2 rounded-xl border text-xs font-bold transition cursor-pointer"
                 :class="trackingForm.deliveryType === t[0] ? 'bg-violet-600 border-violet-600 text-white' : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100'">
                 {{ t[1] }}
               </button>
@@ -291,23 +291,23 @@
           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">택배사 / 운송사</label>
-            <select v-model="trackingForm.carrier" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-xs bg-white">
+            <select v-model="trackingForm.carrier" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-sm bg-white">
               <option>경동택배</option><option>대신택배</option><option>CJ대한통운</option>
               <option>한진택배</option><option>롯데택배</option><option>쿠팡 로켓그로스 FC</option>
             </select>
           </div>
           <div>
             <label class="block font-bold text-slate-700 mb-1">운송장 번호 *</label>
-            <input v-model="trackingForm.trackingNumber" type="text" placeholder="예: 5400123456789" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 font-mono text-xs" />
+            <input v-model="trackingForm.trackingNumber" type="text" placeholder="예: 5400123456789" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 font-mono text-sm" />
           </div>
           <div v-if="trackingForm.deliveryType === 'rocket'">
             <label class="block font-bold text-slate-700 mb-1">FC 센터명</label>
-            <input v-model="trackingForm.fcCenter" type="text" placeholder="예: 인천 마장 FC" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-xs" />
+            <input v-model="trackingForm.fcCenter" type="text" placeholder="예: 인천 마장 FC" class="w-full px-3 py-2 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500/30 text-sm" />
           </div>
         </div>
         <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-          <button @click="closeModals" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer">취소</button>
-          <button @click="submitTrackingForm" :disabled="!trackingForm.trackingNumber" class="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-black text-xs transition shadow-md cursor-pointer">🚚 송장 등록 (8단계 전환)</button>
+          <button @click="closeModals" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 transition cursor-pointer">취소</button>
+          <button @click="submitTrackingForm" :disabled="!trackingForm.trackingNumber" class="px-5 py-2 rounded-xl bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white font-black text-sm transition shadow-md cursor-pointer">🚚 송장 등록 (8단계 전환)</button>
         </div>
       </div>
     </div>
@@ -325,52 +325,52 @@
         <!-- 모달 헤더 (단계별 배경색 영역) -->
         <div class="px-6 py-4 border-b flex items-center justify-between shrink-0" :class="activeOrderHeaderClass">
           <div class="flex items-center gap-3">
-            <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-sm" :class="activeOrderIconClass">
+            <div class="w-9 h-9 rounded-xl flex items-center justify-center font-bold text-base" :class="activeOrderIconClass">
               📋
             </div>
             <div>
               <div class="flex items-center gap-2">
                 <span class="font-mono font-black text-base" :class="activeOrderTitleClass">{{ activeOrder.orderNumber }}</span>
-                <span class="px-2.5 py-0.5 rounded-full text-xs font-bold" :class="activeOrderStatusBadgeClass">
+                <span class="px-2.5 py-0.5 rounded-full text-sm font-bold" :class="activeOrderStatusBadgeClass">
                   {{ getStatusItem(activeOrder.status).shortLabel }}
                 </span>
               </div>
-              <div class="text-xs font-mono mt-0.5" :class="activeOrderSubtextClass">접수일시: {{ activeOrder.createdAt }} · EUC 수입대행 발주서</div>
+              <div class="text-sm font-mono mt-0.5" :class="activeOrderSubtextClass">접수일시: {{ activeOrder.createdAt }} · EUC 수입대행 발주서</div>
             </div>
           </div>
           <button @click="closeModals" class="p-1.5 rounded-lg transition cursor-pointer text-lg leading-none" :class="activeOrderCloseClass">✕</button>
         </div>
 
         <!-- 모달 본문 (내부 콘텐츠는 항상 흰 배경 유지) -->
-        <div class="p-6 space-y-5 text-xs overflow-y-auto flex-1 bg-white">
+        <div class="p-6 space-y-5 text-sm overflow-y-auto flex-1 bg-white">
 
           <!-- 1. 바이어 & 수취인 핵심 정보 (3단 와이드 풀-스크린 그리드, 실측 칸 완전 제거) -->
           <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
             <div class="flex items-center justify-between border-b border-slate-200 pb-2">
-              <span class="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+              <span class="font-bold text-slate-900 text-sm flex items-center gap-1.5">
                 <span>👤 바이어 & 수취인 배송지 핵심 정보</span>
               </span>
-              <span class="text-[11px] text-slate-400 font-mono">B2B 통관/정산 인증 완료</span>
+              <span class="text-xs text-slate-400 font-mono">B2B 통관/정산 인증 완료</span>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-x-6 gap-y-3">
               <!-- 열 1: 고객 및 연락처 -->
               <div class="space-y-2">
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">고객 성명 / 상호명</span>
-                  <span class="text-slate-900 font-bold text-sm">
+                  <span class="text-slate-400 font-semibold block text-xs">고객 성명 / 상호명</span>
+                  <span class="text-slate-900 font-bold text-base">
                     {{ activeOrder.buyerInfo?.companyName || activeOrder.buyerInfo?.buyerName || '이유씨글로벌파트너스' }}
-                    <span v-if="activeOrder.buyerInfo?.buyerName && activeOrder.buyerInfo?.buyerName !== activeOrder.buyerInfo?.companyName" class="text-xs text-slate-500 font-normal">
+                    <span v-if="activeOrder.buyerInfo?.buyerName && activeOrder.buyerInfo?.buyerName !== activeOrder.buyerInfo?.companyName" class="text-sm text-slate-500 font-normal">
                       ({{ activeOrder.buyerInfo?.buyerName }})
                     </span>
                   </span>
                 </div>
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">아이디 (이메일)</span>
+                  <span class="text-slate-400 font-semibold block text-xs">아이디 (이메일)</span>
                   <span class="text-slate-900 font-medium font-mono">{{ activeOrder.buyerInfo?.email || 'buyer@euchs.com' }}</span>
                 </div>
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">대표 연락처</span>
+                  <span class="text-slate-400 font-semibold block text-xs">대표 연락처</span>
                   <span class="text-slate-900 font-bold font-mono">{{ activeOrder.buyerInfo?.phone || '010-9373-1214' }}</span>
                 </div>
               </div>
@@ -378,19 +378,19 @@
               <!-- 열 2: 사업자 & 통관 부호 -->
               <div class="space-y-2">
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">개인통관고유부호 (PCCC)</span>
-                  <span class="text-blue-700 font-black font-mono text-xs bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block">
+                  <span class="text-slate-400 font-semibold block text-xs">개인통관고유부호 (PCCC)</span>
+                  <span class="text-blue-700 font-black font-mono text-sm bg-blue-50 px-2 py-0.5 rounded border border-blue-200 inline-block">
                     {{ activeOrder.buyerInfo?.customsCode || activeOrder.buyerInfo?.pccc || 'P240012345678' }}
                   </span>
                 </div>
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">사업자등록번호</span>
+                  <span class="text-slate-400 font-semibold block text-xs">사업자등록번호</span>
                   <span class="text-slate-900 font-mono font-medium">
                     {{ activeOrder.buyerInfo?.bizNo || activeOrder.buyerInfo?.businessNumber || '120-88-12345' }}
                   </span>
                 </div>
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">진행 서비스</span>
+                  <span class="text-slate-400 font-semibold block text-xs">진행 서비스</span>
                   <span class="text-slate-900 font-medium">1688 B2B 수입대행 (LCL 직수입)</span>
                 </div>
               </div>
@@ -398,14 +398,14 @@
               <!-- 열 3: 배송지 & 요청사항 -->
               <div class="space-y-2 md:border-l md:border-slate-200 md:pl-6">
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">배송지 주소</span>
+                  <span class="text-slate-400 font-semibold block text-xs">배송지 주소</span>
                   <span class="text-slate-900 font-medium leading-relaxed block">
                     {{ activeOrder.buyerInfo?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층 (우: 06234)' }}
                   </span>
                 </div>
                 <div>
-                  <span class="text-slate-400 font-semibold block text-[11px]">배송 요청사항 (메모)</span>
-                  <span class="text-amber-800 bg-amber-50 px-2 py-1 rounded border border-amber-200 block text-[11px] leading-relaxed">
+                  <span class="text-slate-400 font-semibold block text-xs">배송 요청사항 (메모)</span>
+                  <span class="text-amber-800 bg-amber-50 px-2 py-1 rounded border border-amber-200 block text-xs leading-relaxed">
                     {{ activeOrder.buyerInfo?.memo || '안전 통관 및 파손 방지 완충 에어캡 추가 포장 요청' }}
                   </span>
                 </div>
@@ -415,12 +415,12 @@
 
           <!-- 2. 발주 상품 목록 (1688 원본 링크 + 품목별 구매 추천 안 함 기능) -->
           <div class="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-xs">
-            <div class="bg-slate-50 px-5 py-3 font-bold text-slate-800 text-xs flex items-center justify-between border-b border-slate-200">
+            <div class="bg-slate-50 px-5 py-3 font-bold text-slate-800 text-sm flex items-center justify-between border-b border-slate-200">
               <div class="flex items-center gap-2">
                 <span>📦 1688 소싱 신청 품목 목록</span>
-                <span class="text-[11px] font-mono text-slate-500 font-normal">(총 {{ (activeOrder.items || []).length }}종 품목)</span>
+                <span class="text-xs font-mono text-slate-500 font-normal">(총 {{ (activeOrder.items || []).length }}종 품목)</span>
               </div>
-              <div class="text-[11px] text-slate-500 font-normal">
+              <div class="text-xs text-slate-500 font-normal">
                 * 관리자가 제외한 품목은 총 결제/견적 금액에서 자동 차감됩니다.
               </div>
             </div>
@@ -434,12 +434,12 @@
                 <!-- 판매자 카드 헤더 -->
                 <div class="bg-slate-50/80 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
                   <div class="flex items-center gap-2">
-                    <span class="font-bold text-slate-700 text-xs">🏬 {{ group.displayName }}</span>
-                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">{{ group.items.length }}개 품목</span>
+                    <span class="font-bold text-slate-700 text-sm">🏬 {{ group.displayName }}</span>
+                    <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">{{ group.items.length }}개 품목</span>
                   </div>
                   <div class="text-right font-mono">
-                    <span class="text-[11px] text-slate-400">판매자 소계</span>
-                    <span class="text-xs font-bold text-blue-700 ml-1">₩{{ fmtN(getGroupSubtotalKrw(group, activeOrder)) }}</span>
+                    <span class="text-xs text-slate-400">판매자 소계</span>
+                    <span class="text-sm font-bold text-blue-700 ml-1">₩{{ fmtN(getGroupSubtotalKrw(group, activeOrder)) }}</span>
                   </div>
                 </div>
 
@@ -460,14 +460,14 @@
                   <div class="space-y-1 min-w-0 flex-1">
                     <div class="flex items-center gap-2 flex-wrap">
                       <span
-                        class="font-bold text-sm text-slate-900"
+                        class="font-bold text-base text-slate-900"
                         :class="item.excluded ? 'line-through text-slate-400' : ''"
                       >
                         {{ item.productName || '1688 수입 품목' }}
                       </span>
                     </div>
 
-                    <div class="text-[11px] text-slate-500 font-mono flex items-center gap-2 flex-wrap">
+                    <div class="text-xs text-slate-500 font-mono flex items-center gap-2 flex-wrap">
                       <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">옵션: {{ item.sku || '기본 규격' }}</span>
                       <span>·</span>
                       <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">수량: {{ item.quantity || 1 }}개</span>
@@ -483,10 +483,10 @@
                           min="0"
                           step="0.01"
                           :disabled="item.excluded"
-                          class="w-20 text-xs border border-amber-300 rounded-md py-0.5 px-1.5 bg-amber-50 outline-none focus:ring-2 focus:ring-amber-400 font-mono transition text-slate-900 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+                          class="w-20 text-sm border border-amber-300 rounded-md py-0.5 px-1.5 bg-amber-50 outline-none focus:ring-2 focus:ring-amber-400 font-mono transition text-slate-900 font-bold disabled:opacity-50 disabled:cursor-not-allowed"
                           title="관리자 단가 수정 (저장 버튼으로 반영됩니다)"
                         />
-                        <span class="text-amber-600 font-bold text-[10px] shrink-0">✏️</span>
+                        <span class="text-amber-600 font-bold text-xs shrink-0">✏️</span>
                       </span>
                       <!-- 3단계 이후: 읽기 전용 단가 표시 -->
                       <span v-else :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">단가: ¥{{ Number(item.priceCny || 0).toFixed(2) }}</span>
@@ -503,7 +503,7 @@
                         :href="getItem1688Url(item)"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-[11px] transition active:scale-95 cursor-pointer"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-xs transition active:scale-95 cursor-pointer"
                         title="1688 원본 상품 페이지 새 창 열기"
                       >
                         <span>🔗 1688 원본 상품 페이지 이동</span>
@@ -518,24 +518,24 @@
                   <!-- 상태 뱃지 -->
                   <span
                     v-if="item.excluded"
-                    class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700 font-black text-[11px] border border-rose-200 shrink-0 whitespace-nowrap"
+                    class="px-2.5 py-1 rounded-lg bg-rose-100 text-rose-700 font-black text-xs border border-rose-200 shrink-0 whitespace-nowrap"
                   >
                     🔴 구매제외: {{ item.excludeReason || '구매 추천 안 함' }}
                   </span>
                   <span
                     v-else
-                    class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 font-bold text-[11px] border border-emerald-200 shrink-0 whitespace-nowrap"
+                    class="px-2.5 py-1 rounded-lg bg-emerald-100 text-emerald-700 font-bold text-xs border border-emerald-200 shrink-0 whitespace-nowrap"
                   >
                     🟢 구매가능
                   </span>
 
                   <!-- 1단계 견적대기 또는 4단계 구매진행 시 사유 선택 드롭다운 -->
                   <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'purchasing')" class="flex items-center gap-2 shrink-0">
-                    <span class="text-[11px] font-bold text-slate-500 shrink-0">구매상태:</span>
+                    <span class="text-xs font-bold text-slate-500 shrink-0">구매상태:</span>
                     <select
                       v-model="excludeReasonMap[idx]"
                       @change="handleReasonChange(activeOrder, item, idx)"
-                      class="w-64 text-xs border border-slate-300 rounded-lg py-2 px-3 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-amber-500 font-medium transition"
+                      class="w-64 text-sm border border-slate-300 rounded-lg py-2 px-3 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-amber-500 font-medium transition"
                       :class="item.excluded ? 'border-rose-300 text-rose-700 bg-rose-50/50' : 'border-slate-300 text-slate-700'"
                     >
                       <option value="">0. 사유선택 (정상 구매 포함)</option>
@@ -557,16 +557,16 @@
                 >
                   <!-- 헤더: 타이틀 + subStatus 배지 + 발주계정 -->
                   <div class="flex items-center gap-2 flex-wrap">
-                    <span class="text-[11px] font-black text-indigo-700 shrink-0">🚚 중국 내륙 배송 정보</span>
+                    <span class="text-xs font-black text-indigo-700 shrink-0">🚚 중국 내륙 배송 정보</span>
 
                     <!-- subStatus 배지: 저장된 item 기준, 하위호환 유추 포함 -->
                     <span
-                      class="px-2 py-0.5 rounded-md border font-bold text-[10px] shrink-0 whitespace-nowrap"
+                      class="px-2 py-0.5 rounded-md border font-bold text-xs shrink-0 whitespace-nowrap"
                       :class="getItemSubStatusBadge(item).cls"
                     >{{ getItemSubStatusBadge(item).label }}</span>
 
                     <!-- 발주 계정 표시 (현재 고정값 calvinli06) -->
-                    <span v-if="item.purchaseAccount || item.purchaseNo" class="text-[10px] text-slate-400 font-mono shrink-0">
+                    <span v-if="item.purchaseAccount || item.purchaseNo" class="text-xs text-slate-400 font-mono shrink-0">
                       계정: {{ item.purchaseAccount || 'calvinli06' }}
                     </span>
                   </div>
@@ -575,21 +575,21 @@
                   <div class="flex sm:flex-row flex-col sm:items-center flex-wrap gap-2.5">
                     <!-- 구매번호 (draft 바인딩) -->
                     <div class="flex items-center gap-1.5">
-                      <label class="text-[11px] font-bold text-slate-500 shrink-0">구매번호</label>
+                      <label class="text-xs font-bold text-slate-500 shrink-0">구매번호</label>
                       <input
                         v-model="purchaseInfoDraft[idx].purchaseNo"
                         type="text"
                         placeholder="1688 구매번호"
-                        class="w-36 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
+                        class="w-36 text-sm border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
                       />
                     </div>
 
                     <!-- 중국 택배사 드롭다운 (draft 바인딩) -->
                     <div class="flex items-center gap-1.5 shrink-0">
-                      <label class="text-[11px] font-bold text-slate-500 shrink-0">택배사</label>
+                      <label class="text-xs font-bold text-slate-500 shrink-0">택배사</label>
                       <select
                         v-model="purchaseInfoDraft[idx].chinaCarrier"
-                        class="text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-indigo-400 font-medium transition"
+                        class="text-sm border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-indigo-400 font-medium transition"
                       >
                         <option value="">선택</option>
                         <option value="중통(ZTO)">중통(ZTO)</option>
@@ -611,12 +611,12 @@
 
                     <!-- 중국 송장번호 (draft 바인딩) -->
                     <div class="flex items-center gap-1.5 flex-1 min-w-0">
-                      <label class="text-[11px] font-bold text-slate-500 shrink-0">송장번호</label>
+                      <label class="text-xs font-bold text-slate-500 shrink-0">송장번호</label>
                       <input
                         v-model="purchaseInfoDraft[idx].chinaTrackingNo"
                         type="text"
                         placeholder="중국 내륙 송장번호"
-                        class="flex-1 min-w-0 text-xs border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
+                        class="flex-1 min-w-0 text-sm border border-slate-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-indigo-400 font-mono transition"
                       />
                     </div>
 
@@ -624,7 +624,7 @@
                     <button
                       type="button"
                       @click="savePurchasingInfo(item, idx)"
-                      class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
+                      class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
                     >
                       <span>💾 저장</span>
                     </button>
@@ -635,7 +635,7 @@
                       type="button"
                       @click="syncLogistics(item, idx)"
                       :disabled="syncingLogistics[idx]"
-                      class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
+                      class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1 whitespace-nowrap shadow-xs"
                       :class="syncingLogistics[idx]
                         ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                         : 'bg-sky-500 hover:bg-sky-600 text-white'"
@@ -653,11 +653,11 @@
                     >
                       <span class="text-red-600 text-base shrink-0 mt-0.5">🚨</span>
                       <div class="min-w-0 flex-1">
-                        <p class="text-[11px] font-black text-red-700 leading-snug">
+                        <p class="text-xs font-black text-red-700 leading-snug">
                           수동 확인 필요
                           <span v-if="item.purchaseNo" class="font-mono ml-1">1688 발주번호: {{ item.purchaseNo }}</span>
                         </p>
-                        <p class="text-[10px] text-red-500 mt-0.5 leading-relaxed">
+                        <p class="text-xs text-red-500 mt-0.5 leading-relaxed">
                           <template v-if="item.purchaseNo">
                             1688 주문은 생성됐으나 DB 기록이 실패했습니다. 1688 콘솔에서 확인 후 구매번호를 수동 입력해 주세요. (이중발주 방지 — 자동 재시도 불가)
                           </template>
@@ -665,7 +665,7 @@
                             1688 API 타임아웃 등으로 주문 생성 여부가 불확실합니다. 1688 콘솔을 직접 확인한 후 수동 입력하거나 재시도하세요.
                           </template>
                         </p>
-                        <p v-if="item.purchaseErrorAt" class="text-[10px] text-red-400 font-mono mt-0.5">
+                        <p v-if="item.purchaseErrorAt" class="text-xs text-red-400 font-mono mt-0.5">
                           {{ new Date(item.purchaseErrorAt).toLocaleString('ko-KR') }}
                         </p>
                       </div>
@@ -677,12 +677,12 @@
                       v-if="item.purchaseError"
                       class="w-full mt-1 flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"
                     >
-                      <span class="text-rose-600 text-sm shrink-0 mt-0.5">⚠️</span>
+                      <span class="text-rose-600 text-base shrink-0 mt-0.5">⚠️</span>
                       <div class="min-w-0 flex-1">
-                        <p class="text-[11px] font-bold text-rose-700 leading-snug">
+                        <p class="text-xs font-bold text-rose-700 leading-snug">
                           발주 실패: {{ item.purchaseError }}
                         </p>
-                        <p v-if="item.purchaseErrorAt" class="text-[10px] text-rose-400 font-mono mt-0.5">
+                        <p v-if="item.purchaseErrorAt" class="text-xs text-rose-400 font-mono mt-0.5">
                           {{ new Date(item.purchaseErrorAt).toLocaleString('ko-KR') }}
                         </p>
                       </div>
@@ -691,7 +691,7 @@
                         type="button"
                         :disabled="!(item.num_iid || item.itemId || item.id)"
                         @click="executeItemAutoOrder(item, activeOrder)"
-                        class="shrink-0 self-center px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1 whitespace-nowrap transition active:scale-95 cursor-pointer shadow-xs"
+                        class="shrink-0 self-center px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 whitespace-nowrap transition active:scale-95 cursor-pointer shadow-xs"
                         :class="(item.num_iid || item.itemId || item.id)
                           ? 'bg-rose-600 hover:bg-rose-700 text-white'
                           : 'bg-slate-200 text-slate-400 cursor-not-allowed'"
@@ -716,10 +716,10 @@
                         class="flex items-center justify-between gap-2 px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-lg"
                       >
                         <div class="flex items-center gap-2 min-w-0">
-                          <span class="text-emerald-600 text-sm shrink-0">✅</span>
+                          <span class="text-emerald-600 text-base shrink-0">✅</span>
                           <div class="min-w-0">
-                            <p class="text-[11px] font-bold text-emerald-700">1688 알리페이 결제완료</p>
-                            <p v-if="item.alipayPaidAt" class="text-[10px] text-emerald-500 font-mono mt-0.5">
+                            <p class="text-xs font-bold text-emerald-700">1688 알리페이 결제완료</p>
+                            <p v-if="item.alipayPaidAt" class="text-xs text-emerald-500 font-mono mt-0.5">
                               {{ new Date(item.alipayPaidAt).toLocaleString('ko-KR') }}
                             </p>
                           </div>
@@ -729,7 +729,7 @@
                           v-if="item.payLinkUrl"
                           type="button"
                           @click="openPayLinkUrl(item.payLinkUrl)"
-                          class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
+                          class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
                           title="기존에 발급된 결제 링크를 새 탭으로 다시 엽니다 (API 재호출 없음)"
                         >🔗 창 다시 열기</button>
                       </div>
@@ -740,14 +740,14 @@
                         <!-- 상태 1: 링크 미발급 — "1688 결제링크 열기" 버튼 -->
                         <template v-if="!payLinkIssued[idx]">
                           <!-- calvinli06 계정 안내 문구 -->
-                          <p class="text-[10px] text-slate-500 leading-snug">
+                          <p class="text-xs text-slate-500 leading-snug">
                             ⚠️ 새 창은 <strong class="text-slate-700">calvinli06</strong> 계정으로 1688에 로그인된 상태에서 열어야 합니다.
                           </p>
                           <button
                             type="button"
                             :disabled="payLinkLoading.has(idx)"
                             @click="executeCrossBorderPayLink(item, activeOrder, idx)"
-                            class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs"
+                            class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs"
                             :class="payLinkLoading.has(idx)
                               ? 'bg-slate-200 text-slate-400 cursor-not-allowed'
                               : 'bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer'"
@@ -761,7 +761,7 @@
                         <!-- 상태 2: 링크 발급됨, 결제완료 확정 대기 — 안내 문구 + 버튼 그룹 -->
                         <template v-else>
                           <div class="flex items-center gap-2 flex-wrap bg-amber-50 border border-amber-200 rounded-lg px-3 py-1.5">
-                            <p class="text-[10px] text-amber-700 leading-snug shrink min-w-0">
+                            <p class="text-xs text-amber-700 leading-snug shrink min-w-0">
                               🔗 <strong class="text-amber-800">calvinli06</strong> 계정으로 결제 완료 후 확인 버튼을 눌러주세요.
                             </p>
                             <div class="flex items-center gap-1.5 shrink-0">
@@ -769,7 +769,7 @@
                                 type="button"
                                 :disabled="payLinkLoading.has(idx)"
                                 @click="confirmAlipayPaid(item, activeOrder, idx)"
-                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                                 title="1688에서 결제를 완료한 경우 클릭하면 결제완료로 저장됩니다"
                               >✅ 결제완료 확인</button>
                               <!-- 창 다시 열기: payLinkUrl 있을 때만, API 호출 없이 URL만 새 탭으로 열기 -->
@@ -777,7 +777,7 @@
                                 v-if="item.payLinkUrl"
                                 type="button"
                                 @click="openPayLinkUrl(item.payLinkUrl)"
-                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-[11px] flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
+                                class="shrink-0 px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1.5 whitespace-nowrap transition active:scale-95 shadow-xs bg-slate-100 hover:bg-slate-200 text-slate-600 cursor-pointer"
                                 title="기존에 발급된 결제 링크를 새 탭으로 다시 엽니다 (API 재호출 없음)"
                               >🔗 창 다시 열기</button>
                             </div>
@@ -789,12 +789,12 @@
                           v-if="item.payError"
                           class="flex items-start gap-2 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2"
                         >
-                          <span class="text-rose-600 text-sm shrink-0 mt-0.5">⚠️</span>
+                          <span class="text-rose-600 text-base shrink-0 mt-0.5">⚠️</span>
                           <div class="min-w-0 flex-1">
-                            <p class="text-[11px] font-bold text-rose-700 leading-snug">
+                            <p class="text-xs font-bold text-rose-700 leading-snug">
                               결제 링크 오류: {{ item.payError }}
                             </p>
-                            <p v-if="item.payErrorAt" class="text-[10px] text-rose-400 font-mono mt-0.5">
+                            <p v-if="item.payErrorAt" class="text-xs text-rose-400 font-mono mt-0.5">
                               {{ new Date(item.payErrorAt).toLocaleString('ko-KR') }}
                             </p>
                           </div>
@@ -814,7 +814,7 @@
 
             <!-- 하단 금액 요약 바 (제외 품목 자동 반영) -->
             <div class="bg-slate-50 p-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div class="text-xs text-slate-600 space-x-3">
+              <div class="text-sm text-slate-600 space-x-3">
                 <span>신청 품목: <strong class="text-slate-900">{{ (activeOrder.items || []).length }}</strong>종</span>
                 <span>유효 구매: <strong class="text-blue-700">{{ getActiveItems(activeOrder).length }}</strong>종</span>
                 <span v-if="getExcludedItems(activeOrder).length > 0" class="text-rose-600 font-bold">
@@ -825,13 +825,13 @@
               <div class="flex flex-col items-end gap-1">
                 <!-- 1·2단계(견적대기/결제대기): 예상 내륙 택배비 — 수동 수정 가능 input -->
                 <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="flex flex-col items-end gap-1">
-                  <div class="flex items-center gap-2 text-[11px] text-slate-500">
+                  <div class="flex items-center gap-2 text-xs text-slate-500">
                     <span>중국 내륙 택배비 (¥):</span>
                     <input
                       type="number"
                       min="0"
                       step="0.01"
-                      class="w-20 px-2 py-0.5 rounded-md border font-mono text-xs font-bold focus:outline-none focus:ring-1"
+                      class="w-20 px-2 py-0.5 rounded-md border font-mono text-sm font-bold focus:outline-none focus:ring-1"
                       :class="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                         ? 'border-emerald-400 bg-emerald-50 text-emerald-800 focus:ring-emerald-400'
                         : 'border-indigo-300 bg-indigo-50 text-indigo-800 focus:ring-indigo-400'"
@@ -840,7 +840,7 @@
                         : calcCostDetail(activeOrder).chinaFreightRmb"
                       @change="e => { activeOrder.chinaFreightRmb = Math.max(0, parseFloat(e.target.value) || 0) }"
                     />
-                    <span class="text-[10px]"
+                    <span class="text-xs"
                       :class="activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                         ? 'text-emerald-600 font-bold'
                         : (calcCostDetail(activeOrder).chinaFreightOrigin === '1688_exact' || calcCostDetail(activeOrder).chinaFreightOrigin === '1688_seller')
@@ -854,7 +854,7 @@
                             ? 'seller 실측'
                             : '수량기반 추정' }}
                     </span>
-                    <span class="text-slate-400 font-mono text-[10px]">
+                    <span class="text-slate-400 font-mono text-xs">
                       ≈ ₩{{ fmtN(Math.round(
                         (activeOrder.chinaFreightRmb !== null && activeOrder.chinaFreightRmb !== undefined
                           ? activeOrder.chinaFreightRmb
@@ -864,27 +864,27 @@
                     </span>
 
                   </div>
-                  <div class="text-[10px] text-slate-400">
+                  <div class="text-xs text-slate-400">
                     * 1차 견적 참고용. 실제 운임은 구매 진행 후 확정되며 최종 정산 시 반영됩니다.
                   </div>
                 </div>
                 <!-- 단가 수정 안내 (1·2단계만) -->
 
                 <!-- 단가/택배비 수정 안내 (1·2단계만) -->
-                <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="text-[10px] text-amber-600 font-medium">
+                <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="text-xs text-amber-600 font-medium">
                   ✏️ 단가·택배비 수정 후 총액이 자동 재계산됩니다. 저장 버튼으로 확정하세요.
                 </div>
                 <div class="flex items-center gap-3">
-                  <span class="text-xs text-slate-500">1차 결제/견적 유효 총액:</span>
+                  <span class="text-sm text-slate-500">1차 결제/견적 유효 총액:</span>
                   <span class="text-lg font-black text-slate-900 font-mono">
                     ₩{{ fmtN(calcCost(activeOrder)) }}
                   </span>
-                  <span class="text-xs text-slate-400 font-mono">
+                  <span class="text-sm text-slate-400 font-mono">
                     (¥{{ calcCny(activeOrder) }})
                   </span>
                 </div>
                 <!-- 금액 breakdown: 상품값 + 택배비 + 수수료 구성 표시 -->
-                <div class="text-xs text-slate-500 text-right font-mono leading-snug">
+                <div class="text-sm text-slate-500 text-right font-mono leading-snug">
                   상품값 ₩{{ fmtN(calcCostDetail(activeOrder).itemTotalKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).itemTotalCny?.toFixed(2) }})</span>
                   + 택배비 ₩{{ fmtN(calcCostDetail(activeOrder).chinaFreightKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).chinaFreightRmb?.toFixed(2) }})</span>
                   + 수수료 ₩{{ fmtN(calcCostDetail(activeOrder).agencyFeeKrw) }}<span class="text-slate-400"> (¥{{ (calcCostDetail(activeOrder).agencyFeeKrw / getEffectiveRate(activeOrder)).toFixed(2) }})</span>
@@ -894,7 +894,7 @@
                   = <span class="font-black text-slate-700">₩{{ fmtN(calcCostDetail(activeOrder).chargeableKrw) }}</span>
                 </div>
                 <!-- 환율 breakdown: quote_pending은 고시+마진(소수점2자리), 승인 이후는 스냅샷 환율 표시 -->
-                <div class="text-[11px] text-slate-400 text-right leading-snug">
+                <div class="text-xs text-slate-400 text-right leading-snug">
                   <template v-if="isStatus(activeOrder, 'quote_pending')">
                     적용환율 ₩{{ fmtRate(getEffectiveRate(activeOrder)) }}/CNY
                     <span v-if="currentSettings?.rate_margin" class="text-slate-400">
@@ -916,17 +916,17 @@
             v-if="(activeOrder.items || []).some(i => !i.excluded && i.chinaTrackingNo)"
             class="grid grid-cols-1 gap-3"
           >
-            <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-xs space-y-2">
+            <div class="p-4 bg-indigo-50 border border-indigo-200 rounded-2xl text-sm space-y-2">
               <div class="font-bold text-indigo-800 mb-2 flex items-center gap-1.5">
                 <span>🚚 중국 내륙 배송 정보</span>
-                <span class="text-[10px] font-normal text-indigo-500">(읽기 전용 — 편집은 4.구매진행 단계에서)</span>
+                <span class="text-xs font-normal text-indigo-500">(읽기 전용 — 편집은 4.구매진행 단계에서)</span>
               </div>
               <!-- 품목 목록 (모두 표시) -->
               <template v-for="(item, idx) in (activeOrder.items || [])" :key="idx">
                 <div v-if="!item.excluded" class="flex items-start gap-3 py-1.5 border-b border-indigo-100 last:border-0">
-                  <span class="text-[10px] text-indigo-400 font-mono shrink-0 mt-0.5">품목 {{ idx + 1 }}</span>
+                  <span class="text-xs text-indigo-400 font-mono shrink-0 mt-0.5">품목 {{ idx + 1 }}</span>
                   <div class="min-w-0 flex-1">
-                    <p class="text-[11px] text-slate-700 font-medium truncate mb-1">
+                    <p class="text-xs text-slate-700 font-medium truncate mb-1">
                       {{ item.productName || item.title || item.name || '1688 수입 품목' }}
                     </p>
                     <div class="flex items-center gap-3 flex-wrap">
@@ -947,7 +947,7 @@
               <template v-for="group in adminTrackingGroups" :key="`tl-${group.trackingNo}`">
                 <div class="mt-3 pt-3 border-t border-indigo-100">
                   <!-- 합포장: 이 운송장에 묶인 품목 이름 표시 -->
-                  <p v-if="group.items.length > 1" class="text-[10px] text-slate-500 mb-2 leading-tight">
+                  <p v-if="group.items.length > 1" class="text-xs text-slate-500 mb-2 leading-tight">
                     포함 품목:
                     <span class="font-medium">
                       {{ group.items.slice(0, 2).map(({item}) => item.productName || '품목').join(', ') }}
@@ -980,8 +980,8 @@
             "
             class="grid grid-cols-1 sm:grid-cols-2 gap-3"
           >
-            <div v-if="activeOrder.blInfo" class="p-4 bg-purple-50 border border-purple-200 rounded-2xl font-mono text-xs space-y-1.5">
-              <div class="font-bold text-purple-800 text-xs mb-1 flex items-center gap-1">
+            <div v-if="activeOrder.blInfo" class="p-4 bg-purple-50 border border-purple-200 rounded-2xl font-mono text-sm space-y-1.5">
+              <div class="font-bold text-purple-800 text-sm mb-1 flex items-center gap-1">
                 <span>📄 선하증권 (B/L) 통관 정보</span>
               </div>
               <div class="flex justify-between"><span class="text-slate-500">B/L 번호:</span> <span class="font-bold text-slate-900">{{ activeOrder.blInfo.blNumber }}</span></div>
@@ -990,8 +990,8 @@
               <div v-if="activeOrder.blInfo.eta" class="flex justify-between"><span class="text-slate-500">입항예정일 (ETA):</span> <span class="font-bold text-purple-700">{{ activeOrder.blInfo.eta }}</span></div>
             </div>
 
-            <div v-if="activeOrder.trackingInfo" class="p-4 bg-violet-50 border border-violet-200 rounded-2xl font-mono text-xs space-y-1.5">
-              <div class="font-bold text-violet-800 text-xs mb-1 flex items-center gap-1">
+            <div v-if="activeOrder.trackingInfo" class="p-4 bg-violet-50 border border-violet-200 rounded-2xl font-mono text-sm space-y-1.5">
+              <div class="font-bold text-violet-800 text-sm mb-1 flex items-center gap-1">
                 <span>🚚 국내 운송 정보</span>
               </div>
               <div class="flex justify-between"><span class="text-slate-500">운송사:</span> <span class="font-bold text-slate-900">{{ activeOrder.trackingInfo.carrier }}</span></div>
@@ -1015,14 +1015,14 @@
               <div class="shrink-0 space-y-1">
                 <div class="flex items-center justify-between">
                   <div class="flex items-center gap-2">
-                    <span class="text-sm">✍️</span>
-                    <p class="text-xs font-bold text-amber-800">1688 수동발주 완료 처리</p>
+                    <span class="text-base">✍️</span>
+                    <p class="text-sm font-bold text-amber-800">1688 수동발주 완료 처리</p>
                   </div>
-                  <span class="text-[11px] font-mono font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
+                  <span class="text-xs font-mono font-bold text-amber-700 bg-amber-100/80 px-2 py-0.5 rounded-md">
                     총 {{ (activeOrder.items || []).filter(i => !i.excluded).length }}개 품목
                   </span>
                 </div>
-                <p class="text-[11px] text-amber-700 leading-relaxed">
+                <p class="text-xs text-amber-700 leading-relaxed">
                   각 품목의 1688 주문번호를 입력 후 "저장하고 넘기기"를 누르면
                   <strong>수동발주완료(✍️)</strong>로 기록되고 주문이 <strong>4단계(구매진행)</strong>로 전환됩니다.
                 </p>
@@ -1039,24 +1039,24 @@
                     @change="toggleManualAllChecked"
                     class="w-3.5 h-3.5 rounded accent-amber-500 cursor-pointer"
                   />
-                  <span class="text-[11px] font-bold text-amber-800">전체선택</span>
+                  <span class="text-xs font-bold text-amber-800">전체선택</span>
                 </label>
-                <span class="text-amber-300 text-[10px]">|</span>
+                <span class="text-amber-300 text-xs">|</span>
                 <!-- 일괄 주문번호 입력 -->
                 <input
                   v-model="manualBulkNo"
                   type="text"
                   placeholder="일괄 적용할 1688 주문번호"
-                  class="flex-1 min-w-[140px] text-xs border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
+                  class="flex-1 min-w-[140px] text-sm border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
                   @keydown.enter.prevent="applyManualBulk"
                 />
                 <button
                   type="button"
                   @click="applyManualBulk"
                   :disabled="!manualBulkNo.trim() || manualCheckedIdxs.size === 0"
-                  class="shrink-0 px-3 py-1.5 text-xs rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  class="shrink-0 px-3 py-1.5 text-sm rounded-lg bg-amber-500 hover:bg-amber-400 text-white font-bold transition disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                 >일괄 적용</button>
-                <span v-if="manualCheckedIdxs.size > 0" class="text-[10px] text-amber-700 font-medium shrink-0">
+                <span v-if="manualCheckedIdxs.size > 0" class="text-xs text-amber-700 font-medium shrink-0">
                   {{ manualCheckedIdxs.size }}개 선택됨
                 </span>
               </div>
@@ -1076,14 +1076,14 @@
                     @change="toggleManualItemCheck(item.idx)"
                     class="w-3.5 h-3.5 rounded accent-amber-500 cursor-pointer shrink-0"
                   />
-                  <span class="text-[11px] font-bold text-slate-700 shrink-0 min-w-0 flex-1 truncate">
+                  <span class="text-xs font-bold text-slate-700 shrink-0 min-w-0 flex-1 truncate">
                     {{ item.item.productName || `품목 ${idx + 1}` }}
                   </span>
                   <input
                     v-model="manualOrderNoDraft[item.idx]"
                     type="text"
                     placeholder="1688 주문번호 입력"
-                    class="w-44 text-xs border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
+                    class="w-44 text-sm border border-amber-300 rounded-lg py-1.5 px-2.5 bg-white outline-none focus:ring-2 focus:ring-amber-400 font-mono transition"
                   />
                 </div>
               </div>
@@ -1091,10 +1091,10 @@
               <!-- 에러 메시지 및 저장/취소 버튼 (하단 고정: shrink-0 pt-2 border-t border-amber-200/80) -->
               <div class="shrink-0 pt-2 border-t border-amber-200/80 flex items-center justify-between gap-2 flex-wrap">
                 <!-- 에러 메시지 -->
-                <p v-if="manualOrderError" class="text-[11px] text-rose-600 font-bold flex items-center gap-1">
+                <p v-if="manualOrderError" class="text-xs text-rose-600 font-bold flex items-center gap-1">
                   <span>⚠️</span><span>{{ manualOrderError }}</span>
                 </p>
-                <div v-else class="text-[10px] text-amber-600 font-medium">
+                <div v-else class="text-xs text-amber-600 font-medium">
                   * 1688 주문번호를 입력하지 않은 품목은 기존 주문번호를 유지합니다.
                 </div>
 
@@ -1103,13 +1103,13 @@
                   <button
                     type="button"
                     @click="showManualOrderPopup = false; manualOrderNoDraft = {}; manualOrderError = ''; manualCheckedIdxs = new Set(); manualBulkNo = ''"
-                    class="px-3 py-1.5 text-xs rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                    class="px-3 py-1.5 text-sm rounded-lg border border-slate-300 text-slate-600 hover:bg-slate-100 transition cursor-pointer"
                   >취소</button>
                   <button
                     type="button"
                     @click="executeManualOrderComplete"
                     :disabled="isSubmittingManualOrder"
-                    class="px-4 py-1.5 text-xs rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-xs"
+                    class="px-4 py-1.5 text-sm rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold transition cursor-pointer active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5 shadow-xs"
                   >
                     <span v-if="isSubmittingManualOrder">⏳ 저장 중…</span>
                     <span v-else>💾 저장하고 넘기기</span>
@@ -1128,7 +1128,7 @@
               v-if="isStatus(activeOrder, 'quote_pending')"
               @click="rejectOrderFromDetail(activeOrder)"
               type="button"
-              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-sm transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
               title="견적대기 단계 주문서 반려(폐기) 처리"
             >
               <span>🚫</span>
@@ -1140,7 +1140,7 @@
               v-if="['quote_confirmed','payment_verified','purchasing','warehouse_in','arrival_done','inspection_done','shipping_ready','customs_clearance','customs_done','domestic_shipping'].includes(normalizeOrderStatus(activeOrder.status))"
               @click="cancelOrderEntirely(activeOrder)"
               type="button"
-              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
+              class="px-3.5 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-sm transition cursor-pointer active:scale-95 flex items-center gap-1.5 shrink-0 whitespace-nowrap"
               title="결제대기 이후 단계 주문 취소·환불 처리"
             >
               <span>🔴</span>
@@ -1154,7 +1154,7 @@
             v-if="isStatus(activeOrder, 'cancelled')"
             class="mx-0 px-4 py-3 bg-rose-50 border-t border-rose-100 flex items-center justify-between gap-4"
           >
-            <div class="text-xs text-rose-700">
+            <div class="text-sm text-rose-700">
               <span class="font-bold">⚠ 취소된 주문</span> —
               <span v-if="activeOrder.refundCompleted" class="text-emerald-700 font-bold">
                 ✅ 환불완료 처리됨 ({{ activeOrder.refundCompletedAt ? new Date(activeOrder.refundCompletedAt).toLocaleString('ko-KR') : '' }})
@@ -1166,14 +1166,14 @@
               @click="markRefundCompletedFromDetail(activeOrder)"
               :disabled="isMarkingRefund"
               type="button"
-              class="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-400 bg-emerald-50 text-emerald-700 font-bold text-xs hover:bg-emerald-100 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
+              class="shrink-0 px-3.5 py-2 rounded-xl border border-emerald-400 bg-emerald-50 text-emerald-700 font-bold text-sm hover:bg-emerald-100 transition disabled:opacity-50 disabled:cursor-not-allowed active:scale-95"
             >
               {{ isMarkingRefund ? '처리중…' : '✅ 환불완료 처리' }}
             </button>
           </div>
 
 
-          <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="text-xs text-slate-500 font-medium px-2 shrink-0 hidden lg:block">
+          <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')" class="text-sm text-slate-500 font-medium px-2 shrink-0 hidden lg:block">
             * [변경사항 저장] 시 단가·총액이 바이어에게 즉시 반영됩니다.
           </div>
 
@@ -1183,14 +1183,14 @@
             <button
               @click="handle1688Excel(activeOrder)"
               type="button"
-              class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-xs transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+              class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 font-bold text-sm transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>📥 1688 사입 엑셀</span>
             </button>
             <button
               @click="handleMasterExcel(activeOrder)"
               type="button"
-              class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-xs transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+              class="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 font-bold text-sm transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>📥 수입 주문서 엑셀</span>
             </button>
@@ -1199,7 +1199,7 @@
             <button
               @click="closeModals"
               type="button"
-              class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer shrink-0 whitespace-nowrap"
+              class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 transition cursor-pointer shrink-0 whitespace-nowrap"
             >
               닫기
             </button>
@@ -1208,7 +1208,7 @@
               v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'quote_confirmed')"
               @click="confirmSaveOrder = true"
               type="button"
-              class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+              class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-bold text-sm transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>💾 변경사항 저장하기</span>
             </button>
@@ -1216,7 +1216,7 @@
               v-if="isStatus(activeOrder, 'quote_pending')"
               @click="openApproveQuoteConfirm"
               type="button"
-              class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+              class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>⚡ 견적 승인 (2단계 전환)</span>
             </button>
@@ -1226,7 +1226,7 @@
               v-if="isStatus(activeOrder, 'payment_verified')"
               @click="showManualOrderPopup = !showManualOrderPopup; manualOrderError = ''"
               type="button"
-              class="px-4 py-2.5 rounded-xl border border-amber-300 font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+              class="px-4 py-2.5 rounded-xl border border-amber-300 font-bold text-sm transition cursor-pointer shadow-xs flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
               :class="showManualOrderPopup
                 ? 'bg-amber-100 text-amber-800 hover:bg-amber-200'
                 : 'bg-amber-50 text-amber-700 hover:bg-amber-100'"
@@ -1239,7 +1239,7 @@
               v-if="isStatus(activeOrder, 'payment_verified')"
               @click="startPurchasingFromDetail"
               type="button"
-              class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+              class="px-5 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-black text-sm transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>🛒 1688 구매 시작</span>
             </button>
@@ -1249,7 +1249,7 @@
               v-if="isStatus(activeOrder, 'purchasing')"
               @click="confirmWarehouseArrival(activeOrder, { silent: false })"
               type="button"
-              class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+              class="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white font-black text-sm transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>🚚 배송중(5단계) 전환</span>
             </button>
@@ -1259,7 +1259,7 @@
               v-if="isStatus(activeOrder, 'warehouse_in')"
               @click="openWarehouseModal(activeOrder, 'arrival')"
               type="button"
-              class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-xs transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
+              class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white font-black text-sm transition cursor-pointer shadow-md flex items-center gap-1.5 active:scale-95 shrink-0 whitespace-nowrap"
             >
               <span>📦 도착검수 (5-A)</span>
             </button>
@@ -1272,7 +1272,7 @@
     <!-- 토스트 -->
 
     <Transition name="toast">
-      <div v-if="toast.show" class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5"
+      <div v-if="toast.show" class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5"
         :class="toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'">
         <span>{{ toast.type === 'success' ? '✅' : '❌' }}</span>
         <span>{{ toast.message }}</span>

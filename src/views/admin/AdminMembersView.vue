@@ -5,11 +5,11 @@
     <div v-if="isFatalError" class="bg-rose-50 border border-rose-200 rounded-2xl p-6 text-center space-y-3">
       <div class="text-3xl">⚠️</div>
       <h3 class="text-base font-bold text-rose-900">회원 데이터를 불러오는 중 일시적인 오류가 발생했습니다.</h3>
-      <p class="text-xs text-rose-600 font-mono">{{ fatalErrorMessage || '네트워크 상태를 확인해 주세요.' }}</p>
+      <p class="text-sm text-rose-600 font-mono">{{ fatalErrorMessage || '네트워크 상태를 확인해 주세요.' }}</p>
       <button
         type="button"
         @click="retryLoadMembers"
-        class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition cursor-pointer"
+        class="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white text-sm font-bold rounded-xl transition cursor-pointer"
       >
         🔄 다시 시도
       </button>
@@ -26,13 +26,13 @@
             </div>
             <h2 class="text-lg sm:text-xl font-black text-slate-900">회원 / 바이어 관리</h2>
           </div>
-          <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+          <p class="text-sm sm:text-base text-slate-500 mt-1 font-medium">
             가입된 B2B 바이어 회원의 사업자 인증 심사, 통관부호(PCCC), 등급 및 예치금 현황을 관리합니다.
           </p>
         </div>
 
         <div class="flex items-center gap-2 self-start sm:self-center">
-          <span class="px-3 py-1.5 rounded-xl text-xs font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
+          <span class="px-3 py-1.5 rounded-xl text-sm font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200">
             총 {{ membersList.length }}개 회원사
           </span>
         </div>
@@ -49,13 +49,13 @@
             : 'bg-white border-slate-200 hover:border-slate-300'"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-600">전체 회원</span>
-            <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs">👥</span>
+            <span class="text-sm font-bold text-slate-600">전체 회원</span>
+            <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600 text-sm">👥</span>
           </div>
           <div class="text-2xl font-black font-mono text-slate-900">
-            {{ membersList.length }}<span class="text-sm font-normal text-slate-500">명</span>
+            {{ membersList.length }}<span class="text-base font-normal text-slate-500">명</span>
           </div>
-          <p class="text-[11px] text-slate-400 font-medium">클릭 시 전체 목록 보기</p>
+          <p class="text-xs text-slate-400 font-medium">클릭 시 전체 목록 보기</p>
         </div>
 
         <!-- 2) 사업자 인증 완료 -->
@@ -67,13 +67,13 @@
             : 'bg-white border-slate-200 hover:border-slate-300'"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-600">사업자 인증 완료</span>
-            <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs">🟢</span>
+            <span class="text-sm font-bold text-slate-600">사업자 인증 완료</span>
+            <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-sm">🟢</span>
           </div>
           <div class="text-2xl font-black font-mono text-emerald-600">
-            {{ verifiedCount }}<span class="text-sm font-normal text-slate-500">개사</span>
+            {{ verifiedCount }}<span class="text-base font-normal text-slate-500">개사</span>
           </div>
-          <p class="text-[11px] text-emerald-600/80 font-medium">클릭 시 인증완료 바이어 필터</p>
+          <p class="text-xs text-emerald-600/80 font-medium">클릭 시 인증완료 바이어 필터</p>
         </div>
 
         <!-- 3) 사업자 승인 대기 -->
@@ -85,13 +85,13 @@
             : 'bg-white border-slate-200 hover:border-slate-300'"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-600">사업자 승인 대기</span>
-            <span class="p-1.5 rounded-lg bg-amber-50 text-amber-600 text-xs">⏳</span>
+            <span class="text-sm font-bold text-slate-600">사업자 승인 대기</span>
+            <span class="p-1.5 rounded-lg bg-amber-50 text-amber-600 text-sm">⏳</span>
           </div>
           <div class="text-2xl font-black font-mono text-amber-600">
-            {{ pendingCount }}<span class="text-sm font-normal text-slate-500">건</span>
+            {{ pendingCount }}<span class="text-base font-normal text-slate-500">건</span>
           </div>
-          <p class="text-[11px] text-amber-600/80 font-medium">클릭 시 심사대기 목록 필터</p>
+          <p class="text-xs text-amber-600/80 font-medium">클릭 시 심사대기 목록 필터</p>
         </div>
 
         <!-- 4) 신규 가입 바이어 (최근 7일) -->
@@ -103,13 +103,13 @@
             : 'bg-white border-slate-200 hover:border-slate-300'"
         >
           <div class="flex items-center justify-between">
-            <span class="text-xs font-bold text-slate-600">신규 가입 바이어</span>
-            <span class="p-1.5 rounded-lg bg-purple-50 text-purple-600 text-xs">✨</span>
+            <span class="text-sm font-bold text-slate-600">신규 가입 바이어</span>
+            <span class="p-1.5 rounded-lg bg-purple-50 text-purple-600 text-sm">✨</span>
           </div>
           <div class="text-2xl font-black font-mono text-slate-900">
-            {{ newMemberCount }}<span class="text-sm font-normal text-slate-500">명</span>
+            {{ newMemberCount }}<span class="text-base font-normal text-slate-500">명</span>
           </div>
-          <p class="text-[11px] text-slate-400 font-medium">클릭 시 최근 7일 가입자 필터</p>
+          <p class="text-xs text-slate-400 font-medium">클릭 시 최근 7일 가입자 필터</p>
         </div>
       </div>
 
@@ -119,15 +119,15 @@
         <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-slate-800"></span>
-            <h3 class="font-black text-slate-900 text-sm">바이어 회원 목록</h3>
-            <span class="text-xs font-mono text-slate-400">({{ filteredMembers.length }}명)</span>
+            <h3 class="font-black text-slate-900 text-base">바이어 회원 목록</h3>
+            <span class="text-sm font-mono text-slate-400">({{ filteredMembers.length }}명)</span>
           </div>
 
           <!-- 필터 & 검색 인풋 -->
           <div class="flex items-center gap-2 flex-wrap">
             <select
               v-model="statusFilter"
-              class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 outline-none font-medium cursor-pointer focus:ring-2 focus:ring-blue-500/20"
+              class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white text-slate-700 outline-none font-medium cursor-pointer focus:ring-2 focus:ring-blue-500/20"
             >
               <option value="all">전체 회원 구분 ({{ membersList.length }})</option>
               <option value="verified">사업자 인증 완료 ({{ verifiedCount }})</option>
@@ -140,15 +140,15 @@
               type="text"
               v-model="searchQuery"
               placeholder="회사명, 바이어명, 이메일, 전화번호 검색..."
-              class="px-3.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-900 outline-none w-56 focus:ring-2 focus:ring-blue-500/20"
+              class="px-3.5 py-1.5 rounded-lg border border-slate-200 text-sm bg-white text-slate-900 outline-none w-56 focus:ring-2 focus:ring-blue-500/20"
             />
           </div>
         </div>
 
         <!-- 테이블 목록 -->
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs text-slate-700">
-            <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-[11px] uppercase">
+          <table class="w-full text-left text-sm text-slate-700">
+            <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase">
               <tr>
                 <th class="py-3 px-4 w-12 text-center">No</th>
                 <th class="py-3 px-4 min-w-[160px]">사업자 / 회사명</th>
@@ -176,22 +176,22 @@
                 <!-- 회사명 & 등급 -->
                 <td class="py-3.5 px-4">
                   <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="font-bold text-slate-900 text-xs">{{ m?.companyName || '개인 바이어' }}</span>
+                    <span class="font-bold text-slate-900 text-sm">{{ m?.companyName || '개인 바이어' }}</span>
                     <!-- 관리자 계정 뱃지 (super_admin/admin/staff/master) -->
                     <span
                       v-if="['super_admin','admin','staff','master'].includes(m?.role)"
-                      class="px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700 border border-violet-200"
+                      class="px-2 py-0.5 rounded text-xs font-bold bg-violet-100 text-violet-700 border border-violet-200"
                     >관리자 계정</span>
                     <!-- 기존 tier 뱃지 -->
                     <span
                       v-else
-                      class="px-2 py-0.5 rounded text-[10px] font-bold"
+                      class="px-2 py-0.5 rounded text-xs font-bold"
                       :class="getTierBadgeClass(m?.tier)"
                     >
                       {{ getTierLabel(m?.tier) }}
                     </span>
                   </div>
-                  <div class="text-[10px] text-slate-400 font-mono mt-0.5">가입: {{ formatDate(m?.createdAt) }}</div>
+                  <div class="text-xs text-slate-400 font-mono mt-0.5">가입: {{ formatDate(m?.createdAt) }}</div>
                 </td>
 
                 <!-- 대표자 / 성명 -->
@@ -200,19 +200,19 @@
                 </td>
 
                 <!-- 이메일 -->
-                <td class="py-3.5 px-4 font-mono text-[11px] text-slate-600">
+                <td class="py-3.5 px-4 font-mono text-xs text-slate-600">
                   {{ m?.email || '-' }}
                 </td>
 
                 <!-- 연락처 -->
-                <td class="py-3.5 px-4 font-mono text-[11px] text-slate-600">
+                <td class="py-3.5 px-4 font-mono text-xs text-slate-600">
                   {{ m?.phone || '-' }}
                 </td>
 
                 <!-- 사업자번호 / 통관부호 -->
-                <td class="py-3.5 px-4 font-mono text-[11px]">
+                <td class="py-3.5 px-4 font-mono text-xs">
                   <div class="text-slate-800 font-bold">{{ m?.bizNumber || '-' }}</div>
-                  <div class="text-[10px] text-slate-400">{{ m?.pccc || '-' }}</div>
+                  <div class="text-xs text-slate-400">{{ m?.pccc || '-' }}</div>
                 </td>
 
                 <!-- 보유 예치금 -->
@@ -223,7 +223,7 @@
                 <!-- 사업자 인증 상태 -->
                 <td class="py-3.5 px-4 text-center">
                   <span
-                    class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-block"
+                    class="px-2.5 py-1 rounded-full text-xs font-bold inline-block"
                     :class="getStatusBadgeClass(m?.verificationStatus)"
                   >
                     {{ getStatusLabel(m?.verificationStatus) }}
@@ -236,7 +236,7 @@
                     <button
                       type="button"
                       @click="openDetailModal(m)"
-                      class="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-2xs"
+                      class="px-2.5 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-600 hover:text-white text-blue-700 font-bold text-xs transition active:scale-95 cursor-pointer shadow-2xs"
                     >
                       상세 & 심사
                     </button>
@@ -245,7 +245,7 @@
                       v-if="m?.verificationStatus === 'pending'"
                       type="button"
                       @click="quickApprove(m)"
-                      class="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition active:scale-95 cursor-pointer shadow-2xs"
+                      class="px-2 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-2xs"
                       title="즉시 사업자 승인"
                     >
                       ✓ 승인
@@ -258,7 +258,7 @@
               <tr v-if="filteredMembers.length === 0">
                 <td colspan="9" class="py-12 text-center text-slate-400 space-y-2">
                   <div class="text-3xl">👥</div>
-                  <p class="font-bold text-xs text-slate-600">등록된 회원/바이어 내역이 없습니다.</p>
+                  <p class="font-bold text-sm text-slate-600">등록된 회원/바이어 내역이 없습니다.</p>
                 </td>
               </tr>
             </tbody>
@@ -284,7 +284,7 @@
                 <h3 class="text-base font-black text-slate-900">
                   {{ selectedMember?.companyName || selectedMember?.name || '바이어' }} 바이어 상세 정보
                 </h3>
-                <p class="text-[11px] text-slate-400 font-mono">{{ selectedMember?.email || '-' }}</p>
+                <p class="text-xs text-slate-400 font-mono">{{ selectedMember?.email || '-' }}</p>
               </div>
             </div>
             <button @click="selectedMember = null" class="text-slate-400 hover:text-slate-600 cursor-pointer p-1">
@@ -292,41 +292,41 @@
             </button>
           </div>
 
-          <div class="space-y-5 text-xs">
+          <div class="space-y-5 text-sm">
             <!-- 1) 기본 인적 & 등급 정보 -->
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-2">
-              <h4 class="font-black text-slate-800 text-xs mb-2">👤 기본 회원 정보</h4>
+              <h4 class="font-black text-slate-800 text-sm mb-2">👤 기본 회원 정보</h4>
               <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
-                  <span class="text-slate-400 block text-[11px]">담당자/대표자</span>
+                  <span class="text-slate-400 block text-xs">담당자/대표자</span>
                   <b class="text-slate-900">{{ selectedMember?.name || selectedMember?.representativeName || '-' }}</b>
                 </div>
                 <div>
-                  <span class="text-slate-400 block text-[11px]">연락처</span>
+                  <span class="text-slate-400 block text-xs">연락처</span>
                   <b class="text-slate-900 font-mono">{{ selectedMember?.phone || '-' }}</b>
                 </div>
                 <div>
-                  <span class="text-slate-400 block text-[11px]">회원 등급</span>
+                  <span class="text-slate-400 block text-xs">회원 등급</span>
                   <select
                     v-model="selectedMember.tier"
-                    class="mt-0.5 px-2.5 py-1 rounded border border-slate-300 font-bold bg-white text-slate-800 text-xs outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
+                    class="mt-0.5 px-2.5 py-1 rounded border border-slate-300 font-bold bg-white text-slate-800 text-sm outline-none focus:ring-2 focus:ring-blue-500/20 cursor-pointer"
                   >
                     <option value="general">일반회원</option>
                     <option value="business">사업자회원</option>
                   </select>
                 </div>
                 <div>
-                  <span class="text-slate-400 block text-[11px]">가입일시</span>
+                  <span class="text-slate-400 block text-xs">가입일시</span>
                   <b class="text-slate-700 font-mono">{{ formatDate(selectedMember?.createdAt) }}</b>
                 </div>
                 <div>
-                  <span class="text-slate-400 block text-[11px]">보유 예치금</span>
+                  <span class="text-slate-400 block text-xs">보유 예치금</span>
                   <b class="text-blue-600 font-mono font-bold">₩{{ fmtN(selectedMember?.balance || 0) }}</b>
                 </div>
                 <div>
-                  <span class="text-slate-400 block text-[11px]">심사 상태</span>
+                  <span class="text-slate-400 block text-xs">심사 상태</span>
                   <span
-                    class="px-2 py-0.5 rounded text-[10px] font-bold"
+                    class="px-2 py-0.5 rounded text-xs font-bold"
                     :class="getStatusBadgeClass(selectedMember?.verificationStatus)"
                   >
                     {{ getStatusLabel(selectedMember?.verificationStatus) }}
@@ -337,28 +337,28 @@
 
             <!-- 2) 사업자 등록 & 통관부호 정보 -->
             <div class="bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-3">
-              <h4 class="font-black text-slate-800 text-xs">📑 사업자 및 통관 정보</h4>
+              <h4 class="font-black text-slate-800 text-sm">📑 사업자 및 통관 정보</h4>
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <span class="text-slate-400 block text-[11px]">사업자등록번호</span>
-                  <b class="text-slate-900 font-mono text-sm">{{ selectedMember?.bizNumber || '미등록' }}</b>
+                  <span class="text-slate-400 block text-xs">사업자등록번호</span>
+                  <b class="text-slate-900 font-mono text-base">{{ selectedMember?.bizNumber || '미등록' }}</b>
                 </div>
                 <div>
-                  <span class="text-slate-400 block text-[11px]">개인/사업자 통관고유부호 (PCCC)</span>
+                  <span class="text-slate-400 block text-xs">개인/사업자 통관고유부호 (PCCC)</span>
                   <div class="flex items-center gap-2 mt-0.5">
                     <b class="text-slate-900 font-mono">{{ selectedMember?.pccc || '미등록' }}</b>
                     <button
                       v-if="selectedMember?.pccc"
                       type="button"
                       @click="copyPccc(selectedMember.pccc)"
-                      class="px-1.5 py-0.5 rounded bg-white border border-slate-300 text-[10px] font-bold text-slate-700 hover:bg-slate-100"
+                      class="px-1.5 py-0.5 rounded bg-white border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-100"
                     >
                       📋 복사
                     </button>
                   </div>
                 </div>
                 <div class="sm:col-span-2">
-                  <span class="text-slate-400 block text-[11px]">사업장 소재지 주소</span>
+                  <span class="text-slate-400 block text-xs">사업장 소재지 주소</span>
                   <b class="text-slate-800">{{ selectedMember?.bizAddress || '주소 정보 미입력' }}</b>
                 </div>
               </div>
@@ -366,9 +366,9 @@
 
             <!-- 3) 사업자등록증 사본 서류 이미지 뷰어 -->
             <div class="space-y-2">
-              <h4 class="font-black text-slate-800 text-xs flex items-center justify-between">
+              <h4 class="font-black text-slate-800 text-sm flex items-center justify-between">
                 <span>🖼️ 제출된 사업자등록증 사본</span>
-                <span v-if="selectedMember?.bizCertUrl" class="text-emerald-600 font-bold text-[11px]">✓ 서류 첨부됨</span>
+                <span v-if="selectedMember?.bizCertUrl" class="text-emerald-600 font-bold text-xs">✓ 서류 첨부됨</span>
               </h4>
               <div class="relative w-full h-48 sm:h-56 rounded-2xl overflow-hidden border border-slate-300 bg-slate-100 flex items-center justify-center text-center">
                 <img
@@ -379,14 +379,14 @@
                 />
                 <div v-else class="text-slate-400 space-y-1">
                   <div class="text-2xl">📄</div>
-                  <p class="font-bold text-xs">제출된 사업자등록증 사본 이미지가 없습니다.</p>
+                  <p class="font-bold text-sm">제출된 사업자등록증 사본 이미지가 없습니다.</p>
                 </div>
               </div>
             </div>
 
             <!-- 4) 심사 승인 / 반려 / 저장 액션 바 -->
             <div class="flex items-center justify-between pt-3 border-t border-slate-100">
-              <div class="text-[11px] text-slate-400">
+              <div class="text-xs text-slate-400">
                 * 승인 시 바이어는 한-중 FTA 협정관세 및 정식 B2B 수입대행 발주가 활성화됩니다.
               </div>
 
@@ -395,7 +395,7 @@
                   v-if="selectedMember?.verificationStatus !== 'rejected'"
                   type="button"
                   @click="rejectMember(selectedMember)"
-                  class="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs transition cursor-pointer"
+                  class="px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-sm transition cursor-pointer"
                 >
                   ✕ 심사 반려
                 </button>
@@ -404,7 +404,7 @@
                   v-if="selectedMember?.verificationStatus !== 'verified'"
                   type="button"
                   @click="approveMember(selectedMember)"
-                  class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-sm"
+                  class="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition active:scale-95 cursor-pointer shadow-sm"
                 >
                   ✓ 사업자 인증 승인
                 </button>
@@ -413,7 +413,7 @@
                   v-else
                   type="button"
                   @click="confirmSaveMember = true"
-                  class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-sm"
+                  class="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition active:scale-95 cursor-pointer shadow-sm"
                 >
                   ✓ 변경사항 저장
                 </button>
@@ -421,7 +421,7 @@
                 <button
                   type="button"
                   @click="selectedMember = null"
-                  class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
+                  class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 transition cursor-pointer"
                 >
                   닫기
                 </button>
@@ -436,7 +436,7 @@
     <Transition name="toast">
       <div
         v-if="toast.show"
-        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
+        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
       >
         <span>✅</span>
         <span>{{ toast.message }}</span>

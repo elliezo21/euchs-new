@@ -4,21 +4,21 @@
     <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-        <h3 class="font-black text-slate-900 text-sm">4. 긴급공지 팝업 관리</h3>
+        <h3 class="font-black text-slate-900 text-base">4. 긴급공지 팝업 관리</h3>
       </div>
       <button
         type="button"
         @click="openAdd"
-        class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs transition cursor-pointer active:scale-95 shadow-xs"
+        class="px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm transition cursor-pointer active:scale-95 shadow-xs"
       >
         + 팝업 추가
       </button>
     </div>
 
     <div class="p-6 space-y-3">
-      <p v-if="listError" class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{{ listError }}</p>
-      <p v-if="isLoading" class="text-xs text-slate-400">불러오는 중...</p>
-      <p v-else-if="popups.length === 0 && !listError" class="text-xs text-slate-400 py-6 text-center">
+      <p v-if="listError" class="text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">{{ listError }}</p>
+      <p v-if="isLoading" class="text-sm text-slate-400">불러오는 중...</p>
+      <p v-else-if="popups.length === 0 && !listError" class="text-sm text-slate-400 py-6 text-center">
         등록된 긴급공지 팝업이 없습니다.
       </p>
 
@@ -29,13 +29,13 @@
       >
         <div class="flex-1 min-w-0 space-y-1">
           <div class="flex items-center gap-2 flex-wrap">
-            <span class="font-bold text-sm text-slate-900 truncate">{{ p.title }}</span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold" :class="statusOf(p).cls">{{ statusOf(p).label }}</span>
-            <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-slate-200 text-slate-600">
+            <span class="font-bold text-base text-slate-900 truncate">{{ p.title }}</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold" :class="statusOf(p).cls">{{ statusOf(p).label }}</span>
+            <span class="px-2 py-0.5 rounded-full text-xs font-bold bg-slate-200 text-slate-600">
               {{ p.media_type === 'video_youtube' ? '유튜브 ' + p.video_aspect_ratio : '이미지' + (p.is_rolling ? ' 롤링' : '') }}
             </span>
           </div>
-          <div class="text-[11px] text-slate-500 font-mono">
+          <div class="text-xs text-slate-500 font-mono">
             {{ fmtDate(p.start_date) }} ~ {{ fmtDate(p.end_date) }} · {{ p.position_preset }} · 순서 {{ p.display_order }}
           </div>
         </div>
@@ -43,13 +43,13 @@
           <button
             type="button"
             @click="toggleActive(p)"
-            class="px-3 py-1.5 rounded-lg text-[11px] font-bold border transition cursor-pointer"
+            class="px-3 py-1.5 rounded-lg text-xs font-bold border transition cursor-pointer"
             :class="p.is_active ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100' : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'"
           >
             {{ p.is_active ? '활성' : '비활성' }}
           </button>
-          <button type="button" @click="openEdit(p)" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition cursor-pointer">수정</button>
-          <button type="button" @click="askDelete(p)" class="px-3 py-1.5 rounded-lg text-[11px] font-bold bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 transition cursor-pointer">삭제</button>
+          <button type="button" @click="openEdit(p)" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition cursor-pointer">수정</button>
+          <button type="button" @click="askDelete(p)" class="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-50 border border-rose-200 text-rose-600 hover:bg-rose-100 transition cursor-pointer">삭제</button>
         </div>
       </div>
     </div>
@@ -59,11 +59,11 @@
       <div v-if="isModalOpen" class="fixed inset-0 z-[9990] flex items-center justify-center p-4 bg-slate-900/60" @click.self="closeModal">
         <div class="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[92vh] overflow-y-auto">
           <div class="px-6 py-4 border-b border-slate-200 flex items-center justify-between sticky top-0 bg-white z-10">
-            <h4 class="font-black text-slate-900 text-sm">{{ editingId ? '긴급공지 팝업 수정' : '긴급공지 팝업 추가' }}</h4>
+            <h4 class="font-black text-slate-900 text-base">{{ editingId ? '긴급공지 팝업 수정' : '긴급공지 팝업 추가' }}</h4>
             <button type="button" @click="closeModal" class="text-slate-400 hover:text-slate-700 text-lg cursor-pointer">✕</button>
           </div>
 
-          <div class="p-6 space-y-5 text-xs">
+          <div class="p-6 space-y-5 text-sm">
             <!-- 제목 -->
             <div class="space-y-1.5">
               <label class="font-bold text-slate-800">관리용 제목 *</label>
@@ -157,7 +157,7 @@
                 <input v-model.number="form.offset_y" type="number" class="w-full px-2.5 py-2 rounded-lg border border-slate-300 outline-none focus:ring-2 focus:ring-amber-500" />
               </div>
             </div>
-            <p class="text-[11px] text-slate-500 -mt-2">보정값: +X는 오른쪽, +Y는 아래쪽으로 이동합니다.</p>
+            <p class="text-xs text-slate-500 -mt-2">보정값: +X는 오른쪽, +Y는 아래쪽으로 이동합니다.</p>
 
             <!-- 기간/노출 -->
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -185,12 +185,12 @@
           </div>
 
           <div class="px-6 py-4 border-t border-slate-200 flex justify-end gap-2 sticky bottom-0 bg-white">
-            <button type="button" @click="closeModal" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-50 cursor-pointer">취소</button>
+            <button type="button" @click="closeModal" class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 cursor-pointer">취소</button>
             <button
               type="button"
               :disabled="isSaving || isUploading"
               @click="save"
-              class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-5 py-2 rounded-xl bg-amber-500 hover:bg-amber-600 text-white font-bold text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {{ isSaving ? '저장 중...' : '저장' }}
             </button>

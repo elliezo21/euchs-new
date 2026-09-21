@@ -4,17 +4,17 @@
     <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex items-center justify-between gap-2">
       <div class="flex items-center gap-2">
         <span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span>
-        <h3 class="font-black text-slate-900 text-sm">5. 메인 9:16 영상 위젯 관리</h3>
+        <h3 class="font-black text-slate-900 text-base">5. 메인 9:16 영상 위젯 관리</h3>
       </div>
-      <span class="text-xs text-slate-400 font-medium">히어로 우측 여백 · 데스크톱(1280px↑) 전용</span>
+      <span class="text-sm text-slate-400 font-medium">히어로 우측 여백 · 데스크톱(1280px↑) 전용</span>
     </div>
 
     <div class="p-6 space-y-5">
       <!-- on/off 토글 -->
       <div class="flex items-center justify-between p-4 rounded-xl bg-slate-50 border border-slate-200">
         <div>
-          <div class="text-xs font-bold text-slate-800">영상 위젯 노출</div>
-          <div class="text-[11px] text-slate-500 mt-0.5">끄면 메인 화면에 위젯이 렌더링되지 않습니다.</div>
+          <div class="text-sm font-bold text-slate-800">영상 위젯 노출</div>
+          <div class="text-xs text-slate-500 mt-0.5">끄면 메인 화면에 위젯이 렌더링되지 않습니다.</div>
         </div>
         <button
           type="button"
@@ -47,30 +47,30 @@
             :value="opt.value"
             class="w-4 h-4 text-rose-500 cursor-pointer"
           />
-          <span class="text-xs sm:text-sm">{{ opt.label }}</span>
+          <span class="text-sm sm:text-base">{{ opt.label }}</span>
         </label>
       </div>
 
       <!-- 유튜브 선택 시: 링크 입력 (최대 3개, 2개 이상이면 끝까지 재생 후 순서대로 자동 전환) -->
       <div v-if="form.sourceType === 'youtube'" class="space-y-2">
         <div class="flex items-center justify-between">
-          <label class="text-xs font-bold text-slate-800">유튜브 링크 (최대 {{ maxUrls }}개)</label>
+          <label class="text-sm font-bold text-slate-800">유튜브 링크 (최대 {{ maxUrls }}개)</label>
           <button
             type="button"
             :disabled="form.youtubeUrls.length >= maxUrls"
             @click="addUrl"
-            class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-700 hover:text-white font-bold text-[11px] border border-rose-200 hover:border-rose-500 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50 disabled:hover:text-rose-700 disabled:hover:border-rose-200"
+            class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-500 text-rose-700 hover:text-white font-bold text-xs border border-rose-200 hover:border-rose-500 transition cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-rose-50 disabled:hover:text-rose-700 disabled:hover:border-rose-200"
           >
             + 링크 추가
           </button>
         </div>
         <div v-for="(_, i) in form.youtubeUrls" :key="i" class="flex items-center gap-2">
-          <span class="w-5 shrink-0 text-center text-[11px] font-black text-slate-400">{{ i + 1 }}</span>
+          <span class="w-5 shrink-0 text-center text-xs font-black text-slate-400">{{ i + 1 }}</span>
           <input
             type="text"
             v-model="form.youtubeUrls[i]"
             placeholder="예: https://www.youtube.com/shorts/XXXXXXXXXXX"
-            class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-xs outline-none focus:ring-2 focus:ring-rose-500"
+            class="flex-1 min-w-0 px-3.5 py-2.5 rounded-xl bg-white border border-slate-300 text-slate-900 font-mono text-sm outline-none focus:ring-2 focus:ring-rose-500"
           />
           <button
             type="button"
@@ -81,7 +81,7 @@
             ✕
           </button>
         </div>
-        <p class="text-[11px] text-slate-500">
+        <p class="text-xs text-slate-500">
           세로(Shorts) 영상을 권장합니다. 가로 영상은 9:16 틀에 맞춰 가운데가 잘려 보입니다.
           링크가 2개 이상이면 각 영상을 끝까지 재생한 뒤 다음 영상으로 자동 전환되고, 마지막 다음에는 처음으로 돌아갑니다.
           1개면 무한 반복합니다.
@@ -90,7 +90,7 @@
 
       <!-- 업로드 선택 시: mp4 업로드 버튼만 -->
       <div v-else class="space-y-2">
-        <label class="text-xs font-bold text-slate-800">mp4 파일 업로드</label>
+        <label class="text-sm font-bold text-slate-800">mp4 파일 업로드</label>
         <div class="flex flex-col sm:flex-row sm:items-center gap-2">
           <input
             type="file"
@@ -103,30 +103,30 @@
             type="button"
             :disabled="isUploading"
             @click="fileInput && fileInput.click()"
-            class="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-500 text-rose-700 hover:text-white font-bold text-xs border border-rose-200 hover:border-rose-500 transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
+            class="px-4 py-2.5 rounded-xl bg-rose-50 hover:bg-rose-500 text-rose-700 hover:text-white font-bold text-sm border border-rose-200 hover:border-rose-500 transition flex items-center justify-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <span>{{ isUploading ? '업로드 중...' : '📤 mp4 업로드' }}</span>
           </button>
-          <span v-if="form.uploadUrl" class="text-[11px] text-emerald-600 font-bold break-all">
+          <span v-if="form.uploadUrl" class="text-xs text-emerald-600 font-bold break-all">
             ✓ 업로드 완료: {{ form.uploadUrl }}
           </span>
-          <span v-else class="text-[11px] text-slate-400">아직 업로드된 파일이 없습니다.</span>
+          <span v-else class="text-xs text-slate-400">아직 업로드된 파일이 없습니다.</span>
         </div>
-        <p class="text-[11px] text-slate-500">업로드만으로는 반영되지 않으며, 아래 [저장하기]를 눌러야 메인 화면에 적용됩니다.</p>
+        <p class="text-xs text-slate-500">업로드만으로는 반영되지 않으며, 아래 [저장하기]를 눌러야 메인 화면에 적용됩니다.</p>
       </div>
 
       <!-- 에러 -->
-      <p v-if="errorMsg" class="text-xs font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+      <p v-if="errorMsg" class="text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
         {{ errorMsg }}
       </p>
 
       <div class="flex items-center justify-between pt-1">
-        <span class="text-[11px] text-slate-400 font-medium">{{ statusMsg }}</span>
+        <span class="text-xs text-slate-400 font-medium">{{ statusMsg }}</span>
         <button
           type="button"
           :disabled="isSaving || isUploading"
           @click="requestSave"
-          class="px-6 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-xs transition cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+          class="px-6 py-2.5 rounded-xl bg-rose-500 hover:bg-rose-600 text-white font-bold text-sm transition cursor-pointer shadow-sm active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {{ isSaving ? '저장 중...' : '✓ 영상 위젯 설정 저장하기' }}
         </button>

@@ -10,7 +10,7 @@
           </div>
           <h2 class="text-lg sm:text-xl font-black text-slate-900">공지사항 & 일정 등록 관리</h2>
         </div>
-        <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+        <p class="text-sm sm:text-base text-slate-500 mt-1 font-medium">
           메인페이지 공지 피드 및 커뮤니티 공지사항 게시판에 노출되는 글을 작성하고 관리합니다.
         </p>
       </div>
@@ -19,7 +19,7 @@
         <button
           type="button"
           @click="scrollToForm"
-          class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+          class="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
         >
           <span>+ 새 공지사항 작성</span>
         </button>
@@ -33,11 +33,11 @@
       <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full" :class="editingId ? 'bg-amber-500' : 'bg-blue-600'"></span>
-          <h3 class="font-black text-slate-900 text-sm">
+          <h3 class="font-black text-slate-900 text-base">
             {{ editingId ? '✏️ 공지사항 수정하기' : '📝 신규 공지사항 등록' }}
           </h3>
         </div>
-        <span class="text-xs text-slate-400 font-medium">
+        <span class="text-sm text-slate-400 font-medium">
           {{ editingId ? '기존 공지 내용을 수정 중입니다.' : '필수 항목을 입력 후 등록하기 버튼을 눌러주세요.' }}
         </span>
       </div>
@@ -47,11 +47,11 @@
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 items-center">
           <!-- 1) 분류 카테고리 -->
           <div class="space-y-1.5">
-            <label class="block text-xs font-bold text-slate-700">분류 카테고리</label>
+            <label class="block text-sm font-bold text-slate-700">분류 카테고리</label>
             <select
               v-model="noticeForm.category"
               required
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium text-xs bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium text-sm bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 cursor-pointer"
             >
               <option v-for="cat in NOTICE_CATEGORIES" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
             </select>
@@ -59,12 +59,12 @@
 
           <!-- 2) 뱃지 라벨 -->
           <div class="space-y-1.5">
-            <label class="block text-xs font-bold text-slate-700">뱃지 라벨</label>
+            <label class="block text-sm font-bold text-slate-700">뱃지 라벨</label>
             <input
               type="text"
               v-model="noticeForm.badge"
               placeholder="예: 공지, 긴급, 필독, 마감, 투어"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium text-xs bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-medium text-sm bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -77,7 +77,7 @@
                 id="is_pinned"
                 class="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
               />
-              <span class="text-xs font-bold text-slate-800 flex items-center gap-1">
+              <span class="text-sm font-bold text-slate-800 flex items-center gap-1">
                 <span>📌 최상단 중요 공지 고정 (Pin)</span>
               </span>
             </label>
@@ -86,36 +86,36 @@
 
         <!-- 2열: 공지 제목 -->
         <div class="space-y-1.5">
-          <label class="block text-xs font-bold text-slate-700">공지 제목</label>
+          <label class="block text-sm font-bold text-slate-700">공지 제목</label>
           <input
             type="text"
             v-model="noticeForm.title"
             required
             placeholder="제목을 입력하세요"
-            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-sm bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-bold text-base bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <!-- 3열: 요약 설명 (메인 피드 노출) -->
         <div class="space-y-1.5">
-          <label class="block text-xs font-bold text-slate-700">요약 설명 (메인 피드 노출 1줄 요약)</label>
+          <label class="block text-sm font-bold text-slate-700">요약 설명 (메인 피드 노출 1줄 요약)</label>
           <input
             type="text"
             v-model="noticeForm.summary"
             placeholder="간단한 1줄 요약문"
-            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs bg-white text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-sm bg-white text-slate-800 outline-none focus:ring-2 focus:ring-blue-500"
           />
         </div>
 
         <!-- 4열: 썸네일 이미지 URL & 업로드 버튼 -->
         <div class="space-y-1.5">
-          <label class="block text-xs font-bold text-slate-700">썸네일 이미지</label>
+          <label class="block text-sm font-bold text-slate-700">썸네일 이미지</label>
           <div class="flex gap-2">
             <input
               type="text"
               v-model="noticeForm.thumbnail_url"
               placeholder="https://... 또는 우측 이미지 업로드 버튼 클릭"
-              class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-xs bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
+              class="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono text-sm bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500"
             />
             <!-- 숨김 파일 인풋 -->
             <input
@@ -128,7 +128,7 @@
             <button
               type="button"
               @click="triggerNoticeImageUpload"
-              class="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-xs border border-blue-200 hover:border-blue-600 transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs"
+              class="px-4 py-2.5 rounded-xl bg-blue-50 hover:bg-blue-600 text-blue-700 hover:text-white font-bold text-sm border border-blue-200 hover:border-blue-600 transition flex items-center gap-1.5 shrink-0 cursor-pointer active:scale-95 shadow-xs"
             >
               <span>📤 이미지 업로드</span>
             </button>
@@ -137,19 +137,19 @@
 
         <!-- 5열: 상세 내용 (줄바꿈 지원) -->
         <div class="space-y-1.5">
-          <label class="block text-xs font-bold text-slate-700">상세 내용 (줄바꿈 지원)</label>
+          <label class="block text-sm font-bold text-slate-700">상세 내용 (줄바꿈 지원)</label>
           <textarea
             v-model="noticeForm.content"
             rows="6"
             required
             placeholder="상세 공지 내용을 입력하세요"
-            class="w-full p-3.5 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans"
+            class="w-full p-3.5 rounded-xl border border-slate-300 text-sm bg-white text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 leading-relaxed font-sans"
           ></textarea>
         </div>
 
         <!-- 하단 액션 버튼 바 -->
         <div class="flex items-center justify-between pt-2">
-          <div class="text-xs text-slate-400 font-medium">
+          <div class="text-sm text-slate-400 font-medium">
             * 등록된 공지는 메인 상단 피드 및 커뮤니티 공지사항에 즉시 반영됩니다.
           </div>
 
@@ -158,7 +158,7 @@
               v-if="editingId"
               type="button"
               @click="cancelEdit"
-              class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-xs hover:bg-slate-100 transition cursor-pointer"
+              class="px-4 py-2.5 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 transition cursor-pointer"
             >
               작성 취소
             </button>
@@ -166,7 +166,7 @@
             <button
               type="submit"
               :disabled="isSaving || isUploadingImage"
-              class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              class="px-6 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm transition cursor-pointer shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               <span>{{ editingId ? '✓ 공지 수정 완료' : '✓ 공지 등록하기' }}</span>
             </button>
@@ -182,15 +182,15 @@
       <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div class="flex items-center gap-2">
           <span class="w-2.5 h-2.5 rounded-full bg-slate-800"></span>
-          <h3 class="font-black text-slate-900 text-sm">등록된 공지사항 목록</h3>
-          <span class="text-xs font-mono text-slate-400">({{ filteredNotices.length }}건)</span>
+          <h3 class="font-black text-slate-900 text-base">등록된 공지사항 목록</h3>
+          <span class="text-sm font-mono text-slate-400">({{ filteredNotices.length }}건)</span>
         </div>
 
         <!-- 필터 & 검색 인풋 -->
         <div class="flex items-center gap-2 flex-wrap">
           <select
             v-model="filterCategory"
-            class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 outline-none font-medium cursor-pointer"
+            class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white text-slate-700 outline-none font-medium cursor-pointer"
           >
             <option value="all">전체 카테고리</option>
             <option v-for="cat in NOTICE_CATEGORIES" :key="cat.id" :value="cat.id">{{ cat.name }}</option>
@@ -200,15 +200,15 @@
             type="text"
             v-model="searchQuery"
             placeholder="공지 제목 검색..."
-            class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-900 outline-none w-44"
+            class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white text-slate-900 outline-none w-44"
           />
         </div>
       </div>
 
       <!-- 공지 목록 테이블 -->
       <div class="overflow-x-auto">
-        <table class="w-full text-left text-xs text-slate-700">
-          <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-[11px] uppercase">
+        <table class="w-full text-left text-sm text-slate-700">
+          <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase">
             <tr>
               <th class="py-3 px-4 w-12 text-center">No</th>
               <th class="py-3 px-3 w-16 text-center">고정</th>
@@ -234,7 +234,7 @@
               <td class="py-3.5 px-3 text-center">
                 <span
                   v-if="item.is_pinned"
-                  class="px-1.5 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-700 border border-amber-200 inline-block"
+                  class="px-1.5 py-0.5 rounded text-xs font-black bg-amber-100 text-amber-700 border border-amber-200 inline-block"
                   title="최상단 고정 공지"
                 >
                   📌 Pin
@@ -245,10 +245,10 @@
               <!-- 분류 카테고리 -->
               <td class="py-3.5 px-4">
                 <div class="flex items-center gap-1.5 flex-wrap">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="getCategoryBadgeStyle(item.category)">
+                  <span class="px-2 py-0.5 rounded text-xs font-bold" :class="getCategoryBadgeStyle(item.category)">
                     {{ getCategoryLabel(item.category) }}
                   </span>
-                  <span v-if="item.badge" class="px-1.5 py-0.2 rounded text-[9px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
+                  <span v-if="item.badge" class="px-1.5 py-0.2 rounded text-[11px] font-bold bg-slate-100 text-slate-600 border border-slate-200">
                     {{ item.badge }}
                   </span>
                 </div>
@@ -257,18 +257,18 @@
               <!-- 제목 및 요약문 -->
               <td class="py-3.5 px-4">
                 <div class="space-y-0.5">
-                  <div class="font-bold text-slate-900 text-xs flex items-center gap-2">
+                  <div class="font-bold text-slate-900 text-sm flex items-center gap-2">
                     <span>{{ item.title }}</span>
-                    <span v-if="item.thumbnail_url" class="text-[10px] text-blue-500 font-normal">🖼️ 사진첨부</span>
+                    <span v-if="item.thumbnail_url" class="text-xs text-blue-500 font-normal">🖼️ 사진첨부</span>
                   </div>
-                  <p v-if="item.summary" class="text-[11px] text-slate-400 truncate max-w-md">
+                  <p v-if="item.summary" class="text-xs text-slate-400 truncate max-w-md">
                     {{ item.summary }}
                   </p>
                 </div>
               </td>
 
               <!-- 등록일시 -->
-              <td class="py-3.5 px-4 text-center font-mono text-[11px] text-slate-500">
+              <td class="py-3.5 px-4 text-center font-mono text-xs text-slate-500">
                 {{ formatDate(item.created_at || item.createdAt) }}
               </td>
 
@@ -278,14 +278,14 @@
                   <button
                     type="button"
                     @click="startEdit(item)"
-                    class="px-2 py-1 rounded-md bg-slate-100 hover:bg-blue-50 hover:text-blue-600 font-bold text-[11px] text-slate-600 transition cursor-pointer"
+                    class="px-2 py-1 rounded-md bg-slate-100 hover:bg-blue-50 hover:text-blue-600 font-bold text-xs text-slate-600 transition cursor-pointer"
                   >
                     수정
                   </button>
                   <button
                     type="button"
                     @click="deleteNotice(item.id)"
-                    class="px-2 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-[11px] transition cursor-pointer"
+                    class="px-2 py-1 rounded-md bg-rose-50 hover:bg-rose-100 text-rose-600 font-bold text-xs transition cursor-pointer"
                   >
                     삭제
                   </button>
@@ -297,8 +297,8 @@
             <tr v-if="filteredNotices.length === 0">
               <td colspan="6" class="py-12 text-center text-slate-400 space-y-2">
                 <div class="text-3xl">📢</div>
-                <p class="font-bold text-xs text-slate-600">등록된 공지사항이 없습니다.</p>
-                <p class="text-[11px] text-slate-400">상단 폼에서 신규 공지를 등록해 보세요.</p>
+                <p class="font-bold text-sm text-slate-600">등록된 공지사항이 없습니다.</p>
+                <p class="text-xs text-slate-400">상단 폼에서 신규 공지를 등록해 보세요.</p>
               </td>
             </tr>
           </tbody>
@@ -310,7 +310,7 @@
     <Transition name="toast">
       <div
         v-if="toast.show"
-        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
+        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
       >
         <span>✅</span>
         <span>{{ toast.message }}</span>

@@ -5,11 +5,11 @@
     <div class="flex items-center justify-between">
       <div>
         <h1 class="text-xl font-black text-slate-900">배너 관리</h1>
-        <p class="text-sm text-slate-500 mt-0.5">메인 소싱몰 상단 롤링 배너를 관리합니다.</p>
+        <p class="text-base text-slate-500 mt-0.5">메인 소싱몰 상단 롤링 배너를 관리합니다.</p>
       </div>
       <button type="button" @click="openAddModal"
-        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-sm transition cursor-pointer">
-        <i class="fas fa-plus text-xs"></i>
+        class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-base shadow-sm transition cursor-pointer">
+        <i class="fas fa-plus text-sm"></i>
         배너 추가
       </button>
     </div>
@@ -22,7 +22,7 @@
       <div v-else-if="banners.length === 0" class="p-10 text-center text-slate-400">
         <i class="fas fa-image text-4xl mb-3 block text-slate-200"></i>
         <p class="font-bold">등록된 배너가 없습니다.</p>
-        <p class="text-sm mt-1">위의 "배너 추가" 버튼으로 첫 배너를 등록하세요.</p>
+        <p class="text-base mt-1">위의 "배너 추가" 버튼으로 첫 배너를 등록하세요.</p>
       </div>
       <div v-else class="divide-y divide-slate-100">
         <div v-for="banner in banners" :key="banner.id"
@@ -35,24 +35,24 @@
           <!-- 정보 -->
           <div class="flex-1 min-w-0">
             <div class="flex items-center gap-2 flex-wrap">
-              <p class="font-bold text-slate-800 text-sm truncate">{{ banner.title || '(제목 없음)' }}</p>
-              <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', banner.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500']">
+              <p class="font-bold text-slate-800 text-base truncate">{{ banner.title || '(제목 없음)' }}</p>
+              <span :class="['px-2 py-0.5 rounded text-xs font-bold', banner.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500']">
                 {{ banner.is_active ? '노출중' : '비활성' }}
               </span>
               <template v-if="banner.section_key">
-                <span class="px-2 py-0.5 rounded text-[10px] font-bold border bg-purple-50 text-purple-600 border-purple-200">
+                <span class="px-2 py-0.5 rounded text-xs font-bold border bg-purple-50 text-purple-600 border-purple-200">
                   {{ SECTION_LABELS[banner.section_key] || banner.section_key }} 섹션배너
                 </span>
               </template>
-              <span v-else :class="['px-2 py-0.5 rounded text-[10px] font-bold border', banner.slot === 'right' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200']">
+              <span v-else :class="['px-2 py-0.5 rounded text-xs font-bold border', banner.slot === 'right' ? 'bg-orange-50 text-orange-600 border-orange-200' : 'bg-indigo-50 text-indigo-600 border-indigo-200']">
                 {{ banner.slot === 'right' ? '오른쪽 칸' : '왼쪽 칸' }}
               </span>
             </div>
-            <p class="text-xs text-slate-400 mt-0.5 truncate">
+            <p class="text-sm text-slate-400 mt-0.5 truncate">
               {{ banner.link_url || '링크 없음' }}
               <span v-if="banner.link_type === 'external'" class="ml-1 text-blue-400">(외부링크)</span>
             </p>
-            <p class="text-[11px] text-slate-400 mt-0.5">
+            <p class="text-xs text-slate-400 mt-0.5">
               순서 {{ banner.display_order }}
               <template v-if="banner.start_date || banner.end_date">
                 · {{ banner.start_date || '–' }} ~ {{ banner.end_date || '무기한' }}
@@ -62,15 +62,15 @@
           <!-- 액션 버튼 -->
           <div class="flex items-center gap-2 shrink-0">
             <button type="button" @click="toggleActive(banner)"
-              :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer', banner.is_active ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700']">
+              :class="['px-3 py-1.5 rounded-lg text-sm font-bold transition cursor-pointer', banner.is_active ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700']">
               {{ banner.is_active ? '비활성화' : '활성화' }}
             </button>
             <button type="button" @click="openEditModal(banner)"
-              class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition cursor-pointer">
+              class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-bold transition cursor-pointer">
               수정
             </button>
             <button type="button" @click="deleteBanner(banner)"
-              class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition cursor-pointer">
+              class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-sm font-bold transition cursor-pointer">
               삭제
             </button>
           </div>
@@ -82,25 +82,25 @@
     <div class="flex items-center justify-between pt-2">
       <div>
         <h2 class="text-xl font-black text-slate-900">섹션 키워드 풀</h2>
-        <p class="text-sm text-slate-500 mt-0.5">
+        <p class="text-base text-slate-500 mt-0.5">
           홈 섹션 6개가 매일(날짜 기반 자동 로테이션, 크론 없음) 순서대로 아래 키워드로 1688 검색을 수행합니다.
           섹션당 활성 항목이 하나도 없으면 코드 내장 폴백 키워드가 대신 사용됩니다.
         </p>
       </div>
       <div class="flex items-center gap-2 shrink-0 ml-4">
         <button type="button" @click="invalidateTodaySectionCache" :disabled="isCacheInvalidating"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 font-bold text-sm transition cursor-pointer">
-          <i :class="['fas text-xs', isCacheInvalidating ? 'fa-spinner fa-spin' : 'fa-rotate']"></i>
+          class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed text-slate-700 font-bold text-base transition cursor-pointer">
+          <i :class="['fas text-sm', isCacheInvalidating ? 'fa-spinner fa-spin' : 'fa-rotate']"></i>
           오늘 캐시 초기화
         </button>
         <button type="button" @click="openAddPoolModal"
-          class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-sm shadow-sm transition cursor-pointer">
-          <i class="fas fa-plus text-xs"></i>
+          class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-base shadow-sm transition cursor-pointer">
+          <i class="fas fa-plus text-sm"></i>
           키워드 추가
         </button>
       </div>
     </div>
-    <p v-if="cacheInvalidateStatus" class="text-xs -mt-3" :class="cacheInvalidateStatus.ok ? 'text-emerald-600' : 'text-rose-600'">
+    <p v-if="cacheInvalidateStatus" class="text-sm -mt-3" :class="cacheInvalidateStatus.ok ? 'text-emerald-600' : 'text-rose-600'">
       {{ cacheInvalidateStatus.message }}
     </p>
 
@@ -110,7 +110,7 @@
       <div class="flex items-center gap-2 flex-wrap">
         <button v-for="opt in SECTION_OPTIONS" :key="opt.value" type="button"
           @click="selectedPoolSection = opt.value"
-          :class="['px-3 py-1.5 rounded-full text-xs font-bold border transition cursor-pointer',
+          :class="['px-3 py-1.5 rounded-full text-sm font-bold border transition cursor-pointer',
             selectedPoolSection === opt.value ? 'bg-purple-600 border-purple-600 text-white' : 'bg-white border-slate-200 text-slate-600 hover:border-purple-300']">
           {{ opt.label }}
         </button>
@@ -123,7 +123,7 @@
         <div v-else-if="filteredPoolItems.length === 0" class="p-10 text-center text-slate-400">
           <i class="fas fa-tags text-4xl mb-3 block text-slate-200"></i>
           <p class="font-bold">이 섹션에 등록된 키워드가 없습니다.</p>
-          <p class="text-sm mt-1">코드 내장 폴백 키워드로 동작 중입니다. "키워드 추가"로 등록해 보세요.</p>
+          <p class="text-base mt-1">코드 내장 폴백 키워드로 동작 중입니다. "키워드 추가"로 등록해 보세요.</p>
         </div>
         <div v-else class="divide-y divide-slate-100">
           <div v-for="(item, idx) in filteredPoolItems" :key="item.id"
@@ -131,9 +131,9 @@
             <!-- 순서 이동 -->
             <div class="flex flex-col gap-0.5 shrink-0">
               <button type="button" @click="movePoolItem(item, -1)" :disabled="idx === 0"
-                class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 text-xs cursor-pointer">▲</button>
+                class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 text-sm cursor-pointer">▲</button>
               <button type="button" @click="movePoolItem(item, 1)" :disabled="idx === filteredPoolItems.length - 1"
-                class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 text-xs cursor-pointer">▼</button>
+                class="w-6 h-6 rounded bg-slate-100 hover:bg-slate-200 disabled:opacity-30 disabled:cursor-not-allowed text-slate-600 text-sm cursor-pointer">▼</button>
             </div>
             <!-- 썸네일 -->
             <div class="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 shrink-0 flex items-center justify-center">
@@ -144,28 +144,28 @@
             <!-- 정보 -->
             <div class="flex-1 min-w-0">
               <div class="flex items-center gap-2 flex-wrap">
-                <p class="font-bold text-slate-800 text-sm truncate">{{ item.keyword }}</p>
-                <span :class="['px-2 py-0.5 rounded text-[10px] font-bold', item.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500']">
+                <p class="font-bold text-slate-800 text-base truncate">{{ item.keyword }}</p>
+                <span :class="['px-2 py-0.5 rounded text-xs font-bold', item.is_active ? 'bg-emerald-100 text-emerald-700' : 'bg-gray-100 text-gray-500']">
                   {{ item.is_active ? '활성' : '비활성' }}
                 </span>
-                <span v-if="isTodaysPoolPick(item)" class="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-700 border border-amber-200">
+                <span v-if="isTodaysPoolPick(item)" class="px-2 py-0.5 rounded text-xs font-bold bg-amber-100 text-amber-700 border border-amber-200">
                   오늘 선택됨
                 </span>
               </div>
-              <p class="text-[11px] text-slate-400 mt-0.5">순서 {{ idx + 1 }} / {{ filteredPoolItems.length }}</p>
+              <p class="text-xs text-slate-400 mt-0.5">순서 {{ idx + 1 }} / {{ filteredPoolItems.length }}</p>
             </div>
             <!-- 액션 버튼 -->
             <div class="flex items-center gap-2 shrink-0">
               <button type="button" @click="togglePoolActive(item)"
-                :class="['px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer', item.is_active ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700']">
+                :class="['px-3 py-1.5 rounded-lg text-sm font-bold transition cursor-pointer', item.is_active ? 'bg-gray-100 hover:bg-gray-200 text-gray-600' : 'bg-emerald-100 hover:bg-emerald-200 text-emerald-700']">
                 {{ item.is_active ? '비활성화' : '활성화' }}
               </button>
               <button type="button" @click="openEditPoolModal(item)"
-                class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold transition cursor-pointer">
+                class="px-3 py-1.5 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-bold transition cursor-pointer">
                 수정
               </button>
               <button type="button" @click="deletePoolItem(item)"
-                class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold transition cursor-pointer">
+                class="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-sm font-bold transition cursor-pointer">
                 삭제
               </button>
             </div>
@@ -186,30 +186,30 @@
 
             <!-- 배너 유형: 상단 히어로(왼쪽/오른쪽 칸) vs 홈 섹션 테마 배너 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">배너 유형 <span class="text-rose-500">*</span></label>
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">배너 유형 <span class="text-rose-500">*</span></label>
               <div class="grid grid-cols-2 gap-2">
                 <label
                   :class="['flex flex-col gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition',
                     !form.section_key ? 'border-slate-800 bg-slate-50' : 'border-slate-200 hover:border-slate-300 bg-white']"
                 >
                   <input type="radio" :checked="!form.section_key" @change="form.section_key = null" class="sr-only" />
-                  <span :class="['text-xs font-black', !form.section_key ? 'text-slate-800' : 'text-slate-700']">상단 히어로 배너</span>
-                  <span class="text-[10px] text-slate-400 font-medium">메인 상단 왼쪽/오른쪽 칸</span>
+                  <span :class="['text-sm font-black', !form.section_key ? 'text-slate-800' : 'text-slate-700']">상단 히어로 배너</span>
+                  <span class="text-xs text-slate-400 font-medium">메인 상단 왼쪽/오른쪽 칸</span>
                 </label>
                 <label
                   :class="['flex flex-col gap-0.5 p-3 rounded-xl border-2 cursor-pointer transition',
                     form.section_key ? 'border-purple-500 bg-purple-50' : 'border-slate-200 hover:border-slate-300 bg-white']"
                 >
                   <input type="radio" :checked="!!form.section_key" @change="form.section_key = form.section_key || SECTION_OPTIONS[0].value" class="sr-only" />
-                  <span :class="['text-xs font-black', form.section_key ? 'text-purple-700' : 'text-slate-700']">홈 섹션 테마 배너</span>
-                  <span class="text-[10px] text-slate-400 font-medium">6개 테마 섹션 옆 배너</span>
+                  <span :class="['text-sm font-black', form.section_key ? 'text-purple-700' : 'text-slate-700']">홈 섹션 테마 배너</span>
+                  <span class="text-xs text-slate-400 font-medium">6개 테마 섹션 옆 배너</span>
                 </label>
               </div>
             </div>
 
             <!-- 히어로 배너: 왼쪽/오른쪽 칸 선택 -->
             <div v-if="!form.section_key">
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 칸 <span class="text-rose-500">*</span></label>
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">노출 칸 <span class="text-rose-500">*</span></label>
               <div class="grid grid-cols-2 gap-2">
                 <label
                   v-for="opt in [{ value: 'left', label: '왼쪽 칸', sub: '어두운 OEM 카드 영역', color: 'indigo' }, { value: 'right', label: '오른쪽 칸', sub: '주황 프로모 카드 영역', color: 'orange' }]"
@@ -220,30 +220,30 @@
                       : 'border-slate-200 hover:border-slate-300 bg-white']"
                 >
                   <input type="radio" v-model="form.slot" :value="opt.value" class="sr-only" />
-                  <span :class="['text-xs font-black', form.slot === opt.value ? (opt.color === 'indigo' ? 'text-indigo-700' : 'text-orange-700') : 'text-slate-700']">{{ opt.label }}</span>
-                  <span class="text-[10px] text-slate-400 font-medium">{{ opt.sub }}</span>
+                  <span :class="['text-sm font-black', form.slot === opt.value ? (opt.color === 'indigo' ? 'text-indigo-700' : 'text-orange-700') : 'text-slate-700']">{{ opt.label }}</span>
+                  <span class="text-xs text-slate-400 font-medium">{{ opt.sub }}</span>
                 </label>
               </div>
             </div>
 
             <!-- 섹션 배너: 어느 테마 섹션에 붙을지 선택 -->
             <div v-else>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 섹션 <span class="text-rose-500">*</span></label>
-              <select v-model="form.section_key" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition">
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">노출 섹션 <span class="text-rose-500">*</span></label>
+              <select v-model="form.section_key" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition">
                 <option v-for="opt in SECTION_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
-              <p class="text-[10px] text-slate-400 mt-1">섹션당 1건만 노출됩니다(노출순서가 가장 낮은 배너 우선). 배너 좌/우 위치는 섹션 순서에 따라 자동 결정됩니다.</p>
+              <p class="text-xs text-slate-400 mt-1">섹션당 1건만 노출됩니다(노출순서가 가장 낮은 배너 우선). 배너 좌/우 위치는 섹션 순서에 따라 자동 결정됩니다.</p>
             </div>
 
             <!-- 이미지 업로드 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">배너 이미지 <span class="text-slate-400 font-medium">(없으면 그라데이션 배경 사용)</span></label>
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">배너 이미지 <span class="text-slate-400 font-medium">(없으면 그라데이션 배경 사용)</span></label>
               <div class="relative">
                 <div v-if="form.image_url" class="mb-2 rounded-xl overflow-hidden bg-slate-100 h-32 relative">
                   <img :src="form.image_url" alt="미리보기" class="w-full h-full object-cover" />
-                  <button @click="form.image_url = ''" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white text-xs hover:bg-black/70 flex items-center justify-center cursor-pointer">✕</button>
+                  <button @click="form.image_url = ''" class="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/50 text-white text-sm hover:bg-black/70 flex items-center justify-center cursor-pointer">✕</button>
                 </div>
-                <label class="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-xl cursor-pointer transition text-sm text-slate-500 hover:text-blue-600">
+                <label class="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 hover:border-blue-400 rounded-xl cursor-pointer transition text-base text-slate-500 hover:text-blue-600">
                   <i class="fas fa-cloud-upload-alt"></i>
                   <span>{{ isUploading ? '업로드 중...' : '이미지 클릭하여 업로드 (JPEG/PNG/WebP, 5MB 이하)' }}</span>
                   <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handleImageUpload" :disabled="isUploading" />
@@ -253,16 +253,16 @@
 
             <!-- 링크 URL -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">클릭 링크 URL</label>
-              <input v-model="form.link_url" type="text" placeholder="예: /services/trade-agent 또는 https://..." class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">클릭 링크 URL</label>
+              <input v-model="form.link_url" type="text" placeholder="예: /services/trade-agent 또는 https://..." class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
             </div>
 
             <!-- 링크 유형 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">링크 유형</label>
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">링크 유형</label>
               <div class="flex gap-3">
                 <label v-for="opt in [{ value: 'internal', label: '내부 라우트 (Vue Router)' }, { value: 'external', label: '외부 링크 (새 탭)' }]" :key="opt.value"
-                  class="flex items-center gap-2 cursor-pointer text-sm">
+                  class="flex items-center gap-2 cursor-pointer text-base">
                   <input type="radio" v-model="form.link_type" :value="opt.value" class="accent-blue-600" />
                   {{ opt.label }}
                 </label>
@@ -271,48 +271,48 @@
 
             <!-- 관리용 제목 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">관리용 제목 (배너에 미노출)</label>
-              <input v-model="form.title" type="text" placeholder="예: OEM/ODM 배너 2026년 9월" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">관리용 제목 (배너에 미노출)</label>
+              <input v-model="form.title" type="text" placeholder="예: OEM/ODM 배너 2026년 9월" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
             </div>
 
             <!-- 서브 문구 (레거시 — 호환 유지) -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">서브 문구 <span class="text-slate-400 font-medium">(하단 자막, 선택)</span></label>
-              <input v-model="form.subtitle" type="text" placeholder="예: 2026 베스트 소싱 기획전 – 지금 확인하세요" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">서브 문구 <span class="text-slate-400 font-medium">(하단 자막, 선택)</span></label>
+              <input v-model="form.subtitle" type="text" placeholder="예: 2026 베스트 소싱 기획전 – 지금 확인하세요" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
             </div>
 
             <!-- 카드 텍스트 콘텐츠 구분선 -->
             <div class="border-t border-slate-100 pt-1">
-              <p class="text-[11px] font-bold text-slate-400 uppercase tracking-wide mb-3">카드 텍스트 콘텐츠</p>
+              <p class="text-xs font-bold text-slate-400 uppercase tracking-wide mb-3">카드 텍스트 콘텐츠</p>
 
               <!-- 라벨 뱃지 -->
               <div class="space-y-3">
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1.5">상단 라벨 뱃지 <span class="text-slate-400 font-medium">(예: B2B CUSTOM MADE)</span></label>
-                  <input v-model="form.label" type="text" placeholder="예: B2B CUSTOM MADE / 2026 베스트 소싱 기획전" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                  <label class="block text-sm font-bold text-slate-700 mb-1.5">상단 라벨 뱃지 <span class="text-slate-400 font-medium">(예: B2B CUSTOM MADE)</span></label>
+                  <input v-model="form.label" type="text" placeholder="예: B2B CUSTOM MADE / 2026 베스트 소싱 기획전" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
                 </div>
 
                 <!-- 제목 (heading) -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1.5">카드 큰 제목 <span class="text-slate-400 font-medium">(예: OEM / ODM 제작관)</span></label>
-                  <input v-model="form.heading" type="text" placeholder="예: OEM / ODM 제작관" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                  <label class="block text-sm font-bold text-slate-700 mb-1.5">카드 큰 제목 <span class="text-slate-400 font-medium">(예: OEM / ODM 제작관)</span></label>
+                  <input v-model="form.heading" type="text" placeholder="예: OEM / ODM 제작관" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
                 </div>
 
                 <!-- 설명 문구 -->
                 <div>
-                  <label class="block text-xs font-bold text-slate-700 mb-1.5">설명 문구</label>
-                  <textarea v-model="form.description" rows="2" placeholder="예: 로고 인쇄, 커스텀 패키지, 금형 사출 제작까지 1:1 밀착 대행합니다." class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
+                  <label class="block text-sm font-bold text-slate-700 mb-1.5">설명 문구</label>
+                  <textarea v-model="form.description" rows="2" placeholder="예: 로고 인쇄, 커스텀 패키지, 금형 사출 제작까지 1:1 밀착 대행합니다." class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition resize-none"></textarea>
                 </div>
 
                 <!-- CTA 버튼 -->
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1.5">버튼 문구</label>
-                    <input v-model="form.button_text" type="text" placeholder="예: 맞춤 제작 상담 신청" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">버튼 문구</label>
+                    <input v-model="form.button_text" type="text" placeholder="예: 맞춤 제작 상담 신청" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
                   </div>
                   <div>
-                    <label class="block text-xs font-bold text-slate-700 mb-1.5">버튼 링크</label>
-                    <input v-model="form.button_url" type="text" placeholder="예: /services/trade-agent" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                    <label class="block text-sm font-bold text-slate-700 mb-1.5">버튼 링크</label>
+                    <input v-model="form.button_url" type="text" placeholder="예: /services/trade-agent" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
                   </div>
                 </div>
               </div>
@@ -321,16 +321,16 @@
             <!-- 노출 순서 -->
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 순서 (낮을수록 먼저)</label>
-                <input v-model.number="form.display_order" type="number" min="0" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                <label class="block text-sm font-bold text-slate-700 mb-1.5">노출 순서 (낮을수록 먼저)</label>
+                <input v-model.number="form.display_order" type="number" min="0" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">활성 상태</label>
+                <label class="block text-sm font-bold text-slate-700 mb-1.5">활성 상태</label>
                 <div class="flex items-center h-10">
                   <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" v-model="form.is_active" class="sr-only peer" />
                     <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-blue-300 rounded-full peer peer-checked:bg-blue-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
-                    <span class="ml-2 text-sm font-medium text-slate-700">{{ form.is_active ? '활성' : '비활성' }}</span>
+                    <span class="ml-2 text-base font-medium text-slate-700">{{ form.is_active ? '활성' : '비활성' }}</span>
                   </label>
                 </div>
               </div>
@@ -339,24 +339,24 @@
             <!-- 노출 기간 (선택) -->
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 시작일 (선택)</label>
-                <input v-model="form.start_date" type="date" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                <label class="block text-sm font-bold text-slate-700 mb-1.5">노출 시작일 (선택)</label>
+                <input v-model="form.start_date" type="date" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
               </div>
               <div>
-                <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 종료일 (선택)</label>
-                <input v-model="form.end_date" type="date" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition" />
+                <label class="block text-sm font-bold text-slate-700 mb-1.5">노출 종료일 (선택)</label>
+                <input v-model="form.end_date" type="date" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-blue-500 transition" />
               </div>
             </div>
 
             <!-- 에러 메시지 -->
-            <p v-if="formError" class="text-xs text-rose-600 font-bold">{{ formError }}</p>
+            <p v-if="formError" class="text-sm text-rose-600 font-bold">{{ formError }}</p>
 
             <!-- 저장 버튼 -->
             <div class="flex gap-3 pt-2">
-              <button type="button" @click="closeModal" class="flex-1 py-3 rounded-2xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition cursor-pointer">취소</button>
+              <button type="button" @click="closeModal" class="flex-1 py-3 rounded-2xl border border-slate-300 text-slate-700 font-bold text-base hover:bg-slate-50 transition cursor-pointer">취소</button>
               <button type="button" @click="saveBanner" :disabled="isSaving"
-                class="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-sm shadow-sm transition cursor-pointer flex items-center justify-center gap-2">
-                <i v-if="isSaving" class="fas fa-spinner fa-spin text-xs"></i>
+                class="flex-1 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold text-base shadow-sm transition cursor-pointer flex items-center justify-center gap-2">
+                <i v-if="isSaving" class="fas fa-spinner fa-spin text-sm"></i>
                 {{ isSaving ? '저장 중...' : (editingBanner ? '수정 저장' : '배너 추가') }}
               </button>
             </div>
@@ -377,23 +377,23 @@
 
             <!-- 노출 섹션 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">노출 섹션 <span class="text-rose-500">*</span></label>
-              <select v-model="poolForm.section_key" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition">
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">노출 섹션 <span class="text-rose-500">*</span></label>
+              <select v-model="poolForm.section_key" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-purple-500 transition">
                 <option v-for="opt in SECTION_OPTIONS" :key="opt.value" :value="opt.value">{{ opt.label }}</option>
               </select>
             </div>
 
             <!-- 검색 키워드 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">1688 검색 키워드(한글 또는 중국어) <span class="text-rose-500">*</span></label>
-              <input v-model="poolForm.keyword" type="text" placeholder="예: 보조배터리 또는 充电宝" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:border-purple-500 transition" />
-              <p class="text-[10px] text-slate-400 mt-1">한글 입력 시 사전/번역 API로 중국어 변환, 중국어 직접 입력 시 그대로 검색에 사용됩니다.</p>
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">1688 검색 키워드(한글 또는 중국어) <span class="text-rose-500">*</span></label>
+              <input v-model="poolForm.keyword" type="text" placeholder="예: 보조배터리 또는 充电宝" class="w-full border border-slate-300 rounded-xl px-3 py-2.5 text-base focus:outline-none focus:border-purple-500 transition" />
+              <p class="text-xs text-slate-400 mt-1">한글 입력 시 사전/번역 API로 중국어 변환, 중국어 직접 입력 시 그대로 검색에 사용됩니다.</p>
             </div>
 
             <!-- 배너 이미지 업로드 (선택) -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">이 키워드가 선택된 날 노출할 배너 이미지 <span class="text-slate-400 font-medium">(선택, 없으면 섹션 고정배너 유지)</span></label>
-              <p class="text-[10px] text-slate-500 mb-2 leading-relaxed">
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">이 키워드가 선택된 날 노출할 배너 이미지 <span class="text-slate-400 font-medium">(선택, 없으면 섹션 고정배너 유지)</span></label>
+              <p class="text-xs text-slate-500 mb-2 leading-relaxed">
                 권장 업로드 규격: <span class="font-bold text-slate-700">400 × 900px (세로형, 비율 4:9)</span> —
                 PC에서는 이 비율 그대로, 모바일에서는 배너가 가로로 짧아져(16:9) 자동으로 다시 크롭됩니다.
                 다른 비율을 올려도 레이아웃이 깨지지 않고 가운데 기준으로 잘려서 채워집니다.
@@ -402,14 +402,14 @@
                 <div v-if="poolForm.banner_image_url" class="mb-2 flex items-start gap-3">
                   <div class="w-28 aspect-[4/9] rounded-xl overflow-hidden bg-slate-100 relative shrink-0">
                     <img :src="poolForm.banner_image_url" alt="PC 크롭 미리보기" class="w-full h-full object-cover" />
-                    <button @click="poolForm.banner_image_url = ''" class="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white text-xs hover:bg-black/70 flex items-center justify-center cursor-pointer">✕</button>
+                    <button @click="poolForm.banner_image_url = ''" class="absolute top-1 right-1 w-6 h-6 rounded-full bg-black/50 text-white text-sm hover:bg-black/70 flex items-center justify-center cursor-pointer">✕</button>
                   </div>
                   <div class="flex-1 aspect-video rounded-xl overflow-hidden bg-slate-100 relative">
                     <img :src="poolForm.banner_image_url" alt="모바일 크롭 미리보기" class="w-full h-full object-cover" />
                   </div>
                 </div>
-                <p v-if="poolForm.banner_image_url" class="text-[10px] text-slate-400 mb-2">왼쪽: PC(4:9) 크롭 미리보기 · 오른쪽: 모바일(16:9) 크롭 미리보기</p>
-                <label class="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 hover:border-purple-400 rounded-xl cursor-pointer transition text-sm text-slate-500 hover:text-purple-600">
+                <p v-if="poolForm.banner_image_url" class="text-xs text-slate-400 mb-2">왼쪽: PC(4:9) 크롭 미리보기 · 오른쪽: 모바일(16:9) 크롭 미리보기</p>
+                <label class="flex items-center justify-center gap-2 p-3 border-2 border-dashed border-slate-300 hover:border-purple-400 rounded-xl cursor-pointer transition text-base text-slate-500 hover:text-purple-600">
                   <i class="fas fa-cloud-upload-alt"></i>
                   <span>{{ isPoolUploading ? '업로드 중...' : '이미지 클릭하여 업로드 (JPEG/PNG/WebP, 5MB 이하)' }}</span>
                   <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" class="hidden" @change="handlePoolImageUpload" :disabled="isPoolUploading" />
@@ -419,26 +419,26 @@
 
             <!-- 활성 상태 -->
             <div>
-              <label class="block text-xs font-bold text-slate-700 mb-1.5">활성 상태</label>
+              <label class="block text-sm font-bold text-slate-700 mb-1.5">활성 상태</label>
               <div class="flex items-center h-10">
                 <label class="relative inline-flex items-center cursor-pointer">
                   <input type="checkbox" v-model="poolForm.is_active" class="sr-only peer" />
                   <div class="w-11 h-6 bg-gray-200 peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:bg-purple-600 after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:bg-white after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:after:translate-x-5"></div>
-                  <span class="ml-2 text-sm font-medium text-slate-700">{{ poolForm.is_active ? '활성' : '비활성' }}</span>
+                  <span class="ml-2 text-base font-medium text-slate-700">{{ poolForm.is_active ? '활성' : '비활성' }}</span>
                 </label>
               </div>
-              <p class="text-[10px] text-slate-400 mt-1">비활성 항목은 로테이션 대상에서 제외됩니다(순서/인덱스도 재계산됨).</p>
+              <p class="text-xs text-slate-400 mt-1">비활성 항목은 로테이션 대상에서 제외됩니다(순서/인덱스도 재계산됨).</p>
             </div>
 
             <!-- 에러 메시지 -->
-            <p v-if="poolFormError" class="text-xs text-rose-600 font-bold">{{ poolFormError }}</p>
+            <p v-if="poolFormError" class="text-sm text-rose-600 font-bold">{{ poolFormError }}</p>
 
             <!-- 저장 버튼 -->
             <div class="flex gap-3 pt-2">
-              <button type="button" @click="closePoolModal" class="flex-1 py-3 rounded-2xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-50 transition cursor-pointer">취소</button>
+              <button type="button" @click="closePoolModal" class="flex-1 py-3 rounded-2xl border border-slate-300 text-slate-700 font-bold text-base hover:bg-slate-50 transition cursor-pointer">취소</button>
               <button type="button" @click="savePoolItem" :disabled="isPoolSaving"
-                class="flex-1 py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-sm shadow-sm transition cursor-pointer flex items-center justify-center gap-2">
-                <i v-if="isPoolSaving" class="fas fa-spinner fa-spin text-xs"></i>
+                class="flex-1 py-3 rounded-2xl bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-bold text-base shadow-sm transition cursor-pointer flex items-center justify-center gap-2">
+                <i v-if="isPoolSaving" class="fas fa-spinner fa-spin text-sm"></i>
                 {{ isPoolSaving ? '저장 중...' : (editingPoolItem ? '수정 저장' : '키워드 추가') }}
               </button>
             </div>

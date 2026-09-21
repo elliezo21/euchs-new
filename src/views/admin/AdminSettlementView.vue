@@ -10,7 +10,7 @@
           </div>
           <h2 class="text-lg sm:text-xl font-black text-slate-900">예치금 & 정산 관리</h2>
         </div>
-        <p class="text-xs sm:text-sm text-slate-500 mt-1 font-medium">
+        <p class="text-sm sm:text-base text-slate-500 mt-1 font-medium">
           바이어 무통장 입금 충전 승인, 1차 상품대금 및 2차 운임·통관 정산 내역을 통합 관리합니다.
         </p>
       </div>
@@ -19,7 +19,7 @@
         <button
           type="button"
           @click="openManualModal()"
-          class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+          class="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-sm transition flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
         >
           <span>+ 예치금 수동 조정 (관리자 권한)</span>
         </button>
@@ -31,15 +31,15 @@
       <!-- KPI 1: 총 보관 예치금 잔액 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-600">총 보관 예치금 잔액</span>
-          <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600 text-xs">💵</span>
+          <span class="text-sm font-bold text-slate-600">총 보관 예치금 잔액</span>
+          <span class="p-1.5 rounded-lg bg-blue-50 text-blue-600 text-sm">💵</span>
         </div>
         <div class="text-2xl font-black font-mono text-slate-900">
           ₩{{ fmtN(currentTotalBalance) }}
         </div>
-        <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-slate-400 font-mono">≈ ¥{{ (currentTotalBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
-        <p class="text-[11px] text-slate-400 font-medium">전체 바이어 보관 예치금 실시간 합계 (관리자 계정 제외)</p>
-        <p v-if="adminTotalBalance > 0" class="text-[10px] text-slate-400 font-medium">
+        <p v-if="currentSettings?.exchange_rate" class="text-xs text-slate-400 font-mono">≈ ¥{{ (currentTotalBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
+        <p class="text-xs text-slate-400 font-medium">전체 바이어 보관 예치금 실시간 합계 (관리자 계정 제외)</p>
+        <p v-if="adminTotalBalance > 0" class="text-xs text-slate-400 font-medium">
           관리자 계정 잔액 별도: ₩{{ fmtN(adminTotalBalance) }} (합계 미포함)
         </p>
       </div>
@@ -47,47 +47,47 @@
       <!-- KPI 2: 무통장 충전 승인 대기 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-600">무통장 충전 승인 대기</span>
-          <span class="p-1.5 rounded-lg bg-amber-50 text-amber-600 text-xs">⏳</span>
+          <span class="text-sm font-bold text-slate-600">무통장 충전 승인 대기</span>
+          <span class="p-1.5 rounded-lg bg-amber-50 text-amber-600 text-sm">⏳</span>
         </div>
         <div class="flex items-baseline gap-2">
           <div class="text-2xl font-black font-mono text-amber-600">
-            {{ pendingRequests.length }}<span class="text-sm font-normal text-slate-500">건</span>
+            {{ pendingRequests.length }}<span class="text-base font-normal text-slate-500">건</span>
           </div>
-          <span class="text-xs font-mono font-bold text-slate-500">(₩{{ fmtN(pendingTotalAmount) }})</span>
+          <span class="text-sm font-mono font-bold text-slate-500">(₩{{ fmtN(pendingTotalAmount) }})</span>
         </div>
-        <p class="text-[11px] text-amber-600/80 font-medium">입금 확인 후 즉시 승인 처리 요망</p>
+        <p class="text-xs text-amber-600/80 font-medium">입금 확인 후 즉시 승인 처리 요망</p>
       </div>
 
       <!-- KPI 3: 1차 상품대금 결제액 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-600">1차 상품대금 결제액</span>
-          <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-xs">📦</span>
+          <span class="text-sm font-bold text-slate-600">1차 상품대금 결제액</span>
+          <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-sm">📦</span>
         </div>
         <div class="text-2xl font-black font-mono text-slate-900">
           ₩{{ fmtN(firstPaymentSum) }}
         </div>
-        <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-slate-400 font-mono">≈ ¥{{ (firstPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
-        <p class="text-[11px] text-slate-400 font-medium">당월 1688 수입 상품대금 누적</p>
+        <p v-if="currentSettings?.exchange_rate" class="text-xs text-slate-400 font-mono">≈ ¥{{ (firstPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
+        <p class="text-xs text-slate-400 font-medium">당월 1688 수입 상품대금 누적</p>
       </div>
 
       <!-- KPI 4: 2차 운임/통관 정산액 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-2">
         <div class="flex items-center justify-between">
-          <span class="text-xs font-bold text-slate-600">2차 운임·통관 정산액</span>
-          <span class="p-1.5 rounded-lg bg-purple-50 text-purple-600 text-xs">🚢</span>
+          <span class="text-sm font-bold text-slate-600">2차 운임·통관 정산액</span>
+          <span class="p-1.5 rounded-lg bg-purple-50 text-purple-600 text-sm">🚢</span>
         </div>
         <div class="text-2xl font-black font-mono text-slate-900">
           ₩{{ fmtN(secondPaymentSum) }}
         </div>
-        <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-slate-400 font-mono">≈ ¥{{ (secondPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
-        <p class="text-[11px] text-slate-400 font-medium">해운 LCL 운임 및 세관 통관비 누적</p>
+        <p v-if="currentSettings?.exchange_rate" class="text-xs text-slate-400 font-mono">≈ ¥{{ (secondPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
+        <p class="text-xs text-slate-400 font-medium">해운 LCL 운임 및 세관 통관비 누적</p>
       </div>
     </div>
 
     <!-- 3. 공식 입금 계좌 안내 바 -->
-    <div class="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+    <div class="bg-blue-50/70 border border-blue-200 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-sm">
       <div class="flex items-center gap-2.5">
         <span class="text-base">🏦</span>
         <div>
@@ -107,7 +107,7 @@
     </div>
 
     <!-- 4. 3단 서브 탭 바 -->
-    <div class="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl border border-slate-200/80 text-xs sm:text-sm font-bold">
+    <div class="flex items-center gap-2 p-1.5 bg-slate-200/70 rounded-2xl border border-slate-200/80 text-sm sm:text-base font-bold">
       <!-- 탭 1: 무통장 충전 신청 관리 -->
       <button
         type="button"
@@ -119,7 +119,7 @@
       >
         <span>⏳ 무통장 충전 신청 관리 (승인 대기)</span>
         <span
-          class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+          class="px-2 py-0.5 rounded-full text-xs font-mono font-bold"
           :class="pendingRequests.length > 0 ? 'bg-amber-500 text-white animate-pulse' : 'bg-slate-300/60 text-slate-600'"
         >
           {{ pendingRequests.length }}건
@@ -137,7 +137,7 @@
       >
         <span>💸 출금 신청 관리</span>
         <span
-          class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold"
+          class="px-2 py-0.5 rounded-full text-xs font-mono font-bold"
           :class="pendingWithdrawals.length > 0 ? 'bg-orange-500 text-white animate-pulse' : 'bg-slate-300/60 text-slate-600'"
         >
           {{ pendingWithdrawals.length }}건
@@ -155,7 +155,7 @@
       >
         <span>📊 전체 예치금 변동 & 정산 트랜잭션 로그</span>
         <span
-          class="px-1.5 py-0.2 rounded text-[10px] font-mono"
+          class="px-1.5 py-0.2 rounded text-xs font-mono"
           :class="activeSubTab === 'logs' ? 'bg-blue-100 text-blue-700' : 'bg-slate-300/60 text-slate-600'"
         >
           {{ transactionLogs.length }}건
@@ -171,12 +171,12 @@
         <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
-            <h3 class="font-black text-slate-900 text-sm">무통장 충전 신청 목록</h3>
-            <span class="text-xs font-mono text-slate-400">({{ depositRequests.length }}건)</span>
+            <h3 class="font-black text-slate-900 text-base">무통장 충전 신청 목록</h3>
+            <span class="text-sm font-mono text-slate-400">({{ depositRequests.length }}건)</span>
           </div>
 
           <!-- 상태 필터 (전체 탭 제거, 기본값: 승인 대기) -->
-          <div class="flex items-center gap-1.5 text-xs">
+          <div class="flex items-center gap-1.5 text-sm">
             <button
               v-for="st in ['pending', 'approved', 'rejected']"
               :key="st"
@@ -191,8 +191,8 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs text-slate-700">
-            <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-[11px] uppercase">
+          <table class="w-full text-left text-sm text-slate-700">
+            <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase">
               <tr>
                 <th class="py-3 px-4 w-36">신청번호 / 일시</th>
                 <th class="py-3 px-4 min-w-[160px]">바이어 상호 (아이디)</th>
@@ -213,13 +213,13 @@
                 <!-- 신청번호 / 일시 -->
                 <td class="py-3.5 px-4 font-mono">
                   <div class="font-bold text-slate-900">{{ req.id }}</div>
-                  <div class="text-[10px] text-slate-400 mt-0.5">{{ formatDate(req.createdAt || req.created_at) }}</div>
+                  <div class="text-xs text-slate-400 mt-0.5">{{ formatDate(req.createdAt || req.created_at) }}</div>
                 </td>
 
                 <!-- 바이어 상호 (아이디) -->
                 <td class="py-3.5 px-4">
-                  <div class="font-bold text-slate-900 text-xs">{{ req.buyerName || req.buyer_name }}</div>
-                  <div class="text-[10px] text-slate-400 font-mono">{{ req.buyerEmail || req.buyer_email }}</div>
+                  <div class="font-bold text-slate-900 text-sm">{{ req.buyerName || req.buyer_name }}</div>
+                  <div class="text-xs text-slate-400 font-mono">{{ req.buyerEmail || req.buyer_email }}</div>
                 </td>
 
                 <!-- 입금자명 -->
@@ -231,19 +231,19 @@
 
                 <!-- 충전 요청액 -->
                 <td class="py-3.5 px-4 text-right font-mono">
-                  <span class="text-sm font-black text-blue-600">₩{{ fmtN(req.amount) }}</span>
+                  <span class="text-base font-black text-blue-600">₩{{ fmtN(req.amount) }}</span>
                 </td>
 
                 <!-- 입금 계좌 -->
-                <td class="py-3.5 px-4 font-mono text-[11px] text-slate-500">
+                <td class="py-3.5 px-4 font-mono text-xs text-slate-500">
                   <div>기업은행 190-134321-01-016</div>
-                  <div class="text-[10px] text-slate-400">이유씨컴퍼니(조해성)</div>
+                  <div class="text-xs text-slate-400">이유씨컴퍼니(조해성)</div>
                 </td>
 
                 <!-- 상태 -->
                 <td class="py-3.5 px-4 text-center">
                   <span
-                    class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-block"
+                    class="px-2.5 py-1 rounded-full text-xs font-bold inline-block"
                     :class="getStatusBadgeClass(req.status)"
                   >
                     {{ getStatusLabel(req.status) }}
@@ -256,19 +256,19 @@
                     <button
                       type="button"
                       @click="approveDeposit(req)"
-                      class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition active:scale-95 cursor-pointer shadow-xs"
+                      class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm transition active:scale-95 cursor-pointer shadow-xs"
                     >
                       ✓ 입금 승인
                     </button>
                     <button
                       type="button"
                       @click="rejectDeposit(req)"
-                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-bold text-xs transition cursor-pointer"
+                      class="px-2.5 py-1.5 rounded-lg bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-600 font-bold text-sm transition cursor-pointer"
                     >
                       ✕ 반려
                     </button>
                   </div>
-                  <div v-else class="text-[11px] text-slate-400 font-mono">
+                  <div v-else class="text-xs text-slate-400 font-mono">
                     {{ req.status === 'approved' ? '승인 완료' : '반려됨' }}
                   </div>
                 </td>
@@ -277,7 +277,7 @@
               <tr v-if="filteredDepositRequests.length === 0">
                 <td colspan="7" class="py-12 text-center text-slate-400 space-y-1">
                   <div class="text-2xl">📭</div>
-                  <p class="font-bold text-xs text-slate-600">해당 상태의 무통장 충전 신청 내역이 없습니다.</p>
+                  <p class="font-bold text-sm text-slate-600">해당 상태의 무통장 충전 신청 내역이 없습니다.</p>
                 </td>
               </tr>
             </tbody>
@@ -294,15 +294,15 @@
         <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
-            <h3 class="font-black text-slate-900 text-sm">전체 예치금 정산 트랜잭션 이력</h3>
-            <span class="text-xs font-mono text-slate-400">({{ filteredTransactionLogs.length }}건)</span>
+            <h3 class="font-black text-slate-900 text-base">전체 예치금 정산 트랜잭션 이력</h3>
+            <span class="text-sm font-mono text-slate-400">({{ filteredTransactionLogs.length }}건)</span>
           </div>
 
           <!-- 검색 및 구분 필터 -->
           <div class="flex items-center gap-2 flex-wrap">
             <select
               v-model="logTypeFilter"
-              class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-700 outline-none font-medium cursor-pointer"
+              class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white text-slate-700 outline-none font-medium cursor-pointer"
             >
               <option value="all">전체 거래 구분</option>
               <option value="deposit">예치금 충전 (+)</option>
@@ -316,14 +316,14 @@
               type="text"
               v-model="logSearchQuery"
               placeholder="바이어명, 주문/거래번호 검색..."
-              class="px-3 py-1.5 rounded-lg border border-slate-200 text-xs bg-white text-slate-900 outline-none w-48"
+              class="px-3 py-1.5 rounded-lg border border-slate-200 text-sm bg-white text-slate-900 outline-none w-48"
             />
           </div>
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs text-slate-700">
-            <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-[11px] uppercase">
+          <table class="w-full text-left text-sm text-slate-700">
+            <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-xs uppercase">
               <tr>
                 <th class="py-3 px-4 w-32 font-mono">거래일시</th>
                 <th class="py-3 px-4 w-44 font-mono">거래/주문번호</th>
@@ -340,25 +340,25 @@
                 class="hover:bg-slate-50/80 transition"
               >
                 <!-- 거래일시 -->
-                <td class="py-3.5 px-4 font-mono text-[11px] text-slate-500">
+                <td class="py-3.5 px-4 font-mono text-xs text-slate-500">
                   {{ formatDate(log.createdAt) }}
                 </td>
 
                 <!-- 거래/주문번호 -->
-                <td class="py-3.5 px-4 font-mono font-bold text-slate-800 text-[11px]">
+                <td class="py-3.5 px-4 font-mono font-bold text-slate-800 text-xs">
                   {{ log.refNo || log.id }}
                 </td>
 
                 <!-- 바이어 정보 -->
                 <td class="py-3.5 px-4">
-                  <div class="font-bold text-slate-900 text-xs">{{ log.buyerName }}</div>
-                  <div class="text-[10px] text-slate-400 font-mono">{{ log.buyerEmail }}</div>
+                  <div class="font-bold text-slate-900 text-sm">{{ log.buyerName }}</div>
+                  <div class="text-xs text-slate-400 font-mono">{{ log.buyerEmail }}</div>
                 </td>
 
                 <!-- 거래 구분 -->
                 <td class="py-3.5 px-4">
                   <span
-                    class="px-2 py-0.5 rounded text-[10px] font-bold"
+                    class="px-2 py-0.5 rounded text-xs font-bold"
                     :class="getLogTypeBadge(log.type)"
                   >
                     {{ log.title }}
@@ -367,7 +367,7 @@
 
                 <!-- 변동 금액 -->
                 <td
-                  class="py-3.5 px-4 text-right font-mono font-black text-sm"
+                  class="py-3.5 px-4 text-right font-mono font-black text-base"
                   :class="log.amount >= 0 ? 'text-blue-600' : 'text-rose-600'"
                 >
                   {{ log.amount >= 0 ? '+' : '' }}₩{{ fmtN(log.amount) }}
@@ -382,7 +382,7 @@
               <tr v-if="filteredTransactionLogs.length === 0">
                 <td colspan="6" class="py-12 text-center text-slate-400 space-y-1">
                   <div class="text-2xl">📋</div>
-                  <p class="font-bold text-xs text-slate-600">거래 정산 내역이 없습니다.</p>
+                  <p class="font-bold text-sm text-slate-600">거래 정산 내역이 없습니다.</p>
                 </td>
               </tr>
             </tbody>
@@ -399,11 +399,11 @@
         <div class="bg-slate-50/80 px-6 py-4 border-b border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <span class="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
-            <h3 class="font-black text-slate-900 text-sm">출금 신청 목록</h3>
-            <span class="text-xs font-mono text-slate-400">({{ withdrawalRequests.length }}건)</span>
+            <h3 class="font-black text-slate-900 text-base">출금 신청 목록</h3>
+            <span class="text-sm font-mono text-slate-400">({{ withdrawalRequests.length }}건)</span>
           </div>
           <!-- 상태 필터 -->
-          <div class="flex items-center gap-1.5 text-xs">
+          <div class="flex items-center gap-1.5 text-sm">
             <button
               v-for="st in ['pending', 'completed', 'rejected']"
               :key="st"
@@ -420,7 +420,7 @@
         </div>
 
         <div class="overflow-x-auto">
-          <table class="w-full text-left text-xs">
+          <table class="w-full text-left text-sm">
             <thead class="bg-slate-50 border-b border-slate-200 text-slate-600 font-bold">
               <tr>
                 <th class="py-3 px-4">신청일시</th>
@@ -433,7 +433,7 @@
             </thead>
             <tbody class="divide-y divide-slate-100">
               <tr v-if="isWithdrawalsLoading">
-                <td colspan="6" class="py-8 text-center text-slate-400 text-xs">
+                <td colspan="6" class="py-8 text-center text-slate-400 text-sm">
                   <span class="inline-block w-4 h-4 border-2 border-slate-200 border-t-orange-500 rounded-full animate-spin mr-2 align-middle"></span>
                   출금 신청 내역을 불러오는 중...
                 </td>
@@ -441,11 +441,11 @@
               <tr v-else-if="filteredWithdrawals.length === 0">
                 <td colspan="6" class="py-12 text-center text-slate-400 space-y-1">
                   <div class="text-2xl">💸</div>
-                  <p class="font-bold text-xs text-slate-600">출금 신청 내역이 없습니다.</p>
+                  <p class="font-bold text-sm text-slate-600">출금 신청 내역이 없습니다.</p>
                 </td>
               </tr>
               <tr v-for="req in filteredWithdrawals" :key="req.id" class="hover:bg-slate-50">
-                <td class="py-3.5 px-4 font-mono text-slate-500 text-[11px]">
+                <td class="py-3.5 px-4 font-mono text-slate-500 text-xs">
                   {{ req.requested_at ? new Date(req.requested_at).toLocaleString('ko-KR') : '-' }}
                 </td>
                 <td class="py-3.5 px-4">
@@ -456,12 +456,12 @@
                 </td>
                 <td class="py-3.5 px-4">
                   <div class="font-bold text-slate-900">{{ req.bank_name }}</div>
-                  <div class="font-mono text-[11px] text-slate-500">{{ req.account_number }}</div>
-                  <div class="text-[11px] text-slate-600">{{ req.account_holder }}</div>
+                  <div class="font-mono text-xs text-slate-500">{{ req.account_number }}</div>
+                  <div class="text-xs text-slate-600">{{ req.account_holder }}</div>
                 </td>
                 <td class="py-3.5 px-4 text-center">
                   <span
-                    class="px-2 py-1 rounded-lg text-[10px] font-bold"
+                    class="px-2 py-1 rounded-lg text-xs font-bold"
                     :class="req.status === 'pending'
                       ? 'bg-amber-100 text-amber-800'
                       : req.status === 'completed'
@@ -477,7 +477,7 @@
                     <button
                       type="button"
                       @click="executeCompleteWithdrawal(req)"
-                      class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] transition cursor-pointer active:scale-95 shadow-xs"
+                      class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer active:scale-95 shadow-xs"
                     >
                       계좌이체 완료
                     </button>
@@ -485,14 +485,14 @@
                     <button
                       type="button"
                       @click="executeRejectWithdrawal(req)"
-                      class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-[11px] transition cursor-pointer active:scale-95 shadow-xs"
+                      class="px-3 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold text-xs transition cursor-pointer active:scale-95 shadow-xs"
                     >
                       반려
                     </button>
                   </div>
-                  <div v-else class="text-center text-[11px] text-slate-400">
+                  <div v-else class="text-center text-xs text-slate-400">
                     {{ req.processed_at ? new Date(req.processed_at).toLocaleDateString('ko-KR') : '-' }}
-                    <div v-if="req.admin_note" class="text-rose-500 text-[10px]">{{ req.admin_note }}</div>
+                    <div v-if="req.admin_note" class="text-rose-500 text-xs">{{ req.admin_note }}</div>
                   </div>
                 </td>
               </tr>
@@ -511,7 +511,7 @@
     >
       <div class="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 border border-slate-100">
         <div class="flex items-center justify-between pb-3 border-b border-slate-100">
-          <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+          <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
             <span>⚙️ 예치금 수동 조정 (관리자)</span>
           </h3>
           <button @click="showManualModal = false" class="text-slate-400 hover:text-slate-600 cursor-pointer">
@@ -519,7 +519,7 @@
           </button>
         </div>
 
-        <form @submit.prevent="handleManualAdjust" class="space-y-4 text-xs">
+        <form @submit.prevent="handleManualAdjust" class="space-y-4 text-sm">
           <!-- 바이어 선택 -->
           <div class="space-y-1">
             <label class="block font-bold text-slate-700">대상 바이어</label>
@@ -535,7 +535,7 @@
                 :value="buyer"
               >{{ buyer.label }} ({{ buyer.email }}) — ₩{{ buyer.balance.toLocaleString('ko-KR') }}</option>
             </select>
-            <p class="text-[10px] text-slate-400 mt-1">관리자 계정(super_admin/admin/staff)은 대상에서 제외됩니다.</p>
+            <p class="text-xs text-slate-400 mt-1">관리자 계정(super_admin/admin/staff)은 대상에서 제외됩니다.</p>
           </div>
 
           <!-- 지급 / 차감 선택 -->
@@ -571,9 +571,9 @@
                 v-model.number="manualForm.amount"
                 required
                 min="10000"
-                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-sm bg-white outline-none focus:ring-2 focus:ring-blue-500"
+                class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 font-mono font-bold text-slate-900 text-base bg-white outline-none focus:ring-2 focus:ring-blue-500"
               />
-              <span class="absolute right-3.5 top-2.5 text-xs text-slate-400 font-bold">원</span>
+              <span class="absolute right-3.5 top-2.5 text-sm text-slate-400 font-bold">원</span>
             </div>
           </div>
 
@@ -585,7 +585,7 @@
               v-model="manualForm.reason"
               required
               placeholder="예: VIP 프로모션 포인트 지급, 오배송 보전 환불 등"
-              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-xs outline-none focus:ring-2 focus:ring-blue-500"
+              class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 text-sm outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
@@ -612,7 +612,7 @@
     <Transition name="toast">
       <div
         v-if="toast.show"
-        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-sm shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
+        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
       >
         <span>✅</span>
         <span>{{ toast.message }}</span>

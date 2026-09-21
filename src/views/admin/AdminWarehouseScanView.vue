@@ -9,7 +9,7 @@
           </div>
           <div class="text-center">
             <p class="font-bold text-white text-base">이전 작업 불러오는 중...</p>
-            <p class="text-slate-400 text-xs mt-1">촬영한 내용을 복원하고 있습니다</p>
+            <p class="text-slate-400 text-sm mt-1">촬영한 내용을 복원하고 있습니다</p>
           </div>
         </div>
       </div>
@@ -19,12 +19,12 @@
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 rounded-xl bg-teal-600 flex items-center justify-center shadow-md"><i class="fas fa-barcode text-white text-base"></i></div>
         <div>
-          <div class="font-black text-white text-sm">이우 창고 입고 스캔</div>
-          <div class="text-[11px] text-slate-400 font-mono">중국 택배 운송장(运单号) 바코드 스캔</div>
+          <div class="font-black text-white text-base">이우 창고 입고 스캔</div>
+          <div class="text-xs text-slate-400 font-mono">중국 택배 운송장(运单号) 바코드 스캔</div>
         </div>
       </div>
-      <router-link to="/admin" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs border border-slate-700 transition flex items-center gap-1.5">
-        <i class="fas fa-arrow-left text-xs"></i><span>대시보드</span>
+      <router-link to="/admin" class="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-sm border border-slate-700 transition flex items-center gap-1.5">
+        <i class="fas fa-arrow-left text-sm"></i><span>대시보드</span>
       </router-link>
     </div>
     <!-- 메인 -->
@@ -33,7 +33,7 @@
 
       <!-- ① 카메라 스캔 영역 — 상단 고정, 키보드가 올라와도 밀리지 않음 -->
       <div class="flex-shrink-0 px-4 pt-4 pb-2 space-y-2">
-        <button type="button" @click="toggleCamera" class="w-full py-3.5 rounded-2xl font-bold text-sm transition active:scale-95 flex items-center justify-center gap-2.5 border-2 border-slate-600 hover:border-teal-500 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white" :class="isCameraOpen ? 'border-teal-500 text-teal-400' : ''">
+        <button type="button" @click="toggleCamera" class="w-full py-3.5 rounded-2xl font-bold text-base transition active:scale-95 flex items-center justify-center gap-2.5 border-2 border-slate-600 hover:border-teal-500 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white" :class="isCameraOpen ? 'border-teal-500 text-teal-400' : ''">
           <i :class="isCameraOpen ? 'fas fa-video-slash' : 'fas fa-camera'" class="text-base"></i>
           <span>{{ isCameraOpen ? '카메라 스캔 중지' : '카메라로 스캔' }}</span>
         </button>
@@ -43,29 +43,29 @@
       <!-- ② 입력창 + 조회버튼 + 이력 — 스크롤 가능 영역 -->
       <div class="flex-1 overflow-y-auto px-4 pb-10 space-y-5 pt-2">
         <div class="w-full space-y-2">
-          <label class="block text-xs font-bold text-slate-400 tracking-wide uppercase">운송장 번호 입력 (스캐너 또는 수동 입력)</label>
+          <label class="block text-sm font-bold text-slate-400 tracking-wide uppercase">운송장 번호 입력 (스캐너 또는 수동 입력)</label>
           <div class="relative">
             <input ref="scanInputRef" v-model="scanInput" type="text" inputmode="numeric" placeholder="바코드를 스캔하거나 운송장번호를 입력하세요" class="w-full px-4 py-4 bg-slate-800 border-2 rounded-2xl text-white placeholder-slate-500 text-base font-mono focus:outline-none transition border-slate-600 focus:border-teal-500 focus:bg-slate-800/80" :class="scanStatus === 'error' ? 'border-rose-500' : scanStatus === 'success' ? 'border-teal-500' : ''" @keydown.enter.prevent="handleScan" @input="scanStatus = 'idle'" />
             <button v-if="scanInput" type="button" @click="clearInput" class="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition"><i class="fas fa-xmark text-lg"></i></button>
           </div>
-          <div v-if="scanStatus === 'error'" class="flex items-center gap-2 text-rose-400 text-xs font-bold px-1">
+          <div v-if="scanStatus === 'error'" class="flex items-center gap-2 text-rose-400 text-sm font-bold px-1">
             <i class="fas fa-circle-exclamation"></i><span>{{ errorMessage }}</span>
             <a href="/admin/orders" class="ml-auto text-rose-300 hover:text-white underline underline-offset-2 font-bold transition">수동 검색 →</a>
           </div>
-          <div v-else-if="scanStatus === 'searching'" class="flex items-center gap-2 text-teal-400 text-xs font-bold px-1"><i class="fas fa-circle-notch animate-spin"></i><span>주문 매칭 중...</span></div>
-          <div v-else class="text-[11px] text-slate-500 px-1">Enter 키 또는 스캐너 입력 시 자동 검색 · 블루투스/유선 스캐너 모두 지원</div>
+          <div v-else-if="scanStatus === 'searching'" class="flex items-center gap-2 text-teal-400 text-sm font-bold px-1"><i class="fas fa-circle-notch animate-spin"></i><span>주문 매칭 중...</span></div>
+          <div v-else class="text-xs text-slate-500 px-1">Enter 키 또는 스캐너 입력 시 자동 검색 · 블루투스/유선 스캐너 모두 지원</div>
         </div>
         <button type="button" @click="handleScan" :disabled="!scanInput.trim() || scanStatus === 'searching'" class="w-full py-4 rounded-2xl font-black text-base transition active:scale-95 shadow-lg flex items-center justify-center gap-2.5 disabled:opacity-40 disabled:cursor-not-allowed bg-teal-600 hover:bg-teal-500 text-white">
           <i class="fas fa-magnifying-glass text-lg"></i><span>운송장 조회</span>
         </button>
         <div class="w-full flex items-center gap-3">
-          <div class="flex-1 h-px bg-slate-700"></div><span class="text-[11px] text-slate-500 font-mono">최근 스캔 이력</span><div class="flex-1 h-px bg-slate-700"></div>
+          <div class="flex-1 h-px bg-slate-700"></div><span class="text-xs text-slate-500 font-mono">최근 스캔 이력</span><div class="flex-1 h-px bg-slate-700"></div>
         </div>
         <div class="w-full space-y-2">
-          <div v-if="scanHistory.length === 0" class="text-center py-6 text-slate-500 text-xs"><i class="fas fa-clock-rotate-left text-2xl mb-2 block"></i>스캔 이력이 없습니다</div>
+          <div v-if="scanHistory.length === 0" class="text-center py-6 text-slate-500 text-sm"><i class="fas fa-clock-rotate-left text-2xl mb-2 block"></i>스캔 이력이 없습니다</div>
           <div
             v-for="(item, idx) in scanHistory" :key="idx"
-            class="flex items-center gap-3 px-4 py-3 rounded-xl border text-xs font-mono transition-all"
+            class="flex items-center gap-3 px-4 py-3 rounded-xl border text-sm font-mono transition-all"
             :class="[
               item.success ? 'bg-teal-900/30 border-teal-700/40 text-teal-300' : 'bg-rose-900/30 border-rose-700/40 text-rose-400',
               item.success && item.order ? 'cursor-pointer active:scale-95 active:brightness-110' : ''
@@ -76,9 +76,9 @@
             <span class="flex-1 truncate">{{ item.trackingNo }}</span>
             <!-- 우측: 시각 / 주문번호 / 고객명 세로 스택 -->
             <div class="flex-shrink-0 text-right leading-tight space-y-0.5">
-              <div class="text-[10px] opacity-60">{{ item.time }}</div>
-              <div v-if="item.success && item.orderNo" class="text-[10px] text-teal-400 font-bold">{{ item.orderNo }}</div>
-              <div v-if="item.customerName" class="text-[9px] text-slate-400 max-w-[80px] truncate">{{ item.customerName }}</div>
+              <div class="text-xs opacity-60">{{ item.time }}</div>
+              <div v-if="item.success && item.orderNo" class="text-xs text-teal-400 font-bold">{{ item.orderNo }}</div>
+              <div v-if="item.customerName" class="text-[11px] text-slate-400 max-w-[80px] truncate">{{ item.customerName }}</div>
             </div>
           </div>
         </div>
@@ -86,7 +86,7 @@
     </div>
     <AdminWarehouseModal v-model="showWarehouseModal" :application="warehouseModalTarget" @saved="handleWarehouseSaved" @camera-triggered="handleCameraTriggered" @modal-closed="handleModalClosed" />
     <Transition enter-active-class="transition-all duration-300 ease-out" enter-from-class="translate-y-4 opacity-0" enter-to-class="translate-y-0 opacity-100" leave-active-class="transition-all duration-200 ease-in" leave-from-class="translate-y-0 opacity-100" leave-to-class="translate-y-4 opacity-0">
-      <div v-if="toast.show" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-sm font-bold min-w-[300px] max-w-[480px]" :class="toast.type === 'success' ? 'bg-teal-600 text-white' : 'bg-rose-600 text-white'">
+      <div v-if="toast.show" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] flex items-center gap-3 px-5 py-3.5 rounded-2xl shadow-2xl text-base font-bold min-w-[300px] max-w-[480px]" :class="toast.type === 'success' ? 'bg-teal-600 text-white' : 'bg-rose-600 text-white'">
         <span class="text-lg shrink-0">{{ toast.type === 'success' ? '✅' : '⚠️' }}</span>
         <span class="flex-1 leading-snug">{{ toast.message }}</span>
         <button type="button" @click="toast.show = false" class="ml-2 p-1 rounded-lg hover:bg-white/20 transition shrink-0"><i class="fas fa-times"></i></button>
