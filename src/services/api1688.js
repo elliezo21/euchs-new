@@ -2059,7 +2059,10 @@ export async function fetch1688ProductById(offerId) {
     }
 
     // 먼저 item_get 결과를 캐시에 저장 (freight=null 포함)
-    saveToCache(memoryDetailCache, 'euchs_product_parsed', idStr, normalizedProduct)
+    // ★ 키는 반드시 조회측(상단 getFromCache)과 동일한 cleanNumericId를 사용한다.
+    //   idStr(URL/원본 문자열)로 저장하면 조회 키와 어긋나 캐시가 영구 미스되고
+    //   OneBound 실호출이 반복된다 (순수 숫자 ID일 때는 두 값이 동일).
+    saveToCache(memoryDetailCache, 'euchs_product_parsed', cleanNumericId, normalizedProduct)
 
     // ── freight 배경 자동 호출 제거 (2026-09-15) ────────────────────────────────
     // 운임은 CartView seller 그룹 배치 호출(fetch1688FreightEstimateBatch)에서만 계산.
