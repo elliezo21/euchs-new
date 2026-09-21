@@ -1191,21 +1191,33 @@ async function openOptionModal(item) {
       const currentColorZh = String(item.color || '').trim();
       const currentColorKo = translateColorName(currentColorZh);
       const currentSize   = String(item.size || '').trim();
+      // ★ 매칭 1순위는 specId(1688 spec_id, 32 hex) — 표시용 색상/사이즈 문자열은
+      //   담은 시점과 팝업 여는 시점의 파파고 번역 결과가 달라질 수 있어 매칭 키로 쓸 수 없다.
+      //   (api1688.js:1897-1919가 skuProps/skus의 color·size를 번역문으로 덮어씀)
+      const currentSpecId = String(item.specId || '').trim();
 
       modalSkuList.value = skus.map((sk, idx) => {
         const colorZh = String(sk.color || '기본 단품').trim();
         const colorKo = translateColorName(colorZh);
         const size    = String(sk.size || '').trim();
+        const specId  = String(sk.specId || '').trim();
         const stock   = parseStock(sk.stock);
         const price   = Number(sk.price || sk.priceCny || basePrice);
 
-        // 현재 색상 판별: 중문→한글 번역 양쪽으로 비교
-        const colorMatch = colorZh === currentColorZh || colorKo === currentColorKo;
-        const sizeMatch  = !currentSize || size === currentSize || !size;
-        const isCurrent  = colorMatch && sizeMatch;
+        let isCurrent;
+        if (currentSpecId && specId) {
+          // 양쪽 모두 specId를 가진 정상 경로 — 이 한 키로만 판정
+          isCurrent = specId === currentSpecId;
+        } else {
+          // specId가 없는 구 장바구니 데이터 / spec_id 미제공 상품 전용 경로
+          const colorMatch = colorZh === currentColorZh || colorKo === currentColorKo;
+          const sizeMatch  = currentSize ? size === currentSize : !size;
+          isCurrent = colorMatch && sizeMatch;
+        }
 
         return {
           id: `sku-${idx}-${Date.now()}`,
+          specId,
           color: colorZh,
           colorKo,
           size,
@@ -1315,6 +1327,10 @@ function applyOptionChanges() {
       return {
         ...JSON.parse(JSON.stringify(baseItem)),
         id: `cart-sku-${Date.now()}-${i}`,
+        // ★ baseItem 스프레드는 "변경 전" 옵션의 specId를 물고 온다.
+        //   갱신하지 않으면 화면 옵션과 1688 발주용 specId가 어긋난다
+        //   (api/1688-order-create.js가 specId만으로 실제 주문 SKU를 결정).
+        specId: sku.specId || '',
         color: sku.color,
         size: sku.size,
         optionName: optLabel,
