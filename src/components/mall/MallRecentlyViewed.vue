@@ -55,10 +55,44 @@
 import { ref, watch, onMounted } from 'vue'
 import { supabase } from '../../lib/supabase'
 import { isLoggedIn, currentUser } from '../../lib/auth'
+import { translateText } from '../../services/api1688'
 
 const emit = defineEmits(['open'])
 
 const items = ref([])
+
+const HANGUL_RE = /[가-힣]/
+
+/**
+ * 표시 시점에만 한글 없는 제목을 배치 번역한다.
+ *
+ * recently_viewed.item_data는 조회 시점 스냅샷이므로 DB에 되쓰지 않는다.
+ * (모달을 연 경로에 따라 titleKo가 중국어로 저장되는 케이스가 있어, 쓰기 경로를
+ *  일일이 고치는 대신 표시 시점에 교정한다. 과거에 쌓인 행도 같이 살아난다.)
+ *
+ * 대상은 화면에 실제로 보이는 12건이 상한이라 1회 배치로 끝난다.
+ * translateText는 실패 시 원문을 그대로 돌려주므로, 원문과 같으면 덮지 않고
+ * 다음 진입 때 재시도되게 둔다.
+ */
+async function applyKoreanTitles() {
+  const targets = items.value.filter(rv => {
+    const ko = rv.item_data?.titleKo || ''
+    return !HANGUL_RE.test(ko) && (rv.item_data?.title || '')
+  })
+  if (targets.length === 0) return
+
+  try {
+    const translated = await translateText(targets.map(rv => rv.item_data.title), 'KO')
+    const list = Array.isArray(translated) ? translated : [translated]
+    targets.forEach((rv, i) => {
+      const ko = list[i]
+      if (ko && ko !== rv.item_data.title) rv.item_data.titleKo = ko
+    })
+  } catch (e) {
+    // 번역 실패는 화면을 막지 않는다 — 제목이 원문(중국어)으로 남을 뿐이다.
+    console.warn('[RecentlyViewed] 제목 번역 실패 (원문 유지):', e?.message || e)
+  }
+}
 
 // 최근 본 상품 12개 로드
 async function loadRecentlyViewed() {
@@ -76,6 +110,9 @@ async function loadRecentlyViewed() {
 
     if (!error && Array.isArray(data)) {
       items.value = data
+      // await 하지 않는다 — 원문으로 먼저 렌더하고 번역 완료 시 제목만 교체된다.
+      // (items가 ref이고 rv.item_data를 직접 변경하므로 Vue 반응성으로 자동 갱신)
+      applyKoreanTitles()
     }
   } catch (e) {
     console.error('[RecentlyViewed] 로드 실패 (code:', e?.code, '):', e?.message || e)
