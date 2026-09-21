@@ -286,9 +286,9 @@
                 class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">-</button>
               <input
                 type="number"
-                :min="item.minOrder || 1"
+                min="1"
                 :max="(typeof item.stock === 'number' && !isNaN(item.stock)) ? item.stock : undefined"
-                :value="item.quantity || item.minOrder || 1"
+                :value="item.quantity || 1"
                 @input="onQtyInput(item, $event)"
                 @change="onQtyInput(item, $event)"
                 class="w-14 h-8 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none focus:bg-amber-50/50"
@@ -684,6 +684,7 @@ import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import ProductDetailModal from '@/components/ProductDetailModal.vue';
 import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
 import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
+import { sumQty, resolveMoq, offerGroupKey } from '@/utils/moq';
 
 const router = useRouter();
 const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
@@ -1044,21 +1045,27 @@ function increaseQty(item) {
 }
 
 function decreaseQty(item) {
-  const mo = Math.max(1, parseInt(item.minOrder || '1', 10) || 1);
-  const current = Number(item.quantity) || mo;
-  if (current > mo) {
+  const mo = resolveMoq(item.minOrder);
+  const current = Number(item.quantity) || 1;
+  // 같은 1688 상품(num_iid)의 전체 행 합계가 MOQ 미만이 되면 차단 (행 개별 기준 아님)
+  const key = offerGroupKey(item);
+  const offerTotalAfter = sumQty(cartItems.value.filter(r => offerGroupKey(r) === key)) - 1;
+  if (current > 1 && offerTotalAfter >= mo) {
     item.quantity = current - 1;
     syncSkuQty(item);
     saveCartToStorage();
   } else if (mo > 1) {
-    showStockToast(`최소 주문 수량은 ${mo}개입니다.`);
+    showStockToast(`이 상품의 최소 주문 수량은 ${mo}개입니다 (옵션 합계 기준).`);
   }
 }
 
 function onQtyInput(item, e) {
-  const mo = Math.max(1, parseInt(item.minOrder || '1', 10) || 1);
+  const mo = resolveMoq(item.minOrder);
   const val = parseInt(e.target.value, 10);
-  if (!isNaN(val) && val >= mo) {
+  // 같은 상품 합계 기준으로 판정 — 이 행을 val로 바꿨을 때의 offer 합계
+  const key = offerGroupKey(item);
+  const othersQty = sumQty(cartItems.value.filter(r => offerGroupKey(r) === key && r.id !== item.id));
+  if (!isNaN(val) && val >= 1 && (othersQty + val) >= mo) {
     const rawStock = item.stock;
     const stock = (typeof rawStock === 'number' && !isNaN(rawStock))
       ? rawStock
@@ -1073,11 +1080,12 @@ function onQtyInput(item, e) {
     }
     syncSkuQty(item);
     saveCartToStorage();
-  } else if (isNaN(val) || val < mo) {
-    // 빈 값이거나 minOrder 미만 입력 시 minOrder로 복구
-    if (mo > 1) showStockToast(`최소 주문 수량은 ${mo}개입니다.`);
-    item.quantity = mo;
-    e.target.value = mo;
+  } else {
+    // 빈 값/0 이하이거나, 이 값으로 두면 같은 상품 합계가 MOQ 미만이 되는 경우 → 하한으로 복구
+    const restored = Math.max(1, mo - othersQty);
+    if (mo > 1) showStockToast(`이 상품의 최소 주문 수량은 ${mo}개입니다 (옵션 합계 기준).`);
+    item.quantity = restored;
+    e.target.value = restored;
     syncSkuQty(item);
     saveCartToStorage();
   }

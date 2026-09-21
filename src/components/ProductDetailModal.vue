@@ -400,7 +400,7 @@
                     <input
                       type="number"
                       :value="sku.quantity"
-                      :min="minOrder"
+                      min="1"
                       :max="getSkuStock(sku.color, sku.size) === Infinity ? undefined : getSkuStock(sku.color, sku.size)"
                       @change="onSkuQtyInput(skuIdx, $event)"
                       class="w-14 h-8 bg-white border border-gray-300 rounded-xl text-center font-bold font-mono text-gray-900 text-xs focus:ring-1 focus:ring-rose-500"
@@ -648,6 +648,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey, isLoggedIn, openLoginModal } from '../lib/auth'
+import { sumQty, resolveMoq } from '../utils/moq'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
 import {
   findSavedProduct,
@@ -865,10 +866,9 @@ const basePrice = computed(() => {
 
 const minOrder = computed(() => {
   const item = currentItem.value || props.product
-  let mo = parseInt(item?.minOrder || item?.raw?.minOrder || props.product?.minOrder || props.product?.raw?.minOrder || '1', 10)
-  if (isNaN(mo) || mo <= 0 || mo > 10000) {
-    mo = 1
-  }
+  // 출처 키는 minOrder 단일 확정 (api1688.js가 min_num → minOrder로 정규화).
+  // 상한 폴백(>10000 → 1)은 이상값에서 MOQ 가드를 조용히 끄는 구멍이라 제거.
+  let mo = resolveMoq(item?.minOrder)
   return mo
 })
 
@@ -1446,14 +1446,11 @@ const handleSelectSize = (size) => {
 const updateSkuQty = (idx, delta) => {
   const sku = selectedSkus.value[idx]
   if (!sku) return
-  const mo = minOrder.value
-  const current = Number(sku.quantity) || mo
-  const next = Math.max(mo, current + delta)
-  // 감소 방향이고 최솟값 도달 시 안내 (minOrder > 1 인 경우만)
-  if (delta < 0 && next === mo && mo > 1 && current === mo) {
-    showToastNotification(`⚠️ 최소 주문 수량은 ${mo}개입니다.`, 'warning')
-    return
-  }
+  const current = Number(sku.quantity) || 1
+  // 행 하한은 1. MOQ는 옵션 합계로만 판정하므로 개별 행에서 막지 않는다.
+  // (기존 Math.max(mo, …)는 수량 1인 행에서 － 를 누르면 2로 역증가하는 버그가 있었음)
+  if (delta < 0 && current <= 1) return
+  const next = Math.max(1, current + delta)
   // 증가 방향일 때만 재고 상한 체크
   if (delta > 0) {
     const stockLimit = getSkuStock(sku.color, sku.size)
@@ -1471,14 +1468,9 @@ const updateSkuQty = (idx, delta) => {
 const onSkuQtyInput = (idx, e) => {
   const sku = selectedSkus.value[idx]
   if (!sku) return
-  const mo = minOrder.value
-  const val = Math.max(mo, parseInt(e.target.value, 10) || mo)
-  if (val < mo) {
-    showToastNotification(`⚠️ 최소 주문 수량은 ${mo}개입니다.`, 'warning')
-    selectedSkus.value[idx] = { ...sku, quantity: mo }
-    e.target.value = mo
-    return
-  }
+  // 행 하한은 1 (MOQ는 담기 시점에 합계로 판정).
+  // 기존 `if (val < mo)` 분기는 바로 윗줄 Math.max(mo, …) 때문에 도달 불가능한 죽은 코드였음.
+  const val = Math.max(1, parseInt(e.target.value, 10) || 1)
   const stockLimit = getSkuStock(sku.color, sku.size)
   if (stockLimit !== Infinity && val > stockLimit) {
     showToastNotification(`⚠️ 재고는 최대 ${stockLimit}개까지만 담을 수 있습니다.`, 'warning')
@@ -2061,11 +2053,20 @@ const saveSelectedItemsToCart = () => {
       freight: currentItem.value.freight ?? null,
     }
 
-    // 2. 최소 주문 수량(min_num) 검증 가드 — 모든 SKU 행에 대해 체크
-    const mo = minOrder.value
-    const underMinSkus = selectedSkus.value.filter(s => (Number(s.quantity) || 1) < mo)
-    if (underMinSkus.length > 0) {
-      showToastNotification(`⚠️ 최소 주문 수량은 ${mo}개입니다. 수량을 ${mo}개 이상으로 조정해주세요.`, 'warning')
+    // 2. 최소 주문 수량(min_num) 검증 가드 — 같은 1688 상품(offerId) "합계" 기준.
+    //    1688은 SKU별 최소수량 필드가 없고 min_num/mix_number(混批) 모두 offer 단위이므로
+    //    옵션을 섞어 합계로 MOQ를 채우는 것이 정상 주문이다.
+    //    장바구니에 이미 담긴 같은 상품 수량도 합계에 포함한다(위 cart에서 그대로 읽음).
+    //    ※ 발주는 체크된 행만 나가므로 최종 방어선은 CartView.openOrderModal의 발주 가드다.
+    const mo = resolveMoq(currentItem.value.minOrder)
+    const offerIdStr = String(currentItem.value.id || '')
+    const alreadyInCart = sumQty(cart.filter(c => String(c.num_iid || '') === offerIdStr))
+    const offerTotal = totalQuantity.value + alreadyInCart
+    if (offerTotal < mo) {
+      showToastNotification(
+        `⚠️ 최소 주문 수량은 ${mo}개입니다. 옵션 수량 합계를 ${mo}개 이상으로 맞춰주세요. (현재 ${offerTotal}개)`,
+        'warning'
+      )
       return null
     }
 
@@ -2078,8 +2079,8 @@ const saveSelectedItemsToCart = () => {
       // 저장 직전에도 재고 상한으로 한 번 더 클램핑 (직접 입력 후 바로 담기 버튼 누른 경우 방어)
       const stockLimit = getSkuStock(colorStr, sizeStr)
       const skuQty = stockLimit === Infinity
-        ? Math.max(mo, Number(sku.quantity) || mo)
-        : Math.min(stockLimit, Math.max(mo, Number(sku.quantity) || mo))
+        ? Math.max(1, Number(sku.quantity) || 1)
+        : Math.min(stockLimit, Math.max(1, Number(sku.quantity) || 1))
       const skuId = `${currentItem.value.id}_${colorStr || 'default'}_${sizeStr || 'none'}_${Date.now()}_${idx}`
 
       return {
