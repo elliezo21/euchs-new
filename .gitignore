@@ -45,3 +45,6 @@ graphify-out/
 
 .vercel
 .env
+
+# claude-mem 플러그인 자동 생성 파일 (도구가 덮어쓰므로 추적하지 않음)
+.github/copilot-instructions.md
