@@ -1054,7 +1054,12 @@ function decreaseQty(item) {
     item.quantity = current - 1;
     syncSkuQty(item);
     saveCartToStorage();
+  } else if (current <= 1) {
+    // 이미 1개인 행 — MOQ와 무관하게 더 줄일 수 없는 상태다.
+    // 합계가 MOQ를 충족하고 있어도 MOQ 토스트를 띄우면 원인을 오해하게 되므로 분리한다.
+    showStockToast('1개 미만으로는 줄일 수 없습니다. 삭제하려면 ✕ 버튼을 눌러주세요.');
   } else if (mo > 1) {
+    // 2개 이상이지만 줄이면 같은 상품 합계가 MOQ 미만이 되는 경우
     showStockToast(`이 상품의 최소 주문 수량은 ${mo}개입니다 (옵션 합계 기준).`);
   }
 }
@@ -1282,6 +1287,23 @@ function applyOptionChanges() {
   }
 
   const baseItem = editingItem.value;
+
+  // ── 최소 주문 수량(min_num) 검증 — 같은 1688 상품(num_iid) 합계 기준 ──
+  // 이 팝업은 ProductDetailModal을 거치지 않고 localStorage에 직접 행을 쓰는 경로라
+  // 담기 시점 가드가 적용되지 않는다. 여기서 막지 않으면 MOQ 미달 행이 장바구니에
+  // 남고, 최종 차단은 openOrderModal 발주 가드까지 미뤄진다.
+  // 편집 중인 기존 행(editingCartItemId)은 아래에서 교체·삭제되므로 합계에서 제외한다.
+  const mo = resolveMoq(baseItem?.minOrder);
+  const editKey = offerGroupKey(baseItem);
+  const othersQty = sumQty(
+    cartItems.value.filter(r => offerGroupKey(r) === editKey && r.id !== editingCartItemId.value)
+  );
+  const offerTotal = othersQty + sumQty(validSkus);
+  if (offerTotal < mo) {
+    showStockToast(`이 상품의 최소 주문 수량은 ${mo}개입니다 (옵션 합계 기준, 현재 ${offerTotal}개)`);
+    return;
+  }
+
   const cartKey = getCartStorageKey();
 
   try {
