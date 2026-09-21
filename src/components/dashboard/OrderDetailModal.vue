@@ -342,7 +342,7 @@
                 <div class="px-3 space-y-0 divide-y divide-gray-100 bg-white">
                   <div class="flex items-center justify-between py-1.5"><span class="text-gray-600 font-medium">1. 순수 1688 제품 대금 (¥{{ costSummary.itemTotalCny.toFixed(2) }})</span><span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(costSummary.itemTotalKrw) }}원</span></div>
                   <div class="flex items-center justify-between py-1.5"><span class="text-gray-600 font-medium">2. 중국 현지 택배비 (이우 물류센터 입고) <span class="text-gray-400">(¥{{ costSummary.chinaFreightRmb?.toFixed(2) }})</span></span><span class="font-mono font-black text-amber-700 text-xs sm:text-sm">₩{{ formatNumber(costSummary.chinaFreightKrw) }}원</span></div>
-                  <div class="flex items-center justify-between py-1.5"><span class="text-gray-600 font-medium">3. 수입 구매대행 &amp; 기본 수수료 (8%) <span class="text-gray-400">(¥{{ (costSummary.agencyFeeKrw / costSummary.exchangeRate).toFixed(2) }})</span></span><span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(costSummary.agencyFeeKrw) }}원</span></div>
+                  <div class="flex items-center justify-between py-1.5"><span class="text-gray-600 font-medium">3. 수입 구매대행 &amp; 기본 수수료 (8%) <span class="text-gray-400">(¥{{ costSummary.agencyFeeCny?.toFixed(2) }})</span></span><span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(costSummary.agencyFeeKrw) }}원</span></div>
                 </div>
               </div>
 
@@ -580,12 +580,15 @@ const costSummary = computed(() => {
     chinaFreightRmb: r.chinaFreightRmb,
     chinaFreightKrw: r.chinaFreightKrw,
     agencyFeeKrw: r.agencyFeeKrw,
+    agencyFeeCny: r.agencyFeeCny,
     cbm: r.cbm,
     shippingFeeKrw: r.shippingFeeKrw,
+    shippingFeeCny: r.shippingFeeCny,
     shippingConfirmed: r.shippingConfirmed,
     tariffKrw: r.tariffKrw,
     vatKrw: r.vatKrw,
     chargeableKrw: r.chargeableKrw,
+    chargeableCny: r.chargeableCny,
     totalDdpKrw: r.totalDdpKrw,
     unitDdpKrw: r.unitDdpKrw,
   }

@@ -1360,26 +1360,29 @@
                 <div>
                   <span class="text-[11px] text-slate-400">보유 예치금 잔액: <b>{{ formatBalance(userBalance) }}</b></span>
                   <div class="text-xs font-bold"
-                    :class="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)
+                    :class="!hasSecondPaymentAmount || isBalanceInsufficient(secondPaymentAmountKrw)
                       ? 'text-rose-400'
                       : 'text-white'"
                   >
-                    <template v-if="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)">
+                    <template v-if="!hasSecondPaymentAmount">
+                      ⚠️ 결제 금액이 확정되지 않았습니다 — 고객센터로 문의해 주세요
+                    </template>
+                    <template v-else-if="isBalanceInsufficient(secondPaymentAmountKrw)">
                       ⚠️ 잔액 부족 — 예치금을 충전해 주세요
                     </template>
                     <template v-else>
-                      결제 후 잔액: {{ formatBalance(userBalance - (selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)) }} (예치금 충분)
+                      결제 후 잔액: {{ formatBalance(userBalance - secondPaymentAmountKrw) }} (예치금 충분)
                     </template>
                   </div>
                 </div>
               </div>
               <span
                 class="px-2.5 py-1 rounded text-[11px] font-bold border"
-                :class="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)
+                :class="!hasSecondPaymentAmount || isBalanceInsufficient(secondPaymentAmountKrw)
                   ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
                   : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'"
               >
-                {{ isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000) ? '잔액 부족' : '즉시 차감 결제 가능' }}
+                {{ !hasSecondPaymentAmount ? '금액 확인 필요' : (isBalanceInsufficient(secondPaymentAmountKrw) ? '잔액 부족' : '즉시 차감 결제 가능') }}
               </span>
             </div>
           </div>
@@ -1398,19 +1401,22 @@
           <button
             type="button"
             @click="handleConfirmSecondPayment"
-            :disabled="isProcessingPayment || isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)"
+            :disabled="isProcessingPayment || !hasSecondPaymentAmount || isBalanceInsufficient(secondPaymentAmountKrw)"
             class="px-6 py-2.5 rounded-xl font-extrabold text-xs shadow-md transition active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-            :class="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)
+            :class="!hasSecondPaymentAmount || isBalanceInsufficient(secondPaymentAmountKrw)
               ? 'bg-gray-400 text-white'
               : 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white'"
           >
             <RefreshCw v-if="isProcessingPayment" class="w-4 h-4 animate-spin" />
             <CreditCard v-else class="w-4 h-4" />
-            <span v-if="isBalanceInsufficient(selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000)">
+            <span v-if="!hasSecondPaymentAmount">
+              결제 금액 확인 필요
+            </span>
+            <span v-else-if="isBalanceInsufficient(secondPaymentAmountKrw)">
               잔액 부족 — 충전 필요
             </span>
             <span v-else>
-              💳 예치금 즉시 결제 및 선적 지시 (₩{{ (selectedSecondPaymentItem?.secondPayment?.totalSecondPaymentKrw || 133000).toLocaleString() }})
+              💳 예치금 즉시 결제 및 선적 지시 (₩{{ secondPaymentAmountKrw.toLocaleString() }})
             </span>
           </button>
         </div>
@@ -1590,6 +1596,19 @@ const customVasItems = ref([]); // [{ id, name, price }]
 // 2차 결제 모달 상태
 const isSecondPaymentModalOpen = ref(false);
 const selectedSecondPaymentItem = ref(null);
+
+/**
+ * 2차 결제 금액(KRW). 주문에 저장된 값만 읽고, 없으면 null.
+ * ★ 과거 `|| 133000` 폴백 제거 — 저장값이 없을 때 실제 예치금에서 ₩133,000을
+ *   조용히 차감하던 코드였다. 금액을 모르면 결제를 진행하지 않는 것이 맞다.
+ */
+const secondPaymentAmountKrw = computed(() => {
+  const v = Number(selectedSecondPaymentItem.value?.secondPayment?.totalSecondPaymentKrw);
+  return Number.isFinite(v) && v > 0 ? v : null;
+});
+
+/** 결제 가능 여부 — 금액이 확정돼 있을 때만 true */
+const hasSecondPaymentAmount = computed(() => secondPaymentAmountKrw.value !== null);
 const uploadedBarcodeFile = ref(null);
 const isProcessingPayment = ref(false);
 const barcodeFileInputRef = ref(null);
@@ -2120,8 +2139,18 @@ async function handleConfirmSecondPayment() {
 
   const item = selectedSecondPaymentItem.value;
 
-  // 결제 금액 동적 계산 (secondPayment 데이터 우선, 없으면 133,000 기본값)
-  const paymentAmount = item.secondPayment?.totalSecondPaymentKrw || 133000;
+  // 결제 금액 — 주문에 저장된 값만 사용. 없으면 결제를 진행하지 않는다.
+  // (과거 `|| 133000` 폴백은 금액 미상일 때 실제 예치금에서 ₩133,000을 조용히 차감했음)
+  const paymentAmount = secondPaymentAmountKrw.value;
+  if (paymentAmount === null) {
+    console.error('[WarehouseView] 2차 결제 금액(totalSecondPaymentKrw)이 주문에 없습니다 — 결제 중단.', {
+      orderId: item.id || item.order?.id,
+      orderNo: item.orderNo || item.order?.orderNumber,
+      secondPayment: item.secondPayment,
+    });
+    showToast('결제 금액이 확정되지 않았습니다. 관리자 확인이 필요하니 고객센터로 문의해 주세요.', 'error', 6000);
+    return;
+  }
 
   // 사전 잔액 부족 검사
   if (isBalanceInsufficient(paymentAmount)) {

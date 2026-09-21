@@ -180,9 +180,9 @@ export function calcOrderCost(order, settings = {}) {
       exchangeRate: Number(settings.exchange_rate) || 200.0,
       itemTotalCny: 0, itemTotalKrw: 0,
       chinaFreightRmb: 0, chinaFreightKrw: 0,
-      agencyFeeKrw: 0,
-      cbm: 0, shippingFeeKrw: 0, shippingConfirmed: false,
-      chargeableKrw: 0,
+      agencyFeeKrw: 0, agencyFeeCny: 0,
+      cbm: 0, shippingFeeKrw: 0, shippingFeeCny: 0, shippingConfirmed: false,
+      chargeableKrw: 0, chargeableCny: 0,
       avgPriceCny: 0, totalQty: 0,
       tariffKrw: 0, vatKrw: 0, totalDdpKrw: 0, unitDdpKrw: 0,
     };
@@ -275,6 +275,17 @@ export function calcOrderCost(order, settings = {}) {
   // 6. 실제 청구액
   const chargeableKrw = itemTotalKrw + chinaFreightKrw + agencyFeeKrw + shippingFeeKrw;
 
+  // 6-1. CNY 병기용 구성항목 — 화면에서 따로 더하거나 나누지 말고 여기 값을 쓸 것.
+  //   수수료/해운비는 원화로 산출되는 항목이라 환율로 역산한다.
+  //   총액 ¥ = 상품값 ¥ + 택배비 ¥ + 수수료 ¥ (+ 해운비 ¥)
+  //   ※ itemTotalKrw는 품목별 반올림 합이므로 chargeableKrw와 chargeableCny×환율은
+  //     반올림 오차(원 단위) 범위에서 다를 수 있다. 표시 전용 값이다.
+  const agencyFeeCny = exchangeRate > 0 ? Number((agencyFeeKrw / exchangeRate).toFixed(2)) : 0;
+  const shippingFeeCny = exchangeRate > 0 ? Number((shippingFeeKrw / exchangeRate).toFixed(2)) : 0;
+  const chargeableCny = Number(
+    (itemTotalCny + Number(chinaFreightRmb) + agencyFeeCny + shippingFeeCny).toFixed(2)
+  );
+
   // 7. 참고용 DDP
   const dutiableValueKrw = itemTotalKrw + shippingFeeKrw;
   const tariffKrw = Math.round(dutiableValueKrw * 0.08);
@@ -290,10 +301,13 @@ export function calcOrderCost(order, settings = {}) {
     chinaFreightKrw,
     chinaFreightOrigin,  // 'custom' | '1688_seller' | '1688_exact' | 'estimated'
     agencyFeeKrw,
+    agencyFeeCny,
     cbm,
     shippingFeeKrw,
+    shippingFeeCny,
     shippingConfirmed,
     chargeableKrw,
+    chargeableCny,
     avgPriceCny: Number(avgPriceCny.toFixed(2)),
     totalQty,
     tariffKrw,

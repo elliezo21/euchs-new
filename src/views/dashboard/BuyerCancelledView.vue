@@ -272,11 +272,16 @@ function getOrderAmount(order) {
     })
     return cost.chargeableKrw || cost.itemTotalKrw || 0
   } catch (e) {
+    console.error('[BuyerCancelledView] getOrderAmount 계산 실패:', e)
     return 0
   }
 }
 
-/** 취소 주문 CNY 합계 표시용 — calcOrderCost 재사용, 계산 로직 미변경 */
+/**
+ * 취소 주문 금액의 CNY 병기 — 옆의 ₩ 금액(getOrderAmount = 총 청구액)과 같은 기준인
+ * chargeableCny를 쓴다. 기존 itemTotalCny는 상품값만이라 총액 옆에 붙으면
+ * 택배비·수수료가 빠진 값이 총액인 것처럼 보였다.
+ */
 function getOrderAmountCny(order) {
   if (!order) return '0.00'
   try {
@@ -285,8 +290,10 @@ function getOrderAmountCny(order) {
       agency_fee_rate: currentSettings.value?.agency_fee_rate,
       sea_cbm_rate: currentSettings.value?.sea_cbm_rate,
     })
-    return (cost.itemTotalCny || 0).toFixed(2)
+    return (cost.chargeableCny || 0).toFixed(2)
   } catch (e) {
+    // 조용히 삼키지 않는다 — 계산 실패 원인을 남기고 표시만 '-'로 둔다
+    console.error('[BuyerCancelledView] getOrderAmountCny 계산 실패:', e)
     return '0.00'
   }
 }

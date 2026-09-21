@@ -85,9 +85,13 @@
                     <div v-if="item.sku || item.optionName" class="text-gray-400 text-[11px] mt-0.5">{{ item.sku || item.optionName }}</div>
                   </td>
                   <td class="px-3 py-2.5 text-center font-mono text-gray-700">{{ item.quantity }}</td>
-                  <td class="px-3 py-2.5 text-right font-mono text-gray-700">¥{{ Number(item.priceCny || item.price || 0).toFixed(2) }}</td>
+                  <td class="px-3 py-2.5 text-right font-mono text-gray-700">
+                    <span v-if="hasValidPrice(item)">¥{{ Number(item.priceCny ?? item.price).toFixed(2) }}</span>
+                    <span v-else class="font-bold text-red-600">가격 확인 필요</span>
+                  </td>
                   <td class="px-3 py-2.5 text-right font-mono font-bold text-gray-900">
-                    ₩{{ formatNumber(getItemSubtotalKrw(item)) }}
+                    <span v-if="hasValidPrice(item)">₩{{ formatNumber(getItemSubtotalKrw(item)) }}</span>
+                    <span v-else class="text-red-600">—</span>
                   </td>
                 </tr>
               </tbody>
@@ -357,7 +361,7 @@
             <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
               <div class="text-[10px] text-gray-500 font-medium mb-1">구매대행 수수료</div>
               <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.agencyFeeKrw) }}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ (estimatedCost.agencyFeeKrw / estimatedCost.exchangeRate).toFixed(2) }} (상품대금×8%)</div>
+              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.agencyFeeCny?.toFixed(2) }} (상품대금×8%)</div>
             </div>
             <div class="bg-amber-100 border border-amber-300 rounded-xl p-3 text-center">
               <div class="text-[10px] text-amber-800 font-bold mb-1">예상 총액</div>
@@ -565,6 +569,7 @@ import ProductDetailModal from '@/components/ProductDetailModal.vue';
 
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import { krwFromCny, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
+import { buildCargoParamList } from '@/utils/priceTier';
 
 const props = defineProps({
   isOpen: {
@@ -584,6 +589,13 @@ const props = defineProps({
   sellerFreightRmb: {
     type: Number,
     default: null
+  },
+  // CartView가 그룹별로 계산해 둔 운임 맵 { groupKey: freightRmb }.
+  // 주문에 판매자별 배송비를 영속시켜 관리자 주문 상세모달에서 판매자별 합계를 표시하기 위함.
+  // (기존에는 합계 sellerFreightRmb만 저장돼 판매자별 분해가 불가능했음)
+  sellerFreightMap: {
+    type: Object,
+    default: () => ({})
   }
 });
 
@@ -684,8 +696,24 @@ watch(
 
 // 계산 헬퍼
 // 반올림 정책: CNY 합계를 먼저 구한 뒤 krwFromCny로 1번만 환산
+/** 이 품목이 금액 계산 가능한 단가를 갖고 있는지 */
+function hasValidPrice(item) {
+  const p = Number(item?.priceCny ?? item?.price);
+  return Number.isFinite(p) && p > 0;
+}
+
+/**
+ * 품목 단가(CNY). 저장된 값만 읽는다.
+ * ★ 과거 `|| 15` 폴백 제거 — 단가 미상을 ¥15로 조용히 채워 잘못된 견적이
+ *   그대로 접수되는 원인이었다. 이제 0을 반환하고 handleSubmit이 발주를 차단한다.
+ */
 function getItemUnitPriceCny(item) {
-  return Number(item.priceCny || item.price || 15);
+  if (hasValidPrice(item)) return Number(item.priceCny ?? item.price);
+  console.error('[OrderConfigModal] 품목에 유효한 단가가 없습니다 — 발주를 차단합니다.', {
+    itemId: item?.itemId, num_iid: item?.num_iid, option: item?.sku || item?.optionName,
+    priceCny: item?.priceCny, price: item?.price,
+  });
+  return 0;
 }
 
 function getItemSubtotalCny(item) {
@@ -776,6 +804,17 @@ const handleSubmit = async () => {
     return;
   }
 
+  // ── 단가 미확인 품목 차단 (CartView 가드의 2차 방어선) ──
+  //   보관함(DashboardView) 등 CartView를 거치지 않는 경로도 이 모달을 통과하므로
+  //   여기서도 막는다. 금액 계산 불가 품목이 섞이면 견적이 싸게 잡힌다.
+  const priceMissing = targetItems.filter(it => !hasValidPrice(it));
+  if (priceMissing.length > 0) {
+    const names = [...new Set(priceMissing.map(it => it.titleKo || it.productName || '1688 상품'))];
+    console.error('[OrderConfigModal] 단가 미확인 품목으로 발주 차단:', priceMissing);
+    alert(`단가를 확인할 수 없는 상품이 있어 발주할 수 없습니다.\n\n${names.join('\n')}\n\n장바구니에서 '옵션 변경/추가'로 옵션을 다시 선택해 주세요.`);
+    return;
+  }
+
   isSubmitting.value = true;
 
   try {
@@ -853,19 +892,30 @@ const handleSubmit = async () => {
       // CartView에서 이미 계산됨 → 재호출 없이 그대로 사용
       sellerFreightRmb = Number(props.sellerFreightRmb);
       console.log('[OrderConfigModal] sellerFreightRmb prop 재사용 (API 호출 0회):', sellerFreightRmb, '¥');
+      // ── 판매자별 운임을 그룹에 기록 (주문에 영속) ──
+      //   그룹 키 형식은 utils/sellerGrouping.getSellerGroupKey와 동일하므로 그대로 조회된다.
+      //   관리자 주문 상세모달의 "판매자별 합계"가 이 값을 읽는다.
+      for (const g of groups) {
+        const f = g.groupKey ? props.sellerFreightMap?.[g.groupKey] : undefined;
+        if (f !== undefined && f !== null && Number.isFinite(Number(f))) {
+          g.freightRmb = Number(f);
+        }
+      }
     } else {
       // 보관함 경로 또는 "배송비 계산" 미실행 시 → 자체 배치 호출 폴백
       console.log('[OrderConfigModal] sellerFreightRmb prop 없음 → 자체 배치 호출');
       const groupFreightResults = await Promise.all(
         groups.map(async (g) => {
-          const cargoList = g.items
-            .map((it) => ({
-              offerId: String(it.num_iid || it.itemId || ''),
-              specId: String(it.specId || ''),
-              quantity: resolveItemQty(it),
-            }))
-            .filter((c) => c.offerId && c.specId)
-          if (cargoList.length === 0) return null
+          // 같은 offerId+specId는 수량 합산 (CartView.calcSellerBatchFreight와 동일 기준).
+          // 중복 specId를 보내면 createOrder.preview가 빈 결과를 반환한다.
+          const { cargoList, mergedCount } = buildCargoParamList(g.items, resolveItemQty)
+          if (mergedCount > 0) {
+            console.warn(`[OrderConfigModal] ${g.groupKey}: 같은 SKU ${mergedCount}건 중복 → 수량 합산 후 조회`)
+          }
+          if (cargoList.length === 0) {
+            console.error(`[OrderConfigModal] ${g.groupKey}: 유효한 specId 없음 → 운임 조회 불가`)
+            return null
+          }
           const freight = await fetch1688FreightEstimateBatch(cargoList)
           if (freight !== null && freight !== undefined) {
             g.freightRmb = Number(freight) // 그룹별 운임 (추적용)

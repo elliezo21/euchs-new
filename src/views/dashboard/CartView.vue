@@ -110,7 +110,7 @@
             <span class="text-gray-400">+</span>
             <span>수수료</span>
             <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.agencyFeeKrw) }}</b>
-            <span class="text-gray-400 text-[12px]">(¥{{ (selectedEstimatedCost.agencyFeeKrw / selectedEstimatedCost.exchangeRate).toFixed(2) }})</span>
+            <span class="text-gray-400 text-[12px]">(¥{{ selectedEstimatedCost.agencyFeeCny?.toFixed(2) }})</span>
           </div>
 
           <!-- 예상 총액 — 제일 크게 강조 -->
@@ -119,6 +119,24 @@
             <div class="text-[16px] font-black text-amber-600 font-mono leading-none">
               ₩{{ formatNumber(selectedEstimatedCost.chargeableKrw) }}
             </div>
+          </div>
+
+          <!-- 추정치 포함 안내 — 실제 운임을 못 받았는데 총액에는 추정치가 들어간 상태 -->
+          <div
+            v-if="isFreightEstimated"
+            class="mt-2 text-[11px] leading-snug text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5"
+          >
+            ⚠️ 1688에서 실제 운임을 받지 못해 위 택배비는 <b>수량 기반 추정치</b>입니다.
+            실제 운임은 관리자 견적 단계에서 확정되며, 최종 견적서 금액은 달라질 수 있습니다.
+          </div>
+
+          <!-- 구간 단가 미확인 안내 -->
+          <div
+            v-if="hasTierUnknownSelected"
+            class="mt-2 text-[11px] leading-snug text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5"
+          >
+            ⚠️ 수량별 구간 단가를 확인할 수 없는 품목이 있습니다.
+            해당 품목의 <b>'옵션 변경/추가'</b>를 한 번 눌러 다시 선택하면 최신 단가로 맞춰집니다.
           </div>
         </div>
 
@@ -297,12 +315,23 @@
                 class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">+</button>
             </div>
             <div class="text-right font-mono w-24 shrink-0">
-              <div class="text-xs font-bold text-gray-900">¥{{ getItemUnitPriceCny(item).toFixed(2) }}</div>
-              <div class="text-[11px] text-gray-400">₩{{ formatNumber(Math.round(getItemUnitPriceCny(item) * exchangeRate)) }}</div>
+              <template v-if="hasValidPrice(item)">
+                <div class="text-xs font-bold text-gray-900">¥{{ getItemUnitPriceCny(item).toFixed(2) }}</div>
+                <div class="text-xs text-gray-400">₩{{ formatNumber(Math.round(getItemUnitPriceCny(item) * exchangeRate)) }}</div>
+                <div
+                  v-if="isTierUnknown(item)"
+                  class="text-xs font-bold text-amber-600 whitespace-nowrap mt-0.5"
+                  title="수량별 구간 단가 정보가 없어 담을 당시 단가를 그대로 쓰고 있습니다. '옵션 변경/추가'를 눌러 다시 선택하면 1688에서 최신 구간을 받아옵니다."
+                >단가 확인 필요</div>
+              </template>
+              <div v-else class="text-xs font-bold text-red-600 whitespace-nowrap">가격 확인 필요</div>
             </div>
             <div class="text-right font-mono w-24 shrink-0">
-              <div class="text-sm font-bold text-amber-600">₩{{ formatNumber(getItemSubtotalKrw(item)) }}</div>
-              <div class="text-[11px] text-gray-400">¥{{ getItemSubtotalCny(item).toFixed(2) }}</div>
+              <template v-if="hasValidPrice(item)">
+                <div class="text-sm font-bold text-amber-600">₩{{ formatNumber(getItemSubtotalKrw(item)) }}</div>
+                <div class="text-xs text-gray-400">¥{{ getItemSubtotalCny(item).toFixed(2) }}</div>
+              </template>
+              <div v-else class="text-xs font-bold text-red-600">—</div>
             </div>
             <button
               type="button"
@@ -314,22 +343,14 @@
         </div>
       </div>
 
-      <!-- ── 카드 푸터 ── -->
-      <div class="mt-4 pt-3 border-t border-slate-100 flex items-center justify-end gap-4 text-xs font-mono flex-wrap">
-        <span class="text-gray-500">상품소계 <b class="text-gray-800">₩{{ formatNumber(getGroupSubtotalKrw(group)) }}</b></span>
-        <span class="text-gray-400">+</span>
-        <span class="text-gray-500">
-          판매자 배송비
-          <template v-if="sellerFreightMap[group.groupKey] !== undefined">
-            <b class="text-blue-700 ml-1">¥{{ Number(sellerFreightMap[group.groupKey]).toFixed(2) }}</b>
-            <span class="text-gray-400 ml-1">(₩{{ formatNumber(Math.round(sellerFreightMap[group.groupKey] * exchangeRate)) }})</span>
-          </template>
-          <span v-else-if="freightCalcState === 'loading'" class="text-sky-500 font-bold ml-1">계산중…</span>
-          <span v-else class="text-gray-400 ml-1">—</span>
-        </span>
-        <span class="text-gray-400">=</span>
-        <span class="font-black text-slate-800">합계 ₩{{ formatNumber(getGroupTotalKrw(group)) }}</span>
-      </div>
+      <!-- ── 카드 푸터 (관리자 주문 상세모달과 공용 컴포넌트) ── -->
+      <SellerGroupTotalRow
+        :subtotal-krw="getGroupSubtotalKrw(group)"
+        :freight-rmb="sellerFreightMap[group.groupKey] ?? null"
+        :exchange-rate="exchangeRate"
+        :state="freightCalcState"
+        unavailable-reason="1688에서 이 판매자의 실제 운임을 받지 못했습니다. 하단 예상 총액에는 수량 기반 추정치가 들어갑니다 — 실제 운임은 관리자 견적 단계에서 확정됩니다."
+      />
     </div>
 
 
@@ -520,6 +541,7 @@
       :items="selectedItems"
       :exchangeRate="exchangeRate"
       :sellerFreightRmb="sellerFreightRmb"
+      :sellerFreightMap="sellerFreightMap"
       @close="isOrderConfigModalOpen = false"
       @submitted="handleOrderSubmitted"
     />
@@ -682,9 +704,11 @@ import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import ProductDetailModal from '@/components/ProductDetailModal.vue';
+import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue';
 import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
 import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
 import { sumQty, resolveMoq, offerGroupKey } from '@/utils/moq';
+import { resolveTierUnitPrice, resolveGroupPricing, isSkuPricedSkus, buildCargoParamList } from '@/utils/priceTier';
 
 const router = useRouter();
 const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
@@ -739,6 +763,10 @@ function openProductDetail(item) {
 // freightCalcState: 'idle' | 'loading' | 'done' | 'error'
 const sellerFreightRmb = ref(null);
 const sellerFreightMap = ref({});
+// 옵션 변경 팝업이 방금 받은 1688 응답의 가격 출처 판정 (SKU별 가격 상품 여부)
+const optionModalIsSkuPriced = ref(false);
+// 옵션 변경 팝업이 방금 받은 1688 응답의 수량 구간 테이블
+const optionModalPriceTiers = ref([]);
 const freightCalcState = ref('idle'); // 'idle' | 'loading' | 'done' | 'error'
 
 /**
@@ -786,18 +814,8 @@ function getGroupSubtotalKrw(group) {
   return group.items.reduce((acc, it) => acc + getItemSubtotalKrw(it), 0);
 }
 
-/**
- * 그룹 합계(KRW) = 상품소계 + 판매자 배송비(sellerFreightMap에 있으면 포함).
- * sellerFreightMap에 없으면 상품소계만 반환.
- */
-function getGroupTotalKrw(group) {
-  const subtotal = getGroupSubtotalKrw(group);
-  const freightRmb = sellerFreightMap.value[group.groupKey];
-  if (freightRmb !== undefined) {
-    return subtotal + Math.round(freightRmb * exchangeRate.value);
-  }
-  return subtotal;
-}
+// ※ 그룹 합계(상품소계 + 판매자 배송비)는 SellerGroupTotalRow 공용 컴포넌트가 계산·표시한다.
+//   (관리자 주문 상세모달과 같은 반올림을 쓰기 위해 한 곳으로 모음)
 
 
 
@@ -833,15 +851,27 @@ async function calcSellerBatchFreight() {
     // ── 그룹별 배치 호출 ──
     const results = await Promise.all(
       groups.map(async (g) => {
-        const cargoList = g.items
-          .map(it => ({
-            offerId: String(it.num_iid || it.itemId || ''),
-            specId:  String(it.specId || ''),
-            quantity: resolveItemQty(it),
-          }))
-          .filter(c => c.offerId && c.specId);
+        // ★ 같은 offerId+specId는 수량을 합쳐 1건으로 보낸다.
+        //   장바구니 행 병합 키가 번역된 표시 문자열(color/size)이라 같은 SKU가
+        //   번역 차이로 별도 행이 되는 경우가 있다("M[5~8근 권장]" vs "M[建议5-8斤]").
+        //   중복 specId를 그대로 보내면 createOrder.preview가 빈 결과를 반환한다.
+        const { cargoList, mergedCount } = buildCargoParamList(g.items, resolveItemQty);
+        if (mergedCount > 0) {
+          console.warn(
+            `  ↳ ${g.groupKey}: 같은 SKU가 ${mergedCount}건 중복 저장돼 있어 수량을 합쳐 조회합니다 ` +
+            `(장바구니 행 병합 키가 번역 문자열이라 생기는 현상)`, g.items.map(i => ({ specId: i.specId, opt: i.optionName }))
+          );
+        }
+        // specId 없는 행 — 발주 시 400이 나는 행이므로 원인을 남긴다
+        const noSpec = g.items.filter(it => !String(it.specId || '').trim());
+        if (noSpec.length > 0) {
+          console.error(
+            `  ↳ ${g.groupKey}: specId 없는 행 ${noSpec.length}건 — 운임 조회에서 제외됩니다.`,
+            noSpec.map(i => ({ id: i.id, num_iid: i.num_iid, opt: i.optionName }))
+          );
+        }
         if (cargoList.length === 0) {
-          console.log(`  ↳ ${g.groupKey}: specId 없음 → null`);
+          console.error(`  ↳ ${g.groupKey}: 유효한 specId가 하나도 없어 운임 조회 불가 → null`);
           return { groupKey: g.groupKey, freight: null };
         }
         const freight = await fetch1688FreightEstimateBatch(cargoList);
@@ -937,7 +967,14 @@ const loadCartItems = () => {
             titleKo: it.titleKo || it.productName || it.titleZh || '1688 소싱 품목',
             titleZh: it.titleZh || '',
             imageUrl: it.imageUrl || it.thumbnail,
-            priceCny: Number(it.priceCny || it.price || 15),
+            // ── 단가: 저장값만 읽는다. 없으면 null (임의 숫자로 채우지 않음) ──
+            //    기존 `|| 15` 폴백은 단가 0/누락을 ¥15로 조용히 바꿔 잘못된 금액을
+            //    정상처럼 보이게 만들었다. null이면 아래 hasValidPrice가 false가 되어
+            //    화면에 '가격 확인 필요'로 표시되고 견적신청이 차단된다.
+            priceCny: parseUnitPriceCny(it.priceCny ?? it.price, it),
+            // ── 가격 출처 스냅샷 (담을 때 기록) — 수량 변경 시 구간 단가 재계산용 ──
+            isSkuPriced: it.isSkuPriced === true,
+            priceTiers: Array.isArray(it.priceTiers) ? it.priceTiers : [],
             // ── 수량: 저장된 quantity만 정확히 읽기 (minOrder 폴백 절대 금지 — 뻥튀기 방지) ──
             quantity: Math.max(1, parseInt(it.quantity, 10) || 1),
             // ── 옵션 독립 필드 (SKU별 1:1 바인딩, 절대 덮어씌우지 않음) ──
@@ -965,6 +1002,10 @@ const loadCartItems = () => {
         if (selectedItemIds.value.length === 0) {
           selectedItemIds.value = cartItems.value.map(it => it.id);
         }
+        // 구 장바구니 행(priceTiers 없음)에 가격 출처 정보를 채운다.
+        // 비동기 — 화면은 먼저 뜨고, 채워지면 재계산·저장까지 이어진다.
+        // 이미 조회한 상품은 내부에서 건너뛰므로 storage 이벤트로 반복 호출돼도 안전하다.
+        backfillMissingPriceTiers();
         // ※ sellerFreightRmb/freightCalcState는 여기서 리셋하지 않음.
         // watch(selectedItems)가 품목/수량 실제 변경을 감지해서 재계산하며,
         // loadCartItems가 호출될 때마다 리셋하면 storage 이벤트 루프로
@@ -983,6 +1024,10 @@ const loadCartItems = () => {
 };
 
 const saveCartToStorage = () => {
+  // ── 저장 직전 수량 구간 단가 동기화 ──
+  //   수량 증감·행 삭제·옵션 변경 등 장바구니를 바꾸는 모든 경로가 이 함수를 거치므로
+  //   여기 한 곳에서만 재계산하면 경로별 누락이 생기지 않는다.
+  syncTierPrices();
   // ── 사용자 격리 키 (euchs_cart_{userId}) 로만 저장 ──
   const cartKey = getCartStorageKey();
   localStorage.setItem(cartKey, JSON.stringify(cartItems.value));
@@ -998,8 +1043,33 @@ const saveCartToStorage = () => {
 // 단가 및 합계 계산 헬퍼
 // 반올림 정책: CNY 합계 → krwFromCny 1번. 품목별 소계는 표시 전용.
 // ---------------------------------------------------------
+/**
+ * 저장된 단가를 숫자로 파싱. 유효하지 않으면 null + 원인 로그.
+ * ★ 임의 기본값(과거 ¥15)으로 채우지 않는다 — 잘못된 금액이 정상처럼 보이게 만들기 때문.
+ */
+function parseUnitPriceCny(raw, item) {
+  const p = Number(raw);
+  if (Number.isFinite(p) && p > 0) return p;
+  console.error(
+    '[CartView] 장바구니 행에 유효한 단가(priceCny)가 없습니다 — 가격 확인 필요로 표시하고 발주를 차단합니다.',
+    { itemId: item?.itemId, num_iid: item?.num_iid, option: item?.optionName || item?.sku, raw }
+  );
+  return null;
+}
+
+/** 이 행이 금액 계산 가능한 단가를 갖고 있는지 */
+function hasValidPrice(item) {
+  const p = Number(item?.priceCny);
+  return Number.isFinite(p) && p > 0;
+}
+
+/** 단가 미확인 행이 선택돼 있는지 — 견적신청 차단 판정용 */
+const hasPriceMissingSelected = computed(() =>
+  selectedItems.value.some(it => !hasValidPrice(it))
+);
+
 function getItemUnitPriceCny(item) {
-  return Number(item.priceCny || item.price || 15);
+  return hasValidPrice(item) ? Number(item.priceCny) : 0;
 }
 
 function getItemSubtotalCny(item) {
@@ -1017,6 +1087,206 @@ function formatNumber(num) {
 
 function handleImgError(e) {
   e.target.src = 'https://images.unsplash.com/photo-1523275335684-37898b6baf30?w=120&auto=format&fit=crop&q=60';
+}
+
+/**
+ * 수량 구간 단가 재계산 — 같은 1688 상품(num_iid)의 옵션 합계 수량 기준.
+ *
+ * · 판정 기준은 MOQ와 동일(offerGroupKey + sumQty). 1688의 수량 구간도 MOQ와 마찬가지로
+ *   offer 단위(混批 포함)이므로 옵션별이 아니라 합계로 판정해야 한다.
+ * · SKU별 가격 상품(isSkuPriced=true)은 재계산하지 않고 각 줄의 SKU 가격을 유지한다.
+ * · priceTiers가 저장되지 않은 구 장바구니 행은 재계산 대상이 아니다(담을 때 기록되기 시작함).
+ *   1688 원본을 다시 부르지 않는다 — 일 500회 호출 제한 때문.
+ */
+/** 장바구니 행을 같은 1688 상품(num_iid)끼리 묶는다 — MOQ 판정과 같은 기준 */
+function groupRowsByOffer(rows) {
+  const groups = new Map();
+  for (const r of rows) {
+    const key = offerGroupKey(r);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(r);
+  }
+  return groups;
+}
+
+/**
+ * 그룹별 가격 출처 판정 결과 — 화면 표시(단가 확인 필요)와 재계산이 같은 값을 본다.
+ * { [offerGroupKey]: { skuPriced, tiers } }
+ */
+const offerPricingMap = computed(() => {
+  const out = {};
+  for (const [key, rows] of groupRowsByOffer(cartItems.value)) {
+    out[key] = resolveGroupPricing(rows);
+  }
+  return out;
+});
+
+// ── 구 장바구니 행 가격정보 백필 상태 ──────────────────────────────────────
+// num_iid → 'loading' | 'done' | 'failed'
+// 이번 수정 이전에 담긴 행은 priceTiers/isSkuPriced가 없다. 경고부터 띄우면
+// 기존 고객 장바구니 전체에 경고가 뜨므로, 먼저 상품 상세를 조회해 채운다.
+const tierBackfillState = ref({});
+
+/**
+ * 이 행의 구간 단가를 신뢰할 수 없는 상태인지.
+ * ★ 백필을 "시도해서 실패했을 때"만 true. 아직 조회 전/조회 중이면 경고하지 않는다.
+ */
+function isTierUnknown(item) {
+  const p = offerPricingMap.value[offerGroupKey(item)];
+  if (!p) return false;
+  if (p.skuPriced || p.tiers !== null) return false;
+  const numIid = String(item?.num_iid || item?.itemId || '').trim();
+  return tierBackfillState.value[numIid] === 'failed';
+}
+
+/**
+ * priceTiers/isSkuPriced가 없는 구 장바구니 행에 가격 출처 정보를 채운다.
+ *
+ * · 상품(num_iid) 단위로 1회만 조회한다 — 같은 상품이 여러 줄이어도 호출 1회.
+ * · fetch1688ProductById는 메모리 + sessionStorage 2계층 캐시(TTL 30분)를 이미 쓰므로
+ *   상세모달/옵션팝업에서 최근 본 상품은 API 호출이 0회다.
+ * · 판정 분기는 ProductDetailModal.displayedPriceTiers와 동일하게 맞춘다.
+ * · 실패한 상품만 'failed'로 표시해 화면에 '단가 확인 필요'가 뜬다.
+ */
+async function backfillMissingPriceTiers() {
+  // 정보가 없는 그룹만 수집 (상품 단위 중복 제거)
+  const targets = new Map();
+  for (const [key, rows] of groupRowsByOffer(cartItems.value)) {
+    const { skuPriced, tiers } = resolveGroupPricing(rows);
+    if (skuPriced || tiers !== null) continue;
+    const numIid = String(rows[0]?.num_iid || rows[0]?.itemId || '').trim();
+    if (!numIid) continue;
+    // 이미 조회했거나 진행 중이면 재시도하지 않는다 (storage 이벤트로 반복 호출되므로)
+    if (tierBackfillState.value[numIid]) continue;
+    targets.set(numIid, rows);
+  }
+  if (targets.size === 0) return;
+
+  console.log(`[CartView] 구 장바구니 행 가격정보 백필 시작 — 상품 ${targets.size}종 (캐시 우선, 같은 상품은 1회만 조회)`);
+  targets.forEach((_, numIid) => { tierBackfillState.value[numIid] = 'loading'; });
+
+  await Promise.all([...targets].map(async ([numIid, rows]) => {
+    try {
+      const full = await fetch1688ProductById(numIid);
+      if (!full) {
+        tierBackfillState.value[numIid] = 'failed';
+        console.error(`[CartView] 백필 실패 — 상품 상세를 불러오지 못했습니다: ${numIid}`);
+        return;
+      }
+
+      // 1) SKU별 가격 상품 → 구간을 쓰지 않는다
+      if (isSkuPricedSkus(full.skus)) {
+        rows.forEach(r => { r.isSkuPriced = true; r.priceTiers = []; });
+        tierBackfillState.value[numIid] = 'done';
+        console.log(`[CartView] 백필: ${numIid} → SKU별 가격 상품 (구간 재계산 대상 아님)`);
+        return;
+      }
+
+      // 2) 1688 수량 구간 테이블
+      const tiers = (Array.isArray(full.priceTiers) ? full.priceTiers : [])
+        .map(t => ({ minQuantity: Number(t.minQty ?? t.minQuantity ?? 1) || 1, price: Number(t.price) || 0 }))
+        .filter(t => t.price > 0);
+
+      if (tiers.length > 0) {
+        rows.forEach(r => { r.isSkuPriced = false; r.priceTiers = tiers; });
+        tierBackfillState.value[numIid] = 'done';
+        console.log(`[CartView] 백필: ${numIid} → 수량 구간 ${tiers.length}개${tiers.length === 1 ? ' (고정가 — 경고 없음)' : ''}`);
+        return;
+      }
+
+      // 3) 구간 정보가 없는 단일가 상품 → 대표가 1구간으로 확정
+      //    (ProductDetailModal.displayedPriceTiers의 마지막 분기와 동일)
+      const basePrice = Number(full.price);
+      if (Number.isFinite(basePrice) && basePrice > 0) {
+        const single = [{ minQuantity: resolveMoq(full.minOrder), price: basePrice }];
+        rows.forEach(r => { r.isSkuPriced = false; r.priceTiers = single; });
+        tierBackfillState.value[numIid] = 'done';
+        console.log(`[CartView] 백필: ${numIid} → 구간 없는 단일가 ¥${basePrice} (경고 없음)`);
+        return;
+      }
+
+      tierBackfillState.value[numIid] = 'failed';
+      console.error(`[CartView] 백필 실패 — 구간·대표가 모두 없음: ${numIid}`, full);
+    } catch (err) {
+      tierBackfillState.value[numIid] = 'failed';
+      console.error(`[CartView] 백필 실패 — 조회 오류: ${numIid}`, err);
+    }
+  }));
+
+  const done = Object.values(tierBackfillState.value).filter(v => v === 'done').length;
+  const failed = Object.values(tierBackfillState.value).filter(v => v === 'failed').length;
+  console.log(`[CartView] 백필 완료 — 성공 ${done}종 / 실패 ${failed}종 → 구간 단가 재계산 및 저장`);
+
+  // 채워진 정보로 즉시 재계산 후 저장 (saveCartToStorage가 syncTierPrices를 호출)
+  saveCartToStorage();
+}
+
+/** 구간 단가 미확인 행이 선택돼 있는지 — 안내 배너용 */
+const hasTierUnknownSelected = computed(() =>
+  selectedItems.value.some(it => isTierUnknown(it))
+);
+
+/**
+ * 하단 예상 총액의 택배비가 실측이 아닌 추정치인지 — 안내 배너용.
+ * calcOrderCost의 chinaFreightOrigin이 유일한 판정 출처다(화면에서 따로 계산하지 않음).
+ */
+const isFreightEstimated = computed(() =>
+  selectedItems.value.length > 0 &&
+  selectedEstimatedCost.value?.chinaFreightOrigin === 'estimated'
+);
+
+/**
+ * 수량 구간 단가 재계산 — 같은 1688 상품(num_iid)의 옵션 합계 수량 기준.
+ *
+ * ★ 그룹 단위로 계산한다. 행 단위로 하면 같은 상품인데도 담긴 시점에 따라
+ *   priceTiers를 가진 행만 갱신되어 줄마다 단가가 달라진다(2026-09-21 실측 버그).
+ *   구간 테이블은 offer 단위 값이므로 그룹 대표 테이블을 모든 행에 적용하고,
+ *   테이블이 없던 행에는 전파 저장해 다음 계산부터 안정적으로 동작하게 한다.
+ *
+ * · 판정 기준은 MOQ와 동일(offerGroupKey + sumQty). 1688의 수량 구간도 MOQ와 마찬가지로
+ *   offer 단위(混批 포함)이므로 옵션별이 아니라 합계로 판정해야 한다.
+ * · SKU별 가격 상품은 재계산하지 않고 각 줄의 SKU 가격을 유지한다.
+ * · 그룹 전체가 구간 정보를 모르면 조용히 넘어가지 않고 console.error로 남긴다
+ *   (화면에는 isTierUnknown이 '단가 확인 필요'로 표시).
+ */
+function syncTierPrices() {
+  for (const [key, rows] of groupRowsByOffer(cartItems.value)) {
+    const { skuPriced, tiers } = resolveGroupPricing(rows);
+
+    // SKU별 가격 상품 → 각 줄이 자기 SKU 가격 유지 (재계산 금지)
+    if (skuPriced) continue;
+
+    if (tiers === null) {
+      console.error(
+        `[CartView] 수량 구간 정보를 알 수 없어 단가를 재계산하지 못했습니다 — '단가 확인 필요'로 표시합니다. ` +
+        `(${key}, ${rows.length}줄) 해당 상품의 '옵션 변경/추가'를 한 번 거치면 1688에서 구간을 다시 받아 채웁니다.`,
+        rows.map(r => ({ id: r.id, option: r.optionName, priceCny: r.priceCny }))
+      );
+      continue;
+    }
+
+    // 구간이 1개뿐이면 수량에 따라 바뀌지 않는다 → 기존 단가 유지
+    if (tiers.length <= 1) continue;
+
+    const offerQty = sumQty(rows);
+    const next = resolveTierUnitPrice(tiers, offerQty);
+    if (next === null) continue;
+
+    for (const r of rows) {
+      // 구간 테이블 전파 — 담을 당시 저장되지 않았던 행도 다음부터는 스스로 판정 가능
+      if (!Array.isArray(r.priceTiers) || r.priceTiers.length < tiers.length) {
+        r.priceTiers = tiers.map(t => ({ minQuantity: t.minQuantity, price: t.price }));
+      }
+      if (Math.abs(next - Number(r.priceCny)) > 0.001) {
+        console.log(
+          `[CartView] 수량 구간 단가 재계산: ${r.titleKo || r.num_iid} [${r.optionName || ''}] ` +
+          `합계 ${offerQty}개 → ¥${Number(r.priceCny).toFixed(2)} → ¥${next.toFixed(2)}`
+        );
+        r.priceCny = next;
+        r.price = next;
+      }
+    }
+  }
 }
 
 // 수량 변경 시 item.skus[0].quantity도 동기화하는 헬퍼
@@ -1173,7 +1443,26 @@ async function openOptionModal(item) {
     }
 
     const skus = Array.isArray(full.skus) && full.skus.length > 0 ? full.skus : [];
-    const basePrice = Number(full.price || item.priceCny || 15);
+    // 방금 받은 1688 응답으로 가격 출처를 판정 — ProductDetailModal과 동일한 공용 기준
+    optionModalIsSkuPriced.value = isSkuPricedSkus(skus);
+    // ★ 구간 테이블도 이 응답에서 가져온다. 기존에는 baseItem(구 장바구니 행)의
+    //   priceTiers를 물려받아, 구 행에서 시작하면 빈 배열이 그대로 복제됐다.
+    //   이 팝업은 어차피 1688을 다시 부르므로 여기가 구간 정보를 채울 수 있는 지점이다.
+    optionModalPriceTiers.value = Array.isArray(full.priceTiers)
+      ? full.priceTiers.map(t => ({ minQuantity: t.minQty ?? t.minQuantity ?? 1, price: Number(t.price) || 0 }))
+          .filter(t => t.price > 0)
+      : [];
+    console.log(`[CartView] 옵션 팝업 가격 출처: SKU별=${optionModalIsSkuPriced.value}, 구간 ${optionModalPriceTiers.value.length}개`);
+    // 1688 상세의 대표가 → 없으면 장바구니에 저장된 단가. 둘 다 없으면 0(가격 확인 필요).
+    // ※ 과거 `|| 15` 폴백 제거 — 단가 미상을 ¥15로 채워 잘못된 금액을 정상처럼 보이게 했음.
+    const basePriceRaw = Number(full.price) > 0 ? Number(full.price) : Number(item.priceCny);
+    const basePrice = Number.isFinite(basePriceRaw) && basePriceRaw > 0 ? basePriceRaw : 0;
+    if (basePrice === 0) {
+      console.error(
+        '[CartView] 옵션 팝업: 1688 상세와 장바구니 양쪽 모두 단가가 없습니다 — 가격 확인 필요로 표시합니다.',
+        { productId, fullPrice: full.price, itemPriceCny: item.priceCny }
+      );
+    }
 
     if (skus.length === 0) {
       // SKU 정보 없는 경우: 단일 행
@@ -1340,6 +1629,13 @@ function applyOptionChanges() {
         sku: optLabel,
         quantity: sku.quantity,
         priceCny: sku.priceCny,
+        price: sku.priceCny,
+        // ── 가격 출처 스냅샷 갱신 ──
+        //   이 팝업은 방금 1688 상세(full.skus)를 받아 각 행에 자기 SKU 가격을 넣었으므로
+        //   그 응답으로 판정을 다시 기록한다. baseItem 스프레드로 물고 온 옛 값을 남기면
+        //   SKU별 가격 상품인데 수량 구간으로 재계산되는(또는 그 반대) 불일치가 생긴다.
+        isSkuPriced: optionModalIsSkuPriced.value,
+        priceTiers: optionModalIsSkuPriced.value ? [] : optionModalPriceTiers.value,
         stock: sku.stock === Infinity ? undefined : sku.stock,
         skus: [{ color: sku.color, size: sku.size, quantity: sku.quantity }],
         createdAt: new Date().toISOString(),
@@ -1574,6 +1870,17 @@ function openOrderModal() {
   if (unspecified.length > 0) {
     const names = [...new Set(unspecified.map(it => it.titleKo || it.titleZh || '1688 상품'))];
     showStockToast(`옵션이 선택되지 않은 상품이 있습니다 — ${names.join(', ')}. 옵션 변경/추가로 옵션을 선택해 주세요`);
+    return;
+  }
+
+  // ── 단가 미확인 품목 차단 ────────────────────────────────────────────────
+  // priceCny가 없거나 0인 행은 견적 금액을 계산할 수 없다. 과거에는 ¥15로 조용히
+  // 채워 잘못된 견적이 그대로 접수됐으므로, 여기서 막고 원인을 로그로 남긴다.
+  const priceMissing = targetItems.filter(it => !hasValidPrice(it));
+  if (priceMissing.length > 0) {
+    const names = [...new Set(priceMissing.map(it => it.titleKo || it.titleZh || '1688 상품'))];
+    console.error('[CartView] 단가 미확인 품목으로 발주 차단:', priceMissing);
+    showStockToast(`단가를 확인할 수 없는 상품이 있습니다 — ${names.join(', ')}. 옵션 변경/추가로 다시 선택해 주세요`);
     return;
   }
 

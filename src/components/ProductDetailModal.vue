@@ -213,7 +213,7 @@
             <div class="bg-rose-50/50 rounded-3xl p-4 sm:p-5 border border-rose-100 space-y-3">
               <div class="flex items-center justify-between text-xs">
                 <span class="font-bold text-rose-900 flex items-center gap-1.5 text-sm">
-                  <i class="fas fa-tags text-rose-600"></i> 수량별 실시간 도매 단가
+                  <i class="fas fa-tags text-rose-600"></i> {{ isSkuPricedProduct ? '옵션별 실시간 도매 단가' : '수량별 실시간 도매 단가' }}
                 </span>
                 <span class="text-xs text-gray-500 font-mono">
                   적용 환율: 1 RMB = {{ effectiveExchangeRate }}원
@@ -239,11 +239,11 @@
                   v-for="(tier, tIdx) in displayedPriceTiers"
                   :key="tIdx"
                   class="bg-white rounded-2xl p-3 text-center border transition shadow-sm"
-                  :class="currentUnitRmb === tier.price ? 'border-rose-500 ring-2 ring-rose-300 bg-rose-50/20' : 'border-rose-100'"
+                  :class="!tier.isSkuRange && currentUnitRmb === tier.price ? 'border-rose-500 ring-2 ring-rose-300 bg-rose-50/20' : 'border-rose-100'"
                 >
                   <div class="text-xs text-gray-500 font-medium">{{ tier.label }}</div>
                   <div class="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">¥ {{ tier.priceFormatted }}</div>
-                  <div class="text-[11px] text-gray-400 font-mono">약 ₩{{ formatKrw(tier.priceKrw) }}</div>
+                  <div class="text-[11px] text-gray-400 font-mono">약 ₩{{ tier.priceKrwFormatted || formatKrw(tier.priceKrw) }}</div>
                 </div>
               </div>
             </div>
@@ -306,7 +306,8 @@
                     {{ firstPropName }}을(를) 먼저 선택하세요
                   </span>
                 </div>
-                <div class="flex flex-wrap gap-2.5">
+                <!-- 보기 전용: 옵션 목록은 그대로 보이되 선택(발주 품목 추가)만 막는다 -->
+                <div class="flex flex-wrap gap-2.5" :class="readonly ? 'pointer-events-none' : ''">
                   <button
                     v-for="(color, cIdx) in colorOptions"
                     :key="color.colorId || cIdx"
@@ -338,7 +339,7 @@
                     {{ secondPropName }}을(를) 누르면 품목에 추가됩니다
                   </span>
                 </div>
-                <div class="flex flex-wrap gap-2.5">
+                <div class="flex flex-wrap gap-2.5" :class="readonly ? 'pointer-events-none' : ''">
                   <button
                     v-for="(size, sIdx) in sizeOptions"
                     :key="sIdx"
@@ -358,8 +359,8 @@
               </div>
             </template>
 
-            <!-- 4. Selected SKUs List & Quantity Adjuster -->
-            <div class="space-y-2.5 pt-2 border-t border-gray-100">
+            <!-- 4. Selected SKUs List & Quantity Adjuster (보기 전용에서는 숨김) -->
+            <div v-if="!readonly" class="space-y-2.5 pt-2 border-t border-gray-100">
               <div class="flex items-center justify-between text-xs font-bold text-gray-800">
                 <span class="flex items-center gap-1.5">
                   <span>선택된 발주 품목</span>
@@ -384,7 +385,7 @@
                       {{ [sku.color, sku.size].filter(p => p && p !== '-' && p !== 'undefined').join(' / ') || '기본 단품' }}
                     </div>
                     <div class="text-xs text-rose-600 font-mono mt-0.5 font-bold">
-                      개당 ¥{{ currentUnitRmb.toFixed(2) }} (약 ₩{{ formatKrw(currentUnitRmb * effectiveExchangeRate) }})
+                      개당 ¥{{ rowUnitPrice(sku).toFixed(2) }} (약 ₩{{ formatKrw(rowUnitPrice(sku) * effectiveExchangeRate) }})
                     </div>
                   </div>
 
@@ -426,8 +427,8 @@
 
             </div>
 
-            <!-- 5. Mini Cost Calculator Summary Card -->
-            <div class="bg-slate-900 text-white rounded-3xl p-5 space-y-3 shadow-xl">
+            <!-- 5. Mini Cost Calculator Summary Card (보기 전용에서는 숨김 — 발주 금액 계산) -->
+            <div v-if="!readonly" class="bg-slate-900 text-white rounded-3xl p-5 space-y-3 shadow-xl">
               <div class="flex items-center justify-between text-xs text-slate-300">
                 <span>총 발주 수량:</span>
                 <span class="font-bold text-white font-mono text-sm">{{ totalQuantity }} 개</span>
@@ -553,7 +554,7 @@
       <!-- ======================================================== -->
       <!-- 4. FIXED BOTTOM ACTIONS BAR (Sticky Bottom) -->
       <!-- ======================================================== -->
-      <div class="sticky bottom-0 z-20 px-5 py-3.5 sm:px-8 sm:py-4 border-t border-gray-200 bg-white/95 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 shadow-lg">
+      <div v-if="!readonly" class="sticky bottom-0 z-20 px-5 py-3.5 sm:px-8 sm:py-4 border-t border-gray-200 bg-white/95 backdrop-blur-md flex flex-col sm:flex-row items-center justify-between gap-3 shrink-0 shadow-lg">
         
         <div class="text-xs text-gray-500 hidden sm:block">
           <template v-if="selectedSkus.length > 0">
@@ -649,6 +650,7 @@ import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey, isLoggedIn, openLoginModal } from '../lib/auth'
 import { sumQty, resolveMoq } from '../utils/moq'
+import { isSkuPricedSkus } from '../utils/priceTier'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
 import {
   findSavedProduct,
@@ -681,6 +683,14 @@ const props = defineProps({
   autoCategoryName: {
     type: String,
     default: ''
+  },
+  // 보기 전용 모드 (관리자 주문 상세모달에서 상품을 확인만 할 때).
+  // true면 주문으로 이어지는 요소(찜, 담기, 수량·옵션 선택, 발주 품목 박스)를 숨긴다.
+  // 상품 정보·옵션 목록·가격·이미지는 그대로 보인다.
+  // ※ false(기본값)일 때의 동작은 기존과 완전히 동일하다.
+  readonly: {
+    type: Boolean,
+    default: false
   }
 })
 
@@ -864,6 +874,72 @@ const basePrice = computed(() => {
   return (!isNaN(p) && p > 0) ? p : 0
 })
 
+// ── SKU 배열 단일 출처 ──────────────────────────────────────────────────────
+// 가격/재고/specId 판정이 모두 이 배열 하나를 본다 (api1688.js parsedSkus).
+const skuRows = computed(() => {
+  const item = currentItem.value || props.product || {}
+  if (Array.isArray(item.skus) && item.skus.length > 0) return item.skus
+  if (Array.isArray(props.product?.skus) && props.product.skus.length > 0) return props.product.skus
+  return []
+})
+
+// ── SKU별 가격 상품 판정 (가격 출처를 가르는 단일 기준) ────────────────────
+// 판정 로직은 utils/priceTier.js 공용 함수. CartView 수량 재계산도 같은 기준을 쓴다.
+const isSkuPricedProduct = computed(() => isSkuPricedSkus(skuRows.value))
+
+// color+size 조합의 SKU 단가(CNY) 반환. 매칭 실패 시 null.
+// 매칭 순서는 getSkuStock / getSkuSpecId와 동일하게 맞춘다 (같은 조합이 서로 다른
+// SKU 행으로 해석되면 가격·재고·specId가 어긋나므로 반드시 동일해야 함).
+const getSkuUnitPrice = (color, size) => {
+  const skus = skuRows.value
+  if (skus.length === 0) return null
+
+  const cStr = String(color || '').trim()
+  const sStr = String(size || '').trim()
+  const priceOf = (sk) => {
+    const v = Number(sk?.price)
+    return (!isNaN(v) && v > 0) ? v : null
+  }
+
+  // 1. color + size 정확 매칭
+  if (cStr && sStr) {
+    const match = skus.find(sk => String(sk.color || '').trim() === cStr && String(sk.size || '').trim() === sStr)
+    const v = priceOf(match)
+    if (v !== null) return v
+  }
+  // 2. size만 매칭 (단일 색상 상품)
+  if (sStr) {
+    const match = skus.find(sk => String(sk.size || '').trim() === sStr)
+    const v = priceOf(match)
+    if (v !== null) return v
+  }
+  // 3. color만 매칭 (단일 규격 상품)
+  if (cStr) {
+    const match = skus.find(sk => String(sk.color || '').trim() === cStr)
+    const v = priceOf(match)
+    if (v !== null) return v
+  }
+  // 4. 단일 SKU 상품 — 첫 번째 행
+  if (skus.length === 1) {
+    const v = priceOf(skus[0])
+    if (v !== null) return v
+  }
+  return null
+}
+
+// 품목 행 추가 시점에 확정할 단가. SKU 가격 상품인데 매칭이 실패하면 원인을 반드시 남긴다.
+const resolveRowUnitPrice = (color, size) => {
+  const skuPrice = getSkuUnitPrice(color, size)
+  if (skuPrice !== null) return skuPrice
+  if (isSkuPricedProduct.value) {
+    console.error(
+      `[ProductDetailModal] SKU 단가 매칭 실패 — 상품 단가로 대체합니다. color="${color}" size="${size}"`,
+      skuRows.value
+    )
+  }
+  return basePrice.value
+}
+
 const minOrder = computed(() => {
   const item = currentItem.value || props.product
   // 출처 키는 minOrder 단일 확정 (api1688.js가 min_num → minOrder로 정규화).
@@ -877,10 +953,32 @@ const displayedPriceTiers = computed(() => {
   const p = basePrice.value
   const mo = minOrder.value
 
-  // ── 1. item.priceTiers (api1688.js → fetch1688ProductById가 파싱한 1688 원본 수량 구간) ──
-  // 수량 구간이 2개 이상인 경우 → 수량별 가격 상품. SKU 가격 무시하고 기존대로 표시.
   const rawTiers = item?.priceTiers || item?.raw?.priceTiers || props.product?.priceTiers || null
 
+  // ── 1. SKU별 가격 상품 (최우선) ────────────────────────────────────────────
+  // 1688 규칙: SKU 가격이 서로 다르면 SKU 가격이 기준이고 구간 단가는 쓰지 않는다.
+  // 이 박스는 "적용 단가"가 아니라 옵션별 단가의 범위만 알린다. 실제 적용 단가는
+  // 선택된 발주 품목의 각 줄이 자기 SKU 가격으로 독립 보유한다(rowUnitPrice).
+  // (기존에는 selectedColor로 단가 1개를 resolve해서, 옵션을 누를 때마다 박스와
+  //  이미 담긴 줄들의 가격이 통째로 마지막 선택 옵션 가격으로 바뀌는 버그가 있었음)
+  if (isSkuPricedProduct.value) {
+    const prices = skuRows.value.map(s => Number(s.price) || 0).filter(v => v > 0)
+    const minP = Math.min(...prices)
+    const maxP = Math.max(...prices)
+    return [{
+      minQuantity: mo,
+      maxQuantity: null,
+      label: `옵션별 단가 (최소 ${mo}개)`,
+      price: Number(minP.toFixed(2)),
+      priceFormatted: `${minP.toFixed(2)} ~ ${maxP.toFixed(2)}`,
+      priceKrw: Math.round(minP * effectiveExchangeRate.value),
+      priceKrwFormatted: `${formatKrw(minP * effectiveExchangeRate.value)} ~ ${formatKrw(maxP * effectiveExchangeRate.value)}`,
+      isSkuRange: true
+    }]
+  }
+
+  // ── 2. item.priceTiers (api1688.js → fetch1688ProductById가 파싱한 1688 원본 수량 구간) ──
+  // SKU 가격이 전부 같거나 없는 상품에서만 도달한다 = 진짜 수량별 가격 상품.
   if (Array.isArray(rawTiers) && rawTiers.length > 1) {
 
     return rawTiers.map((tier) => {
@@ -898,61 +996,6 @@ const displayedPriceTiers = computed(() => {
         priceKrw: Math.round(price * effectiveExchangeRate.value)
       }
     })
-  }
-
-  // ── 2. SKU별 가격 상품: skus 배열에서 선택된 옵션 조합의 price를 참조 ──
-  // 판단 조건: item.skus가 있고, SKU간 price가 다른 경우 (색상별 가격 상품)
-  const skusArr = (
-    Array.isArray(item?.skus) && item.skus.length > 0 ? item.skus :
-    Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : []
-  )
-
-  if (skusArr.length > 0) {
-    const hasPriceVariation = skusArr.some(s => Math.abs((s.price || 0) - (skusArr[0].price || 0)) > 0.001)
-
-    if (hasPriceVariation) {
-      const colorName = selectedColor.value?.name?.trim() || ''
-      const sizeName  = selectedSize.value ? String(selectedSize.value).trim() : ''
-
-      let resolvedPrice = null
-
-      if (colorName) {
-        if (sizeName) {
-          // 색상+사이즈 완전 매칭
-          const matched = skusArr.find(s =>
-            String(s.color || '').trim() === colorName &&
-            String(s.size || '').trim() === sizeName
-          )
-          resolvedPrice = matched?.price ?? null
-        }
-
-        if (resolvedPrice === null) {
-          // 사이즈 미선택 또는 매칭 실패 → 해당 색상 내 최저가
-          const colorSkus = skusArr.filter(s => String(s.color || '').trim() === colorName)
-          if (colorSkus.length > 0) {
-            resolvedPrice = Math.min(...colorSkus.map(s => s.price || Infinity).filter(v => v < Infinity))
-            if (resolvedPrice === Infinity) resolvedPrice = null
-          }
-        }
-      }
-
-      // 옵션 미선택 상태: 전체 SKU 최저가 표시
-      if (resolvedPrice === null) {
-        const allPrices = skusArr.map(s => s.price || 0).filter(v => v > 0)
-        resolvedPrice = allPrices.length > 0 ? Math.min(...allPrices) : p
-      }
-
-      if (resolvedPrice && resolvedPrice > 0) {
-        return [{
-          minQuantity: mo,
-          maxQuantity: null,
-          label: `${mo}개 이상`,
-          price: Number(resolvedPrice.toFixed(2)),
-          priceFormatted: resolvedPrice.toFixed(2),
-          priceKrw: Math.round(resolvedPrice * effectiveExchangeRate.value)
-        }]
-      }
-    }
   }
 
   // ── 3. priceTiers가 1개인 경우 그대로 사용 ──
@@ -1004,6 +1047,20 @@ const currentUnitRmb = computed(() => {
 
   return tiers[0]?.price || basePrice.value
 })
+
+// ── 선택된 발주 품목 "각 줄"의 단가 (가격의 단일 출처) ─────────────────────
+// SKU별 가격 상품: 줄이 담길 때 확정한 자기 SKU 단가를 그대로 유지한다.
+//   → 다른 옵션을 추가/삭제하거나 수량을 바꿔도 이 줄의 단가는 변하지 않는다.
+// 그 외(SKU 가격이 전부 같거나 없는 상품): 총 수량 기준 구간 단가(기존 동작 유지).
+const rowUnitPrice = (row) => {
+  if (isSkuPricedProduct.value) {
+    const stored = Number(row?.unitPriceCny)
+    if (!isNaN(stored) && stored > 0) return stored
+    // unitPriceCny가 비어 있는 줄(구 데이터 등)은 지금 다시 매칭해서 채운다.
+    return resolveRowUnitPrice(row?.color, row?.size)
+  }
+  return currentUnitRmb.value
+}
 
 const colorOptions = computed(() => {
   const item = currentItem.value || props.product || {}
@@ -1359,8 +1416,13 @@ const totalQuantity = computed(() => {
   return selectedSkus.value.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0)
 })
 
+// 총액 = Σ(각 줄 단가 × 각 줄 수량). 전역 단가 1개로 일괄 곱하지 않는다.
 const totalPriceRmb = computed(() => {
-  return Number((totalQuantity.value * currentUnitRmb.value).toFixed(2))
+  const sum = selectedSkus.value.reduce(
+    (acc, row) => acc + (Number(row.quantity) || 0) * rowUnitPrice(row),
+    0
+  )
+  return Number(sum.toFixed(2))
 })
 
 const totalPriceKrw = computed(() => {
@@ -1375,6 +1437,7 @@ const formatKrw = (val) => {
 // Option Selection Handlers (엄격한 단계별 유효성 검사)
 // ----------------------------------------------------
 const handleSelectColor = (color) => {
+  if (props.readonly) return   // 보기 전용: 발주 품목 추가 금지
   selectedColor.value = color
   selectedColorId.value = color?.colorId ?? null  // ← 안정적 ID 동기화
   if (color.imageUrl) {
@@ -1400,6 +1463,8 @@ const handleSelectColor = (color) => {
         color: colorName,
         size: '',
         specId: getSkuSpecId(colorName, ''),
+        // 이 줄의 단가를 담는 시점에 확정 — 이후 다른 옵션 선택에 영향받지 않는다
+        unitPriceCny: resolveRowUnitPrice(colorName, ''),
         quantity: 1
       })
     }
@@ -1410,6 +1475,7 @@ const handleSelectColor = (color) => {
 }
 
 const handleSelectSize = (size) => {
+  if (props.readonly) return   // 보기 전용: 발주 품목 추가 금지
   // 1차 옵션 미선택 가드
   if (!selectedColor.value) {
     showToastNotification(`⚠️ 1차 옵션(${firstPropName.value})을 먼저 선택해 주세요.`, 'warning')
@@ -1437,6 +1503,8 @@ const handleSelectSize = (size) => {
       color: colorName,
       size: sizeName,
       specId: getSkuSpecId(colorName, sizeName),
+      // 이 줄의 단가를 담는 시점에 확정 — 이후 다른 옵션 선택에 영향받지 않는다
+      unitPriceCny: resolveRowUnitPrice(colorName, sizeName),
       quantity: 1
     })
   }
@@ -1802,6 +1870,7 @@ const loadFullProductData = async (item) => {
         {
           color: selectedColor.value.name || '기본 단품',
           size: '',
+          unitPriceCny: resolveRowUnitPrice(selectedColor.value.name || '', ''),
           quantity: 1
         }
       ]
@@ -1967,7 +2036,9 @@ const toggleSavedProduct = async () => {
         itemId: currentItemId.value,
         titleZh: currentItem.value?.titleZh || currentItem.value?.title || '',
         imageUrl: activeImage.value || currentItem.value?.imageUrl || '',
-        // 장바구니 저장(priceCny)과 동일 기준 — 수량 구간이 적용된 현재 단가
+        // 찜 카드에 표시할 대표 단가. 수량 구간 상품은 현재 수량의 구간 단가,
+        // SKU별 가격 상품은 옵션 최저가(선택에 따라 흔들리지 않는 고정값)다.
+        // ※ 장바구니 priceCny는 줄마다 자기 SKU 단가라 이 값과 다를 수 있다.
         snapshotPrice: Number(currentUnitRmb.value),
         itemData: buildSavedItemData(),
         categoryId
@@ -2118,6 +2189,8 @@ const saveSelectedItemsToCart = () => {
         ? Math.max(1, Number(sku.quantity) || 1)
         : Math.min(stockLimit, Math.max(1, Number(sku.quantity) || 1))
       const skuId = `${currentItem.value.id}_${colorStr || 'default'}_${sizeStr || 'none'}_${Date.now()}_${idx}`
+      // 이 행의 단가 — 화면에 표시된 값과 동일한 출처(rowUnitPrice). 전역 단가 사용 금지.
+      const unitCny = Number(rowUnitPrice(sku))
 
       return {
         ...baseItem,
@@ -2146,10 +2219,19 @@ const saveSelectedItemsToCart = () => {
         quantity: skuQty,
         // 재고 상한 — CartView 수량 조절 시 활용. 미파악이면 undefined (상한 없음)
         stock: stockLimit === Infinity ? undefined : stockLimit,
-        priceCny: Number(currentUnitRmb.value),
-        price: Number(currentUnitRmb.value),
-        totalPriceRmb: Number((skuQty * currentUnitRmb.value).toFixed(2)),
-        totalPriceKrw: Math.round(skuQty * currentUnitRmb.value * effectiveExchangeRate.value),
+        priceCny: unitCny,
+        price: unitCny,
+        // ── 가격 출처 스냅샷 (CartView 수량 변경 시 구간 단가 재계산용) ──
+        //   isSkuPriced=true  : SKU별 가격 상품 → 수량이 바뀌어도 이 줄의 단가는 고정
+        //   isSkuPriced=false : 수량 구간 상품 → priceTiers로 재계산 가능
+        //   ※ 장바구니에 담긴 뒤에는 1688 원본을 다시 부를 수 없다(일 500회 호출 제한).
+        //     그래서 재계산에 필요한 구간 정보를 담는 시점에 함께 저장한다.
+        isSkuPriced: isSkuPricedProduct.value,
+        priceTiers: isSkuPricedProduct.value
+          ? []
+          : displayedPriceTiers.value.map(t => ({ minQuantity: t.minQuantity, price: t.price })),
+        totalPriceRmb: Number((skuQty * unitCny).toFixed(2)),
+        totalPriceKrw: Math.round(skuQty * unitCny * effectiveExchangeRate.value),
         // 단일 SKU 스냅샷 (skus 배열도 이 행만 포함)
         skus: [{ color: colorStr, size: sizeStr, quantity: skuQty }],
         createdAt: new Date().toISOString(),

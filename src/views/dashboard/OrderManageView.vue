@@ -398,7 +398,9 @@
             </p>
             <p class="text-xs font-bold text-amber-600 font-mono mt-0.5">
               ₩{{ formatNumber(getOrderCostSummary(order).chargeableKrw) }}원
-              <span class="text-gray-400 font-normal">(¥{{ getOrderCostSummary(order).itemTotalCny?.toFixed(2) }})</span>
+              <!-- ₩ 총액(chargeableKrw)의 CNY 병기 → 같은 출처의 chargeableCny.
+                   (기존 itemTotalCny는 상품값만이라 총액 옆에 붙으면 택배비·수수료가 빠진 값) -->
+              <span class="text-gray-400 font-normal">(¥{{ getOrderCostSummary(order).chargeableCny?.toFixed(2) }})</span>
             </p>
           </div>
         </div>
@@ -1216,12 +1218,15 @@ function getOrderCostSummary(order) {
     itemTotalKrw: r.itemTotalKrw,
     chinaFreightKrw: r.chinaFreightKrw,
     agencyFeeKrw: r.agencyFeeKrw,
+    agencyFeeCny: r.agencyFeeCny,
     cbm: r.cbm,
     shippingFeeKrw: r.shippingFeeKrw,
+    shippingFeeCny: r.shippingFeeCny,
     shippingConfirmed: r.shippingConfirmed,
     tariffKrw: r.tariffKrw,
     vatKrw: r.vatKrw,
     chargeableKrw: r.chargeableKrw,
+    chargeableCny: r.chargeableCny,
     totalDdpKrw: r.totalDdpKrw,
     unitDdpKrw: r.unitDdpKrw,
   };
@@ -2227,9 +2232,18 @@ async function handleConfirmSecondPayment() {
     // 3. 로컬 스토리지 동기화
     saveStoredOrders(orders.value);
 
-    const fee = order.secondPayment?.totalSecondPaymentKrw || 133000;
+    // 결제 금액은 주문에 저장된 값만 표시한다.
+    // (과거 `|| 133000` 폴백은 금액 미상일 때 실제와 다른 금액을 완료 안내에 찍었음)
+    const feeRaw = Number(order.secondPayment?.totalSecondPaymentKrw);
+    const hasFee = Number.isFinite(feeRaw) && feeRaw > 0;
+    if (!hasFee) {
+      console.error('[OrderManageView] 2차 결제 금액(totalSecondPaymentKrw)이 주문에 없습니다.', {
+        orderNumber: order.orderNumber, secondPayment: order.secondPayment,
+      });
+    }
+    const feeText = hasFee ? `₩${formatNumber(feeRaw)}원` : '금액 미확정 — 관리자 확인 필요';
     const barcodeNote = uploadedBarcodeFile.value ? '바코드 부착 및 ' : '';
-    alert(`✅ 2차 결제(₩${formatNumber(fee)}원)가 성공적으로 완료되었습니다!\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 즉시 전달되었습니다.`);
+    alert(`✅ 2차 결제(${feeText})가 성공적으로 완료되었습니다!\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 즉시 전달되었습니다.`);
     closeSecondPaymentModal();
   } catch (e) {
     // 4. 실패 시 롤백

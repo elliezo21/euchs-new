@@ -459,9 +459,12 @@
                   />
                   <div class="space-y-1 min-w-0 flex-1">
                     <div class="flex items-center gap-2 flex-wrap">
+                      <!-- 제목 클릭 → 상품 상세모달(보기 전용). 주문으로 이어지는 요소는 숨겨진다. -->
                       <span
-                        class="font-bold text-base text-slate-900"
+                        class="font-bold text-base text-slate-900 cursor-pointer hover:text-blue-700 hover:underline underline-offset-2 transition"
                         :class="item.excluded ? 'line-through text-slate-400' : ''"
+                        @click="openProductDetail(item)"
+                        title="상품 상세보기 (보기 전용)"
                       >
                         {{ item.productName || '1688 수입 품목' }}
                       </span>
@@ -808,6 +811,33 @@
                 </div>
               </div>
                 </div>
+
+                <!-- 판매자 그룹 합계 (장바구니와 동일 형식 — 공용 컴포넌트) -->
+                <div class="px-4 pb-3">
+                  <SellerGroupTotalRow
+                    :subtotal-krw="getGroupSubtotalKrw(group, activeOrder)"
+                    :freight-rmb="getGroupFreightRmb(group, activeOrder)"
+                    :exchange-rate="getEffectiveRate(activeOrder)"
+                    :unavailable-reason="getGroupFreightUnavailableReason(activeOrder)"
+                  />
+                </div>
+              </div>
+
+              <!-- 판매자별 배송비 합계 vs 하단 택배비 총합 대조 -->
+              <div
+                v-if="getGroupFreightReconcile(activeOrder).comparable && !getGroupFreightReconcile(activeOrder).matched"
+                class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 font-mono"
+              >
+                ⚠️ 판매자별 배송비 합계 ¥{{ getGroupFreightReconcile(activeOrder).sumRmb.toFixed(2) }} 가
+                하단 택배비 총합 ¥{{ getGroupFreightReconcile(activeOrder).totalRmb.toFixed(2) }} 와 다릅니다.
+                (하단 택배비 출처: {{ freightOriginLabel(activeOrder) }})
+              </div>
+              <div
+                v-else-if="!getGroupFreightReconcile(activeOrder).comparable"
+                class="text-xs text-slate-400 px-1"
+              >
+                * 판매자별 배송비를 모두 알 수 없어 하단 택배비 총합과 대조하지 않았습니다.
+                ({{ getGroupFreightUnavailableReason(activeOrder) }})
               </div>
             </div>
 
@@ -887,11 +917,11 @@
                 <div class="text-sm text-slate-500 text-right font-mono leading-snug">
                   상품값 ₩{{ fmtN(calcCostDetail(activeOrder).itemTotalKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).itemTotalCny?.toFixed(2) }})</span>
                   + 택배비 ₩{{ fmtN(calcCostDetail(activeOrder).chinaFreightKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).chinaFreightRmb?.toFixed(2) }})</span>
-                  + 수수료 ₩{{ fmtN(calcCostDetail(activeOrder).agencyFeeKrw) }}<span class="text-slate-400"> (¥{{ (calcCostDetail(activeOrder).agencyFeeKrw / getEffectiveRate(activeOrder)).toFixed(2) }})</span>
+                  + 수수료 ₩{{ fmtN(calcCostDetail(activeOrder).agencyFeeKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).agencyFeeCny?.toFixed(2) }})</span>
                   <span v-if="calcCostDetail(activeOrder).shippingFeeKrw > 0">
-                    + 해운비 ₩{{ fmtN(calcCostDetail(activeOrder).shippingFeeKrw) }}
+                    + 해운비 ₩{{ fmtN(calcCostDetail(activeOrder).shippingFeeKrw) }}<span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).shippingFeeCny?.toFixed(2) }})</span>
                   </span>
-                  = <span class="font-black text-slate-700">₩{{ fmtN(calcCostDetail(activeOrder).chargeableKrw) }}</span>
+                  = <span class="font-black text-slate-700">₩{{ fmtN(calcCostDetail(activeOrder).chargeableKrw) }}</span><span class="text-slate-400"> (¥{{ calcCostDetail(activeOrder).chargeableCny?.toFixed(2) }})</span>
                 </div>
                 <!-- 환율 breakdown: quote_pending은 고시+마진(소수점2자리), 승인 이후는 스냅샷 환율 표시 -->
                 <div class="text-xs text-slate-400 text-right leading-snug">
@@ -1368,6 +1398,15 @@
       @confirm="executeMarkDelivered"
     />
 
+    <!-- 상품 상세보기 모달 (보기 전용) — 주문 상세모달(z-50) 위에 z-[150]으로 겹쳐 열린다 -->
+    <ProductDetailModal
+      :product="selectedDetailProduct"
+      :exchange-rate="activeOrder ? getEffectiveRate(activeOrder) : 0"
+      readonly
+      @close="selectedDetailProduct = null"
+      @change-product="selectedDetailProduct = $event"
+    />
+
   </div>
 </template>
 
@@ -1385,6 +1424,8 @@ import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import PurchaseConfirmModal from '@/components/admin/PurchaseConfirmModal.vue'
 import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue'
+import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue'
+import ProductDetailModal from '@/components/ProductDetailModal.vue'
 
 
 const route = useRoute();
@@ -2619,6 +2660,109 @@ const activeOrderItemGroups = computed(() => {
   return Array.from(groupMap.values());
 });
 
+/**
+ * 판매자 그룹의 중국 내륙 배송비(CNY) — 주문에 저장된 값만 읽는다. 없으면 null.
+ *
+ * 저장 위치(실측):
+ *   1) order.sellerGroups[].freightRmb — 발주서 접수 시 그룹별로 기록된 실측 운임
+ *      (OrderConfigModal.handleSubmit → newOrder.sellerGroups)
+ *   2) 없으면 그룹 내 품목의 item.freight 합산 — 1688 등록 운임(0=包邮 유효).
+ *      단, 그룹 내 한 품목이라도 freight가 없으면(null) 합산이 불완전해지므로 null.
+ *
+ * ※ 관리자가 수동 입력한 택배비(order.chinaFreightRmb)는 "주문 전체 총액" 한 값이라
+ *   판매자별로 쪼갤 수 없다. 이 경우 null을 반환하고 화면은 '—'로 표시한다.
+ *   (getGroupFreightUnavailableReason 참고)
+ */
+function getGroupFreightRmb(group, order) {
+  if (!group || !order) return null;
+
+  // 관리자 수동 입력 총액이 있으면 판매자별 분해 불가
+  if (hasCustomFreight(order)) return null;
+
+  const saved = (order.sellerGroups || []).find(g => g?.groupKey === group.groupKey);
+  const savedFreight = Number(saved?.freightRmb);
+  if (saved && Number.isFinite(savedFreight)) return savedFreight;
+
+  // 폴백: 그룹 내 품목의 1688 등록 운임 합산 (item.freight는 그 품목의 수량 기준 총 운임)
+  let sum = 0;
+  for (const { item } of group.items) {
+    if (item.excluded) continue;
+    if (item.freight === null || item.freight === undefined) return null;
+    sum += Number(item.freight);
+  }
+  return Number(sum.toFixed(2));
+}
+
+/** 하단 택배비 총합의 출처 라벨 (calcOrderCost의 chinaFreightOrigin) */
+// ─── 상품 상세보기 모달 (ProductDetailModal 재사용 — 보기 전용) ───────────────
+const selectedDetailProduct = ref(null);
+
+/**
+ * 주문 품목 클릭 시 상품 상세모달 오픈.
+ * ★ 주문 품목의 id는 SKU 행 구분용 합성 키일 수 있으므로 실제 1688 offer id
+ *   (itemId/num_iid)로 재매핑해서 넘긴다 — OrderConfigModal.openProductDetail과 동일 패턴.
+ */
+function openProductDetail(item) {
+  if (!item) return;
+  const offerId = item.itemId || item.num_iid || item.id;
+  if (!offerId) {
+    console.error('[AdminOrderManageView] 상품 상세보기 불가 — 1688 상품 ID가 없습니다.', item);
+    return;
+  }
+  selectedDetailProduct.value = {
+    ...item,
+    id: offerId,
+    titleKo: item.titleKo || item.productName || '',
+    price: item.priceCny ?? item.price,
+  };
+}
+
+/** 하단 택배비 총합의 출처 라벨 (calcOrderCost의 chinaFreightOrigin) */
+function freightOriginLabel(order) {
+  const origin = calcCostDetail(order).chinaFreightOrigin;
+  return {
+    custom: '관리자 수동 입력',
+    '1688_seller': '판매자 그룹별 실측',
+    '1688_exact': '1688 등록 운임',
+    estimated: '수량 기반 추정치',
+  }[origin] || origin || '알 수 없음';
+}
+
+/** 관리자가 택배비 총액을 수동 입력했는지 (calcOrderCost의 1순위 조건과 동일) */
+function hasCustomFreight(order) {
+  return (order?.chinaFreightRmb !== null && order?.chinaFreightRmb !== undefined)
+    || (order?.firstPayment?.chinaFreightRmb !== null && order?.firstPayment?.chinaFreightRmb !== undefined);
+}
+
+/** 배송비를 판매자별로 못 보여주는 이유 (툴팁) */
+function getGroupFreightUnavailableReason(order) {
+  if (hasCustomFreight(order)) return '관리자가 택배비 총액을 수동 입력한 주문입니다 — 판매자별로 나눌 수 없습니다.';
+  return '이 판매자 그룹의 배송비가 주문에 저장돼 있지 않습니다 (하단 택배비는 수량 기반 추정치).';
+}
+
+/**
+ * 판매자별 배송비 합계가 하단 "택배비" 총합과 일치하는지.
+ * 모든 그룹의 배송비를 알 때만 비교한다. 불일치면 화면에 안내를 띄운다.
+ */
+function getGroupFreightReconcile(order) {
+  const groups = activeOrderItemGroups.value;
+  if (!order || groups.length === 0) return { comparable: false, matched: false, sumRmb: 0, totalRmb: 0 };
+
+  let sum = 0;
+  for (const g of groups) {
+    const f = getGroupFreightRmb(g, order);
+    if (f === null) return { comparable: false, matched: false, sumRmb: 0, totalRmb: 0 };
+    sum += f;
+  }
+  const totalRmb = Number(calcCostDetail(order).chinaFreightRmb || 0);
+  return {
+    comparable: true,
+    matched: Math.abs(sum - totalRmb) < 0.01,
+    sumRmb: Number(sum.toFixed(2)),
+    totalRmb: Number(totalRmb.toFixed(2)),
+  };
+}
+
 // 판매자 카드 소계(KRW) — 제외되지 않은(유효) 품목만 합산 (하단 총액 요약과 동일한 "유효 구매" 기준)
 function getGroupSubtotalKrw(group, order) {
   const rate = getEffectiveRate(order);
@@ -2709,13 +2853,22 @@ function calcCostDetail(o) {
     chinaFreightKrw: r.chinaFreightKrw,
     chinaFreightOrigin: r.chinaFreightOrigin,  // 'custom' | '1688_exact' | 'estimated'
     agencyFeeKrw: r.agencyFeeKrw,
+    agencyFeeCny: r.agencyFeeCny,
     shippingFeeKrw: r.shippingFeeKrw,
+    shippingFeeCny: r.shippingFeeCny,
     chargeableKrw: r.chargeableKrw,
+    chargeableCny: r.chargeableCny,
   };
 }
 
 
-function calcCny(o) { return (o.items||[]).filter(i =>!i.excluded).reduce((s,i)=>s+(Number(i.priceCny||0)*Number(i.quantity||0)),0).toFixed(2); }
+/**
+ * 총 청구액의 CNY 병기값 — ₩ 총액(calcCost)과 같은 출처(calcOrderCost)에서 가져온다.
+ * ★ 과거 이 함수는 품목 단가×수량만 더해 "상품값 ¥"을 반환했는데,
+ *   화면에서는 "1차 결제/견적 유효 총액 ₩" 옆에 붙어 있어 총액 ¥이 상품값 ¥과
+ *   같게 표시되는 버그였다(택배비·수수료 누락).
+ */
+function calcCny(o) { return (calcCostDetail(o).chargeableCny || 0).toFixed(2); }
 function fmtN(n) { return Math.round(Number(n)||0).toLocaleString('ko-KR'); }
 /** 환율 전용 포맷터 — 소수점 2자리 */
 function fmtRate(n) { return Number(n || 0).toFixed(2); }
