@@ -931,6 +931,9 @@ const loadCartItems = () => {
             specId: it.specId || '',
             // ── 최소 주문 수량 — CartView 수량 하한으로 사용 (없으면 1) ──
             minOrder: Math.max(1, parseInt(it.minOrder || it.min_num || '1', 10) || 1),
+            // ── 옵션 보유 여부 (담기 시점 기록) — 발주 가드에서 사용 ──
+            //    구 장바구니 행에는 없으므로 undefined 그대로 보존한다 (기본값 채우기 금지)
+            hasOptions: it.hasOptions,
             titleKo: it.titleKo || it.productName || it.titleZh || '1688 소싱 품목',
             titleZh: it.titleZh || '',
             imageUrl: it.imageUrl || it.thumbnail,
@@ -1547,6 +1550,30 @@ function openOrderModal() {
   const targetItems = selectedItems.value;
   if (targetItems.length === 0) {
     alert('발주 신청할 상품을 먼저 선택해 주세요.');
+    return;
+  }
+
+  // ── 옵션 미선택 품목 차단 ────────────────────────────────────────────────
+  // specId 없는 품목은 1688 자동발주 API가 거부한다(api/1688-order-create.js).
+  // 단, "옵션이 원래 없는 진짜 단품"까지 막으면 안 되므로 담기 시점에 기록해 둔
+  // hasOptions로 구분한다.
+  //   · hasOptions === true  + specId 없음 → color가 '기본 단품'일 때만 차단.
+  //     옵션 표기는 정상이나 1688이 spec_id를 주지 않는 교차조합 상품
+  //     (api1688.js:1753-1780)은 수동발주 경로를 유지해야 하므로 통과시킨다.
+  //     (자동발주 단계에서 AdminOrderManageView가 수동발주 대상으로 분리)
+  //   · hasOptions === false                → 통과 (진짜 단품)
+  //   · hasOptions === undefined            → 구 장바구니 행. 플래그가 없던 시절 데이터라
+  //     '기본 단품'(우리 코드가 만든 폴백 상수, 번역 영향 없음) 지문으로만 차단한다.
+  //     ※ 과도기 처리 — 구 행이 모두 소진되면 이 분기는 제거 가능.
+  const unspecified = targetItems.filter(it => {
+    if (String(it.specId || '').trim()) return false;
+    if (it.hasOptions === true) return String(it.color || '').trim() === '기본 단품';
+    if (it.hasOptions === false) return false;
+    return String(it.color || '').trim() === '기본 단품';
+  });
+  if (unspecified.length > 0) {
+    const names = [...new Set(unspecified.map(it => it.titleKo || it.titleZh || '1688 상품'))];
+    showStockToast(`옵션이 선택되지 않은 상품이 있습니다 — ${names.join(', ')}. 옵션 변경/추가로 옵션을 선택해 주세요`);
     return;
   }
 

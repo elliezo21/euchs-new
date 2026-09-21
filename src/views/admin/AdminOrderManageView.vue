@@ -3057,8 +3057,35 @@ async function executeStartPurchasing() {
 
   const results = [];   // { success, items, indices, orderId, error, skipped }
 
-  // ── 그룹별 순차 발주 ─────────────────────────────────────────────────────
+  // ── specId 없는 품목 분리 (그룹 전체 400 실패 방지) ──────────────────────
+  // api/1688-order-create.js:300-308은 그룹 품목 중 하나라도 specId가 비면
+  // 그룹 전체를 400으로 거부한다. 정상 품목까지 함께 발주가 막히므로,
+  // 문제 품목만 떼어내 수동발주 대상(purchase_pending)으로 남기고 나머지는 진행시킨다.
   for (const group of groups) {
+    const keepItems = [], keepIndices = [], dropItems = [], dropIndices = [];
+    group.items.forEach((it, i) => {
+      if (String(it.specId || '').trim()) {
+        keepItems.push(it); keepIndices.push(group.indices[i]);
+      } else {
+        dropItems.push(it); dropIndices.push(group.indices[i]);
+      }
+    });
+    if (dropItems.length === 0) continue;
+    const errMsg = '1688 SKU(specId)가 없어 자동발주 불가 — 수동발주로 처리해주세요';
+    for (const it of dropItems) {
+      it.purchaseError   = errMsg;
+      it.purchaseErrorAt = new Date().toISOString();
+      it.subStatus       = 'purchase_pending';
+    }
+    results.push({ success: false, items: dropItems, indices: dropIndices, error: errMsg });
+    group.items   = keepItems;
+    group.indices = keepIndices;
+  }
+  // 남은 품목이 없는 그룹은 발주 대상에서 제외
+  const orderableGroups = groups.filter(g => g.items.length > 0);
+
+  // ── 그룹별 순차 발주 ─────────────────────────────────────────────────────
+  for (const group of orderableGroups) {
     const { sellerId, items: gItems, indices: gIndices } = group;
 
     // numIid 없는 품목이 있으면 해당 그룹 전체 실패 처리
