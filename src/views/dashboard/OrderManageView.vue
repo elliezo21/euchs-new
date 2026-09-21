@@ -219,7 +219,7 @@
                 <div class="font-bold text-slate-900 hover:text-amber-600 cursor-pointer" @click="openOrderDetail(order)">
                   {{ order.orderNumber }}
                 </div>
-                <div class="text-[11.5px] text-slate-600 font-semibold mt-0.5 flex items-center gap-1">
+                <div class="text-xs text-slate-600 font-semibold mt-0.5 flex items-center gap-1">
                   <Clock class="w-3 h-3 text-slate-500" />
                   <span>{{ order.createdAt }}</span>
                 </div>
@@ -242,7 +242,7 @@
                     >
                       {{ getItemTitle(order) }}
                     </div>
-                    <div class="text-[11.5px] text-slate-700 font-mono font-semibold">
+                    <div class="text-xs text-slate-700 font-mono font-semibold">
                       <span>품목 <b class="text-slate-950 font-bold">{{ getItemsCount(order) }}</b>건</span>
                     </div>
                   </div>
@@ -264,7 +264,7 @@
                 <div class="text-sm font-bold text-gray-900">
                   ₩{{ formatNumber(getOrderCostSummary(order).chargeableKrw) }}원
                 </div>
-                <div class="text-[11px] text-gray-400">
+                <div class="text-xs text-gray-400">
                   (단가 ¥{{ getOrderCostSummary(order).avgPriceCny.toFixed(2) }} / 합계 ¥{{ getOrderCostSummary(order).itemTotalCny.toFixed(2) }})
                 </div>
               </td>
@@ -292,7 +292,7 @@
                     v-if="order.status === 'inspection_done' || order.status === 'warehouse_in'"
                     type="button"
                     @click="openSecondPaymentModal(order)"
-                    class="px-3.5 py-1.5 rounded-xl font-bold text-[11px] bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    class="px-3.5 py-1.5 rounded-xl font-bold text-xs bg-gradient-to-r from-teal-500 via-emerald-600 to-teal-600 hover:from-teal-600 hover:to-emerald-700 text-white shadow-md transition active:scale-95 flex items-center gap-1.5 cursor-pointer"
                     title="현지 실측 검수 확인 및 2차 결제"
                   >
                     <CreditCard class="w-3.5 h-3.5" />
@@ -304,7 +304,7 @@
                     v-else-if="normalizeOrderStatus(order.status) === 'quote_confirmed' || order.status === 'quote_confirmed'"
                     type="button"
                     @click="openOrderDetail(order)"
-                    class="px-3 py-1.5 rounded-xl font-bold text-[11px] bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
+                    class="px-3 py-1.5 rounded-xl font-bold text-xs bg-amber-500 hover:bg-amber-400 text-slate-950 font-black animate-pulse transition active:scale-95 flex items-center gap-1.5 shadow-2xs cursor-pointer"
                     title="견적 확인 및 1차 결제"
                   >
                     <CreditCard class="w-3.5 h-3.5" />
@@ -316,7 +316,7 @@
                     type="button"
                     @click="handleKakaoConsult(order)"
                     :title="getKakaoTitle(order)"
-                    class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-[11.5px] transition shadow-2xs hover:shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
+                    class="px-3 py-1.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition shadow-2xs hover:shadow-xs active:scale-95 flex items-center gap-1.5 cursor-pointer"
                   >
                     <MessageCircle class="w-3.5 h-3.5 text-slate-900" />
                     <span>1:1 문의</span>
@@ -369,7 +369,7 @@
           <button
             type="button"
             @click="openOrderDetail(order)"
-            class="px-2.5 py-1 rounded-full text-[11px] font-bold inline-flex items-center gap-1 cursor-pointer transition active:scale-95"
+            class="px-2.5 py-1 rounded-full text-xs font-bold inline-flex items-center gap-1 cursor-pointer transition active:scale-95"
             :class="getOrderStatusBadgeClass(order.status)"
             title="클릭하여 발주서 및 견적 상세 조회"
           >
@@ -393,7 +393,7 @@
             >
               {{ getItemTitle(order) }}
             </h4>
-            <p class="text-[11px] text-gray-500 font-mono mt-0.5">
+            <p class="text-xs text-gray-500 font-mono mt-0.5">
               옵션: {{ order.items?.[0]?.sku || '기본' }} · 수량: <b>{{ getOrderTotalQuantity(order) }}개</b>
             </p>
             <p class="text-xs font-bold text-amber-600 font-mono mt-0.5">
@@ -406,7 +406,7 @@
         </div>
 
         <div class="pt-2 border-t border-gray-100 flex items-center justify-between gap-2">
-          <span class="text-[11px] text-gray-400 font-mono">{{ order.createdAt }}</span>
+          <span class="text-xs text-gray-400 font-mono">{{ order.createdAt }}</span>
           <div class="flex items-center gap-1.5">
             <!-- 5. 입고 & 정밀검수 상태 -->
             <button
@@ -474,7 +474,7 @@
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded-full bg-teal-500/30 text-teal-300 text-[10px] font-black tracking-wide border border-teal-500/40">
+                <span class="px-2 py-0.5 rounded-full bg-teal-500/30 text-teal-300 text-[11px] font-black tracking-wide border border-teal-500/40">
                   STEP 5. 현지 입고 & 정밀검수 완료
                 </span>
                 <span class="font-mono text-xs text-slate-300">
@@ -505,7 +505,7 @@
                 <ShieldCheck class="w-4 h-4 text-teal-600" />
                 <h4 class="font-bold text-sm text-gray-900">1. 중국 이우 물류센터 정밀 계근 & 실사 검수 보고서</h4>
               </div>
-              <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
+              <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                 검수 합격 (100% 양호)
               </span>
@@ -514,25 +514,25 @@
             <!-- 실측 수치 4종 그리드 -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">실측 총 중량 (Weight)</div>
+                <div class="text-xs text-gray-500 font-medium">실측 총 중량 (Weight)</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
                   {{ selectedSecondPaymentOrder.measuredData?.weightKg != null ? selectedSecondPaymentOrder.measuredData.weightKg + ' kg' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">실측 총 체적 (Volume)</div>
+                <div class="text-xs text-gray-500 font-medium">실측 총 체적 (Volume)</div>
                 <div class="text-base font-extrabold text-teal-700 font-mono mt-0.5">
                   {{ selectedSecondPaymentOrder.measuredData?.cbm != null ? selectedSecondPaymentOrder.measuredData.cbm + ' CBM' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">포장 카톤 & 수량</div>
+                <div class="text-xs text-gray-500 font-medium">포장 카톤 & 수량</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
                   {{ selectedSecondPaymentOrder.measuredData?.cartons != null ? selectedSecondPaymentOrder.measuredData.cartons + ' CTN' : '-' }} ({{ selectedSecondPaymentOrder.measuredData?.totalPcs != null ? selectedSecondPaymentOrder.measuredData.totalPcs + ' PCS' : '-' }})
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">불량 검출 건수</div>
+                <div class="text-xs text-gray-500 font-medium">불량 검출 건수</div>
                 <div class="text-base font-extrabold text-emerald-600 font-mono mt-0.5">
                   0건 (불량률 0.0%)
                 </div>
@@ -543,7 +543,7 @@
             <div>
               <div class="text-xs font-bold text-gray-700 mb-2 flex items-center justify-between">
                 <span>📸 현지 실사 검수 촬영 사진 (3장)</span>
-                <span class="text-[11px] text-gray-400 font-normal">클릭 시 원본 확대</span>
+                <span class="text-xs text-gray-400 font-normal">클릭 시 원본 확대</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div
@@ -558,7 +558,7 @@
                     class="w-full h-full object-cover group-hover:scale-105 transition duration-300 opacity-90 group-hover:opacity-100"
                   />
                   <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
-                    <span class="text-[11px] font-bold line-clamp-1">{{ photo.caption }}</span>
+                    <span class="text-xs font-bold line-clamp-1">{{ photo.caption }}</span>
                   </div>
                   <div class="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition">
                     <ZoomIn class="w-3.5 h-3.5" />
@@ -575,7 +575,7 @@
                 <FileText class="w-4 h-4 text-orange-600" />
                 <h4 class="font-bold text-sm text-gray-900">2. 🏷️ 마켓/쿠팡 바코드 라벨 파일 업로드</h4>
               </div>
-              <span class="px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">
+              <span class="px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
                 [선택] 쿠팡 로켓그로스 / 마켓 바코드 부착 시에만 첨부
               </span>
             </div>
@@ -586,14 +586,14 @@
               <div class="space-y-1">
                 <div class="font-bold text-gray-800">
                   신청 부가서비스:
-                  <span class="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 text-[11px]">
+                  <span class="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 text-xs">
                     원산지 표시(MADE IN CHINA)
                   </span>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-200/60 text-orange-900 text-[11px]">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-200/60 text-orange-900 text-xs">
                     쿠팡 로켓그로스 바코드 부착
                   </span>
                 </div>
-                <p class="text-[11px] text-gray-600 leading-relaxed">
+                <p class="text-xs text-gray-600 leading-relaxed">
                   자사몰 및 일반 셀러는 바코드 등록 없이 즉시 결제 및 선적 지시가 가능합니다. 쿠팡 윙 또는 마켓 바코드 부착이 필요한 경우에만 라벨 파일(PDF/ZIP/이미지)을 업로드해 주세요.
                 </p>
               </div>
@@ -623,7 +623,7 @@
                 <p class="font-bold text-gray-800 text-xs sm:text-sm">
                   클릭하여 바코드 라벨 파일을 선택하거나, 여기로 드래그하세요
                 </p>
-                <p class="text-[11px] text-gray-400 mt-0.5">
+                <p class="text-xs text-gray-400 mt-0.5">
                   지원 형식: PDF, ZIP, JPG, PNG (최대 50MB) · 쿠팡 SKU 라벨 권장
                 </p>
               </div>
@@ -656,11 +656,11 @@
                 <div class="min-w-0">
                   <div class="flex items-center gap-2">
                     <span class="font-bold text-gray-900 truncate">{{ uploadedBarcodeFile.name }}</span>
-                    <span class="px-2 py-0.2 rounded-full bg-emerald-200 text-emerald-800 text-[10px] font-black shrink-0">
+                    <span class="px-2 py-0.2 rounded-full bg-emerald-200 text-emerald-800 text-[11px] font-black shrink-0">
                       업로드 완료
                     </span>
                   </div>
-                  <div class="text-[11px] text-gray-500 font-mono mt-0.5">
+                  <div class="text-xs text-gray-500 font-mono mt-0.5">
                     파일 크기: {{ uploadedBarcodeFile.size }} · 등록일시: {{ uploadedBarcodeFile.uploadedAt }}
                   </div>
                 </div>
@@ -670,7 +670,7 @@
                 <button
                   type="button"
                   @click="triggerBarcodeFileInput"
-                  class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-[11px] transition cursor-pointer"
+                  class="px-3 py-1.5 rounded-lg bg-white border border-gray-200 hover:bg-gray-100 text-gray-700 font-bold text-xs transition cursor-pointer"
                 >
                   파일 교체
                 </button>
@@ -743,11 +743,11 @@
               <div class="flex items-center gap-2.5">
                 <CreditCard class="w-5 h-5 text-amber-400 shrink-0" />
                 <div>
-                  <span class="text-[11px] text-slate-400">보유 예치금 잔액: <b>₩15,420,000</b></span>
+                  <span class="text-xs text-slate-400">보유 예치금 잔액: <b>₩15,420,000</b></span>
                   <div class="text-xs font-bold text-white">결제 후 잔액: ₩15,287,000 (예치금 충분)</div>
                 </div>
               </div>
-              <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 text-[11px] font-bold border border-emerald-500/30">
+              <span class="px-2.5 py-1 rounded bg-emerald-500/20 text-emerald-400 text-xs font-bold border border-emerald-500/30">
                 즉시 차감 결제 가능
               </span>
             </div>

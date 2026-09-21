@@ -86,7 +86,7 @@
                 Q
               </span>
               <div>
-                <span class="inline-block text-[11px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded mb-1">
+                <span class="inline-block text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded mb-1">
                   {{ faq.categoryName }}
                 </span>
                 <h3 class="text-sm sm:text-base font-bold leading-snug group-hover:text-blue-600 transition">

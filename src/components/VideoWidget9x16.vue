@@ -38,7 +38,7 @@
         tabindex="-1"
         title="영상 위젯"
       ></iframe>
-      <span class="absolute bottom-2 right-8 px-2 py-0.5 rounded-full bg-black/60 text-[10px] font-bold text-white backdrop-blur-sm pointer-events-none">
+      <span class="absolute bottom-2 right-8 px-2 py-0.5 rounded-full bg-black/60 text-[11px] font-bold text-white backdrop-blur-sm pointer-events-none">
         🔊 크게 보기
       </span>
     </button>
@@ -48,7 +48,7 @@
          @click.stop 으로 라이트박스가 열리지 않도록 확실히 차단 -->
     <button
       type="button"
-      class="absolute bottom-2 right-2 z-10 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 text-white text-[10px] font-bold leading-none flex items-center justify-center backdrop-blur-sm transition cursor-pointer"
+      class="absolute bottom-2 right-2 z-10 w-5 h-5 rounded-full bg-black/60 hover:bg-black/80 text-white text-[11px] font-bold leading-none flex items-center justify-center backdrop-blur-sm transition cursor-pointer"
       aria-label="영상 위젯 접기"
       @click.stop="dismissWidget"
     >

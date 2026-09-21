@@ -16,7 +16,7 @@
       <!-- ======================================================== -->
       <div class="px-5 py-3.5 sm:px-8 sm:py-4 border-b border-gray-100 flex items-center justify-between bg-slate-50/90 backdrop-blur-md shrink-0 z-20">
         <div class="flex items-center gap-2 sm:gap-3">
-          <span class="px-3 py-1 rounded-full bg-rose-600 text-white text-[11px] font-black tracking-wider shadow-sm flex items-center gap-1.5">
+          <span class="px-3 py-1 rounded-full bg-rose-600 text-white text-xs font-black tracking-wider shadow-sm flex items-center gap-1.5">
             <i class="fas fa-store text-xs"></i> 1688 실시간 도매 상세
           </span>
           <span class="text-xs text-gray-500 font-mono hidden sm:inline-flex items-center gap-1 bg-white px-2.5 py-1 rounded-lg border border-gray-200">
@@ -96,7 +96,7 @@
           <div class="mt-2 flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-3">
             <!-- 좌측: 중국어 원문 -->
             <div class="flex items-center gap-1.5 min-w-0 flex-1">
-              <span class="shrink-0 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[11px] font-medium rounded">1688 원문</span>
+              <span class="shrink-0 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-xs font-medium rounded">1688 원문</span>
               <span class="text-xs text-slate-400 truncate max-w-[280px] sm:max-w-md font-mono" :title="currentItem?.subject_trans || currentItem?.titleZh">
                 {{ currentItem?.subject_trans || currentItem?.titleZh || currentItem?.title }}
               </span>
@@ -243,7 +243,7 @@
                 >
                   <div class="text-xs text-gray-500 font-medium">{{ tier.label }}</div>
                   <div class="text-base sm:text-lg font-black text-rose-600 font-mono mt-0.5">¥ {{ tier.priceFormatted }}</div>
-                  <div class="text-[11px] text-gray-400 font-mono">약 ₩{{ tier.priceKrwFormatted || formatKrw(tier.priceKrw) }}</div>
+                  <div class="text-xs text-gray-400 font-mono">약 ₩{{ tier.priceKrwFormatted || formatKrw(tier.priceKrw) }}</div>
                 </div>
               </div>
             </div>
@@ -299,10 +299,10 @@
                     <span>1차 옵션 ({{ firstPropName }})</span>
                     <span class="text-rose-600 font-bold">*</span>
                   </label>
-                  <span v-if="selectedColor" class="text-rose-600 font-bold text-[11px] bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
+                  <span v-if="selectedColor" class="text-rose-600 font-bold text-xs bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
                     선택: {{ selectedColor.name }}
                   </span>
-                  <span v-else class="text-gray-400 text-[11px]">
+                  <span v-else class="text-gray-400 text-xs">
                     {{ firstPropName }}을(를) 먼저 선택하세요
                   </span>
                 </div>
@@ -332,10 +332,10 @@
                     <span>2차 옵션 ({{ secondPropName }})</span>
                     <span class="text-rose-600 font-bold">*</span>
                   </label>
-                  <span v-if="!selectedColor" class="text-amber-600 font-medium text-[11px] bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                  <span v-if="!selectedColor" class="text-amber-600 font-medium text-xs bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
                     ⚠️ 1차 {{ firstPropName }}을(를) 먼저 선택해 주세요
                   </span>
-                  <span v-else class="text-gray-500 text-[11px]">
+                  <span v-else class="text-gray-500 text-xs">
                     {{ secondPropName }}을(를) 누르면 품목에 추가됩니다
                   </span>
                 </div>
@@ -352,8 +352,8 @@
                       : 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700'"
                   >
                     <span>{{ size }}</span>
-                    <span v-if="sizeStockMap[size] === 0 || sizeStockMap[size] === undefined" class="text-[9px] text-gray-400 font-normal">품절</span>
-                    <span v-else-if="typeof sizeStockMap[size] === 'number'" :class="selectedSize === size ? 'text-[9px] text-rose-200 font-normal' : 'text-[9px] text-gray-400 font-normal'">재고 {{ sizeStockMap[size] }}</span>
+                    <span v-if="sizeStockMap[size] === 0 || sizeStockMap[size] === undefined" class="text-[10px] text-gray-400 font-normal">품절</span>
+                    <span v-else-if="typeof sizeStockMap[size] === 'number'" :class="selectedSize === size ? 'text-[10px] text-rose-200 font-normal' : 'text-[10px] text-gray-400 font-normal'">재고 {{ sizeStockMap[size] }}</span>
                   </button>
                 </div>
               </div>
@@ -364,11 +364,11 @@
               <div class="flex items-center justify-between text-xs font-bold text-gray-800">
                 <span class="flex items-center gap-1.5">
                   <span>선택된 발주 품목</span>
-                  <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[11px] font-mono font-black">
+                  <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-xs font-mono font-black">
                     {{ selectedSkus.length }}개
                   </span>
                 </span>
-                <span class="text-gray-400 font-normal text-[11px]">
+                <span class="text-gray-400 font-normal text-xs">
                   {{ selectedSkus.length > 0 ? '수량을 조절하세요' : '옵션을 선택하면 아래에 등록됩니다' }}
                 </span>
               </div>
@@ -492,7 +492,7 @@
                   referrerpolicy="no-referrer"
                   @error="handleImageFallback"
                 />
-                <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[9px] font-bold rounded">
+                <span class="absolute top-1.5 left-1.5 px-1.5 py-0.5 bg-black/70 backdrop-blur-sm text-white text-[10px] font-bold rounded">
                   MOQ {{ sp.minOrder || 1 }}
                 </span>
               </div>
@@ -504,7 +504,7 @@
                 </h4>
                 <div class="flex items-baseline justify-between pt-1">
                   <span class="text-xs font-black text-rose-600 font-mono">¥ {{ sp.priceFormatted || sp.price }}</span>
-                  <span class="text-[10px] text-gray-400 font-mono">₩{{ formatKrw(Number(sp.price) * effectiveExchangeRate) }}</span>
+                  <span class="text-[11px] text-gray-400 font-mono">₩{{ formatKrw(Number(sp.price) * effectiveExchangeRate) }}</span>
                 </div>
               </div>
             </div>

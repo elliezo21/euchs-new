@@ -109,7 +109,7 @@
               : 'border-transparent text-slate-500 hover:text-slate-700'"
           >
             {{ tab.label }}
-            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[10px] font-black"
+            <span class="ml-1.5 px-1.5 py-0.5 rounded-full text-[11px] font-black"
               :class="activeTab === tab.key
                 ? (tab.key === 'refund_pending' ? 'bg-amber-500 text-white' : tab.key === 'refund_done' ? 'bg-emerald-600 text-white' : 'bg-orange-500 text-white')
                 : 'bg-slate-200 text-slate-600'"
@@ -156,11 +156,11 @@
                 </td>
                 <td class="px-4 py-3 text-right font-mono font-bold text-slate-900">
                   ₩{{ fmtN(getOrderAmount(order)) }}
-                  <span class="text-slate-400 font-normal text-[11px]">(¥{{ getOrderAmountCny(order) }})</span>
+                  <span class="text-slate-400 font-normal text-xs">(¥{{ getOrderAmountCny(order) }})</span>
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
-                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border"
+                    class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-bold border"
                     :class="order.status === 'rejected'
                       ? 'bg-orange-100 text-orange-700 border-orange-200'
                       : 'bg-rose-100 text-rose-700 border-rose-200'"
@@ -173,11 +173,11 @@
                 </td>
                 <!-- 환불상태 — rejected 탭엔 없음 -->
                 <td v-if="activeTab !== 'rejected'" class="px-4 py-3 text-center">
-                  <span v-if="order.refundCompleted" class="inline-flex flex-col items-center gap-0.5 text-emerald-600 font-bold text-[10px]">
+                  <span v-if="order.refundCompleted" class="inline-flex flex-col items-center gap-0.5 text-emerald-600 font-bold text-[11px]">
                     ✅ 환불완료
-                    <span class="text-slate-400 font-mono text-[9px]">{{ formatDate(order.refundCompletedAt) }}</span>
+                    <span class="text-slate-400 font-mono text-[10px]">{{ formatDate(order.refundCompletedAt) }}</span>
                   </span>
-                  <span v-else class="inline-flex items-center gap-1 text-amber-600 font-bold text-[10px]">
+                  <span v-else class="inline-flex items-center gap-1 text-amber-600 font-bold text-[11px]">
                     ⏳ 환불 처리중
                   </span>
                 </td>

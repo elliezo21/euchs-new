@@ -9,7 +9,7 @@
             <span class="font-mono text-xs font-bold text-slate-700 truncate">{{ trackingNo }}</span>
             <span
               v-if="statusText"
-              class="px-1.5 py-0.5 rounded-full text-[10px] font-bold shrink-0"
+              class="px-1.5 py-0.5 rounded-full text-[11px] font-bold shrink-0"
               :class="statusBadgeClass"
             >{{ statusText }}</span>
           </div>
@@ -20,7 +20,7 @@
         type="button"
         @click="$emit('refresh')"
         :disabled="isLoading"
-        class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-bold transition border"
+        class="shrink-0 flex items-center gap-1 px-2 py-1 rounded-lg text-xs font-bold transition border"
         :class="isLoading
           ? 'bg-slate-100 text-slate-400 border-slate-200 cursor-not-allowed'
           : 'bg-white hover:bg-blue-50 text-blue-600 border-blue-200 hover:border-blue-300 cursor-pointer'"
@@ -48,7 +48,7 @@
         :href="`https://www.kuaidi100.com/chaxun?nu=${encodeURIComponent(trackingNo)}`"
         target="_blank"
         rel="noopener noreferrer"
-        class="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-red-100/60 text-red-700 border border-red-300 hover:border-red-400 rounded-lg font-medium text-[11px] transition shadow-xs self-start sm:self-auto"
+        class="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 bg-white hover:bg-red-100/60 text-red-700 border border-red-300 hover:border-red-400 rounded-lg font-medium text-xs transition shadow-xs self-start sm:self-auto"
       >
         <span>快递100에서 직접 확인하기</span>
         <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -80,13 +80,13 @@
             <div class="relative z-10">
               <!-- 현재 위치: 파란 원 + 트럭(오른쪽 향함) + box-shadow 아웃라인 강조 -->
               <span v-if="entry._role === 'current'"
-                class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-[10px] shadow-[0_0_0_3px_rgba(59,130,246,0.25)]"
+                class="flex items-center justify-center w-6 h-6 rounded-full bg-blue-500 text-white text-[11px] shadow-[0_0_0_3px_rgba(59,130,246,0.25)]"
                 style="display:inline-flex">
                 <span style="display:inline-block; transform:scaleX(-1)">🚚</span>
               </span>
               <!-- 완료 이력: 초록 원 + 체크 -->
               <span v-else-if="entry._role === 'done'"
-                class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-[10px]">
+                class="flex items-center justify-center w-6 h-6 rounded-full bg-emerald-500 text-white text-[11px]">
                 ✓
               </span>
               <!-- 도착 예정: 회색 빈 원 (테두리만) -->
@@ -99,18 +99,18 @@
             <div class="mt-1.5 text-center px-1 w-full">
               <!-- 도착 예정 -->
               <template v-if="entry._role === 'pending'">
-                <p class="text-[10px] font-bold text-slate-400 leading-tight">이우 창고</p>
-                <p class="text-[9px] text-slate-300 leading-tight mt-0.5">도착 예정</p>
+                <p class="text-[11px] font-bold text-slate-400 leading-tight">이우 창고</p>
+                <p class="text-[10px] text-slate-300 leading-tight mt-0.5">도착 예정</p>
               </template>
               <!-- 현재 위치 -->
               <template v-else-if="entry._role === 'current'">
-                <p class="text-[10px] font-bold text-blue-600 leading-tight line-clamp-2">{{ shortContext(entry.context) }}</p>
-                <p v-if="entry.time" class="text-[9px] text-blue-400 leading-tight mt-0.5 font-mono">{{ formatTime(entry.time) }}</p>
+                <p class="text-[11px] font-bold text-blue-600 leading-tight line-clamp-2">{{ shortContext(entry.context) }}</p>
+                <p v-if="entry.time" class="text-[10px] text-blue-400 leading-tight mt-0.5 font-mono">{{ formatTime(entry.time) }}</p>
               </template>
               <!-- 완료 이력 -->
               <template v-else>
-                <p class="text-[10px] text-slate-500 leading-tight line-clamp-2">{{ shortContext(entry.context) }}</p>
-                <p v-if="entry.time" class="text-[9px] text-slate-400 leading-tight mt-0.5 font-mono">{{ formatTime(entry.time) }}</p>
+                <p class="text-[11px] text-slate-500 leading-tight line-clamp-2">{{ shortContext(entry.context) }}</p>
+                <p v-if="entry.time" class="text-[10px] text-slate-400 leading-tight mt-0.5 font-mono">{{ formatTime(entry.time) }}</p>
               </template>
             </div>
           </div>
@@ -128,14 +128,14 @@
       <!-- 이력 없음 안내 (traces 비어있고 error도 없는 정상 상태) -->
       <p
         v-if="!traces || traces.length === 0"
-        class="mt-2 text-[10px] text-slate-400 text-center"
+        class="mt-2 text-[11px] text-slate-400 text-center"
       >
         아직 배송 이력이 없습니다 — 새로고침으로 다시 확인할 수 있습니다.
       </p>
     </div>
 
     <!-- 마지막 조회 시각 -->
-    <p v-if="updatedAt && !isLoading" class="mt-1.5 text-[9px] text-slate-400 text-right font-mono">
+    <p v-if="updatedAt && !isLoading" class="mt-1.5 text-[10px] text-slate-400 text-right font-mono">
       마지막 조회: {{ formatTime(updatedAt) }}
     </p>
   </div>

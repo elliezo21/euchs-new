@@ -20,7 +20,7 @@
               <div v-if="banner.image_url" class="absolute inset-0 bg-gradient-to-br from-black/60 to-black/30 pointer-events-none"></div>
               <div v-else class="absolute -right-6 -bottom-6 w-28 h-28 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
               <div class="space-y-2 relative z-10">
-                <span v-if="banner.label" class="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] font-black border border-indigo-400/40 uppercase inline-block">
+                <span v-if="banner.label" class="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[11px] font-black border border-indigo-400/40 uppercase inline-block">
                   {{ banner.label }}
                 </span>
                 <h3 v-if="banner.heading" class="text-lg sm:text-xl font-black text-white leading-tight">
@@ -57,7 +57,7 @@
       <div v-else class="bg-gradient-to-br from-slate-900 to-indigo-950 text-white rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between relative overflow-hidden group h-full min-h-[180px]">
         <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-indigo-500/20 rounded-full blur-2xl pointer-events-none"></div>
         <div class="space-y-2 relative z-10">
-          <span class="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[10px] font-black border border-indigo-400/40 uppercase">B2B CUSTOM MADE</span>
+          <span class="px-2.5 py-0.5 rounded-full bg-indigo-500/30 text-indigo-300 text-[11px] font-black border border-indigo-400/40 uppercase">B2B CUSTOM MADE</span>
           <h3 class="text-lg sm:text-xl font-black text-white leading-tight">
             1688 공장 직거래<br />
             <span class="text-transparent bg-clip-text bg-gradient-to-r from-amber-300 to-orange-400">OEM / ODM 제작관</span>
@@ -90,7 +90,7 @@
             >
               <div v-if="banner.image_url" class="absolute inset-0 bg-gradient-to-br from-rose-500/70 to-amber-500/50 pointer-events-none"></div>
               <div class="space-y-2 relative z-10">
-                <div v-if="banner.label" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-black">
+                <div v-if="banner.label" class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[11px] font-black">
                   <i class="fas fa-star text-yellow-300"></i>
                   <span>{{ banner.label }}</span>
                 </div>
@@ -119,7 +119,7 @@
       <!-- Fallback: 주황 프로모 카드 -->
       <div v-else class="bg-gradient-to-r from-rose-500 via-orange-500 to-amber-500 text-white rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between relative overflow-hidden h-full min-h-[180px]">
         <div class="space-y-2 relative z-10">
-          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[10px] font-black">
+          <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-white text-[11px] font-black">
             <i class="fas fa-star text-yellow-300"></i>
             <span>2026 베스트 소싱 기획전</span>
           </div>
@@ -143,17 +143,17 @@
     <div class="md:col-span-3 bg-white border border-gray-200 rounded-3xl p-5 sm:p-6 shadow-sm flex flex-col justify-between space-y-3">
       <div class="space-y-2.5">
         <div class="flex items-center justify-between">
-          <span class="text-[11px] font-extrabold text-gray-500 uppercase">BUYER QUICK HUB</span>
+          <span class="text-xs font-extrabold text-gray-500 uppercase">BUYER QUICK HUB</span>
           <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
         </div>
 
         <!-- 예치금 잔액 (KRW + RMB) -->
         <div class="bg-gray-50 p-3 rounded-2xl border border-gray-200/80 space-y-1">
-          <div class="text-[11px] text-gray-500">예치금 지갑 잔액</div>
+          <div class="text-xs text-gray-500">예치금 지갑 잔액</div>
           <div class="text-base font-black text-emerald-600 font-mono">
             ₩ {{ formatKrw(depositBalance) }}
           </div>
-          <div v-if="exchangeRate" class="text-[10px] text-gray-400 font-mono">
+          <div v-if="exchangeRate" class="text-[11px] text-gray-400 font-mono">
             (≈ ¥ {{ formatRmb(depositBalance / exchangeRate) }})
           </div>
         </div>
@@ -166,17 +166,17 @@
           title="클릭하여 공지사항 상세 보기"
         >
           <div class="font-bold text-gray-800 flex items-center justify-between gap-1">
-            <span class="flex items-center gap-1.5 text-[11px] text-rose-600 font-black">
+            <span class="flex items-center gap-1.5 text-xs text-rose-600 font-black">
               <i class="fas fa-bullhorn"></i> 실시간 소싱 공지
             </span>
-            <span v-if="latestNotice.badge" class="px-1.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700">
+            <span v-if="latestNotice.badge" class="px-1.5 rounded text-[10px] font-bold bg-rose-100 text-rose-700">
               {{ latestNotice.badge }}
             </span>
           </div>
-          <p class="text-[11px] font-bold text-gray-800 group-hover:text-rose-600 leading-snug line-clamp-2 transition">
+          <p class="text-xs font-bold text-gray-800 group-hover:text-rose-600 leading-snug line-clamp-2 transition">
             {{ latestNotice.title || '[공지] 1688 상품 주문 후 직영 물류센터 24시간 검수 후 안전 출고됩니다.' }}
           </p>
-          <span class="text-[10px] text-gray-400 font-mono block">
+          <span class="text-[11px] text-gray-400 font-mono block">
             {{ formatDate(latestNotice.created_at || latestNotice.createdAt) }}
           </span>
         </div>

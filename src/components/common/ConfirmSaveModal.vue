@@ -53,7 +53,7 @@
 
               <h3 class="text-base font-black text-slate-900 leading-snug">{{ title }}</h3>
 
-              <p v-if="description" class="mt-2 text-[11px] text-slate-600 leading-relaxed max-w-[320px] whitespace-pre-wrap font-mono text-left bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
+              <p v-if="description" class="mt-2 text-xs text-slate-600 leading-relaxed max-w-[320px] whitespace-pre-wrap font-mono text-left bg-slate-50 rounded-lg px-3 py-2 border border-slate-200">
                 {{ description }}
               </p>
             </div>

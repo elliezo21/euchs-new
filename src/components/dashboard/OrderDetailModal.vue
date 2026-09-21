@@ -72,7 +72,7 @@
               <Truck class="w-4.5 h-4.5 text-blue-600" />
               <span>1. 기본 발주 &amp; 수입 통관/배송 설정</span>
             </h4>
-            <span class="px-2.5 py-0.5 rounded-full text-[11px] font-bold border bg-blue-50 text-blue-700 border-blue-200">
+            <span class="px-2.5 py-0.5 rounded-full text-xs font-bold border bg-blue-50 text-blue-700 border-blue-200">
               {{ normalizeOrderStatus(order.status) === 'quote_pending' ? '설정 완료 (견적 심사중)' : '설정 확정 완료 (Readonly)' }}
             </span>
           </div>
@@ -114,26 +114,26 @@
           <!-- 바이어 정보 -->
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs pt-1">
             <div class="bg-slate-50 p-3 rounded-xl border border-gray-200/80">
-              <span class="text-gray-400 block text-[10px]">바이어 상호 / 성명</span>
+              <span class="text-gray-400 block text-[11px]">바이어 상호 / 성명</span>
               <span class="font-bold text-gray-900 truncate block mt-0.5 text-xs">{{ order.buyerInfo?.companyName || order.customer_name || '이유씨 바이어' }}</span>
             </div>
             <div class="bg-slate-50 p-3 rounded-xl border border-gray-200/80">
-              <span class="text-gray-400 block text-[10px]">연락처 (휴대폰)</span>
+              <span class="text-gray-400 block text-[11px]">연락처 (휴대폰)</span>
               <span class="font-bold text-gray-900 font-mono block mt-0.5 text-xs">{{ order.buyerInfo?.phone || '010-9373-1214' }}</span>
             </div>
             <div class="bg-slate-50 p-3 rounded-xl border border-gray-200/80">
-              <span class="text-gray-400 block text-[10px]">통관고유부호 (PCCC)</span>
+              <span class="text-gray-400 block text-[11px]">통관고유부호 (PCCC)</span>
               <span class="font-mono font-bold text-blue-700 block mt-0.5 text-xs">{{ order.buyerInfo?.customsCode || 'P240012345678' }}</span>
             </div>
             <div class="bg-slate-50 p-3 rounded-xl border border-gray-200/80">
               <div class="flex items-center justify-between">
-                <span class="text-gray-400 text-[10px]">수령 주소지</span>
+                <span class="text-gray-400 text-[11px]">수령 주소지</span>
                 <button v-if="isOrderEditable" type="button"
                   @click="isEditingAddress ? saveAddress() : startEditAddress()"
-                  class="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer">
+                  class="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer">
                   {{ isEditingAddress ? '[저장]' : '[주소 변경]' }}
                 </button>
-                <span v-else class="text-[10px] text-slate-400">고정 주소</span>
+                <span v-else class="text-[11px] text-slate-400">고정 주소</span>
               </div>
               <div v-if="isEditingAddress && isOrderEditable" class="mt-1">
                 <input type="text" v-model="editAddressInput" @keyup.enter="saveAddress"
@@ -154,7 +154,7 @@
               <span class="w-2.5 h-2.5 rounded-full bg-blue-600"></span>
               <span>2. 현지 창고 부가서비스 신청 (VAS: Value-Added Services)</span>
             </h4>
-            <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
+            <span class="text-xs font-bold px-2.5 py-0.5 rounded-full border bg-blue-50 text-blue-700 border-blue-200 flex items-center gap-1">
               <i class="fas fa-lock text-[10px]"></i><span>신청 완료 (지시 확정)</span>
             </span>
           </div>
@@ -167,17 +167,17 @@
               <div class="flex-1 min-w-0 space-y-1">
                 <div class="flex items-center justify-between gap-1.5">
                   <span class="font-bold text-xs leading-snug" :class="isVasSelected(vas.id) ? 'text-blue-950 font-black' : 'text-gray-600 font-medium'">{{ vas.name }}</span>
-                  <span v-if="isVasSelected(vas.id)" class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[10px] font-black shrink-0 flex items-center gap-0.5"><span>✓ 신청완료</span></span>
-                  <span v-else class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 text-[9px] font-medium shrink-0">미신청</span>
+                  <span v-if="isVasSelected(vas.id)" class="px-1.5 py-0.5 rounded bg-blue-100 text-blue-800 text-[11px] font-black shrink-0 flex items-center gap-0.5"><span>✓ 신청완료</span></span>
+                  <span v-else class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-400 text-[10px] font-medium shrink-0">미신청</span>
                 </div>
-                <p class="text-[11px] leading-relaxed line-clamp-2" :class="isVasSelected(vas.id) ? 'text-blue-800/80' : 'text-gray-400'">{{ vas.desc }}</p>
+                <p class="text-xs leading-relaxed line-clamp-2" :class="isVasSelected(vas.id) ? 'text-blue-800/80' : 'text-gray-400'">{{ vas.desc }}</p>
                 <div class="pt-0.5">
-                  <span class="text-[10px] font-mono font-bold" :class="isVasSelected(vas.id) ? (vas.badgeClass || 'text-blue-700') : 'text-gray-400'">{{ vas.feeLabel }}</span>
+                  <span class="text-[11px] font-mono font-bold" :class="isVasSelected(vas.id) ? (vas.badgeClass || 'text-blue-700') : 'text-gray-400'">{{ vas.feeLabel }}</span>
                 </div>
               </div>
             </div>
           </div>
-          <div class="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl text-[11px] text-blue-900 flex items-center gap-2">
+          <div class="p-3 bg-blue-50/60 border border-blue-200/80 rounded-xl text-xs text-blue-900 flex items-center gap-2">
             <i class="fas fa-info-circle text-blue-600 shrink-0"></i>
             <span>※ 이미 접수 완료된 발주 건입니다. 부가서비스 변경/추가는 1:1 담당 매니저에게 문의해 주세요.</span>
           </div>
@@ -191,7 +191,7 @@
               <div class="flex items-center gap-2 font-bold text-emerald-800 text-xs">
                 <CheckCircle2 class="w-4 h-4 text-emerald-600" /><span>1차 상품대금 결제 확인 완료</span>
               </div>
-              <div class="grid grid-cols-2 gap-2 text-[11px]">
+              <div class="grid grid-cols-2 gap-2 text-xs">
                 <div class="bg-white rounded-lg p-2.5 border border-emerald-200"><div class="text-gray-400 font-medium mb-0.5">입금자명</div><div class="font-bold text-gray-900">{{ order.buyerInfo?.buyerName || order.buyerInfo?.companyName || '이유씨글로벌' }}</div></div>
                 <div class="bg-white rounded-lg p-2.5 border border-emerald-200"><div class="text-gray-400 font-medium mb-0.5">결제 방식</div><div class="font-bold text-emerald-700">예치금 즉시 차감</div></div>
                 <div class="bg-white rounded-lg p-2.5 border border-emerald-200 col-span-2"><div class="text-gray-400 font-medium mb-0.5">1차 결제 금액</div><div class="font-bold text-gray-900 font-mono text-sm">₩{{ formatNumber(costSummary.chargeableKrw) }}원</div></div>
@@ -199,7 +199,7 @@
             </div>
             <div v-else-if="normalizeOrderStatus(order.status) === 'quote_confirmed'" class="p-4 bg-orange-50 border border-orange-200 rounded-2xl space-y-2.5 h-full">
               <div class="flex items-center gap-2 font-bold text-orange-800 text-xs"><AlertCircle class="w-4 h-4 text-orange-500" /><span>1차 결제 대기중</span></div>
-              <p class="text-[11px] text-orange-700 leading-relaxed">견적이 확정되었습니다. 결제 예정액 (₩{{ formatNumber(costSummary.chargeableKrw) }}원, 관세·부가세 별도/세관 직납)을 확인하고 결제를 진행해 주세요.</p>
+              <p class="text-xs text-orange-700 leading-relaxed">견적이 확정되었습니다. 결제 예정액 (₩{{ formatNumber(costSummary.chargeableKrw) }}원, 관세·부가세 별도/세관 직납)을 확인하고 결제를 진행해 주세요.</p>
             </div>
             <div v-else class="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2 h-full">
               <div class="flex items-center gap-2 text-amber-800 font-bold text-xs mb-1"><AlertCircle class="w-4 h-4 text-amber-600" /><span>⚠️ 견적 검토 및 승인 대기</span></div>
@@ -207,8 +207,8 @@
             </div>
           </div>
           <div class="p-4 bg-slate-900 text-white rounded-2xl space-y-2.5 h-full">
-            <p class="text-[11px] font-bold text-amber-400">📊 수입 단가 마진 요약 (개당 도착원가 기준)</p>
-            <div class="grid grid-cols-2 gap-2 text-[11px] font-mono">
+            <p class="text-xs font-bold text-amber-400">📊 수입 단가 마진 요약 (개당 도착원가 기준)</p>
+            <div class="grid grid-cols-2 gap-2 text-xs font-mono">
               <div><span class="text-slate-400">1688 발주가:</span><span class="text-white font-bold ml-1">¥{{ costSummary.avgPriceCny.toFixed(2) }}</span></div>
               <div><span class="text-slate-400">개당 DDP:</span><span class="text-amber-400 font-bold ml-1">₩{{ formatNumber(costSummary.unitDdpKrw) }}</span></div>
               <div class="col-span-2 pt-1.5 border-t border-slate-700">
@@ -249,7 +249,7 @@
                           {{ prod.productName || prod.titleKo }}
                         </p>
                         <a v-if="prod.productUrl" :href="prod.productUrl" target="_blank" rel="noopener noreferrer"
-                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition text-[11px] font-bold shrink-0 whitespace-nowrap">
+                          class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition text-xs font-bold shrink-0 whitespace-nowrap">
                           <ExternalLink class="w-3 h-3 shrink-0" /><span>1688 원본 링크 ↗</span>
                         </a>
                       </div>
@@ -274,7 +274,7 @@
                         <span class="w-1.5 h-1.5 rounded-full shrink-0" :class="sku.excluded ? 'bg-rose-400' : 'bg-amber-500'"></span>
                         <span class="font-medium truncate text-xs sm:text-sm" :class="sku.excluded ? 'line-through text-gray-400' : 'text-gray-800'">{{ sku.optionKo }}</span>
                         <span v-if="sku.optionZh" class="text-xs font-mono text-gray-400 truncate" :class="sku.excluded ? 'line-through text-gray-300' : ''">{{ '(' + sku.optionZh + ')' }}</span>
-                        <span v-if="sku.excluded" class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[10px] sm:text-xs border border-rose-200 shrink-0">
+                        <span v-if="sku.excluded" class="px-2 py-0.5 rounded-md bg-rose-100 text-rose-700 font-black text-[11px] sm:text-xs border border-rose-200 shrink-0">
                           ⛔ 구매불가: {{ sku.excludeReason || '품절' }}
                         </span>
                       </div>
@@ -336,8 +336,8 @@
               <!-- 1차 결제 항목 -->
               <div class="space-y-0 text-xs sm:text-sm border border-emerald-200 rounded-2xl overflow-hidden">
                 <div class="flex items-center justify-between px-3 py-1.5 bg-emerald-50 border-b border-emerald-200">
-                  <span class="text-[10px] font-black text-emerald-800 tracking-wide">💳 1차 결제 항목</span>
-                  <span class="text-[9px] text-emerald-600 font-medium">발주 즉시 결제</span>
+                  <span class="text-[11px] font-black text-emerald-800 tracking-wide">💳 1차 결제 항목</span>
+                  <span class="text-[10px] text-emerald-600 font-medium">발주 즉시 결제</span>
                 </div>
                 <div class="px-3 space-y-0 divide-y divide-gray-100 bg-white">
                   <div class="flex items-center justify-between py-1.5"><span class="text-gray-600 font-medium">1. 순수 1688 제품 대금 (¥{{ costSummary.itemTotalCny.toFixed(2) }})</span><span class="font-mono font-black text-gray-900 text-xs sm:text-sm">₩{{ formatNumber(costSummary.itemTotalKrw) }}원</span></div>
@@ -349,17 +349,17 @@
               <!-- 2차 결제 항목 -->
               <div class="space-y-0 text-xs sm:text-sm border border-blue-200 rounded-2xl overflow-hidden mt-2">
                 <div class="flex items-center justify-between px-3 py-1.5 bg-blue-50 border-b border-blue-200">
-                  <span class="text-[10px] font-black text-blue-800 tracking-wide">🚢 2차 결제 항목 (입고 후 청구)</span>
-                  <span class="text-[9px] text-blue-600 font-medium">창고 실측 후 청구</span>
+                  <span class="text-[11px] font-black text-blue-800 tracking-wide">🚢 2차 결제 항목 (입고 후 청구)</span>
+                  <span class="text-[10px] text-blue-600 font-medium">창고 실측 후 청구</span>
                 </div>
                 <div class="px-3 space-y-0 divide-y divide-gray-100 bg-white">
                   <div class="flex items-start justify-between py-1.5 gap-2">
                     <div>
                       <span class="text-gray-600 font-medium">4. 국제 해운 물류비
-                        <span v-if="costSummary.shippingConfirmed" class="text-[9px] text-blue-600 font-bold ml-1">(실측 {{ costSummary.cbm }} CBM)</span>
-                        <span v-else class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">미확정</span>
+                        <span v-if="costSummary.shippingConfirmed" class="text-[10px] text-blue-600 font-bold ml-1">(실측 {{ costSummary.cbm }} CBM)</span>
+                        <span v-else class="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">미확정</span>
                       </span>
-                      <div v-if="!costSummary.shippingConfirmed" class="text-[10px] text-amber-600 mt-0.5">이우 창고 도착 후 5-B 계근 시 확정</div>
+                      <div v-if="!costSummary.shippingConfirmed" class="text-[11px] text-amber-600 mt-0.5">이우 창고 도착 후 5-B 계근 시 확정</div>
                     </div>
                     <span v-if="costSummary.shippingConfirmed" class="font-mono font-black text-gray-900 text-xs sm:text-sm whitespace-nowrap shrink-0">₩{{ formatNumber(costSummary.shippingFeeKrw) }}원</span>
                     <span v-else class="font-mono font-bold text-amber-500 text-xs sm:text-sm whitespace-nowrap shrink-0">-</span>
@@ -374,26 +374,26 @@
               <!-- 세금 안내 -->
               <div class="space-y-0 text-xs sm:text-sm border border-amber-200 rounded-2xl overflow-hidden mt-2">
                 <div class="flex items-center gap-2 px-3 py-1.5 bg-amber-50 border-b border-amber-200">
-                  <span class="text-[10px] font-black text-amber-700 tracking-wide">📋 참고용 세금 안내</span>
-                  <span class="text-[9px] text-amber-600 font-medium">당사 청구 제외 — 세관 직납</span>
+                  <span class="text-[11px] font-black text-amber-700 tracking-wide">📋 참고용 세금 안내</span>
+                  <span class="text-[10px] text-amber-600 font-medium">당사 청구 제외 — 세관 직납</span>
                 </div>
                 <div class="px-3 space-y-0 divide-y divide-amber-100 bg-amber-50/40">
                   <div class="flex items-start justify-between py-1.5 gap-2">
                     <div>
-                      <span class="text-gray-600 font-medium">5. 예상 수입 관세 <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">추정치/참고용</span></span>
-                      <div class="text-[10px] text-slate-400 mt-0.5">{{ isVasSelected('fta_co') ? '한-중 FTA 협정세율 (0~4% 감면 예정)' : '일반 MFN 세율 기준 (C/O 신청 시 0~4%로 경감 가능)' }}</div>
+                      <span class="text-gray-600 font-medium">5. 예상 수입 관세 <span class="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">추정치/참고용</span></span>
+                      <div class="text-[11px] text-slate-400 mt-0.5">{{ isVasSelected('fta_co') ? '한-중 FTA 협정세율 (0~4% 감면 예정)' : '일반 MFN 세율 기준 (C/O 신청 시 0~4%로 경감 가능)' }}</div>
                     </div>
                     <span class="font-mono font-black text-slate-400 text-xs sm:text-sm whitespace-nowrap shrink-0">₩{{ formatNumber(costSummary.tariffKrw) }}원</span>
                   </div>
                   <div class="flex items-start justify-between py-1.5 gap-2">
                     <div>
-                      <span class="text-gray-600 font-medium">6. 수입 부가가치세 <span class="text-[9px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">추정치/참고용</span></span>
-                      <div class="text-[10px] text-slate-400 mt-0.5">VAT 10% 매입세액공제 대상</div>
+                      <span class="text-gray-600 font-medium">6. 수입 부가가치세 <span class="text-[10px] bg-amber-100 text-amber-700 border border-amber-300 px-1.5 py-0.5 rounded font-black ml-1">추정치/참고용</span></span>
+                      <div class="text-[11px] text-slate-400 mt-0.5">VAT 10% 매입세액공제 대상</div>
                     </div>
                     <span class="font-mono font-black text-slate-400 text-xs sm:text-sm whitespace-nowrap shrink-0">₩{{ formatNumber(costSummary.vatKrw) }}원</span>
                   </div>
                 </div>
-                <div class="px-3 py-2.5 bg-amber-50 border-t border-amber-200 text-[10px] text-amber-800 leading-relaxed">
+                <div class="px-3 py-2.5 bg-amber-50 border-t border-amber-200 text-[11px] text-amber-800 leading-relaxed">
                   <span class="font-black text-amber-700">※ 관세 및 수입 부가세 세관 직납 안내</span><br/>
                   위 5·6번 금액은 품목별 협정세율에 따른 단순 추정치이며 <b>당사 2차 결제 금액에 포함되지 않습니다.</b>
                 </div>
@@ -403,12 +403,12 @@
               <div class="bg-slate-50/90 border border-slate-200/90 rounded-2xl p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
                 <div class="font-bold text-slate-800 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200/80 pb-2">
                   <span class="flex items-center gap-1.5 font-black text-xs sm:text-sm text-slate-700"><Info class="w-4 h-4 text-slate-500" /><span>DDP 견적 총괄 &amp; 2차 정산 예정</span></span>
-                  <span class="text-[11px] text-amber-800 font-bold bg-amber-100/90 border border-amber-300/80 px-2 py-0.5 rounded-md">※ 예상 참고용 — 실측 후 2차 결제 시 확정</span>
+                  <span class="text-xs text-amber-800 font-bold bg-amber-100/90 border border-amber-300/80 px-2 py-0.5 rounded-md">※ 예상 참고용 — 실측 후 2차 결제 시 확정</span>
                 </div>
                 <div class="flex items-start justify-between gap-2">
                   <div>
                     <span class="text-slate-600 font-medium text-xs sm:text-sm"><b>2차 결제 대상</b> (국제 해운 물류비 + VAS — <span class="text-amber-700 font-bold">관·부가세 제외</span>):</span>
-                    <div v-if="!costSummary.shippingConfirmed" class="text-[10px] text-amber-600 mt-0.5">해운비 실측 후 합산 예정 (VAS 별도)</div>
+                    <div v-if="!costSummary.shippingConfirmed" class="text-[11px] text-amber-600 mt-0.5">해운비 실측 후 합산 예정 (VAS 별도)</div>
                   </div>
                   <span v-if="costSummary.shippingConfirmed" class="font-mono font-bold text-slate-800 text-sm sm:text-base whitespace-nowrap">₩{{ formatNumber(paymentStages.secondPaymentKrw) }}원</span>
                   <span v-else class="font-mono font-bold text-amber-500 text-sm sm:text-base whitespace-nowrap">-</span>
@@ -416,7 +416,7 @@
                 <div class="flex items-center justify-between gap-2 pt-2 border-t border-slate-200/70">
                   <div>
                     <span class="text-slate-600 font-medium text-xs sm:text-sm">최종 예상 총 견적금액 (DDP):</span>
-                    <div class="text-[11px] text-slate-400 font-mono mt-0.5">
+                    <div class="text-xs text-slate-400 font-mono mt-0.5">
                       <span v-if="costSummary.shippingConfirmed">운임 포함 (관·부가세 별도/세관 직납) · 개당 도착원가 약 ₩{{ formatNumber(costSummary.unitDdpKrw) }}원</span>
                       <span v-else class="text-amber-600">해운비 미확정 — 실측 후 총액 확정</span>
                     </div>
@@ -424,7 +424,7 @@
                   <div class="text-right">
                     <div v-if="costSummary.shippingConfirmed" class="font-mono font-bold text-slate-700 text-sm sm:text-base whitespace-nowrap">₩{{ formatNumber(costSummary.totalDdpKrw) }}원</div>
                     <div v-else class="font-mono font-bold text-amber-500 text-sm sm:text-base whitespace-nowrap">-</div>
-                    <div class="text-[11px] text-slate-400 font-mono mt-0.5">(¥ {{ costSummary.itemTotalCny.toFixed(2) }} 위안 환산)</div>
+                    <div class="text-xs text-slate-400 font-mono mt-0.5">(¥ {{ costSummary.itemTotalCny.toFixed(2) }} 위안 환산)</div>
                   </div>
                 </div>
                 <p class="text-xs text-slate-500 leading-relaxed pt-2 border-t border-slate-200/60">
@@ -436,7 +436,7 @@
               <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-2xl p-5 sm:p-6 shadow-xl space-y-3.5 border border-slate-700/80">
                 <div class="flex items-center justify-between text-xs sm:text-sm">
                   <span class="font-bold text-amber-400 flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse"></span><span>지금 결제할 금액 (1차 결제 대상)</span></span>
-                  <span class="text-[11px] text-emerald-300 font-bold bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">즉시 공장 발주 진행</span>
+                  <span class="text-xs text-emerald-300 font-bold bg-emerald-500/20 border border-emerald-500/30 px-2.5 py-0.5 rounded-full">즉시 공장 발주 진행</span>
                 </div>
                 <div class="flex flex-col sm:flex-row sm:items-baseline justify-between gap-1 sm:gap-4 pt-1">
                   <div class="shrink-0"><span class="text-xs sm:text-sm text-slate-300 font-bold">1차 결제 예정액:</span></div>
@@ -445,7 +445,7 @@
                     <div class="text-xs text-slate-400 font-mono mt-0.5">(¥ {{ costSummary.itemTotalCny.toFixed(2) }} 위안 기준 환산)</div>
                   </div>
                 </div>
-                <div class="text-[11px] text-slate-400 font-normal leading-relaxed break-keep">제품대금 + 중국 현지 운임 + 구매수수료 <span class="text-amber-400">(관세·부가세·해운비는 별도 — 해운비는 실측 후 2차 청구)</span></div>
+                <div class="text-xs text-slate-400 font-normal leading-relaxed break-keep">제품대금 + 중국 현지 운임 + 구매수수료 <span class="text-amber-400">(관세·부가세·해운비는 별도 — 해운비는 실측 후 2차 청구)</span></div>
                 <div class="flex items-center justify-between pt-3 border-t border-slate-700/80 text-xs text-slate-300">
                   <span class="text-emerald-400 font-medium flex items-center gap-1.5"><CheckCircle2 class="w-4 h-4 text-emerald-400 shrink-0" /><span>1차 결제 완료 즉시 1688 공장 발주 및 사입이 시작됩니다.</span></span>
                 </div>

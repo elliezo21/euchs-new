@@ -48,7 +48,7 @@
             <span>{{ tab.label }}</span>
             <span
               v-if="tab.count > 0"
-              class="px-1.5 py-0.5 rounded-full text-[9px] font-black"
+              class="px-1.5 py-0.5 rounded-full text-[10px] font-black"
               :class="activeTab === tab.id ? 'bg-white/30 text-white' : 'bg-gray-300 text-gray-700'"
             >{{ tab.count }}</span>
           </button>
@@ -85,19 +85,19 @@
                 <div class="flex items-center gap-1.5 mb-2 flex-wrap">
                   <span
                     v-if="store.type === 'purchased'"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[10px] font-bold border border-blue-100"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-[11px] font-bold border border-blue-100"
                   >
                     <i class="fas fa-shopping-bag text-[9px]"></i>구매 이력
                   </span>
                   <span
                     v-if="store.type === 'favorite'"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 text-[10px] font-bold border border-rose-100"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-rose-50 text-rose-600 text-[11px] font-bold border border-rose-100"
                   >
                     <i class="fas fa-heart text-[9px]"></i>관심 찜
                   </span>
                   <span
                     v-if="store.type === 'both'"
-                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200"
+                    class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200"
                   >
                     <i class="fas fa-star text-[9px]"></i>구매 + 찜
                   </span>
@@ -127,7 +127,7 @@
               <span
                 v-for="badge in store.badges"
                 :key="badge"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[10px] font-semibold border border-emerald-100"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 text-[11px] font-semibold border border-emerald-100"
               >
                 <i class="fas fa-check-circle text-[9px]"></i>{{ badge }}
               </span>
@@ -136,7 +136,7 @@
 
           <!-- 대표 상품 썸네일 미리보기 (최대 4개) -->
           <div class="px-4 py-3 bg-gray-50/50">
-            <p class="text-[10px] font-bold text-gray-400 mb-2 uppercase tracking-wider">대표 상품</p>
+            <p class="text-[11px] font-bold text-gray-400 mb-2 uppercase tracking-wider">대표 상품</p>
             <div v-if="store.thumbnails.length > 0" class="flex gap-2 overflow-hidden">
               <div
                 v-for="(thumb, idx) in store.thumbnails.slice(0, 4)"
@@ -168,17 +168,17 @@
           <!-- 누적 구매 통계 -->
           <div class="px-5 py-3 border-t border-gray-100 bg-white flex items-center gap-4">
             <div class="text-center">
-              <p class="text-[10px] text-gray-400 font-medium">발주 이력</p>
-              <p class="text-base font-black text-blue-600">{{ store.orderCount }}<span class="text-[10px] font-normal text-gray-500 ml-0.5">회</span></p>
+              <p class="text-[11px] text-gray-400 font-medium">발주 이력</p>
+              <p class="text-base font-black text-blue-600">{{ store.orderCount }}<span class="text-[11px] font-normal text-gray-500 ml-0.5">회</span></p>
             </div>
             <div class="w-px h-8 bg-gray-200"></div>
             <div class="text-center">
-              <p class="text-[10px] text-gray-400 font-medium">총 발주 수량</p>
-              <p class="text-base font-black text-gray-800">{{ store.totalQuantity.toLocaleString() }}<span class="text-[10px] font-normal text-gray-500 ml-0.5">개</span></p>
+              <p class="text-[11px] text-gray-400 font-medium">총 발주 수량</p>
+              <p class="text-base font-black text-gray-800">{{ store.totalQuantity.toLocaleString() }}<span class="text-[11px] font-normal text-gray-500 ml-0.5">개</span></p>
             </div>
             <div class="w-px h-8 bg-gray-200"></div>
             <div class="text-center">
-              <p class="text-[10px] text-gray-400 font-medium">총 발주액</p>
+              <p class="text-[11px] text-gray-400 font-medium">총 발주액</p>
               <p class="text-base font-black text-emerald-600">{{ formatKrw(store.totalAmountKrw) }}</p>
             </div>
           </div>

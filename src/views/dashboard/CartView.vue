@@ -39,7 +39,7 @@
           <div class="text-2xl font-extrabold text-gray-900 font-mono">
             {{ cartItems.length }} <span class="text-xs font-normal text-gray-500">종</span>
           </div>
-          <p class="text-[11px] text-gray-400">총 {{ totalItemsQuantity }}개 대기중</p>
+          <p class="text-xs text-gray-400">총 {{ totalItemsQuantity }}개 대기중</p>
         </div>
         <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
           <ShoppingCart class="w-5 h-5" />
@@ -53,7 +53,7 @@
           <div class="text-2xl font-extrabold text-amber-600 font-mono">
             {{ selectedItems.length }} <span class="text-xs font-normal text-gray-500">종</span>
           </div>
-          <p class="text-[11px] text-amber-600/70">{{ selectedTotalQuantity }}개 선택됨</p>
+          <p class="text-xs text-amber-600/70">{{ selectedTotalQuantity }}개 선택됨</p>
         </div>
         <div class="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
           <CheckSquare class="w-5 h-5" />
@@ -67,7 +67,7 @@
           <div class="text-2xl font-extrabold text-blue-600 font-mono">
             ₩{{ exchangeRate.toFixed(2) }}
           </div>
-          <p class="text-[11px] text-blue-600/70">1 RMB (위안화)</p>
+          <p class="text-xs text-blue-600/70">1 RMB (위안화)</p>
         </div>
         <div class="w-10 h-10 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
           <Coins class="w-5 h-5" />
@@ -96,13 +96,13 @@
             <b class="text-gray-800">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
             <span class="text-gray-400 text-[12px]">(¥{{ selectedEstimatedCost.chinaFreightRmb?.toFixed(2) }})</span>
             <span v-if="freightCalcState === 'loading'"
-              class="px-1 py-0.5 rounded text-[9px] font-black bg-sky-100 text-sky-600">계산중</span>
+              class="px-1 py-0.5 rounded text-[10px] font-black bg-sky-100 text-sky-600">계산중</span>
             <span v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_seller'"
-              class="px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700">묶음실비</span>
+              class="px-1 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-700">묶음실비</span>
             <span v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_exact'"
-              class="px-1 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-500">항목합산</span>
+              class="px-1 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-500">항목합산</span>
             <span v-else-if="selectedEstimatedCost.chinaFreightOrigin === 'estimated'"
-              class="px-1 py-0.5 rounded text-[9px] font-black bg-gray-100 text-gray-400">추정치</span>
+              class="px-1 py-0.5 rounded text-[10px] font-black bg-gray-100 text-gray-400">추정치</span>
           </div>
 
           <!-- 수수료 한 줄 -->
@@ -236,10 +236,10 @@
             class="w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500 cursor-pointer shrink-0"
           />
           <span class="text-sm font-black text-slate-800">🏬 {{ group.displayName }}</span>
-          <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-[11px] font-bold">{{ group.items.length }}개 품목</span>
+          <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">{{ group.items.length }}개 품목</span>
         </div>
         <div class="text-right font-mono">
-          <div class="text-[11px] text-gray-400">상품 소계</div>
+          <div class="text-xs text-gray-400">상품 소계</div>
           <div class="text-sm font-bold text-amber-600">₩{{ formatNumber(getGroupSubtotalKrw(group)) }}</div>
         </div>
       </div>
@@ -268,12 +268,12 @@
                 {{ item.titleKo || item.productName || item.titleZh }}
               </div>
               <div class="flex items-center gap-2 flex-wrap">
-                <span class="text-[11px] text-gray-400 font-mono">ID: <b class="text-gray-600">{{ item.itemId || item.id }}</b></span>
+                <span class="text-xs text-gray-400 font-mono">ID: <b class="text-gray-600">{{ item.itemId || item.id }}</b></span>
                 <button
                   type="button"
                   @click="openOptionModal(item)"
                   :disabled="isOptionFetching && editingCartItemId === item.id"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[10px] font-bold transition active:scale-95 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-[11px] font-bold transition active:scale-95 shadow-2xs disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Loader2 v-if="isOptionFetching && editingCartItemId === item.id" class="w-3 h-3 animate-spin" />
                   <Settings2 v-else class="w-3 h-3" />
@@ -284,14 +284,14 @@
                   :href="item.productUrl"
                   target="_blank"
                   rel="noopener noreferrer"
-                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[10px] font-bold transition active:scale-95 shadow-2xs"
+                  class="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[11px] font-bold transition active:scale-95 shadow-2xs"
                   title="1688 원본 상품 페이지 새 창 열기"
                   @click.stop
                 >
                   <ExternalLink class="w-3 h-3" /><span>1688 원본 링크 ↗</span>
                 </a>
               </div>
-              <span class="inline-block px-2 py-0.5 rounded-lg bg-slate-100 text-gray-700 font-medium text-[11px] max-w-[200px] truncate">
+              <span class="inline-block px-2 py-0.5 rounded-lg bg-slate-100 text-gray-700 font-medium text-xs max-w-[200px] truncate">
                 {{ getItemSkuText(item) }}
               </span>
             </div>
@@ -374,7 +374,7 @@
             </div>
             <div>
               <h3 class="text-base font-bold text-gray-900">상품 옵션 변경 및 색상/사이즈 선택</h3>
-              <p class="text-[11px] text-gray-500 mt-0.5">1688 실시간 재고 기준 · 색상 선택 → 사이즈별 수량 설정</p>
+              <p class="text-xs text-gray-500 mt-0.5">1688 실시간 재고 기준 · 색상 선택 → 사이즈별 수량 설정</p>
             </div>
           </div>
           <button @click="closeOptionModal" class="text-gray-400 hover:text-gray-900 p-1.5 rounded-xl hover:bg-gray-100 transition">
@@ -392,7 +392,7 @@
           />
           <div class="flex-1 min-w-0">
             <p class="font-bold text-gray-900 truncate">{{ editingItem.titleKo || editingItem.productName }}</p>
-            <p class="text-[11px] text-gray-500 font-mono mt-0.5">
+            <p class="text-xs text-gray-500 font-mono mt-0.5">
               기본 단가: <b>¥{{ getItemUnitPriceCny(editingItem).toFixed(2) }}</b>
               (약 ₩{{ formatNumber(Math.round(getItemUnitPriceCny(editingItem) * exchangeRate)) }}원)
             </p>
@@ -403,7 +403,7 @@
         <div v-if="modalColors.length > 1" class="space-y-2">
           <div class="flex items-center gap-1.5">
             <Layers class="w-3.5 h-3.5 text-amber-500 shrink-0" />
-            <span class="font-bold text-gray-800 text-[11px]">① 색상 선택</span>
+            <span class="font-bold text-gray-800 text-xs">① 색상 선택</span>
           </div>
           <div class="flex flex-wrap gap-2">
             <button
@@ -412,7 +412,7 @@
               type="button"
               @click="modalSelectedColor = c.color"
               :disabled="c.isSoldOut"
-              class="px-3 py-1.5 rounded-xl text-[11px] font-bold border transition active:scale-95"
+              class="px-3 py-1.5 rounded-xl text-xs font-bold border transition active:scale-95"
               :class="modalSelectedColor === c.color
                 ? 'bg-amber-500 text-slate-950 border-amber-500 shadow-sm'
                 : c.isSoldOut
@@ -430,11 +430,11 @@
           <div class="flex items-center justify-between">
             <div class="flex items-center gap-1.5">
               <Layers class="w-3.5 h-3.5 text-amber-500 shrink-0" />
-              <span class="font-bold text-gray-800 text-[11px]">
+              <span class="font-bold text-gray-800 text-xs">
                 {{ modalColors.length > 1 ? '② 사이즈별 발주 수량' : '발주 수량 설정' }}
               </span>
             </div>
-            <span class="text-[11px] text-gray-400">수량 0 = 미선택</span>
+            <span class="text-xs text-gray-400">수량 0 = 미선택</span>
           </div>
 
           <div class="divide-y divide-gray-100 border border-gray-200 rounded-2xl overflow-hidden bg-white">
@@ -456,17 +456,17 @@
                     <template v-if="row.size">{{ row.size }}</template>
                     <template v-if="modalColors.length === 1 && !row.size">기본 옵션</template>
                   </span>
-                  <span v-if="row.isCurrent" class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">현재</span>
+                  <span v-if="row.isCurrent" class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-black">현재</span>
                   <span
                     v-if="row.stock !== Infinity && row.stock === 0"
-                    class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[10px] font-bold"
+                    class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 text-[11px] font-bold"
                   >품절</span>
                   <span
                     v-else-if="row.stock !== Infinity"
-                    class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[10px] font-bold"
+                    class="px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 text-[11px] font-bold"
                   >재고 {{ row.stock }}개</span>
                 </div>
-                <div class="text-[11px] text-gray-400 font-mono mt-0.5">
+                <div class="text-xs text-gray-400 font-mono mt-0.5">
                   ¥{{ row.priceCny.toFixed(2) }} (₩{{ formatNumber(Math.round(row.priceCny * exchangeRate)) }}원)
                 </div>
               </div>
@@ -602,7 +602,7 @@
             <!-- 줄2: 상품대금 -->
             <div class="text-[14px] font-bold text-gray-800">
               상품대금 ₩{{ formatNumber(selectedTotalKrw) }}원
-              <span class="text-[11px] text-gray-400 font-normal">(¥{{ selectedTotalCny.toFixed(2) }})</span>
+              <span class="text-xs text-gray-400 font-normal">(¥{{ selectedTotalCny.toFixed(2) }})</span>
             </div>
 
             <!-- 줄3: 택배 + 수수료 -->
@@ -610,13 +610,13 @@
               + 택배 <b class="text-gray-700">₩{{ formatNumber(selectedEstimatedCost.chinaFreightKrw) }}</b>
               <span class="text-gray-400">(¥{{ selectedEstimatedCost.chinaFreightRmb?.toFixed(2) }})</span>
               <span v-if="freightCalcState === 'loading'"
-                class="ml-0.5 px-1 py-0.5 rounded text-[9px] font-black bg-sky-100 text-sky-600">계산중</span>
+                class="ml-0.5 px-1 py-0.5 rounded text-[10px] font-black bg-sky-100 text-sky-600">계산중</span>
               <span v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_seller'"
-                class="ml-0.5 px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700">묶음실비</span>
+                class="ml-0.5 px-1 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-700">묶음실비</span>
               <span v-else-if="selectedEstimatedCost.chinaFreightOrigin === '1688_exact'"
-                class="ml-0.5 px-1 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-500">항목합산</span>
+                class="ml-0.5 px-1 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-500">항목합산</span>
               <span v-else-if="selectedEstimatedCost.chinaFreightOrigin === 'estimated'"
-                class="ml-0.5 px-1 py-0.5 rounded text-[9px] font-black bg-gray-100 text-gray-500">추정치</span>
+                class="ml-0.5 px-1 py-0.5 rounded text-[10px] font-black bg-gray-100 text-gray-500">추정치</span>
               + 수수료 <b class="text-gray-700">₩{{ formatNumber(selectedEstimatedCost.agencyFeeKrw) }}</b>
               <span class="text-gray-400">(¥{{ (selectedEstimatedCost.agencyFeeKrw / selectedEstimatedCost.exchangeRate).toFixed(2) }})</span>
             </div>
@@ -624,11 +624,11 @@
 
           <!-- 예상 총액 (3줄 블록 오른쪽) -->
           <div v-if="selectedItems.length > 0" class="text-right font-mono shrink-0">
-            <div class="text-[11px] font-bold text-amber-700">= 예상 총액</div>
+            <div class="text-xs font-bold text-amber-700">= 예상 총액</div>
             <div class="text-[20px] font-black text-amber-600 leading-tight">
               ₩{{ formatNumber(selectedEstimatedCost.chargeableKrw) }}원
             </div>
-            <div class="text-[10px] text-gray-400">(견적서에서 확정)</div>
+            <div class="text-[11px] text-gray-400">(견적서에서 확정)</div>
           </div>
 
           <!-- 발주 버튼 -->

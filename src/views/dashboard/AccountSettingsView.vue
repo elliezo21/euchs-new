@@ -64,10 +64,10 @@
           <Wallet class="w-5 h-5" />
         </div>
         <div>
-          <span class="text-[11px] text-gray-400 font-medium">나의 예치금 잔액</span>
+          <span class="text-xs text-gray-400 font-medium">나의 예치금 잔액</span>
           <div class="text-base font-extrabold text-gray-900 font-mono">
             ₩{{ walletBalance.toLocaleString() }}
-            <span v-if="currentSettings?.exchange_rate" class="text-gray-400 font-normal text-[11px]">(¥{{ (walletBalance / currentSettings.exchange_rate).toFixed(2) }})</span>
+            <span v-if="currentSettings?.exchange_rate" class="text-gray-400 font-normal text-xs">(¥{{ (walletBalance / currentSettings.exchange_rate).toFixed(2) }})</span>
           </div>
         </div>
         <button
@@ -93,7 +93,7 @@
       >
         <MapPin class="w-4 h-4" :class="activeTab === 'address' ? 'text-amber-400' : 'text-gray-400'" />
         <span>기본/추가 수령 주소지</span>
-        <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono" :class="activeTab === 'address' ? 'bg-amber-400 text-slate-950 font-black' : 'bg-gray-100 text-gray-600'">
+        <span class="px-1.5 py-0.2 rounded-full text-[11px] font-mono" :class="activeTab === 'address' ? 'bg-amber-400 text-slate-950 font-black' : 'bg-gray-100 text-gray-600'">
           {{ addressList.length }}
         </span>
       </button>
@@ -108,7 +108,7 @@
         <span>사업자 / 통관부호 관리</span>
         <span
           v-if="customsProfile.status"
-          class="px-1.5 py-0.2 rounded-full text-[10px] font-bold"
+          class="px-1.5 py-0.2 rounded-full text-[11px] font-bold"
           :class="customsProfile.status === 'verified' ? 'bg-emerald-100 text-emerald-800' : (customsProfile.status === 'pending' ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600')"
         >
           {{ customsProfile.status === 'verified' ? '인증' : (customsProfile.status === 'pending' ? '심사중' : '미인증') }}
@@ -170,7 +170,7 @@
                 <span class="font-bold text-xs text-gray-900">{{ addr.title }}</span>
                 <span
                   v-if="addr.isDefault"
-                  class="px-1.5 py-0.5 rounded bg-orange-600 text-white text-[9px] font-bold"
+                  class="px-1.5 py-0.5 rounded bg-orange-600 text-white text-[10px] font-bold"
                 >
                   기본 배송지
                 </span>
@@ -196,16 +196,16 @@
 
             <div class="text-xs text-gray-600 space-y-1">
               <div class="font-medium text-gray-800">{{ addr.recipient }} ({{ addr.phone }})</div>
-              <div class="text-[11px] text-gray-500 leading-relaxed font-mono">
+              <div class="text-xs text-gray-500 leading-relaxed font-mono">
                 [{{ addr.zipCode }}] {{ addr.address }} {{ addr.detailAddress }}
               </div>
-              <div class="text-[10px] text-slate-400 mt-1">배송 메모: {{ addr.memo || '문 앞 전달' }}</div>
+              <div class="text-[11px] text-slate-400 mt-1">배송 메모: {{ addr.memo || '문 앞 전달' }}</div>
             </div>
 
             <div v-if="!addr.isDefault" class="mt-3 pt-2 border-t border-gray-100">
               <button
                 @click="setDefaultAddress(addr.id)"
-                class="text-[11px] font-bold text-orange-600 hover:underline cursor-pointer"
+                class="text-xs font-bold text-orange-600 hover:underline cursor-pointer"
               >
                 기본 배송지로 지정
               </button>
@@ -230,20 +230,20 @@
             <!-- 3단계 인증 배지: DB profiles.is_business_verified 단일 기준 -->
             <span
               v-if="verificationStatus === 'verified'"
-              class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold flex items-center gap-1"
+              class="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs font-bold flex items-center gap-1"
             >
               <ShieldCheck class="w-3.5 h-3.5" />
               <span>VIP 바이어 (인증 완료)</span>
             </span>
             <span
               v-else-if="verificationStatus === 'pending'"
-              class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-[11px] font-bold flex items-center gap-1"
+              class="px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200 text-xs font-bold flex items-center gap-1"
             >
               <span>심사 중</span>
             </span>
             <span
               v-else
-              class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-[11px] font-bold flex items-center gap-1"
+              class="px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 text-xs font-bold flex items-center gap-1"
             >
               <span>미인증</span>
             </span>
@@ -253,15 +253,15 @@
           <div class="bg-slate-50/80 rounded-2xl p-3 border border-slate-100 space-y-1 text-xs">
             <div class="grid grid-cols-2 gap-3">
               <div>
-                <span class="text-[11px] text-gray-500 block font-medium">회원 성명</span>
+                <span class="text-xs text-gray-500 block font-medium">회원 성명</span>
                 <span class="font-bold text-gray-900 block truncate">{{ currentUser?.name || currentUser?.user_metadata?.full_name || userDisplayName || '바이어' }}</span>
               </div>
               <div>
-                <span class="text-[11px] text-gray-500 block font-medium">아이디 (이메일)</span>
+                <span class="text-xs text-gray-500 block font-medium">아이디 (이메일)</span>
                 <span class="font-bold text-gray-900 font-mono block truncate">{{ currentUser?.email || userEmail || '-' }}</span>
               </div>
             </div>
-            <p class="text-[10px] text-gray-400 pt-0.5">※ 회원 성명과 이메일은 가입 시 등록된 고유 계정 정보입니다.</p>
+            <p class="text-[11px] text-gray-400 pt-0.5">※ 회원 성명과 이메일은 가입 시 등록된 고유 계정 정보입니다.</p>
           </div>
 
           <form @submit.prevent="confirmSaveCustoms = true" class="space-y-3.5 text-xs">
@@ -348,7 +348,7 @@
           <div>
             <div class="flex items-center justify-between">
               <span
-                class="px-2.5 py-0.5 rounded-full text-[10px] font-black tracking-widest border"
+                class="px-2.5 py-0.5 rounded-full text-[11px] font-black tracking-widest border"
                 :class="customsProfile.status === 'verified' ? 'bg-amber-400/20 text-amber-300 border-amber-400/30' : 'bg-slate-700/50 text-slate-300 border-slate-600'"
               >
                 {{ customsProfile.status === 'verified' ? 'VIP PRIME BUYER' : (customsProfile.status === 'pending' ? 'B2B 인증 심사대기' : '일반 바이어') }}
@@ -371,19 +371,19 @@
                 </div>
                 <div>
                   <div class="font-bold text-white">이유씨 전담 수입 MD팀 (박팀장)</div>
-                  <div class="text-[10px] text-slate-300">1688 공장 네고 및 특수 검수 담당</div>
+                  <div class="text-[11px] text-slate-300">1688 공장 네고 및 특수 검수 담당</div>
                 </div>
               </div>
               <a
                 href="https://pf.kakao.com"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="px-3 py-1 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-[11px] transition"
+                class="px-3 py-1 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs transition"
               >
                 1:1 카톡 문의
               </a>
             </div>
-            <div class="text-[11px] text-slate-300 pt-1 border-t border-white/10 flex items-center justify-between flex-wrap gap-1">
+            <div class="text-xs text-slate-300 pt-1 border-t border-white/10 flex items-center justify-between flex-wrap gap-1">
               <span>직통 연락처: <a href="tel:010-9373-1214" class="text-amber-300 hover:underline font-mono font-bold">010-9373-1214</a></span>
               <span>업무시간: 평일 09:00 ~ 18:00</span>
             </div>
@@ -401,24 +401,24 @@
       <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
         <!-- 보유 잔액 -->
         <div class="bg-white border border-gray-200 rounded-2xl p-4 shadow-xs space-y-1">
-          <p class="text-[11px] text-gray-500 font-medium">보유 잔액</p>
+          <p class="text-xs text-gray-500 font-medium">보유 잔액</p>
           <p class="text-xl font-black font-mono text-gray-900">₩{{ walletBalance.toLocaleString() }}</p>
-          <p v-if="currentSettings?.exchange_rate" class="text-[10px] text-gray-400">¥{{ (walletBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
-          <p class="text-[10px] text-gray-400">전체 예치금 잔액</p>
+          <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-gray-400">¥{{ (walletBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
+          <p class="text-[11px] text-gray-400">전체 예치금 잔액</p>
         </div>
         <!-- 출금 신청 중(동결) -->
         <div class="bg-amber-50 border border-amber-200 rounded-2xl p-4 shadow-xs space-y-1">
-          <p class="text-[11px] text-amber-700 font-medium">출금 신청 중(동결)</p>
+          <p class="text-xs text-amber-700 font-medium">출금 신청 중(동결)</p>
           <p class="text-xl font-black font-mono text-amber-700">₩{{ heldBalance.toLocaleString() }}</p>
-          <p v-if="currentSettings?.exchange_rate" class="text-[10px] text-amber-600/80">¥{{ (heldBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
-          <p class="text-[10px] text-amber-600/80">관리자 처리 완료 시 차감</p>
+          <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-amber-600/80">¥{{ (heldBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
+          <p class="text-[11px] text-amber-600/80">관리자 처리 완료 시 차감</p>
         </div>
         <!-- 사용 가능 잔액 -->
         <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-4 shadow-xs space-y-1">
-          <p class="text-[11px] text-emerald-700 font-medium">사용 가능 잔액</p>
+          <p class="text-xs text-emerald-700 font-medium">사용 가능 잔액</p>
           <p class="text-xl font-black font-mono text-emerald-700">₩{{ availableBalance.toLocaleString() }}</p>
-          <p v-if="currentSettings?.exchange_rate" class="text-[10px] text-emerald-600/80">¥{{ (availableBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
-          <p class="text-[10px] text-emerald-600/80">주문 결제 가능 금액</p>
+          <p v-if="currentSettings?.exchange_rate" class="text-[11px] text-emerald-600/80">¥{{ (availableBalance / currentSettings.exchange_rate).toFixed(2) }}</p>
+          <p class="text-[11px] text-emerald-600/80">주문 결제 가능 금액</p>
         </div>
       </div>
 
@@ -522,13 +522,13 @@
                 </td>
               </tr>
               <tr v-for="t in filteredTransactions" :key="t.id" class="hover:bg-gray-50">
-                <td class="py-3 px-4 font-mono text-gray-500 text-[11px]">{{ t.date }}</td>
+                <td class="py-3 px-4 font-mono text-gray-500 text-xs">{{ t.date }}</td>
                 <td class="py-3 px-4">
                   <div class="font-bold text-gray-900">{{ t.title }}</div>
-                  <div v-if="t.orderNo" class="text-[10px] text-gray-400 font-mono">{{ t.orderNo }}</div>
+                  <div v-if="t.orderNo" class="text-[11px] text-gray-400 font-mono">{{ t.orderNo }}</div>
                 </td>
                 <td class="py-3 px-4">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-bold" :class="getTxTypeBadge(t.rawType)">
+                  <span class="px-2 py-0.5 rounded text-[11px] font-bold" :class="getTxTypeBadge(t.rawType)">
                     {{ getTxTypeLabel(t.rawType) }}
                   </span>
                 </td>
@@ -810,7 +810,7 @@
               <span class="text-base text-orange-600 font-mono font-extrabold">₩{{ depositAmount.toLocaleString() }}</span>
             </div>
 
-            <div class="pt-2 border-t border-orange-200/80 text-[11px] text-gray-700 space-y-1.5 font-medium">
+            <div class="pt-2 border-t border-orange-200/80 text-xs text-gray-700 space-y-1.5 font-medium">
               <div class="flex justify-between items-center">
                 <span class="text-gray-500">입금은행:</span>
                 <b class="text-gray-900 font-bold">기업은행 (공식 지정 계좌)</b>
@@ -822,7 +822,7 @@
                   <button
                     type="button"
                     @click="copyBankAccount"
-                    class="px-2 py-0.5 rounded-md bg-white border border-gray-300 hover:bg-gray-50 text-[10px] font-bold text-gray-700 transition cursor-pointer shadow-xs"
+                    class="px-2 py-0.5 rounded-md bg-white border border-gray-300 hover:bg-gray-50 text-[11px] font-bold text-gray-700 transition cursor-pointer shadow-xs"
                   >
                     📋 복사
                   </button>
@@ -835,7 +835,7 @@
             </div>
           </div>
 
-          <p class="text-[11px] text-slate-500 leading-relaxed">
+          <p class="text-xs text-slate-500 leading-relaxed">
             * 입금 신청 후 위 계좌로 송금해 주시면, 관리자 확인 후 즉시 예치금 지갑으로 충전 승인됩니다.
           </p>
 
@@ -884,7 +884,7 @@
             <span class="text-emerald-700 font-medium">출금 가능 잔액</span>
             <span class="text-emerald-800 font-black font-mono">₩{{ availableBalance.toLocaleString() }}</span>
           </div>
-          <p class="text-[10px] text-emerald-600/80 mt-0.5">보유 잔액(₩{{ walletBalance.toLocaleString() }}) - 동결(₩{{ heldBalance.toLocaleString() }})</p>
+          <p class="text-[11px] text-emerald-600/80 mt-0.5">보유 잔액(₩{{ walletBalance.toLocaleString() }}) - 동결(₩{{ heldBalance.toLocaleString() }})</p>
         </div>
 
         <div class="space-y-3 text-xs">
@@ -907,8 +907,8 @@
               <span class="absolute right-3.5 top-2.5 text-xs text-gray-400 font-bold">원</span>
             </div>
             <!-- 이중 검증 에러 메시지 -->
-            <p v-if="withdrawAmountError" class="text-rose-600 text-[11px] font-medium">{{ withdrawAmountError }}</p>
-            <p v-else class="text-[10px] text-gray-400">최소 {{ MIN_WITHDRAWAL_AMOUNT.toLocaleString() }}원 이상</p>
+            <p v-if="withdrawAmountError" class="text-rose-600 text-xs font-medium">{{ withdrawAmountError }}</p>
+            <p v-else class="text-[11px] text-gray-400">최소 {{ MIN_WITHDRAWAL_AMOUNT.toLocaleString() }}원 이상</p>
           </div>
 
           <!-- 은행명 -->
@@ -944,7 +944,7 @@
             />
           </div>
 
-          <p class="text-[11px] text-slate-500 leading-relaxed bg-slate-50 rounded-xl p-3">
+          <p class="text-xs text-slate-500 leading-relaxed bg-slate-50 rounded-xl p-3">
             * 출금 신청 즉시 해당 금액이 동결됩니다. 관리자가 계좌이체 후 완료처리 시 잔액에서 실제 차감됩니다. 반려 시 동결이 해제됩니다.
           </p>
 

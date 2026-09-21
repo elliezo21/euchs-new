@@ -67,7 +67,7 @@
                     <div class="flex items-center justify-between gap-1">
                       <div class="flex items-center gap-1.5 min-w-0">
                         <span class="font-bold text-gray-900 text-sm truncate group-hover:text-amber-600 transition">{{ displayBuyerName }}</span>
-                        <span class="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[10px] font-black shrink-0">
+                        <span class="px-1.5 py-0.2 rounded bg-orange-100 text-orange-700 text-[11px] font-black shrink-0">
                           {{ isBusinessVerified ? 'VIP' : '회원' }}
                         </span>
                       </div>
@@ -79,7 +79,7 @@
                 <div class="flex items-center justify-between pt-2 border-t border-gray-200/80 text-xs">
                   <router-link
                     to="/dashboard/account?tab=security"
-                    class="text-gray-500 hover:text-amber-600 font-medium flex items-center gap-1 cursor-pointer transition text-[11px]"
+                    class="text-gray-500 hover:text-amber-600 font-medium flex items-center gap-1 cursor-pointer transition text-xs"
                   >
                     <i class="fas fa-user-cog text-slate-400"></i>
                     <span>계정정보 관리 &gt;</span>
@@ -87,7 +87,7 @@
                   <button
                     type="button"
                     @click="handleDashboardSignOut"
-                    class="text-gray-400 hover:text-red-600 p-1 transition cursor-pointer flex items-center gap-1 text-[11px]"
+                    class="text-gray-400 hover:text-red-600 p-1 transition cursor-pointer flex items-center gap-1 text-xs"
                     title="로그아웃"
                   >
                     <i class="fas fa-sign-out-alt text-xs"></i>
@@ -111,7 +111,7 @@
                   </div>
                   <div class="min-w-0">
                     <div class="font-bold text-gray-800 text-xs">로그인이 필요합니다</div>
-                    <div class="text-[10px] text-gray-400">B2B 수입대행 ERP 서비스</div>
+                    <div class="text-[11px] text-gray-400">B2B 수입대행 ERP 서비스</div>
                   </div>
                 </div>
                 <button
@@ -138,7 +138,7 @@
                 <i class="fas fa-chart-pie text-base" :class="route.path === '/dashboard' ? 'text-amber-500' : 'text-gray-400'"></i>
                 <span>메인 (대시보드)</span>
               </div>
-              <span class="px-1.5 py-0.2 text-[10px] rounded bg-amber-500 text-slate-950 font-black">ERP</span>
+              <span class="px-1.5 py-0.2 text-[11px] rounded bg-amber-500 text-slate-950 font-black">ERP</span>
             </router-link>
 
             <!-- 2. 상품관리 (아코디언) -->
@@ -171,7 +171,7 @@
                   </div>
                   <span
                     v-if="savedItems.length > 0"
-                    class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs"
+                    class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black font-mono shadow-xs"
                   >
                     {{ savedItems.length }}
                   </span>
@@ -186,7 +186,7 @@
                     <span>📋</span>
                     <span>내상품리스트</span>
                   </div>
-                  <span class="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
+                  <span class="text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
                 </router-link>
               </div>
             </div>
@@ -214,7 +214,7 @@
                   :class="route.path === '/dashboard/orders' && (!route.query.tab || route.query.tab === 'all') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>내 주문 (주문/발주 통합 관리)</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ orderStats.inProgress }})</span>
+                  <span class="font-mono text-blue-600 text-xs font-bold">({{ orderStats.inProgress }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=quote"
@@ -222,7 +222,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'quote' || route.query.tab === 'quote_pending') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>견적 요청/대기</span>
-                  <span class="font-mono text-amber-600 text-[11px] font-bold">({{ quotePendingCount }})</span>
+                  <span class="font-mono text-amber-600 text-xs font-bold">({{ quotePendingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=payment"
@@ -230,7 +230,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'payment' || route.query.tab === 'quote_confirmed') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>결제대기</span>
-                  <span class="font-mono text-orange-600 text-[11px] font-bold">({{ paymentPendingCount }})</span>
+                  <span class="font-mono text-orange-600 text-xs font-bold">({{ paymentPendingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=payment_verified"
@@ -238,7 +238,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'payment_verified' || route.query.tab === 'verified') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>결제확인</span>
-                  <span class="font-mono text-emerald-600 text-[11px] font-bold">({{ paymentVerifiedCount }})</span>
+                  <span class="font-mono text-emerald-600 text-xs font-bold">({{ paymentVerifiedCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=purchasing"
@@ -246,7 +246,7 @@
                   :class="route.path === '/dashboard/orders' && route.query.tab === 'purchasing' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>1688 구매 진행중</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ purchasingCount }})</span>
+                  <span class="font-mono text-blue-600 text-xs font-bold">({{ purchasingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/cancelled"
@@ -254,7 +254,7 @@
                   :class="route.path === '/dashboard/cancelled' ? 'bg-rose-500/10 text-rose-600 font-bold border-r-2 border-rose-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>취소·반품 내역</span>
-                  <span v-if="orderStats.cancelled > 0" class="font-mono text-rose-500 text-[11px] font-bold">({{ orderStats.cancelled }})</span>
+                  <span v-if="orderStats.cancelled > 0" class="font-mono text-rose-500 text-xs font-bold">({{ orderStats.cancelled }})</span>
                 </router-link>
               </div>
             </div>
@@ -293,7 +293,7 @@
                   :class="route.path === '/dashboard/warehouse' && route.query.tab === 'pending_inbound' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>배송중</span>
-                  <span class="font-mono text-amber-600 text-[11px] font-bold">({{ warehouseTabCounts.pending_inbound }})</span>
+                  <span class="font-mono text-amber-600 text-xs font-bold">({{ warehouseTabCounts.pending_inbound }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/warehouse?tab=arrival_done"
@@ -301,7 +301,7 @@
                   :class="route.path === '/dashboard/warehouse' && route.query.tab === 'arrival_done' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>현지입고완료</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ warehouseTabCounts.arrival_done }})</span>
+                  <span class="font-mono text-blue-600 text-xs font-bold">({{ warehouseTabCounts.arrival_done }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/warehouse?tab=inbound_weighed"
@@ -309,7 +309,7 @@
                   :class="route.path === '/dashboard/warehouse' && (route.query.tab === 'inbound_weighed' || route.query.tab === 'inspection') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>실측&검수완료</span>
-                  <span class="font-mono text-teal-600 text-[11px] font-bold">({{ warehouseTabCounts.inbound_weighed }})</span>
+                  <span class="font-mono text-teal-600 text-xs font-bold">({{ warehouseTabCounts.inbound_weighed }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/warehouse?tab=ready_to_ship"
@@ -317,7 +317,7 @@
                   :class="route.path === '/dashboard/warehouse' && (route.query.tab === 'ready_to_ship' || route.query.tab === 'shipping_ready') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>한국행 선적대기</span>
-                  <span class="font-mono text-purple-600 text-[11px] font-bold">({{ warehouseTabCounts.ready_to_ship }})</span>
+                  <span class="font-mono text-purple-600 text-xs font-bold">({{ warehouseTabCounts.ready_to_ship }})</span>
                 </router-link>
               </div>
             </div>
@@ -409,7 +409,7 @@
                   <i class="fas fa-bullhorn text-sm" :class="route.path.startsWith('/community/notice') || route.path.startsWith('/notice') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>공지사항</span>
                 </div>
-                <span class="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">새소식</span>
+                <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">새소식</span>
               </router-link>
             </div>
 
@@ -424,7 +424,7 @@
                   <i class="fas fa-book-open text-sm" :class="route.path.startsWith('/support/guide') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>사이트 이용가이드</span>
                 </div>
-                <span class="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">가이드</span>
+                <span class="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">가이드</span>
               </router-link>
             </div>
 
@@ -437,7 +437,7 @@
             <i class="fas fa-comment-dots text-sm"></i>
             <span>1:1 전담 카카오톡 상담</span>
           </div>
-          <p class="text-slate-300 text-[11px] leading-relaxed">
+          <p class="text-slate-300 text-xs leading-relaxed">
             대량 발주, 특수 검수, 맞춤 OEM 제작 문의는 전담 매니저에게 실시간 문의하세요.
           </p>
           <a
@@ -453,7 +453,7 @@
         <div class="p-3 border-t border-gray-200 bg-slate-50 flex items-center justify-between text-xs">
           <div class="flex items-center gap-2 min-w-0">
             <span class="w-2 h-2 rounded-full shrink-0" :class="isLoggedIn ? 'bg-emerald-500' : 'bg-gray-400'"></span>
-            <span class="font-bold text-gray-700 truncate text-[11px]">
+            <span class="font-bold text-gray-700 truncate text-xs">
               {{ isLoggedIn ? displayBuyerName : '로그인 필요' }}
             </span>
           </div>
@@ -461,7 +461,7 @@
             v-if="isLoggedIn"
             type="button"
             @click="handleDashboardSignOut"
-            class="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer text-[11px] shrink-0"
+            class="px-2.5 py-1 rounded-lg text-red-600 hover:bg-red-50 hover:text-red-700 font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer text-xs shrink-0"
             title="로그아웃"
           >
             <i class="fas fa-sign-out-alt text-xs"></i>
@@ -471,7 +471,7 @@
             v-else
             type="button"
             @click="openLoginModal('login')"
-            class="px-2.5 py-1 rounded-lg text-blue-600 hover:bg-blue-50 font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer text-[11px] shrink-0"
+            class="px-2.5 py-1 rounded-lg text-blue-600 hover:bg-blue-50 font-bold flex items-center gap-1.5 transition active:scale-95 cursor-pointer text-xs shrink-0"
           >
             <i class="fas fa-sign-in-alt text-xs"></i>
             <span>로그인</span>
@@ -579,7 +579,7 @@
                 {{ displayCompanyName }}
               </div>
               <div class="flex items-center gap-2 text-xs text-slate-700 font-semibold">
-                <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-900 font-bold text-[11px]">
+                <span class="px-1.5 py-0.2 rounded bg-slate-100 text-slate-900 font-bold text-xs">
                   {{ isBusinessVerified ? 'VIP 바이어' : '일반 회원' }}
                 </span>
                 <span>수수료율: <b class="text-orange-600 font-extrabold">{{ agencyFeeRate }}%</b></span>
@@ -675,12 +675,12 @@
                   <span class="font-bold text-slate-900 flex flex-wrap items-center gap-1.5">
                     <i class="fas fa-file-shield text-orange-600 text-sm"></i>
                     <span>한·중 FTA C/O(원산지증명서) 발급 신청</span>
-                    <span class="px-1.5 py-0.2 bg-orange-100 text-orange-900 rounded text-[10px] font-black border border-orange-300">
+                    <span class="px-1.5 py-0.2 bg-orange-100 text-orange-900 rounded text-[11px] font-black border border-orange-300">
                       관세 감면용 필수 서류
                     </span>
                   </span>
                 </label>
-                <div class="text-[11.5px] text-slate-700 font-bold flex items-center gap-1">
+                <div class="text-xs text-slate-700 font-bold flex items-center gap-1">
                   <i class="fas fa-circle-info text-orange-600 text-xs"></i>
                   <span>발급 시 품목별 한-중 FTA 협정 관세(관세 인하 또는 0%)가 적용됩니다.</span>
                 </div>
@@ -767,12 +767,12 @@
                       <!-- 1. 구분 / 번호 -->
                       <td class="py-3 px-4 font-mono text-slate-800 whitespace-nowrap">
                         <span
-                          class="px-2 py-0.5 rounded text-[10px] font-black"
+                          class="px-2 py-0.5 rounded text-[11px] font-black"
                           :class="row.type === 'cart' ? 'bg-rose-100 text-rose-800 border border-rose-300' : 'bg-blue-100 text-blue-800 border border-blue-300'"
                         >
                           {{ row.type === 'cart' ? '보관함' : '주문접수' }}
                         </span>
-                        <div class="text-[11.5px] text-slate-800 font-bold mt-1">
+                        <div class="text-xs text-slate-800 font-bold mt-1">
                           {{ row.orderNumber || row.orderId || row.id || `ITEM-${rIdx + 1}` }}
                         </div>
                       </td>
@@ -796,7 +796,7 @@
                             >
                               {{ row.titleKo || row.titleZh }}
                             </a>
-                            <div class="text-[11.5px] text-slate-700 font-mono font-semibold">
+                            <div class="text-xs text-slate-700 font-mono font-semibold">
                               1688 ID: <b class="text-slate-950 font-bold">{{ row.itemId || row.id }}</b>
                             </div>
                           </div>
@@ -805,7 +805,7 @@
 
                       <!-- 3. 옵션 / 규격 -->
                       <td class="py-3 px-4 text-center text-slate-800 font-semibold whitespace-nowrap">
-                        <span v-if="row.skus && row.skus.length" class="bg-slate-100 px-2 py-1 rounded text-[11px] font-bold text-slate-800">
+                        <span v-if="row.skus && row.skus.length" class="bg-slate-100 px-2 py-1 rounded text-xs font-bold text-slate-800">
                           {{ row.skus[0].color }} / {{ row.skus[0].size }}
                           <span v-if="row.skus.length > 1" class="text-orange-600 font-black ml-0.5">
                             외 {{ row.skus.length - 1 }}종
@@ -825,7 +825,7 @@
                           <span class="text-xs font-bold text-slate-800">₩</span>
                           <span class="font-black text-slate-950 text-sm">{{ formatKrw(getItemTotalKrw(row)) }}</span>
                         </div>
-                        <div class="text-[11.5px] font-bold text-rose-600 font-mono">
+                        <div class="text-xs font-bold text-rose-600 font-mono">
                           ¥ {{ getItemTotalRmb(row).toFixed(2) }}
                         </div>
                       </td>
@@ -833,7 +833,7 @@
                       <!-- 6. 상태 -->
                       <td class="py-3 px-4 text-center whitespace-nowrap">
                         <span
-                          class="px-2.5 py-1 rounded-full text-[11px] font-black"
+                          class="px-2.5 py-1 rounded-full text-xs font-black"
                           :class="row.type === 'cart' ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'"
                         >
                           {{ row.status || (row.type === 'cart' ? '견적대기' : '구매진행') }}
@@ -880,7 +880,7 @@
                   <i class="fas fa-book-open text-orange-500 text-xs mr-1"></i>
                   <span>시스템 이용가이드</span>
                 </h4>
-                <router-link to="/support/guide" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
+                <router-link to="/support/guide" class="text-xs text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
               </div>
               <ul class="space-y-2 text-xs text-slate-800 font-bold">
                 <li v-for="item in guideItems" :key="item.id">
@@ -902,7 +902,7 @@
                   <i class="fas fa-circle-question text-blue-600 text-xs mr-1"></i>
                   <span>자주 묻는 질문 (FAQ)</span>
                 </h4>
-                <router-link to="/support/guide?tab=faq" class="text-[11px] text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
+                <router-link to="/support/guide?tab=faq" class="text-xs text-slate-500 font-semibold hover:text-slate-800">더보기 &gt;</router-link>
               </div>
               <ul class="space-y-2 text-xs text-slate-800 font-bold">
                 <li v-for="faq in faqItems" :key="faq.id">
@@ -923,10 +923,10 @@
                 <i class="fas fa-building-flag"></i>
                 <span>🏢 EUCHS 중국 직영 물류센터 안내</span>
               </div>
-              <div class="space-y-2 text-[11.5px] text-slate-200">
+              <div class="space-y-2 text-xs text-slate-200">
                 <div class="flex items-center justify-between">
                   <span class="text-slate-300 font-semibold">이우(Yiwu) 전용 물류센터:</span>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-black text-[10px] border border-emerald-500/40">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-black text-[11px] border border-emerald-500/40">
                     <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
                     정상 가동중
                   </span>
@@ -935,7 +935,7 @@
                   <span class="text-slate-400 font-medium">한국행 해운 선적:</span>
                   <span class="text-amber-300 font-bold">매주 4~5회 직항 출항 (정기 선적)</span>
                 </div>
-                <div class="pt-1.5 border-t border-slate-800 text-[11px] text-slate-300 font-medium flex items-center gap-1.5">
+                <div class="pt-1.5 border-t border-slate-800 text-xs text-slate-300 font-medium flex items-center gap-1.5">
                   <i class="fas fa-check-circle text-emerald-400 text-[10px] shrink-0"></i>
                   <span>1688 공장 직입고 / CBM 실측 계근 / 100% 정밀 검수</span>
                 </div>

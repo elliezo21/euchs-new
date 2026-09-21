@@ -132,7 +132,7 @@
             <!-- Divider -->
             <div class="relative flex py-2 items-center">
               <div class="flex-grow border-t border-slate-200"></div>
-              <span class="flex-shrink mx-3 text-[11px] font-medium text-slate-400">또는 SNS 간편로그인</span>
+              <span class="flex-shrink mx-3 text-xs font-medium text-slate-400">또는 SNS 간편로그인</span>
               <div class="flex-grow border-t border-slate-200"></div>
             </div>
 
@@ -159,7 +159,7 @@
                 style="background-color: #03C75A;"
                 title="네이버 로그인"
               >
-                <span class="font-black text-[11px] bg-white text-[#03C75A] w-3.5 h-3.5 rounded-xs flex items-center justify-center">N</span>
+                <span class="font-black text-xs bg-white text-[#03C75A] w-3.5 h-3.5 rounded-xs flex items-center justify-center">N</span>
                 <span>네이버</span>
               </button>
               -->
@@ -190,7 +190,7 @@
             <!-- SNS Quick Signup Header & Buttons -->
             <div class="space-y-2">
               <div class="text-center pb-0.5">
-                <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-[11px] font-bold">
+                <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-50 text-amber-900 border border-amber-200 text-xs font-bold">
                   <i class="fas fa-bolt text-amber-500"></i>
                   <span>SNS 3초 간편 회원가입</span>
                 </span>
@@ -218,7 +218,7 @@
                   style="background-color: #03C75A;"
                   title="네이버로 간편가입"
                 >
-                  <span class="font-black text-[11px] bg-white text-[#03C75A] w-3.5 h-3.5 rounded-xs flex items-center justify-center">N</span>
+                  <span class="font-black text-xs bg-white text-[#03C75A] w-3.5 h-3.5 rounded-xs flex items-center justify-center">N</span>
                   <span>네이버</span>
                 </button>
                 -->
@@ -244,7 +244,7 @@
             <!-- Divider -->
             <div class="relative flex py-1 items-center">
               <div class="flex-grow border-t border-slate-200"></div>
-              <span class="flex-shrink mx-3 text-[11px] font-bold text-slate-500">B2B 사업자 직접 가입</span>
+              <span class="flex-shrink mx-3 text-xs font-bold text-slate-500">B2B 사업자 직접 가입</span>
               <div class="flex-grow border-t border-slate-200"></div>
             </div>
 
@@ -261,7 +261,7 @@
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-bold text-slate-700 mb-1">아이디 (이메일 주소) *</label>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">아이디 (이메일 주소) *</label>
                   <input 
                     v-model.trim="signupForm.email"
                     type="email" 
@@ -274,7 +274,7 @@
 
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">비밀번호 (6자 이상) *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 (6자 이상) *</label>
                     <input 
                       v-model="signupForm.password"
                       type="password" 
@@ -286,7 +286,7 @@
                     />
                   </div>
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">비밀번호 확인 *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">비밀번호 확인 *</label>
                     <input 
                       v-model="signupForm.passwordConfirm"
                       type="password" 
@@ -307,12 +307,12 @@
                     <i class="fas fa-building text-blue-600"></i>
                     <span>2. B2B 사업자 & 통관 정보 (필수)</span>
                   </div>
-                  <span class="text-[10px] text-blue-700 font-bold">도매가 열람 필수</span>
+                  <span class="text-[11px] text-blue-700 font-bold">도매가 열람 필수</span>
                 </div>
 
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">상호명 (회사명) *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">상호명 (회사명) *</label>
                     <input 
                       v-model.trim="signupForm.company_name"
                       type="text" 
@@ -322,7 +322,7 @@
                     />
                   </div>
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">대표자명 / 담당자 *</label>
+                    <label class="block text-xs font-bold text-slate-700 mb-1">대표자명 / 담당자 *</label>
                     <input 
                       v-model.trim="signupForm.name"
                       type="text" 
@@ -335,7 +335,7 @@
 
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">
                       사업자등록번호 (10자리) *
                     </label>
                     <input 
@@ -349,7 +349,7 @@
                     />
                   </div>
                   <div>
-                    <label class="block text-[11px] font-bold text-slate-700 mb-1">
+                    <label class="block text-xs font-bold text-slate-700 mb-1">
                       통관부호(차후기재가능)
                     </label>
                     <input 
@@ -364,7 +364,7 @@
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-bold text-slate-700 mb-1">사업장 소재지 (배송지 주소) *</label>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">사업장 소재지 (배송지 주소) *</label>
                   <input 
                     v-model.trim="signupForm.address"
                     type="text" 
@@ -375,7 +375,7 @@
                 </div>
 
                 <div>
-                  <label class="block text-[11px] font-bold text-slate-700 mb-1">담당자 연락처 (휴대폰) *</label>
+                  <label class="block text-xs font-bold text-slate-700 mb-1">담당자 연락처 (휴대폰) *</label>
                   <input 
                     v-model.trim="signupForm.phone"
                     type="tel" 
@@ -419,7 +419,7 @@
                 <i class="fas fa-exclamation-triangle text-amber-600"></i>
                 <span>사업자 정보 등록이 필요합니다</span>
               </p>
-              <p class="text-[11px] text-amber-800 leading-snug">
+              <p class="text-xs text-amber-800 leading-snug">
                 EUCHS는 B2B 수입 도매 전문 플랫폼으로, 실시간 1688 도매가 열람 및 발주를 위해 필수 사업자 정보를 등록해 주셔야 합니다.
               </p>
             </div>
@@ -564,7 +564,7 @@
                 <i class="fas fa-key text-blue-600"></i>
                 <span>비밀번호 재설정</span>
               </p>
-              <p class="text-[11px] text-blue-800 leading-snug">
+              <p class="text-xs text-blue-800 leading-snug">
                 안전한 계정 관리를 위해 최소 6자 이상의 새 비밀번호를 입력해 주세요.
               </p>
             </div>

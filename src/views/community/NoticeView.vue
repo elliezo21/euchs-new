@@ -96,12 +96,12 @@
               />
               <div class="absolute top-3 left-3 flex items-center gap-1.5">
                 <span 
-                  class="px-2.5 py-1 text-[11px] font-black rounded-lg text-white shadow-sm"
+                  class="px-2.5 py-1 text-xs font-black rounded-lg text-white shadow-sm"
                   :class="getBadgeClass(item.badge)"
                 >
                   {{ item.badge }}
                 </span>
-                <span v-if="item.is_pinned || item.is_important || item.isImportant" class="px-2 py-0.5 bg-red-600 text-white text-[10px] font-black rounded flex items-center gap-1 shadow-sm animate-pulse">
+                <span v-if="item.is_pinned || item.is_important || item.isImportant" class="px-2 py-0.5 bg-red-600 text-white text-[11px] font-black rounded flex items-center gap-1 shadow-sm animate-pulse">
                   <i class="fas fa-fire"></i> 중요
                 </span>
               </div>
@@ -136,7 +136,7 @@
             <span class="text-xs text-blue-600 font-semibold group-hover:underline flex items-center gap-1 cursor-pointer" @click="openNoticeDetail(item)">
               자세히 보기 <i class="fas fa-arrow-right text-[10px]"></i>
             </span>
-            <span class="text-[11px] text-gray-400">{{ item.categoryName || item.category_name }}</span>
+            <span class="text-xs text-gray-400">{{ item.categoryName || item.category_name }}</span>
           </div>
         </div>
       </div>

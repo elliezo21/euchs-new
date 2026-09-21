@@ -27,11 +27,11 @@
           <!-- 상단 헤더 영역 -->
           <div class="flex items-center justify-between px-5 pt-5 sm:px-6 sm:pt-6">
             <div class="flex items-center gap-2">
-              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] sm:text-xs font-black bg-orange-50 text-orange-600 border border-orange-200/70">
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs sm:text-xs font-black bg-orange-50 text-orange-600 border border-orange-200/70">
                 <span>💡</span>
                 <span>사용가이드</span>
               </span>
-              <span class="text-[11px] font-bold text-slate-400">
+              <span class="text-xs font-bold text-slate-400">
                 STEP {{ currentStep + 1 }} / {{ steps.length }}
               </span>
             </div>
@@ -56,7 +56,7 @@
                 {{ steps[currentStep].icon }}
               </div>
               <div class="space-y-0.5">
-                <div class="text-[10px] font-black text-orange-500 uppercase tracking-wider">
+                <div class="text-[11px] font-black text-orange-500 uppercase tracking-wider">
                   {{ steps[currentStep].category }}
                 </div>
                 <h3 class="text-base sm:text-lg font-black text-slate-900 leading-snug">
@@ -71,7 +71,7 @@
             </p>
 
             <!-- 포인트 팁 박스 -->
-            <div class="bg-amber-50/80 border border-amber-200/70 rounded-xl p-3 flex items-start gap-2.5 text-[11px] sm:text-xs text-amber-900 leading-relaxed break-keep">
+            <div class="bg-amber-50/80 border border-amber-200/70 rounded-xl p-3 flex items-start gap-2.5 text-xs sm:text-xs text-amber-900 leading-relaxed break-keep">
               <span class="text-sm shrink-0">✨</span>
               <div>
                 <span class="font-bold text-amber-950 mr-1">포인트:</span>

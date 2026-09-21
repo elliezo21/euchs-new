@@ -8,20 +8,20 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between py-1.5 text-xs">
         <!-- 좌측: 실시간 고시 환율 및 간이관세 계산기 바로가기 -->
         <div class="flex items-center gap-3">
-          <span class="text-amber-300 font-semibold flex items-center gap-1.5 text-[11px]">
+          <span class="text-amber-300 font-semibold flex items-center gap-1.5 text-xs">
             <i class="fas fa-bolt text-amber-400 text-[10px]"></i>
             <span>실시간 고시 환율:</span>
             <span class="font-mono text-white font-bold">1위안 (CNY) = {{ customExchangeRate }}원 (KRW)</span>
-            <span class="text-slate-400 font-normal text-[10px] ml-0.5">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
+            <span class="text-slate-400 font-normal text-[11px] ml-0.5">(국제 {{ liveMarketRate > 0 ? liveMarketRate.toFixed(2) : '206.19' }}원)</span>
           </span>
-          <router-link to="/tools/calculator" class="text-slate-400 hover:text-white transition flex items-center gap-1 text-[11px]">
+          <router-link to="/tools/calculator" class="text-slate-400 hover:text-white transition flex items-center gap-1 text-xs">
             <i class="fas fa-calculator text-amber-400 text-[10px]"></i>
             <span>간이관세 계산기</span>
           </router-link>
         </div>
 
         <!-- 우측: 유튜브 & 사용자 계정/로그아웃 -->
-        <div class="flex items-center gap-3.5 text-[11px]">
+        <div class="flex items-center gap-3.5 text-xs">
           <a href="https://www.youtube.com/@euccompany" target="_blank" class="flex items-center gap-1 text-slate-300 hover:text-red-400 transition">
             <i class="fab fa-youtube text-red-500 text-xs"></i>
             <span>이유씨유튜브</span>
@@ -64,11 +64,11 @@
                 />
                 <div 
                   v-else 
-                  class="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[9px] flex items-center justify-center"
+                  class="w-4 h-4 rounded-full bg-blue-600 text-white font-bold text-[10px] flex items-center justify-center"
                 >
                   {{ (userDisplayName || 'U').charAt(0) }}
                 </div>
-                <span class="font-bold text-white max-w-[110px] truncate text-[11px]">{{ userDisplayName }}님</span>
+                <span class="font-bold text-white max-w-[110px] truncate text-xs">{{ userDisplayName }}님</span>
                 <i class="fas fa-chevron-down text-[8px] text-slate-400 transition" :class="{ 'rotate-180': isUserMenuOpen }"></i>
               </button>
 
@@ -85,12 +85,12 @@
                 >
                   <div class="flex items-center justify-between gap-1">
                     <p class="font-black text-gray-900 group-hover:text-amber-600 transition truncate">{{ userDisplayName }}님</p>
-                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-bold shrink-0">
+                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[11px] font-bold shrink-0">
                       {{ isBusinessVerified ? 'VIP 바이어' : '일반회원' }}
                     </span>
                   </div>
-                  <p class="text-[11px] text-gray-500 font-medium truncate mt-0.5 font-mono">{{ userEmail }}</p>
-                  <span class="text-[10px] text-amber-600 font-bold mt-1 inline-block">계정센터 바로가기 &gt;</span>
+                  <p class="text-xs text-gray-500 font-medium truncate mt-0.5 font-mono">{{ userEmail }}</p>
+                  <span class="text-[11px] text-amber-600 font-bold mt-1 inline-block">계정센터 바로가기 &gt;</span>
                 </router-link>
 
                 <div class="py-1">
@@ -155,7 +155,7 @@
             <button
               type="button"
               @click="handleSignOut"
-              class="px-2 py-0.5 rounded text-[11px] text-slate-400 hover:text-red-400 hover:bg-slate-800 transition cursor-pointer flex items-center gap-1"
+              class="px-2 py-0.5 rounded text-xs text-slate-400 hover:text-red-400 hover:bg-slate-800 transition cursor-pointer flex items-center gap-1"
               title="로그아웃"
             >
               <i class="fas fa-sign-out-alt text-[10px]"></i>

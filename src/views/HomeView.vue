@@ -217,7 +217,7 @@
               to="/mall"
               class="inline-flex items-center gap-2.5 px-6 sm:px-8 py-3 rounded-2xl bg-gradient-to-r from-orange-500 via-rose-500 to-amber-500 hover:from-orange-600 hover:to-rose-600 text-white font-black text-xs sm:text-sm shadow-lg shadow-orange-500/25 hover:shadow-xl hover:shadow-orange-500/35 hover:-translate-y-0.5 active:scale-95 transition-all duration-200"
             >
-              <span class="w-5 h-5 rounded-md bg-white text-rose-600 flex items-center justify-center font-black text-[10px] shadow-sm">
+              <span class="w-5 h-5 rounded-md bg-white text-rose-600 flex items-center justify-center font-black text-[11px] shadow-sm">
                 1688
               </span>
               <span>1688 실시간 소싱몰 바로가기</span>
@@ -259,10 +259,10 @@
 
             <div class="space-y-5">
               <div class="flex items-center justify-between">
-                <span class="px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-extrabold rounded-full">
+                <span class="px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-400/30 text-xs font-extrabold rounded-full">
                   실시간 환율 연동
                 </span>
-                <span class="text-[11px] text-slate-400 flex items-center gap-1">
+                <span class="text-xs text-slate-400 flex items-center gap-1">
                   <i class="fas fa-calendar-check text-[10px]"></i> 매일 KST 09:00 갱신
                 </span>
               </div>
@@ -325,8 +325,8 @@
                   @click="openNoticeModal(item)"
                   class="p-3 bg-slate-950/60 hover:bg-slate-800/80 rounded-2xl border border-slate-800/80 transition cursor-pointer group space-y-1"
                 >
-                  <div class="flex items-center justify-between text-[11px]">
-                    <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/20">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-400/20">
                       {{ item.badge || item.category_name || '공지' }}
                     </span>
                     <span class="text-slate-500">{{ formatDate(item.created_at || item.date) }}</span>
@@ -334,7 +334,7 @@
                   <h4 class="text-xs font-bold text-slate-200 group-hover:text-blue-400 transition truncate">
                     {{ item.title }}
                   </h4>
-                  <p class="text-[11px] text-slate-400 line-clamp-1">
+                  <p class="text-xs text-slate-400 line-clamp-1">
                     {{ item.summary || item.desc }}
                   </p>
                 </div>
@@ -364,7 +364,7 @@
                 class="p-3 rounded-2xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 text-amber-300 font-bold transition text-center flex flex-col items-center justify-center gap-1.5 group"
               >
                 <i class="fas fa-plane-departure text-lg text-amber-400 group-hover:scale-110 transition"></i>
-                <span class="text-[11px]">시장투어 신청</span>
+                <span class="text-xs">시장투어 신청</span>
               </router-link>
 
               <router-link 
@@ -372,7 +372,7 @@
                 class="p-3 rounded-2xl bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-300 font-bold transition text-center flex flex-col items-center justify-center gap-1.5 group"
               >
                 <i class="fas fa-rocket text-lg text-red-400 group-hover:scale-110 transition"></i>
-                <span class="text-[11px]">로켓그로스 대행</span>
+                <span class="text-xs">로켓그로스 대행</span>
               </router-link>
 
               <router-link 
@@ -380,7 +380,7 @@
                 class="p-3 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/30 text-blue-300 font-bold transition text-center flex flex-col items-center justify-center gap-1.5 group"
               >
                 <i class="fas fa-cart-shopping text-lg text-blue-400 group-hover:scale-110 transition"></i>
-                <span class="text-[11px]">1688 구매대행</span>
+                <span class="text-xs">1688 구매대행</span>
               </router-link>
 
               <router-link 
@@ -388,12 +388,12 @@
                 class="p-3 rounded-2xl bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 font-bold transition text-center flex flex-col items-center justify-center gap-1.5 group"
               >
                 <i class="fas fa-industry text-lg text-emerald-400 group-hover:scale-110 transition"></i>
-                <span class="text-[11px]">OEM/ODM 무역</span>
+                <span class="text-xs">OEM/ODM 무역</span>
               </router-link>
             </div>
 
             <div class="p-3 bg-slate-950 rounded-2xl border border-slate-800 text-center">
-              <span class="text-[11px] text-slate-400 block">유선 상담 및 긴급 문의</span>
+              <span class="text-xs text-slate-400 block">유선 상담 및 긴급 문의</span>
               <a href="tel:010-9373-1214" class="text-sm font-black text-blue-400 hover:underline">
                 010-9373-1214
               </a>
@@ -461,7 +461,7 @@
                 <div :class="['w-14 h-14 rounded-2xl border backdrop-blur-md flex items-center justify-center text-2xl group-hover:scale-110 transition duration-300 shadow-lg', card.iconColor]">
                   <i :class="card.icon"></i>
                 </div>
-                <span :class="['px-2.5 py-1 rounded-full text-[11px] font-black border shadow-sm backdrop-blur-sm', card.badgeColor]">
+                <span :class="['px-2.5 py-1 rounded-full text-xs font-black border shadow-sm backdrop-blur-sm', card.badgeColor]">
                   {{ card.badge }}
                 </span>
               </div>
@@ -629,14 +629,14 @@
               </div>
 
               <!-- Quick Results Breakdown -->
-              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800 text-[11px]">
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-800 text-xs">
                 <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
                   <span class="text-slate-500 block">순수 제품가</span>
                   <span class="font-bold text-slate-200">{{ miniProductKrw.toLocaleString() }}원</span>
                 </div>
                 <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
                   <span class="text-slate-500 block">예상 국제운임</span>
-                  <span v-if="miniShipping === 'other_customs'" class="font-bold text-amber-300 text-[10px]">1:1 맞춤 산출</span>
+                  <span v-if="miniShipping === 'other_customs'" class="font-bold text-amber-300 text-[11px]">1:1 맞춤 산출</span>
                   <span v-else class="font-bold text-sky-300">{{ miniFreightKrw.toLocaleString() }}원</span>
                 </div>
                 <div class="p-2.5 bg-slate-900 rounded-xl border border-slate-800">
@@ -651,12 +651,12 @@
               </div>
 
               <!-- Other customs notice -->
-              <div v-if="miniShipping === 'other_customs'" class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] flex items-center gap-2">
+              <div v-if="miniShipping === 'other_customs'" class="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs flex items-center gap-2">
                 <i class="fas fa-info-circle text-amber-400 shrink-0"></i>
                 <span>특수/기타 통관 품목은 전담 매니저의 1:1 상담 후 맞춤 견적이 산출됩니다.</span>
               </div>
 
-              <div class="flex items-center justify-between text-[11px] text-slate-400 pt-1">
+              <div class="flex items-center justify-between text-xs text-slate-400 pt-1">
                 <span>※ 한-중 FTA C/O 적용 및 수수료 포함 예상 산출액</span>
                 <router-link 
                   :to="{ path: '/tools/calculator' }" 
@@ -720,10 +720,10 @@
       <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-xl w-full max-h-[85vh] overflow-y-auto space-y-4 shadow-2xl relative text-gray-900 text-xs">
         <div class="flex items-center justify-between border-b pb-3">
           <div>
-            <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[11px] font-bold rounded">
+            <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-bold rounded">
               {{ selectedNotice.badge || selectedNotice.category_name || '공지' }}
             </span>
-            <span class="text-gray-400 ml-2 text-[11px]">{{ formatDate(selectedNotice.created_at) }}</span>
+            <span class="text-gray-400 ml-2 text-xs">{{ formatDate(selectedNotice.created_at) }}</span>
           </div>
           <button @click="selectedNotice = null" class="text-gray-400 hover:text-gray-600 p-1">
             <i class="fas fa-times text-lg"></i>

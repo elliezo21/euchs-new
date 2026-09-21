@@ -220,13 +220,13 @@
           <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-4 text-xs sm:text-sm">
             <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
               <i class="fas fa-phone-alt text-blue-400 text-xl mb-2"></i>
-              <p class="text-slate-400 text-[11px]">한국 직통전화</p>
+              <p class="text-slate-400 text-xs">한국 직통전화</p>
               <p class="font-bold text-white mt-1">010-9373-1214</p>
             </div>
 
             <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
               <i class="fas fa-mobile-screen-button text-blue-400 text-xl mb-2"></i>
-              <p class="text-slate-400 text-[11px]">중국 현지폰</p>
+              <p class="text-slate-400 text-xs">중국 현지폰</p>
               <p class="font-bold text-white mt-1">195-2407-7350</p>
             </div>
 
@@ -238,13 +238,13 @@
               title="카카오톡 공식 채널 바로가기"
             >
               <i class="fas fa-comment text-yellow-400 text-xl mb-2"></i>
-              <p class="text-slate-400 text-[11px]">카카오톡 공식채널</p>
+              <p class="text-slate-400 text-xs">카카오톡 공식채널</p>
               <p class="font-bold text-yellow-300 mt-1">이유씨컴퍼니</p>
             </a>
 
             <div class="bg-white/10 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center">
               <i class="fab fa-weixin text-green-400 text-xl mb-2"></i>
-              <p class="text-slate-400 text-[11px]">위챗(WeChat) ID</p>
+              <p class="text-slate-400 text-xs">위챗(WeChat) ID</p>
               <p class="font-bold text-green-300 mt-1">euchskorea</p>
             </div>
           </div>

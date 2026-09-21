@@ -41,7 +41,7 @@
 
           <!-- 2. 모달 타이틀 & 안내 문구 -->
           <div class="space-y-2">
-            <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-black tracking-wide">
+            <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black tracking-wide">
               B2B 수입대행 회원 전용
             </span>
             <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight pt-0.5">
@@ -74,7 +74,7 @@
           </div>
 
           <!-- 4. 하단 부가 혜택 안내 -->
-          <div class="pt-3 border-t border-gray-100 text-[11px] text-gray-400 font-medium flex items-center justify-center gap-3">
+          <div class="pt-3 border-t border-gray-100 text-xs text-gray-400 font-medium flex items-center justify-center gap-3">
             <span>✓ 실시간 DDP 견적</span>
             <span>✓ 한-중 FTA C/O 대행</span>
             <span>✓ 이우 현지 정밀 검수</span>

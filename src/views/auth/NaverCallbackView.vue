@@ -32,7 +32,7 @@
         <div class="space-y-1">
           <h2 class="text-lg font-black text-emerald-400">로그인 완료!</h2>
           <p class="text-xs text-slate-300">{{ userName }}님, 환영합니다.</p>
-          <p class="text-[11px] text-slate-500">잠시 후 메인 화면으로 이동합니다...</p>
+          <p class="text-xs text-slate-500">잠시 후 메인 화면으로 이동합니다...</p>
         </div>
       </div>
 

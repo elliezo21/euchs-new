@@ -47,7 +47,7 @@
       </div>
 
       <!-- 하단 바 -->
-      <div class="flex items-center gap-2 px-3 h-9 bg-slate-900 text-white text-[11px] shrink-0">
+      <div class="flex items-center gap-2 px-3 h-9 bg-slate-900 text-white text-xs shrink-0">
         <button type="button" class="shrink-0 hover:text-amber-300 transition cursor-pointer" @click="hideToday(p)">
           오늘 하루 보지 않기
         </button>

@@ -52,11 +52,11 @@
           : ['border-gray-200', 'hover:border-gray-300']"
       >
         <div :class="[tab.iconBg, 'w-7 h-7 rounded-lg flex items-center justify-center text-sm mb-2']">{{ tab.icon }}</div>
-        <div class="text-[10px] font-bold text-slate-500 truncate leading-none">{{ tab.shortLabel }}</div>
+        <div class="text-[11px] font-bold text-slate-500 truncate leading-none">{{ tab.shortLabel }}</div>
         <div :class="[tab.textColor, 'text-xl font-black font-mono mt-1 leading-none']">
           {{ tabCounts[tab.key] || 0 }}
         </div>
-        <div class="text-[10px] text-slate-400 mt-0.5">건</div>
+        <div class="text-[11px] text-slate-400 mt-0.5">건</div>
       </div>
     </div>
 
@@ -80,7 +80,7 @@
           v-for="tab in WAREHOUSE_TABS"
           :key="tab.key"
           @click="activeTabFilter = tab.key"
-          class="px-2.5 py-1.5 rounded-lg text-[11px] font-bold transition whitespace-nowrap cursor-pointer shadow-2xs"
+          class="px-2.5 py-1.5 rounded-lg text-xs font-bold transition whitespace-nowrap cursor-pointer shadow-2xs"
           :class="activeTabFilter === tab.key ? tab.tabActive : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
         >
           {{ tab.shortLabel }}
@@ -124,7 +124,7 @@
               <!-- 입고번호 / 일시 -->
               <td class="py-3.5 px-4 whitespace-nowrap font-mono">
                 <div class="font-bold text-gray-900">{{ item.inboundNo }}</div>
-                <div class="text-[11px] text-gray-400 mt-0.5">{{ formatInboundDate(item.inboundDate) }}</div>
+                <div class="text-xs text-gray-400 mt-0.5">{{ formatInboundDate(item.inboundDate) }}</div>
               </td>
 
               <!-- 주문번호 / 거점 -->
@@ -138,7 +138,7 @@
                   <Info class="w-3 h-3 text-gray-400 group-hover/ord:text-amber-600 opacity-0 group-hover/ord:opacity-100 transition shrink-0" />
                 </div>
                 <div class="mt-1">
-                  <span class="px-2 py-0.5 rounded text-[10px] font-black bg-amber-100 text-amber-800">
+                  <span class="px-2 py-0.5 rounded text-[11px] font-black bg-amber-100 text-amber-800">
                     이우(Yiwu) 창고
                   </span>
                 </div>
@@ -161,7 +161,7 @@
                     <p class="font-bold text-gray-900 line-clamp-1 group-hover/prod:text-amber-600 group-hover/prod:underline transition">
                       {{ item.productName }}
                     </p>
-                    <p class="text-[11px] text-gray-500">옵션: {{ item.sku }} · <b>{{ item.quantity }}개</b> ({{ item.boxCount }} CTN)</p>
+                    <p class="text-xs text-gray-500">옵션: {{ item.sku }} · <b>{{ item.quantity }}개</b> ({{ item.boxCount }} CTN)</p>
                   </div>
                 </div>
               </td>
@@ -172,11 +172,11 @@
                   <div class="font-bold text-gray-900 font-mono text-xs">
                     {{ item.measuredWeightKg }} kg
                   </div>
-                  <div class="text-[11px] text-blue-600 font-mono font-bold">
+                  <div class="text-xs text-blue-600 font-mono font-bold">
                     {{ item.measuredCbm }} CBM
                   </div>
                 </div>
-                <div v-else class="text-gray-400 italic text-[11px]">
+                <div v-else class="text-gray-400 italic text-xs">
                   계근 대기중
                 </div>
               </td>
@@ -199,11 +199,11 @@
                     <div class="mt-0.5 w-full max-w-[220px] text-left">
                       <!-- 이슈 수량 요약 뱃지 -->
                       <div class="flex items-center gap-1 mb-1">
-                        <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 text-[10px] font-black">
+                        <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200 text-[11px] font-black">
                           ⚠️ 이슈 {{ getTotalIssueQty(item) }}개
                         </span>
                         <span v-if="item.issueStatus"
-                          class="px-2 py-0.5 rounded-full border text-[10px] font-bold"
+                          class="px-2 py-0.5 rounded-full border text-[11px] font-bold"
                           :class="getIssueStatusBadgeClass(item.issueStatus)"
                         >
                           {{ getIssueStatusLabel(item.issueStatus) }}
@@ -211,7 +211,7 @@
                       </div>
                       <!-- 사유 세부 브리핑 -->
                       <div v-if="getIssueBriefing(item)"
-                        class="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[10px] text-rose-800 leading-relaxed font-medium"
+                        class="p-1.5 bg-rose-50 border border-rose-200 rounded-lg text-[11px] text-rose-800 leading-relaxed font-medium"
                       >
                         {{ getIssueBriefing(item) }}
                       </div>
@@ -222,7 +222,7 @@
                     v-if="item.inspectionPhotos && item.inspectionPhotos.length > 0"
                     type="button"
                     @click.stop="openInspectionModal(item)"
-                    class="text-[11px] text-orange-600 hover:text-orange-700 font-bold flex items-center gap-1 hover:underline"
+                    class="text-xs text-orange-600 hover:text-orange-700 font-bold flex items-center gap-1 hover:underline"
                   >
                     <Camera class="w-3 h-3" />
                     <span>실사 사진 ({{ item.inspectionPhotos.length }}장)</span>
@@ -236,12 +236,12 @@
                   <span
                     v-for="(vas, vIdx) in item.vasApplied"
                     :key="vIdx"
-                    class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[10px] font-medium"
+                    class="px-1.5 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px] font-medium"
                   >
                     {{ resolveVasLabel(vas) }}
                   </span>
                 </div>
-                <span v-else class="text-gray-400 text-[11px]">없음</span>
+                <span v-else class="text-gray-400 text-xs">없음</span>
               </td>
 
               <!-- 관리 액션 -->
@@ -311,10 +311,10 @@
             title="주문 상세정보 보기"
           >
             <span class="font-mono font-bold text-xs text-gray-900 group-hover/mord:text-amber-600 group-hover/mord:underline">{{ item.inboundNo }}</span>
-            <span class="text-[11px] text-gray-500 font-mono font-semibold ml-1.5">({{ item.orderNo }})</span>
+            <span class="text-xs text-gray-500 font-mono font-semibold ml-1.5">({{ item.orderNo }})</span>
           </div>
           <span
-            class="px-2 py-0.5 rounded-full text-[10px] font-bold cursor-pointer hover:opacity-80 transition"
+            class="px-2 py-0.5 rounded-full text-[11px] font-bold cursor-pointer hover:opacity-80 transition"
             :class="getInspectionBadgeClass(item.inspectionStatus)"
             @click="openOrderDetail(item)"
             title="주문 상세정보 보기"
@@ -337,8 +337,8 @@
           />
           <div class="flex-1 min-w-0 space-y-1">
             <h4 class="font-bold text-xs text-gray-900 line-clamp-1 group-hover/mprod:text-amber-600 group-hover/mprod:underline transition">{{ item.productName }}</h4>
-            <p class="text-[11px] text-gray-500">옵션: {{ item.sku }} · <b>{{ item.quantity }}개</b></p>
-            <div class="flex items-center gap-2 font-mono text-[11px] text-gray-700">
+            <p class="text-xs text-gray-500">옵션: {{ item.sku }} · <b>{{ item.quantity }}개</b></p>
+            <div class="flex items-center gap-2 font-mono text-xs text-gray-700">
               <span v-if="item.measuredWeightKg > 0">실측: <b>{{ item.measuredWeightKg }}kg</b></span>
               <span v-else class="text-gray-400">계근 대기중</span>
               <span v-if="item.measuredCbm > 0">·</span>
@@ -394,7 +394,7 @@
                 <span class="font-mono text-xs font-bold text-gray-900 bg-white px-2 py-0.5 rounded-lg border border-gray-200">
                   주문번호: {{ selectedOrderDetail.orderNo }}
                 </span>
-                <span class="text-[11px] text-gray-400 font-mono hidden sm:inline">
+                <span class="text-xs text-gray-400 font-mono hidden sm:inline">
                   입고번호: {{ selectedOrderDetail.inboundNo }}
                 </span>
               </div>
@@ -420,48 +420,48 @@
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <!-- 주문/입고 번호 -->
             <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
-              <span class="text-[11px] text-gray-400 font-medium block">발주 및 입고 번호</span>
+              <span class="text-xs text-gray-400 font-medium block">발주 및 입고 번호</span>
               <div class="font-mono font-bold text-gray-900 text-xs truncate">{{ selectedOrderDetail.orderNo }}</div>
-              <div class="font-mono text-[10px] text-gray-500 truncate">{{ selectedOrderDetail.inboundNo }}</div>
+              <div class="font-mono text-[11px] text-gray-500 truncate">{{ selectedOrderDetail.inboundNo }}</div>
             </div>
 
             <!-- 입고 일시 및 거점 -->
             <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
-              <span class="text-[11px] text-gray-400 font-medium block">물류 거점 / 입고일시</span>
+              <span class="text-xs text-gray-400 font-medium block">물류 거점 / 입고일시</span>
               <div class="font-bold text-amber-800 text-xs flex items-center gap-1">
                 <span class="w-2 h-2 rounded-full bg-amber-500"></span>
                 이우(Yiwu) 물류센터
               </div>
-              <div v-if="selectedOrderDetail.inspectionStatus !== 'pending_inbound'" class="text-[10px] text-gray-500 font-mono truncate">
+              <div v-if="selectedOrderDetail.inspectionStatus !== 'pending_inbound'" class="text-[11px] text-gray-500 font-mono truncate">
                 {{ formatInboundDate(selectedOrderDetail.inboundDate) }}
               </div>
-              <div v-else class="text-gray-400 italic text-[11px] pt-1">
+              <div v-else class="text-gray-400 italic text-xs pt-1">
                 입고 후 표시됩니다
               </div>
             </div>
 
             <!-- 실측 계근 (중량 / CBM) -->
             <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
-              <span class="text-[11px] text-gray-400 font-medium block">실측 계근 (중량/부피)</span>
+              <span class="text-xs text-gray-400 font-medium block">실측 계근 (중량/부피)</span>
               <div v-if="selectedOrderDetail.measuredWeightKg > 0 || selectedOrderDetail.measuredCbm > 0" class="space-y-0.5">
                 <div class="font-bold text-gray-900 font-mono text-xs">
                   {{ selectedOrderDetail.measuredWeightKg || 0 }} kg
                   <span class="text-blue-600 ml-1">({{ selectedOrderDetail.measuredCbm || 0 }} CBM)</span>
                 </div>
-                <div class="text-[10px] text-gray-500">포장 수량: {{ selectedOrderDetail.boxCount || 1 }} CTN</div>
+                <div class="text-[11px] text-gray-500">포장 수량: {{ selectedOrderDetail.boxCount || 1 }} CTN</div>
               </div>
-              <div v-else class="text-gray-400 italic text-[11px] pt-1">
+              <div v-else class="text-gray-400 italic text-xs pt-1">
                 현지 계근 대기중
               </div>
             </div>
 
             <!-- 검수 상태 -->
             <div class="p-3.5 bg-white rounded-2xl border border-gray-200 shadow-2xs space-y-1">
-              <span class="text-[11px] text-gray-400 font-medium block">검수 진행 단계</span>
+              <span class="text-xs text-gray-400 font-medium block">검수 진행 단계</span>
               <div class="font-bold text-teal-700 text-xs truncate">
                 {{ getInspectionLabel(selectedOrderDetail.inspectionStatus) }}
               </div>
-              <div class="text-[10px] text-gray-500 truncate">
+              <div class="text-[11px] text-gray-500 truncate">
                 {{ selectedOrderDetail.inspectionPhotos?.length > 0 ? `실사 사진 ${selectedOrderDetail.inspectionPhotos.length}장 등록` : '기본 입고 검수' }}
               </div>
             </div>
@@ -475,7 +475,7 @@
                 현지 검수원 종합 소견
               </span>
               <span
-                class="px-2 py-0.5 rounded text-[10px] font-bold"
+                class="px-2 py-0.5 rounded text-[11px] font-bold"
                 :class="getInspectionBadgeClass(selectedOrderDetail.inspectionStatus)"
               >
                 {{ getInspectionLabel(selectedOrderDetail.inspectionStatus) }}
@@ -496,13 +496,13 @@
                 </span>
                 <span
                   v-if="selectedOrderDetail.issueStatus"
-                  class="px-2 py-0.5 rounded-full border text-[10px] font-bold"
+                  class="px-2 py-0.5 rounded-full border text-[11px] font-bold"
                   :class="getIssueStatusBadgeClass(selectedOrderDetail.issueStatus)"
                 >
                   {{ getIssueStatusLabel(selectedOrderDetail.issueStatus) }}
                 </span>
               </div>
-              <p v-if="getIssueBriefing(selectedOrderDetail)" class="text-[11px] text-rose-700 leading-relaxed">
+              <p v-if="getIssueBriefing(selectedOrderDetail)" class="text-xs text-rose-700 leading-relaxed">
                 {{ getIssueBriefing(selectedOrderDetail) }}
               </p>
             </div>
@@ -544,14 +544,14 @@
                         :href="prod.productUrl"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition text-[11px] font-bold shrink-0"
+                        class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 border border-blue-200 text-blue-700 hover:bg-blue-100 transition text-xs font-bold shrink-0"
                         title="1688 원본 상품 페이지 열기"
                       >
                         <span>1688 원본</span>
                         <ExternalLink class="w-3 h-3" />
                       </a>
                     </div>
-                    <div class="flex items-center gap-2 text-[11px] text-gray-500">
+                    <div class="flex items-center gap-2 text-xs text-gray-500">
                       <span class="font-mono">총 {{ prod.totalQty }}개</span>
                       <span v-if="prod.company" class="text-gray-400">· {{ prod.company }}</span>
                     </div>
@@ -561,7 +561,7 @@
                 <!-- 옵션(SKU) 목록 테이블 -->
                 <div class="overflow-x-auto bg-white rounded-xl border border-gray-200">
                   <table class="w-full text-left text-xs">
-                    <thead class="bg-gray-50 text-gray-600 font-bold border-b border-gray-200 text-[11px]">
+                    <thead class="bg-gray-50 text-gray-600 font-bold border-b border-gray-200 text-xs">
                       <tr>
                         <th class="py-2 px-3">선택 옵션 규격 (SKU)</th>
                         <th class="py-2 px-3 text-center w-24">신청 수량</th>
@@ -597,7 +597,7 @@
                     class="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-left transition"
                     :class="[getChinaTrackingBadge(prod).badgeClass, prod.chinaTrackingNo ? 'cursor-pointer' : 'cursor-default']"
                   >
-                    <span class="text-[11px] font-bold flex items-center gap-1 truncate">
+                    <span class="text-xs font-bold flex items-center gap-1 truncate">
                       🚚 {{ getChinaTrackingBadge(prod).label }}
                     </span>
                     <ChevronDown
@@ -633,7 +633,7 @@
               <button
                 type="button"
                 @click="openVasModal(selectedOrderDetail); closeOrderDetailModal()"
-                class="text-[11px] text-orange-600 hover:text-orange-700 font-bold hover:underline"
+                class="text-xs text-orange-600 hover:text-orange-700 font-bold hover:underline"
               >
                 + 부가작업 변경/추가
               </button>
@@ -674,7 +674,7 @@
               <button
                 type="button"
                 @click="openInspectionModal(selectedOrderDetail); closeOrderDetailModal()"
-                class="text-[11px] text-orange-600 hover:text-orange-700 font-bold hover:underline"
+                class="text-xs text-orange-600 hover:text-orange-700 font-bold hover:underline"
               >
                 전체 갤러리 보기 ➔
               </button>
@@ -757,7 +757,7 @@
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div class="space-y-0.5">
             <div class="flex items-center gap-2">
-              <span class="px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-700">
                 정밀 검수 실사 갤러리
               </span>
               <span class="font-mono text-xs text-gray-500 font-bold">
@@ -783,7 +783,7 @@
           <div class="flex items-center justify-between">
             <span class="font-bold text-slate-700">현지 검수원 종합 소견</span>
             <span
-              class="px-2 py-0.5 rounded text-[10px] font-bold"
+              class="px-2 py-0.5 rounded text-[11px] font-bold"
               :class="getInspectionBadgeClass(activeInspectionItem?.inspectionStatus)"
             >
               {{ getInspectionLabel(activeInspectionItem?.inspectionStatus) }}
@@ -803,7 +803,7 @@
               ⚠️ 이슈 상품 현황 — 총 {{ getTotalIssueQty(activeInspectionItem) }}개
             </span>
             <span v-if="activeInspectionItem?.issueStatus"
-              class="px-2 py-0.5 rounded-full border text-[10px] font-bold"
+              class="px-2 py-0.5 rounded-full border text-[11px] font-bold"
               :class="getIssueStatusBadgeClass(activeInspectionItem.issueStatus)"
             >
               {{ getIssueStatusLabel(activeInspectionItem.issueStatus) }}
@@ -812,25 +812,25 @@
           <!-- 사유 태그 목록 -->
           <div class="flex flex-wrap gap-1.5">
             <span v-if="activeInspectionItem?.issueDetails?.colorMismatch > 0"
-              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-xs"
             >🎨 색상/옵션 차이: {{ activeInspectionItem.issueDetails.colorMismatch }}개</span>
             <span v-if="activeInspectionItem?.issueDetails?.damaged > 0"
-              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-xs"
             >💥 파손/포장 손상: {{ activeInspectionItem.issueDetails.damaged }}개</span>
             <span v-if="activeInspectionItem?.issueDetails?.contaminated > 0"
-              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-xs"
             >🧹 오염/스크래치: {{ activeInspectionItem.issueDetails.contaminated }}개</span>
             <span v-if="activeInspectionItem?.issueDetails?.missingParts > 0"
-              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-xs"
             >⚠️ 부품/수량 부족: {{ activeInspectionItem.issueDetails.missingParts }}개</span>
             <span v-if="activeInspectionItem?.issueDetails?.lowQuality > 0"
-              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-xs"
             >📉 퀄리티 미달: {{ activeInspectionItem.issueDetails.lowQuality }}개</span>
             <span v-if="activeInspectionItem?.issueDetails?.wrongDelivery > 0"
-              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-[11px]"
+              class="px-2 py-0.5 rounded-lg bg-rose-100 border border-rose-300 text-rose-800 font-bold text-xs"
             >📦 오배송/요구사항 미달: {{ activeInspectionItem.issueDetails.wrongDelivery }}개</span>
           </div>
-          <p class="text-[11px] text-rose-700 leading-relaxed">
+          <p class="text-xs text-rose-700 leading-relaxed">
             담당 매니저가 1688 공장에 이슈를 접수하였습니다. 처리 현황은 위 상태 뱃지를 확인해주세요.
           </p>
         </div>
@@ -850,7 +850,7 @@
                 class="w-full h-full object-cover group-hover:scale-105 transition duration-300"
               />
               <div class="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition flex items-end p-2.5">
-                <span class="text-white text-[11px] font-medium line-clamp-1">{{ photo.caption }}</span>
+                <span class="text-white text-xs font-medium line-clamp-1">{{ photo.caption }}</span>
               </div>
               <div class="absolute top-2 right-2 p-1.5 rounded-lg bg-black/40 text-white backdrop-blur-xs opacity-0 group-hover:opacity-100 transition">
                 <Maximize2 class="w-3.5 h-3.5" />
@@ -904,8 +904,8 @@
           <div class="space-y-0.5">
             <span
               :class="isVasReadOnly
-                ? 'px-2 py-0.5 rounded text-[10px] font-bold bg-violet-100 text-violet-700'
-                : 'px-2 py-0.5 rounded text-[10px] font-bold bg-orange-100 text-orange-700'"
+                ? 'px-2 py-0.5 rounded text-[11px] font-bold bg-violet-100 text-violet-700'
+                : 'px-2 py-0.5 rounded text-[11px] font-bold bg-orange-100 text-orange-700'"
             >
               {{ isVasReadOnly ? '신청 완료' : '추가부가작업' }}
             </span>
@@ -924,7 +924,7 @@
 
         <div class="p-3 bg-gray-50 rounded-2xl text-xs space-y-1">
           <p class="font-bold text-gray-900 line-clamp-1">{{ activeVasItem?.productName }}</p>
-          <div class="flex items-center gap-3 text-gray-500 font-mono text-[11px]">
+          <div class="flex items-center gap-3 text-gray-500 font-mono text-xs">
             <span>수량: <b>{{ activeVasItem?.quantity }}개</b></span>
             <span>·</span>
             <span>박스 수량: <b>{{ activeVasItem?.boxCount }} CTN</b></span>
@@ -956,24 +956,24 @@
               />
               <div>
                 <p class="font-bold text-gray-900">{{ vas.name }}</p>
-                <p class="text-gray-500 text-[11px] mt-0.5">{{ vas.description }}</p>
+                <p class="text-gray-500 text-xs mt-0.5">{{ vas.description }}</p>
               </div>
             </div>
             <div class="text-right font-mono whitespace-nowrap">
               <span class="font-bold text-gray-900">₩{{ vas.unitPrice.toLocaleString() }}</span>
-              <span class="text-gray-400 text-[10px] block">/ {{ vas.unit }}</span>
+              <span class="text-gray-400 text-[11px] block">/ {{ vas.unit }}</span>
             </div>
           </div>
 
           <!-- 기타 커스텀 작업 섹션 -->
           <div class="pt-1">
             <div class="flex items-center justify-between mb-2">
-              <span class="font-bold text-gray-700 text-[11px]">기타 커스텀 작업</span>
+              <span class="font-bold text-gray-700 text-xs">기타 커스텀 작업</span>
               <button
                 v-if="!isVasReadOnly"
                 type="button"
                 @click="addCustomVasItem"
-                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-[11px] border border-orange-200 transition"
+                class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-orange-50 hover:bg-orange-100 text-orange-700 font-bold text-xs border border-orange-200 transition"
               >
                 <span>+ 항목 추가</span>
               </button>
@@ -1003,10 +1003,10 @@
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
               </button>
             </div>
-            <p v-if="customVasItems.length === 0 && !isVasReadOnly" class="text-[11px] text-gray-400 text-center py-1">
+            <p v-if="customVasItems.length === 0 && !isVasReadOnly" class="text-xs text-gray-400 text-center py-1">
               목록에 없는 작업이 있으면 항목 추가 버튼을 눌러 직접 입력하세요.
             </p>
-            <p v-if="customVasItems.length === 0 && isVasReadOnly" class="text-[11px] text-gray-400 text-center py-1">
+            <p v-if="customVasItems.length === 0 && isVasReadOnly" class="text-xs text-gray-400 text-center py-1">
               커스텀 작업 신청 내역이 없습니다.
             </p>
           </div>
@@ -1015,7 +1015,7 @@
         <!-- 합산 금액 및 버튼 -->
         <div class="pt-3 border-t border-gray-100 flex items-center justify-between">
           <div>
-            <span class="text-[11px] text-gray-500">{{ isVasReadOnly ? '신청 부가작업 총액' : '예상 부가작업 총액' }}</span>
+            <span class="text-xs text-gray-500">{{ isVasReadOnly ? '신청 부가작업 총액' : '예상 부가작업 총액' }}</span>
             <div class="text-lg font-black text-orange-600 font-mono">
               ₩{{ calculatedVasTotal.toLocaleString() }}
             </div>
@@ -1069,7 +1069,7 @@
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <span class="px-2 py-0.5 rounded-full bg-teal-500/30 text-teal-300 text-[10px] font-black tracking-wide border border-teal-500/40">
+                <span class="px-2 py-0.5 rounded-full bg-teal-500/30 text-teal-300 text-[11px] font-black tracking-wide border border-teal-500/40">
                   STEP 5. 현지 입고 & 정밀검수 완료
                 </span>
                 <span class="font-mono text-xs text-slate-300">
@@ -1100,7 +1100,7 @@
                 <ShieldCheck class="w-4 h-4 text-teal-600" />
                 <h4 class="font-bold text-sm text-gray-900">1. 중국 이우 물류센터 정밀 계근 & 실사 검수 보고서</h4>
               </div>
-              <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-[11px] flex items-center gap-1">
+              <span class="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-bold text-xs flex items-center gap-1">
                 <span class="w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
                 검수 합격 (100% 양호)
               </span>
@@ -1109,25 +1109,25 @@
             <!-- 실측 수치 4종 그리드 -->
             <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">실측 총 중량 (Weight)</div>
+                <div class="text-xs text-gray-500 font-medium">실측 총 중량 (Weight)</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
                   {{ selectedSecondPaymentItem.measuredWeightKg != null ? selectedSecondPaymentItem.measuredWeightKg + ' kg' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">실측 총 체적 (Volume)</div>
+                <div class="text-xs text-gray-500 font-medium">실측 총 체적 (Volume)</div>
                 <div class="text-base font-extrabold text-teal-700 font-mono mt-0.5">
                   {{ selectedSecondPaymentItem.measuredCbm != null ? selectedSecondPaymentItem.measuredCbm + ' CBM' : '-' }}
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">포장 카톤 & 수량</div>
+                <div class="text-xs text-gray-500 font-medium">포장 카톤 & 수량</div>
                 <div class="text-base font-extrabold text-gray-900 font-mono mt-0.5">
                   {{ selectedSecondPaymentItem.boxCount != null ? selectedSecondPaymentItem.boxCount + ' CTN' : '-' }} ({{ selectedSecondPaymentItem.quantity != null ? selectedSecondPaymentItem.quantity + ' PCS' : '-' }})
                 </div>
               </div>
               <div class="bg-slate-50 p-3 rounded-xl border border-slate-200/80">
-                <div class="text-[11px] text-gray-500 font-medium">불량 검출 건수</div>
+                <div class="text-xs text-gray-500 font-medium">불량 검출 건수</div>
                 <div class="text-base font-extrabold text-emerald-600 font-mono mt-0.5">
                   0건 (불량률 0.0%)
                 </div>
@@ -1138,7 +1138,7 @@
             <div>
               <div class="text-xs font-bold text-gray-700 mb-2 flex items-center justify-between">
                 <span>📸 현지 실사 검수 촬영 사진</span>
-                <span class="text-[11px] text-gray-400 font-normal">클릭 시 원본 확대</span>
+                <span class="text-xs text-gray-400 font-normal">클릭 시 원본 확대</span>
               </div>
               <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div
@@ -1153,7 +1153,7 @@
                     class="w-full h-full object-cover group-hover:scale-105 transition duration-300 opacity-90 group-hover:opacity-100"
                   />
                   <div class="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-2.5 text-white">
-                    <span class="text-[11px] font-bold line-clamp-1">{{ photo.caption }}</span>
+                    <span class="text-xs font-bold line-clamp-1">{{ photo.caption }}</span>
                   </div>
                   <div class="absolute top-2 right-2 p-1.5 rounded-lg bg-black/60 text-white opacity-0 group-hover:opacity-100 transition">
                     <ZoomIn class="w-3.5 h-3.5" />
@@ -1170,7 +1170,7 @@
                 <FileText class="w-4 h-4 text-orange-600" />
                 <h4 class="font-bold text-sm text-gray-900">2. 🏷️ 마켓/쿠팡 바코드 라벨 파일 업로드</h4>
               </div>
-              <span class="px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-[11px] font-bold border border-slate-200">
+              <span class="px-2.5 py-0.5 rounded bg-slate-100 text-slate-700 text-xs font-bold border border-slate-200">
                 [선택] 쿠팡 로켓그로스 / 마켓 바코드 부착 시에만 첨부
               </span>
             </div>
@@ -1181,14 +1181,14 @@
               <div class="space-y-1">
                 <div class="font-bold text-gray-800">
                   신청 부가서비스:
-                  <span class="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 text-[11px]">
+                  <span class="inline-flex items-center gap-1 mx-1 px-2 py-0.5 rounded bg-amber-200/60 text-amber-900 text-xs">
                     원산지 표시(MADE IN CHINA)
                   </span>
-                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-200/60 text-orange-900 text-[11px]">
+                  <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-orange-200/60 text-orange-900 text-xs">
                     쿠팡 로켓그로스 바코드 부착
                   </span>
                 </div>
-                <p class="text-[11px] text-gray-600 leading-relaxed">
+                <p class="text-xs text-gray-600 leading-relaxed">
                   자사몰 및 일반 셀러는 바코드 등록 없이 즉시 결제 및 선적 지시가 가능합니다. 쿠팡 윙 또는 마켓 바코드 부착이 필요한 경우에만 라벨 파일(PDF/ZIP/이미지)을 업로드해 주세요.
                 </p>
               </div>
@@ -1218,7 +1218,7 @@
                 <p class="font-bold text-gray-800 text-xs sm:text-sm">
                   클릭하여 바코드 라벨 파일을 선택하거나, 여기로 드래그하세요
                 </p>
-                <p class="text-[11px] text-gray-400 mt-0.5">
+                <p class="text-xs text-gray-400 mt-0.5">
                   지원 형식: PDF, ZIP, JPG, PNG (최대 50MB) · 쿠팡 SKU 라벨 권장
                 </p>
               </div>
@@ -1252,7 +1252,7 @@
                   <div class="font-bold text-gray-900 text-xs sm:text-sm truncate">
                     {{ uploadedBarcodeFile.name }}
                   </div>
-                  <div class="text-[11px] text-emerald-700 font-mono mt-0.5">
+                  <div class="text-xs text-emerald-700 font-mono mt-0.5">
                     {{ uploadedBarcodeFile.size }} · 등록일시: {{ uploadedBarcodeFile.uploadedAt }}
                   </div>
                 </div>
@@ -1346,7 +1346,7 @@
               <span class="text-rose-600 text-base shrink-0 mt-0.5">⚠️</span>
               <div class="space-y-1">
                 <div class="font-bold text-rose-800 text-xs">예치금 잔액이 부족합니다</div>
-                <p class="text-[11px] text-rose-700 leading-relaxed">
+                <p class="text-xs text-rose-700 leading-relaxed">
                   현재 보유 예치금 <b>{{ formatBalance(userBalance) }}</b>으로는 결제가 불가합니다.<br>
                   마이페이지 &gt; 예치금 관리에서 충전 후 다시 시도해 주세요.
                 </p>
@@ -1358,7 +1358,7 @@
               <div class="flex items-center gap-2.5">
                 <CreditCard class="w-5 h-5 text-amber-400 shrink-0" />
                 <div>
-                  <span class="text-[11px] text-slate-400">보유 예치금 잔액: <b>{{ formatBalance(userBalance) }}</b></span>
+                  <span class="text-xs text-slate-400">보유 예치금 잔액: <b>{{ formatBalance(userBalance) }}</b></span>
                   <div class="text-xs font-bold"
                     :class="!hasSecondPaymentAmount || isBalanceInsufficient(secondPaymentAmountKrw)
                       ? 'text-rose-400'
@@ -1377,7 +1377,7 @@
                 </div>
               </div>
               <span
-                class="px-2.5 py-1 rounded text-[11px] font-bold border"
+                class="px-2.5 py-1 rounded text-xs font-bold border"
                 :class="!hasSecondPaymentAmount || isBalanceInsufficient(secondPaymentAmountKrw)
                   ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
                   : 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'"

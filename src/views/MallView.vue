@@ -85,7 +85,7 @@
                           <span class="text-xl">{{ activeMegaCat.emoji }}</span>
                           <div>
                             <h4 class="text-sm font-black text-gray-900">{{ activeMegaCat.name }}</h4>
-                            <p class="text-[10px] text-gray-400">1688 공식 소싱 카테고리</p>
+                            <p class="text-[11px] text-gray-400">1688 공식 소싱 카테고리</p>
                           </div>
                         </div>
                         <button
@@ -235,7 +235,7 @@
         <div class="mt-2 pt-2 border-t border-gray-100 flex items-center w-full sm:justify-center">
 
           <!-- [좌] 퀵 카테고리 탭 (가로 스크롤) -->
-          <!-- 모바일: text-[10px] px-2로 축소하여 공간 확보 / PC: text-xs px-3 원본 유지 -->
+          <!-- 모바일: text-[11px] px-2로 축소하여 공간 확보 / PC: text-xs px-3 원본 유지 -->
           <div class="flex items-center gap-1 sm:gap-2 overflow-x-auto no-scrollbar py-0.5 px-2 sm:px-0 min-w-0 scroll-smooth">
             <button
               v-for="qt in quickTabs"
@@ -243,7 +243,7 @@
               type="button"
               @click.stop="selectQuickTab(qt)"
               :class="[
-                'shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-[10px] sm:text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none cursor-pointer',
+                'shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 rounded-lg text-[11px] sm:text-xs font-bold whitespace-nowrap transition-all touch-manipulation select-none cursor-pointer',
                 selectedCategoryId === qt.id
                   ? 'bg-orange-50 text-orange-600 border border-orange-200 shadow-xs'
                   : 'text-gray-600 hover:text-gray-900 hover:bg-gray-100 border border-transparent'
@@ -260,7 +260,7 @@
           <!-- 모바일: 아이콘 + "주문발주" / PC(sm+): 아이콘 + "마이페이지" -->
           <router-link
             to="/dashboard"
-            class="mall-mypage-btn shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 ml-1.5 sm:ml-2 text-[10px] sm:text-xs font-bold whitespace-nowrap touch-manipulation select-none cursor-pointer text-amber-900 bg-amber-400 hover:bg-amber-500 rounded-lg border border-amber-300 transition-colors mr-1 sm:mr-0"
+            class="mall-mypage-btn shrink-0 flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-1 ml-1.5 sm:ml-2 text-[11px] sm:text-xs font-bold whitespace-nowrap touch-manipulation select-none cursor-pointer text-amber-900 bg-amber-400 hover:bg-amber-500 rounded-lg border border-amber-300 transition-colors mr-1 sm:mr-0"
             title="마이페이지"
             aria-label="마이페이지"
           >
@@ -308,7 +308,7 @@
                 <div class="flex items-center justify-between gap-1">
                   <div class="flex items-center gap-1.5 min-w-0">
                     <span class="font-bold text-gray-900 text-sm truncate">{{ displayBuyerName }}</span>
-                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[10px] font-black shrink-0">
+                    <span class="px-1.5 py-0.5 rounded bg-orange-100 text-orange-700 text-[11px] font-black shrink-0">
                       {{ isBusinessVerified ? 'VIP' : '회원' }}
                     </span>
                   </div>
@@ -333,7 +333,7 @@
                 </div>
                 <div class="min-w-0">
                   <div class="font-bold text-gray-800 text-xs">로그인이 필요합니다</div>
-                  <div class="text-[10px] text-gray-400">B2B 수입대행 ERP 서비스</div>
+                  <div class="text-[11px] text-gray-400">B2B 수입대행 ERP 서비스</div>
                 </div>
               </div>
               <button
@@ -376,7 +376,7 @@
                 <i class="fas fa-chart-pie text-base" :class="route.path === '/dashboard' ? 'text-amber-500' : 'text-gray-400'"></i>
                 <span>메인 (대시보드)</span>
               </div>
-              <span class="px-1.5 py-0.2 text-[10px] rounded bg-amber-500 text-slate-950 font-black">ERP</span>
+              <span class="px-1.5 py-0.2 text-[11px] rounded bg-amber-500 text-slate-950 font-black">ERP</span>
             </router-link>
 
             <!-- 2. 상품관리 (아코디언) -->
@@ -408,7 +408,7 @@
                   </div>
                   <span
                     v-if="isLoggedIn && savedCount > 0"
-                    class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[9px] font-black font-mono shadow-xs"
+                    class="px-1.5 py-0.2 rounded-full bg-amber-500 text-slate-950 text-[10px] font-black font-mono shadow-xs"
                   >
                     {{ savedCount }}
                   </span>
@@ -423,7 +423,7 @@
                     <span>📋</span>
                     <span>내상품리스트</span>
                   </div>
-                  <span class="text-[9px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
+                  <span class="text-[10px] bg-orange-500 text-white px-1.5 py-0.5 rounded font-black">주요</span>
                 </router-link>
               </div>
             </div>
@@ -451,7 +451,7 @@
                   :class="route.path === '/dashboard/orders' && (!route.query.tab || route.query.tab === 'all') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>내 주문 (주문/발주 통합 관리)</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ orderStats.inProgress }})</span>
+                  <span class="font-mono text-blue-600 text-xs font-bold">({{ orderStats.inProgress }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=quote"
@@ -459,7 +459,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'quote' || route.query.tab === 'quote_pending') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>견적 요청/대기</span>
-                  <span class="font-mono text-amber-600 text-[11px] font-bold">({{ quotePendingCount }})</span>
+                  <span class="font-mono text-amber-600 text-xs font-bold">({{ quotePendingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=payment"
@@ -467,7 +467,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'payment' || route.query.tab === 'quote_confirmed') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>결제대기</span>
-                  <span class="font-mono text-orange-600 text-[11px] font-bold">({{ paymentPendingCount }})</span>
+                  <span class="font-mono text-orange-600 text-xs font-bold">({{ paymentPendingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=payment_verified"
@@ -475,7 +475,7 @@
                   :class="route.path === '/dashboard/orders' && (route.query.tab === 'payment_verified' || route.query.tab === 'verified') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>결제확인</span>
-                  <span class="font-mono text-emerald-600 text-[11px] font-bold">({{ paymentVerifiedCount }})</span>
+                  <span class="font-mono text-emerald-600 text-xs font-bold">({{ paymentVerifiedCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/orders?tab=purchasing"
@@ -483,7 +483,7 @@
                   :class="route.path === '/dashboard/orders' && route.query.tab === 'purchasing' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>1688 구매 진행중</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ purchasingCount }})</span>
+                  <span class="font-mono text-blue-600 text-xs font-bold">({{ purchasingCount }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/cancelled"
@@ -491,7 +491,7 @@
                   :class="route.path === '/dashboard/cancelled' ? 'bg-rose-500/10 text-rose-600 font-bold border-r-2 border-rose-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>취소·반품 내역</span>
-                  <span v-if="orderStats.cancelled > 0" class="font-mono text-rose-500 text-[11px] font-bold">({{ orderStats.cancelled }})</span>
+                  <span v-if="orderStats.cancelled > 0" class="font-mono text-rose-500 text-xs font-bold">({{ orderStats.cancelled }})</span>
                 </router-link>
               </div>
 
@@ -531,7 +531,7 @@
                   :class="route.path === '/dashboard/warehouse' && route.query.tab === 'pending_inbound' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>배송중</span>
-                  <span class="font-mono text-amber-600 text-[11px] font-bold">({{ warehouseTabCounts.pending_inbound }})</span>
+                  <span class="font-mono text-amber-600 text-xs font-bold">({{ warehouseTabCounts.pending_inbound }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/warehouse?tab=arrival_done"
@@ -539,7 +539,7 @@
                   :class="route.path === '/dashboard/warehouse' && route.query.tab === 'arrival_done' ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>현지입고완료</span>
-                  <span class="font-mono text-blue-600 text-[11px] font-bold">({{ warehouseTabCounts.arrival_done }})</span>
+                  <span class="font-mono text-blue-600 text-xs font-bold">({{ warehouseTabCounts.arrival_done }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/warehouse?tab=inbound_weighed"
@@ -547,7 +547,7 @@
                   :class="route.path === '/dashboard/warehouse' && (route.query.tab === 'inbound_weighed' || route.query.tab === 'inspection') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>실측&검수완료</span>
-                  <span class="font-mono text-teal-600 text-[11px] font-bold">({{ warehouseTabCounts.inbound_weighed }})</span>
+                  <span class="font-mono text-teal-600 text-xs font-bold">({{ warehouseTabCounts.inbound_weighed }})</span>
                 </router-link>
                 <router-link
                   to="/dashboard/warehouse?tab=ready_to_ship"
@@ -555,7 +555,7 @@
                   :class="route.path === '/dashboard/warehouse' && (route.query.tab === 'ready_to_ship' || route.query.tab === 'shipping_ready') ? 'bg-amber-500/10 text-amber-600 font-bold border-r-2 border-amber-500' : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 font-medium'"
                 >
                   <span>한국행 선적대기</span>
-                  <span class="font-mono text-purple-600 text-[11px] font-bold">({{ warehouseTabCounts.ready_to_ship }})</span>
+                  <span class="font-mono text-purple-600 text-xs font-bold">({{ warehouseTabCounts.ready_to_ship }})</span>
                 </router-link>
               </div>
             </div>
@@ -647,7 +647,7 @@
                   <i class="fas fa-bullhorn text-sm" :class="route.path.startsWith('/community/notice') || route.path.startsWith('/notice') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>공지사항</span>
                 </div>
-                <span class="text-[9px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">새소식</span>
+                <span class="text-[10px] bg-blue-100 text-blue-700 px-1.5 py-0.5 rounded font-bold">새소식</span>
               </router-link>
             </div>
 
@@ -662,7 +662,7 @@
                   <i class="fas fa-book-open text-sm" :class="route.path.startsWith('/support/guide') ? 'text-amber-500' : 'text-gray-400'"></i>
                   <span>사이트 이용가이드</span>
                 </div>
-                <span class="text-[9px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">가이드</span>
+                <span class="text-[10px] bg-orange-100 text-orange-700 px-1.5 py-0.5 rounded font-bold">가이드</span>
               </router-link>
             </div>
 
@@ -685,7 +685,7 @@
             <i class="fas fa-comment-dots text-sm"></i>
             <span>1:1 전담 카카오톡 상담</span>
           </div>
-          <p class="text-slate-300 text-[11px] leading-relaxed">
+          <p class="text-slate-300 text-xs leading-relaxed">
             대량 발주, 특수 검수, 맞춤 OEM 제작 문의는 전담 매니저에게 실시간 문의하세요.
           </p>
           <a
@@ -769,7 +769,7 @@
               <div class="flex items-start gap-3 min-w-0">
                 <div class="min-w-0">
                   <h2 class="text-sm sm:text-base font-black text-gray-900 leading-tight">{{ section.title }}</h2>
-                  <p class="text-[11px] text-gray-500 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap">
+                  <p class="text-xs text-gray-500 mt-0.5 font-medium flex items-center gap-1.5 flex-wrap">
                     <span>{{ section.subtitle }}</span>
                   </p>
                 </div>
@@ -798,7 +798,7 @@
                     : `background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);`"
                 >
                   <div class="space-y-2 relative z-10">
-                    <span v-if="sectionBanners[section.id].label" class="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[10px] font-black uppercase inline-block">
+                    <span v-if="sectionBanners[section.id].label" class="px-2.5 py-0.5 rounded-full bg-white/20 backdrop-blur-md text-[11px] font-black uppercase inline-block">
                       {{ sectionBanners[section.id].label }}
                     </span>
                     <h4 v-if="sectionBanners[section.id].heading" class="text-base sm:text-lg font-black leading-tight">
@@ -847,19 +847,19 @@
                         />
                         <!-- 1688 오렌지 뱃지 -->
                         <div class="absolute top-2 left-2">
-                          <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black shadow-sm tracking-wide">
+                          <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-black shadow-sm tracking-wide">
                             1688
                           </span>
                         </div>
                         <!-- MOQ 뱃지 -->
                         <div v-if="item.minOrder && item.minOrder > 1" class="absolute top-2 right-2">
-                          <span class="px-1.5 py-0.5 rounded bg-black/60 text-white text-[9px] font-bold">
+                          <span class="px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-bold">
                             MOQ {{ item.minOrder }}
                           </span>
                         </div>
                         <!-- 구매대행 신청 호버 오버레이 -->
                         <div class="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/65 to-transparent py-2 px-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                          <span class="text-white text-[10px] font-bold flex items-center gap-1">
+                          <span class="text-white text-[11px] font-bold flex items-center gap-1">
                             <i class="fas fa-shopping-cart text-amber-400 text-[9px]"></i>
                             구매대행 신청
                           </span>
@@ -869,7 +869,7 @@
                       <!-- 카드 정보 -->
                       <div class="p-2.5 sm:p-3 space-y-1.5">
                         <h3
-                          class="text-[11px] sm:text-[12px] font-medium text-gray-800 leading-snug line-clamp-2 group-hover:text-orange-600 transition"
+                          class="text-xs sm:text-[12px] font-medium text-gray-800 leading-snug line-clamp-2 group-hover:text-orange-600 transition"
                           :title="item.titleKo || item.title || item.titleZh"
                         >
                           {{ item.titleKo || item.title || item.titleZh }}
@@ -879,11 +879,11 @@
                             <span class="text-red-600 font-bold text-sm tracking-tight">
                               ¥{{ item.priceFormatted || item.price }}
                             </span>
-                            <span class="text-gray-400 text-[10px] font-medium">
+                            <span class="text-gray-400 text-[11px] font-medium">
                               ₩{{ formatKrw((item.price || 0) * customExchangeRate) }}
                             </span>
                           </div>
-                          <div class="flex items-center justify-between text-[10px] text-gray-400 mt-0.5">
+                          <div class="flex items-center justify-between text-[11px] text-gray-400 mt-0.5">
                             <span>판매 <b class="text-gray-600 font-medium">{{ item.sales || '0' }}건</b></span>
                             <span v-if="item.repurchaseRate" class="text-emerald-600 font-semibold">재구매 {{ item.repurchaseRate }}</span>
                           </div>
@@ -986,13 +986,13 @@
             
             <!-- 1688 Orange Badge Top Left -->
             <div class="absolute top-2 left-2">
-              <span class="px-2 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-black shadow-sm tracking-wide">
+              <span class="px-2 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[11px] font-black shadow-sm tracking-wide">
                 1688
               </span>
             </div>
 
             <div v-if="item.minOrder && item.minOrder > 1" class="absolute top-2 right-2">
-              <span class="px-1.5 py-0.5 rounded bg-black/60 text-white text-[10px] font-bold">
+              <span class="px-1.5 py-0.5 rounded bg-black/60 text-white text-[11px] font-bold">
                 MOQ {{ item.minOrder }}
               </span>
             </div>
@@ -1022,7 +1022,7 @@
               </div>
 
               <!-- 3열: 메타 정보 (재구매율 있을 때만, 총판매량) -->
-              <div class="flex items-center justify-between text-[11px] text-gray-400">
+              <div class="flex items-center justify-between text-xs text-gray-400">
                 <span v-if="item.repurchaseRate">재구매율: <b class="text-gray-600 font-normal">{{ item.repurchaseRate }}</b></span>
                 <span v-else></span>
                 <span>총판매량: <b class="text-gray-600 font-normal">{{ item.sales || '0' }}건</b></span>
@@ -1114,7 +1114,7 @@
             <!-- 2. 모달 타이틀 & 안내 문구 -->
             <div class="space-y-2">
               <template v-if="b2bGuardType === 'unverified'">
-                <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-orange-100 text-orange-800 text-[11px] font-black tracking-wide">
+                <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-orange-100 text-orange-800 text-xs font-black tracking-wide">
                   사업자 인증 필요
                 </span>
                 <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight pt-0.5">
@@ -1127,7 +1127,7 @@
                 </p>
               </template>
               <template v-else>
-                <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-black tracking-wide">
+                <span class="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 text-xs font-black tracking-wide">
                   B2B 수입대행 회원 전용
                 </span>
                 <h3 class="text-lg sm:text-xl font-black text-slate-900 tracking-tight pt-0.5">
@@ -1182,7 +1182,7 @@
 
 
             <!-- 4. 하단 부가 혜택 안내 -->
-            <div class="pt-3 border-t border-gray-100 text-[11px] text-gray-400 font-medium flex items-center justify-center gap-3">
+            <div class="pt-3 border-t border-gray-100 text-xs text-gray-400 font-medium flex items-center justify-center gap-3">
               <span>✓ 실시간 DDP 견적</span>
               <span>✓ 한-중 FTA C/O 대행</span>
               <span>✓ 이우 현지 정밀 검수</span>

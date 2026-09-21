@@ -5,10 +5,10 @@
     <div class="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
       <div>
         <h2 class="text-sm sm:text-base font-black text-gray-900">👁 최근 본 상품</h2>
-        <p class="text-[11px] text-gray-500 mt-0.5 font-medium">최근 열람한 1688 상품 · 최대 12개</p>
+        <p class="text-xs text-gray-500 mt-0.5 font-medium">최근 열람한 1688 상품 · 최대 12개</p>
       </div>
       <button type="button" @click="clearAll"
-        class="text-[10px] text-gray-400 hover:text-rose-500 font-bold transition cursor-pointer px-2 py-1 rounded-lg hover:bg-rose-50">
+        class="text-[11px] text-gray-400 hover:text-rose-500 font-bold transition cursor-pointer px-2 py-1 rounded-lg hover:bg-rose-50">
         전체 삭제
       </button>
     </div>
@@ -33,12 +33,12 @@
               @error="handleImgError"
             />
             <div class="absolute top-1.5 left-1.5">
-              <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[9px] font-black">1688</span>
+              <span class="px-1.5 py-0.5 rounded bg-gradient-to-r from-orange-500 to-amber-500 text-white text-[10px] font-black">1688</span>
             </div>
           </div>
           <!-- 카드 정보 -->
           <div class="p-2 space-y-1">
-            <p class="text-[10px] sm:text-[11px] font-medium text-gray-800 leading-snug line-clamp-2 group-hover:text-orange-600 transition">
+            <p class="text-[11px] sm:text-xs font-medium text-gray-800 leading-snug line-clamp-2 group-hover:text-orange-600 transition">
               {{ rv.item_data?.titleKo || rv.item_data?.title || '상품명 없음' }}
             </p>
             <div class="flex items-baseline gap-1 font-mono">

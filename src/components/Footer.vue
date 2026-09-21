@@ -12,7 +12,7 @@
             <button 
               type="button" 
               @click="showPolicy('privacy')" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-[11px] sm:text-xs"
+              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-xs sm:text-xs"
             >
               개인정보처리방침
             </button>
@@ -20,35 +20,35 @@
             <button 
               type="button" 
               @click="showPolicy('terms')" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-[11px] sm:text-xs"
+              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-xs sm:text-xs"
             >
               이용약관
             </button>
 
             <router-link 
               to="/community/notice" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-[11px] sm:text-xs block"
+              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-xs sm:text-xs block"
             >
               공지사항
             </router-link>
 
             <router-link 
               to="/community/faq" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-[11px] sm:text-xs block"
+              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-xs sm:text-xs block"
             >
               자주하는질문
             </router-link>
 
             <router-link 
               to="/guide" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-[11px] sm:text-xs block"
+              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-xs sm:text-xs block"
             >
               배송요금표
             </router-link>
 
             <router-link 
               to="/tools/calculator" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-blue-950/50 md:bg-transparent border border-blue-800/50 md:border-none text-blue-400 hover:text-blue-300 font-bold text-center transition whitespace-nowrap break-keep text-[11px] sm:text-xs block"
+              class="px-2 py-2 md:p-0 rounded-xl bg-blue-950/50 md:bg-transparent border border-blue-800/50 md:border-none text-blue-400 hover:text-blue-300 font-bold text-center transition whitespace-nowrap break-keep text-xs sm:text-xs block"
             >
               무역/관부가세계산기
             </router-link>
@@ -56,7 +56,7 @@
           </div>
         </nav>
 
-        <div class="text-slate-500 text-[11px] text-center md:text-right shrink-0 mt-1 md:mt-0">
+        <div class="text-slate-500 text-xs text-center md:text-right shrink-0 mt-1 md:mt-0">
           15년 노하우 신뢰의 중국 무역 파트너 <strong>EUC COMPANY</strong>
         </div>
 
@@ -71,7 +71,7 @@
         <div class="lg:col-span-8 space-y-3.5">
           <div class="flex flex-wrap items-center gap-3">
             <span class="text-white font-black text-base sm:text-lg tracking-wide">이유씨컴퍼니</span>
-            <span class="px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 text-[11px] font-semibold border border-blue-800/60">
+            <span class="px-2.5 py-0.5 rounded-full bg-blue-950 text-blue-300 text-xs font-semibold border border-blue-800/60">
               중국무역 · 구매대행 · OEM/ODM 제조전문
             </span>
           </div>
@@ -97,7 +97,7 @@
             <p><strong>카카오톡:</strong> <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="text-yellow-400 font-bold hover:underline" title="카카오톡 공식 채널 바로가기">이유씨컴퍼니</a></p>
           </div>
 
-          <div class="pt-3 text-slate-500 text-[11px] border-t border-slate-900">
+          <div class="pt-3 text-slate-500 text-xs border-t border-slate-900">
             Copyright &copy; 2022 <strong>(주)이유씨컴퍼니</strong> All Rights Reserved.
           </div>
         </div>
@@ -110,7 +110,7 @@
               alt="EUC 로고" 
               class="h-8 w-auto brightness-0 invert opacity-80"
             />
-            <span class="text-[11px] text-emerald-400 font-semibold flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/50">
+            <span class="text-xs text-emerald-400 font-semibold flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-950/60 border border-emerald-800/50">
               <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span> 실시간 상담 대기
             </span>
           </div>
@@ -123,7 +123,7 @@
             >
               010-9373-1214
             </a>
-            <p class="text-[11px] text-slate-400 mt-1">
+            <p class="text-xs text-slate-400 mt-1">
               평일 / 주말 / 공휴일 24시간 실시간 친절 상담
             </p>
           </div>

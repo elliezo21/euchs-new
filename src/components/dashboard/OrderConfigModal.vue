@@ -75,14 +75,14 @@
                         :href="item.productUrl"
                         target="_blank"
                         rel="noopener noreferrer"
-                        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[10px] font-bold transition active:scale-95 shrink-0"
+                        class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-orange-50 hover:bg-orange-100 text-orange-700 border border-orange-200 text-[11px] font-bold transition active:scale-95 shrink-0"
                         title="1688 원본 상품 페이지 새 창 열기"
                         @click.stop
                       >
                         <ExternalLink class="w-3 h-3" /><span>1688 원본 링크 ↗</span>
                       </a>
                     </div>
-                    <div v-if="item.sku || item.optionName" class="text-gray-400 text-[11px] mt-0.5">{{ item.sku || item.optionName }}</div>
+                    <div v-if="item.sku || item.optionName" class="text-gray-400 text-xs mt-0.5">{{ item.sku || item.optionName }}</div>
                   </td>
                   <td class="px-3 py-2.5 text-center font-mono text-gray-700">{{ item.quantity }}</td>
                   <td class="px-3 py-2.5 text-right font-mono text-gray-700">
@@ -98,7 +98,7 @@
               <tfoot class="bg-gray-50 border-t border-gray-200">
                 <tr>
                   <td colspan="3" class="px-3 py-2 text-right text-xs font-bold text-gray-600">상품대금 합계</td>
-                  <td class="px-3 py-2 text-right font-mono font-black text-gray-900">₩{{ formatNumber(totalKrw) }} <span class="font-normal text-gray-400 text-[11px]">(¥{{ totalCny.toFixed(2) }})</span></td>
+                  <td class="px-3 py-2 text-right font-mono font-black text-gray-900">₩{{ formatNumber(totalKrw) }} <span class="font-normal text-gray-400 text-xs">(¥{{ totalCny.toFixed(2) }})</span></td>
                 </tr>
               </tfoot>
             </table>
@@ -132,7 +132,7 @@
                 <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
                   <Building2 class="w-4 h-4 text-amber-600" />
                   <span>사업자 통관 (B2B 수입)</span>
-                  <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[10px] font-black">추천</span>
+                  <span class="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 text-[11px] font-black">추천</span>
                 </div>
                 <p class="text-xs text-gray-500 leading-snug">
                   정식 수입신고필증 발급, 부가세 매입세액 공제 및 비용 처리
@@ -217,7 +217,7 @@
               <div class="space-y-1">
                 <div class="font-bold text-gray-900 text-sm flex items-center gap-1.5">
                   <span>🚀 쿠팡 로켓그로스 입고</span>
-                  <span class="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[10px] font-black">직납</span>
+                  <span class="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-[11px] font-black">직납</span>
                 </div>
                 <p class="text-xs text-gray-500 leading-snug">
                   바코드 부착/파레트 래핑 후 지정 FC센터 밀크런 트럭 직납
@@ -253,7 +253,7 @@
               />
               <div class="min-w-0">
                 <div class="font-bold text-xs leading-tight">{{ vas.label }}</div>
-                <div class="text-[11px] text-gray-400 leading-tight mt-0.5">{{ vas.desc }}</div>
+                <div class="text-xs text-gray-400 leading-tight mt-0.5">{{ vas.desc }}</div>
               </div>
             </label>
           </div>
@@ -332,41 +332,41 @@
           <div class="font-bold text-amber-900 text-xs mb-3">💰 예상 결제 금액 (견적서에서 최종 확정)</div>
           <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
-              <div class="text-[10px] text-gray-500 font-medium mb-1">상품대금</div>
+              <div class="text-[11px] text-gray-500 font-medium mb-1">상품대금</div>
               <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.itemTotalKrw) }}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.itemTotalCny?.toFixed(2) }}</div>
+              <div class="text-[11px] text-gray-400 mt-0.5">¥{{ estimatedCost.itemTotalCny?.toFixed(2) }}</div>
             </div>
             <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
-              <div class="text-[10px] text-gray-500 font-medium mb-1">
+              <div class="text-[11px] text-gray-500 font-medium mb-1">
                 예상 택배비
                 <!-- 진짜 seller 묶음 배치 결과 -->
                 <span
                   v-if="estimatedCost.chinaFreightOrigin === '1688_seller'"
-                  class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-emerald-100 text-emerald-700"
+                  class="ml-1 px-1 py-0.5 rounded text-[10px] font-black bg-emerald-100 text-emerald-700"
                 >묶음 실비</span>
                 <!-- item.freight 단순합산 (배치 전/실패) -->
                 <span
                   v-else-if="estimatedCost.chinaFreightOrigin === '1688_exact'"
-                  class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-blue-50 text-blue-500"
+                  class="ml-1 px-1 py-0.5 rounded text-[10px] font-black bg-blue-50 text-blue-500"
                 >항목합산</span>
                 <!-- 수량기반 추정 -->
                 <span
                   v-else-if="estimatedCost.chinaFreightOrigin === 'estimated'"
-                  class="ml-1 px-1 py-0.5 rounded text-[9px] font-black bg-gray-100 text-gray-400"
+                  class="ml-1 px-1 py-0.5 rounded text-[10px] font-black bg-gray-100 text-gray-400"
                 >추정치</span>
               </div>
               <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.chinaFreightKrw) }}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.chinaFreightRmb?.toFixed(2) }}</div>
+              <div class="text-[11px] text-gray-400 mt-0.5">¥{{ estimatedCost.chinaFreightRmb?.toFixed(2) }}</div>
             </div>
             <div class="bg-white border border-amber-100 rounded-xl p-3 text-center">
-              <div class="text-[10px] text-gray-500 font-medium mb-1">구매대행 수수료</div>
+              <div class="text-[11px] text-gray-500 font-medium mb-1">구매대행 수수료</div>
               <div class="font-black text-gray-900 font-mono text-sm">₩{{ formatNumber(estimatedCost.agencyFeeKrw) }}</div>
-              <div class="text-[10px] text-gray-400 mt-0.5">¥{{ estimatedCost.agencyFeeCny?.toFixed(2) }} (상품대금×8%)</div>
+              <div class="text-[11px] text-gray-400 mt-0.5">¥{{ estimatedCost.agencyFeeCny?.toFixed(2) }} (상품대금×8%)</div>
             </div>
             <div class="bg-amber-100 border border-amber-300 rounded-xl p-3 text-center">
-              <div class="text-[10px] text-amber-800 font-bold mb-1">예상 총액</div>
+              <div class="text-[11px] text-amber-800 font-bold mb-1">예상 총액</div>
               <div class="font-black text-amber-700 font-mono text-base">₩{{ formatNumber(estimatedCost.chargeableKrw) }}</div>
-              <div class="text-[10px] text-amber-600 mt-0.5">* 견적서에서 확정</div>
+              <div class="text-[11px] text-amber-600 mt-0.5">* 견적서에서 확정</div>
             </div>
           </div>
         </div>
@@ -467,7 +467,7 @@
                     <span class="font-semibold text-gray-800 text-xs leading-snug block">
                       {{ successOrderData.items[0].name }}
                     </span>
-                    <span class="text-[11px] text-gray-400 mt-0.5 block">
+                    <span class="text-xs text-gray-400 mt-0.5 block">
                       외 {{ successOrderData.items.length - 1 }}개 상품
                     </span>
                   </template>
@@ -497,7 +497,7 @@
             <div class="flex items-center justify-between px-4 py-3 bg-amber-50/50">
               <div>
                 <span class="text-xs text-amber-900 font-bold block">예상 총 결제금액</span>
-                <span class="text-[10px] text-amber-700 font-normal block">(수수료·택배비 포함, 견적서 확정)</span>
+                <span class="text-[11px] text-amber-700 font-normal block">(수수료·택배비 포함, 견적서 확정)</span>
               </div>
               <span class="font-black text-amber-600 font-mono text-base">
                 ₩{{ formatNumber(successOrderData.estimatedChargeableKrw || successOrderData.totalKrw) }}원

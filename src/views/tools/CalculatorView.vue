@@ -57,7 +57,7 @@
           <div>
             <div class="flex items-center gap-2">
               <span class="text-xs font-bold text-gray-500 uppercase">이유씨컴퍼니 공식 적용 환율</span>
-              <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-bold rounded-full flex items-center gap-1">
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-700 text-[11px] font-bold rounded-full flex items-center gap-1">
                 <i class="fas fa-check-circle text-[8px] text-blue-600"></i> 당사 고시 기준
               </span>
             </div>
@@ -111,7 +111,7 @@
             <div class="space-y-2">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                  <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">1</span>
+                  <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] flex items-center justify-center font-bold">1</span>
                   <span>총 제품 금액 (위안화 RMB/¥)</span>
                 </label>
                 <span class="text-xs font-black text-blue-600">
@@ -137,13 +137,13 @@
                   v-for="amt in [500, 1000, 5000, 10000, 50000]" 
                   :key="amt"
                   @click="inputPriceRmb += amt"
-                  class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-[11px] font-bold text-gray-700 hover:text-blue-600 border border-gray-200 transition"
+                  class="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-blue-50 text-xs font-bold text-gray-700 hover:text-blue-600 border border-gray-200 transition"
                 >
                   +{{ amt.toLocaleString() }}¥
                 </button>
                 <button 
                   @click="inputPriceRmb = 0" 
-                  class="px-2 py-1 rounded-lg bg-red-50 text-[11px] font-bold text-red-600 hover:bg-red-100 transition"
+                  class="px-2 py-1 rounded-lg bg-red-50 text-xs font-bold text-red-600 hover:bg-red-100 transition"
                 >
                   비우기
                 </button>
@@ -153,7 +153,7 @@
             <!-- 2. 운송 방식 선택 -->
             <div class="space-y-2 pt-2 border-t border-gray-100">
               <label class="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">2</span>
+                <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] flex items-center justify-center font-bold">2</span>
                 <span>운송 방식 선택 (Shipping Type)</span>
               </label>
 
@@ -167,7 +167,7 @@
                   <input v-model="shippingMode" type="radio" value="sea_lcl" class="text-blue-600" />
                   <div>
                     <span class="block">해운 LCL</span>
-                    <span class="text-[10px] text-gray-400 font-normal">CBM당 {{ seaCbmRate.toLocaleString() }}원</span>
+                    <span class="text-[11px] text-gray-400 font-normal">CBM당 {{ seaCbmRate.toLocaleString() }}원</span>
                   </div>
                 </label>
 
@@ -180,7 +180,7 @@
                   <input v-model="shippingMode" type="radio" value="sea_express" class="text-blue-600" />
                   <div>
                     <span class="block">해운 특송</span>
-                    <span class="text-[10px] text-gray-400 font-normal">소포장 / 5~7일</span>
+                    <span class="text-[11px] text-gray-400 font-normal">소포장 / 5~7일</span>
                   </div>
                 </label>
 
@@ -193,7 +193,7 @@
                   <input v-model="shippingMode" type="radio" value="air_express" class="text-blue-600" />
                   <div>
                     <span class="block">항공 특송</span>
-                    <span class="text-[10px] text-gray-400 font-normal">긴급 / 1~2일</span>
+                    <span class="text-[11px] text-gray-400 font-normal">긴급 / 1~2일</span>
                   </div>
                 </label>
 
@@ -206,7 +206,7 @@
                   <input v-model="shippingMode" type="radio" value="other_customs" class="text-blue-600" />
                   <div>
                     <span class="block">기타통관</span>
-                    <span class="text-[10px] text-amber-600 font-bold">1:1 맞춤 견적</span>
+                    <span class="text-[11px] text-amber-600 font-bold">1:1 맞춤 견적</span>
                   </div>
                 </label>
               </div>
@@ -216,7 +216,7 @@
                 <i class="fas fa-circle-info text-amber-600 text-base shrink-0 mt-0.5"></i>
                 <div class="space-y-0.5">
                   <strong class="font-bold block text-amber-950">기타/특수 통관 안내</strong>
-                  <p class="text-[11px] text-amber-800 leading-relaxed">
+                  <p class="text-xs text-amber-800 leading-relaxed">
                     특수/기타 통관 품목은 전담 매니저의 1:1 상담 후 맞춤 견적이 산출됩니다.
                   </p>
                 </div>
@@ -227,12 +227,12 @@
             <div class="space-y-3 pt-2 border-t border-gray-100">
               <div class="flex items-center justify-between">
                 <label class="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                  <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">3</span>
+                  <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] flex items-center justify-center font-bold">3</span>
                   <span>포장 부피 (CBM) & 총 중량 (kg)</span>
                 </label>
 
                 <!-- CBM Mode Toggle -->
-                <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-[11px]">
+                <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg text-xs">
                   <button 
                     @click="cbmInputMode = 'box'"
                     class="px-2 py-0.5 rounded font-bold transition"
@@ -254,7 +254,7 @@
               <div v-if="cbmInputMode === 'box'" class="p-4 bg-slate-50 rounded-2xl border border-gray-200 space-y-3 text-xs">
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">가로 (cm)</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">가로 (cm)</label>
                     <input 
                       v-model.number="boxWidth" 
                       type="number" 
@@ -263,7 +263,7 @@
                     />
                   </div>
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">세로 (cm)</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">세로 (cm)</label>
                     <input 
                       v-model.number="boxLength" 
                       type="number" 
@@ -272,7 +272,7 @@
                     />
                   </div>
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">높이 (cm)</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">높이 (cm)</label>
                     <input 
                       v-model.number="boxHeight" 
                       type="number" 
@@ -281,7 +281,7 @@
                     />
                   </div>
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">박스 수량 (BOX)</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">박스 수량 (BOX)</label>
                     <input 
                       v-model.number="boxCount" 
                       type="number" 
@@ -291,7 +291,7 @@
                   </div>
                 </div>
 
-                <div class="flex items-center justify-between text-[11px] text-gray-500 pt-1 border-t border-gray-200/60">
+                <div class="flex items-center justify-between text-xs text-gray-500 pt-1 border-t border-gray-200/60">
                   <span>💡 계산된 총 CBM: <strong class="text-blue-600">{{ calculatedCbm.toFixed(3) }} CBM</strong></span>
                   <span class="text-gray-400">※ 1 CBM = 1m × 1m × 1m (약 라면상자 10~12개)</span>
                 </div>
@@ -338,7 +338,7 @@
             <!-- 4. 품목 관세율 및 한중 FTA C/O 선택 -->
             <div class="space-y-3 pt-2 border-t border-gray-100">
               <label class="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[10px] flex items-center justify-center font-bold">4</span>
+                <span class="w-5 h-5 rounded-full bg-blue-600 text-white text-[11px] flex items-center justify-center font-bold">4</span>
                 <span>품목 관세율 & 한-중 FTA 원산지증명서</span>
               </label>
 
@@ -353,7 +353,7 @@
                     : 'border-gray-200 bg-white text-gray-600 hover:bg-gray-50'"
                 >
                   <span class="text-sm font-black">{{ tariff.rate }}%</span>
-                  <span class="text-[10px] text-gray-400">{{ tariff.label }}</span>
+                  <span class="text-[11px] text-gray-400">{{ tariff.label }}</span>
                 </button>
               </div>
 
@@ -370,7 +370,7 @@
                     class="w-4 h-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
                   />
                 </label>
-                <p class="text-[11px] text-amber-800 leading-relaxed">
+                <p class="text-xs text-amber-800 leading-relaxed">
                   ※ 체크 시 관세율 0%가 우선 적용되며, 현지 발급 대행 수수료({{ ftaCoFee.toLocaleString() }}원)가 부대비용에 합산됩니다. (고액 수입 시 수십~수백만원 관세 절감)
                 </p>
               </div>
@@ -393,7 +393,7 @@
                 <i class="fas fa-receipt text-blue-400"></i>
                 <span>실시간 수입 견적 산출 명세서</span>
               </h3>
-              <span class="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[10px] font-bold rounded-full">
+              <span class="px-2.5 py-0.5 bg-blue-500/20 text-blue-300 border border-blue-400/30 text-[11px] font-bold rounded-full">
                 실시간 연산
               </span>
             </div>
@@ -411,7 +411,7 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1">
                   <span class="text-slate-300">2) 구매대행 수수료</span>
-                  <span class="text-[10px] text-amber-300 font-bold">({{ agencyFeePercent }}%)</span>
+                  <span class="text-[11px] text-amber-300 font-bold">({{ agencyFeePercent }}%)</span>
                 </div>
                 <span class="font-bold text-amber-300">{{ calculatedAgencyFeeKrw.toLocaleString() }}원</span>
               </div>
@@ -420,14 +420,14 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1">
                   <span class="text-slate-300">3) 국제 운송료 ({{ shippingModeName }})</span>
-                  <span v-if="shippingMode !== 'other_customs'" class="text-[10px] text-slate-400">({{ finalCbm.toFixed(2) }} CBM / {{ inputWeightKg }}kg)</span>
+                  <span v-if="shippingMode !== 'other_customs'" class="text-[11px] text-slate-400">({{ finalCbm.toFixed(2) }} CBM / {{ inputWeightKg }}kg)</span>
                 </div>
                 <span v-if="shippingMode === 'other_customs'" class="font-bold text-amber-300 text-xs">별도 협의 (1:1 맞춤)</span>
                 <span v-else class="font-bold text-sky-300">{{ calculatedFreightKrw.toLocaleString() }}원</span>
               </div>
 
               <!-- 4. 과세가격 (CIF) -->
-              <div class="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/10 text-[11px]">
+              <div class="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/10 text-xs">
                 <span class="text-slate-400">과세가격 (CIF = 물품대금 + 운임 + 보험료)</span>
                 <span class="font-bold text-slate-200">{{ cifValue.toLocaleString() }}원</span>
               </div>
@@ -436,8 +436,8 @@
               <div class="flex items-center justify-between">
                 <span class="text-slate-300">
                   4) 예상 관세 
-                  <span v-if="useFtaCo" class="text-amber-300 text-[10px] font-bold">(한중 FTA 0% 감면)</span>
-                  <span v-else class="text-slate-400 text-[10px]">({{ effectiveTariffRate }}%)</span>
+                  <span v-if="useFtaCo" class="text-amber-300 text-[11px] font-bold">(한중 FTA 0% 감면)</span>
+                  <span v-else class="text-slate-400 text-[11px]">({{ effectiveTariffRate }}%)</span>
                 </span>
                 <span class="font-bold" :class="useFtaCo ? 'text-amber-300' : 'text-white'">
                   {{ calculatedTariffKrw.toLocaleString() }}원
@@ -454,7 +454,7 @@
               <div class="flex items-center justify-between">
                 <div class="flex items-center gap-1">
                   <span class="text-slate-300">6) 통관 수수료 & 부대비용</span>
-                  <span class="text-[10px] text-slate-400">(관세사{{ useFtaCo ? ' + FTA C/O' : '' }})</span>
+                  <span class="text-[11px] text-slate-400">(관세사{{ useFtaCo ? ' + FTA C/O' : '' }})</span>
                 </div>
                 <span class="font-bold text-white">{{ incidentalCosts.toLocaleString() }}원</span>
               </div>
@@ -470,7 +470,7 @@
                     <span class="text-xl sm:text-2xl font-black text-yellow-400">
                       상담 후 확정
                     </span>
-                    <span class="text-[11px] text-slate-300 block">
+                    <span class="text-xs text-slate-300 block">
                       (기본 제품가+수수료 기준 {{ (calculatedProductKrw + calculatedAgencyFeeKrw).toLocaleString() }}원 + α)
                     </span>
                   </template>
@@ -482,7 +482,7 @@
                   </template>
                 </div>
               </div>
-              <p class="text-[11px] text-slate-400 text-right">
+              <p class="text-xs text-slate-400 text-right">
                 ※ 국내 착불 화물비(경동/대신택배)는 부피/도착지에 따라 수령 시 별도 정산
               </p>
             </div>
@@ -526,7 +526,7 @@
               <i class="fas fa-lightbulb text-amber-500"></i>
               <span>무역 견적 산출 팁</span>
             </h4>
-            <ul class="space-y-1 text-[11px] list-disc list-inside leading-relaxed text-gray-500">
+            <ul class="space-y-1 text-xs list-disc list-inside leading-relaxed text-gray-500">
               <li><strong>공식 적용 환율</strong>: 실시간 국제 시세 기반으로 산출한 이유씨컴퍼니 공식 환율이 적용됩니다.</li>
               <li><strong>구매대행 수수료</strong>: 순수 제품가의 {{ agencyFeePercent }}%가 책정됩니다 (최소 수수료 1만원).</li>
               <li><strong>CBM(입방미터)</strong>: 화물의 가로(m) × 세로(m) × 높이(m)를 곱한 부피 단위입니다.</li>
@@ -547,7 +547,7 @@
       <div class="bg-white rounded-3xl p-6 sm:p-8 max-w-lg w-full space-y-5 shadow-2xl text-gray-900 max-h-[90vh] overflow-y-auto">
         <div class="flex items-center justify-between border-b border-gray-100 pb-3">
           <div>
-            <span class="inline-block px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[10px] font-bold">ESTIMATE APPLY</span>
+            <span class="inline-block px-2.5 py-0.5 rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold">ESTIMATE APPLY</span>
             <h3 class="text-lg font-black text-gray-900 mt-1">실시간 무역·운임 견적 신청</h3>
           </div>
           <button @click="showApplyModal = false" class="p-1.5 text-gray-400 hover:text-gray-700 rounded-lg">
@@ -561,7 +561,7 @@
             <span>{{ shippingModeName }} 운송 견적</span>
             <span class="font-mono text-white">{{ finalCbm.toFixed(2) }} CBM / {{ inputWeightKg }}kg</span>
           </div>
-          <div class="grid grid-cols-2 gap-2 text-slate-300 text-[11px]">
+          <div class="grid grid-cols-2 gap-2 text-slate-300 text-xs">
             <div>제품가: ₩{{ calculatedProductKrw.toLocaleString() }} (¥{{ inputPriceRmb.toLocaleString() }})</div>
             <div>국제운임: ₩{{ calculatedFreightKrw.toLocaleString() }}</div>
             <div>예상관세: ₩{{ calculatedTariffKrw.toLocaleString() }}</div>

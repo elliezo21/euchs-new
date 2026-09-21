@@ -29,7 +29,7 @@
             loading="lazy"
           />
           <div class="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-3.5">
-            <span class="text-[11px] font-bold text-white tracking-wide">{{ photo.title }}</span>
+            <span class="text-xs font-bold text-white tracking-wide">{{ photo.title }}</span>
           </div>
         </div>
       </div>

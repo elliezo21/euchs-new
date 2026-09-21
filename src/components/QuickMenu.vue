@@ -97,7 +97,7 @@
         <!-- 수량 알림 배지 (비로그인이거나 0개면 숨김) -->
         <span
           v-if="isLoggedIn && savedCount > 0"
-          class="absolute -top-1 -right-1 bg-white text-red-600 border border-red-500 text-[10px] sm:text-xs font-black rounded-full px-1.5 py-0.2 shadow min-w-[18px] text-center leading-tight pointer-events-none font-mono"
+          class="absolute -top-1 -right-1 bg-white text-red-600 border border-red-500 text-[11px] sm:text-xs font-black rounded-full px-1.5 py-0.2 shadow min-w-[18px] text-center leading-tight pointer-events-none font-mono"
         >
           {{ savedCount }}
         </span>

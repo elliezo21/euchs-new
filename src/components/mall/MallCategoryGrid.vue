@@ -7,7 +7,7 @@
         <h2 class="text-sm sm:text-base font-black text-gray-900">🏬 전체 카테고리</h2>
 
       </div>
-      <span class="px-2.5 py-1 rounded-full bg-orange-50 border border-orange-200 text-orange-600 text-[10px] font-black">ALL</span>
+      <span class="px-2.5 py-1 rounded-full bg-orange-50 border border-orange-200 text-orange-600 text-[11px] font-black">ALL</span>
     </div>
 
     <!-- 카드 그리드 -->
@@ -32,7 +32,7 @@
             <div class="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-200"></div>
           </div>
           <!-- 텍스트 -->
-          <span class="text-[10px] sm:text-[11px] font-bold text-gray-700 group-hover:text-orange-600 leading-tight transition-colors line-clamp-2 w-full">
+          <span class="text-[11px] sm:text-xs font-bold text-gray-700 group-hover:text-orange-600 leading-tight transition-colors line-clamp-2 w-full">
             {{ cat.shortName || cat.name }}
           </span>
         </button>

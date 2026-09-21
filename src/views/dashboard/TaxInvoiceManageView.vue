@@ -46,7 +46,7 @@
             <span>{{ tab.label }}</span>
             <span
               v-if="tab.count !== null"
-              class="px-1.5 py-0.5 rounded-full text-[9px] font-black"
+              class="px-1.5 py-0.5 rounded-full text-[10px] font-black"
               :class="activeTab === tab.id ? 'bg-white/30 text-white' : 'bg-gray-300 text-gray-700'"
             >{{ tab.count }}</span>
           </button>
@@ -159,25 +159,25 @@
           <div class="flex items-center gap-2 mb-4">
             <i class="fas fa-chart-bar text-indigo-500 text-base"></i>
             <h2 class="text-sm font-extrabold text-gray-900">당월 세금계산서 발행 요약</h2>
-            <span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-100 ml-auto">
+            <span class="px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 text-[11px] font-bold border border-indigo-100 ml-auto">
               {{ currentMonthLabel }}
             </span>
           </div>
           <div class="grid grid-cols-3 gap-3 mb-4">
             <div class="bg-blue-50 rounded-xl p-3 text-center border border-blue-100">
-              <p class="text-[10px] text-blue-600 font-medium mb-1">수수료 공급가액</p>
+              <p class="text-[11px] text-blue-600 font-medium mb-1">수수료 공급가액</p>
               <p class="text-base font-black text-blue-700">{{ formatKrw(monthlySupplyAmount) }}</p>
-              <p class="text-[9px] text-blue-500 mt-0.5">대행 수수료 8% 기준</p>
+              <p class="text-[10px] text-blue-500 mt-0.5">대행 수수료 8% 기준</p>
             </div>
             <div class="bg-amber-50 rounded-xl p-3 text-center border border-amber-100">
-              <p class="text-[10px] text-amber-700 font-medium mb-1">부가세 (10%)</p>
+              <p class="text-[11px] text-amber-700 font-medium mb-1">부가세 (10%)</p>
               <p class="text-base font-black text-amber-700">{{ formatKrw(monthlyTax) }}</p>
-              <p class="text-[9px] text-amber-500 mt-0.5">VAT</p>
+              <p class="text-[10px] text-amber-500 mt-0.5">VAT</p>
             </div>
             <div class="bg-emerald-50 rounded-xl p-3 text-center border border-emerald-100">
-              <p class="text-[10px] text-emerald-700 font-medium mb-1">계산서 합계</p>
+              <p class="text-[11px] text-emerald-700 font-medium mb-1">계산서 합계</p>
               <p class="text-base font-black text-emerald-700">{{ formatKrw(monthlyTotal) }}</p>
-              <p class="text-[9px] text-emerald-500 mt-0.5">공급가 + 세액</p>
+              <p class="text-[10px] text-emerald-500 mt-0.5">공급가 + 세액</p>
             </div>
           </div>
           <div class="flex items-center gap-2 p-3 rounded-xl bg-slate-50 border border-slate-200">
@@ -185,7 +185,7 @@
             <div class="text-xs">
               <span class="text-slate-600">발행 예정일: </span>
               <span class="font-extrabold text-slate-900">{{ nextIssueDate }}</span>
-              <span class="ml-2 px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[10px] font-bold">익월 10일</span>
+              <span class="ml-2 px-1.5 py-0.5 rounded-md bg-blue-100 text-blue-700 text-[11px] font-bold">익월 10일</span>
             </div>
           </div>
           <p v-if="monthlySupplyAmount === 0" class="text-xs text-gray-400 text-center mt-3">
@@ -321,7 +321,7 @@
                   </td>
                   <td class="px-4 py-3.5 text-center">
                     <span
-                      class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[10px] font-bold"
+                      class="inline-flex items-center gap-1 px-2 py-1 rounded-full text-[11px] font-bold"
                       :class="{
                         'bg-emerald-50 text-emerald-700 border border-emerald-200': inv.status === 'issued',
                         'bg-amber-50 text-amber-700 border border-amber-200': inv.status === 'pending',
@@ -341,12 +341,12 @@
                       v-if="inv.status === 'issued'"
                       type="button"
                       @click="downloadStatement(inv)"
-                      class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-blue-300 text-gray-600 hover:text-blue-600 text-[10px] font-bold transition active:scale-95 cursor-pointer"
+                      class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border border-gray-200 hover:border-blue-300 text-gray-600 hover:text-blue-600 text-[11px] font-bold transition active:scale-95 cursor-pointer"
                     >
                       <i class="fas fa-file-pdf text-[9px]"></i>
                       <span>명세서</span>
                     </button>
-                    <span v-else class="text-gray-300 text-[10px]">–</span>
+                    <span v-else class="text-gray-300 text-[11px]">–</span>
                   </td>
                 </tr>
               </tbody>

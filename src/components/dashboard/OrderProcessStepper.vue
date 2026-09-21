@@ -19,11 +19,11 @@
       <!-- ======================================================== -->
       <div class="md:px-[22px] pt-6 md:pt-0 first:pt-0">
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-[0.04em]">PART 1. 발주 & 1차 결제</h4>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-[0.04em]">PART 1. 발주 & 1차 결제</h4>
           <button
             type="button"
             @click="router.push('/dashboard/orders')"
-            class="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 transition cursor-pointer shrink-0"
+            class="text-[11px] font-bold text-indigo-500 hover:text-indigo-700 transition cursor-pointer shrink-0"
           >
             바로가기 ›
           </button>
@@ -54,7 +54,7 @@
               class="text-xs font-black font-mono"
               :class="getStepCount(step) > 0 ? 'text-indigo-600' : 'text-slate-400'"
             >
-              {{ getStepCount(step) }}<span class="text-[11px] font-bold text-slate-400 ml-0.5">건</span>
+              {{ getStepCount(step) }}<span class="text-xs font-bold text-slate-400 ml-0.5">건</span>
             </span>
           </div>
         </div>
@@ -65,11 +65,11 @@
       <!-- ======================================================== -->
       <div class="md:px-[22px] pt-6 md:pt-0">
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-[0.04em]">PART 2. 이우 창고 & 검수</h4>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-[0.04em]">PART 2. 이우 창고 & 검수</h4>
           <button
             type="button"
             @click="router.push('/dashboard/warehouse')"
-            class="text-[10px] font-bold text-teal-500 hover:text-teal-700 transition cursor-pointer shrink-0"
+            class="text-[11px] font-bold text-teal-500 hover:text-teal-700 transition cursor-pointer shrink-0"
           >
             바로가기 ›
           </button>
@@ -100,7 +100,7 @@
               class="text-xs font-black font-mono"
               :class="getStepCount(step) > 0 ? 'text-teal-600' : 'text-slate-400'"
             >
-              {{ getStepCount(step) }}<span class="text-[11px] font-bold text-slate-400 ml-0.5">건</span>
+              {{ getStepCount(step) }}<span class="text-xs font-bold text-slate-400 ml-0.5">건</span>
             </span>
           </div>
         </div>
@@ -111,11 +111,11 @@
       <!-- ======================================================== -->
       <div class="md:px-[22px] pt-6 md:pt-0">
         <div class="flex items-center justify-between mb-4">
-          <h4 class="text-[11px] font-bold text-slate-400 uppercase tracking-[0.04em]">PART 3. 통관 & 국내배송</h4>
+          <h4 class="text-xs font-bold text-slate-400 uppercase tracking-[0.04em]">PART 3. 통관 & 국내배송</h4>
           <button
             type="button"
             @click="router.push('/dashboard/logistics')"
-            class="text-[10px] font-bold text-indigo-500 hover:text-indigo-700 transition cursor-pointer shrink-0"
+            class="text-[11px] font-bold text-indigo-500 hover:text-indigo-700 transition cursor-pointer shrink-0"
           >
             바로가기 ›
           </button>
@@ -146,7 +146,7 @@
               class="text-xs font-black font-mono"
               :class="getStepCount(step) > 0 ? 'text-indigo-600' : 'text-slate-400'"
             >
-              {{ getStepCount(step) }}<span class="text-[11px] font-bold text-slate-400 ml-0.5">건</span>
+              {{ getStepCount(step) }}<span class="text-xs font-bold text-slate-400 ml-0.5">건</span>
             </span>
           </div>
         </div>

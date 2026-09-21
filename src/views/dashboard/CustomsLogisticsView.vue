@@ -103,7 +103,7 @@
     <div class="bg-white border border-gray-200 rounded-2xl px-4 py-3 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
       <div class="flex items-center gap-2">
         <h2 class="text-sm font-bold text-gray-900">실시간 통관 &amp; 배송 트래킹</h2>
-        <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-[11px] font-mono font-bold">{{ filteredLogistics.length }}건</span>
+        <span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-mono font-bold">{{ filteredLogistics.length }}건</span>
       </div>
       <div class="flex items-center gap-2 flex-wrap">
         <div class="relative">
@@ -161,7 +161,7 @@
           <div class="px-5 py-3.5 bg-gradient-to-r from-orange-50 to-amber-50 border-b border-orange-100 flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <div
-                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
                 :class="getCustomsBadgeClass(item.customsStep)"
               >
                 <span class="w-1.5 h-1.5 rounded-full animate-pulse" :class="getCustomsDotClass(item.customsStep)"></span>
@@ -170,7 +170,7 @@
               <!-- FTA C/O 뱃지 -->
               <span
                 v-if="item.ftaStatus === 'approved'"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold border border-indigo-200 cursor-help"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200 cursor-help"
                 title="한·중 FTA 협정세율 적용 — 기본관세 0% 감면 (C/O 원산지증명서 발급완료)"
               >
                 <Award class="w-3 h-3" />
@@ -178,7 +178,7 @@
               </span>
               <span
                 v-else-if="item.ftaStatus === 'applying'"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[10px] font-bold border border-amber-200"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 text-[11px] font-bold border border-amber-200"
               >
                 <Clock class="w-3 h-3" />
                 C/O 심사중
@@ -187,7 +187,7 @@
             <button
               type="button"
               @click="openDetailModal(item)"
-              class="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-0.5 hover:underline"
+              class="text-xs text-indigo-600 hover:text-indigo-800 font-bold flex items-center gap-0.5 hover:underline"
             >
               통관 타임라인 <ChevronRight class="w-3.5 h-3.5" />
             </button>
@@ -198,7 +198,7 @@
             <div class="flex items-start justify-between gap-3">
               <div class="space-y-1">
                 <div class="flex items-center gap-1.5">
-                  <span class="text-[10px] text-gray-400 font-medium uppercase tracking-wider">H B/L No.</span>
+                  <span class="text-[11px] text-gray-400 font-medium uppercase tracking-wider">H B/L No.</span>
                   <span class="font-mono font-bold text-indigo-700 text-sm">{{ item.hblNo }}</span>
                   <button
                     @click="copyText(item.hblNo)"
@@ -208,11 +208,11 @@
                     <Copy class="w-3 h-3" />
                   </button>
                 </div>
-                <div class="text-[11px] text-gray-500 font-mono">주문번호: {{ item.orderNo }}</div>
-                <div v-if="item.cargoMgtNo" class="text-[11px] text-gray-500 font-mono flex items-center gap-1">
+                <div class="text-xs text-gray-500 font-mono">주문번호: {{ item.orderNo }}</div>
+                <div v-if="item.cargoMgtNo" class="text-xs text-gray-500 font-mono flex items-center gap-1">
                   화물관리번호: <span class="font-bold text-gray-700">{{ item.cargoMgtNo }}</span>
                 </div>
-                <div v-if="item.declarationNo" class="text-[11px] text-gray-500 font-mono">
+                <div v-if="item.declarationNo" class="text-xs text-gray-500 font-mono">
                   수입신고번호: <span class="font-medium text-gray-700">{{ item.declarationNo }}</span>
                 </div>
               </div>
@@ -225,7 +225,7 @@
                 title="관세청 유니패스에서 화물진행정보 조회"
               >
                 <ExternalLink class="w-3.5 h-3.5 text-indigo-400" />
-                <span class="text-[10px] font-bold leading-none">유니패스<br/>조회</span>
+                <span class="text-[11px] font-bold leading-none">유니패스<br/>조회</span>
               </a>
             </div>
 
@@ -235,16 +235,16 @@
             <!-- 제원 그리드 -->
             <div class="grid grid-cols-3 gap-2">
               <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-                <div class="text-[10px] text-gray-400 mb-0.5">수량</div>
-                <div class="font-bold text-gray-900 font-mono">{{ item.quantity.toLocaleString() }}<span class="text-[10px] text-gray-400">개</span></div>
+                <div class="text-[11px] text-gray-400 mb-0.5">수량</div>
+                <div class="font-bold text-gray-900 font-mono">{{ item.quantity.toLocaleString() }}<span class="text-[11px] text-gray-400">개</span></div>
               </div>
               <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-                <div class="text-[10px] text-gray-400 mb-0.5">중량</div>
-                <div class="font-bold text-gray-900 font-mono">{{ item.weightKg }}<span class="text-[10px] text-gray-400">kg</span></div>
+                <div class="text-[11px] text-gray-400 mb-0.5">중량</div>
+                <div class="font-bold text-gray-900 font-mono">{{ item.weightKg }}<span class="text-[11px] text-gray-400">kg</span></div>
               </div>
               <div class="bg-slate-50 rounded-xl p-2.5 text-center">
-                <div class="text-[10px] text-gray-400 mb-0.5">부피</div>
-                <div class="font-bold text-teal-700 font-mono">{{ item.cbm }}<span class="text-[10px] text-teal-500">CBM</span></div>
+                <div class="text-[11px] text-gray-400 mb-0.5">부피</div>
+                <div class="font-bold text-teal-700 font-mono">{{ item.cbm }}<span class="text-[11px] text-teal-500">CBM</span></div>
               </div>
             </div>
 
@@ -253,7 +253,7 @@
               <Ship class="w-4 h-4 text-blue-600 shrink-0" />
               <div class="min-w-0">
                 <div class="font-bold text-gray-800">{{ item.vesselName }}</div>
-                <div class="text-[11px] text-gray-500">
+                <div class="text-xs text-gray-500">
                   {{ item.departurePort }} ➔ {{ item.arrivalPort }}
                   <span class="font-mono text-blue-600 ml-1">입항: {{ item.arrivalDate }}</span>
                 </div>
@@ -268,7 +268,7 @@
               <ShieldCheck class="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
               <div class="space-y-0.5">
                 <div class="font-bold text-indigo-800">한·중 FTA 협정관세 0% 적용 확정</div>
-                <p class="text-[11px] text-indigo-700">
+                <p class="text-xs text-indigo-700">
                   원산지증명서(C/O) 발급 완료 — 기본관세율 8% → FTA 협정세율 <b class="text-indigo-900">0%</b> 감면 적용.
                   관세 절감액: <b class="text-indigo-900">₩{{ (item.estimatedDutySaving || 0).toLocaleString() }}원 절감</b>
                 </p>
@@ -277,12 +277,12 @@
 
             <!-- 1:1 카카오톡 문의 -->
             <div class="flex items-center justify-between pt-1 border-t border-gray-100">
-              <span class="text-[11px] text-gray-400">통관 관련 문의가 있으신가요?</span>
+              <span class="text-xs text-gray-400">통관 관련 문의가 있으신가요?</span>
               <a
                 :href="getKakaoUrl(item)"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FEE500] hover:bg-yellow-400 text-[#3A1D1D] font-bold text-[11px] transition active:scale-95"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FEE500] hover:bg-yellow-400 text-[#3A1D1D] font-bold text-xs transition active:scale-95"
               >
                 <MessageCircle class="w-3.5 h-3.5" />
                 <span>1:1 카카오톡 상담</span>
@@ -333,19 +333,19 @@
               <!-- 배송 유형 뱃지 -->
               <span
                 v-if="item.deliveryType === 'rocket'"
-                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600 text-white text-[10px] font-black"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rose-600 text-white text-[11px] font-black"
               >
                 🚀 로켓그로스 FC 직송
               </span>
               <span
                 v-else-if="item.deliveryType === 'cargo'"
-                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-700 text-white text-[10px] font-black"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-700 text-white text-[11px] font-black"
               >
                 🚛 화물 운송
               </span>
               <span
                 v-else
-                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-600 text-white text-[10px] font-black"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-sky-600 text-white text-[11px] font-black"
               >
                 📦 일반 택배
               </span>
@@ -353,14 +353,14 @@
               <!-- 완료 태그 -->
               <span
                 v-if="item.customsStep === 'delivered'"
-                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold border border-emerald-300"
+                class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold border border-emerald-300"
               >
                 <CheckCircle2 class="w-3 h-3 text-emerald-600" />
                 배송 완료
               </span>
               <span
                 v-else
-                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold border"
+                class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold border"
                 :class="getCustomsBadgeClass(item.customsStep)"
               >
                 <span class="w-1.5 h-1.5 rounded-full animate-pulse" :class="getCustomsDotClass(item.customsStep)"></span>
@@ -371,7 +371,7 @@
             <!-- FTA 뱃지 -->
             <span
               v-if="item.ftaStatus === 'approved'"
-              class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold border border-indigo-200 cursor-help"
+              class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px] font-bold border border-indigo-200 cursor-help"
               title="한·중 FTA 협정관세 0% 적용 완료"
             >
               <Award class="w-3 h-3" />
@@ -383,7 +383,7 @@
             <!-- 상품명 & 주문번호 -->
             <div class="space-y-1">
               <div class="font-bold text-gray-900 text-sm line-clamp-1">{{ item.productName }}</div>
-              <div class="text-[11px] text-gray-500 font-mono">{{ item.orderNo }}</div>
+              <div class="text-xs text-gray-500 font-mono">{{ item.orderNo }}</div>
             </div>
 
             <!-- ① 화물/택배형 -->
@@ -399,7 +399,7 @@
                     :href="item.trackingUrl"
                     target="_blank"
                     rel="noopener noreferrer"
-                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[10px] transition active:scale-95"
+                    class="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-[11px] transition active:scale-95"
                   >
                     <ExternalLink class="w-3 h-3" />
                     배송 추적
@@ -417,7 +417,7 @@
                     <Copy class="w-3 h-3" />
                   </button>
                 </div>
-                <div v-if="item.deliveryEta" class="text-[11px] text-gray-600">
+                <div v-if="item.deliveryEta" class="text-xs text-gray-600">
                   배송 예정일: <span class="font-bold text-gray-800">{{ item.deliveryEta }}</span>
                 </div>
               </div>
@@ -430,7 +430,7 @@
                   <span class="text-base">🏭</span>
                   <span>쿠팡 FC 센터 직송 배차 정보</span>
                 </div>
-                <div class="grid grid-cols-2 gap-2 text-[11px]">
+                <div class="grid grid-cols-2 gap-2 text-xs">
                   <div class="bg-white rounded-lg p-2 border border-rose-100">
                     <div class="text-gray-400 mb-0.5">지정 FC 센터</div>
                     <div class="font-bold text-gray-900">{{ item.rocketFcCenter || '미정' }}</div>
@@ -455,7 +455,7 @@
                     <span v-else class="text-gray-400">-</span>
                   </div>
                 </div>
-                <div v-if="item.rocketSkuCount" class="text-[11px] text-rose-700 bg-white rounded-lg p-2 border border-rose-100">
+                <div v-if="item.rocketSkuCount" class="text-xs text-rose-700 bg-white rounded-lg p-2 border border-rose-100">
                   입고 SKU: <span class="font-bold">{{ item.rocketSkuCount }}종</span>
                   · 총 수량: <span class="font-bold">{{ item.quantity.toLocaleString() }}개</span>
                   <span v-if="item.barcodeLabelFilename" class="ml-2 text-indigo-600">
@@ -467,12 +467,12 @@
 
             <!-- 1:1 카카오톡 문의 -->
             <div class="flex items-center justify-between pt-1 border-t border-gray-100">
-              <span class="text-[11px] text-gray-400">배송 관련 문의는 카카오톡으로</span>
+              <span class="text-xs text-gray-400">배송 관련 문의는 카카오톡으로</span>
               <a
                 :href="getKakaoUrl(item)"
                 target="_blank"
                 rel="noopener noreferrer"
-                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FEE500] hover:bg-yellow-400 text-[#3A1D1D] font-bold text-[11px] transition active:scale-95"
+                class="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#FEE500] hover:bg-yellow-400 text-[#3A1D1D] font-bold text-xs transition active:scale-95"
               >
                 <MessageCircle class="w-3.5 h-3.5" />
                 <span>1:1 카카오톡 상담</span>
@@ -489,7 +489,7 @@
     <div class="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
       <div class="px-5 py-3 border-b border-gray-200 bg-gray-50/50 flex items-center justify-between">
         <h3 class="text-sm font-bold text-gray-900">전체 B/L 통관 &amp; 배송 목록</h3>
-        <span class="text-[11px] text-gray-400">{{ filteredLogistics.length }}건 표시 중</span>
+        <span class="text-xs text-gray-400">{{ filteredLogistics.length }}건 표시 중</span>
       </div>
       <div class="overflow-x-auto">
         <table class="w-full text-left text-xs">
@@ -514,24 +514,24 @@
                     <Copy class="w-3 h-3" />
                   </button>
                 </div>
-                <div class="text-[11px] text-gray-500 font-mono mt-0.5">{{ item.orderNo }}</div>
-                <div v-if="item.cargoMgtNo" class="text-[10px] text-gray-400 font-mono">화물관리: {{ item.cargoMgtNo }}</div>
+                <div class="text-xs text-gray-500 font-mono mt-0.5">{{ item.orderNo }}</div>
+                <div v-if="item.cargoMgtNo" class="text-[11px] text-gray-400 font-mono">화물관리: {{ item.cargoMgtNo }}</div>
               </td>
               <!-- 품목 -->
               <td class="py-3.5 px-4">
                 <div class="font-bold text-gray-900 line-clamp-1 max-w-[180px]">{{ item.productName }}</div>
-                <div class="text-[11px] text-gray-500 mt-0.5">{{ item.quantity.toLocaleString() }}개 · {{ item.weightKg }}kg · {{ item.cbm }}CBM</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ item.quantity.toLocaleString() }}개 · {{ item.weightKg }}kg · {{ item.cbm }}CBM</div>
               </td>
               <!-- 선박/항구 -->
               <td class="py-3.5 px-4">
                 <div class="font-medium text-gray-800">{{ item.vesselName }}</div>
-                <div class="text-[11px] text-gray-500 mt-0.5">{{ item.departurePort }} ➔ {{ item.arrivalPort }}</div>
-                <div class="text-[10px] text-blue-600 font-mono mt-0.5">{{ item.arrivalDate }}</div>
+                <div class="text-xs text-gray-500 mt-0.5">{{ item.departurePort }} ➔ {{ item.arrivalPort }}</div>
+                <div class="text-[11px] text-blue-600 font-mono mt-0.5">{{ item.arrivalDate }}</div>
               </td>
               <!-- 통관단계 + 유니패스 링크 -->
               <td class="py-3.5 px-4">
                 <div class="flex items-center gap-1.5">
-                  <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold" :class="getCustomsBadgeClass(item.customsStep)">
+                  <div class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold" :class="getCustomsBadgeClass(item.customsStep)">
                     <span class="w-1.5 h-1.5 rounded-full" :class="getCustomsDotClass(item.customsStep)"></span>
                     {{ item.customsStepName }}
                   </div>
@@ -544,45 +544,45 @@
                     <ExternalLink class="w-3 h-3" />
                   </a>
                 </div>
-                <div class="text-[10px] text-gray-400 mt-1 font-mono">{{ item.declarationNo || '-' }}</div>
+                <div class="text-[11px] text-gray-400 mt-1 font-mono">{{ item.declarationNo || '-' }}</div>
               </td>
               <!-- FTA C/O -->
               <td class="py-3.5 px-4">
-                <span v-if="item.ftaStatus === 'approved'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
+                <span v-if="item.ftaStatus === 'approved'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[11px] border border-emerald-200">
                   <CheckCircle2 class="w-3 h-3" /> 적용완료 0%
                 </span>
-                <span v-else-if="item.ftaStatus === 'applying'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold text-[10px] border border-amber-200">
+                <span v-else-if="item.ftaStatus === 'applying'" class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold text-[11px] border border-amber-200">
                   <Clock class="w-3 h-3" /> 심사중
                 </span>
-                <span v-else class="text-[10px] text-gray-400">미신청</span>
+                <span v-else class="text-[11px] text-gray-400">미신청</span>
               </td>
               <!-- 운송장 -->
               <td class="py-3.5 px-4">
                 <template v-if="item.deliveryType === 'rocket'">
-                  <div class="text-[10px] font-bold text-rose-600">🚀 FC 직송</div>
-                  <div class="text-[10px] text-gray-500 mt-0.5">{{ item.rocketFcCenter || '-' }}</div>
+                  <div class="text-[11px] font-bold text-rose-600">🚀 FC 직송</div>
+                  <div class="text-[11px] text-gray-500 mt-0.5">{{ item.rocketFcCenter || '-' }}</div>
                 </template>
                 <template v-else-if="item.trackingNo">
-                  <div class="font-bold text-gray-800 text-[11px]">{{ item.courierCompany }}</div>
-                  <a :href="item.trackingUrl" target="_blank" class="text-[11px] text-indigo-600 hover:underline font-mono flex items-center gap-1 mt-0.5">
+                  <div class="font-bold text-gray-800 text-xs">{{ item.courierCompany }}</div>
+                  <a :href="item.trackingUrl" target="_blank" class="text-xs text-indigo-600 hover:underline font-mono flex items-center gap-1 mt-0.5">
                     {{ item.trackingNo }} <ExternalLink class="w-3 h-3" />
                   </a>
                 </template>
-                <span v-else class="text-[10px] text-gray-400">세관 반출 대기</span>
+                <span v-else class="text-[11px] text-gray-400">세관 반출 대기</span>
               </td>
               <!-- 액션 -->
               <td class="py-3.5 px-4 text-center">
                 <div class="flex items-center justify-center gap-1.5">
                   <button
                     @click="openDetailModal(item)"
-                    class="px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 font-bold text-[11px] transition"
+                    class="px-2 py-1.5 rounded-lg bg-gray-100 hover:bg-indigo-50 hover:text-indigo-700 text-gray-700 font-bold text-xs transition"
                   >
                     상세보기
                   </button>
                   <a
                     :href="getKakaoUrl(item)"
                     target="_blank"
-                    class="px-2 py-1.5 rounded-lg bg-[#FEE500] hover:bg-yellow-400 text-[#3A1D1D] font-bold text-[11px] transition flex items-center gap-1"
+                    class="px-2 py-1.5 rounded-lg bg-[#FEE500] hover:bg-yellow-400 text-[#3A1D1D] font-bold text-xs transition flex items-center gap-1"
                     title="카카오톡 1:1 상담"
                   >
                     <MessageCircle class="w-3 h-3" />
@@ -652,7 +652,7 @@
             <label class="block font-bold text-gray-700 mb-1">중국 현지 제조사 영문 상호</label>
             <input type="text" v-model="ftaForm.manufacturer" placeholder="예: YIWU JINHAO TRADE CO., LTD." required class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20" />
           </div>
-          <div class="p-3 bg-indigo-50 rounded-xl text-indigo-800 text-[11px] space-y-1">
+          <div class="p-3 bg-indigo-50 rounded-xl text-indigo-800 text-xs space-y-1">
             <div class="font-bold flex items-center gap-1">
               <ShieldCheck class="w-3.5 h-3.5" />
               EUCHS 관세사 C/O 원스톱 발급 대행
@@ -675,8 +675,8 @@
         <div class="flex items-center justify-between pb-3 border-b border-gray-100">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="px-2.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[10px] font-bold font-mono">H B/L: {{ selectedDetail.hblNo }}</span>
-              <span v-if="selectedDetail.cargoMgtNo" class="px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-[10px] font-mono">화물관리번호: {{ selectedDetail.cargoMgtNo }}</span>
+              <span class="px-2.5 py-0.5 rounded bg-indigo-100 text-indigo-700 text-[11px] font-bold font-mono">H B/L: {{ selectedDetail.hblNo }}</span>
+              <span v-if="selectedDetail.cargoMgtNo" class="px-2 py-0.5 rounded bg-gray-100 text-gray-600 text-[11px] font-mono">화물관리번호: {{ selectedDetail.cargoMgtNo }}</span>
             </div>
             <h3 class="text-base font-bold text-gray-900 line-clamp-1">{{ selectedDetail.productName }}</h3>
           </div>
@@ -698,9 +698,9 @@
               </div>
               <div class="flex items-center justify-between">
                 <span class="font-bold" :class="idx <= getStepIndex(selectedDetail.customsStep) ? 'text-gray-900' : 'text-gray-400'">{{ step.label }}</span>
-                <span class="text-[10px] font-mono text-gray-400">{{ idx <= getStepIndex(selectedDetail.customsStep) ? step.date : '-' }}</span>
+                <span class="text-[11px] font-mono text-gray-400">{{ idx <= getStepIndex(selectedDetail.customsStep) ? step.date : '-' }}</span>
               </div>
-              <p class="text-[11px] text-gray-500 mt-0.5">{{ step.desc }}</p>
+              <p class="text-xs text-gray-500 mt-0.5">{{ step.desc }}</p>
             </div>
           </div>
         </div>
@@ -716,19 +716,19 @@
         <!-- 화물 제원 -->
         <div class="p-4 bg-gray-50 rounded-2xl grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
           <div>
-            <span class="text-gray-400 text-[10px]">선적항 / 입항지</span>
+            <span class="text-gray-400 text-[11px]">선적항 / 입항지</span>
             <div class="font-bold text-gray-800">{{ selectedDetail.departurePort }} ➔ {{ selectedDetail.arrivalPort }}</div>
           </div>
           <div>
-            <span class="text-gray-400 text-[10px]">선박명</span>
+            <span class="text-gray-400 text-[11px]">선박명</span>
             <div class="font-bold text-gray-800">{{ selectedDetail.vesselName }}</div>
           </div>
           <div>
-            <span class="text-gray-400 text-[10px]">중량 / 부피</span>
+            <span class="text-gray-400 text-[11px]">중량 / 부피</span>
             <div class="font-bold text-gray-800">{{ selectedDetail.weightKg }}kg / {{ selectedDetail.cbm }} CBM</div>
           </div>
           <div>
-            <span class="text-gray-400 text-[10px]">국내 운송사</span>
+            <span class="text-gray-400 text-[11px]">국내 운송사</span>
             <div class="font-bold text-indigo-600">{{ selectedDetail.courierCompany || '세관통관중' }}</div>
           </div>
         </div>

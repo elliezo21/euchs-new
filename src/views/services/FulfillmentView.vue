@@ -175,7 +175,7 @@
             </a>
           </div>
 
-          <p class="text-[11px] text-slate-400 pt-2">
+          <p class="text-xs text-slate-400 pt-2">
             ※ 오픈 시 알림 및 특가 혜택을 원하시는 대표님께서는 카카오톡 채널을 추가해 주세요.
           </p>
         </div>

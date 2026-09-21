@@ -160,15 +160,15 @@
             <div class="grid grid-cols-3 gap-3 pt-4 border-t border-slate-700/60 text-center">
               <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
                 <span class="text-lg font-black text-blue-400 block">15년+</span>
-                <span class="text-[10px] text-slate-300 font-medium">현지 무역 경력</span>
+                <span class="text-[11px] text-slate-300 font-medium">현지 무역 경력</span>
               </div>
               <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
                 <span class="text-lg font-black text-sky-400 block">10,000+</span>
-                <span class="text-[10px] text-slate-300 font-medium">누적 진행 프로젝트</span>
+                <span class="text-[11px] text-slate-300 font-medium">누적 진행 프로젝트</span>
               </div>
               <div class="p-2.5 rounded-xl bg-white/5 border border-white/10">
                 <span class="text-lg font-black text-emerald-400 block">99.8%</span>
-                <span class="text-[10px] text-slate-300 font-medium">고객 만족도</span>
+                <span class="text-[11px] text-slate-300 font-medium">고객 만족도</span>
               </div>
             </div>
           </div>

@@ -227,7 +227,7 @@
               <div class="flex gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                 <div class="w-16 sm:w-20 shrink-0 text-center">
                   <span class="inline-block px-2.5 py-1 bg-slate-900 text-white font-black text-xs rounded-lg">DAY 1</span>
-                  <span class="block text-[11px] text-gray-500 mt-1">입국 & 체크인</span>
+                  <span class="block text-xs text-gray-500 mt-1">입국 & 체크인</span>
                 </div>
                 <div class="text-xs sm:text-sm text-gray-700 space-y-1">
                   <p class="font-bold text-gray-900">항저우 / 상하이 공항 도착 및 이우 호텔 픽업</p>
@@ -241,7 +241,7 @@
               <div class="flex gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                 <div class="w-16 sm:w-20 shrink-0 text-center">
                   <span class="inline-block px-2.5 py-1 bg-blue-600 text-white font-black text-xs rounded-lg">DAY 2</span>
-                  <span class="block text-[11px] text-gray-500 mt-1">푸텐시장 집중</span>
+                  <span class="block text-xs text-gray-500 mt-1">푸텐시장 집중</span>
                 </div>
                 <div class="text-xs sm:text-sm text-gray-700 space-y-1">
                   <p class="font-bold text-gray-900">푸텐시장 1~3기 집중 사입 & 단가 네고</p>
@@ -255,7 +255,7 @@
               <div class="flex gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                 <div class="w-16 sm:w-20 shrink-0 text-center">
                   <span class="inline-block px-2.5 py-1 bg-blue-600 text-white font-black text-xs rounded-lg">DAY 3</span>
-                  <span class="block text-[11px] text-gray-500 mt-1">4~5기 & 지사 미팅</span>
+                  <span class="block text-xs text-gray-500 mt-1">4~5기 & 지사 미팅</span>
                 </div>
                 <div class="text-xs sm:text-sm text-gray-700 space-y-1">
                   <p class="font-bold text-gray-900">푸텐시장 4~5기 조사 & 이유씨 지사 발주 미팅</p>
@@ -269,7 +269,7 @@
               <div class="flex gap-4 p-4 rounded-2xl bg-slate-50 border border-slate-100">
                 <div class="w-16 sm:w-20 shrink-0 text-center">
                   <span class="inline-block px-2.5 py-1 bg-slate-900 text-white font-black text-xs rounded-lg">DAY 4</span>
-                  <span class="block text-[11px] text-gray-500 mt-1">공항 샌딩</span>
+                  <span class="block text-xs text-gray-500 mt-1">공항 샌딩</span>
                 </div>
                 <div class="text-xs sm:text-sm text-gray-700 space-y-1">
                   <p class="font-bold text-gray-900">호텔 체크아웃 및 공항 샌딩 (귀국)</p>
@@ -316,9 +316,9 @@
                 <!-- Hotel 1 -->
                 <div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 hover:bg-white/15 transition flex flex-col justify-between">
                   <div>
-                    <span class="text-[10px] text-amber-300 font-bold">인기 비즈니스 호텔</span>
+                    <span class="text-[11px] text-amber-300 font-bold">인기 비즈니스 호텔</span>
                     <h4 class="text-sm font-bold text-white mt-1">이우 햄튼 바이 힐튼</h4>
-                    <p class="text-[11px] text-slate-300 mt-0.5">Hampton by Hilton Yiwu</p>
+                    <p class="text-xs text-slate-300 mt-0.5">Hampton by Hilton Yiwu</p>
                     <p class="text-xs text-slate-400 mt-2 leading-relaxed">푸텐시장 인근 가성비 & 비즈니스 호텔</p>
                   </div>
                   <a 
@@ -334,9 +334,9 @@
                 <!-- Hotel 2 -->
                 <div class="bg-white/10 backdrop-blur-md rounded-2xl p-4 border border-white/15 hover:bg-white/15 transition flex flex-col justify-between">
                   <div>
-                    <span class="text-[10px] text-amber-300 font-bold">5성급 럭셔리 호텔</span>
+                    <span class="text-[11px] text-amber-300 font-bold">5성급 럭셔리 호텔</span>
                     <h4 class="text-sm font-bold text-white mt-1">이우 샹그릴라 호텔</h4>
-                    <p class="text-[11px] text-slate-300 mt-0.5">Shangri-La Yiwu</p>
+                    <p class="text-xs text-slate-300 mt-0.5">Shangri-La Yiwu</p>
                     <p class="text-xs text-slate-400 mt-2 leading-relaxed">이우 중심가 위치, 최고급 5성급 비즈니스 호텔</p>
                   </div>
                   <a 
@@ -352,9 +352,9 @@
                 <!-- Flight Booking Card -->
                 <div class="bg-gradient-to-br from-amber-500/20 to-yellow-600/20 backdrop-blur-md rounded-2xl p-4 border border-amber-400/30 hover:bg-amber-500/25 transition flex flex-col justify-between">
                   <div>
-                    <span class="text-[10px] text-amber-300 font-bold">항공권 특가</span>
+                    <span class="text-[11px] text-amber-300 font-bold">항공권 특가</span>
                     <h4 class="text-sm font-bold text-white mt-1">중국 항공권 실시간 예매</h4>
-                    <p class="text-[11px] text-amber-200 mt-1">인천 ↔ 항저우 / 상하이</p>
+                    <p class="text-xs text-amber-200 mt-1">인천 ↔ 항저우 / 상하이</p>
                     <p class="text-xs text-slate-300 mt-2">대한항공, 아시아나, 중국동방항공 등</p>
                   </div>
                   <a 
@@ -367,7 +367,7 @@
                 </div>
               </div>
 
-              <div class="text-[11px] text-slate-400 flex items-center gap-2">
+              <div class="text-xs text-slate-400 flex items-center gap-2">
                 <i class="fas fa-info-circle text-blue-400"></i>
                 <span>※ 호텔 예약 대행을 원하실 경우, 우측 신청서의 [호텔 예약 지원]을 체크해 주시면 현지 제휴 단가로 예약 지원해 드립니다.</span>
               </div>
@@ -382,7 +382,7 @@
             
             <!-- Form Header -->
             <div class="border-b border-gray-100 pb-4">
-              <div class="inline-block px-3 py-1 bg-blue-100 text-blue-800 text-[11px] font-black rounded-full mb-2">
+              <div class="inline-block px-3 py-1 bg-blue-100 text-blue-800 text-xs font-black rounded-full mb-2">
                 ESTIMATE & APPLY
               </div>
               <h3 class="text-xl font-black text-gray-900 tracking-tight">
@@ -448,7 +448,7 @@
                   
                   <!-- 공항 및 픽업 코스 선택 드롭다운 -->
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">공항 및 픽업/샌딩 코스 선택</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">공항 및 픽업/샌딩 코스 선택</label>
                     <select 
                       v-model="form.pickupCourse"
                       class="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs font-semibold focus:border-blue-600 outline-none cursor-pointer"
@@ -467,7 +467,7 @@
 
                   <!-- 차량 규격 선택 드롭다운 -->
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">차량 규격 선택</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">차량 규격 선택</label>
                     <select 
                       v-model="form.vehicleType"
                       class="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none cursor-pointer"
@@ -480,7 +480,7 @@
                   <!-- 일정 날짜 입력 (입국 / 출국) -->
                   <div class="grid grid-cols-2 gap-2.5 pt-1">
                     <div>
-                      <label class="block text-[11px] font-semibold text-gray-600 mb-1">
+                      <label class="block text-xs font-semibold text-gray-600 mb-1">
                         입국 도착 일자 <span class="text-blue-600">*</span>
                       </label>
                       <input 
@@ -493,7 +493,7 @@
                     </div>
 
                     <div>
-                      <label class="block text-[11px] font-semibold text-gray-600 mb-1">
+                      <label class="block text-xs font-semibold text-gray-600 mb-1">
                         출국 복귀 일자
                       </label>
                       <input 
@@ -525,7 +525,7 @@
                 <!-- Detailed Guide Options when checked -->
                 <div v-if="form.useGuide" class="pt-2 border-t border-gray-200 space-y-3 text-xs">
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">
                       통역 기간 (1일당 150,000원)
                     </label>
                     <select 
@@ -541,7 +541,7 @@
                   </div>
 
                   <div>
-                    <label class="block text-[11px] font-semibold text-gray-600 mb-1">통역 전문 분야</label>
+                    <label class="block text-xs font-semibold text-gray-600 mb-1">통역 전문 분야</label>
                     <select 
                       v-model="form.guideCategory"
                       class="w-full p-2.5 rounded-xl border border-gray-300 bg-white text-xs font-medium focus:border-blue-600 outline-none cursor-pointer"
@@ -575,7 +575,7 @@
                     <i class="fas fa-calculator"></i>
                     <span>실시간 예상 견적 요약</span>
                   </span>
-                  <span class="text-[11px] text-slate-400 font-normal">부가세(VAT) 별도</span>
+                  <span class="text-xs text-slate-400 font-normal">부가세(VAT) 별도</span>
                 </div>
 
                 <div class="space-y-1.5 text-xs text-slate-300 font-medium">
@@ -598,7 +598,7 @@
                 <div class="border-t border-white/20 pt-3 flex items-baseline justify-between">
                   <div>
                     <span class="text-xs sm:text-sm font-bold text-amber-300 block">총 예상 견적 합계</span>
-                    <span class="text-[10px] text-slate-400">유류비/통행료 포함</span>
+                    <span class="text-[11px] text-slate-400">유류비/통행료 포함</span>
                   </div>
                   <div class="text-right">
                     <span class="text-2xl sm:text-3xl font-black text-yellow-400 font-mono">
@@ -698,7 +698,7 @@
               <button 
                 type="button"
                 @click="copyApplicationDetails"
-                class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-700 hover:text-blue-600 flex items-center gap-1 transition shadow-sm"
+                class="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-xs font-semibold text-slate-700 hover:text-blue-600 flex items-center gap-1 transition shadow-sm"
               >
                 <i :class="isCopied ? 'fas fa-check text-emerald-500' : 'fas fa-copy text-slate-500'"></i>
                 <span>{{ isCopied ? '복사됨!' : '내역 복사' }}</span>
