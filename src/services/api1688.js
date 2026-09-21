@@ -687,10 +687,17 @@ export async function translateItemsBatch(items) {
 export async function search1688(queryZh, page = 1, options = {}) {
   const query = String(queryZh || '').trim()
   if (!query) {
-    return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: '' }
+    return { items: [], page: Number(page), pageSize: 0, totalResults: '0', hasMore: false, queryZh: '' }
   }
 
-  const cacheKey = `ob_${query}_p${page}`
+  // 번역 전에 상위 N건만 남긴다. 0(미지정)이면 기존대로 전량.
+  const maxItems = Number(options?.maxItems) || 0
+
+  // ⚠️ maxItems를 키에 포함하지 않으면, 홈 섹션이 만든 10건짜리 잘린 결과가
+  //    같은 키워드를 검색한 사용자에게 그대로 서빙되어 검색 결과가 10건으로 잘린다.
+  //    (options.sort는 키에 넣지 않는다 — 정렬은 MallView의 sortedProducts computed가
+  //     클라이언트에서 처리하며 API 요청·응답을 바꾸지 않으므로 캐시를 쪼갤 이유가 없다.)
+  const cacheKey = `ob_${query}_p${page}${maxItems > 0 ? `_m${maxItems}` : ''}`
 
   // 캐시 확인
   const cached = getFromCache(memorySearchCache, 'euchs_search', cacheKey)
@@ -751,7 +758,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
         continue
       }
       console.warn(`[1688 Search] No response from OneBound for "${query}" after ${MAX_ATTEMPTS} attempts. Returning empty.`)
-      return { items: [], total: 0, page, pageSize: 40, query }
+      return { items: [], total: 0, page, pageSize: 0, query }
     }
 
     // ── OneBound 응답 파싱 ──────────────────────────────────────────────────
@@ -771,7 +778,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
       if (isRealError) {
         // 확정 에러(키 만료/파라미터 오류)는 재시도해도 동일하게 실패하므로 즉시 반환
         console.warn(`[1688 Search] OneBound error (${obErrCode}): ${obReason || obErrField}. Returning empty results.`)
-        return { items: [], total: 0, page, pageSize: 40, query, error: obErrCode }
+        return { items: [], total: 0, page, pageSize: 0, query, error: obErrCode }
       }
 
       // 응답 구조 디버그 로깅
@@ -833,7 +840,7 @@ export async function search1688(queryZh, page = 1, options = {}) {
           continue
         }
         console.warn(`[1688 Search] Empty rawList for "${query}" after ${MAX_ATTEMPTS} attempts. Returning empty.`)
-        return { items: [], total: 0, page, pageSize: 40, query }
+        return { items: [], total: 0, page, pageSize: 0, query }
       }
 
 
@@ -887,17 +894,32 @@ export async function search1688(queryZh, page = 1, options = {}) {
         }
       }).filter(item => item.id && (item.title || item.titleZh))
 
-      // 일괄 한국어 번역
-      await translateItemsBatch(items)
+      // 일괄 한국어 번역 (화면에서 상위 일부만 쓰는 호출부는 자른 뒤 번역)
+      const target = maxItems > 0 ? items.slice(0, maxItems) : items
+      await translateItemsBatch(target)
 
-      const totalCount = resData?.total_results || resData?.total_count || resData?.total || String(rawList.length)
+      // OneBound 1688global의 페이지 정보는 items 하위에 있다.
+      // 실측(2026-09-21, q=钥匙扣): items.page_size=20, items.page_count=101,
+      //   items.total_results=2000 / 최상위 total_results·total_count·total은 전부 undefined.
+      // 기존 코드는 최상위에서 읽어 항상 rawList.length로 폴백했고, page*40 기준이라
+      // hasMore가 사실상 항상 false였다.
+      const pageInfo   = resData?.items || {}
+      const pageSize   = Number(pageInfo.page_size) || 0
+      const pageCount  = Number(pageInfo.page_count) || 0
+      const totalCount = Number(pageInfo.total_results) || rawList.length
+
       const formattedResult = {
         rawResponse: data,
-        items,
+        items: target,
         page: Number(page),
-        pageSize: 40,
+        pageSize: pageSize || rawList.length,
         totalResults: String(totalCount),
-        hasMore: Number(totalCount) > Number(page) * 40,
+        // page_count가 있으면 그것으로 판정(실측상 항상 존재).
+        // 없으면 page_size를 아는 경우에만 "이번 페이지가 꽉 찼는가"로 판정하고,
+        // 둘 다 모르면 추측하지 않고 false로 둔다.
+        hasMore: pageCount > 0
+          ? Number(page) < pageCount
+          : (pageSize > 0 ? rawList.length >= pageSize : false),
         queryZh: query
       }
 
@@ -909,12 +931,12 @@ export async function search1688(queryZh, page = 1, options = {}) {
         await sleep(RETRY_DELAY_MS)
         continue
       }
-      return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
+      return { items: [], page: Number(page), pageSize: 0, totalResults: '0', hasMore: false, queryZh: query }
     }
   }
 
   // 이론상 도달하지 않음 (루프가 항상 return으로 종료) — 방어적 폴백
-  return { items: [], page: Number(page), pageSize: 40, totalResults: '0', hasMore: false, queryZh: query }
+  return { items: [], page: Number(page), pageSize: 0, totalResults: '0', hasMore: false, queryZh: query }
 }
 
 
@@ -968,7 +990,7 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
       queryKo: '',
       queryZh: '',
       page: Number(page),
-      pageSize: 40,
+      pageSize: 0,
       totalResults: '0',
       hasMore: false,
       items: []
@@ -1016,7 +1038,7 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
       queryKo: query,
       queryZh,
       page: Number(page),
-      pageSize: 40,
+      pageSize: 0,
       totalResults: '0',
       hasMore: false,
       items: []

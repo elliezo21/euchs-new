@@ -1682,7 +1682,9 @@ const loadHomeSections = async () => {
       }
 
       try {
-        const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default' })
+        // 섹션은 아래 slice(0,8)로 8건만 표시한다. filter 탈락분 여유 2건을 더해
+        // 10건만 번역하게 해 나머지(응답 20건 중 10건)의 불필요한 번역을 막는다.
+        const res = await search1688WithTranslation(sec.keyword, 1, { sort: 'default', maxItems: 10 })
 
         // extract1688Items로 다계층 파싱 (이미 수신된 raw data에서 안전 추출)
         let extracted = extract1688Items(res)
