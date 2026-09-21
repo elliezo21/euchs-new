@@ -71,6 +71,10 @@ function createSafeStorage() {
   };
 }
 
+// SDK가 세션 토큰을 읽고 쓰는 스토리지. 아래 supabase 클라이언트와 반드시 같은 인스턴스를
+// 공유해야 하므로(localStorage / sessionStorage 판정이 한 번만 일어나야 함) 밖으로 꺼내 둔다.
+const authStorage = createSafeStorage()
+
 // Supabase Client Export (항상 cache: 'no-store' 및 no-cache 헤더로 실시간 최신 데이터 동기화)
 export const supabase = createClient(
   supabaseUrl,
@@ -80,7 +84,7 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storage: createSafeStorage()  // Edge/Safari 트래킹 방지 대응 — localStorage 불가시 sessionStorage 폴백
+      storage: authStorage  // Edge/Safari 트래킹 방지 대응 — localStorage 불가시 sessionStorage 폴백
     },
     global: {
       headers: {
@@ -96,6 +100,35 @@ export const supabase = createClient(
     }
   }
 )
+
+/**
+ * Supabase 세션 토큰(sb-<project-ref>-auth-token)을 스토리지에서 직접 제거한다.
+ *
+ * ⚠️ 정상 경로에서는 절대 호출하지 말 것. supabase.auth.signOut()이 세션 제거까지
+ *    책임지며, 이 함수는 signOut()이 error를 반환해 로컬 세션이 남은 경우의 폴백이다.
+ *    (@supabase/auth-js 2.112.3 _signOut: 세션 조회 자체가 실패하면
+ *     removeCurrentSession()을 건너뛰고 error만 반환하는 분기가 있음)
+ *
+ * 키 이름은 하드코딩하지 않는다. SupabaseClient가 생성자에서
+ *   `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
+ * 으로 계산해 public 프로퍼티 storageKey에 담아두므로 그 값을 그대로 쓰고,
+ * 혹시 없을 때만 같은 공식으로 직접 파생한다.
+ *
+ * @returns {string|null} 제거를 시도한 키 이름 (파생 실패 시 null)
+ */
+export function removeSupabaseAuthToken() {
+  let key = supabase?.storageKey || ''
+  if (!key) {
+    try {
+      key = `sb-${new URL(supabaseUrl).hostname.split('.')[0]}-auth-token`
+    } catch (e) {
+      console.error('[supabase] 세션 토큰 키 파생 실패:', e?.message || e)
+      return null
+    }
+  }
+  authStorage.removeItem(key)
+  return key
+}
 
 // SQL Schema 가이드 (테이블 및 Storage 버킷 생성)
 export const SUPABASE_SQL_SCHEMA = `-- ========================================================

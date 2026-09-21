@@ -24,6 +24,32 @@
   }
 }
 
+/* ── 내상품리스트 카드 그리드 ────────────────────────────────────────────
+   내상품리스트의 [찜한 상품] / [주문한 상품] 두 탭이 공유하는 단일 기준.
+   카드 크기를 바꿀 일이 있으면 아래 --product-card-w 하나만 고치면 된다.
+
+   · sm(640px) 이상: 카드 폭을 --product-card-w로 고정한다. 화면이 넓어져도
+     카드가 커지지 않고 한 줄에 들어가는 개수만 늘어난다(auto-fill).
+   · sm 미만: 2열로 폭에 맞춰 줄어든다(minmax(0,1fr) — 내용이 길어도
+     트랙이 밀려나지 않아 가로 스크롤이 생기지 않는다).
+   카드 이미지는 aspect-square이므로 이 값이 곧 이미지 한 변의 길이가 된다. */
+:root {
+  --product-card-w: 180px;
+}
+
+.product-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem; /* gap-2.5 */
+}
+
+@media (min-width: 640px) {
+  .product-card-grid {
+    grid-template-columns: repeat(auto-fill, var(--product-card-w));
+    gap: 0.75rem; /* sm:gap-3 */
+  }
+}
+
 /* Custom animations & utilities */
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(10px); }

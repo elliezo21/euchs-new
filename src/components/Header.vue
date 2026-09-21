@@ -531,7 +531,7 @@
 
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { getEffectiveExchangeRate } from '../utils/exchangeRate'
 import {
   currentUser,
@@ -547,6 +547,7 @@ import {
 } from '../lib/auth'
 
 const route = useRoute()
+const router = useRouter()
 const isMobileMenuOpen = ref(false)
 const mobileSubmenu = ref(null)
 const isUserMenuOpen = ref(false)
@@ -638,8 +639,14 @@ const handleOpenLoginModal = (mode = 'login') => {
 
 const handleSignOut = async () => {
   isUserMenuOpen.value = false
+  // 보호된 화면(/dashboard, /admin)에 머문 채 로그아웃하면 라우터 가드(beforeEach)가
+  // 돌 기회가 없어 개인 데이터가 화면에 그대로 남는다 → 로그아웃 후 직접 이동시킨다.
+  const wasOnProtectedRoute =
+    route.path === '/dashboard' || route.path.startsWith('/dashboard/') ||
+    route.path === '/admin' || route.path.startsWith('/admin/')
   await signOut()
   alert('정상적으로 로그아웃되었습니다.')
+  if (wasOnProtectedRoute) router.push('/')
 }
 
 // 외부 클릭 감지하여 유저 드롭다운 닫기

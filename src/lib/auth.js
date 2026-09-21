@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { supabase, isSupabaseConfigured, isValidUUID } from './supabase'
+import { supabase, isSupabaseConfigured, isValidUUID, removeSupabaseAuthToken } from './supabase'
 
 export const currentUser = ref(null)
 export const currentUserProfile = ref(null) // Supabase profiles 테이블 데이터 (balance, company_name, pccc 등)
@@ -1023,7 +1023,21 @@ export const signOut = async () => {
 
   try {
     if (isSupabaseConfigured()) {
-      await supabase.auth.signOut()
+      // signOut()은 throw하지 않고 { error }를 반환한다. 반환값을 확인하지 않으면
+      // 세션이 남은 채 "로그아웃 성공"으로 보이는 상태(앱은 로그아웃, 토큰은 자동 갱신 중)가 된다.
+      const { error } = await supabase.auth.signOut()
+      if (error) {
+        console.error('[signOut] supabase.auth.signOut 실패 (status:', error.status, '):', error.message)
+        // 폴백: SDK가 로컬 세션을 남겨둔 경로일 수 있으므로 자동 갱신을 먼저 멈추고
+        //       (멈추지 않으면 삭제 직후 갱신 타이머가 토큰을 다시 써버릴 수 있음) 토큰을 직접 지운다.
+        try {
+          await supabase.auth.stopAutoRefresh()
+        } catch (refreshErr) {
+          console.error('[signOut] stopAutoRefresh 실패:', refreshErr?.message || refreshErr)
+        }
+        const removedKey = removeSupabaseAuthToken()
+        console.error('[signOut] 폴백으로 세션 토큰을 직접 제거했습니다:', removedKey)
+      }
     }
   } catch (err) {
     console.error('SignOut Error:', err)
@@ -1051,7 +1065,9 @@ export const signOut = async () => {
       // ── 잔액·거래 내역 소거 (로그아웃 후 화면 데이터 잔류 방지) ──
       localStorage.removeItem('euchs_user_balance')
       localStorage.removeItem('euchs_deposit_requests')
-    } catch (e) {}
+    } catch (e) {
+      console.error('[signOut] localStorage 세션 잔여물 정리 실패:', e?.message || e)
+    }
     // 전역 이벤트 디스패치 — 헤더/장바구니 구독자들이 즉시 0으로 초기화
     window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
     window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: 0 } }))

@@ -27,11 +27,16 @@ export const NO_SUPABASE_SESSION = 'NO_SUPABASE_SESSION'
 /**
  * 실제 Supabase Auth 세션(JWT) 보유 여부.
  *
- * 판별 방식은 MallView.recordRecentlyViewed(커밋 9aadb98)와 동일하다:
- *   adminSignIn 경로는 currentUser만 채우고 Supabase Auth 세션은 만들지 않는다
- *   → auth.uid()=null → saved_products RLS(auth.uid() = user_id) 거부(42501).
- *   euchs_admin_token을 직접 보지 않고 getSession()으로 판별하므로
- *   세션 만료 등 다른 무세션 상황도 같이 걸러진다.
+ * ※ 2026-09-21 정정: 예전 주석은 "adminSignIn은 Supabase 세션을 만들지 않는다"고
+ *   적고 있었으나 사실과 다르다. adminSignIn은 첫 동작이
+ *   supabase.auth.signInWithPassword(auth.js)이고, 이게 실패하면 관리자 로그인
+ *   자체가 throw로 막힌다. 즉 관리자도 자기 계정의 Supabase 세션을 가진다.
+ *   (따라서 관리자 화면에서는 관리자 uid 기준으로 본인 데이터가 조회된다 — 정상)
+ *
+ * 이 가드는 "세션이 진짜 없는 경우"(세션 만료, 스토리지 차단, JWT 소실 등)의
+ * 방어로 여전히 유효하다. auth.uid()=null이면 saved_products RLS
+ * (auth.uid() = user_id)가 42501로 거부하므로 DB를 치기 전에 걸러낸다.
+ * euchs_admin_token을 직접 보지 않고 getSession()으로 판별한다.
  *
  * @returns {Promise<boolean>}
  */

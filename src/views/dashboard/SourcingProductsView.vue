@@ -10,9 +10,12 @@
           <span class="text-[11px] font-black text-orange-600 uppercase tracking-widest bg-orange-50 border border-orange-200 px-2 py-0.5 rounded-full">PRODUCT LIST</span>
           <h1 class="text-lg sm:text-xl font-extrabold text-gray-900 tracking-tight">📋 내상품리스트</h1>
         </div>
-        <p class="text-xs text-gray-500">
+        <p v-if="activeTab === TAB_SAVED" class="text-xs text-gray-500">
           상품 상세에서 ★찜한 상품이 카테고리별로 모입니다.
           총 <strong class="text-gray-900 font-mono tabular-nums">{{ savedItems.length }}</strong>개
+        </p>
+        <p v-else class="text-xs text-gray-500">
+          결제가 확인된 주문에 포함된 상품을 많이 주문한 순으로 모읍니다.
         </p>
       </div>
 
@@ -68,6 +71,33 @@
         </div>
       </div>
     </div>
+
+    <!-- ===================================================== -->
+    <!-- 탭: [찜한 상품] [주문한 상품] -->
+    <!-- ===================================================== -->
+    <div class="flex items-center gap-1.5">
+      <button
+        type="button"
+        @click="selectTab(TAB_SAVED)"
+        class="px-4 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer active:scale-95"
+        :class="activeTab === TAB_SAVED
+          ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+      >⭐ 찜한 상품</button>
+      <button
+        type="button"
+        @click="selectTab(TAB_ORDERED)"
+        class="px-4 py-2 rounded-xl text-xs font-extrabold border transition cursor-pointer active:scale-95"
+        :class="activeTab === TAB_ORDERED
+          ? 'bg-orange-500 text-white border-orange-500 shadow-sm'
+          : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'"
+      >🔄 주문한 상품</button>
+    </div>
+
+    <!-- ===================================================== -->
+    <!-- [찜한 상품] 탭 본문 (기존 화면 그대로 — v-if로 감싸기만 함) -->
+    <!-- ===================================================== -->
+    <template v-if="activeTab === TAB_SAVED">
 
     <!-- ===================================================== -->
     <!-- 일괄 작업 바 (체크박스 선택 시 노출) -->
@@ -204,13 +234,13 @@
       <div class="flex-1 min-w-0 space-y-6">
 
         <!-- 로딩 스켈레톤 -->
-        <div v-if="isLoading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
+        <div v-if="isLoading" class="product-card-grid">
           <div v-for="n in 8" :key="n" class="bg-white rounded-xl border border-gray-200 overflow-hidden animate-pulse">
             <div class="aspect-square bg-gray-200"></div>
-            <div class="p-2.5 space-y-2">
+            <div class="p-2 space-y-2">
               <div class="h-3 bg-gray-200 rounded w-4/5"></div>
               <div class="h-3 bg-gray-100 rounded w-1/2"></div>
-              <div class="h-7 bg-gray-100 rounded-lg"></div>
+              <div class="h-6 bg-gray-100 rounded-lg"></div>
             </div>
           </div>
         </div>
@@ -259,8 +289,8 @@
             </span>
           </div>
 
-          <!-- 카드 그리드 (몰 메인과 동일: 모바일 2열 / 태블릿 3열 / PC 4열) -->
-          <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2.5 sm:gap-3">
+          <!-- 카드 그리드 (style.css의 .product-card-grid — 주문한 상품 탭과 동일 기준) -->
+          <div class="product-card-grid">
             <div
               v-for="item in section.items"
               :key="item.id"
@@ -278,26 +308,26 @@
                   @error="handleImgError"
                 />
                 <!-- 선택 체크박스 -->
-                <label class="absolute top-1.5 left-1.5 z-10 w-6 h-6 rounded-lg bg-white/90 border border-gray-200 shadow-xs flex items-center justify-center cursor-pointer" @click.stop>
+                <label class="absolute top-1 left-1 z-10 w-5 h-5 rounded-md bg-white/90 border border-gray-200 shadow-xs flex items-center justify-center cursor-pointer" @click.stop>
                   <input
                     type="checkbox"
                     :checked="selectedIds.includes(item.id)"
                     @change="toggleSelect(item.id)"
-                    class="w-3.5 h-3.5 accent-orange-500 cursor-pointer"
+                    class="w-3 h-3 accent-orange-500 cursor-pointer"
                   />
                 </label>
                 <!-- 판매중단 배지 -->
                 <span v-if="item.is_unavailable"
-                  class="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded bg-gray-900/80 text-white text-[10px] font-black">
+                  class="absolute top-1 right-1 px-1 py-0.5 rounded bg-gray-900/80 text-white text-[9px] font-black">
                   판매중단
                 </span>
               </div>
 
               <!-- 카드 본문 -->
-              <div class="p-2.5 space-y-1.5 flex-1 flex flex-col">
+              <div class="p-2 space-y-1 flex-1 flex flex-col">
 
                 <!-- 상품명 (클릭 시 인라인 수정) -->
-                <div class="min-h-[34px]">
+                <div class="min-h-[30px]">
                   <input
                     v-if="editingNameId === item.id"
                     v-model="editingNameValue"
@@ -306,13 +336,13 @@
                     @keydown.enter.prevent="saveDisplayName(item)"
                     @keydown.esc.prevent="cancelNameEdit"
                     @blur="cancelNameEdit"
-                    class="w-full px-2 py-1 text-xs border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 disabled:opacity-50"
+                    class="w-full px-1.5 py-0.5 text-[11px] border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500/20 disabled:opacity-50"
                     placeholder="상품 이름 (Enter 저장 · Esc 취소)"
                   />
                   <h3
                     v-else
                     @click="startNameEdit(item)"
-                    class="text-xs font-medium text-gray-800 leading-snug line-clamp-2 cursor-text hover:text-orange-600 transition"
+                    class="text-[11px] font-medium text-gray-800 leading-snug line-clamp-2 cursor-text hover:text-orange-600 transition"
                     :title="displayTitle(item) + ' (클릭하여 이름 수정)'"
                   >
                     {{ displayTitle(item) }}
@@ -320,13 +350,13 @@
                 </div>
 
                 <!-- 가격 -->
-                <div class="flex items-baseline gap-1 font-mono tabular-nums pt-1 border-t border-gray-100">
-                  <span class="text-red-600 font-bold text-sm">¥{{ formatCny(item.snapshot_price) }}</span>
-                  <span class="text-gray-400 text-[11px]">₩{{ formatNumber(krwFromCny(Number(item.snapshot_price) || 0, exchangeRate)) }}</span>
+                <div class="flex items-baseline gap-1 font-mono tabular-nums pt-1 border-t border-gray-100 whitespace-nowrap">
+                  <span class="text-red-600 font-bold text-[13px]">¥{{ formatCny(item.snapshot_price) }}</span>
+                  <span class="text-gray-400 text-[10px]">₩{{ formatNumber(krwFromCny(Number(item.snapshot_price) || 0, exchangeRate)) }}</span>
                 </div>
 
                 <!-- 메모 (클릭 시 인라인 수정) -->
-                <div class="min-h-[20px]">
+                <div class="min-h-[18px]">
                   <input
                     v-if="editingMemoId === item.id"
                     v-model="editingMemoValue"
@@ -335,13 +365,13 @@
                     @keydown.enter.prevent="saveMemo(item)"
                     @keydown.esc.prevent="cancelMemoEdit"
                     @blur="cancelMemoEdit"
-                    class="w-full px-2 py-1 text-[11px] border border-orange-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-orange-500/20 disabled:opacity-50"
+                    class="w-full px-1.5 py-0.5 text-[10px] border border-orange-300 rounded-md focus:outline-none focus:ring-2 focus:ring-orange-500/20 disabled:opacity-50"
                     placeholder="메모 (Enter 저장 · Esc 취소)"
                   />
                   <p
                     v-else
                     @click="startMemoEdit(item)"
-                    class="text-[11px] truncate cursor-text transition"
+                    class="text-[10px] truncate cursor-text transition"
                     :class="item.memo ? 'text-gray-500 hover:text-orange-600' : 'text-gray-300 hover:text-orange-500'"
                     :title="item.memo || '클릭하여 메모 추가'"
                   >
@@ -355,7 +385,7 @@
                   :value="item.category_id || ''"
                   :disabled="isBusy(item.id)"
                   @change="changeCategory(item, $event.target.value)"
-                  class="w-full px-2 py-1.5 text-[11px] font-bold border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer disabled:opacity-50"
+                  class="w-full px-1.5 py-1 text-[10px] font-bold border rounded-md bg-white focus:outline-none focus:ring-2 focus:ring-orange-500/20 cursor-pointer disabled:opacity-50"
                   :class="item.category_id ? 'border-gray-200 text-gray-700' : 'border-orange-200 text-orange-600 bg-orange-50/60'"
                 >
                   <option value="">미분류</option>
@@ -363,19 +393,19 @@
                 </select>
 
                 <!-- 액션 버튼 -->
-                <div class="flex items-center gap-1.5 pt-0.5 mt-auto">
+                <div class="flex items-center gap-1 pt-0.5 mt-auto">
                   <button
                     type="button"
                     :disabled="item.is_unavailable"
                     @click="openDetailModal(item)"
-                    class="flex-1 px-2 py-1.5 rounded-lg bg-rose-500 hover:bg-rose-600 text-white font-bold text-[11px] transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
+                    class="flex-1 min-w-0 px-1 py-1.5 rounded-md bg-rose-500 hover:bg-rose-600 text-white font-bold text-[10px] transition cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed whitespace-nowrap"
                     :title="item.is_unavailable ? '판매중단 상품입니다' : '옵션을 선택해 장바구니에 담습니다'"
                   >🛒 장바구니에 넣기</button>
                   <button
                     type="button"
                     :disabled="isBusy(item.id)"
                     @click="confirmDeleteId = item.id"
-                    class="shrink-0 w-8 h-7 rounded-lg border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500 text-xs transition cursor-pointer disabled:opacity-50"
+                    class="shrink-0 w-6 h-6 rounded-md border border-gray-200 hover:bg-red-50 hover:border-red-200 text-gray-400 hover:text-red-500 text-[10px] transition cursor-pointer disabled:opacity-50"
                     title="내상품리스트에서 삭제"
                   >🗑️</button>
                 </div>
@@ -384,22 +414,22 @@
               <!-- 삭제 인라인 확인 (카드 내부 오버레이) -->
               <div
                 v-if="confirmDeleteId === item.id"
-                class="absolute inset-0 z-20 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center gap-2.5 p-3 text-center"
+                class="absolute inset-0 z-20 bg-white/95 backdrop-blur-xs flex flex-col items-center justify-center gap-2 p-2 text-center"
               >
-                <p class="text-xs font-extrabold text-gray-800">삭제할까요?</p>
-                <p class="text-[11px] text-gray-400 leading-snug">내상품리스트에서만 제거됩니다.</p>
-                <div class="flex items-center gap-2">
+                <p class="text-[11px] font-extrabold text-gray-800">삭제할까요?</p>
+                <p class="text-[10px] text-gray-400 leading-snug">내상품리스트에서만 제거됩니다.</p>
+                <div class="flex items-center gap-1.5">
                   <button
                     type="button"
                     :disabled="isBusy(item.id)"
                     @click="executeDelete(item)"
-                    class="px-3 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-extrabold text-[11px] transition cursor-pointer disabled:opacity-50 active:scale-95"
+                    class="px-2.5 py-1 rounded-md bg-red-600 hover:bg-red-700 text-white font-extrabold text-[10px] transition cursor-pointer disabled:opacity-50 active:scale-95 whitespace-nowrap"
                   >{{ isBusy(item.id) ? '삭제 중…' : '삭제' }}</button>
                   <button
                     type="button"
                     :disabled="isBusy(item.id)"
                     @click="confirmDeleteId = null"
-                    class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 font-bold text-[11px] hover:bg-gray-50 transition cursor-pointer disabled:opacity-50"
+                    class="px-2.5 py-1 rounded-md border border-gray-300 text-gray-600 font-bold text-[10px] hover:bg-gray-50 transition cursor-pointer disabled:opacity-50"
                   >취소</button>
                 </div>
               </div>
@@ -408,6 +438,20 @@
         </section>
       </div>
     </div>
+
+    </template>
+
+    <!-- ===================================================== -->
+    <!-- [주문한 상품] 탭 본문 -->
+    <!-- v-if: 탭을 처음 연 순간에만 마운트 → onMounted에서 1회 조회 -->
+    <!-- v-show: 이후 탭 전환은 표시/숨김만 (재조회 없음) -->
+    <!-- ===================================================== -->
+    <OrderedProductsPanel
+      v-if="hasOpenedOrderedTab"
+      v-show="activeTab === TAB_ORDERED"
+      :exchange-rate="exchangeRate"
+      @open-detail="openDetailModal"
+    />
 
     <!-- ===================================================== -->
     <!-- CN인사이더 스타일 EXCEL 상품추가 모달 (이번 작업 범위 밖 — 기존 유지) -->
@@ -616,6 +660,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted, watch } from 'vue';
 import { downloadBulkOrderTemplate, parseOrderExcel } from '@/utils/excelHandler';
 import ProductDetailModal from '@/components/ProductDetailModal.vue';
+import OrderedProductsPanel from '@/components/dashboard/OrderedProductsPanel.vue';
 import { currentUser, isLoggedIn } from '@/lib/auth';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { krwFromCny } from '@/utils/orderCostCalculator';
@@ -643,6 +688,18 @@ const PRESET_CATEGORIES = [
 
 // ─── 환율 (장바구니 화면과 동일 소스) ─────────────────────
 const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
+
+// ─── 탭 (찜한 상품 / 주문한 상품) ─────────────────────────
+const TAB_SAVED = 'saved';
+const TAB_ORDERED = 'ordered';
+const activeTab = ref(TAB_SAVED);
+// 주문한 상품 패널은 처음 선택될 때 한 번만 마운트되고, 이후 탭 전환은 v-show로 처리한다.
+const hasOpenedOrderedTab = ref(false);
+
+function selectTab(tab) {
+  activeTab.value = tab;
+  if (tab === TAB_ORDERED) hasOpenedOrderedTab.value = true;
+}
 
 // ─── 내상품리스트 State ───────────────────────────────────
 const savedItems = ref([]);
@@ -1149,6 +1206,26 @@ function loadLegacyItems() {
   }
 }
 
+// ─── Auth 상태 변경 핸들러 — 로그아웃 시 개인 데이터 즉시 초기화 ─────
+// DashboardView.onAuthChanged / OrderManageView.onAuthChanged와 동일 패턴.
+// (라우팅 없이 로그아웃하면 화면이 그대로 남아 이전 계정의 찜 목록이 노출된다)
+function onAuthChanged(e) {
+  if (!e.detail?.user) {
+    // 로그아웃: 찜 목록·선택 상태 즉시 비우기
+    savedItems.value = [];
+    selectedIds.value = [];
+    confirmDeleteId.value = null;
+    isBulkDeleteConfirming.value = false;
+    // 주문한 상품 패널 언마운트 → "첫 로드 1회" 플래그 리셋
+    // (다음 로그인 때 새 계정 기준으로 다시 조회된다)
+    hasOpenedOrderedTab.value = false;
+    activeTab.value = TAB_SAVED;
+  } else {
+    // 로그인 또는 계정 전환: 해당 계정 데이터 재로드
+    loadAll(true);
+  }
+}
+
 // ─── 라이프사이클 ─────────────────────────────────────────
 watch(isLoggedIn, (v) => { if (v) loadAll(); });
 
@@ -1167,9 +1244,11 @@ onMounted(() => {
   fetchSiteSettings();
   loadAll();
   document.addEventListener('click', closeDropOnOutside);
+  window.addEventListener('euchs-auth-changed', onAuthChanged);
 });
 onUnmounted(() => {
   document.removeEventListener('click', closeDropOnOutside);
+  window.removeEventListener('euchs-auth-changed', onAuthChanged);
   if (toastTimer) clearTimeout(toastTimer);
 });
 </script>

@@ -900,7 +900,10 @@ const handleBusinessVerifySubmit = async () => {
     alert('✅ B2B 사업자 정보 등록이 성공적으로 완료되었습니다!\n신규 바이어 심사 대기(Pending) 상태로 등록되었으며, 1688 실시간 소싱 및 견적 의뢰가 즉시 가능합니다.')
     closeLoginModal()
     window.dispatchEvent(new CustomEvent('euchs:business_verified'))
-    window.dispatchEvent(new CustomEvent('euchs-auth-changed'))
+    // detail.user를 반드시 실어 보낸다. 구독자들은 !e.detail?.user를 로그아웃으로 보므로
+    // detail 없이 쏘면 로그인 상태인데도 모든 화면의 개인 데이터가 비워진다.
+    // (형식은 auth.js의 정상 경로 dispatch와 동일: { detail: { user } })
+    window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: currentUser.value } }))
   } catch (err) {
     console.error('Business verify error:', err)
     alert(`등록 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`)
@@ -942,7 +945,9 @@ const handleResetPasswordSubmit = async () => {
     closeLoginModal()
     resetPasswordForm.value = { newPassword: '', confirmPassword: '' }
     window.location.hash = ''
-    window.dispatchEvent(new CustomEvent('euchs-auth-changed'))
+    // 비밀번호 변경 후에도 세션은 유지된다 → 로그아웃으로 오인되지 않도록 detail.user를 싣는다.
+    // (형식은 auth.js의 정상 경로 dispatch와 동일: { detail: { user } })
+    window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: currentUser.value } }))
   } catch (err) {
     console.error('Password update error:', err)
     alert(`비밀번호 변경 실패: ${err.message || '잠시 후 다시 시도해 주세요.'}`)

@@ -334,7 +334,11 @@ router.beforeEach(async (to, from, next) => {
     // 반환하므로 네트워크 호출 없이 ~0ms. 이 호출이 없으면 이후 DB 쿼리에서
     // auth.uid()가 null이 되어 RLS가 0건을 반환함.
     if (isSupabaseConfigured()) {
-      try { await supabase.auth.getSession() } catch (e) {}
+      try {
+        await supabase.auth.getSession()
+      } catch (e) {
+        console.error('[guard] 관리자 판별 전 getSession 실패:', e?.message || e)
+      }
     }
 
     // 1. localStorage 관리자 토큰 및 유저 캐시 확인 (새로고침 즉시 통과 보장)
@@ -353,7 +357,9 @@ router.beforeEach(async (to, from, next) => {
           return true
         }
       }
-    } catch (e) {}
+    } catch (e) {
+      console.error('[guard] 관리자 토큰/유저 캐시 파싱 실패:', e?.message || e)
+    }
 
     // 2. currentUser 메모리 상태 확인
     if (currentUser.value) {
@@ -461,7 +467,9 @@ router.beforeEach(async (to, from, next) => {
             isUserLoggedIn = true
           }
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('[guard] euchs_auth_user 파싱 실패:', e?.message || e)
+      }
     }
 
     if (!isUserLoggedIn && isSupabaseConfigured()) {
@@ -471,7 +479,9 @@ router.beforeEach(async (to, from, next) => {
           currentUser.value = session.user
           isUserLoggedIn = true
         }
-      } catch (e) {}
+      } catch (e) {
+        console.error('[guard] 대시보드 가드 getSession 실패:', e?.message || e)
+      }
     }
 
     if (!isUserLoggedIn) {
