@@ -127,7 +127,7 @@
     </div>
 
     <!-- 필터 바 -->
-    <div class="flex flex-wrap items-center gap-2">
+    <div v-if="!isAdminSession" class="flex flex-wrap items-center gap-2">
       <div class="flex items-center gap-1 bg-white border border-gray-200 rounded-xl px-3 py-1.5 shadow-xs">
         <span class="text-gray-400 text-xs">🔍</span>
         <input
@@ -157,7 +157,7 @@
     <div class="flex items-start gap-4">
 
       <!-- 좌측 카테고리 목록 (PC 전용) -->
-      <aside class="hidden lg:block w-52 shrink-0">
+      <aside v-if="!isAdminSession" class="hidden lg:block w-52 shrink-0">
         <div class="bg-white border border-gray-200 rounded-2xl shadow-xs overflow-hidden">
           <div class="px-4 py-2.5 border-b border-gray-100 bg-gray-50">
             <span class="text-xs font-extrabold text-gray-700">카테고리</span>
@@ -213,6 +213,15 @@
               <div class="h-7 bg-gray-100 rounded-lg"></div>
             </div>
           </div>
+        </div>
+
+        <!-- 관리자 세션 안내 (Supabase Auth 세션이 없어 RLS상 조회·저장 불가) -->
+        <div v-else-if="isAdminSession" class="bg-white border border-amber-200 rounded-2xl shadow-xs py-20 text-center">
+          <div class="text-5xl mb-4">🔒</div>
+          <p class="text-sm font-bold text-amber-700 mb-2 px-6 leading-relaxed">
+            관리자 계정으로는 찜 기능을 사용할 수 없습니다. 일반 회원 계정으로 로그인해 주세요.
+          </p>
+          <p class="text-xs text-gray-400">관리자 로그인 상태에서는 내상품리스트가 조회되지 않습니다.</p>
         </div>
 
         <!-- 빈 상태: 찜 자체가 0개 -->
@@ -615,6 +624,7 @@ import {
   listSavedProducts,
   updateSavedProduct,
   deleteSavedProducts,
+  hasSupabaseSession,
 } from '@/lib/savedProducts';
 
 const FALLBACK_IMG = 'https://images.unsplash.com/photo-1544816155-12df9643f363?w=600&auto=format&fit=crop&q=80';
@@ -638,6 +648,8 @@ const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate)
 const savedItems = ref([]);
 const majorCategories = ref([]);
 const isLoading = ref(true);
+// 관리자 토큰 경로 등 Supabase Auth 세션이 없는 상태 (RLS상 조회·저장 모두 불가)
+const isAdminSession = ref(false);
 const searchQuery = ref('');
 const activeCategoryId = ref('');       // '' = 전체 | uuid | UNCATEGORIZED
 const selectedIds = ref([]);
@@ -652,7 +664,8 @@ function showToast(msg, type = 'success') {
   toastMessage.value = msg;
   toastType.value = type;
   if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => { toastMessage.value = ''; }, 3000);
+  // 실패 메시지는 원인 문장이 길어 6초, 성공은 3초
+  toastTimer = setTimeout(() => { toastMessage.value = ''; }, type === 'error' ? 6000 : 3000);
 }
 
 // ─── 데이터 로드 ──────────────────────────────────────────
@@ -664,6 +677,13 @@ async function loadAll(silent = false) {
   }
   if (!silent) isLoading.value = true;
   try {
+    // 관리자 세션이면 목록 조회 자체가 무의미(RLS상 0건) → 안내 화면으로 전환
+    isAdminSession.value = !(await hasSupabaseSession());
+    if (isAdminSession.value) {
+      savedItems.value = [];
+      selectedIds.value = [];
+      return;
+    }
     const [cats, rows] = await Promise.all([fetchMajorCategories(), listSavedProducts()]);
     majorCategories.value = cats;
     savedItems.value = rows;

@@ -649,7 +649,14 @@ import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey, isLoggedIn, openLoginModal } from '../lib/auth'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
-import { findSavedProduct, saveProduct, removeSavedProduct, resolveMajorCategoryId } from '../lib/savedProducts'
+import {
+  findSavedProduct,
+  saveProduct,
+  removeSavedProduct,
+  resolveMajorCategoryId,
+  hasSupabaseSession,
+  ADMIN_SESSION_MESSAGE
+} from '../lib/savedProducts'
 
 
 
@@ -1858,10 +1865,11 @@ const showToastNotification = (msg, type = 'success', withLink = false) => {
   toastType.value = type
   toastLink.value = withLink
   if (toastTimer) clearTimeout(toastTimer)
+  // 경고/실패는 문장이 길어 읽는 데 시간이 더 필요하므로 6초, 성공은 3초
   toastTimer = setTimeout(() => {
     toastMessage.value = ''
     toastLink.value = false
-  }, 3000)
+  }, type === 'warning' ? 6000 : 3000)
 }
 
 // ----------------------------------------------------
@@ -1934,6 +1942,13 @@ const toggleSavedProduct = async () => {
   }
   if (!currentItemId.value) {
     showToastNotification('⚠️ 상품 정보를 불러오는 중입니다. 잠시 후 다시 시도해 주세요.', 'warning')
+    return
+  }
+
+  // 관리자 세션(Supabase JWT 없음)은 RLS로 거부되므로 DB 호출 전에 안내하고 중단.
+  // (savedProducts의 쓰기 함수에도 동일 가드가 있어 이중 방어)
+  if (!(await hasSupabaseSession())) {
+    showToastNotification(`⚠️ ${ADMIN_SESSION_MESSAGE}`, 'warning')
     return
   }
 

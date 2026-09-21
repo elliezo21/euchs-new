@@ -15,6 +15,59 @@
 import { supabase } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
 
+/**
+ * 관리자 세션(euchs_admin_token 경로) 안내 문구 — 화면에 그대로 노출된다.
+ */
+export const ADMIN_SESSION_MESSAGE =
+  '관리자 계정으로는 찜 기능을 사용할 수 없습니다. 일반 회원 계정으로 로그인해 주세요.'
+
+/** requireSupabaseSession()이 던지는 에러의 code (호출부에서 일반 실패와 구분용) */
+export const NO_SUPABASE_SESSION = 'NO_SUPABASE_SESSION'
+
+/**
+ * 실제 Supabase Auth 세션(JWT) 보유 여부.
+ *
+ * 판별 방식은 MallView.recordRecentlyViewed(커밋 9aadb98)와 동일하다:
+ *   adminSignIn 경로는 currentUser만 채우고 Supabase Auth 세션은 만들지 않는다
+ *   → auth.uid()=null → saved_products RLS(auth.uid() = user_id) 거부(42501).
+ *   euchs_admin_token을 직접 보지 않고 getSession()으로 판별하므로
+ *   세션 만료 등 다른 무세션 상황도 같이 걸러진다.
+ *
+ * @returns {Promise<boolean>}
+ */
+export async function hasSupabaseSession() {
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    return Boolean(session)
+  } catch (e) {
+    console.error('[savedProducts] getSession 실패:', e?.message || e)
+    return false
+  }
+}
+
+/**
+ * 쓰기(저장·수정·삭제) 전 세션 가드.
+ * 세션이 없으면 DB를 호출하지 않고 code=NO_SUPABASE_SESSION 에러를 던진다.
+ */
+async function requireSupabaseSession() {
+  let session = null
+  try {
+    const res = await supabase.auth.getSession()
+    session = res?.data?.session || null
+  } catch (e) {
+    console.error('[savedProducts] getSession 실패:', e?.message || e)
+    const err = new Error(`세션 확인에 실패했습니다: ${e?.message || e}`)
+    err.code = 'SESSION_CHECK_FAILED'
+    throw err
+  }
+  if (!session) {
+    console.warn('[savedProducts] Supabase Auth 세션 없음 — 쓰기 중단 (관리자 토큰 경로 또는 세션 만료)')
+    const err = new Error(ADMIN_SESSION_MESSAGE)
+    err.code = NO_SUPABASE_SESSION
+    throw err
+  }
+}
+
 // ─── 대분류(level=1) 메모리 캐시 ──────────────────────────────────
 let majorCategoriesCache = null
 let majorCategoriesPromise = null
@@ -119,6 +172,7 @@ export async function listSavedProducts() {
 export async function saveProduct({ itemId, titleZh, imageUrl, snapshotPrice, itemData, categoryId }) {
   const userId = requireUserId()
   if (!itemId) throw new Error('상품 ID를 확인할 수 없습니다.')
+  await requireSupabaseSession()
 
   const row = {
     user_id: userId,
@@ -153,6 +207,7 @@ export async function saveProduct({ itemId, titleZh, imageUrl, snapshotPrice, it
 export async function removeSavedProduct(itemId) {
   const userId = requireUserId()
   if (!itemId) throw new Error('상품 ID를 확인할 수 없습니다.')
+  await requireSupabaseSession()
 
   const { data, error } = await supabase
     .from('saved_products')
@@ -179,6 +234,7 @@ export async function deleteSavedProducts(ids) {
   const userId = requireUserId()
   const list = (ids || []).filter(Boolean)
   if (list.length === 0) return 0
+  await requireSupabaseSession()
 
   const { data, error } = await supabase
     .from('saved_products')
@@ -216,6 +272,7 @@ export async function deleteSavedProducts(ids) {
 export async function updateSavedProduct(id, patch = {}) {
   requireUserId()
   if (!id) throw new Error('대상 항목을 확인할 수 없습니다.')
+  await requireSupabaseSession()
 
   const params = { p_id: id }
   if (patch.clearCategory) {
