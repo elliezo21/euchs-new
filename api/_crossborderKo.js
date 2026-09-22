@@ -414,6 +414,91 @@ export async function cacheHitRate(texts, opts = {}) {
 const SKIP_HIT_RATE = 0.8
 
 /**
+ * 상세 보강 (a)단계에서 캐시 적중을 볼 때 쓰는 "대표 옵션값 표본" 개수.
+ *
+ * 왜 제목만으로는 부족한가 (2026-09-22 실측):
+ *   (a)단계가 제목 하나만 보던 때, 제목은 캐시에 있고 옵션값은 없는 상품이
+ *   공식 API를 통째로 건너뛰어 옵션값이 파파고로 나갔다 (상품당 54·79·59자).
+ *   제목은 검색 목록 번역이 먼저 채워 넣기 때문에 이런 상태가 흔하다.
+ *
+ * 왜 5개인가:
+ *   · 조회는 IN 쿼리 1회라 1개든 6개든 왕복 비용이 같다(_translationCache.js LOOKUP_CHUNK_SIZE=50).
+ *   · 옵션값은 같은 상품 안에서 한꺼번에 저장되거나 한꺼번에 비어 있다
+ *     (savePairs가 상세 1회 응답의 짝을 통째로 upsert하므로).
+ *     그래서 표본 몇 개만 봐도 "이 상품 옵션이 채워져 있는가"가 갈린다.
+ *   · 전량을 보면 옵션 300개짜리 상품에서 IN 쿼리가 불필요하게 커진다.
+ */
+const OPTION_SAMPLE_SIZE = 5
+
+/**
+ * 같은 상품에 공식 API 호출이 무한정 반복되지 않게 막는 시도 기록.
+ *
+ * 성공한 상품은 savePairs가 제목·옵션값을 전부 캐시에 넣으므로 다음 열람에서 (a)가 끊는다.
+ * 문제는 "공식 API에도 lang=ko에도 한국어가 없는" 상품이다 — 저장할 게 없어
+ * 다음 열람에서도 캐시 미스이고, 그대로 두면 열 때마다 다시 호출한다.
+ * 그래서 수확이 0이었던 상품은 TTL 동안 건너뛴다.
+ *
+ * ⚠️ 이건 프로세스 메모리라 서버리스에서는 같은 인스턴스가 살아 있는 동안만 유효하다
+ *    (로컬 dev에서는 항상 유효). 확실한 상한은 translation_cache 쪽이고,
+ *    이 맵은 "그 위에 얹은 보조 장치"다. 그래서 DB에 실패 흔적을 남기지 않는다.
+ */
+const ATTEMPT_TTL_MS = 6 * 60 * 60 * 1000  // 6시간 — product_cache의 OK_TTL과 같은 감각
+const ATTEMPT_MAX_ENTRIES = 500            // 메모리 상한 (초과 시 오래된 것부터 버림)
+const emptyAttempts = new Map()            // offerId -> 마지막 "수확 0" 시각(ms)
+
+function markEmptyAttempt(offerId) {
+  emptyAttempts.set(String(offerId), Date.now())
+  if (emptyAttempts.size > ATTEMPT_MAX_ENTRIES) {
+    // Map은 삽입 순서를 지키므로 앞에서부터 덜어내면 오래된 것이 먼저 나간다
+    const over = emptyAttempts.size - ATTEMPT_MAX_ENTRIES
+    let i = 0
+    for (const k of emptyAttempts.keys()) {
+      emptyAttempts.delete(k)
+      if (++i >= over) break
+    }
+  }
+}
+
+function hasRecentEmptyAttempt(offerId) {
+  const ts = emptyAttempts.get(String(offerId))
+  if (!ts) return false
+  if (Date.now() - ts < ATTEMPT_TTL_MS) return true
+  emptyAttempts.delete(String(offerId))
+  return false
+}
+
+/**
+ * item_get 의 props_list 에서 "번역이 필요한 고유 옵션값" 표본을 뽑는다.
+ *
+ * props_list: { "0:0": "颜色:白黑", "1:0": "尺码:36", ... }
+ * 첫 ':' 기준으로 뒤쪽(값)만 쓴다 — src/services/api1688.js:1613 의 파싱 기준과 같다.
+ * 숫자 사이즈("36")처럼 번역 대상이 아닌 값은 제외한다
+ * (api1688.js:1977~1981 이 파파고로 보내는 기준과 같은 정규식).
+ *
+ * @returns {string[]} 최대 limit개
+ */
+export function extractOptionValueSample(itemObj, limit = OPTION_SAMPLE_SIZE) {
+  const pl = itemObj?.props_list
+  if (!pl || typeof pl !== 'object' || Array.isArray(pl)) return []
+
+  const NEEDS_TRANSLATE_RE = /[一-鿿㐀-䶿Ѐ-ӿ]/
+  const out = []
+  const seen = new Set()
+
+  for (const raw of Object.values(pl)) {
+    const s = String(raw ?? '')
+    const i = s.indexOf(':')
+    const value = (i < 0 ? s : s.slice(i + 1)).trim()
+    if (!value || seen.has(value)) continue
+    if (!NEEDS_TRANSLATE_RE.test(value)) continue  // 숫자·영문 사이즈 등은 애초에 번역 대상이 아니다
+    seen.add(value)
+    out.push(value)
+    if (out.length >= limit) break
+  }
+  return out
+}
+
+/**
  * 검색 결과에 한글 제목을 붙이고 번역 짝을 캐시에 채운다.
  *
  * ⚠️ item_search 와 keywordQuery 는 결과 목록이 완전히 같지 않다(실측 매칭률 55~70%).
@@ -509,13 +594,34 @@ export async function enrichDetailWithKo(itemObj, offerId, opts = {}) {
     return stat
   }
 
-  // (a) 이미 캐시에 있으면 끝
-  const { hitRate } = await cacheHitRate([title], { env })
+  // (a) 제목 + 대표 옵션값 표본이 모두 캐시에 있으면 끝.
+  //     제목만 보던 때는 "제목은 있고 옵션값은 없는" 상품이 그대로 통과해
+  //     옵션값이 파파고로 나갔다 (OPTION_SAMPLE_SIZE 주석 참고).
+  const optionSample = extractOptionValueSample(itemObj)
+  const probe = [title, ...optionSample]
+  const { hitRate, hits, total } = await cacheHitRate(probe, { env })
   if (hitRate >= 1) {
     stat.path = 'cache_hit'
-    console.log(`[crossborder-ko] 상세 ${offerId}: 제목이 이미 캐시에 있어 공식 API를 부르지 않습니다.`)
+    console.log(
+      `[crossborder-ko] 상세 ${offerId}: 제목+옵션표본 ${total}건이 모두 캐시에 있어 공식 API를 부르지 않습니다.`
+    )
     return stat
   }
+
+  // 지난 번에 불렀는데 한국어를 하나도 못 건진 상품이면 TTL 동안 다시 부르지 않는다.
+  // (이게 없으면 "공식·lang=ko 둘 다 한국어 없음" 상품을 열 때마다 매번 호출하게 된다)
+  if (hasRecentEmptyAttempt(offerId)) {
+    stat.path = 'recent_empty_attempt'
+    console.log(
+      `[crossborder-ko] 상세 ${offerId}: 최근 시도에서 한국어를 못 찾은 상품이라 건너뜁니다 ` +
+      `(캐시 ${hits}/${total}건).`
+    )
+    return stat
+  }
+
+  console.log(
+    `[crossborder-ko] 상세 ${offerId}: 캐시 ${hits}/${total}건(제목+옵션표본 ${optionSample.length}개) — 공식 API를 호출합니다.`
+  )
 
   // (b) 공식 다국어 상세
   if (remaining() < 1500) {
@@ -530,6 +636,8 @@ export async function enrichDetailWithKo(itemObj, offerId, opts = {}) {
   if (official.ok && detailHasKorean(official.response)) {
     stat.saved = await savePairs(extractPairsFromDetail(official.response), { env })
     stat.path = 'official'
+    // 저장이 0건이면(캐시 비활성·저장 실패 등) 다음 열람도 캐시 미스다 → 반복 호출 방지
+    if (stat.saved === 0) markEmptyAttempt(offerId)
     console.log(`[crossborder-ko] 상세 ${offerId}: 공식 API 한글 확보 → ${stat.saved}건 저장 (${official.ms}ms)`)
     return stat
   }
@@ -554,6 +662,7 @@ export async function enrichDetailWithKo(itemObj, offerId, opts = {}) {
       if (pairs.length > 0) {
         stat.saved = await savePairs(pairs, { env })
         stat.path = `lang_ko(attempt${attempt})`
+        if (stat.saved === 0) markEmptyAttempt(offerId)
         console.log(`[crossborder-ko] 상세 ${offerId}: lang=ko ${attempt}차 성공 → ${stat.saved}건 저장 (${ko.ms}ms)`)
         return stat
       }
@@ -564,6 +673,9 @@ export async function enrichDetailWithKo(itemObj, offerId, opts = {}) {
   }
 
   stat.path = 'gave_up'
+  // 공식·lang=ko 둘 다 한국어가 없었다 → 캐시에 남길 게 없으므로 다음 열람도 캐시 미스다.
+  // 열 때마다 같은 호출을 반복하지 않도록 TTL 동안 건너뛰게 표시한다.
+  markEmptyAttempt(offerId)
   console.warn(`[crossborder-ko] 상세 ${offerId}: 한글 공급원을 찾지 못했습니다 — 기존 번역 흐름(파파고)에 맡깁니다.`)
   return stat
 }

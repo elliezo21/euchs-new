@@ -758,7 +758,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { useRouter } from 'vue-router';
-import { fetch1688ProductById, fetch1688FreightEstimateBatch, ZH_KO_COLOR_MAP } from '@/services/api1688';
+import { fetch1688ProductById, fetch1688FreightEstimateBatch, ZH_KO_COLOR_MAP, translateText, hasHangul } from '@/services/api1688';
 import {
   ShoppingCart,
   CheckSquare,
@@ -1801,7 +1801,74 @@ async function runCartHealTasks() {
     healTasksRunning = false;
   }
   if (!isInstanceActive) return;
-  backfillMissingPriceTiers();
+  // await를 붙인 이유: 아래 제목 한글화가 saveCartToStorage를 부르고, 그 안에서 syncTierPrices가
+  // 돈다. 단가 백필이 끝난 뒤에 저장해야 단가 재계산 시점이 앞당겨지지 않는다.
+  // (runCartHealTasks 자체는 1452행에서 await 없이 호출되므로 화면 지연은 없다)
+  await backfillMissingPriceTiers();
+
+  if (!isInstanceActive) return;
+  await backfillKoreanTitles();
+}
+
+/**
+ * 담을 당시 제목이 중국어였던 옛 행의 제목만 한글로 바꾼다.
+ *
+ * · 장바구니 행의 titleKo는 "담은 시점 스냅샷"이라, 번역 킬스위치가 꺼져 있던 기간이나
+ *   1688 공식 다국어 API 전환 이전에 담긴 행은 중국어가 그대로 남아 있다.
+ * · 새 파파고 호출을 만들지 않는다 — translateText의 cacheOnly 경로만 쓴다
+ *   (엑셀 대량발주 services/bulkFetch.js:162 와 같은 기준).
+ *   캐시에 없으면 원문이 그대로 돌아오고, 그 행은 손대지 않은 채 다음 기회로 넘긴다.
+ * · 제목(titleKo) 외에는 아무것도 건드리지 않는다.
+ *   수량·specId·skus·가격(priceCny/price/priceTiers)·선택 상태·행 순서·병합 판정 전부 그대로다.
+ *
+ * ★ 실행 시점: 재검증·단가 백필이 모두 끝난 뒤다.
+ *   saveCartToStorage가 저장 직전에 syncTierPrices를 돌리므로, 단가가 확정된 뒤에
+ *   저장해야 이 함수 때문에 단가 재계산 시점이 앞당겨지는 일이 없다.
+ */
+async function backfillKoreanTitles() {
+  try {
+    // 한글이 없는 행만 대상. 원문은 titleZh 우선, 없으면 현재 titleKo(중국어)를 쓴다.
+    const targets = [];
+    for (const row of cartItems.value) {
+      if (hasHangul(row?.titleKo)) continue;
+      const source = String(row?.titleZh || row?.titleKo || '').trim();
+      if (!source) continue;
+      targets.push({ row, source });
+    }
+    if (targets.length === 0) return;
+
+    console.log(`[CartView] 중국어 제목 ${targets.length}건 — 번역 캐시에서만 한글 제목을 찾습니다(파파고 호출 없음).`);
+
+    const translated = await translateText(
+      targets.map(t => t.source),
+      'KO',
+      null,
+      { cacheOnly: true }
+    );
+    const list = Array.isArray(translated) ? translated : [translated];
+
+    let changed = 0;
+    targets.forEach((t, i) => {
+      const ko = String(list[i] || '').trim();
+      // 캐시 미스면 원문이 그대로 돌아온다 → 바꾸지 않고 다음 기회에 채운다.
+      if (!ko || ko === t.source || !hasHangul(ko)) return;
+      t.row.titleKo = ko;
+      changed++;
+    });
+
+    if (changed === 0) {
+      console.log('[CartView] 번역 캐시에 한글 제목이 없어 이번에는 그대로 둡니다.');
+      return;
+    }
+
+    // 다음 진입부터 바로 한글이 보이도록 저장한다.
+    // saveCartToStorage는 로드 실패 상태면 스스로 저장을 거부하므로 행을 잃을 위험이 없다.
+    saveCartToStorage();
+    console.log(`[CartView] 장바구니 제목 ${changed}건을 한글로 교체하고 저장했습니다.`);
+  } catch (e) {
+    // 제목은 부가 정보다 — 실패해도 장바구니 화면은 그대로 둔다(행·수량·금액 영향 없음).
+    console.error('[CartView] 장바구니 제목 한글화 실패 (제목은 원문 유지):', e?.message || e);
+  }
 }
 
 /**
