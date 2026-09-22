@@ -213,6 +213,22 @@
       </div>
     </div>
 
+    <!-- ★ 장바구니 로드 실패 안내 (2026-09-22) —
+         예전에는 로드가 실패해도 console.warn 하나 남기고 빈 배열로 덮어써서,
+         고객에게는 "담아둔 상품이 전부 사라진" 화면으로 보였다(실제 데이터는 localStorage에 그대로).
+         이제 화면 상태를 지우지 않고 원인을 알린다. 이 상태에서는 저장도 막는다. -->
+    <div
+      v-if="cartLoadError"
+      class="flex items-center justify-between gap-3 text-xs font-bold text-red-800 bg-red-50 border border-red-200 rounded-xl px-3.5 py-2.5"
+    >
+      <span>장바구니를 불러오지 못했습니다. 담긴 상품은 그대로 보관되어 있으니 새로고침(F5) 해주세요.</span>
+      <button
+        type="button"
+        @click="reloadCartAfterError"
+        class="shrink-0 text-white bg-red-600 hover:bg-red-700 font-black px-3 py-1.5 rounded-lg"
+      >다시 시도</button>
+    </div>
+
     <!-- 1688 최신 단가 반영 안내 (닫기 가능) — 내부 조회 수치는 노출하지 않는다 -->
     <div
       v-if="priceSyncChangedCount > 0 && !priceSyncNoticeClosed"
@@ -794,7 +810,19 @@ const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate)
 const searchQuery = ref('');
 const sortBy = ref('latest');
 const selectedItemIds = ref([]);
+// ★ 2026-09-22 추가 — "선택 기록이 있는가"를 선택 개수와 분리해서 기억한다.
+//   예전에는 loadCartItems가 selectedItemIds.length === 0 하나만 보고
+//   "처음 진입"으로 판단해 전체 선택을 넣었다. 그래서 고객이 전체선택을 풀어
+//   0개로 만든 상태(= 엄연한 사용자 선택)와 구분되지 않아, 옵션 변경·엑셀 담기처럼
+//   loadCartItems를 다시 타는 경로에서 모든 행이 되살아나 체크됐다.
+//   false = 이 화면에서 행 목록을 아직 한 번도 못 읽음(= 기본값 전체 선택 대상)
+//   true  = 사용자가 만든 선택 상태(0개 포함)를 그대로 유지해야 함
+const hasSelectionRecord = ref(false);
 const cartItems = ref([]);
+// ★ 2026-09-22 추가 — 장바구니 로드 실패 상태.
+//   true인 동안 화면에 안내 배너가 뜨고, saveCartToStorage가 저장을 거부한다
+//   (불완전한 메모리 상태로 localStorage의 실제 장바구니를 덮어쓰지 않기 위함).
+const cartLoadError = ref(false);
 const confirmRemoveItem = ref(false);
 const pendingRemoveItemId = ref(null);
 const confirmDeleteSelected = ref(false);
@@ -822,7 +850,7 @@ function showStockToast(msg) {
 // 옵션 변경 소형 팝업 상태
 const isOptionModalOpen = ref(false);   // 팝업 표시 여부
 const editingItem = ref(null);          // 팝업을 연 장바구니 행 (기본 정보 표시용)
-const editingCartItemId = ref(null);    // 교체 대상 장바구니 행 id (handleEditModalCartAdded에서 사용)
+const editingCartItemId = ref(null);    // 교체 대상 장바구니 행 id (applyOptionChanges에서 사용)
 const isOptionFetching = ref(false);    // 1688 API 조회 중
 const modalSkuList = ref([]);           // 팝업에 표시할 SKU 행 목록 (color/size/stock/quantity)
 const modalSelectedColor = ref('');     // 팝업 내 선택된 색상 (사이즈 필터링용)
@@ -1106,6 +1134,44 @@ function healSkuSnapshot(it) {
 }
 
 /**
+ * 같은 SKU(=같은 1688 상품의 같은 옵션) 판정 키. specId가 없으면 null.
+ *
+ * ★ 2026-09-22 공용화 — 로드 시 자가 교정(dedupeRowsBySpecId)과 옵션 변경 적용
+ *   (applyOptionChanges)이 반드시 같은 기준으로 판정해야 한다. 기준이 어긋나면
+ *   "옵션 변경은 별개 행으로 저장 → 로드가 합침" 같은 엇갈림이 생기고, 그 엇갈림이
+ *   바로 편집한 행이 통째로 사라지던 버그의 씨앗이었다.
+ *   specId가 없는 행은 SKU를 특정할 수 없으므로 이름으로 추측해서 합치지 않는다.
+ */
+function specRowKey(row) {
+  const offerId = String(row?.num_iid || row?.itemId || '').trim();
+  const specId = String(row?.specId || '').trim();
+  if (!offerId || !specId) return null;
+  return `${offerId}|${specId}`;
+}
+
+/**
+ * 같은 SKU 행에 수량을 합산한다 (재고 상한 클램핑 + skus 스냅샷 동기화까지).
+ * dedupeRowsBySpecId와 applyOptionChanges가 같은 규칙을 쓰도록 공용화.
+ *
+ * @param {object} target   수량을 받을 행 (제자리 변경)
+ * @param {number} addQty   더할 수량
+ * @param {number} [fallbackStock] target에 재고가 없을 때 참고할 상대 행의 재고
+ */
+function mergeQtyIntoRow(target, addQty, fallbackStock) {
+  const mergedQty = (Number(target.quantity) || 0) + (Number(addQty) || 0);
+  const stock = typeof target.stock === 'number' ? target.stock
+    : typeof fallbackStock === 'number' ? fallbackStock
+      : Infinity;
+  target.quantity = stock === Infinity ? mergedQty : Math.min(stock, mergedQty);
+  // skus 스냅샷도 같이 맞춘다 — 안 맞추면 resolveItemQty가 합산 전 수량을 우선해
+  // 수수료·예상총액·운임이 과소 계산된다 (healSkuSnapshot과 같은 이유).
+  if (Array.isArray(target.skus) && target.skus.length === 1) {
+    target.skus[0].quantity = target.quantity;
+  }
+  return target.quantity;
+}
+
+/**
  * 이미 저장돼 있는 "같은 SKU 중복 행"을 1행으로 합친다 (로드 시 자가 교정).
  *
  * ★ 왜 필요한가 (2026-09-22 실측):
@@ -1129,11 +1195,10 @@ function dedupeRowsBySpecId(rawRows) {
   const merges = [];
 
   for (const r of rawRows) {
-    const offerId = String(r?.num_iid || r?.itemId || '').trim();
-    const specId = String(r?.specId || '').trim();
-    if (!offerId || !specId) { out.push(r); continue; }
+    // specId가 없는 행(구 데이터 등)은 SKU를 특정할 수 없으므로 합치지 않고 그대로 통과시킨다.
+    const key = specRowKey(r);
+    if (!key) { out.push(r); continue; }
 
-    const key = `${offerId}|${specId}`;
     const at = idxByKey.get(key);
     if (at === undefined) {
       idxByKey.set(key, out.length);
@@ -1143,24 +1208,104 @@ function dedupeRowsBySpecId(rawRows) {
 
     // ── 먼저 담긴 행(keep)에 합친다 ──
     const keep = out[at];
-    const mergedQty = (Number(keep.quantity) || 0) + (Number(r.quantity) || 0);
-    const stock = typeof keep.stock === 'number' ? keep.stock
-      : typeof r.stock === 'number' ? r.stock
-        : Infinity;
-    keep.quantity = stock === Infinity ? mergedQty : Math.min(stock, mergedQty);
-    // skus 스냅샷도 같이 맞춘다 — 안 맞추면 resolveItemQty가 합산 전 수량을 우선해
-    // 수수료·예상총액·운임이 과소 계산된다 (healSkuSnapshot과 같은 이유).
-    if (Array.isArray(keep.skus) && keep.skus.length === 1) {
-      keep.skus[0].quantity = keep.quantity;
-    }
+    mergeQtyIntoRow(keep, r.quantity, r.stock);
     merges.push({ keptId: keep.id, droppedId: r.id });
     console.log(
-      `[CartView] 중복 행 병합: ${keep.titleKo || offerId} [${keep.optionName || keep.sku || ''}] ` +
-      `+ [${r.optionName || r.sku || ''}] → 수량 ${keep.quantity}개 (specId ${specId})`
+      `[CartView] 중복 행 병합: ${keep.titleKo || key} [${keep.optionName || keep.sku || ''}] ` +
+      `+ [${r.optionName || r.sku || ''}] → 수량 ${keep.quantity}개 (${key})`
     );
   }
 
   return { rows: out, merges };
+}
+
+/**
+ * 옵션 변경 적용 결과 배열을 만든다. **순수 함수** — localStorage·화면 상태를 건드리지 않는다.
+ * (applyOptionChanges가 이걸 호출해 결과를 한 번에 저장한다. 분리해 둔 이유는
+ *  브라우저 없이 node 스크립트로 실제 행 데이터를 넣어 검증할 수 있게 하기 위함 — 2026-09-22)
+ *
+ * 규칙
+ *   (0) 이번 적용분 안에 같은 SKU가 둘 → 방어적으로 합산
+ *   (1) 편집한 행과 같은 SKU → 옛 행의 자리·id를 그대로 이어받아 내용/수량 교체 (합산 아님)
+ *   (2) 편집한 행이 아닌 기존 행과 같은 SKU → 그 행에 수량 합산 (로드 시 중복 병합과 같은 규칙)
+ *   (3) 그 외 → 옛 행 자리에 삽입
+ *
+ * @param {Array}  storedRows localStorage에서 막 읽은 원본 배열
+ * @param {string} oldId      편집 대상(옛) 행 id
+ * @param {Array}  newRows    팝업에서 만든 새 행들 (수량 0 옵션은 호출 전에 제외돼 있어야 함)
+ * @returns {{ rows: Array, createdRowIds: string[], mergedTargetIds: string[] }}
+ */
+function buildRowsAfterOptionChange(storedRows, oldId, newRows) {
+  const rows = Array.isArray(storedRows) ? storedRows : [];
+
+  // 편집 대상 행의 자리와 원본. 결과 행을 같은 자리에 되돌려 목록 순서가 튀지 않게 한다.
+  const editIndex = rows.findIndex(r => r?.id === oldId);
+  const oldRow = editIndex >= 0 ? rows[editIndex] : null;
+  if (!oldRow) {
+    // 저장본에 편집 대상이 없다 — 다른 탭에서 지웠거나 이미 병합된 경우.
+    // 조용히 넘기면 수량이 어디로 갔는지 알 수 없으므로 원인을 남긴다.
+    console.error(
+      '[applyOptionChanges] 편집 대상 행을 저장본에서 찾지 못했습니다 — 새 행만 추가합니다.',
+      { oldId, storedCount: rows.length }
+    );
+  }
+  const oldKey = specRowKey(oldRow);
+  // 편집 대상을 뺀 나머지 (깊은 복사 불필요 — 수량 합산은 아래에서 제자리 변경)
+  const rest = rows.filter(r => r?.id !== oldId);
+  const insertAt = editIndex >= 0 ? Math.min(editIndex, rest.length) : rest.length;
+
+  // 나머지 행 중 같은 SKU를 가진 첫 행 (수량 합산 대상)
+  const restRowByKey = new Map();
+  for (const r of rest) {
+    const k = specRowKey(r);
+    if (k && !restRowByKey.has(k)) restRowByKey.set(k, r);
+  }
+
+  const insertRows = [];              // 옛 행 자리에 들어갈 행들
+  const insertRowByKey = new Map();   // 이번 적용분끼리의 중복 방지
+  const mergedTargetIds = [];         // 기존 다른 행에 합산된 경우 그 행 id
+
+  for (const row of newRows) {
+    const key = specRowKey(row);
+
+    // (0) 이번 적용분 안에서 같은 SKU가 두 번 나온 경우 — 정상 팝업에선 없지만 방어적으로 합산
+    if (key && insertRowByKey.has(key)) {
+      mergeQtyIntoRow(insertRowByKey.get(key), row.quantity, row.stock);
+      continue;
+    }
+
+    // (1) 편집한 행과 같은 SKU → 옛 행 자리·id를 그대로 이어받아 내용만 교체 (합산 아님)
+    if (key && oldKey && key === oldKey) {
+      row.id = oldId;
+      row.createdAt = oldRow.createdAt || row.createdAt;
+      insertRows.push(row);
+      insertRowByKey.set(key, row);
+      continue;
+    }
+
+    // (2) 편집한 행이 아닌 기존 행과 같은 SKU → 그 행에 수량 합산 (기존 specId 병합 규칙)
+    const target = key ? restRowByKey.get(key) : null;
+    if (target) {
+      const merged = mergeQtyIntoRow(target, row.quantity, row.stock);
+      mergedTargetIds.push(target.id);
+      console.log(
+        `[applyOptionChanges] 기존 행과 같은 옵션 — 수량 합산: ` +
+        `${target.titleKo || target.num_iid} [${target.optionName || ''}] → ${merged}개`
+      );
+      continue;
+    }
+
+    // (3) 새 옵션 → 옛 행 자리에 삽입
+    insertRows.push(row);
+    if (key) insertRowByKey.set(key, row);
+  }
+
+  return {
+    rows: [...rest.slice(0, insertAt), ...insertRows, ...rest.slice(insertAt)],
+    // 옛 행 id를 이어받은 행은 선택 상태가 그대로 유지되므로 승계 대상에서 제외한다.
+    createdRowIds: insertRows.filter(r => r.id !== oldId).map(r => r.id),
+    mergedTargetIds,
+  };
 }
 
 const loadCartItems = () => {
@@ -1168,12 +1313,16 @@ const loadCartItems = () => {
   if (!isLoggedIn.value) {
     cartItems.value = [];
     selectedItemIds.value = [];
+    // 계정이 바뀌면 이전 계정의 선택 기록은 의미가 없다 → 다음 로드는 다시 '처음 진입'
+    hasSelectionRecord.value = false;
     return;
   }
   try {
     // ── 사용자 격리 키 (euchs_cart_{userId}) 로만 읽기 — 레거시 키 절대 참조 금지 ──
     const cartKey = getCartStorageKey();
     const raw = localStorage.getItem(cartKey);
+    // 여기까지 왔으면 읽기는 성공 — 이전 실패 안내를 내린다.
+    cartLoadError.value = false;
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -1269,7 +1418,12 @@ const loadCartItems = () => {
             }
           }
         }
-        if (selectedItemIds.value.length === 0) {
+        // ★ 2026-09-22 수정 — 판정 기준을 "선택 0개"에서 "선택 기록 없음"으로 바꿨다.
+        //   예전 기준(length === 0)은 고객이 전체선택을 풀어 0개로 만든 상태까지
+        //   '처음 진입'으로 오인해서, 옵션 변경·엑셀 담기 등으로 loadCartItems가
+        //   다시 돌 때마다 모든 행을 체크해 되살렸다.
+        if (!hasSelectionRecord.value) {
+          // 이 화면에서 장바구니 행을 처음 읽은 순간에만 기본값(전체 선택)을 넣는다.
           selectedItemIds.value = cartItems.value.map(it => it.id);
         } else {
           // ★ 유령 id 제거 — 삭제되거나 병합으로 사라진 id가 선택 목록에 남으면
@@ -1280,6 +1434,8 @@ const loadCartItems = () => {
             selectedItemIds.value = cleaned;
           }
         }
+        // 행 목록을 한 번이라도 읽었으면 이후의 선택 상태(0개 포함)는 사용자 것이다.
+        hasSelectionRecord.value = true;
         // 합쳐진 행이 있으면 즉시 저장 — 저장하지 않으면 새로고침할 때마다 다시 합친다.
         // (저장 → euchs:cart-updated → loadCartItems 재진입 시에는 중복이 없어 저장이 반복되지 않는다)
         if (migratedUnavailable > 0) {
@@ -1304,12 +1460,30 @@ const loadCartItems = () => {
     // 격리 키에 데이터 없으면 무조건 빈 배열 (레거시 키 절대 보지 않음)
     cartItems.value = [];
     selectedItemIds.value = [];
+    // 장바구니가 비어 있으면 선택할 대상 자체가 없다 → 다음에 행이 생길 때
+    // 다시 '처음 진입'으로 보고 기본값(전체 선택)을 적용한다.
+    hasSelectionRecord.value = false;
   } catch (e) {
-    console.warn('Load cart items error:', e);
-    cartItems.value = [];
-    selectedItemIds.value = [];
+    // ★ 2026-09-22 수정 — 실패했다고 화면을 비우지 않는다.
+    //   예전에는 여기서 cartItems를 []로 덮어써, 로드 코드에 버그가 있으면
+    //   localStorage에 8행이 멀쩡히 있는데도 "장바구니 0개" 화면이 떴다
+    //   (실측: dedupeRowsBySpecId의 ReferenceError → 전체가 빈 화면).
+    //   메모리 상태를 그대로 두고 배너로 원인을 알린다. 이 상태에서는
+    //   saveCartToStorage가 저장을 거부하므로 빈 배열이 저장될 수 없다.
+    console.error(
+      '[CartView] 장바구니를 불러오지 못했습니다 — 화면 상태를 유지하고 저장을 차단합니다. ' +
+      'localStorage의 담긴 상품은 그대로입니다.',
+      e
+    );
+    cartLoadError.value = true;
   }
 };
+
+/** 로드 실패 배너의 "다시 시도" — 저장 차단을 풀고 한 번 더 읽는다 */
+function reloadCartAfterError() {
+  cartLoadError.value = false;
+  loadCartItems();
+}
 
 // ── 인스턴스 수명 플래그 ────────────────────────────────────────────────────
 // 언마운트된 인스턴스의 비동기 작업(단가 재검증·백필)이 뒤늦게 끝나
@@ -1327,6 +1501,19 @@ function onCartUpdatedEvent() {
 }
 
 const saveCartToStorage = () => {
+  // ★ 2026-09-22 추가 — 로드에 실패한 상태에서는 절대 저장하지 않는다.
+  //   로드 실패 시 cartItems는 화면에 떠 있던 옛 배열(또는 빈 배열)이라,
+  //   그대로 저장하면 localStorage에 남아 있는 진짜 장바구니를 덮어써
+  //   "고객이 담아둔 상품이 실제로 사라지는" 사고가 된다.
+  if (cartLoadError.value) {
+    console.error(
+      '[CartView] 장바구니 로드에 실패한 상태라 저장을 건너뜁니다 — ' +
+      'localStorage의 담긴 상품을 덮어쓰지 않습니다. 새로고침(F5) 후 다시 시도해 주세요.'
+    );
+    // 조용히 넘기면 고객은 저장된 줄 알고 화면을 떠난다 — 화면에도 알린다.
+    showStockToast('장바구니를 불러오지 못해 변경사항을 저장하지 못했습니다. 새로고침(F5) 해주세요.');
+    return;
+  }
   // ── 저장 직전 수량 구간 단가 동기화 ──
   //   수량 증감·행 삭제·옵션 변경 등 장바구니를 바꾸는 모든 경로가 이 함수를 거치므로
   //   여기 한 곳에서만 재계산하면 경로별 누락이 생기지 않는다.
@@ -2274,7 +2461,24 @@ const modalSelectedSkuCount = computed(() =>
 );
 
 
-// 팝업 "적용" 버튼: localStorage에 새 행 직접 저장 후 handleEditModalCartAdded로 기존 행 제거
+/**
+ * 팝업 "적용" 버튼 — 옛 행 제거 + 새 행 추가 + 같은 SKU 병합을 **한 번의 저장으로** 처리한다.
+ *
+ * ★ 2026-09-22 재작성 (운영 재현 버그: 편집한 행이 통째로 사라짐).
+ *   예전 구조는 ①[기존 전체 + 새 행]을 저장하고 euchs:cart-updated를 쏜 뒤
+ *   ②handleEditModalCartAdded가 옛 행을 지우는 2단계였다. ①과 ② 사이에
+ *   "옛 행과 새 행이 같은 specId로 공존"하는 중간 상태가 저장·통보되고,
+ *   그 사이에 loadCartItems의 dedupeRowsBySpecId(95c0bfc)가 둘을 **옛 행 id로** 합쳐
+ *   저장까지 해버린다. 그 다음 ②가 옛 행 id를 지우면서 합쳐진 행이 통째로 날아갔다.
+ *   (실측: M 61개 + 새 M 61개 → 122개로 합쳐진 뒤 행 자체가 사라짐)
+ *   → 중간 상태를 아예 만들지 않는다. 최종 배열을 메모리에서 완성해 한 번만 쓴다.
+ *
+ * 결과 행 규칙
+ *   · 편집한 행과 같은 SKU  → 옛 행 **자리·id를 유지한 채 내용/수량 교체** (합산 아님)
+ *   · 다른 기존 행과 같은 SKU → 그 행에 수량 합산 (로드 시 중복 병합과 같은 규칙)
+ *   · 그 외                  → 옛 행 자리에 새 행 삽입
+ *   · 수량 0 옵션은 행을 만들지 않는다 (위 validSkus 필터)
+ */
 function applyOptionChanges() {
   const validSkus = modalSkuList.value.filter(s => (s.quantity || 0) > 0);
   if (validSkus.length === 0) {
@@ -2303,19 +2507,23 @@ function applyOptionChanges() {
   const cartKey = getCartStorageKey();
 
   // ★ 선택 상태 부분만 2026-09-22 사용자 허락으로 수정.
-  //   기존 행이 체크돼 있었는지 먼저 기억해 둔다. handleEditModalCartAdded가
-  //   기존 id를 selectedItemIds에서 빼고, loadCartItems는 "선택이 하나도 없을 때만"
-  //   전체 자동 선택하므로(:1029), 새 행은 어디에서도 선택되지 않아 체크가 풀렸다.
-  //   → 고객이 옵션만 바꿨는데 그 상품이 발주에서 조용히 빠지던 원인.
-  const wasSelected = selectedItemIds.value.includes(editingCartItemId.value);
-  let newRowIds = [];
-  // 새 행의 SKU 키(offerId|specId) — 아래에서 "병합으로 id가 바뀐 경우"를 되찾는 데 쓴다.
-  let newRowKeys = [];
+  //   기존 행이 체크돼 있었는지 먼저 기억해 둔다. 옛 행이 사라지는 경우(옵션이 바뀌어
+  //   새 id가 생기는 경우) 여기서 기억해 두지 않으면 새 행은 어디에서도 선택되지 않아
+  //   체크가 풀린다. → 고객이 옵션만 바꿨는데 그 상품이 발주에서 조용히 빠지던 원인.
+  //   ※ 반대로 체크가 안 돼 있었으면 새 행도 체크하지 않는다. 예전에는 loadCartItems가
+  //     "선택 0개 = 처음 진입"으로 오인해 전체를 다시 체크했으나, 이제 hasSelectionRecord로
+  //     구분하므로 고객이 풀어 둔 체크(0개 포함)가 그대로 유지된다.
+  const oldId = editingCartItemId.value;
+  const wasSelected = selectedItemIds.value.includes(oldId);
+  // 새로 만들어진 행 id (선택 승계용). 옛 행 자리를 그대로 이어받은 행은 여기 포함하지 않는다
+  // — id가 그대로라 선택 상태도 그대로이기 때문.
+  let createdRowIds = [];
 
   try {
     const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
+    const rows = Array.isArray(stored) ? stored : [];
 
-    // 각 선택된 SKU를 독립 행으로 추가 (color+size 조합 정확히 보존)
+    // 각 선택된 SKU를 독립 행으로 만든다 (color+size 조합 정확히 보존)
     const newRows = validSkus.map((sku, i) => {
       const optLabel = [sku.colorKo || sku.color, sku.size].filter(Boolean).join(' / ');
       return {
@@ -2351,83 +2559,48 @@ function applyOptionChanges() {
       };
     });
 
-    // ★ 선택 상태 부분만 2026-09-22 사용자 허락으로 수정 — 아래에서 새 행을 다시 체크하기 위해 id만 기록.
-    newRowIds = newRows.map(r => r.id);
-    newRowKeys = newRows
-      .filter(r => String(r.specId || '').trim())
-      .map(r => `${String(r.num_iid || '').trim()}|${String(r.specId).trim()}`);
+    // ── 최종 배열을 메모리에서 완성한다 (중간 저장·이벤트 없음) ──
+    const built = buildRowsAfterOptionChange(rows, oldId, newRows);
+    createdRowIds = built.createdRowIds;
 
-    // 기존 행(oldId)은 handleEditModalCartAdded에서 제거하므로 여기서는 추가만
-    const merged = [...stored, ...newRows];
-    localStorage.setItem(cartKey, JSON.stringify(merged));
-    window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: merged.length } }));
-    window.dispatchEvent(new Event('storage'));
+    // ★ 단 한 번의 저장 — 옛 행 제거·새 행 추가·병합이 이 시점에 이미 모두 반영돼 있다.
+    localStorage.setItem(cartKey, JSON.stringify(built.rows));
   } catch (e) {
     console.error('[applyOptionChanges] 저장 실패:', e);
     alert('저장 중 오류가 발생했습니다.');
     return;
   }
 
-  // 팝업 닫기 전에 편집 중인 cartItemId 유지 → handleEditModalCartAdded가 삭제
-  const savedOldId = editingCartItemId.value;
+  // 팝업 닫기
   isOptionModalOpen.value = false;
   editingItem.value = null;
+  editingCartItemId.value = null;
   modalSkuList.value = [];
   modalSelectedColor.value = '';
-  // editingCartItemId는 handleEditModalCartAdded가 읽어야 하므로 그 호출 직전까지 유지
-  editingCartItemId.value = savedOldId;
-  handleEditModalCartAdded();
 
-  // ★ 선택 상태 부분만 2026-09-22 사용자 허락으로 수정.
-  //   반드시 handleEditModalCartAdded 이후에 실행한다 — 그 함수가 기존 id를 빼고
-  //   loadCartItems로 cartItems를 새로 채운 뒤라야 새 행이 목록에 존재한다.
-  //   기존 행이 체크돼 있지 않았다면 새 행도 체크하지 않는다(고객이 일부러 뺀 상품을 되살리지 않음).
-  //   ★ 2026-09-22 추가: 바꾼 옵션이 장바구니에 이미 있던 SKU면 loadCartItems의
-  //     중복 병합(dedupeRowsBySpecId)이 새 행을 기존 행에 합쳐 새 id가 사라진다.
-  //     그때는 "합쳐진 뒤 남은 행"을 대신 체크해야 체크가 풀리지 않는다.
-  if (wasSelected && newRowIds.length > 0) {
-    const newIdSet = new Set(newRowIds);
-    const newKeySet = new Set(newRowKeys);
-    const liveIds = cartItems.value
-      .filter(it =>
-        newIdSet.has(it.id) ||
-        (String(it.specId || '').trim() &&
-          newKeySet.has(`${String(it.num_iid || '').trim()}|${String(it.specId).trim()}`))
-      )
-      .map(it => it.id);
-    if (liveIds.length > 0) {
-      selectedItemIds.value = [...new Set([...selectedItemIds.value, ...liveIds])];
-    }
-  }
-}
-
-// 기존 행 삭제 + localStorage 동기화 (localStorage 중복 부활 버그 수정 포함, 수정 금지)
-function handleEditModalCartAdded() {
-  const oldId = editingCartItemId.value;
-
-  if (oldId) {
-    // 1. 메모리에서 제거
-    const idx = cartItems.value.findIndex(it => it.id === oldId);
-    if (idx >= 0) {
-      cartItems.value.splice(idx, 1);
-      selectedItemIds.value = selectedItemIds.value.filter(sid => sid !== oldId);
-    }
-
-    // 2. localStorage에서도 제거
-    try {
-      const cartKey = getCartStorageKey();
-      const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
-      const filtered = stored.filter(it => it.id !== oldId);
-      localStorage.setItem(cartKey, JSON.stringify(filtered));
-    } catch (e) {
-      console.warn('[handleEditModalCartAdded] localStorage 기존 행 제거 실패:', e);
-    }
-  }
-
-  editingCartItemId.value = null;
-
-  // 3. localStorage 재로드 (새 행 반영)
+  // 방금 쓴 최종 배열을 화면에 반영한다.
+  // dedupeRowsBySpecId는 이미 중복이 없으므로 아무것도 합치지 않는다(안전장치로만 동작).
   loadCartItems();
+
+  // ── 선택 승계 ──
+  //   · 옛 행 id를 이어받은 행 → 손댈 필요 없음 (id가 같아 선택/해제 상태가 그대로)
+  //   · 기존 다른 행에 합산된 경우 → 그 행의 원래 선택 상태 유지 (손대지 않음)
+  //   · 새로 생긴 행 → 옛 행이 선택돼 있었을 때만 선택. 고객이 체크를 풀어둔 상품은 되살리지 않는다.
+  if (wasSelected && createdRowIds.length > 0) {
+    const liveIds = new Set(cartItems.value.map(it => it.id));
+    const add = createdRowIds.filter(id => liveIds.has(id));
+    if (add.length > 0) {
+      selectedItemIds.value = [...new Set([...selectedItemIds.value, ...add])];
+    }
+  }
+
+  // 수량이 바뀌었으면 수량 구간 단가를 다시 계산해 저장한다
+  // (합산으로 상품 합계 수량이 구간을 넘나들 수 있다 — syncTierPrices는 offer 합계 기준).
+  // saveCartToStorage가 syncTierPrices 호출 + euchs:cart-updated 통보까지 담당한다.
+  saveCartToStorage();
+  // 헤더·퀵메뉴 등 native storage를 듣는 화면의 장바구니 뱃지 갱신 (기존 동작 유지).
+  // ※ CartView는 storage 리스너를 등록하지 않으므로 재진입 루프가 생기지 않는다.
+  window.dispatchEvent(new Event('storage'));
 }
 
 
@@ -2562,6 +2735,9 @@ function executeRemoveItem() {
   if (!id) return;
   cartItems.value = cartItems.value.filter(it => it.id !== id);
   selectedItemIds.value = selectedItemIds.value.filter(itemId => itemId !== id);
+  // 마지막 행까지 지워 장바구니가 비면 선택 기록도 비운다 —
+  // 다음에 상품을 다시 담았을 때 '처음 진입'으로 보고 기본값(전체 선택)을 적용하기 위함.
+  if (cartItems.value.length === 0) hasSelectionRecord.value = false;
   saveCartToStorage();
 }
 
@@ -2573,6 +2749,8 @@ function deleteSelected() {
 function executeDeleteSelected() {
   cartItems.value = cartItems.value.filter(it => !selectedItemIds.value.includes(it.id));
   selectedItemIds.value = [];
+  // 위 executeRemoveItem과 같은 이유 — 전부 지웠으면 선택 기록도 비운다.
+  if (cartItems.value.length === 0) hasSelectionRecord.value = false;
   saveCartToStorage();
 }
 
@@ -2779,6 +2957,10 @@ function excludeUnavailableAndContinue() {
 
 function handleOrderSubmitted() {
   selectedItemIds.value = [];
+  // ★ 2026-09-22 — 여기서만 선택 기록을 일부러 초기화한다.
+  //   견적신청이 끝난 뒤의 "선택 0개"는 고객이 체크를 푼 게 아니라 이 함수가 만든 리셋이므로,
+  //   남은 행을 다시 전체 선택하던 기존 동작을 그대로 유지한다(이번 수정 범위 밖).
+  hasSelectionRecord.value = false;
   loadCartItems();
 }
 
