@@ -126,8 +126,8 @@
             v-if="isFreightEstimated"
             class="mt-2 text-[11px] leading-snug text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-2 py-1.5"
           >
-            ⚠️ 1688에서 실제 운임을 받지 못해 위 택배비는 <b>수량 기반 추정치</b>입니다.
-            실제 운임은 관리자 견적 단계에서 확정되며, 최종 견적서 금액은 달라질 수 있습니다.
+            ⚠️ 택배비는 1688 <b>수량 기반 추정치</b>입니다.
+            실제 운임은 견적 단계에서 확정되며, 최종 금액은 수정될 수 있음을 참고하세요.
           </div>
 
           <!-- 구간 단가 미확인 안내 -->
