@@ -153,7 +153,9 @@ export async function fetchProductsForBulk(offerIds, options = {}) {
 
         // ── 기존 파서에 그대로 통과 (네트워크 호출 없음) ──
         try {
-          const parsed = await fetch1688ProductById(id, entry.payload)
+          // translateCacheOnly: 엑셀 경로는 파파고를 새로 부르지 않는다(유료).
+          // 번역 캐시(클라이언트/서버)에 있으면 한국어, 없으면 중국어 원문 그대로.
+          const parsed = await fetch1688ProductById(id, entry.payload, { translateCacheOnly: true })
           if (!parsed) {
             console.error(`[bulkFetch] ${id}: 파싱 결과가 비어 있습니다.`)
             failures[id] = { status: 'error', code: 'parse_failed' }

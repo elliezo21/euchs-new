@@ -172,6 +172,16 @@
 
         <button
           type="button"
+          @click="openBulkExcel"
+          class="px-3.5 py-2 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95 shrink-0"
+          title="엑셀로 여러 상품을 한 번에 담습니다"
+        >
+          <FileSpreadsheet class="w-4 h-4" />
+          <span>엑셀 대량발주</span>
+        </button>
+
+        <button
+          type="button"
           @click="exportCartExcel"
           :disabled="cartItems.length === 0"
           class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95 shrink-0"
@@ -562,6 +572,16 @@
       :exchange-rate="exchangeRate"
       @close="selectedDetailProduct = null"
       @change-product="selectedDetailProduct = $event"
+      @added-to-cart="handleDetailModalAdded"
+    />
+
+    <!-- ======================================================== -->
+    <!-- 4-4. 엑셀 대량발주 모달 (버튼을 눌렀을 때만 로드) -->
+    <!-- ======================================================== -->
+    <BulkExcelUploadModal
+      v-if="isBulkExcelOpen"
+      @close="isBulkExcelOpen = false"
+      @added="handleBulkAdded"
     />
 
 
@@ -678,7 +698,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted } from 'vue';
+import { ref, computed, watch, onMounted, defineAsyncComponent } from 'vue';
 import { useRouter } from 'vue-router';
 import { fetch1688ProductById, fetch1688FreightEstimateBatch, ZH_KO_COLOR_MAP } from '@/services/api1688';
 import {
@@ -712,6 +732,10 @@ import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import ProductDetailModal from '@/components/ProductDetailModal.vue';
+// 엑셀 대량발주 모달 — 버튼을 눌렀을 때만 내려받는다(xlsx·확인 표가 들어 있어 무겁다)
+const BulkExcelUploadModal = defineAsyncComponent(() =>
+  import('@/components/dashboard/BulkExcelUploadModal.vue')
+);
 import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue';
 import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty, normalizeQty } from '@/utils/orderCostCalculator';
 import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
@@ -750,6 +774,27 @@ const modalSelectedColor = ref('');     // 팝업 내 선택된 색상 (사이�
 // 발주 설정 모달 상태
 const isOrderConfigModalOpen = ref(false);
 
+// ── 엑셀 대량발주 모달 ──────────────────────────────────────
+const isBulkExcelOpen = ref(false);
+function openBulkExcel() { isBulkExcelOpen.value = true; }
+
+/**
+ * 엑셀로 담은 뒤 — 장바구니를 다시 읽고, 새로 생긴 줄만 체크한다.
+ * ★ 기존에 고객이 체크를 푼 줄은 건드리지 않는다 (새 id만 추가).
+ */
+function handleBulkAdded(addedIds) {
+  loadCartItems();
+  if (!Array.isArray(addedIds) || addedIds.length === 0) return;
+  // ★ 새로고침 후 "실제로 존재하는" id만 추가한다.
+  //   기존 행에 수량이 병합된 경우 새 행이 생기지 않으므로 그 id는 장바구니에 없다.
+  //   그대로 넣으면 "전체선택 (14/13)"처럼 개수가 실제 행 수를 넘는다.
+  const liveIds = new Set(cartItems.value.map(it => it.id));
+  const realNewIds = addedIds.filter(id => liveIds.has(id));
+  if (realNewIds.length > 0) {
+    selectedItemIds.value = [...new Set([...selectedItemIds.value, ...realNewIds])];
+  }
+}
+
 // 상품 상세보기 모달 상태 (ProductDetailModal 재사용 — MallView.openProductModal 패턴)
 const selectedDetailProduct = ref(null);
 
@@ -759,11 +804,33 @@ const selectedDetailProduct = ref(null);
 //   실제 1688 offer id는 itemId/num_iid에 보존되어 있으므로 id로 재매핑해서 넘긴다.
 function openProductDetail(item) {
   if (!item) return;
+  // 이 모달에서 새로 담은 줄을 자동 체크하기 위해 "열기 직전" 행 목록을 기억해 둔다.
+  // (담기 시 ProductDetailModal이 euchs:cart-updated를 쏘면 loadCartItems가 먼저 돌아
+  //  cartItems가 이미 갱신되므로, 담긴 뒤에 비교하면 새 줄을 구분할 수 없다)
+  detailModalPrevIds = new Set(cartItems.value.map(it => it.id));
   selectedDetailProduct.value = {
     ...item,
     id: item.itemId || item.num_iid || item.id,
     price: item.priceCny ?? item.price,
   };
+}
+
+// openProductDetail이 기록해 두는 "모달 열기 직전" 장바구니 행 id
+let detailModalPrevIds = new Set();
+
+/**
+ * 상세모달에서 장바구니에 담았을 때 — 새로 생긴 줄만 체크한다.
+ * ★ 기존에 고객이 체크를 푼 줄은 건드리지 않는다 (새 id만 추가).
+ *   담기 자체는 ProductDetailModal이 공용 코드(cartWriter)로 이미 끝냈고,
+ *   loadCartItems도 euchs:cart-updated로 이미 돌아간 상태다. 여기서는 선택만 맞춘다.
+ */
+function handleDetailModalAdded() {
+  const newIds = cartItems.value.map(it => it.id).filter(id => !detailModalPrevIds.has(id));
+  if (newIds.length > 0) {
+    const merged = new Set([...selectedItemIds.value, ...newIds]);
+    selectedItemIds.value = [...merged];
+  }
+  detailModalPrevIds = new Set(cartItems.value.map(it => it.id));
 }
 
 // ─── seller 그룹 배치 운임 계산 ────────────────────────────────────────────────
@@ -953,6 +1020,35 @@ function getItemSkuText(item) {
 // ---------------------------------------------------------
 // 데이터 로드 & 스토리지 동기화
 // ---------------------------------------------------------
+/**
+ * skus 스냅샷이 행 수량과 어긋난 구 데이터를 바로잡는다.
+ *
+ * ★ 왜 필요한가: orderCostCalculator.resolveItemQty는 "skus 합계 > 0이면 그 값 우선" 규칙이다.
+ *   cartWriter.mergeAndSaveCart가 병합 시 스냅샷을 안 고치던 시절에 저장된 행은
+ *   quantity 260 / 스냅샷 60 처럼 어긋나 있고, 그러면 수수료·예상총액·운임·발주금액이
+ *   병합 전 수량으로 계산된다. 화면에 보이는 quantity가 고객이 의도한 값이므로 거기에 맞춘다.
+ *   (병합 로직 자체는 cartWriter에서 고쳤고, 이건 이미 저장된 행을 위한 자가 교정이다)
+ *
+ * 스냅샷이 1개일 때만 손댄다 — 장바구니 행은 SKU 1개 단위이고, syncSkuQty도 [0]만 다룬다.
+ */
+function healSkuSnapshot(it) {
+  const skus = Array.isArray(it?.skus) ? it.skus : [];
+  if (skus.length !== 1) return skus;
+
+  const rowQty = parseInt(it?.quantity, 10);
+  if (!Number.isFinite(rowQty) || rowQty < 1) return skus;   // 수량 자체가 무효면 건드리지 않는다
+
+  const snapQty = Number(skus[0]?.quantity);
+  if (snapQty === rowQty) return skus;
+
+  console.warn(
+    '[CartView] skus 스냅샷 수량이 행 수량과 달라 행 수량으로 맞춥니다 — ' +
+    '이 값이 어긋나면 수수료·예상총액·운임이 잘못 계산됩니다.',
+    { itemId: it?.itemId, num_iid: it?.num_iid, option: it?.optionName || it?.sku, rowQty, snapQty }
+  );
+  return [{ ...skus[0], quantity: rowQty }];
+}
+
 const loadCartItems = () => {
   // 비로그인 시 즉시 빈 배열 반환
   if (!isLoggedIn.value) {
@@ -1013,8 +1109,12 @@ const loadCartItems = () => {
             stock: (typeof it.stock === 'number' && !isNaN(it.stock))
               ? it.stock
               : (it.stock !== undefined && it.stock !== null && it.stock !== '' && !isNaN(Number(it.stock)) ? Number(it.stock) : undefined),
-            // 원본 데이터 보존
-            skus: it.skus || [],
+            // 원본 데이터 보존 + skus 스냅샷 자가 교정
+            //   병합 시 스냅샷을 안 맞추던 시절(~2026-09-22)에 저장된 행은
+            //   quantity와 skus[0].quantity가 어긋나 있고, resolveItemQty가 스냅샷을
+            //   우선하므로 수수료·예상총액·운임이 과소 계산된다.
+            //   화면에 보이는 수량(quantity)이 고객이 의도한 값이므로 그쪽에 맞춘다.
+            skus: healSkuSnapshot(it),
             detailUrl: it.detailUrl || '',
             productUrl: it.productUrl || it.detailUrl || '',
             company: it.company || '1688 공급처',
@@ -1028,6 +1128,14 @@ const loadCartItems = () => {
         });
         if (selectedItemIds.value.length === 0) {
           selectedItemIds.value = cartItems.value.map(it => it.id);
+        } else {
+          // ★ 유령 id 제거 — 삭제되거나 병합으로 사라진 id가 선택 목록에 남으면
+          //   "전체선택 (14/13)"처럼 개수가 실제 행 수를 넘는다.
+          const liveIds = new Set(cartItems.value.map(it => it.id));
+          const cleaned = selectedItemIds.value.filter(id => liveIds.has(id));
+          if (cleaned.length !== selectedItemIds.value.length) {
+            selectedItemIds.value = cleaned;
+          }
         }
         // 구 장바구니 행(priceTiers 없음)에 가격 출처 정보를 채운다.
         // 비동기 — 화면은 먼저 뜨고, 채워지면 재계산·저장까지 이어진다.

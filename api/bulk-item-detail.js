@@ -263,22 +263,24 @@ async function readUsage(userId, url, serviceRoleKey) {
   }
 }
 
-async function addUsage(userId, delta, currentCalls, url, serviceRoleKey) {
+/**
+ * 사용량 원자적 증가 — DB의 increment_bulk_fetch_usage RPC 사용.
+ *
+ * ★ 읽고-더해서-쓰는 방식은 동시 요청에서 덜 센다. 클라이언트가 동시 2요청을 보내므로
+ *   실제로 발생할 수 있어 RPC(단일 UPDATE ... api_calls + p_n)로 바꿨다.
+ *   RPC는 service_role 전용이며 증가 후 총합을 돌려준다.
+ */
+async function addUsage(userId, delta, url, serviceRoleKey) {
   if (delta <= 0) return
   try {
-    const r = await fetch(`${url}/rest/v1/bulk_fetch_usage?on_conflict=user_id,usage_date`, {
+    const r = await fetch(`${url}/rest/v1/rpc/increment_bulk_fetch_usage`, {
       method: 'POST',
       headers: {
         'apikey': serviceRoleKey,
         'Authorization': `Bearer ${serviceRoleKey}`,
         'Content-Type': 'application/json',
-        'Prefer': 'resolution=merge-duplicates,return=minimal',
       },
-      body: JSON.stringify([{
-        user_id: userId,
-        usage_date: seoulDateStr(),
-        api_calls: currentCalls + delta,
-      }]),
+      body: JSON.stringify({ p_user: userId, p_date: seoulDateStr(), p_n: delta }),
     })
     if (!r.ok) {
       const err = await r.json().catch(() => ({}))
@@ -442,9 +444,8 @@ export default async function handler(req, res) {
 
       await writeCache(cacheRows, url, serviceRoleKey)
 
-      // 실제로 나간 호출 수만 사용량에 더한다 (캐시 적중·limit 제외)
-      const used = await readUsage(auth.userId, url, serviceRoleKey)
-      await addUsage(auth.userId, toFetch.length, used, url, serviceRoleKey)
+      // 실제로 나간 호출 수만 사용량에 더한다 (캐시 적중·limit 제외). RPC로 원자적 증가.
+      await addUsage(auth.userId, toFetch.length, url, serviceRoleKey)
     }
   }
 

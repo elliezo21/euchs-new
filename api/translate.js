@@ -147,6 +147,26 @@ export default async function handler(req, res) {
   })
 
   const cacheHits = cleanTexts.length - pendingIndices.length
+
+  // ── cache_only 모드: 캐시에 있는 것만 돌려주고 파파고는 부르지 않는다 ────
+  // 엑셀 대량발주처럼 한 번에 수십 상품을 파싱하는 경로용. 파파고는 유료라
+  // 대량 경로가 새 번역을 만들지 않게 막는다. 캐시 미스는 원문을 그대로 반환하므로
+  // 화면에는 중국어가 보이고, 그 상품을 상세모달에서 열면 그때 정상 번역된다.
+  // ※ 이 플래그를 넣지 않은 기존 호출부는 동작이 전혀 바뀌지 않는다.
+  if (req.body?.cache_only === true) {
+    pendingIndices.forEach(idx => { translations[idx] = { text: cleanTexts[idx] } })
+    console.log(
+      `[papago-translate] cache_only: ${cleanTexts.length}건 | 캐시 히트 ${cacheHits}건 ` +
+      `/ 미스 ${pendingIndices.length}건은 원문 반환 (파파고 호출 0)`
+    )
+    return res.status(200).json({
+      success: true,
+      data: { translations },
+      translationErrors: 0,
+      cacheOnly: true,
+    })
+  }
+
   console.log(
     `[papago-translate] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget} ` +
     `| 캐시 히트 ${cacheHits}건 / 파파고 호출 ${pendingIndices.length}건`

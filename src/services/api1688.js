@@ -498,7 +498,18 @@ const saveToCache = (cacheMap, storageKey, key, data) => {
  * @param {string} [sourceLang] - 출발 언어 (선택 사항)
  * @returns {Promise<string|string[]>} 번역된 결과
  */
-export async function translateText(text, targetLang = 'KO', sourceLang = null) {
+/**
+ * @param {string|string[]} text
+ * @param {string} [targetLang='KO']
+ * @param {string|null} [sourceLang=null]
+ * @param {object} [options]
+ * @param {boolean} [options.cacheOnly=false] - true면 캐시(클라이언트/서버)에 있는 것만 쓰고
+ *   파파고는 부르지 않는다. 캐시 미스는 원문 그대로 반환.
+ *   엑셀 대량발주처럼 한 번에 수십 상품을 파싱하는 경로 전용(파파고는 유료).
+ *   ※ 인자를 넘기지 않는 기존 호출부는 동작이 전혀 바뀌지 않는다.
+ */
+export async function translateText(text, targetLang = 'KO', sourceLang = null, options = {}) {
+  const cacheOnly = options?.cacheOnly === true
   if (!text || (Array.isArray(text) && text.length === 0)) {
     return text
   }
@@ -563,6 +574,8 @@ export async function translateText(text, targetLang = 'KO', sourceLang = null) 
       body: JSON.stringify({
         text: missingTexts,
         target_lang: targetLang,
+        // cacheOnly면 서버도 캐시만 보고 파파고를 부르지 않는다 (미스는 원문 반환)
+        ...(cacheOnly ? { cache_only: true } : {}),
         ...(sourceLang ? { source_lang: sourceLang } : {})
       }),
       signal: controller.signal
@@ -1491,7 +1504,10 @@ export async function fetch1688FreightEstimateBatch(cargoList = []) {
  *   그대로 통과시키기 위한 것 — 파서를 두 벌 만들지 않기 위함.
  *   기존 호출부는 인자 1개만 넘기므로 동작이 바뀌지 않는다.
  */
-export async function fetch1688ProductById(offerId, prefetchedRaw = null) {
+export async function fetch1688ProductById(offerId, prefetchedRaw = null, options = {}) {
+  // 번역 모드 — 엑셀 대량발주는 cacheOnly로 호출해 파파고 신규 호출을 만들지 않는다.
+  // 인자를 넘기지 않는 기존 호출부는 지금까지와 똑같이 동작한다.
+  const translateOptions = { cacheOnly: options?.translateCacheOnly === true }
   // offerId는 문자열 또는 상품 객체일 수 있음
   let idStr
   if (offerId && typeof offerId === 'object') {
@@ -1956,7 +1972,7 @@ export async function fetch1688ProductById(offerId, prefetchedRaw = null) {
 
     if (uniqueTexts.length > 0) {
       try {
-        const transResult = await translateText(uniqueTexts, 'KO')
+        const transResult = await translateText(uniqueTexts, 'KO', null, translateOptions)
         const transList = Array.isArray(transResult) ? transResult : [transResult]
         const transMap = {}
         uniqueTexts.forEach((orig, idx) => {

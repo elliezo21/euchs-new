@@ -148,7 +148,7 @@ function lab1688Plugin(env) {
           req.on('end', async () => {
             // ── 파파고 번역 ─────────────────────────────────────────
             try {
-              const { text, target_lang, source_lang } = JSON.parse(body || '{}')
+              const { text, target_lang, source_lang, cache_only } = JSON.parse(body || '{}')
               const clientId     = env.NAVER_PAPAGO_CLIENT_ID     || process.env.NAVER_PAPAGO_CLIENT_ID     || ''
               const clientSecret = env.NAVER_PAPAGO_CLIENT_SECRET || process.env.NAVER_PAPAGO_CLIENT_SECRET || ''
 
@@ -195,6 +195,26 @@ function lab1688Plugin(env) {
               })
 
               const cacheHits = cleanTexts.length - pendingIndices.length
+
+              // ── cache_only 모드 (운영 api/translate.js와 동일 동작) ──────────
+              // 캐시에 있는 것만 반환하고 파파고는 부르지 않는다. 캐시 미스는 원문 그대로.
+              // 엑셀 대량발주가 유료 번역을 대량 생성하지 않게 하기 위한 플래그.
+              if (cache_only === true) {
+                pendingIndices.forEach(i => { translations[i] = { text: cleanTexts[i] } })
+                console.log(
+                  `[vite papago proxy] cache_only: ${cleanTexts.length}건 | 캐시 히트 ${cacheHits}건 ` +
+                  `/ 미스 ${pendingIndices.length}건은 원문 반환 (파파고 호출 0)`
+                )
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.end(JSON.stringify({
+                  success: true,
+                  data: { translations },
+                  translationErrors: 0,
+                  cacheOnly: true,
+                }))
+                return
+              }
+
               console.log(
                 `[vite papago proxy] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget} ` +
                 `| 캐시 히트 ${cacheHits}건 / 파파고 호출 ${pendingIndices.length}건`

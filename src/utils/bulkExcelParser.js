@@ -15,8 +15,8 @@
 import { extractOfferIdLoose } from './offerId.js'
 
 // ── 제한 (서버 호출 전에 클라이언트에서 막는다) ──────────────────────────────
-export const MAX_ROWS = 500              // 줄 수
-export const MAX_UNIQUE_OFFERS = 100     // 서로 다른 상품(offerId) 수
+export const MAX_ROWS = 200              // 줄 수
+export const MAX_UNIQUE_OFFERS = 30      // 서로 다른 상품(offerId) 수
 
 // 표준 양식 헤더
 const HEADER_URL = '1688 상품 URL (필수)'
@@ -181,7 +181,7 @@ export async function downloadBulkTemplate() {
   const samples = [
     // 같은 상품을 색상별로 여러 줄에 적는 예시 (대량발주에서 가장 흔한 형태)
     ['https://detail.1688.com/offer/1081981728994.html', 100, '자주빛 헤어밴드'],
-    ['https://detail.1688.com/offer/1081981728994.html', 50, '붉은빛 헤어밴드'],
+    ['https://detail.1688.com/offer/1081981728994.html', 50, '빨간색과 파란색 헤어밴드'],
     // 옵션을 비워 두면 업로드 후 화면에서 고르는 예시
     ['https://detail.1688.com/offer/1051826478228.html', 200, ''],
   ]

@@ -294,6 +294,23 @@ export function mergeAndSaveCart({ cart, newRows, cartKey, exchangeRate }) {
       cart[existIdx].totalPriceKrw = Math.round(cart[existIdx].quantity * cart[existIdx].priceCny * exchangeRate)
       // stock 필드 최신 정보로 갱신
       if (newRow.stock !== undefined) cart[existIdx].stock = newRow.stock
+
+      // ★ skus 스냅샷 수량도 반드시 같이 맞춘다 (2026-09-22 버그 수정).
+      //   orderCostCalculator.resolveItemQty는 "skus 합계 > 0이면 그 값을 우선" 쓰는 규칙이라,
+      //   여기서 스냅샷을 안 고치면 병합 "전" 수량이 그대로 남아
+      //   수수료·예상총액·운임·발주금액(calcOrderCost)이 더한 만큼 과소 계산된다.
+      //   (예: 장바구니 60개 + 엑셀 200개 → quantity 260인데 스냅샷은 60 → 60개분으로 계산)
+      //   장바구니 행은 SKU 1개 단위이므로 스냅샷도 1개다 — CartView.syncSkuQty도 [0]만 다룬다.
+      const existSkus = cart[existIdx].skus
+      if (Array.isArray(existSkus) && existSkus.length === 1) {
+        existSkus[0].quantity = cart[existIdx].quantity
+      } else if (Array.isArray(existSkus) && existSkus.length > 1) {
+        // 현재 생성 경로에서는 나올 수 없는 형태 — 조용히 넘기지 않고 알린다
+        console.warn(
+          '[cartWriter] 병합 대상 행의 skus 스냅샷이 2개 이상이라 수량을 맞추지 못했습니다.',
+          { itemId: cart[existIdx].itemId, option: cart[existIdx].optionName, skus: existSkus }
+        )
+      }
     } else {
       // 신규 옵션 행 → 독립 행으로 선두 삽입
       cart.unshift(newRow)
