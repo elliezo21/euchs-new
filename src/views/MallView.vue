@@ -1240,6 +1240,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, translateItemsBatch } from '../services/api1688'
 import { fetchSubCategoryKeywordMap, subCategoryKey } from '@/lib/mallCategories'
 import { getMockSearchResults } from '../services/mock1688Data'
+import { extractOfferId } from '../utils/offerId'
 import { fetchSiteSettings } from '../lib/settings'
 
 import {
@@ -2637,11 +2638,8 @@ const executeSearch = async (page = 1, overrideKeyword = null, categoryName = ''
   activeCategoryKeywordZh.value = String(keywordZh || '').trim()
 
   // 1688 URL 패턴 체크 (예: detail.1688.com/offer/804895839729.html, offerId=804895839729 등)
-  const urlMatch = rawInput.match(/offer\/(\d+)\.html/) || rawInput.match(/[?&]offerId=(\d+)/) || rawInput.match(/[?&]itemId=(\d+)/)
-  // 순수 9~16자리 숫자(상품 ID) 체크
-  const isNumericId = /^\d{9,16}$/.test(rawInput)
-
-  const offerId = urlMatch ? urlMatch[1] : (isNumericId ? rawInput : null)
+  // 판정은 utils/offerId.js의 공용 함수 — HomeView.handleMain1688Search와 동일 기준.
+  const offerId = extractOfferId(rawInput)
 
   if (offerId && page === 1) {
     // [분기 A] 1688 URL 또는 상품 ID인 경우 -> 상세 정보 API 단건 호출 후 모달 즉시 오픈

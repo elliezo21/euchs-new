@@ -649,8 +649,11 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
 import { getCartStorageKey, isLoggedIn, openLoginModal } from '../lib/auth'
-import { sumQty, resolveMoq } from '../utils/moq'
+// sumQty는 장바구니 담기 MOQ 합계 계산에만 쓰였고, 그 로직이 utils/cartWriter.js로
+// 이동하면서 이 파일에서는 더 이상 호출되지 않는다 (resolveMoq는 :947에서 계속 사용).
+import { resolveMoq } from '../utils/moq'
 import { isSkuPricedSkus } from '../utils/priceTier'
+import { readCart, checkOfferMoq, buildCartRowsFromSkus, mergeAndSaveCart } from '../utils/cartWriter'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
 import {
   findSavedProduct,
@@ -2105,9 +2108,7 @@ const saveSelectedItemsToCart = () => {
 
   try {
     const cartKey = getCartStorageKey()
-    const cached = localStorage.getItem(cartKey)
-    let cart = cached ? JSON.parse(cached) : []
-    if (!Array.isArray(cart)) cart = []
+    const cart = readCart(cartKey)
 
     const baseItem = {
       itemId: currentItem.value.id,
@@ -2126,19 +2127,17 @@ const saveSelectedItemsToCart = () => {
     }
 
     // 2. 최소 주문 수량(min_num) 검증 가드 — 같은 1688 상품(offerId) "합계" 기준.
-    //    1688은 SKU별 최소수량 필드가 없고 min_num/mix_number(混批) 모두 offer 단위이므로
-    //    옵션을 섞어 합계로 MOQ를 채우는 것이 정상 주문이다.
-    //    장바구니에 이미 담긴 같은 상품 수량도 합계에 포함한다(위 cart에서 그대로 읽음).
-    //    ※ 발주는 체크된 행만 나가므로 최종 방어선은 CartView.openOrderModal의 발주 가드다.
-    const mo = resolveMoq(currentItem.value.minOrder)
-    const offerIdStr = String(currentItem.value.id || '')
-    const alreadyInCart = sumQty(cart.filter(c => String(c.num_iid || '') === offerIdStr))
-    const offerTotal = totalQuantity.value + alreadyInCart
-    if (offerTotal < mo) {
-      showToastNotification(
-        `⚠️ 최소 주문 수량은 ${mo}개입니다. 옵션 수량 합계를 ${mo}개 이상으로 맞춰주세요. (현재 ${offerTotal}개)`,
-        'warning'
-      )
+    //    판정 로직은 utils/cartWriter.js의 checkOfferMoq 공용 함수로 이동(엑셀 대량발주와 공유).
+    //    문구·차단 시점은 기존과 동일 — 메시지는 결과 객체에서 받아 그대로 띄운다.
+    const moqResult = checkOfferMoq({
+      cart,
+      offerId: currentItem.value.id,
+      addingQty: totalQuantity.value,
+      minOrder: currentItem.value.minOrder,
+    })
+    const mo = moqResult.moq
+    if (!moqResult.ok) {
+      showToastNotification(moqResult.message, moqResult.messageType)
       return null
     }
 
@@ -2178,96 +2177,25 @@ const saveSelectedItemsToCart = () => {
     }
 
     // ── SKU별 독립 행으로 분리 저장 (color+size 조합마다 별도 행) ──
-    const newRows = selectedSkus.value.map((sku, idx) => {
-      const colorStr = String(sku.color || '').trim()
-      const sizeStr = String(sku.size || '').trim()
-      const optionParts = [colorStr, sizeStr].filter(p => p && p !== '-' && p !== 'undefined')
-      const optionText = optionParts.length ? optionParts.join(' / ') : '기본 옵션'
-      // 저장 직전에도 재고 상한으로 한 번 더 클램핑 (직접 입력 후 바로 담기 버튼 누른 경우 방어)
-      const stockLimit = getSkuStock(colorStr, sizeStr)
-      const skuQty = stockLimit === Infinity
-        ? Math.max(1, Number(sku.quantity) || 1)
-        : Math.min(stockLimit, Math.max(1, Number(sku.quantity) || 1))
-      const skuId = `${currentItem.value.id}_${colorStr || 'default'}_${sizeStr || 'none'}_${Date.now()}_${idx}`
-      // 이 행의 단가 — 화면에 표시된 값과 동일한 출처(rowUnitPrice). 전역 단가 사용 금지.
-      const unitCny = Number(rowUnitPrice(sku))
-
-      return {
-        ...baseItem,
-        id: skuId,
-        // 옵션 독립 필드 (CartView에서 개별 렌더링용)
-        color: colorStr,
-        size: sizeStr,
-        optionName: optionText,
-        sku: optionText,
-        // ── 1688 발주 API 필수 필드 ──
-        // specId: 선택된 SKU의 spec_id(32자리 hex). 발주 시 400 방지.
-        specId: sku.specId || getSkuSpecId(colorStr, sizeStr),
-        // num_iid: 1688 상품 숫자 ID. baseItem.itemId와 동일하지만 발주 쪽 명시적 필드명으로도 저장.
-        num_iid: String(currentItem.value.id || ''),
-        // minOrder: 1688 최소 주문 수량 — CartView 수량 조절 시 하한으로 사용
-        minOrder: mo,
-        // hasOptions: 담을 당시 화면에 실제 선택 가능한 옵션이 있었는지.
-        //   CartView 발주 가드가 "옵션 미선택 행"과 "진짜 단품"을 구분하는 데 사용한다.
-        //   (장바구니 행 데이터만으로는 구분할 수 없어 담기 시점에 기록해 둔다)
-        //   기준은 rawHasOptions(원본)가 아니라 realColorOptions다. 1688이 무SKU 단품에도
-        //   색상명 없는 skus 1개를 주는 경우 rawHasOptions=true가 되어 발주 가드가
-        //   진짜 단품을 오차단한다. "옵션이 있는데 파싱이 비어 미선택으로 담기는" 결함은
-        //   위 첫 번째 가드(rawHasOptions && !parsedHasOptions)가 막는다.
-        hasOptions: realColorOptions.length > 0,
-        // 수량 및 단가 (각 SKU 행 독립)
-        quantity: skuQty,
-        // 재고 상한 — CartView 수량 조절 시 활용. 미파악이면 undefined (상한 없음)
-        stock: stockLimit === Infinity ? undefined : stockLimit,
-        priceCny: unitCny,
-        price: unitCny,
-        // ── 가격 출처 스냅샷 (CartView 수량 변경 시 구간 단가 재계산용) ──
-        //   isSkuPriced=true  : SKU별 가격 상품 → 수량이 바뀌어도 이 줄의 단가는 고정
-        //   isSkuPriced=false : 수량 구간 상품 → priceTiers로 재계산 가능
-        //   ※ 장바구니에 담긴 뒤에는 1688 원본을 다시 부를 수 없다(일 500회 호출 제한).
-        //     그래서 재계산에 필요한 구간 정보를 담는 시점에 함께 저장한다.
-        isSkuPriced: isSkuPricedProduct.value,
-        priceTiers: isSkuPricedProduct.value
-          ? []
-          : displayedPriceTiers.value.map(t => ({ minQuantity: t.minQuantity, price: t.price })),
-        totalPriceRmb: Number((skuQty * unitCny).toFixed(2)),
-        totalPriceKrw: Math.round(skuQty * unitCny * effectiveExchangeRate.value),
-        // 단일 SKU 스냅샷 (skus 배열도 이 행만 포함)
-        skus: [{ color: colorStr, size: sizeStr, quantity: skuQty }],
-        createdAt: new Date().toISOString(),
-      }
+    //    행 필드 구성은 utils/cartWriter.js의 buildCartRowsFromSkus로 이동(엑셀 대량발주와 공유).
+    //    가격·재고·specId 조회는 이 모달의 computed를 콜백으로 넘겨 기존과 동일한 출처를 유지한다.
+    const newRows = buildCartRowsFromSkus({
+      baseItem,
+      selectedSkus: selectedSkus.value,
+      offerId: currentItem.value.id,
+      minOrder: mo,
+      hasOptions: realColorOptions.length > 0,
+      isSkuPriced: isSkuPricedProduct.value,
+      priceTiers: displayedPriceTiers.value,
+      exchangeRate: effectiveExchangeRate.value,
+      resolveUnitPrice: rowUnitPrice,
+      resolveStock: getSkuStock,
+      resolveSpecId: getSkuSpecId,
     })
 
-    // ── 장바구니 기존 항목과 병합: 동일 itemId+color+size 행은 qty 합산, 신규 옵션은 별도 행 추가 ──
-    for (const newRow of newRows) {
-      const existIdx = cart.findIndex(c =>
-        c.itemId === newRow.itemId &&
-        String(c.color || '') === newRow.color &&
-        String(c.size || '') === newRow.size
-      )
-      if (existIdx >= 0) {
-        // 동일 옵션 행 존재 → qty 합산 후 재고 상한 클램핑
-        const mergedQty = (Number(cart[existIdx].quantity) || 0) + newRow.quantity
-        const cartStock = typeof cart[existIdx].stock === 'number' ? cart[existIdx].stock
-          : typeof newRow.stock === 'number' ? newRow.stock
-          : Infinity
-        cart[existIdx].quantity = cartStock === Infinity ? mergedQty : Math.min(cartStock, mergedQty)
-        cart[existIdx].totalPriceRmb = Number((cart[existIdx].quantity * cart[existIdx].priceCny).toFixed(2))
-        cart[existIdx].totalPriceKrw = Math.round(cart[existIdx].quantity * cart[existIdx].priceCny * effectiveExchangeRate.value)
-        // stock 필드 최신 정보로 갱신
-        if (newRow.stock !== undefined) cart[existIdx].stock = newRow.stock
-      } else {
-        // 신규 옵션 행 → 독립 행으로 선두 삽입
-        cart.unshift(newRow)
-      }
-    }
-
-    localStorage.setItem(cartKey, JSON.stringify(cart))
-
-    // Storage 이벤트 및 퀵메뉴/헤더 갱신 이벤트 디스패치
-    window.dispatchEvent(new Event('storage'))
-    window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: cart.length } }))
-    window.dispatchEvent(new CustomEvent('euchs:cart_updated', { detail: { count: cart.length } }))
+    // ── 장바구니 기존 항목과 병합 + 저장 + 갱신 이벤트 디스패치 ──
+    //    utils/cartWriter.js의 mergeAndSaveCart로 이동(엑셀 대량발주와 공유).
+    mergeAndSaveCart({ cart, newRows, cartKey, exchangeRate: effectiveExchangeRate.value })
 
     // 대표 첫 행을 emit으로 반환 (cart-added 이벤트)
     const representativeRow = newRows[0]

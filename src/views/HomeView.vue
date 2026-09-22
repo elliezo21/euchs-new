@@ -753,6 +753,7 @@ import TradePhotos from '../components/TradePhotos.vue'
 import EmergencyPopup from '../components/EmergencyPopup.vue'
 import VideoWidget9x16 from '../components/VideoWidget9x16.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
+import { extractOfferId } from '../utils/offerId'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 
@@ -780,9 +781,7 @@ const handleMain1688Search = (keyword) => {
     return
   }
 
-  const urlMatch = rawInput.match(/offer\/(\d+)\.html/) || rawInput.match(/[?&]offerId=(\d+)/) || rawInput.match(/[?&]itemId=(\d+)/)
-  const isNumericId = /^\d{9,16}$/.test(rawInput)
-  const offerId = urlMatch ? urlMatch[1] : (isNumericId ? rawInput : null)
+  const offerId = extractOfferId(rawInput)
 
   if (offerId) {
     router.push({ path: '/mall', query: { offerId } })
