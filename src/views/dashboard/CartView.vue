@@ -412,7 +412,7 @@
         :freight-rmb="sellerFreightMap[group.groupKey] ?? null"
         :exchange-rate="exchangeRate"
         :state="freightCalcState"
-        unavailable-reason="1688에서 이 판매자의 실제 운임을 받지 못했습니다. 하단 예상 총액에는 수량 기반 추정치가 들어갑니다 — 실제 운임은 관리자 견적 단계에서 확정됩니다."
+        unavailable-reason="이 판매자 택배비는 1688 수량 기반 추정치입니다. 실제 운임은 견적 단계에서 확정됩니다."
       />
     </div>
 

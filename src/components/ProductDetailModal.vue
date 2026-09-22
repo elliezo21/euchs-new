@@ -455,6 +455,12 @@
         <!-- ======================================================== -->
         <!-- 2. SIMILAR PRODUCTS RECOMMENDATION GRID -->
         <!-- ======================================================== -->
+        <!-- 지연 로드 센티넬: 이 지점이 실제로 화면에 들어올 때 비로소 유사 상품을 부른다.
+             (아래 섹션은 v-if라 로드 전에는 DOM에 없으므로 관찰 대상이 될 수 없다)
+             !mt-0 : 부모 space-y-10이 자식마다 붙이는 40px 간격을 이 센티넬에는 적용하지 않아
+                     레이아웃을 이전과 동일하게 유지한다. -->
+        <div ref="similarSentinelRef" class="h-0 w-full !mt-0" aria-hidden="true"></div>
+
         <div v-if="isLoadingSellerProducts || sellerProducts.length > 0" class="pt-8 border-t border-gray-100 space-y-4">
           <div class="flex items-center justify-between">
             <div class="space-y-0.5">
@@ -745,6 +751,32 @@ const productLoadFailed = ref(false)
 
 const sellerProducts = ref([])
 const isLoadingSellerProducts = ref(false)
+
+// ── 유사 상품 지연 로드 상태 ──────────────────────────────────────────────
+// 유사 상품은 서버 공용 캐시가 없어 고객마다 1회씩 OneBound 호출이 나간다.
+// 볼 생각이 없는 고객에게는 호출이 나가지 않도록 모달을 열자마자 부르지 않고,
+// 센티넬(=유사 상품 영역 위치)에 가까워졌을 때 상품당 1회만 부른다.
+const similarSentinelRef = ref(null)
+let similarObserver = null
+// 센티넬이 지금 (아래 여유분 포함) 감지 범위 안에 있는가
+const isSimilarSentinelVisible = ref(false)
+// 이미 유사 상품을 불러온 상품 id (모달 안에서 상품을 바꾸면 새 id 기준 1회 다시 부름)
+const similarLoadedForId = ref('')
+
+// 센티넬이 화면에 닿기 전에 미리 부르기 시작하는 여유(px).
+// 모달 본문(max-h-[88vh]에서 상단 헤더·하단 액션바를 뺀 영역)의 가시 높이가
+// 약 600~650px = "모달 본문 1스크롤 분량". 그만큼 앞서 시작하면 사용자가
+// 유사 상품 영역에 도달했을 때는 이미 로드가 끝나 스켈레톤이 보이지 않는다.
+const SIMILAR_PREFETCH_MARGIN_PX = 600
+
+// 스크롤바를 한 번에 맨 아래로 끌면 센티넬을 "지나쳐" 교차 전이가 일어나지 않아
+// IntersectionObserver가 한 번도 발화하지 않는다(상세 설명이 긴 상품에서 재현).
+// 본문이 바닥 근처에 닿으면 센티넬 감지와 무관하게 1회 로드해 이를 보완한다.
+const SIMILAR_BOTTOM_THRESHOLD_PX = 300
+
+// 모달 안에서 다른 상품으로 전환할 때 상단으로 "부드럽게" 스크롤하는 동안(약 0.5초)
+// 그 프로그램 스크롤이 사용자의 스크롤로 오인돼 새 상품을 곧바로 불러오는 것을 막는다.
+let suppressScrollTriggerUntil = 0
 
 // ----------------------------------------------------
 // Favorite Store (단골상점 찜) State & Methods
@@ -1784,9 +1816,16 @@ const handleDetailImageError = (idx) => {
 
 // ----------------------------------------------------
 // Similar Products Loader (카테고리 유사 상품 추천)
-// 1순위: 대표 이미지 URL로 image search (카테고리 정확도 높음)
-// 2순위(fallback): titleZh 키워드 검색
+// 1순위: titleZh 키워드 검색 (실측 약 1.5초)
+// 2순위(fallback): 대표 이미지 URL로 image search (실측 3.9~5.2초)
+//
+// 순서 근거: 유사 상품은 장식 성격이라 정확도보다 속도가 우선이라는 결정.
+// 이미지검색이 카테고리 정확도는 더 높지만 2~3배 느려 뒤로 뺀다.
 // ----------------------------------------------------
+// 화면에 표시할 유사 상품 개수. 요청/번역은 자기 자신 1건이 섞여 들어올 수 있어 +1건으로 받는다.
+const SIMILAR_LIMIT = 6
+const SIMILAR_FETCH = SIMILAR_LIMIT + 1
+
 const loadSimilarProducts = async (item) => {
   if (!item) return
   isLoadingSellerProducts.value = true
@@ -1794,50 +1833,51 @@ const loadSimilarProducts = async (item) => {
 
   const currentId = String(item.id || '')
 
-  // 헬퍼: 자기 자신 제외 + 최대 12개
+  // 헬퍼: 자기 자신 제외 + 최대 SIMILAR_LIMIT개
   const filterResults = (items) =>
-    (items || []).filter(p => String(p.id || '') !== currentId).slice(0, 12)
+    (items || []).filter(p => String(p.id || '') !== currentId).slice(0, SIMILAR_LIMIT)
 
   try {
-    // ─── 1순위: 대표 이미지 URL로 이미지 검색 ────────────────────────────
-    // currentItem.imageUrl은 fetch1688ProductById 완료 후 채워진 it.pic_url 기반 정규화 URL
-    const imgUrl = item.imageUrl || item.images?.[0] || ''
+    // ─── 1순위: titleZh 키워드 검색 ──────────────────────────────────────
+    // 키워드는 titleZh(없으면 title)에서 영문/숫자/괄호를 걷어낸 뒤 한자 앞 4글자.
+    // 한자가 2글자 미만이면 첫 토큰 앞 8글자를 쓴다. (기존 폴백에서 쓰던 규칙 그대로)
+    const titleZh = String(item.titleZh || item.title || '').trim()
+    const hanziOnly = titleZh.replace(/[a-zA-Z0-9\s\-_.()（）【】]/g, ' ').trim()
+    const keyword = !titleZh
+      ? ''
+      : (hanziOnly.length >= 2
+          ? hanziOnly.replace(/\s+/g, '').slice(0, 4)
+          : titleZh.trim().split(/[\s\-_]/)[0].slice(0, 8))
 
-    if (imgUrl) {
+    if (keyword && keyword.length >= 2) {
       try {
-        // filterResults가 자기 자신 1건을 제외하고 12건을 쓰므로 13건만 번역
-        const imgResult = await search1688ByImageUrl(imgUrl, { maxItems: 13 })
-        if (imgResult?.success && imgResult.items?.length > 0) {
-          const filtered = filterResults(imgResult.items)
-          if (filtered.length > 0) {
-            sellerProducts.value = filtered
-            return  // 성공 → fallback 불필요
-          }
+        // maxItems: search1688이 번역 전에 상위 N건으로 자른다 (불필요한 번역 방지).
+        // OneBound item_search는 페이지 크기 지정을 지원하지 않아 응답은 전량 받고,
+        // 번역 직전에 잘리는 구조다.
+        const kwResult = await search1688WithTranslation(keyword, 1, { maxItems: SIMILAR_FETCH })
+        const filtered = filterResults(kwResult?.items)
+        if (filtered.length > 0) {
+          sellerProducts.value = filtered
+          return  // 성공 → 이미지검색 불필요
         }
-        // 이미지 검색 결과가 비어있으면 fallback으로 진행
-        console.warn('[loadSimilarProducts] Image search returned no results, falling back to keyword search')
-      } catch (imgErr) {
-        // 이미지 검색 실패(네트워크 오류 등) → 증상 은폐 없이 로그 후 fallback
-        console.warn('[loadSimilarProducts] Image search failed:', imgErr.message, '→ falling back to keyword search')
+        console.warn('[loadSimilarProducts] Keyword search returned no results, falling back to image search')
+      } catch (kwErr) {
+        // 증상 은폐 없이 로그 후 폴백
+        console.warn('[loadSimilarProducts] Keyword search failed:', kwErr.message, '→ falling back to image search')
       }
+    } else {
+      console.warn('[loadSimilarProducts] No usable keyword from title, falling back to image search')
     }
 
-    // ─── 2순위 fallback: titleZh 키워드 검색 ─────────────────────────────
-    const titleZh = String(item.titleZh || item.title || '').trim()
-    if (!titleZh) return
+    // ─── 2순위 fallback: 대표 이미지 URL로 이미지 검색 ───────────────────
+    // currentItem.imageUrl은 fetch1688ProductById 완료 후 채워진 it.pic_url 기반 정규화 URL
+    const imgUrl = item.imageUrl || item.images?.[0] || ''
+    if (!imgUrl) return
 
-    // 한자 앞 4글자 추출 (영문/숫자 제거 후)
-    const hanziOnly = titleZh.replace(/[a-zA-Z0-9\s\-_.()（）【】]/g, ' ').trim()
-    const keyword = hanziOnly.length >= 2
-      ? hanziOnly.replace(/\s+/g, '').slice(0, 4)
-      : titleZh.trim().split(/[\s\-_]/)[0].slice(0, 8)
+    const imgResult = await search1688ByImageUrl(imgUrl, { maxItems: SIMILAR_FETCH })
+    if (!imgResult?.success || !imgResult.items?.length) return
 
-    if (!keyword || keyword.length < 2) return
-
-    const kwResult = await search1688WithTranslation(keyword, 1)
-    if (!kwResult?.items?.length) return
-
-    const filtered = filterResults(kwResult.items)
+    const filtered = filterResults(imgResult.items)
     if (filtered.length > 0) {
       sellerProducts.value = filtered
     }
@@ -1847,6 +1887,78 @@ const loadSimilarProducts = async (item) => {
     isLoadingSellerProducts.value = false
   }
 }
+
+// 본문을 한 번이라도 스크롤했는가 (스크롤 0인 고객에게는 호출이 나가면 안 된다)
+const isModalBodyScrolled = () => {
+  const el = modalBodyRef.value
+  return !!el && el.scrollTop > 0
+}
+
+// 본문이 바닥 근처인가 — 센티넬을 건너뛴 경우의 보완 경로
+const isModalBodyNearBottom = () => {
+  const el = modalBodyRef.value
+  if (!el || el.scrollTop <= 0) return false
+  return (el.scrollHeight - el.scrollTop - el.clientHeight) <= SIMILAR_BOTTOM_THRESHOLD_PX
+}
+
+// 유사 상품 로드 조건 판정 — "도달했고 + 상세 로드가 끝났고 + 이 상품은 아직 안 불렀다"
+// 세 지점에서 호출된다:
+//   1) IntersectionObserver 콜백 (센티넬이 감지 범위에 들어온 순간)
+//   2) 모달 본문 scroll 핸들러 (여유분 때문에 교차 상태가 변하지 않는 경우 + 바닥 건너뛰기 보완)
+//   3) loadFullProductData 완료 시점 (이미 스크롤해 둔 상태에서 상세가 늦게 끝난 경우)
+const maybeLoadSimilarProducts = () => {
+  // ⚠️ 유사 상품 섹션은 상세 설명 이미지보다 위(본문 약 900px 지점)에 있어,
+  //    rootMargin 600px 감지 창이 모달을 연 순간부터 이미 센티넬을 덮는다.
+  //    "스크롤을 전혀 하지 않은 고객은 호출 0건"을 지키려면 스크롤 시작 여부를 함께 봐야 한다.
+  const reachedBySentinel = isSimilarSentinelVisible.value && isModalBodyScrolled()
+  if (!reachedBySentinel && !isModalBodyNearBottom()) return
+  const item = currentItem.value
+  if (!item) return
+  const id = String(item.id || '')
+  // 상세 로드 전에는 titleZh/imageUrl이 비어 있어 검색 품질이 떨어지므로 기다린다.
+  if (!id || isDetailLoading.value) return
+  if (similarLoadedForId.value === id) return
+
+  similarLoadedForId.value = id
+  loadSimilarProducts(item)
+}
+
+// 센티넬이 DOM에 붙고 떨어질 때마다 관찰을 붙였다 뗀다.
+// (모달 루트가 v-if="product"라 상품이 없으면 센티넬도 사라진다)
+watch(similarSentinelRef, (el) => {
+  if (similarObserver) {
+    similarObserver.disconnect()
+    similarObserver = null
+  }
+  if (!el || typeof IntersectionObserver === 'undefined') return
+
+  similarObserver = new IntersectionObserver((entries) => {
+    const entry = entries[0]
+    if (!entry) return
+    isSimilarSentinelVisible.value = entry.isIntersecting
+    if (entry.isIntersecting) maybeLoadSimilarProducts()
+  }, {
+    // 스크롤 컨테이너는 모달 본문이다. null(뷰포트)로 두면 모달 내부 스크롤을 읽지 못한다.
+    root: modalBodyRef.value || null,
+    // 아래쪽으로만 여유를 준다 — 영역이 화면에 닿기 1스크롤 전에 미리 불러 스켈레톤을 없앤다.
+    rootMargin: `0px 0px ${SIMILAR_PREFETCH_MARGIN_PX}px 0px`,
+    threshold: 0
+  })
+  similarObserver.observe(el)
+}, { flush: 'post' })
+
+// 모달 본문 스크롤 감시 — 두 가지를 담당한다.
+//   1) 감지 여유(rootMargin) 때문에 교차 상태가 더는 변하지 않을 때 조건을 다시 평가
+//   2) 스크롤바를 한 번에 맨 아래로 끌어 센티넬을 지나친 경우의 바닥 근접 로드
+const handleModalBodyScroll = () => {
+  if (Date.now() < suppressScrollTriggerUntil) return
+  maybeLoadSimilarProducts()
+}
+
+watch(modalBodyRef, (el, prevEl) => {
+  if (prevEl) prevEl.removeEventListener('scroll', handleModalBodyScroll)
+  if (el) el.addEventListener('scroll', handleModalBodyScroll, { passive: true })
+}, { flush: 'post' })
 
 
 // 비동기 상세 데이터 및 SKU 보강 로더
@@ -1966,10 +2078,9 @@ const loadFullProductData = async (item) => {
 
     checkStoreFavorite()
 
-    // ── 상세 API 완료 후 titleZh가 채워진 currentItem으로 유사 상품 검색 ──
-    if (currentItem.value) {
-      loadSimilarProducts(currentItem.value)
-    }
+    // ── 상세 API 완료 후 titleZh가 채워진 currentItem 기준으로 유사 상품 "조건부" 로드 ──
+    // 모달을 열자마자 부르지 않는다. 사용자가 유사 상품 영역까지 스크롤해 둔 경우에만 실행된다.
+    maybeLoadSimilarProducts()
 
   }
 }
@@ -1985,7 +2096,15 @@ const selectAnotherProduct = (newProduct) => {
   checkStoreFavorite()
   checkSavedProduct()
 
+  // 새 상품 기준으로 유사 상품을 "다시 1회" 부를 수 있도록 초기화.
+  // 실제 호출은 사용자가 유사 상품 영역까지 다시 스크롤했을 때만 일어난다.
+  similarLoadedForId.value = ''
+  sellerProducts.value = []
+
   // 상단으로 부드럽게 스크롤
+  // 이 프로그램 스크롤(약 0.5초)이 사용자의 스크롤로 오인돼 새 상품의 유사 상품을
+  // 곧바로 불러오지 않도록, 스크롤 트리거를 잠시 무시한다.
+  suppressScrollTriggerUntil = Date.now() + 1200
   if (modalBodyRef.value) {
     modalBodyRef.value.scrollTo({ top: 0, behavior: 'smooth' })
   }
@@ -2379,11 +2498,16 @@ watch(() => props.product, (newVal) => {
     selectedSize.value = null
     selectedSkus.value = []
 
+    // 새로 연 상품은 유사 상품을 아직 안 불렀다 (호출은 스크롤 도달 시점에만)
+    similarLoadedForId.value = ''
+    sellerProducts.value = []
+    suppressScrollTriggerUntil = 0
+
     checkStoreFavorite()
     checkSavedProduct()
 
     // loadFullProductData 내부 finally에서 isDetailLoading = false 처리
-    // + titleZh가 채워진 후 loadSimilarProducts 호출 (유사 상품 키워드 검색)
+    // + 그 시점에 maybeLoadSimilarProducts()로 "스크롤 도달 여부"를 재확인
     loadFullProductData(newVal)
     loadProductDetailImages(newVal)
   } else {
@@ -2393,6 +2517,9 @@ watch(() => props.product, (newVal) => {
     selectedSize.value = null
     selectedSkus.value = []
     savedProductRowId.value = null
+    sellerProducts.value = []
+    similarLoadedForId.value = ''
+    isSimilarSentinelVisible.value = false
     if (typeof document !== 'undefined') {
       document.body.style.overflow = 'unset'
     }
@@ -2411,6 +2538,13 @@ onUnmounted(() => {
   window.removeEventListener('popstate', handlePopState)
   window.removeEventListener('euchs:stores-updated', checkStoreFavorite)
   window.removeEventListener('storage', checkStoreFavorite)
+  if (similarObserver) {
+    similarObserver.disconnect()
+    similarObserver = null
+  }
+  if (modalBodyRef.value) {
+    modalBodyRef.value.removeEventListener('scroll', handleModalBodyScroll)
+  }
   if (typeof document !== 'undefined') {
     document.body.style.overflow = 'unset'
   }

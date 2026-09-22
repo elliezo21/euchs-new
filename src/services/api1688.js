@@ -1188,6 +1188,16 @@ export async function search1688ByImageUrl(imageUrl, { maxItems = 0 } = {}) {
     return { success: false, items: [], totalResults: '0' }
   }
 
+  // 캐시 확인 — search1688과 동일한 헬퍼·동일 TTL(euchs_search)을 쓴다.
+  // ⚠️ maxItems를 키에 포함한다: 13건으로 잘린 유사상품 결과가 전량을 원하는
+  //    호출부에 그대로 서빙되는 것을 막기 위함(search1688:774와 같은 이유).
+  const imgCacheKey = `img_${url}${maxItems > 0 ? `_m${maxItems}` : ''}`
+  const cachedImg = getFromCache(memorySearchCache, 'euchs_search', imgCacheKey)
+  if (cachedImg) {
+    console.log('[1688 ImageSearch] Cache hit — skipping API call')
+    return cachedImg
+  }
+
   console.log('[1688 ImageSearch] Calling OneBound proxy with imgUrl:', url.slice(0, 80))
 
   try {
@@ -1214,10 +1224,15 @@ export async function search1688ByImageUrl(imageUrl, { maxItems = 0 } = {}) {
     const resData = result.data
 
     // OneBound item_search_img 응답 다중 구조 탐색
+    // ⚠️ resData.items는 "결과 0건"일 때 item 키 없이 페이지네이션 래퍼
+    //    ({page, pagecount, page_size, total_results, real_total_results, _ddf})만 담겨 온다(실측).
+    //    이를 배열 검사 없이 후보로 받으면 아래 Object.values()가 래퍼의 값 6개를 "상품 6건"으로
+    //    둔갑시키고, 그 안의 null(_ddf)이 entry.item 접근에서 TypeError를 던진다.
+    //    → items는 "실제 배열일 때만" 후보로 인정한다.
     let rawList =
       resData?.items?.item ||     // 표준 OneBound
       resData?.item ||             // 최상위 item 배열
-      resData?.items ||            // items 자체가 배열
+      (Array.isArray(resData?.items) ? resData.items : null) ||  // items 자체가 배열인 경우만
       resData?.result?.resultList ||
       resData?.resultList ||
       []
@@ -1226,13 +1241,20 @@ export async function search1688ByImageUrl(imageUrl, { maxItems = 0 } = {}) {
       rawList = Object.values(rawList)
     }
 
+    // 배열 안에 null/비객체가 섞여 들어오는 경우 방어 (위 래퍼 오인 외에도 실측상 발생 가능)
+    if (Array.isArray(rawList)) {
+      rawList = rawList.filter(e => e && typeof e === 'object')
+    }
+
     console.log('[1688 ImageSearch] Raw result count:', Array.isArray(rawList) ? rawList.length : 0)
 
     if (!Array.isArray(rawList) || rawList.length === 0) {
       if (resData?.error_code || resData?.error) {
         console.warn('[1688 ImageSearch] OneBound error:', resData.error_code, resData.error)
       }
-      return { success: true, items: [], totalResults: '0' }
+      const emptyResult = { success: true, items: [], totalResults: '0' }
+      saveToCache(memorySearchCache, 'euchs_search', imgCacheKey, emptyResult)
+      return emptyResult
     }
 
     const normalizeUrl = (u) => {
@@ -1284,11 +1306,14 @@ export async function search1688ByImageUrl(imageUrl, { maxItems = 0 } = {}) {
     const target = maxItems > 0 ? items.slice(0, maxItems) : items
     await translateItemsBatch(target)
 
-    return {
+    const imgResult = {
       success: true,
       items: target,
       totalResults: String(rawList.length)
     }
+
+    saveToCache(memorySearchCache, 'euchs_search', imgCacheKey, imgResult)
+    return imgResult
   } catch (err) {
     if (err.name === 'AbortError') {
       console.warn('[1688 ImageSearch] Request timed out after 20s')
