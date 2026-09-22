@@ -1684,6 +1684,14 @@ function applyOptionChanges() {
 
   const cartKey = getCartStorageKey();
 
+  // ★ 선택 상태 부분만 2026-09-22 사용자 허락으로 수정.
+  //   기존 행이 체크돼 있었는지 먼저 기억해 둔다. handleEditModalCartAdded가
+  //   기존 id를 selectedItemIds에서 빼고, loadCartItems는 "선택이 하나도 없을 때만"
+  //   전체 자동 선택하므로(:1029), 새 행은 어디에서도 선택되지 않아 체크가 풀렸다.
+  //   → 고객이 옵션만 바꿨는데 그 상품이 발주에서 조용히 빠지던 원인.
+  const wasSelected = selectedItemIds.value.includes(editingCartItemId.value);
+  let newRowIds = [];
+
   try {
     const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
 
@@ -1723,6 +1731,9 @@ function applyOptionChanges() {
       };
     });
 
+    // ★ 선택 상태 부분만 2026-09-22 사용자 허락으로 수정 — 아래에서 새 행을 다시 체크하기 위해 id만 기록.
+    newRowIds = newRows.map(r => r.id);
+
     // 기존 행(oldId)은 handleEditModalCartAdded에서 제거하므로 여기서는 추가만
     const merged = [...stored, ...newRows];
     localStorage.setItem(cartKey, JSON.stringify(merged));
@@ -1743,6 +1754,15 @@ function applyOptionChanges() {
   // editingCartItemId는 handleEditModalCartAdded가 읽어야 하므로 그 호출 직전까지 유지
   editingCartItemId.value = savedOldId;
   handleEditModalCartAdded();
+
+  // ★ 선택 상태 부분만 2026-09-22 사용자 허락으로 수정.
+  //   반드시 handleEditModalCartAdded 이후에 실행한다 — 그 함수가 기존 id를 빼고
+  //   loadCartItems로 cartItems를 새로 채운 뒤라야 새 행이 목록에 존재한다.
+  //   기존 행이 체크돼 있지 않았다면 새 행도 체크하지 않는다(고객이 일부러 뺀 상품을 되살리지 않음).
+  if (wasSelected && newRowIds.length > 0) {
+    const merged = new Set([...selectedItemIds.value, ...newRowIds]);
+    selectedItemIds.value = [...merged];
+  }
 }
 
 // 기존 행 삭제 + localStorage 동기화 (localStorage 중복 부활 버그 수정 포함, 수정 금지)
