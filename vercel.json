@@ -4,5 +4,10 @@
       "source": "/(.*)",
       "destination": "/"
     }
-  ]
+  ],
+  "functions": {
+    "api/bulk-item-detail.js": {
+      "maxDuration": 60
+    }
+  }
 }

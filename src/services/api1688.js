@@ -1483,7 +1483,15 @@ export async function fetch1688FreightEstimateBatch(cargoList = []) {
  * @param {string|number} offerId - 1688 상품 고유 ID
  * @returns {Promise<object>} 정규화 및 번역된 상품 상세 객체
  */
-export async function fetch1688ProductById(offerId) {
+/**
+ * @param {string|object} offerId
+ * @param {object|null} [prefetchedRaw=null] - 이미 확보한 OneBound 원본(또는 축소본).
+ *   넘기면 getItemDetail1688(네트워크)을 건너뛰고 이 값을 그대로 파싱한다.
+ *   엑셀 대량발주가 /api/bulk-item-detail로 한 번에 받아온 payload를 기존 파서에
+ *   그대로 통과시키기 위한 것 — 파서를 두 벌 만들지 않기 위함.
+ *   기존 호출부는 인자 1개만 넘기므로 동작이 바뀌지 않는다.
+ */
+export async function fetch1688ProductById(offerId, prefetchedRaw = null) {
   // offerId는 문자열 또는 상품 객체일 수 있음
   let idStr
   if (offerId && typeof offerId === 'object') {
@@ -1507,7 +1515,10 @@ export async function fetch1688ProductById(offerId) {
 
 
   try {
-    const rawData = await getItemDetail1688(cleanNumericId)
+    // prefetchedRaw가 있으면 네트워크를 타지 않는다 (null/undefined일 때만 조회).
+    const rawData = (prefetchedRaw !== null && prefetchedRaw !== undefined)
+      ? prefetchedRaw
+      : await getItemDetail1688(cleanNumericId)
 
     // rawData가 없으면 null 반환 — 가짜 데이터로 눈속임하지 않음
     if (!rawData) {

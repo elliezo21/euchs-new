@@ -9,6 +9,9 @@ import logisticsHandler from './api/1688-order-logistics.js'
 import kuaidi100TrackHandler from './api/kuaidi100-track.js'
 // 로컬 개발용: api/1688-freight-estimate.js handler 직접 import (동일 패턴)
 import freightEstimateHandler from './api/1688-freight-estimate.js'
+// 로컬 개발용: api/bulk-item-detail.js handler 직접 import (동일 패턴)
+// 엑셀 대량발주 창구 — 운영과 같은 코드가 로컬에서도 돌아야 검증이 의미가 있다
+import bulkItemDetailHandler from './api/bulk-item-detail.js'
 // 번역 캐시는 운영(api/translate.js)과 로컬 dev 프록시가 같은 헬퍼를 공유한다
 import { lookupCachedTranslations, saveTranslationsToCache } from './api/_translationCache.js'
 
@@ -580,6 +583,38 @@ function lab1688Plugin(env) {
               end: res.end.bind(res),
             })
             await logisticsHandler(req, wrappedRes)
+          })
+          return
+        }
+
+        // 5-b. 엑셀 대량발주 상품 조회 창구 — api/bulk-item-detail.js handler 직접 재사용
+        // 동일 어댑터 패턴: req.body 파싱 + process.env 주입 + res 래핑
+        // ※ Authorization 헤더는 req.headers에 그대로 있으므로 별도 처리 불필요
+        if (req.url?.startsWith('/api/bulk-item-detail') && (req.method === 'POST' || req.method === 'OPTIONS')) {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            // 환경변수 주입 (Vite loadEnv는 process.env에 반영 안 함)
+            if (!process.env.ONEBOUND_KEY)             process.env.ONEBOUND_KEY             = env.ONEBOUND_KEY             || ''
+            if (!process.env.ONEBOUND_SECRET)          process.env.ONEBOUND_SECRET          = env.ONEBOUND_SECRET          || ''
+            if (!process.env.SUPABASE_URL)             process.env.SUPABASE_URL             = env.SUPABASE_URL             || env.VITE_SUPABASE_URL || ''
+            if (!process.env.SUPABASE_SERVICE_ROLE_KEY) process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await bulkItemDetailHandler(req, wrappedRes)
           })
           return
         }

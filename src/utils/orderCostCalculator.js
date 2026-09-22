@@ -74,6 +74,9 @@ function hasQtyField(v) {
   return v !== undefined && v !== null && v !== '';
 }
 
+/** 수량 오류를 이미 알린 행(id) — 같은 행을 렌더마다 반복해서 찍지 않기 위한 기록 */
+const _loggedZeroQtyKeys = new Set();
+
 /**
  * 아이템의 실제 수량 반환 — skus 구조 우선
  * skus 배열이 있고 합계 > 0이면 옵션별 quantity 합계, 없으면 item.quantity
@@ -102,10 +105,17 @@ export function resolveItemQty(item) {
   const qty = normalizeQty(raw);
   if (qty === 0) {
     // 과거에는 여기서 1을 돌려줘 "0개인 행이 1개 금액"으로 계산됐다. 조용히 채우지 않는다.
-    console.error(
-      '[resolveItemQty] 유효한 수량을 확인할 수 없습니다 — 1로 채우지 않고 0으로 계산합니다.',
-      { itemId: item?.itemId, num_iid: item?.num_iid, option: item?.optionName || item?.sku, raw }
-    );
+    // ※ 이 함수는 computed 안에서 불려 한 행당 렌더마다 여러 번 실행된다. 매번 찍으면
+    //   같은 줄이 콘솔을 덮어 다른 오류를 못 보게 되므로 행(id)당 한 번만 남긴다.
+    //   판정과 반환값은 그대로고 로그 빈도만 줄인다.
+    const logKey = String(item?.id || item?.itemId || item?.num_iid || 'unknown');
+    if (!_loggedZeroQtyKeys.has(logKey)) {
+      _loggedZeroQtyKeys.add(logKey);
+      console.error(
+        '[resolveItemQty] 유효한 수량을 확인할 수 없습니다 — 1로 채우지 않고 0으로 계산합니다.',
+        { itemId: item?.itemId, num_iid: item?.num_iid, option: item?.optionName || item?.sku, raw }
+      );
+    }
   }
   return qty;
 }
