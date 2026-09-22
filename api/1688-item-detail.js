@@ -8,7 +8,15 @@
  * - 타임아웃: 7000ms
  */
 
+import { isCrossborderKoEnabled, enrichDetailWithKo } from './_crossborderKo.js'
+
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
+
+// 이 창구 전체에 쓸 수 있는 시간(ms).
+// vercel.json에서 이 함수의 maxDuration을 30초로 선언했으므로 여유 5초를 남긴다.
+// (공식 API에 한국어가 없는 상품은 OneBound lang=ko 폴백이 붙어 실측 9초까지 걸린다 —
+//  기본 제한 10초로는 그 경로가 상시 잘려서 maxDuration을 올렸다)
+const ROUTE_BUDGET_MS = 25000
 
 const FETCH_HEADERS = {
   'Accept': 'application/json, text/plain, */*',
@@ -97,6 +105,7 @@ async function fetchDetail(endpoint, cleanNumericId, OB_KEY, OB_SECRET, timeoutM
 }
 
 export default async function handler(req, res) {
+  const routeStart = Date.now()
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -145,6 +154,21 @@ export default async function handler(req, res) {
 
   // 성공: item 객체 추출 및 병합 반환
   const itemObj = resData.item || resData.result || {}
+
+  // ── 1688 공식 다국어 API로 번역 캐시 선충전 (되돌리기: CROSSBORDER_KO_ENABLED=false) ──
+  // 응답 데이터(가격·재고·specId·SKU)는 손대지 않는다. translation_cache만 채워서,
+  // 클라이언트가 곧바로 보낼 번역 요청이 파파고 없이 캐시 적중으로 끝나게 한다.
+  // 그래서 응답보다 "먼저" 저장을 끝내야 한다(await).
+  if (isCrossborderKoEnabled()) {
+    try {
+      await enrichDetailWithKo(itemObj, cleanNumericId, {
+        deadline: routeStart + ROUTE_BUDGET_MS,
+      })
+    } catch (e) {
+      console.warn('[1688-item-detail] 한글 보강 실패 — 상세는 그대로 반환합니다:', e.message)
+    }
+  }
+
   const mergedData = {
     ...resData,
     ...itemObj,

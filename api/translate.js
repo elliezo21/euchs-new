@@ -159,6 +159,7 @@ export default async function handler(req, res) {
       `[papago-translate] cache_only: ${cleanTexts.length}건 | 캐시 히트 ${cacheHits}건 ` +
       `/ 미스 ${pendingIndices.length}건은 원문 반환 (파파고 호출 0)`
     )
+    console.log(`[translate] papago chars=0 texts=0 (cache_only)`)
     return res.status(200).json({
       success: true,
       data: { translations },
@@ -166,6 +167,31 @@ export default async function handler(req, res) {
       cacheOnly: true,
     })
   }
+
+  // ── 파파고 폴백 스위치 ────────────────────────────────────────────────
+  // 번역 공급원을 1688 공식 다국어 API로 옮긴 뒤, 파파고를 완전히 끄고도
+  // 화면이 버티는지 확인하기 위한 스위치. 꺼져 있으면 캐시 미스는 원문 그대로 나간다
+  // (cache_only 모드와 같은 동작이며, 화면이 깨지지 않고 중국어로만 보인다).
+  // 재활성화: PAPAGO_FALLBACK_ENABLED=true (기본 켜짐 — 명시적으로 'false'일 때만 끈다)
+  if (String(process.env.PAPAGO_FALLBACK_ENABLED ?? '').trim().toLowerCase() === 'false') {
+    pendingIndices.forEach(idx => { translations[idx] = { text: cleanTexts[idx] } })
+    console.log(
+      `[papago-translate] 파파고 폴백 OFF: ${cleanTexts.length}건 | 캐시 히트 ${cacheHits}건 ` +
+      `/ 미스 ${pendingIndices.length}건은 원문 반환 (파파고 호출 0)`
+    )
+    console.log(`[translate] papago chars=0 texts=0 (fallback disabled)`)
+    return res.status(200).json({
+      success: true,
+      data: { translations },
+      translationErrors: 0,
+      papagoFallbackDisabled: true,
+    })
+  }
+
+  // 파파고로 실제로 나가는 글자 수 — 전환 후 잔량을 눈으로 보기 위한 계측.
+  // 파파고는 문장당 호출 1회라 과금 문자 수 = 보낸 문자열 길이의 단순 합이다.
+  const papagoChars = pendingIndices.reduce((sum, i) => sum + cleanTexts[i].length, 0)
+  console.log(`[translate] papago chars=${papagoChars} texts=${pendingIndices.length}`)
 
   console.log(
     `[papago-translate] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget} ` +

@@ -8,6 +8,9 @@
   "functions": {
     "api/bulk-item-detail.js": {
       "maxDuration": 60
+    },
+    "api/1688-item-detail.js": {
+      "maxDuration": 30
     }
   }
 }

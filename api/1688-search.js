@@ -7,6 +7,8 @@
  * - 타임아웃: 8000ms (8초)
  */
 
+import { isCrossborderKoSearchEnabled, enrichSearchWithKo } from './_crossborderKo.js'
+
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
 
 const FETCH_HEADERS = {
@@ -112,6 +114,19 @@ export default async function handler(req, res) {
       message: errorMsg,
       error_code: resData?.error_code || '4005'
     }, SAFE_EMPTY))
+  }
+
+  // ── 1688 공식 다국어 API로 한글 제목 보강 (되돌리기: CROSSBORDER_KO_ENABLED=false) ──
+  // 상품 데이터(가격·MOQ·판매량)는 위 item_search 결과를 그대로 쓴다. 여기서는
+  // 제목의 한글만 붙이고, 원문→한글 짝을 translation_cache에 채워
+  // 뒤이어 오는 클라이언트 번역 요청이 파파고 없이 캐시로 끝나게 한다.
+  // 실패는 전부 조용히 무시된다(enrichSearchWithKo는 throw하지 않음) — 검색은 그대로 나간다.
+  if (isCrossborderKoSearchEnabled()) {
+    try {
+      await enrichSearchWithKo(resData, queryZh, page)
+    } catch (e) {
+      console.warn('[1688-search] 한글 보강 실패 — 원본 결과를 그대로 반환합니다:', e.message)
+    }
   }
 
   return res.status(200).json({

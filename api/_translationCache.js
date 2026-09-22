@@ -134,6 +134,87 @@ export async function lookupCachedTranslations(texts, sourceLang, targetLang, en
 }
 
 /**
+ * entries → { source_text, source_lang, target_lang, translated_text, updated_at } 행 배열
+ * (saveTranslationsToCache / insertTranslationsIfAbsent 공용 — 저장 정책만 서로 다르다)
+ *
+ * 같은 키가 한 payload에 두 번 들어가면 PostgREST가
+ * "ON CONFLICT DO UPDATE command cannot affect row a second time" 오류를 낸다 → dedupe 필수
+ */
+function buildRows(entries, sourceLang, targetLang) {
+  const byKey = new Map()
+  for (const entry of entries || []) {
+    const sourceText = entry?.sourceText
+    const translatedText = entry?.translatedText
+    if (!isCacheable(sourceText)) continue
+    if (typeof translatedText !== 'string' || !translatedText) continue
+    // 원문과 동일한 결과는 번역 실패 폴백일 가능성이 높으므로 저장하지 않는다
+    if (translatedText === sourceText) continue
+    byKey.set(sourceText, translatedText)
+  }
+  const now = new Date().toISOString()
+  return [...byKey.entries()].map(([source_text, translated_text]) => ({
+    source_text,
+    source_lang: sourceLang,
+    target_lang: targetLang,
+    translated_text,
+    updated_at: now,
+  }))
+}
+
+/**
+ * 캐시 배치 "삽입" — 이미 있는 행은 건드리지 않는다 (resolution=ignore-duplicates).
+ *
+ * saveTranslationsToCache(merge-duplicates)와의 차이가 핵심이다:
+ *   · saveTranslationsToCache → 파파고가 방금 번역한 결과. 최신값으로 덮어쓰는 게 맞다.
+ *   · insertTranslationsIfAbsent → 1688 공식 다국어 API에서 받아온 "보조 공급원".
+ *     이미 쌓여 있는 번역(운영자가 확인했거나 파파고가 만든 값)을 조용히 갈아치우면
+ *     같은 상품 이름이 화면에서 갑자기 바뀌므로, 빈 자리만 채운다.
+ *
+ * 실패해도 throw 하지 않는다 (이 파일의 설계 원칙 2번).
+ *
+ * @param {Array<{ sourceText: string, translatedText: string }>} entries
+ * @param {string} sourceLang
+ * @param {string} targetLang
+ * @param {object} [env]
+ * @returns {Promise<number>} 저장 시도한 행 수 (실패 시 0)
+ */
+export async function insertTranslationsIfAbsent(entries, sourceLang, targetLang, env = process.env) {
+  const { enabled, url, serviceRoleKey } = getTranslationCacheConfig(env)
+  if (!enabled) return 0
+
+  const rows = buildRows(entries, sourceLang, targetLang)
+  if (rows.length === 0) return 0
+
+  try {
+    const r = await fetchWithTimeout(
+      `${url}/rest/v1/${TABLE}?on_conflict=${CONFLICT_TARGET}`,
+      {
+        method: 'POST',
+        headers: {
+          'apikey': serviceRoleKey,
+          'Authorization': `Bearer ${serviceRoleKey}`,
+          'Content-Type': 'application/json',
+          // ignore-duplicates: 충돌한 행은 그대로 두고 새 행만 넣는다
+          'Prefer': 'resolution=ignore-duplicates,return=minimal',
+        },
+        body: JSON.stringify(rows),
+      },
+      SAVE_TIMEOUT_MS
+    )
+    if (!r.ok) {
+      const errBody = await r.json().catch(() => ({}))
+      console.warn(`[translation-cache] ⚠️ 삽입 실패(HTTP ${r.status}):`, errBody?.message || '')
+      return 0
+    }
+    return rows.length
+  } catch (e) {
+    const reason = e.name === 'AbortError' ? `${SAVE_TIMEOUT_MS}ms 타임아웃` : e.message
+    console.warn(`[translation-cache] ⚠️ 삽입 예외(${reason})`)
+    return 0
+  }
+}
+
+/**
  * 캐시 배치 저장 (bulk upsert 1회) — 실패해도 throw 하지 않음
  *
  * @param {Array<{ sourceText: string, translatedText: string }>} entries - 파파고 번역에 "성공한" 항목만
@@ -146,29 +227,8 @@ export async function saveTranslationsToCache(entries, sourceLang, targetLang, e
   const { enabled, url, serviceRoleKey } = getTranslationCacheConfig(env)
   if (!enabled) return 0
 
-  // 같은 키가 한 payload에 두 번 들어가면 PostgREST가
-  // "ON CONFLICT DO UPDATE command cannot affect row a second time" 오류를 낸다 → dedupe 필수
-  const byKey = new Map()
-  for (const entry of entries || []) {
-    const sourceText = entry?.sourceText
-    const translatedText = entry?.translatedText
-    if (!isCacheable(sourceText)) continue
-    if (typeof translatedText !== 'string' || !translatedText) continue
-    // 원문과 동일한 결과는 번역 실패 폴백일 가능성이 높으므로 저장하지 않는다
-    if (translatedText === sourceText) continue
-    byKey.set(sourceText, translatedText)
-  }
-
-  if (byKey.size === 0) return 0
-
-  const now = new Date().toISOString()
-  const rows = [...byKey.entries()].map(([source_text, translated_text]) => ({
-    source_text,
-    source_lang: sourceLang,
-    target_lang: targetLang,
-    translated_text,
-    updated_at: now,
-  }))
+  const rows = buildRows(entries, sourceLang, targetLang)
+  if (rows.length === 0) return 0
 
   try {
     const r = await fetchWithTimeout(

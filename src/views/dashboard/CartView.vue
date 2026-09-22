@@ -1693,7 +1693,9 @@ async function backfillMissingPriceTiers() {
 
   await Promise.all([...targets].map(async ([numIid, rows]) => {
     try {
-      const full = await fetch1688ProductById(numIid);
+      // translateCacheOnly: 이 백필은 priceTiers/skus만 쓰고 번역 결과는 화면에 쓰지 않는다.
+      // 엑셀 경로(services/bulkFetch.js:162)와 같은 기준 — 파파고를 새로 부르지 않는다.
+      const full = await fetch1688ProductById(numIid, null, { translateCacheOnly: true });
       if (!full) {
         tierBackfillState.value[numIid] = 'failed';
         console.error(`[CartView] 백필 실패 — 상품 상세를 불러오지 못했습니다: ${numIid}`);

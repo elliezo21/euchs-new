@@ -14,6 +14,10 @@ import freightEstimateHandler from './api/1688-freight-estimate.js'
 import bulkItemDetailHandler from './api/bulk-item-detail.js'
 // 번역 캐시는 운영(api/translate.js)과 로컬 dev 프록시가 같은 헬퍼를 공유한다
 import { lookupCachedTranslations, saveTranslationsToCache } from './api/_translationCache.js'
+// 1688 공식 다국어 API 한글 보강도 같은 한 벌을 쓴다
+// (이 파일의 /api/1688-search · /api/1688-item-detail 은 api/*.js를 import하지 않고
+//  따로 구현돼 있어서, 보강 로직만이라도 공유하지 않으면 로컬 검증이 운영과 달라진다)
+import { isCrossborderKoEnabled, isCrossborderKoSearchEnabled, enrichSearchWithKo, enrichDetailWithKo } from './api/_crossborderKo.js'
 
 
 
@@ -205,6 +209,7 @@ function lab1688Plugin(env) {
                   `[vite papago proxy] cache_only: ${cleanTexts.length}건 | 캐시 히트 ${cacheHits}건 ` +
                   `/ 미스 ${pendingIndices.length}건은 원문 반환 (파파고 호출 0)`
                 )
+                console.log(`[translate] papago chars=0 texts=0 (cache_only)`)
                 res.setHeader('Content-Type', 'application/json; charset=utf-8')
                 res.end(JSON.stringify({
                   success: true,
@@ -214,6 +219,31 @@ function lab1688Plugin(env) {
                 }))
                 return
               }
+
+              // ── 파파고 폴백 스위치 (운영 api/translate.js와 동일) ──────────────
+              // 지금까지 이 로컬 프록시에는 서버 킬스위치가 없어 TRANSLATION_ENABLED를 꺼도
+              // npm run dev에서는 파파고가 그대로 과금됐다. 같은 스위치를 여기에도 둔다.
+              if (String(env.PAPAGO_FALLBACK_ENABLED ?? process.env.PAPAGO_FALLBACK_ENABLED ?? '').trim().toLowerCase() === 'false') {
+                pendingIndices.forEach(i => { translations[i] = { text: cleanTexts[i] } })
+                console.log(
+                  `[vite papago proxy] 파파고 폴백 OFF: ${cleanTexts.length}건 | 캐시 히트 ${cacheHits}건 ` +
+                  `/ 미스 ${pendingIndices.length}건은 원문 반환 (파파고 호출 0)`
+                )
+                console.log(`[translate] papago chars=0 texts=0 (fallback disabled)`)
+                res.statusCode = 200
+                res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                res.end(JSON.stringify({
+                  success: true,
+                  data: { translations },
+                  translationErrors: 0,
+                  papagoFallbackDisabled: true,
+                }))
+                return
+              }
+
+              // 파파고로 실제로 나가는 글자 수 계측 (운영과 같은 형식으로 남긴다)
+              const papagoChars = pendingIndices.reduce((sum, i) => sum + cleanTexts[i].length, 0)
+              console.log(`[translate] papago chars=${papagoChars} texts=${pendingIndices.length}`)
 
               console.log(
                 `[vite papago proxy] 번역 시작: ${cleanTexts.length}건 | ${papagoSource} → ${papagoTarget} ` +
@@ -330,6 +360,15 @@ function lab1688Plugin(env) {
             const errCode = String(data?.error_code || '').trim()
             const itemCount = data?.items?.item?.length || 0
             console.log(`[vite proxy 1688-search] response: error_code=${errCode} items=${itemCount}`)
+
+            // 1688 공식 다국어 API 한글 보강 (운영 api/1688-search.js와 동일)
+            if (isCrossborderKoSearchEnabled(env)) {
+              try {
+                await enrichSearchWithKo(data, q, page, { env })
+              } catch (e) {
+                console.warn('[vite proxy 1688-search] 한글 보강 실패 — 원본 결과를 그대로 반환합니다:', e.message)
+              }
+            }
 
             res.statusCode = 200
             res.setHeader('Content-Type', 'application/json; charset=utf-8')
@@ -490,6 +529,18 @@ function lab1688Plugin(env) {
 
             // Vercel api/1688-item-detail.js와 동일한 방식으로 item 객체 병합 반환
             const itemObj = resData?.item || resData?.result || {}
+
+            // 1688 공식 다국어 API로 번역 캐시 선충전 (운영 api/1688-item-detail.js와 동일)
+            // 예산도 운영과 같은 값(ROUTE_BUDGET_MS = 25000)으로 맞춘다 —
+            // 로컬에서 통과한 경로가 운영에서 시간 때문에 잘리는 일이 없어야 한다.
+            if (isCrossborderKoEnabled(env)) {
+              try {
+                await enrichDetailWithKo(itemObj, cleanId, { env, deadline: Date.now() + 25000 })
+              } catch (e) {
+                console.warn('[vite proxy 1688-detail] 한글 보강 실패 — 상세는 그대로 반환합니다:', e.message)
+              }
+            }
+
             const mergedData = { ...resData, ...itemObj, raw: resData }
 
             res.statusCode = 200

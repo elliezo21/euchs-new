@@ -653,7 +653,7 @@
 <script setup>
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText } from '../services/api1688'
+import { getItemDetail1688, search1688WithTranslation, fetch1688ProductById, search1688ByImageUrl, cleanForeignText, hasHangul } from '../services/api1688'
 import { getCartStorageKey, isLoggedIn, openLoginModal } from '../lib/auth'
 // sumQty는 장바구니 담기 MOQ 합계 계산에만 쓰였고, 그 로직이 utils/cartWriter.js로
 // 이동하면서 이 파일에서는 더 이상 호출되지 않는다 (resolveMoq는 :947에서 계속 사용).
@@ -1889,6 +1889,12 @@ const loadFullProductData = async (item) => {
       // imageUrl 보호 merge: full.imageUrl이 없으면 기존 값 보존
       const mergedImageUrl = full.imageUrl || currentItem.value.imageUrl || item.imageUrl || ''
 
+      // 제목 보호 merge: 상세 응답의 titleKo에 한글이 없으면(= 번역이 안 된 것) 덮어쓰지 않는다.
+      // `...full`이 그대로 퍼지면 목록에서 이미 한글로 받아 둔 제목이 중국어로 되돌아간다.
+      // 판정은 api1688.js의 hasHangul 하나만 쓴다(MallRecentlyViewed·OrderedProductsPanel과 같은 규칙).
+      const koCandidates = [full.titleKo, full.title, currentItem.value.titleKo, item.titleKo, props.product?.titleKo]
+      const mergedTitleKo = koCandidates.find(t => hasHangul(t)) || full.titleKo || currentItem.value.titleKo || ''
+
       currentItem.value = {
         ...currentItem.value,
         ...full,
@@ -1897,7 +1903,10 @@ const loadFullProductData = async (item) => {
         skuProps: mergedSkuProps,
         skus: mergedSkus,
         images: mergedImages,
-        imageUrl: mergedImageUrl
+        imageUrl: mergedImageUrl,
+        titleKo: mergedTitleKo,
+        // title도 같은 값으로 맞춘다 — displayProductTitle이 titleKo → title 순으로 읽는다(852행)
+        title: mergedTitleKo || full.title || currentItem.value.title || ''
       }
 
       // ── freight 배경 자동 호출 제거 (2026-09-15) ─────────────────────────────

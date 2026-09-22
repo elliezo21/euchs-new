@@ -500,6 +500,20 @@ const saveToCache = (cacheMap, storageKey, key, data) => {
 }
 
 /**
+ * "이 문자열은 한국어로 번역된 결과인가?" 판정.
+ *
+ * 판정 규칙은 새로 만들지 않고 이 저장소가 이미 쓰던 것을 그대로 옮겨왔다:
+ *   src/components/mall/MallRecentlyViewed.vue:64      const HANGUL_RE = /[가-힣]/
+ *   src/components/dashboard/OrderedProductsPanel.vue  (동일)
+ * 두 화면 모두 "제목에 한글이 없으면 번역 안 된 것"으로 보고 번역을 다시 건다.
+ * 제목 번역 판정이 세 군데로 흩어지지 않도록 여기 한 곳에 둔다.
+ */
+const HANGUL_RE = /[가-힣]/
+export function hasHangul(str) {
+  return HANGUL_RE.test(String(str || ''))
+}
+
+/**
  * 파파고 텍스트 번역 함수 (개별 캐시 확인 ➔ 미번역 텍스트 일괄 번역 ➔ 캐시 저장)
  *
  * ── 킬스위치 ─────────────────────────────────────────────────────────────
@@ -679,15 +693,45 @@ export async function translateItemsBatch(items) {
     return items
   }
 
-  // 번역이 필요한 원문 제목들 수집
-  const titlesToTranslate = items.map(it => it.titleZh || it.title || it.subject || '')
+  // ── 번역이 필요 없는 제목은 보내지 않는다 ────────────────────────────────
+  // fetch1688ProductById가 쓰는 판별 기준(api1688.js:1977~1981)과 같은 정규식:
+  // 한자·키릴 문자가 있거나 알파벳 3자 이상일 때만 번역 대상이다.
+  // 이 필터가 없어서, 서버가 이미 한글로 채워 준 제목과 원래 한글이던 제목까지
+  // 파파고로 나가고 있었다(파파고는 이미 한글인 문자열도 그대로 과금한다).
+  const NEEDS_TRANSLATE_RE = /[一-鿿㐀-䶿Ѐ-ӿ]/
+  const needsTranslate = (t) => {
+    const s = String(t || '').trim()
+    if (!s) return false
+    return NEEDS_TRANSLATE_RE.test(s) || /[a-zA-Z]{3,}/.test(s)
+  }
+
+  // 원본 인덱스를 유지한 채, 번역이 필요한 항목만 추려서 보낸다
+  const targets = []
+  items.forEach((it, idx) => {
+    const raw = it.titleZh || it.title || it.subject || ''
+    // 이미 한글 제목이 붙어 있으면(서버 보강분 포함) 건너뛴다.
+    // 판정은 hasHangul 하나로 통일한다 — "titleKo에 한글이 있으면 번역된 것".
+    const alreadyKo = hasHangul(it.titleKo)
+    if (alreadyKo || !needsTranslate(raw)) {
+      const cleaned = cleanForeignText(it.titleKo || raw) || (it.titleKo || raw)
+      it.titleKo = cleaned
+      it.title = cleaned
+      return
+    }
+    targets.push({ idx, raw })
+  })
+
+  if (targets.length === 0) return items
+
+  const titlesToTranslate = targets.map(t => t.raw)
 
   try {
     const translatedTitles = await translateText(titlesToTranslate, 'KO')
     const titleList = Array.isArray(translatedTitles) ? translatedTitles : [translatedTitles]
 
-    items.forEach((it, idx) => {
-      const translated = titleList[idx] || it.titleZh || it.title || ''
+    targets.forEach((t, i) => {
+      const it = items[t.idx]
+      const translated = titleList[i] || t.raw
       const cleaned = cleanForeignText(translated) || translated
       it.titleKo = cleaned
       it.title = cleaned // MallView 템플릿 호환용
@@ -897,13 +941,22 @@ export async function search1688(queryZh, page = 1, options = {}) {
         // 실측: 1688global API는 seller_id/user_num_id를 빈값으로 반환; nick(_sopid@...)이 유일한 판매자 식별자
         const sellerId = String(it.seller_id || it.sellerId || it.user_num_id || it.nick || '')
 
+        // 서버(/api/1688-search)가 1688 공식 다국어 API에서 받아 붙여 준 한글 제목.
+        // ★ 한글이 실제로 들어 있을 때만 쓴다. 한글이 없으면 title_ko가 없는 것과
+        //   똑같이(= 이 변경 이전과 똑같이) 원문을 넣고 translateItemsBatch가 채운다.
+        //   (공식 API는 error_code 0000이면서도 subjectTrans에 원문을 그대로 주는 상품이 있다)
+        // ★ titleZh는 반드시 중국어 원문으로 남겨둔다 — 유사상품 키워드 추출
+        //   (ProductDetailModal.loadSimilarProducts)과 미번역 판정이 이 값을 쓴다.
+        const rawTitleKo = String(it.title_ko || '').trim()
+        const titleKoFromServer = hasHangul(rawTitleKo) ? rawTitleKo : ''
+
         return {
           id: cleanId || itemId,
           itemId: cleanId || itemId,
           titleZh,
           titleEn: '',
-          titleKo: titleZh,
-          title: titleZh,
+          titleKo: titleKoFromServer || titleZh,
+          title: titleKoFromServer || titleZh,
           price: priceNum,
           priceNum,
           priceCny: priceNum,
@@ -1983,6 +2036,24 @@ export async function fetch1688ProductById(offerId, prefetchedRaw = null, option
     let titleKo = ''
     if (titleZh && !/[\u4e00-\u9fff\u3400-\u4dbf\u0400-\u04ff]/.test(titleZh)) {
       titleKo = titleZh
+    }
+
+    // \u2605 \uc81c\ubaa9\uc5d0\ub3c4 preApplied\ub97c \uc801\uc6a9\ud55c\ub2e4 (2026-09-22 \ud68c\uadc0 \uc218\uc815)
+    //
+    // \ubc14\ub85c \uc704 1993~2005\ud589\uc740 preApplied\ub97c parsedSkuProps\u00b7parsedSkus\uc5d0\ub9cc \uc801\uc6a9\ud558\uace0
+    // \uc81c\ubaa9\uc5d0\ub294 \uc801\uc6a9\ud558\uc9c0 \uc54a\uc558\ub2e4. \uadf8\ub7f0\ub370 uniqueTexts(2012~2014\ud589)\ub294 preApplied\uc5d0 \uc7a1\ud78c
+    // \ud14d\uc2a4\ud2b8\ub97c \ubc88\uc5ed \uc694\uccad\uc5d0\uc11c \uc81c\uc678\ud55c\ub2e4. \uadf8\ub798\uc11c \uc81c\ubaa9\uc774 \uc138\uc158 \uce90\uc2dc\uc5d0 \uc788\uc73c\uba74
+    //   \u00b7 \ubc88\uc5ed \uc694\uccad\uc5d0\uc11c \ube60\uc9c0\uace0(transMap[titleZh] \uc5c6\uc74c)
+    //   \u00b7 \uc120\uc801\uc6a9\ub3c4 \uc548 \ub418\uc5b4 titleKo\uac00 ''\ub85c \ub0a8\uace0
+    //   \u00b7 2087\ud589\uc5d0\uc11c titleKo || titleZh \u2192 \uc911\uad6d\uc5b4 \uc6d0\ubb38\uc774 \uc81c\ubaa9\uc73c\ub85c \ub098\uac14\ub2e4.
+    //
+    // \uc7ac\ud604 \uacbd\ub85c: \uac80\uc0c9 \ubaa9\ub85d\uc5d0\uc11c \uc0c1\ud488\uc744 \ud074\ub9ad\ud574 \uc0c1\uc138\ub97c \uc5ec\ub294 \uacbd\uc6b0.
+    //   \ubaa9\ub85d \ubc88\uc5ed(translateItemsBatch \u2192 translateText)\uc774 \uc131\uacf5\ud558\uba74\uc11c \uc81c\ubaa9\uc744
+    //   memoryTranslationCache\uc5d0 `KO_auto_<\uc81c\ubaa9>`\uc73c\ub85c \uc800\uc7a5\ud574 \ub450\uae30 \ub54c\ubb38\uc5d0(647\ud589),
+    //   \uc774\uc5b4\uc11c \uc5f4\ub9ac\ub294 \uc0c1\uc138\uc5d0\uc11c \uadf8 \uc81c\ubaa9\uc774 preApplied\uc5d0 \uc7a1\ud78c\ub2e4.
+    //   \ubc18\ub300\ub85c \ub9c1\ud06c\ub85c \ubc14\ub85c \uc5f0 \uc0c1\uc138\ub294 \uce90\uc2dc\uac00 \ube44\uc5b4 \uc788\uc5b4 \uc815\uc0c1 \ub3d9\uc791\ud588\ub2e4.
+    if (titleZh && preApplied[titleZh]) {
+      titleKo = preApplied[titleZh]
     }
 
     if (uniqueTexts.length > 0) {
