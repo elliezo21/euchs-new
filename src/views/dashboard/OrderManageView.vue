@@ -2092,7 +2092,8 @@ function closeDetailModal() {
 // ---------------------------------------------------------
 // 엑셀 내보내기 연동
 // ---------------------------------------------------------
-function exportSingleQuote(order) {
+// xlsx는 동적 import라 exportQuoteExcel이 async다 — await 없이 부르면 실패가 조용히 묻힌다.
+async function exportSingleQuote(order) {
   if (!order) return;
   try {
     const snapshotRate = order.snapshotExchangeRate ?? order.firstPayment?.snapshotExchangeRate;
@@ -2105,7 +2106,7 @@ function exportSingleQuote(order) {
       orderNo: order.orderNumber,
       buyerName: order.buyerInfo?.buyerName || order.customer_name
     }));
-    exportQuoteExcel(
+    await exportQuoteExcel(
       items,
       order.buyerInfo || defaultBuyerInfo,
       exportRate,

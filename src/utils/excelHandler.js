@@ -1,11 +1,15 @@
-import * as XLSX from 'xlsx';
+// ★ xlsx(SheetJS)는 정적 import하지 않는다 — 이 파일을 쓰는 화면(관리자 주문관리·내 상품리스트)
+//   때문에 1MB 넘는 라이브러리가 공용 번들에 실려 모든 고객의 첫 로딩에 내려갔다.
+//   엑셀을 실제로 만들거나 읽는 함수 안에서만 await import('xlsx')로 가져온다.
+//   그래서 아래 export 함수는 전부 async다 — 호출부는 반드시 await 할 것.
 import { krwFromCny } from '@/utils/orderCostCalculator';
 
 /**
  * 바이어용 1688 대량 발주 표준 엑셀 양식 다운로드
  * 샘플 2행 포함, 헤더: 한글상품명 | 1688 URL | 옵션명 | 수량 | 카테고리 | 사입 요청사항
  */
-export function downloadBulkOrderTemplate() {
+export async function downloadBulkOrderTemplate() {
+  const XLSX = await import('xlsx');
   const headerRow = [
     '한글상품명/관리명',
     '1688 제품 URL (필수)',
@@ -69,8 +73,9 @@ export function downloadBulkOrderTemplate() {
  * @param {string} [buyerInfo.customsCode] - 개인통관고유부호/사업자통관부호
  * @param {string} [buyerInfo.memo] - 견적 메모
  */
-export function exportQuoteToExcel(items = [], buyerInfo = {}) {
+export async function exportQuoteToExcel(items = [], buyerInfo = {}) {
   try {
+    const XLSX = await import('xlsx');
     const today = new Date().toISOString().split('T')[0];
     const quoteNumber = `EUCHS-Q-${Date.now().toString().slice(-6)}`;
     const safeItems = Array.isArray(items) ? items : [];
@@ -164,7 +169,9 @@ export function exportQuoteToExcel(items = [], buyerInfo = {}) {
  * @param {File|Blob} file - 사용자가 업로드한 엑셀 파일 (.xlsx, .xls, .csv)
  * @returns {Promise<Array<Object>>} 정규화된 상품 목록 데이터 배열
  */
-export function parseOrderExcel(file) {
+export async function parseOrderExcel(file) {
+  // 파일을 읽기 직전에만 SheetJS를 내려받는다 (아래 Promise 안에서 클로저로 사용)
+  const XLSX = await import('xlsx');
   return new Promise((resolve, reject) => {
     if (!file) {
       return reject(new Error('업로드할 파일이 선택되지 않았습니다.'));
@@ -377,8 +384,9 @@ function sanitizeSheetName(str) {
  * 1688 공장 발주용 사입 엑셀 다운로드
  * @param {Object} order - 주문 객체 (items[], buyerInfo, orderNumber 등)
  */
-export function exportAdmin1688PurchaseExcel(order) {
+export async function exportAdmin1688PurchaseExcel(order) {
   if (!order) throw new Error('order 객체가 없습니다.');
+  const XLSX = await import('xlsx');
   const items = Array.isArray(order.items) ? order.items : [];
   const today = todayStr();
   const orderId = order.orderNumber || order.id || 'UNKNOWN';
@@ -460,8 +468,9 @@ export function exportAdmin1688PurchaseExcel(order) {
  * @param {Object} order - 주문 객체
  * @param {number} [exchangeRate=226.19] - 적용 환율
  */
-export function exportAdminMasterOrderExcel(order, exchangeRate = 226.19) {
+export async function exportAdminMasterOrderExcel(order, exchangeRate = 226.19) {
   if (!order) throw new Error('order 객체가 없습니다.');
+  const XLSX = await import('xlsx');
   const items = Array.isArray(order.items) ? order.items : [];
   const today = todayStr();
   const orderId  = order.orderNumber || order.id || 'UNKNOWN';
@@ -576,8 +585,9 @@ export function exportAdminMasterOrderExcel(order, exchangeRate = 226.19) {
  * @param {Array<Object>} orders - 주문 객체 배열
  * @param {number} [exchangeRate=226.19] - 적용 환율
  */
-export function exportAdminBulkOrderExcel(orders, exchangeRate = 226.19) {
+export async function exportAdminBulkOrderExcel(orders, exchangeRate = 226.19) {
   if (!Array.isArray(orders) || orders.length === 0) throw new Error('주문 목록이 비어 있습니다.');
+  const XLSX = await import('xlsx');
   const today   = todayStr();
   const AGY_RATE = 0.08;
 

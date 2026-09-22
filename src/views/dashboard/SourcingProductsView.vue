@@ -1102,8 +1102,9 @@ function triggerBulkFileInput() {
   }
 }
 
-function handleDownloadTemplate() {
-  try { downloadBulkOrderTemplate(); }
+// xlsx는 동적 import라 downloadBulkOrderTemplate이 async다 — await 없이 부르면 실패가 조용히 묻힌다.
+async function handleDownloadTemplate() {
+  try { await downloadBulkOrderTemplate(); }
   catch (e) {
     console.error('[내상품리스트] 엑셀 양식 다운로드 실패:', e);
     showToast('양식 다운로드 실패: ' + e.message, 'error');

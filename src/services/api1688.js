@@ -446,14 +446,29 @@ const memoryTranslationCache = new Map()
   } catch (e) {}
 })()
 
+/**
+ * 메모리 캐시 키 — 반드시 storageKey로 네임스페이스한다.
+ *
+ * ★ 2026-09-22 실측 버그: memoryDetailCache 하나를 두 함수가 공유하는데
+ *   메모리 키가 id 뿐이라 서로 다른 모양의 값이 섞였다.
+ *     · getItemDetail1688      → 'euchs_detail_raw'    (OneBound 원본: desc_img/desc/item_imgs 포함)
+ *     · fetch1688ProductById   → 'euchs_product_parsed' (파싱 결과: descImgs/images/skus)
+ *   엑셀 대량발주·장바구니 단가 재검증이 파싱 결과를 먼저 넣어두면, 그 뒤 상세모달의
+ *   loadProductDetailImages가 getItemDetail1688을 불러도 "파싱 결과"가 캐시 히트로 돌아온다.
+ *   파싱 결과에는 desc_img/desc가 없어 상세설명 이미지가 대표 이미지로 대체돼 비어 보였다.
+ *   (sessionStorage 쪽은 `${storageKey}_${key}`로 이미 분리돼 있었고 메모리만 빠져 있었다)
+ */
+const memCacheKey = (storageKey, key) => `${storageKey}_${key}`
+
 const getFromCache = (cacheMap, storageKey, key) => {
+  const mKey = memCacheKey(storageKey, key)
   // 1. 메모리 캐시 조회
-  if (cacheMap.has(key)) {
-    const entry = cacheMap.get(key)
+  if (cacheMap.has(mKey)) {
+    const entry = cacheMap.get(mKey)
     if (Date.now() - entry.timestamp < CACHE_TTL) {
       return entry.data
     }
-    cacheMap.delete(key)
+    cacheMap.delete(mKey)
   }
 
   // 2. SessionStorage 조회
@@ -463,7 +478,7 @@ const getFromCache = (cacheMap, storageKey, key) => {
       if (raw) {
         const parsed = JSON.parse(raw)
         if (Date.now() - parsed.timestamp < CACHE_TTL) {
-          cacheMap.set(key, parsed) // 메모리에 복원
+          cacheMap.set(mKey, parsed) // 메모리에 복원
           return parsed.data
         }
         window.sessionStorage.removeItem(`${storageKey}_${key}`)
@@ -476,7 +491,7 @@ const getFromCache = (cacheMap, storageKey, key) => {
 
 const saveToCache = (cacheMap, storageKey, key, data) => {
   const entry = { data, timestamp: Date.now() }
-  cacheMap.set(key, entry)
+  cacheMap.set(memCacheKey(storageKey, key), entry)
   try {
     if (typeof window !== 'undefined' && window.sessionStorage) {
       window.sessionStorage.setItem(`${storageKey}_${key}`, JSON.stringify(entry))

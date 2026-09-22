@@ -1820,17 +1820,19 @@ const allSelected = computed(() => filteredOrders.value.length > 0 && selectedOr
 const selectedOrders = computed(() => filteredOrders.value.filter(o => selectedOrderIds.value.has(o.id || o.orderNumber)));
 
 // 엑셀 다운로드 핸들러
-function handle1688Excel(order) {
-  try { exportAdmin1688PurchaseExcel(order); showToast(`[${order.orderNumber}] 1688 사입 발주서 다운로드 완료`, 'success'); }
+// ★ excelHandler의 export 함수들은 xlsx 동적 import 때문에 전부 async다 — 반드시 await.
+//   (await 없이 부르면 실패해도 catch가 잡지 못해 "성공 토스트 + 파일 없음"이 된다)
+async function handle1688Excel(order) {
+  try { await exportAdmin1688PurchaseExcel(order); showToast(`[${order.orderNumber}] 1688 사입 발주서 다운로드 완료`, 'success'); }
   catch (e) { showToast(`엑셀 생성 실패: ${e.message}`, 'error'); }
 }
-function handleMasterExcel(order) {
-  try { exportAdminMasterOrderExcel(order); showToast(`[${order.orderNumber}] 종합 주문서 다운로드 완료`, 'success'); }
+async function handleMasterExcel(order) {
+  try { await exportAdminMasterOrderExcel(order); showToast(`[${order.orderNumber}] 종합 주문서 다운로드 완료`, 'success'); }
   catch (e) { showToast(`엑셀 생성 실패: ${e.message}`, 'error'); }
 }
-function handleBulkExcel() {
+async function handleBulkExcel() {
   if (selectedOrders.value.length === 0) { showToast('선택된 주문이 없습니다.', 'error'); return; }
-  try { exportAdminBulkOrderExcel(selectedOrders.value); showToast(`${selectedOrders.value.length}건 통합 엑셀 다운로드 완료`, 'success'); }
+  try { await exportAdminBulkOrderExcel(selectedOrders.value); showToast(`${selectedOrders.value.length}건 통합 엑셀 다운로드 완료`, 'success'); }
   catch (e) { showToast(`엑셀 생성 실패: ${e.message}`, 'error'); }
 }
 

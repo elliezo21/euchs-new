@@ -1350,9 +1350,10 @@ const handleImageError = (e) => {
 // ----------------------------------------------------
 // Excel Download
 // ----------------------------------------------------
-const downloadRowEstimate = (row) => {
+// xlsx는 동적 import라 exportQuoteExcel이 async다 — await 없이 부르면 실패가 조용히 묻힌다.
+const downloadRowEstimate = async (row) => {
   try {
-    exportQuoteExcel(
+    await exportQuoteExcel(
       [row],
       {
         companyName: buyerForm.value.companyName,

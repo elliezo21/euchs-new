@@ -1,7 +1,10 @@
 /**
  * EUCHS B2B 수입대행 공식 견적서 XLSX 엑셀 생성 및 다운로드 유틸리티
  */
-import * as XLSX from 'xlsx';
+// ★ xlsx(SheetJS)는 정적 import하지 않는다 — 정적으로 두면 몰·검색·대시보드 등
+//   엑셀을 쓰지 않는 모든 화면의 첫 로딩에 1MB 넘는 라이브러리가 함께 내려간다.
+//   실제로 파일을 만드는 함수 안에서만 await import('xlsx')로 가져온다.
+//   (utils/bulkExcelParser.js가 이미 쓰고 있는 것과 같은 방식)
 import { krwFromCny, estimateFreightRmb, resolveItemQty } from '@/utils/orderCostCalculator';
 
 /**
@@ -18,7 +21,7 @@ import { krwFromCny, estimateFreightRmb, resolveItemQty } from '@/utils/orderCos
  * @param {number} [seaCbmRate=98000] - 해운비 (원/CBM) — currentSettings.sea_cbm_rate 전달
  * @param {number|null} [cbm=null] - 실측 CBM (있으면 사용, 없으면 미확정으로 표기)
  */
-export function exportQuoteExcel(
+export async function exportQuoteExcel(
   items = [],
   buyerInfo = {},
   exchangeRate = 226.19,
@@ -26,6 +29,8 @@ export function exportQuoteExcel(
   seaCbmRate = 98000,
   cbm = null
 ) {
+  // 실제로 파일을 만드는 시점에만 SheetJS를 내려받는다 (첫 1회만 네트워크, 이후 캐시)
+  const XLSX = await import('xlsx');
   if (!XLSX || !XLSX.utils) {
     throw new Error('XLSX 라이브러리가 로드되지 않았습니다.');
   }
