@@ -474,7 +474,7 @@
                   class="bg-white border border-slate-300 rounded-lg px-2.5 py-1 text-slate-700 focus:outline-none focus:border-indigo-500"
                 >
                   <option value="default">기본 랭킹순</option>
-                  <option value="salesDesc">누적 판매량순</option>
+                  <option value="salesDesc">최근 30일 판매량순</option>
                   <option value="priceAsc">가격 낮은순</option>
                   <option value="priceDesc">가격 높은순</option>
                 </select>

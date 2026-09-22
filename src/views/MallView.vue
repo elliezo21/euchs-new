@@ -929,7 +929,7 @@
             class="bg-gray-50 border border-gray-300 rounded-xl px-3 py-1.5 text-gray-800 font-semibold focus:outline-none focus:border-rose-500 cursor-pointer"
           >
             <option value="default">기본 랭킹순</option>
-            <option value="sales_desc">누적 판매량 높은순</option>
+            <option value="sales_desc">최근 30일 판매량순</option>
             <option value="price_asc">가격 낮은순</option>
             <option value="price_desc">가격 높은순</option>
           </select>
@@ -1021,11 +1021,11 @@
                 </span>
               </div>
 
-              <!-- 3열: 메타 정보 (재구매율 있을 때만, 총판매량) -->
+              <!-- 3열: 메타 정보 (재구매율 있을 때만, 최근 30일 판매량) -->
               <div class="flex items-center justify-between text-xs text-gray-400">
                 <span v-if="item.repurchaseRate">재구매율: <b class="text-gray-600 font-normal">{{ item.repurchaseRate }}</b></span>
                 <span v-else></span>
-                <span>총판매량: <b class="text-gray-600 font-normal">{{ item.sales || '0' }}건</b></span>
+                <span>최근 30일 판매량: <b class="text-gray-600 font-normal">{{ item.sales || '0' }}건</b></span>
               </div>
             </div>
 

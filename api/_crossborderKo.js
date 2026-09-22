@@ -679,3 +679,173 @@ export async function enrichDetailWithKo(itemObj, offerId, opts = {}) {
   console.warn(`[crossborder-ko] 상세 ${offerId}: 한글 공급원을 찾지 못했습니다 — 기존 번역 흐름(파파고)에 맡깁니다.`)
   return stat
 }
+
+// ════════════════════════════════════════════════════════════════════════════
+// 목록 전환: 1688 공식 다국어 검색(keywordQuery) → 기존 item_search 응답 형식
+// ════════════════════════════════════════════════════════════════════════════
+//
+// 왜 "기존 형식으로 변환"인가
+//   클라이언트(src/services/api1688.js search1688)는 item_search 응답 구조
+//   (items.item[] + items.page/page_size/page_count/total_results)를 파싱한다.
+//   공식 응답을 그 형식으로 맞춰 돌려주면 클라이언트 파서를 건드리지 않아도 되고,
+//   스위치를 끄면 완전히 원래 경로로 돌아간다(되돌리기 비용 0).
+//
+// ⚠️ 두 API는 서로 다른 상품 집합을 돌려준다(실측 겹침 0~60%).
+//    따라서 "둘 다 호출해 합치기"는 하지 않는다 — 목록을 통째로 교체한다.
+
+/**
+ * 공식 검색 1페이지 조회 (페이지네이션 메타 포함).
+ * keywordQueryKo는 items만 돌려주므로 총 건수/총 페이지가 필요한 목록 전환용으로 따로 둔다.
+ */
+export async function keywordSearchKoPage(keyword, page = 1, pageSize = 20, opts = {}) {
+  const kw = String(keyword || '').trim()
+  if (!kw) return { ok: false, response: null, items: [], errorCode: 'empty_keyword', reason: '', ms: 0 }
+
+  const res = await callCustom(
+    METHOD_KEYWORD_QUERY,
+    'offerQueryParam',
+    {
+      keyword: kw,
+      beginPage: Number(page) || 1,
+      pageSize: Number(pageSize) || 20,
+      country: COUNTRY_KO,
+    },
+    opts
+  )
+  const items = Array.isArray(res.response?.data) ? res.response.data : []
+  return { ok: res.ok, response: res.response, items, errorCode: res.errorCode, reason: res.reason, ms: res.ms }
+}
+
+/**
+ * 공식 응답 1건 → item_search 항목 형식.
+ *
+ * 매핑 근거 (필드명은 api/1688-search.js 응답을 파싱하는
+ *   src/services/api1688.js:928-977 에서 실제로 읽는 이름을 그대로 맞춘 것):
+ *   offerId          → num_iid        (client: it.num_iid → id/itemId, detail_url 생성에 사용)
+ *   subject          → title          (client: it.title → titleZh. 반드시 중국어 원문)
+ *   subjectTrans     → title_ko       (client: hasHangul 검사 후 titleKo/title)
+ *   imageUrl         → pic_url        (client: it.pic_url → imageUrl)
+ *   priceInfo.price  → price          (client: parseFloat(it.price))
+ *   minOrderQuantity → min_num        (client: parseInt(it.min_num) → moq/minOrder)
+ *   monthSold        → sales          (client: it.sold_count || it.volume || it.sales → sales)
+ *                                      ※ item_search 실측 항목 키는 정확히
+ *                                        title, pic_url, price, promotion_price, sales, num_iid,
+ *                                        tag_percent, detail_url 8개다. 이름을 sales로 맞춘다.
+ *                                      ※ 의미가 다르다: item_search의 sales는 누적 판매량,
+ *                                        monthSold는 최근 30일. 그래서 이 값을 쓰는 화면 라벨은
+ *                                        "최근 30일 판매량"으로 맞춰 두었다
+ *                                        (MallView.vue:932/1028, Lab1688View.vue:477).
+ *                                        ProductDetailModal.vue:180 "누적 판매량"은 출처가 다르다 —
+ *                                        상세 API(item_get)의 누적값이 ...full 병합으로 덮어쓰므로 그대로 둔다.
+ *   repurchaseRate   → rePurchaseRate (client: it.rePurchaseRate)
+ *   priceInfo.promotionPrice → promotion_price  (MallView.vue:2690 이 raw.promotion_price를 읽는다)
+ *   priceInfo.consignPrice   → consign_price    (현재 읽는 화면은 없음 — 향후용으로 실어만 보냄)
+ *   topCategoryId/secondCategoryId/thirdCategoryId
+ *                    → top_category_id / second_category_id / third_category_id
+ *                      (유사상품 개선에 쓸 예정이라 raw로 실어 보낸다. 지금 읽는 화면은 없음)
+ *
+ * 채우지 않는 필드 (공식 응답에 대응값이 없음 — 임의 기본값을 만들지 않는다):
+ *   detail_url   item_search에는 있으나 클라이언트가 num_iid로 직접 만들어 쓴다(api1688.js:934) → 영향 없음
+ *   tag_percent  item_search에는 있으나 저장소 전체에서 읽는 곳이 없다(grep 0건) → 영향 없음
+ *   nick / shop_name / seller_id / score
+ *                item_search 응답에도 원래 없다(실측 키 8개에 미포함) → 신규 결손 아님.
+ *                tradeScore는 의미 미확인이라 score로 매핑하지 않는다(근거 없는 매핑 금지).
+ */
+export function mapCrossborderItemToOneBound(entry) {
+  const e = entry || {}
+  const offerId = String(e.offerId ?? '').replace(/[^0-9]/g, '')
+  if (!offerId) return null
+
+  const p = e.priceInfo || {}
+  // 공식 응답의 가격은 문자열("6.98")로 오는 경우가 있어 숫자 판정 후 문자열로 통일한다.
+  const num = (v) => {
+    const n = parseFloat(String(v ?? '').replace(/[^0-9.]/g, ''))
+    return Number.isFinite(n) ? n : null
+  }
+  const price = num(p.price)
+  const promotionPrice = num(p.promotionPrice)
+  const consignPrice = num(p.consignPrice)
+  const moq = parseInt(String(e.minOrderQuantity ?? ''), 10)
+
+  const out = {
+    num_iid: offerId,
+    title: String(e.subject ?? ''),
+    pic_url: String(e.imageUrl ?? ''),
+    // 값이 없으면 키를 만들지 않는다 — 클라이언트의 `|| 폴백`이 자연스럽게 동작하도록.
+    ...(price !== null ? { price: String(price) } : {}),
+    ...(promotionPrice !== null ? { promotion_price: String(promotionPrice) } : {}),
+    ...(consignPrice !== null ? { consign_price: String(consignPrice) } : {}),
+    ...(Number.isFinite(moq) ? { min_num: String(moq) } : {}),
+    ...(e.monthSold !== undefined && e.monthSold !== null ? { sales: Number(e.monthSold) } : {}),
+    ...(e.repurchaseRate !== undefined && e.repurchaseRate !== null ? { rePurchaseRate: e.repurchaseRate } : {}),
+    ...(e.topCategoryId ? { top_category_id: String(e.topCategoryId) } : {}),
+    ...(e.secondCategoryId ? { second_category_id: String(e.secondCategoryId) } : {}),
+    ...(e.thirdCategoryId ? { third_category_id: String(e.thirdCategoryId) } : {}),
+    // 출처 표시 — 화면 디버깅과 회귀 추적용
+    _source: 'crossborder_ko',
+  }
+
+  // 한글 제목은 실제로 한글일 때만 붙인다. 공식 API가 원문을 그대로 돌려주는 상품이 있어
+  // (api1688.js:944-951 주석과 같은 이유) 한글이 아니면 키 자체를 만들지 않는다.
+  const trans = String(e.subjectTrans ?? '').trim()
+  if (trans && hasHangul(trans)) out.title_ko = trans
+
+  return out
+}
+
+/**
+ * 공식 검색 응답 전체 → item_search 형식 resData.
+ * 페이지네이션은 클라이언트가 읽는 이름(items.page_size / page_count / total_results)에 맞춘다.
+ *   totalRecords → total_results, totalPage → page_count,
+ *   pageSize     → page_size,     currentPage → page
+ */
+export function mapCrossborderSearchToItemSearch(response, fallbackPage = 1) {
+  const r = response || {}
+  const list = Array.isArray(r.data) ? r.data : []
+  const items = list.map(mapCrossborderItemToOneBound).filter(Boolean)
+
+  return {
+    error_code: '0000',
+    error: 'ok',
+    items: {
+      page: String(r.currentPage ?? fallbackPage ?? 1),
+      page_size: Number(r.pageSize ?? items.length) || items.length,
+      page_count: Number(r.totalPage ?? 0) || 0,
+      total_results: Number(r.totalRecords ?? items.length) || items.length,
+      real_total_results: Number(r.totalRecords ?? items.length) || items.length,
+      item: items,
+    },
+    _search_source: 'crossborder_ko',
+  }
+}
+
+/**
+ * 공식 검색으로 목록을 만든다. 실패하면 null을 돌려주고 호출부가 기존 item_search로 폴백한다.
+ * subject→subjectTrans 짝은 translation_cache에 저장해 뒤따르는 번역 요청이 캐시로 끝나게 한다.
+ */
+export async function searchListKo(keyword, page = 1, pageSize = 20, opts = {}) {
+  const env = opts.env || process.env
+  const res = await keywordSearchKoPage(keyword, page, pageSize, { env, timeoutMs: opts.timeoutMs || 8000 })
+
+  if (!res.ok || res.items.length === 0) {
+    console.warn(`[crossborder-ko] 목록 검색 실패/0건 — 기존 item_search로 폴백합니다. ` +
+      `keyword="${keyword}" page=${page} error_code=${res.errorCode} reason=${res.reason} (${res.ms}ms)`)
+    return null
+  }
+
+  const resData = mapCrossborderSearchToItemSearch(res.response, page)
+
+  // 원문→한글 짝 저장 (기존 savePairs 재사용. 실패해도 검색 결과에는 영향 없음)
+  try {
+    const pairs = res.items
+      .map(e => ({ sourceText: String(e?.subject ?? '').trim(), translatedText: String(e?.subjectTrans ?? '').trim() }))
+      .filter(p => p.sourceText && p.translatedText)
+    const saved = await savePairs(pairs, { env })
+    console.log(`[crossborder-ko] 목록 검색 성공: keyword="${keyword}" page=${page} ` +
+      `${resData.items.item.length}건 / 총 ${resData.items.total_results}건, 번역캐시 ${saved}건 저장 (${res.ms}ms)`)
+  } catch (e) {
+    console.warn('[crossborder-ko] 번역 캐시 저장 실패(무시):', e.message)
+  }
+
+  return resData
+}

@@ -17,7 +17,7 @@ import { lookupCachedTranslations, saveTranslationsToCache } from './api/_transl
 // 1688 공식 다국어 API 한글 보강도 같은 한 벌을 쓴다
 // (이 파일의 /api/1688-search · /api/1688-item-detail 은 api/*.js를 import하지 않고
 //  따로 구현돼 있어서, 보강 로직만이라도 공유하지 않으면 로컬 검증이 운영과 달라진다)
-import { isCrossborderKoEnabled, isCrossborderKoSearchEnabled, enrichSearchWithKo, enrichDetailWithKo } from './api/_crossborderKo.js'
+import { isCrossborderKoEnabled, isCrossborderKoSearchEnabled, enrichSearchWithKo, enrichDetailWithKo, searchListKo } from './api/_crossborderKo.js'
 
 
 
@@ -327,6 +327,24 @@ function lab1688Plugin(env) {
               return
             }
 
+            // ── 1순위: 1688 공식 다국어 검색으로 목록 자체를 만든다 (운영 api/1688-search.js와 동일) ──
+            let koListAttemptFailed = false
+            if (isCrossborderKoSearchEnabled(env)) {
+              try {
+                const koData = await searchListKo(q, page, 20, { env })
+                if (koData) {
+                  res.statusCode = 200
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                  res.end(JSON.stringify({ success: true, data: koData }))
+                  return
+                }
+                koListAttemptFailed = true
+              } catch (e) {
+                koListAttemptFailed = true
+                console.warn('[vite proxy 1688-search] 공식 검색 실패 — item_search로 폴백합니다:', e.message)
+              }
+            }
+
             // 확정 스펙: 1688global/item_search (session 파라미터 불필요)
             const targetUrl = `https://api-gw.onebound.cn/1688global/item_search/?key=${obKey}&secret=${obSecret}&q=${encodeURIComponent(q)}&page=${page}&result_type=json`
             console.log(`[vite proxy 1688-search] Calling 1688global: q="${q}" page=${page}`)
@@ -362,7 +380,8 @@ function lab1688Plugin(env) {
             console.log(`[vite proxy 1688-search] response: error_code=${errCode} items=${itemCount}`)
 
             // 1688 공식 다국어 API 한글 보강 (운영 api/1688-search.js와 동일)
-            if (isCrossborderKoSearchEnabled(env)) {
+            // 위 공식 목록 검색이 이미 실패했으면 같은 호출을 반복하지 않는다.
+            if (isCrossborderKoSearchEnabled(env) && !koListAttemptFailed) {
               try {
                 await enrichSearchWithKo(data, q, page, { env })
               } catch (e) {
@@ -798,6 +817,16 @@ export default defineConfig(({ mode }) => {
       alias: {
         '@': path.resolve(__dirname, './src')
       }
+    },
+    define: {
+      // 서버 스위치(CROSSBORDER_KO_SEARCH_ENABLED) 하나를 클라이언트에도 그대로 노출한다.
+      // 클라이언트는 "공식 검색이 켜져 있으면 한글 키워드를 그대로 보내고 파파고를 부르지 않는다"를
+      // 판단하는 데만 쓴다. 스위치를 VITE_ 변수로 따로 두면 서버/클라이언트 값이 어긋날 수 있어
+      // 같은 변수 하나를 빌드 시점에 주입한다.
+      // ⚠️ 빌드 시점 값이다. 배포 후 환경변수만 바꾸면 클라이언트에는 반영되지 않으므로 재배포가 필요하다.
+      __CROSSBORDER_KO_SEARCH__: JSON.stringify(
+        String(env.CROSSBORDER_KO_SEARCH_ENABLED ?? '').trim().toLowerCase() === 'true'
+      )
     },
     server: {
       port: 5173,

@@ -514,6 +514,20 @@ export function hasHangul(str) {
 }
 
 /**
+ * 1688 공식 다국어 검색(목록 교체)이 켜져 있는가.
+ * 서버 스위치 CROSSBORDER_KO_SEARCH_ENABLED 값을 vite.config.js의 define이 빌드 시점에
+ * __CROSSBORDER_KO_SEARCH__ 로 주입한다(스위치를 둘로 나누지 않기 위해 같은 변수를 쓴다).
+ * 주입이 없는 환경(테스트 하네스 등)에서는 꺼진 것으로 본다 = 기존 동작.
+ */
+function isCrossborderKoSearchOn() {
+  try {
+    return typeof __CROSSBORDER_KO_SEARCH__ !== 'undefined' && __CROSSBORDER_KO_SEARCH__ === true
+  } catch (e) {
+    return false
+  }
+}
+
+/**
  * 파파고 텍스트 번역 함수 (개별 캐시 확인 ➔ 미번역 텍스트 일괄 번역 ➔ 캐시 저장)
  *
  * ── 킬스위치 ─────────────────────────────────────────────────────────────
@@ -1100,8 +1114,15 @@ export async function search1688WithTranslation(koreanQuery, page = 1, options =
     if (dictResult) {
       queryZh = dictResult
       console.log(`[1688 Search] Dict hit: "${query}" → "${queryZh}"`)
+    } else if (isCrossborderKoSearchOn()) {
+      // 2순위(공식 검색 ON): 한글 키워드를 그대로 보낸다. 1688 공식 다국어 검색이
+      // 검색어까지 번역해 주므로 파파고 키워드 번역을 부르지 않는다.
+      // ⚠️ 다의어는 1688 쪽 번역이 틀릴 수 있다(실측: "텀블러" → 오뚝이).
+      //    정확도가 중요한 품목은 KO_ZH_B2B_DICT에 추가해 중국어를 확정하는 것이 낫다.
+      queryZh = query
+      console.log(`[1688 Search] Crossborder KO: 한글 키워드 그대로 전송 "${query}" (파파고 생략)`)
     } else {
-      // 2순위: 파파고 번역 (주요 품목 외 자유 텍스트)
+      // 2순위(공식 검색 OFF): 파파고 번역 (주요 품목 외 자유 텍스트)
       try {
         const translated = await translateText(query, 'ZH', 'KO')
         const translatedStr = typeof translated === 'string' ? translated : (Array.isArray(translated) ? translated[0] : '')

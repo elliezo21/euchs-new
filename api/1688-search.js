@@ -7,9 +7,14 @@
  * - 타임아웃: 8000ms (8초)
  */
 
-import { isCrossborderKoSearchEnabled, enrichSearchWithKo } from './_crossborderKo.js'
+import { isCrossborderKoSearchEnabled, enrichSearchWithKo, searchListKo } from './_crossborderKo.js'
 
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
+
+// 공식 다국어 검색의 페이지 크기.
+// 기존 item_search의 실측 page_size가 20이라 같은 값으로 맞춘다
+// (다르면 화면의 "다음 페이지" 계산과 총 페이지 수가 기존과 어긋난다).
+const PAGE_SIZE = 20
 
 const FETCH_HEADERS = {
   'Accept': 'application/json, text/plain, */*',
@@ -98,6 +103,26 @@ export default async function handler(req, res) {
     return res.status(500).json({ success: false, message: 'API 인증 환경변수 누락', data: null })
   }
 
+  // ── 1순위: 1688 공식 다국어 검색으로 목록 자체를 만든다 ──────────────────
+  // (스위치: CROSSBORDER_KO_SEARCH_ENABLED=true. 끄면 아래 item_search 경로만 탄다)
+  // 제목이 이미 한글이라 클라이언트 목록 번역(translateItemsBatch)이 필요 없다.
+  // ⚠️ item_search와 공식 검색은 서로 다른 상품을 돌려주므로 "둘 다 호출해 합치기"는 하지 않는다.
+  //    공식 검색이 성공하면 여기서 끝내고 item_search는 호출하지 않는다(호출량 1회 유지).
+  let koListAttemptFailed = false
+  if (isCrossborderKoSearchEnabled()) {
+    try {
+      const koData = await searchListKo(queryZh, page, PAGE_SIZE)
+      if (koData) {
+        return res.status(200).json({ success: true, data: koData })
+      }
+      // koData === null → 실패/0건. 아래 기존 경로로 자동 폴백한다(화면이 비지 않게).
+      koListAttemptFailed = true
+    } catch (e) {
+      koListAttemptFailed = true
+      console.warn('[1688-search] 공식 검색 실패 — 기존 item_search로 폴백합니다:', e.message)
+    }
+  }
+
   // 1688global만 사용 (session 파라미터 불필요)
   // ⚠️ 2026-09-18: OneBound 계정 매니저 확인 — "1688"(non-global) 플랫폼의 item_get/
   // item_search는 해당 계정에서 사용 불가 판정(오늘 13회 시도 전부 실패, 실제조회수 0).
@@ -121,7 +146,9 @@ export default async function handler(req, res) {
   // 제목의 한글만 붙이고, 원문→한글 짝을 translation_cache에 채워
   // 뒤이어 오는 클라이언트 번역 요청이 파파고 없이 캐시로 끝나게 한다.
   // 실패는 전부 조용히 무시된다(enrichSearchWithKo는 throw하지 않음) — 검색은 그대로 나간다.
-  if (isCrossborderKoSearchEnabled()) {
+  // ⚠️ 바로 위 공식 목록 검색이 이미 실패한 경우에는 보강을 시도하지 않는다.
+  //    같은 키워드로 keywordQuery를 한 번 더 부르는 꼴이라 호출만 늘고 결과는 같다.
+  if (isCrossborderKoSearchEnabled() && !koListAttemptFailed) {
     try {
       await enrichSearchWithKo(resData, queryZh, page)
     } catch (e) {
