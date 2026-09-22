@@ -52,21 +52,62 @@ export function krwFromCny(cnyAmount, rate) {
 }
 
 /**
+ * 수량 값 정규화 — 유효한 양수면 그 값, 아니면 0.
+ *
+ * ★ 수량에 `|| 1` 폴백을 두지 않기 위한 공용 판정 기준. (CLAUDE.md 3-9)
+ *   수량이 없거나 0인 행을 1개로 채우면 담긴 적 없는 금액이 소계·합계에 섞여 들어간다.
+ *   0을 돌려주면 금액이 0으로 계산되고, 화면은 '수량 확인 필요'로 표시해 막는다.
+ *
+ * 이 함수를 쓰는 곳: resolveItemQty(아래), CartView.cartRowQty, excelExport 견적서.
+ * 같은 규칙을 여러 벌 만들지 않기 위해 한 곳에 둔다.
+ *
+ * @param {*} raw - quantity 후보 값
+ * @returns {number} 양수면 그 값, 그 외(0/음수/NaN/null/undefined/빈값)는 0
+ */
+export function normalizeQty(raw) {
+  const q = Number(raw);
+  return Number.isFinite(q) && q > 0 ? q : 0;
+}
+
+/** 필드가 "존재하는지" 판정 — 0도 존재하는 값으로 취급한다 (|| 체인과의 차이) */
+function hasQtyField(v) {
+  return v !== undefined && v !== null && v !== '';
+}
+
+/**
  * 아이템의 실제 수량 반환 — skus 구조 우선
  * skus 배열이 있고 합계 > 0이면 옵션별 quantity 합계, 없으면 item.quantity
  * @param {Object} item
- * @returns {number}
+ * @returns {number} 유효 수량. 확인 불가면 0 (1로 채우지 않는다)
  */
 export function resolveItemQty(item) {
   // ★ skus 우선 — DB 원본 확인으로 확정 (2026-09-09)
   // item.quantity는 CartView 스테퍼가 skus와 미동기화 상태일 수 있어 신뢰 불가
   // skus 배열이 있고 합계 > 0이면 → Σ sku.quantity 사용
   // skus 없거나 합계 0이면 → item.quantity 폴백
+  // ※ 이 skus 우선 규칙은 그대로 유지한다 (skus 합계 ≠ quantity인 기존 주문의 결과가 바뀌면 안 됨)
   if (Array.isArray(item.skus) && item.skus.length > 0) {
     const skuSum = item.skus.reduce((s, sk) => s + (Number(sk.quantity || sk.qty) || 0), 0);
     if (skuSum > 0) return skuSum;
   }
-  return Number(item.quantity || item.qty || item.orderQty) || 1;
+
+  // 폴백: quantity → qty → orderQty 순으로 "값이 있는 첫 필드"를 읽는다.
+  // ※ `item.quantity || item.qty || item.orderQty` 식으로 이으면 quantity가 0일 때
+  //   0이 falsy라 다음 필드로 넘어가 품절/무효 수량이 가려진다. 필드 존재 여부로 판정한다.
+  const raw = hasQtyField(item?.quantity) ? item.quantity
+    : hasQtyField(item?.qty) ? item.qty
+      : hasQtyField(item?.orderQty) ? item.orderQty
+        : undefined;
+
+  const qty = normalizeQty(raw);
+  if (qty === 0) {
+    // 과거에는 여기서 1을 돌려줘 "0개인 행이 1개 금액"으로 계산됐다. 조용히 채우지 않는다.
+    console.error(
+      '[resolveItemQty] 유효한 수량을 확인할 수 없습니다 — 1로 채우지 않고 0으로 계산합니다.',
+      { itemId: item?.itemId, num_iid: item?.num_iid, option: item?.optionName || item?.sku, raw }
+    );
+  }
+  return qty;
 }
 
 

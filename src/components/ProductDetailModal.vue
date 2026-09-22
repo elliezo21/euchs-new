@@ -663,6 +663,7 @@ import {
   readCart,
   checkOfferMoq,
   buildCartRowsFromSkus,
+  resolveSkuImageUrl,
   findZeroQuantityRows,
   findInvalidPriceRows,
   mergeAndSaveCart
@@ -1384,48 +1385,21 @@ const getSkuSpecId = (color, size) => {
 }
 
 // color+size 조합의 이미지 반환 — 장바구니 행 썸네일용.
-// 매칭 순서는 getSkuStock / getSkuSpecId와 동일하게 맞춘다
-// (같은 조합이 서로 다른 값을 보지 않도록).
-//   1~4순위: parsedSkus의 자기 SKU 이미지
-//   5순위  : colorOptions의 색상 썸네일 — 1차 옵션 버튼에 쓰는 것과 "같은 출처"
-//   실패   : '' 반환 → buildCartRowsFromSkus가 상품 대표 이미지(baseItem.imageUrl)로 폴백
-// ※ 두 출처 모두 api1688.js의 normalizeImg를 이미 거친 값이라 여기서 재정규화하지 않는다.
+// 판정 규칙 자체는 utils/cartWriter.js의 resolveSkuImageUrl 공용 함수에 있다
+// (장바구니 "옵션 변경/추가" 팝업도 같은 함수를 쓴다 — 규칙을 두 벌 만들지 않기 위함).
+// 여기서는 이 모달의 데이터 출처(parsedSkus / colorOptions)만 묶어 넘긴다.
 const getSkuImageUrl = (color, size) => {
   const item = currentItem.value || props.product || {}
   const skus = (Array.isArray(item.skus) && item.skus.length > 0)
     ? item.skus
     : (Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : [])
 
-  const cStr = String(color || '').trim()
-  const sStr = String(size || '').trim()
-
-  if (skus.length > 0) {
-    // 1. color + size 정확 매칭
-    if (cStr && sStr) {
-      const match = skus.find(sk => String(sk.color || '').trim() === cStr && String(sk.size || '').trim() === sStr)
-      if (match?.imageUrl) return String(match.imageUrl)
-    }
-    // 2. size만 매칭 (단일 색상 상품)
-    if (sStr) {
-      const match = skus.find(sk => String(sk.size || '').trim() === sStr)
-      if (match?.imageUrl) return String(match.imageUrl)
-    }
-    // 3. color만 매칭 (단일 규격 상품)
-    if (cStr) {
-      const match = skus.find(sk => String(sk.color || '').trim() === cStr)
-      if (match?.imageUrl) return String(match.imageUrl)
-    }
-    // 4. 단일 SKU 상품 — 첫 번째 행
-    if (skus.length === 1 && skus[0].imageUrl) return String(skus[0].imageUrl)
-  }
-
-  // 5. 색상 버튼 썸네일과 같은 출처(colorOptions[].imageUrl)
-  if (cStr) {
-    const opt = colorOptions.value.find(c => String(c.name || '').trim() === cStr)
-    if (opt?.imageUrl) return String(opt.imageUrl)
-  }
-
-  return ''
+  return resolveSkuImageUrl({
+    skus,
+    colorValues: colorOptions.value,   // 1차 옵션 버튼 썸네일과 같은 출처
+    color,
+    size,
+  })
 }
 
 // 다중 옵션 (2차 사이즈/규격 존재 여부: 1개 이상 존재할 때만 활성화)

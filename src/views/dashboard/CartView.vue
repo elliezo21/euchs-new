@@ -713,10 +713,11 @@ import OrderConfigModal from '@/components/dashboard/OrderConfigModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import ProductDetailModal from '@/components/ProductDetailModal.vue';
 import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue';
-import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
+import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty, normalizeQty } from '@/utils/orderCostCalculator';
 import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
 import { sumQty, resolveMoq, offerGroupKey } from '@/utils/moq';
 import { resolveTierUnitPrice, resolveGroupPricing, isSkuPricedSkus, buildCargoParamList } from '@/utils/priceTier';
+import { resolveSkuImageUrl } from '@/utils/cartWriter';
 
 const router = useRouter();
 const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
@@ -863,7 +864,20 @@ async function calcSellerBatchFreight() {
         //   장바구니 행 병합 키가 번역된 표시 문자열(color/size)이라 같은 SKU가
         //   번역 차이로 별도 행이 되는 경우가 있다("M[5~8근 권장]" vs "M[建议5-8斤]").
         //   중복 specId를 그대로 보내면 createOrder.preview가 빈 결과를 반환한다.
-        const { cargoList, mergedCount } = buildCargoParamList(g.items, resolveItemQty);
+        // ★ 수량 0(품절 옵션이 담겼던 행 등)은 운임 배치 요청에서 뺀다.
+        //   priceTier.buildCargoParamList는 공용·수정 금지 파일이고 내부에서
+        //   Math.max(1, ...)로 수량을 1개까지 올리므로, 걸러내지 않으면 0개인 행이
+        //   1개로 운임에 반영된다. 판정은 buildCargoParamList가 쓰는 것과 같은
+        //   resolveItemQty 기준으로 맞춘다.
+        const freightItems = g.items.filter(it => resolveItemQty(it) > 0);
+        const excludedZeroQty = g.items.length - freightItems.length;
+        if (excludedZeroQty > 0) {
+          console.warn(
+            `  ↳ ${g.groupKey}: 수량 0인 행 ${excludedZeroQty}건을 운임 조회에서 제외합니다.`,
+            g.items.filter(it => resolveItemQty(it) <= 0).map(i => ({ id: i.id, opt: i.optionName }))
+          );
+        }
+        const { cargoList, mergedCount } = buildCargoParamList(freightItems, resolveItemQty);
         if (mergedCount > 0) {
           console.warn(
             `  ↳ ${g.groupKey}: 같은 SKU가 ${mergedCount}건 중복 저장돼 있어 수량을 합쳐 조회합니다 ` +
@@ -1107,8 +1121,7 @@ function hasValidQuantity(item) {
  *   수량이 1 이상이면 반환값이 기존 `|| 1` 식과 완전히 동일하므로 정상 행의 금액은 변하지 않는다.
  */
 function cartRowQty(item) {
-  const q = Number(item?.quantity);
-  return Number.isFinite(q) && q > 0 ? q : 0;
+  return normalizeQty(item?.quantity);
 }
 
 /** 단가 미확인 행이 선택돼 있는지 — 견적신청 차단 판정용 */
@@ -1569,6 +1582,15 @@ async function openOptionModal(item) {
           priceCny: price,
           quantity: isCurrent ? (Number(item.quantity) || 1) : 0,
           isCurrent,
+          // 이 옵션의 이미지 — applyOptionChanges가 새 행에 넣는다.
+          // 규칙은 ProductDetailModal 담기 경로와 같은 공용 함수(resolveSkuImageUrl)를 쓴다.
+          // 색상 썸네일 출처는 방금 받은 응답의 skuProps[0].values (상세 모달 colorOptions와 동일 출처).
+          imageUrl: resolveSkuImageUrl({
+            skus,
+            colorValues: full.skuProps?.[0]?.values || [],
+            color: colorZh,
+            size,
+          }),
         };
       });
 
@@ -1675,6 +1697,13 @@ function applyOptionChanges() {
         //   갱신하지 않으면 화면 옵션과 1688 발주용 specId가 어긋난다
         //   (api/1688-order-create.js가 specId만으로 실제 주문 SKU를 결정).
         specId: sku.specId || '',
+        // ★ 이미지 부분만 2026-09-22 사용자 허락으로 수정.
+        //   baseItem 스프레드는 "변경 전" 옵션의 사진을 물고 와, 옵션을 바꿔도
+        //   장바구니 썸네일이 예전 옵션 사진으로 남았다. openOptionModal이
+        //   방금 받은 응답으로 행마다 넣어둔 sku.imageUrl을 쓴다
+        //   (규칙은 담기 경로와 같은 resolveSkuImageUrl 공용 함수).
+        //   비어 있으면 기존 행 이미지를 그대로 유지한다.
+        imageUrl: sku.imageUrl || baseItem.imageUrl,
         color: sku.color,
         size: sku.size,
         optionName: optLabel,

@@ -2,7 +2,7 @@
  * EUCHS B2B 수입대행 공식 견적서 XLSX 엑셀 생성 및 다운로드 유틸리티
  */
 import * as XLSX from 'xlsx';
-import { krwFromCny, estimateFreightRmb } from '@/utils/orderCostCalculator';
+import { krwFromCny, estimateFreightRmb, resolveItemQty } from '@/utils/orderCostCalculator';
 
 /**
  * 장바구니/발주 대기 품목을 공식 B2B 견적서 엑셀(.xlsx) 파일로 출력 및 다운로드
@@ -46,7 +46,9 @@ export function exportQuoteExcel(
   let totalProductKrw = 0;
 
   const itemRows = safeItems.map((item, index) => {
-    const qty = Number(item.quantity || item.orderQty) || 1;
+    // 수량은 화면(장바구니·주문)과 같은 기준으로 읽는다 — resolveItemQty 공용 규칙.
+    // ※ 기존 `|| 1` 폴백 제거: 수량 0/무효 행이 견적서에 1개 금액으로 찍히던 문제. (CLAUDE.md 3-9)
+    const qty = resolveItemQty(item);
     const priceCny = Number(item.priceCny || item.price || item.unitPriceCny || item.productPriceCny) || 0;
     const priceKrw = krwFromCny(priceCny, exchangeRate);  // 단가 원화 (표시용)
     const subtotalKrw = krwFromCny(priceCny * qty, exchangeRate);  // 확정 공식: krwFromCny(단가×수량, rate)

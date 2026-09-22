@@ -174,6 +174,65 @@ export function buildCartRowsFromSkus({
 }
 
 /**
+ * 옵션(color+size) 하나에 해당하는 이미지를 고른다 — 장바구니 행 썸네일용 공용 규칙.
+ *
+ * 매칭 순서는 ProductDetailModal의 getSkuStock / getSkuSpecId와 동일하게 맞춘다
+ * (같은 조합이 화면·장바구니에서 서로 다른 값을 보지 않도록).
+ *   1. color + size 정확 매칭
+ *   2. size만 매칭 (단일 색상 상품)
+ *   3. color만 매칭 (단일 규격 상품)
+ *   4. 단일 SKU 상품 — 첫 번째 행
+ *   5. 같은 색상의 옵션 썸네일 (1차 옵션 버튼에 쓰는 것과 같은 출처)
+ *   실패 시 '' — 호출측이 상품 대표 이미지로 폴백한다.
+ *
+ * ※ 표시 전용 값이다. 금액·specId 판정에는 쓰이지 않는다.
+ * ※ skus[].imageUrl / colorValues[].imageUrl 모두 api1688.js의 normalizeImg를 이미
+ *   거친 값이라 여기서 재정규화하지 않는다.
+ *
+ * @param {object}  params
+ * @param {Array}   params.skus         - 파싱된 SKU 배열 [{color, size, imageUrl}, ...]
+ * @param {Array}   params.colorValues  - 색상 옵션 목록 [{name, imageUrl}, ...] (없으면 [])
+ * @param {string}  params.color
+ * @param {string}  params.size
+ * @returns {string} 이미지 URL 또는 ''
+ */
+export function resolveSkuImageUrl({ skus, colorValues, color, size }) {
+  const list = Array.isArray(skus) ? skus : []
+  const colors = Array.isArray(colorValues) ? colorValues : []
+
+  const cStr = String(color || '').trim()
+  const sStr = String(size || '').trim()
+
+  if (list.length > 0) {
+    // 1. color + size 정확 매칭
+    if (cStr && sStr) {
+      const match = list.find(sk => String(sk.color || '').trim() === cStr && String(sk.size || '').trim() === sStr)
+      if (match?.imageUrl) return String(match.imageUrl)
+    }
+    // 2. size만 매칭 (단일 색상 상품)
+    if (sStr) {
+      const match = list.find(sk => String(sk.size || '').trim() === sStr)
+      if (match?.imageUrl) return String(match.imageUrl)
+    }
+    // 3. color만 매칭 (단일 규격 상품)
+    if (cStr) {
+      const match = list.find(sk => String(sk.color || '').trim() === cStr)
+      if (match?.imageUrl) return String(match.imageUrl)
+    }
+    // 4. 단일 SKU 상품 — 첫 번째 행
+    if (list.length === 1 && list[0].imageUrl) return String(list[0].imageUrl)
+  }
+
+  // 5. 색상 버튼 썸네일과 같은 출처
+  if (cStr) {
+    const opt = colors.find(c => String(c.name || '').trim() === cStr)
+    if (opt?.imageUrl) return String(opt.imageUrl)
+  }
+
+  return ''
+}
+
+/**
  * 담기 직전 최종 점검용 — 수량이 0으로 떨어진 행을 골라낸다.
  *
  * buildCartRowsFromSkus는 재고 상한으로 수량을 클램핑하므로, 재고가 0인 옵션은
