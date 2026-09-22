@@ -299,20 +299,28 @@
 
           <!-- 우측: 수량 + 단가 + 합계 + 삭제 -->
           <div class="flex items-center gap-3 shrink-0 flex-wrap sm:flex-nowrap">
-            <div class="inline-flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
-              <button type="button" @click="decreaseQty(item)"
-                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">-</button>
-              <input
-                type="number"
-                min="1"
-                :max="(typeof item.stock === 'number' && !isNaN(item.stock)) ? item.stock : undefined"
-                :value="item.quantity || 1"
-                @input="onQtyInput(item, $event)"
-                @change="onQtyInput(item, $event)"
-                class="w-14 h-8 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none focus:bg-amber-50/50"
-              />
-              <button type="button" @click="increaseQty(item)"
-                class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">+</button>
+            <div class="flex flex-col items-center gap-0.5">
+              <div class="inline-flex items-center border border-gray-200 rounded-xl overflow-hidden bg-white shadow-xs">
+                <button type="button" @click="decreaseQty(item)"
+                  class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">-</button>
+                <input
+                  type="number"
+                  min="1"
+                  :max="(typeof item.stock === 'number' && !isNaN(item.stock)) ? item.stock : undefined"
+                  :value="item.quantity"
+                  @input="onQtyInput(item, $event)"
+                  @change="onQtyInput(item, $event)"
+                  class="w-14 h-8 text-center text-xs font-mono font-bold text-gray-900 border-x border-gray-200 outline-none focus:bg-amber-50/50"
+                />
+                <button type="button" @click="increaseQty(item)"
+                  class="w-8 h-8 flex items-center justify-center text-gray-500 hover:bg-gray-100 active:bg-gray-200 transition font-bold cursor-pointer">+</button>
+              </div>
+              <!-- 수량 0인 행(예전 담기 경로에서 품절 옵션이 저장된 경우) — 발주도 차단된다 -->
+              <div
+                v-if="!hasValidQuantity(item)"
+                class="text-xs font-bold text-red-600 whitespace-nowrap"
+                title="수량이 0인 행입니다. 품절 옵션이 담겼을 수 있습니다. 수량을 다시 입력하거나 삭제해 주세요."
+              >수량 확인 필요</div>
             </div>
             <div class="text-right font-mono w-24 shrink-0">
               <template v-if="hasValidPrice(item)">
@@ -976,7 +984,12 @@ const loadCartItems = () => {
             isSkuPriced: it.isSkuPriced === true,
             priceTiers: Array.isArray(it.priceTiers) ? it.priceTiers : [],
             // ── 수량: 저장된 quantity만 정확히 읽기 (minOrder 폴백 절대 금지 — 뻥튀기 방지) ──
-            quantity: Math.max(1, parseInt(it.quantity, 10) || 1),
+            //    ★ Math.max(1, ...) 제거: 수량 0인 행(품절 옵션이 재고 클램핑으로 0이 된 행 등)을
+            //      조용히 1로 되살려 "담긴 적 없는 수량"을 정상처럼 보이게 만들었다.
+            //      저장된 값을 그대로 읽고, 1 미만이면 아래 hasValidQuantity가 false가 되어
+            //      화면에 '수량 확인 필요'로 표시되고 견적신청이 차단된다.
+            //      (단가 누락을 parseUnitPriceCny로 처리하는 방식과 동일한 패턴)
+            quantity: parseCartQuantity(it.quantity, it),
             // ── 옵션 독립 필드 (SKU별 1:1 바인딩, 절대 덮어씌우지 않음) ──
             color: colorStr,
             size: sizeStr,
@@ -1057,10 +1070,45 @@ function parseUnitPriceCny(raw, item) {
   return null;
 }
 
+/**
+ * 저장된 수량을 숫자로 파싱. 유효하지 않으면 0 + 원인 로그.
+ * ★ 임의 기본값(과거 Math.max(1, ...))으로 올리지 않는다 — 담긴 적 없는 수량이
+ *   정상처럼 보이게 만들기 때문. 0으로 두면 hasValidQuantity가 false가 되어
+ *   화면에 '수량 확인 필요'로 표시되고 견적신청이 차단된다.
+ *   (null이 아니라 0을 쓰는 이유: 소계·합계 계산이 전부 산술이라 null이 섞이면
+ *    NaN이 화면 곳곳으로 퍼진다. 0은 산술적으로 안전하면서 판정에서 걸린다)
+ */
+function parseCartQuantity(raw, item) {
+  const q = parseInt(raw, 10);
+  if (Number.isFinite(q) && q >= 1) return q;
+  console.error(
+    '[CartView] 장바구니 행에 유효한 수량(quantity)이 없습니다 — 수량 확인 필요로 표시하고 발주를 차단합니다.',
+    { itemId: item?.itemId, num_iid: item?.num_iid, option: item?.optionName || item?.sku, raw }
+  );
+  return 0;
+}
+
 /** 이 행이 금액 계산 가능한 단가를 갖고 있는지 */
 function hasValidPrice(item) {
   const p = Number(item?.priceCny);
   return Number.isFinite(p) && p > 0;
+}
+
+/** 이 행이 발주 가능한 수량을 갖고 있는지 (1개 이상) */
+function hasValidQuantity(item) {
+  const q = Number(item?.quantity);
+  return Number.isFinite(q) && q >= 1;
+}
+
+/**
+ * 금액·합계 계산에 쓸 수량. 유효하지 않으면 0.
+ * ★ `Number(item.quantity) || 1` 폴백을 쓰지 않는다 — 수량 0인 행이 1개로 계산되어
+ *   행 금액·판매자 소계·상품대금에 담긴 적 없는 금액이 섞여 들어갔다. (CLAUDE.md 3-9)
+ *   수량이 1 이상이면 반환값이 기존 `|| 1` 식과 완전히 동일하므로 정상 행의 금액은 변하지 않는다.
+ */
+function cartRowQty(item) {
+  const q = Number(item?.quantity);
+  return Number.isFinite(q) && q > 0 ? q : 0;
 }
 
 /** 단가 미확인 행이 선택돼 있는지 — 견적신청 차단 판정용 */
@@ -1073,7 +1121,7 @@ function getItemUnitPriceCny(item) {
 }
 
 function getItemSubtotalCny(item) {
-  return getItemUnitPriceCny(item) * (Number(item.quantity) || 1);
+  return getItemUnitPriceCny(item) * cartRowQty(item);
 }
 
 /** 품목별 소계(원화) — 정렬/개별 표시 전용. 합계는 반드시 selectedTotalKrw (CNY합산→1번환산) 사용 */
@@ -1303,7 +1351,9 @@ function increaseQty(item) {
     ? rawStock
     : (rawStock !== undefined && rawStock !== null && rawStock !== '' && !isNaN(Number(rawStock)) ? Number(rawStock) : Infinity);
   
-  const current = Number(item.quantity) || 1;
+  // 수량 0(품절 옵션이 담겼던 행 등)에서 +를 누르면 1이 되어야 한다.
+  // 기존 `|| 1`은 0을 1로 읽어 next가 2로 건너뛰었다.
+  const current = cartRowQty(item);
   const next = current + 1;
   if (stock !== Infinity && next > stock) {
     showStockToast(`재고는 최대 ${stock}개까지만 담을 수 있습니다.`);
@@ -1319,7 +1369,9 @@ function increaseQty(item) {
 
 function decreaseQty(item) {
   const mo = resolveMoq(item.minOrder);
-  const current = Number(item.quantity) || 1;
+  // MOQ 하한 규칙은 기존 그대로다. 수량 0 행은 아래 `current <= 1` 분기로 떨어져
+  // "1개 미만으로는 줄일 수 없습니다" 안내를 받는다(기존 `|| 1`일 때와 동일한 결과).
+  const current = cartRowQty(item);
   // 같은 1688 상품(num_iid)의 전체 행 합계가 MOQ 미만이 되면 차단 (행 개별 기준 아님)
   const key = offerGroupKey(item);
   const offerTotalAfter = sumQty(cartItems.value.filter(r => offerGroupKey(r) === key)) - 1;
@@ -1720,7 +1772,7 @@ const filteredItems = computed(() => {
 });
 
 const totalItemsQuantity = computed(() => {
-  return cartItems.value.reduce((acc, cur) => acc + (Number(cur.quantity) || 1), 0);
+  return cartItems.value.reduce((acc, cur) => acc + cartRowQty(cur), 0);
 });
 
 const selectedItems = computed(() => {
@@ -1728,7 +1780,7 @@ const selectedItems = computed(() => {
 });
 
 const selectedTotalQuantity = computed(() => {
-  return selectedItems.value.reduce((acc, cur) => acc + (Number(cur.quantity) || 1), 0);
+  return selectedItems.value.reduce((acc, cur) => acc + cartRowQty(cur), 0);
 });
 
 const selectedTotalCny = computed(() => {
@@ -1881,6 +1933,17 @@ function openOrderModal() {
     const names = [...new Set(priceMissing.map(it => it.titleKo || it.titleZh || '1688 상품'))];
     console.error('[CartView] 단가 미확인 품목으로 발주 차단:', priceMissing);
     showStockToast(`단가를 확인할 수 없는 상품이 있습니다 — ${names.join(', ')}. 옵션 변경/추가로 다시 선택해 주세요`);
+    return;
+  }
+
+  // ── 수량 미확인 품목 차단 (단가 미확인 차단과 동일한 방식) ──────────────
+  // 수량 0인 행은 예전 담기 경로에서 품절 옵션이 재고 클램핑으로 0이 되어 저장된 것이다.
+  // loadCartItems가 더 이상 1로 되살리지 않으므로 여기서 발주를 막는다.
+  const quantityMissing = targetItems.filter(it => !hasValidQuantity(it));
+  if (quantityMissing.length > 0) {
+    const names = [...new Set(quantityMissing.map(it => it.titleKo || it.titleZh || '1688 상품'))];
+    console.error('[CartView] 수량 미확인 품목으로 발주 차단:', quantityMissing);
+    showStockToast(`수량을 확인할 수 없는 상품이 있습니다 — ${names.join(', ')}. 수량을 다시 입력하거나 삭제해 주세요`);
     return;
   }
 

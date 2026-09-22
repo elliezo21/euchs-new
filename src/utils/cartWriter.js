@@ -88,6 +88,7 @@ export function checkOfferMoq({ cart, offerId, addingQty, minOrder }) {
  * @param {Function} params.resolveUnitPrice- (sku) => number, 이 줄의 단가(CNY)
  * @param {Function} params.resolveStock    - (color, size) => number | Infinity
  * @param {Function} params.resolveSpecId   - (color, size) => string (32자리 hex 또는 '')
+ * @param {Function} params.resolveImageUrl - (color, size) => string, 그 옵션의 이미지 ('' 가능)
  * @returns {Array<object>} 장바구니 행 배열
  */
 export function buildCartRowsFromSkus({
@@ -102,6 +103,7 @@ export function buildCartRowsFromSkus({
   resolveUnitPrice,
   resolveStock,
   resolveSpecId,
+  resolveImageUrl,
 }) {
   return selectedSkus.map((sku, idx) => {
     const colorStr = String(sku.color || '').trim()
@@ -120,6 +122,13 @@ export function buildCartRowsFromSkus({
     return {
       ...baseItem,
       id: skuId,
+      // ── 행 이미지 (표시 전용) ──────────────────────────────────────────
+      // 이 행의 SKU 이미지 → (없으면) 같은 색상의 옵션 썸네일 → (없으면) 상품 대표 이미지.
+      // 앞의 두 단계는 resolveImageUrl이 담당하고, 마지막 폴백만 여기서 처리한다.
+      // ★ 결정은 이 함수 안에서 끝난다 — 호출측이 행마다 이미지를 따로 넣지 않아도 된다.
+      //   (baseItem.imageUrl은 "담을 당시 상세창에 떠 있던 큰 사진" 하나뿐이라,
+      //    여러 옵션을 한 번에 담으면 모든 행이 같은 사진을 공유하는 문제가 있었다)
+      imageUrl: resolveImageUrl(colorStr, sizeStr) || baseItem.imageUrl,
       // 옵션 독립 필드 (CartView에서 개별 렌더링용)
       color: colorStr,
       size: sizeStr,
@@ -161,6 +170,39 @@ export function buildCartRowsFromSkus({
       skus: [{ color: colorStr, size: sizeStr, quantity: skuQty }],
       createdAt: new Date().toISOString(),
     }
+  })
+}
+
+/**
+ * 담기 직전 최종 점검용 — 수량이 0으로 떨어진 행을 골라낸다.
+ *
+ * buildCartRowsFromSkus는 재고 상한으로 수량을 클램핑하므로, 재고가 0인 옵션은
+ * 수량 0인 행이 되어 나온다. 그대로 저장하면 "성공 토스트 + 빈 행"이라는
+ * 조용한 실패가 된다. 어느 화면이든 담기 전에 이 함수로 걸러 사용자에게 알려야 한다.
+ *
+ * ※ 판정만 하고 아무것도 막지 않는다 — 차단·문구는 호출측(모달/엑셀 확인 표) 책임.
+ *
+ * @param {Array<object>} rows - buildCartRowsFromSkus 결과
+ * @returns {Array<object>} 수량이 1 미만인 행들 (없으면 빈 배열)
+ */
+export function findZeroQuantityRows(rows) {
+  return rows.filter(r => !(Number(r.quantity) >= 1))
+}
+
+/**
+ * 담기 직전 최종 점검용 — 단가가 유효하지 않은 행을 골라낸다.
+ *
+ * 판정 기준은 CartView.hasValidPrice와 동일하게 "유한한 수 & 0보다 큼"으로 맞춘다.
+ * (CartView는 이 조건이 false인 행을 '가격 확인 필요'로 표시하고 발주를 차단한다)
+ * 담기 단계에서 미리 막아 0원짜리 행이 장바구니에 들어가는 것 자체를 방지한다.
+ *
+ * @param {Array<object>} rows - buildCartRowsFromSkus 결과
+ * @returns {Array<object>} priceCny가 유효하지 않은 행들 (없으면 빈 배열)
+ */
+export function findInvalidPriceRows(rows) {
+  return rows.filter(r => {
+    const p = Number(r.priceCny)
+    return !(Number.isFinite(p) && p > 0)
   })
 }
 

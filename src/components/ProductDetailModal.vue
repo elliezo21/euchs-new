@@ -313,13 +313,17 @@
                     :key="color.colorId || cIdx"
                     type="button"
                     @click="handleSelectColor(color)"
-                    class="px-3.5 py-2 rounded-xl border-2 text-xs font-medium transition-all flex items-center gap-2 cursor-pointer active:scale-95"
-                    :class="selectedColorId === color.colorId
-                      ? 'border-rose-600 bg-rose-500 text-white font-bold shadow-md ring-2 ring-rose-400/50'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700'"
+                    :disabled="isColorSoldOut(color.name)"
+                    class="px-3.5 py-2 rounded-xl border-2 text-xs font-medium transition-all flex items-center gap-2 cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed"
+                    :class="isColorSoldOut(color.name)
+                      ? 'border-gray-200 bg-white text-gray-400'
+                      : (selectedColorId === color.colorId
+                        ? 'border-rose-600 bg-rose-500 text-white font-bold shadow-md ring-2 ring-rose-400/50'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700')"
                   >
                     <img v-if="color.imageUrl" :src="color.imageUrl" :alt="color.name" class="w-5 h-5 rounded-full object-cover border border-white/50" referrerpolicy="no-referrer" />
                     <span>{{ color.name }}</span>
+                    <span v-if="isColorSoldOut(color.name)" class="text-[10px] text-gray-400 font-normal">품절</span>
                     <i v-if="selectedColorId === color.colorId" class="fas fa-check text-[10px]"></i>
                   </button>
                 </div>
@@ -345,11 +349,13 @@
                     :key="sIdx"
                     type="button"
                     @click="handleSelectSize(size)"
-                    :disabled="!selectedColor || sizeStockMap[size] === 0 || sizeStockMap[size] === undefined"
-                    class="px-4 py-2 rounded-xl border-2 text-xs font-medium transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-white flex flex-col items-center leading-tight"
-                    :class="selectedSize === size
-                      ? 'border-rose-600 bg-rose-500 text-white font-bold shadow-md ring-2 ring-rose-400/50'
-                      : 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700'"
+                    :disabled="isSizeDisabled(size)"
+                    class="px-4 py-2 rounded-xl border-2 text-xs font-medium transition-all cursor-pointer active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed flex flex-col items-center leading-tight"
+                    :class="isSizeDisabled(size)
+                      ? 'border-gray-200 bg-white text-gray-400'
+                      : (selectedSize === size
+                        ? 'border-rose-600 bg-rose-500 text-white font-bold shadow-md ring-2 ring-rose-400/50'
+                        : 'border-gray-200 bg-white text-gray-700 hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700')"
                   >
                     <span>{{ size }}</span>
                     <span v-if="sizeStockMap[size] === 0 || sizeStockMap[size] === undefined" class="text-[10px] text-gray-400 font-normal">품절</span>
@@ -653,7 +659,14 @@ import { getCartStorageKey, isLoggedIn, openLoginModal } from '../lib/auth'
 // 이동하면서 이 파일에서는 더 이상 호출되지 않는다 (resolveMoq는 :947에서 계속 사용).
 import { resolveMoq } from '../utils/moq'
 import { isSkuPricedSkus } from '../utils/priceTier'
-import { readCart, checkOfferMoq, buildCartRowsFromSkus, mergeAndSaveCart } from '../utils/cartWriter'
+import {
+  readCart,
+  checkOfferMoq,
+  buildCartRowsFromSkus,
+  findZeroQuantityRows,
+  findInvalidPriceRows,
+  mergeAndSaveCart
+} from '../utils/cartWriter'
 import { currentSettings, fetchSiteSettings } from '../lib/settings'
 import {
   findSavedProduct,
@@ -1266,6 +1279,26 @@ const colorStockMap = computed(() => {
   return map
 })
 
+// 이 색상이 "전부 품절"인지 판정 — 1차 옵션 버튼 비활성화 기준.
+// colorStockMap은 같은 색상의 SKU 중 "최대" 재고를 담으므로, 값이 0이면
+// 그 색상으로 고를 수 있는 SKU가 하나도 남지 않았다는 뜻이다.
+//   · 2축 상품에서 일부 사이즈만 품절인 색상은 최대값이 0보다 커서 막히지 않는다
+//     (그 사이즈는 2차 옵션 버튼이 이미 품절 처리한다).
+//   · 재고 미파악(undefined / NaN으로 맵에 아예 없음 / 파싱 폴백 999)은 품절이 아니다.
+//     반드시 === 0 으로만 판정한다. CLAUDE.md 5조: quantity=0(품절)만 정확히 반영.
+const isColorSoldOut = (colorName) => {
+  const key = String(colorName || '').trim()
+  if (!key) return false
+  return colorStockMap.value[key] === 0
+}
+
+// 2차 옵션(사이즈) 버튼의 비활성 조건.
+// 기존 템플릿에 인라인으로 있던 식을 그대로 옮긴 것 — 판정은 한 글자도 바뀌지 않았다.
+// :disabled와 :class가 같은 값을 보게 해서, 비활성일 때 hover 스타일이 붙지 않도록 한다.
+const isSizeDisabled = (size) => {
+  return !selectedColor.value || sizeStockMap.value[size] === 0 || sizeStockMap.value[size] === undefined
+}
+
 // 색상+사이즈 조합의 재고 상한 반환.
 // 1순위: 원본 skus 배열에서 color+size 또는 단일 옵션 정확 매칭 탐색
 // 2순위: sizeStockMap / colorStockMap 폴백
@@ -1347,6 +1380,51 @@ const getSkuSpecId = (color, size) => {
     // 4. 단일 SKU 상품 — 첫 번째 행
     if (skus.length === 1 && skus[0].specId) return String(skus[0].specId)
   }
+  return ''
+}
+
+// color+size 조합의 이미지 반환 — 장바구니 행 썸네일용.
+// 매칭 순서는 getSkuStock / getSkuSpecId와 동일하게 맞춘다
+// (같은 조합이 서로 다른 값을 보지 않도록).
+//   1~4순위: parsedSkus의 자기 SKU 이미지
+//   5순위  : colorOptions의 색상 썸네일 — 1차 옵션 버튼에 쓰는 것과 "같은 출처"
+//   실패   : '' 반환 → buildCartRowsFromSkus가 상품 대표 이미지(baseItem.imageUrl)로 폴백
+// ※ 두 출처 모두 api1688.js의 normalizeImg를 이미 거친 값이라 여기서 재정규화하지 않는다.
+const getSkuImageUrl = (color, size) => {
+  const item = currentItem.value || props.product || {}
+  const skus = (Array.isArray(item.skus) && item.skus.length > 0)
+    ? item.skus
+    : (Array.isArray(props.product?.skus) && props.product.skus.length > 0 ? props.product.skus : [])
+
+  const cStr = String(color || '').trim()
+  const sStr = String(size || '').trim()
+
+  if (skus.length > 0) {
+    // 1. color + size 정확 매칭
+    if (cStr && sStr) {
+      const match = skus.find(sk => String(sk.color || '').trim() === cStr && String(sk.size || '').trim() === sStr)
+      if (match?.imageUrl) return String(match.imageUrl)
+    }
+    // 2. size만 매칭 (단일 색상 상품)
+    if (sStr) {
+      const match = skus.find(sk => String(sk.size || '').trim() === sStr)
+      if (match?.imageUrl) return String(match.imageUrl)
+    }
+    // 3. color만 매칭 (단일 규격 상품)
+    if (cStr) {
+      const match = skus.find(sk => String(sk.color || '').trim() === cStr)
+      if (match?.imageUrl) return String(match.imageUrl)
+    }
+    // 4. 단일 SKU 상품 — 첫 번째 행
+    if (skus.length === 1 && skus[0].imageUrl) return String(skus[0].imageUrl)
+  }
+
+  // 5. 색상 버튼 썸네일과 같은 출처(colorOptions[].imageUrl)
+  if (cStr) {
+    const opt = colorOptions.value.find(c => String(c.name || '').trim() === cStr)
+    if (opt?.imageUrl) return String(opt.imageUrl)
+  }
+
   return ''
 }
 
@@ -1461,6 +1539,16 @@ const handleSelectColor = (color) => {
       }
       existing.quantity = nextQty
     } else {
+      // 품절 가드 — 재고가 정확히 0인 옵션은 발주 품목에 추가하지 않는다.
+      //   기존에는 이 분기에만 재고 검사가 없어(위 +1 분기에는 있었음) 품절 옵션이
+      //   수량 1로 추가되고, 담기 시 재고 상한 클램핑으로 수량 0이 되어
+      //   성공 토스트와 함께 빈 행이 저장됐다.
+      //   ※ Infinity(재고 미파악)는 막지 않는다. 정확히 0일 때만 차단한다.
+      const newStockLimit = getSkuStock(colorName, '')
+      if (newStockLimit === 0) {
+        showToastNotification('⚠️ 품절된 옵션입니다. 다른 옵션을 선택해 주세요.', 'warning')
+        return
+      }
       // 신규 행 추가 — 초기 수량은 항상 1 (minOrder는 최소발주단위일 뿐 수량 기본값이 아님)
       selectedSkus.value.push({
         color: colorName,
@@ -1501,6 +1589,15 @@ const handleSelectSize = (size) => {
     }
     existing.quantity = nextQty
   } else {
+    // 품절 가드 — handleSelectColor 신규 행 분기와 동일 기준.
+    //   2차 옵션 버튼이 이미 품절 사이즈를 비활성화하고 있어 UI로는 도달하지 않지만,
+    //   같은 결함(신규 행 분기에만 재고 검사가 없음)이 이쪽에도 있어 함께 막는다.
+    //   (CLAUDE.md 2-7 수량 입력 지점 전수조사)
+    const newStockLimit = getSkuStock(colorName, sizeName)
+    if (newStockLimit === 0) {
+      showToastNotification('⚠️ 품절된 옵션입니다. 다른 옵션을 선택해 주세요.', 'warning')
+      return
+    }
     // 신규 행 추가 — 초기 수량은 항상 1 (minOrder 절대 사용하지 않음)
     selectedSkus.value.push({
       color: colorName,
@@ -2143,9 +2240,9 @@ const saveSelectedItemsToCart = () => {
 
     // 3. 옵션 미선택 / 옵션 파싱 실패 가드 ────────────────────────────────
     //    raw(OneBound 원본)에 옵션이 있는데 파싱 결과가 비면 colorOptions가
-    //    '기본 단품' 폴백(1097행)으로 떨어져 옵션 없이 담긴다. 이때 응답 자체는
-    //    성공이라 productLoadFailed가 false여서 기존 가드로는 잡히지 않았다.
-    //    raw 구조 판정 기준은 api1688.js:1506-1519의 추출부와 동일하게 맞춘다.
+    //    '기본 단품' 폴백(colorOptions의 마지막 Fallback 분기)으로 떨어져 옵션 없이 담긴다.
+    //    이때 응답 자체는 성공이라 productLoadFailed가 false여서 기존 가드로는 잡히지 않았다.
+    //    raw 구조 판정 기준은 api1688.js fetch1688ProductById의 rawSkus 추출부와 동일하게 맞춘다.
     const rawItem = currentItem.value.raw || {}
     const rawPropsList = rawItem.props_list || rawItem.sku_props || null
     const rawSkuArr =
@@ -2169,7 +2266,7 @@ const saveSelectedItemsToCart = () => {
     }
     //    두 번째 조건은 "화면에 실제 선택 가능한 옵션이 있는가"로 판정한다.
     //    1688이 무SKU 단품에도 색상명 없는 skus 1개를 주는 경우가 있어
-    //    parsedHasOptions만으로는 진짜 단품을 오차단한다. 기준은 1782행 realColors와 동일.
+    //    parsedHasOptions만으로는 진짜 단품을 오차단한다. 기준은 아래 realColorOptions와 동일.
     const realColorOptions = colorOptions.value.filter(c => c.name !== '기본 단품')
     if (realColorOptions.length > 0 && selectedSkus.value.some(s => String(s.color || '').trim() === '기본 단품')) {
       showToastNotification('⚠️ 옵션을 선택해 주세요.', 'warning')
@@ -2191,7 +2288,29 @@ const saveSelectedItemsToCart = () => {
       resolveUnitPrice: rowUnitPrice,
       resolveStock: getSkuStock,
       resolveSpecId: getSkuSpecId,
+      resolveImageUrl: getSkuImageUrl,
     })
+
+    // 4. 담기 최종 방어선 — 저장 직전 행 상태 점검 (조용한 실패 금지) ────────
+    //    판정 함수는 cartWriter의 순수 함수를 쓰되, 차단·문구는 이 화면 책임이다
+    //    (엑셀 대량발주는 같은 함수로 확인 표에 표시할 예정).
+    //    ① 재고 클램핑으로 수량이 0이 된 행 = 품절 옵션
+    const zeroQtyRows = findZeroQuantityRows(newRows)
+    if (zeroQtyRows.length > 0) {
+      const names = [...new Set(zeroQtyRows.map(r => r.optionName || '옵션'))]
+      console.error('[ProductDetailModal] 품절 옵션으로 담기 차단:', zeroQtyRows)
+      showToastNotification(`⚠️ 품절된 옵션이 있습니다 — ${names.join(', ')}. 해당 옵션을 빼고 담아주세요.`, 'warning')
+      return null
+    }
+    //    ② 단가가 유효하지 않은 행 — 0원으로 담기는 것을 원천 차단
+    //       (CartView.hasValidPrice와 같은 기준. 담긴 뒤 '가격 확인 필요'로 걸리기 전에 먼저 막는다)
+    const invalidPriceRows = findInvalidPriceRows(newRows)
+    if (invalidPriceRows.length > 0) {
+      const names = [...new Set(invalidPriceRows.map(r => r.optionName || '옵션'))]
+      console.error('[ProductDetailModal] 단가 미확인 옵션으로 담기 차단:', invalidPriceRows)
+      showToastNotification(`⚠️ 단가를 확인할 수 없는 옵션이 있습니다 — ${names.join(', ')}. 잠시 후 다시 시도해주세요.`, 'warning')
+      return null
+    }
 
     // ── 장바구니 기존 항목과 병합 + 저장 + 갱신 이벤트 디스패치 ──
     //    utils/cartWriter.js의 mergeAndSaveCart로 이동(엑셀 대량발주와 공유).

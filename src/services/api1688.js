@@ -1768,7 +1768,30 @@ export async function fetch1688ProductById(offerId) {
           (propsImg && propsImg[colorPropId]) || sk.img_id || sk.imageUrl || sk.image || sk.pic_url || ''
         ) || imageUrl
 
-        const skuPrice = parseFloat(String(sk.price || priceNum).replace(/[^0-9.]/g, '')) || priceNum
+        // ─── SKU 단가 ──────────────────────────────────────────────────────
+        // (a) sk.price 자체가 없는 상품(undefined/null/빈문자열) = 옵션별 가격이 없는 상품.
+        //     이때 상품 대표가(priceNum)를 쓰는 것은 폴백이 아니라 실제 가격이다.
+        // (b) sk.price가 "있는데" 0이거나 숫자로 못 읽는 값이면, 1688이 준 값이 그것이므로
+        //     대표가로 바꿔치기하면 안 된다. 과거 `sk.price || priceNum` +  `|| priceNum`
+        //     구조는 0을 대표가로 조용히 치환해 잘못된 금액을 정상처럼 보이게 했다.
+        //     → 0으로 두어 CartView.hasValidPrice(>0)가 false가 되게 하고,
+        //       화면에 '가격 확인 필요'로 표시되며 발주가 차단된다. (CLAUDE.md 3-9)
+        const skuPriceRaw = sk.price
+        const skuPriceMissing = skuPriceRaw === undefined || skuPriceRaw === null || skuPriceRaw === ''
+        let skuPrice
+        if (skuPriceMissing) {
+          skuPrice = priceNum                                   // (a) 옵션별 가격 없음 → 대표가가 실제 가격
+        } else {
+          const parsed = parseFloat(String(skuPriceRaw).replace(/[^0-9.]/g, ''))
+          skuPrice = Number.isFinite(parsed) ? parsed : 0       // (b) 숫자로 못 읽으면 0 = 가격 미확인
+          if (!(skuPrice > 0)) {
+            console.error(
+              '[fetch1688ProductById] SKU 단가가 0이거나 숫자가 아닙니다 — 대표가로 치환하지 않고 ' +
+              "'가격 확인 필요'로 넘깁니다.",
+              { offerId: cleanNumericId, specId: sk.spec_id, rawPrice: skuPriceRaw, properties: sk.properties }
+            )
+          }
+        }
 
         return {
           skuId: String(sk.sku_id || sk.skuId || sk.id || `sku-${sIdx}`),
