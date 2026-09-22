@@ -67,6 +67,10 @@ function chunk(arr, size) {
  * @param {string[]} offerIds
  * @param {object}   [options]
  * @param {Function} [options.onProgress] - (done, total) => void
+ * @param {boolean}  [options.forceRefresh] - 서버 product_cache를 건너뛰고 1688에 다시 묻는다.
+ *   판매 종료로 표시된 상품을 고객이 발주하려는 순간 실시간으로 재확인할 때만 쓴다
+ *   (실패 결과가 30분 캐시되어 있어 그냥 조회하면 같은 실패가 그대로 돌아온다).
+ *   일일 한도·사용량 기록은 서버에서 동일하게 적용된다.
  * @returns {Promise<{
  *   ok: boolean,
  *   reason?: 'not_logged_in'|'network',
@@ -75,7 +79,7 @@ function chunk(arr, size) {
  * }>}
  */
 export async function fetchProductsForBulk(offerIds, options = {}) {
-  const { onProgress } = options
+  const { onProgress, forceRefresh = false } = options
   const ids = [...new Set((offerIds || []).map(v => String(v || '').trim()).filter(Boolean))]
 
   const products = {}
@@ -104,7 +108,7 @@ export async function fetchProductsForBulk(offerIds, options = {}) {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${token}`,
           },
-          body: JSON.stringify({ offerIds: batch }),
+          body: JSON.stringify(forceRefresh ? { offerIds: batch, forceRefresh: true } : { offerIds: batch }),
         })
 
         if (res.status === 401) {

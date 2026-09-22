@@ -183,11 +183,12 @@
         <button
           type="button"
           @click="exportCartExcel"
-          :disabled="cartItems.length === 0"
+          :disabled="cartItems.length === 0 || isExcelExporting"
           class="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 active:scale-95 shrink-0"
         >
-          <FileSpreadsheet class="w-4 h-4" />
-          <span>장바구니 엑셀 다운로드</span>
+          <Loader2 v-if="isExcelExporting" class="w-4 h-4 animate-spin" />
+          <FileSpreadsheet v-else class="w-4 h-4" />
+          <span>{{ isExcelExporting ? '불러오는 중...' : '장바구니 엑셀 다운로드' }}</span>
         </button>
 
         <button
@@ -691,12 +692,13 @@
           <button
             type="button"
             @click="openOrderModal"
-            :disabled="selectedItemIds.length === 0"
+            :disabled="selectedItemIds.length === 0 || isVerifyingUnavailable"
             class="shrink-0 px-7 py-4 rounded-2xl bg-amber-500 hover:bg-amber-400 disabled:opacity-40 text-slate-950 font-black text-[15px] shadow-md transition flex items-center gap-2 active:scale-95 cursor-pointer whitespace-nowrap"
-            :class="{ 'animate-pulse': selectedItemIds.length > 0 }"
+            :class="{ 'animate-pulse': selectedItemIds.length > 0 && !isVerifyingUnavailable }"
           >
-            <Send class="w-5 h-5" />
-            <span>선택 상품 바로주문 (발주신청)</span>
+            <Loader2 v-if="isVerifyingUnavailable" class="w-5 h-5 animate-spin" />
+            <Send v-else class="w-5 h-5" />
+            <span>{{ isVerifyingUnavailable ? '확인 중...' : '선택 상품 바로주문 (발주신청)' }}</span>
           </button>
         </div>
       </div>
@@ -710,6 +712,18 @@
       icon="warn"
       confirmText="삭제"
       @confirm="executeRemoveItem"
+    />
+
+    <!-- ConfirmSaveModal: 1688 판매 종료 품목이 선택된 채 견적신청을 누른 경우 -->
+    <ConfirmSaveModal
+      v-model="confirmUnavailableOrder"
+      title="1688에서 판매가 종료된 상품이 포함되어 있어요"
+      :description="unavailableOrderText"
+      variant="red"
+      icon="warn"
+      confirmText="판매 종료 상품 빼고 진행"
+      cancelText="닫기"
+      @confirm="excludeUnavailableAndContinue"
     />
 
     <!-- ConfirmSaveModal: 선택 품목 전체 삭제 -->
@@ -784,6 +798,17 @@ const cartItems = ref([]);
 const confirmRemoveItem = ref(false);
 const pendingRemoveItemId = ref(null);
 const confirmDeleteSelected = ref(false);
+// 1688 판매 종료 품목 안내 (견적신청 가드) — 삭제 확인창과 같은 ConfirmSaveModal을 쓴다
+const confirmUnavailableOrder = ref(false);
+const unavailableOrderIds = ref([]);
+const unavailableOrderText = ref('');
+// 발주 직전 1688 실시간 재확인 중 (바로주문 버튼 로딩·중복 클릭 방지)
+const isVerifyingUnavailable = ref(false);
+// 재확인을 마친 뒤 판매 종료 가드만 1회 건너뛰기 위한 플래그
+let bypassUnavailableGuard = false;
+
+// 엑셀 다운로드 진행 중 (xlsx 동적 로딩 포함) — 버튼 중복 클릭 방지
+const isExcelExporting = ref(false);
 
 // 재고 초과 안내 토스트
 const stockLimitToast = ref('');
@@ -1154,7 +1179,14 @@ const loadCartItems = () => {
       if (Array.isArray(parsed) && parsed.length > 0) {
         // 같은 SKU(offerId+specId) 중복 행 자가 교정 — skus 스냅샷 교정과 같은 자리에서 처리
         const { rows: deduped, merges } = dedupeRowsBySpecId(parsed);
+        // ★ 1회 조회 결과로 '판매 종료'가 찍힌 옛 행 되돌리기 (2026-09-22).
+        //   확정 기준이 "서로 다른 조회에서 2회 연속 없음"으로 바뀌었으므로,
+        //   notFoundAt 이력이 없는 unavailableAt은 1회차 발견(notFoundAt)으로 강등한다.
+        //   → 뱃지·발주 차단이 즉시 풀리고, 30분 뒤 재확인에서 다시 없으면 그때 확정된다.
+        let migratedUnavailable = 0;
         cartItems.value = deduped.map((it, idx) => {
+          const legacyUnavailable = !!(it.unavailableAt && !it.notFoundAt);
+          if (legacyUnavailable) migratedUnavailable++;
           // ── 옵션 텍스트: color+size → optionName → sku 순으로 독립 추출 ──
           const colorStr = String(it.color || '').trim()
           const sizeStr = String(it.size || '').trim()
@@ -1218,9 +1250,12 @@ const loadCartItems = () => {
             // ── 1688 최신 단가 재검증 시각 (없으면 아직 한 번도 검증 안 된 구 행) ──
             //    이 map에 없는 필드는 다음 저장 때 사라지므로 반드시 여기서 보존해야 한다.
             priceSyncedAt: it.priceSyncedAt || null,
-            // ── 1688에서 상품을 찾을 수 없음이 확정된 시각 (판매 종료) ──
-            //    기록되면 재검증 대상에서 빠지고 화면에 '판매 종료 · 확인 불가'로 표시된다.
-            unavailableAt: it.unavailableAt || null,
+            // ── 1688에서 상품을 찾을 수 없음이 "2회 연속" 확인된 시각 (판매 종료 확정) ──
+            //    기록되면 화면에 '판매 종료 · 확인 불가'로 표시되고 견적신청이 막힌다.
+            //    ★ 1회 결과로 찍힌 옛 값(notFoundAt 이력 없음)은 아래에서 1회차(notFoundAt)로 되돌린다.
+            unavailableAt: legacyUnavailable ? null : (it.unavailableAt || null),
+            // ── 1회차 '상품 없음' 발견 시각 — 표시·차단 없음. 30분 뒤 재확인 대상이 된다 ──
+            notFoundAt: legacyUnavailable ? it.unavailableAt : (it.notFoundAt || null),
             // ── 일시적 조회 실패 시각 — 재시도 간격 판정용 (표시하지 않음) ──
             priceCheckFailedAt: it.priceCheckFailedAt || null,
           };
@@ -1247,8 +1282,14 @@ const loadCartItems = () => {
         }
         // 합쳐진 행이 있으면 즉시 저장 — 저장하지 않으면 새로고침할 때마다 다시 합친다.
         // (저장 → euchs:cart-updated → loadCartItems 재진입 시에는 중복이 없어 저장이 반복되지 않는다)
-        if (merges.length > 0) {
-          console.log(`[CartView] 중복 행 ${merges.length}건을 합쳐 저장합니다.`);
+        if (migratedUnavailable > 0) {
+          console.warn(
+            `[CartView] 1회 조회 결과로 '판매 종료'가 표시됐던 ${migratedUnavailable}줄을 1회차 기록으로 되돌립니다 — ` +
+            `표시·발주 차단을 해제하고 30분 뒤 다시 확인합니다. (OneBound 일시 장애로 오판될 수 있어 2회 연속 확인으로 기준 변경)`
+          );
+        }
+        if (merges.length > 0 || migratedUnavailable > 0) {
+          if (merges.length > 0) console.log(`[CartView] 중복 행 ${merges.length}건을 합쳐 저장합니다.`);
           saveCartToStorage();
         }
         // 가격 재검증 + 구 행 가격정보 백필 — 비동기, 화면은 먼저 뜬다.
@@ -1612,11 +1653,39 @@ function isRecheckSuppressed(row) {
   return Number.isFinite(t) && (Date.now() - t) < PRICE_RECHECK_INTERVAL_MS;
 }
 
+// 판매 종료 확정 행 재확인 간격 — 오판(일시적 조회 실패가 not_found로 내려온 경우)을
+// 영구히 굳히지 않기 위해 24시간마다 1회만 다시 묻는다.
+const UNAVAILABLE_RECHECK_INTERVAL_MS = 24 * 60 * 60 * 1000;
+
+/** 판매 종료 표시가 아직 재확인 대상이 아닌지 */
+function isUnavailableRecheckSuppressed(row) {
+  const t = Date.parse(row?.unavailableAt || '');
+  return Number.isFinite(t) && (Date.now() - t) < UNAVAILABLE_RECHECK_INTERVAL_MS;
+}
+
+// ── 판매 종료 "확정" 기준 — 서로 다른 실제 조회에서 2회 연속 not_found ────────
+// ★ 2026-09-22 실측 근거: offer 1056078604236은 14:54 조회에서 not_found였는데
+//   15:32 재조회에서는 제목·SKU 300개가 정상이었다(같은 요청의 3개 상품이 동시에 실패 →
+//   OneBound 일시 장애 구간). 1회 결과로 확정하면 멀쩡한 상품의 발주가 최대 24시간 막힌다.
+//   서버는 실패를 30분(ERROR_TTL_MS) 캐시하므로, 30분 안에 다시 받은 not_found는
+//   "같은 조회의 캐시 재사용"일 수 있다 → 첫 발견(notFoundAt)과 30분 이상 벌어진
+//   두 번째 not_found만 실제 재조회로 보고 확정한다.
+const NOT_FOUND_CONFIRM_GAP_MS = 30 * 60 * 1000;
+
+/** 1회차 not_found 기록이 아직 재확인 대상이 아닌지 (서버 실패 캐시 30분과 맞춤) */
+function isNotFoundRecheckSuppressed(row) {
+  const t = Date.parse(row?.notFoundAt || '');
+  return Number.isFinite(t) && (Date.now() - t) < NOT_FOUND_CONFIRM_GAP_MS;
+}
+
 async function revalidateCartPrices() {
   const pending = cartItems.value.filter(it => {
+    // 판매 종료로 표시된 행 — 24시간이 지났으면 오판 복구를 위해 1회 다시 확인한다.
+    // (priceSyncedAt 여부보다 이 판단이 우선 — 표시를 되돌리는 유일한 경로이기 때문)
+    if (it.unavailableAt) return !isUnavailableRecheckSuppressed(it);
+    // 1회차 not_found — 30분(서버 실패 캐시)이 지나야 "다른 조회"가 되므로 그때 다시 묻는다
+    if (it.notFoundAt) return !isNotFoundRecheckSuppressed(it);
     if (it.priceSyncedAt) return false;
-    // 1688에서 사라진 것이 확정된 상품 — 더 묻지 않는다
-    if (it.unavailableAt) return false;
     // 일시 실패 후 재시도 간격이 아직 안 지난 행
     if (isRecheckSuppressed(it)) return false;
     return true;
@@ -1645,24 +1714,62 @@ async function revalidateCartPrices() {
     );
     return;
   }
+
+  const summary = applyRevalidationResult(res);
+  if (summary.changed > 0) {
+    priceSyncChangedCount.value = summary.changed;
+    priceSyncNoticeClosed.value = false;
+  }
+  persistRevalidationResult(summary);
+}
+
+/**
+ * 조회 결과(fetchProductsForBulk 반환)를 장바구니 행에 반영한다.
+ *
+ * ★ 로드 시 재검증과 "바로주문 직전 실시간 재확인"이 같은 함수를 쓴다 —
+ *   단가 계산·판매 종료 판정이 두 벌이 되면 두 경로의 결과가 갈린다.
+ *
+ * @returns {{ synced:number, changed:number, stamped:number, missing:string[], stillNotFound:string[] }}
+ */
+function applyRevalidationResult(res) {
   const syncedAt = new Date().toISOString();
   const missing = [];
+  const stillNotFound = [];
   let changed = 0;
   let synced = 0;
-  let stamped = 0;   // unavailableAt / priceCheckFailedAt를 기록한 행 수
+  let stamped = 0;   // 표시 필드(unavailableAt/notFoundAt/priceCheckFailedAt)를 건드린 행 수
 
   // ── 조회 실패 상품 처리 — 확정(판매 종료)과 일시적 오류를 갈라 기록 ──
   for (const [id, f] of Object.entries(res.failures || {})) {
     const rowsOfOffer = cartItems.value.filter(r => String(r.num_iid || '').trim() === id);
     if (isConfirmedNotFound(f)) {
-      console.warn(
-        `[CartView] 1688에서 상품을 찾을 수 없습니다 — ${id}. ` +
-        `단가는 그대로 두고 '판매 종료 · 확인 불가'로 표시합니다(재검증 대상에서 제외).`
-      );
+      stillNotFound.push(id);
       for (const r of rowsOfOffer) {
-        if (r.unavailableAt) continue;
-        r.unavailableAt = syncedAt;
-        stamped++;
+        if (r.unavailableAt) {
+          // 이미 확정된 행 — 시각만 갱신한다(다음 재확인이 24시간 뒤가 되도록)
+          r.unavailableAt = syncedAt;
+          stamped++;
+          continue;
+        }
+        const firstAt = Date.parse(r.notFoundAt || '');
+        if (Number.isFinite(firstAt) && (Date.now() - firstAt) >= NOT_FOUND_CONFIRM_GAP_MS) {
+          // 2회차 — 첫 발견과 30분 이상 벌어진 "다른 조회"에서도 없음 → 판매 종료 확정
+          console.warn(
+            `[CartView] 1688에서 상품을 두 번 연속 찾을 수 없습니다 — ${id}. ` +
+            `'판매 종료 · 확인 불가'로 표시하고 발주를 막습니다(첫 발견 ${r.notFoundAt}).`
+          );
+          r.unavailableAt = syncedAt;
+          stamped++;
+        } else if (!r.notFoundAt) {
+          // 1회차 — 표시도 차단도 하지 않는다. OneBound 일시 장애일 수 있다.
+          console.warn(
+            `[CartView] 1688에서 상품을 찾지 못했습니다(1회차) — ${id}. ` +
+            `일시 장애일 수 있어 표시·차단 없이 기록만 하고 30분 뒤 다시 확인합니다.`
+          );
+          r.notFoundAt = syncedAt;
+          stamped++;
+        }
+        // notFoundAt이 있지만 30분이 안 지났으면 서버 실패 캐시를 다시 받은 것일 수 있다 → 그대로 둔다
       }
     } else {
       console.warn(
@@ -1676,8 +1783,7 @@ async function revalidateCartPrices() {
     }
   }
 
-  for (const offerId of offerIds) {
-    const product = res.products?.[offerId];
+  for (const [offerId, product] of Object.entries(res.products || {})) {
     if (!product) continue;   // 실패분 — 위에서 이미 경고했고 값은 건드리지 않는다
 
     const skus = Array.isArray(product.skus) ? product.skus : [];
@@ -1690,8 +1796,25 @@ async function revalidateCartPrices() {
     const offerRows = cartItems.value.filter(r => String(r.num_iid || '').trim() === offerId);
     const tierPrice = skuPriced ? null : resolveTierUnitPrice(tiers, sumQty(offerRows));
 
+    // ★ 상품이 정상 조회됐다 = 지난번 '없음' 판정이 틀렸거나 판매가 재개됐다.
+    //   확정 표시(unavailableAt)와 1회차 기록(notFoundAt)을 모두 되돌린다.
+    //   (옵션이 사라진 경우는 아래에서 '옵션 확인 필요'로 따로 표시한다)
+    const recoveredIds = new Set();
+    for (const r of offerRows) {
+      if (!r.unavailableAt && !r.notFoundAt) continue;
+      console.log(
+        `[CartView] '상품 없음' 표시 해제 — ${offerId} 가 1688에서 정상 조회됩니다.` +
+        (r.unavailableAt ? ' (판매 종료 확정 취소)' : ' (1회차 기록 취소)')
+      );
+      r.unavailableAt = null;
+      r.notFoundAt = null;
+      recoveredIds.add(r.id);
+      stamped++;
+    }
+
     for (const row of offerRows) {
-      if (row.priceSyncedAt) continue;
+      // 판매 종료 재확인으로 들어온 행은 priceSyncedAt이 있어도 단가를 다시 계산한다.
+      if (row.priceSyncedAt && !recoveredIds.has(row.id)) continue;
       const specId = String(row.specId || '').trim();
       if (!specId) continue;
 
@@ -1739,26 +1862,37 @@ async function revalidateCartPrices() {
     }
   }
 
-  missingSpecRowIds.value = missing;
+  // ★ 이번에 조회한 상품의 결과만 갈아끼운다 — 통째로 덮으면 실시간 재확인(상품 1~2종)이
+  //   다른 상품의 '옵션 확인 필요' 표시를 지워버린다.
+  const checkedOfferIds = new Set([
+    ...Object.keys(res.products || {}),
+    ...Object.keys(res.failures || {}),
+  ]);
+  const keptMissing = missingSpecRowIds.value.filter(id => {
+    const row = cartItems.value.find(r => r.id === id);
+    return row && !checkedOfferIds.has(String(row.num_iid || '').trim());
+  });
+  missingSpecRowIds.value = [...new Set([...keptMissing, ...missing])];
 
   if (synced > 0 || missing.length > 0 || stamped > 0) {
     console.log(
-      `[CartView] 단가 재검증 완료 — 확인 ${synced}줄 / 조정 ${changed}줄 / ` +
+      `[CartView] 단가 재검증 반영 — 확인 ${synced}줄 / 조정 ${changed}줄 / ` +
       `옵션 사라짐 ${missing.length}줄 / 조회 실패 표시 ${stamped}줄`
     );
   }
-  if (changed > 0) {
-    priceSyncChangedCount.value = changed;
-    priceSyncNoticeClosed.value = false;
+  return { synced, changed, stamped, missing, stillNotFound };
+}
+
+/** 반영 결과를 localStorage에 저장 (바뀐 게 있을 때만) */
+function persistRevalidationResult(summary) {
+  if (!summary) return;
+  if (summary.synced <= 0 && summary.stamped <= 0) return;
+  // ★ 화면을 떠난 뒤 조회가 끝났다면 저장하지 않는다 (옛 배열 덮어쓰기 방지)
+  if (!isInstanceActive) {
+    console.warn('[CartView] 단가 재검증 결과 저장 생략 — 이미 화면을 떠난 상태입니다.');
+    return;
   }
-  if (synced > 0 || stamped > 0) {
-    // ★ 화면을 떠난 뒤 조회가 끝났다면 저장하지 않는다 (옛 배열 덮어쓰기 방지)
-    if (!isInstanceActive) {
-      console.warn('[CartView] 단가 재검증 결과 저장 생략 — 이미 화면을 떠난 상태입니다.');
-      return;
-    }
-    saveCartToStorage();
-  }
+  saveCartToStorage();
 }
 
 /** 이 행의 옵션이 1688에서 사라졌는지 — 표시 전용 */
@@ -2452,6 +2586,18 @@ function openOrderModal() {
     return;
   }
 
+  // ── 1688 판매 종료 품목 차단 (가장 먼저) ─────────────────────────────────
+  // 1688에서 상품 자체가 조회되지 않는(not_found 확정) 행은 발주가 불가능하다.
+  // 품절과 달리 수량·단가·MOQ를 따지는 것 자체가 무의미하므로 기존 가드보다 먼저 막는다.
+  // ※ 행을 자동으로 지우거나 체크를 임의로 풀지 않는다 — 고객이 안내창에서 직접 고른다.
+  // ※ 막기 전에 1688에 한 번 더 물어본다(아래 verifyUnavailableThenContinue).
+  //   판매 종료 판정이 오래됐거나 틀렸을 수 있으므로, 고객을 막는 그 순간의 실제 상태로 판단한다.
+  const unavailableRows = bypassUnavailableGuard ? [] : targetItems.filter(it => it.unavailableAt);
+  if (unavailableRows.length > 0) {
+    verifyUnavailableThenContinue(unavailableRows);
+    return;
+  }
+
   // ── 옵션 미선택 품목 차단 ────────────────────────────────────────────────
   // specId 없는 품목은 1688 자동발주 API가 거부한다(api/1688-order-create.js).
   // 단, "옵션이 원래 없는 진짜 단품"까지 막으면 안 되므로 담기 시점에 기록해 둔
@@ -2529,6 +2675,108 @@ function openOrderModal() {
   isOrderConfigModalOpen.value = true;
 }
 
+/**
+ * 판매 종료로 표시된 행을 "발주 직전에" 1688에 실시간으로 다시 물어본다.
+ *
+ * ★ 왜 필요한가 (2026-09-22 실측): OneBound의 item-not-found는 확정이 아니다.
+ *   offer 1056078604236은 14:54 not_found → 15:32 정상(제목·SKU 300개)이었다.
+ *   표시가 틀렸을 수 있으므로, 고객을 막기 전에 캐시를 건너뛰고 지금 상태를 확인한다.
+ *
+ * · 정상 조회 → 표시 해제 + 단가 재비교(로드 시 재검증과 같은 함수) 후 발주 흐름 계속
+ * · 다시 없음 → 기존 안내창(빼고 진행 / 닫기)
+ * · 조회 자체 실패 → 막지 않고 진행 (판매 종료가 확정된 것이 아니므로). 콘솔 경고만.
+ */
+async function verifyUnavailableThenContinue(rows) {
+  if (isVerifyingUnavailable.value) return;
+
+  const offerIds = [...new Set(rows.map(r => String(r.num_iid || '').trim()).filter(Boolean))];
+  if (offerIds.length === 0) {
+    // 상품ID가 없어 물어볼 수가 없다 — 기존대로 안내창을 띄운다
+    showUnavailableDialog(rows);
+    return;
+  }
+
+  isVerifyingUnavailable.value = true;
+  try {
+    console.log(`[CartView] 발주 직전 판매 종료 재확인 — 상품 ${offerIds.length}종 (서버 캐시 건너뜀)`);
+    const res = await fetchProductsForBulk(offerIds, { forceRefresh: true });
+
+    if (!res.ok) {
+      console.warn(
+        `[CartView] 판매 종료 재확인 실패(${res.reason}) — 판매 종료가 확정된 것이 아니므로 발주를 막지 않고 진행합니다.`
+      );
+      proceedBypassingUnavailableGuard();
+      return;
+    }
+
+    // 반영은 로드 시 재검증과 완전히 같은 함수로 한다 (판정·단가 계산이 두 벌이 되지 않게)
+    const summary = applyRevalidationResult(res);
+    if (summary.changed > 0) {
+      priceSyncChangedCount.value = summary.changed;
+      priceSyncNoticeClosed.value = false;
+    }
+    persistRevalidationResult(summary);
+
+    // 아직도 없는 상품이 선택돼 있으면 그 행들만 안내창으로
+    const blockedOfferIds = new Set(summary.stillNotFound);
+    const blockedRows = selectedItems.value.filter(
+      it => it.unavailableAt && blockedOfferIds.has(String(it.num_iid || '').trim())
+    );
+    if (blockedRows.length > 0) {
+      showUnavailableDialog(blockedRows);
+      return;
+    }
+
+    // 전부 정상으로 확인됨 → 기존 발주 흐름 계속 (나머지 가드는 그대로 동작)
+    console.log('[CartView] 판매 종료 재확인 결과 정상 — 표시를 해제하고 발주를 계속합니다.');
+    proceedBypassingUnavailableGuard();
+  } finally {
+    isVerifyingUnavailable.value = false;
+  }
+}
+
+/** 판매 종료 안내창 표시 (표시 전용 — 행을 지우거나 선택을 임의로 바꾸지 않는다) */
+function showUnavailableDialog(rows) {
+  console.warn('[CartView] 1688 판매 종료 품목으로 견적신청 차단:', rows.map(it => ({
+    itemId: it.itemId, num_iid: it.num_iid, option: it.optionName || it.sku, unavailableAt: it.unavailableAt,
+  })));
+  unavailableOrderIds.value = rows.map(it => it.id);
+  unavailableOrderText.value =
+    rows
+      .map(it => `· ${it.titleKo || it.titleZh || '1688 상품'} [${it.optionName || it.sku || '기본 옵션'}]`)
+      .join('\n') +
+    '\n\n이 상품은 1688에서 더 이상 판매되지 않아 발주할 수 없습니다.';
+  confirmUnavailableOrder.value = true;
+}
+
+/** 판매 종료 가드만 1회 건너뛰고 나머지 발주 흐름을 그대로 태운다 */
+function proceedBypassingUnavailableGuard() {
+  bypassUnavailableGuard = true;
+  try {
+    openOrderModal();
+  } finally {
+    bypassUnavailableGuard = false;
+  }
+}
+
+/**
+ * 안내창의 "판매 종료 상품 빼고 진행" — 해당 행의 선택만 해제하고 다시 발주 흐름을 탄다.
+ * 행 자체는 지우지 않는다(고객이 직접 삭제하거나 나중에 판매가 재개될 수 있다).
+ */
+function excludeUnavailableAndContinue() {
+  const excludeIds = new Set(unavailableOrderIds.value);
+  if (excludeIds.size === 0) return;
+  selectedItemIds.value = selectedItemIds.value.filter(id => !excludeIds.has(id));
+  unavailableOrderIds.value = [];
+
+  if (selectedItemIds.value.length === 0) {
+    showStockToast('판매 종료 상품을 빼면 선택된 품목이 없습니다. 다른 품목을 선택해 주세요.');
+    return;
+  }
+  // 남은 선택으로 기존 발주 흐름 그대로 재진입 (나머지 가드도 정상 통과해야 모달이 열린다)
+  openOrderModal();
+}
+
 function handleOrderSubmitted() {
   selectedItemIds.value = [];
   loadCartItems();
@@ -2539,9 +2787,12 @@ function handleOrderSubmitted() {
 // ---------------------------------------------------------
 // 엑셀 다운로드
 // ---------------------------------------------------------
-function exportCartExcel() {
+// xlsx는 이 버튼을 누른 순간 내려받는다(동적 import) — 그래서 async + await.
+async function exportCartExcel() {
+  if (isExcelExporting.value) return;
+  isExcelExporting.value = true;
   try {
-    const fileName = exportQuoteExcel(
+    const fileName = await exportQuoteExcel(
       cartItems.value,
       { companyName: '장바구니 발주 대기 품목' },
       exchangeRate.value,
@@ -2550,6 +2801,9 @@ function exportCartExcel() {
     alert(`장바구니 견적서 엑셀 파일(${fileName})이 정상 다운로드되었습니다.`);
   } catch (e) {
     console.error('Excel export error:', e);
+    showStockToast('엑셀 파일을 만들지 못했습니다. 잠시 후 다시 시도해 주세요.');
+  } finally {
+    isExcelExporting.value = false;
   }
 }
 

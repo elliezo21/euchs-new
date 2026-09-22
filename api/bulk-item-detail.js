@@ -352,10 +352,30 @@ export default async function handler(req, res) {
     })
   }
 
+  // ── 캐시 무시 옵션 ──────────────────────────────────────────────────────
+  // ★ 왜 추가했나 (2026-09-22 실측):
+  //   OneBound의 item-not-found(우리 코드 not_found)는 "확정"이 아니다.
+  //   offer 1056078604236은 14:54 조회에서 not_found였는데 15:32 재조회에서는
+  //   제목·SKU 300개가 정상으로 내려왔다(같은 요청의 3개 상품이 동시에 실패 →
+  //   OneBound 일시 장애 구간). 그런데 실패 결과는 product_cache에 30분(ERROR_TTL_MS)
+  //   저장되므로, 고객이 "바로주문"을 눌러 실시간으로 다시 확인하려 해도
+  //   그 30분 동안은 캐시된 실패가 그대로 돌아온다.
+  //   → 고객이 발주를 막힌 그 순간에만, 캐시를 건너뛰고 실제로 한 번 더 확인할 수 있어야 한다.
+  //
+  //   적용 범위와 안전장치(일반 조회와 동일하게 유지):
+  //     · 로그인 검증을 통과한 뒤에만 도달한다 (위 1번 단계)
+  //     · 하루 실호출 상한(DAILY_CALL_LIMIT)과 사용량 기록을 똑같이 적용한다
+  //     · 조회 결과는 캐시에 upsert되어 다음 요청부터는 최신 값이 쓰인다
+  //   CartView의 판매 종료 재확인 경로에서만 true로 보낸다(대량 업로드는 false).
+  const forceRefresh = body.forceRefresh === true
+
   const results = {}
 
   // ── 3. 캐시 조회 (적중은 실호출로 세지 않음) ──
-  const cacheMap = await readCache(offerIds, url, serviceRoleKey)
+  const cacheMap = forceRefresh ? new Map() : await readCache(offerIds, url, serviceRoleKey)
+  if (forceRefresh) {
+    console.log(`[bulk-item-detail] forceRefresh 요청 — 캐시를 건너뛰고 ${offerIds.length}건을 다시 조회합니다. user=${auth.userId}`)
+  }
   const missIds = []
   for (const id of offerIds) {
     const row = cacheMap.get(id)
