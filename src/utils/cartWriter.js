@@ -267,7 +267,23 @@ export function findInvalidPriceRows(rows) {
 
 /**
  * 장바구니 기존 항목과 병합 후 localStorage 저장 + 갱신 이벤트 디스패치.
- * 동일 itemId+color+size 행은 qty 합산, 신규 옵션은 별도 행으로 선두 삽입.
+ * 동일 SKU 행은 qty 합산, 신규 옵션은 별도 행으로 선두 삽입.
+ *
+ * ★ 동일 판정 기준 (2026-09-22 실측 버그 수정):
+ *   두 행 모두 specId가 있으면 itemId + specId로만 판정한다.
+ *   기존 기준(itemId + color + size)은 "옵션 표시 이름"이라 번역 여부에 따라
+ *   같은 SKU가 별개 행으로 쌓였다.
+ *     예) offer 804924697306 / specId 8fd3ed62…b67a 하나가
+ *         상세모달 경로 "红色小圈皮筋250g左右"(중국어),
+ *         엑셀 경로 "빨간색 작은 고리 고무줄 약 250g"(한국어)로 갈려 2행.
+ *   specId는 1688이 SKU에 부여한 값이고 발주(api/1688-order-create)도 이 값으로
+ *   주문 SKU를 결정하므로, 화면 이름보다 이쪽이 정확한 동일성 기준이다.
+ *   한쪽이라도 specId가 없으면(구 데이터·교차조합 상품) 기존 이름 판정 그대로 쓴다 —
+ *   폴백은 이 한 단계뿐이며 체인을 만들지 않는다.
+ *
+ * ※ 병합된 행의 표시 이름(optionName/color/size/sku)은 기존 행 것을 유지한다.
+ *   금액·발주는 specId 기준이라 표시 이름을 바꿀 이유가 없고, color/size는
+ *   specId 없는 행의 폴백 판정 키로도 쓰이므로 건드리면 그 경로가 흔들린다.
  *
  * @param {object} params
  * @param {Array}  params.cart         - readCart()로 읽은 현재 장바구니 (이 배열을 직접 변경한다)
@@ -278,11 +294,15 @@ export function findInvalidPriceRows(rows) {
  */
 export function mergeAndSaveCart({ cart, newRows, cartKey, exchangeRate }) {
   for (const newRow of newRows) {
-    const existIdx = cart.findIndex(c =>
-      c.itemId === newRow.itemId &&
-      String(c.color || '') === newRow.color &&
-      String(c.size || '') === newRow.size
-    )
+    const newSpecId = String(newRow.specId || '').trim()
+    const existIdx = cart.findIndex(c => {
+      if (c.itemId !== newRow.itemId) return false
+      const existSpecId = String(c.specId || '').trim()
+      // 두 행 모두 specId 보유 → specId 하나로 판정 (표시 이름 번역 여부와 무관)
+      if (existSpecId && newSpecId) return existSpecId === newSpecId
+      // 한쪽이라도 없으면 기존 판정 그대로 (이 한 단계만 — 폴백 체인 금지)
+      return String(c.color || '') === newRow.color && String(c.size || '') === newRow.size
+    })
     if (existIdx >= 0) {
       // 동일 옵션 행 존재 → qty 합산 후 재고 상한 클램핑
       const mergedQty = (Number(cart[existIdx].quantity) || 0) + newRow.quantity

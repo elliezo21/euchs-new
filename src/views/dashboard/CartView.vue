@@ -212,6 +212,20 @@
       </div>
     </div>
 
+    <!-- 1688 최신 단가 반영 안내 (닫기 가능) — 내부 조회 수치는 노출하지 않는다 -->
+    <div
+      v-if="priceSyncChangedCount > 0 && !priceSyncNoticeClosed"
+      class="flex items-center justify-between gap-3 text-xs font-bold text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-3.5 py-2.5"
+    >
+      <span>1688 최신 가격으로 {{ priceSyncChangedCount }}개 품목의 단가가 조정되었습니다.</span>
+      <button
+        type="button"
+        @click="priceSyncNoticeClosed = true"
+        class="shrink-0 text-amber-700 hover:text-amber-900 font-black px-1.5 leading-none"
+        title="안내 닫기"
+      >✕</button>
+    </div>
+
     <!-- ======================================================== -->
     <!-- 3. 장바구니 품목 — 판매자별 그룹 카드 -->
     <!-- ======================================================== -->
@@ -301,9 +315,23 @@
                   <ExternalLink class="w-3 h-3" /><span>1688 원본 링크 ↗</span>
                 </a>
               </div>
-              <span class="inline-block px-2 py-0.5 rounded-lg bg-slate-100 text-gray-700 font-medium text-xs max-w-[200px] truncate">
-                {{ getItemSkuText(item) }}
-              </span>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="inline-block px-2 py-0.5 rounded-lg bg-slate-100 text-gray-700 font-medium text-xs max-w-[200px] truncate">
+                  {{ getItemSkuText(item) }}
+                </span>
+                <!-- 1688에서 이 옵션이 사라진 경우 — 표시만, 단가는 담을 당시 값 그대로 둔다 -->
+                <span
+                  v-if="isSpecMissing(item)"
+                  class="inline-block px-2 py-0.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-bold text-xs"
+                  title="1688 상품에서 이 옵션이 더 이상 조회되지 않습니다. '옵션 변경/추가'로 현재 판매 중인 옵션을 다시 선택해 주세요."
+                >옵션 확인 필요</span>
+                <!-- 1688에서 상품 자체가 조회되지 않는 경우 — 표시만, 행은 그대로 둔다 -->
+                <span
+                  v-if="item.unavailableAt"
+                  class="inline-block px-2 py-0.5 rounded-lg bg-red-50 text-red-600 border border-red-200 font-bold text-xs"
+                  title="1688에서 이 상품이 더 이상 조회되지 않습니다(판매 종료 추정). 담을 당시 단가가 그대로 표시되며, 발주 전 담당 매니저에게 확인해 주세요."
+                >1688 판매 종료 · 확인 불가</span>
+              </div>
             </div>
           </div>
 
@@ -698,7 +726,7 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, onMounted, defineAsyncComponent } from 'vue';
+import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent } from 'vue';
 import { useRouter } from 'vue-router';
 import { fetch1688ProductById, fetch1688FreightEstimateBatch, ZH_KO_COLOR_MAP } from '@/services/api1688';
 import {
@@ -742,6 +770,9 @@ import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping'
 import { sumQty, resolveMoq, offerGroupKey } from '@/utils/moq';
 import { resolveTierUnitPrice, resolveGroupPricing, isSkuPricedSkus, buildCargoParamList } from '@/utils/priceTier';
 import { resolveSkuImageUrl } from '@/utils/cartWriter';
+// 장바구니 단가 재검증 전용 조회 — 엑셀 대량발주가 쓰는 서버 창구(/api/bulk-item-detail)를 그대로 쓴다.
+// 새 경로를 만들지 않는 이유: 서버 product_cache(6시간)를 앞단에 두고 있어 1688 실호출이 가장 적다.
+import { fetchProductsForBulk } from '@/services/bulkFetch';
 
 const router = useRouter();
 const exchangeRate = computed(() => Number(currentSettings.value?.exchange_rate) || 200.0);
@@ -1049,6 +1080,64 @@ function healSkuSnapshot(it) {
   return [{ ...skus[0], quantity: rowQty }];
 }
 
+/**
+ * 이미 저장돼 있는 "같은 SKU 중복 행"을 1행으로 합친다 (로드 시 자가 교정).
+ *
+ * ★ 왜 필요한가 (2026-09-22 실측):
+ *   cartWriter.mergeAndSaveCart의 동일 판정이 옵션 "표시 이름"(color+size) 기준이던 시절,
+ *   같은 SKU라도 번역 여부에 따라 별개 행으로 쌓였다.
+ *     예) offer 804924697306 / specId 8fd3ed62…b67a
+ *         → "红色小圈皮筋250g左右"(상세모달, 중국어) + "빨간색 작은 고리 고무줄 약 250g"(엑셀, 한국어)
+ *   병합 로직 자체는 cartWriter에서 specId 우선으로 고쳤고, 이건 이미 저장된 행을 위한 교정이다.
+ *
+ * 규칙
+ *   · 같은 offerId(num_iid) + 같은 specId 행이 2개 이상 → 먼저 담긴 행을 남기고 수량 합산
+ *   · specId가 없는 행은 합치지 않는다 (SKU를 특정할 수 없으므로 이름으로 추측하지 않음)
+ *   · 재고 상한 클램핑·skus 스냅샷 동기화는 mergeAndSaveCart와 같은 규칙
+ *
+ * @param {Array} rawRows - localStorage에서 읽은 원본 행 배열
+ * @returns {{ rows: Array, merges: Array<{keptId:string, droppedId:string}> }}
+ */
+function dedupeRowsBySpecId(rawRows) {
+  const out = [];
+  const idxByKey = new Map();
+  const merges = [];
+
+  for (const r of rawRows) {
+    const offerId = String(r?.num_iid || r?.itemId || '').trim();
+    const specId = String(r?.specId || '').trim();
+    if (!offerId || !specId) { out.push(r); continue; }
+
+    const key = `${offerId}|${specId}`;
+    const at = idxByKey.get(key);
+    if (at === undefined) {
+      idxByKey.set(key, out.length);
+      out.push(r);
+      continue;
+    }
+
+    // ── 먼저 담긴 행(keep)에 합친다 ──
+    const keep = out[at];
+    const mergedQty = (Number(keep.quantity) || 0) + (Number(r.quantity) || 0);
+    const stock = typeof keep.stock === 'number' ? keep.stock
+      : typeof r.stock === 'number' ? r.stock
+        : Infinity;
+    keep.quantity = stock === Infinity ? mergedQty : Math.min(stock, mergedQty);
+    // skus 스냅샷도 같이 맞춘다 — 안 맞추면 resolveItemQty가 합산 전 수량을 우선해
+    // 수수료·예상총액·운임이 과소 계산된다 (healSkuSnapshot과 같은 이유).
+    if (Array.isArray(keep.skus) && keep.skus.length === 1) {
+      keep.skus[0].quantity = keep.quantity;
+    }
+    merges.push({ keptId: keep.id, droppedId: r.id });
+    console.log(
+      `[CartView] 중복 행 병합: ${keep.titleKo || offerId} [${keep.optionName || keep.sku || ''}] ` +
+      `+ [${r.optionName || r.sku || ''}] → 수량 ${keep.quantity}개 (specId ${specId})`
+    );
+  }
+
+  return { rows: out, merges };
+}
+
 const loadCartItems = () => {
   // 비로그인 시 즉시 빈 배열 반환
   if (!isLoggedIn.value) {
@@ -1063,7 +1152,9 @@ const loadCartItems = () => {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
-        cartItems.value = parsed.map((it, idx) => {
+        // 같은 SKU(offerId+specId) 중복 행 자가 교정 — skus 스냅샷 교정과 같은 자리에서 처리
+        const { rows: deduped, merges } = dedupeRowsBySpecId(parsed);
+        cartItems.value = deduped.map((it, idx) => {
           // ── 옵션 텍스트: color+size → optionName → sku 순으로 독립 추출 ──
           const colorStr = String(it.color || '').trim()
           const sizeStr = String(it.size || '').trim()
@@ -1124,8 +1215,25 @@ const loadCartItems = () => {
             // ── 중국 현지 운임 보존 (null=API 미제공, 0=包邮) ──
             // undefined/누락이면 null로 정규화하여 orderCostCalculator의 추정 폴백을 정확히 트리거
             freight: (it.freight !== undefined && it.freight !== null) ? Number(it.freight) : null,
+            // ── 1688 최신 단가 재검증 시각 (없으면 아직 한 번도 검증 안 된 구 행) ──
+            //    이 map에 없는 필드는 다음 저장 때 사라지므로 반드시 여기서 보존해야 한다.
+            priceSyncedAt: it.priceSyncedAt || null,
+            // ── 1688에서 상품을 찾을 수 없음이 확정된 시각 (판매 종료) ──
+            //    기록되면 재검증 대상에서 빠지고 화면에 '판매 종료 · 확인 불가'로 표시된다.
+            unavailableAt: it.unavailableAt || null,
+            // ── 일시적 조회 실패 시각 — 재시도 간격 판정용 (표시하지 않음) ──
+            priceCheckFailedAt: it.priceCheckFailedAt || null,
           };
         });
+        // ★ 병합으로 사라진 행이 선택돼 있었으면 남은 행으로 선택을 옮긴다.
+        //   (아래 유령 id 제거보다 먼저 — 안 그러면 고객이 체크해 둔 품목이 발주에서 조용히 빠진다)
+        if (merges.length > 0 && selectedItemIds.value.length > 0) {
+          for (const m of merges) {
+            if (selectedItemIds.value.includes(m.droppedId) && !selectedItemIds.value.includes(m.keptId)) {
+              selectedItemIds.value.push(m.keptId);
+            }
+          }
+        }
         if (selectedItemIds.value.length === 0) {
           selectedItemIds.value = cartItems.value.map(it => it.id);
         } else {
@@ -1137,10 +1245,14 @@ const loadCartItems = () => {
             selectedItemIds.value = cleaned;
           }
         }
-        // 구 장바구니 행(priceTiers 없음)에 가격 출처 정보를 채운다.
-        // 비동기 — 화면은 먼저 뜨고, 채워지면 재계산·저장까지 이어진다.
-        // 이미 조회한 상품은 내부에서 건너뛰므로 storage 이벤트로 반복 호출돼도 안전하다.
-        backfillMissingPriceTiers();
+        // 합쳐진 행이 있으면 즉시 저장 — 저장하지 않으면 새로고침할 때마다 다시 합친다.
+        // (저장 → euchs:cart-updated → loadCartItems 재진입 시에는 중복이 없어 저장이 반복되지 않는다)
+        if (merges.length > 0) {
+          console.log(`[CartView] 중복 행 ${merges.length}건을 합쳐 저장합니다.`);
+          saveCartToStorage();
+        }
+        // 가격 재검증 + 구 행 가격정보 백필 — 비동기, 화면은 먼저 뜬다.
+        runCartHealTasks();
         // ※ sellerFreightRmb/freightCalcState는 여기서 리셋하지 않음.
         // watch(selectedItems)가 품목/수량 실제 변경을 감지해서 재계산하며,
         // loadCartItems가 호출될 때마다 리셋하면 storage 이벤트 루프로
@@ -1158,6 +1270,21 @@ const loadCartItems = () => {
   }
 };
 
+// ── 인스턴스 수명 플래그 ────────────────────────────────────────────────────
+// 언마운트된 인스턴스의 비동기 작업(단가 재검증·백필)이 뒤늦게 끝나
+// "자기가 들고 있던 옛 배열"을 저장해 버리는 것을 막는다.
+let isInstanceActive = true;
+
+// 내가 방금 저장해서 발사한 euchs:cart-updated는 다시 읽지 않는다.
+// (읽어봐야 방금 쓴 값이고, 재진입하면 중복 병합·heal 작업이 한 번 더 돈다)
+// CustomEvent 디스패치는 동기 실행이라 플래그를 즉시 내려도 안전하다.
+let isSelfSaving = false;
+
+function onCartUpdatedEvent() {
+  if (isSelfSaving) return;
+  loadCartItems();
+}
+
 const saveCartToStorage = () => {
   // ── 저장 직전 수량 구간 단가 동기화 ──
   //   수량 증감·행 삭제·옵션 변경 등 장바구니를 바꾸는 모든 경로가 이 함수를 거치므로
@@ -1171,7 +1298,9 @@ const saveCartToStorage = () => {
   //    native storage 이벤트는 "다른 탭"에서만 발화해야 하는 것이 브라우저 설계.
   //    같은 탭에서 수동 dispatch하면 CartView의 loadCartItems가 재호출되어
   //    sellerFreightRmb 재계산 루프를 유발함 (2026-09-15 버그 수정).
+  isSelfSaving = true;
   window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: cartItems.value.length } }));
+  isSelfSaving = false;
 };
 
 // ---------------------------------------------------------
@@ -1387,7 +1516,254 @@ async function backfillMissingPriceTiers() {
   console.log(`[CartView] 백필 완료 — 성공 ${done}종 / 실패 ${failed}종 → 구간 단가 재계산 및 저장`);
 
   // 채워진 정보로 즉시 재계산 후 저장 (saveCartToStorage가 syncTierPrices를 호출)
+  // ★ 화면을 떠난 뒤 조회가 끝났다면 저장하지 않는다 — 이 인스턴스가 들고 있는
+  //   옛 배열로 현재 장바구니를 덮어쓰게 된다.
+  if (!isInstanceActive) {
+    console.warn('[CartView] 백필 결과 저장 생략 — 이미 화면을 떠난 상태입니다(옛 배열 덮어쓰기 방지).');
+    return;
+  }
   saveCartToStorage();
+}
+
+// ── 장바구니 단가 1회 재검증 ────────────────────────────────────────────────
+// 2026-09-21 가격 버그(180221c) 이전에 담긴 행은 단가가 틀린 채 남아 있다.
+// (실측: offer 804924697306 — 1688 원본 7.4/7.4/14.8 인데 세 행 모두 14.8로 저장)
+// 화면·DB끼리만 맞추면 알 수 없는 값이므로 1688 원본과 한 번 대조한다.
+/** 단가가 조정된 행 수 — 0이면 안내를 띄우지 않는다 */
+const priceSyncChangedCount = ref(0);
+const priceSyncNoticeClosed = ref(false);
+/** 1688에서 옵션(specId)이 사라진 행 id — 표시 전용(발주 차단 아님) */
+const missingSpecRowIds = ref([]);
+
+// 세션당 1회만 실행. 실패한 상품은 priceSyncedAt을 남기지 않으므로 다음 로드(F5) 때 다시 시도한다.
+let priceRevalidateStarted = false;
+let priceRevalidatePromise = null;
+
+function revalidateCartPricesOnce() {
+  if (!priceRevalidateStarted) {
+    priceRevalidateStarted = true;
+    priceRevalidatePromise = revalidateCartPrices();
+  }
+  return priceRevalidatePromise || Promise.resolve();
+}
+
+/**
+ * 로드 뒤 비동기 보정 — 순서를 고정한다(재검증 → 백필).
+ *
+ * ★ 순서가 중요한 이유: 재검증이 받아온 상품은 api1688.js의 상품 캐시(30분)에 그대로 들어간다.
+ *   그래서 백필이 같은 상품을 다시 부르지 않는다. 반대로 두면 같은 상품을
+ *   /api/bulk-item-detail과 /api/1688-item-detail 두 경로로 각각 조회해
+ *   1688 일일 호출 한도를 두 배로 쓴다.
+ */
+let healTasksRunning = false;
+
+async function runCartHealTasks() {
+  // 같은 로드 흐름에서 겹쳐 돌지 않게 한다 (로드는 여러 번 불릴 수 있다).
+  // 엑셀 담기·옵션 변경 뒤 재로드에서는 이 플래그가 이미 풀려 있어 정상적으로 다시 돈다.
+  if (healTasksRunning) return;
+  healTasksRunning = true;
+  try {
+    await revalidateCartPricesOnce();
+  } catch (e) {
+    // 삼키지 않고 원인을 남긴다 — 재검증이 실패해도 백필은 계속해야 한다.
+    console.error('[CartView] 단가 재검증 중 오류:', e);
+  } finally {
+    healTasksRunning = false;
+  }
+  if (!isInstanceActive) return;
+  backfillMissingPriceTiers();
+}
+
+/**
+ * 장바구니 행의 단가를 1688 원본과 한 번 대조해 맞춘다.
+ *
+ * · 대상: priceSyncedAt이 없는 행 (즉 이번 수정 이전에 담긴 행 전부, 1회만)
+ * · 조회: 엑셀 대량발주와 같은 창구(fetchProductsForBulk → /api/bulk-item-detail).
+ *   서버 캐시(6시간) 적중분은 1688 실호출이 아니며, 번역도 캐시만 본다(파파고 신규 호출 0).
+ * · 단가 계산식은 새로 만들지 않는다 — 신규 행을 만들 때와 같은 함수·같은 식
+ *   (isSkuPricedSkus + resolveTierUnitPrice, BulkExcelUploadModal.recompute와 동일)
+ * · 조회 실패/한도 초과 → 아무 값도 바꾸지 않고 priceSyncedAt도 남기지 않는다(다음 로드 때 재시도).
+ */
+/**
+ * 재검증 실패 코드 분류 — "확정 상품 없음"과 "일시적 오류"를 가른다.
+ *
+ * 근거 (코드 실물):
+ *   · not_found : api/bulk-item-detail.js isRealProduct() 탈락분.
+ *     없는 상품을 조회하면 OneBound가 error_code 2000(item-not-found)과 함께
+ *     스텁 item을 내려보내는 것을 걸러낸 코드다(같은 파일 108~118행 주석).
+ *     → 1688에 상품이 없음(판매 종료)으로 확정 취급.
+ *   · 4013     : api/1688-item-detail.js 25·39·136행 — 接口已到期(OneBound 세션 만료·조회 불가).
+ *     게다가 136행은 "응답 자체가 없을 때"(타임아웃·네트워크)의 기본값으로도 4013을 쓴다.
+ *     상품 상태와 무관한 계정/통신 문제이므로 일시적으로 본다.
+ *   · 그 외(limit / network / fetch_failed / parse_failed / no_result / unknown / 기타 숫자 코드)
+ *     → 판단이 애매하면 전부 일시적 쪽으로 (확정 표시는 되돌리기 어려우므로 보수적으로).
+ */
+function isConfirmedNotFound(failure) {
+  return failure?.status === 'error' && failure?.code === 'not_found';
+}
+
+// 일시 실패 상품 재시도 간격 — 서버 error 캐시(30분)보다 충분히 길게 잡아
+// 같은 실패를 로드마다 다시 묻지 않는다.
+const PRICE_RECHECK_INTERVAL_MS = 6 * 60 * 60 * 1000;
+
+/** 일시 실패 기록이 아직 유효한지(=재시도하지 않을 기간인지) */
+function isRecheckSuppressed(row) {
+  const t = Date.parse(row?.priceCheckFailedAt || '');
+  return Number.isFinite(t) && (Date.now() - t) < PRICE_RECHECK_INTERVAL_MS;
+}
+
+async function revalidateCartPrices() {
+  const pending = cartItems.value.filter(it => {
+    if (it.priceSyncedAt) return false;
+    // 1688에서 사라진 것이 확정된 상품 — 더 묻지 않는다
+    if (it.unavailableAt) return false;
+    // 일시 실패 후 재시도 간격이 아직 안 지난 행
+    if (isRecheckSuppressed(it)) return false;
+    return true;
+  });
+  if (pending.length === 0) return;
+
+  // specId가 없으면 어느 SKU인지 특정할 수 없다 — 이름으로 추측하지 않고 건너뛴다.
+  const targets = pending.filter(it =>
+    String(it.specId || '').trim() && String(it.num_iid || '').trim()
+  );
+  if (targets.length < pending.length) {
+    console.warn(
+      `[CartView] 단가 재검증 제외 ${pending.length - targets.length}줄 — specId 또는 상품ID가 없어 SKU를 특정할 수 없습니다. ` +
+      `해당 행은 '옵션 변경/추가'로 옵션을 다시 고르면 채워집니다.`
+    );
+  }
+  if (targets.length === 0) return;
+
+  const offerIds = [...new Set(targets.map(it => String(it.num_iid).trim()))];
+  console.log(`[CartView] 장바구니 단가 재검증 시작 — 상품 ${offerIds.length}종 / ${targets.length}줄 (서버 캐시 우선)`);
+
+  const res = await fetchProductsForBulk(offerIds);
+  if (!res.ok) {
+    console.warn(
+      `[CartView] 단가 재검증 중단(${res.reason}) — 아무 값도 바꾸지 않았습니다. 다음 로드 때 다시 시도합니다.`
+    );
+    return;
+  }
+  const syncedAt = new Date().toISOString();
+  const missing = [];
+  let changed = 0;
+  let synced = 0;
+  let stamped = 0;   // unavailableAt / priceCheckFailedAt를 기록한 행 수
+
+  // ── 조회 실패 상품 처리 — 확정(판매 종료)과 일시적 오류를 갈라 기록 ──
+  for (const [id, f] of Object.entries(res.failures || {})) {
+    const rowsOfOffer = cartItems.value.filter(r => String(r.num_iid || '').trim() === id);
+    if (isConfirmedNotFound(f)) {
+      console.warn(
+        `[CartView] 1688에서 상품을 찾을 수 없습니다 — ${id}. ` +
+        `단가는 그대로 두고 '판매 종료 · 확인 불가'로 표시합니다(재검증 대상에서 제외).`
+      );
+      for (const r of rowsOfOffer) {
+        if (r.unavailableAt) continue;
+        r.unavailableAt = syncedAt;
+        stamped++;
+      }
+    } else {
+      console.warn(
+        `[CartView] 단가 재검증 일시 실패 — ${id} (${f.status}${f.code ? '/' + f.code : ''}). ` +
+        `값은 그대로 두고 일정 시간 뒤 다시 시도합니다.`
+      );
+      for (const r of rowsOfOffer) {
+        r.priceCheckFailedAt = syncedAt;
+        stamped++;
+      }
+    }
+  }
+
+  for (const offerId of offerIds) {
+    const product = res.products?.[offerId];
+    if (!product) continue;   // 실패분 — 위에서 이미 경고했고 값은 건드리지 않는다
+
+    const skus = Array.isArray(product.skus) ? product.skus : [];
+    // ── 신규 행 생성과 완전히 같은 판정·같은 식 ──
+    const skuPriced = isSkuPricedSkus(skus);
+    const tiers = (Array.isArray(product.priceTiers) ? product.priceTiers : [])
+      .map(t => ({ minQuantity: Number(t.minQty ?? t.minQuantity ?? 1) || 1, price: Number(t.price) || 0 }))
+      .filter(t => t.price > 0);
+    // 구간 단가는 같은 상품 합계 수량 기준 (syncTierPrices·엑셀 확인표와 같은 규칙)
+    const offerRows = cartItems.value.filter(r => String(r.num_iid || '').trim() === offerId);
+    const tierPrice = skuPriced ? null : resolveTierUnitPrice(tiers, sumQty(offerRows));
+
+    for (const row of offerRows) {
+      if (row.priceSyncedAt) continue;
+      const specId = String(row.specId || '').trim();
+      if (!specId) continue;
+
+      const sku = skus.find(s => String(s.specId || '').trim() === specId);
+      if (!sku) {
+        // 판매자가 옵션을 지운 경우 — 가격은 건드리지 않고 표시만 한다(priceSyncedAt 기록 안 함).
+        missing.push(row.id);
+        console.warn(
+          `[CartView] 1688에서 사라진 옵션 — 단가를 건드리지 않고 '옵션 확인 필요'로 표시합니다.`,
+          { offerId, specId, option: row.optionName || row.sku, priceCny: row.priceCny }
+        );
+        continue;
+      }
+
+      const skuPrice = Number(sku.price) || 0;
+      const unit = skuPriced ? skuPrice : (tierPrice ?? skuPrice);
+      if (!(unit > 0)) {
+        console.error(
+          `[CartView] 재검증 단가가 0이거나 숫자가 아닙니다 — 임의 값으로 채우지 않고 기존 값을 그대로 둡니다.`,
+          { offerId, specId, option: row.optionName || row.sku, skuPrice, tierPrice }
+        );
+        continue;
+      }
+
+      // ★ 가격 출처 스냅샷은 단가가 같아도 항상 최신으로 갱신한다.
+      //   이 값이 틀린 채 남으면 저장할 때마다 syncTierPrices가 방금 맞춘 단가를 다시 틀리게 만든다
+      //   (SKU별 가격 상품인데 isSkuPriced=false로 남아 구간 단가로 덮어쓰는 경우).
+      row.isSkuPriced = skuPriced;
+      row.priceTiers = skuPriced ? [] : tiers.map(t => ({ minQuantity: t.minQuantity, price: t.price }));
+
+      const before = Number(row.priceCny);
+      if (!(Math.abs(unit - before) <= 0.001)) {
+        console.log(
+          `[CartView] 1688 최신 단가로 조정: ${row.titleKo || offerId} [${row.optionName || ''}] ` +
+          `${Number.isFinite(before) ? '¥' + before.toFixed(2) : '(단가 없음)'} → ¥${unit.toFixed(2)}`
+        );
+        row.priceCny = unit;
+        row.price = unit;
+        changed++;
+      }
+      row.priceSyncedAt = syncedAt;
+      // 지난번 일시 실패 기록은 더 이상 의미가 없다
+      if (row.priceCheckFailedAt) row.priceCheckFailedAt = null;
+      synced++;
+    }
+  }
+
+  missingSpecRowIds.value = missing;
+
+  if (synced > 0 || missing.length > 0 || stamped > 0) {
+    console.log(
+      `[CartView] 단가 재검증 완료 — 확인 ${synced}줄 / 조정 ${changed}줄 / ` +
+      `옵션 사라짐 ${missing.length}줄 / 조회 실패 표시 ${stamped}줄`
+    );
+  }
+  if (changed > 0) {
+    priceSyncChangedCount.value = changed;
+    priceSyncNoticeClosed.value = false;
+  }
+  if (synced > 0 || stamped > 0) {
+    // ★ 화면을 떠난 뒤 조회가 끝났다면 저장하지 않는다 (옛 배열 덮어쓰기 방지)
+    if (!isInstanceActive) {
+      console.warn('[CartView] 단가 재검증 결과 저장 생략 — 이미 화면을 떠난 상태입니다.');
+      return;
+    }
+    saveCartToStorage();
+  }
+}
+
+/** 이 행의 옵션이 1688에서 사라졌는지 — 표시 전용 */
+function isSpecMissing(item) {
+  return missingSpecRowIds.value.includes(item?.id);
 }
 
 /** 구간 단가 미확인 행이 선택돼 있는지 — 안내 배너용 */
@@ -1799,6 +2175,8 @@ function applyOptionChanges() {
   //   → 고객이 옵션만 바꿨는데 그 상품이 발주에서 조용히 빠지던 원인.
   const wasSelected = selectedItemIds.value.includes(editingCartItemId.value);
   let newRowIds = [];
+  // 새 행의 SKU 키(offerId|specId) — 아래에서 "병합으로 id가 바뀐 경우"를 되찾는 데 쓴다.
+  let newRowKeys = [];
 
   try {
     const stored = JSON.parse(localStorage.getItem(cartKey) || '[]');
@@ -1841,6 +2219,9 @@ function applyOptionChanges() {
 
     // ★ 선택 상태 부분만 2026-09-22 사용자 허락으로 수정 — 아래에서 새 행을 다시 체크하기 위해 id만 기록.
     newRowIds = newRows.map(r => r.id);
+    newRowKeys = newRows
+      .filter(r => String(r.specId || '').trim())
+      .map(r => `${String(r.num_iid || '').trim()}|${String(r.specId).trim()}`);
 
     // 기존 행(oldId)은 handleEditModalCartAdded에서 제거하므로 여기서는 추가만
     const merged = [...stored, ...newRows];
@@ -1867,9 +2248,22 @@ function applyOptionChanges() {
   //   반드시 handleEditModalCartAdded 이후에 실행한다 — 그 함수가 기존 id를 빼고
   //   loadCartItems로 cartItems를 새로 채운 뒤라야 새 행이 목록에 존재한다.
   //   기존 행이 체크돼 있지 않았다면 새 행도 체크하지 않는다(고객이 일부러 뺀 상품을 되살리지 않음).
+  //   ★ 2026-09-22 추가: 바꾼 옵션이 장바구니에 이미 있던 SKU면 loadCartItems의
+  //     중복 병합(dedupeRowsBySpecId)이 새 행을 기존 행에 합쳐 새 id가 사라진다.
+  //     그때는 "합쳐진 뒤 남은 행"을 대신 체크해야 체크가 풀리지 않는다.
   if (wasSelected && newRowIds.length > 0) {
-    const merged = new Set([...selectedItemIds.value, ...newRowIds]);
-    selectedItemIds.value = [...merged];
+    const newIdSet = new Set(newRowIds);
+    const newKeySet = new Set(newRowKeys);
+    const liveIds = cartItems.value
+      .filter(it =>
+        newIdSet.has(it.id) ||
+        (String(it.specId || '').trim() &&
+          newKeySet.has(`${String(it.num_iid || '').trim()}|${String(it.specId).trim()}`))
+      )
+      .map(it => it.id);
+    if (liveIds.length > 0) {
+      selectedItemIds.value = [...new Set([...selectedItemIds.value, ...liveIds])];
+    }
   }
 }
 
@@ -2179,7 +2573,17 @@ onMounted(() => {
   //    장바구니 변경 알림은 'euchs:cart-updated' 커스텀 이벤트만으로 충분.
   //    (다른 탭에서 실제 localStorage 변경이 생기면 native storage 이벤트가 발화하지만
   //     그 케이스는 사용자가 같은 탭에서 장바구니를 직접 보고 있으므로 무시해도 무방)
-  window.addEventListener('euchs:cart-updated', loadCartItems);
+  window.addEventListener('euchs:cart-updated', onCartUpdatedEvent);
+});
+
+// ★ 2026-09-22 추가 — 리스너 정리. 이게 없어서 한 번 진입할 때마다 리스너가 쌓였다.
+//   화면을 떠난(언마운트된) 인스턴스가 계속 euchs:cart-updated를 받아
+//   ① loadCartItems + heal 작업(중복 병합·단가 재검증)을 자기 몫으로 한 번 더 돌리고
+//   ② 자기가 들고 있던 "예전 장바구니 배열"을 saveCartToStorage로 덮어써
+//   방금 합쳐 둔 중복 행이 되살아났다(한 번 진입에 병합·재검증이 2회 실행된 원인).
+onUnmounted(() => {
+  isInstanceActive = false;
+  window.removeEventListener('euchs:cart-updated', onCartUpdatedEvent);
 });
 </script>
 
