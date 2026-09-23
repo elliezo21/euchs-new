@@ -1548,6 +1548,8 @@ export async function fetch1688FreightEstimate(offerId, specId, quantity = 1) {
  * 반환 freight = 해당 배열 전체 SKU의 합계 운임(CNY). sumCarriage=0이면 包邮(무료)로 0을 반환.
  *
  * @param {Array} cargoList - [{ offerId|numIid, specId, quantity }, ...]
+ *   specId: 32자리 hex(옵션 상품) 또는 ''/키 없음(단품 — 서버가 원본으로 재확인).
+ *   그 외 형식("0:0" 등)이 하나라도 있으면 그룹 전체 null.
  * @returns {Promise<number|null>}  CNY 합계 운임 (전체 수량 기준) 또는 null(조회 불가)
  */
 // ── freight batch 전용 독립 캐시 (key: 정렬된 offerId_specId_quantity 조합) ──
@@ -1557,20 +1559,34 @@ const FREIGHT_BATCH_CACHE_STORAGE_KEY = 'euchs_freight_batch'
 const _freightBatchInFlight = new Map()
 
 export async function fetch1688FreightEstimateBatch(cargoList = []) {
-  const items = (Array.isArray(cargoList) ? cargoList : [])
+  const normalized = (Array.isArray(cargoList) ? cargoList : [])
     .map((it) => ({
       offerId: String(it?.offerId ?? it?.numIid ?? it?.num_iid ?? '').replace(/[^0-9]/g, ''),
       specId: String(it?.specId ?? ''),
       quantity: Math.max(1, parseInt(it?.quantity, 10) || 1),
     }))
-    .filter((it) => it.offerId && isValidSpecId(it.specId))
+    .filter((it) => it.offerId)
+
+  // short 형식 specId("0:0" 등)가 섞이면 그룹 전체를 조회 불가로 돌린다.
+  //   그 행만 빼고 조회하면 운임이 조용히 적게 잡힌다 → null로 넘겨 추정/관리자 수동으로 흐르게 한다.
+  const badSpec = normalized.filter((it) => it.specId !== '' && !isValidSpecId(it.specId))
+  if (badSpec.length > 0) {
+    console.error('[fetch1688FreightEstimateBatch] 조회 불가 specId(short 형식) 포함 → 그룹 운임 null:', badSpec)
+    return null
+  }
+
+  // 단품(specId 빈 값)은 specId 키를 빼고 보낸다 — 서버가 1688 원본으로 단품 여부를 재확인한다.
+  const items = normalized.map((it) => (it.specId
+    ? it
+    : { offerId: it.offerId, quantity: it.quantity }))
 
   if (items.length === 0) return null
 
   // 캐시 키: seller그룹 구성(offerId_specId_quantity)을 정렬 후 조합 → 배열 순서가
   // 달라도(체크박스 토글 순서 변화 등) 동일 조합이면 같은 키로 인식됨
+  // 단품은 `${offerId}__${quantity}` — 옵션 키(offerId_specId_quantity)와 겹치지 않는다.
   const cacheKey = items
-    .map((it) => `${it.offerId}_${it.specId}_${it.quantity}`)
+    .map((it) => (it.specId ? `${it.offerId}_${it.specId}_${it.quantity}` : `${it.offerId}__${it.quantity}`))
     .sort()
     .join('|')
 
@@ -1603,7 +1619,8 @@ export async function fetch1688FreightEstimateBatch(cargoList = []) {
         console.log(`[fetch1688FreightEstimateBatch] 성공: key=${cacheKey} freight=¥${freight} → 캐시 저장`)
         return freight
       }
-      console.debug('[fetch1688FreightEstimateBatch] 미제공:', data?.message || '')
+      // 단품 확인 실패 등 서버 판정 사유가 담기므로 debug가 아니라 warn으로 남긴다
+      console.warn('[fetch1688FreightEstimateBatch] 미제공:', data?.message || '', items)
       return null
     } catch (err) {
       console.warn('[fetch1688FreightEstimateBatch] 오류 — null 폴백:', err.message)

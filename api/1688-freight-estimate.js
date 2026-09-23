@@ -16,6 +16,8 @@
  *   1) 단일 SKU (기존): GET /api/1688-freight-estimate?offerId=...&specId=...&quantity=...
  *   2) 배열 (여러 SKU): POST /api/1688-freight-estimate
  *        body: { cargoParamList: [{ offerId|numIid, specId, quantity }, ...] }
+ *        specId: 32자리 hex 또는 빈 값/키 없음(단품). 빈 값 행은 verifySingleSkuOffers로 원본 재확인 후
+ *        specId 키를 생략해 보낸다. 판정 실패·옵션 상품·형식 오류 행이 하나라도 있으면 전체 success:false.
  * 응답: { success: true, freight: <CNY float> }  ← cargoParamList 전체 합계 운임(CNY)
  *        | { success: false, freight: null, message: ... }
  *
@@ -27,6 +29,9 @@
  * toProvinceCode/toCityCode: product.freight.estimate 실패로 이 API에서는 불필요.
  *   (alibaba.createOrder.preview는 addressId 기반으로 1688 서버가 주소를 직접 조회함)
  */
+
+// 단품 판정은 발주 API와 같은 함수를 쓴다 (판정 기준·캐시 창구가 갈라지지 않게)
+import { verifySingleSkuOffers } from './1688-order-create.js'
 
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
 const ADDRESS_ID = '6402758024' // 圆圆A45 — 이우 물류창고, 기존 발주 API와 동일
@@ -53,17 +58,38 @@ export default async function handler(req, res) {
   // 1) POST body: { cargoParamList: [{ offerId|numIid, specId, quantity }] }  ← 배열(여러 SKU)
   // 2) GET query: ?offerId=...&specId=...&quantity=...  ← 기존 단일 SKU 방식 그대로 동작
   let cargoList = []
+  // POST에서 받은 행 수 — 1688에 보내는 행 수와 반드시 같아야 한다(조용히 빠진 행이 있으면 운임이 적게 잡힘)
+  let receivedCount = null
+  // specId가 빈 행(단품 후보)의 offerId — 아래에서 1688 원본으로 단품 여부를 재확인한다
+  let noSpecOfferIds = []
 
   if (req.method === 'POST') {
     const body = req.body || {}
     if (Array.isArray(body.cargoParamList) && body.cargoParamList.length > 0) {
-      cargoList = body.cargoParamList
-        .filter((it) => it && (it.offerId || it.numIid) && it.specId)
-        .map((it) => ({
-          offerId: String(it.offerId ?? it.numIid),
-          specId: String(it.specId),
-          quantity: Math.max(1, parseInt(it.quantity, 10) || 1),
-        }))
+      receivedCount = body.cargoParamList.length
+      const parsed = body.cargoParamList.map((it) => ({
+        offerId: String(it?.offerId ?? it?.numIid ?? '').trim(),
+        specId: String(it?.specId ?? '').trim(),
+        quantity: Math.max(1, parseInt(it?.quantity, 10) || 1),
+      }))
+
+      // offerId 없는 행 / 32자리 hex도 빈 값도 아닌 specId 행 → 전체 실패 (일부만 빼고 조회하지 않는다)
+      const invalid = parsed.filter((it) => !it.offerId || (it.specId !== '' && !/^[0-9a-f]{32}$/i.test(it.specId)))
+      if (invalid.length > 0) {
+        console.error('[1688-freight-estimate] 조회 불가 행 포함 — 전체 실패:', invalid)
+        return res.status(400).json({
+          success: false,
+          freight: null,
+          message: `조회 불가 행 ${invalid.length}건 (offerId 누락 또는 specId 형식 오류): ${invalid.map((it) => `${it.offerId || '?'}/${it.specId}`).join(', ')}`,
+        })
+      }
+
+      noSpecOfferIds = parsed.filter((it) => it.specId === '').map((it) => it.offerId)
+      // 단품은 specId 키를 아예 넣지 않는다 — api/1688-order-create.js cargoParamList 조립과 같은 형태
+      //   (2026-09-23 실측: offer 1081424348445 ×4000, specId 생략 → sumCarriage ¥274.30)
+      cargoList = parsed.map((it) => (it.specId
+        ? it
+        : { offerId: it.offerId, quantity: it.quantity }))
     }
   } else {
     const { offerId, specId, quantity } = req.query || {}
@@ -99,6 +125,33 @@ export default async function handler(req, res) {
       success: false,
       freight: null,
       message: 'API 인증 환경변수 누락 (ONEBOUND_KEY / ONEBOUND_SECRET / ONEBOUND_SESSION)',
+    })
+  }
+
+  // ── specId 빈 행: 진짜 단품인지 1688 원본으로 재확인 ─────────────────────
+  // 발주 API와 같은 판정 함수(verifySingleSkuOffers)를 쓴다. 옵션 상품인데 specId가 빈 행을
+  // offerId만으로 조회하면 1688이 임의 SKU로 계산할 수 있으므로, 판정 실패·옵션 상품이면 전체 실패.
+  if (noSpecOfferIds.length > 0) {
+    const verdicts = await verifySingleSkuOffers(noSpecOfferIds)
+    const failed = []
+    for (const id of new Set(noSpecOfferIds)) {
+      const v = verdicts.get(id)
+      if (!v || v.error) failed.push(`${id}: ${v?.error || '판정 결과 없음'}`)
+      else if (!v.isSingleSku) failed.push(`${id}: 옵션 상품인데 specId가 없습니다`)
+    }
+    if (failed.length > 0) {
+      console.error('[1688-freight-estimate] 단품 확인 실패 — 전체 실패:', failed)
+      return res.status(200).json({ success: false, freight: null, message: `단품 확인 실패: ${failed.join(' / ')}` })
+    }
+  }
+
+  // 받은 행과 1688에 보낼 행 수가 다르면 절대 성공으로 돌려주지 않는다
+  if (receivedCount !== null && receivedCount !== cargoList.length) {
+    console.error('[1688-freight-estimate] 행 수 불일치 — 전체 실패:', { receivedCount, sending: cargoList.length })
+    return res.status(200).json({
+      success: false,
+      freight: null,
+      message: `행 수 불일치 (받은 ${receivedCount}건 / 조회 ${cargoList.length}건)`,
     })
   }
 

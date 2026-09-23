@@ -930,12 +930,13 @@ const handleSubmit = async () => {
         groups.map(async (g) => {
           // 같은 offerId+specId는 수량 합산 (CartView.calcSellerBatchFreight와 동일 기준).
           // 중복 specId를 보내면 createOrder.preview가 빈 결과를 반환한다.
-          const { cargoList, mergedCount } = buildCargoParamList(g.items, resolveItemQty)
+          // 단품(specId 빈 값)도 포함 — CartView와 같은 allowSingleSku 기준, 서버가 원본으로 재확인.
+          const { cargoList, mergedCount } = buildCargoParamList(g.items, resolveItemQty, { allowSingleSku: true })
           if (mergedCount > 0) {
             console.warn(`[OrderConfigModal] ${g.groupKey}: 같은 SKU ${mergedCount}건 중복 → 수량 합산 후 조회`)
           }
           if (cargoList.length === 0) {
-            console.error(`[OrderConfigModal] ${g.groupKey}: 유효한 specId 없음 → 운임 조회 불가`)
+            console.error(`[OrderConfigModal] ${g.groupKey}: 조회 가능한 행(specId 또는 단품) 없음 → 운임 조회 불가`)
             return null
           }
           const freight = await fetch1688FreightEstimateBatch(cargoList)

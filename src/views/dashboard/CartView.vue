@@ -798,7 +798,7 @@ import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue';
 import { krwFromCny, calcCartTotal, calcCartEstimatedCost, resolveItemQty, normalizeQty } from '@/utils/orderCostCalculator';
 import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
 import { sumQty, resolveMoq, offerGroupKey } from '@/utils/moq';
-import { resolveTierUnitPrice, resolveGroupPricing, isSkuPricedSkus, buildCargoParamList } from '@/utils/priceTier';
+import { resolveTierUnitPrice, resolveGroupPricing, isSkuPricedSkus, buildCargoParamList, isSingleSkuCandidate } from '@/utils/priceTier';
 import { resolveSkuImageUrl } from '@/utils/cartWriter';
 // 장바구니 단가 재검증 전용 조회 — 엑셀 대량발주가 쓰는 서버 창구(/api/bulk-item-detail)를 그대로 쓴다.
 // 새 경로를 만들지 않는 이유: 서버 product_cache(6시간)를 앞단에 두고 있어 1688 실호출이 가장 적다.
@@ -1016,10 +1016,12 @@ async function calcSellerBatchFreight() {
         //   번역 차이로 별도 행이 되는 경우가 있다("M[5~8근 권장]" vs "M[建议5-8斤]").
         //   중복 specId를 그대로 보내면 createOrder.preview가 빈 결과를 반환한다.
         // ★ 수량 0(품절 옵션이 담겼던 행 등)은 운임 배치 요청에서 뺀다.
-        //   priceTier.buildCargoParamList는 공용·수정 금지 파일이고 내부에서
+        //   priceTier.buildCargoParamList는 공용 함수(옵션 인자로만 확장, 기본 동작 변경 금지)이고 내부에서
         //   Math.max(1, ...)로 수량을 1개까지 올리므로, 걸러내지 않으면 0개인 행이
         //   1개로 운임에 반영된다. 판정은 buildCargoParamList가 쓰는 것과 같은
         //   resolveItemQty 기준으로 맞춘다.
+        // ★ 단품(specId 빈 값)도 운임 조회에 넣는다(allowSingleSku) — 서버가 1688 원본으로 단품 여부를 재확인.
+        //   빠지면 단품은 수량 추정값으로 청구된다(EUC-20260923-2466: ×4000 → 추정 ¥12 청구).
         const freightItems = g.items.filter(it => resolveItemQty(it) > 0);
         const excludedZeroQty = g.items.length - freightItems.length;
         if (excludedZeroQty > 0) {
@@ -1028,23 +1030,24 @@ async function calcSellerBatchFreight() {
             g.items.filter(it => resolveItemQty(it) <= 0).map(i => ({ id: i.id, opt: i.optionName }))
           );
         }
-        const { cargoList, mergedCount } = buildCargoParamList(freightItems, resolveItemQty);
+        const { cargoList, mergedCount } = buildCargoParamList(freightItems, resolveItemQty, { allowSingleSku: true });
         if (mergedCount > 0) {
           console.warn(
             `  ↳ ${g.groupKey}: 같은 SKU가 ${mergedCount}건 중복 저장돼 있어 수량을 합쳐 조회합니다 ` +
             `(장바구니 행 병합 키가 번역 문자열이라 생기는 현상)`, g.items.map(i => ({ specId: i.specId, opt: i.optionName }))
           );
         }
-        // specId 없는 행 — 발주 시 400이 나는 행이므로 원인을 남긴다
-        const noSpec = g.items.filter(it => !String(it.specId || '').trim());
+        // specId 없는 행 중 단품 후보가 아닌 것(옵션 상품인데 specId 없음) — 운임 조회에서 빠지므로 원인을 남긴다.
+        //   단품 후보(isSingleSkuCandidate)는 위 cargoList에 들어가 서버로 간다.
+        const noSpec = g.items.filter(it => !String(it.specId || '').trim() && !isSingleSkuCandidate(it));
         if (noSpec.length > 0) {
           console.error(
-            `  ↳ ${g.groupKey}: specId 없는 행 ${noSpec.length}건 — 운임 조회에서 제외됩니다.`,
-            noSpec.map(i => ({ id: i.id, num_iid: i.num_iid, opt: i.optionName }))
+            `  ↳ ${g.groupKey}: 옵션 상품인데 specId 없는 행 ${noSpec.length}건 — 운임 조회에서 제외됩니다.`,
+            noSpec.map(i => ({ id: i.id, num_iid: i.num_iid, opt: i.optionName, hasOptions: i.hasOptions, isSingleSku: i.isSingleSku }))
           );
         }
         if (cargoList.length === 0) {
-          console.error(`  ↳ ${g.groupKey}: 유효한 specId가 하나도 없어 운임 조회 불가 → null`);
+          console.error(`  ↳ ${g.groupKey}: 조회 가능한 행(specId 또는 단품)이 하나도 없어 운임 조회 불가 → null`);
           return { groupKey: g.groupKey, freight: null };
         }
         const freight = await fetch1688FreightEstimateBatch(cargoList);

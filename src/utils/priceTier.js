@@ -1,5 +1,6 @@
 /**
  * 1688 가격 출처 판정 공용 유틸 — Single Source of Truth
+ * ※ 공용 파일: 함수는 옵션 인자로만 확장하고, 기본 동작(옵션 생략 시 결과)은 바꾸지 않는다.
  *
  * ══════════════════════════════════════════════════════════════════
  * 1688 가격 규칙 (2026-09-21 offerId=1081981728994 item_get 실측으로 확정):
@@ -95,6 +96,20 @@ export function resolveGroupPricing(rows) {
 }
 
 /**
+ * specId가 빈 행이 "단품 후보"인지 — 행에 남은 표식만으로 판정한다(최종 판정은 서버가 1688 원본으로).
+ *   isSingleSku: api1688.js가 원본 skus.sku 길이 0으로 확정한 값 (주문 품목에 남음)
+ *   hasOptions : 담기 시점에 선택 가능한 옵션이 있었는지 (장바구니 행에 남음)
+ * 둘 중 하나라도 "옵션 상품"을 가리키면 후보가 아니다. 둘 다 없으면(구 행) 후보 — 서버 재확인 대상.
+ *
+ * @param {object} row
+ * @returns {boolean}
+ */
+export function isSingleSkuCandidate(row) {
+  if (row?.isSingleSku === false || row?.hasOptions === true) return false
+  return true
+}
+
+/**
  * 1688 발주/운임 조회용 cargoParamList를 조립한다.
  * 같은 offerId+specId가 여러 행으로 나뉘어 있으면 수량을 합산해 1건으로 만든다.
  *
@@ -104,18 +119,42 @@ export function resolveGroupPricing(rows) {
  *   그 상태로 cargoParamList를 만들면 같은 specId가 중복 전송되어
  *   alibaba.createOrder.preview가 빈 결과를 반환한다.
  *
+ * ★ 옵션 인자로만 확장한다. 기본 동작(options 생략) 변경 금지 — 운임을 수십 번 고쳐 온 함수다.
+ *
+ * allowSingleSku=true (2026-09-23 추가):
+ *   단품(1688 원본 skus.sku 길이 0)은 1688이 spec_id를 주지 않아 specId가 빈 것이 정상이다.
+ *   이런 행을 { offerId, quantity }로 넣는다(specId 키 생략 — api/1688-order-create.js
+ *   cargoParamList 조립과 같은 형태, 1081424348445 ×4000 → sumCarriage ¥274.30 실측).
+ *   같은 offerId 단품 행은 수량을 합산한다.
+ *   - 단품 후보: isSingleSku===true / hasOptions===false / 두 표식 모두 없음(구 행 — 서버가 원본으로 재확인)
+ *   - 제외: isSingleSku===false 또는 hasOptions===true (옵션 상품인데 specId가 빈 행)
+ *
  * @param {Array} rows - 장바구니/주문 품목 배열
  * @param {Function} qtyOf - 행에서 수량을 뽑는 함수
+ * @param {{ allowSingleSku?: boolean }} [options]
  * @returns {{ cargoList: Array, mergedCount: number }} mergedCount = 합쳐진 중복 건수
  */
-export function buildCargoParamList(rows, qtyOf) {
+export function buildCargoParamList(rows, qtyOf, { allowSingleSku = false } = {}) {
   const map = new Map()
   let mergedCount = 0
 
   for (const it of (Array.isArray(rows) ? rows : [])) {
     const offerId = String(it?.num_iid || it?.itemId || '').trim()
     const specId = String(it?.specId || '').trim()
-    if (!offerId || !specId) continue
+    if (!offerId) continue
+    if (!specId) {
+      if (!allowSingleSku || !isSingleSkuCandidate(it)) continue
+      // 단품 — specId 키 없이 offerId 단위로 합산
+      const key = `${offerId}__single`
+      const qty = Math.max(1, parseInt(qtyOf(it), 10) || 1)
+      if (map.has(key)) {
+        map.get(key).quantity += qty
+        mergedCount++
+      } else {
+        map.set(key, { offerId, quantity: qty })
+      }
+      continue
+    }
 
     const key = `${offerId}_${specId}`
     const qty = Math.max(1, parseInt(qtyOf(it), 10) || 1)

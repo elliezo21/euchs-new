@@ -849,6 +849,9 @@ function lab1688Plugin(env) {
           if (!process.env.ONEBOUND_KEY)     process.env.ONEBOUND_KEY     = env.ONEBOUND_KEY     || ''
           if (!process.env.ONEBOUND_SECRET)  process.env.ONEBOUND_SECRET  = env.ONEBOUND_SECRET  || ''
           if (!process.env.ONEBOUND_SESSION) process.env.ONEBOUND_SESSION = env.ONEBOUND_SESSION || ''
+          // 단품 재확인(verifySingleSkuOffers)이 product_cache를 먼저 본다 — 5-b와 같은 주입
+          if (!process.env.SUPABASE_URL)             process.env.SUPABASE_URL             = env.SUPABASE_URL             || env.VITE_SUPABASE_URL || ''
+          if (!process.env.SUPABASE_SERVICE_ROLE_KEY) process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
 
           // res 래핑: Vercel의 res.status(code).json(body) → Vite의 res.statusCode + res.end()
           const wrappedRes = Object.assign(Object.create(res), {
