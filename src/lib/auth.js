@@ -184,8 +184,9 @@ export const checkUserRole = async (user) => {
     console.debug('roles / profiles DB lookup notice:', err)
   }
 
-  // 2. Auth metadata (app_metadata 또는 user_metadata) 확인
-  const metaRole = String(user.app_metadata?.role || user.user_metadata?.role || '').toLowerCase().trim()
+  // 2. Auth app_metadata 확인
+  // ★ user_metadata는 사용자가 직접 쓸 수 있는 값이라 권한 판정에 쓰지 않는다 (2026-09-23)
+  const metaRole = String(user.app_metadata?.role || '').toLowerCase().trim()
   if (metaRole && ['super_admin', 'staff', 'admin', 'master'].includes(metaRole)) {
     userRole.value = metaRole === 'staff' ? 'staff' : 'super_admin'
     return userRole.value
@@ -241,7 +242,8 @@ export const adminSignIn = async (email, password) => {
     }
   }
 
-  const profileRole = String(userProfile?.role || authUser?.user_metadata?.role || authUser?.app_metadata?.role || '').toLowerCase().trim()
+  // user_metadata.role은 사용자가 직접 쓸 수 있는 값이라 권한 판정에 쓰지 않는다
+  const profileRole = String(userProfile?.role || authUser?.app_metadata?.role || '').toLowerCase().trim()
   const isAuthorizedAdmin = ['admin', 'super_admin', 'staff', 'master'].includes(profileRole) ||
                             ADMIN_EMAILS.includes(emailTrimmed)
 
