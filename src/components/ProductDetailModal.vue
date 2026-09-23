@@ -2346,6 +2346,16 @@ const saveSelectedItemsToCart = () => {
       // null: API에서 운임 정보 없음(구 데이터 등) → 관리자 모달에서 수량기반 추정치로 폴백
       // 0: 包邮(무료배송) 확인됨 → 관리자 모달에서 ₩0으로 표시
       freight: currentItem.value.freight ?? null,
+      // ── 단품(옵션 없는 상품) 표식 ──
+      // api1688.js가 1688 원본 skus.sku 배열로 확정한 값을 그대로 옮긴다(재판정 금지).
+      // 관리자 자동발주가 "진짜 단품"과 "옵션 미선택"을 구분하는 근거가 된다.
+      // ★ 값이 boolean일 때만 넣는다. 이 표식이 생기기 전에 저장된 상품 캐시
+      //   (euchs_product_parsed, TTL 30분)에는 키가 없는데, 그때 false로 단정하면
+      //   진짜 단품이 '옵션 미선택'으로 몰려 관리자 화면에서 막힌다.
+      //   키가 없으면 관리자는 막지 않고 서버가 1688 원본으로 재확인한다.
+      ...(typeof currentItem.value.isSingleSku === 'boolean'
+        ? { isSingleSku: currentItem.value.isSingleSku }
+        : {}),
     }
 
     // 2. 최소 주문 수량(min_num) 검증 가드 — 같은 1688 상품(offerId) "합계" 기준.

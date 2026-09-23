@@ -937,6 +937,13 @@ const handleSubmit = async () => {
       itemId: it.itemId || it.num_iid || '',
       num_iid: it.num_iid || it.itemId || '',    // ← 1688 상품 숫자 ID (발주 필수)
       specId: it.specId || '',                    // ← 1688 SKU spec_id (발주 필수)
+      // ← 단품(옵션 없는 상품) 표식. api1688.js가 1688 원본 skus.sku로 확정한 값.
+      //   단품은 1688이 spec_id를 주지 않으므로 specId가 빈 것이 정상이다.
+      //   관리자 자동발주가 이 값으로 "진짜 단품"과 "옵션 미선택"을 구분한다.
+      //   ★ 세 가지 상태를 그대로 보존한다 — true(단품) / false(옵션 상품) / 키 없음(표식이
+      //     없던 시절의 구 장바구니 행). 키가 없는 행은 관리자 화면이 막지 않고 서버로 보내
+      //     1688 원본으로 재확인한다(api/1688-order-create.js verifySingleSkuOffers).
+      ...(typeof it.isSingleSku === 'boolean' ? { isSingleSku: it.isSingleSku } : {}),
       productUrl: it.productUrl || it.detailUrl || '',
       titleKo: it.titleKo || it.productName || '',
       titleZh: it.titleZh || '',

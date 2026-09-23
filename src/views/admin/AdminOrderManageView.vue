@@ -472,6 +472,14 @@
 
                     <div class="text-xs text-slate-500 font-mono flex items-center gap-2 flex-wrap">
                       <span class="bg-slate-100 px-1.5 py-0.5 rounded text-slate-700">옵션: {{ item.sku || '기본 규격' }}</span>
+                      <!-- 단품/옵션미선택 구분 배지 — 둘 다 specId가 비어 있어 겉으로는 똑같아 보인다.
+                           단품은 1688이 spec_id를 주지 않는 정상 상품이라 자동발주가 가능하고,
+                           옵션 미선택은 잘못된 옵션으로 나갈 수 있어 수동발주로 보내야 한다. -->
+                      <span v-if="item.isSingleSku === true" class="bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-bold">단품(옵션 없음)</span>
+                      <span v-else-if="item.isSingleSku === false && !String(item.specId || '').trim()" class="bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded font-bold">옵션 미선택(자동발주 불가)</span>
+                      <!-- 표식이 없던 시절의 구 주문 — 단품인지 옵션 미선택인지 단정할 수 없다.
+                           발주 시 서버가 1688 원본으로 확인하므로 여기서는 사실만 적는다. -->
+                      <span v-else-if="!String(item.specId || '').trim()" class="bg-amber-50 text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-bold">옵션 정보 없음(발주 시 확인)</span>
                       <span>·</span>
                       <span :class="item.excluded ? 'line-through text-slate-400' : 'font-bold text-slate-800'">수량: {{ item.quantity || 1 }}개</span>
                       <span>·</span>
@@ -3212,26 +3220,26 @@ async function executeStartPurchasing() {
 
   const results = [];   // { success, items, indices, orderId, error, skipped }
 
-  // ── specId 없는 품목 분리 (그룹 전체 400 실패 방지) ──────────────────────
-  // api/1688-order-create.js:300-308은 그룹 품목 중 하나라도 specId가 비면
-  // 그룹 전체를 400으로 거부한다. 정상 품목까지 함께 발주가 막히므로,
-  // 문제 품목만 떼어내 수동발주 대상(purchase_pending)으로 남기고 나머지는 진행시킨다.
+  // ── 옵션 상품인데 specId가 없는 품목만 분리 (그룹 전체 400 실패 방지) ────
+  // 그룹 품목 중 하나라도 서버 검증에 걸리면 그룹 전체가 400이 되어 정상 품목까지
+  // 막히므로, 확실히 막힐 품목만 미리 떼어내 수동발주 대상(purchase_pending)으로 남긴다.
+  //
+  // ★ 단품(isSingleSku === true)은 1688이 spec_id를 주지 않는 것이 정상이므로 떼어내지 않는다.
+  //   표식이 없는 구 주문(undefined)도 여기서 단정하지 않고 서버로 보낸다 —
+  //   최종 판정은 서버가 1688 원본으로 다시 한다(api/1688-order-create.js verifySingleSkuOffers).
   for (const group of groups) {
     const keepItems = [], keepIndices = [], dropItems = [], dropIndices = [];
     group.items.forEach((it, i) => {
-      if (String(it.specId || '').trim()) {
+      const blocked = !String(it.specId || '').trim() && it.isSingleSku === false;
+      if (!blocked) {
         keepItems.push(it); keepIndices.push(group.indices[i]);
       } else {
         dropItems.push(it); dropIndices.push(group.indices[i]);
       }
     });
     if (dropItems.length === 0) continue;
-    const errMsg = '1688 SKU(specId)가 없어 자동발주 불가 — 수동발주로 처리해주세요';
-    for (const it of dropItems) {
-      it.purchaseError   = errMsg;
-      it.purchaseErrorAt = new Date().toISOString();
-      it.subStatus       = 'purchase_pending';
-    }
+    const errMsg = '옵션 상품인데 옵션(specId) 정보가 없어 자동발주 불가 — 수동발주로 처리해주세요';
+    for (const it of dropItems) markPurchaseFailure(it, errMsg, false);
     results.push({ success: false, items: dropItems, indices: dropIndices, error: errMsg });
     group.items   = keepItems;
     group.indices = keepIndices;
@@ -3291,9 +3299,16 @@ async function executeStartPurchasing() {
         headers: authHeaders,
         body:    JSON.stringify(body),
       });
-      const data = await res.json();
+      const { data, httpStatus } = await readOrderCreateResponse(res);
 
-      if (data.success) {
+      if (!data) {
+        // 응답 본문이 JSON이 아님(빈 404, Vercel 504 등) — 서버 판정을 받지 못했다
+        const uncertain = isOrderOutcomeUncertain(httpStatus);
+        const errMsg = `발주 서버 응답을 읽을 수 없음 (HTTP ${httpStatus})` +
+          (uncertain ? ' — 1688 주문 생성 여부 불확실, 1688 콘솔 확인 필요' : '');
+        for (const it of gItems) markPurchaseFailure(it, errMsg, uncertain);
+        results.push({ success: false, items: gItems, indices: gIndices, error: errMsg });
+      } else if (data.success) {
         const purchaseNo = String(data.orderId || '');
         // 그룹 내 모든 품목에 같은 purchaseNo 기록
         for (const it of gItems) {
@@ -3313,22 +3328,13 @@ async function executeStartPurchasing() {
         results.push({ success: true, items: gItems, indices: gIndices, orderId: data.orderId });
       } else {
         const errMsg = data.message || '발주 실패';
-        for (const it of gItems) {
-          it.purchaseError   = errMsg;
-          it.purchaseErrorAt = new Date().toISOString();
-          if (it.subStatus === 'purchase_requesting') it.subStatus = 'purchase_pending';
-          // manual_check_required(타임아웃 경우)는 서버가 이미 설정 — 덮어쓰지 않음
-          if (it.subStatus !== 'manual_check_required') it.subStatus = 'purchase_pending';
-        }
+        for (const it of gItems) markPurchaseFailure(it, errMsg, false);
         results.push({ success: false, items: gItems, indices: gIndices, error: errMsg });
       }
     } catch (fetchErr) {
-      const errMsg = fetchErr.message;
-      for (const it of gItems) {
-        it.purchaseError   = errMsg;
-        it.purchaseErrorAt = new Date().toISOString();
-        if (it.subStatus === 'purchase_requesting') it.subStatus = 'purchase_pending';
-      }
+      // 네트워크 단절 등 — 요청이 서버에 닿았는지 알 수 없으므로 불확실로 본다
+      const errMsg = `발주 서버 통신 오류: ${fetchErr.message} — 1688 주문 생성 여부 불확실, 1688 콘솔 확인 필요`;
+      for (const it of gItems) markPurchaseFailure(it, errMsg, true);
       results.push({ success: false, items: gItems, indices: gIndices, error: errMsg });
     }
   }
@@ -3336,6 +3342,15 @@ async function executeStartPurchasing() {
   // ── 결과 집계 ─────────────────────────────────────────────────────────────
   const succeeded = results.filter(r => r.success);
   const failed    = results.filter(r => !r.success);
+
+  // 실패 사유 요약 — 토스트에 "로그를 확인하세요" 대신 실제 사유를 띄운다.
+  // 사유가 여러 개면 첫 사유만 보이고 나머지는 건수로 알린다(토스트가 길어지지 않게).
+  const failReasons = [...new Set(failed.map(r => String(r.error || '').trim()).filter(Boolean))];
+  const failReasonText = failReasons.length === 0
+    ? ''
+    : failReasons.length === 1
+      ? failReasons[0]
+      : `${failReasons[0]} 외 ${failReasons.length - 1}건`;
 
   const prevStatus = o.status;
   const target = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
@@ -3371,7 +3386,7 @@ async function executeStartPurchasing() {
       const sucItems = succeeded.reduce((s, r) => s + r.items.length, 0);
       const failItems = failed.reduce((s, r) => s + r.items.length, 0);
       showToast(
-        `[${o.orderNumber}] ${sucItems}개 성공, ${failItems}개 실패 — 실패 품목은 상세보기에서 개별 재시도 가능합니다.`,
+        `[${o.orderNumber}] ${sucItems}개 성공, ${failItems}개 실패 — ${failReasonText || '사유 미상'}. 실패 품목은 상세보기에서 개별 재시도 가능합니다.`,
         'error'
       );
     } finally {
@@ -3380,8 +3395,22 @@ async function executeStartPurchasing() {
 
   } else {
     // 전부 실패
+    // ★ 여기서도 반드시 저장한다 (2026-09-23). 저장하지 않으면 품목에 기록한
+    //   purchaseError/purchaseErrorAt/subStatus가 화면(메모리)에만 남고 DB에는 반영되지 않아,
+    //   새로고침하면 실패 흔적이 통째로 사라졌다(전부 성공/일부 성공 분기만 저장하고 있었다).
     const failItems = failed.reduce((s, r) => s + r.items.length, 0);
-    showToast(`[${o.orderNumber}] 전체 발주 실패 (${failItems}개) — 로그를 확인하세요.`, 'error');
+    if (activeOrder.value && (activeOrder.value.id === o.id || activeOrder.value.orderNumber === o.orderNumber)) {
+      activeOrder.value.items = o.items;
+    }
+    isInternalUpdate.value = true;
+    try {
+      await saveDetailDraft({ closeAfter: false });
+      showToast(`[${o.orderNumber}] 전체 발주 실패 (${failItems}개) — ${failReasonText || '사유 미상, 로그를 확인하세요'}`, 'error');
+    } catch (err) {
+      showToast(`[${o.orderNumber}] 전체 발주 실패 (${failItems}개) — ${failReasonText || '사유 미상'} / 실패 사유 저장 실패: ${err.message}`, 'error');
+    } finally {
+      setTimeout(() => { isInternalUpdate.value = false; }, 400);
+    }
   }
 
   confirmPurchase4.value = false;
@@ -3391,10 +3420,85 @@ async function executeStartPurchasing() {
 // 개별 품목 1688 자동발주 (executeStartPurchasing과 동일 로직 재사용)
 // 상세 팝업 내 "🤖 1688 자동발주" 버튼에서 호출
 // ─────────────────────────────────────────────────────────────────────────────
+/**
+ * 발주 실패 품목에 사유·시각·subStatus를 "항상" 기록한다.
+ *
+ * subStatus는 1688에 주문이 나갔을 가능성으로 나눈다:
+ *   · uncertain=false (서버가 실패를 응답함 / 서버로 보내기 전에 막음)
+ *       → 'purchase_pending' (발주대기, 재시도 가능).
+ *         서버 롤백 RPC(release_purchase_slot)가 실패 시 쓰는 값과 같다.
+ *         단, 이미 'manual_check_required'인 품목은 덮어쓰지 않는다 — 이전 시도의
+ *         1688 주문 여부가 여전히 불확실하기 때문(이번 실패로 그 사실이 바뀌지 않음).
+ *   · uncertain=true (응답을 못 받음 — 네트워크 단절, 5xx/타임아웃)
+ *       → 'manual_check_required' (🚨 수동확인필요). 서버가 1688 호출 도중
+ *         끊겼을 수 있으므로 1688 콘솔 확인 없이 재시도하면 이중발주 위험이 있다.
+ *
+ * ※ 과거 코드는 subStatus가 'purchase_requesting'일 때만 바꿔서, subStatus가 없던
+ *   구 주문은 실패해도 비어 있었다(2026-09-23 EUC-20260923-2466 실측).
+ */
+function markPurchaseFailure(it, errMsg, uncertain) {
+  it.purchaseError   = errMsg;
+  it.purchaseErrorAt = new Date().toISOString();
+  if (uncertain) {
+    it.subStatus = 'manual_check_required';
+  } else if (it.subStatus !== 'manual_check_required') {
+    it.subStatus = 'purchase_pending';
+  }
+}
+
+/**
+ * /api/1688-order-create 응답을 읽는다. 본문이 JSON이 아니면 data=null.
+ * res.json()을 바로 부르면 빈 404 등에서 "Unexpected end of JSON input"이라는
+ * 원인을 알 수 없는 문구가 사유로 저장된다 — HTTP 상태를 함께 남기기 위함.
+ */
+async function readOrderCreateResponse(res) {
+  const text = await res.text();
+  try {
+    return { data: JSON.parse(text), httpStatus: res.status };
+  } catch {
+    console.error('[1688-order-create] JSON 아닌 응답:', res.status, text.slice(0, 300));
+    return { data: null, httpStatus: res.status };
+  }
+}
+
+/**
+ * JSON이 아닌 응답에서 1688 주문 생성 여부가 불확실한지.
+ * 4xx는 핸들러가 요청을 처리하기 전 단계(라우트 없음 등)라 주문이 나갈 수 없다.
+ * 5xx(함수 타임아웃 504 포함)는 1688 호출 도중 끊겼을 수 있다.
+ */
+function isOrderOutcomeUncertain(httpStatus) {
+  return !(httpStatus >= 400 && httpStatus < 500);
+}
+
+/**
+ * 개별 품목 발주 실패를 DB에 남기고 실제 사유를 토스트로 알린다.
+ * 저장을 빼먹으면 실패 흔적이 화면(메모리)에만 남아 새로고침 시 사라진다.
+ * 저장 자체가 실패하면 그 사실까지 토스트에 덧붙인다 — 조용히 넘기지 않는다.
+ */
+async function persistItemFailure(item, reason, label) {
+  try {
+    await saveDetailDraft({ closeAfter: false });
+    showToast(`${label}: ${reason}`, 'error');
+  } catch (saveErr) {
+    console.error('[persistItemFailure] 실패 사유 저장 실패:', saveErr, {
+      numIid: item?.num_iid || item?.itemId || '', reason,
+    });
+    showToast(`${label}: ${reason} / 실패 사유 저장 실패: ${saveErr.message}`, 'error');
+  }
+}
+
 async function executeItemAutoOrder(item, order) {
   const numIid = String(item.num_iid || item.itemId || item.id || '');
   if (!numIid) {
     showToast(`상품 ID(numIid)가 없어 자동발주 불가`, 'error');
+    return;
+  }
+  // 그룹 발주와 같은 규칙 — 옵션 상품인데 specId가 없는 것이 확실한 품목만 미리 막는다.
+  // 단품(isSingleSku === true)과 표식이 없는 구 주문은 서버가 1688 원본으로 재확인한다.
+  if (!String(item.specId || '').trim() && item.isSingleSku === false) {
+    const errMsg = '옵션 상품인데 옵션(specId) 정보가 없어 자동발주 불가 — 수동발주로 처리해주세요';
+    markPurchaseFailure(item, errMsg, false);
+    await persistItemFailure(item, errMsg, '개별 발주 실패');
     return;
   }
   try {
@@ -3413,8 +3517,14 @@ async function executeItemAutoOrder(item, order) {
         confirmToken: 'EUCHS_ORDER_CONFIRMED',
       }),
     });
-    const data = await res.json();
-    if (data.success) {
+    const { data, httpStatus } = await readOrderCreateResponse(res);
+    if (!data) {
+      const uncertain = isOrderOutcomeUncertain(httpStatus);
+      const errMsg = `발주 서버 응답을 읽을 수 없음 (HTTP ${httpStatus})` +
+        (uncertain ? ' — 1688 주문 생성 여부 불확실, 1688 콘솔 확인 필요' : '');
+      markPurchaseFailure(item, errMsg, uncertain);
+      await persistItemFailure(item, errMsg, '개별 발주 실패');
+    } else if (data.success) {
       // ── 재시도 성공: 에러 배지 해제, subStatus/purchaseNo 업데이트
       item.subStatus       = 'purchase_done';
       item.purchaseNo      = String(data.orderId || '');
@@ -3424,14 +3534,14 @@ async function executeItemAutoOrder(item, order) {
       await saveDetailDraft({ closeAfter: false });
       showToast(`품목 개별 발주 완료 (1688 orderId: ${data.orderId})`);
     } else {
-      item.purchaseError   = data.message || '발주 실패';
-      item.purchaseErrorAt = new Date().toISOString();
-      showToast(`개별 발주 실패: ${data.message}`, 'error');
+      markPurchaseFailure(item, data.message || '발주 실패', false);
+      await persistItemFailure(item, item.purchaseError, '개별 발주 실패');
     }
   } catch (err) {
-    item.purchaseError   = err.message;
-    item.purchaseErrorAt = new Date().toISOString();
-    showToast(`개별 발주 통신 오류: ${err.message}`, 'error');
+    // 요청이 서버에 닿았는지 알 수 없다 — 불확실로 본다(이중발주 방지)
+    const errMsg = `발주 서버 통신 오류: ${err.message} — 1688 주문 생성 여부 불확실, 1688 콘솔 확인 필요`;
+    markPurchaseFailure(item, errMsg, true);
+    await persistItemFailure(item, errMsg, '개별 발주 통신 오류');
   }
 }
 

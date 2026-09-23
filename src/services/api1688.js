@@ -2294,6 +2294,13 @@ export async function fetch1688ProductById(offerId, prefetchedRaw = null, option
       shopId: extractedSellerId,
       skuProps: parsedSkuProps,
       skus: parsedSkus.length > 0 ? parsedSkus : [],
+      // 단품(옵션 없는 상품) 표식 — 판정 근거는 오직 1688 원본의 skus.sku 배열이다.
+      //   2026-09-23 실측: 단품 1081424348445는 skus.sku=[] / props_list=[] / props_name=""로 오고
+      //   spec_id 역할을 하는 값이 하나도 없다. 옵션 상품은 sku마다 spec_id가 반드시 온다.
+      //   ※ parsedSkus(파싱 결과)로 판정하면 "옵션이 있는데 파싱이 빈" 경우까지 단품이 되어
+      //     잘못된 옵션으로 발주된다. 그래서 반드시 rawSkus(원본)로만 판정한다.
+      //   ※ '기본 단품' 같은 표시 문자열로 판정하지 않는다 — 번역·표시 규칙이 바뀌면 무너진다.
+      isSingleSku: rawSkus.length === 0,
       descImgs,
       priceTiers,          // 1688 원본 수량 티어 (없으면 빈 배열)
       freight: freightValue, // 수량 전체 기준 총 배송비 (CNY). 없으면 null.

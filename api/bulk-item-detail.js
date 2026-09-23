@@ -171,8 +171,11 @@ function shrinkPayload(data) {
 /**
  * 기존 /api/1688-item-detail handler를 in-process로 호출.
  * Vercel req/res 모양만 흉내 내고 실제 로직은 그 파일 것을 그대로 쓴다.
+ *
+ * ※ export: api/1688-order-create.js가 단품 여부를 원본으로 재확인할 때 같은 창구를 쓴다.
+ *   (조회 경로가 갈라지면 캐시·타임아웃·에러 판정이 달라진다)
  */
-async function callItemDetail(offerId) {
+export async function callItemDetail(offerId) {
   const req = { method: 'GET', query: { itemId: offerId }, headers: {} }
   let body = null
   const shim = {
@@ -200,7 +203,9 @@ async function runWithConcurrency(items, concurrency, worker) {
 }
 
 // ── product_cache 조회/저장 ─────────────────────────────────────────────────
-async function readCache(offerIds, url, serviceRoleKey) {
+// ※ readCache export: api/1688-order-create.js의 단품 재확인이 같은 캐시를 먼저 본다
+//   (OneBound 일 500회 제한 — 발주 때문에 실호출이 늘지 않게 한다)
+export async function readCache(offerIds, url, serviceRoleKey) {
   const map = new Map()
   if (offerIds.length === 0) return map
   try {

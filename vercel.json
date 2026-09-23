@@ -11,6 +11,9 @@
     },
     "api/1688-item-detail.js": {
       "maxDuration": 30
+    },
+    "api/1688-order-create.js": {
+      "maxDuration": 60
     }
   }
 }

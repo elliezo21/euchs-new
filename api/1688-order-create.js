@@ -27,11 +27,32 @@
  */
 
 
+import { callItemDetail, readCache } from './bulk-item-detail.js'
+
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
 const ADDRESS_ID = '6402758024' // 圆圆A45 — 청양류 C구 38동 1층 이우, 기본 배송지
 
 // 프론트엔드 확인 절차를 거쳤음을 증명하는 confirmToken 기대값
 const EXPECTED_CONFIRM_TOKEN = 'EUCHS_ORDER_CONFIRMED'
+
+// 품목당 발주 수량 상한 — 오타(0 추가 등) 방어용.
+// 2026-09-23 999 → 100000 상향: 수량 1000 초과 주문 3건(5000·4000·4000)이 전부 이 상한에 막혀
+// 자동발주 실패했고, createOrder.preview는 4000개를 정상 처리했다(1688 쪽 제약이 아님).
+const MAX_ORDER_QTY = 100000
+
+/** 수량이 발주 가능한 값인지 — 1 이상 MAX_ORDER_QTY 이하 정수 */
+// export: verifySingleSkuOffers와 같은 이유 — 실제 발주 없이 검증하기 위함
+export function isValidOrderQty(q) {
+  return Number.isInteger(q) && q >= 1 && q <= MAX_ORDER_QTY
+}
+
+export function describeInvalidQty(raw) {
+  const q = Number(raw)
+  if (Number.isInteger(q) && q > MAX_ORDER_QTY) {
+    return `수량 ${q}개가 발주 상한 ${MAX_ORDER_QTY}개를 초과합니다`
+  }
+  return `수량(quantity)이 유효하지 않습니다: ${raw} (1~${MAX_ORDER_QTY} 정수여야 합니다)`
+}
 
 const FETCH_HEADERS = {
   'Accept': 'application/json, text/plain, */*',
@@ -96,6 +117,75 @@ async function callRpc(fnName, args) {
   } catch (e) {
     return { data: null, error: e.message }
   }
+}
+
+/**
+ * 1688 원본에서 "SKU 없는 단품"인지 재확인한다.
+ *
+ * ★ 왜 서버가 다시 확인하는가 (2026-09-23):
+ *   단품은 1688이 spec_id를 아예 주지 않으므로 specId가 빈 것이 정상이다.
+ *   반대로 "옵션 상품인데 specId가 빈" 행은 잘못된 옵션으로 발주될 위험이 있어 막아야 한다.
+ *   이 둘은 브라우저가 보낸 값만으로는 구분할 수 없고(구 주문에는 표식 자체가 없다),
+ *   발주는 되돌릴 수 없으므로 판정 근거를 서버가 원본에서 직접 확보한다.
+ *
+ * 판정 기준은 api1688.js fetch1688ProductById의 rawSkus 추출부와 같다 — 원본 skus.sku 길이 0.
+ * 조회 창구도 엑셀 대량발주와 같은 것을 쓴다(product_cache 우선 → 미스일 때만 OneBound 실호출).
+ *
+ * @param {string[]} offerIds
+ * @returns {Promise<Map<string, { isSingleSku: boolean, error: string|null }>>}
+ *          error가 있으면 판정 실패 — 호출측은 발주하지 말고 그대로 실패시켜야 한다.
+ *
+ * ※ export 이유: 이 판정은 실제 발주를 내보내지 않고 검증할 방법이 달리 없다.
+ *   (핸들러로 확인하려면 관리자 세션으로 진짜 발주를 걸어야 한다)
+ */
+export async function verifySingleSkuOffers(offerIds) {
+  const ids = [...new Set(offerIds.map(id => String(id || '').trim()).filter(Boolean))]
+  const out = new Map()
+  if (ids.length === 0) return out
+
+  const judge = (data) => {
+    const skuArr =
+      (data?.skus && Array.isArray(data.skus.sku)) ? data.skus.sku
+        : Array.isArray(data?.skus) ? data.skus
+          : (data?.sku && Array.isArray(data.sku.sku)) ? data.sku.sku
+            : (data?.sku && Array.isArray(data.sku)) ? data.sku
+              : null
+    // skus 키 자체가 없으면 "SKU 없음"으로 단정할 수 없다 — 판정 실패로 돌린다.
+    if (skuArr === null) return null
+    return skuArr.length === 0
+  }
+
+  const { url, serviceRoleKey } = getServiceRoleConfig()
+  const cached = (url && serviceRoleKey) ? await readCache(ids, url, serviceRoleKey) : new Map()
+
+  for (const id of ids) {
+    const row = cached.get(id)
+    if (row?.status === 'ok' && row.payload) {
+      const verdict = judge(row.payload)
+      if (verdict !== null) {
+        out.set(id, { isSingleSku: verdict, error: null })
+        continue
+      }
+    }
+
+    try {
+      const resp = await callItemDetail(id)
+      if (!resp?.success || !resp.data) {
+        out.set(id, { isSingleSku: false, error: `1688 상품 조회 실패 (${resp?.error_code || resp?.message || '원인 미상'})` })
+        continue
+      }
+      const verdict = judge(resp.data)
+      if (verdict === null) {
+        out.set(id, { isSingleSku: false, error: '1688 응답에 SKU 정보가 없어 단품 여부를 판정할 수 없습니다.' })
+        continue
+      }
+      out.set(id, { isSingleSku: verdict, error: null })
+    } catch (e) {
+      out.set(id, { isSingleSku: false, error: `1688 상품 조회 예외: ${e.message}` })
+    }
+  }
+
+  return out
 }
 
 /**
@@ -299,10 +389,41 @@ export default async function handler(req, res) {
     }
     for (const it of groupItems) {
       const q = Number(it.quantity)
-      if (!it.numIid || !it.specId || !Number.isInteger(q) || q < 1 || q > 999) {
+      if (!it.numIid) {
         return res.status(400).json({
           success: false,
           message: `그룹 품목 파라미터 오류: numIid=${it.numIid} specId=${it.specId} quantity=${it.quantity}`,
+        })
+      }
+      if (!isValidOrderQty(q)) {
+        return res.status(400).json({
+          success: false,
+          message: `상품 ${it.numIid}: ${describeInvalidQty(it.quantity)}`,
+        })
+      }
+    }
+
+    // ── specId 없는 품목: 단품인지 원본으로 재확인 ─────────────
+    // 단품(1688이 spec_id를 주지 않는 상품)만 통과시키고, 옵션 상품은 여기서 막는다.
+    // 잠금(claim)을 잡기 전에 판정한다 — 막힐 품목으로 슬롯을 점유하지 않기 위함.
+    const noSpecOfferIds = groupItems
+      .filter(it => !String(it.specId || '').trim())
+      .map(it => String(it.numIid))
+    const singleSkuVerdicts = await verifySingleSkuOffers(noSpecOfferIds)
+
+    for (const it of groupItems) {
+      if (String(it.specId || '').trim()) continue
+      const v = singleSkuVerdicts.get(String(it.numIid))
+      if (!v || v.error) {
+        return res.status(400).json({
+          success: false,
+          message: `상품 ${it.numIid}: ${v?.error || '단품 여부 확인 실패'} — 자동발주를 중단했습니다. 잠시 후 재시도하거나 수동발주로 처리해주세요.`,
+        })
+      }
+      if (!v.isSingleSku) {
+        return res.status(400).json({
+          success: false,
+          message: `상품 ${it.numIid}: 옵션 상품인데 옵션(specId) 정보가 없어 자동발주 불가 — 수동발주로 처리`,
         })
       }
     }
@@ -356,11 +477,18 @@ export default async function handler(req, res) {
     }
 
     // ── cargoParamList 다건 조립 ────────────────────────────────
-    const cargoParamList = groupItems.map(it => ({
-      offerId:  String(it.numIid),
-      specId:   String(it.specId),
-      quantity: Number(it.quantity),
-    }))
+    // 단품(위에서 원본으로 확인됨)은 specId 키를 아예 넣지 않는다.
+    //   2026-09-23 alibaba.createOrder.preview 실측: offerId+quantity만 보내면 정상 응답
+    //   (offer 1081424348445 ×4000 → error_code 0000, finalUnitPrice 0.7, sumCarriage ¥274.30).
+    //   빈 문자열도 같은 결과였으나, 키를 생략하는 쪽이 의도를 분명히 드러낸다.
+    const cargoParamList = groupItems.map(it => {
+      const spec = String(it.specId || '').trim()
+      return {
+        offerId:  String(it.numIid),
+        ...(spec ? { specId: spec } : {}),
+        quantity: Number(it.quantity),
+      }
+    })
 
     const oArgsGroup = {
       flow: 'general',
@@ -558,7 +686,7 @@ export default async function handler(req, res) {
   // ══════════════════════════════════════════════════════════════
 
   // ── 필수 파라미터 엄격 검증 ───────────────────────────────────────────
-  if (!numIid || !specId || !quantity || !orderNumber) {
+  if (!numIid || !quantity || !orderNumber) {
     console.warn('[1688-order-create] ⛔ 필수 파라미터 누락:', {
       hasNumIid: !!numIid,
       hasSpecId: !!specId,
@@ -568,17 +696,37 @@ export default async function handler(req, res) {
     })
     return res.status(400).json({
       success: false,
-      message: '필수 파라미터 누락: numIid(상품ID), specId(SKU ID), quantity(수량), orderNumber(EUCHS 주문번호)가 모두 필요합니다.',
+      message: '필수 파라미터 누락: numIid(상품ID), quantity(수량), orderNumber(EUCHS 주문번호)가 모두 필요합니다.',
     })
   }
 
-  // quantity 숫자 유효성 검증
+  // quantity 숫자 유효성 검증 — 아래 단품 재확인(OneBound 호출 가능)보다 먼저 본다
   const qty = Number(quantity)
-  if (!Number.isInteger(qty) || qty < 1 || qty > 999) {
+  if (!isValidOrderQty(qty)) {
     return res.status(400).json({
       success: false,
-      message: `수량(quantity)이 유효하지 않습니다: ${quantity} (1~999 정수여야 합니다)`,
+      message: `상품 ${numIid}: ${describeInvalidQty(quantity)}`,
     })
+  }
+
+  // ── specId가 없으면 단품인지 원본으로 재확인 (그룹 모드와 같은 규칙) ──
+  // 잠금(claim_purchase_slot)을 잡기 전에 판정한다.
+  const singleSpec = String(specId || '').trim()
+  if (!singleSpec) {
+    const verdicts = await verifySingleSkuOffers([String(numIid)])
+    const v = verdicts.get(String(numIid))
+    if (!v || v.error) {
+      return res.status(400).json({
+        success: false,
+        message: `상품 ${numIid}: ${v?.error || '단품 여부 확인 실패'} — 자동발주를 중단했습니다. 잠시 후 재시도하거나 수동발주로 처리해주세요.`,
+      })
+    }
+    if (!v.isSingleSku) {
+      return res.status(400).json({
+        success: false,
+        message: `상품 ${numIid}: 옵션 상품인데 옵션(specId) 정보가 없어 자동발주 불가 — 수동발주로 처리`,
+      })
+    }
   }
 
   // ── 안전장치 3: SECURITY DEFINER RPC 기반 멱등성 가드 ───────────────────
@@ -656,7 +804,8 @@ export default async function handler(req, res) {
   const oArgs = {
     flow: 'general',
     addressParam: { addressId: ADDRESS_ID },
-    cargoParamList: [{ offerId: String(numIid), specId: String(specId), quantity: qty }],
+    // 단품은 specId 키를 넣지 않는다 (그룹 모드와 같은 규칙 — 위 재확인을 통과한 경우만 도달)
+    cargoParamList: [{ offerId: String(numIid), ...(singleSpec ? { specId: singleSpec } : {}), quantity: qty }],
   }
 
   // ── Query string 조립 ────────────────────────────────────────────────
