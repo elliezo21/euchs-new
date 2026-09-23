@@ -842,15 +842,6 @@
       @confirm="executeInstantPayment"
     />
 
-    <!-- ConfirmSaveModal: 수령 주소 변경 -->
-    <ConfirmSaveModal
-      v-model="confirmSaveOrderAddress"
-      title="배송 주소를 변경할까요?"
-      variant="orange"
-      confirmText="변경"
-      @confirm="saveAddress"
-    />
-
   </div>
 </template>
 
@@ -935,7 +926,6 @@ const isRefreshing = ref(false);
 const isDetailModalOpen = ref(false);
 const activeOrder = ref(null);
 const isPaying = ref(false);
-const confirmSaveOrderAddress = ref(false);
 const confirmAdvanceStage = ref(false);
 const pendingAdvanceOrder = ref(null);
 const pendingAdvanceLabel = ref('');
@@ -1553,10 +1543,10 @@ const getBuyerSelectedVas = () => {
 };
 
 // ---------------------------------------------------------
-// CNINSIDER 발주/통관 설정 & 주소지 변경 & 분리정산 헬퍼
+// CNINSIDER 발주/통관 설정 & 분리정산 헬퍼
+// ※ 주소지 변경은 OrderDetailModal.vue가 담당한다(orders.buyer_info.address DB 저장).
+//   여기 있던 startEditAddress/saveAddress/확인 모달은 여는 곳이 없던 죽은 코드라 제거했다.
 // ---------------------------------------------------------
-const isEditingAddress = ref(false);
-const editAddressInput = ref('');
 
 const setCustomsClearanceType = (type) => {
   if (!activeOrder.value) return;
@@ -1572,20 +1562,6 @@ const setShippingMethod = (method) => {
   if (!activeOrder.value.buyerInfo) activeOrder.value.buyerInfo = {};
   activeOrder.value.buyerInfo.shippingMethod = method;
   syncActiveOrderToStorage();
-};
-
-const startEditAddress = () => {
-  editAddressInput.value = activeOrder.value?.buyerInfo?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층 물류센터';
-  isEditingAddress.value = true;
-};
-
-const saveAddress = () => {
-  if (activeOrder.value) {
-    if (!activeOrder.value.buyerInfo) activeOrder.value.buyerInfo = {};
-    activeOrder.value.buyerInfo.address = editAddressInput.value.trim() || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층 물류센터';
-    syncActiveOrderToStorage();
-  }
-  isEditingAddress.value = false;
 };
 
 const syncActiveOrderToStorage = () => {

@@ -288,13 +288,31 @@
                 />
               </div>
               <div>
+                <label class="block font-bold text-gray-700 mb-1">개업일자</label>
+                <DateDigitsInput v-model="customsProfile.openDate" />
+                <p class="text-[11px] text-gray-400 mt-1">사업자등록증의 개업연월일 (숫자 8자리)</p>
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block font-bold text-gray-700 mb-1">대표자명</label>
+                <input
+                  type="text"
+                  v-model="customsProfile.representativeName"
+                  placeholder="사업자등록증의 대표자 성명"
+                  required
+                  class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-medium"
+                />
+              </div>
+              <div>
                 <label class="block font-bold text-gray-700 mb-1">개인/사업자 통관고유부호 (PCCC)</label>
                 <input
                   type="text"
                   v-model="customsProfile.customsCode"
-                  placeholder="P로 시작하는 13자리 통관고유부호"
+                  placeholder="사업자 통관고유부호 또는 개인통관고유부호"
                   required
-                  class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono font-bold text-indigo-600 uppercase"
+                  class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono font-bold text-indigo-600"
                 />
               </div>
             </div>
@@ -322,14 +340,71 @@
               </div>
             </div>
 
-            <div>
-              <label class="block font-bold text-gray-700 mb-1">사업장 소재지 (주소)</label>
-              <input
-                type="text"
-                v-model="customsProfile.address"
-                placeholder="서울특별시 강남구 테헤란로 123 4층"
-                class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+            <div class="space-y-2">
+              <label class="block font-bold text-gray-700">사업장 소재지 (주소)</label>
+              <AddressSearchInput
+                v-model="bizAddrSearch"
+                :detail-input="bizDetailInputRef"
+                @select="onBizAddressSelect"
               />
+              <p class="text-[11px] text-gray-500">사업자등록증의 사업장 소재지와 같게 입력해 주세요</p>
+
+              <div class="grid grid-cols-3 gap-2">
+                <div>
+                  <span class="block text-[11px] text-gray-500 mb-0.5">우편번호</span>
+                  <input type="text" :value="customsProfile.bizZipcode" readonly tabindex="-1"
+                    class="w-full px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 text-gray-700 font-mono" />
+                </div>
+                <div class="col-span-2">
+                  <span class="block text-[11px] text-gray-500 mb-0.5">도로명주소</span>
+                  <input type="text" :value="customsProfile.bizAddrRoad" readonly tabindex="-1"
+                    class="w-full px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 text-gray-700" />
+                </div>
+              </div>
+              <div>
+                <span class="block text-[11px] text-gray-500 mb-0.5">지번주소</span>
+                <input type="text" :value="customsProfile.bizAddrJibun" readonly tabindex="-1"
+                  class="w-full px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 text-gray-700" />
+              </div>
+              <div>
+                <span class="block text-[11px] text-gray-500 mb-0.5">상세주소</span>
+                <input
+                  ref="bizDetailInputRef"
+                  type="text"
+                  v-model="customsProfile.bizAddrDetail"
+                  @input="onBizDetailInput"
+                  placeholder="예: 2층 201호"
+                  class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                />
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <div>
+                  <span class="block text-[11px] text-gray-500 mb-0.5">영문 주소 (자동, 수정 가능)</span>
+                  <input
+                    type="text"
+                    v-model="customsProfile.bizAddrEn"
+                    placeholder="주소를 선택하면 자동으로 채워져요"
+                    class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </div>
+                <div>
+                  <span class="block text-[11px] text-gray-500 mb-0.5">영문 상세주소 (자동, 수정 가능)</span>
+                  <input
+                    type="text"
+                    v-model="customsProfile.bizAddrDetailEn"
+                    @input="bizDetailEnTouched = !!$event.target.value.trim()"
+                    placeholder="예: #201, 2F"
+                    class="w-full px-3.5 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+                  />
+                </div>
+              </div>
+              <p v-if="bizAddrEnNotice" class="text-[13px] text-red-600">{{ bizAddrEnNotice }}</p>
+              <p v-if="bizDetailEnNotice" class="text-[13px] text-amber-700">{{ bizDetailEnNotice }}</p>
+              <p v-if="bizEnglishPreview" class="text-[12px] text-gray-600">
+                <span class="text-gray-400">영문 표기(해외송금 인보이스):</span>
+                <span class="font-medium">{{ bizEnglishPreview }}</span>
+              </p>
             </div>
 
             <div class="pt-2 flex items-center justify-end">
@@ -660,7 +735,7 @@
           </button>
         </div>
 
-        <form @submit.prevent="confirmSaveAddress = true" class="space-y-3 text-xs">
+        <form @submit.prevent="requestSaveAddress" class="space-y-3 text-xs">
           <div>
             <label class="block font-bold text-gray-700 mb-1">배송지 별칭 (예: 본사 창고, 1매장)</label>
             <input
@@ -696,30 +771,42 @@
           </div>
 
           <div>
-            <label class="block font-bold text-gray-700 mb-1">우편번호</label>
-            <input
-              type="text"
-              v-model="addressForm.zipCode"
-              placeholder="06234"
-              required
-              class="w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20 font-mono"
+            <label class="block font-bold text-gray-700 mb-1">주소 검색</label>
+            <AddressSearchInput
+              v-model="shipAddrSearch"
+              :detail-input="shipDetailInputRef"
+              input-class="w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
+              @select="onShipAddressSelect"
             />
           </div>
 
-          <div>
-            <label class="block font-bold text-gray-700 mb-1">기본 주소</label>
-            <input
-              type="text"
-              v-model="addressForm.address"
-              placeholder="서울특별시 강남구 테헤란로 123"
-              required
-              class="w-full px-3 py-2 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-orange-500/20"
-            />
+          <div class="grid grid-cols-3 gap-2">
+            <div>
+              <label class="block font-bold text-gray-700 mb-1">우편번호</label>
+              <input
+                type="text"
+                :value="addressForm.zipCode"
+                readonly
+                tabindex="-1"
+                class="w-full px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 text-gray-700 font-mono"
+              />
+            </div>
+            <div class="col-span-2">
+              <label class="block font-bold text-gray-700 mb-1">기본 주소</label>
+              <input
+                type="text"
+                :value="addressForm.address"
+                readonly
+                tabindex="-1"
+                class="w-full px-3 py-2 rounded-xl border border-gray-100 bg-gray-50 text-gray-700"
+              />
+            </div>
           </div>
 
           <div>
             <label class="block font-bold text-gray-700 mb-1">상세 주소</label>
             <input
+              ref="shipDetailInputRef"
               type="text"
               v-model="addressForm.detailAddress"
               placeholder="EUCHS 빌딩 4층"
@@ -1111,6 +1198,8 @@ import {
 } from '../../lib/balanceStore'
 import { currentSettings, fetchSiteSettings } from '@/lib/settings'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
+import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
+import DateDigitsInput from '@/components/common/DateDigitsInput.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1172,12 +1261,30 @@ const customsProfile = ref({
   companyName: '',
   bizNumber: '',
   customsCode: '',
+  representativeName: '',
+  openDate: '',
   contactName: '',
   contactPhone: '',
   address: '',
+  // 사업장 주소 (profiles.business_* 컬럼)
+  bizZipcode: '',
+  bizAddrRoad: '',
+  bizAddrJibun: '',
+  bizAddrDetail: '',
+  bizAddrEn: '',
+  bizAddrDetailEn: '',
   bizCertUrl: '',
   status: 'unverified'
 })
+// 사업장 주소 검색창 입력값 / 상세주소 칸 ref / 영문 변환 안내
+const bizAddrSearch = ref('')
+const bizDetailInputRef = ref(null)
+const bizDetailEnTouched = ref(false) // 고객이 영문 상세를 직접 고쳤으면 자동 변환으로 덮어쓰지 않는다
+const bizAddrEnNotice = ref('')
+const bizDetailEnNotice = ref('')
+// 수령 주소지 모달 검색창
+const shipAddrSearch = ref('')
+const shipDetailInputRef = ref(null)
 const transactions = ref([])
 const passwordForm = ref({
   newPassword: '',
@@ -1255,6 +1362,110 @@ const saveAddressesToStorage = () => {
   } catch (e) {}
 }
 
+/**
+ * 상세주소 → 영문 상세 (단순 패턴만). 규칙에 안 맞으면 '' (고객이 직접 입력).
+ *   "1층"→"1F", "지하1층"/"B1층"→"B1F", "101호"→"#101",
+ *   "101동 202호"→"#202, Bldg 101", "2층 201호"→"#201, 2F"
+ */
+function convertDetailToEnglish(detail) {
+  const s = String(detail || '').replace(/\s+/g, ' ').trim()
+  if (!s) return ''
+  const floorEn = (basement, n) => `${basement ? 'B' : ''}${Number(n)}F`
+  let m
+  if ((m = s.match(/^(지하\s*|B)?(\d+)\s*층$/i))) return floorEn(m[1], m[2])
+  if ((m = s.match(/^(\d+)\s*호$/))) return `#${m[1]}`
+  if ((m = s.match(/^(\d+)\s*동\s*(\d+)\s*호$/))) return `#${m[2]}, Bldg ${m[1]}`
+  if ((m = s.match(/^(지하\s*|B)?(\d+)\s*층\s*(\d+)\s*호$/i))) return `#${m[3]}, ${floorEn(m[1], m[2])}`
+  return ''
+}
+
+// 영문 최종 표기 미리보기: "{영문상세}, {영문도로명}"
+const bizEnglishPreview = computed(() => {
+  const road = (customsProfile.value.bizAddrEn || '').trim()
+  const detail = (customsProfile.value.bizAddrDetailEn || '').trim()
+  if (!road) return ''
+  return detail ? `${detail}, ${road}` : road
+})
+
+function applyDetailEnglish() {
+  if (bizDetailEnTouched.value) return
+  const detail = (customsProfile.value.bizAddrDetail || '').trim()
+  const en = convertDetailToEnglish(detail)
+  customsProfile.value.bizAddrDetailEn = en
+  bizDetailEnNotice.value = detail && !en ? '영문 상세주소는 자동 변환이 안 되는 형식이에요. 직접 입력해 주세요.' : ''
+}
+
+function onBizDetailInput() {
+  applyDetailEnglish()
+}
+
+/** 사업장 주소 선택 — 한글 칸 채우고 영문 도로명 채움 (engAddr 우선, 없으면 /api/juso-english 예비) */
+async function onBizAddressSelect(item) {
+  customsProfile.value.bizZipcode = item.zipNo
+  customsProfile.value.bizAddrRoad = item.roadAddr
+  customsProfile.value.bizAddrJibun = item.jibunAddr
+  customsProfile.value.bizAddrEn = ''
+  bizAddrEnNotice.value = ''
+  applyDetailEnglish()
+
+  const notFound = () => {
+    customsProfile.value.bizAddrEn = ''
+    bizAddrEnNotice.value = '영문주소를 찾지 못했어요. 직접 입력해 주세요.'
+  }
+  // 1순위: 검색 결과에 함께 온 도로명주소(영문) engAddr — 같은 건물의 값이라 매칭이 필요 없다
+  if ((item.engAddr || '').trim()) {
+    customsProfile.value.bizAddrEn = item.engAddr.trim()
+    return
+  }
+  // 2순위(예비): engAddr가 비었을 때만 영문주소 API로 매칭 키 조회
+  if (!item.matchKey || !item.roadAddrPart1) {
+    console.error('[onBizAddressSelect] 매칭 키 없음 — 영문 변환 불가:', item)
+    notFound()
+    return
+  }
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+    const token = session?.access_token
+    if (!token) {
+      console.error('[onBizAddressSelect] 세션 토큰 없음 — 영문 변환 요청 불가')
+      notFound()
+      return
+    }
+    const r = await fetch('/api/juso-english', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ roadAddrPart1: item.roadAddrPart1, matchKey: item.matchKey })
+    })
+    const body = await r.json().catch(() => null)
+    // 그 사이 다른 주소를 다시 골랐으면 이 응답은 버린다
+    if (customsProfile.value.bizAddrRoad !== item.roadAddr) return
+    if (body?.success === true && body.roadAddr) {
+      customsProfile.value.bizAddrEn = body.roadAddr
+    } else {
+      console.error('[onBizAddressSelect] 영문주소 변환 실패:', r.status, body)
+      notFound()
+    }
+  } catch (e) {
+    console.error('[onBizAddressSelect] 영문주소 변환 요청 오류:', e)
+    notFound()
+  }
+}
+
+/** 수령 주소지 모달 — 주소 선택 */
+function onShipAddressSelect(item) {
+  addressForm.value.zipCode = item.zipNo
+  addressForm.value.address = item.roadAddr
+}
+
+/** 수령 주소지 저장 요청 — 검색으로 고른 주소가 있어야 확인 모달을 연다 */
+function requestSaveAddress() {
+  if (!(addressForm.value.address || '').trim()) {
+    alert('주소 검색에서 주소를 선택해 주세요.')
+    return
+  }
+  confirmSaveAddress.value = true
+}
+
 const loadCustomsProfile = () => {
   const biz = getUserBusinessInfo(currentUser.value) || {}
   const p = currentUserProfile.value || {}
@@ -1263,13 +1474,30 @@ const loadCustomsProfile = () => {
     companyName: p.company_name || biz.company_name || '',
     bizNumber: p.business_number || biz.business_number || '',
     customsCode: p.pccc || biz.pccc || '',
+    // 국세청 진위확인에 쓰는 값 — DB profiles 단일 기준
+    representativeName: p.representative_name || '',
+    openDate: p.business_open_date || '',
     contactName: p.representative_name || p.name || biz.name || currentUser.value?.user_metadata?.full_name || currentUser.value?.user_metadata?.name || '',
     contactPhone: p.phone || biz.phone || currentUser.value?.phone || '',
     address: p.address || biz.address || currentUser.value?.user_metadata?.address || '',
+    // 사업장 주소 — DB profiles.business_* 단일 기준
+    bizZipcode: p.business_zipcode || '',
+    bizAddrRoad: p.business_address_road || '',
+    bizAddrJibun: p.business_address_jibun || '',
+    bizAddrDetail: p.business_address_detail || '',
+    bizAddrEn: p.business_address_en || '',
+    bizAddrDetailEn: p.business_address_detail_en || '',
     bizCertUrl: p.biz_cert_url || '',
     // 인증 상태: profiles DB 기준 단일화 (user_metadata.business_number 기준 폐기)
     status: p.is_business_verified ? 'verified' : (p.verification_status || 'unverified')
   }
+  // 검색창 초기값: 검색으로 고른 주소가 있으면 그 도로명, 없으면 예전 한 줄 주소(재검색 유도용 — 기존 값은 지우지 않는다)
+  bizAddrSearch.value = customsProfile.value.bizAddrRoad || customsProfile.value.address || ''
+  bizAddrEnNotice.value = ''
+  bizDetailEnNotice.value = ''
+  // 저장된 영문 상세가 자동 변환 결과와 다르면 고객이 직접 고친 값 — 자동 변환으로 덮지 않는다
+  bizDetailEnTouched.value = !!customsProfile.value.bizAddrDetailEn &&
+    customsProfile.value.bizAddrDetailEn !== convertDetailToEnglish(customsProfile.value.bizAddrDetail)
 
   if (!depositDepositorName.value) {
     depositDepositorName.value = customsProfile.value.companyName || customsProfile.value.contactName || userDisplayName.value || ''
@@ -1515,19 +1743,85 @@ const submitDepositRequest = async () => {
   }
 }
 
+// 서버 판정 결과(reason)별 고객 안내 문구 — 국세청 원문·코드는 노출하지 않는다
+const VERIFY_RESULT_MESSAGES = {
+  ok: '사업자 정보가 확인되어 인증이 완료되었어요.',
+  mismatch: '국세청 등록 정보와 일치하지 않아요. 사업자등록증의 대표자명과 개업일자를 다시 확인해 주세요.',
+  closed: '현재 영업 중인 사업자로 확인되지 않아요. 고객센터로 문의해 주세요.',
+  unavailable: '지금은 확인이 지연되고 있어요. 잠시 후 다시 시도해 주세요.'
+}
+
+const alertFormatErrors = (errors) => {
+  alert(
+    '통관 정보가 저장되었습니다. (심사 대기 유지)\n\n' +
+    '아래 항목을 확인해 주세요:\n' +
+    errors.map(e => '• ' + e).join('\n')
+  )
+}
+
+/**
+ * 사업자 인증 판정 요청 — 판정·인증 필드 저장은 서버(/api/verify-business)만 한다.
+ * @returns {Promise<{ reason: string, errors: string[] }>}
+ */
+const requestBusinessVerification = async () => {
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  if (!token) {
+    console.error('[saveCustomsInfo] 세션 토큰 없음 — 인증 판정 요청 불가')
+    return { reason: 'not_logged_in', errors: [] }
+  }
+  try {
+    const r = await fetch('/api/verify-business', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        representativeName: customsProfile.value.representativeName,
+        openDate: customsProfile.value.openDate
+      })
+    })
+    if (r.status === 401) return { reason: 'not_logged_in', errors: [] }
+    const body = await r.json().catch(() => null)
+    if (!body?.reason) {
+      console.error('[saveCustomsInfo] 인증 판정 응답 이상:', r.status, body)
+      return { reason: 'unavailable', errors: [] }
+    }
+    return { reason: body.reason, errors: Array.isArray(body.errors) ? body.errors : [] }
+  } catch (e) {
+    console.error('[saveCustomsInfo] 인증 판정 요청 실패:', e)
+    return { reason: 'unavailable', errors: [] }
+  }
+}
+
 const saveCustomsInfo = async () => {
-  // 1. 형식 검증 실행
+  // 0. 검색으로 고른 사업장 주소가 있으면 기존 한 줄 주소(address — user_metadata·localStorage 경로)도
+  //    "도로명 상세" 한 줄로 맞춘다. 고르지 않았으면 기존 한 줄 주소를 그대로 둔다(삭제 금지).
+  if ((customsProfile.value.bizAddrRoad || '').trim()) {
+    customsProfile.value.address = `${customsProfile.value.bizAddrRoad.trim()} ${(customsProfile.value.bizAddrDetail || '').trim()}`.trim()
+  }
+
+  // 1. 형식 검증 실행 (기존 항목 + 국세청 진위확인에 필요한 대표자명·개업일자)
   const validation = validateBusinessInfo(customsProfile.value)
+  if (!(customsProfile.value.representativeName || '').trim()) validation.errors.push('대표자명을 입력해주세요.')
+  if (!customsProfile.value.openDate) validation.errors.push('개업일자를 입력해주세요. (사업자등록증의 개업연월일)')
 
   try {
-    // 2. 저장은 검증 여부와 무관하게 항상 실행 (임시저장 허용)
+    // 2. 저장은 검증 여부와 무관하게 항상 실행 (임시저장 허용). 인증 필드는 payload에 없다.
     await updateBusinessProfile({
       company_name: customsProfile.value.companyName,
       business_number: customsProfile.value.bizNumber,
       pccc: customsProfile.value.customsCode,
       name: customsProfile.value.contactName,
+      representative_name: customsProfile.value.representativeName,
+      business_open_date: customsProfile.value.openDate,
       phone: customsProfile.value.contactPhone,
-      address: customsProfile.value.address
+      address: customsProfile.value.address,
+      // 사업장 주소 6개 컬럼 (profiles.business_*)
+      business_zipcode: customsProfile.value.bizZipcode,
+      business_address_road: customsProfile.value.bizAddrRoad,
+      business_address_jibun: customsProfile.value.bizAddrJibun,
+      business_address_detail: customsProfile.value.bizAddrDetail,
+      business_address_en: customsProfile.value.bizAddrEn,
+      business_address_detail_en: customsProfile.value.bizAddrDetailEn
     })
   } catch (err) {
     // Fail-Fast: 저장 자체 실패 시 에러 표시, 성공 토스트 금지
@@ -1536,76 +1830,40 @@ const saveCustomsInfo = async () => {
     return
   }
 
-  // 3. 검증 실패: 저장은 됐지만 자동승인 안 됨 — 에러 항목 명시
-  if (!validation.valid) {
-    alert(
-      '통관 정보가 저장되었습니다. (심사 대기 유지)\n\n' +
-      '아래 항목을 수정하면 즉시 인증완료로 전환됩니다:\n' +
-      validation.errors.map(e => '• ' + e).join('\n')
-    )
+  // 3. 검증 실패: 저장은 됐지만 판정 요청하지 않음 — 에러 항목 명시
+  if (validation.errors.length > 0) {
+    alertFormatErrors(validation.errors)
     loadCustomsProfile()
     return
   }
 
-  // 4. 검증 통과: 자동 인증완료 처리 (관리자 approveMember와 동일한 DB 페이로드)
-  const user = currentUser.value
-  if (isSupabaseConfigured() && user) {
-    try {
-      const approvePayload = {
-        is_business_verified: true,
-        verification_status: 'verified',
-        tier: 'business',
-        updated_at: new Date().toISOString()
-      }
-      let dbResult = null
-      if (user.id && isValidUUID(user.id)) {
-        const { data, error } = await supabase.from('profiles').update(approvePayload).eq('id', user.id).select('id')
-        if (error) throw error
-        dbResult = data
-      } else if (user.email) {
-        const { data, error } = await supabase.from('profiles').update(approvePayload).eq('email', String(user.email).trim().toLowerCase()).select('id')
-        if (error) throw error
-        dbResult = data
-      }
-
-      // Fail-Fast: 0 rows affected
-      if (!dbResult || dbResult.length === 0) {
-        throw new Error('인증 상태 업데이트 실패: 해당 프로필을 찾을 수 없습니다. (0 rows affected)')
-      }
-
-      // 인메모리 갱신
-      if (currentUserProfile.value) {
-        currentUserProfile.value.is_business_verified = true
-        currentUserProfile.value.verification_status = 'verified'
-        currentUserProfile.value.tier = 'business'
-      }
-      // localStorage 관리자 목록도 동기화
-      try {
-        const rawMembers = localStorage.getItem('euchs_admin_members')
-        if (rawMembers) {
-          const members = JSON.parse(rawMembers)
-          const idx = members.findIndex(m => m.id === user.id || m.email === user.email)
-          if (idx >= 0) {
-            members[idx].verificationStatus = 'verified'
-            members[idx].tier = 'business'
-            localStorage.setItem('euchs_admin_members', JSON.stringify(members))
-            window.dispatchEvent(new CustomEvent('euchs-member-update', { detail: members }))
-          }
-        }
-      } catch (e) {}
-
-      alert('✅ 통관 정보가 저장되고 사업자 인증이 완료되었습니다!\n이제 모든 서비스를 이용하실 수 있습니다.')
-    } catch (approveErr) {
-      // 저장은 성공했으나 자동승인 DB 업데이트 실패
-      console.error('[saveCustomsInfo] 자동 승인 DB 업데이트 실패:', approveErr)
-      alert('정보가 저장되었지만 자동 인증 처리 중 오류가 발생했습니다.\n관리자에게 문의해주세요.\n오류: ' + (approveErr.message || approveErr))
-    }
-  } else {
-    // Supabase 미설정 환경 (로컬 fallback)
+  // 4. 검증 통과: 서버에 국세청 진위확인 판정 요청
+  if (!isSupabaseConfigured() || !currentUser.value) {
     alert('통관 & 세무 증빙 정보가 저장되었습니다.')
+    loadCustomsProfile()
+    return
   }
 
+  const result = await requestBusinessVerification()
+
+  // 인증 상태는 DB에서 다시 읽어 화면·auth 스토어를 갱신한다 (응답·localStorage 값으로 판단하지 않음)
+  await fetchUserProfile(currentUser.value)
   loadCustomsProfile()
+
+  if (result.reason === 'format') {
+    alertFormatErrors(result.errors)
+  } else if (result.reason === 'not_logged_in') {
+    alert('통관 정보는 저장되었지만 로그인이 만료되어 인증 확인을 하지 못했어요. 다시 로그인한 뒤 저장해 주세요.')
+  } else if (VERIFY_RESULT_MESSAGES[result.reason]) {
+    alert(VERIFY_RESULT_MESSAGES[result.reason])
+    if (result.reason === 'ok') {
+      // MallView가 인증 대기 중이던 상품 상세를 이어서 연다 (LoginModal과 같은 이벤트)
+      window.dispatchEvent(new CustomEvent('euchs:business_verified'))
+    }
+  } else {
+    console.error('[saveCustomsInfo] 알 수 없는 판정 사유:', result.reason)
+    alert(VERIFY_RESULT_MESSAGES.unavailable)
+  }
 }
 
 
@@ -1625,6 +1883,8 @@ const openAddressModal = (addr = null) => {
       memo: ''
     }
   }
+  // 검색창 초기값: 수정이면 기존 기본 주소(재검색 가능), 신규면 빈칸
+  shipAddrSearch.value = addressForm.value.address || ''
   showAddressModal.value = true
 }
 
@@ -1963,11 +2223,24 @@ const onAccountAuthChanged = (e) => {
       companyName: '',
       bizNumber: '',
       customsCode: '',
+      representativeName: '',
+      openDate: '',
       contactName: '',
       contactPhone: '',
+      address: '',
+      bizZipcode: '',
+      bizAddrRoad: '',
+      bizAddrJibun: '',
+      bizAddrDetail: '',
+      bizAddrEn: '',
+      bizAddrDetailEn: '',
       bizCertUrl: '',
       status: 'unverified'
     }
+    bizAddrSearch.value = ''
+    bizAddrEnNotice.value = ''
+    bizDetailEnNotice.value = ''
+    shipAddrSearch.value = ''
     addressList.value = []
     transactions.value = []
     // 출금 채널 정리

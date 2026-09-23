@@ -717,12 +717,12 @@ export const verificationStatus = computed(() => {
 export function validateBusinessInfo(data) {
   const errors = []
   const bizNum = (data.bizNumber || '').replace(/[^0-9]/g, '')
-  const pccc   = (data.customsCode || '').trim().toUpperCase()
+  const pccc   = (data.customsCode || '').trim()
 
   // 필수 항목 공백 체크
   if (!(data.companyName || '').trim())   errors.push('상호명을 입력해주세요.')
   if (!bizNum)                             errors.push('사업자등록번호를 입력해주세요.')
-  if (!pccc)                               errors.push('통관부호(PCCC)를 입력해주세요.')
+  if (!pccc)                               errors.push('통관부호를 입력해주세요.')
   if (!(data.contactName || '').trim())   errors.push('담당자 성명을 입력해주세요.')
   if (!(data.contactPhone || '').trim())  errors.push('비상연락처를 입력해주세요.')
   if (!(data.address || '').trim())       errors.push('사업장 소재지를 입력해주세요.')
@@ -732,10 +732,8 @@ export function validateBusinessInfo(data) {
     errors.push(`사업자등록번호는 10자리 숫자여야 합니다. (현재 ${bizNum.length}자리)`)
   }
 
-  // PCCC: P로 시작하는 13자리 (P + 숫자 12자리)
-  if (pccc && !/^P\d{12}$/.test(pccc)) {
-    errors.push(`통관부호(PCCC)는 P로 시작하는 13자리(P+숫자 12자리) 형식이어야 합니다. (예: P240012345678)`)
-  }
+  // 통관부호: 비어있지 않음만 검사 (사업자 통관고유부호는 상호로 시작해 P+12 형식이 아님).
+  // 형식·진위 검증은 관세청 유니패스 API로 따로 한다. 서버(api/verify-business.js)와 같은 기준.
 
   return { valid: errors.length === 0, errors }
 }
@@ -752,6 +750,20 @@ export const updateBusinessProfile = async (businessData) => {
   const address = (businessData.address || '').trim()
   const phone = (businessData.phone || '').trim()
   const name = (businessData.name || currentUser.value.user_metadata?.full_name || '').trim()
+  // 대표자명: 통관정보 화면은 담당자와 따로 받는다. 따로 안 넘기는 호출부(LoginModal "대표자명 / 담당자" 한 칸)는 기존처럼 name을 쓴다.
+  const representativeName = String(businessData.representative_name !== undefined ? (businessData.representative_name || '') : name).trim()
+  // 개업일자(YYYY-MM-DD): 넘긴 호출부만 저장한다. 안 넘기면 DB 값을 건드리지 않는다.
+  const businessOpenDate = businessData.business_open_date !== undefined ? (businessData.business_open_date || null) : undefined
+  // 사업장 주소(도로명주소 검색 결과 + 영문): 넘긴 호출부(통관정보 화면)만 profiles에 저장한다.
+  // 안 넘기는 호출부(LoginModal)는 DB 값을 건드리지 않는다.
+  const BUSINESS_ADDRESS_COLUMNS = [
+    'business_zipcode', 'business_address_road', 'business_address_jibun',
+    'business_address_detail', 'business_address_en', 'business_address_detail_en'
+  ]
+  const businessAddressPatch = {}
+  for (const col of BUSINESS_ADDRESS_COLUMNS) {
+    if (businessData[col] !== undefined) businessAddressPatch[col] = String(businessData[col] || '').trim()
+  }
 
   const payload = {
     company_name: companyName,
@@ -821,11 +833,10 @@ export const updateBusinessProfile = async (businessData) => {
       if (isTargetUUID) {
         const profileId = isUUID ? currentUser.value.id : existing.id
 
-        // 🛡️ 인증 상태/등급은 기존 DB 값이 있으면 절대 덮어쓰지 않음
-        // - fetchUserProfile이 null을 반환한 경우(네트워크 지연·신규 계정 등)에는
-        //   is_business_verified / verification_status / tier 를 payload에서 완전히 제외.
-        //   ?? false / ?? 'unverified' / ?? 'general' fallback을 쓰면
-        //   이미 DB에 verified로 저장된 계정이 upsert 한 번으로 초기화되는 사고 발생.
+        // 🛡️ 인증 필드(is_business_verified / verification_status / tier / business_verified_at)는
+        //   payload에 절대 넣지 않는다. 판정은 서버(/api/verify-business)와 관리자만 한다.
+        //   DB 트리거 trg_guard_profile_verification이 브라우저의 인증 필드 지정·변경을 예외로 막고,
+        //   인증 회원이 사업자번호·대표자명·개업일자를 바꾸면 자동으로 pending/buyer로 되돌린다.
         // ⚠️ address 컬럼은 profiles 테이블에 실제 존재하지 않음 (PGRST204 방어)
         // address는 localStorage/user_metadata에만 보관. DB 스키마에 address 추가 시 복원 예정.
         const profilePayload = {
@@ -833,23 +844,20 @@ export const updateBusinessProfile = async (businessData) => {
           email: currentUser.value.email || '',
           name: name,
           company_name: companyName,
-          representative_name: name,
+          representative_name: representativeName,
           business_number: cleanBizNumber,
           pccc: cleanPccc,
           phone: phone,
           updated_at: new Date().toISOString()
         }
-
-        // existing이 있을 때만 인증 상태 필드를 포함 — null이면 해당 필드를 제외해 DB 기존값 보존
-        if (existing) {
-          profilePayload.tier = existing.tier ?? 'general'
-          profilePayload.is_business_verified = existing.is_business_verified ?? false
-          profilePayload.verification_status = existing.verification_status ?? 'unverified'
-        }
+        if (businessOpenDate !== undefined) profilePayload.business_open_date = businessOpenDate
+        Object.assign(profilePayload, businessAddressPatch)
 
         const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()
         if (error) {
-          console.warn('[updateBusinessProfile] profiles upsert 실패:', error.message, error.code)
+          // 저장 실패를 삼키면 호출부가 성공으로 알고 이어서 인증 판정을 요청한다 — 반드시 던진다
+          console.error('[updateBusinessProfile] profiles upsert 실패:', error.message, error.code)
+          throw new Error(`사업자 정보 저장 실패: ${error.message}`)
         } else if (data) {
           currentUserProfile.value = { ...(currentUserProfile.value || {}), ...data }
         }
@@ -857,17 +865,24 @@ export const updateBusinessProfile = async (businessData) => {
         const updatePayload = {
           name: name,
           company_name: companyName,
-          representative_name: name,
+          representative_name: representativeName,
           business_number: cleanBizNumber,
           pccc: cleanPccc,
           phone: phone,
           updated_at: new Date().toISOString()
         }
-        // email 경로에서는 인증 상태/address 건드리지 않음 (UPDATE 미포함)
-        await supabase.from('profiles').update(updatePayload).eq('email', currentUser.value.email)
+        if (businessOpenDate !== undefined) updatePayload.business_open_date = businessOpenDate
+        Object.assign(updatePayload, businessAddressPatch)
+        // email 경로에서도 인증 상태/address 건드리지 않음 (UPDATE 미포함)
+        const { error } = await supabase.from('profiles').update(updatePayload).eq('email', currentUser.value.email)
+        if (error) {
+          console.error('[updateBusinessProfile] profiles update(email) 실패:', error.message, error.code)
+          throw new Error(`사업자 정보 저장 실패: ${error.message}`)
+        }
       }
     } catch (err) {
-      console.warn('[updateBusinessProfile] Supabase 업데이트 실패:', err?.message || err)
+      console.error('[updateBusinessProfile] Supabase 업데이트 실패:', err?.message || err)
+      throw err
     }
   }
 
@@ -1147,24 +1162,25 @@ export const syncUserProfile = async (user) => {
     //   ?? false / ?? 'unverified' / ?? 'general' fallback을 쓰면
     //   이미 DB에 verified로 저장된 계정이 로그인 한 번으로 초기화되는 사고 발생.
 
+    // 🛡️ 인증 필드(is_business_verified / verification_status / tier)는 payload에 넣지 않는다.
+    //   브라우저가 지정하면 DB 트리거(trg_guard_profile_verification)가 예외를 던진다.
     const profilePayload = {
       id: user.id,
       email: userEmail,
       name: meta.full_name || meta.name || user.email?.split('@')[0] || '사용자',
       company_name: biz.company_name || existing?.company_name || '',
-      representative_name: biz.representative_name || biz.name || existing?.representative_name || '',
-      business_number: biz.business_number || existing?.business_number || '',
       pccc: biz.pccc || existing?.pccc || '',
       phone: meta.phone || meta.mobile || biz.phone || existing?.phone || '',
       // balance 제외: balanceStore.js가 전담 관리 (upsert로 덮어쓰면 안 됨)
       updated_at: new Date().toISOString()
     }
 
-    // existing이 있을 때만 인증 상태 필드를 포함 — null이면 해당 필드를 제외해 DB 기존값 보존
-    if (existing) {
-      profilePayload.tier = existing.tier ?? 'general'
-      profilePayload.is_business_verified = existing.is_business_verified ?? false
-      profilePayload.verification_status = existing.verification_status ?? 'unverified'
+    // 사업자번호·대표자명은 행이 없을 때(신규)만 채운다.
+    // 기존 행에 로그인마다 user_metadata 값(대표자명은 가입 성명 full_name)을 덮어쓰면
+    // DB 값과 달라지는 순간 트리거가 인증 회원을 pending으로 되돌린다. 이 두 값은 통관정보 저장 경로만 바꾼다.
+    if (!existing) {
+      profilePayload.representative_name = biz.representative_name || biz.name || ''
+      profilePayload.business_number = biz.business_number || ''
     }
 
     const { data, error } = await supabase.from('profiles').upsert(profilePayload, { onConflict: 'id' }).select().maybeSingle()

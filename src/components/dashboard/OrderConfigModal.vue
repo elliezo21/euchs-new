@@ -306,12 +306,19 @@
                 class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium font-mono"
               />
             </div>
-            <div class="sm:col-span-2">
+            <div class="sm:col-span-2 space-y-2">
               <label class="text-xs font-semibold text-gray-600 block mb-1.5">국내 배송지 주소</label>
+              <AddressSearchInput
+                v-model="orderAddr.search"
+                :detail-input="orderDetailRef"
+                input-class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
+                @select="(item) => { orderAddr.road = item.roadAddr }"
+              />
               <input
+                ref="orderDetailRef"
                 type="text"
-                v-model="orderConfig.address"
-                placeholder="수령지 기본 주소 및 상세 주소"
+                v-model="orderAddr.detail"
+                placeholder="상세주소 (예: 2층 201호)"
                 class="w-full px-3 py-2.5 text-sm rounded-xl border border-gray-200 focus:border-amber-500 outline-none bg-white font-medium"
               />
             </div>
@@ -566,6 +573,7 @@ import { currentUser, currentUserBizInfo, getCartStorageKey } from '@/lib/auth';
 import { saveNewOrder } from '@/utils/orderStorage';
 import { fetch1688FreightEstimateBatch } from '@/services/api1688';
 import ProductDetailModal from '@/components/ProductDetailModal.vue';
+import AddressSearchInput from '@/components/common/AddressSearchInput.vue';
 
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import { krwFromCny, calcCartEstimatedCost, resolveItemQty } from '@/utils/orderCostCalculator';
@@ -676,7 +684,21 @@ const syncUserInfo = () => {
     address:      biz.address              || '',
     memo: ''
   };
+  // 저장돼 있던 한 줄 주소는 검색창 초기값으로 (그대로 두면 그대로 발주서에 들어간다)
+  orderAddr.value = { search: biz.address || '', road: '', detail: '' };
 };
+
+// ── 배송지 주소 검색 ─────────────────────────────────────────────────
+// 발주서에 들어가는 값은 기존 그대로 orderConfig.address 한 줄 문자열(buyerInfo.address).
+// 검색에서 고른 도로명 + 상세 → "도로명 상세" 한 줄. 고르지 않았으면 검색창 글자(기존 주소)를 그대로 쓴다.
+const orderAddr = ref({ search: '', road: '', detail: '' });
+const orderDetailRef = ref(null);
+watch(orderAddr, (a) => {
+  const search = String(a.search || '').trim();
+  orderConfig.value.address = (a.road && search === a.road)
+    ? `${a.road} ${String(a.detail || '').trim()}`.trim()
+    : search;
+}, { deep: true });
 
 watch(
   () => props.isOpen,

@@ -371,8 +371,19 @@
                   </div>
                 </div>
                 <div class="sm:col-span-2">
-                  <span class="text-slate-400 block text-xs">사업장 소재지 주소</span>
-                  <b class="text-slate-800">{{ selectedMember?.bizAddress || '주소 정보 미입력' }}</b>
+                  <span class="text-slate-400 block text-xs">사업장 소재지 주소 (읽기 전용 — 고객이 통관정보 화면에서 검색해 저장)</span>
+                  <template v-if="selectedMember?.bizAddrRoad">
+                    <b class="text-slate-800 block">
+                      <span v-if="selectedMember.bizZipcode" class="font-mono text-slate-500">[{{ selectedMember.bizZipcode }}]</span>
+                      {{ selectedMember.bizAddrRoad }} {{ selectedMember.bizAddrDetail }}
+                    </b>
+                    <span class="text-slate-600 text-xs block mt-0.5">
+                      EN: {{ selectedMember.bizAddrEn
+                        ? (selectedMember.bizAddrDetailEn ? `${selectedMember.bizAddrDetailEn}, ${selectedMember.bizAddrEn}` : selectedMember.bizAddrEn)
+                        : '영문주소 미입력' }}
+                    </span>
+                  </template>
+                  <b v-else class="text-slate-800">주소 정보 미입력</b>
                 </div>
               </div>
             </div>
@@ -745,7 +756,7 @@ async function saveMemberChanges(member) {
     phone: member.phone || '',
     business_number: member.bizNumber || '',
     pccc: member.pccc || '',
-    address: member.bizAddress || '',
+    // address 제거: profiles에 address 컬럼이 없다. 사업장 주소(business_*)는 고객 통관정보 화면에서만 저장한다.
     updated_at: new Date().toISOString()
   }
   // tier는 값이 있을 때만 명시적으로 포함 — falsy이면 제외해 DB 기존값 보존
@@ -808,7 +819,12 @@ async function loadMembers() {
       phone: p.phone || '',
       bizNumber: p.business_number || '',
       pccc: p.pccc || '',
-      bizAddress: p.address || '',
+      // 사업장 주소 — profiles.business_* (읽기 전용 표시)
+      bizZipcode: p.business_zipcode || '',
+      bizAddrRoad: p.business_address_road || '',
+      bizAddrDetail: p.business_address_detail || '',
+      bizAddrEn: p.business_address_en || '',
+      bizAddrDetailEn: p.business_address_detail_en || '',
       bizCertUrl: p.biz_cert_url || '',
       tier: p.tier || (p.is_business_verified ? 'business' : 'general'),
       role: p.role || 'user',

@@ -363,13 +363,23 @@
                   </div>
                 </div>
 
-                <div>
+                <div class="space-y-1.5">
                   <label class="block text-xs font-bold text-slate-700 mb-1">사업장 소재지 (배송지 주소) *</label>
-                  <input 
-                    v-model.trim="signupForm.address"
-                    type="text" 
-                    required
-                    placeholder="서울특별시 강남구 테헤란로 123 4층" 
+                  <AddressSearchInput
+                    v-model="signupAddr.search"
+                    :detail-input="signupDetailRef"
+                    input-class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
+                    @select="(item) => { signupAddr.road = item.roadAddr }"
+                    @availability="(ok) => { signupAddr.unavailable = !ok }"
+                  />
+                  <p v-if="signupAddr.unavailable" class="text-[13px] text-amber-700">
+                    주소 검색이 잠시 원활하지 않아요. 주소를 직접 입력해 주세요.
+                  </p>
+                  <input
+                    ref="signupDetailRef"
+                    v-model.trim="signupAddr.detail"
+                    type="text"
+                    placeholder="상세주소 (예: 4층)"
                     class="w-full px-3 py-2 rounded-xl bg-white border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 outline-none text-xs text-slate-900 transition"
                   />
                 </div>
@@ -474,13 +484,23 @@
                 </div>
               </div>
 
-              <div>
+              <div class="space-y-1.5">
                 <label class="block text-xs font-bold text-slate-700 mb-1">사업장 소재지 (수령 배송지) *</label>
-                <input 
-                  v-model.trim="verifyForm.address"
-                  type="text" 
-                  required
-                  placeholder="서울특별시 강남구 테헤란로 123 4층" 
+                <AddressSearchInput
+                  v-model="verifyAddr.search"
+                  :detail-input="verifyDetailRef"
+                  input-class="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-300 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none text-xs text-slate-900 transition"
+                  @select="(item) => { verifyAddr.road = item.roadAddr }"
+                  @availability="(ok) => { verifyAddr.unavailable = !ok }"
+                />
+                <p v-if="verifyAddr.unavailable" class="text-[13px] text-amber-700">
+                  주소 검색이 잠시 원활하지 않아요. 주소를 직접 입력해 주세요.
+                </p>
+                <input
+                  ref="verifyDetailRef"
+                  v-model.trim="verifyAddr.detail"
+                  type="text"
+                  placeholder="상세주소 (예: 4층)"
                   class="w-full px-3 py-2.5 rounded-xl bg-slate-50 border border-slate-300 focus:bg-white focus:border-amber-500 focus:ring-2 focus:ring-amber-100 outline-none text-xs text-slate-900 transition"
                 />
               </div>
@@ -632,6 +652,7 @@
 
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
+import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
 import {
   isLoginModalOpen,
   loginModalMode,
@@ -683,6 +704,29 @@ const verifyForm = ref({
   address: '',
   phone: ''
 })
+
+// 사업장 주소 검색 상태 — 저장 형식은 기존 그대로 한 줄 문자열(signupForm/verifyForm.address)이며
+// 제출 시 "도로명 상세"로 합친다 (composeAddress)
+// unavailable: 주소 검색 서비스 장애(AddressSearchInput availability=false) — 이때만 직접 입력을 허용한다.
+//   "검색 결과 없음"은 장애가 아니므로 직접 입력 불가(다른 검색어 안내 유지).
+const signupAddr = ref({ search: '', road: '', detail: '', unavailable: false })
+const verifyAddr = ref({ search: '', road: '', detail: '', legacy: '', unavailable: false })
+const signupDetailRef = ref(null)
+const verifyDetailRef = ref(null)
+
+/**
+ * 검색에서 고른 도로명 + 상세 → 한 줄 주소.
+ * 고른 뒤 검색창 글자를 바꿨으면 선택이 무효 — ''를 돌려 재선택을 요구한다.
+ * legacy: 기존에 저장돼 있던 한 줄 주소. 검색창을 건드리지 않았으면 그대로 유지한다.
+ */
+function composeAddress(addr) {
+  const search = String(addr.search || '').trim()
+  if (addr.road && search === addr.road) return `${addr.road} ${String(addr.detail || '').trim()}`.trim()
+  if (addr.legacy && search === addr.legacy) return addr.legacy
+  // 검색 서비스 장애일 때만: 고객이 직접 친 주소 + 상세를 그대로 받는다
+  if (addr.unavailable && search) return `${search} ${String(addr.detail || '').trim()}`.trim()
+  return ''
+}
 
 const isLoginMode = computed(() => loginModalMode.value === 'login' || !loginModalMode.value)
 const isSignupMode = computed(() => loginModalMode.value === 'signup' || loginModalMode.value === 'register')
@@ -757,6 +801,9 @@ const resetAllForms = () => {
     address: existingBiz?.address || '',
     phone: existingBiz?.phone || ''
   }
+  signupAddr.value = { search: '', road: '', detail: '', unavailable: false }
+  // 기존 한 줄 주소는 검색창 초기값으로만 넣는다 (그대로 두면 그대로 저장, 바꾸려면 재검색)
+  verifyAddr.value = { search: existingBiz?.address || '', road: '', detail: '', legacy: existingBiz?.address || '', unavailable: false }
 
   forgotEmail.value = ''
   showPassword.value = false
@@ -838,6 +885,12 @@ const handleEmailSignup = async () => {
     return
   }
 
+  signupForm.value.address = composeAddress(signupAddr.value)
+  if (!signupForm.value.address) {
+    alert(signupAddr.value.unavailable ? '사업장 주소를 입력해 주세요.' : '사업장 주소를 검색해서 목록에서 선택해 주세요.')
+    return
+  }
+
   if (!signupForm.value.company_name.trim() || !signupForm.value.address.trim() || !signupForm.value.phone.trim()) {
     alert('상호명, 사업장 주소, 담당자 연락처를 모두 입력해 주세요.')
     return
@@ -879,6 +932,12 @@ const handleBusinessVerifySubmit = async () => {
   const cleanPccc = (verifyForm.value.pccc || '').trim().toUpperCase()
   if (cleanPccc && !validatePcccCode(cleanPccc)) {
     alert('통관고유부호는 P 또는 U로 시작하는 13자리여야 합니다. (예: P240012345678)')
+    return
+  }
+
+  verifyForm.value.address = composeAddress(verifyAddr.value)
+  if (!verifyForm.value.address) {
+    alert(verifyAddr.value.unavailable ? '사업장 주소를 입력해 주세요.' : '사업장 주소를 검색해서 목록에서 선택해 주세요.')
     return
   }
 

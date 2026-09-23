@@ -129,19 +129,27 @@
               <div class="flex items-center justify-between">
                 <span class="text-gray-400 text-[11px]">수령 주소지</span>
                 <button v-if="isOrderEditable" type="button"
+                  :disabled="isSavingAddress"
                   @click="isEditingAddress ? saveAddress() : startEditAddress()"
-                  class="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer">
-                  {{ isEditingAddress ? '[저장]' : '[주소 변경]' }}
+                  class="text-[11px] text-blue-600 font-bold hover:underline cursor-pointer disabled:opacity-50">
+                  {{ isSavingAddress ? '[저장 중…]' : (isEditingAddress ? '[저장]' : '[주소 변경]') }}
                 </button>
                 <span v-else class="text-[11px] text-slate-400">고정 주소</span>
               </div>
-              <div v-if="isEditingAddress && isOrderEditable" class="mt-1">
-                <input type="text" v-model="editAddressInput" @keyup.enter="saveAddress"
+              <div v-if="isEditingAddress && isOrderEditable" class="mt-1 space-y-1">
+                <AddressSearchInput
+                  v-model="editAddr.search"
+                  :detail-input="editDetailRef"
+                  input-class="w-full px-2 py-1 bg-white border border-blue-500 rounded text-xs font-medium text-gray-900 focus:outline-none"
+                  placeholder="변경할 주소 검색 (도로명·건물명·지번)"
+                  @select="(item) => { editAddr.road = item.roadAddr }"
+                />
+                <input ref="editDetailRef" type="text" v-model="editAddr.detail" @keyup.enter="saveAddress"
                   class="w-full px-2 py-1 bg-white border border-blue-500 rounded text-xs font-medium text-gray-900 focus:outline-none"
-                  placeholder="변경할 주소 입력 후 엔터" />
+                  placeholder="상세주소 입력 후 엔터 또는 [저장]" />
               </div>
               <span v-else class="font-medium text-gray-800 truncate block mt-0.5 text-xs" :title="order.buyerInfo?.address">
-                {{ order.buyerInfo?.address || '서울특별시 강남구 테헤란로 123' }}
+                {{ order.buyerInfo?.address || '주소 미입력' }}
               </span>
             </div>
           </div>
@@ -524,6 +532,8 @@ import { currentSettings } from '@/lib/settings'
 import { exportQuoteExcel } from '@/utils/excelExport'
 import { resolveProductGroupIdentity, getChinaTrackingBadge } from '@/utils/orderItemGrouping'
 import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue'
+import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
+import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 
 // ── Props ──────────────────────────────────────────────────────────────────
 const props = defineProps({
@@ -679,16 +689,83 @@ function getGroupedOrderItems(rawItems, order = null) {
 }
 
 // ── 주소 편집 ─────────────────────────────────────────────────────────────
+// 주소 검색 상태 — 저장 형식은 기존 그대로 한 줄 문자열(buyerInfo.address)
+const editAddr = ref({ search: '', road: '', detail: '' })
+const editDetailRef = ref(null)
+
+const isSavingAddress = ref(false)
+// 주소 변경 가능 상태 — 화면의 [주소 변경] 버튼 조건(isOrderEditable)과 같은 값
+const ADDRESS_EDITABLE_STATUS = 'quote_pending'
+
 function startEditAddress() {
-  editAddressInput.value = props.order?.buyerInfo?.address || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층 물류센터'
+  editAddressInput.value = props.order?.buyerInfo?.address || ''
+  editAddr.value = { search: editAddressInput.value, road: '', detail: '' }
   isEditingAddress.value = true
 }
 
-function saveAddress() {
-  if (props.order?.buyerInfo) {
-    props.order.buyerInfo.address = editAddressInput.value.trim() || '서울특별시 강남구 테헤란로 123 EUCHS 빌딩 4층 물류센터'
+/**
+ * 주소 변경 저장 — orders.buyer_info.address만 바꾼다.
+ * buyer_info는 JSONB라 부분 수정 API가 없으므로, DB에서 최신 buyer_info를 다시 읽어 address만 바꿔 쓴다
+ * (화면이 들고 있는 옛 buyer_info로 덮어쓰지 않는다). 결제 가드 트리거가 막는 status·금액·결제 컬럼은 보내지 않는다.
+ * UPDATE 조건에 status = 'quote_pending'을 걸어, 그 사이 상태가 바뀐 주문은 0행으로 막힌다.
+ */
+async function saveAddress() {
+  if (isSavingAddress.value) return
+  // 검색에서 고른 도로명 + 상세 → "도로명 상세" 한 줄. 고르지 않았으면 검색창 글자를 그대로 쓴다.
+  const search = String(editAddr.value.search || '').trim()
+  const nextAddress = (editAddr.value.road && search === editAddr.value.road)
+    ? `${editAddr.value.road} ${String(editAddr.value.detail || '').trim()}`.trim()
+    : search
+  if (!nextAddress) {
+    alert('변경할 주소를 입력해 주세요.')
+    return
   }
-  isEditingAddress.value = false
+  const dbId = props.order?.dbId
+  if (!dbId || !isSupabaseConfigured() || !isValidUUID(String(dbId))) {
+    console.error('[OrderDetailModal] 주소 변경 불가 — 서버 주문 ID 없음:', { dbId, orderNumber: props.order?.orderNumber })
+    alert('이 주문은 서버에서 찾을 수 없어 주소를 변경할 수 없어요. 고객센터로 문의해 주세요.')
+    return
+  }
+
+  isSavingAddress.value = true
+  try {
+    const { data: row, error: readErr } = await supabase
+      .from('orders')
+      .select('buyer_info, status')
+      .eq('id', dbId)
+      .maybeSingle()
+    if (readErr) throw readErr
+    if (!row) throw new Error('주문을 찾을 수 없습니다 (0 rows)')
+    if (normalizeOrderStatus(row.status) !== ADDRESS_EDITABLE_STATUS) {
+      alert('주문이 이미 다음 단계로 진행되어 주소를 변경할 수 없어요. 고객센터로 문의해 주세요.')
+      return
+    }
+
+    const nextBuyerInfo = { ...(row.buyer_info || {}), address: nextAddress }
+    const { data: updated, error: updErr } = await supabase
+      .from('orders')
+      .update({ buyer_info: nextBuyerInfo, updated_at: new Date().toISOString() })
+      .eq('id', dbId)
+      .eq('status', row.status)
+      .select('buyer_info')
+      .maybeSingle()
+    if (updErr) throw updErr
+    if (!updated) {
+      alert('주문 상태가 바뀌어 주소를 변경하지 못했어요. 화면을 새로고침한 뒤 확인해 주세요.')
+      return
+    }
+
+    // 화면 값은 DB가 돌려준 값으로 반영
+    if (!props.order.buyerInfo) props.order.buyerInfo = {}
+    props.order.buyerInfo.address = updated.buyer_info?.address || ''
+    editAddressInput.value = props.order.buyerInfo.address
+    isEditingAddress.value = false
+  } catch (err) {
+    console.error('[OrderDetailModal] 주소 변경 저장 실패:', err)
+    alert('주소를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.\n(' + (err?.message || err) + ')')
+  } finally {
+    isSavingAddress.value = false
+  }
 }
 
 // ── 카카오 상담 ───────────────────────────────────────────────────────────

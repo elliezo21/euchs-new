@@ -871,9 +871,16 @@
           </div>
           <div class="space-y-1.5">
             <label class="font-bold text-slate-700">수령 배송지 주소 <span class="text-rose-500">*</span></label>
-            <input 
-              v-model="orderForm.address" 
-              type="text" 
+            <AddressSearchInput
+              v-model="labAddr.search"
+              :detail-input="labDetailRef"
+              input-class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:border-indigo-500 outline-none"
+              @select="(item) => { labAddr.road = item.roadAddr }"
+            />
+            <input
+              ref="labDetailRef"
+              v-model="labAddr.detail"
+              type="text"
               placeholder="상세 주소를 입력하세요"
               class="w-full p-2.5 bg-slate-50 border border-slate-300 rounded-xl text-slate-900 focus:border-indigo-500 outline-none"
             />
@@ -998,6 +1005,7 @@ import { fetchSiteSettings } from '@/lib/settings'
 
 import { supabase, isSupabaseConfigured } from '@/lib/supabase'
 import { currentUser, userDisplayName } from '@/lib/auth'
+import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
 
 // ----------------------------------------------------
 // UI Navigation & Layout States
@@ -1309,7 +1317,16 @@ const openOrderModal = () => {
   showOrderModal.value = true
 }
 
+// 배송지 주소 검색 — 저장 형식은 기존 그대로 한 줄 문자열(orderForm.address)
+const labAddr = ref({ search: '', road: '', detail: '' })
+const labDetailRef = ref(null)
+
 const submitPurchaseOrder = async () => {
+  // 검색에서 고른 도로명 + 상세 → "도로명 상세" 한 줄. 고르지 않았으면 검색창 글자를 그대로 쓴다.
+  const labSearch = String(labAddr.value.search || '').trim()
+  orderForm.value.address = (labAddr.value.road && labSearch === labAddr.value.road)
+    ? `${labAddr.value.road} ${String(labAddr.value.detail || '').trim()}`.trim()
+    : labSearch
   if (!orderForm.value.recipientName || !orderForm.value.phone || !orderForm.value.address) {
     alert('수령인, 연락처, 배송지 주소를 모두 입력해 주세요.')
     return
