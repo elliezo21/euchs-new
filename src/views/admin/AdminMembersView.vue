@@ -15,8 +15,27 @@
       </button>
     </div>
 
+    <!-- 0-1. 세션 만료 — 옛 캐시 목록을 보여주지 않고 재로그인을 안내 -->
+    <div v-else-if="sessionExpired" class="bg-amber-50 border border-amber-300 rounded-2xl p-6 text-center space-y-3">
+      <div class="text-3xl">🔒</div>
+      <h3 class="text-base font-bold text-amber-900">로그인이 만료됐습니다 — 다시 로그인해 주세요.</h3>
+      <p class="text-sm text-amber-700">회원 정보는 로그인한 관리자에게만 조회됩니다.</p>
+      <button
+        type="button"
+        @click="reLogin"
+        class="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-bold rounded-xl transition cursor-pointer"
+      >
+        관리자 다시 로그인
+      </button>
+    </div>
+
     <!-- 메인 컨텐츠 영역 -->
     <div v-else class="space-y-6">
+      <!-- 관리자 계정 판정 정보(user_roles) 조회 실패 경고 -->
+      <div v-if="adminIndexError" class="bg-amber-50 border border-amber-300 rounded-2xl px-4 py-3 text-sm text-amber-800 font-bold">
+        ⚠️ 관리자 계정 판정 정보를 불러오지 못해, user_roles에만 등록된 관리자가 목록에 섞여 있을 수 있습니다.
+        <span class="font-mono font-normal text-amber-700 ml-1">({{ adminIndexError }})</span>
+      </div>
       <!-- 1. 상단 헤더 배너 -->
       <div class="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -177,14 +196,8 @@
                 <td class="py-3.5 px-4">
                   <div class="flex items-center gap-1.5 flex-wrap">
                     <span class="font-bold text-slate-900 text-sm">{{ m?.companyName || '개인 바이어' }}</span>
-                    <!-- 관리자 계정 뱃지 (super_admin/admin/staff/master) -->
+                    <!-- tier 뱃지 (관리자 계정은 목록에서 제외되므로 관리자 뱃지 없음) -->
                     <span
-                      v-if="['super_admin','admin','staff','master'].includes(m?.role)"
-                      class="px-2 py-0.5 rounded text-xs font-bold bg-violet-100 text-violet-700 border border-violet-200"
-                    >관리자 계정</span>
-                    <!-- 기존 tier 뱃지 -->
-                    <span
-                      v-else
                       class="px-2 py-0.5 rounded text-xs font-bold"
                       :class="getTierBadgeClass(m?.tier)"
                     >
@@ -436,9 +449,10 @@
     <Transition name="toast">
       <div
         v-if="toast.show"
-        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
+        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5 text-white"
+        :class="toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'"
       >
-        <span>✅</span>
+        <span>{{ toast.type === 'error' ? '⚠️' : '✅' }}</span>
         <span>{{ toast.message }}</span>
       </div>
     </Transition>
@@ -469,9 +483,22 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { supabase, isSupabaseConfigured, isValidUUID } from '../../lib/supabase'
+import { fetchAdminRoleRows, buildAdminIndex, isAdminAccount } from '../../lib/adminAccounts'
+import { isAdminOrStaff, signOut } from '../../lib/auth'
+import { useRouter } from 'vue-router'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 
-const MEMBERS_STORAGE_KEY = 'euchs_admin_members'
+const adminIndexError = ref('')
+// 세션이 없거나 profiles가 0건 — 옛 목록 대신 재로그인 안내를 띄운다
+const sessionExpired = ref(false)
+const router = useRouter()
+
+// 라우터 가드는 localStorage의 관리자 토큰(euchs_admin_token)만 보고도 통과시키므로,
+// 그대로 /admin/login으로 보내면 다시 /admin으로 튕긴다. 잔여 토큰을 먼저 지운다.
+async function reLogin() {
+  await signOut()
+  router.replace('/admin/login')
+}
 
 const statusFilter = ref('all')
 const searchQuery = ref('')
@@ -482,15 +509,37 @@ const pendingApprovalMember = ref(null)
 const isFatalError = ref(false)
 const fatalErrorMessage = ref('')
 
-const toast = ref({ show: false, message: '' })
+const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimer = null
 
-function showToast(msg) {
+function showToast(msg, type = 'success') {
   if (toastTimer) clearTimeout(toastTimer)
-  toast.value = { show: true, message: msg }
+  toast.value = { show: true, message: msg, type }
   toastTimer = setTimeout(() => {
     toast.value.show = false
-  }, 3000)
+  }, type === 'error' ? 6000 : 3000)
+}
+
+/**
+ * profiles 행 수정 — 결과({ error }, 갱신된 행 수)를 반드시 확인한다.
+ * supabase-js는 실패해도 throw하지 않으므로 반환값을 보지 않으면 조용히 실패한다.
+ * 이제 화면의 기준은 DB뿐이라, 실패하면 목록을 DB에서 다시 불러와 화면을 되돌린다.
+ * @returns {Promise<boolean>} 저장 성공 여부
+ */
+async function updateMemberProfile(member, updateData, label) {
+  const q = supabase.from('profiles').update(updateData)
+  const target = (member.id && isValidUUID(member.id))
+    ? q.eq('id', member.id)
+    : q.eq('email', String(member.email || '').trim().toLowerCase())
+  const { data, error } = await target.select('id')
+  if (error || !Array.isArray(data) || data.length === 0) {
+    const reason = error?.message || '갱신된 행이 없습니다(권한 또는 세션 확인 필요)'
+    console.error(`[AdminMembersView] ${label} 실패:`, reason, { memberId: member.id, email: member.email })
+    showToast(`${label} 실패: ${reason}`, 'error')
+    await loadMembers()
+    return false
+  }
+  return true
 }
 
 function fmtN(val) {
@@ -647,26 +696,14 @@ async function approveMember(member) {
   member.verificationStatus = 'verified'
   member.tier = 'business' // 사업자회원으로 전환
   member.verifiedAt = new Date().toISOString()
-  saveState()
 
-  // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member) {
-    try {
-      const updateData = {
-        is_business_verified: true,
-        verification_status: 'verified',
-        tier: 'business',
-        updated_at: new Date().toISOString()
-      }
-      if (member.id && isValidUUID(member.id)) {
-        await supabase.from('profiles').update(updateData).eq('id', member.id)
-      } else if (member.email) {
-        await supabase.from('profiles').update(updateData).eq('email', String(member.email).trim().toLowerCase())
-      }
-    } catch (e) {
-      console.warn('Supabase profile approve error:', e)
-    }
-  }
+  const ok = await updateMemberProfile(member, {
+    is_business_verified: true,
+    verification_status: 'verified',
+    tier: 'business',
+    updated_at: new Date().toISOString()
+  }, '사업자 인증 승인')
+  if (!ok) return
 
   showToast(`사업자 인증 승인 및 사업자회원 전환이 완료되었습니다.`)
   selectedMember.value = null // 모달 닫기
@@ -680,26 +717,14 @@ async function rejectMember(member) {
   member.verificationStatus = 'rejected'
   member.tier = 'general' // 일반회원으로 유지
   member.rejectReason = reason
-  saveState()
 
-  // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member) {
-    try {
-      const updateData = {
-        is_business_verified: false,
-        verification_status: 'rejected',
-        tier: 'general',
-        updated_at: new Date().toISOString()
-      }
-      if (member.id && isValidUUID(member.id)) {
-        await supabase.from('profiles').update(updateData).eq('id', member.id)
-      } else if (member.email) {
-        await supabase.from('profiles').update(updateData).eq('email', String(member.email).trim().toLowerCase())
-      }
-    } catch (e) {
-      console.warn('Supabase profile reject error:', e)
-    }
-  }
+  const ok = await updateMemberProfile(member, {
+    is_business_verified: false,
+    verification_status: 'rejected',
+    tier: 'general',
+    updated_at: new Date().toISOString()
+  }, '사업자 인증 반려')
+  if (!ok) return
 
   showToast('사업자 인증 신청이 반려 처리되었습니다.')
   selectedMember.value = null // 모달 닫기
@@ -707,39 +732,28 @@ async function rejectMember(member) {
 
 async function saveMemberChanges(member) {
   if (!member) return
-  saveState()
 
-  // Supabase DB profiles 테이블 동기화
-  if (isSupabaseConfigured() && member) {
-    try {
-      // ⚠️ 주의: verification_status / is_business_verified / tier 는 아래 정책에 따라 제한됨.
-      // - verification_status / is_business_verified: approveMember() / rejectMember() 전담.
-      // - tier: member.tier가 명시적으로 존재하는 경우에만 포함.
-      //   member.tier가 null/undefined이면 payload에서 제외 — DB 기존 tier 값 보존.
-      //   || 'general' fallback을 쓰면 이미 'business'로 설정된 등급이 덮어써지는 버그 발생.
-      const updateData = {
-        company_name: member.companyName || '',
-        representative_name: member.representativeName || '',
-        name: member.name || '',
-        phone: member.phone || '',
-        business_number: member.bizNumber || '',
-        pccc: member.pccc || '',
-        address: member.bizAddress || '',
-        updated_at: new Date().toISOString()
-      }
-      // tier는 값이 있을 때만 명시적으로 포함 — falsy이면 제외해 DB 기존값 보존
-      if (member.tier) {
-        updateData.tier = member.tier
-      }
-      if (member.id && isValidUUID(member.id)) {
-        await supabase.from('profiles').update(updateData).eq('id', member.id)
-      } else if (member.email) {
-        await supabase.from('profiles').update(updateData).eq('email', String(member.email).trim().toLowerCase())
-      }
-    } catch (e) {
-      console.warn('Supabase profile update error:', e)
-    }
+  // ⚠️ 주의: verification_status / is_business_verified / tier 는 아래 정책에 따라 제한됨.
+  // - verification_status / is_business_verified: approveMember() / rejectMember() 전담.
+  // - tier: member.tier가 명시적으로 존재하는 경우에만 포함.
+  //   member.tier가 null/undefined이면 payload에서 제외 — DB 기존 tier 값 보존.
+  //   || 'general' fallback을 쓰면 이미 'business'로 설정된 등급이 덮어써지는 버그 발생.
+  const updateData = {
+    company_name: member.companyName || '',
+    representative_name: member.representativeName || '',
+    name: member.name || '',
+    phone: member.phone || '',
+    business_number: member.bizNumber || '',
+    pccc: member.pccc || '',
+    address: member.bizAddress || '',
+    updated_at: new Date().toISOString()
   }
+  // tier는 값이 있을 때만 명시적으로 포함 — falsy이면 제외해 DB 기존값 보존
+  if (member.tier) {
+    updateData.tier = member.tier
+  }
+  const ok = await updateMemberProfile(member, updateData, '회원 정보 저장')
+  if (!ok) return
 
   showToast(`[${member.companyName || member.name || '바이어'}] 회원 정보가 성공적으로 저장되었습니다.`)
   selectedMember.value = null // 모달 닫기
@@ -755,63 +769,76 @@ async function loadMembers() {
   _isLoading = true
 
   try {
-    let list = []
+    // ★ DB(profiles)가 유일한 기준이다 — localStorage 캐시를 합치거나 대신 보여주지 않는다.
+    //   (2026-09-23 실측: 세션 없이 열리면 DB 조회가 비고 옛 캐시가 떠서, 관리자 계정이 섞이고
+    //    예치금이 DB ₩17,140,434인 회원이 ₩990,414로 보였다)
+    if (!isSupabaseConfigured()) {
+      throw new Error('Supabase 연결 설정이 없어 회원 목록을 불러올 수 없습니다.')
+    }
+
+    // 세션이 없으면 RLS 때문에 조회가 "에러 없이 0건"으로 끝난다 → 빈 목록을 정상처럼 보이지 않게 막는다
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      membersList.value = []
+      sessionExpired.value = true
+      return
+    }
+
+    const { data: dbProfiles, error } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false })
+    if (error) throw new Error(`profiles 조회 실패: ${error.message}`)
+
+    // 관리자는 본인 행을 포함해 전체가 보여야 한다 — 0건이면 토큰이 무효(만료)된 것
+    if (!Array.isArray(dbProfiles) || dbProfiles.length === 0) {
+      console.error('[AdminMembersView] profiles 조회 0건 — 세션 만료로 판단합니다.')
+      membersList.value = []
+      sessionExpired.value = true
+      return
+    }
+    sessionExpired.value = false
+
+    const list = dbProfiles.filter(Boolean).map(p => ({
+      id: p.id,
+      companyName: p.company_name || '',
+      name: p.name || p.representative_name || p.email?.split('@')[0] || '바이어',
+      representativeName: p.representative_name || p.name || '',
+      email: p.email || '',
+      phone: p.phone || '',
+      bizNumber: p.business_number || '',
+      pccc: p.pccc || '',
+      bizAddress: p.address || '',
+      bizCertUrl: p.biz_cert_url || '',
+      tier: p.tier || (p.is_business_verified ? 'business' : 'general'),
+      role: p.role || 'user',
+      balance: Number(p.balance) || 0,
+      verificationStatus: p.verification_status || (p.is_business_verified ? 'verified' : (p.business_number ? 'pending' : 'unverified')),
+      createdAt: p.created_at || new Date().toISOString()
+    }))
+
+    // 관리자·스태프 계정은 바이어가 아니므로 목록·카운트·심사 버튼에서 뺀다.
+    // 이 계정들은 시스템 설정 > 운영진/직원 권한 관리 탭에 표시된다.
+    // 판정 기준은 DB is_admin_or_staff()와 같다(lib/adminAccounts).
+    // user_roles 조회가 실패하면 profiles.role만으로 걸러지고 user_roles에만 등록된
+    // 관리자가 섞일 수 있으므로, 조용히 넘기지 않고 화면 상단에 경고를 띄운다.
+    let adminIndex = buildAdminIndex([])
+    adminIndexError.value = ''
     try {
-      const raw = localStorage.getItem(MEMBERS_STORAGE_KEY) || localStorage.getItem('euchs_members_list')
-      if (raw) {
-        const parsed = JSON.parse(raw)
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // 기존 더미 데이터(mem- 시작 id 등)는 제외하고 실제 회원 데이터만 필터링
-          list = parsed.filter(m => m && m.id && !String(m.id).startsWith('mem-') && m.email !== 'euchs_buyer@gmail.com' && m.email !== 'sh_style@naver.com' && m.email !== 'topglobal@gmail.com')
-        }
+      adminIndex = buildAdminIndex(await fetchAdminRoleRows())
+      // RLS는 권한이 없으면 에러 대신 "빈 결과"를 준다. 관리자로 들어온 사람이
+      // 자기 자신조차 user_roles에서 안 보이면 조회가 사실상 실패한 것으로 본다.
+      const myEmail = String(session.user?.email || '').toLowerCase().trim()
+      const myId = String(session.user?.id || '')
+      const meVisible = (myEmail && adminIndex.emails.has(myEmail)) || (myId && adminIndex.userIds.has(myId))
+      if (isAdminOrStaff.value && !meVisible) {
+        throw new Error('user_roles에서 현재 로그인한 관리자 본인도 조회되지 않습니다')
       }
     } catch (e) {
-      console.warn('Failed to load local members list:', e)
+      console.error('[AdminMembersView] 관리자 계정 판정용 user_roles 조회 실패:', e)
+      adminIndexError.value = e.message
     }
-
-    // Supabase profiles 테이블에서 실제 가입 회원 조회 및 병합
-    if (isSupabaseConfigured()) {
-      try {
-        const { data: dbProfiles, error } = await supabase
-          .from('profiles')
-          .select('*')
-          .order('created_at', { ascending: false })
-
-        if (!error && Array.isArray(dbProfiles) && dbProfiles.length > 0) {
-          dbProfiles.forEach(p => {
-            if (!p) return
-            const formatted = {
-              id: p.id,
-              companyName: p.company_name || '',
-              name: p.name || p.representative_name || p.email?.split('@')[0] || '바이어',
-              representativeName: p.representative_name || p.name || '',
-              email: p.email || '',
-              phone: p.phone || '',
-              bizNumber: p.business_number || '',
-              pccc: p.pccc || '',
-              bizAddress: p.address || '',
-              bizCertUrl: p.biz_cert_url || '',
-              tier: p.tier || (p.is_business_verified ? 'business' : 'general'),
-              role: p.role || 'user',
-              balance: Number(p.balance) || 0,
-              verificationStatus: p.verification_status || (p.is_business_verified ? 'verified' : (p.business_number ? 'pending' : 'unverified')),
-              createdAt: p.created_at || new Date().toISOString()
-            }
-
-            const existingIdx = list.findIndex(m => m && (m.id === p.id || (m.email && m.email === p.email)))
-            if (existingIdx >= 0) {
-              list[existingIdx] = { ...list[existingIdx], ...formatted }
-            } else {
-              list.unshift(formatted)
-            }
-          })
-        }
-      } catch (dbErr) {
-        console.warn('Supabase profiles fetch notice in AdminMembersView:', dbErr)
-      }
-    }
-
-    membersList.value = list
+    membersList.value = list.filter(m => !isAdminAccount(m, adminIndex))
     isFatalError.value = false
   } catch (err) {
     console.error('Fatal loadMembers error:', err)
@@ -830,37 +857,14 @@ function retryLoadMembers() {
   loadMembers()
 }
 
-// 명시적 상태 저장 함수 (수정/승인/반려 시에만 호출됨)
-let _isSavingInternal = false
-function saveState() {
-  _isSavingInternal = true
-  try {
-    localStorage.setItem(MEMBERS_STORAGE_KEY, JSON.stringify(membersList.value))
-    localStorage.setItem('euchs_members_list', JSON.stringify(membersList.value))
-  } catch (e) {
-    console.warn('saveState storage error:', e)
-  } finally {
-    setTimeout(() => {
-      _isSavingInternal = false
-    }, 100)
-  }
-}
-
-// 외부 윈도우/탭 변경 시에만 반응하는 핸들러 (자체 루프 방지)
-function handleExternalStorageUpdate(event) {
-  if (_isSavingInternal) return
-  if (event && event.key && event.key !== MEMBERS_STORAGE_KEY && event.key !== 'euchs_members_list') return
-  loadMembers()
-}
-
+// ※ 예전에는 수정 결과를 localStorage(euchs_admin_members)에 저장하고 storage 이벤트로
+//   다시 읽었다. 그 캐시가 세션 만료 시 옛 목록으로 대신 표시돼 제거했다 — 기준은 DB뿐이다.
 onMounted(() => {
   loadMembers()
-  window.addEventListener('storage', handleExternalStorageUpdate)
 })
 
 onUnmounted(() => {
   if (toastTimer) clearTimeout(toastTimer)
-  window.removeEventListener('storage', handleExternalStorageUpdate)
 })
 </script>
 

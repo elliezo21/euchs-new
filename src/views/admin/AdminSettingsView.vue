@@ -707,7 +707,7 @@
           <div>
             <span class="text-sm text-slate-500 font-bold block">마스터 관리자 (Admin)</span>
             <div class="text-2xl font-black text-purple-700 mt-1 font-mono">
-              {{ countByRole('admin') + countByRole('super_admin') }}<span class="text-base font-normal text-slate-500 ml-1">명</span>
+              {{ masterCount }}<span class="text-base font-normal text-slate-500 ml-1">명</span>
             </div>
           </div>
           <div class="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center font-bold text-lg">
@@ -720,7 +720,7 @@
           <div>
             <span class="text-sm text-slate-500 font-bold block">운영 스태프 (Staff)</span>
             <div class="text-2xl font-black text-emerald-700 mt-1 font-mono">
-              {{ countByRole('staff') }}<span class="text-base font-normal text-slate-500 ml-1">명</span>
+              {{ staffOnlyCount }}<span class="text-base font-normal text-slate-500 ml-1">명</span>
             </div>
           </div>
           <button
@@ -756,7 +756,7 @@
             <input
               type="text"
               v-model="staffSearchQuery"
-              placeholder="이름 / 이메일 / 부서 검색"
+              placeholder="이름 / 이메일 검색"
               class="px-3.5 py-1.5 bg-white border border-slate-300 rounded-xl text-sm text-slate-900 outline-none focus:ring-2 focus:ring-blue-500 w-44 sm:w-56"
             />
           </div>
@@ -767,10 +767,9 @@
           <table class="w-full text-left border-collapse text-sm">
             <thead>
               <tr class="bg-slate-100/70 border-b border-slate-200 text-slate-600 font-bold">
-                <th class="py-3 px-4">직원명 / 상태</th>
+                <th class="py-3 px-4">직원명 / 가입 상태</th>
                 <th class="py-3 px-4">이메일(아이디)</th>
                 <th class="py-3 px-4">현재 권한</th>
-                <th class="py-3 px-4">소속 부서 / 직급</th>
                 <th class="py-3 px-4">등록/수정일시</th>
                 <th class="py-3 px-4 text-center">권한 관리 액션</th>
               </tr>
@@ -778,20 +777,22 @@
             <tbody class="divide-y divide-slate-200/80">
               <tr
                 v-for="member in filteredStaffList"
-                :key="member.id || member.email"
+                :key="member.email"
                 class="hover:bg-slate-50/70 transition"
               >
-                <!-- 1. 직원명 / 상태 -->
+                <!-- 1. 직원명 / 가입 상태 -->
                 <td class="py-3.5 px-4">
                   <div class="flex items-center gap-2.5">
                     <div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center font-bold text-slate-700 text-sm">
-                      {{ (member.name || member.full_name || member.email || '직')[0] }}
+                      {{ (member.name || member.email || '직')[0] }}
                     </div>
                     <div>
                       <div class="font-bold text-slate-900">
-                        {{ member.name || member.full_name || '이름 미설정' }}
+                        {{ member.name || '이름 미설정' }}
                       </div>
-                      <span class="text-xs text-emerald-600 font-bold">● 정상 활성</span>
+                      <!-- profiles 행이 없으면 권한만 등록되고 아직 가입하지 않은 계정 -->
+                      <span v-if="member.hasProfile" class="text-xs text-emerald-600 font-bold">● 가입 완료</span>
+                      <span v-else class="text-xs text-amber-600 font-bold">○ 미가입 (권한만 등록)</span>
                     </div>
                   </div>
                 </td>
@@ -812,22 +813,12 @@
                   </span>
                 </td>
 
-                <!-- 4. 소속 부서 / 직급 -->
-                <td class="py-3.5 px-4">
-                  <div class="font-bold text-slate-800">
-                    {{ member.department || '소싱운영팀' }}
-                  </div>
-                  <div class="text-xs text-slate-500">
-                    {{ member.position || '담당 매니저' }}
-                  </div>
-                </td>
-
-                <!-- 5. 등록일시 -->
+                <!-- 4. 등록/수정일시 (DB 값이 없으면 지어내지 않고 '-') -->
                 <td class="py-3.5 px-4 text-slate-500 font-mono text-xs">
-                  {{ member.updated_at ? new Date(member.updated_at).toLocaleDateString('ko-KR') : '2026.08.01' }}
+                  {{ member.updatedAt ? new Date(member.updatedAt).toLocaleDateString('ko-KR') : '-' }}
                 </td>
 
-                <!-- 6. 액션 버튼 -->
+                <!-- 5. 액션 버튼 -->
                 <td class="py-3.5 px-4 text-center">
                   <div class="flex items-center justify-center gap-2">
                     <button
@@ -849,9 +840,15 @@
                 </td>
               </tr>
 
+              <!-- 조회 실패 -->
+              <tr v-if="staffLoadError">
+                <td colspan="5" class="py-10 text-center text-rose-600 font-bold">
+                  ⚠️ 운영진 목록을 불러오지 못했습니다 — {{ staffLoadError }}
+                </td>
+              </tr>
               <!-- 빈 목록 -->
-              <tr v-if="filteredStaffList.length === 0">
-                <td colspan="6" class="py-10 text-center text-slate-400">
+              <tr v-else-if="filteredStaffList.length === 0">
+                <td colspan="5" class="py-10 text-center text-slate-400">
                   검색 조건에 일치하는 운영진/직원 계정이 없습니다.
                 </td>
               </tr>
@@ -874,7 +871,7 @@
         <div class="flex items-center justify-between border-b border-slate-100 pb-3">
           <h3 class="font-black text-slate-900 text-base flex items-center gap-2">
             <span>👥</span>
-            <span>{{ staffModalMode === 'add' ? '신규 운영진 권한 부여' : '직원 권한 및 부서 수정' }}</span>
+            <span>{{ staffModalMode === 'add' ? '신규 운영진 권한 부여' : '직원 권한 수정' }}</span>
           </h3>
           <button
             type="button"
@@ -906,7 +903,7 @@
               type="text"
               v-model="staffForm.name"
               required
-              placeholder="예: 김소싱, 이물류"
+              placeholder="예: 홍길동"
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
             />
           </div>
@@ -918,32 +915,11 @@
               v-model="staffForm.role"
               class="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 font-bold focus:ring-2 focus:ring-blue-500 outline-none"
             >
+              <!-- DB CHECK 제약(user_roles·profiles 모두 super_admin/staff/user)이 허용하는 값만 둔다.
+                   'admin'은 저장이 거부되고, 일반회원 전환은 목록의 "권한 회수"로 한다. -->
               <option value="staff">운영스태프 (Staff: 주문/창고/CS 관리)</option>
-              <option value="admin">마스터관리자 (Admin: 전체 설정 및 권한 제어)</option>
-              <option value="user">일반회원 (User: 관리자 콘솔 차단)</option>
+              <option value="super_admin">마스터관리자 (Super Admin: 전체 설정 및 권한 제어)</option>
             </select>
-          </div>
-
-          <!-- 4. 소속 부서 & 직급 -->
-          <div class="grid grid-cols-2 gap-2.5">
-            <div class="space-y-1">
-              <label class="font-bold text-slate-700">소속 부서</label>
-              <input
-                type="text"
-                v-model="staffForm.department"
-                placeholder="예: 소싱운영팀"
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
-            <div class="space-y-1">
-              <label class="font-bold text-slate-700">직급</label>
-              <input
-                type="text"
-                v-model="staffForm.position"
-                placeholder="예: 팀장 / 매니저"
-                class="w-full px-3.5 py-2 rounded-xl border border-slate-300 text-slate-900 focus:ring-2 focus:ring-blue-500 outline-none"
-              />
-            </div>
           </div>
 
           <!-- 버튼 -->
@@ -970,9 +946,10 @@
     <Transition name="toast">
       <div
         v-if="toast.show"
-        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5 bg-emerald-600 text-white"
+        class="fixed bottom-6 right-6 z-[100] px-5 py-3 rounded-2xl font-bold text-base shadow-xl flex items-center gap-2.5 text-white"
+        :class="toast.type === 'error' ? 'bg-rose-600' : 'bg-emerald-600'"
       >
-        <span>✅</span>
+        <span>{{ toast.type === 'error' ? '⚠️' : '✅' }}</span>
         <span>{{ toast.message }}</span>
       </div>
     </Transition>
@@ -1033,7 +1010,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
+import { supabase, isSupabaseConfigured } from '@/lib/supabase'
+import { ADMIN_ROLES, isAdminRole, fetchAdminRoleRows, buildAdminIndex, isAdminAccount } from '@/lib/adminAccounts'
 import {
   currentSettings,
   fetchSiteSettings,
@@ -1061,72 +1039,22 @@ const confirmResetRate = ref(false)
 
 const RATE_STORAGE_KEY = 'euchs_system_settings'
 const SERVICE_MEDIA_STORAGE_KEY = 'euchs_service_media'
-const STAFF_STORAGE_KEY = 'euchs_staff_members'
-
 // ----------------------------------------------------
 // [TAB 3] 운영진 / 직원 권한 관리 상태
 // ----------------------------------------------------
-const DEFAULT_STAFF_MEMBERS = [
-  {
-    id: 'staff_master_1',
-    email: 'elliezo21@gmail.com',
-    name: '총괄 대표',
-    role: 'super_admin',
-    department: '경영총괄',
-    position: '대표 (총괄 운영 매니저)',
-    updated_at: '2026-08-01T00:00:00.000Z'
-  },
-  {
-    id: 'staff_master_2',
-    email: 'elliezo21@gmail.com',
-    name: '총괄 대표',
-    role: 'super_admin',
-    department: '경영총괄',
-    position: '대표 (총괄 운영 매니저)',
-    updated_at: '2026-08-01T00:00:00.000Z'
-  },
-  {
-    id: 'staff_master_3',
-    email: 'admin@euccompany.com',
-    name: '총괄 관리자',
-    role: 'super_admin',
-    department: '경영총괄',
-    position: '대표 (총괄 운영 매니저)',
-    updated_at: '2026-08-01T00:00:00.000Z'
-  },
-  {
-    id: 'staff_sourcing_1',
-    email: 'sourcing@euccompany.com',
-    name: '김소싱',
-    role: 'staff',
-    department: '소싱운영팀',
-    position: '팀장',
-    updated_at: '2026-08-10T09:00:00.000Z'
-  },
-  {
-    id: 'staff_logistics_1',
-    email: 'logistics@euccompany.com',
-    name: '이물류',
-    role: 'staff',
-    department: '무역물류팀',
-    position: '선임 매니저',
-    updated_at: '2026-08-12T14:30:00.000Z'
-  }
-]
-
+// 목록은 DB(user_roles + profiles)만으로 만든다 — 하드코딩 직원 목록·localStorage 병합 없음.
+// 관리자 판정은 lib/adminAccounts(= DB is_admin_or_staff()와 같은 규칙)를 쓴다.
 const staffList = ref([])
+const staffLoadError = ref('')
 const staffSearchQuery = ref('')
 const staffRoleFilter = ref('all')
 
 const isStaffModalOpen = ref(false)
 const staffModalMode = ref('add') // 'add' | 'edit'
 const staffForm = ref({
-  id: '',
   email: '',
   name: '',
   role: 'staff',
-  department: '소싱운영팀',
-  position: '매니저'
 })
 
 const filteredStaffList = computed(() => {
@@ -1142,20 +1070,22 @@ const filteredStaffList = computed(() => {
     // 2. 검색어 필터
     const q = staffSearchQuery.value.toLowerCase().trim()
     if (!q) return true
-    const name = (m.name || m.full_name || '').toLowerCase()
+    const name = (m.name || '').toLowerCase()
     const email = (m.email || '').toLowerCase()
-    const dept = (m.department || '').toLowerCase()
-    const pos = (m.position || '').toLowerCase()
-    return name.includes(q) || email.includes(q) || dept.includes(q) || pos.includes(q)
+    return name.includes(q) || email.includes(q)
   })
 })
 
-function countByRole(roleName) {
-  return staffList.value.filter(m => {
-    if (roleName === 'admin') return m.role === 'admin' || m.role === 'super_admin'
-    return m.role === roleName
-  }).length
-}
+// 상단 KPI — 목록과 같은 staffList(이메일 기준 1인 1행)에서 센다.
+// 마스터 = super_admin·admin, 스태프 = staff 로 겹치지 않게 나눈다.
+// (예전 식 countByRole('admin') + countByRole('super_admin')은 'admin' 쪽이 이미
+//  super_admin을 포함해 마스터를 두 번 셌다 — 2명이 4명으로 표시)
+const masterCount = computed(() =>
+  staffList.value.filter(m => m.role === 'super_admin' || m.role === 'admin').length
+)
+const staffOnlyCount = computed(() =>
+  staffList.value.filter(m => m.role === 'staff').length
+)
 
 function getRoleLabel(role) {
   if (role === 'admin' || role === 'super_admin') return '마스터관리자'
@@ -1181,29 +1111,17 @@ function getRoleBadgeClass(role) {
 
 function openAddStaffModal() {
   staffModalMode.value = 'add'
-  staffForm.value = {
-    id: '',
-    email: '',
-    name: '',
-    role: 'staff',
-    department: '소싱운영팀',
-    position: '매니저'
-  }
+  staffForm.value = { email: '', name: '', role: 'staff' }
   isStaffModalOpen.value = true
 }
 
 function openEditStaffModal(member) {
   staffModalMode.value = 'edit'
   staffForm.value = {
-    id: member.id || '',
     email: member.email || '',
-    name: member.name || member.full_name || '',
-    // ⚠️ role은 member.role 그대로 — falsy이면 빈 문자열 유지.
-    // submitStaffForm에서 role이 falsy이면 payload에서 제외해 DB 기존값 보존.
-    // || 'staff' fallback을 쓰면 실제 'admin'/'super_admin'이 'staff'로 덮어써질 수 있음.
-    role: member.role || '',
-    department: member.department || '소싱운영팀',
-    position: member.position || '매니저'
+    name: member.name || '',
+    // 목록은 DB에서 온 값만 담으므로 role이 비어 있을 수 없다(관리자 역할만 목록에 들어옴)
+    role: member.role,
   }
   isStaffModalOpen.value = true
 }
@@ -1213,155 +1131,107 @@ function closeStaffModal() {
 }
 
 async function loadStaffMembers() {
-  let loaded = []
-
-  // 1. Supabase profiles 테이블에서 관리자/직원 조회
+  staffLoadError.value = ''
+  if (!isSupabaseConfigured()) {
+    staffLoadError.value = 'Supabase 연결 설정이 없어 운영진 목록을 불러올 수 없습니다.'
+    staffList.value = []
+    return
+  }
   try {
-    if (isSupabaseConfigured()) {
+    // 세션이 없으면 RLS 때문에 "에러 없이 0건"이 되어 운영진이 없는 것처럼 보인다 — 먼저 막는다
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) {
+      throw new Error('로그인이 만료됐습니다 — 다시 로그인해 주세요.')
+    }
+
+    // 1. user_roles의 관리자 역할 행 (권한 부여·회수의 기준 테이블)
+    const roleRows = await fetchAdminRoleRows()
+    const index = buildAdminIndex(roleRows)
+
+    // 2. profiles — 관리자 역할이 profiles에만 있는 계정 + user_roles 계정의 가입 여부 확인용
+    const { data: roleProfiles, error: roleProfErr } = await supabase
+      .from('profiles')
+      .select('id, email, name, role, updated_at, created_at')
+      .in('role', ADMIN_ROLES)
+    if (roleProfErr) throw new Error(`profiles(관리자 역할) 조회 실패: ${roleProfErr.message}`)
+
+    const roleEmails = [...index.emails]
+    let linkedProfiles = []
+    if (roleEmails.length > 0) {
       const { data, error } = await supabase
         .from('profiles')
-        .select('*')
-        .in('role', ['admin', 'super_admin', 'staff'])
-      
-      if (!error && Array.isArray(data) && data.length > 0) {
-        loaded = data.map(p => {
-          const mail = String(p.email || '').toLowerCase().trim()
-          const isMaster = mail === 'elliezo21@gmail.com' || mail === 'admin@euccompany.com'
-          return {
-            id: p.id,
-            email: p.email,
-            name: p.full_name || p.name || p.company_name || (isMaster ? '총괄 대표' : p.email?.split('@')[0]),
-            role: isMaster ? 'super_admin' : p.role,
-            department: isMaster ? '경영총괄' : (p.department || '소싱운영팀'),
-            position: isMaster ? '대표 (총괄 운영 매니저)' : (p.position || (p.role === 'admin' ? '대표/관리자' : '매니저')),
-            updated_at: p.updated_at || p.created_at || new Date().toISOString()
-          }
-        })
-      }
+        .select('id, email, name, role, updated_at, created_at')
+        .in('email', roleEmails)
+      if (error) throw new Error(`profiles(user_roles 계정) 조회 실패: ${error.message}`)
+      linkedProfiles = data || []
     }
-  } catch (e) {
-    console.warn('Failed to load staff from Supabase profiles:', e)
-  }
 
-  // 2. 로컬 스토리지 보존 및 기본 직원 병합
-  try {
-    const raw = localStorage.getItem(STAFF_STORAGE_KEY)
-    const localList = raw ? JSON.parse(raw) : DEFAULT_STAFF_MEMBERS
-    const map = new Map()
-    
-    // 기본 직원 먼저 세팅
-    DEFAULT_STAFF_MEMBERS.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
-    
-    // 로컬 스토리지 데이터 병합
-    if (Array.isArray(localList)) {
-      localList.forEach(m => {
-        const email = String(m?.email || '').toLowerCase().trim()
-        if (email) {
-          map.set(email, m)
-        }
-      })
+    const profileByEmail = new Map()
+    for (const p of [...(roleProfiles || []), ...linkedProfiles]) {
+      const mail = String(p.email || '').toLowerCase().trim()
+      if (mail && isAdminAccount(p, index)) profileByEmail.set(mail, p)
     }
-    
-    // DB 데이터 병합
-    loaded.forEach(m => { if (m.email) map.set(m.email.toLowerCase(), m) })
+    const roleByEmail = new Map(roleRows.map(r => [String(r.email || '').toLowerCase().trim(), r]))
 
-    // 대표 관리자 계정 정보 무결성 보장
-    const masterEmails = ['elliezo21@gmail.com']
-    masterEmails.forEach(mail => {
-      if (map.has(mail)) {
-        const item = map.get(mail)
-        item.role = 'super_admin'
-        item.department = '경영총괄'
-        item.position = '대표 (총괄 운영 매니저)'
-        item.name = item.name || '총괄 대표'
-      } else {
-        map.set(mail, {
-          id: `staff_${mail.replace(/[^a-z0-9]/g, '_')}`,
-          email: mail,
-          name: '총괄 대표',
-          role: 'super_admin',
-          department: '경영총괄',
-          position: '대표 (총괄 운영 매니저)',
-          updated_at: new Date().toISOString()
-        })
+    const emails = new Set([...roleByEmail.keys(), ...profileByEmail.keys()].filter(Boolean))
+    staffList.value = [...emails].map(mail => {
+      const r = roleByEmail.get(mail) || null
+      const p = profileByEmail.get(mail) || null
+      return {
+        email: mail,
+        name: r?.name || p?.name || '',
+        // user_roles가 권한 관리의 기준이라 우선한다. profiles에만 있는 관리자는 그 값을 쓴다.
+        role: r?.role || p?.role,
+        hasProfile: Boolean(p),
+        inUserRoles: Boolean(r),
+        updatedAt: r?.updated_at || p?.updated_at || null,
       }
-    })
-
-    staffList.value = Array.from(map.values())
+    }).sort((a, b) => a.email.localeCompare(b.email))
   } catch (e) {
-    staffList.value = DEFAULT_STAFF_MEMBERS
+    console.error('[AdminSettings] 운영진 목록 조회 실패:', e)
+    staffLoadError.value = e.message
+    staffList.value = []
   }
 }
 
 async function submitStaffForm() {
   const mail = staffForm.value.email.toLowerCase().trim()
+  const role = staffForm.value.role
+  const name = staffForm.value.name.trim()
   if (!mail) return
+  if (!isAdminRole(role)) {
+    console.error('[AdminSettings] 허용되지 않은 운영진 역할:', role)
+    showToast(`저장 실패: 허용되지 않은 역할입니다 (${role})`, 'error')
+    return
+  }
+  const nowIso = new Date().toISOString()
 
-  const memberData = {
-    id: staffForm.value.id || `staff_${Date.now()}`,
-    email: mail,
-    name: staffForm.value.name.trim(),
-    role: staffForm.value.role,
-    department: staffForm.value.department.trim() || '소싱운영팀',
-    position: staffForm.value.position.trim() || '매니저',
-    updated_at: new Date().toISOString()
+  // 1. user_roles — 권한의 기준. email이 UNIQUE라 onConflict로 기존 행을 갱신한다.
+  const { error: roleErr } = await supabase
+    .from('user_roles')
+    .upsert({ email: mail, role, name, updated_at: nowIso }, { onConflict: 'email' })
+  if (roleErr) {
+    console.error('[AdminSettings] user_roles 저장 실패:', roleErr)
+    showToast(`권한 저장 실패: ${roleErr.message}`, 'error')
+    return
   }
 
-  // 1. Supabase profiles & user_roles 테이블 실시간 업데이트
-  try {
-    if (isSupabaseConfigured()) {
-      // profiles 테이블 업데이트
-      // ⚠️ role은 staffForm.value.role이 명시적으로 존재하는 경우에만 포함.
-      //   staffForm이 localStorage 캐시 기반 member.role로 채워지는데,
-      //   캐시가 없거나 member.role이 없으면 || 'staff' fallback이 적용되어
-      //   실제 'admin'/'super_admin'을 덮어쓸 수 있음.
-      //   role이 없으면 payload에서 제외 — DB 기존 role 보존.
-      const updatePayload = {
-        department: memberData.department,
-        position: memberData.position,
-        full_name: memberData.name,
-        updated_at: memberData.updated_at
-      }
-      // role은 값이 있을 때만 명시적으로 포함 — falsy이면 제외해 DB 기존값 보존
-      if (staffForm.value.role) {
-        updatePayload.role = staffForm.value.role
-      }
-
-      if (staffForm.value.id && isValidUUID(staffForm.value.id)) {
-        await supabase.from('profiles').update(updatePayload).eq('id', staffForm.value.id)
-      } else if (mail) {
-        await supabase.from('profiles').update(updatePayload).eq('email', mail)
-      }
-
-      // user_roles 테이블 upsert (role이 있을 때만)
-      if (staffForm.value.role) {
-        try {
-          await supabase.from('user_roles').upsert({
-            email: mail,
-            role: staffForm.value.role,
-            updated_at: memberData.updated_at
-          })
-        } catch (err) {}
-      }
-    }
-  } catch (e) {
-    console.warn('Failed to update staff in Supabase:', e)
+  // 2. profiles.role 동기화 — 가입한 계정만 해당(미가입이면 0행 갱신, 오류 아님).
+  //    정산 화면 등 profiles.role을 보는 곳과 판정이 어긋나지 않게 맞춘다.
+  const { error: profErr } = await supabase
+    .from('profiles')
+    .update({ role, updated_at: nowIso })
+    .eq('email', mail)
+  if (profErr) {
+    console.error('[AdminSettings] profiles.role 동기화 실패:', profErr)
+    showToast(`권한은 저장됐지만 회원 프로필 역할 동기화 실패: ${profErr.message}`, 'error')
+    await loadStaffMembers()
+    return
   }
-
-  // 2. 로컬 staffList 및 localStorage 동기화
-  const existIdx = staffList.value.findIndex(m => m.email.toLowerCase() === mail)
-  if (existIdx >= 0) {
-    staffList.value[existIdx] = { ...staffList.value[existIdx], ...memberData }
-  } else {
-    staffList.value.unshift(memberData)
-  }
-
-  localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffList.value))
-  window.dispatchEvent(new CustomEvent('euchs-staff-update', { detail: memberData }))
-  window.dispatchEvent(new Event('storage'))
 
   closeStaffModal()
   showToast('운영진 권한이 성공적으로 부여/수정되었습니다.')
+  await loadStaffMembers()
 }
 
 async function revokeStaffRole(member) {
@@ -1372,29 +1242,31 @@ async function revokeStaffRole(member) {
 async function executeRevokeStaffRole() {
   const member = pendingRevokeStaffMember.value
   if (!member) return
-  const memberName = member.name || member.email
-
   const mail = (member.email || '').toLowerCase().trim()
+  if (!mail) return
+  const nowIso = new Date().toISOString()
 
-  // 1. Supabase profiles 업데이트
-  try {
-    if (isSupabaseConfigured() && mail) {
-      await supabase.from('profiles').update({ role: 'user', updated_at: new Date().toISOString() }).eq('email', mail)
-      try {
-        await supabase.from('user_roles').delete().eq('email', mail)
-      } catch (err) {}
-    }
-  } catch (e) {
-    console.warn('Failed to revoke staff in Supabase:', e)
+  // is_admin_or_staff()는 user_roles 또는 profiles.role 중 하나만 관리자여도 참이다.
+  // 둘 다 내려야 실제로 권한이 회수된다.
+  const { error: roleErr } = await supabase.from('user_roles').delete().eq('email', mail)
+  if (roleErr) {
+    console.error('[AdminSettings] user_roles 삭제 실패:', roleErr)
+    showToast(`권한 회수 실패: ${roleErr.message}`, 'error')
+    return
+  }
+  const { error: profErr } = await supabase
+    .from('profiles')
+    .update({ role: 'user', updated_at: nowIso })
+    .eq('email', mail)
+  if (profErr) {
+    console.error('[AdminSettings] profiles.role 회수 실패:', profErr)
+    showToast(`user_roles는 삭제됐지만 회원 프로필 역할 회수 실패 — 아직 관리자 권한이 남아 있습니다: ${profErr.message}`, 'error')
+    await loadStaffMembers()
+    return
   }
 
-  // 2. 로컬 리스트에서 제거 또는 role: 'user' 처리
-  staffList.value = staffList.value.filter(m => (m.email || '').toLowerCase() !== mail)
-  localStorage.setItem(STAFF_STORAGE_KEY, JSON.stringify(staffList.value))
-  window.dispatchEvent(new CustomEvent('euchs-staff-update', { detail: { email: mail, role: 'user' } }))
-  window.dispatchEvent(new Event('storage'))
-
   showToast('운영진 권한이 회수되어 일반 회원으로 전환되었습니다.')
+  await loadStaffMembers()
 }
 
 // ----------------------------------------------------
@@ -1476,19 +1348,20 @@ const heroForm = ref({
 const heroFileInput = ref(null)
 const mediaLastSavedTime = ref('기본 설정')
 
-const toast = ref({ show: false, message: '' })
+const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimer = null
 
 function fmtN(val) {
   return Math.round(Number(val) || 0).toLocaleString('ko-KR')
 }
 
-function showToast(msg) {
+function showToast(msg, type = 'success') {
   clearTimeout(toastTimer)
-  toast.value = { show: true, message: msg }
+  toast.value = { show: true, message: msg, type }
+  // 실패 문구는 원인을 읽을 시간이 필요해 더 오래 띄운다
   toastTimer = setTimeout(() => {
     toast.value.show = false
-  }, 3000)
+  }, type === 'error' ? 6000 : 3000)
 }
 
 // 유튜브 URL을 embed iframe용 URL로 자동 변환
