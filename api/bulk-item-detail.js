@@ -55,9 +55,10 @@ function getServiceRoleConfig() {
 /**
  * 로그인 사용자 검증 — api/home-section-cache.js verifyAdminToken의 앞부분과 같은 방식.
  * 관리자 여부는 보지 않는다(일반 고객이 쓰는 기능).
+ * ※ export: api/verify-business.js가 같은 로그인 검증을 그대로 쓴다.
  * @returns {{ ok: boolean, userId: string|null, error: string|null }}
  */
-async function verifyUserToken(token, url, serviceRoleKey) {
+export async function verifyUserToken(token, url, serviceRoleKey) {
   if (!token) return { ok: false, userId: null, error: '인증 토큰 없음' }
   try {
     const userRes = await fetch(`${url}/auth/v1/user`, {

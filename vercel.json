@@ -14,6 +14,9 @@
     },
     "api/1688-order-create.js": {
       "maxDuration": 60
+    },
+    "api/verify-business.js": {
+      "maxDuration": 30
     }
   }
 }
