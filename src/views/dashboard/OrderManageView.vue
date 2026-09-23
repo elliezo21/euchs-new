@@ -894,7 +894,8 @@ import {
 import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
-import { userBalance, applyBalanceTransaction } from '@/lib/balanceStore';
+import { userBalance } from '@/lib/balanceStore';
+import { processFirstPayment, processSecondPayment, PAYMENT_ERROR } from '@/lib/paymentService';
 import { currentUser } from '@/lib/auth';
 import { calcOrderCost, krwFromCny, resolveExchangeRate, resolveItemQty } from '@/utils/orderCostCalculator';
 import { resolveProductGroupIdentity } from '@/utils/orderItemGrouping';
@@ -1927,10 +1928,37 @@ function executeAdvanceOrderStage() {
 
 const isInternalOrderUpdate = ref(false);
 
+/**
+ * 1차 결제 금액 — 관리자가 견적 확정 때 저장한 orders.total_price_krw(= 서버 RPC 청구액).
+ * 화면에 보이는 총액(getOrderCostSummary)과 다르면 결제하지 않는다: 고객이 본 금액과
+ * 실제 청구 금액이 달라지는 것을 막기 위함(CLAUDE.md 3-9 — 임의 치환 대신 "확인 필요").
+ * @returns {number|null} 결제할 금액, 확인이 필요하면 null
+ */
+function resolveFirstPaymentAmount(order) {
+  const confirmed = Number(order?.totalPriceKrw);
+  const shown = Number(getOrderCostSummary(order).chargeableKrw);
+  if (!Number.isFinite(confirmed) || confirmed <= 0) {
+    console.error('[OrderManageView] 확정 결제 금액(total_price_krw)이 없습니다 — 결제 차단.', {
+      orderNumber: order?.orderNumber, totalPriceKrw: order?.totalPriceKrw,
+    });
+    return null;
+  }
+  if (Math.round(confirmed) !== Math.round(shown)) {
+    console.error('[OrderManageView] 확정 결제 금액과 화면 금액이 다릅니다 — 결제 차단.', {
+      orderNumber: order?.orderNumber, confirmed, shown,
+    });
+    return null;
+  }
+  return confirmed;
+}
+
 function openInstantPaymentConfirm(order) {
   if (!order) return;
-  const cost = getOrderCostSummary(order);
-  const totalCost = Number(cost.chargeableKrw) || 0;
+  const totalCost = resolveFirstPaymentAmount(order);
+  if (totalCost === null) {
+    alert('결제 금액 확인 필요 — 견적 금액이 확정되지 않았거나 화면 금액과 다릅니다.\n관리자 확인이 필요하니 고객센터로 문의해 주세요.');
+    return;
+  }
   const totalWon = formatNumber(totalCost);
   const currentBal = Number(userBalance.value || 0);
   if (currentBal < totalCost) {
@@ -1945,128 +1973,42 @@ function openInstantPaymentConfirm(order) {
 async function executeInstantPayment() {
   const order = pendingInstantPaymentOrder.value;
   if (!order) return;
-  const cost = getOrderCostSummary(order);
-  const totalCost = Number(cost.chargeableKrw) || 0;
-  const totalWon = formatNumber(totalCost);
-  const orderId = order.id || order.orderNumber || order.order_no || order.orderId;
-  const orderNo = order.orderNumber || order.order_no || order.id || 'EUC-ORD';
-  const nowIso = new Date().toISOString();
+  const orderNo = order.orderNumber || order.order_no || '';
+  // 확인창을 연 뒤 주문이 바뀌었을 수 있으므로 결제 직전에 한 번 더 판정한다
+  const totalCost = resolveFirstPaymentAmount(order);
+  if (totalCost === null) {
+    alert('결제 금액 확인 필요 — 견적 금액이 확정되지 않았거나 화면 금액과 다릅니다.\n관리자 확인이 필요하니 고객센터로 문의해 주세요.');
+    return;
+  }
   isPaying.value = true;
   isInternalOrderUpdate.value = true;
 
-  const target = orders.value.find(o =>
-    o.id === order.id ||
-    o.orderNumber === order.orderNumber ||
-    o.orderNumber === orderNo ||
-    o.id === orderId ||
-    o.order_no === orderNo
-  );
-  const prevStatus = target ? target.status : order.status;
-  const prevStep = target ? target.step : order.step;
-
   try {
-    // 2. 예치금 차감 트랜잭션 적용 (로컬 + Supabase profiles.balance 차감 + transactions 테이블 기록)
-    await applyBalanceTransaction(-totalCost, {
-      type: 'order_payment',
-      title: `1688 1차 상품대금 결제 (${orderNo})`,
-      description: `1차 DDP 상품대금 결제 승인 (주문번호: ${orderNo})`,
-      orderId: order.id || orderId,
-      orderNumber: orderNo,
-      buyerEmail: currentUser.value?.email || order.buyerInfo?.email || ''
-    });
-
-    // 3. 상태를 'payment_verified' (3. 결제확인)으로 변경 — 관리자가 결제 확인 후 1688 구매 시작
-    const nextStatus = 'payment_verified';
-    order.status = nextStatus;
-    order.step = 3;
-    order.paid_at = nowIso;
-    order.paidAt = nowIso;
-    order.firstPayment = {
-      ...(order.firstPayment || {}),
-      paid: true,
-      paidAt: nowIso,
-      amount: totalCost,
-      paymentMethod: 'deposit'
-    };
-
-    // 4. orders.value 반응형 배열 내 타깃 주문 갱신
-    if (target) {
-      target.status = nextStatus;
-      target.step = 3;
-      target.paid_at = nowIso;
-      target.paidAt = nowIso;
-      target.firstPayment = {
-        ...(target.firstPayment || {}),
-        paid: true,
-        paidAt: nowIso,
-        amount: totalCost,
-        paymentMethod: 'deposit'
-      };
-    }
-
-    // 5. 로컬스토리지 모든 키(orders, euchs_erp_submitted_orders, euchs_orders 등) 덮어쓰기 저장
-    try {
-      ['orders', 'euchs_erp_submitted_orders', 'euchs_orders', 'euchs_active_orders'].forEach(key => {
-        const raw = localStorage.getItem(key);
-        if (raw) {
-          try {
-            const parsed = JSON.parse(raw);
-            if (Array.isArray(parsed)) {
-              parsed.forEach(item => {
-                if (item.id === order.id || item.orderNumber === orderNo || item.order_no === orderNo || item.id === orderId) {
-                  item.status = nextStatus;
-                  item.step = 3;
-                  item.paid_at = nowIso;
-                  item.paidAt = nowIso;
-                }
-              });
-              localStorage.setItem(key, JSON.stringify(parsed));
-            }
-          } catch (e) {}
-        }
-      });
-    } catch (e) {}
-    saveStoredOrders(orders.value);
-
-    // 6. Supabase DB 비동기 상태 갱신 (orders & applications)
-    if (isSupabaseConfigured()) {
-      try {
-        await updateOrderStatus(orderId, nextStatus, {
-          step: 3,
-          paid_at: nowIso,
-          paid_amount: totalCost,
-          firstPayment: {
-            paid: true,
-            paidAt: nowIso,
-            amount: totalCost,
-            paymentMethod: 'deposit'
-          }
-        });
-      } catch (dbErr) {
-        console.warn('[Payment] Supabase order status sync notice:', dbErr);
+    // 잔액 차감·거래 기록·주문 상태(payment_verified) 전환을 서버 RPC 한 번으로 처리한다.
+    // 화면은 서버 결과를 받은 뒤에만 바꾼다(낙관적 갱신 없음 — 돈이 움직이는 경로).
+    const result = await processFirstPayment({ orderDbId: order.dbId, amount: totalCost });
+    if (!result.success) {
+      if (result.errorCode === PAYMENT_ERROR.INSUFFICIENT_BALANCE) {
+        alert(`예치금 잔액이 부족합니다.\n\n${result.error}\n\n[계정 설정 > 예치금 지갑]에서 먼저 예치금을 충전해 주세요.`);
+      } else {
+        alert('결제 처리에 실패했습니다: ' + result.error);
       }
+      await loadOrdersData();
+      return;
     }
 
-    // 7. 전역 동기화 이벤트 통지
-    window.dispatchEvent(new CustomEvent('euchs-balance-update'));
-    window.dispatchEvent(new CustomEvent('euchs-balance-updated'));
+    await loadOrdersData();
     window.dispatchEvent(new CustomEvent('euchs-order-status-update', {
-      detail: { appId: order.id, orderId, status: nextStatus }
+      detail: { appId: order.id, orderId: order.dbId, status: result.status }
     }));
 
-    // 8. 탭을 '3. 결제확인' (payment_verified)으로 이동 — 관리자가 결제 확인 후 1688 구매 시작 진행
+    // 3. 결제확인(payment_verified) 탭으로 이동 — 관리자가 결제 확인 후 1688 구매 시작
     selectTab('payment_verified');
 
-    alert(`✅ 예치금 결제가 완료되었습니다!\n\n- 결제금액: ₩${totalWon}원\n- 차감 후 예치금 잔액: ₩${formatNumber(userBalance.value)}원\n- 발주번호: ${orderNo}\n\n[3. 결제확인] 단계로 전환되었습니다.\n관리자 확인 후 1688 구매가 진행될 예정입니다.`);
+    alert(`✅ 예치금 결제가 완료되었습니다!\n\n- 결제금액: ₩${formatNumber(result.amount)}원\n- 차감 후 예치금 잔액: ₩${formatNumber(result.newBalance)}원\n- 발주번호: ${orderNo}\n\n[3. 결제확인] 단계로 전환되었습니다.\n관리자 확인 후 1688 구매가 진행될 예정입니다.`);
     closeDetailModal();
   } catch (err) {
-    if (target) {
-      target.status = prevStatus;
-      target.step = prevStep;
-    }
-    order.status = prevStatus;
-    order.step = prevStep;
-    console.error('Payment error:', err);
+    console.error('[OrderManageView] 1차 결제 예외:', err);
     alert('결제 처리 중 오류가 발생했습니다: ' + (err.message || err));
   } finally {
     isPaying.value = false;
@@ -2197,64 +2139,48 @@ function setSampleBarcodeFile() {
 }
 
 async function handleConfirmSecondPayment() {
-  if (!selectedSecondPaymentOrder.value) return;
-
+  if (!selectedSecondPaymentOrder.value || isProcessingPayment.value) return;
   const order = selectedSecondPaymentOrder.value;
-  const prevStatus = order.status;
-  const prevBarcodeFile = order.barcodeFile;
+
+  // 결제 금액 — 관리자가 검수 때 저장한 second_payment.totalSecondPaymentKrw 만 쓴다.
+  // 0은 "관리자 입력 전 기본값"(warehouseStore)과 구분되지 않아 미확정으로 본다 — 창고 화면과 같은 기준.
+  // ★ 예전 코드는 잔액을 차감하지 않고 상태만 shipping_ready로 바꿨다 — 이제 서버 RPC가 청구한다.
+  const amount = Number(order.secondPayment?.totalSecondPaymentKrw);
+  if (!Number.isFinite(amount) || amount <= 0) {
+    console.error('[OrderManageView] 2차 결제 금액(totalSecondPaymentKrw)이 주문에 없습니다 — 결제 차단.', {
+      orderNumber: order.orderNumber, secondPayment: order.secondPayment,
+    });
+    alert('2차 결제 금액 확인 필요 — 관리자가 아직 금액을 확정하지 않았습니다.\n고객센터로 문의해 주세요.');
+    return;
+  }
 
   isProcessingPayment.value = true;
   isInternalOrderUpdate.value = true;
-
-  // 1. 낙관적 업데이트 — 로컬 배열 직접 갱신
-  order.status = 'shipping_ready';
-  order.barcodeFile = uploadedBarcodeFile.value || null;
-
-  const idx = orders.value.findIndex(o => o.id === order.id || o.orderNumber === order.orderNumber);
-  if (idx !== -1) {
-    orders.value[idx].status = 'shipping_ready';
-    orders.value[idx].barcodeFile = uploadedBarcodeFile.value || null;
-  }
-
   try {
-    // 2. Supabase DB 비동기 업데이트 (await로 결과 확인)
-    if (isSupabaseConfigured()) {
-      const orderNum = order.orderNumber || String(order.id);
-      const { error: ordErr } = await supabase
-        .from('orders')
-        .update({
-          status: 'shipping_ready',
-          updated_at: new Date().toISOString(),
-        })
-        .eq('order_number', orderNum);
-      if (ordErr) throw ordErr;
+    const result = await processSecondPayment({
+      orderDbId: order.dbId,
+      amount,
+      barcodeFile: uploadedBarcodeFile.value || null,
+    });
+    if (!result.success) {
+      if (result.errorCode === PAYMENT_ERROR.INSUFFICIENT_BALANCE) {
+        alert(`예치금 잔액이 부족합니다.\n\n${result.error}\n\n[계정 설정 > 예치금 지갑]에서 먼저 예치금을 충전해 주세요.`);
+      } else {
+        alert('2차 결제 처리에 실패했습니다: ' + result.error);
+      }
+      await loadOrdersData();
+      return;
     }
 
-    // 3. 로컬 스토리지 동기화
-    saveStoredOrders(orders.value);
-
-    // 결제 금액은 주문에 저장된 값만 표시한다.
-    // (과거 `|| 133000` 폴백은 금액 미상일 때 실제와 다른 금액을 완료 안내에 찍었음)
-    const feeRaw = Number(order.secondPayment?.totalSecondPaymentKrw);
-    const hasFee = Number.isFinite(feeRaw) && feeRaw > 0;
-    if (!hasFee) {
-      console.error('[OrderManageView] 2차 결제 금액(totalSecondPaymentKrw)이 주문에 없습니다.', {
-        orderNumber: order.orderNumber, secondPayment: order.secondPayment,
-      });
-    }
-    const feeText = hasFee ? `₩${formatNumber(feeRaw)}원` : '금액 미확정 — 관리자 확인 필요';
+    await loadOrdersData();
     const barcodeNote = uploadedBarcodeFile.value ? '바코드 부착 및 ' : '';
-    alert(`✅ 2차 결제(${feeText})가 성공적으로 완료되었습니다!\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 즉시 전달되었습니다.`);
+    const barcodeWarn = result.barcodeSaveError
+      ? `\n\n⚠️ 바코드 라벨 파일명 저장에 실패했습니다(결제는 완료). 고객센터로 알려 주세요.`
+      : '';
+    alert(`✅ 2차 결제(₩${formatNumber(result.amount)}원)가 완료되었습니다!\n- 차감 후 예치금 잔액: ₩${formatNumber(result.newBalance)}원\n주문 상태가 [6. 한국행 선적/출고대기]로 변경되었으며, 중국 이우 창고에 [${barcodeNote}정기선박 선적 지시]가 전달되었습니다.${barcodeWarn}`);
     closeSecondPaymentModal();
   } catch (e) {
-    // 4. 실패 시 롤백
-    if (idx !== -1) {
-      orders.value[idx].status = prevStatus;
-      orders.value[idx].barcodeFile = prevBarcodeFile;
-    }
-    order.status = prevStatus;
-    order.barcodeFile = prevBarcodeFile;
-    console.error('[handleConfirmSecondPayment error]:', e);
+    console.error('[OrderManageView] 2차 결제 예외:', e);
     alert('2차 결제 처리 중 오류가 발생했습니다: ' + (e.message || e));
   } finally {
     isProcessingPayment.value = false;

@@ -635,7 +635,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { userBalance, setBalance, applyBalanceTransaction } from '@/lib/balanceStore'
+import { userBalance, setBalance } from '@/lib/balanceStore'
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
 import { currentSettings, fetchSiteSettings } from '@/lib/settings'
@@ -1014,13 +1014,12 @@ async function executeApproveDeposit() {
       }
     }
 
-    // 관리자 세션이 대상 바이어 본인인 경우 로컬 balanceStore도 동기화
-    if (currentUser.value && (currentUser.value.email === targetEmail || currentUser.value.id === targetUserId)) {
-      applyBalanceTransaction(Number(req.amount), {
-        type: 'deposit',
-        title: '예치금 무통장 입금 충전 (승인)',
-        description: `입금 승인 (신청번호: ${requestDbId})`
-      })
+    // 관리자 세션이 대상 바이어 본인인 경우 화면의 잔액 상태만 맞춘다.
+    // ★ DB는 approve_deposit RPC가 이미 갱신했다. 예전에는 여기서 applyBalanceTransaction을 불러
+    //   profiles.balance를 한 번 더 쓰고 transactions를 중복 기록했다(2026-09-10 실측 중복 1건).
+    if (rpcData?.new_balance != null && currentUser.value &&
+        (currentUser.value.email === targetEmail || currentUser.value.id === targetUserId)) {
+      setBalance(Number(rpcData.new_balance))
     }
 
   // ──────────────────────────────────────────────────────

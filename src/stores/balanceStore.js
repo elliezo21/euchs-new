@@ -142,123 +142,9 @@ export async function fetchUserBalance(user) {
   return loadBalance(true);
 }
 
-/**
- * 예치금 충전/결제/차감 트랜잭션 적용 및 Supabase DB (profiles + transactions) 영구 동기화
- * @param {number} amount 변동 금액 (충전: +양수, 결제/차감: -음수)
- * @param {object} txInfo { type, title, description, orderId, orderNumber }
- */
-export async function applyBalanceTransaction(amount, txInfo = {}) {
-  const delta = Number(amount) || 0;
-  const nextBalance = Math.max(0, (userBalance.value || 0) + delta);
-  
-  // 1. 반응형 상태 및 로컬 스토리지 즉시 반영 (선 UI 갱신)
-  userBalance.value = nextBalance;
-  _saveToStorage(nextBalance);
-
-  const nowIso = new Date().toISOString();
-  const txId = `tx-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
-  const user = currentUser.value;
-  const isUUID = user?.id && isValidUUID(user.id);
-
-  // localStorage 캐시용 레코드 (로컬 전용 — id는 로컬 식별자로만 사용)
-  const transactionRecord = {
-    id: txId,
-    created_at: nowIso,
-    user_id: isUUID ? user.id : null,
-    user_email: user?.email || null,
-    order_no: txInfo.orderNumber || null,
-    type: txInfo.type || (delta >= 0 ? 'deposit' : 'order_payment'),
-    amount: delta,
-    balance_after: nextBalance,
-    // title은 DB에 없으므로 로컬 캐시에서만 유지, description에 합쳐서 보관
-    title: txInfo.title || (delta >= 0 ? '예치금 충전' : '발주 대금 결제'),
-    description: txInfo.description || ''
-  };
-
-  // 2. 로컬 트랜잭션 로그 캐시
-  try {
-    const rawLogs = localStorage.getItem('euchs_settlement_logs');
-    let logs = rawLogs ? JSON.parse(rawLogs) : [];
-    if (!Array.isArray(logs)) logs = [];
-    logs.unshift(transactionRecord);
-    localStorage.setItem('euchs_settlement_logs', JSON.stringify(logs));
-  } catch (e) {}
-
-  // 3. Supabase DB 영구 동기화 (profiles.balance + transactions.insert)
-  if (isSupabaseConfigured() && user && user.id !== 'demo-buyer-01') {
-    try {
-      const userMail = user.email ? String(user.email).trim() : '';
-
-      // 3-1. profiles 테이블 balance 업데이트
-      let updateQuery = supabase
-        .from('profiles')
-        .update({
-          balance: nextBalance,
-          updated_at: nowIso
-        });
-
-      if (isUUID) {
-        updateQuery = updateQuery.eq('id', user.id);
-      } else if (userMail) {
-        updateQuery = updateQuery.eq('email', userMail);
-      } else {
-        updateQuery = null;
-      }
-
-      if (updateQuery) {
-        const { error: profileErr } = await updateQuery;
-        if (profileErr) {
-          console.warn('[balanceStore] Supabase profiles update warning:', profileErr.message);
-        }
-      }
-
-      // 3-2. transactions 테이블 insert
-      // 실제 라이브 스키마(9컬럼): id(uuid 자동생성), user_id, user_email, type, amount,
-      //   balance_after, order_no, description, created_at
-      // 제거된 필드: id(TEXT코드생성), buyer_email, order_id, order_number, title
-      const titleText = txInfo.title || (delta >= 0 ? '예치금 충전' : '발주 대금 결제');
-      const descText = txInfo.description
-        ? `${titleText} | ${txInfo.description}`
-        : titleText;
-
-      const { error: txErr } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: isUUID ? user.id : null,
-          user_email: userMail || null,
-          order_no: txInfo.orderNumber || null,
-          type: txInfo.type || (delta >= 0 ? 'deposit' : 'order_payment'),
-          amount: delta,
-          balance_after: nextBalance,
-          description: descText,
-          created_at: nowIso
-        });
-      if (txErr) {
-        console.warn('[balanceStore] transactions INSERT 경고:', txErr.message, txErr.code);
-      }
-    } catch (err) {
-      console.warn('[balanceStore] Supabase DB 트랜잭션 저장 notice (fallback active):', err);
-    }
-  }
-
-  return nextBalance;
-}
-
-/**
- * 잔액 즉시 차감 (로컬 + DB 동기화)
- * @param {number} amount 차감할 금액 (양수)
- * @param {object} txInfo 트랜잭션 정보
- * @returns {number} 차감 후 잔액
- */
-export function deductBalance(amount, txInfo = {}) {
-  const delta = -Math.abs(Number(amount) || 0);
-  applyBalanceTransaction(delta, {
-    type: txInfo.type || 'order_payment',
-    title: txInfo.title || '1688 발주 대금 결제',
-    ...txInfo
-  });
-  return userBalance.value;
-}
+// ※ 예치금 결제·차감은 브라우저에서 하지 않는다 — lib/paymentService.js(서버 RPC)만 사용한다.
+//   예전 applyBalanceTransaction / deductBalance 는 브라우저가 잔액을 계산해 profiles.balance를
+//   덮어쓰고 transactions를 직접 INSERT했다(오래된 잔액 덮어쓰기·음수의 0원 처리·실패 무시).
 
 /**
  * 로컬 잔액 상태를 지정한 값으로 동기화합니다.
@@ -266,7 +152,7 @@ export function deductBalance(amount, txInfo = {}) {
  * ⚠️ 이 함수는 로컬 상태(ref + localStorage)만 갱신합니다.
  * DB(profiles.balance)는 건드리지 않습니다.
  * 반드시 RPC 등으로 DB 반영이 완료된 최종값을 인자로 넘겨야 합니다.
- * DB를 직접 갱신해야 하는 경우에는 applyBalanceTransaction()을 사용하세요.
+ * 잔액을 바꾸는 작업(결제·충전 승인 등)은 서버 RPC만 한다 — 브라우저에서 DB 잔액을 쓰지 않는다.
  *
  * @param {number} balance RPC 등이 확정한 최신 잔액 (DB 반영 완료 상태)
  */

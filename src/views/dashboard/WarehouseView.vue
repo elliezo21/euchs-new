@@ -1486,7 +1486,7 @@ import { supabase, isSupabaseConfigured } from '@/lib/supabase';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue';
 import { userBalance, loadBalance, formatBalance, isBalanceInsufficient } from '@/lib/balanceStore';
-import { processSecondPayment, PAYMENT_ERROR } from '@/lib/secondPaymentService';
+import { processSecondPayment, PAYMENT_ERROR } from '@/lib/paymentService';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { resolveVasLabel } from '@/utils/vasOptions';
 import { resolveProductGroupIdentity, getChinaTrackingBadge } from '@/utils/orderItemGrouping';
@@ -2167,9 +2167,10 @@ async function handleConfirmSecondPayment() {
   showInsufficientWarning.value = false;
 
   try {
+    // 서버 RPC(process_second_payment)가 잔액 차감·거래 기록·shipping_ready 전환을 한 번에 처리한다.
+    // 주문 식별은 DB UUID(dbId)로만 한다 — 로컬 id·주문번호로 추측해 찾지 않는다.
     const result = await processSecondPayment({
-      orderId: item.id || item.order?.id,
-      orderNumber: item.orderNo || item.order?.orderNumber,
+      orderDbId: item.order?.dbId,
       amount: paymentAmount,
       barcodeFile: uploadedBarcodeFile.value || null
     });
@@ -2191,11 +2192,17 @@ async function handleConfirmSecondPayment() {
     }
 
     // ✅ 결제 성공
-    showToast('2차 결제가 완료되어 선적 대기 상태로 전환되었습니다.', 'success');
+    showToast(
+      result.barcodeSaveError
+        ? '2차 결제는 완료됐지만 바코드 라벨 파일명 저장에 실패했습니다. 고객센터로 알려 주세요.'
+        : '2차 결제가 완료되어 선적 대기 상태로 전환되었습니다.',
+      result.barcodeSaveError ? 'error' : 'success',
+      result.barcodeSaveError ? 6000 : undefined
+    );
     closeSecondPaymentModal();
 
-    // 창고 목록 즉시 갱신 (이벤트 기반 - saveStoredOrders 내부에서 이미 발생)
-    reloadData();
+    // 창고 목록을 DB에서 다시 불러온다(결제 결과는 서버에만 기록됨)
+    await reloadData();
 
   } catch (err) {
     console.error('[WarehouseView] handleConfirmSecondPayment 에러:', err);

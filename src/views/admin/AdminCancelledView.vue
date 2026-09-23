@@ -165,14 +165,31 @@
                 </td>
                 <!-- 환불예정금액 — 환불대기 탭에만 표시 -->
                 <td v-if="activeTab === 'refund_pending'" class="px-4 py-3 text-right">
-                  <span class="font-mono font-bold text-amber-700 text-xs">
+                  <span v-if="depositRefundState(order) === 'ok'" class="font-mono font-bold text-amber-700 text-xs">
                     ₩{{ fmtN(getRefundAmount(order)) }}
                   </span>
+                  <span v-else class="text-slate-400 text-xs">—</span>
                 </td>
                 <!-- 환불완료 버튼 — rejected 탭엔 없음 -->
                 <td v-if="activeTab !== 'rejected'" class="px-4 py-3 text-center">
+                  <!-- 예치금으로 받은 돈이 없는 주문은 환불 버튼을 두지 않는다(외부 결제 건은 수동 처리) -->
+                  <span
+                    v-if="!order.refundCompleted && depositRefundState(order) === 'no_payment'"
+                    class="inline-flex flex-col items-center gap-0.5 text-slate-500 text-xs font-bold"
+                    title="예치금 결제 기록(order_payment)이 없는 주문 — 외부 결제 건은 수동으로 처리해 주세요"
+                  >
+                    예치금 결제 없음
+                    <span class="text-[11px] font-normal text-slate-400">외부 결제 건은 수동 처리</span>
+                  </span>
+                  <span
+                    v-else-if="!order.refundCompleted && depositRefundState(order) === 'unknown'"
+                    class="text-rose-600 text-xs font-bold"
+                    :title="depositLedgerError"
+                  >
+                    결제 내역 확인 불가
+                  </span>
                   <button
-                    v-if="!order.refundCompleted"
+                    v-else-if="!order.refundCompleted"
                     @click="markRefundDone(order)"
                     :disabled="markingIds.has(order.id || order.orderNumber)"
                     class="px-2.5 py-1 rounded-lg border border-slate-300 bg-white text-slate-600 text-xs font-bold hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
@@ -225,12 +242,53 @@ const markingIds = ref(new Set())
 const toast = ref({ show: false, message: '', type: 'success' })
 let toastTimer = null
 
+// 주문번호별 예치금 결제·환불 합계 — transactions(order_payment / refund) 기준.
+// 환불은 "실제로 예치금으로 받은 돈" 안에서만 가능하다(서버 process_refund도 같은 기준으로 검사).
+// 위챗 대리입력 등 예치금 밖에서 결제된 주문은 결제 기록이 없어 여기서 환불하면
+// 받은 적 없는 돈이 예치금으로 들어간다 → 버튼 대신 "예치금 결제 없음"으로 표시한다.
+const depositLedger = ref({})          // { [orderNumber]: { paid, refunded } }
+const depositLedgerError = ref('')
+
+async function loadDepositLedger(orderNumbers) {
+  depositLedger.value = {}
+  depositLedgerError.value = ''
+  if (orderNumbers.length === 0) return
+  const { data, error } = await supabase
+    .from('transactions')
+    .select('order_no, type, amount')
+    .in('order_no', orderNumbers)
+    .in('type', ['order_payment', 'refund'])
+  if (error) {
+    console.error('[AdminCancelledView] 예치금 결제 내역 조회 실패:', error.message)
+    depositLedgerError.value = error.message
+    return
+  }
+  const map = {}
+  for (const t of data || []) {
+    const m = map[t.order_no] || (map[t.order_no] = { paid: 0, refunded: 0 })
+    if (t.type === 'order_payment') m.paid += -Number(t.amount)   // 결제는 음수로 기록됨
+    else m.refunded += Number(t.amount)
+  }
+  depositLedger.value = map
+}
+
+/** 예치금 기준 환불 가능 여부 — 'ok' | 'no_payment' | 'unknown'(조회 실패) */
+function depositRefundState(order) {
+  if (depositLedgerError.value) return 'unknown'
+  const m = depositLedger.value[order.orderNumber]
+  return m && m.paid > 0 ? 'ok' : 'no_payment'
+}
+
 async function loadOrders() {
   isLoading.value = true
   try {
     fetchSiteSettings()
     const result = await fetchOrdersFromSupabase({ isAdmin: true })
     orders.value = Array.isArray(result) ? result : []
+    const cancelledNos = orders.value
+      .filter(o => normalizeOrderStatus(o.status) === 'cancelled' && o.orderNumber)
+      .map(o => o.orderNumber)
+    await loadDepositLedger(cancelledNos)
   } catch (e) {
     console.error('[AdminCancelledView] loadOrders error:', e)
   } finally {
@@ -312,6 +370,17 @@ async function markRefundDone(order) {
   // ── 레이어 2: 함수 가드 ────────────────────────────────────────────────
   if (order.refundCompleted) {
     showToast('이미 환불 처리된 주문입니다.', 'error')
+    return
+  }
+  // 예치금으로 받은 돈이 없으면 환불하지 않는다 (최종 판정은 서버 process_refund)
+  const depositState = depositRefundState(order)
+  if (depositState !== 'ok') {
+    showToast(
+      depositState === 'unknown'
+        ? `[${orderNum}] 예치금 결제 내역을 확인할 수 없어 환불을 진행하지 않았습니다.`
+        : `[${orderNum}] 예치금 결제 내역이 없는 주문입니다 (외부 결제 건은 수동 처리)`,
+      'error'
+    )
     return
   }
 
