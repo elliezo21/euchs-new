@@ -437,9 +437,24 @@
                     <span class="font-bold text-slate-700 text-sm">🏬 {{ group.displayName }}</span>
                     <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">{{ group.items.length }}개 품목</span>
                   </div>
-                  <div class="text-right font-mono">
-                    <span class="text-xs text-slate-400">판매자 소계</span>
-                    <span class="text-sm font-bold text-blue-700 ml-1">₩{{ fmtN(getGroupSubtotalKrw(group, activeOrder)) }}</span>
+                  <div class="flex items-center gap-2.5">
+                    <div class="text-right font-mono">
+                      <span class="text-xs text-slate-400">판매자 소계</span>
+                      <span class="text-sm font-bold text-blue-700 ml-1">₩{{ fmtN(getGroupSubtotalKrw(group, activeOrder)) }}</span>
+                    </div>
+                    <!-- 구매진행 단계 전용: 판매자 그룹 전체 제외 (재주문 시 구간단가 재계산 불가 → 그룹 단위로만 제외) -->
+                    <template v-if="isStatus(activeOrder, 'purchasing')">
+                      <span
+                        v-if="isGroupFullyExcluded(group)"
+                        class="px-2 py-1 rounded-lg bg-slate-200 text-slate-600 text-xs font-bold border border-slate-300 shrink-0 whitespace-nowrap"
+                      >제외됨</span>
+                      <button
+                        v-else
+                        type="button"
+                        @click="openGroupExcludeModal(group)"
+                        class="px-2.5 py-1 rounded-lg border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap"
+                      >🚫 이 판매자 전체 제외</button>
+                    </template>
                   </div>
                 </div>
 
@@ -540,8 +555,8 @@
                     🟢 구매가능
                   </span>
 
-                  <!-- 1단계 견적대기 또는 4단계 구매진행 시 사유 선택 드롭다운 -->
-                  <div v-if="isStatus(activeOrder, 'quote_pending') || isStatus(activeOrder, 'purchasing')" class="flex items-center gap-2 shrink-0">
+                  <!-- 1단계 견적대기 전용 사유 선택 드롭다운 (구매진행은 판매자 카드의 "이 판매자 전체 제외"로만 제외) -->
+                  <div v-if="isStatus(activeOrder, 'quote_pending')" class="flex items-center gap-2 shrink-0">
                     <span class="text-xs font-bold text-slate-500 shrink-0">구매상태:</span>
                     <select
                       v-model="excludeReasonMap[idx]"
@@ -557,6 +572,22 @@
                       <option value="판매자를 신뢰할 수 없음">5. 판매자를 신뢰할 수 없음</option>
                     </select>
                   </div>
+
+                  <!-- 입고완료(arrival_done·inspection_done) 단계: 품목 한 줄 제외 — CBM 정산(2차 결제) 전에만 가능 -->
+                  <template v-if="isWarehouseArrived(activeOrder)">
+                    <span
+                      v-if="item.excluded"
+                      class="px-2.5 py-1 rounded-lg bg-slate-200 text-slate-600 text-xs font-bold border border-slate-300 shrink-0 whitespace-nowrap"
+                    >제외됨: {{ item.excludeReason }}</span>
+                    <button
+                      v-else
+                      type="button"
+                      :disabled="!canExcludeArrivedItem(activeOrder)"
+                      :title="canExcludeArrivedItem(activeOrder) ? '' : 'CBM 정산(2차 결제)이 이미 생성되어 제외할 수 없습니다'"
+                      @click="openItemExcludeModal(item, idx)"
+                      class="px-3 py-1.5 rounded-lg border border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold transition cursor-pointer active:scale-95 shrink-0 whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 disabled:hover:bg-rose-50"
+                    >🚫 이 품목 제외</button>
+                  </template>
                 </div>
 
 
@@ -1307,6 +1338,128 @@
       </div>
     </div>
 
+    <!-- 부분 제외 확인창 — (A) 구매진행: 판매자 그룹 전체 / (B) 입고완료(CBM 정산 전): 품목 한 줄 -->
+    <div
+      v-if="partialExclude.open && activeOrder"
+      class="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-xs"
+    >
+      <div class="w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-200 bg-rose-50/60">
+          <h3 class="font-black text-base text-rose-700">
+            {{ partialExclude.mode === 'group' ? '🚫 판매자 전체 제외' : '🚫 품목 제외' }}
+          </h3>
+          <p class="text-xs text-slate-500 mt-0.5 font-mono">{{ activeOrder.orderNumber }}</p>
+        </div>
+
+        <div class="px-5 py-4 space-y-3.5 text-sm">
+          <!-- 대상 정보 -->
+          <div v-if="partialExclude.mode === 'group'" class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1">
+            <div class="font-bold text-slate-800">🏬 {{ partialExclude.displayName }}</div>
+            <div class="text-slate-600">제외할 품목: <strong>{{ partialExcludeTargetStats.count }}개</strong></div>
+            <div class="text-slate-600 font-mono">
+              상품 소계: <strong class="text-slate-900">¥{{ partialExcludeTargetStats.cny.toFixed(2) }}</strong>
+              / <strong class="text-blue-700">₩{{ fmtN(partialExcludeTargetStats.krw) }}</strong>
+            </div>
+          </div>
+          <div v-else-if="partialExcludeItem" class="rounded-xl border border-slate-200 bg-slate-50 p-3 space-y-1">
+            <div class="font-bold text-slate-800">{{ partialExcludeItem.productName || '1688 수입 품목' }}</div>
+            <div class="text-slate-600">옵션: {{ partialExcludeItem.sku || '기본 규격' }}</div>
+            <div class="text-slate-600 font-mono">
+              수량 {{ partialExcludeTargetStats.qty }}개 × 단가 ¥{{ Number(partialExcludeItem.priceCny || 0).toFixed(2) }}
+            </div>
+            <div class="text-slate-600 font-mono">
+              소계: <strong class="text-slate-900">¥{{ partialExcludeTargetStats.cny.toFixed(2) }}</strong>
+              / <strong class="text-blue-700">₩{{ fmtN(partialExcludeTargetStats.krw) }}</strong>
+            </div>
+          </div>
+
+          <!-- 사유 (필수) -->
+          <div class="space-y-1">
+            <label class="text-xs font-bold text-slate-600">제외 사유 <span class="text-rose-500">*</span></label>
+            <select
+              v-model="partialExclude.reason"
+              class="w-full border border-slate-300 rounded-lg py-2 px-3 bg-white outline-none cursor-pointer focus:ring-2 focus:ring-rose-400 font-medium"
+            >
+              <option value="" disabled>사유를 선택하세요</option>
+              <option
+                v-for="r in (partialExclude.mode === 'group' ? PURCHASING_GROUP_EXCLUDE_REASONS : ARRIVAL_ITEM_EXCLUDE_REASONS)"
+                :key="r"
+                :value="r"
+              >{{ r }}</option>
+            </select>
+          </div>
+
+          <!-- (A) 전용: 변경 후 중국 택배비 — 자동 차감하지 않음, 관리자가 판매자 실제 환불액을 보고 직접 입력 -->
+          <div v-if="partialExclude.mode === 'group'" class="space-y-1">
+            <label class="text-xs font-bold text-slate-600">변경 후 중국 택배비 (¥) <span class="text-slate-400 font-normal">— 선택</span></label>
+            <input
+              v-model="partialExclude.freightInput"
+              type="number"
+              min="0"
+              step="0.01"
+              class="w-full border border-slate-300 rounded-lg py-2 px-3 bg-white outline-none focus:ring-2 focus:ring-rose-400 font-mono"
+            />
+            <p class="text-xs text-slate-400">
+              현재 택배비 ¥{{ Number(partialExclude.currentFreightRmb).toFixed(2) }} ({{ freightOriginLabel(activeOrder) }})
+              — {{ partialExcludeFreightNote }}
+            </p>
+            <p v-if="partialExcludeFreightError" class="text-xs text-rose-600 font-bold">{{ partialExcludeFreightError }}</p>
+          </div>
+
+          <!-- (B) 전용: 중국 택배비 고정 표시 (입력칸 없음) -->
+          <div v-else class="text-xs text-slate-600 font-mono">
+            중국 택배비: ¥{{ Number(partialExclude.currentFreightRmb).toFixed(2) }} ({{ freightOriginLabel(activeOrder) }}, 변동 없음)
+            — {{ partialExcludeFreightNote }}
+          </div>
+
+          <!-- 저장하지 않은 품목 상태 변경 경고 — 막지 않고 함께 저장됨을 알린다 -->
+          <div
+            v-if="partialExcludeUnsavedChanges.rows.length > 0"
+            class="rounded-xl border border-orange-300 bg-orange-50 p-3 text-xs text-orange-800 space-y-1"
+          >
+            <div class="font-bold">⚠️ 저장하지 않은 품목 상태 변경 {{ partialExcludeUnsavedChanges.rows.length }}건도 함께 저장됩니다:</div>
+            <ul class="list-disc pl-4 space-y-0.5">
+              <li v-for="(row, i) in partialExcludeUnsavedChanges.rows" :key="i">{{ row }}</li>
+            </ul>
+          </div>
+          <div
+            v-else-if="!partialExcludeUnsavedChanges.comparable"
+            class="rounded-xl border border-orange-300 bg-orange-50 p-3 text-xs text-orange-800 font-bold"
+          >
+            ⚠️ 저장본과 비교할 수 없어 저장하지 않은 변경이 있는지 확인하지 못했습니다. 화면에서 바꾼 품목 상태가 있다면 함께 저장됩니다.
+          </div>
+
+          <!-- 변경 전후 총액 미리보기 — 저장된 총액 − (제외 전 계산값 − 제외 후 계산값) -->
+          <div v-if="partialExcludePreview?.error" class="rounded-xl border border-rose-300 bg-rose-50 p-3 text-xs text-rose-700 font-bold">
+            ⚠️ {{ partialExcludePreview.error }}
+          </div>
+          <div v-else-if="partialExcludePreview" class="rounded-xl border border-amber-200 bg-amber-50/70 p-3 space-y-1 font-mono text-xs text-slate-700">
+            <div>저장된 총액: ₩{{ fmtN(activeOrder.totalPriceKrw) }} (¥{{ Number(activeOrder.totalPriceRmb).toFixed(2) }})</div>
+            <div>차감액: <strong class="text-rose-700">₩{{ fmtN(partialExcludePreview.diffKrw) }}</strong> (¥{{ partialExcludePreview.diffCny.toFixed(2) }})</div>
+            <div>변경 후 총액: <strong class="text-slate-900">₩{{ fmtN(partialExcludePreview.newKrw) }}</strong> (¥{{ partialExcludePreview.newCny.toFixed(2) }})</div>
+            <div>확정 택배비: ¥{{ Number(partialExcludePreview.afterFreightRmb).toFixed(2) }}</div>
+          </div>
+
+          <p class="text-xs font-bold text-rose-600">⚠️ 주문 총액이 즉시 다시 계산되어 저장됩니다. 제외한 품목은 되돌릴 수 없습니다.</p>
+        </div>
+
+        <div class="px-5 py-3.5 border-t border-slate-200 flex justify-end gap-2">
+          <button
+            type="button"
+            @click="closePartialExcludeModal"
+            :disabled="partialExclude.processing"
+            class="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 font-bold text-sm hover:bg-slate-100 transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >취소</button>
+          <button
+            type="button"
+            @click="partialExclude.mode === 'group' ? excludeSellerGroup() : excludeArrivedItem()"
+            :disabled="partialExclude.processing || !partialExclude.reason || !!partialExcludeFreightError || !!partialExcludePreview?.error"
+            class="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-black text-sm transition cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+          >{{ partialExclude.processing ? '처리중…' : '확인 (제외)' }}</button>
+        </div>
+      </div>
+    </div>
+
     <!-- 토스트 -->
 
     <Transition name="toast">
@@ -1424,7 +1577,8 @@ import { useRoute } from 'vue-router';
 import { getStoredOrders, saveStoredOrders, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
 import { normalizeOrderStatus, getOrderStatusItem } from '@/lib/orderPipeline';
 import { exportAdmin1688PurchaseExcel, exportAdminMasterOrderExcel, exportAdminBulkOrderExcel } from '@/utils/excelHandler';
-import { calcOrderCost, krwFromCny, resolveExchangeRate, estimateFreightRmb } from '@/utils/orderCostCalculator';
+import { calcOrderCost, krwFromCny, resolveExchangeRate, estimateFreightRmb, resolveItemQty } from '@/utils/orderCostCalculator';
+import { userEmail } from '@/lib/auth';
 import { getSellerGroupKey, getSellerDisplayName } from '@/utils/sellerGrouping';
 import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
@@ -1928,6 +2082,385 @@ function restoreItem(order, item, idx) {
   item.excluded = false;
   item.excludeReason = null;
   excludeReasonMap.value[idx] = '';
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 부분 제외 (A) 구매진행: 판매자 그룹 전체 / (B) 입고완료(CBM 정산 전): 품목 한 줄
+// - 제외 후 total_price_krw / total_price_rmb를 "1차 결제 기준 총액"(상품값+중국택배비+수수료,
+//   해운비 제외 — approveQuoteFromDetail이 저장하는 calcCost() 값과 같은 의미)으로 다시 계산해 저장한다.
+// - status는 바꾸지 않으므로 updateOrderStatus를 쓰지 않고 orders 행을 직접 update한다.
+// - 되돌리기 기능 없음(의도). 기존 옵션별 드롭다운(handleReasonChange)과는 별개 액션.
+// ─────────────────────────────────────────────────────────────────────────────
+
+// (A) 사유 — 템플릿의 옵션별 "구매상태" 드롭다운 5개 선택지와 문구·값이 같아야 한다.
+const PURCHASING_GROUP_EXCLUDE_REASONS = ['품절', '공장 환불 처리', '제품 퀄리티 보장 안 됨', '가짜 재고일 확률이 높음', '판매자를 신뢰할 수 없음'];
+// (B) 사유 — 입고완료 전용. 위 목록과 섞지 않는다.
+const ARRIVAL_ITEM_EXCLUDE_REASONS = ['검수 불량', '고객 단순변심'];
+
+const partialExclude = ref({
+  open: false,
+  mode: '',            // 'group' | 'item'
+  groupKey: '',
+  displayName: '',
+  itemIdx: null,
+  reason: '',
+  freightInput: '',
+  currentFreightRmb: 0,
+  processing: false,
+});
+
+function hasSecondPayment(sp) {
+  return !!sp && typeof sp === 'object' && Object.keys(sp).length > 0;
+}
+
+// (B) 노출 조건: arrival_done + 2차 결제(second_payment) 미생성
+function canExcludeArrivedItem(o) {
+  return isStatus(o, 'arrival_done') && !hasSecondPayment(o?.secondPayment || o?.second_payment);
+}
+
+function isGroupFullyExcluded(group) {
+  return group.items.length > 0 && group.items.every(({ item }) => item.excluded);
+}
+
+// 1차 결제 기준 총액 — 실측 CBM이 있으면 calcOrderCost가 해운비를 더하므로 복사본에서 제거 후 계산.
+// (원본 주문의 measured_data는 건드리지 않는다)
+function calcFirstPaymentBasis(order) {
+  const basis = { ...order, measuredData: {}, measured_data: {} };
+  return { krw: calcCost(basis), cny: Number(calcCny(basis)) };
+}
+
+const partialExcludeItem = computed(() => {
+  const p = partialExclude.value;
+  if (p.mode !== 'item' || p.itemIdx === null) return null;
+  return activeOrder.value?.items?.[p.itemIdx] || null;
+});
+
+// 이번에 새로 제외될 품목의 원본 인덱스 목록 (이미 제외된 품목은 기존 사유·기록 유지를 위해 대상에서 뺀다)
+const partialExcludeTargetIdxs = computed(() => {
+  const p = partialExclude.value;
+  const items = activeOrder.value?.items || [];
+  if (p.mode === 'group') {
+    return items
+      .map((item, idx) => ({ item, idx }))
+      .filter(({ item }) => !item.excluded && getSellerGroupKey(item) === p.groupKey)
+      .map(({ idx }) => idx);
+  }
+  if (p.mode === 'item' && p.itemIdx !== null && items[p.itemIdx] && !items[p.itemIdx].excluded) {
+    return [p.itemIdx];
+  }
+  return [];
+});
+
+const partialExcludeTargetStats = computed(() => {
+  const items = activeOrder.value?.items || [];
+  const rate = getEffectiveRate(activeOrder.value);
+  let cny = 0;
+  let krw = 0;
+  let qty = 0;
+  partialExcludeTargetIdxs.value.forEach(idx => {
+    const it = items[idx];
+    const q = resolveItemQty(it);
+    const sub = Number(it.priceCny || 0) * q;
+    cny += sub;
+    krw += krwFromCny(sub, rate);
+    qty += q;
+  });
+  return { count: partialExcludeTargetIdxs.value.length, cny, krw, qty };
+});
+
+// (A) 택배비 입력 검증 — 빈칸 = 변경 없음, 0 이상 숫자만 허용(0 허용)
+const partialExcludeFreightError = computed(() => {
+  const p = partialExclude.value;
+  if (p.mode !== 'group') return '';
+  const raw = String(p.freightInput ?? '').trim();
+  if (raw === '') return '';
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return '택배비는 0 이상의 숫자만 입력할 수 있습니다.';
+  return '';
+});
+
+// 제외 반영 "전" 현재 적용 중인 택배비 (calcOrderCost 우선순위 결과 그대로)
+function getPartialExcludeFreightBefore() {
+  return Number(Number(calcCostDetail(activeOrder.value).chinaFreightRmb || 0).toFixed(2));
+}
+
+// 확정 택배비 — 품목 제외로 택배비가 저절로 바뀌지 않도록 항상 명시값으로 고정한다.
+//   (A) 구매진행: 입력칸 값 (비워 두면 제외 전 값)
+//   (B) 입고완료: 제외 전 값 그대로 (이미 받은 물건이라 중국 택배비 변동 없음)
+// calcOrderCost는 수동 택배비가 없으면 seller 실측 → item.freight 합산 → 수량 추정 순으로 계산하고
+// 뒤의 두 방식은 excluded 품목을 빼므로, 고정하지 않으면 제외와 함께 택배비가 줄어든다.
+function resolvePartialExcludeFreight() {
+  const freightBefore = getPartialExcludeFreightBefore();
+  const p = partialExclude.value;
+  if (p.mode !== 'group') return freightBefore;
+  const raw = String(p.freightInput ?? '').trim();
+  if (raw === '') return freightBefore;
+  return Number(Number(raw).toFixed(2));
+}
+
+// 제외 반영된 주문 복사본 생성 (저장·미리보기 공용)
+function buildPartialExcludedOrder(meta) {
+  const base = JSON.parse(JSON.stringify(activeOrder.value));
+  const newItems = base.items || [];
+  const reason = partialExclude.value.reason;
+  partialExcludeTargetIdxs.value.forEach(idx => {
+    newItems[idx].excluded = true;
+    newItems[idx].excludeReason = reason;
+    if (meta) {
+      newItems[idx].excludedAt = meta.at;
+      newItems[idx].excludedBy = meta.by;
+    }
+  });
+  // 택배비 고정(chinaFreightRmb 저장) 여부 — 출처별 규칙:
+  //   · 관리자가 값을 바꿈(A) → 출처 무관 저장
+  //   · '1688_exact' / 'estimated' → 제외 품목을 빼고 다시 계산돼 저절로 줄어들므로 확정값으로 고정 저장
+  //   · 'custom' / '1688_seller' + 값 그대로 → 제외해도 calcOrderCost 택배비가 바뀌지 않으므로 저장 안 함
+  //     (저장하면 hasCustomFreight가 true가 되어 판매자별 배송비 표시가 사라진다)
+  const newFreight = resolvePartialExcludeFreight();
+  const freightOrigin = calcCostDetail(activeOrder.value).chinaFreightOrigin;
+  const freightChanged = Math.abs(newFreight - getPartialExcludeFreightBefore()) >= 0.005;
+  const pinFreight = freightChanged || freightOrigin === '1688_exact' || freightOrigin === 'estimated';
+  let newFirstPayment = null;
+  if (pinFreight) {
+    // saveDetailDraft와 같은 필드·방식: order.chinaFreightRmb + first_payment { ...기존, chinaFreightRmb }
+    // (firstPaymentKrw·approvedAt·snapshotExchangeRate·sellerFreightRmb 등 다른 필드는 그대로 유지)
+    const existingFirstPayment = base.firstPayment || base.first_payment || {};
+    newFirstPayment = { ...existingFirstPayment, chinaFreightRmb: newFreight };
+    base.chinaFreightRmb = newFreight;
+    base.firstPayment = newFirstPayment;
+  }
+  return { order: base, newItems, newFreight, newFirstPayment, freightOrigin, pinFreight };
+}
+
+// 저장하지 않은 품목 상태 변경(옵션별 드롭다운 등) — activeOrder.items와 목록의 저장본 비교.
+// 이번 제외 대상 줄은 뺀다. 이 변경들은 이번 저장에 함께 실린다(막지는 않고 경고만).
+const partialExcludeUnsavedChanges = computed(() => {
+  const p = partialExclude.value;
+  if (!p.open || !activeOrder.value) return { comparable: true, rows: [] };
+  const ao = activeOrder.value;
+  const saved = orders.value.find(o => o.id === ao.id || o.orderNumber === ao.orderNumber);
+  const cur = ao.items || [];
+  if (!saved || !Array.isArray(saved.items) || saved.items.length !== cur.length) {
+    console.warn('[partialExclude] 저장본 items를 찾지 못했거나 길이가 달라 미저장 변경을 비교할 수 없음:', ao.orderNumber);
+    return { comparable: false, rows: [] };
+  }
+  const targets = new Set(partialExcludeTargetIdxs.value);
+  const rows = [];
+  cur.forEach((item, idx) => {
+    if (targets.has(idx)) return;
+    const s = saved.items[idx] || {};
+    if (Boolean(item.excluded) !== Boolean(s.excluded) || (item.excludeReason || '') !== (s.excludeReason || '')) {
+      rows.push(`${item.productName || '1688 수입 품목'} · ${item.sku || '기본 규격'}`);
+    }
+  });
+  return { comparable: true, rows };
+});
+
+// 새 총액 = 저장된 총액 − (before − after)  ← "차액 차감" 방식 (미리보기·저장 공용)
+//   before: 지금 저장된 상태 그대로(제외 전 items + 기존 택배비)
+//   after : 제외 후 items + 확정 택배비
+// 새로 계산한 총액으로 덮어쓰지 않는 이유: snapshotExchangeRate가 없는 주문은 calcOrderCost가 오늘 환율로
+// 계산하므로, 덮어쓰면 환율 변동분이 차감액에 섞인다. 차액만 빼면 같은 환율로 계산한 두 값의 차이라서
+// 품목 제외분(+택배비 변경분)만 반영된다.
+function computePartialExcludeTotals(meta) {
+  const ao = activeOrder.value;
+  const storedKrw = Number(ao.totalPriceKrw);
+  const storedCny = Number(ao.totalPriceRmb);
+  if (!Number.isFinite(storedKrw) || storedKrw <= 0 || !Number.isFinite(storedCny) || storedCny <= 0) {
+    console.error('[partialExclude] 저장된 총액이 없어 차액 차감 불가:', { orderNumber: ao.orderNumber, totalPriceKrw: ao.totalPriceKrw, totalPriceRmb: ao.totalPriceRmb });
+    return { error: '저장된 주문 총액이 없어 계산할 수 없습니다 (확인 필요).' };
+  }
+  // before — 기존 택배비를 명시값으로 고정한 복사본 (calcOrderCost 우선순위 결과와 같은 값)
+  const freightBefore = getPartialExcludeFreightBefore();
+  const beforeOrder = JSON.parse(JSON.stringify(ao));
+  beforeOrder.chinaFreightRmb = freightBefore;
+  beforeOrder.firstPayment = { ...(beforeOrder.firstPayment || beforeOrder.first_payment || {}), chinaFreightRmb: freightBefore };
+  const before = calcFirstPaymentBasis(beforeOrder);
+
+  const built = buildPartialExcludedOrder(meta);
+  const after = calcFirstPaymentBasis(built.order);
+
+  const diffKrw = Math.round(before.krw - after.krw);
+  const diffCny = Number((before.cny - after.cny).toFixed(2));
+  const newKrw = Math.round(storedKrw - diffKrw);
+  const newCny = Number((storedCny - diffCny).toFixed(2));
+  if (newKrw < 0 || newCny < 0) {
+    console.error('[partialExclude] 차감 후 총액이 음수:', { orderNumber: ao.orderNumber, storedKrw, storedCny, diffKrw, diffCny });
+    return { error: `차감 후 총액이 0보다 작습니다 (₩${fmtN(newKrw)} / ¥${newCny.toFixed(2)}). 확인 필요.` };
+  }
+  return { ...built, before, after, diffKrw, diffCny, newKrw, newCny, afterFreightRmb: built.newFreight };
+}
+
+// 확인창 택배비 설명 — buildPartialExcludedOrder의 고정 규칙과 같은 판정
+const partialExcludeFreightNote = computed(() => {
+  const p = partialExclude.value;
+  if (!p.open || !activeOrder.value) return '';
+  const origin = calcCostDetail(activeOrder.value).chinaFreightOrigin;
+  const pinByOrigin = origin === '1688_exact' || origin === 'estimated';
+  if (p.mode === 'group') {
+    if (!partialExcludeFreightError.value
+      && Math.abs(resolvePartialExcludeFreight() - getPartialExcludeFreightBefore()) >= 0.005) {
+      return '입력한 값이 관리자 수동 택배비로 저장됩니다.';
+    }
+    return pinByOrigin
+      ? '바꾸지 않아도 품목 제외로 줄어들지 않도록 현재 값이 관리자 수동 택배비로 고정 저장됩니다.'
+      : '바꾸지 않으면 그대로 유지됩니다.';
+  }
+  return pinByOrigin
+    ? '품목 제외로 줄어들지 않도록 현재 값이 관리자 수동 택배비로 고정 저장됩니다.'
+    : '그대로 유지됩니다.';
+});
+
+const partialExcludePreview = computed(() => {
+  const p = partialExclude.value;
+  if (!p.open || !activeOrder.value || !p.reason || partialExcludeFreightError.value) return null;
+  if (partialExcludeTargetIdxs.value.length === 0) return null;
+  return computePartialExcludeTotals(null);
+});
+
+function openGroupExcludeModal(group) {
+  if (!activeOrder.value || !isStatus(activeOrder.value, 'purchasing')) return;
+  const currentFreight = getPartialExcludeFreightBefore();
+  partialExclude.value = {
+    open: true,
+    mode: 'group',
+    groupKey: group.groupKey,
+    displayName: group.displayName,
+    itemIdx: null,
+    reason: '',
+    freightInput: currentFreight.toFixed(2),
+    currentFreightRmb: currentFreight,
+    processing: false,
+  };
+}
+
+function openItemExcludeModal(item, idx) {
+  if (!activeOrder.value || !canExcludeArrivedItem(activeOrder.value) || item.excluded) return;
+  partialExclude.value = {
+    open: true,
+    mode: 'item',
+    groupKey: '',
+    displayName: '',
+    itemIdx: idx,
+    reason: '',
+    freightInput: '',
+    currentFreightRmb: getPartialExcludeFreightBefore(),
+    processing: false,
+  };
+}
+
+function closePartialExcludeModal() {
+  if (partialExclude.value.processing) return;
+  partialExclude.value = { ...partialExclude.value, open: false };
+}
+
+async function excludeSellerGroup() {
+  await persistPartialExclusion('group');
+}
+
+async function excludeArrivedItem() {
+  await persistPartialExclusion('item');
+}
+
+async function persistPartialExclusion(mode) {
+  const p = partialExclude.value;
+  if (!activeOrder.value || p.processing || p.mode !== mode) return;
+  if (!p.reason) { showToast('제외 사유를 선택하세요.', 'error'); return; }
+  if (partialExcludeFreightError.value) { showToast(partialExcludeFreightError.value, 'error'); return; }
+  const targetIdxs = [...partialExcludeTargetIdxs.value];
+  if (targetIdxs.length === 0) { showToast('제외할 품목이 없습니다.', 'error'); return; }
+
+  const adminEmail = userEmail.value;
+  if (!adminEmail) {
+    console.error('[persistPartialExclusion] 로그인 관리자 이메일 없음 — excludedBy를 기록할 수 없어 중단');
+    showToast('로그인 정보를 확인할 수 없습니다. 다시 로그인 후 시도하세요.', 'error');
+    return;
+  }
+
+  p.processing = true;
+  const orderNum = activeOrder.value.orderNumber || activeOrder.value.id;
+  const targetOrderId = activeOrder.value.id || orderNum;
+  const dbUuid = activeOrder.value.dbId || (isValidUUID(targetOrderId) ? targetOrderId : null);
+  const stateChangedMsg = '주문 상태가 변경되어 처리할 수 없습니다. 새로고침 후 다시 시도하세요';
+
+  isInternalUpdate.value = true;
+  try {
+    // 1. 저장 직전 DB 최신 상태 재확인 (화면을 연 사이 다른 관리자가 단계를 바꿨는지)
+    if (isSupabaseConfigured()) {
+      let freshQuery = supabase.from('orders').select('status, second_payment');
+      freshQuery = (dbUuid && isValidUUID(dbUuid)) ? freshQuery.eq('id', dbUuid) : freshQuery.eq('order_number', orderNum);
+      const { data: freshRow, error: freshErr } = await freshQuery.maybeSingle();
+      if (freshErr) throw freshErr;
+      if (!freshRow) throw new Error(`주문(${orderNum})을 DB에서 찾을 수 없습니다.`);
+      const freshStatus = normalizeOrderStatus(freshRow.status);
+      const allowed = mode === 'group'
+        ? freshStatus === 'purchasing'
+        : (freshStatus === 'arrival_done' && !hasSecondPayment(freshRow.second_payment));
+      if (!allowed) {
+        console.error('[persistPartialExclusion] DB 상태 불일치로 중단:', { orderNum, mode, freshStatus, hasSecondPayment: hasSecondPayment(freshRow.second_payment) });
+        showToast(stateChangedMsg, 'error');
+        return;
+      }
+    }
+
+    // 2. 제외 반영 + 확정 택배비 고정 + 총액 차액 차감 (1차 결제 기준, 해운비 제외)
+    const totals = computePartialExcludeTotals({ at: new Date().toISOString(), by: adminEmail });
+    if (totals.error) {
+      showToast(totals.error, 'error');
+      return;
+    }
+    const { newItems, newFreight, newFirstPayment, diffKrw, newKrw, newCny } = totals;
+
+    // 3. DB 저장 — approveQuoteFromDetail과 같은 update 패턴 (id 우선, 0건 갱신 = 실패)
+    if (isSupabaseConfigured()) {
+      const payload = {
+        items: newItems,
+        total_price_krw: newKrw,
+        total_price_rmb: newCny,
+        ...(newFirstPayment ? { first_payment: newFirstPayment } : {}),
+        updated_at: new Date().toISOString(),
+      };
+      let updateQuery = supabase.from('orders').update(payload);
+      updateQuery = (dbUuid && isValidUUID(dbUuid)) ? updateQuery.eq('id', dbUuid) : updateQuery.eq('order_number', orderNum);
+      const { error: dbErr, data: updatedRows } = await updateQuery.select('id, order_number');
+      if (dbErr) throw dbErr;
+      if (!updatedRows || updatedRows.length === 0) {
+        throw new Error(`DB 저장 실패: 주문(${orderNum})을 찾을 수 없거나 권한이 없습니다. (0 rows affected)`);
+      }
+    }
+
+    // 4. 저장 성공 후에만 화면·목록·로컬 캐시 갱신 (실패 시 로컬 변경이 없어 롤백 대상 없음)
+    const applyTo = (o) => {
+      o.items = JSON.parse(JSON.stringify(newItems));
+      o.totalPriceKrw = newKrw;
+      o.totalPriceRmb = newCny;
+      if (newFirstPayment) {
+        o.chinaFreightRmb = newFreight;
+        o.firstPayment = JSON.parse(JSON.stringify(newFirstPayment));
+      }
+    };
+    applyTo(activeOrder.value);
+    const target = orders.value.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
+    if (target) applyTo(target);
+    const list = getStoredOrders();
+    const storedTarget = list.find(o => o.id === targetOrderId || o.orderNumber === orderNum);
+    if (storedTarget) {
+      applyTo(storedTarget);
+      saveStoredOrders(list);
+    }
+    // 옵션별 드롭다운 표시값도 저장된 사유와 맞춘다 (구매진행 단계에서 드롭다운이 보이므로)
+    targetIdxs.forEach(idx => { excludeReasonMap.value[idx] = partialExclude.value.reason; });
+
+    const label = mode === 'group' ? p.displayName : (newItems[targetIdxs[0]]?.productName || '품목');
+    showToast(`${label} ${targetIdxs.length}개 품목 제외 완료 (₩${fmtN(diffKrw)} 차감)`, 'success');
+    partialExclude.value = { ...partialExclude.value, open: false, processing: false };
+  } catch (err) {
+    console.error('[persistPartialExclusion error]:', err);
+    showToast(`품목 제외 실패: ${err.message}`, 'error');
+  } finally {
+    partialExclude.value.processing = false;
+    setTimeout(() => { isInternalUpdate.value = false; }, 400);
+  }
 }
 
 
@@ -2747,7 +3280,7 @@ function hasCustomFreight(order) {
 /** 배송비를 판매자별로 못 보여주는 이유 (툴팁) */
 function getGroupFreightUnavailableReason(order) {
   if (hasCustomFreight(order)) return '관리자가 택배비 총액을 수동 입력한 주문입니다 — 판매자별로 나눌 수 없습니다.';
-  return '이 판매자 그룹의 배송비가 주문에 저장돼 있지 않습니다 (하단 택배비는 수량 기반 추정치).';
+  return `이 판매자 그룹의 배송비가 주문에 저장돼 있지 않습니다 (하단 택배비 출처: ${freightOriginLabel(order)}).`;
 }
 
 /**
