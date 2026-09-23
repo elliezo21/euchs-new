@@ -779,13 +779,23 @@ export async function search1688(queryZh, page = 1, options = {}) {
   // 번역 전에 상위 N건만 남긴다. 0(미지정)이면 기존대로 전량.
   const maxItems = Number(options?.maxItems) || 0
 
+  // 카테고리 좁히기 — 유사상품 경로만 지정한다(ProductDetailModal의 loadSimilarProducts).
+  // 숫자만 남기고, 비면 아래에서 URL에도 캐시키에도 전혀 반영하지 않는다.
+  // (몰 검색·카테고리 목록 등 기존 호출부는 이 값을 넘기지 않으므로 동작이 바뀌지 않는다)
+  const cat = String(options?.cat ?? '').replace(/[^0-9]/g, '')
+
   // ⚠️ maxItems를 키에 포함하지 않으면, 홈 섹션이 만든 10건짜리 잘린 결과가
   //    같은 키워드를 검색한 사용자에게 그대로 서빙되어 검색 결과가 10건으로 잘린다.
   //    (options.sort는 키에 넣지 않는다 — 정렬은 MallView의 sortedProducts computed가
   //     클라이언트에서 처리하며 API 요청·응답을 바꾸지 않으므로 캐시를 쪼갤 이유가 없다.)
-  //    카테고리 구분자는 여기서 따로 넣지 않는다 — queryZh 자체가 소분류마다 다르므로
-  //    (여성의류>티셔츠=女士T恤 / 남성의류>티셔츠=男士T恤) 키가 이미 분리된다.
-  const cacheKey = `ob_${query}_p${page}${maxItems > 0 ? `_m${maxItems}` : ''}`
+  //    몰 메가메뉴 소분류는 여기서 따로 구분자를 넣지 않는다 — queryZh 자체가 소분류마다
+  //    다르므로 (여성의류>티셔츠=女士T恤 / 남성의류>티셔츠=男士T恤) 키가 이미 분리된다.
+  //
+  // ⚠️ 단, options.cat(유사상품의 categoryId)은 반드시 키에 넣는다. 같은 키워드라도
+  //    cat이 걸린 결과와 안 걸린 결과는 내용이 다르므로, 키를 공유하면
+  //    "우산 카테고리로 좁힌 결과"가 몰 일반 검색에 그대로 서빙된다.
+  //    cat이 없으면 접미사를 붙이지 않아 기존 키와 100% 동일하게 유지된다.
+  const cacheKey = `ob_${query}_p${page}${maxItems > 0 ? `_m${maxItems}` : ''}${cat ? `_c${cat}` : ''}`
 
   // 캐시 확인
   const cached = getFromCache(memorySearchCache, 'euchs_search', cacheKey)
@@ -806,7 +816,9 @@ export async function search1688(queryZh, page = 1, options = {}) {
 
     // Vercel Serverless / Vite Dev Server 프록시 (/api/1688-search)
     try {
+      // cat은 값이 있을 때만 붙인다 — 미지정 요청의 URL은 기존과 완전히 동일해야 한다.
       const params = new URLSearchParams({ q: query, page: String(page) })
+      if (cat) params.set('cat', cat)
       const controller = new AbortController()
       const timeout = setTimeout(() => controller.abort(), 10000) // 10초 타임아웃
       const proxyRes = await fetch(`/api/1688-search?${params.toString()}`, { signal: controller.signal })
@@ -2267,6 +2279,15 @@ export async function fetch1688ProductById(offerId, prefetchedRaw = null, option
       sourceUrl,
       detailUrl: sourceUrl,
       repurchaseRate: it.repurchaseRate || '',  // API 미제공 시 빈 문자열 (가짜값 표시 금지)
+      // 3차 카테고리 id — 유사상품 검색을 같은 카테고리로 좁히는 데 쓴다.
+      // 값이 없으면 키 자체를 만들지 않는다(빈 문자열 금지) → 호출부가 존재 여부로 분기한다.
+      // ★ item_get의 cid가 공식 상세의 thirdCategoryId와 같은 값임을 2026-09-23 실측으로 확인:
+      //   683528556538→124014006 / 1081981728994→201230202 / 1051826478228→121778003 (3/3 일치)
+      //   덕분에 카테고리를 얻기 위한 추가 API 호출이 필요 없다.
+      //   (rootCatId는 실측 0으로 내려오고 crumbs는 빈 배열이라 쓰지 않는다)
+      ...(String(it.cid ?? '').replace(/[^0-9]/g, '')
+        ? { categoryId: String(it.cid).replace(/[^0-9]/g, '') }
+        : {}),
       company: companyName,
       sellerId: extractedSellerId,
       memberId: extractedSellerId,

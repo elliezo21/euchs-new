@@ -89,6 +89,11 @@ export default async function handler(req, res) {
   const rawQ = req.query && (req.query.q || req.query.keyword || req.query.text) || ''
   const queryZh = String(rawQ).trim()
   const page = String((req.query && req.query.page) || '1').trim()
+  // cat: 공식 다국어 검색의 categoryId로만 전달한다(유사상품 경로가 보낸다).
+  // 숫자만 남기고, 비면 아예 전달하지 않는다 — 미지정 요청은 기존과 완전히 동일하게 동작한다.
+  // ⚠️ 아래 item_search 폴백에는 넘기지 않는다. item_search의 cat은 에코만 되고
+  //    검색에 반영되지 않는다(fetchSearch 주석의 2026-09-22 실측).
+  const catRaw = String((req.query && req.query.cat) || '').replace(/[^0-9]/g, '')
 
   if (!queryZh) {
     return res.status(400).json(Object.assign({ success: false, message: '검색 키워드(q)가 누락되었습니다.' }, SAFE_EMPTY))
@@ -108,16 +113,42 @@ export default async function handler(req, res) {
   // 제목이 이미 한글이라 클라이언트 목록 번역(translateItemsBatch)이 필요 없다.
   // ⚠️ item_search와 공식 검색은 서로 다른 상품을 돌려주므로 "둘 다 호출해 합치기"는 하지 않는다.
   //    공식 검색이 성공하면 여기서 끝내고 item_search는 호출하지 않는다(호출량 1회 유지).
+  // ⚠️ cat이 지정된 요청(유사상품 경로)은 item_search로 폴백하면 안 된다.
+  //    item_search는 categoryId를 지원하지 않는다(파라미터를 몰라 에코조차 없이 무시) —
+  //    "카테고리 안 걸린 20건"이 그대로 돌아오고, 호출부(loadSimilarProducts)는
+  //    filtered.length > 0을 성공으로 인식해 이미지검색 폴백(카테고리 정확도의 실질적
+  //    방어선)을 건너뛴다. 그 결과 카테고리 필터가 있으나 마나가 되어 원래 문제가 재발한다.
+  //    실측(2026-09-23): q=太阳伞 + cat=201158410(커피, 우산과 무관) → 공식 검색 0건 →
+  //    (이 가드가 없다면) item_search 폴백 → 카테고리 무관 20건이 "성공"으로 반환됨.
+  //    cat이 없는 요청(몰 검색·카테고리 목록)은 이 가드와 무관하게 기존 폴백을 그대로 탄다.
+  if (catRaw && !isCrossborderKoSearchEnabled()) {
+    // 공식 검색 자체가 꺼져 있으면 categoryId를 반영할 방법이 없다 — 시도하지 않고 바로 빈 결과.
+    console.warn(`[1688-search] cat="${catRaw}" 지정 요청인데 공식 검색이 꺼져 있어 카테고리를 ` +
+      `반영할 수 없습니다 — item_search로 폴백하지 않고 빈 결과를 반환합니다. keyword="${queryZh}"`)
+    return res.status(200).json(SAFE_EMPTY)
+  }
+
   let koListAttemptFailed = false
   if (isCrossborderKoSearchEnabled()) {
     try {
-      const koData = await searchListKo(queryZh, page, PAGE_SIZE)
+      const koData = await searchListKo(queryZh, page, PAGE_SIZE, catRaw ? { categoryId: catRaw } : {})
       if (koData) {
         return res.status(200).json({ success: true, data: koData })
       }
-      // koData === null → 실패/0건. 아래 기존 경로로 자동 폴백한다(화면이 비지 않게).
+      // koData === null → 실패/0건.
+      if (catRaw) {
+        console.warn(`[1688-search] cat="${catRaw}" 지정 요청의 공식 검색 실패/0건 — item_search로 ` +
+          `폴백하지 않고 빈 결과를 반환합니다. keyword="${queryZh}" page=${page}`)
+        return res.status(200).json(SAFE_EMPTY)
+      }
+      // cat 없는 요청만 아래 기존 경로로 자동 폴백한다(화면이 비지 않게).
       koListAttemptFailed = true
     } catch (e) {
+      if (catRaw) {
+        console.warn(`[1688-search] cat="${catRaw}" 지정 요청의 공식 검색 예외 — item_search로 ` +
+          `폴백하지 않고 빈 결과를 반환합니다: ${e.message}`)
+        return res.status(200).json(SAFE_EMPTY)
+      }
       koListAttemptFailed = true
       console.warn('[1688-search] 공식 검색 실패 — 기존 item_search로 폴백합니다:', e.message)
     }

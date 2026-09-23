@@ -696,10 +696,26 @@ export async function enrichDetailWithKo(itemObj, offerId, opts = {}) {
 /**
  * 공식 검색 1페이지 조회 (페이지네이션 메타 포함).
  * keywordQueryKo는 items만 돌려주므로 총 건수/총 페이지가 필요한 목록 전환용으로 따로 둔다.
+ *
+ * @param {object} [opts]
+ * @param {string|number} [opts.categoryId] - 카테고리로 결과를 좁힌다(유사상품용). 없으면 붙이지 않는다.
+ *
+ * ★ categoryId 근거 — 2026-09-23 실측(문서 미확인. open.1688.com API 상세 페이지는
+ *   로그인 뒤에 있어 offerQueryParam 전체 필드 목록을 확인하지 못했다):
+ *     keyword=雨伞, 파라미터 없음        → 20건 (우산)
+ *     keyword=雨伞, categoryId=124014006 → 20건, 목록이 바뀜 (우산 카테고리)
+ *     keyword=雨伞, categoryId=201158410 →  0건 (커피 카테고리)
+ *   0건이 나온다는 것은 에코가 아니라 실제 AND 조건으로 걸린다는 뜻이다.
+ *   ⚠️ item_search의 `cat`과는 다른 파라미터다. 그쪽은 에코만 되고 반영되지 않는다
+ *      (api/1688-search.js fetchSearch 주석의 2026-09-22 실측 참고).
+ *   ⚠️ 여기에 다른 파라미터를 근거 없이 추가하지 말 것.
  */
 export async function keywordSearchKoPage(keyword, page = 1, pageSize = 20, opts = {}) {
   const kw = String(keyword || '').trim()
   if (!kw) return { ok: false, response: null, items: [], errorCode: 'empty_keyword', reason: '', ms: 0 }
+
+  // 값이 있을 때만 키를 만든다. 빈 값을 넣으면 "빈 카테고리"로 검색돼 0건이 될 수 있다.
+  const categoryId = String(opts.categoryId ?? '').replace(/[^0-9]/g, '')
 
   const res = await callCustom(
     METHOD_KEYWORD_QUERY,
@@ -709,6 +725,7 @@ export async function keywordSearchKoPage(keyword, page = 1, pageSize = 20, opts
       beginPage: Number(page) || 1,
       pageSize: Number(pageSize) || 20,
       country: COUNTRY_KO,
+      ...(categoryId ? { categoryId: Number(categoryId) } : {}),
     },
     opts
   )
@@ -822,14 +839,31 @@ export function mapCrossborderSearchToItemSearch(response, fallbackPage = 1) {
 /**
  * 공식 검색으로 목록을 만든다. 실패하면 null을 돌려주고 호출부가 기존 item_search로 폴백한다.
  * subject→subjectTrans 짝은 translation_cache에 저장해 뒤따르는 번역 요청이 캐시로 끝나게 한다.
+ *
+ * @param {object} [opts]
+ * @param {string|number} [opts.categoryId] - 카테고리 좁히기(유사상품용). keywordSearchKoPage 주석 참고.
+ *   ⚠️ null 반환 시 호출부(api/1688-search.js, vite.config.js)의 동작이 categoryId
+ *      지정 여부로 갈린다 — 이 함수 자체는 폴백 여부를 결정하지 않는다:
+ *      · categoryId 없음 → 호출부가 기존 item_search로 폴백한다(기존 동작 그대로).
+ *      · categoryId 있음 → 호출부가 item_search로 폴백하지 않고 빈 결과를 반환한다.
+ *        item_search는 categoryId를 지원하지 않으므로(파라미터를 몰라 그냥 무시)
+ *        폴백하면 "카테고리 안 걸린 결과"가 성공으로 둔갑해, 그 결과를 받은
+ *        유사상품 호출부가 카테고리 필터 실패를 감지하지 못하고 이미지검색 폴백
+ *        (카테고리 정확도의 실질적 방어선)을 건너뛰게 된다. 2026-09-23 실측으로 확인.
  */
 export async function searchListKo(keyword, page = 1, pageSize = 20, opts = {}) {
   const env = opts.env || process.env
-  const res = await keywordSearchKoPage(keyword, page, pageSize, { env, timeoutMs: opts.timeoutMs || 8000 })
+  const res = await keywordSearchKoPage(keyword, page, pageSize, {
+    env,
+    timeoutMs: opts.timeoutMs || 8000,
+    categoryId: opts.categoryId,
+  })
 
   if (!res.ok || res.items.length === 0) {
-    console.warn(`[crossborder-ko] 목록 검색 실패/0건 — 기존 item_search로 폴백합니다. ` +
-      `keyword="${keyword}" page=${page} error_code=${res.errorCode} reason=${res.reason} (${res.ms}ms)`)
+    console.warn(`[crossborder-ko] 목록 검색 실패/0건. cat="${opts.categoryId ?? ''}" ` +
+      `keyword="${keyword}" page=${page} ` +
+      `error_code=${res.errorCode} reason=${res.reason} (${res.ms}ms) — ` +
+      `호출부가 categoryId 지정 여부에 따라 폴백 여부를 결정한다(위 함수 주석 참고).`)
     return null
   }
 
@@ -842,6 +876,7 @@ export async function searchListKo(keyword, page = 1, pageSize = 20, opts = {}) 
       .filter(p => p.sourceText && p.translatedText)
     const saved = await savePairs(pairs, { env })
     console.log(`[crossborder-ko] 목록 검색 성공: keyword="${keyword}" page=${page} ` +
+      `cat="${opts.categoryId ?? ''}" ` +
       `${resData.items.item.length}건 / 총 ${resData.items.total_results}건, 번역캐시 ${saved}건 저장 (${res.ms}ms)`)
   } catch (e) {
     console.warn('[crossborder-ko] 번역 캐시 저장 실패(무시):', e.message)

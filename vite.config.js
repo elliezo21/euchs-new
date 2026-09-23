@@ -308,6 +308,8 @@ function lab1688Plugin(env) {
             const rawQ = reqUrl.searchParams.get('q') || reqUrl.searchParams.get('keyword') || reqUrl.searchParams.get('text') || ''
             const q = String(rawQ).trim()
             const page = reqUrl.searchParams.get('page') || '1'
+            // cat: 공식 다국어 검색의 categoryId로만 전달 (운영 api/1688-search.js와 동일)
+            const catRaw = String(reqUrl.searchParams.get('cat') || '').replace(/[^0-9]/g, '')
 
             if (!q) {
               res.statusCode = 400
@@ -327,19 +329,50 @@ function lab1688Plugin(env) {
               return
             }
 
+            // cat이 지정된 요청은 item_search로 폴백하면 안 된다 — 운영 api/1688-search.js와
+            // 동일 근거(item_search는 categoryId 미지원 → 카테고리 무관 결과가 "성공"으로
+            // 돌아가 유사상품의 이미지검색 폴백이 무력화된다). SAFE_EMPTY와 같은 모양의
+            // 빈 결과를 직접 구성해 돌려준다(이 프록시는 SAFE_EMPTY 상수를 두지 않는다).
+            const SAFE_EMPTY_DATA = { items: { item: [] }, total_results: '0', page_size: '0' }
+
+            if (catRaw && !isCrossborderKoSearchEnabled(env)) {
+              console.warn(`[vite proxy 1688-search] cat="${catRaw}" 지정 요청인데 공식 검색이 꺼져 있어 ` +
+                `카테고리를 반영할 수 없습니다 — item_search로 폴백하지 않고 빈 결과를 반환합니다. keyword="${q}"`)
+              res.statusCode = 200
+              res.setHeader('Content-Type', 'application/json; charset=utf-8')
+              res.end(JSON.stringify({ success: false, data: SAFE_EMPTY_DATA }))
+              return
+            }
+
             // ── 1순위: 1688 공식 다국어 검색으로 목록 자체를 만든다 (운영 api/1688-search.js와 동일) ──
             let koListAttemptFailed = false
             if (isCrossborderKoSearchEnabled(env)) {
               try {
-                const koData = await searchListKo(q, page, 20, { env })
+                const koData = await searchListKo(q, page, 20, catRaw ? { env, categoryId: catRaw } : { env })
                 if (koData) {
                   res.statusCode = 200
                   res.setHeader('Content-Type', 'application/json; charset=utf-8')
                   res.end(JSON.stringify({ success: true, data: koData }))
                   return
                 }
+                if (catRaw) {
+                  console.warn(`[vite proxy 1688-search] cat="${catRaw}" 지정 요청의 공식 검색 실패/0건 — ` +
+                    `item_search로 폴백하지 않고 빈 결과를 반환합니다. keyword="${q}" page=${page}`)
+                  res.statusCode = 200
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                  res.end(JSON.stringify({ success: false, data: SAFE_EMPTY_DATA }))
+                  return
+                }
                 koListAttemptFailed = true
               } catch (e) {
+                if (catRaw) {
+                  console.warn(`[vite proxy 1688-search] cat="${catRaw}" 지정 요청의 공식 검색 예외 — ` +
+                    `item_search로 폴백하지 않고 빈 결과를 반환합니다: ${e.message}`)
+                  res.statusCode = 200
+                  res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                  res.end(JSON.stringify({ success: false, data: SAFE_EMPTY_DATA }))
+                  return
+                }
                 koListAttemptFailed = true
                 console.warn('[vite proxy 1688-search] 공식 검색 실패 — item_search로 폴백합니다:', e.message)
               }

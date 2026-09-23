@@ -1816,7 +1816,9 @@ const handleDetailImageError = (idx) => {
 
 // ----------------------------------------------------
 // Similar Products Loader (카테고리 유사 상품 추천)
-// 1순위: titleZh 키워드 검색 (실측 약 1.5초)
+// 1순위: titleZh 키워드(뒤 3글자) + categoryId 검색 (실측 약 1.5초)
+//        · categoryId가 있으면 같은 카테고리로 좁힌다 — 정확도의 주 방어선
+//        · categoryId가 없는 상품은 키워드만으로 검색 (기존과 동일)
 // 2순위(fallback): 대표 이미지 URL로 image search (실측 3.9~5.2초)
 //
 // 순서 근거: 유사 상품은 장식 성격이라 정확도보다 속도가 우선이라는 결정.
@@ -1838,23 +1840,44 @@ const loadSimilarProducts = async (item) => {
     (items || []).filter(p => String(p.id || '') !== currentId).slice(0, SIMILAR_LIMIT)
 
   try {
-    // ─── 1순위: titleZh 키워드 검색 ──────────────────────────────────────
-    // 키워드는 titleZh(없으면 title)에서 영문/숫자/괄호를 걷어낸 뒤 한자 앞 4글자.
-    // 한자가 2글자 미만이면 첫 토큰 앞 8글자를 쓴다. (기존 폴백에서 쓰던 규칙 그대로)
+    // ─── 1순위: titleZh 키워드 검색 (+ 같은 카테고리로 좁히기) ────────────
+    // 키워드는 titleZh(없으면 title)에서 영문/숫자/괄호를 걷어낸 뒤 한자 "뒤에서 3글자".
+    //
+    // ★ 왜 앞이 아니라 뒤인가 — 2026-09-23 실측:
+    //   1688 제목은 관례적으로 판촉 수식어로 시작하고 품목어가 뒤에 온다.
+    //   "厂家直销三折10骨黑胶伞常规加粗雨伞防晒防紫外线太阳伞"(우산)에서
+    //   앞 4글자는 "厂家直销"(공장직판)가 뽑혀, 검색 결과가 라면·커피·미역국이 됐다.
+    //   뒤 3글자는 "太阳伞"(양산)이 뽑혀 상위 6건이 전부 우산이었다.
+    //   불용어 목록 방식은 채택하지 않았다 — 수식어 종류가 끝없이 늘어 재발한다.
+    //
+    // 한자가 3글자 미만이면 첫 토큰 앞 8글자를 쓴다. (기존 폴백 동작 그대로 유지)
     const titleZh = String(item.titleZh || item.title || '').trim()
     const hanziOnly = titleZh.replace(/[a-zA-Z0-9\s\-_.()（）【】]/g, ' ').trim()
+    const hanziJoined = hanziOnly.replace(/\s+/g, '')
     const keyword = !titleZh
       ? ''
-      : (hanziOnly.length >= 2
-          ? hanziOnly.replace(/\s+/g, '').slice(0, 4)
+      : (hanziJoined.length >= 3
+          ? hanziJoined.slice(-3)
           : titleZh.trim().split(/[\s\-_]/)[0].slice(0, 8))
+
+    // 같은 카테고리로 좁힌다 — 이쪽이 주 방어선이다.
+    // categoryId는 상세(item_get)의 cid에서 온다(api1688.js normalizedProduct).
+    // 없는 상품은 키워드만으로 검색한다(기존과 동일 동작).
+    const categoryId = String(item.categoryId || '').replace(/[^0-9]/g, '')
 
     if (keyword && keyword.length >= 2) {
       try {
+        console.log(
+          `[loadSimilarProducts] 키워드검색: keyword="${keyword}" ` +
+          `categoryId="${categoryId || '(없음 — 키워드만으로 검색)'}" (titleZh="${titleZh.slice(0, 30)}...")`
+        )
         // maxItems: search1688이 번역 전에 상위 N건으로 자른다 (불필요한 번역 방지).
         // OneBound item_search는 페이지 크기 지정을 지원하지 않아 응답은 전량 받고,
         // 번역 직전에 잘리는 구조다.
-        const kwResult = await search1688WithTranslation(keyword, 1, { maxItems: SIMILAR_FETCH })
+        const kwResult = await search1688WithTranslation(keyword, 1, {
+          maxItems: SIMILAR_FETCH,
+          ...(categoryId ? { cat: categoryId } : {}),
+        })
         const filtered = filterResults(kwResult?.items)
         if (filtered.length > 0) {
           sellerProducts.value = filtered
