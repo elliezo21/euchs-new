@@ -149,6 +149,13 @@
                 </td>
                 <td class="px-4 py-3 text-right font-mono font-bold text-slate-900">
                   ₩{{ fmtN(getOrderAmount(order)) }}
+                  <!-- 환불완료 탭: 예치금 결제·환불 기록이 모두 없는 주문 = 환불 없이 종결된 건 → 실제 환불과 구분 -->
+                  <div v-if="activeTab === 'refund_done' && isClosedWithoutPayment(order)" class="mt-0.5">
+                    <span
+                      class="inline-flex items-center px-1.5 py-0.5 rounded-full text-[11px] font-bold border bg-slate-100 text-slate-500 border-slate-200 font-sans"
+                      title="예치금 결제(order_payment)·환불(refund) 기록이 모두 없어 환불 없이 종결된 주문"
+                    >종결(결제 없음)</span>
+                  </div>
                 </td>
                 <td class="px-4 py-3 text-center">
                   <span
@@ -180,6 +187,14 @@
                   >
                     예치금 결제 없음
                     <span class="text-[11px] font-normal text-slate-400">외부 결제 건은 수동 처리</span>
+                    <button
+                      type="button"
+                      @click="closeTarget = order"
+                      :disabled="markingIds.has(order.id || order.orderNumber)"
+                      class="mt-1 px-2 py-0.5 rounded-md border border-slate-200 bg-slate-50 text-slate-500 text-[11px] font-bold hover:bg-slate-100 hover:text-slate-700 transition disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      {{ markingIds.has(order.id || order.orderNumber) ? '처리중…' : '환불 없이 종결' }}
+                    </button>
                   </span>
                   <span
                     v-else-if="!order.refundCompleted && depositRefundState(order) === 'unknown'"
@@ -211,6 +226,35 @@
         </div>
       </div>
     </template>
+
+    <!-- 환불 없이 종결 확인창 -->
+    <div
+      v-if="closeTarget"
+      class="fixed inset-0 z-[90] flex items-center justify-center bg-slate-900/40 px-4"
+      @click.self="closeTarget = null"
+    >
+      <div class="w-full max-w-md rounded-2xl bg-white p-5 shadow-xl">
+        <h3 class="text-base font-black text-slate-900 mb-2">환불 없이 종결</h3>
+        <p class="text-sm text-slate-600 leading-relaxed">
+          주문번호 <span class="font-mono font-bold text-slate-800">{{ closeTarget.orderNumber }}</span>
+          ({{ closeTarget.buyerInfo?.email || '이메일 확인 필요' }})은 예치금 결제 기록이 없어 돌려드릴 금액이 없어요.
+          환불 없이 종결하고 환불완료 목록으로 옮길까요?
+        </p>
+        <div class="mt-5 flex justify-end gap-2">
+          <button
+            type="button"
+            @click="closeTarget = null"
+            class="px-4 py-2 rounded-lg border border-slate-300 bg-white text-slate-600 text-sm font-bold hover:bg-slate-50 cursor-pointer"
+          >취소</button>
+          <button
+            type="button"
+            @click="closeRefundWithoutPayment(closeTarget)"
+            :disabled="markingIds.has(closeTarget.id || closeTarget.orderNumber)"
+            class="px-4 py-2 rounded-lg bg-slate-700 text-white text-sm font-bold hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+          >{{ markingIds.has(closeTarget.id || closeTarget.orderNumber) ? '처리중…' : '종결하기' }}</button>
+        </div>
+      </div>
+    </div>
 
     <!-- 토스트 -->
     <Transition name="toast">
@@ -277,6 +321,14 @@ function depositRefundState(order) {
   if (depositLedgerError.value) return 'unknown'
   const m = depositLedger.value[order.orderNumber]
   return m && m.paid > 0 ? 'ok' : 'no_payment'
+}
+
+/** 환불 없이 종결된 주문인지 — 예치금 결제 0원 AND 환불 0원. 조회 실패 시엔 판단하지 않는다(false) */
+function isClosedWithoutPayment(order) {
+  if (depositLedgerError.value) return false
+  const m = depositLedger.value[order.orderNumber]
+  if (!m) return true   // 결제·환불 기록이 한 건도 없음
+  return m.paid === 0 && m.refunded === 0
 }
 
 async function loadOrders() {
@@ -463,6 +515,45 @@ async function markRefundDone(order) {
     newSet.delete(markKey)
     markingIds.value = newSet
   }
+}
+
+/**
+ * 환불 없이 종결 — 예치금 결제 기록이 없는 취소 주문을 환불완료로 옮긴다.
+ * 판정·기록은 서버 close_refund_without_payment RPC가 한다(transactions·잔액은 건드리지 않음).
+ */
+const closeTarget = ref(null)   // 확인창 대상 주문
+
+async function closeRefundWithoutPayment(order) {
+  const orderId  = order.id
+  const orderNum = order.orderNumber
+  const markKey  = orderId || orderNum
+  if (markingIds.value.has(markKey)) return
+
+  markingIds.value = new Set([...markingIds.value, markKey])
+  const { data, error } = await supabase.rpc('close_refund_without_payment', { p_order_id: orderId })
+  const newSet = new Set(markingIds.value)
+  newSet.delete(markKey)
+  markingIds.value = newSet
+  closeTarget.value = null
+
+  if (error) {
+    console.error('[closeRefundWithoutPayment] RPC 실패:', error)
+    showToast(error.message, 'error')
+    return
+  }
+  if (!data || data.success !== true) {
+    console.error('[closeRefundWithoutPayment] RPC 응답 이상:', data)
+    showToast(`RPC 응답 이상 — success 필드 없음 (data: ${JSON.stringify(data)})`, 'error')
+    return
+  }
+
+  // ── 로컬 상태 즉시 반영 (markRefundDone 성공 시와 동일) ──────────────
+  const target = orders.value.find(o => o.id === orderId || o.orderNumber === orderNum)
+  if (target) {
+    target.refundCompleted   = true
+    target.refundCompletedAt = new Date().toISOString()
+  }
+  showToast(`[${orderNum}] 종결했어요`, 'success')
 }
 
 function fmtN(n) {
