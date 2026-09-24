@@ -90,7 +90,7 @@
               <input
                 ref="fileInputRef"
                 type="file"
-                accept="image/jpeg,image/png,image/webp,image/*"
+                accept="image/jpeg,image/png,image/webp"
                 class="hidden"
                 @change="onFileChange"
               />
@@ -205,17 +205,27 @@ function onDrop(e) {
   isDragOver.value = false
   const file = e.dataTransfer?.files?.[0]
   if (!file) return
-  if (!file.type.startsWith('image/')) {
-    errorMsg.value = '이미지 파일(JPG, PNG, WEBP)만 지원합니다.'
-    return
-  }
   handleFile(file)
+}
+
+// 사진 검색 허용 형식 — Storage 정책(imgsearch/ 폴더: jpg·jpeg·png·webp)과 일치
+const ALLOWED_IMAGE_TYPES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
+const ALLOWED_EXT_TYPES = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', webp: 'image/webp' }
+const UNSUPPORTED_FORMAT_MSG = 'JPG, PNG, WEBP 사진만 검색할 수 있어요. 아이폰 사진(HEIC)은 캡처하거나 JPG로 저장해서 올려주세요.'
+
+// 형식 판정: file.type 기준, file.type이 비어 있을 때만 확장자(소문자)로 보조 판정. 허용 안 되면 null
+function resolveImageType(file) {
+  if (file.type) return ALLOWED_IMAGE_TYPES[file.type] ? file.type : null
+  const dot = file.name.lastIndexOf('.')
+  if (dot < 0) return null
+  return ALLOWED_EXT_TYPES[file.name.slice(dot + 1).toLowerCase()] || null
 }
 
 async function handleFile(file) {
   errorMsg.value = ''
-  if (!file.type.startsWith('image/')) {
-    errorMsg.value = '이미지 파일(JPG, PNG, WEBP)만 지원합니다.'
+  const mimeType = resolveImageType(file)
+  if (!mimeType) {
+    errorMsg.value = UNSUPPORTED_FORMAT_MSG
     return
   }
   if (file.size > 10 * 1024 * 1024) {
@@ -234,15 +244,17 @@ async function handleFile(file) {
   emit('search-start')
 
   try {
-    const ext = file.name.split('.').pop() || 'jpg'
+    // 확장자는 파일명이 아니라 판정된 형식에서 결정 (항상 소문자)
+    const ext = ALLOWED_IMAGE_TYPES[mimeType]
     const fileName = `imgsearch/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`
 
     const { error: upErr } = await supabase.storage
       .from('notices')
-      .upload(fileName, file, { upsert: true, contentType: file.type })
+      .upload(fileName, file, { upsert: true, contentType: mimeType })
 
     if (upErr) {
-      errorMsg.value = `이미지 업로드 실패: ${upErr.message}`
+      console.error('[ImageSearchModal] 이미지 업로드 실패:', file.name, upErr)
+      errorMsg.value = '사진을 올리지 못했어요. 잠시 후 다시 시도해 주세요.'
       isProcessing.value = false
       emit('search-error', upErr.message)
       return

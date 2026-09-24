@@ -383,7 +383,7 @@
           </button>
           <button
             type="button"
-            :disabled="isSaving"
+            :disabled="isSaving || isUploadingPhoto"
             @click="saveArrivalInspection"
             class="px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-black transition shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
           >
@@ -761,7 +761,7 @@
           </button>
           <button
             type="button"
-            :disabled="isSaving"
+            :disabled="isSaving || isUploadingPhoto"
             @click="saveBoxMeasurement"
             class="px-5 py-2.5 rounded-xl font-black transition shadow-sm flex items-center gap-1.5 active:scale-95 disabled:opacity-50"
             :class="(checkableItemCount > 0 && !allItemsVerified)
@@ -1325,17 +1325,30 @@ function triggerItemVideoCamera(idx) {
   }
 }
 
+// 업로드 실패 안내 — 실패한 파일은 목록에 넣지 않았으므로 관리자가 다시 올리도록 알림
+function _alertUploadFailures(failedCount, kind) {
+  if (failedCount > 0) {
+    alert(`${kind} ${failedCount}개를 올리지 못했어요. 로그인이 풀렸을 수 있으니 새로고침 후 다시 로그인해서 다시 올려주세요.`);
+  }
+}
+
 async function handleItemPhotoSelect(e, idx) {
   const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
   if (!files.length) return;
-  await _uploadPhotosToItem(files, idx);
+  isUploadingPhoto.value = true;
+  const failed = await _uploadPhotosToItem(files, idx);
+  isUploadingPhoto.value = false;
   if (e.target) e.target.value = '';
+  _alertUploadFailures(failed, '사진');
 }
 
 async function handleItemPhotoDrop(e, idx) {
   const files = Array.from(e.dataTransfer?.files || []).filter(f => f.type.startsWith('image/'));
   if (!files.length) return;
-  await _uploadPhotosToItem(files, idx);
+  isUploadingPhoto.value = true;
+  const failed = await _uploadPhotosToItem(files, idx);
+  isUploadingPhoto.value = false;
+  _alertUploadFailures(failed, '사진');
 }
 
 
@@ -1387,26 +1400,44 @@ async function compressImage(file, maxPx = 1280, quality = 0.75) {
   });
 }
 
+// Storage 업로드 1건 → 공개 URL 반환. 실패하면 파일명과 원인을 console.error로 남기고 '' 반환
+async function _uploadToNotices(name, file, label) {
+  if (!isSupabaseConfigured()) {
+    console.error(`[AdminWarehouseModal] ${label} 업로드 불가 — Supabase 미설정:`, file.name);
+    return '';
+  }
+  try {
+    const { data, error } = await supabase.storage.from('notices').upload(name, file, { cacheControl: '3600', upsert: true });
+    if (error || !data) {
+      console.error(`[AdminWarehouseModal] ${label} 업로드 실패:`, file.name, error?.message || error);
+      return '';
+    }
+    const { data: pub } = supabase.storage.from('notices').getPublicUrl(data.path || name);
+    if (!pub?.publicUrl) {
+      console.error(`[AdminWarehouseModal] ${label} 공개 URL 생성 실패:`, file.name);
+      return '';
+    }
+    return pub.publicUrl;
+  } catch (uploadErr) {
+    console.error(`[AdminWarehouseModal] ${label} 업로드 예외:`, file.name, uploadErr?.message || uploadErr);
+    return '';
+  }
+}
+
+// 반환값: 업로드에 실패한 파일 수 (실패한 파일은 목록에 넣지 않음)
 async function _uploadPhotosToItem(files, idx) {
   const ai = getArrivalItem(idx);
+  let failed = 0;
   for (const rawFile of files) {
-    // 업로드 전 이미지 압축 (실패해도 원본으로 fallback)
+    // 업로드 전 이미지 압축 (압축 실패 시 원본 업로드 — 압축 실패 ≠ 업로드 실패)
     const file = await compressImage(rawFile);
-    let url = '';
-    if (isSupabaseConfigured()) {
-      try {
-        const ext = 'jpg'; // 압축 후 항상 JPEG
-        const name = `arrival_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-        const { data, error } = await supabase.storage.from('notices').upload(name, file, { cacheControl: '3600', upsert: true });
-        if (!error && data) {
-          const { data: pub } = supabase.storage.from('notices').getPublicUrl(name);
-          if (pub?.publicUrl) url = pub.publicUrl;
-        }
-      } catch {}
-    }
-    if (!url) url = await _toBase64(file);
+    const ext = 'jpg'; // 압축 후 항상 JPEG (기존 규칙 유지)
+    const name = `arrival_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+    const url = await _uploadToNotices(name, file, '5-A 도착 사진');
+    if (!url) { failed++; continue; }
     ai.arrivalPhotos.push({ url, caption: rawFile.name.replace(/\.[^/.]+$/, '') });
   }
+  return failed;
 }
 
 
@@ -1423,50 +1454,32 @@ function triggerItemVideoInput(idx) {
 async function handleItemVideoSelect(e, idx) {
   const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('video/'));
   if (!files.length) return;
-  await _uploadVideosToItem(files, idx);
+  isUploadingPhoto.value = true;
+  const failed = await _uploadVideosToItem(files, idx);
+  isUploadingPhoto.value = false;
   if (e.target) e.target.value = '';
+  _alertUploadFailures(failed, '영상');
 }
 
+// 반환값: 업로드에 실패한 파일 수 (동영상은 Base64 fallback 불가 — 실패한 파일은 목록에 넣지 않음)
 async function _uploadVideosToItem(files, idx) {
   const ai = getArrivalItem(idx);
   if (!ai.arrivalVideos) ai.arrivalVideos = [];
+  let failed = 0;
   for (const file of files) {
-    let url = '';
-    if (isSupabaseConfigured()) {
-      try {
-        const ext = file.name.split('.').pop() || 'mp4';
-        // 'notices' 버킷 재사용 (기존 이미지 업로드와 동일한 버킷)
-        const name = `arrival_video_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
-        const { data, error } = await supabase.storage.from('notices').upload(name, file, { cacheControl: '3600', upsert: true });
-        if (!error && data) {
-          const { data: pub } = supabase.storage.from('notices').getPublicUrl(name);
-          if (pub?.publicUrl) url = pub.publicUrl;
-        }
-      } catch (uploadErr) {
-        console.error('[AdminWarehouseModal] 동영상 업로드 실패:', uploadErr);
-      }
-    }
-    // 동영상은 Base64 fallback 불가(용량 제한) — URL이 없으면 이름만 저장하고 사용자에게 알림
-    if (!url) {
-      console.warn('[AdminWarehouseModal] 동영상 Storage 업로드 실패 — URL 없음:', file.name);
-      continue;
-    }
+    const ext = file.name.split('.').pop() || 'mp4';
+    // 'notices' 버킷 재사용 (기존 이미지 업로드와 동일한 버킷)
+    const name = `arrival_video_${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${ext}`;
+    const url = await _uploadToNotices(name, file, '5-A 도착 동영상');
+    if (!url) { failed++; continue; }
     ai.arrivalVideos.push({ url, caption: file.name.replace(/\.[^/.]+$/, '') });
   }
+  return failed;
 }
 
 function removeItemVideo(itemIdx, videoIdx) {
   const ai = getArrivalItem(itemIdx);
   if (ai.arrivalVideos) ai.arrivalVideos.splice(videoIdx, 1);
-}
-
-function _toBase64(file) {
-  return new Promise((resolve, reject) => {
-    const r = new FileReader();
-    r.onload = () => resolve(r.result);
-    r.onerror = reject;
-    r.readAsDataURL(file);
-  });
 }
 
 // ─────────────────────────────────────
@@ -1547,49 +1560,36 @@ function triggerInspectionPhotoUpload() {
   if (photoFileInputRef.value) photoFileInputRef.value.click();
 }
 
+// 반환값: 업로드 성공 여부 (실패한 파일은 목록에 넣지 않음)
 async function _uploadInspectionPhoto(file) {
-  if (!file || !file.type.startsWith('image/')) return;
-  // Supabase Storage 업로드 시도
-  if (isSupabaseConfigured()) {
-    try {
-      const ext = file.name.split('.').pop() || 'jpg';
-      const fileName = `inspection_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
-      const { data, error } = await supabase.storage.from('notices').upload(fileName, file, {
-        cacheControl: '3600',
-        upsert: true,
-      });
-      if (!error && data?.path) {
-        const { data: pub } = supabase.storage.from('notices').getPublicUrl(data.path);
-        if (pub?.publicUrl) {
-          inspectionPhotos.value.push({ url: pub.publicUrl, caption: file.name.replace(/\.[^/.]+$/, '') });
-          return;
-        }
-      }
-    } catch {}
-  }
-  // Base64 Fallback
-  const reader = new FileReader();
-  reader.onload = (e) => {
-    inspectionPhotos.value.push({ url: e.target.result, caption: file.name.replace(/\.[^/.]+$/, '') });
-  };
-  reader.readAsDataURL(file);
+  if (!file || !file.type.startsWith('image/')) return true;
+  const ext = file.name.split('.').pop() || 'jpg';
+  const fileName = `inspection_${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${ext}`;
+  const url = await _uploadToNotices(fileName, file, '5-B 검수 실사 사진');
+  if (!url) return false;
+  inspectionPhotos.value.push({ url, caption: file.name.replace(/\.[^/.]+$/, '') });
+  return true;
 }
 
 async function handleInspectionPhotoSelect(e) {
   const files = Array.from(e.target.files || []).filter(f => f.type.startsWith('image/'));
   if (!files.length) return;
   isUploadingPhoto.value = true;
-  for (const file of files) await _uploadInspectionPhoto(file);
+  let failed = 0;
+  for (const file of files) { if (!(await _uploadInspectionPhoto(file))) failed++; }
   isUploadingPhoto.value = false;
   if (e.target) e.target.value = '';
+  _alertUploadFailures(failed, '사진');
 }
 
 async function handleInspectionPhotoDrop(e) {
   const files = Array.from(e.dataTransfer.files || []).filter(f => f.type.startsWith('image/'));
   if (!files.length) return;
   isUploadingPhoto.value = true;
-  for (const file of files) await _uploadInspectionPhoto(file);
+  let failed = 0;
+  for (const file of files) { if (!(await _uploadInspectionPhoto(file))) failed++; }
   isUploadingPhoto.value = false;
+  _alertUploadFailures(failed, '사진');
 }
 
 function removeInspectionPhoto(idx) {
