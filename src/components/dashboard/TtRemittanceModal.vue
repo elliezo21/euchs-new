@@ -1,87 +1,187 @@
 <template>
   <!-- T/T 해외송금(USD) 1차 결제 안내 + PROFORMA INVOICE 미리보기·PDF — emits: close -->
+  <!-- 배치: 헤더(송금액) → 탭 ①처음(은행 방문) / ②등록 후(PC) → 2단(왼쪽 인보이스 · 오른쪽 선택 탭 안내) → 접이식 안내 -->
   <div class="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
     @click.self="$emit('close')">
-    <div class="bg-white rounded-3xl max-w-3xl w-full max-h-[94vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
+    <div class="bg-white rounded-3xl max-w-[1200px] w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
 
       <!-- 헤더 -->
-      <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white flex items-center justify-between shrink-0">
+      <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white flex items-center justify-between gap-3 shrink-0">
         <div class="min-w-0">
           <div class="text-[11px] font-bold text-sky-300 tracking-wide">1차 결제 · T/T 해외송금 (USD)</div>
           <div class="font-black text-base sm:text-lg truncate">발주번호 {{ order.orderNumber }}</div>
         </div>
-        <button type="button" @click="$emit('close')" class="p-2 rounded-xl hover:bg-white/10 transition" aria-label="닫기">
-          <X class="w-5 h-5" />
-        </button>
+        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+          <div v-if="state === 'ready' && invoice" class="text-right">
+            <div class="text-[11px] font-bold text-sky-300">송금액</div>
+            <div class="flex items-center gap-1.5">
+              <span class="font-black font-mono text-lg sm:text-2xl text-amber-300">USD {{ formatUsd(invoice.usdTotal) }}</span>
+              <button type="button" @click="copyText(pcFieldValue('usdTotal'), '송금 금액')"
+                class="px-2 py-1 rounded-lg bg-white/10 hover:bg-white/20 text-[11px] font-bold flex items-center gap-1 transition">
+                <Copy class="w-3 h-3" />복사
+              </button>
+            </div>
+          </div>
+          <button type="button" @click="$emit('close')" class="p-2 rounded-xl hover:bg-white/10 transition" aria-label="닫기">
+            <X class="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6 space-y-5 text-sm">
-        <!-- 로딩 -->
-        <div v-if="state === 'loading'" class="py-16 flex flex-col items-center gap-3 text-gray-500">
-          <Loader2 class="w-8 h-8 animate-spin text-sky-600" />
-          <p class="font-bold">인보이스를 준비하고 있어요…</p>
+      <!-- 로딩 -->
+      <div v-if="state === 'loading'" class="py-16 flex flex-col items-center gap-3 text-gray-500">
+        <Loader2 class="w-8 h-8 animate-spin text-sky-600" />
+        <p class="font-bold">인보이스를 준비하고 있어요…</p>
+      </div>
+
+      <!-- 실패 -->
+      <div v-else-if="state === 'error'" class="m-4 sm:m-6 p-5 rounded-2xl bg-red-50 border border-red-200 space-y-3 text-sm">
+        <div class="flex items-start gap-2 text-red-700">
+          <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
+          <p class="font-bold leading-relaxed">{{ errorMessage }}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button type="button" @click="loadInvoice"
+            class="px-4 py-2 rounded-xl bg-white border border-red-200 text-red-700 font-bold text-xs hover:bg-red-100 transition">다시 시도</button>
+          <button type="button" @click="openKakao"
+            class="px-4 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition">1:1 상담</button>
+        </div>
+      </div>
+
+      <template v-else-if="state === 'ready' && invoice">
+        <!-- 탭 (세그먼트형, 창 전체 폭) -->
+        <div class="px-3 sm:px-5 pt-3 pb-2 border-b border-gray-200 bg-white shrink-0">
+          <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-gray-100" role="tablist">
+            <button v-for="t in TT_TABS" :key="t.key" type="button" role="tab" :aria-selected="activeTab === t.key"
+              @click="activeTab = t.key"
+              class="px-2 sm:px-4 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-base transition"
+              :class="activeTab === t.key ? 'bg-slate-900 text-white shadow-md' : 'text-gray-600 hover:bg-white'">
+              {{ t.label }}
+            </button>
+          </div>
+          <p class="mt-1.5 text-[12px] text-sky-700 text-center">{{ TT_TAB_HINT }}</p>
         </div>
 
-        <!-- 실패 -->
-        <div v-else-if="state === 'error'" class="p-5 rounded-2xl bg-red-50 border border-red-200 space-y-3">
-          <div class="flex items-start gap-2 text-red-700">
-            <AlertCircle class="w-5 h-5 shrink-0 mt-0.5" />
-            <p class="font-bold leading-relaxed">{{ errorMessage }}</p>
-          </div>
-          <div class="flex flex-wrap gap-2">
-            <button type="button" @click="loadInvoice"
-              class="px-4 py-2 rounded-xl bg-white border border-red-200 text-red-700 font-bold text-xs hover:bg-red-100 transition">다시 시도</button>
-            <button type="button" @click="openKakao"
-              class="px-4 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition">1:1 상담</button>
-          </div>
-        </div>
+        <!-- 본문: 좁은 화면은 전체 스크롤(안내 → 인보이스), lg 이상은 2단 각자 스크롤 -->
+        <div class="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden text-sm">
+          <div class="flex flex-col lg:grid lg:grid-cols-[55fr_45fr] lg:h-full">
 
-        <template v-else-if="state === 'ready' && invoice">
-          <!-- A. T/T 안내 카드 -->
-          <section class="p-4 sm:p-5 rounded-2xl bg-sky-50 border border-sky-200 space-y-3">
-            <h3 class="font-black text-sky-900 flex items-center gap-1.5"><Globe class="w-4 h-4" />{{ TT_INTRO.title }}</h3>
-            <p class="text-sky-900/90 leading-relaxed">{{ TT_INTRO.desc }}</p>
-            <ol class="space-y-1.5">
-              <li v-for="s in TT_STEPS" :key="s.no" class="flex gap-2 text-gray-800">
-                <span class="w-5 h-5 shrink-0 rounded-full bg-sky-600 text-white text-[11px] font-black flex items-center justify-center mt-0.5">{{ s.no }}</span>
-                <span class="leading-relaxed">{{ s.text }}</span>
-              </li>
-            </ol>
-            <p class="font-bold text-sky-800">⏰ {{ TT_DEADLINE }}</p>
-          </section>
+            <!-- 오른쪽(좁은 화면에선 위): 선택된 탭 안내만 렌더링 -->
+            <div class="order-1 lg:order-2 lg:overflow-y-auto overscroll-contain p-4 sm:p-5 lg:border-l border-gray-200 bg-slate-50/60 space-y-4">
 
-          <!-- B. 은행 입력 가이드 -->
-          <section class="space-y-2">
-            <h3 class="font-black text-gray-900">🏦 은행에 이렇게 입력해 주세요</h3>
-            <div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden">
-              <div v-for="g in TT_BANK_GUIDE" :key="g.label" class="p-3 sm:p-3.5 flex flex-col sm:flex-row sm:items-start gap-1 sm:gap-3"
-                :class="g.emphasis ? 'bg-amber-50/60' : 'bg-white'">
-                <div class="sm:w-40 shrink-0 text-[12px] font-bold text-gray-500">{{ g.label }}</div>
-                <div class="flex-1 min-w-0 space-y-0.5">
-                  <div class="flex items-center gap-2 flex-wrap">
-                    <span class="font-black text-gray-900 break-all" :class="g.emphasis ? 'text-base sm:text-lg' : ''">{{ guideValue(g) }}</span>
-                    <button v-if="g.copy" type="button" @click="copyText(guideValue(g), g.label)"
-                      class="px-2 py-0.5 rounded-lg border border-gray-300 text-[11px] font-bold text-gray-600 hover:bg-gray-100 transition flex items-center gap-1">
-                      <Copy class="w-3 h-3" />복사
+              <!-- ① 처음 보내요 · 은행 방문 -->
+              <ol v-if="activeTab === 'first'" class="space-y-4">
+                <li class="flex gap-3">
+                  <span class="tt-step-no">1</span>
+                  <div class="flex-1 min-w-0 space-y-2">
+                    <h4 class="font-black text-gray-900">{{ TT_FIRST_STEPS.print.title }}</h4>
+                    <button type="button" @click="downloadPdf" :disabled="pdfBlockers.length > 0 || isGenerating"
+                      class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                      <FileDown class="w-4 h-4" />{{ isGenerating ? 'PDF 만드는 중…' : '인보이스 PDF 다운로드' }}
                     </button>
+                    <div v-if="pdfBlockers.length > 0" class="p-2.5 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-700 font-bold space-y-0.5">
+                      <p v-for="b in pdfBlockers" :key="b">• {{ b }}</p>
+                    </div>
+                    <p class="text-gray-700 leading-relaxed">{{ TT_FIRST_STEPS.print.desc }}</p>
                   </div>
-                  <p v-if="g.note" class="text-[12px] text-gray-600 leading-relaxed">{{ g.note }}</p>
-                </div>
+                </li>
+                <li class="flex gap-3">
+                  <span class="tt-step-no">2</span>
+                  <div class="flex-1 min-w-0 space-y-2">
+                    <h4 class="font-black text-gray-900">{{ TT_FIRST_STEPS.docs.title }}</h4>
+                    <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      <li v-for="d in TT_FIRST_STEPS.docs.items" :key="d" class="flex items-center gap-1.5 text-gray-800">
+                        <CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />{{ d }}
+                      </li>
+                    </ul>
+                  </div>
+                </li>
+                <li class="flex gap-3">
+                  <span class="tt-step-no">3</span>
+                  <div class="flex-1 min-w-0 space-y-2">
+                    <h4 class="font-black text-gray-900">{{ TT_FIRST_STEPS.form.title }}</h4>
+                    <p class="text-gray-700 leading-relaxed">{{ TT_FIRST_STEPS.form.desc }}</p>
+                    <button type="button" @click="showFormExample = true"
+                      class="px-4 py-2 rounded-xl border-2 border-sky-500 text-sky-700 font-black text-xs hover:bg-sky-50 transition flex items-center gap-1.5">
+                      <FileText class="w-4 h-4" />{{ TT_FIRST_STEPS.form.button }}
+                    </button>
+                    <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
+                      <p class="font-bold text-emerald-900 leading-relaxed">{{ TT_FIRST_STEPS.register.text }}</p>
+                      <button type="button" @click="activeTab = 'pc'"
+                        class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition">{{ TT_FIRST_STEPS.register.button }}</button>
+                    </div>
+                  </div>
+                </li>
+                <li class="flex gap-3">
+                  <span class="tt-step-no">4</span>
+                  <div class="flex-1 min-w-0 space-y-2">
+                    <h4 class="font-black text-gray-900">{{ TT_RECEIPT_STEP.title }}</h4>
+                    <TtReceiptStep @consult="openKakao" />
+                  </div>
+                </li>
+              </ol>
+
+              <!-- ② 등록했어요 · 집·사무실 PC -->
+              <div v-else class="space-y-4">
+                <p class="p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 leading-relaxed font-medium">{{ TT_PC_NOTICE }}</p>
+                <ol class="space-y-4">
+                  <li class="flex gap-3">
+                    <span class="tt-step-no">1</span>
+                    <div class="flex-1 min-w-0 space-y-2">
+                      <h4 class="font-black text-gray-900">{{ TT_PC_STEPS.pdf.title }}</h4>
+                      <button type="button" @click="downloadPdf" :disabled="pdfBlockers.length > 0 || isGenerating"
+                        class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
+                        <FileDown class="w-4 h-4" />{{ isGenerating ? 'PDF 만드는 중…' : '인보이스 PDF 다운로드' }}
+                      </button>
+                      <div v-if="pdfBlockers.length > 0" class="p-2.5 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-700 font-bold space-y-0.5">
+                        <p v-for="b in pdfBlockers" :key="b">• {{ b }}</p>
+                      </div>
+                      <p class="text-gray-700 leading-relaxed">{{ TT_PC_STEPS.pdf.desc }}</p>
+                    </div>
+                  </li>
+                  <li class="flex gap-3">
+                    <span class="tt-step-no">2</span>
+                    <div class="flex-1 min-w-0 space-y-2">
+                      <h4 class="font-black text-gray-900">{{ TT_PC_STEPS.fields.title }}</h4>
+                      <p class="text-gray-700 leading-relaxed">{{ TT_PC_STEPS.fields.desc }}</p>
+                      <div class="rounded-2xl border border-gray-200 divide-y divide-gray-100 overflow-hidden bg-white">
+                        <div v-for="fd in TT_PC_FIELDS" :key="fd.key" class="p-2.5 sm:p-3 flex flex-col sm:flex-row sm:items-start gap-0.5 sm:gap-3"
+                          :class="fd.emphasis ? 'bg-amber-50/60' : ''">
+                          <div class="sm:w-32 shrink-0 text-[12px] font-bold text-gray-500 flex items-center gap-1">
+                            {{ fd.label }}
+                            <button v-if="fd.tip" type="button" @click="openTip = openTip === fd.key ? '' : fd.key"
+                              class="text-sky-600 hover:text-sky-800" :aria-label="`${fd.label} 입력 도움말`">
+                              <Info class="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                          <div class="flex-1 min-w-0 space-y-0.5">
+                            <div class="flex items-center gap-2 flex-wrap">
+                              <span class="font-black break-all" :class="[fd.emphasis ? 'text-base' : '', pcFieldValue(fd.key) ? 'text-gray-900' : 'text-red-600']">{{ pcFieldValue(fd.key) || '확인 필요' }}</span>
+                              <button v-if="fd.copy && pcFieldValue(fd.key)" type="button" @click="copyText(pcFieldValue(fd.key), fd.label)"
+                                class="px-2 py-0.5 rounded-lg border border-gray-300 text-[11px] font-bold text-gray-600 hover:bg-gray-100 transition flex items-center gap-1">
+                                <Copy class="w-3 h-3" />복사
+                              </button>
+                            </div>
+                            <p v-if="fd.note" class="text-[12px] text-gray-600 leading-relaxed">{{ fd.note }}</p>
+                            <p v-if="fd.tip && openTip === fd.key" class="text-[12px] text-sky-800 bg-sky-50 rounded-lg px-2 py-1 leading-relaxed">ⓘ {{ fd.tip }}</p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li class="flex gap-3">
+                    <span class="tt-step-no">3</span>
+                    <div class="flex-1 min-w-0 space-y-2">
+                      <h4 class="font-black text-gray-900">{{ TT_RECEIPT_STEP.title }}</h4>
+                      <TtReceiptStep @consult="openKakao" />
+                    </div>
+                  </li>
+                </ol>
               </div>
             </div>
-            <p class="text-[12px] text-gray-500">📁 {{ TT_KEEP_NOTICE }}</p>
-          </section>
 
-          <!-- C. 금액 계산 -->
-          <section class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
-            <div class="text-[12px] font-bold text-gray-500 mb-1">송금 금액 계산</div>
-            <p class="font-mono text-[13px] text-gray-800 break-words leading-relaxed">
-              ₩{{ formatKrw(invoice.krwTotal) }} ÷ 하나은행 매매기준율 {{ formatRate(invoice.rate) }}
-              (인보이스 발행 {{ kstDateTime(invoice.issuedAt) }} 기준·고정) = <b class="text-sky-800">USD {{ formatUsd(invoice.usdTotal) }}</b>
-            </p>
-          </section>
-
-          <!-- D. 인보이스 미리보기 -->
+            <!-- 왼쪽(좁은 화면에선 아래): 인보이스 미리보기 — 탭과 상관없이 항상 표시 -->
+            <div class="order-2 lg:order-1 lg:overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3">
           <section class="space-y-2">
             <div class="flex items-center justify-between gap-2 flex-wrap">
               <h3 class="font-black text-gray-900">📄 인보이스 미리보기</h3>
@@ -215,27 +315,40 @@
             </div>
           </section>
 
-          <!-- 발행 차단 사유 -->
-          <div v-if="pdfBlockers.length > 0" class="p-3 rounded-xl bg-red-50 border border-red-200 text-[12px] text-red-700 font-bold space-y-0.5">
-            <p v-for="b in pdfBlockers" :key="b">• {{ b }}</p>
+              <!-- 계산식 한 줄 -->
+              <section class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+                <div class="text-[12px] font-bold text-gray-500 mb-1">송금 금액 계산</div>
+                <p class="font-mono text-[13px] text-gray-800 break-words leading-relaxed">
+                  ₩{{ formatKrw(invoice.krwTotal) }} ÷ 하나은행 매매기준율 {{ formatRate(invoice.rate) }}
+                  (인보이스 발행 {{ kstDateTime(invoice.issuedAt) }} 기준·고정) = <b class="text-sky-800">USD {{ formatUsd(invoice.usdTotal) }}</b>
+                </p>
+              </section>
+            </div>
           </div>
-        </template>
-      </div>
+        </div>
+
+        <!-- 맨 아래 접이식 (기본 접힘) -->
+        <details class="shrink-0 border-t border-gray-200 bg-white text-sm">
+          <summary class="px-5 sm:px-6 py-2.5 font-bold text-gray-600 cursor-pointer select-none">
+            {{ TT_INTRO.title }} · 유효기간 · 보관 안내
+          </summary>
+          <div class="px-5 sm:px-6 pb-3 space-y-1.5 text-gray-700">
+            <p class="leading-relaxed">{{ TT_INTRO.desc }}</p>
+            <p class="font-bold text-sky-800">⏰ {{ TT_DEADLINE }}</p>
+            <p class="text-[12px] text-gray-500">📁 {{ TT_KEEP_NOTICE }}</p>
+          </div>
+        </details>
+      </template>
 
       <!-- 푸터 -->
-      <div class="px-5 sm:px-6 py-4 bg-white border-t border-gray-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-end gap-2.5 shrink-0">
-        <button type="button" @click="openKakao"
-          class="px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-xs transition flex items-center justify-center gap-1.5">
-          <MessageCircle class="w-4 h-4" />송금확인증 보내기 (1:1 상담)
-        </button>
-        <button v-if="state === 'ready'" type="button" @click="downloadPdf" :disabled="pdfBlockers.length > 0 || isGenerating"
-          class="px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs sm:text-sm transition flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
-          <FileDown class="w-4 h-4" />{{ isGenerating ? 'PDF 만드는 중…' : '인보이스 PDF 다운로드' }}
-        </button>
+      <div class="px-5 sm:px-6 py-3 bg-white border-t border-gray-200 flex items-center justify-end gap-2.5 shrink-0">
         <button type="button" @click="$emit('close')"
           class="px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 font-bold text-xs hover:bg-gray-100 transition">닫기</button>
       </div>
     </div>
+
+    <!-- 신청서 작성 예시 (오버레이) -->
+    <TtApplicationFormExample v-if="showFormExample && invoice" :sections="formSections" @close="showFormExample = false" />
 
     <Transition name="toast-fade">
       <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-2xl">
@@ -247,15 +360,18 @@
 
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, defineComponent, h } from 'vue'
-import { X, Loader2, AlertCircle, Globe, Copy, Pencil, FileDown, MessageCircle } from 'lucide-vue-next'
+import { X, Loader2, AlertCircle, Copy, Pencil, FileDown, FileText, CheckCircle2, Info } from 'lucide-vue-next'
 import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
+import TtReceiptStep from '@/components/dashboard/TtReceiptStep.vue'
+import TtApplicationFormExample from '@/components/dashboard/TtApplicationFormExample.vue'
 import { supabase } from '@/lib/supabase'
 import { currentUser, currentUserProfile, fetchUserProfile, updateTtBuyerProfile } from '@/lib/auth'
 import { romanizeKo } from '@/utils/romanizeKo'
 import { convertDetailToEnglish, formatEnglishAddress, formatInvoiceBuyerAddress } from '@/utils/addressEnglish'
 import { formatUsd, formatUnitPrice, findNonAsciiFields, downloadTtInvoicePdf } from '@/utils/ttInvoicePdf'
 import {
-  TT_INTRO, TT_STEPS, TT_DEADLINE, TT_BANK_GUIDE, TT_KEEP_NOTICE, TT_BUYER_CHECK, TT_ERROR_MESSAGES,
+  TT_TABS, TT_TAB_HINT, TT_FIRST_STEPS, TT_PC_NOTICE, TT_PC_STEPS, TT_PC_FIELDS, TT_CURRENCY_TEXT, TT_REMIT_REASON,
+  TT_RECEIPT_STEP, TT_FORM_EXAMPLE, TT_INTRO, TT_DEADLINE, TT_KEEP_NOTICE, TT_BUYER_CHECK, TT_ERROR_MESSAGES,
 } from '@/data/ttRemittanceGuide'
 
 const props = defineProps({
@@ -292,6 +408,10 @@ const fixed = ref(null)
 const seal = ref('')
 const isGenerating = ref(false)
 const toastMsg = ref('')
+// 탭: 모달을 열 때마다 ① 처음(은행 방문)으로 시작한다 — 기억하지 않는다
+const activeTab = ref('first')
+const showFormExample = ref(false)
+const openTip = ref('') // ⓘ 도움말이 펼쳐진 칸 key
 let toastTimer = null
 
 const errorMessage = computed(() => TT_ERROR_MESSAGES[errorReason.value] || TT_ERROR_MESSAGES.unavailable)
@@ -517,12 +637,83 @@ async function downloadPdf() {
 }
 
 // ── 표시·복사 ────────────────────────────────────────────────────────
-function guideValue(g) {
-  if (g.valueKey === 'usdTotal') return invoice.value ? `USD ${formatUsd(invoice.value.usdTotal)}` : ''
-  if (g.valueKey === 'invoiceNo') return invoice.value?.invoiceNo || ''
-  if (g.valueKey === 'beneficiaryName') return fixed.value?.beneficiary?.name || ''
-  return g.value
+/**
+ * 탭 ② 칸별 값 (TT_PC_FIELDS의 key). 값이 없으면 '' → 화면이 "확인 필요"로 표시하고 복사 버튼을 숨긴다.
+ * 수취인·은행 값은 서버 응답 fixed(api/_ttRemittance.js)에서만 가져온다.
+ */
+function pcFieldValue(key) {
+  const inv = invoice.value
+  const fx = fixed.value
+  switch (key) {
+    case 'currency': return TT_CURRENCY_TEXT
+    case 'usdTotal': return inv ? `USD ${formatUsd(inv.usdTotal)}` : ''
+    case 'reason': return TT_REMIT_REASON
+    case 'senderName': return buyerNameEn.value
+    case 'beneficiaryName': return fx?.beneficiary?.name || ''
+    case 'beneficiaryAddress': return fx?.beneficiary?.address || ''
+    case 'beneficiaryBankName': return fx?.beneficiaryBank?.name || ''
+    case 'beneficiaryBankSwift': return fx?.beneficiaryBank?.swift || ''
+    case 'accountNo': return fx?.beneficiary?.accountNo || ''
+    case 'beneficiaryBankAddress': return fx?.beneficiaryBank?.address || ''
+    case 'intermediaryBankName': return fx?.intermediaryBank?.name || ''
+    case 'intermediaryBankSwift': return fx?.intermediaryBank?.swift || ''
+    case 'invoiceNo': return inv?.invoiceNo || ''
+    default:
+      console.error('[TtRemittanceModal] 알 수 없는 입력 칸 key:', key)
+      return ''
+  }
 }
+
+/** YYYY-MM-DD (KST) + n일 */
+function kstDatePlusDays(days) {
+  return new Date(Date.now() + 9 * 60 * 60 * 1000 + days * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+}
+
+/** 신청서 작성 예시 — 이 주문 데이터로 채운 표 (TtApplicationFormExample에 전달) */
+const formSections = computed(() => {
+  const inv = invoice.value
+  const fx = fixed.value
+  if (!inv || !fx) return []
+  const L = TT_FORM_EXAMPLE.labels
+  const V = TT_FORM_EXAMPLE.values
+  const S = TT_FORM_EXAMPLE.sections
+  const row = (label, value, hint) => ({ label, value: value || '확인 필요', hint, missing: !value })
+  const addrKo = [profile.value.business_address_road, profile.value.business_address_detail].map(v => String(v || '').trim()).filter(Boolean).join(' ')
+  const goods = [...new Set((inv.lines || []).map(l => l.description).filter(Boolean))].join(', ')
+  return [
+    { title: S.applicant, rows: [
+      row(L.nameKo, companyNameKo.value),
+      row(L.nameEn, buyerNameEn.value, '인보이스 BUYER와 같게'),
+      row(L.bizNo, bizNoFormatted.value),
+      row(L.account, V.account),
+      row(L.address, addrKo, buyerAddress.value ? `영문: ${buyerAddress.value}` : ''),
+      row(L.tel, buyerTel.value),
+    ] },
+    { title: S.remittance, rows: [
+      row(L.method, V.method),
+      row(L.amount, `USD ${formatUsd(inv.usdTotal)}`, '인보이스 TOTAL 그대로'),
+    ] },
+    { title: S.beneficiary, rows: [
+      row(L.beneficiaryName, fx.beneficiary?.name),
+      row(L.beneficiaryAddress, fx.beneficiary?.address),
+    ] },
+    { title: S.bank, rows: [
+      row(L.swift, fx.beneficiaryBank?.swift),
+      row(L.accountNo, fx.beneficiary?.accountNo),
+      row(L.bankName, fx.beneficiaryBank?.name),
+      row(L.bankAddress, fx.beneficiaryBank?.address),
+      row(L.intermediary, fx.intermediaryBank?.name && fx.intermediaryBank?.swift ? `${fx.intermediaryBank.name} (SWIFT ${fx.intermediaryBank.swift})` : ''),
+    ] },
+    { title: S.reason, rows: [
+      row(L.reason, TT_REMIT_REASON),
+      row(L.customsCleared, V.customsCleared),
+      row(L.receiveDate, V.receiveDate, `${V.receiveDateHint} (오늘 송금하면 ${kstDatePlusDays(15)})`),
+      row(L.destination, V.destination),
+      row(L.goods, goods),
+      row(L.message, inv.invoiceNo),
+    ] },
+  ]
+})
 
 async function copyText(text, label) {
   // 송금 금액("USD 1,234.56")은 은행 입력칸에 숫자만 넣도록 "USD "·쉼표 없이 복사한다
@@ -585,4 +776,10 @@ onBeforeUnmount(() => {
 <style scoped>
 .toast-fade-enter-active, .toast-fade-leave-active { transition: all 0.25s ease; }
 .toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateY(8px); }
+/* 단계 번호 동그라미 */
+.tt-step-no {
+  flex-shrink: 0; width: 1.75rem; height: 1.75rem; border-radius: 9999px;
+  background: #0284c7; color: #fff; font-weight: 900; font-size: 0.8rem;
+  display: flex; align-items: center; justify-content: center; margin-top: 0.05rem;
+}
 </style>
