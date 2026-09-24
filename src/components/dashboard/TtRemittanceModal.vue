@@ -120,7 +120,7 @@
                   <div class="flex-1 min-w-0 space-y-2">
                     <h4 class="font-black text-gray-900">{{ TT_FIRST_STEPS.form.title }}</h4>
                     <p class="text-gray-700 leading-relaxed">{{ TT_FIRST_STEPS.form.desc }}</p>
-                    <button data-guide="form-example" type="button" @click="showFormExample = true"
+                    <button data-guide="form-example" type="button" @click="openFormExample"
                       class="px-4 py-2 rounded-xl border-2 border-sky-500 text-sky-700 font-black text-xs hover:bg-sky-50 transition flex items-center gap-1.5">
                       <FileText class="w-4 h-4" />{{ TT_FIRST_STEPS.form.button }}
                     </button>
@@ -383,7 +383,7 @@
     </div>
 
     <!-- 신청서 작성 예시 (오버레이) -->
-    <TtApplicationFormExample v-if="showFormExample && invoice" :sections="formSections" @close="showFormExample = false" />
+    <TtApplicationFormExample v-if="showFormExample && invoice" :sections="formSections" @close="closeFormExample" />
 
     <Transition name="toast-fade">
       <div v-if="toastMsg" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-[200] bg-slate-900 text-white text-xs font-bold px-5 py-3 rounded-2xl shadow-2xl">
@@ -391,7 +391,7 @@
       </div>
     </Transition>
 
-    <SpotlightGuide v-model:open="guideOpen" :steps="guideSteps" :badge="TT_GUIDE_BADGE" />
+    <SpotlightGuide v-model:open="guideOpen" :steps="guideSteps" :badge="TT_GUIDE_BADGE" :start-index="guideStartIndex" />
   </div>
 </template>
 
@@ -567,7 +567,9 @@ function resetEditForm() {
 const guideOpen = ref(false)
 const guideSteps = ref([])
 const guideKind = ref('main')
-async function startGuide(kind) {
+const guideStartIndex = ref(0)
+const guideResumeTarget = ref(null) // 하위 창(신청서 예시)을 닫으면 이 단계부터 가이드를 이어서 보여준다
+async function startGuide(kind, startTarget = null) {
   const all = kind === 'edit' ? TT_GUIDE_STEPS_EDIT : (activeTab.value === 'pc' ? TT_GUIDE_STEPS_PC : TT_GUIDE_STEPS_FIRST)
   if (guideOpen.value) guideOpen.value = false
   await nextTick()
@@ -579,6 +581,8 @@ async function startGuide(kind) {
   }
   guideKind.value = kind
   guideSteps.value = visible
+  const at = startTarget ? visible.findIndex(s => s.target === startTarget) : 0
+  guideStartIndex.value = at > 0 ? at : 0
   guideOpen.value = true
 }
 function onClickEditBuyer() {
@@ -593,6 +597,25 @@ function editBuyerFromStep() {
   else console.error('[TtRemittanceModal] BUYER 확인 칸을 찾지 못했습니다')
   onClickEditBuyer()
 }
+/** 신청서 예시 열기 — 가이드가 떠 있으면 숨기고, 닫을 때 다음 단계부터 이어서 */
+function openFormExample() {
+  if (guideOpen.value && guideKind.value === 'main') {
+    const i = guideSteps.value.findIndex(s => s.target === 'form-example')
+    guideResumeTarget.value = i >= 0 ? (guideSteps.value[i + 1]?.target || null) : null
+    guideOpen.value = false
+  }
+  showFormExample.value = true
+}
+function closeFormExample() {
+  showFormExample.value = false
+  const t = guideResumeTarget.value
+  guideResumeTarget.value = null
+  if (t) startGuide('main', t)
+}
+// 가이드 중 탭이 바뀌면 바뀐 탭의 가이드로 1단계부터 다시
+watch(activeTab, () => {
+  if (guideOpen.value && guideKind.value === 'main') startGuide('main')
+})
 // 창이 열려 인보이스가 준비되면 매번 가이드를 바로 시작한다 (해성 결정 2026-09-24)
 watch(state, (v) => {
   if (v === 'ready') setTimeout(() => { if (state.value === 'ready' && !guideOpen.value) startGuide('main') }, 500)

@@ -64,6 +64,8 @@ const props = defineProps({
   /** [{ target: data-guide 값, title, desc, tip? }] — 화면에 실제로 있는 대상만 넘길 것 */
   steps: { type: Array, required: true },
   badge: { type: String, default: '사용가이드' },
+  /** 열릴 때 시작할 단계 번호(0부터) */
+  startIndex: { type: Number, default: 0 },
 })
 const emit = defineEmits(['update:open', 'finish'])
 
@@ -150,7 +152,7 @@ watch(() => props.open, async (v) => {
   if (v) {
     await nextTick()
     attach()
-    go(0)
+    go(Math.min(Math.max(props.startIndex, 0), props.steps.length - 1))
   } else {
     detach()
     rect.value = null
