@@ -77,8 +77,7 @@ export const TT_RECEIPT_STEP = {
   title: '송금확인증 보내기',
   desc: "은행에서 받은 '외국환 거래 계산서'를 사진 찍어 보내주세요. 송금이 확인되는 즉시 발주를 진행해요.",
   button: '송금확인증 보내기 (1:1 상담)',
-  exampleToggle: '이런 서류예요',
-  // 개인정보 가림 처리된 예시 이미지 (public/ 아래). 로드 실패 시 토글을 숨긴다.
+  // 개인정보 가림 처리된 예시 이미지 (public/ 아래). 항상 표시, 로드 실패 시에만 숨긴다.
   exampleImage: '/images/tt/tt_receipt_example.jpg',
   exampleAlt: '외국환 거래 계산서 예시 (개인정보 가림)',
 }
