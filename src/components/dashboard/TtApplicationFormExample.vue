@@ -14,7 +14,7 @@
         </div>
       </div>
 
-      <div class="flex-1 overflow-y-auto p-4 sm:p-5">
+      <div class="flex-1 min-h-0 overflow-y-auto overscroll-contain p-4 sm:p-5">
         <!-- 이 영역만 출력된다 -->
         <div ref="printArea" class="tt-form-print space-y-3 text-[13px] text-gray-900">
           <h4 class="tt-form-title font-black text-base text-center">{{ TT_FORM_EXAMPLE.title }}</h4>

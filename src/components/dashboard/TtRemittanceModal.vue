@@ -3,7 +3,7 @@
   <!-- 배치: 헤더(송금액) → 탭 ①처음(은행 방문) / ②등록 후(PC) → 2단(왼쪽 인보이스 · 오른쪽 선택 탭 안내) → 접이식 안내 -->
   <div class="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
     @click.self="$emit('close')">
-    <div class="bg-white rounded-3xl max-w-[1200px] w-full max-h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
+    <div class="bg-white rounded-3xl max-w-[1200px] w-full max-h-[90vh] lg:h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
 
       <!-- 헤더 -->
       <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white flex items-center justify-between gap-3 shrink-0">
@@ -64,10 +64,10 @@
 
         <!-- 본문: 좁은 화면은 전체 스크롤(안내 → 인보이스), lg 이상은 2단 각자 스크롤 -->
         <div class="flex-1 min-h-0 overflow-y-auto lg:overflow-hidden text-sm">
-          <div class="flex flex-col lg:grid lg:grid-cols-[55fr_45fr] lg:h-full">
+          <div class="flex flex-col lg:grid lg:grid-cols-[55fr_45fr] lg:grid-rows-[minmax(0,1fr)] lg:h-full">
 
             <!-- 오른쪽(좁은 화면에선 위): 선택된 탭 안내만 렌더링 -->
-            <div class="order-1 lg:order-2 lg:overflow-y-auto overscroll-contain p-4 sm:p-5 lg:border-l border-gray-200 bg-slate-50/60 space-y-4">
+            <div class="order-1 lg:order-2 lg:min-h-0 lg:h-full lg:overflow-y-auto overscroll-contain p-4 sm:p-5 lg:border-l border-gray-200 bg-slate-50/60 space-y-4">
 
               <!-- ① 처음 보내요 · 은행 방문 -->
               <ol v-if="activeTab === 'first'" class="space-y-4">
@@ -181,7 +181,7 @@
             </div>
 
             <!-- 왼쪽(좁은 화면에선 아래): 인보이스 미리보기 — 탭과 상관없이 항상 표시 -->
-            <div class="order-2 lg:order-1 lg:overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3">
+            <div class="order-2 lg:order-1 lg:min-h-0 lg:h-full lg:overflow-y-auto overscroll-contain p-4 sm:p-5 space-y-3">
           <section class="space-y-2">
             <div class="flex items-center justify-between gap-2 flex-wrap">
               <h3 class="font-black text-gray-900">📄 인보이스 미리보기</h3>
