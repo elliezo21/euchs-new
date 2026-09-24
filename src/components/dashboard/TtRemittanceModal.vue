@@ -578,6 +578,8 @@ function markGuideSeen(kind) {
 }
 async function startGuide(kind) {
   const all = kind === 'edit' ? TT_GUIDE_STEPS_EDIT : (activeTab.value === 'pc' ? TT_GUIDE_STEPS_PC : TT_GUIDE_STEPS_FIRST)
+  if (guideOpen.value) guideOpen.value = false
+  await nextTick()
   await nextTick()
   const visible = all.filter(s => document.querySelector(`[data-guide="${s.target}"]`))
   if (visible.length === 0) {
