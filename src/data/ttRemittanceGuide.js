@@ -184,7 +184,7 @@ export function ttRateTypeLabel(rateType) {
 
 /** T/T 창 사용가이드 (SpotlightGuide) — target 은 TtRemittanceModal 의 data-guide 값 */
 export const TT_GUIDE_BADGE = '사용가이드'
-export const TT_GUIDE_REPLAY = '사용가이드'
+export const TT_GUIDE_REPLAY = '사용가이드 보기'
 const TT_GUIDE_BUYER = { target: 'buyer', title: '먼저 회사 영문명·주소를 확인하세요', desc: '인보이스의 BUYER가 은행에 등록된 회사 영문명·주소와 같아야 해요. 다르면 [영문 상호·주소 수정하기]로 먼저 고치세요.', tip: '고친 내용은 인보이스와 PDF에 바로 반영돼요. 확인한 뒤에 PDF를 받으세요.' }
 const TT_GUIDE_RECEIPT = { target: 'receipt', title: '송금 후 확인증을 보내 주세요', desc: "은행에서 받은 '외국환 거래 계산서'를 사진 찍어 1:1 상담으로 보내 주세요.", tip: '송금이 확인되는 즉시 발주를 진행해요.' }
 const TT_GUIDE_AMOUNT = { target: 'amount', title: '보내실 금액이에요', desc: '은행에 이 달러 금액을 그대로 보내세요. [복사]를 누르면 금액이 복사돼요.', tip: '인보이스를 발행한 시각의 환율로 고정돼서 금액이 바뀌지 않아요.' }

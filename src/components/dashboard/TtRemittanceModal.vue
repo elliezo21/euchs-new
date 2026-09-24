@@ -6,17 +6,20 @@
     <div class="bg-white rounded-3xl max-w-[1360px] w-full max-h-[94vh] lg:h-[94vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
 
       <!-- 헤더 -->
-      <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white flex items-center justify-between gap-3 shrink-0">
+      <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white grid grid-cols-[1fr_auto] sm:grid-cols-[1fr_auto_1fr] items-center gap-x-3 gap-y-2.5 shrink-0">
         <div class="min-w-0">
           <div class="text-[11px] font-bold text-sky-300 tracking-wide">1차 결제 · T/T 해외송금 (USD)</div>
-          <div class="font-black text-base sm:text-lg truncate">발주번호 {{ order.orderNumber }}</div>
+          <div class="font-black text-base sm:text-lg break-all leading-tight">발주번호 {{ order.orderNumber }}</div>
         </div>
-        <div class="flex items-center gap-2 sm:gap-3 shrink-0">
+        <div class="order-last col-span-2 sm:order-none sm:col-span-1 sm:justify-self-center">
           <button v-if="state === 'ready' && invoice" type="button" @click="startGuide(isEditing ? 'edit' : 'main')"
             :aria-label="TT_GUIDE_REPLAY"
-            class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 ring-1 ring-white/15 text-[12px] font-black text-amber-200 transition">
-            <span>💡</span><span class="hidden sm:inline">{{ TT_GUIDE_REPLAY }}</span>
+            class="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 sm:px-6 py-2.5 sm:py-3 rounded-2xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm sm:text-base shadow-lg shadow-amber-500/30 ring-1 ring-amber-300/60 transition active:scale-95"
+            :class="guideOpen ? '' : 'animate-pulse'">
+            <span class="text-base sm:text-lg">💡</span><span>{{ TT_GUIDE_REPLAY }}</span>
           </button>
+        </div>
+        <div class="flex items-center justify-end gap-2 sm:gap-3 min-w-0">
           <div v-if="state === 'ready' && invoice" data-guide="amount" class="text-right">
             <div class="text-[11px] font-bold text-sky-300">송금액</div>
             <div class="flex items-center gap-1.5">
@@ -388,7 +391,7 @@
       </div>
     </Transition>
 
-    <SpotlightGuide v-model:open="guideOpen" :steps="guideSteps" :badge="TT_GUIDE_BADGE" @finish="onGuideFinish" />
+    <SpotlightGuide v-model:open="guideOpen" :steps="guideSteps" :badge="TT_GUIDE_BADGE" />
   </div>
 </template>
 
@@ -560,22 +563,10 @@ function resetEditForm() {
   searchMode.value = false
 }
 
-// ── 사용가이드(SpotlightGuide) — 처음 한 번 자동, 헤더 버튼으로 다시 보기 ──
-const GUIDE_SEEN_KEYS = { main: 'euchs_tt_guide_seen', edit: 'euchs_tt_edit_guide_seen' }
+// ── 사용가이드(SpotlightGuide) — 창 열 때마다 자동, 헤더 버튼으로 다시 보기 ──
 const guideOpen = ref(false)
 const guideSteps = ref([])
 const guideKind = ref('main')
-function isGuideSeen(kind) {
-  try { return localStorage.getItem(GUIDE_SEEN_KEYS[kind]) === '1' } catch (e) {
-    console.error('[TtRemittanceModal] 가이드 상태를 읽지 못했습니다:', e)
-    return false
-  }
-}
-function markGuideSeen(kind) {
-  try { localStorage.setItem(GUIDE_SEEN_KEYS[kind], '1') } catch (e) {
-    console.error('[TtRemittanceModal] 가이드 상태를 저장하지 못했습니다:', e)
-  }
-}
 async function startGuide(kind) {
   const all = kind === 'edit' ? TT_GUIDE_STEPS_EDIT : (activeTab.value === 'pc' ? TT_GUIDE_STEPS_PC : TT_GUIDE_STEPS_FIRST)
   if (guideOpen.value) guideOpen.value = false
@@ -590,16 +581,10 @@ async function startGuide(kind) {
   guideSteps.value = visible
   guideOpen.value = true
 }
-function onGuideFinish() {
-  markGuideSeen(guideKind.value)
-}
 function onClickEditBuyer() {
-  if (guideOpen.value && guideKind.value === 'main') {
-    guideOpen.value = false
-    markGuideSeen('main')
-  }
+  if (guideOpen.value && guideKind.value === 'main') guideOpen.value = false
   startEdit()
-  if (!isGuideSeen('edit')) startGuide('edit')
+  startGuide('edit')
 }
 /** 오른쪽 1단계 버튼 — 왼쪽 BUYER 칸으로 스크롤한 뒤 수정 시작 */
 function editBuyerFromStep() {
@@ -608,8 +593,9 @@ function editBuyerFromStep() {
   else console.error('[TtRemittanceModal] BUYER 확인 칸을 찾지 못했습니다')
   onClickEditBuyer()
 }
+// 창이 열려 인보이스가 준비되면 매번 가이드를 바로 시작한다 (해성 결정 2026-09-24)
 watch(state, (v) => {
-  if (v === 'ready' && !isGuideSeen('main')) setTimeout(() => { if (state.value === 'ready' && !guideOpen.value) startGuide('main') }, 500)
+  if (v === 'ready') setTimeout(() => { if (state.value === 'ready' && !guideOpen.value) startGuide('main') }, 500)
 })
 
 function startEdit() {
