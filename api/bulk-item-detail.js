@@ -123,9 +123,10 @@ const MAX_IMAGES = 20
  *   ② 제목(title/subject/Title)이 비어 있지 않고
  *   ③ 가격 또는 옵션(SKU/props_list) 중 하나라도 있을 것
  *
+ * ※ export: api/studio-product.js가 같은 기준으로 유령 상품을 걸러낸다.
  * @returns {boolean}
  */
-function isRealProduct(data, offerId) {
+export function isRealProduct(data, offerId) {
   if (!data || typeof data !== 'object') return false
 
   // ① num_iid 일치

@@ -29,6 +29,64 @@ import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
 import { currentUser, checkUserRole, userRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
+// 스튜디오(/studio) 노출 스위치 — off(기본) / admin / all
+// 빌드 시점에 값이 고정된다(재배포해야 바뀜). off면 라우트를 등록하지 않아 /studio는 catch-all로 / 에 간다.
+const STUDIO_MODE = import.meta.env.VITE_STUDIO_ENABLED || 'off'
+
+const studioRoute = {
+  path: '/studio',
+  component: () => import('../layouts/StudioLayout.vue'),
+  // 관리자 가드는 to.matched를 보므로 부모에만 달아도 자식 전체에 적용된다
+  meta: STUDIO_MODE === 'admin'
+    ? { requiresAdmin: true, requiresAuth: true }
+    : { requiresAuth: true },
+  children: [
+    {
+      path: '',
+      name: 'studio-home',
+      component: () => import('../views/studio/StudioHomeView.vue'),
+      meta: { title: '스튜디오' }
+    },
+    {
+      path: 'new',
+      name: 'studio-new',
+      component: () => import('../views/studio/StudioNewView.vue'),
+      meta: { title: '새로 만들기' }
+    },
+    {
+      path: 'p/:projectId',
+      name: 'studio-editor',
+      component: () => import('../views/studio/StudioEditorView.vue'),
+      meta: { title: '상세페이지 편집' }
+    },
+    {
+      path: 'assets',
+      name: 'studio-assets',
+      component: () => import('../views/studio/StudioAssetsView.vue'),
+      meta: { title: '저장값 관리' }
+    },
+    {
+      path: 'glossary',
+      name: 'studio-glossary',
+      component: () => import('../views/studio/StudioGlossaryView.vue'),
+      meta: { title: '용어집' }
+    },
+    {
+      path: 'usage',
+      name: 'studio-usage',
+      component: () => import('../views/studio/StudioUsageView.vue'),
+      meta: { title: '사용량' }
+    },
+    {
+      // 임시 검증용 (가리기 알고리즘 비교). 레이아웃 메뉴에 없음 — 주소로만 진입. Phase 1-6 편집기 완성 후 삭제 예정
+      path: 'lab',
+      name: 'studio-lab',
+      component: () => import('../views/studio/StudioLabView.vue'),
+      meta: { title: '가리기 검증 랩' }
+    }
+  ]
+}
+
 const routes = [
   {
     path: '/',
@@ -293,6 +351,7 @@ const routes = [
       }
     ]
   },
+  ...(STUDIO_MODE === 'admin' || STUDIO_MODE === 'all' ? [studioRoute] : []),
   {
     path: '/:pathMatch(.*)*',
     redirect: '/'
@@ -452,8 +511,9 @@ router.beforeEach(async (to, from, next) => {
 
   // 5. /dashboard 하위 마이페이지 보호 (일반 회원 인증 가드)
   const isDashboardRoute = to.path === '/dashboard' || to.path.startsWith('/dashboard/')
+  const requiresAuth = to.matched.some(r => r.meta?.requiresAuth)
 
-  if (isDashboardRoute) {
+  if (isDashboardRoute || requiresAuth) {
     // 현재 로그인 세션 확인: 메모리 → localStorage 캐시 순
     let isUserLoggedIn = Boolean(currentUser.value)
 

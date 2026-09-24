@@ -20,6 +20,12 @@ import jusoSearchHandler from './api/juso-search.js'
 import jusoEnglishHandler from './api/juso-english.js'
 // 로컬 개발용: api/tt-invoice.js handler 직접 import (T/T 해외송금 인보이스 발행, 동일 패턴)
 import ttInvoiceHandler from './api/tt-invoice.js'
+// 로컬 개발용: api/studio-product.js handler 직접 import (스튜디오 상품 조회, 동일 패턴)
+import studioProductHandler from './api/studio-product.js'
+// 로컬 개발용: api/studio-ingest.js handler 직접 import (스튜디오 이미지 수집, 동일 패턴)
+import studioIngestHandler from './api/studio-ingest.js'
+// 로컬 개발용: api/studio-upload.js handler 직접 import (스튜디오 셀러 사진 업로드, 동일 패턴)
+import studioUploadHandler from './api/studio-upload.js'
 // 번역 캐시는 운영(api/translate.js)과 로컬 dev 프록시가 같은 헬퍼를 공유한다
 import { lookupCachedTranslations, saveTranslationsToCache } from './api/_translationCache.js'
 // 1688 공식 다국어 API 한글 보강도 같은 한 벌을 쓴다
@@ -927,6 +933,102 @@ function lab1688Plugin(env) {
           } catch (err) {
             respondError(err)
           }
+          return
+        }
+
+        // 스튜디오 상품 조회 — api/studio-product.js handler 직접 재사용
+        // 5-b(bulk-item-detail)와 같은 어댑터: req.body 파싱 + process.env 주입 + res 래핑
+        if (req.url?.startsWith('/api/studio-product') && (req.method === 'POST' || req.method === 'OPTIONS')) {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            // 환경변수 주입 (Vite loadEnv는 process.env에 반영 안 함)
+            if (!process.env.STUDIO_ENABLED)            process.env.STUDIO_ENABLED            = env.STUDIO_ENABLED            || ''
+            if (!process.env.STUDIO_ONEBOUND_DAILY_CAP) process.env.STUDIO_ONEBOUND_DAILY_CAP = env.STUDIO_ONEBOUND_DAILY_CAP || ''
+            if (!process.env.ONEBOUND_KEY)              process.env.ONEBOUND_KEY              = env.ONEBOUND_KEY              || ''
+            if (!process.env.ONEBOUND_SECRET)           process.env.ONEBOUND_SECRET           = env.ONEBOUND_SECRET           || ''
+            if (!process.env.SUPABASE_URL)              process.env.SUPABASE_URL              = env.SUPABASE_URL              || env.VITE_SUPABASE_URL || ''
+            if (!process.env.SUPABASE_SERVICE_ROLE_KEY) process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await studioProductHandler(req, wrappedRes)
+          })
+          return
+        }
+
+        // 스튜디오 이미지 수집 — api/studio-ingest.js handler 직접 재사용
+        // studio-product와 같은 어댑터: req.body 파싱 + process.env 주입 + res 래핑
+        if (req.url?.startsWith('/api/studio-ingest') && (req.method === 'POST' || req.method === 'OPTIONS')) {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            // 환경변수 주입 (Vite loadEnv는 process.env에 반영 안 함)
+            if (!process.env.STUDIO_ENABLED)            process.env.STUDIO_ENABLED            = env.STUDIO_ENABLED            || ''
+            if (!process.env.SUPABASE_URL)              process.env.SUPABASE_URL              = env.SUPABASE_URL              || env.VITE_SUPABASE_URL || ''
+            if (!process.env.SUPABASE_SERVICE_ROLE_KEY) process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
+            if (!process.env.STUDIO_MAX_IMAGES)         process.env.STUDIO_MAX_IMAGES         = env.STUDIO_MAX_IMAGES         || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await studioIngestHandler(req, wrappedRes)
+          })
+          return
+        }
+
+        // 스튜디오 셀러 사진 업로드(prepare/confirm) — api/studio-upload.js handler 직접 재사용
+        // studio-ingest와 같은 어댑터: req.body 파싱 + process.env 주입 + res 래핑
+        if (req.url?.startsWith('/api/studio-upload') && (req.method === 'POST' || req.method === 'OPTIONS')) {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            // 환경변수 주입 (Vite loadEnv는 process.env에 반영 안 함)
+            if (!process.env.STUDIO_ENABLED)               process.env.STUDIO_ENABLED               = env.STUDIO_ENABLED               || ''
+            if (!process.env.STUDIO_UPLOAD_DAILY_PROJECTS) process.env.STUDIO_UPLOAD_DAILY_PROJECTS = env.STUDIO_UPLOAD_DAILY_PROJECTS || ''
+            if (!process.env.STUDIO_MAX_IMAGES)            process.env.STUDIO_MAX_IMAGES            = env.STUDIO_MAX_IMAGES            || ''
+            if (!process.env.SUPABASE_URL)                 process.env.SUPABASE_URL                 = env.SUPABASE_URL                 || env.VITE_SUPABASE_URL || ''
+            if (!process.env.SUPABASE_SERVICE_ROLE_KEY)    process.env.SUPABASE_SERVICE_ROLE_KEY    = env.SUPABASE_SERVICE_ROLE_KEY    || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await studioUploadHandler(req, wrappedRes)
+          })
           return
         }
 

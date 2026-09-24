@@ -20,6 +20,15 @@
     },
     "api/tt-invoice.js": {
       "maxDuration": 30
+    },
+    "api/studio-product.js": {
+      "maxDuration": 30
+    },
+    "api/studio-ingest.js": {
+      "maxDuration": 60
+    },
+    "api/studio-upload.js": {
+      "maxDuration": 60
     }
   }
 }
