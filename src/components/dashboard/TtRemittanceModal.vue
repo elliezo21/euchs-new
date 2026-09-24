@@ -185,12 +185,17 @@
           <section class="space-y-2">
             <div class="flex items-center justify-between gap-2 flex-wrap">
               <h3 class="font-black text-gray-900">📄 인보이스 미리보기</h3>
-              <button v-if="!isEditing" type="button" @click="startEdit"
-                class="px-3 py-1.5 rounded-xl border border-gray-300 text-xs font-bold text-gray-700 hover:bg-gray-100 transition flex items-center gap-1">
-                <Pencil class="w-3.5 h-3.5" />수정하기
-              </button>
             </div>
-            <p class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 text-[12px] font-bold text-amber-800">⚠️ {{ TT_BUYER_CHECK }}</p>
+            <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
+              <p class="text-[12px] font-bold text-amber-800">⚠️ {{ TT_BUYER_CHECK }}</p>
+              <div v-if="!isEditing" class="flex flex-col items-start gap-2.5">
+                <button type="button" @click="startEdit"
+                  class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-sm shadow-md shadow-sky-600/30 transition flex items-center gap-1.5">
+                  <Pencil class="w-4 h-4" />{{ TT_BUYER_EDIT.button }}
+                </button>
+                <span class="tt-edit-bubble relative px-3 py-1.5 rounded-xl bg-slate-900 text-white text-[12px] font-bold leading-snug">{{ TT_BUYER_EDIT.bubble }}</span>
+              </div>
+            </div>
 
             <div class="rounded-2xl border border-gray-300 bg-white p-3 sm:p-5 font-sans text-[11px] sm:text-[12px] text-gray-900 overflow-x-auto">
               <div class="min-w-[560px] space-y-3">
@@ -299,6 +304,7 @@
                     <div><b>Port of discharge</b><br>{{ fixed.portOfDischarge }}</div>
                     <div><b>The date of issue</b><br>{{ invoice.issueDateKst }}</div>
                     <div><b>TERMS OF PAYMENT</b><br>{{ fixed.termsOfPayment }}</div>
+                    <div><b>BANK CHARGES</b><br>{{ fixed.bankCharges }}</div>
                   </div>
                   <div class="space-y-1.5">
                     <div><b>INTERMEDIARY BANK</b><br>{{ fixed.intermediaryBank.name }}<br>SWIFT BIC : <CopyInline :text="fixed.intermediaryBank.swift" @copy="copyText" /></div>
@@ -319,7 +325,7 @@
               <section class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
                 <div class="text-[12px] font-bold text-gray-500 mb-1">송금 금액 계산</div>
                 <p class="font-mono text-[13px] text-gray-800 break-words leading-relaxed">
-                  ₩{{ formatKrw(invoice.krwTotal) }} ÷ 하나은행 매매기준율 {{ formatRate(invoice.rate) }}
+                  ₩{{ formatKrw(invoice.krwTotal) }} ÷ {{ ttRateTypeLabel(invoice.rateType) }} {{ formatRate(invoice.rate) }}
                   (인보이스 발행 {{ kstDateTime(invoice.issuedAt) }} 기준·고정) = <b class="text-sky-800">USD {{ formatUsd(invoice.usdTotal) }}</b>
                 </p>
               </section>
@@ -372,6 +378,7 @@ import { formatUsd, formatUnitPrice, findNonAsciiFields, downloadTtInvoicePdf } 
 import {
   TT_TABS, TT_TAB_HINT, TT_FIRST_STEPS, TT_PC_NOTICE, TT_PC_STEPS, TT_PC_FIELDS, TT_CURRENCY_TEXT, TT_REMIT_REASON,
   TT_RECEIPT_STEP, TT_FORM_EXAMPLE, TT_INTRO, TT_DEADLINE, TT_KEEP_NOTICE, TT_BUYER_CHECK, TT_ERROR_MESSAGES,
+  TT_FEE_BEARER_TEXT, TT_BUYER_EDIT, ttRateTypeLabel,
 } from '@/data/ttRemittanceGuide'
 
 const props = defineProps({
@@ -489,7 +496,7 @@ const pdfBlockers = computed(() => {
   if (isEditing.value) list.push('수정 중인 송금인 정보를 먼저 저장해 주세요.')
   if (list.length === 0) {
     const bad = findNonAsciiFields({ invoice: invoice.value, fixed: fixed.value, buyer: pdfBuyer.value })
-    if (bad.length > 0) list.push(`PDF는 영문만 들어갈 수 있어요. 한글 등이 섞인 칸을 [수정하기]로 고쳐 주세요: ${bad.join(', ')}`)
+    if (bad.length > 0) list.push(`PDF는 영문만 들어갈 수 있어요. 한글 등이 섞인 칸을 [${TT_BUYER_EDIT.button}]로 고쳐 주세요: ${bad.join(', ')}`)
   }
   return list
 })
@@ -647,6 +654,7 @@ function pcFieldValue(key) {
   switch (key) {
     case 'currency': return TT_CURRENCY_TEXT
     case 'usdTotal': return inv ? `USD ${formatUsd(inv.usdTotal)}` : ''
+    case 'feeBearer': return TT_FEE_BEARER_TEXT
     case 'reason': return TT_REMIT_REASON
     case 'senderName': return buyerNameEn.value
     case 'beneficiaryName': return fx?.beneficiary?.name || ''
@@ -692,6 +700,7 @@ const formSections = computed(() => {
     { title: S.remittance, rows: [
       row(L.method, V.method),
       row(L.amount, `USD ${formatUsd(inv.usdTotal)}`, '인보이스 TOTAL 그대로'),
+      row(L.feeBearer, V.feeBearer, V.feeBearerHint),
     ] },
     { title: S.beneficiary, rows: [
       row(L.beneficiaryName, fx.beneficiary?.name),
@@ -781,5 +790,10 @@ onBeforeUnmount(() => {
   flex-shrink: 0; width: 1.75rem; height: 1.75rem; border-radius: 9999px;
   background: #0284c7; color: #fff; font-weight: 900; font-size: 0.8rem;
   display: flex; align-items: center; justify-content: center; margin-top: 0.05rem;
+}
+.tt-edit-bubble::before {
+  content: ''; position: absolute; left: 1.25rem; top: -6px;
+  border-style: solid; border-width: 0 6px 6px 6px;
+  border-color: transparent transparent #0f172a transparent;
 }
 </style>

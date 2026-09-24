@@ -29,7 +29,7 @@
           <div class="bg-white rounded-xl border border-slate-200 p-2.5">
             <div class="text-slate-400 font-bold">적용 환율</div>
             <div class="font-bold text-slate-800 font-mono">{{ fmtRate(invoice.rate) }}</div>
-            <div class="text-slate-400">하나은행 매매기준율 · 조회 {{ kstDateTime(invoice.issuedAt) }} (마이뱅크 표기 {{ invoice.rateAsOf || '확인 필요' }})</div>
+            <div class="text-slate-400">{{ ttRateTypeLabel(invoice.rateType) }} · 조회 {{ kstDateTime(invoice.issuedAt) }} (마이뱅크 표기 {{ invoice.rateAsOf || '확인 필요' }})</div>
           </div>
           <div class="bg-white rounded-xl border border-slate-200 p-2.5">
             <div class="text-slate-400 font-bold">금액</div>
@@ -148,6 +148,7 @@ import { supabase } from '@/lib/supabase'
 import { romanizeKo } from '@/utils/romanizeKo'
 import { formatInvoiceBuyerAddress } from '@/utils/addressEnglish'
 import { formatUsd, formatUnitPrice, findNonAsciiFields, downloadTtInvoicePdf } from '@/utils/ttInvoicePdf'
+import { ttRateTypeLabel } from '@/data/ttRemittanceGuide'
 
 const props = defineProps({
   /** 관리자 주문 객체 (dbId = orders.id, orderNumber) */

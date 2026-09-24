@@ -4,7 +4,7 @@
  * 쓰는 곳: src/components/dashboard/TtRemittanceModal.vue, TtReceiptStep.vue, TtApplicationFormExample.vue
  * ※ 문구 원칙: 긍정형만. "불법 아님/환치기 아님/n영업일 소요" 같은 표현을 넣지 않는다.
  *   세무(부가세·원가처리) 문구는 명의·세무사 검수 전이라 넣지 않는다.
- *   송금 수수료를 누가 내는지에 대한 문구는 넣지 않는다(해성 결정).
+ *   송금 수수료는 '송금인 부담(OUR)'으로 명기한다(해성 2026-09-24 결정 — 이전 '문구 넣지 않음' 결정을 바꿈).
  *   은행 앱(휴대폰) 송금은 근거가 없어 언급하지 않는다 — 처음은 은행 창구, 등록 후는 기업 인터넷뱅킹(PC).
  * ※ 수취인·은행 정보 값은 api/_ttRemittance.js(서버 응답 fixed)에서 화면이 채운다. 여기엔 라벨·설명만 둔다.
  */
@@ -30,7 +30,7 @@ export const TT_FIRST_STEPS = {
   },
   form: {
     title: '창구에서 신청서 쓰기',
-    desc: "창구에서 '수입대금 T/T 송금이요'라고 말하고 인보이스를 내세요. 신청서는 아래 예시를 보고 쓰시면 돼요.",
+    desc: "창구에서 '수입대금 T/T 송금이요'라고 말하고 인보이스를 내세요. 신청서는 아래 예시를 보고 쓰시면 돼요. 송금 수수료는 '송금인 부담(OUR)'에 체크하세요.",
     button: '신청서 작성 예시 보기',
   },
   register: {
@@ -55,6 +55,7 @@ export const TT_PC_STEPS = {
 export const TT_PC_FIELDS = [
   { key: 'currency', label: '송금 통화', note: '중국 위안(RMB)으로 보내시면 안 돼요.', emphasis: true },
   { key: 'usdTotal', label: '송금 금액', copy: true, emphasis: true },
+  { key: 'feeBearer', label: '수수료 부담', emphasis: true, note: "인보이스 금액이 그대로 도착하도록 'OUR(송금인 전액 부담)'을 선택하세요." },
   { key: 'reason', label: '송금 사유', copy: true },
   { key: 'senderName', label: '송금인 이름', copy: true, note: '회사 영문 상호로 입력하세요 (대표자 개인 이름 아님).' },
   { key: 'beneficiaryName', label: '수취인 이름', copy: true, tip: '칸이 모자라면 남은 글자를 주소칸 앞에 이어 적고, 그다음 주소를 적어요.' },
@@ -71,6 +72,7 @@ export const TT_PC_FIELDS = [
 /** 탭 ② 칸 값 중 고정 문구 */
 export const TT_CURRENCY_TEXT = '미국 달러 (USD)'
 export const TT_REMIT_REASON = '사전송금방식 통관수입대금'
+export const TT_FEE_BEARER_TEXT = '송금인 부담 (OUR)'
 
 /** 송금확인증 보내기 단계 (탭 ①·② 공통 — TtReceiptStep.vue) */
 export const TT_RECEIPT_STEP = {
@@ -104,6 +106,7 @@ export const TT_FORM_EXAMPLE = {
     tel: '전화',
     method: '송금방법',
     amount: '통화·금액',
+    feeBearer: '수수료 부담',
     beneficiaryName: '성명(업체명)',
     beneficiaryAddress: '주소',
     swift: 'SWIFT BIC',
@@ -121,6 +124,8 @@ export const TT_FORM_EXAMPLE = {
   values: {
     account: '출금할 사업자 통장 계좌번호',
     method: '☑ 전신송금(T/T)',
+    feeBearer: '☑ 송금인 부담 (OUR)',
+    feeBearerHint: '중계은행 수수료까지 보내는 분이 부담해요. 인보이스 금액이 그대로 도착해요.',
     customsCleared: '☑ 아니오 (사전송금)',
     receiveDate: '☑ 1년 이내',
     receiveDateHint: '예정일 칸이 있으면 송금하는 날 + 15일',
@@ -139,6 +144,12 @@ export const TT_KEEP_NOTICE = '인보이스와 송금확인증은 5년간 보관
 /** 인보이스 미리보기 위 BUYER 확인 문구 */
 export const TT_BUYER_CHECK = '송금인(BUYER) 영문 상호와 주소가 은행에 등록된 정보와 같은지 확인해 주세요.'
 
+/** BUYER 수정 버튼과 옆 말풍선 */
+export const TT_BUYER_EDIT = {
+  button: '영문 상호·주소 수정하기',
+  bubble: '은행에 등록된 회사 영문명과 다르면 여기서 고치세요. 인보이스·PDF에 바로 반영돼요.',
+}
+
 /** 실패 사유별 안내 (/api/tt-invoice reason) */
 export const TT_ERROR_MESSAGES = {
   rate_unavailable: '환율 정보를 불러오지 못했어요. 잠시 후 다시 시도하거나 1:1 상담으로 문의해 주세요.',
@@ -150,4 +161,18 @@ export const TT_ERROR_MESSAGES = {
   not_found: '주문 정보를 찾지 못했어요. 새로고침 후 다시 시도해 주세요.',
   not_logged_in: '로그인이 필요해요. 다시 로그인한 뒤 시도해 주세요.',
   unavailable: '인보이스를 불러오지 못했어요. 잠시 후 다시 시도하거나 1:1 상담으로 문의해 주세요.',
+}
+
+/** 인보이스 환율 종류(orders.tt_invoice.rateType) → 화면 이름. hana_base 는 2026-09-24 오전까지 발행분 */
+export const TT_RATE_TYPE_LABELS = Object.freeze({
+  hana_base: '하나은행 매매기준율',
+  hana_tt_send: '하나은행 송금 보낼 때 환율',
+})
+export function ttRateTypeLabel(rateType) {
+  const label = TT_RATE_TYPE_LABELS[rateType]
+  if (!label) {
+    console.error('[ttRemittanceGuide] 알 수 없는 환율 종류(rateType):', rateType)
+    return '환율 종류 확인 필요'
+  }
+  return label
 }

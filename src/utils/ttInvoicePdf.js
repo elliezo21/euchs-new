@@ -150,6 +150,7 @@ export async function downloadTtInvoicePdf({ invoice, fixed, seal, buyer }) {
   ly = labelValue(L + 2, ly, 'Port of discharge', fixed.portOfDischarge, colW)
   ly = labelValue(L + 2, ly, 'The date of issue', invoice.issueDateKst, colW)
   ly = labelValue(L + 2, ly, 'TERMS OF PAYMENT', fixed.termsOfPayment, colW)
+  ly = labelValue(L + 2, ly, 'BANK CHARGES', fixed.bankCharges, colW)
 
   let ry = termsTop
   ry = labelValue(MID + 2, ry, 'INTERMEDIARY BANK', `${fixed.intermediaryBank.name}\nSWIFT BIC : ${fixed.intermediaryBank.swift}`, colW)

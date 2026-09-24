@@ -17,6 +17,7 @@ export const TT_REMITTANCE_FIXED = Object.freeze({
   portOfLading: 'yantai China',
   portOfDischarge: 'Incheon Korea',
   termsOfPayment: '50 days after import',
+  bankCharges: 'All bank charges, including intermediary bank charges, are for the account of the remitter (OUR).',
   intermediaryBank: Object.freeze({
     name: 'STANDARD CHARTERED BANK,NEW YORK',
     swift: 'SCBLUS33XXX',

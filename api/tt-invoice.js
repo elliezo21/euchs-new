@@ -23,7 +23,7 @@
  */
 
 import { verifyUserToken } from './bulk-item-detail.js'
-import { fetchHanaUsdBaseRate, krwToUsdCents, buildInvoiceLines, kstDateStr } from './_ttInvoice.js'
+import { fetchHanaUsdSendRate, HANA_SEND_RATE_TYPE, krwToUsdCents, buildInvoiceLines, kstDateStr } from './_ttInvoice.js'
 import { TT_REMITTANCE_FIXED } from './_ttRemittance.js'
 import { TT_SEAL_PNG_BASE64 } from './_ttSeal.js'
 
@@ -373,9 +373,9 @@ export default async function handler(req, res) {
     if (order.tt_invoice) return respondWithSnapshot(res, order, auth.userId)
 
     // ── 4. 새로 발행: 환율 ──
-    const rate = await fetchHanaUsdBaseRate()
+    const rate = await fetchHanaUsdSendRate()
     if (!rate.ok) {
-      console.error(`[tt-invoice] 하나은행 USD 기준환율 조회 실패 order=${orderId}: ${rate.error}`)
+      console.error(`[tt-invoice] 하나은행 USD 송금 환율 조회 실패 order=${orderId}: ${rate.error}`)
       return res.status(200).json({ success: false, reason: 'rate_unavailable' })
     }
 
@@ -399,7 +399,8 @@ export default async function handler(req, res) {
       issueDateKst: kstDateStr(now),
       krwTotal,
       rate: rate.rate,
-      rateType: 'hana_base',
+      baseRate: rate.baseRate,
+      rateType: HANA_SEND_RATE_TYPE,
       rateSource: 'mibank',
       rateAsOf: rate.rateAsOf,
       usdTotal: usdCents / 100,
@@ -420,7 +421,7 @@ export default async function handler(req, res) {
       }
       return respondWithSnapshot(res, again, auth.userId)
     }
-    console.log(`[tt-invoice] 발행 order=${orderId} krw=${krwTotal} rate=${rate.rate}(${rate.rateAsOf}) usd=${invoice.usdTotal} lines=${built.lines.length}`)
+    console.log(`[tt-invoice] 발행 order=${orderId} krw=${krwTotal} rate=${rate.rate}(${rate.rateAsOf}) base=${rate.baseRate} usd=${invoice.usdTotal} lines=${built.lines.length}`)
     return ok(res, invoice)
   } catch (e) {
     console.error(`[tt-invoice] 처리 오류 order=${orderId} user=${auth.userId}:`, e)

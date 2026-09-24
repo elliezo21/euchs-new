@@ -3,7 +3,7 @@
  *
  * 파일명이 '_'로 시작하므로 Vercel 라우트로 노출되지 않는다.
  *
- * 1) 환율: 마이뱅크 은행별 환율 페이지(https://exchange.mibank.me/bank)의 KEB하나은행 "미국 USD" 기준환율(매매기준율)
+ * 1) 환율: 마이뱅크 은행별 환율 페이지(https://exchange.mibank.me/bank)의 KEB하나은행 "미국 USD" 송금 환율(송금 보낼 때, 전신환 매도율). 기준환율은 검증용으로만 함께 읽는다
  * 2) 금액: usdTotal = ceil(krwTotal / rate, 센트) — 정수 센트로 계산
  * 3) 품목 줄: 상품명 키워드 표로 영문 품명 분류 → 같은 품명끼리 묶고 최대 4줄 → usdTotal을 상품대금(CNY) 비율로 배분
  *
@@ -14,6 +14,10 @@ export const MIBANK_BANK_URL = 'https://exchange.mibank.me/bank'
 const RATE_TIMEOUT_MS = 8000
 const RATE_MIN = 900
 const RATE_MAX = 2500
+/** orders.tt_invoice.rateType 값 — 이 헬퍼가 읽는 환율 종류 */
+export const HANA_SEND_RATE_TYPE = 'hana_tt_send'
+/** 송금 환율은 기준환율보다 높아야 하고, 차이가 이 비율을 넘으면 칸을 잘못 읽은 것으로 본다 */
+const SEND_SPREAD_MAX = 0.05
 export const MAX_LINES = 4
 export const SUNDRY = 'Sundry goods'
 
@@ -76,8 +80,17 @@ function itemUnitCny(item) {
   return Number(item?.priceCny || item?.price || item?.unitPriceCny) || 0
 }
 
+/** USD 행에서 <!--marker--> 바로 뒤 첫 칸 숫자. 못 찾으면 null */
+function readRateCell(row, marker) {
+  const re = new RegExp(`<!--${marker}-->\\s*<td[^>]*>\\s*<span[^>]*>\\s*([\\d,]+(?:\\.\\d+)?)\\s*<\\/span>`)
+  const m = row.match(re)
+  if (!m) return null
+  const v = Number(m[1].replace(/,/g, ''))
+  return Number.isFinite(v) ? v : null
+}
+
 /**
- * 마이뱅크 은행별 환율 HTML에서 KEB하나은행 USD 기준환율·기준시각을 뽑는다.
+ * 마이뱅크 은행별 환율 HTML에서 KEB하나은행 USD 송금 환율(보낼 때) + 검증용 기준환율·기준시각을 뽑는다.
  *
  * 실측 구조(2026-09-24 확인):
  *   <strong class="bank_name">KEB하나은행</strong><span class="date">2026.09.23 21:19 기준</span>
@@ -88,7 +101,7 @@ function itemUnitCny(item) {
  *          <td class="t__right"><span class="counter">1,367.00</span></td>
  *     </tr>
  *
- * @returns {{ ok: true, rate: number, rateAsOf: string } | { ok: false, error: string }}
+ * @returns {{ ok: true, rate: number, baseRate: number, rateAsOf: string } | { ok: false, error: string }}
  */
 export function parseMibankHanaUsd(html) {
   const s = String(html || '')
@@ -105,17 +118,20 @@ export function parseMibankHanaUsd(html) {
   const usdRows = rows.filter(r => r.includes('flag_usd') && r.includes('<span>미국</span>'))
   if (usdRows.length !== 1) return { ok: false, error: `미국 USD 행이 ${usdRows.length}개` }
 
-  const cell = usdRows[0].match(/<!--기준환율-->\s*<td[^>]*>\s*<span[^>]*>\s*([\d,]+(?:\.\d+)?)\s*<\/span>/)
-  if (!cell) return { ok: false, error: 'USD 기준환율 칸을 찾지 못함' }
-  const rate = Number(cell[1].replace(/,/g, ''))
-  if (!Number.isFinite(rate) || rate < RATE_MIN || rate > RATE_MAX) {
-    return { ok: false, error: `USD 기준환율 값 이상 ("${cell[1]}")` }
+  const sendRate = readRateCell(usdRows[0], '송금')
+  const baseRate = readRateCell(usdRows[0], '기준환율')
+  if (sendRate === null) return { ok: false, error: 'USD 송금 환율 칸을 찾지 못함' }
+  if (baseRate === null) return { ok: false, error: 'USD 기준환율 칸을 찾지 못함' }
+  for (const [name, v] of [['송금', sendRate], ['기준', baseRate]]) {
+    if (v < RATE_MIN || v > RATE_MAX) return { ok: false, error: `USD ${name} 환율 값 이상 (${v})` }
   }
-  return { ok: true, rate, rateAsOf: head[2] }
+  if (!(sendRate > baseRate)) return { ok: false, error: `송금 환율(${sendRate})이 기준환율(${baseRate})보다 높지 않음 — 칸 확인 필요` }
+  if (sendRate / baseRate - 1 > SEND_SPREAD_MAX) return { ok: false, error: `송금 환율(${sendRate})과 기준환율(${baseRate}) 차이가 5% 초과 — 칸 확인 필요` }
+  return { ok: true, rate: sendRate, baseRate, rateAsOf: head[2] }
 }
 
-/** 마이뱅크 페이지를 받아 하나은행 USD 기준환율을 돌려준다 (타임아웃 8초) */
-export async function fetchHanaUsdBaseRate() {
+/** 마이뱅크 페이지를 받아 하나은행 USD 송금(보낼 때) 환율을 돌려준다 (타임아웃 8초) */
+export async function fetchHanaUsdSendRate() {
   const controller = new AbortController()
   const timer = setTimeout(() => controller.abort(), RATE_TIMEOUT_MS)
   try {
