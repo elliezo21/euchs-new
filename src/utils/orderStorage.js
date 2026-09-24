@@ -383,6 +383,8 @@ export async function fetchOrdersFromSupabase(options = {}) {
               : undefined,
             // 판매자 그룹별 실측 운임 (orders.seller_groups — 발주서 접수 시 저장, [{ groupKey, sellerId, freightRmb, ... }])
             sellerGroups: Array.isArray(row.seller_groups) ? row.seller_groups : [],
+            // T/T 해외송금 인보이스 스냅샷 (orders.tt_invoice — 서버 /api/tt-invoice만 기록, 없으면 null)
+            ttInvoice: row.tt_invoice && typeof row.tt_invoice === 'object' ? row.tt_invoice : null,
             // 창고 입고 단계 VAS 신청 (WarehouseView에서 저장, fallback 없이 실제 데이터만)
             warehouseVasApplied: Array.isArray(row.warehouse_vas_applied) ? row.warehouse_vas_applied : [],
             // 환불완료 체크 (관리자 수동 — status='cancelled'인 경우만 유의미)

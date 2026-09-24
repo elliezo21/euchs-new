@@ -1199,6 +1199,7 @@ import {
 import { currentSettings, fetchSiteSettings } from '@/lib/settings'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
+import { convertDetailToEnglish } from '@/utils/addressEnglish'
 import DateDigitsInput from '@/components/common/DateDigitsInput.vue'
 
 const route = useRoute()
@@ -1362,22 +1363,7 @@ const saveAddressesToStorage = () => {
   } catch (e) {}
 }
 
-/**
- * 상세주소 → 영문 상세 (단순 패턴만). 규칙에 안 맞으면 '' (고객이 직접 입력).
- *   "1층"→"1F", "지하1층"/"B1층"→"B1F", "101호"→"#101",
- *   "101동 202호"→"#202, Bldg 101", "2층 201호"→"#201, 2F"
- */
-function convertDetailToEnglish(detail) {
-  const s = String(detail || '').replace(/\s+/g, ' ').trim()
-  if (!s) return ''
-  const floorEn = (basement, n) => `${basement ? 'B' : ''}${Number(n)}F`
-  let m
-  if ((m = s.match(/^(지하\s*|B)?(\d+)\s*층$/i))) return floorEn(m[1], m[2])
-  if ((m = s.match(/^(\d+)\s*호$/))) return `#${m[1]}`
-  if ((m = s.match(/^(\d+)\s*동\s*(\d+)\s*호$/))) return `#${m[2]}, Bldg ${m[1]}`
-  if ((m = s.match(/^(지하\s*|B)?(\d+)\s*층\s*(\d+)\s*호$/i))) return `#${m[3]}, ${floorEn(m[1], m[2])}`
-  return ''
-}
+// 상세주소 → 영문 상세: src/utils/addressEnglish.js convertDetailToEnglish (T/T 인보이스 화면과 공용)
 
 // 영문 최종 표기 미리보기: "{영문상세}, {영문도로명}"
 const bizEnglishPreview = computed(() => {

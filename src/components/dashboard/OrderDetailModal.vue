@@ -1,6 +1,6 @@
 <template>
   <!-- 주문 상세 모달 — props: order, isPaying, currentSettings -->
-  <!-- emits: close, request-pay, request-second-payment, request-export -->
+  <!-- emits: close, request-pay, request-tt, request-second-payment, request-export -->
   <div
     class="fixed inset-0 z-[110] flex items-center justify-center p-2 sm:p-4 md:p-6 bg-black/75 backdrop-blur-sm animate-fade-in overflow-y-auto"
     @click.self="$emit('close')"
@@ -473,16 +473,25 @@
           <span>1:1 담당 매니저 상담 ({{ order.orderNumber }})</span>
         </button>
         <div class="flex flex-wrap items-center justify-end gap-2.5">
-          <!-- 즉시 결제 -->
-          <button
-            v-if="normalizeOrderStatus(order.status) === 'quote_confirmed'"
-            type="button"
-            @click="$emit('request-pay', order)"
-            :disabled="isPaying"
-            class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 animate-pulse">
-            <CreditCard class="w-4 h-4" />
-            <span>💳 예치금/카드 즉시 결제하기 (₩{{ formatNumber(costSummary.chargeableKrw) }}원)</span>
-          </button>
+          <!-- 1차 결제: 예치금 결제 / T/T 해외송금 결제 (견적 확정일 때만) -->
+          <template v-if="normalizeOrderStatus(order.status) === 'quote_confirmed'">
+            <button
+              type="button"
+              @click="$emit('request-pay', order)"
+              :disabled="isPaying"
+              class="px-6 py-3 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-md active:scale-95 cursor-pointer disabled:opacity-50 animate-pulse">
+              <CreditCard class="w-4 h-4" />
+              <span>예치금 결제 (₩{{ formatNumber(costSummary.chargeableKrw) }}원)</span>
+            </button>
+            <button
+              type="button"
+              @click="$emit('request-tt', order)"
+              :disabled="isPaying"
+              class="px-5 py-3 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs sm:text-sm transition flex items-center gap-2 shadow-md active:scale-95 cursor-pointer disabled:opacity-50">
+              <Globe class="w-4 h-4" />
+              <span>T/T 해외송금 결제 (USD)</span>
+            </button>
+          </template>
           <!-- 견적 대기 -->
           <button
             v-else-if="normalizeOrderStatus(order.status) === 'quote_pending'"
@@ -519,7 +528,7 @@
 import { computed, ref } from 'vue'
 import {
   X, CreditCard, Truck, Package, Calculator, ExternalLink,
-  CheckCircle2, AlertCircle, MessageCircle, FileSpreadsheet, Clock, Info, ChevronDown
+  CheckCircle2, AlertCircle, MessageCircle, FileSpreadsheet, Clock, Info, ChevronDown, Globe
 } from 'lucide-vue-next'
 import {
   normalizeOrderStatus,
@@ -545,10 +554,11 @@ const props = defineProps({
 
 // ── Emits ─────────────────────────────────────────────────────────────────
 // close              : 모달 닫기 요청
-// request-pay        : 1차 결제 요청 (order 전달, 부모가 처리)
+// request-pay        : 1차 결제(예치금) 요청 (order 전달, 부모가 처리)
+// request-tt         : 1차 결제(T/T 해외송금 USD) 안내·인보이스 창 열기 요청 (order 전달, 부모가 처리)
 // request-second-payment : 2차 결제 모달 열기 요청 (order 전달)
 // request-export     : 견적서 엑셀 다운로드 (order 전달, 부모가 처리하거나 내부 처리)
-const emit = defineEmits(['close', 'request-pay', 'request-second-payment', 'request-export'])
+const emit = defineEmits(['close', 'request-pay', 'request-tt', 'request-second-payment', 'request-export'])
 
 // ── VAS 옵션 상수 ─────────────────────────────────────────────────────────
 const VAS_OPTIONS = [

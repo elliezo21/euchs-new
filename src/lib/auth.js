@@ -890,6 +890,42 @@ export const updateBusinessProfile = async (businessData) => {
 }
 
 /**
+ * T/T 해외송금 인보이스 송금인(BUYER) 정보 저장 — 영문 상호·사업장 주소 칸만 profiles에 저장한다.
+ *
+ * updateBusinessProfile과 같은 저장 경로(profiles 테이블, 실패 시 throw, 성공 시 currentUserProfile 병합)지만
+ * 상호·사업자번호·통관부호 등 다른 칸은 보내지 않는다(인보이스 화면에서 고칠 수 없는 칸을 덮지 않기 위함).
+ * 인증 필드도 보내지 않는다 — trg_guard_profile_verification 기준 이 칸들은 인증 상태에 영향이 없다.
+ *
+ * @param {Object} patch - 허용 키만 반영: company_name_en, business_zipcode, business_address_road,
+ *   business_address_jibun, business_address_detail, business_address_en, business_address_detail_en
+ * @returns {Promise<Object>} 저장된 profiles 행
+ */
+export const updateTtBuyerProfile = async (patch) => {
+  if (!currentUser.value || !isValidUUID(currentUser.value.id)) throw new Error('로그인이 필요합니다.')
+  if (!isSupabaseConfigured()) throw new Error('Supabase 설정이 필요합니다.')
+  const ALLOWED = [
+    'company_name_en', 'business_zipcode', 'business_address_road', 'business_address_jibun',
+    'business_address_detail', 'business_address_en', 'business_address_detail_en'
+  ]
+  const updatePayload = { updated_at: new Date().toISOString() }
+  for (const col of ALLOWED) {
+    if (patch?.[col] !== undefined) updatePayload[col] = String(patch[col] || '').trim()
+  }
+  const { data, error } = await supabase.from('profiles').update(updatePayload).eq('id', currentUser.value.id).select().maybeSingle()
+  if (error) {
+    console.error('[updateTtBuyerProfile] profiles update 실패:', error.message, error.code)
+    throw new Error(`송금인 정보 저장 실패: ${error.message}`)
+  }
+  if (!data) {
+    // RLS 등으로 0행이 수정되면 에러 없이 data가 비어 온다 — 성공으로 취급하지 않는다
+    console.error('[updateTtBuyerProfile] 수정된 profiles 행 없음 user=', currentUser.value.id)
+    throw new Error('송금인 정보 저장 실패: 회원 정보를 찾지 못했습니다.')
+  }
+  currentUserProfile.value = { ...(currentUserProfile.value || {}), ...data }
+  return data
+}
+
+/**
  * 이메일 / 비밀번호 B2B 사업자 회원가입
  */
 export const signUpWithEmail = async (email, password, businessData = {}) => {

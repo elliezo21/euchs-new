@@ -18,6 +18,8 @@ import verifyBusinessHandler from './api/verify-business.js'
 // 로컬 개발용: 도로명주소 검색·영문 변환 handler 직접 import (동일 패턴)
 import jusoSearchHandler from './api/juso-search.js'
 import jusoEnglishHandler from './api/juso-english.js'
+// 로컬 개발용: api/tt-invoice.js handler 직접 import (T/T 해외송금 인보이스 발행, 동일 패턴)
+import ttInvoiceHandler from './api/tt-invoice.js'
 // 번역 캐시는 운영(api/translate.js)과 로컬 dev 프록시가 같은 헬퍼를 공유한다
 import { lookupCachedTranslations, saveTranslationsToCache } from './api/_translationCache.js'
 // 1688 공식 다국어 API 한글 보강도 같은 한 벌을 쓴다
@@ -806,6 +808,34 @@ function lab1688Plugin(env) {
               end: res.end.bind(res),
             })
             await jusoRoute(req, wrappedRes)
+          })
+          return
+        }
+
+        // 5-e. T/T 해외송금 인보이스 발행 — api/tt-invoice.js handler 직접 재사용
+        // 동일 어댑터 패턴: req.body 파싱 + process.env 주입 + res 래핑
+        if (req.url?.startsWith('/api/tt-invoice') && (req.method === 'POST' || req.method === 'OPTIONS')) {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            if (!process.env.SUPABASE_URL)              process.env.SUPABASE_URL              = env.SUPABASE_URL              || env.VITE_SUPABASE_URL || ''
+            if (!process.env.SUPABASE_SERVICE_ROLE_KEY) process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await ttInvoiceHandler(req, wrappedRes)
           })
           return
         }

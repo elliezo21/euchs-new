@@ -162,6 +162,13 @@
                     v-if="order.items?.some(i => i.subStatus === 'manual_check_required')"
                     class="ml-1 inline-flex items-center whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-black bg-red-600 text-white"
                   >🚨 수동확인</span>
+                  <!-- T/T 해외송금 인보이스 배지 (orders.tt_invoice 스냅샷 기준) -->
+                  <template v-if="order.ttInvoice">
+                    <span v-if="Number(order.ttInvoice.krwTotal) !== Number(order.totalPriceKrw)"
+                      class="ml-1 inline-flex items-center whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-black bg-rose-600 text-white">T/T 금액 불일치 — 초기화 필요</span>
+                    <span v-else
+                      class="ml-1 inline-flex items-center whitespace-nowrap px-1.5 py-0.5 rounded text-xs font-bold bg-sky-100 text-sky-800 border border-sky-200">T/T 인보이스 USD {{ fmtUsdBadge(order.ttInvoice.usdTotal) }}</span>
+                  </template>
                 </td>
                 <td class="py-3 px-4 text-right font-mono">
                   <div class="font-black text-slate-900 text-sm">₩{{ fmtN(calcCost(order)) }}</div>
@@ -978,6 +985,14 @@
             </div>
           </div>
 
+          <!-- ─── T/T 해외송금 인보이스 (보기·품명/BUYER 수정·PDF·초기화) — 결제대기 이후 단계에서만 ─── -->
+          <AdminTtInvoicePanel
+            v-if="!isStatus(activeOrder, 'quote_pending')"
+            :order="activeOrder"
+            @changed="loadData"
+            @toast="showToast"
+          />
+
           <!-- ─── 중국 내륙 배송 정보 + 快递100 타임라인 ─── -->
           <!-- 표시 조건: 품목 중 chinaTrackingNo가 있는 것이 하나라도 있으면 표시 -->
           <!-- (warehouse_in 단계 한정 아님 — 구매진행/배송중/입고완료 단계 모두 표시) -->
@@ -1584,6 +1599,8 @@ import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
 import { currentSettings, fetchSiteSettings } from '@/lib/settings';
 import AdminWarehouseModal from '@/components/admin/AdminWarehouseModal.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
+import AdminTtInvoicePanel from '@/components/admin/AdminTtInvoicePanel.vue';
+import { formatUsd as fmtUsdBadge } from '@/utils/ttInvoicePdf';
 import PurchaseConfirmModal from '@/components/admin/PurchaseConfirmModal.vue'
 import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue'
 import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue'

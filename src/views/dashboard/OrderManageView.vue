@@ -454,8 +454,15 @@
       :is-paying="isPaying"
       @close="closeDetailModal"
       @request-pay="openInstantPaymentConfirm"
+      @request-tt="openTtRemittance"
       @request-second-payment="(order) => { openSecondPaymentModal(order); }"
       @request-export="exportSingleQuote"
+    />
+    <!-- 6-1. 1차 결제 T/T 해외송금(USD) 안내 + 인보이스 (상세 모달 위에 겹쳐 뜸) -->
+    <TtRemittanceModal
+      v-if="ttRemittanceOrder"
+      :order="ttRemittanceOrder"
+      @close="ttRemittanceOrder = null"
     />
     <!-- ======================================================== -->
     <!-- 7. 2차 결제 & 바코드 라벨 업로드 전용 모달 (Step 6 검수완료 전용) -->
@@ -882,7 +889,7 @@ import {
   getOrderStatusBadgeClass,
   getOrderStatsByUser
 } from '@/lib/orderPipeline';
-import { supabase, isSupabaseConfigured } from '@/lib/supabase';
+import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase';
 import { fetchSiteSettings, currentSettings } from '@/lib/settings';
 import { getStoredOrders, saveStoredOrders, calculatePipelineCounts, updateOrderStatus, fetchOrdersFromSupabase, subscribeToOrders } from '@/utils/orderStorage';
 import { userBalance } from '@/lib/balanceStore';
@@ -893,6 +900,7 @@ import { resolveProductGroupIdentity } from '@/utils/orderItemGrouping';
 import OrderProcessStepper from '@/components/dashboard/OrderProcessStepper.vue';
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import OrderDetailModal from '@/components/dashboard/OrderDetailModal.vue';
+import TtRemittanceModal from '@/components/dashboard/TtRemittanceModal.vue';
 
 const route = useRoute();
 const router = useRouter();
@@ -931,6 +939,7 @@ const pendingAdvanceOrder = ref(null);
 const pendingAdvanceLabel = ref('');
 const confirmInstantPayment = ref(false);
 const pendingInstantPaymentOrder = ref(null);
+const ttRemittanceOrder = ref(null); // T/T 해외송금 인보이스 창에 띄운 주문
 const pendingInstantPaymentWon = ref('0');
 
 // 2차 결제 & 바코드 업로드 모달 상태
@@ -1946,6 +1955,24 @@ function openInstantPaymentConfirm(order) {
   confirmInstantPayment.value = true;
 }
 
+/**
+ * 1차 결제 T/T 해외송금 창 열기. 예치금 결제와 같은 금액 확인(resolveFirstPaymentAmount)을 먼저 거친다 —
+ * 인보이스 금액은 서버가 orders.total_price_krw로 만드는데, 화면 금액과 다르면 고객이 본 금액과 달라지기 때문.
+ */
+function openTtRemittance(order) {
+  if (!order) return;
+  if (resolveFirstPaymentAmount(order) === null) {
+    alert('결제 금액 확인 필요 — 견적 금액이 확정되지 않았거나 화면 금액과 다릅니다.\n관리자 확인이 필요하니 고객센터로 문의해 주세요.');
+    return;
+  }
+  if (!isValidUUID(order.dbId)) {
+    console.error('[OrderManageView] T/T 인보이스: 주문 DB id 없음 — 요청 불가', { orderNumber: order.orderNumber, dbId: order.dbId });
+    alert('주문 정보를 확인할 수 없어요. 새로고침 후 다시 시도해 주세요.');
+    return;
+  }
+  ttRemittanceOrder.value = order;
+}
+
 async function executeInstantPayment() {
   const order = pendingInstantPaymentOrder.value;
   if (!order) return;
@@ -2214,6 +2241,7 @@ const onAuthChanged = (e) => {
     selectedSecondPaymentOrder.value = null;
     pendingAdvanceOrder.value = null;
     pendingInstantPaymentOrder.value = null;
+    ttRemittanceOrder.value = null;
     isDetailModalOpen.value = false;
     isSecondPaymentModalOpen.value = false;
   } else {

@@ -17,6 +17,9 @@
     },
     "api/verify-business.js": {
       "maxDuration": 30
+    },
+    "api/tt-invoice.js": {
+      "maxDuration": 30
     }
   }
 }
