@@ -3,7 +3,7 @@
   <!-- 배치: 헤더(송금액) → 탭 ①처음(은행 방문) / ②등록 후(PC) → 2단(왼쪽 인보이스 · 오른쪽 선택 탭 안내) → 접이식 안내 -->
   <div class="fixed inset-0 z-[120] flex items-center justify-center p-2 sm:p-4 bg-black/75 backdrop-blur-sm overflow-y-auto"
     @click.self="$emit('close')">
-    <div class="bg-white rounded-3xl max-w-[1200px] w-full max-h-[90vh] lg:h-[90vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
+    <div class="bg-white rounded-3xl max-w-[1360px] w-full max-h-[94vh] lg:h-[94vh] flex flex-col shadow-2xl border border-gray-100 overflow-hidden my-auto">
 
       <!-- 헤더 -->
       <div class="px-5 sm:px-6 py-4 bg-gradient-to-r from-slate-900 via-slate-800 to-sky-950 text-white flex items-center justify-between gap-3 shrink-0">
@@ -12,7 +12,12 @@
           <div class="font-black text-base sm:text-lg truncate">발주번호 {{ order.orderNumber }}</div>
         </div>
         <div class="flex items-center gap-2 sm:gap-3 shrink-0">
-          <div v-if="state === 'ready' && invoice" class="text-right">
+          <button v-if="state === 'ready' && invoice" type="button" @click="startGuide(isEditing ? 'edit' : 'main')"
+            :aria-label="TT_GUIDE_REPLAY"
+            class="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 ring-1 ring-white/15 text-[12px] font-black text-amber-200 transition">
+            <span>💡</span><span class="hidden sm:inline">{{ TT_GUIDE_REPLAY }}</span>
+          </button>
+          <div v-if="state === 'ready' && invoice" data-guide="amount" class="text-right">
             <div class="text-[11px] font-bold text-sky-300">송금액</div>
             <div class="flex items-center gap-1.5">
               <span class="font-black font-mono text-lg sm:text-2xl text-amber-300">USD {{ formatUsd(invoice.usdTotal) }}</span>
@@ -51,7 +56,7 @@
       <template v-else-if="state === 'ready' && invoice">
         <!-- 탭 (세그먼트형, 창 전체 폭) -->
         <div class="px-3 sm:px-5 pt-3 pb-2 border-b border-gray-200 bg-white shrink-0">
-          <div class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-gray-100" role="tablist">
+          <div data-guide="tabs" class="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-gray-100" role="tablist">
             <button v-for="t in TT_TABS" :key="t.key" type="button" role="tab" :aria-selected="activeTab === t.key"
               @click="activeTab = t.key"
               class="px-2 sm:px-4 py-2.5 sm:py-3 rounded-xl font-black text-xs sm:text-base transition"
@@ -74,8 +79,19 @@
                 <li class="flex gap-3">
                   <span class="tt-step-no">1</span>
                   <div class="flex-1 min-w-0 space-y-2">
+                    <h4 class="font-black text-gray-900">{{ TT_BUYER_STEP.title }}</h4>
+                    <p class="text-gray-700 leading-relaxed">{{ TT_BUYER_STEP.desc }}</p>
+                    <button v-if="!isEditing" type="button" @click="editBuyerFromStep"
+                      class="px-4 py-2 rounded-xl border-2 border-sky-500 text-sky-700 font-black text-xs hover:bg-sky-50 transition flex items-center gap-1.5">
+                      <Pencil class="w-4 h-4" />{{ TT_BUYER_EDIT.button }}
+                    </button>
+                  </div>
+                </li>
+                <li class="flex gap-3">
+                  <span class="tt-step-no">2</span>
+                  <div class="flex-1 min-w-0 space-y-2">
                     <h4 class="font-black text-gray-900">{{ TT_FIRST_STEPS.print.title }}</h4>
-                    <button type="button" @click="downloadPdf" :disabled="pdfBlockers.length > 0 || isGenerating"
+                    <button data-guide="pdf" type="button" @click="downloadPdf" :disabled="pdfBlockers.length > 0 || isGenerating"
                       class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
                       <FileDown class="w-4 h-4" />{{ isGenerating ? 'PDF 만드는 중…' : '인보이스 PDF 다운로드' }}
                     </button>
@@ -86,10 +102,10 @@
                   </div>
                 </li>
                 <li class="flex gap-3">
-                  <span class="tt-step-no">2</span>
+                  <span class="tt-step-no">3</span>
                   <div class="flex-1 min-w-0 space-y-2">
                     <h4 class="font-black text-gray-900">{{ TT_FIRST_STEPS.docs.title }}</h4>
-                    <ul class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                    <ul data-guide="docs" class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                       <li v-for="d in TT_FIRST_STEPS.docs.items" :key="d" class="flex items-center gap-1.5 text-gray-800">
                         <CheckCircle2 class="w-4 h-4 text-emerald-600 shrink-0" />{{ d }}
                       </li>
@@ -97,15 +113,15 @@
                   </div>
                 </li>
                 <li class="flex gap-3">
-                  <span class="tt-step-no">3</span>
+                  <span class="tt-step-no">4</span>
                   <div class="flex-1 min-w-0 space-y-2">
                     <h4 class="font-black text-gray-900">{{ TT_FIRST_STEPS.form.title }}</h4>
                     <p class="text-gray-700 leading-relaxed">{{ TT_FIRST_STEPS.form.desc }}</p>
-                    <button type="button" @click="showFormExample = true"
+                    <button data-guide="form-example" type="button" @click="showFormExample = true"
                       class="px-4 py-2 rounded-xl border-2 border-sky-500 text-sky-700 font-black text-xs hover:bg-sky-50 transition flex items-center gap-1.5">
                       <FileText class="w-4 h-4" />{{ TT_FIRST_STEPS.form.button }}
                     </button>
-                    <div class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
+                    <div data-guide="register" class="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
                       <p class="font-bold text-emerald-900 leading-relaxed">{{ TT_FIRST_STEPS.register.text }}</p>
                       <button type="button" @click="activeTab = 'pc'"
                         class="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition">{{ TT_FIRST_STEPS.register.button }}</button>
@@ -113,7 +129,7 @@
                   </div>
                 </li>
                 <li class="flex gap-3">
-                  <span class="tt-step-no">4</span>
+                  <span class="tt-step-no">5</span>
                   <div class="flex-1 min-w-0 space-y-2">
                     <h4 class="font-black text-gray-900">{{ TT_RECEIPT_STEP.title }}</h4>
                     <TtReceiptStep @consult="openKakao" />
@@ -123,13 +139,24 @@
 
               <!-- ② 등록했어요 · 집·사무실 PC -->
               <div v-else class="space-y-4">
-                <p class="p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 leading-relaxed font-medium">{{ TT_PC_NOTICE }}</p>
+                <p data-guide="pc-notice" class="p-3 rounded-xl bg-sky-50 border border-sky-200 text-sky-900 leading-relaxed font-medium">{{ TT_PC_NOTICE }}</p>
                 <ol class="space-y-4">
                   <li class="flex gap-3">
                     <span class="tt-step-no">1</span>
                     <div class="flex-1 min-w-0 space-y-2">
+                      <h4 class="font-black text-gray-900">{{ TT_BUYER_STEP.title }}</h4>
+                      <p class="text-gray-700 leading-relaxed">{{ TT_BUYER_STEP.desc }}</p>
+                      <button v-if="!isEditing" type="button" @click="editBuyerFromStep"
+                        class="px-4 py-2 rounded-xl border-2 border-sky-500 text-sky-700 font-black text-xs hover:bg-sky-50 transition flex items-center gap-1.5">
+                        <Pencil class="w-4 h-4" />{{ TT_BUYER_EDIT.button }}
+                      </button>
+                    </div>
+                  </li>
+                  <li class="flex gap-3">
+                    <span class="tt-step-no">2</span>
+                    <div class="flex-1 min-w-0 space-y-2">
                       <h4 class="font-black text-gray-900">{{ TT_PC_STEPS.pdf.title }}</h4>
-                      <button type="button" @click="downloadPdf" :disabled="pdfBlockers.length > 0 || isGenerating"
+                      <button data-guide="pdf" type="button" @click="downloadPdf" :disabled="pdfBlockers.length > 0 || isGenerating"
                         class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-xs transition flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed">
                         <FileDown class="w-4 h-4" />{{ isGenerating ? 'PDF 만드는 중…' : '인보이스 PDF 다운로드' }}
                       </button>
@@ -139,8 +166,8 @@
                       <p class="text-gray-700 leading-relaxed">{{ TT_PC_STEPS.pdf.desc }}</p>
                     </div>
                   </li>
-                  <li class="flex gap-3">
-                    <span class="tt-step-no">2</span>
+                  <li data-guide="pc-fields" class="flex gap-3">
+                    <span class="tt-step-no">3</span>
                     <div class="flex-1 min-w-0 space-y-2">
                       <h4 class="font-black text-gray-900">{{ TT_PC_STEPS.fields.title }}</h4>
                       <p class="text-gray-700 leading-relaxed">{{ TT_PC_STEPS.fields.desc }}</p>
@@ -170,7 +197,7 @@
                     </div>
                   </li>
                   <li class="flex gap-3">
-                    <span class="tt-step-no">3</span>
+                    <span class="tt-step-no">4</span>
                     <div class="flex-1 min-w-0 space-y-2">
                       <h4 class="font-black text-gray-900">{{ TT_RECEIPT_STEP.title }}</h4>
                       <TtReceiptStep @consult="openKakao" />
@@ -186,15 +213,12 @@
             <div class="flex items-center justify-between gap-2 flex-wrap">
               <h3 class="font-black text-gray-900">📄 인보이스 미리보기</h3>
             </div>
-            <div class="p-2.5 rounded-xl bg-amber-50 border border-amber-200 space-y-2">
-              <p class="text-[12px] font-bold text-amber-800">⚠️ {{ TT_BUYER_CHECK }}</p>
-              <div v-if="!isEditing" class="flex flex-col items-start gap-2.5">
-                <button type="button" @click="startEdit"
-                  class="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-black text-sm shadow-md shadow-sky-600/30 transition flex items-center gap-1.5">
-                  <Pencil class="w-4 h-4" />{{ TT_BUYER_EDIT.button }}
-                </button>
-                <span class="tt-edit-bubble relative px-3 py-1.5 rounded-xl bg-slate-900 text-white text-[12px] font-bold leading-snug">{{ TT_BUYER_EDIT.bubble }}</span>
-              </div>
+            <div data-guide="buyer" class="p-2.5 pl-3 rounded-xl bg-amber-50 border border-amber-200 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <p class="flex-1 min-w-[220px] text-[12px] font-bold text-amber-800 leading-relaxed">⚠️ {{ TT_BUYER_CHECK }}</p>
+              <button v-if="!isEditing" type="button" @click="onClickEditBuyer"
+                class="ml-auto shrink-0 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-b from-sky-500 to-sky-600 hover:to-sky-700 text-white text-[13px] font-black ring-1 ring-sky-700/30 shadow-[0_8px_20px_-8px_rgba(2,132,199,0.75)] transition">
+                <Pencil class="w-4 h-4" />{{ TT_BUYER_EDIT.button }}
+              </button>
             </div>
 
             <div class="rounded-2xl border border-gray-300 bg-white p-3 sm:p-5 font-sans text-[11px] sm:text-[12px] text-gray-900 overflow-x-auto">
@@ -217,7 +241,7 @@
                     <!-- 영문 상호 -->
                     <template v-if="isEditing">
                       <label class="block text-[10px] text-gray-500">영문 상호 (영문·숫자·공백·, . - &amp; ( ) / ' # 만)</label>
-                      <div class="flex items-center gap-1">
+                      <div data-guide="edit-name" class="flex items-center gap-1">
                         <input v-model="editForm.nameEn" type="text" maxlength="100"
                           class="flex-1 min-w-0 px-2 py-1 rounded-lg border border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20 uppercase" />
                         <span class="shrink-0">({{ bizNoFormatted || '확인 필요' }})</span>
@@ -229,16 +253,18 @@
                     <template v-if="isEditing || addressMissing">
                       <template v-if="addressMissing || searchMode">
                         <label class="block text-[10px] text-gray-500">사업장 주소 검색 (사업자등록증 주소와 같게)</label>
-                        <AddressSearchInput v-model="addrSearch" :detail-input="detailKoRef" @select="onAddressSelect"
-                          input-class="w-full px-2 py-1 rounded-lg border border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20" />
-                        <input ref="detailKoRef" v-model="editForm.detailKo" @input="onDetailKoInput" type="text" placeholder="한글 상세주소 (예: 2층 201호)"
-                          class="w-full px-2 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-sky-500/20" />
+                        <div data-guide="edit-search" class="space-y-1">
+                          <AddressSearchInput v-model="addrSearch" :detail-input="detailKoRef" @select="onAddressSelect"
+                            input-class="w-full px-2 py-1 rounded-lg border border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20" />
+                          <input ref="detailKoRef" v-model="editForm.detailKo" @input="onDetailKoInput" type="text" placeholder="한글 상세주소 (예: 2층 201호)"
+                            class="w-full px-2 py-1 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-sky-500/20" />
+                        </div>
                       </template>
                       <label class="block text-[10px] text-gray-500">영문 주소 (도로명)</label>
-                      <input v-model="editForm.roadEn" type="text" maxlength="200" placeholder="주소를 검색하면 자동으로 채워져요"
+                      <input data-guide="edit-road" v-model="editForm.roadEn" type="text" maxlength="200" placeholder="주소를 검색하면 자동으로 채워져요"
                         class="w-full px-2 py-1 rounded-lg border border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20" />
                       <label class="block text-[10px] text-gray-500">영문 상세주소</label>
-                      <input v-model="editForm.detailEn" type="text" maxlength="100" placeholder="예: #201, 2F"
+                      <input data-guide="edit-detail" v-model="editForm.detailEn" type="text" maxlength="100" placeholder="예: #201, 2F"
                         class="w-full px-2 py-1 rounded-lg border border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-500/20" />
                       <button v-if="!addressMissing && !searchMode" type="button" @click="searchMode = true"
                         class="text-[11px] font-bold text-sky-700 underline">주소 다시 검색하기</button>
@@ -248,7 +274,7 @@
 
                     <div :class="buyerTel ? '' : 'text-red-600 font-bold'">TEL : {{ buyerTel || '확인 필요' }}</div>
 
-                    <div v-if="isEditing || addressMissing" class="flex gap-1.5 pt-1">
+                    <div v-if="isEditing || addressMissing" data-guide="edit-save" class="flex gap-1.5 pt-1">
                       <button type="button" @click="saveBuyer" :disabled="isSaving"
                         class="px-3 py-1 rounded-lg bg-sky-600 hover:bg-sky-700 text-white font-bold text-[11px] transition disabled:opacity-50">
                         {{ isSaving ? '저장 중…' : '저장' }}
@@ -322,7 +348,7 @@
           </section>
 
               <!-- 계산식 한 줄 -->
-              <section class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
+              <section data-guide="calc" class="p-3.5 rounded-2xl bg-gray-50 border border-gray-200">
                 <div class="text-[12px] font-bold text-gray-500 mb-1">송금 금액 계산</div>
                 <p class="font-mono text-[13px] text-gray-800 break-words leading-relaxed">
                   ₩{{ formatKrw(invoice.krwTotal) }} ÷ {{ ttRateTypeLabel(invoice.rateType) }} {{ formatRate(invoice.rate) }}
@@ -361,15 +387,18 @@
         {{ toastMsg }}
       </div>
     </Transition>
+
+    <SpotlightGuide v-model:open="guideOpen" :steps="guideSteps" :badge="TT_GUIDE_BADGE" @finish="onGuideFinish" />
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onBeforeUnmount, defineComponent, h } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount, defineComponent, h } from 'vue'
 import { X, Loader2, AlertCircle, Copy, Pencil, FileDown, FileText, CheckCircle2, Info } from 'lucide-vue-next'
 import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
 import TtReceiptStep from '@/components/dashboard/TtReceiptStep.vue'
 import TtApplicationFormExample from '@/components/dashboard/TtApplicationFormExample.vue'
+import SpotlightGuide from '@/components/common/SpotlightGuide.vue'
 import { supabase } from '@/lib/supabase'
 import { currentUser, currentUserProfile, fetchUserProfile, updateTtBuyerProfile } from '@/lib/auth'
 import { romanizeKo } from '@/utils/romanizeKo'
@@ -378,7 +407,8 @@ import { formatUsd, formatUnitPrice, findNonAsciiFields, downloadTtInvoicePdf } 
 import {
   TT_TABS, TT_TAB_HINT, TT_FIRST_STEPS, TT_PC_NOTICE, TT_PC_STEPS, TT_PC_FIELDS, TT_CURRENCY_TEXT, TT_REMIT_REASON,
   TT_RECEIPT_STEP, TT_FORM_EXAMPLE, TT_INTRO, TT_DEADLINE, TT_KEEP_NOTICE, TT_BUYER_CHECK, TT_ERROR_MESSAGES,
-  TT_FEE_BEARER_TEXT, TT_BUYER_EDIT, ttRateTypeLabel,
+  TT_FEE_BEARER_TEXT, TT_BUYER_EDIT, TT_BUYER_STEP, ttRateTypeLabel,
+  TT_GUIDE_BADGE, TT_GUIDE_REPLAY, TT_GUIDE_STEPS_FIRST, TT_GUIDE_STEPS_PC, TT_GUIDE_STEPS_EDIT,
 } from '@/data/ttRemittanceGuide'
 
 const props = defineProps({
@@ -530,6 +560,56 @@ function resetEditForm() {
   searchMode.value = false
 }
 
+// ── 사용가이드(SpotlightGuide) — 처음 한 번 자동, 헤더 버튼으로 다시 보기 ──
+const GUIDE_SEEN_KEYS = { main: 'euchs_tt_guide_seen', edit: 'euchs_tt_edit_guide_seen' }
+const guideOpen = ref(false)
+const guideSteps = ref([])
+const guideKind = ref('main')
+function isGuideSeen(kind) {
+  try { return localStorage.getItem(GUIDE_SEEN_KEYS[kind]) === '1' } catch (e) {
+    console.error('[TtRemittanceModal] 가이드 상태를 읽지 못했습니다:', e)
+    return false
+  }
+}
+function markGuideSeen(kind) {
+  try { localStorage.setItem(GUIDE_SEEN_KEYS[kind], '1') } catch (e) {
+    console.error('[TtRemittanceModal] 가이드 상태를 저장하지 못했습니다:', e)
+  }
+}
+async function startGuide(kind) {
+  const all = kind === 'edit' ? TT_GUIDE_STEPS_EDIT : (activeTab.value === 'pc' ? TT_GUIDE_STEPS_PC : TT_GUIDE_STEPS_FIRST)
+  await nextTick()
+  const visible = all.filter(s => document.querySelector(`[data-guide="${s.target}"]`))
+  if (visible.length === 0) {
+    console.error('[TtRemittanceModal] 가이드 대상이 화면에 없습니다:', kind)
+    return
+  }
+  guideKind.value = kind
+  guideSteps.value = visible
+  guideOpen.value = true
+}
+function onGuideFinish() {
+  markGuideSeen(guideKind.value)
+}
+function onClickEditBuyer() {
+  if (guideOpen.value && guideKind.value === 'main') {
+    guideOpen.value = false
+    markGuideSeen('main')
+  }
+  startEdit()
+  if (!isGuideSeen('edit')) startGuide('edit')
+}
+/** 오른쪽 1단계 버튼 — 왼쪽 BUYER 칸으로 스크롤한 뒤 수정 시작 */
+function editBuyerFromStep() {
+  const box = document.querySelector('[data-guide="buyer"]')
+  if (box) box.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  else console.error('[TtRemittanceModal] BUYER 확인 칸을 찾지 못했습니다')
+  onClickEditBuyer()
+}
+watch(state, (v) => {
+  if (v === 'ready' && !isGuideSeen('main')) setTimeout(() => { if (state.value === 'ready' && !guideOpen.value) startGuide('main') }, 500)
+})
+
 function startEdit() {
   resetEditForm()
   isEditing.value = true
@@ -537,6 +617,7 @@ function startEdit() {
 
 function cancelEdit() {
   isEditing.value = false
+  if (guideKind.value === 'edit') guideOpen.value = false
   resetEditForm()
 }
 
@@ -619,6 +700,7 @@ async function saveBuyer() {
   try {
     await updateTtBuyerProfile(patch)
     isEditing.value = false
+    if (guideKind.value === 'edit') guideOpen.value = false
     resetEditForm()
     showToast('송금인 정보가 저장되었어요.')
   } catch (e) {
@@ -790,10 +872,5 @@ onBeforeUnmount(() => {
   flex-shrink: 0; width: 1.75rem; height: 1.75rem; border-radius: 9999px;
   background: #0284c7; color: #fff; font-weight: 900; font-size: 0.8rem;
   display: flex; align-items: center; justify-content: center; margin-top: 0.05rem;
-}
-.tt-edit-bubble::before {
-  content: ''; position: absolute; left: 1.25rem; top: -6px;
-  border-style: solid; border-width: 0 6px 6px 6px;
-  border-color: transparent transparent #0f172a transparent;
 }
 </style>

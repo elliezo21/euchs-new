@@ -22,7 +22,7 @@ export const TT_TAB_HINT = '🏦 처음 한 번만 은행에 가시면, 다음�
 export const TT_FIRST_STEPS = {
   print: {
     title: '인보이스 출력하기',
-    desc: '출력해서 은행에 가져가세요. 왼쪽 BUYER(회사 영문명)가 맞는지 먼저 확인하세요.',
+    desc: '출력해서 은행에 가져가세요.',
   },
   docs: {
     title: '준비물 챙기기',
@@ -144,10 +144,15 @@ export const TT_KEEP_NOTICE = '인보이스와 송금확인증은 5년간 보관
 /** 인보이스 미리보기 위 BUYER 확인 문구 */
 export const TT_BUYER_CHECK = '송금인(BUYER) 영문 상호와 주소가 은행에 등록된 정보와 같은지 확인해 주세요.'
 
+/** 화면 1단계 (탭 ①·② 공통) — 영문 상호·주소 확인 */
+export const TT_BUYER_STEP = {
+  title: '영문 상호·주소 확인하기',
+  desc: '인보이스의 BUYER(회사 영문명·주소)가 은행에 등록된 정보와 같은지 확인하세요. 다르면 바로 고칠 수 있어요.',
+}
+
 /** BUYER 수정 버튼과 옆 말풍선 */
 export const TT_BUYER_EDIT = {
   button: '영문 상호·주소 수정하기',
-  bubble: '은행에 등록된 회사 영문명과 다르면 여기서 고치세요. 인보이스·PDF에 바로 반영돼요.',
 }
 
 /** 실패 사유별 안내 (/api/tt-invoice reason) */
@@ -176,3 +181,39 @@ export function ttRateTypeLabel(rateType) {
   }
   return label
 }
+
+/** T/T 창 사용가이드 (SpotlightGuide) — target 은 TtRemittanceModal 의 data-guide 값 */
+export const TT_GUIDE_BADGE = '사용가이드'
+export const TT_GUIDE_REPLAY = '사용가이드'
+const TT_GUIDE_BUYER = { target: 'buyer', title: '먼저 회사 영문명·주소를 확인하세요', desc: '인보이스의 BUYER가 은행에 등록된 회사 영문명·주소와 같아야 해요. 다르면 [영문 상호·주소 수정하기]로 먼저 고치세요.', tip: '고친 내용은 인보이스와 PDF에 바로 반영돼요. 확인한 뒤에 PDF를 받으세요.' }
+const TT_GUIDE_RECEIPT = { target: 'receipt', title: '송금 후 확인증을 보내 주세요', desc: "은행에서 받은 '외국환 거래 계산서'를 사진 찍어 1:1 상담으로 보내 주세요.", tip: '송금이 확인되는 즉시 발주를 진행해요.' }
+const TT_GUIDE_AMOUNT = { target: 'amount', title: '보내실 금액이에요', desc: '은행에 이 달러 금액을 그대로 보내세요. [복사]를 누르면 금액이 복사돼요.', tip: '인보이스를 발행한 시각의 환율로 고정돼서 금액이 바뀌지 않아요.' }
+const TT_GUIDE_CALC = { target: 'calc', title: '금액은 이렇게 계산돼요', desc: '원화 결제 금액을 하나은행 송금 보낼 때 환율로 나눈 금액이에요.', tip: '인보이스를 발행한 시각의 환율로 고정돼요.' }
+export const TT_GUIDE_STEPS_FIRST = [
+  TT_GUIDE_BUYER,
+  { target: 'pdf', title: '인보이스를 출력하세요', desc: '영문 상호·주소를 확인했으면 PDF로 받아 출력해서 은행에 가져가세요.', tip: '은행 직원이 이 인보이스를 보고 송금을 처리해요.' },
+  { target: 'docs', title: '은행에 가져갈 준비물', desc: '대표자 신분증, 사업자등록증, 출력한 인보이스, 출금할 사업자 통장을 챙기세요.' },
+  { target: 'form-example', title: '신청서는 예시대로 쓰면 돼요', desc: '이 주문 정보로 미리 채운 신청서 예시를 볼 수 있어요. 출력해서 가져가셔도 돼요.', tip: "송금 수수료는 '송금인 부담(OUR)'에 체크하세요." },
+  { target: 'register', title: '인터넷뱅킹 등록도 같이 요청하세요', desc: "창구에서 '다음부터 인터넷뱅킹으로 해외송금(수입대금)하고 싶어요'라고 등록도 같이 요청하세요." },
+  TT_GUIDE_RECEIPT,
+  TT_GUIDE_AMOUNT,
+  TT_GUIDE_CALC,
+  { target: 'tabs', title: '다음부터는 ② 탭으로', desc: '인터넷뱅킹 해외송금 등록을 마치시면, 다음부터는 ② 탭 안내대로 집·사무실 PC에서 보내실 수 있어요.' },
+]
+export const TT_GUIDE_STEPS_PC = [
+  { target: 'pc-notice', title: '인터넷뱅킹 등록을 마친 분만', desc: '은행 창구에서 해외송금(수입대금) 인터넷 등록을 마치셨다면, 기업 인터넷뱅킹 해외송금 메뉴로 들어가세요.' },
+  TT_GUIDE_BUYER,
+  { target: 'pdf', title: '인보이스 PDF 받기', desc: '영문 상호·주소를 확인했으면 PDF를 받으세요. 은행이 증빙 첨부를 요구하면 이 파일을 올리세요.' },
+  { target: 'pc-fields', title: '칸별로 복사해서 넣으세요', desc: '은행 화면의 칸에 이 목록의 값을 [복사] 버튼으로 그대로 넣으세요.', tip: "수수료 부담은 'OUR(송금인 전액 부담)'을 선택하세요." },
+  TT_GUIDE_RECEIPT,
+  TT_GUIDE_AMOUNT,
+  TT_GUIDE_CALC,
+  { target: 'tabs', title: '처음 보내실 땐 ① 탭', desc: '아직 인터넷뱅킹 등록 전이라면 ① 탭 안내대로 은행 창구에 한 번 가시면 돼요.' },
+]
+export const TT_GUIDE_STEPS_EDIT = [
+  { target: 'edit-name', title: '회사 영문 상호', desc: '은행에 등록된 회사 영문 이름을 그대로 적으세요. 영문·숫자와 일부 기호만 쓸 수 있어요.', tip: '통장이나 사업자등록증의 영문명과 같게 적으면 돼요.' },
+  { target: 'edit-search', title: '사업장 주소 검색', desc: '사업자등록증에 적힌 주소를 검색해서 고르면 영문 주소가 자동으로 채워져요.' },
+  { target: 'edit-road', title: '영문 주소 확인', desc: '자동으로 채워진 영문 도로명 주소를 확인하세요. 필요하면 직접 고칠 수 있어요.' },
+  { target: 'edit-detail', title: '영문 상세주소', desc: '층·호수를 영문으로 적으세요.', tip: '예: #201, 2F' },
+  { target: 'edit-save', title: '저장하면 끝', desc: '[저장]을 누르면 인보이스와 PDF에 바로 반영돼요.' },
+]
