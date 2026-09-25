@@ -12,8 +12,8 @@
       <div 
         v-if="isLoginModalOpen" 
         class="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-950/75 backdrop-blur-sm select-none overflow-y-auto"
-        @click.self="closeLoginModal"
-        @keydown.esc="closeLoginModal"
+        @click.self="dismissLoginModal"
+        @keydown.esc="dismissLoginModal"
       >
         <!-- Modal Card Container -->
         <div 
@@ -25,7 +25,7 @@
           <!-- Close Button (X) -->
           <button 
             type="button"
-            @click="closeLoginModal"
+            @click="dismissLoginModal"
             class="absolute top-5 right-5 w-8 h-8 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-400 hover:text-gray-700 flex items-center justify-center transition cursor-pointer"
             aria-label="닫기"
           >
@@ -668,6 +668,14 @@ import {
   resetPasswordForEmail,
   updateUserPassword
 } from '../lib/auth'
+import { AUTH_REDIRECT_KEY, dropsRedirectOnClose } from '../lib/authRedirect'
+
+// 사용자가 직접 닫을 때(X·바깥 클릭·Esc)만 가드가 저장한 복귀 주소를 버린다 (사유 규칙: authRedirect.js).
+// 로그인 성공으로 자동으로 닫힐 때(auth.js closeLoginModal)와 구글·카카오로 떠날 때는 지우지 않는다.
+const dismissLoginModal = () => {
+  if (dropsRedirectOnClose('user_dismiss')) sessionStorage.removeItem(AUTH_REDIRECT_KEY)
+  closeLoginModal()
+}
 
 const isLoading = ref(false)
 const showPassword = ref(false)

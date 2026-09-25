@@ -1,5 +1,7 @@
 import { ref, computed } from 'vue'
+import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured, isValidUUID, removeSupabaseAuthToken } from './supabase'
+import { shouldClearStaleLocalUser, shouldPromptLoginAfterClear } from './authSession'
 
 export const currentUser = ref(null)
 export const currentUserProfile = ref(null) // Supabase profiles 테이블 데이터 (balance, company_name, pccc 등)
@@ -1095,38 +1097,98 @@ export const signOut = async () => {
   } catch (err) {
     console.error('SignOut Error:', err)
   } finally {
-    currentUser.value = null
-    currentUserProfile.value = null
-    userRole.value = 'user'
-    try {
-      // ── 모든 세션 잔여물 완전 소거 ─────────────────────────────
-      localStorage.removeItem('euchs_demo_session')
-      localStorage.removeItem('euchs_admin_token')
-      localStorage.removeItem('euchs_auth_user')
-      localStorage.removeItem('euchs_business_info')
-      localStorage.removeItem('euchs_tax_info')
-      localStorage.removeItem('euchs_business_profile_current')
-      // 게스트 장바구니 초기화
-      localStorage.removeItem('euchs_cart_guest')
-      // ── 레거시 공용 장바구니 키 영구 파기 (귀신 데이터 원천 차단) ──
-      localStorage.removeItem('euchs_erp_saved_items')
-      localStorage.removeItem('euchs_holding_items')
-      localStorage.removeItem('euchs_cart_items')
-      // ── 전역 주문 키 소거 (타 계정 주문 노출 원천 차단) ──────────
-      localStorage.removeItem('orders')
-      localStorage.removeItem('euchs_erp_submitted_orders')
-      // ── 잔액·거래 내역 소거 (로그아웃 후 화면 데이터 잔류 방지) ──
-      localStorage.removeItem('euchs_user_balance')
-      localStorage.removeItem('euchs_deposit_requests')
-    } catch (e) {
-      console.error('[signOut] localStorage 세션 잔여물 정리 실패:', e?.message || e)
-    }
-    // 전역 이벤트 디스패치 — 헤더/장바구니 구독자들이 즉시 0으로 초기화
-    window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
-    window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: 0 } }))
-    window.dispatchEvent(new Event('storage'))
+    resetLocalAuthState()
     setTimeout(() => { _isExplicitSignOut = false }, 1500)
   }
+}
+
+/**
+ * 화면용 로그인 상태·캐시 전부 정리 + 구독자 알림 (로그아웃과 세션 만료가 같은 정리를 쓴다)
+ */
+const resetLocalAuthState = () => {
+  currentUser.value = null
+  currentUserProfile.value = null
+  userRole.value = 'user'
+  try {
+    // ── 모든 세션 잔여물 완전 소거 ─────────────────────────────
+    localStorage.removeItem('euchs_demo_session')
+    localStorage.removeItem('euchs_admin_token')
+    localStorage.removeItem('euchs_auth_user')
+    localStorage.removeItem('euchs_business_info')
+    localStorage.removeItem('euchs_tax_info')
+    localStorage.removeItem('euchs_business_profile_current')
+    // 게스트 장바구니 초기화
+    localStorage.removeItem('euchs_cart_guest')
+    // ── 레거시 공용 장바구니 키 영구 파기 (귀신 데이터 원천 차단) ──
+    localStorage.removeItem('euchs_erp_saved_items')
+    localStorage.removeItem('euchs_holding_items')
+    localStorage.removeItem('euchs_cart_items')
+    // ── 전역 주문 키 소거 (타 계정 주문 노출 원천 차단) ──────────
+    localStorage.removeItem('orders')
+    localStorage.removeItem('euchs_erp_submitted_orders')
+    // ── 잔액·거래 내역 소거 (로그아웃 후 화면 데이터 잔류 방지) ──
+    localStorage.removeItem('euchs_user_balance')
+    localStorage.removeItem('euchs_deposit_requests')
+  } catch (e) {
+    console.error('[signOut] localStorage 세션 잔여물 정리 실패:', e?.message || e)
+  }
+  // 전역 이벤트 디스패치 — 헤더/장바구니 구독자들이 즉시 0으로 초기화
+  window.dispatchEvent(new CustomEvent('euchs-auth-changed', { detail: { user: null } }))
+  window.dispatchEvent(new CustomEvent('euchs:cart-updated', { detail: { count: 0 } }))
+  window.dispatchEvent(new Event('storage'))
+}
+
+const hasAdminToken = () => localStorage.getItem('euchs_admin_token') === 'admin_authenticated'
+const hasDemoSession = () => Boolean(localStorage.getItem('euchs_demo_session'))
+
+/**
+ * Supabase 세션이 끝났는데 화면용 캐시만 남은 상태를 정리하고, 보호 화면이면 로그인 창을 띄운다.
+ * 판정은 authSession.js shouldClearStaleLocalUser (세션 조회가 끝난 뒤에만 부를 것).
+ * @returns {boolean} 정리했으면 true
+ */
+const clearStaleLocalUser = ({ hasSession, errorRetryable }) => {
+  const clear = shouldClearStaleLocalUser({
+    hasSession,
+    errorRetryable,
+    hasCachedUser: Boolean(getLocalAuthUser() || currentUser.value),
+    isAdminToken: hasAdminToken(),
+    isDemo: hasDemoSession()
+  })
+  if (!clear) return false
+  const currentFullPath = window.location.pathname + window.location.search
+  const prompt = shouldPromptLoginAfterClear(currentFullPath)
+  console.warn('[auth] Supabase 세션이 없어 화면용 로그인 캐시(euchs_auth_user)를 정리합니다', prompt ? '— 보호 화면이라 로그인 창을 띄웁니다' : '')
+  resetLocalAuthState()
+  if (prompt) openLoginModal('login')
+  return true
+}
+
+/**
+ * 일반 회원의 실제 Supabase 세션 확인 (getSession은 SDK 초기화·토큰 갱신이 끝날 때까지 기다린다)
+ * - { status: 'active', session }: 세션 있음
+ * - { status: 'gone' }: 세션 없음 확정 (남아 있던 화면용 캐시는 정리됨)
+ * - { status: 'unknown' }: 판단 보류 — 관리자·데모 세션, Supabase 미설정, 네트워크 오류. 호출부는 기존 동작을 유지한다
+ */
+export const verifyUserSession = async () => {
+  if (!isSupabaseConfigured() || hasAdminToken() || hasDemoSession()) return { status: 'unknown' }
+
+  let session = null
+  let error = null
+  try {
+    const res = await supabase.auth.getSession()
+    session = res.data?.session || null
+    error = res.error || null
+  } catch (e) {
+    error = e
+  }
+  if (session?.user) return { status: 'active', session }
+
+  const errorRetryable = Boolean(error) && isAuthRetryableFetchError(error)
+  if (error) console.error('[auth] getSession 오류:', error?.message || error, errorRetryable ? '(네트워크 — 로그인 상태 유지)' : '')
+  if (errorRetryable) return { status: 'unknown' }
+
+  clearStaleLocalUser({ hasSession: false, errorRetryable: false })
+  return { status: 'gone' }
 }
 
 
@@ -1307,17 +1369,19 @@ export const initAuth = async () => {
   }
 
   // ── 4. Supabase 세션 비동기 조회 ─────────────────────────────────────
-  // getSession()이 null을 반환하더라도 로컬 세션을 절대 덮어쓰지 않음
+  // 세션 복원(토큰 갱신 포함)이 끝난 뒤 판단한다. 3단계 캐시는 화면 깜빡임 방지용일 뿐이라
+  // 세션이 없다고 확정되면(verifyUserSession 'gone') 캐시를 정리하고 로그인 창을 띄운다.
+  // 네트워크 오류로 확정할 수 없으면('unknown') 예전처럼 캐시를 유지한다.
   try {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (session?.user) {
+    const check = await verifyUserSession()
+    if (check.status === 'active') {
       // Supabase 정식 세션이 있으면 우선 적용
+      const session = check.session
       currentUser.value = session.user
       userRole.value = 'user'
       await checkUserRole(session.user)
       await syncUserProfile(session.user)
     }
-    // session === null 이더라도 localUser가 있으면 절대 건드리지 않음
   } catch (err) {
     console.warn('Get session fallback:', err)
   } finally {
@@ -1392,6 +1456,12 @@ export const initAuth = async () => {
         currentUser.value = null
         userRole.value = 'user'
         localStorage.removeItem('euchs_auth_user')
+        isAuthLoading.value = false
+      } else if (event === 'SIGNED_OUT') {
+        // ✅ 명시적 로그아웃이 아닌 SIGNED_OUT = SDK가 저장소의 세션을 지웠다는 뜻
+        //    (refresh token 거절, 다른 탭에서 로그아웃 등). 캐시만 남기면 "로그인된 척"하며 RLS로 0건이 보인다.
+        //    ※ 이 콜백 안에서 getSession을 await하면 SDK 잠금과 교착되므로 이벤트만으로 판단한다.
+        clearStaleLocalUser({ hasSession: false, errorRetryable: false })
         isAuthLoading.value = false
       } else {
         // ✅ INITIAL_SESSION, TOKEN_REFRESHED, 비인가 세션 등 session=null 이벤트:

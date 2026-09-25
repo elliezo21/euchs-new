@@ -26,7 +26,7 @@ import FavoriteStoresView from '../views/dashboard/FavoriteStoresView.vue'
 import TaxInvoiceManageView from '../views/dashboard/TaxInvoiceManageView.vue'
 import BuyerCancelledView from '../views/dashboard/BuyerCancelledView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
-import { currentUser, checkUserRole, userRole } from '../lib/auth'
+import { currentUser, checkUserRole, userRole, verifyUserSession } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { AUTH_REDIRECT_KEY, isSafeRedirectPath, isStudioProtectedPath } from '../lib/authRedirect'
 
@@ -506,8 +506,18 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // 일반 회원 로그인 세션 확인: 메모리 → localStorage 캐시 → Supabase 세션 순 (5번 대시보드 가드와 같은 방식)
+  // 일반 회원 로그인 세션 확인 (3-1 스튜디오·5 대시보드 가드 공용)
+  // 실제 Supabase 세션을 먼저 본다(getSession이 SDK 초기화·토큰 갱신을 기다림). 화면용 캐시(euchs_auth_user)만
+  // 남은 채 세션이 끝났으면 verifyUserSession이 캐시를 정리하고, 여기서는 로그아웃으로 처리한다.
+  // 관리자·데모·네트워크 오류('unknown')는 예전 순서(메모리 → localStorage 캐시 → Supabase 세션) 그대로.
   const resolveUserLoggedIn = async () => {
+    const check = await verifyUserSession()
+    if (check.status === 'active') {
+      if (currentUser.value?.id !== check.session.user.id) currentUser.value = check.session.user
+      return true
+    }
+    if (check.status === 'gone') return false
+
     let isUserLoggedIn = Boolean(currentUser.value)
 
     if (!isUserLoggedIn) {
@@ -570,12 +580,12 @@ router.beforeEach(async (to, from, next) => {
   const requiresAuth = to.matched.some(r => r.meta?.requiresAuth)
 
   if (isDashboardRoute || requiresAuth) {
-    // 현재 로그인 세션 확인: 메모리 → localStorage 캐시 순 (3-1과 같은 헬퍼, 동작은 예전 그대로)
+    // 현재 로그인 세션 확인 (3-1과 같은 헬퍼)
     const isUserLoggedIn = await resolveUserLoggedIn()
 
     if (!isUserLoggedIn) {
       // 목적지 경로를 sessionStorage에 저장 (로그인 후 복귀용)
-      sessionStorage.setItem('euchs_auth_redirect', to.fullPath)
+      if (isSafeRedirectPath(to.fullPath)) sessionStorage.setItem(AUTH_REDIRECT_KEY, to.fullPath)
 
       // 로그인 모달 호출 이벤트 발행 (App.vue 또는 Header.vue에서 수신)
       window.dispatchEvent(new CustomEvent('euchs-open-login-modal', {
