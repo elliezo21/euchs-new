@@ -92,7 +92,8 @@ const studioRoute = {
       name: 'studio-lab',
       component: () => import('../views/studio/StudioLabView.vue'),
       meta: { ...STUDIO_PROTECTED, title: '가리기 검증 랩' }
-    }
+    },
+    { path: 'ai-lab', name: 'studio-ai-lab', component: () => import('../views/studio/StudioAiLabView.vue'), meta: { requiresAdmin: true, requiresAuth: true, title: 'AI 지우기 시험' } }
   ]
 }
 
