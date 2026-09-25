@@ -28,6 +28,7 @@ import BuyerCancelledView from '../views/dashboard/BuyerCancelledView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
 import { currentUser, checkUserRole, userRole } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
+import { AUTH_REDIRECT_KEY, isSafeRedirectPath, isStudioProtectedPath } from '../lib/authRedirect'
 
 // 스튜디오(/studio) 노출 스위치 — off(기본) / admin / all
 // 빌드 시점에 값이 고정된다(재배포해야 바뀜). off면 라우트를 등록하지 않아 /studio는 catch-all로 / 에 간다.
@@ -505,24 +506,8 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // 4. 관리자 보호 경로 (/admin 및 /admin/*) 접근
-  if (isAdminRoute) {
-    if (isAdminAuthenticated) {
-      // 관리자 권한 확인 완료 -> 어떤 간섭 없이 100% 진입 허용
-      next()
-    } else {
-      // 비로그인 상태 -> 일반 로그인이 아닌 관리자 전용 로그인 화면(/admin/login)으로 직행
-      next('/admin/login')
-    }
-    return
-  }
-
-  // 5. /dashboard 하위 마이페이지 보호 (일반 회원 인증 가드)
-  const isDashboardRoute = to.path === '/dashboard' || to.path.startsWith('/dashboard/')
-  const requiresAuth = to.matched.some(r => r.meta?.requiresAuth)
-
-  if (isDashboardRoute || requiresAuth) {
-    // 현재 로그인 세션 확인: 메모리 → localStorage 캐시 순
+  // 일반 회원 로그인 세션 확인: 메모리 → localStorage 캐시 → Supabase 세션 순 (5번 대시보드 가드와 같은 방식)
+  const resolveUserLoggedIn = async () => {
     let isUserLoggedIn = Boolean(currentUser.value)
 
     if (!isUserLoggedIn) {
@@ -551,6 +536,42 @@ router.beforeEach(async (to, from, next) => {
         console.error('[guard] 대시보드 가드 getSession 실패:', e?.message || e)
       }
     }
+    return isUserLoggedIn
+  }
+
+  // 3-1. 스튜디오 보호 화면 (/studio/*, 대문 /studio 제외) — 로그인 전이면 목적지를 기억하고 로그인 모달
+  //      admin 모드여도 먼저 일반 로그인 → 로그인 뒤 App.vue가 목적지로 보내고, 그때 4번이 관리자 여부를 다시 본다
+  //      (전에는 admin 모드에서 바로 /admin/login으로 가서 로그인 후 /admin에 떨어졌다)
+  if (isStudioProtectedPath(to.path) && to.matched.some(r => r.meta?.requiresAuth) && !(await resolveUserLoggedIn())) {
+    if (isSafeRedirectPath(to.fullPath)) sessionStorage.setItem(AUTH_REDIRECT_KEY, to.fullPath)
+    window.dispatchEvent(new CustomEvent('euchs-open-login-modal', {
+      detail: { message: '로그인이 필요한 서비스입니다. 로그인 후 이용해 주세요.' }
+    }))
+    // 스튜디오 안에서 눌렀으면 그 화면에 머물고, 주소로 바로 들어왔으면 스튜디오 대문으로
+    if (from.name && from.path !== to.path && from.path.startsWith('/studio')) next(false)
+    else next({ name: 'studio-landing' })
+    return
+  }
+
+  // 4. 관리자 보호 경로 (/admin 및 /admin/*) 접근
+  if (isAdminRoute) {
+    if (isAdminAuthenticated) {
+      // 관리자 권한 확인 완료 -> 어떤 간섭 없이 100% 진입 허용
+      next()
+    } else {
+      // 비로그인 상태 -> 일반 로그인이 아닌 관리자 전용 로그인 화면(/admin/login)으로 직행
+      next('/admin/login')
+    }
+    return
+  }
+
+  // 5. /dashboard 하위 마이페이지 보호 (일반 회원 인증 가드)
+  const isDashboardRoute = to.path === '/dashboard' || to.path.startsWith('/dashboard/')
+  const requiresAuth = to.matched.some(r => r.meta?.requiresAuth)
+
+  if (isDashboardRoute || requiresAuth) {
+    // 현재 로그인 세션 확인: 메모리 → localStorage 캐시 순 (3-1과 같은 헬퍼, 동작은 예전 그대로)
+    const isUserLoggedIn = await resolveUserLoggedIn()
 
     if (!isUserLoggedIn) {
       // 목적지 경로를 sessionStorage에 저장 (로그인 후 복귀용)

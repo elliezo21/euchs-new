@@ -22,6 +22,7 @@ import AuthModal from './components/AuthModal.vue'
 import OnboardingTour from './components/common/OnboardingTour.vue'
 import { trackVisitor } from './lib/analytics'
 import { openLoginModal } from './lib/auth'
+import { AUTH_REDIRECT_KEY, isSafeRedirectPath, isStudioProtectedPath } from './lib/authRedirect'
 
 const route = useRoute()
 const router = useRouter()
@@ -55,16 +56,31 @@ const handleOpenLoginModal = () => {
 const handleLoginSuccess = () => {
   const currentPath = route.path
 
-  // ① 현재 페이지가 홈(/)이 아닌 실제 서비스 페이지 → 이동 없이 그대로 머뭄
-  if (currentPath && currentPath !== '/' && currentPath !== '/login') {
-    sessionStorage.removeItem('euchs_auth_redirect')
+  // ⓪ 스튜디오: 가드가 보호 화면(/studio/*) 목적지를 저장하고 스튜디오 안에 머물게 한 경우 → 그 목적지로
+  //    (①은 /studio를 "실제 서비스 페이지"로 보고 목적지를 버리므로 먼저 본다)
+  const saved = sessionStorage.getItem(AUTH_REDIRECT_KEY)
+  if (currentPath.startsWith('/studio') && isStudioProtectedPath(saved)) {
+    sessionStorage.removeItem(AUTH_REDIRECT_KEY)
+    if (!isSafeRedirectPath(saved)) {
+      console.warn('[auth-redirect] 내부 경로가 아닌 복귀 주소를 무시:', saved)
+      return
+    }
+    if (saved !== route.fullPath) router.push(saved)
     return
   }
 
-  // ② /login이나 / 에서 로그인 성공 → 저장된 목적지가 있으면 이동
-  const redirectPath = sessionStorage.getItem('euchs_auth_redirect')
-  sessionStorage.removeItem('euchs_auth_redirect')
-  if (redirectPath && redirectPath !== currentPath) {
+  // ① 현재 페이지가 홈(/)이 아닌 실제 서비스 페이지 → 이동 없이 그대로 머뭄
+  if (currentPath && currentPath !== '/' && currentPath !== '/login') {
+    sessionStorage.removeItem(AUTH_REDIRECT_KEY)
+    return
+  }
+
+  // ② /login이나 / 에서 로그인 성공 → 저장된 목적지가 있으면 이동 (내부 경로만)
+  const redirectPath = saved
+  sessionStorage.removeItem(AUTH_REDIRECT_KEY)
+  if (redirectPath && !isSafeRedirectPath(redirectPath)) {
+    console.warn('[auth-redirect] 내부 경로가 아닌 복귀 주소를 무시:', redirectPath)
+  } else if (redirectPath && redirectPath !== currentPath) {
     router.push(redirectPath)
     return
   }
@@ -85,7 +101,14 @@ const checkOAuthReturnUrl = () => {
   const currentPath = route.path
   if (currentPath === '/' || currentPath === '/login') {
     localStorage.removeItem('euchs_oauth_return_url')
-    const dest = (returnUrl && returnUrl !== '/' && !returnUrl.startsWith('/?')) ? returnUrl : '/mall'
+    let dest = (returnUrl && returnUrl !== '/' && !returnUrl.startsWith('/?')) ? returnUrl : '/mall'
+    // 스튜디오 대문에서 로그인을 시작했고 가드가 저장한 스튜디오 목적지가 있으면 그곳으로 (같은 탭 sessionStorage)
+    const saved = sessionStorage.getItem(AUTH_REDIRECT_KEY)
+    if (returnUrl.startsWith('/studio') && isStudioProtectedPath(saved)) {
+      sessionStorage.removeItem(AUTH_REDIRECT_KEY)
+      if (isSafeRedirectPath(saved)) dest = saved
+      else console.warn('[auth-redirect] 내부 경로가 아닌 복귀 주소를 무시:', saved)
+    }
     router.replace(dest)
   } else {
     // 이미 적절한 페이지에 있으면 returnUrl 폐기

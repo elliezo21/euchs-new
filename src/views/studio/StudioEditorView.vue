@@ -17,8 +17,9 @@
       <div class="ml-auto flex items-center gap-1">
         <!-- 반응형 숨김은 감싸는 요소에 둔다 (st-* 클래스의 display가 Tailwind hidden보다 우선이라) -->
         <span v-if="project" class="md:hidden"><button type="button" class="st-icon-btn" title="사진 추가" @click="addOpen = true"><ImagePlus class="w-[18px] h-[18px]" :stroke-width="2" /></button></span>
-        <button type="button" class="st-icon-btn" disabled title="되돌리기 (준비 중)"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
-        <button type="button" class="st-icon-btn" disabled title="다시 실행 (준비 중)"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+        <!-- 캔버스 도구 막대의 [되돌리기][다시]와 같은 동작 -->
+        <button type="button" class="st-icon-btn" :disabled="!canUndoNow" :title="canUndoNow ? '되돌리기' : '되돌릴 동작이 없어요'" @click="undoEdit"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+        <button type="button" class="st-icon-btn" :disabled="!canRedoNow" :title="canRedoNow ? '다시' : '다시 할 동작이 없어요'" @click="redoEdit"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
         <span class="hidden sm:inline-flex"><button type="button" class="st-btn" disabled title="준비 중이에요"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button></span>
         <button type="button" class="st-btn st-btn-primary" disabled title="준비 중이에요"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
       </div>
@@ -106,11 +107,17 @@
           :selected-id="selectedLayerId"
           :load-image="loadCanvasImage"
           :keys-enabled="!anyModalOpen"
+          :can-undo="canUndoNow"
+          :can-redo="canRedoNow"
+          :history-steps="historySteps"
           @add="addFill"
           @change="changeFill"
           @select="id => (selectedLayerId = id)"
           @remove="removeFill"
           @method="setMethod"
+          @undo="undoEdit"
+          @redo="redoEdit"
+          @jump="jumpEdit"
         />
         <div v-else class="absolute inset-0 flex items-center justify-center st-desc">
           {{ doneImages.length ? '왼쪽에서 사진을 고르세요' : '완료된 사진이 아직 없어요' }}
@@ -152,6 +159,7 @@
               type="range" :min="PAD_MIN" :max="PAD_MAX" step="1" class="mt-2 w-full st-range"
               :value="selectedFill.pad" aria-label="가장자리 여유"
               @input="e => setPad(selectedFill.id, Number(e.target.value))"
+              @change="recordPad"
             />
             <p class="mt-1 st-desc-sm break-keep">글자보다 조금 넉넉하게, 선에서 떨어지게 그리면 더 깨끗해요.</p>
             <p class="mt-0.5 st-desc-sm break-keep">그린 네모보다 이만큼 더 넓게 메워요 (점선).</p>
@@ -229,7 +237,8 @@
 <script setup>
 // 편집기 (1-6b-1) — 사진 한 장을 캔버스로 크게 보고, 중국어 위에 지우기 영역을 그려 주변 픽셀로 메운다.
 // 원본 파일은 바꾸지 않는다. 편집 내용은 studio_images.edit(원본 픽셀 좌표)에 자동 저장하고, 열 때마다 원본에서 다시 계산한다.
-// 덮기·순서 바꾸기·되돌리기·원본 비교(1-6b-2), 글자(1-7), 내보내기(1-9)는 다음 단계 — 버튼은 비활성 그대로.
+// 되돌리기·다시·간단 이력(1-6b-2a)은 사진별 스냅샷(studioHistory.js), 저장은 기존 자동 저장 경로 그대로.
+// 덮기·순서 바꾸기·원본 비교(1-6b-2), 글자(1-7), 내보내기(1-9)는 다음 단계 — 버튼은 비활성 그대로.
 import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
@@ -248,6 +257,11 @@ import {
   MAX_LAYERS, PAD_MIN, PAD_MAX, PAD_DEFAULT,
 } from '@/lib/studioEdit'
 import { createImageCache } from '@/lib/studioImageCache'
+import {
+  createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, jumpTo as jumpHistory,
+  clear as clearHistory, canUndo, canRedo, list as listHistory, current as currentStep, LABELS,
+} from '@/lib/studioHistory'
+import { clampRectToImage } from '@/lib/studioCoords'
 
 // Fabric은 이 컴포넌트와 함께만 받는다 (1024px 미만에서는 받지도 않는다)
 const StudioCanvas = defineAsyncComponent({
@@ -284,6 +298,7 @@ const errorMsg = ref('')
 const orderError = ref('')
 const addOpen = ref(false)
 const layerMap = reactive({})          // image id → 레이어 배열 (화면의 현재 값)
+const histories = reactive({})         // image id → studioHistory (세션 동안만, 사진을 바꿔도 유지)
 const selectedImageId = ref(null)
 const selectedLayerId = ref(null)
 const saveStatus = ref('saved')
@@ -330,6 +345,10 @@ const selectedLayers = computed(() => (selectedImageId.value && layerMap[selecte
 const selectedFill = computed(() => selectedLayers.value.find(l => l.id === selectedLayerId.value && isValidFillLayer(l)) || null)
 const selectedFillCount = computed(() => fillLayersOf(selectedLayers.value).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value)
+const selectedHistory = computed(() => (selectedImage.value && histories[selectedImage.value.id]) || null)
+const canUndoNow = computed(() => canUndo(selectedHistory.value))
+const canRedoNow = computed(() => canRedo(selectedHistory.value))
+const historySteps = computed(() => listHistory(selectedHistory.value))
 
 function rowOf(id) { return images.value.find(i => i.id === id) }
 function fillCount(id) { return fillLayersOf(layerMap[id] || []).length }
@@ -390,6 +409,11 @@ async function load() {
       if (layerMap[row.id] && saver.stateOf(row.id) !== 'saved') continue
       layerMap[row.id] = readLayers(row.edit, row.id)
       saver.reset(row.id, row.edit_version)
+      // 이력: 처음이면 서버 값이 첫 단계. 이미 있는데 서버 값이 이력의 현재와 다르면(다른 창에서 고침) 서버 값으로 새로 시작
+      const h = histories[row.id]
+      const serverEdit = buildEdit(row.edit, layerMap[row.id])
+      if (!h) histories[row.id] = createHistory(serverEdit)
+      else if (JSON.stringify(currentStep(h).edit.layers) !== JSON.stringify(serverEdit.layers)) histories[row.id] = clearHistory(h, serverEdit)
     }
     if (!selectedImage.value) {
       selectedImageId.value = doneImages.value[0]?.id || null
@@ -431,11 +455,43 @@ function loadCanvasImage(row) {
   return imageCache.get(row)
 }
 
-// ── 레이어 바꾸기 (화면 값 → 자동 저장) ──
-function setLayers(imageId, next) {
-  layerMap[imageId] = next
+// ── 레이어 바꾸기 (화면 값 → 자동 저장 [+ 이력]) ──
+/** 저장 직전 범위 맞춤 — 이미지 밖 좌표는 안으로 맞추고 이전·이후 값을 남긴다 (원본 크기는 DB width/height) */
+function clampFills(imageId, layers) {
   const row = rowOf(imageId)
-  saver.change(imageId, buildEdit(row?.edit, next))
+  const W = row?.width, H = row?.height
+  if (!Number.isInteger(W) || !Number.isInteger(H) || W < 1 || H < 1) {
+    console.error('[StudioEditor] 원본 크기를 몰라 범위 맞춤을 건너뜀:', imageId, W, H)
+    return layers
+  }
+  return layers.map(l => {
+    if (!isValidFillLayer(l)) return l
+    const { rect, changed } = clampRectToImage(l, W, H)
+    if (!changed) return l
+    console.warn('[StudioEditor] 저장 직전 이미지 밖 좌표를 범위 안으로 맞춤:', l.id,
+      { x: l.x, y: l.y, w: l.w, h: l.h }, '→', rect, `(원본 ${W}×${H})`)
+    return { ...l, ...rect }
+  })
+}
+
+/** @param {string|null} label 이력 라벨 (null이면 이력에 남기지 않음 — 여백 슬라이더를 끄는 도중 등) */
+function setLayers(imageId, next, label) {
+  const layers = clampFills(imageId, next)
+  layerMap[imageId] = layers
+  const row = rowOf(imageId)
+  const edit = buildEdit(row?.edit, layers)
+  saver.change(imageId, edit)
+  if (label) recordHistory(imageId, edit, label)
+}
+
+function recordHistory(imageId, edit, label) {
+  const h = histories[imageId]
+  if (!h) {
+    console.error('[StudioEditor] 이력이 없는 사진 — 지금 값으로 새로 시작:', imageId)
+    histories[imageId] = createHistory(edit)
+    return
+  }
+  histories[imageId] = pushHistory(h, edit, label) // 값이 같으면 그대로 돌려준다
 }
 
 function addFill(rect) {
@@ -444,29 +500,38 @@ function addFill(rect) {
   const cur = layerMap[id] || []
   if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
   const layer = { id: newFillId(), type: 'fill', x: rect.x, y: rect.y, w: rect.w, h: rect.h, method: 'coons', pad: PAD_DEFAULT }
-  setLayers(id, [...cur, layer])
+  setLayers(id, [...cur, layer], LABELS.add)
   selectedLayerId.value = layer.id
 }
 
-function updateFill(layerId, patch) {
+function updateFill(layerId, patch, label) {
   const id = selectedImageId.value
   if (!id) return
   const cur = layerMap[id] || []
   if (!cur.some(l => l.id === layerId)) return
-  setLayers(id, cur.map(l => (l.id === layerId ? { ...l, ...patch } : l)))
+  setLayers(id, cur.map(l => (l.id === layerId ? { ...l, ...patch } : l)), label)
 }
 
-function changeFill(layerId, rect) { updateFill(layerId, { x: rect.x, y: rect.y, w: rect.w, h: rect.h }) }
-function setMethod(layerId, method) { updateFill(layerId, { method }) }
+// kind: 캔버스가 알려준 동작 — 'move'(이동) | 'resize'(크기 조절, [조금 넓히기] 포함)
+function changeFill(layerId, rect, kind) {
+  updateFill(layerId, { x: rect.x, y: rect.y, w: rect.w, h: rect.h }, kind === 'move' ? LABELS.move : LABELS.resize)
+}
+function setMethod(layerId, method) { updateFill(layerId, { method }, LABELS.method) }
+// 여백 슬라이더: 끄는 동안(input)은 화면·저장만, 손을 뗄 때(change) 이력 1번
 function setPad(layerId, pad) {
   if (!Number.isInteger(pad) || pad < PAD_MIN || pad > PAD_MAX) return
-  updateFill(layerId, { pad })
+  updateFill(layerId, { pad }, null)
+}
+function recordPad() {
+  const id = selectedImageId.value
+  if (!id) return
+  recordHistory(id, buildEdit(rowOf(id)?.edit, layerMap[id] || []), LABELS.pad)
 }
 
 function removeFill(layerId) {
   const id = selectedImageId.value
   if (!id) return
-  setLayers(id, (layerMap[id] || []).filter(l => l.id !== layerId))
+  setLayers(id, (layerMap[id] || []).filter(l => l.id !== layerId), LABELS.remove)
   if (selectedLayerId.value === layerId) selectedLayerId.value = null
 }
 
@@ -475,9 +540,23 @@ function clearAllFills() {
   clearAllOpen.value = false
   if (!id) return
   // 지우기(fill)만 없앤다 — 다음 단계의 다른 레이어는 보존
-  setLayers(id, (layerMap[id] || []).filter(l => l.type !== 'fill'))
+  setLayers(id, (layerMap[id] || []).filter(l => l.type !== 'fill'), LABELS.remove)
   selectedLayerId.value = null
 }
+
+// ── 되돌리기 · 다시 · 이력 이동 ──
+// 그 시점 edit를 화면 값으로 두고, 저장은 기존 자동 저장(edit_version 잠금) 그대로 탄다. 캔버스는 layers 변경을 보고 다시 계산한다
+function applyHistory(res) {
+  const id = selectedImage.value?.id
+  if (!res || !id) return
+  histories[id] = res.history
+  layerMap[id] = readLayers(res.edit, id)
+  saver.change(id, buildEdit(res.edit, layerMap[id]))
+  if (selectedLayerId.value && !layerMap[id].some(l => l.id === selectedLayerId.value)) selectedLayerId.value = null
+}
+function undoEdit() { if (canUndoNow.value) applyHistory(undoHistory(selectedHistory.value)) }
+function redoEdit() { if (canRedoNow.value) applyHistory(redoHistory(selectedHistory.value)) }
+function jumpEdit(i) { if (selectedHistory.value) applyHistory(jumpHistory(selectedHistory.value, i)) }
 
 // ── 저장 상태 ──
 function retrySave() { saver.retry() }
@@ -499,6 +578,8 @@ async function reloadConflicted() {
     if (row) { row.edit = fresh.edit; row.edit_version = fresh.edit_version; row.updated_at = fresh.updated_at }
     layerMap[id] = readLayers(fresh.edit, id)
     saver.reset(id, fresh.edit_version)
+    // 서버 최신본을 불러오면 그 사진의 이력은 비우고 불러온 상태를 첫 단계로
+    histories[id] = createHistory(buildEdit(fresh.edit, layerMap[id]), LABELS.reload)
     if (id === selectedImageId.value && !layerMap[id].some(l => l.id === selectedLayerId.value)) selectedLayerId.value = null
     conflictId.value = null
   } catch (e) {
@@ -535,11 +616,17 @@ function onBeforeUnload(e) {
   e.returnValue = ''
 }
 
-// ── 키보드: ↑/↓ 이전·다음 사진 ──
+// ── 키보드: ↑/↓ 이전·다음 사진, Ctrl(Cmd)+Z 되돌리기, Ctrl(Cmd)+Shift+Z·Ctrl+Y 다시 ──
 function onKeyDown(e) {
-  if (!isWide.value || anyModalOpen.value || e.ctrlKey || e.metaKey || e.altKey) return
+  if (!isWide.value || anyModalOpen.value || e.altKey) return
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+  if (e.ctrlKey || e.metaKey) {
+    // e.code 기준: 한글 입력 상태에서도 같은 키로 동작
+    if (e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undoEdit() }
+    else if ((e.code === 'KeyZ' && e.shiftKey) || (e.code === 'KeyY' && !e.shiftKey)) { e.preventDefault(); redoEdit() }
+    return
+  }
   if (e.key === 'ArrowUp') { e.preventDefault(); stepImage(-1) }
   else if (e.key === 'ArrowDown') { e.preventDefault(); stepImage(1) }
 }
@@ -567,6 +654,7 @@ const onStudioAuthChanged = (e) => {
     images.value = []
     viewUrls.value = new Map()
     for (const k of Object.keys(layerMap)) delete layerMap[k]
+    for (const k of Object.keys(histories)) delete histories[k]
     selectedImageId.value = null
     selectedLayerId.value = null
     saveStatus.value = 'saved'

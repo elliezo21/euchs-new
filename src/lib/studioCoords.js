@@ -68,6 +68,25 @@ export function isClick(s0, s1, slop = CLICK_SLOP) {
   return Math.abs(s1.x - s0.x) < slop && Math.abs(s1.y - s0.y) < slop
 }
 
+/** [선택] 도구에서 누른 뒤 뗄 때까지 이보다 적게 움직이면 "선택만" (화면 px) — 좌표를 바꾸지 않는다 */
+export const SELECT_SLOP = 3
+
+/** 누른 곳 → 뗀 곳(화면 좌표)이 SELECT_SLOP 미만이면 선택만 한 것 */
+export function isSelectOnly(s0, s1, slop = SELECT_SLOP) {
+  return Math.hypot(s1.x - s0.x, s1.y - s0.y) < slop
+}
+
+/**
+ * 저장 직전 범위 맞춤: 0 ≤ x, x+w ≤ W (세로도 같음). 크기가 이미지보다 크면 이미지 크기로 줄인다.
+ * @returns {{ rect: {x,y,w,h}, changed: boolean }}
+ */
+export function clampRectToImage(r, W, H) {
+  const w = Math.max(1, Math.min(r.w, W)), h = Math.max(1, Math.min(r.h, H))
+  const x = Math.max(0, Math.min(W - w, r.x)), y = Math.max(0, Math.min(H - h, r.y))
+  const rect = { x, y, w, h }
+  return { rect, changed: x !== r.x || y !== r.y || w !== r.w || h !== r.h }
+}
+
 /** 이동 중인 영역이 이미지 밖으로 나가지 않게 (크기는 그대로) */
 export function clampRectPosition(r, W, H) {
   return {

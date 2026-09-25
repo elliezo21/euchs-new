@@ -15,8 +15,17 @@
 
     <!-- 위쪽 가운데: 도구 막대 + 안내 띠 + 계산 실패 안내 -->
     <div class="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none" style="z-index: 4; max-width: calc(100% - 24px)">
-      <!-- 1-6b-2의 "덮기"는 이 막대의 "글자 지우기" 오른쪽에 같은 모양으로 붙는다 -->
+      <!-- [되돌리기][다시] | [선택][글자 지우기](1-6b-2의 "덮기"는 이 오른쪽) | [이력] -->
       <div class="st-toolbar pointer-events-auto" role="toolbar" aria-label="편집 도구">
+        <button type="button" class="st-tool" :disabled="!canUndo" :aria-label="UNDO_TIP" data-action="undo" @click="$emit('undo')">
+          <Undo2 class="w-4 h-4" :stroke-width="2" /><span>되돌리기</span>
+          <span class="st-tip" role="tooltip">{{ UNDO_TIP }}</span>
+        </button>
+        <button type="button" class="st-tool" :disabled="!canRedo" :aria-label="REDO_TIP" data-action="redo" @click="$emit('redo')">
+          <Redo2 class="w-4 h-4" :stroke-width="2" /><span>다시</span>
+          <span class="st-tip" role="tooltip">{{ REDO_TIP }}</span>
+        </button>
+        <span class="st-toolbar-sep" />
         <button
           v-for="t in TOOL_BUTTONS" :key="t.key" type="button"
           class="st-tool" :class="tool === t.key ? 'is-active' : ''"
@@ -27,6 +36,26 @@
           <span>{{ t.label }}</span>
           <span class="st-tip" role="tooltip">{{ t.tip }}</span>
         </button>
+        <span class="st-toolbar-sep" />
+        <button
+          type="button" class="st-tool" :class="historyOpen ? 'is-on' : ''" :aria-expanded="historyOpen"
+          aria-label="이력 — 지금까지 한 동작 목록" data-action="history" @click="historyOpen = !historyOpen"
+        >
+          <History class="w-4 h-4" :stroke-width="2" /><span>이력</span>
+          <span v-if="!historyOpen" class="st-tip" role="tooltip">이력 — 지금까지 한 동작 목록</span>
+        </button>
+      </div>
+      <!-- 간단 이력 -->
+      <div v-if="historyOpen" class="st-history pointer-events-auto" data-history-panel>
+        <ol class="st-history-list">
+          <li v-for="s in historySteps" :key="s.i">
+            <button type="button" class="st-history-item" :class="s.current ? 'is-current' : ''" :data-step="s.i" @click="$emit('jump', s.i)">
+              <span class="truncate">{{ s.label }}</span>
+              <span class="st-history-time">{{ formatTime(s.at) }}</span>
+            </button>
+          </li>
+        </ol>
+        <p class="st-history-note break-keep">이력은 이 창을 닫으면 사라져요. 작업한 내용은 자동으로 저장돼 있어요.</p>
       </div>
       <div v-if="hintVisible" class="st-hint pointer-events-auto" data-fill-hint>
         <span class="break-keep"><b>글자 지우기</b>를 누르고 중국어 위를 드래그하세요</span>
@@ -56,6 +85,16 @@
       </button>
     </div>
 
+    <!-- 글자 걸침 안내 (선택 영역 아래) — 자동으로 넓히지 않고 안내만 -->
+    <div
+      v-if="bleedPos && selectedLayer && selectedBleed.length"
+      class="absolute st-bleed" :style="{ left: bleedPos.left + 'px', top: bleedPos.top + 'px' }"
+      data-bleed-notice @pointerdown.stop
+    >
+      <span class="break-keep">네모가 글자에 걸쳐 있어요. 글자를 모두 덮도록 조금 더 크게 그려 주세요.</span>
+      <button type="button" class="st-btn" data-widen @click="widenSelected">조금 넓히기</button>
+    </div>
+
     <!-- 확대/축소 (아래 가운데) -->
     <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-1.5 py-1 rounded-[12px] st-surface st-shadow-float">
       <button type="button" class="st-icon-btn" title="축소" :disabled="loadState !== 'ready'" @click="zoomBy(1 / 1.25)"><ZoomOut class="w-4 h-4" :stroke-width="2" /></button>
@@ -77,13 +116,14 @@
 //   영역을 옮기거나 크기를 바꾸는 동안은 계산하지 않고(점선 테두리만), 손을 뗀 뒤 계산한다.
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Canvas, FabricImage, Rect } from 'fabric'
-import { MousePointer2, Eraser, ZoomIn, ZoomOut, Maximize, Trash2, X } from 'lucide-vue-next'
+import { MousePointer2, Eraser, ZoomIn, ZoomOut, Maximize, Trash2, X, Undo2, Redo2, History } from 'lucide-vue-next'
 import {
-  screenToImage, rectToScreen, rectFromDrag, normalizeRect, clampRectPosition, isClick,
+  screenToImage, rectToScreen, rectFromDrag, normalizeRect, clampRectPosition, isClick, isSelectOnly,
   fitView, clampPan, zoomAt, expandRect, MIN_RECT,
 } from '@/lib/studioCoords'
 import { computeFillPatch } from '@/lib/studioFillPatch'
 import { fillPlan, ownKey } from '@/lib/studioFillPlan'
+import { widenSides } from '@/lib/studioBleed'
 import { isValidFillLayer } from '@/lib/studioEdit'
 
 const props = defineProps({
@@ -92,8 +132,17 @@ const props = defineProps({
   selectedId: { type: String, default: null },
   loadImage: { type: Function, required: true },  // row → Promise<HTMLImageElement>
   keysEnabled: { type: Boolean, default: true },  // 모달이 떠 있으면 false
+  canUndo: { type: Boolean, default: false },
+  canRedo: { type: Boolean, default: false },
+  historySteps: { type: Array, default: () => [] }, // studioHistory.list() 결과
 })
-const emit = defineEmits(['add', 'change', 'select', 'remove', 'method'])
+// change(id, rect, kind): kind 'move' | 'resize' — 이력 라벨용
+const emit = defineEmits(['add', 'change', 'select', 'remove', 'method', 'undo', 'redo', 'jump'])
+
+const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '')
+const MOD = IS_MAC ? 'Cmd' : 'Ctrl'
+const UNDO_TIP = `되돌리기 (${MOD}+Z)`
+const REDO_TIP = `다시 (${MOD}+Shift+Z${IS_MAC ? '' : ' 또는 Ctrl+Y'})`
 
 const METHOD_OPTIONS = [{ key: 'coons', label: '자연스럽게' }, { key: 'solid', label: '단색' }]
 const TOOL_BUTTONS = [
@@ -113,7 +162,32 @@ const floatPos = ref(null)
 const spaceHeld = ref(false)
 const panning = ref(false)
 
+const historyOpen = ref(false)
+const bleedPos = ref(null)
+const bleedById = ref({})     // layer id → 글자에 걸친 변 목록 (최신 계산 결과 기준)
+
 const selectedLayer = computed(() => props.layers.find(l => l.id === props.selectedId && isValidFillLayer(l)) || null)
+const selectedBleed = computed(() => (selectedLayer.value && bleedById.value[selectedLayer.value.id]) || [])
+
+function formatTime(at) {
+  const d = new Date(at)
+  const p = n => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+
+function setBleed(id, sides) {
+  const cur = bleedById.value[id]
+  if (cur && cur.join() === sides.join()) return
+  bleedById.value = { ...bleedById.value, [id]: sides }
+}
+
+// [조금 넓히기]: 걸친 변만 WIDEN_PX 넓힌다 → 이력에 "크기 조절"
+function widenSelected() {
+  const l = selectedLayer.value
+  const sides = selectedBleed.value
+  if (!l || sides.length === 0 || !W) return
+  emit('change', l.id, widenSides(l, sides, W, H), 'resize')
+}
 const wrapCursor = computed(() => (panning.value ? 'grabbing' : spaceHeld.value ? 'grab' : ''))
 const fillCount = computed(() => props.layers.filter(isValidFillLayer).length)
 
@@ -156,6 +230,8 @@ let plan = new Map()             // layer id → { deps, key } (sync 때마다 �
 let computeTimer = null
 let draw = null                  // { s0, p0, preview }
 let pan = null                   // { x, y }
+let press = null                 // [선택] 도구로 영역을 누른 순간: { id, s0(화면), orig{left,top,width,height} }
+let aborting = false             // 남은 드래그를 저장 없이 끝내는 중 (object:modified를 무시)
 let resizeObs = null
 
 // ── 영역 사각형: 테두리를 화면 기준 px로 직접 그린다 (배율과 무관) ──
@@ -288,7 +364,9 @@ function onMiddleMouseDown(e) {
 function setTool(t) {
   tool.value = t
   if (!canvas) return
+  // 진행 중이던 그리기·드래그 상태를 전부 초기화
   cancelDraw()
+  abortTransform('도구 전환', false)
   canvas.skipTargetFind = t === 'draw'
   canvas.defaultCursor = t === 'draw' ? 'crosshair' : 'default' // 글자 지우기 = 십자 커서
   canvas.setCursor(canvas.defaultCursor) // 마우스를 움직이기 전에도 바로 바뀌게
@@ -300,7 +378,44 @@ function cancelDraw() {
   draw = null
 }
 
+/**
+ * Fabric에 남아 있는 드래그(_currentTransform)를 저장 없이 끝내고 영역을 저장값 위치로 되돌린다.
+ * Fabric 6.9.1 endCurrentTransform()은 드래그가 없을 때 부르면 오류가 나고, 끝낼 때 object:modified를 보내므로
+ * 드래그가 있을 때만 부르고 aborting 동안의 object:modified는 저장하지 않는다.
+ * @param {boolean} unexpected  뗌 신호를 못 받아 남은 경우 true (console.warn), 사용자가 Esc·도구 전환한 경우 false
+ */
+function abortTransform(reason, unexpected) {
+  press = null
+  if (!canvas || !canvas._currentTransform) return false
+  const id = canvas._currentTransform.target?.layerId
+  if (unexpected) console.warn('[StudioCanvas] 남아 있던 드래그를 저장 없이 취소:', reason, id)
+  aborting = true
+  try {
+    canvas.endCurrentTransform()
+  } finally {
+    aborting = false
+  }
+  transforming.clear()
+  sync() // 영역 위치·크기를 props.layers(저장값) 그대로 되돌린다
+  return true
+}
+
+// 뗌 신호 대비: Fabric 6.9.1은 기본값(enablePointerEvents: false)이라 pointer가 아니라 mouse·touch 이벤트를 쓴다.
+// 누르면 document에 mouseup(터치는 touchend)을 걸어 드래그를 끝낸다. 버블링 순서상 document 다음이 window이므로,
+// window에서 받았을 때도 드래그가 남아 있으면 Fabric이 그 뗌을 처리하지 못한 것(예: button≠0인 뗌은 Fabric이 무시하고
+// document 리스너만 떼어 버려, 이후 마우스를 움직이면 영역이 포인터를 따라다닌다) → 저장 없이 끝낸다.
+// ※ window pointerup은 mouseup보다 먼저 오므로 쓰면 안 된다 (정상 드래그까지 취소됨 — 2026-09-25 재현 페이지에서 확인)
+function onWindowPointerEnd(e) {
+  if (canvas?._currentTransform) abortTransform(`${e.type}(button=${e.button ?? '-'})이 Fabric에 전달되지 않음`, true)
+}
+
 function onMouseDown(opt) {
+  if (tool.value === 'select' && opt.e.button === 0 && opt.target?.layerId) {
+    // 3px 판정용: 누른 화면 위치와 누르기 전 위치·크기
+    const t = opt.target
+    press = { id: t.layerId, s0: { x: opt.viewportPoint.x, y: opt.viewportPoint.y }, orig: { left: t.left, top: t.top, width: t.width * t.scaleX, height: t.height * t.scaleY } }
+    return
+  }
   if (tool.value !== 'draw' || loadState.value !== 'ready' || opt.e.button !== 0) return
   const s0 = { x: opt.viewportPoint.x, y: opt.viewportPoint.y }
   const p0 = screenToImage(s0, vpt)
@@ -329,6 +444,7 @@ function onMouseUp(opt) {
     if (r) emit('add', r) // 그리기 도구 유지 — 계속 그릴 수 있다
     return
   }
+  press = null
   // 옮기다 제자리에 놓아 object:modified가 안 온 경우에도 점선을 풀고 결과를 다시 보여준다
   if (transforming.size) {
     transforming.clear()
@@ -377,12 +493,24 @@ function onScaling(opt) {
 function onModified(opt) {
   const o = opt.target
   if (!o?.layerId) return
+  if (aborting) { transforming.delete(o.layerId); return } // 취소 중 — abortTransform이 저장값으로 되돌린다
+  // 3px 판정: 누른 곳에서 거의 안 움직였으면 "선택만" — 화면 위 위치·크기도 누르기 전 값으로 되돌리고 저장·이력 없음
+  const p = press
+  press = null
+  if (p && p.id === o.layerId && opt.e && isSelectOnly(p.s0, localPoint(opt.e))) {
+    o.set({ left: p.orig.left, top: p.orig.top, width: p.orig.width, height: p.orig.height, scaleX: 1, scaleY: 1 })
+    o.setCoords()
+    transforming.delete(o.layerId)
+    sync()
+    return
+  }
+  const kind = opt.action === 'drag' ? 'move' : 'resize'
   const r = normalizeRect({ x: o.left, y: o.top, w: o.width * o.scaleX, h: o.height * o.scaleY }, W, H)
   o.set({ left: r.x, top: r.y, width: r.w, height: r.h, scaleX: 1, scaleY: 1 })
   o.setCoords()
   transforming.delete(o.layerId)
   const cur = props.layers.find(l => l.id === o.layerId)
-  if (cur && (cur.x !== r.x || cur.y !== r.y || cur.w !== r.w || cur.h !== r.h)) emit('change', o.layerId, r)
+  if (cur && (cur.x !== r.x || cur.y !== r.y || cur.w !== r.w || cur.h !== r.h)) emit('change', o.layerId, r, kind)
   sync()
 }
 
@@ -398,15 +526,23 @@ function onHover(on) {
 
 function updateFloat() {
   const o = canvas?.getActiveObject()
-  if (!o?.layerId || loadState.value !== 'ready') { floatPos.value = null; return }
+  if (!o?.layerId || loadState.value !== 'ready') { floatPos.value = null; bleedPos.value = null; return }
   const s = rectToScreen({ x: o.left, y: o.top, w: o.width * o.scaleX, h: o.height * o.scaleY }, vpt)
-  const { cw } = viewSize()
+  const { cw, ch } = viewSize()
   const barW = 220, barH = 40
   let top = s.y - barH - 10
-  if (top < 8) top = s.y + s.h + 10
+  const floatBelow = top < 8
+  if (floatBelow) top = s.y + s.h + 10
   const left = Math.max(8, Math.min(cw - barW - 8, s.x + s.w / 2 - barW / 2))
   const next = { left: Math.round(left), top: Math.round(top) }
   if (!floatPos.value || floatPos.value.left !== next.left || floatPos.value.top !== next.top) floatPos.value = next
+  // 걸침 안내: 영역 아래 (도구줄이 아래로 갔으면 그 아래, 화면 밖이면 영역 위쪽 도구줄 위)
+  const noteW = 400, noteH = 48
+  let nTop = floatBelow ? top + barH + 8 : s.y + s.h + 10
+  if (nTop + noteH > ch - 60) nTop = Math.max(8, (floatBelow ? s.y : top) - noteH - 8)
+  const nLeft = Math.max(8, Math.min(cw - noteW - 8, s.x + s.w / 2 - noteW / 2))
+  const nb = { left: Math.round(nLeft), top: Math.round(nTop) }
+  if (!bleedPos.value || bleedPos.value.left !== nb.left || bleedPos.value.top !== nb.top) bleedPos.value = nb
 }
 
 // ── 레이어 → 캔버스 객체 동기화 ──
@@ -451,6 +587,7 @@ function sync() {
     if (hit) { placePatch(l, key, hit); r.busy = false; continue }
     // 자기 값이 바뀌었으면 옛 결과를 숨기고, 앞 레이어만 바뀌었으면 새 결과가 나올 때까지 옛 결과를 둔다 (깜빡임 방지)
     if (p) p.visible = p.ownKey === ownKey(l)
+    setBleed(l.id, []) // 걸침 판정은 새 결과가 나오면 다시
     r.busy = true
   }
   restack(fills)
@@ -482,6 +619,7 @@ function placePatch(l, key, res) {
   p.ownKey = ownKey(l)
   p.res = res // 뒤 레이어 계산 때 덮어쓸 픽셀
   p.visible = true
+  setBleed(id, res.bleed?.sides || [])
 }
 
 /** 지금 계산할 수 있는 다음 레이어 — 배열 순서로, 앞 연결 레이어가 모두 최신인 것 */
@@ -562,6 +700,9 @@ function clearObjects() {
   imgEl = null
   W = 0; H = 0
   floatPos.value = null
+  bleedPos.value = null
+  bleedById.value = {}
+  press = null
   computeError.value = ''
 }
 
@@ -615,7 +756,10 @@ function onKeyDown(e) {
   if (k === 'v') { setTool('select'); e.preventDefault() }
   else if (k === 'e') { setTool('draw'); e.preventDefault() }
   else if (e.key === 'Escape') {
+    // 진행 중이던 그리기·드래그 상태를 전부 초기화
+    if (historyOpen.value) historyOpen.value = false
     cancelDraw()
+    abortTransform('Esc', false)
     canvas?.discardActiveObject()
     canvas?.requestRenderAll()
   } else if ((e.key === 'Delete' || e.key === 'Backspace') && props.selectedId) {
@@ -669,6 +813,9 @@ onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('blur', onBlur)
+  window.addEventListener('mouseup', onWindowPointerEnd)
+  window.addEventListener('touchend', onWindowPointerEnd)
+  window.addEventListener('touchcancel', onWindowPointerEnd)
 
   resizeObs = new ResizeObserver(() => {
     const s = viewSize()
@@ -694,6 +841,9 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('blur', onBlur)
+  window.removeEventListener('mouseup', onWindowPointerEnd)
+  window.removeEventListener('touchend', onWindowPointerEnd)
+  window.removeEventListener('touchcancel', onWindowPointerEnd)
   clearTimeout(computeTimer)
   const c = canvas
   canvas = null
@@ -703,7 +853,7 @@ onBeforeUnmount(() => {
   patchCaches.clear()
 })
 
-watch(() => props.image?.id, () => showImage())
+watch(() => props.image?.id, () => { historyOpen.value = false; showImage() })
 watch(() => props.layers, () => sync(), { deep: true })
 watch(() => props.selectedId, () => sync())
 
@@ -725,8 +875,33 @@ defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }) })
   height: 36px; padding: 0 12px; border-radius: var(--st-radius-sm); border: 0; cursor: pointer; white-space: nowrap;
   font-size: 13px; font-weight: 700; color: var(--st-ink-2); background: transparent;
 }
-.st-tool:hover:not(.is-active) { background: var(--st-soft); }
+.st-tool:hover:not(.is-active):not(:disabled) { background: var(--st-soft); }
 .st-tool.is-active { background: var(--st-accent); color: var(--st-on-accent); }
+.st-tool.is-on { background: var(--st-soft); color: var(--st-ink); }
+.st-tool:disabled { opacity: 0.4; cursor: not-allowed; }
+.st-toolbar-sep { width: 1px; height: 22px; margin: 0 4px; background: var(--st-line); }
+/* 간단 이력 패널 */
+.st-history {
+  width: 280px; padding: 6px; border-radius: var(--st-radius-md);
+  background: var(--st-surface); box-shadow: var(--st-shadow-float);
+}
+.st-history-list { max-height: 280px; overflow-y: auto; }
+.st-history-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px;
+  border: 0; border-radius: var(--st-radius-sm); background: transparent; cursor: pointer;
+  font-size: 13px; font-weight: 600; color: var(--st-ink-2); text-align: left;
+}
+.st-history-item:hover:not(.is-current) { background: var(--st-soft); }
+.st-history-item.is-current { background: var(--st-accent-soft); color: var(--st-accent); font-weight: 800; }
+.st-history-time { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--st-muted); font-variant-numeric: tabular-nums; }
+.st-history-note { margin-top: 6px; padding: 6px 10px 4px; border-top: 1px solid var(--st-line); font-size: 12px; color: var(--st-muted); }
+/* 글자 걸침 안내 */
+.st-bleed {
+  display: flex; align-items: center; gap: 10px; max-width: 400px; padding: 8px 8px 8px 12px; z-index: 5;
+  border-radius: var(--st-radius-md); background: var(--st-surface); box-shadow: var(--st-shadow-float);
+  border-left: 3px solid var(--st-danger); font-size: 12px; font-weight: 700; color: var(--st-ink);
+}
+.st-bleed .st-btn { height: 30px; padding: 0 10px; font-size: 12px; flex-shrink: 0; }
 .st-tip {
   display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
   padding: 6px 10px; border-radius: var(--st-radius-sm); background: var(--st-ink); color: var(--st-surface);
