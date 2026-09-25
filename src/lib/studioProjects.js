@@ -109,6 +109,72 @@ export async function signViewUrls(paths) {
   return map
 }
 
+// ── 편집기 (1-6b) ───────────────────────────────────────────────────────────
+
+/** 편집기용 이미지 목록 (정렬 전) — listImagesOf에 편집 상태·정보 컬럼을 더한 것 */
+export async function listEditorImages(projectId) {
+  const uid = requireUid()
+  const { data, error } = await supabase
+    .from('studio_images')
+    .select('id, project_id, kind, sort_order, ingest_status, ingest_error, original_path, upload_name, width, height, bytes, mime, included, edit, edit_version, updated_at')
+    .eq('user_id', uid)
+    .eq('project_id', projectId)
+  if (error) {
+    console.error('[studioProjects] 편집기 이미지 조회 실패:', error.message)
+    throw new Error(`사진 목록을 불러오지 못했어요: ${error.message}`)
+  }
+  return data || []
+}
+
+/** 한 프로젝트 안에서 sort_order가 겹치는지 (예전 studio-product는 kind별로 0부터 따로 매겼다) */
+export function hasSortOrderOverlap(list) {
+  return new Set(list.map(i => i.sort_order)).size !== list.length
+}
+
+/** 편집기 표시 순서: sort_order 하나로만 (겹침 정리가 끝난 프로젝트) */
+export function sortBySortOrder(list) {
+  return [...list].sort((a, b) => a.sort_order - b.sort_order)
+}
+
+/**
+ * 겹침 정리: 표시 순서(sortStudioImages: gallery → desc → upload, 각각 sort_order 순)대로 0부터 다시 매겨 행마다 저장.
+ * 값이 이미 같은 행은 건드리지 않는다. 하나라도 실패하면 throw (화면은 기존 순서 그대로, 다음에 열 때 다시 시도).
+ * @returns {Promise<number>} 바꾼 행 수
+ */
+export async function renumberSortOrders(list) {
+  const uid = requireUid()
+  const ordered = sortStudioImages(list)
+  const changes = ordered.map((img, i) => ({ id: img.id, from: img.sort_order, to: i })).filter(c => c.from !== c.to)
+  const results = await Promise.all(changes.map(async c => {
+    const { data, error } = await supabase
+      .from('studio_images')
+      .update({ sort_order: c.to })
+      .eq('id', c.id)
+      .eq('user_id', uid)
+      .select('id')
+    if (error) return `${c.id}: ${error.message}`
+    if (!data || data.length === 0) return `${c.id}: 반영 0건`
+    return null
+  }))
+  const failed = results.filter(Boolean)
+  if (failed.length > 0) {
+    console.error('[studioProjects] 순서 번호 정리 일부 실패:', failed)
+    throw new Error(`사진 순서 번호를 정리하지 못했어요 (${failed.length}/${changes.length}건 실패)`)
+  }
+  return changes.length
+}
+
+/** 서명 URL 하나 (편집 캔버스용 — 발급 시각을 같이 돌려준다) */
+export async function signViewUrl(path) {
+  const issuedAt = Date.now()
+  const { data, error } = await supabase.storage.from('studio').createSignedUrl(path, SIGNED_URL_TTL)
+  if (error || !data?.signedUrl) {
+    console.error('[studioProjects] 서명 URL 발급 실패:', path, error?.message)
+    throw new Error(`사진 주소를 받지 못했어요: ${error?.message || '응답 없음'}`)
+  }
+  return { url: data.signedUrl, issuedAt }
+}
+
 /** 제목 바꾸기 (브라우저에 허용된 컬럼: title) */
 export async function renameProject(projectId, title) {
   const uid = requireUid()

@@ -1,0 +1,217 @@
+/*
+ * EUCHS Studio 디자인 토큰 + 공용 클래스
+ *
+ * ★ 모든 규칙은 .studio-root 안에서만 적용된다 (몰·대시보드·관리자 화면에 새지 않게).
+ *   StudioLayout.vue에서만 import 한다. 화면 밖으로 Teleport되는 모달도 .studio-root를 직접 단다.
+ * ★ 색·둥글기·글꼴은 여기 변수만 바꾸면 스튜디오 전체가 바뀐다. 화면(.vue)에는 색 값을 쓰지 않는다.
+ *   강조색은 --st-accent 한 줄만 바꾸면 된다.
+ */
+
+.studio-root {
+  --st-bg: #F6F5F2;          /* 페이지 바탕 (따뜻한 오프화이트) */
+  --st-canvas-bg: #E9E7E2;   /* 편집기 캔버스 바탕 */
+  --st-surface: #FFFFFF;     /* 카드·사이드바 */
+  --st-line: #E7E5E0;        /* 테두리 */
+  --st-line-strong: #E4E4E7;
+  --st-ink: #18181B;         /* 본문 글자 */
+  --st-ink-2: #3F3F46;       /* 보조 글자 */
+  --st-muted: #71717A;       /* 설명 글자 */
+  --st-soft: #F4F4F5;        /* 칩·배지 바탕 */
+  --st-accent: #2B59FF;      /* 강조색 — 이 한 줄만 바꾸면 전체 변경 */
+  --st-accent-soft: color-mix(in srgb, var(--st-accent) 8%, transparent);
+  --st-accent-ring: color-mix(in srgb, var(--st-accent) 18%, transparent);
+  --st-on-accent: #FFFFFF;
+  --st-success: #16A34A;
+  --st-danger: #DC2626;
+  --st-danger-soft: color-mix(in srgb, var(--st-danger) 8%, transparent);
+  --st-drop-line: #D4D4D8;   /* 업로드 점선 */
+  --st-drop-bg: #FAFAF9;     /* 업로드 영역 바탕 */
+  --st-scrim: rgba(24, 24, 27, 0.62);  /* 사진 위 검정 반투명 배지 */
+  --st-overlay: rgba(24, 24, 27, 0.45); /* 모달 뒤 어둡게 */
+  --st-shadow-float: 0 8px 28px rgba(24, 24, 27, 0.12), 0 1px 3px rgba(24, 24, 27, 0.06);
+  --st-shadow-page: 0 2px 14px rgba(24, 24, 27, 0.08);
+
+  --st-radius-sm: 8px;
+  --st-radius-md: 10px;
+  --st-radius-lg: 14px;
+  --st-radius-xl: 16px;
+  --st-font: "Pretendard Variable", Pretendard, system-ui, sans-serif;
+
+  font-family: var(--st-font);
+  color: var(--st-ink);
+  background: var(--st-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── 글자 단계 ─────────────────────────────────────────────── */
+.studio-root .st-h-hero, .studio-root .st-h-page, .studio-root .st-h-section { word-break: keep-all; }
+.studio-root .st-h-hero { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--st-ink); }
+.studio-root .st-h-page { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.25; color: var(--st-ink); }
+.studio-root .st-h-section { font-size: 19px; font-weight: 800; letter-spacing: -0.02em; color: var(--st-ink); }
+.studio-root .st-h-card { font-size: 16px; font-weight: 700; color: var(--st-ink); }
+.studio-root .st-body { font-size: 14px; font-weight: 500; color: var(--st-ink-2); }
+.studio-root .st-desc { font-size: 13px; color: var(--st-muted); }
+.studio-root .st-desc-sm { font-size: 12px; color: var(--st-muted); }
+.studio-root .st-label { font-size: 11px; font-weight: 700; letter-spacing: 0.08em; color: var(--st-muted); }
+
+/* ── 색 도우미 ─────────────────────────────────────────────── */
+.studio-root .st-ink { color: var(--st-ink); }
+.studio-root .st-ink-2 { color: var(--st-ink-2); }
+.studio-root .st-muted { color: var(--st-muted); }
+.studio-root .st-accent-text { color: var(--st-accent); }
+.studio-root .st-danger-text { color: var(--st-danger); }
+.studio-root .st-success-text { color: var(--st-success); }
+.studio-root .st-bg { background: var(--st-bg); }
+.studio-root .st-surface { background: var(--st-surface); }
+.studio-root .st-soft-bg { background: var(--st-soft); }
+.studio-root .st-accent-soft-bg { background: var(--st-accent-soft); }
+.studio-root .st-canvas-bg { background: var(--st-canvas-bg); }
+.studio-root .st-border { border: 1px solid var(--st-line); }
+.studio-root .st-border-b { border-bottom: 1px solid var(--st-line); }
+.studio-root .st-border-t { border-top: 1px solid var(--st-line); }
+.studio-root .st-border-r { border-right: 1px solid var(--st-line); }
+.studio-root .st-border-l { border-left: 1px solid var(--st-line); }
+.studio-root .st-divide > * + * { border-top: 1px solid var(--st-line); }
+.studio-root .st-hover-soft:hover { background: var(--st-soft); }
+.studio-root .st-shadow-float { box-shadow: var(--st-shadow-float); }
+.studio-root .st-shadow-page { box-shadow: var(--st-shadow-page); }
+
+/* ── 카드 ─────────────────────────────────────────────────── */
+.studio-root .st-card {
+  background: var(--st-surface);
+  border: 1px solid var(--st-line);
+  border-radius: var(--st-radius-xl);
+}
+.studio-root .st-card-hover { transition: border-color 0.15s; }
+.studio-root .st-card-hover:hover { border-color: var(--st-ink-2); }
+.studio-root .st-card.is-selected {
+  border: 2px solid var(--st-accent);
+  box-shadow: 0 0 0 4px var(--st-accent-ring);
+}
+
+/* ── 버튼 ─────────────────────────────────────────────────── */
+.studio-root .st-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  height: 36px; min-width: 36px; padding: 0 14px;
+  border-radius: var(--st-radius-md);
+  border: 1px solid var(--st-line-strong);
+  background: var(--st-surface); color: var(--st-ink);
+  font-size: 14px; font-weight: 700; white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  cursor: pointer;
+}
+.studio-root .st-btn:hover:not(:disabled) { background: var(--st-soft); }
+.studio-root .st-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+.studio-root .st-btn-lg { height: 44px; padding: 0 18px; font-size: 15px; }
+.studio-root .st-btn-xl { height: 48px; padding: 0 22px; font-size: 15px; border-radius: var(--st-radius-lg); }
+.studio-root .st-btn-block { width: 100%; }
+.studio-root .st-btn-primary { background: var(--st-accent); border-color: var(--st-accent); color: var(--st-on-accent); }
+.studio-root .st-btn-primary:hover:not(:disabled) { background: var(--st-accent); filter: brightness(0.94); }
+.studio-root .st-btn-danger { background: var(--st-danger); border-color: var(--st-danger); color: var(--st-on-accent); }
+.studio-root .st-btn-danger:hover:not(:disabled) { background: var(--st-danger); filter: brightness(0.94); }
+.studio-root .st-btn-ghost { border-color: transparent; background: transparent; }
+.studio-root .st-icon-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--st-radius-md);
+  color: var(--st-ink-2); background: transparent; border: 0; cursor: pointer;
+}
+.studio-root .st-icon-btn:hover:not(:disabled) { background: var(--st-soft); }
+.studio-root .st-icon-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.studio-root .st-link { color: var(--st-accent); font-weight: 700; }
+.studio-root .st-link:hover { text-decoration: underline; }
+.studio-root .st-link-muted { color: var(--st-muted); font-weight: 600; }
+.studio-root .st-link-muted:hover { color: var(--st-ink); }
+
+/* ── 칩·배지 ──────────────────────────────────────────────── */
+.studio-root .st-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 32px; padding: 0 12px; border-radius: 999px;
+  background: var(--st-soft); color: var(--st-ink-2);
+  font-size: 13px; font-weight: 700; border: 0; cursor: pointer; white-space: nowrap;
+}
+.studio-root .st-chip.is-active { background: var(--st-ink); color: var(--st-surface); }
+.studio-root .st-chip:disabled { cursor: default; }
+.studio-root .st-badge {
+  display: inline-flex; align-items: center; height: 20px; padding: 0 7px; border-radius: 6px;
+  font-size: 11px; font-weight: 700; white-space: nowrap;
+  background: var(--st-soft); color: var(--st-ink-2);
+}
+.studio-root .st-badge-accent { background: var(--st-accent-soft); color: var(--st-accent); }
+.studio-root .st-badge-outline { background: transparent; border: 1px solid var(--st-line-strong); color: var(--st-muted); }
+.studio-root .st-badge-solid { background: var(--st-accent); color: var(--st-on-accent); }
+.studio-root .st-badge-white { background: var(--st-surface); color: var(--st-ink); box-shadow: 0 1px 2px rgba(24, 24, 27, 0.12); }
+.studio-root .st-badge-scrim { background: var(--st-scrim); color: var(--st-on-accent); }
+.studio-root .st-badge-danger { background: var(--st-danger-soft); color: var(--st-danger); }
+
+/* ── 세그먼트 탭 ──────────────────────────────────────────── */
+.studio-root .st-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--st-radius-md); background: var(--st-soft); }
+.studio-root .st-seg-item {
+  height: 32px; padding: 0 14px; border-radius: var(--st-radius-sm);
+  font-size: 13px; font-weight: 700; color: var(--st-muted); background: transparent; border: 0; cursor: pointer; white-space: nowrap;
+}
+.studio-root .st-seg-item.is-active { background: var(--st-surface); color: var(--st-ink); box-shadow: 0 1px 2px rgba(24, 24, 27, 0.1); }
+
+/* ── 입력 ─────────────────────────────────────────────────── */
+.studio-root .st-input {
+  height: 42px; padding: 0 12px; width: 100%;
+  border: 1px solid var(--st-line-strong); border-radius: var(--st-radius-md);
+  background: var(--st-surface); color: var(--st-ink); font-size: 14px;
+  outline: none;
+}
+.studio-root .st-input:focus { border-color: var(--st-accent); box-shadow: 0 0 0 3px var(--st-accent-ring); }
+.studio-root .st-input-bare { border: 0; outline: none; background: transparent; color: var(--st-ink); font-size: 14px; min-width: 0; }
+
+/* ── 사이드바 메뉴 ────────────────────────────────────────── */
+.studio-root .st-nav-item {
+  display: flex; align-items: center; gap: 10px;
+  height: 40px; padding: 0 12px; border-radius: var(--st-radius-md);
+  font-size: 14px; font-weight: 600; color: var(--st-ink-2);
+}
+.studio-root .st-nav-item:hover { background: var(--st-soft); }
+.studio-root .st-nav-item.is-active { background: var(--st-accent-soft); color: var(--st-accent); font-weight: 700; }
+.studio-root .st-nav-item.is-disabled { color: var(--st-muted); cursor: default; }
+.studio-root .st-nav-item.is-disabled:hover { background: transparent; }
+
+/* ── 업로드 영역 ──────────────────────────────────────────── */
+.studio-root .st-dropzone {
+  border: 2px dashed var(--st-drop-line); border-radius: 12px; background: var(--st-drop-bg);
+  transition: border-color 0.15s, background 0.15s;
+}
+.studio-root .st-dropzone.is-drag { border-color: var(--st-accent); background: var(--st-accent-soft); }
+
+/* ── 사진 자리 ────────────────────────────────────────────── */
+.studio-root .st-placeholder {
+  background: var(--st-soft); color: var(--st-muted);
+  display: flex; align-items: center; justify-content: center;
+}
+
+/* ── 진행 막대 ────────────────────────────────────────────── */
+.studio-root .st-progress { height: 8px; border-radius: 999px; background: var(--st-soft); overflow: hidden; }
+.studio-root .st-progress > div { height: 100%; background: var(--st-accent); transition: width 0.2s; }
+
+/* ── 모달 ─────────────────────────────────────────────────── */
+.studio-root.st-modal-overlay { background: var(--st-overlay); }
+.studio-root .st-modal {
+  background: var(--st-surface); border-radius: var(--st-radius-xl); padding: 24px;
+  box-shadow: var(--st-shadow-float);
+}
+.studio-root .st-modal-title { font-size: 17px; font-weight: 800; color: var(--st-ink); }
+
+/* ── 번호 동그라미 ────────────────────────────────────────── */
+.studio-root .st-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 24px; height: 24px; border-radius: 999px;
+  background: var(--st-accent); color: var(--st-on-accent); font-size: 12px; font-weight: 800;
+}
+.studio-root .st-icon-box {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; border-radius: var(--st-radius-md);
+  background: var(--st-accent-soft); color: var(--st-accent); flex-shrink: 0;
+}
+.studio-root .st-logo-mark { background: var(--st-accent); color: var(--st-on-accent); }
+.studio-root .st-drawer-scrim { background: var(--st-overlay); }
+.studio-root .st-avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 32px; height: 32px; border-radius: 999px;
+  background: var(--st-accent-soft); color: var(--st-accent); font-size: 13px; font-weight: 800; flex-shrink: 0;
+}

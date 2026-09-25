@@ -1,8 +1,8 @@
 <template>
-  <div class="max-w-5xl mx-auto">
-    <div class="bg-white rounded-2xl border border-slate-200 p-6 sm:p-8">
-      <h2 class="text-lg font-black text-slate-900">사용량</h2>
-      <p class="mt-2 text-sm text-slate-500">Phase 1-3에서 구현</p>
+  <div class="px-4 sm:px-12 py-9 max-w-5xl">
+    <div class="st-card p-6 sm:p-8">
+      <h2 class="st-h-page">사용량</h2>
+      <p class="mt-2 st-desc">준비 중이에요.</p>
     </div>
   </div>
 </template>

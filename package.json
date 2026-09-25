@@ -15,6 +15,7 @@
     "@capacitor/cli": "^8.5.2",
     "@capacitor/core": "^8.5.2",
     "@supabase/supabase-js": "^2.112.3",
+    "fabric": "^6.9.1",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",
     "lucide-vue-next": "^0.359.0",

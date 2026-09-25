@@ -33,56 +33,64 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase'
 // 빌드 시점에 값이 고정된다(재배포해야 바뀜). off면 라우트를 등록하지 않아 /studio는 catch-all로 / 에 간다.
 const STUDIO_MODE = import.meta.env.VITE_STUDIO_ENABLED || 'off'
 
+// 대문(/studio)은 누구나 본다(소개·새 소식). 나머지 화면은 로그인(admin 모드면 관리자까지) 필요.
+// 가드는 to.matched를 보므로 대문을 뺀 자식마다 같은 meta를 단다.
+const STUDIO_PROTECTED = STUDIO_MODE === 'admin'
+  ? { requiresAdmin: true, requiresAuth: true }
+  : { requiresAuth: true }
+
 const studioRoute = {
   path: '/studio',
   component: () => import('../layouts/StudioLayout.vue'),
-  // 관리자 가드는 to.matched를 보므로 부모에만 달아도 자식 전체에 적용된다
-  meta: STUDIO_MODE === 'admin'
-    ? { requiresAdmin: true, requiresAuth: true }
-    : { requiresAuth: true },
   children: [
     {
       path: '',
-      name: 'studio-home',
-      component: () => import('../views/studio/StudioHomeView.vue'),
+      name: 'studio-landing',
+      component: () => import('../views/studio/StudioLandingView.vue'),
       meta: { title: '스튜디오' }
+    },
+    {
+      path: 'projects',
+      name: 'studio-projects',
+      component: () => import('../views/studio/StudioHomeView.vue'),
+      meta: { ...STUDIO_PROTECTED, title: '내 작업' }
     },
     {
       path: 'new',
       name: 'studio-new',
       component: () => import('../views/studio/StudioNewView.vue'),
-      meta: { title: '새로 만들기' }
+      meta: { ...STUDIO_PROTECTED, title: '새로 만들기' }
     },
     {
       path: 'p/:projectId',
       name: 'studio-editor',
       component: () => import('../views/studio/StudioEditorView.vue'),
-      meta: { title: '상세페이지 편집' }
+      meta: { ...STUDIO_PROTECTED, title: '상세페이지 편집' }
     },
     {
       path: 'assets',
       name: 'studio-assets',
       component: () => import('../views/studio/StudioAssetsView.vue'),
-      meta: { title: '저장값 관리' }
+      meta: { ...STUDIO_PROTECTED, title: '저장값 관리' }
     },
     {
       path: 'glossary',
       name: 'studio-glossary',
       component: () => import('../views/studio/StudioGlossaryView.vue'),
-      meta: { title: '용어집' }
+      meta: { ...STUDIO_PROTECTED, title: '용어집' }
     },
     {
       path: 'usage',
       name: 'studio-usage',
       component: () => import('../views/studio/StudioUsageView.vue'),
-      meta: { title: '사용량' }
+      meta: { ...STUDIO_PROTECTED, title: '사용량' }
     },
     {
       // 임시 검증용 (가리기 알고리즘 비교). 레이아웃 메뉴에 없음 — 주소로만 진입. Phase 1-6 편집기 완성 후 삭제 예정
       path: 'lab',
       name: 'studio-lab',
       component: () => import('../views/studio/StudioLabView.vue'),
-      meta: { title: '가리기 검증 랩' }
+      meta: { ...STUDIO_PROTECTED, title: '가리기 검증 랩' }
     }
   ]
 }
