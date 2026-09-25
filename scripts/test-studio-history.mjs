@@ -1,6 +1,6 @@
 // 편집 이력·클릭 판정·범위 맞춤·글자 걸침 판정 테스트 — node scripts/test-studio-history.mjs
 import {
-  createHistory, push, undo, redo, canUndo, canRedo, jumpTo, list, clear, current, HISTORY_LIMIT, LABELS,
+  createHistory, push, undo, redo, canUndo, canRedo, jumpTo, list, clear, current, amendCurrent, HISTORY_LIMIT, LABELS,
 } from '../src/lib/studioHistory.js'
 import { isSelectOnly, clampRectToImage } from '../src/lib/studioCoords.js'
 import { detectBleed, bleedSidesFromScores, widenSides, highPassDeviation } from '../src/lib/studioBleed.js'
@@ -152,6 +152,34 @@ function detect(img, rect) {
   eq('내부 경로 허용', ok.map(isSafeRedirectPath), ok.map(() => true))
   eq('외부·이상한 주소 거부', bad.map(isSafeRedirectPath), bad.map(() => false))
   eq('스튜디오 보호 화면 판정', ['/studio/p/x', '/studio/projects', '/studio', '/dashboard'].map(isStudioProtectedPath), [true, true, false, false])
+}
+
+// ── AI 지우기 이력: [지우기] 한 번 = 한 단계, 같은 누름의 다음 결과는 amendCurrent로 합침 ──
+{
+  const E = layers => ({ v: 2, layers })
+  const A = (id, extra = {}) => ({ id, type: 'fill', x: 10, y: 10, w: 50, h: 20, method: 'ai', pad: 4, ...extra })
+  const ai = k => ({ key: k, model: 'm', engine: 'webgpu', patch: { path: 'p', x: 2, y: 2, w: 66, h: 36 } })
+  let h = createHistory(E([]), LABELS.init, 1)
+  h = push(h, E([A('f_aaaaaa')]), LABELS.add, 2)                                   // 네모 그리기
+  h = push(h, E([A('f_aaaaaa'), A('f_bbbbbb', { y: 40 })]), LABELS.add, 3)          // 두 번째 네모
+  // [지우기] → 결과 두 개가 같은 누름으로 도착: 첫 결과 push, 둘째 amend
+  h = push(h, E([A('f_aaaaaa', { ai: ai('aaaaaaaaaaaaaaaa') }), A('f_bbbbbb', { y: 40 })]), LABELS.aiErase, 4)
+  const idx = h.index
+  h = amendCurrent(h, E([A('f_aaaaaa', { ai: ai('aaaaaaaaaaaaaaaa') }), A('f_bbbbbb', { y: 40, ai: ai('bbbbbbbbbbbbbbbb') })]))
+  eq('AI 지우기 = 한 단계', [h.steps.length, h.index === idx, h.steps.map(s => s.label)],
+    [4, true, [LABELS.init, LABELS.add, LABELS.add, LABELS.aiErase]])
+  eq('amend 후 현재 단계에 결과 둘', current(h).edit.layers.map(l => !!l.ai), [true, true])
+  eq('amend 라벨·시각 그대로', [current(h).label, current(h).at], [LABELS.aiErase, 4])
+  const back = undo(h)
+  eq('되돌리기 → 지우기 전 (ai 없음)', back.edit.layers.map(l => !!l.ai), [false, false])
+  eq('다시 → ai 둘 복구', redo(back.history).edit.layers.map(l => l.ai?.key), ['aaaaaaaaaaaaaaaa', 'bbbbbbbbbbbbbbbb'])
+  // 지운 뒤 옮기기 → 옛 ai는 남지만(되돌리면 다시 쓰려고) 새 단계
+  const moved = push(h, E([A('f_aaaaaa', { x: 30, ai: ai('aaaaaaaaaaaaaaaa') }), current(h).edit.layers[1]]), LABELS.move, 5)
+  eq('지운 뒤 옮기기 → 이동 단계', moved.steps.at(-1).label, LABELS.move)
+  eq('옮긴 뒤 되돌리기 → AI 지우기 단계', undo(moved).history.steps[undo(moved).history.index].label, LABELS.aiErase)
+  const amended = amendCurrent(h, current(h).edit)
+  eq('amendCurrent 다시 스택 보존', [amendCurrent(back.history, back.edit).steps.length, canRedo(amendCurrent(back.history, back.edit))], [4, true])
+  eq('amendCurrent 입력은 안 바뀜', amended !== h && h.steps[3].edit.layers[1].ai.key, 'bbbbbbbbbbbbbbbb')
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)

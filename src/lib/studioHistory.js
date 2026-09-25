@@ -18,6 +18,7 @@ export const LABELS = {
   remove: '영역 삭제',
   pad: '여백 변경',
   method: '채우기 방식 변경',
+  aiErase: 'AI 지우기',
   reload: '최신 내용 불러옴',
 }
 
@@ -72,6 +73,16 @@ export function jumpTo(h, i) {
   if (!h || !Number.isInteger(i) || i < 0 || i >= h.steps.length) return null
   const history = { steps: h.steps, index: i }
   return { history, edit: clone(h.steps[i].edit) }
+}
+
+/**
+ * 현재 단계의 edit만 바꾼다 (단계 수·라벨·시각·다시 스택 그대로).
+ * [AI 지우기] 한 번에 여러 AI 결과가 차례로 도착할 때, 첫 결과는 push로 단계를 만들고 나머지는 이 함수로 같은 단계에 합친다.
+ */
+export function amendCurrent(h, edit) {
+  if (!h) return h
+  const steps = h.steps.map((s, i) => (i === h.index ? { ...s, edit: clone(edit) } : s))
+  return { steps, index: h.index }
 }
 
 /** 화면 목록용: [{ i, label, at, current }] (오래된 것부터) */

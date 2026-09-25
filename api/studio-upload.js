@@ -17,6 +17,15 @@
  * 에러: { code, message, ... } — invalid_input·too_many·image_limit·project_expired·not_upload 400 /
  *       not_found 404 / daily_limit 429 / sign_failed·internal 500
  *
+ * ── AI 지우기 결과 조각 (1-6b-3b) ── 편집기가 브라우저에서 계산한 AI 결과 PNG를 저장한다. 같은 2단계 방식.
+ * POST { action:'patch_prepare', projectId, imageId, layerId, key, width, height, size }
+ *   → { exists:true, path } (같은 경로가 이미 있음 — 업로드 생략, 그래도 patch_confirm은 부른다)
+ *   → { path, token }        경로 = {uid}/{projectId}/patches/{imageId}/{layerId}_{key}.png (서버가 만든다)
+ * POST { action:'patch_confirm', projectId, imageId, path }
+ *   → { ok:true, width, height }  서버가 파일을 읽어 PNG 매직바이트·5MB 이하·가로세로 ≤ 원본 검사, 불합격이면 삭제 + 오류
+ * 에러: invalid_input·project_expired·patch_limit(사진당 120개)·patch_invalid·patch_too_large·not_uploaded 400 /
+ *       not_found 404 / sign_failed·storage_error·internal 500.  studio_usage는 기록하지 않는다(외부 과금 없음).
+ *
  * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다.
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
@@ -27,7 +36,7 @@
 import crypto from 'crypto'
 import {
   studioGuard, sendError, sb, loadOwnedRow, studioMaxImages,
-  storageSignUpload, storageDownload, storageRemove,
+  storageSignUpload, storageDownload, storageRemove, storageList,
 } from './_studio.js'
 import { readDimensions } from './studio-ingest.js'
 
@@ -41,6 +50,11 @@ const CONFIRM_CONCURRENCY = 3
 const DEFAULT_DAILY_PROJECTS = 30
 const EXT_BY_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+const PATCH_MAX_BYTES = 5 * 1024 * 1024
+const PATCH_MAX_FILES = 120                // 사진 1장의 patches 폴더 파일 수 상한
+const LAYER_ID_RE = /^f_[a-z0-9]{6}$/
+const PATCH_KEY_RE = /^[0-9a-f]{16}$/
+const PATCH_NAME_RE = /^f_[a-z0-9]{6}_[0-9a-f]{16}\.png$/
 
 // ── 공통 ────────────────────────────────────────────────────────────────────
 /** KST 날짜 'YYYY-MM-DD' */
@@ -367,6 +381,111 @@ async function confirm(ctx, body, res) {
   return res.status(200).json({ results })
 }
 
+// ── AI 결과 조각 ────────────────────────────────────────────────────────────
+/** 프로젝트(소유·삭제 안 됨·만료 안 됨) + 이미지(같은 프로젝트·본인·done). 막히면 응답을 보내고 null */
+async function loadPatchTarget(ctx, body, res) {
+  const imageId = String(body.imageId ?? '').trim().toLowerCase()
+  if (!UUID_RE.test(imageId)) { sendError(res, 400, 'invalid_input', 'imageId 형식이 올바르지 않습니다.'); return null }
+  const project = await loadOwnedRow(ctx, 'studio_projects', String(body.projectId ?? ''), 'id,expires_at')
+  if (!project) { sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.'); return null }
+  if (new Date(project.expires_at).getTime() <= Date.now()) {
+    sendError(res, 400, 'project_expired', '보관 기간이 끝난 프로젝트입니다.')
+    return null
+  }
+  const rows = await sb(ctx.cfg,
+    `studio_images?select=id,width,height,ingest_status&id=eq.${imageId}&project_id=eq.${project.id}&user_id=eq.${ctx.userId}&limit=1`)
+  const image = Array.isArray(rows) ? rows[0] : null
+  if (!image || image.ingest_status !== 'done') { sendError(res, 404, 'not_found', '이미지를 찾을 수 없습니다.'); return null }
+  if (!Number.isInteger(image.width) || !Number.isInteger(image.height)) {
+    console.error(`[studio-upload] ${image.id} 원본 크기가 없음 — 조각 크기를 검사할 수 없음`)
+    sendError(res, 500, 'internal', '원본 크기를 알 수 없습니다.')
+    return null
+  }
+  return { project, image, folder: `${ctx.userId}/${project.id}/patches/${image.id}` }
+}
+
+async function patchPrepare(ctx, body, res) {
+  const layerId = String(body.layerId ?? '')
+  const key = String(body.key ?? '')
+  const width = Number(body.width), height = Number(body.height), size = Number(body.size)
+  if (!LAYER_ID_RE.test(layerId) || !PATCH_KEY_RE.test(key)) {
+    return sendError(res, 400, 'invalid_input', 'layerId 또는 key 형식이 올바르지 않습니다.')
+  }
+  if (!Number.isInteger(size) || size < 1 || size > PATCH_MAX_BYTES) {
+    return sendError(res, 400, 'patch_too_large', '결과 조각은 5MB 이하여야 합니다.')
+  }
+  if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
+    return sendError(res, 400, 'invalid_input', 'width·height 형식이 올바르지 않습니다.')
+  }
+  const t = await loadPatchTarget(ctx, body, res)
+  if (!t) return
+  if (width > t.image.width || height > t.image.height) {
+    return sendError(res, 400, 'invalid_input', '결과 조각이 원본보다 큽니다.')
+  }
+
+  const name = `${layerId}_${key}.png`
+  const path = `${t.folder}/${name}`
+  let names
+  try {
+    names = await storageList(ctx.cfg, BUCKET, t.folder)
+  } catch (e) {
+    console.error(`[studio-upload] patches 목록 조회 실패 ${t.folder}:`, e.message)
+    return sendError(res, 500, 'storage_error', '저장소를 확인하지 못했습니다.')
+  }
+  if (names.includes(name)) return res.status(200).json({ exists: true, path })
+  if (names.length >= PATCH_MAX_FILES) {
+    return sendError(res, 400, 'patch_limit', `사진 한 장의 AI 결과는 ${PATCH_MAX_FILES}개까지 저장할 수 있습니다.`)
+  }
+  let token
+  try {
+    token = await storageSignUpload(ctx.cfg, BUCKET, path)
+  } catch (e) {
+    console.error(`[studio-upload] 조각 업로드 URL 발급 실패 ${path}:`, e.message)
+    return sendError(res, 500, 'sign_failed', '업로드 준비에 실패했습니다.')
+  }
+  return res.status(200).json({ path, token })
+}
+
+async function patchConfirm(ctx, body, res) {
+  const t = await loadPatchTarget(ctx, body, res)
+  if (!t) return
+  const path = String(body.path ?? '')
+  const prefix = `${t.folder}/`
+  if (!path.startsWith(prefix) || !PATCH_NAME_RE.test(path.slice(prefix.length))) {
+    return sendError(res, 400, 'invalid_input', '경로가 올바르지 않습니다.')
+  }
+  let dl
+  try {
+    dl = await storageDownload(ctx.cfg, BUCKET, path)
+  } catch (e) {
+    console.error(`[studio-upload] 조각 읽기 실패 ${path}:`, e.message)
+    return sendError(res, 500, 'storage_error', '저장소에서 파일을 확인하지 못했습니다.')
+  }
+  if (!dl.found) return sendError(res, 400, 'not_uploaded', '업로드된 파일이 없습니다.')
+
+  const buf = dl.buf
+  let bad = null
+  let dims = null
+  if (buf.length > PATCH_MAX_BYTES) bad = ['patch_too_large', '결과 조각은 5MB 이하여야 합니다.']
+  else if (sniffMime(buf) !== 'image/png') bad = ['patch_invalid', 'PNG 파일이 아닙니다.']
+  else {
+    dims = readDimensions(buf, 'image/png')
+    if (!dims || !dims.width || !dims.height) bad = ['patch_invalid', '이미지 크기를 읽을 수 없습니다.']
+    else if (dims.width > t.image.width || dims.height > t.image.height) bad = ['patch_invalid', '결과 조각이 원본보다 큽니다.']
+  }
+  if (bad) {
+    console.warn(`[studio-upload] 조각 불합격 ${path}: ${bad[0]} (${buf.length} bytes)`)
+    try {
+      await storageRemove(ctx.cfg, BUCKET, [path])
+    } catch (e) {
+      console.error(`[studio-upload] 불합격 조각 삭제 실패 ${path}:`, e.message)
+      return sendError(res, 400, `${bad[0]}+delete_failed`, bad[1])
+    }
+    return sendError(res, 400, bad[0], bad[1])
+  }
+  return res.status(200).json({ ok: true, width: dims.width, height: dims.height })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -376,7 +495,9 @@ export default async function handler(req, res) {
   try {
     if (body.action === 'prepare') return await prepare(ctx, body, res)
     if (body.action === 'confirm') return await confirm(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare' 또는 'confirm'이어야 합니다.")
+    if (body.action === 'patch_prepare') return await patchPrepare(ctx, body, res)
+    if (body.action === 'patch_confirm') return await patchConfirm(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

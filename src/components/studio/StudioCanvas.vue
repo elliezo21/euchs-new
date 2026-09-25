@@ -58,12 +58,26 @@
         <p class="st-history-note break-keep">이력은 이 창을 닫으면 사라져요. 작업한 내용은 자동으로 저장돼 있어요.</p>
       </div>
       <div v-if="hintVisible" class="st-hint pointer-events-auto" data-fill-hint>
-        <span class="break-keep"><b>글자 지우기</b>를 누르고 중국어 위를 드래그하세요</span>
+        <span class="break-keep"><b>[붓]</b>으로 중국어 위를 칠하거나 <b>[네모]</b>로 감싸세요</span>
         <button type="button" class="st-hint-close" aria-label="안내 닫기" @click="dismissHint"><X class="w-4 h-4" :stroke-width="2" /></button>
       </div>
       <!-- 계산 실패 안내 (조용히 넘기지 않는다) -->
-      <div v-if="computeError" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep">
+      <div v-if="computeError" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-compute-error>
         {{ computeError }}
+      </div>
+      <!-- 실행 전 영역(초안) 안내 → AI 진행 → 실패 -->
+      <div v-if="draftHint" class="st-hint pointer-events-auto" data-draft-hint>
+        <span class="break-keep">{{ draftHint }}</span>
+      </div>
+      <div v-if="aiNotice" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold break-keep" :class="aiNotice.danger ? 'st-danger-text' : 'st-accent-text'" data-ai-notice>
+        {{ aiNotice.text }}
+      </div>
+      <div v-if="aiLoadFailure" class="pointer-events-auto flex items-center gap-2 px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-ai-load-failed>
+        <span>결과를 불러오지 못했어요 ({{ aiLoadFailure.message }})</span>
+        <button type="button" class="st-btn" data-ai-recompute @click="$emit('execute', aiLoadFailure.layerId, 'ai')">다시 계산</button>
+      </div>
+      <div v-if="aiSaveError" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-ai-save-error>
+        {{ aiSaveError }}
       </div>
     </div>
 
@@ -74,13 +88,22 @@
       :style="{ left: floatPos.left + 'px', top: floatPos.top + 'px' }"
       @pointerdown.stop
     >
-      <button
-        v-for="m in METHOD_OPTIONS" :key="m.key" type="button" class="st-float-item"
-        :class="selectedLayer.method === m.key ? 'is-active' : ''"
-        @click="$emit('method', selectedLayer.id, m.key)"
-      >{{ m.label }}</button>
+      <!-- 방식 버튼 = 실행 버튼 (누르면 바로 지운다). 지금 적용된 방식은 선택 표시 (실행 전 영역은 표시 없음) -->
+      <span v-if="selectedAiState === 'busy'" class="st-float-item" data-ai-busy>AI가 채우는 중…</span>
+      <template v-else>
+        <button
+          v-for="m in METHOD_OPTIONS" :key="m.key" type="button" class="st-float-item"
+          :class="!selectedIsDraft && selectedLayer.method === m.key ? 'is-active' : ''"
+          :data-execute="m.key"
+          @click="$emit('execute', selectedLayer.id, m.key)"
+        >{{ m.label }}</button>
+      </template>
       <span class="st-float-sep" />
-      <button type="button" class="st-float-item" title="삭제 (Delete)" @click="$emit('remove', selectedLayer.id)">
+      <button
+        v-if="selectedIsDraft && selectedLayer.shape === 'brush'" type="button" class="st-float-item"
+        data-brush-reset @click="$emit('remove', selectedLayer.id)"
+      >초기화</button>
+      <button v-else type="button" class="st-float-item" title="삭제 (Delete)" data-remove @click="$emit('remove', selectedLayer.id)">
         <Trash2 class="w-4 h-4" :stroke-width="2" />
       </button>
     </div>
@@ -114,17 +137,24 @@
 // ★ 지우기 결과는 영역 주변만 잘라 계산한 조각(studioFillPatch)을 영역 위치에 얹어 보여준다.
 //   계산 순서는 studioFillPlan.js 규칙(그린 순서대로, 연결된 앞 레이어 결과를 반영)을 따른다.
 //   영역을 옮기거나 크기를 바꾸는 동안은 계산하지 않고(점선 테두리만), 손을 뗀 뒤 계산한다.
+// ★ 실행 전 영역(초안, props.draft) — 네모 또는 붓. 편집기 화면에만 있고 저장·이력 없음, 한 개만.
+//   [AI로 지우기]/[단색](떠 있는 막대·오른쪽 패널)을 누르면 편집기가 레이어로 추가한다 (emit 'execute').
+// ★ 도구: [선택] [붓](기본) [네모]. 붓은 칠한 획을 편집기에 넘기고(emit 'brush-stroke'), 편집기가 초안에 합친다.
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Canvas, FabricImage, Rect } from 'fabric'
-import { MousePointer2, Eraser, ZoomIn, ZoomOut, Maximize, Trash2, X, Undo2, Redo2, History } from 'lucide-vue-next'
+import { MousePointer2, Brush, Square, ZoomIn, ZoomOut, Maximize, Trash2, X, Undo2, Redo2, History } from 'lucide-vue-next'
 import {
   screenToImage, rectToScreen, rectFromDrag, normalizeRect, clampRectPosition, isClick, isSelectOnly,
   fitView, clampPan, zoomAt, expandRect, MIN_RECT,
 } from '@/lib/studioCoords'
 import { computeFillPatch } from '@/lib/studioFillPatch'
-import { fillPlan, ownKey } from '@/lib/studioFillPlan'
+import {
+  fillPlan, ownKey, fillArea, cropRect, pastePrior, aiPatchKey, aiGrow, effectiveKey, aiEraseSet, growOf as fillGrowOf,
+} from '@/lib/studioFillPlan'
+import { simplifyStroke, rasterizeStrokes, strokeExtent } from '@/lib/studioBrush'
 import { widenSides } from '@/lib/studioBleed'
 import { isValidFillLayer } from '@/lib/studioEdit'
+import { AI_MODEL_ID, uploadAiPatch, loadAiPatch } from '@/lib/studioAiPatch'
 
 const props = defineProps({
   image: { type: Object, default: null },        // { id, original_path, width, height }
@@ -135,25 +165,40 @@ const props = defineProps({
   canUndo: { type: Boolean, default: false },
   canRedo: { type: Boolean, default: false },
   historySteps: { type: Array, default: () => [] }, // studioHistory.list() 결과
+  aiEngine: { type: Object, default: null },        // studioAi/aiEngine createAiEngine() — 편집기가 만들고 정리한다
+  aiState: { type: Object, default: () => ({ status: 'idle', reason: '', progress: null }) }, // 엔진 상태(반응형)
+  eraseRequest: { type: Object, default: null },     // AI 계산 요청: { layerId, n, batch } (n이 바뀔 때마다 한 번) — 편집기가 보낸다
+  draft: { type: Object, default: null },            // 실행 전 영역 (네모 {id,type,x,y,w,h,pad} 또는 붓 {…, shape:'brush', brush}) — method 없음
+  brushSize: { type: Number, default: 40 },          // 붓 크기 (원본 픽셀)
+  brushMode: { type: String, default: 'add' },       // 'add' 칠하기 | 'sub' 덜어내기
 })
-// change(id, rect, kind): kind 'move' | 'resize' — 이력 라벨용
-const emit = defineEmits(['add', 'change', 'select', 'remove', 'method', 'undo', 'redo', 'jump'])
+// change(id, rect, kind): kind 'move' | 'resize' — 이력 라벨용 (초안이면 편집기가 초안만 고친다)
+// execute(id, method): [AI로 지우기]/[단색] — 초안이면 레이어로 추가, 레이어면 그 방식으로 다시 실행
+// draft-rect(rect): 네모 도구로 그림 → 초안 (이전 초안은 편집기가 버린다)
+// brush-stroke({ mode, size, pts }): 붓 한 획 (단순화된 정수 원본 좌표) → 편집기가 붓 초안에 합친다
+// ai({ imageId, layerId, planKey, W, H, ai, batch }): AI 결과 조각을 저장했음 — 편집기가 그 레이어에 ai 필드를 붙인다.
+//   batch: 실행 한 번의 번호 (같이 지운 앞 AI가 있으면 여러 결과가 같은 번호로 온다 → 이력 한 단계)
+// ai-states({ [layerId]: 'done'|'needs'|'busy'|'loading'|'failed' }): AI 레이어 상태 — 오른쪽 패널용
+// tool(key): 지금 도구 — 오른쪽 패널(붓 크기·칠하기/덜어내기)용
+const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'undo', 'redo', 'jump', 'ai', 'ai-states', 'tool'])
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '')
 const MOD = IS_MAC ? 'Cmd' : 'Ctrl'
 const UNDO_TIP = `되돌리기 (${MOD}+Z)`
 const REDO_TIP = `다시 (${MOD}+Shift+Z${IS_MAC ? '' : ' 또는 Ctrl+Y'})`
 
-const METHOD_OPTIONS = [{ key: 'coons', label: '자연스럽게' }, { key: 'solid', label: '단색' }]
+// 방식 버튼 = 실행 버튼. '자연스럽게'(coons)는 고를 수 없다 — 저장된 coons 레이어는 그대로 그리고, 누르면 그 방식으로 다시 실행
+const METHOD_OPTIONS = [{ key: 'ai', label: 'AI로 지우기' }, { key: 'solid', label: '단색' }]
 const TOOL_BUTTONS = [
   { key: 'select', label: '선택', icon: MousePointer2, tip: '선택 (V) — 영역을 옮기거나 크기를 바꿔요' },
-  { key: 'draw', label: '글자 지우기', icon: Eraser, tip: '글자 지우기 (E) — 중국어 위를 드래그하세요' },
+  { key: 'brush', label: '붓', icon: Brush, tip: '붓 (B) — 중국어 위를 칠하세요' },
+  { key: 'rect', label: '네모', icon: Square, tip: '네모 (R) — 중국어를 네모로 감싸세요' },
 ]
 const HINT_KEY = 'euchs-studio-fill-hint-dismissed'
 
 const wrap = ref(null)
 const host = ref(null)
-const tool = ref('select')
+const tool = ref('brush') // 편집기를 열면 기본 도구 = 붓
 const loadState = ref('idle') // idle | loading | ready | error
 const loadError = ref('')
 const computeError = ref('')
@@ -166,8 +211,43 @@ const historyOpen = ref(false)
 const bleedPos = ref(null)
 const bleedById = ref({})     // layer id → 글자에 걸친 변 목록 (최신 계산 결과 기준)
 
-const selectedLayer = computed(() => props.layers.find(l => l.id === props.selectedId && isValidFillLayer(l)) || null)
-const selectedBleed = computed(() => (selectedLayer.value && bleedById.value[selectedLayer.value.id]) || [])
+// 선택: 저장된 레이어 또는 실행 전 영역(초안)
+const selectedIsDraft = computed(() => !!props.draft && props.draft.id === props.selectedId)
+const selectedLayer = computed(() => (selectedIsDraft.value ? props.draft
+  : props.layers.find(l => l.id === props.selectedId && isValidFillLayer(l)) || null))
+// 걸침 안내는 AI·붓·초안에서는 끈다 (AI는 테두리 띠를 읽어 메우는 방식이 아님, 붓은 사각형 테두리가 없음)
+const selectedBleed = computed(() => {
+  const l = selectedLayer.value
+  if (!l || selectedIsDraft.value || l.method === 'ai' || l.shape === 'brush') return []
+  return bleedById.value[l.id] || []
+})
+const draftHint = computed(() => {
+  if (!selectedIsDraft.value) return ''
+  return props.draft.shape === 'brush'
+    ? '다 칠한 뒤 [AI로 지우기] 또는 [단색]을 누르세요'
+    : '크기를 맞춘 뒤 [AI로 지우기] 또는 [단색]을 누르세요'
+})
+
+// ── AI 지우기 상태 ──
+// AI는 [지우기]를 눌러야 계산한다 (자동 계산·자동 재계산 없음). 저장된 결과(ai.key가 지금 계산 key와 같음)만 자동으로 불러온다.
+const aiActive = ref(false)        // 엔진이 지금 한 건을 계산하는 중
+const aiRequestCount = ref(0)      // [지우기]를 눌러 기다리거나 계산 중인 AI 레이어 수
+const aiStates = ref({})           // layer id → 'done'|'needs'|'busy'|'loading'|'failed'
+const aiLoadFailure = ref(null)    // { layerId, planKey, message } — 저장된 PNG 받기 실패 (몰래 재계산하지 않는다)
+const aiSaveError = ref('')        // 결과는 보이지만 저장 실패
+const selectedAiState = computed(() => (!selectedIsDraft.value && selectedLayer.value?.method === 'ai' ? aiStates.value[selectedLayer.value.id] : null))
+const aiNotice = computed(() => {
+  const s = props.aiState || {}
+  const p = s.progress
+  if (s.status === 'downloading' && p?.phase === 'download' && p.total) {
+    const pct = Math.floor((p.loaded / p.total) * 100)
+    return { text: `AI 지우기를 처음 쓰실 때 한 번만 약 200MB를 받습니다. 다음부터는 바로 됩니다. (${pct}%)` }
+  }
+  if (aiRequestCount.value === 0 && !aiActive.value) return null
+  if (s.status === 'error' || s.status === 'unsupported') return { text: `AI 지우기를 쓸 수 없어요: ${s.reason || s.status}`, danger: true }
+  return { text: s.status === 'ready' || aiActive.value ? 'AI가 채우는 중…' : 'AI 준비 중…' }
+})
+const aiReady = () => props.aiState?.status === 'ready' && !!props.aiEngine
 
 function formatTime(at) {
   const d = new Date(at)
@@ -189,7 +269,7 @@ function widenSelected() {
   emit('change', l.id, widenSides(l, sides, W, H), 'resize')
 }
 const wrapCursor = computed(() => (panning.value ? 'grabbing' : spaceHeld.value ? 'grab' : ''))
-const fillCount = computed(() => props.layers.filter(isValidFillLayer).length)
+const fillCount = computed(() => props.layers.filter(isValidFillLayer).length + (props.draft ? 1 : 0))
 
 // 안내 띠: 사진을 열었을 때 영역이 0개면 보인다. 영역을 만들면 사라지고, 닫으면(×) 다시 보이지 않는다
 const hintDismissed = ref(readHintDismissed())
@@ -226,6 +306,13 @@ const patches = new Map()        // layer id → FabricImage (지우기 결과 �
 const transforming = new Set()   // 옮기는·크기 바꾸는 중인 layer id
 const patchCaches = new Map()    // image id → Map(plan key → { canvas, area, data }) — 최근 사진 5장
 const failedKeys = new Set()     // 계산에 실패한 plan key (같은 값으로 무한 재시도하지 않게)
+let byId = new Map()             // layer id → 레이어 (sync 때마다 새로)
+let eff = new Map()              // layer id → 화면 계산 key (coons·단색: 안 지운 앞 AI 목록 포함 — effectiveKey)
+let aiRunning = false            // AI는 한 번에 1건 (엔진 워커 하나 — 계산·불러오기 모두)
+const aiRequested = new Map()    // AI plan key → [지우기] 누름 번호(batch). 계산이 끝나거나 버려지면 뺀다
+const aiChecked = new Set()      // `${plan key}|${ai.key}` — 저장된 결과가 지금 key와 다름을 확인함 (→ [다시 지우기])
+const aiUnsaved = new Map()      // layer id → 결과 key: 계산했지만 레이어에 ai가 아직 안 붙은 결과 (저장 중·저장 실패)
+let aiBatchSeq = 0
 let plan = new Map()             // layer id → { deps, key } (sync 때마다 새로)
 let computeTimer = null
 let draw = null                  // { s0, p0, preview }
@@ -233,9 +320,12 @@ let pan = null                   // { x, y }
 let press = null                 // [선택] 도구로 영역을 누른 순간: { id, s0(화면), orig{left,top,width,height} }
 let aborting = false             // 남은 드래그를 저장 없이 끝내는 중 (object:modified를 무시)
 let resizeObs = null
+let paint = null                 // 붓으로 칠하는 중: { mode, size, raw:[x,y,…] (원본 좌표, 소수) }
+let liveObj = null               // 칠하는 중 미리보기 (BrushRegion)
+let cursorObj = null             // 붓 크기 원 (BrushCursor)
 
 // ── 영역 사각형: 테두리를 화면 기준 px로 직접 그린다 (배율과 무관) ──
-//   선택됨: 그린 네모 실선 2px + 실제 메우는 범위(pad만큼 넓힌 사각형) 옅은 점선 1px
+//   선택됨: 그린 네모 실선 2px + 실제 메우는 범위(grow만큼 넓힌 사각형 — AI는 max(pad,k)) 옅은 점선 1px
 //   계산 중·그리는 중: 점선/실선 2px, 마우스 올림: 옅은 실선, 그 밖: 테두리 없음 (결과만 보이게)
 class RegionRect extends Rect {
   _render(ctx) {
@@ -254,8 +344,8 @@ class RegionRect extends Rect {
     ctx.setLineDash(this.busy && !this.isDraft ? [6 / z, 4 / z] : [])
     // 테두리를 영역 바깥쪽에 그려 결과 픽셀을 가리지 않는다
     ctx.strokeRect(-sw / 2 - lw / 2, -sh / 2 - lw / 2, sw + lw, sh + lw)
-    if (selected && this.pad > 0 && W) {
-      const a = expandRect({ x: this.left, y: this.top, w: sw, h: sh }, this.pad, W, H)
+    if (selected && this.grow > 0 && W) {
+      const a = expandRect({ x: this.left, y: this.top, w: sw, h: sh }, this.grow, W, H)
       const cx = this.left + sw / 2, cy = this.top + sh / 2
       const t = 1 / z
       ctx.lineWidth = t
@@ -265,6 +355,134 @@ class RegionRect extends Rect {
     }
     ctx.restore()
   }
+}
+
+// ── 붓 영역: 칠한 모양을 화면용으로 그린다 (반투명 색 = 실행 전·결과가 안 맞음, 외곽선 = 선택·마우스 올림) ──
+//   화면 표시는 canvas 벡터로 그린다(빠름). 저장·계산에 쓰는 마스크는 studioBrush.rasterizeStrokes(기기와 무관)로 따로 만든다.
+//   bx,by = 획 좌표의 기준(레이어 x,y). 옮기는 동안은 객체 위치만 바뀌고 그림은 그대로 따라간다.
+const BRUSH_VIEW_MAX = 1536 // 화면용 그림 한 변 최대 px (큰 영역은 줄여 그린다)
+class BrushRegion extends Rect {
+  setBrush(strokes, bx, by, w, h) {
+    this.strokes = strokes
+    this.bx = bx; this.by = by; this.bw = w; this.bh = h
+    this._mask = null
+    this._outline = null
+  }
+  maskCanvas() {
+    if (this._mask) return this._mask
+    const w = this.bw, h = this.bh
+    const s = Math.min(1, BRUSH_VIEW_MAX / Math.max(w, h))
+    const c = document.createElement('canvas')
+    c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s))
+    const g = c.getContext('2d')
+    g.lineCap = 'round'; g.lineJoin = 'round'
+    for (const st of this.strokes || []) {
+      g.globalCompositeOperation = st.mode === 'sub' ? 'destination-out' : 'source-over'
+      g.strokeStyle = g.fillStyle = colors.accent
+      g.lineWidth = st.size * s
+      const p = st.pts
+      if (p.length === 2) {
+        g.beginPath(); g.arc((p[0] - this.bx) * s, (p[1] - this.by) * s, (st.size / 2) * s, 0, Math.PI * 2); g.fill()
+      } else {
+        g.beginPath(); g.moveTo((p[0] - this.bx) * s, (p[1] - this.by) * s)
+        for (let i = 2; i < p.length; i += 2) g.lineTo((p[i] - this.bx) * s, (p[i + 1] - this.by) * s)
+        g.stroke()
+      }
+    }
+    this._mask = { canvas: c, s }
+    return this._mask
+  }
+  /** 외곽선: 모양을 8방향으로 t px 밀어 그린 뒤 모양 자리를 지운다 (화면 2px 두께) */
+  outlineCanvas(z) {
+    const m = this.maskCanvas()
+    const t = Math.max(1, Math.round((2 / z) * m.s))
+    if (this._outline && this._outline.t === t) return this._outline
+    const c = document.createElement('canvas')
+    c.width = m.canvas.width + 2 * t; c.height = m.canvas.height + 2 * t
+    const g = c.getContext('2d')
+    for (const [dx, dy] of [[-1, -1], [0, -1], [1, -1], [-1, 0], [1, 0], [-1, 1], [0, 1], [1, 1]]) g.drawImage(m.canvas, t + dx * t, t + dy * t)
+    g.globalCompositeOperation = 'destination-out'
+    g.drawImage(m.canvas, t, t)
+    this._outline = { canvas: c, t, s: m.s }
+    return this._outline
+  }
+  _render(ctx) {
+    const c = this.canvas
+    const z = c ? c.getZoom() : 1
+    const selected = !!c && c.getActiveObject() === this
+    const w = this.bw, h = this.bh
+    if (!this.tint && !selected && !this.hovered) return
+    ctx.save()
+    ctx.scale(1 / this.scaleX, 1 / this.scaleY)
+    if (this.tint) {
+      ctx.globalAlpha = 0.45
+      ctx.drawImage(this.maskCanvas().canvas, -w / 2, -h / 2, w, h)
+    }
+    if (selected || this.hovered) {
+      const o = this.outlineCanvas(z)
+      const pad = o.t / o.s
+      ctx.globalAlpha = selected ? 1 : 0.6
+      ctx.drawImage(o.canvas, -w / 2 - pad, -h / 2 - pad, w + 2 * pad, h + 2 * pad)
+    }
+    ctx.restore()
+  }
+}
+
+function makeBrushRegion(l, { draft = false, live = false } = {}) {
+  const r = new BrushRegion({
+    left: l.x, top: l.y, width: l.w, height: l.h,
+    originX: 'left', originY: 'top',
+    fill: 'transparent', strokeWidth: 0, objectCaching: false,
+    selectable: !live, evented: !live,
+    hasBorders: false, hasControls: false, lockRotation: true, lockScalingX: true, lockScalingY: true,
+    lockSkewingX: true, lockSkewingY: true, padding: 0,
+    // 실행 전 붓 영역은 옮기지 않는다 (덜어내기·다시 칠하기로 고친다). 실행된 붓 영역은 통째로 옮길 수 있다
+    lockMovementX: draft || live, lockMovementY: draft || live,
+    hoverCursor: draft ? 'default' : 'move',
+  })
+  r.layerId = l.id
+  r.kind = 'brush'
+  r.setBrush(l.brush.strokes, l.x, l.y, l.w, l.h)
+  r.tint = true
+  r.busy = true
+  r.hovered = false
+  return r
+}
+
+// 붓 크기 원 (원본 좌표, 테두리는 화면 1.5px)
+class BrushCursor extends Rect {
+  _render(ctx) {
+    const z = this.canvas ? this.canvas.getZoom() : 1
+    const r = this.width / 2
+    ctx.save()
+    ctx.lineWidth = 3 / z; ctx.strokeStyle = 'rgba(255,255,255,0.9)'
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke()
+    ctx.lineWidth = 1.5 / z; ctx.strokeStyle = colors.accent
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2); ctx.stroke()
+    ctx.restore()
+  }
+}
+
+function updateCursor(p) {
+  if (!canvas) return
+  if (tool.value !== 'brush' || !p || loadState.value !== 'ready') {
+    if (cursorObj) { cursorObj.visible = false; canvas.requestRenderAll() }
+    return
+  }
+  const d = props.brushSize
+  if (!cursorObj) {
+    cursorObj = new BrushCursor({ originX: 'center', originY: 'center', fill: 'transparent', strokeWidth: 0, selectable: false, evented: false, objectCaching: false })
+    canvas.add(cursorObj)
+  }
+  cursorObj.set({ left: p.x, top: p.y, width: d, height: d, visible: true })
+  canvas.bringObjectToFront(cursorObj)
+  canvas.requestRenderAll()
+}
+
+/** 점선(실제 메우는 범위)의 넓힘 폭 — AI는 max(pad, k), 그 밖은 pad. 그리는 중 미리보기는 0 */
+function growOf(l) {
+  if (!W || !Number.isInteger(l.pad)) return 0
+  return l.method === 'ai' ? aiGrow(l, W, H) : l.pad
 }
 
 function makeRegion(l, interactive = true) {
@@ -280,7 +498,8 @@ function makeRegion(l, interactive = true) {
   })
   r.setControlsVisibility({ mt: false, mb: false, ml: false, mr: false, mtr: false })
   r.layerId = l.id
-  r.pad = l.pad ?? 0
+  r.kind = 'rect'
+  r.grow = growOf(l)
   r.busy = true
   r.hovered = false
   r.isDraft = !interactive
@@ -363,19 +582,71 @@ function onMiddleMouseDown(e) {
 // ── 도구 ──
 function setTool(t) {
   tool.value = t
+  emit('tool', t)
   if (!canvas) return
   // 진행 중이던 그리기·드래그 상태를 전부 초기화
   cancelDraw()
   abortTransform('도구 전환', false)
-  canvas.skipTargetFind = t === 'draw'
-  canvas.defaultCursor = t === 'draw' ? 'crosshair' : 'default' // 글자 지우기 = 십자 커서
+  const drawing = t === 'rect' || t === 'brush'
+  canvas.skipTargetFind = drawing
+  // 네모 = 십자 커서, 붓 = 커서 숨기고 붓 크기 원
+  canvas.defaultCursor = t === 'rect' ? 'crosshair' : t === 'brush' ? 'none' : 'default'
   canvas.setCursor(canvas.defaultCursor) // 마우스를 움직이기 전에도 바로 바뀌게
+  if (t !== 'brush') updateCursor(null)
   canvas.requestRenderAll()
 }
 
 function cancelDraw() {
   if (draw?.preview) canvas.remove(draw.preview)
   draw = null
+  if (liveObj) { canvas?.remove(liveObj); liveObj = null }
+  paint = null
+}
+
+// ── 붓으로 칠하기 ──
+function clampPoint(p) {
+  return { x: Math.min(W - 1, Math.max(0, p.x)), y: Math.min(H - 1, Math.max(0, p.y)) }
+}
+
+/** 칠하는 중 미리보기: 지금 초안의 획 + 칠하는 획 (덜어내기도 그대로 보인다) */
+function renderLive() {
+  const d = props.draft?.shape === 'brush' ? props.draft : null
+  const cur = { mode: paint.mode, size: paint.size, pts: paint.raw.map(Math.round) }
+  const strokes = [...(d ? d.brush.strokes : []), cur]
+  const ext = [cur, ...(d ? d.brush.strokes : [])].filter(s => s.mode === 'add' || s === cur).map(strokeExtent)
+  const x0 = Math.max(0, Math.min(...ext.map(e => e.x))), y0 = Math.max(0, Math.min(...ext.map(e => e.y)))
+  const x1 = Math.min(W, Math.max(...ext.map(e => e.x + e.w))), y1 = Math.min(H, Math.max(...ext.map(e => e.y + e.h)))
+  const box = { id: '_live', x: x0, y: y0, w: Math.max(1, x1 - x0), h: Math.max(1, y1 - y0), brush: { strokes } }
+  if (!liveObj) {
+    liveObj = makeBrushRegion(box, { live: true })
+    canvas.add(liveObj)
+  } else {
+    liveObj.set({ left: box.x, top: box.y, width: box.w, height: box.h })
+    liveObj.setBrush(strokes, box.x, box.y, box.w, box.h)
+  }
+  // 칠하는 동안은 초안 그림을 숨기고 미리보기 하나만 (겹쳐 진해지지 않게)
+  const dr = d && regions.get(d.id)
+  if (dr) dr.visible = false
+  canvas.bringObjectToFront(liveObj)
+  if (cursorObj) canvas.bringObjectToFront(cursorObj)
+  canvas.requestRenderAll()
+}
+
+function endPaint() {
+  const p = paint
+  paint = null
+  if (!p) return
+  const pts = simplifyStroke(p.raw, p.size)
+  if (pts.length >= 2) emit('brush-stroke', { mode: p.mode, size: p.size, pts })
+  // 편집기가 초안을 바꾸면 sync가 새 초안을 그린다. 그 다음에 미리보기를 걷는다 (깜빡임 방지)
+  setTimeout(() => {
+    if (paint) return
+    if (liveObj) { canvas?.remove(liveObj); liveObj = null }
+    const d = props.draft
+    const dr = d && regions.get(d.id)
+    if (dr) dr.visible = true
+    canvas?.requestRenderAll()
+  }, 0)
 }
 
 /**
@@ -407,7 +678,9 @@ function abortTransform(reason, unexpected) {
 // ※ window pointerup은 mouseup보다 먼저 오므로 쓰면 안 된다 (정상 드래그까지 취소됨 — 2026-09-25 재현 페이지에서 확인)
 function onWindowPointerEnd(e) {
   if (canvas?._currentTransform) abortTransform(`${e.type}(button=${e.button ?? '-'})이 Fabric에 전달되지 않음`, true)
+  if (paint) endPaint() // 캔버스 밖에서 손을 뗌 — 칠한 데까지 한 획으로
 }
+function onPointerLeave() { updateCursor(null) }
 
 function onMouseDown(opt) {
   if (tool.value === 'select' && opt.e.button === 0 && opt.target?.layerId) {
@@ -416,7 +689,14 @@ function onMouseDown(opt) {
     press = { id: t.layerId, s0: { x: opt.viewportPoint.x, y: opt.viewportPoint.y }, orig: { left: t.left, top: t.top, width: t.width * t.scaleX, height: t.height * t.scaleY } }
     return
   }
-  if (tool.value !== 'draw' || loadState.value !== 'ready' || opt.e.button !== 0) return
+  if (loadState.value !== 'ready' || opt.e.button !== 0) return
+  if (tool.value === 'brush') {
+    const p = clampPoint(screenToImage({ x: opt.viewportPoint.x, y: opt.viewportPoint.y }, vpt))
+    paint = { mode: props.brushMode === 'sub' ? 'sub' : 'add', size: props.brushSize, raw: [p.x, p.y] }
+    renderLive()
+    return
+  }
+  if (tool.value !== 'rect') return
   const s0 = { x: opt.viewportPoint.x, y: opt.viewportPoint.y }
   const p0 = screenToImage(s0, vpt)
   const preview = makeRegion({ id: '_draft', x: 0, y: 0, w: 1, h: 1 }, false)
@@ -426,6 +706,17 @@ function onMouseDown(opt) {
 }
 
 function onMouseMove(opt) {
+  if (tool.value === 'brush') {
+    const p = screenToImage({ x: opt.viewportPoint.x, y: opt.viewportPoint.y }, vpt)
+    updateCursor(p)
+    if (!paint) return
+    const q = clampPoint(p)
+    const lx = paint.raw[paint.raw.length - 2], ly = paint.raw[paint.raw.length - 1]
+    if (Math.hypot(q.x - lx, q.y - ly) < 1) return // 1px보다 가까운 이벤트는 모으지 않는다 (저장 전 단순화는 endPaint)
+    paint.raw.push(q.x, q.y)
+    renderLive()
+    return
+  }
   if (!draw) return
   const s1 = opt.viewportPoint
   if (isClick(draw.s0, s1)) { draw.preview.visible = false; canvas.requestRenderAll(); return }
@@ -435,13 +726,14 @@ function onMouseMove(opt) {
 }
 
 function onMouseUp(opt) {
+  if (paint) { endPaint(); return }
   if (draw) {
     const s1 = opt.viewportPoint
     const click = isClick(draw.s0, s1)
     const r = click ? null : rectFromDrag(draw.p0, screenToImage(s1, vpt), W, H)
     cancelDraw()
     canvas.requestRenderAll()
-    if (r) emit('add', r) // 그리기 도구 유지 — 계속 그릴 수 있다
+    if (r) emit('draft-rect', r) // 실행 전 네모(초안) — 도구 유지, 새로 그리면 이전 초안은 편집기가 버린다
     return
   }
   press = null
@@ -509,8 +801,8 @@ function onModified(opt) {
   o.set({ left: r.x, top: r.y, width: r.w, height: r.h, scaleX: 1, scaleY: 1 })
   o.setCoords()
   transforming.delete(o.layerId)
-  const cur = props.layers.find(l => l.id === o.layerId)
-  if (cur && (cur.x !== r.x || cur.y !== r.y || cur.w !== r.w || cur.h !== r.h)) emit('change', o.layerId, r, kind)
+  const cur = props.draft?.id === o.layerId ? props.draft : props.layers.find(l => l.id === o.layerId)
+  if (cur && (cur.x !== r.x || cur.y !== r.y || cur.w !== r.w || cur.h !== r.h)) emit('change', o.layerId, r, o.kind === 'brush' ? 'move' : kind)
   sync()
 }
 
@@ -529,7 +821,7 @@ function updateFloat() {
   if (!o?.layerId || loadState.value !== 'ready') { floatPos.value = null; bleedPos.value = null; return }
   const s = rectToScreen({ x: o.left, y: o.top, w: o.width * o.scaleX, h: o.height * o.scaleY }, vpt)
   const { cw, ch } = viewSize()
-  const barW = 220, barH = 40
+  const barW = 340, barH = 40
   let top = s.y - barH - 10
   const floatBelow = top < 8
   if (floatBelow) top = s.y + s.h + 10
@@ -561,26 +853,72 @@ function currentPatchCache() {
 function sync() {
   if (!canvas || !baseObj) return
   const fills = props.layers.filter(isValidFillLayer)
+  const draft = props.draft && props.draft.id && !fills.some(l => l.id === props.draft.id) ? props.draft : null
   const alive = new Set(fills.map(l => l.id))
+  if (draft) alive.add(draft.id)
   for (const [id, r] of regions) if (!alive.has(id)) { canvas.remove(r); regions.delete(id) }
-  for (const [id, p] of patches) if (!alive.has(id)) { canvas.remove(p); patches.delete(id) }
+  for (const [id, p] of patches) if (!fills.some(l => l.id === id)) { canvas.remove(p); patches.delete(id) }
+  // 모양이 바뀐 영역(초안 네모 ↔ 붓, 초안 → 실행된 레이어)은 객체를 새로 만든다
+  for (const l of [...fills, ...(draft ? [draft] : [])]) {
+    const r = regions.get(l.id)
+    const kind = l.shape === 'brush' ? 'brush' : 'rect'
+    const isDraft = l === draft
+    if (r && (r.kind !== kind || !!r.pendingDraft !== isDraft)) { canvas.remove(r); regions.delete(l.id) }
+  }
 
   // 계산 계획: 그린 순서 + 연결된 앞 레이어 (키에 앞 레이어 값이 들어가 앞이 바뀌면 뒤도 다시 계산)
   plan = new Map(fillPlan(fills, W, H).map(p => [p.id, p]))
+  byId = new Map(fills.map(l => [l.id, l]))
+  const planKeys = new Set([...plan.values()].map(p => p.key))
+  // 받기 실패 안내는 그 레이어 값이 바뀌면(옮김·삭제·되돌리기) 내린다
+  if (aiLoadFailure.value && plan.get(aiLoadFailure.value.layerId)?.key !== aiLoadFailure.value.planKey) aiLoadFailure.value = null
+  // 값이 바뀌어 더는 없는 key의 [지우기] 요청은 버린다 (옮기면 다시 [다시 지우기]를 눌러야 한다)
+  for (const k of [...aiRequested.keys()]) if (!planKeys.has(k)) aiRequested.delete(k)
+  // 레이어에 ai가 붙었거나(저장 완료) 값이 바뀐 결과는 "저장 안 됨" 목록에서 뺀다
+  for (const [id, k] of [...aiUnsaved]) {
+    const l = byId.get(id), p = patches.get(id)
+    if (!l || l.ai?.key === k || !p || p.patchKey !== plan.get(id)?.key) aiUnsaved.delete(id)
+  }
   const cache = currentPatchCache()
-  for (const l of fills) {
+  for (const l of [...fills, ...(draft ? [draft] : [])]) {
+    const brush = l.shape === 'brush'
     let r = regions.get(l.id)
     if (!r) {
-      r = makeRegion(l)
+      r = brush ? makeBrushRegion(l, { draft: l === draft }) : makeRegion(l)
+      r.pendingDraft = l === draft
       regions.set(l.id, r)
       canvas.add(r)
     } else if (!transforming.has(l.id)) {
       r.set({ left: l.x, top: l.y, width: l.w, height: l.h, scaleX: 1, scaleY: 1 })
       r.setCoords()
+      if (brush && (r.strokes !== l.brush.strokes || r.bx !== l.x || r.by !== l.y || r.bw !== l.w || r.bh !== l.h)) {
+        r.setBrush(l.brush.strokes, l.x, l.y, l.w, l.h)
+      }
     }
-    r.pad = l.pad
-    if (transforming.has(l.id)) continue
+    if (!brush) r.grow = growOf(l)
+    if (l === draft) { r.busy = true; r.tint = true } // 실행 전: 점선(네모) / 반투명 색(붓)
+  }
+  // 1) AI: 결과가 지금 값과 맞을 때만 보인다 (계산은 [지우기]로만). 맞지 않으면 옛 결과를 숨기고 점선만
+  for (const l of fills) {
+    if (l.method !== 'ai' || transforming.has(l.id)) continue
+    const r = regions.get(l.id)
     const key = plan.get(l.id).key
+    const p = patches.get(l.id)
+    setBleed(l.id, [])
+    if (aiDone(l)) { p.visible = true; r.busy = false; continue }
+    const hit = cache.get(key)
+    if (hit?.aiKey && l.ai?.key === hit.aiKey) { placePatch(l, key, hit); r.busy = false; continue }
+    if (p) p.visible = false
+    r.busy = true
+  }
+  // 2) coons·단색: 화면 계산 key = 계산 key + 안 지운 앞 AI 목록 (앞 AI를 지우면 다시 계산)
+  eff = new Map()
+  for (const l of fills) {
+    if (l.method === 'ai') continue
+    const key = effectiveKey(plan.get(l.id), byId, id => aiDone(byId.get(id)))
+    eff.set(l.id, key)
+    if (transforming.has(l.id)) continue
+    const r = regions.get(l.id)
     const p = patches.get(l.id)
     if (p && p.patchKey === key) { p.visible = true; r.busy = false; continue }
     const hit = cache.get(key)
@@ -590,7 +928,9 @@ function sync() {
     setBleed(l.id, []) // 걸침 판정은 새 결과가 나오면 다시
     r.busy = true
   }
-  restack(fills)
+  // 붓: 결과가 안 맞으면(실행 전과 같이) 칠한 모양을 반투명 색으로
+  for (const l of fills) { const r = regions.get(l.id); if (r?.kind === 'brush') r.tint = r.busy }
+  restack(fills, draft)
   // 선택 상태 맞추기
   const want = props.selectedId ? regions.get(props.selectedId) : null
   const active = canvas.getActiveObject()
@@ -598,6 +938,59 @@ function sync() {
   else if (!want && active) canvas.discardActiveObject()
   canvas.requestRenderAll()
   updateFloat()
+  refreshAiStates()
+  scheduleCompute()
+}
+
+/** AI 레이어의 결과가 지금 화면에 맞게 있는가 — 계산 key가 같고, 결과 key가 레이어의 ai.key(또는 저장 중인 결과)와 같을 때 */
+function aiDone(l) {
+  if (!l || l.method !== 'ai') return false
+  const p = patches.get(l.id)
+  if (!p || !p.aiKey || p.patchKey !== plan.get(l.id)?.key) return false
+  return l.ai?.key === p.aiKey || aiUnsaved.get(l.id) === p.aiKey
+}
+
+/** AI 레이어 상태 (떠 있는 막대·오른쪽 패널 버튼용) */
+function aiStateOf(l) {
+  const key = plan.get(l.id)?.key
+  if (!key) return 'needs'
+  if (aiDone(l)) return 'done'
+  if (aiRequested.has(key)) return 'busy'
+  if (aiLoadFailure.value?.layerId === l.id) return 'failed'
+  if (l.ai && !aiChecked.has(`${key}|${l.ai.key}`) && !failedKeys.has(key)) return 'loading'
+  return 'needs'
+}
+
+function refreshAiStates() {
+  const next = {}
+  for (const l of props.layers) if (isValidFillLayer(l) && l.method === 'ai') next[l.id] = aiStateOf(l)
+  aiRequestCount.value = aiRequested.size
+  if (JSON.stringify(next) === JSON.stringify(aiStates.value)) return
+  aiStates.value = next
+  emit('ai-states', next)
+}
+
+/**
+ * [AI로 지우기] 실행: 이 AI 레이어 + 앞에 연결된 안 지운 AI를 계산 요청 (실행 한 번 = batch 하나 = 이력 한 단계).
+ * 편집기가 레이어를 추가·방식 변경한 직후 부르므로 먼저 sync로 계획을 새로 만든다.
+ */
+function requestErase(layerId, batchFromEditor) {
+  sync()
+  const l = byId.get(layerId)
+  const e = plan.get(layerId)
+  if (!l || l.method !== 'ai' || !e || transforming.has(layerId)) {
+    console.error('[StudioCanvas] AI 실행 요청을 처리할 수 없음 (레이어 없음·AI 아님·옮기는 중):', layerId, l?.method)
+    return
+  }
+  const batch = batchFromEditor ?? `c${++aiBatchSeq}`
+  for (const id of aiEraseSet(e, byId, x => aiDone(byId.get(x)))) {
+    const k = plan.get(id).key
+    failedKeys.delete(k)
+    aiRequested.set(k, batch)
+  }
+  if (aiLoadFailure.value?.layerId === layerId) aiLoadFailure.value = null
+  computeError.value = ''
+  refreshAiStates()
   scheduleCompute()
 }
 
@@ -617,29 +1010,53 @@ function placePatch(l, key, res) {
   }
   p.patchKey = key
   p.ownKey = ownKey(l)
+  p.aiKey = res.aiKey || null // AI 결과 key (coons·단색은 없음)
   p.res = res // 뒤 레이어 계산 때 덮어쓸 픽셀
   p.visible = true
   setBleed(id, res.bleed?.sides || [])
 }
 
-/** 지금 계산할 수 있는 다음 레이어 — 배열 순서로, 앞 연결 레이어가 모두 최신인 것 */
+/**
+ * 지금 할 수 있는 다음 일 — 배열 순서로
+ *   mode 'fill'    coons·단색 계산. 앞 연결 coons·단색이 최신이어야 한다. 안 지운 앞 AI는 없는 것으로 본다(effectiveKey)
+ *   mode 'load'    AI: 레이어에 ai가 있고 아직 확인 안 함 → 결과 key를 계산해 같으면 저장된 PNG를 받는다
+ *   mode 'compute' AI: [지우기]를 누른 것만. 엔진 준비 + 앞 연결 레이어 모두 최신(앞 AI도 지워짐)이어야 한다
+ */
 function nextPending() {
-  const fresh = id => { const p = patches.get(id); return !!p && p.patchKey === plan.get(id)?.key }
+  const freshFill = id => { const p = patches.get(id); return !!p && p.patchKey === eff.get(id) }
+  const done = id => { const x = byId.get(id); return x?.method === 'ai' ? aiDone(x) : freshFill(id) }
   for (const l of props.layers) {
     if (!isValidFillLayer(l)) continue
     const e = plan.get(l.id)
-    if (!e || transforming.has(l.id) || fresh(l.id) || failedKeys.has(e.key)) continue
-    if (e.deps.some(d => transforming.has(d) || !fresh(d))) continue
-    return { l, e }
+    if (!e || transforming.has(l.id)) continue
+    if (l.method === 'ai') {
+      if (aiRunning || aiDone(l) || failedKeys.has(e.key)) continue
+      if (aiRequested.has(e.key)) {
+        if (!aiReady()) continue // 준비되면 watch가 다시 부른다
+        if (e.deps.some(d => transforming.has(d) || !done(d))) continue
+        if (e.chain.some(id => byId.get(id)?.method === 'ai' && !aiDone(byId.get(id)))) continue
+        return { l, e, mode: 'compute' }
+      }
+      if (l.ai && !aiChecked.has(`${e.key}|${l.ai.key}`)) return { l, e, mode: 'load' }
+      continue
+    }
+    const key = eff.get(l.id)
+    if (freshFill(l.id) || failedKeys.has(key)) continue
+    if (e.deps.some(d => transforming.has(d) || (byId.get(d)?.method !== 'ai' && !freshFill(d)))) continue
+    return { l, e, mode: 'fill' }
   }
   return null
 }
 
-// 순서: 원본 → 결과 조각(레이어 순) → 영역 테두리(레이어 순) → 그리기 미리보기
-function restack(fills) {
+// 순서: 원본 → 결과 조각(레이어 순) → 영역 테두리(레이어 순) → 실행 전 영역 → 칠하는 중 미리보기 → 붓 크기 원
+function restack(fills, draft = props.draft) {
   const order = [baseObj]
   for (const l of fills) { const p = patches.get(l.id); if (p) order.push(p) }
   for (const l of fills) { const r = regions.get(l.id); if (r) order.push(r) }
+  const dr = draft && regions.get(draft.id)
+  if (dr && !order.includes(dr)) order.push(dr)
+  if (liveObj) order.push(liveObj)
+  if (cursorObj) order.push(cursorObj)
   order.forEach((o, i) => { if (canvas._objects[i] !== o) canvas.moveObjectTo(o, i) })
 }
 
@@ -654,12 +1071,19 @@ function runCompute() {
   if (!imgEl || !canvas) return
   const next = nextPending()
   if (!next) return
-  const { l, e } = next
+  const { l, e, mode } = next
+  if (mode !== 'fill') {
+    runAi(l, e, mode)
+    scheduleCompute() // AI가 도는 동안 다른 레이어는 계속 계산
+    return
+  }
+  const key = eff.get(l.id)
   const r = regions.get(l.id)
   let res
   try {
-    // 연결된 앞 레이어 결과를 덮어쓴 뒤 계산 (studioFillPlan 규칙)
-    res = computeFillPatch(imgEl, l, e.deps.map(d => patches.get(d).res))
+    // 연결된 앞 레이어 결과를 덮어쓴 뒤 계산 (studioFillPlan 규칙). 안 지운 앞 AI는 건너뛴다 (원본 그대로)
+    const prior = e.deps.filter(d => byId.get(d)?.method !== 'ai' || aiDone(byId.get(d))).map(d => patches.get(d).res)
+    res = computeFillPatch(imgEl, l, prior)
   } catch (err) {
     // 대개 캔버스 오염(SecurityError). 사유를 화면에 남긴다
     console.error('[StudioCanvas] 지우기 계산 실패:', l.id, err)
@@ -671,15 +1095,122 @@ function runCompute() {
     computeError.value = `지우기 계산에 실패했어요 (${res.reason})`
   }
   if (res?.ok) {
-    currentPatchCache().set(e.key, res)
-    placePatch(l, e.key, res)
+    currentPatchCache().set(key, res)
+    placePatch(l, key, res)
     if (r) r.busy = false
     restack(props.layers.filter(isValidFillLayer))
   } else {
-    failedKeys.add(e.key) // 같은 값으로는 다시 시도하지 않는다 (영역을 바꾸면 새 키로 다시 계산)
+    failedKeys.add(key) // 같은 값으로는 다시 시도하지 않는다 (영역을 바꾸면 새 키로 다시 계산)
   }
   canvas.requestRenderAll()
   scheduleCompute()
+}
+
+function sameRect(a, b) {
+  return a.x === b.x && a.y === b.y && a.w === b.w && a.h === b.h
+}
+
+/**
+ * AI 레이어 한 건 (비동기, 한 번에 1건). 시작할 때의 plan key를 기억하고, 끝났을 때 그 레이어의 key가 그대로일 때만 반영한다
+ * (도중에 옮기거나 지우거나 사진을 바꾸면 버린다 — 자동으로 다시 하지 않는다).
+ *   load    ai.key == 지금 결과 key → 저장된 PNG를 받아 쓴다. 다르면 [다시 지우기] 상태로 둔다.
+ *           받기 실패면 "[다시 계산]" 안내 — 몰래 재계산하지 않는다
+ *   compute [지우기]를 누른 것: 잘라낸 조각 + 연결된 앞 레이어 결과 덮어쓰기(pastePrior) → inpaint → 화면 반영
+ *           → PNG 저장 → emit('ai') (편집기가 ai를 붙이고 이력 "AI 지우기")
+ */
+async function runAi(l, e, mode) {
+  const seq = showSeq
+  const planKey = e.key
+  const imageRow = props.image
+  const aiKeyAtStart = l.ai?.key
+  const stale = () => seq !== showSeq || !canvas || plan.get(l.id)?.key !== planKey
+  aiRunning = true
+  if (mode === 'compute') aiActive.value = true
+  try {
+    if (!AI_MODEL_ID) throw new Error('AI 모델 설정(VITE_STUDIO_AI_MODEL_SHA256)이 없어요')
+    const key = await aiPatchKey(planKey, AI_MODEL_ID)
+    if (stale()) return
+    const area = fillArea(l, W, H)
+
+    if (mode === 'load') {
+      if (byId.get(l.id)?.ai?.key !== aiKeyAtStart) return // 그 사이 ai가 바뀜 — 다음 차례에 다시 본다
+      if (aiKeyAtStart !== key) { aiChecked.add(`${planKey}|${aiKeyAtStart}`); return } // 값이 바뀐 결과 → [다시 지우기]
+      let loaded
+      try {
+        if (!sameRect(l.ai.patch, area)) throw new Error(`저장된 범위가 지금 범위와 달라요 (${JSON.stringify(l.ai.patch)})`)
+        loaded = await loadAiPatch(l.ai.patch)
+      } catch (err) {
+        if (stale()) return
+        console.error('[StudioCanvas] 저장된 AI 결과 받기 실패:', l.id, l.ai.patch.path, err)
+        failedKeys.add(planKey)
+        aiLoadFailure.value = { layerId: l.id, planKey, message: err.message || String(err) }
+        return
+      }
+      if (stale()) return
+      const res = { canvas: loaded.canvas, area, data: loaded.data, aiKey: key }
+      currentPatchCache().set(planKey, res)
+      placePatch(l, planKey, res)
+      sync() // AI 결과가 생기면 연결된 뒤 coons·단색의 key가 바뀐다
+      return
+    }
+
+    // compute — [지우기]를 누른 것만 온다 (nextPending이 엔진 준비·앞 레이어를 확인함)
+    const batch = aiRequested.get(planKey)
+    const crop = cropRect(l, W, H)
+    const c = document.createElement('canvas')
+    c.width = crop.w
+    c.height = crop.h
+    const cctx = c.getContext('2d', { willReadFrequently: true })
+    cctx.drawImage(imgEl, crop.x, crop.y, crop.w, crop.h, 0, 0, crop.w, crop.h)
+    const cropData = cctx.getImageData(0, 0, crop.w, crop.h) // 오염 시 SecurityError → 아래 catch에서 사유 표시
+    pastePrior(cropData, crop, e.deps.map(d => patches.get(d).res))
+    const out = await props.aiEngine.inpaint({
+      cropImageData: cropData, crop,
+      fillAreasInCrop: [{ x: area.x - crop.x, y: area.y - crop.y, w: area.w, h: area.h }],
+      // 붓: 칠한 모양을 사방 max(pad,k) 넓힌 마스크 (조각 좌표). 네모는 사각형 그대로
+      maskInCrop: l.shape === 'brush' ? rasterizeStrokes(l.brush.strokes, crop, fillGrowOf(l, W, H)) : undefined,
+    })
+    if (stale()) return
+    if (!sameRect(out.area, area)) throw new Error(`엔진 결과 범위가 달라요 (${JSON.stringify(out.area)} / 기대 ${JSON.stringify(area)})`)
+    aiRequested.delete(planKey)
+    const pc = document.createElement('canvas')
+    pc.width = area.w
+    pc.height = area.h
+    pc.getContext('2d').putImageData(new ImageData(out.data.data, area.w, area.h), 0, 0)
+    const res = { canvas: pc, area, data: out.data, aiKey: key }
+    currentPatchCache().set(planKey, res)
+    aiUnsaved.set(l.id, key) // ai가 붙기 전까지도 결과를 보이게
+    placePatch(l, planKey, res)
+    sync() // AI 결과가 생기면 연결된 뒤 coons·단색의 key가 바뀐다
+
+    // 저장 — 실패해도 화면 결과는 둔다 (다음에 열면 [지우기]를 다시 눌러야 함). 사유는 화면에
+    const engine = props.aiEngine.engine
+    try {
+      const path = await uploadAiPatch({ projectId: imageRow.project_id, imageId: imageRow.id, layerId: l.id, key, canvas: pc })
+      aiSaveError.value = ''
+      emit('ai', {
+        imageId: imageRow.id, layerId: l.id, planKey, W, H, batch,
+        ai: { key, model: AI_MODEL_ID, engine, patch: { path, x: area.x, y: area.y, w: area.w, h: area.h } },
+      })
+    } catch (err) {
+      console.error('[StudioCanvas] AI 결과 저장 실패:', l.id, err)
+      aiSaveError.value = `AI 결과를 저장하지 못했어요: ${err.message || err}`
+    }
+  } catch (err) {
+    if (stale()) return
+    console.error('[StudioCanvas] AI 지우기 실패:', l.id, err)
+    computeError.value = `AI 지우기에 실패했어요: ${err.message || err}`
+    failedKeys.add(planKey)
+    aiRequested.delete(planKey)
+  } finally {
+    aiRunning = false
+    aiActive.value = false
+    if (canvas) {
+      refreshAiStates()
+      canvas.requestRenderAll()
+      scheduleCompute()
+    }
+  }
 }
 
 // ── 사진 표시 ──
@@ -704,6 +1235,19 @@ function clearObjects() {
   bleedById.value = {}
   press = null
   computeError.value = ''
+  byId = new Map()
+  eff = new Map()
+  aiRequested.clear()
+  aiChecked.clear()
+  aiUnsaved.clear()
+  aiLoadFailure.value = null
+  aiSaveError.value = ''
+  aiRequestCount.value = 0
+  aiStates.value = {}
+  emit('ai-states', {})
+  liveObj = null   // canvas.clear()가 객체를 모두 걷었다
+  cursorObj = null
+  paint = null
 }
 
 async function showImage() {
@@ -754,7 +1298,8 @@ function onKeyDown(e) {
   }
   const k = e.key.toLowerCase()
   if (k === 'v') { setTool('select'); e.preventDefault() }
-  else if (k === 'e') { setTool('draw'); e.preventDefault() }
+  else if (k === 'b') { setTool('brush'); e.preventDefault() }
+  else if (k === 'r') { setTool('rect'); e.preventDefault() }
   else if (e.key === 'Escape') {
     // 진행 중이던 그리기·드래그 상태를 전부 초기화
     if (historyOpen.value) historyOpen.value = false
@@ -807,6 +1352,7 @@ onMounted(() => {
   w.addEventListener('wheel', onWheel, { passive: false })
   w.addEventListener('pointerdown', onPanDown, true)
   w.addEventListener('pointermove', onPanMove)
+  w.addEventListener('pointerleave', onPointerLeave)
   w.addEventListener('pointerup', onPanUp)
   w.addEventListener('pointercancel', onPanUp)
   w.addEventListener('mousedown', onMiddleMouseDown, true)
@@ -825,6 +1371,7 @@ onMounted(() => {
     updateFloat()
   })
   resizeObs.observe(w)
+  setTool(tool.value) // 기본 도구(붓)의 커서·선택 설정을 캔버스에 적용
   showImage()
 })
 
@@ -835,6 +1382,7 @@ onBeforeUnmount(() => {
   w?.removeEventListener('wheel', onWheel)
   w?.removeEventListener('pointerdown', onPanDown, true)
   w?.removeEventListener('pointermove', onPanMove)
+  w?.removeEventListener('pointerleave', onPointerLeave)
   w?.removeEventListener('pointerup', onPanUp)
   w?.removeEventListener('pointercancel', onPanUp)
   w?.removeEventListener('mousedown', onMiddleMouseDown, true)
@@ -856,6 +1404,12 @@ onBeforeUnmount(() => {
 watch(() => props.image?.id, () => { historyOpen.value = false; showImage() })
 watch(() => props.layers, () => sync(), { deep: true })
 watch(() => props.selectedId, () => sync())
+// 엔진이 준비되면 기다리던 AI 레이어를 계산한다
+watch(() => props.aiState?.status, s => { if (s === 'ready') scheduleCompute() })
+// 오른쪽 패널의 [지우기]
+watch(() => props.eraseRequest?.n, () => { if (props.eraseRequest) requestErase(props.eraseRequest.layerId, props.eraseRequest.batch) })
+watch(() => props.draft, () => sync(), { deep: true })
+watch(() => props.brushSize, () => { if (cursorObj?.visible) updateCursor({ x: cursorObj.left, y: cursorObj.top }) })
 
 // 편집기가 좌표 검증(브라우저 자동화)에 쓸 수 있도록 현재 뷰포트를 읽는 창구만 연다
 defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }) })
@@ -932,5 +1486,6 @@ defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }) })
 }
 .st-float-item:hover { opacity: 1; }
 .st-float-item.is-active { opacity: 1; background: color-mix(in srgb, var(--st-surface) 18%, transparent); }
+.st-float-item.is-primary { opacity: 1; background: var(--st-accent); color: var(--st-on-accent); }
 .st-float-sep { width: 1px; height: 20px; background: color-mix(in srgb, var(--st-surface) 25%, transparent); }
 </style>

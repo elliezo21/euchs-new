@@ -13,7 +13,8 @@
  * 메시지
  *   ← { type:'prepare', manifestUrl, sha256, prefer:'webgpu'|'wasm' }
  *   → { type:'progress', phase, loaded?, total? } … { type:'ready', info } | { type:'error', reason }
- *   ← { type:'inpaint', id, crop:{ data, width, height }, areas:[{x,y,w,h}] }   (areas는 조각 좌표)
+ *   ← { type:'inpaint', id, crop:{ data, width, height }, areas:[{x,y,w,h}], mask? }   (areas는 조각 좌표)
+ *      mask(붓, 선택): 조각 크기 Uint8Array(1 = 메움) — 주면 2)의 사각형 대신 이 모양으로 마스크를 만든다. 나머지 순서는 같다
  *   → { type:'result', id, area:{x,y,w,h}, data, width, height, ms:{ pre, infer, post } } | { type:'error', id, reason }
  */
 import * as ort from 'onnxruntime-web/webgpu'
@@ -77,10 +78,11 @@ function ctx2d(c) {
   return c.getContext('2d', { willReadFrequently: true })
 }
 
-async function inpaint({ crop, areas }) {
+async function inpaint({ crop, areas, mask: userMask }) {
   if (!session) throw new Error('세션 없음 — prepare 먼저')
   const cw = crop.width, ch = crop.height
   if (!Array.isArray(areas) || areas.length === 0) throw new Error('메우는 범위 없음')
+  if (userMask && userMask.length !== cw * ch) throw new Error(`마스크 크기가 조각과 다름 (${userMask.length} / ${cw * ch})`)
   const t0 = performance.now()
 
   // 조각 / 조각 크기 마스크
@@ -89,8 +91,18 @@ async function inpaint({ crop, areas }) {
   const mc = new OffscreenCanvas(cw, ch), mg = ctx2d(mc)
   mg.fillStyle = '#000'
   mg.fillRect(0, 0, cw, ch)
-  mg.fillStyle = '#fff'
-  for (const a of areas) mg.fillRect(a.x, a.y, a.w, a.h)
+  if (userMask) {
+    // 붓(1-6b-3b): 조각 크기 마스크(1 = 메움)를 그대로 쓴다. 결과는 areas(감싸는 사각형) 범위로 돌려준다
+    const md = new ImageData(cw, ch)
+    for (let i = 0; i < cw * ch; i++) {
+      const v = userMask[i] ? 255 : 0
+      md.data[i * 4] = v; md.data[i * 4 + 1] = v; md.data[i * 4 + 2] = v; md.data[i * 4 + 3] = 255
+    }
+    mg.putImageData(md, 0, 0)
+  } else {
+    mg.fillStyle = '#fff'
+    for (const a of areas) mg.fillRect(a.x, a.y, a.w, a.h)
+  }
 
   // 512 입력
   const cv = new OffscreenCanvas(S, S), g = ctx2d(cv)

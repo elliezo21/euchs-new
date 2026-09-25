@@ -10,7 +10,8 @@ import { signViewUrl } from '@/lib/studioProjects'
 
 const URL_FRESH_MS = 9 * 60 * 1000
 
-function loadElement(url) {
+/** crossOrigin='anonymous'로 이미지 받기 (AI 결과 조각 PNG도 같은 방식 — studioAiPatch) */
+export function loadElement(url) {
   return new Promise((resolve, reject) => {
     const el = new Image()
     el.crossOrigin = 'anonymous' // src보다 먼저

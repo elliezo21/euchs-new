@@ -32,7 +32,8 @@ export function computeFillPatch(img, l, prior = []) {
   const res = fillOnCrop(cropData, crop, l, W, H, prior)
   if (!res.ok) return res
   // applyFill은 메우는 범위 안만 고치므로, 바깥 샘플 띠는 계산이 읽은 값 그대로다
-  const bleed = detectBleed(cropData, crop, l, W, H)
+  // 붓은 사각형 테두리가 없어 걸침 판정을 하지 않는다
+  const bleed = l.shape === 'brush' ? { sides: [], scores: {} } : detectBleed(cropData, crop, l, W, H)
 
   const out = document.createElement('canvas')
   out.width = res.area.w

@@ -17,17 +17,40 @@
  *      앞 레이어가 바뀌면 뒤 레이어도 다시 계산된다.
  *
  * edit 값 → studioFill 인자: method 'coons' → 'bilinear', 'solid' → 'solid', ring RING, feather 0 (1-5 랩 기본값)
+ *
+ * ★ AI(method 'ai', 1-6b-3b): 메우는 범위 = 사방 max(pad, k), 잘라내는 범위 = 메우는 범위 + 여백 (k·여백은 studioAi/aiGeometry 규칙).
+ *   영향 범위(연결 판정)는 메우는 범위 + RING으로 다른 방식과 같게 둔다. 계산 순서 규칙 1)~2)도 같다
+ *   (연결된 앞 레이어 결과를 잘라낸 조각에 덮어쓴 뒤 엔진에 넣는다 — pastePrior).
+ *   AI는 결과가 기기마다 조금씩 달라 3)의 "픽셀 단위로 같다"가 성립하지 않는다 → 결과 조각 PNG를 저장해 두고 쓴다.
+ *   AI 계산은 비동기라 fillOnCrop이 아니라 편집기(StudioCanvas)가 엔진을 부른다. fillOnCrop은 'ai'를 unknown_method로 거절한다.
+ *   AI는 [지우기]를 눌렀을 때만 계산한다 — 안 지운 앞 AI가 있을 때의 규칙은 effectiveKey·aiEraseSet 주석.
  */
 import { applyFill } from './studioFill.js'
 import { expandRect } from './studioCoords.js'
+import { aiK, aiMargin } from './studioAi/aiGeometry.js'
+import { brushHash, solidFillBrush } from './studioBrush.js'
 
 export const RING = 2       // 테두리 샘플 두께 (studioFill ring)
 export const CROP_EXTRA = 2 // 잘라낼 때 ring 바깥 여유
 const METHOD_MAP = { coons: 'bilinear', solid: 'solid' }
 
-/** 실제로 메워지는 범위 (원본 좌표) */
+/** AI 레이어의 실제 넓힘 폭 = max(pad, k) */
+export function aiGrow(l, W, H) {
+  return Math.max(l.pad, aiK(W, H))
+}
+
+/** 칠한 모양을 넓히는 폭 — AI는 max(pad, k), 그 밖은 pad (네모·붓 공통) */
+export function growOf(l, W, H) {
+  return l.method === 'ai' ? aiGrow(l, W, H) : l.pad
+}
+
+/**
+ * 실제로 메워지는 범위 (원본 좌표).
+ * 붓(shape 'brush')은 x,y,w,h = 칠한 모양을 감싸는 사각형이므로 같은 식으로 넓히면 넓힌 모양을 감싸는 사각형이 된다
+ * (그 안에서 실제로 칠하는 곳은 마스크 — studioBrush.rasterizeStrokes).
+ */
 export function fillArea(l, W, H) {
-  return expandRect(l, l.pad, W, H)
+  return expandRect(l, growOf(l, W, H), W, H)
 }
 
 /** 영향 범위 = 메우는 범위 + 테두리 샘플 */
@@ -37,7 +60,38 @@ export function influenceRect(l, W, H) {
 
 /** 계산할 때 잘라내는 범위 */
 export function cropRect(l, W, H) {
+  if (l.method === 'ai') return expandRect(fillArea(l, W, H), aiMargin(W, H), W, H)
   return expandRect(fillArea(l, W, H), RING + CROP_EXTRA, W, H)
+}
+
+/**
+ * ★ AI는 [지우기]를 눌러야 계산한다 (1-6b-3b 해성 변경). 그래서 앞에 연결된 AI가 아직 안 지워졌을 수 있다.
+ *   coons·단색은 그런 앞 AI를 "없는 것"(원본 그대로)으로 보고 먼저 계산하고, 그 AI를 지우면 다시 계산해야 한다.
+ *   → 화면 계산에 쓰는 key = 계산 key + 아직 안 지운 앞 AI 목록. AI 레이어 자신은 계산 key 그대로
+ *     (AI는 앞에 연결된 AI가 모두 지워진 뒤에만 계산한다 — aiEraseSet으로 같이 지운다).
+ * @param entry     fillPlan 결과 한 줄 { id, chain, key }
+ * @param fillsById id → 레이어
+ * @param aiDone    id → 그 AI 레이어의 결과가 지금 화면에 있는가
+ */
+export function effectiveKey(entry, fillsById, aiDone) {
+  if (fillsById.get(entry.id)?.method === 'ai') return entry.key
+  const missing = entry.chain.filter(id => fillsById.get(id)?.method === 'ai' && !aiDone(id))
+  return missing.length ? `${entry.key} ~ai-missing:${missing.join(',')}` : entry.key
+}
+
+/** [지우기]를 누르면 같이 지울 AI 레이어 = 앞에 연결된(chain) AI 중 안 지운 것 + 자기 (배열 순서) */
+export function aiEraseSet(entry, fillsById, aiDone) {
+  return [...entry.chain.filter(id => fillsById.get(id)?.method === 'ai' && !aiDone(id)), entry.id]
+}
+
+/**
+ * AI 결과 조각 key — sha256(계산 key + '|' + 모델) 앞 16자 (16진수 소문자).
+ * 레이어의 ai.key가 지금 이 값과 같으면 저장된 PNG를 그대로 쓴다.
+ */
+export async function aiPatchKey(planKey, modelId) {
+  if (!planKey || !modelId) throw new Error(`aiPatchKey: 값이 비어 있음 (planKey=${!!planKey}, modelId=${!!modelId})`)
+  const d = await globalThis.crypto.subtle.digest('SHA-256', new TextEncoder().encode(`${planKey}|${modelId}`))
+  return [...new Uint8Array(d)].map(b => b.toString(16).padStart(2, '0')).join('').slice(0, 16)
 }
 
 export function rectsOverlap(a, b) {
@@ -45,7 +99,8 @@ export function rectsOverlap(a, b) {
 }
 
 export function ownKey(l) {
-  return `${l.id}|${l.x},${l.y},${l.w},${l.h}|${l.method}|${l.pad}`
+  const base = `${l.id}|${l.x},${l.y},${l.w},${l.h}|${l.method}|${l.pad}`
+  return l.shape === 'brush' ? `${base}|brush:${brushHash(l.brush)}` : base // 붓: 획이 바뀌면 key가 바뀐다
 }
 
 /**
@@ -95,6 +150,11 @@ export function connectedGroups(fills, W, H) {
   return [...groups.values()]
 }
 
+/** 연결된 앞 레이어 결과들을 배열 순서대로 잘라낸 조각에 덮어쓴다 (AI 계산 전 준비 — fillOnCrop과 같은 규칙) */
+export function pastePrior(cropData, crop, prior = []) {
+  for (const p of prior) paste(cropData, crop, p)
+}
+
 /** 앞 레이어 결과 조각(area 크기 RGBA)을 잘라낸 조각 위에 그대로 덮어쓴다 (알파 포함 픽셀 복사) */
 function paste(cropData, crop, p) {
   const x0 = Math.max(crop.x, p.area.x), y0 = Math.max(crop.y, p.area.y)
@@ -117,14 +177,32 @@ function paste(cropData, crop, p) {
  * @returns {{ ok: true, area, data } | { ok: false, reason }}  data = 메운 범위의 RGBA ({ data, width, height })
  */
 export function fillOnCrop(cropData, crop, l, W, H, prior = []) {
+  if (l.shape === 'brush') return fillBrushOnCrop(cropData, crop, l, W, H, prior)
   const method = METHOD_MAP[l.method]
   if (!method) return { ok: false, reason: `unknown_method:${l.method}` }
   const area = fillArea(l, W, H)
   if (area.w < 1 || area.h < 1) return { ok: false, reason: 'empty_rect' }
-  for (const p of prior) paste(cropData, crop, p)
+  pastePrior(cropData, crop, prior)
   const local = { x: area.x - crop.x, y: area.y - crop.y, w: area.w, h: area.h }
   const res = applyFill(cropData, local, method, { ring: RING, feather: 0 })
   if (!res.ok) return { ok: false, reason: res.reason }
+  const out = new Uint8ClampedArray(area.w * area.h * 4)
+  for (let y = 0; y < area.h; y++) {
+    const so = ((local.y + y) * crop.w + local.x) * 4
+    out.set(cropData.data.subarray(so, so + area.w * 4), y * area.w * 4)
+  }
+  return { ok: true, area, data: { data: out, width: area.w, height: area.h } }
+}
+
+/** 붓 단색 — 칠한 모양(pad 넓힘)만 채우고, 메우는 범위 안이라도 모양 밖은 (앞 레이어가 반영된) 원래 픽셀 그대로 */
+function fillBrushOnCrop(cropData, crop, l, W, H, prior) {
+  if (l.method !== 'solid') return { ok: false, reason: `unknown_method:${l.method}` } // 붓 AI는 엔진이 계산
+  const area = fillArea(l, W, H)
+  if (area.w < 1 || area.h < 1) return { ok: false, reason: 'empty_rect' }
+  pastePrior(cropData, crop, prior)
+  const res = solidFillBrush(cropData, crop, l.brush.strokes, l.pad, W, H)
+  if (!res.ok) return { ok: false, reason: res.reason }
+  const local = { x: area.x - crop.x, y: area.y - crop.y }
   const out = new Uint8ClampedArray(area.w * area.h * 4)
   for (let y = 0; y < area.h; y++) {
     const so = ((local.y + y) * crop.w + local.x) * 4

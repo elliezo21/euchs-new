@@ -271,6 +271,28 @@ export async function storageDownload(cfg, bucket, path) {
   }
 }
 
+/**
+ * 폴더 안 파일 목록 (한 단계). storage-js list()와 같은 엔드포인트·본문. 실패는 throw.
+ * @param {string} prefix  폴더 경로 (끝 '/' 없이)
+ * @returns {Promise<string[]>} 파일 이름들 (하위 폴더는 id가 null이라 뺀다)
+ */
+export async function storageList(cfg, bucket, prefix, limit = 1000) {
+  const r = await fetch(`${cfg.supabaseUrl}/storage/v1/object/list/${bucket}`, {
+    method: 'POST',
+    headers: {
+      'apikey': cfg.serviceRoleKey,
+      'Authorization': `Bearer ${cfg.serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ prefix, limit, offset: 0, sortBy: { column: 'name', order: 'asc' } }),
+  })
+  const text = await r.text()
+  if (!r.ok) throw new Error(`storage list ${r.status}: ${text.slice(0, 200)}`)
+  const rows = JSON.parse(text)
+  if (!Array.isArray(rows)) throw new Error('storage list: 응답이 배열이 아님')
+  return rows.filter(o => o && o.id).map(o => o.name)
+}
+
 /** 파일 삭제 (여러 개). 실패는 throw */
 export async function storageRemove(cfg, bucket, paths) {
   if (paths.length === 0) return

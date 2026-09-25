@@ -1,21 +1,31 @@
 /**
  * 스튜디오 편집 내용(studio_images.edit) 읽기·쓰기 + 자동 저장
  *
- * ★ edit v2 모양 (원본 픽셀 좌표, 결과 픽셀은 저장하지 않는다 — 화면을 열 때마다 원본에서 다시 계산)
- *   { v: 2, layers: [ { id: 'f_k3j9x2', type: 'fill', x, y, w, h, method: 'coons'|'solid', pad: 0~12 } ] }
+ * ★ edit v2 모양 (원본 픽셀 좌표)
+ *   { v: 2, layers: [ { id: 'f_k3j9x2', type: 'fill', x, y, w, h, method: 'coons'|'solid'|'ai', pad: 0~12, ai? } ] }
  *   레이어 순서 = 배열 순서 (뒤가 위). 모르는 type(cover·text 등 다음 단계)은 건드리지 않고 그대로 보존한다.
+ * ★ Coons·단색은 결과 픽셀을 저장하지 않고 매번 원본에서 계산. AI(method 'ai')만 결과가 기기마다 조금씩 달라
+ *   결과 조각 PNG를 Storage에 저장한다(2026-09-25 결정). 계산이 끝난 AI 레이어에는 ai 필드가 붙는다:
+ *     ai: { key: 16자리 16진수, model: 'lama_fp32@1faef530', engine: 'webgpu'|'wasm', patch: { path, x, y, w, h } }
+ *     key = sha256(그 레이어의 계산 key(studioFillPlan) + '|' + model) 앞 16자 — 지금 key와 같으면 저장된 PNG를 쓴다.
+ *   방금 그린(계산 전) AI 레이어에는 ai가 없다. 옛 PNG는 지우지 않는다(되돌리기에서 다시 쓴다, 정리는 30일 삭제).
+ *   'coons'(자연스럽게)는 새로 만들지 않지만(1-6b-3b에서 카드 제거) 저장된 레이어는 그대로 그린다.
+ * ★ 붓 레이어(shape:'brush', brush:{ strokes }) — 모양은 studioBrush.js 주석. shape가 없으면 네모.
+ * ★ 실행 전 영역(네모·붓)은 edit에 넣지 않는다(편집기 화면에만 있는 초안 1개). [AI로 지우기]/[단색]을 누른 순간 레이어로 추가.
  * ★ 저장은 낙관적 잠금: edit_version이 내가 읽은 값일 때만 +1 하며 쓴다. 반영 0건 = 다른 창이 먼저 고침(충돌).
  *   브라우저(authenticated)는 edit·edit_version 등 컬럼 단위 UPDATE만 가능하다 (INSERT·DELETE 없음, RLS 본인 행).
  */
 import { supabase } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
+import { isValidBrushLayer } from '@/lib/studioBrush'
 
 export const EDIT_VERSION = 2
 export const MAX_LAYERS = 60
 export const PAD_MIN = 0
 export const PAD_MAX = 12
 export const PAD_DEFAULT = 4
-export const FILL_METHODS = ['coons', 'solid'] // C(거울 복제)는 1-5 실측에서 제외
+export const FILL_METHODS = ['coons', 'solid', 'ai'] // C(거울 복제)는 1-5 실측에서 제외. 'coons'는 기존 레이어 표시용
+export const AI_ENGINES = ['webgpu', 'wasm']
 export const SAVE_DELAY_MS = 1200
 
 const ID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
@@ -30,9 +40,19 @@ export function newFillId() {
 
 /** 편집기에서 다룰 수 있는 지우기 레이어인지 (모양이 어긋나면 그리지 않고 보존만) */
 export function isValidFillLayer(l) {
-  return l && l.type === 'fill' && typeof l.id === 'string'
+  return !!l && l.type === 'fill' && typeof l.id === 'string'
     && [l.x, l.y, l.w, l.h, l.pad].every(Number.isInteger)
     && l.w > 0 && l.h > 0 && FILL_METHODS.includes(l.method)
+    && (l.method !== 'ai' || l.ai === undefined || isValidAiResult(l.ai))
+    && (l.shape === undefined || isValidBrushLayer(l)) // shape 없음 = 네모(기존), 'brush' = 붓
+}
+
+/** AI 레이어의 ai 필드 모양 (계산 결과 조각 정보) */
+export function isValidAiResult(a) {
+  const p = a?.patch
+  return !!a && typeof a === 'object' && /^[0-9a-f]{16}$/.test(a.key) && typeof a.model === 'string' && a.model !== ''
+    && AI_ENGINES.includes(a.engine)
+    && !!p && typeof p.path === 'string' && p.path !== '' && [p.x, p.y, p.w, p.h].every(Number.isInteger) && p.w > 0 && p.h > 0
 }
 
 /** DB의 edit → 레이어 배열 (복사본). v2가 아니거나 모양이 이상하면 사유를 남긴다 */

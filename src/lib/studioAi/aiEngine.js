@@ -68,19 +68,23 @@ export function createAiEngine({ prefer = 'webgpu', onStatus = () => {} } = {}) 
   }
 
   /**
-   * @param {{ cropImageData: {data,width,height}, crop?: {x,y}, fillAreasInCrop: {x,y,w,h}[] }} args
+   * @param {{ cropImageData: {data,width,height}, crop?: {x,y}, fillAreasInCrop: {x,y,w,h}[], maskInCrop?: Uint8Array }} args
+   *   maskInCrop (붓, 선택): 조각 크기(width×height) 마스크, 1 = 메움. 주면 fillAreasInCrop 사각형 대신 이 모양만 메우고,
+   *   결과는 fillAreasInCrop을 감싸는 사각형으로 돌려준다(그 안에서 마스크 밖은 원본). 안 주면 예전 사각형 경로 그대로.
    */
-  async function inpaint({ cropImageData, crop, fillAreasInCrop }) {
+  async function inpaint({ cropImageData, crop, fillAreasInCrop, maskInCrop }) {
     if (st.status !== 'ready') throw new Error(`엔진 준비 안 됨 (status=${st.status}${st.reason ? ', ' + st.reason : ''})`)
     const id = ++seq
     const copy = new Uint8ClampedArray(cropImageData.data) // 호출자 데이터는 그대로 두고 복사본을 넘긴다
+    const mask = maskInCrop ? new Uint8Array(maskInCrop) : null
     const m = await new Promise((resolve, reject) => {
       pending.set(id, { resolve, reject })
       worker.postMessage({
         type: 'inpaint', id,
         crop: { data: copy, width: cropImageData.width, height: cropImageData.height },
         areas: fillAreasInCrop,
-      }, [copy.buffer])
+        mask,
+      }, mask ? [copy.buffer, mask.buffer] : [copy.buffer])
     })
     const ox = crop ? crop.x : 0, oy = crop ? crop.y : 0
     return {

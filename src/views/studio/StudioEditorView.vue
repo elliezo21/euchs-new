@@ -110,14 +110,24 @@
           :can-undo="canUndoNow"
           :can-redo="canRedoNow"
           :history-steps="historySteps"
-          @add="addFill"
+          :ai-engine="aiEngine"
+          :ai-state="aiState"
+          :erase-request="eraseRequest"
+          :draft="canvasDraft"
+          :brush-size="brushSize"
+          :brush-mode="brushMode"
+          @draft-rect="setDraftRect"
+          @brush-stroke="addBrushStroke"
+          @execute="executeFill"
           @change="changeFill"
           @select="id => (selectedLayerId = id)"
           @remove="removeFill"
-          @method="setMethod"
           @undo="undoEdit"
           @redo="redoEdit"
           @jump="jumpEdit"
+          @ai="applyAiResult"
+          @ai-states="s => (aiLayerStates = s)"
+          @tool="t => (canvasTool = t)"
         />
         <div v-else class="absolute inset-0 flex items-center justify-center st-desc">
           {{ doneImages.length ? '왼쪽에서 사진을 고르세요' : '완료된 사진이 아직 없어요' }}
@@ -132,24 +142,48 @@
             <p class="st-desc">사진을 선택하면 여기서 중국어를 지울 수 있어요.</p>
           </template>
 
-          <!-- 영역 선택 -->
+          <!-- 영역 선택 (실행 전 영역 포함) -->
           <template v-else-if="selectedFill">
             <h3 class="st-h-card">글자 지우기</h3>
-            <div class="mt-4 st-label">지우는 방식</div>
+            <p v-if="selectedIsDraft" class="mt-2 text-[13px] font-bold st-accent-text break-keep" data-panel-draft-hint>
+              {{ selectedFill.shape === 'brush' ? '다 칠한 뒤 [AI로 지우기] 또는 [단색]을 누르세요' : '크기를 맞춘 뒤 [AI로 지우기] 또는 [단색]을 누르세요' }}
+            </p>
+            <div class="mt-4 st-label">지우는 방식 <span class="st-desc-sm">(누르면 바로 지워요)</span></div>
             <div class="mt-2 space-y-2">
+              <!-- 방식 카드 = 실행 버튼. 지금 적용된 방식은 선택 표시 (실행 전 영역·예전 '자연스럽게'는 표시 없음) -->
               <button
                 v-for="m in METHOD_CARDS" :key="m.key" type="button"
-                class="st-card w-full p-3 text-left" :class="selectedFill.method === m.key ? 'is-selected' : 'st-card-hover'"
+                class="st-card w-full p-3 text-left"
+                :class="!selectedIsDraft && selectedFill.method === m.key ? 'is-selected' : 'st-card-hover'"
+                :disabled="selectedAiState === 'busy'"
                 :data-method="m.key"
-                @click="setMethod(selectedFill.id, m.key)"
+                @click="executeFill(selectedFill.id, m.key)"
               >
                 <div class="flex items-center gap-2">
                   <span class="text-[14px] font-bold st-ink">{{ m.label }}</span>
                   <span v-if="m.recommended" class="st-badge st-badge-accent">추천</span>
+                  <span v-if="m.key === 'ai' && selectedAiState === 'busy'" class="ml-auto st-desc-sm">AI가 채우는 중…</span>
+                  <span v-else-if="m.key === 'ai' && selectedAiState === 'loading'" class="ml-auto st-desc-sm">불러오는 중…</span>
                 </div>
                 <div class="mt-0.5 st-desc-sm break-keep">{{ m.desc }}</div>
               </button>
             </div>
+            <p v-if="!selectedIsDraft && selectedFill.method === 'coons'" class="mt-2 st-desc-sm break-keep" data-coons-notice>
+              예전 방식(자연스럽게)으로 지운 영역이에요. 위 방식을 누르면 그 방식으로 다시 지워요.
+            </p>
+            <p v-if="!selectedIsDraft && selectedFill.method === 'ai' && (selectedAiState === 'needs' || selectedAiState === 'failed')" class="mt-2 st-desc-sm break-keep" data-ai-stale>
+              영역이 바뀌어 결과가 맞지 않아요. [AI로 지우기]를 누르면 다시 지워요.
+            </p>
+
+            <!-- 붓 (실행 전 붓 영역): 크기·칠하기/덜어내기·초기화 -->
+            <template v-if="selectedIsDraft && selectedFill.shape === 'brush'">
+              <div class="mt-5"><BrushControls /></div>
+              <button type="button" class="st-btn st-btn-block mt-3" data-panel-brush-reset @click="removeFill(selectedFill.id)">초기화 (칠한 것 지우기)</button>
+            </template>
+            <p v-if="selectedFill.method === 'ai' || selectedIsDraft" class="mt-3 st-desc-sm break-keep" data-ai-guide>
+              AI 지우기는 한 번에 완벽하지 않을 수 있어요. 마음에 안 들면 네모를 조금 넓게 다시 그리거나 [되돌리기] 하세요.
+              옷·사람·무늬 위 글자는 곧 나올 [덮기]가 더 깔끔해요.
+            </p>
 
             <div class="mt-5 flex items-center">
               <span class="st-label">가장자리 여유</span>
@@ -162,7 +196,8 @@
               @change="recordPad"
             />
             <p class="mt-1 st-desc-sm break-keep">글자보다 조금 넉넉하게, 선에서 떨어지게 그리면 더 깨끗해요.</p>
-            <p class="mt-0.5 st-desc-sm break-keep">그린 네모보다 이만큼 더 넓게 메워요 (점선).</p>
+            <p class="mt-0.5 st-desc-sm break-keep">{{ selectedFill.shape === 'brush' ? '칠한 모양보다 이만큼 더 넓게 메워요.' : '그린 네모보다 이만큼 더 넓게 메워요 (점선).' }}</p>
+            <p v-if="selectedFill.method === 'ai' && selectedAiMinGrow" class="mt-0.5 st-desc-sm break-keep" data-ai-min-grow>AI는 이 사진에서 최소 {{ selectedAiMinGrow }}px 넓게 메워요.</p>
 
             <div class="mt-5 p-3 rounded-[10px] st-soft-bg">
               <div class="flex items-center gap-1.5 text-[13px] font-bold st-ink"><Info class="w-4 h-4" :stroke-width="2" /> 사진 위 글자는 덮기를 쓰세요</div>
@@ -178,8 +213,13 @@
               <div class="flex"><dt class="st-muted w-20 shrink-0">원본 크기</dt><dd class="st-ink-2 font-bold">{{ selectedImage.width }}×{{ selectedImage.height }}px</dd></div>
               <div class="flex"><dt class="st-muted w-20 shrink-0">파일 크기</dt><dd class="st-ink-2 font-bold">{{ formatBytes(selectedImage.bytes) }}</dd></div>
             </dl>
+            <!-- 붓 도구일 때: 크기·칠하기/덜어내기 -->
+            <div v-if="canvasTool === 'brush'" class="mt-5" data-brush-panel>
+              <h3 class="st-h-card">붓</h3>
+              <div class="mt-3"><BrushControls /></div>
+            </div>
             <div class="mt-5 p-3 rounded-[10px] st-accent-soft-bg">
-              <p class="text-[13px] font-bold st-accent-text break-keep">위쪽 [글자 지우기]를 누르고 중국어 위를 드래그하세요.</p>
+              <p class="text-[13px] font-bold st-accent-text break-keep">위쪽 [붓]으로 중국어 위를 칠하거나 [네모]로 감싸세요.</p>
               <p class="mt-1 st-desc-sm break-keep">스페이스를 누른 채 끌면 화면이 움직이고, Ctrl+휠로 확대해요.</p>
             </div>
           </template>
@@ -239,7 +279,10 @@
 // 원본 파일은 바꾸지 않는다. 편집 내용은 studio_images.edit(원본 픽셀 좌표)에 자동 저장하고, 열 때마다 원본에서 다시 계산한다.
 // 되돌리기·다시·간단 이력(1-6b-2a)은 사진별 스냅샷(studioHistory.js), 저장은 기존 자동 저장 경로 그대로.
 // 덮기·순서 바꾸기·원본 비교(1-6b-2), 글자(1-7), 내보내기(1-9)는 다음 단계 — 버튼은 비활성 그대로.
-import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
+// AI 지우기(1-6b-3b): 새 영역 기본값 'ai'. 영역을 정한 뒤 [지우기]를 눌러야 계산한다 (자동 계산·자동 재계산 없음).
+//   엔진(LaMa 워커)은 편집기에 들어오면 바로 준비를 시작하고 떠나면 정리한다.
+//   AI 결과는 PNG로 저장되고(studioAiPatch), 도착하면 그 레이어에 ai 필드를 붙인다 — 이력 "AI 지우기" 한 단계.
+import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
   ArrowLeft, Undo2, Redo2, Eye, Download, Image as ImageIcon, ImagePlus, Type, LayoutTemplate, Layers, Bookmark,
@@ -259,9 +302,15 @@ import {
 import { createImageCache } from '@/lib/studioImageCache'
 import {
   createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, jumpTo as jumpHistory,
-  clear as clearHistory, canUndo, canRedo, list as listHistory, current as currentStep, LABELS,
+  clear as clearHistory, canUndo, canRedo, list as listHistory, current as currentStep, amendCurrent as amendHistory, LABELS,
 } from '@/lib/studioHistory'
 import { clampRectToImage } from '@/lib/studioCoords'
+import {
+  brushBBox, translateBrush, brushPointCount, BRUSH_SIZE_MIN, BRUSH_MAX_STROKES, BRUSH_MAX_POINTS,
+} from '@/lib/studioBrush'
+import { fillPlan } from '@/lib/studioFillPlan'
+import { aiK } from '@/lib/studioAi/aiGeometry'
+import { createAiEngine } from '@/lib/studioAi/aiEngine'
 
 // Fabric은 이 컴포넌트와 함께만 받는다 (1024px 미만에서는 받지도 않는다)
 const StudioCanvas = defineAsyncComponent({
@@ -283,8 +332,9 @@ const TOOLS = [
   { label: '배경합성', icon: Layers },
   { label: '저장값', icon: Bookmark },
 ]
+// '자연스럽게'(coons)는 해성 판정 "못 씀"으로 뺐다 (1-6b-3b). 저장된 coons 레이어는 그대로 그리고 [AI로 바꾸기]를 보여준다
 const METHOD_CARDS = [
-  { key: 'coons', label: '자연스럽게', desc: '주변 색을 이어서 메워요', recommended: true },
+  { key: 'ai', label: 'AI로 지우기', desc: 'AI가 주변을 보고 자연스럽게 채워요', recommended: true },
   { key: 'solid', label: '단색', desc: '한 가지 색으로 채워요' },
 ]
 
@@ -319,6 +369,30 @@ let toastTimer = null
 const imageCache = createImageCache({ limit: 5 })
 let saver = makeSaver()
 
+// AI 지우기 엔진 — 편집기 화면 동안 하나. 준비(모델 받기·세션 약 15초)를 미리 시작한다
+const aiEngine = shallowRef(null)
+const aiState = reactive({ status: 'idle', reason: '', progress: null })
+
+function startAiEngine() {
+  if (aiEngine.value) return
+  const eng = createAiEngine({
+    prefer: 'webgpu',
+    onStatus: s => { aiState.status = s.status; aiState.reason = s.reason || '' },
+  })
+  aiEngine.value = eng
+  eng.prepare(p => { aiState.progress = p }).then(info => {
+    if (info) console.info(`[StudioEditor] AI 엔진 준비: ${info.engine}, 모델 ${info.modelSource} ${info.modelMs}ms, 세션 ${info.sessionMs}ms`)
+  })
+}
+
+function stopAiEngine() {
+  aiEngine.value?.dispose()
+  aiEngine.value = null
+  aiState.status = 'idle'
+  aiState.reason = ''
+  aiState.progress = null
+}
+
 function makeSaver() {
   return createEditSaver({
     onStatus(status, detail) {
@@ -342,13 +416,20 @@ const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
 const selectedImage = computed(() => images.value.find(i => i.id === selectedImageId.value && i.ingest_status === 'done') || null)
 const selectedLayers = computed(() => (selectedImageId.value && layerMap[selectedImageId.value]) || [])
-const selectedFill = computed(() => selectedLayers.value.find(l => l.id === selectedLayerId.value && isValidFillLayer(l)) || null)
+// 선택한 영역: 실행 전 영역(초안)이면 그것, 아니면 저장된 레이어
+const selectedFill = computed(() => (canvasDraft.value && canvasDraft.value.id === selectedLayerId.value ? canvasDraft.value
+  : selectedLayers.value.find(l => l.id === selectedLayerId.value && isValidFillLayer(l)) || null))
 const selectedFillCount = computed(() => fillLayersOf(selectedLayers.value).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value)
 const selectedHistory = computed(() => (selectedImage.value && histories[selectedImage.value.id]) || null)
 const canUndoNow = computed(() => canUndo(selectedHistory.value))
 const canRedoNow = computed(() => canRedo(selectedHistory.value))
 const historySteps = computed(() => listHistory(selectedHistory.value))
+// AI 최소 넓힘 폭 k (원본 크기 기준, aiGeometry 규칙)
+const selectedAiMinGrow = computed(() => {
+  const r = selectedImage.value
+  return r && Number.isInteger(r.width) && Number.isInteger(r.height) ? aiK(r.width, r.height) : null
+})
 
 function rowOf(id) { return images.value.find(i => i.id === id) }
 function fillCount(id) { return fillLayersOf(layerMap[id] || []).length }
@@ -438,6 +519,7 @@ function selectImage(id) {
   if (id === selectedImageId.value) return
   const prev = selectedImageId.value
   if (prev) saver.flush(prev) // 즉시 저장 (결과는 상단 바 상태로 보인다)
+  draft.value = null // 실행 전 영역은 사진을 바꾸면 사라진다
   selectedImageId.value = id
   selectedLayerId.value = null
   nextTick(() => listEl.value?.querySelector(`[data-image-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
@@ -465,7 +547,8 @@ function clampFills(imageId, layers) {
     return layers
   }
   return layers.map(l => {
-    if (!isValidFillLayer(l)) return l
+    // 붓은 x,y,w,h가 획에서 계산한 값(brushBBox, 이미 이미지 안)이라 사각형만 따로 맞추면 획과 어긋난다
+    if (!isValidFillLayer(l) || l.shape === 'brush') return l
     const { rect, changed } = clampRectToImage(l, W, H)
     if (!changed) return l
     console.warn('[StudioEditor] 저장 직전 이미지 밖 좌표를 범위 안으로 맞춤:', l.id,
@@ -494,29 +577,183 @@ function recordHistory(imageId, edit, label) {
   histories[imageId] = pushHistory(h, edit, label) // 값이 같으면 그대로 돌려준다
 }
 
-function addFill(rect) {
+// ── 실행 전 영역(초안) ──
+// 네모·붓 모두 [AI로 지우기]/[단색]을 누르기 전에는 edit에 넣지 않는다 (저장·이력 없음, 화면에만, 한 개만).
+// 사진을 바꾸거나 편집기를 떠나거나 새로고침하면 사라진다. 새 초안을 만들면 이전 초안은 버린다.
+const draft = ref(null) // { imageId, layer: { id, type:'fill', x,y,w,h, pad, shape?, brush? } } — method 없음
+const canvasDraft = computed(() => (draft.value && draft.value.imageId === selectedImageId.value ? draft.value.layer : null))
+const selectedIsDraft = computed(() => !!canvasDraft.value && canvasDraft.value.id === selectedLayerId.value)
+
+function setDraftRect(rect) {
   const id = selectedImageId.value
   if (!id) return
-  const cur = layerMap[id] || []
-  if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
-  const layer = { id: newFillId(), type: 'fill', x: rect.x, y: rect.y, w: rect.w, h: rect.h, method: 'coons', pad: PAD_DEFAULT }
-  setLayers(id, [...cur, layer], LABELS.add)
+  const layer = { id: newFillId(), type: 'fill', x: rect.x, y: rect.y, w: rect.w, h: rect.h, pad: PAD_DEFAULT }
+  draft.value = { imageId: id, layer }
+  selectedLayerId.value = layer.id
+}
+
+// ── 붓 ──
+const canvasTool = ref('brush')
+const brushSize = ref(40)       // 원본 픽셀
+const brushMode = ref('add')    // 'add' 칠하기 | 'sub' 덜어내기
+let brushSizeTouched = false
+const BRUSH_UI_MIN = BRUSH_SIZE_MIN, BRUSH_UI_MAX = 300
+function setBrushSize(v) {
+  if (!Number.isInteger(v) || v < BRUSH_UI_MIN || v > BRUSH_UI_MAX) return
+  brushSize.value = v
+  brushSizeTouched = true
+}
+// 사진을 바꾸면 (직접 바꾸지 않았다면) 사진 크기에 맞는 기본 붓 크기: 긴 변의 1/40, 8~120px (1920px → 48px)
+watch(() => selectedImage.value?.id, () => {
+  const r = selectedImage.value
+  if (!r || brushSizeTouched || !Number.isInteger(r.width) || !Number.isInteger(r.height)) return
+  brushSize.value = Math.min(120, Math.max(8, Math.round(Math.max(r.width, r.height) / 40)))
+}, { immediate: true })
+
+/** 붓 한 획 → 붓 초안에 합친다 (초안이 네모거나 없으면 새 붓 초안). 덜어내기는 붓 초안이 있을 때만 */
+function addBrushStroke(stroke) {
+  const id = selectedImageId.value
+  const row = rowOf(id)
+  if (!id || !row) return
+  const cur = canvasDraft.value?.shape === 'brush' ? canvasDraft.value : null
+  if (!cur && stroke.mode === 'sub') return // 덜어낼 칠한 곳이 없음
+  const strokes = [...(cur ? cur.brush.strokes : []), stroke]
+  if (strokes.length > BRUSH_MAX_STROKES || brushPointCount({ strokes }) > BRUSH_MAX_POINTS) {
+    showToast('한 영역에 칠할 수 있는 양을 넘었어요. 지금 칠한 곳을 먼저 [AI로 지우기]나 [단색]으로 지운 뒤 이어서 칠해 주세요.')
+    return
+  }
+  const bb = brushBBox(strokes, row.width, row.height)
+  if (!bb) { // 모두 덜어냄 → 초안 없음
+    draft.value = null
+    if (cur && selectedLayerId.value === cur.id) selectedLayerId.value = null
+    return
+  }
+  const layer = { id: cur ? cur.id : newFillId(), type: 'fill', shape: 'brush', ...bb, pad: cur ? cur.pad : PAD_DEFAULT, brush: { strokes } }
+  draft.value = { imageId: id, layer }
   selectedLayerId.value = layer.id
 }
 
 function updateFill(layerId, patch, label) {
   const id = selectedImageId.value
   if (!id) return
+  if (canvasDraft.value?.id === layerId) { // 초안: 화면 값만 (저장·이력 없음)
+    draft.value = { imageId: id, layer: { ...canvasDraft.value, ...patch } }
+    return
+  }
   const cur = layerMap[id] || []
   if (!cur.some(l => l.id === layerId)) return
   setLayers(id, cur.map(l => (l.id === layerId ? { ...l, ...patch } : l)), label)
 }
 
-// kind: 캔버스가 알려준 동작 — 'move'(이동) | 'resize'(크기 조절, [조금 넓히기] 포함)
+// kind: 캔버스가 알려준 동작 — 'move'(이동) | 'resize'(크기 조절, [조금 넓히기] 포함). 붓은 옮기기만 (획을 통째로)
 function changeFill(layerId, rect, kind) {
+  const id = selectedImageId.value
+  const l = (layerMap[id] || []).find(x => x.id === layerId)
+  if (l?.shape === 'brush') {
+    const row = rowOf(id)
+    const brush = translateBrush(l.brush, rect.x - l.x, rect.y - l.y)
+    const bb = brushBBox(brush.strokes, row.width, row.height)
+    if (!bb) { console.error('[StudioEditor] 붓 영역을 옮긴 뒤 칠한 곳이 이미지 밖으로 나감 — 옮기지 않음:', layerId); return }
+    updateFill(layerId, { ...bb, brush }, LABELS.move)
+    return
+  }
   updateFill(layerId, { x: rect.x, y: rect.y, w: rect.w, h: rect.h }, kind === 'move' ? LABELS.move : LABELS.resize)
 }
-function setMethod(layerId, method) { updateFill(layerId, { method }, LABELS.method) }
+
+/**
+ * [AI로 지우기]/[단색] — 누르면 바로 실행 (떠 있는 막대·오른쪽 카드 공통)
+ *   초안: 그 방식으로 레이어를 추가 (AI: 이력 "AI 지우기", 단색: "채우기 방식 변경") → 자동 저장
+ *   레이어: 방식이 다르면 바꾸고(ai 결과 정보는 뗌) 다시 실행. AI는 결과가 안 맞을 때만 다시 계산 (자동 재계산 없음)
+ *   AI의 이력 한 단계 = 누른 순간 edit가 바뀌면 그때 단계를 만들고, 결과가 오면 그 단계에 합친다(applyAiResult)
+ */
+let aiBatchSeq = 0
+function executeFill(layerId, method) {
+  const id = selectedImageId.value
+  if (!id || (method !== 'ai' && method !== 'solid')) return
+  const cur = layerMap[id] || []
+  const batch = `e${++aiBatchSeq}`
+  let pushedIndex = null
+  if (canvasDraft.value?.id === layerId) {
+    if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
+    const layer = { ...canvasDraft.value, method }
+    draft.value = null
+    setLayers(id, [...cur, layer], method === 'ai' ? LABELS.aiErase : LABELS.method)
+    pushedIndex = histories[id]?.index ?? null
+  } else {
+    const l = cur.find(x => x.id === layerId)
+    if (!l) return
+    if (l.method !== method) {
+      // 다른 방식으로 바꾸면 ai 결과 정보는 뗀다 (되돌리기로 AI에 돌아가면 이력의 ai가 그대로 돌아온다)
+      setLayers(id, cur.map(x => {
+        if (x.id !== layerId) return x
+        const { ai, ...rest } = x
+        return { ...rest, method }
+      }), method === 'ai' ? LABELS.aiErase : LABELS.method)
+      pushedIndex = histories[id]?.index ?? null
+    } else if (method === 'solid') {
+      return // 단색은 값이 바뀌면 캔버스가 바로 다시 칠한다 — 할 일 없음
+    }
+  }
+  selectedLayerId.value = layerId
+  if (method === 'ai') {
+    aiHistoryBatch[id] = { batch, index: pushedIndex }
+    eraseRequest.value = { layerId, n: ++eraseSeq, batch }
+  }
+}
+
+/**
+ * 캔버스가 AI 결과 PNG를 저장했을 때 — 그 레이어의 계산 key가 여전히 planKey일 때만 ai를 붙인다. 이력은 실행 한 번 = "AI 지우기" 한 단계:
+ *   실행 때 단계를 이미 만들었고(초안 추가·방식 변경) 그 단계가 아직 현재면 → 그 단계에 합친다
+ *   실행 때 edit가 안 바뀌었으면(결과가 안 맞던 AI 레이어 다시 실행) → 첫 결과가 단계를 만들고, 같은 실행의 다음 결과는 합친다
+ *   (같이 지운 앞 AI가 있으면 결과가 같은 batch로 여러 번 온다)
+ */
+const aiHistoryBatch = {} // image id → { batch, index } 마지막 "AI 지우기" 단계 (index null = 아직 단계 없음)
+function applyAiResult({ imageId, layerId, planKey, W, H, ai, batch }) {
+  const cur = layerMap[imageId] || []
+  const entry = fillPlan(fillLayersOf(cur), W, H).find(p => p.id === layerId)
+  if (!entry || entry.key !== planKey) {
+    console.info('[StudioEditor] AI 결과가 도착했지만 그 사이 영역이 바뀌어 붙이지 않음:', imageId, layerId)
+    return
+  }
+  const next = cur.map(l => (l.id === layerId ? { ...l, ai } : l))
+  const h = histories[imageId]
+  const last = aiHistoryBatch[imageId]
+  if (h && last && last.batch === batch && last.index !== null && last.index === h.index) {
+    setLayers(imageId, next, null)
+    histories[imageId] = amendHistory(h, buildEdit(rowOf(imageId)?.edit, layerMap[imageId]))
+    return
+  }
+  setLayers(imageId, next, LABELS.aiErase)
+  aiHistoryBatch[imageId] = { batch, index: histories[imageId]?.index ?? null }
+}
+
+// AI 실행 요청 → 캔버스 (캔버스가 같이 지울 앞 AI를 정하고 계산한다)
+const aiLayerStates = ref({})       // 캔버스가 알려주는 AI 레이어 상태 (선택한 사진)
+const eraseRequest = ref(null)      // { layerId, n, batch }
+let eraseSeq = 0
+const selectedAiState = computed(() => (!selectedIsDraft.value && selectedFill.value?.method === 'ai' ? aiLayerStates.value[selectedFill.value.id] || null : null))
+
+// 붓 크기·칠하기/덜어내기 (오른쪽 패널 두 곳에서 쓰는 작은 조각)
+const BrushControls = {
+  setup() {
+    return () => h('div', { 'data-brush-controls': '' }, [
+      h('div', { class: 'flex items-center' }, [
+        h('span', { class: 'st-label' }, '붓 크기'),
+        h('span', { class: 'ml-auto text-[13px] font-bold st-ink', 'data-brush-size': '' }, `${brushSize.value}px`),
+      ]),
+      h('input', {
+        type: 'range', min: BRUSH_UI_MIN, max: BRUSH_UI_MAX, step: 1, class: 'mt-2 w-full', style: 'accent-color: var(--st-accent)',
+        value: brushSize.value, 'aria-label': '붓 크기', onInput: e => setBrushSize(Number(e.target.value)),
+      }),
+      h('p', { class: 'mt-1 st-desc-sm break-keep' }, '원본 사진 픽셀 기준이에요 (확대해도 같은 굵기로 칠해요).'),
+      h('div', { class: 'mt-3 flex gap-1.5' }, [['add', '칠하기'], ['sub', '덜어내기']].map(([k, label]) =>
+        h('button', {
+          type: 'button', class: ['st-chip', brushMode.value === k ? 'is-active' : ''], 'data-brush-mode': k,
+          onClick: () => { brushMode.value = k },
+        }, label))),
+    ])
+  },
+}
 // 여백 슬라이더: 끄는 동안(input)은 화면·저장만, 손을 뗄 때(change) 이력 1번
 function setPad(layerId, pad) {
   if (!Number.isInteger(pad) || pad < PAD_MIN || pad > PAD_MAX) return
@@ -531,6 +768,11 @@ function recordPad() {
 function removeFill(layerId) {
   const id = selectedImageId.value
   if (!id) return
+  if (canvasDraft.value?.id === layerId) { // 초안 삭제·붓 [초기화] — 저장·이력 없음
+    draft.value = null
+    if (selectedLayerId.value === layerId) selectedLayerId.value = null
+    return
+  }
   setLayers(id, (layerMap[id] || []).filter(l => l.id !== layerId), LABELS.remove)
   if (selectedLayerId.value === layerId) selectedLayerId.value = null
 }
@@ -539,6 +781,7 @@ function clearAllFills() {
   const id = selectedImageId.value
   clearAllOpen.value = false
   if (!id) return
+  draft.value = null
   // 지우기(fill)만 없앤다 — 다음 단계의 다른 레이어는 보존
   setLayers(id, (layerMap[id] || []).filter(l => l.type !== 'fill'), LABELS.remove)
   selectedLayerId.value = null
@@ -633,7 +876,11 @@ function onKeyDown(e) {
 
 // ── 화면 폭 ──
 const wideQuery = window.matchMedia('(min-width: 1024px)')
-function onWideChange() { isWide.value = wideQuery.matches }
+function onWideChange() {
+  isWide.value = wideQuery.matches
+  // 편집은 1024px 이상에서만 — 좁은 화면에서는 모델(약 200MB)을 받지 않는다
+  if (isWide.value) startAiEngine()
+}
 
 watch(() => route.params.projectId, (id, old) => {
   if (!id || id === old) return
@@ -655,6 +902,7 @@ const onStudioAuthChanged = (e) => {
     viewUrls.value = new Map()
     for (const k of Object.keys(layerMap)) delete layerMap[k]
     for (const k of Object.keys(histories)) delete histories[k]
+    draft.value = null
     selectedImageId.value = null
     selectedLayerId.value = null
     saveStatus.value = 'saved'
@@ -683,6 +931,7 @@ onUnmounted(() => {
   clearTimeout(toastTimer)
   saver.dispose()
   imageCache.clear()
+  stopAiEngine()
 })
 </script>
 

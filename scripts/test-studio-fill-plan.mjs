@@ -1,7 +1,8 @@
 // 지우기 계산 순서 테스트 — node scripts/test-studio-fill-plan.mjs
 // 1) 레이어 목록 → 연결 그룹·계산 순서·캐시 키  2) 조각 계산 = 전체 이미지 순차 계산 (픽셀 단위 동일)  3) 최악 경우 시간
-import { fillPlan, connectedGroups, cropRect, fillArea, fillOnCrop } from '../src/lib/studioFillPlan.js'
+import { fillPlan, connectedGroups, cropRect, fillArea, fillOnCrop, influenceRect, aiPatchKey, effectiveKey, aiEraseSet } from '../src/lib/studioFillPlan.js'
 import { applyFill } from '../src/lib/studioFill.js'
+import { createHash } from 'node:crypto'
 
 let pass = 0, fail = 0
 function eq(name, got, want) {
@@ -131,6 +132,78 @@ const diffCount = (a, b) => { let n = 0; for (let i = 0; i < a.data.length; i++)
   const t2 = performance.now()
   const p = fillPlan(ls, 2600, 2600)
   console.log(`      계산 계획 만들기: ${(performance.now() - t2).toFixed(1)}ms, 맨 뒤 레이어 chain ${p[59].chain.length}개`)
+}
+
+// ── 4. AI 분기 (1-6b-3b) ──
+{
+  // 800×800: k = 8, 여백 67 (aiGeometry 규칙). pad 4 < k → 8로 넓힘, pad 12 > k → 12
+  const a = L('a', 100, 100, 200, 40, { method: 'ai' })
+  eq('AI 메우는 범위 (pad<k → k)', fillArea(a, 800, 800), { x: 92, y: 92, w: 216, h: 56 })
+  eq('AI 메우는 범위 (pad>k → pad)', fillArea({ ...a, pad: 12 }, 800, 800), { x: 88, y: 88, w: 224, h: 64 })
+  eq('AI 잘라내는 범위 (+여백 67)', cropRect(a, 800, 800), { x: 25, y: 25, w: 350, h: 190 })
+  eq('AI 이미지 끝에서 자름', cropRect(L('e', 0, 0, 50, 20, { method: 'ai' }), 800, 800), { x: 0, y: 0, w: 125, h: 95 })
+  eq('AI 영향 범위 = 메우는 범위 + 2', influenceRect(a, 800, 800), { x: 90, y: 90, w: 220, h: 60 })
+  // 1920×1920: k = 20, 여백 160 — 랩 egg_g0 네모와 같은 값 (test-studio-ai-geometry와 교차 확인)
+  const egg = { id: 'f_egg000', type: 'fill', x: 20, y: 1752, w: 850, h: 140, method: 'ai', pad: 0 }
+  const ea = fillArea(egg, 1920, 1920), ec = cropRect(egg, 1920, 1920)
+  eq('AI 랩 egg_g0 메우는 범위', [ea.x, ea.y, ea.x + ea.w, ea.y + ea.h], [0, 1732, 890, 1912])
+  eq('AI 랩 egg_g0 잘라내는 범위', [ec.x, ec.y, ec.x + ec.w, ec.y + ec.h], [0, 1572, 1050, 1920])
+  // coons·solid는 그대로 (pad만, 잘라내기는 +4)
+  eq('coons 범위 그대로', [fillArea(L('c', 100, 100, 200, 40), 800, 800), cropRect(L('c', 100, 100, 200, 40), 800, 800)],
+    [{ x: 96, y: 96, w: 208, h: 48 }, { x: 92, y: 92, w: 216, h: 56 }])
+  eq('solid 범위 그대로', fillArea(L('s', 100, 100, 200, 40, { method: 'solid' }), 800, 800), { x: 96, y: 96, w: 208, h: 48 })
+  // AI 연결 판정은 넓어진 범위 기준: coons라면 안 붙는 간격(14px)도 AI면 붙는다 (8+2)*2=20 > 14
+  eq('AI 연결 (간격 14px)', fillPlan([L('a', 100, 100, 200, 40, { method: 'ai' }), L('b', 100, 154, 200, 40, { method: 'ai' })], 800, 800)[1].deps, ['a'])
+  eq('coons는 같은 간격에서 연결 안 됨', fillPlan([L('a', 100, 100, 200, 40), L('b', 100, 154, 200, 40)], 800, 800)[1].deps, [])
+  // fillOnCrop은 AI를 계산하지 않는다 (엔진이 한다)
+  const crop = cropRect(a, 800, 800)
+  eq('fillOnCrop은 ai 거절', fillOnCrop({ data: new Uint8ClampedArray(crop.w * crop.h * 4), width: crop.w, height: crop.h }, crop, a, 800, 800), { ok: false, reason: 'unknown_method:ai' })
+  // 방식이 바뀌면 key가 달라진다 (coons → ai 바꾸면 다시 계산)
+  const kc = fillPlan([L('a', 100, 100, 200, 40)], 800, 800)[0].key
+  const ka = fillPlan([a], 800, 800)[0].key
+  eq('coons→ai 계산 key 다름', kc !== ka, true)
+}
+// ── 4-2. [지우기]로만 계산하는 AI — 안 지운 앞 AI가 있을 때 (effectiveKey·aiEraseSet) ──
+{
+  // 두 줄 붙은 제목: a(AI) → b(단색, a에 연결) → c(AI, b에 연결) / d(단색, 떨어짐)
+  const ls = [
+    L('a', 100, 100, 400, 40, { method: 'ai' }),
+    L('b', 100, 150, 400, 40, { method: 'solid' }),
+    L('c', 100, 200, 400, 40, { method: 'ai' }),
+    L('d', 100, 900, 100, 40, { method: 'solid' }),
+  ]
+  const p = fillPlan(ls, 800, 1000)
+  const byId = new Map(ls.map(l => [l.id, l]))
+  const E = id => p.find(x => x.id === id)
+  const none = () => false, all = () => true
+  eq('연결 확인 (b←a, c←b, chain c=[a,b])', [E('b').deps, E('c').chain], [['a'], ['a', 'b']])
+  eq('앞 AI 안 지움 → 단색 key에 표시', effectiveKey(E('b'), byId, none), `${E('b').key} ~ai-missing:a`)
+  eq('앞 AI 지움 → 단색 key = 계산 key', effectiveKey(E('b'), byId, all), E('b').key)
+  eq('앞 AI를 지우면 단색 key가 바뀜 (다시 계산)', effectiveKey(E('b'), byId, none) !== effectiveKey(E('b'), byId, all), true)
+  eq('떨어진 단색은 영향 없음', effectiveKey(E('d'), byId, none), E('d').key)
+  eq('AI 자신은 계산 key 그대로', [effectiveKey(E('a'), byId, none), effectiveKey(E('c'), byId, none)], [E('a').key, E('c').key])
+  eq('c의 [지우기] → 안 지운 앞 AI a도 같이', aiEraseSet(E('c'), byId, none), ['a', 'c'])
+  eq('a를 이미 지웠으면 c만', aiEraseSet(E('c'), byId, id => id === 'a'), ['c'])
+  eq('a의 [지우기] → a만 (뒤는 건드리지 않음)', aiEraseSet(E('a'), byId, none), ['a'])
+  // coons만 있는 사진은 key가 예전과 같다 (기존 캐시·동작 그대로)
+  const cs = [L('x', 100, 100, 200, 40), L('y', 100, 150, 200, 40)]
+  const cp = fillPlan(cs, 800, 800), cById = new Map(cs.map(l => [l.id, l]))
+  eq('coons만: 화면 key = 계산 key', cp.map(e => effectiveKey(e, cById, none)), cp.map(e => e.key))
+}
+
+// ── 5. AI 결과 key = sha256(계산 key + '|' + 모델) 앞 16자 ──
+{
+  const planKey = 'f_abc123|100,100,200,40|ai|4'
+  const model = 'lama_fp32@1faef530'
+  const want = createHash('sha256').update(`${planKey}|${model}`).digest('hex').slice(0, 16)
+  const got = await aiPatchKey(planKey, model)
+  eq('aiPatchKey = node sha256 앞 16자', got, want)
+  eq('aiPatchKey 형식', /^[0-9a-f]{16}$/.test(got), true)
+  eq('모델이 바뀌면 key 다름', (await aiPatchKey(planKey, 'lama_fp32@00000000')) !== got, true)
+  eq('앞 레이어가 바뀌면(계산 key) 다름', (await aiPatchKey('f_x|0,0,1,1|coons|4 > ' + planKey, model)) !== got, true)
+  let threw = false
+  try { await aiPatchKey(planKey, null) } catch { threw = true }
+  eq('모델 없으면 오류', threw, true)
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)
