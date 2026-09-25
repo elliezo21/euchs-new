@@ -57,6 +57,16 @@ export function push(h, edit, label, at = Date.now()) {
 export function canUndo(h) { return !!h && h.index > 0 }
 export function canRedo(h) { return !!h && h.index < h.steps.length - 1 }
 
+/**
+ * [되돌리기]가 할 일 — 실행 전 영역(초안)이 있으면 초안부터 지운다 (미리캔버스 방식, 2026-09-25 결정 16).
+ * 초안은 이력에 없으므로 이력은 그대로 두고, 다시 스택에도 넣지 않는다.
+ * @returns {'draft'|'undo'|null}
+ */
+export function undoAction(h, hasDraft) {
+  if (hasDraft) return 'draft'
+  return canUndo(h) ? 'undo' : null
+}
+
 /** @returns {{ history, edit } | null} edit = 되돌아간 단계의 edit (깊은 복사본) */
 export function undo(h) {
   if (!canUndo(h)) return null

@@ -13,109 +13,21 @@
       <button type="button" class="st-btn" @click="showImage">다시 시도</button>
     </div>
 
-    <!-- 위쪽 가운데: 도구 막대 + 안내 띠 + 계산 실패 안내 -->
+    <!-- 위쪽 가운데: 계산·AI 상태 안내 (조용히 넘기지 않는다). 도구·실행 버튼은 지우기 화면 왼쪽 패널에 있다 -->
     <div class="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none" style="z-index: 4; max-width: calc(100% - 24px)">
-      <!-- [되돌리기][다시] | [선택][글자 지우기](1-6b-2의 "덮기"는 이 오른쪽) | [이력] -->
-      <div class="st-toolbar pointer-events-auto" role="toolbar" aria-label="편집 도구">
-        <button type="button" class="st-tool" :disabled="!canUndo" :aria-label="UNDO_TIP" data-action="undo" @click="$emit('undo')">
-          <Undo2 class="w-4 h-4" :stroke-width="2" /><span>되돌리기</span>
-          <span class="st-tip" role="tooltip">{{ UNDO_TIP }}</span>
-        </button>
-        <button type="button" class="st-tool" :disabled="!canRedo" :aria-label="REDO_TIP" data-action="redo" @click="$emit('redo')">
-          <Redo2 class="w-4 h-4" :stroke-width="2" /><span>다시</span>
-          <span class="st-tip" role="tooltip">{{ REDO_TIP }}</span>
-        </button>
-        <span class="st-toolbar-sep" />
-        <button
-          v-for="t in TOOL_BUTTONS" :key="t.key" type="button"
-          class="st-tool" :class="tool === t.key ? 'is-active' : ''"
-          :aria-pressed="tool === t.key" :aria-label="t.tip" :data-tool="t.key"
-          @click="setTool(t.key)"
-        >
-          <component :is="t.icon" class="w-4 h-4" :stroke-width="2" />
-          <span>{{ t.label }}</span>
-          <span class="st-tip" role="tooltip">{{ t.tip }}</span>
-        </button>
-        <span class="st-toolbar-sep" />
-        <button
-          type="button" class="st-tool" :class="historyOpen ? 'is-on' : ''" :aria-expanded="historyOpen"
-          aria-label="이력 — 지금까지 한 동작 목록" data-action="history" @click="historyOpen = !historyOpen"
-        >
-          <History class="w-4 h-4" :stroke-width="2" /><span>이력</span>
-          <span v-if="!historyOpen" class="st-tip" role="tooltip">이력 — 지금까지 한 동작 목록</span>
-        </button>
-      </div>
-      <!-- 간단 이력 -->
-      <div v-if="historyOpen" class="st-history pointer-events-auto" data-history-panel>
-        <ol class="st-history-list">
-          <li v-for="s in historySteps" :key="s.i">
-            <button type="button" class="st-history-item" :class="s.current ? 'is-current' : ''" :data-step="s.i" @click="$emit('jump', s.i)">
-              <span class="truncate">{{ s.label }}</span>
-              <span class="st-history-time">{{ formatTime(s.at) }}</span>
-            </button>
-          </li>
-        </ol>
-        <p class="st-history-note break-keep">이력은 이 창을 닫으면 사라져요. 작업한 내용은 자동으로 저장돼 있어요.</p>
-      </div>
-      <div v-if="hintVisible" class="st-hint pointer-events-auto" data-fill-hint>
-        <span class="break-keep"><b>[붓]</b>으로 중국어 위를 칠하거나 <b>[네모]</b>로 감싸세요</span>
-        <button type="button" class="st-hint-close" aria-label="안내 닫기" @click="dismissHint"><X class="w-4 h-4" :stroke-width="2" /></button>
-      </div>
-      <!-- 계산 실패 안내 (조용히 넘기지 않는다) -->
       <div v-if="computeError" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-compute-error>
         {{ computeError }}
-      </div>
-      <!-- 실행 전 영역(초안) 안내 → AI 진행 → 실패 -->
-      <div v-if="draftHint" class="st-hint pointer-events-auto" data-draft-hint>
-        <span class="break-keep">{{ draftHint }}</span>
       </div>
       <div v-if="aiNotice" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold break-keep" :class="aiNotice.danger ? 'st-danger-text' : 'st-accent-text'" data-ai-notice>
         {{ aiNotice.text }}
       </div>
       <div v-if="aiLoadFailure" class="pointer-events-auto flex items-center gap-2 px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-ai-load-failed>
         <span>결과를 불러오지 못했어요 ({{ aiLoadFailure.message }})</span>
-        <button type="button" class="st-btn" data-ai-recompute @click="$emit('execute', aiLoadFailure.layerId, 'ai')">다시 계산</button>
+        <button v-if="interactive" type="button" class="st-btn" data-ai-recompute @click="$emit('execute', aiLoadFailure.layerId, 'ai')">다시 계산</button>
       </div>
       <div v-if="aiSaveError" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-ai-save-error>
         {{ aiSaveError }}
       </div>
-    </div>
-
-    <!-- 선택 영역 위 떠 있는 도구줄 -->
-    <div
-      v-if="floatPos && selectedLayer"
-      class="absolute flex items-center gap-1 p-1 st-float-bar"
-      :style="{ left: floatPos.left + 'px', top: floatPos.top + 'px' }"
-      @pointerdown.stop
-    >
-      <!-- 방식 버튼 = 실행 버튼 (누르면 바로 지운다). 지금 적용된 방식은 선택 표시 (실행 전 영역은 표시 없음) -->
-      <span v-if="selectedAiState === 'busy'" class="st-float-item" data-ai-busy>AI가 채우는 중…</span>
-      <template v-else>
-        <button
-          v-for="m in METHOD_OPTIONS" :key="m.key" type="button" class="st-float-item"
-          :class="!selectedIsDraft && selectedLayer.method === m.key ? 'is-active' : ''"
-          :data-execute="m.key"
-          @click="$emit('execute', selectedLayer.id, m.key)"
-        >{{ m.label }}</button>
-      </template>
-      <span class="st-float-sep" />
-      <button
-        v-if="selectedIsDraft && selectedLayer.shape === 'brush'" type="button" class="st-float-item"
-        data-brush-reset @click="$emit('remove', selectedLayer.id)"
-      >초기화</button>
-      <button v-else type="button" class="st-float-item" title="삭제 (Delete)" data-remove @click="$emit('remove', selectedLayer.id)">
-        <Trash2 class="w-4 h-4" :stroke-width="2" />
-      </button>
-    </div>
-
-    <!-- 글자 걸침 안내 (선택 영역 아래) — 자동으로 넓히지 않고 안내만 -->
-    <div
-      v-if="bleedPos && selectedLayer && selectedBleed.length"
-      class="absolute st-bleed" :style="{ left: bleedPos.left + 'px', top: bleedPos.top + 'px' }"
-      data-bleed-notice @pointerdown.stop
-    >
-      <span class="break-keep">네모가 글자에 걸쳐 있어요. 글자를 모두 덮도록 조금 더 크게 그려 주세요.</span>
-      <button type="button" class="st-btn" data-widen @click="widenSelected">조금 넓히기</button>
     </div>
 
     <!-- 확대/축소 (아래 가운데) -->
@@ -138,13 +50,17 @@
 //   계산 순서는 studioFillPlan.js 규칙(그린 순서대로, 연결된 앞 레이어 결과를 반영)을 따른다.
 //   영역을 옮기거나 크기를 바꾸는 동안은 계산하지 않고(점선 테두리만), 손을 뗀 뒤 계산한다.
 // ★ 실행 전 영역(초안, props.draft) — 네모 또는 붓. 편집기 화면에만 있고 저장·이력 없음, 한 개만.
-//   [AI로 지우기]/[단색](떠 있는 막대·오른쪽 패널)을 누르면 편집기가 레이어로 추가한다 (emit 'execute').
-// ★ 도구: [선택] [붓](기본) [네모]. 붓은 칠한 획을 편집기에 넘기고(emit 'brush-stroke'), 편집기가 초안에 합친다.
+//   [AI로 지우기]/[단색](지우기 화면 왼쪽 패널)을 누르면 편집기가 레이어로 추가한다 (emit 'execute').
+// ★ 도구: [선택] [붓](기본) [네모] — 부모가 props.tool로 정한다. 단축키(V·B·R)는 emit('tool')로 부모에게 바꿔 달라고 한다.
+//   붓은 칠한 획을 편집기에 넘기고(emit 'brush-stroke'), 편집기가 초안에 합친다.
+// ★ 사진 위에는 칠한 자국·영역 테두리·붓 동그라미만 그린다 (떠 있는 막대 없음 — 2026-09-25 결정 9).
+//   글자 걸침 판정은 emit('bleed')로 알리고, [조금 넓히기]는 부모가 widenSelected()를 부른다.
+// ★ interactive=false: 보기 전용(편집기 미리보기) — 선택·그리기 없음. showOriginal=true: 원본만 보인다([원본 보기]).
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Canvas, FabricImage, Rect } from 'fabric'
-import { MousePointer2, Brush, Square, ZoomIn, ZoomOut, Maximize, Trash2, X, Undo2, Redo2, History } from 'lucide-vue-next'
+import { ZoomIn, ZoomOut, Maximize } from 'lucide-vue-next'
 import {
-  screenToImage, rectToScreen, rectFromDrag, normalizeRect, clampRectPosition, isClick, isSelectOnly,
+  screenToImage, rectFromDrag, normalizeRect, clampRectPosition, isClick, isSelectOnly,
   fitView, clampPan, zoomAt, expandRect, MIN_RECT,
 } from '@/lib/studioCoords'
 import { computeFillPatch } from '@/lib/studioFillPatch'
@@ -162,9 +78,9 @@ const props = defineProps({
   selectedId: { type: String, default: null },
   loadImage: { type: Function, required: true },  // row → Promise<HTMLImageElement>
   keysEnabled: { type: Boolean, default: true },  // 모달이 떠 있으면 false
-  canUndo: { type: Boolean, default: false },
-  canRedo: { type: Boolean, default: false },
-  historySteps: { type: Array, default: () => [] }, // studioHistory.list() 결과
+  tool: { type: String, default: 'brush' },        // 'select' | 'brush' | 'rect' — 부모(지우기 화면)가 정한다
+  interactive: { type: Boolean, default: true },  // false = 보기 전용 (선택·그리기·단축키 없음)
+  showOriginal: { type: Boolean, default: false }, // true = 원본만 보인다 (결과 조각·영역 숨김)
   aiEngine: { type: Object, default: null },        // studioAi/aiEngine createAiEngine() — 편집기가 만들고 정리한다
   aiState: { type: Object, default: () => ({ status: 'idle', reason: '', progress: null }) }, // 엔진 상태(반응형)
   eraseRequest: { type: Object, default: null },     // AI 계산 요청: { layerId, n, batch } (n이 바뀔 때마다 한 번) — 편집기가 보낸다
@@ -178,37 +94,22 @@ const props = defineProps({
 // brush-stroke({ mode, size, pts }): 붓 한 획 (단순화된 정수 원본 좌표) → 편집기가 붓 초안에 합친다
 // ai({ imageId, layerId, planKey, W, H, ai, batch }): AI 결과 조각을 저장했음 — 편집기가 그 레이어에 ai 필드를 붙인다.
 //   batch: 실행 한 번의 번호 (같이 지운 앞 AI가 있으면 여러 결과가 같은 번호로 온다 → 이력 한 단계)
-// ai-states({ [layerId]: 'done'|'needs'|'busy'|'loading'|'failed' }): AI 레이어 상태 — 오른쪽 패널용
-// tool(key): 지금 도구 — 오른쪽 패널(붓 크기·칠하기/덜어내기)용
-const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'undo', 'redo', 'jump', 'ai', 'ai-states', 'tool'])
-
-const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '')
-const MOD = IS_MAC ? 'Cmd' : 'Ctrl'
-const UNDO_TIP = `되돌리기 (${MOD}+Z)`
-const REDO_TIP = `다시 (${MOD}+Shift+Z${IS_MAC ? '' : ' 또는 Ctrl+Y'})`
-
-// 방식 버튼 = 실행 버튼. '자연스럽게'(coons)는 고를 수 없다 — 저장된 coons 레이어는 그대로 그리고, 누르면 그 방식으로 다시 실행
-const METHOD_OPTIONS = [{ key: 'ai', label: 'AI로 지우기' }, { key: 'solid', label: '단색' }]
-const TOOL_BUTTONS = [
-  { key: 'select', label: '선택', icon: MousePointer2, tip: '선택 (V) — 영역을 옮기거나 크기를 바꿔요' },
-  { key: 'brush', label: '붓', icon: Brush, tip: '붓 (B) — 중국어 위를 칠하세요' },
-  { key: 'rect', label: '네모', icon: Square, tip: '네모 (R) — 중국어를 네모로 감싸세요' },
-]
-const HINT_KEY = 'euchs-studio-fill-hint-dismissed'
+// ai-states({ [layerId]: 'done'|'needs'|'busy'|'loading'|'failed' }): AI 레이어 상태 — 왼쪽 패널용
+// tool(key): 단축키(V·B·R)로 도구를 바꿔 달라는 요청 — 부모가 props.tool을 바꾼다
+// bleed(sides[]): 선택한 네모가 글자에 걸친 변 (없으면 []) — 부모가 안내와 [조금 넓히기]를 보여준다
+const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'tool', 'bleed'])
 
 const wrap = ref(null)
 const host = ref(null)
-const tool = ref('brush') // 편집기를 열면 기본 도구 = 붓
+// 지금 도구: 보기 전용이면 'view' (선택·그리기 없음)
+const tool = computed(() => (props.interactive ? props.tool : 'view'))
 const loadState = ref('idle') // idle | loading | ready | error
 const loadError = ref('')
 const computeError = ref('')
 const zoomPct = ref(100)
-const floatPos = ref(null)
 const spaceHeld = ref(false)
 const panning = ref(false)
 
-const historyOpen = ref(false)
-const bleedPos = ref(null)
 const bleedById = ref({})     // layer id → 글자에 걸친 변 목록 (최신 계산 결과 기준)
 
 // 선택: 저장된 레이어 또는 실행 전 영역(초안)
@@ -221,12 +122,7 @@ const selectedBleed = computed(() => {
   if (!l || selectedIsDraft.value || l.method === 'ai' || l.shape === 'brush') return []
   return bleedById.value[l.id] || []
 })
-const draftHint = computed(() => {
-  if (!selectedIsDraft.value) return ''
-  return props.draft.shape === 'brush'
-    ? '다 칠한 뒤 [AI로 지우기] 또는 [단색]을 누르세요'
-    : '크기를 맞춘 뒤 [AI로 지우기] 또는 [단색]을 누르세요'
-})
+watch(selectedBleed, (s, prev) => { if (!prev || s.join() !== prev.join()) emit('bleed', [...s]) }, { immediate: true })
 
 // ── AI 지우기 상태 ──
 // AI는 [지우기]를 눌러야 계산한다 (자동 계산·자동 재계산 없음). 저장된 결과(ai.key가 지금 계산 key와 같음)만 자동으로 불러온다.
@@ -235,7 +131,6 @@ const aiRequestCount = ref(0)      // [지우기]를 눌러 기다리거나 계�
 const aiStates = ref({})           // layer id → 'done'|'needs'|'busy'|'loading'|'failed'
 const aiLoadFailure = ref(null)    // { layerId, planKey, message } — 저장된 PNG 받기 실패 (몰래 재계산하지 않는다)
 const aiSaveError = ref('')        // 결과는 보이지만 저장 실패
-const selectedAiState = computed(() => (!selectedIsDraft.value && selectedLayer.value?.method === 'ai' ? aiStates.value[selectedLayer.value.id] : null))
 const aiNotice = computed(() => {
   const s = props.aiState || {}
   const p = s.progress
@@ -248,12 +143,6 @@ const aiNotice = computed(() => {
   return { text: s.status === 'ready' || aiActive.value ? 'AI가 채우는 중…' : 'AI 준비 중…' }
 })
 const aiReady = () => props.aiState?.status === 'ready' && !!props.aiEngine
-
-function formatTime(at) {
-  const d = new Date(at)
-  const p = n => String(n).padStart(2, '0')
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-}
 
 function setBleed(id, sides) {
   const cur = bleedById.value[id]
@@ -269,30 +158,6 @@ function widenSelected() {
   emit('change', l.id, widenSides(l, sides, W, H), 'resize')
 }
 const wrapCursor = computed(() => (panning.value ? 'grabbing' : spaceHeld.value ? 'grab' : ''))
-const fillCount = computed(() => props.layers.filter(isValidFillLayer).length + (props.draft ? 1 : 0))
-
-// 안내 띠: 사진을 열었을 때 영역이 0개면 보인다. 영역을 만들면 사라지고, 닫으면(×) 다시 보이지 않는다
-const hintDismissed = ref(readHintDismissed())
-const hintForImage = ref(false)
-const hintVisible = computed(() => loadState.value === 'ready' && hintForImage.value && !hintDismissed.value)
-watch(fillCount, n => { if (n > 0) hintForImage.value = false })
-
-function readHintDismissed() {
-  try {
-    return localStorage.getItem(HINT_KEY) === '1'
-  } catch (e) {
-    console.warn('[StudioCanvas] 안내 닫힘 여부를 읽지 못함 — 안내를 보여줌:', e)
-    return false
-  }
-}
-function dismissHint() {
-  hintDismissed.value = true
-  try {
-    localStorage.setItem(HINT_KEY, '1')
-  } catch (e) {
-    console.warn('[StudioCanvas] 안내 닫힘 여부를 저장하지 못함 — 이번 화면에서만 닫힘:', e)
-  }
-}
 
 let canvas = null
 let baseObj = null
@@ -319,6 +184,7 @@ let draw = null                  // { s0, p0, preview }
 let pan = null                   // { x, y }
 let press = null                 // [선택] 도구로 영역을 누른 순간: { id, s0(화면), orig{left,top,width,height} }
 let aborting = false             // 남은 드래그를 저장 없이 끝내는 중 (object:modified를 무시)
+let replacing = false            // sync가 영역 객체를 새로 만드는 중 (selection:cleared를 편집기에 알리지 않음)
 let resizeObs = null
 let paint = null                 // 붓으로 칠하는 중: { mode, size, raw:[x,y,…] (원본 좌표, 소수) }
 let liveObj = null               // 칠하는 중 미리보기 (BrushRegion)
@@ -529,7 +395,6 @@ function setVpt() {
   canvas.setViewportTransform(vpt)
   zoomPct.value = Math.round(vpt[0] * 100)
   canvas.requestRenderAll()
-  updateFloat()
 }
 
 function zoomBy(f) {
@@ -579,16 +444,15 @@ function onMiddleMouseDown(e) {
   if (e.button === 1) e.preventDefault() // 가운데 버튼 자동 스크롤 막기
 }
 
-// ── 도구 ──
-function setTool(t) {
-  tool.value = t
-  emit('tool', t)
+// ── 도구 (props.tool → 캔버스 설정) ──
+function applyTool(t) {
   if (!canvas) return
   // 진행 중이던 그리기·드래그 상태를 전부 초기화
   cancelDraw()
   abortTransform('도구 전환', false)
   const drawing = t === 'rect' || t === 'brush'
-  canvas.skipTargetFind = drawing
+  canvas.skipTargetFind = drawing || t === 'view' // 보기 전용은 영역을 고를 수 없다
+  if (t === 'view') canvas.discardActiveObject()
   // 네모 = 십자 커서, 붓 = 커서 숨기고 붓 크기 원
   canvas.defaultCursor = t === 'rect' ? 'crosshair' : t === 'brush' ? 'none' : 'default'
   canvas.setCursor(canvas.defaultCursor) // 마우스를 움직이기 전에도 바로 바뀌게
@@ -749,11 +613,10 @@ function onSelection(opt) {
   const t = opt.selected?.[0] || canvas.getActiveObject()
   const id = t?.layerId || null
   if (id !== props.selectedId) emit('select', id)
-  updateFloat()
 }
 function onSelectionCleared() {
+  if (replacing) return
   if (props.selectedId !== null) emit('select', null)
-  floatPos.value = null
 }
 
 function beginTransform(obj) {
@@ -771,7 +634,6 @@ function onMoving(opt) {
   beginTransform(o)
   const c = clampRectPosition({ x: o.left, y: o.top, w: o.width * o.scaleX, h: o.height * o.scaleY }, W, H)
   o.set({ left: c.x, top: c.y })
-  updateFloat()
 }
 
 function onScaling(opt) {
@@ -779,7 +641,6 @@ function onScaling(opt) {
   beginTransform(o)
   if (o.width * o.scaleX < MIN_RECT) o.set({ scaleX: MIN_RECT / o.width })
   if (o.height * o.scaleY < MIN_RECT) o.set({ scaleY: MIN_RECT / o.height })
-  updateFloat()
 }
 
 function onModified(opt) {
@@ -816,27 +677,6 @@ function onHover(on) {
   }
 }
 
-function updateFloat() {
-  const o = canvas?.getActiveObject()
-  if (!o?.layerId || loadState.value !== 'ready') { floatPos.value = null; bleedPos.value = null; return }
-  const s = rectToScreen({ x: o.left, y: o.top, w: o.width * o.scaleX, h: o.height * o.scaleY }, vpt)
-  const { cw, ch } = viewSize()
-  const barW = 340, barH = 40
-  let top = s.y - barH - 10
-  const floatBelow = top < 8
-  if (floatBelow) top = s.y + s.h + 10
-  const left = Math.max(8, Math.min(cw - barW - 8, s.x + s.w / 2 - barW / 2))
-  const next = { left: Math.round(left), top: Math.round(top) }
-  if (!floatPos.value || floatPos.value.left !== next.left || floatPos.value.top !== next.top) floatPos.value = next
-  // 걸침 안내: 영역 아래 (도구줄이 아래로 갔으면 그 아래, 화면 밖이면 영역 위쪽 도구줄 위)
-  const noteW = 400, noteH = 48
-  let nTop = floatBelow ? top + barH + 8 : s.y + s.h + 10
-  if (nTop + noteH > ch - 60) nTop = Math.max(8, (floatBelow ? s.y : top) - noteH - 8)
-  const nLeft = Math.max(8, Math.min(cw - noteW - 8, s.x + s.w / 2 - noteW / 2))
-  const nb = { left: Math.round(nLeft), top: Math.round(nTop) }
-  if (!bleedPos.value || bleedPos.value.left !== nb.left || bleedPos.value.top !== nb.top) bleedPos.value = nb
-}
-
 // ── 레이어 → 캔버스 객체 동기화 ──
 function currentPatchCache() {
   const id = props.image?.id
@@ -863,7 +703,13 @@ function sync() {
     const r = regions.get(l.id)
     const kind = l.shape === 'brush' ? 'brush' : 'rect'
     const isDraft = l === draft
-    if (r && (r.kind !== kind || !!r.pendingDraft !== isDraft)) { canvas.remove(r); regions.delete(l.id) }
+    if (r && (r.kind !== kind || !!r.pendingDraft !== isDraft)) {
+      // 같은 영역의 객체만 바꾸는 것이므로 Fabric의 "선택 해제"를 편집기에 알리지 않는다
+      // (초안 → [AI로 지우기]/[단색] 직후 선택이 풀려 왼쪽 패널이 비던 문제. 아래 선택 맞추기가 새 객체를 다시 고른다)
+      replacing = true
+      try { canvas.remove(r) } finally { replacing = false }
+      regions.delete(l.id)
+    }
   }
 
   // 계산 계획: 그린 순서 + 연결된 앞 레이어 (키에 앞 레이어 값이 들어가 앞이 바뀌면 뒤도 다시 계산)
@@ -932,12 +778,11 @@ function sync() {
   for (const l of fills) { const r = regions.get(l.id); if (r?.kind === 'brush') r.tint = r.busy }
   restack(fills, draft)
   // 선택 상태 맞추기
-  const want = props.selectedId ? regions.get(props.selectedId) : null
+  const want = props.interactive && props.selectedId ? regions.get(props.selectedId) : null
   const active = canvas.getActiveObject()
   if (want && active !== want) canvas.setActiveObject(want)
   else if (!want && active) canvas.discardActiveObject()
   canvas.requestRenderAll()
-  updateFloat()
   refreshAiStates()
   scheduleCompute()
 }
@@ -1097,7 +942,10 @@ function runCompute() {
   if (res?.ok) {
     currentPatchCache().set(key, res)
     placePatch(l, key, res)
-    if (r) r.busy = false
+    if (r) {
+      r.busy = false
+      if (r.kind === 'brush') r.tint = false // 결과가 나왔으니 칠한 모양(반투명 색)을 걷는다 (sync와 같은 규칙: tint = busy)
+    }
     restack(props.layers.filter(isValidFillLayer))
   } else {
     failedKeys.add(key) // 같은 값으로는 다시 시도하지 않는다 (영역을 바꾸면 새 키로 다시 계산)
@@ -1230,8 +1078,6 @@ function clearObjects() {
   baseObj = null
   imgEl = null
   W = 0; H = 0
-  floatPos.value = null
-  bleedPos.value = null
   bleedById.value = {}
   press = null
   computeError.value = ''
@@ -1271,7 +1117,6 @@ async function showImage() {
       selectable: false, evented: false, objectCaching: false,
     })
     canvas.add(baseObj)
-    hintForImage.value = fillCount.value === 0
     loadState.value = 'ready'
     fit()
     sync()
@@ -1290,19 +1135,18 @@ function isTyping(e) {
 }
 
 function onKeyDown(e) {
-  if (!props.keysEnabled || isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return
+  if (!props.keysEnabled || !props.interactive || isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return
   if (e.code === 'Space') {
     e.preventDefault()
     spaceHeld.value = true
     return
   }
   const k = e.key.toLowerCase()
-  if (k === 'v') { setTool('select'); e.preventDefault() }
-  else if (k === 'b') { setTool('brush'); e.preventDefault() }
-  else if (k === 'r') { setTool('rect'); e.preventDefault() }
+  if (k === 'v') { emit('tool', 'select'); e.preventDefault() }
+  else if (k === 'b') { emit('tool', 'brush'); e.preventDefault() }
+  else if (k === 'r') { emit('tool', 'rect'); e.preventDefault() }
   else if (e.key === 'Escape') {
     // 진행 중이던 그리기·드래그 상태를 전부 초기화
-    if (historyOpen.value) historyOpen.value = false
     cancelDraw()
     abortTransform('Esc', false)
     canvas?.discardActiveObject()
@@ -1347,6 +1191,11 @@ onMounted(() => {
   canvas.on('object:modified', onModified)
   canvas.on('mouse:over', onHover(true))
   canvas.on('mouse:out', onHover(false))
+  // [원본 보기]: 그리기 직전에 원본 말고 모두 숨긴다 (계산이 끝나 결과 조각이 새로 붙어도 원본만 보이게)
+  canvas.on('before:render', () => {
+    if (!props.showOriginal) return
+    for (const o of canvas._objects) if (o !== baseObj) o.visible = false
+  })
 
   const w = wrap.value
   w.addEventListener('wheel', onWheel, { passive: false })
@@ -1368,10 +1217,9 @@ onMounted(() => {
     if (!canvas || !s.cw || !s.ch) return
     canvas.setDimensions({ width: s.cw, height: s.ch })
     if (W) applyVpt(vpt)
-    updateFloat()
   })
   resizeObs.observe(w)
-  setTool(tool.value) // 기본 도구(붓)의 커서·선택 설정을 캔버스에 적용
+  applyTool(tool.value) // 지금 도구(기본 붓)의 커서·선택 설정을 캔버스에 적용
   showImage()
 })
 
@@ -1401,91 +1249,31 @@ onBeforeUnmount(() => {
   patchCaches.clear()
 })
 
-watch(() => props.image?.id, () => { historyOpen.value = false; showImage() })
+watch(() => props.image?.id, () => showImage())
 watch(() => props.layers, () => sync(), { deep: true })
 watch(() => props.selectedId, () => sync())
+watch(tool, t => applyTool(t))
+// [원본 보기]를 놓으면 영역을 다시 보이게 하고, 결과 조각은 sync가 지금 값대로 다시 정한다
+watch(() => props.showOriginal, on => {
+  if (!canvas) return
+  if (on) { canvas.requestRenderAll(); return }
+  for (const r of regions.values()) r.visible = true
+  sync()
+})
 // 엔진이 준비되면 기다리던 AI 레이어를 계산한다
 watch(() => props.aiState?.status, s => { if (s === 'ready') scheduleCompute() })
-// 오른쪽 패널의 [지우기]
+// 왼쪽 패널의 [AI로 지우기]
 watch(() => props.eraseRequest?.n, () => { if (props.eraseRequest) requestErase(props.eraseRequest.layerId, props.eraseRequest.batch) })
 watch(() => props.draft, () => sync(), { deep: true })
 watch(() => props.brushSize, () => { if (cursorObj?.visible) updateCursor({ x: cursorObj.left, y: cursorObj.top }) })
 
 // 편집기가 좌표 검증(브라우저 자동화)에 쓸 수 있도록 현재 뷰포트를 읽는 창구만 연다
-defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }) })
+// [조금 넓히기]는 지우기 화면 왼쪽 패널에서 부른다
+defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }), widenSelected })
 </script>
 
 <style scoped>
 /* 스페이스 이동 중 커서 — Fabric이 캔버스 요소에 인라인으로 커서를 쓰므로 !important로 덮는다 */
 .is-grab :deep(canvas) { cursor: grab !important; }
 .is-grabbing :deep(canvas) { cursor: grabbing !important; }
-/* 위쪽 도구 막대 — 흰 바탕, 둥글기 10, 옅은 그림자, 높이 44 (색은 토큰만) */
-.st-toolbar {
-  display: flex; align-items: center; gap: 2px; height: 44px; padding: 4px;
-  background: var(--st-surface); border-radius: var(--st-radius-md); box-shadow: var(--st-shadow-float);
-}
-.st-tool {
-  position: relative; display: inline-flex; align-items: center; gap: 6px;
-  height: 36px; padding: 0 12px; border-radius: var(--st-radius-sm); border: 0; cursor: pointer; white-space: nowrap;
-  font-size: 13px; font-weight: 700; color: var(--st-ink-2); background: transparent;
-}
-.st-tool:hover:not(.is-active):not(:disabled) { background: var(--st-soft); }
-.st-tool.is-active { background: var(--st-accent); color: var(--st-on-accent); }
-.st-tool.is-on { background: var(--st-soft); color: var(--st-ink); }
-.st-tool:disabled { opacity: 0.4; cursor: not-allowed; }
-.st-toolbar-sep { width: 1px; height: 22px; margin: 0 4px; background: var(--st-line); }
-/* 간단 이력 패널 */
-.st-history {
-  width: 280px; padding: 6px; border-radius: var(--st-radius-md);
-  background: var(--st-surface); box-shadow: var(--st-shadow-float);
-}
-.st-history-list { max-height: 280px; overflow-y: auto; }
-.st-history-item {
-  display: flex; align-items: center; gap: 8px; width: 100%; height: 32px; padding: 0 10px;
-  border: 0; border-radius: var(--st-radius-sm); background: transparent; cursor: pointer;
-  font-size: 13px; font-weight: 600; color: var(--st-ink-2); text-align: left;
-}
-.st-history-item:hover:not(.is-current) { background: var(--st-soft); }
-.st-history-item.is-current { background: var(--st-accent-soft); color: var(--st-accent); font-weight: 800; }
-.st-history-time { margin-left: auto; font-size: 12px; font-weight: 600; color: var(--st-muted); font-variant-numeric: tabular-nums; }
-.st-history-note { margin-top: 6px; padding: 6px 10px 4px; border-top: 1px solid var(--st-line); font-size: 12px; color: var(--st-muted); }
-/* 글자 걸침 안내 */
-.st-bleed {
-  display: flex; align-items: center; gap: 10px; max-width: 400px; padding: 8px 8px 8px 12px; z-index: 5;
-  border-radius: var(--st-radius-md); background: var(--st-surface); box-shadow: var(--st-shadow-float);
-  border-left: 3px solid var(--st-danger); font-size: 12px; font-weight: 700; color: var(--st-ink);
-}
-.st-bleed .st-btn { height: 30px; padding: 0 10px; font-size: 12px; flex-shrink: 0; }
-.st-tip {
-  display: none; position: absolute; top: calc(100% + 8px); left: 50%; transform: translateX(-50%);
-  padding: 6px 10px; border-radius: var(--st-radius-sm); background: var(--st-ink); color: var(--st-surface);
-  font-size: 12px; font-weight: 600; white-space: nowrap; pointer-events: none; z-index: 10;
-}
-.st-tool:hover .st-tip, .st-tool:focus-visible .st-tip { display: block; }
-/* 안내 띠 — 강조색 옅은 바탕 */
-.st-hint {
-  display: flex; align-items: center; gap: 8px; padding: 6px 6px 6px 12px;
-  border-radius: var(--st-radius-md);
-  /* 옅은 강조색이 캔버스 위에서도 비치지 않게 흰 바탕 위에 겹친다 */
-  background: linear-gradient(var(--st-accent-soft), var(--st-accent-soft)), var(--st-surface);
-  box-shadow: var(--st-shadow-float);
-  font-size: 13px; color: var(--st-accent);
-}
-.st-hint b { font-weight: 800; }
-.st-hint-close {
-  display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px;
-  border-radius: 6px; border: 0; background: transparent; color: var(--st-accent); cursor: pointer;
-}
-.st-hint-close:hover { background: var(--st-accent-soft); }
-/* 떠 있는 도구줄 — 검정 바탕, 둥글기 10 (색은 토큰만) */
-.st-float-bar { background: var(--st-ink); border-radius: var(--st-radius-md); box-shadow: var(--st-shadow-float); z-index: 5; }
-.st-float-item {
-  display: inline-flex; align-items: center; justify-content: center; gap: 4px;
-  height: 32px; min-width: 32px; padding: 0 10px; border-radius: var(--st-radius-sm);
-  font-size: 13px; font-weight: 700; color: var(--st-surface); opacity: 0.72; background: transparent; border: 0; cursor: pointer; white-space: nowrap;
-}
-.st-float-item:hover { opacity: 1; }
-.st-float-item.is-active { opacity: 1; background: color-mix(in srgb, var(--st-surface) 18%, transparent); }
-.st-float-item.is-primary { opacity: 1; background: var(--st-accent); color: var(--st-on-accent); }
-.st-float-sep { width: 1px; height: 20px; background: color-mix(in srgb, var(--st-surface) 25%, transparent); }
 </style>

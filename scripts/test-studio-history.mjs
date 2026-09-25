@@ -1,6 +1,6 @@
 // 편집 이력·클릭 판정·범위 맞춤·글자 걸침 판정 테스트 — node scripts/test-studio-history.mjs
 import {
-  createHistory, push, undo, redo, canUndo, canRedo, jumpTo, list, clear, current, amendCurrent, HISTORY_LIMIT, LABELS,
+  createHistory, push, undo, redo, canUndo, canRedo, jumpTo, list, clear, current, amendCurrent, undoAction, HISTORY_LIMIT, LABELS,
 } from '../src/lib/studioHistory.js'
 import { isSelectOnly, clampRectToImage } from '../src/lib/studioCoords.js'
 import { detectBleed, bleedSidesFromScores, widenSides, highPassDeviation } from '../src/lib/studioBleed.js'
@@ -180,6 +180,18 @@ function detect(img, rect) {
   const amended = amendCurrent(h, current(h).edit)
   eq('amendCurrent 다시 스택 보존', [amendCurrent(back.history, back.edit).steps.length, canRedo(amendCurrent(back.history, back.edit))], [4, true])
   eq('amendCurrent 입력은 안 바뀜', amended !== h && h.steps[3].edit.layers[1].ai.key, 'bbbbbbbbbbbbbbbb')
+}
+
+// ── 초안 되돌리기 (결정 16): 실행 전 영역이 있으면 [되돌리기]는 초안부터 지운다 ──
+{
+  let h = createHistory(E(), LABELS.init)
+  eq('초안 없음·처음 상태 → 할 일 없음', undoAction(h, false), null)
+  eq('초안 있음·처음 상태 → 초안 지우기', undoAction(h, true), 'draft')
+  h = push(h, E(F('a')), LABELS.add)
+  eq('초안 있음·이력 있음 → 초안 먼저', undoAction(h, true), 'draft')
+  eq('초안 없음·이력 있음 → 되돌리기', undoAction(h, false), 'undo')
+  eq('undoAction은 이력을 바꾸지 않음', [h.steps.length, h.index], [2, 1])
+  eq('이력 없음(null) + 초안 → 초안 지우기', [undoAction(null, true), undoAction(null, false)], ['draft', null])
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)
