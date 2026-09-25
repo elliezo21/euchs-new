@@ -22,7 +22,7 @@
  *   → { exists:true, path } (같은 경로가 이미 있음 — 업로드 생략, 그래도 patch_confirm은 부른다)
  *   → { path, token }        경로 = {uid}/{projectId}/patches/{imageId}/{layerId}_{key}.png (서버가 만든다)
  * POST { action:'patch_confirm', projectId, imageId, path }
- *   → { ok:true, width, height }  서버가 파일을 읽어 PNG 매직바이트·5MB 이하·가로세로 ≤ 원본 검사, 불합격이면 삭제 + 오류
+ *   → { ok:true, width, height }  서버가 파일을 읽어 PNG 매직바이트·20MB 이하·가로세로 ≤ 원본 검사, 불합격이면 삭제 + 오류
  * 에러: invalid_input·project_expired·patch_limit(사진당 120개)·patch_invalid·patch_too_large·not_uploaded 400 /
  *       not_found 404 / sign_failed·storage_error·internal 500.  studio_usage는 기록하지 않는다(외부 과금 없음).
  *
@@ -50,7 +50,8 @@ const CONFIRM_CONCURRENCY = 3
 const DEFAULT_DAILY_PROJECTS = 30
 const EXT_BY_MIME = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/webp': 'webp' }
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-const PATCH_MAX_BYTES = 5 * 1024 * 1024
+const PATCH_MAX_BYTES = 20 * 1024 * 1024  // 버킷 file_size_limit 20971520과 같음 (브라우저 studioAiPatch.js와 같은 값)
+const PATCH_TOO_LARGE_MSG = `결과 조각은 ${PATCH_MAX_BYTES / 1024 / 1024}MB 이하여야 합니다.`
 const PATCH_MAX_FILES = 120                // 사진 1장의 patches 폴더 파일 수 상한
 const LAYER_ID_RE = /^f_[a-z0-9]{6}$/
 const PATCH_KEY_RE = /^[0-9a-f]{16}$/
@@ -412,7 +413,7 @@ async function patchPrepare(ctx, body, res) {
     return sendError(res, 400, 'invalid_input', 'layerId 또는 key 형식이 올바르지 않습니다.')
   }
   if (!Number.isInteger(size) || size < 1 || size > PATCH_MAX_BYTES) {
-    return sendError(res, 400, 'patch_too_large', '결과 조각은 5MB 이하여야 합니다.')
+    return sendError(res, 400, 'patch_too_large', PATCH_TOO_LARGE_MSG)
   }
   if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1) {
     return sendError(res, 400, 'invalid_input', 'width·height 형식이 올바르지 않습니다.')
@@ -466,7 +467,7 @@ async function patchConfirm(ctx, body, res) {
   const buf = dl.buf
   let bad = null
   let dims = null
-  if (buf.length > PATCH_MAX_BYTES) bad = ['patch_too_large', '결과 조각은 5MB 이하여야 합니다.']
+  if (buf.length > PATCH_MAX_BYTES) bad = ['patch_too_large', PATCH_TOO_LARGE_MSG]
   else if (sniffMime(buf) !== 'image/png') bad = ['patch_invalid', 'PNG 파일이 아닙니다.']
   else {
     dims = readDimensions(buf, 'image/png')

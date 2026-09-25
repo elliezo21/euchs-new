@@ -121,6 +121,15 @@
             @click="selectedFill && removeFill(selectedFill.id)"
           ><RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> {{ selectedFill && !selectedIsDraft ? '선택한 영역 삭제 (Delete)' : '칠한 곳 초기화' }}</button>
 
+          <!-- AI 결과 저장 실패 — 결과는 메모리에 있다. [다시 저장] = 업로드만 다시 (AI 재계산 없음) -->
+          <div v-if="aiUnsaved.count > 0" class="mt-3 st-erase-unsaved" data-ai-unsaved>
+            <p class="text-[13px] font-bold st-ink break-keep">AI 결과를 아직 저장하지 못했어요. [다시 저장]을 눌러 주세요.<span v-if="aiUnsaved.count > 1" class="st-muted"> ({{ aiUnsaved.count }}개)</span></p>
+            <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" :disabled="aiUnsaved.saving" data-ai-save-retry @click="retryAiSave">
+              {{ aiUnsaved.saving ? '저장 중…' : '다시 저장' }}
+            </button>
+            <p v-if="aiUnsaved.message" class="mt-2 st-desc-sm break-keep" data-ai-unsaved-reason>{{ aiUnsaved.message }}</p>
+          </div>
+
           <p v-if="!selectedFill" class="mt-2 st-desc-sm break-keep" data-panel-empty-hint>먼저 사진에서 지울 곳을 칠하거나 네모로 감싸세요.</p>
           <p v-else-if="selectedIsDraft" class="mt-2 text-[12px] font-bold st-accent-text break-keep" data-panel-draft-hint>
             {{ selectedFill.shape === 'brush' ? '다 칠한 뒤 [AI로 지우기] 또는 [단색]을 누르세요' : '크기를 맞춘 뒤 [AI로 지우기] 또는 [단색]을 누르세요' }}
@@ -190,6 +199,7 @@
           @remove="removeFill"
           @ai="applyAiResult"
           @ai-states="setAiStates"
+          @ai-unsaved="s => (aiUnsaved = s)"
           @tool="setTool"
           @bleed="s => (bleedSides = s)"
         />
@@ -261,6 +271,11 @@ const canvasRef = ref(null)
 const showOriginal = ref(false)
 const historyOpen = ref(false)
 const bleedSides = ref([])
+const aiUnsaved = ref({ count: 0, saving: false, message: '' }) // 캔버스가 알려주는 저장 못 한 AI 결과
+
+function retryAiSave() {
+  canvasRef.value?.retryAiSave().then(ok => { if (ok) emit('toast', 'AI 결과를 저장했어요.') })
+}
 
 function formatTime(at) {
   const d = new Date(at)
@@ -287,16 +302,21 @@ function startOriginal(e) {
 }
 function stopOriginal() { showOriginal.value = false }
 
-// [완료]/[페이지로] — AI가 채우는 중이면 한 번 알려준다 (나가면 이번 계산 결과는 버려진다). 5초 안에 다시 누르면 닫는다
+// [완료]/[페이지로]/브라우저 뒤로 — AI가 채우는 중이거나 저장 못 한 AI 결과가 있으면 한 번 알려준다
+// (나가면 그 결과는 버려진다). 5초 안에 다시 누르면 닫는다. 닫았으면 true
 let busyWarnAt = 0
 function requestClose() {
+  const unsaved = aiUnsaved.value.count > 0
   const busy = Object.values(aiLayerStates.value).includes('busy')
-  if (busy && Date.now() - busyWarnAt > 5000) {
+  if ((unsaved || busy) && Date.now() - busyWarnAt > 5000) {
     busyWarnAt = Date.now()
-    emit('toast', 'AI가 채우는 중이에요. 지금 나가면 이번 결과는 저장되지 않아요. 그래도 나가려면 한 번 더 누르세요.')
-    return
+    emit('toast', unsaved
+      ? '저장하지 못한 AI 결과가 있어요. 지금 나가면 이 결과는 사라져요. 그래도 나가려면 한 번 더 누르세요.'
+      : 'AI가 채우는 중이에요. 지금 나가면 이번 결과는 저장되지 않아요. 그래도 나가려면 한 번 더 누르세요.')
+    return false
   }
   close()
+  return true
 }
 function close() {
   showOriginal.value = false
@@ -320,7 +340,7 @@ onUnmounted(() => {
   window.removeEventListener('blur', onBlur)
 })
 
-defineExpose({ close })
+defineExpose({ close, requestClose })
 </script>
 
 <style scoped>
@@ -350,4 +370,9 @@ defineExpose({ close })
   border-left: 3px solid var(--st-danger); font-size: 12px; font-weight: 700; color: var(--st-ink);
 }
 .st-erase-bleed .st-btn { height: 30px; padding: 0 10px; font-size: 12px; }
+/* 저장 못 한 AI 결과 카드 — 눈에 띄게(강조색 테두리), 경고색은 쓰지 않는다 */
+.st-erase-unsaved {
+  padding: 12px; border-radius: var(--st-radius-md); background: var(--st-accent-soft);
+  border: 1px solid var(--st-accent);
+}
 </style>

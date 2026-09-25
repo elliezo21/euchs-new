@@ -46,7 +46,11 @@
             <div class="text-[12px] font-bold st-ink-2">{{ KIND_LABEL[img.kind] }}</div>
             <div v-if="img.kind === 'upload' && img.upload_name" class="text-[12px] st-muted truncate">{{ img.upload_name }}</div>
             <div v-if="img.ingest_status !== 'done'" class="text-[11px] font-bold break-keep" :class="img.ingest_status === 'failed' ? 'st-danger-text' : 'st-muted'">{{ statusText(img) }}</div>
-            <div v-else-if="fillCount(img.id) > 0" class="text-[11px] font-bold st-accent-text" data-fill-count>지움 {{ fillCount(img.id) }}</div>
+            <div v-else-if="fillCount(img.id).done > 0 || fillCount(img.id).redo > 0" class="text-[11px] font-bold">
+              <span v-if="fillCount(img.id).done > 0" class="st-accent-text" data-fill-count>지움 {{ fillCount(img.id).done }}</span>
+              <span v-if="fillCount(img.id).done > 0 && fillCount(img.id).redo > 0" class="st-muted"> · </span>
+              <span v-if="fillCount(img.id).redo > 0" class="st-ink-2" data-redo-count>다시 지우기 {{ fillCount(img.id).redo }}</span>
+            </div>
             <div v-else class="text-[11px] st-muted">원본</div>
           </div>
         </button>
@@ -67,7 +71,7 @@ const props = defineProps({
   images: { type: Array, default: () => [] },
   viewUrls: { type: Map, default: () => new Map() }, // original_path → 서명 URL
   selectedImageId: { type: String, default: null },
-  fillCount: { type: Function, required: true },     // image id → 지우기 레이어 수
+  fillCount: { type: Function, required: true },     // image id → { done: 결과 있는 지우기 수, redo: 결과 없이 남은 AI 수 }
   orderError: { type: String, default: '' },
 })
 const emit = defineEmits(['select', 'open-erase', 'add', 'retry-url'])

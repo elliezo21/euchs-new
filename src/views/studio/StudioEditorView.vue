@@ -108,7 +108,7 @@
         <!-- 사진 정보 + [지우기] (3단계 임시 카드 — 페이지에서 누른 사진 기준. 6단계에서 왼쪽 사진 속성 패널로 옮긴다) -->
         <div v-if="selectedImage && !eraseOpen" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
           <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
-          <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCount }}</div>
+          <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
           <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> 지우기</button>
           <button type="button" class="st-btn st-btn-ghost st-btn-block mt-1 st-danger-text text-[12px]" :disabled="selectedFillCount === 0" data-clear-all @click="clearAllOpen = true"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 이 사진의 지우기 모두 삭제</button>
         </div>
@@ -282,7 +282,7 @@ function showToast(msg) {
 
 const session = useEraseSession({ images, selectedImageId, showToast })
 const {
-  selectedImage, selectedFillCount,
+  selectedImage, selectedFillCount, selectedFillCounts,
   saveStatus, saveDetail, conflictId, conflictError, conflictLoading,
   fillCount, undoEdit, redoEdit, retrySave, reopenConflict, reloadConflicted,
 } = session
@@ -512,10 +512,11 @@ function closeConflict() { conflictId.value = null }
 const eraseScreen = ref(null)
 async function guardLeave(to) {
   if (leaveBypass) return true
-  // 지우기 화면이 열려 있으면 브라우저 [뒤로]는 지우기 화면만 닫는다 (페이지는 그대로)
+  // 지우기 화면이 열려 있으면 브라우저 [뒤로]는 지우기 화면만 닫는다 (페이지는 그대로).
+  // [완료]와 같은 확인을 거친다 — AI가 채우는 중·저장 못 한 AI 결과가 있으면 한 번 알리고, 5초 안에 다시 누르면 닫는다
   if (eraseOpen.value) {
-    eraseScreen.value?.close()
-    eraseOpen.value = false
+    if (!eraseScreen.value) eraseOpen.value = false
+    else if (eraseScreen.value.requestClose()) eraseOpen.value = false
     return false
   }
   if (!session.hasUnsaved() && !pageSession.hasUnsaved()) return true

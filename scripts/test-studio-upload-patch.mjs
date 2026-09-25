@@ -92,7 +92,10 @@ const PATH = `${FOLDER}/f_abc123_0123456789abcdef.png`
   eq('로그인 없음 → 401', (await call({ action: 'patch_prepare', projectId: PID, imageId: IMG }, null)).code, 401)
   eq('layerId 형식', [(await prep({ layerId: 'f_ABC123' })).body.code, (await prep({ layerId: '../x' })).body.code], ['invalid_input', 'invalid_input'])
   eq('key 형식', (await prep({ key: '0123' })).body.code, 'invalid_input')
-  eq('크기 5MB 초과', (await prep({ size: 5 * 1024 * 1024 + 1 })).body.code, 'patch_too_large')
+  eq('크기 20MB 초과 (버킷 한도 20971520)', (await prep({ size: 20 * 1024 * 1024 + 1 })).body.code, 'patch_too_large')
+  eq('크기 20MB 초과 문구', (await prep({ size: 20 * 1024 * 1024 + 1 })).body.message, '결과 조각은 20MB 이하여야 합니다.')
+  eq('크기 12MB (5MB 넘고 20MB 아래) → 통과', (await prep({ size: 12 * 1024 * 1024 })).code, 200)
+  eq('크기 정확히 20MB → 통과', (await prep({ size: 20 * 1024 * 1024 })).code, 200)
   eq('크기 0', (await prep({ size: 0 })).body.code, 'patch_too_large')
   eq('원본보다 큼', (await prep({ width: 801 })).body.code, 'invalid_input')
   eq('남의/없는 프로젝트 → 404', (await prep({ projectId: '55555555-5555-4555-8555-555555555555' })).code, 404)
@@ -125,8 +128,12 @@ const PATH = `${FOLDER}/f_abc123_0123456789abcdef.png`
   eq('원본보다 큰 PNG → 거부 + 삭제', [(await conf(PATH)).body.code, removed], ['patch_invalid', [PATH]])
 
   removed = []
-  files.set(PATH, png(216, 56, 5 * 1024 * 1024))
-  eq('5MB 넘는 파일 → 거부 + 삭제', [(await conf(PATH)).body.code, removed], ['patch_too_large', [PATH]])
+  files.set(PATH, png(216, 56, 12 * 1024 * 1024))
+  eq('12MB 파일 (5MB 넘고 20MB 아래) → 통과, 삭제 안 함', [(await conf(PATH)).body.ok, removed], [true, []])
+
+  removed = []
+  files.set(PATH, png(216, 56, 20 * 1024 * 1024))
+  eq('20MB 넘는 파일 → 거부 + 삭제', [(await conf(PATH)).body.code, removed], ['patch_too_large', [PATH]])
 
   removed = []
   const otherPath = `${OTHER}/${PID}/patches/${IMG}/f_abc123_0123456789abcdef.png`

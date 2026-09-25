@@ -77,6 +77,21 @@ export function fillLayersOf(layers) {
   return layers.filter(isValidFillLayer)
 }
 
+/**
+ * 목록 표시용 개수 — done: 결과가 있는 지우기(AI는 저장된 결과 조각 ai.patch가 있어야, 단색·coons는 매번 원본에서 계산하므로 항상),
+ * redo: 결과 조각 없이 남은 AI 레이어(실행했지만 결과를 저장하지 못함 → 다시 열면 [다시 지우기] 상태).
+ * ai.patch가 있어도 영역을 옮겨 계산 key가 바뀐 결과는 여기서 가리지 않는다 (key 확인은 비동기 sha256 — 편집 화면이 가린다)
+ */
+export function fillCounts(layers) {
+  let done = 0, redo = 0
+  for (const l of layers || []) {
+    if (!isValidFillLayer(l)) continue
+    if (l.method === 'ai' && !l.ai?.patch) redo++
+    else done++
+  }
+  return { done, redo }
+}
+
 function requireUid() {
   const uid = currentUser.value?.id
   if (!uid) throw new Error('로그인이 필요해요.')

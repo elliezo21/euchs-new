@@ -91,7 +91,7 @@ const UPLOAD = {
   upload_failed: '파일을 올리지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.',
   // AI 지우기 결과 조각 (patch_prepare / patch_confirm)
   patch_limit: '이 사진에 저장할 수 있는 AI 결과 수(120개)를 넘었어요. 결과는 화면에만 보이고, 다시 열면 새로 계산해요.',
-  patch_too_large: 'AI 결과 조각이 너무 커서(5MB 초과) 저장하지 못했어요. 네모를 나눠서 그려 주세요.',
+  patch_too_large: '지운 범위가 너무 넓어서 저장하지 못했어요. 칠한 곳을 두세 번에 나눠서 지워 주세요.',
   patch_invalid: 'AI 결과 파일이 올바르지 않아 저장하지 않았어요. 다시 계산해 주세요.',
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
 }

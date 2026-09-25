@@ -16,7 +16,7 @@ import { loadElement } from '@/lib/studioImageCache'
 const MODEL_SHA256 = import.meta.env.VITE_STUDIO_AI_MODEL_SHA256
 /** 결과 key·ai.model에 들어가는 모델 이름 — 모델 파일이 바뀌면 key가 달라져 다시 계산된다. 설정이 없으면 null */
 export const AI_MODEL_ID = /^[0-9a-f]{64}$/i.test(String(MODEL_SHA256 || '')) ? `lama_fp32@${MODEL_SHA256.slice(0, 8).toLowerCase()}` : null
-export const PATCH_MAX_BYTES = 5 * 1024 * 1024
+export const PATCH_MAX_BYTES = 20 * 1024 * 1024 // 버킷 file_size_limit 20971520·서버 api/studio-upload.js와 같은 값
 
 function canvasToPng(canvas) {
   return new Promise((resolve, reject) => {

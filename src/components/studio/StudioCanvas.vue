@@ -25,9 +25,6 @@
         <span>결과를 불러오지 못했어요 ({{ aiLoadFailure.message }})</span>
         <button v-if="interactive" type="button" class="st-btn" data-ai-recompute @click="$emit('execute', aiLoadFailure.layerId, 'ai')">다시 계산</button>
       </div>
-      <div v-if="aiSaveError" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-ai-save-error>
-        {{ aiSaveError }}
-      </div>
     </div>
 
     <!-- 확대/축소 (아래 가운데) -->
@@ -95,9 +92,11 @@ const props = defineProps({
 // ai({ imageId, layerId, planKey, W, H, ai, batch }): AI 결과 조각을 저장했음 — 편집기가 그 레이어에 ai 필드를 붙인다.
 //   batch: 실행 한 번의 번호 (같이 지운 앞 AI가 있으면 여러 결과가 같은 번호로 온다 → 이력 한 단계)
 // ai-states({ [layerId]: 'done'|'needs'|'busy'|'loading'|'failed' }): AI 레이어 상태 — 왼쪽 패널용
+// ai-unsaved({ count, saving, message }): 계산은 됐지만 결과 조각 저장에 실패해 메모리에만 있는 AI 결과 — 지우기 화면이 카드·나가기 확인을 보인다.
+//   부모가 retryAiSave()를 부르면 메모리의 결과로 업로드만 다시 한다 (AI 재계산 없음)
 // tool(key): 단축키(V·B·R)로 도구를 바꿔 달라는 요청 — 부모가 props.tool을 바꾼다
 // bleed(sides[]): 선택한 네모가 글자에 걸친 변 (없으면 []) — 부모가 안내와 [조금 넓히기]를 보여준다
-const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'tool', 'bleed'])
+const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'ai-unsaved', 'tool', 'bleed'])
 
 const wrap = ref(null)
 const host = ref(null)
@@ -130,7 +129,10 @@ const aiActive = ref(false)        // 엔진이 지금 한 건을 계산하는 �
 const aiRequestCount = ref(0)      // [지우기]를 눌러 기다리거나 계산 중인 AI 레이어 수
 const aiStates = ref({})           // layer id → 'done'|'needs'|'busy'|'loading'|'failed'
 const aiLoadFailure = ref(null)    // { layerId, planKey, message } — 저장된 PNG 받기 실패 (몰래 재계산하지 않는다)
-const aiSaveError = ref('')        // 결과는 보이지만 저장 실패
+// 결과는 보이지만 저장 실패 — layer id → { imageRow, layerId, planKey, key, W, H, batch, area, canvas, engine, message }
+// 결과 픽셀(canvas)을 들고 있다가 [다시 저장]에서 그대로 올린다. 레이어가 바뀌거나 지워지면(sync) 뺀다
+const aiSaveFailed = new Map()
+let aiRetrying = false
 const aiNotice = computed(() => {
   const s = props.aiState || {}
   const p = s.progress
@@ -728,6 +730,13 @@ function sync() {
     const l = byId.get(id), p = patches.get(id)
     if (!l || l.ai?.key === k || !p || p.patchKey !== plan.get(id)?.key) aiUnsaved.delete(id)
   }
+  // 저장 실패 결과: 레이어가 지워졌거나 값이 바뀌었거나(되돌리기·옮기기) 이미 저장된 결과면 더는 저장할 것이 아니다
+  let failedChanged = false
+  for (const [id, j] of [...aiSaveFailed]) {
+    const l = byId.get(id)
+    if (!l || l.method !== 'ai' || plan.get(id)?.key !== j.planKey || l.ai?.key === j.key) { aiSaveFailed.delete(id); failedChanged = true }
+  }
+  if (failedChanged) emitSaveState()
   const cache = currentPatchCache()
   for (const l of [...fills, ...(draft ? [draft] : [])]) {
     const brush = l.shape === 'brush'
@@ -1034,19 +1043,8 @@ async function runAi(l, e, mode) {
     placePatch(l, planKey, res)
     sync() // AI 결과가 생기면 연결된 뒤 coons·단색의 key가 바뀐다
 
-    // 저장 — 실패해도 화면 결과는 둔다 (다음에 열면 [지우기]를 다시 눌러야 함). 사유는 화면에
-    const engine = props.aiEngine.engine
-    try {
-      const path = await uploadAiPatch({ projectId: imageRow.project_id, imageId: imageRow.id, layerId: l.id, key, canvas: pc })
-      aiSaveError.value = ''
-      emit('ai', {
-        imageId: imageRow.id, layerId: l.id, planKey, W, H, batch,
-        ai: { key, model: AI_MODEL_ID, engine, patch: { path, x: area.x, y: area.y, w: area.w, h: area.h } },
-      })
-    } catch (err) {
-      console.error('[StudioCanvas] AI 결과 저장 실패:', l.id, err)
-      aiSaveError.value = `AI 결과를 저장하지 못했어요: ${err.message || err}`
-    }
+    // 저장 — 실패하면 결과를 메모리에 두고 지우기 화면에 [다시 저장] 카드를 띄운다 (조용히 넘기지 않는다)
+    await saveAiResult({ imageRow, layerId: l.id, planKey, key, W, H, batch, area, canvas: pc, engine: props.aiEngine.engine })
   } catch (err) {
     if (stale()) return
     console.error('[StudioCanvas] AI 지우기 실패:', l.id, err)
@@ -1062,6 +1060,48 @@ async function runAi(l, e, mode) {
       scheduleCompute()
     }
   }
+}
+
+/**
+ * AI 결과 조각 저장 → 성공하면 emit('ai') (편집기가 레이어에 ai를 붙이고 이력 "AI 지우기"), 실패하면 aiSaveFailed에 남긴다.
+ * 처음 저장과 [다시 저장]이 같은 함수를 쓴다. 조각 픽셀은 계산 때 만든 canvas 그대로 (재계산 없음)
+ */
+async function saveAiResult(job) {
+  const seq = showSeq
+  try {
+    const path = await uploadAiPatch({ projectId: job.imageRow.project_id, imageId: job.imageRow.id, layerId: job.layerId, key: job.key, canvas: job.canvas })
+    if (seq === showSeq) aiSaveFailed.delete(job.layerId)
+    // 사진이 바뀌었어도 저장은 됐으므로 편집기에 알린다 (편집기가 그 레이어의 계산 key가 그대로일 때만 붙인다 — 기존 동작)
+    emit('ai', {
+      imageId: job.imageRow.id, layerId: job.layerId, planKey: job.planKey, W: job.W, H: job.H, batch: job.batch,
+      ai: { key: job.key, model: AI_MODEL_ID, engine: job.engine, patch: { path, x: job.area.x, y: job.area.y, w: job.area.w, h: job.area.h } },
+    })
+  } catch (err) {
+    console.error('[StudioCanvas] AI 결과 저장 실패:', job.layerId, err)
+    if (seq !== showSeq) return
+    aiSaveFailed.set(job.layerId, { ...job, message: err.message || String(err) })
+  } finally {
+    if (seq === showSeq) emitSaveState()
+  }
+}
+
+/** [다시 저장] — 저장 못 한 결과를 메모리의 픽셀 그대로 다시 올린다. 모두 성공하면 true */
+async function retryAiSave() {
+  if (aiRetrying || aiSaveFailed.size === 0) return aiSaveFailed.size === 0
+  aiRetrying = true
+  emitSaveState()
+  try {
+    for (const job of [...aiSaveFailed.values()]) await saveAiResult(job)
+  } finally {
+    aiRetrying = false
+    emitSaveState()
+  }
+  return aiSaveFailed.size === 0
+}
+
+function emitSaveState() {
+  const first = aiSaveFailed.values().next().value
+  emit('ai-unsaved', { count: aiSaveFailed.size, saving: aiRetrying, message: first?.message || '' })
 }
 
 // ── 사진 표시 ──
@@ -1089,8 +1129,9 @@ function clearObjects() {
   aiRequested.clear()
   aiChecked.clear()
   aiUnsaved.clear()
+  aiSaveFailed.clear()
+  emitSaveState()
   aiLoadFailure.value = null
-  aiSaveError.value = ''
   aiRequestCount.value = 0
   aiStates.value = {}
   emit('ai-states', {})
@@ -1272,7 +1313,7 @@ watch(() => props.brushSize, () => { if (cursorObj?.visible) updateCursor({ x: c
 
 // 편집기가 좌표 검증(브라우저 자동화)에 쓸 수 있도록 현재 뷰포트를 읽는 창구만 연다
 // [조금 넓히기]는 지우기 화면 왼쪽 패널에서 부른다
-defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }), widenSelected })
+defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }), widenSelected, retryAiSave })
 </script>
 
 <style scoped>

@@ -35,23 +35,26 @@ function sameRect(a, b) {
 }
 
 /**
- * 원본 + 지우기 조각 → 원본 크기 캔버스 (지우기가 없으면 null — 원본을 바로 줄인다)
- * @returns {Promise<{ canvas: HTMLCanvasElement|null, problems: string[] }>}
+ * 원본 + 지우기 조각 → 원본 크기 캔버스 (지우기가 없으면 null — 원본을 바로 줄인다). 5단계 굽기도 이 함수를 쓴다.
+ * 결과가 없는 AI 레이어는 편집 화면처럼 원본 그대로 두고, 그 id를 돌려준다 (굽기 전에 알 수 있게 — 조용히 넘기지 않는다):
+ *   aiMissing: 결과 조각이 없음 (실행했지만 저장 못 함·계산 중) / aiStale: 결과 조각은 있지만 영역이 바뀌어 지금 값과 맞지 않음
+ * @returns {Promise<{ canvas: HTMLCanvasElement|null, problems: string[], aiMissing: string[], aiStale: string[] }>}
  */
-async function composeErased(imgEl, fills) {
+export async function composeErased(imgEl, fills) {
   const W = imgEl.naturalWidth, H = imgEl.naturalHeight
-  if (fills.length === 0) return { canvas: null, problems: [] }
+  if (fills.length === 0) return { canvas: null, problems: [], aiMissing: [], aiStale: [] }
   const plan = new Map(fillPlan(fills, W, H).map(p => [p.id, p]))
   const byId = new Map(fills.map(l => [l.id, l]))
   const res = new Map()   // layer id → { canvas, area, data }
   const problems = []
+  const aiMissing = [], aiStale = []
   for (const l of fills) {
     const e = plan.get(l.id)
     if (l.method === 'ai') {
-      if (!l.ai) continue // 실행 전·계산 중 — 편집기처럼 원본 그대로
+      if (!l.ai?.patch) { aiMissing.push(l.id); continue } // 결과 조각 없음 — 편집기처럼 원본 그대로
       if (!AI_MODEL_ID) { problems.push('AI 모델 설정이 없어 AI 결과를 그릴 수 없어요'); continue }
       const key = await aiPatchKey(e.key, AI_MODEL_ID)
-      if (l.ai.key !== key) continue // 값이 바뀐 결과 — 편집기에서도 [다시 지우기] 상태, 원본 그대로
+      if (l.ai.key !== key) { aiStale.push(l.id); continue } // 값이 바뀐 결과 — 편집기에서도 [다시 지우기] 상태, 원본 그대로
       const area = fillArea(l, W, H)
       if (!sameRect(l.ai.patch, area)) {
         console.error('[studioViewImage] 저장된 AI 결과 범위가 지금 범위와 다름:', l.id, l.ai.patch, area)
@@ -85,7 +88,7 @@ async function composeErased(imgEl, fills) {
   ctx.drawImage(imgEl, 0, 0)
   // 편집기와 같은 쌓는 순서: 원본 → 결과 조각(레이어 순)
   for (const l of fills) { const r = res.get(l.id); if (r) ctx.drawImage(r.canvas, r.area.x, r.area.y) }
-  return { canvas: c, problems }
+  return { canvas: c, problems, aiMissing, aiStale }
 }
 
 function toBlob(canvas) {
@@ -99,7 +102,7 @@ async function renderView(row, layers, targetW) {
   const { url } = await signViewUrl(row.original_path)
   const imgEl = await loadElement(url)
   const W = imgEl.naturalWidth, H = imgEl.naturalHeight
-  const { canvas: full, problems } = await composeErased(imgEl, fillLayersOf(layers || []))
+  const { canvas: full, problems, aiMissing, aiStale } = await composeErased(imgEl, fillLayersOf(layers || []))
   const tw = Math.min(targetW, W)
   const th = Math.max(1, Math.round(H * tw / W))
   const c = document.createElement('canvas')
@@ -111,7 +114,7 @@ async function renderView(row, layers, targetW) {
   ctx.drawImage(full || imgEl, 0, 0, tw, th)
   const blob = await toBlob(c) // 오염(SecurityError)이면 throw — 부른 쪽이 사유를 보여준다
   if (full) { full.width = 0; full.height = 0 } // 원본 크기 캔버스 메모리를 바로 돌려준다
-  return { url: URL.createObjectURL(blob), width: tw, height: th, bytes: blob.size, problems }
+  return { url: URL.createObjectURL(blob), width: tw, height: th, bytes: blob.size, problems, aiMissing, aiStale }
 }
 
 /**
@@ -159,7 +162,7 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 2, onUp
       renderView(job.row, job.layers, targetOf(job.row)).then(
         out => {
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) { URL.revokeObjectURL(out.url); return } // 그 사이 바뀜 — 버린다
-          set(job.row.id, { key: job.key, status: 'ready', url: out.url, error: '', problems: out.problems, width: out.width, height: out.height, bytes: out.bytes })
+          set(job.row.id, { key: job.key, status: 'ready', url: out.url, error: '', problems: out.problems, aiMissing: out.aiMissing, aiStale: out.aiStale, width: out.width, height: out.height, bytes: out.bytes })
         },
         err => {
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) return

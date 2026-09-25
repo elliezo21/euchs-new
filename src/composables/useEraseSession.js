@@ -15,7 +15,7 @@
  */
 import { ref, shallowRef, reactive, computed, watch } from 'vue'
 import {
-  readLayers, buildEdit, fillLayersOf, isValidFillLayer, newFillId, createEditSaver, fetchImageEdit,
+  readLayers, buildEdit, fillLayersOf, fillCounts, isValidFillLayer, newFillId, createEditSaver, fetchImageEdit,
   MAX_LAYERS, PAD_MIN, PAD_MAX, PAD_DEFAULT,
 } from '@/lib/studioEdit'
 import {
@@ -47,7 +47,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   let saver = makeSaver()
 
   function rowOf(id) { return images.value.find(i => i.id === id) }
-  function fillCount(id) { return fillLayersOf(layerMap[id] || []).length }
+  // 목록 표시용: { done: 결과 있는 지우기, redo: 결과 조각 없이 남은 AI } (studioEdit.fillCounts)
+  function fillCount(id) { return fillCounts(layerMap[id] || []) }
 
   // ── AI 지우기 엔진 — 편집기 화면 동안 하나. 준비(모델 받기·세션 약 15초)를 미리 시작한다 ──
   const aiEngine = shallowRef(null)
@@ -92,7 +93,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
 
   const selectedImage = computed(() => images.value.find(i => i.id === selectedImageId.value && i.ingest_status === 'done') || null)
   const selectedLayers = computed(() => (selectedImageId.value && layerMap[selectedImageId.value]) || [])
-  const selectedFillCount = computed(() => fillLayersOf(selectedLayers.value).length)
+  const selectedFillCount = computed(() => fillLayersOf(selectedLayers.value).length) // 전체 지우기 레이어 수 (모두 삭제 대상)
+  const selectedFillCounts = computed(() => fillCounts(selectedLayers.value))
   const selectedHistory = computed(() => (selectedImage.value && histories[selectedImage.value.id]) || null)
   // 되돌리기: 초안이 있으면 초안 지우기도 되돌리기로 친다 (결정 16)
   const canUndoNow = computed(() => undoAction(selectedHistory.value, !!canvasDraft.value) !== null)
@@ -436,7 +438,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     // 상태
     layerMap, histories, selectedLayerId, saveStatus, saveDetail, conflictId, conflictError, conflictLoading,
     aiEngine, aiState, aiLayerStates, eraseRequest,
-    selectedImage, selectedLayers, selectedFill, selectedFillCount, selectedIsDraft, selectedAiState, selectedAiMinGrow,
+    selectedImage, selectedLayers, selectedFill, selectedFillCount, selectedFillCounts, selectedIsDraft, selectedAiState, selectedAiMinGrow,
     canvasDraft, canUndoNow, canRedoNow, historySteps,
     canvasTool, brushSize, brushMode,
     // 동작
