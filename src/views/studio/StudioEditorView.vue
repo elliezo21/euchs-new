@@ -6,15 +6,15 @@
         <ArrowLeft class="w-5 h-5" :stroke-width="2" />
       </router-link>
       <span class="w-[26px] h-[26px] rounded-[7px] flex items-center justify-center st-logo-mark text-[13px] font-extrabold shrink-0">E</span>
-      <!-- 3단계: 고른 사진의 지우기 되돌리기·다시. 4단계에서 페이지용으로 바뀐다 -->
-      <button type="button" class="st-icon-btn" :disabled="!canUndoNow" :title="canUndoNow ? '되돌리기' : '되돌릴 동작이 없어요'" data-action="undo" @click="undoEdit"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
-      <button type="button" class="st-icon-btn" :disabled="!canRedoNow" :title="canRedoNow ? '다시' : '다시 할 동작이 없어요'" data-action="redo" @click="redoEdit"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+      <!-- 페이지 되돌리기·다시 (지우기 화면의 되돌리기는 그 사진의 지우기 이력 — 따로, 결정 8) -->
+      <button type="button" class="st-icon-btn" :disabled="!pageCanUndo" :title="pageCanUndo ? '되돌리기' : '되돌릴 동작이 없어요'" data-action="undo" @click="pageSession.undo()"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+      <button type="button" class="st-icon-btn" :disabled="!pageCanRedo" :title="pageCanRedo ? '다시' : '다시 할 동작이 없어요'" data-action="redo" @click="pageSession.redo()"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
       <div class="min-w-0 ml-1 leading-tight" data-title-block>
         <div class="text-[14px] font-extrabold st-ink truncate">{{ project ? projectDisplayTitle(project) : '' }}</div>
         <template v-if="project">
-          <button v-if="saveStatus === 'error'" type="button" class="text-[11px] font-bold st-danger-text underline" :title="saveDetail" data-save-status="error" @click="retrySave">저장하지 못했어요 · 다시 시도</button>
-          <button v-else-if="saveStatus === 'conflict'" type="button" class="text-[11px] font-bold st-danger-text underline" data-save-status="conflict" @click="reopenConflict">저장 안 됨 · 다른 창과 충돌</button>
-          <span v-else-if="saveStatus === 'pending' || saveStatus === 'saving'" class="text-[11px] st-muted" data-save-status="saving">저장 중…</span>
+          <button v-if="topSaveStatus === 'error'" type="button" class="text-[11px] font-bold st-danger-text underline" :title="topSaveDetail" data-save-status="error" @click="retryAllSaves">저장하지 못했어요 · 다시 시도</button>
+          <button v-else-if="topSaveStatus === 'conflict'" type="button" class="text-[11px] font-bold st-danger-text underline" data-save-status="conflict" @click="reopenAnyConflict">저장 안 됨 · 다른 창과 충돌</button>
+          <span v-else-if="topSaveStatus === 'pending' || topSaveStatus === 'saving'" class="text-[11px] st-muted" data-save-status="saving">저장 중…</span>
           <span v-else class="text-[11px] st-success-text" data-save-status="saved">● 저장됨</span>
         </template>
       </div>
@@ -68,7 +68,7 @@
         <StudioPhotoPanel
           v-if="activeTool === 'photo' || !isWide"
           :images="images" :view-urls="viewUrls" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-          @select="selectImage" @open-erase="openErase" @add="addOpen = true" @retry-url="resignViewUrl"
+          @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-url="resignViewUrl"
         />
         <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
           <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -77,23 +77,35 @@
         </div>
       </aside>
 
-      <!-- 가운데: 고른 사진 미리보기 (4단계에서 긴 페이지로 바뀐다) -->
+      <!-- 가운데: 긴 한 장 페이지 (4단계, DOM — 구간이 위에서 아래로 쌓인다) -->
       <section v-if="isWide" class="flex-1 min-w-0 relative st-canvas-bg st-dotgrid" data-canvas-area>
-        <StudioCanvas
-          v-if="selectedImage && !eraseOpen"
-          :image="selectedImage"
-          :layers="selectedLayers"
-          :load-image="loadCanvasImage"
-          :interactive="false"
-          :keys-enabled="false"
-          :ai-engine="aiEngine"
-          :ai-state="aiState"
-          data-preview-canvas
-        />
-        <div v-else-if="!selectedImage" class="absolute inset-0 flex items-center justify-center st-desc">
-          {{ doneImages.length ? '왼쪽에서 사진을 고르세요' : '완료된 사진이 아직 없어요' }}
+        <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="selectedItemId = null">
+          <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
+          <div v-else-if="page && page.sections.length" class="pt-8 pb-24" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="selectedItemId = null">
+            <StudioPageView
+              ref="pageView"
+              :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-item-id="selectedItemId"
+              @select="onPageSelect" @clear-selection="selectedItemId = null" @move="onPageMove"
+              @open-erase="openErase" @retry-image="retryView"
+            />
+          </div>
+          <div v-else-if="page" class="absolute inset-0 flex items-center justify-center st-desc break-keep" data-page-empty>
+            사진이 준비되면 여기에 상세페이지가 만들어져요
+          </div>
         </div>
-        <!-- 사진 정보 + [지우기] (6단계에서 왼쪽 사진 속성 패널로 옮긴다) -->
+        <!-- 아래 막대: 확대 · 폭 (시안 ①) -->
+        <div v-if="page" class="absolute left-1/2 -translate-x-1/2 bottom-4 flex items-center gap-2 px-2 py-1.5 rounded-[12px] st-card st-shadow-float" style="z-index: 5" data-zoom-bar>
+          <div class="st-seg">
+            <button
+              v-for="z in ZOOM_PRESETS" :key="z" type="button" class="st-seg-item" :class="zoomMode === z ? 'is-active' : ''"
+              :data-zoom="z" @click="zoomMode = z"
+            >{{ Math.round(z * 100) }}%</button>
+            <button type="button" class="st-seg-item" :class="zoomMode === 'fit' ? 'is-active' : ''" data-zoom="fit" @click="zoomMode = 'fit'">맞춤<span v-if="zoomMode === 'fit'" class="ml-1 opacity-70">{{ Math.round(zoom * 100) }}%</span></button>
+          </div>
+          <span class="w-px h-5" style="background: var(--st-line-strong)" />
+          <span class="text-[12px] font-bold st-ink-2 pr-1 whitespace-nowrap" data-page-width>폭 {{ page.width }}px · {{ PAGE_WIDTH_LABEL }}</span>
+        </div>
+        <!-- 사진 정보 + [지우기] (3단계 임시 카드 — 페이지에서 누른 사진 기준. 6단계에서 왼쪽 사진 속성 패널로 옮긴다) -->
         <div v-if="selectedImage && !eraseOpen" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
           <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
           <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCount }}</div>
@@ -167,10 +179,20 @@
       </template>
     </StudioModal>
 
+    <!-- 페이지 저장 충돌 (page_version) -->
+    <StudioModal :open="pageSession.conflict.value" title="다른 창에서 이 작업이 바뀌었어요" @close="pageSession.conflict.value = false">
+      최신 내용을 불러올까요? 불러오면 이 창에서 저장되지 않은 페이지 변경은 없어져요.
+      <p v-if="pageSession.conflictError.value" class="mt-2 text-[13px] font-bold st-danger-text">{{ pageSession.conflictError.value }}</p>
+      <template #actions>
+        <button type="button" class="st-btn" @click="pageSession.conflict.value = false">취소</button>
+        <button type="button" class="st-btn st-btn-primary" :disabled="pageSession.conflictLoading.value" data-page-conflict-reload @click="reloadPageConflict">불러오기</button>
+      </template>
+    </StudioModal>
+
     <!-- 저장 안 된 채 떠나기 -->
     <StudioModal :open="leaveOpen" title="저장되지 않은 변경이 있어요" @close="leaveOpen = false">
       지금 나가면 마지막 변경이 저장되지 않아요.
-      <p v-if="saveDetail" class="mt-2 text-[13px] st-danger-text break-keep">{{ saveDetail }}</p>
+      <p v-if="topSaveDetail" class="mt-2 text-[13px] st-danger-text break-keep">{{ topSaveDetail }}</p>
       <template #actions>
         <button type="button" class="st-btn" @click="leaveOpen = false">머무르기</button>
         <button type="button" class="st-btn st-btn-danger" @click="leaveAnyway">그래도 나가기</button>
@@ -183,8 +205,10 @@
 // 편집기 (3단계: 어두운 화면 + 전체 틀) — 상단바 / 아이콘 막대 / 재료 패널 / 가운데 / 오른쪽 [미니뷰|레이어].
 // 지우기는 [지우기]로 여는 지우기 화면(StudioEraseScreen)에서 한다. 지우기 상태·자동 저장·이력·AI 엔진은 useEraseSession 하나가 든다.
 // 어두운 색은 이 화면 바깥 요소의 `studio-root st-dark`(studio-tokens.css) 안에서만 — 몰·관리자에는 영향 없음.
-// 가운데 긴 페이지(4단계), 사진 속성 패널(6단계), [사진] 패널 완성(7단계), 구간·미니뷰(8단계), 레이어(9단계)는 다음 단계.
-import { ref, computed, watch, onMounted, onUnmounted, defineAsyncComponent, provide, h } from 'vue'
+// 4단계: 가운데 = 긴 한 장 페이지(StudioPageView, DOM). 페이지 문서·이력·자동 저장은 usePageSession, 화면용 작은 사진은 studioViewImage.
+//   상단 되돌리기·다시·Ctrl+Z = 페이지 이력. 지우기 화면이 열려 있으면 Ctrl+Z = 그 사진의 지우기 이력 (서로 섞이지 않는다)
+// 사진 속성 패널(6단계), [사진] 패널 완성(7단계), 구간·미니뷰(8단계), 레이어(9단계)는 다음 단계.
+import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
   ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp, Trash2, Eraser,
@@ -194,27 +218,22 @@ import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioEraseScreen from '@/components/studio/StudioEraseScreen.vue'
 import StudioPhotoPanel from '@/components/studio/StudioPhotoPanel.vue'
+import StudioPageView from '@/components/studio/StudioPageView.vue'
 import {
   loadMyProject, listEditorImages, signViewUrls, signViewUrl, sortStudioImages, sortBySortOrder, hasSortOrderOverlap,
   renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL,
 } from '@/lib/studioProjects'
 import { createImageCache } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
+import { usePageSession } from '@/composables/usePageSession'
+import { createViewImageStore } from '@/lib/studioViewImage'
+import { moveItem, firstItemOfImage, findItem, pageImageIds, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS } from '@/lib/studioPage'
+import { LABELS } from '@/lib/studioHistory'
 
 provide('studioDark', true) // Teleport로 body에 붙는 모달도 어둡게 (StudioModal)
+// Fabric(StudioCanvas)은 지우기 화면(StudioEraseScreen)이 열릴 때만 받는다. 페이지는 DOM (방식 C)
 
-// Fabric은 이 컴포넌트와 함께만 받는다 (1024px 미만에서는 받지도 않는다)
-const StudioCanvas = defineAsyncComponent({
-  loader: () => import('@/components/studio/StudioCanvas.vue'),
-  errorComponent: {
-    render: () => h('div', { class: 'absolute inset-0 flex items-center justify-center p-6 text-center text-[14px] font-bold st-danger-text' },
-      '편집 도구를 불러오지 못했어요. 새로고침해 주세요.'),
-  },
-  onError(err, retry, fail) {
-    console.error('[StudioEditor] 편집 도구(Fabric) 로드 실패:', err)
-    fail()
-  },
-})
+const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 들어간다)
 
 // 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, 나머지는 10단계 이후
 const RAIL = [
@@ -263,16 +282,102 @@ function showToast(msg) {
 
 const session = useEraseSession({ images, selectedImageId, showToast })
 const {
-  selectedImage, selectedLayers, selectedFillCount, canUndoNow, canRedoNow,
-  saveStatus, saveDetail, conflictId, conflictError, conflictLoading, aiEngine, aiState,
+  selectedImage, selectedFillCount,
+  saveStatus, saveDetail, conflictId, conflictError, conflictLoading,
   fillCount, undoEdit, redoEdit, retrySave, reopenConflict, reloadConflicted,
 } = session
 
 const doneImages = computed(() => images.value.filter(i => i.ingest_status === 'done'))
+const imagesById = computed(() => new Map(images.value.map(i => [i.id, i])))
+
+// ── 페이지 (4단계) ──
+// 기본 배치에 넣을 사진: 가져오기·올리기가 끝났고(done) 안 쓸 사진으로 빼지 않은 것(included), 지금 목록 순서
+const pageSession = usePageSession({
+  usableImages: () => images.value.filter(i => i.ingest_status === 'done' && i.included === true),
+  showToast,
+})
+const page = pageSession.page
+const pageCanUndo = computed(() => pageSession.canUndoNow.value && !eraseOpen.value)
+const pageCanRedo = computed(() => pageSession.canRedoNow.value && !eraseOpen.value)
+const selectedItemId = ref(null)
+const pageView = ref(null)
+const pageScroll = ref(null)
+
+// 상단 저장 상태 = 사진 지우기 저장과 페이지 저장 중 더 나쁜 것
+const SAVE_RANK = { saved: 0, pending: 1, saving: 2, error: 3, conflict: 4 }
+const pageWorse = computed(() => SAVE_RANK[pageSession.saveStatus.value] > SAVE_RANK[saveStatus.value])
+const topSaveStatus = computed(() => (pageWorse.value ? pageSession.saveStatus.value : saveStatus.value))
+const topSaveDetail = computed(() => (pageWorse.value ? pageSession.saveDetail.value : saveDetail.value) || pageSession.saveDetail.value || saveDetail.value)
+function retryAllSaves() { retrySave(); pageSession.retrySave() }
+function reopenAnyConflict() {
+  if (pageSession.saveStatus.value === 'conflict') pageSession.conflict.value = true
+  else reopenConflict()
+}
+async function reloadPageConflict() {
+  await pageSession.reloadConflicted()
+  if (selectedItemId.value && page.value && !findItem(page.value, selectedItemId.value)) selectedItemId.value = null
+}
+
+// 확대: 50·75·100% 또는 맞춤(가운데 폭에 맞춰, 최대 100%)
+const zoomMode = ref('fit')
+const areaWidth = ref(0)
+const zoom = computed(() => (zoomMode.value === 'fit' ? fitZoom(areaWidth.value, page.value?.width || PAGE_WIDTH, PAGE_GUTTER) : zoomMode.value))
+let areaObserver = null
+watch(pageScroll, el => {
+  areaObserver?.disconnect()
+  areaObserver = null
+  if (!el) return
+  areaObserver = new ResizeObserver(entries => { areaWidth.value = entries[0].contentRect.width })
+  areaObserver.observe(el)
+})
+
+function onPageSelect({ itemId, imageId }) {
+  selectedItemId.value = itemId
+  if (imageId !== selectedImageId.value && doneImages.value.some(i => i.id === imageId)) selectImage(imageId)
+}
+function onPageMove({ itemId, x, y }) {
+  if (!page.value) return
+  pageSession.apply(moveItem(page.value, itemId, x, y), LABELS.itemMove)
+}
+// 목록·↑↓로 사진을 바꾸면 페이지의 그 사진(첫 자리)에 테두리
+watch(selectedImageId, id => {
+  const cur = selectedItemId.value && page.value ? findItem(page.value, selectedItemId.value) : null
+  if (cur && cur.item.imageId === id) return
+  selectedItemId.value = id && page.value ? firstItemOfImage(page.value, id) : null
+})
+function selectFromPanel(id) {
+  selectImage(id)
+  const itemId = page.value ? firstItemOfImage(page.value, id) : null
+  if (itemId) nextTick(() => pageView.value?.scrollToItem(itemId))
+}
+
+// 화면용 작은 사진 — 페이지에 있는 사진을 지운 결과로 그려 줄여 둔다. 지우기 화면이 열려 있는 동안은 멈췄다가 닫으면 다시 맞춘다
+const views = reactive({}) // image id → { status, url, error, problems }
+const viewStore = createViewImageStore({
+  pageWidth: PAGE_WIDTH,
+  dpr: window.devicePixelRatio || 1,
+  onUpdate(id, entry) { views[id] = { ...entry } },
+})
+const viewWants = computed(() => {
+  if (!page.value || eraseOpen.value || !isWide.value) return []
+  return pageImageIds(page.value)
+    .map(id => imagesById.value.get(id))
+    .filter(r => r && r.ingest_status === 'done')
+    .map(row => ({ row, layers: session.layerMap[row.id] || [] }))
+})
+watch(viewWants, list => { for (const w of list) viewStore.want(w.row, w.layers) }, { immediate: true })
+function retryView(imageId) {
+  const row = imagesById.value.get(imageId)
+  if (row) viewStore.retry(row, session.layerMap[imageId] || [])
+}
+function clearViews() {
+  viewStore.clear()
+  for (const k of Object.keys(views)) delete views[k]
+}
 // 장수 한도에 드는 수 — 서버 prepare와 같은 방식: done + 직접 올린 pending (1688의 가져오지 않은 pending은 세지 않음)
 const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
-const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value)
+const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value)
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'
@@ -347,9 +452,14 @@ async function load() {
     viewUrlsIssuedAt = Date.now()
     orderError.value = orderErr
     session.syncFromServer(ordered)
+    if (p) pageSession.syncFromServer(p)
     if (!selectedImage.value) {
       selectedImageId.value = doneImages.value[0]?.id || null
       session.selectedLayerId.value = null
+    }
+    // 기본 배치를 새로 만들었으면(아직 안 바꾼 페이지 + 사진 추가) 아이템 id가 바뀐다 → 고른 사진의 자리로 다시 잡는다
+    if (selectedItemId.value && !(page.value && findItem(page.value, selectedItemId.value))) {
+      selectedItemId.value = page.value && selectedImageId.value ? firstItemOfImage(page.value, selectedImageId.value) : null
     }
   } catch (e) {
     if (seq !== loadSeq) return
@@ -408,9 +518,9 @@ async function guardLeave(to) {
     eraseOpen.value = false
     return false
   }
-  if (!session.hasUnsaved()) return true
-  const ok = await session.flush()
-  if (ok) return true
+  if (!session.hasUnsaved() && !pageSession.hasUnsaved()) return true
+  const [okEdit, okPage] = await Promise.all([session.flush(), pageSession.flush()])
+  if (okEdit && okPage) return true
   leaveTarget = to
   leaveOpen.value = true
   return false
@@ -425,21 +535,25 @@ function leaveAnyway() {
 }
 
 function onBeforeUnload(e) {
-  if (!session.hasUnsaved()) return
+  if (!session.hasUnsaved() && !pageSession.hasUnsaved()) return
   session.flush() // 남은 저장을 시도는 하되, 끝을 기다릴 수 없으므로 브라우저 경고를 띄운다
+  pageSession.flush()
   e.preventDefault()
   e.returnValue = ''
 }
 
 // ── 키보드: ↑/↓ 이전·다음 사진(목록에서만), Ctrl(Cmd)+Z 되돌리기, Ctrl(Cmd)+Shift+Z·Ctrl+Y 다시 ──
+// 되돌리기 대상: 지우기 화면이 열려 있으면 그 사진의 지우기 이력, 아니면 페이지 이력 (입력칸에서는 브라우저 기본 동작)
 function onKeyDown(e) {
   if (!isWide.value || anyModalOpen.value || e.altKey) return
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
   if (e.ctrlKey || e.metaKey) {
     // e.code 기준: 한글 입력 상태에서도 같은 키로 동작
-    if (e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undoEdit() }
-    else if ((e.code === 'KeyZ' && e.shiftKey) || (e.code === 'KeyY' && !e.shiftKey)) { e.preventDefault(); redoEdit() }
+    const undo = eraseOpen.value ? undoEdit : pageSession.undo
+    const redo = eraseOpen.value ? redoEdit : pageSession.redo
+    if (e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undo() }
+    else if ((e.code === 'KeyZ' && e.shiftKey) || (e.code === 'KeyY' && !e.shiftKey)) { e.preventDefault(); redo() }
     return
   }
   if (eraseOpen.value) return // 지우기 화면에서는 사진을 바꾸지 않는다
@@ -465,8 +579,10 @@ watch(() => route.params.projectId, (id, old) => {
   if (!id || id === old) return
   project.value = null
   selectedImageId.value = null
+  selectedItemId.value = null
   session.selectedLayerId.value = null
   eraseOpen.value = false
+  clearViews()
   load()
 })
 
@@ -476,6 +592,9 @@ const onStudioAuthChanged = (e) => {
     loadSeq++
     eraseOpen.value = false
     session.resetAll()
+    pageSession.resetAll()
+    clearViews()
+    selectedItemId.value = null
     imageCache.clear()
     project.value = null
     images.value = []
@@ -510,6 +629,9 @@ onUnmounted(() => {
   clearInterval(viewUrlTimer)
   clearTimeout(toastTimer)
   session.dispose()
+  pageSession.dispose()
+  clearViews()
+  areaObserver?.disconnect()
   imageCache.clear()
 })
 </script>

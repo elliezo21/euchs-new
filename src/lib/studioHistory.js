@@ -4,6 +4,7 @@
  * ★ 한 단계 = 그 시점 edit 객체 전체의 깊은 복사본 + 라벨 + 시각. 레이어가 최대 60개라 스냅샷으로 충분하다.
  *   모르는 type 레이어(다음 단계의 cover·text 등)도 edit 전체를 복사하므로 그대로 보존된다.
  * ★ 이미지마다 이력을 따로 둔다 (편집기가 imageId → history로 관리). 세션 동안만 유지되고 저장하지 않는다.
+ *   범용 스냅샷이라 페이지 문서(studio_projects.page)의 이력에도 쓴다 — 페이지 이력은 사진 이력과 따로 하나 (usePageSession).
  * ★ history = { steps: [{ edit, label, at }], index } — index가 현재 위치. steps[0..index]가 되돌리기 대상,
  *   steps[index+1..]가 다시 대상. 모든 함수는 새 객체를 돌려주고 입력을 바꾸지 않는다.
  */
@@ -20,6 +21,9 @@ export const LABELS = {
   method: '채우기 방식 변경',
   aiErase: 'AI 지우기',
   reload: '최신 내용 불러옴',
+  // 페이지 문서 이력 (4단계 — 사진 지우기 이력과 따로 둔다, 결정 8)
+  pageInit: '처음 배치',
+  itemMove: '사진 이동',
 }
 
 const clone = v => JSON.parse(JSON.stringify(v))

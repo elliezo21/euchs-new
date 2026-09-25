@@ -122,13 +122,15 @@ export async function fetchImageEdit(imageId) {
 }
 
 /**
- * 자동 저장기 — 사진별로 따로 관리한다 (사진을 바꿔도 이전 사진의 저장이 이어진다).
- *   change(id, edit): 변경 기록 → SAVE_DELAY_MS 동안 추가 변경이 없으면 저장
+ * 자동 저장기 — 대상(id)별로 따로 관리한다 (사진을 바꿔도 이전 사진의 저장이 이어진다).
+ *   change(id, value): 변경 기록 → SAVE_DELAY_MS 동안 추가 변경이 없으면 저장
  *   flush(id?): 즉시 저장 (사진 전환·화면 떠날 때). 모두 저장됐으면 true
  *   status: 'saved' | 'pending' | 'saving' | 'error' | 'conflict' (가장 나쁜 상태)
- * @param {{ onStatus(status, detail), onSaved(id, version, edit), onConflict(id) }} hooks
+ * ★ 범용: save(id, value, version)를 주입받는다 (기본 = 사진 edit 저장 saveImageEdit, 페이지 문서는 saveProjectPage).
+ *   save는 낙관적 잠금으로 { ok: true, version } 또는 { ok: false, conflict: true }를 돌려주고, 실패는 throw.
+ * @param {{ save?, onStatus(status, detail), onSaved(id, version, value), onConflict(id) }} hooks
  */
-export function createEditSaver({ onStatus, onSaved, onConflict }) {
+export function createEditSaver({ save = saveImageEdit, onStatus, onSaved, onConflict }) {
   const entries = new Map() // id → { version, pending, timer, inflight, state, error }
   let disposed = false
 
@@ -180,7 +182,7 @@ export function createEditSaver({ onStatus, onSaved, onConflict }) {
     emit()
     e.inflight = (async () => {
       try {
-        const res = await saveImageEdit(id, edit, e.version)
+        const res = await save(id, edit, e.version)
         if (!res.ok) {
           e.pending = e.pending || edit
           e.state = 'conflict'

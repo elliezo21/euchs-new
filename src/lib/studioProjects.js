@@ -65,7 +65,7 @@ export async function loadMyProject(projectId) {
   const uid = requireUid()
   const { data, error } = await supabase
     .from('studio_projects')
-    .select('id, title, title_zh, source_type, offer_id, expires_at, created_at')
+    .select('id, title, title_zh, source_type, offer_id, expires_at, created_at, page, page_version')
     .eq('user_id', uid)
     .eq('id', projectId)
     .is('deleted_at', null)
@@ -173,6 +173,47 @@ export async function signViewUrl(path) {
     throw new Error(`사진 주소를 받지 못했어요: ${error?.message || '응답 없음'}`)
   }
   return { url: data.signedUrl, issuedAt }
+}
+
+// ── 페이지 문서 (4단계) — 브라우저에 허용된 컬럼: page, page_version ──
+
+/**
+ * 페이지 문서 저장 (낙관적 잠금: page_version이 내가 읽은 값일 때만 +1 하며 쓴다. 반영 0건 = 다른 창이 먼저 고침)
+ * createEditSaver({ save })에 넣어 쓴다 — 사진 edit 저장(studioEdit.saveImageEdit)과 같은 방식.
+ * @returns {{ ok: true, version: number } | { ok: false, conflict: true }}
+ */
+export async function saveProjectPage(projectId, page, curVersion) {
+  const uid = requireUid()
+  const { data, error } = await supabase
+    .from('studio_projects')
+    .update({ page, page_version: curVersion + 1 })
+    .eq('id', projectId)
+    .eq('user_id', uid)
+    .eq('page_version', curVersion)
+    .select('id, page_version')
+  if (error) {
+    console.error('[studioProjects] 페이지 저장 실패:', projectId, error.message)
+    throw new Error(`페이지를 저장하지 못했어요: ${error.message}`)
+  }
+  if (!data || data.length === 0) return { ok: false, conflict: true }
+  return { ok: true, version: data[0].page_version }
+}
+
+/** 서버의 최신 페이지 문서 (충돌 후 불러오기) */
+export async function fetchProjectPage(projectId) {
+  const uid = requireUid()
+  const { data, error } = await supabase
+    .from('studio_projects')
+    .select('id, page, page_version')
+    .eq('id', projectId)
+    .eq('user_id', uid)
+    .maybeSingle()
+  if (error) {
+    console.error('[studioProjects] 최신 페이지 조회 실패:', projectId, error.message)
+    throw new Error(`최신 내용을 불러오지 못했어요: ${error.message}`)
+  }
+  if (!data) throw new Error('작업을 찾을 수 없어요 (삭제됐거나 다른 계정).')
+  return data
 }
 
 /** 제목 바꾸기 (브라우저에 허용된 컬럼: title) */
