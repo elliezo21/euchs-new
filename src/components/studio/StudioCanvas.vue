@@ -616,6 +616,9 @@ function onSelection(opt) {
 }
 function onSelectionCleared() {
   if (replacing) return
+  // 붓·네모로 칠하는 중에 사진을 누르면 Fabric이 선택을 푼다. 실행 전 영역(초안)은 그대로 고른 채로 둔다
+  // (한도를 넘어 획이 거절되면 다시 고를 기회가 없어 [AI로 지우기]/[단색]이 꺼지던 문제)
+  if ((tool.value === 'brush' || tool.value === 'rect') && props.draft && props.selectedId === props.draft.id) return
   if (props.selectedId !== null) emit('select', null)
 }
 

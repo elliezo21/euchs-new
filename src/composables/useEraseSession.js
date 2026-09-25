@@ -217,6 +217,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     const strokes = [...(cur ? cur.brush.strokes : []), stroke]
     if (strokes.length > BRUSH_MAX_STROKES || brushPointCount({ strokes }) > BRUSH_MAX_POINTS) {
       showToast('한 영역에 칠할 수 있는 양을 넘었어요. 지금 칠한 곳을 먼저 [AI로 지우기]나 [단색]으로 지운 뒤 이어서 칠해 주세요.')
+      if (cur) selectedLayerId.value = cur.id // 안내대로 바로 실행할 수 있게 지금 초안을 고른 채로
       return
     }
     const bb = brushBBox(strokes, row.width, row.height)

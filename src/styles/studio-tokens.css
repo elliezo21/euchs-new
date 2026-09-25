@@ -43,6 +43,75 @@
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── 어두운 작업 화면 (편집기·지우기 화면) ─────────────────────────
+ * .studio-root.st-dark 안에서만 변수를 바꾼다 → 스튜디오 다른 화면·몰·관리자에는 영향 없음.
+ * 작업물(상세페이지·사진)은 색을 입히지 않는다. 강조색은 --st-accent 하나, AI 버튼만 --st-ai(주황).
+ * Tailwind dark: 변형은 쓰지 않는다 (tailwind.config에 darkMode가 없어 OS 설정을 따라가기 때문).
+ */
+.studio-root.st-dark {
+  --st-bg: #0c0d10;          /* 작업 바탕 (페이지 주변) */
+  --st-canvas-bg: #0c0d10;
+  --st-bar: #131519;         /* 상단바·아이콘 막대 */
+  --st-panel: #17191e;       /* 재료 패널·오른쪽 패널 */
+  --st-card: #1f2228;        /* 카드·버튼·입력칸 바탕 */
+  --st-card-hover: #262a31;
+  --st-surface: var(--st-panel);
+  --st-line: rgba(255, 255, 255, 0.06);
+  --st-line-strong: rgba(255, 255, 255, 0.10);
+  --st-ink: #ededf0;
+  --st-ink-2: #9a9ea8;
+  --st-muted: #6f747e;
+  --st-soft: var(--st-card);
+  --st-accent: #3d7bff;
+  --st-accent-soft: color-mix(in srgb, var(--st-accent) 16%, transparent);
+  --st-accent-ring: color-mix(in srgb, var(--st-accent) 28%, transparent);
+  --st-on-accent: #ffffff;
+  --st-ai: #ffb02e;          /* [원클릭 AI 자동 제작] · [AI로 지우기] */
+  --st-ai-text: #1f1403;
+  --st-danger-soft: color-mix(in srgb, var(--st-danger) 16%, transparent);
+  --st-drop-line: rgba(255, 255, 255, 0.14);
+  --st-drop-bg: #1a1c21;
+  --st-scrim: rgba(0, 0, 0, 0.62);
+  --st-overlay: rgba(0, 0, 0, 0.62);
+  --st-shadow-float: 0 8px 28px rgba(0, 0, 0, 0.55), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --st-shadow-page: 0 2px 16px rgba(0, 0, 0, 0.55);
+  color: var(--st-ink);
+  background: var(--st-bg);
+  color-scheme: dark;
+}
+/* 바탕이 --st-surface(패널색)인 요소 중 카드·버튼·입력칸은 한 단계 밝은 --st-card 로 */
+.studio-root.st-dark .st-card,
+.studio-root.st-dark .st-btn,
+.studio-root.st-dark .st-input,
+.studio-root.st-dark .st-chip,
+.studio-root.st-dark .st-seg,
+.studio-root.st-dark .st-placeholder,
+.studio-root.st-dark .st-modal { background: var(--st-card); }
+.studio-root.st-dark .st-modal { background: var(--st-panel); }
+.studio-root.st-dark .st-btn:hover:not(:disabled) { background: var(--st-card-hover); }
+.studio-root.st-dark .st-btn-primary, .studio-root.st-dark .st-btn-primary:hover:not(:disabled) { background: var(--st-accent); border-color: var(--st-accent); }
+.studio-root.st-dark .st-btn-danger, .studio-root.st-dark .st-btn-danger:hover:not(:disabled) { background: var(--st-danger); border-color: var(--st-danger); }
+.studio-root.st-dark .st-btn-ghost { background: transparent; border-color: transparent; }
+.studio-root.st-dark .st-btn-ghost:hover:not(:disabled) { background: var(--st-card); }
+.studio-root.st-dark .st-icon-btn:hover:not(:disabled) { background: var(--st-card); }
+.studio-root.st-dark .st-hover-soft:hover { background: var(--st-card); }
+.studio-root.st-dark .st-card-hover:hover { border-color: var(--st-line-strong); background: var(--st-card-hover); }
+.studio-root.st-dark .st-chip.is-active { background: var(--st-ink); color: var(--st-bg); }
+.studio-root.st-dark .st-seg-item.is-active { background: var(--st-card-hover); color: var(--st-ink); box-shadow: none; }
+.studio-root.st-dark .st-badge { background: var(--st-card-hover); color: var(--st-ink-2); }
+.studio-root.st-dark .st-badge-accent { background: var(--st-accent-soft); color: var(--st-accent); }
+.studio-root.st-dark .st-badge-white { background: var(--st-card); color: var(--st-ink); box-shadow: none; }
+.studio-root.st-dark .st-badge-danger { background: var(--st-danger-soft); color: #ff6b6b; }
+.studio-root.st-dark .st-danger-text { color: #ff6b6b; }
+.studio-root.st-dark .st-success-text { color: #3ddc84; }
+/* AI 버튼 — 주황 바탕, 어두운 글자 */
+.studio-root.st-dark .st-btn-ai, .studio-root .st-btn-ai {
+  background: var(--st-ai, #ffb02e); border-color: var(--st-ai, #ffb02e); color: var(--st-ai-text, #1f1403);
+}
+.studio-root .st-btn-ai:hover:not(:disabled) { background: var(--st-ai, #ffb02e); filter: brightness(1.06); }
+/* 페이지(작업물) — 항상 원래 색 */
+.studio-root.st-dark .st-page-sheet { background: #ffffff; color: #18181b; color-scheme: light; }
+
 /* ── 글자 단계 ─────────────────────────────────────────────── */
 .studio-root .st-h-hero, .studio-root .st-h-page, .studio-root .st-h-section { word-break: keep-all; }
 .studio-root .st-h-hero { font-size: 40px; font-weight: 800; letter-spacing: -0.03em; line-height: 1.2; color: var(--st-ink); }
