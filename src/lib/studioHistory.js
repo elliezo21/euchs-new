@@ -44,6 +44,7 @@ export const LABELS = {
   // 사진 패널 (6-2) — 페이지 이력: 바꾸기·빼기·꾸미기 / 사진 이력: 필터·조정
   elReplace: '사진 바꾸기',
   elRemovePhoto: '페이지에서 빼기',
+  elInsertPhoto: '페이지에 넣기',
   elStyle: '꾸미기',
   lookFilter: '필터',
   lookAdjust: '조정',

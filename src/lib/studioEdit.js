@@ -142,7 +142,8 @@ export async function fetchImageEdit(imageId) {
  *   flush(id?): 즉시 저장 (사진 전환·화면 떠날 때). 모두 저장됐으면 true
  *   status: 'saved' | 'pending' | 'saving' | 'error' | 'conflict' (가장 나쁜 상태)
  * ★ 범용: save(id, value, version)를 주입받는다 (기본 = 사진 edit 저장 saveImageEdit, 페이지 문서는 saveProjectPage).
- *   save는 낙관적 잠금으로 { ok: true, version } 또는 { ok: false, conflict: true }를 돌려주고, 실패는 throw.
+ *   save는 낙관적 잠금으로 { ok: true, version, edit? } 또는 { ok: false, conflict: true }를 돌려주고, 실패는 throw.
+ *   edit = 실제로 저장한 값 (저장 직전에 값을 고쳤을 때 — 사진 edit의 erase_v, studioFinal.stampEraseVersion)
  * @param {{ save?, onStatus(status, detail), onSaved(id, version, value), onConflict(id) }} hooks
  */
 export function createEditSaver({ save = saveImageEdit, onStatus, onSaved, onConflict }) {
@@ -205,7 +206,7 @@ export function createEditSaver({ save = saveImageEdit, onStatus, onSaved, onCon
           return
         }
         e.version = res.version
-        onSaved?.(id, res.version, edit)
+        onSaved?.(id, res.version, res.edit ?? edit) // save가 저장 직전에 고친 값(res.edit)이 있으면 그것이 서버 값
         e.state = e.pending ? 'pending' : 'saved'
         if (e.pending) e.timer = setTimeout(() => { run(id) }, SAVE_DELAY_MS)
       } catch (err) {

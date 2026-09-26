@@ -16,6 +16,7 @@ const ORIG = { width: 800, height: 600 }
 const files = new Map()   // storage path → Buffer
 let removed = []
 let editVersion = 7
+let editJson = { v: 2, layers: [] } // 예전 모양(erase_v 없음) = 지우기 버전 = edit_version
 let finalRendered = null
 const patches = []
 
@@ -52,13 +53,15 @@ globalThis.fetch = async (url, opts = {}) => {
   if (p === '/rest/v1/studio_images' && method === 'PATCH') {
     const body = JSON.parse(opts.body)
     patches.push({ q, body })
+    const lt = /final_rendered_version\.lt\.(\d+)/.exec(q) // or=(…is.null, …lt.N) — 더 새 기록을 덮지 않는 조건
     const ok = q.includes(`id=eq.${IMG}`) && q.includes(`user_id=eq.${UID}`) && q.includes(`edit_version=eq.${editVersion}`)
+      && (!lt || finalRendered === null || finalRendered < Number(lt[1]))
     if (ok) finalRendered = body.final_rendered_version
     return json(ok ? [{ id: IMG, final_rendered_version: finalRendered }] : [])
   }
   if (p === '/rest/v1/studio_images') {
     if (!q.includes(`user_id=eq.${UID}`)) return json([])
-    if (q.includes('select=edit_version')) return json(q.includes(`id=eq.${IMG}`) ? [{ edit_version: editVersion }] : [])
+    if (q.includes('select=edit_version')) return json(q.includes(`id=eq.${IMG}`) ? [{ edit_version: editVersion, edit: editJson }] : [])
     if (!q.includes(`project_id=eq.${PID}`)) return json([])
     if (q.includes(`id=eq.${IMG}`)) return json([{ id: IMG, ...ORIG, ingest_status: 'done' }])
     if (q.includes(`id=eq.${IMG_PENDING}`)) return json([{ id: IMG_PENDING, ...ORIG, ingest_status: 'pending' }])
@@ -150,6 +153,36 @@ const PATH = `${FOLDER}/${IMG}_v7.jpg`
   const stale = await conf(PATH)
   eq('확인 중 그 사이 edit_version이 바뀜 → 통과는 하되 최신으로 기록 안 함', [stale.code, stale.body.recorded, finalRendered], [200, false, null])
   editVersion = 7
+}
+
+// ── 6-3: 필터·조정만 바뀐 저장(edit_version만 오르고 erase_v 그대로)은 완성 사진을 무효로 만들지 않는다 ──
+{
+  const PATH7 = `${FOLDER}/${IMG}_v7.jpg`
+  files.set(PATH7, jpeg(800, 600))
+  finalRendered = null
+  editVersion = 9
+  editJson = { v: 2, layers: [], erase_v: 7, look: { filter: 'mono' } }
+  eq('필터만 바뀜(v9, 지우기 v7) → v7 prepare 통과', (await prep()).code, 200)
+  const r = await conf(PATH7)
+  eq('필터만 바뀜 → v7 굽기 최신으로 기록', [r.code, r.body.recorded, finalRendered], [200, true, 7])
+  eq('기록 조건: 읽은 edit_version=9에 건다', patches.at(-1).q.includes('edit_version=eq.9'), true)
+
+  editJson = { v: 2, layers: [], erase_v: 8 }
+  eq('지우기가 v8에 바뀜 → v7 prepare 409', (await prep()).body.code, 'final_stale')
+  finalRendered = null
+  const s = await conf(PATH7)
+  eq('지우기가 바뀜 → v7 확인은 통과, 기록 안 함', [s.code, s.body.recorded, finalRendered], [200, false, null])
+
+  editJson = { v: 2, layers: [], erase_v: 99 } // 이상한 값(edit_version보다 큼) → edit_version으로 봄
+  eq('이상한 erase_v → 예전 규칙(v7 ≠ v9 → 409)', (await prep()).body.code, 'final_stale')
+
+  editJson = { v: 2, layers: [], erase_v: 7 }
+  finalRendered = 8 // 더 새 버전으로 구운 기록이 이미 있음
+  const old = await conf(PATH7)
+  eq('더 새 기록(v8)이 있으면 옛 v7이 덮지 않음', [old.body.recorded, finalRendered], [false, 8])
+  finalRendered = null
+  editVersion = 7
+  editJson = { v: 2, layers: [] }
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)

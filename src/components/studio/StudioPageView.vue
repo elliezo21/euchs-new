@@ -2,6 +2,7 @@
   <div
     ref="rootEl" class="relative mx-auto" :style="{ width: `${doc.width * zoom}px`, height: `${total * zoom}px` }" data-page
     @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
+    @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop"
   >
     <!-- 구간 이름 (페이지 왼쪽 바깥) -->
     <div
@@ -16,7 +17,7 @@
     <div class="absolute inset-0 st-page-paper" @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext">
       <section
         v-for="s in doc.sections" :key="s.id"
-        class="absolute left-0 overflow-hidden"
+        class="absolute left-0 overflow-hidden" :class="dropSectionId === s.id ? 'st-drop-target' : ''"
         :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${doc.width * zoom}px`, height: `${s.height * zoom}px`, background: s.bg }"
         :data-section-id="s.id"
         @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
@@ -117,6 +118,7 @@ import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
+  DRAG_IMAGE_TYPE,
 } from '@/lib/studioPage'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
@@ -135,7 +137,8 @@ const props = defineProps({
 })
 // select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
 // open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })
-const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown'])
+// drop-image({ imageId, sectionId|null, x, y }) 목록 사진을 끌어다 놓음 (6-3, x·y = 그 구간 좌표)
+const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image'])
 
 const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
 const SNAP_PX = 6        // 화면 px — 이만큼 가까우면 달라붙는다
@@ -362,6 +365,30 @@ function sectionAt(e) {
   return r ? r.id : null
 }
 
+// ── 목록에서 끌어다 놓기 (6-3) — 목록 줄의 dataTransfer(DRAG_IMAGE_TYPE = 사진 id). 넣기는 편집기가 한다(dropImageAt) ──
+const dropSectionId = ref(null) // 끄는 동안 놓일 구간 (테두리만)
+const isImageDrag = e => !!e.dataTransfer && [...(e.dataTransfer.types || [])].includes(DRAG_IMAGE_TYPE)
+function onDragOver(e) {
+  if (!isImageDrag(e)) return
+  e.preventDefault() // 놓을 수 있다고 알린다
+  e.dataTransfer.dropEffect = 'copy'
+  dropSectionId.value = sectionAt(e)
+}
+function onDragLeave(e) {
+  if (!rootEl.value?.contains(e.relatedTarget)) dropSectionId.value = null
+}
+function onDrop(e) {
+  if (!isImageDrag(e)) return
+  e.preventDefault()
+  dropSectionId.value = null
+  const imageId = e.dataTransfer.getData(DRAG_IMAGE_TYPE)
+  if (!imageId) return
+  const p = pagePoint(e)
+  const sectionId = sectionAt(e)
+  const top = sectionId ? rowOf(sectionId).top : 0
+  emit('drop-image', { imageId, sectionId, x: p.x, y: p.y - top }) // x·y = 그 구간 좌표 (놓은 자리 = 사진 가운데)
+}
+
 /** 이 아이템이 보이게 스크롤 (사진 목록에서 골랐을 때) */
 function scrollToItem(itemId) {
   const root = rootEl.value?.querySelector(`[data-item-id="${itemId}"]`)
@@ -422,6 +449,8 @@ defineExpose({ scrollToItem, sectionInView, isBusy: () => !!act })
 /* 자리 비율과 사진 비율이 다를 때(사진 바꾸기·한쪽 손잡이) 찌그러뜨리지 않고 자리에 맞춰 채운다 — 내보내기(13단계)도 같은 규칙 */
 .st-item-img { object-fit: cover; }
 .st-snap-guide { background: var(--st-accent); z-index: 4; }
+/* 목록 사진을 끌고 있을 때 놓일 구간 (6-3) — 테두리만, 사진 위를 칠하지 않는다 */
+.st-drop-target::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: 3; }
 .st-marquee { border: 1px dashed var(--st-accent); background: var(--st-accent-soft); z-index: 4; }
 .st-resize-handle {
   position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; pointer-events: auto;

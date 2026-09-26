@@ -27,10 +27,13 @@
         </button>
         <span class="w-px h-6 mx-1" style="background: var(--st-line)" />
         <button type="button" class="st-btn st-btn-ghost" data-top-history @click="showToast('곧 추가될 기능이에요.')"><History class="w-4 h-4" :stroke-width="2" /> 이력</button>
-        <button type="button" class="st-btn st-btn-ghost" data-top-preview @click="showToast('곧 추가될 기능이에요.')"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
-        <button type="button" class="st-btn st-btn-primary" data-top-export @click="showToast('곧 추가될 기능이에요.')"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
+        <button type="button" class="st-btn st-btn-ghost" :class="step === 3 ? 'st-step-hint' : ''" data-top-preview @click="showToast('곧 추가될 기능이에요.')"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
+        <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" data-top-export @click="showToast('곧 추가될 기능이에요.')"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
       </div>
     </header>
+
+    <!-- 진행 단계 표시줄 (6-3): ① 사진 다듬기 → ② 페이지 꾸미기 → ③ 내보내기. 안내일 뿐, 아무 단계나 누를 수 있다 -->
+    <StudioStepBar v-if="project && isWide && !loading" :step="step" @go="goStep" />
 
     <p v-if="loading" class="p-6 st-desc">불러오는 중…</p>
     <p v-else-if="errorMsg" class="p-6 text-[14px] font-bold st-danger-text">{{ errorMsg }}</p>
@@ -79,9 +82,9 @@
           <StudioPhotoPanel
             v-if="activeTool === 'photo' || !isWide"
             :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-            :bake-state="bakeQueue.state"
+            :bake-state="bakeQueue.state" :placed-ids="placedIds"
             @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
-            @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded"
+            @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded" @insert="onInsertImage"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -102,7 +105,7 @@
               :looks="session.lookMap" :compare="compare"
               @select="onPageSelect" @change="onPageChange" @context="openContextMenu"
               @open-erase="openErase" @retry-image="retryView"
-              @visible="onPageVisible" @shown="onPageShown"
+              @visible="onPageVisible" @shown="onPageShown" @drop-image="onDropImage"
             />
           </div>
           <div v-else-if="page" class="absolute inset-0 flex items-center justify-center st-desc break-keep" data-page-empty>
@@ -279,6 +282,8 @@ import StudioPageView from '@/components/studio/StudioPageView.vue'
 import StudioTransformPanel from '@/components/studio/StudioTransformPanel.vue'
 import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
 import StudioImageItemPanel from '@/components/studio/StudioImageItemPanel.vue'
+import StudioStepBar from '@/components/studio/StudioStepBar.vue'
+import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
 import {
   loadMyProject, listEditorImages, signViewUrls, sortStudioImages, sortBySortOrder, hasSortOrderOverlap, setImageIncluded,
   renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL,
@@ -287,13 +292,14 @@ import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
 import { useBakeQueue } from '@/composables/useBakeQueue'
 import { fillCounts } from '@/lib/studioEdit'
+import { usableFinalVersion, sameLayers } from '@/lib/studioFinal'
 import { usePageSession } from '@/composables/usePageSession'
 import { createViewImageStore, finalPathOf } from '@/lib/studioViewImage'
 import {
   firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
   removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
-  setItemStyle, replaceItemImage, itemIdsOfImage,
+  setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
 } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
@@ -315,6 +321,19 @@ const RAIL = [
 ]
 const railItem = key => RAIL.find(r => r.key === key) || RAIL[2]
 
+// ── 진행 단계 표시줄 (6-3) — 지금 단계는 브라우저에만 기억 (작업별 localStorage, studioSteps). 처음 열면 ① ──
+const step = ref(STEP_DEFAULT)
+function stepStorage() {
+  try { return window.localStorage } catch (e) { console.warn('[StudioEditor] 브라우저 저장소를 쓸 수 없어 단계를 기억하지 않음:', e.message); return null }
+}
+/** 그 단계로 — 그 단계 작업 쪽으로 왼쪽 패널을 바꿔 준다 (① 사진, ② 구간. ③은 상단 미리보기·내보내기를 표시) */
+function goStep(n) {
+  const info = stepInfo(n)
+  step.value = info.no
+  writeStep(stepStorage(), project.value?.id, info.no)
+  if (info.panel && isWide.value) activeTool.value = info.panel
+}
+
 const route = useRoute()
 const router = useRouter()
 const project = ref(null)
@@ -333,6 +352,8 @@ const toast = ref('')
 const isWide = ref(true)
 const wideRight = ref(true)   // 1280px 이상: 오른쪽 패널 항상 열림
 const rightOpen = ref(true)
+// 작업을 열 때마다 그 작업에서 기억한 단계로 (패널은 바꾸지 않는다 — 처음 화면은 예전처럼 [사진])
+watch(() => project.value?.id, id => { step.value = readStep(stepStorage(), id) })
 let loadSeq = 0
 let leaveTarget = null
 let leaveBypass = false
@@ -568,6 +589,33 @@ async function applyIncluded(id, included, alsoPage) {
   if (alsoPage && page.value) applyPage(removeItems(page.value, itemIdsOfImage(page.value, id)), LABELS.elRemovePhoto)
   showToast(included ? '다시 쓰는 사진으로 옮겼어요.' : '안 쓸 사진으로 옮겼어요. [안 쓸 사진]에서 다시 쓸 수 있어요.')
 }
+// ── 목록에서 페이지로 넣기 (6-3) — 페이지 저장·되돌리기에 남는다 (applyPage). 넣은 사진을 고르고 보이게 스크롤 ──
+const placedIds = computed(() => (page.value ? pageImageIds(page.value) : null))
+function applyInsert(r) {
+  if (!r.itemId) {
+    console.error('[StudioEditor] 페이지에 넣지 못함 (크기를 모르는 사진이거나 구간이 가득 참)')
+    showToast('이 사진은 지금 페이지에 넣을 수 없어요. 구간을 정리한 뒤 다시 해 주세요.')
+    return
+  }
+  if (!applyPage(r.page, LABELS.elInsertPhoto)) return
+  const it = findItem(r.page, r.itemId)?.item
+  selectedItemIds.value = [r.itemId]
+  selectionSource = 'page'
+  if (it && it.imageId !== selectedImageId.value) selectImage(it.imageId)
+  nextTick(() => pageView.value?.scrollToItem(r.itemId))
+}
+/** [페이지에 넣기] — 지금 보이는 구간이 비었으면 거기, 아니면 그 아래 새 구간 (studioPage.insertImageNear) */
+function onInsertImage(imageId) {
+  const img = imagesById.value.get(imageId)
+  if (!page.value || !img || eraseOpen.value) return
+  applyInsert(insertImageNear(page.value, img, pageView.value?.sectionInView() || null))
+}
+/** 목록 사진을 페이지에 끌어다 놓음 — 놓은 구간의 놓은 자리 (studioPage.dropImageAt) */
+function onDropImage({ imageId, sectionId, x, y }) {
+  const img = imagesById.value.get(imageId)
+  if (!page.value || !img || img.ingest_status !== 'done' || eraseOpen.value) return
+  applyInsert(dropImageAt(page.value, img, sectionId, x, y))
+}
 function sectionOfItem(id) { return page.value ? findItem(page.value, id)?.section.id || null : null }
 function runCommand(name, args = {}) {
   const p = page.value
@@ -796,10 +844,12 @@ function notePerf() {
   const errors = rows.filter(r => views[r.id].status === 'error').length
   console.info(`[StudioEditor] 사진 ${rows.length}장 준비: 목록 ${ms(perf.listAt)}ms · 첫 사진 ${ms(perf.firstAt)}ms · 전부 ${ms(performance.now())}ms${errors ? ` · 못 받음 ${errors}장` : ''}`)
 }
-// 구운 사진(final JPG)이 최신이면 그 버전 — 지우기가 저장된 상태이고 final_rendered_version = edit_version일 때만 (아니면 실시간 합성)
+// 완성 사진(final JPG)을 쓸 수 있으면 그 버전 (아니면 실시간 합성) — 저장된 행 기준으로 그 뒤 지우기가 안 바뀌었고
+// (studioFinal.usableFinalVersion — 필터·조정만 바뀐 저장은 무효로 만들지 않는다), 화면의 지우기도 저장본과 같을 때만.
+// 필터·조정은 그 위에 화면에서 적용한다 (StudioPageView)
 function finalVersionOf(row) {
-  const v = row.edit_version
-  return Number.isInteger(v) && row.final_rendered_version === v && session.isSaved(row.id) && !bakeQueue.state[row.id] ? v : null
+  const f = usableFinalVersion(row)
+  return f !== null && sameLayers(session.layerMap[row.id], row.edit?.layers) && !bakeQueue.state[row.id] ? f : null
 }
 // 받을 사진 = 목록의 준비된(done) 사진 전부, 목록 순서 (페이지 기본 배치도 같은 순서 — 페이지에 없는 사진도 목록 썸네일에 쓴다)
 const viewWants = computed(() => {
@@ -827,7 +877,7 @@ const bakeQueue = useBakeQueue({
 /**
  * 굽기 요청 (지우기 화면 닫힘·[다시 시도]). 굽지 않는 경우:
  *   지우기 저장이 안 끝남(실패·충돌 — 상단 저장 상태가 알린다) / 지우기가 없음(원본이 곧 최종) /
- *   결과 없는 AI 레이어가 있음("다시 지우기를 마치면 적용돼요") / 이미 최신(final_rendered_version = edit_version)
+ *   결과 없는 AI 레이어가 있음("다시 지우기를 마치면 적용돼요") / 이미 최신(그 뒤 지우기가 안 바뀜 — usableFinalVersion)
  */
 async function requestBake(id) {
   const row = images.value.find(i => i.id === id && i.ingest_status === 'done')
@@ -841,7 +891,7 @@ async function requestBake(id) {
   const counts = fillCounts(layers)
   if (counts.redo > 0) { bakeQueue.markBlocked(id); return }
   if (counts.done === 0) { bakeQueue.clear(id); return }
-  if (row.final_rendered_version === row.edit_version) { bakeQueue.clear(id); return }
+  if (usableFinalVersion(row) !== null) { bakeQueue.clear(id); return }
   bakeQueue.request(row, layers, row.edit_version)
 }
 function clearViews() {
@@ -867,7 +917,7 @@ function imageLabel(img) {
 }
 
 // ── 사진 서명 URL(10분) — 열 때 한 번에 묶어 받고, 만료 전에 다시 묶어 받는다 (나중에 다시 그릴 때 사진마다 따로 받지 않게) ──
-// 원본 + 최신 적용 사진(final JPG, final_rendered_version = edit_version)
+// 원본 + 쓸 수 있는 완성 사진(final JPG, usableFinalVersion)
 const VIEW_URL_REFRESH_MS = (SIGNED_URL_TTL - 60) * 1000
 let viewUrlsIssuedAt = 0
 function viewPathsOf(rows) {
@@ -875,8 +925,9 @@ function viewPathsOf(rows) {
   for (const r of rows) {
     if (r.ingest_status !== 'done' || !r.original_path) continue
     out.push(r.original_path)
-    if (Number.isInteger(r.edit_version) && r.edit_version > 0 && r.final_rendered_version === r.edit_version) {
-      try { out.push(finalPathOf(r, r.edit_version)) } catch (e) { console.error('[StudioEditor] 적용 사진 경로를 만들 수 없음 (원본으로 그림):', r.id, e.message) }
+    const f = usableFinalVersion(r)
+    if (f !== null) {
+      try { out.push(finalPathOf(r, f)) } catch (e) { console.error('[StudioEditor] 적용 사진 경로를 만들 수 없음 (원본으로 그림):', r.id, e.message) }
     }
   }
   return out
@@ -1125,7 +1176,7 @@ function onBeforeUnload(e) {
 // 6-1 페이지 요소 (지우기 화면·모달·우클릭 메뉴·입력칸에서는 동작 안 함):
 //   Ctrl+A 보이는 구간 전체 선택 · Ctrl+C/V/X 복사·붙여넣기·잘라내기 · Ctrl+D 복제 · Delete/Backspace 삭제 · Esc 선택 해제
 //   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
-// (사용가이드는 16단계 — 생기면 여기서 막는다)
+// (사용가이드는 14단계 — 생기면 여기서 막는다)
 function onKeyDown(e) {
   if (!isWide.value || anyModalOpen.value || ctx.open || e.altKey) return
   const t = e.target
@@ -1249,6 +1300,8 @@ onUnmounted(() => {
 
 <style scoped>
 /* 사진 바꾸기 고르기 칸 (6-2) */
+/* 진행 단계 ③일 때 상단 미리보기·내보내기 자리를 알려 준다 (6-3) */
+.st-step-hint { box-shadow: 0 0 0 2px var(--st-accent-ring); }
 .st-replace-cell { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; border: 2px solid transparent; background: var(--st-card); cursor: pointer; padding: 0; }
 .st-replace-cell:hover:not(:disabled) { border-color: var(--st-accent); }
 .st-replace-cell.is-current { border-color: var(--st-line-strong); opacity: 0.55; cursor: default; }

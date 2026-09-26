@@ -15,9 +15,10 @@
  */
 import { ref, shallowRef, reactive, computed, watch } from 'vue'
 import {
-  readLayers, buildEdit, fillLayersOf, fillCounts, isValidFillLayer, newFillId, createEditSaver, fetchImageEdit,
+  readLayers, buildEdit, fillLayersOf, fillCounts, isValidFillLayer, newFillId, createEditSaver, fetchImageEdit, saveImageEdit,
   MAX_LAYERS, PAD_MIN, PAD_MAX, PAD_DEFAULT,
 } from '@/lib/studioEdit'
+import { stampEraseVersion, withoutEraseVersion } from '@/lib/studioFinal'
 import {
   createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, jumpTo as jumpHistory,
   clear as clearHistory, canRedo, list as listHistory, current as currentStep, amendCurrent as amendHistory,
@@ -52,9 +53,12 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   let saver = makeSaver()
 
   function rowOf(id) { return images.value.find(i => i.id === id) }
-  /** 저장할 edit — 화면의 지우기 레이어 + 화면의 look (look을 아직 모르면 저장된 값) */
+  /**
+   * 저장할 edit — 화면의 지우기 레이어 + 화면의 look (look을 아직 모르면 저장된 값).
+   * erase_v(지우기가 마지막으로 바뀐 버전, studioFinal)는 여기서 떼고 저장 직전에 찍는다 (이력 비교에 끼지 않게)
+   */
   function editOf(id, layers = layerMap[id] || [], look = lookMap[id] ?? readLook(rowOf(id)?.edit)) {
-    return withLook(buildEdit(rowOf(id)?.edit, layers), look)
+    return withoutEraseVersion(withLook(buildEdit(rowOf(id)?.edit, layers), look))
   }
   // 목록 표시용: { done: 결과 있는 지우기, redo: 결과 조각 없이 남은 AI } (studioEdit.fillCounts)
   function fillCount(id) { return fillCounts(layerMap[id] || []) }
@@ -85,6 +89,13 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
 
   function makeSaver() {
     return createEditSaver({
+      // 저장 직전 erase_v를 찍는다: 직전 저장본(row.edit = curVersion의 값 — 한 사진의 저장은 차례대로라 onSaved가 먼저 맞춰 둔다)과
+      // layers가 같으면(필터·조정만 바뀜) 직전 값 유지 → 완성 사진(final JPG)이 그대로 유효 (studioFinal.usableFinalVersion)
+      async save(id, edit, curVersion) {
+        const stamped = stampEraseVersion(edit, rowOf(id)?.edit, curVersion)
+        const res = await saveImageEdit(id, stamped, curVersion)
+        return res.ok ? { ...res, edit: stamped } : res
+      },
       onStatus(status, detail) {
         saveStatus.value = status
         saveDetail.value = detail?.error || ''
@@ -128,7 +139,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       saver.reset(row.id, row.edit_version)
       // 이력: 처음이면 서버 값이 첫 단계. 이미 있는데 서버 값이 이력의 현재와 다르면(다른 창에서 고침) 서버 값으로 새로 시작
       const h = histories[row.id]
-      const serverEdit = buildEdit(row.edit, layerMap[row.id])
+      const serverEdit = withoutEraseVersion(buildEdit(row.edit, layerMap[row.id]))
       if (!h) histories[row.id] = createHistory(serverEdit)
       else if (JSON.stringify(currentStep(h).edit.layers) !== JSON.stringify(serverEdit.layers)) histories[row.id] = clearHistory(h, serverEdit)
     }
@@ -459,7 +470,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       lookMap[id] = readLook(fresh.edit)
       saver.reset(id, fresh.edit_version)
       // 서버 최신본을 불러오면 그 사진의 이력은 비우고 불러온 상태를 첫 단계로
-      histories[id] = createHistory(buildEdit(fresh.edit, layerMap[id]), LABELS.reload)
+      histories[id] = createHistory(withoutEraseVersion(buildEdit(fresh.edit, layerMap[id])), LABELS.reload)
       if (id === selectedImageId.value && !layerMap[id].some(l => l.id === selectedLayerId.value)) selectedLayerId.value = null
       conflictId.value = null
     } catch (e) {

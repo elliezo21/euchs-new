@@ -3,7 +3,7 @@ import {
   readPage, normalizeItem, normAngle, itemBounds, moveItems, resizeRect, setItemRect, setRotation, rotateBy, flipItems,
   setOpacity, setLocked, setHidden, alignItems, reorderItems, removeItems, copyItems, pasteItems, duplicateItems,
   sectionItemIds, itemsInBox, snapMove, findItem, ITEM_MIN_SIZE, PASTE_OFFSET,
-  itemStyleOf, setItemStyle, replaceItemImage, itemIdsOfImage,
+  itemStyleOf, setItemStyle, replaceItemImage, itemIdsOfImage, insertImageNear, dropImageAt,
 } from '../src/lib/studioPage.js'
 
 let pass = 0, fail = 0
@@ -165,6 +165,35 @@ const r2 = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.ro
   eq('parked에 있던 사진으로 바꾸면 parked에서 빠짐', replaceItemImage({ ...P, parked: ['Z'] }, 'a', 'Z').parked, ['A'])
   eq('같은 사진 → 문서 그대로', replaceItemImage(P, 'a', 'A') === P, true)
   eq('이 사진의 요소들', itemIdsOfImage(duplicateItems(P, ['a']).page, 'A').length, 2)
+}
+
+// ── 목록에서 페이지로 넣기 (6-3) ──
+{
+  const N = { id: 'N', width: 1000, height: 500 }   // 780 폭 → 높이 390
+  const E = { ...P, parked: ['N'], sections: [...P.sections, { id: 's3', height: 900, bg: '#ffffff', items: [] }] }
+  // 보이는 구간이 비어 있음 → 그 구간에 폭에 맞춰, 구간 높이 = 사진 비율
+  const r1 = insertImageNear(E, N, 's3')
+  const s3 = r1.page.sections.find(s => s.id === 's3')
+  eq('빈 구간에 넣기 → 그 구간에 폭에 맞춰', [s3.height, rect(r1.page, r1.itemId), it(r1.page, r1.itemId).imageId], [390, [0, 0, 780, 390], 'N'])
+  eq('…구간 수 그대로, parked에서 빠짐', [r1.page.sections.length, r1.page.parked], [3, []])
+  // 보이는 구간에 사진이 있음 → 바로 아래 새 구간
+  const r2_ = insertImageNear(E, N, 's1')
+  eq('사진 있는 구간 → 바로 아래 새 구간', r2_.page.sections.map(s => s.id === 's1' || s.id === 's2' || s.id === 's3' ? s.id : 'new'), ['s1', 'new', 's2', 's3'])
+  eq('…새 구간 = 폭에 꽉, 비율 유지', [r2_.page.sections[1].height, rect(r2_.page, r2_.itemId)], [390, [0, 0, 780, 390]])
+  eq('구간을 모르면 맨 아래', insertImageNear(P, N, null).page.sections.at(-1).items[0].imageId, 'N')
+  eq('이미 페이지에 있는 사진도 한 번 더', itemIdsOfImage(insertImageNear(P, { id: 'A', width: 100, height: 100 }, 's2').page, 'A').length, 2)
+  eq('크기를 모르는 사진 → 그대로', insertImageNear(P, { id: 'Z' }, 's1').page === P, true)
+
+  // 끌어다 놓기: 놓은 구간의 놓은 자리(가운데)에, 폭의 절반·비율 유지
+  const d = dropImageAt(P, N, 's2', 400, 150)
+  eq('놓은 자리 가운데에 폭 절반(390×195)', rect(d.page, d.itemId), [205, 53, 390, 195])
+  eq('…그 구간 맨 앞(배열 끝)', order(d.page, 's2').at(-1), d.itemId)
+  const edge = dropImageAt(P, N, 's2', 770, 5)
+  eq('구간 가장자리에 놓아도 최소 40px은 구간 안', rect(edge.page, edge.itemId).slice(0, 2), [575, -92])
+  const de = dropImageAt(E, N, 's3', 10, 10)
+  eq('빈 구간에 놓으면 폭에 맞춰 채움', rect(de.page, de.itemId), [0, 0, 780, 390])
+  eq('구간 밖에 놓으면 맨 아래 새 구간', dropImageAt(P, N, null, 0, 0).page.sections.length, 3)
+  eq('입력 문서는 바뀌지 않음 (넣기)', JSON.stringify(E.sections[2].items), '[]')
 }
 
 eq('입력 문서는 바뀌지 않음', JSON.stringify(P) === snapshot, true)

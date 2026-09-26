@@ -16,7 +16,11 @@
       {{ tab === 'unused' ? '안 쓸 사진이 없어요. 목록에서 사진 오른쪽 버튼으로 옮길 수 있어요.' : '쓰는 사진이 없어요. [안 쓸 사진]에서 다시 쓰기를 눌러 보세요.' }}
     </p>
     <ol ref="listEl" class="flex-1 overflow-y-auto p-2 space-y-0.5">
-      <li v-for="img in shownImages" :key="img.id" class="relative group">
+      <li
+        v-for="img in shownImages" :key="img.id" class="relative group"
+        :draggable="canInsert(img) ? 'true' : 'false'" :data-drag-image="canInsert(img) ? img.id : null"
+        @dragstart="onDragStart($event, img)"
+      >
         <!-- 안 쓸 사진으로 옮기기 / 다시 쓰기 (줄 오른쪽 위) -->
         <button
           v-if="img.ingest_status === 'done'" type="button" class="st-icon-btn st-include-btn"
@@ -71,6 +75,15 @@
               <span class="block st-muted">지운 내용은 저장돼 있어요</span>
             </div>
             <div v-else-if="bakeOf(img.id)?.status === 'blocked'" class="text-[11px] st-muted break-keep" data-bake-state="blocked">{{ bakeOf(img.id).message }}</div>
+            <!-- 페이지에 있음/없음 + 페이지에 넣기 (6-3) — 지금 보이는 구간이 비었으면 거기, 아니면 그 아래 새 구간. 이미 있으면 한 번 더 -->
+            <div v-if="canInsert(img)" class="mt-0.5 flex items-center gap-1.5 text-[11px]" :data-placed="isPlaced(img.id) ? '1' : '0'">
+              <span :class="isPlaced(img.id) ? 'st-ink-2' : 'st-muted'">{{ isPlaced(img.id) ? '페이지에 있음' : '페이지에 없음' }}</span>
+              <span
+                role="button" tabindex="0" class="st-insert-link" :data-insert-image="img.id"
+                :title="isPlaced(img.id) ? '이 사진을 페이지에 한 번 더 넣어요' : '지금 보고 있는 자리에 이 사진을 넣어요 (끌어다 놓아도 돼요)'"
+                @click.stop="$emit('insert', img.id)" @keydown.enter.stop.prevent="$emit('insert', img.id)" @dblclick.stop
+              ><SquarePlus class="w-3 h-3" :stroke-width="2.5" />{{ isPlaced(img.id) ? '한 번 더 넣기' : '페이지에 넣기' }}</span>
+            </div>
           </div>
         </button>
       </li>
@@ -80,10 +93,12 @@
 </template>
 
 <script setup>
-// [사진] 재료 패널 (3단계: 편집기 왼쪽에 있던 사진 목록을 옮김. 업로드 버튼·탭·끌어다 놓기는 7단계)
+// [사진] 재료 패널 (3단계: 편집기 왼쪽에 있던 사진 목록을 옮김. 업로드 버튼·탭은 7단계)
+// 6-3: 줄마다 "페이지에 있음/없음" + [페이지에 넣기]·[한 번 더 넣기], 줄을 페이지로 끌어다 놓아도 넣어진다
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
-import { Image as ImageIcon, ImagePlus, RefreshCw, Archive, ArchiveRestore } from 'lucide-vue-next'
+import { Image as ImageIcon, ImagePlus, RefreshCw, Archive, ArchiveRestore, SquarePlus } from 'lucide-vue-next'
 import { KIND_LABEL } from '@/lib/studioProjects'
+import { DRAG_IMAGE_TYPE } from '@/lib/studioPage'
 import { studioErrorMessage } from '@/lib/studioApi'
 import { afterPaint } from '@/lib/studioImageCache'
 
@@ -94,11 +109,25 @@ const props = defineProps({
   fillCount: { type: Function, required: true },     // image id → { done: 결과 있는 지우기 수, redo: 결과 없이 남은 AI 수 }
   orderError: { type: String, default: '' },
   bakeState: { type: Object, default: () => ({}) },              // image id → { status, message } (useBakeQueue)
+  placedIds: { type: Array, default: null },                      // 페이지에 놓인 사진 id (6-3, studioPage.pageImageIds). null = 페이지 없음(넣기 숨김)
 })
 // retry-image(id): 썸네일 다시 만들기 / visible(ids): 목록에서 지금 보이는 사진 (먼저 받게)
 // shown({ id, ok }): 썸네일 <img>가 실제로 화면에 그려짐(ok) 또는 못 그림 — 편집기가 AI 엔진 켜는 시점을 정한다
 // set-included(id, included): 안 쓸 사진으로 옮기기(false) / 다시 쓰기(true) — 저장·페이지 안내는 편집기가 한다
-const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible', 'shown', 'set-included'])
+// insert(id): 페이지에 넣기 (6-3) — 어디에 넣을지는 편집기가 정한다(지금 보이는 구간). 끌어다 놓기는 페이지가 받는다(DRAG_IMAGE_TYPE)
+const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible', 'shown', 'set-included', 'insert'])
+
+// ── 페이지에 넣기 (6-3) — 준비된(done) 사진만. 안 쓸 사진은 [다시 쓰기] 뒤에 넣는다 ──
+const placedSet = computed(() => new Set(props.placedIds || []))
+const isPlaced = id => placedSet.value.has(id)
+const canInsert = img => props.placedIds !== null && img.ingest_status === 'done' && img.included !== false && !!img.width && !!img.height
+function onDragStart(e, img) {
+  if (!canInsert(img) || !e.dataTransfer) { e.preventDefault(); return }
+  e.dataTransfer.setData(DRAG_IMAGE_TYPE, img.id)
+  e.dataTransfer.effectAllowed = 'copy'
+  const thumb = e.currentTarget.querySelector('[data-thumb-state] img')
+  if (thumb) e.dataTransfer.setDragImage(thumb, 28, 28) // 끄는 동안 썸네일만 따라온다
+}
 
 // [사용] / [안 쓸 사진] 탭 (included = false면 안 쓸 사진). 번호는 전체 목록 순서 그대로
 const tab = ref('used')
@@ -174,4 +203,11 @@ onBeforeUnmount(() => { io?.disconnect(); mo?.disconnect() })
 /* 줄 오른쪽 위 [안 쓸 사진으로]·[다시 쓰기] — 마우스를 올리거나 키보드로 갔을 때만 */
 .st-include-btn { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; z-index: 1; opacity: 0; background: var(--st-card); }
 .group:hover .st-include-btn, .st-include-btn:focus-visible { opacity: 1; }
+/* 페이지에 넣기 (6-3) — 줄 안의 작은 글자 버튼 */
+.st-insert-link {
+  display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; cursor: pointer; font-weight: 700;
+  color: var(--st-accent); border: 1px solid var(--st-line-strong); background: var(--st-card);
+}
+.st-insert-link:hover, .st-insert-link:focus-visible { border-color: var(--st-accent); }
+li[draggable="true"] { cursor: grab; }
 </style>

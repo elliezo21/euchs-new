@@ -28,12 +28,13 @@
  *
  * ── 지운 사진 굽기 (5단계) ── 편집기가 브라우저에서 "원본 + 지우기 결과"를 원본 크기 JPG(품질 95)로 구워 저장한다. 같은 2단계 방식.
  * POST { action:'final_prepare', projectId, imageId, version, width, height, size }
- *   version = 구울 때의 studio_images.edit_version (지금 DB 값과 같아야 함 — 아니면 409 final_stale)
+ *   version = 구울 때의 studio_images.edit_version (그 뒤 지우기가 안 바뀌었어야 함 — 아니면 409 final_stale.
+ *   필터·조정만 바뀐 저장은 edit_version만 올리고 edit.erase_v는 그대로라 괜찮다 — 6-3, eraseVersionOf)
  *   → { exists:true, path } | { path, token }   경로 = {uid}/{projectId}/final/{imageId}_v{version}.jpg (서버가 만든다)
  *   같은 경로 덮어쓰기는 서명 업로드가 막으므로(409) 버전마다 새 파일. 옛 버전 파일은 지우지 않는다(정리는 나중).
  * POST { action:'final_confirm', projectId, imageId, version, path }
  *   서버가 파일을 읽어 JPEG 매직바이트·20MB 이하·가로세로 = 원본 검사, 불합격이면 삭제 + 오류.
- *   합격이면 studio_images.final_rendered_version = version (edit_version이 아직 version일 때만 — 그 사이 지우기가 바뀌었으면 기록 안 함)
+ *   합격이면 studio_images.final_rendered_version = version (그 사이 지우기가 바뀌었거나 더 새 버전 기록이 있으면 기록 안 함)
  *   → { ok:true, recorded:true|false, width, height }
  * 에러: invalid_input·project_expired·final_invalid·final_too_large·not_uploaded 400 / final_stale 409 / not_found 404 / sign_failed·storage_error·internal 500
  *
@@ -501,16 +502,32 @@ async function patchConfirm(ctx, body, res) {
 }
 
 // ── 지운 사진 굽기 (5단계) ────────────────────────────────────────────────────
-/** 굽기 대상: loadPatchTarget과 같은 소유·만료·done 검사 + 지금 edit_version. 막히면 응답을 보내고 null */
+/**
+ * 지우기(layers)가 마지막으로 바뀐 버전 — src/lib/studioFinal.js eraseVersionOf와 같은 규칙 (바꾸면 둘 다).
+ * edit.erase_v가 없거나 이상하면 editVersion (예전 규칙: 구운 버전 = 지금 edit_version일 때만 유효)
+ */
+function eraseVersionOf(edit, editVersion) {
+  const v = edit && typeof edit === 'object' ? edit.erase_v : undefined
+  if (!Number.isInteger(editVersion)) return null
+  return Number.isInteger(v) && v >= 0 && v <= editVersion ? v : editVersion
+}
+
+/** 그 버전으로 구운 사진이 지금 지우기와 같은지 — 그 뒤 필터·조정만 바뀐 저장(edit_version만 오름)은 괜찮다 */
+function finalStillFresh(t) {
+  return Number.isInteger(t.editVersion) && t.editVersion >= t.version && t.eraseVersion <= t.version
+}
+
+/** 굽기 대상: loadPatchTarget과 같은 소유·만료·done 검사 + 지금 edit_version·지우기 버전. 막히면 응답을 보내고 null */
 async function loadFinalTarget(ctx, body, res) {
   const version = Number(body.version)
   if (!Number.isInteger(version) || version < 1) { sendError(res, 400, 'invalid_input', 'version 형식이 올바르지 않습니다.'); return null }
   const t = await loadPatchTarget(ctx, body, res)
   if (!t) return null
-  const rows = await sb(ctx.cfg, `studio_images?select=edit_version&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
+  const rows = await sb(ctx.cfg, `studio_images?select=edit_version,edit&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
   const editVersion = Array.isArray(rows) && rows[0] ? rows[0].edit_version : null
+  const eraseVersion = Array.isArray(rows) && rows[0] ? eraseVersionOf(rows[0].edit, editVersion) : null
   const folder = `${ctx.userId}/${t.project.id}/final`
-  return { ...t, version, editVersion, folder, name: `${t.image.id}_v${version}.jpg` }
+  return { ...t, version, editVersion, eraseVersion, folder, name: `${t.image.id}_v${version}.jpg` }
 }
 
 async function finalPrepare(ctx, body, res) {
@@ -521,7 +538,7 @@ async function finalPrepare(ctx, body, res) {
   if (width !== t.image.width || height !== t.image.height) {
     return sendError(res, 400, 'final_invalid', '구운 사진의 가로·세로가 원본과 다릅니다.')
   }
-  if (t.editVersion !== t.version) return sendError(res, 409, 'final_stale', '그 사이 지우기가 바뀌었습니다. 최신 내용으로 다시 구워 주세요.')
+  if (!finalStillFresh(t)) return sendError(res, 409, 'final_stale', '그 사이 지우기가 바뀌었습니다. 최신 내용으로 다시 구워 주세요.')
   const path = `${t.folder}/${t.name}`
   let names
   try {
@@ -575,11 +592,16 @@ async function finalConfirm(ctx, body, res) {
     }
     return sendError(res, 400, bad[0], bad[1])
   }
-  // 최신 기록: 지우기가 아직 이 버전일 때만 (그 사이 바뀌었으면 옛 굽기가 최신 표시를 덮지 않게 기록하지 않는다)
-  const updated = await sb(ctx.cfg,
-    `studio_images?id=eq.${t.image.id}&user_id=eq.${ctx.userId}&edit_version=eq.${t.version}`,
-    { method: 'PATCH', body: { final_rendered_version: t.version }, prefer: 'return=representation' })
-  const recorded = Array.isArray(updated) && updated.length > 0
+  // 최신 기록: 그 뒤 지우기가 안 바뀌었을 때만 (필터·조정만 바뀐 건 괜찮다). 조건 확인 뒤 바뀌지 않게 읽은 edit_version에 걸고,
+  // 더 새 버전으로 구운 기록을 옛 버전이 덮지 않게 final_rendered_version이 비었거나 더 작을 때만
+  let recorded = false
+  if (finalStillFresh(t)) {
+    const updated = await sb(ctx.cfg,
+      `studio_images?id=eq.${t.image.id}&user_id=eq.${ctx.userId}&edit_version=eq.${t.editVersion}`
+        + `&or=(final_rendered_version.is.null,final_rendered_version.lt.${t.version})`,
+      { method: 'PATCH', body: { final_rendered_version: t.version }, prefer: 'return=representation' })
+    recorded = Array.isArray(updated) && updated.length > 0
+  }
   if (!recorded) console.info(`[studio-upload] final ${path} 확인됨 — 그 사이 지우기가 바뀌어 최신으로 기록하지 않음`)
   return res.status(200).json({ ok: true, recorded, width: dims.width, height: dims.height })
 }

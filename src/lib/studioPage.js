@@ -392,6 +392,57 @@ export function unparkImage(page, img, sectionId = null) {
   return { ...page, sections: [...page.sections, imageSection(img, page.width)], parked }
 }
 
+// ── 목록에서 페이지로 넣기 (6-3) — [페이지에 넣기] 버튼·끌어다 놓기. 이미 페이지에 있는 사진도 한 번 더 넣을 수 있다 ──
+export const DROP_WIDTH_RATIO = 0.5 // 끌어다 놓은 사진의 폭 = 페이지 폭의 절반 (비율 유지)
+export const DRAG_IMAGE_TYPE = 'application/x-euchs-studio-image' // 목록 → 페이지 끌기의 dataTransfer 종류 (값 = 사진 id)
+
+/** 요소가 하나도 없는 구간 (사진을 뺀 빈 구간) */
+export function isEmptySection(s) {
+  return !!s && Array.isArray(s.items) && s.items.length === 0
+}
+
+/**
+ * [페이지에 넣기] — sectionId(지금 보이는 구간)가 비어 있으면 그 구간에 폭에 맞춰 넣고 구간 높이를 사진 비율에 맞춘다.
+ * 아니면 그 구간 바로 아래에 사진 1장 구간을 새로 만든다 (첫 배치와 같은 규칙: 폭에 꽉 차게, 비율 유지).
+ * sectionId가 없거나 없는 구간이면 맨 아래. parked에 있던 사진이면 parked에서 뺀다.
+ * @param {{ id, width, height }} img
+ * @returns {{ page, itemId: string|null }} 넣을 수 없으면 page 그대로, itemId null
+ */
+export function insertImageNear(page, img, sectionId = null) {
+  if (!hasSize(img)) return { page, itemId: null }
+  const idx = sectionId ? page.sections.findIndex(s => s.id === sectionId) : -1
+  const parked = page.parked.filter(x => x !== img.id)
+  if (idx >= 0 && isEmptySection(page.sections[idx])) {
+    const h = fitHeight(page.width, img.width, img.height)
+    const item = newImageItem(img.id, 0, 0, page.width, h)
+    const sections = page.sections.map((s, i) => (i === idx ? { ...s, height: h, items: [item] } : s))
+    return { page: { ...page, sections, parked }, itemId: item.id }
+  }
+  if (page.sections.length >= SECTION_MAX) return { page, itemId: null }
+  const sec = imageSection(img, page.width)
+  const sections = [...page.sections]
+  sections.splice(idx >= 0 ? idx + 1 : sections.length, 0, sec)
+  return { page: { ...page, sections, parked }, itemId: sec.items[0].id }
+}
+
+/**
+ * 끌어다 놓기 — 놓은 구간의 놓은 자리(구간 좌표 x·y = 사진 가운데)에 페이지 폭의 절반 크기로(비율 유지) 맨 앞에 넣는다.
+ * 빈 구간에 놓으면 [페이지에 넣기]처럼 폭에 맞춰 채운다. 구간 밖(sectionId 없음)에 놓으면 맨 아래 새 구간.
+ * @returns {{ page, itemId: string|null }}
+ */
+export function dropImageAt(page, img, sectionId, x, y) {
+  if (!hasSize(img)) return { page, itemId: null }
+  const s = sectionId ? page.sections.find(v => v.id === sectionId) : null
+  if (!s || isEmptySection(s)) return insertImageNear(page, img, s ? s.id : null)
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return { page, itemId: null }
+  const w = Math.max(ITEM_MIN_SIZE, Math.round(page.width * DROP_WIDTH_RATIO))
+  const h = Math.max(ITEM_MIN_SIZE, Math.round(w * img.height / img.width))
+  const item = newImageItem(img.id, 0, 0, w, h)
+  const p = clampItemPosition(item, s, page.width, x - w / 2, y - h / 2)
+  const next = addItem(page, s.id, { ...item, x: p.x, y: p.y })
+  return next === page ? { page, itemId: null } : { page: next, itemId: item.id }
+}
+
 // ── 공통 조작 (6-1단계) — 사진·글자·도형 모든 요소 공통. ids = 요소 id 배열 ──
 // ★ 잠긴 요소(locked)는 이동·크기·회전·뒤집기·정렬·삭제·잘라내기를 하지 않는다 (선택·순서·투명도·숨기기·복제·복사는 된다).
 // ★ 복제·붙여넣기로 만든 요소는 잠금을 풀어 둔다 (새로 만든 것을 바로 옮길 수 있게).
