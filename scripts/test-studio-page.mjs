@@ -30,7 +30,7 @@ const IMGS = [
   eq('사진이 구간을 꽉 채움', p.sections.map(s => { const it = s.items[0]; return [it.x, it.y, it.w, it.h] }), [[0, 0, 780, 780], [0, 0, 780, 1170], [0, 0, 780, 260]])
   eq('순서 = 목록 순서', pageImageIds(p), ['a', 'b', 'c'])
   eq('아이템 기본값', (({ id, ...r }) => r)(p.sections[0].items[0]),
-    { type: 'image', imageId: 'a', x: 0, y: 0, w: 780, h: 780, opacity: 1, flipX: false, flipY: false, locked: false, hidden: false })
+    { type: 'image', imageId: 'a', x: 0, y: 0, w: 780, h: 780, rotation: 0, opacity: 1, flipX: false, flipY: false, locked: false, hidden: false })
   eq('구간 배경 기본 흰색', p.sections.every(s => s.bg === SECTION_BG), true)
   eq('기본 배치 검사 통과', pageProblems(p), [])
   eq('주소는 저장하지 않음 (imageId만)', JSON.stringify(p).includes('http'), false)

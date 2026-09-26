@@ -14,7 +14,7 @@ import { ref, shallowRef, computed } from 'vue'
 import { createEditSaver } from '@/lib/studioEdit'
 import { saveProjectPage, fetchProjectPage } from '@/lib/studioProjects'
 import {
-  createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo, current as currentStep, LABELS,
+  createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, canUndo, canRedo, current as currentStep, amendCurrent, LABELS,
 } from '@/lib/studioHistory'
 import { readPage, buildInitialPage, checkPageSize, PAGE_MAX_BYTES } from '@/lib/studioPage'
 
@@ -51,6 +51,7 @@ export function usePageSession({ usableImages, showToast }) {
   const canRedoNow = computed(() => canRedo(history.value))
 
   function startWith(doc, label) {
+    lastMerge = null
     page.value = doc
     history.value = createHistory(doc, label)
   }
@@ -80,11 +81,16 @@ export function usePageSession({ usableImages, showToast }) {
     startWith(doc, sameProject ? LABELS.reload : LABELS.init)
   }
 
+  // 같은 동작을 빠르게 이어서 할 때(방향키 이동·투명도 끌기 등) 이력을 한 단계로 합친다
+  const MERGE_MS = 1000
+  let lastMerge = null // { key, at, index }
+
   /**
    * 페이지 바꾸기 → 화면 값 + 자동 저장 + 이력 한 단계
+   * @param {{ mergeKey?: string }} opts mergeKey: 바로 앞 동작과 같은 key이고 1초 안이면 이력을 새로 쌓지 않고 합친다
    * @returns {boolean} 반영했으면 true
    */
-  function apply(next, label) {
+  function apply(next, label, { mergeKey } = {}) {
     if (!projectId.value || !page.value || next === page.value) return false
     if (conflict.value || saveStatus.value === 'conflict') {
       showToast('다른 창에서 바뀐 내용을 먼저 불러와 주세요.')
@@ -99,12 +105,21 @@ export function usePageSession({ usableImages, showToast }) {
     }
     page.value = next
     saver.change(projectId.value, next)
-    history.value = pushHistory(history.value, next, label)
+    const h = history.value
+    const now = Date.now()
+    if (mergeKey && lastMerge && lastMerge.key === mergeKey && now - lastMerge.at < MERGE_MS
+      && h && lastMerge.index === h.index && h.index === h.steps.length - 1 && h.index > 0) {
+      history.value = amendCurrent(h, next)
+    } else {
+      history.value = pushHistory(h, next, label)
+    }
+    lastMerge = mergeKey ? { key: mergeKey, at: now, index: history.value.index } : null
     return true
   }
 
   function applyHistory(res) {
     if (!res || !projectId.value) return
+    lastMerge = null
     history.value = res.history
     page.value = res.edit
     saver.change(projectId.value, res.edit)

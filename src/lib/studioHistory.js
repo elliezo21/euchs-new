@@ -24,6 +24,23 @@ export const LABELS = {
   // 페이지 문서 이력 (4단계 — 사진 지우기 이력과 따로 둔다, 결정 8)
   pageInit: '처음 배치',
   itemMove: '사진 이동',
+  // 페이지 요소 공통 조작 (6-1단계)
+  elMove: '이동',
+  elResize: '크기 바꾸기',
+  elRotate: '회전',
+  elFlip: '뒤집기',
+  elAlign: '정렬',
+  elOrder: '순서 바꾸기',
+  elOpacity: '투명도',
+  elDuplicate: '복제',
+  elPaste: '붙여넣기',
+  elCut: '잘라내기',
+  elDelete: '삭제',
+  elLock: '잠금',
+  elUnlock: '잠금 해제',
+  elHide: '숨기기',
+  elShow: '보이기',
+  elNumber: '위치·크기 입력',
 }
 
 const clone = v => JSON.parse(JSON.stringify(v))

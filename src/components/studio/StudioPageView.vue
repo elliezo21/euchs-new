@@ -1,74 +1,109 @@
 <template>
-  <div ref="rootEl" class="relative mx-auto" :style="{ width: `${page.width * zoom}px`, height: `${total * zoom}px` }" data-page @pointerdown.self="$emit('clear-selection')">
+  <div
+    ref="rootEl" class="relative mx-auto" :style="{ width: `${doc.width * zoom}px`, height: `${total * zoom}px` }" data-page
+    @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
+  >
     <!-- 구간 이름 (페이지 왼쪽 바깥) -->
     <div
-      v-for="(s, si) in page.sections" :key="`l-${s.id}`"
+      v-for="(s, si) in doc.sections" :key="`l-${s.id}`"
       class="absolute text-right text-[11px] font-bold whitespace-nowrap"
-      :class="s.id === selectedSectionId ? 'st-accent-text' : 'st-muted'"
+      :class="selectedSectionIds.has(s.id) ? 'st-accent-text' : 'st-muted'"
       :style="{ right: `calc(100% + 14px)`, top: `${rowOf(s.id).top * zoom + 4}px` }"
       data-section-label
     >{{ String(si + 1).padStart(2, '0') }} {{ sectionName(s) }}<span v-if="sectionBake(s)" class="block font-semibold st-muted" data-section-bake>{{ sectionBake(s) }}</span></div>
 
     <!-- 흰 페이지 -->
-    <div class="absolute inset-0 st-page-paper" @pointerdown.self="$emit('clear-selection')">
+    <div class="absolute inset-0 st-page-paper" @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext">
       <section
-        v-for="s in page.sections" :key="s.id"
+        v-for="s in doc.sections" :key="s.id"
         class="absolute left-0 overflow-hidden"
-        :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${page.width * zoom}px`, height: `${s.height * zoom}px`, background: s.bg }"
+        :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${doc.width * zoom}px`, height: `${s.height * zoom}px`, background: s.bg }"
         :data-section-id="s.id"
-        @pointerdown.self="$emit('clear-selection')"
+        @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
       >
         <template v-for="it in s.items" :key="it.id">
           <div
-            v-if="isValidImageItem(it) && !it.hidden"
+            v-if="isValidImageItem(it)"
             class="absolute select-none"
-            :class="it.locked ? '' : 'cursor-move'"
-            :style="itemStyle(s, it)"
-            :data-item-id="it.id" :data-image-id="it.imageId"
-            @pointerdown="onItemDown($event, s, it)"
+            :class="[it.locked ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
+            :style="itemStyle(it)"
+            :data-item-id="it.id" :data-image-id="it.imageId" :data-hidden="it.hidden ? '1' : null"
+            @pointerdown="onItemDown($event, it)"
+            @contextmenu.prevent.stop="onItemContext($event, it)"
             @dblclick="$emit('open-erase', it.imageId)"
           >
-            <img
-              v-if="viewOf(it.imageId)?.url" :src="viewOf(it.imageId).url" alt="" draggable="false"
-              class="block w-full h-full pointer-events-none" :style="flipStyle(it)"
-              @load="onImgLoad(it.imageId, $event)" @error="onImgError(it.imageId)"
-            />
-            <!-- 사진을 준비하는 중·실패·없는 사진: 그 자리 안에만 보인다 (떠 있는 막대 아님) -->
-            <div
-              v-else class="w-full h-full flex flex-col items-center justify-center gap-2 p-3 text-center st-placeholder st-muted"
-              :class="rowOfImage(it.imageId) && viewOf(it.imageId)?.status !== 'error' ? 'st-skeleton' : ''" data-item-state
-            >
-              <template v-if="!rowOfImage(it.imageId)">
-                <span class="text-[12px] font-bold">이 작업에 없는 사진이에요</span>
-              </template>
-              <template v-else-if="viewOf(it.imageId)?.status === 'error'">
-                <span class="text-[12px] font-bold break-keep">사진을 불러오지 못했어요</span>
-                <button type="button" class="st-btn" data-item-retry @pointerdown.stop @click.stop="$emit('retry-image', it.imageId)">
-                  <RefreshCw class="w-3.5 h-3.5" :stroke-width="2" /> 다시 시도
-                </button>
-              </template>
-              <span v-else class="text-[12px] font-bold">사진 준비 중…</span>
-            </div>
+            <!-- 숨긴 요소: 편집 화면에서는 흐린 점선 윤곽만 (다시 찾을 수 있게) -->
+            <template v-if="!it.hidden">
+              <img
+                v-if="viewOf(it.imageId)?.url" :src="viewOf(it.imageId).url" alt="" draggable="false"
+                class="block w-full h-full pointer-events-none" :style="flipStyle(it)"
+                @load="onImgLoad(it.imageId, $event)" @error="onImgError(it.imageId)"
+              />
+              <!-- 사진을 준비하는 중·실패·없는 사진: 그 자리 안에만 보인다 (떠 있는 막대 아님) -->
+              <div
+                v-else class="w-full h-full flex flex-col items-center justify-center gap-2 p-3 text-center st-placeholder st-muted"
+                :class="rowOfImage(it.imageId) && viewOf(it.imageId)?.status !== 'error' ? 'st-skeleton' : ''" data-item-state
+              >
+                <template v-if="!rowOfImage(it.imageId)">
+                  <span class="text-[12px] font-bold">이 작업에 없는 사진이에요</span>
+                </template>
+                <template v-else-if="viewOf(it.imageId)?.status === 'error'">
+                  <span class="text-[12px] font-bold break-keep">사진을 불러오지 못했어요</span>
+                  <button type="button" class="st-btn" data-item-retry @pointerdown.stop @click.stop="$emit('retry-image', it.imageId)">
+                    <RefreshCw class="w-3.5 h-3.5" :stroke-width="2" /> 다시 시도
+                  </button>
+                </template>
+                <span v-else class="text-[12px] font-bold">사진 준비 중…</span>
+              </div>
+            </template>
           </div>
         </template>
       </section>
     </div>
 
-    <!-- 선택 테두리 (구간에 잘리지 않게 페이지 위에 그린다. 누르기는 통과) -->
+    <!-- 달라붙기 안내선 (구간 좌표 → 페이지) -->
     <div
-      v-if="selectedFrame" class="absolute pointer-events-none st-select-frame"
-      :style="selectedFrame" data-select-frame
+      v-for="(g, gi) in guides" :key="`g-${gi}`" class="absolute pointer-events-none st-snap-guide" :style="guideStyle(g)" data-snap-guide
     />
+
+    <!-- 선택 테두리 (구간에 잘리지 않게 페이지 위에 그린다). 한 개면 크기·회전 손잡이, 잠겼으면 자물쇠 -->
+    <div
+      v-for="f in frames" :key="`f-${f.id}`"
+      class="absolute pointer-events-none st-select-frame" :class="frames.length > 1 ? 'is-multi' : ''"
+      :style="f.style" data-select-frame
+    >
+      <span v-if="f.locked" class="st-frame-lock" title="잠겨 있어요" data-frame-lock><Lock class="w-3 h-3" :stroke-width="2.5" /></span>
+      <template v-if="f.handles">
+        <span class="st-rotate-stem" />
+        <span
+          class="st-rotate-handle" title="돌리기 (Shift: 15°씩)" data-rotate-handle
+          @pointerdown.stop.prevent="onRotateDown($event, f.id)"
+        ><RotateCw class="w-3 h-3" :stroke-width="2.5" /></span>
+        <span
+          v-for="h in HANDLES" :key="h" class="st-resize-handle" :class="`is-${h}`" :data-resize-handle="h"
+          @pointerdown.stop.prevent="onResizeDown($event, f.id, h)"
+        />
+      </template>
+    </div>
+
+    <!-- 빈 곳 드래그 박스 -->
+    <div v-if="marquee" class="absolute pointer-events-none st-marquee" :style="marquee" data-marquee />
   </div>
 </template>
 
 <script setup>
 // 가운데 긴 페이지 (4단계, 방식 C — DOM. Fabric은 지우기 화면에서만).
-// 구간 = div(구간 밖은 잘림), 사진 = 절대 위치 img(화면용 작은 사진, studioViewImage). 사진 위에는 선택 테두리만.
-// 조작: 누르기 = 선택, 끌기 = 그 구간 안에서 옮기기(손을 뗄 때 한 번 저장), 두 번 누르기 = 지우기 화면. Esc = 끌기 취소.
-import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
-import { RefreshCw } from 'lucide-vue-next'
-import { layoutSections, isValidImageItem, clampItemPosition, findItem } from '@/lib/studioPage'
+// 구간 = div(구간 밖은 잘림), 요소 = 절대 위치 div(사진은 화면용 작은 사진, studioViewImage). 요소 위에는 선택 테두리·손잡이만 (떠 있는 막대 없음, 결정 9).
+// 6-1 공통 조작: 누르기 = 선택, Shift+누르기 = 추가·빼기, 빈 곳 끌기 = 박스 선택, 끌기 = 이동(달라붙기, Alt = 끔),
+//   모서리 손잡이 = 비율 유지 크기(Shift = 자유), 변 손잡이 = 한 방향, 회전 손잡이(Shift = 15°), 우클릭 = 메뉴(편집기가 띄움).
+//   조작 중에는 미리보기 문서(draft)로 그리고, 손을 뗄 때 한 번 change를 보낸다 (저장·이력 한 단계). Esc = 조작 취소.
+// 페이지 계산은 전부 studioPage.js 순수 함수 (moveItems·resizeRect·setItemRect·setRotation·snapMove·itemsInBox).
+import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue'
+import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
+import {
+  layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox,
+} from '@/lib/studioPage'
+import { LABELS } from '@/lib/studioHistory'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { afterPaint } from '@/lib/studioImageCache'
 
@@ -77,154 +112,288 @@ const props = defineProps({
   zoom: { type: Number, required: true },
   imagesById: { type: Map, required: true },     // image id → studio_images 행
   views: { type: Object, required: true },       // image id → { status, url, error } (studioViewImage)
-  selectedItemId: { type: String, default: null },
+  selectedIds: { type: Array, default: () => [] }, // 고른 요소 id
   bakeState: { type: Object, default: () => ({}) }, // image id → { status } (useBakeQueue) — 구간 이름 옆에 "적용 중" (사진 위에는 올리지 않는다)
 })
-// select({ itemId, imageId }) / clear-selection / move({ itemId, x, y }) 손을 뗄 때 한 번 / open-erase(imageId) / retry-image(imageId)
-// visible(imageIds): 지금 화면에 보이는 사진 (위에서부터 — 편집기가 그 사진부터 받는다)
-// shown({ id, ok }): 사진 <img>가 실제로 화면에 그려짐(ok) 또는 못 그림 — 편집기가 AI 엔진 켜는 시점을 정한다
-const emit = defineEmits(['select', 'clear-selection', 'move', 'open-erase', 'retry-image', 'visible', 'shown'])
+// select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
+// open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })
+const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown'])
+
+const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
+const SNAP_PX = 6        // 화면 px — 이만큼 가까우면 달라붙는다
+const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
+
+const draft = shallowRef(null)   // 조작 중 미리보기 문서
+const guides = ref([])           // 달라붙기 안내선
+const doc = computed(() => draft.value || props.page)
+const layout = computed(() => layoutSections(doc.value))
+const rowMap = computed(() => new Map(layout.value.rows.map(r => [r.id, r])))
+const total = computed(() => layout.value.total)
+const rowOf = id => rowMap.value.get(id) || { top: 0, height: 0 }
+const rowOfImage = id => props.imagesById.get(id) || null
+const viewOf = id => props.views[id] || null
+const selectedSet = computed(() => new Set(props.selectedIds))
+
 function onImgLoad(id, e) { afterPaint(e.target).then(() => emit('shown', { id, ok: true })) }
 function onImgError(id) {
   console.error('[StudioPageView] 페이지 사진을 그리지 못함:', id, props.views[id]?.url)
   emit('shown', { id, ok: false })
 }
 
-const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
-
-const layout = computed(() => layoutSections(props.page))
-const rowMap = computed(() => new Map(layout.value.rows.map(r => [r.id, r])))
-const total = computed(() => layout.value.total)
-const rowOf = id => rowMap.value.get(id) || { top: 0, height: 0 }
-const rowOfImage = id => props.imagesById.get(id) || null
-const viewOf = id => props.views[id] || null
-
-/** 그 구간 사진의 굽기 상태 문구 (구간 이름 아래, 페이지 바깥) */
+/** 그 구간 사진의 적용 상태 문구 (구간 이름 아래, 페이지 바깥) */
 function sectionBake(s) {
   const st = s.items.filter(isValidImageItem).map(it => props.bakeState[it.imageId]?.status).find(Boolean)
   if (st === 'queued' || st === 'baking' || st === 'waiting') return '적용 중…'
   if (st === 'failed') return '적용하지 못했어요'
   return ''
 }
-
 function sectionName(s) {
   const first = s.items.find(isValidImageItem)
   const row = first && rowOfImage(first.imageId)
   return row ? KIND_LABEL[row.kind] || '사진' : '구간'
 }
 
-// ── 끌어 옮기기 (화면 값만 바꾸고, 손을 떼면 부모에 한 번 알린다) ──
-const drag = ref(null) // { itemId, sectionId, startX, startY, x0, y0, x, y, moved, pointerId, el }
-
-function posOf(it) {
-  return drag.value && drag.value.itemId === it.id && drag.value.moved ? { x: drag.value.x, y: drag.value.y } : { x: it.x, y: it.y }
-}
-
-function itemStyle(s, it) {
-  const p = posOf(it)
+function itemStyle(it) {
   const z = props.zoom
-  return { left: `${p.x * z}px`, top: `${p.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.opacity ?? 1 }
+  const rot = it.rotation ? `rotate(${it.rotation}deg)` : null
+  return { left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.hidden ? null : (it.opacity ?? 1), transform: rot }
 }
 function flipStyle(it) {
   const sx = it.flipX ? -1 : 1, sy = it.flipY ? -1 : 1
   return sx === 1 && sy === 1 ? null : { transform: `scale(${sx}, ${sy})` }
 }
 
-const selectedSectionId = computed(() => (props.selectedItemId ? findItem(props.page, props.selectedItemId)?.section.id || null : null))
-const selectedFrame = computed(() => {
-  const f = props.selectedItemId ? findItem(props.page, props.selectedItemId) : null
-  if (!f || !isValidImageItem(f.item) || f.item.hidden) return null
-  const p = posOf(f.item)
-  const z = props.zoom
-  const top = rowOf(f.section.id).top
-  return { left: `${p.x * z}px`, top: `${(top + p.y) * z}px`, width: `${f.item.w * z}px`, height: `${f.item.h * z}px` }
+const selectedSectionIds = computed(() => {
+  const out = new Set()
+  for (const id of props.selectedIds) { const f = findItem(doc.value, id); if (f) out.add(f.section.id) }
+  return out
 })
+/** 고른 요소마다 테두리 (페이지 좌표, 요소처럼 돌림). 한 개이고 잠기지 않았으면 손잡이 */
+const frames = computed(() => {
+  const z = props.zoom
+  const out = []
+  for (const id of props.selectedIds) {
+    const f = findItem(doc.value, id)
+    if (!f || !isValidImageItem(f.item)) continue
+    const it = f.item
+    const top = rowOf(f.section.id).top
+    out.push({
+      id, locked: !!it.locked, handles: false,
+      style: { left: `${it.x * z}px`, top: `${(top + it.y) * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, transform: it.rotation ? `rotate(${it.rotation}deg)` : null },
+    })
+  }
+  if (out.length === 1 && !out[0].locked) out[0].handles = true
+  return out
+})
+function guideStyle(g) {
+  const z = props.zoom
+  const r = rowOf(g.sectionId)
+  return g.axis === 'x'
+    ? { left: `${g.pos * z}px`, top: `${r.top * z}px`, width: '1px', height: `${r.height * z}px` }
+    : { left: '0px', top: `${(r.top + g.pos) * z}px`, width: `${doc.value.width * z}px`, height: '1px' }
+}
 
-function onItemDown(e, s, it) {
+// ── 조작 (누르기 → 끌기 → 떼기) ──
+let act = null // { kind, startX, startY, startPage, ids, id, handle, cx, cy, moved, shift, pointerId, prevIds }
+const marquee = ref(null)
+
+function pagePoint(e) {
+  const r = rootEl.value.getBoundingClientRect()
+  return { x: (e.clientX - r.left) / props.zoom, y: (e.clientY - r.top) / props.zoom }
+}
+function begin(e, a) {
+  act = { ...a, startX: e.clientX, startY: e.clientY, startPage: props.page, moved: false, pointerId: e.pointerId }
+  window.addEventListener('pointermove', onMove)
+  window.addEventListener('pointerup', onUp)
+  window.addEventListener('pointercancel', cancel)
+  window.addEventListener('keydown', onKey, true)
+}
+function end() {
+  window.removeEventListener('pointermove', onMove)
+  window.removeEventListener('pointerup', onUp)
+  window.removeEventListener('pointercancel', cancel)
+  window.removeEventListener('keydown', onKey, true)
+  act = null
+  draft.value = null
+  guides.value = []
+  marquee.value = null
+}
+function cancel() { end() }
+function onKey(e) { if (e.key === 'Escape' && act) { e.preventDefault(); e.stopPropagation(); end() } }
+
+function selectIds(ids) { emit('select', { ids, source: 'page' }) }
+
+function onItemDown(e, it) {
   if (e.button !== 0) return
   e.stopPropagation()
-  emit('select', { itemId: it.id, imageId: it.imageId })
-  if (it.locked) return
   e.preventDefault() // 글자 선택·이미지 끌기 막기
-  const el = e.currentTarget
-  el.setPointerCapture?.(e.pointerId)
-  drag.value = { itemId: it.id, sectionId: s.id, startX: e.clientX, startY: e.clientY, x0: it.x, y0: it.y, x: it.x, y: it.y, moved: false, pointerId: e.pointerId, el }
-  el.addEventListener('pointermove', onMove)
-  el.addEventListener('pointerup', onUp)
-  el.addEventListener('pointercancel', onCancel)
-  window.addEventListener('keydown', onKey)
+  const sel = props.selectedIds
+  if (e.shiftKey) { // 추가·빼기 (끌지 않음)
+    selectIds(sel.includes(it.id) ? sel.filter(x => x !== it.id) : [...sel, it.id])
+    return
+  }
+  const ids = sel.includes(it.id) ? sel : [it.id]
+  if (!sel.includes(it.id)) selectIds(ids)
+  const movable = ids.filter(id => { const f = findItem(props.page, id); return f && !f.item.locked })
+  if (movable.length) begin(e, { kind: 'move', ids: movable })
+}
+function onResizeDown(e, id, handle) {
+  if (e.button !== 0) return
+  begin(e, { kind: 'resize', id, handle })
+}
+function onRotateDown(e, id) {
+  if (e.button !== 0) return
+  const el = rootEl.value.querySelector(`[data-item-id="${id}"]`)
+  const r = el?.getBoundingClientRect()
+  if (!r) return
+  begin(e, { kind: 'rotate', id, cx: r.left + r.width / 2, cy: r.top + r.height / 2 })
+}
+function onBlankDown(e) {
+  if (e.button !== 0) return
+  const p = pagePoint(e)
+  begin(e, { kind: 'box', x0: p.x, y0: p.y, shift: e.shiftKey, prevIds: props.selectedIds })
 }
 
 function onMove(e) {
-  const d = drag.value
-  if (!d || e.pointerId !== d.pointerId) return
-  const dx = e.clientX - d.startX, dy = e.clientY - d.startY
-  if (!d.moved && Math.hypot(dx, dy) < DRAG_THRESHOLD) return
-  const f = findItem(props.page, d.itemId)
-  if (!f) { endDrag(); return }
-  const p = clampItemPosition(f.item, f.section, props.page.width, d.x0 + dx / props.zoom, d.y0 + dy / props.zoom)
-  drag.value = { ...d, x: p.x, y: p.y, moved: true }
+  if (!act || e.pointerId !== act.pointerId) return
+  const sdx = e.clientX - act.startX, sdy = e.clientY - act.startY
+  if (!act.moved && Math.hypot(sdx, sdy) < DRAG_THRESHOLD) return
+  act.moved = true
+  const z = props.zoom
+  const P = act.startPage
+  if (act.kind === 'move') {
+    const s = e.altKey ? { dx: sdx / z, dy: sdy / z, guides: [] } : snapMove(P, act.ids, sdx / z, sdy / z, SNAP_PX / z)
+    draft.value = moveItems(P, act.ids, s.dx, s.dy)
+    guides.value = s.guides
+  } else if (act.kind === 'resize') {
+    const f = findItem(P, act.id)
+    if (!f) return
+    const corner = act.handle.length === 2
+    const r = resizeRect(f.item, f.item.rotation || 0, act.handle, sdx / z, sdy / z, { keepRatio: corner && !e.shiftKey })
+    draft.value = setItemRect(P, act.id, r)
+  } else if (act.kind === 'rotate') {
+    let deg = Math.atan2(e.clientY - act.cy, e.clientX - act.cx) * 180 / Math.PI + 90
+    if (e.shiftKey) deg = Math.round(deg / 15) * 15
+    draft.value = setRotation(P, [act.id], deg)
+  } else if (act.kind === 'box') {
+    const p = pagePoint(e)
+    const x = Math.min(act.x0, p.x), y = Math.min(act.y0, p.y), w = Math.abs(p.x - act.x0), h = Math.abs(p.y - act.y0)
+    marquee.value = { left: `${x * z}px`, top: `${y * z}px`, width: `${w * z}px`, height: `${h * z}px` }
+    act.box = { x, y, w, h }
+  }
 }
 
 function onUp(e) {
-  const d = drag.value
-  if (!d || e.pointerId !== d.pointerId) return
-  endDrag()
-  if (d.moved && (d.x !== d.x0 || d.y !== d.y0)) emit('move', { itemId: d.itemId, x: d.x, y: d.y })
-}
-function onCancel() { endDrag() }
-function onKey(e) { if (e.key === 'Escape' && drag.value) { e.preventDefault(); endDrag() } }
-
-function endDrag() {
-  const d = drag.value
-  if (d?.el) {
-    d.el.removeEventListener('pointermove', onMove)
-    d.el.removeEventListener('pointerup', onUp)
-    d.el.removeEventListener('pointercancel', onCancel)
-    if (d.el.hasPointerCapture?.(d.pointerId)) d.el.releasePointerCapture(d.pointerId)
+  if (!act || e.pointerId !== act.pointerId) return
+  const a = act
+  const next = draft.value
+  if (a.kind === 'box') {
+    if (!a.moved) { if (!a.shift) selectIds([]) } // 빈 곳 누르기 = 선택 해제
+    else {
+      const hit = itemsInBox(props.page, a.box)
+      selectIds(a.shift ? [...new Set([...a.prevIds, ...hit])] : hit)
+    }
+  } else if (a.moved && next && next !== a.startPage) {
+    const label = a.kind === 'move' ? LABELS.elMove : a.kind === 'resize' ? LABELS.elResize : LABELS.elRotate
+    emit('change', { page: next, label })
   }
-  window.removeEventListener('keydown', onKey)
-  drag.value = null
+  end()
+}
+
+// ── 우클릭 ──
+function onItemContext(e, it) {
+  if (!props.selectedIds.includes(it.id)) selectIds([it.id])
+  emit('context', { x: e.clientX, y: e.clientY, itemId: it.id })
+}
+function onBlankContext(e) {
+  emit('context', { x: e.clientX, y: e.clientY, itemId: null, sectionId: sectionAt(e) })
+}
+/** 누른 자리의 구간 id (붙여넣을 곳) */
+function sectionAt(e) {
+  const p = pagePoint(e)
+  const r = layout.value.rows.find(row => p.y >= row.top && p.y < row.top + row.height)
+  return r ? r.id : null
 }
 
 /** 이 아이템이 보이게 스크롤 (사진 목록에서 골랐을 때) */
 function scrollToItem(itemId) {
-  const f = findItem(props.page, itemId)
-  if (!f) return
-  const root = document.querySelector(`[data-item-id="${itemId}"]`)
+  const root = rootEl.value?.querySelector(`[data-item-id="${itemId}"]`)
   root?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
 
 // ── 보이는 사진 알리기 (스크롤 상자에 가려진 것은 안 보이는 것으로 친다 — IntersectionObserver 기본 root) ──
+// 숨긴 요소는 사진을 그리지 않으므로 빼고 알린다 (AI 엔진 켜는 시점이 숨긴 요소를 기다리지 않게)
 const rootEl = ref(null)
-const shown = new Map() // item 요소 → { imageId, top }
+const shownEls = new Map() // item 요소 → { imageId, top }
 let io = null
 let mo = null
+function reportVisible() {
+  const ids = [...shownEls.entries()].filter(([el]) => !el.dataset.hidden).sort((a, b) => a[1].top - b[1].top).map(([, v]) => v.imageId)
+  emit('visible', [...new Set(ids)])
+}
 function observeItems() {
   if (!io || !rootEl.value) return
-  for (const el of shown.keys()) if (!el.isConnected) { shown.delete(el); io.unobserve(el) } // 없어진 요소
+  for (const el of shownEls.keys()) if (!el.isConnected) { shownEls.delete(el); io.unobserve(el) } // 없어진 요소
   for (const el of rootEl.value.querySelectorAll('[data-item-id]')) io.observe(el)
 }
 onMounted(() => {
   if (typeof IntersectionObserver === 'undefined' || !rootEl.value) return
   io = new IntersectionObserver(entries => {
     for (const e of entries) {
-      if (e.isIntersecting && e.target.isConnected) shown.set(e.target, { imageId: e.target.dataset.imageId, top: e.boundingClientRect.top })
-      else shown.delete(e.target)
+      if (e.isIntersecting && e.target.isConnected) shownEls.set(e.target, { imageId: e.target.dataset.imageId, top: e.boundingClientRect.top })
+      else shownEls.delete(e.target)
     }
-    const ids = [...shown.values()].sort((a, b) => a.top - b.top).map(v => v.imageId)
-    emit('visible', [...new Set(ids)])
+    reportVisible()
   }, { rootMargin: '300px 0px' })
   observeItems()
-  mo = new MutationObserver(observeItems) // 구간·사진이 바뀌면 새 요소도 본다
+  mo = new MutationObserver(observeItems) // 구간·요소가 바뀌면 새 요소도 본다
   mo.observe(rootEl.value, { childList: true, subtree: true })
 })
-onBeforeUnmount(() => { endDrag(); io?.disconnect(); mo?.disconnect() })
-defineExpose({ scrollToItem })
+onBeforeUnmount(() => { end(); io?.disconnect(); mo?.disconnect() })
+
+/** 화면에 가장 많이 보이는 구간 id (전체 선택 Ctrl+A·붙여넣기 기본 자리) */
+function sectionInView() {
+  const secs = rootEl.value ? [...rootEl.value.querySelectorAll('[data-section-id]')] : []
+  const vh = window.innerHeight
+  let best = null, bestH = 0
+  for (const el of secs) {
+    const r = el.getBoundingClientRect()
+    const h = Math.min(r.bottom, vh) - Math.max(r.top, 0)
+    if (h > bestH) { bestH = h; best = el.dataset.sectionId }
+  }
+  return best
+}
+defineExpose({ scrollToItem, sectionInView, isBusy: () => !!act })
 </script>
 
 <style scoped>
 /* 페이지 바탕색은 구간 bg(문서 값)가 칠한다. 여기서는 그림자만 */
 .st-page-paper { box-shadow: var(--st-shadow-page); }
 .st-select-frame { box-shadow: 0 0 0 2px var(--st-accent); border-radius: 1px; }
+.st-select-frame.is-multi { box-shadow: 0 0 0 1px var(--st-accent); }
+.st-item-hidden { outline: 1px dashed var(--st-muted); outline-offset: -1px; background: transparent; opacity: 0.6; }
+.st-snap-guide { background: var(--st-accent); z-index: 4; }
+.st-marquee { border: 1px dashed var(--st-accent); background: var(--st-accent-soft); z-index: 4; }
+.st-resize-handle {
+  position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; pointer-events: auto;
+  background: var(--st-ink); border: 1.5px solid var(--st-accent); border-radius: 2px;
+}
+.st-resize-handle.is-nw { left: 0; top: 0; cursor: nwse-resize; }
+.st-resize-handle.is-n { left: 50%; top: 0; cursor: ns-resize; }
+.st-resize-handle.is-ne { left: 100%; top: 0; cursor: nesw-resize; }
+.st-resize-handle.is-e { left: 100%; top: 50%; cursor: ew-resize; }
+.st-resize-handle.is-se { left: 100%; top: 100%; cursor: nwse-resize; }
+.st-resize-handle.is-s { left: 50%; top: 100%; cursor: ns-resize; }
+.st-resize-handle.is-sw { left: 0; top: 100%; cursor: nesw-resize; }
+.st-resize-handle.is-w { left: 0; top: 50%; cursor: ew-resize; }
+.st-rotate-stem { position: absolute; left: 50%; top: -22px; width: 1px; height: 22px; background: var(--st-accent); }
+.st-rotate-handle {
+  position: absolute; left: 50%; top: -34px; width: 22px; height: 22px; margin-left: -11px; pointer-events: auto; cursor: grab;
+  display: flex; align-items: center; justify-content: center; border-radius: 999px;
+  background: var(--st-card); color: var(--st-ink); border: 1.5px solid var(--st-accent);
+}
+.st-frame-lock {
+  position: absolute; right: -2px; top: -22px; width: 20px; height: 20px; display: flex; align-items: center; justify-content: center;
+  border-radius: 6px; background: var(--st-card); color: var(--st-ink-2); border: 1px solid var(--st-line-strong);
+}
 </style>

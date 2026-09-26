@@ -65,29 +65,36 @@
 
       <!-- 재료 패널 (300px): 고른 메뉴의 재료. 사진을 누르면 사진 속성 패널(6단계) -->
       <aside class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
-        <StudioPhotoPanel
-          v-if="activeTool === 'photo' || !isWide"
-          :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-          :bake-state="bakeQueue.state"
-          @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
-          @visible="onListVisible" @shown="onListShown"
+        <!-- 고른 요소가 있으면 위쪽에 공통 조작 칸 (6-1). 사진 전용 패널 정리는 6-2 -->
+        <StudioTransformPanel
+          v-if="isWide && page && selectedItemIds.length" class="shrink-0 max-h-[60%] overflow-y-auto"
+          :page="page" :selected-ids="selectedItemIds" @command="runCommand"
         />
-        <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
-          <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
-          <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
-          <p class="st-desc break-keep">{{ railItem(activeTool).soon }}</p>
+        <div class="flex-1 min-h-0 flex flex-col">
+          <StudioPhotoPanel
+            v-if="activeTool === 'photo' || !isWide"
+            :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
+            :bake-state="bakeQueue.state"
+            @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
+            @visible="onListVisible" @shown="onListShown"
+          />
+          <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
+            <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
+            <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
+            <p class="st-desc break-keep">{{ railItem(activeTool).soon }}</p>
+          </div>
         </div>
       </aside>
 
       <!-- 가운데: 긴 한 장 페이지 (4단계, DOM — 구간이 위에서 아래로 쌓인다) -->
       <section v-if="isWide" class="flex-1 min-w-0 relative st-canvas-bg st-dotgrid" data-canvas-area>
-        <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="selectedItemId = null">
+        <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
-          <div v-else-if="page && page.sections.length" class="pt-8 pb-24" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="selectedItemId = null">
+          <div v-else-if="page && page.sections.length" class="pt-8 pb-24" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
             <StudioPageView
               ref="pageView"
-              :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-item-id="selectedItemId" :bake-state="bakeQueue.state"
-              @select="onPageSelect" @clear-selection="selectedItemId = null" @move="onPageMove"
+              :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state"
+              @select="onPageSelect" @change="onPageChange" @context="openContextMenu"
               @open-erase="openErase" @retry-image="retryView"
               @visible="onPageVisible" @shown="onPageShown"
             />
@@ -152,6 +159,9 @@
       @close="onEraseClosed"
       @toast="showToast"
     />
+
+    <!-- 우클릭 메뉴 (6-1) -->
+    <StudioContextMenu :open="ctx.open" :x="ctx.x" :y="ctx.y" :items="ctx.items" @select="onContextSelect" @close="ctx.open = false" />
 
     <div v-if="toast" class="absolute top-16 left-1/2 -translate-x-1/2 px-3 py-2 rounded-[10px] st-card st-shadow-float text-[13px] font-bold st-ink break-keep" style="z-index: 30" data-toast>{{ toast }}</div>
 
@@ -222,6 +232,8 @@ import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioEraseScreen from '@/components/studio/StudioEraseScreen.vue'
 import StudioPhotoPanel from '@/components/studio/StudioPhotoPanel.vue'
 import StudioPageView from '@/components/studio/StudioPageView.vue'
+import StudioTransformPanel from '@/components/studio/StudioTransformPanel.vue'
+import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
 import {
   loadMyProject, listEditorImages, signViewUrls, sortStudioImages, sortBySortOrder, hasSortOrderOverlap,
   renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL,
@@ -232,7 +244,11 @@ import { useBakeQueue } from '@/composables/useBakeQueue'
 import { fillCounts } from '@/lib/studioEdit'
 import { usePageSession } from '@/composables/usePageSession'
 import { createViewImageStore, finalPathOf } from '@/lib/studioViewImage'
-import { moveItem, firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS } from '@/lib/studioPage'
+import {
+  firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
+  moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
+  removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
+} from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
 
@@ -306,7 +322,8 @@ const pageSession = usePageSession({
 const page = pageSession.page
 const pageCanUndo = computed(() => pageSession.canUndoNow.value && !eraseOpen.value)
 const pageCanRedo = computed(() => pageSession.canRedoNow.value && !eraseOpen.value)
-const selectedItemId = ref(null)
+const selectedItemIds = ref([])  // 페이지에서 고른 요소 (6-1: 여러 개)
+let selectionSource = 'list'     // 'page' = 페이지에서 고름(방향키 = 옮기기) / 'list' = 목록에서 고름(방향키 = 사진 바꾸기)
 const pageView = ref(null)
 const pageScroll = ref(null)
 
@@ -327,7 +344,7 @@ function reopenAnyConflict() {
 }
 async function reloadPageConflict() {
   await pageSession.reloadConflicted()
-  if (selectedItemId.value && page.value && !findItem(page.value, selectedItemId.value)) selectedItemId.value = null
+  pruneSelection()
 }
 
 // 확대: 50·75·100% 또는 맞춤(가운데 폭에 맞춰, 최대 100%)
@@ -343,20 +360,152 @@ watch(pageScroll, el => {
   areaObserver.observe(el)
 })
 
-function onPageSelect({ itemId, imageId }) {
-  selectedItemId.value = itemId
-  if (imageId !== selectedImageId.value && doneImages.value.some(i => i.id === imageId)) selectImage(imageId)
+// ── 페이지 요소 고르기 (6-1) ──
+function onPageSelect({ ids }) {
+  selectedItemIds.value = ids
+  selectionSource = 'page'
+  // 사진 요소 한 개를 고르면 목록·사진 정보 카드도 그 사진으로
+  const one = ids.length === 1 && page.value ? findItem(page.value, ids[0])?.item : null
+  if (one && isValidImageItem(one) && one.imageId !== selectedImageId.value && doneImages.value.some(i => i.id === one.imageId)) selectImage(one.imageId)
 }
-function onPageMove({ itemId, x, y }) {
-  if (!page.value) return
-  pageSession.apply(moveItem(page.value, itemId, x, y), LABELS.itemMove)
+function clearSelection() { selectedItemIds.value = [] }
+/** 없어진 요소(되돌리기·충돌 불러오기 등)는 선택에서 뺀다 */
+function pruneSelection() {
+  const p = page.value
+  const keep = p ? selectedItemIds.value.filter(id => findItem(p, id)) : []
+  if (keep.length !== selectedItemIds.value.length) selectedItemIds.value = keep
+}
+watch(page, pruneSelection)
+/** 페이지에서 끌어 옮기기·크기·회전을 끝냄 (손을 뗄 때 한 번) */
+function onPageChange({ page: next, label }) {
+  if (next && next !== page.value) pageSession.apply(next, label)
 }
 // 목록·↑↓로 사진을 바꾸면 페이지의 그 사진(첫 자리)에 테두리
 watch(selectedImageId, id => {
-  const cur = selectedItemId.value && page.value ? findItem(page.value, selectedItemId.value) : null
+  const cur = selectedItemIds.value.length === 1 && page.value ? findItem(page.value, selectedItemIds.value[0]) : null
   if (cur && cur.item.imageId === id) return
-  selectedItemId.value = id && page.value ? firstItemOfImage(page.value, id) : null
+  const itemId = id && page.value ? firstItemOfImage(page.value, id) : null
+  selectedItemIds.value = itemId ? [itemId] : []
+  selectionSource = 'list'
 })
+
+// ── 공통 조작 명령 (6-1) — 패널 버튼·단축키·우클릭 메뉴가 모두 이 하나로 온다 ──
+let clipboard = null // 편집기 안 클립보드 (copyItems 결과) — 다른 구간에도 붙여넣을 수 있다
+let pasteCount = 0   // 같은 것을 여러 번 붙여넣으면 조금씩 더 옆으로
+const LOCK_BLOCKED = new Set(['rotate90', 'rotation', 'flipX', 'flipY', 'align', 'rect', 'delete', 'cut', 'nudge'])
+function applyPage(next, label, opts) {
+  if (!next || next === page.value) return false
+  return pageSession.apply(next, label, opts)
+}
+function sectionOfItem(id) { return page.value ? findItem(page.value, id)?.section.id || null : null }
+function runCommand(name, args = {}) {
+  const p = page.value
+  if (!p || eraseOpen.value) return
+  const ids = selectedItemIds.value
+  if (LOCK_BLOCKED.has(name) && ids.length && ids.every(id => findItem(p, id)?.item.locked)) {
+    showToast('잠긴 요소예요. 잠금을 풀면 바꿀 수 있어요.')
+    return
+  }
+  switch (name) {
+    case 'nudge': applyPage(moveItems(p, ids, args.dx, args.dy), LABELS.elMove, { mergeKey: 'nudge' }); break
+    case 'rotate90': applyPage(rotateBy(p, ids, 90), LABELS.elRotate); break
+    case 'rotation': applyPage(setRotation(p, ids, args.deg), LABELS.elRotate); break
+    case 'flipX': applyPage(flipItems(p, ids, 'x'), LABELS.elFlip); break
+    case 'flipY': applyPage(flipItems(p, ids, 'y'), LABELS.elFlip); break
+    case 'align': applyPage(alignItems(p, ids, args.where), LABELS.elAlign); break
+    case 'order': applyPage(reorderItems(p, ids, args.where), LABELS.elOrder); break
+    case 'opacity': applyPage(setOpacity(p, ids, args.v), LABELS.elOpacity, args.merge ? { mergeKey: 'opacity' } : undefined); break
+    case 'rect': if (ids.length === 1) applyPage(setItemRect(p, ids[0], args), LABELS.elNumber); break
+    case 'lock': applyPage(setLocked(p, ids, true), LABELS.elLock); break
+    case 'unlock': applyPage(setLocked(p, ids, false), LABELS.elUnlock); break
+    case 'hide': applyPage(setHidden(p, ids, true), LABELS.elHide); break
+    case 'show': applyPage(setHidden(p, ids, false), LABELS.elShow); break
+    case 'duplicate': {
+      const r = duplicateItems(p, ids)
+      if (applyPage(r.page, LABELS.elDuplicate)) { selectedItemIds.value = r.ids; selectionSource = 'page' }
+      break
+    }
+    case 'delete': {
+      const next = removeItems(p, ids)
+      if (applyPage(next, LABELS.elDelete) && ids.some(id => findItem(next, id))) showToast('잠긴 요소는 지우지 않았어요.')
+      break
+    }
+    case 'copy':
+      if (!ids.length) return
+      clipboard = copyItems(p, ids)
+      pasteCount = 0
+      break
+    case 'cut': {
+      const removable = ids.filter(id => !findItem(p, id)?.item.locked)
+      if (!removable.length) return
+      clipboard = copyItems(p, removable)
+      pasteCount = 0
+      applyPage(removeItems(p, removable), LABELS.elCut)
+      break
+    }
+    case 'paste': {
+      if (!clipboard?.length) return
+      const target = args.sectionId || (ids.length ? sectionOfItem(ids[0]) : null) || pageView.value?.sectionInView() || p.sections[0]?.id
+      pasteCount++
+      const r = pasteItems(p, target, clipboard, PASTE_OFFSET * pasteCount)
+      if (applyPage(r.page, LABELS.elPaste)) { selectedItemIds.value = r.ids; selectionSource = 'page' }
+      break
+    }
+    case 'selectAll': {
+      const sid = pageView.value?.sectionInView()
+      if (sid) { selectedItemIds.value = sectionItemIds(p, sid); selectionSource = 'page' }
+      break
+    }
+    default:
+      console.error('[StudioEditor] 모르는 조작:', name)
+  }
+}
+
+// ── 우클릭 메뉴 (6-1) ──
+const ctx = reactive({ open: false, x: 0, y: 0, items: [], sectionId: null })
+function openContextMenu({ x, y, itemId, sectionId }) {
+  if (eraseOpen.value) return
+  const p = page.value
+  const hasClip = !!clipboard?.length
+  if (!itemId) {
+    ctx.items = [
+      { key: 'paste', label: '붙여넣기', keys: 'Ctrl+V', disabled: !hasClip },
+      { key: 'selectAll', label: '이 구간 전체 선택', keys: 'Ctrl+A' },
+    ]
+    ctx.sectionId = sectionId
+  } else {
+    const items = selectedItemIds.value.map(id => findItem(p, id)?.item).filter(Boolean)
+    const anyLocked = items.some(it => it.locked), allLocked = items.length > 0 && items.every(it => it.locked)
+    const anyHidden = items.some(it => it.hidden)
+    ctx.items = [
+      { key: 'duplicate', label: '복제', keys: 'Ctrl+D' },
+      { key: 'copy', label: '복사', keys: 'Ctrl+C' },
+      { key: 'paste', label: '붙여넣기', keys: 'Ctrl+V', disabled: !hasClip },
+      { key: 'cut', label: '잘라내기', keys: 'Ctrl+X', disabled: allLocked },
+      { sep: true },
+      { key: 'order-front', label: '맨 앞으로' },
+      { key: 'order-forward', label: '앞으로' },
+      { key: 'order-backward', label: '뒤로' },
+      { key: 'order-back', label: '맨 뒤로' },
+      { sep: true },
+      { key: 'rotate90', label: '90° 돌리기', disabled: allLocked },
+      { key: 'flipX', label: '좌우 뒤집기', disabled: allLocked },
+      { key: 'flipY', label: '상하 뒤집기', disabled: allLocked },
+      { sep: true },
+      { key: anyLocked ? 'unlock' : 'lock', label: anyLocked ? '잠금 풀기' : '잠그기' },
+      { key: anyHidden ? 'show' : 'hide', label: anyHidden ? '보이기' : '숨기기' },
+      { sep: true },
+      { key: 'delete', label: '삭제', keys: 'Delete', danger: true, disabled: allLocked },
+    ]
+    ctx.sectionId = null
+  }
+  Object.assign(ctx, { open: true, x, y })
+}
+function onContextSelect(key) {
+  if (key.startsWith('order-')) runCommand('order', { where: key.slice(6) })
+  else if (key === 'paste') runCommand('paste', { sectionId: ctx.sectionId })
+  else runCommand(key)
+}
 function selectFromPanel(id) {
   selectImage(id)
   const itemId = page.value ? firstItemOfImage(page.value, id) : null
@@ -623,8 +772,9 @@ async function load() {
       session.selectedLayerId.value = null
     }
     // 기본 배치를 새로 만들었으면(아직 안 바꾼 페이지 + 사진 추가) 아이템 id가 바뀐다 → 고른 사진의 자리로 다시 잡는다
-    if (selectedItemId.value && !(page.value && findItem(page.value, selectedItemId.value))) {
-      selectedItemId.value = page.value && selectedImageId.value ? firstItemOfImage(page.value, selectedImageId.value) : null
+    if (selectedItemIds.value.length && !(page.value && selectedItemIds.value.every(id => findItem(page.value, id)))) {
+      const itemId = page.value && selectedImageId.value ? firstItemOfImage(page.value, selectedImageId.value) : null
+      selectedItemIds.value = itemId ? [itemId] : []
     }
     syncEraseFromRoute() // ?erase=<사진 id>로 새로고침·진입했으면 그 사진의 지우기 화면을 연다
     maybeStartAi()       // 사진이 없는 작업 등 — 기다릴 사진이 없으면 바로
@@ -797,21 +947,42 @@ function onBeforeUnload(e) {
   guardBeforeUnload(e, reasons)
 }
 
-// ── 키보드: ↑/↓ 이전·다음 사진(목록에서만), Ctrl(Cmd)+Z 되돌리기, Ctrl(Cmd)+Shift+Z·Ctrl+Y 다시 ──
+// ── 키보드: Ctrl(Cmd)+Z 되돌리기, Ctrl(Cmd)+Shift+Z·Ctrl+Y 다시 ──
 // 되돌리기 대상: 지우기 화면이 열려 있으면 그 사진의 지우기 이력, 아니면 페이지 이력 (입력칸에서는 브라우저 기본 동작)
+// 6-1 페이지 요소 (지우기 화면·모달·우클릭 메뉴·입력칸에서는 동작 안 함):
+//   Ctrl+A 보이는 구간 전체 선택 · Ctrl+C/V/X 복사·붙여넣기·잘라내기 · Ctrl+D 복제 · Delete/Backspace 삭제 · Esc 선택 해제
+//   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
+// (사용가이드는 16단계 — 생기면 여기서 막는다)
 function onKeyDown(e) {
-  if (!isWide.value || anyModalOpen.value || e.altKey) return
+  if (!isWide.value || anyModalOpen.value || ctx.open || e.altKey) return
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+  if (pageView.value?.isBusy()) return // 끌고 있는 중
+  const sel = selectedItemIds.value
   if (e.ctrlKey || e.metaKey) {
     // e.code 기준: 한글 입력 상태에서도 같은 키로 동작
     const undo = eraseOpen.value ? undoEdit : pageSession.undo
     const redo = eraseOpen.value ? redoEdit : pageSession.redo
     if (e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undo() }
     else if ((e.code === 'KeyZ' && e.shiftKey) || (e.code === 'KeyY' && !e.shiftKey)) { e.preventDefault(); redo() }
+    else if (eraseOpen.value || e.shiftKey || !page.value) return
+    else if (e.code === 'KeyA') { e.preventDefault(); runCommand('selectAll') }
+    else if (e.code === 'KeyC' && sel.length) { e.preventDefault(); runCommand('copy') }
+    else if (e.code === 'KeyX' && sel.length) { e.preventDefault(); runCommand('cut') }
+    else if (e.code === 'KeyV' && clipboard?.length) { e.preventDefault(); runCommand('paste') }
+    else if (e.code === 'KeyD' && sel.length) { e.preventDefault(); runCommand('duplicate') }
     return
   }
   if (eraseOpen.value) return // 지우기 화면에서는 사진을 바꾸지 않는다
+  if (e.key === 'Escape' && sel.length) { e.preventDefault(); clearSelection(); return }
+  if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) { e.preventDefault(); runCommand('delete'); return }
+  const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
+  if (ARROWS[e.key] && sel.length && selectionSource === 'page') {
+    e.preventDefault()
+    const step = e.shiftKey ? 10 : 1
+    runCommand('nudge', { dx: ARROWS[e.key][0] * step, dy: ARROWS[e.key][1] * step })
+    return
+  }
   if (e.key === 'ArrowUp') { e.preventDefault(); stepImage(-1) }
   else if (e.key === 'ArrowDown') { e.preventDefault(); stepImage(1) }
 }
@@ -837,7 +1008,7 @@ watch(() => route.params.projectId, (id, old) => {
   if (!id || id === old) return
   project.value = null
   selectedImageId.value = null
-  selectedItemId.value = null
+  selectedItemIds.value = []
   session.selectedLayerId.value = null
   eraseOpen.value = false
   clearViews()
@@ -855,7 +1026,9 @@ const onStudioAuthChanged = (e) => {
     pageSession.resetAll()
     bakeQueue.reset()
     clearViews()
-    selectedItemId.value = null
+    selectedItemIds.value = []
+    clipboard = null
+    ctx.open = false
     imageCache.clear()
     project.value = null
     images.value = []
