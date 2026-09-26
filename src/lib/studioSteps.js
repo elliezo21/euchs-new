@@ -10,7 +10,8 @@ export const STUDIO_STEPS = [
   // ②의 panel: 8단계 전에는 [구간] 패널이 "곧 추가" 안내뿐이라 사진 목록([페이지에 넣기])을 둔다.
   // 8단계에서 [구간] 패널이 생기면 'section'으로 돌린다 (6-3 보완, 2026-09-26)
   { no: 2, label: '페이지 꾸미기', panel: 'photo', guide: '사진 순서와 자리를 정하세요. 필요 없는 사진은 페이지에서 빼세요.' },
-  { no: 3, label: '내보내기', panel: null, guide: '완성된 상세페이지를 이미지로 받아 판매처에 올리세요.', soon: true },
+  // 13-1 내보내기·13-2 미리보기가 생겨 soon을 뗐다 (2026-09-26)
+  { no: 3, label: '내보내기', panel: null, guide: '[미리보기]로 받을 모습을 확인하고 [내보내기]로 이미지를 받아 판매처에 올리세요.' },
 ]
 export const STEP_DEFAULT = 1
 

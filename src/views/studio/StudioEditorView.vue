@@ -27,7 +27,7 @@
         </button>
         <span class="w-px h-6 mx-1" style="background: var(--st-line)" />
         <button type="button" class="st-btn st-btn-ghost" data-top-history @click="showToast('곧 추가될 기능이에요.')"><History class="w-4 h-4" :stroke-width="2" /> 이력</button>
-        <button type="button" class="st-btn st-btn-ghost" :class="step === 3 ? 'st-step-hint' : ''" data-top-preview @click="showToast('곧 추가될 기능이에요.')"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
+        <button type="button" class="st-btn st-btn-ghost" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-preview @click="openPreview"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
         <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-export @click="openExport"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
       </div>
     </header>
@@ -214,6 +214,12 @@
       @apply="onReorderApply" @close="reorderOpen = false"
     />
 
+    <!-- 미리보기 (13-2): PC·모바일 — 그림은 내보내기 엔진 결과 그대로. [이미지로 받기] = 아래 [내보내기] 창을 위에 연다 -->
+    <StudioPreview
+      v-if="page" :open="previewOpen" :page="page" :labels="sectionLabels" :pending-by-section="exportPendingBySection"
+      :render="exportRender" :keys-blocked="exportOpen || !!exportCompareId"
+      @close="previewOpen = false" @export="exportOpen = true"
+    />
     <!-- [내보내기] 창 (13-1): 구간별 여러 장·한 장, JPG·PNG, 1·2배 — 브라우저 캔버스로 그려 바로 내려받는다 -->
     <StudioExportModal
       v-if="page" :open="exportOpen" :page="page" :title="project ? projectDisplayTitle(project) : ''" :labels="sectionLabels"
@@ -346,6 +352,7 @@ import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
 import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
 import StudioExportModal from '@/components/studio/StudioExportModal.vue'
+import StudioPreview from '@/components/studio/StudioPreview.vue'
 import { renderSection, renderPage, canvasToBlob } from '@/lib/studioExport'
 import { loadWithResign } from '@/lib/studioImageCache'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
@@ -608,6 +615,7 @@ function onLayerSelect({ ids, shift }) {
 // ── [내보내기] 창 (13-1) — 상태만 여기 (그리기·사진 준비는 아래 "내보내기" 묶음). 개발용 비교 보기는 개발 서버에서만 ──
 const exportOpen = ref(false)
 const exportCompareId = ref(null) // 비교 보기 중인 구간 id (개발용)
+const previewOpen = ref(false)    // 13-2 미리보기 (PC·모바일)
 
 // ── [순서 변경] 화면 (8-2) ──
 const reorderOpen = ref(false)
@@ -664,6 +672,7 @@ function resetEditorLog() {
   textEdit.value = null     // 10-1 글자 고치기
   exportOpen.value = false  // 13-1 [내보내기] 창
   exportCompareId.value = null
+  previewOpen.value = false // 13-2 미리보기
 }
 function noteAction(entry) {
   actionLog.push(entry)
@@ -1454,6 +1463,13 @@ function openExport() {
   clearSelection()
   exportOpen.value = true
 }
+/** 상단 [미리보기] (13-2) — 받게 될 이미지 그대로 PC·모바일로 */
+function openPreview() {
+  if (!page.value || !page.value.sections.length || eraseOpen.value) return
+  pageView.value?.finishEdit() // 글자를 고치는 중이면 먼저 끝낸다 (고친 글자가 보이게)
+  clearSelection()
+  previewOpen.value = true
+}
 // 개발용 비교 보기 — 개발 서버에서만 (빌드에서는 import.meta.env.DEV = false라 코드째 빠진다)
 const DEV_EXPORT_COMPARE = import.meta.env.DEV
 const StudioExportCompare = import.meta.env.DEV ? defineAsyncComponent(() => import('@/components/studio/StudioExportCompare.vue')) : null
@@ -1473,7 +1489,8 @@ const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
   || replaceOpen.value || resetLookOpen.value || !!includeAsk.value || reorderOpen.value
-  || exportOpen.value || !!exportCompareId.value) // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
+  || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
+  || previewOpen.value) // 13-2: 미리보기가 열린 동안도
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'

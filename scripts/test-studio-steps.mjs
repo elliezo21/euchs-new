@@ -15,7 +15,7 @@ const broken = { getItem() { throw new Error('blocked') }, setItem() { throw new
 
 eq('단계 순서·이름', STUDIO_STEPS.map(s => `${s.no} ${s.label}`), ['1 사진 다듬기', '2 페이지 꾸미기', '3 내보내기'])
 eq('단계별 왼쪽 패널 (②도 사진 목록 — 8단계 전)', STUDIO_STEPS.map(s => s.panel), ['photo', 'photo', null])
-eq('③은 곧 열려요', [stepInfo(3).soon, !!stepInfo(1).soon], [true, false])
+eq('③은 열림 (13-2 — 곧 열려요 없음)', [!!stepInfo(3).soon, !!stepInfo(1).soon], [false, false])
 eq('모르는 단계 → ①', stepInfo(9).no, 1)
 eq('고객 문구에 "굽" 없음', STUDIO_STEPS.some(s => /굽|구운/.test(s.label + s.guide)), false)
 
