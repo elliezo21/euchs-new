@@ -113,6 +113,26 @@ export function imageSection(img, width = PAGE_WIDTH) {
 }
 
 /**
+ * 사진 모양(12-1 자르기·띠 잘라내기)이 바뀐 뒤 — "사진 1장이 폭에 꽉 찬 구간"은 새 비율에 맞춰 그 요소 높이와 구간 높이를 같이 바꾼다.
+ * 꽉 찬 구간 = 그 사진 요소가 x 0 · y 0 · 폭 page.width · 높이 = 구간 높이 · 회전 0 인 구간
+ *   (첫 배치 imageSection·[페이지에 넣기] insertImageNear·빈 구간에 넣기가 만드는 모양. 요소를 옮기거나 크기·구간 높이를 손대면 벗어나 그대로 둔다).
+ * 그 밖의 자리는 자리 비율 그대로 두고 채우기(cover)로 다시 그린다. 같은 구간의 다른 요소는 좌표 그대로
+ * @param {number} w,h 사진의 새 결과 크기 (studioCrop.geometryOf)  @returns 새 문서 (바뀐 구간이 없으면 입력 그대로)
+ */
+export function fitSectionsToImage(page, imageId, w, h) {
+  if (!(w > 0 && h > 0)) return page
+  const nh = fitHeight(page.width, w, h)
+  let changed = false
+  const sections = page.sections.map(s => {
+    const it = s.items.find(x => isValidImageItem(x) && x.imageId === imageId && x.x === 0 && x.y === 0 && x.w === page.width && x.h === s.height && !x.rotation)
+    if (!it || s.height === nh) return s
+    changed = true
+    return { ...s, height: nh, items: s.items.map(x => (x === it ? { ...x, h: nh } : x)) }
+  })
+  return changed ? { ...page, sections } : page
+}
+
+/**
  * 기본 배치 = 사진 1장 → 구간 1개 (폭에 꽉 차게, 구간 높이 = 폭 × 세로/가로)
  * @param {{ id, width, height }[]} images 넣을 사진 (이 순서대로). 크기를 모르는 사진은 넣지 않고 사유를 남긴다
  */

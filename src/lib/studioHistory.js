@@ -97,6 +97,11 @@ export const LABELS = {
   tableAlign: '표 정렬',
   tableColor: '표 색',
   tableBorder: '표 테두리',
+  // 자르기·띠 잘라내기 (12-1) — 사진 이력 / 구간 높이 맞춤은 페이지 이력
+  crop: '자르기',
+  cuts: '띠 잘라내기',
+  cropCuts: '자르기·띠 잘라내기',
+  cropFit: '구간 높이 맞춤',
   lookFilter: '필터',
   lookAdjust: '조정',
   lookReset: '필터·조정 초기화',

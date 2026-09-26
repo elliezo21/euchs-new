@@ -212,6 +212,8 @@
           <span class="w-2 h-2 rounded-full mr-1.5" style="background: var(--st-accent)" /> 파란 곳 = 칠한 곳 · 아직 저장 안 됨
         </div>
         <div v-if="showOriginal" class="absolute top-3 left-3 st-badge st-badge-scrim" style="z-index: 5" data-original-badge>원본</div>
+        <!-- 12-1: 자르기·띠가 있는 사진 — 지우기는 원본 좌표라 원본 전체를 보여 준다 (자른 모습은 페이지·미리보기에서) -->
+        <div v-if="shapeNote && !showOriginal" class="absolute bottom-3 left-3 st-badge st-badge-scrim" style="z-index: 5" data-erase-shape-note>{{ shapeNote }}</div>
       </section>
     </div>
   </div>
@@ -224,7 +226,8 @@
 //   왼쪽 도구 → 붓 크기 → 칠하기/덜어내기 → [AI로 지우기][단색] → 초기화 → 가장자리 여유 → 안내
 // 사진 위에는 칠한 자국·영역 테두리·붓 동그라미만 둔다 (떠 있는 막대 없음 — 결정 9).
 // [완료]/[페이지로]: 이 사진을 바로 저장하고 실행 전 영역(초안)은 버린 뒤 닫는다 (5단계에서 [완료] 때 사진 굽기를 붙인다).
-import { ref, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
+import { readShape, shapeMark } from '@/lib/studioCrop'
 import { ArrowLeft, Undo2, Redo2, Eye, History, Info, MousePointer2, Brush, Square, Sparkles, RotateCcw, Check } from 'lucide-vue-next'
 import { BRUSH_UI_MIN, BRUSH_UI_MAX, PAD_MIN, PAD_MAX } from '@/composables/useEraseSession'
 import { PAD_DEFAULT } from '@/lib/studioEdit'
@@ -259,6 +262,12 @@ const {
   setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
   setPad, recordPad, removeFill, undoEdit, redoEdit, jumpEdit, retrySave, reopenConflict, flush,
 } = props.session
+
+// 12-1 자르기·띠 안내 (예: "잘림 · 띠 2 — 지우기는 원본 전체에서 해요")
+const shapeNote = computed(() => {
+  const m = shapeMark(readShape(props.session.shapeOf(props.image.id), props.image.width, props.image.height))
+  return m ? `${m} — 지우기는 원본 전체에서 해요. 자른 모습은 페이지에서 보여요` : ''
+})
 
 const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform || '')
 const MOD = IS_MAC ? 'Cmd' : 'Ctrl'

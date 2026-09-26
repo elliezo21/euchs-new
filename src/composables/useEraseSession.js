@@ -32,6 +32,16 @@ import { fillPlan } from '@/lib/studioFillPlan'
 import { aiK } from '@/lib/studioAi/aiGeometry'
 import { createAiEngine } from '@/lib/studioAi/aiEngine'
 import { readLook, withLook, normalizeLook } from '@/lib/studioLook'
+import { withShape } from '@/lib/studioCrop'
+
+/** edit → 저장된 자르기·띠 (값을 고치지 않고 그대로 — 정리는 그릴 때 studioCrop.geometryOf가 한다) */
+function shapeFromEdit(edit) {
+  const e = edit && typeof edit === 'object' ? edit : {}
+  return {
+    crop: e.crop && typeof e.crop === 'object' ? { ...e.crop } : null,
+    cuts: Array.isArray(e.cuts) ? e.cuts.map(c => ({ ...c })) : [],
+  }
+}
 
 export const BRUSH_UI_MIN = BRUSH_SIZE_MIN
 export const BRUSH_UI_MAX = 300
@@ -42,6 +52,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   // image id → 필터·조정 look (6-2, studioLook). edit 안에서 layers와 나란히 저장한다 —
   // 저장할 edit는 항상 editOf(id)로 layers + look을 함께 만든다 (한쪽 저장이 다른 쪽의 저장 안 된 값을 덮지 않게)
   const lookMap = reactive({})
+  // image id → 자르기·띠 { crop, cuts } (12-1, studioCrop — 원본 px, 저장된 모양 그대로). look과 같은 규칙: 저장할 edit는 editOf가 셋을 함께 만든다
+  const shapeMap = reactive({})
   const histories = reactive({})         // image id → studioHistory (세션 동안만, 사진을 바꿔도 유지)
   const selectedLayerId = ref(null)
   const saveStatus = ref('saved')
@@ -57,8 +69,12 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
    * 저장할 edit — 화면의 지우기 레이어 + 화면의 look (look을 아직 모르면 저장된 값).
    * erase_v(지우기가 마지막으로 바뀐 버전, studioFinal)는 여기서 떼고 저장 직전에 찍는다 (이력 비교에 끼지 않게)
    */
-  function editOf(id, layers = layerMap[id] || [], look = lookMap[id] ?? readLook(rowOf(id)?.edit)) {
-    return withoutEraseVersion(withLook(buildEdit(rowOf(id)?.edit, layers), look))
+  function editOf(id, layers = layerMap[id] || [], look = lookMap[id] ?? readLook(rowOf(id)?.edit), shape = shapeOf(id)) {
+    return withoutEraseVersion(withShape(withLook(buildEdit(rowOf(id)?.edit, layers), look), shape))
+  }
+  /** 자르기·띠 (화면 값, 모르면 저장된 값) — 저장된 모양 그대로 { crop: object|null, cuts: array } */
+  function shapeOf(id) {
+    return shapeMap[id] ?? shapeFromEdit(rowOf(id)?.edit)
   }
   // 목록 표시용: { done: 결과 있는 지우기, redo: 결과 조각 없이 남은 AI } (studioEdit.fillCounts)
   function fillCount(id) { return fillCounts(layerMap[id] || []) }
@@ -136,6 +152,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       if (layerMap[row.id] && saver.stateOf(row.id) !== 'saved') continue
       layerMap[row.id] = readLayers(row.edit, row.id)
       lookMap[row.id] = readLook(row.edit)
+      shapeMap[row.id] = shapeFromEdit(row.edit)
       saver.reset(row.id, row.edit_version)
       // 이력: 처음이면 서버 값이 첫 단계. 이미 있는데 서버 값이 이력의 현재와 다르면(다른 창에서 고침) 서버 값으로 새로 시작
       const h = histories[row.id]
@@ -399,7 +416,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     if (!res || !id) return
     histories[id] = res.history
     layerMap[id] = readLayers(res.edit, id)
-    lookMap[id] = readLook(res.edit) // 이력 한 단계 = 그 시점의 지우기 + 필터·조정
+    lookMap[id] = readLook(res.edit) // 이력 한 단계 = 그 시점의 지우기 + 필터·조정 + 자르기·띠(12-1)
+    shapeMap[id] = shapeFromEdit(res.edit)
     saver.change(id, editOf(id))
     if (selectedLayerId.value && !layerMap[id].some(l => l.id === selectedLayerId.value)) selectedLayerId.value = null
   }
@@ -431,6 +449,23 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     return true
   }
   function lookOf(id) { return lookMap[id] ?? readLook(rowOf(id)?.edit) }
+
+  // ── 자르기·띠 잘라내기 (12-1) — 같은 edit·같은 저장기(edit_version 잠금)·같은 사진 이력. 완성 JPG에는 넣지 않는다(erase_v 그대로 — layers가 같으니까) ──
+  /**
+   * @param {{ crop: object|null, cuts: array }} shape 자르기 창이 정리한 값  @param {string} label 이력 라벨
+   * @returns {boolean} 바뀌었으면 true
+   */
+  function setShape(id, shape, label) {
+    if (!rowOf(id)) return false
+    const next = { crop: shape.crop ? { ...shape.crop } : null, cuts: (shape.cuts || []).map(c => ({ ...c })) }
+    if (JSON.stringify(next) === JSON.stringify(shapeOf(id))) return false
+    shapeMap[id] = next
+    const edit = editOf(id)
+    saver.change(id, edit)
+    lastLook = null
+    recordHistory(id, edit, label)
+    return true
+  }
   // 편집기(지우기 화면 밖)에서 사진 이력 되돌리기 — 필터·조정을 페이지 되돌리기와 같은 버튼으로 (편집기의 동작 순서 기록이 부른다)
   function canUndoImage(id) { return !!histories[id] && histories[id].index > 0 }
   function canRedoImage(id) { return !!histories[id] && canRedo(histories[id]) }
@@ -468,6 +503,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       if (row) { row.edit = fresh.edit; row.edit_version = fresh.edit_version; row.updated_at = fresh.updated_at }
       layerMap[id] = readLayers(fresh.edit, id)
       lookMap[id] = readLook(fresh.edit)
+      shapeMap[id] = shapeFromEdit(fresh.edit)
       saver.reset(id, fresh.edit_version)
       // 서버 최신본을 불러오면 그 사진의 이력은 비우고 불러온 상태를 첫 단계로
       histories[id] = createHistory(withoutEraseVersion(buildEdit(fresh.edit, layerMap[id])), LABELS.reload)
@@ -487,6 +523,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     saver = makeSaver()
     for (const k of Object.keys(layerMap)) delete layerMap[k]
     for (const k of Object.keys(lookMap)) delete lookMap[k]
+    for (const k of Object.keys(shapeMap)) delete shapeMap[k]
     for (const k of Object.keys(histories)) delete histories[k]
     draft.value = null
     selectedLayerId.value = null
@@ -516,5 +553,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     retrySave, flush, hasUnsaved, isSaved, reopenConflict, reloadConflicted, resetAll, resetScreenState, dispose,
     // 필터·조정 (6-2)
     lookMap, setLook, lookOf, canUndoImage, canRedoImage, undoImage, redoImage,
+    // 자르기·띠 (12-1)
+    shapeMap, shapeOf, setShape,
   }
 }

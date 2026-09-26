@@ -76,6 +76,7 @@
             :item="selectedPhotoItem" :look="session.lookOf(selectedPhotoItem.imageId)" :thumb-url="views[selectedPhotoItem.imageId]?.url || null"
             @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
             @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
+            :shape-text="shapeMarkOf(selectedPhotoItem.imageId)" @crop="openCrop(selectedPhotoItem.imageId)"
           />
           <!-- 글자 속성 (10-1): 고른 것 중 글자 요소가 있으면 — 바꾸면 글자 요소에만 -->
           <StudioTextItemPanel
@@ -92,7 +93,7 @@
             v-if="activeTool === 'photo' || !isWide"
             :key="project.id" ref="photoPanel"
             :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-            :bake-state="bakeQueue.state" :placed-ids="placedIds"
+            :bake-state="bakeQueue.state" :placed-ids="placedIds" :shape-mark-of="shapeMarkOf"
             @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
             @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded" @insert="onInsertImage"
           />
@@ -206,6 +207,12 @@
       :keys-enabled="!anyModalOpen"
       @close="onEraseClosed"
       @toast="showToast"
+    />
+
+    <!-- 자르기 창 (12-1): 사진 한 장 — [완료] = 사진에 저장(이력 1개) + 꽉 찬 구간 높이 맞춤, [취소]·Esc = 그대로 -->
+    <StudioCropScreen
+      v-if="cropRow && isWide" :key="cropRow.id" :image="cropRow" :image-label="imageLabel(cropRow)" :shape="session.shapeOf(cropRow.id)"
+      :load-source="loadCropSource" @done="onCropDone" @cancel="cropImageId = null"
     />
 
     <!-- [순서 변경] 화면 (8-2): [완료] = 한 번에 적용(이력 1개), [취소]·Esc·바깥 = 그대로 닫기 -->
@@ -353,8 +360,10 @@ import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
 import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
 import StudioExportModal from '@/components/studio/StudioExportModal.vue'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
+import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
 import { renderSection, renderPage, canvasToBlob } from '@/lib/studioExport'
 import { loadWithResign } from '@/lib/studioImageCache'
+import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioTextItemPanel from '@/components/studio/StudioTextItemPanel.vue'
@@ -388,7 +397,7 @@ import {
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
   groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo, groupMemberIds,
   addTextItem, setTextProps, setTextContent, addElementItem, setShapeProps, setLineProps,
-  addItemGroup, setTableProps, editTable,
+  addItemGroup, setTableProps, editTable, fitSectionsToImage,
 } from '@/lib/studioPage'
 import { isValidShapeItem, isValidLineItem, elementKindByKey } from '@/lib/studioShape'
 import { LABELS } from '@/lib/studioHistory'
@@ -616,6 +625,7 @@ function onLayerSelect({ ids, shift }) {
 const exportOpen = ref(false)
 const exportCompareId = ref(null) // 비교 보기 중인 구간 id (개발용)
 const previewOpen = ref(false)    // 13-2 미리보기 (PC·모바일)
+const cropImageId = ref(null)     // 12-1 자르기 창을 연 사진 id
 
 // ── [순서 변경] 화면 (8-2) ──
 const reorderOpen = ref(false)
@@ -673,6 +683,7 @@ function resetEditorLog() {
   exportOpen.value = false  // 13-1 [내보내기] 창
   exportCompareId.value = null
   previewOpen.value = false // 13-2 미리보기
+  cropImageId.value = null  // 12-1 자르기 창
 }
 function noteAction(entry) {
   actionLog.push(entry)
@@ -797,13 +808,13 @@ function applyInsert(r) {
 }
 /** [페이지에 넣기] — 지금 보이는 구간이 비었으면 거기, 아니면 그 아래 새 구간 (studioPage.insertImageNear) */
 function onInsertImage(imageId) {
-  const img = imagesById.value.get(imageId)
+  const img = sizedRow(imageId) // 12-1: 자른 사진은 자른 비율로
   if (!page.value || !img || eraseOpen.value) return
   applyInsert(insertImageNear(page.value, img, pageView.value?.sectionInView() || null))
 }
 /** 목록 사진을 페이지에 끌어다 놓음 — 놓은 구간의 놓은 자리 (studioPage.dropImageAt) */
 function onDropImage({ imageId, sectionId, x, y }) {
-  const img = imagesById.value.get(imageId)
+  const img = sizedRow(imageId) // 12-1: 자른 사진은 자른 비율로
   if (!page.value || !img || img.ingest_status !== 'done' || eraseOpen.value) return
   applyInsert(dropImageAt(page.value, img, sectionId, x, y))
 }
@@ -1364,15 +1375,15 @@ const viewWants = computed(() => {
   if (eraseOpen.value) return []
   return doneImages.value
     .filter(r => r.original_path)
-    .map(row => ({ row, layers: session.layerMap[row.id] || [], finalVersion: finalVersionOf(row) }))
+    .map(row => ({ row, layers: session.layerMap[row.id] || [], finalVersion: finalVersionOf(row), shape: session.shapeOf(row.id) })) // 12-1 자르기·띠
 })
 watch(viewWants, list => {
-  for (const w of list) viewStore.want(w.row, w.layers, { finalVersion: w.finalVersion })
+  for (const w of list) viewStore.want(w.row, w.layers, { finalVersion: w.finalVersion, shape: w.shape })
   prioritizeVisible()
 }, { immediate: true })
 function retryView(imageId) {
   const row = imagesById.value.get(imageId)
-  if (row) viewStore.retry(row, session.layerMap[imageId] || [], { finalVersion: finalVersionOf(row) })
+  if (row) viewStore.retry(row, session.layerMap[imageId] || [], { finalVersion: finalVersionOf(row), shape: session.shapeOf(imageId) })
 }
 
 // ── 지운 사진 굽기 (5단계) — 지우기 화면이 닫힐 때 그 사진을 원본 크기 JPG로 굽는다. 화면은 막지 않는다 ──
@@ -1404,7 +1415,8 @@ async function requestBake(id) {
 }
 // ── 내보내기 (13-1) — 그리기는 studioExport 엔진, 사진·글꼴은 화면과 같은 것을 넘긴다 ──
 // 사진 = 화면 작은 사진과 같은 규칙의 원본 크기: 완성 JPG를 쓸 수 있으면 그것(finalVersionOf — 화면과 같은 판단), 아니면 원본 + 지금 지우기 조각(composeErased)
-async function exportImageOf(imageId) {
+/** 지운 사진(원본 크기, 자르기·띠 전) — 내보내기와 자르기 창(12-1)이 같이 쓴다 */
+async function erasedSourceOf(imageId) {
   const row = imagesById.value.get(imageId)
   if (!row) throw new Error('이 작업에 없는 사진이에요')
   if (row.ingest_status !== 'done' || !row.original_path) throw new Error('아직 준비되지 않은 사진이에요')
@@ -1418,6 +1430,18 @@ async function exportImageOf(imageId) {
   const notes = [...r.problems]
   if (r.aiMissing.length || r.aiStale.length) notes.push('AI로 지우기 결과가 없는 곳은 원본 그대로 들어갔어요 (지우기 화면에서 다시 지우기)')
   return { source: r.canvas || el, width: el.naturalWidth, height: el.naturalHeight, notes }
+}
+/** 내보낼 사진 = 지운 사진 → 띠 잘라내기 → 자르기 (12-1, studioCrop.geometryOf — 화면 작은 사진과 같은 함수). 필터·꾸미기는 엔진이 */
+async function exportImageOf(imageId) {
+  const src = await erasedSourceOf(imageId)
+  const geo = geometryOf(src.width, src.height, session.shapeOf(imageId))
+  if (geo.identity) return src
+  const notes = geo.cropIgnored ? [...src.notes, '자르기 영역이 모두 잘라낸 띠 안이라 자르기를 쓰지 않았어요'] : src.notes
+  const c = document.createElement('canvas')
+  c.width = geo.width
+  c.height = geo.height
+  drawGeometry(c.getContext('2d'), src.source, geo, 0, 0, geo.width, geo.height)
+  return { source: c, width: geo.width, height: geo.height, notes }
 }
 const exportDeps = {
   createCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c },
@@ -1470,6 +1494,48 @@ function openPreview() {
   clearSelection()
   previewOpen.value = true
 }
+// ── 자르기·띠 잘라내기 (12-1) — 사진 데이터(edit.crop·edit.cuts)에 저장, 사진 이력. 완성 JPG에는 넣지 않는다 ──
+const cropRow = computed(() => (cropImageId.value ? imagesById.value.get(cropImageId.value) ?? null : null))
+/** 목록·사진 칸 표시 "잘림 · 띠 2" (정리한 값 기준, 없으면 '') */
+function shapeMarkOf(imageId) {
+  const row = imagesById.value.get(imageId)
+  return row ? shapeMark(readShape(session.shapeOf(imageId), row.width, row.height)) : ''
+}
+/** 이 사진의 결과 크기 (자르기·띠를 적용한 뒤) — 페이지에 넣을 때 비율 */
+function sizedRow(imageId) {
+  const row = imagesById.value.get(imageId)
+  if (!row || !Number.isInteger(row.width) || !Number.isInteger(row.height)) return row
+  const geo = geometryOf(row.width, row.height, session.shapeOf(imageId))
+  return geo.identity ? row : { ...row, width: geo.width, height: geo.height }
+}
+function openCrop(imageId) {
+  const row = imagesById.value.get(imageId)
+  if (!row || row.ingest_status !== 'done' || eraseOpen.value) return
+  pageView.value?.finishEdit()
+  cropImageId.value = imageId
+}
+function loadCropSource() { return erasedSourceOf(cropImageId.value) }
+/**
+ * [완료] — 사진 이력 1개("자르기"/"띠 잘라내기"/둘 다) + 저장(edit_version 잠금, 지우기·필터와 같은 저장기).
+ * 그 뒤 "사진 1장이 폭에 꽉 찬 구간"은 새 비율로 구간·요소 높이를 맞춘다(페이지 이력 1개 "구간 높이 맞춤" — studioPage.fitSectionsToImage).
+ * 그 밖의 자리는 자리 비율 그대로, 채우기(cover)로 다시 그린다
+ */
+function onCropDone(shape) {
+  const id = cropImageId.value
+  cropImageId.value = null
+  const row = id ? imagesById.value.get(id) : null
+  if (!row) return
+  const before = readShape(session.shapeOf(id), row.width, row.height)
+  const cropChanged = JSON.stringify(before.crop) !== JSON.stringify(shape.crop)
+  const cutsChanged = JSON.stringify(before.cuts) !== JSON.stringify(shape.cuts)
+  const label = cropChanged && cutsChanged ? LABELS.cropCuts : cutsChanged ? LABELS.cuts : LABELS.crop
+  const hBefore = session.histories[id]?.index
+  if (!session.setShape(id, shape, label)) return
+  if (session.histories[id]?.index !== hBefore) noteAction({ imageId: id })
+  const geo = geometryOf(row.width, row.height, session.shapeOf(id))
+  if (page.value) applyPage(fitSectionsToImage(page.value, id, geo.width, geo.height), LABELS.cropFit)
+  showToast(`${label} 적용했어요 · 이 사진을 쓰는 모든 자리에 보여요`)
+}
 // 개발용 비교 보기 — 개발 서버에서만 (빌드에서는 import.meta.env.DEV = false라 코드째 빠진다)
 const DEV_EXPORT_COMPARE = import.meta.env.DEV
 const StudioExportCompare = import.meta.env.DEV ? defineAsyncComponent(() => import('@/components/studio/StudioExportCompare.vue')) : null
@@ -1490,7 +1556,8 @@ const usedCount = computed(() => images.value.filter(i =>
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
   || replaceOpen.value || resetLookOpen.value || !!includeAsk.value || reorderOpen.value
   || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
-  || previewOpen.value) // 13-2: 미리보기가 열린 동안도
+  || previewOpen.value // 13-2: 미리보기가 열린 동안도
+  || !!cropImageId.value) // 12-1: 자르기 창이 열린 동안도
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'

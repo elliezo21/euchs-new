@@ -77,6 +77,8 @@
               <span v-if="fillCount(img.id).redo > 0" class="st-ink-2" data-redo-count>다시 지우기 {{ fillCount(img.id).redo }}</span>
             </div>
             <div v-else class="text-[11px] st-muted">원본</div>
+            <!-- 자르기·띠 (12-1) -->
+            <div v-if="img.ingest_status === 'done' && shapeMarkOf(img.id)" class="text-[11px] font-bold st-accent-text" data-shape-mark>{{ shapeMarkOf(img.id) }}</div>
             <!-- 지운 사진 굽기 (5단계) — 화면을 막지 않고 여기에만 알린다 -->
             <div v-if="bakeOf(img.id) && isBaking(bakeOf(img.id))" class="text-[11px] st-muted" data-bake-state="baking">적용 중…</div>
             <div v-else-if="bakeOf(img.id)?.status === 'failed'" class="text-[11px] break-keep" data-bake-state="failed">
@@ -130,6 +132,7 @@ const props = defineProps({
   orderError: { type: String, default: '' },
   bakeState: { type: Object, default: () => ({}) },              // image id → { status, message } (useBakeQueue)
   placedIds: { type: Array, default: null },                      // 페이지에 놓인 사진 id (6-3, studioPage.pageImageIds). null = 페이지 없음(넣기 숨김)
+  shapeMarkOf: { type: Function, default: () => '' },             // image id → "잘림 · 띠 2" (12-1, 없으면 '')
 })
 // retry-image(id): 썸네일 다시 만들기 / visible(ids): 목록에서 지금 보이는 사진 (먼저 받게)
 // shown({ id, ok }): 썸네일 <img>가 실제로 화면에 그려짐(ok) 또는 못 그림 — 편집기가 AI 엔진 켜는 시점을 정한다

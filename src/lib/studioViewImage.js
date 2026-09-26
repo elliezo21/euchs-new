@@ -19,6 +19,7 @@ import { computeFillPatch } from '@/lib/studioFillPatch'
 import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
 import { fillLayersOf } from '@/lib/studioEdit'
 import { AI_MODEL_ID, loadAiPatch } from '@/lib/studioAiPatch'
+import { geometryOf, drawGeometry, geometryHeightAt, readShape } from '@/lib/studioCrop'
 
 export const VIEW_TYPE = 'image/webp'
 export const VIEW_QUALITY = 0.9
@@ -28,10 +29,15 @@ export function viewWidth(naturalW, pageWidth, dpr = 1) {
   return Math.max(1, Math.min(naturalW, Math.round(pageWidth * Math.min(2, Math.max(1, dpr)))))
 }
 
-/** 같은 결과인지 가르는 key — 원본 경로 + 지우기 레이어 값 (레이어가 바뀌면 다시 만든다). 구운 JPG를 쓰면 그 버전 */
-export function viewKey(row, layers, targetW, finalVersion = null) {
-  if (Number.isInteger(finalVersion)) return `final|${finalPathOf(row, finalVersion)}|${targetW}`
-  return `${row.original_path}|${targetW}|${JSON.stringify(fillLayersOf(layers || []))}`
+/**
+ * 같은 결과인지 가르는 key — 원본 경로 + 지우기 레이어 값 (레이어가 바뀌면 다시 만든다). 구운 JPG를 쓰면 그 버전.
+ * 12-1: 자르기·띠(정리한 값)도 key에 — 바뀌면 다시 만든다
+ */
+export function viewKey(row, layers, targetW, finalVersion = null, shape = null) {
+  const s = readShape(shape, row.width, row.height)
+  const shapeKey = s.crop || s.cuts.length ? `|shape:${JSON.stringify(s)}` : ''
+  if (Number.isInteger(finalVersion)) return `final|${finalPathOf(row, finalVersion)}|${targetW}${shapeKey}`
+  return `${row.original_path}|${targetW}|${JSON.stringify(fillLayersOf(layers || []))}${shapeKey}`
 }
 
 /**
@@ -114,23 +120,28 @@ function toBlob(canvas) {
   })
 }
 
-/** 사진 한 장 → { url, width, height, problems } — finalVersion이 있으면 구운 JPG를 받아 줄이기만 한다 */
-async function renderView(pool, row, layers, targetW, finalVersion = null) {
+/**
+ * 사진 한 장 → { url, width, height, problems } — finalVersion이 있으면 구운 JPG를 받아 줄이기만 한다.
+ * 12-1: 지운 결과(원본 크기) → 띠 잘라내기 → 자르기(studioCrop.geometryOf — 내보내기와 같은 함수) → 목표 폭으로 줄임
+ */
+async function renderView(pool, row, layers, targetW, finalVersion = null, shape = null) {
   const useFinal = Number.isInteger(finalVersion)
   const imgEl = await loadWithResign(pool, useFinal ? finalPathOf(row, finalVersion) : row.original_path)
   const W = imgEl.naturalWidth, H = imgEl.naturalHeight
   const { canvas: full, problems, aiMissing, aiStale } = useFinal
     ? { canvas: null, problems: [], aiMissing: [], aiStale: [] }
     : await composeErased(imgEl, fillLayersOf(layers || []))
-  const tw = Math.min(targetW, W)
-  const th = Math.max(1, Math.round(H * tw / W))
+  const geo = geometryOf(W, H, shape)
+  if (geo.cropIgnored) problems.push('자르기 영역이 모두 잘라낸 띠 안이라 자르기를 쓰지 않았어요')
+  const tw = Math.min(targetW, geo.width)
+  const th = geometryHeightAt(geo, tw)
   const c = document.createElement('canvas')
   c.width = tw
   c.height = th
   const ctx = c.getContext('2d')
   ctx.imageSmoothingEnabled = true
   ctx.imageSmoothingQuality = 'high'
-  ctx.drawImage(full || imgEl, 0, 0, tw, th)
+  drawGeometry(ctx, full || imgEl, geo, 0, 0, tw, th)
   const blob = await toBlob(c) // 오염(SecurityError)이면 throw — 부른 쪽이 사유를 보여준다
   if (full) { full.width = 0; full.height = 0 } // 원본 크기 캔버스 메모리를 바로 돌려준다
   return { url: URL.createObjectURL(blob), width: tw, height: th, bytes: blob.size, problems, aiMissing, aiStale, fromFinal: useFinal }
@@ -162,17 +173,20 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
     onUpdate?.(id, next)
   }
 
-  /** @param {{ finalVersion?: number|null }} opts finalVersion: 구운 JPG가 최신일 때 그 버전 (그 파일을 받아 쓴다) */
-  function want(row, layers, { finalVersion = null } = {}) {
+  /**
+   * @param {{ finalVersion?: number|null, shape?: { crop, cuts }|null }} opts finalVersion: 구운 JPG가 최신일 때 그 버전 (그 파일을 받아 쓴다),
+   *   shape: 자르기·띠 (12-1 — 화면 값)
+   */
+  function want(row, layers, { finalVersion = null, shape = null } = {}) {
     if (!row?.original_path) return
-    const key = viewKey(row, layers, targetOf(row), finalVersion)
+    const key = viewKey(row, layers, targetOf(row), finalVersion, shape)
     const cur = entries.get(row.id)
     if (cur && cur.key === key) return
     // 만드는 동안 이전 결과(다른 key)는 그대로 보여준다 — 새 결과가 오면 바꾼다
     set(row.id, { key, status: 'loading', url: cur?.url || null, error: '', problems: [] })
     const i = queue.findIndex(q => q.row.id === row.id)
     if (i >= 0) queue.splice(i, 1)
-    queue.push({ row: { ...row }, layers: layers ? JSON.parse(JSON.stringify(layers)) : [], key, finalVersion })
+    queue.push({ row: { ...row }, layers: layers ? JSON.parse(JSON.stringify(layers)) : [], key, finalVersion, shape: shape ? JSON.parse(JSON.stringify(shape)) : null })
     pump()
   }
 
@@ -181,7 +195,7 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
       const job = queue.shift()
       running++
       const g = gen
-      renderView(pool, job.row, job.layers, targetOf(job.row), job.finalVersion).then(
+      renderView(pool, job.row, job.layers, targetOf(job.row), job.finalVersion, job.shape).then(
         out => {
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) { URL.revokeObjectURL(out.url); return } // 그 사이 바뀜 — 버린다
           set(job.row.id, { key: job.key, status: 'ready', url: out.url, error: '', problems: out.problems, aiMissing: out.aiMissing, aiStale: out.aiStale, fromFinal: out.fromFinal, width: out.width, height: out.height, bytes: out.bytes })
