@@ -253,6 +253,15 @@
   background: var(--st-soft); color: var(--st-muted);
   display: flex; align-items: center; justify-content: center;
 }
+/* 받는 중인 사진 자리 — 흐린 빛이 지나가는 자리표시 (움직임 줄이기 설정이면 멈춤) */
+.studio-root .st-skeleton,
+.studio-root.st-dark .st-skeleton { /* 어두운 화면의 .st-placeholder 바탕보다 앞서게 */
+  background: linear-gradient(100deg, var(--st-card) 30%, var(--st-card-hover) 50%, var(--st-card) 70%);
+  background-size: 300% 100%;
+  animation: st-skeleton-shine 1.4s ease-in-out infinite;
+}
+@keyframes st-skeleton-shine { from { background-position: 100% 0; } to { background-position: 0 0; } }
+@media (prefers-reduced-motion: reduce) { .studio-root .st-skeleton, .studio-root.st-dark .st-skeleton { animation: none; } }
 
 /* ── 진행 막대 ────────────────────────────────────────────── */
 .studio-root .st-progress { height: 8px; border-radius: 999px; background: var(--st-soft); overflow: hidden; }

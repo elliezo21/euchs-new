@@ -1,5 +1,5 @@
 <template>
-  <div class="relative mx-auto" :style="{ width: `${page.width * zoom}px`, height: `${total * zoom}px` }" data-page @pointerdown.self="$emit('clear-selection')">
+  <div ref="rootEl" class="relative mx-auto" :style="{ width: `${page.width * zoom}px`, height: `${total * zoom}px` }" data-page @pointerdown.self="$emit('clear-selection')">
     <!-- 구간 이름 (페이지 왼쪽 바깥) -->
     <div
       v-for="(s, si) in page.sections" :key="`l-${s.id}`"
@@ -33,7 +33,10 @@
               class="block w-full h-full pointer-events-none" :style="flipStyle(it)"
             />
             <!-- 사진을 준비하는 중·실패·없는 사진: 그 자리 안에만 보인다 (떠 있는 막대 아님) -->
-            <div v-else class="w-full h-full flex flex-col items-center justify-center gap-2 p-3 text-center st-placeholder st-muted" data-item-state>
+            <div
+              v-else class="w-full h-full flex flex-col items-center justify-center gap-2 p-3 text-center st-placeholder st-muted"
+              :class="rowOfImage(it.imageId) && viewOf(it.imageId)?.status !== 'error' ? 'st-skeleton' : ''" data-item-state
+            >
               <template v-if="!rowOfImage(it.imageId)">
                 <span class="text-[12px] font-bold">이 작업에 없는 사진이에요</span>
               </template>
@@ -62,7 +65,7 @@
 // 가운데 긴 페이지 (4단계, 방식 C — DOM. Fabric은 지우기 화면에서만).
 // 구간 = div(구간 밖은 잘림), 사진 = 절대 위치 img(화면용 작은 사진, studioViewImage). 사진 위에는 선택 테두리만.
 // 조작: 누르기 = 선택, 끌기 = 그 구간 안에서 옮기기(손을 뗄 때 한 번 저장), 두 번 누르기 = 지우기 화면. Esc = 끌기 취소.
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw } from 'lucide-vue-next'
 import { layoutSections, isValidImageItem, clampItemPosition, findItem } from '@/lib/studioPage'
 import { KIND_LABEL } from '@/lib/studioProjects'
@@ -76,7 +79,8 @@ const props = defineProps({
   bakeState: { type: Object, default: () => ({}) }, // image id → { status } (useBakeQueue) — 구간 이름 옆에 "적용 중" (사진 위에는 올리지 않는다)
 })
 // select({ itemId, imageId }) / clear-selection / move({ itemId, x, y }) 손을 뗄 때 한 번 / open-erase(imageId) / retry-image(imageId)
-const emit = defineEmits(['select', 'clear-selection', 'move', 'open-erase', 'retry-image'])
+// visible(imageIds): 지금 화면에 보이는 사진 (위에서부터 — 편집기가 그 사진부터 받는다)
+const emit = defineEmits(['select', 'clear-selection', 'move', 'open-erase', 'retry-image', 'visible'])
 
 const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
 
@@ -183,7 +187,31 @@ function scrollToItem(itemId) {
   root?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
 
-onBeforeUnmount(endDrag)
+// ── 보이는 사진 알리기 (스크롤 상자에 가려진 것은 안 보이는 것으로 친다 — IntersectionObserver 기본 root) ──
+const rootEl = ref(null)
+const shown = new Map() // item 요소 → { imageId, top }
+let io = null
+let mo = null
+function observeItems() {
+  if (!io || !rootEl.value) return
+  for (const el of shown.keys()) if (!el.isConnected) { shown.delete(el); io.unobserve(el) } // 없어진 요소
+  for (const el of rootEl.value.querySelectorAll('[data-item-id]')) io.observe(el)
+}
+onMounted(() => {
+  if (typeof IntersectionObserver === 'undefined' || !rootEl.value) return
+  io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      if (e.isIntersecting && e.target.isConnected) shown.set(e.target, { imageId: e.target.dataset.imageId, top: e.boundingClientRect.top })
+      else shown.delete(e.target)
+    }
+    const ids = [...shown.values()].sort((a, b) => a.top - b.top).map(v => v.imageId)
+    emit('visible', [...new Set(ids)])
+  }, { rootMargin: '300px 0px' })
+  observeItems()
+  mo = new MutationObserver(observeItems) // 구간·사진이 바뀌면 새 요소도 본다
+  mo.observe(rootEl.value, { childList: true, subtree: true })
+})
+onBeforeUnmount(() => { endDrag(); io?.disconnect(); mo?.disconnect() })
 defineExpose({ scrollToItem })
 </script>
 

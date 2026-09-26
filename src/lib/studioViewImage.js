@@ -1,4 +1,4 @@
-/**
+﻿/**
  * 페이지용 화면 사진 — 지운 결과(원본 + 지우기 조각)를 브라우저에서 그린 뒤 페이지 폭에 맞게 줄여 메모리에 둔다 (4단계).
  *
  * ★ Supabase 이미지 변환(유료)을 쓰지 않는다 (Claude 결정, 해성 위임). 원본을 받아 브라우저 캔버스에서 줄인다.
@@ -9,10 +9,12 @@
  *   지금 계산 key(aiPatchKey)와 같을 때만 저장된 PNG(loadAiPatch)를 쓴다. 안 맞는 AI(실행 전·값이 바뀜)는 편집기처럼 원본 그대로.
  * ★ 5단계 굽기(studioBake)도 같은 composeErased를 쓴다 (원본 크기, 흰 바탕). 구운 JPG가 최신이면(final_rendered_version = edit_version)
  *   화면용 사진은 합성하지 않고 그 JPG를 받아 줄인다 (want의 finalVersion). 최신이 아니면 지금처럼 실시간 합성.
- * ★ 원본은 crossOrigin으로 받아야 캔버스가 오염되지 않는다 (getImageData·toBlob) — 목록 썸네일과 다른 서명 URL을 새로 받는다.
+ * ★ 원본은 crossOrigin으로 받아야 캔버스가 오염되지 않는다 (getImageData·toBlob).
+ * ★ [사진] 목록 썸네일도 이 작은 사진을 쓴다 — 원본은 사진마다 한 번만 받는다 (목록·페이지가 따로 받지 않음).
+ *   서명 URL은 편집기의 서명 URL 모음(createSignedUrlPool)을 같이 쓴다 — 열 때 한 번에 묶어 받은 주소, 사진마다 따로 받지 않는다.
+ *   화면에 보이는 사진을 먼저 만든다 (prioritize).
  */
-import { signViewUrl } from '@/lib/studioProjects'
-import { loadElement } from '@/lib/studioImageCache'
+import { createSignedUrlPool, loadWithResign } from '@/lib/studioImageCache'
 import { computeFillPatch } from '@/lib/studioFillPatch'
 import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
 import { fillLayersOf } from '@/lib/studioEdit'
@@ -39,7 +41,7 @@ export function viewKey(row, layers, targetW, finalVersion = null) {
  */
 export function finalPathOf(row, version) {
   const m = /^([^/]+)\/([^/]+)\/orig\//.exec(String(row?.original_path || ''))
-  if (!m || !Number.isInteger(version) || version < 1) throw new Error(`구운 사진 경로를 만들 수 없어요 (${row?.id}, v${version})`)
+  if (!m || !Number.isInteger(version) || version < 1) throw new Error(`적용한 사진 경로를 만들 수 없어요 (${row?.id}, v${version})`)
   return `${m[1]}/${m[2]}/final/${row.id}_v${version}.jpg`
 }
 
@@ -113,10 +115,9 @@ function toBlob(canvas) {
 }
 
 /** 사진 한 장 → { url, width, height, problems } — finalVersion이 있으면 구운 JPG를 받아 줄이기만 한다 */
-async function renderView(row, layers, targetW, finalVersion = null) {
+async function renderView(pool, row, layers, targetW, finalVersion = null) {
   const useFinal = Number.isInteger(finalVersion)
-  const { url } = await signViewUrl(useFinal ? finalPathOf(row, finalVersion) : row.original_path)
-  const imgEl = await loadElement(url)
+  const imgEl = await loadWithResign(pool, useFinal ? finalPathOf(row, finalVersion) : row.original_path)
   const W = imgEl.naturalWidth, H = imgEl.naturalHeight
   const { canvas: full, problems, aiMissing, aiStale } = useFinal
     ? { canvas: null, problems: [], aiMissing: [], aiStale: [] }
@@ -140,9 +141,11 @@ async function renderView(row, layers, targetW, finalVersion = null) {
  *   want(row, layers): 필요하면 만들기 요청 (같은 key가 이미 있거나 만드는 중이면 아무것도 안 함)
  *   entry(id): { key, status: 'loading'|'ready'|'error', url, error, problems }
  *   onUpdate(id, entry): 상태가 바뀔 때마다 (화면이 반응형 값으로 옮겨 담는다)
- * @param {{ pageWidth: number, dpr?: number, concurrency?: number, onUpdate: Function }} opts
+ *   prioritize(ids): 기다리는 것 중 이 사진들을 맨 앞으로 (화면에 보이는 사진)
+ * @param {{ pageWidth: number, dpr?: number, concurrency?: number, pool?: object, onUpdate: Function }} opts
+ *   pool: 편집기의 서명 URL 모음 (createSignedUrlPool) — 없으면 따로 만든다
  */
-export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 2, onUpdate }) {
+export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool = createSignedUrlPool(), onUpdate }) {
   const entries = new Map()  // image id → entry
   const queue = []           // [{ row, layers, key }] — 사진마다 최신 요청 하나
   let running = 0
@@ -178,7 +181,7 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 2, onUp
       const job = queue.shift()
       running++
       const g = gen
-      renderView(job.row, job.layers, targetOf(job.row), job.finalVersion).then(
+      renderView(pool, job.row, job.layers, targetOf(job.row), job.finalVersion).then(
         out => {
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) { URL.revokeObjectURL(out.url); return } // 그 사이 바뀜 — 버린다
           set(job.row.id, { key: job.key, status: 'ready', url: out.url, error: '', problems: out.problems, aiMissing: out.aiMissing, aiStale: out.aiStale, fromFinal: out.fromFinal, width: out.width, height: out.height, bytes: out.bytes })
@@ -199,6 +202,17 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 2, onUp
     want(row, layers, opts)
   }
 
+  /** 기다리는 것 중 ids(앞일수록 먼저)를 맨 앞으로. 이미 만드는 중이거나 다 된 것은 그대로 */
+  function prioritize(ids) {
+    if (queue.length < 2 || !ids?.length) return
+    const rank = new Map(ids.map((id, i) => [id, i]))
+    const front = queue.filter(q => rank.has(q.row.id)).sort((a, b) => rank.get(a.row.id) - rank.get(b.row.id))
+    if (front.length === 0) return
+    const rest = queue.filter(q => !rank.has(q.row.id))
+    queue.length = 0
+    queue.push(...front, ...rest)
+  }
+
   function entry(id) { return entries.get(id) || null }
 
   /** 모두 비우기 (로그아웃·화면 떠날 때) — 만드는 중인 결과는 도착해도 버린다 */
@@ -210,5 +224,5 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 2, onUp
     entries.clear()
   }
 
-  return { want, retry, entry, clear }
+  return { want, retry, prioritize, entry, clear }
 }

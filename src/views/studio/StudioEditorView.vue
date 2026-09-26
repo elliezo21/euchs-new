@@ -67,9 +67,10 @@
       <aside class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
         <StudioPhotoPanel
           v-if="activeTool === 'photo' || !isWide"
-          :images="images" :view-urls="viewUrls" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-          :bake-state="bakeQueue.state" :erased-thumb="erasedThumb"
-          @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-url="resignViewUrl" @retry-bake="requestBake"
+          :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
+          :bake-state="bakeQueue.state"
+          @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
+          @visible="onListVisible"
         />
         <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
           <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -88,6 +89,7 @@
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-item-id="selectedItemId" :bake-state="bakeQueue.state"
               @select="onPageSelect" @clear-selection="selectedItemId = null" @move="onPageMove"
               @open-erase="openErase" @retry-image="retryView"
+              @visible="onPageVisible"
             />
           </div>
           <div v-else-if="page" class="absolute inset-0 flex items-center justify-center st-desc break-keep" data-page-empty>
@@ -221,16 +223,16 @@ import StudioEraseScreen from '@/components/studio/StudioEraseScreen.vue'
 import StudioPhotoPanel from '@/components/studio/StudioPhotoPanel.vue'
 import StudioPageView from '@/components/studio/StudioPageView.vue'
 import {
-  loadMyProject, listEditorImages, signViewUrls, signViewUrl, sortStudioImages, sortBySortOrder, hasSortOrderOverlap,
+  loadMyProject, listEditorImages, signViewUrls, sortStudioImages, sortBySortOrder, hasSortOrderOverlap,
   renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL,
 } from '@/lib/studioProjects'
-import { createImageCache } from '@/lib/studioImageCache'
+import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
 import { useBakeQueue } from '@/composables/useBakeQueue'
 import { fillCounts } from '@/lib/studioEdit'
 import { usePageSession } from '@/composables/usePageSession'
-import { createViewImageStore } from '@/lib/studioViewImage'
-import { moveItem, firstItemOfImage, findItem, pageImageIds, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS } from '@/lib/studioPage'
+import { createViewImageStore, finalPathOf } from '@/lib/studioViewImage'
+import { moveItem, firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
 
@@ -255,7 +257,6 @@ const route = useRoute()
 const router = useRouter()
 const project = ref(null)
 const images = ref([])
-const viewUrls = ref(new Map())
 const loading = ref(false)
 const errorMsg = ref('')
 const orderError = ref('')
@@ -276,7 +277,9 @@ let leaveBypass = false
 let toastTimer = null
 let viewUrlTimer = null
 
-const imageCache = createImageCache({ limit: 5 })
+// 서명 URL 모음 하나를 목록 썸네일·페이지 작은 사진·지우기 화면이 같이 쓴다 (같은 주소 → 원본을 두 번 받지 않음)
+const urlPool = createSignedUrlPool()
+const imageCache = createImageCache({ limit: 5, pool: urlPool })
 
 function showToast(msg) {
   toast.value = msg
@@ -360,34 +363,54 @@ function selectFromPanel(id) {
   if (itemId) nextTick(() => pageView.value?.scrollToItem(itemId))
 }
 
-// 화면용 작은 사진 — 페이지에 있는 사진을 지운 결과로 그려 줄여 둔다. 지우기 화면이 열려 있는 동안은 멈췄다가 닫으면 다시 맞춘다
+// 화면용 작은 사진 — 사진을 지운 결과로 그려 줄여 둔다. 페이지와 [사진] 목록 썸네일이 같이 쓴다 (원본은 사진마다 한 번만 받는다).
+// 지우기 화면이 열려 있는 동안은 멈췄다가 닫으면 다시 맞춘다
 const views = reactive({}) // image id → { status, url, error, problems }
 const viewStore = createViewImageStore({
   pageWidth: PAGE_WIDTH,
   dpr: window.devicePixelRatio || 1,
-  onUpdate(id, entry) { views[id] = { ...entry } },
+  pool: urlPool,
+  onUpdate(id, entry) { views[id] = { ...entry }; notePerf() },
 })
+// 화면에 보이는 사진부터 받는다 (페이지 → 목록 순)
+let listVisible = []
+let pageVisible = []
+function prioritizeVisible() {
+  viewStore.prioritize([...new Set([...pageVisible, ...listVisible])])
+}
+function onListVisible(ids) { listVisible = ids; prioritizeVisible() }
+function onPageVisible(ids) { pageVisible = ids; prioritizeVisible() }
+// 여는 속도 기록 — 콘솔에 한 줄 (작업을 열 때마다 한 번)
+const perf = { t0: 0, listAt: 0, firstAt: 0, logged: false }
+function notePerf() {
+  if (!perf.t0 || perf.logged) return
+  const rows = doneImages.value
+  if (!perf.firstAt && rows.some(r => views[r.id]?.url)) perf.firstAt = performance.now()
+  if (rows.length === 0 || rows.some(r => !views[r.id] || views[r.id].status === 'loading')) return
+  perf.logged = true
+  const ms = t => Math.round(t - perf.t0)
+  const errors = rows.filter(r => views[r.id].status === 'error').length
+  console.info(`[StudioEditor] 사진 ${rows.length}장 준비: 목록 ${ms(perf.listAt)}ms · 첫 사진 ${ms(perf.firstAt)}ms · 전부 ${ms(performance.now())}ms${errors ? ` · 못 받음 ${errors}장` : ''}`)
+}
 // 구운 사진(final JPG)이 최신이면 그 버전 — 지우기가 저장된 상태이고 final_rendered_version = edit_version일 때만 (아니면 실시간 합성)
 function finalVersionOf(row) {
   const v = row.edit_version
   return Number.isInteger(v) && row.final_rendered_version === v && session.isSaved(row.id) && !bakeQueue.state[row.id] ? v : null
 }
+// 받을 사진 = 목록의 준비된(done) 사진 전부, 목록 순서 (페이지 기본 배치도 같은 순서 — 페이지에 없는 사진도 목록 썸네일에 쓴다)
 const viewWants = computed(() => {
-  if (!page.value || eraseOpen.value || !isWide.value) return []
-  return pageImageIds(page.value)
-    .map(id => imagesById.value.get(id))
-    .filter(r => r && r.ingest_status === 'done')
+  if (eraseOpen.value) return []
+  return doneImages.value
+    .filter(r => r.original_path)
     .map(row => ({ row, layers: session.layerMap[row.id] || [], finalVersion: finalVersionOf(row) }))
 })
-watch(viewWants, list => { for (const w of list) viewStore.want(w.row, w.layers, { finalVersion: w.finalVersion }) }, { immediate: true })
+watch(viewWants, list => {
+  for (const w of list) viewStore.want(w.row, w.layers, { finalVersion: w.finalVersion })
+  prioritizeVisible()
+}, { immediate: true })
 function retryView(imageId) {
   const row = imagesById.value.get(imageId)
   if (row) viewStore.retry(row, session.layerMap[imageId] || [], { finalVersion: finalVersionOf(row) })
-}
-// [사진] 목록 썸네일: 페이지용으로 만든 사진(지운 결과 또는 구운 사진)이 있으면 그것, 없으면 원본 썸네일
-function erasedThumb(id) {
-  const v = views[id]
-  return v && v.status === 'ready' && v.url ? v.url : null
 }
 
 // ── 지운 사진 굽기 (5단계) — 지우기 화면이 닫힐 때 그 사진을 원본 크기 JPG로 굽는다. 화면은 막지 않는다 ──
@@ -438,27 +461,30 @@ function imageLabel(img) {
   return `${no}${KIND_LABEL[img.kind] || ''} · ${img.width} × ${img.height}`
 }
 
-// ── 썸네일 서명 URL(10분) — 만료 전에 새로 받는다 (열어 둔 채 시간이 지나 lazy 로드되는 썸네일이 빈 네모가 되지 않게) ──
+// ── 사진 서명 URL(10분) — 열 때 한 번에 묶어 받고, 만료 전에 다시 묶어 받는다 (나중에 다시 그릴 때 사진마다 따로 받지 않게) ──
+// 원본 + 최신 적용 사진(final JPG, final_rendered_version = edit_version)
 const VIEW_URL_REFRESH_MS = (SIGNED_URL_TTL - 60) * 1000
 let viewUrlsIssuedAt = 0
+function viewPathsOf(rows) {
+  const out = []
+  for (const r of rows) {
+    if (r.ingest_status !== 'done' || !r.original_path) continue
+    out.push(r.original_path)
+    if (Number.isInteger(r.edit_version) && r.edit_version > 0 && r.final_rendered_version === r.edit_version) {
+      try { out.push(finalPathOf(r, r.edit_version)) } catch (e) { console.error('[StudioEditor] 적용 사진 경로를 만들 수 없음 (원본으로 그림):', r.id, e.message) }
+    }
+  }
+  return out
+}
 async function refreshViewUrls() {
-  const paths = images.value.filter(i => i.ingest_status === 'done' && i.original_path).map(i => i.original_path)
+  const paths = viewPathsOf(images.value)
   if (paths.length === 0) return
   try {
-    const urls = await signViewUrls(paths)
-    viewUrls.value = urls
-    viewUrlsIssuedAt = Date.now()
+    const issuedAt = Date.now()
+    urlPool.seed(await signViewUrls(paths), issuedAt)
+    viewUrlsIssuedAt = issuedAt
   } catch (e) {
-    console.error('[StudioEditor] 썸네일 주소 갱신 실패:', e)
-  }
-}
-async function resignViewUrl(path) {
-  try {
-    const { url } = await signViewUrl(path)
-    const next = new Map(viewUrls.value); next.set(path, url); viewUrls.value = next
-  } catch (e) {
-    console.error('[StudioEditor] 썸네일 주소 다시 받기 실패:', path, e)
-    showToast('사진 주소를 다시 받지 못했어요. 잠시 후 다시 시도해 주세요.')
+    console.error('[StudioEditor] 사진 주소 갱신 실패 (다음 그릴 때 한 장씩 받음):', e)
   }
 }
 function onVisible() {
@@ -470,6 +496,7 @@ async function load() {
   const seq = ++loadSeq
   const projectId = String(route.params.projectId || '')
   loading.value = !project.value || project.value.id !== projectId
+  if (loading.value) Object.assign(perf, { t0: performance.now(), listAt: 0, firstAt: 0, logged: false })
   errorMsg.value = ''
   orderError.value = ''
   try {
@@ -490,13 +517,15 @@ async function load() {
     } else {
       ordered = sortBySortOrder(imgs)
     }
-    // 보기용 서명 URL(10분)은 열 때마다 한 번에 새로 발급
-    const urls = await signViewUrls(ordered.filter(i => i.ingest_status === 'done' && i.original_path).map(i => i.original_path))
+    // 보기용 서명 URL(10분)은 열 때마다 한 번에 묶어 새로 발급 (원본 + 최신 적용 사진)
+    const issuedAt = Date.now()
+    const urls = await signViewUrls(viewPathsOf(ordered))
     if (seq !== loadSeq) return
+    urlPool.seed(urls, issuedAt)
+    viewUrlsIssuedAt = issuedAt
     project.value = p
     images.value = ordered
-    viewUrls.value = urls
-    viewUrlsIssuedAt = Date.now()
+    if (!perf.listAt) perf.listAt = performance.now()
     orderError.value = orderErr
     session.syncFromServer(ordered)
     if (p) pageSession.syncFromServer(p)
@@ -608,8 +637,7 @@ async function guardLeave(to) {
     try { closed = !eraseScreen.value || eraseScreen.value.requestClose() } finally { eraseByHistory = false }
     if (closed) {
       eraseOpen.value = false
-      // 이동은 취소했으므로 주소에 남은 erase만 뺀다 (취소된 크롬 ←를 라우터가 되돌린 뒤)
-      setTimeout(() => { if (route.query.erase && !eraseOpen.value) router.replace({ query: queryWithoutErase(route.query) }) }, 0)
+      dropEraseAfterRestore()
     }
     return false
   }
@@ -619,6 +647,26 @@ async function guardLeave(to) {
   leaveTarget = to
   leaveOpen.value = true
   return false
+}
+/**
+ * 이동을 취소한 뒤 주소에 남은 erase만 뺀다.
+ * 취소된 크롬 ←는 라우터가 history.go로 되돌리고 그때 popstate가 한 번 더 온다 — 그보다 먼저 빼면 되돌리기와 엇갈려
+ * 주소가 다시 ?erase=가 되고 지우기 화면이 다시 열린다(화면이 바쁠 때 실측). 그래서 그 popstate 뒤에 뺀다.
+ * 앱 안 이동(링크)을 취소한 경우는 popstate가 없으므로 잠시 뒤(300ms)에 뺀다.
+ */
+function dropEraseAfterRestore() {
+  let done = false
+  let timer = null
+  const run = () => {
+    if (done) return
+    done = true
+    window.removeEventListener('popstate', onPop)
+    clearTimeout(timer)
+    if (route.query.erase && !eraseOpen.value) router.replace({ query: queryWithoutErase(route.query) })
+  }
+  const onPop = () => setTimeout(run, 0) // 라우터의 popstate 처리 뒤
+  window.addEventListener('popstate', onPop)
+  timer = setTimeout(run, 300)
 }
 onBeforeRouteLeave(guardLeave)
 onBeforeRouteUpdate(async (to, from) => {
@@ -720,7 +768,7 @@ const onStudioAuthChanged = (e) => {
     imageCache.clear()
     project.value = null
     images.value = []
-    viewUrls.value = new Map()
+    urlPool.clear()
     selectedImageId.value = null
     addOpen.value = false
     clearAllOpen.value = false

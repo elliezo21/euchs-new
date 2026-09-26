@@ -25,20 +25,21 @@
           @dblclick="$emit('open-erase', img.id)"
         >
           <span class="w-5 text-right text-[11px] font-bold st-muted shrink-0">{{ idx + 1 }}</span>
-          <div class="w-14 h-14 rounded-[8px] overflow-hidden shrink-0 st-placeholder relative">
-            <!-- 썸네일 주소는 서명 URL(10분). 못 받았거나 만료돼 실패하면 숨기지 않고 [다시 시도]를 보인다 -->
+          <div class="w-14 h-14 rounded-[8px] overflow-hidden shrink-0 st-placeholder relative" :data-thumb-state="thumbState(img)">
+            <!-- 썸네일 = 페이지용 작은 사진(지운 결과·적용된 사진 포함, 원본을 따로 받지 않는다). 받는 중이면 흐린 자리표시,
+                 못 받았으면 숨기지 않고 [다시 시도]를 보인다 -->
             <template v-if="img.ingest_status === 'done' && img.original_path">
               <button
-                v-if="failed.has(img.original_path)" type="button"
+                v-if="thumbState(img) === 'error'" type="button"
                 class="absolute inset-0 flex flex-col items-center justify-center gap-0.5 text-[9px] font-bold leading-tight st-danger-text text-center px-0.5 break-keep"
                 title="사진을 불러오지 못했어요 · 다시 시도" data-thumb-retry
-                @click.stop="retry(img.original_path)"
+                @click.stop="retry(img.id)"
               ><RefreshCw class="w-3 h-3" :stroke-width="2.5" />다시 시도</button>
               <img
-                v-else-if="erasedThumb(img.id) || viewUrls.get(img.original_path)" :src="erasedThumb(img.id) || viewUrls.get(img.original_path)" alt="" loading="lazy"
-                class="w-full h-full object-cover" @error="onThumbError(img.original_path)"
+                v-else-if="thumbState(img) === 'ready'" :src="views[img.id].url" alt=""
+                class="w-full h-full object-cover" @error="onThumbError(img.id)"
               />
-              <ImageIcon v-else class="w-4 h-4" :stroke-width="2" />
+              <span v-else class="absolute inset-0 st-skeleton" data-thumb-loading />
             </template>
             <ImageIcon v-else class="w-4 h-4" :stroke-width="2" />
           </div>
@@ -71,26 +72,34 @@
 
 <script setup>
 // [사진] 재료 패널 (3단계: 편집기 왼쪽에 있던 사진 목록을 옮김. 업로드 버튼·탭·끌어다 놓기는 7단계)
-import { ref, nextTick, watch } from 'vue'
+import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Image as ImageIcon, ImagePlus, RefreshCw } from 'lucide-vue-next'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { studioErrorMessage } from '@/lib/studioApi'
 
 const props = defineProps({
   images: { type: Array, default: () => [] },
-  viewUrls: { type: Map, default: () => new Map() }, // original_path → 서명 URL
+  views: { type: Object, default: () => ({}) },       // image id → { status: 'loading'|'ready'|'error', url } (studioViewImage — 페이지와 같은 작은 사진)
   selectedImageId: { type: String, default: null },
   fillCount: { type: Function, required: true },     // image id → { done: 결과 있는 지우기 수, redo: 결과 없이 남은 AI 수 }
   orderError: { type: String, default: '' },
   bakeState: { type: Object, default: () => ({}) },              // image id → { status, message } (useBakeQueue)
-  erasedThumb: { type: Function, default: () => null },           // image id → 지운 결과(또는 구운 사진) 화면용 주소, 없으면 null
 })
-const emit = defineEmits(['select', 'open-erase', 'add', 'retry-url', 'retry-bake'])
+// retry-image(id): 썸네일 다시 만들기 / visible(ids): 목록에서 지금 보이는 사진 (먼저 받게)
+const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible'])
 const bakeOf = id => props.bakeState[id] || null
 const isBaking = s => s.status === 'queued' || s.status === 'baking' || s.status === 'waiting'
 
 const listEl = ref(null)
-const failed = ref(new Set())
+const failed = ref(new Set()) // <img>가 작은 사진을 못 그린 사진 id (드묾 — 메모리 주소라서)
+
+/** 'ready' | 'loading' | 'error' — 만드는 중이어도 이전 결과가 있으면 그것을 보여준다 */
+function thumbState(img) {
+  if (failed.value.has(img.id)) return 'error'
+  const v = props.views[img.id]
+  if (v?.url) return 'ready'
+  return v?.status === 'error' ? 'error' : 'loading'
+}
 
 function statusText(img) {
   if (img.ingest_status === 'done') return '완료'
@@ -99,18 +108,41 @@ function statusText(img) {
   return img.kind === 'upload' ? `실패 · ${studioErrorMessage('upload', code)}` : `실패 · ${code || '원인 미기록'}`
 }
 
-function onThumbError(path) {
-  console.error('[StudioPhotoPanel] 썸네일을 불러오지 못함 (서명 URL 만료·권한·네트워크):', path)
-  failed.value = new Set([...failed.value, path])
+function onThumbError(id) {
+  console.error('[StudioPhotoPanel] 썸네일을 그리지 못함:', id, props.views[id]?.url)
+  failed.value = new Set([...failed.value, id])
 }
-function retry(path) {
-  const next = new Set(failed.value); next.delete(path); failed.value = next
-  emit('retry-url', path) // 편집기가 새 서명 URL을 받아 viewUrls를 바꾼다
+function retry(id) {
+  const next = new Set(failed.value); next.delete(id); failed.value = next
+  emit('retry-image', id) // 편집기가 작은 사진을 다시 만든다 (서명 URL이 오래됐으면 새로 받는다)
 }
-// 새 서명 URL이 오면 실패 표시를 걷는다 (다시 실패하면 @error가 다시 표시)
-watch(() => props.viewUrls, () => { if (failed.value.size) failed.value = new Set() })
 
 watch(() => props.selectedImageId, id => {
   if (id) nextTick(() => listEl.value?.querySelector(`[data-image-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
 })
+
+// 지금 보이는 줄 → 편집기에 알려 그 사진부터 받게 한다
+const shown = new Set()
+let io = null
+let mo = null
+function observeRows() {
+  if (!io || !listEl.value) return
+  for (const el of listEl.value.querySelectorAll('[data-image-id]')) io.observe(el) // 이미 보는 요소는 그대로
+}
+onMounted(() => {
+  if (typeof IntersectionObserver === 'undefined' || !listEl.value) return
+  io = new IntersectionObserver(entries => {
+    for (const e of entries) {
+      const id = e.target.dataset.imageId
+      if (e.isIntersecting) shown.add(id)
+      else shown.delete(id)
+    }
+    const order = props.images.map(i => i.id).filter(id => shown.has(id))
+    emit('visible', order)
+  }, { root: listEl.value, rootMargin: '200px 0px' })
+  observeRows()
+  mo = new MutationObserver(observeRows) // 사진이 늘거나 순서가 바뀌면 새 줄도 본다
+  mo.observe(listEl.value, { childList: true })
+})
+onBeforeUnmount(() => { io?.disconnect(); mo?.disconnect() })
 </script>
