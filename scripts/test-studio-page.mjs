@@ -2,7 +2,7 @@
 import {
   emptyPage, buildInitialPage, pageProblems, readPage, checkPageSize, pageBytes, layoutSections, findItem, pageImageIds,
   firstItemOfImage, addSection, removeSection, moveSection, setSectionHeight, setGap, addItem, removeItem, moveItem,
-  reorderItem, parkItem, unparkImage, newImageItem, clampItemPosition, fitZoom, duplicateSection, setSectionBg,
+  reorderItem, parkItem, unparkImage, newImageItem, clampItemPosition, fitZoom, duplicateSection, setSectionBg, reorderSections, moveInOrder,
   PAGE_VERSION, PAGE_WIDTH, PAGE_MAX_BYTES, SECTION_BG, SECTION_MAX, SECTION_H_MIN, SECTION_H_MAX, GAP_MAX,
 } from '../src/lib/studioPage.js'
 
@@ -146,6 +146,29 @@ const IMGS = [
   eq('배경색: #rrggbb → 소문자로', setSectionBg(p, s0, '#1A2B3C').sections[0].bg, '#1a2b3c')
   eq('배경색: 다른 구간은 같은 객체', setSectionBg(p, s0, '#000000').sections[1] === p.sections[1], true)
   eq('배경색: 같은 값·짧은 색·이름·없는 구간 → 그대로', [setSectionBg(p, s0, '#FFFFFF') === p, setSectionBg(p, s0, '#fff') === p, setSectionBg(p, s0, 'red') === p, setSectionBg(p, 'nope', '#000000') === p], [true, true, true, true])
+}
+
+// ── 5-2. 구간 순서 한 번에 (8-2 [순서 변경]) ──
+{
+  const p = buildInitialPage(IMGS)
+  const [s0, s1, s2] = p.sections.map(s => s.id)
+  const r = reorderSections(p, [s2, s0, s1])
+  eq('새 순서대로', r.sections.map(s => s.id), [s2, s0, s1])
+  eq('구간 객체는 그대로(내용 안 바뀜)', r.sections[0] === p.sections[2], true)
+  eq('같은 순서 → 그대로', reorderSections(p, [s0, s1, s2]) === p, true)
+  eq('빠진 id → 그대로', reorderSections(p, [s2, s0]) === p, true)
+  eq('남는(모르는) id → 그대로', reorderSections(p, [s2, s0, s1, 'x']) === p, true)
+  eq('모르는 id로 바꿔치기 → 그대로', reorderSections(p, [s2, s0, 'x']) === p, true)
+  eq('중복 → 그대로', reorderSections(p, [s0, s0, s1]) === p, true)
+  eq('배열 아님 → 그대로', reorderSections(p, null) === p, true)
+  eq('빈 페이지 + 빈 배열 → 그대로', (e => reorderSections(e, []) === e)(emptyPage()), true)
+  eq('입력 문서는 안 바뀜', p.sections.map(s => s.id), [s0, s1, s2])
+  // 순서 목록 안에서 옮기기
+  const L = ['a', 'b', 'c', 'd']
+  eq('옮기기: 맨 앞으로', moveInOrder(L, 'c', 0), ['c', 'a', 'b', 'd'])
+  eq('옮기기: 뒤로', moveInOrder(L, 'a', 2), ['b', 'c', 'a', 'd'])
+  eq('옮기기: 범위 밖은 끝으로', [moveInOrder(L, 'b', 99), moveInOrder(L, 'c', -3)], [['a', 'c', 'd', 'b'], ['c', 'a', 'b', 'd']])
+  eq('옮기기: 같은 자리·없는 id·정수 아님 → 그대로', [moveInOrder(L, 'b', 1) === L, moveInOrder(L, 'x', 0) === L, moveInOrder(L, 'a', 1.5) === L], [true, true, true])
 }
 
 // ── 6. 아이템 이동·순서·삭제 ──

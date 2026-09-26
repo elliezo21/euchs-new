@@ -290,6 +290,30 @@ export function moveSection(page, sectionId, toIndex) {
   return { ...page, sections }
 }
 
+/**
+ * 구간 순서 한 번에 바꾸기 (8-2 [순서 변경] 화면) — orderedIds 순서대로 다시 놓는다.
+ * 지금 구간 id와 개수·구성이 정확히 같을 때만(빠진 id·남는 id·중복 없음). 아니면·순서가 같으면 입력 그대로
+ */
+export function reorderSections(page, orderedIds) {
+  if (!Array.isArray(orderedIds) || orderedIds.length !== page.sections.length) return page
+  const byId = new Map(page.sections.map(s => [s.id, s]))
+  if (new Set(orderedIds).size !== orderedIds.length || !orderedIds.every(id => byId.has(id))) return page
+  if (orderedIds.every((id, i) => page.sections[i].id === id)) return page
+  return { ...page, sections: orderedIds.map(id => byId.get(id)) }
+}
+
+/** 순서 목록 안에서 id 하나를 toIndex 자리로 (8-2 [순서 변경] 화면의 끌기·버튼). 못 하면(없는 id·같은 자리) 입력 그대로 */
+export function moveInOrder(ids, id, toIndex) {
+  const from = ids.indexOf(id)
+  if (from < 0 || !Number.isInteger(toIndex)) return ids
+  const to = Math.max(0, Math.min(ids.length - 1, toIndex))
+  if (to === from) return ids
+  const out = [...ids]
+  out.splice(from, 1)
+  out.splice(to, 0, id)
+  return out
+}
+
 export function setSectionHeight(page, sectionId, height) {
   if (!Number.isInteger(height) || height < SECTION_H_MIN || height > SECTION_H_MAX) return page
   if (!page.sections.some(x => x.id === sectionId && x.height !== height)) return page

@@ -153,11 +153,22 @@
           </div>
           <button v-if="!wideRight" type="button" class="st-icon-btn shrink-0" title="패널 접기" data-right-close @click="rightOpen = false"><PanelRightClose class="w-4 h-4" :stroke-width="2" /></button>
         </div>
-        <div class="flex-1 overflow-y-auto px-3 pb-3 flex flex-col items-center justify-center text-center gap-2" data-right-soon>
-          <p class="st-desc break-keep">{{ rightTab === 'mini' ? '구간 미리보기는 곧 추가될 기능이에요.' : '레이어 목록은 곧 추가될 기능이에요.' }}</p>
+        <!-- 미니뷰 (8-2): 구간 작은 그림 — 누르면 그 구간으로 가서 고름. 보는 중(점선)·골라짐(실선) -->
+        <StudioMiniMap
+          v-if="rightTab === 'mini' && page"
+          :page="page" :views="views" :looks="session.lookMap" :labels="sectionLabels"
+          :active-section-id="inViewSectionId" :selected-section-id="selectedSectionId"
+          @pick="onMiniPick"
+        />
+        <div v-else class="flex-1 overflow-y-auto px-3 pb-3 flex flex-col items-center justify-center text-center gap-2" data-right-soon>
+          <p class="st-desc break-keep">{{ rightTab === 'mini' ? '페이지가 준비되면 구간 미리보기가 보여요.' : '레이어 목록은 곧 추가될 기능이에요.' }}</p>
         </div>
         <div class="p-3 space-y-2 st-border-t">
-          <button type="button" class="st-btn st-btn-block" data-reorder @click="showToast('곧 추가될 기능이에요.')"><ArrowUpDown class="w-4 h-4" :stroke-width="2" /> 순서 변경</button>
+          <button
+            type="button" class="st-btn st-btn-block" :disabled="!page || page.sections.length < 2"
+            :title="page && page.sections.length < 2 ? '구간이 2개 이상일 때 순서를 바꿀 수 있어요' : '구간 순서를 한눈에 보고 바꿔요'"
+            data-reorder @click="reorderOpen = true"
+          ><ArrowUpDown class="w-4 h-4" :stroke-width="2" /> 순서 변경</button>
           <button type="button" class="st-btn st-btn-block" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 구간 간격</button>
         </div>
       </aside>
@@ -174,6 +185,12 @@
       :keys-enabled="!anyModalOpen"
       @close="onEraseClosed"
       @toast="showToast"
+    />
+
+    <!-- [순서 변경] 화면 (8-2): [완료] = 한 번에 적용(이력 1개), [취소]·Esc·바깥 = 그대로 닫기 -->
+    <StudioReorderModal
+      v-if="page" :open="reorderOpen" :page="page" :views="views" :looks="session.lookMap" :names="sectionNames"
+      @apply="onReorderApply" @close="reorderOpen = false"
     />
 
     <!-- 우클릭 메뉴 (6-1) -->
@@ -291,6 +308,8 @@ import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
 import StudioImageItemPanel from '@/components/studio/StudioImageItemPanel.vue'
 import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
+import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
+import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
 import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
 import { SOURCE_MINE } from '@/lib/studioPhotoTabs'
 import {
@@ -309,7 +328,7 @@ import {
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
   removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
   setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
-  addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX,
+  addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
 } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
@@ -467,15 +486,49 @@ function pickSection(sectionId, scroll = false) {
   selectedSectionId.value = sectionId
   if (scroll) nextTick(() => pageView.value?.scrollToSection(sectionId))
 }
-/** "03 상세 이미지" — 페이지 왼쪽 구간 이름과 같은 글자 (StudioPageView sectionName과 같은 규칙) */
-const selectedSectionLabel = computed(() => {
-  const p = page.value
-  const i = p && selectedSectionId.value ? p.sections.findIndex(s => s.id === selectedSectionId.value) : -1
-  if (i < 0) return ''
-  const first = p.sections[i].items.find(isValidImageItem)
-  const row = first ? imagesById.value.get(first.imageId) : null
-  return `${String(i + 1).padStart(2, '0')} ${row ? KIND_LABEL[row.kind] ?? '사진' : '구간'}`
+// 구간 이름 — 페이지 왼쪽 구간 이름과 같은 규칙(StudioPageView sectionName): 첫 사진 요소의 종류, 사진이 없으면 "구간"
+// sectionNames = id → "대표 사진" (순서 변경 화면은 번호를 새 순서로 붙인다) / sectionLabels = id → "03 대표 사진" ([구간] 패널·미니뷰)
+const sectionNames = computed(() => {
+  const out = {}
+  for (const s of page.value?.sections || []) {
+    const first = s.items.find(isValidImageItem)
+    const row = first ? imagesById.value.get(first.imageId) : null
+    out[s.id] = row ? KIND_LABEL[row.kind] ?? '사진' : '구간'
+  }
+  return out
 })
+const sectionLabels = computed(() => {
+  const out = {}
+  for (const [i, s] of (page.value?.sections || []).entries()) out[s.id] = `${String(i + 1).padStart(2, '0')} ${sectionNames.value[s.id]}`
+  return out
+})
+const selectedSectionLabel = computed(() => (selectedSectionId.value ? sectionLabels.value[selectedSectionId.value] ?? '' : ''))
+
+// ── 미니뷰 (8-2) — 지금 화면에 가장 많이 보이는 구간을 따라간다 (페이지 스크롤·문서·배율이 바뀔 때, 한 프레임에 한 번) ──
+const inViewSectionId = ref(null)
+let inViewRaf = 0
+function updateInView() {
+  cancelAnimationFrame(inViewRaf)
+  inViewRaf = requestAnimationFrame(() => { inViewSectionId.value = pageView.value?.sectionInView() ?? null })
+}
+watch(pageScroll, (el, old) => {
+  old?.removeEventListener('scroll', updateInView)
+  el?.addEventListener('scroll', updateInView, { passive: true })
+  updateInView()
+})
+watch([page, zoom], () => nextTick(updateInView)) // 구간을 더하거나 옮기거나 배율을 바꾸면 다시 잰다
+/** 미니뷰에서 누름 — 페이지를 그 구간(위쪽)으로 스크롤하고 그 구간을 고른다 (8-1 구간 고르기와 같은 상태) */
+function onMiniPick(sectionId) {
+  pickSection(sectionId)
+  nextTick(() => pageView.value?.scrollToSection(sectionId, 'start'))
+}
+
+// ── [순서 변경] 화면 (8-2) ──
+const reorderOpen = ref(false)
+function onReorderApply(ids) {
+  reorderOpen.value = false
+  if (page.value && applyPage(reorderSections(page.value, ids), LABELS.secReorder)) showToast('구간 순서를 바꿨어요 · Ctrl+Z로 되돌리기')
+}
 /** 오른쪽 아래 [구간 간격] → [구간] 패널을 열고 간격 칸으로 */
 function openGapField() {
   activeTool.value = 'section'
@@ -521,6 +574,7 @@ function resetEditorLog() {
   replaceOpen.value = false
   resetLookOpen.value = false
   includeAsk.value = null
+  reorderOpen.value = false // 8-2 [순서 변경] 화면
 }
 function noteAction(entry) {
   actionLog.push(entry)
@@ -990,7 +1044,7 @@ function clearViews() {
 const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
-  || replaceOpen.value || resetLookOpen.value || !!includeAsk.value)
+  || replaceOpen.value || resetLookOpen.value || !!includeAsk.value || reorderOpen.value)
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'
@@ -1370,6 +1424,8 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
+  cancelAnimationFrame(inViewRaf)
+  pageScroll.value?.removeEventListener('scroll', updateInView)
   wideQuery.removeEventListener('change', onWideChange)
   rightQuery.removeEventListener('change', onRightChange)
   window.removeEventListener('euchs-auth-changed', onStudioAuthChanged)

@@ -52,6 +52,7 @@ export const LABELS = {
   secHeight: '구간 높이',
   secBg: '구간 배경색',
   secGap: '구간 간격',
+  secReorder: '구간 순서 변경',
   elStyle: '꾸미기',
   lookFilter: '필터',
   lookAdjust: '조정',

@@ -484,9 +484,9 @@ function sectionInView() {
   }
   return best
 }
-/** 이 구간이 보이게 스크롤 (구간을 추가·복제·옮긴 뒤 — 8-1) */
-function scrollToSection(sectionId) {
-  rootEl.value?.querySelector(`[data-section-id="${sectionId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+/** 이 구간이 보이게 스크롤 (구간을 추가·복제·옮긴 뒤 — 8-1 'nearest', 미니뷰에서 누름 — 8-2 'start') */
+function scrollToSection(sectionId, block = 'nearest') {
+  rootEl.value?.querySelector(`[data-section-id="${sectionId}"]`)?.scrollIntoView({ block, behavior: 'smooth' })
 }
 defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act })
 </script>
