@@ -37,7 +37,7 @@
               ><RefreshCw class="w-3 h-3" :stroke-width="2.5" />다시 시도</button>
               <img
                 v-else-if="thumbState(img) === 'ready'" :src="views[img.id].url" alt=""
-                class="w-full h-full object-cover" @error="onThumbError(img.id)"
+                class="w-full h-full object-cover" @load="onThumbLoad(img.id, $event)" @error="onThumbError(img.id)"
               />
               <span v-else class="absolute inset-0 st-skeleton" data-thumb-loading />
             </template>
@@ -76,6 +76,7 @@ import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Image as ImageIcon, ImagePlus, RefreshCw } from 'lucide-vue-next'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { studioErrorMessage } from '@/lib/studioApi'
+import { afterPaint } from '@/lib/studioImageCache'
 
 const props = defineProps({
   images: { type: Array, default: () => [] },
@@ -86,7 +87,8 @@ const props = defineProps({
   bakeState: { type: Object, default: () => ({}) },              // image id → { status, message } (useBakeQueue)
 })
 // retry-image(id): 썸네일 다시 만들기 / visible(ids): 목록에서 지금 보이는 사진 (먼저 받게)
-const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible'])
+// shown({ id, ok }): 썸네일 <img>가 실제로 화면에 그려짐(ok) 또는 못 그림 — 편집기가 AI 엔진 켜는 시점을 정한다
+const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible', 'shown'])
 const bakeOf = id => props.bakeState[id] || null
 const isBaking = s => s.status === 'queued' || s.status === 'baking' || s.status === 'waiting'
 
@@ -111,6 +113,11 @@ function statusText(img) {
 function onThumbError(id) {
   console.error('[StudioPhotoPanel] 썸네일을 그리지 못함:', id, props.views[id]?.url)
   failed.value = new Set([...failed.value, id])
+  emit('shown', { id, ok: false })
+}
+/** 불러오기 → 해독 → 다음 두 프레임(그려진 뒤)에 알린다 */
+function onThumbLoad(id, e) {
+  afterPaint(e.target).then(() => emit('shown', { id, ok: true }))
 }
 function retry(id) {
   const next = new Set(failed.value); next.delete(id); failed.value = next

@@ -70,7 +70,7 @@
           :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
           :bake-state="bakeQueue.state"
           @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
-          @visible="onListVisible"
+          @visible="onListVisible" @shown="onListShown"
         />
         <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
           <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -89,7 +89,7 @@
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-item-id="selectedItemId" :bake-state="bakeQueue.state"
               @select="onPageSelect" @clear-selection="selectedItemId = null" @move="onPageMove"
               @open-erase="openErase" @retry-image="retryView"
-              @visible="onPageVisible"
+              @visible="onPageVisible" @shown="onPageShown"
             />
           </div>
           <div v-else-if="page" class="absolute inset-0 flex items-center justify-center st-desc break-keep" data-page-empty>
@@ -370,7 +370,7 @@ const viewStore = createViewImageStore({
   pageWidth: PAGE_WIDTH,
   dpr: window.devicePixelRatio || 1,
   pool: urlPool,
-  onUpdate(id, entry) { views[id] = { ...entry }; notePerf(); maybeStartAi() },
+  onUpdate(id, entry) { views[id] = { ...entry }; notePerf(); if (entry.status === 'error') maybeStartAi() }, // 실패도 "끝남"
 })
 // 화면에 보이는 사진부터 받는다 (페이지 → 목록 순)
 let listVisible = []
@@ -378,26 +378,91 @@ let pageVisible = []
 function prioritizeVisible() {
   viewStore.prioritize([...new Set([...pageVisible, ...listVisible])])
 }
-function onListVisible(ids) { listVisible = ids; prioritizeVisible(); maybeStartAi() }
-function onPageVisible(ids) { pageVisible = ids; prioritizeVisible(); maybeStartAi() }
+let listReported = false // 목록·페이지가 "지금 보이는 사진"을 한 번이라도 알려 왔는지 (모르면 기다린다)
+let pageReported = false
+function onListVisible(ids) { listVisible = ids; listReported = true; prioritizeVisible(); maybeStartAi() }
+function onPageVisible(ids) { pageVisible = ids; pageReported = true; prioritizeVisible(); maybeStartAi() }
 
-// ── AI 엔진 켜기 — 첫 화면 사진(보이는 목록 썸네일 + 페이지 사진)이 다 준비된 뒤에 켠다 ──
+// ── AI 엔진 켜기 — 첫 화면 사진(보이는 목록 썸네일 + 페이지 사진)이 실제로 화면에 그려진 뒤에 켠다 ──
 // 엔진 세션 만들기(16~26초)가 그래픽카드를 차지해 그동안 사진이 멈춘다(크롬 실측). 지우기 화면을 먼저 열면 그때 바로 켠다.
-// 두 번 켜지지 않는다 (startAiEngine이 이미 있으면 그냥 돌아감). 엔진이 켜지는 동안 남은(화면 밖) 사진 처리는 멈추지 않는다 —
-// 첫 화면은 이미 끝났고, 멈추면 화면 밖 사진이 그만큼 더 늦어질 뿐이다.
-function firstScreenReady() {
-  if (!project.value) return false
+// "그려짐" = <img> 불러오기 → 해독 → 다음 두 프레임 (StudioPhotoPanel·StudioPageView의 shown). 작은 사진 파일이 만들어진 것
+// (views status 'ready')만으로는 부족하다 — 그 직후 엔진을 켜면 그래픽카드를 뺏겨 사진이 몇 초 뒤에야 보였다(크롬 실측 2026-09-26).
+// 못 그린 사진(작은 사진 실패·<img> 오류)도 "끝남"으로 친다. 두 번 켜지지 않는다 (startAiEngine이 이미 있으면 그냥 돌아감).
+// 엔진이 켜지는 동안 남은(화면 밖) 사진 처리는 멈추지 않는다 — 첫 화면은 이미 끝났고, 멈추면 화면 밖 사진이 그만큼 더 늦어질 뿐이다.
+const shownList = new Map() // image id → true(그려짐) | false(못 그림)
+const shownPage = new Map()
+function onListShown({ id, ok }) { recordShown(shownList, id, ok) }
+function onPageShown({ id, ok }) { recordShown(shownPage, id, ok) }
+function recordShown(map, id, ok) {
+  if (!map.has(id)) map.set(id, ok)
+  noteHeroShown(id, ok)
+  maybeStartAi()
+}
+/** 첫 화면이 끝났으면 { ok, fail } (장수), 아직이면 null */
+function firstScreenDone() {
+  if (!project.value) return null
   const rows = doneImages.value
-  if (rows.length === 0) return true
-  const settled = id => views[id] && views[id].status !== 'loading'
-  const shown = [...new Set([...pageVisible, ...listVisible])].filter(id => rows.some(r => r.id === id))
-  return shown.length ? shown.every(settled) : rows.every(r => settled(r.id)) // 보이는 것을 아직 모르면 전부 기다린다
+  if (rows.length === 0) return { ok: 0, fail: 0 }
+  const ids = new Set(rows.map(r => r.id))
+  const listOn = activeTool.value === 'photo' // 목록이 화면에 있을 때만 (다른 메뉴면 목록이 없다)
+  const pageOn = !!page.value?.sections?.length && !pageSession.readError.value
+  if ((listOn && !listReported) || (pageOn && !pageReported)) return null
+  const states = []
+  const collect = (visible, map) => {
+    for (const id of visible) {
+      if (!ids.has(id)) continue
+      states.push(views[id]?.status === 'error' ? false : map.has(id) ? map.get(id) : null)
+    }
+  }
+  if (listOn) collect(listVisible, shownList)
+  if (pageOn) collect(pageVisible, shownPage)
+  if (states.includes(null)) return null
+  return { ok: states.filter(s => s === true).length, fail: states.filter(s => s === false).length }
+}
+// 안전장치: 첫 화면이 20초 안에 끝나지 않으면 20초에 켠다 (채팅 Claude 결정 2026-09-26).
+// 사진 하나가 끝없이 안 뜨는 경우(네트워크 멈춤 등)에도 AI 지우기를 쓸 수 있어야 한다. 크롬 실측에서 27장 작업 첫 화면이 약 7초라 넉넉한 값.
+const AI_FALLBACK_MS = 20000
+let aiFallbackTimer = null
+let firstScreenLogged = false
+function armAiFallback() {
+  clearTimeout(aiFallbackTimer)
+  aiFallbackTimer = setTimeout(() => startAi('20초안전장치'), AI_FALLBACK_MS)
+}
+function startAi(reason) {
+  if (!isWide.value || session.aiEngine.value) return
+  clearTimeout(aiFallbackTimer)
+  timing('aiStart', `AI 엔진 시작 ${now()} (이유: ${reason})`, { aiStartReason: reason })
+  session.startAiEngine()
 }
 function maybeStartAi() {
-  if (!isWide.value || session.aiEngine.value) return
-  if (eraseOpen.value || firstScreenReady()) session.startAiEngine()
+  const done = firstScreenDone()
+  if (done && !firstScreenLogged) {
+    firstScreenLogged = true
+    timing('firstScreen', `첫화면 사진 표시 완료 ${now()} (성공 ${done.ok}장 · 실패 ${done.fail}장)`)
+  }
+  if (eraseOpen.value) startAi('지우기화면')
+  else if (done) startAi('첫화면완료')
 }
 watch(eraseOpen, open => { if (open) maybeStartAi() })
+
+// ── 시간 기록 (개발 서버에서만 — 채팅 Claude가 크롬 콘솔·window.__studioTiming으로 읽는다). 시간 = performance.now() ms ──
+const DEV_TIMING = import.meta.env.DEV
+const now = () => Math.round(performance.now())
+function timing(key, text, extra = {}) {
+  if (!DEV_TIMING) return
+  console.log(`[studio-timing] ${text}`)
+  window.__studioTiming = { ...(window.__studioTiming || {}), [key]: now(), ...extra }
+}
+function noteHeroShown(id, ok) {
+  const hero = doneImages.value[0]
+  if (!DEV_TIMING || !hero || hero.id !== id || window.__studioTiming?.heroShown != null) return
+  timing('heroShown', `대표사진(1번) 표시 ${now()} (${hero.width}×${hero.height}${ok ? '' : ', 못 그림'})`)
+}
+watch(() => session.aiState.status, s => {
+  if (s !== 'ready') return
+  const from = session.aiEngine.value?.info?.modelSource || '알 수 없음'
+  timing('aiReady', `AI 엔진 준비 ${now()} (모델 ${from})`, { aiModelFrom: from })
+})
 // 여는 속도 기록 — 콘솔에 한 줄 (작업을 열 때마다 한 번)
 const perf = { t0: 0, listAt: 0, firstAt: 0, logged: false }
 function notePerf() {
@@ -514,7 +579,13 @@ async function load() {
   const seq = ++loadSeq
   const projectId = String(route.params.projectId || '')
   loading.value = !project.value || project.value.id !== projectId
-  if (loading.value) Object.assign(perf, { t0: performance.now(), listAt: 0, firstAt: 0, logged: false })
+  if (loading.value) {
+    Object.assign(perf, { t0: performance.now(), listAt: 0, firstAt: 0, logged: false })
+    // 새로 여는 작업 — 첫 화면 판단을 처음부터 (엔진이 이미 켜져 있으면 startAi가 아무것도 안 한다)
+    shownList.clear(); shownPage.clear()
+    listReported = false; pageReported = false; firstScreenLogged = false
+    if (!session.aiEngine.value) armAiFallback()
+  }
   errorMsg.value = ''
   orderError.value = ''
   try {
@@ -778,6 +849,7 @@ watch(() => route.params.projectId, (id, old) => {
 const onStudioAuthChanged = (e) => {
   if (!e.detail?.user) {
     loadSeq++
+    clearTimeout(aiFallbackTimer)
     eraseOpen.value = false
     session.resetAll()
     pageSession.resetAll()
@@ -817,6 +889,7 @@ onUnmounted(() => {
   document.removeEventListener('visibilitychange', onVisible)
   clearInterval(viewUrlTimer)
   clearTimeout(toastTimer)
+  clearTimeout(aiFallbackTimer)
   session.dispose()
   pageSession.dispose()
   bakeQueue.dispose()

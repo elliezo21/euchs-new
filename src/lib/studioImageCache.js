@@ -33,6 +33,15 @@ export function createSignedUrlPool() {
   return { seed, url, clear }
 }
 
+/**
+ * 화면의 <img>가 불러와진 뒤 실제로 그려질 때까지 기다린다 (해독 → 다음 두 프레임).
+ * 해독 실패는 onload가 이미 성공했으므로 그대로 그려진 것으로 본다 (사유는 남긴다).
+ */
+export function afterPaint(imgEl) {
+  const decoded = imgEl.decode ? imgEl.decode().then(null, e => console.warn('[studioImageCache] 사진 해독 대기 실패 (그대로 진행):', e?.message)) : Promise.resolve()
+  return decoded.then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))))
+}
+
 /** 서명 URL로 받고, 실패하면 새로 서명해 한 번 더 (만료·권한 문제는 새 주소로 풀린다) */
 export async function loadWithResign(pool, path) {
   try {

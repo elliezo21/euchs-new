@@ -31,6 +31,7 @@
             <img
               v-if="viewOf(it.imageId)?.url" :src="viewOf(it.imageId).url" alt="" draggable="false"
               class="block w-full h-full pointer-events-none" :style="flipStyle(it)"
+              @load="onImgLoad(it.imageId, $event)" @error="onImgError(it.imageId)"
             />
             <!-- 사진을 준비하는 중·실패·없는 사진: 그 자리 안에만 보인다 (떠 있는 막대 아님) -->
             <div
@@ -69,6 +70,7 @@ import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw } from 'lucide-vue-next'
 import { layoutSections, isValidImageItem, clampItemPosition, findItem } from '@/lib/studioPage'
 import { KIND_LABEL } from '@/lib/studioProjects'
+import { afterPaint } from '@/lib/studioImageCache'
 
 const props = defineProps({
   page: { type: Object, required: true },
@@ -80,7 +82,13 @@ const props = defineProps({
 })
 // select({ itemId, imageId }) / clear-selection / move({ itemId, x, y }) 손을 뗄 때 한 번 / open-erase(imageId) / retry-image(imageId)
 // visible(imageIds): 지금 화면에 보이는 사진 (위에서부터 — 편집기가 그 사진부터 받는다)
-const emit = defineEmits(['select', 'clear-selection', 'move', 'open-erase', 'retry-image', 'visible'])
+// shown({ id, ok }): 사진 <img>가 실제로 화면에 그려짐(ok) 또는 못 그림 — 편집기가 AI 엔진 켜는 시점을 정한다
+const emit = defineEmits(['select', 'clear-selection', 'move', 'open-erase', 'retry-image', 'visible', 'shown'])
+function onImgLoad(id, e) { afterPaint(e.target).then(() => emit('shown', { id, ok: true })) }
+function onImgError(id) {
+  console.error('[StudioPageView] 페이지 사진을 그리지 못함:', id, props.views[id]?.url)
+  emit('shown', { id, ok: false })
+}
 
 const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
 
