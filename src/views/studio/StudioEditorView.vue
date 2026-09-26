@@ -28,7 +28,7 @@
         <span class="w-px h-6 mx-1" style="background: var(--st-line)" />
         <button type="button" class="st-btn st-btn-ghost" data-top-history @click="showToast('곧 추가될 기능이에요.')"><History class="w-4 h-4" :stroke-width="2" /> 이력</button>
         <button type="button" class="st-btn st-btn-ghost" :class="step === 3 ? 'st-step-hint' : ''" data-top-preview @click="showToast('곧 추가될 기능이에요.')"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
-        <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" data-top-export @click="showToast('곧 추가될 기능이에요.')"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
+        <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-export @click="openExport"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
       </div>
     </header>
 
@@ -214,6 +214,20 @@
       @apply="onReorderApply" @close="reorderOpen = false"
     />
 
+    <!-- [내보내기] 창 (13-1): 구간별 여러 장·한 장, JPG·PNG, 1·2배 — 브라우저 캔버스로 그려 바로 내려받는다 -->
+    <StudioExportModal
+      v-if="page" :open="exportOpen" :page="page" :title="project ? projectDisplayTitle(project) : ''" :labels="sectionLabels"
+      :pending-by-section="exportPendingBySection" :render="exportRender" :dev-compare="DEV_EXPORT_COMPARE"
+      @close="exportOpen = false" @compare="openExportCompare"
+    />
+    <!-- 개발용 비교 보기 (개발 서버에서만 — 빌드에는 들어가지 않는다) -->
+    <component
+      :is="StudioExportCompare" v-if="StudioExportCompare && exportCompareId && page"
+      :page="page" :section-id="exportCompareId" :label="sectionLabels[exportCompareId] ?? ''"
+      :images-by-id="imagesById" :views="views" :looks="session.lookMap" :render="exportRender"
+      @close="exportCompareId = null"
+    />
+
     <!-- 우클릭 메뉴 (6-1) -->
     <StudioContextMenu :open="ctx.open" :x="ctx.x" :y="ctx.y" :items="ctx.items" @select="onContextSelect" @close="ctx.open = false" />
 
@@ -313,7 +327,7 @@
 // 4단계: 가운데 = 긴 한 장 페이지(StudioPageView, DOM). 페이지 문서·이력·자동 저장은 usePageSession, 화면용 작은 사진은 studioViewImage.
 //   상단 되돌리기·다시·Ctrl+Z = 페이지 이력. 지우기 화면이 열려 있으면 Ctrl+Z = 그 사진의 지우기 이력 (서로 섞이지 않는다)
 // 사진 속성 패널(6단계), [사진] 패널 완성(7단계), 구간·미니뷰(8단계), 레이어(9단계)는 다음 단계.
-import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
+import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onUnmounted, provide, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
   ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp, Trash2, Eraser,
@@ -331,6 +345,9 @@ import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
 import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
+import StudioExportModal from '@/components/studio/StudioExportModal.vue'
+import { renderSection, renderPage, canvasToBlob } from '@/lib/studioExport'
+import { loadWithResign } from '@/lib/studioImageCache'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioTextItemPanel from '@/components/studio/StudioTextItemPanel.vue'
@@ -352,10 +369,10 @@ import {
 import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
 import { useBakeQueue } from '@/composables/useBakeQueue'
-import { fillCounts } from '@/lib/studioEdit'
+import { fillCounts, fillLayersOf } from '@/lib/studioEdit'
 import { usableFinalVersion, sameLayers } from '@/lib/studioFinal'
 import { usePageSession } from '@/composables/usePageSession'
-import { createViewImageStore, finalPathOf } from '@/lib/studioViewImage'
+import { createViewImageStore, finalPathOf, composeErased } from '@/lib/studioViewImage'
 import {
   firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
@@ -588,6 +605,10 @@ function onLayerSelect({ ids, shift }) {
   if (next.length) nextTick(() => pageView.value?.scrollToItem(next[0]))
 }
 
+// ── [내보내기] 창 (13-1) — 상태만 여기 (그리기·사진 준비는 아래 "내보내기" 묶음). 개발용 비교 보기는 개발 서버에서만 ──
+const exportOpen = ref(false)
+const exportCompareId = ref(null) // 비교 보기 중인 구간 id (개발용)
+
 // ── [순서 변경] 화면 (8-2) ──
 const reorderOpen = ref(false)
 function onReorderApply(ids) {
@@ -641,6 +662,8 @@ function resetEditorLog() {
   includeAsk.value = null
   reorderOpen.value = false // 8-2 [순서 변경] 화면
   textEdit.value = null     // 10-1 글자 고치기
+  exportOpen.value = false  // 13-1 [내보내기] 창
+  exportCompareId.value = null
 }
 function noteAction(entry) {
   actionLog.push(entry)
@@ -1370,6 +1393,77 @@ async function requestBake(id) {
   if (usableFinalVersion(row) !== null) { bakeQueue.clear(id); return }
   bakeQueue.request(row, layers, row.edit_version)
 }
+// ── 내보내기 (13-1) — 그리기는 studioExport 엔진, 사진·글꼴은 화면과 같은 것을 넘긴다 ──
+// 사진 = 화면 작은 사진과 같은 규칙의 원본 크기: 완성 JPG를 쓸 수 있으면 그것(finalVersionOf — 화면과 같은 판단), 아니면 원본 + 지금 지우기 조각(composeErased)
+async function exportImageOf(imageId) {
+  const row = imagesById.value.get(imageId)
+  if (!row) throw new Error('이 작업에 없는 사진이에요')
+  if (row.ingest_status !== 'done' || !row.original_path) throw new Error('아직 준비되지 않은 사진이에요')
+  const f = finalVersionOf(row)
+  if (f !== null) {
+    const el = await loadWithResign(urlPool, finalPathOf(row, f))
+    return { source: el, width: el.naturalWidth, height: el.naturalHeight, notes: [] }
+  }
+  const el = await loadWithResign(urlPool, row.original_path)
+  const r = await composeErased(el, fillLayersOf(session.layerMap[imageId] || []))
+  const notes = [...r.problems]
+  if (r.aiMissing.length || r.aiStale.length) notes.push('AI로 지우기 결과가 없는 곳은 원본 그대로 들어갔어요 (지우기 화면에서 다시 지우기)')
+  return { source: r.canvas || el, width: el.naturalWidth, height: el.naturalHeight, notes }
+}
+const exportDeps = {
+  createCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c },
+  Path2D: window.Path2D,
+  getImage: exportImageOf,
+  lookOf: id => session.lookMap[id], // 화면(StudioPageView looks)과 같은 값
+  measure: textMeasure,
+  async prepareFonts(list) {
+    try {
+      return await loadFontsFor(list)
+    } catch (e) {
+      console.error('[StudioEditor] 내보내기 글꼴 준비 실패:', e)
+      return false // 엔진이 "글꼴을 불러오지 못했어요" + [다시 시도]로 알린다
+    }
+  },
+}
+/** [내보내기] 창이 부른다 — 파일 하나(구간 하나 또는 한 장으로 길게) → { blob, notes } */
+async function exportRender(file, { format, scale, onStep }) {
+  if (!page.value) throw new Error('페이지가 없어요')
+  const out = file.sectionIds.length === 1 && file.no !== null
+    ? await renderSection(page.value, file.sectionIds[0], exportDeps, { scale })
+    : await renderPage(page.value, file.sectionIds, exportDeps, { scale, onStep })
+  try {
+    return { blob: await canvasToBlob(out.canvas, format), notes: out.notes }
+  } finally {
+    out.canvas.width = 0 // 큰 캔버스 메모리를 바로 돌려준다
+    out.canvas.height = 0
+  }
+}
+/** 구간 id → 적용 중(완성 사진 만드는 중)인 사진 수 — 창이 먼저 묻는다 */
+const exportPendingBySection = computed(() => {
+  const out = {}
+  for (const s of page.value?.sections || []) {
+    const ids = new Set(s.items.filter(it => isValidImageItem(it) && !it.hidden).map(it => it.imageId))
+    const n = [...ids].filter(id => ['queued', 'baking', 'waiting'].includes(bakeQueue.state[id]?.status)).length
+    if (n) out[s.id] = n
+  }
+  return out
+})
+function openExport() {
+  if (!page.value || eraseOpen.value) return
+  pageView.value?.finishEdit() // 글자를 고치는 중이면 먼저 끝낸다 (고친 글자가 들어가게)
+  clearSelection()
+  exportOpen.value = true
+}
+// 개발용 비교 보기 — 개발 서버에서만 (빌드에서는 import.meta.env.DEV = false라 코드째 빠진다)
+const DEV_EXPORT_COMPARE = import.meta.env.DEV
+const StudioExportCompare = import.meta.env.DEV ? defineAsyncComponent(() => import('@/components/studio/StudioExportCompare.vue')) : null
+function openExportCompare(sectionId) {
+  if (!DEV_EXPORT_COMPARE) return
+  exportOpen.value = false
+  exportCompareId.value = sectionId
+}
+if (import.meta.env.DEV) window.__studioExportCompare = openExportCompare // 확인 스크립트용 (구간 id를 넘긴다)
+
 function clearViews() {
   viewStore.clear()
   for (const k of Object.keys(views)) delete views[k]
@@ -1378,7 +1472,8 @@ function clearViews() {
 const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
-  || replaceOpen.value || resetLookOpen.value || !!includeAsk.value || reorderOpen.value)
+  || replaceOpen.value || resetLookOpen.value || !!includeAsk.value || reorderOpen.value
+  || exportOpen.value || !!exportCompareId.value) // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'
