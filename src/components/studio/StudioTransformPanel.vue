@@ -11,7 +11,7 @@
     <div class="grid grid-cols-3 gap-x-2 gap-y-2">
       <template v-if="single">
         <!-- 글자 요소(10-1)의 세로는 글자에 맞춰 자동 — 입력 칸을 잠근다 -->
-        <label v-for="f in RECT_FIELDS" :key="f.key" class="st-xfield" :data-num="f.key" :title="f.key === 'h' && singleAutoH ? '높이는 글자·선 굵기에 맞춰 자동으로 정해져요' : null">
+        <label v-for="f in RECT_FIELDS" :key="f.key" class="st-xfield" :data-num="f.key" :title="f.key === 'h' && singleAutoH ? '높이는 글자·선 굵기·표 행 수에 맞춰 자동으로 정해져요' : null">
           <span class="st-xfield-label">{{ f.label }}</span>
           <span class="st-xfield-box">
             <input
@@ -98,6 +98,7 @@ import {
 import { findItem, groupCheck, anyGrouped } from '@/lib/studioPage'
 import { isValidTextItem } from '@/lib/studioText'
 import { isValidLineItem } from '@/lib/studioShape'
+import { isValidTableItem } from '@/lib/studioTable'
 
 const props = defineProps({
   page: { type: Object, required: true },
@@ -119,7 +120,7 @@ const ALIGNS = [
 const items = computed(() => props.selectedIds.map(id => findItem(props.page, id)?.item).filter(Boolean))
 const single = computed(() => (items.value.length === 1 ? items.value[0] : null))
 // 세로가 자동인 요소 — 글자(10-1, 줄 수에 맞춤)·선(11-1, 굵기에 맞춘 누르는 영역)
-const singleAutoH = computed(() => !!single.value && (isValidTextItem(single.value) || isValidLineItem(single.value)))
+const singleAutoH = computed(() => !!single.value && (isValidTextItem(single.value) || isValidLineItem(single.value) || isValidTableItem(single.value)))
 const anyLocked = computed(() => items.value.some(it => it.locked))
 const allLocked = computed(() => items.value.length > 0 && items.value.every(it => it.locked))
 const anyHidden = computed(() => items.value.some(it => it.hidden))

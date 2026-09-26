@@ -84,6 +84,8 @@
           />
           <!-- 도형·선 속성 (11-1): 고른 것 중 도형·선이 있으면 — 바꾸면 그 종류에만 -->
           <StudioShapeItemPanel v-if="selectedHasElement" :page="page" :selected-ids="selectedItemIds" @shape="onShapeProps" @line="onLineProps" />
+          <!-- 사이즈표 "표 편집" (11-2): 고른 것 중 표가 있으면 — 칸 격자는 표 하나일 때 -->
+          <StudioTableItemPanel v-if="selectedHasTable" :page="page" :selected-ids="selectedItemIds" @props="onTableProps" @edit="onTableEdit" />
         </div>
         <div class="flex-1 min-h-0 flex flex-col">
           <StudioPhotoPanel
@@ -103,7 +105,7 @@
           <!-- [텍스트] 패널 (10-1): 제목·부제목·본문 넣기 -->
           <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" @style="onStylePreset" />
           <!-- [요소] 패널 (11-1): 도형·선·화살표 넣기 -->
-          <StudioElementPanel v-else-if="activeTool === 'element'" :disabled="!page" @insert="insertElement" />
+          <StudioElementPanel v-else-if="activeTool === 'element'" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
             <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
@@ -334,6 +336,9 @@ import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioTextItemPanel from '@/components/studio/StudioTextItemPanel.vue'
 import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
 import StudioShapeItemPanel from '@/components/studio/StudioShapeItemPanel.vue'
+import StudioTableItemPanel from '@/components/studio/StudioTableItemPanel.vue'
+import { badgePresetByKey, badgeTextParts } from '@/lib/studioBadge'
+import { isValidTableItem, tableTemplateByKey, tableFieldsOf } from '@/lib/studioTable'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
 import {
   isValidTextItem, normalizeTextItem, patchTextItem, textStyleOf, TEXT_INSERT_KINDS, stylePresetByKey, presetPatch, textStyleValues,
@@ -357,8 +362,9 @@ import {
   removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
   setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
-  groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo,
+  groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo, groupMemberIds,
   addTextItem, setTextProps, setTextContent, addElementItem, setShapeProps, setLineProps,
+  addItemGroup, setTableProps, editTable,
 } from '@/lib/studioPage'
 import { isValidShapeItem, isValidLineItem, elementKindByKey } from '@/lib/studioShape'
 import { LABELS } from '@/lib/studioHistory'
@@ -834,12 +840,28 @@ async function onTextCommit({ id, text }) {
   textEdit.value = null
   const f = page.value ? findItem(page.value, id) : null
   if (!f || !isValidTextItem(f.item)) return
+  const members = groupMemberIds(page.value, id) // 11-2: 그룹(배지 등) 안의 글자 — 끝나면 그룹 전체를 다시 고른다
   if (text.trim() === '') {
     applyPage(removeItems(page.value, [id]), LABELS.textEdit)
+    reselectGroup(id, members.filter(m => m !== id))
     return
   }
   await whenFontsReady([{ style: textStyleOf(f.item), text }])
   if (page.value) applyPage(setTextContent(page.value, id, text, textMeasure), LABELS.textEdit)
+  reselectGroup(id, members)
+}
+/**
+ * 그룹 안 글자를 고친 뒤 그룹 전체 고르기 (11-2) — 그 사이 다른 것을 골랐으면(다른 요소·빈 곳을 눌러 끝냄) 그대로 둔다.
+ * 아직 그룹으로 남은 구성원이 2개 이상일 때만 (글자를 비워 지워서 그룹이 풀렸으면 그대로)
+ */
+function reselectGroup(editedId, members) {
+  const sel = selectedItemIds.value
+  const untouched = sel.length === 1 && sel[0] === editedId
+  if (!untouched || members.length < 2 || !page.value) return
+  const alive = groupMemberIds(page.value, members[0])
+  if (alive.length < 2) return
+  selectedItemIds.value = alive
+  selectionSource = 'page'
 }
 const TEXT_LABEL_OF = {
   fontFamily: LABELS.textFont, fontSize: LABELS.textSize, fontWeight: LABELS.textWeight, color: LABELS.textColor,
@@ -904,6 +926,60 @@ function insertElement(key) {
   selectionSource = 'page'
   nextTick(() => pageView.value?.scrollToItem(r.itemId))
 }
+// ── 강조 배지·사이즈표 (11-2) — 배지 = 도형 + 글자 그룹(studioBadge 프리셋, addItemGroup), 사이즈표 = type 'table'(studioTable) ──
+/** [요소] 패널 배지 견본 누름 — 글꼴 조각을 받은 뒤(글자 높이를 재야 해서) 골라진/보는 중 구간 가운데에 한 그룹으로 넣고 그룹 전체를 고른다 */
+async function insertBadge(key) {
+  const preset = badgePresetByKey(key)
+  if (!preset) { console.error('[StudioEditor] 모르는 배지:', key); return }
+  if (!page.value || eraseOpen.value) return
+  await whenFontsReady(badgeTextParts(preset).map(p => {
+    const n = normalizeTextItem({ type: 'text', ...p })
+    return { style: textStyleOf(n), text: n.text }
+  }))
+  if (!page.value || eraseOpen.value) return
+  const target = insertTarget(page.value)
+  if (!target) { showToast('구간을 더 만들 수 없어 넣지 못했어요.'); return }
+  const r = addItemGroup(target.page, target.sid, preset, preset.parts, textMeasure)
+  if (!r.ids.length) {
+    console.error('[StudioEditor] 배지를 넣지 못함:', key, target.sid)
+    showToast('넣지 못했어요. 잠시 후 다시 해 주세요.')
+    return
+  }
+  if (!applyPage(r.page, LABELS.badgeInsert)) return
+  selectedItemIds.value = r.ids
+  selectionSource = 'page'
+  nextTick(() => pageView.value?.scrollToItem(r.ids[0]))
+}
+/** [요소] 패널 사이즈표 기본 틀 누름 — 골라진/보는 중 구간 가운데에 넣고 고르기 (칸은 왼쪽 "표 편집"에서) */
+function insertTable(key) {
+  const tpl = tableTemplateByKey(key)
+  if (!tpl) { console.error('[StudioEditor] 모르는 사이즈표 틀:', key); return }
+  if (!page.value || eraseOpen.value) return
+  const target = insertTarget(page.value)
+  if (!target) { showToast('구간을 더 만들 수 없어 넣지 못했어요.'); return }
+  const r = addElementItem(target.page, target.sid, tableFieldsOf(tpl))
+  if (!r.itemId) {
+    console.error('[StudioEditor] 사이즈표를 넣지 못함:', key, target.sid)
+    showToast('넣지 못했어요. 잠시 후 다시 해 주세요.')
+    return
+  }
+  if (!applyPage(r.page, LABELS.tableInsert)) return
+  selectedItemIds.value = [r.itemId]
+  selectionSource = 'page'
+  nextTick(() => pageView.value?.scrollToItem(r.itemId))
+}
+const selectedHasTable = computed(() => !!page.value && selectedItemIds.value.some(id => isValidTableItem(findItem(page.value, id)?.item)))
+const TABLE_LABEL_OF = {
+  headerRow: LABELS.tableHeader, fontFamily: LABELS.tableFont, fontSize: LABELS.tableSize, align: LABELS.tableAlign,
+  color: LABELS.tableColor, headerBg: LABELS.tableColor, headerColor: LABELS.tableColor, cellBg: LABELS.tableColor,
+  borderColor: LABELS.tableBorder, borderWidth: LABELS.tableBorder,
+}
+const TABLE_EDIT_LABEL_OF = {
+  cell: LABELS.tableCell, addRow: LABELS.tableRowAdd, removeRow: LABELS.tableRowRemove, addCol: LABELS.tableColAdd, removeCol: LABELS.tableColRemove,
+}
+/** 표 편집 칸 → runCommand (다른 조작과 같은 길) */
+function onTableProps(patch, { merge, key } = {}) { runCommand('tableProps', { patch, merge, key }) }
+function onTableEdit({ id, op }) { runCommand('tableEdit', { id, op }) }
 const SHAPE_LABEL_OF = { shape: LABELS.shapeKind, fill: LABELS.shapeFill, fillOpacity: LABELS.shapeFill, strokeWidth: LABELS.shapeStroke, strokeColor: LABELS.shapeStroke, radius: LABELS.shapeRadius }
 const LINE_LABEL_OF = { strokeWidth: LABELS.lineWidth, color: LABELS.lineColor, dash: LABELS.lineDash, startCap: LABELS.lineCap, endCap: LABELS.lineCap }
 /** 도형·선 속성 칸 → runCommand (다른 조작과 같은 길) */
@@ -949,6 +1025,19 @@ function runCommand(name, args = {}) {
     case 'lineProps':
       applyPage(setLineProps(p, ids, args.patch), LINE_LABEL_OF[Object.keys(args.patch)[0]], args.merge ? { mergeKey: `line-${args.key}` } : undefined)
       break
+    // ── 11-2 사이즈표 — 모양은 고른 표 모두에(setTableProps), 칸·행·열은 그 표 하나에(editTable, args.id — 칸을 고친 뒤 선택이 바뀌어도 그 표) ──
+    case 'tableProps': {
+      const label = TABLE_LABEL_OF[Object.keys(args.patch)[0]]
+      if (!label) { console.error('[StudioEditor] 표 속성 라벨 없음 — 적용 안 함:', args.patch); break }
+      applyPage(setTableProps(p, ids, args.patch), label, args.merge ? { mergeKey: `table-${args.key}` } : undefined)
+      break
+    }
+    case 'tableEdit': {
+      const label = TABLE_EDIT_LABEL_OF[args.op?.kind]
+      if (!label) { console.error('[StudioEditor] 모르는 표 편집:', args.op); break }
+      applyPage(editTable(p, args.id, args.op), label)
+      break
+    }
     case 'stylePaste':
       if (!styleClip.value) { showToast('먼저 글자 모양을 복사해 주세요 (Ctrl+Alt+C).'); break }
       if (!selectedTextIds.value.length) { showToast('모양을 붙일 글자를 골라 주세요.'); break }

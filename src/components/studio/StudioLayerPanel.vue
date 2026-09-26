@@ -41,6 +41,7 @@
               <Type v-else-if="isValidTextItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Square v-else-if="isValidShapeItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <MoveRight v-else-if="isValidLineItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
+              <Table2 v-else-if="isValidTableItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Shapes v-else class="w-3.5 h-3.5" :stroke-width="2" />
             </span>
             <span class="flex-1 min-w-0 truncate text-[12px] font-bold st-ink-2">{{ nameOf(it) }}</span>
@@ -59,8 +60,9 @@
 // 눈·자물쇠 = 숨기기·잠금(그룹 줄은 구성원 전체), 줄 끌기 = 앞뒤 순서(그룹은 통째로) → command(name, args) — 편집기 runCommand(이력·페이지 저장)
 // 사진 그림은 편집기의 화면용 작은 사진(views)만 쓴다.
 import { ref, computed, h } from 'vue'
-import { ChevronDown, ChevronRight, Group, Shapes, Type, Square, MoveRight, Image as ImageIcon, Eye, EyeOff, Lock, LockOpen } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Group, Shapes, Type, Square, MoveRight, Table2, Image as ImageIcon, Eye, EyeOff, Lock, LockOpen } from 'lucide-vue-next'
 import { isValidShapeItem, isValidLineItem, elementLabel } from '@/lib/studioShape'
+import { isValidTableItem, tableLabel } from '@/lib/studioTable'
 import { isValidImageItem } from '@/lib/studioPage'
 import { isValidTextItem, textLabel } from '@/lib/studioText'
 import { KIND_LABEL } from '@/lib/studioProjects'
@@ -121,6 +123,7 @@ const imageUrl = it => (isImage(it) ? props.views[it.imageId]?.url ?? null : nul
 function nameOf(it) {
   if (isValidTextItem(it)) return textLabel(it) // 10-1: "글자 · 앞 10자"
   if (isValidShapeItem(it) || isValidLineItem(it)) return elementLabel(it) // 11-1: "도형 · 네모" / "선" / "화살표"
+  if (isValidTableItem(it)) return tableLabel() // 11-2: "사이즈표"
   if (!isImage(it)) return '요소'
   const row = props.imagesById.get(it.imageId)
   return row ? KIND_LABEL[row.kind] ?? '사진' : '없는 사진'

@@ -19,17 +19,18 @@
     <div class="absolute inset-0 st-page-paper" @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext">
       <section
         v-for="s in doc.sections" :key="s.id"
-        class="absolute left-0 overflow-hidden" :class="[dropSectionId === s.id ? 'st-drop-target' : '', selectedSectionId === s.id ? 'st-section-picked' : '']"
-        :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${doc.width * zoom}px`, height: `${s.height * zoom}px`, background: s.bg }"
+        class="absolute left-0 overflow-hidden st-section" :class="[dropSectionId === s.id ? 'st-drop-target' : '', selectedSectionId === s.id ? 'st-section-picked' : '']"
+        :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${doc.width * zoom}px`, height: `${s.height * zoom}px`, background: s.bg, '--st-items-top': s.items.length + 1 }"
         :data-section-id="s.id"
         @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
       >
-        <template v-for="it in s.items" :key="it.id">
+        <!-- 겹침 순서 = items 배열 순서 (뒤가 앞) — 요소마다 z-index = 배열 자리 + 1 (itemStyle). 구간이 쌓임 맥락이라 선택 테두리·손잡이는 늘 위 -->
+        <template v-for="(it, ii) in s.items" :key="it.id">
           <div
             v-if="isValidImageItem(it)"
             class="absolute select-none"
             :class="[it.locked ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
-            :style="itemStyle(it)"
+            :style="itemStyle(it, ii)"
             :data-item-id="it.id" :data-image-id="it.imageId" :data-hidden="it.hidden ? '1' : null"
             @pointerdown="onItemDown($event, it)"
             @contextmenu.prevent.stop="onItemContext($event, it)"
@@ -70,7 +71,7 @@
             v-else-if="isValidTextItem(it)"
             class="absolute select-none"
             :class="[it.locked || editId === it.id ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
-            :style="itemStyle(it)"
+            :style="itemStyle(it, ii)"
             :data-item-id="it.id" data-text-item :data-hidden="it.hidden ? '1' : null"
             @pointerdown="onItemDown($event, it)"
             @contextmenu.prevent.stop="onItemContext($event, it)"
@@ -88,12 +89,24 @@
             v-else-if="isValidShapeItem(it) || isValidLineItem(it)"
             class="absolute select-none"
             :class="[it.locked ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
-            :style="itemStyle(it)"
+            :style="itemStyle(it, ii)"
             :data-item-id="it.id" :data-element-item="it.type" :data-hidden="it.hidden ? '1' : null"
             @pointerdown="onItemDown($event, it)"
             @contextmenu.prevent.stop="onItemContext($event, it)"
           >
             <StudioShapeView v-if="!it.hidden" :item="it" :scale="zoom" />
+          </div>
+          <!-- 사이즈표 (11-2): studioTable의 paint spec을 SVG로. 칸 고치기는 왼쪽 "표 편집" 칸에서 (더블클릭은 아무것도 안 함) -->
+          <div
+            v-else-if="isValidTableItem(it)"
+            class="absolute select-none"
+            :class="[it.locked ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
+            :style="itemStyle(it, ii)"
+            :data-item-id="it.id" data-table-item :data-hidden="it.hidden ? '1' : null"
+            @pointerdown="onItemDown($event, it)"
+            @contextmenu.prevent.stop="onItemContext($event, it)"
+          >
+            <StudioTableView v-if="!it.hidden" :item="it" :scale="zoom" />
           </div>
         </template>
       </section>
@@ -160,18 +173,22 @@
 // 8-1 구간: 구간 이름·요소 없는 구간의 빈 곳 누르기 = 구간 고르기(select-section), 골라진 구간은 테두리 + 아래쪽 높이 손잡이(setSectionHeight).
 // 10-1 글자: 글자 요소는 wrapLines 줄로 그린다(StudioTextView). 손잡이 = 좌우(폭만 — 줄바꿈 다시) + 모서리(글자 크기·폭 함께), 위아래 없음.
 //   더블클릭 = 고치기 시작(edit-text — 사진은 예전처럼 지우기 화면). 고치는 중에는 그 자리에 textarea, Esc·바깥 누르기 = 끝(text-commit).
+//   그룹(배지 11-2 등) 안의 글자도 더블클릭 = 그 글자만 고치기 (누르기는 그룹 단위 그대로 — 편집기가 끝나면 그룹 전체를 다시 고른다).
+// 11-2 겹침 순서: 요소 z-index = 구간 items 배열 자리 + 1, 구간 = 쌓임 맥락(isolation). 사이즈표 = StudioTableView, 손잡이 좌우·모서리(폭만).
 import { ref, shallowRef, computed, watch, nextTick, inject, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
   DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
-  isDrawableItem, resizeTextItem, textLinesOf, setLineEnd,
+  isDrawableItem, resizeTextItem, textLinesOf, setLineEnd, resizeTableItem,
 } from '@/lib/studioPage'
 import { isValidTextItem, textPaintSpec } from '@/lib/studioText'
 import { cssFamilyOf } from '@/lib/studioFonts'
 import StudioTextView from '@/components/studio/StudioTextView.vue'
 import StudioShapeView from '@/components/studio/StudioShapeView.vue'
+import StudioTableView from '@/components/studio/StudioTableView.vue'
 import { isValidShapeItem, isValidLineItem } from '@/lib/studioShape'
+import { isValidTableItem } from '@/lib/studioTable'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
 import { KIND_LABEL } from '@/lib/studioProjects'
@@ -294,10 +311,14 @@ function sectionName(s) {
   return row ? KIND_LABEL[row.kind] || '사진' : '구간'
 }
 
-function itemStyle(it) {
+/** 요소 자리·모양. index = 구간 items 배열 자리 → z-index (겹침 순서를 DOM·브라우저 쌓기 규칙에 맡기지 않고 배열 순서로 못 박는다 — 11-2) */
+function itemStyle(it, index) {
   const z = props.zoom
   const rot = it.rotation ? `rotate(${it.rotation}deg)` : null
-  const out = { left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.hidden ? null : (it.opacity ?? 1), transform: rot }
+  const out = {
+    left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.hidden ? null : (it.opacity ?? 1), transform: rot,
+    zIndex: index + 1,
+  }
   // 꾸미기(6-2 테두리·모서리·그림자)는 사진 요소에만 — 도형(11-1)의 radius 칸이 이름이 같아 사진 꾸미기로 읽히지 않게
   if (it.hidden || !isValidImageItem(it)) return out
   // 꾸미기 (6-2): 테두리(안쪽으로)·모서리·그림자 — 페이지 좌표 값에 배율을 곱한다
@@ -348,7 +369,7 @@ const frames = computed(() => {
     const top = rowOf(f.section.id).top
     out.push({
       id, locked: !!it.locked, handles: false,
-      handleList: isValidTextItem(it) ? TEXT_HANDLES : isValidLineItem(it) ? LINE_HANDLES : HANDLES, rotate: !isValidLineItem(it),
+      handleList: isValidTextItem(it) || isValidTableItem(it) ? TEXT_HANDLES : isValidLineItem(it) ? LINE_HANDLES : HANDLES, rotate: !isValidLineItem(it),
       style: { left: `${it.x * z}px`, top: `${(top + it.y) * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, transform: it.rotation ? `rotate(${it.rotation}deg)` : null },
     })
   }
@@ -482,6 +503,10 @@ function onMove(e) {
     if (!f) return
     if (isValidTextItem(f.item)) { // 10-1: 좌우 = 폭만(줄바꿈 다시), 모서리 = 글자 크기·폭 함께 (Shift 자유 크기 없음)
       draft.value = resizeTextItem(P, act.id, act.handle, sdx / z, sdy / z, textLayout.measure)
+      return
+    }
+    if (isValidTableItem(f.item)) { // 11-2: 사이즈표 — 좌우·모서리 모두 폭만 (높이는 행 수 × 행 높이로 자동)
+      draft.value = resizeTableItem(P, act.id, act.handle, sdx / z, sdy / z)
       return
     }
     if (isValidLineItem(f.item)) { // 11-1: 선 끝 점 — 누른 자리(구간 좌표)로, Shift = 15° 단위
@@ -639,8 +664,10 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
   position: absolute; left: 0; top: 0; display: block; margin: 0; padding: 0; border: 0; outline: none; resize: none; overflow: hidden;
   user-select: text; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: 0 0 0 1.5px var(--st-accent); caret-color: var(--st-accent);
 }
-/* 골라진 구간 (8-1) — 안쪽 테두리만. 높이 손잡이는 아래쪽 가장자리 가운데 */
-.st-section-picked::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: 3; }
+/* 구간 = 쌓임 맥락 (11-2): 요소 z-index(배열 자리 + 1)가 구간 밖으로 새지 않는다 → 선택 테두리·손잡이·안내선(구간 바깥 형제)은 늘 요소 위 */
+.st-section { isolation: isolate; }
+/* 골라진 구간 (8-1) — 안쪽 테두리만. 높이 손잡이는 아래쪽 가장자리 가운데. 요소들보다 위(--st-items-top = 요소 수 + 1) */
+.st-section-picked::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: var(--st-items-top); }
 .st-section-label:hover { color: var(--st-ink-2); }
 .st-section-handle { z-index: 5; cursor: ns-resize; display: flex; align-items: center; justify-content: center; }
 .st-section-handle-grip { width: 40px; height: 6px; border-radius: 999px; background: var(--st-accent); box-shadow: 0 0 0 2px var(--st-card); }
@@ -649,7 +676,7 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
   font-size: 11px; font-weight: 700; color: var(--st-ink); background: var(--st-card); border: 1px solid var(--st-line-strong);
 }
 /* 목록 사진을 끌고 있을 때 놓일 구간 (6-3) — 테두리만, 사진 위를 칠하지 않는다 */
-.st-drop-target::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: 3; }
+.st-drop-target::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: var(--st-items-top); }
 .st-marquee { border: 1px dashed var(--st-accent); background: var(--st-accent-soft); z-index: 4; }
 .st-resize-handle {
   position: absolute; width: 10px; height: 10px; margin: -5px 0 0 -5px; pointer-events: auto;

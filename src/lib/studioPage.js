@@ -14,11 +14,14 @@
  *   글자 요소(10-1단계) = type 'text' + 공통 칸 + text·fontFamily·fontSize·fontWeight·color·align·lineHeight·letterSpacing
  *     (모양·범위·기본값은 studioText.js 맨 위). h는 줄 수 × fontSize × lineHeight로 자동 — 손으로 정하지 않는다.
  *     readPage가 normalizeTextItem으로 빠진 칸·잘못된 값을 기본값으로 채운다 (v는 1 그대로).
+ *   도형·선(11-1단계) = type 'shape'·'line' (studioShape.js 맨 위). 사이즈표(11-2단계) = type 'table' (studioTable.js 맨 위 — h 자동).
+ *   강조 배지(11-2단계)는 새 type이 아니다 — 도형 + 글자를 같은 groupId로 묶어 넣는다(addItemGroup, 프리셋은 studioBadge.js).
  *     parked: [ imageId, … ]
  *   }
  *   구간 순서 = sections 배열 순서(위 → 아래). 구간 사이 간격 = gap(px).
  *   아이템 좌표는 그 구간의 왼쪽 위 기준. 구간 밖으로 나간 부분은 보이지 않는다(구간이 잘라낸다).
- *   앞뒤 순서 = items 배열 순서 (뒤가 앞에 보인다). 모르는 type 아이템(도형 등 다음 단계)은 그리지 않고 보존한다.
+ *   앞뒤 순서 = items 배열 순서 (뒤가 앞에 보인다 — 화면은 요소마다 z-index = 배열 자리 + 1로 못 박는다, 11-2).
+ *   모르는 type 아이템은 그리지 않고 보존한다.
  *   parked = 페이지에서 뺀 사진 (사진 자체는 지우지 않는다. studio_images.included와는 별개 — 결정 13)
  * ★ 사진 주소는 저장하지 않는다 (서명 주소는 만료). imageId만.
  * ★ 지운 결과는 페이지가 아니라 사진(studio_images.edit)에 있다 → 템플릿을 바꿔도 지운 사진이 남는다.
@@ -29,6 +32,7 @@ import { isValidTextItem, normalizeTextItem, patchTextItem, fitTextItem, textSty
 import {
   isValidShapeItem, isValidLineItem, normalizeShapeItem, normalizeLineItem, patchShapeItem, patchLineItem, fitLineItem, moveLineEnd,
 } from './studioShape.js'
+import { isValidTableItem, normalizeTableItem, patchTableItem, editTableItem, tableHeight, tableMinWidth } from './studioTable.js'
 
 export const PAGE_VERSION = 1
 export const PAGE_WIDTH = 780 // 쿠팡 (결정 17). 폭은 이 값 하나로만 쓴다
@@ -136,13 +140,13 @@ export function isValidImageItem(it) {
     && [it.x, it.y, it.w, it.h].every(Number.isFinite) && it.w > 0 && it.h > 0
 }
 
-/** 화면에 그리는 요소 (사진·글자·도형·선 — 11-1). 그 밖의 type은 보존만 */
+/** 화면에 그리는 요소 (사진·글자·도형·선 — 11-1, 사이즈표 — 11-2). 그 밖의 type은 보존만 */
 export function isDrawableItem(it) {
-  return isValidImageItem(it) || isValidTextItem(it) || isValidShapeItem(it) || isValidLineItem(it)
+  return isValidImageItem(it) || isValidTextItem(it) || isValidShapeItem(it) || isValidLineItem(it) || isValidTableItem(it)
 }
 
-/** type별 칸 정리 (readPage) — 공통 칸은 normalizeItem, 글자·도형·선은 그 칸도 */
-const NORMALIZE_BY_TYPE = { text: normalizeTextItem, shape: normalizeShapeItem, line: normalizeLineItem }
+/** type별 칸 정리 (readPage) — 공통 칸은 normalizeItem, 글자·도형·선·표는 그 칸도 */
+const NORMALIZE_BY_TYPE = { text: normalizeTextItem, shape: normalizeShapeItem, line: normalizeLineItem, table: normalizeTableItem }
 
 /**
  * 문서 모양 검사. 아이템 하나가 이상한 것은 문서 오류가 아니다 (그 아이템만 그리지 않음)
@@ -191,6 +195,8 @@ export function readPage(raw, projectId) {
       if (it.type === 'image' && !isValidImageItem(it)) console.error('[studioPage] 잘못된 사진 아이템 — 그리지 않고 보존:', projectId, s.id, it)
       if (it.type === 'text' && !isValidTextItem(it)) console.error('[studioPage] 잘못된 글자 아이템 — 그리지 않고 보존:', projectId, s.id, it)
       if ((it.type === 'shape' && !isValidShapeItem(it)) || (it.type === 'line' && !isValidLineItem(it))) console.error('[studioPage] 잘못된 도형·선 아이템 — 그리지 않고 보존:', projectId, s.id, it)
+      // 11-2 표: cells 모양이 어긋난 것은 readPage가 고쳐 읽는다(normalizeTableItem) — 좌표가 틀린 것만 그리지 않는다
+      if (it.type === 'table' && !isValidTableItem(normalizeTableItem(it))) console.error('[studioPage] 잘못된 표 아이템 — 그리지 않고 보존:', projectId, s.id, it)
     }
   }
   const page = clone(raw)
@@ -638,10 +644,11 @@ export function resizeRect(rect, rotation, handle, dx, dy, { keepRatio = false, 
 export function setItemRect(page, id, rect, measure = null) {
   return mapItems(page, [id], (it, s) => {
     if (it.locked) return it
-    const w = Number.isFinite(rect.w) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.w)) : it.w
+    let w = Number.isFinite(rect.w) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.w)) : it.w
     let h = Number.isFinite(rect.h) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.h)) : it.h
     if (isValidTextItem(it)) h = measure ? fitTextItem({ ...it, w }, measure).h : it.h
     if (isValidLineItem(it)) h = it.h // 11-1: 선의 h는 굵기에 맞춘 자동 값 (손으로 안 바꿈)
+    if (isValidTableItem(it)) { w = Math.max(tableMinWidth(it), w); h = tableHeight(it) } // 11-2: 표의 h는 행 수 × 행 높이 (자동)
     const n = { ...it, w, h }
     const p = clampItemPosition(n, s, page.width, Number.isFinite(rect.x) ? rect.x : it.x, Number.isFinite(rect.y) ? rect.y : it.y)
     return { ...n, x: p.x, y: p.y }
@@ -1149,15 +1156,16 @@ export function resizeTextItem(page, id, handle, dx, dy, measure) {
 // ── 도형·선 (11-1단계) — 모양·그리기 규칙은 studioShape.js ──
 
 /**
- * 도형·선 넣기 — 그 구간 가운데에 맨 앞으로. fields = type('shape'|'line') + 그 칸 + w·h (빠진 값은 기본값, 선의 h는 자동)
+ * 도형·선·사이즈표 넣기 — 그 구간 가운데에 맨 앞으로. fields = type('shape'|'line'|'table') + 그 칸 + w·h (빠진 값은 기본값, 선·표의 h는 자동)
  * @returns {{ page, itemId: string|null }} (없는 구간·모르는 type이면 page 그대로, itemId null)
  */
 export function addElementItem(page, sectionId, fields) {
   const s = page.sections.find(x => x.id === sectionId)
-  const byType = { shape: normalizeShapeItem, line: normalizeLineItem }[fields?.type]
+  const byType = { shape: normalizeShapeItem, line: normalizeLineItem, table: normalizeTableItem }[fields?.type] // 11-2: 사이즈표도 같은 넣기
   if (!s || !byType) return { page, itemId: null }
   const w = Math.max(ITEM_MIN_SIZE, Math.min(page.width, Math.round(fields.w ?? 200)))
-  const h = fields.type === 'line' ? 2 : Math.max(ITEM_MIN_SIZE, Math.round(fields.h ?? 200)) // 선의 h는 normalizeLineItem이 맞춘다
+  // 선·표의 h는 normalizeLineItem·normalizeTableItem이 맞춘다
+  const h = fields.type === 'line' || fields.type === 'table' ? 2 : Math.max(ITEM_MIN_SIZE, Math.round(fields.h ?? 200))
   const it = byType(normalizeItem({ ...fields, x: 0, y: 0, w, h, id: newPageId('i') }))
   const p = clampItemPosition(it, s, page.width, (page.width - it.w) / 2, (s.height - it.h) / 2)
   const item = { ...it, x: p.x, y: p.y }
@@ -1193,6 +1201,82 @@ export function setLineEnd(page, id, which, px, py, opts = {}) {
     const p = clampItemPosition(n, s, page.width, n.x, n.y)
     return { ...n, x: p.x, y: p.y }
   })
+}
+
+// ── 사이즈표 (11-2단계) — 모양·그리기 규칙은 studioTable.js. h는 늘 행 수 × 행 높이 ──
+
+/** 표가 바뀐 뒤 자리 — 왼쪽 위 제자리(돌린 표도 요소 방향 기준), 구간 안에 최소한 남게 */
+function refitTable(it, s, page, next) {
+  if (next === it) return it
+  const pos = anchoredPos(it, next.w, next.h, -1, -1)
+  const p = clampItemPosition(next, s, page.width, pos.x, pos.y)
+  return { ...next, x: p.x, y: p.y }
+}
+/** 표 모양 바꾸기 (글꼴·크기·색·제목 줄·테두리·정렬) — ids 중 표에만. 잠긴 표도(내용 바꾸기 — 글자 속성과 같은 규칙) */
+export function setTableProps(page, ids, patch) {
+  return mapItems(page, ids, (it, s) => (isValidTableItem(it) ? refitTable(it, s, page, patchTableItem(it, patch)) : it))
+}
+/** 표 편집 한 번 (칸 글자·행·열 — studioTable.editTableItem의 op). 잠긴 표도(내용 바꾸기) */
+export function editTable(page, id, op) {
+  return mapItems(page, [id], (it, s) => (isValidTableItem(it) ? refitTable(it, s, page, editTableItem(it, op)) : it))
+}
+/**
+ * 표 손잡이 — 좌우·모서리 모두 폭만 바꾼다(높이는 자동). 반대쪽 변이 제자리, 위쪽도 제자리. 위아래 손잡이는 없음. 잠긴 표는 그대로
+ * @param {number} dx,dy 끌어온 거리 (페이지 px, 화면 방향)
+ */
+export function resizeTableItem(page, id, handle, dx, dy) {
+  const side = handle.includes('e') ? 'e' : handle.includes('w') ? 'w' : null
+  if (!side) return page
+  return mapItems(page, [id], (it, s) => {
+    if (it.locked || !isValidTableItem(it)) return it
+    const r = resizeRect(it, it.rotation || 0, side, dx, dy, { min: tableMinWidth(it) })
+    const w = Math.max(tableMinWidth(it), r.w)
+    const pos = anchoredPos(it, w, it.h, side === 'e' ? -1 : 1, -1)
+    const p = clampItemPosition({ ...it, w }, s, page.width, pos.x, pos.y)
+    return { ...it, w, x: p.x, y: p.y }
+  })
+}
+
+// ── 묶음 넣기 (11-2 강조 배지) — 새 type 없이 도형·글자 요소를 한 groupId로 묶어 넣는다 ──
+
+/**
+ * 묶음의 요소들 — box(w·h) 기준 좌표. parts = [{ type: 'shape', x, y, w, h, …도형 칸 } | { type: 'text', cy, w, …글자 칸 }]
+ * 글자는 폭 w로 줄을 나눠 높이를 정한 뒤(measure) 가로 가운데·세로 가운데가 cy에 오게. 새 id는 없다(넣을 때 붙임).
+ * [요소] 패널 견본과 넣기가 같이 쓴다 (견본 = 넣었을 때 모양 그대로)
+ */
+export function buildGroupItems(box, parts, measure) {
+  return parts.map((part, i) => {
+    if (part.type === 'shape') {
+      return normalizeShapeItem(normalizeItem({ ...part, id: `part-${i}` }))
+    }
+    if (part.type === 'text') {
+      const { cy, ...fields } = part
+      const w = Math.max(TEXT_MIN_WIDTH, Math.round(fields.w ?? box.w))
+      const t = fitTextItem(normalizeTextItem(normalizeItem({ ...fields, id: `part-${i}`, w, x: 0, y: 0, h: 1 })), measure)
+      return { ...t, x: Math.round((box.w - w) / 2), y: Math.round((Number.isFinite(cy) ? cy : box.h / 2) - t.h / 2) }
+    }
+    return null
+  }).filter(Boolean)
+}
+
+/**
+ * 묶음 넣기 — 그 구간 가운데에 맨 앞으로, 새 id + 모두 같은 새 groupId (구성원 2개 이상일 때만 그룹).
+ * 순서 = parts 순서 (앞 것이 뒤). @returns {{ page, ids: string[] }} (없는 구간·요소 없음이면 page 그대로, ids 빈 배열)
+ */
+export function addItemGroup(page, sectionId, box, parts, measure) {
+  const s = page.sections.find(x => x.id === sectionId)
+  const items = buildGroupItems(box, parts, measure)
+  if (!s || items.length === 0) return { page, ids: [] }
+  const at = clampItemPosition({ w: box.w, h: box.h }, s, page.width, (page.width - box.w) / 2, (s.height - box.h) / 2)
+  const gid = items.length >= 2 ? newPageId('g') : null
+  let next = page
+  const ids = []
+  for (const it of items) {
+    const n = { ...it, id: newPageId('i'), x: it.x + at.x, y: it.y + at.y, ...(gid ? { groupId: gid } : {}) }
+    next = addItem(next, s.id, n)
+    ids.push(n.id)
+  }
+  return { page: cleanGroups(next), ids }
 }
 
 /** 글자 요소의 줄 목록 (화면·미니뷰가 그릴 때 — 같은 wrapLines) */
