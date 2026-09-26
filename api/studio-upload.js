@@ -26,6 +26,17 @@
  * 에러: invalid_input·project_expired·patch_limit(사진당 120개)·patch_invalid·patch_too_large·not_uploaded 400 /
  *       not_found 404 / sign_failed·storage_error·internal 500.  studio_usage는 기록하지 않는다(외부 과금 없음).
  *
+ * ── 지운 사진 굽기 (5단계) ── 편집기가 브라우저에서 "원본 + 지우기 결과"를 원본 크기 JPG(품질 95)로 구워 저장한다. 같은 2단계 방식.
+ * POST { action:'final_prepare', projectId, imageId, version, width, height, size }
+ *   version = 구울 때의 studio_images.edit_version (지금 DB 값과 같아야 함 — 아니면 409 final_stale)
+ *   → { exists:true, path } | { path, token }   경로 = {uid}/{projectId}/final/{imageId}_v{version}.jpg (서버가 만든다)
+ *   같은 경로 덮어쓰기는 서명 업로드가 막으므로(409) 버전마다 새 파일. 옛 버전 파일은 지우지 않는다(정리는 나중).
+ * POST { action:'final_confirm', projectId, imageId, version, path }
+ *   서버가 파일을 읽어 JPEG 매직바이트·20MB 이하·가로세로 = 원본 검사, 불합격이면 삭제 + 오류.
+ *   합격이면 studio_images.final_rendered_version = version (edit_version이 아직 version일 때만 — 그 사이 지우기가 바뀌었으면 기록 안 함)
+ *   → { ok:true, recorded:true|false, width, height }
+ * 에러: invalid_input·project_expired·final_invalid·final_too_large·not_uploaded 400 / final_stale 409 / not_found 404 / sign_failed·storage_error·internal 500
+ *
  * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다.
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
@@ -56,6 +67,8 @@ const PATCH_MAX_FILES = 120                // 사진 1장의 patches 폴더 파�
 const LAYER_ID_RE = /^f_[a-z0-9]{6}$/
 const PATCH_KEY_RE = /^[0-9a-f]{16}$/
 const PATCH_NAME_RE = /^f_[a-z0-9]{6}_[0-9a-f]{16}\.png$/
+const FINAL_MAX_BYTES = 20 * 1024 * 1024  // 버킷 file_size_limit 20971520과 같음 (브라우저 studioBake.js와 같은 값)
+const FINAL_TOO_LARGE_MSG = `구운 사진은 ${FINAL_MAX_BYTES / 1024 / 1024}MB 이하여야 합니다.`
 
 // ── 공통 ────────────────────────────────────────────────────────────────────
 /** KST 날짜 'YYYY-MM-DD' */
@@ -487,6 +500,90 @@ async function patchConfirm(ctx, body, res) {
   return res.status(200).json({ ok: true, width: dims.width, height: dims.height })
 }
 
+// ── 지운 사진 굽기 (5단계) ────────────────────────────────────────────────────
+/** 굽기 대상: loadPatchTarget과 같은 소유·만료·done 검사 + 지금 edit_version. 막히면 응답을 보내고 null */
+async function loadFinalTarget(ctx, body, res) {
+  const version = Number(body.version)
+  if (!Number.isInteger(version) || version < 1) { sendError(res, 400, 'invalid_input', 'version 형식이 올바르지 않습니다.'); return null }
+  const t = await loadPatchTarget(ctx, body, res)
+  if (!t) return null
+  const rows = await sb(ctx.cfg, `studio_images?select=edit_version&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
+  const editVersion = Array.isArray(rows) && rows[0] ? rows[0].edit_version : null
+  const folder = `${ctx.userId}/${t.project.id}/final`
+  return { ...t, version, editVersion, folder, name: `${t.image.id}_v${version}.jpg` }
+}
+
+async function finalPrepare(ctx, body, res) {
+  const width = Number(body.width), height = Number(body.height), size = Number(body.size)
+  if (!Number.isInteger(size) || size < 1 || size > FINAL_MAX_BYTES) return sendError(res, 400, 'final_too_large', FINAL_TOO_LARGE_MSG)
+  const t = await loadFinalTarget(ctx, body, res)
+  if (!t) return
+  if (width !== t.image.width || height !== t.image.height) {
+    return sendError(res, 400, 'final_invalid', '구운 사진의 가로·세로가 원본과 다릅니다.')
+  }
+  if (t.editVersion !== t.version) return sendError(res, 409, 'final_stale', '그 사이 지우기가 바뀌었습니다. 최신 내용으로 다시 구워 주세요.')
+  const path = `${t.folder}/${t.name}`
+  let names
+  try {
+    names = await storageList(ctx.cfg, BUCKET, t.folder)
+  } catch (e) {
+    console.error(`[studio-upload] final 목록 조회 실패 ${t.folder}:`, e.message)
+    return sendError(res, 500, 'storage_error', '저장소를 확인하지 못했습니다.')
+  }
+  if (names.includes(t.name)) return res.status(200).json({ exists: true, path })
+  let token
+  try {
+    token = await storageSignUpload(ctx.cfg, BUCKET, path)
+  } catch (e) {
+    console.error(`[studio-upload] final 업로드 URL 발급 실패 ${path}:`, e.message)
+    return sendError(res, 500, 'sign_failed', '업로드 준비에 실패했습니다.')
+  }
+  return res.status(200).json({ path, token })
+}
+
+async function finalConfirm(ctx, body, res) {
+  const t = await loadFinalTarget(ctx, body, res)
+  if (!t) return
+  const path = String(body.path ?? '')
+  if (path !== `${t.folder}/${t.name}`) return sendError(res, 400, 'invalid_input', '경로가 올바르지 않습니다.')
+  let dl
+  try {
+    dl = await storageDownload(ctx.cfg, BUCKET, path)
+  } catch (e) {
+    console.error(`[studio-upload] final 읽기 실패 ${path}:`, e.message)
+    return sendError(res, 500, 'storage_error', '저장소에서 파일을 확인하지 못했습니다.')
+  }
+  if (!dl.found) return sendError(res, 400, 'not_uploaded', '업로드된 파일이 없습니다.')
+
+  const buf = dl.buf
+  let bad = null
+  let dims = null
+  if (buf.length > FINAL_MAX_BYTES) bad = ['final_too_large', FINAL_TOO_LARGE_MSG]
+  else if (sniffMime(buf) !== 'image/jpeg') bad = ['final_invalid', 'JPEG 파일이 아닙니다.']
+  else {
+    dims = readDimensions(buf, 'image/jpeg')
+    if (!dims || !dims.width || !dims.height) bad = ['final_invalid', '이미지 크기를 읽을 수 없습니다.']
+    else if (dims.width !== t.image.width || dims.height !== t.image.height) bad = ['final_invalid', '구운 사진의 가로·세로가 원본과 다릅니다.']
+  }
+  if (bad) {
+    console.warn(`[studio-upload] final 불합격 ${path}: ${bad[0]} (${buf.length} bytes)`)
+    try {
+      await storageRemove(ctx.cfg, BUCKET, [path])
+    } catch (e) {
+      console.error(`[studio-upload] 불합격 final 삭제 실패 ${path}:`, e.message)
+      return sendError(res, 400, `${bad[0]}+delete_failed`, bad[1])
+    }
+    return sendError(res, 400, bad[0], bad[1])
+  }
+  // 최신 기록: 지우기가 아직 이 버전일 때만 (그 사이 바뀌었으면 옛 굽기가 최신 표시를 덮지 않게 기록하지 않는다)
+  const updated = await sb(ctx.cfg,
+    `studio_images?id=eq.${t.image.id}&user_id=eq.${ctx.userId}&edit_version=eq.${t.version}`,
+    { method: 'PATCH', body: { final_rendered_version: t.version }, prefer: 'return=representation' })
+  const recorded = Array.isArray(updated) && updated.length > 0
+  if (!recorded) console.info(`[studio-upload] final ${path} 확인됨 — 그 사이 지우기가 바뀌어 최신으로 기록하지 않음`)
+  return res.status(200).json({ ok: true, recorded, width: dims.width, height: dims.height })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -498,7 +595,9 @@ export default async function handler(req, res) {
     if (body.action === 'confirm') return await confirm(ctx, body, res)
     if (body.action === 'patch_prepare') return await patchPrepare(ctx, body, res)
     if (body.action === 'patch_confirm') return await patchConfirm(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm' 중 하나여야 합니다.")
+    if (body.action === 'final_prepare') return await finalPrepare(ctx, body, res)
+    if (body.action === 'final_confirm') return await finalConfirm(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

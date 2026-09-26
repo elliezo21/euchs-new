@@ -93,6 +93,12 @@ const UPLOAD = {
   patch_limit: '이 사진에 저장할 수 있는 AI 결과 수(120개)를 넘었어요. 결과는 화면에만 보이고, 다시 열면 새로 계산해요.',
   patch_too_large: '지운 범위가 너무 넓어서 저장하지 못했어요. 칠한 곳을 두세 번에 나눠서 지워 주세요.',
   patch_invalid: 'AI 결과 파일이 올바르지 않아 저장하지 않았어요. 다시 계산해 주세요.',
+  // 지운 사진 굽기 (final_prepare / final_confirm, 브라우저 studioBake)
+  final_too_large: '구운 사진이 20MB를 넘어 저장하지 못했어요.',
+  final_invalid: '구운 사진 파일이 올바르지 않아 저장하지 않았어요. [다시 시도]를 눌러 주세요.',
+  final_stale: '그 사이 지우기가 바뀌었어요. 최신 내용으로 다시 적용할게요.',
+  final_canvas_too_big: '사진이 너무 커서 이 브라우저에서 적용할 수 없어요.',
+  final_encode_failed: '사진을 JPG로 만들지 못했어요. [다시 시도]를 눌러 주세요.',
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
 }
 

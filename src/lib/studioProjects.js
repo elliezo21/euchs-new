@@ -116,7 +116,7 @@ export async function listEditorImages(projectId) {
   const uid = requireUid()
   const { data, error } = await supabase
     .from('studio_images')
-    .select('id, project_id, kind, sort_order, ingest_status, ingest_error, original_path, upload_name, width, height, bytes, mime, included, edit, edit_version, updated_at')
+    .select('id, project_id, kind, sort_order, ingest_status, ingest_error, original_path, upload_name, width, height, bytes, mime, included, edit, edit_version, final_rendered_version, updated_at')
     .eq('user_id', uid)
     .eq('project_id', projectId)
   if (error) {

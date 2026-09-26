@@ -396,6 +396,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   function retrySave() { saver.retry() }
   function flush(id) { return saver.flush(id) }
   function hasUnsaved() { return saver.hasUnsaved() }
+  /** 이 사진의 지우기가 서버에 저장된 상태인지 (대기·요청 중·실패·충돌이 아님) — 구운 사진을 써도 되는지 판단 */
+  function isSaved(id) { return saver.stateOf(id) === 'saved' }
 
   function reopenConflict() {
     // 가장 나쁜 상태가 충돌인 사진을 다시 연다
@@ -457,6 +459,6 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     fillCount, syncFromServer, leaveImage, startAiEngine, stopAiEngine,
     setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
     setPad, recordPad, removeFill, clearAllFills, undoEdit, redoEdit, jumpEdit,
-    retrySave, flush, hasUnsaved, reopenConflict, reloadConflicted, resetAll, resetScreenState, dispose,
+    retrySave, flush, hasUnsaved, isSaved, reopenConflict, reloadConflicted, resetAll, resetScreenState, dispose,
   }
 }

@@ -38,8 +38,9 @@ export function nextRetryDelay(code, attempt) {
  *   pageUnsaved?: boolean, // 페이지(page) 저장이 안 끝남 (usePageSession.hasUnsaved)
  *   draft?: boolean,       // 지우기 화면의 실행 전 영역(칠한 곳) — 저장하지 않는 초안이라 나가면 사라진다
  *   uploading?: boolean,   // [사진 추가]에서 사진을 올리는 중 (useStudioUpload)
+ *   baking?: number,       // 지운 사진을 굽는 중·차례 기다림·자동 재시도 대기 (useBakeQueue.pendingCount)
  * }} s
- * @returns {string[]} 'aiFailed' | 'aiPending' | 'aiBusy' | 'edit' | 'page' | 'draft' | 'uploading'
+ * @returns {string[]} 'aiFailed' | 'aiPending' | 'aiBusy' | 'edit' | 'page' | 'draft' | 'uploading' | 'baking'
  */
 export function unsavedReasons(s = {}) {
   const out = []
@@ -50,6 +51,7 @@ export function unsavedReasons(s = {}) {
   if (s.pageUnsaved) out.push('page')
   if (s.draft) out.push('draft')
   if (s.uploading) out.push('uploading')
+  if (s.baking > 0) out.push('baking')
   return out
 }
 

@@ -21,6 +21,8 @@ eq('사진 edit 저장 안 끝남', unsavedReasons({ editUnsaved: true }), ['edi
 eq('페이지 저장 안 끝남', unsavedReasons({ pageUnsaved: true }), ['page'])
 eq('칠한 곳(초안)', unsavedReasons({ draft: true }), ['draft'])
 eq('사진 올리는 중', unsavedReasons({ uploading: true }), ['uploading'])
+eq('지운 사진 굽는 중', unsavedReasons({ baking: 1 }), ['baking'])
+eq('굽기 없음(0)', unsavedReasons({ baking: 0 }), [])
 eq('여러 개', unsavedReasons({ aiFailed: 1, editUnsaved: true, pageUnsaved: true }), ['aiFailed', 'edit', 'page'])
 
 // ── beforeunload ──

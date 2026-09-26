@@ -35,7 +35,7 @@
                 @click.stop="retry(img.original_path)"
               ><RefreshCw class="w-3 h-3" :stroke-width="2.5" />다시 시도</button>
               <img
-                v-else-if="viewUrls.get(img.original_path)" :src="viewUrls.get(img.original_path)" alt="" loading="lazy"
+                v-else-if="erasedThumb(img.id) || viewUrls.get(img.original_path)" :src="erasedThumb(img.id) || viewUrls.get(img.original_path)" alt="" loading="lazy"
                 class="w-full h-full object-cover" @error="onThumbError(img.original_path)"
               />
               <ImageIcon v-else class="w-4 h-4" :stroke-width="2" />
@@ -52,6 +52,15 @@
               <span v-if="fillCount(img.id).redo > 0" class="st-ink-2" data-redo-count>다시 지우기 {{ fillCount(img.id).redo }}</span>
             </div>
             <div v-else class="text-[11px] st-muted">원본</div>
+            <!-- 지운 사진 굽기 (5단계) — 화면을 막지 않고 여기에만 알린다 -->
+            <div v-if="bakeOf(img.id) && isBaking(bakeOf(img.id))" class="text-[11px] st-muted" data-bake-state="baking">적용 중…</div>
+            <div v-else-if="bakeOf(img.id)?.status === 'failed'" class="text-[11px] break-keep" data-bake-state="failed">
+              <span class="font-bold st-danger-text" :title="bakeOf(img.id).message">적용하지 못했어요</span>
+              · <span role="button" tabindex="0" class="font-bold st-accent-text underline cursor-pointer" data-bake-retry
+                @click.stop="$emit('retry-bake', img.id)" @keydown.enter.stop="$emit('retry-bake', img.id)">다시 시도</span>
+              <span class="block st-muted">지운 내용은 저장돼 있어요</span>
+            </div>
+            <div v-else-if="bakeOf(img.id)?.status === 'blocked'" class="text-[11px] st-muted break-keep" data-bake-state="blocked">{{ bakeOf(img.id).message }}</div>
           </div>
         </button>
       </li>
@@ -73,8 +82,12 @@ const props = defineProps({
   selectedImageId: { type: String, default: null },
   fillCount: { type: Function, required: true },     // image id → { done: 결과 있는 지우기 수, redo: 결과 없이 남은 AI 수 }
   orderError: { type: String, default: '' },
+  bakeState: { type: Object, default: () => ({}) },              // image id → { status, message } (useBakeQueue)
+  erasedThumb: { type: Function, default: () => null },           // image id → 지운 결과(또는 구운 사진) 화면용 주소, 없으면 null
 })
-const emit = defineEmits(['select', 'open-erase', 'add', 'retry-url'])
+const emit = defineEmits(['select', 'open-erase', 'add', 'retry-url', 'retry-bake'])
+const bakeOf = id => props.bakeState[id] || null
+const isBaking = s => s.status === 'queued' || s.status === 'baking' || s.status === 'waiting'
 
 const listEl = ref(null)
 const failed = ref(new Set())

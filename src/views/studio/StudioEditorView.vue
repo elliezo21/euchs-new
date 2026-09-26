@@ -68,7 +68,8 @@
         <StudioPhotoPanel
           v-if="activeTool === 'photo' || !isWide"
           :images="images" :view-urls="viewUrls" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-          @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-url="resignViewUrl"
+          :bake-state="bakeQueue.state" :erased-thumb="erasedThumb"
+          @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-url="resignViewUrl" @retry-bake="requestBake"
         />
         <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
           <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -84,7 +85,7 @@
           <div v-else-if="page && page.sections.length" class="pt-8 pb-24" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="selectedItemId = null">
             <StudioPageView
               ref="pageView"
-              :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-item-id="selectedItemId"
+              :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-item-id="selectedItemId" :bake-state="bakeQueue.state"
               @select="onPageSelect" @clear-selection="selectedItemId = null" @move="onPageMove"
               @open-erase="openErase" @retry-image="retryView"
             />
@@ -225,6 +226,8 @@ import {
 } from '@/lib/studioProjects'
 import { createImageCache } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
+import { useBakeQueue } from '@/composables/useBakeQueue'
+import { fillCounts } from '@/lib/studioEdit'
 import { usePageSession } from '@/composables/usePageSession'
 import { createViewImageStore } from '@/lib/studioViewImage'
 import { moveItem, firstItemOfImage, findItem, pageImageIds, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS } from '@/lib/studioPage'
@@ -364,17 +367,55 @@ const viewStore = createViewImageStore({
   dpr: window.devicePixelRatio || 1,
   onUpdate(id, entry) { views[id] = { ...entry } },
 })
+// 구운 사진(final JPG)이 최신이면 그 버전 — 지우기가 저장된 상태이고 final_rendered_version = edit_version일 때만 (아니면 실시간 합성)
+function finalVersionOf(row) {
+  const v = row.edit_version
+  return Number.isInteger(v) && row.final_rendered_version === v && session.isSaved(row.id) && !bakeQueue.state[row.id] ? v : null
+}
 const viewWants = computed(() => {
   if (!page.value || eraseOpen.value || !isWide.value) return []
   return pageImageIds(page.value)
     .map(id => imagesById.value.get(id))
     .filter(r => r && r.ingest_status === 'done')
-    .map(row => ({ row, layers: session.layerMap[row.id] || [] }))
+    .map(row => ({ row, layers: session.layerMap[row.id] || [], finalVersion: finalVersionOf(row) }))
 })
-watch(viewWants, list => { for (const w of list) viewStore.want(w.row, w.layers) }, { immediate: true })
+watch(viewWants, list => { for (const w of list) viewStore.want(w.row, w.layers, { finalVersion: w.finalVersion }) }, { immediate: true })
 function retryView(imageId) {
   const row = imagesById.value.get(imageId)
-  if (row) viewStore.retry(row, session.layerMap[imageId] || [])
+  if (row) viewStore.retry(row, session.layerMap[imageId] || [], { finalVersion: finalVersionOf(row) })
+}
+// [사진] 목록 썸네일: 페이지용으로 만든 사진(지운 결과 또는 구운 사진)이 있으면 그것, 없으면 원본 썸네일
+function erasedThumb(id) {
+  const v = views[id]
+  return v && v.status === 'ready' && v.url ? v.url : null
+}
+
+// ── 지운 사진 굽기 (5단계) — 지우기 화면이 닫힐 때 그 사진을 원본 크기 JPG로 굽는다. 화면은 막지 않는다 ──
+const bakeQueue = useBakeQueue({
+  onBaked(id, version) {
+    const row = images.value.find(i => i.id === id)
+    if (row) row.final_rendered_version = version // 페이지·썸네일이 구운 사진으로 바뀐다 (viewWants)
+  },
+})
+/**
+ * 굽기 요청 (지우기 화면 닫힘·[다시 시도]). 굽지 않는 경우:
+ *   지우기 저장이 안 끝남(실패·충돌 — 상단 저장 상태가 알린다) / 지우기가 없음(원본이 곧 최종) /
+ *   결과 없는 AI 레이어가 있음("다시 지우기를 마치면 적용돼요") / 이미 최신(final_rendered_version = edit_version)
+ */
+async function requestBake(id) {
+  const row = images.value.find(i => i.id === id && i.ingest_status === 'done')
+  if (!row) return
+  const saved = await session.flush(id) // 굽는 버전 = 저장이 끝난 edit_version
+  if (!saved || !session.isSaved(id)) {
+    console.warn('[StudioEditor] 지우기 저장이 끝나지 않아 굽지 않음 (저장 후 다시 [완료] 또는 [다시 시도]):', id)
+    return
+  }
+  const layers = session.layerMap[id] || []
+  const counts = fillCounts(layers)
+  if (counts.redo > 0) { bakeQueue.markBlocked(id); return }
+  if (counts.done === 0) { bakeQueue.clear(id); return }
+  if (row.final_rendered_version === row.edit_version) { bakeQueue.clear(id); return }
+  bakeQueue.request(row, layers, row.edit_version)
 }
 function clearViews() {
   viewStore.clear()
@@ -535,7 +576,9 @@ watch(() => route.query.erase, syncEraseFromRoute)
  *   주소로 바로 들어와 앞 항목이 없거나 다른 화면이면 router.replace로 주소에서 erase만 뺀다 (back 하면 편집기를 떠나므로).
  */
 function onEraseClosed() {
+  const closedId = selectedImageId.value
   eraseOpen.value = false
+  if (closedId) requestBake(closedId) // [완료]·[페이지로]·크롬 ← 모두 — 바뀐 것이 없으면(이미 최신) 굽지 않는다
   if (eraseByHistory || !route.query.erase) return
   const editorPath = router.resolve({ query: queryWithoutErase(route.query) }).fullPath
   if (eraseCloseMode(window.history.state?.back ?? null, editorPath) === 'back') router.back()
@@ -605,6 +648,7 @@ function unsavedNow() {
     editUnsaved: session.hasUnsaved(),
     pageUnsaved: pageSession.hasUnsaved(),
     draft: eraseOpen.value && !!session.canvasDraft.value,
+    baking: bakeQueue.pendingCount.value,
   })
 }
 function onBeforeUnload(e) {
@@ -659,6 +703,7 @@ watch(() => route.params.projectId, (id, old) => {
   session.selectedLayerId.value = null
   eraseOpen.value = false
   clearViews()
+  bakeQueue.reset()
   load()
 })
 
@@ -669,6 +714,7 @@ const onStudioAuthChanged = (e) => {
     eraseOpen.value = false
     session.resetAll()
     pageSession.resetAll()
+    bakeQueue.reset()
     clearViews()
     selectedItemId.value = null
     imageCache.clear()
@@ -706,6 +752,7 @@ onUnmounted(() => {
   clearTimeout(toastTimer)
   session.dispose()
   pageSession.dispose()
+  bakeQueue.dispose()
   clearViews()
   areaObserver?.disconnect()
   imageCache.clear()

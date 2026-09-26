@@ -7,7 +7,7 @@
       :class="s.id === selectedSectionId ? 'st-accent-text' : 'st-muted'"
       :style="{ right: `calc(100% + 14px)`, top: `${rowOf(s.id).top * zoom + 4}px` }"
       data-section-label
-    >{{ String(si + 1).padStart(2, '0') }} {{ sectionName(s) }}</div>
+    >{{ String(si + 1).padStart(2, '0') }} {{ sectionName(s) }}<span v-if="sectionBake(s)" class="block font-semibold st-muted" data-section-bake>{{ sectionBake(s) }}</span></div>
 
     <!-- 흰 페이지 -->
     <div class="absolute inset-0 st-page-paper" @pointerdown.self="$emit('clear-selection')">
@@ -73,6 +73,7 @@ const props = defineProps({
   imagesById: { type: Map, required: true },     // image id → studio_images 행
   views: { type: Object, required: true },       // image id → { status, url, error } (studioViewImage)
   selectedItemId: { type: String, default: null },
+  bakeState: { type: Object, default: () => ({}) }, // image id → { status } (useBakeQueue) — 구간 이름 옆에 "적용 중" (사진 위에는 올리지 않는다)
 })
 // select({ itemId, imageId }) / clear-selection / move({ itemId, x, y }) 손을 뗄 때 한 번 / open-erase(imageId) / retry-image(imageId)
 const emit = defineEmits(['select', 'clear-selection', 'move', 'open-erase', 'retry-image'])
@@ -85,6 +86,14 @@ const total = computed(() => layout.value.total)
 const rowOf = id => rowMap.value.get(id) || { top: 0, height: 0 }
 const rowOfImage = id => props.imagesById.get(id) || null
 const viewOf = id => props.views[id] || null
+
+/** 그 구간 사진의 굽기 상태 문구 (구간 이름 아래, 페이지 바깥) */
+function sectionBake(s) {
+  const st = s.items.filter(isValidImageItem).map(it => props.bakeState[it.imageId]?.status).find(Boolean)
+  if (st === 'queued' || st === 'baking' || st === 'waiting') return '적용 중…'
+  if (st === 'failed') return '적용하지 못했어요'
+  return ''
+}
 
 function sectionName(s) {
   const first = s.items.find(isValidImageItem)
