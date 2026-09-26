@@ -3,6 +3,7 @@ import {
   readPage, normalizeItem, normAngle, itemBounds, moveItems, resizeRect, setItemRect, setRotation, rotateBy, flipItems,
   setOpacity, setLocked, setHidden, alignItems, reorderItems, removeItems, copyItems, pasteItems, duplicateItems,
   sectionItemIds, itemsInBox, snapMove, findItem, ITEM_MIN_SIZE, PASTE_OFFSET,
+  itemStyleOf, setItemStyle, replaceItemImage, itemIdsOfImage,
 } from '../src/lib/studioPage.js'
 
 let pass = 0, fail = 0
@@ -147,6 +148,23 @@ const r2 = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.ro
   const e = snapMove(P, ['a'], 97, 60, 6)
   eq('다른 요소 가장자리에 붙음 (a 오른쪽 197 → b 왼쪽 200)', [e.dx, e.guides.find(g => g.axis === 'x')?.pos], [100, 200])
   eq('구간이 다르면 달라붙지 않음', snapMove(P, ['a', 'c'], 3, 0, 6).guides, [])
+}
+
+// ── 10. 사진 꾸미기·바꾸기 (6-2) ──
+{
+  eq('예전 요소(꾸미기 칸 없음) → 없음으로 읽음', itemStyleOf(it(P, 'a')), { borderWidth: 0, borderColor: '#ffffff', radius: 0, shadow: 0 })
+  const s = setItemStyle(P, ['a'], { borderWidth: 3, borderColor: '#FF0000', radius: 999, shadow: 40 })
+  eq('테두리·모서리(최대 400으로 자름)·그림자', itemStyleOf(it(s, 'a')), { borderWidth: 3, borderColor: '#ff0000', radius: 400, shadow: 40 })
+  eq('잘못된 색은 무시', setItemStyle(P, ['a'], { borderColor: 'red' }) === P, true)
+  const back = setItemStyle(s, ['a'], { borderWidth: 0, radius: 0, shadow: 0, borderColor: '#ffffff' })
+  eq('기본값으로 되돌리면 칸이 빠짐 (예전 모양)', ['borderWidth', 'radius', 'shadow', 'borderColor'].some(k => k in it(back, 'a')), false)
+  eq('잠긴 요소도 꾸미기는 바뀜', itemStyleOf(it(setItemStyle(P, ['L'], { shadow: 10 }), 'L')).shadow, 10)
+  const r = replaceItemImage(P, 'a', 'Z')
+  eq('사진 바꾸기: 사진만 바뀌고 자리·크기 그대로', [it(r, 'a').imageId, rect(r, 'a')], ['Z', [0, 0, 100, 100]])
+  eq('빠진 사진은 parked로', r.parked, ['A'])
+  eq('parked에 있던 사진으로 바꾸면 parked에서 빠짐', replaceItemImage({ ...P, parked: ['Z'] }, 'a', 'Z').parked, ['A'])
+  eq('같은 사진 → 문서 그대로', replaceItemImage(P, 'a', 'A') === P, true)
+  eq('이 사진의 요소들', itemIdsOfImage(duplicateItems(P, ['a']).page, 'A').length, 2)
 }
 
 eq('입력 문서는 바뀌지 않음', JSON.stringify(P) === snapshot, true)

@@ -34,9 +34,14 @@
           >
             <!-- 숨긴 요소: 편집 화면에서는 흐린 점선 윤곽만 (다시 찾을 수 있게) -->
             <template v-if="!it.hidden">
+              <!-- 원본 비교 중: 그 사진의 원본(지우기·필터 전)을 잠깐 보여 준다 (자리·회전·뒤집기는 그대로) -->
               <img
-                v-if="viewOf(it.imageId)?.url" :src="viewOf(it.imageId).url" alt="" draggable="false"
-                class="block w-full h-full pointer-events-none" :style="flipStyle(it)"
+                v-if="compare && compare.imageId === it.imageId && compare.url" :src="compare.url" alt="" draggable="false" crossorigin="anonymous"
+                class="block w-full h-full pointer-events-none st-item-img" :style="flipStyle(it)" data-compare-img
+              />
+              <img
+                v-else-if="viewOf(it.imageId)?.url" :src="viewOf(it.imageId).url" alt="" draggable="false"
+                class="block w-full h-full pointer-events-none st-item-img" :style="imgStyle(it)"
                 @load="onImgLoad(it.imageId, $event)" @error="onImgError(it.imageId)"
               />
               <!-- 사진을 준비하는 중·실패·없는 사진: 그 자리 안에만 보인다 (떠 있는 막대 아님) -->
@@ -60,6 +65,16 @@
         </template>
       </section>
     </div>
+
+    <!-- 필터의 온도·선명도 (CSS에 없어서 SVG 필터, 사진마다 하나) -->
+    <svg v-if="svgFilters.length" class="absolute" width="0" height="0" aria-hidden="true" style="pointer-events: none">
+      <defs>
+        <filter v-for="f in svgFilters" :id="f.id" :key="f.id" color-interpolation-filters="sRGB">
+          <feColorMatrix type="matrix" :values="f.matrix" result="warm" />
+          <feConvolveMatrix v-if="f.kernel" in="warm" order="3" :kernelMatrix="f.kernel" preserveAlpha="true" edgeMode="duplicate" />
+        </filter>
+      </defs>
+    </svg>
 
     <!-- 달라붙기 안내선 (구간 좌표 → 페이지) -->
     <div
@@ -101,8 +116,9 @@
 import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
 import {
-  layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox,
+  layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
 } from '@/lib/studioPage'
+import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { afterPaint } from '@/lib/studioImageCache'
@@ -113,6 +129,8 @@ const props = defineProps({
   imagesById: { type: Map, required: true },     // image id → studio_images 행
   views: { type: Object, required: true },       // image id → { status, url, error } (studioViewImage)
   selectedIds: { type: Array, default: () => [] }, // 고른 요소 id
+  looks: { type: Object, default: () => ({}) },    // image id → 필터·조정 (6-2, studioLook) — 화면에서만 CSS로
+  compare: { type: Object, default: null },        // { imageId, url } 원본 비교 중 (6-2)
   bakeState: { type: Object, default: () => ({}) }, // image id → { status } (useBakeQueue) — 구간 이름 옆에 "적용 중" (사진 위에는 올리지 않는다)
 })
 // select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
@@ -156,12 +174,39 @@ function sectionName(s) {
 function itemStyle(it) {
   const z = props.zoom
   const rot = it.rotation ? `rotate(${it.rotation}deg)` : null
-  return { left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.hidden ? null : (it.opacity ?? 1), transform: rot }
+  const out = { left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.hidden ? null : (it.opacity ?? 1), transform: rot }
+  if (it.hidden) return out
+  // 꾸미기 (6-2): 테두리(안쪽으로)·모서리·그림자 — 페이지 좌표 값에 배율을 곱한다
+  const st = itemStyleOf(it)
+  if (st.borderWidth) out.border = `${st.borderWidth * z}px solid ${st.borderColor}`
+  if (st.radius) { out.borderRadius = `${st.radius * z}px`; out.overflow = 'hidden' }
+  if (st.shadow) out.boxShadow = `0 ${(st.shadow * 0.12 * z).toFixed(1)}px ${(st.shadow * 0.4 * z).toFixed(1)}px rgba(0, 0, 0, ${(st.shadow / 100 * 0.45).toFixed(3)})`
+  return out
 }
 function flipStyle(it) {
   const sx = it.flipX ? -1 : 1, sy = it.flipY ? -1 : 1
   return sx === 1 && sy === 1 ? null : { transform: `scale(${sx}, ${sy})` }
 }
+const svgIdOf = imageId => `st-lk-${imageId}`
+/** 사진 모습: 뒤집기 + 필터·조정 (사진 파일은 그대로, 화면에서만) */
+function imgStyle(it) {
+  const f = lookCss(props.looks[it.imageId], svgIdOf(it.imageId))
+  const flip = flipStyle(it)
+  return f ? { ...(flip || {}), filter: f } : flip
+}
+/** 온도·선명도가 있는 사진의 SVG 필터 (페이지에 놓인 사진만) */
+const svgFilters = computed(() => {
+  const out = []
+  const seen = new Set()
+  for (const s of doc.value.sections) for (const it of s.items) {
+    if (!isValidImageItem(it) || seen.has(it.imageId)) continue
+    seen.add(it.imageId)
+    const look = props.looks[it.imageId]
+    if (!look || !needsSvgFilter(look)) continue
+    out.push({ id: svgIdOf(it.imageId), ...svgFilterParams(look) })
+  }
+  return out
+})
 
 const selectedSectionIds = computed(() => {
   const out = new Set()
@@ -374,6 +419,8 @@ defineExpose({ scrollToItem, sectionInView, isBusy: () => !!act })
 .st-select-frame { box-shadow: 0 0 0 2px var(--st-accent); border-radius: 1px; }
 .st-select-frame.is-multi { box-shadow: 0 0 0 1px var(--st-accent); }
 .st-item-hidden { outline: 1px dashed var(--st-muted); outline-offset: -1px; background: transparent; opacity: 0.6; }
+/* 자리 비율과 사진 비율이 다를 때(사진 바꾸기·한쪽 손잡이) 찌그러뜨리지 않고 자리에 맞춰 채운다 — 내보내기(13단계)도 같은 규칙 */
+.st-item-img { object-fit: cover; }
 .st-snap-guide { background: var(--st-accent); z-index: 4; }
 .st-marquee { border: 1px dashed var(--st-accent); background: var(--st-accent-soft); z-index: 4; }
 .st-resize-handle {

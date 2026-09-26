@@ -6,9 +6,9 @@
         <ArrowLeft class="w-5 h-5" :stroke-width="2" />
       </router-link>
       <span class="w-[26px] h-[26px] rounded-[7px] flex items-center justify-center st-logo-mark text-[13px] font-extrabold shrink-0">E</span>
-      <!-- 페이지 되돌리기·다시 (지우기 화면의 되돌리기는 그 사진의 지우기 이력 — 따로, 결정 8) -->
-      <button type="button" class="st-icon-btn" :disabled="!pageCanUndo" :title="pageCanUndo ? '되돌리기' : '되돌릴 동작이 없어요'" data-action="undo" @click="pageSession.undo()"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
-      <button type="button" class="st-icon-btn" :disabled="!pageCanRedo" :title="pageCanRedo ? '다시' : '다시 할 동작이 없어요'" data-action="redo" @click="pageSession.redo()"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+      <!-- 편집기 되돌리기·다시: 페이지 동작과 사진 필터·조정을 한 순서로 (지우기 화면의 되돌리기는 그 사진의 지우기 이력 — 따로, 결정 8) -->
+      <button type="button" class="st-icon-btn" :disabled="!editorCanUndo" :title="editorCanUndo ? '되돌리기' : '되돌릴 동작이 없어요'" data-action="undo" @click="undoAny"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+      <button type="button" class="st-icon-btn" :disabled="!editorCanRedo" :title="editorCanRedo ? '다시' : '다시 할 동작이 없어요'" data-action="redo" @click="redoAny"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
       <div class="min-w-0 ml-1 leading-tight" data-title-block>
         <div class="text-[14px] font-extrabold st-ink truncate">{{ project ? projectDisplayTitle(project) : '' }}</div>
         <template v-if="project">
@@ -65,18 +65,23 @@
 
       <!-- 재료 패널 (300px): 고른 메뉴의 재료. 사진을 누르면 사진 속성 패널(6단계) -->
       <aside class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
-        <!-- 고른 요소가 있으면 위쪽에 공통 조작 칸 (6-1). 사진 전용 패널 정리는 6-2 -->
-        <StudioTransformPanel
-          v-if="isWide && page && selectedItemIds.length" class="shrink-0 max-h-[60%] overflow-y-auto"
-          :page="page" :selected-ids="selectedItemIds" @command="runCommand"
-        />
+        <!-- 고른 요소가 있으면 위쪽에 공통 조작 칸 (6-1) + 사진 한 장이면 사진 묶음 (6-2) -->
+        <div v-if="isWide && page && selectedItemIds.length" class="shrink-0 max-h-[65%] overflow-y-auto" data-selection-panels>
+          <StudioTransformPanel :page="page" :selected-ids="selectedItemIds" @command="runCommand" />
+          <StudioImageItemPanel
+            v-if="selectedPhotoItem"
+            :item="selectedPhotoItem" :look="session.lookOf(selectedPhotoItem.imageId)" :thumb-url="views[selectedPhotoItem.imageId]?.url || null"
+            @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
+            @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
+          />
+        </div>
         <div class="flex-1 min-h-0 flex flex-col">
           <StudioPhotoPanel
             v-if="activeTool === 'photo' || !isWide"
             :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
             :bake-state="bakeQueue.state"
             @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
-            @visible="onListVisible" @shown="onListShown"
+            @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -94,6 +99,7 @@
             <StudioPageView
               ref="pageView"
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state"
+              :looks="session.lookMap" :compare="compare"
               @select="onPageSelect" @change="onPageChange" @context="openContextMenu"
               @open-erase="openErase" @retry-image="retryView"
               @visible="onPageVisible" @shown="onPageShown"
@@ -173,6 +179,44 @@
       </template>
     </StudioModal>
 
+    <!-- 사진 바꾸기 (6-2): 이 작업의 다른 사진 고르기 — 자리·크기·회전은 그대로 -->
+    <StudioModal :open="replaceOpen" wide title="어떤 사진으로 바꿀까요?" @close="replaceOpen = false">
+      <p class="st-desc mb-3 break-keep">자리·크기·회전·꾸미기는 그대로 두고 사진만 바뀌어요.</p>
+      <div class="grid grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto" data-replace-grid>
+        <button
+          v-for="img in doneImages" :key="img.id" type="button" class="st-replace-cell" :class="img.id === selectedPhotoItem?.imageId ? 'is-current' : ''"
+          :disabled="img.id === selectedPhotoItem?.imageId" :data-replace-pick="img.id" @click="pickReplace(img.id)"
+        >
+          <img v-if="views[img.id]?.url" :src="views[img.id].url" alt="" draggable="false" />
+          <span v-else class="absolute inset-0 st-skeleton" />
+          <span v-if="img.included === false" class="st-replace-tag">안 쓸 사진</span>
+          <span v-if="img.id === selectedPhotoItem?.imageId" class="st-replace-tag">지금 사진</span>
+        </button>
+      </div>
+      <template #actions>
+        <button type="button" class="st-btn" @click="replaceOpen = false">닫기</button>
+      </template>
+    </StudioModal>
+
+    <!-- 안 쓸 사진으로 옮길 때 페이지에 놓인 경우 (6-2) -->
+    <StudioModal :open="!!includeAsk" title="페이지에 놓인 사진이에요" @close="includeAsk = null">
+      안 쓸 사진으로 옮기면서 페이지에서도 뺄까요? 빼도 사진은 [안 쓸 사진]에 그대로 있어요.
+      <template #actions>
+        <button type="button" class="st-btn" @click="includeAsk = null">취소</button>
+        <button type="button" class="st-btn" data-include-list-only @click="confirmInclude(false)">목록에서만 옮기기</button>
+        <button type="button" class="st-btn st-btn-primary" data-include-and-page @click="confirmInclude(true)">페이지에서도 빼기</button>
+      </template>
+    </StudioModal>
+
+    <!-- 필터·조정 초기화 확인 (6-2) — 지우기는 그대로 -->
+    <StudioModal :open="resetLookOpen" title="필터·조정을 처음으로 돌릴까요?" @close="resetLookOpen = false">
+      이 사진의 필터와 밝기·대비 같은 조정이 처음으로 돌아가요. 지운 곳은 그대로 남아요.
+      <template #actions>
+        <button type="button" class="st-btn" @click="resetLookOpen = false">취소</button>
+        <button type="button" class="st-btn st-btn-primary" data-confirm-reset-look @click="confirmResetLook">처음으로</button>
+      </template>
+    </StudioModal>
+
     <!-- 모두 삭제 확인 -->
     <StudioModal :open="clearAllOpen" title="이 사진의 지우기를 모두 삭제할까요?" @close="clearAllOpen = false">
       지우기 {{ selectedFillCount }}곳이 모두 없어지고 원본 그대로 돌아가요.
@@ -234,8 +278,9 @@ import StudioPhotoPanel from '@/components/studio/StudioPhotoPanel.vue'
 import StudioPageView from '@/components/studio/StudioPageView.vue'
 import StudioTransformPanel from '@/components/studio/StudioTransformPanel.vue'
 import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
+import StudioImageItemPanel from '@/components/studio/StudioImageItemPanel.vue'
 import {
-  loadMyProject, listEditorImages, signViewUrls, sortStudioImages, sortBySortOrder, hasSortOrderOverlap,
+  loadMyProject, listEditorImages, signViewUrls, sortStudioImages, sortBySortOrder, hasSortOrderOverlap, setImageIncluded,
   renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL,
 } from '@/lib/studioProjects'
 import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
@@ -248,6 +293,7 @@ import {
   firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
   removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
+  setItemStyle, replaceItemImage, itemIdsOfImage,
 } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
@@ -378,7 +424,7 @@ function pruneSelection() {
 watch(page, pruneSelection)
 /** 페이지에서 끌어 옮기기·크기·회전을 끝냄 (손을 뗄 때 한 번) */
 function onPageChange({ page: next, label }) {
-  if (next && next !== page.value) pageSession.apply(next, label)
+  applyPage(next, label)
 }
 // 목록·↑↓로 사진을 바꾸면 페이지의 그 사진(첫 자리)에 테두리
 watch(selectedImageId, id => {
@@ -392,10 +438,135 @@ watch(selectedImageId, id => {
 // ── 공통 조작 명령 (6-1) — 패널 버튼·단축키·우클릭 메뉴가 모두 이 하나로 온다 ──
 let clipboard = null // 편집기 안 클립보드 (copyItems 결과) — 다른 구간에도 붙여넣을 수 있다
 let pasteCount = 0   // 같은 것을 여러 번 붙여넣으면 조금씩 더 옆으로
-const LOCK_BLOCKED = new Set(['rotate90', 'rotation', 'flipX', 'flipY', 'align', 'rect', 'delete', 'cut', 'nudge'])
+const LOCK_BLOCKED = new Set(['rotate90', 'rotation', 'flipX', 'flipY', 'align', 'rect', 'delete', 'removeFromPage', 'cut', 'nudge'])
 function applyPage(next, label, opts) {
   if (!next || next === page.value) return false
-  return pageSession.apply(next, label, opts)
+  const before = pageSession.history.value?.index
+  const ok = pageSession.apply(next, label, opts)
+  if (ok && pageSession.history.value?.index !== before) noteAction('page') // 합쳐진 동작(방향키 등)은 새로 쌓지 않는다
+  return ok
+}
+
+// ── 편집기 되돌리기 순서 (6-2) — 페이지 동작(페이지 이력)과 사진 필터·조정(그 사진의 이력)을 누른 순서대로 되돌린다 ──
+// 지우기 화면이 열려 있으면 Ctrl+Z는 예전처럼 그 사진의 지우기 이력만 (결정 8)
+const actionLog = []  // 'page' | { imageId }
+const redoLog = []
+const logTick = ref(0) // 버튼 활성 다시 계산용
+/** 로그아웃·다른 작업 — 되돌리기 순서·사진 패널 창을 비운다 */
+function resetEditorLog() {
+  actionLog.length = 0
+  redoLog.length = 0
+  logTick.value++
+  compare.value = null
+  replaceOpen.value = false
+  resetLookOpen.value = false
+  includeAsk.value = null
+}
+function noteAction(entry) {
+  actionLog.push(entry)
+  if (actionLog.length > 200) actionLog.shift()
+  redoLog.length = 0
+  logTick.value++
+}
+const editorCanUndo = computed(() => { logTick.value; return !eraseOpen.value && (actionLog.length > 0 || pageSession.canUndoNow.value) })
+const editorCanRedo = computed(() => { logTick.value; return !eraseOpen.value && (redoLog.length > 0 || pageSession.canRedoNow.value) })
+function undoAny() {
+  if (eraseOpen.value) return
+  const e = actionLog.pop()
+  if (!e || e === 'page') pageSession.undo()
+  else session.undoImage(e.imageId)
+  if (e) redoLog.push(e)
+  logTick.value++
+}
+function redoAny() {
+  if (eraseOpen.value) return
+  const e = redoLog.pop()
+  if (!e || e === 'page') pageSession.redo()
+  else session.redoImage(e.imageId)
+  if (e) actionLog.push(e)
+  logTick.value++
+}
+
+// ── 사진 패널 (6-2) ──
+const selectedPhotoItem = computed(() => {
+  if (selectedItemIds.value.length !== 1 || !page.value) return null
+  const it = findItem(page.value, selectedItemIds.value[0])?.item
+  return it && isValidImageItem(it) && imagesById.value.has(it.imageId) ? it : null
+})
+const replaceOpen = ref(false)
+const resetLookOpen = ref(false)
+const includeAsk = ref(null) // { id } 안 쓸 사진으로 옮길 사진이 페이지에 놓여 있을 때
+const compare = ref(null)    // { imageId, url } 원본 비교 중
+let compareSeq = 0
+
+function pickReplace(imageId) {
+  const it = selectedPhotoItem.value
+  replaceOpen.value = false
+  if (!it || !page.value) return
+  if (applyPage(replaceItemImage(page.value, it.id, imageId), LABELS.elReplace)) selectImage(imageId)
+}
+/** 필터·조정 → 사진 데이터(edit.look). 슬라이더를 끄는 동안(merge)은 이력 한 단계 */
+function onLook(next, { merge, key } = {}) {
+  const it = selectedPhotoItem.value
+  if (!it) return
+  const id = it.imageId
+  const before = session.histories[id]?.index
+  const label = merge ? LABELS.lookAdjust : LABELS.lookFilter
+  if (session.setLook(id, next, label, merge ? { mergeKey: `adj-${key}` } : undefined) && session.histories[id]?.index !== before) noteAction({ imageId: id })
+}
+function confirmResetLook() {
+  resetLookOpen.value = false
+  const id = selectedPhotoItem.value?.imageId
+  if (!id) return
+  const before = session.histories[id]?.index
+  if (session.setLook(id, null, LABELS.lookReset) && session.histories[id]?.index !== before) noteAction({ imageId: id })
+}
+/** 꾸미기(테두리·모서리·그림자) → 페이지 요소 */
+function onItemStyle(patch, { merge, key } = {}) {
+  const it = selectedPhotoItem.value
+  if (!it || !page.value) return
+  applyPage(setItemStyle(page.value, [it.id], patch), LABELS.elStyle, merge ? { mergeKey: `style-${key}` } : undefined)
+}
+/** 원본 비교 — 누르고 있는 동안 원본(지우기·필터 전). 원본은 공유 서명 주소로 받는다 (지우기 화면과 같은 주소 → 캐시) */
+async function onCompare(on) {
+  const seq = ++compareSeq
+  if (!on) { compare.value = null; return }
+  const row = selectedPhotoItem.value && imagesById.value.get(selectedPhotoItem.value.imageId)
+  if (!row?.original_path) return
+  try {
+    const url = await urlPool.url(row.original_path)
+    if (seq === compareSeq) compare.value = { imageId: row.id, url }
+  } catch (e) {
+    console.error('[StudioEditor] 원본 비교용 주소를 받지 못함:', row.id, e)
+    showToast('원본을 불러오지 못했어요. 잠시 후 다시 해 주세요.')
+  }
+}
+
+// ── 안 쓸 사진 (6-2) — studio_images.included. 되돌리기 대신 [다시 쓰기] ──
+function onSetIncluded(id, included) {
+  if (!included && page.value && itemIdsOfImage(page.value, id).length) { includeAsk.value = { id }; return }
+  applyIncluded(id, included, false)
+}
+function confirmInclude(alsoPage) {
+  const id = includeAsk.value?.id
+  includeAsk.value = null
+  if (id) applyIncluded(id, false, alsoPage)
+}
+async function applyIncluded(id, included, alsoPage) {
+  const row = images.value.find(i => i.id === id)
+  if (!row) return
+  const prev = row.included
+  row.included = included // 먼저 화면에 (실패하면 되돌리고 알린다)
+  try {
+    await setImageIncluded(id, included)
+  } catch (e) {
+    row.included = prev
+    console.error('[StudioEditor] 안 쓸 사진 표시 저장 실패:', id, e)
+    showToast(included ? '다시 쓰기로 옮기지 못했어요. 잠시 후 다시 해 주세요.' : '안 쓸 사진으로 옮기지 못했어요. 잠시 후 다시 해 주세요.')
+    return
+  }
+  if (alsoPage && page.value) applyPage(removeItems(page.value, itemIdsOfImage(page.value, id)), LABELS.elRemovePhoto)
+  showToast(included ? '다시 쓰는 사진으로 옮겼어요.' : '안 쓸 사진으로 옮겼어요. [안 쓸 사진]에서 다시 쓸 수 있어요.')
 }
 function sectionOfItem(id) { return page.value ? findItem(page.value, id)?.section.id || null : null }
 function runCommand(name, args = {}) {
@@ -425,9 +596,10 @@ function runCommand(name, args = {}) {
       if (applyPage(r.page, LABELS.elDuplicate)) { selectedItemIds.value = r.ids; selectionSource = 'page' }
       break
     }
-    case 'delete': {
+    case 'delete':
+    case 'removeFromPage': { // 페이지에서 빼기 = 삭제와 같은 동작 (사진은 목록·parked에 남는다)
       const next = removeItems(p, ids)
-      if (applyPage(next, LABELS.elDelete) && ids.some(id => findItem(next, id))) showToast('잠긴 요소는 지우지 않았어요.')
+      if (applyPage(next, name === 'delete' ? LABELS.elDelete : LABELS.elRemovePhoto) && ids.some(id => findItem(next, id))) showToast('잠긴 요소는 지우지 않았어요.')
       break
     }
     case 'copy':
@@ -679,7 +851,8 @@ function clearViews() {
 // 장수 한도에 드는 수 — 서버 prepare와 같은 방식: done + 직접 올린 pending (1688의 가져오지 않은 pending은 세지 않음)
 const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
-const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value)
+const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
+  || replaceOpen.value || resetLookOpen.value || !!includeAsk.value)
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'
@@ -961,8 +1134,8 @@ function onKeyDown(e) {
   const sel = selectedItemIds.value
   if (e.ctrlKey || e.metaKey) {
     // e.code 기준: 한글 입력 상태에서도 같은 키로 동작
-    const undo = eraseOpen.value ? undoEdit : pageSession.undo
-    const redo = eraseOpen.value ? redoEdit : pageSession.redo
+    const undo = eraseOpen.value ? undoEdit : undoAny
+    const redo = eraseOpen.value ? redoEdit : redoAny
     if (e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undo() }
     else if ((e.code === 'KeyZ' && e.shiftKey) || (e.code === 'KeyY' && !e.shiftKey)) { e.preventDefault(); redo() }
     else if (eraseOpen.value || e.shiftKey || !page.value) return
@@ -1013,6 +1186,7 @@ watch(() => route.params.projectId, (id, old) => {
   eraseOpen.value = false
   clearViews()
   bakeQueue.reset()
+  resetEditorLog()
   load()
 })
 
@@ -1029,6 +1203,7 @@ const onStudioAuthChanged = (e) => {
     selectedItemIds.value = []
     clipboard = null
     ctx.open = false
+    resetEditorLog()
     imageCache.clear()
     project.value = null
     images.value = []
@@ -1073,6 +1248,12 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+/* 사진 바꾸기 고르기 칸 (6-2) */
+.st-replace-cell { position: relative; aspect-ratio: 1; border-radius: 10px; overflow: hidden; border: 2px solid transparent; background: var(--st-card); cursor: pointer; padding: 0; }
+.st-replace-cell:hover:not(:disabled) { border-color: var(--st-accent); }
+.st-replace-cell.is-current { border-color: var(--st-line-strong); opacity: 0.55; cursor: default; }
+.st-replace-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.st-replace-tag { position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 700; background: var(--st-panel); color: var(--st-ink-2); }
 .st-topbar { background: var(--st-bar, var(--st-surface)); }
 /* 작업 바탕의 옅은 점 무늬 (시안) */
 .st-dotgrid { background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px); background-size: 22px 22px; }

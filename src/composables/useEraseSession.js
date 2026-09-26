@@ -30,6 +30,7 @@ import {
 import { fillPlan } from '@/lib/studioFillPlan'
 import { aiK } from '@/lib/studioAi/aiGeometry'
 import { createAiEngine } from '@/lib/studioAi/aiEngine'
+import { readLook, withLook, normalizeLook } from '@/lib/studioLook'
 
 export const BRUSH_UI_MIN = BRUSH_SIZE_MIN
 export const BRUSH_UI_MAX = 300
@@ -37,6 +38,9 @@ export { PAD_MIN, PAD_MAX }
 
 export function useEraseSession({ images, selectedImageId, showToast }) {
   const layerMap = reactive({})          // image id → 레이어 배열 (화면의 현재 값)
+  // image id → 필터·조정 look (6-2, studioLook). edit 안에서 layers와 나란히 저장한다 —
+  // 저장할 edit는 항상 editOf(id)로 layers + look을 함께 만든다 (한쪽 저장이 다른 쪽의 저장 안 된 값을 덮지 않게)
+  const lookMap = reactive({})
   const histories = reactive({})         // image id → studioHistory (세션 동안만, 사진을 바꿔도 유지)
   const selectedLayerId = ref(null)
   const saveStatus = ref('saved')
@@ -48,6 +52,10 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   let saver = makeSaver()
 
   function rowOf(id) { return images.value.find(i => i.id === id) }
+  /** 저장할 edit — 화면의 지우기 레이어 + 화면의 look (look을 아직 모르면 저장된 값) */
+  function editOf(id, layers = layerMap[id] || [], look = lookMap[id] ?? readLook(rowOf(id)?.edit)) {
+    return withLook(buildEdit(rowOf(id)?.edit, layers), look)
+  }
   // 목록 표시용: { done: 결과 있는 지우기, redo: 결과 조각 없이 남은 AI } (studioEdit.fillCounts)
   function fillCount(id) { return fillCounts(layerMap[id] || []) }
 
@@ -116,6 +124,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     for (const row of rows) {
       if (layerMap[row.id] && saver.stateOf(row.id) !== 'saved') continue
       layerMap[row.id] = readLayers(row.edit, row.id)
+      lookMap[row.id] = readLook(row.edit)
       saver.reset(row.id, row.edit_version)
       // 이력: 처음이면 서버 값이 첫 단계. 이미 있는데 서버 값이 이력의 현재와 다르면(다른 창에서 고침) 서버 값으로 새로 시작
       const h = histories[row.id]
@@ -156,8 +165,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   function setLayers(imageId, next, label) {
     const layers = clampFills(imageId, next)
     layerMap[imageId] = layers
-    const row = rowOf(imageId)
-    const edit = buildEdit(row?.edit, layers)
+    const edit = editOf(imageId, layers)
     saver.change(imageId, edit)
     if (label) recordHistory(imageId, edit, label)
   }
@@ -322,7 +330,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     const last = aiHistoryBatch[imageId]
     if (h && last && last.batch === batch && last.index !== null && last.index === h.index) {
       setLayers(imageId, next, null)
-      histories[imageId] = amendHistory(h, buildEdit(rowOf(imageId)?.edit, layerMap[imageId]))
+      histories[imageId] = amendHistory(h, editOf(imageId))
       return
     }
     setLayers(imageId, next, LABELS.aiErase)
@@ -351,7 +359,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   function recordPad() {
     const id = selectedImageId.value
     if (!id) return
-    recordHistory(id, buildEdit(rowOf(id)?.edit, layerMap[id] || []), LABELS.pad)
+    recordHistory(id, editOf(id), LABELS.pad)
   }
 
   function removeFill(layerId) {
@@ -376,14 +384,47 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
 
   // ── 되돌리기 · 다시 · 이력 이동 ──
   // 그 시점 edit를 화면 값으로 두고, 저장은 기존 자동 저장(edit_version 잠금) 그대로 탄다. 캔버스는 layers 변경을 보고 다시 계산한다
-  function applyHistory(res) {
-    const id = selectedImage.value?.id
+  function applyHistory(res, id = selectedImage.value?.id) {
     if (!res || !id) return
     histories[id] = res.history
     layerMap[id] = readLayers(res.edit, id)
-    saver.change(id, buildEdit(res.edit, layerMap[id]))
+    lookMap[id] = readLook(res.edit) // 이력 한 단계 = 그 시점의 지우기 + 필터·조정
+    saver.change(id, editOf(id))
     if (selectedLayerId.value && !layerMap[id].some(l => l.id === selectedLayerId.value)) selectedLayerId.value = null
   }
+
+  // ── 필터·직접 조정 (6-2) — 같은 edit·같은 저장기(edit_version 잠금)·같은 사진 이력 ──
+  let lastLook = null // { id, key, at, index } — 슬라이더를 끄는 동안 이력을 한 단계로 합친다
+  /**
+   * @param {string} id 사진 id  @param {object|null} look null = 초기화
+   * @param {string} label 이력 라벨  @param {{ mergeKey?: string }} opts
+   * @returns {boolean} 바뀌었으면 true
+   */
+  function setLook(id, look, label, { mergeKey } = {}) {
+    if (!rowOf(id)) return false
+    const next = normalizeLook(look)
+    const cur = lookMap[id] ?? readLook(rowOf(id)?.edit)
+    if (JSON.stringify(next) === JSON.stringify(cur)) return false
+    lookMap[id] = next
+    const edit = editOf(id)
+    saver.change(id, edit)
+    const h = histories[id]
+    const now = Date.now()
+    if (mergeKey && h && lastLook && lastLook.id === id && lastLook.key === mergeKey && now - lastLook.at < 1000
+      && lastLook.index === h.index && h.index === h.steps.length - 1 && h.index > 0) {
+      histories[id] = amendHistory(h, edit)
+    } else {
+      recordHistory(id, edit, label)
+    }
+    lastLook = mergeKey ? { id, key: mergeKey, at: now, index: histories[id]?.index } : null
+    return true
+  }
+  function lookOf(id) { return lookMap[id] ?? readLook(rowOf(id)?.edit) }
+  // 편집기(지우기 화면 밖)에서 사진 이력 되돌리기 — 필터·조정을 페이지 되돌리기와 같은 버튼으로 (편집기의 동작 순서 기록이 부른다)
+  function canUndoImage(id) { return !!histories[id] && histories[id].index > 0 }
+  function canRedoImage(id) { return !!histories[id] && canRedo(histories[id]) }
+  function undoImage(id) { if (canUndoImage(id)) { lastLook = null; applyHistory(undoHistory(histories[id]), id) } }
+  function redoImage(id) { if (canRedoImage(id)) { lastLook = null; applyHistory(redoHistory(histories[id]), id) } }
   function undoEdit() {
     const act = undoAction(selectedHistory.value, !!canvasDraft.value)
     if (act === 'draft') discardDraft()
@@ -415,6 +456,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       const row = rowOf(id)
       if (row) { row.edit = fresh.edit; row.edit_version = fresh.edit_version; row.updated_at = fresh.updated_at }
       layerMap[id] = readLayers(fresh.edit, id)
+      lookMap[id] = readLook(fresh.edit)
       saver.reset(id, fresh.edit_version)
       // 서버 최신본을 불러오면 그 사진의 이력은 비우고 불러온 상태를 첫 단계로
       histories[id] = createHistory(buildEdit(fresh.edit, layerMap[id]), LABELS.reload)
@@ -433,6 +475,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     saver.dispose()
     saver = makeSaver()
     for (const k of Object.keys(layerMap)) delete layerMap[k]
+    for (const k of Object.keys(lookMap)) delete lookMap[k]
     for (const k of Object.keys(histories)) delete histories[k]
     draft.value = null
     selectedLayerId.value = null
@@ -460,5 +503,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
     setPad, recordPad, removeFill, clearAllFills, undoEdit, redoEdit, jumpEdit,
     retrySave, flush, hasUnsaved, isSaved, reopenConflict, reloadConflicted, resetAll, resetScreenState, dispose,
+    // 필터·조정 (6-2)
+    lookMap, setLook, lookOf, canUndoImage, canRedoImage, undoImage, redoImage,
   }
 }

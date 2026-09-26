@@ -41,6 +41,13 @@ export const LABELS = {
   elHide: '숨기기',
   elShow: '보이기',
   elNumber: '위치·크기 입력',
+  // 사진 패널 (6-2) — 페이지 이력: 바꾸기·빼기·꾸미기 / 사진 이력: 필터·조정
+  elReplace: '사진 바꾸기',
+  elRemovePhoto: '페이지에서 빼기',
+  elStyle: '꾸미기',
+  lookFilter: '필터',
+  lookAdjust: '조정',
+  lookReset: '필터·조정 초기화',
 }
 
 const clone = v => JSON.parse(JSON.stringify(v))

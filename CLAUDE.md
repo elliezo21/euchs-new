@@ -112,6 +112,7 @@ grep -o '^[A-Z_]*=' .env.local
 
 1. **진행 방식**: 한 창(세션)에 한 단계만 한다. 단계가 끝나면 로컬 커밋 + 보고서 + 멈춤. 다음 단계는 채팅 Claude가 로그인한 크롬으로 확인한 뒤 해성이 새 프롬프트로 준다. push는 위 3-5·배포 방식대로 해성 승인 후에만.
    단계마다 확인용 페이지 자동 확인·예전 단계 재확인은 하지 않는다. 빌드와 단위 테스트만. 실제 확인은 채팅 Claude가 크롬으로 한다. 전체 재확인은 push 직전에 한 번.
+   파일 읽기·찾기는 PowerShell(Get-Content, Select-String 등) 대신 Read·Grep·Glob 도구를 쓴다. 셸 명령은 ; 나 | 로 이어 붙이지 않고 한 번에 하나씩 실행한다.
 2. **표시 규칙**: 보고서·계획에 [확인됨] [보고서 기준] [결정] [제안] [모름]을 붙인다. 확인하지 않은 것을 된다고 쓰지 않는다. 로그인이 필요한 확인은 "확인 못 함 (로그인 필요)". 가짜 사진·확인용 페이지로 본 것은 "대신 확인".
 3. **개발 서버**: `npm run dev:studio` (스튜디오 스위치 두 개를 켜고 `vite --host`로 띄운다 — `scripts/dev-studio.mjs`, PowerShell·cmd 모두 같은 명령. 다른 포트: `npm run dev:studio -- --port 5180`)
    - 대안(PowerShell 한 줄): `$env:VITE_STUDIO_ENABLED="admin"; $env:STUDIO_ENABLED="admin"; npm run dev`
@@ -148,6 +149,7 @@ grep -o '^[A-Z_]*=' .env.local
    - 나가기 보호: 저장 안 된 것이 있을 때만 새로고침·탭 닫기에 브라우저 경고(`studioSaveGuard.unsavedReasons`), AI 결과 자동 다시 저장(2초 → 5초 → 10초, 인터넷 복구 시 바로), 지우기 화면 주소 `?erase=<사진 id>`(크롬 ← = 지우기 화면만 닫기, [완료] 뒤 history 안 남음, 새로고침하면 다시 열림), 상단 "저장됨"에 마우스 → 마지막 저장 시각
    - 5단계 지운 사진 굽기: 지우기 화면을 닫을 때 바뀐 사진만 원본 크기 JPG 95로 구움(`studioBake.js` — 합성은 `studioViewImage.composeErased` 하나), `final/{imageId}_v{edit_version}.jpg`, 서버 `final_prepare`·`final_confirm`(JPEG·크기·가로세로 검사, edit_version이 그대로일 때만 `final_rendered_version` 기록), 한 번에 한 장·사진마다 최신만(`useBakeQueue`), "적용 중…"·"적용하지 못했어요 · 다시 시도", 결과 없는 AI가 있으면 굽지 않음, 굽는 중 새로고침 경고, 최신이면 페이지·썸네일이 구운 사진 사용
    - 6-1 공통 조작 엔진: 페이지 요소 `rotation` 칸(예전 페이지는 `normalizeItem`으로 기본값), 조작은 `studioPage.js` 순수 함수(`test-studio-page-ops.mjs`), 클릭·Shift+클릭·빈 곳 드래그 박스·Ctrl+A·Esc 선택, 끌기 이동(달라붙기·Alt 끔)·방향키 1/10px(이력 합침)·손잡이 크기(모서리 비율 유지·Shift 자유)·회전 손잡이(Shift 15°), 왼쪽 위 조작 칸(숫자·90°·뒤집기·순서·정렬·투명도·잠금·숨기기·복제·삭제), Ctrl+C/V/X/D·Delete, 우클릭 메뉴, 잠금(자물쇠·이동 안 됨), 숨김(점선 윤곽), 목록에서 고른 상태의 ↑/↓ = 사진 바꾸기(예전 그대로)
+   - 6-2 사진 패널: 사진 한 장을 고르면 "사진" 묶음 — [사진 바꾸기](자리·크기 그대로, `replaceItemImage`)·[페이지에서 빼기](삭제와 같음, parked)·[원본 비교] 누르고 있기·필터 8개와 조정 5개(`studioLook.js`, `studio_images.edit.look` — 지우기와 같은 저장기·사진 이력, `editOf`가 layers+look을 함께 만들어 서로 덮지 않음)·[필터·조정 초기화] 확인·꾸미기(테두리·모서리·그림자 = 페이지 요소 `itemStyleOf`), 목록 [사용]/[안 쓸 사진] 탭과 줄 오른쪽 옮기기 버튼(`included`, 페이지에 있으면 뺄지 묻기), 편집기 되돌리기 = 페이지 동작 + 필터·조정을 누른 순서대로(`undoAny`), 페이지 사진은 자리에 맞춰 채움(object-fit: cover)
    - 사진 목록 로딩 개선: [사진] 목록 썸네일 = 페이지용 작은 사진(`studioViewImage`, 원본을 목록이 따로 받지 않음 — 사진마다 원본 한 번), 서명 URL은 열 때 한 번에 묶어 받아(원본 + 최신 적용 사진) `createSignedUrlPool` 하나를 목록·페이지·지우기 화면이 같이 씀(지우기 화면도 원본 다시 안 받음), 동시 6장, 화면에 보이는 사진 먼저(`prioritize`), 받는 동안 흐린 자리표시(`st-skeleton`), 좁은 화면(1024px 미만)에서도 썸네일, 콘솔 "사진 N장 준비: 목록·첫 사진·전부 ms" 한 줄, 지우기 화면이 열린 채 크롬 ←(앞 항목이 다른 화면)는 라우터가 주소를 되돌린 뒤 erase를 뺌(`dropEraseAfterRestore`)
 9. **확인 목록 쓰는 법**: 보고서 끝에 "채팅 Claude가 크롬으로 확인할 목록"을 한 항목에 "무엇을 누르고 → 무엇이 보이면 정상"으로 쓴다.
 10. **보고서 파일**: 단계가 끝나면 보고서를 창에 쓰는 것과 똑같이 `docs/reports/YYYY-MM-DD-HHmm-<짧은 영문 이름>.md` 에도 저장한다. 이 폴더는 커밋하지 않는다 (`.git/info/exclude`에 있음).

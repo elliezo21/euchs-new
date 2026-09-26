@@ -164,6 +164,29 @@ export async function renumberSortOrders(list) {
   return changes.length
 }
 
+/**
+ * 안 쓸 사진 표시 (6-2) — studio_images.included (브라우저 authenticated UPDATE 허용 칸, RLS 본인 행 — 2026-09-26 확인)
+ * 사진 자체는 지우지 않는다. 페이지 기본 배치는 included = true인 사진만 쓴다.
+ */
+export async function setImageIncluded(imageId, included) {
+  const uid = requireUid()
+  const { data, error } = await supabase
+    .from('studio_images')
+    .update({ included: !!included })
+    .eq('id', imageId)
+    .eq('user_id', uid)
+    .select('id, included')
+  if (error) {
+    console.error('[studioProjects] 안 쓸 사진 표시 저장 실패:', imageId, error.message)
+    throw new Error(`저장하지 못했어요: ${error.message}`)
+  }
+  if (!data || data.length === 0) {
+    console.error('[studioProjects] 안 쓸 사진 표시: 바뀐 행 없음 (없는 사진·다른 계정):', imageId)
+    throw new Error('사진을 찾을 수 없어요 (삭제됐거나 다른 계정).')
+  }
+  return data[0].included
+}
+
 /** 서명 URL 하나 (편집 캔버스용 — 발급 시각을 같이 돌려준다) */
 export async function signViewUrl(path) {
   const issuedAt = Date.now()

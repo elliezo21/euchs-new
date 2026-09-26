@@ -5,15 +5,24 @@
         <span class="st-h-card">사진 <span class="st-muted font-bold">{{ images.length }}장</span></span>
         <button type="button" class="st-btn ml-auto" data-add-photo @click="$emit('add')"><ImagePlus class="w-4 h-4" :stroke-width="2" /> 사진 추가</button>
       </div>
-      <!-- included(사용/빼둔 사진)는 7단계에서 연결 — 지금은 자리만 -->
+      <!-- 사용 / 안 쓸 사진 (studio_images.included, 6-2). 안 쓸 사진은 지우지 않고 여기에 모인다 -->
       <div class="flex gap-1.5">
-        <button type="button" class="st-chip is-active" disabled title="다음 단계에서 연결돼요">사용 –</button>
-        <button type="button" class="st-chip" disabled title="다음 단계에서 연결돼요">안 쓸 사진 –</button>
+        <button type="button" class="st-chip" :class="tab === 'used' ? 'is-active' : ''" data-tab-used @click="tab = 'used'">사용 {{ usedCount }}</button>
+        <button type="button" class="st-chip" :class="tab === 'unused' ? 'is-active' : ''" data-tab-unused @click="tab = 'unused'">안 쓸 사진 {{ unusedCount }}</button>
       </div>
       <p v-if="orderError" class="text-[11px] font-bold st-danger-text break-keep">{{ orderError }}</p>
     </div>
+    <p v-if="images.length && shownImages.length === 0" class="px-4 py-6 st-desc break-keep text-center" data-tab-empty>
+      {{ tab === 'unused' ? '안 쓸 사진이 없어요. 목록에서 사진 오른쪽 버튼으로 옮길 수 있어요.' : '쓰는 사진이 없어요. [안 쓸 사진]에서 다시 쓰기를 눌러 보세요.' }}
+    </p>
     <ol ref="listEl" class="flex-1 overflow-y-auto p-2 space-y-0.5">
-      <li v-for="(img, idx) in images" :key="img.id">
+      <li v-for="img in shownImages" :key="img.id" class="relative group">
+        <!-- 안 쓸 사진으로 옮기기 / 다시 쓰기 (줄 오른쪽 위) -->
+        <button
+          v-if="img.ingest_status === 'done'" type="button" class="st-icon-btn st-include-btn"
+          :title="img.included === false ? '다시 쓰기' : '안 쓸 사진으로 옮기기'" :data-include-toggle="img.id"
+          @click.stop="$emit('set-included', img.id, img.included === false)"
+        ><component :is="img.included === false ? ArchiveRestore : Archive" class="w-3.5 h-3.5" :stroke-width="2" /></button>
         <button
           type="button"
           class="w-full flex items-center gap-2.5 p-2 rounded-[10px] text-left"
@@ -24,7 +33,7 @@
           @click="$emit('select', img.id)"
           @dblclick="$emit('open-erase', img.id)"
         >
-          <span class="w-5 text-right text-[11px] font-bold st-muted shrink-0">{{ idx + 1 }}</span>
+          <span class="w-5 text-right text-[11px] font-bold st-muted shrink-0">{{ images.indexOf(img) + 1 }}</span>
           <div class="w-14 h-14 rounded-[8px] overflow-hidden shrink-0 st-placeholder relative" :data-thumb-state="thumbState(img)">
             <!-- 썸네일 = 페이지용 작은 사진(지운 결과·적용된 사진 포함, 원본을 따로 받지 않는다). 받는 중이면 흐린 자리표시,
                  못 받았으면 숨기지 않고 [다시 시도]를 보인다 -->
@@ -72,8 +81,8 @@
 
 <script setup>
 // [사진] 재료 패널 (3단계: 편집기 왼쪽에 있던 사진 목록을 옮김. 업로드 버튼·탭·끌어다 놓기는 7단계)
-import { ref, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
-import { Image as ImageIcon, ImagePlus, RefreshCw } from 'lucide-vue-next'
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
+import { Image as ImageIcon, ImagePlus, RefreshCw, Archive, ArchiveRestore } from 'lucide-vue-next'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { studioErrorMessage } from '@/lib/studioApi'
 import { afterPaint } from '@/lib/studioImageCache'
@@ -88,7 +97,14 @@ const props = defineProps({
 })
 // retry-image(id): 썸네일 다시 만들기 / visible(ids): 목록에서 지금 보이는 사진 (먼저 받게)
 // shown({ id, ok }): 썸네일 <img>가 실제로 화면에 그려짐(ok) 또는 못 그림 — 편집기가 AI 엔진 켜는 시점을 정한다
-const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible', 'shown'])
+// set-included(id, included): 안 쓸 사진으로 옮기기(false) / 다시 쓰기(true) — 저장·페이지 안내는 편집기가 한다
+const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible', 'shown', 'set-included'])
+
+// [사용] / [안 쓸 사진] 탭 (included = false면 안 쓸 사진). 번호는 전체 목록 순서 그대로
+const tab = ref('used')
+const shownImages = computed(() => props.images.filter(i => (tab.value === 'unused' ? i.included === false : i.included !== false)))
+const usedCount = computed(() => props.images.filter(i => i.included !== false).length)
+const unusedCount = computed(() => props.images.length - usedCount.value)
 const bakeOf = id => props.bakeState[id] || null
 const isBaking = s => s.status === 'queued' || s.status === 'baking' || s.status === 'waiting'
 
@@ -144,7 +160,7 @@ onMounted(() => {
       if (e.isIntersecting) shown.add(id)
       else shown.delete(id)
     }
-    const order = props.images.map(i => i.id).filter(id => shown.has(id))
+    const order = shownImages.value.map(i => i.id).filter(id => shown.has(id)) // 지금 탭에 보이는 줄만
     emit('visible', order)
   }, { root: listEl.value, rootMargin: '200px 0px' })
   observeRows()
@@ -153,3 +169,9 @@ onMounted(() => {
 })
 onBeforeUnmount(() => { io?.disconnect(); mo?.disconnect() })
 </script>
+
+<style scoped>
+/* 줄 오른쪽 위 [안 쓸 사진으로]·[다시 쓰기] — 마우스를 올리거나 키보드로 갔을 때만 */
+.st-include-btn { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; z-index: 1; opacity: 0; background: var(--st-card); }
+.group:hover .st-include-btn, .st-include-btn:focus-visible { opacity: 1; }
+</style>

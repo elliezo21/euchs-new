@@ -65,6 +65,14 @@ export function newImageItem(imageId, x, y, w, h) {
 /** 공통 속성 기본값 — 예전 페이지(칸 없음)도 이 값으로 읽는다 */
 export const ITEM_DEFAULTS = { rotation: 0, opacity: 1, flipX: false, flipY: false, locked: false, hidden: false }
 
+/**
+ * 요소 꾸미기 (6-2 — 놓인 자리마다 다를 수 있어 사진이 아니라 페이지 요소에 둔다). 없으면 = 꾸미기 없음.
+ *   borderWidth 0~40 px, borderColor '#rrggbb', radius 0~400 px, shadow 0~100 (그림자 세기)
+ */
+export const ITEM_STYLE_DEFAULTS = { borderWidth: 0, borderColor: '#ffffff', radius: 0, shadow: 0 }
+export const ITEM_STYLE_LIMITS = { borderWidth: [0, 40], radius: [0, 400], shadow: [0, 100] }
+const HEX_COLOR = /^#[0-9a-f]{6}$/i
+
 /** 빠진 공통 속성을 기본값으로 채운 복사본 (모양이 잘못된 값도 기본값으로). 다른 칸은 그대로 */
 export function normalizeItem(it) {
   if (!it || typeof it !== 'object') return it
@@ -72,6 +80,16 @@ export function normalizeItem(it) {
   if (!Number.isFinite(out.rotation)) out.rotation = ITEM_DEFAULTS.rotation
   if (!Number.isFinite(out.opacity) || out.opacity < 0 || out.opacity > 1) out.opacity = ITEM_DEFAULTS.opacity
   for (const k of ['flipX', 'flipY', 'locked', 'hidden']) if (typeof out[k] !== 'boolean') out[k] = ITEM_DEFAULTS[k]
+  return out
+}
+
+/** 꾸미기 값 (빠지거나 잘못된 값 = 없음) — 화면·내보내기에서 읽을 때 */
+export function itemStyleOf(it) {
+  const out = { ...ITEM_STYLE_DEFAULTS }
+  for (const [k, [lo, hi]] of Object.entries(ITEM_STYLE_LIMITS)) {
+    if (Number.isFinite(it?.[k])) out[k] = Math.max(lo, Math.min(hi, Math.round(it[k])))
+  }
+  if (typeof it?.borderColor === 'string' && HEX_COLOR.test(it.borderColor)) out.borderColor = it.borderColor.toLowerCase()
   return out
 }
 
@@ -513,6 +531,45 @@ export function setOpacity(page, ids, v) {
   if (!Number.isFinite(v)) return page
   const o = Math.round(Math.min(1, Math.max(0, v)) * 100) / 100
   return mapItems(page, ids, it => ({ ...it, opacity: o }))
+}
+
+/**
+ * 꾸미기 바꾸기 (테두리·모서리·그림자) — patch의 칸만. 범위 밖 값은 자르고, 잘못된 색은 무시.
+ * 기본값이 된 칸은 문서에서 뺀다 (예전 페이지와 같은 모양)
+ */
+export function setItemStyle(page, ids, patch) {
+  const clean = {}
+  for (const [k, [lo, hi]] of Object.entries(ITEM_STYLE_LIMITS)) {
+    if (Number.isFinite(patch?.[k])) clean[k] = Math.max(lo, Math.min(hi, Math.round(patch[k])))
+  }
+  if (typeof patch?.borderColor === 'string' && HEX_COLOR.test(patch.borderColor)) clean.borderColor = patch.borderColor.toLowerCase()
+  if (Object.keys(clean).length === 0) return page
+  return mapItems(page, ids, it => {
+    const n = { ...it, ...clean }
+    for (const [k, v] of Object.entries(ITEM_STYLE_DEFAULTS)) if (n[k] === v) delete n[k]
+    return n
+  })
+}
+
+/** 이 사진이 들어 있는 요소 id 전부 */
+export function itemIdsOfImage(page, imageId) {
+  const out = []
+  for (const s of page?.sections || []) for (const it of s.items || []) if (isValidImageItem(it) && it.imageId === imageId) out.push(it.id)
+  return out
+}
+
+/**
+ * 사진 바꾸기 — 자리·크기·회전·뒤집기·투명도·꾸미기는 그대로, 사진(imageId)만 바꾼다.
+ * 빠진 사진이 페이지에 더는 없으면 parked로 (사진을 잃지 않게), 새 사진은 parked에서 뺀다. 잠긴 요소도 바꿀 수 있다(내용 교체일 뿐)
+ */
+export function replaceItemImage(page, itemId, imageId) {
+  const f = findItem(page, itemId)
+  if (!f || !isValidImageItem(f.item) || typeof imageId !== 'string' || imageId === '' || f.item.imageId === imageId) return page
+  const oldId = f.item.imageId
+  const sections = page.sections.map(s => (s.id === f.section.id
+    ? { ...s, items: s.items.map(it => (it.id === itemId ? { ...it, imageId } : it)) } : s))
+  const parked = dropPlaced(addParked(page.parked.filter(x => x !== imageId), oldId), sections)
+  return { ...page, sections, parked }
 }
 
 export function setLocked(page, ids, locked) {
