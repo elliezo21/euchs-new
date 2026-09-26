@@ -66,6 +66,12 @@ export const LABELS = {
   textAlign: '글자 정렬',
   textLineHeight: '줄간격',
   textLetterSpacing: '자간',
+  // 글자 꾸미기·스타일 (10-2)
+  textStroke: '글자 테두리',
+  textShadow: '글자 그림자',
+  textBg: '글자 배경',
+  textStylePreset: '스타일 적용',
+  textStylePaste: '스타일 붙여넣기',
   lookFilter: '필터',
   lookAdjust: '조정',
   lookReset: '필터·조정 초기화',

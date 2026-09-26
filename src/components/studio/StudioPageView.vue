@@ -151,7 +151,7 @@ import {
   DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
   isDrawableItem, resizeTextItem, textLinesOf,
 } from '@/lib/studioPage'
-import { isValidTextItem } from '@/lib/studioText'
+import { isValidTextItem, textPaintSpec } from '@/lib/studioText'
 import { cssFamilyOf } from '@/lib/studioFonts'
 import StudioTextView from '@/components/studio/StudioTextView.vue'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
@@ -235,6 +235,9 @@ function editStyle(it) {
     fontFamily: cssFamilyOf(it.fontFamily), fontWeight: it.fontWeight, fontSize: `${it.fontSize * z}px`,
     lineHeight: `${it.fontSize * it.lineHeight * z}px`, letterSpacing: `${it.letterSpacing}em`, color: it.color, textAlign: it.align,
     width: `${it.w * z}px`, minHeight: `${it.h * z}px`,
+    // 10-2: 고치는 동안에도 흰 글자 등이 보이게 테두리·배경을 비슷하게 (그림자는 생략 — 끝내면 StudioTextView가 정확히 그린다)
+    WebkitTextStroke: it.strokeWidth > 0 ? `${it.strokeWidth * z}px ${it.strokeColor}` : null,
+    background: textPaintSpec(it).bg?.color ?? null,
   }
 }
 function onItemDblClick(it) {

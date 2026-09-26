@@ -78,7 +78,10 @@
             @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
           />
           <!-- 글자 속성 (10-1): 고른 것 중 글자 요소가 있으면 — 바꾸면 글자 요소에만 -->
-          <StudioTextItemPanel v-if="selectedHasText" :page="page" :selected-ids="selectedItemIds" @text="onTextProps" />
+          <StudioTextItemPanel
+            v-if="selectedHasText" :page="page" :selected-ids="selectedItemIds" :can-paste-style="canPasteStyle"
+            @text="onTextProps" @style-copy="runCommand('styleCopy')" @style-paste="runCommand('stylePaste')"
+          />
         </div>
         <div class="flex-1 min-h-0 flex flex-col">
           <StudioPhotoPanel
@@ -96,7 +99,7 @@
             @command="runCommand"
           />
           <!-- [텍스트] 패널 (10-1): 제목·부제목·본문 넣기 -->
-          <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" />
+          <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" @style="onStylePreset" />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
             <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
@@ -304,7 +307,7 @@
 // 4단계: 가운데 = 긴 한 장 페이지(StudioPageView, DOM). 페이지 문서·이력·자동 저장은 usePageSession, 화면용 작은 사진은 studioViewImage.
 //   상단 되돌리기·다시·Ctrl+Z = 페이지 이력. 지우기 화면이 열려 있으면 Ctrl+Z = 그 사진의 지우기 이력 (서로 섞이지 않는다)
 // 사진 속성 패널(6단계), [사진] 패널 완성(7단계), 구간·미니뷰(8단계), 레이어(9단계)는 다음 단계.
-import { ref, reactive, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
+import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onUnmounted, provide } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
   ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp, Trash2, Eraser,
@@ -326,7 +329,9 @@ import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioTextItemPanel from '@/components/studio/StudioTextItemPanel.vue'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
-import { isValidTextItem, normalizeTextItem, patchTextItem, textStyleOf, TEXT_PRESETS } from '@/lib/studioText'
+import {
+  isValidTextItem, normalizeTextItem, patchTextItem, textStyleOf, TEXT_INSERT_KINDS, stylePresetByKey, presetPatch, textStyleValues,
+} from '@/lib/studioText'
 import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
 import { SOURCE_MINE } from '@/lib/studioPhotoTabs'
 import {
@@ -773,10 +778,14 @@ async function whenFontsReady(list) {
   fontEpoch.value++
 }
 /** [제목 넣기]·[부제목 넣기]·[본문 넣기] — 골라진 구간(없으면 보는 중 구간) 가운데에 넣고 바로 고르기 + 고치기 */
-async function insertText(kind) {
-  const preset = TEXT_PRESETS[kind]
-  if (!preset || !page.value || eraseOpen.value) return
-  await whenFontsReady([{ style: textStyleOf(normalizeTextItem({ type: 'text', ...preset })), text: preset.text }])
+function insertText(kind) {
+  const fields = TEXT_INSERT_KINDS[kind]
+  if (fields) insertTextFields(fields, kind)
+}
+/** 새 글자 넣기 (넣기 버튼·스타일 프리셋 공통) — fields = 글자 칸 + w */
+async function insertTextFields(fields, kind) {
+  if (!page.value || eraseOpen.value) return
+  await whenFontsReady([{ style: textStyleOf(normalizeTextItem({ type: 'text', ...fields })), text: fields.text }])
   let p = page.value
   if (!p || eraseOpen.value) return
   let sid = [selectedSectionId.value, pageView.value?.sectionInView()].find(id => id && p.sections.some(s => s.id === id)) ?? null
@@ -786,7 +795,7 @@ async function insertText(kind) {
     p = withSec
     sid = p.sections[p.sections.length - 1].id
   }
-  const r = addTextItem(p, sid, preset, textMeasure)
+  const r = addTextItem(p, sid, fields, textMeasure)
   if (!r.itemId) {
     console.error('[StudioEditor] 글자를 넣지 못함:', kind, sid)
     showToast('글자를 넣지 못했어요. 잠시 후 다시 해 주세요.')
@@ -822,22 +831,48 @@ async function onTextCommit({ id, text }) {
 const TEXT_LABEL_OF = {
   fontFamily: LABELS.textFont, fontSize: LABELS.textSize, fontWeight: LABELS.textWeight, color: LABELS.textColor,
   align: LABELS.textAlign, lineHeight: LABELS.textLineHeight, letterSpacing: LABELS.textLetterSpacing,
+  // 10-2 꾸미기 — 묶음마다 한 라벨
+  strokeWidth: LABELS.textStroke, strokeColor: LABELS.textStroke,
+  shadowX: LABELS.textShadow, shadowY: LABELS.textShadow, shadowBlur: LABELS.textShadow, shadowColor: LABELS.textShadow, shadowOpacity: LABELS.textShadow,
+  bgColor: LABELS.textBg, bgOpacity: LABELS.textBg, bgPadding: LABELS.textBg, bgRadius: LABELS.textBg,
 }
 /** 글자 속성 칸 → runCommand (다른 조작과 같은 길) */
 function onTextProps(patch, { merge, key } = {}) {
   runCommand('textProps', { patch, merge, key })
 }
-/** 고른 것 중 글자 요소에만 속성 적용. 새 글꼴·굵기면 받은 뒤에 잰다. 슬라이더를 끄는 동안(merge)은 이력 한 단계 */
-async function applyTextProps(ids, { patch, merge, key }) {
+/**
+ * 고른 것 중 글자 요소에만 속성 적용. 새 글꼴·굵기면 받은 뒤에 잰다. 슬라이더를 끄는 동안(merge)은 이력 한 단계.
+ * label을 주면 그 라벨(스타일 적용·붙여넣기), 없으면 patch 첫 칸의 라벨
+ */
+async function applyTextProps(ids, { patch, merge, key, label: fixedLabel }) {
   const p = page.value
   const targets = ids.filter(id => isValidTextItem(findItem(p, id)?.item))
-  const label = TEXT_LABEL_OF[Object.keys(patch)[0]]
+  const label = fixedLabel ?? TEXT_LABEL_OF[Object.keys(patch)[0]]
+  if (!label) console.error('[StudioEditor] 글자 속성 라벨 없음 — 적용 안 함:', patch)
   if (!targets.length || !label) return
   await whenFontsReady(targets.map(id => {
     const it = patchTextItem(findItem(p, id).item, patch)
     return { style: textStyleOf(it), text: it.text }
   }))
   if (page.value) applyPage(setTextProps(page.value, targets, patch, textMeasure), label, merge ? { mergeKey: `text-${key}` } : undefined)
+}
+
+// ── 스타일 프리셋·스타일 복사 (10-2, 글자끼리) — 복사한 모양은 편집기 메모리에만 (저장·다른 작업으로 안 넘김, 로그아웃 때 비움) ──
+const styleClip = shallowRef(null) // textStyleValues 결과
+const selectedTextIds = computed(() => (page.value ? selectedItemIds.value.filter(id => isValidTextItem(findItem(page.value, id)?.item)) : []))
+const canPasteStyle = computed(() => !!styleClip.value && selectedTextIds.value.length > 0)
+/** 프리셋 누름 — 글자를 골라 뒀으면 그 글자들에(글·자리·폭 그대로, 이력 1개 "스타일 적용"), 아니면 그 모양으로 새 글자 */
+function onStylePreset(key) {
+  const preset = stylePresetByKey(key)
+  if (!preset) { console.error('[StudioEditor] 모르는 스타일 프리셋:', key); return }
+  if (selectedTextIds.value.length) runCommand('stylePreset', { key })
+  else insertTextFields({ ...TEXT_INSERT_KINDS.subtitle, ...presetPatch(preset), text: preset.sample, fontSize: preset.size }, `style:${key}`)
+}
+function copyTextStyle() {
+  const it = selectedTextIds.value.length === 1 ? findItem(page.value, selectedTextIds.value[0]).item : null
+  if (!it) { showToast('글자 하나를 골라야 모양을 복사할 수 있어요.'); return }
+  styleClip.value = textStyleValues(it)
+  showToast('글자 모양을 복사했어요 · 다른 글자를 고르고 Ctrl+Alt+V')
 }
 function sectionOfItem(id) { return page.value ? findItem(page.value, id)?.section.id || null : null }
 function runCommand(name, args = {}) {
@@ -859,6 +894,18 @@ function runCommand(name, args = {}) {
     case 'opacity': applyPage(setOpacity(p, ids, args.v), LABELS.elOpacity, args.merge ? { mergeKey: 'opacity' } : undefined); break
     case 'rect': if (ids.length === 1) applyPage(setItemRect(p, ids[0], args, textMeasure), LABELS.elNumber); break // 글자는 세로 자동 (10-1)
     case 'textProps': applyTextProps(ids, args); break // 10-1 글자 속성 (글꼴을 받은 뒤 반영 — 비동기)
+    // ── 10-2 스타일 (글자끼리) — 프리셋 적용·스타일 복사·붙여넣기. 붙인 뒤 줄바꿈·높이 다시 (setTextProps) ──
+    case 'stylePreset': {
+      const preset = stylePresetByKey(args.key)
+      if (preset) applyTextProps(ids, { patch: presetPatch(preset), label: LABELS.textStylePreset })
+      break
+    }
+    case 'styleCopy': copyTextStyle(); break
+    case 'stylePaste':
+      if (!styleClip.value) { showToast('먼저 글자 모양을 복사해 주세요 (Ctrl+Alt+C).'); break }
+      if (!selectedTextIds.value.length) { showToast('모양을 붙일 글자를 골라 주세요.'); break }
+      applyTextProps(ids, { patch: styleClip.value, label: LABELS.textStylePaste })
+      break
     case 'lock': applyPage(setLocked(p, ids, true), LABELS.elLock); break
     case 'unlock': applyPage(setLocked(p, ids, false), LABELS.elUnlock); break
     case 'hide': applyPage(setHidden(p, ids, true), LABELS.elHide); break
@@ -982,6 +1029,10 @@ function openContextMenu({ x, y, itemId, sectionId }) {
       { key: 'copy', label: '복사', keys: 'Ctrl+C' },
       { key: 'paste', label: '붙여넣기', keys: 'Ctrl+V', disabled: !hasClip },
       { key: 'cut', label: '잘라내기', keys: 'Ctrl+X', disabled: allLocked },
+      { sep: true },
+      // 10-2 스타일 복사·붙여넣기 (글자끼리)
+      { key: 'styleCopy', label: '스타일 복사', keys: 'Ctrl+Alt+C', disabled: selectedTextIds.value.length !== 1 },
+      { key: 'stylePaste', label: '스타일 붙여넣기', keys: 'Ctrl+Alt+V', disabled: !canPasteStyle.value },
       { sep: true },
       { key: 'group', label: '그룹으로 묶기', keys: 'Ctrl+G', disabled: groupCheck(p, selectedItemIds.value) !== 'ok' },
       { key: 'ungroup', label: '그룹 풀기', keys: 'Ctrl+Shift+G', disabled: !anyGrouped(p, selectedItemIds.value) },
@@ -1465,14 +1516,22 @@ function onBeforeUnload(e) {
 // 되돌리기 대상: 지우기 화면이 열려 있으면 그 사진의 지우기 이력, 아니면 페이지 이력 (입력칸에서는 브라우저 기본 동작)
 // 6-1 페이지 요소 (지우기 화면·모달·우클릭 메뉴·입력칸에서는 동작 안 함):
 //   Ctrl+A 보이는 구간 전체 선택 · Ctrl+C/V/X 복사·붙여넣기·잘라내기 · Ctrl+D 복제 · Delete/Backspace 삭제 · Esc 선택 해제
-//   Ctrl+G 그룹 묶기 · Ctrl+Shift+G 그룹 풀기 (9단계)
+//   Ctrl+G 그룹 묶기 · Ctrl+Shift+G 그룹 풀기 (9단계) · Ctrl+Alt+C / Ctrl+Alt+V 글자 스타일 복사·붙여넣기 (10-2)
 //   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
 // (사용가이드는 14단계 — 생기면 여기서 막는다)
 function onKeyDown(e) {
-  if (!isWide.value || anyModalOpen.value || ctx.open || e.altKey || textEdit.value) return // 10-1: 글자를 고치는 동안은 쉰다
+  if (!isWide.value || anyModalOpen.value || ctx.open || textEdit.value) return // 10-1: 글자를 고치는 동안은 쉰다
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
   if (pageView.value?.isBusy()) return // 끌고 있는 중
+  // Alt 조합은 10-2 스타일 복사·붙여넣기(Ctrl+Alt+C / Ctrl+Alt+V, 글자끼리)만 — 그 밖의 Alt 조합은 예전처럼 아무것도 안 한다
+  if (e.altKey) {
+    if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !eraseOpen.value && page.value && (e.code === 'KeyC' || e.code === 'KeyV')) {
+      e.preventDefault()
+      runCommand(e.code === 'KeyC' ? 'styleCopy' : 'stylePaste')
+    }
+    return
+  }
   const sel = selectedItemIds.value
   if (e.ctrlKey || e.metaKey) {
     // e.code 기준: 한글 입력 상태에서도 같은 키로 동작
@@ -1553,6 +1612,7 @@ const onStudioAuthChanged = (e) => {
     clearViews()
     selectedItemIds.value = []
     clipboard = null
+    styleClip.value = null // 10-2 복사한 글자 모양
     ctx.open = false
     resetEditorLog()
     imageCache.clear()

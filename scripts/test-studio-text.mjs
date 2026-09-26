@@ -1,7 +1,7 @@
 // 글자 요소 테스트 (10-1단계) — node scripts/test-studio-text.mjs
 import {
   normalizeTextItem, patchTextItem, wrapLines, textHeight, lineWidth, fitTextItem, textStyleOf, textLabel, isValidTextItem,
-  TEXT_DEFAULTS, TEXT_PRESETS,
+  TEXT_DEFAULTS, TEXT_INSERT_KINDS, TEXT_STYLE_KEYS, TEXT_STYLE_PRESETS, textPaintSpec, textStyleValues, presetPatch, stylePresetByKey,
 } from '../src/lib/studioText.js'
 import { STUDIO_FONTS, nearestWeight, fontSpec, cssFamilyOf } from '../src/lib/studioFonts.js'
 import {
@@ -84,7 +84,7 @@ const st = (extra = {}) => ({ ...textStyleOf(normalizeTextItem({ type: 'text' })
 // ── 6. 페이지 조작 ──
 const P = { v: 1, width: 780, gap: 0, parked: [], sections: [{ id: 's1', height: 400, bg: '#ffffff', items: [] }] }
 {
-  const r = addTextItem(P, 's1', { ...TEXT_PRESETS.title, fontSize: 20 }, measure)
+  const r = addTextItem(P, 's1', { ...TEXT_INSERT_KINDS.title, fontSize: 20 }, measure)
   const t = findItem(r.page, r.itemId).item
   eq('넣기 → 구간 가운데, 높이 자동', [t.type, t.x, t.w, t.h, t.y], ['text', 70, 640, 25, 188])
   eq('입력 문서는 그대로', P.sections[0].items.length, 0)
@@ -145,6 +145,62 @@ const P = { v: 1, width: 780, gap: 0, parked: [], sections: [{ id: 's1', height:
   const it = readPage(raw, 'p').page.sections[0].items[0]
   eq('readPage → 글자 칸 기본값 + 공통 칸 기본값', [it.fontSize, it.fontFamily, it.rotation, it.locked], [40, 'noto-sans-kr', 0, false])
   eq('원본은 그대로', raw.sections[0].items[0].fontSize, 'big')
+}
+
+// ── 8. 꾸미기 칸 (10-2) ──
+{
+  const plain = normalizeTextItem({ id: 't', type: 'text', text: '가', x: 0, y: 0, w: 100, h: 20 })
+  eq('꾸미기 기본값 = 모두 없음', [plain.strokeWidth, plain.shadowOpacity, plain.bgColor, plain.bgOpacity, plain.bgPadding, plain.bgRadius],
+    [0, 0, '', 1, 0, 0])
+  eq('10-1 글자(꾸미기 칸 없음) → 그리기 값도 없음', (({ stroke, shadow, bg }) => [stroke, shadow, bg])(textPaintSpec(plain)), [null, null, null])
+  const bad = normalizeTextItem({ type: 'text', strokeWidth: 99, strokeColor: 'black', shadowX: -100, shadowY: 3.6, shadowBlur: -5, shadowColor: '#ABCDEF',
+    shadowOpacity: 2, bgColor: 'yellow', bgOpacity: -1, bgPadding: 100, bgRadius: 500 })
+  eq('범위 밖·잘못된 값 → 자르거나 기본값', [bad.strokeWidth, bad.strokeColor, bad.shadowX, bad.shadowY, bad.shadowBlur, bad.shadowColor, bad.shadowOpacity, bad.bgColor, bad.bgOpacity, bad.bgPadding, bad.bgRadius],
+    [20, '#000000', -40, 4, 0, '#abcdef', 1, '', 0, 60, 100])
+  eq('배경 색 "" = 없음은 그대로 받음', normalizeTextItem({ type: 'text', bgColor: '' }).bgColor, '')
+  const deco = normalizeTextItem({ id: 't', type: 'text', text: '가', x: 0, y: 0, w: 100, h: 20, strokeWidth: 3, strokeColor: '#FFFFFF',
+    shadowX: 2, shadowY: 4, shadowBlur: 6, shadowColor: '#000000', shadowOpacity: 0.5, bgColor: '#FFE14D', bgOpacity: 0.8, bgPadding: 10, bgRadius: 100 })
+  const ps = textPaintSpec(deco)
+  eq('테두리 값', ps.stroke, { width: 3, color: '#ffffff' })
+  eq('그림자 값 (색 + 진하기 → rgba)', ps.shadow, { x: 2, y: 4, blur: 6, color: 'rgba(0, 0, 0, 0.5)' })
+  eq('배경 = 요소 네모를 여백만큼 넓힘, 모서리는 짧은 변 절반까지', ps.bg, { x: -10, y: -10, w: 120, h: 40, radius: 20, color: 'rgba(255, 225, 77, 0.8)' })
+  eq('그림자 진하기 0 → 없음', textPaintSpec({ ...deco, shadowOpacity: 0 }).shadow, null)
+  eq('그림자 위치·흐림이 모두 0 → 없음', textPaintSpec({ ...deco, shadowX: 0, shadowY: 0, shadowBlur: 0 }).shadow, null)
+  eq('배경 진하기 0 → 없음', textPaintSpec({ ...deco, bgOpacity: 0 }).bg, null)
+
+  // 꾸미기는 줄바꿈·높이에 영향 없음
+  const t = fitTextItem({ ...plain, text: '가나다라마바', fontSize: 10, lineHeight: 1.5, w: 35 }, measure)
+  eq('테두리·배경을 켜도 높이 그대로', fitTextItem({ ...t, strokeWidth: 20, bgPadding: 60 }, measure).h, t.h)
+  const r = addTextItem(P, 's1', { text: '가', fontSize: 20 }, measure)
+  const id = r.itemId
+  const p2 = setTextProps(r.page, [id], { strokeWidth: 4, strokeColor: '#ff0000' }, measure)
+  eq('속성 칸으로 테두리 켜기 → 자리·높이 그대로', (({ strokeWidth, strokeColor, x, y, h }) => [strokeWidth, strokeColor, x, y, h])(findItem(p2, id).item),
+    [4, '#ff0000', findItem(r.page, id).item.x, findItem(r.page, id).item.y, findItem(r.page, id).item.h])
+
+  // 스타일 복사·붙여넣기
+  const src = { ...deco, text: '원본', fontFamily: 'nanum-gothic', fontWeight: 800, fontSize: 30, x: 5, y: 6, w: 70, rotation: 20, locked: true }
+  const sv = textStyleValues(src)
+  eq('복사 칸 = 글자 모양 전부 (글·자리·크기·회전·잠금 없음)', ['text', 'x', 'y', 'w', 'h', 'rotation', 'locked', 'id'].some(k => k in sv), false)
+  eq('…모양 칸은 다 있음', Object.keys(sv).length === TEXT_STYLE_KEYS.length && TEXT_STYLE_KEYS.includes('bgRadius') && TEXT_STYLE_KEYS.includes('fontSize'), true)
+  const pasted = setTextProps(r.page, [id], sv, measure)
+  const pi = findItem(pasted, id).item
+  eq('붙여넣기 → 모양만 바뀌고 글·자리·폭 그대로', [pi.text, pi.fontFamily, pi.fontSize, pi.strokeWidth, pi.bgColor, pi.w, pi.x, pi.rotation],
+    ['가', 'nanum-gothic', 30, 3, '#ffe14d', findItem(r.page, id).item.w, findItem(r.page, id).item.x, 0])
+  eq('…높이는 새 크기에 맞춤', pi.h, Math.ceil(30 * pi.lineHeight))
+
+  // 스타일 프리셋
+  eq('프리셋 8~10개, 키·이름 겹침 없음', [TEXT_STYLE_PRESETS.length >= 8 && TEXT_STYLE_PRESETS.length <= 10,
+    new Set(TEXT_STYLE_PRESETS.map(p => p.key)).size === TEXT_STYLE_PRESETS.length, new Set(TEXT_STYLE_PRESETS.map(p => p.label)).size === TEXT_STYLE_PRESETS.length], [true, true, true])
+  const allValid = TEXT_STYLE_PRESETS.every(p => {
+    const n = normalizeTextItem({ type: 'text', ...presetPatch(p) })
+    return Object.entries(presetPatch(p)).every(([k, v]) => n[k] === v)
+  })
+  eq('프리셋 값이 모두 범위 안·폰트가 가진 굵기', allValid, true)
+  const withShadow = setTextProps(r.page, [id], { shadowY: 5, shadowBlur: 5, shadowOpacity: 0.5 }, measure)
+  const pp = setTextProps(withShadow, [id], presetPatch(stylePresetByKey('highlight-yellow')), measure)
+  const pv = findItem(pp, id).item
+  eq('프리셋 적용 → 앞 그림자는 없어지고 배경이 생김, 크기·정렬 그대로', [pv.shadowOpacity, pv.bgColor, pv.fontSize, pv.align, pv.text], [0, '#ffe14d', 20, 'center', '가'])
+  eq('없는 프리셋 키', stylePresetByKey('x'), null)
 }
 
 console.log(`\n${pass} 통과 / ${fail} 실패`)

@@ -1,5 +1,5 @@
 /**
- * 글자 요소 (10-1단계) — 순수 함수 (DOM 없음, node 테스트: scripts/test-studio-text.mjs)
+ * 글자 요소 (10-1단계, 꾸미기·프리셋·스타일 복사 10-2단계) — 순수 함수 (DOM 없음, node 테스트: scripts/test-studio-text.mjs)
  *
  * ★ 글자 요소 = 공통 칸(id, type: 'text', x, y, w, h, rotation, opacity, flipX, flipY, locked, hidden, groupId?) +
  *     text          문자열 (\n = 줄바꿈)
@@ -10,6 +10,12 @@
  *     align         'left' | 'center' | 'right'
  *     lineHeight    0.8~3.0 (글자 크기의 배수, 소수 둘째 자리)
  *     letterSpacing -0.2~1.0 (em = 글자 크기의 배수, 소수 둘째 자리)
+ *   꾸미기 (10-2단계 — 기본값은 모두 "없음"이라 10-1에 저장된 글자는 모양이 그대로):
+ *     strokeWidth   0~20 (px, 정수, 0 = 테두리 없음) · strokeColor '#rrggbb' — 글자 바깥쪽으로 이만큼 보이는 테두리
+ *     shadowX·shadowY -40~40 · shadowBlur 0~40 (px, 정수) · shadowColor '#rrggbb' · shadowOpacity 0~1 (0 = 그림자 없음)
+ *     bgColor       '#rrggbb' 또는 '' (= 배경 없음) · bgOpacity 0~1 · bgPadding 0~60 · bgRadius 0~100 (px, 정수)
+ *                   배경 = 요소 네모(w×h)를 bgPadding만큼 넓힌 둥근 네모
+ *   테두리·그림자·배경은 줄바꿈·높이(h)에 영향을 주지 않는다 (textStyleOf에 없음). 그리는 규칙은 textPaintSpec 하나.
  * ★ h는 손으로 정하지 않는다 — 줄 수 × fontSize × lineHeight (textHeight). 폭(w)·글자·속성이 바뀌면 다시 맞춘다 (fitTextItem).
  * ★ 줄바꿈 계산은 wrapLines 하나 — 화면(DOM, 줄마다 한 줄씩 white-space: pre)과 내보내기(캔버스, 13단계)가 같은 결과를 쓴다.
  *   글자 폭은 measure(문자열, style)를 밖에서 받는다(브라우저 = 캔버스 measureText, 테스트 = 가짜). 자간은 여기서 더한다:
@@ -19,18 +25,34 @@ import { FONT_DEFAULT_KEY, isFontKey, nearestWeight } from './studioFonts.js'
 
 export const TEXT_DEFAULTS = {
   text: '', fontFamily: FONT_DEFAULT_KEY, fontSize: 40, fontWeight: 700, color: '#111111', align: 'center', lineHeight: 1.3, letterSpacing: 0,
+  // 꾸미기 (10-2) — 모두 "없음"
+  strokeWidth: 0, strokeColor: '#000000',
+  shadowX: 0, shadowY: 0, shadowBlur: 0, shadowColor: '#000000', shadowOpacity: 0,
+  bgColor: '', bgOpacity: 1, bgPadding: 0, bgRadius: 0,
 }
-export const TEXT_LIMITS = { fontSize: [8, 400], lineHeight: [0.8, 3], letterSpacing: [-0.2, 1] }
+export const TEXT_LIMITS = {
+  fontSize: [8, 400], lineHeight: [0.8, 3], letterSpacing: [-0.2, 1],
+  strokeWidth: [0, 20], shadowX: [-40, 40], shadowY: [-40, 40], shadowBlur: [0, 40], shadowOpacity: [0, 1],
+  bgOpacity: [0, 1], bgPadding: [0, 60], bgRadius: [0, 100],
+}
 export const TEXT_ALIGNS = ['left', 'center', 'right']
 export const TEXT_KEYS = Object.keys(TEXT_DEFAULTS)
+/** 글자 모양 칸 = 글 내용(text)을 뺀 전부 — 스타일 복사·프리셋이 다루는 칸 (자리·크기·회전·잠금 등 공통 칸은 원래 없음) */
+export const TEXT_STYLE_KEYS = TEXT_KEYS.filter(k => k !== 'text')
 export const TEXT_MAX_LENGTH = 5000 // 한 요소의 글자 수 (페이지 문서 크기 제한 안에 머물게)
 const HEX_COLOR = /^#[0-9a-f]{6}$/i
+const INT_KEYS = new Set(['fontSize', 'strokeWidth', 'shadowX', 'shadowY', 'shadowBlur', 'bgPadding', 'bgRadius'])
+const DEC_KEYS = new Set(['lineHeight', 'letterSpacing', 'shadowOpacity', 'bgOpacity'])
+const COLOR_KEYS = new Set(['color', 'strokeColor', 'shadowColor'])
 
 const clamp = (v, [lo, hi]) => Math.min(hi, Math.max(lo, v))
 const round2 = v => Math.round(v * 100) / 100
 
-/** 새 글자 요소 기본값 (넣기 버튼) — 제목·부제목·본문 */
-export const TEXT_PRESETS = {
+/**
+ * 넣기 버튼 3종(제목·부제목·본문)의 새 글자 기본값 — 10-1의 TEXT_PRESETS를 10-2에서 이름만 바꿈
+ * (아래 스타일 프리셋 TEXT_STYLE_PRESETS와 헷갈리지 않게)
+ */
+export const TEXT_INSERT_KINDS = {
   title: { text: '제목을 입력하세요', fontSize: 56, fontWeight: 800, lineHeight: 1.25, w: 640 },
   subtitle: { text: '부제목을 입력하세요', fontSize: 32, fontWeight: 700, lineHeight: 1.3, w: 600 },
   body: { text: '본문을 입력하세요.\n여러 줄로 쓸 수 있어요.', fontSize: 22, fontWeight: 400, lineHeight: 1.6, w: 560 },
@@ -47,13 +69,14 @@ function cleanTextField(k, v, fontFamily) {
   switch (k) {
     case 'text': return typeof v === 'string' ? v.replace(/\r\n?/g, '\n').slice(0, TEXT_MAX_LENGTH) : undefined
     case 'fontFamily': return isFontKey(v) ? v : undefined
-    case 'fontSize': return Number.isFinite(v) ? Math.round(clamp(v, TEXT_LIMITS.fontSize)) : undefined
     case 'fontWeight': return Number.isFinite(v) ? nearestWeight(fontFamily, v) : undefined
-    case 'color': return typeof v === 'string' && HEX_COLOR.test(v) ? v.toLowerCase() : undefined
     case 'align': return TEXT_ALIGNS.includes(v) ? v : undefined
-    case 'lineHeight': return Number.isFinite(v) ? round2(clamp(v, TEXT_LIMITS.lineHeight)) : undefined
-    case 'letterSpacing': return Number.isFinite(v) ? round2(clamp(v, TEXT_LIMITS.letterSpacing)) : undefined
-    default: return undefined
+    case 'bgColor': return v === '' ? '' : typeof v === 'string' && HEX_COLOR.test(v) ? v.toLowerCase() : undefined // '' = 배경 없음
+    default:
+      if (INT_KEYS.has(k)) return Number.isFinite(v) ? Math.round(clamp(v, TEXT_LIMITS[k])) : undefined
+      if (DEC_KEYS.has(k)) return Number.isFinite(v) ? round2(clamp(v, TEXT_LIMITS[k])) : undefined
+      if (COLOR_KEYS.has(k)) return typeof v === 'string' && HEX_COLOR.test(v) ? v.toLowerCase() : undefined
+      return undefined
   }
 }
 
@@ -161,4 +184,77 @@ export function textLabel(it) {
   const s = String(it?.text ?? '').replace(/\s+/g, ' ').trim()
   const head = [...s].slice(0, 10).join('')
   return head ? `글자 · ${head}${[...s].length > 10 ? '…' : ''}` : '글자'
+}
+
+// ── 꾸미기 그리기 규칙 (10-2) — 화면(StudioTextView)과 내보내기(캔버스, 13단계)가 같이 쓴다 ──
+const rgba = (hex, a) => {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+
+/**
+ * 글자 요소를 그릴 값 — 없는 꾸미기는 null. 좌표·크기는 요소 기준 페이지 px (요소 왼쪽 위 = 0,0).
+ *   fill   글자 색
+ *   stroke { width, color } — 글자 바깥쪽으로 width만큼 보이는 테두리. 캔버스: lineWidth = width × 2로 strokeText 한 뒤 그 위에 fillText
+ *          (선의 안쪽 절반은 채우기가 덮는다). 이음새는 miter(캔버스 기본 = 화면 -webkit-text-stroke와 같음)
+ *   shadow { x, y, blur, color } — 테두리+글자를 합친 모양 하나의 그림자. blur = 캔버스 shadowBlur·CSS drop-shadow 흐림(둘 다 표준편차 = blur/2).
+ *          캔버스: 테두리+글자를 한 장에 그린 뒤 그 장을 shadow를 켜고 한 번에 그린다(테두리·글자 그림자가 겹쳐 진해지지 않게)
+ *   bg     { x, y, w, h, radius, color } — 요소 네모를 bgPadding만큼 넓힌 둥근 네모 (radius는 짧은 변 절반까지)
+ * 그리는 순서: 배경 → 그림자 → 테두리 → 채우기. 뒤집기(flipX·flipY)는 그림자 방향까지 통째로 뒤집는다(화면과 같게 — 캔버스는 다 그린 장을 뒤집어 붙임)
+ */
+export function textPaintSpec(it) {
+  const pad = it.bgPadding || 0
+  const bw = it.w + pad * 2, bh = it.h + pad * 2
+  return {
+    fill: it.color,
+    stroke: it.strokeWidth > 0 ? { width: it.strokeWidth, color: it.strokeColor } : null,
+    shadow: it.shadowOpacity > 0 && (it.shadowX || it.shadowY || it.shadowBlur)
+      ? { x: it.shadowX, y: it.shadowY, blur: it.shadowBlur, color: rgba(it.shadowColor, it.shadowOpacity) } : null,
+    bg: it.bgColor && it.bgOpacity > 0
+      ? { x: -pad, y: -pad, w: bw, h: bh, radius: Math.min(it.bgRadius || 0, bw / 2, bh / 2), color: rgba(it.bgColor, it.bgOpacity) } : null,
+  }
+}
+
+// ── 스타일 복사·프리셋 (10-2) ──
+
+/** 글자 모양 칸만 뽑는다 (스타일 복사) — 글 내용·자리·크기·회전·잠금 등은 없음 */
+export function textStyleValues(it) {
+  return Object.fromEntries(TEXT_STYLE_KEYS.map(k => [k, it[k]]))
+}
+
+// 프리셋이 정하지 않는 꾸미기는 "없음"으로 (앞 스타일의 테두리·그림자가 남지 않게). 크기·정렬·줄간격은 고른 글자 것을 그대로 둔다
+const PRESET_RESET = {
+  letterSpacing: 0, strokeWidth: 0, strokeColor: '#000000', shadowX: 0, shadowY: 0, shadowBlur: 0, shadowColor: '#000000', shadowOpacity: 0,
+  bgColor: '', bgOpacity: 1, bgPadding: 0, bgRadius: 0,
+}
+/**
+ * 스타일 프리셋 — 상세페이지용으로 우리가 정한 조합 (이름·조합 모두 새로 만듦).
+ * style = 글꼴·굵기·색·꾸미기, size = 새 글자로 넣을 때 크기, sample = 견본·새 글자 문구, swatchBg = 견본 바탕(글자가 잘 보이게)
+ */
+export const TEXT_STYLE_PRESETS = [
+  { key: 'outline-white', label: '흰 글씨 검정 테두리', sample: '오늘 도착', size: 48, swatchBg: '#dfe2e7',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 900, color: '#ffffff', strokeWidth: 3, strokeColor: '#111111' } },
+  { key: 'highlight-yellow', label: '노랑 형광펜', sample: '핵심 포인트', size: 36, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 800, color: '#111111', bgColor: '#ffe14d', bgPadding: 8, bgRadius: 2 } },
+  { key: 'soft-shadow', label: '은은한 그림자', sample: '새로운 시작', size: 48, swatchBg: '#6b7380',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 800, color: '#ffffff', shadowY: 3, shadowBlur: 10, shadowOpacity: 0.45 } },
+  { key: 'sale-red', label: '빨강 할인 딱지', sample: '30% 할인', size: 40, swatchBg: '#ffffff',
+    style: { fontFamily: 'do-hyeon', fontWeight: 400, color: '#ffffff', bgColor: '#e53935', bgPadding: 12, bgRadius: 10 } },
+  { key: 'calm-note', label: '차분한 설명', sample: '부드럽고 가벼워요', size: 24, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 400, color: '#4a4f57' } },
+  { key: 'premium-serif', label: '고급 명조', sample: '정성을 담아', size: 40, swatchBg: '#f4efe6',
+    style: { fontFamily: 'noto-serif-kr', fontWeight: 700, color: '#2b2118', letterSpacing: 0.04 } },
+  { key: 'navy-pill', label: '남색 알약 라벨', sample: 'BEST', size: 28, swatchBg: '#ffffff',
+    style: { fontFamily: 'nanum-gothic', fontWeight: 800, color: '#ffffff', letterSpacing: 0.06, bgColor: '#1f3a68', bgPadding: 10, bgRadius: 100 } },
+  { key: 'heavy-black', label: '굵은 검정 한마디', sample: '튼튼해요', size: 56, swatchBg: '#ffffff',
+    style: { fontFamily: 'black-han-sans', fontWeight: 400, color: '#111111', letterSpacing: -0.02 } },
+  { key: 'mint-point', label: '민트 포인트', sample: '세탁기 사용 가능', size: 28, swatchBg: '#ffffff',
+    style: { fontFamily: 'nanum-gothic', fontWeight: 800, color: '#0f766e', bgColor: '#e3f5f1', bgPadding: 8, bgRadius: 6 } },
+  { key: 'red-outline-pop', label: '빨강 글씨 흰 테두리', sample: '한정 수량', size: 48, swatchBg: '#cfd3da',
+    style: { fontFamily: 'do-hyeon', fontWeight: 400, color: '#e53935', strokeWidth: 4, strokeColor: '#ffffff', shadowY: 2, shadowBlur: 6, shadowOpacity: 0.25 } },
+]
+export function stylePresetByKey(key) { return TEXT_STYLE_PRESETS.find(p => p.key === key) ?? null }
+/** 프리셋을 적용할 patch (patchTextItem에 넘김) — 프리셋에 없는 꾸미기는 없음으로 */
+export function presetPatch(preset) {
+  return { ...PRESET_RESET, ...preset.style }
 }
