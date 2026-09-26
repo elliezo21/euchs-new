@@ -66,11 +66,17 @@ const props = defineProps({
 const emit = defineEmits(['apply', 'close'])
 const dark = inject('studioDark', false)
 
+// ★ 상태는 모두 watch보다 먼저 선언한다 — 아래 open watch는 immediate라 setup 도중 바로 불리고(onDragEnd가 dragId·dropAt을 씀),
+//   선언 전에 쓰면 ReferenceError(TDZ)로 편집기 전체가 깨진다 (8-2 수정, 2026-09-26)
 const order = ref([])      // 이 창 안의 순서 (section id)
 const startIndex = ref({}) // 열 때의 자리 (카드에 "원래 03")
 const changed = computed(() => order.value.some((id, i) => startIndex.value[id] !== i))
 const sectionOf = id => props.page.sections.find(s => s.id === id)
+const dragId = ref(null)   // 끄는 카드
+const dropAt = ref(null)   // { id, after } — 이 카드 앞(after=false)·뒤(true)에 놓임
+const cardEls = new Map()  // section id → 카드 요소 (옮긴 뒤 포커스)
 
+// immediate: 이미 열린 상태로 만들어질 때(페이지를 다시 불러와 v-if가 새로 그리는 경우)도 순서를 채우려고 둔다
 watch(() => props.open, isOpen => {
   if (isOpen) {
     order.value = props.page.sections.map(s => s.id)
@@ -101,7 +107,6 @@ function cancel() { emit('close') }
 function done() { emit('apply', [...order.value]) }
 
 // ── 옮기기 (버튼·키보드) ──
-const cardEls = new Map()
 function setCardEl(id, el) { if (el) cardEls.set(id, el); else cardEls.delete(id) }
 function move(id, toIndex) {
   const next = moveInOrder(order.value, id, toIndex)
@@ -115,9 +120,7 @@ function onCardKey(e, id) {
   else if (e.key === 'ArrowRight' || e.key === 'ArrowDown') { e.preventDefault(); move(id, i + 1) }
 }
 
-// ── 끌어다 놓기 ──
-const dragId = ref(null)
-const dropAt = ref(null) // { id, after } — 이 카드 앞(after=false)·뒤(true)에 놓임
+// ── 끌어다 놓기 (상태 dragId·dropAt은 위에 선언) ──
 function onDragStart(e, id) {
   dragId.value = id
   e.dataTransfer.effectAllowed = 'move'
