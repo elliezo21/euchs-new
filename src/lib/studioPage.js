@@ -11,17 +11,21 @@
  *   회전·뒤집기·투명도는 페이지 요소 속성일 뿐, 사진 파일(원본·5단계 최종 JPG)에는 넣지 않는다.
  *   groupId(선택 칸, 9단계) = 그룹 이름 'g_…' — 같은 값의 요소끼리 한 그룹. 칸이 없으면 그룹 아님 (v는 1 그대로).
  *     한 그룹은 한 구간 안에서만, 구성원 2개 이상. 어긋난 groupId(1개만 남음·구간을 넘음)는 읽을 때·바꾼 뒤 cleanGroups가 없앤다.
+ *   글자 요소(10-1단계) = type 'text' + 공통 칸 + text·fontFamily·fontSize·fontWeight·color·align·lineHeight·letterSpacing
+ *     (모양·범위·기본값은 studioText.js 맨 위). h는 줄 수 × fontSize × lineHeight로 자동 — 손으로 정하지 않는다.
+ *     readPage가 normalizeTextItem으로 빠진 칸·잘못된 값을 기본값으로 채운다 (v는 1 그대로).
  *     parked: [ imageId, … ]
  *   }
  *   구간 순서 = sections 배열 순서(위 → 아래). 구간 사이 간격 = gap(px).
  *   아이템 좌표는 그 구간의 왼쪽 위 기준. 구간 밖으로 나간 부분은 보이지 않는다(구간이 잘라낸다).
- *   앞뒤 순서 = items 배열 순서 (뒤가 앞에 보인다). 모르는 type 아이템(글자·도형 등 다음 단계)은 그리지 않고 보존한다.
+ *   앞뒤 순서 = items 배열 순서 (뒤가 앞에 보인다). 모르는 type 아이템(도형 등 다음 단계)은 그리지 않고 보존한다.
  *   parked = 페이지에서 뺀 사진 (사진 자체는 지우지 않는다. studio_images.included와는 별개 — 결정 13)
  * ★ 사진 주소는 저장하지 않는다 (서명 주소는 만료). imageId만.
  * ★ 지운 결과는 페이지가 아니라 사진(studio_images.edit)에 있다 → 템플릿을 바꿔도 지운 사진이 남는다.
  * ★ 저장은 page_version 낙관적 잠금 (studioProjects.saveProjectPage). DB 제약: object + 'v' 키, 1,000,000바이트 이하.
  * ★ 모든 바꾸기 함수는 새 문서를 돌려주고 입력을 바꾸지 않는다. 할 수 없는 요청이면 입력을 그대로 돌려준다(=== 비교로 알 수 있음).
  */
+import { isValidTextItem, normalizeTextItem, patchTextItem, fitTextItem, textStyleOf, wrapLines, TEXT_LIMITS } from './studioText.js'
 
 export const PAGE_VERSION = 1
 export const PAGE_WIDTH = 780 // 쿠팡 (결정 17). 폭은 이 값 하나로만 쓴다
@@ -129,6 +133,11 @@ export function isValidImageItem(it) {
     && [it.x, it.y, it.w, it.h].every(Number.isFinite) && it.w > 0 && it.h > 0
 }
 
+/** 화면에 그리는 요소 (사진·글자). 그 밖의 type은 보존만 */
+export function isDrawableItem(it) {
+  return isValidImageItem(it) || isValidTextItem(it)
+}
+
 /**
  * 문서 모양 검사. 아이템 하나가 이상한 것은 문서 오류가 아니다 (그 아이템만 그리지 않음)
  * @returns {string[]} 문제 목록 (빈 배열 = 정상)
@@ -174,10 +183,12 @@ export function readPage(raw, projectId) {
   for (const s of raw.sections) {
     for (const it of s.items) {
       if (it.type === 'image' && !isValidImageItem(it)) console.error('[studioPage] 잘못된 사진 아이템 — 그리지 않고 보존:', projectId, s.id, it)
+      if (it.type === 'text' && !isValidTextItem(it)) console.error('[studioPage] 잘못된 글자 아이템 — 그리지 않고 보존:', projectId, s.id, it)
     }
   }
   const page = clone(raw)
-  for (const s of page.sections) s.items = s.items.map(normalizeItem) // 예전 페이지: 회전 등 빠진 칸을 기본값으로
+  // 예전 페이지: 회전 등 빠진 칸을 기본값으로. 글자 요소(10-1)는 글자 칸도 (글꼴·크기 등 잘못된 값 → 기본값)
+  for (const s of page.sections) s.items = s.items.map(it => (it?.type === 'text' ? normalizeTextItem(normalizeItem(it)) : normalizeItem(it)))
   return { page: cleanGroups(page), problems: [] } // 9단계: 어긋난 그룹(1개만·구간을 넘음)은 풀어서 읽는다
 }
 
@@ -606,12 +617,16 @@ export function resizeRect(rect, rotation, handle, dx, dy, { keepRatio = false, 
   return { x: Math.round(cx - W / 2), y: Math.round(cy - H / 2), w: W, h: H }
 }
 
-/** 위치·크기 정하기 (숫자 입력·크기 조절). 최소 크기, 구간 안에 최소한 남게. 잠긴 요소는 그대로 */
-export function setItemRect(page, id, rect) {
+/**
+ * 위치·크기 정하기 (숫자 입력·크기 조절). 최소 크기, 구간 안에 최소한 남게. 잠긴 요소는 그대로.
+ * 글자 요소(10-1)는 h를 받지 않고 폭에 맞춰 다시 계산한다 — measure(글자 폭 재기)가 있을 때. 없으면 h 그대로
+ */
+export function setItemRect(page, id, rect, measure = null) {
   return mapItems(page, [id], (it, s) => {
     if (it.locked) return it
     const w = Number.isFinite(rect.w) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.w)) : it.w
-    const h = Number.isFinite(rect.h) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.h)) : it.h
+    let h = Number.isFinite(rect.h) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.h)) : it.h
+    if (isValidTextItem(it)) h = measure ? fitTextItem({ ...it, w }, measure).h : it.h
     const n = { ...it, w, h }
     const p = clampItemPosition(n, s, page.width, Number.isFinite(rect.x) ? rect.x : it.x, Number.isFinite(rect.y) ? rect.y : it.y)
     return { ...n, x: p.x, y: p.y }
@@ -1023,6 +1038,102 @@ export function snapMove(page, ids, dx, dy, threshold) {
   if (sx) guides.push({ axis: 'x', pos: sx.t, sectionId: section.id })
   if (sy) guides.push({ axis: 'y', pos: sy.t, sectionId: section.id })
   return { dx: dx + (sx ? sx.d : 0), dy: dy + (sy ? sy.d : 0), guides }
+}
+
+// ── 글자 (10-1단계) — 모양·줄바꿈은 studioText.js. 높이(h)는 늘 글자에 맞춰 자동 (measure = 글자 폭 재기, 밖에서 받는다) ──
+export const TEXT_MIN_WIDTH = 20 // 글자 요소 최소 폭 (페이지 px)
+
+/** 새 글자 요소 — fields = 글자 칸 + x·y·w (빠진 값은 기본값). h는 글자에 맞춘다 */
+export function newTextItem(fields, measure) {
+  const n = normalizeTextItem(normalizeItem({ w: 400, x: 0, y: 0, ...fields, id: newPageId('i'), type: 'text', h: 1 }))
+  return fitTextItem({ ...n, w: Math.max(TEXT_MIN_WIDTH, Math.round(n.w)) }, measure)
+}
+
+/**
+ * 글자 넣기 — 그 구간 가운데에 맨 앞으로. @returns {{ page, itemId: string|null }} (없는 구간이면 page 그대로, itemId null)
+ */
+export function addTextItem(page, sectionId, fields, measure) {
+  const s = page.sections.find(x => x.id === sectionId)
+  if (!s) return { page, itemId: null }
+  const it = newTextItem({ ...fields, w: Math.min(page.width, fields?.w ?? 400) }, measure)
+  const p = clampItemPosition(it, s, page.width, (page.width - it.w) / 2, (s.height - it.h) / 2)
+  const item = { ...it, x: p.x, y: p.y }
+  const next = addItem(page, s.id, item)
+  return next === page ? { page, itemId: null } : { page: next, itemId: item.id }
+}
+
+/**
+ * 크기가 바뀐 요소의 자리 — 고정할 점(요소 기준 anchor, 가운데에서의 부호 -1·0·1)이 화면에서 제자리에 있게. 돌린 요소도 요소 방향 기준
+ * @returns {{ x, y }} 새 w·h일 때의 x·y (정수)
+ */
+function anchoredPos(it, w2, h2, ax, ay) {
+  const t = (normAngle(it.rotation || 0) * Math.PI) / 180, cos = Math.cos(t), sin = Math.sin(t)
+  const rot = (vx, vy) => [vx * cos - vy * sin, vx * sin + vy * cos]
+  const [px, py] = rot(ax * it.w / 2, ay * it.h / 2)
+  const [qx, qy] = rot(ax * w2 / 2, ay * h2 / 2)
+  const cx = it.x + it.w / 2 + px - qx, cy = it.y + it.h / 2 + py - qy
+  return { x: Math.round(cx - w2 / 2), y: Math.round(cy - h2 / 2) }
+}
+
+/** 글자 칸을 바꾸고 높이를 맞춘다 — 위쪽(왼쪽 위)이 제자리. 안 바뀌면 입력 그대로 */
+function refitText(it, s, page, next, measure) {
+  if (next === it) return it
+  const f = fitTextItem(next, measure)
+  const pos = anchoredPos(it, f.w, f.h, -1, -1)
+  const p = clampItemPosition(f, s, page.width, pos.x, pos.y)
+  return { ...f, x: p.x, y: p.y }
+}
+
+/**
+ * 글자 속성 바꾸기 (글꼴·크기·굵기·색·정렬·줄간격·자간) — ids 중 글자 요소에만. 잘못된 값은 무시.
+ * 잠긴 요소도 바꾼다(내용 바꾸기 — 사진 바꾸기와 같은 규칙). 높이는 다시 맞춘다
+ */
+export function setTextProps(page, ids, patch, measure) {
+  return mapItems(page, ids, (it, s) => (isValidTextItem(it) ? refitText(it, s, page, patchTextItem(it, patch), measure) : it))
+}
+
+/** 글자 고치기 — 그 글자 요소의 text만 (높이 다시 맞춤). 같으면 입력 그대로 */
+export function setTextContent(page, id, text, measure) {
+  if (typeof text !== 'string') return page
+  return mapItems(page, [id], (it, s) => (isValidTextItem(it) ? refitText(it, s, page, patchTextItem(it, { text }), measure) : it))
+}
+
+/**
+ * 글자 요소 손잡이 — 좌우(e·w) = 폭만 바꾸고 줄바꿈 다시(높이 자동), 모서리 = 비율대로 글자 크기와 폭을 함께. 위아래(n·s)는 없음.
+ * 반대쪽 변·모서리가 제자리에 있다 (좌우는 위쪽도 제자리). 잠긴 요소는 그대로
+ * @param {number} dx,dy 끌어온 거리 (페이지 px, 화면 방향)
+ */
+export function resizeTextItem(page, id, handle, dx, dy, measure) {
+  const corner = handle.length === 2
+  if (!corner && handle !== 'e' && handle !== 'w') return page
+  return mapItems(page, [id], (it, s) => {
+    if (it.locked || !isValidTextItem(it)) return it
+    const sx = handle.includes('e') ? 1 : -1
+    const sy = handle.includes('n') ? -1 : 1 // 좌우 손잡이는 위쪽 고정
+    let w, fontSize = it.fontSize
+    if (corner) {
+      // 비율 = 가로·세로 중 더 많이 바뀐 쪽 (resizeRect와 같은 규칙, 최소 크기는 글자 크기 범위로 — 높이 최소값을 걸지 않는다)
+      const t = (normAngle(it.rotation || 0) * Math.PI) / 180
+      const lx = dx * Math.cos(t) + dy * Math.sin(t), ly = -dx * Math.sin(t) + dy * Math.cos(t)
+      const kw = (it.w + sx * lx) / it.w, kh = (it.h + sy * ly) / it.h
+      const k = Math.abs(kw - 1) >= Math.abs(kh - 1) ? kw : kh
+      const [lo, hi] = TEXT_LIMITS.fontSize
+      fontSize = Math.min(hi, Math.max(lo, Math.round(it.fontSize * k)))
+      w = Math.max(TEXT_MIN_WIDTH, Math.round(it.w * fontSize / it.fontSize))
+    } else {
+      const r = resizeRect(it, it.rotation || 0, handle, dx, dy, { min: TEXT_MIN_WIDTH })
+      w = Math.max(TEXT_MIN_WIDTH, r.w)
+    }
+    const f = fitTextItem({ ...it, w, fontSize }, measure)
+    const pos = anchoredPos(it, f.w, f.h, -sx, -sy)
+    const p = clampItemPosition(f, s, page.width, pos.x, pos.y)
+    return { ...f, x: p.x, y: p.y }
+  })
+}
+
+/** 글자 요소의 줄 목록 (화면·미니뷰가 그릴 때 — 같은 wrapLines) */
+export function textLinesOf(it, measure) {
+  return wrapLines(it.text, textStyleOf(it), it.w, measure)
 }
 
 // ── 보기 배율 (화면에서만, 저장하지 않음) ──

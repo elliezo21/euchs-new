@@ -10,11 +10,12 @@
          값이 서로 다르면 빈칸 + 흐린 "—". Enter·칸 벗어나기 = 반영 -->
     <div class="grid grid-cols-3 gap-x-2 gap-y-2">
       <template v-if="single">
-        <label v-for="f in RECT_FIELDS" :key="f.key" class="st-xfield" :data-num="f.key">
+        <!-- 글자 요소(10-1)의 세로는 글자에 맞춰 자동 — 입력 칸을 잠근다 -->
+        <label v-for="f in RECT_FIELDS" :key="f.key" class="st-xfield" :data-num="f.key" :title="f.key === 'h' && singleIsText ? '글자 높이는 글자에 맞춰 자동으로 정해져요' : null">
           <span class="st-xfield-label">{{ f.label }}</span>
           <span class="st-xfield-box">
             <input
-              type="number" step="1" inputmode="numeric" :value="single[f.key]" :disabled="single.locked"
+              type="number" step="1" inputmode="numeric" :value="single[f.key]" :disabled="single.locked || (f.key === 'h' && singleIsText)"
               @change="onRect(f.key, $event)" @keydown.enter="$event.target.blur()"
             />
             <span class="st-xfield-unit">px</span>
@@ -95,6 +96,7 @@ import {
   AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup,
 } from 'lucide-vue-next'
 import { findItem, groupCheck, anyGrouped } from '@/lib/studioPage'
+import { isValidTextItem } from '@/lib/studioText'
 
 const props = defineProps({
   page: { type: Object, required: true },
@@ -115,6 +117,7 @@ const ALIGNS = [
 
 const items = computed(() => props.selectedIds.map(id => findItem(props.page, id)?.item).filter(Boolean))
 const single = computed(() => (items.value.length === 1 ? items.value[0] : null))
+const singleIsText = computed(() => !!single.value && isValidTextItem(single.value))
 const anyLocked = computed(() => items.value.some(it => it.locked))
 const allLocked = computed(() => items.value.length > 0 && items.value.every(it => it.locked))
 const anyHidden = computed(() => items.value.some(it => it.hidden))

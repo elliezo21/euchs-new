@@ -77,6 +77,8 @@
             @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
             @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
           />
+          <!-- 글자 속성 (10-1): 고른 것 중 글자 요소가 있으면 — 바꾸면 글자 요소에만 -->
+          <StudioTextItemPanel v-if="selectedHasText" :page="page" :selected-ids="selectedItemIds" @text="onTextProps" />
         </div>
         <div class="flex-1 min-h-0 flex flex-col">
           <StudioPhotoPanel
@@ -93,6 +95,8 @@
             ref="sectionPanel" :page="page" :section-id="selectedSectionId" :section-label="selectedSectionLabel"
             @command="runCommand"
           />
+          <!-- [텍스트] 패널 (10-1): 제목·부제목·본문 넣기 -->
+          <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
             <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
@@ -109,7 +113,8 @@
             <StudioPageView
               ref="pageView"
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state"
-              :looks="session.lookMap" :compare="compare" :selected-section-id="selectedSectionId"
+              :looks="session.lookMap" :compare="compare" :selected-section-id="selectedSectionId" :text-edit="textEdit"
+              @edit-text="startTextEdit" @text-commit="onTextCommit"
               @select="onPageSelect" @change="onPageChange" @context="openContextMenu" @select-section="pickSection"
               @open-erase="openErase" @retry-image="retryView"
               @visible="onPageVisible" @shown="onPageShown" @drop-image="onDropImage"
@@ -318,6 +323,10 @@ import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
 import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
+import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
+import StudioTextItemPanel from '@/components/studio/StudioTextItemPanel.vue'
+import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
+import { isValidTextItem, normalizeTextItem, patchTextItem, textStyleOf, TEXT_PRESETS } from '@/lib/studioText'
 import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
 import { SOURCE_MINE } from '@/lib/studioPhotoTabs'
 import {
@@ -338,16 +347,22 @@ import {
   setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
   groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo,
+  addTextItem, setTextProps, setTextContent,
 } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
 
 provide('studioDark', true) // Teleport로 body에 붙는 모달도 어둡게 (StudioModal)
+// 글자 폭 재기 (10-1) — 페이지·미니뷰·순서 변경 그림이 같은 측정(캔버스 measureText)으로 줄을 나눈다. 글꼴을 새로 받으면 캐시를 비우고 epoch를 올려 다시 그린다
+const textMeasure = createTextMeasure()
+const fontEpoch = ref(0)
+provide('studioTextLayout', { measure: textMeasure, epoch: fontEpoch })
+let offFontsChanged = null
 // Fabric(StudioCanvas)은 지우기 화면(StudioEraseScreen)이 열릴 때만 받는다. 페이지는 DOM (방식 C)
 
 const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 들어간다)
 
-// 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, 나머지는 10단계 이후
+// 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, [텍스트]는 10-1단계(StudioTextPanel), 나머지는 그 뒤
 const RAIL = [
   { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '어울리는 템플릿 고르기는 곧 추가될 기능이에요.' },
   { key: 'section', label: '구간', icon: Rows3, soon: '페이지가 준비되면 여기서 구간을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
@@ -428,6 +443,7 @@ const page = pageSession.page
 const pageCanUndo = computed(() => pageSession.canUndoNow.value && !eraseOpen.value)
 const pageCanRedo = computed(() => pageSession.canRedoNow.value && !eraseOpen.value)
 const selectedItemIds = ref([])  // 페이지에서 고른 요소 (6-1: 여러 개)
+const textEdit = ref(null)       // { id, selectAll } 고치는 중인 글자 요소 (10-1) — 그동안 편집기 단축키는 쉰다
 let selectionSource = 'list'     // 'page' = 페이지에서 고름(방향키 = 옮기기) / 'list' = 목록에서 고름(방향키 = 사진 바꾸기)
 const pageView = ref(null)
 const pageScroll = ref(null)
@@ -482,6 +498,7 @@ function pruneSelection() {
   const keep = p ? selectedItemIds.value.filter(id => findItem(p, id)) : []
   if (keep.length !== selectedItemIds.value.length) selectedItemIds.value = keep
   if (selectedSectionId.value && !p?.sections.some(s => s.id === selectedSectionId.value)) selectedSectionId.value = null
+  if (textEdit.value && !(p && findItem(p, textEdit.value.id))) textEdit.value = null // 고치던 글자가 없어짐(충돌 불러오기 등)
 }
 
 // ── 구간 고르기 (8-1) — 구간 이름·요소 없는 구간의 빈 곳·우클릭으로 고른다. 요소를 고르면 풀리고, Esc·페이지 바깥 누르기로도 풀린다.
@@ -605,6 +622,7 @@ function resetEditorLog() {
   resetLookOpen.value = false
   includeAsk.value = null
   reorderOpen.value = false // 8-2 [순서 변경] 화면
+  textEdit.value = null     // 10-1 글자 고치기
 }
 function noteAction(entry) {
   actionLog.push(entry)
@@ -739,6 +757,88 @@ function onDropImage({ imageId, sectionId, x, y }) {
   if (!page.value || !img || img.ingest_status !== 'done' || eraseOpen.value) return
   applyInsert(dropImageAt(page.value, img, sectionId, x, y))
 }
+// ── 글자 (10-1) — 넣기·고치기·속성. 글꼴 조각을 받은 뒤에 재서 높이를 정한다 (받기 전 폭으로 줄바꿈을 확정하지 않는다) ──
+const selectedHasText = computed(() => !!page.value && selectedItemIds.value.some(id => isValidTextItem(findItem(page.value, id)?.item)))
+/** 이 글자들을 그릴 글꼴이 준비될 때까지 (이미 준비됐으면 바로). 못 받으면 알리고 대체 글꼴 폭으로 진행 */
+async function whenFontsReady(list) {
+  if (fontsReadyNow(list)) return
+  let ok = false
+  try {
+    ok = await loadFontsFor(list)
+  } catch (e) {
+    console.error('[StudioEditor] 글꼴을 불러오지 못함:', e)
+  }
+  if (!ok) showToast('글꼴을 불러오지 못해 비슷한 글꼴로 보여요. 인터넷 연결을 확인해 주세요.')
+  textMeasure.clear()
+  fontEpoch.value++
+}
+/** [제목 넣기]·[부제목 넣기]·[본문 넣기] — 골라진 구간(없으면 보는 중 구간) 가운데에 넣고 바로 고르기 + 고치기 */
+async function insertText(kind) {
+  const preset = TEXT_PRESETS[kind]
+  if (!preset || !page.value || eraseOpen.value) return
+  await whenFontsReady([{ style: textStyleOf(normalizeTextItem({ type: 'text', ...preset })), text: preset.text }])
+  let p = page.value
+  if (!p || eraseOpen.value) return
+  let sid = [selectedSectionId.value, pageView.value?.sectionInView()].find(id => id && p.sections.some(s => s.id === id)) ?? null
+  if (!sid) { // 구간이 없는 페이지 — 구간을 하나 만들고 거기에 (같은 이력 한 단계)
+    const withSec = addSection(p, { at: p.sections.length })
+    if (withSec === p) { showToast('구간을 더 만들 수 없어 글자를 넣지 못했어요.'); return }
+    p = withSec
+    sid = p.sections[p.sections.length - 1].id
+  }
+  const r = addTextItem(p, sid, preset, textMeasure)
+  if (!r.itemId) {
+    console.error('[StudioEditor] 글자를 넣지 못함:', kind, sid)
+    showToast('글자를 넣지 못했어요. 잠시 후 다시 해 주세요.')
+    return
+  }
+  if (!applyPage(r.page, LABELS.textInsert)) return
+  selectedItemIds.value = [r.itemId]
+  selectionSource = 'page'
+  textEdit.value = { id: r.itemId, selectAll: true }
+  nextTick(() => pageView.value?.scrollToItem(r.itemId))
+}
+/** 고치기 시작 — 글자 요소 더블클릭·골라서 Enter */
+function startTextEdit(id) {
+  const it = page.value ? findItem(page.value, id)?.item : null
+  if (!it || !isValidTextItem(it) || eraseOpen.value) return
+  if (it.locked) { showToast('잠긴 요소예요. 잠금을 풀면 고칠 수 있어요.'); return }
+  selectedItemIds.value = [id]
+  selectionSource = 'page'
+  textEdit.value = { id, selectAll: false }
+}
+/** 고치기 끝 (Esc·바깥 누르기) — 한 번 = 이력 1개 "글자 고치기". 비었으면 그 요소를 지운다 */
+async function onTextCommit({ id, text }) {
+  textEdit.value = null
+  const f = page.value ? findItem(page.value, id) : null
+  if (!f || !isValidTextItem(f.item)) return
+  if (text.trim() === '') {
+    applyPage(removeItems(page.value, [id]), LABELS.textEdit)
+    return
+  }
+  await whenFontsReady([{ style: textStyleOf(f.item), text }])
+  if (page.value) applyPage(setTextContent(page.value, id, text, textMeasure), LABELS.textEdit)
+}
+const TEXT_LABEL_OF = {
+  fontFamily: LABELS.textFont, fontSize: LABELS.textSize, fontWeight: LABELS.textWeight, color: LABELS.textColor,
+  align: LABELS.textAlign, lineHeight: LABELS.textLineHeight, letterSpacing: LABELS.textLetterSpacing,
+}
+/** 글자 속성 칸 → runCommand (다른 조작과 같은 길) */
+function onTextProps(patch, { merge, key } = {}) {
+  runCommand('textProps', { patch, merge, key })
+}
+/** 고른 것 중 글자 요소에만 속성 적용. 새 글꼴·굵기면 받은 뒤에 잰다. 슬라이더를 끄는 동안(merge)은 이력 한 단계 */
+async function applyTextProps(ids, { patch, merge, key }) {
+  const p = page.value
+  const targets = ids.filter(id => isValidTextItem(findItem(p, id)?.item))
+  const label = TEXT_LABEL_OF[Object.keys(patch)[0]]
+  if (!targets.length || !label) return
+  await whenFontsReady(targets.map(id => {
+    const it = patchTextItem(findItem(p, id).item, patch)
+    return { style: textStyleOf(it), text: it.text }
+  }))
+  if (page.value) applyPage(setTextProps(page.value, targets, patch, textMeasure), label, merge ? { mergeKey: `text-${key}` } : undefined)
+}
 function sectionOfItem(id) { return page.value ? findItem(page.value, id)?.section.id || null : null }
 function runCommand(name, args = {}) {
   const p = page.value
@@ -757,7 +857,8 @@ function runCommand(name, args = {}) {
     case 'align': applyPage(alignItems(p, ids, args.where), LABELS.elAlign); break
     case 'order': applyPage(reorderItems(p, ids, args.where), LABELS.elOrder); break
     case 'opacity': applyPage(setOpacity(p, ids, args.v), LABELS.elOpacity, args.merge ? { mergeKey: 'opacity' } : undefined); break
-    case 'rect': if (ids.length === 1) applyPage(setItemRect(p, ids[0], args), LABELS.elNumber); break
+    case 'rect': if (ids.length === 1) applyPage(setItemRect(p, ids[0], args, textMeasure), LABELS.elNumber); break // 글자는 세로 자동 (10-1)
+    case 'textProps': applyTextProps(ids, args); break // 10-1 글자 속성 (글꼴을 받은 뒤 반영 — 비동기)
     case 'lock': applyPage(setLocked(p, ids, true), LABELS.elLock); break
     case 'unlock': applyPage(setLocked(p, ids, false), LABELS.elUnlock); break
     case 'hide': applyPage(setHidden(p, ids, true), LABELS.elHide); break
@@ -1368,7 +1469,7 @@ function onBeforeUnload(e) {
 //   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
 // (사용가이드는 14단계 — 생기면 여기서 막는다)
 function onKeyDown(e) {
-  if (!isWide.value || anyModalOpen.value || ctx.open || e.altKey) return
+  if (!isWide.value || anyModalOpen.value || ctx.open || e.altKey || textEdit.value) return // 10-1: 글자를 고치는 동안은 쉰다
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
   if (pageView.value?.isBusy()) return // 끌고 있는 중
@@ -1392,6 +1493,13 @@ function onKeyDown(e) {
   if (eraseOpen.value) return // 지우기 화면에서는 사진을 바꾸지 않는다
   if (e.key === 'Escape' && (sel.length || selectedSectionId.value)) { e.preventDefault(); clearSelection(); return }
   if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) { e.preventDefault(); runCommand('delete'); return }
+  // 10-1: 글자 요소 하나를 페이지에서 골랐으면 Enter = 고치기 (버튼·레이어 줄 위의 Enter는 그 버튼 몫)
+  if (e.key === 'Enter' && sel.length === 1 && selectionSource === 'page' && !t?.closest?.('button, [role="button"]')
+    && page.value && isValidTextItem(findItem(page.value, sel[0])?.item)) {
+    e.preventDefault()
+    startTextEdit(sel[0])
+    return
+  }
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
   if (ARROWS[e.key] && sel.length && selectionSource === 'page') {
     e.preventDefault()
@@ -1468,11 +1576,15 @@ onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   document.addEventListener('visibilitychange', onVisible)
   viewUrlTimer = setInterval(refreshViewUrls, VIEW_URL_REFRESH_MS)
+  // 10-1 글꼴: 편집기가 열릴 때만 스타일시트를 붙인다(사이트 전체 아님). 글꼴을 새로 받으면 측정 캐시를 비우고 줄을 다시 계산
+  offFontsChanged = onFontsChanged(() => { textMeasure.clear(); fontEpoch.value++ })
+  ensureStudioFonts().catch(e => console.error('[StudioEditor] 글꼴 스타일시트를 불러오지 못함 (글자는 비슷한 글꼴로 보임):', e))
   load()
 })
 
 onUnmounted(() => {
   cancelAnimationFrame(inViewRaf)
+  offFontsChanged?.()
   pageScroll.value?.removeEventListener('scroll', updateInView)
   wideQuery.removeEventListener('change', onWideChange)
   rightQuery.removeEventListener('change', onRightChange)

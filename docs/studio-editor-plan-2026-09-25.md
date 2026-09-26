@@ -16,6 +16,9 @@
 - **페이지 문서 모양(`studio_projects.page`, v:1 — 자세한 것은 `src/lib/studioPage.js` 맨 위)**:
   `{ v: 1, width: 780, gap, sections: [ { id, height, bg, items: [ { id, type, imageId?, x, y, w, h, rotation, opacity, flipX, flipY, locked, hidden, 꾸미기 칸?, groupId? } ] } ], parked: [imageId] }`
   `groupId`(9단계, 선택 칸) = 같은 값끼리 한 그룹. 없으면 그룹 아님. 한 구간 안·구성원 2개 이상만 (어긋나면 읽을 때·바꾼 뒤 풀림)
+  글자 요소(10-1단계) = `{ id, type: 'text', x, y, w, h, rotation, opacity, flipX, flipY, locked, hidden, groupId?, text, fontFamily, fontSize, fontWeight, color, align, lineHeight, letterSpacing }`
+  — text(\n = 줄바꿈) · fontFamily(허용 목록 키, 예 'noto-sans-kr') · fontSize 8~400px · fontWeight(그 폰트가 가진 값만) · color '#rrggbb' · align left|center|right ·
+  lineHeight 0.8~3.0배 · letterSpacing -0.2~1.0em. h는 자동(줄 수 × fontSize × lineHeight). 빠지거나 잘못된 값은 readPage가 기본값으로(`studioText.js` 맨 위)
 
 ## 2. 해성 결정 (확정)
 
@@ -85,7 +88,7 @@
 | | 숨기기 | 6-1 |
 | | 그룹 묶기·풀기 | 9 |
 | | 위치·크기·각도 숫자 입력 | 6-1 |
-| | 스타일 복사 | 10 (글자 스타일이 생긴 뒤) |
+| | 스타일 복사 | 10-2 (글자 스타일이 생긴 뒤) |
 | | 우클릭 메뉴 | 6-1 |
 | E 사진 | 지우기·원본 보기 | 완료 (0·2단계) |
 | | 바꾸기 | 6-2 |
@@ -103,11 +106,11 @@
 | | 띠 잘라내기 | 12 |
 | | 배경 제거 | 17 |
 | | 화질 개선 | 18 |
-| F 글자 | 넣기 | 10 |
-| | 글꼴·크기·굵기·색·정렬·줄간격·자간 | 10 |
-| | 테두리·그림자·글자 배경 | 10 |
-| | 스타일 프리셋 | 10 |
-| | 상업용 무료 한글 폰트 | 10 |
+| F 글자 | 넣기 | 10-1 |
+| | 글꼴·크기·굵기·색·정렬·줄간격·자간 | 10-1 |
+| | 테두리·그림자·글자 배경 | 10-2 |
+| | 스타일 프리셋 | 10-2 |
+| | 상업용 무료 한글 폰트 | 10-1 |
 | G 요소 | 도형 | 11 |
 | | 선·화살표 | 11 |
 | | 강조 배지 | 11 |
@@ -156,7 +159,8 @@
 | 8-1단계 — 구간 다루기 (고르기·추가·복제·삭제·순서·높이·배경색·간격) | 완료 (크롬 확인 전) | "studio 8-1단계: 구간 …" |
 | 8-2단계 — 미니뷰·[순서 변경] (페이지 폭 선택은 안 함) | 완료 (크롬 확인 전) | "studio 8-2단계: 미니뷰·구간 순서 변경 화면" |
 | 9단계 — 레이어 탭 + 그룹 묶기·풀기 | 완료 (크롬 확인 전) | "studio 9단계: 레이어 탭·그룹 묶기·풀기" |
-| 10단계 이후 | 시작 전 | |
+| 10-1단계 — 글자 넣기·고치기·기본 속성·한글 폰트 | 완료 (크롬 확인 전) | "studio 10-1단계: 글자 넣기·고치기·기본 속성·한글 폰트" |
+| 10-2단계 이후 | 시작 전 | |
 
 ### 0단계 — 1-6b-3b 확인 → 커밋·push
 - 3b 파일은 고치지 않는다. 테스트 6종 + `npm run build` 통과 확인.
@@ -296,9 +300,36 @@
   줄 누르기 = 그 요소만, Shift = 더하기·빼기, 그룹 줄 = 그룹 전체. 줄 끌기 = 앞뒤 순서(그룹은 통째로). 비었으면 "이 구간은 비어 있어요"
 - 권장 모델: Sonnet 5 (앞 단계 패턴 재사용)
 
-### 10단계 — 글자 (옛 "이후"의 글자 1-7)
-- 넣기 · 글꼴·크기·굵기·색·정렬·줄간격·자간 · 테두리·그림자·글자 배경 · 스타일 프리셋 · 상업용 무료 한글 폰트 · 스타일 복사
-- 글자는 화면(DOM)과 내보내기(캔버스)의 줄바꿈이 같도록 줄바꿈 계산 함수를 하나로 둔다.
+### 10단계 — 글자 (옛 "이후"의 글자 1-7) — 2026-09-26 해성 결정으로 둘로 나눔
+- 글자는 화면(DOM)과 내보내기(캔버스)의 줄바꿈이 같도록 줄바꿈 계산 함수를 하나로 둔다 (`studioText.wrapLines`).
+
+#### 10-1 — 글자 넣기·고치기·기본 속성·한글 폰트
+- 페이지 문서에 새 요소 type 'text'와 그 칸만 추가(v:1 그대로 — 맨 위 page 모양 참고). 순수 함수 `studioText.js`(normalizeTextItem·patchTextItem·wrapLines·textHeight·fitTextItem, 테스트 `test-studio-text.mjs`),
+  페이지 조작 `studioPage.js`(addTextItem·setTextProps·setTextContent·resizeTextItem, setItemRect는 글자면 세로 자동)
+- 줄바꿈: \n 강제, 한글 글자 단위(닫는 문장부호는 앞 글자와 같이), 영문·숫자 단어 단위, 폭보다 긴 단어는 글자 단위, 자간을 폭에 넣음(측정 폭 + 자간 × 크기 × 글자 수), 줄 끝 공백은 뺌.
+  폭 재기는 밖에서 받음(브라우저 = 캔버스 measureText, `studioFonts.createTextMeasure`). 화면은 줄마다 한 줄씩(white-space: pre) — 브라우저 자동 줄바꿈에 맡기지 않음
+- 높이(h) = 줄 수 × 크기 × 줄간격, 늘 자동. 손잡이: 좌우 = 폭만(줄바꿈 다시), 모서리 = 비율대로 글자 크기·폭 함께, 위아래 없음. 숫자 칸 세로는 잠김
+- 넣기: 왼쪽 [텍스트] 패널 [제목 넣기]·[부제목 넣기]·[본문 넣기] → 골라진 구간(없으면 보는 중 구간) 가운데, 바로 고르기 + 고치기(글자 전체 선택). 구간이 없으면 구간을 만들어 넣음. 이력 "글자 넣기"
+- 고치기: 더블클릭·골라서 Enter → 그 자리에 textarea(한글 조합), Enter = 줄바꿈, Esc·바깥 누르기 = 끝, 비었으면 요소 삭제, 이력 1개 "글자 고치기". 고치는 동안 편집기 단축키 쉼. 잠긴 글자는 안 열림. 사진 더블클릭은 예전처럼 지우기 화면
+- 글자 속성 칸(`StudioTextItemPanel.vue`, 공통 조작 칸 아래): 글꼴(이름을 그 글꼴로) · 크기 · 굵기(그 폰트가 가진 것만) · 색(흰색·검정·빨강 + 색 고르기) · 정렬 3개 · 줄간격 · 자간(%).
+  여러 개 = 공통 값만, 사진이 섞이면 글자에만. 슬라이더·색 고르기는 끄는 동안 이력 1개. 모두 runCommand('textProps') → 이력·페이지 저장
+- 폰트: 편집기가 열릴 때만 Google Fonts 스타일시트 한 번(display=swap, `ensureStudioFonts`), Noto Sans KR은 index.html 전역 것을 씀(중복 안 붙임).
+  재기 전에 document.fonts.load(글꼴, 그 글자)로 조각을 받고, 글꼴을 새로 받으면(loadingdone) 측정 캐시를 비우고 줄을 다시 계산
+- 레이어 줄 이름 "글자 · 앞 10자" + 글자 아이콘, 미니뷰·순서 변경 그림도 같은 wrapLines로 글자를 그림(화면 밖 그림은 흐린 막대)
+- **폰트 허용 목록 (라이선스: google/fonts 저장소 ofl/<폰트>/METADATA.pb `license: "OFL"` = SIL Open Font License 1.1, 2026-09-26 확인)**
+
+  | 키 | 표시 이름 | CSS family | 쓸 수 있는 굵기 | 라이선스 |
+  |---|---|---|---|---|
+  | noto-sans-kr (기본) | Noto Sans KR | Noto Sans KR | 400·700·800·900 (가변 100~900 중) | SIL OFL 1.1 |
+  | noto-serif-kr | Noto Serif KR | Noto Serif KR | 400·700·900 (가변 200~900 중) | SIL OFL 1.1 |
+  | nanum-gothic | 나눔고딕 | Nanum Gothic | 400·700·800 | SIL OFL 1.1 |
+  | nanum-myeongjo | 나눔명조 | Nanum Myeongjo | 400·700·800 | SIL OFL 1.1 |
+  | black-han-sans | 검은고딕 | Black Han Sans | 400 | SIL OFL 1.1 |
+  | do-hyeon | 도현 | Do Hyeon | 400 | SIL OFL 1.1 |
+- 권장 모델: Opus 5.5
+
+#### 10-2 — 글자 꾸미기 (다음)
+- 테두리·그림자·글자 배경 · 스타일 프리셋 · 스타일 복사
 
 ### 11단계 — 요소
 - 도형 · 선·화살표 · 강조 배지 · 사이즈표

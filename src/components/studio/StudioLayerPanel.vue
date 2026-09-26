@@ -38,6 +38,7 @@
             <span class="st-layer-thumb">
               <img v-if="imageUrl(it)" :src="imageUrl(it)" alt="" draggable="false" class="w-full h-full object-cover" />
               <ImageIcon v-else-if="isImage(it)" class="w-3.5 h-3.5" :stroke-width="2" />
+              <Type v-else-if="isValidTextItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Shapes v-else class="w-3.5 h-3.5" :stroke-width="2" />
             </span>
             <span class="flex-1 min-w-0 truncate text-[12px] font-bold st-ink-2">{{ nameOf(it) }}</span>
@@ -56,8 +57,9 @@
 // 눈·자물쇠 = 숨기기·잠금(그룹 줄은 구성원 전체), 줄 끌기 = 앞뒤 순서(그룹은 통째로) → command(name, args) — 편집기 runCommand(이력·페이지 저장)
 // 사진 그림은 편집기의 화면용 작은 사진(views)만 쓴다.
 import { ref, computed, h } from 'vue'
-import { ChevronDown, ChevronRight, Group, Shapes, Image as ImageIcon, Eye, EyeOff, Lock, LockOpen } from 'lucide-vue-next'
+import { ChevronDown, ChevronRight, Group, Shapes, Type, Image as ImageIcon, Eye, EyeOff, Lock, LockOpen } from 'lucide-vue-next'
 import { isValidImageItem } from '@/lib/studioPage'
+import { isValidTextItem, textLabel } from '@/lib/studioText'
 import { KIND_LABEL } from '@/lib/studioProjects'
 
 const props = defineProps({
@@ -114,6 +116,7 @@ const blocks = computed(() => {
 const isImage = it => isValidImageItem(it)
 const imageUrl = it => (isImage(it) ? props.views[it.imageId]?.url ?? null : null)
 function nameOf(it) {
+  if (isValidTextItem(it)) return textLabel(it) // 10-1: "글자 · 앞 10자"
   if (!isImage(it)) return '요소'
   const row = props.imagesById.get(it.imageId)
   return row ? KIND_LABEL[row.kind] ?? '사진' : '없는 사진'

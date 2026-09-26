@@ -1,9 +1,14 @@
 <template>
-  <!-- 구간 하나의 작은 그림 (8-2) — 배경색 + 사진 요소(자리·크기·회전·뒤집기·투명도). 숨긴 요소·사진 아닌 요소는 그리지 않는다 -->
+  <!-- 구간 하나의 작은 그림 (8-2) — 배경색 + 사진·글자 요소(자리·크기·회전·뒤집기·투명도). 숨긴 요소·그 밖의 요소는 그리지 않는다 -->
   <div class="relative overflow-hidden shrink-0" :style="{ width: `${box.w}px`, height: `${box.h}px`, background: section.bg }" data-section-thumb>
     <div v-for="it in shownItems" :key="it.id" class="absolute" :style="itemStyle(it)">
+      <!-- 글자 (10-1): 페이지와 같은 wrapLines 줄. 화면 밖 그림(drawImages=false)은 흐린 막대 -->
+      <template v-if="isValidTextItem(it)">
+        <StudioTextView v-if="drawImages" :item="it" :lines="linesOf(it)" :scale="scale" />
+        <div v-else class="w-full h-full st-placeholder" />
+      </template>
       <img
-        v-if="drawImages && views[it.imageId]?.url" :src="views[it.imageId].url" alt="" draggable="false"
+        v-else-if="drawImages && views[it.imageId]?.url" :src="views[it.imageId].url" alt="" draggable="false"
         class="block w-full h-full st-thumb-img" :style="imgStyle(it)"
       />
       <div v-else class="w-full h-full st-placeholder" />
@@ -14,9 +19,12 @@
 <script setup>
 // 미니뷰·[순서 변경] 화면이 같이 쓴다. 사진은 새로 받지 않는다 — 편집기가 만든 화면용 작은 사진(views[imageId].url)만, 없으면 흐린 자리표시.
 // drawImages=false면 사진 대신 자리표시만 (화면 밖 미니뷰 — 가볍게)
-import { computed } from 'vue'
-import { isValidImageItem } from '@/lib/studioPage'
+// 글자(10-1)는 편집기가 provide한 측정(studioTextLayout)으로 페이지와 같은 줄을 그린다.
+import { computed, inject } from 'vue'
+import { isDrawableItem, textLinesOf } from '@/lib/studioPage'
+import { isValidTextItem } from '@/lib/studioText'
 import { lookCss } from '@/lib/studioLook'
+import StudioTextView from '@/components/studio/StudioTextView.vue'
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -33,7 +41,12 @@ const scale = computed(() => {
   return props.maxHeight > 0 ? Math.min(s, props.maxHeight / props.section.height) : s
 })
 const box = computed(() => ({ w: Math.max(1, Math.round(props.pageWidth * scale.value)), h: Math.max(1, Math.round(props.section.height * scale.value)) }))
-const shownItems = computed(() => props.section.items.filter(it => isValidImageItem(it) && !it.hidden))
+const shownItems = computed(() => props.section.items.filter(it => isDrawableItem(it) && !it.hidden))
+const textLayout = inject('studioTextLayout')
+function linesOf(it) {
+  textLayout.epoch.value // 글꼴을 받으면 다시 그린다
+  return textLinesOf(it, textLayout.measure)
+}
 
 function itemStyle(it) {
   const z = scale.value

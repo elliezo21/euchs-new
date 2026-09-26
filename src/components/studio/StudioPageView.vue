@@ -33,7 +33,7 @@
             :data-item-id="it.id" :data-image-id="it.imageId" :data-hidden="it.hidden ? '1' : null"
             @pointerdown="onItemDown($event, it)"
             @contextmenu.prevent.stop="onItemContext($event, it)"
-            @dblclick="$emit('open-erase', it.imageId)"
+            @dblclick="onItemDblClick(it)"
           >
             <!-- 숨긴 요소: 편집 화면에서는 흐린 점선 윤곽만 (다시 찾을 수 있게) -->
             <template v-if="!it.hidden">
@@ -64,6 +64,24 @@
                 <span v-else class="text-[12px] font-bold">사진 준비 중…</span>
               </div>
             </template>
+          </div>
+          <!-- 글자 요소 (10-1): 줄은 wrapLines로 한 줄씩. 고치는 중이면 그 자리에 입력 칸(textarea — 한글 조합이 깨지지 않게) -->
+          <div
+            v-else-if="isValidTextItem(it)"
+            class="absolute select-none"
+            :class="[it.locked || editId === it.id ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
+            :style="itemStyle(it)"
+            :data-item-id="it.id" data-text-item :data-hidden="it.hidden ? '1' : null"
+            @pointerdown="onItemDown($event, it)"
+            @contextmenu.prevent.stop="onItemContext($event, it)"
+            @dblclick="onItemDblClick(it)"
+          >
+            <textarea
+              v-if="editId === it.id" :ref="setEditEl" v-model="editText"
+              class="st-text-edit" :style="editStyle(it)" rows="1" spellcheck="false" data-text-edit
+              @pointerdown.stop @dblclick.stop @contextmenu.stop @input="autoSize" @keydown="onEditKey" @blur="finishEdit"
+            />
+            <StudioTextView v-else-if="!it.hidden" :item="it" :lines="linesOf(it)" :scale="zoom" />
           </div>
         </template>
       </section>
@@ -98,7 +116,7 @@
           @pointerdown.stop.prevent="onRotateDown($event, f.id)"
         ><RotateCw class="w-3 h-3" :stroke-width="2.5" /></span>
         <span
-          v-for="h in HANDLES" :key="h" class="st-resize-handle" :class="`is-${h}`" :data-resize-handle="h"
+          v-for="h in f.handleList" :key="h" class="st-resize-handle" :class="`is-${h}`" :data-resize-handle="h"
           @pointerdown.stop.prevent="onResizeDown($event, f.id, h)"
         />
       </template>
@@ -124,12 +142,18 @@
 //   조작 중에는 미리보기 문서(draft)로 그리고, 손을 뗄 때 한 번 change를 보낸다 (저장·이력 한 단계). Esc = 조작 취소.
 // 페이지 계산은 전부 studioPage.js 순수 함수 (moveItems·resizeRect·setItemRect·setRotation·snapMove·itemsInBox).
 // 8-1 구간: 구간 이름·요소 없는 구간의 빈 곳 누르기 = 구간 고르기(select-section), 골라진 구간은 테두리 + 아래쪽 높이 손잡이(setSectionHeight).
-import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue'
+// 10-1 글자: 글자 요소는 wrapLines 줄로 그린다(StudioTextView). 손잡이 = 좌우(폭만 — 줄바꿈 다시) + 모서리(글자 크기·폭 함께), 위아래 없음.
+//   더블클릭 = 고치기 시작(edit-text — 사진은 예전처럼 지우기 화면). 고치는 중에는 그 자리에 textarea, Esc·바깥 누르기 = 끝(text-commit).
+import { ref, shallowRef, computed, watch, nextTick, inject, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
   DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
+  isDrawableItem, resizeTextItem, textLinesOf,
 } from '@/lib/studioPage'
+import { isValidTextItem } from '@/lib/studioText'
+import { cssFamilyOf } from '@/lib/studioFonts'
+import StudioTextView from '@/components/studio/StudioTextView.vue'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
 import { KIND_LABEL } from '@/lib/studioProjects'
@@ -145,16 +169,78 @@ const props = defineProps({
   compare: { type: Object, default: null },        // { imageId, url } 원본 비교 중 (6-2)
   bakeState: { type: Object, default: () => ({}) }, // image id → { status } (useBakeQueue) — 구간 이름 옆에 "적용 중" (사진 위에는 올리지 않는다)
   selectedSectionId: { type: String, default: null }, // 골라진 구간 (8-1) — 테두리 + 아래쪽 높이 손잡이
+  textEdit: { type: Object, default: null },           // { id, selectAll } 고치는 중인 글자 요소 (10-1)
 })
 // select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
 // open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })
 // drop-image({ imageId, sectionId|null, x, y }) 목록 사진을 끌어다 놓음 (6-3, x·y = 그 구간 좌표)
 // select-section(sectionId) 구간 이름·요소 없는 구간의 빈 곳을 누름 (8-1). 높이 손잡이는 놓을 때 change({ page, label: 구간 높이 })
-const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image', 'select-section'])
+// edit-text(itemId) 글자 요소 더블클릭 = 고치기 시작 / text-commit({ id, text }) 고치기 끝 (10-1)
+const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image', 'select-section', 'edit-text', 'text-commit'])
 
 const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
 const SNAP_PX = 6        // 화면 px — 이만큼 가까우면 달라붙는다
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
+const TEXT_HANDLES = ['nw', 'ne', 'e', 'se', 'sw', 'w'] // 글자: 위아래 손잡이 없음 (높이는 글자에 맞춰 자동)
+
+// 글자 폭 재기·글꼴 준비 (편집기가 provide — 미니뷰·순서 변경 그림과 같은 측정). epoch가 바뀌면(글꼴을 새로 받음) 줄을 다시 계산
+const textLayout = inject('studioTextLayout')
+function linesOf(it) {
+  textLayout.epoch.value // 글꼴을 받으면 다시 그린다
+  return textLinesOf(it, textLayout.measure)
+}
+
+// ── 글자 고치기 (10-1) — 상태는 여기 위에 모아 둔다 (아래 immediate watch가 쓴다) ──
+const editText = ref('')
+let editEl = null
+let editDone = true // 이번 고치기를 이미 끝냈는지 (Esc 뒤 blur 등 두 번 끝내지 않게)
+const editId = computed(() => props.textEdit?.id ?? null)
+function setEditEl(el) { editEl = el }
+function autoSize() {
+  if (!editEl) return
+  editEl.style.height = 'auto'
+  editEl.style.height = `${editEl.scrollHeight}px`
+}
+watch(() => props.textEdit, te => {
+  if (!te) { editDone = true; return }
+  const f = findItem(props.page, te.id)
+  if (!f || !isValidTextItem(f.item)) { editDone = true; return }
+  editText.value = f.item.text
+  editDone = false
+  nextTick(() => {
+    if (!editEl) return
+    autoSize()
+    editEl.focus({ preventScroll: true })
+    if (te.selectAll) editEl.select()
+    else editEl.setSelectionRange(editEl.value.length, editEl.value.length)
+  })
+}, { immediate: true })
+/** 고치기 끝 — Esc·바깥 누르기(blur)·다른 요소 누르기. 한 번만 알린다 */
+function finishEdit() {
+  if (editDone || !props.textEdit) return
+  editDone = true
+  emit('text-commit', { id: props.textEdit.id, text: editText.value })
+}
+function onEditKey(e) {
+  // Enter = 줄바꿈 (textarea 기본). Esc = 끝내기 — 한글 조합 중이면 조합 쪽에 맡긴다
+  if (e.key === 'Escape' && !e.isComposing) {
+    e.preventDefault()
+    e.stopPropagation()
+    finishEdit()
+  }
+}
+function editStyle(it) {
+  const z = props.zoom
+  return {
+    fontFamily: cssFamilyOf(it.fontFamily), fontWeight: it.fontWeight, fontSize: `${it.fontSize * z}px`,
+    lineHeight: `${it.fontSize * it.lineHeight * z}px`, letterSpacing: `${it.letterSpacing}em`, color: it.color, textAlign: it.align,
+    width: `${it.w * z}px`, minHeight: `${it.h * z}px`,
+  }
+}
+function onItemDblClick(it) {
+  if (isValidImageItem(it)) emit('open-erase', it.imageId)
+  else if (isValidTextItem(it)) emit('edit-text', it.id)
+}
 
 const draft = shallowRef(null)   // 조작 중 미리보기 문서
 const guides = ref([])           // 달라붙기 안내선
@@ -234,11 +320,11 @@ const frames = computed(() => {
   const out = []
   for (const id of props.selectedIds) {
     const f = findItem(doc.value, id)
-    if (!f || !isValidImageItem(f.item)) continue
+    if (!f || !isDrawableItem(f.item) || id === editId.value) continue // 고치는 중인 글자는 입력 칸이 테두리를 대신한다
     const it = f.item
     const top = rowOf(f.section.id).top
     out.push({
-      id, locked: !!it.locked, handles: false,
+      id, locked: !!it.locked, handles: false, handleList: isValidTextItem(it) ? TEXT_HANDLES : HANDLES,
       style: { left: `${it.x * z}px`, top: `${(top + it.y) * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, transform: it.rotation ? `rotate(${it.rotation}deg)` : null },
     })
   }
@@ -297,9 +383,17 @@ function onItemDown(e, it) {
   if (e.button !== 0) return
   e.stopPropagation()
   e.preventDefault() // 글자 선택·이미지 끌기 막기
-  const sel = props.selectedIds
   // 9단계: 그룹 요소를 누르면 그 그룹 전체 (그룹 안 하나만은 레이어 탭에서 고른다)
   const members = groupMemberIds(props.page, it.id)
+  // 10-1: 글자를 고치는 중에 다른 요소를 누르면 — 고치기를 끝내고 고르기만 한다(끌기는 시작하지 않음).
+  // 끝낸 글자는 편집기가 바로 반영하지만 props.page는 다음 그리기 때 바뀌므로, 여기서 옛 문서로 끌기를 시작하면 고친 글자를 덮어쓴다
+  if (props.textEdit) {
+    const editing = props.textEdit.id
+    finishEdit()
+    if (editing !== it.id) selectIds(members)
+    return
+  }
+  const sel = props.selectedIds
   if (e.shiftKey) { // 추가·빼기 (끌지 않음) — 그룹 단위
     const allIn = members.every(m => sel.includes(m))
     selectIds(allIn ? sel.filter(x => !members.includes(x)) : [...new Set([...sel, ...members])])
@@ -325,6 +419,7 @@ function onRotateDown(e, id) {
 }
 function onBlankDown(e) {
   if (e.button !== 0) return
+  if (props.textEdit) { finishEdit(); selectIds([]); return } // 10-1: 바깥 누르기 = 고치기 끝 (박스 선택은 시작하지 않음 — onItemDown과 같은 이유)
   const p = pagePoint(e)
   begin(e, { kind: 'box', x0: p.x, y0: p.y, shift: e.shiftKey, prevIds: props.selectedIds, sectionId: sectionAt(e) })
 }
@@ -333,6 +428,7 @@ function onBlankDown(e) {
 const sizingSection = ref(false) // 높이 손잡이를 끄는 중 (손잡이에 지금 높이 표시)
 function onLabelDown(e, sectionId) {
   if (e.button !== 0) return
+  finishEdit()
   emit('select-section', sectionId)
 }
 function onLabelContext(e, sectionId) {
@@ -360,6 +456,10 @@ function onMove(e) {
   } else if (act.kind === 'resize') {
     const f = findItem(P, act.id)
     if (!f) return
+    if (isValidTextItem(f.item)) { // 10-1: 좌우 = 폭만(줄바꿈 다시), 모서리 = 글자 크기·폭 함께 (Shift 자유 크기 없음)
+      draft.value = resizeTextItem(P, act.id, act.handle, sdx / z, sdy / z, textLayout.measure)
+      return
+    }
     const corner = act.handle.length === 2
     const r = resizeRect(f.item, f.item.rotation || 0, act.handle, sdx / z, sdy / z, { keepRatio: corner && !e.shiftKey })
     draft.value = setItemRect(P, act.id, r)
@@ -458,7 +558,7 @@ function reportVisible() {
 function observeItems() {
   if (!io || !rootEl.value) return
   for (const el of shownEls.keys()) if (!el.isConnected) { shownEls.delete(el); io.unobserve(el) } // 없어진 요소
-  for (const el of rootEl.value.querySelectorAll('[data-item-id]')) io.observe(el)
+  for (const el of rootEl.value.querySelectorAll('[data-item-id][data-image-id]')) io.observe(el) // 사진 요소만 (글자에는 받을 사진이 없다)
 }
 onMounted(() => {
   if (typeof IntersectionObserver === 'undefined' || !rootEl.value) return
@@ -491,7 +591,7 @@ function sectionInView() {
 function scrollToSection(sectionId, block = 'nearest') {
   rootEl.value?.querySelector(`[data-section-id="${sectionId}"]`)?.scrollIntoView({ block, behavior: 'smooth' })
 }
-defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act })
+defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act, finishEdit })
 </script>
 
 <style scoped>
@@ -503,6 +603,11 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
 /* 자리 비율과 사진 비율이 다를 때(사진 바꾸기·한쪽 손잡이) 찌그러뜨리지 않고 자리에 맞춰 채운다 — 내보내기(13단계)도 같은 규칙 */
 .st-item-img { object-fit: cover; }
 .st-snap-guide { background: var(--st-accent); z-index: 4; }
+/* 글자 고치기 입력 칸 (10-1) — 글자와 같은 모양, 배경 없음. 고치는 동안은 브라우저 줄바꿈(끝내면 wrapLines 줄로 다시 그림) */
+.st-text-edit {
+  position: absolute; left: 0; top: 0; display: block; margin: 0; padding: 0; border: 0; outline: none; resize: none; overflow: hidden;
+  user-select: text; background: transparent; white-space: pre-wrap; overflow-wrap: anywhere; box-shadow: 0 0 0 1.5px var(--st-accent); caret-color: var(--st-accent);
+}
 /* 골라진 구간 (8-1) — 안쪽 테두리만. 높이 손잡이는 아래쪽 가장자리 가운데 */
 .st-section-picked::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: 3; }
 .st-section-label:hover { color: var(--st-ink-2); }
