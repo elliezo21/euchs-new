@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host",
+    "dev:studio": "node scripts/dev-studio.mjs",
     "build": "vite build",
     "preview": "vite preview"
   },

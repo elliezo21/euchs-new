@@ -112,7 +112,8 @@ grep -o '^[A-Z_]*=' .env.local
 
 1. **진행 방식**: 한 창(세션)에 한 단계만 한다. 단계가 끝나면 로컬 커밋 + 보고서 + 멈춤. 다음 단계는 채팅 Claude가 로그인한 크롬으로 확인한 뒤 해성이 새 프롬프트로 준다. push는 위 3-5·배포 방식대로 해성 승인 후에만.
 2. **표시 규칙**: 보고서·계획에 [확인됨] [보고서 기준] [결정] [제안] [모름]을 붙인다. 확인하지 않은 것을 된다고 쓰지 않는다. 로그인이 필요한 확인은 "확인 못 함 (로그인 필요)". 가짜 사진·확인용 페이지로 본 것은 "대신 확인".
-3. **개발 서버**: 스위치 두 개가 필요하다. PowerShell: `$env:VITE_STUDIO_ENABLED="admin"; $env:STUDIO_ENABLED="admin"; npm run dev`
+3. **개발 서버**: `npm run dev:studio` (스튜디오 스위치 두 개를 켜고 `vite --host`로 띄운다 — `scripts/dev-studio.mjs`, PowerShell·cmd 모두 같은 명령. 다른 포트: `npm run dev:studio -- --port 5180`)
+   - 대안(PowerShell 한 줄): `$env:VITE_STUDIO_ENABLED="admin"; $env:STUDIO_ENABLED="admin"; npm run dev`
    - `VITE_STUDIO_ENABLED`가 없으면 /studio → / 로 간다 (`src/router/index.js` 33~35줄)
    - `STUDIO_ENABLED`가 없으면 저장 API가 503 `studio_disabled` (`api/_studio.js` 6·56·157줄)
 4. **커밋하지 않는 파일**: `docs/studio-mockup/`(시안 캡처), `harness.html`, `vite.harness.config.mjs`, `src/__harness__/` (`.git/info/exclude`에 있음). 확인용 페이지(로그인 없이 가짜 사진으로 편집기 확인)는 포트 5199.
@@ -144,3 +145,4 @@ grep -o '^[A-Z_]*=' .env.local
    - 8번 수정: 조각 20MB, 저장 실패 카드·[다시 저장], 저장 못 한 결과가 있으면 나가기 한 번 막기, "지움 n · 다시 지우기 n"
    - 나가기 보호: 저장 안 된 것이 있을 때만 새로고침·탭 닫기에 브라우저 경고(`studioSaveGuard.unsavedReasons`), AI 결과 자동 다시 저장(2초 → 5초 → 10초, 인터넷 복구 시 바로), 지우기 화면 주소 `?erase=<사진 id>`(크롬 ← = 지우기 화면만 닫기, [완료] 뒤 history 안 남음, 새로고침하면 다시 열림), 상단 "저장됨"에 마우스 → 마지막 저장 시각
 9. **확인 목록 쓰는 법**: 보고서 끝에 "채팅 Claude가 크롬으로 확인할 목록"을 한 항목에 "무엇을 누르고 → 무엇이 보이면 정상"으로 쓴다.
+10. **보고서 파일**: 단계가 끝나면 보고서를 창에 쓰는 것과 똑같이 `docs/reports/YYYY-MM-DD-HHmm-<짧은 영문 이름>.md` 에도 저장한다. 이 폴더는 커밋하지 않는다 (`.git/info/exclude`에 있음).
