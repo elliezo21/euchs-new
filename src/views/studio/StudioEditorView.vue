@@ -130,6 +130,8 @@
           <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" @style="onStylePreset" />
           <!-- [요소] 패널 (11-1): 도형·선·화살표 넣기 -->
           <StudioElementPanel v-else-if="activeTool === 'element'" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" />
+          <!-- [템플릿] 패널 (15단계): 템플릿 카드 — 누르면 확인 뒤 페이지를 그 틀로 (이력 한 칸, 사진 edit는 그대로) -->
+          <StudioTemplatePanel v-else-if="activeTool === 'template'" :images="templateImages" :views="views" :disabled="!page" @apply="askTemplate" />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
             <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
@@ -141,7 +143,10 @@
       <!-- 가운데: 긴 한 장 페이지 (4단계, DOM — 구간이 위에서 아래로 쌓인다) -->
       <section v-if="isWide" class="flex-1 min-w-0 relative st-canvas-bg st-dotgrid" data-canvas-area>
         <!-- 시작 화면 ⓪ (16단계): 페이지가 비어 있는 작업(DB page = null)일 때만 가운데를 덮는다. 왼쪽 사진 목록은 그대로 쓸 수 있다 -->
-        <StudioStartScreen v-if="showStart" :usable-count="usableImagesNow().length" @blank="startBlank" />
+        <StudioStartScreen
+          v-if="showStart" :usable-count="usableImagesNow().length" :images="templateImages" :views="views"
+          @blank="startBlank" @template="askTemplate"
+        />
         <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
           <div v-else-if="page && page.sections.length" class="pt-8 pb-24" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
@@ -317,6 +322,15 @@
       </template>
     </StudioModal>
 
+    <!-- 템플릿 교체 확인 (15단계) — 페이지에 내용이 있을 때만. 사진의 지우기·필터·자르기는 사진에 있어 그대로 -->
+    <StudioModal :open="!!templateAsk" title="지금 페이지를 이 템플릿으로 바꿀까요?" @close="templateAsk = null">
+      되돌리기로 되돌릴 수 있어요. 지운 사진·필터·자르기는 그대로 남아요.
+      <template #actions>
+        <button type="button" class="st-btn" @click="templateAsk = null">취소</button>
+        <button type="button" class="st-btn st-btn-primary" data-confirm-template @click="confirmTemplate">바꾸기</button>
+      </template>
+    </StudioModal>
+
     <!-- 필터·조정 초기화 확인 (6-2) — 지우기는 그대로 -->
     <StudioModal :open="resetLookOpen" title="필터·조정을 처음으로 돌릴까요?" @close="resetLookOpen = false">
       이 사진의 필터와 밝기·대비 같은 조정이 처음으로 돌아가요. 지운 곳은 그대로 남아요.
@@ -382,6 +396,8 @@ import {
   MoreHorizontal, Pencil, Copy, X,
 } from 'lucide-vue-next'
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
+import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
+import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
 import { copyProject } from '@/lib/studioProjectCopy'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
@@ -453,7 +469,7 @@ const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 �
 
 // 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, [텍스트]는 10-1단계(StudioTextPanel), [요소]는 11-1단계(StudioElementPanel), 나머지는 그 뒤
 const RAIL = [
-  { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '어울리는 템플릿 고르기는 곧 추가될 기능이에요.' },
+  { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '' }, // 15단계: StudioTemplatePanel
   { key: 'section', label: '구간', icon: Rows3, soon: '페이지가 준비되면 여기서 구간을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
   { key: 'photo', label: '사진', icon: ImageIcon, soon: '' },
   { key: 'text', label: '텍스트', icon: Type, soon: '글자 넣기는 곧 추가될 기능이에요.' },
@@ -540,6 +556,51 @@ function startBlank() {
     return
   }
   startChosen.value = true
+}
+
+// ── 템플릿 (15단계) — 왼쪽 [템플릿] 패널·시작 화면 [템플릿으로 시작]. 페이지 문서만 새로 만든다(studioTemplates.buildTemplatePage) ──
+// 사진 편집 결과(studio_images.edit)는 사진에 있어 건드리지 않는다. 교체 = 페이지 이력 한 칸("템플릿 적용") → Ctrl+Z 한 번에 원래 페이지
+const templateAsk = ref(null) // 확인을 기다리는 템플릿 key
+// 템플릿에 넣을 사진 = 기본 배치와 같은 쓸 사진(준비 끝 + 안 쓸 사진 아님, 목록 순서), 자른 사진은 자른 비율로(sizedRow — 12-1)
+const templateImages = computed(() => usableImagesNow().map(i => sizedRow(i.id)).filter(Boolean))
+function askTemplate(key) {
+  if (!templateByKey(key)) { console.error('[StudioEditor] 모르는 템플릿:', key); return }
+  if (!page.value || eraseOpen.value) return
+  pageView.value?.finishEdit()
+  // 아직 저장한 적 없는 기본 배치(시작 화면)·빈 페이지는 묻지 않는다
+  if (pageSession.isDefault.value || page.value.sections.length === 0) { applyTemplate(key); return }
+  templateAsk.value = key
+}
+function confirmTemplate() {
+  const key = templateAsk.value
+  templateAsk.value = null
+  if (key) applyTemplate(key)
+}
+async function applyTemplate(key) {
+  const tpl = templateByKey(key)
+  const pid = project.value?.id
+  if (!tpl || !pid) return
+  await whenFontsReady(templateFontList(tpl)) // 글자 높이를 재야 해서 글꼴 조각을 먼저 받는다
+  if (!page.value || eraseOpen.value || project.value?.id !== pid) return
+  const r = buildTemplatePage(tpl, templateImages.value, textMeasure)
+  if (!r) { showToast('템플릿을 적용하지 못했어요. 잠시 후 다시 해 주세요.'); return }
+  if (pageSession.isDefault.value) {
+    // 시작 화면(저장 전 기본 배치) — [빈 페이지에서 시작]과 같은 길로 바로 저장하고 시작 화면을 닫는다
+    if (!pageSession.startFromDoc(r.page, LABELS.templateApply)) {
+      console.error('[StudioEditor] 템플릿으로 시작하지 못함 (페이지가 비어 있지 않거나 저장 충돌 중):', key)
+      showToast('지금은 시작할 수 없어요. 새로고침한 뒤 다시 해 주세요.')
+      return
+    }
+    startChosen.value = true
+  } else if (!applyPage(r.page, LABELS.templateApply)) {
+    return
+  }
+  clearSelection()
+  nextTick(() => { if (pageScroll.value) pageScroll.value.scrollTop = 0 })
+  const notes = [`사진 ${r.placed}장이 자리에 들어갔어요`]
+  if (r.extra) notes.push(`남은 사진 ${r.extra}장은 아래에 이어 붙였어요`)
+  if (r.emptySlots) notes.push(`사진이 모자란 자리 ${r.emptySlots}곳은 뺐어요`)
+  showToast(`'${tpl.label}' 템플릿을 적용했어요 · ${notes.join(' · ')}`)
 }
 
 // ── 작업 이름 바꾸기 (16단계) — 목록 화면과 같은 저장 함수(renameProject, title 칸만 — page·page_version과 부딪치지 않는다) ──
@@ -787,6 +848,7 @@ function resetEditorLog() {
   resetLookOpen.value = false
   includeAsk.value = null
   reorderOpen.value = false // 8-2 [순서 변경] 화면
+  templateAsk.value = null  // 15 템플릿 교체 확인창
   textEdit.value = null     // 10-1 글자 고치기
   exportOpen.value = false  // 13-1 [내보내기] 창
   exportCompareId.value = null
@@ -1665,7 +1727,8 @@ const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!con
   || replaceOpen.value || resetLookOpen.value || !!includeAsk.value || reorderOpen.value
   || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
   || previewOpen.value // 13-2: 미리보기가 열린 동안도
-  || !!cropImageId.value) // 12-1: 자르기 창이 열린 동안도
+  || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
+  || !!templateAsk.value) // 15: 템플릿 교체 확인창
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'

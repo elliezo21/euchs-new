@@ -123,9 +123,21 @@ export function usePageSession({ usableImages, showToast }) {
    * @returns {boolean} 저장을 시작했으면 true
    */
   function startFromDefault() {
-    if (!projectId.value || !isDefault.value || conflict.value) return false
-    const doc = buildInitialPage(usableImages())
-    startWith(doc, LABELS.pageInit)
+    return startFromDoc(buildInitialPage(usableImages()), LABELS.pageInit)
+  }
+
+  /**
+   * 시작 화면 [템플릿으로 시작] (15단계) — 만든 문서(studioTemplates.buildTemplatePage)로 바로 저장한다. 규칙은 startFromDefault와 같다.
+   * @returns {boolean} 저장을 시작했으면 true
+   */
+  function startFromDoc(doc, label) {
+    if (!projectId.value || !isDefault.value || conflict.value || !doc) return false
+    const size = checkPageSize(doc)
+    if (!size.ok) {
+      console.error('[PageSession] 시작 문서가 저장 한도를 넘어 시작하지 않음:', size.bytes, '>', PAGE_MAX_BYTES)
+      return false
+    }
+    startWith(doc, label)
     saver.change(projectId.value, doc)
     saver.flush() // 기다리지 않고 바로 저장 (결과는 상단 저장 상태로 보인다)
     return true
@@ -189,6 +201,6 @@ export function usePageSession({ usableImages, showToast }) {
     page, history, isDefault, readError, saveStatus, saveDetail, conflict, conflictError, conflictLoading, lastSavedAt,
     canUndoNow, canRedoNow,
     syncFromServer, apply, undo, redo, reloadConflicted, retrySave, flush, hasUnsaved, resetAll, dispose,
-    startFromDefault,
+    startFromDefault, startFromDoc,
   }
 }

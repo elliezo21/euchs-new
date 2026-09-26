@@ -17,6 +17,7 @@ eq('단계 순서·이름', STUDIO_STEPS.map(s => `${s.no} ${s.label}`), ['1 사
 eq('단계별 왼쪽 패널 (②도 사진 목록 — 8단계 전)', STUDIO_STEPS.map(s => s.panel), ['photo', 'photo', null])
 eq('③은 열림 (13-2 — 곧 열려요 없음)', [!!stepInfo(3).soon, !!stepInfo(1).soon], [false, false])
 eq('모르는 단계 → ①', stepInfo(9).no, 1)
+eq('② 안내에 템플릿 (15단계)', /템플릿/.test(STUDIO_STEPS.find(s => s.no === 2).guide), true)
 eq('고객 문구에 "굽" 없음', STUDIO_STEPS.some(s => /굽|구운/.test(s.label + s.guide)), false)
 
 const st = memStorage()

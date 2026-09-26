@@ -109,6 +109,8 @@ export const LABELS = {
   lookFilter: '필터',
   lookAdjust: '조정',
   lookReset: '필터·조정 초기화',
+  // 템플릿 (15단계) — 페이지 이력 한 칸 (사진 edit는 그대로)
+  templateApply: '템플릿 적용',
 }
 
 const clone = v => JSON.parse(JSON.stringify(v))
