@@ -82,6 +82,8 @@
             v-if="selectedHasText" :page="page" :selected-ids="selectedItemIds" :can-paste-style="canPasteStyle"
             @text="onTextProps" @style-copy="runCommand('styleCopy')" @style-paste="runCommand('stylePaste')"
           />
+          <!-- 도형·선 속성 (11-1): 고른 것 중 도형·선이 있으면 — 바꾸면 그 종류에만 -->
+          <StudioShapeItemPanel v-if="selectedHasElement" :page="page" :selected-ids="selectedItemIds" @shape="onShapeProps" @line="onLineProps" />
         </div>
         <div class="flex-1 min-h-0 flex flex-col">
           <StudioPhotoPanel
@@ -100,6 +102,8 @@
           />
           <!-- [텍스트] 패널 (10-1): 제목·부제목·본문 넣기 -->
           <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" @style="onStylePreset" />
+          <!-- [요소] 패널 (11-1): 도형·선·화살표 넣기 -->
+          <StudioElementPanel v-else-if="activeTool === 'element'" :disabled="!page" @insert="insertElement" />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
             <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
@@ -328,6 +332,8 @@ import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioTextItemPanel from '@/components/studio/StudioTextItemPanel.vue'
+import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
+import StudioShapeItemPanel from '@/components/studio/StudioShapeItemPanel.vue'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
 import {
   isValidTextItem, normalizeTextItem, patchTextItem, textStyleOf, TEXT_INSERT_KINDS, stylePresetByKey, presetPatch, textStyleValues,
@@ -352,8 +358,9 @@ import {
   setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
   groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo,
-  addTextItem, setTextProps, setTextContent,
+  addTextItem, setTextProps, setTextContent, addElementItem, setShapeProps, setLineProps,
 } from '@/lib/studioPage'
+import { isValidShapeItem, isValidLineItem, elementKindByKey } from '@/lib/studioShape'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
 
@@ -367,7 +374,7 @@ let offFontsChanged = null
 
 const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 들어간다)
 
-// 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, [텍스트]는 10-1단계(StudioTextPanel), 나머지는 그 뒤
+// 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, [텍스트]는 10-1단계(StudioTextPanel), [요소]는 11-1단계(StudioElementPanel), 나머지는 그 뒤
 const RAIL = [
   { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '어울리는 템플릿 고르기는 곧 추가될 기능이에요.' },
   { key: 'section', label: '구간', icon: Rows3, soon: '페이지가 준비되면 여기서 구간을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
@@ -777,6 +784,17 @@ async function whenFontsReady(list) {
   textMeasure.clear()
   fontEpoch.value++
 }
+/**
+ * 새 요소를 넣을 구간 — 골라진 구간 → 보는 중 구간. 구간이 없는 페이지면 구간을 하나 만든 문서와 그 구간 (넣기와 같은 이력 한 단계).
+ * 글자(10-1)·도형·선(11-1) 넣기가 같이 쓴다. @returns {{ page, sid } | null} null = 구간을 더 만들 수 없음
+ */
+function insertTarget(p) {
+  const sid = [selectedSectionId.value, pageView.value?.sectionInView()].find(id => id && p.sections.some(s => s.id === id))
+  if (sid) return { page: p, sid }
+  const withSec = addSection(p, { at: p.sections.length })
+  if (withSec === p) return null
+  return { page: withSec, sid: withSec.sections[withSec.sections.length - 1].id }
+}
 /** [제목 넣기]·[부제목 넣기]·[본문 넣기] — 골라진 구간(없으면 보는 중 구간) 가운데에 넣고 바로 고르기 + 고치기 */
 function insertText(kind) {
   const fields = TEXT_INSERT_KINDS[kind]
@@ -786,15 +804,10 @@ function insertText(kind) {
 async function insertTextFields(fields, kind) {
   if (!page.value || eraseOpen.value) return
   await whenFontsReady([{ style: textStyleOf(normalizeTextItem({ type: 'text', ...fields })), text: fields.text }])
-  let p = page.value
-  if (!p || eraseOpen.value) return
-  let sid = [selectedSectionId.value, pageView.value?.sectionInView()].find(id => id && p.sections.some(s => s.id === id)) ?? null
-  if (!sid) { // 구간이 없는 페이지 — 구간을 하나 만들고 거기에 (같은 이력 한 단계)
-    const withSec = addSection(p, { at: p.sections.length })
-    if (withSec === p) { showToast('구간을 더 만들 수 없어 글자를 넣지 못했어요.'); return }
-    p = withSec
-    sid = p.sections[p.sections.length - 1].id
-  }
+  if (!page.value || eraseOpen.value) return
+  const target = insertTarget(page.value)
+  if (!target) { showToast('구간을 더 만들 수 없어 글자를 넣지 못했어요.'); return }
+  const { page: p, sid } = target
   const r = addTextItem(p, sid, fields, textMeasure)
   if (!r.itemId) {
     console.error('[StudioEditor] 글자를 넣지 못함:', kind, sid)
@@ -868,6 +881,34 @@ function onStylePreset(key) {
   if (selectedTextIds.value.length) runCommand('stylePreset', { key })
   else insertTextFields({ ...TEXT_INSERT_KINDS.subtitle, ...presetPatch(preset), text: preset.sample, fontSize: preset.size }, `style:${key}`)
 }
+// ── 도형·선 (11-1) — [요소] 패널 넣기 + 속성 칸. 모양·그리기 규칙은 studioShape.js ──
+const selectedHasElement = computed(() => !!page.value && selectedItemIds.value.some(id => {
+  const it = findItem(page.value, id)?.item
+  return isValidShapeItem(it) || isValidLineItem(it)
+}))
+/** [요소] 패널 견본 누름 — 골라진 구간(없으면 보는 중 구간) 가운데에 넣고 바로 고르기 */
+function insertElement(key) {
+  const kind = elementKindByKey(key)
+  if (!kind) { console.error('[StudioEditor] 모르는 요소 종류:', key); return }
+  if (!page.value || eraseOpen.value) return
+  const target = insertTarget(page.value)
+  if (!target) { showToast('구간을 더 만들 수 없어 넣지 못했어요.'); return }
+  const r = addElementItem(target.page, target.sid, kind.fields)
+  if (!r.itemId) {
+    console.error('[StudioEditor] 요소를 넣지 못함:', key, target.sid)
+    showToast('넣지 못했어요. 잠시 후 다시 해 주세요.')
+    return
+  }
+  if (!applyPage(r.page, kind.fields.type === 'line' ? LABELS.elInsertLine : LABELS.elInsertShape)) return
+  selectedItemIds.value = [r.itemId]
+  selectionSource = 'page'
+  nextTick(() => pageView.value?.scrollToItem(r.itemId))
+}
+const SHAPE_LABEL_OF = { shape: LABELS.shapeKind, fill: LABELS.shapeFill, fillOpacity: LABELS.shapeFill, strokeWidth: LABELS.shapeStroke, strokeColor: LABELS.shapeStroke, radius: LABELS.shapeRadius }
+const LINE_LABEL_OF = { strokeWidth: LABELS.lineWidth, color: LABELS.lineColor, dash: LABELS.lineDash, startCap: LABELS.lineCap, endCap: LABELS.lineCap }
+/** 도형·선 속성 칸 → runCommand (다른 조작과 같은 길) */
+function onShapeProps(patch, { merge, key } = {}) { runCommand('shapeProps', { patch, merge, key }) }
+function onLineProps(patch, { merge, key } = {}) { runCommand('lineProps', { patch, merge, key }) }
 function copyTextStyle() {
   const it = selectedTextIds.value.length === 1 ? findItem(page.value, selectedTextIds.value[0]).item : null
   if (!it) { showToast('글자 하나를 골라야 모양을 복사할 수 있어요.'); return }
@@ -901,6 +942,13 @@ function runCommand(name, args = {}) {
       break
     }
     case 'styleCopy': copyTextStyle(); break
+    // ── 11-1 도형·선 속성 — 그 종류에만 (setShapeProps·setLineProps). 슬라이더·색 고르기를 끄는 동안(merge)은 이력 한 단계 ──
+    case 'shapeProps':
+      applyPage(setShapeProps(p, ids, args.patch), SHAPE_LABEL_OF[Object.keys(args.patch)[0]], args.merge ? { mergeKey: `shape-${args.key}` } : undefined)
+      break
+    case 'lineProps':
+      applyPage(setLineProps(p, ids, args.patch), LINE_LABEL_OF[Object.keys(args.patch)[0]], args.merge ? { mergeKey: `line-${args.key}` } : undefined)
+      break
     case 'stylePaste':
       if (!styleClip.value) { showToast('먼저 글자 모양을 복사해 주세요 (Ctrl+Alt+C).'); break }
       if (!selectedTextIds.value.length) { showToast('모양을 붙일 글자를 골라 주세요.'); break }

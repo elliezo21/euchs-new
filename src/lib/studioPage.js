@@ -26,6 +26,9 @@
  * ★ 모든 바꾸기 함수는 새 문서를 돌려주고 입력을 바꾸지 않는다. 할 수 없는 요청이면 입력을 그대로 돌려준다(=== 비교로 알 수 있음).
  */
 import { isValidTextItem, normalizeTextItem, patchTextItem, fitTextItem, textStyleOf, wrapLines, TEXT_LIMITS } from './studioText.js'
+import {
+  isValidShapeItem, isValidLineItem, normalizeShapeItem, normalizeLineItem, patchShapeItem, patchLineItem, fitLineItem, moveLineEnd,
+} from './studioShape.js'
 
 export const PAGE_VERSION = 1
 export const PAGE_WIDTH = 780 // 쿠팡 (결정 17). 폭은 이 값 하나로만 쓴다
@@ -133,10 +136,13 @@ export function isValidImageItem(it) {
     && [it.x, it.y, it.w, it.h].every(Number.isFinite) && it.w > 0 && it.h > 0
 }
 
-/** 화면에 그리는 요소 (사진·글자). 그 밖의 type은 보존만 */
+/** 화면에 그리는 요소 (사진·글자·도형·선 — 11-1). 그 밖의 type은 보존만 */
 export function isDrawableItem(it) {
-  return isValidImageItem(it) || isValidTextItem(it)
+  return isValidImageItem(it) || isValidTextItem(it) || isValidShapeItem(it) || isValidLineItem(it)
 }
+
+/** type별 칸 정리 (readPage) — 공통 칸은 normalizeItem, 글자·도형·선은 그 칸도 */
+const NORMALIZE_BY_TYPE = { text: normalizeTextItem, shape: normalizeShapeItem, line: normalizeLineItem }
 
 /**
  * 문서 모양 검사. 아이템 하나가 이상한 것은 문서 오류가 아니다 (그 아이템만 그리지 않음)
@@ -184,11 +190,19 @@ export function readPage(raw, projectId) {
     for (const it of s.items) {
       if (it.type === 'image' && !isValidImageItem(it)) console.error('[studioPage] 잘못된 사진 아이템 — 그리지 않고 보존:', projectId, s.id, it)
       if (it.type === 'text' && !isValidTextItem(it)) console.error('[studioPage] 잘못된 글자 아이템 — 그리지 않고 보존:', projectId, s.id, it)
+      if ((it.type === 'shape' && !isValidShapeItem(it)) || (it.type === 'line' && !isValidLineItem(it))) console.error('[studioPage] 잘못된 도형·선 아이템 — 그리지 않고 보존:', projectId, s.id, it)
     }
   }
   const page = clone(raw)
   // 예전 페이지: 회전 등 빠진 칸을 기본값으로. 글자 요소(10-1)는 글자 칸도 (글꼴·크기 등 잘못된 값 → 기본값)
-  for (const s of page.sections) s.items = s.items.map(it => (it?.type === 'text' ? normalizeTextItem(normalizeItem(it)) : normalizeItem(it)))
+  // 11-1: 도형·선도 같은 방식 (NORMALIZE_BY_TYPE)
+  for (const s of page.sections) {
+    s.items = s.items.map(it => {
+      const n = normalizeItem(it)
+      const byType = NORMALIZE_BY_TYPE[n?.type]
+      return byType ? byType(n) : n
+    })
+  }
   return { page: cleanGroups(page), problems: [] } // 9단계: 어긋난 그룹(1개만·구간을 넘음)은 풀어서 읽는다
 }
 
@@ -627,6 +641,7 @@ export function setItemRect(page, id, rect, measure = null) {
     const w = Number.isFinite(rect.w) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.w)) : it.w
     let h = Number.isFinite(rect.h) ? Math.max(ITEM_MIN_SIZE, Math.round(rect.h)) : it.h
     if (isValidTextItem(it)) h = measure ? fitTextItem({ ...it, w }, measure).h : it.h
+    if (isValidLineItem(it)) h = it.h // 11-1: 선의 h는 굵기에 맞춘 자동 값 (손으로 안 바꿈)
     const n = { ...it, w, h }
     const p = clampItemPosition(n, s, page.width, Number.isFinite(rect.x) ? rect.x : it.x, Number.isFinite(rect.y) ? rect.y : it.y)
     return { ...n, x: p.x, y: p.y }
@@ -1128,6 +1143,55 @@ export function resizeTextItem(page, id, handle, dx, dy, measure) {
     const pos = anchoredPos(it, f.w, f.h, -sx, -sy)
     const p = clampItemPosition(f, s, page.width, pos.x, pos.y)
     return { ...f, x: p.x, y: p.y }
+  })
+}
+
+// ── 도형·선 (11-1단계) — 모양·그리기 규칙은 studioShape.js ──
+
+/**
+ * 도형·선 넣기 — 그 구간 가운데에 맨 앞으로. fields = type('shape'|'line') + 그 칸 + w·h (빠진 값은 기본값, 선의 h는 자동)
+ * @returns {{ page, itemId: string|null }} (없는 구간·모르는 type이면 page 그대로, itemId null)
+ */
+export function addElementItem(page, sectionId, fields) {
+  const s = page.sections.find(x => x.id === sectionId)
+  const byType = { shape: normalizeShapeItem, line: normalizeLineItem }[fields?.type]
+  if (!s || !byType) return { page, itemId: null }
+  const w = Math.max(ITEM_MIN_SIZE, Math.min(page.width, Math.round(fields.w ?? 200)))
+  const h = fields.type === 'line' ? 2 : Math.max(ITEM_MIN_SIZE, Math.round(fields.h ?? 200)) // 선의 h는 normalizeLineItem이 맞춘다
+  const it = byType(normalizeItem({ ...fields, x: 0, y: 0, w, h, id: newPageId('i') }))
+  const p = clampItemPosition(it, s, page.width, (page.width - it.w) / 2, (s.height - it.h) / 2)
+  const item = { ...it, x: p.x, y: p.y }
+  const next = addItem(page, s.id, item)
+  return next === page ? { page, itemId: null } : { page: next, itemId: item.id }
+}
+
+/** 도형 속성 바꾸기 (모양·채우기·테두리·모서리) — ids 중 도형에만. 잠긴 요소도(내용 바꾸기) */
+export function setShapeProps(page, ids, patch) {
+  return mapItems(page, ids, it => (isValidShapeItem(it) ? patchShapeItem(it, patch) : it))
+}
+/** 선 속성 바꾸기 (굵기·색·선 모양·끝 모양) — ids 중 선에만. 굵기·끝 모양이 바뀌면 h 자동(가운데 제자리) */
+export function setLineProps(page, ids, patch) {
+  return mapItems(page, ids, (it, s) => {
+    if (!isValidLineItem(it)) return it
+    const n = patchLineItem(it, patch)
+    if (n === it) return it
+    const p = clampItemPosition(n, s, page.width, n.x, n.y)
+    return { ...n, x: p.x, y: p.y }
+  })
+}
+
+/**
+ * 선 끝 점 끌기 — (px, py) = 구간 좌표. 반대쪽 끝은 제자리 (moveLineEnd). 잠긴 선은 그대로
+ * @param {'start'|'end'} which  @param {{ snap?: boolean }} opts snap = Shift (15° 단위)
+ */
+export function setLineEnd(page, id, which, px, py, opts = {}) {
+  if (!Number.isFinite(px) || !Number.isFinite(py)) return page
+  return mapItems(page, [id], (it, s) => {
+    if (it.locked || !isValidLineItem(it)) return it
+    const r = moveLineEnd(it, which, px, py, opts)
+    const n = fitLineItem({ ...it, ...r })
+    const p = clampItemPosition(n, s, page.width, n.x, n.y)
+    return { ...n, x: p.x, y: p.y }
   })
 }
 

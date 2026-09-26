@@ -83,6 +83,18 @@
             />
             <StudioTextView v-else-if="!it.hidden" :item="it" :lines="linesOf(it)" :scale="zoom" />
           </div>
+          <!-- 도형·선 (11-1): studioShape의 path를 SVG로. 더블클릭은 아무것도 안 함 -->
+          <div
+            v-else-if="isValidShapeItem(it) || isValidLineItem(it)"
+            class="absolute select-none"
+            :class="[it.locked ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
+            :style="itemStyle(it)"
+            :data-item-id="it.id" :data-element-item="it.type" :data-hidden="it.hidden ? '1' : null"
+            @pointerdown="onItemDown($event, it)"
+            @contextmenu.prevent.stop="onItemContext($event, it)"
+          >
+            <StudioShapeView v-if="!it.hidden" :item="it" :scale="zoom" />
+          </div>
         </template>
       </section>
     </div>
@@ -110,13 +122,17 @@
     >
       <span v-if="f.locked" class="st-frame-lock" title="잠겨 있어요" data-frame-lock><Lock class="w-3 h-3" :stroke-width="2.5" /></span>
       <template v-if="f.handles">
-        <span class="st-rotate-stem" />
-        <span
-          class="st-rotate-handle" title="돌리기 (Shift: 15°씩)" data-rotate-handle
-          @pointerdown.stop.prevent="onRotateDown($event, f.id)"
-        ><RotateCw class="w-3 h-3" :stroke-width="2.5" /></span>
+        <!-- 선(11-1)은 회전 손잡이 없음 — 끝 점으로 돌린다 -->
+        <template v-if="f.rotate">
+          <span class="st-rotate-stem" />
+          <span
+            class="st-rotate-handle" title="돌리기 (Shift: 15°씩)" data-rotate-handle
+            @pointerdown.stop.prevent="onRotateDown($event, f.id)"
+          ><RotateCw class="w-3 h-3" :stroke-width="2.5" /></span>
+        </template>
         <span
           v-for="h in f.handleList" :key="h" class="st-resize-handle" :class="`is-${h}`" :data-resize-handle="h"
+          :title="h === 'start' || h === 'end' ? '끝 점 끌기 (Shift: 15°씩)' : null"
           @pointerdown.stop.prevent="onResizeDown($event, f.id, h)"
         />
       </template>
@@ -149,11 +165,13 @@ import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
   DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
-  isDrawableItem, resizeTextItem, textLinesOf,
+  isDrawableItem, resizeTextItem, textLinesOf, setLineEnd,
 } from '@/lib/studioPage'
 import { isValidTextItem, textPaintSpec } from '@/lib/studioText'
 import { cssFamilyOf } from '@/lib/studioFonts'
 import StudioTextView from '@/components/studio/StudioTextView.vue'
+import StudioShapeView from '@/components/studio/StudioShapeView.vue'
+import { isValidShapeItem, isValidLineItem } from '@/lib/studioShape'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
 import { KIND_LABEL } from '@/lib/studioProjects'
@@ -182,6 +200,7 @@ const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르�
 const SNAP_PX = 6        // 화면 px — 이만큼 가까우면 달라붙는다
 const HANDLES = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w']
 const TEXT_HANDLES = ['nw', 'ne', 'e', 'se', 'sw', 'w'] // 글자: 위아래 손잡이 없음 (높이는 글자에 맞춰 자동)
+const LINE_HANDLES = ['start', 'end'] // 선(11-1): 양 끝 점만 — 끌면 반대쪽 끝은 제자리(setLineEnd)
 
 // 글자 폭 재기·글꼴 준비 (편집기가 provide — 미니뷰·순서 변경 그림과 같은 측정). epoch가 바뀌면(글꼴을 새로 받음) 줄을 다시 계산
 const textLayout = inject('studioTextLayout')
@@ -279,7 +298,8 @@ function itemStyle(it) {
   const z = props.zoom
   const rot = it.rotation ? `rotate(${it.rotation}deg)` : null
   const out = { left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.hidden ? null : (it.opacity ?? 1), transform: rot }
-  if (it.hidden) return out
+  // 꾸미기(6-2 테두리·모서리·그림자)는 사진 요소에만 — 도형(11-1)의 radius 칸이 이름이 같아 사진 꾸미기로 읽히지 않게
+  if (it.hidden || !isValidImageItem(it)) return out
   // 꾸미기 (6-2): 테두리(안쪽으로)·모서리·그림자 — 페이지 좌표 값에 배율을 곱한다
   const st = itemStyleOf(it)
   if (st.borderWidth) out.border = `${st.borderWidth * z}px solid ${st.borderColor}`
@@ -327,7 +347,8 @@ const frames = computed(() => {
     const it = f.item
     const top = rowOf(f.section.id).top
     out.push({
-      id, locked: !!it.locked, handles: false, handleList: isValidTextItem(it) ? TEXT_HANDLES : HANDLES,
+      id, locked: !!it.locked, handles: false,
+      handleList: isValidTextItem(it) ? TEXT_HANDLES : isValidLineItem(it) ? LINE_HANDLES : HANDLES, rotate: !isValidLineItem(it),
       style: { left: `${it.x * z}px`, top: `${(top + it.y) * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, transform: it.rotation ? `rotate(${it.rotation}deg)` : null },
     })
   }
@@ -463,8 +484,15 @@ function onMove(e) {
       draft.value = resizeTextItem(P, act.id, act.handle, sdx / z, sdy / z, textLayout.measure)
       return
     }
+    if (isValidLineItem(f.item)) { // 11-1: 선 끝 점 — 누른 자리(구간 좌표)로, Shift = 15° 단위
+      const p = pagePoint(e)
+      draft.value = setLineEnd(P, act.id, act.handle, p.x, p.y - rowOf(f.section.id).top, { snap: e.shiftKey })
+      return
+    }
     const corner = act.handle.length === 2
-    const r = resizeRect(f.item, f.item.rotation || 0, act.handle, sdx / z, sdy / z, { keepRatio: corner && !e.shiftKey })
+    // 사진·그 밖: 모서리 = 비율 유지(Shift = 자유). 도형(11-1): 모서리 = 자유(Shift = 비율 유지)
+    const keepRatio = corner && (isValidShapeItem(f.item) ? e.shiftKey : !e.shiftKey)
+    const r = resizeRect(f.item, f.item.rotation || 0, act.handle, sdx / z, sdy / z, { keepRatio })
     draft.value = setItemRect(P, act.id, r)
   } else if (act.kind === 'rotate') {
     let deg = Math.atan2(e.clientY - act.cy, e.clientX - act.cx) * 180 / Math.PI + 90
@@ -635,6 +663,10 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
 .st-resize-handle.is-s { left: 50%; top: 100%; cursor: ns-resize; }
 .st-resize-handle.is-sw { left: 0; top: 100%; cursor: nesw-resize; }
 .st-resize-handle.is-w { left: 0; top: 50%; cursor: ew-resize; }
+/* 선 끝 점 (11-1) — 둥근 손잡이 */
+.st-resize-handle.is-start, .st-resize-handle.is-end { top: 50%; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 999px; cursor: grab; }
+.st-resize-handle.is-start { left: 0; }
+.st-resize-handle.is-end { left: 100%; }
 .st-rotate-stem { position: absolute; left: 50%; top: -22px; width: 1px; height: 22px; background: var(--st-accent); }
 .st-rotate-handle {
   position: absolute; left: 50%; top: -34px; width: 22px; height: 22px; margin-left: -11px; pointer-events: auto; cursor: grab;
