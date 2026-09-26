@@ -117,6 +117,20 @@ export function usePageSession({ usableImages, showToast }) {
     return true
   }
 
+  /**
+   * 시작 화면 [빈 페이지에서 시작] (16단계) — 지금 쓸 사진으로 기본 배치(buildInitialPage, 새 규칙 없음)를 만들어 바로 저장한다.
+   * 페이지가 비어 있는 작업(isDefault)에서만. 이력은 "처음 배치" 한 단계로 새로 시작.
+   * @returns {boolean} 저장을 시작했으면 true
+   */
+  function startFromDefault() {
+    if (!projectId.value || !isDefault.value || conflict.value) return false
+    const doc = buildInitialPage(usableImages())
+    startWith(doc, LABELS.pageInit)
+    saver.change(projectId.value, doc)
+    saver.flush() // 기다리지 않고 바로 저장 (결과는 상단 저장 상태로 보인다)
+    return true
+  }
+
   function applyHistory(res) {
     if (!res || !projectId.value) return
     lastMerge = null
@@ -175,5 +189,6 @@ export function usePageSession({ usableImages, showToast }) {
     page, history, isDefault, readError, saveStatus, saveDetail, conflict, conflictError, conflictLoading, lastSavedAt,
     canUndoNow, canRedoNow,
     syncFromServer, apply, undo, redo, reloadConflicted, retrySave, flush, hasUnsaved, resetAll, dispose,
+    startFromDefault,
   }
 }

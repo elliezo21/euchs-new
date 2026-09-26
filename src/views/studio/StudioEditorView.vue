@@ -10,7 +10,30 @@
       <button type="button" class="st-icon-btn" :disabled="!editorCanUndo" :title="editorCanUndo ? '되돌리기' : '되돌릴 동작이 없어요'" data-action="undo" @click="undoAny"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
       <button type="button" class="st-icon-btn" :disabled="!editorCanRedo" :title="editorCanRedo ? '다시' : '다시 할 동작이 없어요'" data-action="redo" @click="redoAny"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
       <div class="min-w-0 ml-1 leading-tight" data-title-block>
-        <div class="text-[14px] font-extrabold st-ink truncate">{{ project ? projectDisplayTitle(project) : '' }}</div>
+        <!-- 작업 이름 (16단계): 누르면 입력칸 — Enter·칸 밖 = 저장, Esc = 취소, 빈 이름은 저장 안 함. 옆 ⋯ = 이름 바꾸기·복사본 만들기 -->
+        <div class="flex items-center gap-0.5 min-w-0">
+          <input
+            v-if="titleEdit.open" ref="titleInput" v-model="titleEdit.value" type="text" maxlength="100"
+            class="st-title-input" aria-label="작업 이름" data-title-input
+            @keydown.enter.prevent="commitTitle" @keydown.esc.prevent="cancelTitle" @blur="commitTitle"
+          />
+          <button
+            v-else type="button" class="st-title-btn truncate" :disabled="!project" title="눌러서 이름 바꾸기" data-title
+            @click="openTitleEdit"
+          >{{ project ? projectDisplayTitle(project) : '' }}</button>
+          <div v-if="project" class="relative shrink-0">
+            <button type="button" class="st-icon-btn st-title-more" title="작업 메뉴" :aria-expanded="titleMenuOpen" data-title-menu @click="titleMenuOpen = !titleMenuOpen">
+              <MoreHorizontal class="w-4 h-4" :stroke-width="2" />
+            </button>
+            <template v-if="titleMenuOpen">
+              <div class="fixed inset-0" style="z-index: 40" @click="titleMenuOpen = false" />
+              <div class="absolute left-0 top-[calc(100%+4px)] w-44 st-card st-shadow-float py-1" style="z-index: 41" data-title-menu-list>
+                <button type="button" class="st-menu-row" data-menu-rename @click="openTitleEdit"><Pencil class="w-4 h-4" :stroke-width="2" /> 이름 바꾸기</button>
+                <button type="button" class="st-menu-row" :disabled="copyNotice?.status === 'working'" data-menu-copy @click="copyThisProject"><Copy class="w-4 h-4" :stroke-width="2" /> 복사본 만들기</button>
+              </div>
+            </template>
+          </div>
+        </div>
         <template v-if="project">
           <button v-if="topSaveStatus === 'error'" type="button" class="text-[11px] font-bold st-danger-text underline" :title="topSaveDetail" data-save-status="error" @click="retryAllSaves">저장하지 못했어요 · 다시 시도</button>
           <button v-else-if="topSaveStatus === 'conflict'" type="button" class="text-[11px] font-bold st-danger-text underline" data-save-status="conflict" @click="reopenAnyConflict">저장 안 됨 · 다른 창과 충돌</button>
@@ -69,7 +92,7 @@
       <!-- 재료 패널 (300px): 고른 메뉴의 재료. 사진을 누르면 사진 속성 패널(6단계) -->
       <aside class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
         <!-- 고른 요소가 있으면 위쪽에 공통 조작 칸 (6-1) + 사진 한 장이면 사진 묶음 (6-2) -->
-        <div v-if="isWide && page && selectedItemIds.length" class="shrink-0 max-h-[65%] overflow-y-auto" data-selection-panels>
+        <div v-if="isWide && page && selectedItemIds.length && !showStart" class="shrink-0 max-h-[65%] overflow-y-auto" data-selection-panels>
           <StudioTransformPanel :page="page" :selected-ids="selectedItemIds" @command="runCommand" />
           <StudioImageItemPanel
             v-if="selectedPhotoItem"
@@ -117,6 +140,8 @@
 
       <!-- 가운데: 긴 한 장 페이지 (4단계, DOM — 구간이 위에서 아래로 쌓인다) -->
       <section v-if="isWide" class="flex-1 min-w-0 relative st-canvas-bg st-dotgrid" data-canvas-area>
+        <!-- 시작 화면 ⓪ (16단계): 페이지가 비어 있는 작업(DB page = null)일 때만 가운데를 덮는다. 왼쪽 사진 목록은 그대로 쓸 수 있다 -->
+        <StudioStartScreen v-if="showStart" :usable-count="usableImagesNow().length" @blank="startBlank" />
         <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
           <div v-else-if="page && page.sections.length" class="pt-8 pb-24" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
@@ -245,6 +270,15 @@
     <StudioContextMenu :open="ctx.open" :x="ctx.x" :y="ctx.y" :items="ctx.items" @select="onContextSelect" @close="ctx.open = false" />
 
     <div v-if="toast" class="absolute top-16 left-1/2 -translate-x-1/2 px-3 py-2 rounded-[10px] st-card st-shadow-float text-[13px] font-bold st-ink break-keep" style="z-index: 30" data-toast>{{ toast }}</div>
+    <!-- 작업 복사본 (16단계): 만드는 중 → "복사본을 만들었어요 [열기]" (닫을 때까지 남는다) -->
+    <div v-if="copyNotice" class="absolute top-16 right-4 flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-[10px] st-card st-shadow-float text-[13px] font-bold st-ink break-keep" style="z-index: 31" :data-copy-notice="copyNotice.status">
+      <template v-if="copyNotice.status === 'working'">복사본을 만드는 중이에요…</template>
+      <template v-else>
+        <span>복사본을 만들었어요</span>
+        <button type="button" class="st-btn st-btn-primary h-8" data-copy-open @click="openCopy">열기</button>
+        <button type="button" class="st-icon-btn" title="닫기" data-copy-close @click="copyNotice = null"><X class="w-4 h-4" :stroke-width="2" /></button>
+      </template>
+    </div>
 
     <!-- 사진 추가 -->
     <StudioModal :open="addOpen" wide title="내 사진 올리기" @close="addOpen = false">
@@ -345,7 +379,11 @@ import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vu
 import {
   ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp, Trash2, Eraser,
   LayoutTemplate, Rows3, Image as ImageIcon, Type, Shapes, Blend, Bookmark, PanelRightOpen, PanelRightClose, ArrowUpDown, MoveVertical,
+  MoreHorizontal, Pencil, Copy, X,
 } from 'lucide-vue-next'
+import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
+import { shouldShowStart } from '@/lib/studioStart'
+import { copyProject } from '@/lib/studioProjectCopy'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioEraseScreen from '@/components/studio/StudioEraseScreen.vue'
@@ -380,7 +418,7 @@ import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
 import { SOURCE_MINE } from '@/lib/studioPhotoTabs'
 import {
   loadMyProject, listEditorImages, signViewUrls, sortStudioImages, sortBySortOrder, hasSortOrderOverlap, setImageIncluded,
-  renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL,
+  renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL, renameProject,
 } from '@/lib/studioProjects'
 import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
@@ -486,11 +524,81 @@ const imagesById = computed(() => new Map(images.value.map(i => [i.id, i])))
 
 // ── 페이지 (4단계) ──
 // 기본 배치에 넣을 사진: 가져오기·올리기가 끝났고(done) 안 쓸 사진으로 빼지 않은 것(included), 지금 목록 순서
-const pageSession = usePageSession({
-  usableImages: () => images.value.filter(i => i.ingest_status === 'done' && i.included === true),
-  showToast,
-})
+const usableImagesNow = () => images.value.filter(i => i.ingest_status === 'done' && i.included === true)
+const pageSession = usePageSession({ usableImages: usableImagesNow, showToast })
 const page = pageSession.page
+
+// ── 시작 화면 ⓪ (16단계) — DB page가 비어 있는 작업만 (studioStart.shouldShowStart). [빈 페이지에서 시작] = 기본 배치를 바로 저장 ──
+const startChosen = ref(false) // 이 창에서 시작을 골랐음 — 저장이 끝나기 전에도 바로 닫는다 (작업을 바꾸거나 로그아웃하면 비운다)
+const showStart = computed(() => shouldShowStart({
+  hasProject: !!project.value, isDefault: pageSession.isDefault.value, readError: pageSession.readError.value, chosen: startChosen.value,
+}))
+function startBlank() {
+  if (!pageSession.startFromDefault()) {
+    console.error('[StudioEditor] 시작 화면: 기본 배치로 시작하지 못함 (페이지가 비어 있지 않거나 저장 충돌 중)')
+    showToast('지금은 시작할 수 없어요. 새로고침한 뒤 다시 해 주세요.')
+    return
+  }
+  startChosen.value = true
+}
+
+// ── 작업 이름 바꾸기 (16단계) — 목록 화면과 같은 저장 함수(renameProject, title 칸만 — page·page_version과 부딪치지 않는다) ──
+const titleEdit = reactive({ open: false, value: '' })
+const titleInput = ref(null)
+const titleMenuOpen = ref(false)
+function openTitleEdit() {
+  titleMenuOpen.value = false
+  if (!project.value) return
+  titleEdit.value = projectDisplayTitle(project.value)
+  titleEdit.open = true
+  nextTick(() => { titleInput.value?.focus(); titleInput.value?.select() })
+}
+function cancelTitle() { titleEdit.open = false }
+async function commitTitle() {
+  if (!titleEdit.open) return // Enter 뒤 입력칸이 사라지며 오는 blur는 한 번만
+  titleEdit.open = false
+  const p = project.value
+  const next = titleEdit.value.trim()
+  if (!p || !next || next === projectDisplayTitle(p)) return // 빈 이름·그대로면 저장하지 않는다
+  const prev = p.title
+  p.title = next
+  try {
+    await renameProject(p.id, next)
+  } catch (e) {
+    console.error('[StudioEditor] 이름 바꾸기 실패:', e)
+    if (project.value?.id === p.id) p.title = prev
+    showToast(e.message || '이름을 바꾸지 못했어요. 잠시 후 다시 해 주세요.')
+  }
+}
+
+// ── 작업 복사본 (16단계) — 서버가 만든다(studioProjectCopy). 서버에 저장된 내용을 복사하므로 먼저 저장을 끝낸다. 확인 없이 바로 ──
+const copyNotice = ref(null) // { status: 'working' } | { status: 'done', projectId }
+async function copyThisProject() {
+  titleMenuOpen.value = false
+  const p = project.value
+  if (!p || copyNotice.value?.status === 'working') return
+  copyNotice.value = { status: 'working' }
+  try {
+    const [okEdit, okPage] = await Promise.all([session.flush(), pageSession.flush()])
+    if (!okEdit || !okPage) {
+      copyNotice.value = null
+      showToast('저장이 끝나지 않아 복사하지 않았어요. 저장된 뒤 다시 눌러 주세요.')
+      return
+    }
+    const r = await copyProject(p.id)
+    if (project.value?.id !== p.id) { copyNotice.value = null; return } // 그 사이 다른 작업으로 옮김
+    copyNotice.value = { status: 'done', projectId: r.projectId }
+  } catch (e) {
+    console.error('[StudioEditor] 복사본 만들기 실패:', e)
+    copyNotice.value = null
+    showToast(e.message)
+  }
+}
+function openCopy() {
+  const id = copyNotice.value?.projectId
+  copyNotice.value = null
+  if (id) router.push({ name: 'studio-editor', params: { projectId: id } })
+}
 const pageCanUndo = computed(() => pageSession.canUndoNow.value && !eraseOpen.value)
 const pageCanRedo = computed(() => pageSession.canRedoNow.value && !eraseOpen.value)
 const selectedItemIds = ref([])  // 페이지에서 고른 요소 (6-1: 여러 개)
@@ -1837,6 +1945,7 @@ function onBeforeUnload(e) {
 // (사용가이드는 14단계 — 생기면 여기서 막는다)
 function onKeyDown(e) {
   if (!isWide.value || anyModalOpen.value || ctx.open || textEdit.value) return // 10-1: 글자를 고치는 동안은 쉰다
+  if (showStart.value && !eraseOpen.value) return // 16단계: 시작 화면이 가린 (저장 전) 기본 배치를 단축키로 고치지 않게
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
   if (pageView.value?.isBusy()) return // 끌고 있는 중
@@ -1906,6 +2015,9 @@ function onRightChange() {
 watch(() => route.params.projectId, (id, old) => {
   if (!id || id === old) return
   project.value = null
+  startChosen.value = false // 16단계: 시작 화면·이름 칸·작업 메뉴는 작업마다 새로
+  titleEdit.open = false
+  titleMenuOpen.value = false
   selectedImageId.value = null
   selectedItemIds.value = []
   session.selectedLayerId.value = null
@@ -1939,6 +2051,10 @@ const onStudioAuthChanged = (e) => {
     addOpen.value = false
     clearAllOpen.value = false
     leaveOpen.value = false
+    startChosen.value = false // 16단계
+    titleEdit.open = false
+    titleMenuOpen.value = false
+    copyNotice.value = null
   }
 }
 
@@ -2000,4 +2116,21 @@ onUnmounted(() => {
 .st-rail-item:hover { background: var(--st-card); color: var(--st-ink); }
 .st-rail-item.is-active { background: var(--st-accent-soft); color: var(--st-accent); }
 .st-ai-cta { height: 44px; padding: 0 16px 0 12px; gap: 8px; border-radius: 12px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--st-ai) 22%, transparent); }
+/* 작업 이름 (16단계) — 누르면 고칠 수 있다는 것만 보이게: 마우스를 올리면 옅은 바탕 */
+.st-title-btn {
+  max-width: 320px; height: 24px; padding: 0 6px; margin-left: -6px; border: 0; border-radius: var(--st-radius-sm);
+  background: transparent; cursor: text; text-align: left; font-size: 14px; font-weight: 800; color: var(--st-ink);
+}
+.st-title-btn:hover:not(:disabled) { background: var(--st-card-hover); }
+.st-title-input {
+  width: 320px; height: 26px; padding: 0 6px; margin-left: -6px; border-radius: var(--st-radius-sm);
+  border: 1px solid var(--st-accent); background: var(--st-card); color: var(--st-ink); font-size: 14px; font-weight: 800; outline: none;
+}
+.st-title-more { width: 26px; height: 26px; }
+.st-menu-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 12px; border: 0; background: transparent; cursor: pointer;
+  text-align: left; font-size: 13px; font-weight: 700; color: var(--st-ink-2);
+}
+.st-menu-row:hover:not(:disabled) { background: var(--st-card-hover); color: var(--st-ink); }
+.st-menu-row:disabled { opacity: .5; cursor: default; }
 </style>

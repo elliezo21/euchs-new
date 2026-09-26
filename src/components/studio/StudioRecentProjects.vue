@@ -20,6 +20,17 @@
       </div>
     </div>
 
+    <!-- 작업 복사본 (16단계): 만드는 중 / 만들었어요 [열기] / 실패 사유 -->
+    <div v-if="copyState.status" class="mb-4 flex items-center gap-2 px-3 py-2 rounded-[10px] st-card text-[13px] font-bold break-keep" :data-copy-notice="copyState.status">
+      <span v-if="copyState.status === 'working'" class="st-ink-2">복사본을 만드는 중이에요…</span>
+      <template v-else-if="copyState.status === 'done'">
+        <span class="st-ink">복사본을 만들었어요</span>
+        <router-link :to="{ name: 'studio-editor', params: { projectId: copyState.projectId } }" class="st-btn st-btn-primary h-8" data-copy-open>열기</router-link>
+      </template>
+      <span v-else class="st-danger-text">{{ copyState.error }}</span>
+      <button v-if="copyState.status !== 'working'" type="button" class="ml-auto st-link-muted text-[12px]" @click="copyState.status = ''">닫기</button>
+    </div>
+
     <p v-if="loading" class="st-desc">불러오는 중…</p>
     <p v-else-if="errorMsg" class="text-[14px] font-bold st-danger-text">{{ errorMsg }}</p>
     <p v-else-if="filtered.length === 0" class="st-desc">이 종류의 작업은 아직 없어요.</p>
@@ -46,6 +57,7 @@
             ><MoreHorizontal class="w-4 h-4" :stroke-width="2" /></button>
             <div v-if="openMenuId === p.id" class="absolute right-0 mt-1 w-36 st-card st-shadow-float py-1 z-10">
               <button type="button" class="w-full text-left px-3 py-2 text-[14px] font-semibold st-ink-2 st-hover-soft" @click="openRename(p)">이름 바꾸기</button>
+              <button type="button" class="w-full text-left px-3 py-2 text-[14px] font-semibold st-ink-2 st-hover-soft" :disabled="copyState.status === 'working'" data-card-copy @click="copyCard(p)">복사본 만들기</button>
               <button type="button" class="w-full text-left px-3 py-2 text-[14px] font-semibold st-danger-text st-hover-soft" @click="openDelete(p)">삭제</button>
             </div>
           </div>
@@ -95,6 +107,7 @@ import {
   listMyProjects, listImagesOf, signViewUrls, sortStudioImages,
   renameProject, softDeleteProject, projectDisplayTitle,
 } from '@/lib/studioProjects'
+import { copyProject } from '@/lib/studioProjectCopy'
 
 const props = defineProps({
   title: { type: String, default: '최근 작업' },
@@ -213,6 +226,22 @@ async function confirmDelete() {
   }
 }
 
+// ── 복사본 만들기 (16단계) — 확인 없이 바로. 서버가 사진·지운 결과까지 새 작업으로 복사한다 (studioProjectCopy) ──
+const copyState = reactive({ status: '', projectId: null, error: '' }) // status: '' | 'working' | 'done' | 'failed'
+async function copyCard(p) {
+  openMenuId.value = null
+  if (copyState.status === 'working') return
+  Object.assign(copyState, { status: 'working', projectId: null, error: '' })
+  try {
+    const r = await copyProject(p.id)
+    Object.assign(copyState, { status: 'done', projectId: r.projectId })
+    load() // 새 카드가 목록에 보이게
+  } catch (e) {
+    console.error('[StudioRecentProjects] 복사본 만들기 실패:', e)
+    Object.assign(copyState, { status: 'failed', error: e.message })
+  }
+}
+
 const closeMenu = () => { openMenuId.value = null }
 
 // 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 프로젝트·서명 URL을 비운다
@@ -222,6 +251,7 @@ const onStudioAuthChanged = (e) => {
     projects.value = []
     renameModal.open = false
     deleteModal.open = false
+    Object.assign(copyState, { status: '', projectId: null, error: '' })
     emit('loaded', 0)
   } else {
     load() // 다른 계정으로 로그인 — 그 계정 목록으로 다시 채운다

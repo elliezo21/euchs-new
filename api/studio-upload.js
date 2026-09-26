@@ -38,6 +38,14 @@
  *   → { ok:true, recorded:true|false, width, height }
  * 에러: invalid_input·project_expired·final_invalid·final_too_large·not_uploaded 400 / final_stale 409 / not_found 404 / sign_failed·storage_error·internal 500
  *
+ * ── 작업 복사본 (16단계) ── 브라우저는 studio_projects·studio_images INSERT와 orig/·patches/ 쓰기 권한이 없어 서버가 한다.
+ * POST { action:'project_copy', projectId }
+ *   → { projectId, title, images, files, missing }  (missing = 원본에도 없어 못 복사한 조각·완성 사진 수)
+ *   새 작업 행(이름 + " (복사본)", 보관 기간 = 원본과 같음, page의 사진 id를 새 id로, page_version 0) + 사진 행 전부(새 id, 경로·edit 안 경로를 새 경로로)
+ *   + Storage 파일(원본·AI 결과 조각·지금 쓰는 완성 JPG)을 새 작업 폴더로 복사 (_studioCopy.js buildCopyPlan). 파일을 두 작업이 같이 쓰지 않는다.
+ *   새 작업은 다 될 때까지 deleted_at을 찍어 두어 목록에 안 보이고, 마지막에 비운다. 중간에 실패하면 복사한 파일·행을 지우고 오류(원본은 읽기만 한다).
+ * 에러: invalid_input 400 / not_found 404 / project_expired 400 / copy_bad_path·copy_failed 500
+ *
  * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다.
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
@@ -48,9 +56,10 @@
 import crypto from 'crypto'
 import {
   studioGuard, sendError, sb, loadOwnedRow, studioMaxImages,
-  storageSignUpload, storageDownload, storageRemove, storageList,
+  storageSignUpload, storageDownload, storageRemove, storageList, storageCopy,
 } from './_studio.js'
 import { readDimensions } from './studio-ingest.js'
+import { buildCopyPlan } from './_studioCopy.js'
 
 const BUCKET = 'studio'
 const MAX_FILES_PER_PREPARE = 10
@@ -606,6 +615,91 @@ async function finalConfirm(ctx, body, res) {
   return res.status(200).json({ ok: true, recorded, width: dims.width, height: dims.height })
 }
 
+// ── project_copy (16단계 작업 복사본) ───────────────────────────────────────
+const COPY_CONCURRENCY = 4
+const COPY_PROJECT_SELECT = 'id,source_type,offer_id,source_url,title_zh,title,desc_source,status,expires_at,extended_count,page'
+
+async function projectCopy(ctx, body, res) {
+  const { cfg } = ctx
+  const project = await loadOwnedRow(ctx, 'studio_projects', String(body.projectId ?? ''), COPY_PROJECT_SELECT)
+  if (!project) return sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.')
+  if (new Date(project.expires_at).getTime() <= Date.now()) {
+    return sendError(res, 400, 'project_expired', '보관 기간이 끝난 프로젝트입니다.')
+  }
+  const images = await sb(cfg, `studio_images?select=*&project_id=eq.${project.id}&user_id=eq.${ctx.userId}&order=sort_order.asc`)
+  const newProjectId = crypto.randomUUID()
+  let plan
+  try {
+    plan = buildCopyPlan({
+      uid: ctx.userId, project, images: Array.isArray(images) ? images : [], newProjectId,
+      newImageId: () => crypto.randomUUID(), hiddenAt: new Date().toISOString(),
+    })
+  } catch (e) {
+    // 경로가 규칙과 다름 — 모르는 파일을 두 작업이 같이 가리키게 두지 않으려고 복사하지 않는다 (원본은 그대로)
+    console.error(`[studio-upload] 복사 계획 실패 project=${project.id}:`, e.message)
+    return sendError(res, 500, 'copy_bad_path', '사진 경로가 예상과 달라 복사하지 않았습니다.')
+  }
+  if (plan.unknownImageIds.length) {
+    console.warn(`[studio-upload] 복사: 페이지에 이 작업에 없는 사진 id ${plan.unknownImageIds.length}개 — 그대로 둠`, plan.unknownImageIds)
+  }
+
+  const copied = []          // 복사한 파일 (실패하면 지운다)
+  const missingFinal = []    // 완성 JPG가 없어 복사본의 final_rendered_version을 비울 사진
+  let missing = 0
+  let projectInserted = false
+  try {
+    await sb(cfg, 'studio_projects', { method: 'POST', body: plan.projectRow, prefer: 'return=minimal' })
+    projectInserted = true
+    if (plan.imageRows.length) await sb(cfg, 'studio_images', { method: 'POST', body: plan.imageRows, prefer: 'return=minimal' })
+    // 하나라도 실패하면 새 파일 복사를 멈추고, 이미 시작한 복사가 모두 끝난 뒤에 정리한다 (정리 뒤에 파일이 새로 생기지 않게)
+    let firstErr = null
+    let next = 0
+    await Promise.all(Array.from({ length: Math.min(COPY_CONCURRENCY, plan.files.length) }, async () => {
+      while (!firstErr && next < plan.files.length) {
+        const f = plan.files[next++]
+        try {
+          const r = await storageCopy(cfg, BUCKET, f.from, f.to)
+          if (r.found) { copied.push(f.to); continue }
+          if (f.required) throw new Error(`원본 사진 파일이 없음: ${f.from}`)
+          missing++
+          console.warn(`[studio-upload] 복사: 원본 작업에도 없는 파일 — 건너뜀 (${f.kind}):`, f.from)
+          if (f.kind === 'final') missingFinal.push(f.imageId)
+        } catch (err) {
+          firstErr = firstErr || err
+        }
+      }
+    }))
+    if (firstErr) throw firstErr
+    if (missingFinal.length) {
+      await sb(cfg, `studio_images?id=in.(${missingFinal.join(',')})`, {
+        method: 'PATCH', body: { final_rendered_version: null }, prefer: 'return=minimal',
+      })
+    }
+    // 다 됐다 — 목록에 보이게
+    await sb(cfg, `studio_projects?id=eq.${newProjectId}&user_id=eq.${ctx.userId}`, {
+      method: 'PATCH', body: { deleted_at: null }, prefer: 'return=minimal',
+    })
+  } catch (e) {
+    console.error(`[studio-upload] 복사 실패 ${project.id} → ${newProjectId}:`, e.message)
+    // 반쯤 만든 복사본 정리 — 복사한 파일 → 새 작업 행(사진 행은 on delete cascade). 원본은 건드리지 않았다
+    try { await storageRemove(cfg, BUCKET, copied) } catch (re) {
+      console.error(`[studio-upload] 복사 실패 뒤 파일 정리 실패 (${copied.length}개, 새 작업 ${newProjectId}):`, re.message)
+    }
+    if (projectInserted) {
+      try {
+        await sb(cfg, `studio_projects?id=eq.${newProjectId}&user_id=eq.${ctx.userId}`, { method: 'DELETE', prefer: 'return=minimal' })
+      } catch (de) {
+        // 행이 남아도 deleted_at이 찍혀 있어 목록·편집기에 보이지 않는다
+        console.error(`[studio-upload] 복사 실패 뒤 새 작업 행 정리 실패 ${newProjectId} (deleted_at 표시 상태로 남음):`, de.message)
+      }
+    }
+    return sendError(res, 500, 'copy_failed', '복사본을 만들지 못했습니다. 원래 작업은 그대로입니다.')
+  }
+  return res.status(200).json({
+    projectId: newProjectId, title: plan.projectRow.title, images: plan.imageRows.length, files: copied.length, missing,
+  })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -619,7 +713,8 @@ export default async function handler(req, res) {
     if (body.action === 'patch_confirm') return await patchConfirm(ctx, body, res)
     if (body.action === 'final_prepare') return await finalPrepare(ctx, body, res)
     if (body.action === 'final_confirm') return await finalConfirm(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm' 중 하나여야 합니다.")
+    if (body.action === 'project_copy') return await projectCopy(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

@@ -102,10 +102,18 @@ const UPLOAD = {
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
 }
 
-const TABLES = { product: PRODUCT, ingest: INGEST, upload: UPLOAD }
+/** studio-upload project_copy (16단계 작업 복사본) */
+const COPY = {
+  project_expired: '보관 기간이 끝난 작업이라 복사할 수 없어요.',
+  copy_failed: '복사본을 만들지 못했어요. 원래 작업은 그대로예요. 잠시 후 다시 시도해 주세요.',
+  copy_bad_path: '사진 저장 위치가 예상과 달라 복사하지 않았어요. 원래 작업은 그대로예요. 관리자에게 알려주세요.',
+  invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
+}
+
+const TABLES = { product: PRODUCT, ingest: INGEST, upload: UPLOAD, copy: COPY }
 
 /**
- * @param {'product'|'ingest'|'upload'} context
+ * @param {'product'|'ingest'|'upload'|'copy'} context
  * @param {string} code
  * @param {{ remaining?:number, width?:number, height?:number }} [extra]
  */

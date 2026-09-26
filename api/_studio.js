@@ -293,6 +293,30 @@ export async function storageList(cfg, bucket, prefix, limit = 1000) {
   return rows.filter(o => o && o.id).map(o => o.name)
 }
 
+/**
+ * 파일 복사 (같은 버킷, 서버 안에서 — 내려받지 않는다). storage-js copy()와 같은 엔드포인트·본문
+ * (@supabase/storage-js 2.112.3 dist: POST /object/copy { bucketId, sourceKey, destinationKey }).
+ * 원본이 없으면 { found:false } (download와 같은 판정), 그 밖의 실패는 throw. 같은 경로가 이미 있으면 Storage가 거절한다(throw).
+ * @returns {Promise<{ found:true } | { found:false }>}
+ */
+export async function storageCopy(cfg, bucket, fromPath, toPath) {
+  const r = await fetch(`${cfg.supabaseUrl}/storage/v1/object/copy`, {
+    method: 'POST',
+    headers: {
+      'apikey': cfg.serviceRoleKey,
+      'Authorization': `Bearer ${cfg.serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ bucketId: bucket, sourceKey: fromPath, destinationKey: toPath }),
+  })
+  if (r.ok) return { found: true }
+  const text = await r.text()
+  let body = null
+  try { body = JSON.parse(text) } catch { /* JSON이 아닌 오류 본문 — 아래에서 text로 보고 */ }
+  if (r.status === 404 || String(body?.statusCode) === '404' || body?.error === 'not_found') return { found: false }
+  throw new Error(`storage copy ${r.status}: ${text.slice(0, 200)}`)
+}
+
 /** 파일 삭제 (여러 개). 실패는 throw */
 export async function storageRemove(cfg, bucket, paths) {
   if (paths.length === 0) return

@@ -1,0 +1,91 @@
+<template>
+  <div class="absolute inset-0 flex items-center justify-center p-6 st-start" style="z-index: 6" data-start-screen>
+    <!-- 1) 두 카드: [원클릭 AI 자동 제작](준비 중) / [직접 만들기] -->
+    <div v-if="stage === 'mode'" class="w-full max-w-[720px]" data-start-stage="mode">
+      <h2 class="text-[22px] font-extrabold st-ink text-center">어떻게 만들까요?</h2>
+      <p class="mt-1.5 text-center st-desc break-keep">
+        {{ usableCount > 0 ? `사진 ${usableCount}장이 준비됐어요.` : '사진을 올리면 바로 시작할 수 있어요.' }}
+      </p>
+      <div class="mt-7 grid grid-cols-2 gap-4">
+        <div class="st-start-card is-ai is-off" aria-disabled="true" data-start-card="ai">
+          <div class="flex items-center gap-2">
+            <span class="st-start-icon is-ai"><Sparkles class="w-5 h-5" :stroke-width="2" /></span>
+            <span class="st-badge ml-auto" data-start-soon>준비 중</span>
+          </div>
+          <div class="mt-4 text-[17px] font-extrabold st-ink">원클릭 AI 자동 제작</div>
+          <p class="mt-1.5 st-desc break-keep">사진만 있으면 글자 지우기부터 페이지 구성까지 AI가 끝까지 만들어요.</p>
+        </div>
+        <button type="button" class="st-start-card" data-start-card="manual" @click="stage = 'source'">
+          <div class="flex items-center gap-2">
+            <span class="st-start-icon"><Hand class="w-5 h-5" :stroke-width="2" /></span>
+            <span class="st-badge st-badge-accent ml-auto">지금 쓸 수 있어요</span>
+          </div>
+          <div class="mt-4 text-[17px] font-extrabold st-ink">직접 만들기</div>
+          <p class="mt-1.5 st-desc break-keep">준비된 사진으로 페이지를 만들고, 원하는 대로 하나씩 다듬어요.</p>
+        </button>
+      </div>
+    </div>
+
+    <!-- 2) [직접 만들기] → 빈 페이지에서 시작 / 템플릿으로 시작(곧 열려요) -->
+    <div v-else class="w-full max-w-[720px]" data-start-stage="source">
+      <button type="button" class="st-btn st-btn-ghost" data-start-back @click="stage = 'mode'">
+        <ArrowLeft class="w-4 h-4" :stroke-width="2" /> 뒤로
+      </button>
+      <h2 class="mt-3 text-[22px] font-extrabold st-ink text-center">어디서 시작할까요?</h2>
+      <div class="mt-7 grid grid-cols-2 gap-4">
+        <button
+          type="button" class="st-start-card" :class="canBlank ? '' : 'is-off'" :disabled="!canBlank" data-start-card="blank"
+          @click="canBlank && $emit('blank')"
+        >
+          <span class="st-start-icon"><LayoutList class="w-5 h-5" :stroke-width="2" /></span>
+          <div class="mt-4 text-[17px] font-extrabold st-ink">빈 페이지에서 시작</div>
+          <p class="mt-1.5 st-desc break-keep">
+            {{ canBlank ? `준비된 사진 ${usableCount}장이 순서대로 자리에 들어가요. 바로 고쳐 쓸 수 있어요.` : '먼저 왼쪽 [사진]에서 사진을 올려 주세요.' }}
+          </p>
+        </button>
+        <div class="st-start-card is-off" aria-disabled="true" data-start-card="template">
+          <div class="flex items-center gap-2">
+            <span class="st-start-icon"><LayoutTemplate class="w-5 h-5" :stroke-width="2" /></span>
+            <span class="st-badge ml-auto" data-start-soon>곧 열려요</span>
+          </div>
+          <div class="mt-4 text-[17px] font-extrabold st-ink">템플릿으로 시작</div>
+          <p class="mt-1.5 st-desc break-keep">어울리는 틀을 고르면 사진이 알맞은 자리에 들어가요.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script setup>
+// 시작 화면 ⓪ (16단계) — 페이지가 비어 있는 작업(DB page = null)을 열면 편집기 가운데에 띄운다 (studioStart.shouldShowStart).
+// 왼쪽 사진 목록·[내 사진 올리기]는 그대로 쓸 수 있다(가운데만 덮는다). 누르면 부모가 기본 배치를 저장한다(emit 'blank').
+import { ref, computed } from 'vue'
+import { Sparkles, Hand, ArrowLeft, LayoutList, LayoutTemplate } from 'lucide-vue-next'
+import { canStartBlank } from '@/lib/studioStart'
+
+const props = defineProps({
+  usableCount: { type: Number, default: 0 }, // 페이지에 넣을 수 있는 사진 수 (준비 끝 + 안 쓸 사진 아님)
+})
+defineEmits(['blank'])
+
+const stage = ref('mode') // 'mode' 두 카드 | 'source' 빈 페이지·템플릿
+const canBlank = computed(() => canStartBlank(props.usableCount))
+</script>
+
+<style scoped>
+.st-start { background: var(--st-bg); }
+.st-start-card {
+  display: block; width: 100%; min-height: 188px; padding: 20px; text-align: left;
+  border-radius: var(--st-radius-lg, 16px); background: var(--st-card); border: 1px solid var(--st-line);
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.st-start-card:hover:not(.is-off) { border-color: var(--st-accent); background: var(--st-card-hover, var(--st-card)); }
+.st-start-card:focus-visible { outline: 2px solid var(--st-accent); outline-offset: 2px; }
+.st-start-card.is-off { cursor: not-allowed; opacity: .55; }
+.st-start-card.is-ai { border-color: color-mix(in srgb, var(--st-ai) 45%, transparent); }
+.st-start-icon {
+  display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; border-radius: 12px;
+  background: var(--st-accent-soft); color: var(--st-accent);
+}
+.st-start-icon.is-ai { background: var(--st-ai); color: var(--st-ai-text); }
+</style>
