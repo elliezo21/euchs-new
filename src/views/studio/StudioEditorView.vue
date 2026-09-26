@@ -370,7 +370,7 @@ const viewStore = createViewImageStore({
   pageWidth: PAGE_WIDTH,
   dpr: window.devicePixelRatio || 1,
   pool: urlPool,
-  onUpdate(id, entry) { views[id] = { ...entry }; notePerf() },
+  onUpdate(id, entry) { views[id] = { ...entry }; notePerf(); maybeStartAi() },
 })
 // 화면에 보이는 사진부터 받는다 (페이지 → 목록 순)
 let listVisible = []
@@ -378,8 +378,26 @@ let pageVisible = []
 function prioritizeVisible() {
   viewStore.prioritize([...new Set([...pageVisible, ...listVisible])])
 }
-function onListVisible(ids) { listVisible = ids; prioritizeVisible() }
-function onPageVisible(ids) { pageVisible = ids; prioritizeVisible() }
+function onListVisible(ids) { listVisible = ids; prioritizeVisible(); maybeStartAi() }
+function onPageVisible(ids) { pageVisible = ids; prioritizeVisible(); maybeStartAi() }
+
+// ── AI 엔진 켜기 — 첫 화면 사진(보이는 목록 썸네일 + 페이지 사진)이 다 준비된 뒤에 켠다 ──
+// 엔진 세션 만들기(16~26초)가 그래픽카드를 차지해 그동안 사진이 멈춘다(크롬 실측). 지우기 화면을 먼저 열면 그때 바로 켠다.
+// 두 번 켜지지 않는다 (startAiEngine이 이미 있으면 그냥 돌아감). 엔진이 켜지는 동안 남은(화면 밖) 사진 처리는 멈추지 않는다 —
+// 첫 화면은 이미 끝났고, 멈추면 화면 밖 사진이 그만큼 더 늦어질 뿐이다.
+function firstScreenReady() {
+  if (!project.value) return false
+  const rows = doneImages.value
+  if (rows.length === 0) return true
+  const settled = id => views[id] && views[id].status !== 'loading'
+  const shown = [...new Set([...pageVisible, ...listVisible])].filter(id => rows.some(r => r.id === id))
+  return shown.length ? shown.every(settled) : rows.every(r => settled(r.id)) // 보이는 것을 아직 모르면 전부 기다린다
+}
+function maybeStartAi() {
+  if (!isWide.value || session.aiEngine.value) return
+  if (eraseOpen.value || firstScreenReady()) session.startAiEngine()
+}
+watch(eraseOpen, open => { if (open) maybeStartAi() })
 // 여는 속도 기록 — 콘솔에 한 줄 (작업을 열 때마다 한 번)
 const perf = { t0: 0, listAt: 0, firstAt: 0, logged: false }
 function notePerf() {
@@ -538,6 +556,7 @@ async function load() {
       selectedItemId.value = page.value && selectedImageId.value ? firstItemOfImage(page.value, selectedImageId.value) : null
     }
     syncEraseFromRoute() // ?erase=<사진 id>로 새로고침·진입했으면 그 사진의 지우기 화면을 연다
+    maybeStartAi()       // 사진이 없는 작업 등 — 기다릴 사진이 없으면 바로
   } catch (e) {
     if (seq !== loadSeq) return
     console.error('[StudioEditor] 불러오기 실패:', e)
@@ -731,8 +750,8 @@ const wideQuery = window.matchMedia('(min-width: 1024px)')
 const rightQuery = window.matchMedia('(min-width: 1280px)')
 function onWideChange() {
   isWide.value = wideQuery.matches
-  // 편집은 1024px 이상에서만 — 좁은 화면에서는 모델(약 200MB)을 받지 않는다
-  if (isWide.value) session.startAiEngine()
+  // 편집은 1024px 이상에서만 — 좁은 화면에서는 모델(약 200MB)을 받지 않는다. 넓으면 첫 화면 사진 뒤에 켠다 (maybeStartAi)
+  if (isWide.value) maybeStartAi()
   else if (eraseOpen.value || route.query.erase) {
     eraseOpen.value = false
     router.replace({ query: queryWithoutErase(route.query) })

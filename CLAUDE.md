@@ -111,6 +111,7 @@ grep -o '^[A-Z_]*=' .env.local
 계획 문서: `docs/studio-editor-plan-2026-09-25.md`
 
 1. **진행 방식**: 한 창(세션)에 한 단계만 한다. 단계가 끝나면 로컬 커밋 + 보고서 + 멈춤. 다음 단계는 채팅 Claude가 로그인한 크롬으로 확인한 뒤 해성이 새 프롬프트로 준다. push는 위 3-5·배포 방식대로 해성 승인 후에만.
+   단계마다 확인용 페이지 자동 확인·예전 단계 재확인은 하지 않는다. 빌드와 단위 테스트만. 실제 확인은 채팅 Claude가 크롬으로 한다. 전체 재확인은 push 직전에 한 번.
 2. **표시 규칙**: 보고서·계획에 [확인됨] [보고서 기준] [결정] [제안] [모름]을 붙인다. 확인하지 않은 것을 된다고 쓰지 않는다. 로그인이 필요한 확인은 "확인 못 함 (로그인 필요)". 가짜 사진·확인용 페이지로 본 것은 "대신 확인".
 3. **개발 서버**: `npm run dev:studio` (스튜디오 스위치 두 개를 켜고 `vite --host`로 띄운다 — `scripts/dev-studio.mjs`, PowerShell·cmd 모두 같은 명령. 다른 포트: `npm run dev:studio -- --port 5180`)
    - 대안(PowerShell 한 줄): `$env:VITE_STUDIO_ENABLED="admin"; $env:STUDIO_ENABLED="admin"; npm run dev`
@@ -138,7 +139,7 @@ grep -o '^[A-Z_]*=' .env.local
    - 페이지 저장은 `studio_projects`의 `page`, `page_version` 두 칸만 보낸다 (로그인 사용자가 UPDATE 할 수 있는 칸: deleted_at, page, page_version, title). `page_version` 낙관적 잠금.
    - DB 스키마·Storage 설정 변경이 필요하면 멈추고 SQL을 제안한다 (위 3-6).
 8. **되던 기능 목록 (회귀 확인 대상)** — 단계가 끝날 때마다 이 목록에 추가한다:
-   - LaMa 엔진: 모델 조각 받기, Cache Storage, sha256, WebGPU→WASM, `useEraseSession.js` `startAiEngine` (받는 시점을 바꾸지 않는다)
+   - LaMa 엔진: 모델 조각 받기, Cache Storage, sha256, WebGPU→WASM, `useEraseSession.js` `startAiEngine` (첫 화면 사진이 다 뜬 뒤 켠다(지우기 화면을 먼저 열면 즉시) — `StudioEditorView.vue` `maybeStartAi`)
    - 0단계: 붓·네모 칠하기, [AI로 지우기], [단색], 덜어내기, 칠한 곳 초기화, 가장자리 여유(기본 4px), 이력, 200획 안내
    - 2단계: 지우기 화면 분리, [원본 보기] 누르고 있기, 초안 되돌리기, AI 채우는 중 [완료] 두 번 확인, 상단 저장 상태
    - 3단계: 어두운 화면, 상단바 순서, 아이콘 막대 8개, [사진] 패널, 썸네일 "다시 시도"·9분마다 새 주소, StudioModal 어둡게, 1280px 미만 오른쪽 패널 접기
