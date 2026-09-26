@@ -3,16 +3,27 @@
     <div class="px-4 pt-4 pb-3 space-y-3 st-border-b">
       <div class="flex items-center">
         <span class="st-h-card">사진 <span class="st-muted font-bold">{{ images.length }}장</span></span>
-        <button type="button" class="st-btn ml-auto" data-add-photo @click="$emit('add')"><ImagePlus class="w-4 h-4" :stroke-width="2" /> 사진 추가</button>
+        <button type="button" class="st-btn ml-auto" data-add-photo @click="$emit('add')"><ImagePlus class="w-4 h-4" :stroke-width="2" /> 내 사진 올리기</button>
       </div>
-      <!-- 사용 / 안 쓸 사진 (studio_images.included, 6-2). 안 쓸 사진은 지우지 않고 여기에 모인다 -->
+      <!-- 출처 탭 (7단계): 1688 사진 = 이 작업의 1688 상품에서 가져온 것(결정 6) / 내 사진 = 직접 올린 것. studio_images.kind로 나눈다 -->
+      <div class="st-seg" role="tablist" aria-label="사진 출처">
+        <button
+          v-for="s in SOURCE_TABS" :key="s.key" type="button" role="tab" class="st-seg-item flex-1"
+          :class="source === s.key ? 'is-active' : ''" :aria-selected="source === s.key" :data-source-tab="s.key"
+          @click="pickSource(s.key)"
+        >{{ s.label }} {{ counts[s.key] }}</button>
+      </div>
+      <!-- 사용 / 안 쓸 사진 (studio_images.included, 6-2). 안 쓸 사진은 지우지 않고 여기에 모인다. 개수는 지금 출처 탭 기준 -->
       <div class="flex gap-1.5">
-        <button type="button" class="st-chip" :class="tab === 'used' ? 'is-active' : ''" data-tab-used @click="tab = 'used'">사용 {{ usedCount }}</button>
-        <button type="button" class="st-chip" :class="tab === 'unused' ? 'is-active' : ''" data-tab-unused @click="tab = 'unused'">안 쓸 사진 {{ unusedCount }}</button>
+        <button type="button" class="st-chip" :class="tab === 'used' ? 'is-active' : ''" data-tab-used @click="tab = 'used'">사용 {{ counts.used }}</button>
+        <button type="button" class="st-chip" :class="tab === 'unused' ? 'is-active' : ''" data-tab-unused @click="tab = 'unused'">안 쓸 사진 {{ counts.unused }}</button>
       </div>
       <p v-if="orderError" class="text-[11px] font-bold st-danger-text break-keep">{{ orderError }}</p>
     </div>
-    <p v-if="images.length && shownImages.length === 0" class="px-4 py-6 st-desc break-keep text-center" data-tab-empty>
+    <p v-if="images.length && counts[source] === 0" class="px-4 py-6 st-desc break-keep text-center" data-source-empty>
+      {{ source === SOURCE_MINE ? '직접 올린 사진이 없어요. [내 사진 올리기]로 올려 보세요.' : '1688에서 가져온 사진이 없어요.' }}
+    </p>
+    <p v-else-if="images.length && shownImages.length === 0" class="px-4 py-6 st-desc break-keep text-center" data-tab-empty>
       {{ tab === 'unused' ? '안 쓸 사진이 없어요. 목록에서 사진 오른쪽 버튼으로 옮길 수 있어요.' : '쓰는 사진이 없어요. [안 쓸 사진]에서 다시 쓰기를 눌러 보세요.' }}
     </p>
     <ol ref="listEl" class="flex-1 overflow-y-auto p-2 space-y-0.5">
@@ -75,11 +86,18 @@
               <span class="block st-muted">지운 내용은 저장돼 있어요</span>
             </div>
             <div v-else-if="bakeOf(img.id)?.status === 'blocked'" class="text-[11px] st-muted break-keep" data-bake-state="blocked">{{ bakeOf(img.id).message }}</div>
-            <!-- 페이지에 있음/없음 + 페이지에 넣기 (6-3) — 지금 보이는 구간이 비었으면 거기, 아니면 그 아래 새 구간. 이미 있으면 한 번 더 -->
-            <div v-if="canInsert(img)" class="mt-0.5 flex items-center gap-1.5 text-[11px]" :data-placed="isPlaced(img.id) ? '1' : '0'">
-              <span :class="isPlaced(img.id) ? 'st-ink-2' : 'st-muted'">{{ isPlaced(img.id) ? '페이지에 있음' : '페이지에 없음' }}</span>
+            <!-- 페이지에 있음/없음 (6-3) -->
+            <div v-if="canInsert(img)" class="mt-0.5 text-[11px]" :class="isPlaced(img.id) ? 'st-ink-2' : 'st-muted'" :data-placed="isPlaced(img.id) ? '1' : '0'">
+              {{ isPlaced(img.id) ? '페이지에 있음' : '페이지에 없음' }}
+            </div>
+            <!-- 줄 버튼: [지우기](7단계 — 더블클릭과 같음, 페이지에 없는·안 쓸 사진도) + [페이지에 넣기](6-3 — 지금 보이는 구간이 비었으면 거기, 아니면 그 아래 새 구간. 이미 있으면 한 번 더) -->
+            <div v-if="img.ingest_status === 'done'" class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
               <span
-                role="button" tabindex="0" class="st-insert-link" :data-insert-image="img.id"
+                role="button" tabindex="0" class="st-row-link" :data-erase-image="img.id" title="이 사진의 지울 곳을 칠해서 지워요"
+                @click.stop="$emit('open-erase', img.id)" @keydown.enter.stop.prevent="$emit('open-erase', img.id)" @dblclick.stop
+              ><Eraser class="w-3 h-3" :stroke-width="2.5" />지우기</span>
+              <span
+                v-if="canInsert(img)" role="button" tabindex="0" class="st-row-link" :data-insert-image="img.id"
                 :title="isPlaced(img.id) ? '이 사진을 페이지에 한 번 더 넣어요' : '지금 보고 있는 자리에 이 사진을 넣어요 (끌어다 놓아도 돼요)'"
                 @click.stop="$emit('insert', img.id)" @keydown.enter.stop.prevent="$emit('insert', img.id)" @dblclick.stop
               ><SquarePlus class="w-3 h-3" :stroke-width="2.5" />{{ isPlaced(img.id) ? '한 번 더 넣기' : '페이지에 넣기' }}</span>
@@ -88,16 +106,18 @@
         </button>
       </li>
     </ol>
-    <p v-if="images.length === 0" class="px-4 pb-4 st-desc">아직 사진이 없어요. "사진 추가"로 올려보세요.</p>
+    <p v-if="images.length === 0" class="px-4 pb-4 st-desc">아직 사진이 없어요. [내 사진 올리기]로 올려 보세요.</p>
   </div>
 </template>
 
 <script setup>
-// [사진] 재료 패널 (3단계: 편집기 왼쪽에 있던 사진 목록을 옮김. 업로드 버튼·탭은 7단계)
+// [사진] 재료 패널 (3단계: 편집기 왼쪽에 있던 사진 목록을 옮김)
 // 6-3: 줄마다 "페이지에 있음/없음" + [페이지에 넣기]·[한 번 더 넣기], 줄을 페이지로 끌어다 놓아도 넣어진다
+// 7단계: 출처 탭 [1688 사진]/[내 사진], [내 사진 올리기](모달·StudioUploadPanel은 편집기 것 재사용), 줄마다 [지우기]
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
-import { Image as ImageIcon, ImagePlus, RefreshCw, Archive, ArchiveRestore, SquarePlus } from 'lucide-vue-next'
+import { Image as ImageIcon, ImagePlus, RefreshCw, Archive, ArchiveRestore, SquarePlus, Eraser } from 'lucide-vue-next'
 import { KIND_LABEL } from '@/lib/studioProjects'
+import { SOURCE_1688, SOURCE_MINE, defaultSource, filterImages, tabCounts, tabOf } from '@/lib/studioPhotoTabs'
 import { DRAG_IMAGE_TYPE } from '@/lib/studioPage'
 import { studioErrorMessage } from '@/lib/studioApi'
 import { afterPaint } from '@/lib/studioImageCache'
@@ -129,11 +149,26 @@ function onDragStart(e, img) {
   if (thumb) e.dataTransfer.setDragImage(thumb, 28, 28) // 끄는 동안 썸네일만 따라온다
 }
 
-// [사용] / [안 쓸 사진] 탭 (included = false면 안 쓸 사진). 번호는 전체 목록 순서 그대로
+// 출처 탭 [1688 사진]/[내 사진] (7단계) × [사용]/[안 쓸 사진] (6-2, included = false면 안 쓸 사진) — 두 필터가 함께 걸린다 (studioPhotoTabs).
+// 번호는 전체 목록 순서 그대로. 처음 탭 = 1688 사진이 있으면 [1688 사진], 없으면 [내 사진] (작업마다 기억하지 않음 — 편집기가 작업마다 이 패널을 새로 만든다)
+const SOURCE_TABS = [{ key: SOURCE_1688, label: '1688 사진' }, { key: SOURCE_MINE, label: '내 사진' }]
+const source = ref(defaultSource(props.images))
+let sourceChosen = props.images.length > 0 // 사진이 오기 전에 열렸으면 사진이 처음 왔을 때 고른다
+watch(() => props.images.length, n => {
+  if (sourceChosen || n === 0) return
+  source.value = defaultSource(props.images)
+  sourceChosen = true
+})
+function pickSource(key) { source.value = key; sourceChosen = true }
 const tab = ref('used')
-const shownImages = computed(() => props.images.filter(i => (tab.value === 'unused' ? i.included === false : i.included !== false)))
-const usedCount = computed(() => props.images.filter(i => i.included !== false).length)
-const unusedCount = computed(() => props.images.length - usedCount.value)
+const shownImages = computed(() => filterImages(props.images, source.value, tab.value))
+const counts = computed(() => tabCounts(props.images, source.value))
+/** 편집기가 부른다 — 그 탭으로 (내 사진을 올린 뒤 [내 사진]·[사용]) */
+function showTab(nextSource, usage) {
+  pickSource(nextSource)
+  tab.value = usage
+}
+defineExpose({ showTab })
 const bakeOf = id => props.bakeState[id] || null
 const isBaking = s => s.status === 'queued' || s.status === 'baking' || s.status === 'waiting'
 
@@ -169,8 +204,13 @@ function retry(id) {
   emit('retry-image', id) // 편집기가 작은 사진을 다시 만든다 (서명 URL이 오래됐으면 새로 받는다)
 }
 
+// 고른 사진(페이지에서 고름·↑↓)이 지금 탭에 없으면 그 사진의 탭으로 바꿔 목록에서 보이게 한다 (7단계)
 watch(() => props.selectedImageId, id => {
-  if (id) nextTick(() => listEl.value?.querySelector(`[data-image-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
+  if (!id) return
+  const img = props.images.find(i => i.id === id)
+  const t = img ? tabOf(img) : null
+  if (t && (t.source !== source.value || t.usage !== tab.value)) showTab(t.source, t.usage)
+  nextTick(() => listEl.value?.querySelector(`[data-image-id="${id}"]`)?.scrollIntoView({ block: 'nearest' }))
 })
 
 // 지금 보이는 줄 → 편집기에 알려 그 사진부터 받게 한다
@@ -203,11 +243,11 @@ onBeforeUnmount(() => { io?.disconnect(); mo?.disconnect() })
 /* 줄 오른쪽 위 [안 쓸 사진으로]·[다시 쓰기] — 마우스를 올리거나 키보드로 갔을 때만 */
 .st-include-btn { position: absolute; right: 6px; top: 6px; width: 26px; height: 26px; z-index: 1; opacity: 0; background: var(--st-card); }
 .group:hover .st-include-btn, .st-include-btn:focus-visible { opacity: 1; }
-/* 페이지에 넣기 (6-3) — 줄 안의 작은 글자 버튼 */
-.st-insert-link {
+/* 줄 안의 작은 글자 버튼 — [지우기](7단계)·[페이지에 넣기](6-3) */
+.st-row-link {
   display: inline-flex; align-items: center; gap: 3px; padding: 1px 6px; border-radius: 6px; cursor: pointer; font-weight: 700;
   color: var(--st-accent); border: 1px solid var(--st-line-strong); background: var(--st-card);
 }
-.st-insert-link:hover, .st-insert-link:focus-visible { border-color: var(--st-accent); }
+.st-row-link:hover, .st-row-link:focus-visible { border-color: var(--st-accent); }
 li[draggable="true"] { cursor: grab; }
 </style>

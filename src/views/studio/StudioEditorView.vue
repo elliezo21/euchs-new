@@ -81,6 +81,7 @@
         <div class="flex-1 min-h-0 flex flex-col">
           <StudioPhotoPanel
             v-if="activeTool === 'photo' || !isWide"
+            :key="project.id" ref="photoPanel"
             :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
             :bake-state="bakeQueue.state" :placed-ids="placedIds"
             @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
@@ -175,7 +176,7 @@
     <div v-if="toast" class="absolute top-16 left-1/2 -translate-x-1/2 px-3 py-2 rounded-[10px] st-card st-shadow-float text-[13px] font-bold st-ink break-keep" style="z-index: 30" data-toast>{{ toast }}</div>
 
     <!-- 사진 추가 -->
-    <StudioModal :open="addOpen" wide title="사진 추가" @close="addOpen = false">
+    <StudioModal :open="addOpen" wide title="내 사진 올리기" @close="addOpen = false">
       <StudioUploadPanel v-if="project" :project-id="project.id" :used-count="usedCount" @finished="onAddFinished" />
       <template #actions>
         <button type="button" class="st-btn" @click="addOpen = false">닫기</button>
@@ -284,6 +285,7 @@ import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
 import StudioImageItemPanel from '@/components/studio/StudioImageItemPanel.vue'
 import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
+import { SOURCE_MINE } from '@/lib/studioPhotoTabs'
 import {
   loadMyProject, listEditorImages, signViewUrls, sortStudioImages, sortBySortOrder, hasSortOrderOverlap, setImageIncluded,
   renumberSortOrders, projectDisplayTitle, KIND_LABEL, SIGNED_URL_TTL,
@@ -393,6 +395,7 @@ const selectedItemIds = ref([])  // 페이지에서 고른 요소 (6-1: 여러 �
 let selectionSource = 'list'     // 'page' = 페이지에서 고름(방향키 = 옮기기) / 'list' = 목록에서 고름(방향키 = 사진 바꾸기)
 const pageView = ref(null)
 const pageScroll = ref(null)
+const photoPanel = ref(null) // [사진] 목록 (7단계: 올린 뒤 [내 사진] 탭으로 — showTab)
 
 // 상단 저장 상태 = 사진 지우기 저장과 페이지 저장 중 더 나쁜 것
 const SAVE_RANK = { saved: 0, pending: 1, saving: 2, error: 3, conflict: 4 }
@@ -1011,9 +1014,11 @@ async function load() {
   }
 }
 
-async function onAddFinished() {
+// [내 사진 올리기]가 끝남 — 1장 이상 올렸으면 목록을 [내 사진]·[사용]으로 (방금 올린 사진이 보이게, 7단계)
+async function onAddFinished(result) {
   await session.flush()
-  load()
+  await load()
+  if (result?.done > 0) photoPanel.value?.showTab(SOURCE_MINE, 'used')
 }
 
 // ── 사진 고르기 ──
