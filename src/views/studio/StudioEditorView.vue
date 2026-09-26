@@ -326,7 +326,7 @@ const step = ref(STEP_DEFAULT)
 function stepStorage() {
   try { return window.localStorage } catch (e) { console.warn('[StudioEditor] 브라우저 저장소를 쓸 수 없어 단계를 기억하지 않음:', e.message); return null }
 }
-/** 그 단계로 — 그 단계 작업 쪽으로 왼쪽 패널을 바꿔 준다 (① 사진, ② 구간. ③은 상단 미리보기·내보내기를 표시) */
+/** 그 단계로 — 그 단계 작업 쪽으로 왼쪽 패널을 바꿔 준다 (①·② 사진 — ②는 8단계에서 구간으로, studioSteps. ③은 상단 미리보기·내보내기를 표시) */
 function goStep(n) {
   const info = stepInfo(n)
   step.value = info.no
