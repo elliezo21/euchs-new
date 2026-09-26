@@ -15,7 +15,7 @@
           <button v-if="topSaveStatus === 'error'" type="button" class="text-[11px] font-bold st-danger-text underline" :title="topSaveDetail" data-save-status="error" @click="retryAllSaves">저장하지 못했어요 · 다시 시도</button>
           <button v-else-if="topSaveStatus === 'conflict'" type="button" class="text-[11px] font-bold st-danger-text underline" data-save-status="conflict" @click="reopenAnyConflict">저장 안 됨 · 다른 창과 충돌</button>
           <span v-else-if="topSaveStatus === 'pending' || topSaveStatus === 'saving'" class="text-[11px] st-muted" data-save-status="saving">저장 중…</span>
-          <span v-else class="text-[11px] st-success-text" data-save-status="saved">● 저장됨</span>
+          <span v-else class="text-[11px] st-success-text" :title="savedTitle(topLastSavedAt)" data-save-status="saved">● 저장됨</span>
         </template>
       </div>
       <span class="st-badge ml-2 shrink-0" data-mode-chip><Hand class="w-3 h-3 mr-1" :stroke-width="2" /> 직접 만들기 · 반자동</span>
@@ -146,7 +146,7 @@
       :image-label="imageLabel(selectedImage)"
       :load-image="loadCanvasImage"
       :keys-enabled="!anyModalOpen"
-      @close="eraseOpen = false"
+      @close="onEraseClosed"
       @toast="showToast"
     />
 
@@ -229,6 +229,7 @@ import { usePageSession } from '@/composables/usePageSession'
 import { createViewImageStore } from '@/lib/studioViewImage'
 import { moveItem, firstItemOfImage, findItem, pageImageIds, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
+import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
 
 provide('studioDark', true) // Teleport로 body에 붙는 모달도 어둡게 (StudioModal)
 // Fabric(StudioCanvas)은 지우기 화면(StudioEraseScreen)이 열릴 때만 받는다. 페이지는 DOM (방식 C)
@@ -308,6 +309,11 @@ const SAVE_RANK = { saved: 0, pending: 1, saving: 2, error: 3, conflict: 4 }
 const pageWorse = computed(() => SAVE_RANK[pageSession.saveStatus.value] > SAVE_RANK[saveStatus.value])
 const topSaveStatus = computed(() => (pageWorse.value ? pageSession.saveStatus.value : saveStatus.value))
 const topSaveDetail = computed(() => (pageWorse.value ? pageSession.saveDetail.value : saveDetail.value) || pageSession.saveDetail.value || saveDetail.value)
+// 마지막 저장 시각 = 사진 지우기 저장과 페이지 저장 중 늦은 것 (상단 "저장됨"에 마우스를 올리면 보인다)
+const topLastSavedAt = computed(() => {
+  const t = [session.lastSavedAt.value, pageSession.lastSavedAt.value].filter(Number.isFinite)
+  return t.length ? Math.max(...t) : null
+})
 function retryAllSaves() { retrySave(); pageSession.retrySave() }
 function reopenAnyConflict() {
   if (pageSession.saveStatus.value === 'conflict') pageSession.conflict.value = true
@@ -461,6 +467,7 @@ async function load() {
     if (selectedItemId.value && !(page.value && findItem(page.value, selectedItemId.value))) {
       selectedItemId.value = page.value && selectedImageId.value ? firstItemOfImage(page.value, selectedImageId.value) : null
     }
+    syncEraseFromRoute() // ?erase=<사진 id>로 새로고침·진입했으면 그 사진의 지우기 화면을 연다
   } catch (e) {
     if (seq !== loadSeq) return
     console.error('[StudioEditor] 불러오기 실패:', e)
@@ -490,11 +497,49 @@ function stepImage(dir) {
   if (next) selectImage(next.id)
 }
 
-// ── 지우기 화면 ──
+// ── 지우기 화면 ↔ 주소 (?erase=<사진 id>) ──
+// 열 때 history 항목을 하나 쌓는다(router.push) → 크롬 ← = 지우기 화면만 닫고 편집기에 남는다.
+// [완료]/[페이지로]로 닫으면 쌓은 항목을 걷어낸다 (onEraseClosed). 되돌리기(Ctrl+Z)와는 상관없다.
+let eraseByHistory = false // 크롬 ← 로 닫는 중 (라우터 가드 안) — onEraseClosed가 주소를 다시 건드리지 않게
+function queryWithoutErase(q) {
+  const { erase, ...rest } = q
+  return rest
+}
+function canErase(id) {
+  return isWide.value && images.value.some(i => i.id === id && i.ingest_status === 'done')
+}
 function openErase(id) {
-  if (!isWide.value || !images.value.some(i => i.id === id && i.ingest_status === 'done')) return
+  if (!canErase(id)) return
+  if (route.query.erase === id) { selectImage(id); eraseOpen.value = true; return }
+  router.push({ query: { ...route.query, erase: id } }) // 주소가 바뀌면 syncEraseFromRoute가 연다
+}
+/** 주소의 erase에 맞춰 지우기 화면을 열거나 닫는다. 없는 사진·이 작업 사진이 아니면 주소에서 빼고 편집기만 (안내 없이) */
+function syncEraseFromRoute() {
+  const id = typeof route.query.erase === 'string' ? route.query.erase : null
+  if (!id) { eraseOpen.value = false; return }
+  if (!project.value) return // 불러오기 전 — load()가 사진 목록을 채운 뒤 다시 부른다
+  if (!canErase(id)) {
+    console.info('[StudioEditor] 주소의 지우기 사진을 열 수 없어 편집기만 엽니다:', id)
+    eraseOpen.value = false
+    router.replace({ query: queryWithoutErase(route.query) })
+    return
+  }
   selectImage(id)
   eraseOpen.value = true
+}
+watch(() => route.query.erase, syncEraseFromRoute)
+
+/**
+ * 지우기 화면이 닫혔을 때 — [완료]/[페이지로]면 열 때 쌓은 history 항목을 걷어낸다.
+ *   바로 앞 항목이 이 편집기(지우기 없음)면 router.back() → 그 뒤 크롬 ←는 편집기 이전 화면으로 간다(지우기가 다시 열리지 않음).
+ *   주소로 바로 들어와 앞 항목이 없거나 다른 화면이면 router.replace로 주소에서 erase만 뺀다 (back 하면 편집기를 떠나므로).
+ */
+function onEraseClosed() {
+  eraseOpen.value = false
+  if (eraseByHistory || !route.query.erase) return
+  const editorPath = router.resolve({ query: queryWithoutErase(route.query) }).fullPath
+  if (eraseCloseMode(window.history.state?.back ?? null, editorPath) === 'back') router.back()
+  else router.replace({ query: queryWithoutErase(route.query) })
 }
 
 function loadCanvasImage(row) {
@@ -512,11 +557,17 @@ function closeConflict() { conflictId.value = null }
 const eraseScreen = ref(null)
 async function guardLeave(to) {
   if (leaveBypass) return true
-  // 지우기 화면이 열려 있으면 브라우저 [뒤로]는 지우기 화면만 닫는다 (페이지는 그대로).
+  // 지우기 화면이 열린 채 편집기 밖으로 가려 하면(주소로 바로 들어와 앞 항목이 다른 화면일 때 크롬 ← 등) 지우기 화면만 닫는다.
   // [완료]와 같은 확인을 거친다 — AI가 채우는 중·저장 못 한 AI 결과가 있으면 한 번 알리고, 5초 안에 다시 누르면 닫는다
   if (eraseOpen.value) {
-    if (!eraseScreen.value) eraseOpen.value = false
-    else if (eraseScreen.value.requestClose()) eraseOpen.value = false
+    eraseByHistory = true
+    let closed
+    try { closed = !eraseScreen.value || eraseScreen.value.requestClose() } finally { eraseByHistory = false }
+    if (closed) {
+      eraseOpen.value = false
+      // 이동은 취소했으므로 주소에 남은 erase만 뺀다 (취소된 크롬 ←를 라우터가 되돌린 뒤)
+      setTimeout(() => { if (route.query.erase && !eraseOpen.value) router.replace({ query: queryWithoutErase(route.query) }) }, 0)
+    }
     return false
   }
   if (!session.hasUnsaved() && !pageSession.hasUnsaved()) return true
@@ -527,7 +578,15 @@ async function guardLeave(to) {
   return false
 }
 onBeforeRouteLeave(guardLeave)
-onBeforeRouteUpdate(async (to, from) => (to.params.projectId === from.params.projectId ? true : guardLeave(to)))
+onBeforeRouteUpdate(async (to, from) => {
+  if (to.params.projectId !== from.params.projectId) return guardLeave(to)
+  // 크롬 ← 로 ?erase가 빠짐 = 지우기 화면만 닫기. [완료]와 같은 확인 — 막으면(false) 라우터가 주소를 되돌린다
+  if (from.query.erase && !to.query.erase && eraseOpen.value && eraseScreen.value) {
+    eraseByHistory = true
+    try { return eraseScreen.value.requestClose() } finally { eraseByHistory = false }
+  }
+  return true
+})
 
 function leaveAnyway() {
   leaveOpen.value = false
@@ -535,12 +594,25 @@ function leaveAnyway() {
   if (leaveTarget) router.push(leaveTarget).finally(() => { leaveBypass = false })
 }
 
+// ── 나가기 경고 (새로고침·탭 닫기·다른 사이트) — 저장 안 된 것이 있을 때만 브라우저 기본 창을 띄운다 ──
+// 앱 안 이동(다른 화면·지우기 화면 닫기)은 라우터 가드의 우리 안내가 맡는다 — beforeunload는 문서를 떠날 때만 불려 둘이 겹치지 않는다
+function unsavedNow() {
+  const ai = session.aiSaveState.value
+  return unsavedReasons({
+    aiFailed: ai.count,
+    aiPending: ai.pending,
+    aiBusy: eraseOpen.value && Object.values(session.aiLayerStates.value).includes('busy'),
+    editUnsaved: session.hasUnsaved(),
+    pageUnsaved: pageSession.hasUnsaved(),
+    draft: eraseOpen.value && !!session.canvasDraft.value,
+  })
+}
 function onBeforeUnload(e) {
-  if (!session.hasUnsaved() && !pageSession.hasUnsaved()) return
-  session.flush() // 남은 저장을 시도는 하되, 끝을 기다릴 수 없으므로 브라우저 경고를 띄운다
-  pageSession.flush()
-  e.preventDefault()
-  e.returnValue = ''
+  const reasons = unsavedNow()
+  // 남은 저장은 시도는 하되, 끝을 기다릴 수 없으므로 브라우저 경고를 띄운다
+  if (reasons.includes('edit')) session.flush()
+  if (reasons.includes('page')) pageSession.flush()
+  guardBeforeUnload(e, reasons)
 }
 
 // ── 키보드: ↑/↓ 이전·다음 사진(목록에서만), Ctrl(Cmd)+Z 되돌리기, Ctrl(Cmd)+Shift+Z·Ctrl+Y 다시 ──
@@ -569,7 +641,10 @@ function onWideChange() {
   isWide.value = wideQuery.matches
   // 편집은 1024px 이상에서만 — 좁은 화면에서는 모델(약 200MB)을 받지 않는다
   if (isWide.value) session.startAiEngine()
-  else eraseOpen.value = false
+  else if (eraseOpen.value || route.query.erase) {
+    eraseOpen.value = false
+    router.replace({ query: queryWithoutErase(route.query) })
+  }
 }
 function onRightChange() {
   wideRight.value = rightQuery.matches

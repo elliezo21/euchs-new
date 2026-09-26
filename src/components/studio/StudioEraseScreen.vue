@@ -20,7 +20,7 @@
           <button v-if="saveStatus === 'error'" type="button" class="ml-1 font-bold st-danger-text underline" :title="saveDetail" data-save-status="error" @click="retrySave">· 저장하지 못했어요 · 다시 시도</button>
           <button v-else-if="saveStatus === 'conflict'" type="button" class="ml-1 font-bold st-danger-text underline" data-save-status="conflict" @click="reopenConflict">· 저장 안 됨 · 다른 창과 충돌</button>
           <span v-else-if="saveStatus === 'pending' || saveStatus === 'saving'" class="ml-1" data-save-status="saving">· 저장 중…</span>
-          <span v-else class="ml-1 st-success-text" data-save-status="saved">· 저장됨</span>
+          <span v-else class="ml-1 st-success-text" :title="savedTitle(lastSavedAt)" data-save-status="saved">· 저장됨</span>
         </div>
       </div>
 
@@ -122,12 +122,16 @@
           ><RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> {{ selectedFill && !selectedIsDraft ? '선택한 영역 삭제 (Delete)' : '칠한 곳 초기화' }}</button>
 
           <!-- AI 결과 저장 실패 — 결과는 메모리에 있다. [다시 저장] = 업로드만 다시 (AI 재계산 없음) -->
-          <div v-if="aiUnsaved.count > 0" class="mt-3 st-erase-unsaved" data-ai-unsaved>
-            <p class="text-[13px] font-bold st-ink break-keep">AI 결과를 아직 저장하지 못했어요. [다시 저장]을 눌러 주세요.<span v-if="aiUnsaved.count > 1" class="st-muted"> ({{ aiUnsaved.count }}개)</span></p>
-            <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" :disabled="aiUnsaved.saving" data-ai-save-retry @click="retryAiSave">
-              {{ aiUnsaved.saving ? '저장 중…' : '다시 저장' }}
+          <div v-if="aiSaveState.count > 0" class="mt-3 st-erase-unsaved" data-ai-unsaved>
+            <p class="text-[13px] font-bold st-ink break-keep">AI 결과를 아직 저장하지 못했어요. [다시 저장]을 눌러 주세요.<span v-if="aiSaveState.count > 1" class="st-muted"> ({{ aiSaveState.count }}개)</span></p>
+            <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" :disabled="aiSaveState.saving" data-ai-save-retry @click="retryAiSave">
+              {{ aiSaveState.saving ? '저장 중…' : '다시 저장' }}
             </button>
-            <p v-if="aiUnsaved.message" class="mt-2 st-desc-sm break-keep" data-ai-unsaved-reason>{{ aiUnsaved.message }}</p>
+            <p v-if="aiSaveState.message" class="mt-2 st-desc-sm break-keep" data-ai-unsaved-reason>{{ aiSaveState.message }}</p>
+          </div>
+          <!-- 자동 다시 저장 중 (2초 → 5초 → 10초, 3번 다 실패하면 위 카드) -->
+          <div v-else-if="aiSaveState.autoRetrying > 0" class="mt-3 st-erase-unsaved" data-ai-autoretry>
+            <p class="text-[13px] font-bold st-ink break-keep">AI 결과를 저장하는 중이에요…</p>
           </div>
 
           <p v-if="!selectedFill" class="mt-2 st-desc-sm break-keep" data-panel-empty-hint>먼저 사진에서 지울 곳을 칠하거나 네모로 감싸세요.</p>
@@ -199,7 +203,7 @@
           @remove="removeFill"
           @ai="applyAiResult"
           @ai-states="setAiStates"
-          @ai-unsaved="s => (aiUnsaved = s)"
+          @ai-unsaved="setAiSaveState"
           @tool="setTool"
           @bleed="s => (bleedSides = s)"
         />
@@ -224,6 +228,7 @@ import { ref, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
 import { ArrowLeft, Undo2, Redo2, Eye, History, Info, MousePointer2, Brush, Square, Sparkles, RotateCcw, Check } from 'lucide-vue-next'
 import { BRUSH_UI_MIN, BRUSH_UI_MAX, PAD_MIN, PAD_MAX } from '@/composables/useEraseSession'
 import { PAD_DEFAULT } from '@/lib/studioEdit'
+import { savedTitle } from '@/lib/studioSaveGuard'
 
 // Fabric은 이 컴포넌트와 함께만 받는다
 const StudioCanvas = defineAsyncComponent({
@@ -250,7 +255,7 @@ const emit = defineEmits(['close', 'toast'])
 const {
   selectedLayers, selectedLayerId, selectedFill, selectedIsDraft, selectedAiState, selectedAiMinGrow,
   canvasDraft, canUndoNow, canRedoNow, historySteps, canvasTool, brushSize, brushMode,
-  aiEngine, aiState, aiLayerStates, eraseRequest, saveStatus, saveDetail,
+  aiEngine, aiState, aiLayerStates, aiSaveState, eraseRequest, saveStatus, saveDetail, lastSavedAt, resetScreenState,
   setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
   setPad, recordPad, removeFill, undoEdit, redoEdit, jumpEdit, retrySave, reopenConflict, flush,
 } = props.session
@@ -271,7 +276,7 @@ const canvasRef = ref(null)
 const showOriginal = ref(false)
 const historyOpen = ref(false)
 const bleedSides = ref([])
-const aiUnsaved = ref({ count: 0, saving: false, message: '' }) // 캔버스가 알려주는 저장 못 한 AI 결과
+function setAiSaveState(s) { aiSaveState.value = s } // 캔버스가 알려주는 AI 결과 저장 상태 (세션에 둔다 — 편집기 나가기 보호가 본다)
 
 function retryAiSave() {
   canvasRef.value?.retryAiSave().then(ok => { if (ok) emit('toast', 'AI 결과를 저장했어요.') })
@@ -306,13 +311,16 @@ function stopOriginal() { showOriginal.value = false }
 // (나가면 그 결과는 버려진다). 5초 안에 다시 누르면 닫는다. 닫았으면 true
 let busyWarnAt = 0
 function requestClose() {
-  const unsaved = aiUnsaved.value.count > 0
+  const failed = aiSaveState.value.count > 0
+  const pending = aiSaveState.value.pending > 0
   const busy = Object.values(aiLayerStates.value).includes('busy')
-  if ((unsaved || busy) && Date.now() - busyWarnAt > 5000) {
+  if ((failed || pending || busy) && Date.now() - busyWarnAt > 5000) {
     busyWarnAt = Date.now()
-    emit('toast', unsaved
+    emit('toast', failed
       ? '저장하지 못한 AI 결과가 있어요. 지금 나가면 이 결과는 사라져요. 그래도 나가려면 한 번 더 누르세요.'
-      : 'AI가 채우는 중이에요. 지금 나가면 이번 결과는 저장되지 않아요. 그래도 나가려면 한 번 더 누르세요.')
+      : pending
+        ? 'AI 결과를 저장하는 중이에요. 지금 나가면 이 결과는 사라질 수 있어요. 그래도 나가려면 한 번 더 누르세요.'
+        : 'AI가 채우는 중이에요. 지금 나가면 이번 결과는 저장되지 않아요. 그래도 나가려면 한 번 더 누르세요.')
     return false
   }
   close()
@@ -338,6 +346,7 @@ onMounted(() => {
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('blur', onBlur)
+  resetScreenState() // 캔버스가 알려준 AI 상태(채우는 중·저장 못 함)를 비운다 — 닫은 뒤 편집기 나가기 경고에 남지 않게
 })
 
 defineExpose({ close, requestClose })

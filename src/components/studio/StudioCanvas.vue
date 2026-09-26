@@ -68,6 +68,7 @@ import { simplifyStroke, rasterizeStrokes, strokeExtent } from '@/lib/studioBrus
 import { widenSides } from '@/lib/studioBleed'
 import { isValidFillLayer } from '@/lib/studioEdit'
 import { AI_MODEL_ID, uploadAiPatch, loadAiPatch } from '@/lib/studioAiPatch'
+import { nextRetryDelay, isRetryableSaveError, AI_SAVE_RETRY_DELAYS } from '@/lib/studioSaveGuard'
 
 const props = defineProps({
   image: { type: Object, default: null },        // { id, original_path, width, height }
@@ -92,7 +93,8 @@ const props = defineProps({
 // ai({ imageId, layerId, planKey, W, H, ai, batch }): AI 결과 조각을 저장했음 — 편집기가 그 레이어에 ai 필드를 붙인다.
 //   batch: 실행 한 번의 번호 (같이 지운 앞 AI가 있으면 여러 결과가 같은 번호로 온다 → 이력 한 단계)
 // ai-states({ [layerId]: 'done'|'needs'|'busy'|'loading'|'failed' }): AI 레이어 상태 — 왼쪽 패널용
-// ai-unsaved({ count, saving, message }): 계산은 됐지만 결과 조각 저장에 실패해 메모리에만 있는 AI 결과 — 지우기 화면이 카드·나가기 확인을 보인다.
+// ai-unsaved({ count, pending, autoRetrying, saving, message }): 계산은 됐지만 결과 조각이 아직 저장되지 않은 AI 결과
+//   (count = 저장 실패 → [다시 저장] 카드, pending = 올리는 중·자동 재시도 대기) — 지우기 화면이 카드·나가기 확인을 보인다.
 //   부모가 retryAiSave()를 부르면 메모리의 결과로 업로드만 다시 한다 (AI 재계산 없음)
 // tool(key): 단축키(V·B·R)로 도구를 바꿔 달라는 요청 — 부모가 props.tool을 바꾼다
 // bleed(sides[]): 선택한 네모가 글자에 걸친 변 (없으면 []) — 부모가 안내와 [조금 넓히기]를 보여준다
@@ -132,6 +134,8 @@ const aiLoadFailure = ref(null)    // { layerId, planKey, message } — 저장�
 // 결과는 보이지만 저장 실패 — layer id → { imageRow, layerId, planKey, key, W, H, batch, area, canvas, engine, message }
 // 결과 픽셀(canvas)을 들고 있다가 [다시 저장]에서 그대로 올린다. 레이어가 바뀌거나 지워지면(sync) 뺀다
 const aiSaveFailed = new Map()
+const aiSaveWaiting = new Map()  // layer id → { job, timer } 자동 다시 저장 대기 (studioSaveGuard 2초 → 5초 → 10초)
+const aiUploading = new Map()    // layer id → 몇 번째 다시 시도인지 (0 = 처음 저장) — 올리는 중
 let aiRetrying = false
 const aiNotice = computed(() => {
   const s = props.aiState || {}
@@ -736,6 +740,10 @@ function sync() {
     const l = byId.get(id)
     if (!l || l.method !== 'ai' || plan.get(id)?.key !== j.planKey || l.ai?.key === j.key) { aiSaveFailed.delete(id); failedChanged = true }
   }
+  for (const [id, w] of [...aiSaveWaiting]) {
+    const l = byId.get(id)
+    if (!l || l.method !== 'ai' || plan.get(id)?.key !== w.job.planKey || l.ai?.key === w.job.key) { clearTimeout(w.timer); aiSaveWaiting.delete(id); failedChanged = true }
+  }
   if (failedChanged) emitSaveState()
   const cache = currentPatchCache()
   for (const l of [...fills, ...(draft ? [draft] : [])]) {
@@ -1063,11 +1071,17 @@ async function runAi(l, e, mode) {
 }
 
 /**
- * AI 결과 조각 저장 → 성공하면 emit('ai') (편집기가 레이어에 ai를 붙이고 이력 "AI 지우기"), 실패하면 aiSaveFailed에 남긴다.
- * 처음 저장과 [다시 저장]이 같은 함수를 쓴다. 조각 픽셀은 계산 때 만든 canvas 그대로 (재계산 없음)
+ * AI 결과 조각 저장 → 성공하면 emit('ai') (편집기가 레이어에 ai를 붙이고 이력 "AI 지우기").
+ * 실패하면 studioSaveGuard 규칙대로: 다시 하면 될 실패는 2초 → 5초 → 10초 뒤 자동으로 다시 올리고(그동안 "저장하는 중이에요…"),
+ * 3번 다 실패했거나 다시 해도 소용없는 실패(크기·개수 한도·권한 등)는 aiSaveFailed에 남겨 [다시 저장] 카드를 띄운다.
+ * 처음 저장·자동 다시 저장·[다시 저장]이 모두 이 함수를 쓴다. 조각 픽셀은 계산 때 만든 canvas 그대로 (AI 재계산 없음)
+ * @param {{ manual?: boolean }} opts manual = [다시 저장] 한 번 (실패하면 자동 재시도 없이 카드)
  */
-async function saveAiResult(job) {
+async function saveAiResult(job, { manual = false } = {}) {
   const seq = showSeq
+  const attempt = job.attempt || 0
+  aiUploading.set(job.layerId, attempt)
+  emitSaveState()
   try {
     const path = await uploadAiPatch({ projectId: job.imageRow.project_id, imageId: job.imageRow.id, layerId: job.layerId, key: job.key, canvas: job.canvas })
     if (seq === showSeq) aiSaveFailed.delete(job.layerId)
@@ -1077,21 +1091,32 @@ async function saveAiResult(job) {
       ai: { key: job.key, model: AI_MODEL_ID, engine: job.engine, patch: { path, x: job.area.x, y: job.area.y, w: job.area.w, h: job.area.h } },
     })
   } catch (err) {
-    console.error('[StudioCanvas] AI 결과 저장 실패:', job.layerId, err)
+    console.error(`[StudioCanvas] AI 결과 저장 실패 (${attempt + 1}번째, code=${err.code || '없음'}):`, job.layerId, err)
     if (seq !== showSeq) return
-    aiSaveFailed.set(job.layerId, { ...job, message: err.message || String(err) })
+    const delay = manual ? null : nextRetryDelay(err.code, attempt)
+    if (delay !== null) {
+      aiSaveFailed.delete(job.layerId)
+      const next = { ...job, attempt: attempt + 1 }
+      const timer = setTimeout(() => { aiSaveWaiting.delete(job.layerId); saveAiResult(next) }, delay)
+      aiSaveWaiting.set(job.layerId, { job: next, timer })
+    } else {
+      aiSaveFailed.set(job.layerId, { ...job, message: err.message || String(err), retryable: isRetryableSaveError(err.code) })
+    }
   } finally {
-    if (seq === showSeq) emitSaveState()
+    if (seq === showSeq) {
+      aiUploading.delete(job.layerId)
+      emitSaveState()
+    }
   }
 }
 
-/** [다시 저장] — 저장 못 한 결과를 메모리의 픽셀 그대로 다시 올린다. 모두 성공하면 true */
+/** [다시 저장] — 저장 못 한 결과를 메모리의 픽셀 그대로 다시 올린다 (한 번씩). 모두 성공하면 true */
 async function retryAiSave() {
   if (aiRetrying || aiSaveFailed.size === 0) return aiSaveFailed.size === 0
   aiRetrying = true
   emitSaveState()
   try {
-    for (const job of [...aiSaveFailed.values()]) await saveAiResult(job)
+    for (const job of [...aiSaveFailed.values()]) await saveAiResult(job, { manual: true })
   } finally {
     aiRetrying = false
     emitSaveState()
@@ -1099,9 +1124,37 @@ async function retryAiSave() {
   return aiSaveFailed.size === 0
 }
 
+/** 인터넷이 다시 연결되면 — 기다리던 자동 재시도는 바로, 네트워크류로 실패해 카드에 남은 결과도 한 번 바로 다시 올린다 */
+function onOnline() {
+  for (const [id, w] of [...aiSaveWaiting]) {
+    clearTimeout(w.timer)
+    aiSaveWaiting.delete(id)
+    saveAiResult(w.job)
+  }
+  for (const [id, j] of [...aiSaveFailed]) {
+    if (!j.retryable) continue
+    aiSaveFailed.delete(id)
+    saveAiResult({ ...j, attempt: AI_SAVE_RETRY_DELAYS.length }) // 이번에도 실패하면 바로 카드
+  }
+}
+
+function clearSaveTimers() {
+  for (const w of aiSaveWaiting.values()) clearTimeout(w.timer)
+  aiSaveWaiting.clear()
+}
+
+// 지우기 화면에 알리는 저장 상태:
+//   count 저장 못 한 결과([다시 저장] 카드) / pending 올리는 중 + 자동 재시도 대기 / autoRetrying 그중 자동 재시도 / saving [다시 저장] 누름
 function emitSaveState() {
   const first = aiSaveFailed.values().next().value
-  emit('ai-unsaved', { count: aiSaveFailed.size, saving: aiRetrying, message: first?.message || '' })
+  const retryingUploads = [...aiUploading.values()].filter(a => a > 0).length
+  emit('ai-unsaved', {
+    count: aiSaveFailed.size,
+    pending: aiUploading.size + aiSaveWaiting.size,
+    autoRetrying: aiSaveWaiting.size + retryingUploads,
+    saving: aiRetrying,
+    message: first?.message || '',
+  })
 }
 
 // ── 사진 표시 ──
@@ -1130,6 +1183,8 @@ function clearObjects() {
   aiChecked.clear()
   aiUnsaved.clear()
   aiSaveFailed.clear()
+  clearSaveTimers()
+  aiUploading.clear()
   emitSaveState()
   aiLoadFailure.value = null
   aiRequestCount.value = 0
@@ -1252,6 +1307,7 @@ onMounted(() => {
   window.addEventListener('keydown', onKeyDown)
   window.addEventListener('keyup', onKeyUp)
   window.addEventListener('blur', onBlur)
+  window.addEventListener('online', onOnline)
   window.addEventListener('mouseup', onWindowPointerEnd)
   window.addEventListener('touchend', onWindowPointerEnd)
   window.addEventListener('touchcancel', onWindowPointerEnd)
@@ -1281,6 +1337,8 @@ onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKeyDown)
   window.removeEventListener('keyup', onKeyUp)
   window.removeEventListener('blur', onBlur)
+  window.removeEventListener('online', onOnline)
+  clearSaveTimers()
   window.removeEventListener('mouseup', onWindowPointerEnd)
   window.removeEventListener('touchend', onWindowPointerEnd)
   window.removeEventListener('touchcancel', onWindowPointerEnd)

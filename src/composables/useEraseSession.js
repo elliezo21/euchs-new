@@ -44,6 +44,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   const conflictId = ref(null)
   const conflictError = ref('')
   const conflictLoading = ref(false)
+  const lastSavedAt = ref(null)          // 이 창에서 마지막으로 저장된 시각 (상단 "저장됨"에 마우스를 올리면 보여준다)
   let saver = makeSaver()
 
   function rowOf(id) { return images.value.find(i => i.id === id) }
@@ -81,6 +82,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
         saveDetail.value = detail?.error || ''
       },
       onSaved(id, version, edit) {
+        lastSavedAt.value = Date.now()
         const row = rowOf(id)
         if (row) { row.edit = edit; row.edit_version = version }
       },
@@ -329,6 +331,14 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
 
   // AI 실행 요청 → 캔버스 (캔버스가 같이 지울 앞 AI를 정하고 계산한다)
   const aiLayerStates = ref({})       // 캔버스가 알려주는 AI 레이어 상태 (선택한 사진)
+  // 캔버스가 알려주는 AI 결과 저장 상태 — count 저장 실패([다시 저장] 카드), pending 올리는 중·자동 재시도 대기 (편집기 나가기 보호가 본다)
+  const aiSaveState = ref(emptyAiSaveState())
+  function emptyAiSaveState() { return { count: 0, pending: 0, autoRetrying: 0, saving: false, message: '' } }
+  /** 지우기 화면(캔버스)이 닫힐 때 — 캔버스가 알려준 상태를 비운다 (닫힌 뒤 "채우는 중"이 남지 않게) */
+  function resetScreenState() {
+    aiLayerStates.value = {}
+    aiSaveState.value = emptyAiSaveState()
+  }
   const eraseRequest = ref(null)      // { layerId, n, batch }
   let eraseSeq = 0
   const selectedAiState = computed(() => (!selectedIsDraft.value && selectedFill.value?.method === 'ai' ? aiLayerStates.value[selectedFill.value.id] || null : null))
@@ -427,6 +437,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     saveStatus.value = 'saved'
     saveDetail.value = ''
     conflictId.value = null
+    lastSavedAt.value = null
+    resetScreenState()
   }
 
   function dispose() {
@@ -436,8 +448,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
 
   return {
     // 상태
-    layerMap, histories, selectedLayerId, saveStatus, saveDetail, conflictId, conflictError, conflictLoading,
-    aiEngine, aiState, aiLayerStates, eraseRequest,
+    layerMap, histories, selectedLayerId, saveStatus, saveDetail, conflictId, conflictError, conflictLoading, lastSavedAt,
+    aiEngine, aiState, aiLayerStates, aiSaveState, eraseRequest,
     selectedImage, selectedLayers, selectedFill, selectedFillCount, selectedFillCounts, selectedIsDraft, selectedAiState, selectedAiMinGrow,
     canvasDraft, canUndoNow, canRedoNow, historySteps,
     canvasTool, brushSize, brushMode,
@@ -445,6 +457,6 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     fillCount, syncFromServer, leaveImage, startAiEngine, stopAiEngine,
     setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
     setPad, recordPad, removeFill, clearAllFills, undoEdit, redoEdit, jumpEdit,
-    retrySave, flush, hasUnsaved, reopenConflict, reloadConflicted, resetAll, dispose,
+    retrySave, flush, hasUnsaved, reopenConflict, reloadConflicted, resetAll, resetScreenState, dispose,
   }
 }

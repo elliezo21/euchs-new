@@ -29,6 +29,7 @@ export function usePageSession({ usableImages, showToast }) {
   const conflict = ref(false)
   const conflictError = ref('')
   const conflictLoading = ref(false)
+  const lastSavedAt = ref(null)       // 이 창에서 마지막으로 페이지가 저장된 시각
   let saver = makeSaver()
 
   function makeSaver() {
@@ -38,7 +39,7 @@ export function usePageSession({ usableImages, showToast }) {
         saveStatus.value = status
         saveDetail.value = detail?.error || ''
       },
-      onSaved() { isDefault.value = false },
+      onSaved() { isDefault.value = false; lastSavedAt.value = Date.now() },
       onConflict() {
         conflictError.value = ''
         conflict.value = true
@@ -150,12 +151,13 @@ export function usePageSession({ usableImages, showToast }) {
     saveDetail.value = ''
     conflict.value = false
     conflictError.value = ''
+    lastSavedAt.value = null
   }
 
   function dispose() { saver.dispose() }
 
   return {
-    page, history, isDefault, readError, saveStatus, saveDetail, conflict, conflictError, conflictLoading,
+    page, history, isDefault, readError, saveStatus, saveDetail, conflict, conflictError, conflictLoading, lastSavedAt,
     canUndoNow, canRedoNow,
     syncFromServer, apply, undo, redo, reloadConflicted, retrySave, flush, hasUnsaved, resetAll, dispose,
   }
