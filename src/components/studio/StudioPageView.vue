@@ -233,7 +233,9 @@ function onItemDown(e, it) {
     return
   }
   const ids = sel.includes(it.id) ? sel : [it.id]
-  if (!sel.includes(it.id)) selectIds(ids)
+  // 이미 골라져 있어도(목록에서 고른 사진이 페이지에도 골라져 있는 경우) 다시 알린다 — 편집기가 "페이지에서 고름"으로 바꿔야
+  // 방향키가 요소 옮기기가 된다 (안 보내면 목록 기준 그대로라 ←/→는 아무 일 없고 ↑/↓는 사진 바꾸기가 됨)
+  selectIds(ids)
   const movable = ids.filter(id => { const f = findItem(props.page, id); return f && !f.item.locked })
   if (movable.length) begin(e, { kind: 'move', ids: movable })
 }

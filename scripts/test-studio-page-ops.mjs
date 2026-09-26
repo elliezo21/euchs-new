@@ -52,6 +52,11 @@ const r2 = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.ro
   eq('구간 밖으로 사라지지 않게 (최소 40px 남김)', rect(moveItems(P, ['a'], -500, 0), 'a'), [-60, 0, 100, 100])
   eq('잠긴 것만 고르면 문서 그대로', moveItems(P, ['L'], 5, 5) === P, true)
   eq('0 이동 → 문서 그대로', moveItems(P, ['a'], 0, 0) === P, true)
+  const full = { ...P, sections: [{ id: 'f', height: 780, bg: '#fff', items: [img('F', 'FF', 0, 0, 780, 780)] }] }
+  let q = full
+  for (let i = 0; i < 3; i++) q = moveItems(q, ['F'], 10, 0) // Shift+→ 세 번
+  eq('페이지 폭 꽉 찬 요소도 방향키로 옮겨짐 (막지 않음)', rect(q, 'F'), [30, 0, 780, 780])
+  eq('…끝까지 가도 최소 40px은 구간 안에 남음 (드래그와 같은 규칙)', rect(moveItems(full, ['F'], 5000, 0), 'F'), [740, 0, 780, 780])
 }
 
 // ── 4. 크기 조절 ──

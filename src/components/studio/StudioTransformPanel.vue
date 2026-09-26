@@ -6,30 +6,40 @@
       <span v-if="anyHidden" class="st-badge" data-hidden-badge><EyeOff class="w-3 h-3 mr-1" :stroke-width="2" /> 숨김</span>
     </div>
 
-    <!-- 숫자 입력: 한 개면 X·Y·가로·세로·각도·투명도, 여러 개면 공통 칸(각도·투명도)만. Enter·칸 벗어나기 = 반영 -->
-    <div class="grid grid-cols-3 gap-1.5">
+    <!-- 숫자 입력 (2줄 × 3칸): 한 개면 X·Y·가로·세로·각도·투명도, 여러 개면 공통 칸(각도·투명도)만.
+         값이 서로 다르면 빈칸 + 흐린 "—". Enter·칸 벗어나기 = 반영 -->
+    <div class="grid grid-cols-3 gap-x-2 gap-y-2">
       <template v-if="single">
-        <label v-for="f in RECT_FIELDS" :key="f.key" class="st-num" :data-num="f.key">
-          <span>{{ f.label }}</span>
-          <input
-            type="number" step="1" :value="single[f.key]" :disabled="single.locked"
-            @change="onRect(f.key, $event)" @keydown.enter="$event.target.blur()"
-          />
+        <label v-for="f in RECT_FIELDS" :key="f.key" class="st-xfield" :data-num="f.key">
+          <span class="st-xfield-label">{{ f.label }}</span>
+          <span class="st-xfield-box">
+            <input
+              type="number" step="1" inputmode="numeric" :value="single[f.key]" :disabled="single.locked"
+              @change="onRect(f.key, $event)" @keydown.enter="$event.target.blur()"
+            />
+            <span class="st-xfield-unit">px</span>
+          </span>
         </label>
       </template>
-      <label class="st-num" data-num="rotation">
-        <span>각도</span>
-        <input
-          type="number" step="1" :value="common('rotation')" :disabled="allLocked" placeholder="–"
-          @change="onRotation($event)" @keydown.enter="$event.target.blur()"
-        />
+      <label class="st-xfield" data-num="rotation">
+        <span class="st-xfield-label">각도</span>
+        <span class="st-xfield-box">
+          <input
+            type="number" step="1" inputmode="decimal" :value="common('rotation')" :disabled="allLocked" placeholder="—"
+            @change="onRotation($event)" @keydown.enter="$event.target.blur()"
+          />
+          <span class="st-xfield-unit">°</span>
+        </span>
       </label>
-      <label class="st-num" data-num="opacity">
-        <span>투명도 %</span>
-        <input
-          type="number" min="0" max="100" step="1" :value="opacityPct" placeholder="–"
-          @change="onOpacityNum($event)" @keydown.enter="$event.target.blur()"
-        />
+      <label class="st-xfield" data-num="opacity">
+        <span class="st-xfield-label">투명도</span>
+        <span class="st-xfield-box">
+          <input
+            type="number" min="0" max="100" step="1" inputmode="numeric" :value="opacityPct" placeholder="—"
+            @change="onOpacityNum($event)" @keydown.enter="$event.target.blur()"
+          />
+          <span class="st-xfield-unit">%</span>
+        </span>
       </label>
     </div>
     <input
@@ -136,13 +146,25 @@ function onOpacityNum(e) {
 </script>
 
 <style scoped>
-.st-num { display: flex; flex-direction: column; gap: 2px; font-size: 11px; font-weight: 700; color: var(--st-muted); }
-.st-num input {
-  height: 30px; width: 100%; padding: 0 8px; border-radius: 8px; font-size: 13px; font-weight: 600;
-  border: 1px solid var(--st-line-strong); background: var(--st-card); color: var(--st-ink); outline: none;
+/* 숫자 칸 — 이름은 st-xfield (전역 .studio-root .st-num = 시작 화면 번호 동그라미 24px과 겹치지 않게) */
+.st-xfield { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.st-xfield-label { font-size: 11px; font-weight: 700; line-height: 14px; color: var(--st-muted); }
+.st-xfield-box {
+  display: flex; align-items: center; height: 28px; min-width: 0; padding: 0 6px 0 8px; border-radius: 8px;
+  border: 1px solid var(--st-line-strong); background: var(--st-card);
 }
-.st-num input:focus { border-color: var(--st-accent); }
-.st-num input:disabled { opacity: 0.45; }
+.st-xfield-box:focus-within { border-color: var(--st-accent); }
+.st-xfield-box input {
+  flex: 1 1 auto; min-width: 0; width: 100%; height: 100%; padding: 0; border: 0; outline: none; background: transparent;
+  font-size: 13px; font-weight: 600; color: var(--st-ink); font-variant-numeric: tabular-nums;
+  -moz-appearance: textfield; appearance: textfield; /* 위아래 화살표 숨김 (Firefox) */
+}
+.st-xfield-box input::-webkit-outer-spin-button,
+.st-xfield-box input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; } /* 위아래 화살표 숨김 (크롬·사파리) */
+.st-xfield-box input::placeholder { color: var(--st-muted); opacity: 0.7; }
+.st-xfield-box input:disabled { opacity: 0.45; }
+.st-xfield-unit { flex: none; margin-left: 2px; font-size: 11px; font-weight: 600; color: var(--st-muted); }
+.st-range { accent-color: var(--st-accent); }
 .st-tool { width: 32px; height: 32px; }
 .st-tool-sep { width: 1px; height: 20px; margin: 6px 2px; background: var(--st-line-strong); }
 .st-tool-btn { height: 30px; padding: 0 10px; font-size: 12px; gap: 4px; }
