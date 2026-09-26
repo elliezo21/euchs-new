@@ -128,7 +128,7 @@ import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
-  DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX,
+  DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
 } from '@/lib/studioPage'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
@@ -298,11 +298,14 @@ function onItemDown(e, it) {
   e.stopPropagation()
   e.preventDefault() // 글자 선택·이미지 끌기 막기
   const sel = props.selectedIds
-  if (e.shiftKey) { // 추가·빼기 (끌지 않음)
-    selectIds(sel.includes(it.id) ? sel.filter(x => x !== it.id) : [...sel, it.id])
+  // 9단계: 그룹 요소를 누르면 그 그룹 전체 (그룹 안 하나만은 레이어 탭에서 고른다)
+  const members = groupMemberIds(props.page, it.id)
+  if (e.shiftKey) { // 추가·빼기 (끌지 않음) — 그룹 단위
+    const allIn = members.every(m => sel.includes(m))
+    selectIds(allIn ? sel.filter(x => !members.includes(x)) : [...new Set([...sel, ...members])])
     return
   }
-  const ids = sel.includes(it.id) ? sel : [it.id]
+  const ids = sel.includes(it.id) ? sel : members
   // 이미 골라져 있어도(목록에서 고른 사진이 페이지에도 골라져 있는 경우) 다시 알린다 — 편집기가 "페이지에서 고름"으로 바꿔야
   // 방향키가 요소 옮기기가 된다 (안 보내면 목록 기준 그대로라 ←/→는 아무 일 없고 ↑/↓는 사진 바꾸기가 됨)
   selectIds(ids)
@@ -386,7 +389,7 @@ function onUp(e) {
       if (!a.shift && s && s.items.length === 0) emit('select-section', s.id)
       else if (!a.shift) selectIds([])
     } else {
-      const hit = itemsInBox(props.page, a.box)
+      const hit = expandToGroups(props.page, itemsInBox(props.page, a.box)) // 9단계: 그룹 요소가 하나라도 걸리면 그룹 전체
       selectIds(a.shift ? [...new Set([...a.prevIds, ...hit])] : hit)
     }
   } else if (a.moved && next && next !== a.startPage) {
@@ -399,7 +402,7 @@ function onUp(e) {
 
 // ── 우클릭 ──
 function onItemContext(e, it) {
-  if (!props.selectedIds.includes(it.id)) selectIds([it.id])
+  if (!props.selectedIds.includes(it.id)) selectIds(groupMemberIds(props.page, it.id)) // 9단계: 그룹이면 그룹 전체
   emit('context', { x: e.clientX, y: e.clientY, itemId: it.id })
 }
 function onBlankContext(e) {

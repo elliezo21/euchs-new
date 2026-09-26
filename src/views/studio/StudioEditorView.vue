@@ -160,8 +160,15 @@
           :active-section-id="inViewSectionId" :selected-section-id="selectedSectionId"
           @pick="onMiniPick"
         />
+        <!-- 레이어 (9단계): 고른 요소의 구간 → 골라진 구간 → 보는 중 구간의 요소 목록 -->
+        <StudioLayerPanel
+          v-else-if="rightTab === 'layers' && page"
+          :page="page" :section-id="layerSectionId" :section-label="layerSectionId ? sectionLabels[layerSectionId] ?? '' : ''"
+          :selected-ids="selectedItemIds" :views="views" :images-by-id="imagesById"
+          @select="onLayerSelect" @command="runCommand"
+        />
         <div v-else class="flex-1 overflow-y-auto px-3 pb-3 flex flex-col items-center justify-center text-center gap-2" data-right-soon>
-          <p class="st-desc break-keep">{{ rightTab === 'mini' ? '페이지가 준비되면 구간 미리보기가 보여요.' : '레이어 목록은 곧 추가될 기능이에요.' }}</p>
+          <p class="st-desc break-keep">{{ rightTab === 'mini' ? '페이지가 준비되면 구간 미리보기가 보여요.' : '페이지가 준비되면 레이어 목록이 보여요.' }}</p>
         </div>
         <div class="p-3 space-y-2 st-border-t">
           <button
@@ -310,6 +317,7 @@ import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
 import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
+import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
 import { SOURCE_MINE } from '@/lib/studioPhotoTabs'
 import {
@@ -329,6 +337,7 @@ import {
   removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
   setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
+  groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo,
 } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
@@ -521,6 +530,27 @@ watch([page, zoom], () => nextTick(updateInView)) // 구간을 더하거나 옮�
 function onMiniPick(sectionId) {
   pickSection(sectionId)
   nextTick(() => pageView.value?.scrollToSection(sectionId, 'start'))
+}
+
+// ── 레이어 탭 (9단계) — 보여 줄 구간: 고른 요소가 있으면 그 구간, 아니면 골라진 구간, 아니면 지금 보는 중 구간 ──
+const layerSectionId = computed(() => {
+  const p = page.value
+  if (!p) return null
+  const first = selectedItemIds.value.length ? findItem(p, selectedItemIds.value[0]) : null
+  if (first) return first.section.id
+  if (selectedSectionId.value) return selectedSectionId.value
+  return inViewSectionId.value
+})
+/** 레이어 줄 누르기 — 그 요소만(그룹 구성원 줄도 하나만), Shift = 더하기·빼기. 페이지에서 고른 것과 같은 상태(방향키 = 옮기기) */
+function onLayerSelect({ ids, shift }) {
+  const cur = selectedItemIds.value
+  let next = ids
+  if (shift) {
+    const allIn = ids.every(id => cur.includes(id))
+    next = allIn ? cur.filter(id => !ids.includes(id)) : [...new Set([...cur, ...ids])]
+  }
+  onPageSelect({ ids: next })
+  if (next.length) nextTick(() => pageView.value?.scrollToItem(next[0]))
 }
 
 // ── [순서 변경] 화면 (8-2) ──
@@ -804,6 +834,18 @@ function runCommand(name, args = {}) {
       break
     }
     case 'gap': applyPage(setGap(p, args.v), LABELS.secGap); break
+    // ── 그룹 (9단계) — 묶기는 같은 구간의 2개 이상만. 풀기는 고른 요소가 속한 그룹을 통째로 ──
+    case 'group': {
+      const c = groupCheck(p, ids)
+      if (c === 'mixed') { showToast('같은 구간 안의 요소만 묶을 수 있어요'); break }
+      applyPage(groupItems(p, ids), LABELS.grpGroup)
+      break
+    }
+    case 'ungroup': applyPage(ungroupItems(p, ids), LABELS.grpUngroup); break
+    // ── 레이어 탭 (9단계) — 줄의 눈·자물쇠(그룹 줄은 구성원 전체), 줄 끌기로 앞뒤 순서 ──
+    case 'layerHidden': applyPage(setHidden(p, args.ids, args.hidden), args.hidden ? LABELS.elHide : LABELS.elShow); break
+    case 'layerLocked': applyPage(setLocked(p, args.ids, args.locked), args.locked ? LABELS.elLock : LABELS.elUnlock); break
+    case 'layerMove': applyPage(reorderItemTo(p, args.ids, args.toIndex), LABELS.elOrder); break
     default:
       console.error('[StudioEditor] 모르는 조작:', name)
   }
@@ -839,6 +881,9 @@ function openContextMenu({ x, y, itemId, sectionId }) {
       { key: 'copy', label: '복사', keys: 'Ctrl+C' },
       { key: 'paste', label: '붙여넣기', keys: 'Ctrl+V', disabled: !hasClip },
       { key: 'cut', label: '잘라내기', keys: 'Ctrl+X', disabled: allLocked },
+      { sep: true },
+      { key: 'group', label: '그룹으로 묶기', keys: 'Ctrl+G', disabled: groupCheck(p, selectedItemIds.value) !== 'ok' },
+      { key: 'ungroup', label: '그룹 풀기', keys: 'Ctrl+Shift+G', disabled: !anyGrouped(p, selectedItemIds.value) },
       { sep: true },
       { key: 'order-front', label: '맨 앞으로' },
       { key: 'order-forward', label: '앞으로' },
@@ -1319,6 +1364,7 @@ function onBeforeUnload(e) {
 // 되돌리기 대상: 지우기 화면이 열려 있으면 그 사진의 지우기 이력, 아니면 페이지 이력 (입력칸에서는 브라우저 기본 동작)
 // 6-1 페이지 요소 (지우기 화면·모달·우클릭 메뉴·입력칸에서는 동작 안 함):
 //   Ctrl+A 보이는 구간 전체 선택 · Ctrl+C/V/X 복사·붙여넣기·잘라내기 · Ctrl+D 복제 · Delete/Backspace 삭제 · Esc 선택 해제
+//   Ctrl+G 그룹 묶기 · Ctrl+Shift+G 그룹 풀기 (9단계)
 //   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
 // (사용가이드는 14단계 — 생기면 여기서 막는다)
 function onKeyDown(e) {
@@ -1333,6 +1379,8 @@ function onKeyDown(e) {
     const redo = eraseOpen.value ? redoEdit : redoAny
     if (e.code === 'KeyZ' && !e.shiftKey) { e.preventDefault(); undo() }
     else if ((e.code === 'KeyZ' && e.shiftKey) || (e.code === 'KeyY' && !e.shiftKey)) { e.preventDefault(); redo() }
+    // 9단계: Ctrl+G 그룹 묶기 · Ctrl+Shift+G 그룹 풀기 (Shift를 쓰므로 아래 Shift 거르기보다 먼저)
+    else if (e.code === 'KeyG' && !eraseOpen.value && page.value && sel.length) { e.preventDefault(); runCommand(e.shiftKey ? 'ungroup' : 'group') }
     else if (eraseOpen.value || e.shiftKey || !page.value) return
     else if (e.code === 'KeyA') { e.preventDefault(); runCommand('selectAll') }
     else if (e.code === 'KeyC' && sel.length) { e.preventDefault(); runCommand('copy') }

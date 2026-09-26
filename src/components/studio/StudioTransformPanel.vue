@@ -78,6 +78,9 @@
         <component :is="anyHidden ? Eye : EyeOff" class="w-3.5 h-3.5" :stroke-width="2" /> {{ anyHidden ? '보이기' : '숨기기' }}
       </button>
       <button type="button" class="st-btn st-tool-btn" title="Ctrl+D" data-cmd="duplicate" @click="cmd('duplicate')"><CopyPlus class="w-3.5 h-3.5" :stroke-width="2" /> 복제</button>
+      <!-- 9단계: 2개 이상 고르면 묶기(이미 한 그룹이면 안 보임), 그룹을 고르면 풀기 -->
+      <button v-if="canGroup" type="button" class="st-btn st-tool-btn" title="Ctrl+G · 같은 구간 안의 요소만" data-cmd="group" @click="cmd('group')"><Group class="w-3.5 h-3.5" :stroke-width="2" /> 묶기</button>
+      <button v-if="canUngroup" type="button" class="st-btn st-tool-btn" title="Ctrl+Shift+G" data-cmd="ungroup" @click="cmd('ungroup')"><Ungroup class="w-3.5 h-3.5" :stroke-width="2" /> 풀기</button>
       <button type="button" class="st-btn st-tool-btn st-danger-text" :disabled="allLocked" title="Delete" data-cmd="delete" @click="cmd('delete')"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 삭제</button>
     </div>
   </div>
@@ -89,9 +92,9 @@
 import { computed, nextTick } from 'vue'
 import {
   RotateCw, FlipHorizontal2, FlipVertical2, BringToFront, SendToBack, ChevronUp, ChevronDown, Lock, LockOpen, Eye, EyeOff, CopyPlus, Trash2,
-  AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal,
+  AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup,
 } from 'lucide-vue-next'
-import { findItem } from '@/lib/studioPage'
+import { findItem, groupCheck, anyGrouped } from '@/lib/studioPage'
 
 const props = defineProps({
   page: { type: Object, required: true },
@@ -115,6 +118,9 @@ const single = computed(() => (items.value.length === 1 ? items.value[0] : null)
 const anyLocked = computed(() => items.value.some(it => it.locked))
 const allLocked = computed(() => items.value.length > 0 && items.value.every(it => it.locked))
 const anyHidden = computed(() => items.value.some(it => it.hidden))
+// 9단계: 묶기 = 2개 이상(다른 구간이 섞이면 누를 때 안내), 이미 그대로 한 그룹이면 숨김 / 풀기 = 그룹 요소가 있을 때
+const canGroup = computed(() => items.value.length >= 2 && groupCheck(props.page, props.selectedIds) !== 'same')
+const canUngroup = computed(() => anyGrouped(props.page, props.selectedIds))
 /** 모두 같은 값이면 그 값, 다르면 '' (빈칸) */
 function common(key) {
   const vals = [...new Set(items.value.map(it => it[key] ?? 0))]

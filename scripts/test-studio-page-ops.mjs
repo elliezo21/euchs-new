@@ -4,6 +4,7 @@ import {
   setOpacity, setLocked, setHidden, alignItems, reorderItems, removeItems, copyItems, pasteItems, duplicateItems,
   sectionItemIds, itemsInBox, snapMove, findItem, ITEM_MIN_SIZE, PASTE_OFFSET,
   itemStyleOf, setItemStyle, replaceItemImage, itemIdsOfImage, insertImageNear, dropImageAt,
+  groupItems, ungroupItems, groupMemberIds, expandToGroups, anyGrouped, groupCheck, cleanGroups, reorderItemTo, duplicateSection,
 } from '../src/lib/studioPage.js'
 
 let pass = 0, fail = 0
@@ -194,6 +195,68 @@ const r2 = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.ro
   eq('빈 구간에 놓으면 폭에 맞춰 채움', rect(de.page, de.itemId), [0, 0, 780, 390])
   eq('구간 밖에 놓으면 맨 아래 새 구간', dropImageAt(P, N, null, 0, 0).page.sections.length, 3)
   eq('입력 문서는 바뀌지 않음 (넣기)', JSON.stringify(E.sections[2].items), '[]')
+}
+
+// ── 그룹 (9단계) ──
+{
+  const gOf = (p, id) => it(p, id)?.groupId
+  eq('묶기: 같은 구간 2개 → 같은 새 groupId', (q => [!!gOf(q, 'a'), gOf(q, 'a') === gOf(q, 'b'), gOf(q, 'a').startsWith('g_')])(groupItems(P, ['a', 'b'])), [true, true, true])
+  eq('묶기: 1개만 → 그대로', groupItems(P, ['a']) === P, true)
+  eq('묶기: 다른 구간이 섞이면 그대로 + mixed', [groupItems(P, ['a', 'c']) === P, groupCheck(P, ['a', 'c'])], [true, 'mixed'])
+  eq('묶기: 없는 id만 → few', groupCheck(P, ['x', 'y']), 'few')
+  const g1 = groupItems(P, ['a', 'b'])
+  eq('묶기: 이미 그대로 한 그룹 → same·그대로', [groupCheck(g1, ['a', 'b']), groupItems(g1, ['b', 'a']) === g1], ['same', true])
+  // 구성원은 가장 앞 구성원 자리로 모임: s1 = [a, b, L] → a·L 묶기 → [b, a, L]
+  eq('묶기: 구성원이 가장 앞 자리로 모임(순서 유지)', order(groupItems(P, ['a', 'L']), 's1'), ['b', 'a', 'L'])
+  // 기존 그룹 합치기: (a,b) 그룹 + L → 새 그룹 하나
+  const g2 = groupItems(g1, ['a', 'b', 'L'])
+  eq('묶기: 기존 그룹 합치기 → 셋이 새 groupId 하나', [gOf(g2, 'a') === gOf(g2, 'L'), gOf(g2, 'b') === gOf(g2, 'L'), gOf(g2, 'a') !== gOf(g1, 'a')], [true, true, true])
+  // 기존 그룹의 일부만 다른 것과 묶으면 옛 그룹은 풀림: (a,b) 에서 b + L 묶기 → a는 그룹 없음
+  const g3 = groupItems(g1, ['b', 'L'])
+  eq('묶기: 옛 그룹 일부만 → 남은 구성원은 풀림', [gOf(g3, 'a'), gOf(g3, 'b') === gOf(g3, 'L')], [undefined, true])
+  eq('구성원 목록 / 그룹 아님 / 없는 요소', [groupMemberIds(g1, 'b'), groupMemberIds(g1, 'L'), groupMemberIds(g1, 'x')], [['a', 'b'], ['L'], []])
+  eq('그룹 단위로 넓히기 (페이지 순서)', expandToGroups(g1, ['b', 'c']), ['a', 'b', 'c'])
+  eq('풀기: 하나만 골라도 그룹 통째로', (q => [gOf(q, 'a'), gOf(q, 'b')])(ungroupItems(g1, ['b'])), [undefined, undefined])
+  eq('풀기: 그룹 없음 → 그대로', ungroupItems(P, ['a']) === P, true)
+  eq('풀 수 있는지', [anyGrouped(g1, ['a']), anyGrouped(g1, ['L'])], [true, false])
+  // 복제
+  const d = duplicateItems(g1, ['a', 'b'])
+  eq('복제: 그룹 통째로 → 복사본끼리 새 groupId', [gOf(d.page, d.ids[0]) === gOf(d.page, d.ids[1]), gOf(d.page, d.ids[0]) !== gOf(g1, 'a'), gOf(d.page, 'a') === gOf(g1, 'a')], [true, true, true])
+  const d1 = duplicateItems(g1, ['a'])
+  eq('복제: 일부만 → 복사본은 그룹 없음, 원본 그룹 그대로', [gOf(d1.page, d1.ids[0]), groupMemberIds(d1.page, 'a')], [undefined, ['a', 'b']])
+  // 복사·붙여넣기
+  const clipWhole = copyItems(g1, ['a', 'b']), clipPart = copyItems(g1, ['a'])
+  eq('복사: 통째로면 groupId 남김, 일부면 뗌', [!!clipWhole[0].item.groupId, 'groupId' in clipPart[0].item], [true, false])
+  const pw = pasteItems(g1, 's2', clipWhole)
+  eq('붙여넣기: 새 groupId 공유(원본과 다름)', [gOf(pw.page, pw.ids[0]) === gOf(pw.page, pw.ids[1]), gOf(pw.page, pw.ids[0]) !== gOf(g1, 'a')], [true, true])
+  const pw2 = pasteItems(pw.page, 's2', clipWhole)
+  eq('두 번 붙여넣기: 서로 다른 그룹', gOf(pw2.page, pw2.ids[0]) !== gOf(pw.page, pw.ids[0]), true)
+  // 삭제 뒤 1개만 남으면 풀림
+  const r1 = removeItems(g1, ['b'])
+  eq('삭제: 1개만 남은 그룹은 풀림', gOf(r1, 'a'), undefined)
+  const g4 = groupItems(P, ['a', 'b', 'L'])
+  eq('삭제: 2개 남으면 그룹 유지', (q => gOf(q, 'a') === gOf(q, 'L'))(removeItems(g4, ['b'])), true)
+  // 구간 복제: 복사본 그룹은 새 groupId (원본과 섞이지 않음)
+  const ds = duplicateSection(g1, 's1')
+  const copyItemsOfSec = ds.page.sections[1].items
+  eq('구간 복제: 복사한 구간의 그룹은 새 groupId, 원본 그룹 유지', [copyItemsOfSec[0].groupId === copyItemsOfSec[1].groupId, copyItemsOfSec[0].groupId !== gOf(g1, 'a'), groupMemberIds(ds.page, 'a')], [true, true, ['a', 'b']])
+  // 정리 규칙 + readPage
+  const broken = { ...P, sections: [
+    { ...P.sections[0], items: [{ ...P.sections[0].items[0], groupId: 'g_one' }, { ...P.sections[0].items[1], groupId: 'g_x' }, P.sections[0].items[2]] },
+    { ...P.sections[1], items: [{ ...P.sections[1].items[0], groupId: 'g_x' }] },
+  ] }
+  const cleaned = cleanGroups(broken)
+  eq('정리: 1개만인 그룹·구간을 넘는 그룹 → 풀림', [gOf(cleaned, 'a'), gOf(cleaned, 'b'), gOf(cleaned, 'c')], [undefined, undefined, undefined])
+  eq('정리: 바뀔 것 없으면 그대로', cleanGroups(g1) === g1, true)
+  eq('readPage도 정리해서 읽음', (r => [r.problems, gOf(r.page, 'a'), gOf(r.page, 'c')])(readPage(broken, 'p')), [[], undefined, undefined])
+  eq('readPage: 정상 그룹은 그대로', gOf(readPage(g1, 'p').page, 'a') === gOf(g1, 'a'), true)
+  eq('문자열 아닌 groupId → 정리에서 뗌', (q => 'groupId' in it(q, 'a'))(cleanGroups({ ...P, sections: [{ ...P.sections[0], items: [{ ...P.sections[0].items[0], groupId: 5 }, ...P.sections[0].items.slice(1)] }, P.sections[1]] })), false)
+  // 레이어 끌기: reorderItemTo
+  eq('자리 옮기기: b를 맨 뒤(0)', order(reorderItemTo(P, ['b'], 0), 's1'), ['b', 'a', 'L'])
+  eq('자리 옮기기: a를 맨 앞(나머지 길이)', order(reorderItemTo(P, ['a'], 2), 's1'), ['b', 'L', 'a'])
+  eq('자리 옮기기: 덩어리(그룹)째', order(reorderItemTo(g1, ['a', 'b'], 1), 's1'), ['L', 'a', 'b'])
+  eq('자리 옮기기: 같은 순서·구간 섞임·정수 아님 → 그대로', [reorderItemTo(P, ['a'], 0) === P, reorderItemTo(P, ['a', 'c'], 0) === P, reorderItemTo(P, ['a'], 0.5) === P], [true, true, true])
+  eq('자리 옮기기: 범위 밖은 끝으로', order(reorderItemTo(P, ['a'], 99), 's1'), ['b', 'L', 'a'])
 }
 
 eq('입력 문서는 바뀌지 않음', JSON.stringify(P) === snapshot, true)

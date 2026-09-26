@@ -9,6 +9,8 @@
  *   rotation = 도(°), 가운데를 축으로 시계 방향, -180 초과 ~ 180 이하. x·y·w·h는 돌리기 전 네모 (돌림은 화면에서 transform으로만).
  *   6-1단계에서 rotation이 생겼다 — 예전에 저장된 페이지에 없는 칸은 readPage가 기본값으로 채운다(normalizeItem, v는 1 그대로).
  *   회전·뒤집기·투명도는 페이지 요소 속성일 뿐, 사진 파일(원본·5단계 최종 JPG)에는 넣지 않는다.
+ *   groupId(선택 칸, 9단계) = 그룹 이름 'g_…' — 같은 값의 요소끼리 한 그룹. 칸이 없으면 그룹 아님 (v는 1 그대로).
+ *     한 그룹은 한 구간 안에서만, 구성원 2개 이상. 어긋난 groupId(1개만 남음·구간을 넘음)는 읽을 때·바꾼 뒤 cleanGroups가 없앤다.
  *     parked: [ imageId, … ]
  *   }
  *   구간 순서 = sections 배열 순서(위 → 아래). 구간 사이 간격 = gap(px).
@@ -176,7 +178,7 @@ export function readPage(raw, projectId) {
   }
   const page = clone(raw)
   for (const s of page.sections) s.items = s.items.map(normalizeItem) // 예전 페이지: 회전 등 빠진 칸을 기본값으로
-  return { page, problems: [] }
+  return { page: cleanGroups(page), problems: [] } // 9단계: 어긋난 그룹(1개만·구간을 넘음)은 풀어서 읽는다
 }
 
 // jsonb::text가 더 붙이는 공백 수 — 키마다 ": "의 공백 1칸, 객체 키 사이·배열 원소 사이 ", "의 공백 1칸
@@ -335,10 +337,16 @@ export function duplicateSection(page, sectionId) {
   const i = page.sections.findIndex(s => s.id === sectionId)
   if (i < 0 || page.sections.length >= SECTION_MAX) return { page, sectionId: null }
   const src = page.sections[i]
+  const gidMap = new Map() // 9단계: 복사한 구간의 그룹은 새 groupId로 (원본 그룹과 섞이지 않게)
+  const newGid = gid => { if (!gidMap.has(gid)) gidMap.set(gid, newPageId('g')); return gidMap.get(gid) }
   const copy = {
     ...clone(src),
     id: newPageId('s'),
-    items: src.items.map(it => (it && typeof it === 'object' ? { ...clone(it), id: newPageId('i'), ...('locked' in it ? { locked: false } : {}) } : clone(it))),
+    items: src.items.map(it => {
+      if (!it || typeof it !== 'object') return clone(it)
+      const n = { ...clone(it), id: newPageId('i'), ...('locked' in it ? { locked: false } : {}) }
+      return hasGroup(it) ? { ...n, groupId: newGid(it.groupId) } : n
+    }),
   }
   const sections = [...page.sections]
   sections.splice(i + 1, 0, copy)
@@ -365,7 +373,7 @@ export function addItem(page, sectionId, item) {
 
 export function removeItem(page, itemId) {
   if (!findItem(page, itemId)) return page
-  return mapSections(page, s => (s.items.some(it => it.id === itemId) ? { ...s, items: s.items.filter(it => it.id !== itemId) } : s))
+  return cleanGroups(mapSections(page, s => (s.items.some(it => it.id === itemId) ? { ...s, items: s.items.filter(it => it.id !== itemId) } : s)))
 }
 
 /**
@@ -751,12 +759,30 @@ export function removeItems(page, ids) {
     for (const it of s.items) if (set.has(it?.id) && isValidImageItem(it)) parked = addParked(parked, it.imageId)
     return { ...s, items: s.items.filter(it => !set.has(it?.id)) }
   })
-  return { ...page, sections, parked: dropPlaced(parked, sections) }
+  return cleanGroups({ ...page, sections, parked: dropPlaced(parked, sections) }) // 9단계: 1개만 남은 그룹은 풀린다
 }
 
-/** 복사 — 편집기 안 클립보드에 넣을 값 [{ sectionId, item }] (깊은 복사, 페이지 순서) */
+/** ids가 그룹 구성원 전부를 담고 있는 groupId들 (그룹을 통째로 복사·복제했는지 — 9단계) */
+function wholeGroupIds(page, ids) {
+  const set = new Set(ids)
+  const all = new Map() // gid → [전부 담겼나]
+  for (const s of page.sections) for (const it of s.items) {
+    if (!hasGroup(it)) continue
+    all.set(it.groupId, (all.get(it.groupId) ?? true) && set.has(it.id))
+  }
+  return new Set([...all].filter(([, whole]) => whole).map(([gid]) => gid))
+}
+
+/**
+ * 복사 — 편집기 안 클립보드에 넣을 값 [{ sectionId, item }] (깊은 복사, 페이지 순서)
+ * 9단계: 그룹을 통째로 복사하면 groupId를 남기고(붙여넣을 때 새 groupId로), 일부만 복사하면 groupId를 뗀다
+ */
 export function copyItems(page, ids) {
-  return pickItems(page, ids).map(({ section, item }) => ({ sectionId: section.id, item: clone(item) }))
+  const whole = wholeGroupIds(page, ids)
+  return pickItems(page, ids).map(({ section, item }) => ({
+    sectionId: section.id,
+    item: hasGroup(item) && !whole.has(item.groupId) ? withoutGroup(clone(item)) : clone(item),
+  }))
 }
 
 function placeCopy(page, section, item, offset) {
@@ -774,30 +800,167 @@ export function pasteItems(page, sectionId, clip, offset = PASTE_OFFSET) {
   if (!section || !Array.isArray(clip) || clip.length === 0) return { page, ids: [] }
   let next = page
   const ids = []
+  const gidMap = new Map() // 9단계: 클립보드의 그룹(통째로 복사된 것) → 이번 붙여넣기의 새 groupId
   for (const c of clip) {
     if (!isTransformable(c?.item)) continue
-    const n = placeCopy(page, section, c.item, offset)
+    let n = placeCopy(page, section, c.item, offset)
+    if (hasGroup(n)) {
+      if (!gidMap.has(n.groupId)) gidMap.set(n.groupId, newPageId('g'))
+      n = { ...n, groupId: gidMap.get(n.groupId) }
+    }
     next = addItem(next, sectionId, n)
     ids.push(n.id)
   }
-  return { page: next, ids }
+  return { page: cleanGroups(next), ids }
 }
 
 /** 복제 — 원본 바로 앞(위)에 살짝 옆으로. @returns {{ page, ids }} */
 export function duplicateItems(page, ids, offset = PASTE_OFFSET) {
   const set = new Set(pickItems(page, ids).map(p => p.item.id))
   if (set.size === 0) return { page, ids: [] }
+  // 9단계: 그룹을 통째로 복제하면 복사본끼리 새 groupId를 공유, 일부만이면 복사본은 그룹 없음
+  const whole = wholeGroupIds(page, [...set])
+  const gidMap = new Map()
+  const regroup = n => {
+    if (!hasGroup(n)) return n
+    if (!whole.has(n.groupId)) return withoutGroup(n)
+    if (!gidMap.has(n.groupId)) gidMap.set(n.groupId, newPageId('g'))
+    return { ...n, groupId: gidMap.get(n.groupId) }
+  }
   const newIds = []
   const sections = page.sections.map(s => {
     if (!s.items.some(it => set.has(it?.id))) return s
     const items = []
     for (const it of s.items) {
       items.push(it)
-      if (set.has(it?.id)) { const n = placeCopy(page, s, it, offset); newIds.push(n.id); items.push(n) }
+      if (set.has(it?.id)) { const n = regroup(placeCopy(page, s, it, offset)); newIds.push(n.id); items.push(n) }
     }
     return { ...s, items }
   })
   return { page: { ...page, sections }, ids: newIds }
+}
+
+// ── 그룹 (9단계) — 요소의 선택 칸 groupId. 없음 = 그룹 아님. 한 구간 안에서만, 구성원 2개 이상 ──
+// 묶기·풀기·정리는 새 문서를 돌려주고, 할 수 없으면 입력 그대로 (다른 조작과 같은 규칙)
+
+function hasGroup(it) {
+  return !!it && typeof it === 'object' && typeof it.groupId === 'string' && it.groupId !== ''
+}
+function withoutGroup(it) {
+  const { groupId: _drop, ...rest } = it
+  return rest
+}
+
+/**
+ * 그룹 정리 — 구성원이 1개만 남은 그룹·다른 구간에 걸친 groupId·문자열이 아닌 groupId를 없앤다.
+ * readPage와 삭제·빼기·붙여넣기·묶기 뒤에 거친다. 바뀐 것이 없으면 입력 그대로
+ */
+export function cleanGroups(page) {
+  const info = new Map() // gid → { sections: Set, n }
+  for (const s of page.sections) for (const it of s.items) {
+    if (!hasGroup(it)) continue
+    if (!info.has(it.groupId)) info.set(it.groupId, { sections: new Set(), n: 0 })
+    const g = info.get(it.groupId)
+    g.sections.add(s.id)
+    g.n++
+  }
+  const keep = it => hasGroup(it) && info.get(it.groupId).sections.size === 1 && info.get(it.groupId).n >= 2
+  let changed = false
+  const sections = page.sections.map(s => {
+    let sc = false
+    const items = s.items.map(it => {
+      if (!it || typeof it !== 'object' || !('groupId' in it) || keep(it)) return it
+      sc = true
+      return withoutGroup(it)
+    })
+    if (!sc) return s
+    changed = true
+    return { ...s, items }
+  })
+  return changed ? { ...page, sections } : page
+}
+
+/** 같은 그룹 요소 id (페이지 순서). 그룹이 아니면 [itemId], 없는 요소면 [] */
+export function groupMemberIds(page, itemId) {
+  const f = findItem(page, itemId)
+  if (!f) return []
+  if (!hasGroup(f.item)) return [itemId]
+  return f.section.items.filter(it => hasGroup(it) && it.groupId === f.item.groupId).map(it => it.id)
+}
+
+/** 고른 요소를 그룹 단위로 넓힌다 (페이지에서 누르기·박스 선택 — 그룹 요소 하나 = 그 그룹 전체). 페이지 순서 */
+export function expandToGroups(page, ids) {
+  const set = new Set()
+  for (const id of ids) for (const m of groupMemberIds(page, id)) set.add(m)
+  return pickItems(page, [...set]).map(p => p.item.id)
+}
+
+/** 이 요소들이 그룹에 속해 있는지 (풀기를 할 수 있는지) */
+export function anyGrouped(page, ids) {
+  return pickItems(page, ids).some(p => hasGroup(p.item))
+}
+
+/**
+ * 묶을 수 있는지 — 'ok' | 'few'(2개 미만) | 'mixed'(다른 구간이 섞임) | 'same'(이미 그대로 한 그룹)
+ */
+export function groupCheck(page, ids) {
+  const picks = pickItems(page, ids)
+  if (picks.length < 2) return 'few'
+  if (new Set(picks.map(p => p.section.id)).size > 1) return 'mixed'
+  const gids = new Set(picks.map(p => (hasGroup(p.item) ? p.item.groupId : '')))
+  if (gids.size === 1 && !gids.has('') && groupMemberIds(page, picks[0].item.id).length === picks.length) return 'same'
+  return 'ok'
+}
+
+/**
+ * 그룹으로 묶기 — 같은 구간의 요소 2개 이상에 새 groupId. 이미 다른 그룹에 속한 요소가 섞였으면 그 그룹은 풀고 새 그룹으로 합친다.
+ * 구성원은 가장 앞에 있던 구성원 자리로 모인다(서로 앞뒤 순서는 그대로 — 레이어 목록에서 한 덩어리로 보이게).
+ * 할 수 없으면(groupCheck가 'ok'가 아님) 입력 그대로
+ */
+export function groupItems(page, ids) {
+  if (groupCheck(page, ids) !== 'ok') return page
+  const picks = pickItems(page, ids)
+  const section = picks[0].section
+  const set = new Set(picks.map(p => p.item.id))
+  const oldGids = new Set(picks.filter(p => hasGroup(p.item)).map(p => p.item.groupId))
+  const gid = newPageId('g')
+  const top = Math.max(...section.items.map((it, i) => (set.has(it?.id) ? i : -1)))
+  const members = section.items.filter(it => set.has(it?.id)).map(it => ({ ...it, groupId: gid }))
+  const others = []
+  let insertAt = 0
+  section.items.forEach((it, i) => {
+    if (set.has(it?.id)) return
+    others.push(hasGroup(it) && oldGids.has(it.groupId) ? withoutGroup(it) : it)
+    if (i < top) insertAt++
+  })
+  const items = [...others.slice(0, insertAt), ...members, ...others.slice(insertAt)]
+  return cleanGroups(mapSections(page, s => (s.id === section.id ? { ...s, items } : s)))
+}
+
+/** 그룹 풀기 — 고른 요소가 속한 그룹을 통째로 푼다. 그룹이 없으면 입력 그대로 */
+export function ungroupItems(page, ids) {
+  const gids = new Set(pickItems(page, ids).filter(p => hasGroup(p.item)).map(p => p.item.groupId))
+  if (gids.size === 0) return page
+  return mapSections(page, s => (s.items.some(it => hasGroup(it) && gids.has(it.groupId))
+    ? { ...s, items: s.items.map(it => (hasGroup(it) && gids.has(it.groupId) ? withoutGroup(it) : it)) } : s))
+}
+
+/**
+ * 앞뒤 순서를 자리로 (레이어 목록 끌기 — 9단계). ids = 옮길 덩어리(요소 하나 또는 그룹 전체, 같은 구간),
+ * toIndex = 덩어리를 뺀 나머지 배열에서 넣을 자리(0 = 맨 뒤, 나머지 길이 = 맨 앞). 덩어리 안 순서는 그대로.
+ * 구간이 섞였거나 없는 요소·같은 순서면 입력 그대로
+ */
+export function reorderItemTo(page, ids, toIndex) {
+  const picks = pickItems(page, ids)
+  if (picks.length === 0 || !Number.isInteger(toIndex) || new Set(picks.map(p => p.section.id)).size > 1) return page
+  const section = picks[0].section
+  const set = new Set(picks.map(p => p.item.id))
+  const block = section.items.filter(it => set.has(it?.id))
+  const rest = section.items.filter(it => !set.has(it?.id))
+  const to = Math.max(0, Math.min(rest.length, toIndex))
+  const items = [...rest.slice(0, to), ...block, ...rest.slice(to)]
+  if (items.every((it, i) => it === section.items[i])) return page
+  return mapSections(page, s => (s.id === section.id ? { ...s, items } : s))
 }
 
 /** 한 구간의 조작할 수 있는 요소 id (전체 선택) */
