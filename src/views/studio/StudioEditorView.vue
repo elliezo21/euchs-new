@@ -87,6 +87,12 @@
             @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
             @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded" @insert="onInsertImage"
           />
+          <!-- [구간] 패널 (8-1): 골라진 구간 다루기 + 페이지 전체 구간 간격 -->
+          <StudioSectionPanel
+            v-else-if="activeTool === 'section' && page"
+            ref="sectionPanel" :page="page" :section-id="selectedSectionId" :section-label="selectedSectionLabel"
+            @command="runCommand"
+          />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
             <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
@@ -103,8 +109,8 @@
             <StudioPageView
               ref="pageView"
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state"
-              :looks="session.lookMap" :compare="compare"
-              @select="onPageSelect" @change="onPageChange" @context="openContextMenu"
+              :looks="session.lookMap" :compare="compare" :selected-section-id="selectedSectionId"
+              @select="onPageSelect" @change="onPageChange" @context="openContextMenu" @select-section="pickSection"
               @open-erase="openErase" @retry-image="retryView"
               @visible="onPageVisible" @shown="onPageShown" @drop-image="onDropImage"
             />
@@ -152,7 +158,7 @@
         </div>
         <div class="p-3 space-y-2 st-border-t">
           <button type="button" class="st-btn st-btn-block" data-reorder @click="showToast('곧 추가될 기능이에요.')"><ArrowUpDown class="w-4 h-4" :stroke-width="2" /> 순서 변경</button>
-          <button type="button" class="st-btn st-btn-block" data-gap @click="showToast('곧 추가될 기능이에요.')"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 구간 간격</button>
+          <button type="button" class="st-btn st-btn-block" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 구간 간격</button>
         </div>
       </aside>
     </div>
@@ -284,6 +290,7 @@ import StudioTransformPanel from '@/components/studio/StudioTransformPanel.vue'
 import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
 import StudioImageItemPanel from '@/components/studio/StudioImageItemPanel.vue'
 import StudioStepBar from '@/components/studio/StudioStepBar.vue'
+import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import { readStep, writeStep, stepInfo, STEP_DEFAULT } from '@/lib/studioSteps'
 import { SOURCE_MINE } from '@/lib/studioPhotoTabs'
 import {
@@ -302,6 +309,7 @@ import {
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
   removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
   setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
+  addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX,
 } from '@/lib/studioPage'
 import { LABELS } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
@@ -314,7 +322,7 @@ const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 �
 // 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, 나머지는 10단계 이후
 const RAIL = [
   { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '어울리는 템플릿 고르기는 곧 추가될 기능이에요.' },
-  { key: 'section', label: '구간', icon: Rows3, soon: '구간 추가·정리는 곧 추가될 기능이에요.' },
+  { key: 'section', label: '구간', icon: Rows3, soon: '페이지가 준비되면 여기서 구간을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
   { key: 'photo', label: '사진', icon: ImageIcon, soon: '' },
   { key: 'text', label: '텍스트', icon: Type, soon: '글자 넣기는 곧 추가될 기능이에요.' },
   { key: 'element', label: '요소', icon: Shapes, soon: '도형·아이콘 넣기는 곧 추가될 기능이에요.' },
@@ -433,17 +441,45 @@ watch(pageScroll, el => {
 // ── 페이지 요소 고르기 (6-1) ──
 function onPageSelect({ ids }) {
   selectedItemIds.value = ids
+  selectedSectionId.value = null // 요소를 고르거나 빈 곳을 누르면 구간 고르기는 풀린다 (8-1)
   selectionSource = 'page'
   // 사진 요소 한 개를 고르면 목록·사진 정보 카드도 그 사진으로
   const one = ids.length === 1 && page.value ? findItem(page.value, ids[0])?.item : null
   if (one && isValidImageItem(one) && one.imageId !== selectedImageId.value && doneImages.value.some(i => i.id === one.imageId)) selectImage(one.imageId)
 }
-function clearSelection() { selectedItemIds.value = [] }
-/** 없어진 요소(되돌리기·충돌 불러오기 등)는 선택에서 뺀다 */
+function clearSelection() { selectedItemIds.value = []; selectedSectionId.value = null }
+/** 없어진 요소·구간(되돌리기·충돌 불러오기 등)은 선택에서 뺀다 */
 function pruneSelection() {
   const p = page.value
   const keep = p ? selectedItemIds.value.filter(id => findItem(p, id)) : []
   if (keep.length !== selectedItemIds.value.length) selectedItemIds.value = keep
+  if (selectedSectionId.value && !p?.sections.some(s => s.id === selectedSectionId.value)) selectedSectionId.value = null
+}
+
+// ── 구간 고르기 (8-1) — 구간 이름·요소 없는 구간의 빈 곳·우클릭으로 고른다. 요소를 고르면 풀리고, Esc·페이지 바깥 누르기로도 풀린다.
+// 왼쪽 아이콘은 바꾸지 않는다 (손님이 보던 패널 유지 — [구간] 패널이 열려 있으면 그 구간 정보가 보인다)
+const selectedSectionId = ref(null)
+const sectionPanel = ref(null)
+watch(selectedItemIds, ids => { if (ids.length) selectedSectionId.value = null })
+function pickSection(sectionId, scroll = false) {
+  if (!page.value?.sections.some(s => s.id === sectionId)) return
+  selectedItemIds.value = []
+  selectedSectionId.value = sectionId
+  if (scroll) nextTick(() => pageView.value?.scrollToSection(sectionId))
+}
+/** "03 상세 이미지" — 페이지 왼쪽 구간 이름과 같은 글자 (StudioPageView sectionName과 같은 규칙) */
+const selectedSectionLabel = computed(() => {
+  const p = page.value
+  const i = p && selectedSectionId.value ? p.sections.findIndex(s => s.id === selectedSectionId.value) : -1
+  if (i < 0) return ''
+  const first = p.sections[i].items.find(isValidImageItem)
+  const row = first ? imagesById.value.get(first.imageId) : null
+  return `${String(i + 1).padStart(2, '0')} ${row ? KIND_LABEL[row.kind] ?? '사진' : '구간'}`
+})
+/** 오른쪽 아래 [구간 간격] → [구간] 패널을 열고 간격 칸으로 */
+function openGapField() {
+  activeTool.value = 'section'
+  nextTick(() => sectionPanel.value?.focusGap())
 }
 watch(page, pruneSelection)
 /** 페이지에서 끌어 옮기기·크기·회전을 끝냄 (손을 뗄 때 한 번) */
@@ -679,6 +715,41 @@ function runCommand(name, args = {}) {
       if (sid) { selectedItemIds.value = sectionItemIds(p, sid); selectionSource = 'page' }
       break
     }
+    // ── 구간 (8-1) — 대상 = args.sectionId(우클릭 메뉴) 아니면 골라진 구간. 모두 페이지 이력·저장을 탄다 ──
+    case 'sectionAdd': {
+      const sid = args.sectionId ?? selectedSectionId.value
+      const i = sid ? p.sections.findIndex(s => s.id === sid) : -1
+      const at = args.where === 'end' || i < 0 ? p.sections.length : args.where === 'above' ? i : i + 1
+      const next = addSection(p, { at })
+      if (applyPage(next, LABELS.secAdd)) pickSection(next.sections[at].id, true)
+      break
+    }
+    case 'sectionDuplicate': {
+      const r = duplicateSection(p, args.sectionId ?? selectedSectionId.value)
+      if (r.sectionId && applyPage(r.page, LABELS.secDuplicate)) pickSection(r.sectionId, true)
+      break
+    }
+    case 'sectionMove': {
+      const sid = selectedSectionId.value
+      const i = sid ? p.sections.findIndex(s => s.id === sid) : -1
+      if (i >= 0 && applyPage(moveSection(p, sid, i + args.by), LABELS.secMove)) nextTick(() => pageView.value?.scrollToSection(sid))
+      break
+    }
+    case 'sectionHeight': applyPage(setSectionHeight(p, selectedSectionId.value, args.h), LABELS.secHeight); break
+    case 'sectionBg': {
+      const sid = selectedSectionId.value
+      applyPage(setSectionBg(p, sid, args.color), LABELS.secBg, args.merge ? { mergeKey: `secBg-${sid}` } : undefined)
+      break
+    }
+    case 'sectionDelete': { // 확인창 없이 — removeSection이 사진을 parked로 옮기므로 사진은 잃지 않는다. Ctrl+Z로 되돌림
+      const sid = args.sectionId ?? selectedSectionId.value
+      if (applyPage(removeSection(p, sid), LABELS.secDelete)) {
+        selectedSectionId.value = null
+        showToast('구간을 지웠어요. 사진은 [사진] 목록에 그대로 있어요 · Ctrl+Z로 되돌리기')
+      }
+      break
+    }
+    case 'gap': applyPage(setGap(p, args.v), LABELS.secGap); break
     default:
       console.error('[StudioEditor] 모르는 조작:', name)
   }
@@ -691,9 +762,18 @@ function openContextMenu({ x, y, itemId, sectionId }) {
   const p = page.value
   const hasClip = !!clipboard?.length
   if (!itemId) {
+    // 구간 빈 곳·구간 이름 우클릭 = 그 구간을 고르고 구간 메뉴도 함께 (8-1)
+    if (sectionId) pickSection(sectionId)
+    const noSec = !sectionId, full = p.sections.length >= SECTION_MAX
     ctx.items = [
       { key: 'paste', label: '붙여넣기', keys: 'Ctrl+V', disabled: !hasClip },
       { key: 'selectAll', label: '이 구간 전체 선택', keys: 'Ctrl+A' },
+      { sep: true },
+      { key: 'sec-add-above', label: '위에 구간 추가', disabled: noSec || full },
+      { key: 'sec-add-below', label: '아래에 구간 추가', disabled: noSec || full },
+      { key: 'sec-duplicate', label: '구간 복제', disabled: noSec || full },
+      { sep: true },
+      { key: 'sec-delete', label: '구간 삭제', danger: true, disabled: noSec },
     ]
     ctx.sectionId = sectionId
   } else {
@@ -724,8 +804,13 @@ function openContextMenu({ x, y, itemId, sectionId }) {
   }
   Object.assign(ctx, { open: true, x, y })
 }
+const SECTION_MENU = {
+  'sec-add-above': ['sectionAdd', { where: 'above' }], 'sec-add-below': ['sectionAdd', { where: 'below' }],
+  'sec-duplicate': ['sectionDuplicate', {}], 'sec-delete': ['sectionDelete', {}],
+}
 function onContextSelect(key) {
   if (key.startsWith('order-')) runCommand('order', { where: key.slice(6) })
+  else if (SECTION_MENU[key]) runCommand(SECTION_MENU[key][0], { ...SECTION_MENU[key][1], sectionId: ctx.sectionId })
   else if (key === 'paste') runCommand('paste', { sectionId: ctx.sectionId })
   else runCommand(key)
 }
@@ -1203,7 +1288,7 @@ function onKeyDown(e) {
     return
   }
   if (eraseOpen.value) return // 지우기 화면에서는 사진을 바꾸지 않는다
-  if (e.key === 'Escape' && sel.length) { e.preventDefault(); clearSelection(); return }
+  if (e.key === 'Escape' && (sel.length || selectedSectionId.value)) { e.preventDefault(); clearSelection(); return }
   if ((e.key === 'Delete' || e.key === 'Backspace') && sel.length) { e.preventDefault(); runCommand('delete'); return }
   const ARROWS = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }
   if (ARROWS[e.key] && sel.length && selectionSource === 'page') {

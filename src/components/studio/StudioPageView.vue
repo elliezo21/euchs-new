@@ -5,19 +5,21 @@
     @dragover="onDragOver" @dragleave="onDragLeave" @drop="onDrop"
   >
     <!-- 구간 이름 (페이지 왼쪽 바깥) -->
+    <!-- 누르면 그 구간을 고른다 (8-1) -->
     <div
       v-for="(s, si) in doc.sections" :key="`l-${s.id}`"
-      class="absolute text-right text-[11px] font-bold whitespace-nowrap"
-      :class="selectedSectionIds.has(s.id) ? 'st-accent-text' : 'st-muted'"
+      class="absolute text-right text-[11px] font-bold whitespace-nowrap cursor-pointer st-section-label"
+      :class="selectedSectionIds.has(s.id) || selectedSectionId === s.id ? 'st-accent-text' : 'st-muted'"
       :style="{ right: `calc(100% + 14px)`, top: `${rowOf(s.id).top * zoom + 4}px` }"
-      data-section-label
+      :data-section-label="s.id" title="이 구간 고르기"
+      @pointerdown.stop="onLabelDown($event, s.id)" @contextmenu.prevent.stop="onLabelContext($event, s.id)"
     >{{ String(si + 1).padStart(2, '0') }} {{ sectionName(s) }}<span v-if="sectionBake(s)" class="block font-semibold st-muted" data-section-bake>{{ sectionBake(s) }}</span></div>
 
     <!-- 흰 페이지 -->
     <div class="absolute inset-0 st-page-paper" @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext">
       <section
         v-for="s in doc.sections" :key="s.id"
-        class="absolute left-0 overflow-hidden" :class="dropSectionId === s.id ? 'st-drop-target' : ''"
+        class="absolute left-0 overflow-hidden" :class="[dropSectionId === s.id ? 'st-drop-target' : '', selectedSectionId === s.id ? 'st-section-picked' : '']"
         :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${doc.width * zoom}px`, height: `${s.height * zoom}px`, background: s.bg }"
         :data-section-id="s.id"
         @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
@@ -102,6 +104,13 @@
       </template>
     </div>
 
+    <!-- 골라진 구간의 높이 손잡이 (8-1) — 아래쪽 가장자리. 끌면 높이만 바뀌고(요소는 그대로) 놓을 때 이력 한 번 -->
+    <div
+      v-if="sectionHandle" class="absolute st-section-handle" :style="sectionHandle.style"
+      :title="`끌어서 높이 바꾸기 · 지금 ${sectionHandle.height}px`" data-section-height-handle
+      @pointerdown.stop.prevent="onSectionHeightDown($event, sectionHandle.id)"
+    ><span class="st-section-handle-grip" /><span v-if="sizingSection" class="st-section-handle-size">{{ sectionHandle.height }}px</span></div>
+
     <!-- 빈 곳 드래그 박스 -->
     <div v-if="marquee" class="absolute pointer-events-none st-marquee" :style="marquee" data-marquee />
   </div>
@@ -114,11 +123,12 @@
 //   모서리 손잡이 = 비율 유지 크기(Shift = 자유), 변 손잡이 = 한 방향, 회전 손잡이(Shift = 15°), 우클릭 = 메뉴(편집기가 띄움).
 //   조작 중에는 미리보기 문서(draft)로 그리고, 손을 뗄 때 한 번 change를 보낸다 (저장·이력 한 단계). Esc = 조작 취소.
 // 페이지 계산은 전부 studioPage.js 순수 함수 (moveItems·resizeRect·setItemRect·setRotation·snapMove·itemsInBox).
+// 8-1 구간: 구간 이름·요소 없는 구간의 빈 곳 누르기 = 구간 고르기(select-section), 골라진 구간은 테두리 + 아래쪽 높이 손잡이(setSectionHeight).
 import { ref, shallowRef, computed, onMounted, onBeforeUnmount } from 'vue'
 import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
-  DRAG_IMAGE_TYPE,
+  DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX,
 } from '@/lib/studioPage'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
@@ -134,11 +144,13 @@ const props = defineProps({
   looks: { type: Object, default: () => ({}) },    // image id → 필터·조정 (6-2, studioLook) — 화면에서만 CSS로
   compare: { type: Object, default: null },        // { imageId, url } 원본 비교 중 (6-2)
   bakeState: { type: Object, default: () => ({}) }, // image id → { status } (useBakeQueue) — 구간 이름 옆에 "적용 중" (사진 위에는 올리지 않는다)
+  selectedSectionId: { type: String, default: null }, // 골라진 구간 (8-1) — 테두리 + 아래쪽 높이 손잡이
 })
 // select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
 // open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })
 // drop-image({ imageId, sectionId|null, x, y }) 목록 사진을 끌어다 놓음 (6-3, x·y = 그 구간 좌표)
-const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image'])
+// select-section(sectionId) 구간 이름·요소 없는 구간의 빈 곳을 누름 (8-1). 높이 손잡이는 놓을 때 change({ page, label: 구간 높이 })
+const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image', 'select-section'])
 
 const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
 const SNAP_PX = 6        // 화면 px — 이만큼 가까우면 달라붙는다
@@ -233,6 +245,15 @@ const frames = computed(() => {
   if (out.length === 1 && !out[0].locked) out[0].handles = true
   return out
 })
+/** 골라진 구간의 높이 손잡이 자리 (페이지 좌표 → 화면) */
+const sectionHandle = computed(() => {
+  const id = props.selectedSectionId
+  const s = id ? doc.value.sections.find(x => x.id === id) : null
+  if (!s) return null
+  const z = props.zoom
+  const bottom = (rowOf(id).top + s.height) * z
+  return { id, height: s.height, style: { left: `${(doc.value.width * z) / 2 - 28}px`, top: `${bottom - 6}px`, width: '56px', height: '12px' } }
+})
 function guideStyle(g) {
   const z = props.zoom
   const r = rowOf(g.sectionId)
@@ -265,6 +286,7 @@ function end() {
   draft.value = null
   guides.value = []
   marquee.value = null
+  sizingSection.value = false
 }
 function cancel() { end() }
 function onKey(e) { if (e.key === 'Escape' && act) { e.preventDefault(); e.stopPropagation(); end() } }
@@ -301,7 +323,24 @@ function onRotateDown(e, id) {
 function onBlankDown(e) {
   if (e.button !== 0) return
   const p = pagePoint(e)
-  begin(e, { kind: 'box', x0: p.x, y0: p.y, shift: e.shiftKey, prevIds: props.selectedIds })
+  begin(e, { kind: 'box', x0: p.x, y0: p.y, shift: e.shiftKey, prevIds: props.selectedIds, sectionId: sectionAt(e) })
+}
+
+// ── 구간 고르기·높이 (8-1) ──
+const sizingSection = ref(false) // 높이 손잡이를 끄는 중 (손잡이에 지금 높이 표시)
+function onLabelDown(e, sectionId) {
+  if (e.button !== 0) return
+  emit('select-section', sectionId)
+}
+function onLabelContext(e, sectionId) {
+  emit('context', { x: e.clientX, y: e.clientY, itemId: null, sectionId })
+}
+function onSectionHeightDown(e, sectionId) {
+  if (e.button !== 0) return
+  const s = props.page.sections.find(x => x.id === sectionId)
+  if (!s) return
+  begin(e, { kind: 'sectionHeight', id: sectionId, h0: s.height })
+  sizingSection.value = true
 }
 
 function onMove(e) {
@@ -325,6 +364,9 @@ function onMove(e) {
     let deg = Math.atan2(e.clientY - act.cy, e.clientX - act.cx) * 180 / Math.PI + 90
     if (e.shiftKey) deg = Math.round(deg / 15) * 15
     draft.value = setRotation(P, [act.id], deg)
+  } else if (act.kind === 'sectionHeight') {
+    const h = Math.max(SECTION_H_MIN, Math.min(SECTION_H_MAX, Math.round(act.h0 + sdy / z)))
+    draft.value = setSectionHeight(P, act.id, h)
   } else if (act.kind === 'box') {
     const p = pagePoint(e)
     const x = Math.min(act.x0, p.x), y = Math.min(act.y0, p.y), w = Math.abs(p.x - act.x0), h = Math.abs(p.y - act.y0)
@@ -338,13 +380,18 @@ function onUp(e) {
   const a = act
   const next = draft.value
   if (a.kind === 'box') {
-    if (!a.moved) { if (!a.shift) selectIds([]) } // 빈 곳 누르기 = 선택 해제
-    else {
+    if (!a.moved) {
+      // 요소가 없는 구간의 빈 곳을 누름 = 그 구간 고르기 (8-1). 그 밖의 빈 곳 누르기 = 선택 해제
+      const s = a.sectionId ? props.page.sections.find(x => x.id === a.sectionId) : null
+      if (!a.shift && s && s.items.length === 0) emit('select-section', s.id)
+      else if (!a.shift) selectIds([])
+    } else {
       const hit = itemsInBox(props.page, a.box)
       selectIds(a.shift ? [...new Set([...a.prevIds, ...hit])] : hit)
     }
   } else if (a.moved && next && next !== a.startPage) {
-    const label = a.kind === 'move' ? LABELS.elMove : a.kind === 'resize' ? LABELS.elResize : LABELS.elRotate
+    const LABEL_OF = { move: LABELS.elMove, resize: LABELS.elResize, rotate: LABELS.elRotate, sectionHeight: LABELS.secHeight }
+    const label = LABEL_OF[a.kind]
     emit('change', { page: next, label })
   }
   end()
@@ -437,7 +484,11 @@ function sectionInView() {
   }
   return best
 }
-defineExpose({ scrollToItem, sectionInView, isBusy: () => !!act })
+/** 이 구간이 보이게 스크롤 (구간을 추가·복제·옮긴 뒤 — 8-1) */
+function scrollToSection(sectionId) {
+  rootEl.value?.querySelector(`[data-section-id="${sectionId}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+}
+defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act })
 </script>
 
 <style scoped>
@@ -449,6 +500,15 @@ defineExpose({ scrollToItem, sectionInView, isBusy: () => !!act })
 /* 자리 비율과 사진 비율이 다를 때(사진 바꾸기·한쪽 손잡이) 찌그러뜨리지 않고 자리에 맞춰 채운다 — 내보내기(13단계)도 같은 규칙 */
 .st-item-img { object-fit: cover; }
 .st-snap-guide { background: var(--st-accent); z-index: 4; }
+/* 골라진 구간 (8-1) — 안쪽 테두리만. 높이 손잡이는 아래쪽 가장자리 가운데 */
+.st-section-picked::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: 3; }
+.st-section-label:hover { color: var(--st-ink-2); }
+.st-section-handle { z-index: 5; cursor: ns-resize; display: flex; align-items: center; justify-content: center; }
+.st-section-handle-grip { width: 40px; height: 6px; border-radius: 999px; background: var(--st-accent); box-shadow: 0 0 0 2px var(--st-card); }
+.st-section-handle-size {
+  position: absolute; top: 14px; left: 50%; transform: translateX(-50%); padding: 1px 6px; border-radius: 6px; white-space: nowrap;
+  font-size: 11px; font-weight: 700; color: var(--st-ink); background: var(--st-card); border: 1px solid var(--st-line-strong);
+}
 /* 목록 사진을 끌고 있을 때 놓일 구간 (6-3) — 테두리만, 사진 위를 칠하지 않는다 */
 .st-drop-target::after { content: ''; position: absolute; inset: 0; box-shadow: inset 0 0 0 2px var(--st-accent); pointer-events: none; z-index: 3; }
 .st-marquee { border: 1px dashed var(--st-accent); background: var(--st-accent-soft); z-index: 4; }

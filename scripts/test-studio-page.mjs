@@ -2,8 +2,8 @@
 import {
   emptyPage, buildInitialPage, pageProblems, readPage, checkPageSize, pageBytes, layoutSections, findItem, pageImageIds,
   firstItemOfImage, addSection, removeSection, moveSection, setSectionHeight, setGap, addItem, removeItem, moveItem,
-  reorderItem, parkItem, unparkImage, newImageItem, clampItemPosition, fitZoom,
-  PAGE_VERSION, PAGE_WIDTH, PAGE_MAX_BYTES, SECTION_BG,
+  reorderItem, parkItem, unparkImage, newImageItem, clampItemPosition, fitZoom, duplicateSection, setSectionBg,
+  PAGE_VERSION, PAGE_WIDTH, PAGE_MAX_BYTES, SECTION_BG, SECTION_MAX, SECTION_H_MIN, SECTION_H_MAX, GAP_MAX,
 } from '../src/lib/studioPage.js'
 
 let pass = 0, fail = 0
@@ -103,6 +103,49 @@ const IMGS = [
   eq('같은 자리 이동은 그대로', moveSection(p, p.sections[0].id, 0) === p, true)
   eq('구간 높이 바꾸기', setSectionHeight(p, p.sections[0].id, 500).sections[0].height, 500)
   eq('구간 간격', setGap(p, 20).gap, 20)
+}
+
+// ── 5-1. 구간 다루기 경계값 (8-1) ──
+{
+  const p = buildInitialPage(IMGS)
+  const [s0, s1, s2] = p.sections.map(s => s.id)
+  // 추가
+  eq('추가: 높이 기본 400·흰 배경·빈 구간', (({ height, bg, items }) => ({ height, bg, items }))(addSection(p, { at: 0 }).sections[0]), { height: 400, bg: SECTION_BG, items: [] })
+  eq('추가: 높이 최소 20 / 최대 20000 경계', [addSection(p, { height: SECTION_H_MIN }) !== p, addSection(p, { height: SECTION_H_MAX }) !== p, addSection(p, { height: SECTION_H_MIN - 1 }) === p, addSection(p, { height: SECTION_H_MAX + 1 }) === p], [true, true, true, true])
+  eq('추가: 위치가 범위 밖이면 끝으로 맞춤', [addSection(p, { at: -5 }).sections[0].items, addSection(p, { at: 99 }).sections[3].items], [[], []])
+  const full = { ...p, sections: Array.from({ length: SECTION_MAX }, (_, i) => ({ id: `z${i}`, height: 20, bg: '#ffffff', items: [] })) }
+  eq(`추가: ${SECTION_MAX}개면 그대로`, addSection(full) === full, true)
+  // 삭제
+  eq('삭제: 없는 구간 → 그대로', removeSection(p, 'nope') === p, true)
+  eq('삭제: 마지막 하나도 지울 수 있음(사진은 parked)', (() => { let q = removeSection(p, s0); q = removeSection(q, s1); q = removeSection(q, s2); return [q.sections.length, q.parked] })(), [0, ['a', 'b', 'c']])
+  // 순서
+  eq('위로: 맨 위는 그대로', moveSection(p, s0, -1) === p, true)
+  eq('아래로: 맨 아래는 그대로', moveSection(p, s2, 3) === p, true)
+  eq('아래로 한 칸', moveSection(p, s0, 1).sections.map(s => s.id), [s1, s0, s2])
+  eq('없는 구간·정수 아님 → 그대로', [moveSection(p, 'nope', 1) === p, moveSection(p, s0, 1.5) === p], [true, true])
+  // 높이
+  eq('높이: 20·20000 경계', [setSectionHeight(p, s0, 20).sections[0].height, setSectionHeight(p, s0, 20000).sections[0].height], [20, 20000])
+  eq('높이: 범위 밖·소수·같은 값 → 그대로', [setSectionHeight(p, s0, 19) === p, setSectionHeight(p, s0, 20001) === p, setSectionHeight(p, s0, 300.5) === p, setSectionHeight(p, s0, 780) === p], [true, true, true, true])
+  eq('높이: 요소는 그대로 (넘치는 곳은 잘려 보임)', setSectionHeight(p, s0, 100).sections[0].items[0].h, 780)
+  // 간격
+  eq('간격: 0·400 경계', [setGap(setGap(p, 5), 0).gap, setGap(p, GAP_MAX).gap], [0, 400])
+  eq('간격: 범위 밖·소수·같은 값 → 그대로', [setGap(p, -1) === p, setGap(p, 401) === p, setGap(p, 2.5) === p, setGap(p, 0) === p], [true, true, true, true])
+  // 복제
+  const d = duplicateSection(p, s0)
+  const copy = d.page.sections[1]
+  eq('복제: 바로 아래, 새 id', [d.page.sections.length, copy.id === d.sectionId, copy.id !== s0, d.page.sections[2].id], [4, true, true, s1])
+  eq('복제: 높이·배경·요소 모양 같고 요소 id는 새로', [copy.height, copy.bg, copy.items[0].imageId, copy.items[0].id !== p.sections[0].items[0].id], [780, SECTION_BG, 'a', true])
+  eq('복제: 검사 통과(id 중복 없음)', pageProblems(d.page), [])
+  const lockedP = { ...p, sections: [{ ...p.sections[0], items: [{ ...p.sections[0].items[0], locked: true }] }, ...p.sections.slice(1)] }
+  const dl = duplicateSection(lockedP, s0).page
+  eq('복제: 잠긴 요소는 잠금 풀림, 원본은 그대로', [dl.sections[1].items[0].locked, dl.sections[0].items[0].locked], [false, true])
+  eq('복제: 없는 구간 → 그대로', duplicateSection(p, 'nope').page === p, true)
+  eq(`복제: ${SECTION_MAX}개면 그대로`, (r => [r.page === full, r.sectionId])(duplicateSection(full, 'z0')), [true, null])
+  eq('복제: 입력 문서는 안 바뀜', p.sections.length, 3)
+  // 배경색
+  eq('배경색: #rrggbb → 소문자로', setSectionBg(p, s0, '#1A2B3C').sections[0].bg, '#1a2b3c')
+  eq('배경색: 다른 구간은 같은 객체', setSectionBg(p, s0, '#000000').sections[1] === p.sections[1], true)
+  eq('배경색: 같은 값·짧은 색·이름·없는 구간 → 그대로', [setSectionBg(p, s0, '#FFFFFF') === p, setSectionBg(p, s0, '#fff') === p, setSectionBg(p, s0, 'red') === p, setSectionBg(p, 'nope', '#000000') === p], [true, true, true, true])
 }
 
 // ── 6. 아이템 이동·순서·삭제 ──

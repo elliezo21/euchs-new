@@ -296,9 +296,37 @@ export function setSectionHeight(page, sectionId, height) {
   return mapSections(page, s => (s.id === sectionId ? { ...s, height } : s))
 }
 
+export const GAP_MAX = 400
 export function setGap(page, gap) {
-  if (!Number.isInteger(gap) || gap < 0 || gap > 400 || gap === page.gap) return page
+  if (!Number.isInteger(gap) || gap < 0 || gap > GAP_MAX || gap === page.gap) return page
   return { ...page, gap }
+}
+
+/**
+ * 구간 복제 (8-1) — 바로 아래에 같은 구간. 새 구간 id, 안의 요소도 새 id.
+ * 잠긴 요소는 잠금을 풀어 둔다 (6-1 복제·붙여넣기와 같은 규칙 — 새로 만든 것을 바로 옮길 수 있게). 모르는 type 요소도 그대로 복사.
+ * @returns {{ page, sectionId: string|null }} 할 수 없으면(없는 구간·SECTION_MAX) page 그대로, sectionId null
+ */
+export function duplicateSection(page, sectionId) {
+  const i = page.sections.findIndex(s => s.id === sectionId)
+  if (i < 0 || page.sections.length >= SECTION_MAX) return { page, sectionId: null }
+  const src = page.sections[i]
+  const copy = {
+    ...clone(src),
+    id: newPageId('s'),
+    items: src.items.map(it => (it && typeof it === 'object' ? { ...clone(it), id: newPageId('i'), ...('locked' in it ? { locked: false } : {}) } : clone(it))),
+  }
+  const sections = [...page.sections]
+  sections.splice(i + 1, 0, copy)
+  return { page: { ...page, sections, parked: dropPlaced(page.parked, sections) }, sectionId: copy.id }
+}
+
+/** 구간 배경색 (8-1) — '#rrggbb'만 (소문자로 저장). 같은 값·잘못된 값·없는 구간이면 그대로 */
+export function setSectionBg(page, sectionId, color) {
+  if (typeof color !== 'string' || !HEX_COLOR.test(color)) return page
+  const bg = color.toLowerCase()
+  if (!page.sections.some(s => s.id === sectionId && s.bg !== bg)) return page
+  return mapSections(page, s => (s.id === sectionId ? { ...s, bg } : s))
 }
 
 // ── 아이템 바꾸기 ──
