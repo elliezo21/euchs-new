@@ -149,7 +149,7 @@
         <!-- 사진 정보 + [지우기] (3단계 임시 카드 — 페이지에서 누른 사진 기준. 6단계에서 왼쪽 사진 속성 패널로 옮긴다) -->
         <div v-if="selectedImage && !eraseOpen" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
           <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
-          <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
+          <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.cover"> · 덮기 {{ selectedFillCounts.cover }}</span><span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
           <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> 지우기</button>
           <button type="button" class="st-btn st-btn-ghost st-btn-block mt-1 st-danger-text text-[12px]" :disabled="selectedFillCount === 0" data-clear-all @click="clearAllOpen = true"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 이 사진의 지우기 모두 삭제</button>
         </div>
@@ -385,7 +385,7 @@ import {
 import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
 import { useBakeQueue } from '@/composables/useBakeQueue'
-import { fillCounts, fillLayersOf } from '@/lib/studioEdit'
+import { fillCounts, pixelLayersOf } from '@/lib/studioEdit'
 import { usableFinalVersion, sameLayers } from '@/lib/studioFinal'
 import { usePageSession } from '@/composables/usePageSession'
 import { createViewImageStore, finalPathOf, composeErased } from '@/lib/studioViewImage'
@@ -1409,7 +1409,7 @@ async function requestBake(id) {
   const layers = session.layerMap[id] || []
   const counts = fillCounts(layers)
   if (counts.redo > 0) { bakeQueue.markBlocked(id); return }
-  if (counts.done === 0) { bakeQueue.clear(id); return }
+  if (counts.done === 0 && counts.cover === 0) { bakeQueue.clear(id); return } // 12-2: 덮기만 있어도 굽는다
   if (usableFinalVersion(row) !== null) { bakeQueue.clear(id); return }
   bakeQueue.request(row, layers, row.edit_version)
 }
@@ -1426,7 +1426,7 @@ async function erasedSourceOf(imageId) {
     return { source: el, width: el.naturalWidth, height: el.naturalHeight, notes: [] }
   }
   const el = await loadWithResign(urlPool, row.original_path)
-  const r = await composeErased(el, fillLayersOf(session.layerMap[imageId] || []))
+  const r = await composeErased(el, pixelLayersOf(session.layerMap[imageId] || []))
   const notes = [...r.problems]
   if (r.aiMissing.length || r.aiStale.length) notes.push('AI로 지우기 결과가 없는 곳은 원본 그대로 들어갔어요 (지우기 화면에서 다시 지우기)')
   return { source: r.canvas || el, width: el.naturalWidth, height: el.naturalHeight, notes }

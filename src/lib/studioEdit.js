@@ -11,6 +11,8 @@
  *   방금 그린(계산 전) AI 레이어에는 ai가 없다. 옛 PNG는 지우지 않는다(되돌리기에서 다시 쓴다, 정리는 30일 삭제).
  *   'coons'(자연스럽게)는 새로 만들지 않지만(1-6b-3b에서 카드 제거) 저장된 레이어는 그대로 그린다.
  * ★ 붓 레이어(shape:'brush', brush:{ strokes }) — 모양은 studioBrush.js 주석. shape가 없으면 네모.
+ * ★ 덮기 레이어(type 'cover', 12-2) — { id: 'c_…', type: 'cover', x, y, w, h, sx, sy, feather }, 모양은 studioCover.js 주석.
+ *   지우기와 같은 배열에 쌓인 순서대로 적용한다 (pixelLayersOf — 화면·완성 JPG·작은 사진·내보내기 공통). type이 없는 레이어는 예전처럼 보존만.
  * ★ 실행 전 영역(네모·붓)은 edit에 넣지 않는다(편집기 화면에만 있는 초안 1개). [AI로 지우기]/[단색]을 누른 순간 레이어로 추가.
  * ★ 저장은 낙관적 잠금: edit_version이 내가 읽은 값일 때만 +1 하며 쓴다. 반영 0건 = 다른 창이 먼저 고침(충돌).
  *   브라우저(authenticated)는 edit·edit_version 등 컬럼 단위 UPDATE만 가능하다 (INSERT·DELETE 없음, RLS 본인 행).
@@ -18,6 +20,7 @@
 import { supabase } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
 import { isValidBrushLayer } from '@/lib/studioBrush'
+import { isValidCoverLayer } from '@/lib/studioCover'
 
 export const EDIT_VERSION = 2
 export const MAX_LAYERS = 60
@@ -30,10 +33,11 @@ export const SAVE_DELAY_MS = 1200
 
 const ID_CHARS = 'abcdefghijklmnopqrstuvwxyz0123456789'
 
-export function newFillId() {
+/** @param {string} prefix 'f_' 지우기 · 'c_' 덮기 */
+export function newFillId(prefix = 'f_') {
   const buf = new Uint32Array(6)
   crypto.getRandomValues(buf)
-  let s = 'f_'
+  let s = prefix
   for (const n of buf) s += ID_CHARS[n % ID_CHARS.length]
   return s
 }
@@ -63,6 +67,7 @@ export function readLayers(edit, imageId) {
   }
   for (const l of edit.layers) {
     if (l?.type === 'fill' && !isValidFillLayer(l)) console.error('[studioEdit] 잘못된 지우기 레이어 — 그리지 않고 보존:', imageId, l)
+    if (l?.type === 'cover' && !isValidCoverLayer(l)) console.error('[studioEdit] 잘못된 덮기 레이어 — 그리지 않고 보존:', imageId, l)
   }
   return edit.layers.map(l => ({ ...l }))
 }
@@ -77,19 +82,29 @@ export function fillLayersOf(layers) {
   return layers.filter(isValidFillLayer)
 }
 
+/** 사진 픽셀을 바꾸는 레이어 — 지우기 + 덮기(12-2), 배열 순서 그대로. 계산(fillPlan)·합성(composeErased)은 이 목록을 쓴다 */
+export function isValidPixelLayer(l) {
+  return isValidFillLayer(l) || isValidCoverLayer(l)
+}
+export function pixelLayersOf(layers) {
+  return layers.filter(isValidPixelLayer)
+}
+
 /**
  * 목록 표시용 개수 — done: 결과가 있는 지우기(AI는 저장된 결과 조각 ai.patch가 있어야, 단색·coons는 매번 원본에서 계산하므로 항상),
- * redo: 결과 조각 없이 남은 AI 레이어(실행했지만 결과를 저장하지 못함 → 다시 열면 [다시 지우기] 상태).
+ * redo: 결과 조각 없이 남은 AI 레이어(실행했지만 결과를 저장하지 못함 → 다시 열면 [다시 지우기] 상태),
+ * cover: 덮기 수(12-2 — 매번 사진에서 계산하므로 항상 결과가 있다).
  * ai.patch가 있어도 영역을 옮겨 계산 key가 바뀐 결과는 여기서 가리지 않는다 (key 확인은 비동기 sha256 — 편집 화면이 가린다)
  */
 export function fillCounts(layers) {
-  let done = 0, redo = 0
+  let done = 0, redo = 0, cover = 0
   for (const l of layers || []) {
+    if (isValidCoverLayer(l)) { cover++; continue }
     if (!isValidFillLayer(l)) continue
     if (l.method === 'ai' && !l.ai?.patch) redo++
     else done++
   }
-  return { done, redo }
+  return { done, redo, cover }
 }
 
 function requireUid() {

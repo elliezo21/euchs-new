@@ -17,7 +17,7 @@
 import { createSignedUrlPool, loadWithResign } from '@/lib/studioImageCache'
 import { computeFillPatch } from '@/lib/studioFillPatch'
 import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
-import { fillLayersOf } from '@/lib/studioEdit'
+import { pixelLayersOf } from '@/lib/studioEdit'
 import { AI_MODEL_ID, loadAiPatch } from '@/lib/studioAiPatch'
 import { geometryOf, drawGeometry, geometryHeightAt, readShape } from '@/lib/studioCrop'
 
@@ -37,7 +37,7 @@ export function viewKey(row, layers, targetW, finalVersion = null, shape = null)
   const s = readShape(shape, row.width, row.height)
   const shapeKey = s.crop || s.cuts.length ? `|shape:${JSON.stringify(s)}` : ''
   if (Number.isInteger(finalVersion)) return `final|${finalPathOf(row, finalVersion)}|${targetW}${shapeKey}`
-  return `${row.original_path}|${targetW}|${JSON.stringify(fillLayersOf(layers || []))}${shapeKey}`
+  return `${row.original_path}|${targetW}|${JSON.stringify(pixelLayersOf(layers || []))}${shapeKey}`
 }
 
 /**
@@ -57,6 +57,7 @@ function sameRect(a, b) {
 
 /**
  * 원본 + 지우기 조각 → 원본 크기 캔버스 (지우기가 없으면 null — 원본을 바로 줄인다). 5단계 굽기도 이 함수를 쓴다.
+ * fills = 지우기·덮기(12-2) 레이어 (studioEdit.pixelLayersOf) — 덮기는 coons·단색처럼 computeFillPatch가 계산한다 (같은 순서 규칙)
  * 결과가 없는 AI 레이어는 편집 화면처럼 원본 그대로 두고, 그 id를 돌려준다 (굽기 전에 알 수 있게 — 조용히 넘기지 않는다):
  *   aiMissing: 결과 조각이 없음 (실행했지만 저장 못 함·계산 중) / aiStale: 결과 조각은 있지만 영역이 바뀌어 지금 값과 맞지 않음
  * @param {{ background?: string }} opts background: 원본 아래 칠할 색 (굽기 = 흰색 — 투명한 PNG·WebP 원본을 JPG로 구울 때 검게 되지 않게)
@@ -130,7 +131,7 @@ async function renderView(pool, row, layers, targetW, finalVersion = null, shape
   const W = imgEl.naturalWidth, H = imgEl.naturalHeight
   const { canvas: full, problems, aiMissing, aiStale } = useFinal
     ? { canvas: null, problems: [], aiMissing: [], aiStale: [] }
-    : await composeErased(imgEl, fillLayersOf(layers || []))
+    : await composeErased(imgEl, pixelLayersOf(layers || []))
   const geo = geometryOf(W, H, shape)
   if (geo.cropIgnored) problems.push('자르기 영역이 모두 잘라낸 띠 안이라 자르기를 쓰지 않았어요')
   const tw = Math.min(targetW, geo.width)

@@ -102,6 +102,10 @@ export const LABELS = {
   cuts: '띠 잘라내기',
   cropCuts: '자르기·띠 잘라내기',
   cropFit: '구간 높이 맞춤',
+  // 덮기 (12-2) — 사진 이력 (지우기와 같은 layers)
+  cover: '덮기',
+  coverSource: '가져올 곳 옮기기',
+  coverFeather: '덮기 가장자리',
   lookFilter: '필터',
   lookAdjust: '조정',
   lookReset: '필터·조정 초기화',

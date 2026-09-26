@@ -53,6 +53,10 @@
 // ★ 사진 위에는 칠한 자국·영역 테두리·붓 동그라미만 그린다 (떠 있는 막대 없음 — 2026-09-25 결정 9).
 //   글자 걸침 판정은 emit('bleed')로 알리고, [조금 넓히기]는 부모가 widenSelected()를 부른다.
 // ★ interactive=false: 보기 전용(편집기 미리보기) — 선택·그리기 없음. showOriginal=true: 원본만 보인다([원본 보기]).
+// ★ 덮기(12-2, studioCover): [덮기] 도구로 덮을 곳을 네모로 고르면(emit 'draft-cover') 편집기가 가져올 곳을 옆에 붙인 초안을 만든다.
+//   고른 덮기(초안·레이어)에는 가져올 곳 점선 네모(SourceRect)가 생기고, 끌면 덮을 곳에 바로 미리 보인다(previewCover — 같은 계산 함수).
+//   놓으면 emit('cover-source'). 덮기 초안도 계산 목록 맨 뒤에 넣어 결과 조각을 보인다(저장된 레이어의 계산 key는 그대로).
+//   [원본 보기]는 원본 말고 모두 숨기므로 덮기 전 원본이 보인다.
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
 import { Canvas, FabricImage, Rect } from 'fabric'
 import { ZoomIn, ZoomOut, Maximize } from 'lucide-vue-next'
@@ -66,23 +70,23 @@ import {
 } from '@/lib/studioFillPlan'
 import { simplifyStroke, rasterizeStrokes, strokeExtent } from '@/lib/studioBrush'
 import { widenSides } from '@/lib/studioBleed'
-import { isValidFillLayer } from '@/lib/studioEdit'
+import { isValidFillLayer, isValidPixelLayer } from '@/lib/studioEdit'
 import { AI_MODEL_ID, uploadAiPatch, loadAiPatch } from '@/lib/studioAiPatch'
 import { nextRetryDelay, isRetryableSaveError, AI_SAVE_RETRY_DELAYS } from '@/lib/studioSaveGuard'
 
 const props = defineProps({
   image: { type: Object, default: null },        // { id, original_path, width, height }
-  layers: { type: Array, default: () => [] },     // 이 사진의 전체 레이어 (fill만 그린다)
+  layers: { type: Array, default: () => [] },     // 이 사진의 전체 레이어 (fill·cover만 그린다)
   selectedId: { type: String, default: null },
   loadImage: { type: Function, required: true },  // row → Promise<HTMLImageElement>
   keysEnabled: { type: Boolean, default: true },  // 모달이 떠 있으면 false
-  tool: { type: String, default: 'brush' },        // 'select' | 'brush' | 'rect' — 부모(지우기 화면)가 정한다
+  tool: { type: String, default: 'brush' },        // 'select' | 'brush' | 'rect' | 'cover' — 부모(지우기 화면)가 정한다
   interactive: { type: Boolean, default: true },  // false = 보기 전용 (선택·그리기·단축키 없음)
   showOriginal: { type: Boolean, default: false }, // true = 원본만 보인다 (결과 조각·영역 숨김)
   aiEngine: { type: Object, default: null },        // studioAi/aiEngine createAiEngine() — 편집기가 만들고 정리한다
   aiState: { type: Object, default: () => ({ status: 'idle', reason: '', progress: null }) }, // 엔진 상태(반응형)
   eraseRequest: { type: Object, default: null },     // AI 계산 요청: { layerId, n, batch } (n이 바뀔 때마다 한 번) — 편집기가 보낸다
-  draft: { type: Object, default: null },            // 실행 전 영역 (네모 {id,type,x,y,w,h,pad} 또는 붓 {…, shape:'brush', brush}) — method 없음
+  draft: { type: Object, default: null },            // 실행 전 영역 (네모 {id,type,x,y,w,h,pad} 또는 붓 {…, shape:'brush', brush}) — method 없음 / 덮기 초안 {type:'cover', …}
   brushSize: { type: Number, default: 40 },          // 붓 크기 (원본 픽셀)
   brushMode: { type: String, default: 'add' },       // 'add' 칠하기 | 'sub' 덜어내기
 })
@@ -98,7 +102,9 @@ const props = defineProps({
 //   부모가 retryAiSave()를 부르면 메모리의 결과로 업로드만 다시 한다 (AI 재계산 없음)
 // tool(key): 단축키(V·B·R)로 도구를 바꿔 달라는 요청 — 부모가 props.tool을 바꾼다
 // bleed(sides[]): 선택한 네모가 글자에 걸친 변 (없으면 []) — 부모가 안내와 [조금 넓히기]를 보여준다
-const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'ai-unsaved', 'tool', 'bleed'])
+// draft-cover(rect): [덮기] 도구로 덮을 곳을 그림 → 편집기가 가져올 곳을 붙인 덮기 초안을 만든다
+// cover-source(id, { sx, sy }): 가져올 곳을 끌어 놓음 (정수, 사진 안)
+const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'ai-unsaved', 'tool', 'bleed', 'draft-cover', 'cover-source'])
 
 const wrap = ref(null)
 const host = ref(null)
@@ -116,11 +122,11 @@ const bleedById = ref({})     // layer id → 글자에 걸친 변 목록 (최�
 // 선택: 저장된 레이어 또는 실행 전 영역(초안)
 const selectedIsDraft = computed(() => !!props.draft && props.draft.id === props.selectedId)
 const selectedLayer = computed(() => (selectedIsDraft.value ? props.draft
-  : props.layers.find(l => l.id === props.selectedId && isValidFillLayer(l)) || null))
-// 걸침 안내는 AI·붓·초안에서는 끈다 (AI는 테두리 띠를 읽어 메우는 방식이 아님, 붓은 사각형 테두리가 없음)
+  : props.layers.find(l => l.id === props.selectedId && isValidPixelLayer(l)) || null))
+// 걸침 안내는 AI·붓·덮기·초안에서는 끈다 (AI는 테두리 띠를 읽어 메우는 방식이 아님, 붓은 사각형 테두리가 없음, 덮기는 복사)
 const selectedBleed = computed(() => {
   const l = selectedLayer.value
-  if (!l || selectedIsDraft.value || l.method === 'ai' || l.shape === 'brush') return []
+  if (!l || selectedIsDraft.value || l.method === 'ai' || l.shape === 'brush' || l.type === 'cover') return []
   return bleedById.value[l.id] || []
 })
 watch(selectedBleed, (s, prev) => { if (!prev || s.join() !== prev.join()) emit('bleed', [...s]) }, { immediate: true })
@@ -195,6 +201,9 @@ let resizeObs = null
 let paint = null                 // 붓으로 칠하는 중: { mode, size, raw:[x,y,…] (원본 좌표, 소수) }
 let liveObj = null               // 칠하는 중 미리보기 (BrushRegion)
 let cursorObj = null             // 붓 크기 원 (BrushCursor)
+let planList = []                // 계산 목록: 지우기·덮기 레이어(배열 순서) + 덮기 초안(맨 뒤) — sync 때마다 새로
+let sourceObj = null             // 고른 덮기의 가져올 곳 (SourceRect)
+let previewRaf = 0               // 가져올 곳을 끄는 동안 미리보기 (한 프레임에 한 번)
 
 // ── 영역 사각형: 테두리를 화면 기준 px로 직접 그린다 (배율과 무관) ──
 //   선택됨: 그린 네모 실선 2px + 실제 메우는 범위(grow만큼 넓힌 사각형 — AI는 max(pad,k)) 옅은 점선 1px
@@ -203,7 +212,9 @@ class RegionRect extends Rect {
   _render(ctx) {
     const c = this.canvas
     const z = c ? c.getZoom() : 1
-    const selected = !!c && c.getActiveObject() === this
+    const act = c ? c.getActiveObject() : null
+    // 덮기의 가져올 곳을 끄는 중이면 그 덮을 곳도 고른 것처럼 그린다
+    const selected = !!act && (act === this || (act.isSource && act.layerId === this.layerId))
     const strong = this.isDraft || selected || this.busy
     if (!strong && !this.hovered) return
     const sw = this.width * this.scaleX, sh = this.height * this.scaleY
@@ -321,6 +332,126 @@ function makeBrushRegion(l, { draft = false, live = false } = {}) {
   return r
 }
 
+// ── 덮기의 가져올 곳: 점선 네모(화면 2px) + "가져올 곳" 글자 + 덮을 곳 가운데로 잇는 옅은 점선. 끌어 옮기기만 (크기는 덮을 곳과 같음) ──
+class SourceRect extends Rect {
+  _render(ctx) {
+    const c = this.canvas
+    const z = c ? c.getZoom() : 1
+    const sw = this.width * this.scaleX, sh = this.height * this.scaleY
+    ctx.save()
+    ctx.scale(1 / this.scaleX, 1 / this.scaleY)
+    const lw = 2 / z
+    if (this.dst) { // 가운데끼리 잇는 선 (원점 = 이 네모 가운데)
+      ctx.globalAlpha = 0.5
+      ctx.lineWidth = 1 / z
+      ctx.setLineDash([4 / z, 4 / z])
+      ctx.strokeStyle = colors.accent
+      ctx.beginPath()
+      ctx.moveTo(0, 0)
+      ctx.lineTo(this.dst.x + this.dst.w / 2 - (this.left + sw / 2), this.dst.y + this.dst.h / 2 - (this.top + sh / 2))
+      ctx.stroke()
+    }
+    ctx.globalAlpha = 1
+    ctx.lineWidth = lw * 2
+    ctx.setLineDash([])
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)' // 밝은 바탕·어두운 바탕 모두 보이게 흰 선 위에 강조색 점선
+    ctx.strokeRect(-sw / 2 - lw / 2, -sh / 2 - lw / 2, sw + lw, sh + lw)
+    ctx.lineWidth = lw
+    ctx.setLineDash([6 / z, 4 / z])
+    ctx.strokeStyle = colors.accent
+    ctx.strokeRect(-sw / 2 - lw / 2, -sh / 2 - lw / 2, sw + lw, sh + lw)
+    const fs = 12 / z
+    ctx.font = `700 ${fs}px sans-serif`
+    const label = '가져올 곳'
+    const tw = ctx.measureText(label).width
+    const bx = -sw / 2 - lw, by = -sh / 2 - lw - fs - 8 / z
+    ctx.fillStyle = colors.accent
+    ctx.fillRect(bx, by, tw + 12 / z, fs + 6 / z)
+    ctx.fillStyle = '#ffffff'
+    ctx.textBaseline = 'top'
+    ctx.fillText(label, bx + 6 / z, by + 3 / z)
+    ctx.restore()
+  }
+}
+
+function makeSource() {
+  const s = new SourceRect({
+    left: 0, top: 0, width: 1, height: 1, originX: 'left', originY: 'top',
+    fill: 'transparent', strokeWidth: 0, objectCaching: false,
+    selectable: true, evented: true, hasBorders: false, hasControls: false,
+    lockRotation: true, lockScalingX: true, lockScalingY: true, lockSkewingX: true, lockSkewingY: true, padding: 0,
+    hoverCursor: 'move',
+  })
+  s.isSource = true
+  s.kind = 'source'
+  return s
+}
+
+/** 지금 고른 덮기 (초안 또는 레이어) — 가져올 곳을 보여 줄 대상 */
+function currentCover() {
+  const id = props.selectedId
+  if (!id || !props.interactive) return null
+  if (props.draft?.id === id) return props.draft.type === 'cover' ? props.draft : null
+  return props.layers.find(l => l.id === id && l.type === 'cover' && isValidPixelLayer(l)) || null
+}
+
+/** 가져올 곳 객체를 고른 덮기에 맞춘다 (없으면 걷는다). 끄는 중이면 자리는 건드리지 않는다 */
+function syncSource() {
+  const cov = currentCover()
+  if (!cov || !W) {
+    if (sourceObj) { canvas.remove(sourceObj); sourceObj = null }
+    return
+  }
+  if (!sourceObj) { sourceObj = makeSource(); canvas.add(sourceObj) }
+  const dragging = canvas._currentTransform?.target === sourceObj
+  sourceObj.layerId = cov.id
+  sourceObj.dst = { x: cov.x, y: cov.y, w: cov.w, h: cov.h }
+  if (!dragging) {
+    sourceObj.set({ left: cov.sx, top: cov.sy, width: cov.w, height: cov.h, scaleX: 1, scaleY: 1 })
+    sourceObj.setCoords()
+  }
+}
+
+/** [덮기] 도구에서는 지금 고른 덮기의 네모·가져올 곳만 잡힌다 (다른 영역을 누르면 새로 그리기) */
+function applyEvented() {
+  const coverTool = tool.value === 'cover'
+  const cur = coverTool ? currentCover()?.id : null
+  for (const [id, r] of regions) {
+    const on = !coverTool || id === cur
+    r.evented = on
+    r.selectable = on
+  }
+}
+
+/** 가져올 곳을 끄는 동안: 그 자리로 덮기를 다시 계산해 덮을 곳에 바로 보인다 (저장·이력 없음 — 놓으면 편집기가 저장) */
+function schedulePreview() {
+  if (previewRaf) return
+  previewRaf = requestAnimationFrame(() => { previewRaf = 0; previewCover() })
+}
+function previewCover() {
+  if (!canvas || !imgEl || !sourceObj) return
+  const base = byId.get(sourceObj.layerId)
+  if (!base || base.type !== 'cover') return
+  const l = { ...base, sx: Math.round(sourceObj.left), sy: Math.round(sourceObj.top) }
+  const e = fillPlan(planList.map(x => (x.id === l.id ? l : x)), W, H).find(p => p.id === l.id)
+  if (!e) return
+  // 앞 결과는 지금 화면의 조각 그대로 (안 지운 앞 AI는 원본 그대로 — 계산과 같은 규칙)
+  const prior = e.deps.filter(d => byId.get(d)?.method !== 'ai' || aiDone(byId.get(d))).map(d => patches.get(d)?.res)
+  if (prior.some(p => !p)) return // 앞 결과가 아직 계산 중 — 놓으면 계산한다
+  let res
+  try {
+    res = computeFillPatch(imgEl, l, prior)
+  } catch (err) {
+    console.error('[StudioCanvas] 덮기 미리보기 계산 실패:', l.id, err)
+    computeError.value = `덮기 미리보기를 만들지 못했어요: ${err.message || err}`
+    return
+  }
+  if (!res.ok) { console.error('[StudioCanvas] 덮기 미리보기 계산 실패:', l.id, res.reason); return }
+  placePatch(l, `preview|${ownKey(l)}`, res) // 놓으면 sync가 진짜 key로 다시 계산한다 (key가 달라서)
+  restack(planList)
+  canvas.requestRenderAll()
+}
+
 // 붓 크기 원 (원본 좌표, 테두리는 화면 1.5px)
 class BrushCursor extends Rect {
   _render(ctx) {
@@ -353,7 +484,9 @@ function updateCursor(p) {
 
 /** 점선(실제 메우는 범위)의 넓힘 폭 — AI는 max(pad, k), 그 밖은 pad. 그리는 중 미리보기는 0 */
 function growOf(l) {
-  if (!W || !Number.isInteger(l.pad)) return 0
+  if (!W) return 0
+  if (l.type === 'cover') return Number.isInteger(l.feather) ? l.feather : 0 // 덮기: 섞는 띠까지
+  if (!Number.isInteger(l.pad)) return 0
   return l.method === 'ai' ? aiGrow(l, W, H) : l.pad
 }
 
@@ -457,12 +590,14 @@ function applyTool(t) {
   cancelDraw()
   abortTransform('도구 전환', false)
   const drawing = t === 'rect' || t === 'brush'
+  // [덮기]는 빈 곳을 끌면 새로 그리고, 고른 덮기의 네모·가져올 곳은 잡아 옮긴다 (applyEvented)
   canvas.skipTargetFind = drawing || t === 'view' // 보기 전용은 영역을 고를 수 없다
   if (t === 'view') canvas.discardActiveObject()
-  // 네모 = 십자 커서, 붓 = 커서 숨기고 붓 크기 원
-  canvas.defaultCursor = t === 'rect' ? 'crosshair' : t === 'brush' ? 'none' : 'default'
+  // 네모·덮기 = 십자 커서, 붓 = 커서 숨기고 붓 크기 원
+  canvas.defaultCursor = t === 'rect' || t === 'cover' ? 'crosshair' : t === 'brush' ? 'none' : 'default'
   canvas.setCursor(canvas.defaultCursor) // 마우스를 움직이기 전에도 바로 바뀌게
   if (t !== 'brush') updateCursor(null)
+  applyEvented()
   canvas.requestRenderAll()
 }
 
@@ -553,7 +688,7 @@ function onWindowPointerEnd(e) {
 function onPointerLeave() { updateCursor(null) }
 
 function onMouseDown(opt) {
-  if (tool.value === 'select' && opt.e.button === 0 && opt.target?.layerId) {
+  if ((tool.value === 'select' || tool.value === 'cover') && opt.e.button === 0 && opt.target?.layerId) {
     // 3px 판정용: 누른 화면 위치와 누르기 전 위치·크기
     const t = opt.target
     press = { id: t.layerId, s0: { x: opt.viewportPoint.x, y: opt.viewportPoint.y }, orig: { left: t.left, top: t.top, width: t.width * t.scaleX, height: t.height * t.scaleY } }
@@ -566,7 +701,7 @@ function onMouseDown(opt) {
     renderLive()
     return
   }
-  if (tool.value !== 'rect') return
+  if (tool.value !== 'rect' && tool.value !== 'cover') return
   const s0 = { x: opt.viewportPoint.x, y: opt.viewportPoint.y }
   const p0 = screenToImage(s0, vpt)
   const preview = makeRegion({ id: '_draft', x: 0, y: 0, w: 1, h: 1 }, false)
@@ -603,7 +738,8 @@ function onMouseUp(opt) {
     const r = click ? null : rectFromDrag(draw.p0, screenToImage(s1, vpt), W, H)
     cancelDraw()
     canvas.requestRenderAll()
-    if (r) emit('draft-rect', r) // 실행 전 네모(초안) — 도구 유지, 새로 그리면 이전 초안은 편집기가 버린다
+    // 실행 전 네모(초안) — 도구 유지, 새로 그리면 이전 초안은 편집기가 버린다. [덮기]는 덮을 곳 (가져올 곳은 편집기가 붙인다)
+    if (r) emit(tool.value === 'cover' ? 'draft-cover' : 'draft-rect', r)
     return
   }
   press = null
@@ -624,7 +760,7 @@ function onSelectionCleared() {
   if (replacing) return
   // 붓·네모로 칠하는 중에 사진을 누르면 Fabric이 선택을 푼다. 실행 전 영역(초안)은 그대로 고른 채로 둔다
   // (한도를 넘어 획이 거절되면 다시 고를 기회가 없어 [AI로 지우기]/[단색]이 꺼지던 문제)
-  if ((tool.value === 'brush' || tool.value === 'rect') && props.draft && props.selectedId === props.draft.id) return
+  if ((tool.value === 'brush' || tool.value === 'rect' || tool.value === 'cover') && props.draft && props.selectedId === props.draft.id) return
   if (props.selectedId !== null) emit('select', null)
 }
 
@@ -640,6 +776,12 @@ function beginTransform(obj) {
 
 function onMoving(opt) {
   const o = opt.target
+  if (o?.isSource) { // 가져올 곳: 사진 밖으로 못 나가게, 덮을 곳에 바로 미리보기
+    const c = clampRectPosition({ x: o.left, y: o.top, w: o.width, h: o.height }, W, H)
+    o.set({ left: c.x, top: c.y })
+    schedulePreview()
+    return
+  }
   beginTransform(o)
   const c = clampRectPosition({ x: o.left, y: o.top, w: o.width * o.scaleX, h: o.height * o.scaleY }, W, H)
   o.set({ left: c.x, top: c.y })
@@ -659,6 +801,22 @@ function onModified(opt) {
   // 3px 판정: 누른 곳에서 거의 안 움직였으면 "선택만" — 화면 위 위치·크기도 누르기 전 값으로 되돌리고 저장·이력 없음
   const p = press
   press = null
+  if (o.isSource) {
+    if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = 0 }
+    const cov = currentCover()
+    const sx = Math.round(o.left), sy = Math.round(o.top)
+    const selectOnly = p && p.id === o.layerId && opt.e && isSelectOnly(p.s0, localPoint(opt.e))
+    if (!selectOnly && cov && cov.id === o.layerId && (cov.sx !== sx || cov.sy !== sy)) {
+      o.set({ left: sx, top: sy })
+      o.setCoords()
+      emit('cover-source', o.layerId, { sx, sy })
+      return
+    }
+    // 제자리 — 저장값 자리로 되돌리고(끄는 중 표시가 아직 남아 있어 syncSource가 자리를 건드리지 않으므로 여기서), 미리보기 대신 계산 결과
+    if (cov) { o.set({ left: cov.sx, top: cov.sy }); o.setCoords() }
+    sync()
+    return
+  }
   if (p && p.id === o.layerId && opt.e && isSelectOnly(p.s0, localPoint(opt.e))) {
     o.set({ left: p.orig.left, top: p.orig.top, width: p.orig.width, height: p.orig.height, scaleX: 1, scaleY: 1 })
     o.setCoords()
@@ -701,12 +859,14 @@ function currentPatchCache() {
 
 function sync() {
   if (!canvas || !baseObj) return
-  const fills = props.layers.filter(isValidFillLayer)
+  const fills = props.layers.filter(isValidPixelLayer) // 지우기 + 덮기 (배열 순서)
   const draft = props.draft && props.draft.id && !fills.some(l => l.id === props.draft.id) ? props.draft : null
+  // 덮기 초안은 계산 목록 맨 뒤에 넣어 결과(미리보기)를 보인다 — 맨 뒤라 저장된 레이어의 계산 key는 그대로
+  planList = draft?.type === 'cover' ? [...fills, draft] : fills
   const alive = new Set(fills.map(l => l.id))
   if (draft) alive.add(draft.id)
   for (const [id, r] of regions) if (!alive.has(id)) { canvas.remove(r); regions.delete(id) }
-  for (const [id, p] of patches) if (!fills.some(l => l.id === id)) { canvas.remove(p); patches.delete(id) }
+  for (const [id, p] of patches) if (!planList.some(l => l.id === id)) { canvas.remove(p); patches.delete(id) }
   // 모양이 바뀐 영역(초안 네모 ↔ 붓, 초안 → 실행된 레이어)은 객체를 새로 만든다
   for (const l of [...fills, ...(draft ? [draft] : [])]) {
     const r = regions.get(l.id)
@@ -722,8 +882,8 @@ function sync() {
   }
 
   // 계산 계획: 그린 순서 + 연결된 앞 레이어 (키에 앞 레이어 값이 들어가 앞이 바뀌면 뒤도 다시 계산)
-  plan = new Map(fillPlan(fills, W, H).map(p => [p.id, p]))
-  byId = new Map(fills.map(l => [l.id, l]))
+  plan = new Map(fillPlan(planList, W, H).map(p => [p.id, p]))
+  byId = new Map(planList.map(l => [l.id, l]))
   const planKeys = new Set([...plan.values()].map(p => p.key))
   // 받기 실패 안내는 그 레이어 값이 바뀌면(옮김·삭제·되돌리기) 내린다
   if (aiLoadFailure.value && plan.get(aiLoadFailure.value.layerId)?.key !== aiLoadFailure.value.planKey) aiLoadFailure.value = null
@@ -777,9 +937,9 @@ function sync() {
     if (p) p.visible = false
     r.busy = true
   }
-  // 2) coons·단색: 화면 계산 key = 계산 key + 안 지운 앞 AI 목록 (앞 AI를 지우면 다시 계산)
+  // 2) coons·단색·덮기: 화면 계산 key = 계산 key + 안 지운 앞 AI 목록 (앞 AI를 지우면 다시 계산)
   eff = new Map()
-  for (const l of fills) {
+  for (const l of planList) {
     if (l.method === 'ai') continue
     const key = effectiveKey(plan.get(l.id), byId, id => aiDone(byId.get(id)))
     eff.set(l.id, key)
@@ -796,11 +956,14 @@ function sync() {
   }
   // 붓: 결과가 안 맞으면(실행 전과 같이) 칠한 모양을 반투명 색으로
   for (const l of fills) { const r = regions.get(l.id); if (r?.kind === 'brush') r.tint = r.busy }
-  restack(fills, draft)
-  // 선택 상태 맞추기
+  syncSource()
+  applyEvented()
+  restack(planList, draft)
+  // 선택 상태 맞추기 (고른 덮기의 가져올 곳을 잡고 있으면 그대로 — 그것도 같은 덮기를 고른 것)
   const want = props.interactive && props.selectedId ? regions.get(props.selectedId) : null
   const active = canvas.getActiveObject()
-  if (want && active !== want) canvas.setActiveObject(want)
+  const holdingSource = !!active?.isSource && active === sourceObj && active.layerId === props.selectedId
+  if (want && active !== want && !holdingSource) canvas.setActiveObject(want)
   else if (!want && active) canvas.discardActiveObject()
   canvas.requestRenderAll()
   refreshAiStates()
@@ -890,8 +1053,7 @@ function placePatch(l, key, res) {
 function nextPending() {
   const freshFill = id => { const p = patches.get(id); return !!p && p.patchKey === eff.get(id) }
   const done = id => { const x = byId.get(id); return x?.method === 'ai' ? aiDone(x) : freshFill(id) }
-  for (const l of props.layers) {
-    if (!isValidFillLayer(l)) continue
+  for (const l of planList) { // 지우기·덮기 + 덮기 초안 (배열 순서)
     const e = plan.get(l.id)
     if (!e || transforming.has(l.id)) continue
     if (l.method === 'ai') {
@@ -913,13 +1075,14 @@ function nextPending() {
   return null
 }
 
-// 순서: 원본 → 결과 조각(레이어 순) → 영역 테두리(레이어 순) → 실행 전 영역 → 칠하는 중 미리보기 → 붓 크기 원
+// 순서: 원본 → 결과 조각(레이어 순) → 영역 테두리(레이어 순) → 실행 전 영역 → 가져올 곳 → 칠하는 중 미리보기 → 붓 크기 원
 function restack(fills, draft = props.draft) {
   const order = [baseObj]
   for (const l of fills) { const p = patches.get(l.id); if (p) order.push(p) }
   for (const l of fills) { const r = regions.get(l.id); if (r) order.push(r) }
   const dr = draft && regions.get(draft.id)
   if (dr && !order.includes(dr)) order.push(dr)
+  if (sourceObj) order.push(sourceObj)
   if (liveObj) order.push(liveObj)
   if (cursorObj) order.push(cursorObj)
   order.forEach((o, i) => { if (canvas._objects[i] !== o) canvas.moveObjectTo(o, i) })
@@ -966,7 +1129,7 @@ function runCompute() {
       r.busy = false
       if (r.kind === 'brush') r.tint = false // 결과가 나왔으니 칠한 모양(반투명 색)을 걷는다 (sync와 같은 규칙: tint = busy)
     }
-    restack(props.layers.filter(isValidFillLayer))
+    restack(planList)
   } else {
     failedKeys.add(key) // 같은 값으로는 다시 시도하지 않는다 (영역을 바꾸면 새 키로 다시 계산)
   }
@@ -1192,6 +1355,9 @@ function clearObjects() {
   emit('ai-states', {})
   liveObj = null   // canvas.clear()가 객체를 모두 걷었다
   cursorObj = null
+  sourceObj = null
+  planList = []
+  if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = 0 }
   paint = null
 }
 
@@ -1244,6 +1410,7 @@ function onKeyDown(e) {
   if (k === 'v') { emit('tool', 'select'); e.preventDefault() }
   else if (k === 'b') { emit('tool', 'brush'); e.preventDefault() }
   else if (k === 'r') { emit('tool', 'rect'); e.preventDefault() }
+  else if (k === 'c') { emit('tool', 'cover'); e.preventDefault() }
   else if (e.key === 'Escape') {
     // 진행 중이던 그리기·드래그 상태를 전부 초기화
     cancelDraw()
@@ -1343,6 +1510,7 @@ onBeforeUnmount(() => {
   window.removeEventListener('touchend', onWindowPointerEnd)
   window.removeEventListener('touchcancel', onWindowPointerEnd)
   clearTimeout(computeTimer)
+  if (previewRaf) { cancelAnimationFrame(previewRaf); previewRaf = 0 }
   const c = canvas
   canvas = null
   if (c) {
@@ -1360,6 +1528,7 @@ watch(() => props.showOriginal, on => {
   if (!canvas) return
   if (on) { canvas.requestRenderAll(); return }
   for (const r of regions.values()) r.visible = true
+  if (sourceObj) sourceObj.visible = true
   sync()
 })
 // 엔진이 준비되면 기다리던 AI 레이어를 계산한다

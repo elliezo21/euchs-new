@@ -8,17 +8,45 @@
  *   잘라낸 조각이 이미지 끝에 닿으면 조각 끝 = 이미지 끝이므로 전체 이미지에서 계산한 것과 같다.
  * ★ pad: studioFill에는 "떨어져서 읽기" 인자가 없어, 영역을 사방 pad px 넓혀서 메운다 (메우는 범위 = 화면의 점선).
  */
-import { cropRect, fillOnCrop } from '@/lib/studioFillPlan'
+import { cropRect, fillOnCrop, coverCrops, coverOnCrops } from '@/lib/studioFillPlan'
 import { detectBleed } from '@/lib/studioBleed'
+
+/** 원본의 r 범위 픽셀 (오염 시 SecurityError — 호출한 쪽에서 사유를 보여준다) */
+function readCrop(img, r) {
+  const c = document.createElement('canvas')
+  c.width = r.w
+  c.height = r.h
+  const ctx = c.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(img, r.x, r.y, r.w, r.h, 0, 0, r.w, r.h)
+  return ctx.getImageData(0, 0, r.w, r.h)
+}
+
+/**
+ * 덮기 조각 (12-2, studioCover) — 가져올 곳·덮을 곳 두 군데만 잘라 계산한다 (전체 이미지를 읽지 않음).
+ * 반환 모양은 지우기 조각과 같다 (걸침 판정은 없음).
+ */
+function computeCoverPatch(img, l, prior) {
+  const W = img.naturalWidth, H = img.naturalHeight
+  const { src, dst } = coverCrops(l, W, H)
+  if (src.w < 1 || src.h < 1 || dst.w < 1 || dst.h < 1) return { ok: false, reason: 'empty_rect' }
+  const res = coverOnCrops(readCrop(img, src), readCrop(img, dst), l, W, H, prior)
+  if (!res.ok) return res
+  const out = document.createElement('canvas')
+  out.width = res.area.w
+  out.height = res.area.h
+  out.getContext('2d').putImageData(new ImageData(res.data.data, res.area.w, res.area.h), 0, 0)
+  return { ok: true, canvas: out, area: res.area, data: res.data, bleed: { sides: [], scores: {} } }
+}
 
 /**
  * @param {HTMLImageElement} img  crossOrigin='anonymous'로 받은 원본
- * @param {{x,y,w,h,method,pad}} l
+ * @param {{x,y,w,h,method,pad}} l  지우기 레이어 — 덮기(type 'cover')면 computeCoverPatch로 (같은 반환 모양)
  * @param {{ area, data }[]} prior  연결된 앞 레이어 조각 (배열 순서)
  * @returns {{ ok: true, canvas: HTMLCanvasElement, area, data, bleed: { sides, scores } } | { ok: false, reason: string }}
  *   bleed: 네모가 글자에 걸친 변 (studioBleed) — 계산이 읽은 것과 같은 샘플 띠(원본 + 앞 레이어 결과)로 판정
  */
 export function computeFillPatch(img, l, prior = []) {
+  if (l.type === 'cover') return computeCoverPatch(img, l, prior)
   const W = img.naturalWidth, H = img.naturalHeight
   const crop = cropRect(l, W, H)
   if (crop.w < 1 || crop.h < 1) return { ok: false, reason: 'empty_rect' }

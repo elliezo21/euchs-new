@@ -3,6 +3,7 @@
  *
  * ★ 합성은 studioViewImage.composeErased 하나만 쓴다 (페이지 화면용 사진과 같은 함수 — 크기만 다르다).
  *   composeErased는 지우기 화면(StudioCanvas)과 같은 계산 함수(fillPlan·computeFillPatch·aiPatchKey·loadAiPatch)를 같은 순서로 부른다.
+ *   12-2 덮기도 같은 layers 배열 안에 있어 쌓인 순서대로 함께 구워진다 (pixelLayersOf).
  * ★ 결과 없는 AI 레이어(aiMissing: 결과 조각 없음 / aiStale: 영역이 바뀌어 맞지 않음)가 있으면 굽지 않는다 — 그 자리가 원본으로 구워지므로.
  * ★ 투명한 원본(PNG·WebP 올리기 가능)은 흰 바탕 위에 굽는다 (JPG는 투명이 없어 그대로 두면 검게 된다).
  * ★ 품질·크기를 몰래 낮추지 않는다: 20MB(버킷 한도)를 넘으면 final_too_large로 실패한다.
@@ -11,7 +12,7 @@
 import { signViewUrl } from '@/lib/studioProjects'
 import { loadElement } from '@/lib/studioImageCache'
 import { composeErased } from '@/lib/studioViewImage'
-import { fillLayersOf } from '@/lib/studioEdit'
+import { pixelLayersOf } from '@/lib/studioEdit'
 import { uploadFinal } from '@/lib/studioFinalUpload'
 import { studioErrorMessage } from '@/lib/studioApi'
 
@@ -42,7 +43,7 @@ export async function renderFinalBlob(imgEl, layers) {
     console.error('[studioBake] 브라우저 캔버스 한도를 넘는 사진 — 굽지 않음:', W, H)
     throw codedError('final_canvas_too_big')
   }
-  const { canvas, problems, aiMissing, aiStale } = await composeErased(imgEl, fillLayersOf(layers || []), { background: FINAL_BACKGROUND })
+  const { canvas, problems, aiMissing, aiStale } = await composeErased(imgEl, pixelLayersOf(layers || []), { background: FINAL_BACKGROUND })
   if (aiMissing.length || aiStale.length) return { blocked: 'ai', aiMissing, aiStale }
   if (problems.length) throw codedError('final_compose', `지운 결과를 합치지 못했어요 (${problems[0]}). [다시 시도]를 눌러 주세요.`)
   if (!canvas) return { skipped: 'no_fills' }

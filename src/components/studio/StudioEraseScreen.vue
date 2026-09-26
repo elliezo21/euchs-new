@@ -64,7 +64,7 @@
           <div class="mt-2 st-seg w-full" role="toolbar" aria-label="지우기 도구">
             <button
               v-for="t in TOOL_BUTTONS" :key="t.key" type="button"
-              class="st-seg-item flex-1 inline-flex items-center justify-center gap-1.5" :class="canvasTool === t.key ? 'is-active' : ''"
+              class="st-seg-item st-tool-item flex-1 inline-flex items-center justify-center gap-1" :class="canvasTool === t.key ? 'is-active' : ''"
               :aria-pressed="canvasTool === t.key" :title="t.tip" :data-tool="t.key"
               @click="setTool(t.key)"
             >
@@ -72,7 +72,53 @@
             </button>
           </div>
 
+          <!-- 덮기 (12-2): [덮기] 도구이거나 덮기를 골랐을 때 — 덮을 곳 네모 → 가져올 곳 옮기기 → 가장자리 → [적용] -->
+          <template v-if="coverMode">
+            <div class="mt-5 st-label">덮기</div>
+            <ol class="mt-2 space-y-1.5" data-cover-steps>
+              <li class="st-cover-step" :class="!selectedCover ? 'is-now' : 'is-done'">① 덮을 곳(글자·로고)을 네모로 감싸세요</li>
+              <li class="st-cover-step" :class="selectedCover ? 'is-now' : ''">② 점선 네모(가져올 곳)를 비슷한 무늬 위로 끌어 옮기세요. 덮을 곳에 바로 보여요</li>
+            </ol>
+            <div v-if="selectedCover && selectedIsDraft" class="mt-3 flex gap-2">
+              <button type="button" class="st-btn st-btn-lg st-btn-primary flex-[1.6]" data-cover-apply @click="applyCover(selectedCover.id)">
+                <Check class="w-4 h-4" :stroke-width="2.5" /> 적용
+              </button>
+              <button type="button" class="st-btn st-btn-lg flex-1" data-cover-cancel @click="discardDraft">취소</button>
+            </div>
+            <button
+              v-else-if="selectedCover" type="button" class="st-btn st-btn-ghost st-btn-block mt-3 text-[12px]" data-cover-remove
+              @click="removeFill(selectedCover.id)"
+            ><RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> 선택한 덮기 삭제 (Delete)</button>
+            <p v-if="selectedCover && selectedIsDraft" class="mt-2 text-[12px] font-bold st-accent-text break-keep" data-cover-draft-hint>[적용]을 누르면 사진에 들어가고 저장돼요</p>
+            <p v-else-if="selectedCover" class="mt-2 st-desc-sm break-keep" data-cover-layer-hint>적용한 덮기예요. 네모나 가져올 곳을 옮기면 바로 바뀌어요</p>
+            <!-- AI 결과 저장 상태 — 덮기 화면에서도 보인다 (지우기 쪽 카드와 같은 동작) -->
+            <div v-if="aiSaveState.count > 0" class="mt-3 st-erase-unsaved" data-ai-unsaved>
+              <p class="text-[13px] font-bold st-ink break-keep">AI 결과를 아직 저장하지 못했어요. [다시 저장]을 눌러 주세요.<span v-if="aiSaveState.count > 1" class="st-muted"> ({{ aiSaveState.count }}개)</span></p>
+              <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" :disabled="aiSaveState.saving" data-ai-save-retry @click="retryAiSave">
+                {{ aiSaveState.saving ? '저장 중…' : '다시 저장' }}
+              </button>
+              <p v-if="aiSaveState.message" class="mt-2 st-desc-sm break-keep" data-ai-unsaved-reason>{{ aiSaveState.message }}</p>
+            </div>
+            <div v-else-if="aiSaveState.autoRetrying > 0" class="mt-3 st-erase-unsaved" data-ai-autoretry>
+              <p class="text-[13px] font-bold st-ink break-keep">AI 결과를 저장하는 중이에요…</p>
+            </div>
+
+            <div class="mt-5 flex items-center">
+              <span class="st-label">가장자리 부드럽게</span>
+              <span class="ml-auto text-[13px] font-bold st-ink" data-cover-feather-value>{{ selectedCover ? selectedCover.feather : COVER_FEATHER_DEFAULT }} px</span>
+            </div>
+            <input
+              type="range" :min="COVER_FEATHER_MIN" :max="COVER_FEATHER_MAX" step="1" class="mt-2 w-full st-range"
+              :value="selectedCover ? selectedCover.feather : COVER_FEATHER_DEFAULT" :disabled="!selectedCover" aria-label="가장자리 부드럽게"
+              data-cover-feather
+              @input="e => selectedCover && setCoverFeather(selectedCover.id, Number(e.target.value))"
+              @change="recordCoverFeather"
+            />
+            <p class="mt-1 st-desc-sm break-keep">덮은 네모 바깥으로 이만큼 원래 사진과 자연스럽게 섞어요. 0이면 경계가 또렷해요</p>
+          </template>
+
           <!-- 2. 붓 크기 · 3. 칠하기/덜어내기 -->
+          <template v-else>
           <div class="mt-5" data-brush-controls>
             <div class="flex items-center">
               <span class="st-label">붓 크기</span>
@@ -163,6 +209,27 @@
           />
           <p class="mt-1 st-desc-sm break-keep" data-pad-desc>칠한 곳보다 이만큼 더 넓게 지워요. 그림자·테두리까지 깨끗해져요</p>
           <p v-if="selectedFill && selectedFill.method === 'ai' && selectedAiMinGrow" class="mt-0.5 st-desc-sm break-keep" data-ai-min-grow>AI는 이 사진에서 최소 {{ selectedAiMinGrow }}px 넓게 메워요.</p>
+          </template>
+
+          <!-- 적용한 순서 (12-2) — 지우기·덮기가 위에서부터 차례로 적용된다. 누르면 그 영역을 고른다 -->
+          <div v-if="appliedRows.length" class="mt-5" data-applied-list>
+            <div class="flex items-center">
+              <span class="st-label">적용한 순서</span>
+              <span class="ml-auto text-[11px] st-muted">위에서부터 차례로 적용돼요</span>
+            </div>
+            <ol class="mt-2 st-applied">
+              <li v-for="row in appliedRows" :key="row.id">
+                <button
+                  type="button" class="st-applied-row" :class="row.id === selectedLayerId ? 'is-current' : ''"
+                  :data-applied-kind="row.kind" @click="selectLayer(row.id)"
+                >
+                  <span class="st-applied-no">{{ row.no }}</span>
+                  <component :is="row.kind === 'cover' ? Stamp : Eraser" class="w-3.5 h-3.5 shrink-0" :stroke-width="2" />
+                  <span class="truncate">{{ row.label }}</span>
+                </button>
+              </li>
+            </ol>
+          </div>
 
           <span class="flex-1" />
           <!-- 7. 안내 -->
@@ -206,10 +273,13 @@
           @ai-unsaved="setAiSaveState"
           @tool="setTool"
           @bleed="s => (bleedSides = s)"
+          @draft-cover="setCoverDraft"
+          @cover-source="moveCoverSource"
         />
-        <!-- 위쪽 가운데 안내 칩: 칠한 곳(실행 전)이 있을 때 -->
+        <!-- 위쪽 가운데 안내 칩: 칠한 곳(실행 전)이 있을 때 / 덮기 미리보기 중일 때 -->
         <div v-if="canvasDraft && !showOriginal" class="absolute top-3 left-1/2 -translate-x-1/2 st-badge st-badge-white st-shadow-float px-3 h-7" style="z-index: 5" data-draft-legend>
-          <span class="w-2 h-2 rounded-full mr-1.5" style="background: var(--st-accent)" /> 파란 곳 = 칠한 곳 · 아직 저장 안 됨
+          <span class="w-2 h-2 rounded-full mr-1.5" style="background: var(--st-accent)" />
+          {{ canvasDraft.type === 'cover' ? '덮기 미리 보기 · [적용]을 누르면 저장돼요' : '파란 곳 = 칠한 곳 · 아직 저장 안 됨' }}
         </div>
         <div v-if="showOriginal" class="absolute top-3 left-3 st-badge st-badge-scrim" style="z-index: 5" data-original-badge>원본</div>
         <!-- 12-1: 자르기·띠가 있는 사진 — 지우기는 원본 좌표라 원본 전체를 보여 준다 (자른 모습은 페이지·미리보기에서) -->
@@ -228,9 +298,11 @@
 // [완료]/[페이지로]: 이 사진을 바로 저장하고 실행 전 영역(초안)은 버린 뒤 닫는다 (5단계에서 [완료] 때 사진 굽기를 붙인다).
 import { ref, computed, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
 import { readShape, shapeMark } from '@/lib/studioCrop'
-import { ArrowLeft, Undo2, Redo2, Eye, History, Info, MousePointer2, Brush, Square, Sparkles, RotateCcw, Check } from 'lucide-vue-next'
-import { BRUSH_UI_MIN, BRUSH_UI_MAX, PAD_MIN, PAD_MAX } from '@/composables/useEraseSession'
-import { PAD_DEFAULT } from '@/lib/studioEdit'
+import { ArrowLeft, Undo2, Redo2, Eye, History, Info, MousePointer2, Brush, Square, Sparkles, RotateCcw, Check, Stamp, Eraser } from 'lucide-vue-next'
+import {
+  BRUSH_UI_MIN, BRUSH_UI_MAX, PAD_MIN, PAD_MAX, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT,
+} from '@/composables/useEraseSession'
+import { PAD_DEFAULT, isValidPixelLayer } from '@/lib/studioEdit'
 import { savedTitle } from '@/lib/studioSaveGuard'
 
 // Fabric은 이 컴포넌트와 함께만 받는다
@@ -261,7 +333,19 @@ const {
   aiEngine, aiState, aiLayerStates, aiSaveState, eraseRequest, saveStatus, saveDetail, lastSavedAt, resetScreenState,
   setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
   setPad, recordPad, removeFill, undoEdit, redoEdit, jumpEdit, retrySave, reopenConflict, flush,
+  selectedCover, setCoverDraft, moveCoverSource, setCoverFeather, recordCoverFeather, applyCover,
 } = props.session
+
+// 덮기 패널을 보일 때: [덮기] 도구이거나 덮기(초안·레이어)를 골랐을 때 (12-2)
+const coverMode = computed(() => canvasTool.value === 'cover' || !!selectedCover.value)
+const METHOD_LABEL = { ai: 'AI', solid: '단색', coons: '예전 방식' }
+// 적용한 순서 — 이 사진의 지우기·덮기 레이어 (배열 순서 = 적용 순서)
+const appliedRows = computed(() => selectedLayers.value.filter(isValidPixelLayer).map((l, i) => ({
+  id: l.id,
+  no: i + 1,
+  kind: l.type === 'cover' ? 'cover' : 'fill',
+  label: l.type === 'cover' ? '덮기' : `지우기 · ${METHOD_LABEL[l.method]}${l.shape === 'brush' ? ' · 붓' : ''}`,
+})))
 
 // 12-1 자르기·띠 안내 (예: "잘림 · 띠 2 — 지우기는 원본 전체에서 해요")
 const shapeNote = computed(() => {
@@ -277,6 +361,7 @@ const TOOL_BUTTONS = [
   { key: 'select', label: '선택', icon: MousePointer2, tip: '선택 (V) — 영역을 옮기거나 크기를 바꿔요' },
   { key: 'brush', label: '붓', icon: Brush, tip: '붓 (B) — 지울 곳을 칠하세요' },
   { key: 'rect', label: '네모', icon: Square, tip: '네모 (R) — 지울 곳을 네모로 감싸세요' },
+  { key: 'cover', label: '덮기', icon: Stamp, tip: '덮기 (C) — 사진의 다른 부분을 가져와 글자·로고 위를 덮어요' },
 ]
 const BRUSH_MODES = [['add', '칠하기'], ['sub', '덜어내기']]
 // '자연스럽게'(coons)는 해성 판정 "못 씀"으로 뺐다 (1-6b-3b). 저장된 coons 레이어는 그대로 그리고 위 버튼으로 다시 지울 수 있다
@@ -298,7 +383,7 @@ function formatTime(at) {
 }
 
 // 세션의 ref는 구조 분해로 받았으므로 템플릿에서 대입하지 않고 여기서 .value로 바꾼다
-function setTool(t) { if (t === 'select' || t === 'brush' || t === 'rect') canvasTool.value = t }
+function setTool(t) { if (t === 'select' || t === 'brush' || t === 'rect' || t === 'cover') canvasTool.value = t }
 function selectLayer(id) { selectedLayerId.value = id }
 function setAiStates(s) { aiLayerStates.value = s }
 
@@ -388,6 +473,22 @@ defineExpose({ close, requestClose })
   border-left: 3px solid var(--st-danger); font-size: 12px; font-weight: 700; color: var(--st-ink);
 }
 .st-erase-bleed .st-btn { height: 30px; padding: 0 10px; font-size: 12px; }
+/* 도구 4개(12-2 [덮기] 추가)가 패널 폭 안에 들어가게 좌우 여백만 줄인다 */
+.st-seg-item.st-tool-item { padding: 0 6px; min-width: 0; }
+/* 덮기 단계 안내 (12-2) — 지금 할 단계만 진하게 */
+.st-cover-step { font-size: 12px; font-weight: 600; color: var(--st-muted); line-height: 1.45; word-break: keep-all; }
+.st-cover-step.is-now { color: var(--st-ink); font-weight: 800; }
+.st-cover-step.is-done { color: var(--st-ink-2); }
+/* 적용한 순서 목록 */
+.st-applied { max-height: 196px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.st-applied-row {
+  display: flex; align-items: center; gap: 8px; width: 100%; height: 30px; padding: 0 8px;
+  border: 0; border-radius: var(--st-radius-sm); background: transparent; cursor: pointer;
+  font-size: 12px; font-weight: 600; color: var(--st-ink-2); text-align: left;
+}
+.st-applied-row:hover:not(.is-current) { background: var(--st-card-hover, var(--st-soft)); }
+.st-applied-row.is-current { background: var(--st-accent-soft); color: var(--st-accent); font-weight: 800; }
+.st-applied-no { width: 18px; font-size: 11px; font-weight: 700; color: var(--st-muted); font-variant-numeric: tabular-nums; }
 /* 저장 못 한 AI 결과 카드 — 눈에 띄게(강조색 테두리), 경고색은 쓰지 않는다 */
 .st-erase-unsaved {
   padding: 12px; border-radius: var(--st-radius-md); background: var(--st-accent-soft);

@@ -10,12 +10,14 @@
  * ★ AI 지우기: 영역을 정한 뒤 [AI로 지우기]를 눌러야 계산한다 (자동 계산·자동 재계산 없음).
  *   엔진(LaMa 워커)은 편집기에 들어오면 바로 준비를 시작하고 떠나면 정리한다.
  *   AI 결과는 PNG로 저장되고(studioAiPatch), 도착하면 그 레이어에 ai 필드를 붙인다 — 이력 "AI 지우기" 한 단계.
+ * ★ 덮기(12-2, studioCover): 같은 layers 배열의 type 'cover' 레이어. 초안도 같은 draft 한 개(네모로 덮을 곳 → 가져올 곳 자동) —
+ *   [적용]을 누르면 레이어로 추가(이력 "덮기"). 옮기기·크기·삭제·되돌리기·저장·erase_v는 지우기 레이어와 같은 길을 탄다.
  *
  * @param {{ images: import('vue').Ref<object[]>, selectedImageId: import('vue').Ref<string|null>, showToast: (msg: string) => void }} opts
  */
 import { ref, shallowRef, reactive, computed, watch } from 'vue'
 import {
-  readLayers, buildEdit, fillLayersOf, fillCounts, isValidFillLayer, newFillId, createEditSaver, fetchImageEdit, saveImageEdit,
+  readLayers, buildEdit, fillLayersOf, pixelLayersOf, fillCounts, isValidFillLayer, newFillId, createEditSaver, fetchImageEdit, saveImageEdit,
   MAX_LAYERS, PAD_MIN, PAD_MAX, PAD_DEFAULT,
 } from '@/lib/studioEdit'
 import { stampEraseVersion, withoutEraseVersion } from '@/lib/studioFinal'
@@ -33,6 +35,9 @@ import { aiK } from '@/lib/studioAi/aiGeometry'
 import { createAiEngine } from '@/lib/studioAi/aiEngine'
 import { readLook, withLook, normalizeLook } from '@/lib/studioLook'
 import { withShape } from '@/lib/studioCrop'
+import {
+  isValidCoverLayer, normalizeCover, autoSource, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT,
+} from '@/lib/studioCover'
 
 /** edit → 저장된 자르기·띠 (값을 고치지 않고 그대로 — 정리는 그릴 때 studioCrop.geometryOf가 한다) */
 function shapeFromEdit(edit) {
@@ -45,7 +50,7 @@ function shapeFromEdit(edit) {
 
 export const BRUSH_UI_MIN = BRUSH_SIZE_MIN
 export const BRUSH_UI_MAX = 300
-export { PAD_MIN, PAD_MAX }
+export { PAD_MIN, PAD_MAX, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT }
 
 export function useEraseSession({ images, selectedImageId, showToast }) {
   const layerMap = reactive({})          // image id → 레이어 배열 (화면의 현재 값)
@@ -179,6 +184,12 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       return layers
     }
     return layers.map(l => {
+      // 덮기: 덮을 곳·가져올 곳 모두 사진 안으로 (가져올 곳은 크기 그대로 자리만 — studioCover.normalizeCover)
+      if (isValidCoverLayer(l)) {
+        const { layer, changed } = normalizeCover(l, W, H)
+        if (changed) console.warn('[StudioEditor] 저장 직전 덮기 좌표를 범위 안으로 맞춤:', l.id, l, '→', layer, `(원본 ${W}×${H})`)
+        return layer
+      }
       // 붓은 x,y,w,h가 획에서 계산한 값(brushBBox, 이미 이미지 안)이라 사각형만 따로 맞추면 획과 어긋난다
       if (!isValidFillLayer(l) || l.shape === 'brush') return l
       const { rect, changed } = clampRectToImage(l, W, H)
@@ -212,9 +223,14 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   const draft = ref(null) // { imageId, layer: { id, type:'fill', x,y,w,h, pad, shape?, brush? } } — method 없음
   const canvasDraft = computed(() => (draft.value && draft.value.imageId === selectedImageId.value ? draft.value.layer : null))
   const selectedIsDraft = computed(() => !!canvasDraft.value && canvasDraft.value.id === selectedLayerId.value)
-  // 선택한 영역: 실행 전 영역(초안)이면 그것, 아니면 저장된 레이어
-  const selectedFill = computed(() => (canvasDraft.value && canvasDraft.value.id === selectedLayerId.value ? canvasDraft.value
+  // 선택한 영역: 실행 전 영역(초안)이면 그것, 아니면 저장된 레이어 — 지우기만 (덮기는 selectedCover)
+  const selectedFill = computed(() => (canvasDraft.value && canvasDraft.value.id === selectedLayerId.value
+    ? (canvasDraft.value.type === 'cover' ? null : canvasDraft.value)
     : selectedLayers.value.find(l => l.id === selectedLayerId.value && isValidFillLayer(l)) || null))
+  // 선택한 덮기 (12-2): 덮기 초안 또는 저장된 덮기 레이어
+  const selectedCover = computed(() => (canvasDraft.value && canvasDraft.value.id === selectedLayerId.value
+    ? (canvasDraft.value.type === 'cover' ? canvasDraft.value : null)
+    : selectedLayers.value.find(l => l.id === selectedLayerId.value && isValidCoverLayer(l)) || null))
 
   function setDraftRect(rect) {
     const id = selectedImageId.value
@@ -271,16 +287,23 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     selectedLayerId.value = layer.id
   }
 
+  /** 덮기는 고칠 때마다 사진 안으로 맞춘다 (덮을 곳 크기를 바꾸면 가져올 곳도 같은 크기 — 사진 끝이면 자리만 안쪽으로) */
+  function fitCover(imageId, l) {
+    const row = rowOf(imageId)
+    if (l.type !== 'cover' || !Number.isInteger(row?.width) || !Number.isInteger(row?.height)) return l
+    return normalizeCover(l, row.width, row.height).layer
+  }
+
   function updateFill(layerId, patch, label) {
     const id = selectedImageId.value
     if (!id) return
     if (canvasDraft.value?.id === layerId) { // 초안: 화면 값만 (저장·이력 없음)
-      draft.value = { imageId: id, layer: { ...canvasDraft.value, ...patch } }
+      draft.value = { imageId: id, layer: fitCover(id, { ...canvasDraft.value, ...patch }) }
       return
     }
     const cur = layerMap[id] || []
     if (!cur.some(l => l.id === layerId)) return
-    setLayers(id, cur.map(l => (l.id === layerId ? { ...l, ...patch } : l)), label)
+    setLayers(id, cur.map(l => (l.id === layerId ? fitCover(id, { ...l, ...patch }) : l)), label)
   }
 
   // kind: 캔버스가 알려준 동작 — 'move'(이동) | 'resize'(크기 조절, [조금 넓히기] 포함). 붓은 옮기기만 (획을 통째로)
@@ -311,6 +334,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     const cur = layerMap[id] || []
     const batch = `e${++aiBatchSeq}`
     let pushedIndex = null
+    if (canvasDraft.value?.id === layerId && canvasDraft.value.type === 'cover') return // 덮기 초안은 [적용](applyCover)으로
     if (canvasDraft.value?.id === layerId) {
       if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
       const layer = { ...canvasDraft.value, method }
@@ -319,7 +343,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       pushedIndex = histories[id]?.index ?? null
     } else {
       const l = cur.find(x => x.id === layerId)
-      if (!l) return
+      if (!l || l.type !== 'fill') return // 덮기 레이어에는 지우기 방식이 없다
       if (l.method !== method) {
         // 다른 방식으로 바꾸면 ai 결과 정보는 뗀다 (되돌리기로 AI에 돌아가면 이력의 ai가 그대로 돌아온다)
         setLayers(id, cur.map(x => {
@@ -348,7 +372,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   const aiHistoryBatch = {} // image id → { batch, index } 마지막 "AI 지우기" 단계 (index null = 아직 단계 없음)
   function applyAiResult({ imageId, layerId, planKey, W, H, ai, batch }) {
     const cur = layerMap[imageId] || []
-    const entry = fillPlan(fillLayersOf(cur), W, H).find(p => p.id === layerId)
+    // 계획은 캔버스와 같은 목록(지우기 + 덮기)으로 — 앞에 연결된 덮기가 있으면 AI 계산 key에 들어간다
+    const entry = fillPlan(pixelLayersOf(cur), W, H).find(p => p.id === layerId)
     if (!entry || entry.key !== planKey) {
       console.info('[StudioEditor] AI 결과가 도착했지만 그 사이 영역이 바뀌어 붙이지 않음:', imageId, layerId)
       return
@@ -399,6 +424,54 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     }
     setLayers(id, (layerMap[id] || []).filter(l => l.id !== layerId), LABELS.remove)
     if (selectedLayerId.value === layerId) selectedLayerId.value = null
+  }
+
+  // ── 덮기 (12-2) ──
+  let coverFeatherPref = COVER_FEATHER_DEFAULT // 마지막으로 고른 가장자리 값 — 다음 덮기 초안이 이어받는다 (이 창에서만)
+  /** 네모로 덮을 곳을 고름 → 덮기 초안 (가져올 곳은 옆에 자동 — studioCover.autoSource). 이전 초안은 버린다 */
+  function setCoverDraft(rect) {
+    const id = selectedImageId.value
+    const row = rowOf(id)
+    if (!id || !row) return
+    const W = row.width, H = row.height
+    if (!Number.isInteger(W) || !Number.isInteger(H)) {
+      console.error('[StudioEditor] 원본 크기를 몰라 덮기를 시작하지 않음:', id, W, H)
+      showToast('사진 크기를 알 수 없어 덮기를 시작하지 못했어요. 새로고침해 주세요.')
+      return
+    }
+    const base = normalizeCover({ id: newFillId('c_'), type: 'cover', ...rect, sx: 0, sy: 0, feather: coverFeatherPref }, W, H).layer
+    const layer = normalizeCover({ ...base, ...autoSource(base, base.feather, W, H) }, W, H).layer
+    draft.value = { imageId: id, layer }
+    selectedLayerId.value = layer.id
+  }
+
+  /** 가져올 곳을 끌어 옮김 (초안 = 화면만, 레이어 = 이력 "가져올 곳 옮기기") */
+  function moveCoverSource(layerId, pos) {
+    updateFill(layerId, { sx: pos.sx, sy: pos.sy }, LABELS.coverSource)
+  }
+
+  // 가장자리 슬라이더: 끄는 동안(input)은 화면·저장만, 손을 뗄 때(change) 이력 1번 (여백 슬라이더와 같은 규칙)
+  function setCoverFeather(layerId, feather) {
+    if (!Number.isInteger(feather) || feather < COVER_FEATHER_MIN || feather > COVER_FEATHER_MAX) return
+    coverFeatherPref = feather
+    updateFill(layerId, { feather }, null)
+  }
+  function recordCoverFeather() {
+    const id = selectedImageId.value
+    if (!id || selectedIsDraft.value) return // 초안은 이력에 없다
+    recordHistory(id, editOf(id), LABELS.coverFeather)
+  }
+
+  /** [적용] — 덮기 초안을 레이어로 추가 (맨 뒤 = 지금까지 적용한 것 위에) → 자동 저장·이력 "덮기" */
+  function applyCover(layerId) {
+    const id = selectedImageId.value
+    const d = canvasDraft.value
+    if (!id || !d || d.id !== layerId || d.type !== 'cover') return
+    const cur = layerMap[id] || []
+    if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
+    draft.value = null
+    setLayers(id, [...cur, fitCover(id, d)], LABELS.cover)
+    selectedLayerId.value = layerId
   }
 
   function clearAllFills() {
@@ -555,5 +628,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     lookMap, setLook, lookOf, canUndoImage, canRedoImage, undoImage, redoImage,
     // 자르기·띠 (12-1)
     shapeMap, shapeOf, setShape,
+    // 덮기 (12-2)
+    selectedCover, setCoverDraft, moveCoverSource, setCoverFeather, recordCoverFeather, applyCover,
   }
 }

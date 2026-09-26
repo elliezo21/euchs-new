@@ -71,10 +71,12 @@
             <div class="text-[12px] font-bold st-ink-2">{{ KIND_LABEL[img.kind] }}</div>
             <div v-if="img.kind === 'upload' && img.upload_name" class="text-[12px] st-muted truncate">{{ img.upload_name }}</div>
             <div v-if="img.ingest_status !== 'done'" class="text-[11px] font-bold break-keep" :class="img.ingest_status === 'failed' ? 'st-danger-text' : 'st-muted'">{{ statusText(img) }}</div>
-            <div v-else-if="fillCount(img.id).done > 0 || fillCount(img.id).redo > 0" class="text-[11px] font-bold">
-              <span v-if="fillCount(img.id).done > 0" class="st-accent-text" data-fill-count>지움 {{ fillCount(img.id).done }}</span>
-              <span v-if="fillCount(img.id).done > 0 && fillCount(img.id).redo > 0" class="st-muted"> · </span>
-              <span v-if="fillCount(img.id).redo > 0" class="st-ink-2" data-redo-count>다시 지우기 {{ fillCount(img.id).redo }}</span>
+            <!-- 사진 픽셀을 고친 것(완성 사진에 들어감) 한 줄: 지움 · 덮기(12-2) · 다시 지우기 — 자르기·띠는 아래 따로 -->
+            <div v-else-if="pixelMarks(img.id).length" class="text-[11px] font-bold">
+              <template v-for="(m, i) in pixelMarks(img.id)" :key="m.key">
+                <span v-if="i > 0" class="st-muted"> · </span>
+                <span :class="m.cls" :data-fill-count="m.key === 'done' ? '' : undefined" :data-cover-count="m.key === 'cover' ? '' : undefined" :data-redo-count="m.key === 'redo' ? '' : undefined">{{ m.text }}</span>
+              </template>
             </div>
             <div v-else class="text-[11px] st-muted">원본</div>
             <!-- 자르기·띠 (12-1) -->
@@ -128,7 +130,7 @@ const props = defineProps({
   images: { type: Array, default: () => [] },
   views: { type: Object, default: () => ({}) },       // image id → { status: 'loading'|'ready'|'error', url } (studioViewImage — 페이지와 같은 작은 사진)
   selectedImageId: { type: String, default: null },
-  fillCount: { type: Function, required: true },     // image id → { done: 결과 있는 지우기 수, redo: 결과 없이 남은 AI 수 }
+  fillCount: { type: Function, required: true },     // image id → { done: 결과 있는 지우기 수, redo: 결과 없이 남은 AI 수, cover: 덮기 수 }
   orderError: { type: String, default: '' },
   bakeState: { type: Object, default: () => ({}) },              // image id → { status, message } (useBakeQueue)
   placedIds: { type: Array, default: null },                      // 페이지에 놓인 사진 id (6-3, studioPage.pageImageIds). null = 페이지 없음(넣기 숨김)
@@ -172,6 +174,15 @@ function showTab(nextSource, usage) {
   tab.value = usage
 }
 defineExpose({ showTab })
+/** 사진 픽셀을 고친 표시 — 지움 N · 덮기 N(12-2) · 다시 지우기 N (없는 것은 뺀다) */
+function pixelMarks(id) {
+  const c = props.fillCount(id)
+  const out = []
+  if (c.done > 0) out.push({ key: 'done', text: `지움 ${c.done}`, cls: 'st-accent-text' })
+  if (c.cover > 0) out.push({ key: 'cover', text: `덮기 ${c.cover}`, cls: 'st-accent-text' })
+  if (c.redo > 0) out.push({ key: 'redo', text: `다시 지우기 ${c.redo}`, cls: 'st-ink-2' })
+  return out
+}
 const bakeOf = id => props.bakeState[id] || null
 const isBaking = s => s.status === 'queued' || s.status === 'baking' || s.status === 'waiting'
 

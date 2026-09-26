@@ -24,11 +24,17 @@
  *   AI는 결과가 기기마다 조금씩 달라 3)의 "픽셀 단위로 같다"가 성립하지 않는다 → 결과 조각 PNG를 저장해 두고 쓴다.
  *   AI 계산은 비동기라 fillOnCrop이 아니라 편집기(StudioCanvas)가 엔진을 부른다. fillOnCrop은 'ai'를 unknown_method로 거절한다.
  *   AI는 [지우기]를 눌렀을 때만 계산한다 — 안 지운 앞 AI가 있을 때의 규칙은 effectiveKey·aiEraseSet 주석.
+ *
+ * ★ 덮기(type 'cover', 12-2 — studioCover.js)도 같은 배열·같은 순서 규칙으로 계산한다 (지우기 → 덮기 → 지우기가 섞여도 배열 순서대로).
+ *   덮기는 읽는 곳이 두 군데(가져올 곳 + 덮을 곳)라서 연결 판정을 "앞 레이어가 쓰는 범위 + RING"과 "내가 읽는 범위들 + RING"의 겹침으로 일반화했다.
+ *   지우기는 쓰는 범위 = 읽는 범위 = 메우는 범위라 예전 판정(영향 범위끼리 겹침)과 똑같다 → 지우기만 있는 사진의 계획·key는 예전 그대로.
+ *   덮기는 AI가 아니므로 coons·단색과 같이 다룬다(effectiveKey — 안 지운 앞 AI는 원본 그대로 보고, 지우면 다시 계산).
  */
 import { applyFill } from './studioFill.js'
 import { expandRect } from './studioCoords.js'
 import { aiK, aiMargin } from './studioAi/aiGeometry.js'
 import { brushHash, solidFillBrush } from './studioBrush.js'
+import { coverArea, coverReadRects, coverOwnKey, coverSourceArea, blendCover } from './studioCover.js'
 
 export const RING = 2       // 테두리 샘플 두께 (studioFill ring)
 export const CROP_EXTRA = 2 // 잘라낼 때 ring 바깥 여유
@@ -53,9 +59,24 @@ export function fillArea(l, W, H) {
   return expandRect(l, growOf(l, W, H), W, H)
 }
 
-/** 영향 범위 = 메우는 범위 + 테두리 샘플 */
+/** 결과가 쓰이는 범위 — 지우기 = 메우는 범위, 덮기 = 덮을 곳 + feather */
+export function writeRect(l, W, H) {
+  return l.type === 'cover' ? coverArea(l, W, H) : fillArea(l, W, H)
+}
+
+/** 계산이 읽는 범위들 — 지우기 = 메우는 범위(테두리 샘플은 아래 RING), 덮기 = 가져올 곳 + 덮을 곳 */
+export function readRects(l, W, H) {
+  return l.type === 'cover' ? coverReadRects(l, W, H) : [fillArea(l, W, H)]
+}
+
+/** 영향 범위 = 쓰는 범위 + 테두리 샘플 */
 export function influenceRect(l, W, H) {
-  return expandRect(fillArea(l, W, H), RING, W, H)
+  return expandRect(writeRect(l, W, H), RING, W, H)
+}
+
+/** 앞 레이어 j가 뒤 레이어 k의 계산에 영향을 주는가 (j가 쓰는 범위 + RING이 k가 읽는 범위 + RING에 닿음) */
+function touches(infJ, readsK) {
+  return readsK.some(r => rectsOverlap(infJ, r))
 }
 
 /** 계산할 때 잘라내는 범위 */
@@ -99,23 +120,25 @@ export function rectsOverlap(a, b) {
 }
 
 export function ownKey(l) {
+  if (l.type === 'cover') return coverOwnKey(l)
   const base = `${l.id}|${l.x},${l.y},${l.w},${l.h}|${l.method}|${l.pad}`
   return l.shape === 'brush' ? `${base}|brush:${brushHash(l.brush)}` : base // 붓: 획이 바뀌면 key가 바뀐다
 }
 
 /**
- * 레이어 목록(지우기만, 배열 순서) → 계산 계획
+ * 레이어 목록(지우기·덮기, 배열 순서) → 계산 계획
  * @returns {{ id, deps: string[], chain: string[], key: string }[]}
  *   deps: 직접 연결된 앞 레이어 (계산 때 덮어쓸 조각), chain: 이어진 앞 레이어 전부 (캐시 키용), 둘 다 배열 순서
  */
 export function fillPlan(fills, W, H) {
   const inf = fills.map(l => influenceRect(l, W, H))
+  const reads = fills.map(l => readRects(l, W, H).map(r => expandRect(r, RING, W, H)))
   const chains = []
   return fills.map((l, k) => {
     const deps = []
     const chainSet = new Set()
     for (let j = 0; j < k; j++) {
-      if (!rectsOverlap(inf[j], inf[k])) continue
+      if (!touches(inf[j], reads[k])) continue
       deps.push(j)
       chainSet.add(j)
       for (const c of chains[j]) chainSet.add(c)
@@ -134,11 +157,12 @@ export function fillPlan(fills, W, H) {
 /** 연결 그룹 (서로 이어진 레이어 묶음, 각 묶음은 배열 순서) */
 export function connectedGroups(fills, W, H) {
   const inf = fills.map(l => influenceRect(l, W, H))
+  const reads = fills.map(l => readRects(l, W, H).map(r => expandRect(r, RING, W, H)))
   const parent = fills.map((_, i) => i)
   const find = i => (parent[i] === i ? i : (parent[i] = find(parent[i])))
   for (let a = 0; a < fills.length; a++) {
     for (let b = a + 1; b < fills.length; b++) {
-      if (rectsOverlap(inf[a], inf[b])) parent[find(b)] = find(a)
+      if (touches(inf[a], reads[b])) parent[find(b)] = find(a)
     }
   }
   const groups = new Map()
@@ -177,6 +201,7 @@ function paste(cropData, crop, p) {
  * @returns {{ ok: true, area, data } | { ok: false, reason }}  data = 메운 범위의 RGBA ({ data, width, height })
  */
 export function fillOnCrop(cropData, crop, l, W, H, prior = []) {
+  if (l.type === 'cover') return { ok: false, reason: 'cover_needs_two_crops' } // 덮기는 coverOnCrops
   if (l.shape === 'brush') return fillBrushOnCrop(cropData, crop, l, W, H, prior)
   const method = METHOD_MAP[l.method]
   if (!method) return { ok: false, reason: `unknown_method:${l.method}` }
@@ -192,6 +217,23 @@ export function fillOnCrop(cropData, crop, l, W, H, prior = []) {
     out.set(cropData.data.subarray(so, so + area.w * 4), y * area.w * 4)
   }
   return { ok: true, area, data: { data: out, width: area.w, height: area.h } }
+}
+
+/** 덮기 계산 때 잘라내는 두 범위 — 가져올 곳(+feather)·덮을 곳(+feather) */
+export function coverCrops(l, W, H) {
+  return { src: coverSourceArea(l, W, H), dst: coverArea(l, W, H) }
+}
+
+/**
+ * 잘라낸 두 조각에서 덮기 하나를 계산한다 (fillOnCrop과 같은 규칙: 연결된 앞 레이어 결과를 두 조각에 덮어쓴 뒤 계산).
+ * @param srcData  coverCrops(l).src 범위 픽셀 (직접 고친다)  @param dstData  coverCrops(l).dst 범위 픽셀 (직접 고친다)
+ * @returns {{ ok: true, area, data } | { ok: false, reason }}
+ */
+export function coverOnCrops(srcData, dstData, l, W, H, prior = []) {
+  const { src, dst } = coverCrops(l, W, H)
+  pastePrior(srcData, src, prior)
+  pastePrior(dstData, dst, prior)
+  return blendCover(srcData, dstData, l, W, H)
 }
 
 /** 붓 단색 — 칠한 모양(pad 넓힘)만 채우고, 메우는 범위 안이라도 모양 밖은 (앞 레이어가 반영된) 원래 픽셀 그대로 */
