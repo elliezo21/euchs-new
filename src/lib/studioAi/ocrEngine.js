@@ -6,9 +6,12 @@
  *   const r = await eng.detect(imageData)   // → { lines: [{ box, text, score, det }], tiles, ms }  box = 원본 좌표 네 꼭짓점
  *   eng.status  'idle' | 'downloading' | 'ready' | 'unsupported' | 'error'     eng.engine 'webgpu'|'wasm'|null     eng.reason
  *   eng.dispose()
- * 원클릭(studioAutoBuild)에서만 쓴다 — 편집기를 열 때는 받지 않는다(원클릭을 누를 때 받는다, 약 21MB).
+ * 원클릭(studioAutoBuild)에서만 쓴다 — 편집기를 열 때는 받지 않는다(원클릭을 누를 때 받는다, 약 21MB — 두 번째부터 캐시).
+ * 모델 주소·sha256 = ocrModels.js 한 곳 (Supabase Storage studio-models).
  */
-export function createOcrEngine({ prefer = 'webgpu', onStatus = () => {} } = {}) {
+import { supabaseUrl } from '@/lib/supabase'
+import { ocrFileList, ocrModelBase } from './ocrModels.js'
+export function createOcrEngine({ prefer = 'webgpu', onStatus = () => {}, files = null } = {}) {
   let worker = null
   let seq = 0
   const pending = new Map()
@@ -51,7 +54,15 @@ export function createOcrEngine({ prefer = 'webgpu', onStatus = () => {} } = {})
           else p.resolve({ lines: m.lines, tiles: m.tiles, ms: m.ms })
         }
       }
-      worker.postMessage({ type: 'prepare', prefer })
+      let list = files
+      try {
+        list = list || ocrFileList(ocrModelBase(supabaseUrl))
+      } catch (e) {
+        fail(e.message)
+        resolve(null)
+        return
+      }
+      worker.postMessage({ type: 'prepare', prefer, files: list })
     })
     return ready
   }

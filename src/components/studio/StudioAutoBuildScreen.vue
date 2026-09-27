@@ -14,6 +14,7 @@
         <li v-for="s in steps" :key="s.key" class="flex items-start gap-3" :data-auto-step="s.key" :data-auto-step-state="s.state">
           <span class="st-auto-dot" :class="`is-${s.state}`">
             <Check v-if="s.state === 'done'" class="w-3.5 h-3.5" :stroke-width="3" />
+            <X v-else-if="s.state === 'error'" class="w-3.5 h-3.5" :stroke-width="3" />
             <Loader2 v-else-if="s.state === 'active'" class="w-3.5 h-3.5 animate-spin" :stroke-width="2.5" />
           </span>
           <div class="min-w-0 flex-1">
@@ -32,7 +33,7 @@
       <p v-if="state.error" class="mt-3 text-[13px] font-bold st-danger-text break-keep" data-auto-error>{{ state.error }}</p>
 
       <div class="mt-6 flex items-center gap-2">
-        <p class="st-desc-sm break-keep flex-1">멈추면 여기까지 된 사진으로 페이지를 만들어요.</p>
+        <p class="st-desc-sm break-keep flex-1">{{ state.error ? '페이지와 사진 목록은 그대로예요. 닫고 다시 눌러 주세요.' : '멈추면 여기까지 된 사진으로 페이지를 만들어요.' }}</p>
         <button v-if="state.error" type="button" class="st-btn" data-auto-close @click="$emit('close')">닫기</button>
         <button
           v-else type="button" class="st-btn" :disabled="state.stopRequested || state.phase === 'layout' || state.phase === 'done'" data-auto-stop
@@ -47,7 +48,7 @@
 // 원클릭 진행 화면 (원클릭 1단계) — 편집기 가운데를 덮는다. 상태는 useAutoBuild.state 그대로 받는다.
 // 이 화면 안에서만 "사진 속 글자를 찾는 중"처럼 무엇을 하는지 풀어 말한다(편집기 문구 규칙 — 편집기 화면에는 전용 표현을 쓰지 않음).
 import { computed } from 'vue'
-import { Sparkles, Check, Loader2, Square } from 'lucide-vue-next'
+import { Sparkles, Check, Loader2, Square, X } from 'lucide-vue-next'
 
 const props = defineProps({
   state: { type: Object, required: true }, // useAutoBuild.state
@@ -71,18 +72,20 @@ const photoNote = computed(() => {
 const prepareNote = computed(() => {
   const p = props.state.prepare
   if (rank.value !== 1) return rank.value > 1 ? '준비됐어요' : ''
+  if (props.state.error) return '글자 찾기 모델을 받지 못했어요'
   if (p.total > 0 && p.loaded < p.total) return `글자 찾기를 준비하는 중 ${Math.round((p.loaded / p.total) * 100)}% (처음 한 번만 받아요)`
   return '글자 찾기를 준비하는 중'
 })
 
 const steps = computed(() => {
   const r = rank.value
-  const st = n => (r > n ? 'done' : r === n ? 'active' : 'wait')
+  // 멈춘 단계(오류)는 'error' — 뒤 단계는 대기 그대로 (review-1: 실패인데 모두 완료처럼 보이지 않게)
+  const st = n => (r > n ? 'done' : r === n ? (props.state.error ? 'error' : 'active') : 'wait')
   return [
     { key: 'pick', label: '사진 고르기', state: st(1), note: prepareNote.value },
     { key: 'photos', label: `글자 찾기·지우기${props.state.total ? ` ${Math.min(props.state.done + (r === 2 ? 1 : 0), props.state.total)}/${props.state.total}장` : ''}`, state: st(2), note: photoNote.value },
-    { key: 'layout', label: '페이지 배치', state: r >= 4 ? 'done' : r === 3 ? 'active' : 'wait', note: '' },
-    { key: 'text', label: '글자 초안', state: r >= 4 ? 'done' : r === 3 ? 'active' : 'wait', note: r === 3 ? '1688 상품 정보로 상품명·소재·옵션을 적는 중' : '' },
+    { key: 'layout', label: '페이지 배치', state: st(3) === 'done' || r >= 4 ? 'done' : st(3), note: '' },
+    { key: 'text', label: '글자 초안', state: r >= 4 ? 'done' : st(3), note: r === 3 ? '1688 상품 정보로 상품명·소재·옵션을 적는 중' : '' },
   ]
 })
 
@@ -106,8 +109,9 @@ const tally = computed(() => {
   if (c.erased) parts.push(`다듬음 ${c.erased}`)
   if (c.clean) parts.push(`그대로 ${c.clean}`)
   if (c.kept) parts.push(`직접 고친 사진 ${c.kept}`)
-  if (c.textHeavy) parts.push(`글자 많음 ${c.textHeavy}`)
-  if (c.failed) parts.push(`검수 필요 ${c.failed}`)
+  if (c.textHeavy) parts.push(`글자 많음 ${c.textHeavy}(페이지에서 뺌)`)
+  if (c.textLeft) parts.push(`글자 남음 ${c.textLeft}`)
+  if (c.failed) parts.push(`지우기 실패 ${c.failed}`)
   if (c.dup + c.small) parts.push(`겹치거나 작은 사진 ${c.dup + c.small}`)
   return parts.join(' · ')
 })
@@ -124,5 +128,6 @@ const tally = computed(() => {
   border: 2px solid var(--st-line-strong); color: var(--st-ink);
 }
 .st-auto-dot.is-active { border-color: var(--st-accent); color: var(--st-accent); }
+.st-auto-dot.is-error { border-color: var(--st-danger); background: var(--st-danger); color: #fff; }
 .st-auto-dot.is-done { border-color: var(--st-accent); background: var(--st-accent); color: #fff; }
 </style>

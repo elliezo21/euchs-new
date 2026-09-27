@@ -1028,11 +1028,11 @@ async function bgGenerate(ctx, body, res) {
   try {
     if (!staff && !(await withinLimit(ctx, usageId, 'user', BG_GEN_FREE_PER_DAY))) {
       await dropUsage('user_limit')
-      return sendError(res, 429, 'bg_gen_user_limit', '오늘 무료 횟수를 다 썼어요. 내일 다시 쓸 수 있어요.')
+      return sendError(res, 429, 'bg_gen_user_limit', '오늘 무료 3회를 모두 썼어요. 충전하면 계속 쓸 수 있어요 (충전은 곧 열려요).')
     }
     if (!(await withinLimit(ctx, usageId, 'all', limit))) {
       await dropUsage('global_limit')
-      return sendError(res, 429, 'bg_gen_global_limit', '오늘 준비된 AI 배경이 모두 소진됐어요. 내일 다시 쓸 수 있어요.')
+      return sendError(res, 429, 'bg_gen_global_limit', '지금은 AI 배경을 만들 수 없어요. 잠시 후 다시 시도해 주세요.')
     }
   } catch (e) {
     await dropUsage('limit_check')

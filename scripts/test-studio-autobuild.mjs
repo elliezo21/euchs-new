@@ -8,7 +8,10 @@ import {
   readAuto, withAuto, hasAutoLayers, withoutAutoLayers, reviewMark, orderCandidates, isTooSmall, dHashFromGray, hashDistance,
   runAutoPipeline, AutoStop, summarize, summarizeTitle, buildDrafts, optionCells, autoTemplate, buildAutoPage, oneClickTarget,
   TEXT_HEAVY_RATIO, TEXT_HEAVY_HAN, PIECE_MAX, AUTO_PAD, AUTO_MAX_LAYERS, PROCESS_MAX, MIN_SIDE, AUTO_VERSION,
+  AutoFatal, leftoverLines, problemList, TITLE_DROP, AUTO_GAP, draftSectionIds, withDraftMark, isDraftSection,
 } from '../src/lib/studioAutoBuild.js'
+import { ocrModelBase, ocrFileList, OCR_FILES } from '../src/lib/studioAi/ocrModels.js'
+import { summarizeNotes, AI_MISSING_NOTE } from '../src/lib/studioPreview.js'
 import { tileRanges, placeTileLines, parseDict } from '../src/lib/studioAi/ocrPaddle.js'
 import { aiK } from '../src/lib/studioAi/aiGeometry.js'
 import { fillArea, fillPlan } from '../src/lib/studioFillPlan.js'
@@ -91,7 +94,7 @@ function fakeDeps(rows, spec, extra = {}) {
     commits,
     deps: {
       rows,
-      hasUserEdits: row => !!spec[row.id]?.userEdits,
+      userLayersOf: row => spec[row.id]?.userLayers || [],
       loadPixels: async row => {
         if (spec[row.id]?.loadFail) throw new Error('사진을 불러오지 못했어요 (가짜)')
         return { imageData: { id: row.id }, hash: spec[row.id]?.hash || hashOf(row.id) }
@@ -109,26 +112,28 @@ function fakeDeps(rows, spec, extra = {}) {
   }
 }
 {
-  const rows = [fakeRow('g1', 'gallery'), fakeRow('d1'), fakeRow('d2'), fakeRow('d3'), fakeRow('d4'), fakeRow('s1', 'desc', { width: 200 }), fakeRow('dup'), fakeRow('k1')]
+  const rows = [fakeRow('g1', 'gallery'), fakeRow('d1'), fakeRow('d2'), fakeRow('d3'), fakeRow('d4'), fakeRow('s1', 'desc', { width: 200 }), fakeRow('dup'), fakeRow('k1'), fakeRow('k2')]
   const spec = {
     d1: { lines: [line(100, 100, 400, 140)] },
     d2: { lines: [line(0, 0, 800, 300, '大字'), line(0, 300, 800, 500, '大字')] },
     d3: { loadFail: true },
     d4: { lines: [line(100, 100, 400, 140)], eraseFail: true },
     dup: { hash: hashOf('d1') },
-    k1: { userEdits: true },
+    k1: { userLayers: [{ id: 'f_user01', type: 'fill', x: 90, y: 90, w: 320, h: 60, pad: 4, method: 'solid' }], lines: [line(100, 100, 400, 140)] },
+    k2: { userLayers: [{ id: 'f_user02', type: 'fill', x: 90, y: 90, w: 320, h: 60, pad: 4, method: 'solid' }], lines: [line(100, 100, 400, 140), line(100, 600, 400, 640)] },
   }
   const { deps, commits } = fakeDeps(rows, spec)
   const out = await runAutoPipeline(deps)
   const st = Object.fromEntries(out.results.map(r => [r.id, r.status]))
-  eq('사진별 결과', st, { g1: 'clean', d1: 'erased', d2: 'textHeavy', d3: 'failed', d4: 'failed', s1: 'small', dup: 'dup', k1: 'kept' })
+  eq('사진별 결과 (손댄 사진: 다 지웠으면 kept, 남았으면 textLeft)', st, { g1: 'clean', d1: 'erased', d2: 'textHeavy', d3: 'failed', d4: 'failed', s1: 'small', dup: 'dup', k1: 'kept', k2: 'textLeft' })
   eq('실패해도 계속 · 실패 사유를 남김', out.results.filter(r => r.status === 'failed').map(r => r.reason), ['사진을 불러오지 못했어요 (가짜)', 'AI 지우기 실패 (가짜)'])
-  eq('페이지에 넣을 사진(placed) = 작음·겹침 뺌, 실패·글자 많음은 넣고 표시', out.results.filter(r => r.placed).map(r => r.id), ['g1', 'd1', 'd2', 'd3', 'd4', 'k1'])
-  eq('사진에 반영(commit): 처리한 사진만 · 고객이 고친 사진은 안 건드림', commits.map(c => c.id), ['g1', 'd1', 'd2', 'd3', 'd4'])
+  eq('페이지에 넣을 사진(placed) = 작음·겹침·글자 많음 뺌 (review-1), 실패·글자 남음은 넣고 표시', out.results.filter(r => r.placed).map(r => r.id), ['g1', 'd1', 'd3', 'd4', 'k1', 'k2'])
+  eq('사진에 반영(commit): 처리한 사진 (손댄 사진은 표시만 — 레이어 안 건드림)', [commits.map(c => c.id), commits.filter(c => c.id[0] === 'k').map(c => [c.layers, c.auto.status, c.auto.px, c.auto.left ?? null])], [['g1', 'd1', 'd2', 'd3', 'd4', 'k1', 'k2'], [[null, 'clean', 1, null], [null, 'textLeft', 1, 1]]])
   const c1 = commits.find(c => c.id === 'd1')
   eq('지운 사진: ai가 붙은 auto 레이어 + 표시 erased', [c1.layers.length, c1.layers[0].auto, !!c1.layers[0].ai, c1.auto.status, c1.auto.v], [1, true, true, 'erased', AUTO_VERSION])
   eq('글자 많음·실패 사진은 레이어 없이 표시만', ['d2', 'd3'].map(id => [commits.find(c => c.id === id).layers, commits.find(c => c.id === id).auto.status]), [[null, 'textHeavy'], [null, 'failed']])
-  eq('요약 수', summarize(out.results), { erased: 1, clean: 1, textHeavy: 1, failed: 2, kept: 1, small: 1, dup: 1, overLimit: 0, stopped: 0, placed: 6 })
+  eq('요약 수', summarize(out.results), { erased: 1, clean: 1, textHeavy: 1, failed: 2, kept: 1, textLeft: 1, small: 1, dup: 1, overLimit: 0, stopped: 0, placed: 6 })
+  eq('글자 많음은 페이지 밖(placed false)', out.results.find(r => r.id === 'd2').placed, false)
 }
 {
   const rows = Array.from({ length: PROCESS_MAX + 3 }, (_, i) => fakeRow(`r${i}`, 'desc'))
@@ -160,6 +165,15 @@ function fakeDeps(rows, spec, extra = {}) {
   eq('지우는 중 멈춤 → 그 사진 stopped · 반영 없음', [out.results.map(r => r.status), commits.map(c => c.id)], [['erased', 'stopped'], ['a']])
 }
 
+{
+  // 모델을 받지 못함 등 AutoFatal → 사진 실패로 삼키지 않고 원클릭 전체를 멈춘다 (review-1)
+  const rows = [fakeRow('a', 'gallery'), fakeRow('b')]
+  const { deps, commits } = fakeDeps(rows, {}, { ocr: async () => { throw new AutoFatal('글자 찾기 모델을 받지 못해 멈췄어요') } })
+  let err = null
+  try { await runAutoPipeline(deps) } catch (e) { err = e }
+  eq('AutoFatal → 진행기가 그대로 던짐 · 반영 없음', [err?.name, err?.message, commits.length], ['AutoFatal', '글자 찾기 모델을 받지 못해 멈췄어요', 0])
+}
+
 // ── 6. 표시·[원본으로]·[빼기]와 되돌리기 ──
 {
   const auto = { v: AUTO_VERSION, status: 'failed', reason: '실패', lines: 0, han: 0, ratio: 0, at: 'x' }
@@ -167,9 +181,14 @@ function fakeDeps(rows, spec, extra = {}) {
   eq('표시 읽기·쓰기 (다른 칸 그대로)', [readAuto(edit).status, edit.look.a, readAuto(withAuto(edit, null)), readAuto({ auto: { v: 9, status: 'erased' } })], ['failed', 1, null, null])
   const autoL = { id: 'f_aaaaaa', type: 'fill', x: 1, y: 1, w: 5, h: 5, pad: 4, method: 'ai', auto: true }
   const userL = { id: 'f_bbbbbb', type: 'fill', x: 20, y: 1, w: 5, h: 5, pad: 4, method: 'solid' }
-  eq('검수 필요 = 실패 + 고객 레이어 없음 / 직접 고치면 풀림', [reviewMark(auto, []).review, reviewMark(auto, [userL]) === null], [true, true])
-  eq('글자 많음 표시', reviewMark({ ...auto, status: 'textHeavy' }, []), { review: false, textHeavy: true, reason: '', canRevert: false })
-  eq('자동으로 지운 사진 → [원본으로] 가능', reviewMark({ ...auto, status: 'erased' }, [autoL]).canRevert, true)
+  eq('확인 필요(지우기 실패) → 직접 고치면(레이어 수가 바뀜) 풀림', [reviewMark(auto, []).problem, reviewMark(auto, []).problemText, reviewMark(auto, [userL]) === null], ['failed', '지우기 실패', true])
+  eq('확인 필요(글자 많음)', reviewMark({ ...auto, status: 'textHeavy' }, []).problemText, '글자 많음')
+  eq('확인 필요(글자 남음) → 레이어를 더하면 풀림', [reviewMark({ ...auto, status: 'textLeft', px: 1, left: 2 }, [userL]).problemText, reviewMark({ ...auto, status: 'textLeft', px: 1, left: 2 }, [userL]).reason, reviewMark({ ...auto, status: 'textLeft', px: 1 }, [userL, { ...userL, id: 'f_cccccc' }])], ['글자 남음', '지우지 않은 곳에 글자 2줄이 남아 있어요', null])
+  eq('잘 지운 사진 → 표시 없음(problem null), [원본으로]만 가능', [reviewMark({ ...auto, status: 'erased' }, [autoL]).problem, reviewMark({ ...auto, status: 'erased' }, [autoL]).canRevert], [null, true])
+  eq('글자 없음·손댄 사진 다 지움 → null', [reviewMark({ ...auto, status: 'clean' }, []), reviewMark({ ...auto, status: 'clean', px: 1 }, [userL])], [null, null])
+  const W = 800, H = 800
+  eq('글자 남음 계산: 지운 범위 안 줄은 남음 아님, 밖은 남음', leftoverLines([line(100, 100, 400, 140), line(100, 600, 400, 640, 'SALE'), line(100, 700, 400, 740)], [{ id: 'f_x', type: 'fill', x: 90, y: 90, w: 320, h: 60, pad: 4, method: 'solid' }], W, H).map(l => l.box[0][1]), [700])
+  eq('안내 띠 목록: 대표 사진이 맨 앞', problemList([{ id: 'd', kind: 'desc', ingest_status: 'done' }, { id: 'g', kind: 'gallery', ingest_status: 'done' }, { id: 'x', kind: 'desc', ingest_status: 'done' }], id => (id === 'x' ? null : { problem: 'textLeft', problemText: '글자 남음', reason: '' })).map(p => p.id), ['g', 'd'])
   eq('표시 없음 → null', reviewMark(null, [autoL]), null)
   const layers = [autoL, userL]
   const reverted = withoutAutoLayers(layers)
@@ -193,6 +212,11 @@ function fakeDeps(rows, spec, extra = {}) {
   eq('제목 요약: 괄호·연도·과장 표현 뺌 · 26자 안에서 띄어쓰기로 자름',
     summarizeTitle('【정품】2024년 신상 인기 대박 3단 슬라이드 계란 보관함 냉장고 정리함 주방 수납 박스 대용량'), '3단 슬라이드 계란 보관함 냉장고 정리함 주방')
   eq('중국어가 섞이면 쓰지 않음', summarizeTitle('계란 收纳 보관함'), null)
+  eq('도매 단어 뺌: 후드티 예시 (review-1)', summarizeTitle('버전 재고 24ss 수출용 스트리트 브랜드 CH'), '24ss 스트리트 브랜드 CH')
+  eq('도매 단어 뺌: 도매·공장·대리발송·크로스보더', summarizeTitle('도매 공장 머리띠 여성 대리발송 크로스보더 헤어밴드'), '머리띠 여성 헤어밴드')
+  eq('다 빼면 너무 짧음 → 도매 단어는 남김 (상품명이 비지 않게)', summarizeTitle('재고 도매 CH'), '재고 도매 CH')
+  eq('단어 속 글자는 안 건드림 (토막 단위)', summarizeTitle('버전업 무역풍 가방'), '버전업 무역풍 가방')
+  eq('규칙 목록 한 곳: 번역·중국어 모두', [TITLE_DROP.trade.includes('수출용'), TITLE_DROP.trade.includes('现货'), TITLE_DROP.hype.includes('인기')], [true, true, true])
   const facts = {
     title: { zh: '三层滑动鸡蛋收纳盒', ko: '3단 슬라이드 계란 보관함 최고 인기' },
     attrs: [{ name: { zh: '材质', ko: '재질' }, value: { zh: 'PP', ko: 'PP' } }, { name: { zh: '品牌', ko: '브랜드' }, value: { zh: '无', ko: '없음' } }],
@@ -265,6 +289,31 @@ eq('페이지 있음 → 복사본에서 (원본은 덮지 않음)', oneClickTar
   const plan = fillPlan(layers, W, H)
   eq('계산 key = 편집기 ownKey 규칙 (auto 칸은 key에 안 들어감)', plan[0].key, 'f_aaaaa0|100,100,200,40|ai|4')
 }
+
+// ── 12. review-1: 여백 · 글자 초안 구간 · 모델 주소 · 알림 묶기 ──
+{
+  const photos = Array.from({ length: 3 }, (_, i) => ({ id: `img${i}`, width: 800, height: 700 }))
+  const drafts = buildDrafts({ title: { zh: 't', ko: '머리띠' }, attrs: [], options: [{ name: { zh: '颜色', ko: '색상' }, values: [{ zh: '黑', ko: '블랙' }] }] })
+  const page = buildAutoPage(photos, drafts, measure).page
+  eq(`원클릭 페이지 구간 간격 = ${AUTO_GAP}px (기존 page.gap)`, page.gap, 30)
+  eq('직접 만들기 템플릿 간격은 그대로 0', buildTemplateGap(), 0)
+  const ids = draftSectionIds(page, drafts)
+  const marked = withDraftMark(page, ids)
+  eq('글자 초안 구간 = 소개 글 + 옵션표 (2곳)', ids.length, 2)
+  eq('초안 표시(page.auto)도 readPage 그대로 통과', (() => { const r = readPage(JSON.parse(JSON.stringify(marked)), 'x'); return [r.problems, r.page.auto] })(), [[], { v: 1, drafts: ids }])
+  eq('초안 구간 판단', [isDraftSection(marked, ids[0]), isDraftSection(marked, page.sections[0].id), isDraftSection(page, ids[0])], [true, false, false])
+  eq('초안이 없으면 표시 없음', withDraftMark(page, []) === page, true)
+  const base = ocrModelBase('https://abc.supabase.co/')
+  eq('모델 주소 = Supabase Storage studio-models/ocr/ppocrv5-mobile/ (한 곳)', base, 'https://abc.supabase.co/storage/v1/object/public/studio-models/ocr/ppocrv5-mobile/')
+  eq('모델 파일 3개 · 크기·sha 고정', ocrFileList(base).map(f => [f.key, f.url.endsWith(OCR_FILES.find(x => x.key === f.key).name), /^[0-9a-f]{64}$/.test(f.sha256), f.size > 0]), [['det', true, true, true], ['rec', true, true, true], ['dict', true, true, true]])
+  eq('주소가 없으면 이유를 던짐(조용히 넘어가지 않음)', (() => { try { ocrModelBase(undefined); return 'no' } catch (e) { return /모델 주소/.test(e.message) } })(), true)
+  const labels = { s1: '01 대표 사진', s2: '02 상세 이미지', s3: '03 상세 이미지', s4: '04 상세 이미지', s5: '05 상세 이미지' }
+  const notes = ['s1', 's2', 's3', 's4', 's5'].map((s, i) => ({ sectionId: s, imageId: `i${i}`, note: AI_MISSING_NOTE }))
+  eq('미리보기 알림: 같은 알림은 한 줄 (사진 수·구간 3개 + 외)', summarizeNotes(notes, labels), ['AI로 지우기 결과가 없는 사진 5장은 원본 그대로 들어갔어요 (01 대표 사진, 02 상세 이미지, 03 상세 이미지 외 2곳) — 지우기 화면에서 [다시 지우기]를 눌러 주세요'])
+  eq('다른 알림 하나는 그대로', summarizeNotes([{ sectionId: 's2', imageId: 'x', note: '자르기를 쓰지 않았어요' }], labels), ['02 상세 이미지 · 자르기를 쓰지 않았어요'])
+  eq('알림 없음 → 줄 없음', summarizeNotes([], labels), [])
+}
+function buildTemplateGap() { return templateByKey('basic').gap ?? 0 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)
 if (fail) process.exit(1)

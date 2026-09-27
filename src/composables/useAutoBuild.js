@@ -15,7 +15,7 @@ import { createOcrEngine } from '@/lib/studioAi/ocrEngine'
 import { AI_MODEL_ID, uploadAiPatch } from '@/lib/studioAiPatch'
 import { fillPlan, fillArea, cropRect, pastePrior, aiPatchKey } from '@/lib/studioFillPlan'
 import { pixelLayersOf } from '@/lib/studioEdit'
-import { runAutoPipeline, dHashFromGray, splitLayer, summarize, AutoStop, SPLIT_DEPTH_MAX, PROCESS_MAX } from '@/lib/studioAutoBuild'
+import { runAutoPipeline, dHashFromGray, splitLayer, summarize, AutoStop, SPLIT_DEPTH_MAX, PROCESS_MAX, AutoFatal } from '@/lib/studioAutoBuild'
 
 const AI_WAIT_MS = 5 * 60 * 1000 // LaMa 첫 준비(모델 약 200MB + 세션)가 느린 PC에서 걸리는 시간을 넉넉히
 const RETRY_MS = 2000
@@ -78,10 +78,10 @@ export function useAutoBuild({ images, session, loadImage, startAi, loadFacts })
       if (s === 'ready' && eng) { state.waitingAi = false; return eng }
       if (s === 'error' || s === 'unsupported') {
         state.waitingAi = false
-        throw new Error(`AI 지우기를 준비하지 못했어요 (${session.aiState.reason || s})`)
+        throw new AutoFatal(`AI 지우기를 준비하지 못해 멈췄어요 (${session.aiState.reason || s})`)
       }
       if (shouldStop()) { state.waitingAi = false; throw new AutoStop() }
-      if (Date.now() - t0 > AI_WAIT_MS) { state.waitingAi = false; throw new Error('AI 지우기 준비가 5분 넘게 걸려 이 사진은 원본으로 두었어요') }
+      if (Date.now() - t0 > AI_WAIT_MS) { state.waitingAi = false; throw new AutoFatal('AI 지우기 준비가 5분 넘게 걸려 멈췄어요. 인터넷 연결을 확인하고 다시 눌러 주세요.') }
       state.waitingAi = true
       await sleep(300)
     }
@@ -168,17 +168,24 @@ export function useAutoBuild({ images, session, loadImage, startAi, loadFacts })
     }
     const info = await ocr.prepare(p => { if (p.phase === 'download') { state.prepare.loaded = p.loaded; state.prepare.total = p.total } })
     if (info) console.info(`[AutoBuild] 글자 찾기 준비: ${info.engine}${info.cached ? ' (캐시)' : ''}, 모델 ${info.modelMs}ms, 세션 ${info.sessionMs}ms`)
-    else console.error('[AutoBuild] 글자 찾기를 준비하지 못함 — 사진은 원본으로 두고 검수 필요로 표시:', ocr.reason)
+    else {
+      // 모델을 못 받음 — 진행 화면에 이유를 보이고 멈춘다 (사진·페이지는 그대로, review-1)
+      console.error('[AutoBuild] 글자 찾기를 준비하지 못해 멈춤:', ocr.reason)
+      state.error = `글자 찾기 모델을 받지 못해 멈췄어요. 인터넷 연결을 확인하고 다시 눌러 주세요. (${ocr.reason || ocr.status})` // phase는 멈춘 단계 그대로 (화면이 그 단계를 실패로 보인다)
+      ocr.dispose()
+      ocr = null
+      return null
+    }
     state.phase = 'photos'
     const hold = {}
     let out
     try {
       out = await runAutoPipeline({
         rows: images.value,
-        hasUserEdits: row => pixelLayersOf(session.layerMap[row.id] || []).length > 0,
+        userLayersOf: row => pixelLayersOf(session.layerMap[row.id] || []),
         loadPixels: row => loadPixels(row, hold),
         ocr: async imageData => {
-          if (ocr.status !== 'ready') throw new Error(`글자 찾기를 준비하지 못했어요 (${ocr.reason || ocr.status})`)
+          if (ocr.status !== 'ready') throw new AutoFatal(`글자 찾기를 준비하지 못해 멈췄어요 (${ocr.reason || ocr.status})`)
           return ocr.detect(imageData)
         },
         erase: (row, layers, ctx) => eraseLayers(row, layers, hold.img, ctx),
@@ -200,8 +207,7 @@ export function useAutoBuild({ images, session, loadImage, startAi, loadFacts })
     } catch (e) {
       // 진행기 자체의 오류(사진 한 장의 실패가 아님) — 숨기지 않고 화면에 남긴다
       console.error('[AutoBuild] 원클릭 진행 오류:', e)
-      state.error = e.message || String(e)
-      state.phase = 'done'
+      state.error = e?.name === 'AutoFatal' ? `${e.message} 여기까지 다듬은 사진은 [사진] 목록에 그대로 있어요.` : (e.message || String(e))
       return null
     } finally {
       hold.img = null

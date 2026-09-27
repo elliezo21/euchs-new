@@ -2,6 +2,19 @@
   <div class="px-4 pt-3 pb-4 space-y-3 st-border-b" data-image-item-panel>
     <div class="text-[13px] font-extrabold st-ink">사진</div>
 
+    <!-- 원클릭 (review-1): 확인 필요(지우기 실패·글자 많음·글자 남음)면 표시 + [직접 고치기] · [원본으로](원클릭이 지운 것만) · [빼기] -->
+    <div v-if="autoMark" class="space-y-1.5" data-photo-auto>
+      <div v-if="autoMark.problem" class="flex items-start gap-1.5">
+        <span class="st-badge st-badge-danger shrink-0" data-photo-auto-problem>확인 필요 · {{ autoMark.problemText }}</span>
+        <span class="text-[11px] st-muted break-keep">{{ autoMark.reason }}</span>
+      </div>
+      <div class="grid grid-cols-3 gap-1.5">
+        <button type="button" class="st-btn st-pbtn" data-photo-auto-fix @click="$emit('auto-fix')"><Eraser class="w-3.5 h-3.5" :stroke-width="2" /> 직접 고치기</button>
+        <button type="button" class="st-btn st-pbtn" :disabled="!autoMark.canRevert" :title="autoMark.canRevert ? '자동으로 지운 곳을 원래대로' : '자동으로 지운 곳이 없어요'" data-photo-auto-revert @click="$emit('auto-revert')"><Undo2 class="w-3.5 h-3.5" :stroke-width="2" /> 원본으로</button>
+        <button type="button" class="st-btn st-pbtn" :disabled="item.locked" data-photo-auto-remove @click="$emit('remove-from-page')"><ImageMinus class="w-3.5 h-3.5" :stroke-width="2" /> 빼기</button>
+      </div>
+    </div>
+
     <!-- 사진 자체: 바꾸기 · 페이지에서 빼기 · 원본 비교(누르고 있기) -->
     <div class="grid grid-cols-2 gap-1.5">
       <button type="button" class="st-btn st-pbtn" data-photo-replace @click="$emit('replace')"><Replace class="w-3.5 h-3.5" :stroke-width="2" /> 사진 바꾸기</button>
@@ -79,7 +92,7 @@
 //   필터·조정 → 사진 데이터(studio_images.edit.look, 사진 이력). 꾸미기(테두리·모서리·그림자) → 페이지 요소(페이지 이력)
 // 슬라이더를 끄는 동안은 merge: true로 보내 이력을 한 단계로 합친다.
 import { computed, ref, onBeforeUnmount } from 'vue'
-import { Replace, ImageMinus, Columns2, Crop } from 'lucide-vue-next'
+import { Replace, ImageMinus, Columns2, Crop, Eraser, Undo2 } from 'lucide-vue-next'
 import { LOOK_FILTERS, ADJUST_KEYS, ADJUST_LABELS, ADJUST_MIN, ADJUST_MAX, isDefaultLook, lookCss, normalizeLook } from '@/lib/studioLook'
 import { itemStyleOf } from '@/lib/studioPage'
 
@@ -88,9 +101,11 @@ const props = defineProps({
   look: { type: Object, required: true },    // 이 사진의 필터·조정 (normalizeLook 모양)
   thumbUrl: { type: String, default: null }, // 필터 미리보기용 작은 사진
   shapeText: { type: String, default: '' },  // 12-1 "잘림 · 띠 2" (없으면 '')
+  autoMark: { type: Object, default: null }, // 원클릭 studioAutoBuild.reviewMark (review-1, 없으면 null)
 })
 // replace / remove-from-page / compare(true|false) / reset-look / look(next, { merge }) / style(patch, { merge }) / crop (12-1 자르기 창 열기)
-const emit = defineEmits(['replace', 'remove-from-page', 'compare', 'reset-look', 'look', 'style', 'crop'])
+// auto-fix(지우기 화면) / auto-revert(원클릭이 지운 것만 빼기) — 원클릭 review-1. [빼기]는 remove-from-page와 같다
+const emit = defineEmits(['replace', 'remove-from-page', 'compare', 'reset-look', 'look', 'style', 'crop', 'auto-fix', 'auto-revert'])
 
 const style = computed(() => itemStyleOf(props.item))
 const isDefault = computed(() => isDefaultLook(props.look))

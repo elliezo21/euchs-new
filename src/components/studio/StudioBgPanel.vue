@@ -6,14 +6,14 @@
       <p v-if="!row" class="st-desc break-keep" data-bg-empty>페이지나 [사진] 목록에서 사진을 고르세요</p>
 
       <template v-else>
-        <div class="flex items-center gap-3">
-          <div class="st-bg-thumb" :class="bg && bg.mode === 'transparent' ? 'is-checker' : ''" :style="thumbStyle" data-bg-thumb>
+        <!-- 지금 대상 사진 (review-1): 크게 + 어느 구간·어디서 골랐는지 — 버튼(특히 돈이 드는 [배경 지우기]·[AI 배경])이 이 사진에 적용된다 -->
+        <div class="rounded-[12px] p-2 st-card" data-bg-target>
+          <div class="text-[11px] font-bold st-muted mb-1.5">지금 대상 사진 · {{ targetSource === 'page' ? '페이지에서 고른 사진' : '사진 목록에서 고른 사진' }}</div>
+          <div class="st-bg-thumb st-bg-thumb-lg" :class="bg && bg.mode === 'transparent' ? 'is-checker' : ''" :style="thumbStyle" data-bg-thumb>
             <img v-if="thumbUrl" :src="thumbUrl" alt="" class="w-full h-full object-contain" draggable="false" />
           </div>
-          <div class="min-w-0">
-            <div class="text-[12px] font-bold st-ink truncate">{{ rowLabel }}</div>
-            <div v-if="bg" class="text-[11px] font-bold st-accent-text" data-bg-mark>{{ markText }}</div>
-          </div>
+          <div class="mt-1.5 text-[13px] font-extrabold st-ink truncate" data-bg-target-label>{{ targetLabel || rowLabel }}</div>
+          <div v-if="bg" class="text-[11px] font-bold st-accent-text" data-bg-mark>{{ markText }}</div>
         </div>
 
         <!-- 결과가 있으면: 원래 배경 / 투명 / 단색 / AI 배경(만든 적 있을 때 — 저장된 그림, 돈 안 듦) (저장된 마스크만 씀 — 다시 부르지 않는다) -->
@@ -200,6 +200,8 @@ const props = defineProps({
   genStatus: { type: Object, required: true },     // AI 배경 { loading, ready, reason, staff, left, perDay, globalLeft, message }
   genBusy: { type: Boolean, default: false },      // 이 사진의 AI 배경을 만드는 중
   genError: { type: String, default: '' },
+  targetLabel: { type: String, default: '' },      // review-1: "03 상세 이미지 · 02번 사진" — 대상 사진이 어느 구간인지
+  targetSource: { type: String, default: 'page' }, // 'page' 페이지에서 고른 사진 | 'list' 사진 목록에서 고른 사진
 })
 defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status', 'refine', 'generate', 'retry-gen-status'])
 
@@ -228,8 +230,9 @@ const canGenerate = computed(() => {
 const blockText = computed(() => {
   const g = props.genStatus
   if (!g.ready) return ''
-  if (!g.staff && g.left <= 0) return '오늘 무료 횟수를 다 썼어요. 내일 다시 쓸 수 있어요.'
-  if (g.globalLeft <= 0) return '오늘 준비된 AI 배경이 모두 소진됐어요. 내일 다시 쓸 수 있어요.'
+  // review-1: 1인 무료를 다 쓰면 충전 안내(충전은 아직 없음) / 전체 한도는 보이지 않는 안전장치 — 고객에게는 "잠시 후"만
+  if (!g.staff && g.left <= 0) return `오늘 무료 ${g.perDay}회를 모두 썼어요. 충전하면 계속 쓸 수 있어요 (충전은 곧 열려요).`
+  if (g.globalLeft <= 0) return '지금은 AI 배경을 만들 수 없어요. 잠시 후 다시 시도해 주세요.'
   return ''
 })
 const thumbStyle = computed(() => {
@@ -247,6 +250,7 @@ const rowLabel = computed(() => props.row?.upload_name || (props.row ? `사진 $
   width: 64px; height: 64px; flex-shrink: 0; border-radius: 8px; overflow: hidden;
   background: var(--st-card); border: 1px solid var(--st-line);
 }
+.st-bg-thumb-lg { width: 100%; height: 150px; }
 .st-bg-thumb.is-checker {
   background-color: var(--st-card);
   background-image:

@@ -15,9 +15,12 @@
  *   auto: true = 원클릭이 넣은 레이어 표시 — [원본으로]가 이것만 뺀다(고객이 직접 칠한 레이어는 그대로). 계산 key(ownKey)에는 안 들어간다.
  *
  * ★ 사진 표시(edit.auto — studio_images.edit 안, DB 스키마 변경 없음):
- *   { v: 1, status, reason?, lines, han, ratio, at }
- *     status 'erased'(지움) | 'clean'(찾은 한자 없음) | 'textHeavy'(글자 많음 — 지우지 않음) | 'failed'(실패 — 원본 그대로, 사유 reason)
+ *   { v: 1, status, reason?, lines, han, ratio, px, left?, at }
+ *     status 'erased'(지움) | 'clean'(찾은 한자 없음) | 'textHeavy'(글자 많음 — 지우지 않고 페이지에서 뺌) | 'failed'(실패 — 원본 그대로, 사유 reason)
+ *            | 'textLeft'(review-1: 고객이 전에 손으로 지운 사진 — 자동 지우기는 안 하고, 지우지 않은 곳에 한자가 남음. left = 남은 줄 수)
+ *     px = 표시를 남길 때의 픽셀 레이어(지우기·덮기) 수 — 그 뒤 고객이 레이어를 더하거나 빼면 "확인 필요"가 풀린다(reviewMark)
  *   사진 이력에는 넣지 않는다(되돌려도 표시는 남는다). 레이어만 이력 — "자동 지우기" 한 칸, [원본으로] 한 칸(Ctrl+Z로 되돌림).
+ *   "확인 필요"는 문제 있는 사진에만: 지우기 실패 · 글자 많음 · 글자 남음 (review-1 — 잘 지운 사진에는 아무 표시도 없음)
  *
  * ★ 선별 규칙·기준값은 이 파일 상수 (근거는 원클릭 1단계 보고서 3장):
  *   처리 순서 = 대표(1688 갤러리 첫 장) → 내 사진 → 상세 사진(순서 그대로) → 나머지 갤러리. 준비 끝(done) + 안 쓸 사진 아님(included)만.
@@ -25,6 +28,7 @@
  *   글자 많음 = 한자 줄 네모가 사진 면적의 TEXT_HEAVY_RATIO 이상 또는 한자 TEXT_HEAVY_HAN자 이상 (또는 지울 조각이 AUTO_MAX_LAYERS 넘음).
  */
 import { aiK } from './studioAi/aiGeometry.js'
+import { writeRect } from './studioFillPlan.js'
 import { buildTemplatePage, templateByKey } from './studioTemplates.js'
 import { normalizeTableItem, tableHeight, TABLE_CELL_MAX } from './studioTable.js'
 
@@ -40,6 +44,8 @@ export const MERGE_SLACK = 1.3         // 합친 조각 넓이 ≤ 따로 넓이
 export const AUTO_PAD = 4              // = studioEdit.PAD_DEFAULT (편집기 새 영역 기본값과 같게 — 테스트로 고정)
 export const SPLIT_DEPTH_MAX = 2       // 저장 때 너무 커서 나누기(splitLayer) 최대 횟수
 export const AUTO_TEMPLATE_KEY = 'basic'
+export const AUTO_GAP = 30             // review-1: 원클릭 페이지의 구간 간격(px, 폭 780 기준 — 기존 [구간 간격] page.gap 그대로. 직접 만들기 기본값 0은 그대로)
+export const LEFT_COVER_MIN = 0.5      // 글자 남음: 한자 줄 네모가 이미 있는 지우기·덮기 범위에 이 비율 미만으로 덮였으면 "남음"
 
 // ── 한자 판정 (랩 lib/common.js와 같은 범위: CJK 통합 한자 + 확장 A + 호환 한자. 전각 구두점·숫자는 한자가 아님) ──
 const HAN_RE = /[㐀-䶿一-鿿豈-﫿]/g
@@ -165,7 +171,7 @@ export function splitLayer(l, idOf = autoFillId) {
 }
 
 // ── 사진 표시 (edit.auto) ──
-export const AUTO_STATUSES = ['erased', 'clean', 'textHeavy', 'failed']
+export const AUTO_STATUSES = ['erased', 'clean', 'textHeavy', 'failed', 'textLeft']
 export function readAuto(edit) {
   const a = edit && typeof edit === 'object' ? edit.auto : null
   if (!a || typeof a !== 'object' || a.v !== AUTO_VERSION || !AUTO_STATUSES.includes(a.status)) return null
@@ -183,20 +189,50 @@ export function withoutAutoLayers(layers) {
   return next.length === (layers || []).length ? layers : next
 }
 
+const pixelCount = layers => (layers || []).filter(l => l && (l.type === 'fill' || l.type === 'cover')).length
+export const PROBLEM_TEXT = { failed: '지우기 실패', textHeavy: '글자 많음', textLeft: '글자 남음' }
+
 /**
- * 목록·사진 칸·검수 창 표시 — 사진 하나
- * @param auto readAuto 결과  @param layers 지금 레이어  @param userLayers 원클릭이 아닌 픽셀 레이어 수
- * @returns {{ review: boolean, textHeavy: boolean, reason: string, canRevert: boolean } | null}
- *   review(검수 필요) = 실패 — 고객이 직접 고친 레이어가 생기면 풀린다 / textHeavy(글자 많음) = 사진 표시 그대로
+ * 목록·사진 칸·안내 띠 표시 — 사진 하나
+ * @param auto readAuto 결과  @param layers 지금 레이어
+ * @returns {{ problem: 'failed'|'textHeavy'|'textLeft'|null, problemText, reason, canRevert } | null}
+ *   problem("확인 필요") = 지우기 실패·글자 남음(표시를 남긴 뒤 레이어 수가 그대로일 때만 — 고객이 고치면 풀림) · 글자 많음(표시 그대로)
+ *   canRevert = 원클릭이 지운 레이어가 있음([원본으로] 버튼용) — 배지는 아니다
  */
 export function reviewMark(auto, layers) {
   if (!auto) return null
   const canRevert = hasAutoLayers(layers)
-  const userLayers = (layers || []).filter(l => l && l.auto !== true && (l.type === 'fill' || l.type === 'cover')).length
-  const review = auto.status === 'failed' && userLayers === 0
-  const textHeavy = auto.status === 'textHeavy'
-  if (!review && !textHeavy && !canRevert) return null
-  return { review, textHeavy, reason: review ? String(auto.reason || '') : '', canRevert }
+  const px = Number.isInteger(auto.px) ? auto.px : 0
+  let problem = null
+  if (auto.status === 'textHeavy') problem = 'textHeavy'
+  else if ((auto.status === 'failed' || auto.status === 'textLeft') && pixelCount(layers) === px) problem = auto.status
+  if (!problem && !canRevert) return null
+  const reason = problem === 'failed' ? String(auto.reason || '')
+    : problem === 'textLeft' ? `지우지 않은 곳에 글자 ${auto.left ?? ''}줄이 남아 있어요`
+      : problem === 'textHeavy' ? '글자가 많아 지워도 비어 보이기 쉬워요' : ''
+  return { problem, problemText: problem ? PROBLEM_TEXT[problem] : '', reason, canRevert }
+}
+
+/**
+ * 글자 남음 — 이미 있는 지우기·덮기 레이어가 쓰는 범위(studioFillPlan.writeRect)에 덮이지 않은 한자 줄 (4px 격자로 덮인 비율)
+ * @returns 남은 줄 배열
+ */
+export function leftoverLines(lines, layers, W, H) {
+  const zh = (lines || []).filter(isChineseLine)
+  if (!zh.length) return []
+  const G = 4, gw = Math.max(1, Math.ceil(W / G)), gh = Math.max(1, Math.ceil(H / G))
+  const grid = new Uint8Array(gw * gh)
+  for (const l of layers || []) {
+    if (!l || (l.type !== 'fill' && l.type !== 'cover')) continue
+    const r = writeRect(l, W, H)
+    for (let y = Math.floor(r.y / G); y < Math.ceil((r.y + r.h) / G); y++) for (let x = Math.floor(r.x / G); x < Math.ceil((r.x + r.w) / G); x++) grid[y * gw + x] = 1
+  }
+  return zh.filter(line => {
+    const r = lineRect(line, W, H)
+    let n = 0, c = 0
+    for (let y = Math.floor(r.y / G); y < Math.ceil((r.y + r.h) / G); y++) for (let x = Math.floor(r.x / G); x < Math.ceil((r.x + r.w) / G); x++) { n++; c += grid[y * gw + x] }
+    return n > 0 && c / n < LEFT_COVER_MIN
+  })
 }
 
 // ── 사진 고르기 ──
@@ -237,6 +273,8 @@ export function hashDistance(a, b) {
 
 // ── 순서 진행기 ──
 export class AutoStop extends Error { constructor() { super('멈춤'); this.name = 'AutoStop' } }
+/** 모델을 받지 못함 등 — 사진 한 장의 실패가 아니라 원클릭 전체를 멈춘다 (진행 화면에 이유를 보이고 멈춤, review-1) */
+export class AutoFatal extends Error { constructor(msg) { super(msg); this.name = 'AutoFatal' } }
 const yieldTick = () => new Promise(r => setTimeout(r, 0))
 
 /**
@@ -246,7 +284,7 @@ const yieldTick = () => new Promise(r => setTimeout(r, 0))
  *
  * @param {{
  *   rows: object[],                                       편집기 목록 순서 사진 행
- *   hasUserEdits: (row) => boolean,                       이미 지우기·덮기가 있는 사진 (고객 작업 — 건드리지 않고 그대로 씀)
+ *   userLayersOf: (row) => object[],                      이미 있는 지우기·덮기 레이어 (고객 작업 — 자동 지우기는 안 하고 글자 남음만 본다)
  *   loadPixels: (row) => Promise<{ imageData, hash }>,    원본 픽셀 + dHash
  *   ocr: (imageData) => Promise<{ lines }>,               글자 찾기
  *   erase: (row, layers, ctx: { shouldStop }) => Promise<object[]>,  지우기 계산·저장 → ai가 붙은 레이어 (멈추면 AutoStop)
@@ -254,10 +292,12 @@ const yieldTick = () => new Promise(r => setTimeout(r, 0))
  *   onProgress?: (p) => void, shouldStop?: () => boolean, now?: () => number,
  * }} deps
  * @returns {Promise<{ results: object[], stopped: boolean }>}
- *   results[i] = { id, status, reason?, placed, ms?, stats? } — status: erased|clean|textHeavy|failed|kept|small|dup|overLimit|stopped
+ *   results[i] = { id, status, reason?, placed, ms?, stats? } — status: erased|clean|textHeavy|failed|kept|textLeft|small|dup|overLimit|stopped
+ *   placed(페이지에 넣음) = erased·clean·failed·kept·textLeft. 글자 많음은 페이지에서 빼고 목록에만(review-1)
+ *   AutoFatal은 잡지 않고 그대로 던진다 (원클릭 전체 멈춤)
  */
 export async function runAutoPipeline(deps) {
-  const { rows, hasUserEdits, loadPixels, ocr, erase, commit } = deps
+  const { rows, userLayersOf, loadPixels, ocr, erase, commit } = deps
   const onProgress = deps.onProgress || (() => {})
   const shouldStop = deps.shouldStop || (() => false)
   const now = deps.now || (() => Date.now())
@@ -286,18 +326,23 @@ export async function runAutoPipeline(deps) {
         res = { id: row.id, status: 'dup', placed: false }
       } else {
         if (px.hash) hashes.push(px.hash)
-        if (hasUserEdits(row)) {
-          res = { id: row.id, status: 'kept', placed: true } // 고객이 이미 고친 사진 — 그대로 페이지에
+        const own = userLayersOf(row) || []
+        report(row.id, 'ocr')
+        if (shouldStop()) throw new AutoStop()
+        const { lines } = await ocr(px.imageData)
+        const W = row.width, H = row.height
+        const stats = textStats(lines, W, H)
+        const base = { v: AUTO_VERSION, lines: stats.lines, han: stats.han, ratio: stats.ratio, px: own.length }
+        if (own.length) {
+          // 고객이 이미 고친 사진 — 자동 지우기는 하지 않고, 지우지 않은 곳에 한자가 남았는지만 본다 (review-1)
+          const left = leftoverLines(lines, own, W, H).length
+          res = left
+            ? { id: row.id, status: 'textLeft', placed: true, stats, auto: { ...base, status: 'textLeft', left } }
+            : { id: row.id, status: 'kept', placed: true, stats, auto: { ...base, status: 'clean' } }
         } else {
-          report(row.id, 'ocr')
-          if (shouldStop()) throw new AutoStop()
-          const { lines } = await ocr(px.imageData)
-          const W = row.width, H = row.height
-          const stats = textStats(lines, W, H)
           const plan = planAutoLayers(lines, W, H)
-          const base = { v: AUTO_VERSION, lines: stats.lines, han: stats.han, ratio: stats.ratio }
           if (isTextHeavy(stats) || plan.tooMany) {
-            res = { id: row.id, status: 'textHeavy', placed: true, stats, auto: { ...base, status: 'textHeavy' } }
+            res = { id: row.id, status: 'textHeavy', placed: false, stats, auto: { ...base, status: 'textHeavy' } } // 페이지에서 빼고 목록에만
           } else if (plan.layers.length === 0) {
             res = { id: row.id, status: 'clean', placed: true, stats, auto: { ...base, status: 'clean' } }
           } else {
@@ -309,13 +354,15 @@ export async function runAutoPipeline(deps) {
         }
       }
     } catch (e) {
+      if (e instanceof AutoFatal || e?.name === 'AutoFatal') throw e
       if (e instanceof AutoStop || e?.name === 'AutoStop') {
         stopped = true
         results.push({ id: row.id, status: 'stopped', placed: false })
         continue
       }
       const reason = e?.message || String(e)
-      res = { id: row.id, status: 'failed', placed: true, reason, auto: { v: AUTO_VERSION, status: 'failed', reason: reason.slice(0, 200), lines: 0, han: 0, ratio: 0 } }
+      const px0 = (userLayersOf(row) || []).length
+      res = { id: row.id, status: 'failed', placed: true, reason, auto: { v: AUTO_VERSION, status: 'failed', reason: reason.slice(0, 200), lines: 0, han: 0, ratio: 0, px: px0 } }
     }
     if (res.status !== 'dup') { processed++; took.push(now() - t0) }
     res.ms = now() - t0
@@ -331,7 +378,7 @@ export async function runAutoPipeline(deps) {
 
 /** 요약 수 — 진행 화면·검수 안내 */
 export function summarize(results) {
-  const c = { erased: 0, clean: 0, textHeavy: 0, failed: 0, kept: 0, small: 0, dup: 0, overLimit: 0, stopped: 0, placed: 0 }
+  const c = { erased: 0, clean: 0, textHeavy: 0, failed: 0, kept: 0, textLeft: 0, small: 0, dup: 0, overLimit: 0, stopped: 0, placed: 0 }
   for (const r of results || []) { c[r.status] = (c[r.status] || 0) + 1; if (r.placed) c.placed++ }
   return c
 }
@@ -340,19 +387,35 @@ export function summarize(results) {
 // facts = 서버 product_facts: { title: { zh, ko }, attrs: [{ name:{zh,ko}, value:{zh,ko} }], options: [{ name:{zh,ko}, values:[{zh,ko}] }] }
 // ko = 1688 공식 다국어 데이터가 번역 캐시에 있을 때만 (없으면 null → 그 사실은 쓰지 않는다. 중국어를 페이지에 넣지 않음)
 const MATERIAL_ZH = /材质|面料|材料|成分|里料|填充物|主料/
-// 과장 광고 표현 — 제목 요약에서 뺀다 (사실만 남긴다)
-const HYPE = ['최고급', '최고', '최상급', '최상', '최저가', '1위', '초특가', '특가', '대박', '완벽', '명품', '인기', '핫', '폭발', '무료배송', '정품', '신상품', '신상', '신제품', '공장직판', '공장', '도매', '직판', '한정', '고급', '프리미엄', '초강력', '강력추천', '추천', '베스트', '당일발송', '빠른배송']
+/**
+ * 제목 초안에서 빼는 단어 — 이 한 곳 (review-1). 띄어쓰기 단위로 "그 단어와 똑같은 토막"만 뺀다 (다른 단어 속 글자는 건드리지 않음).
+ *   hype  과장 광고 표현 (사실만 남긴다)
+ *   trade 도매·유통용 단어와 그 번역 — 1688 제목에 붙는 现货·批发·外贸·高版本·厂家·一件代发·跨境·爆款·源头·代发·货源 류
+ * trade를 뺀 결과가 너무 짧으면(공백 뺀 TITLE_MIN_KEEP자 미만) trade는 빼지 않은 결과로 돌아간다 (상품명이 비지 않게)
+ */
+export const TITLE_DROP = {
+  hype: ['최고급', '최고', '최상급', '최상', '최저가', '1위', '초특가', '특가', '대박', '완벽', '명품', '인기', '인기상품', '핫', '핫템', '폭발', '무료배송', '정품', '신상품', '신상', '신제품', '공장직판', '직판', '한정', '고급', '프리미엄', '초강력', '강력추천', '추천', '베스트', '당일발송', '빠른배송'],
+  trade: [
+    '재고', '현물', '현재고', '스팟', '도매', '도매가', '수출', '수출용', '대외무역', '외국무역', '외무', '무역', '버전', '고버전', '하이버전', '고급버전',
+    '공장', '공장직송', '제조사', '제조업체', '원청', '대리발송', '일건대발', '위탁배송', '드롭쉬핑', '크로스보더', '국경간', '소싱', '폭발상품', '대량',
+    '现货', '批发', '外贸', '高版本', '厂家', '一件代发', '跨境', '爆款', '源头', '代发', '货源',
+  ],
+}
+export const TITLE_MIN_KEEP = 4
+const dropTokens = (s, words) => s.split(' ').filter(t => t && !words.includes(t)).join(' ')
 export const TITLE_MAX = 26
 export const BODY_OPTION_VALUES_MAX = 8
 
 function koOf(p) { return p && typeof p.ko === 'string' && p.ko.trim() && !hanCount(p.ko) ? p.ko.trim() : null }
 
-/** 1688 제목(한국어) → 짧은 상품명: 괄호·연도·과장 표현을 빼고 TITLE_MAX자 안에서 띄어쓰기 기준으로 자른다 */
+/** 1688 제목(한국어) → 짧은 상품명: 괄호·연도·과장 표현·도매 단어(TITLE_DROP)를 빼고 TITLE_MAX자 안에서 띄어쓰기 기준으로 자른다 */
 export function summarizeTitle(ko) {
   if (typeof ko !== 'string') return null
-  let s = ko.replace(/[【\[(（{<《][^】\])）}>》]*[】\])）}>》]/g, ' ').replace(/\b20\d\d(년|년형|년도)?/g, ' ')
-  for (const w of HYPE) s = s.split(w).join(' ')
+  let s = ko.replace(/[【\[(（{<《][^】\])）}>》]*[】\])）}>》]/g, ' ').replace(/(^|\s)20\d\d(년|년형|년도)?(?=\s|$)/g, ' ')
   s = s.replace(/[!！~～★☆♥♡#]+/g, ' ').replace(/\s+/g, ' ').trim()
+  s = dropTokens(s, TITLE_DROP.hype)
+  const noTrade = dropTokens(s, TITLE_DROP.trade)
+  if (noTrade.replace(/\s/g, '').length >= TITLE_MIN_KEEP) s = noTrade
   if (!s || hanCount(s)) return null
   if (s.length <= TITLE_MAX) return s
   const cut = s.slice(0, TITLE_MAX + 1)
@@ -422,6 +485,7 @@ const isPhoto = s => Number.isInteger(s?.photo)
  */
 export function autoTemplate(base, photoCount, drafts) {
   const tpl = clone(base)
+  tpl.gap = AUTO_GAP
   const lastPhotoIdx = tpl.sections.reduce((m, s, i) => (isPhoto(s) ? i : m), -1)
   const maxSlot = Math.max(-1, ...tpl.sections.filter(isPhoto).map(s => s.photo))
   const extra = []
@@ -468,6 +532,37 @@ export function buildAutoPage(photos, drafts, measure, templateKey = AUTO_TEMPLA
   const tpl = autoTemplate(base, photos.length, drafts)
   const r = buildTemplatePage(tpl, photos, measure)
   return r ? { ...r, tpl } : null
+}
+
+/**
+ * 글자 초안 구간 id — 초안 글자(상품명·사실 줄)가 들어간 구간과 옵션표 구간. 이 구간을 고르면 "AI 초안은 확인 후 사용해 주세요"(review-1)
+ * 편집기가 page.auto = { v: 1, drafts: [구간 id] }로 저장한다 (페이지 최상위 칸 — readPage·바꾸기 함수가 그대로 둔다)
+ */
+export function draftSectionIds(page, drafts) {
+  if (!page || !drafts) return []
+  const texts = new Set([drafts.title, drafts.body].filter(Boolean))
+  return page.sections.filter(s => s.items.some(it => (it.type === 'text' && texts.has(it.text)) || (it.type === 'table' && it.cells?.[0]?.[0] === '옵션'))).map(s => s.id)
+}
+export function withDraftMark(page, ids) {
+  return ids.length ? { ...page, auto: { v: AUTO_VERSION, drafts: [...ids] } } : page
+}
+export function isDraftSection(page, sectionId) {
+  return !!sectionId && Array.isArray(page?.auto?.drafts) && page.auto.drafts.includes(sectionId)
+}
+
+/**
+ * 안내 띠 [확인할 사진 보기] 순서 — 대표 사진(갤러리 첫 장)을 맨 앞, 나머지는 목록 순서
+ * @param rows 목록 순서 사진 행  @param markOf id → reviewMark  @returns [{ id, problem, problemText, reason }]
+ */
+export function problemList(rows, markOf) {
+  const ok = (rows || []).filter(r => r && r.ingest_status === 'done')
+  const heroId = ok.find(r => r.kind === 'gallery')?.id ?? null
+  const out = []
+  for (const r of ok) {
+    const m = markOf(r.id)
+    if (m?.problem) out.push({ id: r.id, problem: m.problem, problemText: m.problemText, reason: m.reason })
+  }
+  return out.sort((a, b) => (b.id === heroId) - (a.id === heroId))
 }
 
 /** 상단 버튼 — 지금 작업에서 바로(페이지가 비어 있음) / 복사본에서 (페이지가 있음 — 원본은 절대 덮지 않는다) */

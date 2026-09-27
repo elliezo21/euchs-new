@@ -45,9 +45,9 @@
 
       <div class="ml-auto flex items-center gap-1.5">
         <!-- 원클릭 (원클릭 1단계): 페이지가 비어 있으면 바로, 있으면 "복사본에서 새로 만들어요" 확인 뒤 복사본에서 (원본은 그대로) -->
-        <button type="button" class="st-btn st-btn-ai st-ai-cta" :disabled="!project || autoBuild.state.open || eraseOpen" data-one-click data-guide="one-click" @click="onOneClick">
+        <button type="button" class="st-btn st-btn-ai st-ai-cta" :disabled="autoBuild.state.open || eraseOpen" :data-one-click-loading="loading || !project ? '1' : null" data-one-click data-guide="one-click" @click="onOneClick">
           <Sparkles class="w-[18px] h-[18px] shrink-0" :stroke-width="2" />
-          <span class="text-left leading-tight"><span class="block text-[14px] font-extrabold">원클릭 AI 자동 제작</span><span class="block text-[11px] font-semibold opacity-80">완전 자동 · 사진만 있으면 끝까지</span></span>
+          <span class="text-left leading-tight"><span class="block text-[14px] font-extrabold">원클릭 AI 자동 제작</span><span class="block text-[11px] font-semibold opacity-80">{{ loading || !project ? '불러오는 중…' : '완전 자동 · 사진만 있으면 끝까지' }}</span></span>
         </button>
         <span class="w-px h-6 mx-1" style="background: var(--st-line)" />
         <!-- 작업 이력 (14단계): 이 창의 페이지 이력 목록 — 누르면 그 상태로 복원(새 이력 한 칸 "이력 복원", Ctrl+Z로 취소). 사진 edit는 그대로 -->
@@ -128,6 +128,8 @@
       <!-- 재료 패널 (300px): 고른 메뉴의 재료. 사진을 누르면 사진 속성 패널(6단계) -->
       <aside class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
         <!-- 고른 요소가 있으면 위쪽에 공통 조작 칸 (6-1) + 사진 한 장이면 사진 묶음 (6-2) -->
+        <!-- 원클릭 글자 초안 구간을 고르면 한 줄 (review-1) -->
+        <p v-if="isWide && selectedInDraft && !showStart" class="shrink-0 px-4 py-2 text-[12px] font-bold break-keep st-border-b" style="color: var(--st-ai)" data-draft-hint>AI 초안은 확인 후 사용해 주세요 · 1688 상품 정보로 만든 글자라 눌러서 고칠 수 있어요</p>
         <div v-if="isWide && page && selectedItemIds.length && !showStart" class="shrink-0 max-h-[65%] overflow-y-auto" data-selection-panels>
           <StudioTransformPanel :page="page" :selected-ids="selectedItemIds" @command="runCommand" />
           <StudioImageItemPanel
@@ -136,6 +138,7 @@
             @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
             @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
             :shape-text="shapeMarkOf(selectedPhotoItem.imageId)" @crop="openCrop(selectedPhotoItem.imageId)"
+            :auto-mark="autoMarkOf(selectedPhotoItem.imageId)" @auto-fix="openErase(selectedPhotoItem.imageId)" @auto-revert="onAutoRevert(selectedPhotoItem.imageId)"
           />
           <!-- 글자 속성 (10-1): 고른 것 중 글자 요소가 있으면 — 바꾸면 글자 요소에만 -->
           <StudioTextItemPanel
@@ -173,6 +176,7 @@
           <StudioBgPanel
             v-else-if="activeTool === 'bg'"
             :row="bgRow" :thumb-url="bgRow ? views[bgRow.id]?.url || null : null" :bg="bgRow ? session.bgOf(bgRow.id) : null"
+            :target-label="bgTarget.label" :target-source="bgTarget.source"
             :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError" :section-bg="bgSectionColor"
             :thumb-under="bgRow ? views[bgRow.id]?.bgUrl || null : null"
             :gen-status="bgGenStatus" :gen-busy="!!(bgRow && bgGenBusy[bgRow.id])" :gen-error="bgGenError"
@@ -201,10 +205,10 @@
         />
         <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
-          <div v-else-if="page && page.sections.length" class="pt-8 pb-24" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
+          <div v-else-if="page && page.sections.length" class="pb-24" :class="autoNotice.open ? 'pt-24' : 'pt-8'" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
             <StudioPageView
               ref="pageView"
-              :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state"
+              :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state" :flags="sectionFlags"
               :looks="session.lookMap" :compare="compare" :selected-section-id="selectedSectionId" :text-edit="textEdit"
               @edit-text="startTextEdit" @text-commit="onTextCommit"
               @select="onPageSelect" @change="onPageChange" @context="openContextMenu" @select-section="pickSection"
@@ -215,6 +219,29 @@
           <div v-else-if="page" class="absolute inset-0 flex items-center justify-center st-desc break-keep" data-page-empty>
             사진이 준비되면 여기에 상세페이지가 만들어져요
           </div>
+        </div>
+        <!-- 원클릭 안내 띠 (review-1): 완료 팝업 대신 — 만든 페이지를 바로 보여 주고 위에 한 줄. 닫을 수 있다 -->
+        <div v-if="autoNotice.open && page" class="absolute left-3 top-3" style="z-index: 6; width: min(640px, calc(100% - 256px))" data-auto-notice>
+          <div class="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-[12px] st-card st-shadow-float text-[13px] break-keep">
+            <Sparkles class="w-4 h-4 shrink-0" :stroke-width="2" style="color: var(--st-ai)" />
+            <span class="font-bold st-ink min-w-0" data-auto-notice-text>
+              상세페이지를 자동으로 만들었어요 · 사진 {{ autoNotice.placed }}장<template v-if="autoProblems.length"> · 확인하면 좋은 사진 {{ autoProblems.length }}장</template>
+            </span>
+            <button v-if="autoProblems.length" type="button" class="st-btn h-8 ml-auto shrink-0" :class="autoNotice.listOpen ? 'is-pressed' : ''" data-auto-notice-list @click="autoNotice.listOpen = !autoNotice.listOpen">확인할 사진 보기</button>
+            <button type="button" class="st-icon-btn shrink-0" :class="autoProblems.length ? '' : 'ml-auto'" title="닫기" data-auto-notice-close @click="autoNotice.open = false"><X class="w-4 h-4" :stroke-width="2" /></button>
+          </div>
+          <p v-if="autoNotice.draftNote" class="mt-1 px-3 text-[12px] font-bold break-keep" style="color: var(--st-ai)" data-auto-draft-note>{{ autoNotice.draftNote }}</p>
+          <ol v-if="autoNotice.listOpen && autoProblems.length" class="mt-1.5 p-1.5 st-card st-shadow-float rounded-[12px] max-h-[300px] overflow-y-auto" data-auto-problem-list>
+            <li v-for="p in autoProblems" :key="p.id">
+              <button type="button" class="st-menu-row w-full" :data-auto-problem-row="p.id" @click="goProblem(p.id)">
+                <span class="w-9 h-9 rounded-[6px] overflow-hidden shrink-0 st-placeholder"><img v-if="views[p.id]?.url" :src="views[p.id].url" alt="" class="w-full h-full object-cover" /></span>
+                <span class="min-w-0 text-left">
+                  <span class="block text-[12px] font-bold st-ink truncate">{{ imagesById.get(p.id) ? imageLabel(imagesById.get(p.id)) : p.id }}</span>
+                  <span class="block text-[11px] st-danger-text truncate">확인 필요 · {{ p.problemText }}<template v-if="!placedIds?.includes(p.id)"> · 목록에만 있어요</template></span>
+                </span>
+              </button>
+            </li>
+          </ol>
         </div>
         <!-- 아래 막대: 확대 · 폭 (시안 ①) -->
         <div v-if="page" class="absolute left-1/2 -translate-x-1/2 bottom-4 flex items-center gap-2 px-2 py-1.5 rounded-[12px] st-card st-shadow-float" style="z-index: 5" data-zoom-bar>
@@ -234,21 +261,7 @@
         <div v-if="selectedImage && !eraseOpen" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
           <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
           <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.cover"> · 덮기 {{ selectedFillCounts.cover }}</span><span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
-          <!-- 원클릭 검수 (원클릭 1단계): 표시 + [직접 고치기](= 지우기 화면) · [원본으로] · [빼기] -->
-          <template v-if="selectedAutoMark">
-            <div class="mt-1.5 flex flex-wrap gap-1" data-info-auto-mark>
-              <span v-if="selectedAutoMark.review" class="st-badge st-badge-danger" :title="selectedAutoMark.reason">검수 필요</span>
-              <span v-if="selectedAutoMark.textHeavy" class="st-badge st-badge-danger">글자 많음</span>
-              <span v-if="selectedAutoMark.canRevert" class="st-badge">자동으로 다듬음</span>
-            </div>
-            <p v-if="selectedAutoMark.review && selectedAutoMark.reason" class="mt-1 text-[11px] st-muted break-keep">{{ selectedAutoMark.reason }}</p>
-            <p v-if="selectedAutoMark.textHeavy" class="mt-1 text-[11px] st-muted break-keep">글자가 많아 [빼기]나 다른 사진으로 바꾸기를 권해요.</p>
-          </template>
-          <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> {{ selectedAutoMark ? '직접 고치기' : '지우기' }}</button>
-          <div v-if="selectedAutoMark && (selectedAutoMark.canRevert || placedIds?.includes(selectedImage.id))" class="mt-1 grid grid-cols-2 gap-1">
-            <button v-if="selectedAutoMark.canRevert" type="button" class="st-btn text-[12px]" data-info-auto-revert @click="onAutoRevert(selectedImage.id)"><Undo2 class="w-3.5 h-3.5" :stroke-width="2" /> 원본으로</button>
-            <button v-if="placedIds?.includes(selectedImage.id)" type="button" class="st-btn text-[12px]" data-info-auto-remove @click="onAutoRemove(selectedImage.id)"><X class="w-3.5 h-3.5" :stroke-width="2" /> 빼기</button>
-          </div>
+          <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> 지우기</button>
           <button type="button" class="st-btn st-btn-ghost st-btn-block mt-1 st-danger-text text-[12px]" :disabled="selectedFillCount === 0" data-clear-all @click="clearAllOpen = true"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 이 사진의 지우기 모두 삭제</button>
         </div>
         <button
@@ -269,7 +282,7 @@
         <!-- 미니뷰 (8-2): 구간 작은 그림 — 누르면 그 구간으로 가서 고름. 보는 중(점선)·골라짐(실선) -->
         <StudioMiniMap
           v-if="rightTab === 'mini' && page"
-          :page="page" :views="views" :looks="session.lookMap" :labels="sectionLabels"
+          :page="page" :views="views" :looks="session.lookMap" :labels="sectionLabels" :flags="sectionFlags"
           :active-section-id="inViewSectionId" :selected-section-id="selectedSectionId"
           @pick="onMiniPick"
         />
@@ -378,12 +391,6 @@
         <button type="button" class="st-btn st-btn-ai" data-confirm-auto-copy @click="confirmAutoCopy"><Sparkles class="w-4 h-4" :stroke-width="2" /> 복사본에서 만들기</button>
       </template>
     </StudioModal>
-    <!-- 원클릭 검수 안내 -->
-    <StudioAutoReview
-      :open="autoReview.open" :summary="autoReview.summary" :rows="autoReviewRows" :stopped="autoReview.stopped"
-      :process-max="autoBuild.PROCESS_MAX" :draft-note="autoReview.draftNote"
-      @close="autoReview.open = false" @fix="onAutoFix" @revert="onAutoRevert" @remove="onAutoRemove"
-    />
 
     <!-- 사진 추가 -->
     <StudioModal :open="addOpen" wide title="내 사진 올리기" @close="addOpen = false">
@@ -496,10 +503,12 @@ import {
   MoreHorizontal, Pencil, Copy, X, Keyboard,
 } from 'lucide-vue-next'
 import StudioAutoBuildScreen from '@/components/studio/StudioAutoBuildScreen.vue'
-import StudioAutoReview from '@/components/studio/StudioAutoReview.vue'
 import { useAutoBuild } from '@/composables/useAutoBuild'
+import { AI_MISSING_NOTE } from '@/lib/studioPreview'
 import { fetchProductFacts } from '@/lib/studioFactsApi'
-import { reviewMark, buildDrafts, autoTemplate, oneClickTarget, summarize, AUTO_TEMPLATE_KEY } from '@/lib/studioAutoBuild'
+import {
+  reviewMark, buildDrafts, autoTemplate, oneClickTarget, AUTO_TEMPLATE_KEY, draftSectionIds, withDraftMark, isDraftSection, problemList,
+} from '@/lib/studioAutoBuild'
 import SpotlightGuide from '@/components/common/SpotlightGuide.vue'
 import StudioGuideHideBar from '@/components/studio/StudioGuideHideBar.vue'
 import StudioShortcutsModal from '@/components/studio/StudioShortcutsModal.vue'
@@ -798,15 +807,45 @@ const autoBuild = useAutoBuild({
     return r.facts
   },
 })
-let autoFactsInfo = null // 마지막 product_facts 응답 (검수 안내 문구용)
+let autoFactsInfo = null // 마지막 product_facts 응답 (글자 초안 안내 문구용)
 const autoCopyAsk = ref(false)
-const autoReview = reactive({ open: false, results: [], summary: summarize([]), stopped: false, draftNote: '' })
-/** 사진 하나의 원클릭 표시 — 목록 줄·사진 정보 칸·검수 안내 (studioAutoBuild.reviewMark) */
+let oneClickPending = false // 불러오는 중에 눌렀음 — 다 불러오면 시작 (review-1)
+// 안내 띠 (review-1 — 완료 팝업 대신): 원클릭이 끝나면 페이지 위에 한 줄. 이 창에서만(닫으면 끝), "확인 필요" 표시는 사진에 저장돼 남는다
+const autoNotice = reactive({ open: false, listOpen: false, placed: 0, draftNote: '' })
+/** 사진 하나의 원클릭 표시 — 목록 줄·왼쪽 사진 패널·구간 이름 (studioAutoBuild.reviewMark) */
 function autoMarkOf(id) { return reviewMark(session.autoOf(id), session.layerMap[id]) }
-const selectedAutoMark = computed(() => (selectedImage.value ? autoMarkOf(selectedImage.value.id) : null))
+/** 확인하면 좋은 사진 (대표 사진이 맨 앞) — 안내 띠 숫자·목록 */
+const autoProblems = computed(() => problemList(images.value, autoMarkOf))
+/** 구간 id → "글자 남음" 같은 확인할 종류 — 페이지 구간 이름 아래·미니뷰에 "확인 필요"로 (사진 위에는 올리지 않는다) */
+const sectionFlags = computed(() => {
+  const out = {}
+  for (const s of page.value?.sections || []) {
+    const texts = [...new Set(s.items.filter(isValidImageItem).map(it => autoMarkOf(it.imageId)?.problemText).filter(Boolean))]
+    if (texts.length) out[s.id] = texts.join(' · ') // 화면은 "확인 필요" + 이 종류 (페이지 = 두 줄, 미니뷰 = 배지·마우스)
+  }
+  return out
+})
+/** 고른 것이 글자 초안 구간 안이면 "AI 초안은 확인 후 사용해 주세요" 한 줄 */
+const selectedInDraft = computed(() => {
+  const p = page.value
+  if (!p?.auto) return false
+  if (isDraftSection(p, selectedSectionId.value)) return true
+  return selectedItemIds.value.some(id => isDraftSection(p, findItem(p, id)?.section?.id))
+})
+/** [확인할 사진 보기] 한 줄 — 그 사진을 고르고(목록 탭도 그 사진으로) 페이지에 있으면 거기로 */
+function goProblem(id) {
+  autoNotice.listOpen = false
+  activeTool.value = 'photo'
+  selectFromPanel(id)
+}
 function onOneClick() {
-  const p = project.value
-  if (!p || !isWide.value || autoBuild.state.open || eraseOpen.value) return
+  if (!isWide.value || autoBuild.state.open || eraseOpen.value) return
+  if (loading.value || !project.value) {
+    // 불러오는 중 — 조용히 무시하지 않고 알린 뒤, 다 불러오면 시작 (review-1)
+    oneClickPending = true
+    showToast('사진을 불러오는 중이에요. 다 불러오면 바로 원클릭을 시작할게요.')
+    return
+  }
   if (pageSession.readError.value) { showToast('페이지 내용을 읽지 못해 지금은 원클릭을 쓸 수 없어요. 새로고침해 주세요.'); return }
   if (usableImagesNow().length === 0) { showToast('먼저 왼쪽 [사진]에서 사진을 올려 주세요.'); return }
   const target = oneClickTarget({ isDefault: pageSession.isDefault.value, sectionCount: page.value?.sections.length ?? 0 })
@@ -836,24 +875,33 @@ async function confirmAutoCopy() {
     showToast(e.message)
   }
 }
-/** 불러오기 끝 — 주소에 oneclick=1이 있으면(방금 만든 복사본) 주소에서 떼고 원클릭을 돌린다 */
+/** 불러오기 끝 — 주소에 oneclick=1이 있으면(방금 만든 복사본) 주소에서 떼고 원클릭을, 불러오는 중에 눌렀으면 그것을 */
 function runOneClickFromRoute() {
-  if (route.query.oneclick !== '1' || !project.value) return
-  const { oneclick: _o, ...rest } = route.query
-  router.replace({ query: rest })
-  if (isWide.value) runOneClick()
+  if (!project.value) return
+  if (route.query.oneclick === '1') {
+    oneClickPending = false
+    const { oneclick: _o, ...rest } = route.query
+    router.replace({ query: rest })
+    if (isWide.value) runOneClick()
+    return
+  }
+  if (oneClickPending) {
+    oneClickPending = false
+    onOneClick()
+  }
 }
 async function runOneClick() {
   const pid = project.value?.id
   if (!pid) return
   autoFactsInfo = null
+  autoNotice.open = false
   clearSelection()
   await autoBuild.run(finishOneClick)
   if (project.value?.id !== pid) return
   if (!autoBuild.state.error) autoBuild.close()
 }
-/** 사진 처리가 끝나면(또는 멈추면) — 처리된 사진으로 페이지를 만들어 저장하고 검수 안내를 띄운다 */
-async function finishOneClick({ results, stopped, facts }) {
+/** 사진 처리가 끝나면(또는 멈추면) — 처리된 사진으로 페이지를 만들어 저장하고, 팝업 없이 페이지 + 위쪽 안내 띠 */
+async function finishOneClick({ results, facts }) {
   const pid = project.value?.id
   const drafts = buildDrafts(facts)
   const photos = results.filter(r => r.placed).map(r => sizedRow(r.id)).filter(Boolean)
@@ -864,37 +912,23 @@ async function finishOneClick({ results, stopped, facts }) {
     const r = buildTemplatePage(tpl, photos, textMeasure)
     let ok = false
     if (!r) console.error('[StudioEditor] 원클릭 페이지를 만들지 못함 (템플릿 모양 오류)')
-    else if (pageSession.isDefault.value) {
-      ok = pageSession.startFromDoc(r.page, LABELS.autoBuild)
-      if (ok) startChosen.value = true
-    } else ok = applyPage(r.page, LABELS.autoBuild)
+    else {
+      const doc = withDraftMark(r.page, draftSectionIds(r.page, drafts)) // 글자 초안 구간 표시 (page.auto)
+      if (pageSession.isDefault.value) {
+        ok = pageSession.startFromDoc(doc, LABELS.autoBuild)
+        if (ok) startChosen.value = true
+      } else ok = applyPage(doc, LABELS.autoBuild)
+    }
     if (!ok) showToast('페이지를 만들지 못했어요. 사진은 다듬어 둔 그대로 목록에 있어요. [템플릿]으로 다시 만들어 주세요.')
     nextTick(() => { if (pageScroll.value) pageScroll.value.scrollTop = 0 })
   }
   await Promise.all([session.flush(), pageSession.flush()])
   for (const x of results) if (x.status === 'erased') requestBake(x.id) // 완성 사진은 뒤에서 한 장씩 (지우기 화면을 닫을 때와 같은 길)
-  const notes = []
-  if (!facts) notes.push(autoFactsInfo?.reason === 'no_offer' ? '1688 상품이 아닌 작업이라 글자 초안은 템플릿 기본 문구예요. 직접 적어 주세요.' : '1688 상품 정보를 읽지 못해 글자 초안은 템플릿 기본 문구예요. 직접 적어 주세요.')
-  else if (!drafts.title && !drafts.body) notes.push('한국어 상품 정보가 아직 없어 글자 초안은 템플릿 기본 문구예요. 직접 적어 주세요.')
-  else if (drafts.missing) notes.push(`한국어 정보가 없는 항목 ${drafts.missing}개는 초안에 넣지 않았어요.`)
-  Object.assign(autoReview, { open: true, results, summary: summarize(results), stopped, draftNote: notes.join(' ') })
-}
-const AUTO_ROW_TEXT = {
-  erased: () => '자동으로 다듬었어요', clean: () => '찾은 글자가 없어 그대로 두었어요', kept: () => '직접 고친 사진이라 그대로 두었어요',
-  textHeavy: () => '글자 많음 · 빼기나 다른 사진으로 바꾸기를 권해요', failed: r => `검수 필요 · ${r.reason || '자동으로 다듬지 못했어요'}`,
-}
-const autoReviewRows = computed(() => autoReview.results.filter(r => r.placed).map(r => {
-  const row = imagesById.value.get(r.id)
-  return {
-    id: r.id, label: row ? imageLabel(row) : r.id, thumbUrl: views[r.id]?.url || null,
-    text: (AUTO_ROW_TEXT[r.status] || (() => ''))(r), tone: r.status === 'failed' || r.status === 'textHeavy' ? 'warn' : '',
-    mark: autoMarkOf(r.id), onPage: !!placedIds.value?.includes(r.id),
-  }
-}).sort((a, b) => (b.tone === 'warn') - (a.tone === 'warn')))
-/** [직접 고치기] — 그 사진의 지우기 화면 (자동으로 지운 곳도 그 화면에서 옮기기·지우기·되돌리기) */
-function onAutoFix(id) {
-  autoReview.open = false
-  openErase(id)
+  let draftNote = ''
+  if (!facts) draftNote = autoFactsInfo?.reason === 'no_offer' ? '글자는 템플릿 기본 문구예요 — 눌러서 상품 설명을 적어 주세요.' : '1688 상품 정보를 읽지 못해 글자는 템플릿 기본 문구예요 — 눌러서 적어 주세요.'
+  else if (!drafts.title && !drafts.body) draftNote = '한국어 상품 정보가 아직 없어 글자는 템플릿 기본 문구예요 — 눌러서 적어 주세요.'
+  Object.assign(autoNotice, { open: photos.length > 0, listOpen: false, placed: photos.length, draftNote })
+  if (!photos.length) showToast('페이지에 넣을 사진이 없어 페이지는 그대로예요. [사진] 목록을 확인해 주세요.')
 }
 /** [원본으로] — 원클릭이 지운 레이어만 뺀다 (사진 이력 한 칸 → 편집기 Ctrl+Z로 되돌림) */
 function onAutoRevert(id) {
@@ -1117,7 +1151,7 @@ function resetEditorLog() {
   cropImageId.value = null  // 12-1 자르기 창
   refineImageId.value = null // 17-3 경계 다듬기 화면
   refineBg.value = null
-  autoReview.open = false   // 원클릭 1단계 검수 안내·복사본 확인
+  autoNotice.open = false   // 원클릭 안내 띠·복사본 확인 (review-1)
   autoCopyAsk.value = false
 }
 function noteAction(entry) {
@@ -1863,7 +1897,7 @@ async function erasedSourceOf(imageId) {
   const el = await loadWithResign(urlPool, row.original_path)
   const r = await composeErased(el, pixelLayersOf(session.layerMap[imageId] || []))
   const notes = [...r.problems]
-  if (r.aiMissing.length || r.aiStale.length) notes.push('AI로 지우기 결과가 없는 곳은 원본 그대로 들어갔어요 (지우기 화면에서 다시 지우기)')
+  if (r.aiMissing.length || r.aiStale.length) notes.push(AI_MISSING_NOTE) // 미리보기·내보내기가 사진 수로 한 줄에 묶는다 (studioPreview.summarizeNotes)
   return { source: r.canvas || el, width: el.naturalWidth, height: el.naturalHeight, notes }
 }
 /**
@@ -1956,11 +1990,21 @@ const bgStatus = reactive({ loading: false, loaded: false, ready: false, reason:
 const bgBusy = reactive({})   // image id → true (처리 중 — 같은 사진을 또 누르지 못하게)
 const bgError = ref('')
 let bgStatusSeq = 0
-// 고른 사진 = 페이지에서 고른 사진 요소, 없으면 [사진] 목록에서 고른 사진
+// 고른 사진 = 페이지(캔버스)에서 고른 사진 요소가 먼저, 없으면 [사진] 목록에서 고른 사진 (review-1: 규칙 그대로 + 패널 맨 위에 대상 표시)
 const bgRow = computed(() => {
   const id = selectedPhotoItem.value?.imageId ?? selectedImageId.value
   const row = id ? imagesById.value.get(id) : null
   return row && row.ingest_status === 'done' ? row : null
+})
+/** 배경합성 패널 맨 위 "지금 대상 사진" — 어디서 골랐는지 + 어느 구간인지 ("03 상세 이미지 · 04 상세 이미지 · 790 × 1108") */
+const bgTarget = computed(() => {
+  const row = bgRow.value
+  if (!row) return { label: '', source: 'page' }
+  const it = selectedPhotoItem.value
+  const p = page.value
+  const sec = p ? (it ? findItem(p, it.id)?.section : p.sections.find(s => s.items.some(x => x.imageId === row.id))) : null
+  const where = sec ? `${sectionLabels.value[sec.id] ?? ''} 구간` : '페이지에 없는 사진'
+  return { label: `${where} · ${imageLabel(row)}`, source: it ? 'page' : 'list' }
 })
 async function loadBgStatus() {
   const seq = ++bgStatusSeq
@@ -2174,7 +2218,7 @@ const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!con
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
   || !!refineImageId.value // 17-3: 경계 다듬기 화면이 열린 동안도 (붓 단축키 K·E·X·[·]·Ctrl+Z는 그 화면이 받는다)
   || !!templateAsk.value // 15: 템플릿 교체 확인창
-  || autoBuild.state.open || autoCopyAsk.value || autoReview.open // 원클릭 1단계: 진행 화면·복사본 확인·검수 안내
+  || autoBuild.state.open || autoCopyAsk.value // 원클릭: 진행 화면·복사본 확인
   || shortcutsOpen.value) // 14: 단축키 표
 
 function formatBytes(n) {

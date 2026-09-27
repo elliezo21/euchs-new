@@ -19,11 +19,11 @@
       </div>
 
       <!-- 적용 중인 사진 (13-1과 같은 안내) · 그림 알림 -->
-      <div v-if="pendingCount || notes.length" class="shrink-0 px-4 py-2 space-y-1 st-border-b st-surface" data-preview-notice>
+      <div v-if="pendingCount || noteLines.length" class="shrink-0 px-4 py-2 space-y-1 st-border-b st-surface" data-preview-notice>
         <p v-if="pendingCount" class="text-[12px] font-bold st-ai-soft break-keep" data-preview-pending>
           지운 결과를 사진에 적용하는 중인 사진이 {{ pendingCount }}장 있어요. 다 적용되면 그 구간을 다시 그려요.
         </p>
-        <p v-for="(n, i) in notes" :key="i" class="text-[12px] st-ai-soft break-keep">{{ labels[n.sectionId] ?? '' }} · {{ n.note }}</p>
+        <p v-for="(n, i) in noteLines" :key="i" class="text-[12px] st-ai-soft break-keep" data-preview-note>{{ n }}</p>
       </div>
 
       <div class="flex-1 min-h-0 flex justify-center" :class="device === 'mobile' ? 'items-center py-6' : ''">
@@ -53,7 +53,10 @@
                   <span class="text-[11px] st-muted break-keep">{{ resultOf(r.id).error }}</span>
                   <button type="button" class="st-btn" :data-preview-retry="r.id" @click="retry(r.id)"><RefreshCw class="w-3.5 h-3.5" :stroke-width="2" /> 다시 시도</button>
                 </div>
-                <div v-else class="w-full h-full st-skeleton" data-preview-loading />
+                <!-- 그리는 중 (review-1): 새로고침 직후처럼 사진을 받는 동안 빈 회색칸만 보이지 않게 글자로 알린다 -->
+                <div v-else class="w-full h-full st-skeleton flex items-center justify-center" data-preview-loading>
+                  <span class="text-[12px] font-bold st-muted" style="max-height: 100%">사진 불러오는 중…</span>
+                </div>
               </div>
             </div>
           </div>
@@ -70,7 +73,7 @@
 // 적용 중(완성 사진 만드는 중)인 사진은 위에 안내, 다 적용되면 그 구간을 다시 그린다. Esc·[닫기] = 편집기로. [이미지로 받기] = export (편집기가 [내보내기] 창을 연다)
 import { ref, shallowReactive, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { Eye, Monitor, Smartphone, Download, X, RefreshCw } from 'lucide-vue-next'
-import { PREVIEW_DEVICES, previewDisplayScale, previewRenderScale, previewRows, previewOrder } from '@/lib/studioPreview'
+import { PREVIEW_DEVICES, previewDisplayScale, previewRenderScale, previewRows, previewOrder, summarizeNotes } from '@/lib/studioPreview'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
@@ -100,6 +103,8 @@ const notes = computed(() => {
   for (const [k, r] of results) if (k.startsWith(`${renderScale.value}|`) && r.notes?.length) out.push(...r.notes)
   return out
 })
+// 같은 알림은 한 줄로 (review-1 — 사진마다 줄줄이 뜨지 않게)
+const noteLines = computed(() => summarizeNotes(notes.value, props.labels))
 
 const keyOf = id => `${renderScale.value}|${id}`
 function resultOf(id) { return results.get(keyOf(id)) || null }

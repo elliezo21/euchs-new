@@ -13,7 +13,7 @@
       :style="{ right: `calc(100% + 14px)`, top: `${rowOf(s.id).top * zoom + 4}px` }"
       :data-section-label="s.id" title="이 구간 고르기"
       @pointerdown.stop="onLabelDown($event, s.id)" @contextmenu.prevent.stop="onLabelContext($event, s.id)"
-    >{{ String(si + 1).padStart(2, '0') }} {{ sectionName(s) }}<span v-if="sectionBake(s)" class="block font-semibold st-muted" data-section-bake>{{ sectionBake(s) }}</span></div>
+    >{{ String(si + 1).padStart(2, '0') }} {{ sectionName(s) }}<span v-if="sectionBake(s)" class="block font-semibold st-muted" data-section-bake>{{ sectionBake(s) }}</span><span v-if="flags[s.id]" class="block st-danger-text" :data-section-flag="s.id">확인 필요<span class="block font-semibold">{{ flags[s.id] }}</span></span></div>
 
     <!-- 흰 페이지 -->
     <div class="absolute inset-0 st-page-paper" @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext">
@@ -212,6 +212,7 @@ const props = defineProps({
   bakeState: { type: Object, default: () => ({}) }, // image id → { status } (useBakeQueue) — 구간 이름 옆에 "적용 중" (사진 위에는 올리지 않는다)
   selectedSectionId: { type: String, default: null }, // 골라진 구간 (8-1) — 테두리 + 아래쪽 높이 손잡이
   textEdit: { type: Object, default: null },           // { id, selectAll } 고치는 중인 글자 요소 (10-1)
+  flags: { type: Object, default: () => ({}) },        // 구간 id → "글자 남음" (원클릭 review-1 — 구간 이름 아래 "확인 필요" 두 줄, 사진 위에는 올리지 않음)
 })
 // select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
 // open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })

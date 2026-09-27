@@ -91,11 +91,9 @@
               <span class="block st-muted">지운 내용은 저장돼 있어요</span>
             </div>
             <div v-else-if="bakeOf(img.id)?.status === 'blocked'" class="text-[11px] st-muted break-keep" data-bake-state="blocked">{{ bakeOf(img.id).message }}</div>
-            <!-- 원클릭 검수 표시 (원클릭 1단계): 검수 필요(자동 처리 실패 — 사유는 마우스를 올리면) · 글자 많음 · 자동으로 다듬음 -->
-            <div v-if="img.ingest_status === 'done' && autoMark(img.id)" class="mt-0.5 flex flex-wrap gap-1" :data-auto-mark="img.id">
-              <span v-if="autoMark(img.id).review" class="st-badge st-badge-danger" :title="autoMark(img.id).reason" data-auto-review-badge>검수 필요</span>
-              <span v-if="autoMark(img.id).textHeavy" class="st-badge st-badge-danger" title="글자가 많아 지워도 비어 보이기 쉬워요. 빼기나 다른 사진으로 바꾸기를 권해요" data-auto-heavy-badge>글자 많음</span>
-              <span v-if="autoMark(img.id).canRevert" class="st-badge" data-auto-erased-badge>자동으로 다듬음</span>
+            <!-- 원클릭 "확인 필요" (review-1): 문제 있는 사진에만 — 지우기 실패 · 글자 많음 · 글자 남음 (사유는 마우스를 올리면). 잘 지운 사진은 표시 없음 -->
+            <div v-if="img.ingest_status === 'done' && autoMark(img.id)?.problem" class="mt-0.5 flex flex-wrap gap-1" :data-auto-mark="img.id">
+              <span class="st-badge st-badge-danger" :title="autoMark(img.id).reason" :data-auto-problem="autoMark(img.id).problem">확인 필요 · {{ autoMark(img.id).problemText }}</span>
             </div>
             <!-- 페이지에 있음/없음 (6-3) -->
             <div v-if="canInsert(img)" class="mt-0.5 text-[11px]" :class="isPlaced(img.id) ? 'st-ink-2' : 'st-muted'" :data-placed="isPlaced(img.id) ? '1' : '0'">
@@ -106,15 +104,15 @@
             <div v-if="img.ingest_status === 'done'" class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
               <span
                 role="button" tabindex="0" class="st-row-link" :data-erase-image="img.id"
-                :title="autoMark(img.id) ? '이 사진을 지우기 화면에서 직접 고쳐요' : '이 사진의 지울 곳을 칠해서 지워요'"
+                :title="autoMark(img.id)?.problem ? '이 사진을 지우기 화면에서 직접 고쳐요' : '이 사진의 지울 곳을 칠해서 지워요'"
                 @click.stop="$emit('open-erase', img.id)" @keydown.enter.stop.prevent="$emit('open-erase', img.id)" @dblclick.stop
-              ><Eraser class="w-3 h-3" :stroke-width="2.5" />{{ autoMark(img.id) ? '직접 고치기' : '지우기' }}</span>
+              ><Eraser class="w-3 h-3" :stroke-width="2.5" />{{ autoMark(img.id)?.problem ? '직접 고치기' : '지우기' }}</span>
               <span
                 v-if="autoMark(img.id)?.canRevert" role="button" tabindex="0" class="st-row-link" :data-auto-revert-image="img.id" title="자동으로 지운 곳을 원래대로 돌려요"
                 @click.stop="$emit('auto-revert', img.id)" @keydown.enter.stop.prevent="$emit('auto-revert', img.id)" @dblclick.stop
               ><Undo2 class="w-3 h-3" :stroke-width="2.5" />원본으로</span>
               <span
-                v-if="autoMark(img.id) && isPlaced(img.id)" role="button" tabindex="0" class="st-row-link" :data-auto-remove-image="img.id" title="이 사진을 페이지에서 빼요 (목록에는 남아요)"
+                v-if="autoMark(img.id)?.problem && isPlaced(img.id)" role="button" tabindex="0" class="st-row-link" :data-auto-remove-image="img.id" title="이 사진을 페이지에서 빼요 (목록에는 남아요)"
                 @click.stop="$emit('auto-remove', img.id)" @keydown.enter.stop.prevent="$emit('auto-remove', img.id)" @dblclick.stop
               ><X class="w-3 h-3" :stroke-width="2.5" />빼기</span>
               <span

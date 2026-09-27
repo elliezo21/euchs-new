@@ -58,3 +58,34 @@ export function previewOrder(rows, scrollTop, viewHeight, near = PREVIEW_NEAR_PX
   close.sort((a, b) => a.dist - b.dist)
   return [...visible.map(r => r.id), ...close.map(c => c.r.id)]
 }
+
+// ── 그림 알림 묶기 (review-1) — 미리보기·내보내기 창 위쪽 알림이 사진마다 줄줄이 뜨지 않게 ──
+/** 지우기를 시작했지만(AI 지우기 레이어) 결과 조각이 없거나 맞지 않는 사진 — 편집기 erasedSourceOf가 이 글자로 알린다 */
+export const AI_MISSING_NOTE = 'AI로 지우기 결과가 없는 곳은 원본 그대로 들어갔어요'
+const LABEL_SHOW = 3
+/**
+ * notes [{ sectionId, imageId, note }] → 한 줄씩 (같은 글자는 한 줄로, 사진 수·구간 이름 몇 개)
+ * 지우기를 안 한 사진은 애초에 알림이 없다 (AI 지우기 레이어가 있고 결과가 빠졌을 때만 AI_MISSING_NOTE)
+ * @returns {string[]}
+ */
+export function summarizeNotes(notes, labels = {}) {
+  const groups = new Map()
+  for (const n of notes || []) {
+    if (!n || typeof n.note !== 'string') continue
+    if (!groups.has(n.note)) groups.set(n.note, { sections: [], images: new Set() })
+    const g = groups.get(n.note)
+    if (n.sectionId && !g.sections.includes(n.sectionId)) g.sections.push(n.sectionId)
+    if (n.imageId) g.images.add(n.imageId)
+  }
+  const out = []
+  for (const [note, g] of groups) {
+    const names = g.sections.map(id => labels[id]).filter(Boolean)
+    const shown = names.slice(0, LABEL_SHOW).join(', ') + (names.length > LABEL_SHOW ? ` 외 ${names.length - LABEL_SHOW}곳` : '')
+    if (note === AI_MISSING_NOTE) {
+      out.push(`AI로 지우기 결과가 없는 사진 ${Math.max(1, g.images.size)}장은 원본 그대로 들어갔어요${shown ? ` (${shown})` : ''} — 지우기 화면에서 [다시 지우기]를 눌러 주세요`)
+    } else {
+      out.push(names.length === 1 ? `${names[0]} · ${note}` : `${note}${shown ? ` (${shown})` : ''}`)
+    }
+  }
+  return out
+}

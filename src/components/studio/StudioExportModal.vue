@@ -97,7 +97,7 @@
 
       <!-- 사진 준비 알림 (지우기 결과 일부를 못 그림 등 — 화면과 같은 상태로 받았음) -->
       <ul v-if="notes.length && (phase === 'done' || phase === 'error' || phase === 'running')" class="space-y-1" data-export-notes>
-        <li v-for="(n, i) in notes" :key="i" class="text-[12px] st-ai-text-soft break-keep">{{ labels[n.sectionId] ?? '' }} · {{ n.note }}</li>
+        <li v-for="(n, i) in summarizeNotes(notes, labels)" :key="i" class="text-[12px] st-ai-text-soft break-keep">{{ n }}</li>
       </ul>
     </div>
 
@@ -138,6 +138,7 @@
 import { ref, computed, watch } from 'vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import { exportPlan, exportFileName, fileBaseName, EXPORT_FORMATS, EXPORT_SCALES } from '@/lib/studioExport'
+import { summarizeNotes } from '@/lib/studioPreview' // 같은 알림은 한 줄로 (review-1)
 
 const props = defineProps({
   open: { type: Boolean, default: false },

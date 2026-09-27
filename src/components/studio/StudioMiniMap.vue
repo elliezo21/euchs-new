@@ -17,6 +17,7 @@
       </span>
       <span class="flex items-center gap-1 mt-1 text-[11px] font-bold" :class="s.id === selectedSectionId || s.id === activeSectionId ? 'st-ink' : 'st-muted'">
         <span class="truncate">{{ labels[s.id] }}</span>
+        <span v-if="flags[s.id]" class="shrink-0 st-badge st-badge-danger" :data-minimap-flag="s.id" :title="`확인 필요 · ${flags[s.id]}`">확인 필요</span>
         <span v-if="s.id === activeSectionId" class="ml-auto shrink-0 st-mini-tag" data-inview-tag>보는 중</span>
       </span>
       <span class="sr-only">{{ i + 1 }}번째 구간</span>
@@ -39,6 +40,7 @@ const props = defineProps({
   labels: { type: Object, required: true },            // section id → "01 대표 사진" (페이지 왼쪽 구간 이름과 같은 글자)
   activeSectionId: { type: String, default: null },     // 지금 화면에 가장 많이 보이는 구간
   selectedSectionId: { type: String, default: null },   // 골라진 구간 (8-1)
+  flags: { type: Object, default: () => ({}) },         // 구간 id → "확인 필요 · …" (원클릭 review-1)
 })
 defineEmits(['pick'])
 
