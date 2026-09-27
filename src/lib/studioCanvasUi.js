@@ -21,63 +21,12 @@ export function elementTabOf(key) {
   return ELEMENT_TABS.some(t => t.key === key) ? key : ELEMENT_TABS[0].key
 }
 
-// ── (예전) 요소 위 떠 있는 도구줄 — 화면에서는 안 씀. StudioItemToolbar.vue가 남아 있는 동안만 (지우기는 해성 확인 대기) ──
-/**
- * 버튼 목록 (왼쪽부터). 잠김·숨김 상태에 따라 이름·명령이 바뀐다.
- * @param {{ anyLocked: boolean, allLocked: boolean, anyHidden: boolean }} s
- * @returns {{ key, label, tip, cmd, args?, disabled?, danger? }[]}  cmd = 편집기 runCommand 이름 (more = 팝오버 열기)
- */
-export function itemBarButtons({ anyLocked, allLocked, anyHidden }) {
-  return [
-    { key: 'duplicate', label: '복제', tip: '똑같은 것 하나 더 만들기 (Ctrl+D)', cmd: 'duplicate' },
-    anyLocked
-      ? { key: 'lock', label: '잠금 풀기', tip: '잠금을 풀어 다시 움직일 수 있게', cmd: 'unlock', pressed: true }
-      : { key: 'lock', label: '잠금', tip: '실수로 움직이지 않게 고정', cmd: 'lock' },
-    anyHidden
-      ? { key: 'hide', label: '보이기', tip: '숨긴 것을 다시 보이게 (내보내기에도 들어감)', cmd: 'show', pressed: true }
-      : { key: 'hide', label: '숨기기', tip: '지우지 않고 잠깐 안 보이게 (내보내기에서도 빠짐)', cmd: 'hide' },
-    { key: 'forward', label: '앞으로', tip: '다른 요소보다 위로', cmd: 'order', args: { where: 'forward' } },
-    { key: 'backward', label: '뒤로', tip: '다른 요소보다 아래로', cmd: 'order', args: { where: 'backward' } },
-    { key: 'delete', label: '삭제', tip: '삭제 (Delete)', cmd: 'delete', danger: true, disabled: allLocked },
-    { key: 'more', label: '', tip: '위치·크기·회전·정렬 더 보기', cmd: 'more' },
-  ]
-}
-
-/**
- * 떠 있는 막대 자리 — 대상 위쪽(공간이 없으면 아래쪽), 가로 가운데. 보이는 영역(view) 밖으로 나가지 않는다.
- * @param {{ box: {x,y,w,h}, bar: {w,h}, view: {x,y,w,h}, above?: number, below?: number, margin?: number }} o
- *   above = 대상 위쪽에서 비울 거리(회전 손잡이·표 안내 자리), below = 아래쪽에서 비울 거리(손잡이·[+ 줄])
- * @returns {{ left: number, top: number, side: 'above'|'below'|'inside' }} inside = 위아래 모두 모자람(아주 큰 요소) → 보이는 영역 위쪽
- */
-export function floatBarPosition({ box, bar, view, above = 48, below = 16, margin = 8 }) {
-  const upTop = box.y - above - bar.h
-  const downTop = box.y + box.h + below
-  let side = 'above'
-  let top = upTop
-  if (upTop < view.y + margin) {
-    // 위가 모자라면 아래. 아래도 화면 밖이면(아주 큰 요소) 보이는 영역 위쪽 안에 붙인다
-    if (downTop + bar.h <= view.y + view.h - margin) { side = 'below'; top = downTop }
-    else { side = 'inside'; top = view.y + margin }
-  }
-  const minL = view.x + margin, maxL = view.x + view.w - margin - bar.w
-  const left = Math.max(minL, Math.min(maxL, box.x + box.w / 2 - bar.w / 2))
-  return { left: Math.round(maxL < minL ? minL : left), top: Math.round(top), side }
-}
-
-/** 여러 상자를 감싸는 상자 (여러 개·그룹을 골랐을 때 도구줄 자리) */
-export function unionBox(list) {
-  if (!list.length) return null
-  const x0 = Math.min(...list.map(b => b.x)), y0 = Math.min(...list.map(b => b.y))
-  const x1 = Math.max(...list.map(b => b.x + b.w)), y1 = Math.max(...list.map(b => b.y + b.h))
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
-}
-
 // ── 작업판 위 가로 도구줄 (고른 요소의 설정 — 예전 왼쪽 "고른 요소 설정" 칸과 떠 있는 도구줄을 합침) ──
 // 버튼 종류: pop = 누르면 도구줄 아래로 펼침 칸(pop 이름) / cmd = 편집기 runCommand(cmd, args) / emit = 편집기 동작(사진 바꾸기·자르기 등) / hold = 누르고 있는 동안
 export const SIZE_PCT = [5, 500]      // [크기] 슬라이더 (%, 비율 유지)
 export const ROTATE_DEG = [-180, 180] // [회전] 슬라이더 (°)
 /**
- * @param {{ kinds: Set<string>, photo: boolean, autoMark: object|null, anyLocked, allLocked, anyHidden, canGroup, canUngroup, headerRow: boolean|null, tableCount: number }} s
+ * @param {{ kinds: Set<string>, photo: boolean, autoMark: object|null, photoInfo?: string, fillCount?: number, anyLocked, allLocked, anyHidden, canGroup, canUngroup, headerRow: boolean|null, tableCount: number }} s
  *   kinds = 고른 요소 종류('image'|'text'|'shape'|'line'|'table'), photo = 사진 요소 하나만 골랐음
  * @returns {{ left: object[], right: object[] }}
  */
@@ -97,7 +46,11 @@ export function selectBarButtons(s) {
       { key: 'crop', label: '자르기', tip: '남길 곳을 자르거나 중간 띠를 빼요 (이 사진을 쓰는 모든 자리에)', type: 'emit', group: 'photo' },
       { key: 'look', label: '필터', tip: '필터 · 밝기·대비 같은 조정 (이 사진을 쓰는 모든 자리에)', type: 'pop', pop: 'look', group: 'photo' },
       { key: 'deco', label: '꾸미기', tip: '테두리 · 모서리 · 그림자 (이 자리에만)', type: 'pop', pop: 'deco', group: 'photo' },
-      { key: 'erase', label: fix ? '직접 고치기' : '지우기', tip: fix ? '이 사진을 지우기 화면에서 직접 고쳐요' : '지우기 화면 열기 (사진을 두 번 눌러도 돼요)', type: 'emit', group: 'photo' },
+      { key: 'erase', label: fix ? '직접 고치기' : '지우기', tip: (fix ? '이 사진을 지우기 화면에서 직접 고쳐요' : '지우기 화면 열기 (사진을 두 번 눌러도 돼요)') + (s.photoInfo ? `\n${s.photoInfo}` : ''), type: 'emit', group: 'photo' },
+    )
+    // 예전 사진 정보 카드의 [이 사진의 지우기 모두 삭제] — 지운 적이 있을 때만. 누르면 편집기가 확인창을 연다
+    if (s.fillCount > 0) left.push({ key: 'clearAll', label: '지우기 모두 되돌리기', tip: `붓·네모로 지운 곳 ${s.fillCount}곳을 모두 없애요 (확인 후)`, type: 'emit', group: 'photo' })
+    left.push(
       { key: 'compare', label: '원본 비교', tip: '누르고 있는 동안 페이지에 원본이 보여요', type: 'hold', group: 'photo' },
     )
     if (s.autoMark?.canRevert) left.push({ key: 'autoRevert', label: '원본으로', tip: '자동으로 지운 곳을 원래대로', type: 'emit', group: 'photo' })

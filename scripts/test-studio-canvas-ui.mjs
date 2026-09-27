@@ -46,6 +46,15 @@ eq('모르는 값 = 첫 종류', elementTabOf('nope'), 'shape')
   eq('사진 + [사진 바꾸기][자르기][필터][꾸미기][지우기][원본 비교]', photo.left.slice(5), ['replace', 'crop', 'look', 'deco', 'erase', 'compare'])
   eq('오른쪽 [복제][잠금][숨기기][삭제]', photo.right, ['duplicate', 'lock', 'hide', 'delete'])
   eq('사진 [삭제] = 예전 [페이지에서 빼기] 명령 (사진은 목록에 남음)', photo.r.right.at(-1).cmd, 'removeFromPage')
+  const erased = keys({ kinds: new Set(['image']), photo: true, fillCount: 3, photoInfo: '대표 사진 · 547×547px · 120KB · 지움 3' })
+  eq('지운 적 있음 → [지우기] 바로 옆 [지우기 모두 되돌리기]', erased.left.slice(9, 11), ['erase', 'clearAll'])
+  eq('사진 정보 = [지우기] 툴팁 둘째 줄', erased.r.left.find(b => b.key === 'erase').tip.split('\n')[1], '대표 사진 · 547×547px · 120KB · 지움 3')
+  eq('지운 적 없음 → [지우기 모두 되돌리기] 숨김', keys({ kinds: new Set(['image']), photo: true, fillCount: 0 }).left.includes('clearAll'), false)
+  {
+    const ed = read('src/views/studio/StudioEditorView.vue'), sb = read('src/components/studio/StudioSelectBar.vue')
+    eq('작업판 오른쪽 위 사진 정보 카드 없음', ed.includes('data-image-info'), false)
+    eq('[지우기 모두 되돌리기] → 예전 확인창 (clearAllOpen)', [/@clear-all="clearAllOpen = true"/.test(ed), sb.includes("emit('clear-all')")], [true, true])
+  }
   const auto = keys({ kinds: new Set(['image']), photo: true, autoMark: { problem: 'textLeft', canRevert: true } })
   eq('원클릭 확인 필요 → [직접 고치기] + [원본으로]', [auto.r.left.find(b => b.key === 'erase').label, auto.left.includes('autoRevert')], ['직접 고치기', true])
   const text = keys({ kinds: new Set(['text']) })
@@ -232,7 +241,7 @@ eq('모르는 값 = 첫 종류', elementTabOf('nope'), 'shape')
   const files = [
     'src/views/studio/StudioEditorView.vue', 'src/views/studio/StudioLandingView.vue', 'src/components/studio/StudioPageView.vue',
     'src/components/studio/StudioSectionPanel.vue', 'src/components/studio/StudioMiniMap.vue', 'src/components/studio/StudioElementPanel.vue',
-    'src/components/studio/StudioTextPanel.vue', 'src/components/studio/StudioTransformPanel.vue', 'src/components/studio/StudioExportModal.vue',
+    'src/components/studio/StudioTextPanel.vue', 'src/components/studio/StudioSelectBar.vue', 'src/components/studio/StudioExportModal.vue',
     'src/components/studio/StudioPreview.vue', 'src/components/studio/StudioLayerPanel.vue', 'src/components/studio/StudioBgPanel.vue',
     'src/lib/studioHistory.js', 'src/lib/studioBg.js', 'src/lib/studioExport.js', 'src/data/studioEditorGuide.js', 'src/composables/usePageSession.js',
   ]

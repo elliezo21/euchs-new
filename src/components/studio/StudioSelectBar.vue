@@ -102,7 +102,7 @@
 // → 되돌리기·자동 저장은 예전 길 그대로. 넓은 설정은 예전 칸 컴포넌트를 part로 잘라 펼침 칸에 넣었다 (기능·저장 방식 같음).
 import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import {
-  Maximize2, RotateCw, Blend, Layers, AlignCenter, Replace, Crop, SlidersHorizontal, Frame, Eraser, Columns2, Undo2,
+  Maximize2, RotateCw, RotateCcw, Blend, Layers, AlignCenter, Replace, Crop, SlidersHorizontal, Frame, Eraser, Columns2, Undo2,
   Type, ALargeSmall, Palette, Bold, AlignLeft, Sparkles, Shapes, PaintBucket, BoxSelect, Minus, Rows3, Columns3, Heading, Table2,
   CopyPlus, Lock, LockOpen, EyeOff, Eye, Group, Ungroup, Trash2, FlipHorizontal2, FlipVertical2,
   BringToFront, SendToBack, ChevronUp, ChevronDown,
@@ -127,11 +127,13 @@ const props = defineProps({
   thumbUnder: { type: Object, default: null },
   shapeText: { type: String, default: '' },      // "잘림 · 띠 2"
   autoMark: { type: Object, default: null },     // 원클릭 확인 표시
+  photoInfo: { type: String, default: '' },      // [지우기] 툴팁 둘째 줄 "대표 사진 · 547×547px · 120KB · 지움 2"
+  fillCount: { type: Number, default: 0 },       // 그 사진의 지우기 레이어 수 — 0이면 [지우기 모두 되돌리기] 숨김
   canPasteStyle: { type: Boolean, default: false },
 })
-// command(name, args) · replace · crop · erase · compare(bool) · auto-revert · look · style · reset-look · text · style-copy · style-paste · shape · line · table-props · table-edit
+// command(name, args) · replace · crop · erase · clear-all · compare(bool) · auto-revert · look · style · reset-look · text · style-copy · style-paste · shape · line · table-props · table-edit
 const emit = defineEmits([
-  'command', 'replace', 'crop', 'erase', 'compare', 'auto-revert', 'look', 'style', 'reset-look',
+  'command', 'replace', 'crop', 'erase', 'clear-all', 'compare', 'auto-revert', 'look', 'style', 'reset-look',
   'text', 'style-copy', 'style-paste', 'shape', 'line', 'table-props', 'table-edit',
 ])
 
@@ -139,7 +141,7 @@ const items = computed(() => props.selectedIds.map(id => findItem(props.page, id
 const kinds = computed(() => new Set(items.value.map(it => (isValidImageItem(it) ? 'image' : isValidTextItem(it) ? 'text' : isValidShapeItem(it) ? 'shape' : isValidLineItem(it) ? 'line' : isValidTableItem(it) ? 'table' : 'other'))))
 const tables = computed(() => items.value.filter(isValidTableItem))
 const bar = computed(() => selectBarButtons({
-  kinds: kinds.value, photo: !!props.photoItem, autoMark: props.autoMark,
+  kinds: kinds.value, photo: !!props.photoItem, autoMark: props.autoMark, photoInfo: props.photoInfo, fillCount: props.fillCount,
   anyLocked: items.value.some(it => it.locked), allLocked: items.value.length > 0 && items.value.every(it => it.locked),
   anyHidden: items.value.some(it => it.hidden),
   canGroup: items.value.length >= 2 && groupCheck(props.page, props.selectedIds) !== 'same', canUngroup: anyGrouped(props.page, props.selectedIds),
@@ -148,7 +150,7 @@ const bar = computed(() => selectBarButtons({
 
 const ICONS = {
   size: Maximize2, rotate: RotateCw, opacity: Blend, order: Layers, align: AlignCenter,
-  replace: Replace, crop: Crop, look: SlidersHorizontal, deco: Frame, erase: Eraser, compare: Columns2, autoRevert: Undo2,
+  replace: Replace, crop: Crop, look: SlidersHorizontal, deco: Frame, erase: Eraser, clearAll: RotateCcw, compare: Columns2, autoRevert: Undo2,
   font: Type, fontSize: ALargeSmall, textColor: Palette, weight: Bold, textAlign: AlignLeft, textMore: Sparkles,
   shapeKind: Shapes, fill: PaintBucket, stroke: BoxSelect, line: Minus,
   addRow: Rows3, addCol: Columns3, header: Heading, tableMore: Table2,
@@ -197,6 +199,7 @@ function onButton(b, e) {
   if (b.key === 'replace') emit('replace')
   else if (b.key === 'crop') emit('crop')
   else if (b.key === 'erase') emit('erase')
+  else if (b.key === 'clearAll') emit('clear-all')
   else if (b.key === 'autoRevert') emit('auto-revert')
   else if (b.key === 'addRow' || b.key === 'addCol') { if (tables.value.length === 1) emit('table-edit', { id: tables.value[0].id, op: { kind: b.key } }) }
   else if (b.key === 'header') emit('table-props', { headerRow: !(bar.value.left.find(x => x.key === 'header')?.pressed) }, {})

@@ -197,8 +197,10 @@
             :look="selectedPhotoItem ? session.lookOf(selectedPhotoItem.imageId) : null" :thumb-url="selectedPhotoItem ? views[selectedPhotoItem.imageId]?.url || null : null"
             :thumb-under="selectedPhotoItem ? thumbUnderStyle(views[selectedPhotoItem.imageId]) : null"
             :shape-text="selectedPhotoItem ? shapeMarkOf(selectedPhotoItem.imageId) : ''" :auto-mark="selectedPhotoItem ? autoMarkOf(selectedPhotoItem.imageId) : null"
+            :photo-info="photoBarInfo" :fill-count="photoBarImage ? selectedFillCount : 0"
             :can-paste-style="canPasteStyle"
             @command="runCommand" @replace="replaceOpen = true" @crop="openCrop(selectedPhotoItem.imageId)" @erase="openErase(selectedPhotoItem.imageId)"
+            @clear-all="clearAllOpen = true"
             @compare="onCompare" @auto-revert="onAutoRevert(selectedPhotoItem.imageId)" @look="onLook" @style="onItemStyle" @reset-look="resetLookOpen = true"
             @text="onTextProps" @style-copy="runCommand('styleCopy')" @style-paste="runCommand('stylePaste')"
             @shape="onShapeProps" @line="onLineProps" @table-props="onTableProps" @table-edit="onTableEdit"
@@ -275,14 +277,6 @@
           </div>
           <span class="w-px h-5" style="background: var(--st-line-strong)" />
           <span class="text-[12px] font-bold st-ink-2 pr-1 whitespace-nowrap" data-page-width>폭 {{ page.width }}px · {{ PAGE_WIDTH_LABEL }}</span>
-        </div>
-        <!-- 사진 정보 + [지우기] (3단계 임시 카드 — 페이지에서 누른 사진 기준. 6단계에서 왼쪽 사진 속성 패널로 옮긴다) -->
-        <!-- 검수 2묶음: 페이지에서 사진을 골랐을 때만 (늘 떠 있으면 페이지 오른쪽 위(BEST 배지 등)를 가렸다). 목록에만 있는 사진은 목록 줄 [지우기] -->
-        <div v-if="selectedImage && selectedPhotoItem && !eraseOpen && !showStart" class="absolute right-3 top-[60px] w-[220px] st-card p-3" style="z-index: 5" data-image-info>
-          <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
-          <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.cover"> · 덮기 {{ selectedFillCounts.cover }}</span><span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
-          <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> 지우기</button>
-          <button type="button" class="st-btn st-btn-ghost st-btn-block mt-1 st-danger-text text-[12px]" :disabled="selectedFillCount === 0" data-clear-all @click="clearAllOpen = true"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 이 사진의 지우기 모두 삭제</button>
         </div>
         <button
           v-if="!rightOpen" type="button" class="st-icon-btn absolute right-2 bottom-3 st-surface st-shadow-float" style="z-index: 5" title="오른쪽 패널 열기" data-right-open
@@ -521,7 +515,7 @@
 import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onUnmounted, provide, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
-  ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp, Trash2, Eraser,
+  ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp,
   LayoutTemplate, Rows3, Image as ImageIcon, Type, Shapes, Blend, Bookmark, PanelRightOpen, PanelRightClose, ArrowUpDown, MoveVertical,
   MoreHorizontal, Pencil, Copy, X, Keyboard, Plus,
 } from 'lucide-vue-next'
@@ -1268,6 +1262,16 @@ const selectedPhotoItem = computed(() => {
   if (selectedItemIds.value.length !== 1 || !page.value) return null
   const it = findItem(page.value, selectedItemIds.value[0])?.item
   return it && isValidImageItem(it) && imagesById.value.has(it.imageId) ? it : null
+})
+// 맨 위 도구줄의 사진 정보([지우기] 툴팁)·[지우기 모두 되돌리기] — 예전 작업판 오른쪽 위 사진 정보 카드를 대신한다.
+// 모두 되돌리기(confirmClearAll)는 selectedImageId 기준이라, 고른 사진 요소와 같은 사진일 때만 값을 준다
+const photoBarImage = computed(() => (selectedImage.value && selectedPhotoItem.value && selectedImage.value.id === selectedPhotoItem.value.imageId ? selectedImage.value : null))
+const photoBarInfo = computed(() => {
+  const img = photoBarImage.value
+  if (!img) return ''
+  const c = selectedFillCounts.value
+  const name = img.kind === 'upload' && img.upload_name ? ` · ${img.upload_name}` : ''
+  return `${KIND_LABEL[img.kind] || '사진'}${name} · ${img.width}×${img.height}px · ${formatBytes(img.bytes)} · 지움 ${c.done}${c.cover ? ` · 덮기 ${c.cover}` : ''}${c.redo ? ` · 다시 지우기 ${c.redo}` : ''}`
 })
 const replaceOpen = ref(false)
 const resetLookOpen = ref(false)
