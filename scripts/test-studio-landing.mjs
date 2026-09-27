@@ -35,17 +35,32 @@ const motionUsers = srcFiles.filter(p => p !== 'src/lib/studioLandingMotion.js' 
 eq('모션 파일을 부르는 곳 = 랜딩 하나', motionUsers, ['src/views/studio/StudioLandingView.vue'])
 const landing = read('src/views/studio/StudioLandingView.vue')
 eq('랜딩은 모션 파일을 동적 import (정적 import 아님)', [/await import\(['"]@\/lib\/studioLandingMotion['"]\)/.test(landing), /^import .*studioLandingMotion/m.test(landing)], [true, false])
-eq('움직임 줄이기면 모션을 불러오지 않음', /prefers-reduced-motion: reduce\)'\)\.matches[\s\S]{0,80}isStatic\.value = true; return/.test(landing), true)
+eq('움직임 줄이기면 모션을 불러오지 않음 (첫 그리기부터 정지)', /const isStatic = ref\(!!window\.matchMedia\?\.\('\(prefers-reduced-motion: reduce\)'\)\.matches\)/.test(landing) && /if \(isStatic\.value\) return/.test(landing), true)
 eq('판매처 이름은 글자만 (로고 이미지 없음)', /MARKETS = \['쿠팡', '카페24', '고도몰', '메이크샵'\]/.test(landing) && !/logo[^"]*\.(png|svg|webp)/i.test(landing), true)
 eq("페이지에 '중국'이라는 글자가 없음 (랜딩·사진 설정·임시 그림·모션)",
   ['src/views/studio/StudioLandingView.vue', 'src/data/studioLandingMedia.js', 'src/data/studioLandingPlaceholders.js', 'src/lib/studioLandingMotion.js'].filter(p => read(p).includes('중국')), [])
 eq('여는 시점을 약속하는 문구 없음 (지금 바로·곧 열려요·먼저 알려)', /지금 바로|곧 열려|먼저 알려|지금 시작/.test(landing), false)
 eq('이용 안내 카드: 무료 · 이유씨컴퍼니 고객 / 준비 중 · 일반 고객', [/>무료</.test(landing), /이유씨컴퍼니 고객</.test(landing), />준비 중</.test(landing), /일반 고객</.test(landing), /준비 중이에요/.test(landing)], [true, true, true, true, true])
 {
+  const motion = read('src/lib/studioLandingMotion.js').replace(/\/\*\*[\s\S]*?\*\/|\/\/.*$/gm, '') // 주석 빼고
+  eq('화면 고정 없음 = pin-spacer 0개 (pin·scrub 없음)', [/\bpin\s*:/.test(motion), /\bscrub\s*:/.test(motion)], [false, false])
+  eq('snap·휠 가로채기·부드러운 스크롤 없음', /snap|addEventListener\('wheel'|lenis/i.test(motion + landing), false)
+  eq('보이면 재생 · 완전히 나가면 되돌림 (장면 5개 + 떠오름)', [
+    (motion.match(/playWhenSeen\((erase|bg|oc|ed|ex),/g) || []).length,
+    /start: PLAY_AT, end: PLAY_BACK_AT, onEnter: play, onEnterBack: play/.test(motion),
+    /start: 'top bottom', end: 'bottom top',\s*onLeave:[^\n]*reset\(\)[\s\S]{0,60}onLeaveBack:[^\n]*reset\(\)/.test(motion),
+    /playWhenSeen\(el, timelinePlayer\(tl\)\)/.test(motion),
+  ], [5, true, true, true])
+}
+{
+  // 영상 칸 — 기본은 비어 있음 → 코드 애니메이션
+  const scenes = ['hero', 'erase', 'background', 'oneClick', 'editor', 'export']
+  eq("장면마다 video 칸 = '' (비어 있음) · poster 사진 있음", scenes.map(k => [M[k].video, isImg(M[k].poster)]), scenes.map(() => ['', true]))
+  eq('video가 비어 있으면 코드 애니메이션 (장면마다 v-if 영상 / v-else 코드)', scenes.every(k => new RegExp(`<SceneVideo v-if="M\\.${k}\\.video"[^>]*/>\\s*<div v-else`).test(landing)), true)
+  eq('영상 속성: autoplay·muted·loop·playsinline·preload metadata·poster', /autoplay: true, muted: true, loop: true, playsinline: true,\s*preload: 'metadata'/.test(landing) && /poster: props\.media\.poster/.test(landing), true)
+  eq('움직임 줄이기면 영상 대신 poster 정지 사진', /props\.still\s*\?\s*h\('img', \{ src: props\.media\.poster/.test(landing) && /:still="isStatic"/.test(landing), true)
   const motion = read('src/lib/studioLandingMotion.js')
-  const factors = [...motion.matchAll(/scene\((?:erase|bg|oc|ed|ex), ([\d.]+)\)/g)].map(m => Number(m[1]))
-  eq('고정 거리 = 화면 높이 × 0.6~0.8 (장면 5개)', [factors.length, factors.every(f => f >= 0.6 && f <= 0.8)], [5, true])
-  eq('scrub: true (지연 없음) · snap·휠 가로채기 없음', [/scrub: true/.test(motion), /scrub: \d/.test(motion), /snap|addEventListener\('wheel'|lenis/i.test(motion + landing)], [true, false, false])
+  eq('영상: 화면 밖 pause · 다시 들어오면 처음부터 play', /video\.currentTime = 0\s*const p = video\.play\(\)/.test(motion) && /reset: \(\) => \{ video\.pause\(\); video\.currentTime = 0 \}/.test(motion), true)
 }
 eq('금지 과장 표현 없음',/업계 최고|100%|최저가|1위/.test(landing.replace(/<style[\s\S]*<\/style>/, '')), false)
 

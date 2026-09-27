@@ -16,7 +16,7 @@
     </header>
 
     <!-- ① 히어로 -->
-    <section class="st-land-hero">
+    <section class="st-land-hero" data-scene="hero">
       <div class="st-land-glow" aria-hidden="true"><span class="g1" /><span class="g2" /><span class="g3" /></div>
       <div class="st-land-grid" aria-hidden="true" />
       <div class="st-land-wrap relative grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
@@ -47,7 +47,8 @@
 
         <!-- 전후 비교 반복 -->
         <div class="st-land-hero-visual" data-hero-visual>
-          <div class="st-land-frame st-land-ba">
+          <SceneVideo v-if="M.hero.video" :media="M.hero" :alt="M.hero.alt" :still="isStatic" />
+          <div v-else class="st-land-frame st-land-ba">
             <img :src="M.hero.after" :alt="M.hero.alt" width="800" height="800" decoding="async" fetchpriority="high" />
             <img :src="M.hero.before" alt="" width="800" height="800" decoding="async" class="ba-top" aria-hidden="true" />
             <div class="ba-line" aria-hidden="true"><span /></div>
@@ -68,7 +69,8 @@
           <h2 class="st-land-h2">사진 속 수정하고 싶은 곳,<br />AI가 찾아서 지워요</h2>
           <p class="st-land-p">원클릭은 글자를 스스로 찾아 지우고, 편집기에서는 지울 곳만 칠하면 돼요. 지운 자리는 주변과 어울리게 채워요.</p>
         </div>
-        <div class="st-land-frame st-land-erase">
+        <SceneVideo v-if="M.erase.video" :media="M.erase" :alt="M.erase.alt" :still="isStatic" />
+        <div v-else class="st-land-frame st-land-erase" data-scene-visual>
           <img :src="M.erase.after" :alt="M.erase.alt" width="800" height="800" loading="lazy" decoding="async" />
           <img :src="M.erase.before" alt="" width="800" height="800" loading="lazy" decoding="async" class="erase-top" data-erase-top aria-hidden="true" />
           <span
@@ -84,7 +86,8 @@
     <!-- ③ 배경 -->
     <section class="st-land-scene" data-scene="bg">
       <div class="st-land-wrap grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center">
-        <div class="st-land-frame st-land-bg md:order-1 order-2">
+        <SceneVideo v-if="M.background.video" class="md:order-1 order-2" :media="M.background" :alt="M.background.alt" :still="isStatic" />
+        <div v-else class="st-land-frame st-land-bg md:order-1 order-2" data-scene-visual>
           <div class="bg-layer st-land-checker" aria-hidden="true" />
           <img :src="M.background.original" alt="" width="800" height="800" loading="lazy" decoding="async" class="bg-layer" data-bg-layer="orig" aria-hidden="true" />
           <div class="bg-layer" data-bg-layer="color" :style="{ background: M.background.solidColor }" aria-hidden="true" />
@@ -119,7 +122,8 @@
           <div class="st-land-bar mt-5" aria-hidden="true"><span data-oc-bar /></div>
           <p class="mt-3 text-[12px] st-muted">실측: 머리띠 사진 14장 · 약 1분 30초 (첫 실행 AI 준비 포함, 2026-09-27)</p>
         </div>
-        <div class="st-land-ocstage">
+        <SceneVideo v-if="M.oneClick.video" :media="M.oneClick" :still="isStatic" />
+        <div v-else class="st-land-ocstage" data-scene-visual>
           <div class="st-land-page">
             <div class="oc-title" data-oc-title aria-hidden="true"><span class="w-3/4" /><span class="w-1/2" /></div>
             <div v-for="(p, i) in M.oneClick.photos" :key="i" class="oc-card" data-oc-card>
@@ -139,7 +143,8 @@
           <h2 class="st-land-h2">마음에 안 드는 곳만<br />직접 고치세요</h2>
           <p class="st-land-p">자동으로 만든 페이지 위에서 지우기·자르기·템플릿·필터·글자를 바로 써요. 되돌리기와 자동 저장도 함께예요.</p>
         </div>
-        <div class="st-land-edstage">
+        <SceneVideo v-if="M.editor.video" :media="M.editor" :still="isStatic" />
+        <div v-else class="st-land-edstage" data-scene-visual>
           <div class="st-land-win" data-ed-win>
             <div class="win-bar" aria-hidden="true"><i /><i /><i /><span>상세페이지 편집</span></div>
             <div class="win-body">
@@ -176,7 +181,8 @@
           <h2 class="st-land-h2">완성한 페이지를<br />판매처에 올릴 이미지로</h2>
           <p class="st-land-p">구간별 여러 장 또는 한 장으로 길게, JPG·PNG로 받아요. 받은 파일은 쓰시는 판매처에 그대로 올리면 돼요.</p>
         </div>
-        <div class="st-land-exstage md:order-1">
+        <SceneVideo v-if="M.export.video" class="md:order-1" :media="M.export" :still="isStatic" />
+        <div v-else class="st-land-exstage md:order-1" data-scene-visual>
           <div class="ex-page" data-ex-page>
             <div class="ex-head" aria-hidden="true"><span class="w-2/3" /><span class="w-2/5" /></div>
             <img v-for="(src, i) in M.export.pagePhotos" :key="i" :src="src" alt="" width="800" height="800" loading="lazy" decoding="async" />
@@ -248,7 +254,7 @@
 // 모션은 studioLandingMotion.js(GSAP)를 여기서만 동적 import — 편집기·ERP 번들에 섞이지 않는다.
 // 기본 화면(CSS) = 장면이 끝난 모습 → 움직임 줄이기 설정·불러오기 실패여도 내용은 다 보인다.
 // 개인 데이터를 보여 주지 않는 화면이라 로그아웃 구독은 필요 없다(버튼만 currentUser로 바뀜).
-import { ref, onMounted, onBeforeUnmount } from 'vue'
+import { ref, h, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowRight, Play, Check, Sparkles, Wand2, Layers, MessageCircle,
@@ -260,7 +266,20 @@ import { LANDING_MEDIA as M } from '@/data/studioLandingMedia'
 const router = useRouter()
 const rootRef = ref(null)
 const firstSceneRef = ref(null)
-const isStatic = ref(false)
+// 움직임 줄이기 = 첫 그리기부터 정지 화면 (영상도 처음부터 poster 사진 — 잠깐이라도 재생되지 않게)
+const isStatic = ref(!!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches)
+
+// 장면 영상 (studioLandingMedia의 video가 있을 때만 — 코드 애니메이션 대신). 재생·멈춤은 studioLandingMotion이 장면 규칙대로
+// still = 움직임 줄이기·모션을 못 불러옴 → poster 정지 사진
+const SceneVideo = props => h('div', { class: 'st-land-frame st-land-video', 'data-scene-visual': '' }, [
+  props.still
+    ? h('img', { src: props.media.poster, alt: props.alt || '', loading: 'lazy', decoding: 'async' })
+    : h('video', {
+      src: props.media.video, poster: props.media.poster, autoplay: true, muted: true, loop: true, playsinline: true,
+      preload: 'metadata', 'data-scene-video': '', 'aria-label': props.alt || undefined,
+    }),
+])
+SceneVideo.props = ['media', 'alt', 'still']
 
 const KAKAO_CHAT = 'http://pf.kakao.com/_xmQWsK/chat' // Footer·CommunitySection과 같은 상담 채널
 const BG_STEPS = ['원래 배경', '투명', '단색', 'AI 배경']
@@ -287,8 +306,7 @@ function scrollToScenes() {
 let stopMotion = null
 let alive = true
 onMounted(async () => {
-  const reduce = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
-  if (reduce) { isStatic.value = true; return }
+  if (isStatic.value) return // 움직임 줄이기면 모션을 불러오지 않음
   try {
     const { startLandingMotion } = await import('@/lib/studioLandingMotion')
     if (!alive || !rootRef.value) return
@@ -396,14 +414,14 @@ onBeforeUnmount(() => {
 
 /* 히어로 전후 비교 — CSS 반복 (위 사진을 왼쪽부터 잘라 아래 사진이 드러남) */
 .st-land-hero-visual { position: relative; }
-.st-land-ba .ba-top { animation: land-ba 6.5s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
-.st-land-ba .ba-line { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: land-ba-line 6.5s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.st-land-ba .ba-top { animation: land-ba 3.8s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.st-land-ba .ba-line { position: absolute; inset: 0; z-index: 2; pointer-events: none; animation: land-ba-line 3.8s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
 .st-land-ba .ba-line span, .st-land-erase .erase-line span {
   position: absolute; top: 0; bottom: 0; left: -2px; width: 4px; border-radius: 4px; background: var(--st-ai);
   box-shadow: 0 0 24px 6px color-mix(in srgb, var(--st-ai) 55%, transparent);
 }
-.ba-tag-before { left: 16px; top: 16px; animation: land-tag-before 6.5s infinite; }
-.ba-tag-after { right: 16px; top: 16px; animation: land-tag-after 6.5s infinite; }
+.ba-tag-before { left: 16px; top: 16px; animation: land-tag-before 3.8s infinite; }
+.ba-tag-after { right: 16px; top: 16px; animation: land-tag-after 3.8s infinite; }
 @keyframes land-ba {
   0%, 16% { clip-path: inset(0 0 0 0%); opacity: 1; }
   48% { clip-path: inset(0 0 0 100%); opacity: 1; }
@@ -430,9 +448,13 @@ onBeforeUnmount(() => {
 @media (min-width: 1024px) { .st-land-float.f1 { left: -36px; } .st-land-float.f2 { right: -30px; } }
 @keyframes land-bob { from { transform: translateY(0); } to { transform: translateY(-12px); } }
 
-/* 장면 공통 — 넓은 화면은 한 화면 높이(고정되는 동안 가운데) */
-.st-land-scene { position: relative; padding: 90px 0; }
-@media (min-width: 768px) { .st-land-scene { min-height: 100vh; display: flex; align-items: center; padding: 96px 0 48px; } .st-land-scene > .st-land-wrap { width: 100%; } }
+/* 장면 공통 — 높이는 내용만큼 (화면 고정 없음). 장면 사이 빈 곳 = 위아래 여백 합 (화면 절반 안) */
+.st-land-scene { position: relative; padding: 56px 0; }
+@media (min-width: 768px) { .st-land-scene { padding: 72px 0; } }
+
+/* 장면 영상 (studioLandingMedia video가 있을 때) — 영상 비율 그대로 */
+.st-land-frame.st-land-video { aspect-ratio: auto; }
+.st-land-video > video, .st-land-video > img { position: static; display: block; width: 100%; height: auto; }
 .st-land-num { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; color: var(--st-ai); }
 .st-land-h2 { margin-top: 14px; font-size: clamp(28px, 3.8vw, 48px); font-weight: 900; line-height: 1.15; letter-spacing: -0.04em; color: var(--st-ink); word-break: keep-all; }
 .st-land-p { margin-top: 18px; font-size: clamp(15px, 1.25vw, 17px); line-height: 1.7; color: var(--st-ink-2); word-break: keep-all; }
