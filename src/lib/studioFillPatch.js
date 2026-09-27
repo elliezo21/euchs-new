@@ -67,5 +67,20 @@ export function computeFillPatch(img, l, prior = []) {
   out.width = res.area.w
   out.height = res.area.h
   out.getContext('2d').putImageData(new ImageData(res.data.data, res.area.w, res.area.h), 0, 0)
-  return { ok: true, canvas: out, area: res.area, data: res.data, bleed }
+  // 삭제(투명): 덮어 그리면 아래 픽셀이 그대로 보이므로, 비운 곳(알파 0)을 불투명하게 한 "뚫을 모양"을 같이 돌려준다
+  // (화면 FabricImage·composeErased가 destination-out으로 그린다)
+  const clearMask = l.method === 'clear' ? holeMask(res.data, res.area) : null
+  return { ok: true, canvas: out, area: res.area, data: res.data, bleed, clearMask }
+}
+
+/** 조각 알파 → 뚫을 모양 (알파 = 255 - 조각 알파) */
+function holeMask(data, area) {
+  const src = data.data
+  const m = new Uint8ClampedArray(src.length)
+  for (let i = 3; i < src.length; i += 4) m[i] = 255 - src[i]
+  const c = document.createElement('canvas')
+  c.width = area.w
+  c.height = area.h
+  c.getContext('2d').putImageData(new ImageData(m, area.w, area.h), 0, 0)
+  return c
 }

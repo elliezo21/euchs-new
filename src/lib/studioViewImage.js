@@ -34,7 +34,7 @@ export function thumbUnderStyle(v) {
   if (v.bgUrl) return { backgroundImage: `url("${v.bgUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
   if (v.bgColor) return { background: v.bgColor }
   // 검수 2묶음 (17-1 검수 후보): [투명]이면 체크무늬 — 어두운 목록 바탕이 비쳐 사진이 까매 보이지 않게 (배경합성 패널 썸네일과 같은 무늬)
-  return v.bgApplied ? THUMB_CHECKER : null
+  return v.bgApplied || v.cleared ? THUMB_CHECKER : null // 삭제(투명)한 사진도 체크무늬
 }
 const THUMB_CHECKER = {
   backgroundColor: 'var(--st-card)',
@@ -172,9 +172,17 @@ export async function composeErased(imgEl, fills, { background } = {}) {
   const ctx = c.getContext('2d')
   if (background) { ctx.fillStyle = background; ctx.fillRect(0, 0, W, H) }
   ctx.drawImage(imgEl, 0, 0)
-  // 편집기와 같은 쌓는 순서: 원본 → 결과 조각(레이어 순)
-  for (const l of fills) { const r = res.get(l.id); if (r) ctx.drawImage(r.canvas, r.area.x, r.area.y) }
-  return { canvas: c, problems, aiMissing, aiStale }
+  // 편집기와 같은 쌓는 순서: 원본 → 결과 조각(레이어 순). 삭제(투명)는 덮어 그리지 않고 비운 곳을 뚫는다 (편집기 FabricImage와 같게)
+  for (const l of fills) {
+    const r = res.get(l.id)
+    if (!r) continue
+    if (r.clearMask) {
+      ctx.globalCompositeOperation = 'destination-out'
+      ctx.drawImage(r.clearMask, r.area.x, r.area.y)
+      ctx.globalCompositeOperation = 'source-over'
+    } else ctx.drawImage(r.canvas, r.area.x, r.area.y)
+  }
+  return { canvas: c, problems, aiMissing, aiStale, cleared: fills.some(l => l.method === 'clear') }
 }
 
 function toBlob(canvas) {
@@ -231,7 +239,7 @@ async function renderView(pool, row, layers, targetW, finalVersion = null, shape
     u.height = 0
   }
   // bgApplied: 마스크를 적용했는지 (단색은 이때만 칠한다 — 마스크를 못 받으면 원래 배경 그대로라 색도 안 깐다)
-  return { url: URL.createObjectURL(blob), bgUrl, width: tw, height: th, bytes: blob.size, problems, aiMissing, aiStale, fromFinal: useFinal, bgApplied: !!masked.canvas }
+  return { url: URL.createObjectURL(blob), bgUrl, width: tw, height: th, bytes: blob.size, problems, aiMissing, aiStale, fromFinal: useFinal, bgApplied: !!masked.canvas, cleared: !!erased.cleared }
 }
 
 /**
@@ -294,7 +302,7 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) { URL.revokeObjectURL(out.url); if (out.bgUrl) URL.revokeObjectURL(out.bgUrl); return } // 그 사이 바뀜 — 버린다
           set(job.row.id, {
             key: job.key, status: 'ready', url: out.url, bgUrl: out.bgUrl, error: '', problems: out.problems, aiMissing: out.aiMissing, aiStale: out.aiStale, fromFinal: out.fromFinal, width: out.width, height: out.height, bytes: out.bytes,
-            bgApplied: out.bgApplied, bgColor: out.bgApplied ? paintColors.get(job.row.id) ?? null : null, // 그 사이 고른 색이 바뀌었으면 마지막 색
+            bgApplied: out.bgApplied, cleared: out.cleared, bgColor: out.bgApplied ? paintColors.get(job.row.id) ?? null : null, // 그 사이 고른 색이 바뀌었으면 마지막 색
           })
         },
         err => {

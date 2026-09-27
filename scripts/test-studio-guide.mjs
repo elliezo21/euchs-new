@@ -50,7 +50,7 @@ const all = [...EDITOR_GUIDE_STEPS, ...ERASE_GUIDE_STEPS]
 eq('편집기 가이드 순서 = 진행 단계 순서', EDITOR_GUIDE_STEPS.map(s => s.target),
   ['step-bar', 'one-click', 'photo-add', 'page', 'rail-template', 'reorder', 'preview', 'export', 'guide-button'])
 eq('지우기 가이드 3단계', ERASE_GUIDE_STEPS.map(s => s.target), ['erase-tools', 'erase-run', 'erase-done'])
-eq('지우기 가이드에 [덮기] 한 줄', ERASE_GUIDE_STEPS.some(s => /\[덮기\]/.test(s.desc + (s.tip || ''))), true)
+eq('지우기 가이드에 [주변으로 덮기] 한 줄 (도구 이름 포토샵식으로 바뀜)', ERASE_GUIDE_STEPS.some(s => /\[주변으로 덮기\]/.test(s.desc + (s.tip || ''))), true)
 eq('원클릭(원클릭 1단계에서 열림) · 직접 만들기 · 원본은 복사본으로', /원클릭 AI 자동 제작/.test(EDITOR_GUIDE_STEPS[1].desc) && /직접 만들기/.test(EDITOR_GUIDE_STEPS[1].title) && /복사본/.test(EDITOR_GUIDE_STEPS[1].tip), true)
 eq('작업 순서 자유(지운 결과는 사진에 저장)', all.some(s => /사진에 저장/.test(s.tip || '') && /순서는 자유/.test(s.tip || '')), true)
 eq('끌어다 놓기 안내', all.some(s => /끌어다 놓/.test(s.desc)), true)

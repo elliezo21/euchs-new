@@ -572,7 +572,7 @@ import {
 import { createImageCache, createSignedUrlPool } from '@/lib/studioImageCache'
 import { useEraseSession } from '@/composables/useEraseSession'
 import { useBakeQueue } from '@/composables/useBakeQueue'
-import { fillCounts, pixelLayersOf } from '@/lib/studioEdit'
+import { fillCounts, pixelLayersOf, hasClearLayer } from '@/lib/studioEdit'
 import { usableFinalVersion, sameLayers } from '@/lib/studioFinal'
 import { usePageSession } from '@/composables/usePageSession'
 import { createViewImageStore, finalPathOf, composeErased, applyBackground, thumbUnderStyle } from '@/lib/studioViewImage'
@@ -1957,6 +1957,8 @@ async function requestBake(id) {
   }
   const layers = session.layerMap[id] || []
   const counts = fillCounts(layers)
+  // 삭제(투명)가 있으면 완성 JPG를 만들지 않는다 — JPG는 투명을 못 담는다. 화면·내보내기·미리보기는 원본 + 지운 결과를 그때그때 합친다(투명 유지)
+  if (hasClearLayer(layers)) { bakeQueue.clear(id); return }
   if (counts.redo > 0) { bakeQueue.markBlocked(id); return }
   if (counts.done === 0 && counts.cover === 0) { bakeQueue.clear(id); return } // 12-2: 덮기만 있어도 굽는다
   if (usableFinalVersion(row) !== null) { bakeQueue.clear(id); return }

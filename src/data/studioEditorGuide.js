@@ -22,8 +22,8 @@ export const EDITOR_GUIDE_STEPS = [
 ]
 
 export const ERASE_GUIDE_STEPS = [
-  { target: 'erase-tools', title: '1. 지울 곳 정하기', desc: '[붓]으로 지울 곳을 칠하거나 [네모]로 감싸세요.', tip: '사람·옷 위의 글자는 [덮기]로 사진의 다른 부분을 가져와 덮으면 더 깔끔해요.' },
-  { target: 'erase-run', title: '2. [AI로 지우기] 또는 [단색]', desc: '[AI로 지우기]는 주변과 어울리게 채우고, [단색]은 한 가지 색으로 채워요.' },
+  { target: 'erase-tools', title: '1. 지울 곳 정하기', desc: '[브러시]로 지울 곳을 칠하거나 [사각형 선택]으로 감싸세요. 선택 영역 옆 작은 막대로 바로 지울 수 있어요.', tip: '사람·옷 위의 글자는 [주변으로 덮기]로 사진의 다른 부분을 가져와 덮으면 더 깔끔해요.' },
+  { target: 'erase-run', title: '2. [AI로 지우기] · [단색] · [삭제]', desc: '[AI로 지우기]는 주변과 어울리게 채우고, [단색]은 한 가지 색으로 채우고, [삭제]는 투명하게 비워요.' },
   { target: 'erase-done', title: '3. [완료]', desc: '다 지웠으면 [완료]를 눌러 페이지로 돌아가요. 지운 결과는 이 사진에 저장돼요.' },
 ]
 
@@ -61,10 +61,12 @@ export const SHORTCUT_GROUPS = [
   {
     title: '지우기 화면',
     rows: [
-      ['V · B · R · C', '선택 · 붓 · 네모 · 덮기'],
-      ['Delete · Backspace', '고른 영역 삭제'],
-      ['Esc', '그리던 것 취소'],
-      ['Ctrl+Z · Ctrl+Shift+Z', '이 사진의 지우기 되돌리기 · 다시'],
+      ['M · B · E · S', '사각형 선택 · 브러시 · 덜어내기 · 주변으로 덮기'],
+      ['[ · ]', '브러시 작게 · 크게 (10px씩)'],
+      ['Delete · Backspace', '선택 영역 삭제 (투명하게) · 선택 없이 적용한 것을 골랐으면 그 적용 빼기'],
+      ['Shift+Delete · Enter', '선택 영역 AI로 지우기'],
+      ['Esc · Ctrl+D', '선택 해제 (Ctrl+Z로 되살리기)'],
+      ['Ctrl+Z · Ctrl+Shift+Z · Ctrl+Y', '되돌리기 · 다시 (선택 중엔 브러시 한 번·사각형 한 번씩)'],
       ['스페이스+끌기 · 가운데 버튼 끌기', '화면 옮기기'],
       ['Ctrl+휠 · 휠 · Shift+휠', '확대·축소 · 위아래 · 좌우로 옮기기'],
     ],

@@ -27,7 +27,7 @@ function memStorage(throwing = false) {
 
 // ── 12-2 덮기 레이어를 고르면 도구 ──
 eq('덮기 레이어 → [덮기]', toolForLayer({ type: 'cover' }, 'brush'), 'cover')
-eq('지우기 레이어 → [선택] (붓·덮기에서)', [toolForLayer({ type: 'fill' }, 'brush'), toolForLayer({ type: 'fill' }, 'cover')], ['select', 'select'])
+eq('지우기 레이어 → [사각형 선택] (브러시·주변으로 덮기에서)', [toolForLayer({ type: 'fill' }, 'brush'), toolForLayer({ type: 'fill' }, 'cover')], ['marquee', 'marquee'])
 eq('고른 것 없음·모르는 종류 → 그대로', [toolForLayer(null, 'brush'), toolForLayer({ type: 'text' }, 'rect')], ['brush', 'rect'])
 
 // ── 16 Ctrl+A ──

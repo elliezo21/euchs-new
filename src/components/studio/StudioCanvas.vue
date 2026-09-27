@@ -1,5 +1,7 @@
 <template>
   <div ref="wrap" class="absolute inset-0 overflow-hidden select-none" :class="wrapCursor ? `is-${wrapCursor}` : ''">
+    <!-- 사진 자리 체크무늬 — 삭제(투명)한 곳에서 비친다 (Fabric 캔버스 바탕은 투명). 화면 이동·확대를 따라간다 -->
+    <div v-if="imageBox" class="absolute pointer-events-none st-erase-checker" :style="imageBox" data-erase-checker />
     <!-- Fabric 캔버스는 스크립트에서 만들어 여기에 붙인다 (Vue가 Fabric이 옮긴 요소를 건드리지 않게) -->
     <div ref="host" class="absolute inset-0" />
 
@@ -48,8 +50,12 @@
 //   영역을 옮기거나 크기를 바꾸는 동안은 계산하지 않고(점선 테두리만), 손을 뗀 뒤 계산한다.
 // ★ 실행 전 영역(초안, props.draft) — 네모 또는 붓. 편집기 화면에만 있고 저장·이력 없음, 한 개만.
 //   [AI로 지우기]/[단색](지우기 화면 왼쪽 패널)을 누르면 편집기가 레이어로 추가한다 (emit 'execute').
-// ★ 도구: [선택] [붓](기본) [네모] — 부모가 props.tool로 정한다. 단축키(V·B·R)는 emit('tool')로 부모에게 바꿔 달라고 한다.
-//   붓은 칠한 획을 편집기에 넘기고(emit 'brush-stroke'), 편집기가 초안에 합친다.
+// ★ 도구 (포토샵 이름): [사각형 선택](marquee — 빈 곳을 끌면 새 선택, 선택 안을 끌면 옮기기, 모서리 = 크기, 빈 곳 누르기 = 선택 해제)
+//   [브러시](기본) [주변으로 덮기](cover) — 부모가 props.tool로 정한다. 옛 값 'select'·'rect'는 사각형 선택으로 읽는다.
+//   단축키(studioEraseKeys: M·B·E·S·[·]·Delete·Shift+Delete·Enter·Esc·Ctrl+D)는 emit('key-action')으로 부모에게 넘긴다.
+//   브러시는 칠한 획을 편집기에 넘기고(emit 'brush-stroke'), 편집기가 초안에 합친다.
+// ★ 삭제(method 'clear'): 결과 조각을 덮어 그리지 않고 비운 곳을 뚫는다(FabricImage destination-out — studioFillPatch clearMask).
+//   뚫린 곳은 캔버스가 투명이라 아래 체크무늬(사진 자리 div)가 보인다.
 // ★ 사진 위에는 칠한 자국·영역 테두리·붓 동그라미만 그린다 (떠 있는 막대 없음 — 2026-09-25 결정 9).
 //   글자 걸침 판정은 emit('bleed')로 알리고, [조금 넓히기]는 부모가 widenSelected()를 부른다.
 // ★ interactive=false: 보기 전용(편집기 미리보기) — 선택·그리기 없음. showOriginal=true: 원본만 보인다([원본 보기]).
@@ -71,6 +77,7 @@ import {
 import { simplifyStroke, rasterizeStrokes, strokeExtent } from '@/lib/studioBrush'
 import { widenSides } from '@/lib/studioBleed'
 import { isValidFillLayer, isValidPixelLayer } from '@/lib/studioEdit'
+import { eraseKeyAction } from '@/lib/studioEraseKeys'
 import { AI_MODEL_ID, uploadAiPatch, loadAiPatch } from '@/lib/studioAiPatch'
 import { nextRetryDelay, isRetryableSaveError, AI_SAVE_RETRY_DELAYS } from '@/lib/studioSaveGuard'
 
@@ -80,7 +87,8 @@ const props = defineProps({
   selectedId: { type: String, default: null },
   loadImage: { type: Function, required: true },  // row → Promise<HTMLImageElement>
   keysEnabled: { type: Boolean, default: true },  // 모달이 떠 있으면 false
-  tool: { type: String, default: 'brush' },        // 'select' | 'brush' | 'rect' | 'cover' — 부모(지우기 화면)가 정한다
+  tool: { type: String, default: 'brush' },        // 'marquee' | 'brush' | 'cover' (옛 'select'·'rect' = 'marquee') — 부모(지우기 화면)가 정한다
+  hasSelection: { type: Boolean, default: false },  // 선택 영역(초안)이 있음 — Delete·Enter 단축키 판단
   interactive: { type: Boolean, default: true },  // false = 보기 전용 (선택·그리기·단축키 없음)
   showOriginal: { type: Boolean, default: false }, // true = 원본만 보인다 (결과 조각·영역 숨김)
   aiEngine: { type: Object, default: null },        // studioAi/aiEngine createAiEngine() — 편집기가 만들고 정리한다
@@ -100,16 +108,26 @@ const props = defineProps({
 // ai-unsaved({ count, pending, autoRetrying, saving, message }): 계산은 됐지만 결과 조각이 아직 저장되지 않은 AI 결과
 //   (count = 저장 실패 → [다시 저장] 카드, pending = 올리는 중·자동 재시도 대기) — 지우기 화면이 카드·나가기 확인을 보인다.
 //   부모가 retryAiSave()를 부르면 메모리의 결과로 업로드만 다시 한다 (AI 재계산 없음)
-// tool(key): 단축키(V·B·R)로 도구를 바꿔 달라는 요청 — 부모가 props.tool을 바꾼다
+// tool(key): 예전 단축키 창구 (지금은 key-action) — 부모가 props.tool을 바꾼다
+// key-action({ action, tool?, mode?, delta? }): 지우기 화면 단축키 (studioEraseKeys.eraseKeyAction) — 부모가 왼쪽 패널과 같은 함수를 부른다
+// deselect(): 사각형 선택으로 빈 곳을 누름 (포토샵 — 선택 바깥 누르기 = 선택 해제)
+// viewport({ vpt, cw, ch }): 화면 이동·확대가 바뀜 — 부모가 작업 바 자리를 맞춘다
 // bleed(sides[]): 선택한 네모가 글자에 걸친 변 (없으면 []) — 부모가 안내와 [조금 넓히기]를 보여준다
 // draft-cover(rect): [덮기] 도구로 덮을 곳을 그림 → 편집기가 가져올 곳을 붙인 덮기 초안을 만든다
 // cover-source(id, { sx, sy }): 가져올 곳을 끌어 놓음 (정수, 사진 안)
-const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'ai-unsaved', 'tool', 'bleed', 'draft-cover', 'cover-source'])
+const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'ai-unsaved', 'tool', 'bleed', 'draft-cover', 'cover-source', 'key-action', 'deselect', 'viewport'])
 
 const wrap = ref(null)
 const host = ref(null)
-// 지금 도구: 보기 전용이면 'view' (선택·그리기 없음)
-const tool = computed(() => (props.interactive ? props.tool : 'view'))
+// 지금 도구: 보기 전용이면 'view' (선택·그리기 없음). 옛 [선택]·[네모]는 합쳐서 사각형 선택
+const tool = computed(() => (props.interactive ? (props.tool === 'select' || props.tool === 'rect' ? 'marquee' : props.tool) : 'view'))
+const vptRef = ref(null)       // 화면 이동·확대 (체크무늬 자리)
+const imageSize = ref(null)    // { W, H } 사진 원본 크기
+const imageBox = computed(() => {
+  const v = vptRef.value, sz = imageSize.value
+  if (!v || !sz || loadState.value !== 'ready') return null
+  return { left: `${v[4]}px`, top: `${v[5]}px`, width: `${sz.W * v[0]}px`, height: `${sz.H * v[3]}px` }
+})
 const loadState = ref('idle') // idle | loading | ready | error
 const loadError = ref('')
 const computeError = ref('')
@@ -126,7 +144,7 @@ const selectedLayer = computed(() => (selectedIsDraft.value ? props.draft
 // 걸침 안내는 AI·붓·덮기·초안에서는 끈다 (AI는 테두리 띠를 읽어 메우는 방식이 아님, 붓은 사각형 테두리가 없음, 덮기는 복사)
 const selectedBleed = computed(() => {
   const l = selectedLayer.value
-  if (!l || selectedIsDraft.value || l.method === 'ai' || l.shape === 'brush' || l.type === 'cover') return []
+  if (!l || selectedIsDraft.value || l.method === 'ai' || l.method === 'clear' || l.shape === 'brush' || l.type === 'cover') return []
   return bleedById.value[l.id] || []
 })
 watch(selectedBleed, (s, prev) => { if (!prev || s.join() !== prev.join()) emit('bleed', [...s]) }, { immediate: true })
@@ -533,6 +551,9 @@ function fit() {
 function setVpt() {
   canvas.setViewportTransform(vpt)
   zoomPct.value = Math.round(vpt[0] * 100)
+  vptRef.value = [...vpt]
+  const { cw, ch } = viewSize()
+  emit('viewport', { vpt: [...vpt], cw, ch })
   canvas.requestRenderAll()
 }
 
@@ -589,12 +610,12 @@ function applyTool(t) {
   // 진행 중이던 그리기·드래그 상태를 전부 초기화
   cancelDraw()
   abortTransform('도구 전환', false)
-  const drawing = t === 'rect' || t === 'brush'
-  // [덮기]는 빈 곳을 끌면 새로 그리고, 고른 덮기의 네모·가져올 곳은 잡아 옮긴다 (applyEvented)
+  const drawing = t === 'brush'
+  // [사각형 선택]·[주변으로 덮기]는 빈 곳을 끌면 새로 그리고, 선택·고른 덮기는 잡아 옮긴다 (applyEvented)
   canvas.skipTargetFind = drawing || t === 'view' // 보기 전용은 영역을 고를 수 없다
   if (t === 'view') canvas.discardActiveObject()
-  // 네모·덮기 = 십자 커서, 붓 = 커서 숨기고 붓 크기 원
-  canvas.defaultCursor = t === 'rect' || t === 'cover' ? 'crosshair' : t === 'brush' ? 'none' : 'default'
+  // 사각형 선택·덮기 = 십자 커서, 브러시 = 커서 숨기고 크기 원
+  canvas.defaultCursor = t === 'marquee' || t === 'cover' ? 'crosshair' : t === 'brush' ? 'none' : 'default'
   canvas.setCursor(canvas.defaultCursor) // 마우스를 움직이기 전에도 바로 바뀌게
   if (t !== 'brush') updateCursor(null)
   applyEvented()
@@ -688,7 +709,7 @@ function onWindowPointerEnd(e) {
 function onPointerLeave() { updateCursor(null) }
 
 function onMouseDown(opt) {
-  if ((tool.value === 'select' || tool.value === 'cover') && opt.e.button === 0 && opt.target?.layerId) {
+  if ((tool.value === 'marquee' || tool.value === 'cover') && opt.e.button === 0 && opt.target?.layerId) {
     // 3px 판정용: 누른 화면 위치와 누르기 전 위치·크기
     const t = opt.target
     press = { id: t.layerId, s0: { x: opt.viewportPoint.x, y: opt.viewportPoint.y }, orig: { left: t.left, top: t.top, width: t.width * t.scaleX, height: t.height * t.scaleY } }
@@ -701,7 +722,7 @@ function onMouseDown(opt) {
     renderLive()
     return
   }
-  if (tool.value !== 'rect' && tool.value !== 'cover') return
+  if (tool.value !== 'marquee' && tool.value !== 'cover') return
   const s0 = { x: opt.viewportPoint.x, y: opt.viewportPoint.y }
   const p0 = screenToImage(s0, vpt)
   const preview = makeRegion({ id: '_draft', x: 0, y: 0, w: 1, h: 1 }, false)
@@ -740,6 +761,7 @@ function onMouseUp(opt) {
     canvas.requestRenderAll()
     // 실행 전 네모(초안) — 도구 유지, 새로 그리면 이전 초안은 편집기가 버린다. [덮기]는 덮을 곳 (가져올 곳은 편집기가 붙인다)
     if (r) emit(tool.value === 'cover' ? 'draft-cover' : 'draft-rect', r)
+    else if (tool.value === 'marquee') emit('deselect') // 포토샵: 선택 바깥 빈 곳을 누르면 선택 해제
     return
   }
   press = null
@@ -760,7 +782,7 @@ function onSelectionCleared() {
   if (replacing) return
   // 붓·네모로 칠하는 중에 사진을 누르면 Fabric이 선택을 푼다. 실행 전 영역(초안)은 그대로 고른 채로 둔다
   // (한도를 넘어 획이 거절되면 다시 고를 기회가 없어 [AI로 지우기]/[단색]이 꺼지던 문제)
-  if ((tool.value === 'brush' || tool.value === 'rect' || tool.value === 'cover') && props.draft && props.selectedId === props.draft.id) return
+  if ((tool.value === 'brush' || tool.value === 'marquee' || tool.value === 'cover') && props.draft && props.selectedId === props.draft.id) return
   if (props.selectedId !== null) emit('select', null)
 }
 
@@ -1025,16 +1047,19 @@ function requestErase(layerId, batchFromEditor) {
 function placePatch(l, key, res) {
   const id = l.id
   let p = patches.get(id)
+  // 삭제(투명): 조각 대신 뚫을 모양을 destination-out으로 — 아래(원본·앞 조각)를 비운다. 뒤 레이어는 그 위에 다시 그려진다
+  const el = res.clearMask || res.canvas
+  const gco = res.clearMask ? 'destination-out' : 'source-over'
   if (!p) {
-    p = new FabricImage(res.canvas, {
+    p = new FabricImage(el, {
       left: res.area.x, top: res.area.y, originX: 'left', originY: 'top',
-      selectable: false, evented: false, objectCaching: false,
+      selectable: false, evented: false, objectCaching: false, globalCompositeOperation: gco,
     })
     patches.set(id, p)
     canvas.add(p)
   } else {
-    p.setElement(res.canvas)
-    p.set({ left: res.area.x, top: res.area.y, scaleX: 1, scaleY: 1 })
+    p.setElement(el)
+    p.set({ left: res.area.x, top: res.area.y, scaleX: 1, scaleY: 1, globalCompositeOperation: gco })
   }
   p.patchKey = key
   p.ownKey = ownKey(l)
@@ -1337,6 +1362,7 @@ function clearObjects() {
   baseObj = null
   imgEl = null
   W = 0; H = 0
+  imageSize.value = null
   bleedById.value = {}
   press = null
   computeError.value = ''
@@ -1374,6 +1400,7 @@ async function showImage() {
     imgEl = el
     W = el.naturalWidth
     H = el.naturalHeight
+    imageSize.value = { W, H }
     if (row.width && row.height && (row.width !== W || row.height !== H)) {
       console.warn('[StudioCanvas] DB 크기와 실제 크기가 다름 — 실제 픽셀 기준으로 편집:', row.id, row.width, row.height, W, H)
     }
@@ -1400,27 +1427,28 @@ function isTyping(e) {
 }
 
 function onKeyDown(e) {
-  if (!props.keysEnabled || !props.interactive || isTyping(e) || e.ctrlKey || e.metaKey || e.altKey) return
-  if (e.code === 'Space') {
+  if (!props.keysEnabled || !props.interactive) return
+  const typing = isTyping(e)
+  if (e.code === 'Space' && !typing && !e.ctrlKey && !e.metaKey && !e.altKey) {
     e.preventDefault()
     spaceHeld.value = true
     return
   }
-  const k = e.key.toLowerCase()
-  if (k === 'v') { emit('tool', 'select'); e.preventDefault() }
-  else if (k === 'b') { emit('tool', 'brush'); e.preventDefault() }
-  else if (k === 'r') { emit('tool', 'rect'); e.preventDefault() }
-  else if (k === 'c') { emit('tool', 'cover'); e.preventDefault() }
-  else if (e.key === 'Escape') {
-    // 진행 중이던 그리기·드래그 상태를 전부 초기화
-    cancelDraw()
-    abortTransform('Esc', false)
-    canvas?.discardActiveObject()
-    canvas?.requestRenderAll()
-  } else if ((e.key === 'Delete' || e.key === 'Backspace') && props.selectedId) {
+  // 선택 영역이 없고 적용한 영역을 골라 둔 채 Delete = 그 적용을 빼기 (예전 그대로 — 왼쪽 패널 [적용한 것 빼기])
+  if (!typing && !props.hasSelection && props.selectedId && (e.key === 'Delete' || e.key === 'Backspace') && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
     e.preventDefault()
     emit('remove', props.selectedId)
+    return
   }
+  const a = eraseKeyAction(e, { typing, hasSelection: props.hasSelection, onButton: !!e.target?.closest?.('button') })
+  if (!a) return
+  e.preventDefault()
+  if (a.action === 'deselect') { // 진행 중이던 그리기·드래그 상태도 초기화
+    cancelDraw()
+    abortTransform('Esc', false)
+    canvas?.requestRenderAll()
+  }
+  emit('key-action', a)
 }
 function onKeyUp(e) {
   if (e.code === 'Space') {
@@ -1547,4 +1575,12 @@ defineExpose({ getViewport: () => [...vpt], getImageSize: () => ({ W, H }), wide
 /* 스페이스 이동 중 커서 — Fabric이 캔버스 요소에 인라인으로 커서를 쓰므로 !important로 덮는다 */
 .is-grab :deep(canvas) { cursor: grab !important; }
 .is-grabbing :deep(canvas) { cursor: grabbing !important; }
+/* 삭제(투명)한 곳에서 비치는 체크무늬 — 사진 자리만 */
+.st-erase-checker {
+  background-color: #ffffff;
+  background-image: linear-gradient(45deg, #d9d9d9 25%, transparent 25%), linear-gradient(-45deg, #d9d9d9 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #d9d9d9 75%), linear-gradient(-45deg, transparent 75%, #d9d9d9 75%);
+  background-size: 16px 16px;
+  background-position: 0 0, 0 8px, 8px -8px, -8px 0;
+}
 </style>

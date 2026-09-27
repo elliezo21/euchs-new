@@ -4,9 +4,11 @@
  *
  * ★ 원본 파일은 바꾸지 않는다. 편집 내용은 studio_images.edit(원본 픽셀 좌표)에 자동 저장하고, 열 때마다 원본에서 다시 계산한다.
  * ★ 되돌리기·다시·간단 이력은 사진별 스냅샷(studioHistory.js), 저장은 자동 저장(edit_version 잠금).
- * ★ 실행 전 영역(초안) — 네모·붓 모두 [AI로 지우기]/[단색]을 누르기 전에는 edit에 넣지 않는다 (저장·이력 없음, 화면에만, 한 개만).
+ * ★ 실행 전 영역(초안) = 선택 영역 — 사각형 선택·브러시 모두 [삭제]/[AI로 지우기]/[단색]을 누르기 전에는 edit에 넣지 않는다 (저장 없음, 화면에만, 한 개만).
  *   사진을 바꾸거나 지우기 화면·편집기를 떠나거나 새로고침하면 사라진다. 새 초안을 만들면 이전 초안은 버린다.
- *   초안이 있을 때 [되돌리기]는 초안부터 지운다 (결정 16 — studioHistory.undoAction).
+ *   선택 이력(studioSelection): 브러시 한 획·사각형 한 번·옮기기/크기 한 번·선택 해제마다 한 칸 — 사진 이력(적용 단위)과 누른 순서대로 되돌린다.
+ *   적용을 되돌리면 그때 선택을 다시 살린다(appliedFrom). (예전 결정 16 "초안이 있으면 되돌리기 = 초안 전체 지우기"를 대신한다)
+ * ★ 삭제(method 'clear', 포토샵 Delete): 선택 영역을 투명하게 — 레이어 하나(pad 0)로 쌓는다. 완성 JPG는 투명을 못 담아 만들지 않는다(편집기 requestBake).
  * ★ AI 지우기: 영역을 정한 뒤 [AI로 지우기]를 눌러야 계산한다 (자동 계산·자동 재계산 없음).
  *   엔진(LaMa 워커)은 편집기에 들어오면 바로 준비를 시작하고 떠나면 정리한다.
  *   AI 결과는 PNG로 저장되고(studioAiPatch), 도착하면 그 레이어에 ai 필드를 붙인다 — 이력 "AI 지우기" 한 단계.
@@ -40,6 +42,8 @@ import {
   isValidCoverLayer, normalizeCover, autoSource, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT,
 } from '@/lib/studioCover'
 import { readAuto, withAuto, withoutAutoLayers } from '@/lib/studioAutoBuild'
+import { createSelHistory, pushSel, dropSelFuture, undoPlan, redoPlan } from '@/lib/studioSelection'
+import { stepBrush } from '@/lib/studioEraseKeys'
 
 /** edit → 저장된 자르기·띠 (값을 고치지 않고 그대로 — 정리는 그릴 때 studioCrop.geometryOf가 한다) */
 function shapeFromEdit(edit) {
@@ -67,6 +71,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   // 사진 이력에는 넣지 않는다(applyHistory가 읽지 않음) — 자동 지우기를 되돌려도 "글자 많음"·"검수 필요" 표시는 남는다
   const autoMap = reactive({})
   const histories = reactive({})         // image id → studioHistory (세션 동안만, 사진을 바꿔도 유지)
+  const selHistories = reactive({})      // image id → 선택 이력 (studioSelection — 저장하지 않음)
+  const appliedFrom = {}                 // image id → { [사진 이력 위치]: 적용할 때의 선택 } — 적용을 되돌리면 선택을 다시 살린다
   const selectedLayerId = ref(null)
   const saveStatus = ref('saved')
   const saveDetail = ref('')
@@ -153,9 +159,16 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   const selectedFillCount = computed(() => fillLayersOf(selectedLayers.value).length) // 전체 지우기 레이어 수 (모두 삭제 대상)
   const selectedFillCounts = computed(() => fillCounts(selectedLayers.value))
   const selectedHistory = computed(() => (selectedImage.value && histories[selectedImage.value.id]) || null)
-  // 되돌리기: 초안이 있으면 초안 지우기도 되돌리기로 친다 (결정 16)
-  const canUndoNow = computed(() => undoAction(selectedHistory.value, !!canvasDraft.value) !== null)
-  const canRedoNow = computed(() => canRedo(selectedHistory.value))
+  // 되돌리기·다시: 선택 이력 + 사진 이력을 누른 순서대로 (studioSelection)
+  const selHistOf = id => selHistories[id] || createSelHistory()
+  const canUndoNow = computed(() => {
+    const h = selectedHistory.value
+    return !!h && !!undoPlan(selHistOf(selectedImage.value.id), h.index, undoAction(h, false) === 'undo')
+  })
+  const canRedoNow = computed(() => {
+    const h = selectedHistory.value
+    return !!h && !!redoPlan(selHistOf(selectedImage.value.id), h.index, canRedo(h))
+  })
   const historySteps = computed(() => listHistory(selectedHistory.value))
   // AI 최소 넓힘 폭 k (원본 크기 기준, aiGeometry 규칙)
   const selectedAiMinGrow = computed(() => {
@@ -233,7 +246,34 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       histories[imageId] = createHistory(edit)
       return
     }
-    histories[imageId] = pushHistory(h, edit, label) // 값이 같으면 그대로 돌려준다
+    const next = pushHistory(h, edit, label) // 값이 같으면 그대로 돌려준다
+    histories[imageId] = next
+    if (next !== h) { // 새 칸 — 다시 하기 갈래가 바뀐다
+      if (selHistories[imageId]) selHistories[imageId] = dropSelFuture(selHistories[imageId])
+      if (appliedFrom[imageId]) delete appliedFrom[imageId][next.index]
+    }
+  }
+
+  // ── 선택 이력 ──
+  /** 선택이 바뀜을 한 칸으로 (지금 사진 이력 위치와 함께) */
+  function recordSel(before, after) {
+    const id = selectedImageId.value
+    if (!id) return
+    selHistories[id] = pushSel(selHistOf(id), histories[id]?.index ?? 0, before, after)
+  }
+  /** 되돌리기·다시로 선택을 바꿈 (이력에 다시 쌓지 않음) */
+  function setDraftSilently(id, layer) {
+    const cur = canvasDraft.value
+    draft.value = layer ? { imageId: id, layer } : null
+    if (layer) selectedLayerId.value = layer.id
+    else if (cur && selectedLayerId.value === cur.id) selectedLayerId.value = null
+  }
+  /** 적용(삭제·AI로 지우기·단색·주변으로 덮기)한 순간의 선택을 기억 — 그 적용을 되돌리면 선택이 돌아온다 */
+  function markApplied(id, sel) {
+    const h = histories[id]
+    if (!h || !sel) return
+    appliedFrom[id] = appliedFrom[id] || {}
+    appliedFrom[id][h.index] = JSON.parse(JSON.stringify(sel))
   }
 
   // ── 실행 전 영역(초안) ──
@@ -253,9 +293,21 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     const id = selectedImageId.value
     if (!id) return
     const layer = { id: newFillId(), type: 'fill', x: rect.x, y: rect.y, w: rect.w, h: rect.h, pad: PAD_DEFAULT }
+    recordSel(canvasDraft.value, layer) // 사각형 한 번 = 되돌리기 한 칸
     draft.value = { imageId: id, layer }
     selectedLayerId.value = layer.id
   }
+
+  /** 선택 해제 (Esc·Ctrl+D·빈 곳 누르기·작업 바·왼쪽 패널 — 모두 이 함수). 사진은 안 바뀐다, Ctrl+Z로 되살린다. 해제했으면 true */
+  function deselect() {
+    const cur = canvasDraft.value
+    if (!cur) return false
+    recordSel(cur, null)
+    discardDraft()
+    return true
+  }
+  /** 선택 영역이 있는가 (덮기 초안은 [적용]이 따로라 빼고) — 작업 바·단축키 */
+  const hasSelection = computed(() => !!canvasDraft.value && canvasDraft.value.type !== 'cover')
 
   function discardDraft() {
     const cur = canvasDraft.value
@@ -273,6 +325,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     brushSize.value = v
     brushSizeTouched = true
   }
+  /** [ / ] — 브러시 크기 한 단계 (studioEraseKeys.BRUSH_STEP) */
+  function stepBrushSize(delta) { setBrushSize(stepBrush(brushSize.value, delta, BRUSH_UI_MIN, BRUSH_UI_MAX)) }
   // 사진을 바꾸면 (직접 바꾸지 않았다면) 사진 크기에 맞는 기본 붓 크기: 긴 변의 1/40, 8~120px (1920px → 48px)
   watch(() => selectedImage.value?.id, () => {
     const r = selectedImage.value
@@ -294,12 +348,15 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       return
     }
     const bb = brushBBox(strokes, row.width, row.height)
+    const before = canvasDraft.value
     if (!bb) { // 모두 덜어냄 → 초안 없음
+      recordSel(before, null)
       draft.value = null
       if (cur && selectedLayerId.value === cur.id) selectedLayerId.value = null
       return
     }
     const layer = { id: cur ? cur.id : newFillId(), type: 'fill', shape: 'brush', ...bb, pad: cur ? cur.pad : PAD_DEFAULT, brush: { strokes } }
+    recordSel(before, layer) // 브러시 한 획 = 되돌리기 한 칸
     draft.value = { imageId: id, layer }
     selectedLayerId.value = layer.id
   }
@@ -314,8 +371,10 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   function updateFill(layerId, patch, label) {
     const id = selectedImageId.value
     if (!id) return
-    if (canvasDraft.value?.id === layerId) { // 초안: 화면 값만 (저장·이력 없음)
-      draft.value = { imageId: id, layer: fitCover(id, { ...canvasDraft.value, ...patch }) }
+    if (canvasDraft.value?.id === layerId) { // 초안: 화면 값만 (저장 없음). 옮기기·크기(라벨 있음)는 선택 이력 한 칸
+      const layer = fitCover(id, { ...canvasDraft.value, ...patch })
+      if (label) recordSel(canvasDraft.value, layer)
+      draft.value = { imageId: id, layer }
       return
     }
     const cur = layerMap[id] || []
@@ -347,18 +406,22 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   let aiBatchSeq = 0
   function executeFill(layerId, method) {
     const id = selectedImageId.value
-    if (!id || (method !== 'ai' && method !== 'solid')) return
+    if (!id || (method !== 'ai' && method !== 'solid' && method !== 'clear')) return
     const cur = layerMap[id] || []
     const batch = `e${++aiBatchSeq}`
     let pushedIndex = null
     if (canvasDraft.value?.id === layerId && canvasDraft.value.type === 'cover') return // 덮기 초안은 [적용](applyCover)으로
     if (canvasDraft.value?.id === layerId) {
       if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
-      const layer = { ...canvasDraft.value, method }
+      const sel = canvasDraft.value
+      // 삭제(투명)는 선택 영역 그대로 (가장자리 여유 없음 — 포토샵 Delete와 같게)
+      const layer = { ...sel, method, ...(method === 'clear' ? { pad: 0 } : {}) }
       draft.value = null
-      setLayers(id, [...cur, layer], method === 'ai' ? LABELS.aiErase : LABELS.method)
+      setLayers(id, [...cur, layer], method === 'ai' ? LABELS.aiErase : method === 'clear' ? LABELS.clearPixels : LABELS.method)
       pushedIndex = histories[id]?.index ?? null
+      markApplied(id, sel)
     } else {
+      if (method === 'clear') return // 삭제는 선택 영역(초안)에만
       const l = cur.find(x => x.id === layerId)
       if (!l || l.type !== 'fill') return // 덮기 레이어에는 지우기 방식이 없다
       if (l.method !== method) {
@@ -458,6 +521,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     }
     const base = normalizeCover({ id: newFillId('c_'), type: 'cover', ...rect, sx: 0, sy: 0, feather: coverFeatherPref }, W, H).layer
     const layer = normalizeCover({ ...base, ...autoSource(base, base.feather, W, H) }, W, H).layer
+    recordSel(canvasDraft.value, layer)
     draft.value = { imageId: id, layer }
     selectedLayerId.value = layer.id
   }
@@ -488,6 +552,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
     draft.value = null
     setLayers(id, [...cur, fitCover(id, d)], LABELS.cover)
+    markApplied(id, d)
     selectedLayerId.value = layerId
   }
 
@@ -615,11 +680,27 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   function undoImage(id) { if (canUndoImage(id)) { lastLook = null; applyHistory(undoHistory(histories[id]), id) } }
   function redoImage(id) { if (canRedoImage(id)) { lastLook = null; applyHistory(redoHistory(histories[id]), id) } }
   function undoEdit() {
-    const act = undoAction(selectedHistory.value, !!canvasDraft.value)
-    if (act === 'draft') discardDraft()
-    else if (act === 'undo') applyHistory(undoHistory(selectedHistory.value))
+    const id = selectedImage.value?.id
+    const h = selectedHistory.value
+    if (!id || !h) return
+    const plan = undoPlan(selHistOf(id), h.index, undoAction(h, false) === 'undo')
+    if (!plan) return
+    if (plan.kind === 'sel') { selHistories[id] = plan.next; setDraftSilently(id, plan.draft); return }
+    const from = h.index
+    applyHistory(undoHistory(h))
+    const restore = appliedFrom[id]?.[from] // 적용을 되돌림 → 그때 선택을 다시 살린다
+    if (restore) setDraftSilently(id, JSON.parse(JSON.stringify(restore)))
   }
-  function redoEdit() { if (canRedoNow.value) applyHistory(redoHistory(selectedHistory.value)) }
+  function redoEdit() {
+    const id = selectedImage.value?.id
+    const h = selectedHistory.value
+    if (!id || !h) return
+    const plan = redoPlan(selHistOf(id), h.index, canRedo(h))
+    if (!plan) return
+    if (plan.kind === 'sel') { selHistories[id] = plan.next; setDraftSilently(id, plan.draft); return }
+    applyHistory(redoHistory(h))
+    if (appliedFrom[id]?.[histories[id].index]) setDraftSilently(id, null) // 다시 적용 → 선택은 적용으로 들어갔다
+  }
   function jumpEdit(i) { if (selectedHistory.value) applyHistory(jumpHistory(selectedHistory.value, i)) }
 
   // ── 저장 상태 ──
@@ -672,6 +753,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     for (const k of Object.keys(bgMap)) delete bgMap[k]
     for (const k of Object.keys(autoMap)) delete autoMap[k]
     for (const k of Object.keys(histories)) delete histories[k]
+    for (const k of Object.keys(selHistories)) delete selHistories[k]
+    for (const k of Object.keys(appliedFrom)) delete appliedFrom[k]
     draft.value = null
     selectedLayerId.value = null
     saveStatus.value = 'saved'
@@ -695,7 +778,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     canvasTool, brushSize, brushMode,
     // 동작
     fillCount, syncFromServer, leaveImage, startAiEngine, stopAiEngine,
-    setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
+    setDraftRect, discardDraft, setBrushSize, stepBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
+    deselect, hasSelection,
     setPad, recordPad, removeFill, clearAllFills, undoEdit, redoEdit, jumpEdit,
     retrySave, flush, hasUnsaved, isSaved, reopenConflict, reloadConflicted, resetAll, resetScreenState, dispose,
     // 필터·조정 (6-2)

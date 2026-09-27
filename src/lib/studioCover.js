@@ -155,12 +155,12 @@ export function blendCover(src, dst, l, W, H) {
 
 /**
  * 레이어를 골랐을 때 지우기 화면 도구 (검수 2묶음) — 고른 레이어 종류에 맞춘다
- *   덮기 → [덮기] (그 도구에서 덮을 곳·가져올 곳을 잡아 옮긴다) / 지우기 → [선택] (옮기기·크기) / 고른 것 없음 → 그대로
+ *   덮기 → [주변으로 덮기] (그 도구에서 덮을 곳·가져올 곳을 잡아 옮긴다) / 지우기 → [사각형 선택] (옮기기·크기) / 고른 것 없음 → 그대로
  * @param layer 고른 레이어(없으면 null)  @param tool 지금 도구
  */
 export function toolForLayer(layer, tool) {
   if (!layer) return tool
   if (layer.type === 'cover') return 'cover'
-  if (layer.type === 'fill') return 'select'
+  if (layer.type === 'fill') return 'marquee'
   return tool
 }

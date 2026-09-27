@@ -64,17 +64,17 @@
           <div class="mt-2 st-seg w-full" role="toolbar" aria-label="지우기 도구" data-guide="erase-tools">
             <button
               v-for="t in TOOL_BUTTONS" :key="t.key" type="button"
-              class="st-seg-item st-tool-item flex-1 inline-flex items-center justify-center gap-1" :class="canvasTool === t.key ? 'is-active' : ''"
+              class="st-seg-item st-tool-item flex-1 inline-flex flex-col items-center justify-center gap-0.5" :class="canvasTool === t.key ? 'is-active' : ''"
               :aria-pressed="canvasTool === t.key" :title="t.tip" :data-tool="t.key"
               @click="setTool(t.key)"
             >
-              <component :is="t.icon" class="w-4 h-4" :stroke-width="2" /> {{ t.label }}
+              <component :is="t.icon" class="w-4 h-4 shrink-0" :stroke-width="2" /><span class="whitespace-nowrap">{{ t.label }}</span>
             </button>
           </div>
 
           <!-- 덮기 (12-2): [덮기] 도구이거나 덮기를 골랐을 때 — 덮을 곳 네모 → 가져올 곳 옮기기 → 가장자리 → [적용] -->
           <template v-if="coverMode">
-            <div class="mt-5 st-label">덮기</div>
+            <div class="mt-5 st-label">주변으로 덮기</div>
             <ol class="mt-2 space-y-1.5" data-cover-steps>
               <li class="st-cover-step" :class="!selectedCover ? 'is-now' : 'is-done'">① 덮을 곳(글자·로고)을 네모로 감싸세요</li>
               <li class="st-cover-step" :class="selectedCover ? 'is-now' : ''">② 점선 네모(가져올 곳)를 비슷한 무늬 위로 끌어 옮기세요. 덮을 곳에 바로 보여요</li>
@@ -88,7 +88,7 @@
             <button
               v-else-if="selectedCover" type="button" class="st-btn st-btn-ghost st-btn-block mt-3 text-[12px]" data-cover-remove
               @click="removeFill(selectedCover.id)"
-            ><RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> 선택한 덮기 삭제 (Delete)</button>
+            ><RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> 적용한 것 빼기 (Delete)</button>
             <p v-if="selectedCover && selectedIsDraft" class="mt-2 text-[12px] font-bold st-accent-text break-keep" data-cover-draft-hint>[적용]을 누르면 사진에 들어가고 저장돼요</p>
             <p v-else-if="selectedCover" class="mt-2 st-desc-sm break-keep" data-cover-layer-hint>적용한 덮기예요. 네모나 가져올 곳을 옮기면 바로 바뀌어요</p>
             <!-- AI 결과 저장 상태 — 덮기 화면에서도 보인다 (지우기 쪽 카드와 같은 동작) -->
@@ -121,21 +121,21 @@
           <template v-else>
           <div class="mt-5" data-brush-controls>
             <div class="flex items-center">
-              <span class="st-label">붓 크기</span>
+              <span class="st-label">브러시 크기</span>
               <span class="ml-auto text-[13px] font-bold st-ink" data-brush-size>{{ brushSize }} px</span>
             </div>
             <div class="mt-2 flex items-center gap-2">
               <span class="w-1 h-1 rounded-full shrink-0" style="background: var(--st-muted)" />
               <input
                 type="range" :min="BRUSH_UI_MIN" :max="BRUSH_UI_MAX" step="1" class="flex-1 st-range"
-                :value="brushSize" aria-label="붓 크기" @input="e => setBrushSize(Number(e.target.value))"
+                :value="brushSize" aria-label="브러시 크기" title="브러시 크기 ( [ 작게 · ] 크게 )" @input="e => setBrushSize(Number(e.target.value))"
               />
               <span class="w-3 h-3 rounded-full shrink-0" style="background: var(--st-muted)" />
             </div>
             <div class="mt-3 st-seg w-full">
               <button
-                v-for="[k, label] in BRUSH_MODES" :key="k" type="button"
-                class="st-seg-item flex-1" :class="brushMode === k ? 'is-active' : ''" :data-brush-mode="k"
+                v-for="[k, label, tip] in BRUSH_MODES" :key="k" type="button"
+                class="st-seg-item flex-1" :class="brushMode === k ? 'is-active' : ''" :data-brush-mode="k" :title="tip"
                 @click="setBrushMode(k)"
               >{{ label }}</button>
             </div>
@@ -146,7 +146,7 @@
           <div class="mt-2 flex gap-2" data-guide="erase-run">
             <button
               type="button" class="st-btn st-btn-lg st-btn-primary flex-[1.6]"
-              :disabled="!selectedFill || selectedAiState === 'busy'" data-method="ai"
+              :disabled="!selectedFill || selectedAiState === 'busy'" data-method="ai" :title="hasSelection ? 'AI로 지우기 (Shift+Delete · Enter)' : null"
               @click="selectedFill && executeFill(selectedFill.id, 'ai')"
             >
               <Sparkles class="w-4 h-4" :stroke-width="2" />
@@ -158,14 +158,18 @@
               :disabled="!selectedFill || selectedAiState === 'busy'" data-method="solid"
               @click="selectedFill && executeFill(selectedFill.id, 'solid')"
             >단색</button>
+            <button
+              type="button" class="st-btn st-btn-lg flex-1" :disabled="!hasSelection" data-method="clear"
+              title="삭제 (Delete) — 선택 영역을 투명하게 비워요" @click="deleteSelection"
+            >삭제</button>
           </div>
-          <!-- 5. 칠한 곳 초기화 (실행 전) / 선택한 영역 삭제 (실행된 영역) -->
+          <!-- 5. 선택 해제 (선택 영역 — 작업 바·Esc·Ctrl+D와 같은 함수) / 적용한 것 빼기 (적용한 영역을 골랐을 때) -->
           <button
             type="button" class="st-btn st-btn-ghost st-btn-block mt-1 text-[12px]"
             :disabled="!selectedFill"
-            :data-erase-reset="selectedIsDraft || !selectedFill ? 'draft' : 'layer'"
-            @click="selectedFill && removeFill(selectedFill.id)"
-          ><RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> {{ selectedFill && !selectedIsDraft ? '선택한 영역 삭제 (Delete)' : '칠한 곳 초기화' }}</button>
+            :data-erase-reset="selectedIsDraft || !selectedFill ? 'draft' : 'layer'" :title="selectedFill && !selectedIsDraft ? null : '선택 해제 (Esc · Ctrl+D)'"
+            @click="selectedFill && (selectedIsDraft ? deselect() : removeFill(selectedFill.id))"
+          ><RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> {{ selectedFill && !selectedIsDraft ? '적용한 것 빼기 (Delete)' : '선택 해제 (Esc)' }}</button>
 
           <!-- AI 결과 저장 실패 — 결과는 메모리에 있다. [다시 저장] = 업로드만 다시 (AI 재계산 없음) -->
           <div v-if="aiSaveState.count > 0" class="mt-3 st-erase-unsaved" data-ai-unsaved>
@@ -180,9 +184,9 @@
             <p class="text-[13px] font-bold st-ink break-keep">AI 결과를 저장하는 중이에요…</p>
           </div>
 
-          <p v-if="!selectedFill" class="mt-2 st-desc-sm break-keep" data-panel-empty-hint>먼저 사진에서 지울 곳을 칠하거나 네모로 감싸세요.</p>
+          <p v-if="!selectedFill" class="mt-2 st-desc-sm break-keep" data-panel-empty-hint>먼저 [브러시]로 칠하거나 [사각형 선택]으로 감싸세요.</p>
           <p v-else-if="selectedIsDraft" class="mt-2 text-[12px] font-bold st-accent-text break-keep" data-panel-draft-hint>
-            {{ selectedFill.shape === 'brush' ? '다 칠한 뒤 [AI로 지우기] 또는 [단색]을 누르세요' : '크기를 맞춘 뒤 [AI로 지우기] 또는 [단색]을 누르세요' }}
+            {{ selectedFill.shape === 'brush' ? '다 칠한 뒤 [AI로 지우기]·[단색]·[삭제]를 누르세요' : '크기를 맞춘 뒤 [AI로 지우기]·[단색]·[삭제]를 누르세요' }}
           </p>
           <p v-if="selectedFill && !selectedIsDraft && selectedFill.method === 'coons'" class="mt-2 st-desc-sm break-keep" data-coons-notice>
             예전 방식(자연스럽게)으로 지운 영역이에요. 위 버튼을 누르면 그 방식으로 다시 지워요.
@@ -224,7 +228,7 @@
                   :data-applied-kind="row.kind" @click="selectLayer(row.id)"
                 >
                   <span class="st-applied-no">{{ row.no }}</span>
-                  <component :is="row.kind === 'cover' ? Stamp : Eraser" class="w-3.5 h-3.5 shrink-0" :stroke-width="2" />
+                  <component :is="row.kind === 'cover' ? Stamp : row.kind === 'clear' ? Trash2 : Eraser" class="w-3.5 h-3.5 shrink-0" :stroke-width="2" />
                   <span class="truncate">{{ row.label }}</span>
                 </button>
               </li>
@@ -262,6 +266,7 @@
           :draft="canvasDraft"
           :brush-size="brushSize"
           :brush-mode="brushMode"
+          :has-selection="hasSelection"
           @draft-rect="setDraftRect"
           @brush-stroke="addBrushStroke"
           @execute="executeFill"
@@ -275,11 +280,27 @@
           @bleed="s => (bleedSides = s)"
           @draft-cover="setCoverDraft"
           @cover-source="moveCoverSource"
+          @key-action="onKeyAction"
+          @deselect="deselect"
+          @viewport="v => (view = v)"
         />
+        <!-- 선택 영역 작업 바 (포토샵 속성 막대처럼) — 선택 영역 가까이, 화면 밖·아래 확대 막대와 겹치지 않게. 왼쪽 패널 버튼과 같은 함수 -->
+        <div
+          v-if="workBar" ref="barEl" class="absolute st-work-bar st-shadow-float" :style="workBar" style="z-index: 6" role="toolbar" aria-label="선택 영역 작업"
+          data-work-bar @pointerdown.stop
+        >
+          <button type="button" class="st-work-btn" title="삭제 (Delete) — 선택 영역을 투명하게" data-bar="delete" @click="deleteSelection"><Trash2 class="w-4 h-4" :stroke-width="2" />삭제</button>
+          <button type="button" class="st-work-btn is-ai" :disabled="selectedAiState === 'busy'" title="AI로 지우기 (Shift+Delete · Enter)" data-bar="ai" @click="aiSelection"><Sparkles class="w-4 h-4" :stroke-width="2" />AI로 지우기</button>
+          <button type="button" class="st-work-btn" title="단색으로 채우기" data-bar="solid" @click="solidSelection">단색</button>
+          <span class="st-work-sep" />
+          <button type="button" class="st-work-btn" title="선택 해제 (Esc · Ctrl+D)" data-bar="deselect" @click="deselect"><X class="w-4 h-4" :stroke-width="2" />선택 해제</button>
+          <button type="button" class="st-work-icon" :disabled="!canUndoNow" :title="UNDO_TIP" data-bar="undo" @click="undoEdit"><Undo2 class="w-4 h-4" :stroke-width="2" /></button>
+          <button type="button" class="st-work-icon" :disabled="!canRedoNow" :title="REDO_TIP" data-bar="redo" @click="redoEdit"><Redo2 class="w-4 h-4" :stroke-width="2" /></button>
+        </div>
         <!-- 위쪽 가운데 안내 칩: 칠한 곳(실행 전)이 있을 때 / 덮기 미리보기 중일 때 -->
         <div v-if="canvasDraft && !showOriginal" class="absolute top-3 left-1/2 -translate-x-1/2 st-badge st-badge-white st-shadow-float px-3 h-7" style="z-index: 5" data-draft-legend>
           <span class="w-2 h-2 rounded-full mr-1.5" style="background: var(--st-accent)" />
-          {{ canvasDraft.type === 'cover' ? '덮기 미리 보기 · [적용]을 누르면 저장돼요' : '파란 곳 = 칠한 곳 · 아직 저장 안 됨' }}
+          {{ canvasDraft.type === 'cover' ? '덮기 미리 보기 · [적용]을 누르면 저장돼요' : '선택 영역 · Delete 삭제 · Esc 해제' }}
         </div>
         <div v-if="showOriginal" class="absolute top-3 left-3 st-badge st-badge-scrim" style="z-index: 5" data-original-badge>원본</div>
         <!-- 12-1: 자르기·띠가 있는 사진 — 지우기는 원본 좌표라 원본 전체를 보여 준다 (자른 모습은 페이지·미리보기에서) -->
@@ -296,9 +317,10 @@
 //   왼쪽 도구 → 붓 크기 → 칠하기/덜어내기 → [AI로 지우기][단색] → 초기화 → 가장자리 여유 → 안내
 // 사진 위에는 칠한 자국·영역 테두리·붓 동그라미만 둔다 (떠 있는 막대 없음 — 결정 9).
 // [완료]/[페이지로]: 이 사진을 바로 저장하고 실행 전 영역(초안)은 버린 뒤 닫는다 (5단계에서 [완료] 때 사진 굽기를 붙인다).
-import { ref, computed, onMounted, onUnmounted, defineAsyncComponent, h } from 'vue'
+import { ref, computed, onMounted, onUnmounted, defineAsyncComponent, h, nextTick } from 'vue'
 import { readShape, shapeMark } from '@/lib/studioCrop'
-import { ArrowLeft, Undo2, Redo2, Eye, History, Info, MousePointer2, Brush, Square, Sparkles, RotateCcw, Check, Stamp, Eraser } from 'lucide-vue-next'
+import { ArrowLeft, Undo2, Redo2, Eye, History, Info, Brush, BoxSelect, Sparkles, RotateCcw, Check, Stamp, Eraser, Trash2, X } from 'lucide-vue-next'
+import { workBarPosition } from '@/lib/studioEraseKeys'
 import {
   BRUSH_UI_MIN, BRUSH_UI_MAX, PAD_MIN, PAD_MAX, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT,
 } from '@/composables/useEraseSession'
@@ -332,7 +354,7 @@ const {
   selectedLayers, selectedLayerId, selectedFill, selectedIsDraft, selectedAiState, selectedAiMinGrow,
   canvasDraft, canUndoNow, canRedoNow, historySteps, canvasTool, brushSize, brushMode,
   aiEngine, aiState, aiLayerStates, aiSaveState, eraseRequest, saveStatus, saveDetail, lastSavedAt, resetScreenState,
-  setDraftRect, discardDraft, setBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
+  setDraftRect, discardDraft, setBrushSize, stepBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult, deselect, hasSelection,
   setPad, recordPad, removeFill, undoEdit, redoEdit, jumpEdit, retrySave, reopenConflict, flush,
   selectedCover, setCoverDraft, moveCoverSource, setCoverFeather, recordCoverFeather, applyCover,
 } = props.session
@@ -344,8 +366,8 @@ const METHOD_LABEL = { ai: 'AI', solid: '단색', coons: '예전 방식' }
 const appliedRows = computed(() => selectedLayers.value.filter(isValidPixelLayer).map((l, i) => ({
   id: l.id,
   no: i + 1,
-  kind: l.type === 'cover' ? 'cover' : 'fill',
-  label: l.type === 'cover' ? '덮기' : `지우기 · ${METHOD_LABEL[l.method]}${l.shape === 'brush' ? ' · 붓' : ''}`,
+  kind: l.type === 'cover' ? 'cover' : l.method === 'clear' ? 'clear' : 'fill',
+  label: l.type === 'cover' ? '주변으로 덮기' : l.method === 'clear' ? `삭제${l.shape === 'brush' ? ' · 브러시' : ''}` : `지우기 · ${METHOD_LABEL[l.method]}${l.shape === 'brush' ? ' · 브러시' : ''}`,
 })))
 
 // 12-1 자르기·띠 안내 (예: "잘림 · 띠 2 — 지우기는 원본 전체에서 해요")
@@ -358,13 +380,13 @@ const IS_MAC = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(naviga
 const MOD = IS_MAC ? 'Cmd' : 'Ctrl'
 const UNDO_TIP = `되돌리기 (${MOD}+Z)`
 const REDO_TIP = `다시 (${MOD}+Shift+Z${IS_MAC ? '' : ' 또는 Ctrl+Y'})`
+// 도구 이름·단축키는 포토샵과 같게 (studioEraseKeys) — 옛 [선택]+[네모]는 [사각형 선택] 하나로
 const TOOL_BUTTONS = [
-  { key: 'select', label: '선택', icon: MousePointer2, tip: '선택 (V) — 영역을 옮기거나 크기를 바꿔요' },
-  { key: 'brush', label: '붓', icon: Brush, tip: '붓 (B) — 지울 곳을 칠하세요' },
-  { key: 'rect', label: '네모', icon: Square, tip: '네모 (R) — 지울 곳을 네모로 감싸세요' },
-  { key: 'cover', label: '덮기', icon: Stamp, tip: '덮기 (C) — 사진의 다른 부분을 가져와 글자·로고 위를 덮어요' },
+  { key: 'marquee', label: '사각형 선택', icon: BoxSelect, tip: '사각형 선택 (M) — 끌어서 선택, 안을 끌면 옮기기, 모서리로 크기' },
+  { key: 'brush', label: '브러시', icon: Brush, tip: '브러시 (B) — 지울 곳을 칠해 선택해요 · 덜어내기 (E)' },
+  { key: 'cover', label: '주변으로 덮기', icon: Stamp, tip: '주변으로 덮기 (S) — 사진의 다른 부분을 가져와 글자·로고 위를 덮어요' },
 ]
-const BRUSH_MODES = [['add', '칠하기'], ['sub', '덜어내기']]
+const BRUSH_MODES = [['add', '칠하기', '칠하기 (B)'], ['sub', '덜어내기', '덜어내기 (E)']]
 // '자연스럽게'(coons)는 해성 판정 "못 씀"으로 뺐다 (1-6b-3b). 저장된 coons 레이어는 그대로 그리고 위 버튼으로 다시 지울 수 있다
 
 const canvasRef = ref(null)
@@ -384,7 +406,43 @@ function formatTime(at) {
 }
 
 // 세션의 ref는 구조 분해로 받았으므로 템플릿에서 대입하지 않고 여기서 .value로 바꾼다
-function setTool(t) { if (t === 'select' || t === 'brush' || t === 'rect' || t === 'cover') canvasTool.value = t }
+function setTool(t) {
+  if (t === 'select' || t === 'rect') t = 'marquee' // 옛 도구 이름 (합쳐짐)
+  if (t === 'marquee' || t === 'brush' || t === 'cover') canvasTool.value = t
+}
+
+// ── 선택 영역 동작 — 왼쪽 패널·작업 바·단축키가 같은 세션 함수를 부른다 ──
+const draftSel = () => (canvasDraft.value && canvasDraft.value.type !== 'cover' ? canvasDraft.value : null)
+function deleteSelection() { const d = draftSel(); if (d) executeFill(d.id, 'clear') }
+function aiSelection() { const d = draftSel(); if (d) executeFill(d.id, 'ai') }
+function solidSelection() { const d = draftSel(); if (d) executeFill(d.id, 'solid') }
+/** 캔버스 단축키 (studioEraseKeys.eraseKeyAction) */
+function onKeyAction(a) {
+  if (a.action === 'tool') { setTool(a.tool); if (a.mode) brushMode.value = a.mode }
+  else if (a.action === 'brushMode') setBrushMode(a.mode)
+  else if (a.action === 'brushSize') stepBrushSize(a.delta)
+  else if (a.action === 'delete') deleteSelection()
+  else if (a.action === 'ai') aiSelection()
+  else if (a.action === 'deselect') deselect()
+}
+
+// 작업 바 자리 — 선택 영역(원본 px) → 화면 px (캔버스가 알려 준 화면 이동·확대)
+const view = ref(null) // { vpt, cw, ch }
+const barEl = ref(null)
+const barSize = ref({ w: 420, h: 40 })
+const workBar = computed(() => {
+  const d = draftSel()
+  const v = view.value
+  if (!d || !v || showOriginal.value) return null
+  const [a, , , dd, e, f] = v.vpt
+  const sel = { x: d.x * a + e, y: d.y * dd + f, w: d.w * a, h: d.h * dd }
+  const p = workBarPosition(sel, { w: v.cw, h: v.ch }, barSize.value)
+  nextTick(() => { // 실제 크기로 다시 (글꼴·문구에 따라 다르다)
+    const el = barEl.value
+    if (el && (el.offsetWidth !== barSize.value.w || el.offsetHeight !== barSize.value.h)) barSize.value = { w: el.offsetWidth, h: el.offsetHeight }
+  })
+  return { left: `${p.left}px`, top: `${p.top}px` }
+})
 // 레이어를 고르면(적용한 순서 목록·캔버스) 그 종류에 맞는 도구로 — 덮기 = [덮기], 지우기 = [선택] (검수 2묶음, studioCover.toolForLayer)
 function selectLayer(id) {
   selectedLayerId.value = id
@@ -480,7 +538,7 @@ defineExpose({ close, requestClose })
 }
 .st-erase-bleed .st-btn { height: 30px; padding: 0 10px; font-size: 12px; }
 /* 도구 4개(12-2 [덮기] 추가)가 패널 폭 안에 들어가게 좌우 여백만 줄인다 */
-.st-seg-item.st-tool-item { padding: 0 6px; min-width: 0; }
+.st-seg-item.st-tool-item { padding: 6px 4px; min-width: 0; height: auto; font-size: 12px; } /* 포토샵 이름(사각형 선택·주변으로 덮기)이 길어 아이콘 위·이름 아래 */
 /* 덮기 단계 안내 (12-2) — 지금 할 단계만 진하게 */
 .st-cover-step { font-size: 12px; font-weight: 600; color: var(--st-muted); line-height: 1.45; word-break: keep-all; }
 .st-cover-step.is-now { color: var(--st-ink); font-weight: 800; }
@@ -495,6 +553,22 @@ defineExpose({ close, requestClose })
 .st-applied-row:hover:not(.is-current) { background: var(--st-card-hover, var(--st-soft)); }
 .st-applied-row.is-current { background: var(--st-accent-soft); color: var(--st-accent); font-weight: 800; }
 .st-applied-no { width: 18px; font-size: 11px; font-weight: 700; color: var(--st-muted); font-variant-numeric: tabular-nums; }
+/* 선택 영역 작업 바 — 캔버스 위 작은 막대 (선택 영역 가까이) */
+.st-work-bar {
+  display: flex; align-items: center; gap: 2px; padding: 4px; border-radius: 12px; white-space: nowrap;
+  background: var(--st-panel, var(--st-surface)); border: 1px solid var(--st-line-strong);
+}
+.st-work-btn, .st-work-icon {
+  display: inline-flex; align-items: center; gap: 5px; height: 32px; border: 0; border-radius: 8px; cursor: pointer;
+  background: transparent; color: var(--st-ink); font-size: 13px; font-weight: 700;
+}
+.st-work-btn { padding: 0 10px; }
+.st-work-icon { width: 32px; justify-content: center; }
+.st-work-btn:hover:not(:disabled), .st-work-icon:hover:not(:disabled) { background: var(--st-card-hover, var(--st-soft)); }
+.st-work-btn:disabled, .st-work-icon:disabled { opacity: 0.4; cursor: default; }
+.st-work-btn.is-ai { background: var(--st-accent); color: var(--st-on-accent); }
+.st-work-btn.is-ai:hover:not(:disabled) { background: var(--st-accent); filter: brightness(1.08); }
+.st-work-sep { width: 1px; height: 20px; margin: 0 4px; background: var(--st-line-strong); }
 /* 저장 못 한 AI 결과 카드 — 눈에 띄게(강조색 테두리), 경고색은 쓰지 않는다 */
 .st-erase-unsaved {
   padding: 12px; border-radius: var(--st-radius-md); background: var(--st-accent-soft);

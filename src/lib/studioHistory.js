@@ -16,10 +16,11 @@ export const LABELS = {
   add: '영역 추가',
   move: '영역 이동',
   resize: '크기 조절',
-  remove: '영역 삭제',
+  remove: '적용한 것 빼기', // 적용한 지우기·덮기 하나를 없앰 (예전 '영역 삭제' — 새 [삭제](투명)와 헷갈리지 않게)
   pad: '여백 변경',
   method: '채우기 방식 변경',
   aiErase: 'AI 지우기',
+  clearPixels: '삭제', // 선택 영역을 투명하게 (포토샵 Delete)
   reload: '최신 내용 불러옴',
   // 페이지 문서 이력 (4단계 — 사진 지우기 이력과 따로 둔다, 결정 8)
   pageInit: '처음 배치',

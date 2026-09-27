@@ -33,7 +33,7 @@
 import { applyFill } from './studioFill.js'
 import { expandRect } from './studioCoords.js'
 import { aiK, aiMargin } from './studioAi/aiGeometry.js'
-import { brushHash, solidFillBrush } from './studioBrush.js'
+import { brushHash, solidFillBrush, rasterizeStrokes } from './studioBrush.js'
 import { coverArea, coverReadRects, coverOwnKey, coverSourceArea, blendCover } from './studioCover.js'
 
 export const RING = 2       // 테두리 샘플 두께 (studioFill ring)
@@ -202,6 +202,7 @@ function paste(cropData, crop, p) {
  */
 export function fillOnCrop(cropData, crop, l, W, H, prior = []) {
   if (l.type === 'cover') return { ok: false, reason: 'cover_needs_two_crops' } // 덮기는 coverOnCrops
+  if (l.method === 'clear') return clearOnCrop(cropData, crop, l, W, H, prior)
   if (l.shape === 'brush') return fillBrushOnCrop(cropData, crop, l, W, H, prior)
   const method = METHOD_MAP[l.method]
   if (!method) return { ok: false, reason: `unknown_method:${l.method}` }
@@ -234,6 +235,26 @@ export function coverOnCrops(srcData, dstData, l, W, H, prior = []) {
   pastePrior(srcData, src, prior)
   pastePrior(dstData, dst, prior)
   return blendCover(srcData, dstData, l, W, H)
+}
+
+/**
+ * 삭제(method 'clear') — 선택 영역을 투명하게 비운다 (포토샵 Delete). 네모 = 메우는 범위 전부, 붓 = 칠한 모양(pad 넓힘)만.
+ * 결과 조각은 다른 지우기와 같은 모양(메우는 범위 RGBA) — 비운 곳은 알파 0, 나머지는 (앞 레이어가 반영된) 원래 픽셀 그대로.
+ * 쌓을 때는 조각을 덮어 그리지 않고 비운 곳을 뚫는다 (studioFillPatch clearMask → 화면 destination-out, composeErased도 같게).
+ */
+function clearOnCrop(cropData, crop, l, W, H, prior) {
+  const area = fillArea(l, W, H)
+  if (area.w < 1 || area.h < 1) return { ok: false, reason: 'empty_rect' }
+  pastePrior(cropData, crop, prior)
+  const mask = l.shape === 'brush' ? rasterizeStrokes(l.brush.strokes, area, l.pad) : null
+  const local = { x: area.x - crop.x, y: area.y - crop.y }
+  const out = new Uint8ClampedArray(area.w * area.h * 4)
+  for (let y = 0; y < area.h; y++) {
+    const so = ((local.y + y) * crop.w + local.x) * 4
+    out.set(cropData.data.subarray(so, so + area.w * 4), y * area.w * 4)
+  }
+  for (let i = 0, n = area.w * area.h; i < n; i++) if (!mask || mask[i]) out[i * 4 + 3] = 0
+  return { ok: true, area, data: { data: out, width: area.w, height: area.h } }
 }
 
 /** 붓 단색 — 칠한 모양(pad 넓힘)만 채우고, 메우는 범위 안이라도 모양 밖은 (앞 레이어가 반영된) 원래 픽셀 그대로 */

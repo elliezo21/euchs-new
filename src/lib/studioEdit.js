@@ -27,7 +27,11 @@ export const MAX_LAYERS = 60
 export const PAD_MIN = 0
 export const PAD_MAX = 12
 export const PAD_DEFAULT = 4
-export const FILL_METHODS = ['coons', 'solid', 'ai'] // C(거울 복제)는 1-5 실측에서 제외. 'coons'는 기존 레이어 표시용
+export const FILL_METHODS = ['coons', 'solid', 'ai', 'clear'] // C(거울 복제)는 1-5 실측에서 제외. 'coons'는 기존 레이어 표시용. 'clear' = 삭제(투명)
+/** 삭제(투명)가 들어간 레이어 목록인지 — 완성 JPG(투명 없음)를 만들지 않는 기준 */
+export function hasClearLayer(layers) {
+  return (layers || []).some(l => isValidFillLayer(l) && l.method === 'clear')
+}
 export const AI_ENGINES = ['webgpu', 'wasm']
 export const SAVE_DELAY_MS = 1200
 
