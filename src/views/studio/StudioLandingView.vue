@@ -35,7 +35,7 @@
               무료로 시작하기 <ArrowRight class="w-[18px] h-[18px]" :stroke-width="2.5" />
             </button>
             <button type="button" class="st-btn st-land-ghost" @click="scrollToScenes">
-              <Play class="w-4 h-4" :stroke-width="2.5" /> 어떻게 되는지 보기
+              <Play class="w-4 h-4" :stroke-width="2.5" /> 사용법 보기
             </button>
           </div>
           <ul class="mt-8 flex flex-wrap gap-x-5 gap-y-2 text-[13px] st-ink-2" data-hero-in>

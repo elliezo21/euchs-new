@@ -39,6 +39,17 @@ eq('움직임 줄이기면 모션을 불러오지 않음 (첫 그리기부터 �
 eq('판매처 이름은 글자만 (로고 이미지 없음)', /MARKETS = \['쿠팡', '카페24', '고도몰', '메이크샵'\]/.test(landing) && !/logo[^"]*\.(png|svg|webp)/i.test(landing), true)
 eq("페이지에 '중국'이라는 글자가 없음 (랜딩·사진 설정·임시 그림·모션)",
   ['src/views/studio/StudioLandingView.vue', 'src/data/studioLandingMedia.js', 'src/data/studioLandingPlaceholders.js', 'src/lib/studioLandingMotion.js'].filter(p => read(p).includes('중국')), [])
+{
+  // 스튜디오는 중국 상품 전용이 아니다 (해성 결정) — 고객에게 보이는 문구에 "중국"·"중문"·"한자"를 쓰지 않는다.
+  // 대상 = 스튜디오 화면·부품·스튜디오 lib·data·스튜디오 composable·레이아웃. 주석(/* */, //, <!-- -->)은 빼고 본다 (코드 설명은 그대로 둬도 됨)
+  const stripComments = t => t.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1')
+  const studioFiles = srcFiles.filter(p =>
+    /^src\/(views|components)\/studio\//.test(p) || /^src\/lib\/studio/.test(p) || /^src\/data\/studio/.test(p) ||
+    p === 'src/layouts/StudioLayout.vue' || (/^src\/composables\//.test(p) && /studio/i.test(read(p))))
+  const hits = studioFiles.flatMap(p => stripComments(read(p)).split('\n').map((l, i) => [p, i + 1, l]).filter(([, , l]) => /중국|중문|한자/.test(l)).map(([p, n, l]) => `${p}:${n} ${l.trim().slice(0, 60)}`))
+  eq(`스튜디오 화면 파일 전체(${studioFiles.length}개, 주석 제외)에 '중국'·'중문'·'한자' 없음`, hits, [])
+}
+eq('랜딩 히어로 버튼 = [사용법 보기] (이동은 그대로 scrollToScenes)', /@click="scrollToScenes">\s*<Play[^>]*\/> 사용법 보기/.test(landing), true)
 eq('여는 시점을 약속하는 문구 없음 (지금 바로·곧 열려요·먼저 알려)', /지금 바로|곧 열려|먼저 알려|지금 시작/.test(landing), false)
 eq('이용 안내 카드: 무료 · 이유씨컴퍼니 고객 / 준비 중 · 일반 고객', [/>무료</.test(landing), /이유씨컴퍼니 고객</.test(landing), />준비 중</.test(landing), /일반 고객</.test(landing), /준비 중이에요/.test(landing)], [true, true, true, true, true])
 {

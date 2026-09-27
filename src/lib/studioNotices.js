@@ -10,7 +10,7 @@
 const NOTICES = [
   { date: '2026-09-25', type: 'update', title: '내 사진 올리기 · 폴더째 올리기를 지원해요' },
   { date: '2026-09-25', type: 'notice', title: '스튜디오 베타를 시작했어요 — 이유씨 고객은 무료' },
-  { date: null, type: 'soon', title: '중국어 지우기 편집기가 곧 나와요' },
+  { date: null, type: 'soon', title: '사진 속 글자 지우기 편집기가 곧 나와요' },
 ]
 
 /** @returns {Promise<Array<{ date: string|null, type: 'update'|'notice'|'soon', title: string }>>} */

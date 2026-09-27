@@ -4,7 +4,7 @@
     <div class="bg-white rounded-2xl border border-slate-200 p-5">
       <h2 class="text-lg font-black text-slate-900">가리기 검증 랩 <span class="text-xs font-bold text-amber-600 align-middle">임시</span></h2>
       <p class="mt-1 text-sm text-slate-500">
-        이미지를 고르고 중국어 영역을 마우스로 끌어 지정하면, 같은 영역을 A·B·C 세 방식으로 채운 결과를 나란히 비교합니다.
+        이미지를 고르고 지우고 싶은 글자 영역을 마우스로 끌어 지정하면, 같은 영역을 A·B·C 세 방식으로 채운 결과를 나란히 비교합니다.
         AI·외부 호출 없이 브라우저 안에서만 계산합니다.
       </p>
       <p v-if="errorMsg" class="mt-2 text-sm font-bold text-red-600">{{ errorMsg }}</p>

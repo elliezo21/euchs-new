@@ -3,7 +3,7 @@
     <!-- 6-1. 시작하기 -->
     <section id="start" class="scroll-mt-6">
       <h1 class="st-h-page">무엇으로 시작할까요?</h1>
-      <p class="mt-2 text-[15px] st-ink-2">상품 사진을 불러오면 중국어를 지우고, 한글을 올리고, 상세페이지로 내보낼 수 있어요.</p>
+      <p class="mt-2 text-[15px] st-ink-2">상품 사진을 불러오면 수정할 부분을 지우고, 한글을 올리고, 상세페이지로 내보낼 수 있어요.</p>
 
       <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- 찜한 상품 -->
