@@ -57,7 +57,7 @@ eq('끌어다 놓기 안내', all.some(s => /끌어다 놓/.test(s.desc)), true)
 eq('한 칸 1~2문장', all.every(s => (s.desc.match(/[.요]\s|[.요]$/g) || []).length <= 2), true)
 eq('고객 문구에 "굽" 없음', all.some(s => /굽|구운/.test(s.title + s.desc + (s.tip || ''))), false)
 eq('경쟁사 이름 없음', all.some(s => /미리캔버스|캔바|에디봇|망고보드/.test(s.title + s.desc + (s.tip || ''))), false)
-eq('단축키 표: 묶음 3개·줄마다 [키, 하는 일]', SHORTCUT_GROUPS.length === 3 && SHORTCUT_GROUPS.every(g => g.rows.every(r => r.length === 2 && r[0] && r[1])), true)
+eq('단축키 표: 묶음 4개(17-3 경계 다듬기 추가)·줄마다 [키, 하는 일]', SHORTCUT_GROUPS.length === 4 && SHORTCUT_GROUPS.every(g => g.rows.every(r => r.length === 2 && r[0] && r[1])), true)
 eq('단축키 표에 새 키(Ctrl+휠·스페이스·?)', ['Ctrl+휠', '스페이스+끌기', '?'].every(k => SHORTCUT_GROUPS.some(g => g.rows.some(r => r[0] === k))), true)
 
 // ── 4. 이력 복원 (페이지 이력만 — 사진 edit는 건드리지 않음) ──

@@ -52,6 +52,17 @@
             </button>
           </div>
 
+          <!-- 경계 다듬기 (17-3): 붓으로 AI 결과를 고친다 (외부 AI 없음·무료) -->
+          <div class="space-y-1" data-bg-refine-box>
+            <button type="button" class="st-btn w-full" data-bg-refine @click="$emit('refine')">
+              <Brush class="w-3.5 h-3.5" :stroke-width="2" /> 경계 다듬기
+              <span v-if="bg.refined" class="st-badge ml-1" data-bg-refined>다듬음</span>
+            </button>
+            <p class="st-desc-sm break-keep">
+              {{ bg.mode === 'none' ? '다듬은 결과는 [투명]·[단색]에서 보여요' : '지워진 제품은 살리고, 남은 배경은 지워요' }}
+            </p>
+          </div>
+
           <button type="button" class="st-btn w-full" data-bg-reset @click="$emit('reset')">
             <RotateCcw class="w-3.5 h-3.5" :stroke-width="2" /> 배경 원래대로
           </button>
@@ -99,6 +110,11 @@
           v-if="row && !bg" type="button" class="st-btn ml-auto" disabled data-bg-solid-locked
         ><Lock class="w-3.5 h-3.5" :stroke-width="2" /> 단색</button>
       </div>
+      <!-- 경계 다듬기 (17-3): 배경을 지운 사진에만 — 없으면 잠금 -->
+      <div v-if="row && !bg" class="flex items-center gap-2" data-bg-refine-row>
+        <span class="text-[13px] font-bold st-ink-2">경계 다듬기</span>
+        <button type="button" class="st-btn ml-auto" disabled data-bg-refine-locked><Lock class="w-3.5 h-3.5" :stroke-width="2" /> 다듬기</button>
+      </div>
       <p v-if="row && !bg" class="st-desc-sm break-keep" data-bg-solid-need>먼저 [배경 지우기]를 해 주세요</p>
       <p v-else-if="row && bg && bg.mode !== 'color'" class="st-desc-sm break-keep">위에서 [단색]을 고르면 배경을 한 가지 색으로 채워요</p>
       <div class="flex items-center gap-2" data-bg-soon-item="AI 배경">
@@ -115,9 +131,10 @@
  * 자격(주문 고객)·준비 상태는 서버(bg_status)가 알려 준 status로만 잠근다. 돈이 드는 요청은 [배경 지우기]를 누를 때 한 번.
  * 단색(17-2)은 AI 없음·무료·자격 검사 없음 — 배경을 지운(마스크가 있는) 사진이면 누구나. 없으면 잠그고 "먼저 [배경 지우기]를 해 주세요".
  *   색 이벤트: ('color', 값, { commit }) — commit false = 색 고르기 칸을 끄는 중(이력 없음), true = 놓음·견본·구간 색(이력 한 칸)
+ * 경계 다듬기(17-3)도 마스크가 있는 사진에만 — ('refine')이면 편집기가 다듬기 화면을 연다. 없으면 잠그고 같은 안내 문구.
  */
 import { computed } from 'vue'
-import { Eraser, Lock, Loader2, RotateCcw, Pipette } from 'lucide-vue-next'
+import { Eraser, Lock, Loader2, RotateCcw, Pipette, Brush } from 'lucide-vue-next'
 import { BG_COLOR_SWATCHES, bgPaintColor, bgMark } from '@/lib/studioBg'
 
 const props = defineProps({
@@ -129,7 +146,7 @@ const props = defineProps({
   busy: { type: Boolean, default: false },         // 이 사진을 처리 중
   error: { type: String, default: '' },
 })
-defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status'])
+defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status', 'refine'])
 
 const MODES = [
   { key: 'none', label: '원래 배경' },

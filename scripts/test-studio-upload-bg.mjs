@@ -1,7 +1,7 @@
 // 배경 지우기(17-1) 서버 흐름 테스트 — node scripts/test-studio-upload-bg.mjs
-// api/studio-upload.js의 bg_status / bg_remove를 handler 그대로 부르고, Supabase(인증·REST·Storage)와 fal은 가짜 fetch로 흉내 낸다.
+// api/studio-upload.js의 bg_status / bg_remove / bg_refine_prepare·confirm(17-3)을 handler 그대로 부르고, Supabase(인증·REST·Storage)와 fal은 가짜 fetch로 흉내 낸다.
 // (test-studio-upload-final.mjs와 같은 방식) 시크릿·운영 DB·로그인 토큰·실제 fal을 쓰지 않는다.
-import { encodeRgbaPng, decodePng, maskOf } from '../api/_studioPng.js'
+import { encodeRgbaPng, encodeGrayPng, decodePng, maskOf } from '../api/_studioPng.js'
 
 process.env.STUDIO_ENABLED = 'all'
 process.env.SUPABASE_URL = 'http://mock.local'
@@ -22,7 +22,7 @@ const S = {
   usage: [], nextUsageId: 1, files: new Map(), fal: 'ok', falCalls: [], signCalls: [], uploads: [],
 }
 function reset(o = {}) {
-  Object.assign(S, { admin: false, orders: [{ id: 'o1', status: 'purchasing' }], entitled: true, table: 'ok', usage: [], nextUsageId: 1, files: new Map(), fal: 'ok', falCalls: [], signCalls: [], uploads: [] }, o)
+  Object.assign(S, { admin: false, orders: [{ id: 'o1', status: 'purchasing' }], entitled: true, table: 'ok', usage: [], nextUsageId: 1, files: new Map(), fal: 'ok', falCalls: [], signCalls: [], uploads: [], uploadSigns: [], removed: [] }, o)
   process.env.FAL_KEY = 'fake-fal-key'
   delete process.env.STUDIO_BG_MODEL
   delete process.env.STUDIO_BG_DAILY_LIMIT
@@ -97,6 +97,20 @@ globalThis.fetch = async (url, opts = {}) => {
     const path = p.slice('/storage/v1/object/sign/studio/'.length)
     S.signCalls.push({ path, expiresIn: JSON.parse(opts.body).expiresIn })
     return json({ signedURL: `/object/sign/studio/${path}?token=signed` })
+  }
+  // 17-3 다듬기: 1회용 업로드 토큰 · 파일 읽기 · 삭제
+  if (p.startsWith('/storage/v1/object/upload/sign/studio/') && method === 'POST') {
+    const path = p.slice('/storage/v1/object/upload/sign/studio/'.length)
+    S.uploadSigns = [...(S.uploadSigns || []), path]
+    return json({ url: `/object/upload/sign/studio/${path}?token=up-token` })
+  }
+  if (p.startsWith('/storage/v1/object/studio/') && method === 'GET') {
+    const path = p.slice('/storage/v1/object/studio/'.length)
+    return S.files.has(path) ? new Response(S.files.get(path), { status: 200 }) : json({ statusCode: '404', error: 'not_found' }, 400)
+  }
+  if (p === '/storage/v1/object/studio' && method === 'DELETE') {
+    for (const k of JSON.parse(opts.body).prefixes) { S.files.delete(k); S.removed = [...(S.removed || []), k] }
+    return json([])
   }
   if (p.startsWith('/storage/v1/object/studio/') && method === 'POST') {
     const path = p.slice('/storage/v1/object/studio/'.length)
@@ -211,6 +225,46 @@ process.env.STUDIO_ENABLED = 'all'
 // ── 업로드 이름 규칙: 지우기 조각은 기존 f_ 그대로 — bg 경로는 조각 확인이 받지 않는다 ──
 reset()
 eq('patch_confirm에 bg 경로 → invalid_input', (await quiet(() => call({ action: 'patch_confirm', projectId: PID, imageId: IMG, path: `${UID}/${PID}/patches/${IMG}/mask_0123456789abcdef.png` }))).body.code, 'invalid_input')
+
+// ── 17-3 경계 다듬기: bg_refine_prepare / bg_refine_confirm (외부 AI·사용 기록 없음) ──
+{
+  const KEY = 'fedcba9876543210'
+  const FOLDER = `${UID}/${PID}/bg/${IMG}`
+  const REFINED = `${FOLDER}/refined_${KEY}.png`
+  const prep = (o = {}) => quiet(() => call({ action: 'bg_refine_prepare', projectId: PID, imageId: IMG, key: KEY, width: W, height: H, size: 100, ...o }))
+  const conf = (o = {}) => quiet(() => call({ action: 'bg_refine_confirm', projectId: PID, imageId: IMG, path: REFINED, ...o }))
+  const grayPng = (w, h) => encodeGrayPng(new Uint8Array(w * h).fill(200), w, h)
+
+  reset({ orders: [] }) // 주문 없어도 된다 (AI를 부르지 않음 — 단색과 같은 규칙)
+  const r = await prep()
+  eq('다듬기 준비 → 경로(같은 bg 폴더·refined_key)·토큰', [r.code, r.body.path, r.body.token], [200, REFINED, 'up-token'])
+  eq('다듬기 준비: fal·사용 기록·서명 주소 안 씀', [S.falCalls.length, S.usage.length, S.signCalls.length], [0, 0, 0])
+  S.files.set(REFINED, grayPng(W, H))
+  const c = await conf()
+  eq('다듬기 확인 → ok · 크기', [c.code, c.body.ok, c.body.width, c.body.height], [200, true, W, H])
+  eq('같은 내용 다시 준비 → exists (다시 안 올림)', (await prep()).body, { exists: true, path: REFINED })
+  S.files.set(`${FOLDER}/mask_0123456789abcdef.png`, grayPng(W, H))
+  eq('AI 마스크 파일은 그대로 (덮어쓰지 않음)', S.files.has(`${FOLDER}/mask_0123456789abcdef.png`), true)
+
+  reset()
+  eq('key 형식 틀림 → invalid_input', (await prep({ key: 'mask_0123' })).body.code, 'invalid_input')
+  eq('가로·세로가 원본과 다름 → invalid_input', (await prep({ width: W + 1 })).body.code, 'invalid_input')
+  eq('20MB 넘음 → bg_refine_too_large', (await prep({ size: 20 * 1024 * 1024 + 1 })).body.code, 'bg_refine_too_large')
+  eq('남의 사진 → 404 · 토큰 안 만듦', [(await prep({ imageId: OTHER_IMG })).code, (S.uploadSigns || []).length], [404, 0])
+  for (let i = 0; i < 60; i++) S.files.set(`${FOLDER}/refined_${String(i).padStart(16, '0')}.png`, Buffer.from('x'))
+  eq('사진당 60개 넘음 → bg_refine_limit', (await prep()).body.code, 'bg_refine_limit')
+
+  reset()
+  eq('확인: AI 마스크 이름은 받지 않음', (await conf({ path: `${FOLDER}/mask_0123456789abcdef.png` })).body.code, 'invalid_input')
+  eq('확인: 다른 사진 폴더 → invalid_input', (await conf({ path: `${UID}/${PID}/bg/${OTHER_IMG}/refined_${KEY}.png` })).body.code, 'invalid_input')
+  eq('확인: 다른 폴더 이름 → invalid_input', (await conf({ path: `${UID}/${PID}/patches/${IMG}/refined_${KEY}.png` })).body.code, 'invalid_input')
+  eq('확인: 파일 없음 → not_uploaded', (await conf()).body.code, 'not_uploaded')
+  S.files.set(REFINED, Buffer.from('not a png at all, just bytes'))
+  eq('확인: PNG 아님 → bg_refine_invalid + 삭제', [(await conf()).body.code, S.files.has(REFINED)], ['bg_refine_invalid', false])
+  S.files.set(REFINED, grayPng(W + 1, H))
+  eq('확인: 크기 다름 → bg_refine_invalid + 삭제', [(await conf()).body.code, S.files.has(REFINED)], ['bg_refine_invalid', false])
+  eq('patch_confirm에 refined 경로 → invalid_input', (await quiet(() => call({ action: 'patch_confirm', projectId: PID, imageId: IMG, path: `${UID}/${PID}/patches/${IMG}/refined_${KEY}.png` }))).body.code, 'invalid_input')
+}
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)
 process.exit(fail ? 1 : 0)

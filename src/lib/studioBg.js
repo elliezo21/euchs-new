@@ -7,7 +7,12 @@
  *       mode: 'transparent' | 'none' | 'color',  transparent = 배경을 투명하게(구간 배경색이 보임) / none = 원래 배경(마스크는 두고 안 씀)
  *                                                 color = 단색 배경(17-2 — AI 없음·무료)
  *       color?: '#rrggbb',                  단색 색 (mode가 color일 때 쓴다. 다른 모드로 바꿔도 남겨 두어 [단색]으로 돌아오면 그 색)
+ *       refined?: { path, key, w, h },      손으로 다듬은 마스크(17-3 [경계 다듬기] — 브라우저에서 만든 회색 PNG, AI 마스크와 같은 w·h)
+ *                                           경로 {uid}/{projectId}/bg/{imageId}/refined_{key16}.png, key = 내용 해시(studioBgRefine.refineKey)
  *     }
+ * ★ 합성에 쓸 마스크는 bgMaskSource 한 곳에서만 고른다: refined가 있으면 그것, 없으면 AI 마스크(mask).
+ *   AI 마스크(mask)는 절대 바꾸지 않는다 — [AI 결과로 되돌리기]·같은 원본 재사용(서버 key)에 필요하다.
+ *   예전 데이터(refined 없음)는 지금까지와 똑같이 AI 마스크를 쓴다.
  * ★ 단색(17-2)은 사진 파일에 색을 넣지 않는다 — 화면 작은 사진은 투명 그대로 두고, 그리는 쪽이 사진 자리 아래에 색을 깐다
  *   (화면: 사진 요소 상자 배경 / 내보내기: 사진 자리를 색으로 채운 뒤 사진). 필터·조정은 사진(img·사진 캔버스)에만 걸리므로
  *   색은 고른 그대로 보이고 필터는 제품(마스크 안)에만 먹는다. 사진은 자리를 꽉 채우므로(cover) "사진 아래 색" = "투명 자리의 색".
@@ -31,6 +36,8 @@ export const BG_COLOR_SWATCHES = [
   { value: '#111111', label: '검정' },
 ]
 const MASK_PATH_RE = /^[^/]+\/[^/]+\/bg\/[^/]+\/mask_[0-9a-f]{16}\.png$/
+const REFINED_PATH_RE = /^[^/]+\/[^/]+\/bg\/[^/]+\/refined_[0-9a-f]{16}\.png$/
+const KEY_RE = /^[0-9a-f]{16}$/
 const HEX_RE = /^#[0-9a-f]{6}$/i
 
 /** '#rrggbb'(소문자)이면 그 값, 아니면 null */
@@ -54,8 +61,22 @@ export function readBg(edit) {
     if (!c) console.warn('[studioBg] 단색 배경 색 값이 이상함 — 흰색으로 읽음:', b.color)
     out.color = c || BG_DEFAULT_COLOR
   }
+  if (b.refined !== undefined && b.refined !== null) {
+    const r = readRefined(b.refined, out.mask)
+    if (r) out.refined = r
+    else console.error('[studioBg] 다듬은 마스크(edit.bg.refined) 모양이 이상함 — 다듬기 없이 AI 마스크로 읽음:', b.refined)
+  }
   return out
 }
+
+/** 다듬은 마스크 정보 — 경로 규칙·key·크기(= AI 마스크 w·h)·같은 사진 폴더가 맞을 때만, 아니면 null */
+function readRefined(r, mask) {
+  if (!r || typeof r !== 'object' || typeof r.path !== 'string' || !REFINED_PATH_RE.test(r.path)) return null
+  if (!KEY_RE.test(String(r.key || '')) || r.w !== mask.w || r.h !== mask.h) return null
+  if (folderOf(r.path) !== folderOf(mask.path)) return null
+  return { path: r.path, key: r.key, w: r.w, h: r.h }
+}
+function folderOf(path) { return path.slice(0, path.lastIndexOf('/')) }
 
 /** edit에 bg를 넣은 새 edit — 다른 칸은 그대로. null이면 bg 칸을 뺀다 */
 export function withBg(edit, bg) {
@@ -65,7 +86,26 @@ export function withBg(edit, bg) {
   const out = { mask: { ...bg.mask }, mode: bg.mode }
   const c = normalizeBgColor(bg.color)
   if (c) out.color = c
+  if (bg.refined) out.refined = { ...bg.refined }
   return { ...rest, bg: out }
+}
+
+/** 다듬은 마스크를 바꾼 새 bg (null = 다듬기 없앰 → AI 마스크) — 다른 칸은 그대로 */
+export function withRefined(bg, refined) {
+  const { refined: _old, ...rest } = bg
+  return refined ? { ...rest, refined: { path: refined.path, key: refined.key, w: refined.w, h: refined.h } } : rest
+}
+
+/**
+ * 합성에 쓸 마스크 — 다듬은 것이 있으면 그것, 없으면 AI 마스크. 화면 작은 사진·미니뷰·미리보기·내보내기가 모두 이 함수로 고른다
+ * (studioViewImage.applyBackground · bgViewKey). 없거나 쓰지 않는 모드면 null.
+ * @returns {{ path, w, h, refined: boolean }|null}
+ */
+export function bgMaskSource(bg) {
+  if (!bg?.mask) return null
+  return bg.refined
+    ? { path: bg.refined.path, w: bg.refined.w, h: bg.refined.h, refined: true }
+    : { path: bg.mask.path, w: bg.mask.w, h: bg.mask.h, refined: false }
 }
 
 /** 단색 배경 색 (mode가 color일 때만, 아니면 null) — 그리는 쪽이 사진 자리 아래에 깐다 */
@@ -83,15 +123,17 @@ export function bgActive(bg) {
   return !!bg?.mask && (bg.mode === 'transparent' || bg.mode === 'color')
 }
 
-/** 화면 작은 사진 key 조각 (바뀌면 다시 만든다) — 색은 사진 파일에 안 들어가므로 key에 없다 (색을 바꿔도 다시 안 만듦) */
+/** 화면 작은 사진 key 조각 (바뀌면 다시 만든다) — 색은 사진 파일에 안 들어가므로 key에 없다 (색을 바꿔도 다시 안 만듦).
+ *  17-3: 쓰는 마스크 경로(다듬은 것 또는 AI)가 key — 다듬으면 다시 만든다 */
 export function bgViewKey(bg) {
-  return bgActive(bg) ? `|bg:${bg.mask.path}` : ''
+  return bgActive(bg) ? `|bg:${bgMaskSource(bg).path}` : ''
 }
 
-/** 목록·사진 정보 카드 표시 */
+/** 목록·사진 정보 카드 표시 — 다듬은 마스크를 쓰면 "· 다듬음" (원래 배경일 때는 표시 없음 — 다듬은 결과가 안 보이므로) */
 export function bgMark(bg) {
   if (!bgActive(bg)) return ''
-  return bg.mode === 'color' ? '배경 단색' : '배경 지움'
+  const base = bg.mode === 'color' ? '배경 단색' : '배경 지움'
+  return bg.refined ? `${base} · 다듬음` : base
 }
 
 /**

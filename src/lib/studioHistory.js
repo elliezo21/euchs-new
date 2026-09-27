@@ -112,6 +112,7 @@ export const LABELS = {
   bgOriginal: '원래 배경',
   bgReset: '배경 원래대로',
   bgColor: '배경 단색', // 17-2 — [단색] 고르기·색 바꾸기
+  bgRefine: '배경 다듬기', // 17-3 — [경계 다듬기] 화면에서 [적용] (붓질 하나하나는 그 화면 안에서만)
 
   lookFilter: '필터',
   lookAdjust: '조정',

@@ -33,6 +33,9 @@ export const BG_BUSY_MS = 2 * 60 * 1000  // 이 시간 안의 pending = 처리 �
 export const BG_MASK_MAX_BYTES = 20 * 1024 * 1024
 const DEFAULT_DAILY_LIMIT = 300
 export const BG_MASK_NAME_RE = /^mask_[0-9a-f]{16}\.png$/
+// 17-3 경계 다듬기 — 브라우저가 만든 다듬은 마스크 (같은 bg 폴더, 이름 = refined_{내용 해시 16자}.png). AI 마스크(mask_)와 이름이 겹치지 않는다
+export const BG_REFINED_NAME_RE = /^refined_[0-9a-f]{16}\.png$/
+export const BG_REFINED_MAX_FILES = 60   // 사진 한 장의 다듬은 마스크 파일 수 상한 (AI 조각 120개와 같은 뜻 — 끝없이 쌓이지 않게)
 
 export function bgDailyLimit(env = process.env) {
   const raw = env.STUDIO_BG_DAILY_LIMIT

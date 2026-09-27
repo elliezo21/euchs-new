@@ -172,7 +172,7 @@
             v-else-if="activeTool === 'bg'"
             :row="bgRow" :thumb-url="bgRow ? views[bgRow.id]?.url || null : null" :bg="bgRow ? session.bgOf(bgRow.id) : null"
             :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError" :section-bg="bgSectionColor"
-            @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus"
+            @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus" @refine="openRefine"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -301,6 +301,12 @@
     <StudioCropScreen
       v-if="cropRow && isWide" :key="cropRow.id" :image="cropRow" :image-label="imageLabel(cropRow)" :shape="session.shapeOf(cropRow.id)"
       :load-source="loadCropSource" @done="onCropDone" @cancel="cropImageId = null"
+    />
+
+    <!-- 경계 다듬기 화면 (17-3): 붓 살리기/지우기로 배경 마스크를 고침 — [적용] = 다듬은 마스크 저장 + 사진 이력 1개, [취소]·Esc = 그대로 -->
+    <StudioBgRefineScreen
+      v-if="refineRow && refineBg && isWide" :key="refineRow.id" :image="refineRow" :image-label="imageLabel(refineRow)" :bg="refineBg"
+      :load-source="loadRefineSource" :load-mask="loadRefineMask" :save="saveRefine" @close="closeRefine"
     />
 
     <!-- [순서 변경] 화면 (8-2): [완료] = 한 번에 적용(이력 1개), [취소]·Esc·바깥 = 그대로 닫기 -->
@@ -462,8 +468,8 @@ import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent } from '@/lib/
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
-import { bgFromServer, bgMark, normalizeBgColor, BG_DEFAULT_COLOR } from '@/lib/studioBg'
-import { fetchBgStatus, requestBgRemove } from '@/lib/studioBgApi'
+import { bgFromServer, bgMark, normalizeBgColor, withRefined, BG_DEFAULT_COLOR } from '@/lib/studioBg'
+import { fetchBgStatus, requestBgRemove, uploadBgRefined } from '@/lib/studioBgApi'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
 import { copyProject } from '@/lib/studioProjectCopy'
@@ -482,6 +488,7 @@ import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
 import StudioExportModal from '@/components/studio/StudioExportModal.vue'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
 import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
+import StudioBgRefineScreen from '@/components/studio/StudioBgRefineScreen.vue'
 import { renderSection, renderPage, canvasToBlob } from '@/lib/studioExport'
 import { loadWithResign } from '@/lib/studioImageCache'
 import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop'
@@ -869,6 +876,8 @@ const exportOpen = ref(false)
 const exportCompareId = ref(null) // 비교 보기 중인 구간 id (개발용)
 const previewOpen = ref(false)    // 13-2 미리보기 (PC·모바일)
 const cropImageId = ref(null)     // 12-1 자르기 창을 연 사진 id
+const refineImageId = ref(null)   // 17-3 경계 다듬기 화면을 연 사진 id
+const refineBg = ref(null)        // 그 화면을 열 때의 edit.bg (화면이 열린 동안 바뀌지 않게 복사본)
 
 // ── [순서 변경] 화면 (8-2) ──
 const reorderOpen = ref(false)
@@ -932,6 +941,8 @@ function resetEditorLog() {
   exportCompareId.value = null
   previewOpen.value = false // 13-2 미리보기
   cropImageId.value = null  // 12-1 자르기 창
+  refineImageId.value = null // 17-3 경계 다듬기 화면
+  refineBg.value = null
 }
 function noteAction(entry) {
   actionLog.push(entry)
@@ -1845,6 +1856,40 @@ function onBgReset() {
   const row = bgRow.value
   if (row && session.bgOf(row.id)) setBgNoted(row.id, null, LABELS.bgReset)
 }
+// ── 경계 다듬기 (17-3) — 붓으로 고친 마스크를 브라우저에서 만들어 저장 (외부 AI·돈 없음). AI 마스크(bg.mask)는 그대로 둔다 ──
+const refineRow = computed(() => (refineImageId.value ? imagesById.value.get(refineImageId.value) ?? null : null))
+function openRefine() {
+  const row = bgRow.value
+  const bg = row ? session.bgOf(row.id) : null
+  if (!row || !bg || eraseOpen.value) return
+  pageView.value?.finishEdit()
+  refineBg.value = JSON.parse(JSON.stringify(bg))
+  refineImageId.value = row.id
+}
+function closeRefine() {
+  refineImageId.value = null
+  refineBg.value = null
+}
+function loadRefineSource() { return erasedSourceOf(refineImageId.value) }
+function loadRefineMask(path) { return loadWithResign(urlPool, path) }
+/**
+ * 다듬기 화면 [적용] — result null = AI 결과 그대로(다듬기 없앰), 아니면 PNG를 올린 뒤 edit.bg.refined에 넣는다.
+ * 사진 이력 한 칸 "배경 다듬기" + 기존 자동 저장(edit_version 잠금). 올리기 실패는 throw → 화면이 문구를 보이고 닫지 않는다.
+ */
+async function saveRefine(result) {
+  const id = refineImageId.value
+  const pid = project.value?.id
+  if (!id || !pid || !session.bgOf(id)) throw new Error('이 사진의 배경 정보를 찾지 못했어요. 창을 닫고 다시 열어 주세요.')
+  let refined = null
+  if (result) {
+    refined = await uploadBgRefined({ projectId: pid, imageId: id, key: result.key, blob: result.blob, width: result.width, height: result.height })
+    if (project.value?.id !== pid || refineImageId.value !== id) return // 그 사이 다른 작업·로그아웃 — 넣지 않는다
+  }
+  const cur = session.bgOf(id)
+  if (!cur) throw new Error('이 사진의 배경 정보를 찾지 못했어요. 창을 닫고 다시 열어 주세요.')
+  setBgNoted(id, withRefined(cur, refined), LABELS.bgRefine)
+  showToast(refined ? '배경 경계를 다듬었어요 · Ctrl+Z로 되돌리기' : 'AI 결과로 되돌렸어요 · Ctrl+Z로 되돌리기')
+}
 /** 이 사진의 결과 크기 (자르기·띠를 적용한 뒤) — 페이지에 넣을 때 비율 */
 function sizedRow(imageId) {
   const row = imagesById.value.get(imageId)
@@ -1902,6 +1947,7 @@ const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!con
   || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
   || previewOpen.value // 13-2: 미리보기가 열린 동안도
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
+  || !!refineImageId.value // 17-3: 경계 다듬기 화면이 열린 동안도 (붓 단축키 K·E·X·[·]·Ctrl+Z는 그 화면이 받는다)
   || !!templateAsk.value // 15: 템플릿 교체 확인창
   || shortcutsOpen.value) // 14: 단축키 표
 

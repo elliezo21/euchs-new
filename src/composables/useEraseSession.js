@@ -550,12 +550,15 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   }
   // ── 배경 지우기 (17-1) — 같은 edit·같은 저장기(edit_version 잠금)·같은 사진 이력. 완성 JPG에는 넣지 않는다(layers가 같으니 erase_v 그대로) ──
   /**
-   * @param {{ mask, mode }|null} bg null = [배경 원래대로](마스크를 쓰지 않음 — 파일은 남겨 두어 다시 누르면 돈이 안 든다)
+   * @param {{ mask, mode, color?, refined? }|null} bg null = [배경 원래대로](마스크를 쓰지 않음 — 파일은 남겨 두어 다시 누르면 돈이 안 든다)
+   *   refined(17-3 [경계 다듬기]) = 다듬은 마스크 — [적용]할 때 한 번 부른다(이력 "배경 다듬기" 한 칸, 붓질마다 부르지 않는다)
    * @returns {boolean} 바뀌었으면 true
    */
   function setBg(id, bg, label) {
     if (!rowOf(id)) return false
-    const next = bg ? { mask: { ...bg.mask }, mode: bg.mode, ...(bg.color ? { color: bg.color } : {}) } : null
+    const next = bg
+      ? { mask: { ...bg.mask }, mode: bg.mode, ...(bg.color ? { color: bg.color } : {}), ...(bg.refined ? { refined: { ...bg.refined } } : {}) } // 17-3 다듬은 마스크
+      : null
     if (JSON.stringify(next) === JSON.stringify(bgOf(id))) return false
     bgMap[id] = next
     const edit = editOf(id)

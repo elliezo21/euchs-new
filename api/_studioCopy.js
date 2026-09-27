@@ -12,6 +12,7 @@
  *     {uid}/{projectId}/patches/{imageId}/{layerId}_{key}.png
  *     {uid}/{projectId}/final/{imageId}_v{version}.jpg
  *     {uid}/{projectId}/bg/{imageId}/mask_{key}.png        (17-1 배경 마스크 — edit.bg.mask.path)
+ *     {uid}/{projectId}/bg/{imageId}/refined_{key}.png     (17-3 다듬은 마스크 — edit.bg.refined.path)
  */
 
 export const COPY_SUFFIX = ' (복사본)'
@@ -55,12 +56,15 @@ export function newPatchPath(path, { uid, fromProject, toProject, fromImage, toI
   return `${uid}/${toProject}/patches/${toImage}/${name}`
 }
 
-/** 배경 마스크 경로 → 새 경로 (17-1, 파일 이름 = mask_{key}.png 그대로). 규칙이 다르면 throw */
+/**
+ * 배경 마스크 경로 → 새 경로 (파일 이름 그대로). AI 마스크 mask_{key}.png(17-1)와 다듬은 마스크 refined_{key}.png(17-3)만 받는다.
+ * 규칙이 다르면 throw
+ */
 export function newBgPath(path, { uid, fromProject, toProject, fromImage, toImage }) {
   const from = `${uid}/${fromProject}/bg/${fromImage}/`
   const p = String(path || '')
   const name = p.startsWith(from) ? p.slice(from.length) : ''
-  if (!/^mask_[0-9a-f]{16}\.png$/.test(name)) throw copyError(`배경 마스크 경로가 규칙과 다름: ${path}`)
+  if (!/^(mask|refined)_[0-9a-f]{16}\.png$/.test(name)) throw copyError(`배경 마스크 경로가 규칙과 다름: ${path}`)
   return `${uid}/${toProject}/bg/${toImage}/${name}`
 }
 
@@ -70,7 +74,8 @@ export function finalPath(uid, projectId, imageId, version) {
 }
 
 /**
- * edit 안의 경로를 새 경로로 — 레이어의 ai.patch.path(지우기 AI)와 bg.mask.path(17-1 배경 마스크)가 경로를 담는다. 덮기·필터·자르기에는 경로가 없다.
+ * edit 안의 경로를 새 경로로 — 레이어의 ai.patch.path(지우기 AI)와 bg.mask.path(17-1 배경 마스크)·bg.refined.path(17-3 다듬은 마스크)가
+ * 경로를 담는다. 덮기·필터·자르기에는 경로가 없다.
  * @returns {{ edit, files: {from,to,kind:'patch'|'bg'}[] }}  files = 복사할 파일 (같은 경로는 한 번만)
  */
 export function rewriteEdit(edit, ids) {
@@ -86,10 +91,12 @@ export function rewriteEdit(edit, ids) {
       p.path = to
     }
   }
-  const m = out && typeof out === 'object' ? out.bg?.mask : null
-  if (m && typeof m.path === 'string') {
+  // 배경: AI 마스크(bg.mask, 17-1)와 다듬은 마스크(bg.refined, 17-3) 둘 다 새 폴더로
+  const bg = out && typeof out === 'object' && out.bg && typeof out.bg === 'object' ? out.bg : null
+  for (const m of bg ? [bg.mask, bg.refined] : []) {
+    if (!m || typeof m.path !== 'string') continue
     const to = newBgPath(m.path, ids)
-    files.push({ from: m.path, to, kind: 'bg' })
+    if (!seen.has(m.path)) { seen.add(m.path); files.push({ from: m.path, to, kind: 'bg' }) }
     m.path = to
   }
   return { edit: out, files }

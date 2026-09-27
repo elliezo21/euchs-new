@@ -20,7 +20,7 @@ import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
 import { pixelLayersOf } from '@/lib/studioEdit'
 import { AI_MODEL_ID, loadAiPatch } from '@/lib/studioAiPatch'
 import { geometryOf, drawGeometry, geometryHeightAt, readShape } from '@/lib/studioCrop'
-import { bgActive, bgViewKey, bgPaintColor, maskedCanvas } from '@/lib/studioBg'
+import { bgActive, bgViewKey, bgPaintColor, bgMaskSource, maskedCanvas } from '@/lib/studioBg'
 
 export const VIEW_TYPE = 'image/webp'
 export const VIEW_QUALITY = 0.9
@@ -51,13 +51,15 @@ export function viewKey(row, layers, targetW, finalVersion = null, shape = null,
  */
 export async function applyBackground(pool, source, W, H, bg) {
   if (!bgActive(bg)) return { canvas: null, problems: [], color: null }
-  if (bg.mask.w !== W || bg.mask.h !== H) console.warn('[studioViewImage] 배경 마스크 크기가 사진과 다름 — 사진 크기로 맞춰 씀:', bg.mask, W, H)
+  // 17-3: 쓸 마스크는 bgMaskSource 한 곳에서 고른다 (다듬은 것이 있으면 그것, 없으면 AI). 받지 못하면 다른 마스크로 바꾸지 않고 알린다
+  const m = bgMaskSource(bg)
+  if (m.w !== W || m.h !== H) console.warn('[studioViewImage] 배경 마스크 크기가 사진과 다름 — 사진 크기로 맞춰 씀:', m, W, H)
   let maskImg
   try {
-    maskImg = await loadWithResign(pool, bg.mask.path)
+    maskImg = await loadWithResign(pool, m.path)
   } catch (err) {
-    console.error('[studioViewImage] 배경 마스크 받기 실패:', bg.mask.path, err)
-    return { canvas: null, problems: ['배경 마스크를 불러오지 못해 원래 배경으로 보여요'], color: null }
+    console.error('[studioViewImage] 배경 마스크 받기 실패:', m.path, err)
+    return { canvas: null, problems: [m.refined ? '다듬은 배경 마스크를 불러오지 못해 원래 배경으로 보여요' : '배경 마스크를 불러오지 못해 원래 배경으로 보여요'], color: null }
   }
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c }
   return { canvas: maskedCanvas(source, W, H, maskImg, mk), problems: [], color: bgPaintColor(bg) }
