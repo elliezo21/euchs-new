@@ -1,6 +1,6 @@
 <template>
-  <div class="px-4 pt-3 pb-4 space-y-3 st-border-b" data-text-item-panel>
-    <div class="flex items-center gap-2">
+  <div class="px-4 pt-3 pb-4 space-y-3" :class="part === 'all' ? 'st-border-b' : ''" data-text-item-panel :data-part="part">
+    <div v-if="show('more')" class="flex items-center gap-2">
       <span class="text-[13px] font-extrabold st-ink">글자</span>
       <span v-if="items.length > 1" class="st-muted text-[11px] font-bold">글자 요소 {{ items.length }}개에 함께 적용</span>
       <span v-if="mixedWithOthers" class="st-muted text-[11px] font-bold">글자 요소에만 적용</span>
@@ -15,8 +15,8 @@
       </span>
     </div>
 
-    <!-- 글꼴: 이름을 그 글꼴로 보여 준다 -->
-    <div>
+    <!-- 글꼴: 이름을 그 글꼴로 보여 준다 (도구줄 [글꼴]에서는 목록을 바로 펼친다) -->
+    <div v-if="show('font')">
       <div class="st-xfield-label mb-1">글꼴</div>
       <button
         type="button" class="st-font-current" :style="currentFont ? { fontFamily: cssFamilyOf(currentFont.key) } : null"
@@ -25,7 +25,7 @@
         <span class="truncate">{{ currentFont ? currentFont.label : '여러 글꼴' }}</span>
         <ChevronDown class="w-4 h-4 shrink-0 st-muted" :stroke-width="2" />
       </button>
-      <div v-if="fontOpen" class="st-font-list" data-font-list>
+      <div v-if="fontOpen || part === 'font'" class="st-font-list" data-font-list>
         <button
           v-for="f in STUDIO_FONTS" :key="f.key" type="button" class="st-font-opt" :class="currentFont?.key === f.key ? 'is-active' : ''"
           :style="{ fontFamily: cssFamilyOf(f.key) }" :data-font="f.key" @click="pickFont(f.key)"
@@ -34,8 +34,8 @@
     </div>
 
     <!-- 크기 · 굵기 -->
-    <div class="grid grid-cols-2 gap-2">
-      <label class="st-xfield" data-num="fontSize">
+    <div v-if="show('size') || show('weight')" class="grid gap-2" :class="part === 'all' ? 'grid-cols-2' : 'grid-cols-1'">
+      <label v-if="show('size')" class="st-xfield" data-num="fontSize">
         <span class="st-xfield-label">크기 ({{ LIM.fontSize[0] }}~{{ LIM.fontSize[1] }})</span>
         <span class="st-xfield-box">
           <input
@@ -45,7 +45,7 @@
           <span class="st-xfield-unit">px</span>
         </span>
       </label>
-      <div class="st-xfield">
+      <div v-if="show('weight')" class="st-xfield">
         <span class="st-xfield-label">굵기</span>
         <div class="flex flex-wrap gap-1">
           <button
@@ -56,12 +56,12 @@
       </div>
     </div>
     <input
-      type="range" :min="LIM.fontSize[0]" max="200" step="1" class="w-full st-range" :value="common('fontSize') === '' ? 40 : common('fontSize')"
+      v-if="show('size')" type="range" :min="LIM.fontSize[0]" max="200" step="1" class="w-full st-range" :value="common('fontSize') === '' ? 40 : common('fontSize')"
       title="글자 크기" data-range="fontSize" @input="emitText({ fontSize: Number($event.target.value) }, 'fontSize')"
     />
 
     <!-- 색 -->
-    <div>
+    <div v-if="show('color')">
       <div class="st-xfield-label mb-1">색</div>
       <div class="flex items-center gap-1.5">
         <button
@@ -77,7 +77,7 @@
     </div>
 
     <!-- 정렬 -->
-    <div>
+    <div v-if="show('align')">
       <div class="st-xfield-label mb-1">정렬</div>
       <div class="flex gap-1">
         <button
@@ -88,7 +88,7 @@
     </div>
 
     <!-- 줄간격 · 자간 (6-1 숫자 칸 방식: Enter·칸 벗어나기 = 반영, 슬라이더는 끄는 동안 이력 1개) -->
-    <div class="grid grid-cols-2 gap-2">
+    <div v-if="show('more')" class="grid grid-cols-2 gap-2">
       <label class="st-xfield" data-num="lineHeight">
         <span class="st-xfield-label">줄간격 (배)</span>
         <span class="st-xfield-box">
@@ -109,7 +109,7 @@
         </span>
       </label>
     </div>
-    <div class="grid grid-cols-2 gap-2">
+    <div v-if="show('more')" class="grid grid-cols-2 gap-2">
       <input
         type="range" :min="LIM.lineHeight[0]" :max="LIM.lineHeight[1]" step="0.05" class="w-full st-range" :value="common('lineHeight') === '' ? 1.3 : common('lineHeight')"
         title="줄간격" data-range="lineHeight" @input="emitText({ lineHeight: Number($event.target.value) }, 'lineHeight')"
@@ -121,7 +121,7 @@
     </div>
 
     <!-- 꾸미기 (10-2): 접이식 3묶음. 스위치를 끄면 값 0/없음, 켜면 기본값으로 켜고 펼친다. 줄바꿈·높이는 바뀌지 않는다 -->
-    <div v-for="g in DECO_GROUPS" :key="g.key" class="st-deco" :data-deco="g.key">
+    <div v-for="g in (show('more') ? DECO_GROUPS : [])" :key="g.key" class="st-deco" :data-deco="g.key">
       <div class="st-deco-head">
         <button type="button" class="st-deco-title" :aria-expanded="openGroups.has(g.key)" :data-deco-open="g.key" @click="toggleOpen(g.key)">
           <component :is="openGroups.has(g.key) ? ChevronDown : ChevronRight" class="w-3.5 h-3.5" :stroke-width="2.5" />
@@ -186,7 +186,9 @@ const props = defineProps({
   page: { type: Object, required: true },
   selectedIds: { type: Array, required: true },
   canPasteStyle: { type: Boolean, default: false }, // 복사한 글자 모양이 있고 글자를 골랐을 때
+  part: { type: String, default: 'all' }, // 도구줄 펼침 칸: font·size·color·weight·align·more(줄간격·자간·꾸미기·모양 복사) / all
 })
+const show = k => props.part === 'all' || props.part === k
 const emit = defineEmits(['text', 'style-copy', 'style-paste'])
 
 // ── 꾸미기 묶음 (10-2) — 켜기 = 이 값으로(색은 그대로 둔다), 끄기 = 0/없음 ──

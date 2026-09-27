@@ -37,6 +37,8 @@
                 <span><b class="font-bold text-amber-950 mr-1">포인트:</b>{{ current.tip }}</span>
               </div>
             </div>
+            <!-- 쓰는 쪽이 넣는 칸 (선택 — 없으면 예전 그대로). 예: 스튜디오 "다시 보지 않기" 체크 칸 -->
+            <div v-if="$slots.footer" class="px-4 pb-3" data-guide-footer><slot name="footer" /></div>
             <div class="px-4 py-3 bg-slate-50/70 border-t border-slate-900/5 flex items-center gap-2">
               <button type="button" @click="close(false)"
                 class="px-3 py-2 rounded-xl border border-slate-200 bg-white/80 hover:bg-white text-slate-600 font-bold text-xs transition">건너뛰기</button>

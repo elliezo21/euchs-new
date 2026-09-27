@@ -1,10 +1,10 @@
 <template>
-  <div class="px-4 pt-3 pb-4 space-y-3 st-border-b" data-image-item-panel>
-    <div class="text-[13px] font-extrabold st-ink">사진</div>
+  <div class="px-4 pt-3 pb-4 space-y-3" :class="part === 'all' ? 'st-border-b' : ''" data-image-item-panel :data-part="part">
+    <div v-if="part === 'all'" class="text-[13px] font-extrabold st-ink">사진</div>
 
     <!-- 원클릭 (review-1): 확인 필요(지우기 실패·글자 많음·글자 남음)면 표시 + [직접 고치기] · [원본으로](원클릭이 지운 것만)
          [빼기]는 아래 [페이지에서 빼기] 하나로 합쳤다 (검수 2묶음 — 해성 결정 1, 같은 동작·같은 이력) -->
-    <div v-if="autoMark" class="space-y-1.5" data-photo-auto>
+    <div v-if="autoMark && show('all')" class="space-y-1.5" data-photo-auto>
       <div v-if="autoMark.problem" class="flex items-start gap-1.5">
         <span class="st-badge st-badge-danger shrink-0" data-photo-auto-problem>확인 필요 · {{ autoMark.problemText }}</span>
         <span class="text-[11px] st-muted break-keep">{{ autoMark.reason }}</span>
@@ -16,7 +16,7 @@
     </div>
 
     <!-- 사진 자체: 바꾸기 · 페이지에서 빼기 · 원본 비교(누르고 있기) -->
-    <div class="grid grid-cols-2 gap-1.5">
+    <div v-if="show('all')" class="grid grid-cols-2 gap-1.5">
       <button type="button" class="st-btn st-pbtn" data-photo-replace @click="$emit('replace')"><Replace class="w-3.5 h-3.5" :stroke-width="2" /> 사진 바꾸기</button>
       <button type="button" class="st-btn st-pbtn" :disabled="item.locked" :title="item.locked ? '잠긴 요소예요' : ''" data-photo-remove @click="$emit('remove-from-page')"><ImageMinus class="w-3.5 h-3.5" :stroke-width="2" /> 페이지에서 빼기</button>
       <button
@@ -33,7 +33,7 @@
     </div>
 
     <!-- 필터 -->
-    <div>
+    <div v-if="show('look')">
       <div class="st-desc-sm mb-1.5">필터</div>
       <div class="grid grid-cols-4 gap-1.5">
         <button
@@ -50,7 +50,7 @@
     </div>
 
     <!-- 직접 조정 -->
-    <div class="space-y-1.5">
+    <div v-if="show('look')" class="space-y-1.5">
       <div class="flex items-center">
         <span class="st-desc-sm">조정</span>
         <button type="button" class="ml-auto st-link-muted text-[11px]" :disabled="isDefault" data-look-reset @click="$emit('reset-look')">필터·조정 초기화</button>
@@ -66,7 +66,7 @@
     </div>
 
     <!-- 꾸미기 (이 자리의 요소에만) -->
-    <div class="space-y-1.5">
+    <div v-if="show('deco')" class="space-y-1.5">
       <div class="st-desc-sm">꾸미기 <span class="st-muted">(이 자리에만)</span></div>
       <label class="st-slider-row" data-style="borderWidth">
         <span class="st-slider-label">테두리</span>
@@ -104,7 +104,9 @@ const props = defineProps({
   thumbUnder: { type: Object, default: null }, // 사진 아래 단색·AI 배경 (studioViewImage.thumbUnderStyle — 검수 2묶음)
   shapeText: { type: String, default: '' },  // 12-1 "잘림 · 띠 2" (없으면 '')
   autoMark: { type: Object, default: null }, // 원클릭 studioAutoBuild.reviewMark (review-1, 없으면 null)
+  part: { type: String, default: 'all' },   // 작업판 위 도구줄 펼침 칸: 'look' = 필터·조정 / 'deco' = 꾸미기 / 'all' = 전부
 })
+const show = k => props.part === 'all' || props.part === k
 // replace / remove-from-page / compare(true|false) / reset-look / look(next, { merge }) / style(patch, { merge }) / crop (12-1 자르기 창 열기)
 // auto-fix(지우기 화면) / auto-revert(원클릭이 지운 것만 빼기) — 원클릭 review-1. 페이지에서 빼기는 remove-from-page 하나 (검수 2묶음)
 const emit = defineEmits(['replace', 'remove-from-page', 'compare', 'reset-look', 'look', 'style', 'crop', 'auto-fix', 'auto-revert'])

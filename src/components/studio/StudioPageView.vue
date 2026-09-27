@@ -212,12 +212,6 @@
       </button>
     </div>
 
-    <!-- 고른 요소 도구줄 — 요소 위쪽(자리가 없으면 아래쪽). 글자·표 칸을 입력하는 중·끄는 중에는 없음 -->
-    <StudioItemToolbar
-      v-if="itemBar" :page="page" :selected-ids="selectedIds" :box="itemBar.box" :view="view" :above="itemBar.above" :below="itemBar.below"
-      @command="(n, a) => $emit('command', n, a)"
-    />
-
     <!-- 빈 곳 드래그 박스 -->
     <div v-if="marquee" class="absolute pointer-events-none st-marquee" :style="marquee" data-marquee />
   </div>
@@ -240,10 +234,9 @@ import { RefreshCw, Lock, RotateCw, Plus, ArrowUp, ArrowDown, CopyPlus, Trash2 }
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
   DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
-  isDrawableItem, resizeTextItem, textLinesOf, setLineEnd, resizeTableItem, itemBounds, SECTION_MAX,
+  isDrawableItem, resizeTextItem, textLinesOf, setLineEnd, resizeTableItem, SECTION_MAX,
 } from '@/lib/studioPage'
-import StudioItemToolbar from '@/components/studio/StudioItemToolbar.vue'
-import { unionBox, sectionBarButtons, sectionGapSlots } from '@/lib/studioCanvasUi'
+import { sectionBarButtons, sectionGapSlots, blankPressTarget } from '@/lib/studioCanvasUi'
 import { isValidTextItem, textPaintSpec } from '@/lib/studioText'
 import { cssFamilyOf } from '@/lib/studioFonts'
 import StudioTextView from '@/components/studio/StudioTextView.vue'
@@ -603,27 +596,6 @@ function measureView() {
   })
 }
 watch(() => [props.zoom, total.value, doc.value.width], () => nextTick(measureView))
-/** 고른 요소를 감싸는 상자 + 위·아래 비울 거리 (끄는 중·박스 선택 중·글자/표 칸 입력 중이면 없음) */
-const itemBar = computed(() => {
-  if (!props.canvasTools || !props.selectedIds.length || draft.value || marquee.value || props.textEdit || props.cellEdit) return null
-  const z = props.zoom
-  const boxes = []
-  for (const id of props.selectedIds) {
-    const f = findItem(doc.value, id)
-    if (!f || !isDrawableItem(f.item)) continue
-    const b = itemBounds(f.item)
-    const top = rowOf(f.section.id).top
-    boxes.push({ x: b.x * z, y: (top + b.y) * z, w: b.w * z, h: b.h * z })
-  }
-  const box = unionBox(boxes)
-  if (!box) return null
-  const one = frames.value.length === 1 ? frames.value[0] : null
-  return {
-    box,
-    above: one?.handles && one.rotate ? 48 : 30, // 회전 손잡이(위 34px)·표 안내(위 30px)·자물쇠 표시(위 22px) 위로
-    below: tableAdd.value ? 52 : 16,              // 표 [+ 줄](아래 12px, 높이 28) 밑으로
-  }
-})
 const SECTION_ICONS = { up: ArrowUp, down: ArrowDown, duplicate: CopyPlus, delete: Trash2 }
 const SECTION_BAR_H = 4 * 50 + 8 // 버튼 4개 세로 (대략 — 짧은 섹션에서도 섹션 위쪽에 붙는다)
 /** 골라진 섹션(요소를 고르지 않았을 때)의 도구줄 — 페이지 오른쪽 바깥, 섹션 위쪽. 스크롤하면 섹션 안에서 따라 내려온다 */
@@ -817,10 +789,10 @@ function onUp(e) {
   const next = draft.value
   if (a.kind === 'box') {
     if (!a.moved) {
-      // 요소가 없는 구간의 빈 곳을 누름 = 그 구간 고르기 (8-1). 그 밖의 빈 곳 누르기 = 선택 해제
-      const s = a.sectionId ? props.page.sections.find(x => x.id === a.sectionId) : null
-      if (!a.shift && s && s.items.length === 0) emit('select-section', s.id)
-      else if (!a.shift) selectIds([])
+      // 섹션 안 빈 곳(요소가 없는 곳)을 누름 = 그 섹션 고르기 — 요소가 있는 섹션도 (studioCanvasUi.blankPressTarget). 섹션 사이 간격·페이지 밖 = 선택 해제
+      const t = blankPressTarget({ shift: a.shift, sectionId: a.sectionId, sectionIds: props.page.sections.map(x => x.id) })
+      if (t.kind === 'section') emit('select-section', t.sectionId)
+      else if (t.kind === 'clear') selectIds([])
     } else {
       const hit = expandToGroups(props.page, itemsInBox(props.page, a.box)) // 9단계: 그룹 요소가 하나라도 걸리면 그룹 전체
       selectIds(a.shift ? [...new Set([...a.prevIds, ...hit])] : hit)

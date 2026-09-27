@@ -675,6 +675,40 @@ export function setItemRect(page, id, rect, measure = null) {
   })
 }
 
+/**
+ * 크기 % (작업판 위 도구줄 [크기] 슬라이더) — base(슬라이더 창을 열 때의 문서)에서 고른 요소를 factor배로. 비율 유지, 가운데 기준.
+ * 한 섹션 안에서 여러 개면 떨어진 거리도 같이 (섹션마다 묶음 가운데 기준). 글자 = 글자 크기·폭 함께(모서리 손잡이와 같음),
+ * 표 = 폭만(손잡이와 같음 — 높이는 행 수에 맞춰 자동), 선 = 길이만(굵기 그대로). 잠긴 요소는 그대로. 섹션 안에 최소한 남게(clampItemPosition)
+ */
+export function scaleItemsFrom(base, ids, factor, measure) {
+  if (!Number.isFinite(factor) || factor <= 0) return base
+  const set = new Set(ids)
+  const centers = new Map()
+  for (const s of base.sections) {
+    const bs = s.items.filter(it => set.has(it?.id) && isTransformable(it)).map(itemBounds)
+    if (bs.length) { const u = unionBounds(bs); centers.set(s.id, { x: u.x + u.w / 2, y: u.y + u.h / 2 }) }
+  }
+  return mapItems(base, ids, (it, s) => {
+    if (it.locked) return it
+    const c = centers.get(s.id)
+    const cx = c.x + (it.x + it.w / 2 - c.x) * factor, cy = c.y + (it.y + it.h / 2 - c.y) * factor
+    let n
+    if (isValidTextItem(it)) {
+      const [lo, hi] = TEXT_LIMITS.fontSize
+      const fontSize = Math.min(hi, Math.max(lo, Math.round(it.fontSize * factor)))
+      n = fitTextItem({ ...it, fontSize, w: Math.max(TEXT_MIN_WIDTH, Math.round(it.w * fontSize / it.fontSize)) }, measure)
+    } else if (isValidTableItem(it)) {
+      n = { ...it, w: Math.max(tableMinWidth(it), Math.round(it.w * factor)) }
+    } else if (isValidLineItem(it)) {
+      n = { ...it, w: Math.max(ITEM_MIN_SIZE, Math.round(it.w * factor)) }
+    } else {
+      n = { ...it, w: Math.max(ITEM_MIN_SIZE, Math.round(it.w * factor)), h: Math.max(ITEM_MIN_SIZE, Math.round(it.h * factor)) }
+    }
+    const p = clampItemPosition(n, s, base.width, Math.round(cx - n.w / 2), Math.round(cy - n.h / 2))
+    return { ...n, x: p.x, y: p.y }
+  })
+}
+
 /** 각도 정하기 (도) */
 export function setRotation(page, ids, deg) {
   if (!Number.isFinite(Number(deg))) return page

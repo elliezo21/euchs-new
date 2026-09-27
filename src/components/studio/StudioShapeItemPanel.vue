@@ -1,13 +1,13 @@
 <template>
-  <div class="px-4 pt-3 pb-4 space-y-4 st-border-b" data-shape-item-panel>
+  <div class="px-4 pt-3 pb-4 space-y-4" :class="part === 'all' ? 'st-border-b' : ''" data-shape-item-panel :data-part="part">
     <!-- 도형 -->
-    <div v-if="shapes.length" class="space-y-3" data-shape-props>
-      <div class="flex items-center gap-2">
+    <div v-if="shapes.length && part !== 'line'" class="space-y-3" data-shape-props>
+      <div v-if="part === 'all'" class="flex items-center gap-2">
         <span class="text-[13px] font-extrabold st-ink">도형</span>
         <span v-if="shapes.length > 1" class="st-muted text-[11px] font-bold">도형 {{ shapes.length }}개에 함께 적용</span>
         <span v-else-if="shapes.length < all.length" class="st-muted text-[11px] font-bold">도형에만 적용</span>
       </div>
-      <div>
+      <div v-if="show('kind')">
         <div class="st-xfield-label mb-1">모양</div>
         <div class="flex flex-wrap gap-1">
           <button
@@ -16,13 +16,13 @@
           >{{ SHAPE_LABELS[s] }}</button>
         </div>
       </div>
-      <ColorRow label="채우기 색" :items="shapes" field="fill" :colors="FILL_COLORS" @pick="(v, m) => emitShape({ fill: v }, m)" />
-      <NumRow v-for="f in shapeNums" :key="f.key" :f="f" :items="shapes" @set="(v, m) => emitShape({ [f.key]: v }, m)" />
-      <ColorRow label="테두리 색" :items="shapes" field="strokeColor" :colors="STROKE_COLORS" @pick="(v, m) => emitShape({ strokeColor: v }, m)" />
+      <ColorRow v-if="show('fill')" label="채우기 색" :items="shapes" field="fill" :colors="FILL_COLORS" @pick="(v, m) => emitShape({ fill: v }, m)" />
+      <NumRow v-for="f in shapeNums.filter(x => show(x.part))" :key="f.key" :f="f" :items="shapes" @set="(v, m) => emitShape({ [f.key]: v }, m)" />
+      <ColorRow v-if="show('stroke')" label="테두리 색" :items="shapes" field="strokeColor" :colors="STROKE_COLORS" @pick="(v, m) => emitShape({ strokeColor: v }, m)" />
     </div>
 
     <!-- 선 -->
-    <div v-if="lines.length" class="space-y-3" data-line-props>
+    <div v-if="lines.length && (part === 'all' || part === 'line')" class="space-y-3" data-line-props>
       <div class="flex items-center gap-2">
         <span class="text-[13px] font-extrabold st-ink">선</span>
         <span v-if="lines.length > 1" class="st-muted text-[11px] font-bold">선 {{ lines.length }}개에 함께 적용</span>
@@ -55,8 +55,10 @@ import { isValidShapeItem, isValidLineItem, SHAPES, SHAPE_LABELS, SHAPE_LIMITS, 
 const props = defineProps({
   page: { type: Object, required: true },
   selectedIds: { type: Array, required: true },
+  part: { type: String, default: 'all' }, // 도구줄 펼침 칸: kind(모양) · fill(채우기) · stroke(테두리·모서리) · line(선 전부) / all
 })
 const emit = defineEmits(['shape', 'line'])
+const show = k => props.part === 'all' || props.part === k
 
 const FILL_COLORS = [
   { value: '', label: '없음' }, { value: '#111111', label: '검정' }, { value: '#ffffff', label: '흰색' },
@@ -75,9 +77,9 @@ const shapes = computed(() => all.value.filter(isValidShapeItem))
 const lines = computed(() => all.value.filter(isValidLineItem))
 // 모서리 둥글기는 고른 도형이 모두 네모일 때만
 const shapeNums = computed(() => [
-  { key: 'fillOpacity', label: '채우기 진하기', unit: '%', scale: 100, min: 0, max: 100, rangeMax: 100 },
-  { key: 'strokeWidth', label: '테두리 두께', unit: 'px', scale: 1, min: SHAPE_LIMITS.strokeWidth[0], max: SHAPE_LIMITS.strokeWidth[1], rangeMax: 40 },
-  ...(shapes.value.every(s => s.shape === 'rect') ? [{ key: 'radius', label: '모서리 둥글기', unit: 'px', scale: 1, min: 0, max: SHAPE_LIMITS.radius[1], rangeMax: 200 }] : []),
+  { key: 'fillOpacity', label: '채우기 진하기', unit: '%', scale: 100, min: 0, max: 100, rangeMax: 100, part: 'fill' },
+  { key: 'strokeWidth', label: '테두리 두께', unit: 'px', scale: 1, min: SHAPE_LIMITS.strokeWidth[0], max: SHAPE_LIMITS.strokeWidth[1], rangeMax: 40, part: 'stroke' },
+  ...(shapes.value.every(s => s.shape === 'rect') ? [{ key: 'radius', label: '모서리 둥글기', unit: 'px', scale: 1, min: 0, max: SHAPE_LIMITS.radius[1], rangeMax: 200, part: 'stroke' }] : []),
 ])
 
 /** 모두 같은 값이면 그 값, 다르면 '' (빈칸) — 채우기 없음('')과 섞임은 ColorRow가 따로 본다 */

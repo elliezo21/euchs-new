@@ -105,7 +105,7 @@
           v-for="t in RAIL" :key="t.key" type="button"
           class="st-rail-item" :class="activeTool === t.key ? 'is-active' : ''"
           :aria-pressed="activeTool === t.key" :data-rail="t.key" :data-guide="`rail-${t.key}`"
-          @click="activeTool = t.key"
+          @click="onRail(t.key)"
         >
           <component :is="t.icon" class="w-5 h-5" :stroke-width="2" />
           <span>{{ t.label }}</span>
@@ -126,8 +126,12 @@
         </div>
       </nav>
 
-      <!-- 재료 패널 (300px): 고른 메뉴의 재료. 사진을 누르면 사진 속성 패널(6단계) -->
-      <aside class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
+      <!-- 재료 패널 (300px): 고른 메뉴의 넣을 것·할 일만 — 고른 요소의 설정은 작업판 위 가로 도구줄(StudioSelectBar). [X] = 닫기(작업판이 넓어짐), 아이콘을 누르면 다시 열림 -->
+      <aside v-if="!isWide || leftOpen" class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
+        <div v-if="isWide" class="shrink-0 h-10 pl-4 pr-1.5 flex items-center st-border-b" data-material-head>
+          <span class="text-[12px] font-extrabold st-ink-2">{{ railItem(activeTool).label }}</span>
+          <button type="button" class="st-icon-btn ml-auto" title="패널 닫기 (작업판을 넓게) · 왼쪽 아이콘을 누르면 다시 열려요" data-material-close @click="leftOpen = false"><X class="w-4 h-4" :stroke-width="2" /></button>
+        </div>
         <!-- 원클릭 글자 초안 섹션을 고르면 한 줄 (review-1) -->
         <p v-if="isWide && selectedInDraft && !showStart" class="shrink-0 px-4 py-2 text-[12px] font-bold break-keep st-border-b" style="color: var(--st-ai)" data-draft-hint>AI 초안은 확인 후 사용해 주세요 · 1688 상품 정보로 만든 글자라 눌러서 고칠 수 있어요</p>
         <!-- 위: 그 탭의 넣을 것·할 일 (고른 요소가 있어도 밀려 내려가지 않는다) / 아래: 고른 요소의 설정 (사진·글자·도형·표).
@@ -171,27 +175,6 @@
             <p class="st-desc break-keep">{{ railItem(activeTool).soon }}</p>
           </div>
         </div>
-        <!-- 고른 요소의 설정 — [사진]·[텍스트]·[요소] 탭에서만 (위 목록과 반씩 나눠 쓰고 이 안에서 스크롤) -->
-        <div v-if="showSelectionPanels" class="flex-1 min-h-0 overflow-y-auto st-border-t" data-selection-panels>
-          <StudioImageItemPanel
-            v-if="selectedPhotoItem"
-            :item="selectedPhotoItem" :look="session.lookOf(selectedPhotoItem.imageId)" :thumb-url="views[selectedPhotoItem.imageId]?.url || null"
-            :thumb-under="thumbUnderStyle(views[selectedPhotoItem.imageId])"
-            @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
-            @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
-            :shape-text="shapeMarkOf(selectedPhotoItem.imageId)" @crop="openCrop(selectedPhotoItem.imageId)"
-            :auto-mark="autoMarkOf(selectedPhotoItem.imageId)" @auto-fix="openErase(selectedPhotoItem.imageId)" @auto-revert="onAutoRevert(selectedPhotoItem.imageId)"
-          />
-          <!-- 글자 속성 (10-1): 고른 것 중 글자 요소가 있으면 — 바꾸면 글자 요소에만 -->
-          <StudioTextItemPanel
-            v-if="selectedHasText" :page="page" :selected-ids="selectedItemIds" :can-paste-style="canPasteStyle"
-            @text="onTextProps" @style-copy="runCommand('styleCopy')" @style-paste="runCommand('stylePaste')"
-          />
-          <!-- 도형·선 속성 (11-1): 고른 것 중 도형·선이 있으면 — 바꾸면 그 종류에만 -->
-          <StudioShapeItemPanel v-if="selectedHasElement" :page="page" :selected-ids="selectedItemIds" @shape="onShapeProps" @line="onLineProps" />
-          <!-- 사이즈표 "표 편집" (11-2): 고른 것 중 표가 있으면 — 칸 격자는 [표 칸 목록 펼치기] 안 (칸은 캔버스에서 바로 입력) -->
-          <StudioTableItemPanel v-if="selectedHasTable" :page="page" :selected-ids="selectedItemIds" @props="onTableProps" @edit="onTableEdit" />
-        </div>
       </aside>
 
       <!-- 가운데: 긴 한 장 페이지 (4단계, DOM — 구간이 위에서 아래로 쌓인다) -->
@@ -206,7 +189,23 @@
           v-if="showStart" :usable-count="usableImagesNow().length" :images="templateImages" :views="views"
           @blank="startBlank" @template="askTemplate" @oneclick="onOneClick"
         />
-        <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
+        <!-- 작업판 맨 위 가로 도구줄 (고정 — 페이지를 가리지 않게 스크롤 칸은 이 아래부터). 요소를 고르면 그 종류에 맞는 버튼, 안 고르면 안내 한 줄 -->
+        <div v-if="page && !showStart" class="absolute inset-x-0 top-0 h-12" style="z-index: 8" data-select-strip>
+          <StudioSelectBar
+            v-if="selectBarOn"
+            :page="page" :selected-ids="selectedItemIds" :photo-item="selectedPhotoItem"
+            :look="selectedPhotoItem ? session.lookOf(selectedPhotoItem.imageId) : null" :thumb-url="selectedPhotoItem ? views[selectedPhotoItem.imageId]?.url || null : null"
+            :thumb-under="selectedPhotoItem ? thumbUnderStyle(views[selectedPhotoItem.imageId]) : null"
+            :shape-text="selectedPhotoItem ? shapeMarkOf(selectedPhotoItem.imageId) : ''" :auto-mark="selectedPhotoItem ? autoMarkOf(selectedPhotoItem.imageId) : null"
+            :can-paste-style="canPasteStyle"
+            @command="runCommand" @replace="replaceOpen = true" @crop="openCrop(selectedPhotoItem.imageId)" @erase="openErase(selectedPhotoItem.imageId)"
+            @compare="onCompare" @auto-revert="onAutoRevert(selectedPhotoItem.imageId)" @look="onLook" @style="onItemStyle" @reset-look="resetLookOpen = true"
+            @text="onTextProps" @style-copy="runCommand('styleCopy')" @style-paste="runCommand('stylePaste')"
+            @shape="onShapeProps" @line="onLineProps" @table-props="onTableProps" @table-edit="onTableEdit"
+          />
+          <div v-else class="h-full flex items-center px-4 text-[12px] font-bold st-muted st-sel-empty" data-select-strip-hint>요소를 누르면 여기에 크기·회전·색 같은 편집 도구가 나와요</div>
+        </div>
+        <div ref="pageScroll" class="absolute inset-x-0 bottom-0 overflow-auto" :class="page && !showStart ? 'top-12' : 'top-0'" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
           <div v-else-if="page && page.sections.length" class="pb-24" :class="pageTopPad" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
             <StudioPageView
@@ -227,7 +226,7 @@
           </div>
         </div>
         <!-- 캔버스 위 왼쪽 위 안내 묶음: 원클릭 안내 띠 + 섹션 사이 추가 안내 한 줄 -->
-        <div v-if="noticeVisible || sectionHintVisible" class="absolute left-3 top-3 flex flex-col gap-2" style="z-index: 6; width: min(640px, calc(100% - 256px))">
+        <div v-if="noticeVisible || sectionHintVisible" class="absolute left-3 top-[60px] flex flex-col gap-2" style="z-index: 6; width: min(640px, calc(100% - 256px))">
         <!-- 섹션 사이 추가 안내 (처음 열었을 때 한 줄 — 닫으면 다시 안 보임, 가이드 "다시 보지 않기"와 같은 저장 방식) -->
         <div v-if="sectionHintVisible" class="self-start flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-[12px] st-card st-shadow-float text-[13px] break-keep" data-section-add-hint>
           <Plus class="w-4 h-4 shrink-0 st-accent-text" :stroke-width="2.5" />
@@ -258,6 +257,11 @@
           </ol>
         </div>
         </div>
+        <!-- 작업판 왼쪽 아래 되돌리기·다시 (맨 위 버튼과 같은 함수) -->
+        <div v-if="page && !showStart" class="absolute left-4 bottom-4 flex items-center gap-0.5 p-1 rounded-[12px] st-card st-shadow-float" style="z-index: 5" data-canvas-undo>
+          <button type="button" class="st-icon-btn" :disabled="!editorCanUndo" :title="editorCanUndo ? '되돌리기 (Ctrl+Z)' : '되돌릴 동작이 없어요'" data-canvas-action="undo" @click="undoAny"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+          <button type="button" class="st-icon-btn" :disabled="!editorCanRedo" :title="editorCanRedo ? '다시 (Ctrl+Shift+Z · Ctrl+Y)' : '다시 할 동작이 없어요'" data-canvas-action="redo" @click="redoAny"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+        </div>
         <!-- 아래 막대: 확대 · 폭 (시안 ①) -->
         <div v-if="page" class="absolute left-1/2 -translate-x-1/2 bottom-4 flex items-center gap-2 px-2 py-1.5 rounded-[12px] st-card st-shadow-float" style="z-index: 5" data-zoom-bar>
           <div class="st-seg">
@@ -274,7 +278,7 @@
         </div>
         <!-- 사진 정보 + [지우기] (3단계 임시 카드 — 페이지에서 누른 사진 기준. 6단계에서 왼쪽 사진 속성 패널로 옮긴다) -->
         <!-- 검수 2묶음: 페이지에서 사진을 골랐을 때만 (늘 떠 있으면 페이지 오른쪽 위(BEST 배지 등)를 가렸다). 목록에만 있는 사진은 목록 줄 [지우기] -->
-        <div v-if="selectedImage && selectedPhotoItem && !eraseOpen && !showStart" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
+        <div v-if="selectedImage && selectedPhotoItem && !eraseOpen && !showStart" class="absolute right-3 top-[60px] w-[220px] st-card p-3" style="z-index: 5" data-image-info>
           <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
           <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.cover"> · 덮기 {{ selectedFillCounts.cover }}</span><span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
           <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> 지우기</button>
@@ -336,12 +340,18 @@
       @toast="showToast"
     />
 
-    <!-- 사용가이드 (14단계): 편집기·지우기 화면 가이드 하나 (SpotlightGuide 본체 그대로) + "다시 보지 않기" 막대 -->
+    <!-- 사용가이드 (14단계): 편집기·지우기 화면 가이드 하나. "다시 보지 않기" = 가이드 창 안 체크 칸 (SpotlightGuide footer 칸 — 저장은 예전 그대로 studioGuide) -->
     <SpotlightGuide
       v-model:open="guide.open" :steps="guide.steps" :badge="guide.kind === 'erase' ? ERASE_GUIDE_BADGE : EDITOR_GUIDE_BADGE"
       @finish="onGuideFinish"
-    />
-    <StudioGuideHideBar :open="guide.open" :checked="guide.hide" @update:checked="setGuideHidden" />
+    >
+      <template #footer>
+        <label class="flex items-center gap-2 cursor-pointer select-none text-[12px] font-bold text-slate-600" title="다음에 열 때 자동으로 띄우지 않아요. [가이드]로 언제든 다시 볼 수 있어요." data-guide-hide-check>
+          <input type="checkbox" class="w-4 h-4 accent-orange-500" :checked="guide.hide" data-guide-hide @change="setGuideHidden($event.target.checked)" />
+          다시 보지 않기
+        </label>
+      </template>
+    </SpotlightGuide>
     <!-- 단축키 표 (14단계): [가이드] 메뉴 · ? 키 -->
     <StudioShortcutsModal :open="shortcutsOpen" @close="shortcutsOpen = false" />
 
@@ -525,7 +535,6 @@ import {
   isAutoPage, readNoticeClosed, writeNoticeClosed,
 } from '@/lib/studioAutoBuild'
 import SpotlightGuide from '@/components/common/SpotlightGuide.vue'
-import StudioGuideHideBar from '@/components/studio/StudioGuideHideBar.vue'
 import StudioShortcutsModal from '@/components/studio/StudioShortcutsModal.vue'
 import { EDITOR_GUIDE_STEPS, ERASE_GUIDE_STEPS, EDITOR_GUIDE_BADGE, ERASE_GUIDE_BADGE } from '@/data/studioEditorGuide'
 import { readGuideHidden, writeGuideHidden, shouldAutoStart, visibleSteps, readGuideShown, writeGuideShown } from '@/lib/studioGuide'
@@ -544,7 +553,7 @@ import StudioEraseScreen from '@/components/studio/StudioEraseScreen.vue'
 import StudioPhotoPanel from '@/components/studio/StudioPhotoPanel.vue'
 import StudioPageView from '@/components/studio/StudioPageView.vue'
 import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
-import StudioImageItemPanel from '@/components/studio/StudioImageItemPanel.vue'
+import StudioSelectBar from '@/components/studio/StudioSelectBar.vue'
 import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
@@ -557,10 +566,7 @@ import { loadWithResign } from '@/lib/studioImageCache'
 import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop'
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
-import StudioTextItemPanel from '@/components/studio/StudioTextItemPanel.vue'
 import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
-import StudioShapeItemPanel from '@/components/studio/StudioShapeItemPanel.vue'
-import StudioTableItemPanel from '@/components/studio/StudioTableItemPanel.vue'
 import { badgePresetByKey, badgeTextParts } from '@/lib/studioBadge'
 import { isValidTableItem, tableTemplateByKey, tableFieldsOf, hasTableCell, cleanCellText, tableRows, tableCols } from '@/lib/studioTable'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
@@ -588,7 +594,7 @@ import {
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
   groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo, groupMemberIds,
   addTextItem, setTextProps, setTextContent, addElementItem, setShapeProps, setLineProps,
-  addItemGroup, setTableProps, editTable, fitSectionsToImage,
+  addItemGroup, setTableProps, editTable, fitSectionsToImage, scaleItemsFrom,
 } from '@/lib/studioPage'
 import { isValidShapeItem, isValidLineItem, elementKindByKey } from '@/lib/studioShape'
 import { LABELS, restorePoint, list as listHistory } from '@/lib/studioHistory'
@@ -605,16 +611,16 @@ let offFontsChanged = null
 const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 들어간다)
 
 // 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, [텍스트]는 10-1단계(StudioTextPanel), [요소]는 11-1단계(StudioElementPanel), 나머지는 그 뒤
-const RAIL = [
+const RAIL = [ // 순서: 템플릿 → 사진 → 텍스트 → 요소 → 섹션 → 배경합성 → 저장값 (가이드는 맨 아래 따로)
   { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '' }, // 15단계: StudioTemplatePanel
-  { key: 'section', label: '섹션', icon: Rows3, soon: '페이지가 준비되면 여기서 섹션을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
   { key: 'photo', label: '사진', icon: ImageIcon, soon: '' },
   { key: 'text', label: '텍스트', icon: Type, soon: '글자 넣기는 곧 추가될 기능이에요.' },
   { key: 'element', label: '요소', icon: Shapes, soon: '도형·아이콘 넣기는 곧 추가될 기능이에요.' },
+  { key: 'section', label: '섹션', icon: Rows3, soon: '페이지가 준비되면 여기서 섹션을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
   { key: 'bg', label: '배경합성', icon: Blend, soon: '' }, // 17-1: StudioBgPanel
   { key: 'saved', label: '저장값', icon: Bookmark, soon: '인트로·배송안내 같은 저장값 넣기는 곧 추가될 기능이에요.' },
 ]
-const railItem = key => RAIL.find(r => r.key === key) || RAIL[2]
+const railItem = key => RAIL.find(r => r.key === key) || RAIL[1] // 모르는 값 = [사진]
 
 // ── 진행 단계 표시줄 (6-3) — 지금 단계는 브라우저에만 기억 (작업별 localStorage, studioSteps). 처음 열면 ① ──
 const step = ref(STEP_DEFAULT)
@@ -849,10 +855,15 @@ function closeNotice() {
 }
 // 검수 2묶음: 왼쪽 위 "고른 요소" 칸은 요소를 다루는 패널(사진·텍스트·요소)에서만 — [템플릿]·[구간]·[배경합성]·[저장값]을 열면
 // 그 패널이 "고른 요소" 아래로 밀려 안 보이던 문제 (선택은 그대로 — [사진] 등으로 돌아오면 다시 보인다)
-// 목록 아래 "고른 요소의 설정" (사진·글자·도형·표 칸)이 있을 때만 — 위치·크기 등 공통 조작은 캔버스 도구줄로 옮겼다
-const SELECTION_PANEL_TOOLS = new Set(['photo', 'text', 'element'])
-const showSelectionPanels = computed(() => isWide.value && !!page.value && selectedItemIds.value.length > 0 && !showStart.value && SELECTION_PANEL_TOOLS.has(activeTool.value)
-  && (!!selectedPhotoItem.value || selectedHasText.value || selectedHasElement.value || selectedHasTable.value))
+// 고른 요소의 설정 = 작업판 맨 위 가로 도구줄 (StudioSelectBar — 예전 왼쪽 아래 "고른 요소 설정" 칸과 요소 위 떠 있는 도구줄을 합침).
+// 글자·표 칸을 입력하는 중·지우기 화면·시작 화면에서는 숨김 (입력이 끝나면 다시)
+const selectBarOn = computed(() => isWide.value && !!page.value && selectedItemIds.value.length > 0 && !showStart.value && !eraseOpen.value && !textEdit.value && !cellEdit.value)
+// 왼쪽 재료 패널 열기/닫기 — [X] = 닫기(작업판이 넓어짐), 아이콘을 누르면 그 탭으로 다시 연다
+const leftOpen = ref(true)
+function onRail(key) {
+  activeTool.value = key
+  leftOpen.value = true
+}
 /** 사진 하나의 원클릭 표시 — 목록 줄·왼쪽 사진 패널·구간 이름 (studioAutoBuild.reviewMark) */
 function autoMarkOf(id) { return reviewMark(session.autoOf(id), session.layerMap[id]) }
 /** 확인하면 좋은 사진 (대표 사진이 맨 앞) — 안내 띠 숫자·목록 */
@@ -1157,8 +1168,10 @@ function onAddSectionAt(at) {
 const elementTab = ref(elementTabOf(null))
 // ── 캔버스 위 안내 한 줄 "섹션 사이에 마우스를 올리면…" — 닫으면 다시 안 보임 (studioGuide GUIDE_KEYS.sectionAdd, localStorage) ──
 const sectionHintClosed = ref(readGuideHidden(guideStorage(), 'sectionAdd'))
+// 첫 진입 안내는 한 번에 하나: 사용가이드가 떠 있거나 곧 자동으로 뜰 참이면(guideAutoReady) 기다렸다가, 닫거나 끝낸 뒤에 이 한 줄
 const sectionHintVisible = computed(() => !sectionHintClosed.value && isWide.value && !!page.value?.sections.length
-  && !showStart.value && !eraseOpen.value && !autoBuild.state.open && !pageSession.readError.value)
+  && !showStart.value && !eraseOpen.value && !autoBuild.state.open && !pageSession.readError.value
+  && !guide.open && guideAutoReady.value !== 'editor')
 function closeSectionHint() {
   sectionHintClosed.value = true
   writeGuideHidden(guideStorage(), 'sectionAdd', true)
@@ -1186,7 +1199,7 @@ watch(selectedImageId, id => {
 // ── 공통 조작 명령 (6-1) — 패널 버튼·단축키·우클릭 메뉴가 모두 이 하나로 온다 ──
 let clipboard = null // 편집기 안 클립보드 (copyItems 결과) — 다른 구간에도 붙여넣을 수 있다
 let pasteCount = 0   // 같은 것을 여러 번 붙여넣으면 조금씩 더 옆으로
-const LOCK_BLOCKED = new Set(['rotate90', 'rotation', 'flipX', 'flipY', 'align', 'rect', 'delete', 'removeFromPage', 'cut', 'nudge'])
+const LOCK_BLOCKED = new Set(['scale', 'rotate90', 'rotation', 'flipX', 'flipY', 'align', 'rect', 'delete', 'removeFromPage', 'cut', 'nudge'])
 function applyPage(next, label, opts) {
   if (!next || next === page.value) return false
   const before = pageSession.history.value?.index
@@ -1605,7 +1618,9 @@ function runCommand(name, args = {}) {
   switch (name) {
     case 'nudge': applyPage(moveItems(p, ids, args.dx, args.dy), LABELS.elMove, { mergeKey: 'nudge' }); break
     case 'rotate90': applyPage(rotateBy(p, ids, 90), LABELS.elRotate); break
-    case 'rotation': applyPage(setRotation(p, ids, args.deg), LABELS.elRotate); break
+    case 'rotation': applyPage(setRotation(p, ids, args.deg), LABELS.elRotate, args.merge ? { mergeKey: 'rotation' } : undefined); break
+    // 가로 도구줄 [크기] 슬라이더 — 연 때의 문서(args.base)에서 factor배 (비율 유지, 끄는 동안 이력 한 칸 "크기 조절")
+    case 'scale': applyPage(scaleItemsFrom(args.base, ids, args.factor, textMeasure), LABELS.elResize, { mergeKey: 'scale' }); break
     case 'flipX': applyPage(flipItems(p, ids, 'x'), LABELS.elFlip); break
     case 'flipY': applyPage(flipItems(p, ids, 'y'), LABELS.elFlip); break
     case 'align': applyPage(alignItems(p, ids, args.where), LABELS.elAlign); break

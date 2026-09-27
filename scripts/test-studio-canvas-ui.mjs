@@ -1,11 +1,14 @@
 // 캔버스 위 조작 테스트 — node scripts/test-studio-canvas-ui.mjs
-// [요소] 종류 전환 · 요소 도구줄(버튼·자리) · [⋯] 팝오버 · 섹션 사이 추가 · 섹션 도구줄 · 미니뷰 끌어서 순서 변경 · 안내 한 줄 · 코드 연결
+// [요소] 종류 전환 · 작업판 위 가로 도구줄(종류별 버튼) · 크기·회전·불투명도 슬라이더 · 왼쪽 패널 · 섹션 빈 곳 선택 · 섹션 사이 추가 · 섹션 도구줄 · 미니뷰 끌기 · 안내 순서 · 지우기 화면 · 코드 연결
 import fs from 'node:fs'
 import {
-  ELEMENT_TABS, elementTabOf, itemBarButtons, floatBarPosition, unionBox, sectionBarButtons,
+  ELEMENT_TABS, elementTabOf, selectBarButtons, sizeFactor, SIZE_PCT, ROTATE_DEG, blankPressTarget, sectionBarButtons,
   sectionGapSlots, sectionAddArgs, insertIndexFromY, orderAfterDrop, SECTION_ADD_HINT,
 } from '../src/lib/studioCanvasUi.js'
-import { layoutSections, addSection, reorderSections, emptyPage, moveSection, duplicateSection, removeSection } from '../src/lib/studioPage.js'
+import {
+  layoutSections, addSection, reorderSections, emptyPage, moveSection, duplicateSection, removeSection,
+  addElementItem, addTextItem, findItem, scaleItemsFrom, setLocked,
+} from '../src/lib/studioPage.js'
 import { GUIDE_KEYS, readGuideHidden, writeGuideHidden } from '../src/lib/studioGuide.js'
 import { LABELS } from '../src/lib/studioHistory.js'
 
@@ -15,6 +18,7 @@ function eq(name, got, want) {
   ok ? pass++ : fail++
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(60)} ${ok ? '' : `${JSON.stringify(got)}  기대 ${JSON.stringify(want)}`}`)
 }
+const measure = (s, style) => [...s].reduce((n, ch) => n + style.fontSize * (/[가-힯]/.test(ch) ? 1 : ch === ' ' ? 0.25 : 0.5), 0) // test-studio-text와 같은 가짜 폭
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 
 // ── [요소] 종류 전환 ──
@@ -32,62 +36,110 @@ eq('모르는 값 = 첫 종류', elementTabOf('nope'), 'shape')
   eq('편집기: v-model:tab="elementTab" (패널이 새로 만들어져도 기억)', /v-model:tab="elementTab"/.test(ed), true)
 }
 
-// ── 요소 도구줄 버튼 ──
+// ── 작업판 위 가로 도구줄 — 요소 종류별 버튼 ──
 {
-  const b = itemBarButtons({ anyLocked: false, allLocked: false, anyHidden: false })
-  eq('버튼 순서 [복제][잠금][숨기기][앞으로][뒤로][삭제][⋯]', b.map(x => x.key), ['duplicate', 'lock', 'hide', 'forward', 'backward', 'delete', 'more'])
-  eq('명령 = 기존 runCommand 이름', b.map(x => x.cmd), ['duplicate', 'lock', 'hide', 'order', 'order', 'delete', 'more'])
-  eq('앞으로·뒤로 = order forward·backward', [b[3].args, b[4].args], [{ where: 'forward' }, { where: 'backward' }])
-  eq('툴팁 문구', b.slice(0, 6).map(x => x.tip), [
-    '똑같은 것 하나 더 만들기 (Ctrl+D)', '실수로 움직이지 않게 고정', '지우지 않고 잠깐 안 보이게 (내보내기에서도 빠짐)',
-    '다른 요소보다 위로', '다른 요소보다 아래로', '삭제 (Delete)',
-  ])
-  eq('[⋯] 툴팁도 있음', !!b[6].tip, true)
-  const l = itemBarButtons({ anyLocked: true, allLocked: true, anyHidden: true })
-  eq('잠김 → [잠금 풀기] unlock · 숨김 → [보이기] show', [l[1].cmd, l[1].label, l[2].cmd, l[2].label], ['unlock', '잠금 풀기', 'show', '보이기'])
-  eq('모두 잠김 → 삭제 잠금', l[5].disabled, true)
+  const base = { photo: false, autoMark: null, anyLocked: false, allLocked: false, anyHidden: false, canGroup: false, canUngroup: false, headerRow: null, tableCount: 0 }
+  const keys = s => { const r = selectBarButtons({ ...base, ...s }); return { left: r.left.map(b => b.key), right: r.right.map(b => b.key), r } }
+  const COMMON = ['size', 'rotate', 'opacity', 'order', 'align']
+  const photo = keys({ kinds: new Set(['image']), photo: true })
+  eq('공통 [크기][회전][불투명도][앞뒤 순서][정렬]', photo.left.slice(0, 5), COMMON)
+  eq('사진 + [사진 바꾸기][자르기][필터][꾸미기][지우기][원본 비교]', photo.left.slice(5), ['replace', 'crop', 'look', 'deco', 'erase', 'compare'])
+  eq('오른쪽 [복제][잠금][숨기기][삭제]', photo.right, ['duplicate', 'lock', 'hide', 'delete'])
+  eq('사진 [삭제] = 예전 [페이지에서 빼기] 명령 (사진은 목록에 남음)', photo.r.right.at(-1).cmd, 'removeFromPage')
+  const auto = keys({ kinds: new Set(['image']), photo: true, autoMark: { problem: 'textLeft', canRevert: true } })
+  eq('원클릭 확인 필요 → [직접 고치기] + [원본으로]', [auto.r.left.find(b => b.key === 'erase').label, auto.left.includes('autoRevert')], ['직접 고치기', true])
+  const text = keys({ kinds: new Set(['text']) })
+  eq('글자 + [글꼴][글자 크기][색][굵기][글자 정렬][글자 꾸미기]', text.left.slice(5), ['font', 'fontSize', 'textColor', 'weight', 'textAlign', 'textMore'])
+  eq('글자 [삭제] = delete', text.r.right.at(-1).cmd, 'delete')
+  eq('도형 + [모양][색][테두리]', keys({ kinds: new Set(['shape']) }).left.slice(5), ['shapeKind', 'fill', 'stroke'])
+  eq('선 + [선 모양]', keys({ kinds: new Set(['line']) }).left.slice(5), ['line'])
+  const table = keys({ kinds: new Set(['table']), tableCount: 1, headerRow: true })
+  eq('표 + [행 추가][열 추가][첫 줄 제목][표 모양]', table.left.slice(5), ['addRow', 'addCol', 'header', 'tableMore'])
+  eq('첫 줄 제목 켜짐 표시 · 표 여러 개면 행·열 추가 잠금', [table.r.left.find(b => b.key === 'header').pressed, keys({ kinds: new Set(['table']), tableCount: 2 }).r.left.find(b => b.key === 'addRow').disabled], [true, true])
+  const badge = keys({ kinds: new Set(['shape', 'text']), canUngroup: true })
+  eq('배지(도형+글자 그룹) = 두 종류 버튼 + [그룹 풀기]', [badge.left.includes('font'), badge.left.includes('fill'), badge.right], [true, true, ['duplicate', 'lock', 'hide', 'group', 'delete']])
+  eq('묶을 수 있으면 [그룹]', keys({ kinds: new Set(['shape']), canGroup: true }).r.right.find(b => b.key === 'group').cmd, 'group')
+  eq('툴팁 = 461c653 문구 유지', photo.r.right.map(b => b.tip), ['똑같은 것 하나 더 만들기 (Ctrl+D)', '실수로 움직이지 않게 고정', '지우지 않고 잠깐 안 보이게 (내보내기에서도 빠짐)', '삭제 (Delete)'])
+  const locked = keys({ kinds: new Set(['shape']), anyLocked: true, allLocked: true, anyHidden: true })
+  eq('잠김 → [잠금 풀기] · 숨김 → [보이기] · 모두 잠김 → 삭제·회전·정렬 잠금', [locked.r.right[1].cmd, locked.r.right[2].cmd, locked.r.right.at(-1).disabled, locked.r.left[1].disabled, locked.r.left[4].disabled], ['unlock', 'show', true, true, true])
+  eq('[불투명도] 이름', photo.r.left[2].label, '불투명도')
+  const bar = read('src/components/studio/StudioSelectBar.vue')
+  const ALL_POPS = ['size', 'rotate', 'opacity', 'order', 'align', 'look', 'deco', 'font', 'textSize', 'textColor', 'weight', 'textAlign', 'textMore', 'shapeKind', 'fill', 'stroke', 'line', 'table']
+  const pops = [...new Set(['image', 'text', 'shape', 'line', 'table'].flatMap(k => selectBarButtons({ ...base, kinds: new Set([k]), photo: k === 'image', tableCount: 1 }).left.filter(b => b.type === 'pop').map(b => b.pop)))]
+  eq('펼침 칸 이름 = 도구줄이 그리는 칸 전부', pops.sort(), [...ALL_POPS].sort())
+  eq('도구줄이 펼침 칸을 모두 그림 (슬라이더 3 · 순서 · 정렬 · 사진 look/deco · 글자 6 · 도형 4 · 표)',
+    ["pop === 'size'", "pop === 'rotate'", "pop === 'opacity'", "pop === 'order'", "pop === 'align'", "pop === 'look' || pop === 'deco'", 'TEXT_PARTS[pop]', 'SHAPE_PARTS[pop]', "pop === 'table'"].every(k => bar.includes(k)), true)
 }
 
-// ── 요소 도구줄 자리 ──
+// ── 크기·회전·불투명도 슬라이더 ──
 {
-  const view = { x: 0, y: 0, w: 1000, h: 800 }, bar = { w: 300, h: 36 }
-  const up = floatBarPosition({ box: { x: 400, y: 300, w: 200, h: 100 }, bar, view, above: 48 })
-  eq('공간이 있으면 위쪽 · 가로 가운데 · 회전 손잡이 위로', up, { left: 350, top: 300 - 48 - 36, side: 'above' })
-  const down = floatBarPosition({ box: { x: 400, y: 40, w: 200, h: 100 }, bar, view, above: 48, below: 16 })
-  eq('위가 모자라면 아래쪽 (손잡이 밑으로)', down, { left: 350, top: 156, side: 'below' })
-  const left = floatBarPosition({ box: { x: -80, y: 300, w: 100, h: 50 }, bar, view })
-  eq('화면 왼쪽 밖으로 안 나감', left.left, 8)
-  const right = floatBarPosition({ box: { x: 950, y: 300, w: 100, h: 50 }, bar, view })
-  eq('화면 오른쪽 밖으로 안 나감', right.left, 1000 - 8 - 300)
-  const scrolled = floatBarPosition({ box: { x: 400, y: 1250, w: 200, h: 100 }, bar, view: { x: 0, y: 1200, w: 1000, h: 800 }, above: 48 })
-  eq('스크롤한 화면 기준 (위쪽 모자람 → 아래)', scrolled.side, 'below')
-  const huge = floatBarPosition({ box: { x: 0, y: -100, w: 1000, h: 2000 }, bar, view })
-  eq('위아래 모두 모자람(아주 큰 요소) → 보이는 영역 안 위쪽', [huge.side, huge.top], ['inside', 8])
-  const table = floatBarPosition({ box: { x: 400, y: 50, w: 200, h: 100 }, bar, view, above: 48, below: 52 })
-  eq('표 = 아래쪽이면 [+ 줄] 밑으로', table.top, 50 + 100 + 52)
-  eq('여러 개 = 감싸는 상자', unionBox([{ x: 10, y: 20, w: 30, h: 40 }, { x: 100, y: 5, w: 10, h: 10 }]), { x: 10, y: 5, w: 100, h: 55 })
-  eq('없으면 null', unionBox([]), null)
-}
-
-// ── [⋯] 팝오버 · 도구줄 연결 ──
-{
-  const tb = read('src/components/studio/StudioItemToolbar.vue')
-  eq('팝오버 = StudioTransformPanel (위치·크기·각도·투명도·회전·뒤집기·정렬)', /<StudioTransformPanel/.test(tb), true)
-  eq('팝오버 명령도 편집기로 그대로', /@command="\(n, a\) => \$emit\('command', n, a\)"/.test(tb), true)
-  eq('Esc = 팝오버만 닫기 (먼저 잡음)', /moreOpen\.value && e\.key === 'Escape'/.test(tb) && /addEventListener\('keydown', onKey, true\)/.test(tb), true)
-  eq('고른 것이 바뀌면 닫힘', /watch\(\(\) => props\.selectedIds\.join\(','\), \(\) => \{ moreOpen\.value = false \}\)/.test(tb), true)
-  const tp = read('src/components/studio/StudioTransformPanel.vue')
-  eq('팝오버 칸: X·Y·가로·세로·각도·투명도', ['x', 'y', 'w', 'h'].every(k => tp.includes(`key: '${k}'`)) && tp.includes('data-num="rotation"') && tp.includes('data-num="opacity"'), true)
-  eq('팝오버 칸: 90°·뒤집기·정렬 6개', ['rotate90', 'flipX', 'flipY'].every(k => tp.includes(`data-cmd="${k}"`)) && (tp.match(/where: '(left|hcenter|right|top|vcenter|bottom)'/g) || []).length, 6)
-  eq('정렬 문구 = 섹션 기준', tp.includes("'정렬 (섹션 기준)'"), true)
-  eq('도구줄로 옮긴 버튼(복제·잠금·숨기기·삭제)은 팝오버에 없음', ['data-cmd="duplicate"', 'data-cmd="delete"', "'lock')", "'hide')"].some(k => tp.includes(k)), false)
-  const pv = read('src/components/studio/StudioPageView.vue')
-  eq('도구줄 숨김: 끄는 중·박스 선택·글자 고치기·표 칸 입력', /draft\.value \|\| marquee\.value \|\| props\.textEdit \|\| props\.cellEdit\) return null/.test(pv), true)
-  eq('회전 손잡이가 있으면 위로 48 (손잡이 34px 위)', /one\?\.handles && one\.rotate \? 48 : 30/.test(pv), true)
+  eq('크기 범위 5~500%', SIZE_PCT, [5, 500])
+  eq('회전 범위 -180~180°', ROTATE_DEG, [-180, 180])
+  eq('% → 배율 (범위 밖은 자름)', [sizeFactor(100), sizeFactor(250), sizeFactor(1), sizeFactor(900)], [1, 2.5, 0.05, 5])
+  let p = addSection(emptyPage(), { height: 1000 })
+  const sid = p.sections[0].id
+  let r = addElementItem(p, sid, { type: 'shape', shape: 'rect', w: 100, h: 50 })
+  p = r.page; const sq = r.itemId
+  const it = id => findItem(p2, id).item
+  let p2 = scaleItemsFrom(p, [sq], 2, measure)
+  const b0 = findItem(p, sq).item
+  eq('크기 200% = 가로·세로 2배 (비율 유지)', [it(sq).w, it(sq).h], [200, 100])
+  eq('…가운데 그대로', [it(sq).x + it(sq).w / 2, it(sq).y + it(sq).h / 2], [b0.x + b0.w / 2, b0.y + b0.h / 2])
+  p2 = scaleItemsFrom(p, [sq], 0.5, measure)
+  eq('크기 50%', [it(sq).w, it(sq).h], [50, 25])
+  const t = addTextItem(p, sid, { text: '가나다', fontSize: 40, w: 200 }, measure)
+  p2 = scaleItemsFrom(t.page, [t.itemId], 1.5, measure)
+  eq('글자 = 글자 크기·폭 함께 (모서리 손잡이와 같음)', [it(t.itemId).fontSize, it(t.itemId).w], [60, 300])
+  const lk = setLocked(p, [sq], true)
+  eq('잠긴 요소는 그대로', scaleItemsFrom(lk, [sq], 2, measure) === lk, true)
   const ed = read('src/views/studio/StudioEditorView.vue')
-  eq('편집기: 도구줄 명령 = runCommand (되돌리기·자동 저장 같은 길)', /@command="runCommand" @add-section="onAddSectionAt"/.test(ed), true)
-  eq('왼쪽 "고른 요소" 블록 없음 (StudioTransformPanel을 패널에 안 씀)', ed.includes('<StudioTransformPanel'), false)
-  eq('왼쪽: 탭 목록이 먼저, 고른 요소 설정은 그 아래', ed.indexOf('data-tool-area') < ed.indexOf('data-selection-panels'), true)
+  eq('편집기: scale = scaleItemsFrom + 이력 한 칸(합침)', /case 'scale': applyPage\(scaleItemsFrom\(args\.base, ids, args\.factor, textMeasure\), LABELS\.elResize, \{ mergeKey: 'scale' \}\)/.test(ed), true)
+  eq('편집기: 회전 슬라이더 = 끄는 동안 이력 한 칸', /case 'rotation': applyPage\(setRotation\(p, ids, args\.deg\), LABELS\.elRotate, args\.merge \? \{ mergeKey: 'rotation' \}/.test(ed), true)
+  const bar = read('src/components/studio/StudioSelectBar.vue')
+  eq('불투명도 슬라이더 0~100 = opacity (합침)', /min="0" max="100"[^>]*data-sel-range="opacity" @input="\$emit\('command', 'opacity', \{ v: Number\(\$event\.target\.value\) \/ 100, merge: true \}\)"/.test(bar), true)
+  eq('크기 = 연 때의 문서 기준', /if \(b\.pop === 'size'\) \{ sizeBase = props\.page; sizePct\.value = 100 \}/.test(bar), true)
+}
+
+// ── 왼쪽 패널 = 넣을 것만 · [X] · 가로 도구줄 자리 ──
+{
+  const ed = read('src/views/studio/StudioEditorView.vue')
+  const rail = ed.slice(ed.indexOf('const RAIL = ['), ed.indexOf(']\n', ed.indexOf('const RAIL = [')))
+  eq('왼쪽 메뉴 순서 템플릿→사진→텍스트→요소→섹션→배경합성→저장값', [...rail.matchAll(/key: '(\w+)'/g)].map(m => m[1]), ['template', 'photo', 'text', 'element', 'section', 'bg', 'saved'])
+  eq('왼쪽에 "고른 요소 설정" 칸 없음', [ed.includes('data-selection-panels'), ed.includes('<StudioImageItemPanel'), ed.includes('<StudioTextItemPanel'), ed.includes('<StudioShapeItemPanel'), ed.includes('<StudioTableItemPanel'), ed.includes('<StudioTransformPanel')], [false, false, false, false, false, false])
+  eq('왼쪽 패널 [X] 닫기 · 아이콘 = 다시 열기', [/data-material-close @click="leftOpen = false"/.test(ed), /@click="onRail\(t\.key\)"/.test(ed), /activeTool\.value = key\n  leftOpen\.value = true/.test(ed)], [true, true, true])
+  eq('가로 도구줄 = 작업판 맨 위 고정, 스크롤 칸은 그 아래(top-12)', [/data-select-strip/.test(ed), /:class="page && !showStart \? 'top-12' : 'top-0'" data-page-scroll/.test(ed)], [true, true])
+  eq('도구줄 숨김: 안 고름·글자/표 칸 입력·지우기·시작 화면', /selectedItemIds\.value\.length > 0 && !showStart\.value && !eraseOpen\.value && !textEdit\.value && !cellEdit\.value/.test(ed), true)
+  eq('작업판 왼쪽 아래 되돌리기·다시 (같은 함수)', /data-canvas-action="undo" @click="undoAny"/.test(ed) && /data-canvas-action="redo" @click="redoAny"/.test(ed), true)
+  const pv = read('src/components/studio/StudioPageView.vue')
+  eq('요소 위 떠 있는 도구줄 없음 ([⋯] 팝오버 없음)', [pv.includes('<StudioItemToolbar'), ed.includes('StudioItemToolbar')], [false, false])
+}
+
+// ── 섹션 빈 곳 누르기 = 섹션 선택 ──
+{
+  eq('섹션 안 빈 곳 = 그 섹션 (요소가 있어도)', blankPressTarget({ shift: false, sectionId: 's2', sectionIds: ['s1', 's2'] }), { kind: 'section', sectionId: 's2' })
+  eq('섹션 사이 간격·페이지 밖 = 선택 해제', blankPressTarget({ shift: false, sectionId: null, sectionIds: ['s1'] }), { kind: 'clear' })
+  eq('Shift = 그대로 (여러 개 고르기 중)', blankPressTarget({ shift: true, sectionId: 's1', sectionIds: ['s1'] }), { kind: 'none' })
+  eq('없는 섹션 id = 선택 해제', blankPressTarget({ shift: false, sectionId: 'zz', sectionIds: ['s1'] }), { kind: 'clear' })
+  const pv = read('src/components/studio/StudioPageView.vue')
+  eq('페이지: 빈 곳 떼기 → blankPressTarget → select-section', /const t = blankPressTarget\(/.test(pv) && /if \(t\.kind === 'section'\) emit\('select-section', t\.sectionId\)/.test(pv), true)
+}
+
+// ── 첫 진입 안내는 하나씩 ──
+{
+  const ed = read('src/views/studio/StudioEditorView.vue')
+  eq('섹션 안내 = 가이드가 떠 있거나 곧 뜰 참이면 기다림', /&& !guide\.open && guideAutoReady\.value !== 'editor'\)/.test(ed), true)
+  eq('"다시 보지 않기" = 가이드 창 안 체크 칸 (떠 있는 바 없음)', [/<template #footer>/.test(ed), /data-guide-hide @change="setGuideHidden\(\$event\.target\.checked\)"/.test(ed), ed.includes('<StudioGuideHideBar')], [true, true, false])
+  const sg = read('src/components/common/SpotlightGuide.vue')
+  eq('SpotlightGuide: footer 칸은 넣을 때만 (다른 화면 가이드는 그대로)', /<div v-if="\$slots\.footer"[^>]*><slot name="footer" \/><\/div>/.test(sg), true)
+}
+
+// ── 지우기 화면 ──
+{
+  const er = read('src/components/studio/StudioEraseScreen.vue')
+  eq('안내 = CLAUDE.md 6번 확정 문구 (새 이름)', [er.includes('지울 곳을 [브러시]로 칠하거나 [사각형 선택]으로 감싼 뒤 [AI로 지우기] 또는 [단색]을 누르세요'), er.includes('사람·옷 위는 [주변으로 덮기]가 더 깔끔해요'), er.includes('(붓)'), er.includes('[덮기]가')], [true, true, false, false])
+  eq('브러시 크기·칠하기/덜어내기 = [브러시] 도구일 때만', /v-if="canvasTool === 'brush'" class="mt-5" data-brush-controls/.test(er), true)
+  const md = read('CLAUDE.md')
+  eq('CLAUDE.md 확정 문구와 같음', md.includes('지울 곳을 [브러시]로 칠하거나 [사각형 선택]으로 감싼 뒤 [AI로 지우기] 또는 [단색]을 누르세요') && md.includes('사람·옷 위는 [주변으로 덮기]가 더 깔끔해요'), true)
 }
 
 // ── 섹션 사이 추가 ──

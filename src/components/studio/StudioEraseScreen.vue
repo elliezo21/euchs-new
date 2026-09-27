@@ -119,7 +119,8 @@
 
           <!-- 2. 붓 크기 · 3. 칠하기/덜어내기 -->
           <template v-else>
-          <div class="mt-5" data-brush-controls>
+          <!-- 브러시 크기·칠하기/덜어내기는 [브러시] 도구일 때만 (도구마다 그 도구에 필요한 설정만) -->
+          <div v-if="canvasTool === 'brush'" class="mt-5" data-brush-controls>
             <div class="flex items-center">
               <span class="st-label">브러시 크기</span>
               <span class="ml-auto text-[13px] font-bold st-ink" data-brush-size>{{ brushSize }} px</span>
@@ -240,9 +241,9 @@
           <div class="mt-5 p-3 rounded-[12px] st-card flex gap-2">
             <Info class="w-4 h-4 shrink-0 mt-0.5 st-muted" :stroke-width="2" />
             <div class="space-y-2">
-              <p class="text-[12px] font-bold st-ink break-keep" data-erase-guide>지울 곳을 칠하거나(붓) 네모로 감싼 뒤 [AI로 지우기] 또는 [단색]을 누르세요</p>
+              <p class="text-[12px] font-bold st-ink break-keep" data-erase-guide>지울 곳을 [브러시]로 칠하거나 [사각형 선택]으로 감싼 뒤 [AI로 지우기] 또는 [단색]을 누르세요</p>
               <p class="st-desc-sm break-keep" data-ai-guide>AI 지우기는 한 번에 완벽하지 않을 수 있어요. 사람·옷·복잡한 무늬 위는 결과가 부자연스러울 수 있어요</p>
-              <p class="st-desc-sm break-keep" data-cover-guide>사람·옷 위는 [덮기]가 더 깔끔해요</p>
+              <p class="st-desc-sm break-keep" data-cover-guide>사람·옷 위는 [주변으로 덮기]가 더 깔끔해요</p>
               <p class="st-desc-sm break-keep">스페이스를 누른 채 끌면 화면이 움직이고, Ctrl+휠로 확대해요.</p>
             </div>
           </div>
