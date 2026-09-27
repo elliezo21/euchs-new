@@ -60,9 +60,12 @@ function linesOf(it) {
 
 function itemStyle(it, index) {
   const z = scale.value
+  // 단색 배경 (17-2): 사진 아래 색 — 상자 배경이라 필터가 안 먹는다 (페이지 StudioPageView와 같은 규칙)
+  const v = props.drawImages ? props.views[it.imageId] : null
   return {
     left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`,
     opacity: it.opacity ?? 1, transform: it.rotation ? `rotate(${it.rotation}deg)` : null, zIndex: index + 1,
+    background: v?.url && v.bgColor ? v.bgColor : null,
   }
 }
 function imgStyle(it) {

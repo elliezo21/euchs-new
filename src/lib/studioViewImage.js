@@ -20,7 +20,7 @@ import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
 import { pixelLayersOf } from '@/lib/studioEdit'
 import { AI_MODEL_ID, loadAiPatch } from '@/lib/studioAiPatch'
 import { geometryOf, drawGeometry, geometryHeightAt, readShape } from '@/lib/studioCrop'
-import { bgActive, bgViewKey, maskedCanvas } from '@/lib/studioBg'
+import { bgActive, bgViewKey, bgPaintColor, maskedCanvas } from '@/lib/studioBg'
 
 export const VIEW_TYPE = 'image/webp'
 export const VIEW_QUALITY = 0.9
@@ -45,20 +45,22 @@ export function viewKey(row, layers, targetW, finalVersion = null, shape = null,
  * 배경 지우기(17-1) 적용 — 원본 크기의 지운 사진(source)에 저장된 마스크의 알파만 곱한다 (studioBg.maskedCanvas).
  * 화면 작은 사진(renderView)과 내보내기·미리보기(StudioEditorView.exportImageOf)가 이 함수 하나를 쓴다.
  * 마스크를 못 받으면 원래 배경 그대로 두고 problems로 알린다 (조용히 넘기지 않는다).
- * @returns {Promise<{ canvas: HTMLCanvasElement|null, problems: string[] }>} canvas null = 적용 안 함(투명 아님·실패)
+ * 17-2 단색: 사진은 투명과 똑같이 만들고, 깔 색(color)을 돌려준다 — 그리는 쪽(StudioPageView·목록·미니뷰·studioExport.drawPhoto)이
+ *   사진 자리 아래에 칠한다. 필터가 사진에만 걸려 색은 고른 그대로. 마스크를 못 받으면 color도 null(원래 배경 그대로).
+ * @returns {Promise<{ canvas: HTMLCanvasElement|null, problems: string[], color: string|null }>} canvas null = 적용 안 함(원래 배경·실패)
  */
 export async function applyBackground(pool, source, W, H, bg) {
-  if (!bgActive(bg)) return { canvas: null, problems: [] }
+  if (!bgActive(bg)) return { canvas: null, problems: [], color: null }
   if (bg.mask.w !== W || bg.mask.h !== H) console.warn('[studioViewImage] 배경 마스크 크기가 사진과 다름 — 사진 크기로 맞춰 씀:', bg.mask, W, H)
   let maskImg
   try {
     maskImg = await loadWithResign(pool, bg.mask.path)
   } catch (err) {
     console.error('[studioViewImage] 배경 마스크 받기 실패:', bg.mask.path, err)
-    return { canvas: null, problems: ['배경 마스크를 불러오지 못해 원래 배경으로 보여요'] }
+    return { canvas: null, problems: ['배경 마스크를 불러오지 못해 원래 배경으로 보여요'], color: null }
   }
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c }
-  return { canvas: maskedCanvas(source, W, H, maskImg, mk), problems: [] }
+  return { canvas: maskedCanvas(source, W, H, maskImg, mk), problems: [], color: bgPaintColor(bg) }
 }
 
 /**
@@ -173,7 +175,8 @@ async function renderView(pool, row, layers, targetW, finalVersion = null, shape
   drawGeometry(ctx, full || imgEl, geo, 0, 0, tw, th)
   const blob = await toBlob(c) // 오염(SecurityError)이면 throw — 부른 쪽이 사유를 보여준다
   if (full) { full.width = 0; full.height = 0 } // 원본 크기 캔버스 메모리를 바로 돌려준다
-  return { url: URL.createObjectURL(blob), width: tw, height: th, bytes: blob.size, problems, aiMissing, aiStale, fromFinal: useFinal }
+  // bgApplied: 마스크를 적용했는지 (단색은 이때만 칠한다 — 마스크를 못 받으면 원래 배경 그대로라 색도 안 깐다)
+  return { url: URL.createObjectURL(blob), width: tw, height: th, bytes: blob.size, problems, aiMissing, aiStale, fromFinal: useFinal, bgApplied: !!masked.canvas }
 }
 
 /**
@@ -188,6 +191,7 @@ async function renderView(pool, row, layers, targetW, finalVersion = null, shape
 export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool = createSignedUrlPool(), onUpdate }) {
   const entries = new Map()  // image id → entry
   const queue = []           // [{ row, layers, key }] — 사진마다 최신 요청 하나
+  const paintColors = new Map() // image id → 단색 배경 색 | null (17-2 — 마지막 want 값. entry.bgColor = 마스크를 적용했을 때만 이 색)
   let running = 0
   let gen = 0
 
@@ -210,9 +214,14 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
     if (!row?.original_path) return
     const key = viewKey(row, layers, targetOf(row), finalVersion, shape, bg)
     const cur = entries.get(row.id)
-    if (cur && cur.key === key) return
+    paintColors.set(row.id, bgPaintColor(bg)) // 17-2 단색: 사진은 그대로, 깔 색만 바뀐다 (다시 안 만듦)
+    if (cur && cur.key === key) {
+      const color = cur.status === 'ready' && cur.bgApplied ? paintColors.get(row.id) : null
+      if ((cur.bgColor ?? null) !== color) set(row.id, { ...cur, bgColor: color })
+      return
+    }
     // 만드는 동안 이전 결과(다른 key)는 그대로 보여준다 — 새 결과가 오면 바꾼다
-    set(row.id, { key, status: 'loading', url: cur?.url || null, error: '', problems: [] })
+    set(row.id, { key, status: 'loading', url: cur?.url || null, error: '', problems: [], bgColor: cur?.bgColor ?? null })
     const i = queue.findIndex(q => q.row.id === row.id)
     if (i >= 0) queue.splice(i, 1)
     queue.push({ row: { ...row }, layers: layers ? JSON.parse(JSON.stringify(layers)) : [], key, finalVersion, shape: shape ? JSON.parse(JSON.stringify(shape)) : null, bg: bg ? JSON.parse(JSON.stringify(bg)) : null })
@@ -227,7 +236,10 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
       renderView(pool, job.row, job.layers, targetOf(job.row), job.finalVersion, job.shape, job.bg).then(
         out => {
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) { URL.revokeObjectURL(out.url); return } // 그 사이 바뀜 — 버린다
-          set(job.row.id, { key: job.key, status: 'ready', url: out.url, error: '', problems: out.problems, aiMissing: out.aiMissing, aiStale: out.aiStale, fromFinal: out.fromFinal, width: out.width, height: out.height, bytes: out.bytes })
+          set(job.row.id, {
+            key: job.key, status: 'ready', url: out.url, error: '', problems: out.problems, aiMissing: out.aiMissing, aiStale: out.aiStale, fromFinal: out.fromFinal, width: out.width, height: out.height, bytes: out.bytes,
+            bgApplied: out.bgApplied, bgColor: out.bgApplied ? paintColors.get(job.row.id) ?? null : null, // 그 사이 고른 색이 바뀌었으면 마지막 색
+          })
         },
         err => {
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) return
@@ -265,6 +277,7 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
     running = 0
     for (const e of entries.values()) if (e.url) URL.revokeObjectURL(e.url)
     entries.clear()
+    paintColors.clear()
   }
 
   return { want, retry, prioritize, entry, clear }

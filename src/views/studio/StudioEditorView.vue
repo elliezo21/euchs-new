@@ -171,8 +171,8 @@
           <StudioBgPanel
             v-else-if="activeTool === 'bg'"
             :row="bgRow" :thumb-url="bgRow ? views[bgRow.id]?.url || null : null" :bg="bgRow ? session.bgOf(bgRow.id) : null"
-            :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError"
-            @remove="onBgRemove" @mode="onBgMode" @reset="onBgReset" @retry-status="loadBgStatus"
+            :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError" :section-bg="bgSectionColor"
+            @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -462,7 +462,7 @@ import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent } from '@/lib/
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
-import { bgFromServer, bgMark } from '@/lib/studioBg'
+import { bgFromServer, bgMark, normalizeBgColor, BG_DEFAULT_COLOR } from '@/lib/studioBg'
 import { fetchBgStatus, requestBgRemove } from '@/lib/studioBgApi'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
@@ -1686,8 +1686,9 @@ async function erasedSourceOf(imageId) {
 async function exportImageOf(imageId) {
   const erased = await erasedSourceOf(imageId)
   const masked = await applyBackground(urlPool, erased.source, erased.width, erased.height, session.bgOf(imageId))
+  // 17-2 단색: 사진은 투명 그대로, 색(masked.color)은 엔진 drawPhoto가 사진 자리 아래에 칠한다 (필터는 사진에만)
   const src = masked.canvas
-    ? { source: masked.canvas, width: erased.width, height: erased.height, notes: [...erased.notes, ...masked.problems] }
+    ? { source: masked.canvas, width: erased.width, height: erased.height, notes: [...erased.notes, ...masked.problems], bgColor: masked.color }
     : { ...erased, notes: [...erased.notes, ...masked.problems] }
   const geo = geometryOf(src.width, src.height, session.shapeOf(imageId))
   if (geo.identity) return src
@@ -1696,7 +1697,7 @@ async function exportImageOf(imageId) {
   c.width = geo.width
   c.height = geo.height
   drawGeometry(c.getContext('2d'), src.source, geo, 0, 0, geo.width, geo.height)
-  return { source: c, width: geo.width, height: geo.height, notes }
+  return { source: c, width: geo.width, height: geo.height, notes, bgColor: src.bgColor ?? null }
 }
 const exportDeps = {
   createCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c },
@@ -1807,7 +1808,38 @@ function onBgMode(mode) {
   const row = bgRow.value
   const cur = row ? session.bgOf(row.id) : null
   if (!cur || cur.mode === mode) return
+  // 17-2 단색: 전에 고른 색이 있으면 그 색, 없으면 흰색 (AI 없음 — 자격 검사 없이 마스크만 있으면)
+  if (mode === 'color') { setBgNoted(row.id, { ...cur, mode, color: cur.color || BG_DEFAULT_COLOR }, LABELS.bgColor); return }
   setBgNoted(row.id, { ...cur, mode }, mode === 'transparent' ? LABELS.bgTransparent : LABELS.bgOriginal)
+}
+// 이 사진이 놓인 구간의 배경색 — 페이지에서 고른 사진 요소의 구간, 목록에서 골랐으면 그 사진이 처음 놓인 구간 (없으면 null)
+const bgSectionColor = computed(() => {
+  const row = bgRow.value
+  if (!row || !page.value) return null
+  const found = selectedPhotoItem.value?.imageId === row.id ? findItem(page.value, selectedPhotoItem.value.id) : null
+  const s = found?.section || page.value.sections.find(sec => sec.items.some(it => isValidImageItem(it) && it.imageId === row.id))
+  return normalizeBgColor(s?.bg) // '#rrggbb'가 아니면(옛 값) 버튼 잠금
+})
+/** 단색 색 바꾸기 — commit false(색 고르기 칸을 끄는 중) = 화면·저장만, true = 이력 한 칸 "배경 단색" */
+let bgColorDragging = false
+function onBgColor(color, { commit }) {
+  const row = bgRow.value
+  const cur = row ? session.bgOf(row.id) : null
+  const c = normalizeBgColor(color)
+  if (!cur || cur.mode !== 'color' || !c) return
+  if (!commit) {
+    if (session.setBg(row.id, { ...cur, color: c }, null)) bgColorDragging = true
+    return
+  }
+  if (bgColorDragging) {
+    bgColorDragging = false
+    session.setBg(row.id, { ...cur, color: c }, null)
+    const before = session.histories[row.id]?.index
+    session.recordBg(row.id, LABELS.bgColor)
+    if (session.histories[row.id]?.index !== before) noteAction({ imageId: row.id })
+    return
+  }
+  setBgNoted(row.id, { ...cur, color: c }, LABELS.bgColor)
 }
 function onBgReset() {
   const row = bgRow.value

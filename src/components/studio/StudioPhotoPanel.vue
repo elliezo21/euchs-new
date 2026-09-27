@@ -61,7 +61,8 @@
               ><RefreshCw class="w-3 h-3" :stroke-width="2.5" />다시 시도</button>
               <img
                 v-else-if="thumbState(img) === 'ready'" :src="views[img.id].url" alt=""
-                class="w-full h-full object-cover" @load="onThumbLoad(img.id, $event)" @error="onThumbError(img.id)"
+                class="w-full h-full object-cover" :style="views[img.id].bgColor ? { background: views[img.id].bgColor } : null"
+                @load="onThumbLoad(img.id, $event)" @error="onThumbError(img.id)"
               />
               <span v-else class="absolute inset-0 st-skeleton" data-thumb-loading />
             </template>

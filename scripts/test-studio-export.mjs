@@ -166,6 +166,30 @@ const page = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
   eq('사진 = cover로 잘라 자리에 (1000×500 → 780×400)', main[iImg].args.slice(2).map(v => Math.round(v * 10) / 10), [12.5, 0, 975, 500, -390, -200, 780, 400])
   eq('글꼴 준비를 부름', deps.fontCalls, [3])
 }
+// ── 5-2. 단색 배경 (17-2): 사진 자리를 색으로 먼저 채우고, 필터는 사진 장(따로 만든 캔버스)에만 ──
+{
+  const log = []
+  const deps = { ...fakeDeps(log), lookOf: () => ({ brightness: 60, contrast: 20 }) }
+  deps.created = []
+  const orig = deps.getImage
+  deps.getImage = async id => ({ ...(await orig(id)), bgColor: '#f3ebe0' })
+  const s = { id: 's1', height: 400, bg: '#abcdef', items: [img('a', 'img-1', { borderWidth: 10, borderColor: '#000000' })] }
+  await renderSection(page([s]), 's1', deps, { scale: 1 })
+  const main = log.filter(e => e.c === 'c0')
+  const iFill = main.findIndex(e => e.op === 'fillRect' && e.args[0] === '#f3ebe0')
+  const iPhoto = main.findIndex(e => e.op === 'drawImage' && e.args[0] !== 'SRC-img-1' && typeof e.args[0] === 'string' && e.args[0].startsWith('c'))
+  eq('단색: 사진 자리(테두리 안쪽)를 색으로 먼저', [iFill >= 0, main[iFill]?.args.slice(1)], [true, [10, 10, 760, 380]])
+  eq('단색: 그 다음 필터 적용한 사진 장을 그림', iPhoto > iFill, true)
+  eq('단색: 필터를 거는 사진 장에는 색을 안 칠함(필터가 색을 못 바꿈)', log.some(e => e.c !== 'c0' && (e.op === 'fillRect' || e.op === 'fill') && e.args[0] === '#f3ebe0'), false)
+  eq('단색: 사진 장 = 원본 사진만 그림', log.filter(e => e.c === 'c1' && e.op === 'drawImage').map(e => e.args[0]), ['SRC-img-1'])
+}
+{
+  const log = []
+  const deps = fakeDeps(log)
+  const s = { id: 's1', height: 400, bg: '#abcdef', items: [img('a', 'img-1')] }
+  await renderSection(page([s]), 's1', deps, { scale: 1 })
+  eq('단색 없음(예전 사진): 사진 자리 채우기 없음', log.filter(e => e.c === 'c0' && e.op === 'fillRect').length, 1)
+}
 {
   const log = []
   const deps = fakeDeps(log)

@@ -36,7 +36,7 @@
             @click="pick($event, [it.id])" @keydown.enter.prevent="pick($event, [it.id])"
           >
             <span class="st-layer-thumb">
-              <img v-if="imageUrl(it)" :src="imageUrl(it)" alt="" draggable="false" class="w-full h-full object-cover" />
+              <img v-if="imageUrl(it)" :src="imageUrl(it)" alt="" draggable="false" class="w-full h-full object-cover" :style="views[it.imageId]?.bgColor ? { background: views[it.imageId].bgColor } : null" />
               <ImageIcon v-else-if="isImage(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Type v-else-if="isValidTextItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Square v-else-if="isValidShapeItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />

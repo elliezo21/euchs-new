@@ -111,6 +111,8 @@ export const LABELS = {
   bgTransparent: '배경 투명',
   bgOriginal: '원래 배경',
   bgReset: '배경 원래대로',
+  bgColor: '배경 단색', // 17-2 — [단색] 고르기·색 바꾸기
+
   lookFilter: '필터',
   lookAdjust: '조정',
   lookReset: '필터·조정 초기화',

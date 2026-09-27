@@ -2,7 +2,9 @@
 // 마스크 합성(제품 색 불변) · PNG 읽기/쓰기 · 알파만 뽑기 · edit.bg 읽기/쓰기 · 공급자(fal) 요청 모양·모델 전환·실패 · 주문 상태 목록 · 복사 경로
 // fal은 부르지 않는다 (가짜 fetch). 시크릿을 쓰지 않는다.
 import fs from 'fs'
-import { applyMaskToRgba, readBg, withBg, bgActive, bgViewKey, bgMark, bgFromServer } from '../src/lib/studioBg.js'
+import {
+  applyMaskToRgba, readBg, withBg, bgActive, bgViewKey, bgMark, bgFromServer, bgPaintColor, normalizeBgColor, BG_COLOR_SWATCHES,
+} from '../src/lib/studioBg.js'
 import { decodePng, maskOf, encodeGrayPng, encodeRgbaPng, resizeGray } from '../api/_studioPng.js'
 import {
   bgProviderConfig, falHeaders, removeBackground, BgProviderError, BG_MODELS, DEFAULT_BG_MODEL, FAL_RUN_BASE,
@@ -90,6 +92,42 @@ async function throwsCode(name, fn, code) {
   eq('이상한 경로·크기 → null', [readBg({ bg: { mask: { path: '../x.png', w: 1, h: 1 } } }), readBg({ bg: { mask: { path: PATH, w: 0, h: 1 } } })], [null, null])
   console.error = orig
   eq('모르는 모드 → transparent', readBg({ bg: { mask: bg.mask, mode: 'weird' } }).mode, 'transparent')
+}
+
+// ── 3-2. 단색 배경 (17-2) — mode 'color' 읽기·쓰기·옛 데이터 호환 ──
+{
+  const PATH = 'u1/p1/bg/i1/mask_0123456789abcdef.png'
+  const mask = { path: PATH, key: '0123456789abcdef', model: 'birefnet-v2', w: 800, h: 600 }
+  const warn = console.warn; console.warn = () => {}
+  eq('color 읽기 (대문자 → 소문자)', readBg({ bg: { mask, mode: 'color', color: '#F1F2F4' } }), { mask, mode: 'color', color: '#f1f2f4' })
+  eq('잘못된 색 → 흰색', [readBg({ bg: { mask, mode: 'color', color: 'red' } }).color, readBg({ bg: { mask, mode: 'color' } }).color, readBg({ bg: { mask, mode: 'color', color: '#12345' } }).color], ['#ffffff', '#ffffff', '#ffffff'])
+  console.warn = warn
+  eq('옛 데이터(transparent·none, color 없음) 그대로', [readBg({ bg: { mask, mode: 'transparent' } }), readBg({ bg: { mask, mode: 'none' } })], [{ mask, mode: 'transparent' }, { mask, mode: 'none' }])
+  const e = withBg({ v: 2, layers: [] }, { mask, mode: 'color', color: '#F9E4E8' })
+  eq('withBg: color 저장(소문자)', e.bg, { mask, mode: 'color', color: '#f9e4e8' })
+  eq('withBg: 잘못된 color는 저장 안 함', 'color' in withBg({}, { mask, mode: 'transparent', color: 'x' }).bg, false)
+  eq('다른 모드로 바꿔도 색은 남음(돌아오면 그 색)', readBg(withBg({}, { mask, mode: 'transparent', color: '#e3eff9' })), { mask, mode: 'transparent', color: '#e3eff9' })
+  const bg = { mask, mode: 'color', color: '#111111' }
+  eq('단색: 마스크 적용·key 조각(색 없음 — 색을 바꿔도 사진 다시 안 만듦)', [bgActive(bg), bgViewKey(bg), bgViewKey({ ...bg, color: '#ffffff' })], [true, `|bg:${PATH}`, `|bg:${PATH}`])
+  eq('깔 색: color 모드만', [bgPaintColor(bg), bgPaintColor({ ...bg, mode: 'transparent' }), bgPaintColor({ ...bg, mode: 'none' }), bgPaintColor(null)], ['#111111', null, null, null])
+  eq('표시: 단색 = "배경 단색", 투명 = "배경 지움"', [bgMark(bg), bgMark({ ...bg, mode: 'transparent' })], ['배경 단색', '배경 지움'])
+  eq('견본 6개 · 모두 #rrggbb', [BG_COLOR_SWATCHES.length, BG_COLOR_SWATCHES.every(s => normalizeBgColor(s.value) === s.value)], [6, true])
+}
+
+// ── 3-3. 단색 합성 — 사진 = 마스크로 투명, 그 아래 색 (source-over). 제품 픽셀 불변 · 배경 자리 = 고른 색 · 가장자리는 섞임 ──
+{
+  // 화면(상자 배경 + img)·내보내기(fillRect + drawImage) 모두 "색 위에 투명한 사진을 source-over"와 같다
+  const over = (rgba, color) => { // 브라우저 합성식 (색은 불투명)
+    const [cr, cg, cb] = [1, 3, 5].map(i => parseInt(color.slice(i, i + 2), 16))
+    const a = rgba[3] / 255
+    return [Math.round(rgba[0] * a + cr * (1 - a)), Math.round(rgba[1] * a + cg * (1 - a)), Math.round(rgba[2] * a + cb * (1 - a)), 255]
+  }
+  const px = new Uint8ClampedArray([201, 162, 122, 255, 30, 60, 90, 255, 200, 100, 50, 255])
+  applyMaskToRgba(px, new Uint8ClampedArray([255, 0, 128]), 1)
+  const c = '#f3ebe0'
+  eq('제품(마스크 255) = 원본 색 그대로', over(px.slice(0, 4), c), [201, 162, 122, 255])
+  eq('배경(마스크 0) = 고른 색', over(px.slice(4, 8), c), [243, 235, 224, 255])
+  eq('가장자리(마스크 128) = 제품과 색이 반씩', over(px.slice(8, 12), c), [Math.round(200 * 128 / 255 + 243 * 127 / 255), Math.round(100 * 128 / 255 + 235 * 127 / 255), Math.round(50 * 128 / 255 + 224 * 127 / 255), 255])
 }
 
 // ── 4. 공급자 설정 · 모델 전환 ──

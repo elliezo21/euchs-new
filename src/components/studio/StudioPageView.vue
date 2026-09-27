@@ -326,6 +326,9 @@ function itemStyle(it, index) {
   if (st.borderWidth) out.border = `${st.borderWidth * z}px solid ${st.borderColor}`
   if (st.radius) { out.borderRadius = `${st.radius * z}px`; out.overflow = 'hidden' }
   if (st.shadow) out.boxShadow = `0 ${(st.shadow * 0.12 * z).toFixed(1)}px ${(st.shadow * 0.4 * z).toFixed(1)}px rgba(0, 0, 0, ${(st.shadow / 100 * 0.45).toFixed(3)})`
+  // 단색 배경 (17-2): 사진(투명한 자리) 아래 색 — 상자 배경이라 사진의 필터(img filter)가 안 먹는다. 테두리 안쪽만 (내보내기 drawPhoto와 같게)
+  const v = viewOf(it.imageId)
+  if (v?.url && v.bgColor) { out.background = v.bgColor; out.backgroundClip = 'padding-box' }
   return out
 }
 function flipStyle(it) {

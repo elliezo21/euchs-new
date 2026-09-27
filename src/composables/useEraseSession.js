@@ -555,14 +555,19 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
    */
   function setBg(id, bg, label) {
     if (!rowOf(id)) return false
-    const next = bg ? { mask: { ...bg.mask }, mode: bg.mode } : null
+    const next = bg ? { mask: { ...bg.mask }, mode: bg.mode, ...(bg.color ? { color: bg.color } : {}) } : null
     if (JSON.stringify(next) === JSON.stringify(bgOf(id))) return false
     bgMap[id] = next
     const edit = editOf(id)
     saver.change(id, edit)
     lastLook = null
-    recordHistory(id, edit, label)
+    if (label) recordHistory(id, edit, label) // label null = 색을 끄는 중 (화면·저장만) — 놓을 때 recordBg로 이력 한 칸 (여백 슬라이더와 같은 규칙)
     return true
+  }
+  /** 끄는 동안 바꾼 배경을 이력 한 칸으로 (값이 이력의 현재와 같으면 아무것도 안 함) */
+  function recordBg(id, label) {
+    if (!rowOf(id)) return
+    recordHistory(id, editOf(id), label)
   }
   // 편집기(지우기 화면 밖)에서 사진 이력 되돌리기 — 필터·조정을 페이지 되돌리기와 같은 버튼으로 (편집기의 동작 순서 기록이 부른다)
   function canUndoImage(id) { return !!histories[id] && histories[id].index > 0 }
@@ -656,7 +661,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     // 자르기·띠 (12-1)
     shapeMap, shapeOf, setShape,
     // 배경 지우기 (17-1)
-    bgMap, bgOf, setBg,
+    bgMap, bgOf, setBg, recordBg,
     // 덮기 (12-2)
     selectedCover, setCoverDraft, moveCoverSource, setCoverFeather, recordCoverFeather, applyCover,
   }
