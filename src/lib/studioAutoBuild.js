@@ -506,7 +506,8 @@ const isPhoto = s => Number.isInteger(s?.photo)
  * 원클릭 템플릿 — 샘플 템플릿(복제하지 않고 불러 씀)에서:
  *   ① 사진 자리를 사진 수만큼 늘림(마지막 사진 구간 뒤에 이어서 — 마무리 구간(구매 전 안내)은 맨 아래에 남게)
  *   ② 소개 구간(사진 없는 첫 글자 구간)의 가장 큰 글자 = 상품명, 가장 작은 글자 = 사실 줄 (초안이 있을 때만 바꿈)
- *   ③ 옵션이 있으면 마지막 사진 뒤에 옵션표 구간
+ *   ※ 표(옵션표·사이즈표)는 넣지 않는다 (2026-09-28 해성 결정 — 상단 안내·하단 공지처럼 사용자가 [요소] → [사이즈표]로 넣을지 정함).
+ *     optionCells·optionTableSection은 표를 만드는 함수로만 남겨 둔다
  * @returns 템플릿 (templateProblems를 통과하는 모양)
  */
 export function autoTemplate(base, photoCount, drafts) {
@@ -524,10 +525,8 @@ export function autoTemplate(base, photoCount, drafts) {
     if (drafts.title) big.text = drafts.title
     if (drafts.body && small !== big) small.text = drafts.body
   }
-  const cells = drafts ? optionCells(drafts.options) : null
-  const optionSection = cells ? optionTableSection(cells) : null
   const at = lastPhotoIdx >= 0 ? lastPhotoIdx + 1 : tpl.sections.length
-  tpl.sections = [...tpl.sections.slice(0, at), ...extra, ...(optionSection ? [optionSection] : []), ...tpl.sections.slice(at)]
+  tpl.sections = [...tpl.sections.slice(0, at), ...extra, ...tpl.sections.slice(at)]
   return tpl
 }
 
