@@ -77,6 +77,23 @@
     <!-- 6-2. 최근 작업 (0개면 숨김) -->
     <StudioRecentProjects title="최근 작업" :limit="8" show-filters />
 
+    <!-- 6-3. 새 소식 (랜딩 개편 때 /studio 대문에서 옮김) -->
+    <section>
+      <div class="flex items-center mb-4">
+        <h2 class="st-h-section">새 소식</h2>
+        <span class="ml-auto text-[13px] st-muted cursor-not-allowed" title="준비 중이에요">전체 보기</span>
+      </div>
+      <p v-if="noticeError" class="text-[14px] font-bold st-danger-text">{{ noticeError }}</p>
+      <ul v-else class="st-card st-divide overflow-hidden">
+        <li v-for="(n, i) in notices" :key="i" class="flex items-center gap-3 px-5 py-3.5 min-w-0">
+          <span class="w-[84px] shrink-0 text-[13px] st-muted tabular-nums">{{ n.date ? n.date.replaceAll('-', '.') : '예정' }}</span>
+          <span class="st-badge shrink-0" :class="NOTICE_TYPE_CLASS[n.type]">{{ NOTICE_TYPE_LABEL[n.type] }}</span>
+          <span class="min-w-0 flex-1 truncate text-[14px] font-semibold st-ink">{{ n.title }}</span>
+          <span v-if="isNewNotice(n.date)" class="st-badge st-badge-solid shrink-0">NEW</span>
+        </li>
+      </ul>
+    </section>
+
     <StudioImportFlow ref="importFlow" />
   </div>
 </template>
@@ -88,6 +105,7 @@ import { useRouter } from 'vue-router'
 import { Heart, Package, Camera, FolderUp, Link2, X, ArrowRight } from 'lucide-vue-next'
 import { listSavedProducts } from '@/lib/savedProducts'
 import { fetchOrderedProducts } from '@/lib/orderedProducts'
+import { getStudioNotices } from '@/lib/studioNotices'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
 import StudioRecentProjects from '@/components/studio/StudioRecentProjects.vue'
 import StudioImportFlow from '@/components/studio/StudioImportFlow.vue'
@@ -174,6 +192,26 @@ function openEditor(projectId) {
 
 // 사이드바 [+ 새로 만들기] → #start 스크롤은 라우터 scrollBehavior(hash)가 한다
 
+// ── 새 소식 (누구에게나 같은 공지 — 개인 데이터 아님) ──
+const notices = ref([])
+const noticeError = ref('')
+const NOTICE_TYPE_LABEL = { update: '업데이트', notice: '공지', soon: '예정' }
+const NOTICE_TYPE_CLASS = { update: 'st-badge-accent', notice: '', soon: 'st-badge-outline' }
+/** 날짜가 7일 이내면 NEW */
+function isNewNotice(date) {
+  if (!date) return false
+  const days = (Date.now() - new Date(`${date}T00:00:00+09:00`).getTime()) / 86400000
+  return days >= 0 && days <= 7
+}
+async function loadNotices() {
+  try {
+    notices.value = await getStudioNotices()
+  } catch (e) {
+    console.error('[StudioHome] 새 소식 불러오기 실패:', e)
+    noticeError.value = `새 소식을 불러오지 못했어요: ${e.message || e}`
+  }
+}
+
 // 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 찜·주문 사진을 비운다 (최근 작업은 StudioRecentProjects가 비운다)
 const onStudioAuthChanged = (e) => {
   if (!e.detail?.user) {
@@ -189,6 +227,7 @@ const onStudioAuthChanged = (e) => {
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
   loadCollages()
+  loadNotices()
 })
 onUnmounted(() => window.removeEventListener('euchs-auth-changed', onStudioAuthChanged))
 </script>

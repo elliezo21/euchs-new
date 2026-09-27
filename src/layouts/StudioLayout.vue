@@ -137,12 +137,12 @@ import StudioModal from '@/components/studio/StudioModal.vue'
 const route = useRoute()
 const router = useRouter()
 
-// 고르기·편집기는 전체 화면 (사이드바 숨김)
-const FULL_SCREEN = new Set(['studio-new', 'studio-editor'])
+// 고르기·편집기는 전체 화면 (사이드바 숨김). 랜딩(/studio)도 자기 상단 바를 쓰는 전체 화면
+const FULL_SCREEN = new Set(['studio-new', 'studio-editor', 'studio-landing'])
 const isFullScreen = computed(() => FULL_SCREEN.has(route.name))
 
 const menuItems = [
-  { name: 'studio-landing', label: '스튜디오 홈', icon: Home },
+  { name: 'studio-landing', label: '스튜디오 소개', icon: Home },
   { name: 'studio-projects', label: '내 작업', icon: FolderOpen, also: ['studio-editor', 'studio-new'] },
   { label: '템플릿', icon: LayoutTemplate, disabled: true },
   { name: 'studio-assets', label: '저장값', icon: Bookmark },
