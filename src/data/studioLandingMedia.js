@@ -5,7 +5,7 @@
  *   1) public/studio-landing/ 에 webp를 올린다 (예: public/studio-landing/hero-before.webp)
  *   2) 아래 값을 '/studio-landing/hero-before.webp' 처럼 바꾼다
  *   3) before·after(원본·지운 뒤)와 original·cutout(원래 배경·배경 뺀 제품)은 같은 크기·같은 구도여야 정확히 겹친다
- *   4) boxes = 원본 사진의 중국어 문구 자리 (% — x·y는 왼쪽 위, w·h는 폭·높이). 새 사진에 맞게 고친다
+ *   4) boxes = 원본 사진에서 지울 글자 자리 (% — x·y는 왼쪽 위, w·h는 폭·높이). 새 사진에 맞게 고친다
  *
  * ★ 1688 판매자 사진은 넣지 않는다 (직접 찍거나 권리가 확인된 사진만).
  * ★ 지금 값은 임시 그림(studioLandingPlaceholders.js — 직접 그린 SVG)이다.
@@ -22,14 +22,14 @@ export const LANDING_MEDIA = {
   hero: {
     before: productShot('band', PINK, true),
     after: productShot('band', PINK, false),
-    alt: '중국어 문구가 있는 머리띠 사진과, 문구를 지운 깨끗한 사진',
+    alt: '글자가 적힌 머리띠 사진과, 글자를 지운 깨끗한 사진',
   },
   // 2. 글자 지우기 — 원본·지운 뒤 + 문구 자리 (정사각형 1200×1200)
   erase: {
     before: productShot('mug', CREAM, true),
     after: productShot('mug', CREAM, false),
     boxes: TEXT_BOXES,
-    alt: '중국어 문구가 있는 머그 사진과, 문구를 지운 사진',
+    alt: '글자가 적힌 머그 사진과, 글자를 지운 사진',
   },
   // 3. 배경 — 원래 사진 · 배경 뺀 제품(투명 PNG/webp) · AI 배경(제품 없이) · 단색 (정사각형 1200×1200, 셋 다 같은 구도)
   background: {
@@ -39,7 +39,7 @@ export const LANDING_MEDIA = {
     solidColor: '#f1ece4',
     alt: '텀블러 사진의 배경이 투명, 단색, 대리석 테이블 배경으로 바뀌는 모습',
   },
-  // 4. 원클릭 — 넣는 사진 5장 (before = 중국어 있는 원본, after = 지운 뒤, 정사각형 800×800)
+  // 4. 원클릭 — 넣는 사진 5장 (before = 글자가 적힌 원본, after = 지운 뒤, 정사각형 800×800)
   oneClick: {
     photos: [
       { before: productShot('band', PINK, true), after: productShot('band', PINK, false) },

@@ -27,10 +27,12 @@ export function startLandingMotion(root) {
     const turnOn = (tl, el, at) => tl.fromTo(el, { '--on': 0 }, { '--on': 1, duration: 0.25 }, at)
 
     // 장면 타임라인 — 넓은 화면은 고정 + 스크럽, 좁은 화면은 보이면 재생
-    const scene = (el, length) => gsap.timeline({
+    // 고정 거리 = 화면 높이 × vh배 (0.6~0.8 — 예전 1,300~1,600px 고정은 휠을 굴려도 멈춘 것처럼 느껴졌다).
+    // scrub: true = 스크롤과 화면이 지연 없이 같이 움직임. 장면 안 순서·내용은 같고 진행만 빨라짐.
+    const scene = (el, vh) => gsap.timeline({
       defaults: { ease: desktop ? 'none' : 'power2.out', duration: 1 },
       scrollTrigger: desktop
-        ? { trigger: el, start: 'top top', end: `+=${length}`, scrub: 0.6, pin: true, anticipatePin: 1, invalidateOnRefresh: true }
+        ? { trigger: el, start: 'top top', end: () => `+=${Math.round(window.innerHeight * vh)}`, scrub: true, pin: true, anticipatePin: 1, invalidateOnRefresh: true }
         : { trigger: el, start: 'top 72%', toggleActions: 'play none none none', invalidateOnRefresh: true },
     }).timeScale(desktop ? 1 : 1.6)
 
@@ -44,7 +46,7 @@ export function startLandingMotion(root) {
     if (erase) {
       const q = s => erase.querySelector(s)
       const boxes = $$('[data-erase-box]')
-      scene(erase, 1300)
+      scene(erase, 0.65)
         .fromTo(boxes, { opacity: 0, scale: 0.85 }, { opacity: 1, scale: 1, stagger: 0.25, duration: 0.6 }, 0.1)
         .fromTo(q('[data-erase-line]'), { xPercent: 0, opacity: 0 }, { xPercent: 0, opacity: 1, duration: 0.2 }, 1.1)
         .fromTo(q('[data-erase-top]'), { clipPath: 'inset(0% 0% 0% 0%)' }, { clipPath: 'inset(0% 0% 0% 100%)', duration: 2 }, 1.3)
@@ -59,7 +61,7 @@ export function startLandingMotion(root) {
     if (bg) {
       const L = k => bg.querySelector(`[data-bg-layer="${k}"]`)
       const s = $$('[data-bg-step]')
-      const tl = scene(bg, 1500)
+      const tl = scene(bg, 0.7)
       tl.fromTo(L('orig'), { opacity: 1 }, { opacity: 0, duration: 0.8 }, 0.5)
         .fromTo(s[0], { '--on': 1 }, { '--on': 0, duration: 0.25 }, 0.5)
       turnOn(tl, s[1], 0.5)
@@ -79,7 +81,7 @@ export function startLandingMotion(root) {
       const steps = $$('[data-oc-step]')
       const k = desktop ? 1 : 0.4
       const sc = (i, j) => SCATTER[i % SCATTER.length][j] * (j === 2 ? 1 : k)
-      const tl = scene(oc, 1600)
+      const tl = scene(oc, 0.8)
       tl.fromTo(cards,
         { x: i => sc(i, 0), y: i => sc(i, 1), rotation: i => sc(i, 2), scale: 0.82, opacity: 0 },
         { x: i => sc(i, 0), y: i => sc(i, 1), rotation: i => sc(i, 2), scale: 0.82, opacity: 1, duration: 0.4, stagger: 0.08 }, 0)
@@ -95,7 +97,7 @@ export function startLandingMotion(root) {
     if (ed) {
       const tools = $$('[data-ed-tool]')
       const caps = $$('[data-ed-cap]')
-      const tl = scene(ed, 1500)
+      const tl = scene(ed, 0.7)
       tl.fromTo(ed.querySelector('[data-ed-win]'),
         { y: desktop ? 90 : 40, opacity: 0, rotationX: desktop ? 10 : 0 },
         { y: 0, opacity: 1, rotationX: 0, duration: 1 }, 0)
@@ -119,7 +121,7 @@ export function startLandingMotion(root) {
         const b = markets[i].getBoundingClientRect()
         return { x: b.left + b.width / 2 - (a.left + a.width / 2), y: b.top + b.height / 2 - (a.top + a.height / 2) }
       }
-      const tl = scene(ex, 1300)
+      const tl = scene(ex, 0.6)
       tl.fromTo(ex.querySelector('[data-ex-page]'), { y: 30, opacity: 0 }, { y: 0, opacity: 1, duration: 0.6 }, 0)
       sheets.forEach((s, i) => {
         if (!markets[i]) return

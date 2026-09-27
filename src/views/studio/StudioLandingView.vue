@@ -27,7 +27,7 @@
             <span class="block" data-hero-in>한국 <em>상세페이지</em>로</span>
           </h1>
           <p class="st-land-lead mt-6" data-hero-in>
-            중국어 문구는 AI가 지우고, 배경은 바꾸고, 페이지 배치와 글자 초안까지 만들어요.
+            수정하고 싶은 글자는 AI가 지우고, 배경은 바꾸고, 페이지 배치와 글자 초안까지 만들어요.
             고치고 싶은 곳만 직접 다듬으면 돼요.
           </p>
           <div class="mt-8 flex flex-wrap gap-3" data-hero-in>
@@ -65,7 +65,7 @@
       <div class="st-land-wrap grid grid-cols-1 md:grid-cols-2 gap-10 md:gap-16 items-center">
         <div class="st-land-copy">
           <div class="st-land-num">01 · AI 글자 지우기</div>
-          <h2 class="st-land-h2">사진 속 중국어 문구,<br />AI가 찾아서 지워요</h2>
+          <h2 class="st-land-h2">사진 속 수정하고 싶은 곳,<br />AI가 찾아서 지워요</h2>
           <p class="st-land-p">원클릭은 글자를 스스로 찾아 지우고, 편집기에서는 지울 곳만 칠하면 돼요. 지운 자리는 주변과 어울리게 채워요.</p>
         </div>
         <div class="st-land-frame st-land-erase">
@@ -110,7 +110,7 @@
         <div class="st-land-copy">
           <div class="st-land-num">03 · 원클릭 AI 자동 제작</div>
           <h2 class="st-land-h2">사진만 넣으면,<br />페이지 초안까지 한 번에</h2>
-          <p class="st-land-p">사진을 고르고, 중국어를 지우고, 긴 상세페이지로 배치한 뒤 1688 상품 정보로 글자 초안을 적어요.</p>
+          <p class="st-land-p">사진을 고르고, 수정하고 싶은 글자를 지우고, 긴 상세페이지로 배치한 뒤 1688 상품 정보로 글자 초안을 적어요.</p>
           <ol class="mt-7 space-y-2.5">
             <li v-for="(s, i) in OC_STEPS" :key="s" class="st-land-ocstep" data-oc-step>
               <span class="n">{{ i + 1 }}</span><span>{{ s }}</span><Check class="w-4 h-4 ml-auto chk" :stroke-width="2.6" />
@@ -200,22 +200,21 @@
     <section class="st-land-plain">
       <div class="st-land-wrap">
         <div class="text-center" data-reveal>
-          <div class="st-land-num justify-center">이용 안내</div>
-          <h2 class="st-land-h2">이유씨컴퍼니 고객이라면<br class="sm:hidden" /> 지금 바로 무료로</h2>
+          <h2 class="st-land-h2">이용 안내</h2>
         </div>
         <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[920px] mx-auto">
           <div class="st-land-card is-main" data-reveal>
             <span class="st-land-badge">무료</span>
-            <h3 class="mt-4 text-[22px] font-extrabold st-ink">이유씨컴퍼니 주문 고객</h3>
+            <h3 class="mt-4 text-[22px] font-extrabold st-ink">이유씨컴퍼니 고객</h3>
             <p class="mt-2 st-land-p !mt-2">이유씨컴퍼니에서 주문한 고객은 스튜디오를 무료로 쓸 수 있어요.</p>
             <ul class="mt-5 space-y-2.5 text-[14px] st-ink">
               <li v-for="f in FREE_FEATURES" :key="f" class="flex items-start gap-2"><Check class="w-4 h-4 mt-0.5 st-land-ai-text shrink-0" :stroke-width="2.6" />{{ f }}</li>
             </ul>
           </div>
           <div class="st-land-card" data-reveal>
-            <span class="st-land-badge is-soon">곧 열려요</span>
-            <h3 class="mt-4 text-[22px] font-extrabold st-ink">일반 셀러</h3>
-            <p class="mt-2 st-land-p !mt-2">주문 이력이 없는 셀러도 쓸 수 있도록 준비하고 있어요. 열리면 이 페이지에서 먼저 알려 드릴게요.</p>
+            <span class="st-land-badge is-soon">준비 중</span>
+            <h3 class="mt-4 text-[22px] font-extrabold st-ink">일반 고객</h3>
+            <p class="mt-2 st-land-p !mt-2">준비 중이에요</p>
           </div>
         </div>
       </div>
@@ -225,7 +224,7 @@
     <section class="st-land-final">
       <div class="st-land-glow is-final" aria-hidden="true"><span class="g1" /><span class="g2" /></div>
       <div class="st-land-wrap relative text-center" data-reveal>
-        <h2 class="st-land-h2 !text-[clamp(30px,5vw,56px)]">사진 한 장으로<br />지금 시작해 보세요</h2>
+        <h2 class="st-land-h2 !text-[clamp(30px,5vw,56px)]">사진 한 장으로<br />시작해 보세요</h2>
         <p class="st-land-p mx-auto max-w-[520px]">찜한 상품, 주문한 상품, 내가 찍은 사진 어디서든 시작할 수 있어요.</p>
         <div class="mt-9 flex flex-wrap justify-center gap-3">
           <button type="button" class="st-btn st-land-cta" data-land-start @click="start">

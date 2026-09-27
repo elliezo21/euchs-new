@@ -37,7 +37,17 @@ const landing = read('src/views/studio/StudioLandingView.vue')
 eq('랜딩은 모션 파일을 동적 import (정적 import 아님)', [/await import\(['"]@\/lib\/studioLandingMotion['"]\)/.test(landing), /^import .*studioLandingMotion/m.test(landing)], [true, false])
 eq('움직임 줄이기면 모션을 불러오지 않음', /prefers-reduced-motion: reduce\)'\)\.matches[\s\S]{0,80}isStatic\.value = true; return/.test(landing), true)
 eq('판매처 이름은 글자만 (로고 이미지 없음)', /MARKETS = \['쿠팡', '카페24', '고도몰', '메이크샵'\]/.test(landing) && !/logo[^"]*\.(png|svg|webp)/i.test(landing), true)
-eq('금지 과장 표현 없음', /업계 최고|100%|최저가|1위/.test(landing.replace(/<style[\s\S]*<\/style>/, '')), false)
+eq("페이지에 '중국'이라는 글자가 없음 (랜딩·사진 설정·임시 그림·모션)",
+  ['src/views/studio/StudioLandingView.vue', 'src/data/studioLandingMedia.js', 'src/data/studioLandingPlaceholders.js', 'src/lib/studioLandingMotion.js'].filter(p => read(p).includes('중국')), [])
+eq('여는 시점을 약속하는 문구 없음 (지금 바로·곧 열려요·먼저 알려)', /지금 바로|곧 열려|먼저 알려|지금 시작/.test(landing), false)
+eq('이용 안내 카드: 무료 · 이유씨컴퍼니 고객 / 준비 중 · 일반 고객', [/>무료</.test(landing), /이유씨컴퍼니 고객</.test(landing), />준비 중</.test(landing), /일반 고객</.test(landing), /준비 중이에요/.test(landing)], [true, true, true, true, true])
+{
+  const motion = read('src/lib/studioLandingMotion.js')
+  const factors = [...motion.matchAll(/scene\((?:erase|bg|oc|ed|ex), ([\d.]+)\)/g)].map(m => Number(m[1]))
+  eq('고정 거리 = 화면 높이 × 0.6~0.8 (장면 5개)', [factors.length, factors.every(f => f >= 0.6 && f <= 0.8)], [5, true])
+  eq('scrub: true (지연 없음) · snap·휠 가로채기 없음', [/scrub: true/.test(motion), /scrub: \d/.test(motion), /snap|addEventListener\('wheel'|lenis/i.test(motion + landing)], [true, false, false])
+}
+eq('금지 과장 표현 없음',/업계 최고|100%|최저가|1위/.test(landing.replace(/<style[\s\S]*<\/style>/, '')), false)
 
 // ── 3. 주소 구조 ──
 const router = read('src/router/index.js')

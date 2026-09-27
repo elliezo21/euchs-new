@@ -3,12 +3,12 @@
  * 실제 사진이 준비되면 studioLandingMedia.js에서 주소만 바꾼다. 이 파일은 그때 지워도 된다.
  *
  * 모든 그림은 800×800 같은 틀 — 제품 자리가 같아서 원본·지운 뒤·배경 뺀 제품이 정확히 겹친다.
- * 중국어 문구 자리(TEXT_BOXES)는 사진 대비 % — 랜딩의 "글자 찾기" 네모가 이 자리에 뜬다.
+ * 지울 글자 자리(TEXT_BOXES)는 사진 대비 % — 랜딩의 "글자 찾기" 네모가 이 자리에 뜬다.
  */
 
 const uri = svg => `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`
 
-/** 중국어 문구 자리 (%, 800×800 기준) — 제목·원형 딱지·아래 띠 */
+/** 지울 글자 자리 (%, 800×800 기준) — 제목·원형 딱지·아래 띠 */
 export const TEXT_BOXES = [
   { x: 16, y: 8.5, w: 68, h: 11.5 },
   { x: 73, y: 22.5, w: 19, h: 19 },
@@ -65,12 +65,12 @@ function studioBg([a, b]) {
   return `<defs><linearGradient id="bg" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${a}"/><stop offset="1" stop-color="${b}"/></linearGradient></defs><rect width="800" height="800" fill="url(#bg)"/>`
 }
 
-/** 제품 사진 한 장 — withText면 중국어 문구가 올라간 원본, 아니면 지운 뒤 */
+/** 제품 사진 한 장 — withText면 글자가 올라간 원본, 아니면 지운 뒤 */
 export function productShot(product, colors, withText) {
   return uri(frame(`${studioBg(colors)}${SHADOW}${PRODUCTS[product]}${withText ? CN_TEXT : ''}`))
 }
 
-/** 배경 장면 — 어수선한 원래 배경 + 텀블러 (중국어 없음) */
+/** 배경 장면 — 어수선한 원래 배경 + 텀블러 (글자 없음) */
 export function clutteredShot() {
   return uri(frame(`
     <rect width="800" height="800" fill="#b9b2a7"/>
