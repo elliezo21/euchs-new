@@ -186,7 +186,8 @@
 | 17-2단계 — 단색 배경 | 완료 (크롬 확인 전) | "studio 17-2: 단색 배경" |
 | 17-3단계 — 배경 경계 다듬기(살리기/지우기 붓) | 완료 (크롬 확인 전) | "feat(studio): 17-3 배경 경계 다듬기(살리기/지우기 붓)" |
 | 17-4단계 — AI 배경(fal Bria Background Replace·1인 하루 3회) | 완료 (크롬 확인 전 — kind 체크 SQL 실행 뒤) | "feat(studio): 17-4 AI 배경(Bria Background Replace·1인 하루 3회)" |
-| 이후 (순서: 원클릭 AI → 검수·push, 18 보류 — 2026-09-27 해성) | 시작 전 | |
+| 원클릭 1단계 — 누르면 끝까지 돌아 편집기에서 검수 (OCR·LaMa 브라우저, 템플릿 배치, 글자 초안) | 완료 (크롬 확인 전) | "feat(studio): 원클릭 AI 자동 제작 1단계" |
+| 이후 (순서: 원클릭 2단계 → 검수·push, 18 보류 — 2026-09-27 해성) | 시작 전 | |
 
 ### 0단계 — 1-6b-3b 확인 → 커밋·push
 - 3b 파일은 고치지 않는다. 테스트 6종 + `npm run build` 통과 확인.
@@ -592,6 +593,18 @@
 ### 그 뒤 — 원클릭 AI 자동 제작
 원클릭 AI 자동 제작(`studioAutoBuild.js` — 수동 편집과 같은 데이터 형식으로 써서 편집기가 곧 검수 화면)
 - 원클릭 AI 자동 제작 메모: AI 결과 조각 한 개가 너무 크면(20MB 초과 — 넓은 범위·잡음 많은 사진) 자동으로 나눠서 지운다
+- **1단계 만든 것 (2026-09-27, 보고서 `docs/reports/2026-09-27-*-oneclick-1.md`)**
+  - 시작: 시작 화면 [원클릭 AI 자동 제작] 카드(쓸 사진 0장이면 잠금) · 상단 주황 버튼 — 페이지가 없거나 구간 0개면 이 작업에서 바로, 있으면 "지금 작업은 그대로 두고, 복사본에서 새로 만들어요" 확인 → 16단계 `project_copy` → 복사본 편집기 `?oneclick=1`에서 돈다(원본 불변, `oneClickTarget`)
+  - 진행: `studioAutoBuild.runAutoPipeline`(순수 — 부품 주입, node 테스트) + 브라우저 부품 `useAutoBuild.js` + 화면 `StudioAutoBuildScreen.vue`(사진 고르기 → 글자 찾기·지우기 n/N장 → 페이지 배치 → 글자 초안, 남은 시간 = 평균 × 남은 장수, [멈추기] = 끝낸 사진으로 페이지). 한 장씩, 실패는 원본 + 사유(`edit.auto.status 'failed'`) 뒤 계속
+  - 선별: 준비 끝 + 안 쓸 사진 아님 → 대표(갤러리 첫 장) → 내 사진 → 상세 → 나머지 갤러리, 짧은 변 300 미만 빼기, dHash 5비트 이하 = 거의 같은 사진 빼기, 처리 상한 30장(나머지 목록에만), 이미 지우기·덮기가 있는 사진은 그대로 씀
+  - 글자 찾기: PP-OCRv5 mobile(랩 `paddle.js` 이식 `ocrPaddle.js`, 워커 `ocrWorker.js`·`ocrEngine.js`, 모델 `public/studio-ocr/` 21MB — sha256 대조, Cache Storage `euchs-studio-ocr-models`, 원클릭을 누를 때만 받음), 긴 사진은 짧은 변×2 조각(겹침 25%, 자기 몫만)
+  - 자동 지우기("글자만"): 한자 줄 네모 → `type:'fill', method:'ai', pad 4, auto: true` 레이어(편집기와 같은 fillPlan·aiPatchKey·patches), 가까운 줄 합치기(넓이 1.3배 이하)·조각 1024px 넘으면 나누기·저장 patch_too_large면 반으로(두 번까지), 사진당 40조각 넘으면 글자 많음
+  - 글자 많음 = 한자 줄 면적 22% 이상 또는 한자 100자 이상 → 지우지 않고 표시(검수에서 [빼기] 먼저)
+  - 표시 `studio_images.edit.auto = { v:1, status, reason?, lines, han, ratio, at }` — 사진 이력 밖(되돌려도 남음), DB 스키마 변경 없음
+  - 페이지: 'basic' 템플릿을 불러(`autoTemplate` — 복제 없음) 사진 수만큼 사진 구간을 늘리고 옵션표 구간을 마지막 사진 뒤에, `buildTemplatePage` → 페이지 이력 "원클릭 자동 제작"
+  - 글자 초안: 서버 `product_facts`(`_studioFacts.js` — 스냅샷 원본 + 번역 캐시만, OneBound·파파고·fal 호출 없음) → 상품명 요약(괄호·연도·과장 표현 뺌, 26자) · 소재 · 옵션 줄 · 옵션표. 한국어 없는 사실은 안 씀
+  - 검수: 검수 안내(`StudioAutoReview.vue` — "AI 초안은 확인 후 사용해 주세요", 검수 필요·글자 많음 수) · 목록 줄·사진 정보 칸 표시 + [직접 고치기](지우기 화면) · [원본으로](auto 레이어만 뺌, 사진 이력) · [빼기](페이지 이력) — 모두 Ctrl+Z. 끝나면 지운 사진 완성 JPG 적용
+  - 테스트: `test-studio-autobuild.mjs`(65) · `test-studio-facts.mjs`(18)
 
 ## 5. 1단계 SQL (해성이 직접 실행)
 

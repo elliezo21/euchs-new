@@ -1020,6 +1020,8 @@ function lab1688Plugin(env) {
             // 17-4 AI 배경 (api/_studioBgGen.js)
             if (!process.env.STUDIO_BG_GEN_MODEL)          process.env.STUDIO_BG_GEN_MODEL          = env.STUDIO_BG_GEN_MODEL          || ''
             if (!process.env.STUDIO_BG_GEN_DAILY_LIMIT)    process.env.STUDIO_BG_GEN_DAILY_LIMIT    = env.STUDIO_BG_GEN_DAILY_LIMIT    || ''
+            // 원클릭 1단계 product_facts — 번역 캐시 조회만 (api/_translationCache.js 킬스위치)
+            if (!process.env.TRANSLATION_CACHE_ENABLED)    process.env.TRANSLATION_CACHE_ENABLED    = env.TRANSLATION_CACHE_ENABLED    || ''
             const wrappedRes = Object.assign(Object.create(res), {
               status(code) {
                 res.statusCode = code

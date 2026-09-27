@@ -1,20 +1,25 @@
 <template>
   <div class="absolute inset-0 flex items-center justify-center p-6 st-start" style="z-index: 6" data-start-screen>
-    <!-- 1) 두 카드: [원클릭 AI 자동 제작](준비 중) / [직접 만들기] -->
+    <!-- 1) 두 카드: [원클릭 AI 자동 제작](원클릭 1단계 — 누르면 편집기가 원클릭을 돌린다, emit 'oneclick') / [직접 만들기] -->
     <div v-if="stage === 'mode'" class="w-full max-w-[720px]" data-start-stage="mode">
       <h2 class="text-[22px] font-extrabold st-ink text-center">어떻게 만들까요?</h2>
       <p class="mt-1.5 text-center st-desc break-keep">
         {{ usableCount > 0 ? `사진 ${usableCount}장이 준비됐어요.` : '사진을 올리면 바로 시작할 수 있어요.' }}
       </p>
       <div class="mt-7 grid grid-cols-2 gap-4">
-        <div class="st-start-card is-ai is-off" aria-disabled="true" data-start-card="ai">
+        <button
+          type="button" class="st-start-card is-ai" :class="canBlank ? '' : 'is-off'" :disabled="!canBlank" data-start-card="ai"
+          @click="canBlank && $emit('oneclick')"
+        >
           <div class="flex items-center gap-2">
             <span class="st-start-icon is-ai"><Sparkles class="w-5 h-5" :stroke-width="2" /></span>
-            <span class="st-badge ml-auto" data-start-soon>준비 중</span>
+            <span class="st-badge ml-auto">완전 자동</span>
           </div>
           <div class="mt-4 text-[17px] font-extrabold st-ink">원클릭 AI 자동 제작</div>
-          <p class="mt-1.5 st-desc break-keep">사진만 있으면 글자 지우기부터 페이지 구성까지 AI가 끝까지 만들어요.</p>
-        </div>
+          <p class="mt-1.5 st-desc break-keep">
+            {{ canBlank ? '사진만 있으면 사진 다듬기부터 페이지 구성, 글자 초안까지 AI가 끝까지 만들어요. 만든 뒤 여기서 바로 고칠 수 있어요.' : '먼저 왼쪽 [사진]에서 사진을 올려 주세요.' }}
+          </p>
+        </button>
         <button type="button" class="st-start-card" data-start-card="manual" @click="stage = 'source'">
           <div class="flex items-center gap-2">
             <span class="st-start-icon"><Hand class="w-5 h-5" :stroke-width="2" /></span>
@@ -82,7 +87,7 @@ const props = defineProps({
   images: { type: Array, default: () => [] },  // 템플릿 미리보기에 넣어 볼 쓸 사진 (자른 크기)
   views: { type: Object, default: () => ({}) }, // 화면용 작은 사진
 })
-defineEmits(['blank', 'template'])
+defineEmits(['blank', 'template', 'oneclick'])
 
 const stage = ref('mode') // 'mode' 두 카드 | 'source' 빈 페이지·템플릿 | 'template' 템플릿 고르기
 const canBlank = computed(() => canStartBlank(props.usableCount))

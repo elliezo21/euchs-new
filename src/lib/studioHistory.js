@@ -122,6 +122,10 @@ export const LABELS = {
   templateApply: '템플릿 적용',
   // 작업 이력 복원 (14단계) — 상단 [이력]에서 고른 단계를 새 단계로 (페이지 이력만, 사진 edit는 그대로)
   historyRestore: '이력 복원',
+  // 원클릭 AI 자동 제작 (원클릭 1단계) — 자동 지우기·[원본으로] = 사진 이력 / 만든 페이지 = 페이지 이력 한 칸
+  autoErase: '자동 지우기',
+  autoRevert: '원본으로',
+  autoBuild: '원클릭 자동 제작',
 }
 
 const clone = v => JSON.parse(JSON.stringify(v))

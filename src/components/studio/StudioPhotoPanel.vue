@@ -91,16 +91,32 @@
               <span class="block st-muted">지운 내용은 저장돼 있어요</span>
             </div>
             <div v-else-if="bakeOf(img.id)?.status === 'blocked'" class="text-[11px] st-muted break-keep" data-bake-state="blocked">{{ bakeOf(img.id).message }}</div>
+            <!-- 원클릭 검수 표시 (원클릭 1단계): 검수 필요(자동 처리 실패 — 사유는 마우스를 올리면) · 글자 많음 · 자동으로 다듬음 -->
+            <div v-if="img.ingest_status === 'done' && autoMark(img.id)" class="mt-0.5 flex flex-wrap gap-1" :data-auto-mark="img.id">
+              <span v-if="autoMark(img.id).review" class="st-badge st-badge-danger" :title="autoMark(img.id).reason" data-auto-review-badge>검수 필요</span>
+              <span v-if="autoMark(img.id).textHeavy" class="st-badge st-badge-danger" title="글자가 많아 지워도 비어 보이기 쉬워요. 빼기나 다른 사진으로 바꾸기를 권해요" data-auto-heavy-badge>글자 많음</span>
+              <span v-if="autoMark(img.id).canRevert" class="st-badge" data-auto-erased-badge>자동으로 다듬음</span>
+            </div>
             <!-- 페이지에 있음/없음 (6-3) -->
             <div v-if="canInsert(img)" class="mt-0.5 text-[11px]" :class="isPlaced(img.id) ? 'st-ink-2' : 'st-muted'" :data-placed="isPlaced(img.id) ? '1' : '0'">
               {{ isPlaced(img.id) ? '페이지에 있음' : '페이지에 없음' }}
             </div>
-            <!-- 줄 버튼: [지우기](7단계 — 더블클릭과 같음, 페이지에 없는·안 쓸 사진도) + [페이지에 넣기](6-3 — 지금 보이는 구간이 비었으면 거기, 아니면 그 아래 새 구간. 이미 있으면 한 번 더) -->
+            <!-- 줄 버튼: [지우기](7단계 — 더블클릭과 같음, 페이지에 없는·안 쓸 사진도) + [페이지에 넣기](6-3 — 지금 보이는 구간이 비었으면 거기, 아니면 그 아래 새 구간. 이미 있으면 한 번 더)
+                 원클릭 표시가 있는 사진: [직접 고치기](= [지우기]와 같은 화면) · [원본으로](자동으로 지운 것만 빼기) · [빼기](페이지에서 빼기) — 모두 Ctrl+Z로 되돌림 -->
             <div v-if="img.ingest_status === 'done'" class="mt-1 flex flex-wrap items-center gap-1.5 text-[11px]">
               <span
-                role="button" tabindex="0" class="st-row-link" :data-erase-image="img.id" title="이 사진의 지울 곳을 칠해서 지워요"
+                role="button" tabindex="0" class="st-row-link" :data-erase-image="img.id"
+                :title="autoMark(img.id) ? '이 사진을 지우기 화면에서 직접 고쳐요' : '이 사진의 지울 곳을 칠해서 지워요'"
                 @click.stop="$emit('open-erase', img.id)" @keydown.enter.stop.prevent="$emit('open-erase', img.id)" @dblclick.stop
-              ><Eraser class="w-3 h-3" :stroke-width="2.5" />지우기</span>
+              ><Eraser class="w-3 h-3" :stroke-width="2.5" />{{ autoMark(img.id) ? '직접 고치기' : '지우기' }}</span>
+              <span
+                v-if="autoMark(img.id)?.canRevert" role="button" tabindex="0" class="st-row-link" :data-auto-revert-image="img.id" title="자동으로 지운 곳을 원래대로 돌려요"
+                @click.stop="$emit('auto-revert', img.id)" @keydown.enter.stop.prevent="$emit('auto-revert', img.id)" @dblclick.stop
+              ><Undo2 class="w-3 h-3" :stroke-width="2.5" />원본으로</span>
+              <span
+                v-if="autoMark(img.id) && isPlaced(img.id)" role="button" tabindex="0" class="st-row-link" :data-auto-remove-image="img.id" title="이 사진을 페이지에서 빼요 (목록에는 남아요)"
+                @click.stop="$emit('auto-remove', img.id)" @keydown.enter.stop.prevent="$emit('auto-remove', img.id)" @dblclick.stop
+              ><X class="w-3 h-3" :stroke-width="2.5" />빼기</span>
               <span
                 v-if="canInsert(img)" role="button" tabindex="0" class="st-row-link" :data-insert-image="img.id"
                 :title="isPlaced(img.id) ? '이 사진을 페이지에 한 번 더 넣어요' : '지금 보고 있는 자리에 이 사진을 넣어요 (끌어다 놓아도 돼요)'"
@@ -120,7 +136,7 @@
 // 6-3: 줄마다 "페이지에 있음/없음" + [페이지에 넣기]·[한 번 더 넣기], 줄을 페이지로 끌어다 놓아도 넣어진다
 // 7단계: 출처 탭 [1688 사진]/[내 사진], [내 사진 올리기](모달·StudioUploadPanel은 편집기 것 재사용), 줄마다 [지우기]
 import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue'
-import { Image as ImageIcon, ImagePlus, RefreshCw, Archive, ArchiveRestore, SquarePlus, Eraser } from 'lucide-vue-next'
+import { Image as ImageIcon, ImagePlus, RefreshCw, Archive, ArchiveRestore, SquarePlus, Eraser, Undo2, X } from 'lucide-vue-next'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { SOURCE_1688, SOURCE_MINE, defaultSource, filterImages, tabCounts, tabOf } from '@/lib/studioPhotoTabs'
 import { DRAG_IMAGE_TYPE } from '@/lib/studioPage'
@@ -137,12 +153,15 @@ const props = defineProps({
   bakeState: { type: Object, default: () => ({}) },              // image id → { status, message } (useBakeQueue)
   placedIds: { type: Array, default: null },                      // 페이지에 놓인 사진 id (6-3, studioPage.pageImageIds). null = 페이지 없음(넣기 숨김)
   shapeMarkOf: { type: Function, default: () => '' },             // image id → "잘림 · 띠 2" (12-1, 없으면 '')
+  autoMarkOf: { type: Function, default: () => null },            // image id → studioAutoBuild.reviewMark 결과 (원클릭 1단계, 없으면 null)
 })
+const autoMark = id => props.autoMarkOf(id)
 // retry-image(id): 썸네일 다시 만들기 / visible(ids): 목록에서 지금 보이는 사진 (먼저 받게)
 // shown({ id, ok }): 썸네일 <img>가 실제로 화면에 그려짐(ok) 또는 못 그림 — 편집기가 AI 엔진 켜는 시점을 정한다
 // set-included(id, included): 안 쓸 사진으로 옮기기(false) / 다시 쓰기(true) — 저장·페이지 안내는 편집기가 한다
 // insert(id): 페이지에 넣기 (6-3) — 어디에 넣을지는 편집기가 정한다(지금 보이는 구간). 끌어다 놓기는 페이지가 받는다(DRAG_IMAGE_TYPE)
-const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible', 'shown', 'set-included', 'insert'])
+// auto-revert(id)·auto-remove(id): 원클릭 검수 [원본으로]·[빼기] (원클릭 1단계 — 편집기가 사진 이력·페이지 이력으로 한다)
+const emit = defineEmits(['select', 'open-erase', 'add', 'retry-image', 'retry-bake', 'visible', 'shown', 'set-included', 'insert', 'auto-revert', 'auto-remove'])
 
 // ── 페이지에 넣기 (6-3) — 준비된(done) 사진만. 안 쓸 사진은 [다시 쓰기] 뒤에 넣는다 ──
 const placedSet = computed(() => new Set(props.placedIds || []))

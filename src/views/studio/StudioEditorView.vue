@@ -44,7 +44,8 @@
       <span class="st-badge ml-2 shrink-0" data-mode-chip><Hand class="w-3 h-3 mr-1" :stroke-width="2" /> 직접 만들기 · 반자동</span>
 
       <div class="ml-auto flex items-center gap-1.5">
-        <button type="button" class="st-btn st-btn-ai st-ai-cta" data-one-click data-guide="one-click" @click="showToast('곧 추가될 기능이에요. 지금은 직접 만들기로 편집할 수 있어요.')">
+        <!-- 원클릭 (원클릭 1단계): 페이지가 비어 있으면 바로, 있으면 "복사본에서 새로 만들어요" 확인 뒤 복사본에서 (원본은 그대로) -->
+        <button type="button" class="st-btn st-btn-ai st-ai-cta" :disabled="!project || autoBuild.state.open || eraseOpen" data-one-click data-guide="one-click" @click="onOneClick">
           <Sparkles class="w-[18px] h-[18px] shrink-0" :stroke-width="2" />
           <span class="text-left leading-tight"><span class="block text-[14px] font-extrabold">원클릭 AI 자동 제작</span><span class="block text-[11px] font-semibold opacity-80">완전 자동 · 사진만 있으면 끝까지</span></span>
         </button>
@@ -151,9 +152,10 @@
             v-if="activeTool === 'photo' || !isWide"
             :key="project.id" ref="photoPanel"
             :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-            :bake-state="bakeQueue.state" :placed-ids="placedIds" :shape-mark-of="shapeMarkOf"
+            :bake-state="bakeQueue.state" :placed-ids="placedIds" :shape-mark-of="shapeMarkOf" :auto-mark-of="autoMarkOf"
             @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
             @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded" @insert="onInsertImage"
+            @auto-revert="onAutoRevert" @auto-remove="onAutoRemove"
           />
           <!-- [구간] 패널 (8-1): 골라진 구간 다루기 + 페이지 전체 구간 간격 -->
           <StudioSectionPanel
@@ -195,7 +197,7 @@
         <!-- 시작 화면 ⓪ (16단계): 페이지가 비어 있는 작업(DB page = null)일 때만 가운데를 덮는다. 왼쪽 사진 목록은 그대로 쓸 수 있다 -->
         <StudioStartScreen
           v-if="showStart" :usable-count="usableImagesNow().length" :images="templateImages" :views="views"
-          @blank="startBlank" @template="askTemplate"
+          @blank="startBlank" @template="askTemplate" @oneclick="onOneClick"
         />
         <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
@@ -232,7 +234,21 @@
         <div v-if="selectedImage && !eraseOpen" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
           <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
           <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.cover"> · 덮기 {{ selectedFillCounts.cover }}</span><span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
-          <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> 지우기</button>
+          <!-- 원클릭 검수 (원클릭 1단계): 표시 + [직접 고치기](= 지우기 화면) · [원본으로] · [빼기] -->
+          <template v-if="selectedAutoMark">
+            <div class="mt-1.5 flex flex-wrap gap-1" data-info-auto-mark>
+              <span v-if="selectedAutoMark.review" class="st-badge st-badge-danger" :title="selectedAutoMark.reason">검수 필요</span>
+              <span v-if="selectedAutoMark.textHeavy" class="st-badge st-badge-danger">글자 많음</span>
+              <span v-if="selectedAutoMark.canRevert" class="st-badge">자동으로 다듬음</span>
+            </div>
+            <p v-if="selectedAutoMark.review && selectedAutoMark.reason" class="mt-1 text-[11px] st-muted break-keep">{{ selectedAutoMark.reason }}</p>
+            <p v-if="selectedAutoMark.textHeavy" class="mt-1 text-[11px] st-muted break-keep">글자가 많아 [빼기]나 다른 사진으로 바꾸기를 권해요.</p>
+          </template>
+          <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> {{ selectedAutoMark ? '직접 고치기' : '지우기' }}</button>
+          <div v-if="selectedAutoMark && (selectedAutoMark.canRevert || placedIds?.includes(selectedImage.id))" class="mt-1 grid grid-cols-2 gap-1">
+            <button v-if="selectedAutoMark.canRevert" type="button" class="st-btn text-[12px]" data-info-auto-revert @click="onAutoRevert(selectedImage.id)"><Undo2 class="w-3.5 h-3.5" :stroke-width="2" /> 원본으로</button>
+            <button v-if="placedIds?.includes(selectedImage.id)" type="button" class="st-btn text-[12px]" data-info-auto-remove @click="onAutoRemove(selectedImage.id)"><X class="w-3.5 h-3.5" :stroke-width="2" /> 빼기</button>
+          </div>
           <button type="button" class="st-btn st-btn-ghost st-btn-block mt-1 st-danger-text text-[12px]" :disabled="selectedFillCount === 0" data-clear-all @click="clearAllOpen = true"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 이 사진의 지우기 모두 삭제</button>
         </div>
         <button
@@ -352,6 +368,23 @@
       </template>
     </div>
 
+    <!-- 원클릭 AI 자동 제작 (원클릭 1단계): 진행 화면 (편집기 전체를 덮는다 — 도는 동안 편집기 조작·단축키 쉼) -->
+    <StudioAutoBuildScreen v-if="autoBuild.state.open" :state="autoBuild.state" @stop="autoBuild.stop()" @close="autoBuild.close()" />
+    <!-- 원클릭: 이미 페이지가 있는 작업 — 원본은 그대로 두고 복사본에서 -->
+    <StudioModal :open="autoCopyAsk" title="지금 작업은 그대로 두고, 복사본에서 새로 만들어요" @close="autoCopyAsk = false">
+      이 작업의 페이지와 사진은 바뀌지 않아요. 복사본을 만든 뒤 그 복사본에서 원클릭으로 새 페이지를 만들고 열어 드려요.
+      <template #actions>
+        <button type="button" class="st-btn" @click="autoCopyAsk = false">취소</button>
+        <button type="button" class="st-btn st-btn-ai" data-confirm-auto-copy @click="confirmAutoCopy"><Sparkles class="w-4 h-4" :stroke-width="2" /> 복사본에서 만들기</button>
+      </template>
+    </StudioModal>
+    <!-- 원클릭 검수 안내 -->
+    <StudioAutoReview
+      :open="autoReview.open" :summary="autoReview.summary" :rows="autoReviewRows" :stopped="autoReview.stopped"
+      :process-max="autoBuild.PROCESS_MAX" :draft-note="autoReview.draftNote"
+      @close="autoReview.open = false" @fix="onAutoFix" @revert="onAutoRevert" @remove="onAutoRemove"
+    />
+
     <!-- 사진 추가 -->
     <StudioModal :open="addOpen" wide title="내 사진 올리기" @close="addOpen = false">
       <StudioUploadPanel v-if="project" :project-id="project.id" :used-count="usedCount" @finished="onAddFinished" />
@@ -462,6 +495,11 @@ import {
   LayoutTemplate, Rows3, Image as ImageIcon, Type, Shapes, Blend, Bookmark, PanelRightOpen, PanelRightClose, ArrowUpDown, MoveVertical,
   MoreHorizontal, Pencil, Copy, X, Keyboard,
 } from 'lucide-vue-next'
+import StudioAutoBuildScreen from '@/components/studio/StudioAutoBuildScreen.vue'
+import StudioAutoReview from '@/components/studio/StudioAutoReview.vue'
+import { useAutoBuild } from '@/composables/useAutoBuild'
+import { fetchProductFacts } from '@/lib/studioFactsApi'
+import { reviewMark, buildDrafts, autoTemplate, oneClickTarget, summarize, AUTO_TEMPLATE_KEY } from '@/lib/studioAutoBuild'
 import SpotlightGuide from '@/components/common/SpotlightGuide.vue'
 import StudioGuideHideBar from '@/components/studio/StudioGuideHideBar.vue'
 import StudioShortcutsModal from '@/components/studio/StudioShortcutsModal.vue'
@@ -744,6 +782,139 @@ function openCopy() {
   copyNotice.value = null
   if (id) router.push({ name: 'studio-editor', params: { projectId: id } })
 }
+
+// ── 원클릭 AI 자동 제작 (원클릭 1단계) — 사진 고르기 → 글자 찾기·자동 지우기 → 템플릿 배치 → 글자 초안 → 이 편집기에서 검수 ──
+// 결과는 수동 편집과 같은 저장 형식(사진 edit.layers + page)이라 검수·편집은 이 편집기 그대로. 돈이 드는 외부 AI는 부르지 않는다.
+// 페이지가 있는 작업은 원본을 절대 덮지 않는다 — 서버 복사본(16단계 project_copy)을 만들고 그 편집기(?oneclick=1)에서 돈다.
+const autoBuild = useAutoBuild({
+  images, session,
+  loadImage: row => imageCache.get(row),
+  startAi: () => startAi('원클릭'),
+  loadFacts: async () => {
+    const pid = project.value?.id
+    if (!pid) return null
+    const r = await fetchProductFacts(pid)
+    autoFactsInfo = r
+    return r.facts
+  },
+})
+let autoFactsInfo = null // 마지막 product_facts 응답 (검수 안내 문구용)
+const autoCopyAsk = ref(false)
+const autoReview = reactive({ open: false, results: [], summary: summarize([]), stopped: false, draftNote: '' })
+/** 사진 하나의 원클릭 표시 — 목록 줄·사진 정보 칸·검수 안내 (studioAutoBuild.reviewMark) */
+function autoMarkOf(id) { return reviewMark(session.autoOf(id), session.layerMap[id]) }
+const selectedAutoMark = computed(() => (selectedImage.value ? autoMarkOf(selectedImage.value.id) : null))
+function onOneClick() {
+  const p = project.value
+  if (!p || !isWide.value || autoBuild.state.open || eraseOpen.value) return
+  if (pageSession.readError.value) { showToast('페이지 내용을 읽지 못해 지금은 원클릭을 쓸 수 없어요. 새로고침해 주세요.'); return }
+  if (usableImagesNow().length === 0) { showToast('먼저 왼쪽 [사진]에서 사진을 올려 주세요.'); return }
+  const target = oneClickTarget({ isDefault: pageSession.isDefault.value, sectionCount: page.value?.sections.length ?? 0 })
+  if (target === 'copy') { autoCopyAsk.value = true; return }
+  runOneClick()
+}
+/** 복사본 만들기 → 복사본 편집기로 (?oneclick=1 — 불러오기가 끝나면 거기서 돈다). 원본은 저장만 끝내고 읽기만 한다 */
+async function confirmAutoCopy() {
+  autoCopyAsk.value = false
+  const p = project.value
+  if (!p || copyNotice.value?.status === 'working') return
+  copyNotice.value = { status: 'working' }
+  try {
+    const [okEdit, okPage] = await Promise.all([session.flush(), pageSession.flush()])
+    if (!okEdit || !okPage) {
+      copyNotice.value = null
+      showToast('저장이 끝나지 않아 복사본을 만들지 않았어요. 저장된 뒤 다시 눌러 주세요.')
+      return
+    }
+    const r = await copyProject(p.id)
+    copyNotice.value = null
+    if (project.value?.id !== p.id) return
+    router.push({ name: 'studio-editor', params: { projectId: r.projectId }, query: { oneclick: '1' } })
+  } catch (e) {
+    console.error('[StudioEditor] 원클릭용 복사본 만들기 실패:', e)
+    copyNotice.value = null
+    showToast(e.message)
+  }
+}
+/** 불러오기 끝 — 주소에 oneclick=1이 있으면(방금 만든 복사본) 주소에서 떼고 원클릭을 돌린다 */
+function runOneClickFromRoute() {
+  if (route.query.oneclick !== '1' || !project.value) return
+  const { oneclick: _o, ...rest } = route.query
+  router.replace({ query: rest })
+  if (isWide.value) runOneClick()
+}
+async function runOneClick() {
+  const pid = project.value?.id
+  if (!pid) return
+  autoFactsInfo = null
+  clearSelection()
+  await autoBuild.run(finishOneClick)
+  if (project.value?.id !== pid) return
+  if (!autoBuild.state.error) autoBuild.close()
+}
+/** 사진 처리가 끝나면(또는 멈추면) — 처리된 사진으로 페이지를 만들어 저장하고 검수 안내를 띄운다 */
+async function finishOneClick({ results, stopped, facts }) {
+  const pid = project.value?.id
+  const drafts = buildDrafts(facts)
+  const photos = results.filter(r => r.placed).map(r => sizedRow(r.id)).filter(Boolean)
+  if (photos.length) {
+    const tpl = autoTemplate(templateByKey(AUTO_TEMPLATE_KEY), photos.length, drafts)
+    await whenFontsReady(templateFontList(tpl)) // 글자 높이를 재야 해서 글꼴 조각을 먼저 받는다 (템플릿 적용과 같음)
+    if (project.value?.id !== pid) return
+    const r = buildTemplatePage(tpl, photos, textMeasure)
+    let ok = false
+    if (!r) console.error('[StudioEditor] 원클릭 페이지를 만들지 못함 (템플릿 모양 오류)')
+    else if (pageSession.isDefault.value) {
+      ok = pageSession.startFromDoc(r.page, LABELS.autoBuild)
+      if (ok) startChosen.value = true
+    } else ok = applyPage(r.page, LABELS.autoBuild)
+    if (!ok) showToast('페이지를 만들지 못했어요. 사진은 다듬어 둔 그대로 목록에 있어요. [템플릿]으로 다시 만들어 주세요.')
+    nextTick(() => { if (pageScroll.value) pageScroll.value.scrollTop = 0 })
+  }
+  await Promise.all([session.flush(), pageSession.flush()])
+  for (const x of results) if (x.status === 'erased') requestBake(x.id) // 완성 사진은 뒤에서 한 장씩 (지우기 화면을 닫을 때와 같은 길)
+  const notes = []
+  if (!facts) notes.push(autoFactsInfo?.reason === 'no_offer' ? '1688 상품이 아닌 작업이라 글자 초안은 템플릿 기본 문구예요. 직접 적어 주세요.' : '1688 상품 정보를 읽지 못해 글자 초안은 템플릿 기본 문구예요. 직접 적어 주세요.')
+  else if (!drafts.title && !drafts.body) notes.push('한국어 상품 정보가 아직 없어 글자 초안은 템플릿 기본 문구예요. 직접 적어 주세요.')
+  else if (drafts.missing) notes.push(`한국어 정보가 없는 항목 ${drafts.missing}개는 초안에 넣지 않았어요.`)
+  Object.assign(autoReview, { open: true, results, summary: summarize(results), stopped, draftNote: notes.join(' ') })
+}
+const AUTO_ROW_TEXT = {
+  erased: () => '자동으로 다듬었어요', clean: () => '찾은 글자가 없어 그대로 두었어요', kept: () => '직접 고친 사진이라 그대로 두었어요',
+  textHeavy: () => '글자 많음 · 빼기나 다른 사진으로 바꾸기를 권해요', failed: r => `검수 필요 · ${r.reason || '자동으로 다듬지 못했어요'}`,
+}
+const autoReviewRows = computed(() => autoReview.results.filter(r => r.placed).map(r => {
+  const row = imagesById.value.get(r.id)
+  return {
+    id: r.id, label: row ? imageLabel(row) : r.id, thumbUrl: views[r.id]?.url || null,
+    text: (AUTO_ROW_TEXT[r.status] || (() => ''))(r), tone: r.status === 'failed' || r.status === 'textHeavy' ? 'warn' : '',
+    mark: autoMarkOf(r.id), onPage: !!placedIds.value?.includes(r.id),
+  }
+}).sort((a, b) => (b.tone === 'warn') - (a.tone === 'warn')))
+/** [직접 고치기] — 그 사진의 지우기 화면 (자동으로 지운 곳도 그 화면에서 옮기기·지우기·되돌리기) */
+function onAutoFix(id) {
+  autoReview.open = false
+  openErase(id)
+}
+/** [원본으로] — 원클릭이 지운 레이어만 뺀다 (사진 이력 한 칸 → 편집기 Ctrl+Z로 되돌림) */
+function onAutoRevert(id) {
+  if (eraseOpen.value) return
+  if (session.revertAuto(id)) {
+    noteAction({ imageId: id })
+    showToast('자동으로 다듬은 곳을 원본으로 돌렸어요 · Ctrl+Z로 되돌리기')
+  }
+}
+/** [빼기] — 페이지에서 빼기 (페이지 이력 "페이지에서 빼기" 한 칸 → Ctrl+Z). 사진은 목록에 그대로 */
+function onAutoRemove(id) {
+  if (!page.value || eraseOpen.value) return
+  const ids = itemIdsOfImage(page.value, id)
+  if (!ids.length) return
+  const next = removeItems(page.value, ids)
+  if (applyPage(next, LABELS.elRemovePhoto)) {
+    pruneSelection()
+    showToast(ids.some(i => findItem(next, i)) ? '잠긴 자리는 빼지 않았어요.' : '페이지에서 뺐어요 · 사진은 목록에 그대로 있어요 · Ctrl+Z로 되돌리기')
+  }
+}
 const pageCanUndo = computed(() => pageSession.canUndoNow.value && !eraseOpen.value)
 const pageCanRedo = computed(() => pageSession.canRedoNow.value && !eraseOpen.value)
 const selectedItemIds = ref([])  // 페이지에서 고른 요소 (6-1: 여러 개)
@@ -946,6 +1117,8 @@ function resetEditorLog() {
   cropImageId.value = null  // 12-1 자르기 창
   refineImageId.value = null // 17-3 경계 다듬기 화면
   refineBg.value = null
+  autoReview.open = false   // 원클릭 1단계 검수 안내·복사본 확인
+  autoCopyAsk.value = false
 }
 function noteAction(entry) {
   actionLog.push(entry)
@@ -2001,6 +2174,7 @@ const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!con
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
   || !!refineImageId.value // 17-3: 경계 다듬기 화면이 열린 동안도 (붓 단축키 K·E·X·[·]·Ctrl+Z는 그 화면이 받는다)
   || !!templateAsk.value // 15: 템플릿 교체 확인창
+  || autoBuild.state.open || autoCopyAsk.value || autoReview.open // 원클릭 1단계: 진행 화면·복사본 확인·검수 안내
   || shortcutsOpen.value) // 14: 단축키 표
 
 function formatBytes(n) {
@@ -2101,6 +2275,7 @@ async function load() {
     }
     syncEraseFromRoute() // ?erase=<사진 id>로 새로고침·진입했으면 그 사진의 지우기 화면을 연다
     maybeStartAi()       // 사진이 없는 작업 등 — 기다릴 사진이 없으면 바로
+    runOneClickFromRoute() // 원클릭 1단계: 방금 만든 복사본(?oneclick=1)이면 여기서 원클릭
   } catch (e) {
     if (seq !== loadSeq) return
     console.error('[StudioEditor] 불러오기 실패:', e)
@@ -2194,6 +2369,11 @@ function closeConflict() { conflictId.value = null }
 const eraseScreen = ref(null)
 async function guardLeave(to) {
   if (leaveBypass) return true
+  // 원클릭이 도는 중에는 떠나지 않는다 — 사진을 다듬어 저장하는 중이라 [멈추기]로 끝낸 뒤 나가게 안내
+  if (autoBuild.state.open && autoBuild.state.phase !== 'done' && !autoBuild.state.error) {
+    showToast('원클릭이 만드는 중이에요. [멈추기]를 누르면 여기까지 된 것으로 페이지를 만들어요.')
+    return false
+  }
   // 지우기 화면이 열린 채 편집기 밖으로 가려 하면(주소로 바로 들어와 앞 항목이 다른 화면일 때 크롬 ← 등) 지우기 화면만 닫는다.
   // [완료]와 같은 확인을 거친다 — AI가 채우는 중·저장 못 한 AI 결과가 있으면 한 번 알리고, 5초 안에 다시 누르면 닫는다
   if (eraseOpen.value) {
@@ -2257,7 +2437,9 @@ function unsavedNow() {
   return unsavedReasons({
     aiFailed: ai.count,
     aiPending: ai.pending,
-    aiBusy: eraseOpen.value && Object.values(session.aiLayerStates.value).includes('busy'),
+    aiBusy: (eraseOpen.value && Object.values(session.aiLayerStates.value).includes('busy'))
+      || (autoBuild.state.open && autoBuild.state.phase !== 'done' && !autoBuild.state.error), // 원클릭 1단계: 도는 중
+
     editUnsaved: session.hasUnsaved(),
     pageUnsaved: pageSession.hasUnsaved(),
     draft: eraseOpen.value && !!session.canvasDraft.value,
@@ -2530,6 +2712,8 @@ const onStudioAuthChanged = (e) => {
     titleEdit.open = false
     titleMenuOpen.value = false
     copyNotice.value = null
+    autoBuild.dispose() // 원클릭 1단계: 도는 중이면 멈추고(다음 계정에 쓰지 않게) 화면을 닫는다
+    autoBuild.close()
   }
 }
 
@@ -2567,6 +2751,7 @@ onUnmounted(() => {
   clearInterval(viewUrlTimer)
   clearTimeout(toastTimer)
   clearTimeout(aiFallbackTimer)
+  autoBuild.dispose()
   session.dispose()
   pageSession.dispose()
   bakeQueue.dispose()

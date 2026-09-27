@@ -75,6 +75,13 @@
  * 에러: invalid_input 400 / bg_not_eligible 403 / bg_not_ready 503 / bg_gen_sql_missing 503(kind 체크 SQL 전) / bg_gen_need_mask 400 /
  *       bg_too_large 400 / bg_busy 409 / bg_gen_user_limit·bg_gen_global_limit 429 / bg_gen_failed 502·bg_gen_timeout 504(기록 지움, 횟수 안 셈)
  *
+ * ── 원클릭 글자 초안용 상품 사실 (원클릭 1단계) ── 외부 호출 없음(OneBound·파파고·fal 모두 안 부른다) — 돈이 들지 않는다.
+ * POST { action:'product_facts', projectId }
+ *   본인 작업의 offer_id → studio_product_snapshots.raw.item(가져올 때 저장한 원본, 만료돼도 행이 있으면 씀)에서 제목·속성·옵션(_studioFacts.js)
+ *   → 번역 캐시(translation_cache, 1688 공식 다국어 데이터가 채운 것)에 있는 한국어만 붙인다 (lookupCachedTranslations — 캐시 조회만)
+ *   → { facts: { title, attrs, options } | null, reason: null|'no_offer'|'no_snapshot', texts, translated }
+ * 에러: not_found 404
+ *
  * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다. (배경 마스크는 서버가 새로 만드는 파일이라 예외)
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
@@ -98,6 +105,9 @@ import {
   BG_GEN_KIND, BG_GEN_FREE_PER_DAY, BG_GEN_MAX_BYTES, BG_GEN_PRESETS, BG_AI_EXT, bgGenDailyLimit, bgAiKey, isKindCheckError,
   genUsageToday, withinLimit, genBusy,
 } from './_studioBgGen.js'
+import { extractFacts, factTexts, withKo } from './_studioFacts.js'
+import { lookupCachedTranslations } from './_translationCache.js'
+import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
 const BUCKET = 'studio'
 const MAX_FILES_PER_PREPARE = 10
@@ -1085,6 +1095,26 @@ async function bgGenerate(ctx, body, res) {
   return res.status(200).json({ ...out, left })
 }
 
+// ── product_facts (원클릭 1단계 글자 초안) ──────────────────────────────────
+const OFFER_ID_RE = /^\d{9,16}$/
+async function productFacts(ctx, body, res) {
+  const project = await loadOwnedRow(ctx, 'studio_projects', String(body.projectId ?? ''), 'id,offer_id')
+  if (!project) return sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.')
+  const offerId = String(project.offer_id ?? '')
+  if (!OFFER_ID_RE.test(offerId)) return res.status(200).json({ facts: null, reason: 'no_offer', texts: 0, translated: 0 })
+  const rows = await sb(ctx.cfg, `studio_product_snapshots?select=status,item:raw->item&offer_id=eq.${offerId}&limit=1`)
+  const snap = Array.isArray(rows) && rows.length ? rows[0] : null
+  if (!snap || snap.status !== 'ok' || !snap.item) {
+    console.info(`[studio-upload] product_facts ${offerId}: 저장된 상품 정보 없음 (status=${snap?.status ?? '행 없음'})`)
+    return res.status(200).json({ facts: null, reason: 'no_snapshot', texts: 0, translated: 0 })
+  }
+  const f = extractFacts(snap.item)
+  const texts = factTexts(f)
+  const ko = await lookupCachedTranslations(texts, CACHE_SOURCE_LANG, CACHE_TARGET_LANG)
+  console.log(`[studio-upload] product_facts ${offerId}: 원문 ${texts.length}개 중 한국어 ${ko.size}개 (번역 캐시만)`)
+  return res.status(200).json({ facts: withKo(f, ko), reason: null, texts: texts.length, translated: ko.size })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -1105,7 +1135,8 @@ export default async function handler(req, res) {
     if (body.action === 'bg_refine_confirm') return await bgRefineConfirm(ctx, body, res)
     if (body.action === 'bg_gen_status') return await bgGenStatus(ctx, body, res)
     if (body.action === 'bg_generate') return await bgGenerate(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate' 중 하나여야 합니다.")
+    if (body.action === 'product_facts') return await productFacts(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')
