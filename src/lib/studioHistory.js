@@ -111,6 +111,8 @@ export const LABELS = {
   lookReset: '필터·조정 초기화',
   // 템플릿 (15단계) — 페이지 이력 한 칸 (사진 edit는 그대로)
   templateApply: '템플릿 적용',
+  // 작업 이력 복원 (14단계) — 상단 [이력]에서 고른 단계를 새 단계로 (페이지 이력만, 사진 edit는 그대로)
+  historyRestore: '이력 복원',
 }
 
 const clone = v => JSON.parse(JSON.stringify(v))
@@ -184,6 +186,16 @@ export function amendCurrent(h, edit) {
   if (!h) return h
   const steps = h.steps.map((s, i) => (i === h.index ? { ...s, edit: clone(edit) } : s))
   return { steps, index: h.index }
+}
+
+/**
+ * 이력 복원 (14단계 편집기 상단 [이력]) — i번째 단계의 값(깊은 복사본). 이 값을 새 동작("이력 복원")으로 push하면
+ * 복원도 되돌리기 한 칸이 되어 Ctrl+Z로 취소할 수 있다 (jumpTo는 칸을 옮기기만 해서 다시 스택이 남는 것과 다르다).
+ * 지금 단계·없는 단계면 null (할 일 없음)
+ */
+export function restorePoint(h, i) {
+  if (!h || !Number.isInteger(i) || i < 0 || i >= h.steps.length || i === h.index) return null
+  return clone(h.steps[i].edit)
 }
 
 /** 화면 목록용: [{ i, label, at, current }] (오래된 것부터) */

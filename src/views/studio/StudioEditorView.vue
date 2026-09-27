@@ -44,19 +44,44 @@
       <span class="st-badge ml-2 shrink-0" data-mode-chip><Hand class="w-3 h-3 mr-1" :stroke-width="2" /> 직접 만들기 · 반자동</span>
 
       <div class="ml-auto flex items-center gap-1.5">
-        <button type="button" class="st-btn st-btn-ai st-ai-cta" data-one-click @click="showToast('곧 추가될 기능이에요. 지금은 직접 만들기로 편집할 수 있어요.')">
+        <button type="button" class="st-btn st-btn-ai st-ai-cta" data-one-click data-guide="one-click" @click="showToast('곧 추가될 기능이에요. 지금은 직접 만들기로 편집할 수 있어요.')">
           <Sparkles class="w-[18px] h-[18px] shrink-0" :stroke-width="2" />
           <span class="text-left leading-tight"><span class="block text-[14px] font-extrabold">원클릭 AI 자동 제작</span><span class="block text-[11px] font-semibold opacity-80">완전 자동 · 사진만 있으면 끝까지</span></span>
         </button>
         <span class="w-px h-6 mx-1" style="background: var(--st-line)" />
-        <button type="button" class="st-btn st-btn-ghost" data-top-history @click="showToast('곧 추가될 기능이에요.')"><History class="w-4 h-4" :stroke-width="2" /> 이력</button>
-        <button type="button" class="st-btn st-btn-ghost" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-preview @click="openPreview"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
-        <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-export @click="openExport"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
+        <!-- 작업 이력 (14단계): 이 창의 페이지 이력 목록 — 누르면 그 상태로 복원(새 이력 한 칸 "이력 복원", Ctrl+Z로 취소). 사진 edit는 그대로 -->
+        <div class="relative">
+          <button
+            type="button" class="st-btn st-btn-ghost" :class="pageHistoryOpen ? 'is-pressed' : ''" :aria-expanded="pageHistoryOpen" :disabled="!page || eraseOpen"
+            data-top-history @click="pageHistoryOpen = !pageHistoryOpen"
+          ><History class="w-4 h-4" :stroke-width="2" /> 이력</button>
+          <template v-if="pageHistoryOpen && page">
+            <div class="fixed inset-0" style="z-index: 40" @click="pageHistoryOpen = false" />
+            <div class="absolute right-0 top-[calc(100%+6px)] w-[300px] st-card st-shadow-float p-1.5" style="z-index: 41" data-page-history>
+              <p class="px-2.5 pt-1.5 pb-1 text-[12px] font-bold st-ink-2 break-keep">누르면 그 동작을 한 뒤의 페이지로 돌아가요</p>
+              <ol class="max-h-[320px] overflow-y-auto">
+                <li v-for="s in pageHistoryRows" :key="s.i">
+                  <button
+                    type="button" class="st-menu-row w-full" :class="s.current ? 'st-accent-text font-extrabold' : ''" :disabled="s.current"
+                    :data-history-step="s.i" @click="restoreHistory(s.i)"
+                  >
+                    <span class="truncate">{{ s.label }}</span>
+                    <span v-if="s.current" class="st-badge st-badge-accent ml-1 shrink-0">지금</span>
+                    <span class="ml-auto pl-2 text-[12px] st-muted tabular-nums shrink-0">{{ formatClock(s.at) }}</span>
+                  </button>
+                </li>
+              </ol>
+              <p class="mt-1 px-2.5 pt-1.5 pb-1 text-[12px] st-muted break-keep st-border-t">이력은 이 창을 닫으면 사라져요. 사진의 지우기·필터·자르기는 사진에 따로 저장돼 그대로 남아요.</p>
+            </div>
+          </template>
+        </div>
+        <button type="button" class="st-btn st-btn-ghost" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-preview data-guide="preview" @click="openPreview"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
+        <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-export data-guide="export" @click="openExport"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
       </div>
     </header>
 
     <!-- 진행 단계 표시줄 (6-3): ① 사진 다듬기 → ② 페이지 꾸미기 → ③ 내보내기. 안내일 뿐, 아무 단계나 누를 수 있다 -->
-    <StudioStepBar v-if="project && isWide && !loading" :step="step" @go="goStep" />
+    <StudioStepBar v-if="project && isWide && !loading" :step="step" data-guide="step-bar" @go="goStep" />
 
     <p v-if="loading" class="p-6 st-desc">불러오는 중…</p>
     <p v-else-if="errorMsg" class="p-6 text-[14px] font-bold st-danger-text">{{ errorMsg }}</p>
@@ -77,16 +102,26 @@
         <button
           v-for="t in RAIL" :key="t.key" type="button"
           class="st-rail-item" :class="activeTool === t.key ? 'is-active' : ''"
-          :aria-pressed="activeTool === t.key" :data-rail="t.key"
+          :aria-pressed="activeTool === t.key" :data-rail="t.key" :data-guide="`rail-${t.key}`"
           @click="activeTool = t.key"
         >
           <component :is="t.icon" class="w-5 h-5" :stroke-width="2" />
           <span>{{ t.label }}</span>
         </button>
         <span class="flex-1" />
-        <button type="button" class="st-rail-item" data-rail="guide" @click="showToast('곧 추가될 기능이에요.')">
-          <CircleHelp class="w-5 h-5" :stroke-width="2" /><span>가이드</span>
-        </button>
+        <!-- [가이드] (14단계): 사용가이드 다시 보기 · 단축키 표 -->
+        <div class="relative">
+          <button type="button" class="st-rail-item" :class="guideMenuOpen ? 'is-active' : ''" :aria-expanded="guideMenuOpen" data-rail="guide" data-guide="guide-button" @click="guideMenuOpen = !guideMenuOpen">
+            <CircleHelp class="w-5 h-5" :stroke-width="2" /><span>가이드</span>
+          </button>
+          <template v-if="guideMenuOpen">
+            <div class="fixed inset-0" style="z-index: 40" @click="guideMenuOpen = false" />
+            <div class="absolute left-[calc(100%+6px)] bottom-0 w-48 st-card st-shadow-float py-1" style="z-index: 41" data-guide-menu>
+              <button type="button" class="st-menu-row" data-guide-replay @click="guideMenuOpen = false; openGuide('editor')"><CircleHelp class="w-4 h-4" :stroke-width="2" /> 사용가이드 보기</button>
+              <button type="button" class="st-menu-row" data-open-shortcuts @click="guideMenuOpen = false; shortcutsOpen = true"><Keyboard class="w-4 h-4" :stroke-width="2" /> 단축키 보기 <span class="ml-auto text-[11px] st-muted">?</span></button>
+            </div>
+          </template>
+        </div>
       </nav>
 
       <!-- 재료 패널 (300px): 고른 메뉴의 재료. 사진을 누르면 사진 속성 패널(6단계) -->
@@ -141,7 +176,12 @@
       </aside>
 
       <!-- 가운데: 긴 한 장 페이지 (4단계, DOM — 구간이 위에서 아래로 쌓인다) -->
-      <section v-if="isWide" class="flex-1 min-w-0 relative st-canvas-bg st-dotgrid" data-canvas-area>
+      <section v-if="isWide" class="flex-1 min-w-0 relative st-canvas-bg st-dotgrid" data-canvas-area data-guide="page" @wheel="onCanvasWheel">
+        <!-- 스페이스+끌기 화면 이동 (14단계): 스페이스를 누르고 있는 동안 페이지 위를 덮어 요소가 잡히지 않게 하고, 끌면 스크롤만 옮긴다 -->
+        <div
+          v-if="spaceHeld" class="absolute inset-0" :style="{ zIndex: 4, cursor: panning ? 'grabbing' : 'grab' }" data-pan-layer
+          @pointerdown="onPanDown" @pointermove="onPanMove" @pointerup="onPanUp" @pointercancel="onPanUp" @lostpointercapture="onPanUp"
+        />
         <!-- 시작 화면 ⓪ (16단계): 페이지가 비어 있는 작업(DB page = null)일 때만 가운데를 덮는다. 왼쪽 사진 목록은 그대로 쓸 수 있다 -->
         <StudioStartScreen
           v-if="showStart" :usable-count="usableImagesNow().length" :images="templateImages" :views="views"
@@ -172,6 +212,8 @@
               :data-zoom="z" @click="zoomMode = z"
             >{{ Math.round(z * 100) }}%</button>
             <button type="button" class="st-seg-item" :class="zoomMode === 'fit' ? 'is-active' : ''" data-zoom="fit" @click="zoomMode = 'fit'">맞춤<span v-if="zoomMode === 'fit'" class="ml-1 opacity-70">{{ Math.round(zoom * 100) }}%</span></button>
+            <!-- 14단계: Ctrl+휠로 버튼 사이 배율이 되면 그 값을 보여 준다 -->
+            <span v-if="zoomMode !== 'fit' && !ZOOM_PRESETS.includes(zoomMode)" class="st-seg-item is-active" data-zoom-custom>{{ zoomPercent(zoom) }}%</span>
           </div>
           <span class="w-px h-5" style="background: var(--st-line-strong)" />
           <span class="text-[12px] font-bold st-ink-2 pr-1 whitespace-nowrap" data-page-width>폭 {{ page.width }}px · {{ PAGE_WIDTH_LABEL }}</span>
@@ -219,7 +261,7 @@
           <button
             type="button" class="st-btn st-btn-block" :disabled="!page || page.sections.length < 2"
             :title="page && page.sections.length < 2 ? '구간이 2개 이상일 때 순서를 바꿀 수 있어요' : '구간 순서를 한눈에 보고 바꿔요'"
-            data-reorder @click="reorderOpen = true"
+            data-reorder data-guide="reorder" @click="reorderOpen = true"
           ><ArrowUpDown class="w-4 h-4" :stroke-width="2" /> 순서 변경</button>
           <button type="button" class="st-btn st-btn-block" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 구간 간격</button>
         </div>
@@ -234,10 +276,19 @@
       :image="selectedImage"
       :image-label="imageLabel(selectedImage)"
       :load-image="loadCanvasImage"
-      :keys-enabled="!anyModalOpen"
+      :keys-enabled="!anyModalOpen && !guide.open"
       @close="onEraseClosed"
       @toast="showToast"
     />
+
+    <!-- 사용가이드 (14단계): 편집기·지우기 화면 가이드 하나 (SpotlightGuide 본체 그대로) + "다시 보지 않기" 막대 -->
+    <SpotlightGuide
+      v-model:open="guide.open" :steps="guide.steps" :badge="guide.kind === 'erase' ? ERASE_GUIDE_BADGE : EDITOR_GUIDE_BADGE"
+      @finish="onGuideFinish"
+    />
+    <StudioGuideHideBar :open="guide.open" :checked="guide.hide" @update:checked="setGuideHidden" />
+    <!-- 단축키 표 (14단계): [가이드] 메뉴 · ? 키 -->
+    <StudioShortcutsModal :open="shortcutsOpen" @close="shortcutsOpen = false" />
 
     <!-- 자르기 창 (12-1): 사진 한 장 — [완료] = 사진에 저장(이력 1개) + 꽉 찬 구간 높이 맞춤, [취소]·Esc = 그대로 -->
     <StudioCropScreen
@@ -393,8 +444,14 @@ import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vu
 import {
   ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp, Trash2, Eraser,
   LayoutTemplate, Rows3, Image as ImageIcon, Type, Shapes, Blend, Bookmark, PanelRightOpen, PanelRightClose, ArrowUpDown, MoveVertical,
-  MoreHorizontal, Pencil, Copy, X,
+  MoreHorizontal, Pencil, Copy, X, Keyboard,
 } from 'lucide-vue-next'
+import SpotlightGuide from '@/components/common/SpotlightGuide.vue'
+import StudioGuideHideBar from '@/components/studio/StudioGuideHideBar.vue'
+import StudioShortcutsModal from '@/components/studio/StudioShortcutsModal.vue'
+import { EDITOR_GUIDE_STEPS, ERASE_GUIDE_STEPS, EDITOR_GUIDE_BADGE, ERASE_GUIDE_BADGE } from '@/data/studioEditorGuide'
+import { readGuideHidden, writeGuideHidden, shouldAutoStart, visibleSteps } from '@/lib/studioGuide'
+import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent } from '@/lib/studioViewNav'
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
@@ -454,7 +511,7 @@ import {
   addItemGroup, setTableProps, editTable, fitSectionsToImage,
 } from '@/lib/studioPage'
 import { isValidShapeItem, isValidLineItem, elementKindByKey } from '@/lib/studioShape'
-import { LABELS } from '@/lib/studioHistory'
+import { LABELS, restorePoint, list as listHistory } from '@/lib/studioHistory'
 import { unsavedReasons, guardBeforeUnload, eraseCloseMode, savedTitle } from '@/lib/studioSaveGuard'
 
 provide('studioDark', true) // Teleport로 body에 붙는 모달도 어둡게 (StudioModal)
@@ -561,6 +618,13 @@ function startBlank() {
 // ── 템플릿 (15단계) — 왼쪽 [템플릿] 패널·시작 화면 [템플릿으로 시작]. 페이지 문서만 새로 만든다(studioTemplates.buildTemplatePage) ──
 // 사진 편집 결과(studio_images.edit)는 사진에 있어 건드리지 않는다. 교체 = 페이지 이력 한 칸("템플릿 적용") → Ctrl+Z 한 번에 원래 페이지
 const templateAsk = ref(null) // 확인을 기다리는 템플릿 key
+// ── 14단계 화면 상태 (위에서 선언 — 아래 computed·watch가 읽는다) ──
+const guideMenuOpen = ref(false)   // 왼쪽 맨 아래 [가이드] 메뉴
+const shortcutsOpen = ref(false)   // 단축키 표
+const pageHistoryOpen = ref(false) // 상단 [이력] 목록
+const guide = reactive({ open: false, kind: 'editor', steps: [], hide: false }) // 떠 있는 사용가이드 (편집기 / 지우기 화면)
+const spaceHeld = ref(false)       // 스페이스를 누르고 있음 → 끌면 화면 이동
+const panning = ref(false)
 // 템플릿에 넣을 사진 = 기본 배치와 같은 쓸 사진(준비 끝 + 안 쓸 사진 아님, 목록 순서), 자른 사진은 자른 비율로(sizedRow — 12-1)
 const templateImages = computed(() => usableImagesNow().map(i => sizedRow(i.id)).filter(Boolean))
 function askTemplate(key) {
@@ -849,6 +913,10 @@ function resetEditorLog() {
   includeAsk.value = null
   reorderOpen.value = false // 8-2 [순서 변경] 화면
   templateAsk.value = null  // 15 템플릿 교체 확인창
+  pageHistoryOpen.value = false // 14 [이력] 목록 · 단축키 표 · 가이드 메뉴·가이드
+  shortcutsOpen.value = false
+  guideMenuOpen.value = false
+  guide.open = false
   textEdit.value = null     // 10-1 글자 고치기
   exportOpen.value = false  // 13-1 [내보내기] 창
   exportCompareId.value = null
@@ -1728,7 +1796,8 @@ const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!con
   || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
   || previewOpen.value // 13-2: 미리보기가 열린 동안도
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
-  || !!templateAsk.value) // 15: 템플릿 교체 확인창
+  || !!templateAsk.value // 15: 템플릿 교체 확인창
+  || shortcutsOpen.value) // 14: 단축키 표
 
 function formatBytes(n) {
   if (!Number.isFinite(n) || n <= 0) return '알 수 없음'
@@ -1999,18 +2068,147 @@ function onBeforeUnload(e) {
   guardBeforeUnload(e, reasons)
 }
 
+// ── 작업 이력 복원 (14단계) — 상단 [이력] = 이 창의 페이지 이력(usePageSession.history, 세션 동안만). 서버 이력은 없다 ──
+// 누르면 그 단계의 페이지를 새 동작 "이력 복원"으로 적용 → 페이지 이력 한 칸 + 기존 page_version 조건 저장 → Ctrl+Z로 취소.
+// 사진 편집 결과(studio_images.edit — 지우기·필터·자르기)는 사진 이력이라 건드리지 않는다.
+const pageHistoryRows = computed(() => listHistory(pageSession.history.value).slice().reverse()) // 새 것부터
+function formatClock(at) {
+  const d = new Date(at)
+  const p = n => String(n).padStart(2, '0')
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
+}
+function restoreHistory(i) {
+  if (!page.value || eraseOpen.value) return
+  const doc = restorePoint(pageSession.history.value, i)
+  if (!doc) return
+  pageView.value?.finishEdit()
+  if (!applyPage(doc, LABELS.historyRestore)) return
+  pruneSelection()
+  showToast('그때 페이지로 돌려놓았어요 · 되돌리기(Ctrl+Z)로 취소할 수 있어요')
+}
+
+// ── 사용가이드 (14단계) — SpotlightGuide 하나로 편집기 가이드와 지우기 화면 가이드를 띄운다 (문구 src/data/studioEditorGuide.js) ──
+// "다시 보지 않기" = 브라우저 localStorage (studioGuide — 편집기·지우기 따로). 이 편집기를 연 동안 가이드마다 한 번만 자동으로.
+const guideAutoShown = { editor: false, erase: false }
+let guideTimer = null
+function guideStorage() {
+  try { return window.localStorage } catch (e) { console.warn('[StudioEditor] 브라우저 저장소를 쓸 수 없어 "다시 보지 않기"를 기억하지 않음:', e.message); return null }
+}
+/** 가이드 열기 — 화면에 실제로 있는 대상만 넘긴다. @returns {boolean} 열었으면 true */
+function openGuide(kind) {
+  if (kind === 'editor' && isWide.value && activeTool.value !== 'photo') activeTool.value = 'photo' // [내 사진 올리기]를 짚으려면 [사진] 패널
+  shortcutsOpen.value = false
+  pageHistoryOpen.value = false
+  guide.open = false
+  nextTick(() => {
+    const steps = visibleSteps(kind === 'erase' ? ERASE_GUIDE_STEPS : EDITOR_GUIDE_STEPS, t => !!document.querySelector(`[data-guide="${t}"]`))
+    if (!steps.length) { console.error('[StudioEditor] 가이드 대상이 화면에 없어 띄우지 않음:', kind); return }
+    guide.kind = kind
+    guide.steps = steps
+    guide.hide = readGuideHidden(guideStorage(), kind)
+    guide.open = true
+  })
+  return true
+}
+function setGuideHidden(v) {
+  guide.hide = !!v
+  writeGuideHidden(guideStorage(), guide.kind, guide.hide)
+}
+function onGuideFinish() { guide.open = false }
+// 자동 시작 판단 — 편집기: 작업·페이지가 준비되고 시작 화면(16단계)·지우기 화면·창이 없을 때 / 지우기: 지우기 화면이 열렸을 때
+const guideAutoKind = computed(() => {
+  if (!isWide.value || guide.open || anyModalOpen.value || shortcutsOpen.value) return null
+  if (eraseOpen.value) return 'erase'
+  return 'editor'
+})
+const guideAutoReady = computed(() => {
+  const kind = guideAutoKind.value
+  if (!kind) return null
+  const ready = kind === 'erase' ? !!selectedImage.value : !!project.value && !loading.value && !!page.value
+  const blocked = kind === 'editor' && (showStart.value || !!pageSession.readError.value)
+  return shouldAutoStart({ hidden: readGuideHidden(guideStorage(), kind), shown: guideAutoShown[kind], ready, blocked }) ? kind : null
+})
+watch(guideAutoReady, kind => {
+  clearTimeout(guideTimer)
+  if (!kind) return
+  // 화면이 자리 잡은 뒤에 (지우기 화면은 편집 도구를 받는 동안 조금 늦게 그려진다)
+  guideTimer = setTimeout(() => {
+    if (guideAutoReady.value !== kind) return
+    guideAutoShown[kind] = true
+    openGuide(kind)
+  }, kind === 'erase' ? 900 : 600)
+}, { immediate: true })
+// 지우기 화면이 열리거나 닫히면 다른 쪽 가이드는 대상이 사라지므로 닫는다
+watch(eraseOpen, () => { if (guide.open) guide.open = false })
+
+// ── Ctrl+휠 확대 · 스페이스+끌기 화면 이동 (14단계, 편집기 가운데 페이지 — 계산은 studioViewNav) ──
+function onCanvasWheel(e) {
+  const sc = pageScroll.value
+  if (!sc) return
+  if (!(e.ctrlKey || e.metaKey)) {
+    // 이동 막이 덮은 동안에도 휠 스크롤은 그대로
+    if (e.target?.closest?.('[data-pan-layer]')) { e.preventDefault(); sc.scrollBy(e.deltaX, e.deltaY) }
+    return
+  }
+  e.preventDefault() // 브라우저 전체 확대가 되지 않게
+  const el = sc.querySelector('[data-page]')
+  if (!el || !page.value || eraseOpen.value) return
+  const z0 = zoom.value
+  const z1 = wheelZoom(z0, e.deltaY, e.deltaMode, sc.clientHeight)
+  if (z1 === null || Math.abs(z1 - z0) < 1e-4) return
+  const anchor = zoomAnchor(el.getBoundingClientRect(), e.clientX, e.clientY, z0)
+  const { clientX, clientY } = e
+  zoomMode.value = z1
+  nextTick(() => {
+    const fix = scrollFix(anchor, el.getBoundingClientRect(), clientX, clientY, z1)
+    sc.scrollLeft += fix.dx
+    sc.scrollTop += fix.dy
+  })
+}
+let panFrom = null
+function onPanDown(e) {
+  if (e.button !== 0 && e.button !== 1) return
+  e.preventDefault()
+  panFrom = { x: e.clientX, y: e.clientY }
+  panning.value = true
+  e.currentTarget.setPointerCapture?.(e.pointerId)
+}
+function onPanMove(e) {
+  const sc = pageScroll.value
+  if (!panFrom || !sc) return
+  const next = panScroll({ left: sc.scrollLeft, top: sc.scrollTop }, e.clientX - panFrom.x, e.clientY - panFrom.y)
+  panFrom = { x: e.clientX, y: e.clientY }
+  sc.scrollLeft = next.left
+  sc.scrollTop = next.top
+}
+function onPanUp() { panFrom = null; panning.value = false }
+function onKeyUp(e) {
+  if (e.code === 'Space' && spaceHeld.value) { e.preventDefault(); spaceHeld.value = false; onPanUp() }
+}
+function onWindowBlur() { spaceHeld.value = false; onPanUp() }
+
 // ── 키보드: Ctrl(Cmd)+Z 되돌리기, Ctrl(Cmd)+Shift+Z·Ctrl+Y 다시 ──
 // 되돌리기 대상: 지우기 화면이 열려 있으면 그 사진의 지우기 이력, 아니면 페이지 이력 (입력칸에서는 브라우저 기본 동작)
 // 6-1 페이지 요소 (지우기 화면·모달·우클릭 메뉴·입력칸에서는 동작 안 함):
 //   Ctrl+A 보이는 구간 전체 선택 · Ctrl+C/V/X 복사·붙여넣기·잘라내기 · Ctrl+D 복제 · Delete/Backspace 삭제 · Esc 선택 해제
 //   Ctrl+G 그룹 묶기 · Ctrl+Shift+G 그룹 풀기 (9단계) · Ctrl+Alt+C / Ctrl+Alt+V 글자 스타일 복사·붙여넣기 (10-2)
 //   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
-// (사용가이드는 14단계 — 생기면 여기서 막는다)
+// 14단계: 사용가이드가 떠 있으면 편집기 키는 모두 쉰다(가이드가 Esc·←/→를 쓴다) · ? = 단축키 표 · 스페이스 누르고 있기 = 화면 이동 · Esc = [이력] 목록 닫기
 function onKeyDown(e) {
+  if (guide.open) return
   if (!isWide.value || anyModalOpen.value || ctx.open || textEdit.value) return // 10-1: 글자를 고치는 동안은 쉰다
-  if (showStart.value && !eraseOpen.value) return // 16단계: 시작 화면이 가린 (저장 전) 기본 배치를 단축키로 고치지 않게
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
+  if (e.key === 'Escape' && (pageHistoryOpen.value || guideMenuOpen.value)) { e.preventDefault(); pageHistoryOpen.value = false; guideMenuOpen.value = false; return }
+  // ? = Shift+/ (자판에 따라 e.key가 '/'로 올 때가 있어 키 자리(Slash)+Shift도 받는다)
+  if ((e.key === '?' || (e.code === 'Slash' && e.shiftKey)) && !e.ctrlKey && !e.metaKey && !e.altKey && !eraseOpen.value) { e.preventDefault(); shortcutsOpen.value = true; return }
+  // defaultPrevented = [원본 비교] 버튼처럼 스페이스를 직접 쓰는 곳 (6-2) — 그쪽에 맡긴다
+  if (e.code === 'Space' && !e.defaultPrevented && !e.ctrlKey && !e.metaKey && !e.altKey && !eraseOpen.value && !showStart.value && page.value) {
+    e.preventDefault() // 페이지가 스크롤되거나 눌린 버튼이 다시 눌리지 않게
+    if (!spaceHeld.value && !pageView.value?.isBusy()) spaceHeld.value = true
+    return
+  }
+  if (showStart.value && !eraseOpen.value) return // 16단계: 시작 화면이 가린 (저장 전) 기본 배치를 단축키로 고치지 않게
   if (pageView.value?.isBusy()) return // 끌고 있는 중
   // Alt 조합은 10-2 스타일 복사·붙여넣기(Ctrl+Alt+C / Ctrl+Alt+V, 글자끼리)만 — 그 밖의 Alt 조합은 예전처럼 아무것도 안 한다
   if (e.altKey) {
@@ -2129,6 +2327,8 @@ onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
   window.addEventListener('beforeunload', onBeforeUnload)
   window.addEventListener('keydown', onKeyDown)
+  window.addEventListener('keyup', onKeyUp)       // 14: 스페이스를 떼면 화면 이동 끝
+  window.addEventListener('blur', onWindowBlur)
   document.addEventListener('visibilitychange', onVisible)
   viewUrlTimer = setInterval(refreshViewUrls, VIEW_URL_REFRESH_MS)
   // 10-1 글꼴: 편집기가 열릴 때만 스타일시트를 붙인다(사이트 전체 아님). 글꼴을 새로 받으면 측정 캐시를 비우고 줄을 다시 계산
@@ -2146,6 +2346,9 @@ onUnmounted(() => {
   window.removeEventListener('euchs-auth-changed', onStudioAuthChanged)
   window.removeEventListener('beforeunload', onBeforeUnload)
   window.removeEventListener('keydown', onKeyDown)
+  window.removeEventListener('keyup', onKeyUp)
+  window.removeEventListener('blur', onWindowBlur)
+  clearTimeout(guideTimer)
   document.removeEventListener('visibilitychange', onVisible)
   clearInterval(viewUrlTimer)
   clearTimeout(toastTimer)

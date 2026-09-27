@@ -3,7 +3,7 @@
     <div class="px-4 pt-4 pb-3 space-y-3 st-border-b">
       <div class="flex items-center">
         <span class="st-h-card">사진 <span class="st-muted font-bold">{{ images.length }}장</span></span>
-        <button type="button" class="st-btn ml-auto" data-add-photo @click="$emit('add')"><ImagePlus class="w-4 h-4" :stroke-width="2" /> 내 사진 올리기</button>
+        <button type="button" class="st-btn ml-auto" data-add-photo data-guide="photo-add" @click="$emit('add')"><ImagePlus class="w-4 h-4" :stroke-width="2" /> 내 사진 올리기</button>
       </div>
       <!-- 출처 탭 (7단계): 1688 사진 = 이 작업의 1688 상품에서 가져온 것(결정 6) / 내 사진 = 직접 올린 것. studio_images.kind로 나눈다 -->
       <div class="st-seg" role="tablist" aria-label="사진 출처">

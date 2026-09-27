@@ -1,0 +1,53 @@
+/**
+ * 사용가이드 (14단계) — "다시 보지 않기"·자동 시작 판단. 순수 함수 (node 테스트: scripts/test-studio-guide.mjs)
+ *
+ * ★ "다시 보지 않기"는 브라우저에만 기억한다 (localStorage). DB에 칸을 새로 만들지 않는다
+ *   (studio_settings에 가이드 칸이 없음 — 14단계 보고서). 편집기 가이드와 지우기 화면 가이드는 따로 기억한다.
+ *   값 '1' = 다시 보지 않기. 없음 = 자동으로 띄움. 읽을 수 없으면(사생활 보호 창 등) 띄운다 — 가이드가 안 뜨는 것보다 뜨는 쪽이 안전.
+ * ★ 자동 시작 = 다시 보지 않기가 아니고 · 이 화면을 연 뒤 아직 안 띄웠고 · 준비가 끝났고 · 가로막는 것(시작 화면·창)이 없을 때.
+ */
+export const GUIDE_KEYS = { editor: 'studio-guide-hide:editor', erase: 'studio-guide-hide:erase' }
+
+export function guideKey(kind) {
+  return GUIDE_KEYS[kind] ?? null
+}
+
+/** @param {Storage|null} storage  @returns {boolean} 다시 보지 않기로 했는지 */
+export function readGuideHidden(storage, kind) {
+  const key = guideKey(kind)
+  if (!storage || !key) return false
+  try {
+    return storage.getItem(key) === '1'
+  } catch (e) {
+    console.warn('[studioGuide] 다시 보지 않기 값을 읽지 못함 (가이드를 띄움):', e.message)
+    return false
+  }
+}
+
+/** @returns {boolean} 기억했으면 true (못 쓰는 환경이면 false — 이번 창에서만 적용) */
+export function writeGuideHidden(storage, kind, hidden) {
+  const key = guideKey(kind)
+  if (!storage || !key) return false
+  try {
+    if (hidden) storage.setItem(key, '1')
+    else storage.removeItem(key)
+    return true
+  } catch (e) {
+    console.warn('[studioGuide] 다시 보지 않기 값을 저장하지 못함:', e.message)
+    return false
+  }
+}
+
+/**
+ * 자동으로 띄울지 — 모두 true/false 값으로 받는다 (truthy 값을 믿지 않음)
+ * @param {{ hidden: boolean, shown: boolean, ready: boolean, blocked: boolean }} s
+ *   hidden = 다시 보지 않기 · shown = 이번에 이미 띄움 · ready = 화면 준비 끝 · blocked = 시작 화면·창·다른 가이드가 떠 있음
+ */
+export function shouldAutoStart({ hidden, shown, ready, blocked }) {
+  return hidden === false && shown === false && ready === true && blocked === false
+}
+
+/** 화면에 실제로 있는 대상만 (SpotlightGuide는 넘겨받은 단계를 그대로 보여 주므로) */
+export function visibleSteps(steps, exists) {
+  return steps.filter(s => exists(s.target))
+}

@@ -49,7 +49,7 @@
             <p class="st-history-note break-keep">이력은 이 창을 닫으면 사라져요. 작업한 내용은 자동으로 저장돼 있어요.</p>
           </div>
         </div>
-        <button type="button" class="st-btn st-btn-primary" data-erase-done @click="requestClose"><Check class="w-4 h-4" :stroke-width="2.5" /> 완료</button>
+        <button type="button" class="st-btn st-btn-primary" data-erase-done data-guide="erase-done" @click="requestClose"><Check class="w-4 h-4" :stroke-width="2.5" /> 완료</button>
       </div>
     </header>
 
@@ -61,7 +61,7 @@
 
           <!-- 1. 도구 -->
           <div class="mt-4 st-label">도구</div>
-          <div class="mt-2 st-seg w-full" role="toolbar" aria-label="지우기 도구">
+          <div class="mt-2 st-seg w-full" role="toolbar" aria-label="지우기 도구" data-guide="erase-tools">
             <button
               v-for="t in TOOL_BUTTONS" :key="t.key" type="button"
               class="st-seg-item st-tool-item flex-1 inline-flex items-center justify-center gap-1" :class="canvasTool === t.key ? 'is-active' : ''"
@@ -143,7 +143,7 @@
 
           <!-- 4. [AI로 지우기] [단색] — 누르면 바로 실행 -->
           <div class="mt-5 st-label">지우기 · 누르면 바로 실행</div>
-          <div class="mt-2 flex gap-2">
+          <div class="mt-2 flex gap-2" data-guide="erase-run">
             <button
               type="button" class="st-btn st-btn-lg st-btn-primary flex-[1.6]"
               :disabled="!selectedFill || selectedAiState === 'busy'" data-method="ai"
