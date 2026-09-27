@@ -114,7 +114,7 @@
               <span
                 v-if="autoMark(img.id)?.problem && isPlaced(img.id)" role="button" tabindex="0" class="st-row-link" :data-auto-remove-image="img.id" title="이 사진을 페이지에서 빼요 (목록에는 남아요)"
                 @click.stop="$emit('auto-remove', img.id)" @keydown.enter.stop.prevent="$emit('auto-remove', img.id)" @dblclick.stop
-              ><X class="w-3 h-3" :stroke-width="2.5" />빼기</span>
+              ><X class="w-3 h-3" :stroke-width="2.5" />페이지에서 빼기</span>
               <span
                 v-if="canInsert(img)" role="button" tabindex="0" class="st-row-link" :data-insert-image="img.id"
                 :title="isPlaced(img.id) ? '이 사진을 페이지에 한 번 더 넣어요' : '지금 보고 있는 자리에 이 사진을 넣어요 (끌어다 놓아도 돼요)'"

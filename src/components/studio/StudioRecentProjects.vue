@@ -20,8 +20,12 @@
       </div>
     </div>
 
-    <!-- 작업 복사본 (16단계): 만드는 중 / 만들었어요 [열기] / 실패 사유 -->
-    <div v-if="copyState.status" class="mb-4 flex items-center gap-2 px-3 py-2 rounded-[10px] st-card text-[13px] font-bold break-keep" :data-copy-notice="copyState.status">
+    <!-- 작업 복사본 (16단계): 만드는 중 / 만들었어요 [열기] / 실패 사유
+         검수 2묶음: 목록 위가 아니라 화면 아래 가운데에 고정 — 아래쪽 카드에서 복사해도(대문 "이어서 작업하기" 포함) 스크롤 없이 보인다 -->
+    <div
+      v-if="copyState.status" class="fixed left-1/2 -translate-x-1/2 bottom-6 flex items-center gap-2 px-3 py-2 rounded-[10px] st-card st-shadow-float text-[13px] font-bold break-keep"
+      style="z-index: 40; max-width: calc(100% - 32px)" role="status" :data-copy-notice="copyState.status"
+    >
       <span v-if="copyState.status === 'working'" class="st-ink-2">복사본을 만드는 중이에요…</span>
       <template v-else-if="copyState.status === 'done'">
         <span class="st-ink">복사본을 만들었어요</span>

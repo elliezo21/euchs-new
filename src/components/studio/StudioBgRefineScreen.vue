@@ -134,8 +134,7 @@ import { X, Undo2, Redo2, Eye, Check, Loader2, RotateCcw, Info, RefreshCw, ZoomI
 import { BRUSH_UI_MIN, BRUSH_UI_MAX } from '@/composables/useEraseSession'
 import { screenToImage, fitView, clampPan, zoomAt } from '@/lib/studioCoords'
 import {
-  stampSegment, applyCoverage, clearRect, unionRect, targetOf, replayOps, sameMask, maskFromRgba, maskToRgba, refineKey,
-} from '@/lib/studioBgRefine'
+  stampSegment, applyCoverage, clearRect, unionRect, targetOf, replayOps, sameMask, maskFromRgba, maskToRgba, refineKey, stepBrushSize } from '@/lib/studioBgRefine'
 
 const props = defineProps({
   image: { type: Object, required: true },         // 사진 행 (width·height = 원본 크기)
@@ -464,8 +463,7 @@ function setSize(v) {
   requestDraw()
 }
 function stepSize(dir) {
-  const step = Math.max(1, Math.round(size.value * 0.15))
-  setSize(size.value + dir * step)
+  setSize(stepBrushSize(size.value, dir, BRUSH_UI_MIN, BRUSH_UI_MAX)) // 검수 2묶음: 같은 단계표를 오르내림 (studioBgRefine.BRUSH_LADDER)
 }
 
 // [원본 보기] — 누르고 있는 동안만

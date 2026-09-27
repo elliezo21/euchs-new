@@ -49,3 +49,37 @@ export function panScroll(scroll, dx, dy) {
 export function zoomPercent(z) {
   return Math.round(z * 100)
 }
+
+/** 글자를 치는 곳인지 (입력칸·글자 칸·편집 가능한 요소) — 키 모양만 보는 순수 함수 */
+export function isTypingTarget(t) {
+  return !!t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || !!t.isContentEditable)
+}
+/**
+ * 브라우저 "전체 선택"(Ctrl/Cmd+A)을 막을지 (검수 2묶음) — 편집기 화면에서는 입력칸 밖 Ctrl+A가 브라우저 기본 동작(페이지 글자 전체 선택)을
+ * 하지 않게 한다. 시작 화면·가이드·창이 떠 있을 때 뒤 페이지 글자가 통째로 파랗게 골라지던 문제. 편집기 동작(보이는 구간 요소 고르기)은 따로 한다
+ */
+export function blocksBrowserSelectAll(e) {
+  return !!e && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.code === 'KeyA' && !isTypingTarget(e.target)
+}
+
+// ── 페이지 칸 안에서만 스크롤 (검수 2묶음) ──
+// scrollIntoView는 바깥 칸(사이트 틀·overflow hidden)까지 움직일 수 있고, 멀리 부드럽게 날아가면 사진이 줄줄이 지나가
+// "새로고침된 것처럼" 보였다(17-1 크롬 확인 — 미니뷰 누르기). 페이지 스크롤 칸의 scrollTop만 바꾸고, 멀면 바로 옮긴다.
+export const SCROLL_SMOOTH_MAX = 2 // 화면 높이의 이 배수보다 멀면 부드럽게 말고 바로
+export const SCROLL_MARGIN = 16
+
+/**
+ * @param {{ elTop: number, elHeight: number, scrollTop: number, viewHeight: number, block: 'start'|'nearest', margin?: number }} a
+ *   elTop = 스크롤 칸 내용 맨 위에서 요소 위까지(px), viewHeight = 스크롤 칸 보이는 높이
+ * @returns {{ top: number, behavior: 'smooth'|'auto' } | null}  null = 이미 보임(nearest) — 움직이지 않음
+ */
+export function scrollPlan({ elTop, elHeight, scrollTop, viewHeight, block = 'nearest', margin = SCROLL_MARGIN }) {
+  let top
+  if (block === 'start') top = elTop - margin
+  else if (elTop >= scrollTop && elTop + elHeight <= scrollTop + viewHeight) return null
+  else if (elTop < scrollTop || elHeight > viewHeight) top = elTop - margin
+  else top = elTop + elHeight - viewHeight + margin
+  top = Math.max(0, Math.round(top))
+  if (top === Math.round(scrollTop)) return null
+  return { top, behavior: Math.abs(top - scrollTop) > viewHeight * SCROLL_SMOOTH_MAX ? 'auto' : 'smooth' }
+}

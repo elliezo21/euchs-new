@@ -224,3 +224,26 @@ export function maskedCanvas(source, W, H, maskImg, createCanvas) {
   mc.height = 0
   return c
 }
+
+export const PAGE_DEFAULT_BG = '#ffffff' // = studioPage.SECTION_BG (새 구간 기본 배경)
+/**
+ * [구간 배경색과 같게]의 기준 구간 (검수 2묶음 — 17-2 크롬 확인: 목록에서 고른 사진이 페이지에 없으면 잠겼다)
+ * 고르는 순서: ① 그 사진이 놓인 구간(페이지에서 고른 자리가 먼저) ② 골라진 구간 ③ 지금 보고 있는 구간 ④ 페이지 기본 배경(흰색)
+ * 기준 구간의 배경색이 '#rrggbb'가 아니면(옛 값) 잠그고 이유를 돌려준다 (다른 구간으로 몰래 바꾸지 않음)
+ * @param {{ sections: object[] }|null} page
+ * @param {{ photoSectionId?: string|null, selectedSectionId?: string|null, inViewSectionId?: string|null }} ids
+ * @returns {{ color: string|null, source: 'photo'|'selected'|'inView'|'page', sectionId: string|null, reason: string }}
+ */
+export function sectionBgChoice(page, { photoSectionId = null, selectedSectionId = null, inViewSectionId = null } = {}) {
+  const find = id => (id && page?.sections?.find(s => s.id === id)) || null
+  const tries = [['photo', photoSectionId], ['selected', selectedSectionId], ['inView', inViewSectionId]]
+  for (const [source, id] of tries) {
+    const s = find(id)
+    if (!s) continue
+    const color = normalizeBgColor(s.bg)
+    return color
+      ? { color, source, sectionId: s.id, reason: '' }
+      : { color: null, source, sectionId: s.id, reason: '이 구간 배경색은 예전 형식이라 고를 수 없어요. [구간]에서 배경색을 다시 골라 주세요.' }
+  }
+  return { color: PAGE_DEFAULT_BG, source: 'page', sectionId: null, reason: '' }
+}

@@ -32,7 +32,15 @@ export const VIEW_QUALITY = 0.9
 export function thumbUnderStyle(v) {
   if (!v?.url) return null
   if (v.bgUrl) return { backgroundImage: `url("${v.bgUrl}")`, backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
-  return v.bgColor ? { background: v.bgColor } : null
+  if (v.bgColor) return { background: v.bgColor }
+  // 검수 2묶음 (17-1 검수 후보): [투명]이면 체크무늬 — 어두운 목록 바탕이 비쳐 사진이 까매 보이지 않게 (배경합성 패널 썸네일과 같은 무늬)
+  return v.bgApplied ? THUMB_CHECKER : null
+}
+const THUMB_CHECKER = {
+  backgroundColor: 'var(--st-card)',
+  backgroundImage: 'linear-gradient(45deg, var(--st-line) 25%, transparent 25%), linear-gradient(-45deg, var(--st-line) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, var(--st-line) 75%), linear-gradient(-45deg, transparent 75%, var(--st-line) 75%)',
+  backgroundSize: '12px 12px',
+  backgroundPosition: '0 0, 0 6px, 6px -6px, -6px 0',
 }
 
 /** 줄일 폭 (정수) */

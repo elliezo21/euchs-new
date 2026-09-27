@@ -51,3 +51,32 @@ export function shouldAutoStart({ hidden, shown, ready, blocked }) {
 export function visibleSteps(steps, exists) {
   return steps.filter(s => exists(s.target))
 }
+
+// ── 이 탭에서 이미 자동으로 띄웠는지 (검수 2묶음) ──
+// 지우기 가이드는 같은 탭(창)에서 한 번 봤으면 "다시 보지 않기"를 안 눌렀어도 다시 자동으로 띄우지 않는다.
+// 편집기 컴포넌트 안에만 기억하면 목록으로 나갔다 다시 들어올 때 잊어서 또 떴다 → sessionStorage(탭이 닫히면 사라짐)에 기억.
+// 편집기 가이드는 예전 그대로(편집기를 열 때마다 — 빈도는 해성 결정 대기) — 이 기록을 쓰는 종류만 SESSION_ONCE에 둔다.
+export const SESSION_ONCE = new Set(['erase'])
+const SHOWN_PREFIX = 'studio-guide-shown:'
+
+/** @param {Storage|null} storage sessionStorage  @returns {boolean} 이 탭에서 이미 자동으로 띄움 */
+export function readGuideShown(storage, kind) {
+  if (!storage || !SESSION_ONCE.has(kind)) return false
+  try {
+    return storage.getItem(SHOWN_PREFIX + kind) === '1'
+  } catch (e) {
+    console.warn('[studioGuide] 이 탭에서 띄웠는지 읽지 못함 (창 안에서만 기억):', e.message)
+    return false
+  }
+}
+/** @returns {boolean} 기억했으면 true */
+export function writeGuideShown(storage, kind) {
+  if (!storage || !SESSION_ONCE.has(kind)) return false
+  try {
+    storage.setItem(SHOWN_PREFIX + kind, '1')
+    return true
+  } catch (e) {
+    console.warn('[studioGuide] 이 탭에서 띄운 것을 기억하지 못함 (창 안에서만 기억):', e.message)
+    return false
+  }
+}

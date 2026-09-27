@@ -302,7 +302,7 @@ eq('페이지 있음 → 복사본에서 (원본은 덮지 않음)', oneClickTar
   eq('글자 초안 구간 = 소개 글 + 옵션표 (2곳)', ids.length, 2)
   eq('초안 표시(page.auto)도 readPage 그대로 통과', (() => { const r = readPage(JSON.parse(JSON.stringify(marked)), 'x'); return [r.problems, r.page.auto] })(), [[], { v: 1, drafts: ids }])
   eq('초안 구간 판단', [isDraftSection(marked, ids[0]), isDraftSection(marked, page.sections[0].id), isDraftSection(page, ids[0])], [true, false, false])
-  eq('초안이 없으면 표시 없음', withDraftMark(page, []) === page, true)
+  eq('초안이 없어도 원클릭 페이지 표시는 남김 (검수 2묶음 — 안내 띠를 새로고침 뒤에도) · 안내 글 note', [withDraftMark(page, []).auto, withDraftMark(page, [], '적어 주세요').auto.note], [{ v: 1, drafts: [] }, '적어 주세요'])
   const base = ocrModelBase('https://abc.supabase.co/')
   eq('모델 주소 = Supabase Storage studio-models/ocr/ppocrv5-mobile/ (한 곳)', base, 'https://abc.supabase.co/storage/v1/object/public/studio-models/ocr/ppocrv5-mobile/')
   eq('모델 파일 3개 · 크기·sha 고정', ocrFileList(base).map(f => [f.key, f.url.endsWith(OCR_FILES.find(x => x.key === f.key).name), /^[0-9a-f]{64}$/.test(f.sha256), f.size > 0]), [['det', true, true, true], ['rec', true, true, true], ['dict', true, true, true]])

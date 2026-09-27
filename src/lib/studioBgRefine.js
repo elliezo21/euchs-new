@@ -175,3 +175,14 @@ export async function refineKey(mask, W, H) {
   const d = new Uint8Array(await globalThis.crypto.subtle.digest('SHA-256', buf))
   return Array.from(d.subarray(0, 8), b => b.toString(16).padStart(2, '0')).join('')
 }
+
+// ── 붓 크기 [ ] 단계표 (검수 2묶음 — 17-3: 15%씩 곱하면 80 → 92 → 78처럼 원래 크기로 안 돌아왔다) ──
+// 같은 단계표를 오르내린다: ] = 지금보다 큰 첫 칸, [ = 지금보다 작은 마지막 칸. 단계표 사이 값(슬라이더로 정한 크기)에서도 가까운 칸으로
+export const BRUSH_LADDER = [1, 2, 3, 4, 5, 6, 8, 10, 12, 14, 16, 20, 24, 28, 32, 40, 48, 56, 64, 72, 80, 92, 106, 120, 140, 160, 180, 200, 230, 260, 300]
+/** @param {number} size 지금 크기 @param {1|-1} dir @returns {number} 다음 크기 (min~max 안) */
+export function stepBrushSize(size, dir, min, max) {
+  const ladder = BRUSH_LADDER.filter(v => v >= min && v <= max)
+  if (!ladder.length) return Math.min(max, Math.max(min, size))
+  const next = dir > 0 ? ladder.find(v => v > size) : [...ladder].reverse().find(v => v < size)
+  return next ?? (dir > 0 ? ladder[ladder.length - 1] : ladder[0])
+}

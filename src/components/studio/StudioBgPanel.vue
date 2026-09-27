@@ -46,10 +46,13 @@
             </div>
             <button
               type="button" class="st-btn w-full" :disabled="!sectionBg" data-bg-color-section
-              :title="sectionBg ? '' : '페이지에 놓인 사진을 고르면 쓸 수 있어요'" @click="$emit('color', sectionBg, { commit: true })"
+              :title="sectionBgWhere" @click="$emit('color', sectionBg, { commit: true })"
             >
               <span class="st-swatch-mini" :style="sectionBg ? { background: sectionBg } : null" /> 구간 배경색과 같게
             </button>
+            <!-- 검수 2묶음: 어느 구간 색인지 / 잠긴 이유를 글자로 (툴팁에만 두지 않음) -->
+            <p v-if="sectionBgReason" class="text-[11px] font-bold st-danger-text break-keep" data-bg-color-section-reason>{{ sectionBgReason }}</p>
+            <p v-else-if="sectionBgWhere" class="text-[11px] st-muted break-keep" data-bg-color-section-where>기준: {{ sectionBgWhere }}</p>
           </div>
 
           <!-- 경계 다듬기 (17-3): 붓으로 AI 결과를 고친다 (외부 AI 없음·무료) -->
@@ -192,7 +195,9 @@ const props = defineProps({
   row: { type: Object, default: null },           // 고른 사진 행 (done)
   thumbUrl: { type: String, default: null },       // 화면 작은 사진 (배경 마스크 적용된 것 — 단색은 아래 색으로)
   bg: { type: Object, default: null },             // { mask, mode, color? } | null
-  sectionBg: { type: String, default: null },      // 이 사진이 놓인 구간의 배경색 (없으면 [구간 배경색과 같게] 잠금)
+  sectionBg: { type: String, default: null },      // [구간 배경색과 같게] 색 (studioBg.sectionBgChoice — 없으면 잠금)
+  sectionBgWhere: { type: String, default: '' },   // 기준 구간 설명 (검수 2묶음)
+  sectionBgReason: { type: String, default: '' },  // 잠긴 이유 (옛 형식 색 등)
   status: { type: Object, required: true },        // { loading, ready, reason, message }
   busy: { type: Boolean, default: false },         // 이 사진을 처리 중
   error: { type: String, default: '' },

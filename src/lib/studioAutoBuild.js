@@ -543,8 +543,43 @@ export function draftSectionIds(page, drafts) {
   const texts = new Set([drafts.title, drafts.body].filter(Boolean))
   return page.sections.filter(s => s.items.some(it => (it.type === 'text' && texts.has(it.text)) || (it.type === 'table' && it.cells?.[0]?.[0] === '옵션'))).map(s => s.id)
 }
-export function withDraftMark(page, ids) {
-  return ids.length ? { ...page, auto: { v: AUTO_VERSION, drafts: [...ids] } } : page
+/**
+ * 원클릭으로 만든 페이지 표시 — page.auto = { v: 1, drafts: [초안 구간 id], note? }
+ *   note = 글자 초안을 만들지 못한 안내(안내 띠 둘째 줄). 검수 2묶음: 초안이 없어도 원클릭 페이지면 표시한다(안내 띠를 새로고침 뒤에도 보이려고)
+ */
+export function withDraftMark(page, ids, note = '') {
+  return { ...page, auto: { v: AUTO_VERSION, drafts: [...ids], ...(note ? { note: String(note).slice(0, 200) } : {}) } }
+}
+/** 원클릭으로 만든 페이지인지 (안내 띠를 보일 수 있는지) */
+export function isAutoPage(page) {
+  return !!page?.auto && page.auto.v === AUTO_VERSION && Array.isArray(page.auto.drafts)
+}
+
+// ── 안내 띠 닫음 기억 (검수 2묶음 — 해성 결정 2) ──
+// 닫기 전까지는 새로고침 뒤에도 보이고, 한 번 닫으면 그 작업에서는 다시 띄우지 않는다.
+// "닫았음"은 보는 사람의 화면 상태라 페이지 문서에 넣지 않는다 — 넣으면 닫을 때마다 페이지 저장·page_version·이력 한 칸이 생기고
+// 다른 창과 저장 충돌이 날 수 있다. 그래서 작업별 localStorage 키 하나(studioSteps의 단계 기억과 같은 방식). 읽지 못하면 띄운다.
+export const NOTICE_KEY_PREFIX = 'studio-auto-notice-closed:'
+export function readNoticeClosed(storage, projectId) {
+  if (!storage || !projectId) return false
+  try {
+    return storage.getItem(NOTICE_KEY_PREFIX + projectId) === '1'
+  } catch (e) {
+    console.warn('[studioAutoBuild] 안내 띠 닫음 기억을 읽지 못함 (띠를 보임):', e.message)
+    return false
+  }
+}
+/** @param closed true = 닫음 기억 / false = 지움(새 원클릭이 끝나면 다시 보이게) @returns 기억했으면 true */
+export function writeNoticeClosed(storage, projectId, closed) {
+  if (!storage || !projectId) return false
+  try {
+    if (closed) storage.setItem(NOTICE_KEY_PREFIX + projectId, '1')
+    else storage.removeItem(NOTICE_KEY_PREFIX + projectId)
+    return true
+  } catch (e) {
+    console.warn('[studioAutoBuild] 안내 띠 닫음을 기억하지 못함 (이 창에서만):', e.message)
+    return false
+  }
 }
 export function isDraftSection(page, sectionId) {
   return !!sectionId && Array.isArray(page?.auto?.drafts) && page.auto.drafts.includes(sectionId)

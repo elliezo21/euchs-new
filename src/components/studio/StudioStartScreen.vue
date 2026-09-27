@@ -17,7 +17,7 @@
           </div>
           <div class="mt-4 text-[17px] font-extrabold st-ink">원클릭 AI 자동 제작</div>
           <p class="mt-1.5 st-desc break-keep">
-            {{ canBlank ? '사진만 있으면 사진 다듬기부터 페이지 구성, 글자 초안까지 AI가 끝까지 만들어요. 만든 뒤 여기서 바로 고칠 수 있어요.' : '먼저 왼쪽 [사진]에서 사진을 올려 주세요.' }}
+            {{ canBlank ? '사진을 골라 다듬고, 페이지 배치와 글자 초안까지 AI가 자동으로 만들어요(한 번에 30장까지). 처음 한 번은 준비에 1~3분 걸려요. 만든 페이지는 여기서 바로 고칠 수 있어요.' : '먼저 왼쪽 [사진]에서 사진을 올려 주세요.' }}
           </p>
         </button>
         <button type="button" class="st-start-card" data-start-card="manual" @click="stage = 'source'">

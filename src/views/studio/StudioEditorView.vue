@@ -64,6 +64,7 @@
                 <li v-for="s in pageHistoryRows" :key="s.i">
                   <button
                     type="button" class="st-menu-row w-full" :class="s.current ? 'st-accent-text font-extrabold' : ''" :disabled="s.current"
+                    :style="s.current ? { opacity: 1, cursor: 'default' } : null"
                     :data-history-step="s.i" @click="restoreHistory(s.i)"
                   >
                     <span class="truncate">{{ s.label }}</span>
@@ -130,11 +131,12 @@
         <!-- 고른 요소가 있으면 위쪽에 공통 조작 칸 (6-1) + 사진 한 장이면 사진 묶음 (6-2) -->
         <!-- 원클릭 글자 초안 구간을 고르면 한 줄 (review-1) -->
         <p v-if="isWide && selectedInDraft && !showStart" class="shrink-0 px-4 py-2 text-[12px] font-bold break-keep st-border-b" style="color: var(--st-ai)" data-draft-hint>AI 초안은 확인 후 사용해 주세요 · 1688 상품 정보로 만든 글자라 눌러서 고칠 수 있어요</p>
-        <div v-if="isWide && page && selectedItemIds.length && !showStart" class="shrink-0 max-h-[65%] overflow-y-auto" data-selection-panels>
+        <div v-if="showSelectionPanels" class="shrink-0 max-h-[65%] overflow-y-auto" data-selection-panels>
           <StudioTransformPanel :page="page" :selected-ids="selectedItemIds" @command="runCommand" />
           <StudioImageItemPanel
             v-if="selectedPhotoItem"
             :item="selectedPhotoItem" :look="session.lookOf(selectedPhotoItem.imageId)" :thumb-url="views[selectedPhotoItem.imageId]?.url || null"
+            :thumb-under="thumbUnderStyle(views[selectedPhotoItem.imageId])"
             @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
             @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
             :shape-text="shapeMarkOf(selectedPhotoItem.imageId)" @crop="openCrop(selectedPhotoItem.imageId)"
@@ -155,7 +157,7 @@
             v-if="activeTool === 'photo' || !isWide"
             :key="project.id" ref="photoPanel"
             :images="images" :views="views" :selected-image-id="selectedImageId" :fill-count="fillCount" :order-error="orderError"
-            :bake-state="bakeQueue.state" :placed-ids="placedIds" :shape-mark-of="shapeMarkOf" :auto-mark-of="autoMarkOf"
+            :bake-state="bakeQueue.state" :placed-ids="showStart ? null : placedIds" :shape-mark-of="shapeMarkOf" :auto-mark-of="autoMarkOf"
             @select="selectFromPanel" @open-erase="openErase" @add="addOpen = true" @retry-image="retryView" @retry-bake="requestBake"
             @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded" @insert="onInsertImage"
             @auto-revert="onAutoRevert" @auto-remove="onAutoRemove"
@@ -177,7 +179,7 @@
             v-else-if="activeTool === 'bg'"
             :row="bgRow" :thumb-url="bgRow ? views[bgRow.id]?.url || null : null" :bg="bgRow ? session.bgOf(bgRow.id) : null"
             :target-label="bgTarget.label" :target-source="bgTarget.source"
-            :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError" :section-bg="bgSectionColor"
+            :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError" :section-bg="bgSectionColor" :section-bg-where="bgSectionChoice?.where || ''" :section-bg-reason="bgSectionChoice?.reason || ''"
             :thumb-under="bgRow ? views[bgRow.id]?.bgUrl || null : null"
             :gen-status="bgGenStatus" :gen-busy="!!(bgRow && bgGenBusy[bgRow.id])" :gen-error="bgGenError"
             @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus" @refine="openRefine"
@@ -205,7 +207,7 @@
         />
         <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
-          <div v-else-if="page && page.sections.length" class="pb-24" :class="autoNotice.open ? 'pt-24' : 'pt-8'" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
+          <div v-else-if="page && page.sections.length" class="pb-24" :class="noticeVisible ? 'pt-24' : 'pt-8'" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
             <StudioPageView
               ref="pageView"
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state" :flags="sectionFlags"
@@ -221,16 +223,16 @@
           </div>
         </div>
         <!-- 원클릭 안내 띠 (review-1): 완료 팝업 대신 — 만든 페이지를 바로 보여 주고 위에 한 줄. 닫을 수 있다 -->
-        <div v-if="autoNotice.open && page" class="absolute left-3 top-3" style="z-index: 6; width: min(640px, calc(100% - 256px))" data-auto-notice>
+        <div v-if="noticeVisible" class="absolute left-3 top-3" style="z-index: 6; width: min(640px, calc(100% - 256px))" data-auto-notice>
           <div class="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-[12px] st-card st-shadow-float text-[13px] break-keep">
             <Sparkles class="w-4 h-4 shrink-0" :stroke-width="2" style="color: var(--st-ai)" />
             <span class="font-bold st-ink min-w-0" data-auto-notice-text>
-              상세페이지를 자동으로 만들었어요 · 사진 {{ autoNotice.placed }}장<template v-if="autoProblems.length"> · 확인하면 좋은 사진 {{ autoProblems.length }}장</template>
+              상세페이지를 자동으로 만들었어요 · 사진 {{ noticePlaced }}장<template v-if="autoProblems.length"> · 확인하면 좋은 사진 {{ autoProblems.length }}장</template>
             </span>
             <button v-if="autoProblems.length" type="button" class="st-btn h-8 ml-auto shrink-0" :class="autoNotice.listOpen ? 'is-pressed' : ''" data-auto-notice-list @click="autoNotice.listOpen = !autoNotice.listOpen">확인할 사진 보기</button>
-            <button type="button" class="st-icon-btn shrink-0" :class="autoProblems.length ? '' : 'ml-auto'" title="닫기" data-auto-notice-close @click="autoNotice.open = false"><X class="w-4 h-4" :stroke-width="2" /></button>
+            <button type="button" class="st-icon-btn shrink-0" :class="autoProblems.length ? '' : 'ml-auto'" title="닫기" data-auto-notice-close @click="closeNotice"><X class="w-4 h-4" :stroke-width="2" /></button>
           </div>
-          <p v-if="autoNotice.draftNote" class="mt-1 px-3 text-[12px] font-bold break-keep" style="color: var(--st-ai)" data-auto-draft-note>{{ autoNotice.draftNote }}</p>
+          <p v-if="page.auto?.note" class="mt-1 px-3 text-[12px] font-bold break-keep" style="color: var(--st-ai)" data-auto-draft-note>{{ page.auto.note }}</p>
           <ol v-if="autoNotice.listOpen && autoProblems.length" class="mt-1.5 p-1.5 st-card st-shadow-float rounded-[12px] max-h-[300px] overflow-y-auto" data-auto-problem-list>
             <li v-for="p in autoProblems" :key="p.id">
               <button type="button" class="st-menu-row w-full" :data-auto-problem-row="p.id" @click="goProblem(p.id)">
@@ -258,7 +260,8 @@
           <span class="text-[12px] font-bold st-ink-2 pr-1 whitespace-nowrap" data-page-width>폭 {{ page.width }}px · {{ PAGE_WIDTH_LABEL }}</span>
         </div>
         <!-- 사진 정보 + [지우기] (3단계 임시 카드 — 페이지에서 누른 사진 기준. 6단계에서 왼쪽 사진 속성 패널로 옮긴다) -->
-        <div v-if="selectedImage && !eraseOpen" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
+        <!-- 검수 2묶음: 페이지에서 사진을 골랐을 때만 (늘 떠 있으면 페이지 오른쪽 위(BEST 배지 등)를 가렸다). 목록에만 있는 사진은 목록 줄 [지우기] -->
+        <div v-if="selectedImage && selectedPhotoItem && !eraseOpen && !showStart" class="absolute right-3 top-3 w-[220px] st-card p-3" style="z-index: 5" data-image-info>
           <div class="text-[12px] font-bold st-ink-2 truncate">{{ KIND_LABEL[selectedImage.kind] }}<span v-if="selectedImage.kind === 'upload' && selectedImage.upload_name"> · {{ selectedImage.upload_name }}</span></div>
           <div class="text-[11px] st-muted">{{ selectedImage.width }}×{{ selectedImage.height }}px · {{ formatBytes(selectedImage.bytes) }} · 지움 {{ selectedFillCounts.done }}<span v-if="selectedFillCounts.cover"> · 덮기 {{ selectedFillCounts.cover }}</span><span v-if="selectedFillCounts.redo"> · 다시 지우기 {{ selectedFillCounts.redo }}</span></div>
           <button type="button" class="st-btn st-btn-primary st-btn-block mt-2" data-open-erase @click="openErase(selectedImage.id)"><Eraser class="w-4 h-4" :stroke-width="2" /> 지우기</button>
@@ -281,28 +284,29 @@
         </div>
         <!-- 미니뷰 (8-2): 구간 작은 그림 — 누르면 그 구간으로 가서 고름. 보는 중(점선)·골라짐(실선) -->
         <StudioMiniMap
-          v-if="rightTab === 'mini' && page"
+          v-if="rightTab === 'mini' && page && !showStart"
           :page="page" :views="views" :looks="session.lookMap" :labels="sectionLabels" :flags="sectionFlags"
           :active-section-id="inViewSectionId" :selected-section-id="selectedSectionId"
           @pick="onMiniPick"
         />
         <!-- 레이어 (9단계): 고른 요소의 구간 → 골라진 구간 → 보는 중 구간의 요소 목록 -->
         <StudioLayerPanel
-          v-else-if="rightTab === 'layers' && page"
+          v-else-if="rightTab === 'layers' && page && !showStart"
           :page="page" :section-id="layerSectionId" :section-label="layerSectionId ? sectionLabels[layerSectionId] ?? '' : ''"
           :selected-ids="selectedItemIds" :views="views" :images-by-id="imagesById"
           @select="onLayerSelect" @command="runCommand"
         />
         <div v-else class="flex-1 overflow-y-auto px-3 pb-3 flex flex-col items-center justify-center text-center gap-2" data-right-soon>
-          <p class="st-desc break-keep">{{ rightTab === 'mini' ? '페이지가 준비되면 구간 미리보기가 보여요.' : '페이지가 준비되면 레이어 목록이 보여요.' }}</p>
+          <!-- 검수 2묶음: 시작 화면이 떠 있는 동안은 가려진(저장 전) 기본 배치를 보이지 않는다 -->
+          <p class="st-desc break-keep">{{ showStart ? '시작 방법을 고르면 여기에 페이지가 보여요.' : rightTab === 'mini' ? '페이지가 준비되면 구간 미리보기가 보여요.' : '페이지가 준비되면 레이어 목록이 보여요.' }}</p>
         </div>
         <div class="p-3 space-y-2 st-border-t">
           <button
-            type="button" class="st-btn st-btn-block" :disabled="!page || page.sections.length < 2"
+            type="button" class="st-btn st-btn-block" :disabled="!page || page.sections.length < 2 || showStart"
             :title="page && page.sections.length < 2 ? '구간이 2개 이상일 때 순서를 바꿀 수 있어요' : '구간 순서를 한눈에 보고 바꿔요'"
             data-reorder data-guide="reorder" @click="reorderOpen = true"
           ><ArrowUpDown class="w-4 h-4" :stroke-width="2" /> 순서 변경</button>
-          <button type="button" class="st-btn st-btn-block" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 구간 간격</button>
+          <button type="button" class="st-btn st-btn-block" :disabled="showStart" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 구간 간격</button>
         </div>
       </aside>
     </div>
@@ -449,7 +453,10 @@
 
     <!-- 모두 삭제 확인 -->
     <StudioModal :open="clearAllOpen" title="이 사진의 지우기를 모두 삭제할까요?" @close="clearAllOpen = false">
-      지우기 {{ selectedFillCount }}곳이 모두 없어지고 원본 그대로 돌아가요.
+      <!-- 검수 2묶음: 무엇이 지워지고 무엇이 남는지 분명하게 (clearAllFills = 지우기(type fill)만 — 덮기·자르기·필터·배경은 그대로) -->
+      <span data-clear-all-text>붓·네모로 지운 곳(AI 지우기·단색) {{ selectedFillCount }}곳을 모두 없애요.
+        <template v-if="selectedFillCounts.cover">덮기 {{ selectedFillCounts.cover }}곳은 그대로 남아요.</template>
+        자르기·필터·배경은 바뀌지 않아요. 되돌리기(Ctrl+Z)로 되돌릴 수 있어요.</span>
       <template #actions>
         <button type="button" class="st-btn" @click="clearAllOpen = false">취소</button>
         <button type="button" class="st-btn st-btn-danger" data-confirm-clear @click="confirmClearAll">모두 삭제</button>
@@ -508,17 +515,18 @@ import { AI_MISSING_NOTE } from '@/lib/studioPreview'
 import { fetchProductFacts } from '@/lib/studioFactsApi'
 import {
   reviewMark, buildDrafts, autoTemplate, oneClickTarget, AUTO_TEMPLATE_KEY, draftSectionIds, withDraftMark, isDraftSection, problemList,
+  isAutoPage, readNoticeClosed, writeNoticeClosed,
 } from '@/lib/studioAutoBuild'
 import SpotlightGuide from '@/components/common/SpotlightGuide.vue'
 import StudioGuideHideBar from '@/components/studio/StudioGuideHideBar.vue'
 import StudioShortcutsModal from '@/components/studio/StudioShortcutsModal.vue'
 import { EDITOR_GUIDE_STEPS, ERASE_GUIDE_STEPS, EDITOR_GUIDE_BADGE, ERASE_GUIDE_BADGE } from '@/data/studioEditorGuide'
-import { readGuideHidden, writeGuideHidden, shouldAutoStart, visibleSteps } from '@/lib/studioGuide'
-import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent } from '@/lib/studioViewNav'
+import { readGuideHidden, writeGuideHidden, shouldAutoStart, visibleSteps, readGuideShown, writeGuideShown } from '@/lib/studioGuide'
+import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent, blocksBrowserSelectAll } from '@/lib/studioViewNav'
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
-import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, BG_DEFAULT_COLOR } from '@/lib/studioBg'
+import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, BG_DEFAULT_COLOR, sectionBgChoice } from '@/lib/studioBg'
 import { fetchBgStatus, requestBgRemove, uploadBgRefined, fetchBgGenStatus, requestBgGenerate } from '@/lib/studioBgApi'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
@@ -566,7 +574,7 @@ import { useBakeQueue } from '@/composables/useBakeQueue'
 import { fillCounts, pixelLayersOf } from '@/lib/studioEdit'
 import { usableFinalVersion, sameLayers } from '@/lib/studioFinal'
 import { usePageSession } from '@/composables/usePageSession'
-import { createViewImageStore, finalPathOf, composeErased, applyBackground } from '@/lib/studioViewImage'
+import { createViewImageStore, finalPathOf, composeErased, applyBackground, thumbUnderStyle } from '@/lib/studioViewImage'
 import {
   firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
@@ -665,7 +673,8 @@ const imagesById = computed(() => new Map(images.value.map(i => [i.id, i])))
 // ── 페이지 (4단계) ──
 // 기본 배치에 넣을 사진: 가져오기·올리기가 끝났고(done) 안 쓸 사진으로 빼지 않은 것(included), 지금 목록 순서
 const usableImagesNow = () => images.value.filter(i => i.ingest_status === 'done' && i.included === true)
-const pageSession = usePageSession({ usableImages: usableImagesNow, showToast })
+// 검수 2묶음: 기본 배치·[빈 페이지에서 시작]도 자른 사진은 자른 비율로 (템플릿·[페이지에 넣기]와 같게 — 15단계 검수 후보 1)
+const pageSession = usePageSession({ usableImages: () => usableImagesNow().map(i => sizedRow(i.id)).filter(Boolean), showToast })
 const page = pageSession.page
 
 // ── 시작 화면 ⓪ (16단계) — DB page가 비어 있는 작업만 (studioStart.shouldShowStart). [빈 페이지에서 시작] = 기본 배치를 바로 저장 ──
@@ -811,7 +820,32 @@ let autoFactsInfo = null // 마지막 product_facts 응답 (글자 초안 안내
 const autoCopyAsk = ref(false)
 let oneClickPending = false // 불러오는 중에 눌렀음 — 다 불러오면 시작 (review-1)
 // 안내 띠 (review-1 — 완료 팝업 대신): 원클릭이 끝나면 페이지 위에 한 줄. 이 창에서만(닫으면 끝), "확인 필요" 표시는 사진에 저장돼 남는다
-const autoNotice = reactive({ open: false, listOpen: false, placed: 0, draftNote: '' })
+// 검수 2묶음(해성 결정 2): 원클릭 페이지(page.auto — 저장돼 있음)면 닫기 전까지 새로고침 뒤에도 보인다. 한 번 닫으면 그 작업에서는 다시 안 띄움
+// (닫음 = 작업별 localStorage — studioAutoBuild.readNoticeClosed 주석). 사진 수는 지금 페이지 기준으로 센다
+const autoNotice = reactive({ listOpen: false, closedTick: 0 })
+function noticeStorage() {
+  try { return window.localStorage } catch (e) { console.warn('[StudioEditor] 브라우저 저장소를 쓸 수 없어 안내 띠 닫음을 이 창에서만 기억함:', e.message); return null }
+}
+const noticeClosedHere = ref(new Set()) // 저장소를 못 쓸 때 이 창에서라도 닫힌 채로
+const noticeVisible = computed(() => {
+  autoNotice.closedTick // 닫으면 다시 계산
+  const pid = project.value?.id
+  return !!pid && isAutoPage(page.value) && !autoBuild.state.open && !showStart.value
+    && !noticeClosedHere.value.has(pid) && !readNoticeClosed(noticeStorage(), pid)
+})
+const noticePlaced = computed(() => (page.value ? pageImageIds(page.value).length : 0))
+function closeNotice() {
+  const pid = project.value?.id
+  if (!pid) return
+  autoNotice.listOpen = false
+  noticeClosedHere.value = new Set([...noticeClosedHere.value, pid])
+  writeNoticeClosed(noticeStorage(), pid, true)
+  autoNotice.closedTick++
+}
+// 검수 2묶음: 왼쪽 위 "고른 요소" 칸은 요소를 다루는 패널(사진·텍스트·요소)에서만 — [템플릿]·[구간]·[배경합성]·[저장값]을 열면
+// 그 패널이 "고른 요소" 아래로 밀려 안 보이던 문제 (선택은 그대로 — [사진] 등으로 돌아오면 다시 보인다)
+const SELECTION_PANEL_TOOLS = new Set(['photo', 'text', 'element'])
+const showSelectionPanels = computed(() => isWide.value && !!page.value && selectedItemIds.value.length > 0 && !showStart.value && SELECTION_PANEL_TOOLS.has(activeTool.value))
 /** 사진 하나의 원클릭 표시 — 목록 줄·왼쪽 사진 패널·구간 이름 (studioAutoBuild.reviewMark) */
 function autoMarkOf(id) { return reviewMark(session.autoOf(id), session.layerMap[id]) }
 /** 확인하면 좋은 사진 (대표 사진이 맨 앞) — 안내 띠 숫자·목록 */
@@ -894,11 +928,17 @@ async function runOneClick() {
   const pid = project.value?.id
   if (!pid) return
   autoFactsInfo = null
-  autoNotice.open = false
+  autoNotice.listOpen = false
   clearSelection()
   await autoBuild.run(finishOneClick)
   if (project.value?.id !== pid) return
   if (!autoBuild.state.error) autoBuild.close()
+}
+/** 글자 초안을 못 만들었을 때 안내 띠 둘째 줄 (page.auto.note로 저장 — 새로고침 뒤에도) */
+function draftNoteOf(facts, drafts) {
+  if (!facts) return autoFactsInfo?.reason === 'no_offer' ? '글자는 템플릿 기본 문구예요 — 눌러서 상품 설명을 적어 주세요.' : '1688 상품 정보를 읽지 못해 글자는 템플릿 기본 문구예요 — 눌러서 적어 주세요.'
+  if (!drafts.title && !drafts.body) return '한국어 상품 정보가 아직 없어 글자는 템플릿 기본 문구예요 — 눌러서 적어 주세요.'
+  return ''
 }
 /** 사진 처리가 끝나면(또는 멈추면) — 처리된 사진으로 페이지를 만들어 저장하고, 팝업 없이 페이지 + 위쪽 안내 띠 */
 async function finishOneClick({ results, facts }) {
@@ -913,7 +953,7 @@ async function finishOneClick({ results, facts }) {
     let ok = false
     if (!r) console.error('[StudioEditor] 원클릭 페이지를 만들지 못함 (템플릿 모양 오류)')
     else {
-      const doc = withDraftMark(r.page, draftSectionIds(r.page, drafts)) // 글자 초안 구간 표시 (page.auto)
+      const doc = withDraftMark(r.page, draftSectionIds(r.page, drafts), draftNoteOf(facts, drafts)) // 원클릭 페이지·초안 구간·초안 안내 (page.auto)
       if (pageSession.isDefault.value) {
         ok = pageSession.startFromDoc(doc, LABELS.autoBuild)
         if (ok) startChosen.value = true
@@ -924,10 +964,13 @@ async function finishOneClick({ results, facts }) {
   }
   await Promise.all([session.flush(), pageSession.flush()])
   for (const x of results) if (x.status === 'erased') requestBake(x.id) // 완성 사진은 뒤에서 한 장씩 (지우기 화면을 닫을 때와 같은 길)
-  let draftNote = ''
-  if (!facts) draftNote = autoFactsInfo?.reason === 'no_offer' ? '글자는 템플릿 기본 문구예요 — 눌러서 상품 설명을 적어 주세요.' : '1688 상품 정보를 읽지 못해 글자는 템플릿 기본 문구예요 — 눌러서 적어 주세요.'
-  else if (!drafts.title && !drafts.body) draftNote = '한국어 상품 정보가 아직 없어 글자는 템플릿 기본 문구예요 — 눌러서 적어 주세요.'
-  Object.assign(autoNotice, { open: photos.length > 0, listOpen: false, placed: photos.length, draftNote })
+  // 새 원클릭 페이지 → 안내 띠를 다시 보인다 (전에 닫았어도 — 새로 만든 페이지라서)
+  if (photos.length && pid) {
+    noticeClosedHere.value = new Set([...noticeClosedHere.value].filter(x => x !== pid))
+    writeNoticeClosed(noticeStorage(), pid, false)
+    autoNotice.listOpen = false
+    autoNotice.closedTick++
+  }
   if (!photos.length) showToast('페이지에 넣을 사진이 없어 페이지는 그대로예요. [사진] 목록을 확인해 주세요.')
 }
 /** [원본으로] — 원클릭이 지운 레이어만 뺀다 (사진 이력 한 칸 → 편집기 Ctrl+Z로 되돌림) */
@@ -1151,7 +1194,7 @@ function resetEditorLog() {
   cropImageId.value = null  // 12-1 자르기 창
   refineImageId.value = null // 17-3 경계 다듬기 화면
   refineBg.value = null
-  autoNotice.open = false   // 원클릭 안내 띠·복사본 확인 (review-1)
+  autoNotice.listOpen = false // 원클릭 안내 띠 목록·복사본 확인 (review-1 — 띠 자체는 page.auto + 닫음 기억으로 보임)
   autoCopyAsk.value = false
 }
 function noteAction(entry) {
@@ -2093,13 +2136,17 @@ async function onBgGenerate(preset) {
   }
 }
 // 이 사진이 놓인 구간의 배경색 — 페이지에서 고른 사진 요소의 구간, 목록에서 골랐으면 그 사진이 처음 놓인 구간 (없으면 null)
-const bgSectionColor = computed(() => {
+// [구간 배경색과 같게] 기준 (검수 2묶음, studioBg.sectionBgChoice): 사진이 놓인 구간 → 골라진 구간 → 보고 있는 구간 → 페이지 기본(흰색)
+const bgSectionChoice = computed(() => {
   const row = bgRow.value
   if (!row || !page.value) return null
   const found = selectedPhotoItem.value?.imageId === row.id ? findItem(page.value, selectedPhotoItem.value.id) : null
-  const s = found?.section || page.value.sections.find(sec => sec.items.some(it => isValidImageItem(it) && it.imageId === row.id))
-  return normalizeBgColor(s?.bg) // '#rrggbb'가 아니면(옛 값) 버튼 잠금
+  const photoSec = found?.section || page.value.sections.find(sec => sec.items.some(it => isValidImageItem(it) && it.imageId === row.id))
+  const c = sectionBgChoice(page.value, { photoSectionId: photoSec?.id ?? null, selectedSectionId: selectedSectionId.value, inViewSectionId: inViewSectionId.value })
+  const where = c.source === 'page' ? '페이지 기본 배경(흰색)' : `${sectionLabels.value[c.sectionId] ?? ''} 구간${c.source === 'photo' ? '' : c.source === 'selected' ? ' · 골라진 구간' : ' · 보고 있는 구간'}`
+  return { ...c, where }
 })
+const bgSectionColor = computed(() => bgSectionChoice.value?.color ?? null)
 /** 단색 색 바꾸기 — commit false(색 고르기 칸을 끄는 중) = 화면·저장만, true = 이력 한 칸 "배경 단색" */
 let bgColorDragging = false
 function onBgColor(color, { commit }) {
@@ -2404,7 +2451,11 @@ function loadCanvasImage(row) {
 
 function confirmClearAll() {
   clearAllOpen.value = false
+  const id = selectedImageId.value
+  const before = id ? session.histories[id]?.index : null
   session.clearAllFills()
+  // 검수 2묶음: 편집기 되돌리기 순서에 넣는다 (사진 이력 한 칸 — 확인창 안내 "Ctrl+Z로 되돌릴 수 있어요")
+  if (id && session.histories[id]?.index !== before) noteAction({ imageId: id })
 }
 
 function closeConflict() { conflictId.value = null }
@@ -2525,6 +2576,9 @@ function guideStorage() {
   try { return window.localStorage } catch (e) { console.warn('[StudioEditor] 브라우저 저장소를 쓸 수 없어 "다시 보지 않기"를 기억하지 않음:', e.message); return null }
 }
 /** 가이드 열기 — 화면에 실제로 있는 대상만 넘긴다. @returns {boolean} 열었으면 true */
+function guideSessionStorage() {
+  try { return window.sessionStorage } catch (e) { console.warn('[StudioEditor] 탭 저장소를 쓸 수 없어 가이드를 이 화면 안에서만 기억함:', e.message); return null }
+}
 function openGuide(kind) {
   if (kind === 'editor' && isWide.value && activeTool.value !== 'photo') activeTool.value = 'photo' // [내 사진 올리기]를 짚으려면 [사진] 패널
   shortcutsOpen.value = false
@@ -2556,7 +2610,8 @@ const guideAutoReady = computed(() => {
   if (!kind) return null
   const ready = kind === 'erase' ? !!selectedImage.value : !!project.value && !loading.value && !!page.value
   const blocked = kind === 'editor' && (showStart.value || !!pageSession.readError.value)
-  return shouldAutoStart({ hidden: readGuideHidden(guideStorage(), kind), shown: guideAutoShown[kind], ready, blocked }) ? kind : null
+  const shown = guideAutoShown[kind] || readGuideShown(guideSessionStorage(), kind) // 검수 2묶음: 지우기 가이드는 이 탭에서 한 번
+  return shouldAutoStart({ hidden: readGuideHidden(guideStorage(), kind), shown, ready, blocked }) ? kind : null
 })
 watch(guideAutoReady, kind => {
   clearTimeout(guideTimer)
@@ -2565,6 +2620,7 @@ watch(guideAutoReady, kind => {
   guideTimer = setTimeout(() => {
     if (guideAutoReady.value !== kind) return
     guideAutoShown[kind] = true
+    writeGuideShown(guideSessionStorage(), kind)
     openGuide(kind)
   }, kind === 'erase' ? 900 : 600)
 }, { immediate: true })
@@ -2625,6 +2681,8 @@ function onWindowBlur() { spaceHeld.value = false; onPanUp() }
 //   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
 // 14단계: 사용가이드가 떠 있으면 편집기 키는 모두 쉰다(가이드가 Esc·←/→를 쓴다) · ? = 단축키 표 · 스페이스 누르고 있기 = 화면 이동 · Esc = [이력] 목록 닫기
 function onKeyDown(e) {
+  // 검수 2묶음: 시작 화면·가이드·창이 떠 있어도 입력칸 밖 Ctrl+A가 뒤 페이지 글자 전체를 고르지 않게 (편집기 동작은 아래에서 따로)
+  if (blocksBrowserSelectAll(e)) e.preventDefault()
   if (guide.open) return
   if (!isWide.value || anyModalOpen.value || ctx.open || textEdit.value) return // 10-1: 글자를 고치는 동안은 쉰다
   const t = e.target

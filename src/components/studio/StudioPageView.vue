@@ -200,6 +200,7 @@ import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { afterPaint } from '@/lib/studioImageCache'
+import { scrollPlan } from '@/lib/studioViewNav'
 
 const props = defineProps({
   page: { type: Object, required: true },
@@ -608,8 +609,7 @@ function onDrop(e) {
 
 /** 이 아이템이 보이게 스크롤 (사진 목록에서 골랐을 때) */
 function scrollToItem(itemId) {
-  const root = rootEl.value?.querySelector(`[data-item-id="${itemId}"]`)
-  root?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+  scrollInPage(rootEl.value?.querySelector(`[data-item-id="${itemId}"]`), 'nearest')
 }
 
 // ── 보이는 사진 알리기 (스크롤 상자에 가려진 것은 안 보이는 것으로 친다 — IntersectionObserver 기본 root) ──
@@ -656,7 +656,15 @@ function sectionInView() {
 }
 /** 이 구간이 보이게 스크롤 (구간을 추가·복제·옮긴 뒤 — 8-1 'nearest', 미니뷰에서 누름 — 8-2 'start') */
 function scrollToSection(sectionId, block = 'nearest') {
-  rootEl.value?.querySelector(`[data-section-id="${sectionId}"]`)?.scrollIntoView({ block, behavior: 'smooth' })
+  scrollInPage(rootEl.value?.querySelector(`[data-section-id="${sectionId}"]`), block)
+}
+/** 페이지 스크롤 칸(가장 가까운 [data-page-scroll])만 움직인다 — 바깥 칸은 그대로, 멀면 바로 (검수 2묶음, studioViewNav.scrollPlan) */
+function scrollInPage(el, block) {
+  const sc = rootEl.value?.closest('[data-page-scroll]')
+  if (!el || !sc) return
+  const r = el.getBoundingClientRect(), v = sc.getBoundingClientRect()
+  const plan = scrollPlan({ elTop: r.top - v.top + sc.scrollTop, elHeight: r.height, scrollTop: sc.scrollTop, viewHeight: sc.clientHeight, block })
+  if (plan) sc.scrollTo({ top: plan.top, behavior: plan.behavior })
 }
 defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act, finishEdit })
 </script>

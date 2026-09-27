@@ -238,7 +238,7 @@
             <div class="space-y-2">
               <p class="text-[12px] font-bold st-ink break-keep" data-erase-guide>지울 곳을 칠하거나(붓) 네모로 감싼 뒤 [AI로 지우기] 또는 [단색]을 누르세요</p>
               <p class="st-desc-sm break-keep" data-ai-guide>AI 지우기는 한 번에 완벽하지 않을 수 있어요. 사람·옷·복잡한 무늬 위는 결과가 부자연스러울 수 있어요</p>
-              <p class="st-desc-sm break-keep" data-cover-guide>사람·옷 위는 곧 나올 [덮기]가 더 깔끔해요</p>
+              <p class="st-desc-sm break-keep" data-cover-guide>사람·옷 위는 [덮기]가 더 깔끔해요</p>
               <p class="st-desc-sm break-keep">스페이스를 누른 채 끌면 화면이 움직이고, Ctrl+휠로 확대해요.</p>
             </div>
           </div>
@@ -303,6 +303,7 @@ import {
   BRUSH_UI_MIN, BRUSH_UI_MAX, PAD_MIN, PAD_MAX, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT,
 } from '@/composables/useEraseSession'
 import { PAD_DEFAULT, isValidPixelLayer } from '@/lib/studioEdit'
+import { toolForLayer } from '@/lib/studioCover'
 import { savedTitle } from '@/lib/studioSaveGuard'
 
 // Fabric은 이 컴포넌트와 함께만 받는다
@@ -384,7 +385,12 @@ function formatTime(at) {
 
 // 세션의 ref는 구조 분해로 받았으므로 템플릿에서 대입하지 않고 여기서 .value로 바꾼다
 function setTool(t) { if (t === 'select' || t === 'brush' || t === 'rect' || t === 'cover') canvasTool.value = t }
-function selectLayer(id) { selectedLayerId.value = id }
+// 레이어를 고르면(적용한 순서 목록·캔버스) 그 종류에 맞는 도구로 — 덮기 = [덮기], 지우기 = [선택] (검수 2묶음, studioCover.toolForLayer)
+function selectLayer(id) {
+  selectedLayerId.value = id
+  const next = toolForLayer(selectedLayers.value.find(l => l.id === id) || null, canvasTool.value)
+  if (next !== canvasTool.value) canvasTool.value = next
+}
 function setAiStates(s) { aiLayerStates.value = s }
 
 // 칠하기/덜어내기를 고르면 붓 도구로 바꾼다 (다른 도구에서는 쓸 곳이 없으므로)
