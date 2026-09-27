@@ -53,7 +53,7 @@ eq('완성 JPG 경로 규칙', finalPath(U, Q, 'img-A', 7), `${U}/${Q}/final/img
   const before = JSON.stringify(edit)
   const r = rewriteEdit(edit, ids)
   eq('edit: AI 조각 경로가 새 경로로', r.edit.layers[0].ai.patch.path, `${U}/${Q}/patches/img-A/f_aaaaaa_0123456789abcdef.png`)
-  eq('edit: 복사할 조각 1개', r.files, [{ from: `${U}/${P}/patches/img-a/f_aaaaaa_0123456789abcdef.png`, to: `${U}/${Q}/patches/img-A/f_aaaaaa_0123456789abcdef.png` }])
+  eq('edit: 복사할 조각 1개', r.files, [{ from: `${U}/${P}/patches/img-a/f_aaaaaa_0123456789abcdef.png`, to: `${U}/${Q}/patches/img-A/f_aaaaaa_0123456789abcdef.png`, kind: 'patch' }]) // 17-1: 파일 종류(patch·bg)
   eq('edit: 나머지(erase_v·look·crop·덮기) 그대로', [r.edit.erase_v, r.edit.look, r.edit.crop, r.edit.layers[2]], [5, edit.look, edit.crop, edit.layers[2]])
   eq('edit: 원본 edit는 바꾸지 않음', JSON.stringify(edit), before)
   eq('edit: 레이어 없는 edit', rewriteEdit({ v: 2, layers: [] }, ids), { edit: { v: 2, layers: [] }, files: [] })

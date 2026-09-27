@@ -11,6 +11,7 @@
  *     {uid}/{projectId}/orig/{imageId}.{ext}
  *     {uid}/{projectId}/patches/{imageId}/{layerId}_{key}.png
  *     {uid}/{projectId}/final/{imageId}_v{version}.jpg
+ *     {uid}/{projectId}/bg/{imageId}/mask_{key}.png        (17-1 배경 마스크 — edit.bg.mask.path)
  */
 
 export const COPY_SUFFIX = ' (복사본)'
@@ -54,14 +55,23 @@ export function newPatchPath(path, { uid, fromProject, toProject, fromImage, toI
   return `${uid}/${toProject}/patches/${toImage}/${name}`
 }
 
+/** 배경 마스크 경로 → 새 경로 (17-1, 파일 이름 = mask_{key}.png 그대로). 규칙이 다르면 throw */
+export function newBgPath(path, { uid, fromProject, toProject, fromImage, toImage }) {
+  const from = `${uid}/${fromProject}/bg/${fromImage}/`
+  const p = String(path || '')
+  const name = p.startsWith(from) ? p.slice(from.length) : ''
+  if (!/^mask_[0-9a-f]{16}\.png$/.test(name)) throw copyError(`배경 마스크 경로가 규칙과 다름: ${path}`)
+  return `${uid}/${toProject}/bg/${toImage}/${name}`
+}
+
 /** 완성 JPG 경로 (studioViewImage.finalPathOf와 같은 규칙) */
 export function finalPath(uid, projectId, imageId, version) {
   return `${uid}/${projectId}/final/${imageId}_v${version}.jpg`
 }
 
 /**
- * edit 안의 경로를 새 경로로 — 레이어의 ai.patch.path만 경로를 담는다 (지우기 AI). 덮기·필터·자르기에는 경로가 없다.
- * @returns {{ edit, files: {from,to}[] }}  files = 복사할 조각 (같은 경로는 한 번만)
+ * edit 안의 경로를 새 경로로 — 레이어의 ai.patch.path(지우기 AI)와 bg.mask.path(17-1 배경 마스크)가 경로를 담는다. 덮기·필터·자르기에는 경로가 없다.
+ * @returns {{ edit, files: {from,to,kind:'patch'|'bg'}[] }}  files = 복사할 파일 (같은 경로는 한 번만)
  */
 export function rewriteEdit(edit, ids) {
   const out = edit && typeof edit === 'object' ? JSON.parse(JSON.stringify(edit)) : edit
@@ -72,9 +82,15 @@ export function rewriteEdit(edit, ids) {
       const p = l?.ai?.patch
       if (!p || typeof p.path !== 'string') continue
       const to = newPatchPath(p.path, ids)
-      if (!seen.has(p.path)) { seen.add(p.path); files.push({ from: p.path, to }) }
+      if (!seen.has(p.path)) { seen.add(p.path); files.push({ from: p.path, to, kind: 'patch' }) }
       p.path = to
     }
+  }
+  const m = out && typeof out === 'object' ? out.bg?.mask : null
+  if (m && typeof m.path === 'string') {
+    const to = newBgPath(m.path, ids)
+    files.push({ from: m.path, to, kind: 'bg' })
+    m.path = to
   }
   return { edit: out, files }
 }
@@ -125,7 +141,8 @@ export function buildCopyPlan({ uid, project, images, newProjectId, newImageId, 
     const { edit, files: patchFiles } = rewriteEdit(img.edit, ids)
     row.edit = edit
     // 조각이 Storage에 없으면(원본에서도 못 불러오는 상태) 복사본도 같은 상태로 둔다 — 지우기 화면이 [다시 계산]을 안내
-    for (const f of patchFiles) files.push({ ...f, kind: 'patch', imageId: ids.toImage, required: false })
+    // 배경 마스크(17-1)도 같다 — 없으면 복사본 화면이 "배경 마스크를 불러오지 못했어요"로 알린다 (다시 [배경 지우기]를 누르면 새로 만든다)
+    for (const f of patchFiles) files.push({ ...f, imageId: ids.toImage, required: false })
     if (Number.isInteger(img.final_rendered_version) && img.final_rendered_version >= 1) {
       // 완성 JPG는 지금 쓰는 버전 한 장만. 없으면 서버가 복사본의 final_rendered_version을 비운다(편집기가 다시 만든다)
       files.push({

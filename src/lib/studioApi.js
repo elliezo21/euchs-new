@@ -110,10 +110,24 @@ const COPY = {
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
 }
 
-const TABLES = { product: PRODUCT, ingest: INGEST, upload: UPLOAD, copy: COPY }
+/** studio-upload bg_status / bg_remove (17-1 배경 지우기) */
+const BG = {
+  bg_not_eligible: '이유씨로 주문한 고객에게 열리는 기능이에요.',
+  bg_not_ready: '배경 지우기를 준비하고 있어요. 곧 쓸 수 있어요.',
+  bg_busy: '이 사진의 배경을 지우는 중이에요. 잠시만 기다려 주세요.',
+  bg_daily_limit: '오늘은 더 할 수 없어요. 내일 다시 시도해 주세요.',
+  bg_too_large: '사진이 너무 커서 배경을 지울 수 없어요 (긴 변 4096px 이하).',
+  bg_failed: '배경을 지우지 못했어요. 잠시 후 다시 눌러 주세요.',
+  bg_timeout: '배경 지우기가 오래 걸려 멈췄어요. 잠시 후 다시 눌러 주세요.',
+  project_expired: '보관 기간이 끝난 작업이라 배경을 지울 수 없어요.',
+  storage_error: '저장소를 확인하지 못했어요. 잠시 후 다시 눌러 주세요.',
+  invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
+}
+
+const TABLES = { product: PRODUCT, ingest: INGEST, upload: UPLOAD, copy: COPY, bg: BG }
 
 /**
- * @param {'product'|'ingest'|'upload'|'copy'} context
+ * @param {'product'|'ingest'|'upload'|'copy'|'bg'} context
  * @param {string} code
  * @param {{ remaining?:number, width?:number, height?:number }} [extra]
  */

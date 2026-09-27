@@ -35,6 +35,7 @@ import { aiK } from '@/lib/studioAi/aiGeometry'
 import { createAiEngine } from '@/lib/studioAi/aiEngine'
 import { readLook, withLook, normalizeLook } from '@/lib/studioLook'
 import { withShape } from '@/lib/studioCrop'
+import { readBg, withBg } from '@/lib/studioBg'
 import {
   isValidCoverLayer, normalizeCover, autoSource, COVER_FEATHER_MIN, COVER_FEATHER_MAX, COVER_FEATHER_DEFAULT,
 } from '@/lib/studioCover'
@@ -59,6 +60,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
   const lookMap = reactive({})
   // image id → 자르기·띠 { crop, cuts } (12-1, studioCrop — 원본 px, 저장된 모양 그대로). look과 같은 규칙: 저장할 edit는 editOf가 셋을 함께 만든다
   const shapeMap = reactive({})
+  // image id → 배경 지우기 { mask, mode } | null (17-1, studioBg). 같은 규칙: 저장할 edit는 editOf가 함께 만든다
+  const bgMap = reactive({})
   const histories = reactive({})         // image id → studioHistory (세션 동안만, 사진을 바꿔도 유지)
   const selectedLayerId = ref(null)
   const saveStatus = ref('saved')
@@ -74,8 +77,12 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
    * 저장할 edit — 화면의 지우기 레이어 + 화면의 look (look을 아직 모르면 저장된 값).
    * erase_v(지우기가 마지막으로 바뀐 버전, studioFinal)는 여기서 떼고 저장 직전에 찍는다 (이력 비교에 끼지 않게)
    */
-  function editOf(id, layers = layerMap[id] || [], look = lookMap[id] ?? readLook(rowOf(id)?.edit), shape = shapeOf(id)) {
-    return withoutEraseVersion(withShape(withLook(buildEdit(rowOf(id)?.edit, layers), look), shape))
+  function editOf(id, layers = layerMap[id] || [], look = lookMap[id] ?? readLook(rowOf(id)?.edit), shape = shapeOf(id), bg = bgOf(id)) {
+    return withoutEraseVersion(withBg(withShape(withLook(buildEdit(rowOf(id)?.edit, layers), look), shape), bg))
+  }
+  /** 배경 지우기 (화면 값, 모르면 저장된 값) — { mask, mode } | null */
+  function bgOf(id) {
+    return id in bgMap ? bgMap[id] : readBg(rowOf(id)?.edit)
   }
   /** 자르기·띠 (화면 값, 모르면 저장된 값) — 저장된 모양 그대로 { crop: object|null, cuts: array } */
   function shapeOf(id) {
@@ -158,6 +165,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       layerMap[row.id] = readLayers(row.edit, row.id)
       lookMap[row.id] = readLook(row.edit)
       shapeMap[row.id] = shapeFromEdit(row.edit)
+      bgMap[row.id] = readBg(row.edit)
       saver.reset(row.id, row.edit_version)
       // 이력: 처음이면 서버 값이 첫 단계. 이미 있는데 서버 값이 이력의 현재와 다르면(다른 창에서 고침) 서버 값으로 새로 시작
       const h = histories[row.id]
@@ -491,6 +499,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     layerMap[id] = readLayers(res.edit, id)
     lookMap[id] = readLook(res.edit) // 이력 한 단계 = 그 시점의 지우기 + 필터·조정 + 자르기·띠(12-1)
     shapeMap[id] = shapeFromEdit(res.edit)
+    bgMap[id] = readBg(res.edit) // 17-1 배경 지우기도 같은 이력
     saver.change(id, editOf(id))
     if (selectedLayerId.value && !layerMap[id].some(l => l.id === selectedLayerId.value)) selectedLayerId.value = null
   }
@@ -539,6 +548,22 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     recordHistory(id, edit, label)
     return true
   }
+  // ── 배경 지우기 (17-1) — 같은 edit·같은 저장기(edit_version 잠금)·같은 사진 이력. 완성 JPG에는 넣지 않는다(layers가 같으니 erase_v 그대로) ──
+  /**
+   * @param {{ mask, mode }|null} bg null = [배경 원래대로](마스크를 쓰지 않음 — 파일은 남겨 두어 다시 누르면 돈이 안 든다)
+   * @returns {boolean} 바뀌었으면 true
+   */
+  function setBg(id, bg, label) {
+    if (!rowOf(id)) return false
+    const next = bg ? { mask: { ...bg.mask }, mode: bg.mode } : null
+    if (JSON.stringify(next) === JSON.stringify(bgOf(id))) return false
+    bgMap[id] = next
+    const edit = editOf(id)
+    saver.change(id, edit)
+    lastLook = null
+    recordHistory(id, edit, label)
+    return true
+  }
   // 편집기(지우기 화면 밖)에서 사진 이력 되돌리기 — 필터·조정을 페이지 되돌리기와 같은 버튼으로 (편집기의 동작 순서 기록이 부른다)
   function canUndoImage(id) { return !!histories[id] && histories[id].index > 0 }
   function canRedoImage(id) { return !!histories[id] && canRedo(histories[id]) }
@@ -577,6 +602,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       layerMap[id] = readLayers(fresh.edit, id)
       lookMap[id] = readLook(fresh.edit)
       shapeMap[id] = shapeFromEdit(fresh.edit)
+      bgMap[id] = readBg(fresh.edit)
       saver.reset(id, fresh.edit_version)
       // 서버 최신본을 불러오면 그 사진의 이력은 비우고 불러온 상태를 첫 단계로
       histories[id] = createHistory(withoutEraseVersion(buildEdit(fresh.edit, layerMap[id])), LABELS.reload)
@@ -597,6 +623,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     for (const k of Object.keys(layerMap)) delete layerMap[k]
     for (const k of Object.keys(lookMap)) delete lookMap[k]
     for (const k of Object.keys(shapeMap)) delete shapeMap[k]
+    for (const k of Object.keys(bgMap)) delete bgMap[k]
     for (const k of Object.keys(histories)) delete histories[k]
     draft.value = null
     selectedLayerId.value = null
@@ -628,6 +655,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     lookMap, setLook, lookOf, canUndoImage, canRedoImage, undoImage, redoImage,
     // 자르기·띠 (12-1)
     shapeMap, shapeOf, setShape,
+    // 배경 지우기 (17-1)
+    bgMap, bgOf, setBg,
     // 덮기 (12-2)
     selectedCover, setCoverDraft, moveCoverSource, setCoverFeather, recordCoverFeather, applyCover,
   }

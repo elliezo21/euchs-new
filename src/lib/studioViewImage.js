@@ -20,6 +20,7 @@ import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
 import { pixelLayersOf } from '@/lib/studioEdit'
 import { AI_MODEL_ID, loadAiPatch } from '@/lib/studioAiPatch'
 import { geometryOf, drawGeometry, geometryHeightAt, readShape } from '@/lib/studioCrop'
+import { bgActive, bgViewKey, maskedCanvas } from '@/lib/studioBg'
 
 export const VIEW_TYPE = 'image/webp'
 export const VIEW_QUALITY = 0.9
@@ -33,11 +34,31 @@ export function viewWidth(naturalW, pageWidth, dpr = 1) {
  * 같은 결과인지 가르는 key — 원본 경로 + 지우기 레이어 값 (레이어가 바뀌면 다시 만든다). 구운 JPG를 쓰면 그 버전.
  * 12-1: 자르기·띠(정리한 값)도 key에 — 바뀌면 다시 만든다
  */
-export function viewKey(row, layers, targetW, finalVersion = null, shape = null) {
+export function viewKey(row, layers, targetW, finalVersion = null, shape = null, bg = null) {
   const s = readShape(shape, row.width, row.height)
-  const shapeKey = s.crop || s.cuts.length ? `|shape:${JSON.stringify(s)}` : ''
+  const shapeKey = (s.crop || s.cuts.length ? `|shape:${JSON.stringify(s)}` : '') + bgViewKey(bg) // 17-1 배경 마스크(투명일 때만)
   if (Number.isInteger(finalVersion)) return `final|${finalPathOf(row, finalVersion)}|${targetW}${shapeKey}`
   return `${row.original_path}|${targetW}|${JSON.stringify(pixelLayersOf(layers || []))}${shapeKey}`
+}
+
+/**
+ * 배경 지우기(17-1) 적용 — 원본 크기의 지운 사진(source)에 저장된 마스크의 알파만 곱한다 (studioBg.maskedCanvas).
+ * 화면 작은 사진(renderView)과 내보내기·미리보기(StudioEditorView.exportImageOf)가 이 함수 하나를 쓴다.
+ * 마스크를 못 받으면 원래 배경 그대로 두고 problems로 알린다 (조용히 넘기지 않는다).
+ * @returns {Promise<{ canvas: HTMLCanvasElement|null, problems: string[] }>} canvas null = 적용 안 함(투명 아님·실패)
+ */
+export async function applyBackground(pool, source, W, H, bg) {
+  if (!bgActive(bg)) return { canvas: null, problems: [] }
+  if (bg.mask.w !== W || bg.mask.h !== H) console.warn('[studioViewImage] 배경 마스크 크기가 사진과 다름 — 사진 크기로 맞춰 씀:', bg.mask, W, H)
+  let maskImg
+  try {
+    maskImg = await loadWithResign(pool, bg.mask.path)
+  } catch (err) {
+    console.error('[studioViewImage] 배경 마스크 받기 실패:', bg.mask.path, err)
+    return { canvas: null, problems: ['배경 마스크를 불러오지 못해 원래 배경으로 보여요'] }
+  }
+  const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c }
+  return { canvas: maskedCanvas(source, W, H, maskImg, mk), problems: [] }
 }
 
 /**
@@ -125,13 +146,20 @@ function toBlob(canvas) {
  * 사진 한 장 → { url, width, height, problems } — finalVersion이 있으면 구운 JPG를 받아 줄이기만 한다.
  * 12-1: 지운 결과(원본 크기) → 띠 잘라내기 → 자르기(studioCrop.geometryOf — 내보내기와 같은 함수) → 목표 폭으로 줄임
  */
-async function renderView(pool, row, layers, targetW, finalVersion = null, shape = null) {
+async function renderView(pool, row, layers, targetW, finalVersion = null, shape = null, bg = null) {
   const useFinal = Number.isInteger(finalVersion)
   const imgEl = await loadWithResign(pool, useFinal ? finalPathOf(row, finalVersion) : row.original_path)
   const W = imgEl.naturalWidth, H = imgEl.naturalHeight
-  const { canvas: full, problems, aiMissing, aiStale } = useFinal
+  const erased = useFinal
     ? { canvas: null, problems: [], aiMissing: [], aiStale: [] }
     : await composeErased(imgEl, pixelLayersOf(layers || []))
+  const { aiMissing, aiStale } = erased
+  const problems = [...erased.problems]
+  // 17-1: 지운 결과 → 배경 마스크(알파만) → 띠·자르기 (내보내기와 같은 applyBackground)
+  const masked = await applyBackground(pool, erased.canvas || imgEl, W, H, bg)
+  problems.push(...masked.problems)
+  if (masked.canvas && erased.canvas) { erased.canvas.width = 0; erased.canvas.height = 0 }
+  const full = masked.canvas || erased.canvas
   const geo = geometryOf(W, H, shape)
   if (geo.cropIgnored) problems.push('자르기 영역이 모두 잘라낸 띠 안이라 자르기를 쓰지 않았어요')
   const tw = Math.min(targetW, geo.width)
@@ -178,16 +206,16 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
    * @param {{ finalVersion?: number|null, shape?: { crop, cuts }|null }} opts finalVersion: 구운 JPG가 최신일 때 그 버전 (그 파일을 받아 쓴다),
    *   shape: 자르기·띠 (12-1 — 화면 값)
    */
-  function want(row, layers, { finalVersion = null, shape = null } = {}) {
+  function want(row, layers, { finalVersion = null, shape = null, bg = null } = {}) {
     if (!row?.original_path) return
-    const key = viewKey(row, layers, targetOf(row), finalVersion, shape)
+    const key = viewKey(row, layers, targetOf(row), finalVersion, shape, bg)
     const cur = entries.get(row.id)
     if (cur && cur.key === key) return
     // 만드는 동안 이전 결과(다른 key)는 그대로 보여준다 — 새 결과가 오면 바꾼다
     set(row.id, { key, status: 'loading', url: cur?.url || null, error: '', problems: [] })
     const i = queue.findIndex(q => q.row.id === row.id)
     if (i >= 0) queue.splice(i, 1)
-    queue.push({ row: { ...row }, layers: layers ? JSON.parse(JSON.stringify(layers)) : [], key, finalVersion, shape: shape ? JSON.parse(JSON.stringify(shape)) : null })
+    queue.push({ row: { ...row }, layers: layers ? JSON.parse(JSON.stringify(layers)) : [], key, finalVersion, shape: shape ? JSON.parse(JSON.stringify(shape)) : null, bg: bg ? JSON.parse(JSON.stringify(bg)) : null })
     pump()
   }
 
@@ -196,7 +224,7 @@ export function createViewImageStore({ pageWidth, dpr = 1, concurrency = 6, pool
       const job = queue.shift()
       running++
       const g = gen
-      renderView(pool, job.row, job.layers, targetOf(job.row), job.finalVersion, job.shape).then(
+      renderView(pool, job.row, job.layers, targetOf(job.row), job.finalVersion, job.shape, job.bg).then(
         out => {
           if (g !== gen || entries.get(job.row.id)?.key !== job.key) { URL.revokeObjectURL(out.url); return } // 그 사이 바뀜 — 버린다
           set(job.row.id, { key: job.key, status: 'ready', url: out.url, error: '', problems: out.problems, aiMissing: out.aiMissing, aiStale: out.aiStale, fromFinal: out.fromFinal, width: out.width, height: out.height, bytes: out.bytes })

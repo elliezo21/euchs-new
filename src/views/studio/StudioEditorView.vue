@@ -167,6 +167,13 @@
           <StudioElementPanel v-else-if="activeTool === 'element'" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" />
           <!-- [템플릿] 패널 (15단계): 템플릿 카드 — 누르면 확인 뒤 페이지를 그 틀로 (이력 한 칸, 사진 edit는 그대로) -->
           <StudioTemplatePanel v-else-if="activeTool === 'template'" :images="templateImages" :views="views" :disabled="!page" @apply="askTemplate" />
+          <!-- [배경합성] 패널 (17-1): 고른 사진의 배경 지우기(서버 외부 AI) · 원래 배경/투명 · 배경 원래대로 -->
+          <StudioBgPanel
+            v-else-if="activeTool === 'bg'"
+            :row="bgRow" :thumb-url="bgRow ? views[bgRow.id]?.url || null : null" :bg="bgRow ? session.bgOf(bgRow.id) : null"
+            :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError"
+            @remove="onBgRemove" @mode="onBgMode" @reset="onBgReset" @retry-status="loadBgStatus"
+          />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
             <div class="text-[14px] font-bold st-ink">{{ railItem(activeTool).label }}</div>
@@ -454,6 +461,9 @@ import { readGuideHidden, writeGuideHidden, shouldAutoStart, visibleSteps } from
 import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent } from '@/lib/studioViewNav'
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
+import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
+import { bgFromServer, bgMark } from '@/lib/studioBg'
+import { fetchBgStatus, requestBgRemove } from '@/lib/studioBgApi'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
 import { copyProject } from '@/lib/studioProjectCopy'
@@ -499,7 +509,7 @@ import { useBakeQueue } from '@/composables/useBakeQueue'
 import { fillCounts, pixelLayersOf } from '@/lib/studioEdit'
 import { usableFinalVersion, sameLayers } from '@/lib/studioFinal'
 import { usePageSession } from '@/composables/usePageSession'
-import { createViewImageStore, finalPathOf, composeErased } from '@/lib/studioViewImage'
+import { createViewImageStore, finalPathOf, composeErased, applyBackground } from '@/lib/studioViewImage'
 import {
   firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
@@ -531,7 +541,7 @@ const RAIL = [
   { key: 'photo', label: '사진', icon: ImageIcon, soon: '' },
   { key: 'text', label: '텍스트', icon: Type, soon: '글자 넣기는 곧 추가될 기능이에요.' },
   { key: 'element', label: '요소', icon: Shapes, soon: '도형·아이콘 넣기는 곧 추가될 기능이에요.' },
-  { key: 'bg', label: '배경합성', icon: Blend, soon: '배경 바꾸기는 곧 추가될 기능이에요.' },
+  { key: 'bg', label: '배경합성', icon: Blend, soon: '' }, // 17-1: StudioBgPanel
   { key: 'saved', label: '저장값', icon: Bookmark, soon: '인트로·배송안내 같은 저장값 넣기는 곧 추가될 기능이에요.' },
 ]
 const railItem = key => RAIL.find(r => r.key === key) || RAIL[2]
@@ -1613,15 +1623,15 @@ const viewWants = computed(() => {
   if (eraseOpen.value) return []
   return doneImages.value
     .filter(r => r.original_path)
-    .map(row => ({ row, layers: session.layerMap[row.id] || [], finalVersion: finalVersionOf(row), shape: session.shapeOf(row.id) })) // 12-1 자르기·띠
+    .map(row => ({ row, layers: session.layerMap[row.id] || [], finalVersion: finalVersionOf(row), shape: session.shapeOf(row.id), bg: session.bgOf(row.id) })) // 12-1 자르기·띠, 17-1 배경
 })
 watch(viewWants, list => {
-  for (const w of list) viewStore.want(w.row, w.layers, { finalVersion: w.finalVersion, shape: w.shape })
+  for (const w of list) viewStore.want(w.row, w.layers, { finalVersion: w.finalVersion, shape: w.shape, bg: w.bg })
   prioritizeVisible()
 }, { immediate: true })
 function retryView(imageId) {
   const row = imagesById.value.get(imageId)
-  if (row) viewStore.retry(row, session.layerMap[imageId] || [], { finalVersion: finalVersionOf(row), shape: session.shapeOf(imageId) })
+  if (row) viewStore.retry(row, session.layerMap[imageId] || [], { finalVersion: finalVersionOf(row), shape: session.shapeOf(imageId), bg: session.bgOf(imageId) })
 }
 
 // ── 지운 사진 굽기 (5단계) — 지우기 화면이 닫힐 때 그 사진을 원본 크기 JPG로 굽는다. 화면은 막지 않는다 ──
@@ -1669,9 +1679,16 @@ async function erasedSourceOf(imageId) {
   if (r.aiMissing.length || r.aiStale.length) notes.push('AI로 지우기 결과가 없는 곳은 원본 그대로 들어갔어요 (지우기 화면에서 다시 지우기)')
   return { source: r.canvas || el, width: el.naturalWidth, height: el.naturalHeight, notes }
 }
-/** 내보낼 사진 = 지운 사진 → 띠 잘라내기 → 자르기 (12-1, studioCrop.geometryOf — 화면 작은 사진과 같은 함수). 필터·꾸미기는 엔진이 */
+/**
+ * 내보낼 사진 = 지운 사진 → 배경 마스크(17-1, 투명일 때 — 화면 작은 사진과 같은 applyBackground) → 띠 잘라내기 → 자르기
+ * (12-1, studioCrop.geometryOf — 화면 작은 사진과 같은 함수). 필터·꾸미기는 엔진이. 투명한 곳은 엔진이 먼저 칠한 구간 배경색이 보인다
+ */
 async function exportImageOf(imageId) {
-  const src = await erasedSourceOf(imageId)
+  const erased = await erasedSourceOf(imageId)
+  const masked = await applyBackground(urlPool, erased.source, erased.width, erased.height, session.bgOf(imageId))
+  const src = masked.canvas
+    ? { source: masked.canvas, width: erased.width, height: erased.height, notes: [...erased.notes, ...masked.problems] }
+    : { ...erased, notes: [...erased.notes, ...masked.problems] }
   const geo = geometryOf(src.width, src.height, session.shapeOf(imageId))
   if (geo.identity) return src
   const notes = geo.cropIgnored ? [...src.notes, '자르기 영역이 모두 잘라낸 띠 안이라 자르기를 쓰지 않았어요'] : src.notes
@@ -1737,7 +1754,64 @@ const cropRow = computed(() => (cropImageId.value ? imagesById.value.get(cropIma
 /** 목록·사진 칸 표시 "잘림 · 띠 2" (정리한 값 기준, 없으면 '') */
 function shapeMarkOf(imageId) {
   const row = imagesById.value.get(imageId)
-  return row ? shapeMark(readShape(session.shapeOf(imageId), row.width, row.height)) : ''
+  if (!row) return ''
+  // 17-1: "배경 지움"도 같은 표시 줄에 (목록 줄·사진 정보 카드)
+  return [shapeMark(readShape(session.shapeOf(imageId), row.width, row.height)), bgMark(session.bgOf(imageId))].filter(Boolean).join(' · ')
+}
+
+// ── 배경 지우기 (17-1) — 외부 AI는 서버만 부른다. 결과 마스크는 사진 데이터(edit.bg)에 저장, 사진 이력 ──
+const bgStatus = reactive({ loading: false, loaded: false, ready: false, reason: null, message: '' })
+const bgBusy = reactive({})   // image id → true (처리 중 — 같은 사진을 또 누르지 못하게)
+const bgError = ref('')
+let bgStatusSeq = 0
+// 고른 사진 = 페이지에서 고른 사진 요소, 없으면 [사진] 목록에서 고른 사진
+const bgRow = computed(() => {
+  const id = selectedPhotoItem.value?.imageId ?? selectedImageId.value
+  const row = id ? imagesById.value.get(id) : null
+  return row && row.ingest_status === 'done' ? row : null
+})
+async function loadBgStatus() {
+  const seq = ++bgStatusSeq
+  bgStatus.loading = true
+  const s = await fetchBgStatus()
+  if (seq !== bgStatusSeq) return
+  Object.assign(bgStatus, { loading: false, loaded: true, ready: !!s.ready, reason: s.reason ?? null, message: s.message || '' })
+}
+watch(activeTool, t => { if (t === 'bg' && !bgStatus.loaded && !bgStatus.loading) loadBgStatus() })
+watch(() => bgRow.value?.id, () => { bgError.value = '' })
+function setBgNoted(id, bg, label) {
+  const before = session.histories[id]?.index
+  if (session.setBg(id, bg, label) && session.histories[id]?.index !== before) noteAction({ imageId: id })
+}
+async function onBgRemove() {
+  const row = bgRow.value
+  const pid = project.value?.id
+  if (!row || !pid || bgBusy[row.id] || !bgStatus.ready) return
+  bgBusy[row.id] = true
+  bgError.value = ''
+  const seq = bgStatusSeq
+  try {
+    const r = await requestBgRemove(pid, row.id)
+    if (project.value?.id !== pid || !imagesById.value.has(row.id)) return // 그 사이 다른 작업·로그아웃
+    setBgNoted(row.id, bgFromServer(r), LABELS.bgRemove)
+  } catch (e) {
+    if (project.value?.id !== pid) return
+    if (bgRow.value?.id === row.id) bgError.value = e.message
+    else showToast(e.message)
+    if ((e.code === 'bg_not_eligible' || e.code === 'bg_not_ready') && seq === bgStatusSeq) loadBgStatus() // 서버가 바뀐 상태를 알려 줌
+  } finally {
+    delete bgBusy[row.id]
+  }
+}
+function onBgMode(mode) {
+  const row = bgRow.value
+  const cur = row ? session.bgOf(row.id) : null
+  if (!cur || cur.mode === mode) return
+  setBgNoted(row.id, { ...cur, mode }, mode === 'transparent' ? LABELS.bgTransparent : LABELS.bgOriginal)
+}
+function onBgReset() {
+  const row = bgRow.value
+  if (row && session.bgOf(row.id)) setBgNoted(row.id, null, LABELS.bgReset)
 }
 /** 이 사진의 결과 크기 (자르기·띠를 적용한 뒤) — 페이지에 넣을 때 비율 */
 function sizedRow(imageId) {
@@ -2299,6 +2373,11 @@ const onStudioAuthChanged = (e) => {
     pageSession.resetAll()
     bakeQueue.reset()
     clearViews()
+    // 17-1 배경 지우기 상태 — 다음 계정은 서버에 다시 묻는다
+    bgStatusSeq++
+    Object.assign(bgStatus, { loading: false, loaded: false, ready: false, reason: null, message: '' })
+    for (const k of Object.keys(bgBusy)) delete bgBusy[k]
+    bgError.value = ''
     selectedItemIds.value = []
     clipboard = null
     styleClip.value = null // 10-2 복사한 글자 모양

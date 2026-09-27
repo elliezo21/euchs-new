@@ -125,7 +125,7 @@ function orValue(v) {
  *   OR auth.jwt()->>'role' = 'service_role'   ← 사용자 토큰만 받으므로 해당 없음
  * ※ supabase/admin_roles_schema.sql의 옛 정의에는 profiles 조건이 없다. 운영 정의를 따른다.
  */
-async function isAdminOrStaff(cfg, userId, email) {
+export async function isAdminOrStaff(cfg, userId, email) {
   const roleIn = `role=in.(${ADMIN_ROLES.join(',')})`
   const urCond = email ? `or=(user_id.eq.${userId},email.eq.${orValue(email)})` : `user_id=eq.${userId}`
   const pfCond = email ? `or=(id.eq.${userId},email.eq.${orValue(email)})` : `id=eq.${userId}`
@@ -315,6 +315,49 @@ export async function storageCopy(cfg, bucket, fromPath, toPath) {
   try { body = JSON.parse(text) } catch { /* JSON이 아닌 오류 본문 — 아래에서 text로 보고 */ }
   if (r.status === 404 || String(body?.statusCode) === '404' || body?.error === 'not_found') return { found: false }
   throw new Error(`storage copy ${r.status}: ${text.slice(0, 200)}`)
+}
+
+/**
+ * 읽기용 서명 주소 (짧게 유효). storage-js createSignedUrl과 같은 엔드포인트·본문(POST /object/sign/{bucket}/{path} { expiresIn }).
+ * 17-1: 배경 지우기 외부 API에 원본을 넘길 때만 쓴다 — 부르는 쪽이 요청자 본인의 사진인지 먼저 확인한다. 실패는 throw
+ * @returns {Promise<string>} 전체 주소
+ */
+export async function storageSignDownload(cfg, bucket, path, expiresIn) {
+  const r = await fetch(`${cfg.supabaseUrl}/storage/v1/object/sign/${bucket}/${path}`, {
+    method: 'POST',
+    headers: {
+      'apikey': cfg.serviceRoleKey,
+      'Authorization': `Bearer ${cfg.serviceRoleKey}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ expiresIn }),
+  })
+  const text = await r.text()
+  if (!r.ok) throw new Error(`storage sign download ${r.status}: ${text.slice(0, 200)}`)
+  const rel = JSON.parse(text)?.signedURL
+  if (!rel) throw new Error('storage sign download: 응답에 signedURL 없음')
+  return `${cfg.supabaseUrl}/storage/v1${rel}`
+}
+
+/**
+ * 서버가 만든 파일 올리기 (service_role). storage-js upload와 같은 엔드포인트(POST /object/{bucket}/{path}).
+ * x-upsert: false — 같은 경로가 이미 있으면 Storage가 거절한다(throw). 실패는 throw
+ */
+export async function storageUpload(cfg, bucket, path, buf, contentType) {
+  const r = await fetch(`${cfg.supabaseUrl}/storage/v1/object/${bucket}/${path}`, {
+    method: 'POST',
+    headers: {
+      'apikey': cfg.serviceRoleKey,
+      'Authorization': `Bearer ${cfg.serviceRoleKey}`,
+      'Content-Type': contentType,
+      'x-upsert': 'false',
+    },
+    body: buf,
+  })
+  if (!r.ok) {
+    const text = await r.text().catch(() => '')
+    throw new Error(`storage upload ${r.status}: ${text.slice(0, 200)}`)
+  }
 }
 
 /** 파일 삭제 (여러 개). 실패는 throw */

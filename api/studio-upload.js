@@ -46,7 +46,17 @@
  *   새 작업은 다 될 때까지 deleted_at을 찍어 두어 목록에 안 보이고, 마지막에 비운다. 중간에 실패하면 복사한 파일·행을 지우고 오류(원본은 읽기만 한다).
  * 에러: invalid_input 400 / not_found 404 / project_expired 400 / copy_bad_path·copy_failed 500
  *
- * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다.
+ * ── 배경 지우기 (17-1) ── 외부 API(fal, api/_studioBgProvider.js)로 원본의 마스크(알파)를 만들어 저장한다. 돈은 여기서만 나간다.
+ * POST { action:'bg_status' } → { ready, reason: null|'not_eligible'|'no_key'|'no_table', model? }  (한도 숫자는 알려 주지 않는다)
+ * POST { action:'bg_remove', projectId, imageId }
+ *   로그인 → 본인 사진 확인(loadPatchTarget) → 자격(관리자 또는 결제한 주문 고객, _studioBg.js) → 키 → 긴 변 ≤ 4096 → 사용 기록(처리 중·하루 한도)
+ *   → 같은 원본·모델 마스크가 있으면 그대로 돌려줌(reused, 외부 호출 없음) → pending 기록 → 원본 서명 주소(5분) → fal
+ *   → 결과 PNG의 알파만 → 원본 크기 8비트 회색 PNG → {uid}/{projectId}/bg/{imageId}/mask_{key16}.png → 기록 ok(비용 추정)
+ *   → { path, key, model, width, height, reused }.  edit.bg 저장은 화면이 기존 edit_version 잠금 저장으로 한다.
+ * 에러: bg_not_eligible 403 / bg_not_ready 503(키·테이블 없음) / bg_busy 409 / bg_daily_limit 429 / bg_too_large 400 /
+ *       bg_failed 502·bg_timeout 504(기록 지움) / not_found 404 / storage_error 500
+ *
+ * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다. (배경 마스크는 서버가 새로 만드는 파일이라 예외)
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
  * 환경변수: STUDIO_ENABLED, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, STUDIO_UPLOAD_DAILY_PROJECTS(기본 30),
@@ -56,10 +66,15 @@
 import crypto from 'crypto'
 import {
   studioGuard, sendError, sb, loadOwnedRow, studioMaxImages,
-  storageSignUpload, storageDownload, storageRemove, storageList, storageCopy,
+  storageSignUpload, storageDownload, storageRemove, storageList, storageCopy, storageSignDownload, storageUpload,
 } from './_studio.js'
 import { readDimensions } from './studio-ingest.js'
 import { buildCopyPlan } from './_studioCopy.js'
+import {
+  isBgEligible, usageTableReady, usageCheck, isUsageUnavailable, bgDailyLimit, bgMaskKey, bgFolder, buildMaskPng,
+  BG_MAX_SIDE, BG_SIGN_SECONDS, BG_MASK_MAX_BYTES,
+} from './_studioBg.js'
+import { bgProviderConfig, removeBackground, BgProviderError } from './_studioBgProvider.js'
 
 const BUCKET = 'studio'
 const MAX_FILES_PER_PREPARE = 10
@@ -700,6 +715,122 @@ async function projectCopy(ctx, body, res) {
   })
 }
 
+// ── 배경 지우기 (17-1) ──────────────────────────────────────────────────────
+/** 화면이 [배경합성] 패널을 열 때 — 쓸 수 있는지만 알려 준다 (한도 숫자는 알려 주지 않는다) */
+async function bgStatus(ctx, body, res) {
+  if (!(await isBgEligible(ctx))) return res.status(200).json({ ready: false, reason: 'not_eligible' })
+  const p = bgProviderConfig()
+  if (!p.ready) return res.status(200).json({ ready: false, reason: 'no_key' })
+  if (!(await usageTableReady(ctx))) return res.status(200).json({ ready: false, reason: 'no_table' })
+  return res.status(200).json({ ready: true, reason: null, model: p.modelKey })
+}
+
+async function bgRemove(ctx, body, res) {
+  const { cfg } = ctx
+  const t = await loadPatchTarget(ctx, body, res) // 본인·안 지운·안 끝난 작업의 done 사진만 (남의 사진이면 404 — 서명 주소를 만들지 않는다)
+  if (!t) return
+  if (!(await isBgEligible(ctx))) return sendError(res, 403, 'bg_not_eligible', '이유씨로 주문한 고객에게 열리는 기능이에요.')
+  const p = bgProviderConfig()
+  if (!p.ready) return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+  const rows = await sb(cfg, `studio_images?select=original_path&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
+  const originalPath = Array.isArray(rows) && rows[0] ? rows[0].original_path : null
+  if (typeof originalPath !== 'string' || !originalPath.startsWith(`${ctx.userId}/${t.project.id}/orig/`)) {
+    console.error(`[studio-upload] bg: 원본 경로가 규칙과 다름 ${t.image.id}:`, originalPath)
+    return sendError(res, 404, 'not_found', '원본 사진을 찾을 수 없습니다.')
+  }
+  const W = t.image.width, H = t.image.height
+  if (Math.max(W, H) > BG_MAX_SIDE) {
+    return sendError(res, 400, 'bg_too_large', `긴 변이 ${BG_MAX_SIDE}px 이하인 사진만 배경을 지울 수 있어요.`)
+  }
+
+  const key = bgMaskKey(originalPath, p.model.endpoint)
+  const folder = bgFolder(ctx.userId, t.project.id, t.image.id)
+  const name = `mask_${key}.png`
+  const path = `${folder}/${name}`
+  const out = { path, key, model: p.modelKey, width: W, height: H }
+
+  // 사용 기록 확인 — 테이블이 없으면 "준비 중"
+  const limit = bgDailyLimit()
+  try {
+    const u = await usageCheck(ctx, t.image.id, limit)
+    if (u.busy) return sendError(res, 409, 'bg_busy', '이 사진의 배경을 지우는 중이에요.')
+    // 같은 원본·같은 모델 마스크가 이미 있으면 다시 부르지 않는다 (돈이 나가지 않음 — 한도보다 먼저)
+    let names
+    try {
+      names = await storageList(cfg, BUCKET, folder)
+    } catch (e) {
+      console.error(`[studio-upload] bg 목록 조회 실패 ${folder}:`, e.message)
+      return sendError(res, 500, 'storage_error', '저장소를 확인하지 못했습니다.')
+    }
+    if (names.includes(name)) return res.status(200).json({ ...out, reused: true })
+    if (u.overLimit) return sendError(res, 429, 'bg_daily_limit', '오늘은 더 할 수 없어요. 내일 다시 시도해 주세요.')
+  } catch (e) {
+    if (isUsageUnavailable(e)) {
+      console.error('[studio-upload] bg: studio_ai_usage를 쓸 수 없음 — 준비 중:', e.message)
+      return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+    }
+    throw e
+  }
+
+  // 처리 중 표시 (pending) — 실패하면 지운다(기록을 남기지 않는다)
+  let usageId
+  try {
+    const ins = await sb(cfg, 'studio_ai_usage?select=id', {
+      method: 'POST', prefer: 'return=representation',
+      body: { user_id: ctx.userId, kind: 'bg_remove', status: 'pending', project_id: t.project.id, image_id: t.image.id, provider: p.model.provider, model: p.model.endpoint },
+    })
+    usageId = ins?.[0]?.id
+    if (usageId === undefined || usageId === null) throw new Error('studio_ai_usage insert 결과에 id 없음')
+  } catch (e) {
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+    throw e
+  }
+  const dropUsage = async why => {
+    try {
+      await sb(cfg, `studio_ai_usage?id=eq.${usageId}&user_id=eq.${ctx.userId}&status=eq.pending`, { method: 'DELETE', prefer: 'return=minimal' })
+    } catch (e) {
+      // 남아도 2분 뒤에는 처리 중으로 보지 않는다 (하루 수에는 들어감)
+      console.error(`[studio-upload] bg 실패 뒤 pending 기록 지우기 실패 (${why}) id=${usageId}:`, e.message)
+    }
+  }
+
+  let result
+  try {
+    const imageUrl = await storageSignDownload(cfg, BUCKET, originalPath, BG_SIGN_SECONDS)
+    result = await removeBackground({ falKey: p.falKey, modelKey: p.modelKey, imageUrl })
+  } catch (e) {
+    await dropUsage('fal')
+    const code = e instanceof BgProviderError ? e.code : 'bg_failed'
+    console.error(`[studio-upload] bg 외부 처리 실패 ${t.image.id} (${p.modelKey}, ${code}):`, e.message)
+    return code === 'bg_timeout'
+      ? sendError(res, 504, 'bg_timeout', '배경 지우기가 오래 걸려 멈췄어요. 잠시 후 다시 눌러 주세요.')
+      : sendError(res, 502, 'bg_failed', '배경을 지우지 못했어요. 잠시 후 다시 눌러 주세요.')
+  }
+
+  let mask
+  try {
+    mask = buildMaskPng(result.buf, W, H)
+    if (mask.png.length > BG_MASK_MAX_BYTES) throw new Error(`마스크 ${mask.png.length} bytes`)
+    await storageUpload(cfg, BUCKET, path, mask.png, 'image/png')
+  } catch (e) {
+    await dropUsage('mask')
+    console.error(`[studio-upload] bg 마스크 만들기·저장 실패 ${t.image.id}:`, e.message)
+    return sendError(res, 502, 'bg_failed', '배경을 지우지 못했어요. 잠시 후 다시 눌러 주세요.')
+  }
+
+  try {
+    await sb(cfg, `studio_ai_usage?id=eq.${usageId}&user_id=eq.${ctx.userId}`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: { status: 'ok', cost_usd: result.costUsd, meta: { ms: result.ms, via: result.via, mask_from: mask.from, resized: mask.resized, src: [mask.srcW, mask.srcH], w: W, h: H } },
+    })
+  } catch (e) {
+    // 결과는 이미 저장됨 — pending으로 남는다(하루 수에는 들어감). 숨기지 않고 남긴다
+    console.error(`[studio-upload] bg 사용 기록 완료 표시 실패 id=${usageId}:`, e.message)
+  }
+  console.log(`[studio-upload] bg_remove ${t.image.id} ${p.modelKey} ${result.ms}ms via=${result.via} mask=${mask.from}${mask.resized ? ' (크기 맞춤)' : ''}`)
+  return res.status(200).json({ ...out, reused: false })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -714,7 +845,9 @@ export default async function handler(req, res) {
     if (body.action === 'final_prepare') return await finalPrepare(ctx, body, res)
     if (body.action === 'final_confirm') return await finalConfirm(ctx, body, res)
     if (body.action === 'project_copy') return await projectCopy(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy' 중 하나여야 합니다.")
+    if (body.action === 'bg_status') return await bgStatus(ctx, body, res)
+    if (body.action === 'bg_remove') return await bgRemove(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

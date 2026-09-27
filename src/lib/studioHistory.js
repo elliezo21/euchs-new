@@ -106,6 +106,11 @@ export const LABELS = {
   cover: '덮기',
   coverSource: '가져올 곳 옮기기',
   coverFeather: '덮기 가장자리',
+  // 배경 지우기 (17-1) — 사진 이력
+  bgRemove: '배경 지우기',
+  bgTransparent: '배경 투명',
+  bgOriginal: '원래 배경',
+  bgReset: '배경 원래대로',
   lookFilter: '필터',
   lookAdjust: '조정',
   lookReset: '필터·조정 초기화',
