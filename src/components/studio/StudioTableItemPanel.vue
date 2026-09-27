@@ -6,9 +6,14 @@
       <span v-else-if="tables.length < all.length" class="st-muted text-[11px] font-bold">표에만 적용</span>
     </div>
 
-    <!-- 칸 격자 (표 하나일 때) — 일반 input이라 한글 입력이 그대로. 칸을 벗어나거나 Enter = 반영 (칸 하나 = 이력 1개) -->
+    <!-- 표 하나일 때: 칸은 캔버스에서 바로 입력(기본). 칸 격자는 [표 칸 목록 펼치기]로 접어 둔다 — 일반 input, 칸을 벗어나거나 Enter = 반영 (칸 하나 = 이력 1개) -->
     <div v-if="one" class="space-y-2" data-table-grid>
-      <div class="grid gap-0.5" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }">
+      <p class="text-[12px] font-bold st-accent-text break-keep" data-table-canvas-hint>칸은 캔버스에서 바로 눌러 입력하세요</p>
+      <button
+        type="button" class="st-chip w-full inline-flex items-center justify-center gap-1" :aria-expanded="gridOpen" data-table-grid-toggle
+        @click="gridOpen = !gridOpen"
+      ><component :is="gridOpen ? ChevronUp : ChevronDown" class="w-3.5 h-3.5" :stroke-width="2" /> {{ gridOpen ? '표 칸 목록 접기' : '표 칸 목록 펼치기' }}</button>
+      <div v-if="gridOpen" class="grid gap-0.5" :style="{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }" data-table-grid-cells>
         <template v-for="(row, r) in one.cells" :key="r">
           <input
             v-for="(cell, c) in row" :key="`${r}-${c}`" type="text" class="st-cell-input" :class="one.headerRow && r === 0 ? 'is-header' : ''"
@@ -59,8 +64,8 @@
 // 보내는 것: props(patch, { merge, key }) = 고른 표 모두의 모양 / edit({ id, op }) = 그 표 하나의 칸·행·열 (op = studioTable.editTableItem).
 // 칸 글자는 칸을 벗어나거나 Enter일 때 한 번 반영 = 이력 1개. 칸을 고친 채로 다른 곳을 눌러 이 칸이 사라져도(표 선택 해제) 사라지기 전에 반영한다.
 // 숫자 칸 = Enter·벗어나기 반영, 슬라이더·색 고르기 = 끄는 동안 이력 1개 (11-1 도형 칸과 같은 방식)
-import { computed, watch, nextTick, h, defineComponent, onBeforeUnmount } from 'vue'
-import { Palette } from 'lucide-vue-next'
+import { ref, computed, watch, nextTick, h, defineComponent, onBeforeUnmount } from 'vue'
+import { Palette, ChevronDown, ChevronUp } from 'lucide-vue-next'
 import { findItem } from '@/lib/studioPage'
 import { isValidTableItem, TABLE_LIMITS, TABLE_CELL_MAX, cleanCellText } from '@/lib/studioTable'
 import { STUDIO_FONTS } from '@/lib/studioFonts'
@@ -84,6 +89,7 @@ const COLOR_ROWS = [
   { field: 'borderColor', label: '테두리 색', colors: [{ value: '#d5d9e0', label: '연한 회색' }, { value: '#111111', label: '검정' }, { value: '#ffffff', label: '흰색' }] },
 ]
 
+const gridOpen = ref(false) // 칸 격자 펼침 — 기본은 접힘 (칸은 캔버스에서 바로 입력)
 const all = computed(() => props.selectedIds.map(id => findItem(props.page, id)?.item).filter(Boolean))
 const tables = computed(() => all.value.filter(isValidTableItem))
 const one = computed(() => (tables.value.length === 1 ? tables.value[0] : null))

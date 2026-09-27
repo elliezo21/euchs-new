@@ -2,7 +2,7 @@
   <div class="flex flex-col h-full overflow-y-auto" data-text-panel>
     <div class="px-4 pt-4 pb-4 space-y-3">
       <div class="text-[13px] font-extrabold st-ink">글자 넣기</div>
-      <p class="st-desc break-keep">누르면 지금 보고 있는 구간 가운데에 들어가요. 바로 글자를 입력할 수 있어요.</p>
+      <p class="st-desc break-keep">누르면 지금 보고 있는 섹션 가운데에 들어가요. 바로 글자를 입력할 수 있어요.</p>
       <div class="space-y-2">
         <button
           v-for="k in KINDS" :key="k.key" type="button" class="st-text-add" :data-text-add="k.key"

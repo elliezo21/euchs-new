@@ -6,7 +6,8 @@
  *   값 '1' = 다시 보지 않기. 없음 = 자동으로 띄움. 읽을 수 없으면(사생활 보호 창 등) 띄운다 — 가이드가 안 뜨는 것보다 뜨는 쪽이 안전.
  * ★ 자동 시작 = 다시 보지 않기가 아니고 · 이 화면을 연 뒤 아직 안 띄웠고 · 준비가 끝났고 · 가로막는 것(시작 화면·창)이 없을 때.
  */
-export const GUIDE_KEYS = { editor: 'studio-guide-hide:editor', erase: 'studio-guide-hide:erase' }
+// sectionAdd = 편집기 캔버스 위 안내 한 줄 "섹션 사이에 마우스를 올리면…" — 닫으면 다시 안 띄움 (가이드 "다시 보지 않기"와 같은 방식)
+export const GUIDE_KEYS = { editor: 'studio-guide-hide:editor', erase: 'studio-guide-hide:erase', sectionAdd: 'studio-guide-hide:section-add' }
 
 export function guideKey(kind) {
   return GUIDE_KEYS[kind] ?? null

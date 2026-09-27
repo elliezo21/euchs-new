@@ -15,7 +15,7 @@ export const EDITOR_GUIDE_STEPS = [
   { target: 'photo-add', title: '사진 올리기', desc: '[내 사진 올리기]로 사진을 더할 수 있어요. 목록의 사진을 페이지로 끌어다 놓아도 그 자리에 들어가요.' },
   { target: 'page', title: '① 사진 다듬기', desc: '페이지의 사진을 누르면 왼쪽에 사진 편집이 열려요. 글자를 지울 사진은 [지우기]를 눌러 지우기 화면에서 지워요.', tip: '지운 결과는 사진에 저장돼요. 그래서 템플릿이나 순서를 나중에 바꿔도 그대로 남으니, 작업 순서는 자유예요.' },
   { target: 'rail-template', title: '② 페이지 꾸미기', desc: '[템플릿]으로 어울리는 틀을 고르거나, [텍스트]·[요소]로 글자와 도형을 직접 넣어 꾸며요.' },
-  { target: 'reorder', title: '구간 순서 바꾸기', desc: '오른쪽 미니뷰로 페이지 전체를 보고, [순서 변경]에서 구간을 끌어 순서를 바꿔요.' },
+  { target: 'reorder', title: '섹션 순서 바꾸기', desc: '오른쪽 미니뷰로 페이지 전체를 보고, 그림을 끌어 순서를 바꿔요. 페이지의 섹션 사이에 마우스를 올리면 그 자리에 섹션을 더할 수 있어요.' },
   { target: 'preview', title: '③ 미리보기', desc: '[미리보기]로 PC와 모바일에서 보일 모습을 먼저 확인해요.' },
   { target: 'export', title: '③ 내보내기 → 판매처에 올리기', desc: '[내보내기]로 이미지를 받아 판매처 상세페이지에 올리면 끝이에요.' },
   { target: 'guide-button', title: '다시 보고 싶을 때', desc: '[가이드]를 누르면 이 안내와 단축키 표를 언제든 다시 볼 수 있어요. 단축키 표는 ? 키로도 열려요.' },
@@ -34,7 +34,7 @@ export const SHORTCUT_GROUPS = [
     rows: [
       ['Ctrl+Z', '되돌리기'],
       ['Ctrl+Shift+Z · Ctrl+Y', '다시'],
-      ['Ctrl+A', '보고 있는 구간의 요소 모두 고르기'],
+      ['Ctrl+A', '보고 있는 섹션의 요소 모두 고르기'],
       ['Ctrl+C · Ctrl+X · Ctrl+V', '복사 · 잘라내기 · 붙여넣기'],
       ['Ctrl+D', '복제'],
       ['Delete · Backspace', '고른 요소 삭제'],

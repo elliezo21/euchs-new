@@ -25,7 +25,7 @@
               @click="$emit('mode', m.key)"
             >{{ m.label }}</button>
           </div>
-          <p v-if="bg.mode === 'transparent'" class="st-desc-sm break-keep">지운 배경 자리에 구간 배경색이 보여요</p>
+          <p v-if="bg.mode === 'transparent'" class="st-desc-sm break-keep">지운 배경 자리에 섹션 배경색이 보여요</p>
 
           <!-- 단색 (17-2): 견본 · 직접 고르기 · 구간 배경색과 같게 -->
           <div v-if="bg.mode === 'color'" class="space-y-2" data-bg-color-box>
@@ -48,7 +48,7 @@
               type="button" class="st-btn w-full" :disabled="!sectionBg" data-bg-color-section
               :title="sectionBgWhere" @click="$emit('color', sectionBg, { commit: true })"
             >
-              <span class="st-swatch-mini" :style="sectionBg ? { background: sectionBg } : null" /> 구간 배경색과 같게
+              <span class="st-swatch-mini" :style="sectionBg ? { background: sectionBg } : null" /> 섹션 배경색과 같게
             </button>
             <!-- 검수 2묶음: 어느 구간 색인지 / 잠긴 이유를 글자로 (툴팁에만 두지 않음) -->
             <p v-if="sectionBgReason" class="text-[11px] font-bold st-danger-text break-keep" data-bg-color-section-reason>{{ sectionBgReason }}</p>

@@ -7,10 +7,10 @@
           <div class="st-xlabel">받는 방식</div>
           <div class="grid grid-cols-2 gap-2">
             <button type="button" class="st-opt" :class="mode === 'sections' ? 'is-active' : ''" data-export-mode="sections" @click="mode = 'sections'">
-              <b>구간별 여러 장</b><span>구간마다 한 장씩 (판매처에 나눠 올릴 때)</span>
+              <b>섹션별 여러 장</b><span>섹션마다 한 장씩 (판매처에 나눠 올릴 때)</span>
             </button>
             <button type="button" class="st-opt" :class="mode === 'long' ? 'is-active' : ''" data-export-mode="long" @click="mode = 'long'">
-              <b>한 장으로 길게</b><span>고른 구간을 위에서부터 이어 붙여 한 장</span>
+              <b>한 장으로 길게</b><span>고른 섹션을 위에서부터 이어 붙여 한 장</span>
             </button>
           </div>
         </div>
@@ -32,7 +32,7 @@
         </div>
         <div class="space-y-2">
           <div class="flex items-center gap-2">
-            <span class="st-xlabel">받을 구간</span>
+            <span class="st-xlabel">받을 섹션</span>
             <span class="ml-auto text-[11px] font-bold st-muted">{{ picked.size }} / {{ page.sections.length }}개</span>
             <button type="button" class="st-link-btn" data-export-all @click="pickAll(picked.size !== page.sections.length)">{{ picked.size === page.sections.length ? '모두 빼기' : '모두 고르기' }}</button>
           </div>
@@ -52,11 +52,11 @@
             <b>{{ plan.files.length }}장</b> 받아요 · {{ FORMAT_OF[format].label }} · {{ page.width * scale }}px 폭
             <span v-if="mode === 'long'"> · 높이 {{ plan.files[0].height.toLocaleString() }}px</span>
           </template>
-          <template v-else>받을 구간을 골라 주세요</template>
+          <template v-else>받을 섹션을 골라 주세요</template>
         </div>
         <p v-if="plan.tooLarge.length" class="text-[13px] font-bold st-danger-text break-keep" data-export-too-large>
-          <template v-if="mode === 'long'">한 장으로 만들기에는 너무 길어요 ({{ plan.tooLarge[0].height.toLocaleString() }}px). [구간별 여러 장]으로 받거나 1배로 받아 주세요.</template>
-          <template v-else>{{ plan.tooLarge.map(f => labels[f.sectionIds[0]]).join(', ') }} 구간은 {{ scale }}배로 만들기에는 너무 길어요. 1배로 받거나 구간을 빼 주세요.</template>
+          <template v-if="mode === 'long'">한 장으로 만들기에는 너무 길어요 ({{ plan.tooLarge[0].height.toLocaleString() }}px). [섹션별 여러 장]으로 받거나 1배로 받아 주세요.</template>
+          <template v-else>{{ plan.tooLarge.map(f => labels[f.sectionIds[0]]).join(', ') }} 섹션은 {{ scale }}배로 만들기에는 너무 길어요. 1배로 받거나 섹션을 빼 주세요.</template>
         </p>
         <!-- 개발용 비교 보기 (개발 서버에서만 — 손님 화면에는 없다) -->
         <div v-if="devCompare" class="flex items-center gap-2 p-2 rounded-[8px] st-dev-box" data-export-dev>
@@ -209,7 +209,7 @@ const progressPct = computed(() => {
 const progressText = computed(() => {
   const p = progress.value
   if (p.files > 1) return `${p.file + 1} / ${p.files}장 만드는 중 · ${p.label}`
-  if (p.steps > 1) return `구간 ${p.step + 1} / ${p.steps} 그리는 중 · ${p.label}`
+  if (p.steps > 1) return `섹션 ${p.step + 1} / ${p.steps} 그리는 중 · ${p.label}`
   return `만드는 중 · ${p.label}`
 })
 
@@ -239,7 +239,7 @@ async function run(from) {
   for (let i = from; i < files.length; i++) {
     if (stopAsked.value || !props.open) break
     const file = files[i]
-    const label = file.no === null ? `${file.sectionIds.length}개 구간을 한 장으로` : props.labels[file.sectionIds[0]] ?? ''
+    const label = file.no === null ? `${file.sectionIds.length}개 섹션을 한 장으로` : props.labels[file.sectionIds[0]] ?? ''
     progress.value = { file: i, files: files.length, step: 0, steps: file.sectionIds.length, label }
     try {
       const out = await props.render(file, {
@@ -254,8 +254,8 @@ async function run(from) {
       console.error('[StudioExportModal] 이미지 만들기 실패:', file, e)
       const sid = e?.sectionId ?? (file.sectionIds.length === 1 ? file.sectionIds[0] : null)
       error.value = {
-        where: sid ? `${props.labels[sid] ?? ''} 구간` : '이미지',
-        message: `${e?.message || String(e)}${e?.kind === 'tooLarge' ? ' — 구간별 여러 장이나 1배로 받아 주세요.' : ''}`,
+        where: sid ? `${props.labels[sid] ?? ''} 섹션` : '이미지',
+        message: `${e?.message || String(e)}${e?.kind === 'tooLarge' ? ' — 섹션별 여러 장이나 1배로 받아 주세요.' : ''}`,
         fileIndex: i,
       }
       phase.value = 'error'

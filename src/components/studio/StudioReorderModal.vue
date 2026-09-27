@@ -6,7 +6,7 @@
       data-reorder-modal @click.self="cancel"
     >
       <div class="st-modal w-full max-w-5xl flex flex-col" style="max-height: 88vh" role="dialog" aria-modal="true" aria-labelledby="st-reorder-title">
-        <h3 id="st-reorder-title" class="st-modal-title">구간 순서 바꾸기</h3>
+        <h3 id="st-reorder-title" class="st-modal-title">섹션 순서 바꾸기</h3>
         <p class="mt-1 st-desc break-keep">카드를 끌어다 놓거나, 카드를 고른 뒤 ←·→ 키나 카드 아래 버튼으로 옮기세요. [완료]를 누르면 한 번에 바뀌어요.</p>
 
         <ol class="mt-4 flex-1 min-h-0 overflow-y-auto grid grid-cols-5 gap-3 p-1" data-reorder-grid>

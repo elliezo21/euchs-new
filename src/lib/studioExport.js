@@ -568,7 +568,7 @@ export async function prepareSections(sections, deps) {
  */
 export async function renderSection(page, sectionId, deps, { scale = 1 } = {}) {
   const section = page.sections.find(s => s.id === sectionId)
-  if (!section) throw new ExportError('없는 구간이에요', { sectionId })
+  if (!section) throw new ExportError('없는 섹션이에요', { sectionId })
   const { width, height } = sectionPixelSize(page, section, scale)
   if (!canvasFits(width, height)) throw new ExportError(`이미지가 너무 길어요 (${width}×${height}px)`, { sectionId, kind: 'tooLarge' })
   const { images, notes } = await prepareSections([section], deps)
@@ -585,7 +585,7 @@ export async function renderSection(page, sectionId, deps, { scale = 1 } = {}) {
 export async function renderPage(page, sectionIds, deps, { scale = 1, onStep } = {}) {
   const want = new Set(sectionIds)
   const sections = page.sections.filter(s => want.has(s.id))
-  if (sections.length === 0) throw new ExportError('받을 구간을 골라 주세요', {})
+  if (sections.length === 0) throw new ExportError('받을 섹션을 골라 주세요', {})
   const { tops, height } = stackLayout(page, sections)
   const W = Math.round(page.width * scale), H = Math.round(height * scale)
   if (!canvasFits(W, H)) throw new ExportError(`한 장으로 만들기에는 너무 길어요 (${W}×${H}px)`, { kind: 'tooLarge' })

@@ -11,7 +11,7 @@
       class="absolute text-right text-[11px] font-bold whitespace-nowrap cursor-pointer st-section-label"
       :class="selectedSectionIds.has(s.id) || selectedSectionId === s.id ? 'st-accent-text' : 'st-muted'"
       :style="{ right: `calc(100% + 14px)`, top: `${rowOf(s.id).top * zoom + 4}px` }"
-      :data-section-label="s.id" title="이 구간 고르기"
+      :data-section-label="s.id" title="이 섹션 고르기"
       @pointerdown.stop="onLabelDown($event, s.id)" @contextmenu.prevent.stop="onLabelContext($event, s.id)"
     >{{ String(si + 1).padStart(2, '0') }} {{ sectionName(s) }}<span v-if="sectionBake(s)" class="block font-semibold st-muted" data-section-bake>{{ sectionBake(s) }}</span><span v-if="flags[s.id]" class="block st-danger-text" :data-section-flag="s.id">확인 필요<span class="block font-semibold">{{ flags[s.id] }}</span></span></div>
 
@@ -186,6 +186,38 @@
       @pointerdown.stop.prevent="onSectionHeightDown($event, sectionHandle.id)"
     ><span class="st-section-handle-grip" /><span v-if="sizingSection" class="st-section-handle-size">{{ sectionHandle.height }}px</span></div>
 
+    <!-- 섹션 사이(맨 위·맨 아래 포함)에 마우스를 올리면 가로선 + [+ 여기에 섹션 추가] — 우클릭 "위에/아래에 섹션 추가"와 같은 명령 (편집기 sectionAdd) -->
+    <div
+      v-for="g in gapSlots" :key="`gap-${g.at}`" class="absolute st-gap-zone" :style="g.style" :data-section-gap="g.at"
+      @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
+    >
+      <span class="st-gap-line" />
+      <button
+        type="button" class="st-gap-add" :style="g.btnStyle" title="이 자리에 빈 섹션 추가" :data-section-gap-add="g.at"
+        @pointerdown.stop @click.stop="addSectionAt(g.at)"
+      ><Plus class="w-3.5 h-3.5" :stroke-width="2.5" /> 여기에 섹션 추가</button>
+    </div>
+
+    <!-- 골라진 섹션 도구줄 — 페이지 오른쪽 바깥(섹션 위쪽, 스크롤하면 섹션 안에서 따라옴). 요소를 고르면 요소 도구줄이 대신 -->
+    <div
+      v-if="sectionBar" class="absolute st-sec-bar" :style="sectionBar.style" role="toolbar" aria-label="고른 섹션" data-section-toolbar
+      @pointerdown.stop @dblclick.stop @contextmenu.stop.prevent
+    >
+      <button
+        v-for="b in sectionBar.buttons" :key="b.key" type="button" class="st-sec-bar-btn" :class="b.danger ? 'is-danger' : ''"
+        :disabled="b.disabled" :title="b.tip" :aria-label="b.tip" :data-section-bar="b.key" @click="$emit('command', b.cmd, b.args || {})"
+      >
+        <component :is="SECTION_ICONS[b.key]" class="w-4 h-4" :stroke-width="2" />
+        <span>{{ b.label }}</span>
+      </button>
+    </div>
+
+    <!-- 고른 요소 도구줄 — 요소 위쪽(자리가 없으면 아래쪽). 글자·표 칸을 입력하는 중·끄는 중에는 없음 -->
+    <StudioItemToolbar
+      v-if="itemBar" :page="page" :selected-ids="selectedIds" :box="itemBar.box" :view="view" :above="itemBar.above" :below="itemBar.below"
+      @command="(n, a) => $emit('command', n, a)"
+    />
+
     <!-- 빈 곳 드래그 박스 -->
     <div v-if="marquee" class="absolute pointer-events-none st-marquee" :style="marquee" data-marquee />
   </div>
@@ -204,12 +236,14 @@
 //   그룹(배지 11-2 등) 안의 글자도 더블클릭 = 그 글자만 고치기 (누르기는 그룹 단위 그대로 — 편집기가 끝나면 그룹 전체를 다시 고른다).
 // 11-2 겹침 순서: 요소 z-index = 구간 items 배열 자리 + 1, 구간 = 쌓임 맥락(isolation). 사이즈표 = StudioTableView, 손잡이 좌우·모서리(폭만).
 import { ref, shallowRef, computed, watch, nextTick, inject, onMounted, onBeforeUnmount } from 'vue'
-import { RefreshCw, Lock, RotateCw } from 'lucide-vue-next'
+import { RefreshCw, Lock, RotateCw, Plus, ArrowUp, ArrowDown, CopyPlus, Trash2 } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
   DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
-  isDrawableItem, resizeTextItem, textLinesOf, setLineEnd, resizeTableItem,
+  isDrawableItem, resizeTextItem, textLinesOf, setLineEnd, resizeTableItem, itemBounds, SECTION_MAX,
 } from '@/lib/studioPage'
+import StudioItemToolbar from '@/components/studio/StudioItemToolbar.vue'
+import { unionBox, sectionBarButtons, sectionGapSlots } from '@/lib/studioCanvasUi'
 import { isValidTextItem, textPaintSpec } from '@/lib/studioText'
 import { cssFamilyOf } from '@/lib/studioFonts'
 import StudioTextView from '@/components/studio/StudioTextView.vue'
@@ -239,6 +273,7 @@ const props = defineProps({
   textEdit: { type: Object, default: null },           // { id, selectAll } 고치는 중인 글자 요소 (10-1)
   flags: { type: Object, default: () => ({}) },        // 구간 id → "글자 남음" (원클릭 review-1 — 구간 이름 아래 "확인 필요" 두 줄, 사진 위에는 올리지 않음)
   cellEdit: { type: Object, default: null },           // { id, r, c } 입력 중인 표 칸 (표 칸 입력)
+  canvasTools: { type: Boolean, default: true },       // 캔버스 도구줄·섹션 사이 추가를 보일지 (시작 화면·지우기 화면 동안 false)
 })
 // select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
 // open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })
@@ -247,9 +282,11 @@ const props = defineProps({
 // edit-text(itemId) 글자 요소 더블클릭 = 고치기 시작 / text-commit({ id, text }) 고치기 끝 (10-1)
 // 표 칸 입력: edit-cell({ id, r, c }) 입력 시작 / cell-commit({ id, r, c, text, next }) 반영하고 next 칸으로(null = 끝) / cell-cancel() Esc = 반영 없이 끝
 //   table-op({ id, op }) [+ 열]·[+ 줄] (op = studioTable.editTableItem). context에 칸이면 cell: { r, c } (편집기가 "이 줄·이 열 삭제")
+// 캔버스 도구줄: command(name, args) = 편집기 runCommand 이름 그대로 (요소 도구줄·[⋯] 팝오버·섹션 도구줄) /
+//   add-section(at) = 섹션 사이 [+ 여기에 섹션 추가] (at = 새 섹션 번호, 0 = 맨 위)
 const emit = defineEmits([
   'select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image', 'select-section', 'edit-text', 'text-commit',
-  'edit-cell', 'cell-commit', 'cell-cancel', 'table-op',
+  'edit-cell', 'cell-commit', 'cell-cancel', 'table-op', 'command', 'add-section',
 ])
 
 const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
@@ -347,7 +384,7 @@ function sectionBake(s) {
 function sectionName(s) {
   const first = s.items.find(isValidImageItem)
   const row = first && rowOfImage(first.imageId)
-  return row ? KIND_LABEL[row.kind] || '사진' : '구간'
+  return row ? KIND_LABEL[row.kind] || '사진' : '섹션'
 }
 
 /** 요소 자리·모양. index = 구간 items 배열 자리 → z-index (겹침 순서를 DOM·브라우저 쌓기 규칙에 맡기지 않고 배열 순서로 못 박는다 — 11-2) */
@@ -547,6 +584,77 @@ function addTablePart(kind) {
   if (!id) return
   finishCell() // 입력 중이던 칸 먼저
   emit('table-op', { id, op: { kind } })
+}
+
+// ── 캔버스 도구줄·섹션 사이 추가 (studioCanvasUi) — 새 동작 없이 편집기 runCommand로 보낸다 ──
+// view = 스크롤 칸에 지금 보이는 영역 (이 페이지 요소 기준 화면 px). 아래 확대 막대(약 64px) 자리는 뺀다 — 도구줄이 그 밑에 숨지 않게
+const ZOOM_BAR_SPACE = 64
+const view = ref({ x: 0, y: 0, w: 0, h: 0 })
+let viewRaf = 0
+let scrollEl = null
+let viewRo = null
+function measureView() {
+  cancelAnimationFrame(viewRaf)
+  viewRaf = requestAnimationFrame(() => {
+    const root = rootEl.value
+    if (!root || !scrollEl) return
+    const r = root.getBoundingClientRect(), v = scrollEl.getBoundingClientRect()
+    view.value = { x: v.left - r.left, y: v.top - r.top, w: scrollEl.clientWidth, h: Math.max(80, scrollEl.clientHeight - ZOOM_BAR_SPACE) }
+  })
+}
+watch(() => [props.zoom, total.value, doc.value.width], () => nextTick(measureView))
+/** 고른 요소를 감싸는 상자 + 위·아래 비울 거리 (끄는 중·박스 선택 중·글자/표 칸 입력 중이면 없음) */
+const itemBar = computed(() => {
+  if (!props.canvasTools || !props.selectedIds.length || draft.value || marquee.value || props.textEdit || props.cellEdit) return null
+  const z = props.zoom
+  const boxes = []
+  for (const id of props.selectedIds) {
+    const f = findItem(doc.value, id)
+    if (!f || !isDrawableItem(f.item)) continue
+    const b = itemBounds(f.item)
+    const top = rowOf(f.section.id).top
+    boxes.push({ x: b.x * z, y: (top + b.y) * z, w: b.w * z, h: b.h * z })
+  }
+  const box = unionBox(boxes)
+  if (!box) return null
+  const one = frames.value.length === 1 ? frames.value[0] : null
+  return {
+    box,
+    above: one?.handles && one.rotate ? 48 : 30, // 회전 손잡이(위 34px)·표 안내(위 30px)·자물쇠 표시(위 22px) 위로
+    below: tableAdd.value ? 52 : 16,              // 표 [+ 줄](아래 12px, 높이 28) 밑으로
+  }
+})
+const SECTION_ICONS = { up: ArrowUp, down: ArrowDown, duplicate: CopyPlus, delete: Trash2 }
+const SECTION_BAR_H = 4 * 50 + 8 // 버튼 4개 세로 (대략 — 짧은 섹션에서도 섹션 위쪽에 붙는다)
+/** 골라진 섹션(요소를 고르지 않았을 때)의 도구줄 — 페이지 오른쪽 바깥, 섹션 위쪽. 스크롤하면 섹션 안에서 따라 내려온다 */
+const sectionBar = computed(() => {
+  if (!props.canvasTools || props.selectedIds.length || !props.selectedSectionId || (draft.value && !sizingSection.value)) return null
+  const i = doc.value.sections.findIndex(s => s.id === props.selectedSectionId)
+  if (i < 0) return null
+  const s = doc.value.sections[i]
+  const z = props.zoom
+  const secTop = rowOf(s.id).top * z, secBot = (rowOf(s.id).top + s.height) * z
+  const top = Math.max(secTop, Math.min(secBot - SECTION_BAR_H, view.value.y + 8))
+  return {
+    style: { left: `${doc.value.width * z + 12}px`, top: `${top}px` },
+    buttons: sectionBarButtons({ index: i, count: doc.value.sections.length, full: doc.value.sections.length >= SECTION_MAX }),
+  }
+})
+/** 섹션 사이 자리 (끄는 중·박스 선택 중에는 없음). 골라진 섹션 아래쪽은 높이 손잡이와 겹치지 않게 버튼을 옆으로 */
+const gapSlots = computed(() => {
+  if (!props.canvasTools || draft.value || marquee.value || doc.value.sections.length >= SECTION_MAX) return []
+  const z = props.zoom
+  const sel = props.selectedSectionId ? doc.value.sections.findIndex(s => s.id === props.selectedSectionId) : -1
+  return sectionGapSlots(layout.value).map(g => ({
+    at: g.at,
+    style: { left: '0px', top: `${g.y * z - 5}px`, width: `${doc.value.width * z}px`, height: '10px' },
+    btnStyle: sel >= 0 && g.at === sel + 1 ? { marginLeft: '150px' } : null,
+  }))
+})
+function addSectionAt(at) {
+  finishEdit()
+  finishCell()
+  emit('add-section', at)
 }
 
 // ── 조작 (누르기 → 끌기 → 떼기) ──
@@ -802,7 +910,20 @@ onMounted(() => {
   mo = new MutationObserver(observeItems) // 구간·요소가 바뀌면 새 요소도 본다
   mo.observe(rootEl.value, { childList: true, subtree: true })
 })
-onBeforeUnmount(() => { end(); io?.disconnect(); mo?.disconnect() })
+// 도구줄 자리를 잴 스크롤 칸 (편집기의 [data-page-scroll]) — 스크롤·크기가 바뀌면 보이는 영역을 다시 잰다
+onMounted(() => {
+  scrollEl = rootEl.value?.closest('[data-page-scroll]') || null
+  if (!scrollEl) return
+  scrollEl.addEventListener('scroll', measureView, { passive: true })
+  if (typeof ResizeObserver !== 'undefined') { viewRo = new ResizeObserver(measureView); viewRo.observe(scrollEl) }
+  measureView()
+})
+onBeforeUnmount(() => {
+  end(); io?.disconnect(); mo?.disconnect()
+  scrollEl?.removeEventListener('scroll', measureView)
+  viewRo?.disconnect()
+  cancelAnimationFrame(viewRaf)
+})
 
 /** 화면에 가장 많이 보이는 구간 id (전체 선택 Ctrl+A·붙여넣기 기본 자리) */
 function sectionInView() {
@@ -834,7 +955,30 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
 <style scoped>
 /* 페이지 바탕색은 구간 bg(문서 값)가 칠한다. 여기서는 그림자만 */
 .st-page-paper { box-shadow: var(--st-shadow-page); }
-.st-select-frame { box-shadow: 0 0 0 2px var(--st-accent); border-radius: 1px; }
+/* 선택 테두리·손잡이는 섹션 사이 추가 자리(z 4)보다 위 — 섹션 끝에 붙은 요소의 아래 손잡이도 잡히게 */
+.st-select-frame { box-shadow: 0 0 0 2px var(--st-accent); border-radius: 1px; z-index: 6; }
+/* 섹션 사이 추가 — 평소엔 안 보이고, 마우스를 올리면 가로선 + 버튼 */
+.st-gap-zone { z-index: 4; display: flex; align-items: center; justify-content: center; }
+.st-gap-line { position: absolute; left: 0; right: 0; top: 50%; height: 2px; margin-top: -1px; background: var(--st-accent); opacity: 0; pointer-events: none; }
+.st-gap-add {
+  position: relative; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 999px; cursor: pointer;
+  font-size: 12px; font-weight: 800; white-space: nowrap; border: 0; background: var(--st-accent); color: var(--st-on-accent);
+  box-shadow: var(--st-shadow-float); opacity: 0; pointer-events: none; transition: opacity .12s;
+}
+.st-gap-zone:hover .st-gap-line, .st-gap-zone:hover .st-gap-add { opacity: 1; }
+.st-gap-zone:hover .st-gap-add, .st-gap-add:focus-visible { pointer-events: auto; opacity: 1; }
+/* 골라진 섹션 도구줄 (페이지 오른쪽 바깥, 세로) */
+.st-sec-bar {
+  z-index: 7; display: flex; flex-direction: column; gap: 2px; padding: 3px; border-radius: 10px;
+  background: var(--st-bar); border: 1px solid var(--st-line-strong); box-shadow: var(--st-shadow-float);
+}
+.st-sec-bar-btn {
+  width: 50px; height: 46px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  border: 0; border-radius: 7px; cursor: pointer; background: transparent; color: var(--st-ink-2); font-size: 11px; font-weight: 700;
+}
+.st-sec-bar-btn:hover:not(:disabled) { background: var(--st-card-hover); color: var(--st-ink); }
+.st-sec-bar-btn.is-danger:hover:not(:disabled) { color: var(--st-danger); }
+.st-sec-bar-btn:disabled { opacity: 0.35; cursor: default; }
 .st-select-frame.is-multi { box-shadow: 0 0 0 1px var(--st-accent); }
 .st-item-hidden { outline: 1px dashed var(--st-muted); outline-offset: -1px; background: transparent; opacity: 0.6; }
 /* 표 칸 입력 — 입력 칸은 그 칸 자리·글자 모양 그대로, 테두리 색으로 "입력 중" 표시 (표 디자인은 그대로) */
@@ -849,7 +993,7 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
   font-size: 12px; font-weight: 700; background: var(--st-accent); color: var(--st-on-accent); box-shadow: var(--st-shadow-float);
 }
 .st-table-add {
-  z-index: 3; height: 28px; padding: 0 10px; border-radius: 8px; white-space: nowrap; cursor: pointer;
+  z-index: 6; height: 28px; padding: 0 10px; border-radius: 8px; white-space: nowrap; cursor: pointer;
   font-size: 12px; font-weight: 800; background: var(--st-card); color: var(--st-ink); border: 1px solid var(--st-accent);
   box-shadow: var(--st-shadow-float);
 }

@@ -128,31 +128,11 @@
 
       <!-- 재료 패널 (300px): 고른 메뉴의 재료. 사진을 누르면 사진 속성 패널(6단계) -->
       <aside class="flex flex-col st-surface" :class="isWide ? 'w-[300px] shrink-0 st-border-r' : 'flex-1 min-h-0'" data-material-panel>
-        <!-- 고른 요소가 있으면 위쪽에 공통 조작 칸 (6-1) + 사진 한 장이면 사진 묶음 (6-2) -->
-        <!-- 원클릭 글자 초안 구간을 고르면 한 줄 (review-1) -->
+        <!-- 원클릭 글자 초안 섹션을 고르면 한 줄 (review-1) -->
         <p v-if="isWide && selectedInDraft && !showStart" class="shrink-0 px-4 py-2 text-[12px] font-bold break-keep st-border-b" style="color: var(--st-ai)" data-draft-hint>AI 초안은 확인 후 사용해 주세요 · 1688 상품 정보로 만든 글자라 눌러서 고칠 수 있어요</p>
-        <div v-if="showSelectionPanels" class="shrink-0 max-h-[65%] overflow-y-auto" data-selection-panels>
-          <StudioTransformPanel :page="page" :selected-ids="selectedItemIds" @command="runCommand" />
-          <StudioImageItemPanel
-            v-if="selectedPhotoItem"
-            :item="selectedPhotoItem" :look="session.lookOf(selectedPhotoItem.imageId)" :thumb-url="views[selectedPhotoItem.imageId]?.url || null"
-            :thumb-under="thumbUnderStyle(views[selectedPhotoItem.imageId])"
-            @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
-            @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
-            :shape-text="shapeMarkOf(selectedPhotoItem.imageId)" @crop="openCrop(selectedPhotoItem.imageId)"
-            :auto-mark="autoMarkOf(selectedPhotoItem.imageId)" @auto-fix="openErase(selectedPhotoItem.imageId)" @auto-revert="onAutoRevert(selectedPhotoItem.imageId)"
-          />
-          <!-- 글자 속성 (10-1): 고른 것 중 글자 요소가 있으면 — 바꾸면 글자 요소에만 -->
-          <StudioTextItemPanel
-            v-if="selectedHasText" :page="page" :selected-ids="selectedItemIds" :can-paste-style="canPasteStyle"
-            @text="onTextProps" @style-copy="runCommand('styleCopy')" @style-paste="runCommand('stylePaste')"
-          />
-          <!-- 도형·선 속성 (11-1): 고른 것 중 도형·선이 있으면 — 바꾸면 그 종류에만 -->
-          <StudioShapeItemPanel v-if="selectedHasElement" :page="page" :selected-ids="selectedItemIds" @shape="onShapeProps" @line="onLineProps" />
-          <!-- 사이즈표 "표 편집" (11-2): 고른 것 중 표가 있으면 — 칸 격자는 표 하나일 때 -->
-          <StudioTableItemPanel v-if="selectedHasTable" :page="page" :selected-ids="selectedItemIds" @props="onTableProps" @edit="onTableEdit" />
-        </div>
-        <div class="flex-1 min-h-0 flex flex-col">
+        <!-- 위: 그 탭의 넣을 것·할 일 (고른 요소가 있어도 밀려 내려가지 않는다) / 아래: 고른 요소의 설정 (사진·글자·도형·표).
+             위치·크기·잠금·숨기기·복제·삭제·앞뒤·정렬은 캔버스 요소 도구줄과 [⋯] 팝오버로 옮겼다 (예전 "고른 요소" 칸) -->
+        <div class="flex-1 min-h-0 flex flex-col" data-tool-area>
           <StudioPhotoPanel
             v-if="activeTool === 'photo' || !isWide"
             :key="project.id" ref="photoPanel"
@@ -162,16 +142,16 @@
             @visible="onListVisible" @shown="onListShown" @set-included="onSetIncluded" @insert="onInsertImage"
             @auto-revert="onAutoRevert" @auto-remove="onAutoRemove"
           />
-          <!-- [구간] 패널 (8-1): 골라진 구간 다루기 + 페이지 전체 구간 간격 -->
+          <!-- [섹션] 패널 (8-1 → 한 화면): 섹션 목록 · 고른 섹션 높이·배경색 · 섹션 사이 간격 -->
           <StudioSectionPanel
             v-else-if="activeTool === 'section' && page"
-            ref="sectionPanel" :page="page" :section-id="selectedSectionId" :section-label="selectedSectionLabel"
-            @command="runCommand"
+            ref="sectionPanel" :page="page" :section-id="selectedSectionId" :section-label="selectedSectionLabel" :labels="sectionLabels"
+            @command="runCommand" @pick="onMiniPick"
           />
           <!-- [텍스트] 패널 (10-1): 제목·부제목·본문 넣기 -->
           <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" @style="onStylePreset" />
-          <!-- [요소] 패널 (11-1): 도형·선·화살표 넣기 -->
-          <StudioElementPanel v-else-if="activeTool === 'element'" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" />
+          <!-- [요소] 패널 (11-1): 맨 위 종류 [도형][배지][사이즈표] — 마지막 종류는 이 편집기 안에서 기억 -->
+          <StudioElementPanel v-else-if="activeTool === 'element'" v-model:tab="elementTab" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" />
           <!-- [템플릿] 패널 (15단계): 템플릿 카드 — 누르면 확인 뒤 페이지를 그 틀로 (이력 한 칸, 사진 edit는 그대로) -->
           <StudioTemplatePanel v-else-if="activeTool === 'template'" :images="templateImages" :views="views" :disabled="!page" @apply="askTemplate" />
           <!-- [배경합성] 패널 (17-1): 고른 사진의 배경 지우기(서버 외부 AI) · 원래 배경/투명 · 배경 원래대로 -->
@@ -191,6 +171,27 @@
             <p class="st-desc break-keep">{{ railItem(activeTool).soon }}</p>
           </div>
         </div>
+        <!-- 고른 요소의 설정 — [사진]·[텍스트]·[요소] 탭에서만 (위 목록과 반씩 나눠 쓰고 이 안에서 스크롤) -->
+        <div v-if="showSelectionPanels" class="flex-1 min-h-0 overflow-y-auto st-border-t" data-selection-panels>
+          <StudioImageItemPanel
+            v-if="selectedPhotoItem"
+            :item="selectedPhotoItem" :look="session.lookOf(selectedPhotoItem.imageId)" :thumb-url="views[selectedPhotoItem.imageId]?.url || null"
+            :thumb-under="thumbUnderStyle(views[selectedPhotoItem.imageId])"
+            @replace="replaceOpen = true" @remove-from-page="runCommand('removeFromPage')" @compare="onCompare"
+            @reset-look="resetLookOpen = true" @look="onLook" @style="onItemStyle"
+            :shape-text="shapeMarkOf(selectedPhotoItem.imageId)" @crop="openCrop(selectedPhotoItem.imageId)"
+            :auto-mark="autoMarkOf(selectedPhotoItem.imageId)" @auto-fix="openErase(selectedPhotoItem.imageId)" @auto-revert="onAutoRevert(selectedPhotoItem.imageId)"
+          />
+          <!-- 글자 속성 (10-1): 고른 것 중 글자 요소가 있으면 — 바꾸면 글자 요소에만 -->
+          <StudioTextItemPanel
+            v-if="selectedHasText" :page="page" :selected-ids="selectedItemIds" :can-paste-style="canPasteStyle"
+            @text="onTextProps" @style-copy="runCommand('styleCopy')" @style-paste="runCommand('stylePaste')"
+          />
+          <!-- 도형·선 속성 (11-1): 고른 것 중 도형·선이 있으면 — 바꾸면 그 종류에만 -->
+          <StudioShapeItemPanel v-if="selectedHasElement" :page="page" :selected-ids="selectedItemIds" @shape="onShapeProps" @line="onLineProps" />
+          <!-- 사이즈표 "표 편집" (11-2): 고른 것 중 표가 있으면 — 칸 격자는 [표 칸 목록 펼치기] 안 (칸은 캔버스에서 바로 입력) -->
+          <StudioTableItemPanel v-if="selectedHasTable" :page="page" :selected-ids="selectedItemIds" @props="onTableProps" @edit="onTableEdit" />
+        </div>
       </aside>
 
       <!-- 가운데: 긴 한 장 페이지 (4단계, DOM — 구간이 위에서 아래로 쌓인다) -->
@@ -207,11 +208,13 @@
         />
         <div ref="pageScroll" class="absolute inset-0 overflow-auto" data-page-scroll @pointerdown.self="clearSelection">
           <p v-if="pageSession.readError.value" class="p-6 text-[13px] font-bold st-danger-text break-keep" data-page-error>{{ pageSession.readError.value }}</p>
-          <div v-else-if="page && page.sections.length" class="pb-24" :class="noticeVisible ? 'pt-24' : 'pt-8'" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
+          <div v-else-if="page && page.sections.length" class="pb-24" :class="pageTopPad" :style="{ paddingLeft: `${PAGE_GUTTER}px`, paddingRight: `${PAGE_GUTTER}px` }" @pointerdown.self="clearSelection">
             <StudioPageView
               ref="pageView"
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state" :flags="sectionFlags"
               :looks="session.lookMap" :compare="compare" :selected-section-id="selectedSectionId" :text-edit="textEdit" :cell-edit="cellEdit"
+              :canvas-tools="!showStart && !eraseOpen"
+              @command="runCommand" @add-section="onAddSectionAt"
               @edit-text="startTextEdit" @text-commit="onTextCommit"
               @edit-cell="startCellEdit" @cell-commit="onCellCommit" @cell-cancel="cellEdit = null" @table-op="onTableEdit"
               @select="onPageSelect" @change="onPageChange" @context="openContextMenu" @select-section="pickSection"
@@ -223,8 +226,16 @@
             사진이 준비되면 여기에 상세페이지가 만들어져요
           </div>
         </div>
+        <!-- 캔버스 위 왼쪽 위 안내 묶음: 원클릭 안내 띠 + 섹션 사이 추가 안내 한 줄 -->
+        <div v-if="noticeVisible || sectionHintVisible" class="absolute left-3 top-3 flex flex-col gap-2" style="z-index: 6; width: min(640px, calc(100% - 256px))">
+        <!-- 섹션 사이 추가 안내 (처음 열었을 때 한 줄 — 닫으면 다시 안 보임, 가이드 "다시 보지 않기"와 같은 저장 방식) -->
+        <div v-if="sectionHintVisible" class="self-start flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-[12px] st-card st-shadow-float text-[13px] break-keep" data-section-add-hint>
+          <Plus class="w-4 h-4 shrink-0 st-accent-text" :stroke-width="2.5" />
+          <span class="font-bold st-ink">{{ SECTION_ADD_HINT }}</span>
+          <button type="button" class="st-icon-btn shrink-0" title="닫기 (다시 안 보여요)" data-section-add-hint-close @click="closeSectionHint"><X class="w-4 h-4" :stroke-width="2" /></button>
+        </div>
         <!-- 원클릭 안내 띠 (review-1): 완료 팝업 대신 — 만든 페이지를 바로 보여 주고 위에 한 줄. 닫을 수 있다 -->
-        <div v-if="noticeVisible" class="absolute left-3 top-3" style="z-index: 6; width: min(640px, calc(100% - 256px))" data-auto-notice>
+        <div v-if="noticeVisible" data-auto-notice>
           <div class="flex items-center gap-2 pl-3 pr-1.5 py-1.5 rounded-[12px] st-card st-shadow-float text-[13px] break-keep">
             <Sparkles class="w-4 h-4 shrink-0" :stroke-width="2" style="color: var(--st-ai)" />
             <span class="font-bold st-ink min-w-0" data-auto-notice-text>
@@ -245,6 +256,7 @@
               </button>
             </li>
           </ol>
+        </div>
         </div>
         <!-- 아래 막대: 확대 · 폭 (시안 ①) -->
         <div v-if="page" class="absolute left-1/2 -translate-x-1/2 bottom-4 flex items-center gap-2 px-2 py-1.5 rounded-[12px] st-card st-shadow-float" style="z-index: 5" data-zoom-bar>
@@ -288,7 +300,7 @@
           v-if="rightTab === 'mini' && page && !showStart"
           :page="page" :views="views" :looks="session.lookMap" :labels="sectionLabels" :flags="sectionFlags"
           :active-section-id="inViewSectionId" :selected-section-id="selectedSectionId"
-          @pick="onMiniPick"
+          @pick="onMiniPick" @reorder="onMiniReorder" @add-at="onAddSectionAt"
         />
         <!-- 레이어 (9단계): 고른 요소의 구간 → 골라진 구간 → 보는 중 구간의 요소 목록 -->
         <StudioLayerPanel
@@ -299,15 +311,14 @@
         />
         <div v-else class="flex-1 overflow-y-auto px-3 pb-3 flex flex-col items-center justify-center text-center gap-2" data-right-soon>
           <!-- 검수 2묶음: 시작 화면이 떠 있는 동안은 가려진(저장 전) 기본 배치를 보이지 않는다 -->
-          <p class="st-desc break-keep">{{ showStart ? '시작 방법을 고르면 여기에 페이지가 보여요.' : rightTab === 'mini' ? '페이지가 준비되면 구간 미리보기가 보여요.' : '페이지가 준비되면 레이어 목록이 보여요.' }}</p>
+          <p class="st-desc break-keep">{{ showStart ? '시작 방법을 고르면 여기에 페이지가 보여요.' : rightTab === 'mini' ? '페이지가 준비되면 섹션 미리보기가 보여요.' : '페이지가 준비되면 레이어 목록이 보여요.' }}</p>
         </div>
         <div class="p-3 space-y-2 st-border-t">
-          <button
-            type="button" class="st-btn st-btn-block" :disabled="!page || page.sections.length < 2 || showStart"
-            :title="page && page.sections.length < 2 ? '구간이 2개 이상일 때 순서를 바꿀 수 있어요' : '구간 순서를 한눈에 보고 바꿔요'"
-            data-reorder data-guide="reorder" @click="reorderOpen = true"
-          ><ArrowUpDown class="w-4 h-4" :stroke-width="2" /> 순서 변경</button>
-          <button type="button" class="st-btn st-btn-block" :disabled="showStart" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 구간 간격</button>
+          <!-- 예전 [순서 변경] 창 대신: 미니뷰 그림을 끌어서 순서를 바꾼다 (같은 reorderSections·같은 이력) -->
+          <p v-if="rightTab === 'mini' && !showStart" class="flex items-start gap-1.5 text-[12px] font-bold st-ink-2 break-keep" data-reorder-hint data-guide="reorder">
+            <ArrowUpDown class="w-4 h-4 shrink-0 mt-px" :stroke-width="2" /> 끌어서 순서를 바꿀 수 있어요 · 그림 사이 [+] = 섹션 추가
+          </p>
+          <button type="button" class="st-btn st-btn-block" :disabled="showStart" title="페이지 전체의 섹션과 섹션 사이 간격 (왼쪽 [섹션]에서)" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 섹션 사이 간격</button>
         </div>
       </aside>
     </div>
@@ -344,12 +355,6 @@
     <StudioBgRefineScreen
       v-if="refineRow && refineBg && isWide" :key="refineRow.id" :image="refineRow" :image-label="imageLabel(refineRow)" :bg="refineBg"
       :load-source="loadRefineSource" :load-mask="loadRefineMask" :save="saveRefine" @close="closeRefine"
-    />
-
-    <!-- [순서 변경] 화면 (8-2): [완료] = 한 번에 적용(이력 1개), [취소]·Esc·바깥 = 그대로 닫기 -->
-    <StudioReorderModal
-      v-if="page" :open="reorderOpen" :page="page" :views="views" :looks="session.lookMap" :names="sectionNames"
-      @apply="onReorderApply" @close="reorderOpen = false"
     />
 
     <!-- 미리보기 (13-2): PC·모바일 — 그림은 내보내기 엔진 결과 그대로. [이미지로 받기] = 아래 [내보내기] 창을 위에 연다 -->
@@ -508,8 +513,9 @@ import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vu
 import {
   ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp, Trash2, Eraser,
   LayoutTemplate, Rows3, Image as ImageIcon, Type, Shapes, Blend, Bookmark, PanelRightOpen, PanelRightClose, ArrowUpDown, MoveVertical,
-  MoreHorizontal, Pencil, Copy, X, Keyboard,
+  MoreHorizontal, Pencil, Copy, X, Keyboard, Plus,
 } from 'lucide-vue-next'
+import { sectionAddArgs, elementTabOf, SECTION_ADD_HINT } from '@/lib/studioCanvasUi'
 import StudioAutoBuildScreen from '@/components/studio/StudioAutoBuildScreen.vue'
 import { useAutoBuild } from '@/composables/useAutoBuild'
 import { AI_MISSING_NOTE } from '@/lib/studioPreview'
@@ -537,13 +543,11 @@ import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioEraseScreen from '@/components/studio/StudioEraseScreen.vue'
 import StudioPhotoPanel from '@/components/studio/StudioPhotoPanel.vue'
 import StudioPageView from '@/components/studio/StudioPageView.vue'
-import StudioTransformPanel from '@/components/studio/StudioTransformPanel.vue'
 import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
 import StudioImageItemPanel from '@/components/studio/StudioImageItemPanel.vue'
 import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
-import StudioReorderModal from '@/components/studio/StudioReorderModal.vue'
 import StudioExportModal from '@/components/studio/StudioExportModal.vue'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
 import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
@@ -603,7 +607,7 @@ const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 �
 // 아이콘 막대. 3단계에서 동작하는 것은 [사진]. [구간]은 8단계, [텍스트]는 10-1단계(StudioTextPanel), [요소]는 11-1단계(StudioElementPanel), 나머지는 그 뒤
 const RAIL = [
   { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '' }, // 15단계: StudioTemplatePanel
-  { key: 'section', label: '구간', icon: Rows3, soon: '페이지가 준비되면 여기서 구간을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
+  { key: 'section', label: '섹션', icon: Rows3, soon: '페이지가 준비되면 여기서 섹션을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
   { key: 'photo', label: '사진', icon: ImageIcon, soon: '' },
   { key: 'text', label: '텍스트', icon: Type, soon: '글자 넣기는 곧 추가될 기능이에요.' },
   { key: 'element', label: '요소', icon: Shapes, soon: '도형·아이콘 넣기는 곧 추가될 기능이에요.' },
@@ -845,8 +849,10 @@ function closeNotice() {
 }
 // 검수 2묶음: 왼쪽 위 "고른 요소" 칸은 요소를 다루는 패널(사진·텍스트·요소)에서만 — [템플릿]·[구간]·[배경합성]·[저장값]을 열면
 // 그 패널이 "고른 요소" 아래로 밀려 안 보이던 문제 (선택은 그대로 — [사진] 등으로 돌아오면 다시 보인다)
+// 목록 아래 "고른 요소의 설정" (사진·글자·도형·표 칸)이 있을 때만 — 위치·크기 등 공통 조작은 캔버스 도구줄로 옮겼다
 const SELECTION_PANEL_TOOLS = new Set(['photo', 'text', 'element'])
-const showSelectionPanels = computed(() => isWide.value && !!page.value && selectedItemIds.value.length > 0 && !showStart.value && SELECTION_PANEL_TOOLS.has(activeTool.value))
+const showSelectionPanels = computed(() => isWide.value && !!page.value && selectedItemIds.value.length > 0 && !showStart.value && SELECTION_PANEL_TOOLS.has(activeTool.value)
+  && (!!selectedPhotoItem.value || selectedHasText.value || selectedHasElement.value || selectedHasTable.value))
 /** 사진 하나의 원클릭 표시 — 목록 줄·왼쪽 사진 패널·구간 이름 (studioAutoBuild.reviewMark) */
 function autoMarkOf(id) { return reviewMark(session.autoOf(id), session.layerMap[id]) }
 /** 확인하면 좋은 사진 (대표 사진이 맨 앞) — 안내 띠 숫자·목록 */
@@ -1075,7 +1081,7 @@ const sectionNames = computed(() => {
   for (const s of page.value?.sections || []) {
     const first = s.items.find(isValidImageItem)
     const row = first ? imagesById.value.get(first.imageId) : null
-    out[s.id] = row ? KIND_LABEL[row.kind] ?? '사진' : '구간'
+    out[s.id] = row ? KIND_LABEL[row.kind] ?? '사진' : '섹션'
   }
   return out
 })
@@ -1134,13 +1140,31 @@ const cropImageId = ref(null)     // 12-1 자르기 창을 연 사진 id
 const refineImageId = ref(null)   // 17-3 경계 다듬기 화면을 연 사진 id
 const refineBg = ref(null)        // 그 화면을 열 때의 edit.bg (화면이 열린 동안 바뀌지 않게 복사본)
 
-// ── [순서 변경] 화면 (8-2) ──
-const reorderOpen = ref(false)
-function onReorderApply(ids) {
-  reorderOpen.value = false
-  if (page.value && applyPage(reorderSections(page.value, ids), LABELS.secReorder)) showToast('구간 순서를 바꿨어요 · Ctrl+Z로 되돌리기')
+// ── 섹션 순서 (8-2 → 미니뷰 끌기) — 예전 [순서 변경] 창과 같은 reorderSections·같은 이력 한 칸 "섹션 순서 변경" ──
+function onMiniReorder(ids) {
+  if (!page.value || eraseOpen.value) return
+  if (applyPage(reorderSections(page.value, ids), LABELS.secReorder)) showToast('섹션 순서를 바꿨어요 · Ctrl+Z로 되돌리기')
 }
-/** 오른쪽 아래 [구간 간격] → [구간] 패널을 열고 간격 칸으로 */
+/** 섹션 사이 [+ 여기에 섹션 추가]·미니뷰 [+] — at = 새 섹션 번호. 우클릭 "위에/아래에 섹션 추가"와 같은 sectionAdd (추가 뒤 그 섹션을 고르고 보이게) */
+function onAddSectionAt(at) {
+  const p = page.value
+  if (!p || eraseOpen.value || showStart.value) return
+  const args = sectionAddArgs(p.sections.map(s => s.id), at)
+  if (!args) { console.error('[StudioEditor] 섹션을 넣을 자리가 잘못됨:', at); return }
+  runCommand('sectionAdd', args)
+}
+// ── [요소] 탭 종류 — 이 편집기 안에서만 기억 (패널은 탭을 열 때마다 새로 만들어진다) ──
+const elementTab = ref(elementTabOf(null))
+// ── 캔버스 위 안내 한 줄 "섹션 사이에 마우스를 올리면…" — 닫으면 다시 안 보임 (studioGuide GUIDE_KEYS.sectionAdd, localStorage) ──
+const sectionHintClosed = ref(readGuideHidden(guideStorage(), 'sectionAdd'))
+const sectionHintVisible = computed(() => !sectionHintClosed.value && isWide.value && !!page.value?.sections.length
+  && !showStart.value && !eraseOpen.value && !autoBuild.state.open && !pageSession.readError.value)
+function closeSectionHint() {
+  sectionHintClosed.value = true
+  writeGuideHidden(guideStorage(), 'sectionAdd', true)
+}
+const pageTopPad = computed(() => (noticeVisible.value && sectionHintVisible.value ? 'pt-36' : noticeVisible.value ? 'pt-24' : sectionHintVisible.value ? 'pt-16' : 'pt-8'))
+/** 오른쪽 아래 [섹션 사이 간격] → [섹션] 패널을 열고 간격 칸으로 */
 function openGapField() {
   activeTool.value = 'section'
   nextTick(() => sectionPanel.value?.focusGap())
@@ -1185,7 +1209,6 @@ function resetEditorLog() {
   replaceOpen.value = false
   resetLookOpen.value = false
   includeAsk.value = null
-  reorderOpen.value = false // 8-2 [순서 변경] 화면
   templateAsk.value = null  // 15 템플릿 교체 확인창
   pageHistoryOpen.value = false // 14 [이력] 목록 · 단축키 표 · 가이드 메뉴·가이드
   shortcutsOpen.value = false
@@ -1313,7 +1336,7 @@ const placedIds = computed(() => (page.value ? pageImageIds(page.value) : null))
 function applyInsert(r) {
   if (!r.itemId) {
     console.error('[StudioEditor] 페이지에 넣지 못함 (크기를 모르는 사진이거나 구간이 가득 참)')
-    showToast('이 사진은 지금 페이지에 넣을 수 없어요. 구간을 정리한 뒤 다시 해 주세요.')
+    showToast('이 사진은 지금 페이지에 넣을 수 없어요. 섹션을 정리한 뒤 다시 해 주세요.')
     return
   }
   if (!applyPage(r.page, LABELS.elInsertPhoto)) return
@@ -1372,7 +1395,7 @@ async function insertTextFields(fields, kind) {
   await whenFontsReady([{ style: textStyleOf(normalizeTextItem({ type: 'text', ...fields })), text: fields.text }])
   if (!page.value || eraseOpen.value) return
   const target = insertTarget(page.value)
-  if (!target) { showToast('구간을 더 만들 수 없어 글자를 넣지 못했어요.'); return }
+  if (!target) { showToast('섹션을 더 만들 수 없어 글자를 넣지 못했어요.'); return }
   const { page: p, sid } = target
   const r = addTextItem(p, sid, fields, textMeasure)
   if (!r.itemId) {
@@ -1474,7 +1497,7 @@ function insertElement(key) {
   if (!kind) { console.error('[StudioEditor] 모르는 요소 종류:', key); return }
   if (!page.value || eraseOpen.value) return
   const target = insertTarget(page.value)
-  if (!target) { showToast('구간을 더 만들 수 없어 넣지 못했어요.'); return }
+  if (!target) { showToast('섹션을 더 만들 수 없어 넣지 못했어요.'); return }
   const r = addElementItem(target.page, target.sid, kind.fields)
   if (!r.itemId) {
     console.error('[StudioEditor] 요소를 넣지 못함:', key, target.sid)
@@ -1498,7 +1521,7 @@ async function insertBadge(key) {
   }))
   if (!page.value || eraseOpen.value) return
   const target = insertTarget(page.value)
-  if (!target) { showToast('구간을 더 만들 수 없어 넣지 못했어요.'); return }
+  if (!target) { showToast('섹션을 더 만들 수 없어 넣지 못했어요.'); return }
   const r = addItemGroup(target.page, target.sid, preset, preset.parts, textMeasure)
   if (!r.ids.length) {
     console.error('[StudioEditor] 배지를 넣지 못함:', key, target.sid)
@@ -1516,7 +1539,7 @@ function insertTable(key) {
   if (!tpl) { console.error('[StudioEditor] 모르는 사이즈표 틀:', key); return }
   if (!page.value || eraseOpen.value) return
   const target = insertTarget(page.value)
-  if (!target) { showToast('구간을 더 만들 수 없어 넣지 못했어요.'); return }
+  if (!target) { showToast('섹션을 더 만들 수 없어 넣지 못했어요.'); return }
   const r = addElementItem(target.page, target.sid, tableFieldsOf(tpl))
   if (!r.itemId) {
     console.error('[StudioEditor] 사이즈표를 넣지 못함:', key, target.sid)
@@ -1693,7 +1716,7 @@ function runCommand(name, args = {}) {
       const sid = args.sectionId ?? selectedSectionId.value
       if (applyPage(removeSection(p, sid), LABELS.secDelete)) {
         selectedSectionId.value = null
-        showToast('구간을 지웠어요. 사진은 [사진] 목록에 그대로 있어요 · Ctrl+Z로 되돌리기')
+        showToast('섹션을 지웠어요. 사진은 [사진] 목록에 그대로 있어요 · Ctrl+Z로 되돌리기')
       }
       break
     }
@@ -1701,7 +1724,7 @@ function runCommand(name, args = {}) {
     // ── 그룹 (9단계) — 묶기는 같은 구간의 2개 이상만. 풀기는 고른 요소가 속한 그룹을 통째로 ──
     case 'group': {
       const c = groupCheck(p, ids)
-      if (c === 'mixed') { showToast('같은 구간 안의 요소만 묶을 수 있어요'); break }
+      if (c === 'mixed') { showToast('같은 섹션 안의 요소만 묶을 수 있어요'); break }
       applyPage(groupItems(p, ids), LABELS.grpGroup)
       break
     }
@@ -1727,13 +1750,13 @@ function openContextMenu({ x, y, itemId, sectionId, cell }) {
     const noSec = !sectionId, full = p.sections.length >= SECTION_MAX
     ctx.items = [
       { key: 'paste', label: '붙여넣기', keys: 'Ctrl+V', disabled: !hasClip },
-      { key: 'selectAll', label: '이 구간 전체 선택', keys: 'Ctrl+A' },
+      { key: 'selectAll', label: '이 섹션 전체 선택', keys: 'Ctrl+A' },
       { sep: true },
-      { key: 'sec-add-above', label: '위에 구간 추가', disabled: noSec || full },
-      { key: 'sec-add-below', label: '아래에 구간 추가', disabled: noSec || full },
-      { key: 'sec-duplicate', label: '구간 복제', disabled: noSec || full },
+      { key: 'sec-add-above', label: '위에 섹션 추가', disabled: noSec || full },
+      { key: 'sec-add-below', label: '아래에 섹션 추가', disabled: noSec || full },
+      { key: 'sec-duplicate', label: '섹션 복제', disabled: noSec || full },
       { sep: true },
-      { key: 'sec-delete', label: '구간 삭제', danger: true, disabled: noSec },
+      { key: 'sec-delete', label: '섹션 삭제', danger: true, disabled: noSec },
     ]
     ctx.sectionId = sectionId
     ctx.tableCell = null
@@ -2085,7 +2108,7 @@ const bgTarget = computed(() => {
   const it = selectedPhotoItem.value
   const p = page.value
   const sec = p ? (it ? findItem(p, it.id)?.section : p.sections.find(s => s.items.some(x => x.imageId === row.id))) : null
-  const where = sec ? `${sectionLabels.value[sec.id] ?? ''} 구간` : '페이지에 없는 사진'
+  const where = sec ? `${sectionLabels.value[sec.id] ?? ''} 섹션` : '페이지에 없는 사진'
   return { label: `${where} · ${imageLabel(row)}`, source: it ? 'page' : 'list' }
 })
 async function loadBgStatus() {
@@ -2182,7 +2205,7 @@ const bgSectionChoice = computed(() => {
   const found = selectedPhotoItem.value?.imageId === row.id ? findItem(page.value, selectedPhotoItem.value.id) : null
   const photoSec = found?.section || page.value.sections.find(sec => sec.items.some(it => isValidImageItem(it) && it.imageId === row.id))
   const c = sectionBgChoice(page.value, { photoSectionId: photoSec?.id ?? null, selectedSectionId: selectedSectionId.value, inViewSectionId: inViewSectionId.value })
-  const where = c.source === 'page' ? '페이지 기본 배경(흰색)' : `${sectionLabels.value[c.sectionId] ?? ''} 구간${c.source === 'photo' ? '' : c.source === 'selected' ? ' · 골라진 구간' : ' · 보고 있는 구간'}`
+  const where = c.source === 'page' ? '페이지 기본 배경(흰색)' : `${sectionLabels.value[c.sectionId] ?? ''} 섹션${c.source === 'photo' ? '' : c.source === 'selected' ? ' · 골라진 섹션' : ' · 보고 있는 섹션'}`
   return { ...c, where }
 })
 const bgSectionColor = computed(() => bgSectionChoice.value?.color ?? null)
@@ -2298,7 +2321,7 @@ function clearViews() {
 const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
-  || replaceOpen.value || resetLookOpen.value || !!includeAsk.value || reorderOpen.value
+  || replaceOpen.value || resetLookOpen.value || !!includeAsk.value
   || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
   || previewOpen.value // 13-2: 미리보기가 열린 동안도
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도

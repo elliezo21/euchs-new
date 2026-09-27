@@ -243,7 +243,7 @@ export function sectionBgChoice(page, { photoSectionId = null, selectedSectionId
     const color = normalizeBgColor(s.bg)
     return color
       ? { color, source, sectionId: s.id, reason: '' }
-      : { color: null, source, sectionId: s.id, reason: '이 구간 배경색은 예전 형식이라 고를 수 없어요. [구간]에서 배경색을 다시 골라 주세요.' }
+      : { color: null, source, sectionId: s.id, reason: '이 섹션 배경색은 예전 형식이라 고를 수 없어요. [섹션]에서 배경색을 다시 골라 주세요.' }
   }
   return { color: PAGE_DEFAULT_BG, source: 'page', sectionId: null, reason: '' }
 }

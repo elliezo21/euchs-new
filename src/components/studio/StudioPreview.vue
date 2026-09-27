@@ -21,7 +21,7 @@
       <!-- 적용 중인 사진 (13-1과 같은 안내) · 그림 알림 -->
       <div v-if="pendingCount || noteLines.length" class="shrink-0 px-4 py-2 space-y-1 st-border-b st-surface" data-preview-notice>
         <p v-if="pendingCount" class="text-[12px] font-bold st-ai-soft break-keep" data-preview-pending>
-          지운 결과를 사진에 적용하는 중인 사진이 {{ pendingCount }}장 있어요. 다 적용되면 그 구간을 다시 그려요.
+          지운 결과를 사진에 적용하는 중인 사진이 {{ pendingCount }}장 있어요. 다 적용되면 그 섹션을 다시 그려요.
         </p>
         <p v-for="(n, i) in noteLines" :key="i" class="text-[12px] st-ai-soft break-keep" data-preview-note>{{ n }}</p>
       </div>
@@ -49,7 +49,7 @@
                   v-else-if="resultOf(r.id)?.status === 'error'"
                   class="w-full h-full flex flex-col items-center justify-center gap-2 p-4 text-center st-placeholder" data-preview-error
                 >
-                  <span class="text-[12px] font-bold st-danger-text break-keep">{{ labels[r.id] ?? '' }} 구간을 그리지 못했어요</span>
+                  <span class="text-[12px] font-bold st-danger-text break-keep">{{ labels[r.id] ?? '' }} 섹션을 그리지 못했어요</span>
                   <span class="text-[11px] st-muted break-keep">{{ resultOf(r.id).error }}</span>
                   <button type="button" class="st-btn" :data-preview-retry="r.id" @click="retry(r.id)"><RefreshCw class="w-3.5 h-3.5" :stroke-width="2" /> 다시 시도</button>
                 </div>

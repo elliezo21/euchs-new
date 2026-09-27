@@ -120,7 +120,6 @@
             </li>
           </ol>
           <div class="st-land-bar mt-5" aria-hidden="true"><span data-oc-bar /></div>
-          <p class="mt-3 text-[12px] st-muted">실측: 머리띠 사진 14장 · 약 1분 30초 (첫 실행 AI 준비 포함, 2026-09-27)</p>
         </div>
         <SceneVideo v-if="M.oneClick.video" :media="M.oneClick" :still="isStatic" />
         <div v-else class="st-land-ocstage" data-scene-visual>
@@ -179,7 +178,7 @@
         <div class="st-land-copy md:order-2">
           <div class="st-land-num">05 · 내보내기</div>
           <h2 class="st-land-h2">완성한 페이지를<br />판매처에 올릴 이미지로</h2>
-          <p class="st-land-p">구간별 여러 장 또는 한 장으로 길게, JPG·PNG로 받아요. 받은 파일은 쓰시는 판매처에 그대로 올리면 돼요.</p>
+          <p class="st-land-p">섹션별 여러 장 또는 한 장으로 길게, JPG·PNG로 받아요. 받은 파일은 쓰시는 판매처에 그대로 올리면 돼요.</p>
         </div>
         <SceneVideo v-if="M.export.video" class="md:order-1" :media="M.export" :still="isStatic" />
         <div v-else class="st-land-exstage md:order-1" data-scene-visual>
@@ -292,7 +291,7 @@ const ED_TOOLS = [
   { label: '글자', icon: Type, cap: '한글 문구 올리기' },
 ]
 const MARKETS = ['쿠팡', '카페24', '고도몰', '메이크샵']
-const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '구간별·한 장 내보내기']
+const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '섹션별·한 장 내보내기']
 
 // [무료로 시작하기] = 작업 홈으로. 로그인 전이면 기존 라우터 가드가 복귀 주소를 기억하고 로그인 창을 연다(구글·카카오 로그인도 같은 규칙)
 function start() {

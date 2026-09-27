@@ -1,11 +1,11 @@
 <template>
   <div class="flex-1 min-h-0 flex flex-col" data-layer-panel>
     <div class="px-3 pb-2 flex items-center gap-2">
-      <span class="text-[12px] font-extrabold st-ink truncate" data-layer-title>{{ section ? sectionLabel : '구간 없음' }}</span>
+      <span class="text-[12px] font-extrabold st-ink truncate" data-layer-title>{{ section ? sectionLabel : '섹션 없음' }}</span>
       <span v-if="section" class="ml-auto shrink-0 text-[11px] font-bold st-muted">{{ section.items.length }}개</span>
     </div>
-    <p v-if="!section" class="px-3 st-desc break-keep" data-layer-empty>페이지에 구간이 생기면 여기에 요소 목록이 보여요.</p>
-    <p v-else-if="blocks.length === 0" class="px-3 st-desc break-keep" data-layer-empty>이 구간은 비어 있어요</p>
+    <p v-if="!section" class="px-3 st-desc break-keep" data-layer-empty>페이지에 섹션이 생기면 여기에 요소 목록이 보여요.</p>
+    <p v-else-if="blocks.length === 0" class="px-3 st-desc break-keep" data-layer-empty>이 섹션은 비어 있어요</p>
 
     <!-- 맨 위 = 가장 앞 (items 배열의 끝). 그룹은 한 줄 + 아래에 구성원 -->
     <ol v-else class="flex-1 min-h-0 overflow-y-auto px-2 pb-3 space-y-0.5" data-layer-list>

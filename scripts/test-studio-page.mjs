@@ -51,8 +51,8 @@ const IMGS = [
   eq('null은 빈 페이지 (문제 아님)', readPage(null, 'p1'), { page: null, problems: [] })
   const r = readPage(p, 'p1')
   eq('정상 문서 readPage = 복사본', [r.problems, r.page !== p, JSON.stringify(r.page) === JSON.stringify(p)], [[], true, true])
-  eq('구간 높이 이상', pageProblems({ ...p, sections: [{ ...p.sections[0], height: 0 }] }), [`구간 0: height가 양의 정수가 아님 0`])
-  eq('아이템 id 중복', pageProblems({ ...p, sections: [p.sections[0], { ...p.sections[1], items: p.sections[0].items }] }), [`구간 1: 아이템 id 중복 ${p.sections[0].items[0].id}`])
+  eq('구간 높이 이상', pageProblems({ ...p, sections: [{ ...p.sections[0], height: 0 }] }), [`섹션 0: height가 양의 정수가 아님 0`])
+  eq('아이템 id 중복', pageProblems({ ...p, sections: [p.sections[0], { ...p.sections[1], items: p.sections[0].items }] }), [`섹션 1: 아이템 id 중복 ${p.sections[0].items[0].id}`])
 }
 
 // ── 3. 크기 제한 ──

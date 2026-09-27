@@ -64,7 +64,7 @@ const onePage = computed(() => ({ ...props.page, gap: 0, sections: props.page.se
 
 onMounted(async () => {
   const s = props.page.sections.find(x => x.id === props.sectionId)
-  if (!s) { status.value = 'error'; errorText.value = '없는 구간이에요'; return }
+  if (!s) { status.value = 'error'; errorText.value = '없는 섹션이에요'; return }
   try {
     const out = await props.render({ no: 0, sectionIds: [s.id] }, { format: 'png', scale: exportScale })
     url.value = URL.createObjectURL(out.blob)

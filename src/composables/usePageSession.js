@@ -100,7 +100,7 @@ export function usePageSession({ usableImages, showToast }) {
     const size = checkPageSize(next)
     if (!size.ok) {
       console.error('[PageSession] 페이지 문서가 저장 한도를 넘어 바꾸지 않음:', size.bytes, '>', PAGE_MAX_BYTES)
-      showToast('페이지 내용이 저장할 수 있는 크기를 넘어요. 구간이나 요소를 줄인 뒤 다시 해 주세요.')
+      showToast('페이지 내용이 저장할 수 있는 크기를 넘어요. 섹션이나 요소를 줄인 뒤 다시 해 주세요.')
       return false
     }
     page.value = next

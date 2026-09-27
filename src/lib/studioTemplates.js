@@ -148,16 +148,16 @@ export function templateProblems(tpl) {
   if (!tpl || typeof tpl !== 'object' || Array.isArray(tpl)) return ['템플릿이 객체가 아님']
   const out = []
   if (!Array.isArray(tpl.sections)) return ['sections가 배열이 아님']
-  if (tpl.sections.length === 0) out.push('구간이 없음')
-  if (tpl.sections.length > SECTION_MAX) out.push(`구간이 ${SECTION_MAX}개를 넘음`)
+  if (tpl.sections.length === 0) out.push('섹션이 없음')
+  if (tpl.sections.length > SECTION_MAX) out.push(`섹션이 ${SECTION_MAX}개를 넘음`)
   if (tpl.gap !== undefined && (!Number.isInteger(tpl.gap) || tpl.gap < 0)) out.push(`gap이 0 이상 정수가 아님: ${tpl.gap}`)
   tpl.sections.forEach((s, i) => {
     if (isPhotoSection(s)) return
-    if (!s || !Number.isInteger(s.height) || s.height < 1) out.push(`구간 ${i}: height가 양의 정수가 아님`)
-    if (!Array.isArray(s?.items)) { out.push(`구간 ${i}: items가 배열이 아님`); return }
+    if (!s || !Number.isInteger(s.height) || s.height < 1) out.push(`섹션 ${i}: height가 양의 정수가 아님`)
+    if (!Array.isArray(s?.items)) { out.push(`섹션 ${i}: items가 배열이 아님`); return }
     s.items.forEach((p, j) => {
-      if (!p || typeof p !== 'object' || typeof p.type !== 'string') out.push(`구간 ${i} 요소 ${j}: type 없음`)
-      else if (p.type === 'image' && !isSlotPart(p)) out.push(`구간 ${i} 요소 ${j}: 사진 자리 번호 없음`)
+      if (!p || typeof p !== 'object' || typeof p.type !== 'string') out.push(`섹션 ${i} 요소 ${j}: type 없음`)
+      else if (p.type === 'image' && !isSlotPart(p)) out.push(`섹션 ${i} 요소 ${j}: 사진 자리 번호 없음`)
     })
   })
   return out

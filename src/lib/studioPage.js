@@ -184,15 +184,15 @@ export function pageProblems(page) {
   const sids = new Set()
   const iids = new Set()
   page.sections.forEach((s, i) => {
-    if (!s || typeof s.id !== 'string') { out.push(`구간 ${i}: id 없음`); return }
-    if (sids.has(s.id)) out.push(`구간 ${i}: id 중복 ${s.id}`)
+    if (!s || typeof s.id !== 'string') { out.push(`섹션 ${i}: id 없음`); return }
+    if (sids.has(s.id)) out.push(`섹션 ${i}: id 중복 ${s.id}`)
     sids.add(s.id)
-    if (!Number.isInteger(s.height) || s.height < 1) out.push(`구간 ${i}: height가 양의 정수가 아님 ${s.height}`)
-    if (typeof s.bg !== 'string') out.push(`구간 ${i}: bg가 문자열이 아님`)
-    if (!Array.isArray(s.items)) { out.push(`구간 ${i}: items가 배열이 아님`); return }
+    if (!Number.isInteger(s.height) || s.height < 1) out.push(`섹션 ${i}: height가 양의 정수가 아님 ${s.height}`)
+    if (typeof s.bg !== 'string') out.push(`섹션 ${i}: bg가 문자열이 아님`)
+    if (!Array.isArray(s.items)) { out.push(`섹션 ${i}: items가 배열이 아님`); return }
     for (const it of s.items) {
-      if (!it || typeof it.id !== 'string') { out.push(`구간 ${i}: id 없는 아이템`); continue }
-      if (iids.has(it.id)) out.push(`구간 ${i}: 아이템 id 중복 ${it.id}`)
+      if (!it || typeof it.id !== 'string') { out.push(`섹션 ${i}: id 없는 아이템`); continue }
+      if (iids.has(it.id)) out.push(`섹션 ${i}: 아이템 id 중복 ${it.id}`)
       iids.add(it.id)
     }
   })

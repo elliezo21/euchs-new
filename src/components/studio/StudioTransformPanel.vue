@@ -1,7 +1,7 @@
 <template>
-  <div class="px-4 pt-4 pb-3 space-y-3 st-border-b" data-transform-panel>
+  <div class="p-3 space-y-3" data-transform-panel>
     <div class="flex items-center gap-2">
-      <span class="text-[13px] font-extrabold st-ink">{{ items.length === 1 ? '고른 요소' : `고른 요소 ${items.length}개` }}</span>
+      <span class="text-[12px] font-extrabold st-ink">위치·크기<span v-if="items.length > 1" class="st-muted font-bold"> · {{ items.length }}개</span></span>
       <span v-if="anyLocked" class="st-badge" data-locked-badge><Lock class="w-3 h-3 mr-1" :stroke-width="2" /> 잠김</span>
       <span v-if="anyHidden" class="st-badge" data-hidden-badge><EyeOff class="w-3 h-3 mr-1" :stroke-width="2" /> 숨김</span>
     </div>
@@ -49,20 +49,21 @@
     />
 
     <!-- 돌리기·뒤집기·순서 -->
+    <div class="st-desc-sm -mb-2">회전·뒤집기·겹침 순서</div>
     <div class="flex flex-wrap gap-1">
       <button type="button" class="st-icon-btn st-tool" :disabled="allLocked" title="90° 돌리기" data-cmd="rotate90" @click="cmd('rotate90')"><RotateCw class="w-4 h-4" :stroke-width="2" /></button>
       <button type="button" class="st-icon-btn st-tool" :disabled="allLocked" title="좌우 뒤집기" data-cmd="flipX" @click="cmd('flipX')"><FlipHorizontal2 class="w-4 h-4" :stroke-width="2" /></button>
       <button type="button" class="st-icon-btn st-tool" :disabled="allLocked" title="상하 뒤집기" data-cmd="flipY" @click="cmd('flipY')"><FlipVertical2 class="w-4 h-4" :stroke-width="2" /></button>
       <span class="st-tool-sep" />
-      <button type="button" class="st-icon-btn st-tool" title="맨 앞으로" data-cmd="order-front" @click="cmd('order', { where: 'front' })"><BringToFront class="w-4 h-4" :stroke-width="2" /></button>
-      <button type="button" class="st-icon-btn st-tool" title="앞으로" data-cmd="order-forward" @click="cmd('order', { where: 'forward' })"><ChevronUp class="w-4 h-4" :stroke-width="2" /></button>
-      <button type="button" class="st-icon-btn st-tool" title="뒤로" data-cmd="order-backward" @click="cmd('order', { where: 'backward' })"><ChevronDown class="w-4 h-4" :stroke-width="2" /></button>
-      <button type="button" class="st-icon-btn st-tool" title="맨 뒤로" data-cmd="order-back" @click="cmd('order', { where: 'back' })"><SendToBack class="w-4 h-4" :stroke-width="2" /></button>
+      <button type="button" class="st-icon-btn st-tool" title="맨 앞으로 — 모든 요소보다 위로" data-cmd="order-front" @click="cmd('order', { where: 'front' })"><BringToFront class="w-4 h-4" :stroke-width="2" /></button>
+      <button type="button" class="st-icon-btn st-tool" title="앞으로 — 한 칸 위로" data-cmd="order-forward" @click="cmd('order', { where: 'forward' })"><ChevronUp class="w-4 h-4" :stroke-width="2" /></button>
+      <button type="button" class="st-icon-btn st-tool" title="뒤로 — 한 칸 아래로" data-cmd="order-backward" @click="cmd('order', { where: 'backward' })"><ChevronDown class="w-4 h-4" :stroke-width="2" /></button>
+      <button type="button" class="st-icon-btn st-tool" title="맨 뒤로 — 모든 요소보다 아래로" data-cmd="order-back" @click="cmd('order', { where: 'back' })"><SendToBack class="w-4 h-4" :stroke-width="2" /></button>
     </div>
 
     <!-- 정렬: 한 개 = 구간 기준, 여러 개 = 고른 것들 기준 -->
     <div>
-      <div class="st-desc-sm mb-1">{{ items.length === 1 ? '정렬 (구간 기준)' : '정렬 (고른 요소끼리)' }}</div>
+      <div class="st-desc-sm mb-1">{{ items.length === 1 ? '정렬 (섹션 기준)' : '정렬 (고른 요소끼리)' }}</div>
       <div class="flex flex-wrap gap-1">
         <button v-for="a in ALIGNS" :key="a.where" type="button" class="st-icon-btn st-tool" :disabled="allLocked" :title="a.label" :data-cmd="`align-${a.where}`" @click="cmd('align', { where: a.where })">
           <component :is="a.icon" class="w-4 h-4" :stroke-width="2" />
@@ -70,29 +71,21 @@
       </div>
     </div>
 
-    <!-- 잠금·숨기기·복제·삭제 -->
-    <div class="flex flex-wrap gap-1">
-      <button type="button" class="st-btn st-tool-btn" :data-cmd="anyLocked ? 'unlock' : 'lock'" @click="cmd(anyLocked ? 'unlock' : 'lock')">
-        <component :is="anyLocked ? LockOpen : Lock" class="w-3.5 h-3.5" :stroke-width="2" /> {{ anyLocked ? '잠금 풀기' : '잠그기' }}
-      </button>
-      <button type="button" class="st-btn st-tool-btn" :data-cmd="anyHidden ? 'show' : 'hide'" @click="cmd(anyHidden ? 'show' : 'hide')">
-        <component :is="anyHidden ? Eye : EyeOff" class="w-3.5 h-3.5" :stroke-width="2" /> {{ anyHidden ? '보이기' : '숨기기' }}
-      </button>
-      <button type="button" class="st-btn st-tool-btn" title="Ctrl+D" data-cmd="duplicate" @click="cmd('duplicate')"><CopyPlus class="w-3.5 h-3.5" :stroke-width="2" /> 복제</button>
-      <!-- 9단계: 2개 이상 고르면 묶기(이미 한 그룹이면 안 보임), 그룹을 고르면 풀기 -->
-      <button v-if="canGroup" type="button" class="st-btn st-tool-btn" title="Ctrl+G · 같은 구간 안의 요소만" data-cmd="group" @click="cmd('group')"><Group class="w-3.5 h-3.5" :stroke-width="2" /> 묶기</button>
-      <button v-if="canUngroup" type="button" class="st-btn st-tool-btn" title="Ctrl+Shift+G" data-cmd="ungroup" @click="cmd('ungroup')"><Ungroup class="w-3.5 h-3.5" :stroke-width="2" /> 풀기</button>
-      <button type="button" class="st-btn st-tool-btn st-danger-text" :disabled="allLocked" title="Delete" data-cmd="delete" @click="cmd('delete')"><Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 삭제</button>
+    <!-- 9단계: 2개 이상 고르면 묶기(이미 한 그룹이면 안 보임), 그룹을 고르면 풀기. 복제·잠금·숨기기·삭제는 캔버스 도구줄에 -->
+    <div v-if="canGroup || canUngroup" class="flex flex-wrap gap-1">
+      <button v-if="canGroup" type="button" class="st-btn st-tool-btn" title="여러 요소를 하나로 묶어 함께 옮기기 (Ctrl+G · 같은 섹션 안의 요소만)" data-cmd="group" @click="cmd('group')"><Group class="w-3.5 h-3.5" :stroke-width="2" /> 그룹으로 묶기</button>
+      <button v-if="canUngroup" type="button" class="st-btn st-tool-btn" title="묶은 것을 하나씩 따로 (Ctrl+Shift+G)" data-cmd="ungroup" @click="cmd('ungroup')"><Ungroup class="w-3.5 h-3.5" :stroke-width="2" /> 그룹 풀기</button>
     </div>
   </div>
 </template>
 
 <script setup>
-// 고른 요소의 공통 조작 패널 (6-1단계) — 왼쪽 재료 패널 위쪽. 사진·글자·도형 모두 같은 칸.
+// 고른 요소의 공통 조작 칸 (6-1단계) — 사진·글자·도형 모두 같은 칸.
+// 캔버스 도구줄 [⋯] 팝오버 안에 들어간다 (예전 왼쪽 "고른 요소" 블록 — 복제·잠금·숨기기·앞뒤·삭제는 도구줄 버튼으로 옮김).
 // 누르면 command(name, args)만 보낸다 — 실제 바꾸기는 편집기의 runCommand 하나가 한다 (단축키·우클릭 메뉴와 같은 길).
 import { computed, nextTick } from 'vue'
 import {
-  RotateCw, FlipHorizontal2, FlipVertical2, BringToFront, SendToBack, ChevronUp, ChevronDown, Lock, LockOpen, Eye, EyeOff, CopyPlus, Trash2,
+  RotateCw, FlipHorizontal2, FlipVertical2, BringToFront, SendToBack, ChevronUp, ChevronDown, Lock, EyeOff,
   AlignStartVertical, AlignCenterVertical, AlignEndVertical, AlignStartHorizontal, AlignCenterHorizontal, AlignEndHorizontal, Group, Ungroup,
 } from 'lucide-vue-next'
 import { findItem, groupCheck, anyGrouped } from '@/lib/studioPage'

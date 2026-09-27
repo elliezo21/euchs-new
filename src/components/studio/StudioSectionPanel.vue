@@ -1,35 +1,35 @@
 <template>
-  <div class="flex flex-col h-full overflow-y-auto" data-section-panel>
-    <!-- 골라진 구간 -->
-    <div class="px-4 pt-4 pb-4 space-y-3 st-border-b">
+  <div class="flex flex-col h-full min-h-0" data-section-panel>
+    <!-- 위: 섹션 목록 (번호 + 이름) — 누르면 그 섹션으로 가서 고른다. 목록 아래 [+ 맨 아래에 섹션 추가] -->
+    <div class="shrink-0 px-4 pt-4 pb-2 flex items-center gap-2">
+      <span class="text-[13px] font-extrabold st-ink">섹션</span>
+      <span class="st-muted text-[11px] font-bold">{{ page.sections.length }}개</span>
+    </div>
+    <ol class="flex-1 min-h-0 overflow-y-auto px-2" data-section-list>
+      <li v-for="(s, i) in page.sections" :key="s.id">
+        <button
+          type="button" class="st-sec-row" :class="s.id === sectionId ? 'is-current' : ''" :data-section-row="s.id"
+          :title="`${labels[s.id] ?? ''} — 눌러서 이 섹션으로`" @click="$emit('pick', s.id)"
+        >
+          <span class="st-sec-swatch" :style="{ background: s.bg }" />
+          <span class="truncate">{{ labels[s.id] ?? String(i + 1).padStart(2, '0') }}</span>
+          <span class="ml-auto shrink-0 text-[11px] st-muted tabular-nums">{{ s.height }}px</span>
+        </button>
+      </li>
+      <li v-if="page.sections.length === 0" class="px-2 py-3 st-desc break-keep">아직 섹션이 없어요.</li>
+    </ol>
+    <div class="shrink-0 px-4 pt-2 pb-3">
+      <button type="button" class="st-btn st-sec-btn w-full" :disabled="full" data-sec-cmd="add-end" @click="cmd('sectionAdd', { where: 'end' })">
+        <Plus class="w-3.5 h-3.5" :stroke-width="2" /> 맨 아래에 섹션 추가
+      </button>
+      <p v-if="full" class="mt-1 st-desc-sm break-keep">섹션은 {{ SECTION_MAX }}개까지 만들 수 있어요.</p>
+      <p v-else class="mt-1 st-desc-sm break-keep">섹션 사이에 마우스를 올리면 그 자리에 추가할 수 있어요. 옮기기·복제·삭제는 섹션을 누르면 오른쪽에 나오는 막대에서 해요.</p>
+    </div>
+
+    <!-- 아래: 고른 섹션의 높이·배경색 (고른 섹션이 없어도 자리는 그대로 — 화면이 바뀌지 않게) -->
+    <div class="shrink-0 px-4 pt-3 pb-3 space-y-3 st-border-t st-sec-detail" data-section-detail>
       <template v-if="section">
-        <div class="flex items-center gap-2">
-          <span class="text-[13px] font-extrabold st-ink" data-section-title>{{ sectionLabel }}</span>
-          <span class="st-muted text-[11px] font-bold ml-auto">{{ sectionIndex + 1 }} / {{ page.sections.length }}</span>
-        </div>
-
-        <!-- 추가·복제 -->
-        <div class="grid grid-cols-2 gap-1.5">
-          <button type="button" class="st-btn st-sec-btn" :disabled="full" data-sec-cmd="add-above" @click="cmd('sectionAdd', { where: 'above' })">
-            <BetweenHorizontalStart class="w-3.5 h-3.5" :stroke-width="2" /> 위에 추가
-          </button>
-          <button type="button" class="st-btn st-sec-btn" :disabled="full" data-sec-cmd="add-below" @click="cmd('sectionAdd', { where: 'below' })">
-            <BetweenHorizontalEnd class="w-3.5 h-3.5" :stroke-width="2" /> 아래에 추가
-          </button>
-          <button type="button" class="st-btn st-sec-btn" :disabled="full" data-sec-cmd="duplicate" @click="cmd('sectionDuplicate')">
-            <CopyPlus class="w-3.5 h-3.5" :stroke-width="2" /> 복제
-          </button>
-          <div class="flex gap-1.5">
-            <button type="button" class="st-btn st-sec-btn flex-1" :disabled="sectionIndex === 0" title="위로" data-sec-cmd="up" @click="cmd('sectionMove', { by: -1 })">
-              <ChevronUp class="w-3.5 h-3.5" :stroke-width="2" /> 위로
-            </button>
-            <button type="button" class="st-btn st-sec-btn flex-1" :disabled="sectionIndex === page.sections.length - 1" title="아래로" data-sec-cmd="down" @click="cmd('sectionMove', { by: 1 })">
-              <ChevronDown class="w-3.5 h-3.5" :stroke-width="2" /> 아래로
-            </button>
-          </div>
-        </div>
-        <p v-if="full" class="st-desc-sm break-keep">구간은 {{ SECTION_MAX }}개까지 만들 수 있어요.</p>
-
+        <div class="text-[12px] font-extrabold st-ink truncate" data-section-title>{{ sectionLabel }}</div>
         <!-- 높이 (6-1 숫자 칸과 같은 방식: Enter·칸 벗어나기 = 반영) -->
         <label class="st-xfield" data-num="section-height">
           <span class="st-xfield-label">높이 ({{ SECTION_H_MIN }}~{{ SECTION_H_MAX }})</span>
@@ -41,7 +41,6 @@
             <span class="st-xfield-unit">px</span>
           </span>
         </label>
-
         <!-- 배경색 -->
         <div>
           <div class="st-xfield-label mb-1">배경색</div>
@@ -57,26 +56,14 @@
             <span class="ml-1 text-[11px] font-bold st-muted uppercase">{{ section.bg }}</span>
           </div>
         </div>
-
-        <button type="button" class="st-btn st-sec-btn st-danger-text w-full" data-sec-cmd="delete" @click="cmd('sectionDelete')">
-          <Trash2 class="w-3.5 h-3.5" :stroke-width="2" /> 구간 삭제
-        </button>
       </template>
-
-      <template v-else>
-        <div class="text-[13px] font-extrabold st-ink">구간</div>
-        <p class="st-desc break-keep" data-section-empty>페이지에서 구간 이름이나 빈 곳을 눌러 고르세요</p>
-        <button type="button" class="st-btn st-sec-btn w-full" :disabled="full" data-sec-cmd="add-end" @click="cmd('sectionAdd', { where: 'end' })">
-          <Plus class="w-3.5 h-3.5" :stroke-width="2" /> 맨 아래에 구간 추가
-        </button>
-      </template>
+      <p v-else class="st-desc break-keep" data-section-empty>섹션을 누르면 높이와 배경색을 바꿀 수 있어요</p>
     </div>
 
-    <!-- 페이지 전체: 구간 간격 -->
-    <div class="px-4 pt-3 pb-4 space-y-2">
-      <div class="text-[12px] font-extrabold st-ink-2">페이지 전체 · 구간 {{ page.sections.length }}개</div>
+    <!-- 맨 아래: 페이지 전체 섹션 사이 간격 -->
+    <div class="shrink-0 px-4 pt-3 pb-4 st-border-t">
       <label class="st-xfield" data-num="gap">
-        <span class="st-xfield-label">구간 간격 (0~{{ GAP_MAX }})</span>
+        <span class="st-xfield-label">섹션 사이 간격 · 페이지 전체 (0~{{ GAP_MAX }})</span>
         <span class="st-xfield-box">
           <input
             ref="gapInput" type="number" step="1" inputmode="numeric" min="0" :max="GAP_MAX" :value="page.gap"
@@ -90,18 +77,21 @@
 </template>
 
 <script setup>
-// 왼쪽 [구간] 패널 (8-1) — 골라진 구간의 추가·복제·순서·높이·배경색·삭제 + 페이지 전체 구간 간격.
-// 누르면 command(name, args)만 보낸다 — 실제 바꾸기는 편집기의 runCommand 하나가 한다 (우클릭 메뉴와 같은 길, 이력·페이지 저장).
+// 왼쪽 [섹션] 패널 (8-1 → 한 화면으로) — 위: 섹션 목록(누르면 그 섹션으로 가서 고름) + [맨 아래에 섹션 추가] /
+// 가운데: 고른 섹션의 높이·배경색 / 맨 아래: 페이지 전체 섹션 사이 간격. 고르기 전·후 자리가 같다.
+// 위에/아래에 추가·복제·위로·아래로·삭제는 캔버스 섹션 도구줄·섹션 사이 [+]·우클릭으로 (같은 runCommand).
+// 누르면 command(name, args)·pick(id)만 보낸다 — 실제 바꾸기는 편집기의 runCommand 하나가 한다 (이력·페이지 저장).
 import { ref, computed, nextTick } from 'vue'
-import { BetweenHorizontalStart, BetweenHorizontalEnd, CopyPlus, ChevronUp, ChevronDown, Trash2, Plus, PaintBucket } from 'lucide-vue-next'
+import { Plus, PaintBucket } from 'lucide-vue-next'
 import { SECTION_MAX, SECTION_H_MIN, SECTION_H_MAX, GAP_MAX } from '@/lib/studioPage'
 
 const props = defineProps({
   page: { type: Object, required: true },
-  sectionId: { type: String, default: null },    // 골라진 구간 (없으면 안내 + 맨 아래에 추가)
-  sectionLabel: { type: String, default: '' },   // "03 상세 이미지" (페이지 왼쪽 구간 이름과 같은 글자)
+  sectionId: { type: String, default: null },    // 골라진 섹션 (없으면 안내)
+  sectionLabel: { type: String, default: '' },   // "03 상세 이미지" (페이지 왼쪽 섹션 이름과 같은 글자)
+  labels: { type: Object, default: () => ({}) }, // section id → "03 상세 이미지"
 })
-const emit = defineEmits(['command'])
+const emit = defineEmits(['command', 'pick'])
 const cmd = (name, args = {}) => emit('command', name, args)
 
 // 빠른 배경색 칸 — 흰색·연회색·검정
@@ -110,7 +100,7 @@ const QUICK_COLORS = [{ value: '#ffffff', label: '흰색' }, { value: '#f1f2f4',
 const sectionIndex = computed(() => (props.sectionId ? props.page.sections.findIndex(s => s.id === props.sectionId) : -1))
 const section = computed(() => (sectionIndex.value >= 0 ? props.page.sections[sectionIndex.value] : null))
 const full = computed(() => props.page.sections.length >= SECTION_MAX)
-// <input type="color">는 #rrggbb만 받는다 — 예전 구간의 다른 모양 값(#fff 등)이면 흰색에서 시작
+// <input type="color">는 #rrggbb만 받는다 — 예전 섹션의 다른 모양 값(#fff 등)이면 흰색에서 시작
 const colorValue = computed(() => (/^#[0-9a-f]{6}$/i.test(section.value?.bg || '') ? section.value.bg : '#ffffff'))
 
 function intIn(e, lo, hi) {
@@ -131,7 +121,7 @@ function onGap(e) {
 }
 
 const gapInput = ref(null)
-/** 오른쪽 아래 [구간 간격] 버튼 → 이 칸으로 */
+/** 오른쪽 아래 [섹션 사이 간격] 버튼 → 이 칸으로 */
 function focusGap() {
   gapInput.value?.focus()
   gapInput.value?.select()
@@ -141,6 +131,15 @@ defineExpose({ focusGap })
 
 <style scoped>
 .st-sec-btn { height: 30px; padding: 0 10px; font-size: 12px; gap: 4px; justify-content: center; }
+.st-sec-row {
+  width: 100%; display: flex; align-items: center; gap: 8px; padding: 7px 8px; border: 0; border-radius: 8px; cursor: pointer; text-align: left;
+  background: transparent; font-size: 12px; font-weight: 700; color: var(--st-ink-2);
+}
+.st-sec-row:hover { background: var(--st-card-hover); color: var(--st-ink); }
+.st-sec-row.is-current { background: var(--st-accent-soft); color: var(--st-accent); }
+.st-sec-swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--st-line-strong); flex: none; }
+/* 고른 섹션 칸 — 고르기 전·후 높이가 크게 달라지지 않게 */
+.st-sec-detail { min-height: 150px; }
 /* 숫자 칸 — StudioTransformPanel(6-1)과 같은 모양 (그쪽 스타일은 scoped라 같은 값을 여기에도 둔다) */
 .st-xfield { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .st-xfield-label { font-size: 11px; font-weight: 700; line-height: 14px; color: var(--st-muted); }

@@ -1,8 +1,21 @@
 <template>
-  <div class="flex flex-col h-full overflow-y-auto" data-element-panel>
+  <div class="flex flex-col h-full min-h-0" data-element-panel>
+    <!-- 종류 버튼 (맨 위 고정): 누르면 그 종류만 아래 목록에 — 목록은 그 안에서만 스크롤. 마지막 종류는 편집기가 기억한다 -->
+    <div class="shrink-0 px-4 pt-4 pb-3 space-y-2 st-border-b">
+      <div class="st-seg w-full" role="tablist" aria-label="요소 종류" data-element-tabs>
+        <button
+          v-for="t in ELEMENT_TABS" :key="t.key" type="button" role="tab" class="st-seg-item flex-1"
+          :class="current === t.key ? 'is-active' : ''" :aria-selected="current === t.key" :data-element-tab="t.key"
+          @click="$emit('update:tab', t.key)"
+        >{{ t.label }}</button>
+      </div>
+      <p class="st-desc-sm break-keep">누르면 지금 보고 있는 섹션 가운데에 들어가요.</p>
+      <p v-if="disabled" class="st-desc-sm break-keep">페이지가 준비되면 넣을 수 있어요.</p>
+    </div>
+    <div class="flex-1 min-h-0 overflow-y-auto" data-element-list>
+    <template v-if="current === 'shape'">
     <div class="px-4 pt-4 pb-4 space-y-3">
       <div class="text-[13px] font-extrabold st-ink">도형</div>
-      <p class="st-desc-sm break-keep">누르면 지금 보고 있는 구간 가운데에 들어가요.</p>
       <div class="grid grid-cols-3 gap-2">
         <button
           v-for="k in shapeKinds" :key="k.key" type="button" class="st-el-card" :title="k.label" :data-element-add="k.key"
@@ -24,11 +37,11 @@
           <span class="st-el-name">{{ k.label }}</span>
         </button>
       </div>
-      <p v-if="disabled" class="st-desc-sm break-keep">페이지가 준비되면 넣을 수 있어요.</p>
       <p class="st-desc-sm break-keep">선은 양 끝 점을 끌어 길이와 방향을 바꿔요. Shift를 누르고 끌면 15°씩 맞춰져요.</p>
     </div>
+    </template>
     <!-- 강조 배지 (11-2): 도형 + 글자를 한 그룹으로 넣는다. 견본 = 넣었을 때 모양 그대로 (buildGroupItems) -->
-    <div class="px-4 pt-4 pb-4 space-y-3 st-border-t" data-badge-group>
+    <div v-else-if="current === 'badge'" class="px-4 pt-4 pb-4 space-y-3" data-badge-group>
       <div class="text-[13px] font-extrabold st-ink">강조 배지</div>
       <div class="grid grid-cols-2 gap-2">
         <button
@@ -49,7 +62,7 @@
       <p class="st-desc-sm break-keep">배지는 한 그룹으로 들어가요. 글자를 두 번 누르면 그 글자만 고칠 수 있어요.</p>
     </div>
     <!-- 사이즈표 (11-2): 기본 틀 3개. 칸 글자는 캔버스에서 칸을 눌러 바로(표 칸 입력) 또는 왼쪽 "표 편집"에서 -->
-    <div class="px-4 pt-4 pb-4 space-y-3 st-border-t" data-table-group>
+    <div v-else class="px-4 pt-4 pb-4 space-y-3" data-table-group>
       <div class="text-[13px] font-extrabold st-ink">사이즈표</div>
       <div class="grid grid-cols-3 gap-2">
         <button
@@ -60,7 +73,8 @@
           <span class="st-el-name">{{ t.label }}</span>
         </button>
       </div>
-      <p class="st-desc-sm break-keep">숫자 칸은 "-"로 비워 두었어요. 표를 고르면 왼쪽에서 칸을 채울 수 있어요.</p>
+      <p class="st-desc-sm break-keep">숫자 칸은 "-"로 비워 두었어요. 넣은 뒤 캔버스에서 칸을 눌러 바로 입력하세요.</p>
+    </div>
     </div>
   </div>
 </template>
@@ -68,20 +82,24 @@
 <script setup>
 // 왼쪽 [요소] 패널 (11-1) — 도형 5개·선 3개 견본(실제 그리기 StudioShapeView). 누르면 insert(종류)만 보낸다 — 넣기·고르기는 편집기가 한다.
 // 11-2: 강조 배지 8개(insert-badge — 견본은 넣을 때와 같은 buildGroupItems) · 사이즈표 기본 틀 3개(insert-table — 견본은 StudioTableView)
+// 맨 위 종류 버튼 [도형]·[배지]·[사이즈표] — 한 종류만 보이고 목록 칸 안에서 스크롤 (에셋 모양은 그대로)
 import { computed, inject } from 'vue'
 import { ELEMENT_KINDS, normalizeShapeItem, normalizeLineItem } from '@/lib/studioShape'
 import { BADGE_PRESETS } from '@/lib/studioBadge'
 import { TABLE_TEMPLATES, tableFieldsOf, normalizeTableItem } from '@/lib/studioTable'
 import { buildGroupItems, textLinesOf } from '@/lib/studioPage'
 import { isValidTextItem } from '@/lib/studioText'
+import { ELEMENT_TABS, elementTabOf } from '@/lib/studioCanvasUi'
 import StudioShapeView from '@/components/studio/StudioShapeView.vue'
 import StudioTextView from '@/components/studio/StudioTextView.vue'
 import StudioTableView from '@/components/studio/StudioTableView.vue'
 
-defineProps({
+const props = defineProps({
   disabled: { type: Boolean, default: false }, // 페이지가 없을 때
+  tab: { type: String, default: '' },           // 지금 종류 (편집기가 기억 — 이 패널은 [요소]를 열 때마다 새로 만들어진다)
 })
-defineEmits(['insert', 'insert-badge', 'insert-table'])
+defineEmits(['insert', 'insert-badge', 'insert-table', 'update:tab'])
+const current = computed(() => elementTabOf(props.tab))
 
 // 글자 폭 재기 (편집기 provide — 페이지와 같은 측정). 글꼴을 받으면 epoch가 바뀌어 견본 글자 줄도 다시
 const textLayout = inject('studioTextLayout')
