@@ -1013,6 +1013,10 @@ function lab1688Plugin(env) {
             if (!process.env.STUDIO_MAX_IMAGES)            process.env.STUDIO_MAX_IMAGES            = env.STUDIO_MAX_IMAGES            || ''
             if (!process.env.SUPABASE_URL)                 process.env.SUPABASE_URL                 = env.SUPABASE_URL                 || env.VITE_SUPABASE_URL || ''
             if (!process.env.SUPABASE_SERVICE_ROLE_KEY)    process.env.SUPABASE_SERVICE_ROLE_KEY    = env.SUPABASE_SERVICE_ROLE_KEY    || ''
+            // 17-1 배경 지우기 (api/_studioBgProvider.js·_studioBg.js)
+            if (!process.env.FAL_KEY)                      process.env.FAL_KEY                      = env.FAL_KEY                      || ''
+            if (!process.env.STUDIO_BG_MODEL)              process.env.STUDIO_BG_MODEL              = env.STUDIO_BG_MODEL              || ''
+            if (!process.env.STUDIO_BG_DAILY_LIMIT)        process.env.STUDIO_BG_DAILY_LIMIT        = env.STUDIO_BG_DAILY_LIMIT        || ''
             const wrappedRes = Object.assign(Object.create(res), {
               status(code) {
                 res.statusCode = code
