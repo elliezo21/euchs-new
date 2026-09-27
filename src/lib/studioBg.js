@@ -9,7 +9,13 @@
  *       color?: '#rrggbb',                  단색 색 (mode가 color일 때 쓴다. 다른 모드로 바꿔도 남겨 두어 [단색]으로 돌아오면 그 색)
  *       refined?: { path, key, w, h },      손으로 다듬은 마스크(17-3 [경계 다듬기] — 브라우저에서 만든 회색 PNG, AI 마스크와 같은 w·h)
  *                                           경로 {uid}/{projectId}/bg/{imageId}/refined_{key16}.png, key = 내용 해시(studioBgRefine.refineKey)
+ *       ai?: { path, key, w, h, preset, model }, AI 배경 이미지(17-4 — 서버 bg_generate가 저장한 결과 그대로, key = 내용 해시)
+ *                                           경로 {uid}/{projectId}/bg/{imageId}/ai_{key16}.{png|jpg|webp}. mode 'ai'일 때 사진 자리 아래에 깐다.
+ *                                           다른 모드로 바꿔도 남겨 두어 [AI 배경]으로 돌아오면 다시 쓴다(돈 안 듦 — 단색 색 기억과 같은 방식)
  *     }
+ * ★ AI 배경(17-4)도 사진 파일에 넣지 않는다: 제품 = 우리 원본 + 마스크(bgMaskSource)로 만든 투명 사진(단색·투명과 똑같음),
+ *   AI 이미지는 사진과 같은 자르기·띠를 거쳐 "사진 자리 아래"에 깐다 (화면 = 사진 밑 <img>, 내보내기 = drawPhoto가 사진 전에).
+ *   AI 결과 안의 제품 모습은 보이지 않는다(우리 제품이 위를 덮음) — 필터는 제품에만.
  * ★ 합성에 쓸 마스크는 bgMaskSource 한 곳에서만 고른다: refined가 있으면 그것, 없으면 AI 마스크(mask).
  *   AI 마스크(mask)는 절대 바꾸지 않는다 — [AI 결과로 되돌리기]·같은 원본 재사용(서버 key)에 필요하다.
  *   예전 데이터(refined 없음)는 지금까지와 똑같이 AI 마스크를 쓴다.
@@ -24,7 +30,7 @@
  * ★ 완성 JPG(final)에는 넣지 않는다. layers가 그대로면 erase_v도 그대로(studioFinal.stampEraseVersion은 layers만 본다).
  */
 
-export const BG_MODES = ['transparent', 'none', 'color']
+export const BG_MODES = ['transparent', 'none', 'color', 'ai']
 export const BG_DEFAULT_COLOR = '#ffffff'
 // 단색 견본 (17-2) — 상품 사진에 흔한 밝은 바탕 + 검정
 export const BG_COLOR_SWATCHES = [
@@ -37,6 +43,7 @@ export const BG_COLOR_SWATCHES = [
 ]
 const MASK_PATH_RE = /^[^/]+\/[^/]+\/bg\/[^/]+\/mask_[0-9a-f]{16}\.png$/
 const REFINED_PATH_RE = /^[^/]+\/[^/]+\/bg\/[^/]+\/refined_[0-9a-f]{16}\.png$/
+const AI_PATH_RE = /^[^/]+\/[^/]+\/bg\/[^/]+\/ai_[0-9a-f]{16}\.(png|jpg|webp)$/
 const KEY_RE = /^[0-9a-f]{16}$/
 const HEX_RE = /^#[0-9a-f]{6}$/i
 
@@ -66,7 +73,24 @@ export function readBg(edit) {
     if (r) out.refined = r
     else console.error('[studioBg] 다듬은 마스크(edit.bg.refined) 모양이 이상함 — 다듬기 없이 AI 마스크로 읽음:', b.refined)
   }
+  if (b.ai !== undefined && b.ai !== null) {
+    const a = readAi(b.ai, out.mask)
+    if (a) out.ai = a
+    else console.error('[studioBg] AI 배경(edit.bg.ai) 모양이 이상함 — AI 배경 없이 읽음:', b.ai)
+  }
+  if (out.mode === 'ai' && !out.ai) {
+    console.error('[studioBg] 모드가 AI 배경인데 AI 배경 정보가 없음 — 투명으로 읽음:', b)
+    out.mode = 'transparent'
+  }
   return out
+}
+
+/** AI 배경 정보 — 경로 규칙·key·크기(양의 정수)·같은 사진 폴더가 맞을 때만, 아니면 null */
+function readAi(a, mask) {
+  if (!a || typeof a !== 'object' || typeof a.path !== 'string' || !AI_PATH_RE.test(a.path)) return null
+  if (!KEY_RE.test(String(a.key || '')) || !Number.isInteger(a.w) || !Number.isInteger(a.h) || a.w < 1 || a.h < 1) return null
+  if (folderOf(a.path) !== folderOf(mask.path)) return null
+  return { path: a.path, key: a.key, w: a.w, h: a.h, preset: String(a.preset || ''), model: String(a.model || '') }
 }
 
 /** 다듬은 마스크 정보 — 경로 규칙·key·크기(= AI 마스크 w·h)·같은 사진 폴더가 맞을 때만, 아니면 null */
@@ -87,6 +111,7 @@ export function withBg(edit, bg) {
   const c = normalizeBgColor(bg.color)
   if (c) out.color = c
   if (bg.refined) out.refined = { ...bg.refined }
+  if (bg.ai) out.ai = { ...bg.ai }
   return { ...rest, bg: out }
 }
 
@@ -113,26 +138,53 @@ export function bgPaintColor(bg) {
   return bg?.mask && bg.mode === 'color' ? normalizeBgColor(bg.color) || BG_DEFAULT_COLOR : null
 }
 
+/**
+ * 사진 자리 아래에 깔 AI 배경 (mode가 ai일 때만, 아니면 null) — 그리는 쪽이 사진과 같은 자르기·띠를 거쳐 사진 밑에 둔다
+ * @returns {{ path, w, h }|null}
+ */
+export function bgAiUnder(bg) {
+  return bg?.mask && bg.mode === 'ai' && bg.ai ? { path: bg.ai.path, w: bg.ai.w, h: bg.ai.h } : null
+}
+
+/**
+ * AI 결과(iw×ih)를 사진 크기(W×H)에 맞출 때 쓸 원본 범위 — 가로세로 비율이 1% 안이면 전체를 늘려 맞추고(제품 자리 그대로),
+ * 더 다르면 가운데 기준으로 잘라 채운다(찌그러뜨리지 않음). 화면·내보내기가 같은 함수를 쓴다 (studioViewImage.applyBackground)
+ */
+export function aiFitSource(iw, ih, W, H) {
+  const ra = iw / ih, rb = W / H
+  if (Math.abs(ra / rb - 1) <= 0.01) return { sx: 0, sy: 0, sw: iw, sh: ih }
+  const k = Math.max(W / iw, H / ih)
+  const sw = W / k, sh = H / k
+  return { sx: (iw - sw) / 2, sy: (ih - sh) / 2, sw, sh }
+}
+
+/** 서버 bg_generate 응답 → bg.ai */
+export function aiFromServer(r) {
+  return { path: r.path, key: r.key, w: r.w, h: r.h, preset: String(r.preset || ''), model: String(r.model || '') }
+}
+
 /** 서버 bg_remove 응답 → 저장할 bg (투명으로 시작) */
 export function bgFromServer(r) {
   return { mask: { path: r.path, key: r.key, model: r.model, w: r.width, h: r.height }, mode: 'transparent' }
 }
 
-/** 지금 합성에 마스크를 쓰는지 (투명·단색 — 단색도 사진은 투명하게 만들고 색은 그리는 쪽이 아래에 깐다) */
+/** 지금 합성에 마스크를 쓰는지 (투명·단색·AI 배경 — 사진은 투명하게 만들고 색·AI 배경은 그리는 쪽이 아래에 깐다) */
 export function bgActive(bg) {
-  return !!bg?.mask && (bg.mode === 'transparent' || bg.mode === 'color')
+  return !!bg?.mask && (bg.mode === 'transparent' || bg.mode === 'color' || (bg.mode === 'ai' && !!bg.ai))
 }
 
 /** 화면 작은 사진 key 조각 (바뀌면 다시 만든다) — 색은 사진 파일에 안 들어가므로 key에 없다 (색을 바꿔도 다시 안 만듦).
  *  17-3: 쓰는 마스크 경로(다듬은 것 또는 AI)가 key — 다듬으면 다시 만든다 */
 export function bgViewKey(bg) {
-  return bgActive(bg) ? `|bg:${bgMaskSource(bg).path}` : ''
+  if (!bgActive(bg)) return ''
+  const under = bgAiUnder(bg) // 17-4: AI 배경을 바꾸면 아래 그림을 다시 만든다
+  return `|bg:${bgMaskSource(bg).path}${under ? `|ai:${under.path}` : ''}`
 }
 
 /** 목록·사진 정보 카드 표시 — 다듬은 마스크를 쓰면 "· 다듬음" (원래 배경일 때는 표시 없음 — 다듬은 결과가 안 보이므로) */
 export function bgMark(bg) {
   if (!bgActive(bg)) return ''
-  const base = bg.mode === 'color' ? '배경 단색' : '배경 지움'
+  const base = bg.mode === 'color' ? '배경 단색' : bg.mode === 'ai' ? 'AI 배경' : '배경 지움'
   return bg.refined ? `${base} · 다듬음` : base
 }
 

@@ -172,7 +172,10 @@
             v-else-if="activeTool === 'bg'"
             :row="bgRow" :thumb-url="bgRow ? views[bgRow.id]?.url || null : null" :bg="bgRow ? session.bgOf(bgRow.id) : null"
             :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError" :section-bg="bgSectionColor"
+            :thumb-under="bgRow ? views[bgRow.id]?.bgUrl || null : null"
+            :gen-status="bgGenStatus" :gen-busy="!!(bgRow && bgGenBusy[bgRow.id])" :gen-error="bgGenError"
             @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus" @refine="openRefine"
+            @generate="onBgGenerate" @retry-gen-status="loadBgGenStatus"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -468,8 +471,8 @@ import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent } from '@/lib/
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
-import { bgFromServer, bgMark, normalizeBgColor, withRefined, BG_DEFAULT_COLOR } from '@/lib/studioBg'
-import { fetchBgStatus, requestBgRemove, uploadBgRefined } from '@/lib/studioBgApi'
+import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, BG_DEFAULT_COLOR } from '@/lib/studioBg'
+import { fetchBgStatus, requestBgRemove, uploadBgRefined, fetchBgGenStatus, requestBgGenerate } from '@/lib/studioBgApi'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
 import { copyProject } from '@/lib/studioProjectCopy'
@@ -1698,17 +1701,21 @@ async function exportImageOf(imageId) {
   const erased = await erasedSourceOf(imageId)
   const masked = await applyBackground(urlPool, erased.source, erased.width, erased.height, session.bgOf(imageId))
   // 17-2 단색: 사진은 투명 그대로, 색(masked.color)은 엔진 drawPhoto가 사진 자리 아래에 칠한다 (필터는 사진에만)
+  // 17-4 AI 배경: masked.under(원본 크기)를 사진과 같은 띠·자르기로 → bgSource (엔진 drawPhoto가 사진 아래에 그린다, 필터 없음)
   const src = masked.canvas
-    ? { source: masked.canvas, width: erased.width, height: erased.height, notes: [...erased.notes, ...masked.problems], bgColor: masked.color }
+    ? { source: masked.canvas, width: erased.width, height: erased.height, notes: [...erased.notes, ...masked.problems], bgColor: masked.color, bgSource: masked.under }
     : { ...erased, notes: [...erased.notes, ...masked.problems] }
   const geo = geometryOf(src.width, src.height, session.shapeOf(imageId))
   if (geo.identity) return src
   const notes = geo.cropIgnored ? [...src.notes, '자르기 영역이 모두 잘라낸 띠 안이라 자르기를 쓰지 않았어요'] : src.notes
-  const c = document.createElement('canvas')
-  c.width = geo.width
-  c.height = geo.height
-  drawGeometry(c.getContext('2d'), src.source, geo, 0, 0, geo.width, geo.height)
-  return { source: c, width: geo.width, height: geo.height, notes, bgColor: src.bgColor ?? null }
+  const cut = source => {
+    const c = document.createElement('canvas')
+    c.width = geo.width
+    c.height = geo.height
+    drawGeometry(c.getContext('2d'), source, geo, 0, 0, geo.width, geo.height)
+    return c
+  }
+  return { source: cut(src.source), width: geo.width, height: geo.height, notes, bgColor: src.bgColor ?? null, bgSource: src.bgSource ? cut(src.bgSource) : null }
 }
 const exportDeps = {
   createCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c },
@@ -1789,8 +1796,12 @@ async function loadBgStatus() {
   if (seq !== bgStatusSeq) return
   Object.assign(bgStatus, { loading: false, loaded: true, ready: !!s.ready, reason: s.reason ?? null, message: s.message || '' })
 }
-watch(activeTool, t => { if (t === 'bg' && !bgStatus.loaded && !bgStatus.loading) loadBgStatus() })
-watch(() => bgRow.value?.id, () => { bgError.value = '' })
+watch(activeTool, t => {
+  if (t !== 'bg') return
+  if (!bgStatus.loaded && !bgStatus.loading) loadBgStatus()
+  if (!bgGenStatus.loading) loadBgGenStatus() // 17-4: 남은 횟수는 패널을 열 때마다 서버 값으로
+})
+watch(() => bgRow.value?.id, () => { bgError.value = ''; bgGenError.value = '' })
 function setBgNoted(id, bg, label) {
   const before = session.histories[id]?.index
   if (session.setBg(id, bg, label) && session.histories[id]?.index !== before) noteAction({ imageId: id })
@@ -1821,7 +1832,48 @@ function onBgMode(mode) {
   if (!cur || cur.mode === mode) return
   // 17-2 단색: 전에 고른 색이 있으면 그 색, 없으면 흰색 (AI 없음 — 자격 검사 없이 마스크만 있으면)
   if (mode === 'color') { setBgNoted(row.id, { ...cur, mode, color: cur.color || BG_DEFAULT_COLOR }, LABELS.bgColor); return }
+  // 17-4 AI 배경: 전에 만든 그림(bg.ai)을 다시 쓴다 — 돈 안 듦 (없으면 [AI 배경 만들기]로)
+  if (mode === 'ai') { if (cur.ai) setBgNoted(row.id, { ...cur, mode }, LABELS.bgAi); return }
   setBgNoted(row.id, { ...cur, mode }, mode === 'transparent' ? LABELS.bgTransparent : LABELS.bgOriginal)
+}
+// ── AI 배경 (17-4) — 외부 AI는 서버만 부른다. 결과 그림은 사진 데이터(edit.bg.ai)에 저장, 사진 이력 "AI 배경" ──
+const bgGenStatus = reactive({ loading: false, ready: false, reason: null, staff: false, left: null, perDay: 3, globalLeft: 0, message: '' })
+const bgGenBusy = reactive({})  // image id → true (만드는 중 — 같은 사진을 또 누르지 못하게)
+const bgGenError = ref('')
+let bgGenSeq = 0
+async function loadBgGenStatus() {
+  const seq = ++bgGenSeq
+  bgGenStatus.loading = true
+  const s = await fetchBgGenStatus()
+  if (seq !== bgGenSeq) return
+  Object.assign(bgGenStatus, {
+    loading: false, ready: !!s.ready, reason: s.reason ?? null, staff: !!s.staff, left: s.left ?? null,
+    perDay: s.perDay ?? bgGenStatus.perDay, globalLeft: s.globalLeft ?? 0, message: s.message || '',
+  })
+}
+async function onBgGenerate(preset) {
+  const row = bgRow.value
+  const pid = project.value?.id
+  if (!row || !pid || bgGenBusy[row.id] || !bgGenStatus.ready || !session.bgOf(row.id)) return
+  bgGenBusy[row.id] = true
+  bgGenError.value = ''
+  const seq = bgGenSeq
+  try {
+    const r = await requestBgGenerate(pid, row.id, preset)
+    if (project.value?.id !== pid || !imagesById.value.has(row.id)) return // 그 사이 다른 작업·로그아웃
+    const cur = session.bgOf(row.id)
+    if (!cur) { showToast('배경 정보가 바뀌어 AI 배경을 넣지 못했어요. 다시 눌러 주세요.'); return }
+    setBgNoted(row.id, { ...cur, mode: 'ai', ai: aiFromServer(r) }, LABELS.bgAi)
+    if (seq === bgGenSeq && r.left !== null && r.left !== undefined) bgGenStatus.left = r.left
+    showToast('AI 배경을 만들었어요 · Ctrl+Z로 되돌려도 다시 쓸 수 있어요')
+  } catch (e) {
+    if (project.value?.id !== pid) return
+    if (bgRow.value?.id === row.id) bgGenError.value = e.message
+    else showToast(e.message)
+  } finally {
+    delete bgGenBusy[row.id]
+    if (project.value?.id === pid) loadBgGenStatus() // 남은 횟수·한도는 서버 값으로 다시
+  }
 }
 // 이 사진이 놓인 구간의 배경색 — 페이지에서 고른 사진 요소의 구간, 목록에서 골랐으면 그 사진이 처음 놓인 구간 (없으면 null)
 const bgSectionColor = computed(() => {
@@ -2456,6 +2508,11 @@ const onStudioAuthChanged = (e) => {
     Object.assign(bgStatus, { loading: false, loaded: false, ready: false, reason: null, message: '' })
     for (const k of Object.keys(bgBusy)) delete bgBusy[k]
     bgError.value = ''
+    // 17-4 AI 배경 상태
+    bgGenSeq++
+    Object.assign(bgGenStatus, { loading: false, ready: false, reason: null, staff: false, left: null, globalLeft: 0, message: '' })
+    for (const k of Object.keys(bgGenBusy)) delete bgGenBusy[k]
+    bgGenError.value = ''
     selectedItemIds.value = []
     clipboard = null
     styleClip.value = null // 10-2 복사한 글자 모양

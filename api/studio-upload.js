@@ -66,6 +66,15 @@
  * 에러: invalid_input 400 / bg_refine_too_large·bg_refine_invalid·not_uploaded 400 / bg_refine_limit 400(사진당 60개) /
  *       not_found 404 / sign_failed·storage_error 500
  *
+ * ── AI 배경 (17-4) ── 외부 API(fal Bria Background Replace, _studioBgProvider.generateBackground)로 새 배경 장면을 만든다. 돈이 나간다($0.04/장).
+ *   자격 = 배경 지우기와 같음. 1인 하루 3회(관리자·스태프 제외) + 전체 하루 STUDIO_BG_GEN_DAILY_LIMIT(관리자 포함) — _studioBgGen.js
+ *   결과 이미지는 받은 바이트 그대로 {uid}/{projectId}/bg/{imageId}/ai_{sha256 16자}.{png|jpg|webp}. 제품은 화면이 우리 원본 + 마스크로 위에 덮는다.
+ * POST { action:'bg_gen_status' } → { ready, reason: null|'not_eligible'|'no_key'|'no_table', staff, left, perDay, globalLeft }
+ * POST { action:'bg_generate', projectId, imageId, preset }
+ *   → { path, key, w, h, preset, model, left }   (left = 이번 것까지 뺀 오늘 남은 무료 횟수, 관리자는 null)
+ * 에러: invalid_input 400 / bg_not_eligible 403 / bg_not_ready 503 / bg_gen_sql_missing 503(kind 체크 SQL 전) / bg_gen_need_mask 400 /
+ *       bg_too_large 400 / bg_busy 409 / bg_gen_user_limit·bg_gen_global_limit 429 / bg_gen_failed 502·bg_gen_timeout 504(기록 지움, 횟수 안 셈)
+ *
  * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다. (배경 마스크는 서버가 새로 만드는 파일이라 예외)
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
@@ -81,10 +90,14 @@ import {
 import { readDimensions } from './studio-ingest.js'
 import { buildCopyPlan } from './_studioCopy.js'
 import {
-  isBgEligible, usageTableReady, usageCheck, isUsageUnavailable, bgDailyLimit, bgMaskKey, bgFolder, buildMaskPng,
+  isBgEligible, isBgStaff, usageTableReady, usageCheck, isUsageUnavailable, bgDailyLimit, bgMaskKey, bgFolder, buildMaskPng,
   BG_MAX_SIDE, BG_SIGN_SECONDS, BG_MASK_MAX_BYTES, BG_REFINED_NAME_RE, BG_REFINED_MAX_FILES,
 } from './_studioBg.js'
-import { bgProviderConfig, removeBackground, BgProviderError } from './_studioBgProvider.js'
+import { bgProviderConfig, removeBackground, BgProviderError, bgGenProviderConfig, generateBackground } from './_studioBgProvider.js'
+import {
+  BG_GEN_KIND, BG_GEN_FREE_PER_DAY, BG_GEN_MAX_BYTES, BG_GEN_PRESETS, BG_AI_EXT, bgGenDailyLimit, bgAiKey, isKindCheckError,
+  genUsageToday, withinLimit, genBusy,
+} from './_studioBgGen.js'
 
 const BUCKET = 'studio'
 const MAX_FILES_PER_PREPARE = 10
@@ -918,6 +931,160 @@ async function bgRefineConfirm(ctx, body, res) {
   return res.status(200).json({ ok: true, width: dims.width, height: dims.height })
 }
 
+// ── AI 배경 (17-4) ──────────────────────────────────────────────────────────
+/** [배경합성] 패널이 열릴 때·만든 뒤 — 쓸 수 있는지 + 오늘 남은 무료 횟수 (서버 값 기준) */
+async function bgGenStatus(ctx, body, res) {
+  if (!(await isBgEligible(ctx))) return res.status(200).json({ ready: false, reason: 'not_eligible' })
+  const p = bgGenProviderConfig()
+  if (!p.ready) return res.status(200).json({ ready: false, reason: 'no_key' })
+  const staff = await isBgStaff(ctx)
+  const limit = bgGenDailyLimit()
+  let used
+  try {
+    used = await genUsageToday(ctx, limit)
+  } catch (e) {
+    if (isUsageUnavailable(e)) {
+      console.error('[studio-upload] bg_gen: studio_ai_usage를 쓸 수 없음 — 준비 중:', e.message)
+      return res.status(200).json({ ready: false, reason: 'no_table' })
+    }
+    throw e
+  }
+  return res.status(200).json({
+    ready: true, reason: null, staff, perDay: BG_GEN_FREE_PER_DAY,
+    left: staff ? null : Math.max(0, BG_GEN_FREE_PER_DAY - used.mine),
+    globalLeft: Math.max(0, limit - used.all), model: p.modelKey,
+  })
+}
+
+async function bgGenerate(ctx, body, res) {
+  const { cfg } = ctx
+  const preset = String(body.preset ?? '')
+  if (!Object.hasOwn(BG_GEN_PRESETS, preset)) return sendError(res, 400, 'invalid_input', '장면을 다시 골라 주세요.')
+  const t = await loadPatchTarget(ctx, body, res) // 본인·안 지운·안 끝난 작업의 done 사진만 (남의 사진이면 404 — 서명 주소를 만들지 않는다)
+  if (!t) return
+  if (!(await isBgEligible(ctx))) return sendError(res, 403, 'bg_not_eligible', '이유씨로 주문한 고객에게 열리는 기능이에요.')
+  const p = bgGenProviderConfig()
+  if (!p.ready) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+  const rows = await sb(cfg, `studio_images?select=original_path,edit&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
+  const row = Array.isArray(rows) ? rows[0] : null
+  const originalPath = row?.original_path
+  if (typeof originalPath !== 'string' || !originalPath.startsWith(`${ctx.userId}/${t.project.id}/orig/`)) {
+    console.error(`[studio-upload] bg_gen: 원본 경로가 규칙과 다름 ${t.image.id}:`, originalPath)
+    return sendError(res, 404, 'not_found', '원본 사진을 찾을 수 없습니다.')
+  }
+  const folder = bgFolder(ctx.userId, t.project.id, t.image.id)
+  // 제품은 우리 마스크로 덮으므로 배경을 지운(저장된) 사진만 — 화면이 잠그지만 서버도 막는다 (돈이 나가는 곳)
+  const maskPath = row?.edit?.bg?.mask?.path
+  if (typeof maskPath !== 'string' || !maskPath.startsWith(`${folder}/mask_`)) {
+    return sendError(res, 400, 'bg_gen_need_mask', '먼저 [배경 지우기]를 해 주세요.')
+  }
+  const W = t.image.width, H = t.image.height
+  if (Math.max(W, H) > BG_MAX_SIDE) return sendError(res, 400, 'bg_too_large', `긴 변이 ${BG_MAX_SIDE}px 이하인 사진만 AI 배경을 만들 수 있어요.`)
+
+  const staff = await isBgStaff(ctx)
+  const limit = bgGenDailyLimit()
+  try {
+    if (await genBusy(ctx, t.image.id)) return sendError(res, 409, 'bg_busy', '이 사진의 AI 배경을 만드는 중이에요.')
+  } catch (e) {
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+    throw e
+  }
+
+  // 처리 중 표시 (pending) → 한도 안에 드는지 (동시 요청도 id 순서로 앞 N개만) → 아니면 지우고 막는다
+  let usageId
+  try {
+    const ins = await sb(cfg, 'studio_ai_usage?select=id', {
+      method: 'POST', prefer: 'return=representation',
+      body: { user_id: ctx.userId, kind: BG_GEN_KIND, status: 'pending', project_id: t.project.id, image_id: t.image.id, provider: p.model.provider, model: p.model.endpoint },
+    })
+    usageId = ins?.[0]?.id
+    if (usageId === undefined || usageId === null) throw new Error('studio_ai_usage insert 결과에 id 없음')
+  } catch (e) {
+    if (isKindCheckError(e)) {
+      console.error('[studio-upload] bg_gen: studio_ai_usage kind 체크에 bg_generate가 없음 — 17-4 보고서 9장 SQL을 먼저 실행해야 함:', e.message)
+      return sendError(res, 503, 'bg_gen_sql_missing', 'AI 배경을 준비하고 있어요. (사용 기록 설정 필요)')
+    }
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+    throw e
+  }
+  const dropUsage = async why => {
+    try {
+      await sb(cfg, `studio_ai_usage?id=eq.${usageId}&user_id=eq.${ctx.userId}&status=eq.pending`, { method: 'DELETE', prefer: 'return=minimal' })
+    } catch (e) {
+      // 남아도 2분 뒤에는 세지 않는다 (_studioBgGen countedFilter)
+      console.error(`[studio-upload] bg_gen 실패 뒤 pending 기록 지우기 실패 (${why}) id=${usageId}:`, e.message)
+    }
+  }
+  try {
+    if (!staff && !(await withinLimit(ctx, usageId, 'user', BG_GEN_FREE_PER_DAY))) {
+      await dropUsage('user_limit')
+      return sendError(res, 429, 'bg_gen_user_limit', '오늘 무료 횟수를 다 썼어요. 내일 다시 쓸 수 있어요.')
+    }
+    if (!(await withinLimit(ctx, usageId, 'all', limit))) {
+      await dropUsage('global_limit')
+      return sendError(res, 429, 'bg_gen_global_limit', '오늘 준비된 AI 배경이 모두 소진됐어요. 내일 다시 쓸 수 있어요.')
+    }
+  } catch (e) {
+    await dropUsage('limit_check')
+    throw e
+  }
+
+  let result
+  try {
+    const imageUrl = await storageSignDownload(cfg, BUCKET, originalPath, BG_SIGN_SECONDS)
+    result = await generateBackground({ falKey: p.falKey, modelKey: p.modelKey, imageUrl, prompt: BG_GEN_PRESETS[preset] })
+  } catch (e) {
+    await dropUsage('fal')
+    const code = e instanceof BgProviderError ? e.code : 'bg_failed'
+    console.error(`[studio-upload] bg_gen 외부 처리 실패 ${t.image.id} (${p.modelKey}, ${code}):`, e.message)
+    return code === 'bg_timeout'
+      ? sendError(res, 504, 'bg_gen_timeout', 'AI 배경이 오래 걸려 멈췄어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.')
+      : sendError(res, 502, 'bg_gen_failed', 'AI 배경을 만들지 못했어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.')
+  }
+
+  // 받은 바이트 그대로 저장 (다시 인코딩하지 않는다). 형식·크기는 머리에서만 읽는다
+  let out
+  try {
+    const buf = result.buf
+    const mime = sniffMime(buf)
+    const ext = BG_AI_EXT[mime]
+    if (!ext) throw new Error(`결과 형식이 이미지가 아님 (${mime})`)
+    if (buf.length > BG_GEN_MAX_BYTES) throw new Error(`결과 ${buf.length} bytes`)
+    const dims = readDimensions(buf, mime)
+    if (!dims?.width || !dims?.height) throw new Error('결과 크기를 읽을 수 없음')
+    const key = bgAiKey(buf)
+    const name = `ai_${key}.${ext}`
+    const path = `${folder}/${name}`
+    const names = await storageList(cfg, BUCKET, folder)
+    if (!names.includes(name)) await storageUpload(cfg, BUCKET, path, buf, mime)
+    out = { path, key, w: dims.width, h: dims.height, preset, model: p.modelKey }
+  } catch (e) {
+    await dropUsage('save')
+    console.error(`[studio-upload] bg_gen 결과 저장 실패 ${t.image.id}:`, e.message)
+    return sendError(res, 502, 'bg_gen_failed', 'AI 배경을 만들지 못했어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.')
+  }
+
+  try {
+    await sb(cfg, `studio_ai_usage?id=eq.${usageId}&user_id=eq.${ctx.userId}`, {
+      method: 'PATCH', prefer: 'return=minimal',
+      body: { status: 'ok', cost_usd: result.costUsd, meta: { ms: result.ms, via: result.via, preset, w: out.w, h: out.h, src: [W, H] } },
+    })
+  } catch (e) {
+    // 결과는 이미 저장됨 — pending으로 남으면 2분 뒤부터 세지 않는다(손님에게 유리). 숨기지 않고 남긴다
+    console.error(`[studio-upload] bg_gen 사용 기록 완료 표시 실패 id=${usageId}:`, e.message)
+  }
+  let left = null
+  if (!staff) {
+    try {
+      left = Math.max(0, BG_GEN_FREE_PER_DAY - (await genUsageToday(ctx, limit)).mine)
+    } catch (e) {
+      console.error('[studio-upload] bg_gen 남은 횟수 다시 세기 실패 (화면이 상태를 다시 묻는다):', e.message)
+    }
+  }
+  console.log(`[studio-upload] bg_generate ${t.image.id} ${p.modelKey} ${preset} ${result.ms}ms via=${result.via} ${out.w}x${out.h}`)
+  return res.status(200).json({ ...out, left })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -936,7 +1103,9 @@ export default async function handler(req, res) {
     if (body.action === 'bg_remove') return await bgRemove(ctx, body, res)
     if (body.action === 'bg_refine_prepare') return await bgRefinePrepare(ctx, body, res)
     if (body.action === 'bg_refine_confirm') return await bgRefineConfirm(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm' 중 하나여야 합니다.")
+    if (body.action === 'bg_gen_status') return await bgGenStatus(ctx, body, res)
+    if (body.action === 'bg_generate') return await bgGenerate(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

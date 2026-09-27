@@ -36,7 +36,7 @@
             @click="pick($event, [it.id])" @keydown.enter.prevent="pick($event, [it.id])"
           >
             <span class="st-layer-thumb">
-              <img v-if="imageUrl(it)" :src="imageUrl(it)" alt="" draggable="false" class="w-full h-full object-cover" :style="views[it.imageId]?.bgColor ? { background: views[it.imageId].bgColor } : null" />
+              <img v-if="imageUrl(it)" :src="imageUrl(it)" alt="" draggable="false" class="w-full h-full object-cover" :style="thumbUnderStyle(views[it.imageId])" />
               <ImageIcon v-else-if="isImage(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Type v-else-if="isValidTextItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Square v-else-if="isValidShapeItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
@@ -66,6 +66,7 @@ import { isValidTableItem, tableLabel } from '@/lib/studioTable'
 import { isValidImageItem } from '@/lib/studioPage'
 import { isValidTextItem, textLabel } from '@/lib/studioText'
 import { KIND_LABEL } from '@/lib/studioProjects'
+import { thumbUnderStyle } from '@/lib/studioViewImage'
 
 const props = defineProps({
   page: { type: Object, required: true },

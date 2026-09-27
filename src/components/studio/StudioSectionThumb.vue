@@ -12,10 +12,17 @@
       <StudioShapeView v-else-if="isValidShapeItem(it) || isValidLineItem(it)" :item="it" :scale="scale" />
       <!-- 사이즈표 (11-2): 페이지와 같은 paint spec -->
       <StudioTableView v-else-if="isValidTableItem(it)" :item="it" :scale="scale" />
-      <img
-        v-else-if="drawImages && views[it.imageId]?.url" :src="views[it.imageId].url" alt="" draggable="false"
-        class="block w-full h-full st-thumb-img" :style="imgStyle(it)"
-      />
+      <template v-else-if="drawImages && views[it.imageId]?.url">
+        <!-- AI 배경 (17-4): 사진 아래 (페이지 StudioPageView와 같은 규칙 — 뒤집기만, 필터 없음) -->
+        <img
+          v-if="views[it.imageId].bgUrl" :src="views[it.imageId].bgUrl" alt="" draggable="false"
+          class="absolute inset-0 block w-full h-full st-thumb-img" :style="flipOnly(it)" data-bg-under
+        />
+        <img
+          :src="views[it.imageId].url" alt="" draggable="false"
+          class="relative block w-full h-full st-thumb-img" :style="imgStyle(it)"
+        />
+      </template>
       <div v-else class="w-full h-full st-placeholder" />
     </div>
   </div>
@@ -67,6 +74,10 @@ function itemStyle(it, index) {
     opacity: it.opacity ?? 1, transform: it.rotation ? `rotate(${it.rotation}deg)` : null, zIndex: index + 1,
     background: v?.url && v.bgColor ? v.bgColor : null,
   }
+}
+function flipOnly(it) {
+  const sx = it.flipX ? -1 : 1, sy = it.flipY ? -1 : 1
+  return sx === 1 && sy === 1 ? null : { transform: `scale(${sx}, ${sy})` }
 }
 function imgStyle(it) {
   const sx = it.flipX ? -1 : 1, sy = it.flipY ? -1 : 1

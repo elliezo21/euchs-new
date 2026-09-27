@@ -190,6 +190,28 @@ const page = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
   await renderSection(page([s]), 's1', deps, { scale: 1 })
   eq('단색 없음(예전 사진): 사진 자리 채우기 없음', log.filter(e => e.c === 'c0' && e.op === 'fillRect').length, 1)
 }
+// ── 5-3. AI 배경 (17-4): 아래 그림을 사진과 같은 자리(cover)에 먼저, 필터는 사진 장에만 ──
+{
+  const log = []
+  const deps = { ...fakeDeps(log), lookOf: () => ({ brightness: 60 }) }
+  const orig = deps.getImage
+  deps.getImage = async id => ({ ...(await orig(id)), bgSource: 'AIBG-img-1' })
+  const s = { id: 's1', height: 400, bg: '#abcdef', items: [img('a', 'img-1', { flipX: true })] }
+  await renderSection(page([s]), 's1', deps, { scale: 1 })
+  const main = log.filter(e => e.c === 'c0')
+  const iBg = main.findIndex(e => e.op === 'drawImage' && e.args[0] === 'AIBG-img-1')
+  const iPhoto = main.findIndex(e => e.op === 'drawImage' && typeof e.args[0] === 'string' && /^c\d/.test(e.args[0]))
+  eq('AI 배경: 아래 그림을 먼저 그림', [iBg >= 0, iPhoto > iBg], [true, true])
+  eq('AI 배경: 사진과 같은 cover 자리', main[iBg].args.slice(2).map(v => Math.round(v * 10) / 10), [12.5, 0, 975, 500, -390, -200, 780, 400])
+  eq('AI 배경: 필터 거는 사진 장에는 안 들어감', log.filter(e => e.c !== 'c0' && e.op === 'drawImage').map(e => e.args[0]), ['SRC-img-1'])
+}
+{
+  const log = []
+  const deps = fakeDeps(log)
+  const s = { id: 's1', height: 400, bg: '#abcdef', items: [img('a', 'img-1')] }
+  await renderSection(page([s]), 's1', deps, { scale: 1 })
+  eq('AI 배경 없음(예전 사진): 사진 한 번만 그림', log.filter(e => e.c === 'c0' && e.op === 'drawImage').length, 1)
+}
 {
   const log = []
   const deps = fakeDeps(log)

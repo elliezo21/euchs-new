@@ -61,7 +61,7 @@
               ><RefreshCw class="w-3 h-3" :stroke-width="2.5" />다시 시도</button>
               <img
                 v-else-if="thumbState(img) === 'ready'" :src="views[img.id].url" alt=""
-                class="w-full h-full object-cover" :style="views[img.id].bgColor ? { background: views[img.id].bgColor } : null"
+                class="w-full h-full object-cover" :style="thumbUnderStyle(views[img.id])"
                 @load="onThumbLoad(img.id, $event)" @error="onThumbError(img.id)"
               />
               <span v-else class="absolute inset-0 st-skeleton" data-thumb-loading />
@@ -126,6 +126,7 @@ import { SOURCE_1688, SOURCE_MINE, defaultSource, filterImages, tabCounts, tabOf
 import { DRAG_IMAGE_TYPE } from '@/lib/studioPage'
 import { studioErrorMessage } from '@/lib/studioApi'
 import { afterPaint } from '@/lib/studioImageCache'
+import { thumbUnderStyle } from '@/lib/studioViewImage'
 
 const props = defineProps({
   images: { type: Array, default: () => [] },

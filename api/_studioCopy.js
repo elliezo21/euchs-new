@@ -13,6 +13,7 @@
  *     {uid}/{projectId}/final/{imageId}_v{version}.jpg
  *     {uid}/{projectId}/bg/{imageId}/mask_{key}.png        (17-1 배경 마스크 — edit.bg.mask.path)
  *     {uid}/{projectId}/bg/{imageId}/refined_{key}.png     (17-3 다듬은 마스크 — edit.bg.refined.path)
+ *     {uid}/{projectId}/bg/{imageId}/ai_{key}.{png|jpg|webp} (17-4 AI 배경 이미지 — edit.bg.ai.path)
  */
 
 export const COPY_SUFFIX = ' (복사본)'
@@ -64,7 +65,9 @@ export function newBgPath(path, { uid, fromProject, toProject, fromImage, toImag
   const from = `${uid}/${fromProject}/bg/${fromImage}/`
   const p = String(path || '')
   const name = p.startsWith(from) ? p.slice(from.length) : ''
-  if (!/^(mask|refined)_[0-9a-f]{16}\.png$/.test(name)) throw copyError(`배경 마스크 경로가 규칙과 다름: ${path}`)
+  if (!/^(mask|refined)_[0-9a-f]{16}\.png$/.test(name) && !/^ai_[0-9a-f]{16}\.(png|jpg|webp)$/.test(name)) {
+    throw copyError(`배경 파일 경로가 규칙과 다름: ${path}`)
+  }
   return `${uid}/${toProject}/bg/${toImage}/${name}`
 }
 
@@ -91,9 +94,9 @@ export function rewriteEdit(edit, ids) {
       p.path = to
     }
   }
-  // 배경: AI 마스크(bg.mask, 17-1)와 다듬은 마스크(bg.refined, 17-3) 둘 다 새 폴더로
+  // 배경: AI 마스크(bg.mask, 17-1)·다듬은 마스크(bg.refined, 17-3)·AI 배경 이미지(bg.ai, 17-4) 모두 새 폴더로
   const bg = out && typeof out === 'object' && out.bg && typeof out.bg === 'object' ? out.bg : null
-  for (const m of bg ? [bg.mask, bg.refined] : []) {
+  for (const m of bg ? [bg.mask, bg.refined, bg.ai] : []) {
     if (!m || typeof m.path !== 'string') continue
     const to = newBgPath(m.path, ids)
     if (!seen.has(m.path)) { seen.add(m.path); files.push({ from: m.path, to, kind: 'bg' }) }

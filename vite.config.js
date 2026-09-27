@@ -1017,6 +1017,9 @@ function lab1688Plugin(env) {
             if (!process.env.FAL_KEY)                      process.env.FAL_KEY                      = env.FAL_KEY                      || ''
             if (!process.env.STUDIO_BG_MODEL)              process.env.STUDIO_BG_MODEL              = env.STUDIO_BG_MODEL              || ''
             if (!process.env.STUDIO_BG_DAILY_LIMIT)        process.env.STUDIO_BG_DAILY_LIMIT        = env.STUDIO_BG_DAILY_LIMIT        || ''
+            // 17-4 AI 배경 (api/_studioBgGen.js)
+            if (!process.env.STUDIO_BG_GEN_MODEL)          process.env.STUDIO_BG_GEN_MODEL          = env.STUDIO_BG_GEN_MODEL          || ''
+            if (!process.env.STUDIO_BG_GEN_DAILY_LIMIT)    process.env.STUDIO_BG_GEN_DAILY_LIMIT    = env.STUDIO_BG_GEN_DAILY_LIMIT    || ''
             const wrappedRes = Object.assign(Object.create(res), {
               status(code) {
                 res.statusCode = code

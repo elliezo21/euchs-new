@@ -55,10 +55,15 @@ export function bgFolder(uid, projectId, imageId) {
   return `${uid}/${projectId}/bg/${imageId}`
 }
 
-/** 자격 — 관리자는 늘, 아니면 결제까지 한 주문 1건 이상 */
-export async function isBgEligible(ctx) {
+/** 관리자·스태프인지 (17-4 AI 배경의 1인 하루 횟수에서 뺄 때도 이것 하나를 쓴다) */
+export async function isBgStaff(ctx) {
   if (ctx.isAdmin) return true
-  if (await isAdminOrStaff(ctx.cfg, ctx.userId, ctx.email)) return true
+  return !!(await isAdminOrStaff(ctx.cfg, ctx.userId, ctx.email))
+}
+
+/** 자격 — 관리자는 늘, 아니면 결제까지 한 주문 1건 이상 (17-4 AI 배경도 이 함수) */
+export async function isBgEligible(ctx) {
+  if (await isBgStaff(ctx)) return true
   const rows = await sb(ctx.cfg, `orders?select=id&user_id=eq.${ctx.userId}&status=in.(${ORDER_OK_STATUSES.join(',')})&limit=1`)
   return Array.isArray(rows) && rows.length > 0
 }

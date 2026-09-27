@@ -132,3 +132,93 @@ export async function removeBackground({ falKey, modelKey, imageUrl, timeoutMs =
     clearTimeout(timer)
   }
 }
+
+// ── AI 배경 만들기 (17-4) ────────────────────────────────────────────────────
+// fal 공식 페이지 확인 (2026-09-27): https://fal.ai/models/fal-ai/bria/background/replace
+//   가격 $0.04 / 생성, "Trained exclusively on licensed data for safe and risk-free commercial use"
+//   입력 image_url(필수) · prompt · ref_image_url · negative_prompt · refine_prompt(기본 true) · seed · fast(기본 true) · num_images(기본 1) · sync_mode
+//   출력 { images: [{ url, content_type, file_name, file_size, width, height }], seed }
+// 보내는 칸: image_url · prompt · num_images: 1(여러 장 만들지 않는다 — 비용 통제, 기본값과 같지만 명시) · sync_mode: true. 나머지는 fal 기본값
+// ★ 제품 픽셀은 이 결과에서 쓰지 않는다 — 화면이 우리 원본 + 마스크(studioBg.bgMaskSource)로 제품을 결과 위에 다시 덮는다.
+//   그래서 제품 자리를 옮기는 모델(예: Bria Product Shot — 배치·크기를 바꿈)은 쓰지 않는다.
+export const DEFAULT_BG_GEN_MODEL = 'bria-replace'
+export const BG_GEN_MODELS = {
+  'bria-replace': {
+    provider: 'fal',
+    endpoint: 'fal-ai/bria/background/replace',
+    costUsd: () => 0.04,
+  },
+}
+
+/** STUDIO_BG_GEN_MODEL (요청 시점에 읽는다). 키는 배경 지우기와 같은 FAL_KEY */
+export function bgGenProviderConfig(env = process.env) {
+  let modelKey = String(env.STUDIO_BG_GEN_MODEL || '').trim() || DEFAULT_BG_GEN_MODEL
+  if (!BG_GEN_MODELS[modelKey]) {
+    console.warn(`[studio-bg-gen] STUDIO_BG_GEN_MODEL 값이 알 수 없는 모델 — 기본값 ${DEFAULT_BG_GEN_MODEL} 사용`)
+    modelKey = DEFAULT_BG_GEN_MODEL
+  }
+  const falKey = String(env.FAL_KEY || '').trim()
+  return { modelKey, model: BG_GEN_MODELS[modelKey], falKey, ready: !!falKey }
+}
+
+/**
+ * AI 배경 결과 이미지(바이트) 1장. 실패·시간 초과는 BgProviderError (code: bg_failed | bg_timeout — 부르는 쪽이 gen 문구로 바꾼다)
+ * @param {{ falKey, modelKey, imageUrl, prompt, timeoutMs?, fetchImpl? }} o
+ * @returns {Promise<{ buf: Buffer, via: 'data'|'url', ms, costUsd, endpoint, width?, height? }>}
+ */
+export async function generateBackground({ falKey, modelKey, imageUrl, prompt, timeoutMs = BG_TIMEOUT_MS, fetchImpl = fetch }) {
+  const model = BG_GEN_MODELS[modelKey]
+  if (!model) throw new BgProviderError('bg_failed', `알 수 없는 AI 배경 모델: ${modelKey}`)
+  if (!falKey) throw new BgProviderError('bg_failed', 'FAL_KEY 없음')
+  if (typeof prompt !== 'string' || !prompt) throw new BgProviderError('bg_failed', '프롬프트 없음')
+  const t0 = Date.now()
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    let r
+    try {
+      r = await fetchImpl(`${FAL_RUN_BASE}/${model.endpoint}`, {
+        method: 'POST',
+        headers: falHeaders(falKey),
+        body: JSON.stringify({ image_url: imageUrl, prompt, num_images: 1, sync_mode: true }),
+        signal: controller.signal,
+      })
+    } catch (e) {
+      if (e?.name === 'AbortError') throw new BgProviderError('bg_timeout', `fal 응답 시간 초과 (${timeoutMs}ms)`)
+      throw new BgProviderError('bg_failed', `fal 요청 실패: ${e?.message || e}`)
+    }
+    const text = await r.text()
+    if (!r.ok) {
+      const errType = r.headers?.get?.('x-fal-error-type') || ''
+      throw new BgProviderError(r.status === 504 ? 'bg_timeout' : 'bg_failed', `fal ${r.status} ${errType}: ${text.slice(0, 300)}`)
+    }
+    let body
+    try { body = JSON.parse(text) } catch { throw new BgProviderError('bg_failed', `fal 응답이 JSON이 아님: ${text.slice(0, 120)}`) }
+    const img = Array.isArray(body?.images) ? body.images[0] : null
+    const url = img?.url
+    if (typeof url !== 'string' || !url) throw new BgProviderError('bg_failed', 'fal 응답에 images[0].url 없음')
+    let buf, via
+    if (url.startsWith('data:')) {
+      buf = fromDataUri(url)
+      via = 'data'
+    } else if (url.startsWith('https://')) {
+      console.warn('[studio-bg-gen] fal이 data URI 대신 결과 주소를 돌려줌 — 바로 받아 옴')
+      let d
+      try {
+        d = await fetchImpl(url, { signal: controller.signal })
+      } catch (e) {
+        if (e?.name === 'AbortError') throw new BgProviderError('bg_timeout', '결과 받기 시간 초과')
+        throw new BgProviderError('bg_failed', `결과 받기 실패: ${e?.message || e}`)
+      }
+      if (!d.ok) throw new BgProviderError('bg_failed', `결과 받기 ${d.status}`)
+      buf = Buffer.from(await d.arrayBuffer())
+      via = 'url'
+    } else {
+      throw new BgProviderError('bg_failed', '결과 주소 형식이 예상과 다름')
+    }
+    const ms = Date.now() - t0
+    return { buf, via, ms, costUsd: model.costUsd(ms), endpoint: model.endpoint }
+  } finally {
+    clearTimeout(timer)
+  }
+}

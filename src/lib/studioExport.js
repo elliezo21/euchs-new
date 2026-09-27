@@ -11,6 +11,7 @@
  *     Path2D            → SVG path 문자열을 받는 Path2D 생성자
  *     getImage(imageId) → Promise<{ source, width, height, notes?: string[], bgColor?: string|null }>  사진 (완성 JPG 또는 원본 + 지우기 조각, 원본 크기)
  *                         bgColor = 단색 배경(17-2) — 사진 자리를 이 색으로 먼저 채운 뒤 사진(필터 적용)을 그린다 → 필터는 사진에만, 색은 그대로
+ *                         bgSource = AI 배경(17-4) — 사진과 같은 크기의 아래 그림. 사진과 같은 자리·뒤집기로 먼저 그린 뒤 사진(필터 적용)
  *     lookOf(imageId)   → look (필터·조정 — 화면과 같은 값)
  *     measure(str, font)→ 글자 폭 (글자 요소 줄바꿈·표 칸 자르기와 같은 측정 — studioFonts.createTextMeasure)
  *     prepareFonts(list)→ Promise<boolean>  [{ style, text }] 글꼴 조각 받기 (studioFonts.loadFontsFor)
@@ -366,6 +367,8 @@ function drawPhoto(ctx, it, img, env) {
     ctx.translate(c.x + c.w / 2, c.y + c.h / 2)
     if (it.flipX || it.flipY) ctx.scale(it.flipX ? -1 : 1, it.flipY ? -1 : 1)
     const src = coverSource(img.width, img.height, c.w, c.h)
+    // AI 배경 (17-4): 사진과 같은 크기·자르기의 아래 그림을 같은 자리(cover·뒤집기)에 먼저 — 필터를 거치지 않는다 (화면 = 사진 밑 <img>)
+    if (img.bgSource) ctx.drawImage(img.bgSource, src.sx, src.sy, src.sw, src.sh, -c.w / 2, -c.h / 2, c.w, c.h)
     const look = env.deps.lookOf(it.imageId)
     if (isDefaultLook(look)) {
       ctx.drawImage(img.source, src.sx, src.sy, src.sw, src.sh, -c.w / 2, -c.h / 2, c.w, c.h)

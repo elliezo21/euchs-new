@@ -7,7 +7,7 @@
 
       <template v-else>
         <div class="flex items-center gap-3">
-          <div class="st-bg-thumb" :class="bg && bg.mode === 'transparent' ? 'is-checker' : ''" :style="paintColor ? { background: paintColor } : null" data-bg-thumb>
+          <div class="st-bg-thumb" :class="bg && bg.mode === 'transparent' ? 'is-checker' : ''" :style="thumbStyle" data-bg-thumb>
             <img v-if="thumbUrl" :src="thumbUrl" alt="" class="w-full h-full object-contain" draggable="false" />
           </div>
           <div class="min-w-0">
@@ -16,11 +16,11 @@
           </div>
         </div>
 
-        <!-- 결과가 있으면: 원래 배경 / 투명 / 단색 (저장된 마스크만 씀 — 다시 부르지 않는다) -->
+        <!-- 결과가 있으면: 원래 배경 / 투명 / 단색 / AI 배경(만든 적 있을 때 — 저장된 그림, 돈 안 듦) (저장된 마스크만 씀 — 다시 부르지 않는다) -->
         <template v-if="bg">
           <div class="st-seg w-full" role="radiogroup" aria-label="배경 보기">
             <button
-              v-for="m in MODES" :key="m.key" type="button" role="radio" :aria-checked="bg.mode === m.key"
+              v-for="m in modes" :key="m.key" type="button" role="radio" :aria-checked="bg.mode === m.key"
               class="st-seg-item flex-1" :class="bg.mode === m.key ? 'is-active' : ''" :data-bg-mode="m.key"
               @click="$emit('mode', m.key)"
             >{{ m.label }}</button>
@@ -117,10 +117,58 @@
       </div>
       <p v-if="row && !bg" class="st-desc-sm break-keep" data-bg-solid-need>먼저 [배경 지우기]를 해 주세요</p>
       <p v-else-if="row && bg && bg.mode !== 'color'" class="st-desc-sm break-keep">위에서 [단색]을 고르면 배경을 한 가지 색으로 채워요</p>
-      <div class="flex items-center gap-2" data-bg-soon-item="AI 배경">
-        <span class="text-[13px] font-bold st-ink-2">AI 배경</span>
-        <span class="st-badge st-badge-outline ml-auto">곧 추가돼요</span>
+    </div>
+
+    <!-- AI 배경 (17-4): 장면을 골라 [만들기] — 1회 사용, 1인 하루 무료 3회(서버 값). 제품은 원본 그대로 위에 덮는다 -->
+    <div v-if="row" class="px-4 pb-4 space-y-2 st-border-t pt-4" data-bg-ai-box>
+      <div class="flex items-center gap-2">
+        <span class="text-[13px] font-extrabold st-ink">AI 배경</span>
+        <span v-if="bg && leftText" class="ml-auto text-[11px] font-bold st-muted" data-bg-gen-left>{{ leftText }}</span>
       </div>
+      <template v-if="!bg">
+        <button type="button" class="st-btn w-full" disabled data-bg-gen-locked><Lock class="w-3.5 h-3.5" :stroke-width="2" /> AI 배경 만들기</button>
+        <p class="st-desc-sm break-keep" data-bg-gen-need>먼저 [배경 지우기]를 해 주세요</p>
+      </template>
+      <template v-else>
+        <div v-if="genStatus.loading" class="st-desc-sm" data-bg-gen-status="loading">확인하는 중…</div>
+        <template v-else-if="genStatus.reason === 'not_eligible'">
+          <button type="button" class="st-btn w-full" disabled data-bg-gen-locked><Lock class="w-3.5 h-3.5" :stroke-width="2" /> AI 배경 만들기</button>
+          <p class="st-desc-sm break-keep" data-bg-gen-status="not_eligible">이유씨로 주문한 고객에게 열리는 기능이에요</p>
+        </template>
+        <template v-else-if="genStatus.reason === 'no_key' || genStatus.reason === 'no_table'">
+          <button type="button" class="st-btn w-full" disabled data-bg-gen-soon>AI 배경 만들기 <span class="st-badge ml-1">준비 중</span></button>
+          <p class="st-desc-sm break-keep" data-bg-gen-status="not_ready">AI 배경을 준비하고 있어요. 곧 쓸 수 있어요.</p>
+        </template>
+        <template v-else-if="genStatus.reason === 'error'">
+          <p class="st-desc-sm break-keep" data-bg-gen-status="error">{{ genStatus.message || '상태를 확인하지 못했어요.' }}</p>
+          <button type="button" class="st-btn w-full" data-bg-gen-status-retry @click="$emit('retry-gen-status')">다시 확인</button>
+        </template>
+        <template v-else>
+          <div class="grid grid-cols-2 gap-1.5" role="radiogroup" aria-label="장면" data-bg-gen-presets>
+            <button
+              v-for="p in BG_GEN_PRESETS" :key="p.key" type="button" role="radio" :aria-checked="preset === p.key"
+              class="st-chip" :class="preset === p.key ? 'is-active' : ''" :data-bg-gen-preset="p.key" :disabled="genBusy"
+              @click="preset = p.key"
+            >{{ p.label }}</button>
+          </div>
+          <button
+            type="button" class="st-btn st-btn-primary w-full" :disabled="genBusy || !canGenerate" data-bg-generate
+            @click="$emit('generate', preset)"
+          >
+            <Loader2 v-if="genBusy" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+            <Sparkles v-else class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ genBusy ? '만드는 중…' : 'AI 배경 만들기' }}
+            <span v-if="!genBusy" class="st-badge ml-1" data-bg-gen-cost>1회 사용</span>
+          </button>
+          <p v-if="blockText" class="text-[12px] font-bold st-ink-2 break-keep" data-bg-gen-block>{{ blockText }}</p>
+          <p class="st-desc-sm break-keep">제품은 원본 그대로 두고 배경만 새로 만들어요</p>
+          <p class="st-desc-sm break-keep" data-bg-gen-notice>사진은 배경을 만들기 위해 외부 AI 서비스로 보내져요.</p>
+        </template>
+        <p v-if="bg.ai" class="st-desc-sm break-keep" data-bg-gen-current>
+          만든 AI 배경: {{ presetLabel(bg.ai.preset) || '장면' }}<span v-if="bg.mode !== 'ai'"> · 위 [AI 배경]을 누르면 다시 써요 (횟수 안 씀)</span>
+        </p>
+        <p v-if="genError" class="text-[12px] font-bold st-danger-text break-keep" data-bg-gen-error>{{ genError }}</p>
+      </template>
     </div>
   </div>
 </template>
@@ -132,10 +180,13 @@
  * 단색(17-2)은 AI 없음·무료·자격 검사 없음 — 배경을 지운(마스크가 있는) 사진이면 누구나. 없으면 잠그고 "먼저 [배경 지우기]를 해 주세요".
  *   색 이벤트: ('color', 값, { commit }) — commit false = 색 고르기 칸을 끄는 중(이력 없음), true = 놓음·견본·구간 색(이력 한 칸)
  * 경계 다듬기(17-3)도 마스크가 있는 사진에만 — ('refine')이면 편집기가 다듬기 화면을 연다. 없으면 잠그고 같은 안내 문구.
+ * AI 배경(17-4): 장면 프리셋 → ('generate', preset). 자격·남은 횟수는 서버(bg_gen_status)가 알려 준 genStatus로만.
+ *   한 번 만든 AI 배경(bg.ai)은 [AI 배경] 모드로 다시 고를 수 있다(저장된 그림 — 돈 안 듦).
  */
-import { computed } from 'vue'
-import { Eraser, Lock, Loader2, RotateCcw, Pipette, Brush } from 'lucide-vue-next'
+import { ref, computed, watch } from 'vue'
+import { Eraser, Lock, Loader2, RotateCcw, Pipette, Brush, Sparkles } from 'lucide-vue-next'
 import { BG_COLOR_SWATCHES, bgPaintColor, bgMark } from '@/lib/studioBg'
+import { BG_GEN_PRESETS, presetLabel } from '@/lib/studioBgGen'
 
 const props = defineProps({
   row: { type: Object, default: null },           // 고른 사진 행 (done)
@@ -145,14 +196,46 @@ const props = defineProps({
   status: { type: Object, required: true },        // { loading, ready, reason, message }
   busy: { type: Boolean, default: false },         // 이 사진을 처리 중
   error: { type: String, default: '' },
+  thumbUnder: { type: String, default: null },     // AI 배경 아래 그림 (17-4 — 화면 작은 사진과 같은 크기)
+  genStatus: { type: Object, required: true },     // AI 배경 { loading, ready, reason, staff, left, perDay, globalLeft, message }
+  genBusy: { type: Boolean, default: false },      // 이 사진의 AI 배경을 만드는 중
+  genError: { type: String, default: '' },
 })
-defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status', 'refine'])
+defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status', 'refine', 'generate', 'retry-gen-status'])
 
 const MODES = [
   { key: 'none', label: '원래 배경' },
   { key: 'transparent', label: '투명' },
   { key: 'color', label: '단색' },
+  { key: 'ai', label: 'AI 배경' },
 ]
+// [AI 배경] 모드는 한 번 만든 뒤에만 (그 전에는 아래 [AI 배경 만들기])
+const modes = computed(() => MODES.filter(m => m.key !== 'ai' || !!props.bg?.ai))
+const preset = ref(BG_GEN_PRESETS[0].key)
+watch(() => props.row?.id, () => {
+  const p = props.bg?.ai?.preset
+  preset.value = p && BG_GEN_PRESETS.some(x => x.key === p) ? p : BG_GEN_PRESETS[0].key
+}, { immediate: true })
+const leftText = computed(() => {
+  const g = props.genStatus
+  if (!g.ready) return ''
+  return g.staff ? '관리자 · 1인 횟수 제한 없음' : `오늘 남은 무료 횟수 ${g.left}/${g.perDay}`
+})
+const canGenerate = computed(() => {
+  const g = props.genStatus
+  return !!g.ready && (g.staff || g.left > 0) && g.globalLeft > 0
+})
+const blockText = computed(() => {
+  const g = props.genStatus
+  if (!g.ready) return ''
+  if (!g.staff && g.left <= 0) return '오늘 무료 횟수를 다 썼어요. 내일 다시 쓸 수 있어요.'
+  if (g.globalLeft <= 0) return '오늘 준비된 AI 배경이 모두 소진됐어요. 내일 다시 쓸 수 있어요.'
+  return ''
+})
+const thumbStyle = computed(() => {
+  if (props.thumbUnder) return { backgroundImage: `url("${props.thumbUnder}")`, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+  return paintColor.value ? { background: paintColor.value } : null
+})
 
 const paintColor = computed(() => bgPaintColor(props.bg))
 const markText = computed(() => bgMark(props.bg) || '배경 지움 · 원래 배경으로 보기')
@@ -180,5 +263,9 @@ const rowLabel = computed(() => props.row?.upload_name || (props.row ? `사진 $
 .st-swatch.is-active { box-shadow: 0 0 0 2px var(--st-accent); }
 .st-swatch-pick { background: var(--st-card); color: var(--st-ink-2); position: relative; }
 .st-swatch-pick:focus-within { border-color: var(--st-accent); }
+/* 장면 칩은 스튜디오 공통 .st-chip(studio-tokens.css) — 두 칸 격자에 맞게 가운데 정렬만 */
+[data-bg-gen-presets] .st-chip { justify-content: center; font-size: 12px; font-weight: 700; }
+.st-chip:disabled { opacity: 0.5; }
+.st-border-t { border-top: 1px solid var(--st-line); }
 .st-swatch-mini { width: 12px; height: 12px; border-radius: 3px; border: 1px solid var(--st-line-strong); display: inline-block; }
 </style>

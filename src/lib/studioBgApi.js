@@ -42,6 +42,34 @@ export async function uploadBgRefined({ projectId, imageId, key, blob, width, he
   return { path, key, w: width, h: height }
 }
 
+/**
+ * AI 배경 (17-4) 상태 — 쓸 수 있는지 + 오늘 남은 무료 횟수 (서버 값). 관리자·스태프는 left = null(1인 횟수 없음)
+ * @returns {Promise<{ ready, reason, staff?, left?, perDay?, globalLeft?, message? }>}
+ */
+export async function fetchBgGenStatus() {
+  const r = await callStudioApi('studio-upload', { action: 'bg_gen_status' })
+  if (!r.ok) {
+    console.error('[studioBgApi] AI 배경 상태 확인 실패:', r.code)
+    return { ready: false, reason: 'error', message: studioErrorMessage('bg', r.code) }
+  }
+  return r.data
+}
+
+/**
+ * AI 배경 만들기 (돈이 나가는 곳 — [만들기]를 누를 때만). 실패는 throw (message = 고객 문구, code) — 실패는 횟수에서 빠지지 않는다
+ * @returns {Promise<{ path, key, w, h, preset, model, left }>}
+ */
+export async function requestBgGenerate(projectId, imageId, preset) {
+  const r = await callStudioApi('studio-upload', { action: 'bg_generate', projectId, imageId, preset })
+  if (!r.ok) {
+    console.error('[studioBgApi] AI 배경 만들기 실패:', imageId, preset, r.code)
+    const e = new Error(studioErrorMessage('bg', r.code))
+    e.code = r.code
+    throw e
+  }
+  return r.data
+}
+
 /** @returns {Promise<{ path, key, model, width, height, reused }>} 실패는 throw (message = 고객 문구, code) */
 export async function requestBgRemove(projectId, imageId) {
   const r = await callStudioApi('studio-upload', { action: 'bg_remove', projectId, imageId })

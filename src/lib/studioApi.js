@@ -129,6 +129,13 @@ const BG = {
   sign_failed: '저장 준비에 실패했어요. [적용]을 다시 눌러 주세요.',
   not_uploaded: '저장이 끝나지 않았어요. [적용]을 다시 눌러 주세요.',
   upload_failed: '파일을 올리지 못했어요. 인터넷 연결을 확인하고 [적용]을 다시 눌러 주세요.',
+  // AI 배경 (17-4 bg_gen_status / bg_generate) — 실패는 횟수에서 빠지지 않는다
+  bg_gen_user_limit: '오늘 무료 횟수를 다 썼어요. 내일 다시 쓸 수 있어요.',
+  bg_gen_global_limit: '오늘 준비된 AI 배경이 모두 소진됐어요. 내일 다시 쓸 수 있어요.',
+  bg_gen_failed: 'AI 배경을 만들지 못했어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.',
+  bg_gen_timeout: 'AI 배경이 오래 걸려 멈췄어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.',
+  bg_gen_need_mask: '먼저 [배경 지우기]를 해 주세요.',
+  bg_gen_sql_missing: 'AI 배경을 준비하고 있어요. 곧 쓸 수 있어요. (사용 기록 설정 필요)',
 }
 
 const TABLES = { product: PRODUCT, ingest: INGEST, upload: UPLOAD, copy: COPY, bg: BG }

@@ -43,11 +43,18 @@
                 v-if="compare && compare.imageId === it.imageId && compare.url" :src="compare.url" alt="" draggable="false" crossorigin="anonymous"
                 class="block w-full h-full pointer-events-none st-item-img" :style="flipStyle(it)" data-compare-img
               />
-              <img
-                v-else-if="viewOf(it.imageId)?.url" :src="viewOf(it.imageId).url" alt="" draggable="false"
-                class="block w-full h-full pointer-events-none st-item-img" :style="imgStyle(it)"
-                @load="onImgLoad(it.imageId, $event)" @error="onImgError(it.imageId)"
-              />
+              <template v-else-if="viewOf(it.imageId)?.url">
+                <!-- AI 배경 (17-4): 사진 아래 — 같은 크기·자르기·뒤집기, 필터 없음 (필터는 제품 사진에만) -->
+                <img
+                  v-if="viewOf(it.imageId).bgUrl" :src="viewOf(it.imageId).bgUrl" alt="" draggable="false"
+                  class="absolute inset-0 block w-full h-full pointer-events-none st-item-img" :style="flipStyle(it)" data-bg-under
+                />
+                <img
+                  :src="viewOf(it.imageId).url" alt="" draggable="false"
+                  class="relative block w-full h-full pointer-events-none st-item-img" :style="imgStyle(it)"
+                  @load="onImgLoad(it.imageId, $event)" @error="onImgError(it.imageId)"
+                />
+              </template>
               <!-- 사진을 준비하는 중·실패·없는 사진: 그 자리 안에만 보인다 (떠 있는 막대 아님) -->
               <div
                 v-else class="w-full h-full flex flex-col items-center justify-center gap-2 p-3 text-center st-placeholder st-muted"

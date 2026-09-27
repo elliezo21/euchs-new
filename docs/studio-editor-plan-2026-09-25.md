@@ -185,7 +185,8 @@
 | 17-1단계 — 서버 배경 지우기(fal BiRefNet v2)·투명·주문 고객 한정 | 완료 (크롬 확인 전 — fal 키·사용 기록 테이블 준비 뒤) | "studio 17-1: 서버 배경 지우기(fal BiRefNet v2)·투명·주문 고객 한정" |
 | 17-2단계 — 단색 배경 | 완료 (크롬 확인 전) | "studio 17-2: 단색 배경" |
 | 17-3단계 — 배경 경계 다듬기(살리기/지우기 붓) | 완료 (크롬 확인 전) | "feat(studio): 17-3 배경 경계 다듬기(살리기/지우기 붓)" |
-| 이후 (순서: 17-4 → 원클릭 AI → 검수·push, 18 보류 — 2026-09-27 해성) | 시작 전 | |
+| 17-4단계 — AI 배경(fal Bria Background Replace·1인 하루 3회) | 완료 (크롬 확인 전 — kind 체크 SQL 실행 뒤) | "feat(studio): 17-4 AI 배경(Bria Background Replace·1인 하루 3회)" |
+| 이후 (순서: 원클릭 AI → 검수·push, 18 보류 — 2026-09-27 해성) | 시작 전 | |
 
 ### 0단계 — 1-6b-3b 확인 → 커밋·push
 - 3b 파일은 고치지 않는다. 테스트 6종 + `npm run build` 통과 확인.
@@ -571,6 +572,18 @@
   - [적용]: 연 때와 같으면 그냥 닫기 / AI 마스크와 같으면 refined 뺌 / 아니면 PNG 올리고 refined 넣음 → 사진 이력 한 칸 "배경 다듬기"(편집기 Ctrl+Z로 되돌림). 저장 실패는 화면에 문구, 닫지 않음. [취소]·Esc = 저장·이력 없음
 - 표시: 목록 줄·사진 칸·패널 "배경 지움 · 다듬음" / "배경 단색 · 다듬음"
 - 테스트: `test-studio-bg-refine.mjs`(붓 계산·칠하는 중 = 다시 쌓기·AI로 되돌리기·key·저장 모양·예전 데이터·마스크 고르기·복사) · `test-studio-upload-bg.mjs`(bg_refine 서버 흐름)
+
+#### 17-4 — AI 배경 (완료, 크롬 확인 전 — kind 체크 SQL 실행 뒤)
+- 모델: fal **Bria Background Replace** (`fal-ai/bria/background/replace`, $0.04/생성, 라이선스 데이터로만 학습 — fal 공식 페이지 2026-09-27 확인). `STUDIO_BG_GEN_MODEL`(기본 `bria-replace`)로 바꿀 수 있게 표 하나(`BG_GEN_MODELS`). Bria Product Shot은 제품 배치·크기를 바꿔 우리 마스크로 덮을 수 없어 뺌
+- 제품 보존: AI 결과는 **배경으로만** 쓴다. 제품 = 우리 원본(지우기·덮기 포함) × 마스크(다듬은 것 우선 `bgMaskSource`)를 그 위에 덮는다 → AI가 다시 그린 제품은 보이지 않음(가장자리 반투명만 섞임)
+- 요청: image_url(원본 서명 5분) · prompt(프리셋 영어) · num_images 1 · sync_mode true, `X-Fal-Store-IO: 0`. 결과 = 받은 바이트 그대로 `{uid}/{projectId}/bg/{imageId}/ai_{sha256 16자}.{png|jpg|webp}`
+- 자격 = 배경 지우기와 같음(`isBgEligible`, 관리자 판단은 `isBgStaff` 공용). 1인 하루 3회(KST 자정, 관리자·스태프 제외) · 전체 하루 `STUDIO_BG_GEN_DAILY_LIMIT`(기본 50, 관리자 포함)
+- 사용 기록 `studio_ai_usage` kind `bg_generate` — **kind 체크 제약 변경 SQL 필요(17-4 보고서 9장, 해성 실행)**. 전에는 503 `bg_gen_sql_missing` + 원인 로그. pending → ok / 실패는 지움(미차감) / 2분 지난 pending은 안 셈 / pending을 넣은 뒤 오늘 센 행을 id 순으로 앞 N개만 읽어 내 행이 없으면 지우고 막음(동시 요청도 한도 안 넘음)
+- 저장: `edit.bg.mode = 'ai'`, `edit.bg.ai = { path, key, w, h, preset, model }`. mask·refined 그대로. 다른 모드로 바꿔도 ai는 남김 → [AI 배경] 다시 고르기·Ctrl+Z 무료
+- 합성: `applyBackground`가 AI 그림을 원본 크기 `under`로(`aiFitSource` — 비율 1% 안이면 늘림, 아니면 가운데 잘라 채움) → 사진과 같은 띠·자르기 → 화면 = 사진 밑 `<img>`(뒤집기만, 필터 없음, view entry `bgUrl`) · 미니뷰 같음 · 목록·레이어 썸네일 `thumbUnderStyle` · 내보내기·미리보기 = `drawPhoto`가 `bgSource`를 사진 전에 같은 cover로. 필터는 제품에만
+- 화면: [배경합성] 패널 "AI 배경" — 장면 8개(대리석 테이블·원목 테이블·따뜻한 거실·야외 자연광·화이트 스튜디오·파스텔 받침대·주방 조리대·욕실 선반), [AI 배경 만들기] "1회 사용", "오늘 남은 무료 횟수 n/3"(서버 값), 만드는 중…, 실패 이유(횟수 안 줄음), 다 쓰면 잠김, 배경 안 지운 사진은 잠김. 모드 [AI 배경]은 만든 뒤에만. 자유 입력 없음(검수 후보)
+- 이력 "AI 배경", 표시 "AI 배경"(+ " · 다듬음"), 복사본이 ai 파일도 복사
+- 테스트: `test-studio-bg-gen.mjs`(1인 3회·KST 경계·전체 한도·실패 미차감·동시·관리자·SQL 전·저장 모양·모드 전환 재사용·요청 모양) · `test-studio-export.mjs`(아래 그림 먼저·필터 장 밖)
 
 ### 18단계 — 화질 개선 (보류 — 2026-09-27 해성 결정)
 - 배경 제거와 같은 순서로 모델 조사 → 해성 승인 → 제작
