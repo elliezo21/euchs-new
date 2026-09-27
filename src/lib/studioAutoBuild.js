@@ -310,13 +310,14 @@ export async function runAutoPipeline(deps) {
   const total = Math.min(order.length, PROCESS_MAX)
   const report = (current, stage) => {
     const avg = took.length ? took.reduce((a, b) => a + b, 0) / took.length : null
-    onProgress({ stage, current, done: processed, total, avgMs: avg, etaMs: avg === null ? null : Math.round(avg * Math.max(0, total - processed)), results })
+    onProgress({ stage, current, done: processed, total, samples: took.length, avgMs: avg, etaMs: avg === null ? null : Math.round(avg * Math.max(0, total - processed)), results })
   }
   for (const row of order) {
     if (stopped || shouldStop()) { stopped = true; results.push({ id: row.id, status: 'stopped', placed: false }); continue }
     if (isTooSmall(row)) { results.push({ id: row.id, status: 'small', placed: false }); continue }
     if (processed >= PROCESS_MAX) { results.push({ id: row.id, status: 'overLimit', placed: false }); continue }
     const t0 = now()
+    let prepMs = 0 // 이 사진 처리 중 AI 준비(LaMa 모델 받기·세션)를 기다린 시간 — 남은 시간 평균에서 뺀다
     report(row.id, 'load')
     await yieldTick()
     let res
@@ -348,7 +349,7 @@ export async function runAutoPipeline(deps) {
           } else {
             report(row.id, 'erase')
             if (shouldStop()) throw new AutoStop()
-            const layers = await erase(row, plan.layers, { shouldStop })
+            const layers = await erase(row, plan.layers, { shouldStop, addPrepMs: ms => { prepMs += Math.max(0, ms) } })
             res = { id: row.id, status: 'erased', placed: true, stats, layers, auto: { ...base, status: 'erased' } }
           }
         }
@@ -364,7 +365,7 @@ export async function runAutoPipeline(deps) {
       const px0 = (userLayersOf(row) || []).length
       res = { id: row.id, status: 'failed', placed: true, reason, auto: { v: AUTO_VERSION, status: 'failed', reason: reason.slice(0, 200), lines: 0, han: 0, ratio: 0, px: px0 } }
     }
-    if (res.status !== 'dup') { processed++; took.push(now() - t0) }
+    if (res.status !== 'dup') { processed++; took.push(Math.max(0, now() - t0 - prepMs)) }
     res.ms = now() - t0
     if (res.auto) {
       res.auto.at = new Date(now()).toISOString()
@@ -375,6 +376,31 @@ export async function runAutoPipeline(deps) {
   }
   return { results, stopped }
 }
+
+// ── 남은 시간 표시 ──
+// 평균은 AI 준비 시간을 뺀 실제 사진 처리 시간만(runAutoPipeline took). 처리한 사진이 ETA_MIN_SAMPLES장 미만이면 숫자를 보이지 않는다.
+// 한 번 보인 분보다 늘어나지 않게(줄어들기만) — 앞 사진이 빨랐다가 느린 사진이 와도 숫자가 뛰지 않게.
+export const ETA_MIN_SAMPLES = 2
+export const ETA_CALCULATING = '시간을 계산하고 있어요'
+export const ETA_PREPARING = 'AI를 준비하고 있어요'
+
+/**
+ * @param {number|null} prevMin 지금까지 보인 분 (null = 아직 숫자 안 보임, 0 = "1분 안에")
+ * @param {{ etaMs: number|null, samples: number }} p runAutoPipeline onProgress 값
+ * @returns {{ min: number|null, text: string }}
+ */
+export function nextEta(prevMin, { etaMs, samples }) {
+  if (!(samples >= ETA_MIN_SAMPLES) || etaMs === null || etaMs === undefined || !Number.isFinite(etaMs)) {
+    return prevMin === null || prevMin === undefined ? { min: null, text: ETA_CALCULATING } : { min: prevMin, text: etaMinText(prevMin) }
+  }
+  const raw = etaMs < 60000 ? 0 : Math.max(1, Math.round(etaMs / 60000))
+  const min = prevMin === null || prevMin === undefined ? raw : Math.min(prevMin, raw)
+  return { min, text: etaMinText(min) }
+}
+function etaMinText(min) { return min === 0 ? '1분 안에 끝나요' : `약 ${min}분 남았어요` }
+
+/** 진행 화면 남은 시간 칸 — AI(모델) 준비 중이면 숫자 대신 지금 하는 일 */
+export function etaNote({ preparing, text }) { return preparing ? ETA_PREPARING : (text || ETA_CALCULATING) }
 
 /** 요약 수 — 진행 화면·검수 안내 */
 export function summarize(results) {

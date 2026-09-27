@@ -15,7 +15,7 @@ import { createOcrEngine } from '@/lib/studioAi/ocrEngine'
 import { AI_MODEL_ID, uploadAiPatch } from '@/lib/studioAiPatch'
 import { fillPlan, fillArea, cropRect, pastePrior, aiPatchKey } from '@/lib/studioFillPlan'
 import { pixelLayersOf } from '@/lib/studioEdit'
-import { runAutoPipeline, dHashFromGray, splitLayer, summarize, AutoStop, SPLIT_DEPTH_MAX, PROCESS_MAX, AutoFatal } from '@/lib/studioAutoBuild'
+import { runAutoPipeline, dHashFromGray, splitLayer, summarize, AutoStop, SPLIT_DEPTH_MAX, PROCESS_MAX, AutoFatal, nextEta } from '@/lib/studioAutoBuild'
 
 const AI_WAIT_MS = 5 * 60 * 1000 // LaMa 첫 준비(모델 약 200MB + 세션)가 느린 PC에서 걸리는 시간을 넉넉히
 const RETRY_MS = 2000
@@ -38,7 +38,7 @@ export function useAutoBuild({ images, session, loadImage, startAi, loadFacts })
     return {
       open: false, phase: 'idle', // idle | prepare | photos | layout | done
       prepare: { loaded: 0, total: 0, status: '' }, waitingAi: false,
-      current: null, stage: '', layer: null, done: 0, total: 0, etaMs: null, startedAt: 0,
+      current: null, stage: '', layer: null, done: 0, total: 0, etaMs: null, etaMin: null, etaText: '', startedAt: 0,
       counts: summarize([]), stopRequested: false, error: '',
     }
   }
@@ -99,9 +99,11 @@ export function useAutoBuild({ images, session, loadImage, startAi, loadFacts })
   }
 
   /** 지우기 계산·저장 (지우기 화면 runAi와 같은 순서) → ai가 붙은 레이어 */
-  async function eraseLayers(row, planned, img, { shouldStop }) {
+  async function eraseLayers(row, planned, img, { shouldStop, addPrepMs }) {
     if (!AI_MODEL_ID) throw new Error('AI 모델 설정이 없어 지우지 못했어요')
+    const w0 = Date.now()
     const engine = await waitAi(shouldStop)
+    addPrepMs?.(Date.now() - w0) // AI 준비를 기다린 시간은 남은 시간 평균에 넣지 않는다
     const W = row.width, H = row.height
     const list = planned.map(l => ({ ...l }))
     const depth = new Map() // layer id → 나눈 횟수
@@ -199,6 +201,9 @@ export function useAutoBuild({ images, session, loadImage, startAi, loadFacts })
           state.done = p.done
           state.total = p.total
           state.etaMs = p.etaMs
+          const eta = nextEta(state.etaMin, p)
+          state.etaMin = eta.min
+          state.etaText = eta.text
           state.counts = summarize(p.results)
           if (p.stage !== 'erase') state.layer = null
         },

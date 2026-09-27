@@ -9,6 +9,7 @@ import {
   runAutoPipeline, AutoStop, summarize, summarizeTitle, buildDrafts, optionCells, autoTemplate, buildAutoPage, oneClickTarget,
   TEXT_HEAVY_RATIO, TEXT_HEAVY_HAN, PIECE_MAX, AUTO_PAD, AUTO_MAX_LAYERS, PROCESS_MAX, MIN_SIDE, AUTO_VERSION,
   AutoFatal, leftoverLines, problemList, TITLE_DROP, AUTO_GAP, draftSectionIds, withDraftMark, isDraftSection,
+  nextEta, etaNote, ETA_CALCULATING, ETA_PREPARING,
 } from '../src/lib/studioAutoBuild.js'
 import { ocrModelBase, ocrFileList, OCR_FILES } from '../src/lib/studioAi/ocrModels.js'
 import { summarizeNotes, AI_MISSING_NOTE } from '../src/lib/studioPreview.js'
@@ -156,6 +157,38 @@ function fakeDeps(rows, spec, extra = {}) {
   eq('멈추기: 끝낸 사진 결과는 남고 나머지는 stopped', out.results.map(r => [r.id, r.status, r.placed]), [['a', 'clean', true], ['b', 'erased', true], ['c', 'stopped', false], ['d', 'stopped', false]])
   eq('멈추기: stopped 표시 · 반영은 끝낸 2장만', [out.stopped, commits.map(c => c.id)], [true, ['a', 'b']])
   eq('진행: 남은 시간 = 평균 × 남은 장수', progress.find(p => p.stage === 'done' && p.done === 1).etaMs, progress.find(p => p.stage === 'done' && p.done === 1).avgMs * 3)
+}
+{
+  // 남은 시간: AI 준비(LaMa 모델 받기)를 기다린 시간은 사진 처리 시간에서 뺀다
+  const rows = [fakeRow('a', 'gallery'), fakeRow('b'), fakeRow('c'), fakeRow('d')]
+  const spec = { a: { lines: [line(100, 100, 400, 140)] }, b: {}, c: {}, d: {} }
+  const progress = []
+  let t = 0
+  const { deps } = fakeDeps(rows, spec, {
+    now: () => t,
+    loadPixels: async row => { t += 1000; return { imageData: { id: row.id }, hash: hashOf(row.id) } },
+    erase: async (row, layers, ctx) => { t += 90000; ctx.addPrepMs(90000); return layers.map(l => ({ ...l, ai: { key: 'k', model: 'm', engine: 'wasm', patch: { path: 'p', ...l } } })) },
+    onProgress: p => progress.push(p),
+  })
+  await runAutoPipeline(deps)
+  const d1 = progress.find(p => p.stage === 'done' && p.done === 1)
+  eq('남은 시간: 첫 사진의 AI 준비 90초는 평균에 안 들어감', [d1.avgMs, d1.samples], [1000, 1])
+  const d2 = progress.find(p => p.stage === 'done' && p.done === 2)
+  eq('남은 시간: 준비 시간 제외 평균 × 남은 장수', [d2.avgMs, d2.etaMs, d2.samples], [1000, 2000, 2])
+}
+{
+  eq('표시: 처리 0·1장 → 숫자 대신 계산 중', [nextEta(null, { etaMs: null, samples: 0 }), nextEta(null, { etaMs: 600000, samples: 1 })],
+    [{ min: null, text: ETA_CALCULATING }, { min: null, text: ETA_CALCULATING }])
+  eq('표시: 2장부터 숫자 · 1분 미만 = "1분 안에 끝나요"', nextEta(null, { etaMs: 59000, samples: 2 }), { min: 0, text: '1분 안에 끝나요' })
+  eq('표시: 반올림 (1분 29초 → 약 1분, 2분 30초 → 약 3분)', [nextEta(null, { etaMs: 89000, samples: 2 }).text, nextEta(null, { etaMs: 150000, samples: 3 }).text], ['약 1분 남았어요', '약 3분 남았어요'])
+  const a = nextEta(null, { etaMs: 180000, samples: 2 })
+  const b = nextEta(a.min, { etaMs: 420000, samples: 3 })
+  const c = nextEta(b.min, { etaMs: 60000, samples: 4 })
+  const d = nextEta(c.min, { etaMs: 30000, samples: 5 })
+  const e = nextEta(d.min, { etaMs: 300000, samples: 6 })
+  eq('표시: 한 번 보인 값보다 늘지 않음 (3 → 7이 와도 3 → 1 → 1분 안 → 늘지 않음)', [a.text, b.text, c.text, d.text, e.text], ['약 3분 남았어요', '약 3분 남았어요', '약 1분 남았어요', '1분 안에 끝나요', '1분 안에 끝나요'])
+  eq('표시: 숫자를 보인 뒤 값이 비면 보인 값 그대로', nextEta(2, { etaMs: null, samples: 3 }).text, '약 2분 남았어요')
+  eq('표시: AI 준비 중 → 지금 하는 일, 아니면 계산 결과', [etaNote({ preparing: true, text: '약 3분 남았어요' }), etaNote({ preparing: false, text: '약 3분 남았어요' }), etaNote({ preparing: false, text: '' })], [ETA_PREPARING, '약 3분 남았어요', ETA_CALCULATING])
 }
 {
   // 지우는 도중 멈춤 → 그 사진은 반영하지 않음(부분 레이어를 남기지 않음)

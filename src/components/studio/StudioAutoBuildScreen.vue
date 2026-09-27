@@ -49,6 +49,7 @@
 // 이 화면 안에서만 "사진 속 글자를 찾는 중"처럼 무엇을 하는지 풀어 말한다(편집기 문구 규칙 — 편집기 화면에는 전용 표현을 쓰지 않음).
 import { computed } from 'vue'
 import { Sparkles, Check, Loader2, Square, X } from 'lucide-vue-next'
+import { etaNote } from '@/lib/studioAutoBuild'
 
 const props = defineProps({
   state: { type: Object, required: true }, // useAutoBuild.state
@@ -96,12 +97,13 @@ const percent = computed(() => {
   if (!s.total) return rank.value === 1 ? 3 : 5
   return Math.min(92, 5 + Math.round((s.done / s.total) * 87))
 })
+// 남은 시간 — 규칙은 studioAutoBuild.nextEta(AI 준비 시간 제외·2장 미만은 숫자 없음·늘어나지 않음)
 const etaText = computed(() => {
   const s = props.state
+  if (s.error) return ''
+  if (rank.value === 1) return etaNote({ preparing: true })
   if (rank.value !== 2) return ''
-  if (s.etaMs === null) return '남은 시간 계산 중'
-  const min = Math.ceil(s.etaMs / 60000)
-  return s.etaMs < 60000 ? '1분 안에 끝나요' : `약 ${min}분 남았어요`
+  return etaNote({ preparing: s.waitingAi, text: s.etaText })
 })
 const tally = computed(() => {
   const c = props.state.counts
