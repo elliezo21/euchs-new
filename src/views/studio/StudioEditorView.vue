@@ -211,8 +211,9 @@
             <StudioPageView
               ref="pageView"
               :page="page" :zoom="zoom" :images-by-id="imagesById" :views="views" :selected-ids="selectedItemIds" :bake-state="bakeQueue.state" :flags="sectionFlags"
-              :looks="session.lookMap" :compare="compare" :selected-section-id="selectedSectionId" :text-edit="textEdit"
+              :looks="session.lookMap" :compare="compare" :selected-section-id="selectedSectionId" :text-edit="textEdit" :cell-edit="cellEdit"
               @edit-text="startTextEdit" @text-commit="onTextCommit"
+              @edit-cell="startCellEdit" @cell-commit="onCellCommit" @cell-cancel="cellEdit = null" @table-op="onTableEdit"
               @select="onPageSelect" @change="onPageChange" @context="openContextMenu" @select-section="pickSection"
               @open-erase="openErase" @retry-image="retryView"
               @visible="onPageVisible" @shown="onPageShown" @drop-image="onDropImage"
@@ -557,7 +558,7 @@ import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
 import StudioShapeItemPanel from '@/components/studio/StudioShapeItemPanel.vue'
 import StudioTableItemPanel from '@/components/studio/StudioTableItemPanel.vue'
 import { badgePresetByKey, badgeTextParts } from '@/lib/studioBadge'
-import { isValidTableItem, tableTemplateByKey, tableFieldsOf } from '@/lib/studioTable'
+import { isValidTableItem, tableTemplateByKey, tableFieldsOf, hasTableCell, cleanCellText, tableRows, tableCols } from '@/lib/studioTable'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
 import {
   isValidTextItem, normalizeTextItem, patchTextItem, textStyleOf, TEXT_INSERT_KINDS, stylePresetByKey, presetPatch, textStyleValues,
@@ -996,6 +997,7 @@ const pageCanUndo = computed(() => pageSession.canUndoNow.value && !eraseOpen.va
 const pageCanRedo = computed(() => pageSession.canRedoNow.value && !eraseOpen.value)
 const selectedItemIds = ref([])  // 페이지에서 고른 요소 (6-1: 여러 개)
 const textEdit = ref(null)       // { id, selectAll } 고치는 중인 글자 요소 (10-1) — 그동안 편집기 단축키는 쉰다
+const cellEdit = ref(null)       // { id, r, c } 캔버스에서 입력 중인 표 칸 (표 칸 입력) — 그동안 편집기 단축키는 쉰다
 let selectionSource = 'list'     // 'page' = 페이지에서 고름(방향키 = 옮기기) / 'list' = 목록에서 고름(방향키 = 사진 바꾸기)
 const pageView = ref(null)
 const pageScroll = ref(null)
@@ -1051,6 +1053,8 @@ function pruneSelection() {
   if (keep.length !== selectedItemIds.value.length) selectedItemIds.value = keep
   if (selectedSectionId.value && !p?.sections.some(s => s.id === selectedSectionId.value)) selectedSectionId.value = null
   if (textEdit.value && !(p && findItem(p, textEdit.value.id))) textEdit.value = null // 고치던 글자가 없어짐(충돌 불러오기 등)
+  const ce = cellEdit.value // 입력 중이던 표·칸이 없어짐(되돌리기·줄 삭제·충돌 불러오기 등)
+  if (ce && !(p && hasTableCell(findItem(p, ce.id)?.item, ce.r, ce.c))) cellEdit.value = null
 }
 
 // ── 구간 고르기 (8-1) — 구간 이름·요소 없는 구간의 빈 곳·우클릭으로 고른다. 요소를 고르면 풀리고, Esc·페이지 바깥 누르기로도 풀린다.
@@ -1188,6 +1192,7 @@ function resetEditorLog() {
   guideMenuOpen.value = false
   guide.open = false
   textEdit.value = null     // 10-1 글자 고치기
+  cellEdit.value = null     // 표 칸 입력
   exportOpen.value = false  // 13-1 [내보내기] 창
   exportCompareId.value = null
   previewOpen.value = false // 13-2 미리보기
@@ -1531,10 +1536,29 @@ const TABLE_LABEL_OF = {
 }
 const TABLE_EDIT_LABEL_OF = {
   cell: LABELS.tableCell, addRow: LABELS.tableRowAdd, removeRow: LABELS.tableRowRemove, addCol: LABELS.tableColAdd, removeCol: LABELS.tableColRemove,
+  removeRowAt: LABELS.tableRowRemove, removeColAt: LABELS.tableColRemove, // 캔버스 칸 우클릭 "이 줄·이 열 삭제"
 }
 /** 표 편집 칸 → runCommand (다른 조작과 같은 길) */
 function onTableProps(patch, { merge, key } = {}) { runCommand('tableProps', { patch, merge, key }) }
 function onTableEdit({ id, op }) { runCommand('tableEdit', { id, op }) }
+// ── 캔버스에서 표 칸 바로 입력 — 글자 고치기(10-1)와 같은 방식. 반영은 왼쪽 "표 편집" 칸과 같은 runCommand('tableEdit') (이력·저장 같음) ──
+/** 칸 입력 시작 — 표 더블클릭, 골라진 표 한 번 누르기 */
+function startCellEdit({ id, r, c }) {
+  const it = page.value ? findItem(page.value, id)?.item : null
+  if (!hasTableCell(it, r, c) || eraseOpen.value) return
+  textEdit.value = null
+  if (selectedItemIds.value.length !== 1 || selectedItemIds.value[0] !== id) { selectedItemIds.value = [id]; selectionSource = 'page' }
+  cellEdit.value = { id, r, c }
+}
+/** 칸 반영(Enter·Tab·바깥 누르기) — 바뀐 칸만 이력 1개 "표 칸 고치기", 그다음 next 칸으로(null = 끝) */
+function onCellCommit({ id, r, c, text, next }) {
+  cellEdit.value = null
+  const it = page.value ? findItem(page.value, id)?.item : null
+  if (!hasTableCell(it, r, c)) return
+  if (cleanCellText(text) !== it.cells[r][c]) runCommand('tableEdit', { id, op: { kind: 'cell', r, c, text } })
+  const after = page.value ? findItem(page.value, id)?.item : null
+  if (next && hasTableCell(after, next.r, next.c)) cellEdit.value = { id, r: next.r, c: next.c }
+}
 const SHAPE_LABEL_OF = { shape: LABELS.shapeKind, fill: LABELS.shapeFill, fillOpacity: LABELS.shapeFill, strokeWidth: LABELS.shapeStroke, strokeColor: LABELS.shapeStroke, radius: LABELS.shapeRadius }
 const LINE_LABEL_OF = { strokeWidth: LABELS.lineWidth, color: LABELS.lineColor, dash: LABELS.lineDash, startCap: LABELS.lineCap, endCap: LABELS.lineCap }
 /** 도형·선 속성 칸 → runCommand (다른 조작과 같은 길) */
@@ -1692,8 +1716,8 @@ function runCommand(name, args = {}) {
 }
 
 // ── 우클릭 메뉴 (6-1) ──
-const ctx = reactive({ open: false, x: 0, y: 0, items: [], sectionId: null })
-function openContextMenu({ x, y, itemId, sectionId }) {
+const ctx = reactive({ open: false, x: 0, y: 0, items: [], sectionId: null, tableCell: null })
+function openContextMenu({ x, y, itemId, sectionId, cell }) {
   if (eraseOpen.value) return
   const p = page.value
   const hasClip = !!clipboard?.length
@@ -1712,11 +1736,21 @@ function openContextMenu({ x, y, itemId, sectionId }) {
       { key: 'sec-delete', label: '구간 삭제', danger: true, disabled: noSec },
     ]
     ctx.sectionId = sectionId
+    ctx.tableCell = null
   } else {
     const items = selectedItemIds.value.map(id => findItem(p, id)?.item).filter(Boolean)
     const anyLocked = items.some(it => it.locked), allLocked = items.length > 0 && items.every(it => it.locked)
     const anyHidden = items.some(it => it.hidden)
+    // 표 칸 우클릭 (표 하나만 골랐을 때) = 맨 위에 "이 줄 삭제"·"이 열 삭제" — 그 칸의 줄·열 (1줄·1열은 남는다)
+    const tbl = cell && selectedItemIds.value.length === 1 && selectedItemIds.value[0] === itemId ? findItem(p, itemId)?.item : null
+    ctx.tableCell = tbl && hasTableCell(tbl, cell.r, cell.c) ? { id: itemId, r: cell.r, c: cell.c } : null
+    const tableMenu = ctx.tableCell ? [
+      { key: 'table-rowAt', label: `이 줄 삭제 (${cell.r + 1}번째 줄)`, danger: true, disabled: tableRows(tbl) <= 1 },
+      { key: 'table-colAt', label: `이 열 삭제 (${cell.c + 1}번째 열)`, danger: true, disabled: tableCols(tbl) <= 1 },
+      { sep: true },
+    ] : []
     ctx.items = [
+      ...tableMenu,
       { key: 'duplicate', label: '복제', keys: 'Ctrl+D' },
       { key: 'copy', label: '복사', keys: 'Ctrl+C' },
       { key: 'paste', label: '붙여넣기', keys: 'Ctrl+V', disabled: !hasClip },
@@ -1752,7 +1786,10 @@ const SECTION_MENU = {
   'sec-duplicate': ['sectionDuplicate', {}], 'sec-delete': ['sectionDelete', {}],
 }
 function onContextSelect(key) {
-  if (key.startsWith('order-')) runCommand('order', { where: key.slice(6) })
+  if (key === 'table-rowAt' || key === 'table-colAt') {
+    const tc = ctx.tableCell
+    if (tc) onTableEdit({ id: tc.id, op: key === 'table-rowAt' ? { kind: 'removeRowAt', r: tc.r } : { kind: 'removeColAt', c: tc.c } })
+  } else if (key.startsWith('order-')) runCommand('order', { where: key.slice(6) })
   else if (SECTION_MENU[key]) runCommand(SECTION_MENU[key][0], { ...SECTION_MENU[key][1], sectionId: ctx.sectionId })
   else if (key === 'paste') runCommand('paste', { sectionId: ctx.sectionId })
   else runCommand(key)
@@ -2684,7 +2721,7 @@ function onKeyDown(e) {
   // 검수 2묶음: 시작 화면·가이드·창이 떠 있어도 입력칸 밖 Ctrl+A가 뒤 페이지 글자 전체를 고르지 않게 (편집기 동작은 아래에서 따로)
   if (blocksBrowserSelectAll(e)) e.preventDefault()
   if (guide.open) return
-  if (!isWide.value || anyModalOpen.value || ctx.open || textEdit.value) return // 10-1: 글자를 고치는 동안은 쉰다
+  if (!isWide.value || anyModalOpen.value || ctx.open || textEdit.value || cellEdit.value) return // 10-1: 글자·표 칸을 고치는 동안은 쉰다
   const t = e.target
   if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
   if (e.key === 'Escape' && (pageHistoryOpen.value || guideMenuOpen.value)) { e.preventDefault(); pageHistoryOpen.value = false; guideMenuOpen.value = false; return }

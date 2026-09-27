@@ -3,7 +3,9 @@ import {
   normalizeTableItem, patchTableItem, editTableItem, setTableCell, addTableRow, removeTableRow, addTableCol, removeTableCol,
   cleanCells, cleanCellText, fitCellText, tablePaintSpec, tableHeight, tableRowHeight, tableMinWidth, tableFontOf, isValidTableItem,
   TABLE_TEMPLATES, tableFieldsOf, tableTemplateByKey, tableLabel, TABLE_CELL_MAX, TABLE_MIN_COL_W,
+  tableCellAt, tableCellRect, nextTableCell, hasTableCell, removeTableRowAt, removeTableColAt,
 } from '../src/lib/studioTable.js'
+import { createHistory, push, undo } from '../src/lib/studioHistory.js'
 import { BADGE_PRESETS, badgePresetByKey, badgeTextParts } from '../src/lib/studioBadge.js'
 import {
   readPage, addElementItem, setItemRect, setTableProps, editTable, resizeTableItem, duplicateItems, findItem, isDrawableItem,
@@ -191,6 +193,60 @@ const pageWith = items => ({ v: 1, width: 780, gap: 0, parked: [], sections: [{ 
   const small = addSection(emptyPage(), { height: 100 })
   const rs = addItemGroup(small, small.sections[0].id, b, b.parts, measure)
   eq('배지가 구간보다 크면 가운데 (다른 넣기와 같은 규칙, y = (100-190)/2)', findItem(rs.page, rs.ids[0]).item.y, -45)
+}
+
+// ── 캔버스에서 칸 바로 입력 (표 칸 입력) — 칸 찾기·다음 칸·줄/열 삭제·패널과 같은 데이터·되돌리기·내보내기 ──
+{
+  const t = normalizeTableItem({ id: 't1', type: 'table', x: 90, y: 125, w: 600, h: 1, rotation: 0, ...tableFieldsOf(tableTemplateByKey('top')) })
+  // 상의 틀: 5열(폭 120) × 5행(행 높이 40)
+  eq('칸 찾기: 점 → 행·열 (M 줄·가슴 = 2행 1열)', tableCellAt(t, 130, 100), { r: 2, c: 1 })
+  eq('칸 찾기: 머리글 칸도 (0행)', tableCellAt(t, 10, 5), { r: 0, c: 0 })
+  eq('칸 찾기: 오른쪽·아래 끝 = 마지막 칸, 표 밖 = null', [tableCellAt(t, 600, 200), tableCellAt(t, 601, 10), tableCellAt(t, -1, 10)], [{ r: 4, c: 4 }, null, null])
+  eq('칸 찾기: 좌우 뒤집힌 표 = 보이는 칸', tableCellAt({ ...t, flipX: true }, 10, 5), { r: 0, c: 4 })
+  eq('칸 자리 (입력 칸을 올릴 곳)', tableCellRect(t, 2, 1), { x: 120, y: 80, w: 120, h: 40 })
+  eq('칸 자리: 뒤집힌 표', tableCellRect({ ...t, flipX: true, flipY: true }, 0, 0), { x: 480, y: 160, w: 120, h: 40 })
+  eq('Enter = 아래 칸 · 맨 아래면 끝', [nextTableCell(t, 2, 1, 'down'), nextTableCell(t, 4, 1, 'down')], [{ r: 3, c: 1 }, null])
+  eq('Tab = 오른쪽 · 줄 끝이면 다음 줄 첫 칸 · 마지막 칸이면 끝', [nextTableCell(t, 2, 1, 'next'), nextTableCell(t, 2, 4, 'next'), nextTableCell(t, 4, 4, 'next')], [{ r: 2, c: 2 }, { r: 3, c: 0 }, null])
+  eq('Shift+Tab = 왼쪽 · 줄 처음이면 윗줄 끝 칸 · 첫 칸이면 끝', [nextTableCell(t, 2, 1, 'prev'), nextTableCell(t, 2, 0, 'prev'), nextTableCell(t, 0, 0, 'prev')], [{ r: 2, c: 0 }, { r: 1, c: 4 }, null])
+  eq('입력 칸 유효 검사 (줄을 지우면 끝)', [hasTableCell(t, 4, 4), hasTableCell(t, 5, 0), hasTableCell(null, 0, 0), hasTableCell(t, 1.5, 0)], [true, false, false, false])
+
+  // 캔버스 입력 흐름 = 편집기와 같은 길: editTable(op cell) 한 번 = 이력 한 칸 → 다음 칸으로
+  const p0 = pageWith([t])
+  let h = createHistory(p0)
+  let page = p0
+  const commit = (r, c, text) => { const next = editTable(page, 't1', { kind: 'cell', r, c, text }); if (next !== page) { page = next; h = push(h, page, '표 칸 고치기') } }
+  commit(2, 1, '52') // M·가슴 더블클릭 → 52 → Enter
+  eq('M·가슴 = 52 (Enter 뒤 아래 칸 L·가슴으로)', [findItem(page, 't1').item.cells[2][1], nextTableCell(findItem(page, 't1').item, 2, 1, 'down')], ['52', { r: 3, c: 1 }])
+  // Tab으로 한 줄(L) 채우기
+  let at = { r: 3, c: 1 }
+  for (const v of ['104', '44', '68', '60']) { commit(at.r, at.c, v); at = nextTableCell(findItem(page, 't1').item, at.r, at.c, 'next') }
+  eq('Tab으로 L 줄 채우기 → 마지막에 다음 줄 첫 칸', [findItem(page, 't1').item.cells[3], at], [['L', '104', '44', '68', '60'], { r: 4, c: 0 }])
+  eq('안 바뀐 칸 반영 = 문서 그대로 (이력 안 늘어남)', (() => { const n = h.steps.length; commit(3, 0, 'L'); return h.steps.length === n })(), true)
+  // 패널(왼쪽 "표 편집")과 같은 데이터 — 패널 격자는 findItem(page).item.cells를 그대로 그리고, 패널 입력도 같은 editTable(op cell)
+  eq('패널 격자 = 캔버스가 바꾼 cells 그대로', findItem(page, 't1').item.cells[2], ['M', '52', '-', '-', '-'])
+  commit(1, 1, '96') // 패널에서 S·가슴
+  eq('패널이 바꾼 칸 → 캔버스 그림(tablePaintSpec)에 바로', tablePaintSpec(findItem(page, 't1').item, measure).texts.some(x => x.text === '96'), true)
+  // [+ 줄]로 XXL
+  const before = findItem(page, 't1').item
+  page = editTable(page, 't1', { kind: 'addRow' }); h = push(h, page, '행 추가')
+  commit(5, 0, 'XXL')
+  const t2 = findItem(page, 't1').item
+  eq('[+ 줄] → 6줄 · 높이 자동 · XXL', [t2.cells.length, t2.h, t2.cells[5]], [6, 6 * 40, ['XXL', '', '', '', '']])
+  page = editTable(page, 't1', { kind: 'addCol' }); h = push(h, page, '열 추가')
+  eq('[+ 열] → 6열 · 폭 그대로', [findItem(page, 't1').item.cells[0].length, findItem(page, 't1').item.w], [6, 600])
+  // 우클릭 "이 줄 삭제"·"이 열 삭제" = 그 줄·그 열 (맨 끝이 아니어도)
+  const rmRow = editTable(page, 't1', { kind: 'removeRowAt', r: 2 })
+  eq('이 줄 삭제 (M 줄) → S 다음이 L', findItem(rmRow, 't1').item.cells.map(r => r[0]), ['사이즈', 'S', 'L', 'XL', 'XXL'])
+  const rmCol = editTable(page, 't1', { kind: 'removeColAt', c: 1 })
+  eq('이 열 삭제 (가슴 열)', findItem(rmCol, 't1').item.cells[0], ['사이즈', '어깨', '총장', '소매', ''])
+  eq('1줄·1열은 남음 · 범위 밖은 그대로', (() => { const one = normalizeTableItem({ ...t, cells: [['a']] }); return [removeTableRowAt(one, 0) === one, removeTableColAt(one, 0) === one, removeTableRowAt(t, 9) === t] })(), [true, true, true])
+  // 되돌리기 — 한 번 = 한 칸씩 (열 추가 → 칸 XXL → 줄 추가 순으로 되돌아감)
+  let u = undo(h); eq('되돌리기 1: 열 추가 취소', u.edit.sections[0].items[0].cells[0].length, 5)
+  u = undo(u.history); eq('되돌리기 2: XXL 칸 취소', u.edit.sections[0].items[0].cells[5][0], '')
+  u = undo(u.history); eq('되돌리기 3: 줄 추가 취소', JSON.stringify(u.edit.sections[0].items[0].cells), JSON.stringify(before.cells))
+  // 내보내기(13-1)는 tablePaintSpec 하나로 그린다 — 입력한 숫자가 그릴 글자에 있다
+  const texts = tablePaintSpec(findItem(page, 't1').item, measure).texts.map(x => x.text)
+  eq('내보내기 그릴 글자에 입력한 숫자 (52·104·XXL)', ['52', '104', 'XXL'].every(v => texts.includes(v)), true)
 }
 
 console.log(`\n${pass} PASS / ${fail} FAIL`)

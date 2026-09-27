@@ -103,17 +103,24 @@
           >
             <StudioShapeView v-if="!it.hidden" :item="it" :scale="zoom" />
           </div>
-          <!-- 사이즈표 (11-2): studioTable의 paint spec을 SVG로. 칸 고치기는 왼쪽 "표 편집" 칸에서 (더블클릭은 아무것도 안 함) -->
+          <!-- 사이즈표 (11-2): studioTable의 paint spec을 SVG로. 칸 입력: 더블클릭(골라져 있으면 한 번 누르기) = 그 칸에 입력 칸 — 왼쪽 "표 편집" 칸과 같은 데이터 -->
           <div
             v-else-if="isValidTableItem(it)"
             class="absolute select-none"
-            :class="[it.locked ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
+            :class="[it.locked || cellEditId === it.id ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '', selectedSet.has(it.id) && cellEditId !== it.id ? 'st-table-pick' : '']"
             :style="itemStyle(it, ii)"
             :data-item-id="it.id" data-table-item :data-hidden="it.hidden ? '1' : null"
             @pointerdown="onItemDown($event, it)"
             @contextmenu.prevent.stop="onItemContext($event, it)"
+            @dblclick="onTableDblClick($event, it)"
+            @pointerenter="hoverTableId = it.id" @pointerleave="hoverTableId = hoverTableId === it.id ? null : hoverTableId"
           >
             <StudioTableView v-if="!it.hidden" :item="it" :scale="zoom" />
+            <input
+              v-if="cellEditId === it.id && cellRect" :ref="setCellEl" v-model="cellText" type="text" class="st-cell-edit"
+              :style="cellEditStyle(it)" :maxlength="TABLE_CELL_MAX" spellcheck="false" data-cell-edit
+              @pointerdown.stop @dblclick.stop @contextmenu.stop @keydown="onCellKey" @blur="commitCell(null)"
+            />
           </div>
         </template>
       </section>
@@ -158,6 +165,20 @@
       </template>
     </div>
 
+    <!-- 표 칸 입력 안내 — 표에 마우스를 올리거나 골랐을 때 표 위에 작게 (입력 중·끄는 중에는 없음) -->
+    <div v-if="tableHint" class="absolute pointer-events-none st-table-hint" :style="tableHint.style" data-table-hint>칸을 눌러 치수를 입력하세요</div>
+    <!-- 표 하나를 고르면 오른쪽 끝 [+ 열] · 아래 끝 [+ 줄] (돌린 표에는 없음 — 왼쪽 "표 편집" 칸의 행·열 추가를 쓴다) -->
+    <template v-if="tableAdd">
+      <button
+        type="button" class="absolute st-table-add" :style="tableAdd.col" :disabled="tableAdd.colFull" title="오른쪽에 열 추가" data-table-add="col"
+        @pointerdown.stop.prevent @click.stop="addTablePart('addCol')"
+      >+ 열</button>
+      <button
+        type="button" class="absolute st-table-add" :style="tableAdd.row" :disabled="tableAdd.rowFull" title="아래에 줄 추가" data-table-add="row"
+        @pointerdown.stop.prevent @click.stop="addTablePart('addRow')"
+      >+ 줄</button>
+    </template>
+
     <!-- 골라진 구간의 높이 손잡이 (8-1) — 아래쪽 가장자리. 끌면 높이만 바뀌고(요소는 그대로) 놓을 때 이력 한 번 -->
     <div
       v-if="sectionHandle" class="absolute st-section-handle" :style="sectionHandle.style"
@@ -195,7 +216,10 @@ import StudioTextView from '@/components/studio/StudioTextView.vue'
 import StudioShapeView from '@/components/studio/StudioShapeView.vue'
 import StudioTableView from '@/components/studio/StudioTableView.vue'
 import { isValidShapeItem, isValidLineItem } from '@/lib/studioShape'
-import { isValidTableItem } from '@/lib/studioTable'
+import {
+  isValidTableItem, tableCellAt, tableCellRect, nextTableCell, hasTableCell, tableFontOf, tableRows, tableCols,
+  TABLE_CELL_MAX, TABLE_PAD_RATIO, TABLE_LIMITS,
+} from '@/lib/studioTable'
 import { lookCss, needsSvgFilter, svgFilterParams } from '@/lib/studioLook'
 import { LABELS } from '@/lib/studioHistory'
 import { KIND_LABEL } from '@/lib/studioProjects'
@@ -214,13 +238,19 @@ const props = defineProps({
   selectedSectionId: { type: String, default: null }, // 골라진 구간 (8-1) — 테두리 + 아래쪽 높이 손잡이
   textEdit: { type: Object, default: null },           // { id, selectAll } 고치는 중인 글자 요소 (10-1)
   flags: { type: Object, default: () => ({}) },        // 구간 id → "글자 남음" (원클릭 review-1 — 구간 이름 아래 "확인 필요" 두 줄, 사진 위에는 올리지 않음)
+  cellEdit: { type: Object, default: null },           // { id, r, c } 입력 중인 표 칸 (표 칸 입력)
 })
 // select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
 // open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })
 // drop-image({ imageId, sectionId|null, x, y }) 목록 사진을 끌어다 놓음 (6-3, x·y = 그 구간 좌표)
 // select-section(sectionId) 구간 이름·요소 없는 구간의 빈 곳을 누름 (8-1). 높이 손잡이는 놓을 때 change({ page, label: 구간 높이 })
 // edit-text(itemId) 글자 요소 더블클릭 = 고치기 시작 / text-commit({ id, text }) 고치기 끝 (10-1)
-const emit = defineEmits(['select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image', 'select-section', 'edit-text', 'text-commit'])
+// 표 칸 입력: edit-cell({ id, r, c }) 입력 시작 / cell-commit({ id, r, c, text, next }) 반영하고 next 칸으로(null = 끝) / cell-cancel() Esc = 반영 없이 끝
+//   table-op({ id, op }) [+ 열]·[+ 줄] (op = studioTable.editTableItem). context에 칸이면 cell: { r, c } (편집기가 "이 줄·이 열 삭제")
+const emit = defineEmits([
+  'select', 'change', 'context', 'open-erase', 'retry-image', 'visible', 'shown', 'drop-image', 'select-section', 'edit-text', 'text-commit',
+  'edit-cell', 'cell-commit', 'cell-cancel', 'table-op',
+])
 
 const DRAG_THRESHOLD = 3 // 화면 px — 이보다 적게 움직이면 누르기(선택)로 본다
 const SNAP_PX = 6        // 화면 px — 이만큼 가까우면 달라붙는다
@@ -385,7 +415,7 @@ const frames = computed(() => {
       style: { left: `${it.x * z}px`, top: `${(top + it.y) * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, transform: it.rotation ? `rotate(${it.rotation}deg)` : null },
     })
   }
-  if (out.length === 1 && !out[0].locked) out[0].handles = true
+  if (out.length === 1 && !out[0].locked && out[0].id !== cellEditId.value) out[0].handles = true // 칸 입력 중인 표는 크기·회전 손잡이 없음
   return out
 })
 /** 골라진 구간의 높이 손잡이 자리 (페이지 좌표 → 화면) */
@@ -403,6 +433,120 @@ function guideStyle(g) {
   return g.axis === 'x'
     ? { left: `${g.pos * z}px`, top: `${r.top * z}px`, width: '1px', height: `${r.height * z}px` }
     : { left: '0px', top: `${(r.top + g.pos) * z}px`, width: `${doc.value.width * z}px`, height: '1px' }
+}
+
+// ── 표 칸 입력 — 글자 고치기(10-1)와 같은 방식: 편집기가 cellEdit를 쥐고, 여기서는 그 칸 자리에 입력 칸만 올린다 ──
+// 반영은 cell-commit 한 번 = 이력 1개 "칸 글자"(편집기 runCommand('tableEdit') — 왼쪽 "표 편집" 칸과 같은 길이라 둘 다 바로 보인다).
+// Enter = 반영 + 아래 칸 · Tab / Shift+Tab = 반영 + 오른쪽 / 왼쪽 칸 · Esc = 반영 없이 끝 · 바깥 누르기 = 반영하고 끝.
+// 입력 중에는 그 표를 끌거나 크기를 바꾸지 않는다 (손잡이 숨김, 표를 누르면 다른 칸으로 옮겨 가기만).
+const cellText = ref('')
+let cellEl = null
+let cellDone = true // 이번 칸을 이미 반영·취소했는지 (Enter 뒤 blur 등 두 번 보내지 않게)
+const cellEditId = computed(() => props.cellEdit?.id ?? null)
+const hoverTableId = ref(null)
+function setCellEl(el) { cellEl = el }
+const cellItem = computed(() => {
+  const ce = props.cellEdit
+  const it = ce ? findItem(props.page, ce.id)?.item : null
+  return it && hasTableCell(it, ce.r, ce.c) ? it : null
+})
+const cellRect = computed(() => (cellItem.value ? tableCellRect(cellItem.value, props.cellEdit.r, props.cellEdit.c) : null))
+watch(() => (props.cellEdit ? `${props.cellEdit.id}:${props.cellEdit.r}:${props.cellEdit.c}` : ''), key => {
+  if (!key || !cellItem.value) { cellDone = true; return }
+  cellText.value = cellItem.value.cells[props.cellEdit.r][props.cellEdit.c]
+  cellDone = false
+  nextTick(() => { if (cellEl) { cellEl.focus({ preventScroll: true }); cellEl.select() } }) // 전부 골라 둔다 — 치면 "-"가 바로 바뀐다
+}, { immediate: true })
+function cellEditStyle(it) {
+  const z = props.zoom, r = cellRect.value
+  const header = it.headerRow && props.cellEdit.r === 0
+  const font = tableFontOf(it, header)
+  const pad = it.fontSize * TABLE_PAD_RATIO * z
+  return {
+    left: `${r.x * z}px`, top: `${r.y * z}px`, width: `${r.w * z}px`, height: `${r.h * z}px`, padding: `0 ${pad}px`,
+    fontFamily: cssFamilyOf(font.fontFamily), fontWeight: font.fontWeight, fontSize: `${font.fontSize * z}px`, textAlign: it.align,
+    color: header ? it.headerColor : it.color, background: header ? it.headerBg : it.cellBg,
+  }
+}
+/** 이 칸 반영 — dir = 'down' | 'next' | 'prev' (다음 칸으로) | null (끝). 한 번만 */
+function commitCell(dir) {
+  if (cellDone || !props.cellEdit) return
+  cellDone = true
+  const { id, r, c } = props.cellEdit
+  const it = cellItem.value
+  emit('cell-commit', { id, r, c, text: cellText.value, next: dir && it ? nextTableCell(it, r, c, dir) : null })
+}
+function cancelCell() {
+  if (cellDone || !props.cellEdit) return
+  cellDone = true
+  emit('cell-cancel')
+}
+function onCellKey(e) {
+  // 한글 조합 중 Enter·Esc는 조합을 끝내는 데 쓰인다 — 조합이 끝난 뒤 오는 키로 처리 (Tab은 칸 밖으로 나가지 않게만 막는다)
+  if (e.isComposing || e.keyCode === 229) { if (e.key === 'Tab') e.preventDefault(); return }
+  if (e.key === 'Enter') { e.preventDefault(); commitCell('down') }
+  else if (e.key === 'Tab') { e.preventDefault(); commitCell(e.shiftKey ? 'prev' : 'next') }
+  else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cancelCell() }
+}
+/** 화면 좌표 → 그 표의 칸 (돌린 표는 요소 가운데 기준으로 되돌려 잰다) */
+function cellFromEvent(e, it) {
+  const el = rootEl.value?.querySelector(`[data-item-id="${it.id}"]`)
+  const b = el?.getBoundingClientRect()
+  if (!b) return null
+  const z = props.zoom, rad = -(it.rotation || 0) * Math.PI / 180
+  const vx = e.clientX - (b.left + b.width / 2), vy = e.clientY - (b.top + b.height / 2)
+  const lx = (vx * Math.cos(rad) - vy * Math.sin(rad)) / z + it.w / 2
+  const ly = (vx * Math.sin(rad) + vy * Math.cos(rad)) / z + it.h / 2
+  return tableCellAt(it, lx, ly)
+}
+function startCell(e, it) {
+  if (it.hidden) return false
+  const cell = cellFromEvent(e, it)
+  if (!cell) return false
+  const ce = props.cellEdit
+  if (ce && ce.id === it.id && ce.r === cell.r && ce.c === cell.c) return true // 이미 그 칸
+  emit('edit-cell', { id: it.id, ...cell })
+  return true
+}
+function onTableDblClick(e, it) { startCell(e, it) }
+/** 입력 중인 칸을 반영하고 끝 (다른 요소·빈 곳·구간 이름을 누를 때 — pointerdown을 막아 blur가 안 오는 곳) */
+function finishCell() { commitCell(null) }
+
+// 안내·[+ 열]·[+ 줄] 자리 (페이지 좌표 → 화면). 돌린 표·끄는 중에는 없음
+function tableBox(id) {
+  const f = findItem(doc.value, id)
+  if (!f || !isValidTableItem(f.item) || f.item.hidden || f.item.rotation) return null
+  return { it: f.item, top: rowOf(f.section.id).top }
+}
+const soleTableId = computed(() => (props.selectedIds.length === 1 && isValidTableItem(findItem(props.page, props.selectedIds[0])?.item) ? props.selectedIds[0] : null))
+const tableHint = computed(() => {
+  if (draft.value || marquee.value) return null
+  const id = soleTableId.value || hoverTableId.value
+  if (!id || id === cellEditId.value) return null
+  const b = tableBox(id)
+  if (!b) return null
+  const z = props.zoom
+  return { style: { left: `${b.it.x * z}px`, top: `${(b.top + b.it.y) * z - 30}px` } }
+})
+const tableAdd = computed(() => {
+  const id = soleTableId.value
+  if (!id || draft.value) return null
+  const b = tableBox(id)
+  if (!b) return null
+  const z = props.zoom, it = b.it
+  const x = it.x * z, y = (b.top + it.y) * z, w = it.w * z, h = it.h * z
+  return {
+    id,
+    col: { left: `${x + w + 16}px`, top: `${y + h / 2 - 14}px` },
+    row: { left: `${x + w / 2 - 28}px`, top: `${y + h + 12}px` },
+    colFull: tableCols(it) >= TABLE_LIMITS.cols[1], rowFull: tableRows(it) >= TABLE_LIMITS.rows[1],
+  }
+})
+function addTablePart(kind) {
+  const id = tableAdd.value?.id
+  if (!id) return
+  finishCell() // 입력 중이던 칸 먼저
+  emit('table-op', { id, op: { kind } })
 }
 
 // ── 조작 (누르기 → 끌기 → 떼기) ──
@@ -450,6 +594,14 @@ function onItemDown(e, it) {
     if (editing !== it.id) selectIds(members)
     return
   }
+  // 표 칸 입력 중: 같은 표를 누르면 그 칸으로 옮겨 가기(끌기 없음), 다른 요소를 누르면 반영하고 고르기만 (글자 고치기와 같은 이유)
+  if (props.cellEdit) {
+    const editing = props.cellEdit.id
+    finishCell()
+    if (editing === it.id && !e.shiftKey && isValidTableItem(it)) startCell(e, it)
+    else selectIds(members)
+    return
+  }
   const sel = props.selectedIds
   if (e.shiftKey) { // 추가·빼기 (끌지 않음) — 그룹 단위
     const allIn = members.every(m => sel.includes(m))
@@ -457,11 +609,14 @@ function onItemDown(e, it) {
     return
   }
   const ids = sel.includes(it.id) ? sel : members
+  // 표 하나가 이미 골라져 있으면: 끌면 옮기기, 끌지 않고 떼면 그 칸 입력 (떼는 자리 onUp — cellClick)
+  const cellClick = isValidTableItem(it) && sel.length === 1 && sel[0] === it.id && !it.hidden
   // 이미 골라져 있어도(목록에서 고른 사진이 페이지에도 골라져 있는 경우) 다시 알린다 — 편집기가 "페이지에서 고름"으로 바꿔야
   // 방향키가 요소 옮기기가 된다 (안 보내면 목록 기준 그대로라 ←/→는 아무 일 없고 ↑/↓는 사진 바꾸기가 됨)
   selectIds(ids)
   const movable = ids.filter(id => { const f = findItem(props.page, id); return f && !f.item.locked })
-  if (movable.length) begin(e, { kind: 'move', ids: movable })
+  if (movable.length) begin(e, { kind: 'move', ids: movable, cellClick: cellClick ? { it, x: e.clientX, y: e.clientY } : null })
+  else if (cellClick) startCell(e, it) // 잠긴 표 — 옮기지는 못해도 칸 글자는 고칠 수 있다 (왼쪽 칸과 같게)
 }
 function onResizeDown(e, id, handle) {
   if (e.button !== 0) return
@@ -477,6 +632,7 @@ function onRotateDown(e, id) {
 function onBlankDown(e) {
   if (e.button !== 0) return
   if (props.textEdit) { finishEdit(); selectIds([]); return } // 10-1: 바깥 누르기 = 고치기 끝 (박스 선택은 시작하지 않음 — onItemDown과 같은 이유)
+  if (props.cellEdit) { finishCell(); return } // 표 칸 입력: 바깥 누르기 = 반영하고 끝 (표는 골라진 채 — [+ 줄]·다른 칸을 바로 쓸 수 있게)
   const p = pagePoint(e)
   begin(e, { kind: 'box', x0: p.x, y0: p.y, shift: e.shiftKey, prevIds: props.selectedIds, sectionId: sectionAt(e) })
 }
@@ -486,6 +642,7 @@ const sizingSection = ref(false) // 높이 손잡이를 끄는 중 (손잡이에
 function onLabelDown(e, sectionId) {
   if (e.button !== 0) return
   finishEdit()
+  finishCell()
   emit('select-section', sectionId)
 }
 function onLabelContext(e, sectionId) {
@@ -560,6 +717,8 @@ function onUp(e) {
       const hit = expandToGroups(props.page, itemsInBox(props.page, a.box)) // 9단계: 그룹 요소가 하나라도 걸리면 그룹 전체
       selectIds(a.shift ? [...new Set([...a.prevIds, ...hit])] : hit)
     }
+  } else if (a.kind === 'move' && !a.moved && a.cellClick) {
+    startCell({ clientX: a.cellClick.x, clientY: a.cellClick.y }, a.cellClick.it) // 골라진 표를 한 번 누름 = 그 칸 입력
   } else if (a.moved && next && next !== a.startPage) {
     const LABEL_OF = { move: LABELS.elMove, resize: LABELS.elResize, rotate: LABELS.elRotate, sectionHeight: LABELS.secHeight }
     const label = LABEL_OF[a.kind]
@@ -570,8 +729,11 @@ function onUp(e) {
 
 // ── 우클릭 ──
 function onItemContext(e, it) {
+  finishCell()
   if (!props.selectedIds.includes(it.id)) selectIds(groupMemberIds(props.page, it.id)) // 9단계: 그룹이면 그룹 전체
-  emit('context', { x: e.clientX, y: e.clientY, itemId: it.id })
+  // 표 칸 우클릭 = 그 칸 자리도 함께 (편집기 메뉴 "이 줄 삭제"·"이 열 삭제")
+  const cell = isValidTableItem(it) && !it.hidden ? cellFromEvent(e, it) : null
+  emit('context', { x: e.clientX, y: e.clientY, itemId: it.id, cell })
 }
 function onBlankContext(e) {
   emit('context', { x: e.clientX, y: e.clientY, itemId: null, sectionId: sectionAt(e) })
@@ -666,7 +828,7 @@ function scrollInPage(el, block) {
   const plan = scrollPlan({ elTop: r.top - v.top + sc.scrollTop, elHeight: r.height, scrollTop: sc.scrollTop, viewHeight: sc.clientHeight, block })
   if (plan) sc.scrollTo({ top: plan.top, behavior: plan.behavior })
 }
-defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act, finishEdit })
+defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act, finishEdit, finishCell })
 </script>
 
 <style scoped>
@@ -675,6 +837,24 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
 .st-select-frame { box-shadow: 0 0 0 2px var(--st-accent); border-radius: 1px; }
 .st-select-frame.is-multi { box-shadow: 0 0 0 1px var(--st-accent); }
 .st-item-hidden { outline: 1px dashed var(--st-muted); outline-offset: -1px; background: transparent; opacity: 0.6; }
+/* 표 칸 입력 — 입력 칸은 그 칸 자리·글자 모양 그대로, 테두리 색으로 "입력 중" 표시 (표 디자인은 그대로) */
+.st-cell-edit {
+  position: absolute; box-sizing: border-box; margin: 0; border: 0; outline: none; z-index: 2;
+  box-shadow: inset 0 0 0 2px var(--st-accent), 0 0 0 2px var(--st-accent-ring); border-radius: 1px;
+  line-height: 1; cursor: text;
+}
+.st-table-pick { cursor: cell; }
+.st-table-hint {
+  z-index: 3; height: 24px; padding: 0 9px; border-radius: 6px; display: flex; align-items: center; white-space: nowrap;
+  font-size: 12px; font-weight: 700; background: var(--st-accent); color: var(--st-on-accent); box-shadow: var(--st-shadow-float);
+}
+.st-table-add {
+  z-index: 3; height: 28px; padding: 0 10px; border-radius: 8px; white-space: nowrap; cursor: pointer;
+  font-size: 12px; font-weight: 800; background: var(--st-card); color: var(--st-ink); border: 1px solid var(--st-accent);
+  box-shadow: var(--st-shadow-float);
+}
+.st-table-add:hover:not(:disabled) { background: var(--st-accent); color: var(--st-on-accent); }
+.st-table-add:disabled { opacity: 0.4; cursor: default; }
 /* 자리 비율과 사진 비율이 다를 때(사진 바꾸기·한쪽 손잡이) 찌그러뜨리지 않고 자리에 맞춰 채운다 — 내보내기(13단계)도 같은 규칙 */
 .st-item-img { object-fit: cover; }
 .st-snap-guide { background: var(--st-accent); z-index: 4; }

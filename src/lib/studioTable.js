@@ -138,8 +138,19 @@ export function removeTableCol(it) {
   if (tableCols(it) <= TABLE_LIMITS.cols[0]) return it
   return fitTableItem({ ...it, cells: it.cells.map(r => r.slice(0, -1)) })
 }
+/** 그 행 빼기 (캔버스 칸 우클릭 "이 줄 삭제" — 1행은 남는다) */
+export function removeTableRowAt(it, r) {
+  if (!Number.isInteger(r) || r < 0 || r >= tableRows(it) || tableRows(it) <= TABLE_LIMITS.rows[0]) return it
+  return fitTableItem({ ...it, cells: it.cells.filter((_, i) => i !== r) })
+}
+/** 그 열 빼기 (캔버스 칸 우클릭 "이 열 삭제" — 1열은 남는다) */
+export function removeTableColAt(it, c) {
+  if (!Number.isInteger(c) || c < 0 || c >= tableCols(it) || tableCols(it) <= TABLE_LIMITS.cols[0]) return it
+  return fitTableItem({ ...it, cells: it.cells.map(row => row.filter((_, j) => j !== c)) })
+}
 /**
  * 편집 한 번 — op = { kind: 'cell', r, c, text } | { kind: 'addRow' | 'removeRow' | 'addCol' | 'removeCol' }
+ *   | { kind: 'removeRowAt', r } | { kind: 'removeColAt', c } (캔버스 칸 우클릭)
  * 모르는 op·할 수 없으면 입력 그대로
  */
 export function editTableItem(it, op) {
@@ -149,8 +160,42 @@ export function editTableItem(it, op) {
     case 'removeRow': return removeTableRow(it)
     case 'addCol': return addTableCol(it)
     case 'removeCol': return removeTableCol(it)
+    case 'removeRowAt': return removeTableRowAt(it, op.r)
+    case 'removeColAt': return removeTableColAt(it, op.c)
     default: return it
   }
+}
+
+// ── 캔버스에서 칸 바로 입력 (표 칸 입력) — 좌표는 요소 기준 페이지 px (돌리기 전, 요소 왼쪽 위 = 0,0) ──
+
+/** 요소 안 점 → 그 칸 { r, c } (좌우·상하 뒤집기 반영 — 화면에 보이는 칸). 표 밖이면 null */
+export function tableCellAt(it, x, y) {
+  if (!(x >= 0 && y >= 0 && x <= it.w && y <= it.h)) return null
+  const lx = it.flipX ? it.w - x : x, ly = it.flipY ? it.h - y : y
+  const r = Math.min(tableRows(it) - 1, Math.floor(ly / tableRowHeight(it)))
+  const c = Math.min(tableCols(it) - 1, Math.floor(lx / (it.w / tableCols(it))))
+  return { r, c }
+}
+/** 그 칸의 화면 자리 { x, y, w, h } (뒤집기 반영) — 입력 칸을 그 자리에 올린다 */
+export function tableCellRect(it, r, c) {
+  const rowH = tableRowHeight(it), colW = it.w / tableCols(it)
+  const x = c * colW, y = r * rowH
+  return { x: round2(it.flipX ? it.w - x - colW : x), y: it.flipY ? it.h - y - rowH : y, w: round2(colW), h: rowH }
+}
+/**
+ * 입력 중 다음 칸 — 'down'(Enter) = 아래 칸(맨 아래면 끝), 'next'(Tab) = 오른쪽(줄 끝이면 다음 줄 첫 칸, 마지막 칸이면 끝),
+ * 'prev'(Shift+Tab) = 왼쪽(줄 처음이면 윗줄 끝 칸, 첫 칸이면 끝). 끝 = null
+ */
+export function nextTableCell(it, r, c, dir) {
+  const rows = tableRows(it), cols = tableCols(it)
+  if (dir === 'down') return r + 1 < rows ? { r: r + 1, c } : null
+  if (dir === 'next') return c + 1 < cols ? { r, c: c + 1 } : r + 1 < rows ? { r: r + 1, c: 0 } : null
+  if (dir === 'prev') return c > 0 ? { r, c: c - 1 } : r > 0 ? { r: r - 1, c: cols - 1 } : null
+  return null
+}
+/** 칸 입력 상태가 아직 유효한지 (되돌리기·줄 삭제 등으로 칸이 없어지면 끝) */
+export function hasTableCell(it, r, c) {
+  return isValidTableItem(it) && Number.isInteger(r) && Number.isInteger(c) && r >= 0 && c >= 0 && r < tableRows(it) && c < tableCols(it)
 }
 
 // ── 그리기 ──

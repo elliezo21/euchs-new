@@ -48,7 +48,7 @@
       </div>
       <p class="st-desc-sm break-keep">배지는 한 그룹으로 들어가요. 글자를 두 번 누르면 그 글자만 고칠 수 있어요.</p>
     </div>
-    <!-- 사이즈표 (11-2): 기본 틀 3개. 칸 글자는 표를 고른 뒤 왼쪽 "표 편집"에서 -->
+    <!-- 사이즈표 (11-2): 기본 틀 3개. 칸 글자는 캔버스에서 칸을 눌러 바로(표 칸 입력) 또는 왼쪽 "표 편집"에서 -->
     <div class="px-4 pt-4 pb-4 space-y-3 st-border-t" data-table-group>
       <div class="text-[13px] font-extrabold st-ink">사이즈표</div>
       <div class="grid grid-cols-3 gap-2">
