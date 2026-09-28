@@ -138,7 +138,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Home, FolderOpen, LayoutTemplate, Bookmark, BookA, Plus, Sparkles, Menu, X,
-  ChevronDown, Gauge, ExternalLink, LogOut,
+  ChevronDown, Gauge, ExternalLink, LogOut, Store,
 } from 'lucide-vue-next'
 import { currentUser, signOut, openLoginModal } from '@/lib/auth'
 import StudioModal from '@/components/studio/StudioModal.vue'
@@ -155,6 +155,7 @@ const menuItems = [
   { name: 'studio-landing', label: '스튜디오 소개', icon: Home },
   { name: 'studio-projects', label: '내 작업', icon: FolderOpen, also: ['studio-editor', 'studio-new'] },
   { label: '템플릿', icon: LayoutTemplate, disabled: true },
+  { name: 'studio-marketplace', label: '판매처 연결', icon: Store },
   { name: 'studio-assets', label: '저장값', icon: Bookmark },
   { name: 'studio-glossary', label: '용어집', icon: BookA },
 ]

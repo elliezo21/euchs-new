@@ -29,6 +29,8 @@ import studioProductHandler from './api/studio-product.js'
 import studioIngestHandler from './api/studio-ingest.js'
 // 로컬 개발용: api/studio-upload.js handler 직접 import (스튜디오 셀러 사진 업로드, 동일 패턴)
 import studioUploadHandler from './api/studio-upload.js'
+// 로컬 개발용: api/marketplace.js handler 직접 import (스튜디오 → 쿠팡 연동, GET 이미지 전달 + POST action)
+import marketplaceHandler from './api/marketplace.js'
 // 번역 캐시는 운영(api/translate.js)과 로컬 dev 프록시가 같은 헬퍼를 공유한다
 import { lookupCachedTranslations, saveTranslationsToCache } from './api/_translationCache.js'
 // 1688 공식 다국어 API 한글 보강도 같은 한 벌을 쓴다
@@ -114,6 +116,38 @@ function naverAuthPlugin(env) {
           })
           return
         }
+        // 스튜디오 → 쿠팡 연동 — api/marketplace.js handler 직접 재사용 (POST = action, GET = 이미지 전달 토큰)
+        if (req.url?.startsWith('/api/marketplace') && (req.method === 'POST' || req.method === 'GET')) {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            if (!process.env.STUDIO_ENABLED)              process.env.STUDIO_ENABLED              = env.STUDIO_ENABLED              || ''
+            if (!process.env.SUPABASE_URL)                process.env.SUPABASE_URL                = env.SUPABASE_URL                || env.VITE_SUPABASE_URL || ''
+            if (!process.env.SUPABASE_SERVICE_ROLE_KEY)   process.env.SUPABASE_SERVICE_ROLE_KEY   = env.SUPABASE_SERVICE_ROLE_KEY   || ''
+            if (!process.env.MARKETPLACE_ENC_KEY)         process.env.MARKETPLACE_ENC_KEY         = env.MARKETPLACE_ENC_KEY         || ''
+            if (!process.env.MARKETPLACE_RELAY_URL)       process.env.MARKETPLACE_RELAY_URL       = env.MARKETPLACE_RELAY_URL       || ''
+            if (!process.env.MARKETPLACE_RELAY_SECRET)    process.env.MARKETPLACE_RELAY_SECRET    = env.MARKETPLACE_RELAY_SECRET    || ''
+            if (!process.env.MARKETPLACE_PUBLIC_URL)      process.env.MARKETPLACE_PUBLIC_URL      = env.MARKETPLACE_PUBLIC_URL      || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await marketplaceHandler(req, wrappedRes)
+          })
+          return
+        }
+
         next()
       })
     }

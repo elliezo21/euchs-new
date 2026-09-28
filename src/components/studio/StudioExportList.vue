@@ -25,25 +25,34 @@
               <Download class="w-4 h-4" :stroke-width="2" />
               {{ busy[x.id]?.running ? `받는 중 ${busy[x.id].done}/${busy[x.id].total || x.count}` : '다시 받기' }}
             </button>
-            <!-- 준비 중 — 누르면 안내만 (동작은 studioMarketplace.sendToMarketplace 한 곳) -->
-            <button type="button" class="st-btn st-btn-block st-soon-btn" aria-disabled="true" :data-export-send="x.id" @click="send(x)">
-              <Send class="w-4 h-4" :stroke-width="2" /> 판매처로 보내기 · 준비 중
+            <!-- 쿠팡으로 보내기 (2026-09-28) — 진입은 studioMarketplace.sendToMarketplace 한 곳: 연결돼 있으면 보내기 창, 아니면 판매처 연결 안내 -->
+            <button type="button" class="st-btn st-btn-block" :disabled="busy[x.id]?.sending" :data-export-send="x.id" @click="send(x)">
+              <Send class="w-4 h-4" :stroke-width="2" /> {{ busy[x.id]?.sending ? '확인 중…' : '판매처로 보내기' }}
             </button>
           </div>
-          <p v-if="busy[x.id]?.message" class="text-[12px] font-bold break-keep" :class="busy[x.id].error ? 'st-danger-text' : 'st-muted'" :data-export-msg="x.id">{{ busy[x.id].message }}</p>
+          <p v-if="busy[x.id]?.message" class="text-[12px] font-bold break-keep" :class="busy[x.id].error ? 'st-danger-text' : 'st-muted'" :data-export-msg="x.id">{{ busy[x.id].message }}
+            <router-link v-if="busy[x.id].link" :to="{ name: 'studio-marketplace' }" class="st-link ml-1" :data-export-mk-link="x.id">판매처 연결로 가기</router-link>
+          </p>
         </div>
       </article>
     </div>
+
+    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" @close="sendOpen = false" @sent="onSent" />
   </section>
 </template>
 
 <script setup>
 // 작업 홈 [완성작] — 내보내기로 받은 이미지를 보관한 목록 (studio_exports, api/studio-upload.js exports_list).
-// [다시 받기] = 보관된 파일을 그대로 받는다(편집기를 열지 않는다). [판매처로 보내기] = 준비 중(sendToMarketplace 한 곳).
+// [다시 받기] = 보관된 파일을 그대로 받는다(편집기를 열지 않는다). [판매처로 보내기] = 쿠팡 보내기 창(진입은 sendToMarketplace 한 곳).
 import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { Download, Send } from 'lucide-vue-next'
 import { listArchives, downloadArchive } from '@/lib/studioExportArchive'
 import { sendToMarketplace } from '@/lib/studioMarketplace'
+import StudioSendModal from '@/components/studio/StudioSendModal.vue'
+
+const sendOpen = ref(false)
+const sendPrepare = ref(null)
+const sendingId = ref(null)
 
 const items = ref([])
 const ready = ref(true)
@@ -92,8 +101,26 @@ async function redownload(x) {
 }
 
 async function send(x) {
-  const r = await sendToMarketplace(x.id)
-  busy[x.id] = { ...(busy[x.id] || { running: false, done: 0, total: 0 }), message: r.message, error: false }
+  const base = busy[x.id] || { running: false, done: 0, total: 0 }
+  busy[x.id] = { ...base, sending: true, message: '', error: false, link: false }
+  try {
+    const r = await sendToMarketplace(x.id)
+    if (r.status === 'ready') {
+      sendingId.value = x.id
+      sendPrepare.value = r.prepare
+      sendOpen.value = true
+      busy[x.id] = { ...base, sending: false, message: '', error: false, link: false }
+    } else {
+      busy[x.id] = { ...base, sending: false, message: r.message, error: false, link: true }
+    }
+  } catch (e) {
+    console.error('[StudioExportList] 판매처로 보내기 준비 실패:', x.id, e.code, e)
+    busy[x.id] = { ...base, sending: false, message: e.message, error: true, link: false }
+  }
+}
+function onSent(r) {
+  const id = sendingId.value
+  if (id) busy[id] = { ...(busy[id] || { running: false, done: 0, total: 0 }), message: `쿠팡에 승인 요청을 보냈어요${r?.sellerProductId ? ` (#${r.sellerProductId})` : ''}`, error: false, link: true }
 }
 
 // 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 완성작·서명 주소를 비운다
@@ -102,6 +129,8 @@ const onStudioAuthChanged = (e) => {
     loadSeq++
     items.value = []
     errorMsg.value = ''
+    sendOpen.value = false
+    sendPrepare.value = null
     for (const k of Object.keys(busy)) delete busy[k]
   } else {
     load()
@@ -118,6 +147,5 @@ defineExpose({ reload: load })
 </script>
 
 <style scoped>
-.st-soon-btn { opacity: 0.55; cursor: not-allowed; }
 .st-ai-text-soft { color: var(--st-ai); }
 </style>

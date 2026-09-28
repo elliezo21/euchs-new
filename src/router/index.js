@@ -70,6 +70,12 @@ const studioRoute = {
       meta: { ...STUDIO_PROTECTED, title: '상세페이지 편집' }
     },
     {
+      path: 'marketplace',
+      name: 'studio-marketplace',
+      component: () => import('../views/studio/StudioMarketplaceView.vue'),
+      meta: { ...STUDIO_PROTECTED, title: '판매처 연결' }
+    },
+    {
       path: 'assets',
       name: 'studio-assets',
       component: () => import('../views/studio/StudioAssetsView.vue'),

@@ -154,10 +154,24 @@ const EXPORT = {
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
 }
 
-const TABLES = { product: PRODUCT, ingest: INGEST, upload: UPLOAD, copy: COPY, bg: BG, export: EXPORT }
+/** marketplace (스튜디오 → 쿠팡 연동 2026-09-28) — 서버가 문구를 주는 코드(coupang_*·template_invalid·required_missing 등)는 서버 문구를 그대로 쓴다(studioMarketplace.marketplaceError) */
+const MARKETPLACE = {
+  marketplace_sql_missing: '판매처 연결을 준비하고 있어요. 곧 쓸 수 있어요.',
+  enc_not_ready: '판매처 연결을 준비하고 있어요. 관리자에게 알려 주세요.',
+  relay_not_configured: '쿠팡 중계 서버가 아직 설정되지 않았어요. 관리자에게 알려 주세요.',
+  relay_unreachable: '쿠팡 중계 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.',
+  relay_denied: '쿠팡 중계 서버 설정에 문제가 있어요. 관리자에게 알려 주세요.',
+  not_connected: '먼저 쿠팡을 연결해 주세요.',
+  key_expired: '키 유효기간이 지났어요. Wing에서 재발급한 키로 다시 연결해 주세요.',
+  decrypt_failed: '저장된 키를 읽지 못했어요. 연결을 해제하고 다시 연결해 주세요.',
+  storage_error: '저장소에서 파일을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.',
+  invalid_input: '입력값을 확인해 주세요.',
+}
+
+const TABLES = { product: PRODUCT, ingest: INGEST, upload: UPLOAD, copy: COPY, bg: BG, export: EXPORT, marketplace: MARKETPLACE }
 
 /**
- * @param {'product'|'ingest'|'upload'|'copy'|'bg'|'export'} context
+ * @param {'product'|'ingest'|'upload'|'copy'|'bg'|'export'|'marketplace'} context
  * @param {string} code
  * @param {{ remaining?:number, width?:number, height?:number }} [extra]
  */
