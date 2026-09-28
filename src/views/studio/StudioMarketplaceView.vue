@@ -1,6 +1,6 @@
 <template>
   <div class="px-4 sm:px-12 py-6 max-w-5xl space-y-6" data-mk-view>
-    <p class="st-desc break-keep">완성한 상세페이지를 판매처에 바로 올려요. 가이드를 보고 직접 연결할 수 있어요. 지금은 쿠팡부터 열려 있어요.</p>
+    <p class="st-desc break-keep">완성한 상세페이지를 판매처에 바로 올려요. 가이드를 보고 직접 연결할 수 있어요.</p>
 
     <p v-if="loadError" class="text-[14px] break-keep" :class="loadSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-load-error>{{ loadError }}</p>
 
@@ -50,9 +50,8 @@
       <section class="st-card p-5 sm:p-6 space-y-3" data-mk-card="others">
         <h3 class="st-h-card">다른 판매처</h3>
         <ul class="space-y-2">
-          <li v-for="m in OTHERS" :key="m" class="flex items-center gap-2 text-[14px] st-ink-2"><span>{{ m }}</span><span class="st-badge ml-auto">준비 중</span></li>
+          <li v-for="m in OTHERS" :key="m.key" class="flex items-center gap-2 text-[14px] st-ink-2" :data-mk-other="m.key"><span>{{ m.name }}</span><span class="st-badge ml-auto">준비 중</span></li>
         </ul>
-        <p class="st-desc break-keep">쿠팡 다음으로 이어서 준비하고 있어요. 지금은 [내보내기]로 받은 이미지를 직접 올려 주세요.</p>
       </section>
     </div>
 
@@ -121,9 +120,10 @@ import { Store } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioMarketplaceGuide from '@/components/studio/StudioMarketplaceGuide.vue'
 import { getMarketplaceStatus, connectCoupang, disconnectCoupang, refreshPlaces, expiryState, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
+import { MARKETS } from '@/lib/studioMarketplaceRules'
 
 const STATUS_LABEL = { connected: '연결됨', invalid: '키 확인 필요', expired: '만료됨' }
-const OTHERS = ['카페24', '고도몰', '메이크샵']
+const OTHERS = MARKETS.filter(m => m.soon) // 랜딩 칩과 같은 목록·같은 순서 — 이름 + "준비 중" 배지만
 const TONE_CLASS = { ok: 'font-bold st-success-text', error: 'font-bold st-danger-text', soft: 'st-muted' }
 const toneOf = e => isNotReady(e.code) ? 'soft' : 'error'
 

@@ -7,7 +7,7 @@
 
     <p v-if="loading && !items.length" class="st-desc">불러오는 중…</p>
     <p v-else-if="errorMsg" class="text-[14px] font-bold st-danger-text break-keep" data-export-list-error>{{ errorMsg }}</p>
-    <p v-else-if="!ready" class="st-desc break-keep" data-export-list-soon>완성작 보관을 준비하고 있어요. 곧 내보낸 이미지를 여기서 다시 받을 수 있어요.</p>
+    <p v-else-if="!ready" class="st-desc break-keep" data-export-list-soon>완성작 보관을 준비하고 있어요.</p>
     <p v-else-if="!items.length" class="st-desc break-keep" data-export-list-empty>편집기에서 [내보내기]로 받은 이미지가 여기에 보관돼요. 편집기를 다시 열지 않고 바로 받을 수 있어요.</p>
 
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">

@@ -19,6 +19,19 @@ export const SETTINGS_TABS = [
   { key: 'glossary', label: '용어집', route: 'studio-settings-glossary', legacy: 'studio-glossary', soon: true },
 ]
 
+// 판매처 목록 — 설정 > 판매처 연결과 랜딩 칩이 같은 목록·같은 순서를 쓴다. soon = 이름 + "준비 중" 배지만 (부가 설명 문구 없음)
+export const MARKETS = [
+  { key: 'coupang', name: '쿠팡' },
+  { key: 'smartstore', name: '스마트스토어', soon: true },
+  { key: '11st', name: '11번가', soon: true },
+  { key: 'gmarket', name: 'G마켓·옥션', soon: true },
+  { key: 'ably', name: '에이블리', soon: true },
+  { key: 'zigzag', name: '지그재그', soon: true },
+  { key: 'cafe24', name: '카페24', soon: true },
+  { key: 'makeshop', name: '메이크샵', soon: true },
+  { key: 'godomall', name: '고도몰', soon: true },
+]
+
 /** 완성작 id → 그 완성작의 가장 최근 전송 (완성작 카드 배지용) */
 export function latestSendByExport(sends) {
   const map = {}
