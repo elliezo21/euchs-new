@@ -10,6 +10,10 @@
  * [요청 제한] 429 = 잠시 후 / 403 "Sorry! Access denied" = IP 10분 차단 → 5초 안 오류 20건이면 10분 멈춤 (developers.coupang.com FAQ 권고)
  */
 import crypto from 'crypto'
+import {
+  SALE_MODES, isSaleMode, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, normalizeAdvanced, cleanSearchTags, realCerts, docRequired,
+  CERT_NONE, NAME_MAX, ITEMS_MAX, STOCK_MAX, NOTICE_LEN, DOC_MAX, DOC_PATH_MAX,
+} from './_coupangFields.js'
 
 export const COUPANG_HOST = 'https://api-gateway.coupang.com'
 export const RELAY_IP = '3.39.196.112'
@@ -229,45 +233,101 @@ export const DELIVERY_COMPANIES = [
 ]
 
 // ── 카테고리 메타 → 필수 항목 ──
-/** @returns {{ attributes:[{ name, required, dataType, unit, exposed }], notices:[{ category, items:[{ name, required }] }], singleItem:boolean, certifications:[{ type, name, required }] }} */
+/**
+ * @returns {{ attributes:[{ name, required, dataType, unit, units, exposed, group }], notices:[{ category, items:[{ name, required }] }], singleItem:boolean,
+ *             certifications:[{ type, name, required, recommend, needsCode }], documents:[{ templateName, rule }], offerConditions:string[] }}
+ *   group = 택1 묶음 번호('' = 묶음 아님) · documents.rule = MANDATORY | OPTIONAL | MANDATORY_PARALLEL_IMPORTED | MANDATORY_OVERSEAS_PURCHASED
+ */
 export function summarizeCategoryMeta(meta) {
   const d = meta?.data || meta || {}
   const attributes = (Array.isArray(d.attributes) ? d.attributes : []).map(a => ({
     name: String(a.attributeTypeName || ''), required: a.required === 'MANDATORY', dataType: a.dataType || 'STRING',
-    unit: a.basicUnit || '', exposed: a.exposed === 'EXPOSED',
+    unit: a.basicUnit || '', units: Array.isArray(a.usableUnits) ? a.usableUnits.map(String) : [], exposed: a.exposed === 'EXPOSED',
+    group: a.groupNumber == null || String(a.groupNumber) === 'NONE' ? '' : String(a.groupNumber),
   })).filter(a => a.name)
   const notices = (Array.isArray(d.noticeCategories) ? d.noticeCategories : []).map(n => ({
     category: String(n.noticeCategoryName || ''),
     items: (Array.isArray(n.noticeCategoryDetailNames) ? n.noticeCategoryDetailNames : []).map(x => ({ name: String(x.noticeCategoryDetailName || x.name || ''), required: x.required === 'MANDATORY' })),
   })).filter(n => n.category)
-  const certifications = (Array.isArray(d.certifications) ? d.certifications : []).map(c => ({ type: String(c.certificationType || ''), name: String(c.name || ''), required: c.required === 'MANDATORY' })).filter(c => c.type)
-  return { attributes, notices, singleItem: d.isAllowSingleItem === true, certifications }
+  const certifications = (Array.isArray(d.certifications) ? d.certifications : []).map(c => ({
+    type: String(c.certificationType || ''), name: String(c.name || ''), required: c.required === 'MANDATORY', recommend: c.required === 'RECOMMEND', needsCode: c.dataType === 'CODE',
+  })).filter(c => c.type)
+  const documents = (Array.isArray(d.requiredDocumentNames) ? d.requiredDocumentNames : []).map(x => ({ templateName: String(x.templateName || ''), rule: String(x.required || 'OPTIONAL') })).filter(x => x.templateName)
+  const offerConditions = (Array.isArray(d.allowedOfferConditions) ? d.allowedOfferConditions : []).map(String)
+  return { attributes, notices, singleItem: d.isAllowSingleItem === true, certifications, documents, offerConditions }
 }
 
-/** 보내기 전 필수값 검사 — 화면과 서버가 같은 규칙. @returns {string[]} 빠진 것 */
-export function missingRequired(summary, { attributes = {}, notices = {} }) {
+/**
+ * 보내기 전 필수값 검사 — 화면과 서버가 같은 규칙. @returns {string[]} 빠진 것
+ * @param {{ attributes?, notices?, noticeCategory?, certifications?:[{ type, code }], documents?:[{ templateName }], saleMode?, parallelImported?, skipAttributes?, skipProduct? }} v
+ *   noticeCategory = 고른 고시 분류 이름(없으면 첫 분류) · skipAttributes = 옵션 검사를 건너뜀 · skipProduct = 상품 단위(고시·인증·서류) 검사를 건너뜀
+ */
+export function missingRequired(summary, { attributes = {}, notices = {}, noticeCategory = '', certifications = [], documents = [], saleMode, parallelImported, skipAttributes = false, skipProduct = false } = {}) {
   const out = []
-  for (const a of summary.attributes) if (a.required && !String(attributes[a.name] ?? '').trim()) out.push(`옵션·속성 "${a.name}"`)
+  const filled = name => !!String(attributes[name] ?? '').trim()
+  if (!skipAttributes) {
+    const doneGroups = new Set()
+    for (const a of summary.attributes) {
+      if (!a.required) continue
+      if (a.group) { // 택1 묶음 — 묶음 안에서 하나만 채우면 된다
+        if (doneGroups.has(a.group)) continue
+        doneGroups.add(a.group)
+        const members = summary.attributes.filter(x => x.required && x.group === a.group)
+        if (!members.some(x => filled(x.name))) out.push(`옵션·속성 "${members.map(x => x.name).join('" 또는 "')}"`)
+      } else if (!filled(a.name)) out.push(`옵션·속성 "${a.name}"`)
+    }
+  }
+  if (skipProduct) return out
   if (summary.notices.length) {
-    const n = summary.notices[0] // 화면이 고른 고시 분류 하나 — 그 분류의 필수 항목
+    const n = summary.notices.find(x => x.category === noticeCategory) || summary.notices[0] // 화면이 고른 고시 분류 하나 — 그 분류의 필수 항목
     for (const it of n.items) if (it.required && !String(notices[it.name] ?? '').trim()) out.push(`상품고시 "${it.name}"`)
+  }
+  const certs = Array.isArray(certifications) ? certifications : []
+  for (const c of realCerts(summary.certifications || [])) {
+    const got = certs.find(x => x && x.type === c.type)
+    if (c.required && !got) out.push(`인증정보 "${c.name || c.type}"`)
+    else if (got && c.needsCode && !String(got.code ?? '').trim()) out.push(`인증정보 "${c.name || c.type}" 인증번호`)
+  }
+  const docs = Array.isArray(documents) ? documents : []
+  for (const d of summary.documents || []) {
+    if (docRequired(d.rule, { saleMode, parallelImported }) && !docs.some(x => x && x.templateName === d.templateName)) out.push(`구비서류 "${d.templateName}"`)
   }
   return out
 }
 
 // ── 상품 생성 본문 ──
 export const SALE_END = '2099-12-31T23:59:59'
-export const MAX_STOCK = 99999
+export const MAX_STOCK = STOCK_MAX
+export const ATTR_NAME_MAX = 25
+export const ATTR_VALUE_MAX = 30
 function money(v) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n : null }
 
 /**
- * @param {object} p  { account:{ vendor_id, seller_login_id }, template, places, categoryCode, productName, brand(필수), manufacture?, items:[{ name, originalPrice, salePrice, stock, sku(필수 품번), gtin?(선택), attributes:{} }],
- *                      notices:[{ noticeCategoryName, noticeCategoryDetailName, content }], repImageUrl, detailImageUrls:[], searchTags:[], overseas:boolean, pccNeeded:boolean, saleStartedAt }
+ * @param {object} p  { account:{ vendor_id, seller_login_id }, template, places, categoryCode,
+ *                      saleMode(필수 'domestic'|'agent' — 기본값 없음), outboundDays?(비우면 템플릿 값),
+ *                      productName(등록상품명), displayName?(노출상품명 — 비우면 등록상품명), generalName?(제품명), brand(필수), manufacture?, modelNo?,
+ *                      items:[{ name, originalPrice, salePrice, stock, sku(필수 품번), gtin?(선택), attributes:{}, imageUrl?(옵션 대표 이미지 — 없으면 repImageUrl) }],
+ *                      attributeMeta?:[{ name, dataType, unit, exposed }](카테고리 메타 — 단위 붙이기·검색옵션 표시),
+ *                      notices:[{ noticeCategoryName, noticeCategoryDetailName, content }], certifications?:[{ type, code }], documents?:[{ templateName, url }],
+ *                      advanced?:{ parallelImported, taxType, adultOnly, offerCondition, unionDeliveryType, maxPerPerson, maxPerPersonDays },
+ *                      repImageUrl, detailImageUrls:[], searchTags:[], saleStartedAt }
  * @returns {{ ok:true, body } | { ok:false, message }}
  */
 export function buildProductBody(p) {
   const name = String(p.productName || '').trim()
-  if (!name || name.length > 100) return { ok: false, message: '상품명은 1~100자예요.' }
+  if (!name || name.length > NAME_MAX) return { ok: false, message: `등록상품명은 1~${NAME_MAX}자예요.` }
+  const displayName = String(p.displayName || '').trim() || name
+  if (displayName.length > NAME_MAX) return { ok: false, message: `노출상품명은 ${NAME_MAX}자까지예요.` }
+  const generalName = String(p.generalName || '').trim()
+  if (generalName.length > NAME_MAX) return { ok: false, message: `제품명은 ${NAME_MAX}자까지예요.` }
+  const modelNo = String(p.modelNo || '').trim()
+  if (modelNo.length > 50) return { ok: false, message: '모델번호는 50자까지예요.' }
+  // 판매 방식 — 기본값 없음. 고르지 않으면 보내지 않는다 (국내 재고 / 해외구매대행은 통관·배송이 달라 잘못 보내면 안 된다)
+  if (!isSaleMode(p.saleMode)) return { ok: false, message: '판매 방식을 골라 주세요. (국내 재고 판매 / 해외구매대행)' }
+  const mode = SALE_MODES[p.saleMode]
+  const adv = normalizeAdvanced(p.advanced || {})
+  if (!adv.ok) return adv
+  const A = adv.value
   // 쿠팡 정책(2026-06-01 이후 발급 키): 브랜드·상품식별정보(GTIN 또는 품번)·필수 구매옵션이 비면 노출 제한 (해성 추가 지시 2026-09-28)
   // 필드명은 문서(360033877853) 확인: 상품 레벨 brand·manufacture / items[] externalVendorSku(판매자 상품코드=품번)·barcode·emptyBarcode·emptyBarcodeReason·modelNo
   const brand = String(p.brand || '').trim()
@@ -280,51 +340,89 @@ export function buildProductBody(p) {
   if (!rc || !ob) return { ok: false, message: '템플릿의 출고지·반품지가 지금 목록에 없어요. 템플릿을 다시 저장해 주세요.' }
   if (!rc.address?.zip || !rc.address?.address) return { ok: false, message: '반품지 주소 정보가 비어 있어요. [출고지·반품지 새로고침]을 눌러 주세요.' }
   const items = Array.isArray(p.items) ? p.items : []
-  if (!items.length || items.length > 200) return { ok: false, message: '옵션은 1~200개예요.' }
+  if (!items.length || items.length > ITEMS_MAX) return { ok: false, message: `옵션은 1~${ITEMS_MAX}개예요.` }
   if (!p.repImageUrl) return { ok: false, message: '대표 이미지를 골라 주세요.' }
-  const images = [{ imageOrder: 0, imageType: 'REPRESENTATION', vendorPath: p.repImageUrl }]
-  ;(p.detailImageUrls || []).slice(0, 9).forEach((u, i) => images.push({ imageOrder: i + 1, imageType: 'DETAIL', vendorPath: u }))
+  const days = p.outboundDays == null || p.outboundDays === '' ? Number(t.outbound_shipping_time_day) : Number(p.outboundDays)
+  if (!Number.isInteger(days) || days < OUTBOUND_DAYS_MIN || days > OUTBOUND_DAYS_MAX) return { ok: false, message: `출고 소요일은 ${OUTBOUND_DAYS_MIN}~${OUTBOUND_DAYS_MAX}일이에요.` }
+  const imagesFor = rep => {
+    const list = [{ imageOrder: 0, imageType: 'REPRESENTATION', vendorPath: rep }]
+    ;(p.detailImageUrls || []).slice(0, 9).forEach((u, i) => list.push({ imageOrder: i + 1, imageType: 'DETAIL', vendorPath: u }))
+    return list
+  }
   const contents = (p.detailImageUrls || []).length
     ? [{ contentsType: 'IMAGE_NO_SPACE', contentDetails: (p.detailImageUrls || []).map(u => ({ content: u, detailType: 'IMAGE' })) }]
     : []
+  // 인증 — 고른 것이 없으면 문서 규칙대로 NOT_REQUIRED 한 줄
+  const certIn = (Array.isArray(p.certifications) ? p.certifications : []).filter(c => c && c.type && c.type !== CERT_NONE)
+  for (const c of certIn) {
+    if (!/^[A-Z0-9_]{1,60}$/.test(String(c.type))) return { ok: false, message: '인증정보 종류가 올바르지 않아요.' }
+    if (String(c.code ?? '').length > 100) return { ok: false, message: '인증번호는 100자까지예요.' }
+  }
+  const certifications = certIn.length ? certIn.map(c => ({ certificationType: String(c.type), certificationCode: String(c.code ?? '').trim() })) : [{ certificationType: CERT_NONE, certificationCode: '' }]
+  const docsIn = (Array.isArray(p.documents) ? p.documents : []).filter(d => d && d.templateName && d.url)
+  if (docsIn.length > DOC_MAX) return { ok: false, message: `구비서류는 ${DOC_MAX}개까지예요.` }
+  for (const d of docsIn) if (String(d.url).length > DOC_PATH_MAX) return { ok: false, message: '구비서류 주소가 너무 길어요.' }
+  const tags = cleanSearchTags(p.searchTags, { brand }).tags
+  const metaOf = n => (Array.isArray(p.attributeMeta) ? p.attributeMeta : []).find(a => a.name === n)
+  const seenNames = new Set(), seenCombos = new Set()
   const outItems = []
   for (const it of items) {
     const itemName = String(it.name || '').trim()
     if (!itemName || itemName.length > 150) return { ok: false, message: '옵션 이름은 1~150자예요.' }
+    if (seenNames.has(itemName)) return { ok: false, message: `옵션 이름 "${itemName}"이 두 번 있어요. 옵션 이름은 서로 달라야 해요.` }
+    seenNames.add(itemName)
     const sale = money(it.salePrice), orig = money(it.originalPrice ?? it.salePrice)
     if (!sale || !orig) return { ok: false, message: `옵션 "${itemName}"의 가격을 넣어 주세요.` }
     if (sale > orig) return { ok: false, message: `옵션 "${itemName}"의 판매가가 정가보다 커요.` }
     const stock = Number(it.stock)
     if (!Number.isInteger(stock) || stock < 0 || stock > MAX_STOCK) return { ok: false, message: `옵션 "${itemName}"의 재고는 0~${MAX_STOCK}이에요.` }
-    const attrs = Object.entries(it.attributes || {}).filter(([k, v]) => k && String(v ?? '').trim()).map(([k, v]) => ({ attributeTypeName: k, attributeValueName: String(v).trim() }))
+    const attrs = []
+    for (const [k, v] of Object.entries(it.attributes || {})) {
+      let value = String(v ?? '').trim()
+      if (!k || !value) continue
+      const am = metaOf(k)
+      if (am && am.dataType === 'NUMBER' && am.unit && /^\d+(\.\d+)?$/.test(value)) value = `${value}${am.unit}` // 문서: 옵션값은 단위 포함(예: 200ml)
+      if (String(k).length > ATTR_NAME_MAX) return { ok: false, message: `옵션 종류 "${k}"는 ${ATTR_NAME_MAX}자까지예요.` }
+      if (value.length > ATTR_VALUE_MAX) return { ok: false, message: `옵션 "${itemName}"의 ${k} 값은 ${ATTR_VALUE_MAX}자까지예요.` }
+      const a = { attributeTypeName: k, attributeValueName: value }
+      if (am && am.exposed === false) a.exposed = 'NONE' // 검색옵션(필터) — 문서: exposed "NONE"
+      attrs.push(a)
+    }
     if (!attrs.length) return { ok: false, message: `옵션 "${itemName}"의 속성을 하나 이상 넣어 주세요.` }
+    const combo = JSON.stringify(attrs.filter(a => a.exposed !== 'NONE').map(a => [a.attributeTypeName, a.attributeValueName]).sort())
+    if (items.length > 1 && seenCombos.has(combo)) return { ok: false, message: `옵션 "${itemName}"의 구매옵션 값이 다른 옵션과 같아요. 옵션마다 값이 달라야 해요.` }
+    seenCombos.add(combo)
     const sku = String(it.sku || '').trim()
     if (!sku || sku.length > 50) return { ok: false, message: `옵션 "${itemName}"의 품번(판매자 상품코드)을 넣어 주세요.` }
     const gtin = String(it.gtin || '').replace(/\s/g, '')
     if (gtin && !/^\d{8,14}$/.test(gtin)) return { ok: false, message: `옵션 "${itemName}"의 GTIN(바코드)은 숫자 8~14자리예요. 없으면 비워 두세요.` }
     const ident = gtin ? { barcode: gtin, emptyBarcode: false } : { emptyBarcode: true, emptyBarcodeReason: '바코드가 없는 상품(품번으로 식별)' }
-    outItems.push({
-      itemName, originalPrice: orig, salePrice: sale, maximumBuyCount: stock, maximumBuyForPerson: 0, maximumBuyForPersonPeriod: 1,
+    const item = {
+      itemName, originalPrice: orig, salePrice: sale, maximumBuyCount: stock, maximumBuyForPerson: A.maxPerPerson, maximumBuyForPersonPeriod: A.maxPerPersonDays,
       externalVendorSku: sku, ...ident,
-      outboundShippingTimeDay: t.outbound_shipping_time_day, unitCount: 1, adultOnly: 'EVERYONE', taxType: 'TAX',
-      parallelImported: 'NOT_PARALLEL_IMPORTED', overseasPurchased: p.overseas ? 'OVERSEAS_PURCHASED' : 'NOT_OVERSEAS_PURCHASED', pccNeeded: p.pccNeeded === true,
-      certifications: [{ certificationType: 'NOT_REQUIRED', certificationCode: '' }],
-      images, attributes: attrs, contents,
-      notices: (p.notices || []).map(n => ({ noticeCategoryName: n.noticeCategoryName, noticeCategoryDetailName: n.noticeCategoryDetailName, content: String(n.content).slice(0, 200) })),
-      searchTags: (p.searchTags || []).slice(0, 20), offerCondition: 'NEW',
-    })
+      outboundShippingTimeDay: days, unitCount: 1, adultOnly: A.adultOnly, taxType: A.taxType,
+      parallelImported: A.parallelImported, overseasPurchased: mode.overseasPurchased, pccNeeded: mode.pccNeeded,
+      certifications,
+      images: imagesFor(it.imageUrl || p.repImageUrl), attributes: attrs, contents,
+      notices: (p.notices || []).map(n => ({ noticeCategoryName: n.noticeCategoryName, noticeCategoryDetailName: n.noticeCategoryDetailName, content: String(n.content).slice(0, NOTICE_LEN) })),
+      searchTags: tags, offerCondition: A.offerCondition,
+    }
+    if (modelNo) item.modelNo = modelNo
+    outItems.push(item)
   }
   const body = {
     displayCategoryCode: Number(p.categoryCode), sellerProductName: name, vendorId: p.account.vendor_id,
-    saleStartedAt: p.saleStartedAt, saleEndedAt: SALE_END, displayProductName: name, brand, manufacture: String(p.manufacture || '').trim() || brand,
-    deliveryMethod: 'SEQUENCIAL', deliveryCompanyCode: t.delivery_company_code, deliveryChargeType: t.delivery_charge_type,
+    saleStartedAt: p.saleStartedAt, saleEndedAt: SALE_END, displayProductName: displayName, brand, manufacture: String(p.manufacture || '').trim() || brand,
+    deliveryMethod: mode.deliveryMethod, deliveryCompanyCode: t.delivery_company_code, deliveryChargeType: t.delivery_charge_type,
     deliveryCharge: t.delivery_charge, freeShipOverAmount: t.free_ship_over_amount, deliveryChargeOnReturn: t.delivery_charge_on_return,
-    remoteAreaDeliverable: t.remote_area_deliverable ? 'Y' : 'N', unionDeliveryType: 'NOT_UNION_DELIVERY',
+    remoteAreaDeliverable: t.remote_area_deliverable ? 'Y' : 'N', unionDeliveryType: A.unionDeliveryType,
     returnCenterCode: rc.place_code, returnChargeName: rc.name, companyContactNumber: rc.address.contact || '',
     returnZipCode: rc.address.zip, returnAddress: rc.address.address, returnAddressDetail: rc.address.addressDetail || '',
     returnCharge: t.return_charge, outboundShippingPlaceCode: Number.isNaN(Number(ob.place_code)) ? ob.place_code : Number(ob.place_code),
     vendorUserId: p.account.seller_login_id, requested: true, items: outItems,
   }
+  if (generalName) body.generalProductName = generalName
+  if (docsIn.length) body.requiredDocuments = docsIn.map(d => ({ templateName: String(d.templateName), vendorDocumentPath: String(d.url) }))
   return { ok: true, body }
 }
 

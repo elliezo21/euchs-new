@@ -76,6 +76,33 @@ export async function makeSquareJpeg(url, fit = 'contain') {
   }
 }
 
+// 보내기 요청 본문 상한(글자 수) — 서버가 받는 본문이 4.5MB라 그보다 작게 막는다
+export const SEND_BODY_MAX = 4 * 1000 * 1000
+
+/** 파일 → base64 (data: 접두어 없이) */
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => { const s = String(r.result || ''); resolve(s.slice(s.indexOf(',') + 1)) }
+    r.onerror = () => reject(r.error || new Error('파일을 읽지 못했어요'))
+    r.readAsDataURL(file)
+  })
+}
+
+// 템플릿마다 마지막으로 고른 판매 방식 — 이 브라우저에만 기억한다(편의). 처음에는 값이 없어 고객이 직접 고른다
+const SALE_MODE_KEY = id => `studio-mk-sale-mode:${id}`
+export function readSaleMode(templateId) {
+  try { return localStorage.getItem(SALE_MODE_KEY(templateId)) || '' } catch (e) {
+    console.warn('[studioMarketplace] 판매 방식 기억을 읽지 못함 (고객이 다시 고른다):', e?.message)
+    return ''
+  }
+}
+export function rememberSaleMode(templateId, mode) {
+  try { localStorage.setItem(SALE_MODE_KEY(templateId), mode) } catch (e) {
+    console.warn('[studioMarketplace] 판매 방식 기억을 저장하지 못함:', e?.message)
+  }
+}
+
 /** 만료일 표시 — D-14부터 경고 */
 export function expiryState(expiresAt) {
   const left = Math.floor((new Date(expiresAt).getTime() - Date.now()) / 86400000)

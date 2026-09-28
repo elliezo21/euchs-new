@@ -10,11 +10,17 @@
  *   templates_list    → { templates, places }
  *   template_save     { template:{ id?, ... } } → 쿠팡 규칙 검증(_coupang.validateTemplate) 후 저장 → { template }
  *   template_delete   { id }
- *   send_prepare      { exportId } → { export:{ id, title, files:[{ key, name, width, height }] }, images:[{ id, url, width, height }](대표 이미지 후보 = 그 작업의 사진), templates, places }
+ *   send_prepare      { exportId } → { export:{ id, title, files:[{ key, name, width, height }] }, images:[{ id, url, width, height, sourceUrl }](대표 이미지 후보 = 그 작업의 사진), templates, places,
+ *                       source(1688에서 가져온 작업이면 저장해 둔 제목·속성·옵션 줄 + 번역 캐시의 한국어, 아니면 null — 외부 호출 없음), limits }
  *   category_predict  { productName, brand? } → { result, categoryCode, categoryName }
  *   category_meta     { categoryCode } → { attributes, notices, singleItem, certifications }
- *   send              { exportId, templateId, categoryCode, productName, brand, manufacture?, items:[{ name, originalPrice, salePrice, stock, sku, gtin?, attributes:{} }],
- *                       notices:[{ noticeCategoryName, noticeCategoryDetailName, content }], repImage:{ dataBase64 }(정사각형 JPG — 브라우저가 만든다), overseas?, pccNeeded?, searchTags? }
+ *   send              { exportId, templateId, categoryCode, saleMode('domestic'|'agent' 필수 — 기본값 없음), outboundDays?,
+ *                       productName(등록상품명), displayName?(노출상품명), generalName?(제품명), brand, manufacture?, modelNo?,
+ *                       items:[{ name, originalPrice, salePrice, stock, sku, gtin?, attributes:{}, imageKey?('r01'..) }],
+ *                       notices:[{ noticeCategoryName, noticeCategoryDetailName, content }], certifications?:[{ type, code }], documents?:[{ templateName, dataBase64 }](PDF·JPG·PNG 3MB),
+ *                       advanced?:{ parallelImported, taxType, adultOnly, offerCondition, unionDeliveryType, maxPerPerson, maxPerPersonDays },
+ *                       repImage:{ dataBase64 }(정사각형 JPG — 브라우저가 만든다), optionImages?:[{ key:'r01', dataBase64 }](6장까지), searchTags? }
+ *                     항목 규칙은 api/_coupangFields.js (화면과 같은 파일)
  *                     → 대표 이미지 검사·저장 → marketplace_sends(sending) → 상품 생성(requested:true) → { sendId, sellerProductId, status }
  *   sends_list        → { sends:[…] }
  *   sync              → 승인대기 건을 쿠팡에서 다시 읽어(상품 조회 + histories) 갱신 → { sends }
@@ -30,6 +36,10 @@ import {
   missingRequired, buildProductBody, mapCoupangStatus, DELIVERY_COMPANIES, RELAY_IP, NOT_READY_MESSAGE, NOT_READY_CODES,
 } from './_coupang.js'
 import { readDimensions } from './studio-ingest.js'
+import { extractFacts, factTexts, withKo } from './_studioFacts.js'
+import { extractSkus1688, isSaleMode, DOC_MAX } from './_coupangFields.js'
+import { lookupCachedTranslations } from './_translationCache.js'
+import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
 const MARKET = 'coupang'
 const BUCKET = 'studio'
@@ -37,6 +47,10 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const VENDOR_RE = /^[A-Za-z0-9]{1,20}$/
 const KEY_MAX_DAYS = 180
 const REP_MIN = 500, REP_MAX = 5000, REP_MAX_BYTES = 3 * 1024 * 1024
+const OPTION_IMAGE_MAX = 6 // 옵션 대표 이미지(서로 다른 사진) — 요청 본문 크기 때문에 6장까지, 나머지 옵션은 상품 대표 이미지를 쓴다
+const DOC_MAX_BYTES = 3 * 1024 * 1024 // 쿠팡 제한은 5MB — 요청 본문 크기 때문에 3MB까지 받는다
+const DOC_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }
+const OFFER_ID_RE = /^\d{9,16}$/
 const SENDS_LIST_MAX = 100
 const SYNC_MAX = 30
 const ACCOUNT_PUBLIC = 'id,seller_login_id,vendor_id,key_last4,expires_at,status,last_checked_at,last_error,created_at,updated_at'
@@ -60,6 +74,7 @@ function encKeyOr(res) {
 function sniffMime(b) {
   if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return 'image/jpeg'
   if (b.length >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return 'image/png'
+  if (b.length >= 5 && b.subarray(0, 5).toString('latin1') === '%PDF-') return 'application/pdf'
   return null
 }
 function daysLeft(iso) { return Math.floor((new Date(iso).getTime() - Date.now()) / 86400000) }
@@ -236,22 +251,49 @@ async function loadOwnedExport(ctx, body, res) {
   if (!ex || !Array.isArray(ex.files) || !ex.files.length) { sendError(res, 404, 'not_found', '완성작을 찾을 수 없어요.'); return null }
   return ex
 }
+/**
+ * 그 작업이 1688에서 가져온 상품이면 저장해 둔 상품 정보(제목·속성·옵션 줄) + 번역 캐시에 있는 한국어. 아니면 null.
+ * 외부 호출 없음(OneBound·번역 API를 부르지 않는다). 가격은 1688 원본(위안) 그대로 — 원화 판매가는 만들지 않는다.
+ */
+async function loadSource(ctx, offerId) {
+  if (!OFFER_ID_RE.test(String(offerId ?? ''))) return null
+  const rows = await sb(ctx.cfg, `studio_product_snapshots?select=status,item:raw->item&offer_id=eq.${offerId}&limit=1`)
+  const snap = Array.isArray(rows) && rows.length ? rows[0] : null
+  if (!snap || snap.status !== 'ok' || !snap.item) {
+    console.info(`[marketplace] send_prepare ${offerId}: 저장된 상품 정보 없음 (status=${snap?.status ?? '행 없음'})`)
+    return null
+  }
+  const facts = extractFacts(snap.item)
+  const skus = extractSkus1688(snap.item)
+  const texts = new Set(factTexts(facts))
+  for (const r of skus.rows) for (const v of r.values) { texts.add(v.name); texts.add(v.value) }
+  let ko = new Map()
+  try { ko = await lookupCachedTranslations([...texts], CACHE_SOURCE_LANG, CACHE_TARGET_LANG) } catch (e) {
+    console.error(`[marketplace] send_prepare ${offerId}: 번역 캐시 조회 실패 — 원문만 보냄:`, e.message)
+  }
+  const pair = zh => { const t = ko.get(zh); return { zh, ko: typeof t === 'string' && t.trim() && t !== zh ? t.trim() : null } }
+  return {
+    from: '1688', offerId: String(offerId), ...withKo(facts, ko), skuTotal: skus.total,
+    skus: skus.rows.map(r => ({ skuId: r.skuId, values: r.values.map(v => ({ name: pair(v.name), value: pair(v.value) })), priceCny: r.priceCny, stock: r.stock, imageUrl: r.imageUrl })),
+  }
+}
 async function sendPrepare(ctx, body, res) {
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
-  const imgs = await sb(ctx.cfg, `studio_images?select=id,original_path,width,height,sort_order,included&project_id=eq.${ex.project_id}&user_id=eq.${ctx.userId}&ingest_status=eq.done&original_path=not.is.null&order=sort_order&limit=60`)
+  const imgs = await sb(ctx.cfg, `studio_images?select=id,kind,source_url,original_path,width,height,sort_order,included&project_id=eq.${ex.project_id}&user_id=eq.${ctx.userId}&ingest_status=eq.done&original_path=not.is.null&order=sort_order&limit=60`)
   const images = []
   for (const im of Array.isArray(imgs) ? imgs : []) {
-    try { images.push({ id: im.id, path: im.original_path, width: im.width, height: im.height, included: im.included, url: await storageSignDownload(ctx.cfg, BUCKET, im.original_path, 600) }) }
+    try { images.push({ id: im.id, path: im.original_path, width: im.width, height: im.height, included: im.included, sourceUrl: im.source_url || null, url: await storageSignDownload(ctx.cfg, BUCKET, im.original_path, 600) }) }
     catch (e) { console.error('[marketplace] 사진 서명 주소 실패:', im.original_path, e.message) }
   }
   const [projRows, templates, places, account] = await Promise.all([
-    sb(ctx.cfg, `studio_projects?select=title&id=eq.${ex.project_id}&limit=1`), loadTemplates(ctx), loadPlaces(ctx), loadAccountRow(ctx),
+    sb(ctx.cfg, `studio_projects?select=title,offer_id&id=eq.${ex.project_id}&limit=1`), loadTemplates(ctx), loadPlaces(ctx), loadAccountRow(ctx),
   ])
+  const source = await loadSource(ctx, projRows?.[0]?.offer_id)
   return res.status(200).json({
     connected: !!account && daysLeft(account.expires_at) >= 0,
     export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },
-    images, templates, places,
+    images, templates, places, source, limits: { optionImages: OPTION_IMAGE_MAX, documents: DOC_MAX, documentBytes: DOC_MAX_BYTES },
   })
 }
 async function categoryPredict(ctx, body, res) {
@@ -305,8 +347,35 @@ async function send(ctx, body, res) {
   const [templates, places] = await Promise.all([loadTemplates(ctx), loadPlaces(ctx)])
   const template = templates.find(t => t.id === tid)
   if (!template) return sendError(res, 404, 'not_found', '템플릿을 찾을 수 없어요.')
+  // 판매 방식 — 기본값 없음. 고르지 않았으면 아무것도 만들지 않고 돌려보낸다
+  if (!isSaleMode(body.saleMode)) return sendError(res, 400, 'sale_mode_missing', '판매 방식을 골라 주세요. (국내 재고 판매 / 해외구매대행)')
   const rep = checkRepImage(body.repImage?.dataBase64)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
+  // 옵션 대표 이미지 (선택) — [{ key:'r01', dataBase64 }] · 옵션은 items[].imageKey로 가리킨다
+  const optImgs = []
+  for (const o of Array.isArray(body.optionImages) ? body.optionImages : []) {
+    const key = String(o?.key ?? '')
+    if (!/^r\d{2}$/.test(key) || optImgs.some(x => x.key === key)) return sendError(res, 400, 'invalid_input', '옵션 이미지 값이 올바르지 않아요.')
+    if (optImgs.length >= OPTION_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `옵션 이미지는 서로 다른 사진 ${OPTION_IMAGE_MAX}장까지예요.`)
+    const c = checkRepImage(o?.dataBase64)
+    if (c.error) return sendError(res, 400, 'rep_image_invalid', `옵션 이미지: ${c.error}`)
+    optImgs.push({ key, buf: c.buf })
+  }
+  // 구비서류 (필요한 카테고리만) — [{ templateName, dataBase64 }]
+  const docs = []
+  for (const d of Array.isArray(body.documents) ? body.documents : []) {
+    const templateName = String(d?.templateName ?? '').trim()
+    if (!templateName || templateName.length > 100) return sendError(res, 400, 'invalid_input', '구비서류 이름이 올바르지 않아요.')
+    if (docs.length >= DOC_MAX) return sendError(res, 400, 'invalid_input', `구비서류는 ${DOC_MAX}개까지예요.`)
+    let buf
+    try { buf = Buffer.from(String(d?.dataBase64 || ''), 'base64') } catch { buf = Buffer.alloc(0) }
+    if (!buf.length) return sendError(res, 400, 'document_invalid', `구비서류 "${templateName}" 파일을 올려 주세요.`)
+    if (buf.length > DOC_MAX_BYTES) return sendError(res, 400, 'document_invalid', `구비서류 "${templateName}"는 3MB 이하여야 해요.`)
+    const mime = sniffMime(buf)
+    if (!DOC_TYPES[mime]) return sendError(res, 400, 'document_invalid', `구비서류 "${templateName}"는 PDF·JPG·PNG만 올릴 수 있어요.`)
+    docs.push({ templateName, buf, mime, ext: DOC_TYPES[mime], key: `d${String(docs.length + 1).padStart(2, '0')}` })
+  }
+  const certsIn = (Array.isArray(body.certifications) ? body.certifications : []).map(c => ({ type: String(c?.type ?? ''), code: String(c?.code ?? '').trim() })).filter(c => c.type)
 
   // 카테고리 필수값 — 화면이 보낸 값을 서버가 메타로 다시 검사 (화면을 건너뛰어도 막힌다)
   const code = String(body.categoryCode ?? '').trim()
@@ -316,10 +385,13 @@ async function send(ctx, body, res) {
   const items = Array.isArray(body.items) ? body.items : []
   const noticesIn = Array.isArray(body.notices) ? body.notices : []
   const noticeMap = Object.fromEntries(noticesIn.map(n => [String(n?.noticeCategoryDetailName || ''), String(n?.content || '')]))
+  const noticeCategory = String(noticesIn[0]?.noticeCategoryName || body.noticeCategory || '')
   const missing = new Set()
-  for (const it of items.length ? items : [{}]) for (const m of missingRequired(meta, { attributes: it?.attributes || {}, notices: noticeMap })) missing.add(m)
+  for (const it of items.length ? items : [{}]) for (const m of missingRequired(meta, { attributes: it?.attributes || {}, skipProduct: true })) missing.add(m)
+  for (const m of missingRequired(meta, { skipAttributes: true, notices: noticeMap, noticeCategory, certifications: certsIn, documents: docs, saleMode: body.saleMode, parallelImported: body.advanced?.parallelImported })) missing.add(m)
   if (missing.size) return sendError(res, 400, 'required_missing', `필수 항목이 비어 있어요: ${[...missing].join(', ')}`)
   if (!meta.singleItem && items.length < 1) return sendError(res, 400, 'invalid_input', '옵션을 하나 이상 넣어 주세요.')
+  for (const it of items) if (it?.imageKey && !optImgs.some(x => x.key === it.imageKey)) return sendError(res, 400, 'invalid_input', '옵션 이미지 값이 올바르지 않아요.')
 
   // 전송 기록 먼저 (id가 이미지 토큰 재료)
   const created = await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: MARKET, status: 'sending', request_json: {} }, prefer: 'return=representation' })
@@ -339,15 +411,33 @@ async function send(ctx, body, res) {
   const m = marketConfig()
   const files = { rep: repPath }
   const urlOf = key => `${m.publicUrl}/api/marketplace?t=${makeImageToken(encKey, sendId, key)}`
+  try {
+    for (const o of optImgs) {
+      const path = `${ex.folder}/marketplace/${sendId}_${o.key}.jpg`
+      await storageUpload(ctx.cfg, BUCKET, path, o.buf, 'image/jpeg')
+      files[o.key] = path
+    }
+    for (const d of docs) {
+      const path = `${ex.folder}/marketplace/${sendId}_${d.key}.${d.ext}`
+      await storageUpload(ctx.cfg, BUCKET, path, d.buf, d.mime)
+      files[d.key] = path
+    }
+  } catch (e) {
+    console.error('[marketplace] 옵션 이미지·구비서류 저장 실패:', sendId, e.message)
+    return fail(500, 'storage_error', '파일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
+  }
   const detailUrls = []
   for (const f of ex.files) { files[f.key] = f.path; detailUrls.push(urlOf(f.key)) }
 
+  const single = { name: String(body.productName || '').slice(0, 150), originalPrice: body.originalPrice, salePrice: body.salePrice, stock: body.stock, sku: body.sku, gtin: body.gtin, attributes: body.attributes || {} }
   const built = buildProductBody({
-    account: cred.row, template, places, categoryCode: code, productName: body.productName, brand: body.brand, manufacture: body.manufacture,
-    items: items.length ? items : [{ name: String(body.productName || '').slice(0, 150), originalPrice: body.originalPrice, salePrice: body.salePrice, stock: body.stock, sku: body.sku, gtin: body.gtin, attributes: body.attributes || {} }],
+    account: cred.row, template, places, categoryCode: code, saleMode: body.saleMode, outboundDays: body.outboundDays,
+    productName: body.productName, displayName: body.displayName, generalName: body.generalName, brand: body.brand, manufacture: body.manufacture, modelNo: body.modelNo,
+    items: (items.length ? items : [single]).map(it => ({ ...it, imageUrl: it?.imageKey ? urlOf(it.imageKey) : '' })),
+    attributeMeta: meta.attributes,
     notices: noticesIn.filter(n => n && n.noticeCategoryName && n.noticeCategoryDetailName && String(n.content || '').trim()),
-    repImageUrl: urlOf('rep'), detailImageUrls: detailUrls, searchTags: Array.isArray(body.searchTags) ? body.searchTags.map(s => String(s).slice(0, 20)).filter(Boolean) : [],
-    overseas: body.overseas === true, pccNeeded: body.pccNeeded === true, saleStartedAt: kstStart(),
+    certifications: certsIn, documents: docs.map(d => ({ templateName: d.templateName, url: urlOf(d.key) })), advanced: body.advanced && typeof body.advanced === 'object' ? body.advanced : {},
+    repImageUrl: urlOf('rep'), detailImageUrls: detailUrls, searchTags: Array.isArray(body.searchTags) ? body.searchTags : [], saleStartedAt: kstStart(),
   })
   if (!built.ok) return fail(400, 'invalid_input', built.message)
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: { body: built.body, files, categoryName: body.categoryName || null } }, prefer: 'return=minimal' })
@@ -431,7 +521,7 @@ async function serveImage(req, res) {
   if (typeof path !== 'string' || !path) return sendError(res, 404, 'not_found', 'not found')
   const dl = await storageDownload(cfg, BUCKET, path)
   if (!dl.found) return sendError(res, 404, 'not_found', 'not found')
-  const mime = sniffMime(dl.buf) || (path.endsWith('.png') ? 'image/png' : 'image/jpeg')
+  const mime = sniffMime(dl.buf) || (path.endsWith('.png') ? 'image/png' : path.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
   res.setHeader('Content-Type', mime)
   res.setHeader('Content-Length', String(dl.buf.length))
   res.setHeader('Cache-Control', 'private, max-age=0, no-store')
