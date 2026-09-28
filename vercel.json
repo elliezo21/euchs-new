@@ -29,6 +29,9 @@
     },
     "api/studio-upload.js": {
       "maxDuration": 60
+    },
+    "api/marketplace.js": {
+      "maxDuration": 60
     }
   }
 }
