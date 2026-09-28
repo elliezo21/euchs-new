@@ -319,7 +319,7 @@ function money(v) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n
  *                      notices:[{ noticeCategoryName, noticeCategoryDetailName, content }], certifications?:[{ type, code }], documents?:[{ templateName, url }],
  *                      advanced?:{ parallelImported, taxType, adultOnly, offerCondition, unionDeliveryType, maxPerPerson, maxPerPersonDays },
  *                      repImageUrl, detailImageUrls:[], searchTags:[], saleStartedAt,
- *                      update?:{ sellerProductId, items:[쿠팡 상품 조회의 data.items] }(있으면 상품 수정 본문 — requested false) }
+ *                      update?:{ sellerProductId, items:[쿠팡 상품 조회의 data.items], requested(resendPlan — 임시저장이면 false, 아니면 true) }(있으면 상품 수정 본문) }
  * @returns {{ ok:true, body } | { ok:false, message }}
  */
 export function buildProductBody(p) {
@@ -439,10 +439,10 @@ export function buildProductBody(p) {
     returnCenterCode: rc.place_code, returnChargeName: rc.name, companyContactNumber: rc.address.contact || '',
     returnZipCode: rc.address.zip, returnAddress: rc.address.address, returnAddressDetail: rc.address.addressDetail || '',
     returnCharge: t.return_charge, outboundShippingPlaceCode: Number.isNaN(Number(ob.place_code)) ? ob.place_code : Number(ob.place_code),
-    vendorUserId: p.account.seller_login_id, requested: p.update ? false : true, items: outItems,
+    vendorUserId: p.account.seller_login_id, requested: p.update ? p.update.requested === true : true, items: outItems,
   }
   // 반려 상품 다시 보내기 — 상품 수정(승인필요, 문서 modify-product): 같은 본문 + sellerProductId · items[].sellerProductItemId·vendorItemId.
-  //   저장만 하고(requested false) 승인 요청은 승인 요청 API로 따로 부른다
+  //   requested는 쿠팡의 지금 상태로 정한다(resendPlan): 임시저장 = false(저장 뒤 승인 요청 API) · 그 밖 = true(저장 + 자동 승인 요청)
   if (p.update) {
     const pid = Number(p.update.sellerProductId)
     if (!Number.isSafeInteger(pid) || pid <= 0) return { ok: false, message: '다시 보낼 상품을 찾지 못했어요. [상태 새로고침]을 눌러 주세요.' }

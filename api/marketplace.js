@@ -14,7 +14,7 @@
  *                       source(1688에서 가져온 작업이면 저장해 둔 제목·속성·옵션 줄 + 번역 캐시의 한국어, 아니면 null — 외부 호출 없음), limits }
  *   category_predict  { productName, brand? } → { result, categoryCode, categoryName }
  *   send_prepare      { resendId } → 위와 같음 + resend:{ sendId, sellerProductId, reason, revision, form(보냈던 값), categoryName } — 반려된 전송만 (고쳐서 다시 보내기)
- *   send              { …, resendId } → 새 상품을 만들지 않고 상품 수정(PUT seller-products, 같은 sellerProductId) 뒤 승인 요청(PUT …/approvals). 회차 이력은 request_json.revisions
+ *   send              { …, resendId } → 새 상품을 만들지 않고 상품 조회로 지금 상태를 읽어: 임시저장이 아니면 상품 수정(PUT seller-products, requested true) 한 번 / 임시저장이면 수정(requested false) 뒤 승인 요청(PUT …/approvals). 회차 이력은 request_json.revisions
  *   brand_search      { brandName } → { brands:[{ brandId, brandName, uidRequired, uidTypes }] }  (쿠팡 브랜드 검색 — 문서 58230017410841)
  *   category_meta     { categoryCode } → { attributes, notices, singleItem, certifications }
  *   send              { exportId, templateId, categoryCode, saleMode('domestic'|'agent' 필수 — 기본값 없음), outboundDays?,
@@ -40,6 +40,7 @@ import {
 } from './_coupang.js'
 import { readDimensions } from './studio-ingest.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
+import { resendPlan } from './_coupangFields.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes } from './_coupangImage.js'
 import { lookupCachedTranslations } from './_translationCache.js'
@@ -495,10 +496,11 @@ async function send(ctx, body, res) {
     if (p.changed) pieces[p.key] = { x: p.x, y: p.y, w: p.w, h: p.h, outW: p.outW, outH: p.outH }
     detailUrls.push(urlOf(p.key))
   }
-  // 다시 보내기 — 쿠팡에 있는 그 상품의 옵션 id를 읽어 온다 (상품 수정 본문에 넣는다)
-  let current = null
+  // 다시 보내기 — 쿠팡에 있는 그 상품의 지금 상태와 옵션 id를 읽어 온다 (상태로 승인 요청 방법을 정하고, 옵션 id는 상품 수정 본문에 넣는다)
+  let current = null, plan = null
   if (prev) {
     try { current = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(prev.seller_product_id) }) } catch (e) { return coupangFail(res, e, 'send/resend-get') }
+    plan = { ...resendPlan(current?.data?.statusName), statusName: String(current?.data?.statusName || '') }
   }
 
   const single = { name: String(body.productName || '').slice(0, 150), originalPrice: body.originalPrice, salePrice: body.salePrice, stock: body.stock, sku: body.sku, gtin: body.gtin, attributes: body.attributes || {} }
@@ -510,13 +512,13 @@ async function send(ctx, body, res) {
     notices: noticesIn.filter(n => n && n.noticeCategoryName && n.noticeCategoryDetailName && String(n.content || '').trim()),
     certifications: certsIn, documents: docs.map(d => ({ templateName: d.templateName, url: urlOf(d.key) })), advanced: body.advanced && typeof body.advanced === 'object' ? body.advanced : {},
     repImageUrl: urlOf('rep'), detailImageUrls: detailUrls, searchTags: Array.isArray(body.searchTags) ? body.searchTags : [], saleStartedAt: kstStart(),
-    update: prev ? { sellerProductId: prev.seller_product_id, items: Array.isArray(current?.data?.items) ? current.data.items : [] } : null,
+    update: prev ? { sellerProductId: prev.seller_product_id, items: Array.isArray(current?.data?.items) ? current.data.items : [], requested: plan.requested } : null,
   })
   if (!built.ok) return fail(400, 'invalid_input', built.message)
   const revisions = revisionsOf(prev)
   const requestJson = { body: built.body, files, pieces, categoryName: body.categoryName || null, revisions }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
-  if (prev) return await resend(ctx, res, { cred, prev, sendId, requestJson })
+  if (prev) return await resend(ctx, res, { cred, prev, sendId, requestJson, plan })
 
   let r
   try { r = await coupangCall(cred.call, { method: 'POST', path: PATHS.products, body: built.body, extendedTimeout: true }) } catch (e) {
@@ -532,12 +534,14 @@ async function send(ctx, body, res) {
 }
 
 /**
- * 반려 상품 다시 승인 요청 — 상품 수정(PUT seller-products · 같은 sellerProductId · requested false) → 승인 요청(PUT …/{id}/approvals · 본문 없음)
- * 회차 이력: request_json.revisions[] = { n, at, previousReason, previousStatus, approval }
+ * 반려 상품 다시 승인 요청 — 방법은 쿠팡의 지금 상태로 정한다 (resendPlan)
+ *   임시저장이 아님(승인반려·승인완료 …) → 상품 수정(PUT seller-products · 같은 sellerProductId · requested true) 한 번. 승인 요청 API는 부르지 않는다
+ *   임시저장 → 상품 수정(requested false) → 승인 요청(PUT …/{id}/approvals · 본문 없음)
+ * 회차 이력: request_json.revisions[] = { n, at, previousReason, previousStatus, coupangStatus(보내기 직전 쿠팡 상태), via('modify'|'approval'), approval }
  */
-async function resend(ctx, res, { cred, prev, sendId, requestJson }) {
+async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
   const pid = prev.seller_product_id
-  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.coupang_status || null, approval: false }
+  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.coupang_status || null, coupangStatus: plan.statusName || null, via: plan.callApproval ? 'approval' : 'modify', approval: false }
   const save = patch => sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
   let r
   try { r = await coupangCall(cred.call, { method: 'PUT', path: PATHS.products, body: requestJson.body, extendedTimeout: true }) } catch (e) {
@@ -545,8 +549,8 @@ async function resend(ctx, res, { cred, prev, sendId, requestJson }) {
     console.warn(`[marketplace] 상품 수정 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
     return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
   }
-  let a
-  try { a = await coupangCall(cred.call, { method: 'PUT', path: PATHS.approval(pid) }) } catch (e) {
+  let a = null
+  if (plan.callApproval) try { a = await coupangCall(cred.call, { method: 'PUT', path: PATHS.approval(pid) }) } catch (e) {
     if (!(e instanceof CoupangError)) throw e
     console.warn(`[marketplace] 승인 요청 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
     await save({ request_json: { ...requestJson, revisions: [...requestJson.revisions, rev] }, result_json: { code: e.code, status: e.status, raw: e.raw, step: 'approval' } })
@@ -557,7 +561,7 @@ async function resend(ctx, res, { cred, prev, sendId, requestJson }) {
     request_json: { ...requestJson, revisions: [...requestJson.revisions, { ...rev, approval: true }] },
     result_json: { code: a?.code ?? r?.code, message: a?.message ?? r?.message, data: a?.data ?? r?.data, step: 'resend' },
   })
-  console.info(`[marketplace] 쿠팡 상품 수정 + 승인 요청 ${ctx.userId} send=${sendId} product=${pid} 회차=${rev.n}`)
+  console.info(`[marketplace] 쿠팡 상품 수정 + 승인 요청 ${ctx.userId} send=${sendId} product=${pid} 회차=${rev.n} 쿠팡 상태="${plan.statusName}" 방법=${rev.via}`)
   return res.status(200).json({ sendId, sellerProductId: pid, status: 'approval_pending', resend: true, revision: rev.n })
 }
 
