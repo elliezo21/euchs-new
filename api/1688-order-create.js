@@ -573,7 +573,7 @@ export default async function handler(req, res) {
       })
       // 실제 subStatus 값을 unknown_ordered로 쓰기 위해 별도 SQL UPDATE 필요하나,
       // mark_group_manual_check는 manual_check_required를 쓴다.
-      // → 대신 notices INSERT로 관리자에게 알리고, 화면에서 manual_check_required 뱃지로 표시.
+      // → 대신 notices INSERT로 관리자 쪽에 알리고, 화면에서 manual_check_required 뱃지로 표시.
       //   (unknown_ordered와 manual_check_required 모두 needs_attention 필터에 포함됨)
       await insertCriticalNotice({
         china1688OrderId: '(불확실 — 타임아웃)',

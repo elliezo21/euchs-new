@@ -1,7 +1,7 @@
 /**
  * 스튜디오 프로젝트·이미지 조회 (브라우저, RLS: 본인 행 SELECT)
  *
- * ★ studio_projects / studio_images RLS는 관리자에게 전체 SELECT를 허용한다.
+ * ★ studio_projects / studio_images RLS는 관리자 계정에 전체 SELECT를 허용한다.
  *   .eq('user_id', uid)를 절대 생략하지 말 것 (생략하면 관리자 화면에 남의 프로젝트가 섞인다 — orderedProducts.js와 같은 이유)
  * ★ 준비 여부는 status가 아니라 done 이미지 수로 판단한다.
  *   1688 프로젝트는 ingest가 status를 갱신하지 않아 전부 'ingesting'으로 남아 있다(실측).

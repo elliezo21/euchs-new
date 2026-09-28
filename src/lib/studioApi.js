@@ -119,7 +119,7 @@ const COPY = {
 /** studio-upload bg_status / bg_remove (17-1 배경 지우기) */
 const BG = {
   bg_not_eligible: '이유씨로 주문한 고객에게 열리는 기능이에요.',
-  bg_not_ready: '배경 지우기를 준비하고 있어요. 곧 쓸 수 있어요.',
+  bg_not_ready: '잠시 후 다시 시도해 주세요.',
   bg_busy: '이 사진의 배경을 지우는 중이에요. 잠시만 기다려 주세요.',
   bg_daily_limit: '오늘은 더 할 수 없어요. 내일 다시 시도해 주세요.',
   bg_too_large: '사진이 너무 커서 배경을 지울 수 없어요 (긴 변 4096px 이하).',
@@ -136,12 +136,12 @@ const BG = {
   not_uploaded: '저장이 끝나지 않았어요. [적용]을 다시 눌러 주세요.',
   upload_failed: '파일을 올리지 못했어요. 인터넷 연결을 확인하고 [적용]을 다시 눌러 주세요.',
   // AI 배경 (17-4 bg_gen_status / bg_generate) — 실패는 횟수에서 빠지지 않는다
-  bg_gen_user_limit: '오늘 무료 3회를 모두 썼어요. 충전하면 계속 쓸 수 있어요 (충전은 곧 열려요).',
+  bg_gen_user_limit: '오늘 무료 3회를 모두 썼어요. 내일 다시 쓸 수 있어요.',
   bg_gen_global_limit: '지금은 AI 배경을 만들 수 없어요. 잠시 후 다시 시도해 주세요.', // 전체 한도는 안전장치 — 한도가 있다는 말을 하지 않는다 (review-1)
   bg_gen_failed: 'AI 배경을 만들지 못했어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.',
   bg_gen_timeout: 'AI 배경이 오래 걸려 멈췄어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.',
   bg_gen_need_mask: '먼저 [배경 지우기]를 해 주세요.',
-  bg_gen_sql_missing: 'AI 배경을 준비하고 있어요. 곧 쓸 수 있어요.',
+  bg_gen_sql_missing: '잠시 후 다시 시도해 주세요.',
 }
 
 /** studio-upload export_* (내 상품 보관 2026-09-28) — 받기(다운로드)는 이와 상관없이 된다 */

@@ -3,7 +3,7 @@
  *
  * ★ 흐름 (해성 결정 2026-09-27): 사진 고르기 → 글자 찾기(OCR) + 자동 지우기(LaMa) → 템플릿 배치 → 글자 초안 → 편집기에서 검수.
  *   결과는 수동 편집과 같은 저장 형식이다 — 지운 곳 = studio_images.edit.layers의 AI 지우기 레이어(+ patches/ PNG),
- *   페이지 = studio_projects.page(템플릿 적용과 같은 buildTemplatePage). 그래서 편집기가 곧 검수 화면이고, 원클릭 전용 편집 화면은 없다.
+ *   페이지 = studio_projects.page(템플릿 적용과 같은 buildTemplatePage). 그래서 편집기가 그대로 검수 화면이고, 원클릭 전용 편집 화면은 없다.
  *   돈이 드는 외부 AI(fal 배경 지우기·AI 배경)는 부르지 않는다. 브라우저 무료 기능(OCR·LaMa)만.
  *
  * ★ 자동 지우기 = "글자만"(띠·상자까지 지우기는 고객이 고르는 기능 — 이번 단계 아님):
@@ -382,7 +382,7 @@ export async function runAutoPipeline(deps) {
 // 한 번 보인 분보다 늘어나지 않게(줄어들기만) — 앞 사진이 빨랐다가 느린 사진이 와도 숫자가 뛰지 않게.
 export const ETA_MIN_SAMPLES = 2
 export const ETA_CALCULATING = '시간을 계산하고 있어요'
-export const ETA_PREPARING = 'AI를 준비하고 있어요'
+export const ETA_PREPARING = 'AI를 불러오는 중이에요'
 
 /**
  * @param {number|null} prevMin 지금까지 보인 분 (null = 아직 숫자 안 보임, 0 = "1분 안에")

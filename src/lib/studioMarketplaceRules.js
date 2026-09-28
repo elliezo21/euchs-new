@@ -44,6 +44,8 @@ export function marketRows(connected = {}) {
 export const defaultChecked = rows => Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.state === 'connected']))
 /** 체크된 판매처 key (연결된 것만 — 체크할 수 없는 줄은 값이 있어도 뺀다) */
 export const checkedMarkets = (rows, checked) => (Array.isArray(rows) ? rows : []).filter(r => r.state === 'connected' && checked?.[r.key] === true).map(r => r.key)
+/** 섹션을 만들어 둘 판매처 — 연결돼 있고 섹션 컴포넌트가 있는 곳. 체크 여부와 상관없다(체크는 보이기만 바꾼다 → 넣은 값이 남는다) */
+export const sectionKeys = (rows, have) => (Array.isArray(rows) ? rows : []).filter(r => r.state === 'connected' && (have || []).includes(r.key)).map(r => r.key)
 /** "쿠팡으로" / "11번가로" — 받침(ㄹ 제외)이 있으면 '으로' */
 export function withRo(name) {
   const s = String(name || '')

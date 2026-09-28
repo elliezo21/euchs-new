@@ -688,7 +688,15 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const shellShown = shell.slice(shell.indexOf('<template>'), shell.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
   eq('보내기 창: "0. 보낼 판매처"가 맨 위 · 체크박스 줄 · 자물쇠 + [연결하기] · "준비 중" 배지', [/0\. 보낼 판매처/.test(shellShown), shellShown.indexOf('data-mk-s-markets') < shellShown.indexOf('<component :is="SECTIONS[key]"'), /type="checkbox" :disabled="r\.state !== 'connected'/.test(shellShown), /<Lock /.test(shellShown), /:to="\{ name: 'studio-settings-marketplace' \}"[^>]*>연결하기</.test(shellShown), /v-else-if="r\.state === 'soon'" class="st-badge shrink-0">준비 중</.test(shellShown)], [true, true, true, true, true, true])
   eq('보내기 창: 체크 0개 → 빠짐 목록 "보낼 판매처" · 버튼은 빠짐이 있으면 꺼짐', [/if \(!picked\.value\.length\) return \['보낼 판매처'\]/.test(shell), /:disabled="sending \|\| sectionBusy \|\| missing\.length > 0 \|\| !prepare"/.test(shellShown)], [true, true])
-  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임', [/const SECTIONS = \{ coupang: StudioSendCoupang \}/.test(shell), /v-for="key in picked"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임', [/const SECTIONS = \{ coupang: StudioSendCoupang \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  {
+    // 체크를 풀었다 다시 켜도 값이 남는다 — 섹션은 체크와 상관없이 만들어 두고(v-show로 가리기만), 빠짐·보내기는 체크된 것만
+    const on = R.marketRows({ coupang: { connected: true } })
+    eq('체크를 풀어도 섹션은 그대로(값 유지): 만들 섹션은 체크와 무관 · v-show로 가림 · 보내기는 체크된 것만', [
+      R.sectionKeys(on, ['coupang']), R.checkedMarkets(on, { coupang: false }), R.checkedMarkets(on, { coupang: true }), R.sectionKeys(R.marketRows({ coupang: { connected: false } }), ['coupang']), R.sectionKeys(on, []),
+      /v-for="key in mounted"/.test(shellShown), /<component :is="SECTIONS\[key\]" v-show="picked\.includes\(key\)"/.test(shellShown), /<component[^>]*v-if=/.test(shellShown), /v-for="key in picked"/.test(shellShown), /for \(const key of picked\.value\)/.test(shell),
+    ], [['coupang'], [], ['coupang'], [], [], true, true, false, false, true])
+  }
   eq('연결 전에도 창을 연다 (not_connected로 돌려보내지 않음)', /status: 'not_connected'/.test(read('src/lib/studioMarketplace.js')), false)
 
   // 3-3 상태 배지
@@ -707,6 +715,18 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
 
   // 공통 — 고객 화면 문구
   const shownOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
+  {
+    // 후속: 편집기·배경 쪽까지 — src·api 전체에 사정 설명 문구가 없다 (grep -rn "준비하고\|곧 \|관리자에게\|쿠팡부터" src api 와 같은 검사)
+    const hits = [...walk('src'), ...walk('api')].filter(p => /준비하고|곧 |관리자에게|쿠팡부터/.test(read(p)))
+    eq('src·api 전체에 "준비하고"·"곧 "·"관리자에게"·"쿠팡부터" 0건', hits, [])
+    const bg = read('src/components/studio/StudioBgPanel.vue')
+    eq('배경합성 패널: 쓸 수 없는 상태면 버튼·안내를 그리지 않음', [/data-bg-soon|data-bg-gen-soon|data-bg(-gen)?-status="not_ready"/.test(bg), (bg.match(/reason === 'no_key' \|\| (status|genStatus)\.reason === 'no_table'" \/>/g) || []).length], [false, 2])
+    const ed = read('src/views/studio/StudioEditorView.vue')
+    eq('편집기 막대: 아직 없는 [저장값]은 그리지 않음 (hidden) · 나머지 6개', [/v-for="t in RAIL_SHOWN"/.test(ed), /key: 'saved',[^\n]*hidden: true/.test(ed), /const RAIL_SHOWN = RAIL\.filter\(r => !r\.hidden\)/.test(ed), (/const RAIL = \[([\s\S]*?)\n\]/.exec(ed)[1].match(/key: '/g) || []).length - 1], [true, true, true, 6])
+    eq('템플릿 패널: 내 템플릿 칸 없음 · 진행 단계 표시줄: 예고 글자 없음', [/data-my-templates/.test(read('src/components/studio/StudioTemplatePanel.vue')), /data-step-soon/.test(read('src/components/studio/StudioStepBar.vue'))], [false, false])
+    const up = read('api/studio-upload.js')
+    eq('배경 서버 문구: 쓸 수 없는 상태 = "잠시 후 다시 시도해 주세요."', [...up.matchAll(/sendError\(res, 503, '(bg_not_ready|bg_gen_sql_missing)', '([^']*)'\)/g)].map(m => m[2]).filter(t => t !== '잠시 후 다시 시도해 주세요.'), [])
+  }
   const screens = ['src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioExportList.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioTagChips.vue', 'src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioLandingView.vue']
   eq('고객 화면에 "관리자에게"·"곧"·"준비하고 있어요"·"쿠팡부터" 없음', screens.filter(p => /관리자에게|곧|준비하고 있|쿠팡부터/.test(shownOf(p))), [])
   const api = read('src/lib/studioApi.js')

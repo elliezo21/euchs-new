@@ -778,7 +778,7 @@ async function bgRemove(ctx, body, res) {
   if (!t) return
   if (!(await isBgEligible(ctx))) return sendError(res, 403, 'bg_not_eligible', '이유씨로 주문한 고객에게 열리는 기능이에요.')
   const p = bgProviderConfig()
-  if (!p.ready) return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+  if (!p.ready) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
   const rows = await sb(cfg, `studio_images?select=original_path&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
   const originalPath = Array.isArray(rows) && rows[0] ? rows[0].original_path : null
   if (typeof originalPath !== 'string' || !originalPath.startsWith(`${ctx.userId}/${t.project.id}/orig/`)) {
@@ -814,7 +814,7 @@ async function bgRemove(ctx, body, res) {
   } catch (e) {
     if (isUsageUnavailable(e)) {
       console.error('[studio-upload] bg: studio_ai_usage를 쓸 수 없음 — 준비 중:', e.message)
-      return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+      return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     }
     throw e
   }
@@ -829,7 +829,7 @@ async function bgRemove(ctx, body, res) {
     usageId = ins?.[0]?.id
     if (usageId === undefined || usageId === null) throw new Error('studio_ai_usage insert 결과에 id 없음')
   } catch (e) {
-    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     throw e
   }
   const dropUsage = async why => {
@@ -988,7 +988,7 @@ async function bgGenerate(ctx, body, res) {
   if (!t) return
   if (!(await isBgEligible(ctx))) return sendError(res, 403, 'bg_not_eligible', '이유씨로 주문한 고객에게 열리는 기능이에요.')
   const p = bgGenProviderConfig()
-  if (!p.ready) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+  if (!p.ready) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
   const rows = await sb(cfg, `studio_images?select=original_path,edit&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
   const row = Array.isArray(rows) ? rows[0] : null
   const originalPath = row?.original_path
@@ -1010,7 +1010,7 @@ async function bgGenerate(ctx, body, res) {
   try {
     if (await genBusy(ctx, t.image.id)) return sendError(res, 409, 'bg_busy', '이 사진의 AI 배경을 만드는 중이에요.')
   } catch (e) {
-    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     throw e
   }
 
@@ -1026,9 +1026,9 @@ async function bgGenerate(ctx, body, res) {
   } catch (e) {
     if (isKindCheckError(e)) {
       console.error('[studio-upload] bg_gen: studio_ai_usage kind 체크에 bg_generate가 없음 — 17-4 보고서 9장 SQL을 먼저 실행해야 함:', e.message)
-      return sendError(res, 503, 'bg_gen_sql_missing', 'AI 배경을 준비하고 있어요. (사용 기록 설정 필요)')
+      return sendError(res, 503, 'bg_gen_sql_missing', '잠시 후 다시 시도해 주세요.')
     }
-    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     throw e
   }
   const dropUsage = async why => {
@@ -1042,7 +1042,7 @@ async function bgGenerate(ctx, body, res) {
   try {
     if (!staff && !(await withinLimit(ctx, usageId, 'user', BG_GEN_FREE_PER_DAY))) {
       await dropUsage('user_limit')
-      return sendError(res, 429, 'bg_gen_user_limit', '오늘 무료 3회를 모두 썼어요. 충전하면 계속 쓸 수 있어요 (충전은 곧 열려요).')
+      return sendError(res, 429, 'bg_gen_user_limit', '오늘 무료 3회를 모두 썼어요. 내일 다시 쓸 수 있어요.')
     }
     if (!(await withinLimit(ctx, usageId, 'all', limit))) {
       await dropUsage('global_limit')

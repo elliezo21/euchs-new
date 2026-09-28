@@ -39,7 +39,7 @@
       <!-- 로딩 -->
       <div v-if="state === 'loading'" class="py-16 flex flex-col items-center gap-3 text-gray-500">
         <Loader2 class="w-8 h-8 animate-spin text-sky-600" />
-        <p class="font-bold">인보이스를 준비하고 있어요…</p>
+        <p class="font-bold">인보이스를 만드는 중이에요…</p>
       </div>
 
       <!-- 실패 -->

@@ -21,9 +21,10 @@
         </ul>
       </section>
 
-      <!-- 판매처별 섹션 — 체크된 판매처만. 판매처가 늘면 SECTIONS에 컴포넌트를 더한다 -->
-      <template v-for="key in picked" :key="`${openSeq}:${key}`">
-        <component :is="SECTIONS[key]" v-if="SECTIONS[key]" :ref="el => setSection(key, el)" :prepare="prepare" />
+      <!-- 판매처별 섹션 — 연결된 판매처마다 하나 만들어 두고, 체크된 것만 보인다(v-show).
+           체크를 풀었다 다시 켜도 넣었던 값이 남는다(섹션을 없애지 않는다). 판매처가 늘면 SECTIONS에 컴포넌트를 더한다 -->
+      <template v-for="key in mounted" :key="`${openSeq}:${key}`">
+        <component :is="SECTIONS[key]" v-show="picked.includes(key)" :ref="el => setSection(key, el)" :prepare="prepare" :data-mk-s-section="key" />
       </template>
 
       <div v-if="missing.length && !allDone" class="st-surface st-border rounded-[10px] p-3" data-mk-s-missing>
@@ -42,14 +43,14 @@
 </template>
 
 <script setup>
-// [판매처로 보내기] 창 — 맨 위 "0. 보낼 판매처"에서 고른 판매처의 섹션만 아래에 띄우고, [보내기]는 체크된 판매처마다 그 섹션의 submit()을 부른다.
+// [판매처로 보내기] 창 — 맨 위 "0. 보낼 판매처"에서 고른 판매처의 섹션만 아래에 보이고(v-show — 값은 남는다), [보내기]는 체크된 판매처마다 그 섹션의 submit()을 부른다.
 // 판매처 섹션 컴포넌트가 내놓는 것: missing(빠진 것)·busy·done·submit() — 지금은 쿠팡(StudioSendCoupang) 하나.
 // 판매처 줄·처음 체크·버튼 글자는 studioMarketplaceRules.js (설정·랜딩과 같은 MARKETS 목록)
 import { ref, reactive, computed, watch, shallowRef } from 'vue'
 import { Lock } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
-import { MARKETS, marketRows, defaultChecked, checkedMarkets, sendButtonLabel } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, defaultChecked, checkedMarkets, sectionKeys, sendButtonLabel } from '@/lib/studioMarketplaceRules'
 
 const SECTIONS = { coupang: StudioSendCoupang }
 
@@ -64,6 +65,7 @@ const results = shallowRef({}) // key → 보낸 결과
 
 const rows = computed(() => marketRows(props.prepare?.markets))
 const picked = computed(() => checkedMarkets(rows.value, checked.value))
+const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) // 섹션을 만들어 둘 판매처 (체크와 상관없음)
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
 function setSection(key, el) {
   if (el) sections[key] = el

@@ -159,7 +159,7 @@ export default async function handler(req, res) {
     } catch (e) {
       if (e.status === 404 || e.status === 401 || e.status === 403) {
         console.error('[account-withdraw] account_withdrawals를 쓸 수 없음(표·GRANT — docs/sql/2026-09-28-account-withdrawal.sql 실행 전) — 탈퇴 중단:', e.message)
-        return send(res, 503, 'withdraw_sql_missing', '탈퇴 기능을 준비하고 있어요. 고객센터(010-9373-1214)로 요청해 주세요.')
+        return send(res, 503, 'withdraw_sql_missing', '지금은 화면에서 탈퇴할 수 없어요. 고객센터(010-9373-1214)로 요청해 주세요.')
       }
       throw e
     }

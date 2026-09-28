@@ -99,10 +99,10 @@
         <p class="st-desc-sm break-keep">화면 폭이 1024px 이상인 컴퓨터에서 열면 사진을 지우고 편집할 수 있어요.</p>
       </div>
 
-      <!-- 왼쪽 아이콘 막대 (72px): 템플릿 · 구간 · 사진 · 텍스트 · 요소 · 배경합성 · 저장값 · (맨 아래) 가이드 -->
+      <!-- 왼쪽 아이콘 막대 (72px): 템플릿 · 사진 · 텍스트 · 요소 · 섹션 · 배경합성 · (맨 아래) 가이드 — 저장값은 기능이 생길 때까지 숨김(RAIL hidden) -->
       <nav v-if="isWide" class="w-[72px] shrink-0 flex flex-col items-center gap-1 py-2 st-topbar st-border-r" data-rail>
         <button
-          v-for="t in RAIL" :key="t.key" type="button"
+          v-for="t in RAIL_SHOWN" :key="t.key" type="button"
           class="st-rail-item" :class="activeTool === t.key ? 'is-active' : ''"
           :aria-pressed="activeTool === t.key" :data-rail="t.key" :data-guide="`rail-${t.key}`"
           @click="onRail(t.key)"
@@ -608,13 +608,14 @@ const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 �
 const RAIL = [ // 순서: 템플릿 → 사진 → 텍스트 → 요소 → 섹션 → 배경합성 → 저장값 (가이드는 맨 아래 따로)
   { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '' }, // 15단계: StudioTemplatePanel
   { key: 'photo', label: '사진', icon: ImageIcon, soon: '' },
-  { key: 'text', label: '텍스트', icon: Type, soon: '글자 넣기는 곧 추가될 기능이에요.' },
-  { key: 'element', label: '요소', icon: Shapes, soon: '도형·아이콘 넣기는 곧 추가될 기능이에요.' },
+  { key: 'text', label: '텍스트', icon: Type, soon: '' }, // 10-1: StudioTextPanel
+  { key: 'element', label: '요소', icon: Shapes, soon: '' }, // 11-1: StudioElementPanel
   { key: 'section', label: '섹션', icon: Rows3, soon: '페이지가 준비되면 여기서 섹션을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
   { key: 'bg', label: '배경합성', icon: Blend, soon: '' }, // 17-1: StudioBgPanel
-  { key: 'saved', label: '저장값', icon: Bookmark, soon: '인트로·배송안내 같은 저장값 넣기는 곧 추가될 기능이에요.' },
+  { key: 'saved', label: '저장값', icon: Bookmark, soon: '', hidden: true }, // 아직 없는 기능 — 막대에 보이지 않는다(생기면 hidden을 뗀다)
 ]
-const railItem = key => RAIL.find(r => r.key === key) || RAIL[1] // 모르는 값 = [사진]
+const RAIL_SHOWN = RAIL.filter(r => !r.hidden) // 아직 없는 기능(hidden)은 막대에 그리지 않는다
+const railItem = key => RAIL_SHOWN.find(r => r.key === key) || RAIL[1] // 모르는 값·숨긴 도구 = [사진]
 
 // ── 진행 단계 표시줄 (6-3) — 지금 단계는 브라우저에만 기억 (작업별 localStorage, studioSteps). 처음 열면 ① ──
 const step = ref(STEP_DEFAULT)
@@ -1162,7 +1163,7 @@ function onAddSectionAt(at) {
 const elementTab = ref(elementTabOf(null))
 // ── 캔버스 위 안내 한 줄 "섹션 사이에 마우스를 올리면…" — 닫으면 다시 안 보임 (studioGuide GUIDE_KEYS.sectionAdd, localStorage) ──
 const sectionHintClosed = ref(readGuideHidden(guideStorage(), 'sectionAdd'))
-// 첫 진입 안내는 한 번에 하나: 사용가이드가 떠 있거나 곧 자동으로 뜰 참이면(guideAutoReady) 기다렸다가, 닫거나 끝낸 뒤에 이 한 줄
+// 첫 진입 안내는 한 번에 하나: 사용가이드가 떠 있거나 바로 뒤에 자동으로 뜰 참이면(guideAutoReady) 기다렸다가, 닫거나 끝낸 뒤에 이 한 줄
 const sectionHintVisible = computed(() => !sectionHintClosed.value && isWide.value && !!page.value?.sections.length
   && !showStart.value && !eraseOpen.value && !autoBuild.state.open && !pageSession.readError.value
   && !guide.open && guideAutoReady.value !== 'editor')
@@ -1986,7 +1987,7 @@ const bakeQueue = useBakeQueue({
 })
 /**
  * 굽기 요청 (지우기 화면 닫힘·[다시 시도]). 굽지 않는 경우:
- *   지우기 저장이 안 끝남(실패·충돌 — 상단 저장 상태가 알린다) / 지우기가 없음(원본이 곧 최종) /
+ *   지우기 저장이 안 끝남(실패·충돌 — 상단 저장 상태가 알린다) / 지우기가 없음(원본이 그대로 최종) /
  *   결과 없는 AI 레이어가 있음("다시 지우기를 마치면 적용돼요") / 이미 최신(그 뒤 지우기가 안 바뀜 — usableFinalVersion)
  */
 async function requestBake(id) {

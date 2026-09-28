@@ -3,7 +3,7 @@
  *
  * ★ target = 편집기 화면의 data-guide 값. 화면에 없는 대상(좁은 화면에서 접힌 오른쪽 패널 등)은 편집기가 빼고 넘긴다.
  * ★ 흐름 = 진행 단계 표시줄(studioSteps)과 같은 순서: ① 사진 다듬기 → ② 페이지 꾸미기 → ③ 미리보기·내보내기 → 판매처에 올리기.
- * ★ 문구: 쉬운 존댓말, 한 칸에 1~2문장. 없는 기능은 "곧 추가될 기능이에요". '굽다' 같은 개발 용어 금지.
+ * ★ 문구: 쉬운 존댓말, 한 칸에 1~2문장. 없는 기능은 쓰지 않는다(화면에서도 숨긴다). '굽다' 같은 개발 용어 금지.
  * ★ 단축키 표는 실제 코드에 있는 키만 (StudioEditorView onKeyDown·StudioPageView·StudioCanvas onKeyDown/onWheel — 14단계 보고서에 출처).
  */
 export const EDITOR_GUIDE_BADGE = '사용가이드'
