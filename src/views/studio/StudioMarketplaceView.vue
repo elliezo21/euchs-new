@@ -36,7 +36,7 @@
 
         <!-- 연결 전 (상태를 못 읽었을 때도 버튼은 평소처럼 — 누르면 그때 안내) -->
         <div v-else-if="st || loadError" class="mt-4 space-y-3">
-          <p class="st-desc break-keep">쿠팡 Wing에서 OPEN API 키를 발급받아 넣으면 완성작을 쿠팡 상품으로 바로 보낼 수 있어요.</p>
+          <p class="st-desc break-keep">쿠팡 Wing에서 OPEN API 키를 발급받아 넣으면 내 상품을 쿠팡 상품으로 바로 보낼 수 있어요.</p>
           <div class="flex flex-wrap gap-2">
             <button type="button" class="st-btn st-btn-primary" data-mk-connect-open @click="openForm(false)">쿠팡 연결하기</button>
             <button type="button" class="st-btn" data-mk-guide-open @click="guideOpen = true">연결 방법 보기</button>
@@ -75,7 +75,7 @@
       </div>
     </section>
 
-    <p v-if="st?.connected" class="st-desc break-keep" data-mk-next>다음 단계: <router-link :to="{ name: 'studio-settings-shipping' }" class="st-link">배송·반품 템플릿</router-link>을 만들어 두면 내 작업 → 완성작에서 [판매처로 보내기]를 쓸 수 있어요.</p>
+    <p v-if="st?.connected" class="st-desc break-keep" data-mk-next>다음 단계: <router-link :to="{ name: 'studio-settings-shipping' }" class="st-link">배송·반품 템플릿</router-link>을 만들어 두면 내 작업 → 내 상품에서 [판매처로 보내기]를 쓸 수 있어요.</p>
 
     <!-- 연결·키 교체 창 -->
     <StudioModal :open="formOpen" :title="rekey ? '쿠팡 키 교체' : '쿠팡 연결'" wide @close="formOpen = false">

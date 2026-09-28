@@ -77,10 +77,10 @@
     <!-- 6-2. 최근 작업 (0개면 숨김) -->
     <StudioRecentProjects title="최근 작업" :limit="8" show-filters />
 
-    <!-- 완성작 (2026-09-28): 내보내기로 받은 이미지 보관 — [다시 받기] · [판매처로 보내기](쿠팡 보내기 창) · 판매처 상태 배지 -->
-    <StudioExportList :sends="sends" @sent="sendList?.load()" />
+    <!-- 내 상품 (2026-09-28): 내보내기로 받은 이미지 보관 — [다시 받기] · [판매처로 보내기](쿠팡 보내기 창) · 판매처 상태 배지 -->
+    <StudioExportList :sends="sends" @sent="sendList?.load()" @goto-send="sendList?.focus($event)" />
 
-    <!-- 보낸 상품 — 판매처로 보낸 상품의 진행 상태 (설정이 아니라 작업 쪽에 둔다). 읽은 목록을 완성작 배지가 같이 쓴다 -->
+    <!-- 보낸 상품 — 판매처로 보낸 상품의 진행 상태 (설정이 아니라 작업 쪽에 둔다). 읽은 목록을 내 상품 배지가 같이 쓴다 -->
     <StudioSendList ref="sendList" @update="sends = $event" />
 
     <!-- 6-3. 새 소식 (랜딩 개편 때 /studio 대문에서 옮김) -->

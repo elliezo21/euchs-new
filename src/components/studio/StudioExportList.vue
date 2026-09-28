@@ -1,13 +1,13 @@
 <template>
   <section data-export-list>
     <div class="flex items-center mb-4">
-      <h2 class="st-h-section">완성작</h2>
+      <h2 class="st-h-section">내 상품</h2>
       <button v-if="items.length" type="button" class="ml-auto st-link-muted text-[13px]" data-export-list-reload @click="load">새로고침</button>
     </div>
 
     <p v-if="loading && !items.length" class="st-desc">불러오는 중…</p>
     <p v-else-if="errorMsg" class="text-[14px] font-bold st-danger-text break-keep" data-export-list-error>{{ errorMsg }}</p>
-    <p v-else-if="!ready" class="st-desc break-keep" data-export-list-soon>완성작 보관을 준비하고 있어요.</p>
+    <p v-else-if="!ready" class="st-desc break-keep" data-export-list-soon>잠시 후 다시 시도해 주세요.</p>
     <p v-else-if="!items.length" class="st-desc break-keep" data-export-list-empty>편집기에서 [내보내기]로 받은 이미지가 여기에 보관돼요. 편집기를 다시 열지 않고 바로 받을 수 있어요.</p>
 
     <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -19,10 +19,16 @@
         <div class="p-3.5 space-y-2">
           <div class="text-[14px] font-bold st-ink truncate" :title="x.title || ''">{{ x.title || '이름 없는 작업' }}</div>
           <div class="st-desc-sm">{{ dateLabel(x.createdAt) }} · {{ kindLabel(x) }}</div>
-          <!-- 판매처 상태 — 이 완성작으로 가장 최근에 보낸 것 (목록은 내 작업 화면의 [보낸 상품]과 같은 것) -->
-          <div v-if="sendOf[x.id]" class="flex flex-wrap items-center gap-1.5" :data-export-send-status="sendOf[x.id].status">
-            <span class="st-badge" :class="SEND_STATUS_CLASS[sendOf[x.id].status]">{{ MARKET_LABEL.coupang }} · {{ SEND_STATUS_LABEL[sendOf[x.id].status] || sendOf[x.id].status }}</span>
-            <button v-if="sendOf[x.id].reason && ['rejected', 'failed'].includes(sendOf[x.id].status)" type="button" class="st-link text-[12px]" :data-export-send-reason="x.id" @click="reasonOf = sendOf[x.id]">사유 보기</button>
+          <!-- 판매처 상태 — 이 내 상품으로 가장 최근에 보낸 것 (목록은 내 작업 화면의 [보낸 상품]과 같은 것) -->
+          <!-- 판매처별 배지 줄 — 보낸 판매처마다 하나(안 보낸 판매처는 없음). 누르면 [보낸 상품]의 그 줄로 -->
+          <div v-if="sendsOf[x.id]" class="flex flex-wrap items-center gap-1.5" data-export-send-badges>
+            <template v-for="s in sendsOf[x.id]" :key="s.market">
+              <button
+                type="button" :class="SEND_BADGE_CLASS[s.status] || 'st-badge'" :title="badgeReason(s) || undefined"
+                :data-export-send-badge="s.market" :data-export-send-status="s.status" @click="$emit('goto-send', s.id)"
+              >{{ marketName(s.market) }} · {{ SEND_STATUS_LABEL[s.status] || s.status }}</button>
+              <button v-if="badgeReason(s)" type="button" class="st-link text-[12px]" :data-export-send-reason="x.id" @click="reasonOf = s">사유 보기</button>
+            </template>
           </div>
           <p v-if="x.count < x.planned" class="text-[11px] font-bold st-ai-text-soft break-keep">{{ x.planned }}장 중 {{ x.count }}장만 보관됐어요</p>
           <div class="flex flex-col gap-1.5 pt-1">
@@ -30,7 +36,7 @@
               <Download class="w-4 h-4" :stroke-width="2" />
               {{ busy[x.id]?.running ? `받는 중 ${busy[x.id].done}/${busy[x.id].total || x.count}` : '다시 받기' }}
             </button>
-            <!-- 쿠팡으로 보내기 (2026-09-28) — 진입은 studioMarketplace.sendToMarketplace 한 곳: 연결돼 있으면 보내기 창, 아니면 판매처 연결 안내 -->
+            <!-- 판매처로 보내기 — 진입은 studioMarketplace.sendToMarketplace 한 곳 → 보내기 창(맨 위에서 보낼 판매처를 고른다) -->
             <button type="button" class="st-btn st-btn-block" :disabled="busy[x.id]?.sending" :data-export-send="x.id" @click="send(x)">
               <Send class="w-4 h-4" :stroke-width="2" /> {{ busy[x.id]?.sending ? '확인 중…' : '판매처로 보내기' }}
             </button>
@@ -58,19 +64,21 @@
 </template>
 
 <script setup>
-// 작업 홈 [완성작] — 내보내기로 받은 이미지를 보관한 목록 (studio_exports, api/studio-upload.js exports_list).
+// 작업 홈 [내 상품] — 내보내기로 받은 이미지를 보관한 목록 (studio_exports, api/studio-upload.js exports_list).
 // [다시 받기] = 보관된 파일을 그대로 받는다(편집기를 열지 않는다). [판매처로 보내기] = 쿠팡 보내기 창(진입은 sendToMarketplace 한 곳).
-// 판매처 상태 배지 = 부모가 넘겨 준 sends(StudioSendList가 읽은 목록)에서 완성작마다 가장 최근 것.
+// 판매처 상태 배지 = 부모가 넘겨 준 sends(StudioSendList가 읽은 목록)에서 내 상품마다 가장 최근 것.
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { Download, Send } from 'lucide-vue-next'
 import { listArchives, downloadArchive } from '@/lib/studioExportArchive'
-import { sendToMarketplace, latestSendByExport, SEND_STATUS_LABEL, SEND_STATUS_CLASS, MARKET_LABEL } from '@/lib/studioMarketplace'
+import { sendToMarketplace, sendsByExport, badgeReason, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
+import { MARKETS, withRo } from '@/lib/studioMarketplaceRules'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 
 const props = defineProps({ sends: { type: Array, default: () => [] } })
-const emit = defineEmits(['sent'])
-const sendOf = computed(() => latestSendByExport(props.sends))
+const emit = defineEmits(['sent', 'goto-send'])
+const sendsOf = computed(() => sendsByExport(props.sends))
+const marketName = key => MARKETS.find(m => m.key === key)?.name || key
 const reasonOf = ref(null)
 
 const sendOpen = ref(false)
@@ -105,8 +113,8 @@ async function load() {
     items.value = r.items
   } catch (e) {
     if (seq !== loadSeq) return
-    console.error('[StudioExportList] 완성작 목록 조회 실패:', e.code, e)
-    errorMsg.value = `완성작을 불러오지 못했어요: ${e.message}`
+    console.error('[StudioExportList] 내 상품 목록 조회 실패:', e.code, e)
+    errorMsg.value = `내 상품을 불러오지 못했어요: ${e.message}`
   } finally {
     if (seq === loadSeq) loading.value = false
   }
@@ -143,11 +151,11 @@ async function send(x) {
 }
 function onSent(r) {
   const id = sendingId.value
-  if (id) busy[id] = { ...(busy[id] || { running: false, done: 0, total: 0 }), message: `쿠팡에 승인 요청을 보냈어요${r?.sellerProductId ? ` (#${r.sellerProductId})` : ''}. 아래 [보낸 상품]에서 상태를 볼 수 있어요.`, error: false, link: false }
+  if (id) busy[id] = { ...(busy[id] || { running: false, done: 0, total: 0 }), message: `${withRo(marketName(r?.market || 'coupang'))} 보냈어요${r?.sellerProductId ? ` (#${r.sellerProductId})` : ''}. 아래 [보낸 상품]에서 상태를 볼 수 있어요.`, error: false, link: false }
   emit('sent', r)
 }
 
-// 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 완성작·서명 주소를 비운다
+// 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 내 상품·서명 주소를 비운다
 const onStudioAuthChanged = (e) => {
   if (!e.detail?.user) {
     loadSeq++

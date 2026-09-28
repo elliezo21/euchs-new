@@ -12,7 +12,7 @@
 import crypto from 'crypto'
 
 export const IMAGE_TOKEN_TTL_SEC = 30 * 60
-const KEY_RE = /^(rep|all|\d{2,4}|r\d{2}|d\d{2})$/ // rep = 대표 이미지 · r01.. = 옵션 대표 이미지 · d01.. = 구비서류 · 01.. = 완성작 장
+const KEY_RE = /^(rep|all|\d{2,4}|r\d{2}|d\d{2})$/ // rep = 대표 이미지 · r01.. = 옵션 대표 이미지 · d01.. = 구비서류 · 01.. = 내 상품 장
 const SEND_ID_RE = /^[0-9a-f]{32}$/
 
 /** @returns {Buffer} 32바이트. 없거나 길이가 다르면 throw (부르는 쪽이 server_misconfigured로 응답) */

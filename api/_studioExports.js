@@ -1,5 +1,5 @@
 /**
- * 완성작 보관 (2026-09-28) — [내보내기]로 받은 이미지를 Storage studio 버킷에 한 벌 더 둔다. 서버 공통(순수 함수 + 표 확인).
+ * 내 상품 보관 (2026-09-28) — [내보내기]로 받은 이미지를 Storage studio 버킷에 한 벌 더 둔다. 서버 공통(순수 함수 + 표 확인).
  * 흐름(action export_begin·export_file_prepare·export_file_confirm·exports_list·export_download)은 api/studio-upload.js.
  *
  * 경로: {uid}/{projectId}/exports/{stamp}/{key}.{jpg|png}
@@ -67,7 +67,7 @@ export async function exportsTableReady(ctx) {
     return true
   } catch (e) {
     if (isExportsUnavailable(e)) {
-      console.error('[studio-export] studio_exports를 쓸 수 없음(테이블·GRANT 확인 — docs/sql/2026-09-28-studio-launch.sql) — 완성작 보관 준비 중:', e.message)
+      console.error('[studio-export] studio_exports를 쓸 수 없음(테이블·GRANT 확인 — docs/sql/2026-09-28-studio-launch.sql) — 내 상품 보관 준비 중:', e.message)
       return false
     }
     throw e

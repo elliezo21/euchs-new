@@ -55,7 +55,7 @@ const SENDS_LIST_MAX = 100
 const SYNC_MAX = 30
 const ACCOUNT_PUBLIC = 'id,seller_login_id,vendor_id,key_last4,expires_at,status,last_checked_at,last_error,created_at,updated_at'
 const TEMPLATE_SELECT = 'id,name,delivery_charge_type,delivery_charge,free_ship_over_amount,delivery_charge_on_return,return_charge,exchange_charge,outbound_shipping_time_day,delivery_company_code,outbound_place_code,return_center_code,remote_area_deliverable,is_default,created_at,updated_at'
-const SEND_SELECT = 'id,export_id,seller_product_id,status,coupang_status,reason,approval_requested_at,last_synced_at,created_at,updated_at,request_json'
+const SEND_SELECT = 'id,export_id,market,seller_product_id,status,coupang_status,reason,approval_requested_at,last_synced_at,created_at,updated_at,request_json'
 
 function marketConfig() {
   return {
@@ -248,7 +248,7 @@ async function loadOwnedExport(ctx, body, res) {
   if (!UUID_RE.test(id)) { sendError(res, 400, 'invalid_input', 'exportId 형식이 올바르지 않아요.'); return null }
   const rows = await sb(ctx.cfg, `studio_exports?select=id,project_id,folder,title,format,mode,files&id=eq.${id}&user_id=eq.${ctx.userId}&limit=1`)
   const ex = Array.isArray(rows) ? rows[0] : null
-  if (!ex || !Array.isArray(ex.files) || !ex.files.length) { sendError(res, 404, 'not_found', '완성작을 찾을 수 없어요.'); return null }
+  if (!ex || !Array.isArray(ex.files) || !ex.files.length) { sendError(res, 404, 'not_found', '내 상품을 찾을 수 없어요. 목록을 새로고침해 주세요.'); return null }
   return ex
 }
 /**
@@ -290,8 +290,9 @@ async function sendPrepare(ctx, body, res) {
     sb(ctx.cfg, `studio_projects?select=title,offer_id&id=eq.${ex.project_id}&limit=1`), loadTemplates(ctx), loadPlaces(ctx), loadAccountRow(ctx),
   ])
   const source = await loadSource(ctx, projRows?.[0]?.offer_id)
+  const connected = !!account && daysLeft(account.expires_at) >= 0
   return res.status(200).json({
-    connected: !!account && daysLeft(account.expires_at) >= 0,
+    connected, markets: { [MARKET]: { connected } }, // 판매처마다 연결 여부 — 보내기 창 "보낼 판매처" 줄이 쓴다
     export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },
     images, templates, places, source, limits: { optionImages: OPTION_IMAGE_MAX, documents: DOC_MAX, documentBytes: DOC_MAX_BYTES },
   })
@@ -458,7 +459,7 @@ async function send(ctx, body, res) {
 // ── 처리현황 ──
 function publicSend(s) {
   return {
-    id: s.id, exportId: s.export_id, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
+    id: s.id, exportId: s.export_id, market: s.market || MARKET, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
     productName: s.request_json?.body?.sellerProductName || null, categoryName: s.request_json?.categoryName || null,
     approvalRequestedAt: s.approval_requested_at, lastSyncedAt: s.last_synced_at, createdAt: s.created_at, updatedAt: s.updated_at,
   }

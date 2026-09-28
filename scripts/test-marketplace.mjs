@@ -446,6 +446,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     eq('source: 옵션 3줄 · 번역은 캐시에 있는 것만', [src.from, src.skus.length, src.skuTotal, src.title.ko, src.skus[0].values.map(v => [v.name.ko, v.value.ko]), src.skus[1].values[0].value], ['1688', 3, 3, '여성 슬리퍼', [['색상', '블랙'], ['사이즈', null]], { zh: '白色', ko: null }])
     eq('source: 가격은 1688 원본(위안) 그대로 · 가격 없는 줄은 null (임의 숫자 없음) · 재고 0은 0', [src.skus.map(s => s.priceCny), src.skus.map(s => s.stock)], [[12.5, 13, null], [120, 0, 5]])
     eq('source: 원화 가격 칸을 만들지 않음', /krw|salePrice|originalPrice/i.test(JSON.stringify(src)), false)
+    eq('연결됨 send_prepare: markets.coupang.connected true', sp2.body.markets, { coupang: { connected: true } })
     eq('send_prepare는 쿠팡을 부르지 않음 · 사진에 sourceUrl', [relay.calls.length, sp2.body.images[0].sourceUrl, sp2.body.limits], [0, 'https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg', { optionImages: 6, documents: 5, documentBytes: 3145728 }])
     eq('옵션 사진 맞추기: 1688 옵션 사진 → 작업 사진', [F.matchOptionImage(src.skus[0].imageUrl, sp2.body.images), F.matchOptionImage(src.skus[1].imageUrl, sp2.body.images)], [sp2.body.images[0].id, null])
   }
@@ -455,6 +456,12 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   await post('disconnect')
   eq('연결 해제: 계정·출고지·템플릿 삭제, 전송 기록은 남김', [db.marketplace_accounts.length, db.marketplace_places.length, db.marketplace_templates.length, db.marketplace_sends.length, sendsBefore >= 3], [0, 0, 0, sendsBefore, true])
   eq('해제 뒤 보내기 → not_connected', (await post('send', SEND)).body.code, 'not_connected')
+  {
+    // 연결 전에도 보내기 창은 열린다 — 판매처 줄이 자물쇠 + [연결하기]로 보이게 markets를 준다
+    const un = await post('send_prepare', { exportId: EID })
+    eq('연결 전 send_prepare: 200 · markets.coupang.connected false', [un.statusCode, un.body.connected, un.body.markets], [200, false, { coupang: { connected: false } }])
+    eq('보낸 상품 목록에 판매처(market)', [...new Set((await post('sends_list')).body.sends.map(s => s.market))], ['coupang'])
+  }
   eq('모르는 action → 400', (await post('nope')).statusCode, 400)
 }
 
@@ -465,11 +472,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('서버: 키를 로그로 찍지 않음 (console에 accessKey·secretKey·encKey 없음)', /console\.\w+\([^)]*(accessKey|secretKey|access_key|secret_key|encKey|relaySecret)/.test(server), false)
   eq('서버: 시크릿 하드코딩 없음 (환경변수로만)', /MARKETPLACE_(ENC_KEY|RELAY_SECRET)\s*=\s*['"]/.test(server), false)
   eq('서버: 모든 POST는 studioGuard 뒤', /const ctx = await studioGuard\(req, res\)\s*\n\s*if \(!ctx\) return/.test(read('api/marketplace.js')), true)
-  const client = ['src/lib/studioMarketplace.js', 'src/views/studio/StudioMarketplaceView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue'].map(read).join('\n')
+  const client = ['src/lib/studioMarketplace.js', 'src/views/studio/StudioMarketplaceView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue'].map(read).join('\n')
   eq('화면: VITE_ 시크릿·Tailwind dark: 없음', [/VITE_MARKETPLACE|import\.meta\.env\.[A-Z_]*(KEY|SECRET)/.test(client), /\sdark:/.test(client)], [false, false])
   const guide = read('src/components/studio/StudioMarketplaceGuide.vue')
   eq('가이드: 캡처 5장 · "[추가] 버튼" 강조 2곳(04·05) · IP 복사', [[1, 2, 3, 4, 5].every(n => guide.includes(`/studio-guide/coupang/0${n}.png`) && fs.existsSync(new URL(`../public/studio-guide/coupang/0${n}.png`, import.meta.url))), (guide.match(/반드시 \[추가\] 버튼/g) || []).length, guide.includes("label: 'IP'")], [true, 2, true])
-  const modal = read('src/components/studio/StudioSendModal.vue')
+  const modal = read('src/components/studio/StudioSendCoupang.vue')
   eq('보내기 창: 브랜드·품번 필수, GTIN 선택', [/브랜드 \*/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드 숫자 8~14자리\)은 선택/.test(modal), /자체브랜드명/.test(modal)], [true, true, true, true])
   eq('판매처 화면: 로그아웃 구독', /euchs-auth-changed/.test(read('src/views/studio/StudioMarketplaceView.vue')), true)
 }
@@ -502,7 +509,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
 
   // 고객 화면 문구 — 템플릿(주석 제외)·오류 문구 표·서버 응답에 내부 용어가 없어야 한다
   const BAN = /관리자|서버|암호화|키 설정|환경변수|중계|relay|ENC_KEY|RELAY/
-  const screens = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
+  const screens = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
   // relayIp는 값(IP 숫자)을 넘기는 속성 이름 — 화면에 글자로 보이지 않는다
   const shown = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/:relay-ip|relayIp/g, '') }
   eq('화면 템플릿에 내부 용어 없음', screens.filter(p => BAN.test(shown(p))), [])
@@ -639,7 +646,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('요약 표: 판매 방식을 안 고르면 빈 칸 (기본값 없음)', [F.previewRows({}).find(r => r.label === '판매 방식').value, F.previewRows({}).find(r => r.label === '배송방법').value], ['', ''])
 
   // 화면
-  const modal = read('src/components/studio/StudioSendModal.vue')
+  const modal = read('src/components/studio/StudioSendCoupang.vue')
   const shown = modal.slice(modal.indexOf('<template>'), modal.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
   eq('보내기 창: 판매 방식 고르기 · 기본값 없음(처음 값 빈 칸) · 빠짐 목록', [/data-mk-s-mode-pick/.test(shown), /saleMode: '', outboundDays: null/.test(modal), /out\.push\('판매 방식 \(국내 재고 판매 \/ 해외구매대행\)'\)/.test(modal)], [true, true, true])
   eq('보내기 창: 이름 3칸·모델번호·태그 칩·고급 설정 접기·요약 표', [/data-mk-s-display/.test(shown), /data-mk-s-general/.test(shown), /data-mk-s-model/.test(shown), /<StudioTagChips /.test(shown), /data-mk-s-advanced-toggle/.test(shown), /advancedOpen = ref\(false\)/.test(modal), /data-mk-s-preview/.test(shown)], [true, true, true, true, true, true, true])
@@ -652,9 +659,59 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const mkView = read('src/views/studio/StudioMarketplaceView.vue'), landing = read('src/views/studio/StudioLandingView.vue')
   eq('설정·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음)', [/import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(mkView), /OTHERS = MARKETS\.filter\(m => m\.soon\)/.test(mkView), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [true, true, true, true, false])
   const screenText = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
-  const customer = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioLandingView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioTagChips.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
+  const customer = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioLandingView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioTagChips.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
   eq('고객 화면에 "이어서 준비"·"부터 열려"·"곧"·"관리자" 없음', customer.filter(p => /이어서 준비|부터 열려|곧|관리자/.test(screenText(p))), [])
   eq('판매 방식 기억 = 템플릿마다 · 브라우저에만', [/studio-mk-sale-mode:\$\{id\}/.test(read('src/lib/studioMarketplace.js')), /rememberSaleMode\(f\.value\.templateId, key\)/.test(modal)], [true, true])
+}
+
+// ── 12. "내 상품" 명칭 · 보낼 판매처 체크 목록 · 판매처별 상태 배지 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const walk = dir => fs.readdirSync(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.(vue|js|mjs|css)$/.test(e.name) ? [`${dir}/${e.name}`] : [])
+
+  // 3-1 명칭
+  const left = [...walk('src'), ...walk('api')].filter(p => read(p).includes('완성작'))
+  eq('"완성작"이 남은 파일 = 계정 탈퇴 API 주석 1곳뿐 (화면·스튜디오 서버 0건)', left, ['api/account-withdraw.js'])
+  const list = read('src/components/studio/StudioExportList.vue')
+  eq('내 작업 화면 영역 제목 = "내 상품" · 사이드바 "내 작업"·"보낸 상품"은 그대로', [/<h2 class="st-h-section">내 상품<\/h2>/.test(list), /label: '내 작업'/.test(read('src/layouts/StudioLayout.vue')), /<h2 class="st-h-section">보낸 상품<\/h2>/.test(read('src/components/studio/StudioSendList.vue'))], [true, true, true])
+  eq('변수·DB 이름은 그대로 (studio_exports · exportId · exports_list)', [/studio_exports/.test(read('api/studio-upload.js')), /exportId/.test(read('src/components/studio/StudioSendCoupang.vue')), /exports_list/.test(read('api/studio-upload.js'))], [true, true, true])
+
+  // 3-2 보낼 판매처
+  const rowsOn = R.marketRows({ coupang: { connected: true } }), rowsOff = R.marketRows({ coupang: { connected: false } })
+  eq('판매처 줄 = MARKETS와 같은 9곳·같은 순서', [rowsOn.map(r => r.name), rowsOn.map(r => r.key)], [R.MARKETS.map(m => m.name), R.MARKETS.map(m => m.key)])
+  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 나머지 8곳 = soon', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, [...new Set(rowsOn.slice(1).map(r => r.state))], rowsOn.slice(1).length], ['connected', 'locked', 'locked', ['soon'], 8])
+  eq('처음 체크: 연결된 곳만 체크 · 연결 전이면 아무것도 체크 안 됨', [R.checkedMarkets(rowsOn, R.defaultChecked(rowsOn)), R.checkedMarkets(rowsOff, R.defaultChecked(rowsOff))], [['coupang'], []])
+  eq('체크할 수 없는 줄은 값이 들어와도 보내지 않음', [R.checkedMarkets(rowsOn, { coupang: true, smartstore: true, cafe24: true }), R.checkedMarkets(rowsOff, { coupang: true })], [['coupang'], []])
+  eq('버튼 글자: 1곳 = 이름 · 0곳·여러 곳 = "선택한 판매처로 보내기"', [R.sendButtonLabel(['coupang']), R.sendButtonLabel([]), R.sendButtonLabel(['coupang', 'smartstore']), R.sendButtonLabel(['11st']), R.sendButtonLabel(['smartstore'])], ['쿠팡으로 보내기', '선택한 판매처로 보내기', '선택한 판매처로 보내기', '11번가로 보내기', '스마트스토어로 보내기'])
+  const shell = read('src/components/studio/StudioSendModal.vue')
+  const shellShown = shell.slice(shell.indexOf('<template>'), shell.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  eq('보내기 창: "0. 보낼 판매처"가 맨 위 · 체크박스 줄 · 자물쇠 + [연결하기] · "준비 중" 배지', [/0\. 보낼 판매처/.test(shellShown), shellShown.indexOf('data-mk-s-markets') < shellShown.indexOf('<component :is="SECTIONS[key]"'), /type="checkbox" :disabled="r\.state !== 'connected'/.test(shellShown), /<Lock /.test(shellShown), /:to="\{ name: 'studio-settings-marketplace' \}"[^>]*>연결하기</.test(shellShown), /v-else-if="r\.state === 'soon'" class="st-badge shrink-0">준비 중</.test(shellShown)], [true, true, true, true, true, true])
+  eq('보내기 창: 체크 0개 → 빠짐 목록 "보낼 판매처" · 버튼은 빠짐이 있으면 꺼짐', [/if \(!picked\.value\.length\) return \['보낼 판매처'\]/.test(shell), /:disabled="sending \|\| sectionBusy \|\| missing\.length > 0 \|\| !prepare"/.test(shellShown)], [true, true])
+  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임', [/const SECTIONS = \{ coupang: StudioSendCoupang \}/.test(shell), /v-for="key in picked"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  eq('연결 전에도 창을 연다 (not_connected로 돌려보내지 않음)', /status: 'not_connected'/.test(read('src/lib/studioMarketplace.js')), false)
+
+  // 3-3 상태 배지
+  const S = (id, exportId, market, status, createdAt, reason) => ({ id, exportId, market, status, createdAt, reason })
+  const by = R.sendsByExport([
+    S('a', 'E1', 'coupang', 'failed', '2026-09-28T01:00:00Z', '대표 이미지에 글자가 있습니다'), S('b', 'E1', 'coupang', 'approval_pending', '2026-09-28T03:00:00Z'),
+    S('c', 'E1', 'smartstore', 'rejected', '2026-09-28T02:00:00Z', '카테고리가 맞지 않습니다'), S('d', 'E2', undefined, 'approved', '2026-09-28T02:00:00Z'), S('e', null, 'coupang', 'failed', '2026-09-28T04:00:00Z'),
+  ])
+  eq('배지 줄: 판매처마다 최신 1건 · MARKETS 순서 · 안 보낸 판매처는 없음', [by.E1.map(s => [s.market, s.id, s.status]), by.E2.map(s => [s.market, s.id]), Object.keys(by)], [[['coupang', 'b', 'approval_pending'], ['smartstore', 'c', 'rejected']], [['coupang', 'd']], ['E1', 'E2']])
+  eq('배지 줄: 목록이 비거나 이상해도 빈 값', [R.sendsByExport([]), R.sendsByExport(null)], [{}, {}])
+  eq('배지 색: 승인 대기 회색 · 승인 초록 · 반려·실패 빨강', R.SEND_BADGE_CLASS, { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' })
+  eq('초록 배지 색 = 스튜디오 토큰', /\.studio-root \.st-badge-ok \{[^}]*var\(--st-success\)/.test(read('src/styles/studio-tokens.css')), true)
+  eq('툴팁: 반려·실패만 · 기록된 사유 그대로', [R.badgeReason(by.E1[1]), R.badgeReason(by.E1[0]), R.badgeReason({ status: 'approved', reason: 'x' }), R.badgeReason({ status: 'failed', reason: null }), R.badgeReason(null)], ['카테고리가 맞지 않습니다', '', '', '', ''])
+  const listShown = list.slice(list.indexOf('<template>'), list.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  eq('내 상품 카드: 판매처별 배지 줄 · 툴팁 · 누르면 [보낸 상품] 그 줄로', [/v-for="s in sendsOf\[x\.id\]"/.test(listShown), /:title="badgeReason\(s\) \|\| undefined"/.test(listShown), /@click="\$emit\('goto-send', s\.id\)"/.test(listShown), /@goto-send="sendList\?\.focus\(\$event\)"/.test(read('src/views/studio/StudioHomeView.vue')), /defineExpose\(\{ load, clear, focus \}\)/.test(read('src/components/studio/StudioSendList.vue'))], [true, true, true, true, true])
+
+  // 공통 — 고객 화면 문구
+  const shownOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
+  const screens = ['src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioExportList.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioTagChips.vue', 'src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioLandingView.vue']
+  eq('고객 화면에 "관리자에게"·"곧"·"준비하고 있어요"·"쿠팡부터" 없음', screens.filter(p => /관리자에게|곧|준비하고 있|쿠팡부터/.test(shownOf(p))), [])
+  const api = read('src/lib/studioApi.js')
+  const tableOf = name => new RegExp(`const ${name} = \\{([\\s\\S]*?)\\n\\}`).exec(api)[1].replace(/\/\/.*$/gm, '')
+  eq('오류 문구 표(내 상품 보관·판매처·공통)에 "준비하고 있어요"·"곧"·"관리자" 없음', ['EXPORT', 'MARKETPLACE', 'COMMON'].filter(n => /준비하고 있|곧|관리자/.test(tableOf(n))), [])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

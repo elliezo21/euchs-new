@@ -102,6 +102,7 @@
 .studio-root.st-dark .st-badge-accent { background: var(--st-accent-soft); color: var(--st-accent); }
 .studio-root.st-dark .st-badge-white { background: var(--st-card); color: var(--st-ink); box-shadow: none; }
 .studio-root.st-dark .st-badge-danger { background: var(--st-danger-soft); color: #ff6b6b; }
+.studio-root.st-dark .st-badge-ok { background: rgba(61, 220, 132, 0.16); color: #3ddc84; }
 .studio-root.st-dark .st-danger-text { color: #ff6b6b; }
 .studio-root.st-dark .st-success-text { color: #3ddc84; }
 /* AI 버튼 — 주황 바탕, 어두운 글자 */
@@ -211,6 +212,7 @@
 .studio-root .st-badge-white { background: var(--st-surface); color: var(--st-ink); box-shadow: 0 1px 2px rgba(24, 24, 27, 0.12); }
 .studio-root .st-badge-scrim { background: var(--st-scrim); color: var(--st-on-accent); }
 .studio-root .st-badge-danger { background: var(--st-danger-soft); color: var(--st-danger); }
+.studio-root .st-badge-ok { background: color-mix(in srgb, var(--st-success) 12%, transparent); color: var(--st-success); }
 
 /* ── 세그먼트 탭 ──────────────────────────────────────────── */
 .studio-root .st-seg { display: inline-flex; padding: 3px; gap: 2px; border-radius: var(--st-radius-md); background: var(--st-soft); }

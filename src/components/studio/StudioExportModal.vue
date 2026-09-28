@@ -88,7 +88,7 @@
         <p class="st-desc break-keep">브라우저의 다운로드 폴더에서 {{ baseName }}_… 파일을 확인해 주세요.</p>
       </div>
 
-      <!-- 완성작 보관 (받은 파일을 한 벌 더 — 작업 홈 [완성작]에서 다시 받을 수 있음). 받기와 상관없이 따로 보여 준다 -->
+      <!-- 내 상품 보관 (받은 파일을 한 벌 더 — 작업 홈 [내 상품]에서 다시 받을 수 있음). 받기와 상관없이 따로 보여 준다 -->
       <p v-if="archiveLine && (phase === 'done' || phase === 'error')" class="text-[12px] font-bold break-keep" :class="archive.state === 'saved' ? 'st-success-text' : archive.state === 'soon' ? 'st-muted' : 'st-danger-text'" data-export-archive>{{ archiveLine }}</p>
 
       <!-- 실패 -->
@@ -147,7 +147,7 @@ import { beginArchive, archiveFile, archiveThumb, makeThumb, archiveKey } from '
 const props = defineProps({
   open: { type: Boolean, default: false },
   page: { type: Object, required: true },
-  projectId: { type: String, default: '' },                // 완성작 보관 (없으면 보관하지 않음 — 받기는 그대로)
+  projectId: { type: String, default: '' },                // 내 상품 보관 (없으면 보관하지 않음 — 받기는 그대로)
   title: { type: String, default: '' },                    // 작업 이름 (파일 이름에 씀)
   labels: { type: Object, default: () => ({}) },           // 구간 id → "03 대표 사진"
   pendingBySection: { type: Object, default: () => ({}) }, // 구간 id → 적용 중인 사진 수
@@ -230,16 +230,16 @@ function download(blob, name) {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
-// ── 완성작 보관 (2026-09-28) — 받은 파일마다 서버에 한 벌 더. 실패해도 받기는 계속, 이유는 창에 한 줄 ──
+// ── 내 상품 보관 (2026-09-28) — 받은 파일마다 서버에 한 벌 더. 실패해도 받기는 계속, 이유는 창에 한 줄 ──
 // state: idle | saving | saved | soon(표 설정 전) | failed(한 장이라도 못 함)
 const archive = ref({ state: 'idle', saved: 0, failed: 0, message: '' })
 let archiveId = null
 let thumbDone = false
 const archiveLine = computed(() => {
   const a = archive.value
-  if (a.state === 'saved') return `완성작에 ${a.saved}장 보관했어요 · 작업 홈 [완성작]에서 다시 받을 수 있어요`
+  if (a.state === 'saved') return `내 상품에 ${a.saved}장 보관했어요 · 작업 홈 [내 상품]에서 다시 받을 수 있어요`
   if (a.state === 'soon') return a.message
-  if (a.state === 'failed') return `${a.saved ? `${a.saved}장은 보관했지만 ` : ''}${a.failed}장은 완성작에 보관하지 못했어요 — ${a.message}`
+  if (a.state === 'failed') return `${a.saved ? `${a.saved}장은 보관했지만 ` : ''}${a.failed}장은 내 상품에 보관하지 못했어요 — ${a.message}`
   return ''
 })
 async function startArchive(r) {
@@ -251,7 +251,7 @@ async function startArchive(r) {
   try {
     archiveId = await beginArchive({ projectId: props.projectId, title: r.base, format: r.format, scale: r.scale, mode: r.mode, count: r.files.length })
   } catch (e) {
-    console.error('[StudioExportModal] 완성작 보관 시작 실패:', e.code, e)
+    console.error('[StudioExportModal] 내 상품 보관 시작 실패:', e.code, e)
     archive.value = { state: e.code === 'export_sql_missing' ? 'soon' : 'failed', saved: 0, failed: r.files.length, message: e.message }
   }
 }
@@ -261,7 +261,7 @@ async function archiveOne(file, blob, name) {
     await archiveFile(archiveId, { key: archiveKey(file.no), name, blob })
     archive.value = { ...archive.value, saved: archive.value.saved + 1 }
   } catch (e) {
-    console.error('[StudioExportModal] 완성작 보관 실패:', name, e.code, e)
+    console.error('[StudioExportModal] 내 상품 보관 실패:', name, e.code, e)
     archive.value = { ...archive.value, failed: archive.value.failed + 1, message: e.message }
     return
   }
@@ -271,7 +271,7 @@ async function archiveOne(file, blob, name) {
     await archiveThumb(archiveId, await makeThumb(blob))
   } catch (e) {
     // 파일은 보관됐다 — 목록에서 미리보기 자리만 비어 보인다 ("미리보기 없음")
-    console.error('[StudioExportModal] 완성작 미리보기 보관 실패:', e.code, e)
+    console.error('[StudioExportModal] 내 상품 미리보기 보관 실패:', e.code, e)
   }
 }
 function finishArchive() {

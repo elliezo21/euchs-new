@@ -55,7 +55,7 @@ export const FALLBACK_MESSAGE = '잠시 후 다시 시도해 주세요. 계속�
 const COMMON = {
   studio_disabled: '스튜디오가 지금 꺼져 있어요. 잠시 후 다시 시도해 주세요.',
   unauthorized: '로그인이 필요해요. 다시 로그인한 뒤 시도해 주세요.',
-  not_admin: '스튜디오를 준비하고 있어요. 곧 쓸 수 있어요.',
+  not_admin: '잠시 후 다시 시도해 주세요.',
   no_entitlement: '스튜디오 이용 권한이 없어요. 고객센터로 문의해 주세요.',
   not_customer: '스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요.',
   network: '인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
@@ -144,16 +144,16 @@ const BG = {
   bg_gen_sql_missing: 'AI 배경을 준비하고 있어요. 곧 쓸 수 있어요.',
 }
 
-/** studio-upload export_* (완성작 보관 2026-09-28) — 받기(다운로드)는 이와 상관없이 된다 */
+/** studio-upload export_* (내 상품 보관 2026-09-28) — 받기(다운로드)는 이와 상관없이 된다 */
 const EXPORT = {
-  export_sql_missing: '완성작 보관을 준비하고 있어요. 곧 쓸 수 있어요.',
+  export_sql_missing: '잠시 후 다시 시도해 주세요.',
   export_too_large: '20MB가 넘는 파일은 보관하지 못해요. 받은 파일은 그대로 있어요.',
   export_invalid: '보관할 파일이 올바르지 않아 저장하지 않았어요.',
   not_uploaded: '보관이 끝나지 않았어요. 다시 받기로 한 번 더 시도해 주세요.',
   upload_failed: '보관 파일을 올리지 못했어요. 인터넷 연결을 확인해 주세요.',
   sign_failed: '보관 준비에 실패했어요. 잠시 후 다시 시도해 주세요.',
   storage_error: '저장소에서 파일을 확인하지 못했어요. 잠시 후 다시 시도해 주세요.',
-  not_found: '보관된 완성작을 찾을 수 없어요. 목록을 새로고침해 주세요.',
+  not_found: '보관된 내 상품을 찾을 수 없어요. 목록을 새로고침해 주세요.',
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
 }
 

@@ -91,7 +91,7 @@
             </div>
             <div class="land-status s2" data-hero-card>
               <span class="st-ico is-ok" aria-hidden="true"><Check class="w-4 h-4" :stroke-width="3" /></span>
-              <div><b>내보내기 완료</b><p>완성작에 보관됨</p></div>
+              <div><b>내보내기 완료</b><p>내 상품에 보관됨</p></div>
             </div>
           </div>
         </div>
@@ -289,7 +289,7 @@ const OC_STEPS = ['사진 고르기', '글자 지우기', '페이지 배치', '�
 const STEPS = [
   { title: '가져오기', desc: '상품 링크, 찜한 상품, 주문한 상품, 내 사진 어디서든 시작해요.', chips: ['상품 링크', '주문한 상품', '내 사진'] },
   { title: '다듬기', desc: '필요 없는 글자와 배경을 AI로 정리하고, 원클릭으로 페이지 초안을 받아요.', chips: ['AI로 지우기', '배경 바꾸기', '원클릭 초안'] },
-  { title: '올리기', desc: '섹션별 여러 장 또는 한 장으로 길게 받아 판매처에 올려요.', chips: ['JPG · PNG', '완성작에 보관'] },
+  { title: '올리기', desc: '섹션별 여러 장 또는 한 장으로 길게 받아 판매처에 올려요.', chips: ['JPG · PNG', '내 상품에 보관'] },
 ]
 const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '섹션별·한 장 내보내기']
 const NOTICE_TYPE_LABEL = { update: '업데이트', notice: '공지', soon: '예정' }

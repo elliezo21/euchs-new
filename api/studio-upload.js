@@ -82,7 +82,7 @@
  *   → { facts: { title, attrs, options } | null, reason: null|'no_offer'|'no_snapshot', texts, translated }
  * 에러: not_found 404
  *
- * ── 완성작 보관 (2026-09-28) ── [내보내기]로 받은 이미지를 한 벌 더 둔다 (_studioExports.js). 같은 2단계 방식. 돈이 들지 않는다.
+ * ── 내 상품 보관 (2026-09-28) ── [내보내기]로 받은 이미지를 한 벌 더 둔다 (_studioExports.js). 같은 2단계 방식. 돈이 들지 않는다.
  * POST { action:'export_begin', projectId, title, format, scale, mode, count } → { exportId, stamp }  (studio_exports 행, 폴더 = {uid}/{projectId}/exports/{stamp})
  * POST { action:'export_file_prepare', exportId, key, size } → { exists:true, path } | { path, token }   key = 01·02…·all·thumb(목록 미리보기 JPG)
  * POST { action:'export_file_confirm', exportId, key, path, name } → { ok:true, saved }  서버가 형식·크기를 읽어 확인 후 files(또는 thumb_path)에 기록
@@ -1129,7 +1129,7 @@ async function productFacts(ctx, body, res) {
   return res.status(200).json({ facts: withKo(f, ko), reason: null, texts: texts.length, translated: ko.size })
 }
 
-// ── 완성작 보관 (2026-09-28) ────────────────────────────────────────────────
+// ── 내 상품 보관 (2026-09-28) ────────────────────────────────────────────────
 // 받기(브라우저 다운로드)는 그대로 — 받은 파일을 한 벌 더 둘 뿐이다. 표(studio_exports)가 없으면 503 export_sql_missing(보관만 준비 중).
 const EXPORT_SELECT = 'id,project_id,stamp,folder,title,format,scale,mode,file_count,files,thumb_path,created_at'
 const EXPORT_THUMB_MAX_BYTES = 2 * 1024 * 1024
@@ -1137,7 +1137,7 @@ const EXPORT_THUMB_MAX_SIDE = 1024
 
 async function exportTableGate(ctx, res) {
   if (await exportsTableReady(ctx)) return true
-  sendError(res, 503, 'export_sql_missing', '완성작 보관을 준비하고 있습니다. (studio_exports 설정 필요)')
+  sendError(res, 503, 'export_sql_missing', '잠시 후 다시 시도해 주세요.')
   return false
 }
 
@@ -1147,7 +1147,7 @@ async function loadOwnedExport(ctx, body, res) {
   if (!UUID_RE.test(id)) { sendError(res, 400, 'invalid_input', 'exportId 형식이 올바르지 않습니다.'); return null }
   const rows = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT}&id=eq.${id}&user_id=eq.${ctx.userId}&limit=1`)
   const ex = Array.isArray(rows) ? rows[0] : null
-  if (!ex) { sendError(res, 404, 'not_found', '완성작을 찾을 수 없습니다.'); return null }
+  if (!ex) { sendError(res, 404, 'not_found', '내 상품을 찾을 수 없습니다.'); return null }
   return ex
 }
 
@@ -1209,7 +1209,7 @@ async function exportFilePrepare(ctx, body, res) {
   try {
     token = await storageSignUpload(ctx.cfg, BUCKET, t.path)
   } catch (e) {
-    console.error(`[studio-upload] 완성작 업로드 URL 발급 실패 ${t.path}:`, e.message)
+    console.error(`[studio-upload] 내 상품 업로드 URL 발급 실패 ${t.path}:`, e.message)
     return sendError(res, 500, 'sign_failed', '업로드 준비에 실패했습니다.')
   }
   return res.status(200).json({ path: t.path, token })
@@ -1232,7 +1232,7 @@ async function exportFileConfirm(ctx, body, res) {
   try {
     dl = await storageDownload(ctx.cfg, BUCKET, t.path)
   } catch (e) {
-    console.error(`[studio-upload] 완성작 읽기 실패 ${t.path}:`, e.message)
+    console.error(`[studio-upload] 내 상품 읽기 실패 ${t.path}:`, e.message)
     return sendError(res, 500, 'storage_error', '저장소에서 파일을 확인하지 못했습니다.')
   }
   if (!dl.found) return sendError(res, 400, 'not_uploaded', '업로드된 파일이 없습니다.')
@@ -1247,11 +1247,11 @@ async function exportFileConfirm(ctx, body, res) {
     else if (key === 'thumb' && Math.max(dims.width, dims.height) > EXPORT_THUMB_MAX_SIDE) bad = ['export_invalid', '미리보기가 너무 큽니다.']
   }
   if (bad) {
-    console.warn(`[studio-upload] 완성작 불합격 ${t.path}: ${bad[0]} (${buf.length} bytes)`)
+    console.warn(`[studio-upload] 내 상품 불합격 ${t.path}: ${bad[0]} (${buf.length} bytes)`)
     try {
       await storageRemove(ctx.cfg, BUCKET, [t.path])
     } catch (e) {
-      console.error(`[studio-upload] 불합격 완성작 삭제 실패 ${t.path}:`, e.message)
+      console.error(`[studio-upload] 불합격 내 상품 삭제 실패 ${t.path}:`, e.message)
       return sendError(res, 400, `${bad[0]}+delete_failed`, bad[1])
     }
     return sendError(res, 400, bad[0], bad[1])
@@ -1275,7 +1275,7 @@ async function exportsList(ctx, body, res) {
       try {
         previewUrl = await storageSignDownload(ctx.cfg, BUCKET, r.thumb_path, EXPORT_SIGN_SECONDS)
       } catch (e) {
-        console.error(`[studio-upload] 완성작 미리보기 주소 실패 ${r.thumb_path}:`, e.message)
+        console.error(`[studio-upload] 내 상품 미리보기 주소 실패 ${r.thumb_path}:`, e.message)
       }
     }
     return {
@@ -1297,7 +1297,7 @@ async function exportDownload(ctx, body, res) {
   try {
     out = await runPool(files, 6, async f => ({ name: f.name, bytes: f.bytes, url: await storageSignDownload(ctx.cfg, BUCKET, f.path, EXPORT_SIGN_SECONDS) }))
   } catch (e) {
-    console.error(`[studio-upload] 완성작 받기 주소 실패 ${ex.folder}:`, e.message)
+    console.error(`[studio-upload] 내 상품 받기 주소 실패 ${ex.folder}:`, e.message)
     return sendError(res, 500, 'storage_error', '저장소에서 파일을 찾지 못했습니다.')
   }
   return res.status(200).json({ files: out })
