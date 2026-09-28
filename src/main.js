@@ -2,10 +2,33 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import { initAuth } from './lib/auth'
+import { initAdPixels, trackPageView, onDocumentClickCapture, applyPathRules } from './lib/adPixels'
 import './assets/style.css'
 
 // 초기 인증 세션 동기화
 initAuth()
+
+// ─── 광고 픽셀 (틱톡·메타) — src/lib/adPixels.js ───────────────────────────
+// 시작할 때 한 번(첫 페이지뷰 포함, /admin·/dashboard 이하면 안 불러옴) + 카톡·전화 링크 클릭(캡처 단계 1개)
+initAdPixels(window.location.pathname)
+document.addEventListener('click', onDocumentClickCapture, true)
+let firstNavDone = false
+// 주소가 바뀌기 전에 메타 전송을 멈추거나 켠다 (메타가 주소 변경 순간 PageView를 스스로 보내기 때문)
+router.beforeEach((to) => {
+  applyPathRules(to.path)
+})
+router.afterEach((to, from, failure) => {
+  // 이동이 막히거나 다른 곳으로 돌려졌으면 실제로 머문 경로 기준으로 다시 맞춘다
+  applyPathRules(router.currentRoute.value.path)
+  if (failure) return
+  if (!firstNavDone) {
+    // 첫 이동 = 시작할 때 이미 보낸 페이지뷰 — 다시 보내지 않는다(리다이렉트로 제외 경로를 벗어났으면 이때 불러온다)
+    firstNavDone = true
+    initAdPixels(to.path)
+    return
+  }
+  if (!initAdPixels(to.path)) trackPageView(to.path)
+})
 
 const app = createApp(App)
 app.use(router)
