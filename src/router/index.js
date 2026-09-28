@@ -275,6 +275,13 @@ const routes = [
     component: NoticeView,
   },
   {
+    // 개인정보처리방침 (2026-09-28) — 푸터 [개인정보처리방침]
+    path: '/privacy',
+    name: 'privacy',
+    component: () => import('../views/PrivacyPolicyView.vue'),
+    meta: { title: '개인정보처리방침 | 이유씨컴퍼니 (EUCHS)' }
+  },
+  {
     path: '/community/faq',
     name: 'faq',
     component: FaqView,

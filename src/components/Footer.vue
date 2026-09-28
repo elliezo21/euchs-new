@@ -9,13 +9,13 @@
         <nav aria-label="푸터 빠른 링크" class="w-full md:w-auto">
           <div class="grid grid-cols-3 gap-2 text-center md:flex md:flex-wrap md:items-center md:justify-start md:gap-x-5 md:gap-y-1 text-xs">
             
-            <button 
-              type="button" 
-              @click="showPolicy('privacy')" 
-              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-xs sm:text-xs"
+            <router-link
+              to="/privacy"
+              class="px-2 py-2 md:p-0 rounded-xl bg-slate-900/90 md:bg-transparent border border-slate-800/90 md:border-none text-slate-300 hover:text-white hover:underline text-center transition whitespace-nowrap break-keep text-xs sm:text-xs block font-bold"
+              data-footer-privacy
             >
               개인정보처리방침
-            </button>
+            </router-link>
 
             <button 
               type="button" 
