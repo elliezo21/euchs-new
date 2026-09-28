@@ -1038,34 +1038,55 @@ export const updateUserPassword = async (newPassword) => {
 }
 
 /**
- * 회원 탈퇴 (계정 비활성화 및 세션 종료)
+ * 회원 탈퇴 API(/api/account-withdraw) 호출 — 판정·실행 모두 서버가 한다(api/_accountWithdraw.js evaluateWithdrawal).
+ * @returns {Promise<{ status:number, body:object|null }>} 네트워크 실패는 throw
  */
-export const withdrawAccount = async () => {
-  if (!currentUser.value) {
-    throw new Error('로그인 상태가 아닙니다.')
-  }
+const callWithdrawApi = async (payload) => {
+  if (!isSupabaseConfigured()) throw new Error('Supabase 설정이 필요합니다.')
+  const { data: { session } } = await supabase.auth.getSession()
+  const token = session?.access_token
+  if (!token) return { status: 401, body: { ok: false, code: 'unauthorized', message: '로그인이 필요합니다.' } }
+  const r = await fetch('/api/account-withdraw', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: JSON.stringify(payload)
+  })
+  const body = await r.json().catch((e) => {
+    console.error('[account-withdraw] 응답을 읽지 못함:', r.status, e?.message || e)
+    return null
+  })
+  return { status: r.status, body }
+}
+
+/**
+ * 탈퇴할 수 있는지 판정만 한다 (아무것도 지우지 않음)
+ * @returns {Promise<{ status:number, body:{ ok:boolean, blockers?:{code:string,message:string,count:number,orders?:string[]}[], code?:string, message?:string }|null }>}
+ */
+export const checkWithdrawal = () => callWithdrawApi({ action: 'check' })
+
+/**
+ * 회원 탈퇴 실행 — confirm은 사용자가 입력한 확인 문구("탈퇴합니다").
+ * 성공(서버가 계정을 지움)하면 이 브라우저의 계정 캐시를 지우고 로그아웃한다.
+ * @returns {Promise<{ status:number, body:object|null }>} 성공이면 body.ok === true
+ */
+export const withdrawAccount = async (confirm) => {
+  if (!currentUser.value) throw new Error('로그인 상태가 아닙니다.')
   const uid = currentUser.value.id
   const email = currentUser.value.email
-
-  if (isSupabaseConfigured() && uid && isValidUUID(uid)) {
-    try {
-      await supabase.from('profiles').update({
-        status: 'withdrawn',
-        is_active: false,
-        updated_at: new Date().toISOString()
-      }).eq('id', uid)
-    } catch (e) {
-      console.warn('Profile withdraw update notice:', e)
-    }
-  }
+  const res = await callWithdrawApi({ action: 'withdraw', confirm })
+  if (res.status !== 200 || res.body?.ok !== true) return res
 
   try {
     localStorage.removeItem(`euchs_cart_${uid}`)
     localStorage.removeItem(`euchs_business_profile_${uid}`)
+    localStorage.removeItem(`euchs_profile_${uid}`)
+    localStorage.removeItem(`euchs_user_addresses_${uid}`) // 배송지 주소록 (AccountSettingsView — 이 브라우저에만 저장)
     if (email) localStorage.removeItem(`euchs_business_profile_${email}`)
-  } catch (e) {}
-
+  } catch (e) {
+    console.error('[withdrawAccount] 이 브라우저의 계정 캐시 정리 실패:', e?.message || e)
+  }
   await signOut()
+  return res
 }
 
 /**

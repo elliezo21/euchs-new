@@ -701,17 +701,17 @@
         </div>
         
         <p class="text-xs text-red-800 leading-relaxed max-w-2xl">
-          회원 탈퇴 시 등록된 사업자 정보, 배송 주소록 및 미사용 예치금 잔액 환불이 제한될 수 있으며, 진행 중인 수입 대행 발주 및 통관 내역 조회가 영구히 중단됩니다.
+          탈퇴하면 회원 정보·사업자 정보·찜한 상품·AI 스튜디오 작업이 바로 지워지고 되살릴 수 없어요. 주문·결제 기록은 법에 따라 5년 동안 따로 보관해요.
+          진행 중인 주문, 환불 대기, 남은 예치금이 있으면 먼저 정리해야 탈퇴할 수 있어요.
         </p>
 
         <div class="pt-2">
           <button
             type="button"
-            @click="handleAccountWithdrawal"
-            :disabled="isWithdrawing"
+            @click="showWithdrawAccountModal = true"
             class="px-5 py-2.5 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs shadow-sm transition active:scale-95 flex items-center gap-2 cursor-pointer disabled:opacity-50"
+            data-withdraw-open
           >
-            <i v-if="isWithdrawing" class="fas fa-spinner animate-spin"></i>
             <span>회원 탈퇴 신청하기</span>
           </button>
         </div>
@@ -1110,26 +1110,11 @@
       @confirm="executeDeleteAddress"
     />
 
-    <!-- ConfirmSaveModal: 회원 탈퇴 1차 확인 -->
-    <ConfirmSaveModal
-      v-model="confirmWithdrawal1"
-      title="🚨 정말 회원 탈퇴를 진행하시겠습니까?"
-      description="탈퇴 시 사업자 정보 및 배송 주소록이 삭제되고, 미사용 예치금 환불이 제한될 수 있습니다."
-      variant="red"
-      icon="warn"
-      confirmText="계속"
-      @confirm="handleWithdrawalStep2"
-    />
-
-    <!-- ConfirmSaveModal: 회원 탈퇴 2차 최종 확인 -->
-    <ConfirmSaveModal
-      v-model="confirmWithdrawal2"
-      title="최종 확인: 계정을 영구히 삭제하고 탈퇴하시겠습니까?"
-      description="이 작업은 되돌릴 수 없습니다."
-      variant="red"
-      icon="warn"
-      confirmText="탈퇴"
-      @confirm="executeWithdrawal"
+    <!-- 회원 탈퇴 — 서버 판정(막히는 이유·해결 방법) → "탈퇴합니다" 입력 → /api/account-withdraw -->
+    <WithdrawAccountModal
+      v-model="showWithdrawAccountModal"
+      @go-tab="switchTab"
+      @done="onWithdrawDone"
     />
 
     <!-- ConfirmSaveModal: 통관 정보 저장 -->
@@ -1184,7 +1169,6 @@ import {
   updateBusinessProfile,
   validateBusinessInfo,
   updateUserPassword,
-  withdrawAccount,
   isBusinessVerified,
   verificationStatus,
   fetchUserProfile,
@@ -1201,6 +1185,7 @@ import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
 import AddressSearchInput from '@/components/common/AddressSearchInput.vue'
 import { convertDetailToEnglish } from '@/utils/addressEnglish'
 import DateDigitsInput from '@/components/common/DateDigitsInput.vue'
+import WithdrawAccountModal from '@/components/dashboard/WithdrawAccountModal.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -1222,8 +1207,7 @@ const confirmSaveCustoms = ref(false)
 const confirmSaveAddress = ref(false)
 const confirmDeleteAddress = ref(false)
 const pendingDeleteAddressId = ref(null)
-const confirmWithdrawal1 = ref(false)
-const confirmWithdrawal2 = ref(false)
+const showWithdrawAccountModal = ref(false)
 const showAddressModal = ref(false)
 const showDepositModal = ref(false)
 // 출금 신청 모달 상태
@@ -1293,7 +1277,6 @@ const passwordForm = ref({
 })
 const showSecurityPassword = ref(false)
 const isPasswordChanging = ref(false)
-const isWithdrawing = ref(false)
 
 const buyerCustomerId = computed(() => {
   if (!currentUser.value) return 'EUCHS-GUEST'
@@ -1941,27 +1924,10 @@ const handleChangePassword = async () => {
   }
 }
 
-const handleAccountWithdrawal = async () => {
-  confirmWithdrawal1.value = true
-}
-
-const handleWithdrawalStep2 = () => {
-  // 1차 확인 후 2차 최종 확인 모달
-  confirmWithdrawal2.value = true
-}
-
-const executeWithdrawal = async () => {
-  isWithdrawing.value = true
-  try {
-    await withdrawAccount()
-    alert('회원 탈퇴가 정상적으로 처리되었습니다.\n그동안 이유씨컴퍼니를 이용해 주셔서 감사합니다.')
-    router.push('/')
-  } catch (err) {
-    console.error('Withdrawal error:', err)
-    alert(`탈퇴 처리 중 오류가 발생했습니다: ${err.message || '관리자에게 문의해 주세요.'}`)
-  } finally {
-    isWithdrawing.value = false
-  }
+// 탈퇴 완료(서버가 계정을 지웠고 withdrawAccount가 로그아웃까지 끝냄) → 메인으로 + 완료 안내
+const onWithdrawDone = async () => {
+  await router.replace('/')
+  alert('회원 탈퇴가 끝났어요.\n그동안 이유씨컴퍼니를 이용해 주셔서 감사합니다.')
 }
 
 // ============================================================
