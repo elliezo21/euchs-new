@@ -1,5 +1,5 @@
 <template>
-  <div class="px-4 sm:px-12 py-9 max-w-5xl">
+  <div class="px-4 sm:px-12 py-6 max-w-5xl">
     <div class="st-card p-6 sm:p-8">
       <h2 class="st-h-page">용어집</h2>
       <p class="mt-2 st-desc">준비 중이에요.</p>
