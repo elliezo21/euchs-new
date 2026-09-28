@@ -20,7 +20,7 @@ const box = (extra = {}) => ({ id: 's', type: 'shape', x: 0, y: 0, w: 100, h: 50
 {
   const n = normalizeShapeItem(box())
   eq('도형 기본값', [n.shape, n.fill, n.fillOpacity, n.strokeWidth, n.strokeColor, n.radius], ['rect', '#111111', 1, 0, '#000000', 0])
-  const bad = normalizeShapeItem(box({ shape: 'hexagon', fill: 'red', fillOpacity: 3, strokeWidth: 99, strokeColor: '#ABCDEF', radius: -5 }))
+  const bad = normalizeShapeItem(box({ shape: 'pentagon', fill: 'red', fillOpacity: 3, strokeWidth: 99, strokeColor: '#ABCDEF', radius: -5 }))
   eq('잘못된 값 → 기본값·범위 안', [bad.shape, bad.fill, bad.fillOpacity, bad.strokeWidth, bad.strokeColor, bad.radius], ['rect', '#111111', 1, 40, '#abcdef', 0])
   eq('채우기 "" = 없음 그대로', normalizeShapeItem(box({ fill: '' })).fill, '')
   eq('공통 칸은 그대로', normalizeShapeItem(box({ rotation: 30, groupId: 'g_1' })).groupId, 'g_1')
@@ -124,7 +124,7 @@ const P = { v: 1, width: 780, gap: 0, parked: [], sections: [{ id: 's1', height:
   const l = findItem(rl.page, rl.itemId).item
   eq('화살표 넣기 → 가운데, h 자동, 끝 = 화살표', [l.type, l.x, l.w, l.endCap, l.y + l.h / 2], ['line', 230, 320, 'arrow', 200])
   eq('모르는 종류·없는 구간은 안 넣음', [addElementItem(P, 's1', { type: 'x' }).itemId, addElementItem(P, 'x', { type: 'shape' }).itemId], [null, null])
-  eq('ELEMENT_KINDS 8개 (도형 5 · 선 3)', [ELEMENT_KINDS.filter(k => k.fields.type === 'shape').length, ELEMENT_KINDS.filter(k => k.fields.type === 'line').length], [5, 3])
+  eq('ELEMENT_KINDS 15개 (도형 12 · 선 3 — 에셋 채우기로 도형 7개 추가)', [ELEMENT_KINDS.filter(k => k.fields.type === 'shape').length, ELEMENT_KINDS.filter(k => k.fields.type === 'line').length], [12, 3])
 
   const both = { ...r.page, sections: [{ ...r.page.sections[0], items: [it, l] }] }
   const p2 = setShapeProps(both, [it.id, l.id], { fill: '#ff0000', strokeWidth: 3 })

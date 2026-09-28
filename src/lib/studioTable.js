@@ -264,7 +264,19 @@ export const TABLE_TEMPLATES = [
   { key: 'top', label: '상의', w: 600, cells: [['사이즈', '가슴', '어깨', '총장', '소매'], ...['S', 'M', 'L', 'XL'].map(s => [s, ...dash(4)])] },
   { key: 'bottom', label: '하의', w: 600, cells: [['사이즈', '허리', '엉덩이', '허벅지', '총장'], ...['S', 'M', 'L', 'XL'].map(s => [s, ...dash(4)])] },
   { key: 'shoes', label: '신발', w: 360, cells: [['사이즈(mm)', '발볼'], ...['230', '240', '250', '260', '270'].map(s => [s, '-'])] },
+  // ── 에셋 채우기: group 없음(위 3개)·'size' = 사이즈표, 'info' = 비교표·스펙표 ──
+  { key: 'kids', group: 'size', label: '아동복', w: 600, cells: [['사이즈', '권장 키', '가슴', '총장'], ...['90', '100', '110', '120', '130'].map(s => [s, ...dash(3)])] },
+  { key: 'bag', group: 'size', label: '가방', w: 520, cells: [['구분', '가로', '세로', '폭'], ['크기(cm)', ...dash(3)], ['끈 길이', ...dash(3)]] },
+  { key: 'pet', group: 'size', label: '반려동물 옷', w: 640, cells: [['사이즈', '목둘레', '가슴둘레', '등길이', '몸무게'], ...['S', 'M', 'L', 'XL'].map(s => [s, ...dash(4)])] },
+  { key: 'free', group: 'size', label: '프리 사이즈', w: 520, cells: [['항목', '치수(cm)'], ...['가로', '세로', '높이', '무게(g)'].map(s => [s, '-'])] },
+  { key: 'spec', group: 'info', label: '스펙표', w: 600, cells: [['항목', '내용'], ...['제품명', '소재', '크기', '무게', '구성품', '제조국'].map(s => [s, '-'])] },
+  { key: 'compare-2', group: 'info', label: '옵션 비교 2칸', w: 600, cells: [['구분', '기본형', '고급형'], ...['크기', '무게', '구성', '추천 대상'].map(s => [s, ...dash(2)])] },
+  { key: 'compare-3', group: 'info', label: '옵션 비교 3칸', w: 660, cells: [['구분', 'A 옵션', 'B 옵션', 'C 옵션'], ...['색상', '크기', '구성', '추천 대상'].map(s => [s, ...dash(3)])] },
+  { key: 'pack', group: 'info', label: '구성품표', w: 520, cells: [['구성품', '수량'], ...['본품', '설명서', '보관 주머니'].map(s => [s, '-'])] },
 ]
+/** [요소] 패널 [표] 탭의 묶음 */
+export const TABLE_GROUPS = [{ key: 'size', label: '사이즈표' }, { key: 'info', label: '비교표·스펙표' }]
+export function tableGroupOf(template) { return template.group ?? 'size' }
 export function tableTemplateByKey(key) { return TABLE_TEMPLATES.find(t => t.key === key) ?? null }
 /** 기본 틀로 넣을 새 표 칸 (공통 칸·자리는 넣는 쪽이) */
 export function tableFieldsOf(template) {

@@ -22,7 +22,7 @@ const measure = (s, style) => [...s].reduce((n, ch) => n + style.fontSize * (/[�
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
 
 // ── [요소] 종류 전환 ──
-eq('종류 = 도형·배지·사이즈표 순서', ELEMENT_TABS.map(t => t.label), ['도형', '배지', '사이즈표'])
+eq('종류 = 도형·배지·꾸밈·표 순서', ELEMENT_TABS.map(t => t.label), ['도형', '배지', '꾸밈', '표'])
 eq('처음(기억 없음) = 첫 종류', elementTabOf(null), 'shape')
 eq('기억한 종류 그대로', [elementTabOf('badge'), elementTabOf('table')], ['badge', 'table'])
 eq('모르는 값 = 첫 종류', elementTabOf('nope'), 'shape')
@@ -30,7 +30,7 @@ eq('모르는 값 = 첫 종류', elementTabOf('nope'), 'shape')
   const panel = read('src/components/studio/StudioElementPanel.vue')
   eq('패널: 종류 버튼이 맨 위(목록 칸 밖)', panel.indexOf('data-element-tabs') < panel.indexOf('data-element-list'), true)
   eq('패널: 목록 칸만 스크롤 (flex-1 min-h-0 overflow-y-auto)', /class="flex-1 min-h-0 overflow-y-auto" data-element-list/.test(panel), true)
-  eq('패널: 종류마다 한 묶음만 (도형 / 배지 / 사이즈표)', [/v-if="current === 'shape'"/.test(panel), /v-else-if="current === 'badge'"/.test(panel), /v-else class="px-4 pt-4 pb-4 space-y-3" data-table-group/.test(panel)], [true, true, true])
+  eq('패널: 종류마다 한 묶음만 (도형 / 배지 / 꾸밈 / 표)', [/v-if="current === 'shape'"/.test(panel), /v-else-if="current === 'badge'"/.test(panel), /v-else-if="current === 'decor'"/.test(panel), /v-else data-table-group/.test(panel)], [true, true, true, true])
   eq('패널: 누르면 update:tab (편집기가 기억)', /\$emit\('update:tab', t\.key\)/.test(panel), true)
   const ed = read('src/views/studio/StudioEditorView.vue')
   eq('편집기: v-model:tab="elementTab" (패널이 새로 만들어져도 기억)', /v-model:tab="elementTab"/.test(ed), true)

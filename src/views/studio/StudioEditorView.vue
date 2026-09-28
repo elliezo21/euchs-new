@@ -561,7 +561,7 @@ import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
-import { badgePresetByKey, badgeTextParts } from '@/lib/studioBadge'
+import { groupPresetByKey, presetTextParts } from '@/lib/studioDecor'
 import { isValidTableItem, tableTemplateByKey, tableFieldsOf, hasTableCell, cleanCellText, tableRows, tableCols } from '@/lib/studioTable'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
 import {
@@ -1529,10 +1529,12 @@ function insertElement(key) {
 // ── 강조 배지·사이즈표 (11-2) — 배지 = 도형 + 글자 그룹(studioBadge 프리셋, addItemGroup), 사이즈표 = type 'table'(studioTable) ──
 /** [요소] 패널 배지 견본 누름 — 글꼴 조각을 받은 뒤(글자 높이를 재야 해서) 골라진/보는 중 구간 가운데에 한 그룹으로 넣고 그룹 전체를 고른다 */
 async function insertBadge(key) {
-  const preset = badgePresetByKey(key)
-  if (!preset) { console.error('[StudioEditor] 모르는 배지:', key); return }
+  // 에셋 채우기: 꾸밈 요소(studioDecor — 체크·번호·말풍선·구분선·화살표)도 같은 묶음 넣기. 이력 이름만 다르다
+  const found = groupPresetByKey(key)
+  if (!found) { console.error('[StudioEditor] 모르는 배지·꾸밈 요소:', key); return }
+  const preset = found.preset
   if (!page.value || eraseOpen.value) return
-  await whenFontsReady(badgeTextParts(preset).map(p => {
+  await whenFontsReady(presetTextParts(preset).map(p => {
     const n = normalizeTextItem({ type: 'text', ...p })
     return { style: textStyleOf(n), text: n.text }
   }))
@@ -1545,7 +1547,7 @@ async function insertBadge(key) {
     showToast('넣지 못했어요. 잠시 후 다시 해 주세요.')
     return
   }
-  if (!applyPage(r.page, LABELS.badgeInsert)) return
+  if (!applyPage(r.page, found.kind === 'decor' ? LABELS.decorInsert : LABELS.badgeInsert)) return
   selectedItemIds.value = r.ids
   selectionSource = 'page'
   nextTick(() => pageView.value?.scrollToItem(r.ids[0]))

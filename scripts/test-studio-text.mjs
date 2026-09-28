@@ -189,7 +189,7 @@ const P = { v: 1, width: 780, gap: 0, parked: [], sections: [{ id: 's1', height:
   eq('…높이는 새 크기에 맞춤', pi.h, Math.ceil(30 * pi.lineHeight))
 
   // 스타일 프리셋
-  eq('프리셋 8~10개, 키·이름 겹침 없음', [TEXT_STYLE_PRESETS.length >= 8 && TEXT_STYLE_PRESETS.length <= 10,
+  eq('프리셋 10개 이상(10-2의 10개 + 에셋 채우기), 키·이름 겹침 없음', [TEXT_STYLE_PRESETS.length >= 10,
     new Set(TEXT_STYLE_PRESETS.map(p => p.key)).size === TEXT_STYLE_PRESETS.length, new Set(TEXT_STYLE_PRESETS.map(p => p.label)).size === TEXT_STYLE_PRESETS.length], [true, true, true])
   const allValid = TEXT_STYLE_PRESETS.every(p => {
     const n = normalizeTextItem({ type: 'text', ...presetPatch(p) })

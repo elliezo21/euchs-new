@@ -2,7 +2,8 @@
  * 도형·선 요소 (11-1단계) — 순수 함수 (DOM 없음, node 테스트: scripts/test-studio-shape.mjs)
  *
  * ★ 도형 = 공통 칸(id, x, y, w, h, rotation, opacity, flipX, flipY, locked, hidden, groupId?) + type: 'shape' +
- *     shape        'rect' | 'ellipse' | 'triangle' | 'star'
+ *     shape        'rect' | 'ellipse' | 'triangle' | 'star' | 'diamond' | 'hexagon' | 'burst' | 'ribbon' | 'arrow' | 'check' | 'bubble'
+ *                  (에셋 채우기: 뒤 7개 추가 — 모두 이 파일에서 직접 그린 path, 외부 그림 파일 없음)
  *     fill         '#rrggbb' 또는 '' (= 채우기 없음) · fillOpacity 0~1
  *     strokeWidth  0~40 (px, 정수, 0 = 테두리 없음) · strokeColor '#rrggbb'
  *     radius       0~400 (px, 정수 — rect만 쓴다. 둥근 네모의 바깥 모서리 반지름)
@@ -19,8 +20,11 @@ const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v))
 const round2 = v => Math.round(v * 100) / 100
 const n2 = v => String(round2(v)) // path 숫자 (소수 둘째 자리)
 
-export const SHAPES = ['rect', 'ellipse', 'triangle', 'star']
-export const SHAPE_LABELS = { rect: '네모', ellipse: '원', triangle: '세모', star: '별' }
+export const SHAPES = ['rect', 'ellipse', 'triangle', 'star', 'diamond', 'hexagon', 'burst', 'ribbon', 'arrow', 'check', 'bubble']
+export const SHAPE_LABELS = {
+  rect: '네모', ellipse: '원', triangle: '세모', star: '별',
+  diamond: '마름모', hexagon: '육각형', burst: '톱니 원', ribbon: '리본', arrow: '화살표 도형', check: '체크', bubble: '말풍선',
+}
 export const SHAPE_DEFAULTS = { shape: 'rect', fill: '#111111', fillOpacity: 1, strokeWidth: 0, strokeColor: '#000000', radius: 0 }
 export const SHAPE_LIMITS = { fillOpacity: [0, 1], strokeWidth: [0, 40], radius: [0, 400] }
 export const SHAPE_KEYS = Object.keys(SHAPE_DEFAULTS)
@@ -121,6 +125,27 @@ const STAR_POINTS = (() => {
   return pts.map(([x, y]) => [(x - x0) / sw, (y - y0) / sh]) // 0~1
 })()
 
+// 꼭짓점 도형 (0~1 좌표 — 요소 네모에 맞춰 늘린다). 모두 직접 정한 좌표
+const BURST_POINTS = (() => { // 톱니 원: 꼭짓점 16개, 안쪽 반지름 = 바깥의 0.84배
+  const pts = []
+  for (let i = 0; i < 32; i++) {
+    const r = i % 2 === 0 ? 0.5 : 0.42
+    const a = -Math.PI / 2 + (i * Math.PI) / 16
+    pts.push([0.5 + r * Math.cos(a), 0.5 + r * Math.sin(a)])
+  }
+  return pts
+})()
+const POLYGONS = {
+  diamond: [[0.5, 0], [1, 0.5], [0.5, 1], [0, 0.5]],
+  hexagon: [[0.25, 0], [0.75, 0], [1, 0.5], [0.75, 1], [0.25, 1], [0, 0.5]],
+  burst: BURST_POINTS,
+  ribbon: [[0, 0], [1, 0], [0.93, 0.5], [1, 1], [0, 1], [0.07, 0.5]],            // 양 끝이 파인 가로 띠
+  arrow: [[0, 0.3], [0.6, 0.3], [0.6, 0], [1, 0.5], [0.6, 1], [0.6, 0.7], [0, 0.7]], // 오른쪽을 가리킴 (방향은 회전으로)
+  check: [[0, 0.56], [0.15, 0.4], [0.38, 0.63], [0.85, 0.1], [1, 0.26], [0.38, 0.94]],
+}
+const BUBBLE_BODY = 0.78   // 말풍선: 위쪽 몸통 높이 비율 (아래는 꼬리)
+const BUBBLE_RADIUS = 0.22 // 몸통 모서리 반지름 = 짧은 변의 이 비율
+
 /**
  * 도형 path (SVG d) — 요소 네모 w×h 안을 사방으로 inset만큼 줄인 네모에 그린다.
  * 테두리를 안쪽으로 그리기 위해: inset = 테두리 두께의 절반 → 가운데 기준으로 그린 선의 바깥 가장자리가 정확히 w×h에 닿는다.
@@ -138,6 +163,16 @@ export function shapePath(it, inset = 0) {
       return `M${n2(x0 + w / 2)} ${n2(y0)}L${n2(x1)} ${n2(y1)}L${n2(x0)} ${n2(y1)}Z`
     case 'star':
       return STAR_POINTS.map(([px, py], k) => `${k ? 'L' : 'M'}${n2(x0 + px * w)} ${n2(y0 + py * h)}`).join('') + 'Z'
+    case 'diamond': case 'hexagon': case 'burst': case 'ribbon': case 'arrow': case 'check':
+      return POLYGONS[it.shape].map(([px, py], k) => `${k ? 'L' : 'M'}${n2(x0 + px * w)} ${n2(y0 + py * h)}`).join('') + 'Z'
+    case 'bubble': { // 둥근 몸통 + 왼쪽 아래 꼬리 (한 줄로 이어 그린다)
+      const by = y0 + h * BUBBLE_BODY
+      const r = Math.min(w, by - y0) * BUBBLE_RADIUS
+      const a = `A${n2(r)} ${n2(r)} 0 0 1`
+      return `M${n2(x0 + r)} ${n2(y0)}H${n2(x1 - r)}${a} ${n2(x1)} ${n2(y0 + r)}V${n2(by - r)}${a} ${n2(x1 - r)} ${n2(by)}`
+        + `H${n2(x0 + w * 0.4)}L${n2(x0 + w * 0.18)} ${n2(y1)}L${n2(x0 + w * 0.22)} ${n2(by)}`
+        + `H${n2(x0 + r)}${a} ${n2(x0)} ${n2(by - r)}V${n2(y0 + r)}${a} ${n2(x0 + r)} ${n2(y0)}Z`
+    }
     default: { // rect — 바깥 모서리 반지름이 radius가 되게, 안쪽 path는 radius - inset
       const r = Math.max(0, Math.min((it.radius || 0) - i, w / 2, h / 2))
       if (r <= 0) return `M${n2(x0)} ${n2(y0)}H${n2(x1)}V${n2(y1)}H${n2(x0)}Z`
@@ -259,6 +294,13 @@ export const ELEMENT_KINDS = [
   { key: 'ellipse', label: '원', fields: { type: 'shape', shape: 'ellipse', w: 200, h: 200 } },
   { key: 'triangle', label: '세모', fields: { type: 'shape', shape: 'triangle', w: 220, h: 190 } },
   { key: 'star', label: '별', fields: { type: 'shape', shape: 'star', w: 220, h: 210 } },
+  { key: 'diamond', label: '마름모', fields: { type: 'shape', shape: 'diamond', w: 200, h: 200 } },
+  { key: 'hexagon', label: '육각형', fields: { type: 'shape', shape: 'hexagon', w: 220, h: 190 } },
+  { key: 'burst', label: '톱니 원', fields: { type: 'shape', shape: 'burst', w: 200, h: 200 } },
+  { key: 'ribbon', label: '리본', fields: { type: 'shape', shape: 'ribbon', w: 280, h: 70 } },
+  { key: 'block-arrow', label: '화살표 도형', fields: { type: 'shape', shape: 'arrow', w: 220, h: 120 } },
+  { key: 'check', label: '체크', fields: { type: 'shape', shape: 'check', w: 120, h: 100 } },
+  { key: 'bubble', label: '말풍선', fields: { type: 'shape', shape: 'bubble', w: 280, h: 180 } },
   { key: 'line', label: '선', fields: { type: 'line', w: 320 } },
   { key: 'dashed', label: '점선', fields: { type: 'line', w: 320, dash: 'dashed' } },
   { key: 'arrow', label: '화살표', fields: { type: 'line', w: 320, endCap: 'arrow' } },

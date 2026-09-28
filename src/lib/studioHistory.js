@@ -86,7 +86,8 @@ export const LABELS = {
   lineCap: '선 끝 모양',
   // 강조 배지·사이즈표 (11-2)
   badgeInsert: '배지 넣기',
-  tableInsert: '사이즈표 넣기',
+  decorInsert: '꾸밈 요소 넣기',
+  tableInsert: '표 넣기',
   tableCell: '표 칸 고치기',
   tableRowAdd: '행 추가',
   tableRowRemove: '행 빼기',

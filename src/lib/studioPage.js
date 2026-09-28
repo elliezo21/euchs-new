@@ -1294,7 +1294,7 @@ export function resizeTableItem(page, id, handle, dx, dy) {
 // ── 묶음 넣기 (11-2 강조 배지) — 새 type 없이 도형·글자 요소를 한 groupId로 묶어 넣는다 ──
 
 /**
- * 묶음의 요소들 — box(w·h) 기준 좌표. parts = [{ type: 'shape', x, y, w, h, …도형 칸 } | { type: 'text', cy, w, …글자 칸 }]
+ * 묶음의 요소들 — box(w·h) 기준 좌표. parts = [{ type: 'shape', x, y, w, h, …도형 칸 } | { type: 'text', cy, w, x?, …글자 칸 } | { type: 'line', x, cy, w, …선 칸 }]
  * 글자는 폭 w로 줄을 나눠 높이를 정한 뒤(measure) 가로 가운데·세로 가운데가 cy에 오게. 새 id는 없다(넣을 때 붙임).
  * [요소] 패널 견본과 넣기가 같이 쓴다 (견본 = 넣었을 때 모양 그대로)
  */
@@ -1307,7 +1307,13 @@ export function buildGroupItems(box, parts, measure) {
       const { cy, ...fields } = part
       const w = Math.max(TEXT_MIN_WIDTH, Math.round(fields.w ?? box.w))
       const t = fitTextItem(normalizeTextItem(normalizeItem({ ...fields, id: `part-${i}`, w, x: 0, y: 0, h: 1 })), measure)
-      return { ...t, x: Math.round((box.w - w) / 2), y: Math.round((Number.isFinite(cy) ? cy : box.h / 2) - t.h / 2) }
+      // 글자 part에 x가 있으면 그 자리(왼쪽 맞춤 묶음 — 꾸밈 요소), 없으면 가로 가운데(배지)
+      return { ...t, x: Number.isFinite(fields.x) ? Math.round(fields.x) : Math.round((box.w - w) / 2), y: Math.round((Number.isFinite(cy) ? cy : box.h / 2) - t.h / 2) }
+    }
+    if (part.type === 'line') {
+      // 선 part: { x, cy, w, …선 칸 } — cy = 선이 지나는 세로 자리. h는 굵기·끝 모양에 맞춰 자동(가운데 제자리)
+      const { cy, ...fields } = part
+      return normalizeLineItem(normalizeItem({ ...fields, id: `part-${i}`, y: (Number.isFinite(cy) ? cy : box.h / 2) - 1, h: 2 }))
     }
     return null
   }).filter(Boolean)

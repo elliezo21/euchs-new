@@ -30,17 +30,20 @@ import {
 import { normalizeTextItem, fitTextItem, textStyleOf } from './studioText.js'
 import { normalizeShapeItem, normalizeLineItem } from './studioShape.js'
 import { normalizeTableItem } from './studioTable.js'
+import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES } from './studioTemplateSets.js'
+
+export { TEMPLATE_CATEGORIES }
 
 export const TEMPLATE_VERSION = 1
 export const TEMPLATE_NAME_MAX = 50 // 내 템플릿 이름 (studio_assets.name 제약과 같은 1~50자)
 
 const clone = v => JSON.parse(JSON.stringify(v))
 
-// ── 샘플 템플릿 3개 ──
+// ── 샘플 템플릿 3개 (카테고리 '기본') + 카테고리별 템플릿(studioTemplateSets.js — 에셋 채우기) ──
 const INK = '#1f2937'
 const t = (x, y, w, text, fontSize, fontWeight, color, extra = {}) => ({ type: 'text', x, y, w, text, fontSize, fontWeight, color, fontFamily: 'noto-sans-kr', align: 'center', lineHeight: 1.3, ...extra })
 
-export const STUDIO_TEMPLATES = [
+const BASE_TEMPLATES = [
   {
     key: 'basic', label: '기본 상세', desc: '대표 사진 → 상품 소개 글 → 사진 목록 → 구매 전 안내', gap: 0,
     sections: [
@@ -133,6 +136,9 @@ export const STUDIO_TEMPLATES = [
     ],
   },
 ]
+export const STUDIO_TEMPLATES = [...BASE_TEMPLATES.map(t => ({ ...t, category: 'common' })), ...CATEGORY_TEMPLATES]
+/** 그 카테고리의 템플릿 (모르는 카테고리면 빈 목록) */
+export function templatesOf(category) { return STUDIO_TEMPLATES.filter(t => t.category === category) }
 
 export function templateByKey(key) { return STUDIO_TEMPLATES.find(x => x.key === key) ?? null }
 

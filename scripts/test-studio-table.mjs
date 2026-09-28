@@ -107,7 +107,7 @@ const tbl = (extra = {}) => normalizeTableItem({ id: 't1', type: 'table', x: 10,
 
 // ── 6. 기본 틀 ──
 {
-  eq('기본 틀 3개 (상의·하의·신발)', TABLE_TEMPLATES.map(t => t.label), ['상의', '하의', '신발'])
+  eq('처음 틀 3개 (상의·하의·신발) 그대로 + 에셋 채우기 틀', [TABLE_TEMPLATES.slice(0, 3).map(t => t.label), TABLE_TEMPLATES.length > 3], [['상의', '하의', '신발'], true])
   const top = normalizeTableItem({ id: 'x', x: 0, y: 0, h: 1, ...tableFieldsOf(tableTemplateByKey('top')) })
   eq('상의 = 5행 × 5열, 제목 줄', [top.cells.length, top.cells[0].length, top.cells[0][0], top.cells[1][0], top.cells[1][1]], [5, 5, '사이즈', 'S', '-'])
   eq('하의 제목 줄', tableTemplateByKey('bottom').cells[0], ['사이즈', '허리', '엉덩이', '허벅지', '총장'])
@@ -155,7 +155,7 @@ const pageWith = items => ({ v: 1, width: 780, gap: 0, parked: [], sections: [{ 
 
 // ── 8. 강조 배지 (도형 + 글자 그룹) ──
 {
-  eq('배지 6~8개', BADGE_PRESETS.length >= 6 && BADGE_PRESETS.length <= 8, true)
+  eq('배지 8개 이상 (11-2의 8개 + 에셋 채우기)', BADGE_PRESETS.length >= 8, true)
   eq('키가 모두 다름', new Set(BADGE_PRESETS.map(b => b.key)).size, BADGE_PRESETS.length)
   eq('배지마다 도형 1개 + 글자 1~2개 (도형이 맨 뒤)', BADGE_PRESETS.every(b => {
     const shapes = b.parts.filter(p => p.type === 'shape').length, texts = b.parts.filter(p => p.type === 'text').length

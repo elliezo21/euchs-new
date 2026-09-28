@@ -3,6 +3,13 @@
     <div class="px-4 pt-4 pb-4 space-y-3">
       <div v-if="!embedded" class="text-[13px] font-extrabold st-ink">템플릿</div>
       <p class="st-desc-sm break-keep">{{ hint }}</p>
+      <!-- 에셋 채우기: 카테고리 고르기 (고른 카테고리의 템플릿만 그린다) -->
+      <div class="flex flex-wrap gap-1.5" role="tablist" aria-label="템플릿 카테고리" data-template-categories>
+        <button
+          v-for="c in TEMPLATE_CATEGORIES" :key="c.key" type="button" role="tab" class="st-tpl-chip" :class="category === c.key ? 'is-active' : ''"
+          :aria-selected="category === c.key" :data-template-category="c.key" @click="category = c.key"
+        >{{ c.label }}</button>
+      </div>
       <div :class="embedded ? 'grid grid-cols-3 gap-3' : 'space-y-2'">
         <button
           v-for="c in cards" :key="c.key" type="button" class="st-tpl-card" :class="embedded ? 'is-tall' : ''"
@@ -37,9 +44,9 @@
 // 왼쪽 [템플릿] 패널 (15단계) — 템플릿 카드(미리보기 그림 + 이름). 누르면 apply(key)만 보낸다 — 확인창·적용·저장은 편집기가 한다.
 // 시작 화면(16단계)의 [템플릿으로 시작]도 이 목록을 embedded(가로 카드 3개)로 쓴다.
 // 미리보기는 새 그리기 엔진 없이 미니뷰·순서 변경과 같은 StudioSectionThumb (사진은 새로 받지 않음 — 편집기의 화면용 작은 사진만).
-import { computed, inject } from 'vue'
+import { computed, inject, ref } from 'vue'
 import StudioSectionThumb from '@/components/studio/StudioSectionThumb.vue'
-import { STUDIO_TEMPLATES, templatePreviewPage, templatePageHeight, templateSlots } from '@/lib/studioTemplates'
+import { TEMPLATE_CATEGORIES, templatesOf, templatePreviewPage, templatePageHeight, templateSlots } from '@/lib/studioTemplates'
 
 const props = defineProps({
   images: { type: Array, default: () => [] },  // 쓸 사진 (준비 끝 + 안 쓸 사진 아님, 목록 순서, 자른 크기) — 미리보기 자리에 넣어 본다
@@ -50,6 +57,7 @@ const props = defineProps({
 defineEmits(['apply'])
 
 const textLayout = inject('studioTextLayout')
+const category = ref(TEMPLATE_CATEGORIES[0].key) // 패널을 열 때마다 '기본'부터
 const stripH = computed(() => (props.embedded ? 260 : 150)) // 미리보기 그림 높이 (화면 px)
 const stripMaxW = computed(() => (props.embedded ? 150 : 64))
 
@@ -59,7 +67,7 @@ const hint = computed(() => (props.embedded
 
 const cards = computed(() => {
   textLayout.epoch.value // 글꼴을 받으면 글자 높이·줄도 다시
-  return STUDIO_TEMPLATES.map(tpl => {
+  return templatesOf(category.value).map(tpl => {
     const page = templatePreviewPage(tpl, props.images, textLayout.measure)
     const total = templatePageHeight(page)
     const scale = Math.min(stripMaxW.value / page.width, stripH.value / Math.max(1, total))
@@ -76,6 +84,11 @@ const cards = computed(() => {
   display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px; border-radius: 12px; cursor: pointer;
   border: 1px solid var(--st-line-strong); background: var(--st-card); text-align: left;
 }
+.st-tpl-chip {
+  height: 28px; padding: 0 10px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer;
+  border: 1px solid var(--st-line-strong); background: var(--st-card); color: var(--st-ink-2);
+}
+.st-tpl-chip.is-active { border-color: var(--st-accent); color: var(--st-accent); background: var(--st-accent-soft); }
 .st-tpl-card.is-tall { flex-direction: column; align-items: stretch; }
 .st-tpl-card:hover:not(:disabled) { border-color: var(--st-accent); }
 .st-tpl-card:focus-visible { outline: 2px solid var(--st-accent); outline-offset: 2px; }
