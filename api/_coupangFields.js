@@ -424,16 +424,14 @@ export function formFromBody(body) {
   }
 }
 /**
- * 다시 승인 요청을 어떻게 할지 — 쿠팡 상품 조회의 지금 상태(statusName)로 정한다
- * [근거] 상품 수정(승인필요) requested: "false : 작성 내용만 저장 (판매를 원할 시에는 상품 승인요청 API 또는 wing에서 판매요청)" · "true : 저장 및 자동으로 판매 승인 요청"
- * [근거] 운영 응답(2026-09-29): 승인반려 상품에 승인 요청 API → "'임시저장' 상태의 상품만 승인 요청 가능합니다."
- *   임시저장 → 수정(requested false) 뒤 승인 요청 API  ·  그 밖(승인반려·승인완료 …) → 수정 본문에 requested true 한 번으로 (승인 요청 API는 부르지 않는다)
- * @returns {{ requested:boolean, callApproval:boolean }}
+ * 다시 승인 요청 방법 — 쿠팡 상태와 상관없이 늘 상품 수정 한 번(requested true). 승인 요청 API는 부르지 않는다
+ * [근거] 상품 수정(승인필요) requested: "true : 저장 및 자동으로 판매 승인 요청"
+ * [근거] 운영 응답(2026-09-29): 승인 요청 API는 상품 조회가 "승인반려"일 때도 "임시저장"일 때도 "'임시저장' 상태의 상품만 승인 요청 가능합니다."로 거절
+ *        → 상품 조회의 상태와 승인 요청 API의 판단이 달라서 상태로 나누지 않는다
+ * @returns {{ requested:true, callApproval:false, via:'modify' }}
  */
-export const DRAFT_STATUS = '임시저장'
-export function resendPlan(statusName) {
-  const draft = str(statusName) === DRAFT_STATUS
-  return { requested: !draft, callApproval: draft }
+export function resendPlan() {
+  return { requested: true, callApproval: false, via: 'modify' }
 }
 
 /**

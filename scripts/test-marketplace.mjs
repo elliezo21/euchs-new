@@ -417,25 +417,25 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       relay.calls = []
       relay.mode = 'ok'
       const ok2 = await post('send', { ...SEND2, resendId: base.id })
+      const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
       eq('승인반려 상품: 상품 조회 → 상품 수정(PUT) 한 번 · 승인 요청 API·상품 생성(POST)은 부르지 않음', [productCalls(), relay.calls.some(c => c.path.endsWith('/approvals')), relay.calls.some(c => c.method === 'POST' && c.path.endsWith('/seller-products'))], [[['GET', C.PATHS.product('1234567890')], ['PUT', C.PATHS.products]], false, false])
       eq('승인반려 상품의 수정 본문: requested true · 같은 sellerProductId · 옵션 id · 고친 이름', [putOf().body.requested, putOf().body.sellerProductId, putOf().body.items[0].sellerProductItemId, putOf().body.items[0].vendorItemId, putOf().body.sellerProductName], [true, 1234567890, 777001, null, '매일 쓰는 머그 (고침)'])
       eq('성공: 같은 기록이 "승인 대기"로 · 반려 사유 지움 · 새 기록 없음 · 회차 이력(방법 = 수정 한 번)', [ok2.statusCode, ok2.body.resend, ok2.body.status, ok2.body.sendId === base.id, row().status, row().reason, db.marketplace_sends.length, row().request_json.revisions.map(r => [r.n, r.via, r.coupangStatus, r.approval, r.previousReason === REASON])], [200, true, 'approval_pending', true, 'approval_pending', null, count, [[1, 'modify', '승인반려', true, true]]])
 
-      // 승인완료·부분승인완료도 임시저장이 아니므로 같은 길
-      reject(); relay.status = '승인완료'; relay.calls = []
-      await post('send', { ...SEND2, resendId: base.id })
-      eq('승인완료 상품도 수정 한 번(requested true) · 승인 요청 API 안 부름', [putOf().body.requested, relay.calls.some(c => c.path.endsWith('/approvals'))], [true, false])
-
-      // 쿠팡 상태 = 임시저장 → 수정(requested false) 뒤 승인 요청 API
-      reject(); relay.status = '임시저장'; relay.calls = []; relay.mode = 'approval-fail'
-      const half = await post('send', { ...SEND2, resendId: base.id })
-      eq('임시저장 + 승인 요청 실패 → approval_failed · 기록은 "반려" 그대로 · 회차 이력에 남음(approval false)', [half.body.code, row().status, row().request_json.revisions.at(-1).approval, row().request_json.revisions.at(-1).via], ['approval_failed', 'rejected', false, 'approval'])
-      relay.calls = []; relay.mode = 'ok'
-      const ok3 = await post('send', { ...SEND2, resendId: base.id })
-      const app = relay.calls.find(c => c.path.endsWith('/approvals'))
-      eq('임시저장 상품: 상품 조회 → 상품 수정(PUT, requested false) → 승인 요청(PUT …/approvals, 본문 없음)', [productCalls(), putOf().body.requested, app.body, app.method], [[['GET', C.PATHS.product('1234567890')], ['PUT', C.PATHS.products], ['PUT', C.PATHS.approval('1234567890')]], false, null, 'PUT'])
-      eq('임시저장 성공: "승인 대기" · 새 기록 없음 · 회차 이력 4건', [ok3.statusCode, row().status, db.marketplace_sends.length, row().request_json.revisions.map(r => [r.n, r.via, r.approval])], [200, 'approval_pending', count, [[1, 'modify', true], [2, 'modify', true], [3, 'approval', false], [4, 'approval', true]]])
-      eq('목록에 수정 회차가 보임', (await post('sends_list')).body.sends.find(s => s.id === base.id).revision, 4)
+      // 쿠팡 상태가 무엇이든 같은 길 — 상품 수정 한 번(requested true), 승인 요청 API는 부르지 않는다
+      for (const st of ['임시저장', '승인완료', '부분승인완료', '']) {
+        reject(); relay.status = st; relay.calls = []
+        const rr = await post('send', { ...SEND2, resendId: base.id })
+        eq(`쿠팡 상태 "${st || '(빈 값 → 승인대기중)'}": 수정 한 번(requested true) · 승인 요청 API 안 부름 · "승인 대기"`, [rr.statusCode, productCalls(), putOf().body.requested, relay.calls.some(c => c.path.endsWith('/approvals')), row().status], [200, [['GET', C.PATHS.product('1234567890')], ['PUT', C.PATHS.products]], true, false, 'approval_pending'])
+      }
+      eq('회차 이력: 전부 via "modify" · 새 기록 없음 · 그때의 쿠팡 상태를 적음', [row().request_json.revisions.map(r => [r.n, r.via, r.approval]), db.marketplace_sends.length, row().request_json.revisions.map(r => r.coupangStatus)], [[[1, 'modify', true], [2, 'modify', true], [3, 'modify', true], [4, 'modify', true], [5, 'modify', true]], count, ['승인반려', '임시저장', '승인완료', '부분승인완료', '승인대기중']])
+      // 수정 API가 거절하면 쿠팡 문구 그대로 · 기록은 "반려" 그대로
+      reject(); relay.status = '임시저장'; relay.calls = []; relay.mode = 'put-fail'
+      const no = await post('send', { ...SEND2, resendId: base.id })
+      eq('수정 API 거절 → 쿠팡 문구 그대로 · "반려" 그대로 · 회차 이력 안 늘어남 · 승인 요청 API 안 부름', [no.statusCode, no.body.code, no.body.message.includes('필수 속성 누락'), row().status, row().request_json.revisions.length, relay.calls.some(c => c.path.endsWith('/approvals'))], [502, 'coupang_rejected', true, 'rejected', 5, false])
+      relay.mode = 'ok'
+      eq('목록에 수정 회차가 보임', (await post('sends_list')).body.sends.find(s => s.id === base.id).revision, 5)
+      eq('호출 경로에 승인 요청 API가 없음', [/PATHS\.approval\(/.test(read('api/marketplace.js')), /approval_failed/.test(read('api/marketplace.js'))], [false, false])
       relay.status = statusBefore
       base.status = 'approved' // 뒤 테스트를 위해 되돌림
       eq('키·서명이 기록에 없음', /access[-_]?key|secret|signature|authorization/i.test(JSON.stringify(row().request_json)), false)
@@ -987,8 +987,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 4) 고쳐서 다시 보내기 — 호출 형식
   eq('쿠팡 경로: 상품 수정 = 상품 생성과 같은 경로(PUT) · 승인 요청 = …/{id}/approvals', [C.PATHS.products, C.PATHS.approval('16397573540')], ['/v2/providers/seller_api/apis/api/v1/marketplace/seller-products', '/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/16397573540/approvals'])
   const up = C.buildProductBody({ ...BASE, items: [BASE.items[0], { ...BASE.items[0], name: '화이트', sku: 'MUG-WH', attributes: { 색상: '화이트' } }], update: { sellerProductId: '16397573540', items: [{ sellerProductItemId: 9001, vendorItemId: null, itemName: '블랙', externalVendorSku: 'MUG-BK' }] } })
-  eq('다시 승인 요청 방법: 임시저장만 승인 요청 API · 그 밖(승인반려·승인완료·부분승인완료·모름)은 수정 본문 requested true', ['임시저장', '승인반려', '승인완료', '부분승인완료', '승인대기중', '', undefined].map(x => { const r = F.resendPlan(x); return [r.requested, r.callApproval] }), [[false, true], [true, false], [true, false], [true, false], [true, false], [true, false], [true, false]])
-  eq('상품 수정 본문의 requested = 넘겨준 값 (임시저장 false · 그 밖 true)', [C.buildProductBody({ ...BASE, update: { sellerProductId: '1', items: [], requested: true } }).body.requested, C.buildProductBody({ ...BASE, update: { sellerProductId: '1', items: [], requested: false } }).body.requested], [true, false])
+  eq('다시 승인 요청 방법: 쿠팡 상태와 상관없이 늘 수정 본문 requested true · 승인 요청 API 안 부름', ['임시저장', '승인반려', '승인완료', '', undefined].map(x => F.resendPlan(x)), Array(5).fill({ requested: true, callApproval: false, via: 'modify' }))
+  eq('상품 수정 본문의 requested = 넘겨준 값', [C.buildProductBody({ ...BASE, update: { sellerProductId: '1', items: [], requested: true } }).body.requested, C.buildProductBody({ ...BASE, update: { sellerProductId: '1', items: [], requested: false } }).body.requested], [true, false])
   eq('상품 수정 본문: sellerProductId(숫자) · 기존 옵션에 sellerProductItemId·vendorItemId · 새 옵션에는 없음 · requested false(안 넘기면)', [up.ok, up.body.sellerProductId, up.body.requested, up.body.items.map(i => [i.itemName, i.sellerProductItemId, 'vendorItemId' in i ? i.vendorItemId : 'x'])], [true, 16397573540, false, [['블랙', 9001, null], ['화이트', undefined, 'x']]])
   eq('상품 생성 본문은 그대로: requested true · sellerProductId 없음', [C.buildProductBody(BASE).body.requested, 'sellerProductId' in C.buildProductBody(BASE).body], [true, false])
   eq('옵션 id 맞추기: 품번 먼저 · 없으면 옵션 이름 · 한 id를 두 번 쓰지 않음', F.matchItemIds([{ sku: 'A', name: '블랙' }, { sku: 'ZZ', name: '화이트' }, { sku: 'A', name: '블랙' }], [{ sellerProductItemId: 1, vendorItemId: 11, externalVendorSku: 'A', itemName: '블랙' }, { sellerProductItemId: 2, itemName: '화이트', externalVendorSku: 'W' }]), [{ sellerProductItemId: 1, vendorItemId: 11 }, { sellerProductItemId: 2, vendorItemId: null }, null])

@@ -14,7 +14,7 @@
  *                       source(1688에서 가져온 작업이면 저장해 둔 제목·속성·옵션 줄 + 번역 캐시의 한국어, 아니면 null — 외부 호출 없음), limits }
  *   category_predict  { productName, brand? } → { result, categoryCode, categoryName }
  *   send_prepare      { resendId } → 위와 같음 + resend:{ sendId, sellerProductId, reason, revision, form(보냈던 값), categoryName } — 반려된 전송만 (고쳐서 다시 보내기)
- *   send              { …, resendId } → 새 상품을 만들지 않고 상품 조회로 지금 상태를 읽어: 임시저장이 아니면 상품 수정(PUT seller-products, requested true) 한 번 / 임시저장이면 수정(requested false) 뒤 승인 요청(PUT …/approvals). 회차 이력은 request_json.revisions
+ *   send              { …, resendId } → 새 상품을 만들지 않고 상품 조회(옵션 id) → 상품 수정(PUT seller-products, 같은 sellerProductId, requested true) 한 번. 승인 요청 API는 부르지 않는다. 회차 이력은 request_json.revisions
  *   brand_search      { brandName } → { brands:[{ brandId, brandName, uidRequired, uidTypes }] }  (쿠팡 브랜드 검색 — 문서 58230017410841)
  *   category_meta     { categoryCode } → { attributes, notices, singleItem, certifications }
  *   send              { exportId, templateId, categoryCode, saleMode('domestic'|'agent' 필수 — 기본값 없음), outboundDays?,
@@ -496,11 +496,11 @@ async function send(ctx, body, res) {
     if (p.changed) pieces[p.key] = { x: p.x, y: p.y, w: p.w, h: p.h, outW: p.outW, outH: p.outH }
     detailUrls.push(urlOf(p.key))
   }
-  // 다시 보내기 — 쿠팡에 있는 그 상품의 지금 상태와 옵션 id를 읽어 온다 (상태로 승인 요청 방법을 정하고, 옵션 id는 상품 수정 본문에 넣는다)
+  // 다시 보내기 — 쿠팡에 있는 그 상품의 옵션 id를 읽어 온다 (상품 수정 본문에 넣는다). 상태는 이력에 적기만 하고 방법을 나누지 않는다
   let current = null, plan = null
   if (prev) {
     try { current = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(prev.seller_product_id) }) } catch (e) { return coupangFail(res, e, 'send/resend-get') }
-    plan = { ...resendPlan(current?.data?.statusName), statusName: String(current?.data?.statusName || '') }
+    plan = { ...resendPlan(), statusName: String(current?.data?.statusName || '') }
   }
 
   const single = { name: String(body.productName || '').slice(0, 150), originalPrice: body.originalPrice, salePrice: body.salePrice, stock: body.stock, sku: body.sku, gtin: body.gtin, attributes: body.attributes || {} }
@@ -534,14 +534,14 @@ async function send(ctx, body, res) {
 }
 
 /**
- * 반려 상품 다시 승인 요청 — 방법은 쿠팡의 지금 상태로 정한다 (resendPlan)
- *   임시저장이 아님(승인반려·승인완료 …) → 상품 수정(PUT seller-products · 같은 sellerProductId · requested true) 한 번. 승인 요청 API는 부르지 않는다
- *   임시저장 → 상품 수정(requested false) → 승인 요청(PUT …/{id}/approvals · 본문 없음)
- * 회차 이력: request_json.revisions[] = { n, at, previousReason, previousStatus, coupangStatus(보내기 직전 쿠팡 상태), via('modify'|'approval'), approval }
+ * 반려 상품 다시 승인 요청 — 상품 수정(PUT seller-products · 같은 sellerProductId · requested true) 한 번. 승인 요청 API는 부르지 않는다 (resendPlan)
+ *   쿠팡이 수정을 거절하면 그 문구를 그대로 돌려준다. 기록은 "반려" 그대로
+ * 회차 이력: request_json.revisions[] = { n, at, previousReason, previousStatus, coupangStatus(보내기 직전 쿠팡 상태), via('modify'), approval }
+ *   (예전 회차에는 via 'approval'·approval false가 남아 있을 수 있다 — 승인 요청 API를 부르던 때의 기록)
  */
 async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
   const pid = prev.seller_product_id
-  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.coupang_status || null, coupangStatus: plan.statusName || null, via: plan.callApproval ? 'approval' : 'modify', approval: false }
+  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.coupang_status || null, coupangStatus: plan.statusName || null, via: plan.via, approval: false }
   const save = patch => sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
   let r
   try { r = await coupangCall(cred.call, { method: 'PUT', path: PATHS.products, body: requestJson.body, extendedTimeout: true }) } catch (e) {
@@ -549,17 +549,10 @@ async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
     console.warn(`[marketplace] 상품 수정 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
     return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
   }
-  let a = null
-  if (plan.callApproval) try { a = await coupangCall(cred.call, { method: 'PUT', path: PATHS.approval(pid) }) } catch (e) {
-    if (!(e instanceof CoupangError)) throw e
-    console.warn(`[marketplace] 승인 요청 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
-    await save({ request_json: { ...requestJson, revisions: [...requestJson.revisions, rev] }, result_json: { code: e.code, status: e.status, raw: e.raw, step: 'approval' } })
-    return sendError(res, e.status === 429 ? 429 : 502, 'approval_failed', `고친 내용은 쿠팡에 저장됐어요. 승인 요청은 하지 못했어요 — ${e.message}`)
-  }
   await save({
     status: 'approval_pending', coupang_status: null, reason: null, approval_requested_at: new Date().toISOString(),
     request_json: { ...requestJson, revisions: [...requestJson.revisions, { ...rev, approval: true }] },
-    result_json: { code: a?.code ?? r?.code, message: a?.message ?? r?.message, data: a?.data ?? r?.data, step: 'resend' },
+    result_json: { code: r?.code, message: r?.message, data: r?.data, step: 'resend' },
   })
   console.info(`[marketplace] 쿠팡 상품 수정 + 승인 요청 ${ctx.userId} send=${sendId} product=${pid} 회차=${rev.n} 쿠팡 상태="${plan.statusName}" 방법=${rev.via}`)
   return res.status(200).json({ sendId, sellerProductId: pid, status: 'approval_pending', resend: true, revision: rev.n })
