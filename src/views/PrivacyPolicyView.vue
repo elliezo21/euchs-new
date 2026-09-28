@@ -239,7 +239,7 @@
                 <td>웹사이트 방문 시 자동 전송</td>
               </tr>
               <tr>
-                <td>YIWUSHI QIANGONG TRADING FIRM (중국 수출·송금 수취처) <span class="pp-check">[해성 확인: 연락처]</span></td>
+                <td>YIWUSHI QIANGONG TRADING FIRM (중국 수출·송금 수취처) (+86 195-2407-7350)</td>
                 <td>중국</td>
                 <td>해외송금(T/T)으로 결제하는 고객만: 영문 상호·영문 주소, 휴대전화번호, 주문 품목·금액</td>
                 <td>수출 인보이스 발행, 해외송금(T/T) 대금 수취</td>
@@ -297,7 +297,7 @@
               <tr><th class="text-left">수집 방법</th><td>웹사이트를 방문하거나 버튼을 누를 때 자동으로 수집</td></tr>
               <tr><th class="text-left">이용 목적</th><td>방문 통계 분석, 광고 성과 측정, 관심사 기반 맞춤형 광고</td></tr>
               <tr><th class="text-left">보유 기간</th><td>
-                구글 애널리틱스: 수집일부터 <span class="pp-check">[해성 확인: GA4 데이터 보관 설정 — 2개월 또는 14개월]</span><br />
+                구글 애널리틱스: 수집일부터 2개월<br />
                 틱톡: 틱톡 정책에 따름 (www.tiktok.com/legal/page/global/partner-privacy-policy/en)<br />
                 메타: 최대 2년, 메타 정책에 따름 (www.facebook.com/legal/terms/businesstools)
               </td></tr>
