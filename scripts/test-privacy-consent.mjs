@@ -1,8 +1,6 @@
-// 개인정보 동의 창 판정 + /api/privacy-consent 단위 테스트 — node scripts/test-privacy-consent.mjs
+// 개인정보 동의 — 가입 창 [필수] 체크는 남고, 로그인 뒤 동의 창은 없음 — node scripts/test-privacy-consent.mjs
 import fs from 'fs'
-import { needsPrivacyConsent, PRIVACY_VERSION } from '../src/lib/privacyConsent.js'
-import { PRIVACY_VERSION as SERVER_VERSION } from '../api/_privacyConsent.js'
-import handler from '../api/privacy-consent.js'
+import * as P from '../src/lib/privacyConsent.js'
 
 let pass = 0, fail = 0
 function eq(name, got, want) {
@@ -10,98 +8,40 @@ function eq(name, got, want) {
   if (ok) pass++; else fail++
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${ok ? '' : `\n      got  ${JSON.stringify(got)}\n      want ${JSON.stringify(want)}`}`)
 }
+const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+const exists = p => fs.existsSync(new URL(`../${p}`, import.meta.url))
 
-// ── 1. 판정 ──
-const uid = '11111111-2222-3333-4444-555555555555'
-const base = { user: { id: uid }, profile: { id: uid, privacy_agreed_at: null }, isStaff: false, authLoading: false, path: '/mall' }
-eq('동의 기록 없는 일반 회원 → 띄움', needsPrivacyConsent(base), true)
-eq('동의 기록 있으면 안 띄움', needsPrivacyConsent({ ...base, profile: { id: uid, privacy_agreed_at: '2026-09-28T05:00:00Z' } }), false)
-eq('관리자·스태프 제외', needsPrivacyConsent({ ...base, isStaff: true }), false)
-eq('로그인 확인 중이면 안 띄움', needsPrivacyConsent({ ...base, authLoading: true }), false)
-eq('로그아웃 상태 안 띄움', needsPrivacyConsent({ ...base, user: null }), false)
-eq('회원 정보를 아직 못 읽었으면 안 띄움', needsPrivacyConsent({ ...base, profile: null }), false)
-eq('다른 계정의 회원 정보가 남아 있으면 안 띄움', needsPrivacyConsent({ ...base, profile: { id: '99999999-2222-3333-4444-555555555555', privacy_agreed_at: null } }), false)
-eq('Supabase 계정이 아닌 로컬 세션(naver_xxx) 안 띄움', needsPrivacyConsent({ ...base, user: { id: 'naver_123' }, profile: { id: 'naver_123' } }), false)
-eq('/privacy 화면에서는 안 띄움(처리방침 읽기)', needsPrivacyConsent({ ...base, path: '/privacy' }), false)
-eq('스튜디오 화면에서도 띄움', needsPrivacyConsent({ ...base, path: '/studio/projects' }), true)
-
-// ── 2. 판 값: 화면·서버·가입 창이 같은 값 ──
-eq('화면 판 = 서버 판', PRIVACY_VERSION, SERVER_VERSION)
+// ── 1. 남긴 것: 가입 창 [필수] 체크 · /privacy · 푸터 링크 · 탈퇴 ──
 {
-  const login = fs.readFileSync(new URL('../src/components/LoginModal.vue', import.meta.url), 'utf8')
+  const login = read('src/components/LoginModal.vue')
+  eq('처리방침 판 값', /^\d{4}-\d{2}-\d{2}$/.test(P.PRIVACY_VERSION), true)
   eq('가입 창은 공용 PRIVACY_VERSION을 불러 씀', /import \{ PRIVACY_VERSION \} from '\.\.\/lib\/privacyConsent'/.test(login) && !/const PRIVACY_VERSION =/.test(login), true)
-  const pp = fs.readFileSync(new URL('../src/views/PrivacyPolicyView.vue', import.meta.url), 'utf8')
-  eq('/privacy에 [해성 확인] 표시 없음', /class="pp-check"/.test(pp), false)
+  eq('가입 창: [필수] 동의 칸(privacy_agreed)이 있음', /privacy_agreed: false/.test(login) && /signupForm\.privacy_agreed/.test(login), true)
+  eq('/privacy 화면·라우트가 있음', [exists('src/views/PrivacyPolicyView.vue'), /PrivacyPolicyView/.test(read('src/router/index.js'))], [true, true])
+  eq('/privacy에 [해성 확인] 표시 없음', /class="pp-check"/.test(read('src/views/PrivacyPolicyView.vue')), false)
+  eq('푸터에 /privacy 링크', /\/privacy/.test(read('src/components/Footer.vue')), true)
+  eq('탈퇴 API·화면이 있음', [exists('api/account-withdraw.js'), exists('src/components/dashboard/WithdrawAccountModal.vue')], [true, true])
 }
 
-// ── 3. API (fetch 가짜) ──
-function mockRes() {
-  const r = { statusCode: 0, body: null }
-  r.status = (c) => { r.statusCode = c; return { json: (b) => { r.body = b } } }
-  return r
-}
-async function run({ token = 'tok', patchRows, getRows, patchFail = false, userOk = true }) {
-  const calls = []
-  globalThis.fetch = async (url, opt = {}) => {
-    calls.push({ url: String(url), method: opt.method || 'GET', body: opt.body ? JSON.parse(opt.body) : undefined })
-    if (String(url).endsWith('/auth/v1/user')) {
-      return userOk ? new Response(JSON.stringify({ id: uid }), { status: 200 }) : new Response('{}', { status: 401 })
-    }
-    if (opt.method === 'PATCH') {
-      if (patchFail) return new Response('boom', { status: 500 })
-      return new Response(JSON.stringify(patchRows), { status: 200 })
-    }
-    return new Response(JSON.stringify(getRows || []), { status: 200 })
-  }
-  process.env.SUPABASE_URL = 'https://x.supabase.co'
-  process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-key'
-  const res = mockRes()
-  const origErr = console.error
-  console.error = () => {}
-  try {
-    await handler({ method: 'POST', headers: token ? { authorization: `Bearer ${token}` } : {}, body: {} }, res)
-  } finally {
-    console.error = origErr
-  }
-  return { res, calls }
-}
+// ── 2. 없앤 것: 로그인 뒤 동의 창 · 동의 기록 API ──
+{
+  eq('동의 창·API 파일 없음', ['src/components/PrivacyConsentGate.vue', 'api/privacy-consent.js', 'api/_privacyConsent.js'].filter(exists), [])
+  eq('동의 창 판정 함수 없음', 'needsPrivacyConsent' in P, false)
+  eq('App.vue에 동의 창 없음', /PrivacyConsentGate/.test(read('src/App.vue')), false)
+  eq('로컬 서버 설정에 동의 API 없음 · 탈퇴 API는 있음', [/privacy-consent|privacyConsentHandler/.test(read('vite.config.js')), /\/api\/account-withdraw/.test(read('vite.config.js'))], [false, true])
 
-{
-  const before = Date.now()
-  const { res, calls } = await run({ patchRows: [{ privacy_agreed_at: '2026-09-28T05:00:00Z', privacy_version: '2026-09-28' }] })
-  const patch = calls.find(c => c.method === 'PATCH')
-  eq('동의 → 200 ok', [res.statusCode, res.body.ok], [200, true])
-  eq('PATCH는 본인 행 + 아직 동의 안 한 행만', patch.url.includes(`profiles?id=eq.${uid}&privacy_agreed_at=is.null`), true)
-  eq('기록 칸은 두 개만', Object.keys(patch.body).sort(), ['privacy_agreed_at', 'privacy_version'])
-  eq('판 = 서버 상수', patch.body.privacy_version, SERVER_VERSION)
-  const t = Date.parse(patch.body.privacy_agreed_at)
-  eq('동의 시각 = 서버 시각(지금)', t >= before - 1000 && t <= Date.now() + 1000, true)
-}
-{
-  const { res, calls } = await run({ patchRows: [], getRows: [{ privacy_agreed_at: '2026-01-01T00:00:00Z', privacy_version: 'old' }] })
-  eq('이미 동의한 회원 → 덮지 않고 기존 값', [res.statusCode, res.body.privacy_agreed_at], [200, '2026-01-01T00:00:00Z'])
-  eq('이미 동의했으면 PATCH 한 번뿐', calls.filter(c => c.method === 'PATCH').length, 1)
-}
-{
-  const { res } = await run({ patchRows: [], getRows: [] })
-  eq('회원 정보 행 없음 → 404 profile_missing', [res.statusCode, res.body.code], [404, 'profile_missing'])
-}
-{
-  const { res, calls } = await run({ token: '', patchRows: [] })
-  eq('토큰 없음 → 401, DB 호출 없음', [res.statusCode, calls.filter(c => c.url.includes('/rest/')).length], [401, 0])
-}
-{
-  const { res, calls } = await run({ userOk: false, patchRows: [] })
-  eq('잘못된 토큰 → 401, DB 호출 없음', [res.statusCode, calls.filter(c => c.url.includes('/rest/')).length], [401, 0])
-}
-{
-  const { res } = await run({ patchFail: true })
-  eq('DB 실패 → 500 internal', [res.statusCode, res.body.code], [500, 'internal'])
-}
-{
-  const res = mockRes()
-  await handler({ method: 'GET', headers: {} }, res)
-  eq('GET → 405', res.statusCode, 405)
+  // src·api 어디에도 동의 창·동의 API를 부르는 곳이 없어야 한다
+  const hits = []
+  const walk = dir => {
+    for (const e of fs.readdirSync(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true })) {
+      const p = `${dir}/${e.name}`
+      if (e.isDirectory()) walk(p)
+      else if (/\.(vue|js|mjs|ts)$/.test(e.name) && /PrivacyConsentGate|needsPrivacyConsent|\/api\/privacy-consent/.test(read(p))) hits.push(p)
+    }
+  }
+  walk('src')
+  walk('api')
+  eq('src·api에 동의 창·동의 API 참조 없음', hits, [])
 }
 
 console.log(`\n${pass} passed, ${fail} failed`)

@@ -739,7 +739,7 @@ const signupForm = ref({
   phone: '',
   privacy_agreed: false // [필수] 개인정보 수집·이용 동의 — 체크해야 가입 버튼이 켜진다
 })
-// 동의한 처리방침 판(PRIVACY_VERSION)은 src/lib/privacyConsent.js 한 곳 — 간편 로그인 동의 창과 같은 값
+// 동의한 처리방침 판(PRIVACY_VERSION)은 src/lib/privacyConsent.js 한 곳
 
 const verifyForm = ref({
   name: '',

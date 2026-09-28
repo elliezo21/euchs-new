@@ -15,9 +15,8 @@ import bulkItemDetailHandler from './api/bulk-item-detail.js'
 // 로컬 개발용: api/verify-business.js handler 직접 import (동일 패턴)
 // 사업자 인증 판정 — 운영과 같은 코드가 로컬에서도 돌아야 검증이 의미가 있다
 import verifyBusinessHandler from './api/verify-business.js'
-// 로컬 개발용: 회원 탈퇴 / 개인정보 동의 기록 handler 직접 import (동일 패턴)
+// 로컬 개발용: 회원 탈퇴 handler 직접 import (동일 패턴)
 import accountWithdrawHandler from './api/account-withdraw.js'
-import privacyConsentHandler from './api/privacy-consent.js'
 // 로컬 개발용: 도로명주소 검색·영문 변환 handler 직접 import (동일 패턴)
 import jusoSearchHandler from './api/juso-search.js'
 import jusoEnglishHandler from './api/juso-english.js'
@@ -822,11 +821,9 @@ function lab1688Plugin(env) {
           return
         }
 
-        // 5-c2. 회원 탈퇴(판정·실행) / 개인정보 동의 기록 — api/account-withdraw.js, api/privacy-consent.js handler 직접 재사용
+        // 5-c2. 회원 탈퇴(판정·실행) — api/account-withdraw.js handler 직접 재사용
         // 동일 어댑터 패턴: req.body 파싱 + process.env 주입 + res 래핑
-        const accountRoute = req.url?.startsWith('/api/account-withdraw') ? accountWithdrawHandler
-          : req.url?.startsWith('/api/privacy-consent') ? privacyConsentHandler
-          : null
+        const accountRoute = req.url?.startsWith('/api/account-withdraw') ? accountWithdrawHandler : null
         if (accountRoute && req.method === 'POST') {
           let rawBody = ''
           req.on('data', chunk => { rawBody += chunk })
