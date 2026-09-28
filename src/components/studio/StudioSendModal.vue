@@ -1,7 +1,8 @@
 <template>
-  <StudioModal :open="open" title="판매처로 보내기" full @close="close">
+  <StudioModal :open="open" :title="prepare?.resend ? '고쳐서 다시 보내기' : '판매처로 보내기'" full @close="close">
     <div v-if="prepare" class="space-y-5 max-h-[70vh] overflow-y-auto pr-1" data-mk-send-modal>
       <p class="st-desc break-keep">내 상품 <b class="st-ink">{{ prepare.export.title || '이름 없는 작업' }}</b> ({{ prepare.export.files.length }}장)</p>
+      <p v-if="prepare.resend" class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep" data-mk-s-resend-note><b class="st-ink">쿠팡 #{{ prepare.resend.sellerProductId }}</b> 을 고쳐서 다시 승인 요청해요. 새 상품은 만들지 않아요.<span v-if="prepare.resend.reason" class="block mt-1 st-danger-text">반려 사유: {{ prepare.resend.reason }}</span></p>
 
       <!-- 0. 보낼 판매처 -->
       <section class="space-y-2" data-mk-s-markets>
@@ -53,7 +54,7 @@ import { ref, reactive, computed, watch, shallowRef, onErrorCaptured } from 'vue
 import { Lock } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
-import { MARKETS, marketRows, defaultChecked, checkedMarkets, sectionKeys, sendButtonLabel } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, defaultChecked, checkedMarkets, sectionKeys, sendActionLabel } from '@/lib/studioMarketplaceRules'
 
 const SECTIONS = { coupang: StudioSendCoupang }
 
@@ -107,7 +108,7 @@ const sectionFailed = computed(() => sectionError.value || (picked.value.length 
 const canSend = computed(() => !!props.prepare && sectionsReady.value && !sectionError.value && !sending.value && !sectionBusy.value && missing.value.length === 0)
 const sectionBusy = computed(() => picked.value.some(key => !!sections[key]?.busy))
 const allDone = computed(() => picked.value.length > 0 && picked.value.every(key => !!sections[key]?.done))
-const buttonLabel = computed(() => sendButtonLabel(picked.value))
+const buttonLabel = computed(() => sendActionLabel(picked.value, !!props.prepare?.resend))
 
 async function submit() {
   if (!canSend.value) return

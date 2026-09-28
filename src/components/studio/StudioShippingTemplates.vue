@@ -35,11 +35,11 @@
         <label class="block"><span class="st-label">출고 소요일(1 = 당일)</span><input v-model.number="form.outbound_shipping_time_day" type="number" min="1" max="30" class="st-input w-full" /></label>
         <label class="block"><span class="st-label">택배사 *</span>
           <select v-model="form.delivery_company_code" class="st-input w-full">
-            <option v-for="[code, name] in deliveryCompanies" :key="code" :value="code">{{ name }} ({{ code }})</option>
+            <option v-for="[code, name] in courierChoices" :key="code" :value="code">{{ name }} ({{ code }})</option>
           </select>
         </label>
         <label class="block"><span class="st-label">출고지 *</span>
-          <select v-model="form.outbound_place_code" class="st-input w-full">
+          <select v-model="form.outbound_place_code" class="st-input w-full" data-mk-template-outbound @change="applyCourierRule">
             <option v-for="p in places.filter(x => x.kind === 'outbound')" :key="p.place_code" :value="p.place_code">{{ p.name }}</option>
           </select>
         </label>
@@ -50,9 +50,13 @@
         </label>
       </div>
       <div class="flex flex-wrap items-center gap-4 text-[13px]">
-        <label class="flex items-center gap-2"><input v-model="form.remote_area_deliverable" type="checkbox" /> 도서산간 배송 가능</label>
+        <label class="flex items-center gap-2" :class="rule.canRemote ? '' : 'st-muted'"><input v-model="form.remote_area_deliverable" type="checkbox" :disabled="!rule.canRemote" data-mk-template-remote @change="applyCourierRule" /> 도서산간 배송 가능</label>
         <label class="flex items-center gap-2"><input v-model="form.is_default" type="checkbox" /> 기본 템플릿으로</label>
       </div>
+      <!-- 도서산간 택배사 — 고른 출고지에 등록된 것만 (쿠팡이 그 밖의 택배사는 반려한다) -->
+      <p v-if="!rule.canRemote" class="st-desc-sm break-keep" data-mk-template-remote-note>{{ REMOTE_NONE_NOTE }}</p>
+      <p v-else-if="rule.known && form.remote_area_deliverable" class="st-desc-sm break-keep" data-mk-template-courier-note>{{ REMOTE_COURIER_NOTE }}</p>
+      <p v-if="courierFixed" class="text-[13px] font-bold st-ink break-keep" data-mk-template-courier-fixed>{{ courierFixed }}</p>
       <p v-if="formError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-template-error>{{ formError }}</p>
       <div class="flex justify-end gap-2">
         <button type="button" class="st-btn" @click="editing = false">취소</button>
@@ -64,8 +68,9 @@
 
 <script setup>
 // 배송/반품 템플릿 관리 — 쓰기는 서버(template_save/delete)를 거친다(브라우저는 marketplace_templates 읽기만). 규칙 검증도 서버(_coupang.validateTemplate)가 최종
-import { ref } from 'vue'
-import { listTemplates, saveTemplate, deleteTemplate, isNotReady } from '@/lib/studioMarketplace'
+import { ref, computed } from 'vue'
+import { listTemplates, saveTemplate, deleteTemplate, refreshPlaces, isNotReady } from '@/lib/studioMarketplace'
+import { courierRule, remoteCouriersOf, REMOTE_NONE_NOTE, REMOTE_COURIER_NOTE } from '../../../api/_coupangFields.js'
 
 const emit = defineEmits(['changed'])
 const CHARGE_LABEL = { FREE: '무료배송', NOT_FREE: '유료배송', CHARGE_RECEIVED: '착불', CONDITIONAL_FREE: '조건부 무료배송' }
@@ -78,6 +83,30 @@ const formError = ref('')
 const errorMsg = ref('')
 const errorSoft = ref(false)
 const form = ref(blank())
+const courierFixed = ref('') // 검사 때문에 값을 바꿨을 때 알려 주는 한 줄
+
+// 택배사·도서산간 — 규칙은 api/_coupangFields.js courierRule (서버 저장·보내기와 같은 규칙)
+const outboundPlace = computed(() => places.value.find(p => p.kind === 'outbound' && p.place_code === form.value.outbound_place_code) || null)
+const rule = computed(() => courierRule({ place: outboundPlace.value, remoteOn: !!form.value.remote_area_deliverable, company: form.value.delivery_company_code }))
+// 도서산간 배송을 켰고 출고지에 등록된 택배사를 알면 그 택배사만, 아니면 전체 목록
+const courierChoices = computed(() => (rule.value.known && rule.value.couriers.length && form.value.remote_area_deliverable
+  ? rule.value.couriers.map(code => [code, companyName(code)])
+  : deliveryCompanies.value))
+/** 지금 값이 규칙에 어긋나면 고친다 — 새 템플릿·기존 템플릿 열기·출고지 바꾸기·도서산간 켜기 모두 여기로 */
+function applyCourierRule() {
+  courierFixed.value = ''
+  const r = rule.value
+  if (!r.known) return
+  if (!r.canRemote) {
+    if (form.value.remote_area_deliverable) { form.value.remote_area_deliverable = false; courierFixed.value = '이 출고지에는 도서산간 택배사가 없어서 "도서산간 배송 가능"을 껐어요. [저장]을 눌러 주세요.' }
+    return
+  }
+  if (form.value.remote_area_deliverable && !r.couriers.includes(form.value.delivery_company_code)) {
+    const before = companyName(form.value.delivery_company_code)
+    form.value.delivery_company_code = r.couriers[0]
+    courierFixed.value = `택배사를 ${before}에서 ${companyName(r.couriers[0])}(으)로 바꿨어요. 출고지에 등록된 택배사예요. [저장]을 눌러 주세요.`
+  }
+}
 
 function blank() {
   return { id: null, name: '', delivery_charge_type: 'FREE', delivery_charge: 0, free_ship_over_amount: 0, delivery_charge_on_return: 3000, return_charge: 3000, exchange_charge: 6000, outbound_shipping_time_day: 2, delivery_company_code: 'CJGLS', outbound_place_code: '', return_center_code: '', remote_area_deliverable: true, is_default: false }
@@ -92,6 +121,10 @@ async function load() {
     templates.value = r.templates
     places.value = r.places
     deliveryCompanies.value = r.deliveryCompanies
+    // 예전에 저장한 출고지에는 도서산간 택배사 정보가 없다 — 한 번 다시 읽어 온다 (실패하면 검사 없이 예전처럼)
+    if (r.places.some(p => p.kind === 'outbound' && remoteCouriersOf(p) === null)) {
+      try { places.value = (await refreshPlaces()).places } catch (e) { console.error('[StudioShippingTemplates] 출고지 다시 읽기 실패 — 택배사 검사 없이 진행:', e.code, e) }
+    }
   } catch (e) {
     console.error('[StudioShippingTemplates] 목록 조회 실패:', e.code, e)
     errorMsg.value = e.message
@@ -102,11 +135,13 @@ function startNew() {
   form.value = { ...blank(), is_default: templates.value.length === 0, outbound_place_code: places.value.find(p => p.kind === 'outbound')?.place_code || '', return_center_code: places.value.find(p => p.kind === 'return')?.place_code || '' }
   formError.value = ''
   editing.value = true
+  applyCourierRule()
 }
 function startEdit(t) {
   form.value = { ...t }
   formError.value = ''
   editing.value = true
+  applyCourierRule()
 }
 async function save() {
   saving.value = true

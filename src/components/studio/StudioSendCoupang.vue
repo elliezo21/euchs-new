@@ -258,7 +258,8 @@
       </section>
 
       <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-error>{{ sendError }}</p>
-      <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>쿠팡에 등록하고 승인 요청을 보냈어요{{ done.sellerProductId ? ` (쿠팡 #${done.sellerProductId})` : '' }}. 진행 상태는 내 작업의 [보낸 상품]에서 볼 수 있어요.</p>
+      <p v-if="done && done.resend" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>쿠팡 #{{ done.sellerProductId }} 을 고치고 다시 승인 요청을 보냈어요. 진행 상태는 내 작업의 [보낸 상품]에서 볼 수 있어요.</p>
+      <p v-else-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>쿠팡에 등록하고 승인 요청을 보냈어요{{ done.sellerProductId ? ` (쿠팡 #${done.sellerProductId})` : '' }}. 진행 상태는 내 작업의 [보낸 상품]에서 볼 수 있어요.</p>
     </div>
 </template>
 
@@ -274,6 +275,7 @@ import {
   SALE_MODES, isSaleMode, defaultOutboundDays, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, ENUMS, ENUM_LABEL, advancedDefaults, discountRate,
   TAG_MAX, TAG_LEN, suggestSearchTags, NAME_MAX, suggestGeneralName, suggestDisplayName, ITEMS_MAX, STOCK_MAX, mapOptionName, matchOptionImage,
   hasUntranslated, NOTICE_LEN, NOTICE_SEE_DETAIL, noticeDefaults, docRequired, realCerts, previewRows,
+  courierRule, TEMPLATE_COURIER_FIX, isColorOption,
   pickKoreanName, namesNeedKorean, koreanizeSkus, autoItemNames, ITEM_NAME_MAX, BRAND_MAX, BRAND_NOT_FOUND, pickBrand, brandWordIn,
 } from '../../../api/_coupangFields.js'
 
@@ -314,6 +316,7 @@ function blank() {
   }
 }
 const source = computed(() => props.prepare?.source || null)
+const resend = computed(() => props.prepare?.resend || null)
 const template = computed(() => (props.prepare?.templates || []).find(t => t.id === f.value.templateId) || null)
 const hasCny = computed(() => !!source.value && f.value.items.some(it => it.fromSource))
 const sourceNote = computed(() => {
@@ -330,9 +333,29 @@ function init() {
   f.value.productName = pickKoreanName([p?.export?.projectTitle, p?.export?.title, source.value?.title?.ko])
   f.value.templateId = (p?.templates || []).find(t => t.is_default)?.id || p?.templates?.[0]?.id || ''
   f.value.repImageId = p?.images?.find(im => im.included !== false)?.id || p?.images?.[0]?.id || null
+  // 고쳐서 다시 보내기 — 그 전송에서 보냈던 값으로 채운다 (템플릿·대표 이미지·옵션 사진은 지금 것에서 다시 고른다)
+  if (resend.value?.form) return fillFromResend(resend.value.form)
   fillFromSource()
   applyRememberedMode()
   if (nameSeed.value) { f.value.generalName = suggestGeneralName({ title: nameSeed.value, optionValues: optionValueList() }); suggestTags() }
+}
+function fillFromResend(r) {
+  const v = f.value
+  Object.assign(v, {
+    saleMode: isSaleMode(r.saleMode) ? r.saleMode : '', outboundDays: r.outboundDays, productName: r.productName, displayName: r.displayName, generalName: r.generalName,
+    noBrand: r.noBrand, brand: r.brand, brandId: r.brandId, manufacture: r.manufacture, modelNo: r.modelNo,
+    categoryCode: r.categoryCode, categoryName: resend.value.categoryName || '', tags: [...r.tags], advanced: { ...advancedDefaults(), ...r.advanced },
+    manualNames: true, // 보냈던 옵션 이름을 그대로 둔다 (쿠팡에 있는 옵션과 이름으로 맞춘다)
+  })
+  if (r.brandId) brandChoices.value = [{ brandId: r.brandId, brandName: r.brand }]
+  v.optionTypes = r.optionTypes.map(n => ({ key: n, label: n, names: [n], isColor: isColorOption([n]), mapped: n }))
+  v.items = r.items.map(x => {
+    const it = blankItem()
+    Object.assign(it, { name: x.name, originalPrice: x.originalPrice, salePrice: x.salePrice, stock: x.stock, sku: x.sku, gtin: x.gtin })
+    for (const n of r.optionTypes) it.opt[n] = x.attributes[n] || ''
+    return it
+  })
+  loadMeta({ keep: { noticeCategory: r.noticeCategory, notices: r.notices, certifications: r.certifications, mapped: true } })
 }
 
 /** 가져온 상품(1688)의 옵션 줄 → 옵션 표. 가격(원)은 비워 둔다 — 임의 숫자로 채우지 않는다 */
@@ -467,6 +490,7 @@ const missing = computed(() => {
   }
   if (!/^\d+$/.test(v.categoryCode)) out.push('카테고리')
   if (!v.templateId) out.push('배송/반품 템플릿')
+  else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (설정 > 배송·반품 템플릿에서 다시 저장)')
   if (!v.repImageId) out.push('대표 이미지')
   for (const t of v.optionTypes) if (!t.mapped) out.push(`옵션 종류 "${t.label}"에 맞는 쿠팡 옵션`)
   const dupMap = v.optionTypes.map(t => t.mapped).filter(Boolean)
@@ -514,8 +538,15 @@ const missing = computed(() => {
   return [...new Set(out)]
 })
 
+// 템플릿의 택배사가 출고지에 등록된 도서산간 택배사인지 (규칙 courierRule — 템플릿 화면·서버와 같음)
+const templateCourierOk = computed(() => {
+  const t = template.value
+  if (!t) return true
+  const place = (props.prepare?.places || []).find(p => p.kind === 'outbound' && p.place_code === t.outbound_place_code)
+  return courierRule({ place, remoteOn: !!t.remote_area_deliverable, company: t.delivery_company_code }).ok
+})
 const preview = computed(() => previewRows({
-  ...f.value, brand: brandOut.value, items: f.value.items.map((it, i) => ({ ...it, name: itemNames.value[i] })), certifications: certsOut.value, documents: docsOut.value, templateName: template.value?.name || '',
+  ...f.value, detailFiles: props.prepare?.export?.files || [], brand: brandOut.value, items: f.value.items.map((it, i) => ({ ...it, name: itemNames.value[i] })), certifications: certsOut.value, documents: docsOut.value, templateName: template.value?.name || '',
 }))
 
 // ── 옵션 표 ──
@@ -621,7 +652,8 @@ async function predict() {
     busy.value = ''
   }
 }
-async function loadMeta() {
+/** @param {{ keep?:{ noticeCategory, notices, certifications, mapped } }} o  keep = 다시 보내기 — 보냈던 고시·인증·옵션 맞춤을 남긴다 */
+async function loadMeta({ keep = null } = {}) {
   if (!/^\d+$/.test(f.value.categoryCode)) { meta.value = null; return }
   busy.value = 'meta'
   try {
@@ -629,12 +661,14 @@ async function loadMeta() {
     for (const it of f.value.items) for (const a of meta.value.attributes) if (!(a.name in it.attributes)) it.attributes[a.name] = ''
     for (const t of f.value.optionTypes) {
       const hit = mapOptionName(t.names, meta.value.attributes)
+      if (keep?.mapped && meta.value.attributes.some(a => a.name === t.mapped)) continue
       t.mapped = hit && !f.value.optionTypes.some(x => x !== t && x.mapped === hit) ? hit : ''
     }
-    f.value.noticeCategory = meta.value.notices[0]?.category || ''
-    f.value.notices = {}
+    f.value.noticeCategory = (keep && meta.value.notices.find(n => n.category === keep.noticeCategory)?.category) || meta.value.notices[0]?.category || ''
+    f.value.notices = keep ? { ...keep.notices } : {}
     fillNoticeDefaults()
-    f.value.certs = Object.fromEntries(realCerts(meta.value.certifications).map(c => [c.type, { on: false, code: '' }]))
+    const sent = keep?.certifications || []
+    f.value.certs = Object.fromEntries(realCerts(meta.value.certifications).map(c => [c.type, { on: sent.some(x => x.type === c.type), code: sent.find(x => x.type === c.type)?.code || '' }]))
     f.value.docs = {}
     if (meta.value.offerConditions?.length && !meta.value.offerConditions.includes(f.value.advanced.offerCondition)) f.value.advanced.offerCondition = advOptions('offerCondition')[0]
   } catch (e) {
@@ -667,6 +701,7 @@ async function submit() {
       attributes: attributesOf(it), imageKey: keyOf[it.imageId] || '',
     }))
     const payload = {
+      ...(resend.value ? { resendId: resend.value.sendId } : {}),
       exportId: props.prepare.export.id, templateId: v.templateId, categoryCode: v.categoryCode, categoryName: v.categoryName,
       saleMode: v.saleMode, outboundDays: v.outboundDays,
       productName: v.productName, displayName: v.displayName, generalName: v.generalName, brand: brandOut.value, brandId: v.noBrand ? '' : v.brandId, manufacture: v.manufacture, modelNo: v.modelNo,

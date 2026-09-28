@@ -97,6 +97,11 @@ export function sendsByExport(sends) {
   const order = MARKETS.map(m => m.key)
   return Object.fromEntries(Object.entries(latest).map(([id, slot]) => [id, Object.values(slot).sort((a, b) => order.indexOf(a.market) - order.indexOf(b.market))]))
 }
+/** [고쳐서 다시 보내기]를 보일 전송 — 반려됐고 쿠팡 상품 번호가 있는 것 */
+export const canResend = s => !!s && s.status === 'rejected' && /^\d+$/.test(String(s.sellerProductId || ''))
+/** [보내기] 버튼 글자 — 다시 보내기면 "다시 승인 요청" */
+export const sendActionLabel = (keys, resend) => (resend ? '다시 승인 요청' : sendButtonLabel(keys))
+
 /** 배지 툴팁 — 반려·실패일 때만, 판매처가 준 사유(기록된 reason) 그대로 */
 export const badgeReason = s => (s && ['rejected', 'failed'].includes(s.status) && typeof s.reason === 'string' ? s.reason.trim() : '')
 

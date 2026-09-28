@@ -35,6 +35,7 @@ export const listTemplates = () => call('templates_list')
 export const saveTemplate = (template) => call('template_save', { template })
 export const deleteTemplate = (id) => call('template_delete', { id })
 export const prepareSend = (exportId) => call('send_prepare', { exportId })
+export const prepareResend = (resendId) => call('send_prepare', { resendId })
 export const predictCategory = (productName, brand) => call('category_predict', { productName, brand })
 export const searchBrand = (brandName) => call('brand_search', { brandName })
 export const getCategoryMeta =(categoryCode) => call('category_meta', { categoryCode })
@@ -49,6 +50,12 @@ export const syncSends = () => call('sync')
  */
 export async function sendToMarketplace(exportId) {
   const prepare = await prepareSend(exportId)
+  return { status: 'ready', prepare }
+}
+
+/** 반려된 전송 [고쳐서 다시 보내기] 진입 — prepare.resend에 그 전송의 값이 들어 있다 */
+export async function resendToMarketplace(sendId) {
+  const prepare = await prepareResend(sendId)
   return { status: 'ready', prepare }
 }
 

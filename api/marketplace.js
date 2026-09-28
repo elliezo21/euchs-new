@@ -13,6 +13,8 @@
  *   send_prepare      { exportId } → { export:{ id, title, projectTitle, files:[{ key, name, width, height }] }, images:[{ id, url, width, height, sourceUrl }](대표 이미지 후보 = 그 작업의 사진), templates, places,
  *                       source(1688에서 가져온 작업이면 저장해 둔 제목·속성·옵션 줄 + 번역 캐시의 한국어, 아니면 null — 외부 호출 없음), limits }
  *   category_predict  { productName, brand? } → { result, categoryCode, categoryName }
+ *   send_prepare      { resendId } → 위와 같음 + resend:{ sendId, sellerProductId, reason, revision, form(보냈던 값), categoryName } — 반려된 전송만 (고쳐서 다시 보내기)
+ *   send              { …, resendId } → 새 상품을 만들지 않고 상품 수정(PUT seller-products, 같은 sellerProductId) 뒤 승인 요청(PUT …/approvals). 회차 이력은 request_json.revisions
  *   brand_search      { brandName } → { brands:[{ brandId, brandName, uidRequired, uidTypes }] }  (쿠팡 브랜드 검색 — 문서 58230017410841)
  *   category_meta     { categoryCode } → { attributes, notices, singleItem, certifications }
  *   send              { exportId, templateId, categoryCode, saleMode('domestic'|'agent' 필수 — 기본값 없음), outboundDays?,
@@ -38,7 +40,8 @@ import {
 } from './_coupang.js'
 import { readDimensions } from './studio-ingest.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
-import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand } from './_coupangFields.js'
+import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
+import { renderDetailPiece, shrinkBytes } from './_coupangImage.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -278,7 +281,25 @@ async function loadSource(ctx, offerId) {
     skus: skus.rows.map(r => ({ skuId: r.skuId, values: r.values.map(v => ({ name: pair(v.name), value: pair(v.value) })), priceCny: r.priceCny, stock: r.stock, imageUrl: r.imageUrl })),
   }
 }
+/** 다시 보낼 전송 — 내 것이고 반려 상태이고 쿠팡 상품 번호가 있어야 한다. 아니면 응답을 보내고 null */
+async function loadRejectedSend(ctx, resendId, res) {
+  const id = String(resendId ?? '').trim().toLowerCase()
+  if (!UUID_RE.test(id)) { sendError(res, 400, 'invalid_input', 'resendId 형식이 올바르지 않아요.'); return null }
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT}&id=eq.${id}&user_id=eq.${ctx.userId}&market=eq.${MARKET}&limit=1`)
+  const s = Array.isArray(rows) ? rows[0] : null
+  if (!s) { sendError(res, 404, 'not_found', '보낸 상품을 찾을 수 없어요. 목록을 새로고침해 주세요.'); return null }
+  if (s.status !== 'rejected' || !/^\d{1,20}$/.test(String(s.seller_product_id || ''))) { sendError(res, 409, 'not_rejected', '반려된 상품만 고쳐서 다시 보낼 수 있어요. [상태 새로고침]을 눌러 주세요.'); return null }
+  if (!s.export_id) { sendError(res, 404, 'not_found', '내 상품을 찾을 수 없어요. 목록을 새로고침해 주세요.'); return null }
+  return s
+}
+const revisionsOf = s => (Array.isArray(s?.request_json?.revisions) ? s.request_json.revisions : [])
 async function sendPrepare(ctx, body, res) {
+  let prev = null
+  if (body.resendId != null) {
+    prev = await loadRejectedSend(ctx, body.resendId, res)
+    if (!prev) return
+    body = { ...body, exportId: prev.export_id }
+  }
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
   const imgs = await sb(ctx.cfg, `studio_images?select=id,kind,source_url,original_path,width,height,sort_order,included&project_id=eq.${ex.project_id}&user_id=eq.${ctx.userId}&ingest_status=eq.done&original_path=not.is.null&order=sort_order&limit=60`)
@@ -297,6 +318,7 @@ async function sendPrepare(ctx, body, res) {
     // projectTitle = 작업의 지금 이름 (내 상품을 만든 뒤 작업 이름을 한글로 고쳤을 수 있다 — 보내기 창의 상품명 기본값이 먼저 본다)
     export: { id: ex.id, title: ex.title || projRows?.[0]?.title || '', projectTitle: projRows?.[0]?.title || '', mode: ex.mode, format: ex.format, files: ex.files.map(f => ({ key: f.key, name: f.name, width: f.width, height: f.height })) },
     images, templates, places, source, limits: { optionImages: OPTION_IMAGE_MAX, documents: DOC_MAX, documentBytes: DOC_MAX_BYTES },
+    resend: prev ? { sendId: prev.id, sellerProductId: prev.seller_product_id, reason: prev.reason || '', revision: revisionsOf(prev).length, form: formFromBody(prev.request_json?.body), categoryName: prev.request_json?.categoryName || '' } : null,
   })
 }
 async function categoryPredict(ctx, body, res) {
@@ -357,6 +379,13 @@ async function send(ctx, body, res) {
   const cred = await withCredentials(ctx, res)
   if (!cred) return
   const encKey = loadEncKey()
+  // 고쳐서 다시 보내기 — 반려된 전송을 같은 쿠팡 상품 번호로 고친다(새 전송 기록·새 상품을 만들지 않는다)
+  let prev = null
+  if (body.resendId != null) {
+    prev = await loadRejectedSend(ctx, body.resendId, res)
+    if (!prev) return
+    body = { ...body, exportId: prev.export_id }
+  }
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
   const tid = String(body.templateId ?? '').toLowerCase()
@@ -422,17 +451,19 @@ async function send(ctx, body, res) {
     if (!brand) return sendError(res, 400, 'brand_not_found', BRAND_NOT_FOUND)
   }
 
-  // 전송 기록 먼저 (id가 이미지 토큰 재료)
-  const created = await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: MARKET, status: 'sending', request_json: {} }, prefer: 'return=representation' })
+  // 전송 기록 먼저 (id가 이미지 토큰 재료) — 다시 보내기는 예전 기록을 그대로 쓴다
+  const created = prev ? [{ id: prev.id }] : await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: MARKET, status: 'sending', request_json: {} }, prefer: 'return=representation' })
   const sendId = created?.[0]?.id
   if (!sendId) throw new Error('marketplace_sends insert: id 없음')
+  const fileTag = prev ? `${sendId}_${Date.now().toString(36)}` : sendId // 다시 보낼 때는 새 파일 이름 (예전 회차 파일을 덮지 않는다)
   const fail = async (status, code, message, extra = {}) => {
+    if (prev) return sendError(res, status, code, message) // 다시 보내기가 실패해도 기록은 "반려" 그대로 — 고쳐서 또 보낼 수 있다
     await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { status: 'failed', reason: message.slice(0, 2000), ...extra }, prefer: 'return=minimal' }).catch(e => console.error('[marketplace] 실패 기록도 못 남김:', sendId, e.message))
     return sendError(res, status, code, message)
   }
 
   // 대표 이미지 저장 + 이미지 주소(토큰)
-  const repPath = `${ex.folder}/marketplace/${sendId}_rep.jpg`
+  const repPath = `${ex.folder}/marketplace/${fileTag}_rep.jpg`
   try { await storageUpload(ctx.cfg, BUCKET, repPath, rep.buf, 'image/jpeg') } catch (e) {
     console.error('[marketplace] 대표 이미지 저장 실패:', repPath, e.message)
     return fail(500, 'storage_error', '대표 이미지를 저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
@@ -442,12 +473,12 @@ async function send(ctx, body, res) {
   const urlOf = key => `${m.publicUrl}/api/marketplace?t=${makeImageToken(encKey, sendId, key)}`
   try {
     for (const o of optImgs) {
-      const path = `${ex.folder}/marketplace/${sendId}_${o.key}.jpg`
+      const path = `${ex.folder}/marketplace/${fileTag}_${o.key}.jpg`
       await storageUpload(ctx.cfg, BUCKET, path, o.buf, 'image/jpeg')
       files[o.key] = path
     }
     for (const d of docs) {
-      const path = `${ex.folder}/marketplace/${sendId}_${d.key}.${d.ext}`
+      const path = `${ex.folder}/marketplace/${fileTag}_${d.key}.${d.ext}`
       await storageUpload(ctx.cfg, BUCKET, path, d.buf, d.mime)
       files[d.key] = path
     }
@@ -455,8 +486,20 @@ async function send(ctx, body, res) {
     console.error('[marketplace] 옵션 이미지·구비서류 저장 실패:', sendId, e.message)
     return fail(500, 'storage_error', '파일을 저장하지 못했어요. 잠시 후 다시 시도해 주세요.')
   }
+  // 상세 이미지 — 쿠팡 규격(한 변 500~5000, 10MB)에 맞게 나누고 채운다. 여기서는 계획만 세우고(detailImagePlans), 쿠팡이 내려받을 때 그 조각을 만들어 준다(serveImage)
   const detailUrls = []
-  for (const f of ex.files) { files[f.key] = f.path; detailUrls.push(urlOf(f.key)) }
+  const pieces = {}
+  for (const p of detailImagePlans(ex.files)) {
+    const f = ex.files.find(x => x.key === p.src)
+    files[p.key] = f.path
+    if (p.changed) pieces[p.key] = { x: p.x, y: p.y, w: p.w, h: p.h, outW: p.outW, outH: p.outH }
+    detailUrls.push(urlOf(p.key))
+  }
+  // 다시 보내기 — 쿠팡에 있는 그 상품의 옵션 id를 읽어 온다 (상품 수정 본문에 넣는다)
+  let current = null
+  if (prev) {
+    try { current = await coupangCall(cred.call, { method: 'GET', path: PATHS.product(prev.seller_product_id) }) } catch (e) { return coupangFail(res, e, 'send/resend-get') }
+  }
 
   const single = { name: String(body.productName || '').slice(0, 150), originalPrice: body.originalPrice, salePrice: body.salePrice, stock: body.stock, sku: body.sku, gtin: body.gtin, attributes: body.attributes || {} }
   const built = buildProductBody({
@@ -467,9 +510,13 @@ async function send(ctx, body, res) {
     notices: noticesIn.filter(n => n && n.noticeCategoryName && n.noticeCategoryDetailName && String(n.content || '').trim()),
     certifications: certsIn, documents: docs.map(d => ({ templateName: d.templateName, url: urlOf(d.key) })), advanced: body.advanced && typeof body.advanced === 'object' ? body.advanced : {},
     repImageUrl: urlOf('rep'), detailImageUrls: detailUrls, searchTags: Array.isArray(body.searchTags) ? body.searchTags : [], saleStartedAt: kstStart(),
+    update: prev ? { sellerProductId: prev.seller_product_id, items: Array.isArray(current?.data?.items) ? current.data.items : [] } : null,
   })
   if (!built.ok) return fail(400, 'invalid_input', built.message)
-  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: { body: built.body, files, categoryName: body.categoryName || null } }, prefer: 'return=minimal' })
+  const revisions = revisionsOf(prev)
+  const requestJson = { body: built.body, files, pieces, categoryName: body.categoryName || null, revisions }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
+  if (prev) return await resend(ctx, res, { cred, prev, sendId, requestJson })
 
   let r
   try { r = await coupangCall(cred.call, { method: 'POST', path: PATHS.products, body: built.body, extendedTimeout: true }) } catch (e) {
@@ -484,11 +531,41 @@ async function send(ctx, body, res) {
   return res.status(200).json({ sendId, sellerProductId: patch.seller_product_id, status: 'approval_pending' })
 }
 
+/**
+ * 반려 상품 다시 승인 요청 — 상품 수정(PUT seller-products · 같은 sellerProductId · requested false) → 승인 요청(PUT …/{id}/approvals · 본문 없음)
+ * 회차 이력: request_json.revisions[] = { n, at, previousReason, previousStatus, approval }
+ */
+async function resend(ctx, res, { cred, prev, sendId, requestJson }) {
+  const pid = prev.seller_product_id
+  const rev = { n: requestJson.revisions.length + 1, at: new Date().toISOString(), previousReason: prev.reason || null, previousStatus: prev.coupang_status || null, approval: false }
+  const save = patch => sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
+  let r
+  try { r = await coupangCall(cred.call, { method: 'PUT', path: PATHS.products, body: requestJson.body, extendedTimeout: true }) } catch (e) {
+    if (!(e instanceof CoupangError)) throw e
+    console.warn(`[marketplace] 상품 수정 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
+    return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
+  }
+  let a
+  try { a = await coupangCall(cred.call, { method: 'PUT', path: PATHS.approval(pid) }) } catch (e) {
+    if (!(e instanceof CoupangError)) throw e
+    console.warn(`[marketplace] 승인 요청 실패 ${e.code} (HTTP ${e.status}) product=${pid}: ${e.raw}`)
+    await save({ request_json: { ...requestJson, revisions: [...requestJson.revisions, rev] }, result_json: { code: e.code, status: e.status, raw: e.raw, step: 'approval' } })
+    return sendError(res, e.status === 429 ? 429 : 502, 'approval_failed', `고친 내용은 쿠팡에 저장됐어요. 승인 요청은 하지 못했어요 — ${e.message}`)
+  }
+  await save({
+    status: 'approval_pending', coupang_status: null, reason: null, approval_requested_at: new Date().toISOString(),
+    request_json: { ...requestJson, revisions: [...requestJson.revisions, { ...rev, approval: true }] },
+    result_json: { code: a?.code ?? r?.code, message: a?.message ?? r?.message, data: a?.data ?? r?.data, step: 'resend' },
+  })
+  console.info(`[marketplace] 쿠팡 상품 수정 + 승인 요청 ${ctx.userId} send=${sendId} product=${pid} 회차=${rev.n}`)
+  return res.status(200).json({ sendId, sellerProductId: pid, status: 'approval_pending', resend: true, revision: rev.n })
+}
+
 // ── 처리현황 ──
 function publicSend(s) {
   return {
     id: s.id, exportId: s.export_id, market: s.market || MARKET, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
-    productName: s.request_json?.body?.sellerProductName || null, categoryName: s.request_json?.categoryName || null,
+    productName: s.request_json?.body?.sellerProductName || null, categoryName: s.request_json?.categoryName || null, revision: revisionsOf(s).length,
     approvalRequestedAt: s.approval_requested_at, lastSyncedAt: s.last_synced_at, createdAt: s.created_at, updatedAt: s.updated_at,
   }
 }
@@ -550,7 +627,20 @@ async function serveImage(req, res) {
   if (typeof path !== 'string' || !path) return sendError(res, 404, 'not_found', 'not found')
   const dl = await storageDownload(cfg, BUCKET, path)
   if (!dl.found) return sendError(res, 404, 'not_found', 'not found')
-  const mime = sniffMime(dl.buf) || (path.endsWith('.png') ? 'image/png' : path.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+  let mime = sniffMime(dl.buf) || (path.endsWith('.png') ? 'image/png' : path.endsWith('.pdf') ? 'application/pdf' : 'image/jpeg')
+  // 상세 이미지 — 보낼 때 세운 계획(request_json.pieces)대로 조각을 만들어 준다. 계획에 없는 장은 받은 그대로, 10MB를 넘을 때만 품질을 낮춘다
+  const piece = rows?.[0]?.request_json?.pieces?.[tok.key]
+  if (piece && mime.startsWith('image/')) {
+    const out = await renderDetailPiece(dl.buf, piece)
+    if (out.tooBig) console.error(`[marketplace] 상세 이미지 조각이 품질 ${out.quality}에서도 10MB를 넘음: ${tok.sendId} ${tok.key} ${out.buf.length}바이트`)
+    dl.buf = out.buf
+    mime = out.mime
+  } else if (/^\d/.test(tok.key) && mime.startsWith('image/') && dl.buf.length > DETAIL_MAX_BYTES) {
+    const out = await shrinkBytes(dl.buf)
+    if (out.tooBig) console.error(`[marketplace] 상세 이미지가 품질 ${out.quality}에서도 10MB를 넘음: ${tok.sendId} ${tok.key} ${out.buf.length}바이트`)
+    dl.buf = out.buf
+    mime = out.mime
+  }
   res.setHeader('Content-Type', mime)
   res.setHeader('Content-Length', String(dl.buf.length))
   res.setHeader('Cache-Control', 'private, max-age=0, no-store')

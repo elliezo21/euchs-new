@@ -314,6 +314,131 @@ export function brandWordIn(...names) {
   return BRAND_WORDS.find(b => s.includes(b)) || ''
 }
 
+// ── 도서산간 택배사 (출고지에 등록된 것만) ──
+// [근거] 출고지 조회 API 응답 content[].remoteInfos[] { remoteInfoId, deliveryCode(택배사 코드), jeju, notJeju, usable }
+// [근거] 쿠팡 반려 사유(2026-09-28): "도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다."
+export const REMOTE_NONE_NOTE = 'Wing 출고지 관리에서 도서산간 택배사를 등록하면 켤 수 있어요'
+export const REMOTE_COURIER_NOTE = '도서산간 배송을 켜면 고른 출고지에 등록된 택배사만 고를 수 있어요'
+export const TEMPLATE_COURIER_FIX = '배송·반품 템플릿의 택배사가 출고지에 등록된 도서산간 택배사와 달라요. 설정 > 배송·반품 템플릿에서 템플릿을 열어 다시 저장해 주세요.'
+/** 출고지 응답의 remoteInfos → 저장할 목록 (쓸 수 있는 것만, 중복 뺌) */
+export function normalizeRemoteInfos(list) {
+  const out = []
+  for (const r of Array.isArray(list) ? list : []) {
+    const code = str(r?.deliveryCode).toUpperCase()
+    if (!code || r?.usable === false || out.some(x => x.code === code)) continue
+    out.push({ code, jeju: Number(r?.jeju) || 0, notJeju: Number(r?.notJeju) || 0 })
+  }
+  return out
+}
+/** 저장된 출고지(marketplace_places 행) → 도서산간 택배사 코드. 아직 읽은 적이 없으면(예전에 저장한 출고지) null = 모름 */
+export function remoteCouriersOf(place) {
+  const r = place?.address?.remote
+  return Array.isArray(r) ? r.map(x => str(x?.code).toUpperCase()).filter(Boolean) : null
+}
+/**
+ * 템플릿의 택배사·도서산간 검사 — 템플릿 화면·템플릿 저장·보내기가 같은 규칙
+ * @param {{ place, remoteOn:boolean, company:string }} v
+ * @returns {{ known:boolean, couriers:string[], canRemote:boolean, ok:boolean, reason:''|'none'|'courier' }}
+ *   known = 출고지의 도서산간 택배사를 읽은 적이 있음 · canRemote = 도서산간 배송을 켤 수 있음 · ok = 지금 값으로 보내도 됨
+ */
+export function courierRule({ place, remoteOn = false, company = '' } = {}) {
+  const couriers = remoteCouriersOf(place)
+  if (couriers === null) return { known: false, couriers: [], canRemote: true, ok: true, reason: '' }
+  if (!couriers.length) return { known: true, couriers, canRemote: false, ok: !remoteOn, reason: remoteOn ? 'none' : '' }
+  const hit = couriers.includes(str(company).toUpperCase())
+  return { known: true, couriers, canRemote: true, ok: !remoteOn || hit, reason: remoteOn && !hit ? 'courier' : '' }
+}
+
+// ── 상세 이미지 규격 (기타이미지 DETAIL) ──
+// [근거] 쿠팡 반려 사유(2026-09-28): "기타이미지(DETAIL) 이미지는 최대 10M 이미지, 최소 500&500, 최대 5000*5000 길이를 만족해야합니다."
+export const DETAIL_MIN = 500
+export const DETAIL_MAX = 5000
+export const DETAIL_MAX_BYTES = 10 * 1024 * 1024
+const splitSizes = (len, max) => { const n = Math.max(1, Math.ceil(len / max)), base = Math.floor(len / n), out = []; for (let i = 0; i < n; i++) out.push(i === n - 1 ? len - base * (n - 1) : base); return out }
+/**
+ * 내 상품 한 장 → 쿠팡에 보낼 조각들
+ *   한 변이 5000을 넘으면 같은 크기로 나눈다(조각마다 5000 이하) → 조각의 너비·높이가 500보다 작으면 흰 바탕 가운데에 놓아 500 이상으로
+ * @param {{ key:string, width:number, height:number }} file
+ * @returns {[{ key, src, x, y, w, h, outW, outH, changed }]}  key = 조각 열쇠('01' 그대로 또는 '01p1'..) · x,y,w,h = 원본에서 잘라낼 곳 · outW,outH = 보낼 크기
+ *   크기를 모르면(width·height 없음) 그대로 한 장(changed false)
+ */
+export function detailImagePlan(file) {
+  const key = str(file?.key), W = Math.floor(Number(file?.width)), H = Math.floor(Number(file?.height))
+  if (!(W > 0) || !(H > 0)) return [{ key, src: key, x: 0, y: 0, w: 0, h: 0, outW: 0, outH: 0, changed: false }]
+  const cols = splitSizes(W, DETAIL_MAX), rows = splitSizes(H, DETAIL_MAX)
+  const many = cols.length * rows.length > 1
+  const out = []
+  let y = 0
+  for (const h of rows) {
+    let x = 0
+    for (const w of cols) {
+      const outW = Math.max(w, DETAIL_MIN), outH = Math.max(h, DETAIL_MIN)
+      out.push({ key: many ? `${key}p${out.length + 1}` : key, src: key, x, y, w, h, outW, outH, changed: many || outW !== w || outH !== h })
+      x += w
+    }
+    y += h
+  }
+  return out
+}
+/** 내 상품 전체 → 조각 목록 (장 순서 그대로) */
+export const detailImagePlans = files => (Array.isArray(files) ? files : []).flatMap(detailImagePlan)
+/** 요약 표 글자 — "상세 이미지 N장 (쿠팡 규격 맞춤)" */
+export const detailImageLabel = files => { const n = detailImagePlans(files).length; return n ? `상세 이미지 ${n}장 (쿠팡 규격 맞춤)` : '' }
+
+// ── 반려 상품 다시 보내기 — 보냈던 본문(쿠팡 상품 생성 본문) → 보내기 창 값 ──
+/**
+ * @param {object} body marketplace_sends.request_json.body  @returns {object|null} 보내기 창 값(템플릿·대표 이미지·옵션 사진은 없음 — 고객이 다시 고른다)
+ */
+export function formFromBody(body) {
+  if (!body || typeof body !== 'object' || !Array.isArray(body.items) || !body.items.length) return null
+  const first = body.items[0] || {}
+  const mode = Object.keys(SALE_MODES).find(k => SALE_MODES[k].deliveryMethod === body.deliveryMethod) || ''
+  const types = []
+  for (const it of body.items) for (const a of Array.isArray(it?.attributes) ? it.attributes : []) {
+    const n = str(a?.attributeTypeName)
+    if (n && !types.includes(n)) types.push(n)
+  }
+  const notices = {}
+  for (const n of Array.isArray(first.notices) ? first.notices : []) if (n?.noticeCategoryDetailName) notices[n.noticeCategoryDetailName] = str(n.content)
+  const d = advancedDefaults()
+  const pick = (k, v) => (ENUMS[k].includes(v) ? v : d[k])
+  return {
+    saleMode: mode, outboundDays: Number.isInteger(first.outboundShippingTimeDay) ? first.outboundShippingTimeDay : null,
+    productName: str(body.sellerProductName), displayName: str(body.displayProductName) === str(body.sellerProductName) ? '' : str(body.displayProductName), generalName: str(body.generalProductName),
+    noBrand: !str(body.brand), brand: str(body.brand), brandId: str(body.brandId), manufacture: str(body.manufacture), modelNo: str(first.modelNo),
+    categoryCode: body.displayCategoryCode == null ? '' : String(body.displayCategoryCode),
+    tags: (Array.isArray(first.searchTags) ? first.searchTags : []).map(str).filter(Boolean),
+    noticeCategory: str(first.notices?.[0]?.noticeCategoryName), notices,
+    certifications: (Array.isArray(first.certifications) ? first.certifications : []).filter(c => c?.certificationType && c.certificationType !== CERT_NONE).map(c => ({ type: str(c.certificationType), code: str(c.certificationCode) })),
+    advanced: {
+      parallelImported: pick('parallelImported', first.parallelImported), taxType: pick('taxType', first.taxType), adultOnly: pick('adultOnly', first.adultOnly),
+      offerCondition: pick('offerCondition', first.offerCondition), unionDeliveryType: pick('unionDeliveryType', body.unionDeliveryType),
+      maxPerPerson: Number.isInteger(first.maximumBuyForPerson) ? first.maximumBuyForPerson : 0, maxPerPersonDays: Number.isInteger(first.maximumBuyForPersonPeriod) ? first.maximumBuyForPersonPeriod : 1,
+    },
+    optionTypes: types,
+    items: body.items.map(it => ({
+      name: str(it?.itemName), originalPrice: Number(it?.originalPrice) > 0 ? Number(it.originalPrice) : null, salePrice: Number(it?.salePrice) > 0 ? Number(it.salePrice) : null,
+      stock: Number.isInteger(it?.maximumBuyCount) ? it.maximumBuyCount : null, sku: str(it?.externalVendorSku), gtin: str(it?.barcode),
+      attributes: Object.fromEntries((Array.isArray(it?.attributes) ? it.attributes : []).filter(a => a?.attributeTypeName).map(a => [str(a.attributeTypeName), str(a.attributeValueName)])),
+    })),
+  }
+}
+/**
+ * 상품 수정 본문에 넣을 옵션 id 맞추기 — 쿠팡 상품 조회(data.items)에서 품번(externalVendorSku) → 옵션 이름 순으로 찾는다
+ * [근거] 상품 수정(승인필요): sellerProductId(필수) · items[].sellerProductItemId(기존 옵션 수정 시 필수, 새 옵션은 넣지 않음) · items[].vendorItemId(임시저장 상태면 null)
+ * @returns {[{ sellerProductItemId, vendorItemId } | null]}  우리 옵션 순서대로. 못 찾은 옵션(새 옵션)은 null
+ */
+export function matchItemIds(ours, theirs) {
+  const pool = (Array.isArray(theirs) ? theirs : []).filter(t => t && t.sellerProductItemId != null).map(t => ({ ...t, used: false }))
+  return (Array.isArray(ours) ? ours : []).map(o => {
+    const sku = str(o?.externalVendorSku ?? o?.sku), name = str(o?.itemName ?? o?.name)
+    const hit = pool.find(t => !t.used && sku && str(t.externalVendorSku) === sku) || pool.find(t => !t.used && name && str(t.itemName) === name)
+    if (!hit) return null
+    hit.used = true
+    return { sellerProductItemId: hit.sellerProductItemId, vendorItemId: hit.vendorItemId ?? null }
+  })
+}
+
 /** 사진 주소 비교용 열쇠 — 프로토콜·쿼리·크기 꼬리(.jpg_.webp, _400x400.jpg)를 뗀다 */
 export function imageKey(url) {
   const s = str(url).replace(/^https?:/, '').replace(/^\/\//, '').split('?')[0].split('#')[0]
@@ -536,6 +661,7 @@ export function previewRows(f = {}) {
     ['검색태그', (f.tags || []).join(', '), 'searchTags'],
     ['옵션', items.length ? `${items.length}개${items[0]?.name ? ` (${items.slice(0, 3).map(i => i.name).filter(Boolean).join(', ')}${items.length > 3 ? ' …' : ''})` : ''}` : '', 'items · itemName'],
     ['판매가', priceText, 'salePrice'],
+    ['상세 이미지', detailImageLabel(f.detailFiles), 'images(DETAIL) · contents'],
     ['상품정보고시', f.noticeCategory ? `${f.noticeCategory} · ${Object.values(f.notices || {}).filter(v => String(v || '').trim()).length}항목` : '', 'notices'],
     ['인증정보', certs.length ? certs.map(c => c.name || c.type).join(', ') : '해당 없음', 'certifications'],
     ['구비서류', (f.documents || []).length ? f.documents.map(d => d.templateName).join(', ') : '없음', 'requiredDocuments'],

@@ -18,9 +18,13 @@
         <div class="mt-1.5 text-[13px] font-bold st-ink truncate" :title="s.productName || ''">{{ s.productName || '(상품명 없음)' }}</div>
         <div class="st-desc-sm truncate" :title="fmtDate(s.createdAt)">{{ daysAgoLabel(s.createdAt) }}<template v-if="s.sellerProductId"> · #{{ s.sellerProductId }}</template></div>
         <div v-if="s.coupangStatus" class="st-desc-sm truncate">{{ marketName(s.market) }}: {{ s.coupangStatus }}</div>
+        <div v-if="s.revision" class="st-desc-sm truncate" :data-mk-send-revision="s.id">다시 보낸 횟수 {{ s.revision }}</div>
         <p v-if="s.reason" class="text-[12px] break-keep send-reason" :class="s.status === 'rejected' || s.status === 'failed' ? 'st-danger-text' : 'st-muted'" :title="s.reason" :data-mk-send-reason="s.id">{{ s.status === 'rejected' ? '반려 사유: ' : '' }}{{ s.reason }}</p>
+        <button v-if="canResend(s)" type="button" class="st-btn st-btn-primary mt-1.5 w-full" :disabled="resendBusy === s.id" :data-mk-send-resend="s.id" @click="openResend(s)">{{ resendBusy === s.id ? '여는 중…' : '고쳐서 다시 보내기' }}</button>
       </li>
     </ul>
+    <p v-if="resendError" class="mt-2 text-[12px] font-bold st-danger-text break-keep" data-mk-send-resend-error>{{ resendError }}</p>
+    <StudioSendModal :open="resendOpen" :prepare="resendPrepare" @close="resendOpen = false" @sent="onResent" />
     <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'">일부 상품은 상태를 확인하지 못했어요: {{ syncErrors[0].message }}</p>
   </section>
 </template>
@@ -29,7 +33,9 @@
 // 내 작업 화면의 [보낸 상품] — marketplace_sends. [상태 새로고침] = 서버 sync(쿠팡 상품 조회 + histories로 반려 사유)
 // 목록이 바뀔 때마다 'update'로 올려 보낸다 → 내 상품 카드(StudioExportList)의 판매처 상태 배지가 같은 목록을 쓴다(따로 또 부르지 않는다)
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
-import { listSends, syncSends, SEND_STATUS_LABEL, SEND_STATUS_CLASS, fmtDate, isNotReady, needsGuide, badgeReason } from '@/lib/studioMarketplace'
+import StudioSendModal from '@/components/studio/StudioSendModal.vue'
+import { canResend } from '@/lib/studioMarketplaceRules'
+import { resendToMarketplace, listSends, syncSends, SEND_STATUS_LABEL, SEND_STATUS_CLASS, fmtDate, isNotReady, needsGuide, badgeReason } from '@/lib/studioMarketplace'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 
@@ -82,6 +88,27 @@ async function sync() {
     syncing.value = false
   }
 }
+// 반려된 상품 [고쳐서 다시 보내기] — 그 전송의 값으로 채운 보내기 창을 연다. 보내면 새 상품을 만들지 않고 같은 쿠팡 상품을 고쳐 다시 승인 요청한다
+const resendOpen = ref(false)
+const resendPrepare = ref(null)
+const resendBusy = ref(null)
+const resendError = ref('')
+async function openResend(s) {
+  resendBusy.value = s.id
+  resendError.value = ''
+  try {
+    const r = await resendToMarketplace(s.id)
+    resendPrepare.value = r.prepare
+    resendOpen.value = true
+  } catch (e) {
+    console.error('[StudioSendList] 다시 보내기 준비 실패:', e.code, e)
+    resendError.value = e.message
+  } finally {
+    resendBusy.value = null
+  }
+}
+function onResent() { load() }
+
 /** 내 상품 카드의 배지를 눌렀을 때 — 그 줄로 가서 잠깐 표시한다 */
 const focusId = ref(null)
 let focusTimer = null
@@ -99,6 +126,9 @@ function clear() {
   seq++
   syncErrors.value = []
   errorMsg.value = ''
+  resendOpen.value = false
+  resendPrepare.value = null
+  resendError.value = ''
   setSends([])
 }
 

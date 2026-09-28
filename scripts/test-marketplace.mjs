@@ -182,8 +182,8 @@ const BASE = {
   eq('본문에 키·서명 없음', /access[-_]?key|secret|signature|authorization/i.test(JSON.stringify(b.body)), false)
 }
 eq('쿠팡 상태 → 우리 상태', ['심사중', '승인대기중', '승인완료', '부분승인완료', '승인반려', '상품삭제', ''].map(C.mapCoupangStatus), ['approval_pending', 'approval_pending', 'approved', 'approved', 'rejected', 'failed', 'approval_pending'])
-eq('출고지·반품지 정리', [C.normalizeOutbound([{ outboundShippingPlaceCode: 100, shippingPlaceName: '창고', usable: true, placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '1', returnAddress: '주소', returnAddressDetail: '상세', companyContactNumber: '02' }] }])[0], C.normalizeReturnCenters([{ returnCenterCode: '200', shippingPlaceName: '반품', deliverCode: 'CJGLS', deliverName: 'CJ', placeAddresses: [] }])[0].address.deliverCode],
-  [{ kind: 'outbound', place_code: '100', name: '창고', usable: true, address: { zip: '1', address: '주소', addressDetail: '상세', contact: '02' } }, 'CJGLS'])
+eq('출고지·반품지 정리', [C.normalizeOutbound([{ outboundShippingPlaceCode: 100, shippingPlaceName: '창고', usable: true, remoteInfos: [{ remoteInfoId: 1, deliveryCode: 'CJGLS', jeju: 5000, notJeju: 2500, usable: true }, { remoteInfoId: 2, deliveryCode: 'HANJIN', jeju: 1, notJeju: 1, usable: false }], placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '1', returnAddress: '주소', returnAddressDetail: '상세', companyContactNumber: '02' }] }])[0], C.normalizeReturnCenters([{ returnCenterCode: '200', shippingPlaceName: '반품', deliverCode: 'CJGLS', deliverName: 'CJ', placeAddresses: [] }])[0].address.deliverCode],
+  [{ kind: 'outbound', place_code: '100', name: '창고', usable: true, address: { zip: '1', address: '주소', addressDetail: '상세', contact: '02', remote: [{ code: 'CJGLS', jeju: 5000, notJeju: 2500 }] } }, 'CJGLS'])
 
 // ── 8. handler (가짜 Supabase + 가짜 중계) ──
 const UID = '11111111-1111-4111-8111-111111111111'
@@ -214,7 +214,7 @@ globalThis.fetch = async (url, opts = {}) => {
     if (relay.mode === 'ip') return json({ code: 403, message: 'Not allowed IP' }, 403)
     if (relay.mode === 'reject' && method === 'POST' && u.pathname.endsWith('/seller-products')) return json({ code: 'ERROR', message: '카테고리 필수 속성 누락' }, 400)
     const p = u.pathname.replace(/^\/coupang/, '')
-    if (p === C.PATHS.outbound) return json({ content: [{ outboundShippingPlaceCode: 100, shippingPlaceName: '출고지A', usable: true, placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '61000', returnAddress: '광주', returnAddressDetail: '1층', companyContactNumber: '010' }] }] })
+    if (p === C.PATHS.outbound) return json({ content: [{ outboundShippingPlaceCode: 100, shippingPlaceName: '출고지A', usable: true, remoteInfos: relay.remoteInfos || [{ remoteInfoId: 581487, deliveryCode: 'CJGLS', jeju: 5000, notJeju: 2500, usable: true }], placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '61000', returnAddress: '광주', returnAddressDetail: '1층', companyContactNumber: '010' }] }] })
     if (p === C.PATHS.returnCenters('A00012345')) return json({ code: 200, data: { content: [{ returnCenterCode: '200', shippingPlaceName: '반품지A', deliverCode: 'CJGLS', deliverName: 'CJ대한통운', usable: true, placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '61000', returnAddress: '광주 북구', returnAddressDetail: '1층', companyContactNumber: '010' }] }] } })
     if (p === C.PATHS.predict) return json({ code: 200, data: { autoCategorizationPredictionResultType: 'SUCCESS', predictedCategoryId: '56137', predictedCategoryName: '머그컵' } })
     if (p === C.PATHS.brandSearch && method === 'POST') {
@@ -226,7 +226,9 @@ globalThis.fetch = async (url, opts = {}) => {
     if (p === C.PATHS.categoryMeta('56137')) return json({ code: 'SUCCESS', ...META })
     if (p === C.PATHS.categoryMeta('77777')) return json({ code: 'SUCCESS', ...META2 })
     if (p === C.PATHS.products && method === 'POST') return json({ code: 'SUCCESS', message: '', data: 1234567890 })
-    if (p === C.PATHS.product('1234567890')) return json({ code: 'SUCCESS', data: { statusName: relay.status || '승인대기중' } })
+    if (p === C.PATHS.products && method === 'PUT') return relay.mode === 'put-fail' ? json({ code: 'ERROR', message: '필수 속성 누락' }, 400) : json({ code: '200', message: '', data: { code: 'SUCCESS', message: '', data: 1234567890 } })
+    if (p === C.PATHS.approval('1234567890') && method === 'PUT') return relay.mode === 'approval-fail' ? json({ code: 'ERROR', message: '상품 정보가 등록 또는 수정되고 있습니다. 잠시 후 다시 조회해 주시기 바랍니다.' }, 400) : json({ code: 'SUCCESS', message: '1234567890 승인 요청되었습니다.', data: '1234567890' })
+    if (p === C.PATHS.product('1234567890')) return json({ code: 'SUCCESS', data: { sellerProductId: 1234567890, statusName: relay.status || '승인대기중', items: [{ sellerProductItemId: 777001, vendorItemId: null, itemName: '블랙', externalVendorSku: 'MUG-BK' }] } })
     if (p === C.PATHS.histories('1234567890')) return json({ code: 'SUCCESS', data: [{ status: '승인요청', comment: '' }, { status: '승인반려', comment: '대표 이미지에 글자가 있습니다' }] })
     return json({ message: 'no route' }, 404)
   }
@@ -385,6 +387,43 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   relay.status = '승인완료'
   eq('동기화: 승인완료', (await post('sync')).body.sends.find(s => s.sellerProductId === '1234567890').status, 'approved')
   eq('처리현황 응답에 request_json 원문 없음', 'request_json' in (await post('sends_list')).body.sends[0], false)
+
+  // ── 16. 고쳐서 다시 보내기 — 서버 (가짜 쿠팡) ──
+  {
+    const row = () => db.marketplace_sends.find(s => s.seller_product_id === '1234567890')
+    const base = row()
+    if (!base) { eq('다시 보낼 전송 기록이 있음', false, true) } else {
+      const SEND2 = { ...SEND, exportId: undefined, productName: '매일 쓰는 머그 (고침)' }
+      base.status = 'approval_pending'
+      eq('반려가 아닌 전송은 다시 보낼 수 없음 → 409 not_rejected', [(await post('send_prepare', { resendId: base.id })).body.code, (await post('send', { ...SEND2, resendId: base.id })).body.code], ['not_rejected', 'not_rejected'])
+      base.status = 'rejected'; base.reason = '도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다.'; base.coupang_status = '승인반려'
+      const pre = await post('send_prepare', { resendId: base.id })
+      eq('send_prepare(resendId): 그 전송의 값으로 채울 재료 · 같은 내 상품', [pre.statusCode, pre.body.resend.sendId, pre.body.resend.sellerProductId, pre.body.resend.reason, pre.body.resend.form.productName, pre.body.export.id === base.export_id], [200, base.id, '1234567890', base.reason, '매일 쓰는 머그', true])
+      eq('남의 전송·없는 전송 → 404', (await post('send_prepare', { resendId: '99999999-9999-4999-8999-999999999999' })).statusCode, 404)
+      const count = db.marketplace_sends.length
+      relay.calls = []
+      relay.mode = 'put-fail'
+      const bad = await post('send', { ...SEND2, resendId: base.id })
+      eq('상품 수정 실패 → 기록은 "반려" 그대로 · 새 기록 없음 · 승인 요청을 부르지 않음', [bad.statusCode, row().status, db.marketplace_sends.length, relay.calls.some(c => c.path.endsWith('/approvals'))], [502, 'rejected', count, false])
+      relay.calls = []
+      relay.mode = 'approval-fail'
+      const half = await post('send', { ...SEND2, resendId: base.id })
+      eq('승인 요청 실패 → approval_failed · 기록은 "반려" 그대로 · 회차 이력에 남음(approval false)', [half.body.code, row().status, row().request_json.revisions.map(r => [r.n, r.approval])], ['approval_failed', 'rejected', [[1, false]]])
+      relay.calls = []
+      relay.mode = 'ok'
+      const ok2 = await post('send', { ...SEND2, resendId: base.id })
+      const calls = relay.calls.map(c => [c.method, c.path.replace(/^\/coupang/, '')])
+      const put = relay.calls.find(c => c.method === 'PUT' && c.path.endsWith('/seller-products'))
+      const app = relay.calls.find(c => c.path.endsWith('/approvals'))
+      eq('다시 승인 요청: 상품 조회 → 상품 수정(PUT) → 승인 요청(PUT …/approvals) 순서 · 상품 생성(POST)은 부르지 않음', [calls.filter(c => c[1].includes('/seller-products')), relay.calls.some(c => c.method === 'POST' && c.path.endsWith('/seller-products'))], [[['GET', C.PATHS.product('1234567890')], ['PUT', C.PATHS.products], ['PUT', C.PATHS.approval('1234567890')]], false])
+      eq('상품 수정 호출 형식: 같은 sellerProductId · 옵션 id · requested false · 고친 이름 / 승인 요청은 본문 없음', [put.body.sellerProductId, put.body.items[0].sellerProductItemId, put.body.items[0].vendorItemId, put.body.requested, put.body.sellerProductName, app.body, app.method], [1234567890, 777001, null, false, '매일 쓰는 머그 (고침)', null, 'PUT'])
+      eq('성공: 같은 기록이 "승인 대기"로 · 반려 사유 지움 · 새 기록 없음 · 회차 이력 2건(예전 사유 보관)', [ok2.statusCode, ok2.body.resend, ok2.body.sendId === base.id, row().status, row().reason, db.marketplace_sends.length, row().request_json.revisions.map(r => [r.n, r.approval, r.previousReason === base.reason || r.previousReason === '도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다.'])], [200, true, true, 'approval_pending', null, count, [[1, false, true], [2, true, true]]])
+      eq('목록에 수정 회차가 보임', (await post('sends_list')).body.sends.find(s => s.id === base.id).revision, 2)
+      base.status = 'approved' // 뒤 테스트를 위해 되돌림
+      eq('키·서명이 기록에 없음', /access[-_]?key|secret|signature|authorization/i.test(JSON.stringify(row().request_json)), false)
+    }
+  }
+
 
   // ── 항목 보강 (coupang-fields) — 판매 방식·이름·태그·옵션 이미지·인증·구비서류 ──
   {
@@ -767,7 +806,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const cp = read('src/components/studio/StudioSendCoupang.vue'), shell = read('src/components/studio/StudioSendModal.vue'), modalBox = read('src/components/studio/StudioModal.vue')
 
   // 1) 창 폭 · 옵션 표
-  eq('1 창 폭: 보내기 창 = 화면 폭 90%(최대 1400px) · 다른 창의 wide는 그대로', [/<StudioModal :open="open" title="판매처로 보내기" full /.test(shell), modalBox.includes("full ? 'w-[90vw] max-w-[1400px]' : wide ? 'w-full max-w-2xl' : 'w-full max-w-md'")], [true, true])
+  eq('1 창 폭: 보내기 창 = 화면 폭 90%(최대 1400px) · 다른 창의 wide는 그대로', [/<StudioModal :open="open" :title="prepare\?\.resend \? '고쳐서 다시 보내기' : '판매처로 보내기'" full /.test(shell), modalBox.includes("full ? 'w-[90vw] max-w-[1400px]' : wide ? 'w-full max-w-2xl' : 'w-full max-w-md'")], [true, true])
   eq('1 옵션 표: 가로 스크롤 없음 · 칸 폭 고정 배치 · 입력 칸은 칸 폭에 맞춤', [/overflow-x-auto[^"]*"[^>]*>\s*<table class="opt-table"/.test(cp), /\.opt-table \{[^}]*table-layout: fixed/.test(cp), /\.opt-in \{ width: 100%; min-width: 0;/.test(cp), /class="st-input w-\[\d+px\]"[^>]*data-mk-s-(stock|sku|price|opt)=/.test(cp)], [false, true, true, false])
   const fixedCss = ['c-img', 'c-price', 'c-price', 'c-rate', 'c-stock', 'c-sku', 'c-gtin', 'c-del'].reduce((n, c) => n + Number(new RegExp(`\\.opt-table \\.${c} \\{ width: (\\d+)px`).exec(cp)?.[1] || NaN), 0)
   eq('1 옵션 표: 화면의 고정 칸 폭 합 = 규칙 파일 숫자', [fixedCss, Number(/\.opt-table \.c-cny \{ width: (\d+)px/.exec(cp)?.[1])], [R.OPTION_FIXED_PX, R.OPTION_CNY_PX])
@@ -864,6 +903,78 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const kr2 = F.koreanizeSkus(two.rows.map(r => ({ values: r.values.map(v => ({ name: pairOf(v.name), value: pairOf(v.value) })) })))
   eq('옵션 종류 2개(색상+사이즈): 종류 2 · 줄 = SKU 수 · 자동 이름', [kr2.types.map(t => t.label), kr2.rows.length, F.autoItemNames(kr2.rows.map(r => kr2.types.map(t => r.opt[t.key])))], [['색상', '사이즈'], 3, ['블랙 / 36-37', '화이트 / 36-37', '블랙 / 40-41']])
   eq('화면: 맞추기 줄·표 열이 옵션 종류 수만큼 (v-for)', [/<div v-for="t in f\.optionTypes" :key="t\.key" class="flex flex-wrap items-center gap-2 text-\[13px\]">/.test(shown), /<th v-for="t in f\.optionTypes" :key="t\.key">/.test(shown), /<td v-for="\(t, ti\) in f\.optionTypes" :key="t\.key"/.test(shown), /f\.value\.items = s\.skus\.map\(/.test(cp)], [true, true, true, true])
+}
+
+// ── 15. 쿠팡 승인반려 대응 (2026-09-28): 도서산간 택배사 · 상세 이미지 규격 · 고쳐서 다시 보내기 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const I = await import('../api/_coupangImage.js')
+  const { default: sharp } = await import('sharp')
+
+  // 1) 출고지에 등록된 도서산간 택배사
+  eq('출고지 응답 remoteInfos 읽기: 쓸 수 있는 것만 · 중복 뺌 · 대문자', F.normalizeRemoteInfos([{ remoteInfoId: 1, deliveryCode: 'cjgls', jeju: 5000, notJeju: 2500, usable: true }, { deliveryCode: 'HANJIN', usable: false }, { deliveryCode: 'CJGLS', usable: true }, { deliveryCode: 'DIRECT', jeju: 0, notJeju: 0 }, null]), [{ code: 'CJGLS', jeju: 5000, notJeju: 2500 }, { code: 'DIRECT', jeju: 0, notJeju: 0 }])
+  const P = remote => ({ kind: 'outbound', place_code: '100', address: remote === undefined ? { zip: '1' } : { zip: '1', remote } })
+  eq('택배사 규칙: 등록된 택배사면 통과 · 아니면 막음 · 도서산간을 끄면 통과', [
+    F.courierRule({ place: P([{ code: 'HANJIN' }, { code: 'LOTTE' }]), remoteOn: true, company: 'HANJIN' }).ok,
+    F.courierRule({ place: P([{ code: 'HANJIN' }]), remoteOn: true, company: 'CJGLS' }),
+    F.courierRule({ place: P([{ code: 'HANJIN' }]), remoteOn: false, company: 'CJGLS' }).ok,
+  ], [true, { known: true, couriers: ['HANJIN'], canRemote: true, ok: false, reason: 'courier' }, true])
+  eq('택배사 규칙: 등록된 것이 없으면 도서산간을 켤 수 없음 · 끄면 통과', [F.courierRule({ place: P([]), remoteOn: true, company: 'CJGLS' }), F.courierRule({ place: P([]), remoteOn: false, company: 'CJGLS' }).ok], [{ known: true, couriers: [], canRemote: false, ok: false, reason: 'none' }, true])
+  eq('택배사 규칙: 출고지 정보를 아직 못 읽었으면(예전 저장분) 막지 않음', F.courierRule({ place: P(undefined), remoteOn: true, company: 'CJGLS' }), { known: false, couriers: [], canRemote: true, ok: true, reason: '' })
+  eq('안내 문구', F.REMOTE_NONE_NOTE, 'Wing 출고지 관리에서 도서산간 택배사를 등록하면 켤 수 있어요')
+  const TT = { name: 't', delivery_charge_type: 'FREE', delivery_charge: 0, free_ship_over_amount: 0, delivery_charge_on_return: 3000, return_charge: 3000, exchange_charge: 6000, outbound_shipping_time_day: 2, delivery_company_code: 'CJGLS', outbound_place_code: '100', return_center_code: '200', remote_area_deliverable: true }
+  const PL = remote => [P(remote), { kind: 'return', place_code: '200', address: {} }]
+  eq('템플릿 저장 검사: 다른 택배사 → 거절 · 등록된 택배사 → 통과 · 등록 없음 + 도서산간 켬 → 거절(이유 안내) · 끄면 통과', [
+    C.validateTemplate(TT, PL([{ code: 'HANJIN' }])).ok, C.validateTemplate({ ...TT, delivery_company_code: 'HANJIN' }, PL([{ code: 'HANJIN' }])).ok,
+    C.validateTemplate(TT, PL([])).ok, C.validateTemplate(TT, PL([])).message.includes(F.REMOTE_NONE_NOTE), C.validateTemplate({ ...TT, remote_area_deliverable: false }, PL([])).value.remote_area_deliverable,
+  ], [false, true, false, true, false])
+  const withRemote = remote => ({ ...BASE, places: BASE.places.map(p => (p.kind === 'outbound' ? { ...p, address: { ...p.address, remote } } : p)) })
+  eq('보내기: 템플릿의 택배사가 출고지의 도서산간 택배사와 다르면 본문을 만들지 않음 · 같으면 통과', [C.buildProductBody(withRemote([{ code: 'HANJIN' }])).ok, C.buildProductBody(withRemote([{ code: 'HANJIN' }])).message, C.buildProductBody(withRemote([{ code: BASE.template.delivery_company_code }])).ok], [false, F.TEMPLATE_COURIER_FIX, true])
+  const tpl = read('src/components/studio/StudioShippingTemplates.vue')
+  eq('템플릿 화면: 택배사 선택지 = 규칙 함수 · 도서산간 끔 + 이유 한 줄 · 기존 템플릿을 열 때도 검사', [/v-for="\[code, name\] in courierChoices"/.test(tpl), /:disabled="!rule\.canRemote"/.test(tpl), /data-mk-template-remote-note/.test(tpl), /function startEdit\(t\) \{[\s\S]{0,200}applyCourierRule\(\)/.test(tpl), /courierRule\(/.test(tpl)], [true, true, true, true, true])
+
+  // 2) 상세 이미지 규격
+  eq('상세 이미지: 높이 300 → 500으로 채움 (한 장)', F.detailImagePlan({ key: '01', width: 780, height: 300 }), [{ key: '01', src: '01', x: 0, y: 0, w: 780, h: 300, outW: 780, outH: 500, changed: true }])
+  eq('상세 이미지: 높이 7000 → 2조각 (3500 + 3500)', F.detailImagePlan({ key: '02', width: 780, height: 7000 }).map(p => [p.key, p.y, p.h, p.outW, p.outH, p.changed]), [['02p1', 0, 3500, 780, 3500, true], ['02p2', 3500, 3500, 780, 3500, true]])
+  eq('상세 이미지: 규격 안이면 그대로 · 너비 300도 채움 · 높이 12001 → 3조각(빠지는 줄 없음) · 크기를 모르면 그대로', [
+    F.detailImagePlan({ key: '03', width: 780, height: 5000 }).map(p => [p.key, p.changed]), F.detailImagePlan({ key: '04', width: 300, height: 900 })[0].outW,
+    F.detailImagePlan({ key: '05', width: 1560, height: 12001 }).map(p => p.h), F.detailImagePlan({ key: '05', width: 1560, height: 12001 }).reduce((n, p) => n + p.h, 0), F.detailImagePlan({ key: '06' }).map(p => [p.key, p.changed]),
+  ], [[['03', false]], 500, [4000, 4000, 4001], 12001, [['06', false]]])
+  eq('상세 이미지: 모든 조각이 한 변 500~5000', [[780, 300], [780, 7000], [300, 300], [6000, 6000], [1560, 32767], [499, 5001]].every(([w, h]) => F.detailImagePlan({ key: '01', width: w, height: h }).every(p => p.outW >= 500 && p.outW <= 5000 && p.outH >= 500 && p.outH <= 5000)), true)
+  eq('요약 표 "상세 이미지 N장 (쿠팡 규격 맞춤)" — 나눈 조각 수로', [F.detailImageLabel([{ key: '01', width: 780, height: 300 }, { key: '02', width: 780, height: 7000 }]), F.previewRows({ detailFiles: [{ key: '01', width: 780, height: 900 }] }).find(r => r.label === '상세 이미지').value, F.detailImageLabel([])], ['상세 이미지 3장 (쿠팡 규격 맞춤)', '상세 이미지 1장 (쿠팡 규격 맞춤)', ''])
+  const red = (w, h) => sharp({ create: { width: w, height: h, channels: 3, background: { r: 200, g: 0, b: 0 } } }).png().toBuffer()
+  const short = await I.renderDetailPiece(await red(780, 300), F.detailImagePlan({ key: '01', width: 780, height: 300 })[0])
+  const shortMeta = await sharp(short.buf).metadata()
+  const px = async (buf, x, y) => [...(await sharp(buf).extract({ left: x, top: y, width: 1, height: 1 }).raw().toBuffer())].slice(0, 3)
+  const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 12)
+  eq('실제로 만든 그림: 780×300 → 780×500 JPG · 위아래는 흰색 · 가운데는 원래 그림', [shortMeta.width, shortMeta.height, shortMeta.format, near(await px(short.buf, 390, 20), [255, 255, 255]), near(await px(short.buf, 390, 480), [255, 255, 255]), near(await px(short.buf, 390, 250), [200, 0, 0])], [780, 500, 'jpeg', true, true, true])
+  const tallSrc = await sharp({ create: { width: 780, height: 7000, channels: 3, background: { r: 0, g: 0, b: 200 } } }).composite([{ input: await red(780, 3500), top: 0, left: 0 }]).png().toBuffer()
+  const tall = await Promise.all(F.detailImagePlan({ key: '02', width: 780, height: 7000 }).map(p => I.renderDetailPiece(tallSrc, p)))
+  const tallMeta = await Promise.all(tall.map(t => sharp(t.buf).metadata()))
+  eq('실제로 만든 그림: 780×7000 → 2조각(각 780×3500) · 첫 조각 = 위쪽 · 둘째 조각 = 아래쪽', [tall.length, tallMeta.map(m => [m.width, m.height]), near(await px(tall[0].buf, 10, 3400), [200, 0, 0]), near(await px(tall[1].buf, 10, 10), [0, 0, 200])], [2, [[780, 3500], [780, 3500]], true, true])
+  const noisy = await sharp(Buffer.from(Array.from({ length: 600 * 600 * 3 }, (_, i) => (i * 2654435761) % 251)), { raw: { width: 600, height: 600, channels: 3 } }).png().toBuffer()
+  const small = await I.shrinkBytes(noisy, { maxBytes: 150000 })
+  eq('10MB 초과(여기서는 작은 상한으로 확인) → JPG 품질을 낮춰 상한 아래로', [small.buf.length <= 150000, small.quality < 90, small.tooBig, (await sharp(small.buf).metadata()).width], [true, true, false, 600])
+  eq('대표 이미지는 그대로 (정사각 1000 — 계획·변환 대상이 아님)', [/pieces\[p\.key\]/.test(read('api/marketplace.js')), /renderDetailPiece\(rep|pieces\.rep/.test(read('api/marketplace.js'))], [true, false])
+  eq('이미지 토큰: 조각 열쇠(01p1)를 받음 · 이상한 열쇠는 거절', (() => { const k = crypto.randomBytes(32); const id = '55555555-5555-4555-8555-555555555555'; let bad = false; try { makeImageToken(k, id, '01p') } catch { bad = true } return [verifyImageToken(k, makeImageToken(k, id, '02p2'))?.key, bad] })(), ['02p2', true])
+
+  // 3) 반려 사유는 카드에 그대로 · 4) [고쳐서 다시 보내기]
+  const R15 = await import('../src/lib/studioMarketplaceRules.js')
+  const sl = read('src/components/studio/StudioSendList.vue'), cp15 = read('src/components/studio/StudioSendCoupang.vue')
+  eq('보낸 상품 카드: 반려 사유 그대로 · 반려 항목에만 [고쳐서 다시 보내기] · 보내면 목록 다시 읽기 · 로그아웃 때 비움', [/\{\{ s\.status === 'rejected' \? '반려 사유: ' : '' \}\}\{\{ s\.reason \}\}/.test(sl), /<button v-if="canResend\(s\)"[^>]*data-mk-send-resend/.test(sl), sl.includes("'고쳐서 다시 보내기'"), /@sent="onResent"/.test(sl), /resendPrepare\.value = null/.test(sl)], [true, true, true, true, true])
+  eq('[고쳐서 다시 보내기]는 반려 + 쿠팡 상품 번호가 있을 때만', [R15.canResend({ status: 'rejected', sellerProductId: '16397573540' }), R15.canResend({ status: 'rejected', sellerProductId: null }), R15.canResend({ status: 'failed', sellerProductId: '1' }), R15.canResend({ status: 'approval_pending', sellerProductId: '1' }), R15.canResend(null)], [true, false, false, false, false])
+  eq('버튼 글자: 다시 보내기 = "다시 승인 요청" · 아니면 예전 그대로', [R15.sendActionLabel(['coupang'], true), R15.sendActionLabel(['coupang'], false), R15.sendActionLabel([], false)], ['다시 승인 요청', '쿠팡으로 보내기', '선택한 판매처로 보내기'])
+  eq('쿠팡 섹션: 다시 보내기면 resendId를 같이 보냄 · 템플릿 택배사 검사 · 요약 표에 상세 이미지', [cp15.includes('...(resend.value ? { resendId: resend.value.sendId } : {}),'), cp15.includes("else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (설정 > 배송·반품 템플릿에서 다시 저장)')"), cp15.includes("detailFiles: props.prepare?.export?.files || []")], [true, true, true])
+
+  // 4) 고쳐서 다시 보내기 — 호출 형식
+  eq('쿠팡 경로: 상품 수정 = 상품 생성과 같은 경로(PUT) · 승인 요청 = …/{id}/approvals', [C.PATHS.products, C.PATHS.approval('16397573540')], ['/v2/providers/seller_api/apis/api/v1/marketplace/seller-products', '/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/16397573540/approvals'])
+  const up = C.buildProductBody({ ...BASE, items: [BASE.items[0], { ...BASE.items[0], name: '화이트', sku: 'MUG-WH', attributes: { 색상: '화이트' } }], update: { sellerProductId: '16397573540', items: [{ sellerProductItemId: 9001, vendorItemId: null, itemName: '블랙', externalVendorSku: 'MUG-BK' }] } })
+  eq('상품 수정 본문: sellerProductId(숫자) · 기존 옵션에 sellerProductItemId·vendorItemId · 새 옵션에는 없음 · requested false', [up.ok, up.body.sellerProductId, up.body.requested, up.body.items.map(i => [i.itemName, i.sellerProductItemId, 'vendorItemId' in i ? i.vendorItemId : 'x'])], [true, 16397573540, false, [['블랙', 9001, null], ['화이트', undefined, 'x']]])
+  eq('상품 생성 본문은 그대로: requested true · sellerProductId 없음', [C.buildProductBody(BASE).body.requested, 'sellerProductId' in C.buildProductBody(BASE).body], [true, false])
+  eq('옵션 id 맞추기: 품번 먼저 · 없으면 옵션 이름 · 한 id를 두 번 쓰지 않음', F.matchItemIds([{ sku: 'A', name: '블랙' }, { sku: 'ZZ', name: '화이트' }, { sku: 'A', name: '블랙' }], [{ sellerProductItemId: 1, vendorItemId: 11, externalVendorSku: 'A', itemName: '블랙' }, { sellerProductItemId: 2, itemName: '화이트', externalVendorSku: 'W' }]), [{ sellerProductItemId: 1, vendorItemId: 11 }, { sellerProductItemId: 2, vendorItemId: null }, null])
+  const form = F.formFromBody(C.buildProductBody({ ...BASE, saleMode: 'agent', outboundDays: 10, displayName: '이유씨 머그컵', generalName: '머그컵', manufacture: '이유씨컴퍼니', modelNo: 'M-1', searchTags: ['머그컵'], advanced: { maxPerPerson: 2, maxPerPersonDays: 30 } }).body)
+  eq('보냈던 본문 → 보내기 창 값', [form.saleMode, form.outboundDays, form.productName, form.displayName, form.generalName, form.noBrand, form.brand, form.brandId, form.manufacture, form.modelNo, form.categoryCode, form.tags, form.optionTypes, form.items, form.notices, form.advanced.maxPerPerson, form.noticeCategory], ['agent', 10, '매일 쓰는 머그', '이유씨 머그컵', '머그컵', false, '이유씨', 'KR-77', '이유씨컴퍼니', 'M-1', '56137', ['머그컵'], ['색상'], [{ name: '블랙', originalPrice: 12000, salePrice: 9900, stock: 50, sku: 'MUG-BK', gtin: '', attributes: { 색상: '블랙' } }], { '품명 및 모델명': '머그' }, 2, '기타 재화'])
+  eq('보냈던 본문이 없거나 이상하면 null · 브랜드 없이 보낸 것은 "브랜드 없음"', [F.formFromBody(null), F.formFromBody({ items: [] }), F.formFromBody(C.buildProductBody({ ...BASE, brand: '', brandId: '' }).body).noBrand], [null, null, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

@@ -13,6 +13,7 @@ import crypto from 'crypto'
 import {
   SALE_MODES, isSaleMode, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, normalizeAdvanced, cleanSearchTags, realCerts, docRequired,
   CERT_NONE, NAME_MAX, ITEMS_MAX, STOCK_MAX, NOTICE_LEN, DOC_MAX, DOC_PATH_MAX, namesNeedKorean, autoItemNames, BRAND_MAX, BRAND_ID_RE, BRAND_NOT_FOUND,
+  normalizeRemoteInfos, courierRule, REMOTE_NONE_NOTE, TEMPLATE_COURIER_FIX, matchItemIds,
 } from './_coupangFields.js'
 
 export const COUPANG_HOST = 'https://api-gateway.coupang.com'
@@ -25,6 +26,7 @@ export const PATHS = {
   predict: '/v2/providers/openapi/apis/api/v1/categorization/predict',
   categoryMeta: code => `/v2/providers/seller_api/apis/api/v1/marketplace/meta/category-related-metas/display-category-codes/${code}`,
   products: '/v2/providers/seller_api/apis/api/v1/marketplace/seller-products',
+  approval: id => `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/${id}/approvals`, // 상품 승인 요청 (문서 360033644894) — PUT · 본문 없음
   brandSearch: '/v2/providers/seller_api/apis/api/v1/marketplace/brands/search', // 문서 58230017410841 — POST · 본문 { brandName, countPerPage, page }
   product: id => `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/${id}`,
   histories: id => `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/${id}/histories`,
@@ -175,7 +177,8 @@ function pickAddress(placeAddresses) {
 export function normalizeOutbound(rows) {
   return (Array.isArray(rows) ? rows : []).filter(r => r && r.outboundShippingPlaceCode != null).map(r => ({
     kind: 'outbound', place_code: String(r.outboundShippingPlaceCode), name: String(r.shippingPlaceName || '출고지').slice(0, 100),
-    usable: r.usable !== false, address: pickAddress(r.placeAddresses),
+    // remote = 이 출고지에 등록된 도서산간 택배사 (응답 remoteInfos 중 쓸 수 있는 것) — 템플릿의 택배사를 여기서만 고르게 한다
+    usable: r.usable !== false, address: { ...pickAddress(r.placeAddresses), remote: normalizeRemoteInfos(r.remoteInfos) },
   }))
 }
 /** 반품지 응답 content[] → 저장 행 */
@@ -216,6 +219,10 @@ export function validateTemplate(t, places) {
   const has = (kind, code) => (places || []).some(p => p.kind === kind && p.place_code === code)
   if (!has('outbound', out)) return { ok: false, message: '출고지를 골라 주세요. (연결 상태에서 [출고지·반품지 새로고침])' }
   if (!has('return', rc)) return { ok: false, message: '반품지를 골라 주세요. (연결 상태에서 [출고지·반품지 새로고침])' }
+  // 도서산간 배송을 켰으면 택배사는 그 출고지에 등록된 도서산간 택배사 중 하나 (쿠팡 반려 사유 2026-09-28). 출고지 정보를 아직 못 읽었으면(예전 저장분) 검사하지 않는다
+  const rule = courierRule({ place: (places || []).find(p => p.kind === 'outbound' && p.place_code === out), remoteOn: t?.remote_area_deliverable !== false, company })
+  if (rule.reason === 'none') return { ok: false, message: `이 출고지에는 도서산간 택배사가 없어요. "도서산간 배송 가능"을 꺼 주세요. ${REMOTE_NONE_NOTE}.` }
+  if (rule.reason === 'courier') return { ok: false, message: `도서산간 배송을 켜면 출고지에 등록된 택배사만 고를 수 있어요. (${rule.couriers.join(', ')})` }
   return {
     ok: true,
     value: {
@@ -311,7 +318,8 @@ function money(v) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n
  *                      attributeMeta?:[{ name, dataType, unit, exposed }](카테고리 메타 — 단위 붙이기·검색옵션 표시),
  *                      notices:[{ noticeCategoryName, noticeCategoryDetailName, content }], certifications?:[{ type, code }], documents?:[{ templateName, url }],
  *                      advanced?:{ parallelImported, taxType, adultOnly, offerCondition, unionDeliveryType, maxPerPerson, maxPerPersonDays },
- *                      repImageUrl, detailImageUrls:[], searchTags:[], saleStartedAt }
+ *                      repImageUrl, detailImageUrls:[], searchTags:[], saleStartedAt,
+ *                      update?:{ sellerProductId, items:[쿠팡 상품 조회의 data.items] }(있으면 상품 수정 본문 — requested false) }
  * @returns {{ ok:true, body } | { ok:false, message }}
  */
 export function buildProductBody(p) {
@@ -346,6 +354,7 @@ export function buildProductBody(p) {
   const ob = (p.places || []).find(x => x.kind === 'outbound' && x.place_code === t.outbound_place_code)
   if (!rc || !ob) return { ok: false, message: '템플릿의 출고지·반품지가 지금 목록에 없어요. 템플릿을 다시 저장해 주세요.' }
   if (!rc.address?.zip || !rc.address?.address) return { ok: false, message: '반품지 주소 정보가 비어 있어요. [출고지·반품지 새로고침]을 눌러 주세요.' }
+  if (!courierRule({ place: ob, remoteOn: !!t.remote_area_deliverable, company: t.delivery_company_code }).ok) return { ok: false, message: TEMPLATE_COURIER_FIX }
   const items = Array.isArray(p.items) ? p.items : []
   if (!items.length || items.length > ITEMS_MAX) return { ok: false, message: `옵션은 1~${ITEMS_MAX}개예요.` }
   if (!p.repImageUrl) return { ok: false, message: '대표 이미지를 골라 주세요.' }
@@ -430,7 +439,16 @@ export function buildProductBody(p) {
     returnCenterCode: rc.place_code, returnChargeName: rc.name, companyContactNumber: rc.address.contact || '',
     returnZipCode: rc.address.zip, returnAddress: rc.address.address, returnAddressDetail: rc.address.addressDetail || '',
     returnCharge: t.return_charge, outboundShippingPlaceCode: Number.isNaN(Number(ob.place_code)) ? ob.place_code : Number(ob.place_code),
-    vendorUserId: p.account.seller_login_id, requested: true, items: outItems,
+    vendorUserId: p.account.seller_login_id, requested: p.update ? false : true, items: outItems,
+  }
+  // 반려 상품 다시 보내기 — 상품 수정(승인필요, 문서 modify-product): 같은 본문 + sellerProductId · items[].sellerProductItemId·vendorItemId.
+  //   저장만 하고(requested false) 승인 요청은 승인 요청 API로 따로 부른다
+  if (p.update) {
+    const pid = Number(p.update.sellerProductId)
+    if (!Number.isSafeInteger(pid) || pid <= 0) return { ok: false, message: '다시 보낼 상품을 찾지 못했어요. [상태 새로고침]을 눌러 주세요.' }
+    body.sellerProductId = pid
+    const ids = matchItemIds(outItems, p.update.items)
+    outItems.forEach((it, i) => { if (ids[i]) { it.sellerProductItemId = ids[i].sellerProductItemId; it.vendorItemId = ids[i].vendorItemId } })
   }
   if (generalName) body.generalProductName = generalName
   if (docsIn.length) body.requiredDocuments = docsIn.map(d => ({ templateName: String(d.templateName), vendorDocumentPath: String(d.url) }))

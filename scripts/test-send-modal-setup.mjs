@@ -144,6 +144,28 @@ if (built?.Coupang && built?.Modal) {
   eq('4 태그 추천: 가져온 상품 속성의 말(이우·타오바오·경동·이베이·아마존·소원)이 화면에 없음', ['이우', '타오바오', '경동', '이베이', '아마존', '소원'].filter(w => n3.html.includes(w)), [])
   eq('4 태그 추천: 상품명에서 나온 말은 있음', ['헤어핀', '도트'].filter(w => !n3.html.includes(w)), [])
 
+  // ── 쿠팡 승인반려 대응 (2026-09-28): 고쳐서 다시 보내기 · 상세 이미지 요약 · 템플릿 택배사 ──
+  const FORM = {
+    saleMode: 'agent', outboundDays: 10, productName: '도트 헤어핀 3종', displayName: '', generalName: '도트 헤어핀', noBrand: true, brand: '', brandId: '', manufacture: '', modelNo: '',
+    categoryCode: '56137', tags: ['헤어핀', '도트'], noticeCategory: '기타 재화', notices: { 품명: '헤어핀' }, certifications: [], advanced: { taxType: 'TAX' }, optionTypes: ['색상'],
+    items: [{ name: '블랙', originalPrice: 5000, salePrice: 3900, stock: 20, sku: 'HP-BK', gtin: '', attributes: { 색상: '블랙' } }, { name: '레드', originalPrice: 5000, salePrice: 3900, stock: 15, sku: 'HP-RD', gtin: '', attributes: { 색상: '레드' } }],
+  }
+  const RESEND = { sendId: '66666666-6666-4666-8666-666666666666', sellerProductId: '16397573540', reason: '도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다.', revision: 0, form: FORM, categoryName: '헤어핀' }
+  const rp = { ...PREPARE(true, RAW), resend: RESEND }
+  const r1 = await render(built.Modal, { open: true, prepare: rp })
+  eq('다시 보내기 창: 예외 없음 · 제목 · 버튼 "다시 승인 요청" · 쿠팡 상품 번호와 반려 사유 안내', [r1.error, />고쳐서 다시 보내기</.test(r1.html), /data-mk-s-send[^>]*>다시 승인 요청</.test(r1.html), /data-mk-s-resend-note/.test(r1.html) && r1.html.includes('쿠팡 #16397573540') && r1.html.includes('반려 사유: 도서산간배송')], [null, true, true, true])
+  const r2 = await render(built.Coupang, { prepare: rp })
+  eq('다시 보내기: 그 전송의 값으로 채워짐 (이름·옵션·가격·재고·품번 · 가져온 상품 값이 아님)', [r2.error, val(r2.html, 'data-mk-s-name'), (r2.html.match(/data-mk-s-item="/g) || []).length, val(r2.html, 'data-mk-s-item-name="0"'), val(r2.html, 'data-mk-s-price="0"'), val(r2.html, 'data-mk-s-stock="1"'), val(r2.html, 'data-mk-s-sku="1"'), val(r2.html, 'data-mk-s-days')], [null, '도트 헤어핀 3종', 2, '블랙', '3900', '15', 'HP-RD', '10'])
+  eq('요약 표: "상세 이미지 1장 (쿠팡 규격 맞춤)"', /data-mk-s-preview-row="상세 이미지"[\s\S]{0,200}상세 이미지 1장 \(쿠팡 규격 맞춤\)/.test(n1.html), true)
+  const longP = PREPARE(true, SOURCE); longP.export.files = [{ key: '01', name: 'a_01.jpg', width: 780, height: 300 }, { key: '02', name: 'a_02.jpg', width: 780, height: 7000 }]
+  eq('요약 표: 짧은 장 1 + 긴 장(2조각) = 3장', /상세 이미지 3장 \(쿠팡 규격 맞춤\)/.test((await render(built.Coupang, { prepare: longP })).html), true)
+  const badT = PREPARE(true, SOURCE)
+  badT.templates = [{ id: 't1', name: '기본 무료배송', is_default: true, outbound_shipping_time_day: 2, outbound_place_code: '100', delivery_company_code: 'CJGLS', remote_area_deliverable: true }]
+  badT.places = [{ kind: 'outbound', place_code: '100', name: '출고지', address: { remote: [{ code: 'HANJIN' }] } }]
+  const bt = await render(built.Coupang, { prepare: badT })
+  const okT = { ...badT, places: [{ kind: 'outbound', place_code: '100', name: '출고지', address: { remote: [{ code: 'CJGLS' }] } }] }
+  eq('템플릿의 택배사가 출고지의 도서산간 택배사와 다르면 예외 없이 그려짐 (빠짐 목록은 아래 창 테스트)', [bt.error, (await render(built.Coupang, { prepare: okT })).error], [null, null])
+
   const e = await render(built.Modal, { open: true, prepare: null })
   eq('보내기 창 (준비 데이터 없음): 예외 없음 · 보내기 버튼 꺼짐', [e.error, /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(e.html)], [null, true])
 }
