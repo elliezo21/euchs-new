@@ -6,7 +6,8 @@
  *   1. 스위치   STUDIO_ENABLED 가 'admin' | 'all' 이 아니면 503 studio_disabled
  *   2. 토큰     api/bulk-item-detail.js의 verifyUserToken() 재사용 → 실패 시 401 unauthorized
  *   3. admin    관리자·스태프만 (DB 함수 is_admin_or_staff()와 같은 조건) → 아니면 403 not_admin
- *   4. all      studio_entitlements 행 + valid_until 유효 → 아니면 403 no_entitlement
+ *   4. all      관리자·스태프 또는 결제 확인 이후 주문 1건 이상(_studioBg.isBgEligible 그대로) → 아니면 403 not_customer
+ *               (studio_entitlements 행은 자격이 아니라 셀러 하루 상품 조회 상한에만 쓴다 — 없으면 셀러 상한 건너뜀)
  *   5. 소유권   loadOwnedRow() — 남의 행이면 404 (403이면 존재 여부가 샌다)
  *
  * 에러 응답 형식은 하나: { code, message }. 프런트는 code로 분기한다.
@@ -20,6 +21,8 @@
  */
 
 import { verifyUserToken } from './bulk-item-detail.js'
+// 서로 가져오는 관계(_studioBg가 sb·isAdminOrStaff를 씀) — 둘 다 부를 때만 쓰는 함수라 불러오는 순서와 상관없다
+import { isBgEligible } from './_studioBg.js'
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
@@ -193,13 +196,18 @@ export async function studioGuard(req, res, { method = 'POST' } = {}) {
       return { cfg, userId, email, isAdmin: true, mode: cfg.mode, skipUserCap: true }
     }
 
-    // 4. 전체 공개 모드 — 이용권 필수
-    const ok = await hasEntitlement(cfg, userId)
-    if (!ok) {
-      sendError(res, 403, 'no_entitlement', '스튜디오 이용 권한이 없습니다.')
+    // 4. 전체 공개 모드 — 관리자·스태프 또는 "결제 확인 이후 단계" 주문 1건 이상 (2026-09-28).
+    //    판정은 배경 지우기 자격(_studioBg.isBgEligible — ORDER_OK_STATUSES)을 그대로 쓴다. 새로 정의하지 않는다
+    const staff = await isAdminOrStaff(cfg, userId, email)
+    const base = { cfg, userId, email, isAdmin: staff, mode: cfg.mode }
+    if (!(await isBgEligible(base))) {
+      sendError(res, 403, 'not_customer', '스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요.')
       return null
     }
-    return { cfg, userId, email, isAdmin: false, mode: cfg.mode, skipUserCap: false }
+    // 1688 상품 조회 셀러 하루 상한(studio_try_reserve_onebound)은 이용권 행의 daily_product_quota로 센다 —
+    // 이용권 행이 없는 주문 고객은 그 함수가 no_entitlement를 돌려주므로 셀러 상한을 건너뛴다(전체 하루 상한은 그대로)
+    const skipUserCap = staff || !(await hasEntitlement(cfg, userId))
+    return { ...base, skipUserCap }
   } catch (e) {
     console.error('[studio] 권한 조회 실패:', e.message)
     sendError(res, 500, 'internal', '권한 확인 중 오류가 발생했습니다.')

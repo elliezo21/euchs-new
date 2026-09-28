@@ -113,6 +113,15 @@
       <router-view />
     </main>
 
+    <!-- 스튜디오 전체 공개(all): 로그인했지만 주문 고객이 아닐 때 (라우터 가드 3-2 → studioNoAccessOpen) -->
+    <StudioModal :open="studioNoAccessOpen" :title="STUDIO_NO_ACCESS_TITLE" @close="studioNoAccessOpen = false">
+      <span data-studio-no-access>결제까지 마친 주문이 1건 이상 있으면 바로 쓸 수 있어요.</span>
+      <template #actions>
+        <button type="button" class="st-btn" @click="studioNoAccessOpen = false">닫기</button>
+        <button type="button" class="st-btn st-btn-primary" data-studio-no-access-mall @click="goMall">1688 구매하러 가기</button>
+      </template>
+    </StudioModal>
+
     <!-- 기존 alert() 문구를 그대로 화면 안 모달로 -->
     <StudioModal :open="logoutModal" title="로그아웃" @close="logoutModal = false">
       정상적으로 로그아웃되었습니다.
@@ -133,6 +142,7 @@ import {
 } from 'lucide-vue-next'
 import { currentUser, signOut, openLoginModal } from '@/lib/auth'
 import StudioModal from '@/components/studio/StudioModal.vue'
+import { studioNoAccessOpen, STUDIO_NO_ACCESS_TITLE } from '@/lib/studioAccess'
 
 const route = useRoute()
 const router = useRouter()
@@ -161,6 +171,11 @@ watch(() => route.fullPath, () => { drawerOpen.value = false })
 function closeMenus() {
   accountOpen.value = false
   drawerOpen.value = false
+}
+
+function goMall() {
+  studioNoAccessOpen.value = false
+  router.push('/mall')
 }
 
 function openLogin() {

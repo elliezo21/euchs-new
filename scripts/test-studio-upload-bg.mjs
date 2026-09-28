@@ -143,9 +143,9 @@ const remove = (o = {}) => quiet(() => call({ action: 'bg_remove', projectId: PI
 reset()
 eq('주문 고객 → ready', (await status()).body, { ready: true, reason: null, model: 'birefnet-v2' })
 reset({ orders: [] })
-eq('주문 없음 → not_eligible', (await status()).body.reason, 'not_eligible')
+eq('주문 없음 → 스튜디오 관문이 먼저 403 not_customer (2026-09-28)', (await status()).body.code, 'not_customer')
 reset({ orders: [{ id: 'o', status: 'cancelled' }, { id: 'o2', status: 'quote_pending' }, { id: 'o3', status: 'rejected' }] })
-eq('취소·견적·반려만 → not_eligible', (await status()).body.reason, 'not_eligible')
+eq('취소·견적·반려만 → 관문 403 not_customer', (await status()).body.code, 'not_customer')
 reset({ orders: [], admin: true })
 eq('관리자(전체 공개 모드) → ready', (await status()).body.ready, true)
 reset(); process.env.FAL_KEY = ''
@@ -155,7 +155,7 @@ eq('사용 기록 테이블 없음 → no_table', (await status()).body.reason, 
 reset({ table: 'denied' })
 eq('GRANT 없음(403) → no_table', (await status()).body.reason, 'no_table')
 reset({ orders: [] }); process.env.FAL_KEY = ''
-eq('자격이 먼저 (키 없어도 주문 안 한 사람은 잠금 문구)', (await status()).body.reason, 'not_eligible')
+eq('자격이 먼저 (키 없어도 주문 안 한 사람은 관문에서 막힘)', (await status()).body.code, 'not_customer')
 eq('로그인 없음 → 401', (await quiet(() => call({ action: 'bg_status' }, null))).code, 401)
 
 // ── bg_remove 정상 ──
@@ -194,7 +194,7 @@ reset()
   eq('남의 작업 → 404', [r2.code, S.signCalls.length], [404, 0])
 }
 reset({ orders: [] })
-eq('주문 안 한 고객 → 403 bg_not_eligible · 호출 없음', [(await remove()).body.code, S.falCalls.length, S.signCalls.length], ['bg_not_eligible', 0, 0])
+eq('주문 안 한 고객 → 관문 403 not_customer · 호출 없음', [(await remove()).body.code, S.falCalls.length, S.signCalls.length], ['not_customer', 0, 0])
 reset(); process.env.FAL_KEY = ''
 eq('키 없음 → 503 bg_not_ready', [(await remove()).code, S.falCalls.length], [503, 0])
 reset({ table: 'missing' })
@@ -235,7 +235,7 @@ eq('patch_confirm에 bg 경로 → invalid_input', (await quiet(() => call({ act
   const conf = (o = {}) => quiet(() => call({ action: 'bg_refine_confirm', projectId: PID, imageId: IMG, path: REFINED, ...o }))
   const grayPng = (w, h) => encodeGrayPng(new Uint8Array(w * h).fill(200), w, h)
 
-  reset({ orders: [] }) // 주문 없어도 된다 (AI를 부르지 않음 — 단색과 같은 규칙)
+  reset() // 다듬기 자체는 AI를 부르지 않아 따로 주문 검사가 없다 — 전체 공개(all)에서는 스튜디오 관문이 주문 고객만 들인다(2026-09-28)
   const r = await prep()
   eq('다듬기 준비 → 경로(같은 bg 폴더·refined_key)·토큰', [r.code, r.body.path, r.body.token], [200, REFINED, 'up-token'])
   eq('다듬기 준비: fal·사용 기록·서명 주소 안 씀', [S.falCalls.length, S.usage.length, S.signCalls.length], [0, 0, 0])

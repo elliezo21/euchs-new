@@ -29,6 +29,7 @@ import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
 import { currentUser, checkUserRole, userRole, verifyUserSession } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { AUTH_REDIRECT_KEY, isSafeRedirectPath, isStudioProtectedPath } from '../lib/authRedirect'
+import { checkStudioAccess, studioNoAccessOpen } from '../lib/studioAccess'
 
 // 스튜디오(/studio) 노출 스위치 — off(기본) / admin / all
 // 빌드 시점에 값이 고정된다(재배포해야 바뀜). off면 라우트를 등록하지 않아 /studio는 catch-all로 / 에 간다.
@@ -562,6 +563,19 @@ router.beforeEach(async (to, from, next) => {
     if (from.name && from.path !== to.path && from.path.startsWith('/studio')) next(false)
     else next({ name: 'studio-landing' })
     return
+  }
+
+  // 3-2. 스튜디오 전체 공개(all) — 로그인했지만 자격(관리자·스태프 또는 결제 확인 이후 주문 1건 이상)이 없으면 안내 창 (2026-09-28)
+  //      판정은 서버(studioGuard) 한 곳 — 여기서는 묻기만 한다. 확인 자체가 실패하면 들여보내고(서버 API가 다시 막는다) 원인을 남긴다
+  if (STUDIO_MODE === 'all' && isStudioProtectedPath(to.path) && to.matched.some(r => r.meta?.requiresAuth)) {
+    const access = await checkStudioAccess(currentUser.value?.id)
+    if (access === 'not_customer') {
+      studioNoAccessOpen.value = true
+      if (from.name && from.path !== to.path && from.path.startsWith('/studio')) next(false)
+      else next({ name: 'studio-landing' })
+      return
+    }
+    if (access === 'error') console.error('[guard] 스튜디오 자격 확인 실패 — 화면은 열고 서버 API가 자격을 다시 확인합니다:', to.fullPath)
   }
 
   // 4. 관리자 보호 경로 (/admin 및 /admin/*) 접근

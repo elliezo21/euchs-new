@@ -89,6 +89,9 @@
  * POST { action:'exports_list' } → { ready, items }   /   POST { action:'export_download', exportId } → { files:[{ name, url, bytes }] } (서명 주소 10분)
  * 에러: invalid_input·export_too_large·export_invalid·not_uploaded 400 / not_found 404 / export_sql_missing 503(표 없음) / sign_failed·storage_error 500
  *
+ * ── 사용 자격 (2026-09-28) ── POST { action:'access' } → { ok:true, staff, mode }. 관문(api/_studio.js studioGuard)이 all 모드에서
+ *   관리자·스태프 또는 결제 확인 이후 주문 1건 이상인지 본다 — 아니면 403 not_customer (모든 스튜디오 API 같음)
+ *
  * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다. (배경 마스크는 서버가 새로 만드는 파일이라 예외)
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
@@ -1307,6 +1310,8 @@ export default async function handler(req, res) {
 
   const body = req.body && typeof req.body === 'object' ? req.body : {}
   try {
+    // 화면이 스튜디오 화면을 열기 전에 묻는다 (2026-09-28) — 관문(studioGuard)을 통과했으면 쓸 수 있다. 막히면 관문이 이미 403 not_customer 등을 보냈다
+    if (body.action === 'access') return res.status(200).json({ ok: true, staff: ctx.isAdmin === true, mode: ctx.mode })
     if (body.action === 'prepare') return await prepare(ctx, body, res)
     if (body.action === 'confirm') return await confirm(ctx, body, res)
     if (body.action === 'patch_prepare') return await patchPrepare(ctx, body, res)
@@ -1326,7 +1331,7 @@ export default async function handler(req, res) {
     if (body.action === 'export_file_confirm') return await exportFileConfirm(ctx, body, res)
     if (body.action === 'exports_list') return await exportsList(ctx, body, res)
     if (body.action === 'export_download') return await exportDownload(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download' 중 하나여야 합니다.")
+    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

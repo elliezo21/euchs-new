@@ -281,7 +281,7 @@ eq('전체 한도 소진 → 429 bg_gen_global_limit · fal 안 부름 · 기록
 eq('상태: 전체 남은 0', (await status()).body.globalLeft, 0)
 // 자격·조건
 reset({ orders: [{ status: 'quote_pending' }] })
-eq('주문 없음(견적만) → 상태 not_eligible · 만들기 403', [(await status()).body.reason, (await gen()).body.code, S.falCalls.length], ['not_eligible', 'bg_not_eligible', 0])
+eq('주문 없음(견적만) → 스튜디오 관문이 먼저 403 not_customer (2026-09-28) · fal 안 부름', [(await status()).body.code, (await gen()).body.code, S.falCalls.length], ['not_customer', 'not_customer', 0])
 reset(); process.env.FAL_KEY = ''
 eq('키 없음 → no_key · 503', [(await status()).body.reason, (await gen()).code], ['no_key', 503])
 reset()
