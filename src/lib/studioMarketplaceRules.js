@@ -60,6 +60,25 @@ export function sendButtonLabel(keys) {
   return one ? `${withRo(one.name)} 보내기` : '선택한 판매처로 보내기'
 }
 
+// 보내기 창 옵션 표 — 칸이 잘리지 않게: 표에 필요한 폭이 자리보다 크거나 폰이면 카드형(옵션 1개 = 카드 1장)으로 바꾼다. 가로 스크롤은 쓰지 않는다
+//   고정 칸(px): 사진 52 · 정가 96 · 판매가 96 · 할인 52 · 재고 수량 84 · 품번 164 · GTIN 136 · 빼기 44 (+ 1688 가격 80)
+//   늘어나는 칸: 옵션 이름 + 옵션 종류·속성 칸 — 칸마다 최소 OPTION_FLEX_MIN
+export const OPTION_FIXED_PX = 52 + 96 + 96 + 52 + 84 + 164 + 136 + 44
+export const OPTION_CNY_PX = 80
+export const OPTION_FLEX_MIN = 104
+export const OPTION_PHONE_PX = 640
+/**
+ * @param {{ width:number(표 자리 폭 px — 모르면 0), viewport:number, flexCols:number(옵션 이름 포함), hasCny:boolean }} o
+ * @returns {'table'|'cards'}
+ */
+export function optionTableMode({ width = 0, viewport = 0, flexCols = 2, hasCny = false } = {}) {
+  if (viewport > 0 && viewport < OPTION_PHONE_PX) return 'cards'
+  const room = width > 0 ? width : viewport > 0 ? Math.min(viewport * 0.9, 1400) - 60 : 0 // 창 = 화면 폭 90%(최대 1400) − 안쪽 여백
+  if (!(room > 0)) return 'table'
+  return room < optionTableNeed({ flexCols, hasCny }) ? 'cards' : 'table'
+}
+export const optionTableNeed = ({ flexCols = 2, hasCny = false } = {}) => OPTION_FIXED_PX + (hasCny ? OPTION_CNY_PX : 0) + Math.max(1, flexCols) * OPTION_FLEX_MIN
+
 // 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인 = 초록, 반려·실패 = 빨강
 export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
 /**

@@ -24,16 +24,17 @@
       <!-- 2. 상품 정보 -->
       <section class="space-y-2">
         <h4 class="st-h-card">2. 상품 정보</h4>
-        <label class="block"><span class="st-label">등록상품명 * (발주서에 쓰는 이름, {{ NAME_MAX }}자)</span><input v-model.trim="f.productName" class="st-input w-full" :maxlength="NAME_MAX" data-mk-s-name /></label>
+        <label class="block"><span class="st-label">등록상품명 * (발주서에 쓰는 이름, {{ NAME_MAX }}자)</span><input v-model.trim="f.productName" class="st-input w-full" :maxlength="NAME_MAX" :placeholder="NAME_HINT" data-mk-s-name /></label>
+        <p v-if="namesBad" class="text-[12px] font-bold st-danger-text break-keep" data-mk-s-name-korean>상품명은 한글로 넣어 주세요.</p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="block"><span class="st-label">브랜드 * (없으면 자체브랜드명 — 띄어쓰기·특수문자 없이)</span><input v-model.trim="f.brand" class="st-input w-full" maxlength="50" placeholder="예: 이유씨" data-mk-s-brand /></label>
           <label class="block"><span class="st-label">제조사 (비우면 브랜드와 같게)</span><input v-model.trim="f.manufacture" class="st-input w-full" maxlength="50" data-mk-s-manufacture /></label>
         </div>
-        <label class="block"><span class="st-label">제품명 (색상·사이즈 같은 옵션을 뺀 이름)</span><input v-model.trim="f.generalName" class="st-input w-full" :maxlength="NAME_MAX" data-mk-s-general /></label>
+        <label class="block"><span class="st-label">제품명 (색상·사이즈 같은 옵션을 뺀 이름)</span><input v-model.trim="f.generalName" class="st-input w-full" :maxlength="NAME_MAX" placeholder="예: 도트 헤어핀" data-mk-s-general /></label>
         <label class="block">
           <span class="st-label">노출상품명 (쿠팡 판매 화면에 보이는 이름, {{ NAME_MAX }}자 — 비우면 등록상품명)</span>
           <div class="flex gap-2">
-            <input v-model.trim="f.displayName" class="st-input flex-1 min-w-0" :maxlength="NAME_MAX" data-mk-s-display />
+            <input v-model.trim="f.displayName" class="st-input flex-1 min-w-0" :maxlength="NAME_MAX" placeholder="예: 이유씨 도트 헤어핀" data-mk-s-display />
             <button type="button" class="st-btn shrink-0" :disabled="!nameSeed" data-mk-s-name-suggest @click="suggestNames">이름 추천</button>
           </div>
         </label>
@@ -83,47 +84,51 @@
           <button type="button" class="st-btn" :disabled="!bulkReady" data-mk-s-bulk-apply @click="applyBulk">모든 옵션에 넣기</button>
         </div>
 
-        <div class="overflow-x-auto st-border rounded-[10px]">
+        <!-- 넓으면 표, 자리가 모자라거나 폰이면 카드(옵션 1개 = 카드 1장) — 가로 스크롤 없이 모든 칸이 보인다 (규칙: optionTableMode) -->
+        <div ref="optWrap" class="opt-wrap st-border rounded-[10px]" :class="{ 'is-cards': optMode === 'cards' }" :data-mk-s-items-mode="optMode">
           <table class="opt-table" data-mk-s-items>
             <thead>
               <tr>
-                <th>사진</th>
+                <th class="c-img">사진</th>
                 <th>옵션 이름 *</th>
                 <th v-for="t in f.optionTypes" :key="t.key">{{ t.mapped || t.label }}</th>
-                <th v-for="a in extraAttrs" :key="a.name">{{ a.name }}{{ a.required ? ' *' : '' }}{{ a.unit ? ` (${a.unit})` : '' }}</th>
+                <th v-for="a in extraAttrs" :key="a.name">{{ attrLabel(a) }}</th>
                 <th v-if="!f.optionTypes.length && !extraAttrs.length">구매옵션 *</th>
-                <th v-if="hasCny">1688 가격</th>
-                <th>정가(원) *</th>
-                <th>판매가(원) *</th>
-                <th>할인</th>
-                <th>재고 수량 *</th>
-                <th>품번 *</th>
-                <th>GTIN</th>
-                <th></th>
+                <th v-if="hasCny" class="c-cny">1688 가격</th>
+                <th class="c-price">정가(원) *</th>
+                <th class="c-price">판매가(원) *</th>
+                <th class="c-rate">할인</th>
+                <th class="c-stock">재고 수량 *</th>
+                <th class="c-sku">품번 *</th>
+                <th class="c-gtin">GTIN</th>
+                <th class="c-del"></th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="(it, i) in f.items" :key="it.uid" :data-mk-s-item="i">
-                <td>
+                <td class="c-img" data-label="사진">
                   <button type="button" class="opt-img" :class="{ 'is-picking': pickFor === i }" :title="it.imageId ? '옵션 사진 바꾸기' : '옵션 사진 고르기 (비우면 대표 이미지)'" :data-mk-s-item-image="i" @click="pickFor = pickFor === i ? -1 : i">
                     <img v-if="imageOf(it.imageId)" :src="imageOf(it.imageId).url" alt="" loading="lazy" />
                     <span v-else class="st-muted text-[11px]">대표</span>
                   </button>
                 </td>
-                <td><input v-model.trim="it.name" class="st-input w-[160px]" maxlength="150" /></td>
-                <td v-for="t in f.optionTypes" :key="t.key"><input v-model.trim="it.opt[t.key]" class="st-input w-[110px]" :maxlength="ATTR_VALUE_MAX" :data-mk-s-opt="t.key" /></td>
-                <td v-for="a in extraAttrs" :key="a.name"><input v-model.trim="it.attributes[a.name]" class="st-input w-[110px]" :maxlength="ATTR_VALUE_MAX" :data-mk-s-attr="a.name" /></td>
-                <td v-if="!f.optionTypes.length && !extraAttrs.length">
-                  <div class="flex gap-1"><input v-model.trim="it.freeAttrName" class="st-input w-[90px]" placeholder="종류" :maxlength="ATTR_NAME_MAX" /><input v-model.trim="it.freeAttrValue" class="st-input w-[90px]" placeholder="값" :maxlength="ATTR_VALUE_MAX" /></div>
+                <td class="c-name" data-label="옵션 이름 *">
+                  <input v-model.trim="it.name" class="st-input opt-in" maxlength="150" :placeholder="it.original || '예: 블랙 도트'" :title="it.original || ''" :data-mk-s-item-name="i" />
+                  <span v-if="it.original && needsHand(it)" class="opt-origin" :data-mk-s-origin="i">가져온 옵션: {{ it.original }}</span>
                 </td>
-                <td v-if="hasCny" class="st-muted whitespace-nowrap" :data-mk-s-cny="i">{{ it.priceCny ? `${it.priceCny}위안` : '확인 필요' }}</td>
-                <td><input v-model.number="it.originalPrice" type="number" min="1" class="st-input w-[100px]" /></td>
-                <td><input v-model.number="it.salePrice" type="number" min="1" class="st-input w-[100px]" :data-mk-s-price="i" /></td>
-                <td class="whitespace-nowrap st-ink" :data-mk-s-rate="i">{{ rateText(it) }}</td>
-                <td><input v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[90px]" :title="it.stock1688 === null ? '' : `1688 재고 ${it.stock1688}`" :data-mk-s-stock="i" /></td>
-                <td><input v-model.trim="it.sku" class="st-input w-[130px] font-mono" maxlength="50" :data-mk-s-sku="i" /></td>
-                <td><input v-model.trim="it.gtin" class="st-input w-[130px] font-mono" maxlength="14" placeholder="8~14자리" /></td>
-                <td><button v-if="f.items.length > 1" type="button" class="st-link-muted text-[12px] whitespace-nowrap" @click="removeItem(i)">빼기</button></td>
+                <td v-for="t in f.optionTypes" :key="t.key" :data-label="t.mapped || t.label"><input v-model.trim="it.opt[t.key]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="t.isColor ? '예: 블랙' : ''" :data-mk-s-opt="t.key" /></td>
+                <td v-for="a in extraAttrs" :key="a.name" :data-label="attrLabel(a)"><input v-model.trim="it.attributes[a.name]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :data-mk-s-attr="a.name" /></td>
+                <td v-if="!f.optionTypes.length && !extraAttrs.length" data-label="구매옵션 *">
+                  <div class="flex gap-1"><input v-model.trim="it.freeAttrName" class="st-input opt-in" placeholder="종류" :maxlength="ATTR_NAME_MAX" /><input v-model.trim="it.freeAttrValue" class="st-input opt-in" placeholder="값" :maxlength="ATTR_VALUE_MAX" /></div>
+                </td>
+                <td v-if="hasCny" class="c-cny st-muted whitespace-nowrap" data-label="1688 가격" :data-mk-s-cny="i">{{ it.priceCny ? `${it.priceCny}위안` : '확인 필요' }}</td>
+                <td class="c-price" data-label="정가(원) *"><input v-model.number="it.originalPrice" type="number" min="1" class="st-input opt-in" /></td>
+                <td class="c-price" data-label="판매가(원) *"><input v-model.number="it.salePrice" type="number" min="1" class="st-input opt-in" :data-mk-s-price="i" /></td>
+                <td class="c-rate whitespace-nowrap st-ink" data-label="할인" :data-mk-s-rate="i">{{ rateText(it) }}</td>
+                <td class="c-stock" data-label="재고 수량 *"><input v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input opt-in" :title="it.stock1688 === null ? '' : `1688 재고 ${it.stock1688}`" :data-mk-s-stock="i" /></td>
+                <td class="c-sku" data-label="품번 *"><input v-model.trim="it.sku" class="st-input opt-in font-mono" maxlength="50" :data-mk-s-sku="i" /></td>
+                <td class="c-gtin" data-label="GTIN"><input v-model.trim="it.gtin" class="st-input opt-in font-mono" maxlength="14" placeholder="8~14자리" /></td>
+                <td class="c-del"><button v-if="f.items.length > 1" type="button" class="st-link-muted text-[12px] whitespace-nowrap" @click="removeItem(i)">빼기</button></td>
               </tr>
             </tbody>
           </table>
@@ -240,19 +245,22 @@
 // 보내기 창의 쿠팡 섹션 — 내 상품 한 줄(prepare = send_prepare 응답)을 쿠팡 상품으로. 창(StudioSendModal)이 쿠팡을 체크했을 때만 이 섹션을 띄운다.
 // 판매처마다 섹션 컴포넌트 하나 — 밖으로 내놓는 것은 같다: missing(빠진 것)·busy·done·submit(). 다른 판매처가 열리면 같은 모양으로 하나 더 만든다.
 // 필수값은 화면에서 먼저 막고(missing) 서버가 다시 검사한다. 항목 규칙은 api/_coupangFields.js — 서버와 같은 파일
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
+import { optionTableMode } from '@/lib/studioMarketplaceRules'
 import { predictCategory, getCategoryMeta, sendProduct, makeSquareJpeg, REP_SIZE, readSaleMode, rememberSaleMode, fileToBase64, SEND_BODY_MAX } from '@/lib/studioMarketplace'
 import {
   SALE_MODES, isSaleMode, defaultOutboundDays, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, ENUMS, ENUM_LABEL, advancedDefaults, discountRate,
   TAG_MAX, TAG_LEN, suggestSearchTags, NAME_MAX, suggestGeneralName, suggestDisplayName, ITEMS_MAX, STOCK_MAX, mapOptionName, matchOptionImage,
   hasUntranslated, NOTICE_LEN, NOTICE_SEE_DETAIL, noticeDefaults, docRequired, realCerts, previewRows,
+  pickKoreanName, namesNeedKorean, koreanizeSkus,
 } from '../../../api/_coupangFields.js'
 
 const props = defineProps({ prepare: { type: Object, required: true } })
 
 const ATTR_NAME_MAX = 25
 const ATTR_VALUE_MAX = 30
+const NAME_HINT = '한글 상품명을 넣어 주세요'
 const MODE_DESC = { domestic: '국내에 있는 재고를 바로 보내요.', agent: '주문이 들어오면 해외에서 사서 보내요. 구매자의 개인통관고유부호를 받아요.' }
 const ADV_KEYS = [
   { key: 'taxType', label: '과세' }, { key: 'adultOnly', label: '구매 대상' }, { key: 'offerCondition', label: '상품 상태' },
@@ -275,14 +283,13 @@ const bulk = ref({ originalPrice: null, salePrice: null, stock: null })
 let uid = 0
 const f = ref(blank())
 
-function blankItem() { return { uid: ++uid, name: '', originalPrice: null, salePrice: null, stock: null, stock1688: null, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null, priceCny: null } }
+function blankItem() { return { uid: ++uid, name: '', original: '', originalPrice: null, salePrice: null, stock: null, stock1688: null, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null, priceCny: null } }
 function blank() {
   return {
     saleMode: '', outboundDays: null, productName: '', displayName: '', generalName: '', brand: '', manufacture: '', modelNo: '', categoryCode: '', categoryName: '',
     tags: [], noticeCategory: '', notices: {}, certs: {}, docs: {}, advanced: advancedDefaults(), optionTypes: [], items: [blankItem()], repImageId: null, fit: 'contain', templateId: '',
   }
 }
-const ko = p => (p && (p.ko || p.zh)) || ''
 const source = computed(() => props.prepare?.source || null)
 const template = computed(() => (props.prepare?.templates || []).find(t => t.id === f.value.templateId) || null)
 const hasCny = computed(() => !!source.value && f.value.items.some(it => it.fromSource))
@@ -296,11 +303,12 @@ const sourceNote = computed(() => {
 // 처음 값 — 창이 열릴 때마다 이 섹션이 새로 만들어진다(StudioSendModal이 key로 다시 띄움). 맨 아래에서 한 번 부른다
 function init() {
   const p = props.prepare
-  f.value.productName = String(p?.export?.title || '').slice(0, NAME_MAX)
+  // 상품명 기본값은 한글만 — 작업 이름(지금 이름 → 내 상품을 만들 때 이름) → 가져온 상품 제목의 한글(번역 캐시). 없으면 빈칸 + placeholder
+  f.value.productName = pickKoreanName([p?.export?.projectTitle, p?.export?.title, source.value?.title?.ko])
   f.value.templateId = (p?.templates || []).find(t => t.is_default)?.id || p?.templates?.[0]?.id || ''
   f.value.repImageId = p?.images?.find(im => im.included !== false)?.id || p?.images?.[0]?.id || null
   fillFromSource()
-  if (!f.value.items[0].name) f.value.items[0].name = f.value.productName || '기본'
+  if (!f.value.items[0].fromSource && !f.value.items[0].name) f.value.items[0].name = f.value.productName || '기본' // 옵션 없는 상품 — 가져온 옵션의 빈 이름은 고객이 채운다
   applyRememberedMode()
   if (nameSeed.value) { f.value.generalName = suggestGeneralName({ title: nameSeed.value, optionValues: optionValueList() }); suggestTags() }
 }
@@ -309,17 +317,15 @@ function init() {
 function fillFromSource() {
   const s = source.value
   if (!s?.skus?.length) return
-  const types = []
-  for (const row of s.skus) for (const v of row.values) {
-    const key = v.name.zh
-    if (!types.some(t => t.key === key)) types.push({ key, label: ko(v.name), names: [v.name.ko, v.name.zh].filter(Boolean), mapped: '' })
-  }
-  f.value.optionTypes = types
+  // 옵션 이름·값은 한글만 넣는다(규칙: koreanizeSkus) — 못 옮긴 값은 비워 두고 가져온 글자를 칸 아래에 보여 준다
+  const kr = koreanizeSkus(s.skus, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })
+  f.value.optionTypes = kr.types.map(t => ({ ...t, mapped: '' }))
   f.value.items = s.skus.map((row, i) => {
     const it = blankItem()
     it.fromSource = true
-    for (const v of row.values) it.opt[v.name.zh] = ko(v.value).slice(0, ATTR_VALUE_MAX)
-    it.name = row.values.map(v => ko(v.value)).join(' ').slice(0, 150)
+    it.opt = { ...kr.rows[i].opt }
+    it.name = kr.rows[i].name
+    it.original = kr.rows[i].original
     it.priceCny = row.priceCny
     if (row.priceCny === null) console.error('[StudioSendCoupang] 1688 옵션 가격을 읽지 못함 — "확인 필요"로 표시:', s.offerId, row.skuId)
     it.stock1688 = row.stock // 참고용 — 재고 수량 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다). 고객이 직접 넣는다
@@ -344,14 +350,15 @@ function applyRememberedMode() {
 function onTemplate() { applyRememberedMode() }
 
 // ── 이름·태그 추천 (규칙 기반 — 외부 호출 없음) ──
-const nameSeed = computed(() => ko(source.value?.title) && !hasUntranslated(ko(source.value?.title)) ? ko(source.value.title) : f.value.generalName || f.value.productName)
-const koAttrs = computed(() => (source.value?.attrs || []).filter(a => a.value?.ko).map(a => ({ name: ko(a.name), value: a.value.ko })))
+const nameSeed = computed(() => pickKoreanName([source.value?.title?.ko, f.value.generalName, f.value.productName]))
+const namesBad = computed(() => namesNeedKorean(f.value))
 function suggestNames() {
   f.value.generalName = suggestGeneralName({ title: nameSeed.value, categoryName: f.value.categoryName, optionValues: optionValueList() })
   f.value.displayName = suggestDisplayName({ brand: f.value.brand, generalName: f.value.generalName })
 }
 function suggestTags() {
-  const list = suggestSearchTags({ title: nameSeed.value, categoryName: f.value.categoryName, attrs: koAttrs.value, brand: f.value.brand })
+  // 재료 = 상품명·카테고리·옵션 값 (가져온 상품의 속성은 쓰지 않는다 — 산지·판매 플랫폼 이름이 딸려 온다)
+  const list = suggestSearchTags({ title: nameSeed.value, categoryName: f.value.categoryName, options: [...new Set(optionValueList())], brand: f.value.brand })
   if (tagChips.value) tagChips.value.addMany(list)
   else f.value.tags = list
 }
@@ -402,6 +409,7 @@ const missing = computed(() => {
   if (!isSaleMode(v.saleMode)) out.push('판매 방식 (국내 재고 판매 / 해외구매대행)')
   else if (!(Number.isInteger(v.outboundDays) && v.outboundDays >= OUTBOUND_DAYS_MIN && v.outboundDays <= OUTBOUND_DAYS_MAX)) out.push(`출고 소요일 (${OUTBOUND_DAYS_MIN}~${OUTBOUND_DAYS_MAX}일)`)
   if (!v.productName) out.push('등록상품명')
+  if (namesBad.value) out.push('상품명 한글')
   if (!v.brand) out.push('브랜드 (없으면 자체브랜드명)')
   else if (/[^\p{L}\p{N}]/u.test(v.brand)) out.push('브랜드는 띄어쓰기·특수문자 없이')
   if (!/^\d+$/.test(v.categoryCode)) out.push('카테고리')
@@ -454,6 +462,29 @@ const preview = computed(() => previewRows({
 }))
 
 // ── 옵션 표 ──
+const attrLabel = a => `${a.name}${a.required ? ' *' : ''}${a.unit ? ` (${a.unit})` : ''}`
+/** 가져온 글자를 한글로 못 옮겨 고객이 채워야 하는 줄 — 칸 아래에 가져온 글자를 보여 준다 */
+const needsHand = it => !it.name || hasUntranslated(it.name) || f.value.optionTypes.some(t => !String(it.opt[t.key] || '').trim() || hasUntranslated(it.opt[t.key]))
+// 표 / 카드 — 표 자리 폭을 재서 고른다 (섹션이 가려져 폭이 0이면 화면 폭으로 어림)
+const optWrap = ref(null)
+const optWidth = ref(0)
+const viewport = ref(typeof window !== 'undefined' && Number(window.innerWidth) > 0 ? window.innerWidth : 0)
+const flexCols = computed(() => 1 + (f.value.optionTypes.length + extraAttrs.value.length || 1))
+const optMode = computed(() => optionTableMode({ width: optWidth.value, viewport: viewport.value, flexCols: flexCols.value, hasCny: hasCny.value }))
+let optObserver = null
+function measure() {
+  viewport.value = window.innerWidth
+  optWidth.value = optWrap.value ? optWrap.value.clientWidth : 0
+}
+onMounted(() => {
+  measure()
+  window.addEventListener('resize', measure)
+  if (typeof ResizeObserver !== 'undefined' && optWrap.value) { optObserver = new ResizeObserver(measure); optObserver.observe(optWrap.value) }
+})
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', measure)
+  if (optObserver) optObserver.disconnect()
+})
 const imageOf = id => (id ? props.prepare.images.find(x => x.id === id) : null)
 function setItemImage(id) {
   if (f.value.items[pickFor.value]) f.value.items[pickFor.value].imageId = id
@@ -597,10 +628,33 @@ defineExpose({ missing, busy, done, submit })
 .mode-card { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-align: left; border-radius: 10px; border: 1px solid var(--st-line-strong); background: var(--st-surface); }
 .mode-card:hover { border-color: var(--st-accent); }
 .mode-card.is-on { border-color: var(--st-accent); box-shadow: 0 0 0 2px var(--st-accent-ring); }
-.opt-table { width: 100%; border-collapse: collapse; font-size: 12px; }
-.opt-table th { padding: 8px 6px; text-align: left; font-weight: 700; color: var(--st-muted); white-space: nowrap; border-bottom: 1px solid var(--st-line); }
-.opt-table td { padding: 6px; vertical-align: middle; border-bottom: 1px solid var(--st-line); }
+/* 옵션 표 — 고정 칸 폭은 studioMarketplaceRules.js OPTION_FIXED_PX와 같은 숫자. 나머지 칸(옵션 이름·옵션 종류)이 남는 폭을 나눠 갖는다 */
+.opt-wrap { overflow: hidden; }
+.opt-table { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+.opt-table th { padding: 8px 5px; text-align: left; font-weight: 700; color: var(--st-muted); border-bottom: 1px solid var(--st-line); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.opt-table td { padding: 6px 5px; vertical-align: middle; border-bottom: 1px solid var(--st-line); }
 .opt-table tr:last-child td { border-bottom: 0; }
+.opt-table .c-img { width: 52px; }
+.opt-table .c-cny { width: 80px; overflow: hidden; text-overflow: ellipsis; }
+.opt-table .c-price { width: 96px; }
+.opt-table .c-rate { width: 52px; }
+.opt-table .c-stock { width: 84px; }
+.opt-table .c-sku { width: 164px; }
+.opt-table .c-gtin { width: 136px; }
+.opt-table .c-sku .opt-in, .opt-table .c-gtin .opt-in { font-size: 12px; } /* 품번 "상품번호-옵션번호" 17자가 다 보이게 */
+.opt-table .c-del { width: 44px; }
+.opt-in { width: 100%; min-width: 0; padding-left: 8px; padding-right: 8px; }
+.opt-origin { display: block; margin-top: 3px; font-size: 11px; color: var(--st-muted); word-break: break-all; }
+/* 카드형 — 옵션 1개 = 카드 1장, 칸마다 이름표 */
+.opt-wrap.is-cards .opt-table, .opt-wrap.is-cards tbody { display: block; }
+.opt-wrap.is-cards thead { display: none; }
+.opt-wrap.is-cards tr { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px 10px; padding: 12px; border-bottom: 1px solid var(--st-line); }
+.opt-wrap.is-cards tr:last-child { border-bottom: 0; }
+.opt-wrap.is-cards td { display: block; width: auto; padding: 0; border: 0; min-width: 0; }
+.opt-wrap.is-cards td[data-label]::before { content: attr(data-label); display: block; margin-bottom: 3px; font-size: 11px; font-weight: 700; color: var(--st-muted); }
+.opt-wrap.is-cards td.c-name { grid-column: 1 / -1; }
+.opt-wrap.is-cards td.c-del { grid-column: 1 / -1; text-align: right; }
+.opt-wrap.is-cards td.c-del:empty { display: none; }
 .opt-img { width: 40px; height: 40px; border-radius: 6px; overflow: hidden; border: 1px solid var(--st-line-strong); display: flex; align-items: center; justify-content: center; background: var(--st-soft); }
 .opt-img img { width: 100%; height: 100%; object-fit: cover; }
 .opt-img.is-picking { border-color: var(--st-accent); box-shadow: 0 0 0 2px var(--st-accent-ring); }

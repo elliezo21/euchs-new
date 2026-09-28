@@ -91,6 +91,20 @@ export const BRAND_WORDS = [
   '레고', 'lego', '디즈니', 'disney', '산리오', 'sanrio', '헬로키티', 'hellokitty', '포켓몬', 'pokemon', '카카오프렌즈', '라인프렌즈', '스타벅스', 'starbucks', '이케아', 'ikea', '무인양품', 'muji', '유니클로', 'uniqlo', '자라', 'zara',
 ]
 export const BANNED_WORDS = ['짝퉁', '레플리카', '이미테이션', '가품', '정품'] // 진위를 말하는 단어 — 태그로 쓰지 않는다
+// 다른 판매 플랫폼 이름 — 남의 상표와 같게 다룬다 (1688 속성 "주요 판매 플랫폼"에서 태그로 딸려 오던 말)
+export const PLATFORM_WORDS = [
+  '타오바오', 'taobao', '티몰', 'tmall', '알리익스프레스', 'aliexpress', '알리바바', 'alibaba', '1688', '이베이', 'ebay', '아마존', 'amazon',
+  '테무', 'temu', '쉬인', 'shein', '핀둬둬', '라자다', 'lazada', '쇼피', 'shopee', '징동', '틱톡', 'tiktok', '도우인',
+]
+// 태그 추천에서 빼는 말 — 낱말이 통째로 같을 때만 (고객이 직접 넣는 것은 막지 않는다)
+//   지명(상품이 아니라 산지·판매 지역) · 플랫폼 이름의 번역 찌꺼기(경동 = 京东, 소원 = wish) · 뜻 없는 말
+export const SUGGEST_DROP_WORDS = [
+  '이우', '광저우', '선전', '심천', '항저우', '닝보', '원저우', '둥관', '동관', '포산', '산터우', '취안저우', '샤먼', '칭다오', '쑤저우', '상하이', '베이징', '톈진', '충칭', '청두', '우한',
+  '저장', '저장성', '광둥', '광둥성', '광동', '광동성', '푸젠', '푸젠성', '복건', '복건성', '장쑤', '장쑤성', '산둥', '산둥성', '허베이', '허난',
+  '중국', '중국산', '대륙', '본토', '홍콩', '대만', '일본', '미국', '유럽', '한국', '러시아', '중동', '아프리카', '남미', '북미', '동남아', '동남아시아',
+  '경동', '소원', '위시', 'wish', '독립몰', '독립사이트', '독립역',
+  '기타', '없음', '있음', '예', '아니오', '아니요', '기본', '일반', '표준', '보통', '해당없음', '불가', '제품', '상품', '물품', '재고', '현물', '브랜드',
+]
 const squash = s => String(s || '').toLowerCase().replace(/\s+/g, '')
 
 /**
@@ -109,7 +123,7 @@ export function cleanSearchTags(list, { brand = '', strict = false } = {}) {
     if (t.length > TAG_LEN) { removed.push({ tag: src, reason: `${TAG_LEN}자 넘음` }); continue }
     const key = squash(t)
     if (seen.has(key)) { removed.push({ tag: src, reason: '중복' }); continue }
-    if (key !== own && BRAND_WORDS.some(b => key.includes(b))) { removed.push({ tag: src, reason: '다른 회사 상표' }); continue }
+    if (key !== own && (BRAND_WORDS.some(b => key.includes(b)) || PLATFORM_WORDS.some(b => key.includes(b)))) { removed.push({ tag: src, reason: '다른 회사 상표' }); continue }
     if (BANNED_WORDS.some(b => key.includes(b))) { removed.push({ tag: src, reason: '쓸 수 없는 단어' }); continue }
     if (tags.length >= TAG_MAX) { removed.push({ tag: src, reason: `${TAG_MAX}개 넘음` }); continue }
     seen.add(key)
@@ -130,22 +144,26 @@ export function keywordsOf(text) {
   return out
 }
 
+const DROP_SET = new Set(SUGGEST_DROP_WORDS.map(squash))
+const SIZE_WORD = /^(x{0,4}[sml]|\d*xl|free|f)$/i // 옵션 값의 사이즈 표기 — 검색 키워드가 아니다
+const tagWord = w => !DROP_SET.has(squash(w))
 /**
  * 검색태그 추천 (규칙 기반 — 외부 호출 없음)
- * @param {{ title?:string, categoryName?:string, attrs?:[{ name, value }], brand?:string }} src  모두 한국어
- * 순서: 카테고리 끝 낱말 → 상품명 낱말 → 이웃한 두 낱말 붙임 → 속성 값
+ * @param {{ title?:string, categoryName?:string, options?:string[], brand?:string }} src  모두 한국어
+ * 재료는 상품명·카테고리·옵션 값뿐 — 1688 상품 속성(산지·주요 판매 플랫폼·판매 지역 …)은 쓰지 않는다 (2026-09-28 운영: "이우, 타오바오, 경동, 이베이, 아마존, 소원"이 들어감)
+ * 순서: 카테고리 끝 낱말 → 상품명 낱말 → 이웃한 두 낱말 붙임 → 옵션 값.  지명·플랫폼 이름·뜻 없는 말은 뺀다
  */
-export function suggestSearchTags({ title = '', categoryName = '', attrs = [], brand = '' } = {}) {
-  const cat = keywordsOf(String(categoryName).split(/[>/]/).pop())
-  const words = keywordsOf(title).filter(w => squash(w) !== squash(brand))
+export function suggestSearchTags({ title = '', categoryName = '', options = [], brand = '' } = {}) {
+  const cat = keywordsOf(String(categoryName).split(/[>/]/).pop()).filter(tagWord)
+  const words = keywordsOf(title).filter(w => squash(w) !== squash(brand) && tagWord(w))
   const pairs = []
   for (let i = 0; i + 1 < words.length && pairs.length < 6; i++) {
     const p = `${words[i]}${words[i + 1]}`
     if (p.length <= TAG_LEN) pairs.push(p)
   }
-  const attrWords = []
-  for (const a of Array.isArray(attrs) ? attrs : []) for (const w of keywordsOf(a?.value)) if (attrWords.length < 8) attrWords.push(w)
-  return cleanSearchTags([...cat, ...words, ...pairs, ...attrWords], { brand, strict: true }).tags
+  const optWords = []
+  for (const o of Array.isArray(options) ? options : []) for (const w of keywordsOf(o)) if (optWords.length < 8 && tagWord(w) && !SIZE_WORD.test(w) && !/\d/.test(w)) optWords.push(w)
+  return cleanSearchTags([...cat, ...words, ...pairs, ...optWords], { brand, strict: true }).tags
 }
 
 // ── 상품명 ──
@@ -253,6 +271,157 @@ export function matchOptionImage(optionUrl, images) {
 
 /** 옵션 값에 한글로 옮겨지지 않은 글자가 남았는지 */
 export const hasUntranslated = s => HAN.test(String(s || ''))
+
+// ── 상품명 기본값 (한글만) ──
+/** 후보 중 처음 나오는 "한글로 된" 이름 — 번역 안 된 글자가 남은 후보는 건너뛴다. 없으면 '' (화면은 빈칸 + placeholder) */
+export function pickKoreanName(cands) {
+  for (const c of Array.isArray(cands) ? cands : []) {
+    const t = typeof c === 'string' ? c.replace(/\s+/g, ' ').trim() : ''
+    if (t && !hasUntranslated(t)) return cut(t, NAME_MAX)
+  }
+  return ''
+}
+/** 등록상품명·노출상품명·제품명 중 번역 안 된 글자가 남은 칸이 있는지 */
+export const namesNeedKorean = ({ productName = '', displayName = '', generalName = '' } = {}) => [productName, displayName, generalName].some(hasUntranslated)
+
+// ── 옵션 값 한글화 (규칙 기반 — 외부 호출 없음) ──
+// 색 이름 — [표준 이름, 원문·같은 뜻의 말]. 긴 말부터 맞춘다
+const COLOR_WORDS = [
+  ['로즈골드', ['玫瑰金', '로즈골드']], ['네이비', ['藏青色', '藏青', '藏蓝色', '藏蓝', '海军蓝', '深蓝色', '深蓝', '네이비', '남색', '감청색', '진한 파란색', '짙은 파란색']],
+  ['스카이블루', ['天蓝色', '天蓝', '浅蓝色', '浅蓝', '스카이블루', '하늘색', '연한 파란색']], ['로열블루', ['宝蓝色', '宝蓝', '로열블루']],
+  ['와인', ['酒红色', '酒红', '와인색', '와인', '버건디']], ['로즈핑크', ['玫红色', '玫红', '로즈핑크', '장미색']], ['핑크', ['粉红色', '粉红', '粉色', '핑크', '분홍색', '분홍']],
+  ['다크그린', ['墨绿色', '墨绿', '深绿色', '深绿', '다크그린', '짙은 녹색', '진한 녹색']], ['카키', ['军绿色', '军绿', '卡其色', '卡其', '카키색', '카키']], ['민트', ['薄荷绿', '薄荷色', '민트색', '민트']],
+  ['다크그레이', ['深灰色', '深灰', '다크그레이', '짙은 회색', '진한 회색']], ['라이트그레이', ['浅灰色', '浅灰', '라이트그레이', '연한 회색']],
+  ['라이트퍼플', ['浅紫色', '浅紫', '라이트퍼플', '연보라']], ['아이보리', ['米白色', '米白', '아이보리', '미색']], ['베이지', ['米色', '杏色', '베이지', '살구색']],
+  ['카멜', ['驼色', '카멜']], ['샴페인', ['香槟色', '香槟', '샴페인']], ['브라운', ['咖啡色', '咖色', '棕色', '褐色', '브라운', '갈색', '커피색']],
+  ['블랙', ['黑色', '블랙', '검정색', '검은색', '검정', '흑색']], ['화이트', ['白色', '화이트', '흰색', '하얀색', '백색']], ['레드', ['大红色', '大红', '红色', '레드', '빨간색', '빨강', '적색']],
+  ['블루', ['蓝色', '블루', '파란색', '파랑', '청색']], ['그린', ['绿色', '그린', '녹색', '초록색', '초록']], ['옐로우', ['黄色', '옐로우', '옐로', '노란색', '노랑']],
+  ['오렌지', ['橙色', '橘色', '오렌지', '주황색', '주황']], ['퍼플', ['紫色', '퍼플', '보라색', '보라']], ['그레이', ['灰色', '그레이', '회색']],
+  ['실버', ['银色', '실버', '은색']], ['골드', ['金色', '골드', '금색']], ['투명', ['透明色', '透明', '투명']], ['멀티컬러', ['彩色', '멀티컬러', '여러 색']],
+]
+// 색 종류 칸에서만 맞추는 한 글자 색 (다른 칸에서는 다른 뜻일 수 있다)
+const COLOR_SINGLE = [['블랙', '黑'], ['화이트', '白'], ['레드', '红'], ['블루', '蓝'], ['그린', '绿'], ['옐로우', '黄'], ['핑크', '粉'], ['퍼플', '紫'], ['그레이', '灰'], ['오렌지', '橙'], ['브라운', '棕'], ['실버', '银'], ['골드', '金']]
+// 무늬·크기·묶음 — 원문 → 한글
+const OPTION_WORDS = [
+  ['蝴蝶结', '리본'], ['波点', '도트'], ['圆点', '도트'], ['条纹', '스트라이프'], ['格子', '체크'], ['格纹', '체크'], ['碎花', '잔꽃'], ['印花', '프린트'], ['花朵', '플라워'], ['豹纹', '레오파드'],
+  ['纯色', '무지'], ['爱心', '하트'], ['心形', '하트'], ['星星', '별'], ['珍珠', '진주'], ['加大', '특대'], ['大号', '라지'], ['中号', '미디엄'], ['小号', '스몰'], ['均码', '프리사이즈'],
+  ['套装', '세트'], ['加厚', '두꺼운'], ['加绒', '기모'], ['长款', '롱'], ['短款', '숏'],
+]
+const UNIT_WORDS = { 个: '개', 件: '개', 只: '개', 条: '개', 支: '개', 枚: '개', 片: '장', 张: '장', 双: '켤레', 对: '쌍', 包: '팩', 套: '세트', 盒: '박스', 瓶: '병' }
+const COLOR_DICT = COLOR_WORDS.flatMap(([ko, list]) => list.map(w => [w, ko, true]))
+const bySize = (a, b) => b[0].length - a[0].length
+const DICT = [...COLOR_DICT, ...OPTION_WORDS.map(([w, ko]) => [w, ko, false])].sort(bySize)
+const DICT_COLOR_TYPE = [...DICT, ...COLOR_SINGLE.map(([ko, w]) => [w, ko, true])].sort(bySize)
+const ASCII_RUN = /^[A-Za-z0-9][A-Za-z0-9.+\-/*~]*/
+
+/** 옵션 종류 이름(번역·원문)이 색 종류인지 */
+export function isColorOption(names) {
+  const colors = OPTION_ALIASES.find(([k]) => k === '색상')[1].map(squash)
+  return (Array.isArray(names) ? names : [names]).map(squash).filter(Boolean).some(c => colors.some(x => c === x || c.includes(x)))
+}
+/** 옵션 종류 이름의 한글 — 번역이 없으면 같은 뜻 묶음의 표준 이름(颜色 → 색상). 못 찾으면 '' */
+export function optionTypeKo(names) {
+  const list = (Array.isArray(names) ? names : [names]).map(s => String(s || '').trim()).filter(Boolean)
+  const ko = list.find(n => !hasUntranslated(n))
+  if (ko) return ko
+  for (const n of list) { const g = OPTION_ALIASES.find(([, al]) => al.some(x => squash(x) === squash(n))); if (g) return g[0] }
+  return ''
+}
+/**
+ * 옵션 값 원문 → 사전으로 읽은 한글.  黑色波点发夹 → { label: '블랙 도트', color: '블랙', complete: false(发夹는 사전에 없음) }
+ * 영문·숫자(36-37, XL)는 그대로, "2个" → "2개", "A款" → "A타입". 사전에 없는 글자는 버린다(complete = false)
+ * @param {string} text @param {{ colorType?:boolean }} o  colorType = 색 종류 칸 (한 글자 색 黑·白도 읽는다)
+ */
+export function readOptionText(text, { colorType = false } = {}) {
+  const s = String(text || '').trim()
+  const dict = colorType ? DICT_COLOR_TYPE : DICT
+  const parts = []
+  let color = '', complete = true, i = 0
+  while (i < s.length) {
+    const rest = s.slice(i)
+    const hit = dict.find(([w]) => rest.startsWith(w))
+    if (hit) {
+      if (hit[2] && !color) color = hit[1]
+      if (parts[parts.length - 1] !== hit[1]) parts.push(hit[1])
+      i += hit[0].length
+      if (hit[2] && s[i] === '色') i++ // "黑色" 뒤에 남은 色
+      continue
+    }
+    const run = ASCII_RUN.exec(rest)
+    if (run) {
+      const next = s[i + run[0].length]
+      if (next === '款') { parts.push(`${run[0]}타입`); i += run[0].length + 1; continue }
+      if (/^\d+$/.test(run[0]) && UNIT_WORDS[next]) { parts.push(`${run[0]}${UNIT_WORDS[next]}`); i += run[0].length + 1; continue }
+      parts.push(run[0]); i += run[0].length
+      continue
+    }
+    if (HAN.test(s[i])) { complete = false; i++; continue }
+    const word = /^(?:(?!\p{Script=Han})[\p{L}\p{N}])+/u.exec(rest) // 한글 등 — 이어진 글자를 한 낱말로
+    if (word) { parts.push(word[0]); i += word[0].length; continue }
+    i++
+  }
+  return { label: parts.join(' ').trim(), color, complete }
+}
+/** 글(번역·원문)에서 색 이름만 — '검은색 물방울 헤어핀' → '블랙'. 없으면 '' */
+export function colorNameOf(text, { colorType = false } = {}) {
+  const s = String(text || '')
+  let best = null
+  for (const [w, ko] of colorType ? [...COLOR_DICT, ...COLOR_SINGLE.map(([k, x]) => [x, k])] : COLOR_DICT) {
+    const at = s.indexOf(w)
+    if (at >= 0 && (!best || at < best.at || (at === best.at && w.length > best.len))) best = { at, len: w.length, ko }
+  }
+  return best ? best.ko : ''
+}
+/**
+ * 가져온 옵션 줄(send_prepare.source.skus — 값마다 { zh, ko }) → 옵션 표의 한글 기본값
+ *   옵션 이름에 들어갈 말(label): ① 사전으로 읽은 말("블랙 도트") — 같은 종류의 다른 값과 겹치지 않을 때  ② 번역 캐시의 한글  ③ 없으면 '' (고객이 넣는다)
+ *   색 종류 칸의 값: 색 이름만("블랙") — 다른 값과 겹치면 label  (문서: 구매옵션 값이 전부 같으면 등록 불가)
+ *   번역 안 된 글자는 어디에도 넣지 않는다.
+ * @returns {{ types:[{ key, label, names:string[], isColor }], rows:[{ name, opt:{ [key]:string }, original }] }}
+ */
+export function koreanizeSkus(skus, { valueMax = 30, nameMax = 150 } = {}) {
+  const list = Array.isArray(skus) ? skus : []
+  const types = []
+  const values = new Map() // key → Map(zh → { zh, ko })
+  for (const row of list) for (const v of row?.values || []) {
+    const key = str(v?.name?.zh) || str(v?.name?.ko)
+    const zh = str(v?.value?.zh) || str(v?.value?.ko)
+    if (!key || !zh) continue
+    if (!values.has(key)) {
+      const names = [v.name.ko, v.name.zh].map(str).filter(Boolean)
+      types.push({ key, label: optionTypeKo(names) || key, names, isColor: isColorOption(names) })
+      values.set(key, new Map())
+    }
+    if (!values.get(key).has(zh)) values.get(key).set(zh, { zh, ko: str(v.value.ko) })
+  }
+  const text = new Map() // key → Map(zh → { label, value })
+  for (const t of types) {
+    const vals = [...values.get(t.key).values()]
+    const read = vals.map(v => readOptionText(v.zh, { colorType: t.isColor }))
+    const koOf = v => (v.ko && !hasUntranslated(v.ko) ? v.ko : '')
+    const count = (arr, x) => arr.filter(y => y && squash(y) === squash(x)).length
+    const dictLabels = read.map(r => r.label)
+    const labels = vals.map((v, i) => (dictLabels[i] && count(dictLabels, dictLabels[i]) === 1 ? dictLabels[i] : koOf(v)))
+    const colors = vals.map((v, i) => (t.isColor ? read[i].color || colorNameOf(koOf(v)) : ''))
+    const out = new Map()
+    vals.forEach((v, i) => out.set(v.zh, { label: labels[i], value: (colors[i] && count(colors, colors[i]) === 1 ? colors[i] : labels[i]).slice(0, valueMax) }))
+    text.set(t.key, out)
+  }
+  const rows = list.map(row => {
+    const opt = {}, names = [], original = []
+    for (const v of row?.values || []) {
+      const key = str(v?.name?.zh) || str(v?.name?.ko)
+      const zh = str(v?.value?.zh) || str(v?.value?.ko)
+      const hit = text.get(key)?.get(zh)
+      if (!hit) continue
+      opt[key] = hit.value
+      names.push(hit.label)
+      original.push(zh)
+    }
+    return { name: names.every(Boolean) ? names.join(' ').slice(0, nameMax) : '', opt, original: original.join(' ') }
+  })
+  return { types, rows }
+}
 
 // ── 상품정보고시 ──
 export const NOTICE_LEN = 200

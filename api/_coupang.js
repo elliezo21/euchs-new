@@ -12,7 +12,7 @@
 import crypto from 'crypto'
 import {
   SALE_MODES, isSaleMode, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, normalizeAdvanced, cleanSearchTags, realCerts, docRequired,
-  CERT_NONE, NAME_MAX, ITEMS_MAX, STOCK_MAX, NOTICE_LEN, DOC_MAX, DOC_PATH_MAX,
+  CERT_NONE, NAME_MAX, ITEMS_MAX, STOCK_MAX, NOTICE_LEN, DOC_MAX, DOC_PATH_MAX, namesNeedKorean,
 } from './_coupangFields.js'
 
 export const COUPANG_HOST = 'https://api-gateway.coupang.com'
@@ -320,6 +320,8 @@ export function buildProductBody(p) {
   if (displayName.length > NAME_MAX) return { ok: false, message: `노출상품명은 ${NAME_MAX}자까지예요.` }
   const generalName = String(p.generalName || '').trim()
   if (generalName.length > NAME_MAX) return { ok: false, message: `제품명은 ${NAME_MAX}자까지예요.` }
+  // 번역 안 된 글자가 남은 이름은 보내지 않는다 (화면 빠짐 목록 "상품명 한글"과 같은 규칙)
+  if (namesNeedKorean({ productName: name, displayName, generalName })) return { ok: false, message: '상품명을 한글로 고쳐 주세요.' }
   const modelNo = String(p.modelNo || '').trim()
   if (modelNo.length > 50) return { ok: false, message: '모델번호는 50자까지예요.' }
   // 판매 방식 — 기본값 없음. 고르지 않으면 보내지 않는다 (국내 재고 / 해외구매대행은 통관·배송이 달라 잘못 보내면 안 된다)

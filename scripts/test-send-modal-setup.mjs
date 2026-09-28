@@ -108,6 +108,38 @@ if (built?.Coupang && built?.Modal) {
   const d = await render(built.Modal, { open: true, prepare: PREPARE(false) })
   eq('보내기 창 (연결 전): 예외 없음 · 쿠팡 섹션 없음 · 보내기 버튼 꺼짐', [d.error, /data-mk-send-coupang/.test(d.html), /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(d.html)], [null, false, true])
 
+  // ── 보내기 창 고치기 4건 (2026-09-28) — 운영 방식으로 묶은 코드를 실제로 그려 확인 ──
+  const ZH = '跨境新款黑色波点发夹女士发饰'
+  const val = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''
+  const RAW = {
+    from: '1688', offerId: '123456789012', title: { zh: ZH, ko: null }, skuTotal: 2, options: [],
+    attrs: [{ name: { zh: '主要下游平台', ko: '주요 판매 플랫폼' }, value: { zh: 'x', ko: '타오바오 경동 이베이 아마존 소원' } }, { name: { zh: '产地', ko: '산지' }, value: { zh: '义乌', ko: '이우' } }],
+    skus: [
+      { skuId: '1', values: [{ name: { zh: '颜色', ko: null }, value: { zh: '黑色波点发夹', ko: null } }], priceCny: 3.2, stock: 10, imageUrl: '' },
+      { skuId: '2', values: [{ name: { zh: '颜色', ko: null }, value: { zh: '红色条纹发夹', ko: null } }], priceCny: 3.2, stock: 10, imageUrl: '' },
+    ],
+  }
+  const withTitle = (src, title, projectTitle) => { const p = PREPARE(true, src); p.export.title = title; p.export.projectTitle = projectTitle; return p }
+
+  const m1 = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
+  eq('1 창 폭: 화면 폭 90% · 최대 1400px (예전 max-w-2xl 아님)', [/data-modal-size="full"/.test(m1.html), m1.html.includes('w-[90vw] max-w-[1400px]'), /max-w-2xl/.test(m1.html)], [true, true, false])
+  eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['사진', '옵션 이름 *', '색상', '1688 가격', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html)], [false, [], true])
+
+  const n1 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, ZH) })
+  eq('2 상품명: 작업 이름·가져온 제목이 모두 번역 전이면 세 칸 다 빈칸 + placeholder (예외 없음)', [n1.error, val(n1.html, 'data-mk-s-name'), val(n1.html, 'data-mk-s-general'), val(n1.html, 'data-mk-s-display'), /placeholder="한글 상품명을 넣어 주세요"[^>]*data-mk-s-name/.test(n1.html)], [null, '', '', '', true])
+  const n2 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, '도트 헤어핀 모음') })
+  const n3 = await render(built.Coupang, { prepare: withTitle({ ...RAW, title: { zh: ZH, ko: '여성 도트 헤어핀' } }, ZH, ZH) })
+  eq('2 상품명: 작업의 한글 이름 · 없으면 가져온 제목의 한글', [val(n2.html, 'data-mk-s-name'), val(n3.html, 'data-mk-s-name')], ['도트 헤어핀 모음', '여성 도트 헤어핀'])
+  eq('2 화면 어디에도 번역 전 제목이 값으로 들어가지 않음', [n1, n2, n3].map(r => new RegExp('value="[^"]*' + ZH).test(r.html)), [false, false, false])
+
+  eq('3 옵션: 이름 "블랙 도트"·"레드 스트라이프" · 색상값 "블랙"·"레드" · 옵션 종류 이름 "색상"', [(n1.html.match(/data-mk-s-item-name="\d+"/g) || []).length, /value="블랙 도트"/.test(n1.html), /value="레드 스트라이프"/.test(n1.html), /value="블랙"/.test(n1.html), /value="레드"/.test(n1.html), /data-label="색상"/.test(n1.html)], [2, true, true, true, true, true])
+  eq('3 옵션: 입력 값에 번역 전 글자 없음', /value="[^"]*\p{Script=Han}/u.test(n1.html), false)
+  const n4 = await render(built.Coupang, { prepare: PREPARE(true, { ...RAW, skus: [{ skuId: '1', values: [{ name: { zh: '款式', ko: null }, value: { zh: '蝴蝶发夹', ko: null } }], priceCny: 1, stock: 1, imageUrl: '' }] }) })
+  eq('3 옵션: 한글로 못 옮긴 값은 빈칸 · 가져온 글자는 칸 아래와 placeholder에만', [n4.error, val(n4.html, 'data-mk-s-item-name'), /data-mk-s-origin="0"[^>]*>가져온 옵션: 蝴蝶发夹</.test(n4.html), /placeholder="蝴蝶发夹"/.test(n4.html)], [null, '', true, true])
+
+  eq('4 태그 추천: 가져온 상품 속성의 말(이우·타오바오·경동·이베이·아마존·소원)이 화면에 없음', ['이우', '타오바오', '경동', '이베이', '아마존', '소원'].filter(w => n3.html.includes(w)), [])
+  eq('4 태그 추천: 상품명에서 나온 말은 있음', ['헤어핀', '도트'].filter(w => !n3.html.includes(w)), [])
+
   const e = await render(built.Modal, { open: true, prepare: null })
   eq('보내기 창 (준비 데이터 없음): 예외 없음 · 보내기 버튼 꺼짐', [e.error, /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(e.html)], [null, true])
 }

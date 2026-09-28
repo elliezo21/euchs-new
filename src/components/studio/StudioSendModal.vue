@@ -1,5 +1,5 @@
 <template>
-  <StudioModal :open="open" title="판매처로 보내기" wide @close="close">
+  <StudioModal :open="open" title="판매처로 보내기" full @close="close">
     <div v-if="prepare" class="space-y-5 max-h-[70vh] overflow-y-auto pr-1" data-mk-send-modal>
       <p class="st-desc break-keep">내 상품 <b class="st-ink">{{ prepare.export.title || '이름 없는 작업' }}</b> ({{ prepare.export.files.length }}장)</p>
 

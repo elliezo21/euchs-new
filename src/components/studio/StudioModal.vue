@@ -7,7 +7,7 @@
       :class="dark ? 'st-dark' : ''"
       @click.self="$emit('close')"
     >
-      <div class="st-modal w-full" :class="wide ? 'max-w-2xl' : 'max-w-md'" role="dialog" aria-modal="true">
+      <div class="st-modal" :class="full ? 'w-[90vw] max-w-[1400px]' : wide ? 'w-full max-w-2xl' : 'w-full max-w-md'" role="dialog" aria-modal="true" :data-modal-size="full ? 'full' : wide ? 'wide' : 'normal'">
         <h3 v-if="title" class="st-modal-title">{{ title }}</h3>
         <div class="mt-2 st-body">
           <slot />
@@ -28,6 +28,7 @@ defineProps({
   open: { type: Boolean, default: false },
   title: { type: String, default: '' },
   wide: { type: Boolean, default: false },
+  full: { type: Boolean, default: false }, // 화면 폭의 90% (최대 1400px) — 표가 넓은 창
 })
 defineEmits(['close'])
 const dark = inject('studioDark', false)

@@ -604,7 +604,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('남의 상표 뺌 · 자기 브랜드는 남김', [F.cleanSearchTags(['나이키 운동화', 'NIKE', '디즈니컵', '운동화']).tags, F.cleanSearchTags(['이케아'], { brand: '이케아' }).tags, F.cleanSearchTags(['나이키 운동화']).removed[0].reason], [['운동화'], ['이케아'], '다른 회사 상표'])
   eq('쓸 수 없는 단어(정품·레플리카 등) 뺌', F.cleanSearchTags(['정품 머그', '레플리카', '머그']).tags, ['머그'])
   eq('본문에도 같은 규칙 (서버가 다시 정리)', C.buildProductBody({ ...BASE, searchTags: [...many, '샤넬'] }).body.items[0].searchTags.length, 20)
-  const sug = F.suggestSearchTags({ title: '2026 신상 여성 여름 슬리퍼 EVA 미끄럼방지 욕실화 도매', categoryName: '패션잡화>여성신발>슬리퍼', attrs: [{ name: '소재', value: 'EVA' }, { name: '원산지', value: '中国' }], brand: '이유씨' })
+  const sug = F.suggestSearchTags({ title: '2026 신상 여성 여름 슬리퍼 EVA 미끄럼방지 욕실화 도매', categoryName: '패션잡화>여성신발>슬리퍼', options: ['블랙', '中国'], brand: '이유씨' })
   eq('태그 추천: 카테고리 끝 낱말이 맨 앞 · 꾸밈말·연도 없음 · 번역 안 된 글자 없음', [sug[0], sug.includes('신상'), sug.includes('도매'), sug.includes('2026'), sug.some(t => /\p{Script=Han}/u.test(t)), sug.includes('여성'), sug.includes('여성여름'), sug.length <= 20, sug.every(t => t.length <= 20)], ['슬리퍼', false, false, false, false, true, true, true, true])
 
   // 상품명 추천
@@ -699,7 +699,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     eq('쿠팡 섹션: uid를 f보다 먼저 선언 (선언 전에 쓰지 않음)', [cp.indexOf('let uid = 0') > 0, cp.indexOf('let uid = 0') < cp.indexOf('const f = ref(blank())')], [true, true])
     eq('재고 수량: 기본값 비움(1688 재고를 넣지 않음) · 필수 · 빠짐 목록 "재고 수량" · 일괄 입력 · maximumBuyCount', [
       cp.includes('stock: null, stock1688: null'), cp.includes('it.stock = row.stock'), cp.includes('out.push(`${tag}재고 수량`)'),
-      cp.includes('<th>재고 수량 *</th>'), cp.includes('data-mk-s-bulk-stock'), cp.includes('if (Number.isInteger(b.stock) && b.stock >= 0) it.stock = b.stock'),
+      cp.includes('<th class="c-stock">재고 수량 *</th>'), cp.includes('data-mk-s-bulk-stock'), cp.includes('if (Number.isInteger(b.stock) && b.stock >= 0) it.stock = b.stock'),
       cp.includes('stock: it.stock, sku: it.sku'), read('api/_coupang.js').includes('maximumBuyCount: stock'),
     ], [true, false, true, true, true, true, true, true])
     eq('서버: 재고가 비면 본문을 만들지 않음 (임의 숫자로 채우지 않음) · 0과 37은 그대로', [C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: null }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: '' }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 0 }] }).body.items[0].maximumBuyCount, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 37 }] }).body.items[0].maximumBuyCount], [false, false, 0, 37])
@@ -748,6 +748,75 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const api = read('src/lib/studioApi.js')
   const tableOf = name => new RegExp(`const ${name} = \\{([\\s\\S]*?)\\n\\}`).exec(api)[1].replace(/\/\/.*$/gm, '')
   eq('오류 문구 표(내 상품 보관·판매처·공통)에 "준비하고 있어요"·"곧"·"관리자" 없음', ['EXPORT', 'MARKETPLACE', 'COMMON'].filter(n => /준비하고 있|곧|관리자/.test(tableOf(n))), [])
+}
+
+// ── 13. 보내기 창 고치기 4건 (2026-09-28 운영 확인): 창 폭·옵션 표 / 상품명 한글 / 옵션 한글화 / 태그 추천 재료 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const cp = read('src/components/studio/StudioSendCoupang.vue'), shell = read('src/components/studio/StudioSendModal.vue'), modalBox = read('src/components/studio/StudioModal.vue')
+
+  // 1) 창 폭 · 옵션 표
+  eq('1 창 폭: 보내기 창 = 화면 폭 90%(최대 1400px) · 다른 창의 wide는 그대로', [/<StudioModal :open="open" title="판매처로 보내기" full /.test(shell), modalBox.includes("full ? 'w-[90vw] max-w-[1400px]' : wide ? 'w-full max-w-2xl' : 'w-full max-w-md'")], [true, true])
+  eq('1 옵션 표: 가로 스크롤 없음 · 칸 폭 고정 배치 · 입력 칸은 칸 폭에 맞춤', [/overflow-x-auto[^"]*"[^>]*>\s*<table class="opt-table"/.test(cp), /\.opt-table \{[^}]*table-layout: fixed/.test(cp), /\.opt-in \{ width: 100%; min-width: 0;/.test(cp), /class="st-input w-\[\d+px\]"[^>]*data-mk-s-(stock|sku|price|opt)=/.test(cp)], [false, true, true, false])
+  const fixedCss = ['c-img', 'c-price', 'c-price', 'c-rate', 'c-stock', 'c-sku', 'c-gtin', 'c-del'].reduce((n, c) => n + Number(new RegExp(`\\.opt-table \\.${c} \\{ width: (\\d+)px`).exec(cp)?.[1] || NaN), 0)
+  eq('1 옵션 표: 화면의 고정 칸 폭 합 = 규칙 파일 숫자', [fixedCss, Number(/\.opt-table \.c-cny \{ width: (\d+)px/.exec(cp)?.[1])], [R.OPTION_FIXED_PX, R.OPTION_CNY_PX])
+  eq('1 표/카드: 1440·1280 화면(옵션 종류 1개·1688 가격) = 표 · 폰 390 = 카드 · 자리가 모자라면 카드', [
+    R.optionTableMode({ width: 1236, viewport: 1440, flexCols: 2, hasCny: true }), R.optionTableMode({ width: 1092, viewport: 1280, flexCols: 2, hasCny: true }),
+    R.optionTableMode({ width: 303, viewport: 390, flexCols: 2, hasCny: true }), R.optionTableMode({ width: 1092, viewport: 1280, flexCols: 7, hasCny: true }), R.optionTableMode({ width: 1236, viewport: 1440, flexCols: 4, hasCny: true }),
+  ], ['table', 'table', 'cards', 'cards', 'table'])
+  eq('1 표/카드: 자리 폭을 모르면(가려진 섹션) 화면 폭으로 어림 · 아무것도 모르면 표', [R.optionTableMode({ width: 0, viewport: 1440, flexCols: 2, hasCny: true }), R.optionTableMode({ width: 0, viewport: 800, flexCols: 2, hasCny: true }), R.optionTableMode({})], ['table', 'cards', 'table'])
+  eq('1 표일 때 늘어나는 칸은 최소 폭 이상', [R.optionTableNeed({ flexCols: 2, hasCny: true }) <= 1092, (1092 - R.OPTION_FIXED_PX - R.OPTION_CNY_PX) / 2 >= R.OPTION_FLEX_MIN], [true, true])
+  eq('1 카드형: 옵션 1개 = 카드 1장 · 칸마다 이름표(data-label) · 표 머리 숨김', [/\.opt-wrap\.is-cards tr \{ display: grid;/.test(cp), /td\[data-label\]::before \{ content: attr\(data-label\)/.test(cp), /\.opt-wrap\.is-cards thead \{ display: none; \}/.test(cp), (cp.match(/<td[^>]*data-label="/g) || []).length >= 9, /:class="\{ 'is-cards': optMode === 'cards' \}"/.test(cp)], [true, true, true, true, true])
+
+  // 2) 상품명 기본값 = 한글만
+  const ZH_TITLE = '跨境新款黑色波点发夹女士发饰'
+  eq('2 상품명 기본값: 작업의 한글 이름 먼저 · 없으면 가져온 제목의 한글 · 그것도 없으면 빈칸', [
+    F.pickKoreanName(['도트 헤어핀 모음', ZH_TITLE, '물방울 헤어핀']), F.pickKoreanName([ZH_TITLE, ZH_TITLE, '물방울 헤어핀']), F.pickKoreanName([ZH_TITLE, ZH_TITLE, null]), F.pickKoreanName(['헤어핀 发夹', '', undefined]), F.pickKoreanName(null),
+  ], ['도트 헤어핀 모음', '물방울 헤어핀', '', '', ''])
+  eq('2 상품명 기본값 100자까지', F.pickKoreanName(['가나다 '.repeat(40)]).length <= 100, true)
+  eq('2 세 이름 중 하나라도 번역 안 된 글자가 있으면 막음', [F.namesNeedKorean({ productName: '헤어핀', displayName: '', generalName: '' }), F.namesNeedKorean({ productName: ZH_TITLE }), F.namesNeedKorean({ productName: '헤어핀', displayName: '이유씨 发夹' }), F.namesNeedKorean({ productName: '헤어핀', generalName: '发夹' }), F.namesNeedKorean()], [false, true, true, true, false])
+  eq('2 화면: 기본값은 pickKoreanName(작업 이름 → 내 상품 이름 → 가져온 제목 한글) · 빠짐 목록 "상품명 한글" · placeholder', [
+    cp.includes('f.value.productName = pickKoreanName([p?.export?.projectTitle, p?.export?.title, source.value?.title?.ko])'), cp.includes("if (namesBad.value) out.push('상품명 한글')"),
+    /:placeholder="NAME_HINT" data-mk-s-name/.test(cp), /p\.ko \|\| p\.zh/.test(cp), /String\(p\?\.export\?\.title \|\| ''\)/.test(cp),
+  ], [true, true, true, false, false])
+  eq('2 서버: 번역 안 된 글자가 남은 이름은 본문을 만들지 않음 (등록상품명·노출상품명·제품명)', [C.buildProductBody({ ...BASE, productName: ZH_TITLE }).ok, C.buildProductBody({ ...BASE, displayName: '이유씨 发夹' }).ok, C.buildProductBody({ ...BASE, generalName: '发夹' }).ok, C.buildProductBody({ ...BASE, productName: ZH_TITLE }).message, C.buildProductBody({ ...BASE }).ok], [false, false, false, '상품명을 한글로 고쳐 주세요.', true])
+  eq('2 서버: send_prepare가 작업의 지금 이름(projectTitle)을 준다', read('api/marketplace.js').includes("projectTitle: projRows?.[0]?.title || ''"), true)
+
+  // 3) 옵션 이름·색상값 한글화
+  eq('3 옵션 글자 읽기: 색 + 무늬 (사전에 없는 말은 버리고 표시)', [F.readOptionText('黑色波点发夹'), F.readOptionText('红色条纹'), F.readOptionText('藏青色'), F.readOptionText('36-37'), F.readOptionText('XL'), F.readOptionText('2个装'), F.readOptionText('A款'), F.readOptionText('发夹')], [
+    { label: '블랙 도트', color: '블랙', complete: false }, { label: '레드 스트라이프', color: '레드', complete: true }, { label: '네이비', color: '네이비', complete: true },
+    { label: '36-37', color: '', complete: true }, { label: 'XL', color: '', complete: true }, { label: '2개', color: '', complete: false }, { label: 'A타입', color: '', complete: true }, { label: '', color: '', complete: false },
+  ])
+  eq('3 한 글자 색은 색 종류 칸에서만', [F.readOptionText('黑', { colorType: true }).color, F.readOptionText('黑').color, F.readOptionText('白发夹', { colorType: true }).label], ['블랙', '', '화이트'])
+  eq('3 번역문에서 색 이름만', [F.colorNameOf('검은색 물방울 무늬 헤어핀'), F.colorNameOf('진한 파란색 줄무늬'), F.colorNameOf('헤어핀'), F.colorNameOf('')], ['블랙', '네이비', '', ''])
+  eq('3 옵션 종류: 색 종류인지 · 번역이 없으면 표준 이름', [F.isColorOption(['색상', '颜色']), F.isColorOption(['颜色分类']), F.isColorOption(['尺码']), F.optionTypeKo([null, '颜色'].filter(Boolean)), F.optionTypeKo(['컬러', '颜色']), F.optionTypeKo(['香味'])], [true, true, false, '색상', '컬러', ''])
+  const V = (n, nk, v, vk) => ({ name: { zh: n, ko: nk }, value: { zh: v, ko: vk } })
+  const kr = F.koreanizeSkus([
+    { values: [V('颜色', null, '黑色波点发夹', null), V('尺码', '사이즈', '36-37', null)] },
+    { values: [V('颜色', null, '红色条纹发夹', null), V('尺码', '사이즈', '38-39', null)] },
+    { values: [V('颜色', null, '藏青色', '남색'), V('尺码', '사이즈', '38-39', null)] },
+  ])
+  eq('3 가져온 옵션 → 한글 기본값: 옵션 이름 "블랙 도트 36-37" · 색상값은 색 이름만 · 가져온 글자는 따로', [kr.types.map(t => [t.key, t.label, t.isColor]), kr.rows], [
+    [['颜色', '색상', true], ['尺码', '사이즈', false]],
+    [{ name: '블랙 도트 36-37', opt: { 颜色: '블랙', 尺码: '36-37' }, original: '黑色波点发夹 36-37' }, { name: '레드 스트라이프 38-39', opt: { 颜色: '레드', 尺码: '38-39' }, original: '红色条纹发夹 38-39' }, { name: '네이비 38-39', opt: { 颜色: '네이비', 尺码: '38-39' }, original: '藏青色 38-39' }],
+  ])
+  const same = F.koreanizeSkus([{ values: [V('颜色', '색상', '黑色波点', null)] }, { values: [V('颜色', '색상', '黑色条纹', null)] }, { values: [V('颜色', '색상', '黑色发夹', '검은색 헤어핀')] }, { values: [V('颜色', '색상', '黑色发圈', null)] }, { values: [V('颜色', '색상', '奶茶色', null)] }])
+  eq('3 색 이름이 겹치면 색 + 무늬로 (구매옵션 값이 같으면 등록 불가) · 사전 글자가 겹치면 번역 캐시 · 둘 다 없으면 빈칸', same.rows.map(r => [r.name, r.opt['颜色']]), [['블랙 도트', '블랙 도트'], ['블랙 스트라이프', '블랙 스트라이프'], ['검은색 헤어핀', '검은색 헤어핀'], ['', ''], ['', '']])
+  eq('3 어디에도 번역 안 된 글자를 넣지 않음', [...kr.rows, ...same.rows].some(r => F.hasUntranslated(r.name) || Object.values(r.opt).some(F.hasUntranslated)), false)
+  eq('3 번역 캐시의 한글에 번역 안 된 글자가 섞였으면 쓰지 않음', F.koreanizeSkus([{ values: [V('款式', null, '蝴蝶发夹', '나비 发夹')] }]).rows[0], { name: '', opt: { 款式: '' }, original: '蝴蝶发夹' })
+  eq('3 값 30자·이름 150자', (() => { const r = F.koreanizeSkus([{ values: [V('款式', '스타일', '发夹', '가'.repeat(40))] }]).rows[0]; return [r.opt['款式'].length, r.name.length] })(), [30, 40])
+  eq('3 화면: 옵션 표는 koreanizeSkus를 씀 · 빈 옵션 이름을 상품명으로 채우지 않음 · 가져온 글자는 칸 아래·placeholder', [cp.includes('const kr = koreanizeSkus(s.skus, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })'), cp.includes("if (!f.value.items[0].fromSource && !f.value.items[0].name)"), /data-mk-s-origin/.test(cp), /:placeholder="it\.original \|\| /.test(cp)], [true, true, true, true])
+
+  // 4) 검색태그 추천
+  const bad = ['이우', '타오바오', '경동', '이베이', '아마존', '소원']
+  const tg = F.suggestSearchTags({ title: '이우 여성 도트 헤어핀 타오바오 아마존 인기', categoryName: '패션잡화>헤어액세서리>헤어핀', options: ['블랙 도트', '레드', 'XL', '36-37', '소원', '경동'], brand: '이유씨' })
+  eq('4 태그 추천: 지명·플랫폼 이름·뜻 없는 말 없음 (운영에서 나온 6개)', bad.filter(b => tg.some(t => t.includes(b))), [])
+  eq('4 태그 추천: 상품명·카테고리·옵션에서 나온 말만', [tg[0], tg.includes('여성'), tg.includes('도트'), tg.includes('블랙'), tg.includes('레드'), tg.includes('XL'), tg.some(t => /\d/.test(t))], ['헤어핀', true, true, true, true, false, false])
+  eq('4 태그 추천: 가져온 상품의 속성(attrs)은 재료가 아님', [F.suggestSearchTags({ title: '도트 헤어핀', attrs: [{ name: '주요 판매 플랫폼', value: '이베이 아마존 소원' }, { name: '산지', value: '이우' }, { name: '소재', value: '합금' }] }), /attrs: koAttrs|source\.value\?\.attrs/.test(cp), cp.includes('options: [...new Set(optionValueList())]')], [['도트', '헤어핀', '도트헤어핀'], false, true])
+  eq('4 플랫폼 이름은 고객이 직접 넣어도 뺌(남의 상표와 같게) · 서버도 같은 규칙', [F.cleanSearchTags(['타오바오 헤어핀', 'Amazon', '알리익스프레스', '헤어핀']).tags, F.cleanSearchTags(['테무']).removed[0].reason, C.buildProductBody({ ...BASE, searchTags: ['헤어핀', '이베이'] }).body.items[0].searchTags], [['헤어핀'], '다른 회사 상표', ['헤어핀']])
+  eq('4 지명·뜻 없는 말은 추천에서만 뺌 (통째로 같을 때만 — "소원팔찌"는 남음)', [F.suggestSearchTags({ title: '소원팔찌 이우 기타 중국' }), F.cleanSearchTags(['소원팔찌', '제주']).tags], [['소원팔찌'], ['소원팔찌', '제주']])
+  eq('4 규칙은 api/_coupangFields.js 한 곳 (화면·태그 칩에 따로 적은 목록 없음)', [/타오바오|이베이|아마존/.test(cp + read('src/components/studio/StudioTagChips.vue')), F.PLATFORM_WORDS.includes('타오바오') && F.SUGGEST_DROP_WORDS.includes('이우')], [false, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)
