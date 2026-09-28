@@ -259,6 +259,16 @@
             </div>
           </div>
 
+          <!-- 메뉴 5-1: 스튜디오 (VITE_STUDIO_ENABLED all = 누구나 / admin = 관리자·스태프만 / off = 없음) -->
+          <router-link
+            v-if="showStudioMenu"
+            to="/studio"
+            class="px-2.5 py-1.5 font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition rounded-lg hover:bg-gray-50"
+            data-header-studio
+          >
+            <span>스튜디오</span>
+          </router-link>
+
           <!-- 메뉴 6: EUC 안내 (드롭다운) -->
           <div class="relative group">
             <router-link 
@@ -470,6 +480,18 @@
             </router-link>
           </div>
 
+          <!-- Item 4-1: 스튜디오 (PC 메뉴와 같은 규칙 — showStudioMenu) -->
+          <div v-if="showStudioMenu">
+            <router-link
+              @click="isMobileMenuOpen = false"
+              to="/studio"
+              class="w-full flex items-center py-2.5 text-base font-semibold text-gray-800 hover:text-blue-600"
+              data-header-studio-mobile
+            >
+              <span>스튜디오</span>
+            </router-link>
+          </div>
+
           <!-- Item 5: 주요 서비스 세부 안내 (아코디언) -->
           <div>
             <button 
@@ -530,12 +552,13 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getEffectiveExchangeRate } from '../utils/exchangeRate'
 import {
   currentUser,
   isLoggedIn,
+  isAdminOrStaff,
   userDisplayName,
   userAvatarUrl,
   userEmail,
@@ -553,6 +576,10 @@ const mobileSubmenu = ref(null)
 const isUserMenuOpen = ref(false)
 const userDropdownRef = ref(null)
 const savedCount = ref(0)
+
+// 스튜디오 메뉴 — 라우터(src/router/index.js STUDIO_MODE)와 같은 스위치. all = 누구나, admin = 관리자·스태프만(라우트도 관리자만), off = 라우트 없음
+const STUDIO_MODE = import.meta.env.VITE_STUDIO_ENABLED || 'off'
+const showStudioMenu = computed(() => STUDIO_MODE === 'all' || (STUDIO_MODE === 'admin' && isAdminOrStaff.value))
 
 // 대시보드 사이드바 드로어 열기 (DashboardView.vue가 수신)
 const openDashboardSidebar = () => {

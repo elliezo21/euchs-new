@@ -96,6 +96,9 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
   eq('레이아웃: 안내 창 + [1688 구매하러 가기] → /mall', [layout.includes(':open="studioNoAccessOpen"'), layout.includes('1688 구매하러 가기'), /router\.push\('\/mall'\)/.test(layout)], [true, true, true])
   const access = fs.readFileSync(new URL('../src/lib/studioAccess.js', import.meta.url), 'utf8')
   eq('안내 제목 문구', access.includes("'스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요'"), true)
+  const header = fs.readFileSync(new URL('../src/components/Header.vue', import.meta.url), 'utf8')
+  eq('메인 메뉴: all = 누구나 · admin = 관리자·스태프만', /showStudioMenu = computed\(\(\) => STUDIO_MODE === 'all' \|\| \(STUDIO_MODE === 'admin' && isAdminOrStaff\.value\)\)/.test(header), true)
+  eq('메인 메뉴: PC·모바일 둘 다 같은 조건으로 /studio', [(header.match(/v-if="showStudioMenu"/g) || []).length, (header.match(/to="\/studio"/g) || []).length], [2, 2])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)
