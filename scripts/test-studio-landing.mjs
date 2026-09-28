@@ -49,25 +49,28 @@ eq("페이지에 '중국'이라는 글자가 없음 (랜딩·사진 설정·임�
   const hits = studioFiles.flatMap(p => stripComments(read(p)).split('\n').map((l, i) => [p, i + 1, l]).filter(([, , l]) => /중국|중문|한자/.test(l)).map(([p, n, l]) => `${p}:${n} ${l.trim().slice(0, 60)}`))
   eq(`스튜디오 화면 파일 전체(${studioFiles.length}개, 주석 제외)에 '중국'·'중문'·'한자' 없음`, hits, [])
 }
-eq('랜딩 히어로 버튼 = [사용법 보기] (이동은 그대로 scrollToScenes)', /@click="scrollToScenes">\s*<Play[^>]*\/> 사용법 보기/.test(landing), true)
-eq('여는 시점을 약속하는 문구 없음 (지금 바로·곧 열려요·먼저 알려)', /지금 바로|곧 열려|먼저 알려|지금 시작/.test(landing), false)
+eq('랜딩 히어로 버튼 = [사용법 보기] → 만드는 순서로 이동', /@click="scrollToSteps">사용법 보기</.test(landing) && /ref="stepsRef" id="steps"/.test(landing), true)
+eq('여는 시점을 약속하는 문구 없음 (지금 바로·먼저 알려·지금 시작)', /지금 바로|먼저 알려|지금 시작/.test(landing), false)
+// "곧 열려요"는 쿠팡 보내기 타일 한 곳만 (해성 지시 2026-09-28 — 쿠팡 연동 준비 중)
+eq('"곧 열려" = 쿠팡 타일 한 곳', (landing.match(/곧 열려/g) || []).length === 1 && /쿠팡으로 바로 보내기<\/h3>\s*<p class="tile-p">곧 열려요/.test(landing), true)
 eq('이용 안내 카드: 무료 · 이유씨컴퍼니 고객 / 준비 중 · 일반 고객', [/>무료</.test(landing), /이유씨컴퍼니 고객</.test(landing), />준비 중</.test(landing), /일반 고객</.test(landing), /준비 중이에요/.test(landing)], [true, true, true, true, true])
 {
   const motion = read('src/lib/studioLandingMotion.js').replace(/\/\*\*[\s\S]*?\*\/|\/\/.*$/gm, '') // 주석 빼고
   eq('화면 고정 없음 = pin-spacer 0개 (pin·scrub 없음)', [/\bpin\s*:/.test(motion), /\bscrub\s*:/.test(motion)], [false, false])
   eq('snap·휠 가로채기·부드러운 스크롤 없음', /snap|addEventListener\('wheel'|lenis/i.test(motion + landing), false)
-  eq('보이면 재생 · 완전히 나가면 되돌림 (장면 5개 + 떠오름)', [
-    (motion.match(/playWhenSeen\((erase|bg|oc|ed|ex),/g) || []).length,
+  eq('보이면 재생 · 완전히 나가면 되돌림 (장면 4개 + 떠오름)', [
+    (motion.match(/playWhenSeen\((hero|erase|oc|ex),/g) || []).length,
     /start: PLAY_AT, end: PLAY_BACK_AT, onEnter: play, onEnterBack: play/.test(motion),
     /start: 'top bottom', end: 'bottom top',\s*onLeave:[^\n]*reset\(\)[\s\S]{0,60}onLeaveBack:[^\n]*reset\(\)/.test(motion),
     /playWhenSeen\(el, timelinePlayer\(tl\)\)/.test(motion),
-  ], [5, true, true, true])
+  ], [4, true, true, true])
 }
 {
   // 영상 칸 — 기본은 비어 있음 → 코드 애니메이션
   const scenes = ['hero', 'erase', 'background', 'oneClick', 'editor', 'export']
   eq("장면마다 video 칸 = '' (비어 있음) · poster 사진 있음", scenes.map(k => [M[k].video, isImg(M[k].poster)]), scenes.map(() => ['', true]))
-  eq('video가 비어 있으면 코드 애니메이션 (장면마다 v-if 영상 / v-else 코드)', scenes.every(k => new RegExp(`<SceneVideo v-if="M\\.${k}\\.video"[^>]*/>\\s*<div v-else`).test(landing)), true)
+  // 영상 자리 = 첫 화면 편집기 틀(editor)·글자 지우기 타일(erase) 두 곳
+  eq('video가 비어 있으면 코드 그림 (편집기 틀·지우기 타일: v-if 영상 / v-else 코드)', ['editor', 'erase'].every(k => new RegExp(`<SceneVideo v-if="M\\.${k}\\.video"[^>]*/>\\s*<div v-else`).test(landing)), true)
   eq('영상 속성: autoplay·muted·loop·playsinline·preload metadata·poster', /autoplay: true, muted: true, loop: true, playsinline: true,\s*preload: 'metadata'/.test(landing) && /poster: props\.media\.poster/.test(landing), true)
   eq('움직임 줄이기면 영상 대신 poster 정지 사진', /props\.still\s*\?\s*h\('img', \{ src: props\.media\.poster/.test(landing) && /:still="isStatic"/.test(landing), true)
   const motion = read('src/lib/studioLandingMotion.js')
@@ -87,8 +90,29 @@ eq('랜딩 [무료로 시작하기] = 작업 홈으로 (가드가 로그인 처�
 {
   const tpl = landing.slice(0, landing.indexOf('<script'))
   const visible = tpl.split('\n').filter(l => !/^\s*<!--/.test(l)).join('\n')
-  eq('랜딩 소개 문구에 "1688" 없음', visible.includes('1688'), false)
-  eq('히어로 = "상품 사진만 있으면,"', visible.includes('상품 사진만 있으면,'), true)
+  // 2026-09-28 재디자인(해성 지시): "1688에서 바로" 타일·상태 카드·편집기 사진 칸에는 1688을 쓴다. 큰 제목·부제에는 없음
+  const h1 = /<h1[^>]*>([\s\S]*?)<\/h1>/.exec(visible)?.[1] || ''
+  const lead = /class="land-lead"[^>]*>([\s\S]*?)<\/p>/.exec(visible)?.[1] || ''
+  eq('큰 제목·부제에 "1688" 없음', [h1, lead].some(t => t.includes('1688')), false)
+  eq('큰 제목 = "만들고, 다듬고, 바로 올리세요." (한 가지 색)', /<h1 class="land-h1"[^>]*>만들고, 다듬고,<br \/>바로 올리세요\.<\/h1>/.test(visible), true)
+}
+// ── 5. 닮은 점 체크리스트 (2026-09-28 재디자인 — 다른 랜딩과 닮지 않게) ──
+{
+  const style = /<style[^>]*>([\s\S]*?)<\/style>/.exec(landing)[1]
+  const tpl = landing.slice(0, landing.indexOf('<script'))
+  const visibleText = tpl.replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ')
+  eq('검은 배경 없음 (편집기 어두운 토큰·st-dark 안 씀, 바탕 = 밝은 색)', [/st-dark|--st-bg|#0c0d10/.test(landing), /--l-bg: #f7f8fb/.test(style) && /background: var\(--l-bg\)/.test(style)], [false, true])
+  eq('알약 배지 없음 (999px·rounded-full·점 달린 제목 위 배지)', /999px|rounded-full|kicker[^{]*\{[^}]*border-radius/.test(landing), false)
+  eq('제목 일부만 색칠 없음 (h1 안에 em·span 없음, 글자 그라데이션 없음)', [/<h1[^>]*>[^<]*(<br \/>[^<]*)*<\/h1>/.test(tpl), /background-clip:\s*text/.test(style)], [true, false])
+  eq('빛 번짐 배경 없음 (glow·radial 번짐·blur)', /glow|closest-side|filter:\s*blur|backdrop-filter/.test(landing), false)
+  eq('주 버튼 = 파랑 (주황 주 버튼 없음)', /\.land-btn-primary \{ background: var\(--l-blue\)/.test(style) && !/land-btn-primary[^}]*orange/.test(style), true)
+  eq('영문 대문자 소제목 없음 (uppercase·EUCHS 말고 대문자 단어)', [/uppercase/.test(landing), (visibleText.match(/\b[A-Z]{4,}\b/g) || []).filter(w => w !== 'EUCHS')], [false, []])
+  const header = read('src/components/Header.vue')
+  eq('파랑 = 메인 [무역대행 신청](blue-600 #2563eb) · 주황 = [1688 소싱몰](orange-500 #f97316)', [
+    /to="\/apply"\s*class="[^"]*bg-blue-600/.test(header), /--l-blue: #2563eb/.test(style),
+    /to="\/mall"\s*class="[^"]*from-orange-500/.test(header), /--l-orange: #f97316/.test(style),
+  ], [true, true, true, true])
+  eq('주황은 "구매 고객 무료" 강조에만 (주황 타일 1개·무료 글자)', (tpl.match(/land-orange|tile-orange|is-free/g) || []).length, 4)
   eq('새 소식에 지난 예정 소식("편집기가 곧 나와요") 없음', read('src/lib/studioNotices.js').includes('편집기가 곧 나와요'), false)
 }
 const layout = read('src/layouts/StudioLayout.vue')
