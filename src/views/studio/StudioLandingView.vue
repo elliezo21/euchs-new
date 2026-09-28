@@ -147,9 +147,11 @@
             <!-- 판매처 보내기 -->
             <article class="tile" data-scene="export">
               <h3 class="tile-h">쿠팡으로 바로 보내기</h3>
-              <p class="tile-p">곧 열려요. 카페24·고도몰·메이크샵도 이어서 준비해요. 지금은 JPG·PNG로 받아 올리면 돼요.</p>
+              <p class="tile-p">완성한 상세페이지를 쿠팡 상품으로 바로 등록해요.</p>
               <ul class="mk" data-scene-visual>
-                <li v-for="m in MARKETS" :key="m" data-ex-market>{{ m }}</li>
+                <li v-for="m in MARKETS" :key="m.name" :class="{ 'is-soon': m.soon }" :data-ex-market="m.soon ? null : ''" :data-ex-soon="m.soon ? '' : null">
+                  {{ m.name }}<span v-if="m.soon" class="mk-soon">준비 중</span>
+                </li>
               </ul>
             </article>
           </div>
@@ -282,7 +284,8 @@ SceneVideo.props = ['media', 'alt', 'still']
 const KAKAO_CHAT = 'http://pf.kakao.com/_xmQWsK/chat' // Footer·CommunitySection과 같은 상담 채널
 const RAIL = [LayoutTemplate, ImageIcon, Type, Shapes, Rows3, Wand2] // 편집기 왼쪽 도구 막대 (템플릿·사진·텍스트·요소·섹션·배경합성)
 const OC_STEPS = ['사진 고르기', '글자 지우기', '페이지 배치', '문구 초안']
-const MARKETS = ['쿠팡', '카페24', '고도몰', '메이크샵']
+// 판매처 칩 — 쿠팡만 켜짐(활성), soon = "준비 중" 작은 배지만 (부가 설명 문구 없음)
+const MARKETS = [{ name: '쿠팡' }, { name: '카페24', soon: true }, { name: '고도몰', soon: true }, { name: '메이크샵', soon: true }]
 const STEPS = [
   { title: '가져오기', desc: '상품 링크, 찜한 상품, 주문한 상품, 내 사진 어디서든 시작해요.', chips: ['상품 링크', '주문한 상품', '내 사진'] },
   { title: '다듬기', desc: '필요 없는 글자와 배경을 AI로 정리하고, 원클릭으로 페이지 초안을 받아요.', chips: ['AI로 지우기', '배경 바꾸기', '원클릭 초안'] },
@@ -551,6 +554,8 @@ onBeforeUnmount(() => {
   color: color-mix(in srgb, var(--l-ink) calc(40% + var(--on) * 60%), transparent);
   background: color-mix(in srgb, var(--l-blue-soft) calc(var(--on) * 100%), #fff);
 }
+.mk li.is-soon { --on: 0; display: inline-flex; align-items: center; gap: 6px; }
+.mk-soon { padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 700; color: var(--l-ink-2); background: var(--l-line); }
 
 /* 만드는 순서 */
 .land-h2 { font-size: clamp(28px, 3.4vw, 40px); font-weight: 900; letter-spacing: -0.03em; line-height: 1.2; color: var(--l-ink); word-break: keep-all; }

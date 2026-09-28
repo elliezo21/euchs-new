@@ -130,7 +130,7 @@ export function startLandingMotion(root) {
       playWhenSeen(oc, timelinePlayer(tl))
     }
 
-    // ── 판매처 타일: 쿠팡 → 카페24 → 고도몰 → 메이크샵 차례로 켜짐 (약 1.5초) ──
+    // ── 판매처 타일: 쿠팡 칩이 켜짐 ("준비 중" 칩은 data-ex-market이 없어 꺼진 채 그대로) ──
     const ex = sceneEl('export')
     if (ex) {
       const markets = Array.from(ex.querySelectorAll('[data-ex-market]'))

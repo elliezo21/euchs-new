@@ -36,7 +36,7 @@ eq('모션 파일을 부르는 곳 = 랜딩 하나', motionUsers, ['src/views/st
 const landing = read('src/views/studio/StudioLandingView.vue')
 eq('랜딩은 모션 파일을 동적 import (정적 import 아님)', [/await import\(['"]@\/lib\/studioLandingMotion['"]\)/.test(landing), /^import .*studioLandingMotion/m.test(landing)], [true, false])
 eq('움직임 줄이기면 모션을 불러오지 않음 (첫 그리기부터 정지)', /const isStatic = ref\(!!window\.matchMedia\?\.\('\(prefers-reduced-motion: reduce\)'\)\.matches\)/.test(landing) && /if \(isStatic\.value\) return/.test(landing), true)
-eq('판매처 이름은 글자만 (로고 이미지 없음)', /MARKETS = \['쿠팡', '카페24', '고도몰', '메이크샵'\]/.test(landing) && !/logo[^"]*\.(png|svg|webp)/i.test(landing), true)
+eq('판매처 이름은 글자만 (로고 이미지 없음) · 쿠팡만 활성, 나머지 3곳 "준비 중" 배지', /MARKETS = \[\{ name: '쿠팡' \}, \{ name: '카페24', soon: true \}, \{ name: '고도몰', soon: true \}, \{ name: '메이크샵', soon: true \}\]/.test(landing) && /<span v-if="m\.soon" class="mk-soon">준비 중<\/span>/.test(landing) && !/logo[^"]*\.(png|svg|webp)/i.test(landing), true)
 eq("페이지에 '중국'이라는 글자가 없음 (랜딩·사진 설정·임시 그림·모션)",
   ['src/views/studio/StudioLandingView.vue', 'src/data/studioLandingMedia.js', 'src/data/studioLandingPlaceholders.js', 'src/lib/studioLandingMotion.js'].filter(p => read(p).includes('중국')), [])
 {
@@ -51,8 +51,9 @@ eq("페이지에 '중국'이라는 글자가 없음 (랜딩·사진 설정·임�
 }
 eq('랜딩 히어로 버튼 = [사용법 보기] → 만드는 순서로 이동', /@click="scrollToSteps">사용법 보기</.test(landing) && /ref="stepsRef" id="steps"/.test(landing), true)
 eq('여는 시점을 약속하는 문구 없음 (지금 바로·먼저 알려·지금 시작)', /지금 바로|먼저 알려|지금 시작/.test(landing), false)
-// "곧 열려요"는 쿠팡 보내기 타일 한 곳만 (해성 지시 2026-09-28 — 쿠팡 연동 준비 중)
-eq('"곧 열려" = 쿠팡 타일 한 곳', (landing.match(/곧 열려/g) || []).length === 1 && /쿠팡으로 바로 보내기<\/h3>\s*<p class="tile-p">곧 열려요/.test(landing), true)
+// 쿠팡 타일 설명은 한 줄만, 사정 설명 문구 없음 (해성 지시 2026-09-28 — push 전 마지막 수정)
+eq('쿠팡 타일 설명 = 한 줄', /쿠팡으로 바로 보내기<\/h3>\s*<p class="tile-p">완성한 상세페이지를 쿠팡 상품으로 바로 등록해요\.<\/p>/.test(landing), true)
+eq('랜딩 화면 글자(주석 제외)에 "곧"·"준비 중이라"·"관리자"·"이어서 준비" 없음', /곧|준비 중이라|관리자|이어서 준비/.test(landing.slice(landing.indexOf('<template>'), landing.indexOf('<script')).replace(/<!--[\s\S]*?-->/g, '') + landing.slice(landing.indexOf('<script'), landing.indexOf('<style')).replace(/\/\/.*$/gm, '')), false)
 eq('이용 안내 카드: 무료 · 이유씨컴퍼니 고객 / 준비 중 · 일반 고객', [/>무료</.test(landing), /이유씨컴퍼니 고객</.test(landing), />준비 중</.test(landing), /일반 고객</.test(landing), /준비 중이에요/.test(landing)], [true, true, true, true, true])
 {
   const motion = read('src/lib/studioLandingMotion.js').replace(/\/\*\*[\s\S]*?\*\/|\/\/.*$/gm, '') // 주석 빼고
