@@ -6,11 +6,11 @@
  *   또는 { offerId: "923697381015" }
  * 출력: { projectId, offerId, titleZh, descSource, images:[{id,sortOrder,sourceUrl}], gallery:[...], cached }
  * 에러: { code, message } — invalid_url 400 / not_found 404 / onebound_error 502 /
- *       daily_limit·global_limit 429 / no_entitlement 403 / internal 500
+ *       user_limit(1인 하루 STUDIO_ONEBOUND_USER_DAILY_CAP, 기본 30)·global_limit(전체 하루) 429 — 문구는 둘 다 "잠시 후 다시 시도해 주세요." / internal 500
  *
  * 처리 순서:
  *   ① studio_product_snapshots 캐시 (유효 + forceRefresh 아님 → OneBound 호출·한도 차감 없음)
- *   ② studio_try_reserve_onebound() 한도 예약 — 캐시 미스일 때만. 건너뛰면 본 사이트 조회가 멈춘다
+ *   ② 1인 하루 상한(_studioProductCap, 관리자·스태프 제외) + studio_try_reserve_onebound() 전체 하루 상한 예약 — 캐시 미스일 때만. 건너뛰면 본 사이트 조회가 멈춘다
  *   ③ OneBound 1688global/item_get 직접 1회 호출
  *      ★ callItemDetail()을 쓰지 않는다: CROSSBORDER_KO_ENABLED가 켜져 있으면 1회 조회당
  *        OneBound를 최대 3회 더 부른다(실측). 스튜디오는 한국어 번역 데이터가 필요 없다.
@@ -22,6 +22,7 @@
 
 import { studioGuard, sendError, sb } from './_studio.js'
 import { isRealProduct } from './bulk-item-detail.js'
+import { productUserDailyCap, userFetchCount, overBefore, overAfter, RETRY_LATER } from './_studioProductCap.js'
 
 // api/1688-item-detail.js fetchDetail()과 같은 게이트웨이·파라미터·헤더·타임아웃
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
@@ -323,11 +324,27 @@ export default async function handler(req, res) {
   }
 
   // ② 한도 예약 (캐시 미스일 때만)
+  //   1인 하루 상한(_studioProductCap — 관리자·스태프 제외)은 여기서 세고, DB 함수에는 전체 하루 상한만 맡긴다(p_skip_user_cap 늘 true)
+  //   막힐 때 고객 문구는 모두 "잠시 후 다시 시도해 주세요." — code(user_limit·global_limit)는 로그·구분용
+  const userCap = ctx.skipUserCap ? null : productUserDailyCap()
+  if (userCap !== null) {
+    let used
+    try {
+      used = await userFetchCount(ctx, userCap)
+    } catch (e) {
+      console.error(`[studio-product] ${offerId} 1인 하루 사용량 조회 실패:`, e.message)
+      return sendError(res, 500, 'internal', '사용량 확인 중 오류가 발생했습니다.')
+    }
+    if (overBefore(used, userCap)) {
+      console.info(`[studio-product] ${offerId} 1인 하루 상한 ${userCap} 도달 user=${ctx.userId}`)
+      return sendError(res, 429, 'user_limit', RETRY_LATER)
+    }
+  }
   let reservation
   try {
     const rows = await sb(cfg, 'rpc/studio_try_reserve_onebound', {
       method: 'POST',
-      body: { p_user: ctx.userId, p_global_cap: cfg.oneboundDailyCap, p_skip_user_cap: ctx.skipUserCap },
+      body: { p_user: ctx.userId, p_global_cap: cfg.oneboundDailyCap, p_skip_user_cap: true },
     })
     reservation = Array.isArray(rows) ? rows[0] : null
   } catch (e) {
@@ -336,11 +353,33 @@ export default async function handler(req, res) {
   }
   if (!reservation || reservation.reason !== 'ok' || !reservation.reservation_id) {
     const reason = reservation?.reason
-    if (reason === 'global_limit') return sendError(res, 429, 'global_limit', '오늘 스튜디오 상품 조회 한도가 모두 찼습니다.')
-    if (reason === 'daily_limit') return sendError(res, 429, 'daily_limit', '오늘 상품 조회 한도를 모두 사용했습니다.')
-    if (reason === 'no_entitlement') return sendError(res, 403, 'no_entitlement', '스튜디오 이용 권한이 없습니다.')
+    if (reason === 'global_limit') {
+      console.info(`[studio-product] ${offerId} 전체 하루 상한 ${cfg.oneboundDailyCap} 도달`)
+      return sendError(res, 429, 'global_limit', RETRY_LATER)
+    }
     console.error(`[studio-product] ${offerId} 예약 결과를 해석할 수 없음:`, JSON.stringify(reservation))
     return sendError(res, 500, 'internal', '사용량 확인 중 오류가 발생했습니다.')
+  }
+  // 동시 요청 확인 — 내 예약까지 세어 상한을 넘으면 방금 예약을 지우고 막는다 (OneBound를 부르기 전)
+  if (userCap !== null) {
+    let upToMine
+    try {
+      upToMine = await userFetchCount(ctx, userCap, { upToId: reservation.reservation_id })
+    } catch (e) {
+      console.error(`[studio-product] ${offerId} 예약 뒤 1인 사용량 조회 실패 id=${reservation.reservation_id}:`, e.message)
+      await finalizeUsage(cfg, reservation.reservation_id, { status: 'failed', error_code: 'internal', project_id: null, force_refresh: forceRefresh }, offerId)
+      return sendError(res, 500, 'internal', '사용량 확인 중 오류가 발생했습니다.')
+    }
+    if (overAfter(upToMine, userCap)) {
+      try {
+        await sb(cfg, `studio_usage?id=eq.${reservation.reservation_id}&status=eq.reserved`, { method: 'DELETE', prefer: 'return=minimal' })
+      } catch (e) {
+        // 지우지 못하면 reserved로 남아 이 사람·전체 상한에 한 번 더 세어질 뿐 — OneBound는 부르지 않았다
+        console.error(`[studio-product] 상한 초과 예약 삭제 실패 id=${reservation.reservation_id}:`, e.message)
+      }
+      console.info(`[studio-product] ${offerId} 1인 하루 상한 ${userCap} 도달(동시 요청) user=${ctx.userId}`)
+      return sendError(res, 429, 'user_limit', RETRY_LATER)
+    }
   }
 
   // ③~⑤ — 예약 행은 finally에서 반드시 확정. 응답은 확정이 끝난 뒤에 보낸다

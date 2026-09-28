@@ -7,7 +7,7 @@
  *   2. 토큰     api/bulk-item-detail.js의 verifyUserToken() 재사용 → 실패 시 401 unauthorized
  *   3. admin    관리자·스태프만 (DB 함수 is_admin_or_staff()와 같은 조건) → 아니면 403 not_admin
  *   4. all      관리자·스태프 또는 결제 확인 이후 주문 1건 이상(_studioBg.isBgEligible 그대로) → 아니면 403 not_customer
- *               (studio_entitlements 행은 자격이 아니라 셀러 하루 상품 조회 상한에만 쓴다 — 없으면 셀러 상한 건너뜀)
+ *               (studio_entitlements 행은 쓰지 않는다 — 1688 상품 가져오기 1인 하루 상한은 api/_studioProductCap.js)
  *   5. 소유권   loadOwnedRow() — 남의 행이면 404 (403이면 존재 여부가 샌다)
  *
  * 에러 응답 형식은 하나: { code, message }. 프런트는 code로 분기한다.
@@ -17,6 +17,7 @@
  *   SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
  *   ONEBOUND_KEY, ONEBOUND_SECRET
  *   STUDIO_ONEBOUND_DAILY_CAP    스튜디오 전체 OneBound 하루 상한 (기본 100)
+ *   STUDIO_ONEBOUND_USER_DAILY_CAP  1인 하루 1688 상품 가져오기(OneBound 조회) 상한 (기본 30, 관리자·스태프 제외 — _studioProductCap.js)
  *   MODELSTUDIO_API_KEY, MODELSTUDIO_BASE_URL, STUDIO_MT_PER_MINUTE  (번역 API에서 사용 — Phase 1-4 이후)
  */
 
@@ -139,14 +140,6 @@ export async function isAdminOrStaff(cfg, userId, email) {
   return (Array.isArray(ur) && ur.length > 0) || (Array.isArray(pf) && pf.length > 0)
 }
 
-/** 유효한 이용권 행이 있는가 (valid_until null = 무기한) */
-async function hasEntitlement(cfg, userId) {
-  const now = encodeURIComponent(new Date().toISOString())
-  const rows = await sb(cfg,
-    `studio_entitlements?select=user_id&user_id=eq.${userId}&or=(valid_until.is.null,valid_until.gt.${now})&limit=1`)
-  return Array.isArray(rows) && rows.length > 0
-}
-
 /**
  * 공통 관문. 통과하면 ctx를 돌려주고, 막히면 응답을 이미 보낸 뒤 null을 돌려준다.
  *   const ctx = await studioGuard(req, res); if (!ctx) return
@@ -204,10 +197,9 @@ export async function studioGuard(req, res, { method = 'POST' } = {}) {
       sendError(res, 403, 'not_customer', '스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요.')
       return null
     }
-    // 1688 상품 조회 셀러 하루 상한(studio_try_reserve_onebound)은 이용권 행의 daily_product_quota로 센다 —
-    // 이용권 행이 없는 주문 고객은 그 함수가 no_entitlement를 돌려주므로 셀러 상한을 건너뛴다(전체 하루 상한은 그대로)
-    const skipUserCap = staff || !(await hasEntitlement(cfg, userId))
-    return { ...base, skipUserCap }
+    // 1688 상품 가져오기 1인 하루 상한(api/_studioProductCap.js, 기본 30)은 관리자·스태프만 건너뛴다.
+    // 이용권 행과는 관계없다(2026-09-28 — 전에는 이용권 행의 daily_product_quota로 셌다)
+    return { ...base, skipUserCap: staff }
   } catch (e) {
     console.error('[studio] 권한 조회 실패:', e.message)
     sendError(res, 500, 'internal', '권한 확인 중 오류가 발생했습니다.')
