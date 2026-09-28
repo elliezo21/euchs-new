@@ -21,9 +21,9 @@
       <div class="st-land-grid" aria-hidden="true" />
       <div class="st-land-wrap relative grid grid-cols-1 lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
         <div>
-          <div class="st-land-kicker" data-hero-in><span class="dot" />1688 상세페이지 제작 스튜디오</div>
+          <div class="st-land-kicker" data-hero-in><span class="dot" />상세페이지 제작 스튜디오</div>
           <h1 class="st-land-h1 mt-5">
-            <span class="block" data-hero-in>1688 상품 사진,</span>
+            <span class="block" data-hero-in>상품 사진만 있으면,</span>
             <span class="block" data-hero-in>한국 <em>상세페이지</em>로</span>
           </h1>
           <p class="st-land-lead mt-6" data-hero-in>
@@ -113,7 +113,7 @@
         <div class="st-land-copy">
           <div class="st-land-num">03 · 원클릭 AI 자동 제작</div>
           <h2 class="st-land-h2">사진만 넣으면,<br />페이지 초안까지 한 번에</h2>
-          <p class="st-land-p">사진을 고르고, 수정하고 싶은 글자를 지우고, 긴 상세페이지로 배치한 뒤 1688 상품 정보로 글자 초안을 적어요.</p>
+          <p class="st-land-p">사진을 고르고, 수정하고 싶은 글자를 지우고, 긴 상세페이지로 배치한 뒤 상품 정보로 글자 초안을 적어요.</p>
           <ol class="mt-7 space-y-2.5">
             <li v-for="(s, i) in OC_STEPS" :key="s" class="st-land-ocstep" data-oc-step>
               <span class="n">{{ i + 1 }}</span><span>{{ s }}</span><Check class="w-4 h-4 ml-auto chk" :stroke-width="2.6" />

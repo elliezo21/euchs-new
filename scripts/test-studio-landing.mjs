@@ -83,6 +83,14 @@ eq('/studio/projects = 보호 (작업 홈)', /name: 'studio-projects',[\s\S]*?me
 const home = read('src/views/studio/StudioHomeView.vue')
 eq('작업 홈에 최근 작업·새 소식', [/StudioRecentProjects/.test(home), /getStudioNotices\(\)/.test(home)], [true, true])
 eq('랜딩 [무료로 시작하기] = 작업 홈으로 (가드가 로그인 처리)', /function start\(\) \{\s*router\.push\(\{ name: 'studio-projects' \}\)/.test(landing), true)
+// ── 4. 범용 문구 (스튜디오는 1688 전용이 아님 — 2026-09-28) ──
+{
+  const tpl = landing.slice(0, landing.indexOf('<script'))
+  const visible = tpl.split('\n').filter(l => !/^\s*<!--/.test(l)).join('\n')
+  eq('랜딩 소개 문구에 "1688" 없음', visible.includes('1688'), false)
+  eq('히어로 = "상품 사진만 있으면,"', visible.includes('상품 사진만 있으면,'), true)
+  eq('새 소식에 지난 예정 소식("편집기가 곧 나와요") 없음', read('src/lib/studioNotices.js').includes('편집기가 곧 나와요'), false)
+}
 const layout = read('src/layouts/StudioLayout.vue')
 eq('랜딩은 전체 화면(사이드바 없음)', /FULL_SCREEN = new Set\(\[[^\]]*'studio-landing'/.test(layout), true)
 
