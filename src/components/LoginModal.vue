@@ -557,6 +557,9 @@
                   <span>사업자 인증 및 정보 등록 완료</span>
                 </button>
               </div>
+              <p class="text-[11px] text-slate-500 text-center leading-snug">
+                입력한 정보는 <a href="/privacy" target="_blank" rel="noopener" class="text-blue-600 font-bold underline" data-verify-privacy-link>개인정보처리방침</a>에 따라 처리돼요.
+              </p>
             </form>
           </div>
 
@@ -700,6 +703,7 @@ import {
   updateUserPassword
 } from '../lib/auth'
 import { AUTH_REDIRECT_KEY, dropsRedirectOnClose } from '../lib/authRedirect'
+import { PRIVACY_VERSION } from '../lib/privacyConsent'
 
 // 사용자가 직접 닫을 때(X·바깥 클릭·Esc)만 가드가 저장한 복귀 주소를 버린다 (사유 규칙: authRedirect.js).
 // 로그인 성공으로 자동으로 닫힐 때(auth.js closeLoginModal)와 구글·카카오로 떠날 때는 지우지 않는다.
@@ -735,8 +739,7 @@ const signupForm = ref({
   phone: '',
   privacy_agreed: false // [필수] 개인정보 수집·이용 동의 — 체크해야 가입 버튼이 켜진다
 })
-// 동의한 처리방침 판 (= /privacy 시행일). 처리방침을 바꾸면 이 값도 바꾼다
-const PRIVACY_VERSION = '2026-09-28'
+// 동의한 처리방침 판(PRIVACY_VERSION)은 src/lib/privacyConsent.js 한 곳 — 간편 로그인 동의 창과 같은 값
 
 const verifyForm = ref({
   name: '',

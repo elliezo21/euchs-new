@@ -7,6 +7,8 @@
     <QuickMenu v-if="!isStandaloneRoute" />
     <Footer v-if="!isStandaloneRoute" />
     <AuthModal />
+    <!-- [필수] 개인정보 동의 기록이 없는 회원(간편 로그인 첫 가입·기존 회원)에게 로그인 뒤 한 번 -->
+    <PrivacyConsentGate />
     <!-- 온보딩 사용가이드 모달 (/mall 또는 /dashboard 에서만 렌더링) -->
     <OnboardingTour v-if="isOnboardingAllowed" />
   </div>
@@ -19,6 +21,7 @@ import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import QuickMenu from './components/QuickMenu.vue'
 import AuthModal from './components/AuthModal.vue'
+import PrivacyConsentGate from './components/PrivacyConsentGate.vue'
 import OnboardingTour from './components/common/OnboardingTour.vue'
 import { trackVisitor } from './lib/analytics'
 import { openLoginModal } from './lib/auth'
