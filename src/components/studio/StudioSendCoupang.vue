@@ -26,9 +26,26 @@
         <h4 class="st-h-card">2. 상품 정보</h4>
         <label class="block"><span class="st-label">등록상품명 * (발주서에 쓰는 이름, {{ NAME_MAX }}자)</span><input v-model.trim="f.productName" class="st-input w-full" :maxlength="NAME_MAX" :placeholder="NAME_HINT" data-mk-s-name /></label>
         <p v-if="namesBad" class="text-[12px] font-bold st-danger-text break-keep" data-mk-s-name-korean>상품명은 한글로 넣어 주세요.</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <label class="block"><span class="st-label">브랜드 * (없으면 자체브랜드명 — 띄어쓰기·특수문자 없이)</span><input v-model.trim="f.brand" class="st-input w-full" maxlength="50" placeholder="예: 이유씨" data-mk-s-brand /></label>
-          <label class="block"><span class="st-label">제조사 (비우면 브랜드와 같게)</span><input v-model.trim="f.manufacture" class="st-input w-full" maxlength="50" data-mk-s-manufacture /></label>
+        <!-- 브랜드 (선택) — 기본은 "브랜드 없음". 브랜드를 쓰려면 쿠팡에 등록된 브랜드여야 한다(brandId) -->
+        <div class="space-y-1.5" data-mk-s-brand-box>
+          <label class="flex items-center gap-2 text-[13px] st-ink font-bold"><input v-model="f.noBrand" type="checkbox" data-mk-s-no-brand @change="onNoBrand" /> 브랜드 없음</label>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <label class="block">
+              <span class="st-label">브랜드 (쿠팡에 등록된 브랜드 이름)</span>
+              <div class="flex gap-2">
+                <input v-model.trim="f.brand" class="st-input flex-1 min-w-0" :maxlength="BRAND_MAX" :disabled="f.noBrand" placeholder="브랜드 이름" data-mk-s-brand @input="onBrandInput" @keydown.enter.prevent="findBrand" />
+                <button type="button" class="st-btn shrink-0" :disabled="f.noBrand || !f.brand || !!busy" data-mk-s-brand-find @click="findBrand">{{ busy === 'brand' ? '찾는 중…' : '브랜드 찾기' }}</button>
+              </div>
+            </label>
+            <label class="block"><span class="st-label">제조사 (비우면 보내지 않아요)</span><input v-model.trim="f.manufacture" class="st-input w-full" maxlength="50" data-mk-s-manufacture /></label>
+          </div>
+          <select v-if="!f.noBrand && brandChoices.length > 1" v-model="f.brandId" class="st-input w-full sm:w-[360px]" data-mk-s-brand-pick @change="onBrandPick">
+            <option value="">브랜드 고르기</option>
+            <option v-for="b in brandChoices" :key="b.brandId" :value="b.brandId">{{ b.brandName }} ({{ b.brandId }})</option>
+          </select>
+          <p v-if="!f.noBrand && f.brandId" class="text-[12px] st-success-text font-bold" data-mk-s-brand-ok>쿠팡 브랜드 {{ f.brand }} ({{ f.brandId }})</p>
+          <p v-if="!f.noBrand && brandNote" class="text-[12px] font-bold st-danger-text break-keep" data-mk-s-brand-note>{{ brandNote }}</p>
+          <p v-if="f.noBrand" class="st-desc-sm break-keep" :class="brandInName ? 'st-danger-text font-bold' : ''" data-mk-s-brand-warn>{{ brandInName ? `상품명에 브랜드 이름(${brandInName})이 있어요. ` : '' }}상품명에 브랜드 이름이 들어 있으면 "브랜드 없음"을 풀고 브랜드를 넣어 주세요.</p>
         </div>
         <label class="block"><span class="st-label">제품명 (색상·사이즈 같은 옵션을 뺀 이름)</span><input v-model.trim="f.generalName" class="st-input w-full" :maxlength="NAME_MAX" placeholder="예: 도트 헤어핀" data-mk-s-general /></label>
         <label class="block">
@@ -51,7 +68,7 @@
       <section class="space-y-2">
         <h4 class="st-h-card">3. 검색태그</h4>
         <p class="st-desc-sm break-keep">{{ TAG_MAX }}개까지, 하나에 {{ TAG_LEN }}자까지예요. 다른 회사 상표는 쓸 수 없어요.</p>
-        <StudioTagChips ref="tagChips" v-model="f.tags" :brand="f.brand">
+        <StudioTagChips ref="tagChips" v-model="f.tags" :brand="brandOut">
           <button type="button" class="st-btn" :disabled="!nameSeed" data-mk-s-tag-suggest @click="suggestTags">태그 추천</button>
         </StudioTagChips>
       </section>
@@ -59,7 +76,7 @@
       <!-- 4. 옵션 -->
       <section class="space-y-2">
         <h4 class="st-h-card">4. 옵션·가격·재고 수량</h4>
-        <p class="st-desc-sm break-keep">옵션마다 품번(판매자 상품코드)은 필수, GTIN(바코드 숫자 8~14자리)은 선택이에요. 쿠팡 정책상 브랜드·상품식별정보·필수 구매옵션이 비면 노출이 제한돼요.</p>
+        <p class="st-desc-sm break-keep">옵션마다 품번(판매자 상품코드)은 필수, GTIN(바코드 숫자 8~14자리)은 선택이에요. 쿠팡 정책상 상품식별정보·필수 구매옵션이 비면 노출이 제한돼요. 옵션 이름은 옵션 값으로 자동으로 만들어요.</p>
         <p v-if="sourceNote" class="st-desc-sm break-keep" data-mk-s-source-note>{{ sourceNote }}</p>
 
         <!-- 옵션 종류 → 쿠팡 구매옵션 -->
@@ -90,7 +107,7 @@
             <thead>
               <tr>
                 <th class="c-img">사진</th>
-                <th>옵션 이름 *</th>
+                <th v-if="f.manualNames">옵션 이름 *</th>
                 <th v-for="t in f.optionTypes" :key="t.key">{{ t.mapped || t.label }}</th>
                 <th v-for="a in extraAttrs" :key="a.name">{{ attrLabel(a) }}</th>
                 <th v-if="!f.optionTypes.length && !extraAttrs.length">구매옵션 *</th>
@@ -112,11 +129,13 @@
                     <span v-else class="st-muted text-[11px]">대표</span>
                   </button>
                 </td>
-                <td class="c-name" data-label="옵션 이름 *">
-                  <input v-model.trim="it.name" class="st-input opt-in" maxlength="150" :placeholder="it.original || '예: 블랙 도트'" :title="it.original || ''" :data-mk-s-item-name="i" />
-                  <span v-if="it.original && needsHand(it)" class="opt-origin" :data-mk-s-origin="i">가져온 옵션: {{ it.original }}</span>
+                <td v-if="f.manualNames" class="c-name" data-label="옵션 이름 *">
+                  <input v-model.trim="it.name" class="st-input opt-in" :maxlength="ITEM_NAME_MAX" :placeholder="autoNames[i] || '예: 블랙 / M'" :data-mk-s-item-name="i" />
                 </td>
-                <td v-for="t in f.optionTypes" :key="t.key" :data-label="t.mapped || t.label"><input v-model.trim="it.opt[t.key]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="t.isColor ? '예: 블랙' : ''" :data-mk-s-opt="t.key" /></td>
+                <td v-for="(t, ti) in f.optionTypes" :key="t.key" :data-label="t.mapped || t.label">
+                  <input v-model.trim="it.opt[t.key]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :placeholder="it.originals[t.key] || (t.isColor ? '예: 블랙' : '')" :title="it.originals[t.key] || ''" :data-mk-s-opt="t.key" />
+                  <span v-if="it.originals[t.key] && needsHand(it, t)" class="opt-origin" :data-mk-s-origin="`${i}:${ti}`">가져온 옵션: {{ it.originals[t.key] }}</span>
+                </td>
                 <td v-for="a in extraAttrs" :key="a.name" :data-label="attrLabel(a)"><input v-model.trim="it.attributes[a.name]" class="st-input opt-in" :maxlength="ATTR_VALUE_MAX" :data-mk-s-attr="a.name" /></td>
                 <td v-if="!f.optionTypes.length && !extraAttrs.length" data-label="구매옵션 *">
                   <div class="flex gap-1"><input v-model.trim="it.freeAttrName" class="st-input opt-in" placeholder="종류" :maxlength="ATTR_NAME_MAX" /><input v-model.trim="it.freeAttrValue" class="st-input opt-in" placeholder="값" :maxlength="ATTR_VALUE_MAX" /></div>
@@ -134,7 +153,7 @@
           </table>
         </div>
         <div v-if="pickFor >= 0 && f.items[pickFor]" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-s-item-picker>
-          <div class="flex items-center gap-2 text-[13px]"><b class="st-ink">{{ f.items[pickFor].name || `옵션 ${pickFor + 1}` }}</b><span class="st-muted">의 사진</span><button type="button" class="st-link-muted text-[12px] ml-auto" @click="setItemImage(null)">대표 이미지 쓰기</button></div>
+          <div class="flex items-center gap-2 text-[13px]"><b class="st-ink">{{ itemNames[pickFor] || `옵션 ${pickFor + 1}` }}</b><span class="st-muted">의 사진</span><button type="button" class="st-link-muted text-[12px] ml-auto" @click="setItemImage(null)">대표 이미지 쓰기</button></div>
           <div class="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
             <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[6px] overflow-hidden st-border" :class="f.items[pickFor].imageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" @click="setItemImage(im.id)"><img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" /></button>
           </div>
@@ -142,7 +161,9 @@
         <div class="flex items-center gap-3">
           <button type="button" class="st-btn" :disabled="f.items.length >= ITEMS_MAX" data-mk-s-item-add @click="addItem">옵션 추가</button>
           <span class="text-[12px] st-muted">{{ f.items.length }} / {{ ITEMS_MAX }}</span>
+          <button type="button" class="st-link-muted text-[12px] ml-auto" data-mk-s-names-toggle @click="toggleManualNames">{{ f.manualNames ? '옵션 이름 자동으로 만들기' : '옵션 이름 직접 쓰기' }}</button>
         </div>
+        <p v-if="!f.manualNames && itemNames.some(Boolean)" class="st-desc-sm break-keep" data-mk-s-names-auto>옵션 이름: {{ itemNames.filter(Boolean).slice(0, 3).join(', ') }}{{ itemNames.length > 3 ? ' …' : '' }}</p>
       </section>
 
       <!-- 5. 상품정보고시 -->
@@ -248,12 +269,12 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
 import { optionTableMode } from '@/lib/studioMarketplaceRules'
-import { predictCategory, getCategoryMeta, sendProduct, makeSquareJpeg, REP_SIZE, readSaleMode, rememberSaleMode, fileToBase64, SEND_BODY_MAX } from '@/lib/studioMarketplace'
+import { predictCategory, searchBrand, getCategoryMeta, sendProduct, makeSquareJpeg, REP_SIZE, readSaleMode, rememberSaleMode, fileToBase64, SEND_BODY_MAX } from '@/lib/studioMarketplace'
 import {
   SALE_MODES, isSaleMode, defaultOutboundDays, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, ENUMS, ENUM_LABEL, advancedDefaults, discountRate,
   TAG_MAX, TAG_LEN, suggestSearchTags, NAME_MAX, suggestGeneralName, suggestDisplayName, ITEMS_MAX, STOCK_MAX, mapOptionName, matchOptionImage,
   hasUntranslated, NOTICE_LEN, NOTICE_SEE_DETAIL, noticeDefaults, docRequired, realCerts, previewRows,
-  pickKoreanName, namesNeedKorean, koreanizeSkus,
+  pickKoreanName, namesNeedKorean, koreanizeSkus, autoItemNames, ITEM_NAME_MAX, BRAND_MAX, BRAND_NOT_FOUND, pickBrand, brandWordIn,
 } from '../../../api/_coupangFields.js'
 
 const props = defineProps({ prepare: { type: Object, required: true } })
@@ -277,16 +298,18 @@ const done = ref(null)
 const advancedOpen = ref(false)
 const pickFor = ref(-1)
 const tagChips = ref(null)
+const brandChoices = ref([]) // 쿠팡 브랜드 검색 결과
+const brandNote = ref('')
 const bulk = ref({ originalPrice: null, salePrice: null, stock: null })
 // ★ uid는 f보다 먼저 선언한다 — f = ref(blank())가 곧바로 blankItem()을 불러 ++uid를 쓴다.
 //   뒤에 두면 "Cannot access 'uid' before initialization"으로 setup이 죽어 섹션이 통째로 안 그려진다 (2026-09-28 운영 버그)
 let uid = 0
 const f = ref(blank())
 
-function blankItem() { return { uid: ++uid, name: '', original: '', originalPrice: null, salePrice: null, stock: null, stock1688: null, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null, priceCny: null } }
+function blankItem() { return { uid: ++uid, name: '', original: '', originals: {}, originalPrice: null, salePrice: null, stock: null, stock1688: null, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null, priceCny: null } }
 function blank() {
   return {
-    saleMode: '', outboundDays: null, productName: '', displayName: '', generalName: '', brand: '', manufacture: '', modelNo: '', categoryCode: '', categoryName: '',
+    saleMode: '', outboundDays: null, productName: '', displayName: '', generalName: '', noBrand: true, brand: '', brandId: '', manufacture: '', manualNames: false, modelNo: '', categoryCode: '', categoryName: '',
     tags: [], noticeCategory: '', notices: {}, certs: {}, docs: {}, advanced: advancedDefaults(), optionTypes: [], items: [blankItem()], repImageId: null, fit: 'contain', templateId: '',
   }
 }
@@ -308,7 +331,6 @@ function init() {
   f.value.templateId = (p?.templates || []).find(t => t.is_default)?.id || p?.templates?.[0]?.id || ''
   f.value.repImageId = p?.images?.find(im => im.included !== false)?.id || p?.images?.[0]?.id || null
   fillFromSource()
-  if (!f.value.items[0].fromSource && !f.value.items[0].name) f.value.items[0].name = f.value.productName || '기본' // 옵션 없는 상품 — 가져온 옵션의 빈 이름은 고객이 채운다
   applyRememberedMode()
   if (nameSeed.value) { f.value.generalName = suggestGeneralName({ title: nameSeed.value, optionValues: optionValueList() }); suggestTags() }
 }
@@ -326,6 +348,7 @@ function fillFromSource() {
     it.opt = { ...kr.rows[i].opt }
     it.name = kr.rows[i].name
     it.original = kr.rows[i].original
+    for (const v of row.values) { const key = v?.name?.zh || v?.name?.ko; if (key) it.originals[key] = v?.value?.zh || '' }
     it.priceCny = row.priceCny
     if (row.priceCny === null) console.error('[StudioSendCoupang] 1688 옵션 가격을 읽지 못함 — "확인 필요"로 표시:', s.offerId, row.skuId)
     it.stock1688 = row.stock // 참고용 — 재고 수량 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다). 고객이 직접 넣는다
@@ -352,13 +375,40 @@ function onTemplate() { applyRememberedMode() }
 // ── 이름·태그 추천 (규칙 기반 — 외부 호출 없음) ──
 const nameSeed = computed(() => pickKoreanName([source.value?.title?.ko, f.value.generalName, f.value.productName]))
 const namesBad = computed(() => namesNeedKorean(f.value))
+// ── 브랜드 (선택) — "브랜드 없음"이면 brand·brandId를 보내지 않는다. 브랜드를 쓰려면 쿠팡 브랜드 검색으로 brandId를 받는다 ──
+const brandOut = computed(() => (f.value.noBrand ? '' : f.value.brand))
+const brandInName = computed(() => (f.value.noBrand ? brandWordIn(f.value.productName, f.value.displayName, f.value.generalName) : ''))
+function clearBrandPick() { f.value.brandId = ''; brandChoices.value = []; brandNote.value = '' }
+function onNoBrand() { clearBrandPick() }
+function onBrandInput() { clearBrandPick() }
+function onBrandPick() {
+  const b = brandChoices.value.find(x => x.brandId === f.value.brandId)
+  if (b) f.value.brand = b.brandName
+}
+async function findBrand() {
+  if (f.value.noBrand || !f.value.brand || busy.value) return
+  busy.value = 'brand'
+  clearBrandPick()
+  try {
+    const { brands } = await searchBrand(f.value.brand)
+    const pick = pickBrand(brands, f.value.brand)
+    if (pick.state === 'none') brandNote.value = BRAND_NOT_FOUND
+    else if (pick.state === 'one') { brandChoices.value = [pick.brand]; f.value.brandId = pick.brand.brandId; f.value.brand = pick.brand.brandName }
+    else brandChoices.value = pick.brands
+  } catch (e) {
+    console.error('[StudioSendCoupang] 브랜드 찾기 실패:', e.code, e)
+    brandNote.value = e.message
+  } finally {
+    busy.value = ''
+  }
+}
 function suggestNames() {
   f.value.generalName = suggestGeneralName({ title: nameSeed.value, categoryName: f.value.categoryName, optionValues: optionValueList() })
-  f.value.displayName = suggestDisplayName({ brand: f.value.brand, generalName: f.value.generalName })
+  f.value.displayName = suggestDisplayName({ brand: brandOut.value, generalName: f.value.generalName })
 }
 function suggestTags() {
   // 재료 = 상품명·카테고리·옵션 값 (가져온 상품의 속성은 쓰지 않는다 — 산지·판매 플랫폼 이름이 딸려 온다)
-  const list = suggestSearchTags({ title: nameSeed.value, categoryName: f.value.categoryName, options: [...new Set(optionValueList())], brand: f.value.brand })
+  const list = suggestSearchTags({ title: nameSeed.value, categoryName: f.value.categoryName, options: [...new Set(optionValueList())], brand: brandOut.value })
   if (tagChips.value) tagChips.value.addMany(list)
   else f.value.tags = list
 }
@@ -410,8 +460,11 @@ const missing = computed(() => {
   else if (!(Number.isInteger(v.outboundDays) && v.outboundDays >= OUTBOUND_DAYS_MIN && v.outboundDays <= OUTBOUND_DAYS_MAX)) out.push(`출고 소요일 (${OUTBOUND_DAYS_MIN}~${OUTBOUND_DAYS_MAX}일)`)
   if (!v.productName) out.push('등록상품명')
   if (namesBad.value) out.push('상품명 한글')
-  if (!v.brand) out.push('브랜드 (없으면 자체브랜드명)')
-  else if (/[^\p{L}\p{N}]/u.test(v.brand)) out.push('브랜드는 띄어쓰기·특수문자 없이')
+  if (!v.noBrand) {
+    if (!v.brand) out.push('브랜드 이름 (없으면 "브랜드 없음" 체크)')
+    else if (brandNote.value === BRAND_NOT_FOUND) out.push('쿠팡에 등록된 브랜드')
+    else if (!v.brandId) out.push(brandChoices.value.length > 1 ? '브랜드 고르기' : '[브랜드 찾기] 누르기')
+  }
   if (!/^\d+$/.test(v.categoryCode)) out.push('카테고리')
   if (!v.templateId) out.push('배송/반품 템플릿')
   if (!v.repImageId) out.push('대표 이미지')
@@ -422,10 +475,14 @@ const missing = computed(() => {
   const groupsDone = new Set()
   v.items.forEach((it, i) => {
     const tag = v.items.length > 1 ? `옵션 ${i + 1} ` : ''
-    if (!it.name) out.push(`${tag}옵션 이름`)
-    else if (names.has(it.name)) out.push(`${tag}옵션 이름이 다른 옵션과 같아요`)
-    names.add(it.name)
-    if (hasUntranslated(it.name) || Object.values(it.opt).some(hasUntranslated)) out.push(`${tag}옵션 이름·값을 한글로 고쳐 주세요`)
+    // 옵션 이름 — 기본은 자동(구매옵션 값으로 만든다 → 값이 비면 아래 "색상" 같은 빠짐으로 나온다). 직접 쓸 때만 이름을 검사한다
+    const name = itemNames.value[i]
+    if (v.manualNames) {
+      if (!name) out.push(`${tag}옵션 이름`)
+      else if (names.has(name)) out.push(`${tag}옵션 이름이 다른 옵션과 같아요`)
+    }
+    names.add(name)
+    if (hasUntranslated(name) || Object.values(it.opt).some(hasUntranslated)) out.push(`${tag}옵션 값을 한글로 고쳐 주세요`)
     if (!(it.salePrice > 0)) out.push(`${tag}판매가`)
     else if (it.originalPrice > 0 && it.salePrice > it.originalPrice) out.push(`${tag}판매가가 정가보다 커요`)
     if (it.stock === null || it.stock === '' || it.stock === undefined) out.push(`${tag}재고 수량`)
@@ -458,18 +515,31 @@ const missing = computed(() => {
 })
 
 const preview = computed(() => previewRows({
-  ...f.value, items: f.value.items, certifications: certsOut.value, documents: docsOut.value, templateName: template.value?.name || '',
+  ...f.value, brand: brandOut.value, items: f.value.items.map((it, i) => ({ ...it, name: itemNames.value[i] })), certifications: certsOut.value, documents: docsOut.value, templateName: template.value?.name || '',
 }))
 
 // ── 옵션 표 ──
 const attrLabel = a => `${a.name}${a.required ? ' *' : ''}${a.unit ? ` (${a.unit})` : ''}`
 /** 가져온 글자를 한글로 못 옮겨 고객이 채워야 하는 줄 — 칸 아래에 가져온 글자를 보여 준다 */
-const needsHand = it => !it.name || hasUntranslated(it.name) || f.value.optionTypes.some(t => !String(it.opt[t.key] || '').trim() || hasUntranslated(it.opt[t.key]))
+const needsHand = (it, t) => !String(it.opt[t.key] || '').trim() || hasUntranslated(it.opt[t.key])
+// 옵션 이름 — 구매옵션 값을 " / "로 이어 자동으로 만든다(Wing과 같게). [옵션 이름 직접 쓰기]를 누르면 열이 나타나 고칠 수 있다
+const buyValuesOf = it => {
+  const out = f.value.optionTypes.map(t => it.opt[t.key])
+  for (const a of extraAttrs.value) if (a.exposed) out.push(it.attributes[a.name])
+  if (!f.value.optionTypes.length && !extraAttrs.value.length) out.push(it.freeAttrValue)
+  return out
+}
+const autoNames = computed(() => autoItemNames(f.value.items.map(buyValuesOf)))
+const itemNames = computed(() => f.value.items.map((it, i) => (f.value.manualNames ? String(it.name || '').trim() : autoNames.value[i])))
+function toggleManualNames() {
+  if (!f.value.manualNames) f.value.items.forEach((it, i) => { it.name = autoNames.value[i] }) // 자동으로 만든 이름에서 시작
+  f.value.manualNames = !f.value.manualNames
+}
 // 표 / 카드 — 표 자리 폭을 재서 고른다 (섹션이 가려져 폭이 0이면 화면 폭으로 어림)
 const optWrap = ref(null)
 const optWidth = ref(0)
 const viewport = ref(typeof window !== 'undefined' && Number(window.innerWidth) > 0 ? window.innerWidth : 0)
-const flexCols = computed(() => 1 + (f.value.optionTypes.length + extraAttrs.value.length || 1))
+const flexCols = computed(() => (f.value.manualNames ? 1 : 0) + (f.value.optionTypes.length + extraAttrs.value.length || 1))
 const optMode = computed(() => optionTableMode({ width: optWidth.value, viewport: viewport.value, flexCols: flexCols.value, hasCny: hasCny.value }))
 let optObserver = null
 function measure() {
@@ -533,7 +603,7 @@ async function predict() {
   predictError.value = false
   predictNote.value = ''
   try {
-    const r = await predictCategory(f.value.productName, f.value.brand)
+    const r = await predictCategory(f.value.productName, brandOut.value)
     if (r.categoryCode) {
       f.value.categoryCode = r.categoryCode
       f.value.categoryName = r.categoryName || ''
@@ -592,14 +662,14 @@ async function submit() {
       keyOf[id] = key
     }
     const notices = noticeItems.value.filter(n => String(v.notices[n.name] || '').trim()).map(n => ({ noticeCategoryName: v.noticeCategory, noticeCategoryDetailName: n.name, content: v.notices[n.name] }))
-    const items = v.items.map(it => ({
-      name: it.name, originalPrice: it.originalPrice || it.salePrice, salePrice: it.salePrice, stock: it.stock, sku: it.sku, gtin: it.gtin,
+    const items = v.items.map((it, i) => ({
+      name: itemNames.value[i], originalPrice: it.originalPrice || it.salePrice, salePrice: it.salePrice, stock: it.stock, sku: it.sku, gtin: it.gtin,
       attributes: attributesOf(it), imageKey: keyOf[it.imageId] || '',
     }))
     const payload = {
       exportId: props.prepare.export.id, templateId: v.templateId, categoryCode: v.categoryCode, categoryName: v.categoryName,
       saleMode: v.saleMode, outboundDays: v.outboundDays,
-      productName: v.productName, displayName: v.displayName, generalName: v.generalName, brand: v.brand, manufacture: v.manufacture, modelNo: v.modelNo,
+      productName: v.productName, displayName: v.displayName, generalName: v.generalName, brand: brandOut.value, brandId: v.noBrand ? '' : v.brandId, manufacture: v.manufacture, modelNo: v.modelNo,
       items, notices, certifications: certsOut.value.map(c => ({ type: c.type, code: c.code })), documents: docsOut.value, advanced: { ...v.advanced },
       repImage: { dataBase64 }, optionImages, searchTags: v.tags,
     }

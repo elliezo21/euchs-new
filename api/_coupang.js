@@ -12,7 +12,7 @@
 import crypto from 'crypto'
 import {
   SALE_MODES, isSaleMode, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, normalizeAdvanced, cleanSearchTags, realCerts, docRequired,
-  CERT_NONE, NAME_MAX, ITEMS_MAX, STOCK_MAX, NOTICE_LEN, DOC_MAX, DOC_PATH_MAX, namesNeedKorean,
+  CERT_NONE, NAME_MAX, ITEMS_MAX, STOCK_MAX, NOTICE_LEN, DOC_MAX, DOC_PATH_MAX, namesNeedKorean, autoItemNames, BRAND_MAX, BRAND_ID_RE, BRAND_NOT_FOUND,
 } from './_coupangFields.js'
 
 export const COUPANG_HOST = 'https://api-gateway.coupang.com'
@@ -25,6 +25,7 @@ export const PATHS = {
   predict: '/v2/providers/openapi/apis/api/v1/categorization/predict',
   categoryMeta: code => `/v2/providers/seller_api/apis/api/v1/marketplace/meta/category-related-metas/display-category-codes/${code}`,
   products: '/v2/providers/seller_api/apis/api/v1/marketplace/seller-products',
+  brandSearch: '/v2/providers/seller_api/apis/api/v1/marketplace/brands/search', // 문서 58230017410841 — POST · 본문 { brandName, countPerPage, page }
   product: id => `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/${id}`,
   histories: id => `/v2/providers/seller_api/apis/api/v1/marketplace/seller-products/${id}/histories`,
 }
@@ -305,7 +306,7 @@ function money(v) { const n = Number(v); return Number.isInteger(n) && n > 0 ? n
 /**
  * @param {object} p  { account:{ vendor_id, seller_login_id }, template, places, categoryCode,
  *                      saleMode(필수 'domestic'|'agent' — 기본값 없음), outboundDays?(비우면 템플릿 값),
- *                      productName(등록상품명), displayName?(노출상품명 — 비우면 등록상품명), generalName?(제품명), brand(필수), manufacture?, modelNo?,
+ *                      productName(등록상품명), displayName?(노출상품명 — 비우면 등록상품명), generalName?(제품명), brand?(비우면 브랜드 없음)·brandId?(brand가 있으면 필수), manufacture?(비우면 안 보냄), modelNo?,
  *                      items:[{ name, originalPrice, salePrice, stock, sku(필수 품번), gtin?(선택), attributes:{}, imageUrl?(옵션 대표 이미지 — 없으면 repImageUrl) }],
  *                      attributeMeta?:[{ name, dataType, unit, exposed }](카테고리 메타 — 단위 붙이기·검색옵션 표시),
  *                      notices:[{ noticeCategoryName, noticeCategoryDetailName, content }], certifications?:[{ type, code }], documents?:[{ templateName, url }],
@@ -330,11 +331,15 @@ export function buildProductBody(p) {
   const adv = normalizeAdvanced(p.advanced || {})
   if (!adv.ok) return adv
   const A = adv.value
-  // 쿠팡 정책(2026-06-01 이후 발급 키): 브랜드·상품식별정보(GTIN 또는 품번)·필수 구매옵션이 비면 노출 제한 (해성 추가 지시 2026-09-28)
+  // 브랜드는 선택 (2026-05-22 브랜드 관리 강화): 브랜드 이름을 쓰려면 브랜드 검색 API로 받은 brandId를 같이 보낸다. 브랜드가 없는 상품은 brand·brandId를 보내지 않는다
+  // 상품식별정보(GTIN 또는 품번)·필수 구매옵션이 비면 노출 제한 (해성 추가 지시 2026-09-28)
   // 필드명은 문서(360033877853) 확인: 상품 레벨 brand·manufacture / items[] externalVendorSku(판매자 상품코드=품번)·barcode·emptyBarcode·emptyBarcodeReason·modelNo
   const brand = String(p.brand || '').trim()
-  if (!brand || brand.length > 50) return { ok: false, message: '브랜드를 넣어 주세요. 브랜드가 없으면 자체브랜드명을 넣어요.' }
-  if (/[^\p{L}\p{N}]/u.test(brand)) return { ok: false, message: '브랜드는 한글·영어·숫자만, 띄어쓰기·특수문자 없이 넣어 주세요.' }
+  const brandId = String(p.brandId || '').trim()
+  if (brand.length > BRAND_MAX) return { ok: false, message: `브랜드는 ${BRAND_MAX}자까지예요.` }
+  if (brand && !BRAND_ID_RE.test(brandId)) return { ok: false, message: BRAND_NOT_FOUND }
+  const manufacture = String(p.manufacture || '').trim()
+  if (manufacture.length > 50) return { ok: false, message: '제조사는 50자까지예요.' }
   if (!/^\d+$/.test(String(p.categoryCode || ''))) return { ok: false, message: '카테고리를 골라 주세요.' }
   const t = p.template
   const rc = (p.places || []).find(x => x.kind === 'return' && x.place_code === t.return_center_code)
@@ -367,9 +372,11 @@ export function buildProductBody(p) {
   const tags = cleanSearchTags(p.searchTags, { brand }).tags
   const metaOf = n => (Array.isArray(p.attributeMeta) ? p.attributeMeta : []).find(a => a.name === n)
   const seenNames = new Set(), seenCombos = new Set()
+  // 옵션 이름을 안 보냈으면 구매옵션 값으로 만든다 (화면과 같은 규칙 — autoItemNames)
+  const autoNames = autoItemNames(items.map(it => Object.entries(it?.attributes || {}).filter(([k, v]) => k && String(v ?? '').trim() && metaOf(k)?.exposed !== false).map(([, v]) => v)))
   const outItems = []
-  for (const it of items) {
-    const itemName = String(it.name || '').trim()
+  for (const [idx, it] of items.entries()) {
+    const itemName = String(it.name || '').trim() || autoNames[idx]
     if (!itemName || itemName.length > 150) return { ok: false, message: '옵션 이름은 1~150자예요.' }
     if (seenNames.has(itemName)) return { ok: false, message: `옵션 이름 "${itemName}"이 두 번 있어요. 옵션 이름은 서로 달라야 해요.` }
     seenNames.add(itemName)
@@ -416,7 +423,7 @@ export function buildProductBody(p) {
   }
   const body = {
     displayCategoryCode: Number(p.categoryCode), sellerProductName: name, vendorId: p.account.vendor_id,
-    saleStartedAt: p.saleStartedAt, saleEndedAt: SALE_END, displayProductName: displayName, brand, manufacture: String(p.manufacture || '').trim() || brand,
+    saleStartedAt: p.saleStartedAt, saleEndedAt: SALE_END, displayProductName: displayName, ...(brand ? { brand, brandId } : {}), ...(manufacture ? { manufacture } : {}),
     deliveryMethod: mode.deliveryMethod, deliveryCompanyCode: t.delivery_company_code, deliveryChargeType: t.delivery_charge_type,
     deliveryCharge: t.delivery_charge, freeShipOverAmount: t.free_ship_over_amount, deliveryChargeOnReturn: t.delivery_charge_on_return,
     remoteAreaDeliverable: t.remote_area_deliverable ? 'Y' : 'N', unionDeliveryType: A.unionDeliveryType,

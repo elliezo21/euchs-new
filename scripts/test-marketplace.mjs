@@ -156,7 +156,7 @@ const ITEM_1688 = {
 }
 const BASE = {
   account: { vendor_id: 'A00012345', seller_login_id: 'wingid' }, template: C.validateTemplate(T, PLACES).value, places: PLACES, categoryCode: '56137', saleMode: 'domestic',
-  productName: '매일 쓰는 머그', brand: '이유씨', items: [{ name: '블랙', originalPrice: 12000, salePrice: 9900, stock: 50, sku: 'MUG-BK', gtin: '', attributes: { 색상: '블랙' } }],
+  productName: '매일 쓰는 머그', brand: '이유씨', brandId: 'KR-77', items: [{ name: '블랙', originalPrice: 12000, salePrice: 9900, stock: 50, sku: 'MUG-BK', gtin: '', attributes: { 색상: '블랙' } }],
   notices: [{ noticeCategoryName: '기타 재화', noticeCategoryDetailName: '품명 및 모델명', content: '머그' }],
   repImageUrl: 'https://www.euchs.co.kr/api/marketplace?t=x', detailImageUrls: ['https://www.euchs.co.kr/api/marketplace?t=y'], saleStartedAt: '2026-09-28T00:00:00',
 }
@@ -164,13 +164,14 @@ const BASE = {
   const b = C.buildProductBody(BASE)
   eq('상품 본문 만들기 성공', b.ok, true)
   eq('requested:true · vendorId · vendorUserId', [b.body.requested, b.body.vendorId, b.body.vendorUserId], [true, 'A00012345', 'wingid'])
-  eq('브랜드 = 상품 레벨 brand · 제조사 기본 = 브랜드', [b.body.brand, b.body.manufacture], ['이유씨', '이유씨'])
+  eq('브랜드 = 상품 레벨 brand + brandId · 제조사는 비우면 안 보냄', [b.body.brand, b.body.brandId, 'manufacture' in b.body], ['이유씨', 'KR-77', false])
   eq('품번 = items[].externalVendorSku', b.body.items[0].externalVendorSku, 'MUG-BK')
   eq('GTIN 없음 → emptyBarcode true + 사유', [b.body.items[0].emptyBarcode, !!b.body.items[0].emptyBarcodeReason, 'barcode' in b.body.items[0]], [true, true, false])
   const g = C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], gtin: '8801234567893' }] })
   eq('GTIN 있음 → items[].barcode · emptyBarcode false', [g.body.items[0].barcode, g.body.items[0].emptyBarcode], ['8801234567893', false])
-  eq('브랜드 없음 → 거절(자체브랜드명 안내)', [C.buildProductBody({ ...BASE, brand: '' }).ok, C.buildProductBody({ ...BASE, brand: '' }).message.includes('자체브랜드명')], [false, true])
-  eq('브랜드에 띄어쓰기·특수문자 → 거절', [C.buildProductBody({ ...BASE, brand: '이유 씨' }).ok, C.buildProductBody({ ...BASE, brand: 'EU-C' }).ok], [false, false])
+  eq('브랜드 없음 → 통과 · brand·brandId·manufacture를 보내지 않음', (() => { const r = C.buildProductBody({ ...BASE, brand: '', brandId: '' }); return [r.ok, 'brand' in r.body, 'brandId' in r.body, 'manufacture' in r.body] })(), [true, false, false, false])
+  eq('브랜드 이름만 있고 brandId가 없음·이상함 → 거절', [C.buildProductBody({ ...BASE, brandId: '' }).ok, C.buildProductBody({ ...BASE, brandId: 'a b' }).ok, C.buildProductBody({ ...BASE, brandId: '' }).message], [false, false, F.BRAND_NOT_FOUND])
+  eq('브랜드 없음 + 제조사만 → 제조사만 보냄', (() => { const r = C.buildProductBody({ ...BASE, brand: '', brandId: '', manufacture: '이유씨컴퍼니' }); return [r.body.manufacture, 'brand' in r.body] })(), ['이유씨컴퍼니', false])
   eq('품번 없음 → 거절', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], sku: '' }] }).ok, false)
   eq('GTIN 형식 틀림 → 거절', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], gtin: '12ab' }] }).ok, false)
   eq('반품지 주소는 places에서', [b.body.returnCenterCode, b.body.returnZipCode, b.body.returnAddress, b.body.returnChargeName], ['200', '61000', '광주 북구', '반품지A'])
@@ -216,6 +217,12 @@ globalThis.fetch = async (url, opts = {}) => {
     if (p === C.PATHS.outbound) return json({ content: [{ outboundShippingPlaceCode: 100, shippingPlaceName: '출고지A', usable: true, placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '61000', returnAddress: '광주', returnAddressDetail: '1층', companyContactNumber: '010' }] }] })
     if (p === C.PATHS.returnCenters('A00012345')) return json({ code: 200, data: { content: [{ returnCenterCode: '200', shippingPlaceName: '반품지A', deliverCode: 'CJGLS', deliverName: 'CJ대한통운', usable: true, placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '61000', returnAddress: '광주 북구', returnAddressDetail: '1층', companyContactNumber: '010' }] }] } })
     if (p === C.PATHS.predict) return json({ code: 200, data: { autoCategorizationPredictionResultType: 'SUCCESS', predictedCategoryId: '56137', predictedCategoryName: '머그컵' } })
+    if (p === C.PATHS.brandSearch && method === 'POST') {
+      const name = JSON.parse(opts.body).brandName
+      const B = (brandId, brandName) => ({ brandId, brandName, brandLogoUrl: '', isUIDRequired: false, allowedUIDTypes: [] })
+      const items = name === '이유씨' ? [B('KR-77', '이유씨')] : name === '머그' ? [B('KR-1', '머그나라'), B('KR-2', '머그하우스')] : []
+      return json({ code: 'SUCCESS', message: '', data: { page: 1, countPerPage: 10, totalCount: items.length, items } })
+    }
     if (p === C.PATHS.categoryMeta('56137')) return json({ code: 'SUCCESS', ...META })
     if (p === C.PATHS.categoryMeta('77777')) return json({ code: 'SUCCESS', ...META2 })
     if (p === C.PATHS.products && method === 'POST') return json({ code: 'SUCCESS', message: '', data: 1234567890 })
@@ -340,8 +347,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const before = db.marketplace_sends.length
   const miss = await post('send', { ...SEND, items: [{ ...BASE.items[0], attributes: {} }] })
   eq('카테고리 필수 속성 빠짐 → 400 required_missing · 기록 안 만듦', [miss.body.code, miss.body.message.includes('색상'), db.marketplace_sends.length], ['required_missing', true, before])
-  const nb = await post('send', { ...SEND, brand: '' })
-  eq('브랜드 없음 → 400 · 실패 기록', [nb.statusCode, db.marketplace_sends.at(-1).status], [400, 'failed'])
+  const nb = await post('send', { ...SEND, brand: '없는브랜드' })
+  eq('쿠팡에 없는 브랜드 → 400 brand_not_found · 안내 문구 · 기록 안 만듦', [nb.statusCode, nb.body.code, nb.body.message, db.marketplace_sends.length], [400, 'brand_not_found', F.BRAND_NOT_FOUND, before])
+  const nm = await post('send', { ...SEND, brand: '머그' })
+  eq('같은 검색에 브랜드 여러 개 + 고르지 않음 → 400 brand_choose · 고르면(brandId) 통과 준비', [nm.statusCode, nm.body.code, (await post('send', { ...SEND, brand: '머그', brandId: 'KR-9' })).body.code], [400, 'brand_choose', 'brand_not_found'])
+  eq('브랜드 찾기: 결과 목록 · 없으면 빈 목록 · 이름 없으면 400', [(await post('brand_search', { brandName: '머그' })).body.brands.map(x => [x.brandId, x.brandName]), (await post('brand_search', { brandName: '없는브랜드' })).body.brands, (await post('brand_search', { brandName: ' ' })).statusCode], [[['KR-1', '머그나라'], ['KR-2', '머그하우스']], [], 400])
 
   relay.calls = []
   const ok = await post('send', SEND)
@@ -367,7 +377,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   relay.mode = 'ok'
 
   // 처리현황·동기화
-  eq('처리현황 목록', (await post('sends_list')).body.sends.map(s => s.status).sort(), ['approval_pending', 'failed', 'failed'])
+  eq('처리현황 목록', (await post('sends_list')).body.sends.map(s => s.status).sort(), ['approval_pending', 'failed']) // 브랜드 확인은 기록을 만들기 전에 끝난다 (없는 브랜드는 기록 없음)
   relay.status = '승인반려'
   const sy = await post('sync')
   const rejected = sy.body.sends.find(s => s.sellerProductId === '1234567890')
@@ -477,7 +487,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const guide = read('src/components/studio/StudioMarketplaceGuide.vue')
   eq('가이드: 캡처 5장 · "[추가] 버튼" 강조 2곳(04·05) · IP 복사', [[1, 2, 3, 4, 5].every(n => guide.includes(`/studio-guide/coupang/0${n}.png`) && fs.existsSync(new URL(`../public/studio-guide/coupang/0${n}.png`, import.meta.url))), (guide.match(/반드시 \[추가\] 버튼/g) || []).length, guide.includes("label: 'IP'")], [true, 2, true])
   const modal = read('src/components/studio/StudioSendCoupang.vue')
-  eq('보내기 창: 브랜드·품번 필수, GTIN 선택', [/브랜드 \*/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드 숫자 8~14자리\)은 선택/.test(modal), /자체브랜드명/.test(modal)], [true, true, true, true])
+  eq('보내기 창: 브랜드는 선택("브랜드 없음" 기본 체크) · 품번 필수 · GTIN 선택', [/브랜드 \*/.test(modal), /data-mk-s-no-brand/.test(modal), /noBrand: true, brand: '', brandId: ''/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드 숫자 8~14자리\)은 선택/.test(modal), /자체브랜드명/.test(modal)], [false, true, true, true, true, false])
   eq('판매처 화면: 로그아웃 구독', /euchs-auth-changed/.test(read('src/views/studio/StudioMarketplaceView.vue')), true)
 }
 
@@ -562,7 +572,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   })
   eq('요청 본문 스냅샷 (해외구매대행)', full.body, {
     displayCategoryCode: 56137, sellerProductName: '매일 쓰는 머그', vendorId: 'A00012345', saleStartedAt: '2026-09-28T00:00:00', saleEndedAt: '2099-12-31T23:59:59',
-    displayProductName: '이유씨 세라믹 머그컵', brand: '이유씨', manufacture: '이유씨컴퍼니',
+    displayProductName: '이유씨 세라믹 머그컵', brand: '이유씨', brandId: 'KR-77', manufacture: '이유씨컴퍼니',
     deliveryMethod: 'AGENT_BUY', deliveryCompanyCode: 'CJGLS', deliveryChargeType: 'FREE', deliveryCharge: 0, freeShipOverAmount: 0, deliveryChargeOnReturn: 3000,
     remoteAreaDeliverable: 'Y', unionDeliveryType: 'UNION_DELIVERY',
     returnCenterCode: '200', returnChargeName: '반품지A', companyContactNumber: '010-0000-0000', returnZipCode: '61000', returnAddress: '광주 북구', returnAddressDetail: '1층',
@@ -642,7 +652,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 보내기 전 요약
   const pv = F.previewRows({ saleMode: 'agent', outboundDays: 10, productName: '머그', displayName: '', brand: '이유씨', categoryCode: '56137', categoryName: '머그컵', tags: ['머그컵', '홈카페'], items: [{ salePrice: 9900 }, { salePrice: 11900 }], noticeCategory: '기타 재화', notices: { a: '1', b: '' }, certifications: [], documents: [], advanced: { maxPerPerson: 2, maxPerPersonDays: 30 }, templateName: '기본' })
   const row = l => pv.find(r => r.label === l)?.value
-  eq('요약 표: 판매 방식·배송방법·통관부호·이름·태그·가격 범위·구매 제한', [row('판매 방식'), row('배송방법'), row('개인통관고유부호'), row('출고 소요일'), row('노출상품명'), row('제조사'), row('검색태그'), row('옵션'), row('판매가'), row('상품정보고시'), row('인증정보'), row('1인 구매 제한'), row('제품명')], ['해외구매대행', 'AGENT_BUY', '받음', '10일', '머그', '이유씨', '머그컵, 홈카페', '2개', '9,900원 ~ 11,900원', '기타 재화 · 1항목', '해당 없음', '30일에 2개', ''])
+  eq('요약 표: 판매 방식·배송방법·통관부호·이름·태그·가격 범위·구매 제한', [row('판매 방식'), row('배송방법'), row('개인통관고유부호'), row('출고 소요일'), row('노출상품명'), row('제조사'), row('검색태그'), row('옵션'), row('판매가'), row('상품정보고시'), row('인증정보'), row('1인 구매 제한'), row('제품명')], ['해외구매대행', 'AGENT_BUY', '받음', '10일', '머그', '', '머그컵, 홈카페', '2개', '9,900원 ~ 11,900원', '기타 재화 · 1항목', '해당 없음', '30일에 2개', ''])
   eq('요약 표: 판매 방식을 안 고르면 빈 칸 (기본값 없음)', [F.previewRows({}).find(r => r.label === '판매 방식').value, F.previewRows({}).find(r => r.label === '배송방법').value], ['', ''])
 
   // 화면
@@ -806,7 +816,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('3 어디에도 번역 안 된 글자를 넣지 않음', [...kr.rows, ...same.rows].some(r => F.hasUntranslated(r.name) || Object.values(r.opt).some(F.hasUntranslated)), false)
   eq('3 번역 캐시의 한글에 번역 안 된 글자가 섞였으면 쓰지 않음', F.koreanizeSkus([{ values: [V('款式', null, '蝴蝶发夹', '나비 发夹')] }]).rows[0], { name: '', opt: { 款式: '' }, original: '蝴蝶发夹' })
   eq('3 값 30자·이름 150자', (() => { const r = F.koreanizeSkus([{ values: [V('款式', '스타일', '发夹', '가'.repeat(40))] }]).rows[0]; return [r.opt['款式'].length, r.name.length] })(), [30, 40])
-  eq('3 화면: 옵션 표는 koreanizeSkus를 씀 · 빈 옵션 이름을 상품명으로 채우지 않음 · 가져온 글자는 칸 아래·placeholder', [cp.includes('const kr = koreanizeSkus(s.skus, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })'), cp.includes("if (!f.value.items[0].fromSource && !f.value.items[0].name)"), /data-mk-s-origin/.test(cp), /:placeholder="it\.original \|\| /.test(cp)], [true, true, true, true])
+  eq('3 화면: 옵션 표는 koreanizeSkus를 씀 · 빈 옵션 이름을 상품명으로 채우지 않음 · 가져온 글자는 칸 아래·placeholder', [cp.includes('const kr = koreanizeSkus(s.skus, { valueMax: ATTR_VALUE_MAX, nameMax: 150 })'), /items\[0\]\.name = f\.value\.productName/.test(cp), /data-mk-s-origin/.test(cp), /:placeholder="it\.originals\[t\.key\] \|\| /.test(cp)], [true, false, true, true])
 
   // 4) 검색태그 추천
   const bad = ['이우', '타오바오', '경동', '이베이', '아마존', '소원']
@@ -817,6 +827,43 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('4 플랫폼 이름은 고객이 직접 넣어도 뺌(남의 상표와 같게) · 서버도 같은 규칙', [F.cleanSearchTags(['타오바오 헤어핀', 'Amazon', '알리익스프레스', '헤어핀']).tags, F.cleanSearchTags(['테무']).removed[0].reason, C.buildProductBody({ ...BASE, searchTags: ['헤어핀', '이베이'] }).body.items[0].searchTags], [['헤어핀'], '다른 회사 상표', ['헤어핀']])
   eq('4 지명·뜻 없는 말은 추천에서만 뺌 (통째로 같을 때만 — "소원팔찌"는 남음)', [F.suggestSearchTags({ title: '소원팔찌 이우 기타 중국' }), F.cleanSearchTags(['소원팔찌', '제주']).tags], [['소원팔찌'], ['소원팔찌', '제주']])
   eq('4 규칙은 api/_coupangFields.js 한 곳 (화면·태그 칩에 따로 적은 목록 없음)', [/타오바오|이베이|아마존/.test(cp + read('src/components/studio/StudioTagChips.vue')), F.PLATFORM_WORDS.includes('타오바오') && F.SUGGEST_DROP_WORDS.includes('이우')], [false, true])
+}
+
+// ── 14. 브랜드는 선택(brandId) · 옵션 이름 자동 생성 (2026-09-28 운영 거절 "브랜드 ID가 필요합니다") ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const cp = read('src/components/studio/StudioSendCoupang.vue')
+  const shown = cp.slice(cp.indexOf('<template>'), cp.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+
+  // 브랜드
+  eq('브랜드 검색 경로 = 문서(58230017410841)', C.PATHS.brandSearch, '/v2/providers/seller_api/apis/api/v1/marketplace/brands/search')
+  const found = F.normalizeBrands({ code: 'SUCCESS', data: { totalCount: 3, items: [{ brandId: 'KR-5', brandName: 'NIKE', isUIDRequired: true, allowedUIDTypes: ['GTIN', 'MPN'] }, { brandId: 'KR-5', brandName: 'NIKE' }, { brandId: '', brandName: '이름만' }, { brandId: 'KR-6', brandName: 'NIKE KIDS' }] } })
+  eq('브랜드 검색 응답 읽기: brandId·이름·UID 필요 여부 · 중복·이상한 줄 뺌', [found, F.normalizeBrands(null), F.normalizeBrands({ data: { items: 'x' } })], [[{ brandId: 'KR-5', brandName: 'NIKE', uidRequired: true, uidTypes: ['GTIN', 'MPN'] }, { brandId: 'KR-6', brandName: 'NIKE KIDS', uidRequired: false, uidTypes: [] }], [], []])
+  eq('브랜드 고르기: 0개 = 없음 · 이름이 통째로 같은 하나 = 그것 · 하나뿐 = 그것 · 아니면 고객이 고름', [F.pickBrand([], 'x').state, F.pickBrand(found, 'nike').brand.brandId, F.pickBrand([found[1]], '나이키').brand.brandId, F.pickBrand(found, 'nik').state, F.pickBrand(found, 'nik').brands.length], ['none', 'KR-5', 'KR-6', 'many', 2])
+  eq('안내 문구 (쿠팡에 없는 브랜드)', F.BRAND_NOT_FOUND, '쿠팡에 등록된 브랜드가 아니에요. 브랜드 없음으로 보내거나 Wing 브랜드 관리에서 먼저 등록해 주세요.')
+  eq('상품명에 알려진 브랜드 이름이 있는지', [F.brandWordIn('나이키 스타일 운동화', ''), F.brandWordIn('도트 헤어핀', '여성 헤어핀'), F.brandWordIn()], ['나이키', '', ''])
+  eq('화면: "브랜드 없음" 체크(기본) · 체크면 입력 꺼짐 · [브랜드 찾기] · 여러 개면 고르기 · 경고 한 줄', [/type="checkbox" data-mk-s-no-brand/.test(shown), /:disabled="f\.noBrand" placeholder="브랜드 이름" data-mk-s-brand/.test(shown), /data-mk-s-brand-find/.test(shown), /v-if="!f\.noBrand && brandChoices\.length > 1"[^>]*data-mk-s-brand-pick/.test(shown), /data-mk-s-brand-warn/.test(shown), shown.includes('상품명에 브랜드 이름이 들어 있으면 "브랜드 없음"을 풀고 브랜드를 넣어 주세요.')], [true, true, true, true, true, true])
+  eq('화면: 브랜드 없음이면 brand·brandId를 비워 보냄 · 빠짐 목록에 브랜드 필수 없음 · 없는 브랜드면 보내기 막음', [cp.includes("brand: brandOut.value, brandId: v.noBrand ? '' : v.brandId, manufacture: v.manufacture,"), cp.includes("const brandOut = computed(() => (f.value.noBrand ? '' : f.value.brand))"), /out\.push\('브랜드 \(없으면 자체브랜드명\)'\)/.test(cp), cp.includes("else if (brandNote.value === BRAND_NOT_FOUND) out.push('쿠팡에 등록된 브랜드')"), cp.includes('if (!v.noBrand) {')], [true, true, false, true, true])
+  eq('요약 표: 브랜드 없음 / 브랜드 (brandId) · 제조사는 넣은 것만', [F.previewRows({ noBrand: true, brand: 'x' }).find(r => r.label === '브랜드').value, F.previewRows({ brand: '이유씨', brandId: 'KR-77' }).find(r => r.label === '브랜드').value, F.previewRows({ brand: '이유씨' }).find(r => r.label === '제조사').value], ['브랜드 없음', '이유씨 (KR-77)', ''])
+
+  // 옵션 이름 자동
+  eq('옵션 이름: 색상만 → "블랙" · 색상+사이즈 → "블랙 / M"', [F.autoItemNames([['블랙'], ['화이트']]), F.autoItemNames([['블랙', 'M'], ['블랙', 'L']])], [['블랙', '화이트'], ['블랙 / M', '블랙 / L']])
+  eq('옵션 이름: 같은 이름이 또 나오면 뒤에 번호 · 빈 값은 건너뜀 · 값이 없으면 빈 이름', [F.autoItemNames([['블랙'], ['블랙'], ['블랙'], ['', ' M '], [], [null]]), F.autoItemNames(null)], [['블랙', '블랙 2', '블랙 3', 'M', '', ''], []])
+  eq('옵션 이름 150자까지 (번호가 붙어도)', F.autoItemNames([['가'.repeat(200)], ['가'.repeat(200)]]).map(n => [n.length, n.endsWith(' 2')]), [[150, false], [150, true]])
+  eq('서버: 옵션 이름을 안 보내면 구매옵션 값으로 만듦 · 보낸 이름은 그대로', [
+    C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], name: '', attributes: { 색상: '블랙', 사이즈: 'M' } }, { ...BASE.items[0], name: '', sku: 'B', attributes: { 색상: '블랙', 사이즈: 'L' } }] }).body.items.map(i => i.itemName),
+    C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], name: '내가 쓴 이름' }] }).body.items[0].itemName,
+    C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], name: '', attributes: {} }] }).ok,
+  ], [['블랙 / M', '블랙 / L'], '내가 쓴 이름', false])
+  eq('서버: 검색옵션(노출 안 함)은 옵션 이름에 안 넣음', C.buildProductBody({ ...BASE, attributeMeta: [{ name: '색상', exposed: true }, { name: '소재', exposed: false }], items: [{ ...BASE.items[0], name: '', attributes: { 색상: '블랙', 소재: '면' } }] }).body.items[0].itemName, '블랙')
+  eq('화면: "옵션 이름" 열은 기본 숨김 · [옵션 이름 직접 쓰기] 링크 · 보낼 때 자동 이름', [/<th v-if="f\.manualNames">옵션 이름 \*<\/th>/.test(shown), /<td v-if="f\.manualNames" class="c-name"/.test(shown), /manualNames: false/.test(cp), /data-mk-s-names-toggle/.test(shown), shown.includes("'옵션 이름 직접 쓰기'"), cp.includes('name: itemNames.value[i],'), cp.includes('const autoNames = computed(() => autoItemNames(f.value.items.map(buyValuesOf)))')], [true, true, true, true, true, true, true])
+
+  // 옵션 종류 2개 — 종류 수만큼 맞추기·열, 줄은 SKU 수만큼
+  const two = F.extractSkus1688(ITEM_1688)
+  const pairOf = zh => ({ zh, ko: null })
+  const kr2 = F.koreanizeSkus(two.rows.map(r => ({ values: r.values.map(v => ({ name: pairOf(v.name), value: pairOf(v.value) })) })))
+  eq('옵션 종류 2개(색상+사이즈): 종류 2 · 줄 = SKU 수 · 자동 이름', [kr2.types.map(t => t.label), kr2.rows.length, F.autoItemNames(kr2.rows.map(r => kr2.types.map(t => r.opt[t.key])))], [['색상', '사이즈'], 3, ['블랙 / 36-37', '화이트 / 36-37', '블랙 / 40-41']])
+  eq('화면: 맞추기 줄·표 열이 옵션 종류 수만큼 (v-for)', [/<div v-for="t in f\.optionTypes" :key="t\.key" class="flex flex-wrap items-center gap-2 text-\[13px\]">/.test(shown), /<th v-for="t in f\.optionTypes" :key="t\.key">/.test(shown), /<td v-for="\(t, ti\) in f\.optionTypes" :key="t\.key"/.test(shown), /f\.value\.items = s\.skus\.map\(/.test(cp)], [true, true, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

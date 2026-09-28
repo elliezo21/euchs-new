@@ -256,6 +256,64 @@ export function mapOptionName(names, attributes) {
   return ''
 }
 
+// ── 옵션 이름 자동 생성 (items[].itemName) ──
+// API는 itemName이 필수지만 Wing은 구매옵션 값만 넣으면 이름을 만들어 준다 — 우리도 같게: 구매옵션 값을 " / "로 잇는다
+export const ITEM_NAME_MAX = 150
+export const ITEM_NAME_JOIN = ' / '
+/**
+ * @param {string[][]} rows 옵션마다 구매옵션 값 (옵션 종류 순서대로)
+ * @returns {string[]} 옵션 이름 — 색상만 "블랙", 색상+사이즈 "블랙 / M". 같은 이름이 또 나오면 뒤에 번호("블랙 2"). 값이 하나도 없으면 ''
+ */
+export function autoItemNames(rows) {
+  const used = new Set(), out = []
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const base = (Array.isArray(row) ? row : []).map(v => String(v ?? '').replace(/\s+/g, ' ').trim()).filter(Boolean).join(ITEM_NAME_JOIN).slice(0, ITEM_NAME_MAX).trim()
+    if (!base) { out.push(''); continue }
+    let name = base
+    for (let n = 2; used.has(name); n++) { const tail = ` ${n}`; name = `${base.slice(0, ITEM_NAME_MAX - tail.length).trim()}${tail}` }
+    used.add(name)
+    out.push(name)
+  }
+  return out
+}
+
+// ── 브랜드 ──
+// [근거] 상품 생성 API(360033877853): brand(선택) "한글/영어 표준이름 … 띄어쓰기 및 특수문자 없이" · brandId(선택) "고유 브랜드 식별자 (예: KR-5)" · manufacture(선택)
+// [근거] 브랜드 검색 API(58230017410841): POST …/marketplace/brands/search  본문 { brandName(필수), countPerPage(기본 10·최대 10), page }
+//        → data.items[] { brandId, brandName, brandLogoUrl, isUIDRequired, allowedUIDTypes } · data.totalCount
+// 브랜드 이름을 쓰려면 brandId를 같이 보낸다. 브랜드가 없는 상품은 brand·brandId를 보내지 않는다 (2026-05-22 브랜드 관리 강화 — 해성 확인)
+export const BRAND_MAX = 50
+export const BRAND_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,39}$/
+export const BRAND_NOT_FOUND = '쿠팡에 등록된 브랜드가 아니에요. 브랜드 없음으로 보내거나 Wing 브랜드 관리에서 먼저 등록해 주세요.'
+/** 브랜드 검색 응답 → [{ brandId, brandName, uidRequired, uidTypes }] (이상한 줄·중복 뺌) */
+export function normalizeBrands(res) {
+  const list = res?.data?.items ?? res?.items ?? []
+  const out = []
+  for (const b of Array.isArray(list) ? list : []) {
+    const brandId = str(b?.brandId), brandName = str(b?.brandName)
+    if (!BRAND_ID_RE.test(brandId) || !brandName || out.some(x => x.brandId === brandId)) continue
+    out.push({ brandId, brandName, uidRequired: b?.isUIDRequired === true, uidTypes: (Array.isArray(b?.allowedUIDTypes) ? b.allowedUIDTypes : []).map(str).filter(Boolean) })
+  }
+  return out
+}
+/**
+ * 검색 결과에서 보낼 브랜드 고르기
+ * @returns {{ state:'none' } | { state:'one', brand } | { state:'many', brands }}  이름이 통째로 같은 것이 하나면 그것, 결과가 하나면 그것, 아니면 고객이 고른다
+ */
+export function pickBrand(brands, name) {
+  const list = Array.isArray(brands) ? brands : []
+  if (!list.length) return { state: 'none' }
+  const exact = list.filter(b => squash(b.brandName) === squash(name))
+  if (exact.length === 1) return { state: 'one', brand: exact[0] }
+  if (list.length === 1) return { state: 'one', brand: list[0] }
+  return { state: 'many', brands: list }
+}
+/** 상품명에 널리 알려진 브랜드 이름이 들어 있는지 (브랜드 없음으로 보내려 할 때 경고) — 있으면 그 말, 없으면 '' */
+export function brandWordIn(...names) {
+  const s = squash(names.join(' '))
+  return BRAND_WORDS.find(b => s.includes(b)) || ''
+}
+
 /** 사진 주소 비교용 열쇠 — 프로토콜·쿼리·크기 꼬리(.jpg_.webp, _400x400.jpg)를 뗀다 */
 export function imageKey(url) {
   const s = str(url).replace(/^https?:/, '').replace(/^\/\//, '').split('?')[0].split('#')[0]
@@ -471,12 +529,12 @@ export function previewRows(f = {}) {
     ['등록상품명', f.productName, 'sellerProductName'],
     ['노출상품명', f.displayName || f.productName, 'displayProductName'],
     ['제품명', f.generalName, 'generalProductName'],
-    ['브랜드', f.brand, 'brand'],
-    ['제조사', f.manufacture || f.brand, 'manufacture'],
+    ['브랜드', f.noBrand || !f.brand ? '브랜드 없음' : `${f.brand}${f.brandId ? ` (${f.brandId})` : ''}`, 'brand · brandId'],
+    ['제조사', f.manufacture, 'manufacture'],
     ['모델번호', f.modelNo, 'modelNo'],
     ['카테고리', f.categoryCode ? `${f.categoryName || ''} #${f.categoryCode}`.trim() : '', 'displayCategoryCode'],
     ['검색태그', (f.tags || []).join(', '), 'searchTags'],
-    ['옵션', items.length ? `${items.length}개` : '', 'items'],
+    ['옵션', items.length ? `${items.length}개${items[0]?.name ? ` (${items.slice(0, 3).map(i => i.name).filter(Boolean).join(', ')}${items.length > 3 ? ' …' : ''})` : ''}` : '', 'items · itemName'],
     ['판매가', priceText, 'salePrice'],
     ['상품정보고시', f.noticeCategory ? `${f.noticeCategory} · ${Object.values(f.notices || {}).filter(v => String(v || '').trim()).length}항목` : '', 'notices'],
     ['인증정보', certs.length ? certs.map(c => c.name || c.type).join(', ') : '해당 없음', 'certifications'],

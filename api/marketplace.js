@@ -13,6 +13,7 @@
  *   send_prepare      { exportId } → { export:{ id, title, projectTitle, files:[{ key, name, width, height }] }, images:[{ id, url, width, height, sourceUrl }](대표 이미지 후보 = 그 작업의 사진), templates, places,
  *                       source(1688에서 가져온 작업이면 저장해 둔 제목·속성·옵션 줄 + 번역 캐시의 한국어, 아니면 null — 외부 호출 없음), limits }
  *   category_predict  { productName, brand? } → { result, categoryCode, categoryName }
+ *   brand_search      { brandName } → { brands:[{ brandId, brandName, uidRequired, uidTypes }] }  (쿠팡 브랜드 검색 — 문서 58230017410841)
  *   category_meta     { categoryCode } → { attributes, notices, singleItem, certifications }
  *   send              { exportId, templateId, categoryCode, saleMode('domestic'|'agent' 필수 — 기본값 없음), outboundDays?,
  *                       productName(등록상품명), displayName?(노출상품명), generalName?(제품명), brand, manufacture?, modelNo?,
@@ -37,7 +38,7 @@ import {
 } from './_coupang.js'
 import { readDimensions } from './studio-ingest.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
-import { extractSkus1688, isSaleMode, DOC_MAX } from './_coupangFields.js'
+import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand } from './_coupangFields.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -310,6 +311,20 @@ async function categoryPredict(ctx, body, res) {
   const d = r?.data || {}
   return res.status(200).json({ result: d.autoCategorizationPredictionResultType || 'FAILURE', categoryCode: d.predictedCategoryId ? String(d.predictedCategoryId) : null, categoryName: d.predictedCategoryName || null })
 }
+/** 쿠팡 브랜드 검색 (문서 58230017410841) → [{ brandId, brandName, uidRequired, uidTypes }]. 실패는 CoupangError throw */
+async function searchBrands(call, name) {
+  const r = await coupangCall(call, { method: 'POST', path: PATHS.brandSearch, body: { brandName: name, countPerPage: 10, page: 1 } })
+  return normalizeBrands(r)
+}
+async function brandSearch(ctx, body, res) {
+  const cred = await withCredentials(ctx, res)
+  if (!cred) return
+  const name = String(body.brandName ?? '').trim().slice(0, BRAND_MAX)
+  if (!name) return sendError(res, 400, 'invalid_input', '브랜드 이름을 넣어 주세요.')
+  let brands
+  try { brands = await searchBrands(cred.call, name) } catch (e) { return coupangFail(res, e, 'brand_search') }
+  return res.status(200).json({ brands })
+}
 async function categoryMeta(ctx, body, res) {
   const cred = await withCredentials(ctx, res)
   if (!cred) return
@@ -395,6 +410,18 @@ async function send(ctx, body, res) {
   if (!meta.singleItem && items.length < 1) return sendError(res, 400, 'invalid_input', '옵션을 하나 이상 넣어 주세요.')
   for (const it of items) if (it?.imageKey && !optImgs.some(x => x.key === it.imageKey)) return sendError(res, 400, 'invalid_input', '옵션 이미지 값이 올바르지 않아요.')
 
+  // 브랜드 (선택) — 이름을 넣었으면 쿠팡 브랜드 검색으로 brandId를 확인해 같이 보낸다. 비웠으면 brand·brandId를 보내지 않는다
+  let brand = null
+  const brandName = String(body.brand ?? '').trim().slice(0, BRAND_MAX)
+  if (brandName) {
+    let found
+    try { found = await searchBrands(cred.call, brandName) } catch (e) { return coupangFail(res, e, 'send/brand') }
+    const wanted = String(body.brandId ?? '').trim()
+    if (wanted) brand = found.find(b => b.brandId === wanted) || null
+    else { const pick = pickBrand(found, brandName); if (pick.state === 'one') brand = pick.brand; else if (pick.state === 'many') return sendError(res, 400, 'brand_choose', '같은 이름의 브랜드가 여러 개예요. 브랜드를 골라 주세요.') }
+    if (!brand) return sendError(res, 400, 'brand_not_found', BRAND_NOT_FOUND)
+  }
+
   // 전송 기록 먼저 (id가 이미지 토큰 재료)
   const created = await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: MARKET, status: 'sending', request_json: {} }, prefer: 'return=representation' })
   const sendId = created?.[0]?.id
@@ -434,7 +461,7 @@ async function send(ctx, body, res) {
   const single = { name: String(body.productName || '').slice(0, 150), originalPrice: body.originalPrice, salePrice: body.salePrice, stock: body.stock, sku: body.sku, gtin: body.gtin, attributes: body.attributes || {} }
   const built = buildProductBody({
     account: cred.row, template, places, categoryCode: code, saleMode: body.saleMode, outboundDays: body.outboundDays,
-    productName: body.productName, displayName: body.displayName, generalName: body.generalName, brand: body.brand, manufacture: body.manufacture, modelNo: body.modelNo,
+    productName: body.productName, displayName: body.displayName, generalName: body.generalName, brand: brand ? brand.brandName : '', brandId: brand ? brand.brandId : '', manufacture: body.manufacture, modelNo: body.modelNo,
     items: (items.length ? items : [single]).map(it => ({ ...it, imageUrl: it?.imageKey ? urlOf(it.imageKey) : '' })),
     attributeMeta: meta.attributes,
     notices: noticesIn.filter(n => n && n.noticeCategoryName && n.noticeCategoryDetailName && String(n.content || '').trim()),
@@ -552,11 +579,12 @@ export default async function handler(req, res) {
     if (body.action === 'template_delete') return await templateDelete(ctx, body, res)
     if (body.action === 'send_prepare') return await sendPrepare(ctx, body, res)
     if (body.action === 'category_predict') return await categoryPredict(ctx, body, res)
+    if (body.action === 'brand_search') return await brandSearch(ctx, body, res)
     if (body.action === 'category_meta') return await categoryMeta(ctx, body, res)
     if (body.action === 'send') return await send(ctx, body, res)
     if (body.action === 'sends_list') return await sendsList(ctx, body, res)
     if (body.action === 'sync') return await sync(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'category_meta'·'send'·'sends_list'·'sync' 중 하나여야 합니다.")
+    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync' 중 하나여야 합니다.")
   } catch (e) {
     if (e?.status === 404 || e?.status === 401 || e?.status === 403) {
       console.error(`[marketplace] ${body.action} 표를 쓸 수 없음(GRANT·표 — docs/sql/2026-09-28-marketplace-coupang.sql):`, e.message)

@@ -27,7 +27,7 @@ const stubPlugin = {
   load(id) {
     if (id === API_STUB) return `
       const never = () => Promise.reject(new Error('테스트에서는 서버를 부르지 않는다'))
-      export const predictCategory = never, getCategoryMeta = never, sendProduct = never, makeSquareJpeg = never, fileToBase64 = never
+      export const predictCategory = never, searchBrand = never, getCategoryMeta = never, sendProduct = never, makeSquareJpeg = never, fileToBase64 = never
       export const REP_SIZE = 1000, SEND_BODY_MAX = 4000000
       export const readSaleMode = () => '', rememberSaleMode = () => {}`
     return null
@@ -123,7 +123,7 @@ if (built?.Coupang && built?.Modal) {
 
   const m1 = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   eq('1 창 폭: 화면 폭 90% · 최대 1400px (예전 max-w-2xl 아님)', [/data-modal-size="full"/.test(m1.html), m1.html.includes('w-[90vw] max-w-[1400px]'), /max-w-2xl/.test(m1.html)], [true, true, false])
-  eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['사진', '옵션 이름 *', '색상', '1688 가격', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html)], [false, [], true])
+  eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['사진', '색상', '1688 가격', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html)], [false, [], true])
 
   const n1 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, ZH) })
   eq('2 상품명: 작업 이름·가져온 제목이 모두 번역 전이면 세 칸 다 빈칸 + placeholder (예외 없음)', [n1.error, val(n1.html, 'data-mk-s-name'), val(n1.html, 'data-mk-s-general'), val(n1.html, 'data-mk-s-display'), /placeholder="한글 상품명을 넣어 주세요"[^>]*data-mk-s-name/.test(n1.html)], [null, '', '', '', true])
@@ -132,10 +132,14 @@ if (built?.Coupang && built?.Modal) {
   eq('2 상품명: 작업의 한글 이름 · 없으면 가져온 제목의 한글', [val(n2.html, 'data-mk-s-name'), val(n3.html, 'data-mk-s-name')], ['도트 헤어핀 모음', '여성 도트 헤어핀'])
   eq('2 화면 어디에도 번역 전 제목이 값으로 들어가지 않음', [n1, n2, n3].map(r => new RegExp('value="[^"]*' + ZH).test(r.html)), [false, false, false])
 
-  eq('3 옵션: 이름 "블랙 도트"·"레드 스트라이프" · 색상값 "블랙"·"레드" · 옵션 종류 이름 "색상"', [(n1.html.match(/data-mk-s-item-name="\d+"/g) || []).length, /value="블랙 도트"/.test(n1.html), /value="레드 스트라이프"/.test(n1.html), /value="블랙"/.test(n1.html), /value="레드"/.test(n1.html), /data-label="색상"/.test(n1.html)], [2, true, true, true, true, true])
+  eq('3 옵션: "옵션 이름" 열 없음(자동) · 색상값 "블랙"·"레드" · 옵션 종류 이름 "색상" · 자동 이름 "블랙, 레드"', [(n1.html.match(/data-mk-s-item-name="\d+"/g) || []).length, /data-label="옵션 이름/.test(n1.html), /value="블랙"/.test(n1.html), /value="레드"/.test(n1.html), /data-label="색상"/.test(n1.html), /data-mk-s-names-auto[^>]*>옵션 이름: 블랙, 레드</.test(n1.html), /data-mk-s-names-toggle[^>]*>옵션 이름 직접 쓰기</.test(n1.html)], [0, false, true, true, true, true, true])
+  eq('브랜드: "브랜드 없음"이 처음부터 체크 · 브랜드 입력 꺼짐 · 요약 표 "브랜드 없음" · 경고 한 줄', [/<input[^>]*data-mk-s-no-brand[^>]*checked|<input[^>]*checked[^>]*data-mk-s-no-brand/.test(n1.html), /<input[^>]*disabled[^>]*data-mk-s-brand(?![-\w])|<input[^>]*data-mk-s-brand(?![-\w])[^>]*disabled/.test(n1.html), /data-mk-s-preview-row="브랜드"[\s\S]{0,200}브랜드 없음/.test(n1.html), /data-mk-s-brand-warn/.test(n1.html)], [true, true, true, true])
+  const TWO = { ...RAW, skuTotal: 4, skus: ['黑色', '白色'].flatMap((c, ci) => ['M', 'L'].map((z, zi) => ({ skuId: String(ci * 2 + zi + 1), values: [{ name: { zh: '颜色', ko: null }, value: { zh: c, ko: null } }, { name: { zh: '尺码', ko: null }, value: { zh: z, ko: null } }], priceCny: 9, stock: 1, imageUrl: '' }))) }
+  const n5 = await render(built.Coupang, { prepare: PREPARE(true, TWO) })
+  eq('옵션 종류 2개: 맞추기 2줄 · 표 열 2개(색상·사이즈) · 줄 4개 · 자동 이름 "블랙 / M"', [n5.error, (n5.html.match(/data-mk-s-option-map="/g) || []).length, /<th[^>]*>색상<\/th>/.test(n5.html) && /<th[^>]*>사이즈<\/th>/.test(n5.html), (n5.html.match(/data-mk-s-item="/g) || []).length, /옵션 이름: 블랙 \/ M, 블랙 \/ L, 화이트 \/ M …/.test(n5.html)], [null, 2, true, 4, true])
   eq('3 옵션: 입력 값에 번역 전 글자 없음', /value="[^"]*\p{Script=Han}/u.test(n1.html), false)
   const n4 = await render(built.Coupang, { prepare: PREPARE(true, { ...RAW, skus: [{ skuId: '1', values: [{ name: { zh: '款式', ko: null }, value: { zh: '蝴蝶发夹', ko: null } }], priceCny: 1, stock: 1, imageUrl: '' }] }) })
-  eq('3 옵션: 한글로 못 옮긴 값은 빈칸 · 가져온 글자는 칸 아래와 placeholder에만', [n4.error, val(n4.html, 'data-mk-s-item-name'), /data-mk-s-origin="0"[^>]*>가져온 옵션: 蝴蝶发夹</.test(n4.html), /placeholder="蝴蝶发夹"/.test(n4.html)], [null, '', true, true])
+  eq('3 옵션: 한글로 못 옮긴 값은 빈칸 · 가져온 글자는 칸 아래와 placeholder에만', [n4.error, val(n4.html, 'data-mk-s-item-name'), /data-mk-s-origin="0:0"[^>]*>가져온 옵션: 蝴蝶发夹</.test(n4.html), /placeholder="蝴蝶发夹"/.test(n4.html)], [null, '', true, true])
 
   eq('4 태그 추천: 가져온 상품 속성의 말(이우·타오바오·경동·이베이·아마존·소원)이 화면에 없음', ['이우', '타오바오', '경동', '이베이', '아마존', '소원'].filter(w => n3.html.includes(w)), [])
   eq('4 태그 추천: 상품명에서 나온 말은 있음', ['헤어핀', '도트'].filter(w => !n3.html.includes(w)), [])
