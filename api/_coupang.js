@@ -65,6 +65,9 @@ export function breakerFor(vendorId) {
 }
 
 // ── 오류 번역 (쿠팡·중계 원문 → 고객 문구). 키·서명은 절대 안 들어간다 ──
+// 우리 쪽 준비 문제(중계·키 설정)는 고객에게 NOT_READY_MESSAGE만 보이고, 원인은 서버 로그에만 남긴다 (code로 구분)
+export const NOT_READY_MESSAGE = '지금은 연결할 수 없어요. 잠시 후 다시 시도해 주세요.'
+export const NOT_READY_CODES = ['relay_not_configured', 'relay_unreachable', 'relay_denied']
 export class CoupangError extends Error {
   constructor(code, message, { status = 0, raw = '' } = {}) {
     super(message)
@@ -81,9 +84,9 @@ export class CoupangError extends Error {
  */
 export function translateCoupangError(status, text = '') {
   const t = String(text || '')
-  if (status === 0) return { code: 'relay_unreachable', message: '쿠팡 중계 서버에 연결하지 못했어요. 잠시 후 다시 시도해 주세요.' }
-  if (status === 401 && /relay/i.test(t)) return { code: 'relay_denied', message: '쿠팡 중계 서버 설정에 문제가 있어요. 관리자에게 알려 주세요.' }
-  if (status === 403 && /Not allowed IP/i.test(t)) return { code: 'ip_not_allowed', message: `쿠팡 Wing에 IP ${RELAY_IP} 등록이 필요해요. 등록 뒤 반영까지 최대 30분 걸려요.` }
+  if (status === 0) return { code: 'relay_unreachable', message: NOT_READY_MESSAGE }
+  if (status === 401 && /relay/i.test(t)) return { code: 'relay_denied', message: NOT_READY_MESSAGE }
+  if (status === 403 && /Not allowed IP/i.test(t)) return { code: 'ip_not_allowed', message: `쿠팡 Wing에 IP ${RELAY_IP}가 등록됐는지 확인해 주세요. 등록 후 최대 30분 뒤 반영돼요.` }
   if (status === 403 && /Access denied/i.test(t)) return { code: 'access_denied', message: '쿠팡이 잠시 요청을 막았어요(약 10분). 잠시 후 다시 시도해 주세요.' }
   if (status === 401 || (status === 403 && /signature|access[- ]?key|auth/i.test(t))) return { code: 'bad_key', message: 'Access Key·Secret Key가 맞지 않아요. Wing에서 발급한 값을 다시 확인해 주세요.' }
   if (status === 403 && /vendor/i.test(t)) return { code: 'bad_vendor', message: '업체코드가 이 키와 맞지 않아요. Wing의 업체코드를 확인해 주세요.' }
@@ -94,7 +97,7 @@ export function translateCoupangError(status, text = '') {
     try { msg = JSON.parse(t)?.message || '' } catch { /* JSON 아님 */ }
     return { code: 'coupang_rejected', message: msg ? `쿠팡이 요청을 거절했어요: ${msg.slice(0, 300)}` : '쿠팡이 요청을 거절했어요. 입력값을 확인해 주세요.' }
   }
-  if (status >= 500) return { code: 'coupang_server', message: '쿠팡 서버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.' }
+  if (status >= 500) return { code: 'coupang_server', message: '쿠팡이 응답하지 않아요. 잠시 후 다시 시도해 주세요.' }
   return { code: 'coupang_error', message: `쿠팡 요청이 실패했어요 (HTTP ${status}).` }
 }
 
@@ -109,7 +112,7 @@ export function scrubRaw(text) {
  * @param {{ method, path, query?, body?, extendedTimeout? }} req
  */
 export async function coupangCall(c, { method, path, query = '', body, extendedTimeout = false }) {
-  if (!c.relayUrl || !c.relaySecret) throw new CoupangError('relay_not_configured', '쿠팡 중계 서버가 아직 설정되지 않았어요. 관리자에게 알려 주세요.')
+  if (!c.relayUrl || !c.relaySecret) throw new CoupangError('relay_not_configured', NOT_READY_MESSAGE)
   const breaker = breakerFor(c.vendorId)
   const left = breaker.blockedFor()
   if (left > 0) throw new CoupangError('breaker_open', `쿠팡 오류가 잦아 잠시 멈췄어요. ${Math.ceil(left / 60000)}분 뒤 다시 시도해 주세요.`)

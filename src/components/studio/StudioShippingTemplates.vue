@@ -4,7 +4,8 @@
       <h3 class="st-h-card">배송/반품 템플릿</h3>
       <button type="button" class="st-btn ml-auto" :disabled="!places.length" data-mk-template-new @click="startNew">새 템플릿</button>
     </div>
-    <p v-if="!places.length" class="st-desc break-keep">출고지·반품지가 없어요. 위 연결 상태에서 [출고지·반품지 새로고침]을 먼저 눌러 주세요.</p>
+    <p v-if="errorMsg" class="mb-2 text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-template-list-error>{{ errorMsg }}</p>
+    <p v-if="!places.length" class="st-desc break-keep">출고지·반품지가 없어요. <router-link :to="{ name: 'studio-settings-marketplace' }" class="st-link">판매처 연결</router-link> 탭에서 [출고지·반품지 새로고침]을 먼저 눌러 주세요.</p>
     <p v-else-if="!templates.length && !editing" class="st-desc break-keep" data-mk-template-empty>상품을 보낼 때 쓸 배송비·반품비·출고지 묶음이에요. [새 템플릿]으로 하나 만들어 두세요.</p>
 
     <ul v-if="templates.length" class="st-divide st-border rounded-[12px] overflow-hidden mb-4">
@@ -64,7 +65,7 @@
 <script setup>
 // 배송/반품 템플릿 관리 — 쓰기는 서버(template_save/delete)를 거친다(브라우저는 marketplace_templates 읽기만). 규칙 검증도 서버(_coupang.validateTemplate)가 최종
 import { ref } from 'vue'
-import { listTemplates, saveTemplate, deleteTemplate } from '@/lib/studioMarketplace'
+import { listTemplates, saveTemplate, deleteTemplate, isNotReady } from '@/lib/studioMarketplace'
 
 const emit = defineEmits(['changed'])
 const CHARGE_LABEL = { FREE: '무료배송', NOT_FREE: '유료배송', CHARGE_RECEIVED: '착불', CONDITIONAL_FREE: '조건부 무료배송' }
@@ -75,6 +76,7 @@ const editing = ref(false)
 const saving = ref(false)
 const formError = ref('')
 const errorMsg = ref('')
+const errorSoft = ref(false)
 const form = ref(blank())
 
 function blank() {
@@ -93,6 +95,7 @@ async function load() {
   } catch (e) {
     console.error('[StudioShippingTemplates] 목록 조회 실패:', e.code, e)
     errorMsg.value = e.message
+    errorSoft.value = isNotReady(e.code)
   }
 }
 function startNew() {
@@ -128,12 +131,14 @@ async function remove(t) {
   } catch (e) {
     console.error('[StudioShippingTemplates] 삭제 실패:', e.code, e)
     errorMsg.value = e.message
+    errorSoft.value = isNotReady(e.code)
   }
 }
 function clear() {
   templates.value = []
   places.value = []
   editing.value = false
+  errorMsg.value = ''
 }
 defineExpose({ load, clear })
 </script>

@@ -27,7 +27,7 @@ import { studioGuard, sendError, sb, storageDownload, storageUpload, storageSign
 import { loadEncKey, encryptSecret, decryptSecret, makeImageToken, verifyImageToken } from './_marketplaceCrypto.js'
 import {
   PATHS, coupangCall, CoupangError, normalizeOutbound, normalizeReturnCenters, validateTemplate, summarizeCategoryMeta,
-  missingRequired, buildProductBody, mapCoupangStatus, DELIVERY_COMPANIES, RELAY_IP,
+  missingRequired, buildProductBody, mapCoupangStatus, DELIVERY_COMPANIES, RELAY_IP, NOT_READY_MESSAGE, NOT_READY_CODES,
 } from './_coupang.js'
 import { readDimensions } from './studio-ingest.js'
 
@@ -53,7 +53,7 @@ function marketConfig() {
 function encKeyOr(res) {
   try { return loadEncKey() } catch (e) {
     console.error('[marketplace] MARKETPLACE_ENC_KEY 문제:', e.message)
-    sendError(res, 503, 'enc_not_ready', '판매처 연결을 준비하고 있어요. 관리자에게 알려 주세요. (암호화 키 설정 필요)')
+    sendError(res, 503, 'enc_not_ready', NOT_READY_MESSAGE)
     return null
   }
 }
@@ -97,7 +97,9 @@ async function savePlaces(ctx, places) {
 }
 function coupangFail(res, e, where) {
   if (e instanceof CoupangError) {
-    console.warn(`[marketplace] ${where} 쿠팡 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+    // 우리 쪽 준비 문제(중계 설정·연결)는 error로 — 고객 화면에는 원인이 안 보이므로 로그가 유일한 단서
+    if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] ${where} 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw} — MARKETPLACE_RELAY_URL·MARKETPLACE_RELAY_SECRET 설정과 중계 상태 확인`)
+    else console.warn(`[marketplace] ${where} 쿠팡 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
     return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
   }
   throw e
@@ -411,10 +413,16 @@ async function sync(ctx, body, res) {
 // ── GET: 쿠팡이 내려받는 이미지 (로그인 없음 · 토큰만) ──
 async function serveImage(req, res) {
   const cfgOk = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!cfgOk) return sendError(res, 500, 'server_misconfigured', '서버 설정 오류')
+  if (!cfgOk) {
+    console.error('[marketplace] 이미지 전달: SUPABASE_URL·SUPABASE_SERVICE_ROLE_KEY 없음')
+    return sendError(res, 500, 'server_misconfigured', '이미지를 전달하지 못했습니다.')
+  }
   const cfg = { supabaseUrl: process.env.SUPABASE_URL, serviceRoleKey: process.env.SUPABASE_SERVICE_ROLE_KEY }
   let encKey
-  try { encKey = loadEncKey() } catch { return sendError(res, 503, 'enc_not_ready', '준비 중') }
+  try { encKey = loadEncKey() } catch (e) {
+    console.error('[marketplace] 이미지 전달: MARKETPLACE_ENC_KEY 문제:', e.message)
+    return sendError(res, 503, 'enc_not_ready', NOT_READY_MESSAGE)
+  }
   const url = new URL(req.url || '/', 'http://x')
   const tok = verifyImageToken(encKey, url.searchParams.get('t'))
   if (!tok) return sendError(res, 404, 'not_found', 'not found')
@@ -460,7 +468,7 @@ export default async function handler(req, res) {
   } catch (e) {
     if (e?.status === 404 || e?.status === 401 || e?.status === 403) {
       console.error(`[marketplace] ${body.action} 표를 쓸 수 없음(GRANT·표 — docs/sql/2026-09-28-marketplace-coupang.sql):`, e.message)
-      return sendError(res, 503, 'marketplace_sql_missing', '판매처 연결을 준비하고 있어요. (표 설정 필요)')
+      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
     }
     console.error(`[marketplace] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '판매처 연동 처리 중 오류가 발생했습니다.')

@@ -70,23 +70,42 @@ const studioRoute = {
       meta: { ...STUDIO_PROTECTED, title: '상세페이지 편집' }
     },
     {
-      path: 'marketplace',
-      name: 'studio-marketplace',
-      component: () => import('../views/studio/StudioMarketplaceView.vue'),
-      meta: { ...STUDIO_PROTECTED, title: '판매처 연결' }
+      // 설정 — 탭 4개(자식 라우트). 가드는 to.matched를 보므로 자식마다 같은 meta를 단다
+      path: 'settings',
+      component: () => import('../views/studio/StudioSettingsView.vue'),
+      meta: { ...STUDIO_PROTECTED, title: '설정' },
+      children: [
+        { path: '', name: 'studio-settings', redirect: { name: 'studio-settings-marketplace' } },
+        {
+          path: 'marketplace',
+          name: 'studio-settings-marketplace',
+          component: () => import('../views/studio/StudioMarketplaceView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '판매처 연결' }
+        },
+        {
+          path: 'shipping',
+          name: 'studio-settings-shipping',
+          component: () => import('../views/studio/StudioShippingView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '배송·반품 템플릿' }
+        },
+        {
+          path: 'assets',
+          name: 'studio-settings-assets',
+          component: () => import('../views/studio/StudioAssetsView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '저장값 관리' }
+        },
+        {
+          path: 'glossary',
+          name: 'studio-settings-glossary',
+          component: () => import('../views/studio/StudioGlossaryView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '용어집' }
+        }
+      ]
     },
-    {
-      path: 'assets',
-      name: 'studio-assets',
-      component: () => import('../views/studio/StudioAssetsView.vue'),
-      meta: { ...STUDIO_PROTECTED, title: '저장값 관리' }
-    },
-    {
-      path: 'glossary',
-      name: 'studio-glossary',
-      component: () => import('../views/studio/StudioGlossaryView.vue'),
-      meta: { ...STUDIO_PROTECTED, title: '용어집' }
-    },
+    // 예전 주소 — 북마크·안내 링크가 안 깨지게 설정의 해당 탭으로 보낸다 (이름도 남겨 둔다)
+    { path: 'marketplace', name: 'studio-marketplace', redirect: { name: 'studio-settings-marketplace' } },
+    { path: 'assets', name: 'studio-assets', redirect: { name: 'studio-settings-assets' } },
+    { path: 'glossary', name: 'studio-glossary', redirect: { name: 'studio-settings-glossary' } },
     {
       path: 'usage',
       name: 'studio-usage',

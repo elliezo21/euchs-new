@@ -68,6 +68,14 @@ eq('중계 401 → 중계 설정', C.translateCoupangError(401, '{"error":"relay
 eq('429 → 잠시 후', C.translateCoupangError(429, '').code, 'rate_limited')
 eq('400 → 쿠팡 문구 포함', C.translateCoupangError(400, '{"message":"필수값 누락"}').message.includes('필수값 누락'), true)
 eq('네트워크 → 중계 연결 실패', C.translateCoupangError(0).code, 'relay_unreachable')
+{
+  // 고객 문구에 내부 사정 없음 — 쿠팡·중계가 줄 수 있는 상태를 모두 번역해 본다
+  const BAN = /관리자|서버|암호화|키 설정|환경변수|중계|relay|ENC_KEY/i
+  const all = [[0, ''], [401, 'relay secret mismatch'], [401, 'Invalid signature'], [403, 'Not allowed IP'], [403, 'Access denied'], [403, 'vendor'], [403, 'x'], [404, ''], [429, ''], [400, ''], [500, ''], [503, ''], [418, '']]
+  eq('오류 번역: 고객 문구에 내부 용어 없음', all.map(([s, t]) => C.translateCoupangError(s, t).message).filter(m => BAN.test(m)), [])
+  eq('우리 쪽 준비 문제 = 같은 문구', [...new Set([C.translateCoupangError(0).message, C.translateCoupangError(401, 'relay secret mismatch').message])], ['지금은 연결할 수 없어요. 잠시 후 다시 시도해 주세요.'])
+  eq('IP 미등록: 고객이 직접 확인하는 안내', C.translateCoupangError(403, 'Not allowed IP').message, '쿠팡 Wing에 IP 3.39.196.112가 등록됐는지 확인해 주세요. 등록 후 최대 30분 뒤 반영돼요.')
+}
 eq('원문 정리: 긴 hex 가림', C.scrubRaw(`sig=${'a'.repeat(64)} x`), 'sig=[hex] x')
 
 // ── 5. 서킷 브레이커 ──
@@ -237,6 +245,14 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   process.env.MARKETPLACE_RELAY_SECRET = ''
   const n = await post('connect', CONNECT)
   eq('중계 비밀 없음 → relay_not_configured · 저장 안 함', [n.statusCode, n.body.code, db.marketplace_accounts.length], [502, 'relay_not_configured', 0])
+  eq('중계 비밀 없음 → 고객 문구는 준비 문제 한 줄만', n.body.message, C.NOT_READY_MESSAGE)
+  {
+    const keepEnc = process.env.MARKETPLACE_ENC_KEY
+    process.env.MARKETPLACE_ENC_KEY = ''
+    const e = await post('connect', CONNECT)
+    eq('암호화 키 없음 → enc_not_ready · 같은 문구 · 저장 안 함', [e.statusCode, e.body.code, e.body.message, db.marketplace_accounts.length], [503, 'enc_not_ready', C.NOT_READY_MESSAGE, 0])
+    process.env.MARKETPLACE_ENC_KEY = keepEnc
+  }
   eq('중계 비밀 없을 때 status.ready.relay = false', (await post('status')).body.ready.relay, false)
   process.env.MARKETPLACE_RELAY_SECRET = keep
 
@@ -350,8 +366,50 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('가이드: 캡처 5장 · "[추가] 버튼" 강조 2곳(04·05) · IP 복사', [[1, 2, 3, 4, 5].every(n => guide.includes(`/studio-guide/coupang/0${n}.png`) && fs.existsSync(new URL(`../public/studio-guide/coupang/0${n}.png`, import.meta.url))), (guide.match(/반드시 \[추가\] 버튼/g) || []).length, guide.includes("label: 'IP'")], [true, 2, true])
   const modal = read('src/components/studio/StudioSendModal.vue')
   eq('보내기 창: 브랜드·품번 필수, GTIN 선택', [/브랜드 \*/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드, 선택\)/.test(modal), /자체브랜드명/.test(modal)], [true, true, true, true])
-  eq('라우트·메뉴: studio-marketplace (STUDIO_PROTECTED)', [/name: 'studio-marketplace',[\s\S]*?meta: \{ \.\.\.STUDIO_PROTECTED/.test(read('src/router/index.js')), /name: 'studio-marketplace', label: '판매처 연결'/.test(read('src/layouts/StudioLayout.vue'))], [true, true])
   eq('판매처 화면: 로그아웃 구독', /euchs-auth-changed/.test(read('src/views/studio/StudioMarketplaceView.vue')), true)
+}
+
+// ── 10. 설정 메뉴·고객 문구·보낸 상품 (2026-09-28 ui-settings) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const router = read('src/router/index.js')
+  const layout = read('src/layouts/StudioLayout.vue')
+  const esc = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  eq('설정 탭 4개 · 순서', R.SETTINGS_TABS.map(t => t.label), ['판매처 연결', '배송·반품 템플릿', '저장값', '용어집'])
+  eq('설정 탭마다 라우트 (STUDIO_PROTECTED)', R.SETTINGS_TABS.map(t => new RegExp(`name: '${esc(t.route)}',[\\s\\S]{0,160}?meta: \\{ \\.\\.\\.STUDIO_PROTECTED`).test(router)), [true, true, true, true])
+  eq('/studio/settings → 첫 탭', router.includes("path: '', name: 'studio-settings', redirect: { name: 'studio-settings-marketplace' }"), true)
+  eq('예전 주소 3개 → 해당 탭으로 redirect', R.SETTINGS_TABS.filter(t => t.legacy).map(t => router.includes(`path: '${t.key}', name: '${t.legacy}', redirect: { name: '${t.route}' }`)), [true, true, true])
+  const menu = /const menuItems = \[([\s\S]*?)\n\]/.exec(layout)[1]
+  eq('사이드바 메인 = 스튜디오 소개·내 작업·템플릿 3개', [...menu.matchAll(/label: '([^']+)'/g)].map(m => m[1]), ['스튜디오 소개', '내 작업', '템플릿'])
+  eq('사이드바 아래 [설정] 1개 (계정 영역 위)', [(layout.match(/name: 'studio-settings'/g) || []).length, layout.indexOf('data-studio-nav-settings') < layout.indexOf('<!-- 계정 -->')], [1, true])
+
+  // 고객 화면 문구 — 템플릿(주석 제외)·오류 문구 표·서버 응답에 내부 용어가 없어야 한다
+  const BAN = /관리자|서버|암호화|키 설정|환경변수|중계|relay|ENC_KEY|RELAY/
+  const screens = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
+  // relayIp는 값(IP 숫자)을 넘기는 속성 이름 — 화면에 글자로 보이지 않는다
+  const shown = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/:relay-ip|relayIp/g, '') }
+  eq('화면 템플릿에 내부 용어 없음', screens.filter(p => BAN.test(shown(p))), [])
+  const table = /const MARKETPLACE = \{([\s\S]*?)\n\}/.exec(read('src/lib/studioApi.js'))[1].replace(/\/\/.*$/gm, '').replace(/^\s*\w+:/gm, '')
+  eq('오류 문구 표(marketplace)에 내부 용어 없음', BAN.test(table), false)
+  const sent = [...read('api/marketplace.js').matchAll(/sendError\(res, \d+, '\w+', (['"`])(.*?)\1\)/g)].map(m => m[2])
+  eq('서버가 돌려주는 문구(글자로 쓴 것)에 내부 용어 없음', [sent.length > 20, sent.filter(m => BAN.test(m))], [true, []])
+  eq('판매처 화면: 준비 안 됨 빨간 안내 없음', /data-mk-not-ready|ready\.enc|ready\.relay/.test(read('src/views/studio/StudioMarketplaceView.vue')), false)
+  eq('준비 문제 코드 = 회색 · 고객이 고칠 오류 = 가이드 링크', [R.isNotReady('enc_not_ready'), R.isNotReady('relay_not_configured'), R.isNotReady('ip_not_allowed'), R.needsGuide('ip_not_allowed'), R.needsGuide('bad_key'), R.needsGuide('key_expired'), R.needsGuide('rate_limited')], [true, true, false, true, true, true, false])
+  eq('서버·화면 준비 문제 코드가 어긋나지 않음', C.NOT_READY_CODES.filter(c => !R.isNotReady(c)), [])
+
+  // 완성작 배지 — 완성작마다 가장 최근 전송
+  const S = (id, exportId, status, createdAt) => ({ id, exportId, status, createdAt })
+  const m = R.latestSendByExport([S('a', 'E1', 'failed', '2026-09-28T01:00:00Z'), S('c', 'E1', 'rejected', '2026-09-28T03:00:00Z'), S('b', 'E2', 'approved', '2026-09-28T02:00:00Z'), S('d', null, 'failed', '2026-09-28T04:00:00Z')])
+  eq('배지: 완성작마다 최신 1건 (순서 무관 · exportId 없는 건 뺌)', [m.E1.id, m.E2.id, Object.keys(m).length], ['c', 'b', 2])
+  eq('배지: 목록이 비거나 이상해도 빈 값', [R.latestSendByExport([]), R.latestSendByExport(null)], [{}, {}])
+
+  const guide = read('src/components/studio/StudioMarketplaceGuide.vue')
+  eq('가이드: 이미지 크게 보기(닫기 버튼) · Esc', [/data-mk-guide-zoom-open/.test(guide), /data-mk-guide-zoom-close/.test(guide), /e\.key !== 'Escape'/.test(guide), /removeEventListener\('keydown', onKey\)/.test(guide)], [true, true, true, true])
+  const home = read('src/views/studio/StudioHomeView.vue')
+  eq('보낸 상품 = 내 작업 화면 · 설정에는 없음', [/<StudioSendList /.test(home), /<StudioExportList :sends="sends"/.test(home), /<StudioSendList|<StudioShippingTemplates/.test(read('src/views/studio/StudioMarketplaceView.vue'))], [true, true, false])
+  eq('보낸 상품·배송 템플릿 화면: 로그아웃 구독', [/euchs-auth-changed/.test(read('src/components/studio/StudioSendList.vue')), /euchs-auth-changed/.test(read('src/views/studio/StudioShippingView.vue'))], [true, true])
+  eq('미연결 안내 링크 → 설정 > 판매처 연결 탭', read('src/components/studio/StudioExportList.vue').includes(`busy[x.id].link" :to="{ name: 'studio-settings-marketplace' }"`), true)
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

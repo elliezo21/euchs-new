@@ -67,7 +67,7 @@
       <!-- 5. 배송 템플릿·기타 -->
       <section class="space-y-2">
         <h4 class="st-h-card">{{ meta ? '5' : '4' }}. 배송/반품 템플릿</h4>
-        <p v-if="!prepare.templates.length" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-no-template>템플릿이 없어요. [판매처 연결] 화면에서 먼저 만들어 주세요.</p>
+        <p v-if="!prepare.templates.length" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-no-template>템플릿이 없어요. <router-link :to="{ name: 'studio-settings-shipping' }" class="st-link">설정 &gt; 배송·반품 템플릿</router-link>에서 먼저 만들어 주세요.</p>
         <select v-else v-model="f.templateId" class="st-input w-full" data-mk-s-template>
           <option v-for="t in prepare.templates" :key="t.id" :value="t.id">{{ t.name }}{{ t.is_default ? ' (기본)' : '' }}</option>
         </select>
@@ -82,7 +82,7 @@
         <li v-for="m in missing" :key="m">· {{ m }}</li>
       </ul>
       <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-error>{{ sendError }}</p>
-      <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>쿠팡에 등록하고 승인 요청을 보냈어요{{ done.sellerProductId ? ` (쿠팡 #${done.sellerProductId})` : '' }}. 처리현황은 [판매처 연결] 화면에서 볼 수 있어요.</p>
+      <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>쿠팡에 등록하고 승인 요청을 보냈어요{{ done.sellerProductId ? ` (쿠팡 #${done.sellerProductId})` : '' }}. 진행 상태는 내 작업의 [보낸 상품]에서 볼 수 있어요.</p>
     </div>
     <p v-else class="st-desc">준비 중…</p>
     <template #actions>

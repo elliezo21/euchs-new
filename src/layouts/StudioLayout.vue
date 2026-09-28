@@ -82,6 +82,18 @@
         <router-link to="/mall" class="mt-2 inline-block text-[12px] st-link">이유씨몰로 가기 →</router-link>
       </div>
 
+      <!-- 설정 (계정 영역 위) -->
+      <router-link
+        :to="{ name: 'studio-settings' }"
+        class="st-nav-item mt-3"
+        :class="{ 'is-active': isSettings }"
+        data-studio-nav-settings
+        @click="drawerOpen = false"
+      >
+        <Settings class="w-[18px] h-[18px]" :stroke-width="2" />
+        <span>설정</span>
+      </router-link>
+
       <!-- 계정 -->
       <div class="mt-3 pt-3 st-border-t relative" ref="accountMenuRef">
         <template v-if="currentUser">
@@ -137,8 +149,8 @@ import '@/styles/studio-tokens.css'
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
-  Home, FolderOpen, LayoutTemplate, Bookmark, BookA, Plus, Sparkles, Menu, X,
-  ChevronDown, Gauge, ExternalLink, LogOut, Store,
+  Home, FolderOpen, LayoutTemplate, Plus, Sparkles, Menu, X,
+  ChevronDown, Gauge, ExternalLink, LogOut, Settings,
 } from 'lucide-vue-next'
 import { currentUser, signOut, openLoginModal } from '@/lib/auth'
 import StudioModal from '@/components/studio/StudioModal.vue'
@@ -155,11 +167,10 @@ const menuItems = [
   { name: 'studio-landing', label: '스튜디오 소개', icon: Home },
   { name: 'studio-projects', label: '내 작업', icon: FolderOpen, also: ['studio-editor', 'studio-new'] },
   { label: '템플릿', icon: LayoutTemplate, disabled: true },
-  { name: 'studio-marketplace', label: '판매처 연결', icon: Store },
-  { name: 'studio-assets', label: '저장값', icon: Bookmark },
-  { name: 'studio-glossary', label: '용어집', icon: BookA },
 ]
+// 한 번 맞춰 두는 것(판매처 연결·배송·반품 템플릿·저장값·용어집)은 아래쪽 [설정] 하나로 — 메인 메뉴는 매일 쓰는 작업만
 const isActive = item => route.name === item.name || (item.also || []).includes(route.name)
+const isSettings = computed(() => String(route.name || '').startsWith('studio-settings'))
 
 const drawerOpen = ref(false)
 const accountOpen = ref(false)
