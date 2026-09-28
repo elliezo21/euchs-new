@@ -9,6 +9,7 @@
           <Sparkles class="w-4 h-4" :stroke-width="2" />
         </span>
         <span class="text-[15px] font-extrabold st-ink">EUCHS Studio</span>
+        <span v-if="STUDIO_BETA" class="st-badge st-badge-accent" data-beta-badge>{{ BETA_BADGE }}</span>
       </router-link>
       <button type="button" class="st-icon-btn ml-auto" aria-label="메뉴 열기" @click="drawerOpen = true">
         <Menu class="w-5 h-5" :stroke-width="2" />
@@ -33,7 +34,7 @@
             <Sparkles class="w-4 h-4" :stroke-width="2" />
           </span>
           <span class="leading-tight">
-            <span class="block text-[15px] font-extrabold st-ink">EUCHS Studio</span>
+            <span class="block text-[15px] font-extrabold st-ink">EUCHS Studio <span v-if="STUDIO_BETA" class="st-badge st-badge-accent align-middle" data-beta-badge>{{ BETA_BADGE }}</span></span>
             <span class="block text-[11px] st-muted">상세페이지 제작</span>
           </span>
         </router-link>
@@ -79,6 +80,7 @@
       <div class="st-border rounded-[12px] p-3.5">
         <div class="text-[13px] font-extrabold st-ink">이유씨 고객 혜택</div>
         <p class="mt-1 text-[12px] leading-relaxed st-ink-2">스튜디오는 이유씨컴퍼니 고객에게 무료예요. 만든 상품은 바로 이유씨로 주문할 수 있어요.</p>
+        <p v-if="STUDIO_BETA" class="mt-1 text-[12px] leading-relaxed st-ink-2" data-beta-note>{{ BETA_NOTE }}</p>
         <router-link to="/mall" class="mt-2 inline-block text-[12px] st-link">이유씨몰로 가기 →</router-link>
       </div>
 
@@ -154,6 +156,7 @@ import {
 } from 'lucide-vue-next'
 import { currentUser, signOut, openLoginModal } from '@/lib/auth'
 import StudioModal from '@/components/studio/StudioModal.vue'
+import { STUDIO_BETA, BETA_BADGE, BETA_NOTE } from '@/lib/studioBeta'
 import { studioNoAccessOpen, STUDIO_NO_ACCESS_TITLE } from '@/lib/studioAccess'
 
 const route = useRoute()

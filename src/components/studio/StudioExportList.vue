@@ -8,17 +8,18 @@
     <p v-if="loading && !items.length" class="st-desc">불러오는 중…</p>
     <p v-else-if="errorMsg" class="text-[14px] font-bold st-danger-text break-keep" data-export-list-error>{{ errorMsg }}</p>
     <p v-else-if="!ready" class="st-desc break-keep" data-export-list-soon>잠시 후 다시 시도해 주세요.</p>
-    <p v-else-if="!items.length" class="st-desc break-keep" data-export-list-empty>편집기에서 [내보내기]로 받은 이미지가 여기에 보관돼요. 편집기를 다시 열지 않고 바로 받을 수 있어요.</p>
+    <p v-else-if="!items.length" class="st-desc break-keep" data-export-list-empty>편집기에서 [작업 저장]이나 [다운로드]를 누르면 결과물이 여기에 보관돼요. 편집기를 다시 열지 않고 바로 받을 수 있어요.</p>
 
-    <div v-else class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
-      <article v-for="x in items" :key="x.id" class="min-w-0 st-card overflow-hidden" :data-export-item="x.id">
-        <div class="h-[180px] overflow-hidden st-placeholder">
-          <img v-if="x.previewUrl" :src="x.previewUrl" alt="" class="w-full h-full object-cover object-top" />
-          <span v-else class="text-[13px]">미리보기 없음</span>
+    <!-- 작은 카드 — 내 작업 목록과 같은 크기 (st-grid-compact) -->
+    <div v-else class="st-grid-compact" data-export-grid>
+      <article v-for="x in items" :key="x.id" class="min-w-0" :data-export-item="x.id">
+        <div class="st-thumb-sq st-border st-placeholder">
+          <img v-if="x.previewUrl" :src="x.previewUrl" alt="" loading="lazy" />
+          <span v-else class="text-[11px]">미리보기 없음</span>
         </div>
-        <div class="p-3.5 space-y-2">
-          <div class="text-[14px] font-bold st-ink truncate" :title="x.title || ''">{{ x.title || '이름 없는 작업' }}</div>
-          <div class="st-desc-sm">{{ dateLabel(x.createdAt) }} · {{ kindLabel(x) }}</div>
+        <div class="mt-1.5 space-y-1.5">
+          <div class="text-[13px] font-bold st-ink truncate" :title="x.title || ''">{{ x.title || '이름 없는 작업' }}</div>
+          <div class="st-desc-sm truncate" :title="dateLabel(x.createdAt) + ' · ' + kindLabel(x)">{{ x.count }}장 · {{ daysAgoLabel(x.createdAt) }}</div>
           <!-- 판매처 상태 — 이 내 상품으로 가장 최근에 보낸 것 (목록은 내 작업 화면의 [보낸 상품]과 같은 것) -->
           <!-- 판매처별 배지 줄 — 보낸 판매처마다 하나(안 보낸 판매처는 없음). 누르면 [보낸 상품]의 그 줄로 -->
           <div v-if="sendsOf[x.id]" class="flex flex-wrap items-center gap-1.5" data-export-send-badges>
@@ -31,14 +32,14 @@
             </template>
           </div>
           <p v-if="x.count < x.planned" class="text-[11px] font-bold st-ai-text-soft break-keep">{{ x.planned }}장 중 {{ x.count }}장만 보관됐어요</p>
-          <div class="flex flex-col gap-1.5 pt-1">
-            <button type="button" class="st-btn st-btn-primary st-btn-block" :disabled="busy[x.id]?.running" :data-export-redownload="x.id" @click="redownload(x)">
-              <Download class="w-4 h-4" :stroke-width="2" />
+          <div class="flex flex-col gap-1">
+            <button type="button" class="st-btn st-btn-primary st-btn-block ex-btn" :disabled="busy[x.id]?.running" :data-export-redownload="x.id" @click="redownload(x)">
+              <Download class="w-3.5 h-3.5" :stroke-width="2" />
               {{ busy[x.id]?.running ? `받는 중 ${busy[x.id].done}/${busy[x.id].total || x.count}` : '다시 받기' }}
             </button>
             <!-- 판매처로 보내기 — 진입은 studioMarketplace.sendToMarketplace 한 곳 → 보내기 창(맨 위에서 보낼 판매처를 고른다) -->
-            <button type="button" class="st-btn st-btn-block" :disabled="busy[x.id]?.sending" :data-export-send="x.id" @click="send(x)">
-              <Send class="w-4 h-4" :stroke-width="2" /> {{ busy[x.id]?.sending ? '확인 중…' : '판매처로 보내기' }}
+            <button type="button" class="st-btn st-btn-block ex-btn" :disabled="busy[x.id]?.sending" :data-export-send="x.id" @click="send(x)">
+              <Send class="w-3.5 h-3.5" :stroke-width="2" /> {{ busy[x.id]?.sending ? '확인 중…' : '판매처로 보내기' }}
             </button>
           </div>
           <p v-if="busy[x.id]?.message" class="text-[12px] font-bold break-keep" :class="busy[x.id].error ? 'st-danger-text' : 'st-muted'" :data-export-msg="x.id">{{ busy[x.id].message }}
@@ -64,7 +65,7 @@
 </template>
 
 <script setup>
-// 작업 홈 [내 상품] — 내보내기로 받은 이미지를 보관한 목록 (studio_exports, api/studio-upload.js exports_list).
+// 작업 홈 [내 상품] — [작업 저장]·[다운로드]로 만든 결과물을 보관한 목록 (studio_exports, api/studio-upload.js exports_list).
 // [다시 받기] = 보관된 파일을 그대로 받는다(편집기를 열지 않는다). [판매처로 보내기] = 쿠팡 보내기 창(진입은 sendToMarketplace 한 곳).
 // 판매처 상태 배지 = 부모가 넘겨 준 sends(StudioSendList가 읽은 목록)에서 내 상품마다 가장 최근 것.
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
@@ -72,11 +73,12 @@ import { Download, Send } from 'lucide-vue-next'
 import { listArchives, downloadArchive } from '@/lib/studioExportArchive'
 import { sendToMarketplace, sendsByExport, badgeReason, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
 import { MARKETS, withRo } from '@/lib/studioMarketplaceRules'
+import { daysAgoLabel } from '@/lib/studioProjectList'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 
 const props = defineProps({ sends: { type: Array, default: () => [] } })
-const emit = defineEmits(['sent', 'goto-send'])
+const emit = defineEmits(['sent', 'goto-send', 'loaded'])
 const sendsOf = computed(() => sendsByExport(props.sends))
 const marketName = key => MARKETS.find(m => m.key === key)?.name || key
 const reasonOf = ref(null)
@@ -111,6 +113,7 @@ async function load() {
     if (seq !== loadSeq) return
     ready.value = r.ready === true
     items.value = r.items
+    emit('loaded', r.items)
   } catch (e) {
     if (seq !== loadSeq) return
     console.error('[StudioExportList] 내 상품 목록 조회 실패:', e.code, e)
@@ -160,6 +163,7 @@ const onStudioAuthChanged = (e) => {
   if (!e.detail?.user) {
     loadSeq++
     items.value = []
+    emit('loaded', [])
     errorMsg.value = ''
     sendOpen.value = false
     sendPrepare.value = null
@@ -181,4 +185,5 @@ defineExpose({ reload: load })
 
 <style scoped>
 .st-ai-text-soft { color: var(--st-ai); }
+.ex-btn { height: 30px; padding: 0 8px; font-size: 12px; gap: 4px; white-space: nowrap; }
 </style>

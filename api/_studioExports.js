@@ -55,6 +55,27 @@ export function upsertExportFile(files, file) {
   return list.sort((a, b) => (a.key === 'all' ? 1 : 0) - (b.key === 'all' ? 1 : 0) || a.key.localeCompare(b.key))
 }
 
+// 보관 종류 — download = [다운로드]로 받으면서 보관(받을 때마다 새 카드) / save = [작업 저장](작업마다 카드 하나 — 다시 저장하면 그 카드를 새 결과물로 바꾼다)
+// studio_exports.source 칸 (SQL docs/sql/2026-09-28-studio-folders.sql). 칸이 없으면 [작업 저장]만 안 되고 [다운로드]는 그대로
+export const EXPORT_SOURCES = ['download', 'save']
+export const SAVE_CLEANUP_HOLD_MS = 60 * 60 * 1000 // 판매처로 보낸 지 1시간 안이면 예전 파일을 지우지 않는다 (판매처가 아직 내려받는 중일 수 있다)
+
+/** source 칸이 없음 (SQL 실행 전) — PostgREST 400 + 칸 이름 */
+export function isSourceColumnMissing(err) {
+  return err?.status === 400 && /source/.test(String(err?.message || ''))
+}
+
+/**
+ * [작업 저장] 마무리 — 새로 만든 보관 기록(fresh)의 결과물을 그 작업의 예전 저장(old)에 옮길 값.
+ * id는 old 그대로(판매처로 보낸 기록 marketplace_sends.export_id가 끊기지 않는다), 결과물 칸만 바뀐다.
+ */
+export function savePatchFrom(fresh) {
+  return {
+    stamp: fresh.stamp, folder: fresh.folder, title: fresh.title, format: fresh.format, scale: fresh.scale, mode: fresh.mode,
+    file_count: fresh.file_count, files: fresh.files, thumb_path: fresh.thumb_path, created_at: fresh.created_at,
+  }
+}
+
 /** 표가 없음·권한 없음(GRANT 누락) — 보관만 "준비 중"으로 */
 export function isExportsUnavailable(err) {
   return err?.status === 404 || err?.status === 401 || err?.status === 403

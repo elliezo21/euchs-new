@@ -212,6 +212,13 @@
 .studio-root .st-badge-white { background: var(--st-surface); color: var(--st-ink); box-shadow: 0 1px 2px rgba(24, 24, 27, 0.12); }
 .studio-root .st-badge-scrim { background: var(--st-scrim); color: var(--st-on-accent); }
 .studio-root .st-badge-danger { background: var(--st-danger-soft); color: var(--st-danger); }
+/* 작은 카드 격자 — 내 작업·내 상품·보낸 상품이 같이 쓴다: 폰 2 · 태블릿 4 · 데스크톱 6 · 1400px 이상 8 */
+.studio-root .st-grid-compact { display: grid; gap: 14px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 640px) { .studio-root .st-grid-compact { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .studio-root .st-grid-compact { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
+@media (min-width: 1400px) { .studio-root .st-grid-compact { grid-template-columns: repeat(8, minmax(0, 1fr)); } }
+.studio-root .st-thumb-sq { display: flex; align-items: center; justify-content: center; width: 100%; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 10px; }
+.studio-root .st-thumb-sq img { width: 100%; height: 100%; object-fit: cover; object-position: top; }
 .studio-root .st-badge-ok { background: color-mix(in srgb, var(--st-success) 12%, transparent); color: var(--st-success); }
 
 /* ── 세그먼트 탭 ──────────────────────────────────────────── */

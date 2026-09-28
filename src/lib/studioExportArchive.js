@@ -22,9 +22,12 @@ export function archiveKey(no) {
   return no === null ? 'all' : String(no).padStart(2, '0')
 }
 
-/** @returns {Promise<string>} exportId */
-export async function beginArchive({ projectId, title, format, scale, mode, count }) {
-  const r = await callStudioApi('studio-upload', { action: 'export_begin', projectId, title, format, scale, mode, count })
+/**
+ * @param source 'save' = [작업 저장] (작업마다 카드 하나 — 끝나면 commitSave로 마무리) / 없음 = [다운로드]
+ * @returns {Promise<string>} exportId
+ */
+export async function beginArchive({ projectId, title, format, scale, mode, count, source }) {
+  const r = await callStudioApi('studio-upload', { action: 'export_begin', projectId, title, format, scale, mode, count, ...(source ? { source } : {}) })
   if (!r.ok) throw apiError(r)
   return r.data.exportId
 }
@@ -81,6 +84,16 @@ export async function makeThumb(blob) {
 
 export async function archiveThumb(exportId, blob) {
   return putFile(exportId, 'thumb', blob, 'thumb.jpg', 'image/jpeg')
+}
+
+/**
+ * [작업 저장] 마무리 — 그 작업에 예전 저장이 있으면 그 카드를 새 결과물로 바꾼다(카드가 늘지 않는다, 판매처로 보낸 기록은 그대로)
+ * @returns {Promise<{ exportId:string, updated:boolean }>} exportId = 내 상품에 남은 카드의 id
+ */
+export async function commitSave(exportId) {
+  const r = await callStudioApi('studio-upload', { action: 'export_save_commit', exportId })
+  if (!r.ok) throw apiError(r)
+  return r.data
 }
 
 /** 작업 홈 내 상품 목록 → { ready, items } (ready=false = 표 설정 전) */

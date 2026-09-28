@@ -28,15 +28,27 @@ function requireUid() {
   return uid
 }
 
-/** 내 프로젝트 (삭제 안 된 것, 최신순) */
+const PROJECT_LIST_COLS = 'id, title, title_zh, source_type, offer_id, expires_at, created_at, updated_at'
+
+/**
+ * 내 프로젝트 (삭제 안 된 것, 최신순). folder_id = 폴더(없으면 null).
+ * folder_id 칸은 SQL(docs/sql/2026-09-28-studio-folders.sql) 실행 뒤에 생긴다 — 칸이 없으면(42703) 폴더 없이 읽고 원인을 남긴다
+ * (폴더 화면은 studioFolders.listFolders가 ready:false를 돌려줘 보이지 않는다).
+ */
 export async function listMyProjects() {
   const uid = requireUid()
-  const { data, error } = await supabase
+  const read = cols => supabase
     .from('studio_projects')
-    .select('id, title, title_zh, source_type, offer_id, expires_at, created_at')
+    .select(cols)
     .eq('user_id', uid)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
+  let { data, error } = await read(`${PROJECT_LIST_COLS}, folder_id`)
+  if (error && error.code === '42703') {
+    console.error('[studioProjects] studio_projects.folder_id 칸이 없음 — docs/sql/2026-09-28-studio-folders.sql 실행 필요. 폴더 없이 읽음:', error.message)
+    ;({ data, error } = await read(PROJECT_LIST_COLS))
+    if (!error) data = (data || []).map(p => ({ ...p, folder_id: null }))
+  }
   if (error) {
     console.error('[studioProjects] 프로젝트 목록 조회 실패:', error.message)
     throw new Error(`프로젝트 목록을 불러오지 못했어요: ${error.message}`)
