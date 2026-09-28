@@ -19,7 +19,8 @@ function eq(name, got, want) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(60)} ${ok ? '' : `${JSON.stringify(got)}  기대 ${JSON.stringify(want)}`}`)
 }
 const measure = (s, style) => [...s].reduce((n, ch) => n + style.fontSize * (/[가-힯]/.test(ch) ? 1 : ch === ' ' ? 0.25 : 0.5), 0) // test-studio-text와 같은 가짜 폭
-const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+// 줄바꿈은 LF로 맞춰 읽는다 — Windows에서 CRLF로 풀린 파일도 같은 결과가 나오게 (git autocrlf)
+const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
 
 // ── [요소] 종류 전환 ──
 eq('종류 = 도형·배지·사이즈표 순서', ELEMENT_TABS.map(t => t.label), ['도형', '배지', '사이즈표'])
