@@ -27,7 +27,10 @@
         <component :is="SECTIONS[key]" v-show="picked.includes(key)" :ref="el => setSection(key, el)" :prepare="prepare" :data-mk-s-section="key" />
       </template>
 
-      <div v-if="missing.length && !allDone" class="st-surface st-border rounded-[10px] p-3" data-mk-s-missing>
+      <!-- 고른 판매처의 섹션을 그리지 못함 — 보내기를 막고 한 줄만 (원인은 콘솔) -->
+      <p v-if="sectionFailed" class="text-[13px] font-bold st-danger-text" data-mk-s-section-error>잠시 후 다시 시도해 주세요.</p>
+
+      <div v-else-if="missing.length && !allDone" class="st-surface st-border rounded-[10px] p-3" data-mk-s-missing>
         <div class="text-[13px] font-bold st-danger-text mb-1">채워야 보낼 수 있어요 ({{ missing.length }})</div>
         <ul class="text-[13px] st-danger-text space-y-0.5">
           <li v-for="m in missing" :key="m">· {{ m }}</li>
@@ -37,7 +40,7 @@
     <p v-else class="st-desc">불러오는 중…</p>
     <template #actions>
       <button type="button" class="st-btn" @click="close">{{ allDone ? '닫기' : '취소' }}</button>
-      <button v-if="!allDone" type="button" class="st-btn st-btn-primary" :disabled="sending || sectionBusy || missing.length > 0 || !prepare" data-mk-s-send @click="submit">{{ sending ? '보내는 중…' : buttonLabel }}</button>
+      <button v-if="!allDone" type="button" class="st-btn st-btn-primary" :disabled="!canSend" data-mk-s-send @click="submit">{{ sending ? '보내는 중…' : buttonLabel }}</button>
     </template>
   </StudioModal>
 </template>
@@ -46,7 +49,7 @@
 // [판매처로 보내기] 창 — 맨 위 "0. 보낼 판매처"에서 고른 판매처의 섹션만 아래에 보이고(v-show — 값은 남는다), [보내기]는 체크된 판매처마다 그 섹션의 submit()을 부른다.
 // 판매처 섹션 컴포넌트가 내놓는 것: missing(빠진 것)·busy·done·submit() — 지금은 쿠팡(StudioSendCoupang) 하나.
 // 판매처 줄·처음 체크·버튼 글자는 studioMarketplaceRules.js (설정·랜딩과 같은 MARKETS 목록)
-import { ref, reactive, computed, watch, shallowRef } from 'vue'
+import { ref, reactive, computed, watch, shallowRef, onErrorCaptured } from 'vue'
 import { Lock } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
@@ -75,6 +78,7 @@ function setSection(key, el) {
 watch(() => props.open, v => {
   if (!v) return
   openSeq.value++
+  sectionError.value = false
   sending.value = false
   results.value = {}
   for (const k of Object.keys(sections)) delete sections[k]
@@ -90,12 +94,23 @@ const missing = computed(() => {
   }
   return out
 })
+// 재발 방지 (2026-09-28 운영 버그: 섹션 setup이 죽었는데 [보내기]가 켜져 있었다)
+//   고른 판매처마다 섹션이 실제로 떠 있어야(sections[key]) 보낼 수 있다. 준비 데이터가 없거나 섹션이 없으면 버튼을 끈다.
+const sectionError = ref(false)
+onErrorCaptured((err, instance, info) => {
+  console.error('[StudioSendModal] 판매처 섹션 오류 — 보내기를 막음:', info, err)
+  sectionError.value = true
+  return false // 창 전체가 죽지 않게 여기서 멈춘다 (화면에는 "잠시 후 다시 시도해 주세요."만)
+})
+const sectionsReady = computed(() => picked.value.length > 0 && picked.value.every(key => !!SECTIONS[key] && !!sections[key]))
+const sectionFailed = computed(() => sectionError.value || (picked.value.length > 0 && !sectionsReady.value))
+const canSend = computed(() => !!props.prepare && sectionsReady.value && !sectionError.value && !sending.value && !sectionBusy.value && missing.value.length === 0)
 const sectionBusy = computed(() => picked.value.some(key => !!sections[key]?.busy))
 const allDone = computed(() => picked.value.length > 0 && picked.value.every(key => !!sections[key]?.done))
 const buttonLabel = computed(() => sendButtonLabel(picked.value))
 
 async function submit() {
-  if (missing.value.length || sending.value) return
+  if (!canSend.value) return
   sending.value = true
   try {
     for (const key of picked.value) {

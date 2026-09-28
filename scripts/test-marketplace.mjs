@@ -687,7 +687,23 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const shell = read('src/components/studio/StudioSendModal.vue')
   const shellShown = shell.slice(shell.indexOf('<template>'), shell.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
   eq('보내기 창: "0. 보낼 판매처"가 맨 위 · 체크박스 줄 · 자물쇠 + [연결하기] · "준비 중" 배지', [/0\. 보낼 판매처/.test(shellShown), shellShown.indexOf('data-mk-s-markets') < shellShown.indexOf('<component :is="SECTIONS[key]"'), /type="checkbox" :disabled="r\.state !== 'connected'/.test(shellShown), /<Lock /.test(shellShown), /:to="\{ name: 'studio-settings-marketplace' \}"[^>]*>연결하기</.test(shellShown), /v-else-if="r\.state === 'soon'" class="st-badge shrink-0">준비 중</.test(shellShown)], [true, true, true, true, true, true])
-  eq('보내기 창: 체크 0개 → 빠짐 목록 "보낼 판매처" · 버튼은 빠짐이 있으면 꺼짐', [/if \(!picked\.value\.length\) return \['보낼 판매처'\]/.test(shell), /:disabled="sending \|\| sectionBusy \|\| missing\.length > 0 \|\| !prepare"/.test(shellShown)], [true, true])
+  eq('보내기 창: 체크 0개 → 빠짐 목록 "보낼 판매처" · 버튼은 빠짐이 있으면 꺼짐', [/if \(!picked\.value\.length\) return \['보낼 판매처'\]/.test(shell), /:disabled="!canSend" data-mk-s-send/.test(shellShown)], [true, true])
+  eq('재발 방지: 준비 데이터가 없거나 고른 판매처의 섹션이 안 떠 있으면 [보내기] 꺼짐 · 섹션 오류는 한 줄만', [
+    shell.includes('const canSend = computed(() => !!props.prepare && sectionsReady.value && !sectionError.value && !sending.value && !sectionBusy.value && missing.value.length === 0)'),
+    shell.includes('const sectionsReady = computed(() => picked.value.length > 0 && picked.value.every(key => !!SECTIONS[key] && !!sections[key]))'),
+    shell.includes('onErrorCaptured(') && /sectionError\.value = true\s+return false/.test(shell), shell.includes('if (!canSend.value) return'),
+    /<p v-if="sectionFailed"[^>]*data-mk-s-section-error>잠시 후 다시 시도해 주세요\.<\/p>/.test(shellShown),
+  ], [true, true, true, true, true])
+  {
+    const cp = read('src/components/studio/StudioSendCoupang.vue')
+    eq('쿠팡 섹션: uid를 f보다 먼저 선언 (선언 전에 쓰지 않음)', [cp.indexOf('let uid = 0') > 0, cp.indexOf('let uid = 0') < cp.indexOf('const f = ref(blank())')], [true, true])
+    eq('재고 수량: 기본값 비움(1688 재고를 넣지 않음) · 필수 · 빠짐 목록 "재고 수량" · 일괄 입력 · maximumBuyCount', [
+      cp.includes('stock: null, stock1688: null'), cp.includes('it.stock = row.stock'), cp.includes('out.push(`${tag}재고 수량`)'),
+      cp.includes('<th>재고 수량 *</th>'), cp.includes('data-mk-s-bulk-stock'), cp.includes('if (Number.isInteger(b.stock) && b.stock >= 0) it.stock = b.stock'),
+      cp.includes('stock: it.stock, sku: it.sku'), read('api/_coupang.js').includes('maximumBuyCount: stock'),
+    ], [true, false, true, true, true, true, true, true])
+    eq('서버: 재고가 비면 본문을 만들지 않음 (임의 숫자로 채우지 않음) · 0과 37은 그대로', [C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: null }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: '' }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 0 }] }).body.items[0].maximumBuyCount, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 37 }] }).body.items[0].maximumBuyCount], [false, false, 0, 37])
+  }
   eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임', [/const SECTIONS = \{ coupang: StudioSendCoupang \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
   {
     // 체크를 풀었다 다시 켜도 값이 남는다 — 섹션은 체크와 상관없이 만들어 두고(v-show로 가리기만), 빠짐·보내기는 체크된 것만

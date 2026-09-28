@@ -374,6 +374,8 @@ export function buildProductBody(p) {
     const sale = money(it.salePrice), orig = money(it.originalPrice ?? it.salePrice)
     if (!sale || !orig) return { ok: false, message: `옵션 "${itemName}"의 가격을 넣어 주세요.` }
     if (sale > orig) return { ok: false, message: `옵션 "${itemName}"의 판매가가 정가보다 커요.` }
+    // 재고 수량은 필수 — 빈 값(null·'')을 0으로 읽지 않는다 (Number(null) = 0이라 품절로 등록될 뻔했다)
+    if (it.stock === null || it.stock === undefined || String(it.stock).trim() === '') return { ok: false, message: `옵션 "${itemName}"의 재고 수량을 넣어 주세요.` }
     const stock = Number(it.stock)
     if (!Number.isInteger(stock) || stock < 0 || stock > MAX_STOCK) return { ok: false, message: `옵션 "${itemName}"의 재고는 0~${MAX_STOCK}이에요.` }
     const attrs = []

@@ -57,7 +57,7 @@
 
       <!-- 4. 옵션 -->
       <section class="space-y-2">
-        <h4 class="st-h-card">4. 옵션·가격·재고</h4>
+        <h4 class="st-h-card">4. 옵션·가격·재고 수량</h4>
         <p class="st-desc-sm break-keep">옵션마다 품번(판매자 상품코드)은 필수, GTIN(바코드 숫자 8~14자리)은 선택이에요. 쿠팡 정책상 브랜드·상품식별정보·필수 구매옵션이 비면 노출이 제한돼요.</p>
         <p v-if="sourceNote" class="st-desc-sm break-keep" data-mk-s-source-note>{{ sourceNote }}</p>
 
@@ -79,7 +79,7 @@
         <div v-if="f.items.length > 1" class="flex flex-wrap items-end gap-2" data-mk-s-bulk>
           <label class="block"><span class="st-desc-sm">정가(원)</span><input v-model.number="bulk.originalPrice" type="number" min="1" class="st-input w-[120px]" /></label>
           <label class="block"><span class="st-desc-sm">판매가(원)</span><input v-model.number="bulk.salePrice" type="number" min="1" class="st-input w-[120px]" /></label>
-          <label class="block"><span class="st-desc-sm">재고</span><input v-model.number="bulk.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[100px]" /></label>
+          <label class="block"><span class="st-desc-sm">재고 수량</span><input v-model.number="bulk.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[100px]" data-mk-s-bulk-stock /></label>
           <button type="button" class="st-btn" :disabled="!bulkReady" data-mk-s-bulk-apply @click="applyBulk">모든 옵션에 넣기</button>
         </div>
 
@@ -96,7 +96,7 @@
                 <th>정가(원) *</th>
                 <th>판매가(원) *</th>
                 <th>할인</th>
-                <th>재고 *</th>
+                <th>재고 수량 *</th>
                 <th>품번 *</th>
                 <th>GTIN</th>
                 <th></th>
@@ -120,7 +120,7 @@
                 <td><input v-model.number="it.originalPrice" type="number" min="1" class="st-input w-[100px]" /></td>
                 <td><input v-model.number="it.salePrice" type="number" min="1" class="st-input w-[100px]" :data-mk-s-price="i" /></td>
                 <td class="whitespace-nowrap st-ink" :data-mk-s-rate="i">{{ rateText(it) }}</td>
-                <td><input v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[80px]" /></td>
+                <td><input v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[90px]" :title="it.stock1688 === null ? '' : `1688 재고 ${it.stock1688}`" :data-mk-s-stock="i" /></td>
                 <td><input v-model.trim="it.sku" class="st-input w-[130px] font-mono" maxlength="50" :data-mk-s-sku="i" /></td>
                 <td><input v-model.trim="it.gtin" class="st-input w-[130px] font-mono" maxlength="14" placeholder="8~14자리" /></td>
                 <td><button v-if="f.items.length > 1" type="button" class="st-link-muted text-[12px] whitespace-nowrap" @click="removeItem(i)">빼기</button></td>
@@ -270,10 +270,12 @@ const advancedOpen = ref(false)
 const pickFor = ref(-1)
 const tagChips = ref(null)
 const bulk = ref({ originalPrice: null, salePrice: null, stock: null })
-const f = ref(blank())
+// ★ uid는 f보다 먼저 선언한다 — f = ref(blank())가 곧바로 blankItem()을 불러 ++uid를 쓴다.
+//   뒤에 두면 "Cannot access 'uid' before initialization"으로 setup이 죽어 섹션이 통째로 안 그려진다 (2026-09-28 운영 버그)
 let uid = 0
+const f = ref(blank())
 
-function blankItem() { return { uid: ++uid, name: '', originalPrice: null, salePrice: null, stock: 100, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null, priceCny: null } }
+function blankItem() { return { uid: ++uid, name: '', originalPrice: null, salePrice: null, stock: null, stock1688: null, sku: '', gtin: '', opt: {}, attributes: {}, freeAttrName: '', freeAttrValue: '', imageId: null, priceCny: null } }
 function blank() {
   return {
     saleMode: '', outboundDays: null, productName: '', displayName: '', generalName: '', brand: '', manufacture: '', modelNo: '', categoryCode: '', categoryName: '',
@@ -320,7 +322,7 @@ function fillFromSource() {
     it.name = row.values.map(v => ko(v.value)).join(' ').slice(0, 150)
     it.priceCny = row.priceCny
     if (row.priceCny === null) console.error('[StudioSendCoupang] 1688 옵션 가격을 읽지 못함 — "확인 필요"로 표시:', s.offerId, row.skuId)
-    it.stock = row.stock === null ? null : row.stock
+    it.stock1688 = row.stock // 참고용 — 재고 수량 칸은 비워 둔다(1688 판매자 재고는 내 재고가 아니다). 고객이 직접 넣는다
     it.sku = `${s.offerId}-${row.skuId || String(i + 1).padStart(3, '0')}`.slice(0, 50)
     it.imageId = matchOptionImage(row.imageUrl, props.prepare.images)
     return it
@@ -418,7 +420,8 @@ const missing = computed(() => {
     if (hasUntranslated(it.name) || Object.values(it.opt).some(hasUntranslated)) out.push(`${tag}옵션 이름·값을 한글로 고쳐 주세요`)
     if (!(it.salePrice > 0)) out.push(`${tag}판매가`)
     else if (it.originalPrice > 0 && it.salePrice > it.originalPrice) out.push(`${tag}판매가가 정가보다 커요`)
-    if (!(Number.isInteger(it.stock) && it.stock >= 0 && it.stock <= STOCK_MAX)) out.push(`${tag}재고 (0~${STOCK_MAX})`)
+    if (it.stock === null || it.stock === '' || it.stock === undefined) out.push(`${tag}재고 수량`)
+    else if (!(Number.isInteger(it.stock) && it.stock >= 0 && it.stock <= STOCK_MAX)) out.push(`${tag}재고 수량은 0~${STOCK_MAX}`)
     if (!it.sku) out.push(`${tag}품번`)
     if (it.gtin && !/^\d{8,14}$/.test(it.gtin)) out.push(`${tag}GTIN은 숫자 8~14자리`)
     const attrs = attributesOf(it)
@@ -458,7 +461,7 @@ function setItemImage(id) {
 }
 function addItem() {
   const it = blankItem()
-  it.stock = f.value.items[0]?.stock ?? 100
+  it.stock = f.value.items[0]?.stock ?? null // 첫 옵션에 넣은 값이 있으면 같은 값으로 (없으면 비움)
   f.value.items.push(it)
 }
 function removeItem(i) {
