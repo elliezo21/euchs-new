@@ -396,11 +396,42 @@
                 </div>
               </div>
 
+              <!-- [필수] 개인정보 수집·이용 동의 (2026-09-28) — 체크해야 가입 버튼이 켜진다. 동의 시각은 가입 때 서버 시각으로 기록 -->
+              <div class="space-y-2 bg-white p-3.5 rounded-2xl border border-slate-200" data-signup-privacy>
+                <label class="flex items-start gap-2 cursor-pointer">
+                  <input
+                    v-model="signupForm.privacy_agreed"
+                    type="checkbox"
+                    class="mt-0.5 w-4 h-4 accent-blue-600 shrink-0"
+                    data-signup-privacy-check
+                  />
+                  <span class="text-xs font-black text-slate-900">[필수] 개인정보 수집·이용에 동의합니다</span>
+                </label>
+                <div class="overflow-x-auto rounded-lg border border-slate-200">
+                  <table class="w-full text-[11px] text-slate-700 leading-snug">
+                    <thead class="bg-slate-50 text-slate-900">
+                      <tr><th class="px-2 py-1.5 text-left font-bold">수집 항목</th><th class="px-2 py-1.5 text-left font-bold">목적</th><th class="px-2 py-1.5 text-left font-bold whitespace-nowrap">보유 기간</th></tr>
+                    </thead>
+                    <tbody>
+                      <tr class="border-t border-slate-200">
+                        <td class="px-2 py-1.5 align-top">이메일, 비밀번호, 상호, 대표자·담당자 이름, 사업자등록번호, 사업장 주소, 휴대전화번호, (선택) 개인통관고유부호</td>
+                        <td class="px-2 py-1.5 align-top">회원 관리, 사업자 확인, 구매대행·수입통관·배송, 상담·진행 알림</td>
+                        <td class="px-2 py-1.5 align-top">회원 탈퇴 시까지 (법령에 따라 보관할 기록은 그 기간까지)</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-snug">
+                  동의하지 않을 수 있지만, 동의하지 않으면 회원가입을 할 수 없어요. 자세한 내용은
+                  <a href="/privacy" target="_blank" rel="noopener" class="text-blue-600 font-bold underline" data-signup-privacy-link>개인정보처리방침</a>에서 볼 수 있어요.
+                </p>
+              </div>
+
               <!-- Submit Button -->
               <div class="pt-1">
-                <button 
-                  type="submit" 
-                  :disabled="isLoading"
+                <button
+                  type="submit"
+                  :disabled="isLoading || !signupForm.privacy_agreed"
                   class="w-full py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition active:scale-[0.98] flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer"
                 >
                   <i v-if="isLoading" class="fas fa-spinner animate-spin text-sm"></i>
@@ -701,8 +732,11 @@ const signupForm = ref({
   business_number: '',
   pccc: '',
   address: '',
-  phone: ''
+  phone: '',
+  privacy_agreed: false // [필수] 개인정보 수집·이용 동의 — 체크해야 가입 버튼이 켜진다
 })
+// 동의한 처리방침 판 (= /privacy 시행일). 처리방침을 바꾸면 이 값도 바꾼다
+const PRIVACY_VERSION = '2026-09-28'
 
 const verifyForm = ref({
   name: '',
@@ -797,9 +831,10 @@ const resetAllForms = () => {
     business_number: '',
     pccc: '',
     address: '',
-    phone: ''
+    phone: '',
+    privacy_agreed: false
   }
-  
+
   const existingBiz = getUserBusinessInfo(currentUser.value)
   verifyForm.value = {
     name: existingBiz?.name || currentUser.value?.user_metadata?.full_name || '',
@@ -904,6 +939,11 @@ const handleEmailSignup = async () => {
     return
   }
 
+  if (signupForm.value.privacy_agreed !== true) {
+    alert('[필수] 개인정보 수집·이용에 동의해 주세요.')
+    return
+  }
+
   isLoading.value = true
   try {
     await signUpWithEmail(
@@ -915,7 +955,9 @@ const handleEmailSignup = async () => {
         business_number: cleanBiz,
         pccc: cleanPccc || '',
         address: signupForm.value.address,
-        phone: signupForm.value.phone
+        phone: signupForm.value.phone,
+        privacy_agreed: true,
+        privacy_version: PRIVACY_VERSION
       }
     )
     alert('🎉 B2B 사업자 회원가입이 완료되었습니다!\n확인 이메일을 인증하신 후 로그인해 주세요.')

@@ -950,7 +950,10 @@ export const signUpWithEmail = async (email, password, businessData = {}) => {
     business_number: cleanBizNumber,
     pccc: cleanPccc,
     address: address,
-    is_business_verified: false // 가입 시 항상 미인증으로 시작 — 관리자 승인 후에만 true
+    is_business_verified: false, // 가입 시 항상 미인증으로 시작 — 관리자 승인 후에만 true
+    // [필수] 개인정보 수집·이용 동의 — 가입 트리거가 true일 때 서버 시각을 동의 시각으로 기록(docs/sql/2026-09-28-account-withdrawal.sql)
+    privacy_agreed: businessData.privacy_agreed === true,
+    privacy_version: typeof businessData.privacy_version === 'string' ? businessData.privacy_version : null
   }
 
   const { data, error } = await supabase.auth.signUp({
