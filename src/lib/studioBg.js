@@ -12,6 +12,9 @@
  *       ai?: { path, key, w, h, preset, model }, AI 배경 이미지(17-4 — 서버 bg_generate가 저장한 결과 그대로, key = 내용 해시)
  *                                           경로 {uid}/{projectId}/bg/{imageId}/ai_{key16}.{png|jpg|webp}. mode 'ai'일 때 사진 자리 아래에 깐다.
  *                                           다른 모드로 바꿔도 남겨 두어 [AI 배경]으로 돌아오면 다시 쓴다(돈 안 듦 — 단색 색 기억과 같은 방식)
+ *       lib?: { asset, w, h, label? },      라이브러리 배경(에셋 이미지 — studioAsset.js, public/studio-assets의 정적 파일 경로). mode 'library'일 때 사진 자리 아래에 깐다.
+ *                                           AI 배경과 같은 길(사진 밑 그림)이지만 외부 AI·서버·사용 기록·한도가 없다(무료). 파일을 복사하지 않는다(복사본도 같은 경로).
+ *                                           다른 모드로 바꿔도 남겨 두어 [라이브러리]로 돌아오면 그 그림
  *     }
  * ★ AI 배경(17-4)도 사진 파일에 넣지 않는다: 제품 = 우리 원본 + 마스크(bgMaskSource)로 만든 투명 사진(단색·투명과 똑같음),
  *   AI 이미지는 사진과 같은 자르기·띠를 거쳐 "사진 자리 아래"에 깐다 (화면 = 사진 밑 <img>, 내보내기 = drawPhoto가 사진 전에).
@@ -30,7 +33,9 @@
  * ★ 완성 JPG(final)에는 넣지 않는다. layers가 그대로면 erase_v도 그대로(studioFinal.stampEraseVersion은 layers만 본다).
  */
 
-export const BG_MODES = ['transparent', 'none', 'color', 'ai']
+import { isAssetPath } from './studioAsset.js'
+
+export const BG_MODES = ['transparent', 'none', 'color', 'ai', 'library']
 export const BG_DEFAULT_COLOR = '#ffffff'
 // 단색 견본 (17-2) — 상품 사진에 흔한 밝은 바탕 + 검정
 export const BG_COLOR_SWATCHES = [
@@ -78,11 +83,32 @@ export function readBg(edit) {
     if (a) out.ai = a
     else console.error('[studioBg] AI 배경(edit.bg.ai) 모양이 이상함 — AI 배경 없이 읽음:', b.ai)
   }
+  if (b.lib !== undefined && b.lib !== null) {
+    const l = readLib(b.lib)
+    if (l) out.lib = l
+    else console.error('[studioBg] 라이브러리 배경(edit.bg.lib) 모양이 이상함 — 라이브러리 배경 없이 읽음:', b.lib)
+  }
   if (out.mode === 'ai' && !out.ai) {
     console.error('[studioBg] 모드가 AI 배경인데 AI 배경 정보가 없음 — 투명으로 읽음:', b)
     out.mode = 'transparent'
   }
+  if (out.mode === 'library' && !out.lib) {
+    console.error('[studioBg] 모드가 라이브러리 배경인데 그림 정보가 없음 — 투명으로 읽음:', b)
+    out.mode = 'transparent'
+  }
   return out
+}
+
+/** 라이브러리 배경 정보 — 에셋 경로 규칙·크기(양의 정수)가 맞을 때만, 아니면 null */
+function readLib(l) {
+  if (!l || typeof l !== 'object' || !isAssetPath(l.asset)) return null
+  if (!Number.isInteger(l.w) || !Number.isInteger(l.h) || l.w < 1 || l.h < 1) return null
+  const label = typeof l.label === 'string' ? [...l.label.trim()].slice(0, 40).join('') : ''
+  return label ? { asset: l.asset, w: l.w, h: l.h, label } : { asset: l.asset, w: l.w, h: l.h }
+}
+/** 목록 항목(manifest) → bg.lib */
+export function libFromEntry(entry) {
+  return readLib({ asset: entry?.file, w: entry?.w, h: entry?.h, label: entry?.label })
 }
 
 /** AI 배경 정보 — 경로 규칙·key·크기(양의 정수)·같은 사진 폴더가 맞을 때만, 아니면 null */
@@ -112,6 +138,7 @@ export function withBg(edit, bg) {
   if (c) out.color = c
   if (bg.refined) out.refined = { ...bg.refined }
   if (bg.ai) out.ai = { ...bg.ai }
+  if (bg.lib) out.lib = { ...bg.lib }
   return { ...rest, bg: out }
 }
 
@@ -147,6 +174,14 @@ export function bgAiUnder(bg) {
 }
 
 /**
+ * 사진 자리 아래에 깔 라이브러리 배경 (mode가 library일 때만, 아니면 null)
+ * @returns {{ asset, w, h }|null}
+ */
+export function bgLibUnder(bg) {
+  return bg?.mask && bg.mode === 'library' && bg.lib ? { asset: bg.lib.asset, w: bg.lib.w, h: bg.lib.h } : null
+}
+
+/**
  * AI 결과(iw×ih)를 사진 크기(W×H)에 맞출 때 쓸 원본 범위 — 가로세로 비율이 1% 안이면 전체를 늘려 맞추고(제품 자리 그대로),
  * 더 다르면 가운데 기준으로 잘라 채운다(찌그러뜨리지 않음). 화면·내보내기가 같은 함수를 쓴다 (studioViewImage.applyBackground)
  */
@@ -170,7 +205,7 @@ export function bgFromServer(r) {
 
 /** 지금 합성에 마스크를 쓰는지 (투명·단색·AI 배경 — 사진은 투명하게 만들고 색·AI 배경은 그리는 쪽이 아래에 깐다) */
 export function bgActive(bg) {
-  return !!bg?.mask && (bg.mode === 'transparent' || bg.mode === 'color' || (bg.mode === 'ai' && !!bg.ai))
+  return !!bg?.mask && (bg.mode === 'transparent' || bg.mode === 'color' || (bg.mode === 'ai' && !!bg.ai) || (bg.mode === 'library' && !!bg.lib))
 }
 
 /** 화면 작은 사진 key 조각 (바뀌면 다시 만든다) — 색은 사진 파일에 안 들어가므로 key에 없다 (색을 바꿔도 다시 안 만듦).
@@ -178,13 +213,14 @@ export function bgActive(bg) {
 export function bgViewKey(bg) {
   if (!bgActive(bg)) return ''
   const under = bgAiUnder(bg) // 17-4: AI 배경을 바꾸면 아래 그림을 다시 만든다
-  return `|bg:${bgMaskSource(bg).path}${under ? `|ai:${under.path}` : ''}`
+  const lib = bgLibUnder(bg) // 라이브러리 배경을 바꿔도 아래 그림을 다시 만든다
+  return `|bg:${bgMaskSource(bg).path}${under ? `|ai:${under.path}` : ''}${lib ? `|lib:${lib.asset}` : ''}`
 }
 
 /** 목록·사진 정보 카드 표시 — 다듬은 마스크를 쓰면 "· 다듬음" (원래 배경일 때는 표시 없음 — 다듬은 결과가 안 보이므로) */
 export function bgMark(bg) {
   if (!bgActive(bg)) return ''
-  const base = bg.mode === 'color' ? '배경 단색' : bg.mode === 'ai' ? 'AI 배경' : '배경 지움'
+  const base = bg.mode === 'color' ? '배경 단색' : bg.mode === 'ai' ? 'AI 배경' : bg.mode === 'library' ? '라이브러리 배경' : '배경 지움'
   return bg.refined ? `${base} · 다듬음` : base
 }
 

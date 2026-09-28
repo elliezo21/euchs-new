@@ -122,6 +122,52 @@
       <p v-else-if="row && bg && bg.mode !== 'color'" class="st-desc-sm break-keep">위에서 [단색]을 고르면 배경을 한 가지 색으로 채워요</p>
     </div>
 
+    <!-- 라이브러리 배경: 준비된 그림(에셋 이미지 — 연출 배경·배경)을 골라 사진 배경으로. AI 없음·무료·횟수를 쓰지 않는다 -->
+    <div v-if="row" class="px-4 pb-4 space-y-2 st-border-t pt-4" data-bg-lib-box>
+      <div class="flex items-center gap-2">
+        <span class="text-[13px] font-extrabold st-ink">라이브러리 배경</span>
+        <span class="ml-auto st-badge" data-bg-lib-free>무료</span>
+      </div>
+      <template v-if="!bg">
+        <button type="button" class="st-btn w-full" disabled data-bg-lib-locked><Lock class="w-3.5 h-3.5" :stroke-width="2" /> 라이브러리 배경</button>
+        <p class="st-desc-sm break-keep" data-bg-lib-need>먼저 [배경 지우기]를 해 주세요</p>
+      </template>
+      <template v-else>
+        <p v-if="libState === 'loading'" class="st-desc-sm">그림 목록을 불러오는 중…</p>
+        <template v-else-if="libState === 'error'">
+          <p class="st-desc-sm break-keep">그림 목록을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.</p>
+          <button type="button" class="st-btn w-full" data-bg-lib-retry @click="loadLibrary">다시 시도</button>
+        </template>
+        <template v-else>
+          <div class="flex flex-wrap gap-1" role="tablist" aria-label="그림 종류" data-bg-lib-kinds>
+            <button
+              v-for="c in libKinds" :key="c.key" type="button" role="tab" class="st-chip" :class="libKind === c.key ? 'is-active' : ''"
+              :aria-selected="libKind === c.key" :data-bg-lib-kind="c.key" @click="libKind = c.key"
+            >{{ c.label }}</button>
+          </div>
+          <div class="flex flex-wrap gap-1" role="tablist" aria-label="상품 묶음" data-bg-lib-groups>
+            <button
+              v-for="g in libGroups" :key="g.key" type="button" role="tab" class="st-chip" :class="libGroup === g.key ? 'is-active' : ''"
+              :aria-selected="libGroup === g.key" :data-bg-lib-group="g.key" @click="libGroup = g.key"
+            >{{ g.label }}</button>
+          </div>
+          <div class="grid grid-cols-3 gap-1.5" data-bg-lib-list>
+            <button
+              v-for="a in libShown" :key="a.id" type="button" class="st-lib-card" :class="bg.mode === 'library' && bg.lib?.asset === a.file ? 'is-active' : ''"
+              :title="a.label" :aria-label="a.label" :data-bg-lib="a.id" @click="$emit('library', a)"
+            >
+              <img :src="assetThumbUrl(a)" alt="" draggable="false" loading="lazy" decoding="async" />
+            </button>
+          </div>
+          <p v-if="libShown.length === 0" class="st-desc-sm break-keep" data-bg-lib-none>이 조건에 맞는 그림이 아직 없어요</p>
+          <p class="st-desc-sm break-keep">제품은 원본 그대로 두고 배경만 바꿔요. 횟수를 쓰지 않아요.</p>
+        </template>
+        <p v-if="bg.lib" class="st-desc-sm break-keep" data-bg-lib-current>
+          고른 배경: {{ bg.lib.label || '라이브러리 그림' }}<span v-if="bg.mode !== 'library'"> · 위 [라이브러리]를 누르면 다시 써요</span>
+        </p>
+      </template>
+    </div>
+
     <!-- AI 배경 (17-4): 장면을 골라 [만들기] — 1회 사용, 1인 하루 무료 3회(서버 값). 제품은 원본 그대로 위에 덮는다 -->
     <div v-if="row" class="px-4 pb-4 space-y-2 st-border-t pt-4" data-bg-ai-box>
       <div class="flex items-center gap-2">
@@ -183,6 +229,8 @@
  * 단색(17-2)은 AI 없음·무료·자격 검사 없음 — 배경을 지운(마스크가 있는) 사진이면 누구나. 없으면 잠그고 "먼저 [배경 지우기]를 해 주세요".
  *   색 이벤트: ('color', 값, { commit }) — commit false = 색 고르기 칸을 끄는 중(이력 없음), true = 놓음·견본·구간 색(이력 한 칸)
  * 경계 다듬기(17-3)도 마스크가 있는 사진에만 — ('refine')이면 편집기가 다듬기 화면을 연다. 없으면 잠그고 같은 안내 문구.
+ * 라이브러리 배경: 준비된 그림(에셋 이미지 목록 manifest.json의 use 'bg') → ('library', 목록 항목). AI·서버·횟수 없음 — 마스크가 있는 사진이면 누구나.
+ *   목록은 작은 그림(thumb)만 받는다. 원본은 고른 뒤에 합성할 때만.
  * AI 배경(17-4): 장면 프리셋 → ('generate', preset). 자격·남은 횟수는 서버(bg_gen_status)가 알려 준 genStatus로만.
  *   한 번 만든 AI 배경(bg.ai)은 [AI 배경] 모드로 다시 고를 수 있다(저장된 그림 — 돈 안 듦).
  */
@@ -190,6 +238,8 @@ import { ref, computed, watch } from 'vue'
 import { Eraser, Lock, Loader2, RotateCcw, Pipette, Brush, Sparkles } from 'lucide-vue-next'
 import { BG_COLOR_SWATCHES, bgPaintColor, bgMark } from '@/lib/studioBg'
 import { BG_GEN_PRESETS, presetLabel } from '@/lib/studioBgGen'
+import { assetThumbUrl, filterAssets, ASSET_GROUP_ALL } from '@/lib/studioAsset'
+import { loadAssetManifest } from '@/lib/studioAssetLoad'
 
 const props = defineProps({
   row: { type: Object, default: null },           // 고른 사진 행 (done)
@@ -208,16 +258,42 @@ const props = defineProps({
   targetLabel: { type: String, default: '' },      // review-1: "03 상세 이미지 · 02번 사진" — 대상 사진이 어느 구간인지
   targetSource: { type: String, default: 'page' }, // 'page' 페이지에서 고른 사진 | 'list' 사진 목록에서 고른 사진
 })
-defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status', 'refine', 'generate', 'retry-gen-status'])
+defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status', 'refine', 'generate', 'retry-gen-status', 'library'])
 
 const MODES = [
   { key: 'none', label: '원래 배경' },
   { key: 'transparent', label: '투명' },
   { key: 'color', label: '단색' },
+  { key: 'library', label: '라이브러리' },
   { key: 'ai', label: 'AI 배경' },
 ]
-// [AI 배경] 모드는 한 번 만든 뒤에만 (그 전에는 아래 [AI 배경 만들기])
-const modes = computed(() => MODES.filter(m => m.key !== 'ai' || !!props.bg?.ai))
+// [AI 배경] 모드는 한 번 만든 뒤에만 (그 전에는 아래 [AI 배경 만들기]), [라이브러리]도 한 번 고른 뒤에만
+const modes = computed(() => MODES.filter(m => (m.key !== 'ai' || !!props.bg?.ai) && (m.key !== 'library' || !!props.bg?.lib)))
+
+// ── 라이브러리 배경 목록 (배경을 지운 사진을 골랐을 때 처음 한 번 받는다) ──
+const LIB_KINDS = ['scenes', 'backgrounds'] // 연출 배경 먼저
+const libState = ref('idle') // idle | loading | ready | error
+const libList = ref({ categories: [], groups: [], items: [] })
+const libKind = ref(LIB_KINDS[0])
+const libGroup = ref(ASSET_GROUP_ALL)
+const libKinds = computed(() => LIB_KINDS.map(k => libList.value.categories.find(c => c.key === k)).filter(Boolean).map(c => ({ key: c.key, label: c.label })))
+const libItems = computed(() => filterAssets(libList.value.items, { category: libKind.value, use: 'bg' }))
+// 묶음 칩 = 지금 종류에 그림이 있는 묶음만
+const libGroups = computed(() => [{ key: ASSET_GROUP_ALL, label: '전체' }, ...libList.value.groups.filter(g => libItems.value.some(i => i.group === g.key))])
+const libShown = computed(() => filterAssets(libItems.value, { group: libGroup.value }))
+watch(libKind, () => { if (!libGroups.value.some(g => g.key === libGroup.value)) libGroup.value = ASSET_GROUP_ALL })
+async function loadLibrary() {
+  libState.value = 'loading'
+  try {
+    libList.value = await loadAssetManifest()
+    if (!libKinds.value.some(k => k.key === libKind.value) && libKinds.value.length) libKind.value = libKinds.value[0].key
+    libState.value = 'ready'
+  } catch (e) {
+    console.error('[StudioBgPanel] 라이브러리 배경 목록을 받지 못함:', e)
+    libState.value = 'error'
+  }
+}
+watch(() => !!props.bg, has => { if (has && libState.value === 'idle') loadLibrary() }, { immediate: true })
 const preset = ref(BG_GEN_PRESETS[0].key)
 watch(() => props.row?.id, () => {
   const p = props.bg?.ai?.preset
@@ -272,6 +348,15 @@ const rowLabel = computed(() => props.row?.upload_name || (props.row ? `사진 $
 .st-swatch.is-active { box-shadow: 0 0 0 2px var(--st-accent); }
 .st-swatch-pick { background: var(--st-card); color: var(--st-ink-2); position: relative; }
 .st-swatch-pick:focus-within { border-color: var(--st-accent); }
+/* 라이브러리 배경 견본 */
+.st-lib-card {
+  aspect-ratio: 1 / 1; padding: 0; border-radius: 8px; overflow: hidden; cursor: pointer;
+  border: 1px solid var(--st-line-strong); background: var(--st-card);
+}
+.st-lib-card img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.st-lib-card:hover { border-color: var(--st-accent); }
+.st-lib-card.is-active { border-color: var(--st-accent); box-shadow: 0 0 0 2px var(--st-accent); }
+[data-bg-lib-box] .st-chip { font-size: 12px; font-weight: 700; }
 /* 장면 칩은 스튜디오 공통 .st-chip(studio-tokens.css) — 두 칸 격자에 맞게 가운데 정렬만 */
 [data-bg-gen-presets] .st-chip { justify-content: center; font-size: 12px; font-weight: 700; }
 .st-chip:disabled { opacity: 0.5; }

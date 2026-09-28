@@ -58,7 +58,7 @@
         </div>
         <!-- 배경 이미지 (에셋 이미지 — [요소] → [이미지]의 "섹션 배경" 그림으로 넣는다). 있을 때만 -->
         <div v-if="bgImage" class="flex items-center gap-2" data-sec-bg-image>
-          <img :src="assetUrl(bgImage.asset)" alt="" draggable="false" class="st-sec-bgimg" />
+          <img :src="assetUrl(bgImage.asset)" alt="" draggable="false" loading="lazy" class="st-sec-bgimg" />
           <span class="st-xfield-label">배경 이미지</span>
           <button type="button" class="st-btn st-sec-btn ml-auto" data-sec-cmd="bg-image-remove" @click="cmd('sectionBgImage', { asset: null })">배경 이미지 빼기</button>
         </div>

@@ -21,7 +21,7 @@ export const TEMPLATE_CATEGORIES = [
   { key: 'electronics', label: '전자·소형가전' },
   { key: 'toys', label: '완구' },
   { key: 'pets', label: '반려동물' },
-  { key: 'fullset', label: '풀세트' }, // 에셋 이미지 자리까지 들어간 긴 구성 (지금은 샘플 1개 — 그림은 이미지 자리 표시)
+  { key: 'fullset', label: '풀세트' }, // 에셋 이미지(받침대·배경 그림)까지 들어간 긴 구성 (지금은 샘플 1개)
 ]
 
 const W = 780
@@ -275,26 +275,32 @@ function checklist(c, th) {
   ]
 }
 
-// 풀세트에 쓰는 이미지 자리 (나중에 실제 그림 파일로 바꾼다 — 파일만 바꾸면 템플릿 코드는 그대로)
-const SLOT_OBJECT = 'placeholder/object.svg'
-const SLOT_BG = 'placeholder/background.svg'
+// 풀세트에 쓰는 에셋 이미지 (public/studio-assets — manifest.json에 있는 파일. 파일 경로만 바꾸면 템플릿 코드는 그대로)
+const FULL = {
+  heroBg: 'backgrounds/euchs-bg_common_wide-gold-ivory_01.jpg',
+  podium: 'objects/euchs-obj_common_podium-white_01.png',        // 1200×616
+  sparkle: 'objects/euchs-obj_common_sparkle-stars_01.png',       // 940×881
+  check: 'objects/euchs-obj_common_check-badge_01.png',           // 1065×1121
+  endBg: 'backgrounds/euchs-bg_living_beige-plaster_01.jpg',
+}
 
 /**
  * 5. 풀세트 — 첫 화면(배경 이미지 + 오브제) → 대표 사진 → 공감 → 핵심 포인트 3 → 상세 사진 → 사진 두 장 → 소재·스펙 → 비교 →
- *    사용법 → 사이즈·옵션 → 구매 전 안내 → 배송·교환 (12구간). 에셋 이미지 자리 = 첫 화면 배경·오브제, 공감·비교 구간 장식, 끝 구간 배경
+ *    사용법 → 사이즈·옵션 → 구매 전 안내 → 배송·교환 (12구간). 에셋 이미지 = 첫 화면 배경·받침대·반짝임, 공감·비교 구간 장식, 끝 구간 배경
  */
 function fullset(c, th) {
   const h = heading(c, th)
   return [
     sec(th.soft, [
-      asset(SLOT_OBJECT, 490, 96, 240, 240, { label: '오브제 자리' }),
-      T(c.eyebrow, 17, 800, th.accent, { w: 400, x: 60, align: 'left', letterSpacing: 0.2, lh: 1.3 }), 20,
-      T(c.headline, 44, h.weight, th.ink, { font: h.font, w: 410, x: 60, align: 'left', lh: 1.3 }), 24,
-      T(c.lead, 20, 400, th.sub, { w: 410, x: 60, align: 'left', lh: 1.7 }),
-    ], { top: 110, bottom: 110, bgImage: SLOT_BG }),
+      asset(FULL.podium, 440, 318, 300, 154, { label: '흰 받침대' }),
+      asset(FULL.sparkle, 640, 96, 96, 90, { label: '반짝이 별' }),
+      T(c.eyebrow, 17, 800, th.accent, { w: 370, x: 60, align: 'left', letterSpacing: 0.2, lh: 1.3 }), 20,
+      T(c.headline, 44, h.weight, th.ink, { font: h.font, w: 370, x: 60, align: 'left', lh: 1.3 }), 24,
+      T(c.lead, 20, 400, th.sub, { w: 370, x: 60, align: 'left', lh: 1.7 }),
+    ], { top: 110, bottom: 110, bgImage: FULL.heroBg }),
     { photo: 0 },
     sec(WHITE, [
-      asset(SLOT_OBJECT, 620, 24, 120, 120, { label: '장식 자리', opacity: 0.9 }),
+      asset(FULL.check, 626, 24, 114, 120, { label: '체크 뱃지' }),
       T(c.worryTitle, 34, th.serif ? 700 : 800, th.ink, { font: th.serif ? 'noto-serif-kr' : 'noto-sans-kr', w: 440, lh: 1.3 }), 40, checks(c.worries, th),
     ]),
     sec(th.soft, [title(c.pointsTitle, th), 40, cards3(c.points, th)]),
@@ -302,13 +308,13 @@ function fullset(c, th) {
     sec(WHITE, [photoPair(2, 3, 440)], { top: 0, bottom: 72 }),
     sec(th.soft, [title(c.tableTitle, th), 36, table(c.table, th, { w: c.tableW }), 22, T(c.tableNote, 17, 400, th.muted, { lh: 1.5 })]),
     sec(WHITE, [
-      asset(SLOT_OBJECT, 40, 30, 110, 110, { label: '장식 자리', opacity: 0.9 }),
+      asset(FULL.sparkle, 40, 30, 110, 103, { label: '반짝이 별' }),
       T(c.compareTitle, 34, th.serif ? 700 : 800, th.ink, { font: th.serif ? 'noto-serif-kr' : 'noto-sans-kr', w: 440, lh: 1.3 }), 36, table(c.compare, th, { w: 640 }), 22, T(c.compareNote, 17, 400, th.muted, { lh: 1.5 }),
     ]),
     sec(th.soft, [title(c.howTitle, th), 40, cards3(c.steps, th, { cardBg: WHITE })]),
     sec(WHITE, [title(c.optionTitle, th), 36, table(c.options, th, { w: 640 }), 22, T(c.optionNote, 17, 400, th.muted, { lh: 1.5 })]),
     sec(th.soft, [title(c.noticeTitle, th, 30), 28, T(c.notices, 18, 400, th.sub, { w: 620, align: 'left', lh: 1.8 })]),
-    sec(WHITE, [title('배송·교환 안내', th, 30), 36, boxes2([SHIP, RETURN], th, { boxBg: WHITE })], { bgImage: SLOT_BG }),
+    sec('#efe6dc', [title('배송·교환 안내', th, 30), 36, boxes2([SHIP, RETURN], th, { boxBg: WHITE })], { bgImage: FULL.endBg }),
   ]
 }
 

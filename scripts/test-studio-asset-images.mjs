@@ -5,7 +5,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   isAssetPath, assetUrl, isValidAssetItem, normalizeAssetItem, assetLabel, sectionBgImageOf, assetPlacement, assetInsertSize, assetFieldsOf,
-  readAssetManifest, pageAssetPaths, ASSET_INSERT_MAX,
+  readAssetManifest, pageAssetPaths, ASSET_INSERT_MAX, assetThumbUrl, filterAssets,
 } from '../src/lib/studioAsset.js'
 import {
   readPage, emptyPage, addSection, addElementItem, setSectionBgImage, setSectionBg, duplicateSection, duplicateItems, copyItems, pasteItems, removeItems,
@@ -15,7 +15,8 @@ import { renderSection, renderPage, assetPathsOf, ExportError } from '../src/lib
 import { templateByKey, templatesOf, templateSlots, templateProblems, buildTemplatePage, pageToTemplate, TEMPLATE_CATEGORIES } from '../src/lib/studioTemplates.js'
 import { isValidTextItem, wrapLines, textStyleOf } from '../src/lib/studioText.js'
 import { createHistory, push, undo } from '../src/lib/studioHistory.js'
-import { rewritePage } from '../api/_studioCopy.js'
+import { rewritePage, rewriteEdit } from '../api/_studioCopy.js'
+import { readBg, withBg, bgActive, bgMark, bgViewKey, bgLibUnder, bgAiUnder, bgPaintColor, libFromEntry, BG_MODES } from '../src/lib/studioBg.js'
 import { imageSize } from './build-studio-assets-manifest.mjs'
 
 let pass = 0, fail = 0
@@ -133,16 +134,16 @@ const manifestRaw = JSON.parse(fs.readFileSync(path.join(ROOT, 'manifest.json'),
 const manifest = readAssetManifest(manifestRaw)
 {
   eq('실제 manifest.json: 문제 없음', manifest.problems, [])
-  eq('카테고리 (오브제·장식·배경·이미지 자리)', manifest.categories.map(c => [c.key, c.label, c.items.length > 0]), [['objects', '오브제', true], ['decor', '장식', true], ['backgrounds', '배경', true], ['placeholder', '이미지 자리', true]])
+  eq('카테고리 (오브제·장식·배경·연출 배경·이미지 자리)', manifest.categories.map(c => [c.key, c.label, c.items.length > 0]), [['objects', '오브제', true], ['decor', '장식', true], ['backgrounds', '배경', true], ['scenes', '연출 배경', true], ['placeholder', '이미지 자리', true]])
   eq('항목마다 파일이 있고 크기가 맞음', manifest.items.filter(i => {
     const f = path.join(ROOT, i.file)
     if (!fs.existsSync(f)) return true
     const s = imageSize(fs.readFileSync(f), i.file.split('.').pop())
     return !s || s.w !== i.w || s.h !== i.h
   }).map(i => i.file), [])
-  eq('배경 폴더 = 섹션 배경용, 나머지 = 요소용', [...new Set(manifest.items.map(i => `${i.category}:${i.use}`))].sort(), ['backgrounds:bg', 'decor:item', 'objects:item', 'placeholder:item'])
+  eq('배경·연출 배경 폴더 = 배경용, 나머지 = 요소용', [...new Set(manifest.items.map(i => `${i.category}:${i.use}`))].sort(), ['backgrounds:bg', 'decor:item', 'objects:item', 'placeholder:item', 'scenes:bg'])
   eq('폴더의 그림이 모두 목록에 있음', (() => {
-    const onDisk = fs.readdirSync(ROOT, { withFileTypes: true }).filter(d => d.isDirectory()).flatMap(d => fs.readdirSync(path.join(ROOT, d.name)).map(n => `${d.name}/${n}`)).sort()
+    const onDisk = fs.readdirSync(ROOT, { withFileTypes: true }).filter(d => d.isDirectory() && d.name !== 'thumbs').flatMap(d => fs.readdirSync(path.join(ROOT, d.name)).map(n => `${d.name}/${n}`)).sort()
     return JSON.stringify(onDisk) === JSON.stringify(manifest.items.map(i => i.file).sort())
   })(), true)
   // 샘플 그림은 직접 만든 SVG — 바깥 파일·주소·스크립트가 없다 (캔버스에 그려도 안전)
@@ -160,7 +161,28 @@ const manifest = readAssetManifest(manifestRaw)
     { id: 'l', category: 'a', label: '', file: 'a/l.png', w: 10, h: 10, use: 'item' },
   ] })
   eq('어긋난 항목만 빼고 나머지는 씀', [bad.items.map(i => i.id), bad.categories.map(c => c.key), bad.problems.length], [['ok'], ['a'], 8])
-  eq('모양이 아예 다르면 빈 목록', [readAssetManifest(null).items, readAssetManifest([]).categories], [[], []])
+  eq('모양이 아예 다르면 빈 목록', [readAssetManifest(null).items, readAssetManifest([]).categories, readAssetManifest(null).groups], [[], [], []])
+  // 묶음·썸네일·출처 (Flow 그림)
+  eq('묶음: 그림이 있는 것만 · 목록 순서', [manifest.groups.map(g => g.key), manifest.groups.every(g => g.count > 0)], [['common', 'apparel', 'bag', 'kitchen', 'living', 'beauty', 'digital', 'toy', 'pet', 'health'], true])
+  eq('그림 수: 전체 117 · 묶음 있는 것 105 · 썸네일 있는 것 105', [manifest.items.length, manifest.items.filter(i => i.group).length, manifest.items.filter(i => i.thumb).length], [117, 105, 105])
+  eq('썸네일 파일이 모두 있고 긴 변 240px 이하 WebP', manifest.items.filter(i => i.thumb).filter(i => {
+    const f = path.join(ROOT, i.thumb)
+    if (!fs.existsSync(f)) return true
+    const s = imageSize(fs.readFileSync(f), 'webp')
+    return !s || Math.max(s.w, s.h) > 240 || Math.abs((s.w / s.h) / (i.w / i.h) - 1) > 0.03
+  }).map(i => i.thumb), [])
+  eq('썸네일 주소: 있으면 thumbs/, 없으면(svg) 원본', [assetThumbUrl(manifest.items.find(i => i.thumb)).startsWith('/studio-assets/thumbs/'), assetThumbUrl({ file: 'objects/gift-box.svg' }), assetThumbUrl({ file: 'objects/a.png', thumb: '../x.webp' })], [true, '/studio-assets/objects/gift-box.svg', '/studio-assets/objects/a.png'])
+  eq('출처·이용 조건 설명', [[...new Set(manifest.items.map(i => i.source).filter(Boolean))], typeof manifest.license['ai-generated']], [['ai-generated'], 'string'])
+  eq('거르기: 묶음 · 종류 · 쓰임', [
+    filterAssets(manifest.items, { group: 'apparel' }).length, filterAssets(manifest.items, { category: 'scenes' }).length,
+    filterAssets(manifest.items, { group: 'kitchen', category: 'scenes' }).map(i => i.use), filterAssets(manifest.items, { use: 'bg' }).length,
+    filterAssets(manifest.items, {}).length, filterAssets(manifest.items, { group: 'living', category: 'objects' }).length,
+  ], [8, 18, ['bg', 'bg'], 58, 117, 0])
+  const odd = readAssetManifest({ v: 1, categories: [{ key: 'a', label: '가' }], groups: [{ key: 'g1', label: '묶음' }, { key: 'g1', label: '겹침' }], items: [
+    { id: 'x', category: 'a', label: '썸네일 이상', file: 'a/x.png', thumb: 'http://evil.example/t.webp', group: 'nope', w: 10, h: 10, use: 'item' },
+    { id: 'y', category: 'a', label: '정상', file: 'a/y.png', thumb: 'thumbs/y.webp', group: 'g1', source: 's', w: 10, h: 10, use: 'bg' },
+  ] })
+  eq('이상한 썸네일·없는 묶음은 그 칸만 빼고 그림은 씀', [odd.items.map(i => [i.id, i.thumb ?? null, i.group ?? null, i.source ?? null]), odd.groups, odd.problems.length], [[['x', null, null, null], ['y', 'thumbs/y.webp', 'g1', 's']], [{ key: 'g1', label: '묶음', count: 1 }], 3])
   eq('크기 읽기: PNG·SVG(viewBox만)', [
     imageSize(Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13]), Buffer.from('IHDR'), Buffer.from([0, 0, 3, 12, 0, 0, 1, 144])]), 'png'),
     imageSize(Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 80"></svg>'), 'svg'),
@@ -261,14 +283,15 @@ const pageOf = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
   eq('모양 문제 없음 · 구간 8~12개 · 사진 자리 0부터', [templateProblems(tpl), tpl.sections.length >= 8 && tpl.sections.length <= 12, templateSlots(tpl)], [[], true, [0, 1, 2, 3]])
   const parts = tpl.sections.flatMap(s => s.items || [])
   const used = [...new Set([...parts.filter(p => p.type === 'asset').map(p => p.asset), ...tpl.sections.map(s => s.bgImage?.asset).filter(Boolean)])].sort()
-  eq('에셋 이미지 자리: 요소 3곳 + 섹션 배경 2곳', [parts.filter(p => p.type === 'asset').length, tpl.sections.filter(s => s.bgImage).length, used], [3, 2, ['placeholder/background.svg', 'placeholder/object.svg']])
+  eq('에셋 이미지: 요소 4곳(받침대·반짝임 2·체크) + 섹션 배경 2곳 — 실제 그림(이미지 자리 표시 아님)', [parts.filter(p => p.type === 'asset').length, tpl.sections.filter(s => s.bgImage).length, used.some(f => f.startsWith('placeholder/')), used.some(f => /podium/.test(f))], [4, 2, false, true])
+  eq('요소 자리 비율 = 그림 비율 (2% 안 — 자리 안에 빈틈 없이)', parts.filter(p => p.type === 'asset').filter(p => { const m = manifest.items.find(i => i.file === p.asset); return !m || Math.abs((p.w / p.h) / (m.w / m.h) - 1) > 0.02 }).map(p => p.asset), [])
   eq('쓰인 그림이 모두 목록(manifest)에 있음', used.every(f => manifest.items.some(i => i.file === f)), true)
   eq('표 3개 (소재·스펙 · 비교 · 사이즈·옵션)', parts.filter(p => p.type === 'table').length, 3)
   for (const n of [0, 2, 4, 7]) {
     const r = buildTemplatePage(tpl, photos(n), measure)
     const back = readPage(clone(r.page), 'tpl')
     const items = r.page.sections.flatMap(s => s.items)
-    eq(`사진 ${n}장: readPage 그대로 · 에셋 요소 3개·배경 2곳은 사진 수와 상관없이`, [back.problems, JSON.stringify(back.page) === JSON.stringify(r.page), items.filter(isValidAssetItem).length, r.page.sections.filter(s => sectionBgImageOf(s)).length], [[], true, 3, 2])
+    eq(`사진 ${n}장: readPage 그대로 · 에셋 요소 4개·배경 2곳은 사진 수와 상관없이`, [back.problems, JSON.stringify(back.page) === JSON.stringify(r.page), items.filter(isValidAssetItem).length, r.page.sections.filter(s => sectionBgImageOf(s)).length], [[], true, 4, 2])
     eq(`사진 ${n}장: 넣은 사진 수 · 빈 구간 없음 · slot 칸 안 남음`, [r.placed, r.extra, r.page.sections.every(s => s.items.length > 0), items.some(it => 'slot' in it || 'group' in it)], [Math.min(n, 4), Math.max(0, n - 4), true, false])
   }
   const r = buildTemplatePage(tpl, photos(4), measure)
@@ -292,6 +315,33 @@ const pageOf = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
   const again = buildTemplatePage(mine, photos(4), measure).page
   const shape = p => p.sections.map(s => [s.height, s.bg, s.bgImage ?? null, s.items.map(it => { const { id, groupId, ...rest } = it; return [Object.fromEntries(Object.entries(rest).sort()), !!groupId] })])
   eq('페이지 → 내 템플릿 → 다시 적용 = 같은 모양 (에셋·배경 이미지 포함)', JSON.stringify(shape(again)) === JSON.stringify(shape(r.page)), true)
+}
+
+// ── 10. 라이브러리 배경 (에셋 이미지를 사진 배경으로 — AI 없음·무료) ──
+{
+  const mask = { path: 'uid/p1/bg/img-1/mask_0123456789abcdef.png', key: '0123456789abcdef', model: 'birefnet-v2', w: 800, h: 800 }
+  const scene = manifest.items.find(i => i.category === 'scenes')
+  const lib = libFromEntry(scene)
+  eq('목록 항목 → bg.lib (경로·크기·이름)', lib, { asset: scene.file, w: 1200, h: 1200, label: scene.label })
+  eq('쓸 수 없는 항목 = null', [libFromEntry({ file: '../x.jpg', w: 10, h: 10 }), libFromEntry({ file: 'scenes/a.jpg', w: 0, h: 10 }), libFromEntry(null)], [null, null, null])
+  eq('모드 목록에 library', BG_MODES.includes('library'), true)
+  const edit = withBg({ v: 2, layers: [], look: { filter: 'warm' } }, { mask, mode: 'library', lib, color: '#ffeedd', ai: { path: 'uid/p1/bg/img-1/ai_0123456789abcdef.png', key: '0123456789abcdef', w: 1024, h: 768, preset: 'studio', model: 'm' } })
+  const bg = readBg(clone(edit))
+  eq('저장 → 읽기: 모드·그림 그대로, 다른 칸(단색 색·AI 배경·필터)도 남음', [bg.mode, bg.lib, bg.color, !!bg.ai, edit.look], ['library', lib, '#ffeedd', true, { filter: 'warm' }])
+  eq('합성에 쓰는 값: 아래 그림 = 라이브러리 (AI·단색 아님)', [bgActive(bg), bgLibUnder(bg), bgAiUnder(bg), bgPaintColor(bg), bgMark(bg)], [true, { asset: scene.file, w: 1200, h: 1200 }, null, null, '라이브러리 배경'])
+  eq('그림을 바꾸면 화면 작은 사진을 다시 만든다 (key가 달라짐)', bgViewKey(bg) !== bgViewKey({ ...bg, lib: { ...lib, asset: 'scenes/other.jpg' } }) && bgViewKey(bg).includes(scene.file), true)
+  eq('다른 모드로 바꿔도 고른 그림은 남고, 아래 그림으로는 안 쓴다', [readBg(withBg(edit, { ...bg, mode: 'transparent' })).lib, bgLibUnder({ ...bg, mode: 'transparent' }), bgLibUnder({ ...bg, mode: 'ai' })], [lib, null, null])
+  const broken = quiet(() => readBg({ bg: { mask, mode: 'library', lib: { asset: 'https://evil.example/a.jpg', w: 10, h: 10 } } }))
+  eq('이상한 경로의 라이브러리 배경 = 쓰지 않고 투명으로 읽음', [broken.mode, 'lib' in broken], ['transparent', false])
+  eq('모드만 library이고 그림이 없으면 투명으로', quiet(() => readBg({ bg: { mask, mode: 'library' } })).mode, 'transparent')
+  // 예전 데이터 (lib 칸 없음)
+  const oldEdit = { bg: { mask, mode: 'ai', ai: { path: 'uid/p1/bg/img-1/ai_0123456789abcdef.png', key: '0123456789abcdef', w: 1024, h: 768, preset: 'studio', model: 'm' } } }
+  const oldBg = readBg(clone(oldEdit))
+  eq('예전 데이터: 그대로 읽히고 lib 칸이 생기지 않음 · 다시 저장해도 같음', [oldBg.mode, 'lib' in oldBg, JSON.stringify(withBg({}, oldBg).bg) === JSON.stringify(oldEdit.bg)], ['ai', false, true])
+  eq('예전 데이터: 화면 key가 예전과 같음 (사진을 다시 만들지 않음)', bgViewKey(oldBg), `|bg:${mask.path}|ai:${oldEdit.bg.ai.path}`)
+  // 복사본: 마스크·AI 배경 파일은 새 폴더로, 라이브러리 그림은 경로 그대로(복사할 파일 없음)
+  const copied = rewriteEdit(edit, { uid: 'uid', fromProject: 'p1', toProject: 'p2', fromImage: 'img-1', toImage: 'img-9' })
+  eq('복사본: 라이브러리 그림 경로 그대로 · 복사할 파일에 없음', [copied.edit.bg.lib, copied.edit.bg.mode, copied.files.some(f => f.from.includes('scenes/') || f.to.includes('scenes/'))], [lib, 'library', false])
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)

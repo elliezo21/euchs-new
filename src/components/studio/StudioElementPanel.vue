@@ -92,20 +92,39 @@
         <button type="button" class="st-btn" data-asset-retry @click="loadAssets">다시 시도</button>
       </div>
       <template v-else>
-        <div v-for="(g, gi) in assetGroups" :key="g.key" class="px-4 pt-4 pb-4 space-y-3" :class="gi ? 'st-border-t' : ''" :data-asset-category="g.key">
-          <div class="text-[13px] font-extrabold st-ink">{{ g.label }}</div>
+        <!-- 거르기: 상품 묶음(공통·의류 …) + 종류(오브제·장식·배경 …). 목록은 작은 그림(thumb)만 받는다 — 원본은 페이지에 넣은 뒤에 -->
+        <div class="px-4 pt-3 pb-3 space-y-2 st-border-b" data-asset-filters>
+          <div class="flex flex-wrap gap-1" role="tablist" aria-label="상품 묶음" data-asset-groups>
+            <button
+              v-for="g in groupChips" :key="g.key" type="button" role="tab" class="st-asset-chip" :class="assetGroup === g.key ? 'is-active' : ''"
+              :aria-selected="assetGroup === g.key" :data-asset-group="g.key" @click="assetGroup = g.key"
+            >{{ g.label }}</button>
+          </div>
+          <div class="flex flex-wrap gap-1" role="tablist" aria-label="그림 종류" data-asset-kinds>
+            <button
+              v-for="c in categoryChips" :key="c.key" type="button" role="tab" class="st-asset-chip" :class="assetCategory === c.key ? 'is-active' : ''"
+              :aria-selected="assetCategory === c.key" :data-asset-kind="c.key" @click="assetCategory = c.key"
+            >{{ c.label }}</button>
+          </div>
+        </div>
+        <div v-for="(g, gi) in shownAssets" :key="g.key" class="px-4 pt-4 pb-4 space-y-3" :class="gi ? 'st-border-t' : ''" :data-asset-category="g.key">
+          <div class="flex items-center gap-2">
+            <span class="text-[13px] font-extrabold st-ink">{{ g.label }}</span>
+            <span class="st-muted text-[11px] font-bold">{{ g.items.length }}개</span>
+          </div>
           <div class="grid grid-cols-2 gap-2">
             <button
               v-for="a in g.items" :key="a.id" type="button" class="st-el-card" :title="a.use === 'bg' ? `${a.label} — 섹션 배경으로` : a.label"
               :data-asset-add="a.id" :disabled="disabled" @click="$emit('insert-asset', a)"
             >
-              <span class="st-el-sample is-tall"><img :src="assetUrl(a.file)" alt="" draggable="false" loading="lazy" class="st-asset-thumb" /></span>
-              <span class="st-el-name">{{ a.label }}</span>
+              <span class="st-el-sample is-tall"><img :src="assetThumbUrl(a)" alt="" draggable="false" loading="lazy" decoding="async" class="st-asset-thumb" /></span>
+              <span class="st-el-name st-asset-name">{{ a.label }}</span>
               <span v-if="a.use === 'bg'" class="st-asset-use">섹션 배경</span>
             </button>
           </div>
         </div>
-        <p class="px-4 pb-4 st-desc-sm break-keep">"섹션 배경" 그림은 지금 보고 있는 섹션의 배경으로 들어가요. 빼려면 [섹션]에서 [배경 이미지 빼기]를 누르세요.</p>
+        <p v-if="shownAssets.length === 0" class="px-4 pt-4 st-desc-sm break-keep" data-asset-none>이 조건에 맞는 그림이 아직 없어요. 다른 묶음이나 종류를 골라 보세요.</p>
+        <p class="px-4 pb-4 pt-2 st-desc-sm break-keep">"섹션 배경" 그림은 지금 보고 있는 섹션의 배경으로 들어가요. 빼려면 [섹션]에서 [배경 이미지 빼기]를 누르세요.</p>
       </template>
     </div>
     <!-- 표 (11-2 사이즈표 + 에셋 채우기 비교표·스펙표). 칸 글자는 캔버스에서 칸을 눌러 바로(표 칸 입력) 또는 왼쪽 "표 편집"에서 -->
@@ -138,7 +157,7 @@ import { computed, inject, ref, watch } from 'vue'
 import { ELEMENT_KINDS, normalizeShapeItem, normalizeLineItem } from '@/lib/studioShape'
 import { BADGE_PRESETS } from '@/lib/studioBadge'
 import { DECOR_PRESETS, DECOR_KINDS } from '@/lib/studioDecor'
-import { assetUrl } from '@/lib/studioAsset'
+import { assetThumbUrl, filterAssets, ASSET_GROUP_ALL } from '@/lib/studioAsset'
 import { loadAssetManifest } from '@/lib/studioAssetLoad'
 import { TABLE_TEMPLATES, TABLE_GROUPS, tableGroupOf, tableFieldsOf, normalizeTableItem } from '@/lib/studioTable'
 import { buildGroupItems, textLinesOf } from '@/lib/studioPage'
@@ -157,11 +176,19 @@ const current = computed(() => elementTabOf(props.tab))
 
 // 이미지 에셋 목록 — [이미지] 탭을 처음 열 때 받는다 (같은 탭 안에서는 다시 받지 않음 — studioAssetLoad)
 const assetState = ref('idle') // idle | loading | ready | error
-const assetGroups = ref([])
+const assetList = ref({ categories: [], groups: [], items: [] })
+const assetGroup = ref(ASSET_GROUP_ALL)    // 상품 묶음 (전체·공통·의류 …)
+const assetCategory = ref(ASSET_GROUP_ALL) // 그림 종류 (전체·오브제·장식·배경 …)
+const groupChips = computed(() => [{ key: ASSET_GROUP_ALL, label: '전체' }, ...assetList.value.groups])
+const categoryChips = computed(() => [{ key: ASSET_GROUP_ALL, label: '전체' }, ...assetList.value.categories.map(c => ({ key: c.key, label: c.label }))])
+// 보일 그림 — 종류(카테고리)별로 묶어서, 고른 묶음·종류만
+const shownAssets = computed(() => assetList.value.categories
+  .map(c => ({ key: c.key, label: c.label, items: filterAssets(c.items, { group: assetGroup.value, category: assetCategory.value }) }))
+  .filter(c => c.items.length))
 async function loadAssets() {
   assetState.value = 'loading'
   try {
-    assetGroups.value = (await loadAssetManifest()).categories
+    assetList.value = await loadAssetManifest()
     assetState.value = 'ready'
   } catch (e) {
     console.error('[StudioElementPanel] 이미지 목록을 받지 못함:', e)
@@ -235,5 +262,11 @@ const tableGroups = TABLE_GROUPS.map(g => ({ ...g, items: tables.filter(t => t.g
 /* 이미지 에셋 견본 — 그림 비율 그대로 칸 안에 */
 .st-asset-thumb { max-width: 100%; max-height: 100%; width: auto; height: 62px; object-fit: contain; }
 .st-asset-use { font-size: 10px; font-weight: 700; color: var(--st-accent); }
+.st-asset-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.st-asset-chip {
+  height: 26px; padding: 0 9px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--st-line-strong); background: var(--st-card); color: var(--st-ink-2);
+}
+.st-asset-chip.is-active { border-color: var(--st-accent); color: var(--st-accent); background: var(--st-accent-soft); }
 .st-el-name { font-size: 11px; font-weight: 700; color: var(--st-ink-2); white-space: nowrap; }
 </style>

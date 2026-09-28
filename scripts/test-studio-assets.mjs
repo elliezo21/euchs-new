@@ -106,7 +106,11 @@ const HEX = /^#[0-9a-f]{6}$/
   eq('배지·꾸밈 key 겹침 없음 (같은 넣기 길을 쓴다)', new Set(all.map(p => p.key)).size, all.length)
   eq('이름 겹침 없음', new Set(all.map(p => p.label)).size, all.length)
   eq('글꼴은 허용 목록만', all.every(p => presetTextParts(p).every(t => isFontKey(t.fontFamily))), true)
-  eq('새 배지: 당일출고·국내 검수·NEW·BEST·무료배송', ['same-day', 'local-check', 'new-ribbon', 'best-hex', 'free-ship-ribbon'].map(k => groupPresetByKey(k)?.kind), ['badge', 'badge', 'badge', 'badge', 'badge'])
+  eq('새 배지: 빠른 출고·검수 완료·NEW·BEST·무료배송', ['same-day', 'local-check', 'new-ribbon', 'best-hex', 'free-ship-ribbon'].map(k => groupPresetByKey(k)?.kind), ['badge', 'badge', 'badge', 'badge', 'badge'])
+  eq('배지 문구 (2026-09-28 해성 지시): "검수 완료"·"빠른 출고" — 예전 문구 없음', [
+    groupPresetByKey('local-check').preset.parts.filter(p => p.type === 'text').map(p => p.text), groupPresetByKey('same-day').preset.parts.filter(p => p.type === 'text').map(p => p.text),
+    /국내 검수|당일출고|당일 출고/.test(JSON.stringify(BADGE_PRESETS)),
+  ], [['검수 완료'], ['빠른', '출고'], false])
   eq('찾기: 꾸밈 / 없는 key', [groupPresetByKey('check-circle')?.kind, decorPresetByKey('bubble-fill')?.kind, groupPresetByKey('nope')], ['decor', 'bubble', null])
   for (const p of DECOR_PRESETS) {
     const items = buildGroupItems(p, p.parts, measure)

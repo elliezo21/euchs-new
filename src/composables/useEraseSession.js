@@ -635,6 +635,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
         mask: { ...bg.mask }, mode: bg.mode, ...(bg.color ? { color: bg.color } : {}),
         ...(bg.refined ? { refined: { ...bg.refined } } : {}), // 17-3 다듬은 마스크
         ...(bg.ai ? { ai: { ...bg.ai } } : {}), // 17-4 AI 배경 (다른 모드로 바꿔도 남긴다 — 다시 고르면 돈 안 듦)
+        ...(bg.lib ? { lib: { ...bg.lib } } : {}), // 라이브러리 배경 (에셋 이미지 경로 — 다른 모드로 바꿔도 남긴다)
       }
       : null
     if (JSON.stringify(next) === JSON.stringify(bgOf(id))) return false

@@ -74,18 +74,18 @@ export const BADGE_PRESETS = [
   },
   // ── 에셋 채우기: 구매대행 셀러가 자주 쓰는 문구 (글자·색은 넣은 뒤 바꿀 수 있다) ──
   {
-    key: 'same-day', label: '당일출고 톱니', w: 160, h: 160,
+    key: 'same-day', label: '빠른 출고 톱니', w: 160, h: 160,
     parts: [
       { type: 'shape', shape: 'burst', x: 0, y: 0, w: 160, h: 160, fill: '#2f6fed' },
-      txt('당일', 62, 120, 34, { fontWeight: 900 }),
+      txt('빠른', 62, 120, 34, { fontWeight: 900 }),
       txt('출고', 100, 120, 34, { fontWeight: 900 }),
     ],
   },
   {
-    key: 'local-check', label: '국내 검수 딱지', w: 220, h: 68,
+    key: 'local-check', label: '검수 완료 딱지', w: 220, h: 68,
     parts: [
       { type: 'shape', shape: 'rect', x: 0, y: 0, w: 220, h: 68, fill: '#0f766e', radius: 12 },
-      txt('국내 검수 완료', 34, 200, 26),
+      txt('검수 완료', 34, 200, 26),
     ],
   },
   {

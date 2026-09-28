@@ -4,8 +4,10 @@
  * ★ 파일은 정적 파일: public/studio-assets/<카테고리 폴더>/<파일>. 같은 사이트에서 내려받으므로 서명 주소·만료·CORS가 없다
  *   (캔버스에 그려도 오염되지 않는다 — 내보내기·미리보기가 그대로 쓴다).
  * ★ 목록 = public/studio-assets/manifest.json (scripts/build-studio-assets-manifest.mjs가 폴더를 훑어 만든다 — 파일을 넣고 그 명령만 돌리면 목록에 뜬다)
- *     { v: 1, categories: [{ key, label }], items: [{ id, category, label, file, w, h, use }] }
- *     file = 'studio-assets' 아래 경로 (예: 'objects/gift-box.svg'), w·h = 그림 크기(px), use = 'item'(요소) | 'bg'(섹션 배경)
+ *     { v: 1, categories: [{ key, label }], items: [{ id, category, label, file, thumb?, w, h, use, group?, source? }], groups?: [{ key, label }], license?: { source: 설명 } }
+ *     file = 'studio-assets' 아래 경로 (예: 'objects/gift-box.svg'), w·h = 그림 크기(px), use = 'item'(요소) | 'bg'(섹션 배경·라이브러리 배경)
+ *     thumb = 목록용 작은 그림 경로('thumbs/….webp' — 없으면 목록도 원본을 쓴다), group = 상품 묶음(공통·의류 …, groups의 key), source = 출처(license의 key)
+ * ★ 목록 화면은 thumb만 받는다. 원본(file)은 페이지에 넣거나 배경으로 고른 뒤에만 받는다 (studioAsset.assetThumbUrl / assetUrl).
  * ★ 페이지 요소 = 공통 칸(id, x, y, w, h, rotation, opacity, flipX, flipY, locked, hidden, groupId?) + type: 'asset' + asset: 파일 경로
  *     + fit: 'contain'(기본 — 그림 비율 그대로 자리 안에) | 'cover'(자리를 채움) + label(레이어 이름용, 선택)
  *   사진 요소(type 'image' + imageId)와 다른 type이라 사진 쪽 기능(지우기·필터·배경·완성 JPG·parked)이 전혀 건드리지 않는다.
@@ -34,6 +36,19 @@ export function isAssetPath(p) {
 /** 그림 주소 (같은 사이트) — 경로가 이상하면 null */
 export function assetUrl(p) {
   return isAssetPath(p) ? `${ASSET_BASE}${p}` : null
+}
+/** 목록에 보일 작은 그림 주소 — thumb이 있으면 그것, 없으면(svg 등) 원본 */
+export function assetThumbUrl(entry) {
+  return assetUrl(entry?.thumb) ?? assetUrl(entry?.file)
+}
+export const ASSET_GROUP_ALL = 'all' // 목록 필터 "전체"
+/**
+ * 목록 거르기 — group = 묶음 key 또는 'all', category = 카테고리 key 또는 'all', use = 'item'|'bg' 또는 null(둘 다).
+ * 묶음을 고르면 그 묶음의 그림만 (묶음이 없는 그림 = 직접 만든 샘플은 "전체"에서만 보인다). 순서는 목록 순서 그대로
+ */
+export function filterAssets(items, { group = ASSET_GROUP_ALL, category = ASSET_GROUP_ALL, use = null } = {}) {
+  return (items || []).filter(i => (group === ASSET_GROUP_ALL || i.group === group)
+    && (category === ASSET_GROUP_ALL || i.category === category) && (!use || i.use === use))
 }
 
 const isBox = it => !!it && typeof it.id === 'string' && [it.x, it.y, it.w, it.h].every(Number.isFinite) && it.w > 0 && it.h > 0
@@ -95,11 +110,12 @@ export function assetFieldsOf(entry, max = ASSET_INSERT_MAX) {
 const KEY = /^[a-z0-9][a-z0-9_-]*$/
 /**
  * manifest.json → 쓸 수 있는 목록. 모양이 어긋난 항목은 빼고 사유를 돌려준다(하나가 이상해도 나머지는 쓴다).
- * @returns {{ categories: { key, label, items }[], items: object[], problems: string[] }}
+ * @returns {{ categories: { key, label, items }[], groups: { key, label, count }[], items: object[], license: object, problems: string[] }}
+ *   groups = 그림이 하나라도 있는 묶음만 (목록 순서)
  */
 export function readAssetManifest(raw) {
   const problems = []
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { categories: [], items: [], problems: ['manifest가 객체가 아님'] }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { categories: [], groups: [], items: [], license: {}, problems: ['manifest가 객체가 아님'] }
   if (raw.v !== ASSET_MANIFEST_VERSION) problems.push(`v가 ${ASSET_MANIFEST_VERSION}이 아님: ${raw.v}`)
   const cats = []
   for (const c of Array.isArray(raw.categories) ? raw.categories : []) {
@@ -107,6 +123,12 @@ export function readAssetManifest(raw) {
     if (cats.some(x => x.key === c.key)) { problems.push(`카테고리 key 겹침: ${c.key}`); continue }
     cats.push({ key: c.key, label: c.label })
   }
+  const groups = []
+  for (const g of Array.isArray(raw.groups) ? raw.groups : []) {
+    if (!g || !KEY.test(String(g.key ?? '')) || typeof g.label !== 'string' || g.label === '' || groups.some(x => x.key === g.key)) { problems.push(`묶음 모양이 이상함: ${JSON.stringify(g)}`); continue }
+    groups.push({ key: g.key, label: g.label })
+  }
+  const license = raw.license && typeof raw.license === 'object' && !Array.isArray(raw.license) ? raw.license : {}
   const items = []
   const ids = new Set()
   for (const e of Array.isArray(raw.items) ? raw.items : []) {
@@ -120,9 +142,18 @@ export function readAssetManifest(raw) {
                   : typeof e.label !== 'string' || e.label === '' ? '이름' : null
     if (why) { problems.push(`항목을 뺌 (${why}): ${JSON.stringify(e?.id ?? e?.file ?? e)}`); continue }
     ids.add(e.id)
-    items.push({ id: e.id, category: e.category, label: [...e.label].slice(0, ASSET_LABEL_MAX).join(''), file: e.file, w: e.w, h: e.h, use: e.use })
+    const item = { id: e.id, category: e.category, label: [...e.label].slice(0, ASSET_LABEL_MAX).join(''), file: e.file, w: e.w, h: e.h, use: e.use }
+    // 선택 칸 — 이상하면 그 칸만 빼고 그림은 쓴다 (썸네일이 이상하면 원본으로 보인다)
+    if (e.thumb !== undefined) { if (isAssetPath(e.thumb)) item.thumb = e.thumb; else problems.push(`썸네일 경로를 뺌: ${e.id}`) }
+    if (e.group !== undefined) { if (groups.some(g => g.key === e.group)) item.group = e.group; else problems.push(`없는 묶음을 뺌: ${e.id} (${e.group})`) }
+    if (typeof e.source === 'string' && e.source !== '') item.source = e.source
+    items.push(item)
   }
-  return { categories: cats.map(c => ({ ...c, items: items.filter(i => i.category === c.key) })).filter(c => c.items.length), items, problems }
+  return {
+    categories: cats.map(c => ({ ...c, items: items.filter(i => i.category === c.key) })).filter(c => c.items.length),
+    groups: groups.map(g => ({ ...g, count: items.filter(i => i.group === g.key).length })).filter(g => g.count > 0),
+    items, license, problems,
+  }
 }
 
 /** 페이지에 쓰인 에셋 경로 (요소 + 섹션 배경, 중복 없이) */

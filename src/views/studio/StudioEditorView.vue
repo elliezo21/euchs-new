@@ -167,7 +167,7 @@
             :thumb-under="bgRow ? views[bgRow.id]?.bgUrl || null : null"
             :gen-status="bgGenStatus" :gen-busy="!!(bgRow && bgGenBusy[bgRow.id])" :gen-error="bgGenError"
             @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus" @refine="openRefine"
-            @generate="onBgGenerate" @retry-gen-status="loadBgGenStatus"
+            @generate="onBgGenerate" @library="onBgLibrary" @retry-gen-status="loadBgGenStatus"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -536,7 +536,7 @@ import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent, blocksBrowser
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
-import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, BG_DEFAULT_COLOR, sectionBgChoice } from '@/lib/studioBg'
+import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, libFromEntry, BG_DEFAULT_COLOR, sectionBgChoice } from '@/lib/studioBg'
 import { fetchBgStatus, requestBgRemove, uploadBgRefined, fetchBgGenStatus, requestBgGenerate } from '@/lib/studioBgApi'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
@@ -2212,7 +2212,21 @@ function onBgMode(mode) {
   if (mode === 'color') { setBgNoted(row.id, { ...cur, mode, color: cur.color || BG_DEFAULT_COLOR }, LABELS.bgColor); return }
   // 17-4 AI 배경: 전에 만든 그림(bg.ai)을 다시 쓴다 — 돈 안 듦 (없으면 [AI 배경 만들기]로)
   if (mode === 'ai') { if (cur.ai) setBgNoted(row.id, { ...cur, mode }, LABELS.bgAi); return }
+  // 라이브러리 배경: 전에 고른 그림(bg.lib)을 다시 쓴다 (없으면 아래 [라이브러리 배경]에서 고른다)
+  if (mode === 'library') { if (cur.lib) setBgNoted(row.id, { ...cur, mode }, LABELS.bgLibrary); return }
   setBgNoted(row.id, { ...cur, mode }, mode === 'transparent' ? LABELS.bgTransparent : LABELS.bgOriginal)
+}
+/**
+ * 라이브러리 배경 — [배경합성] 패널에서 고른 에셋 이미지(연출 배경·배경)를 이 사진의 배경으로.
+ * 외부 AI·서버를 부르지 않는다(무료 — AI 배경 횟수·한도를 쓰지 않음, 자격 검사 없음). 배경을 지운(마스크가 있는) 사진에만. 사진 이력 "라이브러리 배경"
+ */
+function onBgLibrary(entry) {
+  const row = bgRow.value
+  const cur = row ? session.bgOf(row.id) : null
+  const lib = libFromEntry(entry)
+  if (!lib) { console.error('[StudioEditor] 라이브러리 배경으로 쓸 수 없는 그림:', entry); return }
+  if (!cur) { showToast('먼저 [배경 지우기]를 해 주세요'); return }
+  setBgNoted(row.id, { ...cur, mode: 'library', lib }, LABELS.bgLibrary)
 }
 // ── AI 배경 (17-4) — 외부 AI는 서버만 부른다. 결과 그림은 사진 데이터(edit.bg.ai)에 저장, 사진 이력 "AI 배경" ──
 const bgGenStatus = reactive({ loading: false, ready: false, reason: null, staff: false, left: null, perDay: 3, globalLeft: 0, message: '' })
