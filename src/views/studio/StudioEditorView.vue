@@ -155,7 +155,7 @@
           <!-- [텍스트] 패널 (10-1): 제목·부제목·본문 넣기 -->
           <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" @style="onStylePreset" />
           <!-- [요소] 패널 (11-1): 맨 위 종류 [도형][배지][사이즈표] — 마지막 종류는 이 편집기 안에서 기억 -->
-          <StudioElementPanel v-else-if="activeTool === 'element'" v-model:tab="elementTab" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" />
+          <StudioElementPanel v-else-if="activeTool === 'element'" v-model:tab="elementTab" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" @insert-asset="insertAsset" />
           <!-- [템플릿] 패널 (15단계): 템플릿 카드 — 누르면 확인 뒤 페이지를 그 틀로 (이력 한 칸, 사진 edit는 그대로) -->
           <StudioTemplatePanel v-else-if="activeTool === 'template'" :images="templateImages" :views="views" :disabled="!page" @apply="askTemplate" />
           <!-- [배경합성] 패널 (17-1): 고른 사진의 배경 지우기(서버 외부 AI) · 원래 배경/투명 · 배경 원래대로 -->
@@ -562,6 +562,8 @@ import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
 import { groupPresetByKey, presetTextParts } from '@/lib/studioDecor'
+import { assetFieldsOf, isAssetPath } from '@/lib/studioAsset'
+import { loadAssetImage } from '@/lib/studioAssetLoad'
 import { isValidTableItem, tableTemplateByKey, tableFieldsOf, hasTableCell, cleanCellText, tableRows, tableCols } from '@/lib/studioTable'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
 import {
@@ -588,7 +590,7 @@ import {
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
   groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo, groupMemberIds,
   addTextItem, setTextProps, setTextContent, addElementItem, setShapeProps, setLineProps,
-  addItemGroup, setTableProps, editTable, fitSectionsToImage, scaleItemsFrom,
+  addItemGroup, setTableProps, editTable, fitSectionsToImage, scaleItemsFrom, setSectionBgImage,
 } from '@/lib/studioPage'
 import { isValidShapeItem, isValidLineItem, elementKindByKey } from '@/lib/studioShape'
 import { LABELS, restorePoint, list as listHistory } from '@/lib/studioHistory'
@@ -1570,6 +1572,34 @@ function insertTable(key) {
   selectionSource = 'page'
   nextTick(() => pageView.value?.scrollToItem(r.itemId))
 }
+/**
+ * [요소] → [이미지] 견본 누름 (에셋 이미지 — 고객 사진이 아닌 우리 그림).
+ * 요소용(use 'item') = 골라진/보는 중 섹션 가운데에 넣고 고르기, 배경용(use 'bg') = 그 섹션의 배경 이미지로 (배경색은 그대로 남는다)
+ */
+function insertAsset(entry) {
+  if (!entry || !isAssetPath(entry.file)) { console.error('[StudioEditor] 모르는 에셋 이미지:', entry); return }
+  if (!page.value || eraseOpen.value) return
+  const target = insertTarget(page.value)
+  if (!target) { showToast('섹션을 더 만들 수 없어 넣지 못했어요.'); return }
+  if (entry.use === 'bg') {
+    const next = setSectionBgImage(target.page, target.sid, entry.file)
+    if (next === target.page) { showToast('이미 이 섹션의 배경이에요.'); return }
+    if (!applyPage(next, LABELS.secBgImage)) return
+    selectedSectionId.value = target.sid
+    showToast('섹션 배경으로 넣었어요 · 빼려면 [섹션]에서 [배경 이미지 빼기]')
+    return
+  }
+  const r = addElementItem(target.page, target.sid, assetFieldsOf(entry))
+  if (!r.itemId) {
+    console.error('[StudioEditor] 에셋 이미지를 넣지 못함:', entry.id, target.sid)
+    showToast('넣지 못했어요. 잠시 후 다시 해 주세요.')
+    return
+  }
+  if (!applyPage(r.page, LABELS.assetInsert)) return
+  selectedItemIds.value = [r.itemId]
+  selectionSource = 'page'
+  nextTick(() => pageView.value?.scrollToItem(r.itemId))
+}
 const selectedHasTable = computed(() => !!page.value && selectedItemIds.value.some(id => isValidTableItem(findItem(page.value, id)?.item)))
 const TABLE_LABEL_OF = {
   headerRow: LABELS.tableHeader, fontFamily: LABELS.tableFont, fontSize: LABELS.tableSize, align: LABELS.tableAlign,
@@ -1731,6 +1761,10 @@ function runCommand(name, args = {}) {
     case 'sectionBg': {
       const sid = selectedSectionId.value
       applyPage(setSectionBg(p, sid, args.color), LABELS.secBg, args.merge ? { mergeKey: `secBg-${sid}` } : undefined)
+      break
+    }
+    case 'sectionBgImage': { // 에셋 이미지: 섹션 배경 이미지 넣기·빼기 (asset = 경로 | null)
+      applyPage(setSectionBgImage(p, args.sectionId ?? selectedSectionId.value, args.asset), LABELS.secBgImage)
       break
     }
     case 'sectionDelete': { // 확인창 없이 — removeSection이 사진을 parked로 옮기므로 사진은 잃지 않는다. Ctrl+Z로 되돌림
@@ -2054,6 +2088,7 @@ const exportDeps = {
   createCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c },
   Path2D: window.Path2D,
   getImage: exportImageOf,
+  getAsset: loadAssetImage, // 에셋 이미지 (같은 사이트의 정적 파일 — 캔버스가 오염되지 않는다)
   lookOf: id => session.lookMap[id], // 화면(StudioPageView looks)과 같은 값
   measure: textMeasure,
   async prepareFonts(list) {

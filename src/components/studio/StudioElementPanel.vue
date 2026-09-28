@@ -84,6 +84,30 @@
       </div>
       <p class="px-4 pb-4 st-desc-sm break-keep">색과 글자는 넣은 뒤 바꿀 수 있어요. 번호는 글자를 두 번 눌러 고쳐 쓰세요.</p>
     </template>
+    <!-- 이미지 에셋 (우리 그림 — 목록은 public/studio-assets/manifest.json). 요소용 = 섹션 가운데에 넣기, 배경용 = 섹션 배경으로 -->
+    <div v-else-if="current === 'asset'" data-asset-group>
+      <p v-if="assetState === 'loading'" class="px-4 pt-4 st-desc-sm">이미지 목록을 불러오는 중…</p>
+      <div v-else-if="assetState === 'error'" class="px-4 pt-4 space-y-2">
+        <p class="st-desc-sm break-keep">이미지 목록을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.</p>
+        <button type="button" class="st-btn" data-asset-retry @click="loadAssets">다시 시도</button>
+      </div>
+      <template v-else>
+        <div v-for="(g, gi) in assetGroups" :key="g.key" class="px-4 pt-4 pb-4 space-y-3" :class="gi ? 'st-border-t' : ''" :data-asset-category="g.key">
+          <div class="text-[13px] font-extrabold st-ink">{{ g.label }}</div>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              v-for="a in g.items" :key="a.id" type="button" class="st-el-card" :title="a.use === 'bg' ? `${a.label} — 섹션 배경으로` : a.label"
+              :data-asset-add="a.id" :disabled="disabled" @click="$emit('insert-asset', a)"
+            >
+              <span class="st-el-sample is-tall"><img :src="assetUrl(a.file)" alt="" draggable="false" loading="lazy" class="st-asset-thumb" /></span>
+              <span class="st-el-name">{{ a.label }}</span>
+              <span v-if="a.use === 'bg'" class="st-asset-use">섹션 배경</span>
+            </button>
+          </div>
+        </div>
+        <p class="px-4 pb-4 st-desc-sm break-keep">"섹션 배경" 그림은 지금 보고 있는 섹션의 배경으로 들어가요. 빼려면 [섹션]에서 [배경 이미지 빼기]를 누르세요.</p>
+      </template>
+    </div>
     <!-- 표 (11-2 사이즈표 + 에셋 채우기 비교표·스펙표). 칸 글자는 캔버스에서 칸을 눌러 바로(표 칸 입력) 또는 왼쪽 "표 편집"에서 -->
     <div v-else data-table-group>
       <div v-for="(g, gi) in tableGroups" :key="g.key" class="px-4 pt-4 pb-4 space-y-3" :class="gi ? 'st-border-t' : ''" :data-table-kind="g.key">
@@ -108,11 +132,14 @@
 // 왼쪽 [요소] 패널 (11-1) — 도형 5개·선 3개 견본(실제 그리기 StudioShapeView). 누르면 insert(종류)만 보낸다 — 넣기·고르기는 편집기가 한다.
 // 11-2: 강조 배지 8개(insert-badge — 견본은 넣을 때와 같은 buildGroupItems) · 사이즈표 기본 틀 3개(insert-table — 견본은 StudioTableView)
 // 에셋 채우기: 도형 12개·배지 18개·꾸밈 요소(studioDecor)·표 11개(사이즈표 7 + 비교표·스펙표 4)
-// 맨 위 종류 버튼 [도형]·[배지]·[꾸밈]·[표] — 한 종류만 보이고 목록 칸 안에서 스크롤 (에셋 모양은 그대로)
-import { computed, inject } from 'vue'
+// 에셋 이미지: [이미지] 탭 — 목록은 manifest.json(파일을 넣고 npm run studio:assets), insert-asset(목록 항목)만 보낸다
+// 맨 위 종류 버튼 [도형]·[배지]·[꾸밈]·[표]·[이미지] — 한 종류만 보이고 목록 칸 안에서 스크롤 (에셋 모양은 그대로)
+import { computed, inject, ref, watch } from 'vue'
 import { ELEMENT_KINDS, normalizeShapeItem, normalizeLineItem } from '@/lib/studioShape'
 import { BADGE_PRESETS } from '@/lib/studioBadge'
 import { DECOR_PRESETS, DECOR_KINDS } from '@/lib/studioDecor'
+import { assetUrl } from '@/lib/studioAsset'
+import { loadAssetManifest } from '@/lib/studioAssetLoad'
 import { TABLE_TEMPLATES, TABLE_GROUPS, tableGroupOf, tableFieldsOf, normalizeTableItem } from '@/lib/studioTable'
 import { buildGroupItems, textLinesOf } from '@/lib/studioPage'
 import { isValidTextItem } from '@/lib/studioText'
@@ -125,8 +152,23 @@ const props = defineProps({
   disabled: { type: Boolean, default: false }, // 페이지가 없을 때
   tab: { type: String, default: '' },           // 지금 종류 (편집기가 기억 — 이 패널은 [요소]를 열 때마다 새로 만들어진다)
 })
-defineEmits(['insert', 'insert-badge', 'insert-table', 'update:tab'])
+defineEmits(['insert', 'insert-badge', 'insert-table', 'insert-asset', 'update:tab'])
 const current = computed(() => elementTabOf(props.tab))
+
+// 이미지 에셋 목록 — [이미지] 탭을 처음 열 때 받는다 (같은 탭 안에서는 다시 받지 않음 — studioAssetLoad)
+const assetState = ref('idle') // idle | loading | ready | error
+const assetGroups = ref([])
+async function loadAssets() {
+  assetState.value = 'loading'
+  try {
+    assetGroups.value = (await loadAssetManifest()).categories
+    assetState.value = 'ready'
+  } catch (e) {
+    console.error('[StudioElementPanel] 이미지 목록을 받지 못함:', e)
+    assetState.value = 'error'
+  }
+}
+watch(current, tab => { if (tab === 'asset' && assetState.value === 'idle') loadAssets() }, { immediate: true })
 
 // 글자 폭 재기 (편집기 provide — 페이지와 같은 측정). 글꼴을 받으면 epoch가 바뀌어 견본 글자 줄도 다시
 const textLayout = inject('studioTextLayout')
@@ -190,5 +232,8 @@ const tableGroups = TABLE_GROUPS.map(g => ({ ...g, items: tables.filter(t => t.g
 /* 견본 바탕은 밝게 (작업물 색 그대로 보이게 — 어두운 화면 위 흰 페이지처럼) */
 .st-el-sample { width: 100%; height: 56px; border-radius: 7px; background: #f4f5f7; display: flex; align-items: center; justify-content: center; }
 .st-el-sample.is-tall { height: 70px; }
+/* 이미지 에셋 견본 — 그림 비율 그대로 칸 안에 */
+.st-asset-thumb { max-width: 100%; max-height: 100%; width: auto; height: 62px; object-fit: contain; }
+.st-asset-use { font-size: 10px; font-weight: 700; color: var(--st-accent); }
 .st-el-name { font-size: 11px; font-weight: 700; color: var(--st-ink-2); white-space: nowrap; }
 </style>

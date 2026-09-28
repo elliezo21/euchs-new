@@ -16,6 +16,8 @@
  *     readPage가 normalizeTextItem으로 빠진 칸·잘못된 값을 기본값으로 채운다 (v는 1 그대로).
  *   도형·선(11-1단계) = type 'shape'·'line' (studioShape.js 맨 위). 사이즈표(11-2단계) = type 'table' (studioTable.js 맨 위 — h 자동).
  *   강조 배지(11-2단계)는 새 type이 아니다 — 도형 + 글자를 같은 groupId로 묶어 넣는다(addItemGroup, 프리셋은 studioBadge.js).
+ *   에셋 이미지(고객 사진이 아닌 우리 그림) = type 'asset' + asset(파일 경로)·fit (studioAsset.js 맨 위). 섹션 배경 이미지 = 섹션의 bgImage 칸(선택).
+ *     둘 다 없던 칸이라 예전 페이지는 그대로 읽힌다 (v는 1 그대로).
  *     parked: [ imageId, … ]
  *   }
  *   구간 순서 = sections 배열 순서(위 → 아래). 구간 사이 간격 = gap(px).
@@ -33,6 +35,7 @@ import {
   isValidShapeItem, isValidLineItem, normalizeShapeItem, normalizeLineItem, patchShapeItem, patchLineItem, fitLineItem, moveLineEnd,
 } from './studioShape.js'
 import { isValidTableItem, normalizeTableItem, patchTableItem, editTableItem, tableHeight, tableMinWidth } from './studioTable.js'
+import { isValidAssetItem, normalizeAssetItem, isAssetPath, sectionBgImageOf, ASSET_FITS } from './studioAsset.js'
 
 export const PAGE_VERSION = 1
 export const PAGE_WIDTH = 780 // 쿠팡 (결정 17). 폭은 이 값 하나로만 쓴다
@@ -162,11 +165,11 @@ export function isValidImageItem(it) {
 
 /** 화면에 그리는 요소 (사진·글자·도형·선 — 11-1, 사이즈표 — 11-2). 그 밖의 type은 보존만 */
 export function isDrawableItem(it) {
-  return isValidImageItem(it) || isValidTextItem(it) || isValidShapeItem(it) || isValidLineItem(it) || isValidTableItem(it)
+  return isValidImageItem(it) || isValidTextItem(it) || isValidShapeItem(it) || isValidLineItem(it) || isValidTableItem(it) || isValidAssetItem(it)
 }
 
 /** type별 칸 정리 (readPage) — 공통 칸은 normalizeItem, 글자·도형·선·표는 그 칸도 */
-const NORMALIZE_BY_TYPE = { text: normalizeTextItem, shape: normalizeShapeItem, line: normalizeLineItem, table: normalizeTableItem }
+const NORMALIZE_BY_TYPE = { text: normalizeTextItem, shape: normalizeShapeItem, line: normalizeLineItem, table: normalizeTableItem, asset: normalizeAssetItem }
 
 /**
  * 문서 모양 검사. 아이템 하나가 이상한 것은 문서 오류가 아니다 (그 아이템만 그리지 않음)
@@ -217,7 +220,9 @@ export function readPage(raw, projectId) {
       if ((it.type === 'shape' && !isValidShapeItem(it)) || (it.type === 'line' && !isValidLineItem(it))) console.error('[studioPage] 잘못된 도형·선 아이템 — 그리지 않고 보존:', projectId, s.id, it)
       // 11-2 표: cells 모양이 어긋난 것은 readPage가 고쳐 읽는다(normalizeTableItem) — 좌표가 틀린 것만 그리지 않는다
       if (it.type === 'table' && !isValidTableItem(normalizeTableItem(it))) console.error('[studioPage] 잘못된 표 아이템 — 그리지 않고 보존:', projectId, s.id, it)
+      if (it.type === 'asset' && !isValidAssetItem(it)) console.error('[studioPage] 잘못된 에셋 이미지 아이템 — 그리지 않고 보존:', projectId, s.id, it)
     }
+    if (s.bgImage !== undefined && !sectionBgImageOf(s)) console.error('[studioPage] 잘못된 섹션 배경 이미지 — 그리지 않고 보존:', projectId, s.id, s.bgImage)
   }
   const page = clone(raw)
   // 예전 페이지: 회전 등 빠진 칸을 기본값으로. 글자 요소(10-1)는 글자 칸도 (글꼴·크기 등 잘못된 값 → 기본값)
@@ -410,6 +415,23 @@ export function setSectionBg(page, sectionId, color) {
   const bg = color.toLowerCase()
   if (!page.sections.some(s => s.id === sectionId && s.bg !== bg)) return page
   return mapSections(page, s => (s.id === sectionId ? { ...s, bg } : s))
+}
+
+/**
+ * 구간 배경 이미지 (에셋 이미지) — asset = 파일 경로(studioAsset.isAssetPath) 또는 null(빼기). 배경색(bg)은 그대로 남는다.
+ * 같은 값이면 입력 그대로. 경로가 이상하면 입력 그대로
+ */
+export function setSectionBgImage(page, sectionId, asset, fit = 'cover') {
+  const s = page.sections.find(x => x.id === sectionId)
+  if (!s) return page
+  if (asset === null) {
+    if (!('bgImage' in s)) return page
+    return mapSections(page, x => { if (x.id !== sectionId) return x; const { bgImage: _b, ...rest } = x; return rest })
+  }
+  if (!isAssetPath(asset) || !ASSET_FITS.includes(fit)) return page
+  const cur = sectionBgImageOf(s)
+  if (cur && cur.asset === asset && cur.fit === fit) return page
+  return mapSections(page, x => (x.id === sectionId ? { ...x, bgImage: { asset, fit } } : x))
 }
 
 // ── 아이템 바꾸기 ──
@@ -1215,7 +1237,9 @@ export function resizeTextItem(page, id, handle, dx, dy, measure) {
  */
 export function addElementItem(page, sectionId, fields) {
   const s = page.sections.find(x => x.id === sectionId)
-  const byType = { shape: normalizeShapeItem, line: normalizeLineItem, table: normalizeTableItem }[fields?.type] // 11-2: 사이즈표도 같은 넣기
+  // 11-2: 사이즈표도 같은 넣기. 에셋 이미지(type 'asset')도 — 경로가 이상하면 넣지 않는다
+  const byType = { shape: normalizeShapeItem, line: normalizeLineItem, table: normalizeTableItem, asset: normalizeAssetItem }[fields?.type]
+  if (fields?.type === 'asset' && !isAssetPath(fields.asset)) return { page, itemId: null }
   if (!s || !byType) return { page, itemId: null }
   const w = Math.max(ITEM_MIN_SIZE, Math.min(page.width, Math.round(fields.w ?? 200)))
   // 선·표의 h는 normalizeLineItem·normalizeTableItem이 맞춘다

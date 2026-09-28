@@ -20,7 +20,7 @@
       <section
         v-for="s in doc.sections" :key="s.id"
         class="absolute left-0 overflow-hidden st-section" :class="[dropSectionId === s.id ? 'st-drop-target' : '', selectedSectionId === s.id ? 'st-section-picked' : '']"
-        :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${doc.width * zoom}px`, height: `${s.height * zoom}px`, background: s.bg, '--st-items-top': s.items.length + 1 }"
+        :style="{ top: `${rowOf(s.id).top * zoom}px`, width: `${doc.width * zoom}px`, height: `${s.height * zoom}px`, ...sectionBgStyle(s), '--st-items-top': s.items.length + 1 }"
         :data-section-id="s.id"
         @pointerdown.self="onBlankDown" @contextmenu.self.prevent="onBlankContext"
       >
@@ -72,6 +72,21 @@
                 <span v-else class="text-[12px] font-bold">사진 준비 중…</span>
               </div>
             </template>
+          </div>
+          <!-- 에셋 이미지 (고객 사진이 아닌 우리 그림 — studioAsset): 같은 사이트의 정적 파일, 자리 안에 fit대로. 더블클릭은 아무것도 안 함 -->
+          <div
+            v-else-if="isValidAssetItem(it)"
+            class="absolute select-none"
+            :class="[it.locked ? '' : 'cursor-move', it.hidden ? 'st-item-hidden' : '']"
+            :style="itemStyle(it, ii)"
+            :data-item-id="it.id" :data-asset-item="it.asset" :data-hidden="it.hidden ? '1' : null"
+            @pointerdown="onItemDown($event, it)"
+            @contextmenu.prevent.stop="onItemContext($event, it)"
+          >
+            <img
+              v-if="!it.hidden" :src="assetUrl(it.asset)" alt="" draggable="false"
+              class="block w-full h-full pointer-events-none" :style="assetImgStyle(it)" @error="onAssetError(it)"
+            />
           </div>
           <!-- 글자 요소 (10-1): 줄은 wrapLines로 한 줄씩. 고치는 중이면 그 자리에 입력 칸(textarea — 한글 조합이 깨지지 않게) -->
           <div
@@ -243,6 +258,7 @@ import StudioTextView from '@/components/studio/StudioTextView.vue'
 import StudioShapeView from '@/components/studio/StudioShapeView.vue'
 import StudioTableView from '@/components/studio/StudioTableView.vue'
 import { isValidShapeItem, isValidLineItem } from '@/lib/studioShape'
+import { isValidAssetItem, assetUrl, sectionBgImageOf } from '@/lib/studioAsset'
 import {
   isValidTableItem, tableCellAt, tableCellRect, nextTableCell, hasTableCell, tableFontOf, tableRows, tableCols,
   TABLE_CELL_MAX, TABLE_PAD_RATIO, TABLE_LIMITS,
@@ -399,6 +415,18 @@ function itemStyle(it, index) {
   const v = viewOf(it.imageId)
   if (v?.url && v.bgColor) { out.background = v.bgColor; out.backgroundClip = 'padding-box' }
   return out
+}
+/** 섹션 바탕 — 배경색 + (있으면) 배경 이미지(에셋, 자리를 채움). 내보내기 drawSection과 같은 순서 */
+function sectionBgStyle(s) {
+  const b = sectionBgImageOf(s)
+  if (!b) return { background: s.bg }
+  return { backgroundColor: s.bg, backgroundImage: `url("${assetUrl(b.asset)}")`, backgroundSize: b.fit, backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+}
+function assetImgStyle(it) {
+  return { objectFit: it.fit === 'cover' ? 'cover' : 'contain', ...(flipStyle(it) || {}) }
+}
+function onAssetError(it) {
+  console.error('[StudioPageView] 에셋 이미지를 그리지 못함:', it.id, it.asset)
 }
 function flipStyle(it) {
   const sx = it.flipX ? -1 : 1, sy = it.flipY ? -1 : 1

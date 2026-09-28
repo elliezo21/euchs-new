@@ -21,6 +21,7 @@ export const TEMPLATE_CATEGORIES = [
   { key: 'electronics', label: '전자·소형가전' },
   { key: 'toys', label: '완구' },
   { key: 'pets', label: '반려동물' },
+  { key: 'fullset', label: '풀세트' }, // 에셋 이미지 자리까지 들어간 긴 구성 (지금은 샘플 1개 — 그림은 이미지 자리 표시)
 ]
 
 const W = 780
@@ -158,9 +159,12 @@ function boxes2(items, th, o = {}) {
 /** 자리가 정해진 조각 (구간 위쪽 기준 — 높이를 차지하지 않는다) */
 const fixed = make => ({ h: 0, make: (_y, gid) => make(gid) })
 
-/** 구간 조립 — 위 여백 + 조각들 + 아래 여백 = 구간 높이 */
+/** 에셋 이미지 (우리 그림 — studioAsset). 자리가 정해진 조각 (높이를 차지하지 않는다) */
+const asset = (file, x, y, w, h, o = {}) => fixed(() => [{ type: 'asset', asset: file, x, y, w, h, fit: 'contain', ...o }])
+
+/** 구간 조립 — 위 여백 + 조각들 + 아래 여백 = 구간 높이. bgImage = 섹션 배경 이미지(에셋 파일 경로) */
 function sec(bg, blocks, o = {}) {
-  const { top = 72, bottom = 72 } = o
+  const { top = 72, bottom = 72, bgImage = null } = o
   let y = top
   let n = 0
   const gid = () => `g${++n}`
@@ -170,7 +174,7 @@ function sec(bg, blocks, o = {}) {
     items.push(...b.make(y, gid))
     y += b.h
   }
-  return { height: y + bottom, bg, items }
+  return { height: y + bottom, bg, ...(bgImage ? { bgImage: { asset: bgImage, fit: 'cover' } } : {}), items }
 }
 
 // ── 공통 문구 ──
@@ -271,12 +275,50 @@ function checklist(c, th) {
   ]
 }
 
-const BUILD = { classic, bold, magazine, checklist }
+// 풀세트에 쓰는 이미지 자리 (나중에 실제 그림 파일로 바꾼다 — 파일만 바꾸면 템플릿 코드는 그대로)
+const SLOT_OBJECT = 'placeholder/object.svg'
+const SLOT_BG = 'placeholder/background.svg'
+
+/**
+ * 5. 풀세트 — 첫 화면(배경 이미지 + 오브제) → 대표 사진 → 공감 → 핵심 포인트 3 → 상세 사진 → 사진 두 장 → 소재·스펙 → 비교 →
+ *    사용법 → 사이즈·옵션 → 구매 전 안내 → 배송·교환 (12구간). 에셋 이미지 자리 = 첫 화면 배경·오브제, 공감·비교 구간 장식, 끝 구간 배경
+ */
+function fullset(c, th) {
+  const h = heading(c, th)
+  return [
+    sec(th.soft, [
+      asset(SLOT_OBJECT, 490, 96, 240, 240, { label: '오브제 자리' }),
+      T(c.eyebrow, 17, 800, th.accent, { w: 400, x: 60, align: 'left', letterSpacing: 0.2, lh: 1.3 }), 20,
+      T(c.headline, 44, h.weight, th.ink, { font: h.font, w: 410, x: 60, align: 'left', lh: 1.3 }), 24,
+      T(c.lead, 20, 400, th.sub, { w: 410, x: 60, align: 'left', lh: 1.7 }),
+    ], { top: 110, bottom: 110, bgImage: SLOT_BG }),
+    { photo: 0 },
+    sec(WHITE, [
+      asset(SLOT_OBJECT, 620, 24, 120, 120, { label: '장식 자리', opacity: 0.9 }),
+      T(c.worryTitle, 34, th.serif ? 700 : 800, th.ink, { font: th.serif ? 'noto-serif-kr' : 'noto-sans-kr', w: 440, lh: 1.3 }), 40, checks(c.worries, th),
+    ]),
+    sec(th.soft, [title(c.pointsTitle, th), 40, cards3(c.points, th)]),
+    sec(WHITE, [title(c.detailTitle, th), 16, T(c.detailLead, 19, 400, th.sub, { lh: 1.6 }), 36, photo(1, 440), 20, T(c.caption, 17, 400, th.muted, { lh: 1.5 })]),
+    sec(WHITE, [photoPair(2, 3, 440)], { top: 0, bottom: 72 }),
+    sec(th.soft, [title(c.tableTitle, th), 36, table(c.table, th, { w: c.tableW }), 22, T(c.tableNote, 17, 400, th.muted, { lh: 1.5 })]),
+    sec(WHITE, [
+      asset(SLOT_OBJECT, 40, 30, 110, 110, { label: '장식 자리', opacity: 0.9 }),
+      T(c.compareTitle, 34, th.serif ? 700 : 800, th.ink, { font: th.serif ? 'noto-serif-kr' : 'noto-sans-kr', w: 440, lh: 1.3 }), 36, table(c.compare, th, { w: 640 }), 22, T(c.compareNote, 17, 400, th.muted, { lh: 1.5 }),
+    ]),
+    sec(th.soft, [title(c.howTitle, th), 40, cards3(c.steps, th, { cardBg: WHITE })]),
+    sec(WHITE, [title(c.optionTitle, th), 36, table(c.options, th, { w: 640 }), 22, T(c.optionNote, 17, 400, th.muted, { lh: 1.5 })]),
+    sec(th.soft, [title(c.noticeTitle, th, 30), 28, T(c.notices, 18, 400, th.sub, { w: 620, align: 'left', lh: 1.8 })]),
+    sec(WHITE, [title('배송·교환 안내', th, 30), 36, boxes2([SHIP, RETURN], th, { boxBg: WHITE })], { bgImage: SLOT_BG }),
+  ]
+}
+
+const BUILD = { classic, bold, magazine, checklist, fullset }
 const FLOW = {
   classic: '대표 사진 → 제목 → 포인트 3개 → 상세 사진 → 표 → 사용법 → 구매 전 안내·배송',
   bold: '짙은 제목 띠 → 대표 사진 → 포인트마다 사진 → 표 → 사용 순서 → 구매 전 안내·배송',
   magazine: '대표 사진 → 명조 제목 → 사진 두 장 → 이야기 → 체크 3줄 → 표 → 안내·배송',
   checklist: '색 띠 제목 → 추천 체크 → 사진 → 포인트 3개 → 말풍선 사진 → 표 → 사용법 → 안내·배송',
+  fullset: '첫 화면 → 공감 → 포인트 3개 → 상세 사진 → 소재·스펙 → 비교 → 사용법 → 사이즈·옵션 → 구매 전 안내 → 배송·교환',
 }
 
 // ── 색 (모두 넣은 뒤 바꿀 수 있는 기본색) ──
@@ -491,7 +533,20 @@ const COPY = {
   },
 }
 
-// ── 템플릿 16개 (카테고리 8 × 2) ──
+// 풀세트 샘플 문구 (생활용품 문구를 바탕으로, 풀세트에만 있는 구간을 더함)
+COPY.fullset = {
+  ...COPY.living,
+  worryTitle: '이런 점이 아쉬우셨나요?',
+  worries: ['쓰던 물건이 금방 망가졌던 분', '크기가 맞지 않아 불편했던 분', '관리하기 번거로웠던 분'],
+  tableTitle: '소재·스펙',
+  compareTitle: '한눈에 비교해 보세요', compareNote: '비교 기준과 측정 방법을 함께 적어 주세요.',
+  compare: [['구분', '기본형', '고급형'], ...['크기', '무게', '구성', '추천 대상'].map(s => [s, '-', '-'])],
+  optionTitle: '사이즈·옵션',
+  options: [['옵션', '크기(cm)', '색상', '구성'], ...['A', 'B', 'C'].map(s => [s, '-', '-', '-'])],
+  optionNote: '옵션 이름은 주문 화면의 옵션 이름과 같게 적어 주세요.',
+}
+
+// ── 템플릿 16개 (카테고리 8 × 2) + 풀세트 샘플 1개 ──
 const LIST = [
   ['apparel', 'apparel-look', '의류 · 룩북', 'magazine', 'sand', { eyebrow: 'NEW SEASON', headline: '매일 입고 싶은\n편안한 한 벌', lead: '어떤 날, 어떤 옷과 입으면 좋은지\n한두 줄로 소개해 주세요.' }],
   ['apparel', 'apparel-basic', '의류 · 사이즈 안내', 'classic', 'navy', { eyebrow: 'DAILY WEAR', headline: '핏이 좋아\n손이 자주 가는 옷', lead: '소재와 핏의 장점을\n한두 줄로 소개해 주세요.' }],
@@ -509,6 +564,7 @@ const LIST = [
   ['toys', 'toys-basic', '완구 · 기본', 'classic', 'berry', { eyebrow: 'PLAY TIME', headline: '아이 손에 꼭 맞는\n놀이 친구', lead: '아이가 좋아할 점을\n한두 줄로 소개해 주세요.' }],
   ['pets', 'pets-bold', '반려동물 · 포인트 강조', 'bold', 'leaf', { eyebrow: 'FOR MY PET', badge: '산책\n필수', headline: '우리 아이를 위한\n편안한 선택', lead: '아이에게 좋은 점을\n한두 줄로 소개해 주세요.' }],
   ['pets', 'pets-mood', '반려동물 · 감성', 'magazine', 'cocoa', { eyebrow: 'FOR MY PET', headline: '함께하는 하루가\n더 포근하게', lead: '어떤 아이에게 잘 맞는지\n한두 줄로 소개해 주세요.' }],
+  ['fullset', 'fullset-sample', '풀세트 · 샘플', 'fullset', 'sky', { eyebrow: 'BRAND STORY', headline: '첫 화면에서\n마음을 잡는\n한 문장', lead: '누구에게 왜 좋은지\n두 줄로 소개해 주세요.' }],
 ]
 
 export const CATEGORY_TEMPLATES = LIST.map(([category, key, label, kind, th, head]) => ({

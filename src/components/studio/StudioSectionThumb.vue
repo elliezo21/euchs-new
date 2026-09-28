@@ -1,7 +1,7 @@
 <template>
   <!-- 구간 하나의 작은 그림 (8-2) — 배경색 + 사진·글자·도형·선 요소(자리·크기·회전·뒤집기·투명도). 숨긴 요소·그 밖의 요소는 그리지 않는다 -->
   <!-- 겹침 순서 (11-2): 페이지와 같은 규칙 — z-index = 구간 items 배열 자리 + 1, 그림 상자 = 쌓임 맥락(isolation) -->
-  <div class="relative overflow-hidden shrink-0" :style="{ width: `${box.w}px`, height: `${box.h}px`, background: section.bg, isolation: 'isolate' }" data-section-thumb>
+  <div class="relative overflow-hidden shrink-0" :style="{ width: `${box.w}px`, height: `${box.h}px`, ...bgStyle, isolation: 'isolate' }" data-section-thumb>
     <div v-for="{ it, index } in shownItems" :key="it.id" class="absolute" :style="itemStyle(it, index)">
       <!-- 글자 (10-1): 페이지와 같은 wrapLines 줄. 화면 밖 그림(drawImages=false)은 흐린 막대 -->
       <template v-if="isValidTextItem(it)">
@@ -12,6 +12,11 @@
       <StudioShapeView v-else-if="isValidShapeItem(it) || isValidLineItem(it)" :item="it" :scale="scale" />
       <!-- 사이즈표 (11-2): 페이지와 같은 paint spec -->
       <StudioTableView v-else-if="isValidTableItem(it)" :item="it" :scale="scale" />
+      <!-- 에셋 이미지: 페이지와 같은 규칙 (같은 파일이라 브라우저가 한 번만 받는다). 화면 밖 그림은 자리표시 -->
+      <template v-else-if="isValidAssetItem(it)">
+        <img v-if="drawImages" :src="assetUrl(it.asset)" alt="" draggable="false" class="block w-full h-full" :style="assetStyle(it)" />
+        <div v-else class="w-full h-full st-placeholder" />
+      </template>
       <template v-else-if="drawImages && views[it.imageId]?.url">
         <!-- AI 배경 (17-4): 사진 아래 (페이지 StudioPageView와 같은 규칙 — 뒤집기만, 필터 없음) -->
         <img
@@ -41,6 +46,7 @@ import StudioShapeView from '@/components/studio/StudioShapeView.vue'
 import StudioTableView from '@/components/studio/StudioTableView.vue'
 import { isValidShapeItem, isValidLineItem } from '@/lib/studioShape'
 import { isValidTableItem } from '@/lib/studioTable'
+import { isValidAssetItem, assetUrl, sectionBgImageOf } from '@/lib/studioAsset'
 
 const props = defineProps({
   section: { type: Object, required: true },
@@ -74,6 +80,15 @@ function itemStyle(it, index) {
     opacity: it.opacity ?? 1, transform: it.rotation ? `rotate(${it.rotation}deg)` : null, zIndex: index + 1,
     background: v?.url && v.bgColor ? v.bgColor : null,
   }
+}
+// 섹션 바탕 = 배경색 + 배경 이미지(에셋) — 페이지와 같은 규칙
+const bgStyle = computed(() => {
+  const b = props.drawImages ? sectionBgImageOf(props.section) : null
+  if (!b) return { background: props.section.bg }
+  return { backgroundColor: props.section.bg, backgroundImage: `url("${assetUrl(b.asset)}")`, backgroundSize: b.fit, backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }
+})
+function assetStyle(it) {
+  return { objectFit: it.fit === 'cover' ? 'cover' : 'contain', ...(flipOnly(it) || {}) }
 }
 function flipOnly(it) {
   const sx = it.flipX ? -1 : 1, sy = it.flipY ? -1 : 1

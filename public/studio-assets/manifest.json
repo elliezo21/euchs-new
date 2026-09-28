@@ -1,0 +1,131 @@
+{
+  "v": 1,
+  "categories": [
+    {
+      "key": "objects",
+      "label": "오브제"
+    },
+    {
+      "key": "decor",
+      "label": "장식"
+    },
+    {
+      "key": "backgrounds",
+      "label": "배경"
+    },
+    {
+      "key": "placeholder",
+      "label": "이미지 자리"
+    }
+  ],
+  "items": [
+    {
+      "id": "objects-gift-box",
+      "category": "objects",
+      "label": "선물 상자",
+      "file": "objects/gift-box.svg",
+      "w": 400,
+      "h": 400,
+      "use": "item"
+    },
+    {
+      "id": "objects-ground-shadow",
+      "category": "objects",
+      "label": "바닥 그림자",
+      "file": "objects/ground-shadow.svg",
+      "w": 600,
+      "h": 120,
+      "use": "item"
+    },
+    {
+      "id": "objects-podium-round",
+      "category": "objects",
+      "label": "둥근 단상",
+      "file": "objects/podium-round.svg",
+      "w": 600,
+      "h": 300,
+      "use": "item"
+    },
+    {
+      "id": "objects-sparkle",
+      "category": "objects",
+      "label": "반짝임",
+      "file": "objects/sparkle.svg",
+      "w": 200,
+      "h": 200,
+      "use": "item"
+    },
+    {
+      "id": "decor-confetti",
+      "category": "decor",
+      "label": "색종이",
+      "file": "decor/confetti.svg",
+      "w": 600,
+      "h": 300,
+      "use": "item"
+    },
+    {
+      "id": "decor-leaf-branch",
+      "category": "decor",
+      "label": "나뭇잎 가지",
+      "file": "decor/leaf-branch.svg",
+      "w": 300,
+      "h": 400,
+      "use": "item"
+    },
+    {
+      "id": "decor-wave-band",
+      "category": "decor",
+      "label": "물결 띠",
+      "file": "decor/wave-band.svg",
+      "w": 780,
+      "h": 120,
+      "use": "item"
+    },
+    {
+      "id": "backgrounds-dot-grid",
+      "category": "backgrounds",
+      "label": "점 무늬",
+      "file": "backgrounds/dot-grid.svg",
+      "w": 780,
+      "h": 780,
+      "use": "bg"
+    },
+    {
+      "id": "backgrounds-soft-peach",
+      "category": "backgrounds",
+      "label": "복숭아빛 번짐",
+      "file": "backgrounds/soft-peach.svg",
+      "w": 780,
+      "h": 780,
+      "use": "bg"
+    },
+    {
+      "id": "backgrounds-studio-wall",
+      "category": "backgrounds",
+      "label": "스튜디오 벽",
+      "file": "backgrounds/studio-wall.svg",
+      "w": 780,
+      "h": 780,
+      "use": "bg"
+    },
+    {
+      "id": "placeholder-background",
+      "category": "placeholder",
+      "label": "배경 자리",
+      "file": "placeholder/background.svg",
+      "w": 780,
+      "h": 600,
+      "use": "item"
+    },
+    {
+      "id": "placeholder-object",
+      "category": "placeholder",
+      "label": "이미지 자리",
+      "file": "placeholder/object.svg",
+      "w": 400,
+      "h": 400,
+      "use": "item"
+    }
+  ]
+}

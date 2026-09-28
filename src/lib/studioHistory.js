@@ -87,6 +87,8 @@ export const LABELS = {
   // 강조 배지·사이즈표 (11-2)
   badgeInsert: '배지 넣기',
   decorInsert: '꾸밈 요소 넣기',
+  assetInsert: '이미지 넣기',
+  secBgImage: '섹션 배경 이미지',
   tableInsert: '표 넣기',
   tableCell: '표 칸 고치기',
   tableRowAdd: '행 추가',
