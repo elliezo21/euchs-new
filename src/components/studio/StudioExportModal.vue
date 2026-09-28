@@ -88,6 +88,9 @@
         <p class="st-desc break-keep">브라우저의 다운로드 폴더에서 {{ baseName }}_… 파일을 확인해 주세요.</p>
       </div>
 
+      <!-- 완성작 보관 (받은 파일을 한 벌 더 — 작업 홈 [완성작]에서 다시 받을 수 있음). 받기와 상관없이 따로 보여 준다 -->
+      <p v-if="archiveLine && (phase === 'done' || phase === 'error')" class="text-[12px] font-bold break-keep" :class="archive.state === 'saved' ? 'st-success-text' : archive.state === 'soon' ? 'st-muted' : 'st-danger-text'" data-export-archive>{{ archiveLine }}</p>
+
       <!-- 실패 -->
       <div v-else-if="phase === 'error'" class="space-y-2" data-export-error>
         <p class="text-[14px] font-bold st-danger-text break-keep">{{ error.where }} — 이미지로 만들지 못했어요.</p>
@@ -139,10 +142,12 @@ import { ref, computed, watch } from 'vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import { exportPlan, exportFileName, fileBaseName, EXPORT_FORMATS, EXPORT_SCALES } from '@/lib/studioExport'
 import { summarizeNotes } from '@/lib/studioPreview' // 같은 알림은 한 줄로 (review-1)
+import { beginArchive, archiveFile, archiveThumb, makeThumb, archiveKey } from '@/lib/studioExportArchive'
 
 const props = defineProps({
   open: { type: Boolean, default: false },
   page: { type: Object, required: true },
+  projectId: { type: String, default: '' },                // 완성작 보관 (없으면 보관하지 않음 — 받기는 그대로)
   title: { type: String, default: '' },                    // 작업 이름 (파일 이름에 씀)
   labels: { type: Object, default: () => ({}) },           // 구간 id → "03 대표 사진"
   pendingBySection: { type: Object, default: () => ({}) }, // 구간 id → 적용 중인 사진 수
@@ -225,12 +230,65 @@ function download(blob, name) {
 }
 const sleep = ms => new Promise(r => setTimeout(r, ms))
 
+// ── 완성작 보관 (2026-09-28) — 받은 파일마다 서버에 한 벌 더. 실패해도 받기는 계속, 이유는 창에 한 줄 ──
+// state: idle | saving | saved | soon(표 설정 전) | failed(한 장이라도 못 함)
+const archive = ref({ state: 'idle', saved: 0, failed: 0, message: '' })
+let archiveId = null
+let thumbDone = false
+const archiveLine = computed(() => {
+  const a = archive.value
+  if (a.state === 'saved') return `완성작에 ${a.saved}장 보관했어요 · 작업 홈 [완성작]에서 다시 받을 수 있어요`
+  if (a.state === 'soon') return a.message
+  if (a.state === 'failed') return `${a.saved ? `${a.saved}장은 보관했지만 ` : ''}${a.failed}장은 완성작에 보관하지 못했어요 — ${a.message}`
+  return ''
+})
+async function startArchive(r) {
+  archiveId = null
+  thumbDone = false
+  archive.value = { state: 'idle', saved: 0, failed: 0, message: '' }
+  if (!props.projectId) return
+  archive.value = { ...archive.value, state: 'saving' }
+  try {
+    archiveId = await beginArchive({ projectId: props.projectId, title: r.base, format: r.format, scale: r.scale, mode: r.mode, count: r.files.length })
+  } catch (e) {
+    console.error('[StudioExportModal] 완성작 보관 시작 실패:', e.code, e)
+    archive.value = { state: e.code === 'export_sql_missing' ? 'soon' : 'failed', saved: 0, failed: r.files.length, message: e.message }
+  }
+}
+async function archiveOne(file, blob, name) {
+  if (!archiveId) return
+  try {
+    await archiveFile(archiveId, { key: archiveKey(file.no), name, blob })
+    archive.value = { ...archive.value, saved: archive.value.saved + 1 }
+  } catch (e) {
+    console.error('[StudioExportModal] 완성작 보관 실패:', name, e.code, e)
+    archive.value = { ...archive.value, failed: archive.value.failed + 1, message: e.message }
+    return
+  }
+  if (thumbDone) return
+  thumbDone = true
+  try {
+    await archiveThumb(archiveId, await makeThumb(blob))
+  } catch (e) {
+    // 파일은 보관됐다 — 목록에서 미리보기 자리만 비어 보인다 ("미리보기 없음")
+    console.error('[StudioExportModal] 완성작 미리보기 보관 실패:', e.code, e)
+  }
+}
+function finishArchive() {
+  const a = archive.value
+  if (a.state !== 'saving') return
+  archive.value = { ...a, state: a.failed ? 'failed' : a.saved ? 'saved' : 'idle' }
+}
+
 /** from번째 파일부터 차례로 만들어 받는다 (0 = 처음부터 — 그때의 설정으로 목록을 새로 잡는다) */
 async function run(from) {
   if (from === 0) {
-    runPlan = { files: plan.value.files, format: format.value, scale: scale.value, base: baseName.value }
+    runPlan = { files: plan.value.files, format: format.value, scale: scale.value, base: baseName.value, mode: mode.value }
     notes.value = []
     doneCount.value = 0
+    await startArchive(runPlan)
+  } else if (archive.value.state !== 'soon' && archiveId) {
+    archive.value = { ...archive.value, state: 'saving' } // [다시 시도] — 같은 보관 기록에 이어서
   }
   if (!runPlan) return
   phase.value = 'running'
@@ -247,8 +305,10 @@ async function run(from) {
         onStep: (step, steps, sid) => { progress.value = { ...progress.value, step, steps, label: file.no === null ? props.labels[sid] ?? '' : label } },
       })
       notes.value.push(...out.notes)
-      download(out.blob, exportFileName(base, file, FORMAT_OF[fmt].ext))
+      const name = exportFileName(base, file, FORMAT_OF[fmt].ext)
+      download(out.blob, name)
       doneCount.value++
+      await archiveOne(file, out.blob, name)
       if (i < files.length - 1) await sleep(400) // 여러 파일을 한꺼번에 내려받지 않게 조금씩 띄운다
     } catch (e) {
       console.error('[StudioExportModal] 이미지 만들기 실패:', file, e)
@@ -259,9 +319,11 @@ async function run(from) {
         fileIndex: i,
       }
       phase.value = 'error'
+      finishArchive()
       return
     }
   }
+  finishArchive()
   phase.value = doneCount.value || !stopAsked.value ? 'done' : 'setup'
 }
 

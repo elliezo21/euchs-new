@@ -369,7 +369,7 @@
     />
     <!-- [내보내기] 창 (13-1): 구간별 여러 장·한 장, JPG·PNG, 1·2배 — 브라우저 캔버스로 그려 바로 내려받는다 -->
     <StudioExportModal
-      v-if="page" :open="exportOpen" :page="page" :title="project ? projectDisplayTitle(project) : ''" :labels="sectionLabels"
+      v-if="page" :open="exportOpen" :page="page" :project-id="project?.id || ''" :title="project ? projectDisplayTitle(project) : ''" :labels="sectionLabels"
       :pending-by-section="exportPendingBySection" :render="exportRender" :dev-compare="DEV_EXPORT_COMPARE"
       @close="exportOpen = false" @compare="openExportCompare"
     />

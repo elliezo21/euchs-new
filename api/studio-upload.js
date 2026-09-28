@@ -82,6 +82,13 @@
  *   → { facts: { title, attrs, options } | null, reason: null|'no_offer'|'no_snapshot', texts, translated }
  * 에러: not_found 404
  *
+ * ── 완성작 보관 (2026-09-28) ── [내보내기]로 받은 이미지를 한 벌 더 둔다 (_studioExports.js). 같은 2단계 방식. 돈이 들지 않는다.
+ * POST { action:'export_begin', projectId, title, format, scale, mode, count } → { exportId, stamp }  (studio_exports 행, 폴더 = {uid}/{projectId}/exports/{stamp})
+ * POST { action:'export_file_prepare', exportId, key, size } → { exists:true, path } | { path, token }   key = 01·02…·all·thumb(목록 미리보기 JPG)
+ * POST { action:'export_file_confirm', exportId, key, path, name } → { ok:true, saved }  서버가 형식·크기를 읽어 확인 후 files(또는 thumb_path)에 기록
+ * POST { action:'exports_list' } → { ready, items }   /   POST { action:'export_download', exportId } → { files:[{ name, url, bytes }] } (서명 주소 10분)
+ * 에러: invalid_input·export_too_large·export_invalid·not_uploaded 400 / not_found 404 / export_sql_missing 503(표 없음) / sign_failed·storage_error 500
+ *
  * ★ 바이트 변환·리사이즈·재인코딩 금지 (1688 ingest와 같은 원칙). 가로·세로는 헤더에서만 읽는다. (배경 마스크는 서버가 새로 만드는 파일이라 예외)
  * ★ 편집기는 ingest_status='done'만 쓴다. pending이 남아도 문제 삼지 않는다.
  *
@@ -106,6 +113,10 @@ import {
   genUsageToday, withinLimit, genBusy,
 } from './_studioBgGen.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
+import {
+  EXPORT_MAX_BYTES, EXPORT_FORMATS, EXPORT_MODES, EXPORT_SCALES, EXPORT_MAX_FILES, EXPORTS_LIST_MAX, EXPORT_SIGN_SECONDS, KEY_RE,
+  exportStamp, exportFolder, cleanExportName, upsertExportFile, exportsTableReady,
+} from './_studioExports.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -1115,6 +1126,180 @@ async function productFacts(ctx, body, res) {
   return res.status(200).json({ facts: withKo(f, ko), reason: null, texts: texts.length, translated: ko.size })
 }
 
+// ── 완성작 보관 (2026-09-28) ────────────────────────────────────────────────
+// 받기(브라우저 다운로드)는 그대로 — 받은 파일을 한 벌 더 둘 뿐이다. 표(studio_exports)가 없으면 503 export_sql_missing(보관만 준비 중).
+const EXPORT_SELECT = 'id,project_id,stamp,folder,title,format,scale,mode,file_count,files,thumb_path,created_at'
+const EXPORT_THUMB_MAX_BYTES = 2 * 1024 * 1024
+const EXPORT_THUMB_MAX_SIDE = 1024
+
+async function exportTableGate(ctx, res) {
+  if (await exportsTableReady(ctx)) return true
+  sendError(res, 503, 'export_sql_missing', '완성작 보관을 준비하고 있습니다. (studio_exports 설정 필요)')
+  return false
+}
+
+/** 본인 보관 기록 한 줄. 없으면 404를 보내고 null */
+async function loadOwnedExport(ctx, body, res) {
+  const id = String(body.exportId ?? '').trim().toLowerCase()
+  if (!UUID_RE.test(id)) { sendError(res, 400, 'invalid_input', 'exportId 형식이 올바르지 않습니다.'); return null }
+  const rows = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT}&id=eq.${id}&user_id=eq.${ctx.userId}&limit=1`)
+  const ex = Array.isArray(rows) ? rows[0] : null
+  if (!ex) { sendError(res, 404, 'not_found', '완성작을 찾을 수 없습니다.'); return null }
+  return ex
+}
+
+/** 이 보관 기록에 넣을 파일 — key 'thumb' = 목록 미리보기 JPG, 그 밖 = 내보낸 파일 */
+function exportTarget(ex, key) {
+  if (key === 'thumb') return { path: `${ex.folder}/thumb.jpg`, name: 'thumb.jpg', mime: 'image/jpeg', maxBytes: EXPORT_THUMB_MAX_BYTES }
+  if (!KEY_RE.test(key) || (ex.mode === 'long') !== (key === 'all')) return null
+  return { path: `${ex.folder}/${key}.${ex.format}`, name: `${key}.${ex.format}`, mime: EXPORT_FORMATS[ex.format], maxBytes: EXPORT_MAX_BYTES }
+}
+
+/** POST { action:'export_begin', projectId, title, format, scale, mode, count } → { exportId, stamp } */
+async function exportBegin(ctx, body, res) {
+  const format = String(body.format ?? ''), mode = String(body.mode ?? '')
+  const scale = Number(body.scale), count = Number(body.count)
+  if (!EXPORT_FORMATS[format] || !EXPORT_MODES.includes(mode) || !EXPORT_SCALES.includes(scale)
+    || !Number.isInteger(count) || count < 1 || count > EXPORT_MAX_FILES || (mode === 'long' && count !== 1)) {
+    return sendError(res, 400, 'invalid_input', 'format·scale·mode·count 값이 올바르지 않습니다.')
+  }
+  const project = await loadOwnedRow(ctx, 'studio_projects', String(body.projectId ?? ''), 'id')
+  if (!project) return sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.')
+  if (!(await exportTableGate(ctx, res))) return
+  const stamp = exportStamp()
+  const title = String(body.title ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 100) || null // 받을 때 보인 작업 이름 (표시용)
+  const rows = await sb(ctx.cfg, 'studio_exports', {
+    method: 'POST',
+    body: { user_id: ctx.userId, project_id: project.id, stamp, folder: exportFolder(ctx.userId, project.id, stamp), title, format, scale, mode, file_count: count, files: [] },
+    prefer: 'return=representation',
+  })
+  const row = Array.isArray(rows) ? rows[0] : null
+  if (!row) throw new Error('studio_exports insert: 응답에 행이 없음')
+  return res.status(200).json({ exportId: row.id, stamp })
+}
+
+/** POST { action:'export_file_prepare', exportId, key, size } → { exists:true, path } | { path, token } */
+async function exportFilePrepare(ctx, body, res) {
+  if (!(await exportTableGate(ctx, res))) return
+  const ex = await loadOwnedExport(ctx, body, res)
+  if (!ex) return
+  const key = String(body.key ?? '')
+  const t = exportTarget(ex, key)
+  if (!t) return sendError(res, 400, 'invalid_input', 'key가 올바르지 않습니다.')
+  const size = Number(body.size)
+  if (!Number.isInteger(size) || size < 1 || size > t.maxBytes) {
+    return sendError(res, 400, 'export_too_large', `파일은 ${Math.round(t.maxBytes / 1024 / 1024)}MB 이하여야 보관할 수 있습니다.`)
+  }
+  const files = Array.isArray(ex.files) ? ex.files : []
+  if (key !== 'thumb' && !files.some(f => f.key === key) && files.length >= ex.file_count) {
+    return sendError(res, 400, 'invalid_input', '처음에 알린 파일 수보다 많습니다.')
+  }
+  let names
+  try {
+    names = await storageList(ctx.cfg, BUCKET, ex.folder)
+  } catch (e) {
+    console.error(`[studio-upload] exports 목록 조회 실패 ${ex.folder}:`, e.message)
+    return sendError(res, 500, 'storage_error', '저장소를 확인하지 못했습니다.')
+  }
+  if (names.includes(t.name)) return res.status(200).json({ exists: true, path: t.path })
+  let token
+  try {
+    token = await storageSignUpload(ctx.cfg, BUCKET, t.path)
+  } catch (e) {
+    console.error(`[studio-upload] 완성작 업로드 URL 발급 실패 ${t.path}:`, e.message)
+    return sendError(res, 500, 'sign_failed', '업로드 준비에 실패했습니다.')
+  }
+  return res.status(200).json({ path: t.path, token })
+}
+
+/**
+ * POST { action:'export_file_confirm', exportId, key, path, name } → { ok:true, saved }
+ *   서버가 파일을 읽어 형식(JPG/PNG 매직바이트)·크기·가로세로를 확인 → files 칸(또는 thumb_path)에 기록. 불합격이면 파일을 지우고 오류
+ */
+async function exportFileConfirm(ctx, body, res) {
+  if (!(await exportTableGate(ctx, res))) return
+  const ex = await loadOwnedExport(ctx, body, res)
+  if (!ex) return
+  const key = String(body.key ?? '')
+  const t = exportTarget(ex, key)
+  if (!t || String(body.path ?? '') !== t.path) return sendError(res, 400, 'invalid_input', '경로가 올바르지 않습니다.')
+  const name = key === 'thumb' ? 'thumb.jpg' : cleanExportName(body.name, ex.format)
+  if (!name) return sendError(res, 400, 'invalid_input', '파일 이름이 올바르지 않습니다.')
+  let dl
+  try {
+    dl = await storageDownload(ctx.cfg, BUCKET, t.path)
+  } catch (e) {
+    console.error(`[studio-upload] 완성작 읽기 실패 ${t.path}:`, e.message)
+    return sendError(res, 500, 'storage_error', '저장소에서 파일을 확인하지 못했습니다.')
+  }
+  if (!dl.found) return sendError(res, 400, 'not_uploaded', '업로드된 파일이 없습니다.')
+  const buf = dl.buf
+  let bad = null
+  let dims = null
+  if (buf.length > t.maxBytes) bad = ['export_too_large', '파일이 너무 큽니다.']
+  else if (sniffMime(buf) !== t.mime) bad = ['export_invalid', '파일 형식이 내보낸 형식과 다릅니다.']
+  else {
+    dims = readDimensions(buf, t.mime)
+    if (!dims || !dims.width || !dims.height) bad = ['export_invalid', '이미지 크기를 읽을 수 없습니다.']
+    else if (key === 'thumb' && Math.max(dims.width, dims.height) > EXPORT_THUMB_MAX_SIDE) bad = ['export_invalid', '미리보기가 너무 큽니다.']
+  }
+  if (bad) {
+    console.warn(`[studio-upload] 완성작 불합격 ${t.path}: ${bad[0]} (${buf.length} bytes)`)
+    try {
+      await storageRemove(ctx.cfg, BUCKET, [t.path])
+    } catch (e) {
+      console.error(`[studio-upload] 불합격 완성작 삭제 실패 ${t.path}:`, e.message)
+      return sendError(res, 400, `${bad[0]}+delete_failed`, bad[1])
+    }
+    return sendError(res, 400, bad[0], bad[1])
+  }
+  const patch = key === 'thumb'
+    ? { thumb_path: t.path }
+    : { files: upsertExportFile(ex.files, { key, name, path: t.path, width: dims.width, height: dims.height, bytes: buf.length }) }
+  await sb(ctx.cfg, `studio_exports?id=eq.${ex.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
+  return res.status(200).json({ ok: true, saved: key === 'thumb' ? null : patch.files.length })
+}
+
+/** POST { action:'exports_list' } → { ready, items:[{ id, projectId, title, createdAt, format, scale, mode, count, planned, previewUrl }] } */
+async function exportsList(ctx, body, res) {
+  if (!(await exportsTableReady(ctx))) return res.status(200).json({ ready: false, items: [] })
+  const rows = await sb(ctx.cfg,
+    `studio_exports?select=${EXPORT_SELECT}&user_id=eq.${ctx.userId}&order=created_at.desc&limit=${EXPORTS_LIST_MAX}`)
+  const list = (Array.isArray(rows) ? rows : []).filter(r => Array.isArray(r.files) && r.files.length > 0)
+  const items = await runPool(list, 6, async r => {
+    let previewUrl = null
+    if (r.thumb_path) {
+      try {
+        previewUrl = await storageSignDownload(ctx.cfg, BUCKET, r.thumb_path, EXPORT_SIGN_SECONDS)
+      } catch (e) {
+        console.error(`[studio-upload] 완성작 미리보기 주소 실패 ${r.thumb_path}:`, e.message)
+      }
+    }
+    return {
+      id: r.id, projectId: r.project_id, title: r.title, createdAt: r.created_at, format: r.format, scale: r.scale, mode: r.mode,
+      count: r.files.length, planned: r.file_count, previewUrl,
+    }
+  })
+  return res.status(200).json({ ready: true, items })
+}
+
+/** POST { action:'export_download', exportId } → { files:[{ name, url, bytes }] } (서명 주소 10분) */
+async function exportDownload(ctx, body, res) {
+  if (!(await exportTableGate(ctx, res))) return
+  const ex = await loadOwnedExport(ctx, body, res)
+  if (!ex) return
+  const files = Array.isArray(ex.files) ? ex.files : []
+  if (!files.length) return sendError(res, 404, 'not_found', '보관된 파일이 없습니다.')
+  let out
+  try {
+    out = await runPool(files, 6, async f => ({ name: f.name, bytes: f.bytes, url: await storageSignDownload(ctx.cfg, BUCKET, f.path, EXPORT_SIGN_SECONDS) }))
+  } catch (e) {
+    console.error(`[studio-upload] 완성작 받기 주소 실패 ${ex.folder}:`, e.message)
+    return sendError(res, 500, 'storage_error', '저장소에서 파일을 찾지 못했습니다.')
+  }
+  return res.status(200).json({ files: out })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -1136,7 +1321,12 @@ export default async function handler(req, res) {
     if (body.action === 'bg_gen_status') return await bgGenStatus(ctx, body, res)
     if (body.action === 'bg_generate') return await bgGenerate(ctx, body, res)
     if (body.action === 'product_facts') return await productFacts(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts' 중 하나여야 합니다.")
+    if (body.action === 'export_begin') return await exportBegin(ctx, body, res)
+    if (body.action === 'export_file_prepare') return await exportFilePrepare(ctx, body, res)
+    if (body.action === 'export_file_confirm') return await exportFileConfirm(ctx, body, res)
+    if (body.action === 'exports_list') return await exportsList(ctx, body, res)
+    if (body.action === 'export_download') return await exportDownload(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

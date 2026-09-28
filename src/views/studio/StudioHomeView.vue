@@ -77,6 +77,9 @@
     <!-- 6-2. 최근 작업 (0개면 숨김) -->
     <StudioRecentProjects title="최근 작업" :limit="8" show-filters />
 
+    <!-- 완성작 (2026-09-28): 내보내기로 받은 이미지 보관 — [다시 받기] · [판매처로 보내기 · 준비 중] -->
+    <StudioExportList />
+
     <!-- 6-3. 새 소식 (랜딩 개편 때 /studio 대문에서 옮김) -->
     <section>
       <div class="flex items-center mb-4">
@@ -108,6 +111,7 @@ import { fetchOrderedProducts } from '@/lib/orderedProducts'
 import { getStudioNotices } from '@/lib/studioNotices'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
 import StudioRecentProjects from '@/components/studio/StudioRecentProjects.vue'
+import StudioExportList from '@/components/studio/StudioExportList.vue'
 import StudioImportFlow from '@/components/studio/StudioImportFlow.vue'
 
 // 카드 아래쪽 (아이콘 상자 + 제목 + 설명 + 화살표)
