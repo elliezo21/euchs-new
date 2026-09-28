@@ -98,7 +98,11 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
   eq('안내 제목 문구', access.includes("'스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요'"), true)
   const header = fs.readFileSync(new URL('../src/components/Header.vue', import.meta.url), 'utf8')
   eq('메인 메뉴: all = 누구나 · admin = 관리자·스태프만', /showStudioMenu = computed\(\(\) => STUDIO_MODE === 'all' \|\| \(STUDIO_MODE === 'admin' && isAdminOrStaff\.value\)\)/.test(header), true)
-  eq('메인 메뉴: PC·모바일 둘 다 같은 조건으로 /studio', [(header.match(/v-if="showStudioMenu"/g) || []).length, (header.match(/to="\/studio"/g) || []).length], [2, 2])
+  // 2026-09-28 "AI 스튜디오" 알약·메가메뉴·모바일 카드는 HeaderStudioNav.vue로 — 노출 조건은 Header.vue 두 곳 그대로
+  eq('메인 메뉴: PC·모바일 둘 다 같은 조건', (header.match(/<HeaderStudioNav v-if="showStudioMenu" variant="(desktop|mobile)"/g) || []).length, 2)
+  const studioNav = fs.readFileSync(new URL('../src/components/HeaderStudioNav.vue', import.meta.url), 'utf8')
+  eq('메인 메뉴: 알약·[무료로 시작하기]·모바일 카드 모두 /studio', (studioNav.match(/to="\/studio"/g) || []).length, 3)
+  eq('메인 메뉴: 움직임 줄이기면 도는 빛·반짝임 끔', /prefers-reduced-motion: reduce\)[\s\S]*\.hsn-ring-spin \{ animation: none; \}/.test(studioNav), true)
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

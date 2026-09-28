@@ -260,14 +260,8 @@
           </div>
 
           <!-- 메뉴 5-1: 스튜디오 (VITE_STUDIO_ENABLED all = 누구나 / admin = 관리자·스태프만 / off = 없음) -->
-          <router-link
-            v-if="showStudioMenu"
-            to="/studio"
-            class="px-2.5 py-1.5 font-semibold text-gray-800 hover:text-blue-600 flex items-center gap-1 transition rounded-lg hover:bg-gray-50"
-            data-header-studio
-          >
-            <span>스튜디오</span>
-          </router-link>
+          <!--   "AI 스튜디오" 알약 + 메가메뉴 (HeaderStudioNav.vue — 링크 to="/studio") -->
+          <HeaderStudioNav v-if="showStudioMenu" variant="desktop" />
 
           <!-- 메뉴 6: EUC 안내 (드롭다운) -->
           <div class="relative group">
@@ -413,6 +407,9 @@
 
         <!-- Mobile Accordion Menu Items -->
         <div class="space-y-1 pt-2">
+          <!-- Item 0: AI 스튜디오 카드 — 메뉴 맨 위 (PC 메뉴와 같은 규칙 — showStudioMenu, 링크 to="/studio") -->
+          <HeaderStudioNav v-if="showStudioMenu" variant="mobile" @navigate="isMobileMenuOpen = false" />
+
           <!-- Item 1: 회사소개 -->
           <div>
             <button 
@@ -480,18 +477,6 @@
             </router-link>
           </div>
 
-          <!-- Item 4-1: 스튜디오 (PC 메뉴와 같은 규칙 — showStudioMenu) -->
-          <div v-if="showStudioMenu">
-            <router-link
-              @click="isMobileMenuOpen = false"
-              to="/studio"
-              class="w-full flex items-center py-2.5 text-base font-semibold text-gray-800 hover:text-blue-600"
-              data-header-studio-mobile
-            >
-              <span>스튜디오</span>
-            </router-link>
-          </div>
-
           <!-- Item 5: 주요 서비스 세부 안내 (아코디언) -->
           <div>
             <button 
@@ -555,6 +540,7 @@
 import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getEffectiveExchangeRate } from '../utils/exchangeRate'
+import HeaderStudioNav from './HeaderStudioNav.vue'
 import {
   currentUser,
   isLoggedIn,
