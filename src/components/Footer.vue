@@ -98,7 +98,7 @@
           </div>
 
           <div class="pt-3 text-slate-500 text-xs border-t border-slate-900">
-            Copyright &copy; 2022 <strong>(주)이유씨컴퍼니</strong> All Rights Reserved.
+            Copyright &copy; 2022 <strong>이유씨컴퍼니</strong> All Rights Reserved.
           </div>
         </div>
 

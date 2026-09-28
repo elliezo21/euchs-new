@@ -21,8 +21,8 @@
         <ul class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
           <li class="pp-sum"><b>무엇을 모으나요</b>이메일, 이름, 휴대전화번호, 상호, 사업자등록번호, 사업장·배송지 주소, 개인통관고유부호(선택), 주문·결제 정보</li>
           <li class="pp-sum"><b>왜 모으나요</b>회원 관리, 구매대행·수입통관·배송, 결제·환불, 상담, 진행 알림, AI 스튜디오 제공</li>
-          <li class="pp-sum"><b>누구에게 주나요</b>통관·국내 배송에 필요한 곳(관세사, 택배사)과 사업자 확인을 위한 국세청</li>
-          <li class="pp-sum"><b>해외로 가나요</b>서버 운영(미국), 스튜디오 이미지 처리(미국), 방문 통계·광고 측정(미국 등), 중국 수출·송금 처리(중국)</li>
+          <li class="pp-sum"><b>누구에게 맡기거나 주나요</b>통관·국내 운송(에이스물류), 택배사, 알림톡 발송, 서버 운영 업체에 맡기고, 사업자 확인을 위해 국세청에 제공합니다</li>
+          <li class="pp-sum"><b>해외로 가나요</b>서버 운영(미국), 스튜디오 이미지 처리(미국), 방문 통계·광고 측정(미국·싱가포르), 해외송금(T/T) 결제 고객의 인보이스 정보(중국)</li>
         </ul>
       </section>
 
@@ -134,30 +134,18 @@
           </table>
         </div>
         <ul class="pp-list">
-          <li>AI 스튜디오 작업과 사진은 작업을 만든 날부터 30일 동안 보관하고(한 번 연장 가능), 기간이 끝나면 삭제합니다. <span class="pp-check">[해성 확인: 자동 삭제 동작 여부]</span></li>
+          <li>AI 스튜디오 작업과 사진, 완성 이미지는 회원 탈퇴 때까지 보관하고, 탈퇴하면 삭제합니다.</li>
         </ul>
       </section>
 
       <!-- 4 -->
       <section :id="TOC[3].id" class="pp-card pp-sec">
         <h2 class="pp-h2">4. 개인정보의 제3자 제공</h2>
-        <p class="pp-p">회사는 고객의 개인정보를 1번의 목적 안에서만 처리하며, 고객의 동의나 법률의 특별한 규정이 있을 때만 제3자에게 제공합니다. 수입통관·배송·사업자 확인을 위해 아래와 같이 제공합니다.</p>
+        <p class="pp-p">회사는 고객의 개인정보를 1번의 목적 안에서만 처리하며, 고객의 동의나 법률의 특별한 규정이 있을 때만 제3자에게 제공합니다. 사업자 확인을 위해 아래와 같이 제공합니다.</p>
         <div class="pp-table-wrap">
           <table class="pp-table">
             <thead><tr><th class="w-40">받는 곳</th><th>목적</th><th>제공 항목</th><th class="w-44">받는 곳의 보유 기간</th></tr></thead>
             <tbody>
-              <tr>
-                <td>관세사(통관 대행) <span class="pp-check">[해성 확인: 업체명]</span></td>
-                <td>수입신고, 관세·부가세 처리</td>
-                <td>수입자 상호·이름, 개인통관고유부호 또는 사업자등록번호, 주소, 휴대전화번호, 수입 물품 내역</td>
-                <td>통관 완료 후 관세법에 따른 보관 기간</td>
-              </tr>
-              <tr>
-                <td>국내 택배사</td>
-                <td>국내 배송</td>
-                <td>받는 분 상호·이름, 휴대전화번호, 배송지 주소</td>
-                <td>배송 완료 후 각 택배사 방침에 따른 기간</td>
-              </tr>
               <tr>
                 <td>국세청</td>
                 <td>사업자등록 상태(진위) 확인</td>
@@ -168,7 +156,7 @@
           </table>
         </div>
         <ul class="pp-list">
-          <li>국내 택배사는 배송 건마다 CJ대한통운, 한진택배, 롯데글로벌로지스, 대신택배, 경동택배 중 한 곳을 이용합니다. <span class="pp-check">[해성 확인: 실제 이용 택배사]</span> 내 주문에 어느 택배사가 쓰였는지는 주문 상세 화면의 배송 정보에서 확인할 수 있습니다.</li>
+          <li>수입통관·국내 운송과 택배 배송은 회사가 업체에 맡기는 일이라 5번(처리 위탁)에 적었습니다.</li>
           <li>중국 판매자(1688 등)에게는 회사의 중국 창고 주소만 보내며, 고객의 이름·연락처·주소는 보내지 않습니다.</li>
           <li>해외로 제공되는 경우는 6번에 적었습니다.</li>
         </ul>
@@ -182,14 +170,20 @@
           <table class="pp-table">
             <thead><tr><th class="w-52">맡은 업체</th><th>맡긴 업무</th><th class="w-40">보관 위치</th></tr></thead>
             <tbody>
-              <tr><td>Supabase, Inc.</td><td>회원 계정·로그인, 데이터베이스와 파일(사진) 보관</td><td>대한민국(서울)</td></tr>
+              <tr><td>에이스물류</td><td>수입통관(수입신고, 관세·부가세 처리)과 국내 운송</td><td>대한민국</td></tr>
+              <tr><td>국내 택배사 (배송 건별로 다를 수 있음)</td><td>국내 택배 배송</td><td>대한민국</td></tr>
+              <tr><td>솔라피 주식회사</td><td>카카오 알림톡 발송 (주식회사 카카오의 알림톡으로 전달)</td><td>대한민국</td></tr>
+              <tr><td>Supabase Pte. Ltd.</td><td>회원 계정·로그인, 데이터베이스와 파일(사진) 보관</td><td>대한민국(서울) 서버</td></tr>
               <tr><td>Vercel Inc.</td><td>웹사이트 호스팅, 서버 기능 실행</td><td>미국 (6번 참고)</td></tr>
-              <tr><td>솔라피 <span class="pp-check">[해성 확인: 정식 회사명]</span></td><td>카카오 알림톡 발송 (주식회사 카카오의 알림톡으로 전달)</td><td>대한민국</td></tr>
-              <tr><td>Features &amp; Labels, Inc. (fal) <span class="pp-check">[해성 확인: 정식 회사명]</span></td><td>AI 스튜디오의 배경 지우기·AI 배경 만들기 이미지 처리</td><td>미국 (6번 참고)</td></tr>
+              <tr><td>Features &amp; Labels Inc. (fal)</td><td>AI 스튜디오의 배경 지우기·AI 배경 만들기 이미지 처리</td><td>미국 (6번 참고)</td></tr>
             </tbody>
           </table>
         </div>
-        <p class="pp-p">맡은 업체나 업무가 바뀌면 이 방침으로 바로 알려 드립니다.</p>
+        <ul class="pp-list">
+          <li>에이스물류와 택배사에는 수입자·받는 분의 상호·이름, 휴대전화번호, 주소, 개인통관고유부호 또는 사업자등록번호, 물품 내역을 업무에 필요한 만큼만 넘깁니다.</li>
+          <li>내 주문을 배송한 택배사는 배송 조회 화면의 운송장 정보에서 확인할 수 있습니다.</li>
+          <li>맡은 업체나 업무가 바뀌면 이 방침으로 바로 알려 드립니다.</li>
+        </ul>
       </section>
 
       <!-- 6 -->
@@ -205,15 +199,15 @@
             </thead>
             <tbody>
               <tr>
-                <td>Vercel Inc. (privacy@vercel.com) <span class="pp-check">[해성 확인: 연락처]</span></td>
+                <td>Vercel Inc. (privacy@vercel.com)</td>
                 <td>미국</td>
                 <td>웹사이트 이용 중 서버를 거치는 정보(회원·주문·사업자 정보, 접속 기록)</td>
                 <td>웹사이트·서버 기능 운영</td>
-                <td>처리 즉시 삭제, 서버 기록은 업체 방침 기간 <span class="pp-check">[해성 확인]</span></td>
+                <td>처리가 끝나면 남기지 않음. 서버 실행 기록은 업체 기준(요금제에 따라 1시간~30일) 뒤 자동 삭제</td>
                 <td>사이트를 쓸 때마다 네트워크로 전송</td>
               </tr>
               <tr>
-                <td>Features &amp; Labels, Inc. (fal) <span class="pp-check">[해성 확인: 연락처]</span></td>
+                <td>Features &amp; Labels Inc. (fal) (support@fal.ai)</td>
                 <td>미국</td>
                 <td>AI 스튜디오에서 고른 사진</td>
                 <td>배경 지우기, AI 배경 만들기</td>
@@ -221,7 +215,7 @@
                 <td>해당 기능을 누를 때 네트워크로 전송</td>
               </tr>
               <tr>
-                <td>Google LLC</td>
+                <td>Google LLC (policies.google.com/privacy)</td>
                 <td>미국</td>
                 <td>방문·클릭 기록, 쿠키, 브라우저·기기 정보</td>
                 <td>방문 통계 분석</td>
@@ -229,15 +223,15 @@
                 <td>웹사이트 방문 시 자동 전송</td>
               </tr>
               <tr>
-                <td>TikTok Pte. Ltd. <span class="pp-check">[해성 확인: 계약 법인·국가]</span></td>
-                <td>싱가포르 등</td>
+                <td>TikTok Pte. Ltd. (www.tiktok.com/legal/report/privacy)</td>
+                <td>싱가포르</td>
                 <td>방문·클릭 기록, 쿠키, 브라우저·기기 정보</td>
                 <td>광고 성과 측정, 맞춤형 광고</td>
                 <td>10번 참고</td>
                 <td>웹사이트 방문 시 자동 전송</td>
               </tr>
               <tr>
-                <td>Meta Platforms, Inc. <span class="pp-check">[해성 확인: 계약 법인·국가]</span></td>
+                <td>Meta Platforms, Inc. (www.facebook.com/privacy/policy)</td>
                 <td>미국</td>
                 <td>방문·클릭 기록, 쿠키, 브라우저·기기 정보</td>
                 <td>광고 성과 측정, 맞춤형 광고</td>
@@ -245,20 +239,12 @@
                 <td>웹사이트 방문 시 자동 전송</td>
               </tr>
               <tr>
-                <td>YIWUSHI QIANGONG TRADING FIRM (중국 수출·송금 수취 협력사) <span class="pp-check">[해성 확인: 제공 여부·연락처]</span></td>
+                <td>YIWUSHI QIANGONG TRADING FIRM (중국 수출·송금 수취처) <span class="pp-check">[해성 확인: 연락처]</span></td>
                 <td>중국</td>
-                <td>영문 상호·영문 주소, 휴대전화번호, 주문 품목·금액</td>
+                <td>해외송금(T/T)으로 결제하는 고객만: 영문 상호·영문 주소, 휴대전화번호, 주문 품목·금액</td>
                 <td>수출 인보이스 발행, 해외송금(T/T) 대금 수취</td>
                 <td>거래 완료 후 중국 법령에 따른 기간</td>
-                <td>인보이스 발행 시 전자 문서로 전달</td>
-              </tr>
-              <tr>
-                <td>중국 이우 물류센터 <span class="pp-check">[해성 확인: 회사 직영 여부·고객 정보 열람 범위]</span></td>
-                <td>중국</td>
-                <td>주문번호, 주문자 상호, 주문 상품</td>
-                <td>입고·검수·포장·한국행 출고</td>
-                <td>출고 완료 후 파기</td>
-                <td>주문 처리 시 회사 시스템으로 조회</td>
+                <td>인보이스를 발행할 때 전자 문서로 전달</td>
               </tr>
             </tbody>
           </table>
@@ -294,9 +280,9 @@
       <section :id="TOC[8].id" class="pp-card pp-sec">
         <h2 class="pp-h2">9. 개인정보의 안전성 확보 조치</h2>
         <ul class="pp-list">
-          <li><b>관리적 조치:</b> 개인정보를 다루는 사람을 최소한으로 정하고, 관리자 권한을 역할별로 나눠 줍니다. <span class="pp-check">[해성 확인: 내부관리계획·정기 교육 여부]</span></li>
+          <li><b>관리적 조치:</b> 관리자 권한을 받은 사람만 고객 정보를 볼 수 있고, 권한은 역할별로 나눠 줍니다.</li>
           <li><b>기술적 조치:</b> 모든 통신을 암호화(HTTPS)하고, 비밀번호는 되돌릴 수 없는 방식으로 암호화해 저장합니다. 고객은 자기 정보만 볼 수 있도록 접근을 막고, 관리자 화면은 관리자 인증을 거쳐야 열립니다.</li>
-          <li><b>물리적 조치:</b> 정보는 보안 인증을 받은 클라우드 데이터센터에 보관합니다. 종이 서류는 잠금장치가 있는 곳에 보관합니다. <span class="pp-check">[해성 확인]</span></li>
+          <li><b>물리적 조치:</b> 회사는 따로 서버를 두지 않고, 정보는 5번의 위탁 업체 데이터센터에 보관합니다.</li>
         </ul>
       </section>
 
@@ -310,7 +296,11 @@
               <tr><th class="w-36 text-left">수집 항목</th><td>웹사이트 방문 기록, 방문한 페이지 주소, 카카오톡 상담·전화 버튼 클릭 기록, 쿠키·광고 식별자, 브라우저·기기 정보</td></tr>
               <tr><th class="text-left">수집 방법</th><td>웹사이트를 방문하거나 버튼을 누를 때 자동으로 수집</td></tr>
               <tr><th class="text-left">이용 목적</th><td>방문 통계 분석, 광고 성과 측정, 관심사 기반 맞춤형 광고</td></tr>
-              <tr><th class="text-left">보유 기간</th><td>수집일부터 최대 <span class="pp-check">[해성 확인: ○개월]</span> (각 사업자의 보관 정책에 따름)</td></tr>
+              <tr><th class="text-left">보유 기간</th><td>
+                구글 애널리틱스: 수집일부터 <span class="pp-check">[해성 확인: GA4 데이터 보관 설정 — 2개월 또는 14개월]</span><br />
+                틱톡: 틱톡 정책에 따름 (www.tiktok.com/legal/page/global/partner-privacy-policy/en)<br />
+                메타: 최대 2년, 메타 정책에 따름 (www.facebook.com/legal/terms/businesstools)
+              </td></tr>
               <tr><th class="text-left">수집·처리하는 사업자</th><td>Google LLC(구글 애널리틱스), TikTok(틱톡 픽셀), Meta Platforms(메타 픽셀) — 국외 이전 내용은 6번</td></tr>
             </tbody>
           </table>
@@ -358,11 +348,11 @@
 
       <!-- 13 -->
       <section :id="TOC[12].id" class="pp-card pp-sec">
-        <h2 class="pp-h2">13. 개인정보 열람청구 접수·처리 부서</h2>
+        <h2 class="pp-h2">13. 개인정보 열람청구 접수·처리 담당</h2>
         <div class="pp-table-wrap">
           <table class="pp-table">
             <tbody>
-              <tr><th class="w-36 text-left">부서</th><td>고객센터 <span class="pp-check">[해성 확인: 부서 이름]</span></td></tr>
+              <tr><th class="w-36 text-left">담당자</th><td>조해성 (대표)</td></tr>
               <tr><th class="text-left">연락처</th><td>전화 010-9373-1214 · 이메일 contact@euchs.co.kr · 카카오톡 채널 "이유씨컴퍼니"</td></tr>
               <tr><th class="text-left">주소</th><td>광주광역시 북구 서방로135번길 54, 1층</td></tr>
             </tbody>
@@ -431,7 +421,7 @@ const TOC = [
   { id: 'p10', title: '행태정보의 수집·이용·제공 및 거부' },
   { id: 'p11', title: '쿠키의 설치·운영 및 거부' },
   { id: 'p12', title: '개인정보 보호책임자' },
-  { id: 'p13', title: '열람청구 접수·처리 부서' },
+  { id: 'p13', title: '열람청구 접수·처리 담당' },
   { id: 'p14', title: '권익침해 구제 방법' },
   { id: 'p15', title: '처리방침의 변경' },
 ]
