@@ -2,7 +2,7 @@
  * 스튜디오 서버 API 호출 + 오류 코드별 한국어 문구
  *
  * 서버(api/_studio.js)는 오류를 { code, message }로 통일해 돌려준다. 화면은 code로 분기한다.
- * "오류가 발생했습니다" 한 줄로 뭉개지 않고, 모르는 코드는 코드를 그대로 보여준다.
+ * 아는 코드는 코드마다 문구를 따로 둔다. 모르는 코드는 고객에게 FALLBACK_MESSAGE만 보이고 코드는 console.error에 남긴다.
  */
 import { supabase } from '@/lib/supabase'
 
@@ -48,16 +48,19 @@ export async function callStudioApi(name, body) {
   return { ok: true, status: r.status, data }
 }
 
+// 표에 없는 코드·우리 쪽 문제일 때 고객에게 보이는 한 줄 — 오류 코드·원인은 console.error(서버는 로그)에만
+export const FALLBACK_MESSAGE = '잠시 후 다시 시도해 주세요. 계속되면 고객센터로 문의해 주세요.'
+
 // ── 공통 코드 ──
 const COMMON = {
   studio_disabled: '스튜디오가 지금 꺼져 있어요. 잠시 후 다시 시도해 주세요.',
   unauthorized: '로그인이 필요해요. 다시 로그인한 뒤 시도해 주세요.',
-  not_admin: '지금은 관리자만 스튜디오를 쓸 수 있어요 (베타 준비 중).',
-  no_entitlement: '스튜디오 이용 권한이 없어요. 관리자에게 문의해 주세요.',
+  not_admin: '스튜디오를 준비하고 있어요. 곧 쓸 수 있어요.',
+  no_entitlement: '스튜디오 이용 권한이 없어요. 고객센터로 문의해 주세요.',
   not_customer: '스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요.',
-  network: '인터넷 연결을 확인해 주세요. 서버에 닿지 못했어요.',
-  internal: '서버에서 처리하다 문제가 생겼어요. 잠시 후 다시 시도해 주세요.',
-  server_misconfigured: '서버 설정에 문제가 있어요. 관리자에게 알려주세요.',
+  network: '인터넷 연결을 확인한 뒤 다시 시도해 주세요.',
+  internal: '처리하다 문제가 생겼어요. 잠시 후 다시 시도해 주세요.',
+  server_misconfigured: FALLBACK_MESSAGE, // 원인은 서버 로그에만 (고객 화면에 내부 사정을 쓰지 않는다)
   not_found: '대상을 찾을 수 없어요. 목록을 새로고침해 주세요.',
 }
 
@@ -109,7 +112,7 @@ const UPLOAD = {
 const COPY = {
   project_expired: '보관 기간이 끝난 작업이라 복사할 수 없어요.',
   copy_failed: '복사본을 만들지 못했어요. 원래 작업은 그대로예요. 잠시 후 다시 시도해 주세요.',
-  copy_bad_path: '사진 저장 위치가 예상과 달라 복사하지 않았어요. 원래 작업은 그대로예요. 관리자에게 알려주세요.',
+  copy_bad_path: '사진 저장 위치가 예상과 달라 복사하지 않았어요. 원래 작업은 그대로예요. 계속되면 고객센터로 문의해 주세요.',
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
 }
 
@@ -126,7 +129,7 @@ const BG = {
   storage_error: '저장소를 확인하지 못했어요. 잠시 후 다시 눌러 주세요.',
   invalid_input: '요청 값이 올바르지 않아요. 새로고침 후 다시 시도해 주세요.',
   // 경계 다듬기 (17-3 bg_refine_prepare / bg_refine_confirm)
-  bg_refine_limit: '이 사진에 저장할 수 있는 다듬기 결과 수를 넘었어요. 관리자에게 알려주세요.',
+  bg_refine_limit: '이 사진에 저장할 수 있는 다듬기 결과 수를 넘었어요. 고객센터로 문의해 주세요.',
   bg_refine_invalid: '다듬은 결과 파일이 올바르지 않아 저장하지 않았어요. [적용]을 다시 눌러 주세요.',
   bg_refine_too_large: '다듬은 결과가 20MB를 넘어 저장하지 못했어요.',
   sign_failed: '저장 준비에 실패했어요. [적용]을 다시 눌러 주세요.',
@@ -138,7 +141,7 @@ const BG = {
   bg_gen_failed: 'AI 배경을 만들지 못했어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.',
   bg_gen_timeout: 'AI 배경이 오래 걸려 멈췄어요. 횟수는 줄지 않았어요. 잠시 후 다시 눌러 주세요.',
   bg_gen_need_mask: '먼저 [배경 지우기]를 해 주세요.',
-  bg_gen_sql_missing: 'AI 배경을 준비하고 있어요. 곧 쓸 수 있어요. (사용 기록 설정 필요)',
+  bg_gen_sql_missing: 'AI 배경을 준비하고 있어요. 곧 쓸 수 있어요.',
 }
 
 /** studio-upload export_* (완성작 보관 2026-09-28) — 받기(다운로드)는 이와 상관없이 된다 */
@@ -188,5 +191,7 @@ export function studioErrorMessage(context, code, extra = {}) {
   }
   const base = String(code || '').split('+')[0]
   const msg = TABLES[context]?.[base] || COMMON[base]
-  return msg || `알 수 없는 오류예요 (코드: ${code}). 관리자에게 알려주세요.`
+  if (msg) return msg
+  console.error(`[studioApi] 문구 표에 없는 오류 코드 — context: ${context}, code: ${code}`)
+  return FALLBACK_MESSAGE
 }

@@ -12,7 +12,7 @@
           v-for="t in SETTINGS_TABS" :key="t.key" :to="{ name: t.route }"
           class="settings-tab" :class="{ 'is-active': route.name === t.route }"
           :aria-current="route.name === t.route ? 'page' : undefined" :data-settings-tab="t.key"
-        >{{ t.label }}</router-link>
+        >{{ t.label }}<span v-if="t.soon" class="st-badge ml-1.5" data-settings-soon>준비 중</span></router-link>
       </nav>
     </div>
 

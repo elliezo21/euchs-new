@@ -11,11 +11,12 @@ export const GUIDE_CODES = ['ip_not_allowed', 'bad_key', 'bad_vendor', 'key_expi
 export const needsGuide = code => GUIDE_CODES.includes(code)
 
 // 설정 화면 탭 (순서 = 화면 순서). route = 자식 라우트 이름, legacy = 예전 라우트 이름(redirect로 남김)
+// soon = 탭 내용이 아직 "준비 중이에요" 껍데기 → 탭 이름 옆에 "준비 중" 배지 (화면이 생기면 뺀다)
 export const SETTINGS_TABS = [
   { key: 'marketplace', label: '판매처 연결', route: 'studio-settings-marketplace', legacy: 'studio-marketplace' },
   { key: 'shipping', label: '배송·반품 템플릿', route: 'studio-settings-shipping' },
-  { key: 'assets', label: '저장값', route: 'studio-settings-assets', legacy: 'studio-assets' },
-  { key: 'glossary', label: '용어집', route: 'studio-settings-glossary', legacy: 'studio-glossary' },
+  { key: 'assets', label: '저장값', route: 'studio-settings-assets', legacy: 'studio-assets', soon: true },
+  { key: 'glossary', label: '용어집', route: 'studio-settings-glossary', legacy: 'studio-glossary', soon: true },
 ]
 
 /** 완성작 id → 그 완성작의 가장 최근 전송 (완성작 카드 배지용) */

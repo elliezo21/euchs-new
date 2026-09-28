@@ -384,6 +384,17 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('사이드바 메인 = 스튜디오 소개·내 작업·템플릿 3개', [...menu.matchAll(/label: '([^']+)'/g)].map(m => m[1]), ['스튜디오 소개', '내 작업', '템플릿'])
   eq('사이드바 아래 [설정] 1개 (계정 영역 위)', [(layout.match(/name: 'studio-settings'/g) || []).length, layout.indexOf('data-studio-nav-settings') < layout.indexOf('<!-- 계정 -->')], [1, true])
 
+  eq('설정 탭 "준비 중" 배지 = 저장값·용어집만', [R.SETTINGS_TABS.filter(t => t.soon).map(t => t.key), /v-if="t\.soon" class="st-badge[^"]*"[^>]*>준비 중</.test(read('src/views/studio/StudioSettingsView.vue'))], [['assets', 'glossary'], true])
+  {
+    // 스튜디오 공통 오류 문구 (merge-before-push) — 주석을 뺀 문구 전체에 내부 사정·오류 코드가 없어야 한다
+    const api = read('src/lib/studioApi.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '').replace(/console\.error\(.*\)/g, '')
+    eq('스튜디오 오류 문구에 "관리자·알 수 없는 오류·코드:·서버 설정" 없음', /관리자|알 수 없는 오류|코드:|서버 설정|설정 필요/.test(api), false)
+    const A = await import('../src/lib/studioApi.js').catch(e => ({ importError: e.message }))
+    // studioApi.js는 '@/lib/supabase'를 불러 node에서 바로 못 읽는다 → 글자로 확인
+    if (A.importError) eq('표에 없는 코드 = 고정 문구 + console.error (글자 확인)', [/if \(msg\) return msg\s+console\.error\(/.test(read('src/lib/studioApi.js')), read('src/lib/studioApi.js').includes("export const FALLBACK_MESSAGE = '잠시 후 다시 시도해 주세요. 계속되면 고객센터로 문의해 주세요.'")], [true, true])
+    else eq('표에 없는 코드 = 고정 문구', A.studioErrorMessage('upload', 'zzz_unknown'), '잠시 후 다시 시도해 주세요. 계속되면 고객센터로 문의해 주세요.')
+  }
+
   // 고객 화면 문구 — 템플릿(주석 제외)·오류 문구 표·서버 응답에 내부 용어가 없어야 한다
   const BAN = /관리자|서버|암호화|키 설정|환경변수|중계|relay|ENC_KEY|RELAY/
   const screens = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
