@@ -1,5 +1,5 @@
 /**
- * 완성작 보관 (2026-09-28) — [내보내기]로 받은 이미지를 서버(api/studio-upload.js export_*)에 한 벌 더 둔다.
+ * 내 상품 보관 (2026-09-28) — [내보내기]로 받은 이미지를 서버(api/studio-upload.js export_*)에 한 벌 더 둔다.
  *   export_begin(보관 기록 한 줄) → 파일마다 export_file_prepare(1회용 토큰) → uploadToSignedUrl → export_file_confirm(서버가 형식·크기 확인 후 기록)
  *   studioFinalUpload와 같은 2단계. 받기(브라우저 다운로드)는 이것과 상관없이 그대로 — 보관이 실패해도 받은 파일은 남는다.
  * 실패는 throw — err.code는 서버·studioApi 코드 그대로. 'export_sql_missing' = 표(studio_exports) 설정 전이라 준비 중.
@@ -22,9 +22,12 @@ export function archiveKey(no) {
   return no === null ? 'all' : String(no).padStart(2, '0')
 }
 
-/** @returns {Promise<string>} exportId */
-export async function beginArchive({ projectId, title, format, scale, mode, count }) {
-  const r = await callStudioApi('studio-upload', { action: 'export_begin', projectId, title, format, scale, mode, count })
+/**
+ * @param source 'save' = [작업 저장] (작업마다 카드 하나 — 끝나면 commitSave로 마무리) / 없음 = [다운로드]
+ * @returns {Promise<string>} exportId
+ */
+export async function beginArchive({ projectId, title, format, scale, mode, count, source }) {
+  const r = await callStudioApi('studio-upload', { action: 'export_begin', projectId, title, format, scale, mode, count, ...(source ? { source } : {}) })
   if (!r.ok) throw apiError(r)
   return r.data.exportId
 }
@@ -36,7 +39,7 @@ async function putFile(exportId, key, blob, name, contentType) {
   if (!exists) {
     const { error } = await supabase.storage.from('studio').uploadToSignedUrl(path, token, blob, { contentType })
     if (error) {
-      console.error('[studioExportArchive] 완성작 업로드 실패:', path, error.message)
+      console.error('[studioExportArchive] 내 상품 업로드 실패:', path, error.message)
       const err = new Error(studioErrorMessage('export', 'upload_failed'))
       err.code = 'upload_failed'
       throw err
@@ -83,7 +86,17 @@ export async function archiveThumb(exportId, blob) {
   return putFile(exportId, 'thumb', blob, 'thumb.jpg', 'image/jpeg')
 }
 
-/** 작업 홈 완성작 목록 → { ready, items } (ready=false = 표 설정 전) */
+/**
+ * [작업 저장] 마무리 — 그 작업에 예전 저장이 있으면 그 카드를 새 결과물로 바꾼다(카드가 늘지 않는다, 판매처로 보낸 기록은 그대로)
+ * @returns {Promise<{ exportId:string, updated:boolean }>} exportId = 내 상품에 남은 카드의 id
+ */
+export async function commitSave(exportId) {
+  const r = await callStudioApi('studio-upload', { action: 'export_save_commit', exportId })
+  if (!r.ok) throw apiError(r)
+  return r.data
+}
+
+/** 작업 홈 내 상품 목록 → { ready, items } (ready=false = 표 설정 전) */
 export async function listArchives() {
   const r = await callStudioApi('studio-upload', { action: 'exports_list' })
   if (!r.ok) throw apiError(r)

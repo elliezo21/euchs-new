@@ -19,7 +19,69 @@ export const SETTINGS_TABS = [
   { key: 'glossary', label: '용어집', route: 'studio-settings-glossary', legacy: 'studio-glossary', soon: true },
 ]
 
-/** 완성작 id → 그 완성작의 가장 최근 전송 (완성작 카드 배지용) */
+// 판매처 목록 — 설정 > 판매처 연결과 랜딩 칩이 같은 목록·같은 순서를 쓴다. soon = 이름 + "준비 중" 배지만 (부가 설명 문구 없음)
+export const MARKETS = [
+  { key: 'coupang', name: '쿠팡' },
+  { key: 'smartstore', name: '스마트스토어', soon: true },
+  { key: '11st', name: '11번가', soon: true },
+  { key: 'gmarket', name: 'G마켓·옥션', soon: true },
+  { key: 'ably', name: '에이블리', soon: true },
+  { key: 'zigzag', name: '지그재그', soon: true },
+  { key: 'cafe24', name: '카페24', soon: true },
+  { key: 'makeshop', name: '메이크샵', soon: true },
+  { key: 'godomall', name: '고도몰', soon: true },
+]
+
+/**
+ * 보내기 창 "보낼 판매처" 줄 — MARKETS와 같은 순서.
+ * state: 'connected'(체크 가능) | 'locked'(열려 있지만 연결 전 — 자물쇠 + [연결하기]) | 'soon'("준비 중" 배지만)
+ * @param {{ [key:string]: { connected?:boolean } }} connected  서버 send_prepare.markets
+ */
+export function marketRows(connected = {}) {
+  return MARKETS.map(m => ({ key: m.key, name: m.name, state: m.soon ? 'soon' : connected?.[m.key]?.connected === true ? 'connected' : 'locked' }))
+}
+/** 처음 체크 — 연결된 판매처는 모두 체크 (1곳이면 그 1곳) */
+export const defaultChecked = rows => Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.state === 'connected']))
+/** 체크된 판매처 key (연결된 것만 — 체크할 수 없는 줄은 값이 있어도 뺀다) */
+export const checkedMarkets = (rows, checked) => (Array.isArray(rows) ? rows : []).filter(r => r.state === 'connected' && checked?.[r.key] === true).map(r => r.key)
+/** 섹션을 만들어 둘 판매처 — 연결돼 있고 섹션 컴포넌트가 있는 곳. 체크 여부와 상관없다(체크는 보이기만 바꾼다 → 넣은 값이 남는다) */
+export const sectionKeys = (rows, have) => (Array.isArray(rows) ? rows : []).filter(r => r.state === 'connected' && (have || []).includes(r.key)).map(r => r.key)
+/** "쿠팡으로" / "11번가로" — 받침(ㄹ 제외)이 있으면 '으로' */
+export function withRo(name) {
+  const s = String(name || '')
+  const c = s.charCodeAt(s.length - 1)
+  if (c >= 0xAC00 && c <= 0xD7A3) { const jong = (c - 0xAC00) % 28; return `${s}${jong === 0 || jong === 8 ? '로' : '으로'}` }
+  return `${s}(으)로`
+}
+/** [보내기] 버튼 글자 — 1곳이면 그 이름, 아니면 "선택한 판매처로 보내기" */
+export function sendButtonLabel(keys) {
+  const list = Array.isArray(keys) ? keys : []
+  const one = list.length === 1 ? MARKETS.find(m => m.key === list[0]) : null
+  return one ? `${withRo(one.name)} 보내기` : '선택한 판매처로 보내기'
+}
+
+// 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인 = 초록, 반려·실패 = 빨강
+export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
+/**
+ * 내 상품 id → 판매처별 가장 최근 전송 (MARKETS 순서). 안 보낸 판매처는 목록에 없다.
+ * @returns {{ [exportId]: [send] }}
+ */
+export function sendsByExport(sends) {
+  const latest = {}
+  for (const s of Array.isArray(sends) ? sends : []) {
+    if (!s?.exportId) continue
+    const market = s.market || 'coupang' // 예전 기록에는 판매처 칸이 응답에 없었다 — 그때는 쿠팡뿐
+    const slot = (latest[s.exportId] ||= {})
+    const cur = slot[market]
+    if (!cur || new Date(s.createdAt).getTime() > new Date(cur.createdAt).getTime()) slot[market] = { ...s, market }
+  }
+  const order = MARKETS.map(m => m.key)
+  return Object.fromEntries(Object.entries(latest).map(([id, slot]) => [id, Object.values(slot).sort((a, b) => order.indexOf(a.market) - order.indexOf(b.market))]))
+}
+/** 배지 툴팁 — 반려·실패일 때만, 판매처가 준 사유(기록된 reason) 그대로 */
+export const badgeReason = s => (s && ['rejected', 'failed'].includes(s.status) && typeof s.reason === 'string' ? s.reason.trim() : '')
+
+/** 내 상품 id → 그 상품의 가장 최근 전송 (판매처 구분 없이 1건 — 판매처별은 sendsByExport) */
 export function latestSendByExport(sends) {
   const map = {}
   for (const s of Array.isArray(sends) ? sends : []) {

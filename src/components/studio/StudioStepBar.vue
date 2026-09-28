@@ -16,7 +16,6 @@
     </ol>
     <p class="min-w-0 flex-1 text-[12px] st-ink-2 truncate" :title="current.guide" data-step-guide>
       {{ current.guide }}
-      <span v-if="current.soon" class="st-step-soon" data-step-soon>곧 열려요</span>
     </p>
     <button v-if="next" type="button" class="st-btn st-step-next shrink-0" data-step-next @click="$emit('go', next.no)">
       다음 단계로 <ArrowRight class="w-3.5 h-3.5" :stroke-width="2.5" />

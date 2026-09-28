@@ -1,6 +1,6 @@
 <template>
   <div class="studio-root st-dark relative h-screen flex flex-col overflow-hidden" data-studio-editor>
-    <!-- 상단바: ← · 로고 · 되돌리기 다시 · 작업명 · 저장 상태 · "직접 만들기 · 반자동" · [원클릭 AI 자동 제작] · 이력 · 미리보기 · 내보내기 -->
+    <!-- 상단바: ← · 로고 · 되돌리기 다시 · 작업명 · 저장 상태 · "직접 만들기 · 반자동" · [원클릭 AI 자동 제작] · 이력 · 미리보기 · 작업 저장 · 다운로드 -->
     <header class="h-14 shrink-0 px-3 flex items-center gap-2 st-topbar st-border-b" data-topbar>
       <router-link :to="{ name: 'studio-projects' }" class="st-icon-btn" title="내 작업으로" data-back>
         <ArrowLeft class="w-5 h-5" :stroke-width="2" />
@@ -78,7 +78,8 @@
           </template>
         </div>
         <button type="button" class="st-btn st-btn-ghost" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-preview data-guide="preview" @click="openPreview"><Eye class="w-4 h-4" :stroke-width="2" /> 미리보기</button>
-        <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-export data-guide="export" @click="openExport"><Download class="w-4 h-4" :stroke-width="2" /> 내보내기</button>
+        <button type="button" class="st-btn" :disabled="!page || !page.sections.length || eraseOpen || !project" data-top-save @click="openSave"><Save class="w-4 h-4" :stroke-width="2" /> 작업 저장</button>
+        <button type="button" class="st-btn st-btn-primary" :class="step === 3 ? 'st-step-hint' : ''" :disabled="!page || !page.sections.length || eraseOpen" data-top-export data-guide="export" @click="openExport"><Download class="w-4 h-4" :stroke-width="2" /> 다운로드</button>
       </div>
     </header>
 
@@ -99,10 +100,10 @@
         <p class="st-desc-sm break-keep">화면 폭이 1024px 이상인 컴퓨터에서 열면 사진을 지우고 편집할 수 있어요.</p>
       </div>
 
-      <!-- 왼쪽 아이콘 막대 (72px): 템플릿 · 구간 · 사진 · 텍스트 · 요소 · 배경합성 · 저장값 · (맨 아래) 가이드 -->
+      <!-- 왼쪽 아이콘 막대 (72px): 템플릿 · 사진 · 텍스트 · 요소 · 섹션 · 배경합성 · (맨 아래) 가이드 — 저장값은 기능이 생길 때까지 숨김(RAIL hidden) -->
       <nav v-if="isWide" class="w-[72px] shrink-0 flex flex-col items-center gap-1 py-2 st-topbar st-border-r" data-rail>
         <button
-          v-for="t in RAIL" :key="t.key" type="button"
+          v-for="t in RAIL_SHOWN" :key="t.key" type="button"
           class="st-rail-item" :class="activeTool === t.key ? 'is-active' : ''"
           :aria-pressed="activeTool === t.key" :data-rail="t.key" :data-guide="`rail-${t.key}`"
           @click="onRail(t.key)"
@@ -361,18 +362,22 @@
       :load-source="loadRefineSource" :load-mask="loadRefineMask" :save="saveRefine" @close="closeRefine"
     />
 
-    <!-- 미리보기 (13-2): PC·모바일 — 그림은 내보내기 엔진 결과 그대로. [이미지로 받기] = 아래 [내보내기] 창을 위에 연다 -->
+    <!-- 미리보기 (13-2): PC·모바일 — 그림은 다운로드 엔진 결과 그대로. [이미지로 받기] = 아래 [다운로드] 창을 위에 연다 -->
     <StudioPreview
       v-if="page" :open="previewOpen" :page="page" :labels="sectionLabels" :pending-by-section="exportPendingBySection"
       :render="exportRender" :keys-blocked="exportOpen || !!exportCompareId"
-      @close="previewOpen = false" @export="exportOpen = true"
+      @close="previewOpen = false" @export="openExport"
     />
-    <!-- [내보내기] 창 (13-1): 구간별 여러 장·한 장, JPG·PNG, 1·2배 — 브라우저 캔버스로 그려 바로 내려받는다 -->
+    <!-- [다운로드] 창 (13-1): 구간별 여러 장·한 장, JPG·PNG, 1·2배 — 브라우저 캔버스로 그려 바로 내려받는다 (내 상품에도 보관)
+         [작업 저장] = 같은 창을 save-only로 — 받지 않고 내 상품에 저장만. 끝나면 [판매처로 보내기]·[내 작업으로 가기]·[계속 편집] -->
     <StudioExportModal
       v-if="page" :open="exportOpen" :page="page" :project-id="project?.id || ''" :title="project ? projectDisplayTitle(project) : ''" :labels="sectionLabels"
-      :pending-by-section="exportPendingBySection" :render="exportRender" :dev-compare="DEV_EXPORT_COMPARE"
-      @close="exportOpen = false" @compare="openExportCompare"
+      :pending-by-section="exportPendingBySection" :render="exportRender" :dev-compare="DEV_EXPORT_COMPARE" :save-only="exportSaveOnly"
+      @close="exportOpen = false" @compare="openExportCompare" @home="goHomeAfterSave" @send="sendAfterSave"
     />
+    <!-- [작업 저장] 뒤 [판매처로 보내기] — 내 작업 화면과 같은 보내기 창 -->
+    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" @close="sendOpen = false" />
+    <p v-if="sendNote" class="fixed left-1/2 -translate-x-1/2 bottom-6 px-3 py-2 rounded-[10px] st-card st-shadow-float text-[13px] font-bold st-danger-text" style="z-index: 60" role="status" data-save-send-note>{{ sendNote }}</p>
     <!-- 개발용 비교 보기 (개발 서버에서만 — 빌드에는 들어가지 않는다) -->
     <component
       :is="StudioExportCompare" v-if="StudioExportCompare && exportCompareId && page"
@@ -515,7 +520,7 @@
 import { ref, shallowRef, reactive, computed, watch, nextTick, onMounted, onUnmounted, provide, defineAsyncComponent } from 'vue'
 import { useRoute, useRouter, onBeforeRouteLeave, onBeforeRouteUpdate } from 'vue-router'
 import {
-  ArrowLeft, Undo2, Redo2, Eye, Download, History, Sparkles, Hand, CircleHelp,
+  ArrowLeft, Undo2, Redo2, Eye, Download, Save, History, Sparkles, Hand, CircleHelp,
   LayoutTemplate, Rows3, Image as ImageIcon, Type, Shapes, Blend, Bookmark, PanelRightOpen, PanelRightClose, ArrowUpDown, MoveVertical,
   MoreHorizontal, Pencil, Copy, X, Keyboard, Plus,
 } from 'lucide-vue-next'
@@ -552,6 +557,8 @@ import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
 import StudioExportModal from '@/components/studio/StudioExportModal.vue'
+import StudioSendModal from '@/components/studio/StudioSendModal.vue'
+import { sendToMarketplace } from '@/lib/studioMarketplace'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
 import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
 import StudioBgRefineScreen from '@/components/studio/StudioBgRefineScreen.vue'
@@ -608,13 +615,14 @@ const PAGE_GUTTER = 110 // 페이지 양옆 여백 (왼쪽에 구간 이름이 �
 const RAIL = [ // 순서: 템플릿 → 사진 → 텍스트 → 요소 → 섹션 → 배경합성 → 저장값 (가이드는 맨 아래 따로)
   { key: 'template', label: '템플릿', icon: LayoutTemplate, soon: '' }, // 15단계: StudioTemplatePanel
   { key: 'photo', label: '사진', icon: ImageIcon, soon: '' },
-  { key: 'text', label: '텍스트', icon: Type, soon: '글자 넣기는 곧 추가될 기능이에요.' },
-  { key: 'element', label: '요소', icon: Shapes, soon: '도형·아이콘 넣기는 곧 추가될 기능이에요.' },
+  { key: 'text', label: '텍스트', icon: Type, soon: '' }, // 10-1: StudioTextPanel
+  { key: 'element', label: '요소', icon: Shapes, soon: '' }, // 11-1: StudioElementPanel
   { key: 'section', label: '섹션', icon: Rows3, soon: '페이지가 준비되면 여기서 섹션을 다룰 수 있어요.' }, // 8-1: 페이지가 있으면 StudioSectionPanel
   { key: 'bg', label: '배경합성', icon: Blend, soon: '' }, // 17-1: StudioBgPanel
-  { key: 'saved', label: '저장값', icon: Bookmark, soon: '인트로·배송안내 같은 저장값 넣기는 곧 추가될 기능이에요.' },
+  { key: 'saved', label: '저장값', icon: Bookmark, soon: '', hidden: true }, // 아직 없는 기능 — 막대에 보이지 않는다(생기면 hidden을 뗀다)
 ]
-const railItem = key => RAIL.find(r => r.key === key) || RAIL[1] // 모르는 값 = [사진]
+const RAIL_SHOWN = RAIL.filter(r => !r.hidden) // 아직 없는 기능(hidden)은 막대에 그리지 않는다
+const railItem = key => RAIL_SHOWN.find(r => r.key === key) || RAIL[1] // 모르는 값·숨긴 도구 = [사진]
 
 // ── 진행 단계 표시줄 (6-3) — 지금 단계는 브라우저에만 기억 (작업별 localStorage, studioSteps). 처음 열면 ① ──
 const step = ref(STEP_DEFAULT)
@@ -1139,6 +1147,7 @@ function onLayerSelect({ ids, shift }) {
 
 // ── [내보내기] 창 (13-1) — 상태만 여기 (그리기·사진 준비는 아래 "내보내기" 묶음). 개발용 비교 보기는 개발 서버에서만 ──
 const exportOpen = ref(false)
+const exportSaveOnly = ref(false) // true = [작업 저장] (받지 않고 내 상품에 저장만)
 const exportCompareId = ref(null) // 비교 보기 중인 구간 id (개발용)
 const previewOpen = ref(false)    // 13-2 미리보기 (PC·모바일)
 const cropImageId = ref(null)     // 12-1 자르기 창을 연 사진 id
@@ -1162,7 +1171,7 @@ function onAddSectionAt(at) {
 const elementTab = ref(elementTabOf(null))
 // ── 캔버스 위 안내 한 줄 "섹션 사이에 마우스를 올리면…" — 닫으면 다시 안 보임 (studioGuide GUIDE_KEYS.sectionAdd, localStorage) ──
 const sectionHintClosed = ref(readGuideHidden(guideStorage(), 'sectionAdd'))
-// 첫 진입 안내는 한 번에 하나: 사용가이드가 떠 있거나 곧 자동으로 뜰 참이면(guideAutoReady) 기다렸다가, 닫거나 끝낸 뒤에 이 한 줄
+// 첫 진입 안내는 한 번에 하나: 사용가이드가 떠 있거나 바로 뒤에 자동으로 뜰 참이면(guideAutoReady) 기다렸다가, 닫거나 끝낸 뒤에 이 한 줄
 const sectionHintVisible = computed(() => !sectionHintClosed.value && isWide.value && !!page.value?.sections.length
   && !showStart.value && !eraseOpen.value && !autoBuild.state.open && !pageSession.readError.value
   && !guide.open && guideAutoReady.value !== 'editor')
@@ -1223,7 +1232,9 @@ function resetEditorLog() {
   guide.open = false
   textEdit.value = null     // 10-1 글자 고치기
   cellEdit.value = null     // 표 칸 입력
-  exportOpen.value = false  // 13-1 [내보내기] 창
+  exportOpen.value = false  // 13-1 [다운로드]·[작업 저장] 창
+  sendOpen.value = false
+  sendPrepare.value = null
   exportCompareId.value = null
   previewOpen.value = false // 13-2 미리보기
   cropImageId.value = null  // 12-1 자르기 창
@@ -1986,7 +1997,7 @@ const bakeQueue = useBakeQueue({
 })
 /**
  * 굽기 요청 (지우기 화면 닫힘·[다시 시도]). 굽지 않는 경우:
- *   지우기 저장이 안 끝남(실패·충돌 — 상단 저장 상태가 알린다) / 지우기가 없음(원본이 곧 최종) /
+ *   지우기 저장이 안 끝남(실패·충돌 — 상단 저장 상태가 알린다) / 지우기가 없음(원본이 그대로 최종) /
  *   결과 없는 AI 레이어가 있음("다시 지우기를 마치면 적용돼요") / 이미 최신(그 뒤 지우기가 안 바뀜 — usableFinalVersion)
  */
 async function requestBake(id) {
@@ -2090,7 +2101,39 @@ function openExport() {
   if (!page.value || eraseOpen.value) return
   pageView.value?.finishEdit() // 글자를 고치는 중이면 먼저 끝낸다 (고친 글자가 들어가게)
   clearSelection()
+  exportSaveOnly.value = false
   exportOpen.value = true
+}
+/** 상단 [작업 저장] — 받지 않고 결과물을 만들어 내 상품에 저장만 (같은 작업을 다시 저장하면 그 카드를 바꾼다) */
+function openSave() {
+  if (!page.value || !page.value.sections.length || eraseOpen.value || !project.value) return
+  pageView.value?.finishEdit()
+  clearSelection()
+  exportSaveOnly.value = true
+  exportOpen.value = true
+}
+function goHomeAfterSave() {
+  exportOpen.value = false
+  router.push({ name: 'studio-projects' })
+}
+// [작업 저장] 뒤 [판매처로 보내기] — 진입은 내 작업 화면과 같은 sendToMarketplace 한 곳
+const sendOpen = ref(false)
+const sendPrepare = ref(null)
+const sendNote = ref('')
+let sendNoteTimer = null
+async function sendAfterSave(exportId) {
+  exportOpen.value = false
+  sendNote.value = ''
+  try {
+    const r = await sendToMarketplace(exportId)
+    sendPrepare.value = r.prepare
+    sendOpen.value = true
+  } catch (e) {
+    console.error('[StudioEditor] 판매처로 보내기 준비 실패:', exportId, e.code, e)
+    sendNote.value = e.message
+    clearTimeout(sendNoteTimer)
+    sendNoteTimer = setTimeout(() => { sendNote.value = '' }, 5000)
+  }
 }
 /** 상단 [미리보기] (13-2) — 받게 될 이미지 그대로 PC·모바일로 */
 function openPreview() {
@@ -2341,7 +2384,7 @@ const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
   || replaceOpen.value || resetLookOpen.value || !!includeAsk.value
-  || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게
+  || exportOpen.value || sendOpen.value || !!exportCompareId.value // 13-1: 받는 동안·보내기 창이 열린 동안 편집기 단축키가 페이지에 적용되지 않게
   || previewOpen.value // 13-2: 미리보기가 열린 동안도
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
   || !!refineImageId.value // 17-3: 경계 다듬기 화면이 열린 동안도 (붓 단축키 K·E·X·[·]·Ctrl+Z는 그 화면이 받는다)

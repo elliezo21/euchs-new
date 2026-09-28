@@ -87,8 +87,8 @@ export function selectBarButtons(s) {
       ? { key: 'lock', label: '잠금 풀기', tip: '잠금을 풀어 다시 움직일 수 있게', type: 'cmd', cmd: 'unlock', pressed: true }
       : { key: 'lock', label: '잠금', tip: '실수로 움직이지 않게 고정', type: 'cmd', cmd: 'lock' },
     s.anyHidden
-      ? { key: 'hide', label: '보이기', tip: '숨긴 것을 다시 보이게 (내보내기에도 들어감)', type: 'cmd', cmd: 'show', pressed: true }
-      : { key: 'hide', label: '숨기기', tip: '지우지 않고 잠깐 안 보이게 (내보내기에서도 빠짐)', type: 'cmd', cmd: 'hide' },
+      ? { key: 'hide', label: '보이기', tip: '숨긴 것을 다시 보이게 (받는 이미지에도 들어감)', type: 'cmd', cmd: 'show', pressed: true }
+      : { key: 'hide', label: '숨기기', tip: '지우지 않고 잠깐 안 보이게 (받는 이미지에서도 빠짐)', type: 'cmd', cmd: 'hide' },
   ]
   if (s.canUngroup) right.push({ key: 'group', label: '그룹 풀기', tip: '묶은 것을 하나씩 따로 (Ctrl+Shift+G)', type: 'cmd', cmd: 'ungroup' })
   else if (s.canGroup) right.push({ key: 'group', label: '그룹', tip: '여러 요소를 하나로 묶어 함께 옮기기 (Ctrl+G · 같은 섹션 안의 요소만)', type: 'cmd', cmd: 'group' })

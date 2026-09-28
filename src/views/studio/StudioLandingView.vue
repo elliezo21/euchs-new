@@ -1,15 +1,14 @@
 <template>
   <div ref="rootRef" class="st-land" :class="{ 'is-static': isStatic }" data-studio-landing>
-    <!-- 상단 바 (구조 그대로: 로고 · 내 작업/로그인 · 무료로 시작하기) -->
+    <!-- 상단 바: 로고 · [무료로 시작하기] 하나 (로그인 여부와 상관없이 늘 보인다) -->
     <header class="land-nav">
       <div class="land-wrap h-full flex items-center gap-3">
         <router-link :to="{ name: 'studio-landing' }" class="flex items-center gap-2.5 shrink-0">
           <span class="land-logo"><Sparkles class="w-4 h-4" :stroke-width="2.2" /></span>
           <span class="text-[17px] font-extrabold land-ink whitespace-nowrap">EUCHS Studio</span>
+          <span v-if="STUDIO_BETA" class="beta-badge" data-beta-badge>{{ BETA_BADGE }}</span>
         </router-link>
         <div class="ml-auto flex items-center gap-1 sm:gap-2">
-          <router-link v-if="currentUser" :to="{ name: 'studio-projects' }" class="land-btn land-btn-text">내 작업</router-link>
-          <button v-else type="button" class="land-btn land-btn-text" @click="openLoginModal('login')">로그인</button>
           <button type="button" class="land-btn land-btn-primary land-btn-sm" data-land-start @click="start">무료로 시작하기</button>
         </div>
       </div>
@@ -19,7 +18,7 @@
       <!-- ① 첫 화면 -->
       <section class="land-hero" data-scene="hero">
         <div class="land-wrap text-center">
-          <p class="land-kicker" data-hero-in>EUCHS 상세페이지 작업실 · <b class="land-orange-text">구매 고객 무료</b></p>
+          <p class="land-kicker" data-hero-in data-hero-eyebrow>{{ eyebrow.lead }} · <b class="land-orange-text">{{ eyebrow.free }}</b></p>
           <h1 class="land-h1" data-hero-in>만들고, 다듬고,<br />바로 올리세요.</h1>
           <p class="land-lead" data-hero-in>사진만 있으면 상세페이지 초안이 먼저 나와요. 나머지는 원하는 만큼만 고치면 돼요.</p>
           <div class="mt-8 flex flex-wrap justify-center gap-3" data-hero-in>
@@ -41,7 +40,7 @@
                 <span class="win-saved">· 자동 저장됨</span>
                 <span class="flex-1" />
                 <span class="win-ai">원클릭 AI 초안</span>
-                <span class="win-export">내보내기</span>
+                <span class="win-export">다운로드</span>
               </div>
               <div class="win-body" aria-hidden="true">
                 <ul class="win-rail">
@@ -91,7 +90,7 @@
             </div>
             <div class="land-status s2" data-hero-card>
               <span class="st-ico is-ok" aria-hidden="true"><Check class="w-4 h-4" :stroke-width="3" /></span>
-              <div><b>내보내기 완료</b><p>완성작에 보관됨</p></div>
+              <div><b>작업 저장 완료</b><p>내 상품에 보관됨</p></div>
             </div>
           </div>
         </div>
@@ -147,7 +146,7 @@
             <!-- 판매처 보내기 -->
             <article class="tile" data-scene="export">
               <h3 class="tile-h">쿠팡으로 바로 보내기</h3>
-              <p class="tile-p">완성한 상세페이지를 쿠팡 상품으로 바로 등록해요.</p>
+              <p class="tile-p">상세페이지·상품명·검색태그·옵션·가격·대표이미지·고시정보·배송정보까지 한 번에 보내요.</p>
               <ul class="mk" data-scene-visual>
                 <li v-for="m in MARKETS" :key="m.name" :class="{ 'is-soon': m.soon }" :data-ex-market="m.soon ? null : ''" :data-ex-soon="m.soon ? '' : null">
                   {{ m.name }}<span v-if="m.soon" class="mk-soon">준비 중</span>
@@ -185,6 +184,7 @@
         <div data-reveal>
           <h2 class="land-h2">이용 안내</h2>
         </div>
+        <p v-if="STUDIO_BETA" class="land-p" data-reveal data-beta-note>{{ BETA_NOTE }}</p>
         <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[960px]">
           <div class="plan is-main" data-reveal>
             <span class="plan-label is-free">무료</span>
@@ -252,17 +252,19 @@
 //   주황(메인 [1688 소싱몰] = orange-500 #f97316)은 "구매 고객 무료" 강조에만. 편집기 안(작업 화면)은 건드리지 않는다.
 // 모션은 studioLandingMotion.js(GSAP)를 여기서만 동적 import — 편집기·ERP 번들에 섞이지 않는다.
 // 기본 화면(CSS) = 장면이 끝난 모습 → 움직임 줄이기 설정·불러오기 실패여도 내용은 다 보인다.
-// 개인 데이터를 보여 주지 않는 화면이라 로그아웃 구독은 필요 없다(버튼만 currentUser로 바뀜).
+// 개인 데이터를 보여 주지 않는 화면이라 로그아웃 구독은 필요 없다(로그인 여부에 따라 바뀌는 것도 없다).
 import { ref, h, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import {
   ArrowRight, Check, Sparkles, MessageCircle,
   LayoutTemplate, Image as ImageIcon, Type, Shapes, Rows3, Wand2,
 } from 'lucide-vue-next'
-import { currentUser, openLoginModal } from '@/lib/auth'
 import { LANDING_MEDIA as M } from '@/data/studioLandingMedia'
 import { getStudioNotices } from '@/lib/studioNotices'
+import { MARKETS } from '@/lib/studioMarketplaceRules'
+import { STUDIO_BETA, BETA_BADGE, BETA_NOTE, heroEyebrow } from '@/lib/studioBeta'
 
+const eyebrow = heroEyebrow()
 const router = useRouter()
 const rootRef = ref(null)
 const stepsRef = ref(null)
@@ -284,14 +286,13 @@ SceneVideo.props = ['media', 'alt', 'still']
 const KAKAO_CHAT = 'http://pf.kakao.com/_xmQWsK/chat' // Footer·CommunitySection과 같은 상담 채널
 const RAIL = [LayoutTemplate, ImageIcon, Type, Shapes, Rows3, Wand2] // 편집기 왼쪽 도구 막대 (템플릿·사진·텍스트·요소·섹션·배경합성)
 const OC_STEPS = ['사진 고르기', '글자 지우기', '페이지 배치', '문구 초안']
-// 판매처 칩 — 쿠팡만 켜짐(활성), soon = "준비 중" 작은 배지만 (부가 설명 문구 없음)
-const MARKETS = [{ name: '쿠팡' }, { name: '카페24', soon: true }, { name: '고도몰', soon: true }, { name: '메이크샵', soon: true }]
+// 판매처 칩 — 목록은 MARKETS(studioMarketplaceRules.js, 설정 > 판매처 연결과 같은 목록·순서). 쿠팡만 켜짐, soon = "준비 중" 작은 배지만
 const STEPS = [
   { title: '가져오기', desc: '상품 링크, 찜한 상품, 주문한 상품, 내 사진 어디서든 시작해요.', chips: ['상품 링크', '주문한 상품', '내 사진'] },
   { title: '다듬기', desc: '필요 없는 글자와 배경을 AI로 정리하고, 원클릭으로 페이지 초안을 받아요.', chips: ['AI로 지우기', '배경 바꾸기', '원클릭 초안'] },
-  { title: '올리기', desc: '섹션별 여러 장 또는 한 장으로 길게 받아 판매처에 올려요.', chips: ['JPG · PNG', '완성작에 보관'] },
+  { title: '올리기', desc: '섹션별 여러 장 또는 한 장으로 길게 받아 판매처에 올려요.', chips: ['JPG · PNG', '내 상품에 보관'] },
 ]
-const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '섹션별·한 장 내보내기']
+const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '섹션별·한 장 다운로드']
 const NOTICE_TYPE_LABEL = { update: '업데이트', notice: '공지', soon: '예정' }
 
 /** 글자 자리(% — studioLandingPlaceholders TEXT_BOXES) → 위치 */
@@ -399,8 +400,6 @@ onBeforeUnmount(() => {
 .land-btn-primary:hover { background: var(--l-blue-d); }
 .land-btn-ghost { background: var(--l-white); color: var(--l-ink); border: 1px solid var(--l-line); }
 .land-btn-ghost:hover { border-color: #cfd5e1; background: #fbfcfe; }
-.land-btn-text { color: var(--l-ink); background: transparent; }
-.land-btn-text:hover { background: rgba(11, 27, 63, 0.05); }
 .land-btn-onnavy { color: #fff; border: 1px solid rgba(255, 255, 255, 0.35); background: transparent; }
 .land-btn-onnavy:hover { background: rgba(255, 255, 255, 0.08); }
 @media (max-width: 400px) { .land-nav .land-btn { height: 34px; padding: 0 10px; font-size: 13px; } }
@@ -570,6 +569,7 @@ onBeforeUnmount(() => {
 /* 이용 안내 */
 .plan { position: relative; padding: 30px; border-radius: 20px; background: #fff; border: 1px solid var(--l-line); }
 .plan.is-main { border-color: color-mix(in srgb, var(--l-orange) 45%, var(--l-line)); box-shadow: 0 14px 40px rgba(11, 27, 63, 0.06); }
+.beta-badge { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; color: var(--l-blue); background: var(--l-blue-soft); }
 .plan-label { font-size: 14px; font-weight: 900; color: var(--l-ink-2); }
 .plan-label.is-free { color: var(--l-orange-ink); }
 .plan-h { margin-top: 6px; font-size: 22px; font-weight: 800; color: var(--l-ink); }

@@ -54,3 +54,6 @@ graphify-out/
 
 # npm run dev:studio 가 적는 자기 서버 PID (scripts/dev-studio.mjs)
 .studio-dev.pid
+
+# 타사 화면 캡처 (참고용 — 커밋 금지)
+docs/guide-assets/markets-reference/

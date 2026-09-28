@@ -2,16 +2,17 @@
  * 스튜디오 → 판매처(쿠팡) 연동 — 브라우저 쪽 (서버 api/marketplace.js, 2026-09-28 2~3단계)
  *
  * 화면(StudioExportList.vue)의 [판매처로 보내기]는 sendToMarketplace(exportId) 하나만 부른다.
- *   → { status:'ready', prepare } 면 보내기 창(StudioSendModal)을 연다 / 'not_connected' 면 설정 > 판매처 연결 탭으로 안내
+ *   → { status:'ready', prepare } → 보내기 창(StudioSendModal). 연결 전인 판매처는 창 안에서 [연결하기]로 안내
  * 실패는 throw — err.code = 서버 코드, err.message = 서버 문구(있으면) 또는 studioErrorMessage('marketplace', code)
  */
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
 
 export const MARKET_LABEL = { coupang: '쿠팡' }
 export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인', rejected: '반려', failed: '실패' }
-export const SEND_STATUS_CLASS = { sending: 'st-badge-outline', approval_pending: 'st-badge-accent', approved: 'st-badge-solid', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
+// 색: 전송 중·승인 대기 = 회색, 승인 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
+export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
 export const REP_SIZE = 1000 // 브라우저가 만드는 대표 이미지 한 변(px) — 쿠팡 정사각형 500~5000
-export { isNotReady, needsGuide, latestSendByExport, SETTINGS_TABS } from '@/lib/studioMarketplaceRules'
+export { isNotReady, needsGuide, latestSendByExport, sendsByExport, badgeReason, SEND_BADGE_CLASS, SETTINGS_TABS } from '@/lib/studioMarketplaceRules'
 
 /** 서버 응답 → Error (서버가 message를 주면 그대로 — coupang_*·template_invalid·required_missing 등) */
 export function marketplaceError(r) {
@@ -41,12 +42,12 @@ export const listSends = () => call('sends_list')
 export const syncSends = () => call('sync')
 
 /**
- * [판매처로 보내기] 진입 — 연결·완성작을 확인하고 보내기 창에 필요한 값을 돌려준다.
- * @returns {Promise<{ status:'ready', prepare } | { status:'not_connected', message }>}
+ * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.
+ * 연결 전이어도 창은 연다 — 창 맨 위 "보낼 판매처"에서 그 판매처가 자물쇠 + [연결하기]로 보인다(prepare.markets).
+ * @returns {Promise<{ status:'ready', prepare }>}
  */
 export async function sendToMarketplace(exportId) {
   const prepare = await prepareSend(exportId)
-  if (!prepare.connected) return { status: 'not_connected', message: '먼저 [설정 > 판매처 연결]에서 쿠팡을 연결해 주세요.' }
   return { status: 'ready', prepare }
 }
 
@@ -73,6 +74,33 @@ export async function makeSquareJpeg(url, fit = 'contain') {
     return dataUrl.slice(dataUrl.indexOf(',') + 1)
   } finally {
     bmp.close()
+  }
+}
+
+// 보내기 요청 본문 상한(글자 수) — 서버가 받는 본문이 4.5MB라 그보다 작게 막는다
+export const SEND_BODY_MAX = 4 * 1000 * 1000
+
+/** 파일 → base64 (data: 접두어 없이) */
+export function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader()
+    r.onload = () => { const s = String(r.result || ''); resolve(s.slice(s.indexOf(',') + 1)) }
+    r.onerror = () => reject(r.error || new Error('파일을 읽지 못했어요'))
+    r.readAsDataURL(file)
+  })
+}
+
+// 템플릿마다 마지막으로 고른 판매 방식 — 이 브라우저에만 기억한다(편의). 처음에는 값이 없어 고객이 직접 고른다
+const SALE_MODE_KEY = id => `studio-mk-sale-mode:${id}`
+export function readSaleMode(templateId) {
+  try { return localStorage.getItem(SALE_MODE_KEY(templateId)) || '' } catch (e) {
+    console.warn('[studioMarketplace] 판매 방식 기억을 읽지 못함 (고객이 다시 고른다):', e?.message)
+    return ''
+  }
+}
+export function rememberSaleMode(templateId, mode) {
+  try { localStorage.setItem(SALE_MODE_KEY(templateId), mode) } catch (e) {
+    console.warn('[studioMarketplace] 판매 방식 기억을 저장하지 못함:', e?.message)
   }
 }
 

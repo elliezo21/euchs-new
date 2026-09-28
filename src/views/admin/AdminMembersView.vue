@@ -19,7 +19,7 @@
     <div v-else-if="sessionExpired" class="bg-amber-50 border border-amber-300 rounded-2xl p-6 text-center space-y-3">
       <div class="text-3xl">🔒</div>
       <h3 class="text-base font-bold text-amber-900">로그인이 만료됐습니다 — 다시 로그인해 주세요.</h3>
-      <p class="text-sm text-amber-700">회원 정보는 로그인한 관리자에게만 조회됩니다.</p>
+      <p class="text-sm text-amber-700">회원 정보는 로그인한 관리자만 조회할 수 있습니다.</p>
       <button
         type="button"
         @click="reLogin"

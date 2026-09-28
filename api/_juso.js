@@ -95,7 +95,7 @@ export async function callJuso(endpoint, rawKey, keyword, page = 1, countPerPage
  * 도로명주소 1건을 가리키는 매칭 키.
  * 영문주소 API 응답에는 bdMgtSn(건물관리번호)이 없으므로, 두 API 모두에 있는
  * admCd(행정구역코드) + rnMgtSn(도로명코드) + udrtYn(지하여부) + buldMnnm(건물본번) + buldSlno(건물부번)을 쓴다.
- * 이 다섯 값이 곧 "도로명 + 건물번호"이므로 도로명주소 하나를 정확히 가리킨다.
+ * 이 다섯 값이 그대로 "도로명 + 건물번호"이므로 도로명주소 하나를 정확히 가리킨다.
  * 숫자 필드는 "06"/"6" 같은 표기 차이를 없애려고 정수 문자열로 정규화한다.
  */
 export function matchKeyOf(j) {

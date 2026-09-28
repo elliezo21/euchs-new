@@ -82,7 +82,7 @@
  *   → { facts: { title, attrs, options } | null, reason: null|'no_offer'|'no_snapshot', texts, translated }
  * 에러: not_found 404
  *
- * ── 완성작 보관 (2026-09-28) ── [내보내기]로 받은 이미지를 한 벌 더 둔다 (_studioExports.js). 같은 2단계 방식. 돈이 들지 않는다.
+ * ── 내 상품 보관 (2026-09-28) ── [내보내기]로 받은 이미지를 한 벌 더 둔다 (_studioExports.js). 같은 2단계 방식. 돈이 들지 않는다.
  * POST { action:'export_begin', projectId, title, format, scale, mode, count } → { exportId, stamp }  (studio_exports 행, 폴더 = {uid}/{projectId}/exports/{stamp})
  * POST { action:'export_file_prepare', exportId, key, size } → { exists:true, path } | { path, token }   key = 01·02…·all·thumb(목록 미리보기 JPG)
  * POST { action:'export_file_confirm', exportId, key, path, name } → { ok:true, saved }  서버가 형식·크기를 읽어 확인 후 files(또는 thumb_path)에 기록
@@ -119,6 +119,7 @@ import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import {
   EXPORT_MAX_BYTES, EXPORT_FORMATS, EXPORT_MODES, EXPORT_SCALES, EXPORT_MAX_FILES, EXPORTS_LIST_MAX, EXPORT_SIGN_SECONDS, KEY_RE,
   exportStamp, exportFolder, cleanExportName, upsertExportFile, exportsTableReady,
+  EXPORT_SOURCES, SAVE_CLEANUP_HOLD_MS, isSourceColumnMissing, savePatchFrom,
 } from './_studioExports.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
@@ -778,7 +779,7 @@ async function bgRemove(ctx, body, res) {
   if (!t) return
   if (!(await isBgEligible(ctx))) return sendError(res, 403, 'bg_not_eligible', '이유씨로 주문한 고객에게 열리는 기능이에요.')
   const p = bgProviderConfig()
-  if (!p.ready) return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+  if (!p.ready) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
   const rows = await sb(cfg, `studio_images?select=original_path&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
   const originalPath = Array.isArray(rows) && rows[0] ? rows[0].original_path : null
   if (typeof originalPath !== 'string' || !originalPath.startsWith(`${ctx.userId}/${t.project.id}/orig/`)) {
@@ -814,7 +815,7 @@ async function bgRemove(ctx, body, res) {
   } catch (e) {
     if (isUsageUnavailable(e)) {
       console.error('[studio-upload] bg: studio_ai_usage를 쓸 수 없음 — 준비 중:', e.message)
-      return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+      return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     }
     throw e
   }
@@ -829,7 +830,7 @@ async function bgRemove(ctx, body, res) {
     usageId = ins?.[0]?.id
     if (usageId === undefined || usageId === null) throw new Error('studio_ai_usage insert 결과에 id 없음')
   } catch (e) {
-    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '배경 지우기를 준비하고 있어요.')
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     throw e
   }
   const dropUsage = async why => {
@@ -988,7 +989,7 @@ async function bgGenerate(ctx, body, res) {
   if (!t) return
   if (!(await isBgEligible(ctx))) return sendError(res, 403, 'bg_not_eligible', '이유씨로 주문한 고객에게 열리는 기능이에요.')
   const p = bgGenProviderConfig()
-  if (!p.ready) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+  if (!p.ready) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
   const rows = await sb(cfg, `studio_images?select=original_path,edit&id=eq.${t.image.id}&user_id=eq.${ctx.userId}&limit=1`)
   const row = Array.isArray(rows) ? rows[0] : null
   const originalPath = row?.original_path
@@ -1010,7 +1011,7 @@ async function bgGenerate(ctx, body, res) {
   try {
     if (await genBusy(ctx, t.image.id)) return sendError(res, 409, 'bg_busy', '이 사진의 AI 배경을 만드는 중이에요.')
   } catch (e) {
-    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     throw e
   }
 
@@ -1026,9 +1027,9 @@ async function bgGenerate(ctx, body, res) {
   } catch (e) {
     if (isKindCheckError(e)) {
       console.error('[studio-upload] bg_gen: studio_ai_usage kind 체크에 bg_generate가 없음 — 17-4 보고서 9장 SQL을 먼저 실행해야 함:', e.message)
-      return sendError(res, 503, 'bg_gen_sql_missing', 'AI 배경을 준비하고 있어요. (사용 기록 설정 필요)')
+      return sendError(res, 503, 'bg_gen_sql_missing', '잠시 후 다시 시도해 주세요.')
     }
-    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', 'AI 배경을 준비하고 있어요.')
+    if (isUsageUnavailable(e)) return sendError(res, 503, 'bg_not_ready', '잠시 후 다시 시도해 주세요.')
     throw e
   }
   const dropUsage = async why => {
@@ -1042,7 +1043,7 @@ async function bgGenerate(ctx, body, res) {
   try {
     if (!staff && !(await withinLimit(ctx, usageId, 'user', BG_GEN_FREE_PER_DAY))) {
       await dropUsage('user_limit')
-      return sendError(res, 429, 'bg_gen_user_limit', '오늘 무료 3회를 모두 썼어요. 충전하면 계속 쓸 수 있어요 (충전은 곧 열려요).')
+      return sendError(res, 429, 'bg_gen_user_limit', '오늘 무료 3회를 모두 썼어요. 내일 다시 쓸 수 있어요.')
     }
     if (!(await withinLimit(ctx, usageId, 'all', limit))) {
       await dropUsage('global_limit')
@@ -1129,7 +1130,7 @@ async function productFacts(ctx, body, res) {
   return res.status(200).json({ facts: withKo(f, ko), reason: null, texts: texts.length, translated: ko.size })
 }
 
-// ── 완성작 보관 (2026-09-28) ────────────────────────────────────────────────
+// ── 내 상품 보관 (2026-09-28) ────────────────────────────────────────────────
 // 받기(브라우저 다운로드)는 그대로 — 받은 파일을 한 벌 더 둘 뿐이다. 표(studio_exports)가 없으면 503 export_sql_missing(보관만 준비 중).
 const EXPORT_SELECT = 'id,project_id,stamp,folder,title,format,scale,mode,file_count,files,thumb_path,created_at'
 const EXPORT_THUMB_MAX_BYTES = 2 * 1024 * 1024
@@ -1137,7 +1138,7 @@ const EXPORT_THUMB_MAX_SIDE = 1024
 
 async function exportTableGate(ctx, res) {
   if (await exportsTableReady(ctx)) return true
-  sendError(res, 503, 'export_sql_missing', '완성작 보관을 준비하고 있습니다. (studio_exports 설정 필요)')
+  sendError(res, 503, 'export_sql_missing', '잠시 후 다시 시도해 주세요.')
   return false
 }
 
@@ -1147,7 +1148,7 @@ async function loadOwnedExport(ctx, body, res) {
   if (!UUID_RE.test(id)) { sendError(res, 400, 'invalid_input', 'exportId 형식이 올바르지 않습니다.'); return null }
   const rows = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT}&id=eq.${id}&user_id=eq.${ctx.userId}&limit=1`)
   const ex = Array.isArray(rows) ? rows[0] : null
-  if (!ex) { sendError(res, 404, 'not_found', '완성작을 찾을 수 없습니다.'); return null }
+  if (!ex) { sendError(res, 404, 'not_found', '내 상품을 찾을 수 없습니다.'); return null }
   return ex
 }
 
@@ -1158,7 +1159,7 @@ function exportTarget(ex, key) {
   return { path: `${ex.folder}/${key}.${ex.format}`, name: `${key}.${ex.format}`, mime: EXPORT_FORMATS[ex.format], maxBytes: EXPORT_MAX_BYTES }
 }
 
-/** POST { action:'export_begin', projectId, title, format, scale, mode, count } → { exportId, stamp } */
+/** POST { action:'export_begin', projectId, title, format, scale, mode, count, source?('save' = [작업 저장]) } → { exportId, stamp } */
 async function exportBegin(ctx, body, res) {
   const format = String(body.format ?? ''), mode = String(body.mode ?? '')
   const scale = Number(body.scale), count = Number(body.count)
@@ -1169,13 +1170,19 @@ async function exportBegin(ctx, body, res) {
   const project = await loadOwnedRow(ctx, 'studio_projects', String(body.projectId ?? ''), 'id')
   if (!project) return sendError(res, 404, 'not_found', '프로젝트를 찾을 수 없습니다.')
   if (!(await exportTableGate(ctx, res))) return
+  const source = body.source === undefined ? 'download' : String(body.source)
+  if (!EXPORT_SOURCES.includes(source)) return sendError(res, 400, 'invalid_input', 'source 값이 올바르지 않습니다.')
   const stamp = exportStamp()
   const title = String(body.title ?? '').replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 100) || null // 받을 때 보인 작업 이름 (표시용)
-  const rows = await sb(ctx.cfg, 'studio_exports', {
-    method: 'POST',
-    body: { user_id: ctx.userId, project_id: project.id, stamp, folder: exportFolder(ctx.userId, project.id, stamp), title, format, scale, mode, file_count: count, files: [] },
-    prefer: 'return=representation',
-  })
+  const row0 = { user_id: ctx.userId, project_id: project.id, stamp, folder: exportFolder(ctx.userId, project.id, stamp), title, format, scale, mode, file_count: count, files: [] }
+  if (source === 'save') row0.source = 'save' // [다운로드]는 칸을 보내지 않는다 (source 칸을 만들기 전에도 그대로 되게)
+  let rows
+  try {
+    rows = await sb(ctx.cfg, 'studio_exports', { method: 'POST', body: row0, prefer: 'return=representation' })
+  } catch (e) {
+    if (source === 'save' && isSourceColumnMissing(e)) return saveColumnMissing(res, 'export_begin', e)
+    throw e
+  }
   const row = Array.isArray(rows) ? rows[0] : null
   if (!row) throw new Error('studio_exports insert: 응답에 행이 없음')
   return res.status(200).json({ exportId: row.id, stamp })
@@ -1209,7 +1216,7 @@ async function exportFilePrepare(ctx, body, res) {
   try {
     token = await storageSignUpload(ctx.cfg, BUCKET, t.path)
   } catch (e) {
-    console.error(`[studio-upload] 완성작 업로드 URL 발급 실패 ${t.path}:`, e.message)
+    console.error(`[studio-upload] 내 상품 업로드 URL 발급 실패 ${t.path}:`, e.message)
     return sendError(res, 500, 'sign_failed', '업로드 준비에 실패했습니다.')
   }
   return res.status(200).json({ path: t.path, token })
@@ -1232,7 +1239,7 @@ async function exportFileConfirm(ctx, body, res) {
   try {
     dl = await storageDownload(ctx.cfg, BUCKET, t.path)
   } catch (e) {
-    console.error(`[studio-upload] 완성작 읽기 실패 ${t.path}:`, e.message)
+    console.error(`[studio-upload] 내 상품 읽기 실패 ${t.path}:`, e.message)
     return sendError(res, 500, 'storage_error', '저장소에서 파일을 확인하지 못했습니다.')
   }
   if (!dl.found) return sendError(res, 400, 'not_uploaded', '업로드된 파일이 없습니다.')
@@ -1247,11 +1254,11 @@ async function exportFileConfirm(ctx, body, res) {
     else if (key === 'thumb' && Math.max(dims.width, dims.height) > EXPORT_THUMB_MAX_SIDE) bad = ['export_invalid', '미리보기가 너무 큽니다.']
   }
   if (bad) {
-    console.warn(`[studio-upload] 완성작 불합격 ${t.path}: ${bad[0]} (${buf.length} bytes)`)
+    console.warn(`[studio-upload] 내 상품 불합격 ${t.path}: ${bad[0]} (${buf.length} bytes)`)
     try {
       await storageRemove(ctx.cfg, BUCKET, [t.path])
     } catch (e) {
-      console.error(`[studio-upload] 불합격 완성작 삭제 실패 ${t.path}:`, e.message)
+      console.error(`[studio-upload] 불합격 내 상품 삭제 실패 ${t.path}:`, e.message)
       return sendError(res, 400, `${bad[0]}+delete_failed`, bad[1])
     }
     return sendError(res, 400, bad[0], bad[1])
@@ -1261,6 +1268,63 @@ async function exportFileConfirm(ctx, body, res) {
     : { files: upsertExportFile(ex.files, { key, name, path: t.path, width: dims.width, height: dims.height, bytes: buf.length }) }
   await sb(ctx.cfg, `studio_exports?id=eq.${ex.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: patch, prefer: 'return=minimal' })
   return res.status(200).json({ ok: true, saved: key === 'thumb' ? null : patch.files.length })
+}
+
+function saveColumnMissing(res, where, e) {
+  console.error(`[studio-upload] ${where}: studio_exports.source 칸이 없음 — docs/sql/2026-09-28-studio-folders.sql 실행 필요:`, e.message)
+  return sendError(res, 503, 'export_sql_missing', '잠시 후 다시 시도해 주세요.')
+}
+
+/**
+ * POST { action:'export_save_commit', exportId } → { exportId, updated }
+ *   [작업 저장] 마무리. exportId = 방금 source:'save'로 만든 보관 기록(파일 확인까지 끝난 것).
+ *   그 작업에 예전 저장이 있으면: 예전 기록(id 그대로)에 새 결과물을 옮기고 방금 만든 기록은 지운다 → 카드가 늘지 않는다.
+ *   판매처로 보낸 기록(marketplace_sends.export_id)은 예전 id를 가리키므로 그대로 남는다.
+ */
+async function exportSaveCommit(ctx, body, res) {
+  if (!(await exportTableGate(ctx, res))) return
+  const id = String(body.exportId ?? '').trim().toLowerCase()
+  if (!UUID_RE.test(id)) return sendError(res, 400, 'invalid_input', 'exportId 형식이 올바르지 않습니다.')
+  let fresh, olds
+  try {
+    const rows = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT},source&id=eq.${id}&user_id=eq.${ctx.userId}&limit=1`)
+    fresh = Array.isArray(rows) ? rows[0] : null
+    if (!fresh) return sendError(res, 404, 'not_found', '내 상품을 찾을 수 없습니다.')
+    if (fresh.source !== 'save') return sendError(res, 400, 'invalid_input', '[작업 저장]으로 만든 기록이 아닙니다.')
+    if (!Array.isArray(fresh.files) || fresh.files.length === 0) return sendError(res, 400, 'not_uploaded', '저장된 파일이 없습니다.')
+    olds = await sb(ctx.cfg, `studio_exports?select=${EXPORT_SELECT}&project_id=eq.${fresh.project_id}&user_id=eq.${ctx.userId}&source=eq.save&id=neq.${fresh.id}&order=created_at.asc&limit=1`)
+  } catch (e) {
+    if (isSourceColumnMissing(e)) return saveColumnMissing(res, 'export_save_commit', e)
+    throw e
+  }
+  const old = Array.isArray(olds) ? olds[0] : null
+  if (!old) return res.status(200).json({ exportId: fresh.id, updated: false })
+
+  // 방금 만든 기록을 지우고(같은 stamp가 두 줄이 될 수 없다) 예전 기록에 결과물을 옮긴다. 옮기기가 실패하면 방금 기록을 되살린다
+  await sb(ctx.cfg, `studio_exports?id=eq.${fresh.id}&user_id=eq.${ctx.userId}`, { method: 'DELETE', prefer: 'return=minimal' })
+  try {
+    await sb(ctx.cfg, `studio_exports?id=eq.${old.id}&user_id=eq.${ctx.userId}`, { method: 'PATCH', body: savePatchFrom(fresh), prefer: 'return=minimal' })
+  } catch (e) {
+    console.error(`[studio-upload] export_save_commit: 예전 저장 ${old.id} 갱신 실패 — 방금 기록 ${fresh.id}을 되살림:`, e.message)
+    const { id: fid, ...rest } = fresh
+    await sb(ctx.cfg, 'studio_exports', { method: 'POST', body: { id: fid, user_id: ctx.userId, ...rest }, prefer: 'return=minimal' })
+    throw e
+  }
+  // 예전 파일 치우기 — 방금 판매처로 보냈으면(1시간 안) 판매처가 아직 내려받는 중일 수 있어 남겨 둔다. 실패해도 저장은 끝난 것
+  try {
+    const since = new Date(Date.now() - SAVE_CLEANUP_HOLD_MS).toISOString()
+    const recent = await sb(ctx.cfg, `marketplace_sends?select=id&export_id=eq.${old.id}&user_id=eq.${ctx.userId}&created_at=gte.${encodeURIComponent(since)}&limit=1`)
+    if (Array.isArray(recent) && recent.length) {
+      console.info(`[studio-upload] export_save_commit: ${old.id} 예전 파일을 남겨 둠 (1시간 안에 판매처로 보냄)`)
+    } else {
+      const paths = [...(Array.isArray(old.files) ? old.files.map(f => f.path) : []), old.thumb_path].filter(p => typeof p === 'string' && p.startsWith(`${old.folder}/`))
+      if (paths.length) await storageRemove(ctx.cfg, BUCKET, paths)
+    }
+  } catch (e) {
+    console.error(`[studio-upload] export_save_commit: 예전 파일 정리 실패 ${old.folder} (저장은 끝남):`, e.message)
+  }
+  console.log(`[studio-upload] export_save_commit ${ctx.userId}: ${old.id} 갱신 (${fresh.files.length}장)`)
+  return res.status(200).json({ exportId: old.id, updated: true })
 }
 
 /** POST { action:'exports_list' } → { ready, items:[{ id, projectId, title, createdAt, format, scale, mode, count, planned, previewUrl }] } */
@@ -1275,7 +1339,7 @@ async function exportsList(ctx, body, res) {
       try {
         previewUrl = await storageSignDownload(ctx.cfg, BUCKET, r.thumb_path, EXPORT_SIGN_SECONDS)
       } catch (e) {
-        console.error(`[studio-upload] 완성작 미리보기 주소 실패 ${r.thumb_path}:`, e.message)
+        console.error(`[studio-upload] 내 상품 미리보기 주소 실패 ${r.thumb_path}:`, e.message)
       }
     }
     return {
@@ -1297,7 +1361,7 @@ async function exportDownload(ctx, body, res) {
   try {
     out = await runPool(files, 6, async f => ({ name: f.name, bytes: f.bytes, url: await storageSignDownload(ctx.cfg, BUCKET, f.path, EXPORT_SIGN_SECONDS) }))
   } catch (e) {
-    console.error(`[studio-upload] 완성작 받기 주소 실패 ${ex.folder}:`, e.message)
+    console.error(`[studio-upload] 내 상품 받기 주소 실패 ${ex.folder}:`, e.message)
     return sendError(res, 500, 'storage_error', '저장소에서 파일을 찾지 못했습니다.')
   }
   return res.status(200).json({ files: out })
@@ -1331,7 +1395,8 @@ export default async function handler(req, res) {
     if (body.action === 'export_file_confirm') return await exportFileConfirm(ctx, body, res)
     if (body.action === 'exports_list') return await exportsList(ctx, body, res)
     if (body.action === 'export_download') return await exportDownload(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download' 중 하나여야 합니다.")
+    if (body.action === 'export_save_commit') return await exportSaveCommit(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

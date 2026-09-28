@@ -110,7 +110,7 @@ export async function fetchOrderedProducts() {
   }
 
   const rows = Array.isArray(data) ? data : []
-  // created_at 내림차순이므로 itemId를 처음 만나는 주문이 곧 "가장 최근 주문"이다.
+  // created_at 내림차순이므로 itemId를 처음 만나는 주문이 그대로 "가장 최근 주문"이다.
   const agg = new Map()
 
   for (const row of rows) {

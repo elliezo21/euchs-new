@@ -43,7 +43,7 @@
 // 편집 캔버스 (Fabric.js v6) — 편집기 화면에서만 비동기로 불러온다 (fabric이 메인 번들에 들어가지 않게).
 //
 // ★ 좌표 원칙: Fabric 객체의 left/top/width/height = 원본 이미지 픽셀. 원본 이미지는 (0,0)에 배율 1로 둔다.
-//   확대·이동은 viewportTransform으로만 한다. 그래서 영역 좌표가 곧 저장 좌표다 (변환은 studioCoords.js 순수 함수만).
+//   확대·이동은 viewportTransform으로만 한다. 그래서 영역 좌표가 그대로 저장 좌표다 (변환은 studioCoords.js 순수 함수만).
 // ★ 캔버스 크기 = 가운데 영역 크기. 원본 크기 캔버스를 만들지 않는다 (16384px 캔버스는 iOS·저사양에서 깨짐).
 // ★ 지우기 결과는 영역 주변만 잘라 계산한 조각(studioFillPatch)을 영역 위치에 얹어 보여준다.
 //   계산 순서는 studioFillPlan.js 규칙(그린 순서대로, 연결된 앞 레이어 결과를 반영)을 따른다.

@@ -80,12 +80,8 @@
             </button>
             <p class="st-desc-sm break-keep" data-bg-status="not_eligible">이유씨로 주문한 고객에게 열리는 기능이에요</p>
           </template>
-          <template v-else-if="status.reason === 'no_key' || status.reason === 'no_table'">
-            <button type="button" class="st-btn w-full" disabled data-bg-soon>
-              <Eraser class="w-3.5 h-3.5" :stroke-width="2" /> 배경 지우기 <span class="st-badge ml-1">준비 중</span>
-            </button>
-            <p class="st-desc-sm break-keep" data-bg-status="not_ready">배경 지우기를 준비하고 있어요. 곧 쓸 수 있어요.</p>
-          </template>
+          <!-- 쓸 수 없는 상태(no_key·no_table)면 버튼·안내를 보이지 않는다 -->
+          <template v-else-if="status.reason === 'no_key' || status.reason === 'no_table'" />
           <template v-else-if="status.reason === 'error'">
             <p class="st-desc-sm break-keep" data-bg-status="error">{{ status.message || '상태를 확인하지 못했어요.' }}</p>
             <button type="button" class="st-btn w-full" data-bg-status-retry @click="$emit('retry-status')">다시 확인</button>
@@ -138,10 +134,8 @@
           <button type="button" class="st-btn w-full" disabled data-bg-gen-locked><Lock class="w-3.5 h-3.5" :stroke-width="2" /> AI 배경 만들기</button>
           <p class="st-desc-sm break-keep" data-bg-gen-status="not_eligible">이유씨로 주문한 고객에게 열리는 기능이에요</p>
         </template>
-        <template v-else-if="genStatus.reason === 'no_key' || genStatus.reason === 'no_table'">
-          <button type="button" class="st-btn w-full" disabled data-bg-gen-soon>AI 배경 만들기 <span class="st-badge ml-1">준비 중</span></button>
-          <p class="st-desc-sm break-keep" data-bg-gen-status="not_ready">AI 배경을 준비하고 있어요. 곧 쓸 수 있어요.</p>
-        </template>
+        <!-- 쓸 수 없는 상태(no_key·no_table)면 버튼·안내를 보이지 않는다 -->
+        <template v-else-if="genStatus.reason === 'no_key' || genStatus.reason === 'no_table'" />
         <template v-else-if="genStatus.reason === 'error'">
           <p class="st-desc-sm break-keep" data-bg-gen-status="error">{{ genStatus.message || '상태를 확인하지 못했어요.' }}</p>
           <button type="button" class="st-btn w-full" data-bg-gen-status-retry @click="$emit('retry-gen-status')">다시 확인</button>
@@ -235,8 +229,8 @@ const canGenerate = computed(() => {
 const blockText = computed(() => {
   const g = props.genStatus
   if (!g.ready) return ''
-  // review-1: 1인 무료를 다 쓰면 충전 안내(충전은 아직 없음) / 전체 한도는 보이지 않는 안전장치 — 고객에게는 "잠시 후"만
-  if (!g.staff && g.left <= 0) return `오늘 무료 ${g.perDay}회를 모두 썼어요. 충전하면 계속 쓸 수 있어요 (충전은 곧 열려요).`
+  // 1인 무료를 다 쓰면 내일 다시 / 전체 한도는 보이지 않는 안전장치 — 고객에게는 "잠시 후"만
+  if (!g.staff && g.left <= 0) return `오늘 무료 ${g.perDay}회를 모두 썼어요. 내일 다시 쓸 수 있어요.`
   if (g.globalLeft <= 0) return '지금은 AI 배경을 만들 수 없어요. 잠시 후 다시 시도해 주세요.'
   return ''
 })

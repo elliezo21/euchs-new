@@ -9,9 +9,11 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'test-service-key'
 process.env.MARKETPLACE_ENC_KEY = Buffer.alloc(32, 7).toString('base64')
 process.env.MARKETPLACE_RELAY_URL = 'http://relay.local'
 process.env.MARKETPLACE_RELAY_SECRET = 'test-relay-secret'
+process.env.TRANSLATION_CACHE_ENABLED = 'true' // 번역 캐시 "조회"만 (가짜 표) — 번역 API는 부르지 않는다
 
 const { loadEncKey, encryptSecret, decryptSecret, makeImageToken, verifyImageToken } = await import('../api/_marketplaceCrypto.js')
 const C = await import('../api/_coupang.js')
+const F = await import('../api/_coupangFields.js')
 const { default: handler } = await import('../api/marketplace.js')
 
 let pass = 0, fail = 0
@@ -125,8 +127,35 @@ const META = { data: { isAllowSingleItem: true, attributes: [{ attributeTypeName
   eq('필수값 빠짐 목록', C.missingRequired(s, { attributes: {}, notices: {} }), ['옵션·속성 "색상"', '상품고시 "품명 및 모델명"'])
   eq('필수값 채우면 빈 목록', C.missingRequired(s, { attributes: { 색상: '블랙' }, notices: { '품명 및 모델명': '머그' } }), [])
 }
+// 인증·구비서류·택1 묶음이 있는 카테고리 (항목 보강 테스트용)
+const META2 = { data: {
+  isAllowSingleItem: false, allowedOfferConditions: ['NEW'],
+  attributes: [
+    { attributeTypeName: '색상', required: 'MANDATORY', exposed: 'EXPOSED', dataType: 'STRING', groupNumber: 'NONE' },
+    { attributeTypeName: '사이즈', required: 'MANDATORY', exposed: 'EXPOSED', dataType: 'STRING', groupNumber: '1' },
+    { attributeTypeName: '신발 사이즈', required: 'MANDATORY', exposed: 'EXPOSED', dataType: 'NUMBER', basicUnit: 'mm', usableUnits: ['mm', 'cm'], groupNumber: '1' },
+    { attributeTypeName: '소재', required: 'OPTIONAL', exposed: 'NONE', dataType: 'STRING', groupNumber: 'NONE' },
+  ],
+  noticeCategories: [
+    { noticeCategoryName: '의류', noticeCategoryDetailNames: [{ noticeCategoryDetailName: '제품 소재', required: 'MANDATORY' }, { noticeCategoryDetailName: '제조국', required: 'MANDATORY' }] },
+    { noticeCategoryName: '구두/신발', noticeCategoryDetailNames: [{ noticeCategoryDetailName: '치수', required: 'MANDATORY' }, { noticeCategoryDetailName: '제조국(원산지)', required: 'MANDATORY' }, { noticeCategoryDetailName: 'A/S 책임자와 전화번호', required: 'OPTIONAL' }] },
+  ],
+  requiredDocumentNames: [{ templateName: '수입신고필증', required: 'MANDATORY_OVERSEAS_PURCHASED' }, { templateName: '병행수입 확인서', required: 'MANDATORY_PARALLEL_IMPORTED' }, { templateName: '기타서류', required: 'OPTIONAL' }],
+  certifications: [{ certificationType: 'NOT_REQUIRED', name: '인증대상아님', dataType: 'NONE', required: 'OPTIONAL' }, { certificationType: 'KC_HOUSEHOLD_CONFIRM', name: '생활용품 안전확인', dataType: 'CODE', required: 'MANDATORY' }, { certificationType: 'PRESENTED_IN_DETAIL_PAGE', name: '상세페이지 별도표기', dataType: 'NONE', required: 'OPTIONAL' }],
+} }
+// OneBound item_get 원본 모양 (1688에서 가져온 작업의 저장된 상품 정보)
+const ITEM_1688 = {
+  title: '女士拖鞋', props: [{ name: '材质', value: 'EVA' }],
+  props_list: { '0:0': '颜色:黑色', '0:1': '颜色:白色', '1:0': '尺码:36-37' },
+  props_img: { '0:0': '//cbu01.alicdn.com/img/ibank/O1CN01black.jpg_.webp', '0:1': '//cbu01.alicdn.com/img/ibank/O1CN01white.jpg' },
+  skus: { sku: [
+    { sku_id: '5001', properties: '0:0;1:0', price: '12.50', quantity: 120 },
+    { sku_id: '5002', properties: '0:1;1:0', price: '13.00', quantity: 0 },
+    { sku_id: '5003', properties: '', properties_name: '0:0:颜色:黑色;1:9:尺码:40-41', price: '', quantity: '5' },
+  ] },
+}
 const BASE = {
-  account: { vendor_id: 'A00012345', seller_login_id: 'wingid' }, template: C.validateTemplate(T, PLACES).value, places: PLACES, categoryCode: '56137',
+  account: { vendor_id: 'A00012345', seller_login_id: 'wingid' }, template: C.validateTemplate(T, PLACES).value, places: PLACES, categoryCode: '56137', saleMode: 'domestic',
   productName: '매일 쓰는 머그', brand: '이유씨', items: [{ name: '블랙', originalPrice: 12000, salePrice: 9900, stock: 50, sku: 'MUG-BK', gtin: '', attributes: { 색상: '블랙' } }],
   notices: [{ noticeCategoryName: '기타 재화', noticeCategoryDetailName: '품명 및 모델명', content: '머그' }],
   repImageUrl: 'https://www.euchs.co.kr/api/marketplace?t=x', detailImageUrls: ['https://www.euchs.co.kr/api/marketplace?t=y'], saleStartedAt: '2026-09-28T00:00:00',
@@ -159,7 +188,7 @@ eq('출고지·반품지 정리', [C.normalizeOutbound([{ outboundShippingPlaceC
 const UID = '11111111-1111-4111-8111-111111111111'
 const PID = '22222222-2222-4222-8222-222222222222'
 const EID = '44444444-4444-4444-8444-444444444444'
-const db = { marketplace_accounts: [], marketplace_places: [], marketplace_templates: [], marketplace_sends: [], studio_exports: [], studio_images: [], studio_projects: [] }
+const db = { marketplace_accounts: [], marketplace_places: [], marketplace_templates: [], marketplace_sends: [], studio_exports: [], studio_images: [], studio_projects: [], studio_product_snapshots: [], translation_cache: [] }
 const files = new Map()
 let relay = { mode: 'ok', calls: [] }
 let seq = 0
@@ -171,7 +200,7 @@ function match(row, q) {
     if (['select', 'order', 'limit', 'on_conflict'].includes(k)) continue
     if (v.startsWith('eq.')) { if (String(row[k]) !== v.slice(3)) return false }
     else if (v === 'not.is.null') { if (row[k] == null) return false }
-    else if (v.startsWith('in.(')) { if (!v.slice(4, -1).split(',').includes(String(row[k]))) return false }
+    else if (v.startsWith('in.(')) { if (!v.slice(4, -1).split(',').map(x => x.replace(/^"|"$/g, '')).includes(String(row[k]))) return false }
   }
   return true
 }
@@ -188,6 +217,7 @@ globalThis.fetch = async (url, opts = {}) => {
     if (p === C.PATHS.returnCenters('A00012345')) return json({ code: 200, data: { content: [{ returnCenterCode: '200', shippingPlaceName: '반품지A', deliverCode: 'CJGLS', deliverName: 'CJ대한통운', usable: true, placeAddresses: [{ addressType: 'ROADNAME', returnZipCode: '61000', returnAddress: '광주 북구', returnAddressDetail: '1층', companyContactNumber: '010' }] }] } })
     if (p === C.PATHS.predict) return json({ code: 200, data: { autoCategorizationPredictionResultType: 'SUCCESS', predictedCategoryId: '56137', predictedCategoryName: '머그컵' } })
     if (p === C.PATHS.categoryMeta('56137')) return json({ code: 'SUCCESS', ...META })
+    if (p === C.PATHS.categoryMeta('77777')) return json({ code: 'SUCCESS', ...META2 })
     if (p === C.PATHS.products && method === 'POST') return json({ code: 'SUCCESS', message: '', data: 1234567890 })
     if (p === C.PATHS.product('1234567890')) return json({ code: 'SUCCESS', data: { statusName: relay.status || '승인대기중' } })
     if (p === C.PATHS.histories('1234567890')) return json({ code: 'SUCCESS', data: [{ status: '승인요청', comment: '' }, { status: '승인반려', comment: '대표 이미지에 글자가 있습니다' }] })
@@ -304,7 +334,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('카테고리 메타', (await post('category_meta', { categoryCode: '56137' })).body.attributes.length, 2)
 
   // 보내기
-  const SEND = { exportId: EID, templateId: tid, categoryCode: '56137', categoryName: '머그컵', productName: '매일 쓰는 머그', brand: '이유씨', items: BASE.items, notices: BASE.notices, repImage: { dataBase64: jpg(1000, 1000).toString('base64') } }
+  const SEND = { exportId: EID, templateId: tid, categoryCode: '56137', categoryName: '머그컵', saleMode: 'domestic', productName: '매일 쓰는 머그', brand: '이유씨', items: BASE.items, notices: BASE.notices, repImage: { dataBase64: jpg(1000, 1000).toString('base64') } }
   eq('대표 이미지 정사각형 아님 → 400', (await post('send', { ...SEND, repImage: { dataBase64: jpg(1000, 800).toString('base64') } })).body.code, 'rep_image_invalid')
   eq('대표 이미지 499px → 400', (await post('send', { ...SEND, repImage: { dataBase64: jpg(499, 499).toString('base64') } })).body.code, 'rep_image_invalid')
   const before = db.marketplace_sends.length
@@ -346,10 +376,92 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('동기화: 승인완료', (await post('sync')).body.sends.find(s => s.sellerProductId === '1234567890').status, 'approved')
   eq('처리현황 응답에 request_json 원문 없음', 'request_json' in (await post('sends_list')).body.sends[0], false)
 
+  // ── 항목 보강 (coupang-fields) — 판매 방식·이름·태그·옵션 이미지·인증·구비서류 ──
+  {
+    const lastBody = () => relay.calls.filter(c => c.method === 'POST' && c.path.endsWith('/seller-products')).at(-1)?.body
+    const n0 = db.marketplace_sends.length
+    const nm = await post('send', { ...SEND, saleMode: undefined })
+    eq('판매 방식 없음 → 400 sale_mode_missing · 기록 안 만듦 (기본값 없음)', [nm.statusCode, nm.body.code, db.marketplace_sends.length], [400, 'sale_mode_missing', n0])
+    eq('판매 방식 이상한 값 → 400', (await post('send', { ...SEND, saleMode: 'overseas' })).body.code, 'sale_mode_missing')
+
+    relay.calls = []
+    const ag = await post('send', {
+      ...SEND, saleMode: 'agent', outboundDays: 12, displayName: '이유씨 머그컵 세라믹', generalName: '머그컵 세라믹', modelNo: 'EU-MUG-01',
+      searchTags: ['머그컵', '머그컵', '나이키 머그', '커피잔<b>', '가'.repeat(21), '홈카페'], advanced: { taxType: 'FREE', maxPerPerson: 3, maxPerPersonDays: 7 },
+      optionImages: [{ key: 'r01', dataBase64: jpg(1000, 1000).toString('base64') }], items: [{ ...BASE.items[0], imageKey: 'r01' }],
+    })
+    const b = lastBody()
+    eq('해외구매대행 보내기 성공', [ag.statusCode, ag.body.status], [200, 'approval_pending'])
+    eq('해외구매대행: AGENT_BUY · OVERSEAS_PURCHASED · pccNeeded true · 출고 12일', [b.deliveryMethod, b.items[0].overseasPurchased, b.items[0].pccNeeded, b.items[0].outboundShippingTimeDay], ['AGENT_BUY', 'OVERSEAS_PURCHASED', true, 12])
+    eq('등록상품명·노출상품명·제품명·모델번호', [b.sellerProductName, b.displayProductName, b.generalProductName, b.items[0].modelNo], ['매일 쓰는 머그', '이유씨 머그컵 세라믹', '머그컵 세라믹', 'EU-MUG-01'])
+    eq('검색태그: 중복·남의 상표·21자 빼고 허용 밖 글자 정리', b.items[0].searchTags, ['머그컵', '커피잔 b', '홈카페'])
+    eq('고급 설정: 면세 · 1인 7일에 3개 · 나머지 기본값', [b.items[0].taxType, b.items[0].maximumBuyForPerson, b.items[0].maximumBuyForPersonPeriod, b.items[0].adultOnly, b.items[0].parallelImported, b.items[0].offerCondition, b.unionDeliveryType], ['FREE', 3, 7, 'EVERYONE', 'NOT_PARALLEL_IMPORTED', 'NEW', 'NOT_UNION_DELIVERY'])
+    const optUrl = b.items[0].images[0].vendorPath
+    eq('옵션 대표 이미지 = 그 옵션의 주소(r01) · 200자 이하', [/\.r01\./.test(optUrl), optUrl.length <= 200], [true, true])
+    eq('인증 안 고름 → NOT_REQUIRED 한 줄 · 구비서류 칸 없음', [b.items[0].certifications, 'requiredDocuments' in b], [[{ certificationType: 'NOT_REQUIRED', certificationCode: '' }], false])
+    eq('옵션 이미지 저장됨', [...files.keys()].some(k => /\/marketplace\/[0-9a-f-]+_r01\.jpg$/.test(k)), true)
+    eq('옵션 이미지 없는 key를 가리킴 → 400', (await post('send', { ...SEND, items: [{ ...BASE.items[0], imageKey: 'r09' }] })).statusCode, 400)
+    eq('옵션 이미지 7장 → 400', (await post('send', { ...SEND, optionImages: Array.from({ length: 7 }, (_, i) => ({ key: `r0${i + 1}`, dataBase64: jpg(1000, 1000).toString('base64') })) })).statusCode, 400)
+    eq('출고 소요일 31 → 400', (await post('send', { ...SEND, outboundDays: 31 })).statusCode, 400)
+    eq('고급 설정 이상한 값 → 400', (await post('send', { ...SEND, advanced: { taxType: 'NONE' } })).statusCode, 400)
+
+    // 인증·구비서류가 있는 카테고리 (77777)
+    const pdf = Buffer.from('%PDF-1.4\n%test\n').toString('base64')
+    const S2 = {
+      ...SEND, categoryCode: '77777', saleMode: 'agent',
+      items: [{ ...BASE.items[0], name: '블랙 250', attributes: { 색상: '블랙', '신발 사이즈': '250', 소재: '가죽' } }, { ...BASE.items[0], name: '블랙 260', sku: 'S-260', attributes: { 색상: '블랙', '신발 사이즈': '260' } }],
+      notices: [{ noticeCategoryName: '구두/신발', noticeCategoryDetailName: '치수', content: '상세페이지 참조' }, { noticeCategoryName: '구두/신발', noticeCategoryDetailName: '제조국(원산지)', content: '중국' }],
+    }
+    const m1 = await post('send', S2)
+    eq('필수 인증·구매대행 필수 서류가 비면 → required_missing', [m1.body.code, m1.body.message.includes('생활용품 안전확인'), m1.body.message.includes('수입신고필증'), m1.body.message.includes('병행수입 확인서')], ['required_missing', true, true, false])
+    const m2 = await post('send', { ...S2, saleMode: 'domestic', advanced: { parallelImported: 'PARALLEL_IMPORTED' }, certifications: [{ type: 'KC_HOUSEHOLD_CONFIRM', code: '' }] })
+    eq('국내 + 병행수입 → 병행수입 서류 필수 · 인증번호 빠짐', [m2.body.message.includes('병행수입 확인서'), m2.body.message.includes('수입신고필증'), m2.body.message.includes('인증번호')], [true, false, true])
+    eq('고른 고시 분류(구두/신발)의 필수 항목으로 검사', (await post('send', { ...S2, notices: [S2.notices[0]], certifications: [{ type: 'KC_HOUSEHOLD_CONFIRM', code: 'CB061R001-0001' }], documents: [{ templateName: '수입신고필증', dataBase64: pdf }] })).body.message, '필수 항목이 비어 있어요: 상품고시 "제조국(원산지)"')
+    eq('택1 묶음(사이즈 또는 신발 사이즈) 둘 다 비면 → 빠짐', (await post('send', { ...S2, items: [{ ...BASE.items[0], attributes: { 색상: '블랙' } }] })).body.message.includes('"사이즈" 또는 "신발 사이즈"'), true)
+    eq('구비서류 형식이 다름 → 400 document_invalid', (await post('send', { ...S2, documents: [{ templateName: '수입신고필증', dataBase64: Buffer.from('hello').toString('base64') }] })).body.code, 'document_invalid')
+    relay.calls = []
+    const ok2 = await post('send', { ...S2, certifications: [{ type: 'KC_HOUSEHOLD_CONFIRM', code: 'CB061R001-0001' }], documents: [{ templateName: '수입신고필증', dataBase64: pdf }] })
+    const b2 = lastBody()
+    eq('인증·서류 채우면 보내기 성공', [ok2.statusCode, b2.items.length], [200, 2])
+    eq('인증정보 = 고른 종류 + 인증번호', b2.items[0].certifications, [{ certificationType: 'KC_HOUSEHOLD_CONFIRM', certificationCode: 'CB061R001-0001' }])
+    eq('구비서류 = templateName + 우리 도메인 주소(150자 이하)', [b2.requiredDocuments.length, b2.requiredDocuments[0].templateName, b2.requiredDocuments[0].vendorDocumentPath.startsWith('https://www.euchs.co.kr/api/marketplace?t='), b2.requiredDocuments[0].vendorDocumentPath.length <= 150], [1, '수입신고필증', true, true])
+    eq('숫자 옵션 값에 단위 붙임 · 검색옵션은 exposed NONE', [b2.items[0].attributes.find(a => a.attributeTypeName === '신발 사이즈').attributeValueName, b2.items[0].attributes.find(a => a.attributeTypeName === '소재').exposed, 'exposed' in b2.items[0].attributes[0]], ['250mm', 'NONE', false])
+    eq('고시 = 고른 분류 · 제조국', b2.items[0].notices.map(n => [n.noticeCategoryName, n.noticeCategoryDetailName, n.content]), [['구두/신발', '치수', '상세페이지 참조'], ['구두/신발', '제조국(원산지)', '중국']])
+    const getDoc = async t => { const res = mockRes(); await quiet(() => handler({ method: 'GET', url: `/api/marketplace?t=${t}`, headers: {} }, res)); return res }
+    const doc = await getDoc(b2.requiredDocuments[0].vendorDocumentPath.split('t=')[1])
+    eq('구비서류 전달: 200 · application/pdf', [doc.statusCode, doc.headers['content-type']], [200, 'application/pdf'])
+    eq('기록(request_json)에 키·서명·비밀 없음 (보강 뒤)', /fake-(access|secret)-key|signature|x-relay-secret|test-relay-secret|CEA /i.test(JSON.stringify(db.marketplace_sends.at(-1))), false)
+    const dup = await post('send', { ...S2, certifications: [{ type: 'KC_HOUSEHOLD_CONFIRM', code: 'C' }], documents: [{ templateName: '수입신고필증', dataBase64: pdf }], items: [S2.items[0], { ...S2.items[0], name: '블랙 250 (2)', sku: 'S-2' }] })
+    eq('구매옵션 값이 모두 같은 옵션 두 개 → 400', [dup.statusCode, dup.body.message.includes('구매옵션 값이 다른 옵션과 같아요')], [400, true])
+
+    // 보내기 준비: 1688에서 가져온 작업이면 옵션 줄 + 번역 캐시의 한국어 (외부 호출 없음)
+    eq('1688 작업이 아니면 source = null', (await post('send_prepare', { exportId: EID })).body.source, null)
+    db.studio_projects[0].offer_id = '123456789012'
+    db.studio_product_snapshots.push({ offer_id: '123456789012', status: 'ok', item: ITEM_1688 })
+    db.translation_cache.push(...[['颜色', '색상'], ['黑色', '블랙'], ['尺码', '사이즈'], ['女士拖鞋', '여성 슬리퍼']].map(([source_text, translated_text]) => ({ source_lang: 'zh-CN', target_lang: 'ko', source_text, translated_text })))
+    db.studio_images[0].source_url = 'https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg'
+    relay.calls = []
+    const sp2 = await post('send_prepare', { exportId: EID })
+    const src = sp2.body.source
+    eq('source: 옵션 3줄 · 번역은 캐시에 있는 것만', [src.from, src.skus.length, src.skuTotal, src.title.ko, src.skus[0].values.map(v => [v.name.ko, v.value.ko]), src.skus[1].values[0].value], ['1688', 3, 3, '여성 슬리퍼', [['색상', '블랙'], ['사이즈', null]], { zh: '白色', ko: null }])
+    eq('source: 가격은 1688 원본(위안) 그대로 · 가격 없는 줄은 null (임의 숫자 없음) · 재고 0은 0', [src.skus.map(s => s.priceCny), src.skus.map(s => s.stock)], [[12.5, 13, null], [120, 0, 5]])
+    eq('source: 원화 가격 칸을 만들지 않음', /krw|salePrice|originalPrice/i.test(JSON.stringify(src)), false)
+    eq('연결됨 send_prepare: markets.coupang.connected true', sp2.body.markets, { coupang: { connected: true } })
+    eq('send_prepare는 쿠팡을 부르지 않음 · 사진에 sourceUrl', [relay.calls.length, sp2.body.images[0].sourceUrl, sp2.body.limits], [0, 'https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg', { optionImages: 6, documents: 5, documentBytes: 3145728 }])
+    eq('옵션 사진 맞추기: 1688 옵션 사진 → 작업 사진', [F.matchOptionImage(src.skus[0].imageUrl, sp2.body.images), F.matchOptionImage(src.skus[1].imageUrl, sp2.body.images)], [sp2.body.images[0].id, null])
+  }
+
   // 해제
+  const sendsBefore = db.marketplace_sends.length
   await post('disconnect')
-  eq('연결 해제: 계정·출고지·템플릿 삭제, 전송 기록은 남김', [db.marketplace_accounts.length, db.marketplace_places.length, db.marketplace_templates.length, db.marketplace_sends.length], [0, 0, 0, 3])
+  eq('연결 해제: 계정·출고지·템플릿 삭제, 전송 기록은 남김', [db.marketplace_accounts.length, db.marketplace_places.length, db.marketplace_templates.length, db.marketplace_sends.length, sendsBefore >= 3], [0, 0, 0, sendsBefore, true])
   eq('해제 뒤 보내기 → not_connected', (await post('send', SEND)).body.code, 'not_connected')
+  {
+    // 연결 전에도 보내기 창은 열린다 — 판매처 줄이 자물쇠 + [연결하기]로 보이게 markets를 준다
+    const un = await post('send_prepare', { exportId: EID })
+    eq('연결 전 send_prepare: 200 · markets.coupang.connected false', [un.statusCode, un.body.connected, un.body.markets], [200, false, { coupang: { connected: false } }])
+    eq('보낸 상품 목록에 판매처(market)', [...new Set((await post('sends_list')).body.sends.map(s => s.market))], ['coupang'])
+  }
   eq('모르는 action → 400', (await post('nope')).statusCode, 400)
 }
 
@@ -360,12 +472,12 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('서버: 키를 로그로 찍지 않음 (console에 accessKey·secretKey·encKey 없음)', /console\.\w+\([^)]*(accessKey|secretKey|access_key|secret_key|encKey|relaySecret)/.test(server), false)
   eq('서버: 시크릿 하드코딩 없음 (환경변수로만)', /MARKETPLACE_(ENC_KEY|RELAY_SECRET)\s*=\s*['"]/.test(server), false)
   eq('서버: 모든 POST는 studioGuard 뒤', /const ctx = await studioGuard\(req, res\)\s*\n\s*if \(!ctx\) return/.test(read('api/marketplace.js')), true)
-  const client = ['src/lib/studioMarketplace.js', 'src/views/studio/StudioMarketplaceView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue'].map(read).join('\n')
+  const client = ['src/lib/studioMarketplace.js', 'src/views/studio/StudioMarketplaceView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue'].map(read).join('\n')
   eq('화면: VITE_ 시크릿·Tailwind dark: 없음', [/VITE_MARKETPLACE|import\.meta\.env\.[A-Z_]*(KEY|SECRET)/.test(client), /\sdark:/.test(client)], [false, false])
   const guide = read('src/components/studio/StudioMarketplaceGuide.vue')
   eq('가이드: 캡처 5장 · "[추가] 버튼" 강조 2곳(04·05) · IP 복사', [[1, 2, 3, 4, 5].every(n => guide.includes(`/studio-guide/coupang/0${n}.png`) && fs.existsSync(new URL(`../public/studio-guide/coupang/0${n}.png`, import.meta.url))), (guide.match(/반드시 \[추가\] 버튼/g) || []).length, guide.includes("label: 'IP'")], [true, 2, true])
-  const modal = read('src/components/studio/StudioSendModal.vue')
-  eq('보내기 창: 브랜드·품번 필수, GTIN 선택', [/브랜드 \*/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드, 선택\)/.test(modal), /자체브랜드명/.test(modal)], [true, true, true, true])
+  const modal = read('src/components/studio/StudioSendCoupang.vue')
+  eq('보내기 창: 브랜드·품번 필수, GTIN 선택', [/브랜드 \*/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드 숫자 8~14자리\)은 선택/.test(modal), /자체브랜드명/.test(modal)], [true, true, true, true])
   eq('판매처 화면: 로그아웃 구독', /euchs-auth-changed/.test(read('src/views/studio/StudioMarketplaceView.vue')), true)
 }
 
@@ -397,7 +509,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
 
   // 고객 화면 문구 — 템플릿(주석 제외)·오류 문구 표·서버 응답에 내부 용어가 없어야 한다
   const BAN = /관리자|서버|암호화|키 설정|환경변수|중계|relay|ENC_KEY|RELAY/
-  const screens = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
+  const screens = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
   // relayIp는 값(IP 숫자)을 넘기는 속성 이름 — 화면에 글자로 보이지 않는다
   const shown = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/:relay-ip|relayIp/g, '') }
   eq('화면 템플릿에 내부 용어 없음', screens.filter(p => BAN.test(shown(p))), [])
@@ -421,6 +533,205 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('보낸 상품 = 내 작업 화면 · 설정에는 없음', [/<StudioSendList /.test(home), /<StudioExportList :sends="sends"/.test(home), /<StudioSendList|<StudioShippingTemplates/.test(read('src/views/studio/StudioMarketplaceView.vue'))], [true, true, false])
   eq('보낸 상품·배송 템플릿 화면: 로그아웃 구독', [/euchs-auth-changed/.test(read('src/components/studio/StudioSendList.vue')), /euchs-auth-changed/.test(read('src/views/studio/StudioShippingView.vue'))], [true, true])
   eq('미연결 안내 링크 → 설정 > 판매처 연결 탭', read('src/components/studio/StudioExportList.vue').includes(`busy[x.id].link" :to="{ name: 'studio-settings-marketplace' }"`), true)
+}
+
+// ── 11. 쿠팡 항목 규칙 (api/_coupangFields.js — 화면과 서버가 같이 쓰는 순수 함수) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const rules = read('api/_coupangFields.js').replace(/\/\*[\s\S]*?\*\//g, '') // 주석 빼고
+  eq('규칙 파일: import·process.env·fetch 없음 (브라우저에서도 그대로 씀)', [/^import /m.test(rules), /process\.env|fetch\(/.test(rules)], [false, false])
+
+  // 판매 방식
+  eq('판매 방식 두 가지 · 문서 값', [Object.keys(F.SALE_MODES), F.SALE_MODES.domestic, F.SALE_MODES.agent].map(x => JSON.stringify(x)), [
+    '["domestic","agent"]',
+    '{"label":"국내 재고 판매","deliveryMethod":"SEQUENCIAL","overseasPurchased":"NOT_OVERSEAS_PURCHASED","pccNeeded":false}',
+    '{"label":"해외구매대행","deliveryMethod":"AGENT_BUY","overseasPurchased":"OVERSEAS_PURCHASED","pccNeeded":true}',
+  ])
+  eq('기본값 없음: 빈 값·모르는 값은 판매 방식이 아님', [F.isSaleMode(''), F.isSaleMode(undefined), F.isSaleMode('overseas'), F.isSaleMode('agent')], [false, false, false, true])
+  eq('출고 소요일 기본: 국내 = 템플릿 값 · 구매대행 = 길게(10) · 템플릿이 더 길면 그 값', [F.defaultOutboundDays('domestic', 2), F.defaultOutboundDays('agent', 2), F.defaultOutboundDays('agent', 14), F.defaultOutboundDays('agent', 99)], [2, 10, 14, 30])
+  eq('판매 방식 없음 → 본문 안 만듦', [C.buildProductBody({ ...BASE, saleMode: undefined }).ok, C.buildProductBody({ ...BASE, saleMode: '' }).message], [false, '판매 방식을 골라 주세요. (국내 재고 판매 / 해외구매대행)'])
+  const dm = C.buildProductBody(BASE).body
+  eq('국내 재고: SEQUENCIAL · NOT_OVERSEAS_PURCHASED · pccNeeded false · 출고 = 템플릿', [dm.deliveryMethod, dm.items[0].overseasPurchased, dm.items[0].pccNeeded, dm.items[0].outboundShippingTimeDay], ['SEQUENCIAL', 'NOT_OVERSEAS_PURCHASED', false, 2])
+
+  // 요청 본문 스냅샷 (해외구매대행 + 새 칸 전부)
+  const full = C.buildProductBody({
+    ...BASE, saleMode: 'agent', outboundDays: 10, displayName: '이유씨 세라믹 머그컵', generalName: '세라믹 머그컵', manufacture: '이유씨컴퍼니', modelNo: 'EU-MUG-01',
+    searchTags: ['머그컵', '홈카페'], advanced: { taxType: 'TAX', adultOnly: 'EVERYONE', offerCondition: 'NEW', parallelImported: 'NOT_PARALLEL_IMPORTED', unionDeliveryType: 'UNION_DELIVERY', maxPerPerson: 2, maxPerPersonDays: 30 },
+    certifications: [{ type: 'KC_HOUSEHOLD_CONFIRM', code: 'CB-1' }], documents: [{ templateName: '수입신고필증', url: 'https://www.euchs.co.kr/api/marketplace?t=d' }],
+    items: [{ ...BASE.items[0], imageUrl: 'https://www.euchs.co.kr/api/marketplace?t=r' }],
+  })
+  eq('요청 본문 스냅샷 (해외구매대행)', full.body, {
+    displayCategoryCode: 56137, sellerProductName: '매일 쓰는 머그', vendorId: 'A00012345', saleStartedAt: '2026-09-28T00:00:00', saleEndedAt: '2099-12-31T23:59:59',
+    displayProductName: '이유씨 세라믹 머그컵', brand: '이유씨', manufacture: '이유씨컴퍼니',
+    deliveryMethod: 'AGENT_BUY', deliveryCompanyCode: 'CJGLS', deliveryChargeType: 'FREE', deliveryCharge: 0, freeShipOverAmount: 0, deliveryChargeOnReturn: 3000,
+    remoteAreaDeliverable: 'Y', unionDeliveryType: 'UNION_DELIVERY',
+    returnCenterCode: '200', returnChargeName: '반품지A', companyContactNumber: '010-0000-0000', returnZipCode: '61000', returnAddress: '광주 북구', returnAddressDetail: '1층',
+    returnCharge: 3000, outboundShippingPlaceCode: 100, vendorUserId: 'wingid', requested: true,
+    items: [{
+      itemName: '블랙', originalPrice: 12000, salePrice: 9900, maximumBuyCount: 50, maximumBuyForPerson: 2, maximumBuyForPersonPeriod: 30,
+      externalVendorSku: 'MUG-BK', emptyBarcode: true, emptyBarcodeReason: '바코드가 없는 상품(품번으로 식별)',
+      outboundShippingTimeDay: 10, unitCount: 1, adultOnly: 'EVERYONE', taxType: 'TAX', parallelImported: 'NOT_PARALLEL_IMPORTED', overseasPurchased: 'OVERSEAS_PURCHASED', pccNeeded: true,
+      certifications: [{ certificationType: 'KC_HOUSEHOLD_CONFIRM', certificationCode: 'CB-1' }],
+      images: [{ imageOrder: 0, imageType: 'REPRESENTATION', vendorPath: 'https://www.euchs.co.kr/api/marketplace?t=r' }, { imageOrder: 1, imageType: 'DETAIL', vendorPath: 'https://www.euchs.co.kr/api/marketplace?t=y' }],
+      attributes: [{ attributeTypeName: '색상', attributeValueName: '블랙' }],
+      contents: [{ contentsType: 'IMAGE_NO_SPACE', contentDetails: [{ content: 'https://www.euchs.co.kr/api/marketplace?t=y', detailType: 'IMAGE' }] }],
+      notices: [{ noticeCategoryName: '기타 재화', noticeCategoryDetailName: '품명 및 모델명', content: '머그' }],
+      searchTags: ['머그컵', '홈카페'], offerCondition: 'NEW', modelNo: 'EU-MUG-01',
+    }],
+    generalProductName: '세라믹 머그컵',
+    requiredDocuments: [{ templateName: '수입신고필증', vendorDocumentPath: 'https://www.euchs.co.kr/api/marketplace?t=d' }],
+  })
+  eq('노출상품명 비우면 등록상품명 · 제품명·모델번호·서류 칸은 비우면 안 보냄', [dm.displayProductName, 'generalProductName' in dm, 'modelNo' in dm.items[0], 'requiredDocuments' in dm], ['매일 쓰는 머그', false, false, false])
+  eq('노출상품명 101자 → 거절', C.buildProductBody({ ...BASE, displayName: '가'.repeat(101) }).ok, false)
+  eq('옵션 201개 → 거절 · 200개 통과', [C.buildProductBody({ ...BASE, items: Array.from({ length: 201 }, (_, i) => ({ ...BASE.items[0], name: `옵션${i}`, attributes: { 색상: `색${i}` } })) }).ok, C.buildProductBody({ ...BASE, items: Array.from({ length: 200 }, (_, i) => ({ ...BASE.items[0], name: `옵션${i}`, attributes: { 색상: `색${i}` } })) }).body.items.length], [false, 200])
+  eq('옵션 이름이 같음 → 거절', C.buildProductBody({ ...BASE, items: [BASE.items[0], { ...BASE.items[0], attributes: { 색상: '화이트' } }] }).ok, false)
+  eq('옵션 값 31자 → 거절', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], attributes: { 색상: '가'.repeat(31) } }] }).ok, false)
+  eq('옵션마다 자기 가격 유지 (섞어 담아도 줄마다)', C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], salePrice: 9900, originalPrice: 12000 }, { ...BASE.items[0], name: '화이트', sku: 'MUG-WH', salePrice: 11900, originalPrice: 11900, attributes: { 색상: '화이트' } }] }).body.items.map(i => [i.itemName, i.originalPrice, i.salePrice]), [['블랙', 12000, 9900], ['화이트', 11900, 11900]])
+
+  // 고급 설정
+  eq('고급 설정 기본값', F.advancedDefaults(), { parallelImported: 'NOT_PARALLEL_IMPORTED', taxType: 'TAX', adultOnly: 'EVERYONE', offerCondition: 'NEW', unionDeliveryType: 'NOT_UNION_DELIVERY', maxPerPerson: 0, maxPerPersonDays: 1 })
+  eq('1인 제한 없음(0)이면 기간은 1 (문서)', F.normalizeAdvanced({ maxPerPerson: 0, maxPerPersonDays: 30 }).value.maxPerPersonDays, 1)
+  eq('고급 설정: 모르는 값·음수 → 거절', [F.normalizeAdvanced({ adultOnly: 'KIDS' }).ok, F.normalizeAdvanced({ maxPerPerson: -1 }).ok, F.normalizeAdvanced({ maxPerPerson: 1.5 }).ok], [false, false, false])
+  eq('할인율: 정가 12,000 · 판매가 9,900 = 18% / 같으면 0 / 판매가가 크면 없음 / 값 없으면 없음', [F.discountRate(12000, 9900), F.discountRate(9900, 9900), F.discountRate(9000, 9900), F.discountRate(null, 9900)], [18, 0, null, null])
+
+  // 검색태그
+  const many = Array.from({ length: 25 }, (_, i) => `태그${i}`)
+  eq('태그 20개까지', [F.cleanSearchTags(many).tags.length, F.cleanSearchTags(many).removed.length, F.cleanSearchTags(many).removed[0].reason], [20, 5, '20개 넘음'])
+  eq('태그 20자까지 (20자 통과 · 21자 뺌)', [F.cleanSearchTags(['가'.repeat(20)]).tags.length, F.cleanSearchTags(['가'.repeat(21)]).removed[0].reason], [1, '20자 넘음'])
+  eq('태그 중복(대소문자·띄어쓰기 무시)', F.cleanSearchTags(['Home Cafe', 'homecafe', '홈카페', '홈 카페']).tags, ['Home Cafe', '홈카페'])
+  eq('문서가 허용한 특수문자는 남김 · 그 밖은 뺌', F.cleanSearchTags(["3.5mm", 'A+B', '50%', '<b>굵게</b>', '머그(대)', '#홈카페']).tags, ['3.5mm', 'A+B', '50%', 'b 굵게 b', '머그 대', '#홈카페'])
+  eq('추천용(strict)은 특수문자 전부 뺌', F.cleanSearchTags(['3.5mm', '#홈카페'], { strict: true }).tags, ['3 5mm', '홈카페'])
+  eq('남의 상표 뺌 · 자기 브랜드는 남김', [F.cleanSearchTags(['나이키 운동화', 'NIKE', '디즈니컵', '운동화']).tags, F.cleanSearchTags(['이케아'], { brand: '이케아' }).tags, F.cleanSearchTags(['나이키 운동화']).removed[0].reason], [['운동화'], ['이케아'], '다른 회사 상표'])
+  eq('쓸 수 없는 단어(정품·레플리카 등) 뺌', F.cleanSearchTags(['정품 머그', '레플리카', '머그']).tags, ['머그'])
+  eq('본문에도 같은 규칙 (서버가 다시 정리)', C.buildProductBody({ ...BASE, searchTags: [...many, '샤넬'] }).body.items[0].searchTags.length, 20)
+  const sug = F.suggestSearchTags({ title: '2026 신상 여성 여름 슬리퍼 EVA 미끄럼방지 욕실화 도매', categoryName: '패션잡화>여성신발>슬리퍼', attrs: [{ name: '소재', value: 'EVA' }, { name: '원산지', value: '中国' }], brand: '이유씨' })
+  eq('태그 추천: 카테고리 끝 낱말이 맨 앞 · 꾸밈말·연도 없음 · 번역 안 된 글자 없음', [sug[0], sug.includes('신상'), sug.includes('도매'), sug.includes('2026'), sug.some(t => /\p{Script=Han}/u.test(t)), sug.includes('여성'), sug.includes('여성여름'), sug.length <= 20, sug.every(t => t.length <= 20)], ['슬리퍼', false, false, false, false, true, true, true, true])
+
+  // 상품명 추천
+  eq('제품명 추천: 꾸밈말·옵션 값 빼고 검색 키워드(카테고리 끝 낱말)를 앞에', F.suggestGeneralName({ title: '신상 여성 여름 슬리퍼 블랙 250', categoryName: '여성신발>슬리퍼', optionValues: ['블랙', '250'] }), '슬리퍼 여성 여름')
+  eq('노출상품명 추천 = 브랜드 + 제품명 (문서 권장) · 100자', [F.suggestDisplayName({ brand: '이유씨', generalName: '슬리퍼 여성 여름' }), F.suggestDisplayName({ brand: '이유씨', generalName: '이유씨 슬리퍼' }), F.suggestDisplayName({ brand: '이유씨', generalName: '' }), F.suggestDisplayName({ brand: '이유씨', generalName: '가나다 '.repeat(40) }).length <= 100], ['이유씨 슬리퍼 여성 여름', '이유씨 슬리퍼', '', true])
+
+  // 1688 옵션
+  const sk = F.extractSkus1688(ITEM_1688)
+  eq('1688 옵션 줄: 옵션 값 · 가격(위안) · 재고 · 옵션 사진', sk.rows.map(r => [r.skuId, r.values.map(v => `${v.name}=${v.value}`).join(','), r.priceCny, r.stock, r.imageUrl]), [
+    ['5001', '颜色=黑色,尺码=36-37', 12.5, 120, 'https://cbu01.alicdn.com/img/ibank/O1CN01black.jpg_.webp'],
+    ['5002', '颜色=白色,尺码=36-37', 13, 0, 'https://cbu01.alicdn.com/img/ibank/O1CN01white.jpg'],
+    ['5003', '颜色=黑色,尺码=40-41', null, 5, ''],
+  ])
+  eq('1688 옵션 200개까지 · 전체 수는 따로', (() => { const r = F.extractSkus1688({ props_list: { '0:0': '颜色:黑' }, skus: { sku: Array.from({ length: 230 }, () => ({ properties: '0:0', price: '1' })) } }); return [r.rows.length, r.total] })(), [200, 230])
+  eq('옵션 없는 상품·이상한 값 → 빈 목록', [F.extractSkus1688({ skus: { sku: [] } }).rows, F.extractSkus1688(null).rows, F.extractSkus1688({ skus: 'x' }).rows], [[], [], []])
+  const attrs2 = C.summarizeCategoryMeta(META2).attributes
+  eq('옵션 종류 맞추기: 번역·원문 → 쿠팡 구매옵션', [F.mapOptionName(['색상', '颜色'], attrs2), F.mapOptionName(['颜色分类'], attrs2), F.mapOptionName(['사이즈', '尺码'], attrs2), F.mapOptionName(['컬러'], attrs2), F.mapOptionName(['香味'], attrs2), F.mapOptionName(['소재'], attrs2)], ['색상', '색상', '사이즈', '색상', '', '소재'])
+  eq('사진 주소 열쇠: 프로토콜·크기 꼬리·쿼리 뗌', [F.imageKey('//cbu01.alicdn.com/a/b.jpg_.webp'), F.imageKey('https://cbu01.alicdn.com/a/b.jpg?x=1'), F.imageKey('http://cbu01.alicdn.com/a/b.400x400.jpg'), F.imageKey('')], ['cbu01.alicdn.com/a/b.jpg', 'cbu01.alicdn.com/a/b.jpg', 'cbu01.alicdn.com/a/b.jpg', ''])
+  eq('번역 안 된 글자 찾기', [F.hasUntranslated('블랙 黑色'), F.hasUntranslated('블랙 250mm'), F.hasUntranslated('')], [true, false, false])
+
+  // 고시·인증·서류
+  const s2 = C.summarizeCategoryMeta(META2)
+  eq('메타 요약: 인증(코드 필요)·구비서류 규칙·택1 묶음·상품 상태', [s2.certifications.map(c => [c.type, c.required, c.needsCode]), s2.documents, s2.attributes.map(a => [a.name, a.group, a.exposed]), s2.offerConditions, s2.singleItem], [
+    [['NOT_REQUIRED', false, false], ['KC_HOUSEHOLD_CONFIRM', true, true], ['PRESENTED_IN_DETAIL_PAGE', false, false]],
+    [{ templateName: '수입신고필증', rule: 'MANDATORY_OVERSEAS_PURCHASED' }, { templateName: '병행수입 확인서', rule: 'MANDATORY_PARALLEL_IMPORTED' }, { templateName: '기타서류', rule: 'OPTIONAL' }],
+    [['색상', '', true], ['사이즈', '1', true], ['신발 사이즈', '1', true], ['소재', '', false]], ['NEW'], false,
+  ])
+  eq('옛 메타(인증·서류 칸 없음)도 그대로 읽음', [C.summarizeCategoryMeta(META).documents, C.summarizeCategoryMeta(META).certifications, C.summarizeCategoryMeta(META).attributes[0].group], [[], [], ''])
+  eq('고를 수 있는 인증 = NOT_REQUIRED 빼고', F.realCerts(s2.certifications).map(c => c.type), ['KC_HOUSEHOLD_CONFIRM', 'PRESENTED_IN_DETAIL_PAGE'])
+  eq('구비서류 필수 조건', [F.docRequired('MANDATORY', {}), F.docRequired('OPTIONAL', { saleMode: 'agent' }), F.docRequired('MANDATORY_OVERSEAS_PURCHASED', { saleMode: 'agent' }), F.docRequired('MANDATORY_OVERSEAS_PURCHASED', { saleMode: 'domestic' }), F.docRequired('MANDATORY_PARALLEL_IMPORTED', { parallelImported: 'PARALLEL_IMPORTED' }), F.docRequired('MANDATORY_PARALLEL_IMPORTED', { parallelImported: 'NOT_PARALLEL_IMPORTED' })], [true, false, true, false, true, false])
+  eq('택1 묶음: 하나만 채우면 통과', C.missingRequired(s2, { attributes: { 색상: '블랙', 사이즈: 'M' }, skipProduct: true }), [])
+  eq('고시 기본값: 1688 상품이면 제조국·원산지만 · 아니면 없음', [F.noticeDefaults(s2.notices[1].items, { is1688: true }), F.noticeDefaults(s2.notices[1].items, { is1688: false }), F.noticeDefaults(s2.notices[0].items, { is1688: true })], [{ '제조국(원산지)': '중국' }, {}, { 제조국: '중국' }])
+  eq('"상세페이지 참조" = 문서 예시 표현 그대로', F.NOTICE_SEE_DETAIL, '상세페이지 참조')
+
+  // 보내기 전 요약
+  const pv = F.previewRows({ saleMode: 'agent', outboundDays: 10, productName: '머그', displayName: '', brand: '이유씨', categoryCode: '56137', categoryName: '머그컵', tags: ['머그컵', '홈카페'], items: [{ salePrice: 9900 }, { salePrice: 11900 }], noticeCategory: '기타 재화', notices: { a: '1', b: '' }, certifications: [], documents: [], advanced: { maxPerPerson: 2, maxPerPersonDays: 30 }, templateName: '기본' })
+  const row = l => pv.find(r => r.label === l)?.value
+  eq('요약 표: 판매 방식·배송방법·통관부호·이름·태그·가격 범위·구매 제한', [row('판매 방식'), row('배송방법'), row('개인통관고유부호'), row('출고 소요일'), row('노출상품명'), row('제조사'), row('검색태그'), row('옵션'), row('판매가'), row('상품정보고시'), row('인증정보'), row('1인 구매 제한'), row('제품명')], ['해외구매대행', 'AGENT_BUY', '받음', '10일', '머그', '이유씨', '머그컵, 홈카페', '2개', '9,900원 ~ 11,900원', '기타 재화 · 1항목', '해당 없음', '30일에 2개', ''])
+  eq('요약 표: 판매 방식을 안 고르면 빈 칸 (기본값 없음)', [F.previewRows({}).find(r => r.label === '판매 방식').value, F.previewRows({}).find(r => r.label === '배송방법').value], ['', ''])
+
+  // 화면
+  const modal = read('src/components/studio/StudioSendCoupang.vue')
+  const shown = modal.slice(modal.indexOf('<template>'), modal.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  eq('보내기 창: 판매 방식 고르기 · 기본값 없음(처음 값 빈 칸) · 빠짐 목록', [/data-mk-s-mode-pick/.test(shown), /saleMode: '', outboundDays: null/.test(modal), /out\.push\('판매 방식 \(국내 재고 판매 \/ 해외구매대행\)'\)/.test(modal)], [true, true, true])
+  eq('보내기 창: 이름 3칸·모델번호·태그 칩·고급 설정 접기·요약 표', [/data-mk-s-display/.test(shown), /data-mk-s-general/.test(shown), /data-mk-s-model/.test(shown), /<StudioTagChips /.test(shown), /data-mk-s-advanced-toggle/.test(shown), /advancedOpen = ref\(false\)/.test(modal), /data-mk-s-preview/.test(shown)], [true, true, true, true, true, true, true])
+  eq('보내기 창: 옵션 표·옵션 종류 맞추기·옵션 사진·고시 전체·인증·서류', [/data-mk-s-items/.test(shown), /data-mk-s-option-map/.test(shown), /data-mk-s-item-image/.test(shown), /v-for="n in noticeItems"/.test(shown), /data-mk-s-cert-row/.test(shown), /data-mk-s-doc-row/.test(shown)], [true, true, true, true, true, true])
+  eq('보내기 창: 금액을 임의 숫자로 채우지 않음 (1688 가격 → 판매가 계산 없음)', [/priceCny\s*\*/.test(modal), /salePrice\s*=\s*[^=]*priceCny/.test(modal), /originalPrice: null, salePrice: null/.test(modal), /'확인 필요'/.test(modal)], [false, false, true, true])
+  eq('보내기 창·태그 칩: 규칙은 공용 파일에서', [/from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(modal), /from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(read('src/components/studio/StudioTagChips.vue'))], [true, true])
+  // 판매처 목록 — 설정·랜딩이 같은 목록·같은 순서, 사정 설명 문구 없음
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  eq('판매처 목록·순서 (쿠팡만 연결 가능, 나머지는 준비 중)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang']])
+  const mkView = read('src/views/studio/StudioMarketplaceView.vue'), landing = read('src/views/studio/StudioLandingView.vue')
+  eq('설정·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음)', [/import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(mkView), /OTHERS = MARKETS\.filter\(m => m\.soon\)/.test(mkView), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [true, true, true, true, false])
+  const screenText = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
+  const customer = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioLandingView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioTagChips.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
+  eq('고객 화면에 "이어서 준비"·"부터 열려"·"곧"·"관리자" 없음', customer.filter(p => /이어서 준비|부터 열려|곧|관리자/.test(screenText(p))), [])
+  eq('판매 방식 기억 = 템플릿마다 · 브라우저에만', [/studio-mk-sale-mode:\$\{id\}/.test(read('src/lib/studioMarketplace.js')), /rememberSaleMode\(f\.value\.templateId, key\)/.test(modal)], [true, true])
+}
+
+// ── 12. "내 상품" 명칭 · 보낼 판매처 체크 목록 · 판매처별 상태 배지 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const walk = dir => fs.readdirSync(new URL(`../${dir}/`, import.meta.url), { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(`${dir}/${e.name}`) : /\.(vue|js|mjs|css)$/.test(e.name) ? [`${dir}/${e.name}`] : [])
+
+  // 3-1 명칭
+  const left = [...walk('src'), ...walk('api')].filter(p => read(p).includes('완성작'))
+  eq('"완성작"이 남은 파일 = 계정 탈퇴 API 주석 1곳뿐 (화면·스튜디오 서버 0건)', left, ['api/account-withdraw.js'])
+  const list = read('src/components/studio/StudioExportList.vue')
+  eq('내 작업 화면 영역 제목 = "내 상품" · 사이드바 "내 작업"·"보낸 상품"은 그대로', [/<h2 class="st-h-section">내 상품<\/h2>/.test(list), /label: '내 작업'/.test(read('src/layouts/StudioLayout.vue')), /<h2 class="st-h-section">보낸 상품<\/h2>/.test(read('src/components/studio/StudioSendList.vue'))], [true, true, true])
+  eq('변수·DB 이름은 그대로 (studio_exports · exportId · exports_list)', [/studio_exports/.test(read('api/studio-upload.js')), /exportId/.test(read('src/components/studio/StudioSendCoupang.vue')), /exports_list/.test(read('api/studio-upload.js'))], [true, true, true])
+
+  // 3-2 보낼 판매처
+  const rowsOn = R.marketRows({ coupang: { connected: true } }), rowsOff = R.marketRows({ coupang: { connected: false } })
+  eq('판매처 줄 = MARKETS와 같은 9곳·같은 순서', [rowsOn.map(r => r.name), rowsOn.map(r => r.key)], [R.MARKETS.map(m => m.name), R.MARKETS.map(m => m.key)])
+  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 나머지 8곳 = soon', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, [...new Set(rowsOn.slice(1).map(r => r.state))], rowsOn.slice(1).length], ['connected', 'locked', 'locked', ['soon'], 8])
+  eq('처음 체크: 연결된 곳만 체크 · 연결 전이면 아무것도 체크 안 됨', [R.checkedMarkets(rowsOn, R.defaultChecked(rowsOn)), R.checkedMarkets(rowsOff, R.defaultChecked(rowsOff))], [['coupang'], []])
+  eq('체크할 수 없는 줄은 값이 들어와도 보내지 않음', [R.checkedMarkets(rowsOn, { coupang: true, smartstore: true, cafe24: true }), R.checkedMarkets(rowsOff, { coupang: true })], [['coupang'], []])
+  eq('버튼 글자: 1곳 = 이름 · 0곳·여러 곳 = "선택한 판매처로 보내기"', [R.sendButtonLabel(['coupang']), R.sendButtonLabel([]), R.sendButtonLabel(['coupang', 'smartstore']), R.sendButtonLabel(['11st']), R.sendButtonLabel(['smartstore'])], ['쿠팡으로 보내기', '선택한 판매처로 보내기', '선택한 판매처로 보내기', '11번가로 보내기', '스마트스토어로 보내기'])
+  const shell = read('src/components/studio/StudioSendModal.vue')
+  const shellShown = shell.slice(shell.indexOf('<template>'), shell.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  eq('보내기 창: "0. 보낼 판매처"가 맨 위 · 체크박스 줄 · 자물쇠 + [연결하기] · "준비 중" 배지', [/0\. 보낼 판매처/.test(shellShown), shellShown.indexOf('data-mk-s-markets') < shellShown.indexOf('<component :is="SECTIONS[key]"'), /type="checkbox" :disabled="r\.state !== 'connected'/.test(shellShown), /<Lock /.test(shellShown), /:to="\{ name: 'studio-settings-marketplace' \}"[^>]*>연결하기</.test(shellShown), /v-else-if="r\.state === 'soon'" class="st-badge shrink-0">준비 중</.test(shellShown)], [true, true, true, true, true, true])
+  eq('보내기 창: 체크 0개 → 빠짐 목록 "보낼 판매처" · 버튼은 빠짐이 있으면 꺼짐', [/if \(!picked\.value\.length\) return \['보낼 판매처'\]/.test(shell), /:disabled="sending \|\| sectionBusy \|\| missing\.length > 0 \|\| !prepare"/.test(shellShown)], [true, true])
+  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임', [/const SECTIONS = \{ coupang: StudioSendCoupang \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  {
+    // 체크를 풀었다 다시 켜도 값이 남는다 — 섹션은 체크와 상관없이 만들어 두고(v-show로 가리기만), 빠짐·보내기는 체크된 것만
+    const on = R.marketRows({ coupang: { connected: true } })
+    eq('체크를 풀어도 섹션은 그대로(값 유지): 만들 섹션은 체크와 무관 · v-show로 가림 · 보내기는 체크된 것만', [
+      R.sectionKeys(on, ['coupang']), R.checkedMarkets(on, { coupang: false }), R.checkedMarkets(on, { coupang: true }), R.sectionKeys(R.marketRows({ coupang: { connected: false } }), ['coupang']), R.sectionKeys(on, []),
+      /v-for="key in mounted"/.test(shellShown), /<component :is="SECTIONS\[key\]" v-show="picked\.includes\(key\)"/.test(shellShown), /<component[^>]*v-if=/.test(shellShown), /v-for="key in picked"/.test(shellShown), /for \(const key of picked\.value\)/.test(shell),
+    ], [['coupang'], [], ['coupang'], [], [], true, true, false, false, true])
+  }
+  eq('연결 전에도 창을 연다 (not_connected로 돌려보내지 않음)', /status: 'not_connected'/.test(read('src/lib/studioMarketplace.js')), false)
+
+  // 3-3 상태 배지
+  const S = (id, exportId, market, status, createdAt, reason) => ({ id, exportId, market, status, createdAt, reason })
+  const by = R.sendsByExport([
+    S('a', 'E1', 'coupang', 'failed', '2026-09-28T01:00:00Z', '대표 이미지에 글자가 있습니다'), S('b', 'E1', 'coupang', 'approval_pending', '2026-09-28T03:00:00Z'),
+    S('c', 'E1', 'smartstore', 'rejected', '2026-09-28T02:00:00Z', '카테고리가 맞지 않습니다'), S('d', 'E2', undefined, 'approved', '2026-09-28T02:00:00Z'), S('e', null, 'coupang', 'failed', '2026-09-28T04:00:00Z'),
+  ])
+  eq('배지 줄: 판매처마다 최신 1건 · MARKETS 순서 · 안 보낸 판매처는 없음', [by.E1.map(s => [s.market, s.id, s.status]), by.E2.map(s => [s.market, s.id]), Object.keys(by)], [[['coupang', 'b', 'approval_pending'], ['smartstore', 'c', 'rejected']], [['coupang', 'd']], ['E1', 'E2']])
+  eq('배지 줄: 목록이 비거나 이상해도 빈 값', [R.sendsByExport([]), R.sendsByExport(null)], [{}, {}])
+  eq('배지 색: 승인 대기 회색 · 승인 초록 · 반려·실패 빨강', R.SEND_BADGE_CLASS, { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' })
+  eq('초록 배지 색 = 스튜디오 토큰', /\.studio-root \.st-badge-ok \{[^}]*var\(--st-success\)/.test(read('src/styles/studio-tokens.css')), true)
+  eq('툴팁: 반려·실패만 · 기록된 사유 그대로', [R.badgeReason(by.E1[1]), R.badgeReason(by.E1[0]), R.badgeReason({ status: 'approved', reason: 'x' }), R.badgeReason({ status: 'failed', reason: null }), R.badgeReason(null)], ['카테고리가 맞지 않습니다', '', '', '', ''])
+  const listShown = list.slice(list.indexOf('<template>'), list.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  eq('내 상품 카드: 판매처별 배지 줄 · 툴팁 · 누르면 [보낸 상품] 그 줄로', [/v-for="s in sendsOf\[x\.id\]"/.test(listShown), /:title="badgeReason\(s\) \|\| undefined"/.test(listShown), /@click="\$emit\('goto-send', s\.id\)"/.test(listShown), /@goto-send="sendList\?\.focus\(\$event\)"/.test(read('src/views/studio/StudioHomeView.vue')), /defineExpose\(\{ load, clear, focus \}\)/.test(read('src/components/studio/StudioSendList.vue'))], [true, true, true, true, true])
+
+  // 공통 — 고객 화면 문구
+  const shownOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
+  {
+    // 후속: 편집기·배경 쪽까지 — src·api 전체에 사정 설명 문구가 없다 (grep -rn "준비하고\|곧 \|관리자에게\|쿠팡부터" src api 와 같은 검사)
+    const hits = [...walk('src'), ...walk('api')].filter(p => /준비하고|곧 |관리자에게|쿠팡부터/.test(read(p)))
+    eq('src·api 전체에 "준비하고"·"곧 "·"관리자에게"·"쿠팡부터" 0건', hits, [])
+    const bg = read('src/components/studio/StudioBgPanel.vue')
+    eq('배경합성 패널: 쓸 수 없는 상태면 버튼·안내를 그리지 않음', [/data-bg-soon|data-bg-gen-soon|data-bg(-gen)?-status="not_ready"/.test(bg), (bg.match(/reason === 'no_key' \|\| (status|genStatus)\.reason === 'no_table'" \/>/g) || []).length], [false, 2])
+    const ed = read('src/views/studio/StudioEditorView.vue')
+    eq('편집기 막대: 아직 없는 [저장값]은 그리지 않음 (hidden) · 나머지 6개', [/v-for="t in RAIL_SHOWN"/.test(ed), /key: 'saved',[^\n]*hidden: true/.test(ed), /const RAIL_SHOWN = RAIL\.filter\(r => !r\.hidden\)/.test(ed), (/const RAIL = \[([\s\S]*?)\n\]/.exec(ed)[1].match(/key: '/g) || []).length - 1], [true, true, true, 6])
+    eq('템플릿 패널: 내 템플릿 칸 없음 · 진행 단계 표시줄: 예고 글자 없음', [/data-my-templates/.test(read('src/components/studio/StudioTemplatePanel.vue')), /data-step-soon/.test(read('src/components/studio/StudioStepBar.vue'))], [false, false])
+    const up = read('api/studio-upload.js')
+    eq('배경 서버 문구: 쓸 수 없는 상태 = "잠시 후 다시 시도해 주세요."', [...up.matchAll(/sendError\(res, 503, '(bg_not_ready|bg_gen_sql_missing)', '([^']*)'\)/g)].map(m => m[2]).filter(t => t !== '잠시 후 다시 시도해 주세요.'), [])
+  }
+  const screens = ['src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioExportList.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioTagChips.vue', 'src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioLandingView.vue']
+  eq('고객 화면에 "관리자에게"·"곧"·"준비하고 있어요"·"쿠팡부터" 없음', screens.filter(p => /관리자에게|곧|준비하고 있|쿠팡부터/.test(shownOf(p))), [])
+  const api = read('src/lib/studioApi.js')
+  const tableOf = name => new RegExp(`const ${name} = \\{([\\s\\S]*?)\\n\\}`).exec(api)[1].replace(/\/\/.*$/gm, '')
+  eq('오류 문구 표(내 상품 보관·판매처·공통)에 "준비하고 있어요"·"곧"·"관리자" 없음', ['EXPORT', 'MARKETPLACE', 'COMMON'].filter(n => /준비하고 있|곧|관리자/.test(tableOf(n))), [])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

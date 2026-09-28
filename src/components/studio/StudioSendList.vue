@@ -1,20 +1,24 @@
 <template>
-  <section id="sends" class="scroll-mt-6" data-mk-sends>
+  <section id="sends" ref="root" class="scroll-mt-6" data-mk-sends>
     <div class="flex items-center gap-2 mb-4">
       <h2 class="st-h-section">보낸 상품</h2>
       <button type="button" class="st-btn ml-auto" :disabled="syncing || !sends.length" data-mk-sync @click="sync">{{ syncing ? '확인 중…' : '상태 새로고침' }}</button>
     </div>
     <p v-if="errorMsg" class="text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-sends-error>{{ errorMsg }}
       <router-link v-if="errorGuide" :to="{ name: 'studio-settings-marketplace' }" class="st-link ml-1">설정 &gt; 판매처 연결로 가기</router-link></p>
-    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>아직 보낸 상품이 없어요. 위 완성작에서 [판매처로 보내기]를 눌러 보세요.</p>
-    <ul v-else class="st-card st-divide overflow-hidden">
-      <li v-for="s in sends" :key="s.id" class="px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1 min-w-0" :data-mk-send="s.id" :data-mk-send-status="s.status">
-        <span class="st-badge shrink-0" :class="SEND_STATUS_CLASS[s.status]">{{ SEND_STATUS_LABEL[s.status] || s.status }}</span>
-        <span class="min-w-0 flex-1 text-[14px] font-bold st-ink truncate">{{ s.productName || '(상품명 없음)' }}</span>
-        <span class="text-[12px] st-muted shrink-0">{{ fmtDate(s.createdAt) }}</span>
-        <span v-if="s.sellerProductId" class="text-[12px] st-muted shrink-0 font-mono">쿠팡 #{{ s.sellerProductId }}</span>
-        <span v-if="s.coupangStatus" class="text-[12px] st-muted shrink-0">쿠팡: {{ s.coupangStatus }}</span>
-        <p v-if="s.reason" class="basis-full text-[12px] break-keep" :class="s.status === 'rejected' || s.status === 'failed' ? 'st-danger-text' : 'st-muted'" :data-mk-send-reason="s.id">{{ s.status === 'rejected' ? '반려 사유: ' : '' }}{{ s.reason }}</p>
+    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>아직 보낸 상품이 없어요. 위 내 상품에서 [판매처로 보내기]를 눌러 보세요.</p>
+    <!-- 작은 카드 — 내 작업·내 상품과 같은 크기 (st-grid-compact). 사진 = 그 내 상품의 미리보기 -->
+    <ul v-else class="st-grid-compact" data-mk-sends-grid>
+      <li v-for="s in sends" :key="s.id" class="send-row min-w-0 rounded-[10px]" :class="{ 'is-focus': focusId === s.id }" :data-mk-send="s.id" :data-mk-send-status="s.status">
+        <div class="relative st-thumb-sq st-border st-placeholder">
+          <img v-if="previewOf[s.exportId]" :src="previewOf[s.exportId]" alt="" loading="lazy" />
+          <span v-else class="text-[11px]">미리보기 없음</span>
+          <span class="st-badge absolute left-1.5 top-1.5" :class="SEND_STATUS_CLASS[s.status]" :title="badgeReason(s) || undefined">{{ marketName(s.market) }} · {{ SEND_STATUS_LABEL[s.status] || s.status }}</span>
+        </div>
+        <div class="mt-1.5 text-[13px] font-bold st-ink truncate" :title="s.productName || ''">{{ s.productName || '(상품명 없음)' }}</div>
+        <div class="st-desc-sm truncate" :title="fmtDate(s.createdAt)">{{ daysAgoLabel(s.createdAt) }}<template v-if="s.sellerProductId"> · #{{ s.sellerProductId }}</template></div>
+        <div v-if="s.coupangStatus" class="st-desc-sm truncate">{{ marketName(s.market) }}: {{ s.coupangStatus }}</div>
+        <p v-if="s.reason" class="text-[12px] break-keep send-reason" :class="s.status === 'rejected' || s.status === 'failed' ? 'st-danger-text' : 'st-muted'" :title="s.reason" :data-mk-send-reason="s.id">{{ s.status === 'rejected' ? '반려 사유: ' : '' }}{{ s.reason }}</p>
       </li>
     </ul>
     <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'">일부 상품은 상태를 확인하지 못했어요: {{ syncErrors[0].message }}</p>
@@ -23,11 +27,17 @@
 
 <script setup>
 // 내 작업 화면의 [보낸 상품] — marketplace_sends. [상태 새로고침] = 서버 sync(쿠팡 상품 조회 + histories로 반려 사유)
-// 목록이 바뀔 때마다 'update'로 올려 보낸다 → 완성작 카드(StudioExportList)의 판매처 상태 배지가 같은 목록을 쓴다(따로 또 부르지 않는다)
-import { ref, onMounted, onUnmounted } from 'vue'
-import { listSends, syncSends, SEND_STATUS_LABEL, SEND_STATUS_CLASS, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
+// 목록이 바뀔 때마다 'update'로 올려 보낸다 → 내 상품 카드(StudioExportList)의 판매처 상태 배지가 같은 목록을 쓴다(따로 또 부르지 않는다)
+import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { listSends, syncSends, SEND_STATUS_LABEL, SEND_STATUS_CLASS, fmtDate, isNotReady, needsGuide, badgeReason } from '@/lib/studioMarketplace'
+import { MARKETS } from '@/lib/studioMarketplaceRules'
+import { daysAgoLabel } from '@/lib/studioProjectList'
 
+const props = defineProps({ exports: { type: Array, default: () => [] } }) // 내 상품 목록 (StudioExportList가 읽은 것 — 미리보기 사진)
 const emit = defineEmits(['update'])
+const previewOf = computed(() => Object.fromEntries((props.exports || []).filter(x => x && x.previewUrl).map(x => [x.id, x.previewUrl])))
+const marketName = key => MARKETS.find(m => m.key === key)?.name || key
+const root = ref(null)
 const sends = ref([])
 const syncing = ref(false)
 const errorMsg = ref('')
@@ -72,7 +82,20 @@ async function sync() {
     syncing.value = false
   }
 }
+/** 내 상품 카드의 배지를 눌렀을 때 — 그 줄로 가서 잠깐 표시한다 */
+const focusId = ref(null)
+let focusTimer = null
+async function focus(id) {
+  focusId.value = id
+  await nextTick()
+  const row = root.value?.querySelector(`[data-mk-send="${CSS.escape(String(id))}"]`)
+  ;(row || root.value)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  clearTimeout(focusTimer)
+  focusTimer = setTimeout(() => { focusId.value = null }, 2400)
+}
 function clear() {
+  clearTimeout(focusTimer)
+  focusId.value = null
   seq++
   syncErrors.value = []
   errorMsg.value = ''
@@ -88,7 +111,16 @@ onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
   load()
 })
-onUnmounted(() => window.removeEventListener('euchs-auth-changed', onStudioAuthChanged))
+onUnmounted(() => {
+  clearTimeout(focusTimer)
+  window.removeEventListener('euchs-auth-changed', onStudioAuthChanged)
+})
 
-defineExpose({ load, clear })
+defineExpose({ load, clear, focus })
 </script>
+
+<style scoped>
+.send-row { transition: background 0.3s, box-shadow 0.3s; }
+.send-row.is-focus { background: var(--st-accent-soft); box-shadow: 0 0 0 4px var(--st-accent-soft); }
+.send-reason { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+</style>

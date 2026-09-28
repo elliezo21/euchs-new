@@ -1,9 +1,9 @@
 <template>
-  <div class="px-4 sm:px-12 py-9 max-w-[1320px] space-y-10">
+  <div class="px-4 sm:px-12 py-9 max-w-[1560px] space-y-10">
     <!-- 6-1. 시작하기 -->
     <section id="start" class="scroll-mt-6">
       <h1 class="st-h-page">무엇으로 시작할까요?</h1>
-      <p class="mt-2 text-[15px] st-ink-2">상품 사진을 불러오면 수정할 부분을 지우고, 한글을 올리고, 상세페이지로 내보낼 수 있어요.</p>
+      <p class="mt-2 text-[15px] st-ink-2">상품 사진을 불러오면 수정할 부분을 지우고, 한글을 올리고, 상세페이지로 저장하거나 받을 수 있어요.</p>
 
       <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- 찜한 상품 -->
@@ -49,15 +49,14 @@
       </div>
 
       <!-- 1688 주소 한 줄 -->
-      <div class="mt-4 st-surface st-border rounded-[12px] h-14 px-4 flex items-center gap-3">
-        <Link2 class="w-[18px] h-[18px] st-muted shrink-0" :stroke-width="2" />
-        <span class="text-[13px] font-bold st-ink-2 shrink-0 hidden sm:inline">1688 주소</span>
+      <div class="url-row mt-4" data-url-row>
+        <label for="studio-url-input" class="url-label"><Link2 class="w-[18px] h-[18px]" :stroke-width="2.2" /> 1688 주소</label>
         <input
-          v-model="urlInput" type="text" class="st-input-bare flex-1"
+          id="studio-url-input" v-model="urlInput" type="text" class="url-input" data-url-input
           placeholder="detail.1688.com/offer/… 주소를 붙여넣으세요"
           @keydown.enter="submitUrl"
         />
-        <button type="button" class="st-btn shrink-0" :disabled="!urlInput.trim() || importFlow?.importing" @click="submitUrl">가져오기</button>
+        <button type="button" class="st-btn st-btn-primary url-btn" :disabled="!urlInput.trim() || importFlow?.importing" data-url-submit @click="submitUrl">가져오기</button>
       </div>
       <p v-if="urlEmpty" class="mt-1.5 text-[12px] font-bold st-danger-text">주소나 상품번호를 입력해 주세요.</p>
 
@@ -75,13 +74,13 @@
     </section>
 
     <!-- 6-2. 최근 작업 (0개면 숨김) -->
-    <StudioRecentProjects title="최근 작업" :limit="8" show-filters />
+    <StudioRecentProjects title="최근 작업" show-filters />
 
-    <!-- 완성작 (2026-09-28): 내보내기로 받은 이미지 보관 — [다시 받기] · [판매처로 보내기](쿠팡 보내기 창) · 판매처 상태 배지 -->
-    <StudioExportList :sends="sends" @sent="sendList?.load()" />
+    <!-- 내 상품 (2026-09-28): [작업 저장]·[다운로드]로 만든 결과물 보관 — [다시 받기] · [판매처로 보내기](쿠팡 보내기 창) · 판매처 상태 배지 -->
+    <StudioExportList :sends="sends" @sent="sendList?.load()" @goto-send="sendList?.focus($event)" @loaded="exportItems = $event" />
 
-    <!-- 보낸 상품 — 판매처로 보낸 상품의 진행 상태 (설정이 아니라 작업 쪽에 둔다). 읽은 목록을 완성작 배지가 같이 쓴다 -->
-    <StudioSendList ref="sendList" @update="sends = $event" />
+    <!-- 보낸 상품 — 판매처로 보낸 상품의 진행 상태 (설정이 아니라 작업 쪽에 둔다). 읽은 목록을 내 상품 배지가 같이 쓴다 -->
+    <StudioSendList ref="sendList" :exports="exportItems" @update="sends = $event" />
 
     <!-- 6-3. 새 소식 (랜딩 개편 때 /studio 대문에서 옮김) -->
     <section>
@@ -134,6 +133,7 @@ const router = useRouter()
 const importFlow = ref(null)
 const uploadPanel = ref(null)
 const sendList = ref(null)
+const exportItems = ref([]) // StudioExportList가 읽은 내 상품 (보낸 상품 카드의 미리보기 사진용)
 const sends = ref([]) // StudioSendList가 읽은 목록 (로그아웃 때 그쪽이 비워서 빈 배열을 올려 보낸다)
 
 // ── 콜라주 (기존 내상품리스트·재주문과 같은 함수) ──
@@ -241,3 +241,20 @@ onMounted(() => {
 })
 onUnmounted(() => window.removeEventListener('euchs-auth-changed', onStudioAuthChanged))
 </script>
+
+<style scoped>
+/* 1688 주소 한 줄 — 입력칸이 잘 보이게: 흰 바탕·진한 테두리(#CBD5E1 이상)·포커스 파란 테두리. 폰에서는 칸마다 한 줄 전체 폭 */
+.url-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.url-label { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: var(--st-ink); white-space: nowrap; }
+.url-input {
+  flex: 1 1 260px; min-width: 0; height: 48px; padding: 0 14px; border-radius: 10px; font-size: 15px; color: var(--st-ink);
+  background: #fff; border: 1.5px solid #94a3b8; outline: none;
+}
+.url-input::placeholder { color: #64748b; }
+.url-input:hover { border-color: #64748b; }
+.url-input:focus { border-color: var(--st-accent); box-shadow: 0 0 0 3px var(--st-accent-ring); }
+.url-btn { height: 48px; padding: 0 22px; font-size: 15px; }
+@media (max-width: 639px) {
+  .url-label, .url-input, .url-btn { flex: 1 1 100%; width: 100%; }
+}
+</style>

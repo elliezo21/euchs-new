@@ -25,11 +25,7 @@
       </div>
       <p v-if="disabled" class="st-desc-sm break-keep">페이지가 준비되면 고를 수 있어요.</p>
     </div>
-    <!-- 내 템플릿: 저장 자리(DB)는 해성 결정 뒤 — 지금은 안내만 (15단계 보고서) -->
-    <div v-if="!embedded" class="px-4 pt-4 pb-4 space-y-2 st-border-t" data-my-templates>
-      <div class="text-[13px] font-extrabold st-ink">내 템플릿</div>
-      <p class="st-desc-sm break-keep">지금 페이지를 내 템플릿으로 저장해 다른 작업에 쓰는 기능은 곧 추가될 기능이에요.</p>
-    </div>
+    <!-- 내 템플릿: 저장 자리(DB)는 해성 결정 뒤 — 기능이 생길 때까지 칸을 보이지 않는다 (15단계 보고서) -->
   </div>
 </template>
 
