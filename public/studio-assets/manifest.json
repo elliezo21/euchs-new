@@ -734,7 +734,7 @@
     {
       "id": "scenes-apparel_boutique_01",
       "category": "scenes",
-      "label": "boutique (의류)",
+      "label": "부티크 매장 (의류)",
       "file": "scenes/euchs-scene_apparel_boutique_01.jpg",
       "thumb": "thumbs/euchs-scene_apparel_boutique_01.webp",
       "w": 1200,
@@ -746,7 +746,7 @@
     {
       "id": "scenes-apparel_linen-studio_01",
       "category": "scenes",
-      "label": "linen studio (의류)",
+      "label": "햇살 스튜디오 (의류)",
       "file": "scenes/euchs-scene_apparel_linen-studio_01.jpg",
       "thumb": "thumbs/euchs-scene_apparel_linen-studio_01.webp",
       "w": 1200,
@@ -758,7 +758,7 @@
     {
       "id": "scenes-bag_travertine_01",
       "category": "scenes",
-      "label": "travertine (잡화·가방)",
+      "label": "트래버틴 바닥 (잡화·가방)",
       "file": "scenes/euchs-scene_bag_travertine_01.jpg",
       "thumb": "thumbs/euchs-scene_bag_travertine_01.webp",
       "w": 1200,
@@ -770,7 +770,7 @@
     {
       "id": "scenes-bag_walnut-console_01",
       "category": "scenes",
-      "label": "walnut console (잡화·가방)",
+      "label": "월넛 콘솔 (잡화·가방)",
       "file": "scenes/euchs-scene_bag_walnut-console_01.jpg",
       "thumb": "thumbs/euchs-scene_bag_walnut-console_01.webp",
       "w": 1200,
@@ -782,7 +782,7 @@
     {
       "id": "scenes-beauty_marble-vanity_01",
       "category": "scenes",
-      "label": "marble vanity (뷰티)",
+      "label": "대리석 화장대 (뷰티)",
       "file": "scenes/euchs-scene_beauty_marble-vanity_01.jpg",
       "thumb": "thumbs/euchs-scene_beauty_marble-vanity_01.webp",
       "w": 1200,
@@ -794,7 +794,7 @@
     {
       "id": "scenes-beauty_pink-silk_01",
       "category": "scenes",
-      "label": "pink silk (뷰티)",
+      "label": "분홍 실크 (뷰티)",
       "file": "scenes/euchs-scene_beauty_pink-silk_01.jpg",
       "thumb": "thumbs/euchs-scene_beauty_pink-silk_01.webp",
       "w": 1200,
@@ -806,7 +806,7 @@
     {
       "id": "scenes-digital_dark-studio_01",
       "category": "scenes",
-      "label": "dark studio (디지털)",
+      "label": "어두운 스튜디오 (디지털)",
       "file": "scenes/euchs-scene_digital_dark-studio_01.jpg",
       "thumb": "thumbs/euchs-scene_digital_dark-studio_01.webp",
       "w": 1200,
@@ -818,7 +818,7 @@
     {
       "id": "scenes-digital_white-desk_01",
       "category": "scenes",
-      "label": "white desk (디지털)",
+      "label": "흰 책상 (디지털)",
       "file": "scenes/euchs-scene_digital_white-desk_01.jpg",
       "thumb": "thumbs/euchs-scene_digital_white-desk_01.webp",
       "w": 1200,
@@ -830,7 +830,7 @@
     {
       "id": "scenes-health_sage-stone_01",
       "category": "scenes",
-      "label": "sage stone (건강)",
+      "label": "정원 돌 상판 (건강)",
       "file": "scenes/euchs-scene_health_sage-stone_01.jpg",
       "thumb": "thumbs/euchs-scene_health_sage-stone_01.webp",
       "w": 1200,
@@ -842,7 +842,7 @@
     {
       "id": "scenes-health_sunlit-wood_01",
       "category": "scenes",
-      "label": "sunlit wood (건강)",
+      "label": "햇살 원목 (건강)",
       "file": "scenes/euchs-scene_health_sunlit-wood_01.jpg",
       "thumb": "thumbs/euchs-scene_health_sunlit-wood_01.webp",
       "w": 1200,
@@ -854,7 +854,7 @@
     {
       "id": "scenes-kitchen_linen-table_01",
       "category": "scenes",
-      "label": "linen table (주방)",
+      "label": "린넨 식탁 (주방)",
       "file": "scenes/euchs-scene_kitchen_linen-table_01.jpg",
       "thumb": "thumbs/euchs-scene_kitchen_linen-table_01.webp",
       "w": 1200,
@@ -866,7 +866,7 @@
     {
       "id": "scenes-kitchen_oak-counter_01",
       "category": "scenes",
-      "label": "oak counter (주방)",
+      "label": "오크 조리대 (주방)",
       "file": "scenes/euchs-scene_kitchen_oak-counter_01.jpg",
       "thumb": "thumbs/euchs-scene_kitchen_oak-counter_01.webp",
       "w": 1200,
@@ -878,7 +878,7 @@
     {
       "id": "scenes-living_side-table_01",
       "category": "scenes",
-      "label": "side table (생활)",
+      "label": "협탁 (생활)",
       "file": "scenes/euchs-scene_living_side-table_01.jpg",
       "thumb": "thumbs/euchs-scene_living_side-table_01.webp",
       "w": 1200,
@@ -890,7 +890,7 @@
     {
       "id": "scenes-living_white-shelf_01",
       "category": "scenes",
-      "label": "white shelf (생활)",
+      "label": "흰 선반 (생활)",
       "file": "scenes/euchs-scene_living_white-shelf_01.jpg",
       "thumb": "thumbs/euchs-scene_living_white-shelf_01.webp",
       "w": 1200,
@@ -902,7 +902,7 @@
     {
       "id": "scenes-pet_lawn_01",
       "category": "scenes",
-      "label": "lawn (반려동물)",
+      "label": "잔디밭 (반려동물)",
       "file": "scenes/euchs-scene_pet_lawn_01.jpg",
       "thumb": "thumbs/euchs-scene_pet_lawn_01.webp",
       "w": 1200,
@@ -914,7 +914,7 @@
     {
       "id": "scenes-pet_wood-floor_01",
       "category": "scenes",
-      "label": "wood floor (반려동물)",
+      "label": "원목 마루 (반려동물)",
       "file": "scenes/euchs-scene_pet_wood-floor_01.jpg",
       "thumb": "thumbs/euchs-scene_pet_wood-floor_01.webp",
       "w": 1200,
@@ -926,7 +926,7 @@
     {
       "id": "scenes-toy_pastel-platform_01",
       "category": "scenes",
-      "label": "pastel platform (완구)",
+      "label": "파스텔 단상 (완구)",
       "file": "scenes/euchs-scene_toy_pastel-platform_01.jpg",
       "thumb": "thumbs/euchs-scene_toy_pastel-platform_01.webp",
       "w": 1200,
@@ -938,7 +938,7 @@
     {
       "id": "scenes-toy_playroom_01",
       "category": "scenes",
-      "label": "playroom (완구)",
+      "label": "놀이방 (완구)",
       "file": "scenes/euchs-scene_toy_playroom_01.jpg",
       "thumb": "thumbs/euchs-scene_toy_playroom_01.webp",
       "w": 1200,
@@ -950,7 +950,7 @@
     {
       "id": "backgrounds-apparel_beige-linen_01",
       "category": "backgrounds",
-      "label": "beige linen (의류)",
+      "label": "베이지 린넨 (의류)",
       "file": "backgrounds/euchs-bg_apparel_beige-linen_01.jpg",
       "thumb": "thumbs/euchs-bg_apparel_beige-linen_01.webp",
       "w": 1170,
@@ -962,7 +962,7 @@
     {
       "id": "backgrounds-apparel_ivory-drape_01",
       "category": "backgrounds",
-      "label": "ivory drape (의류)",
+      "label": "아이보리 커튼 (의류)",
       "file": "backgrounds/euchs-bg_apparel_ivory-drape_01.jpg",
       "thumb": "thumbs/euchs-bg_apparel_ivory-drape_01.webp",
       "w": 1170,
@@ -974,7 +974,7 @@
     {
       "id": "backgrounds-apparel_studio-wall_01",
       "category": "backgrounds",
-      "label": "studio wall (의류)",
+      "label": "스튜디오 벽 (의류)",
       "file": "backgrounds/euchs-bg_apparel_studio-wall_01.jpg",
       "thumb": "thumbs/euchs-bg_apparel_studio-wall_01.webp",
       "w": 1170,
@@ -986,7 +986,7 @@
     {
       "id": "backgrounds-bag_camel-shadow_01",
       "category": "backgrounds",
-      "label": "camel shadow (잡화·가방)",
+      "label": "카멜 그림자 (잡화·가방)",
       "file": "backgrounds/euchs-bg_bag_camel-shadow_01.jpg",
       "thumb": "thumbs/euchs-bg_bag_camel-shadow_01.webp",
       "w": 1170,
@@ -998,7 +998,7 @@
     {
       "id": "backgrounds-bag_taupe-gradient_01",
       "category": "backgrounds",
-      "label": "taupe gradient (잡화·가방)",
+      "label": "토프 그러데이션 (잡화·가방)",
       "file": "backgrounds/euchs-bg_bag_taupe-gradient_01.jpg",
       "thumb": "thumbs/euchs-bg_bag_taupe-gradient_01.webp",
       "w": 1170,
@@ -1010,7 +1010,7 @@
     {
       "id": "backgrounds-bag_travertine_01",
       "category": "backgrounds",
-      "label": "travertine (잡화·가방)",
+      "label": "트래버틴 무늬 (잡화·가방)",
       "file": "backgrounds/euchs-bg_bag_travertine_01.jpg",
       "thumb": "thumbs/euchs-bg_bag_travertine_01.webp",
       "w": 1170,
@@ -1022,7 +1022,7 @@
     {
       "id": "backgrounds-beauty_lilac-water_01",
       "category": "backgrounds",
-      "label": "lilac water (뷰티)",
+      "label": "라일락 물결 (뷰티)",
       "file": "backgrounds/euchs-bg_beauty_lilac-water_01.jpg",
       "thumb": "thumbs/euchs-bg_beauty_lilac-water_01.webp",
       "w": 1170,
@@ -1034,7 +1034,7 @@
     {
       "id": "backgrounds-beauty_peach-glow_01",
       "category": "backgrounds",
-      "label": "peach glow (뷰티)",
+      "label": "복숭아빛 (뷰티)",
       "file": "backgrounds/euchs-bg_beauty_peach-glow_01.jpg",
       "thumb": "thumbs/euchs-bg_beauty_peach-glow_01.webp",
       "w": 1170,
@@ -1046,7 +1046,7 @@
     {
       "id": "backgrounds-beauty_pink-silk-wave_01",
       "category": "backgrounds",
-      "label": "pink silk wave (뷰티)",
+      "label": "분홍 실크 물결 (뷰티)",
       "file": "backgrounds/euchs-bg_beauty_pink-silk-wave_01.jpg",
       "thumb": "thumbs/euchs-bg_beauty_pink-silk-wave_01.webp",
       "w": 1170,
@@ -1178,7 +1178,7 @@
     {
       "id": "backgrounds-digital_charcoal-lines_01",
       "category": "backgrounds",
-      "label": "charcoal lines (디지털)",
+      "label": "차콜 줄무늬 (디지털)",
       "file": "backgrounds/euchs-bg_digital_charcoal-lines_01.jpg",
       "thumb": "thumbs/euchs-bg_digital_charcoal-lines_01.webp",
       "w": 1170,
@@ -1190,7 +1190,7 @@
     {
       "id": "backgrounds-digital_navy-glow_01",
       "category": "backgrounds",
-      "label": "navy glow (디지털)",
+      "label": "네이비 빛 (디지털)",
       "file": "backgrounds/euchs-bg_digital_navy-glow_01.jpg",
       "thumb": "thumbs/euchs-bg_digital_navy-glow_01.webp",
       "w": 1170,
@@ -1202,7 +1202,7 @@
     {
       "id": "backgrounds-digital_silver-gradient_01",
       "category": "backgrounds",
-      "label": "silver gradient (디지털)",
+      "label": "실버 그러데이션 (디지털)",
       "file": "backgrounds/euchs-bg_digital_silver-gradient_01.jpg",
       "thumb": "thumbs/euchs-bg_digital_silver-gradient_01.webp",
       "w": 1170,
@@ -1214,7 +1214,7 @@
     {
       "id": "backgrounds-health_botanical-shadow_01",
       "category": "backgrounds",
-      "label": "botanical shadow (건강)",
+      "label": "식물 그림자 (건강)",
       "file": "backgrounds/euchs-bg_health_botanical-shadow_01.jpg",
       "thumb": "thumbs/euchs-bg_health_botanical-shadow_01.webp",
       "w": 1170,
@@ -1226,7 +1226,7 @@
     {
       "id": "backgrounds-health_mint-leaf-bokeh_01",
       "category": "backgrounds",
-      "label": "mint leaf bokeh (건강)",
+      "label": "민트 잎 빛망울 (건강)",
       "file": "backgrounds/euchs-bg_health_mint-leaf-bokeh_01.jpg",
       "thumb": "thumbs/euchs-bg_health_mint-leaf-bokeh_01.webp",
       "w": 1170,
@@ -1238,7 +1238,7 @@
     {
       "id": "backgrounds-health_sunlit-green_01",
       "category": "backgrounds",
-      "label": "sunlit green (건강)",
+      "label": "햇살 초록 (건강)",
       "file": "backgrounds/euchs-bg_health_sunlit-green_01.jpg",
       "thumb": "thumbs/euchs-bg_health_sunlit-green_01.webp",
       "w": 1170,
@@ -1250,7 +1250,7 @@
     {
       "id": "backgrounds-kitchen_cream-linen_01",
       "category": "backgrounds",
-      "label": "cream linen (주방)",
+      "label": "크림 린넨 (주방)",
       "file": "backgrounds/euchs-bg_kitchen_cream-linen_01.jpg",
       "thumb": "thumbs/euchs-bg_kitchen_cream-linen_01.webp",
       "w": 1170,
@@ -1262,7 +1262,7 @@
     {
       "id": "backgrounds-kitchen_light-wood_01",
       "category": "backgrounds",
-      "label": "light wood (주방)",
+      "label": "밝은 원목 (주방)",
       "file": "backgrounds/euchs-bg_kitchen_light-wood_01.jpg",
       "thumb": "thumbs/euchs-bg_kitchen_light-wood_01.webp",
       "w": 1170,
@@ -1274,7 +1274,7 @@
     {
       "id": "backgrounds-kitchen_white-tile_01",
       "category": "backgrounds",
-      "label": "white tile (주방)",
+      "label": "흰 타일 (주방)",
       "file": "backgrounds/euchs-bg_kitchen_white-tile_01.jpg",
       "thumb": "thumbs/euchs-bg_kitchen_white-tile_01.webp",
       "w": 1170,
@@ -1286,7 +1286,7 @@
     {
       "id": "backgrounds-living_beige-plaster_01",
       "category": "backgrounds",
-      "label": "beige plaster (생활)",
+      "label": "베이지 미장벽 (생활)",
       "file": "backgrounds/euchs-bg_living_beige-plaster_01.jpg",
       "thumb": "thumbs/euchs-bg_living_beige-plaster_01.webp",
       "w": 1170,
@@ -1298,7 +1298,7 @@
     {
       "id": "backgrounds-living_greige-arch_01",
       "category": "backgrounds",
-      "label": "greige arch (생활)",
+      "label": "아치 벽 (생활)",
       "file": "backgrounds/euchs-bg_living_greige-arch_01.jpg",
       "thumb": "thumbs/euchs-bg_living_greige-arch_01.webp",
       "w": 1170,
@@ -1310,7 +1310,7 @@
     {
       "id": "backgrounds-living_oak-minimal_01",
       "category": "backgrounds",
-      "label": "oak minimal (생활)",
+      "label": "오크 원목 (생활)",
       "file": "backgrounds/euchs-bg_living_oak-minimal_01.jpg",
       "thumb": "thumbs/euchs-bg_living_oak-minimal_01.webp",
       "w": 1170,
@@ -1322,7 +1322,7 @@
     {
       "id": "backgrounds-pet_beige-bokeh_01",
       "category": "backgrounds",
-      "label": "beige bokeh (반려동물)",
+      "label": "베이지 빛망울 (반려동물)",
       "file": "backgrounds/euchs-bg_pet_beige-bokeh_01.jpg",
       "thumb": "thumbs/euchs-bg_pet_beige-bokeh_01.webp",
       "w": 1170,
@@ -1334,7 +1334,7 @@
     {
       "id": "backgrounds-pet_cream-window_01",
       "category": "backgrounds",
-      "label": "cream window (반려동물)",
+      "label": "크림빛 창가 (반려동물)",
       "file": "backgrounds/euchs-bg_pet_cream-window_01.jpg",
       "thumb": "thumbs/euchs-bg_pet_cream-window_01.webp",
       "w": 1170,
@@ -1346,7 +1346,7 @@
     {
       "id": "backgrounds-pet_grass-sky_01",
       "category": "backgrounds",
-      "label": "grass sky (반려동물)",
+      "label": "잔디와 하늘 (반려동물)",
       "file": "backgrounds/euchs-bg_pet_grass-sky_01.jpg",
       "thumb": "thumbs/euchs-bg_pet_grass-sky_01.webp",
       "w": 1170,
@@ -1358,7 +1358,7 @@
     {
       "id": "backgrounds-toy_peach-shapes_01",
       "category": "backgrounds",
-      "label": "peach shapes (완구)",
+      "label": "복숭아빛 도형 (완구)",
       "file": "backgrounds/euchs-bg_toy_peach-shapes_01.jpg",
       "thumb": "thumbs/euchs-bg_toy_peach-shapes_01.webp",
       "w": 1170,
@@ -1370,7 +1370,7 @@
     {
       "id": "backgrounds-toy_sky-clouds_01",
       "category": "backgrounds",
-      "label": "sky clouds (완구)",
+      "label": "하늘과 구름 (완구)",
       "file": "backgrounds/euchs-bg_toy_sky-clouds_01.jpg",
       "thumb": "thumbs/euchs-bg_toy_sky-clouds_01.webp",
       "w": 1170,
@@ -1382,7 +1382,7 @@
     {
       "id": "backgrounds-toy_yellow-mint_01",
       "category": "backgrounds",
-      "label": "yellow mint (완구)",
+      "label": "노랑 민트 (완구)",
       "file": "backgrounds/euchs-bg_toy_yellow-mint_01.jpg",
       "thumb": "thumbs/euchs-bg_toy_yellow-mint_01.webp",
       "w": 1170,
