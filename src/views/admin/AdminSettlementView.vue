@@ -65,11 +65,13 @@
           <span class="text-sm font-bold text-slate-600">1차 상품대금 결제액</span>
           <span class="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 text-sm">📦</span>
         </div>
-        <div class="text-2xl font-black font-mono text-slate-900">
-          ₩{{ fmtN(firstPaymentSum) }}
+        <div class="text-2xl font-black font-mono" :class="periodStats ? 'text-slate-900' : 'text-slate-400 text-lg'">
+          {{ periodStats ? `₩${fmtN(periodStats.first.amount)}` : statsPlaceholder }}
         </div>
-        <p v-if="currentSettings?.exchange_rate" class="text-xs text-slate-400 font-mono">≈ ¥{{ (firstPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
-        <p class="text-xs text-slate-400 font-medium">당월 1688 수입 상품대금 누적</p>
+        <p v-if="periodStats && currentSettings?.exchange_rate" class="text-xs text-slate-400 font-mono">≈ ¥{{ (periodStats.first.amount / currentSettings.exchange_rate).toFixed(2) }}</p>
+        <p class="text-xs text-slate-400 font-medium">
+          {{ periodLabel }} · 예치금 결제 {{ periodStats ? periodStats.first.count : '-' }}건 (관리자 계정 제외)
+        </p>
       </div>
 
       <!-- KPI 4: 2차 운임/통관 정산액 -->
@@ -78,11 +80,94 @@
           <span class="text-sm font-bold text-slate-600">2차 운임·통관 정산액</span>
           <span class="p-1.5 rounded-lg bg-purple-50 text-purple-600 text-sm">🚢</span>
         </div>
-        <div class="text-2xl font-black font-mono text-slate-900">
-          ₩{{ fmtN(secondPaymentSum) }}
+        <div class="text-2xl font-black font-mono" :class="periodStats ? 'text-slate-900' : 'text-slate-400 text-lg'">
+          {{ periodStats ? `₩${fmtN(periodStats.second.amount)}` : statsPlaceholder }}
         </div>
-        <p v-if="currentSettings?.exchange_rate" class="text-xs text-slate-400 font-mono">≈ ¥{{ (secondPaymentSum / currentSettings.exchange_rate).toFixed(2) }}</p>
-        <p class="text-xs text-slate-400 font-medium">해운 LCL 운임 및 세관 통관비 누적</p>
+        <p v-if="periodStats && currentSettings?.exchange_rate" class="text-xs text-slate-400 font-mono">≈ ¥{{ (periodStats.second.amount / currentSettings.exchange_rate).toFixed(2) }}</p>
+        <p class="text-xs text-slate-400 font-medium">
+          {{ periodLabel }} · 예치금 결제 {{ periodStats ? periodStats.second.count : '-' }}건 (관리자 계정 제외)
+        </p>
+      </div>
+    </div>
+
+    <!-- 2-1. 기간별 정산 합계 (transactions / deposit_requests / withdraw_requests 실데이터) -->
+    <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-xs space-y-4">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h3 class="font-black text-slate-900 text-base">기간별 정산 합계</h3>
+          <p class="text-xs text-slate-400 font-medium mt-0.5">
+            {{ periodLabel }} · 한국 시간 기준 · 관리자 계정(super_admin/admin/staff/master) 거래 제외 · 위 1차·2차 카드에도 적용
+          </p>
+        </div>
+        <div class="flex items-center gap-1.5 flex-wrap text-sm">
+          <button
+            v-for="p in PERIOD_OPTIONS"
+            :key="p.key"
+            type="button"
+            @click="periodKind = p.key"
+            class="px-3 py-1.5 rounded-lg font-bold transition cursor-pointer"
+            :class="periodKind === p.key ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          >
+            {{ p.label }}
+          </button>
+          <template v-if="periodKind === 'custom'">
+            <input v-model="customFrom" type="date" class="px-2 py-1 rounded-lg border border-slate-200 text-sm bg-white text-slate-900 font-mono" />
+            <span class="text-slate-400">~</span>
+            <input v-model="customTo" type="date" class="px-2 py-1 rounded-lg border border-slate-200 text-sm bg-white text-slate-900 font-mono" />
+          </template>
+        </div>
+      </div>
+
+      <p v-if="statsError" class="text-sm font-bold text-rose-600 bg-rose-50 border border-rose-200 rounded-lg px-3 py-2">
+        정산 데이터를 불러오지 못했습니다. 새로고침해 주세요. ({{ statsError }})
+      </p>
+      <p v-else-if="periodKind === 'custom' && !currentRange" class="text-sm font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        시작일과 종료일을 확인해 주세요. (종료일이 시작일보다 빠르거나 비어 있음)
+      </p>
+
+      <div class="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        <div v-for="card in periodCards" :key="card.key" class="rounded-xl border border-slate-200 bg-slate-50/60 p-3 space-y-1">
+          <div class="text-xs font-bold text-slate-500">{{ card.label }}</div>
+          <div class="text-lg font-black font-mono" :class="periodStats ? card.color : 'text-slate-400 text-base'">
+            {{ periodStats ? `${card.sign(periodStats[card.key].amount)}₩${fmtN(Math.abs(periodStats[card.key].amount))}` : statsPlaceholder }}
+          </div>
+          <div class="text-xs text-slate-400 font-medium">{{ periodStats ? periodStats[card.key].count : '-' }}건 · {{ card.note }}</div>
+        </div>
+      </div>
+
+      <p v-if="periodStats && periodStats.unclassified.count > 0" class="text-xs font-bold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+        1차·2차로 나눌 수 없는 결제 기록 {{ periodStats.unclassified.count }}건 (₩{{ fmtN(periodStats.unclassified.amount) }})은 위 합계에 넣지 않았습니다. 거래 로그에서 확인해 주세요.
+      </p>
+
+      <!-- 월별 합계 (최근 6개월) -->
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm text-slate-700">
+          <thead class="bg-slate-100/70 border-b border-slate-200 text-slate-500 font-bold text-xs">
+            <tr>
+              <th class="py-2.5 px-3">월 (최근 6개월)</th>
+              <th class="py-2.5 px-3 text-right">1차 상품대금</th>
+              <th class="py-2.5 px-3 text-right">2차 운임·부가서비스</th>
+              <th class="py-2.5 px-3 text-right">환불</th>
+              <th class="py-2.5 px-3 text-right">무통장 입금(승인)</th>
+              <th class="py-2.5 px-3 text-right">출금 완료</th>
+              <th class="py-2.5 px-3 text-right">수동 조정(순액)</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-slate-100 font-mono">
+            <tr v-if="!monthlyRows">
+              <td colspan="7" class="py-6 text-center text-slate-400 font-sans">{{ statsPlaceholder }}</td>
+            </tr>
+            <tr v-for="row in monthlyRows || []" :key="row.key" class="hover:bg-slate-50/80">
+              <td class="py-2.5 px-3 font-bold text-slate-900">{{ row.key }}</td>
+              <td class="py-2.5 px-3 text-right">₩{{ fmtN(row.stats.first.amount) }}</td>
+              <td class="py-2.5 px-3 text-right">₩{{ fmtN(row.stats.second.amount) }}</td>
+              <td class="py-2.5 px-3 text-right">₩{{ fmtN(row.stats.refund.amount) }}</td>
+              <td class="py-2.5 px-3 text-right">₩{{ fmtN(row.stats.deposit.amount) }}</td>
+              <td class="py-2.5 px-3 text-right">₩{{ fmtN(row.stats.withdrawal.amount) }}</td>
+              <td class="py-2.5 px-3 text-right">{{ row.stats.manual.amount < 0 ? '-' : '' }}₩{{ fmtN(Math.abs(row.stats.manual.amount)) }}</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
     </div>
 
@@ -306,8 +391,9 @@
             >
               <option value="all">전체 거래 구분</option>
               <option value="deposit">예치금 충전 (+)</option>
-              <option value="order_payment">1차 상품대금 (-)</option>
-              <option value="shipping_payment">2차 운임·통관 (-)</option>
+              <option value="order_payment">주문 결제 1차·2차 (-)</option>
+              <option value="refund">주문취소 환불 (+)</option>
+              <option value="withdrawal">예치금 출금 (-)</option>
               <option value="manual_add">관리자 수동지급 (+)</option>
               <option value="manual_sub">관리자 수동차감 (-)</option>
             </select>
@@ -382,7 +468,7 @@
               <tr v-if="filteredTransactionLogs.length === 0">
                 <td colspan="6" class="py-12 text-center text-slate-400 space-y-1">
                   <div class="text-2xl">📋</div>
-                  <p class="font-bold text-sm text-slate-600">거래 정산 내역이 없습니다.</p>
+                  <p class="font-bold text-sm text-slate-600">{{ statsError ? '거래 기록을 불러오지 못했습니다.' : isStatsLoading ? '불러오는 중…' : '기록 없음' }}</p>
                 </td>
               </tr>
             </tbody>
@@ -640,6 +726,10 @@ import { supabase, isSupabaseConfigured, isValidUUID } from '@/lib/supabase'
 import { currentUser } from '@/lib/auth'
 import { currentSettings, fetchSiteSettings } from '@/lib/settings'
 import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue'
+import {
+  periodRange, recentMonths, summarize, adminIdSet,
+  kstDateString, kstMonthStart, kstParts
+} from '@/lib/settlementStats'
 
 const activeSubTab = ref('requests') // 'requests' | 'withdrawals' | 'logs'
 const depositFilter = ref('pending') // 기본 활성 탭: [⏳ 승인 대기]
@@ -738,43 +828,7 @@ const playNotificationSound = () => {
 // ----------------------------------------------------
 // 1. 무통장 충전 신청 데이터 관리
 // ----------------------------------------------------
-const DEFAULT_REQUESTS = [
-  {
-    id: 'DEP-20260825-001',
-    createdAt: '2026-08-25T11:20:00.000Z',
-    buyerName: '이유씨글로벌',
-    buyerEmail: 'buyer@euchs.com',
-    depositorName: '이유씨글로벌',
-    amount: 5000000,
-    bankName: '기업은행',
-    accountNumber: '190-134321-01-016',
-    status: 'pending' // 'pending' | 'approved' | 'rejected'
-  },
-  {
-    id: 'DEP-20260825-002',
-    createdAt: '2026-08-25T09:40:00.000Z',
-    buyerName: '(주)케이커머스',
-    buyerEmail: 'kcommerce@naver.com',
-    depositorName: '김케이 대표',
-    amount: 3000000,
-    bankName: '기업은행',
-    accountNumber: '190-134321-01-016',
-    status: 'pending'
-  },
-  {
-    id: 'DEP-20260824-001',
-    createdAt: '2026-08-24T14:30:00.000Z',
-    buyerName: '탑글로벌무역',
-    buyerEmail: 'topglobal@gmail.com',
-    depositorName: '탑글로벌',
-    amount: 10000000,
-    bankName: '기업은행',
-    accountNumber: '190-134321-01-016',
-    status: 'approved'
-  }
-]
-
-const depositRequests = ref([])
+const depositRequests = ref([]) // status: 'pending' | 'approved' | 'rejected'
 
 const pendingRequests = computed(() => {
   return depositRequests.value.filter(r => r.status === 'pending')
@@ -810,42 +864,7 @@ function getStatusBadgeClass(status) {
 // ----------------------------------------------------
 // 2. 전체 예치금 변동 & 정산 로그
 // ----------------------------------------------------
-const DEFAULT_LOGS = [
-  {
-    id: 'tx-1',
-    createdAt: '2026-08-25T11:20:00.000Z',
-    refNo: 'DEP-20260824-001',
-    buyerName: '탑글로벌무역',
-    buyerEmail: 'topglobal@gmail.com',
-    title: '예치금 무통장 입금 충전',
-    type: 'deposit',
-    amount: 10000000,
-    balanceAfter: 25420000
-  },
-  {
-    id: 'tx-2',
-    createdAt: '2026-08-24T16:00:00.000Z',
-    refNo: 'ORD-20260824-1688',
-    buyerName: '이유씨글로벌',
-    buyerEmail: 'buyer@euchs.com',
-    title: '1688 1차 상품대금 결제',
-    type: 'order_payment',
-    amount: -3200000,
-    balanceAfter: 15420000
-  },
-  {
-    id: 'tx-3',
-    createdAt: '2026-08-23T10:15:00.000Z',
-    refNo: 'ORD-20260820-0922',
-    buyerName: '이유씨글로벌',
-    buyerEmail: 'buyer@euchs.com',
-    title: '인천항 LCL 2차 운임·통관 정산',
-    type: 'shipping_payment',
-    amount: -890000,
-    balanceAfter: 18620000
-  }
-]
-
+// transactions 테이블 전체 (loadSettlementData가 채움) — 로그 탭 표시용으로 변환한 값
 const transactionLogs = ref([])
 
 const currentTotalBalance = ref(0)
@@ -891,8 +910,127 @@ async function fetchTotalBalance() {
   }
 }
 
-const firstPaymentSum = ref(41200000)
-const secondPaymentSum = ref(6840000)
+// ----------------------------------------------------
+// 기간별 정산 합계 (1차·2차 결제, 환불, 입금, 출금, 수동 조정) — 계산 규칙은 settlementStats.js
+// ----------------------------------------------------
+const PERIOD_OPTIONS = [
+  { key: 'this_month', label: '이번 달' },
+  { key: 'last_month', label: '지난 달' },
+  { key: 'custom', label: '직접 기간' }
+]
+const periodKind = ref('this_month')
+const customFrom = ref(kstDateString(kstMonthStart(kstParts(Date.now()).y, kstParts(Date.now()).m)))
+const customTo = ref(kstDateString(Date.now()))
+
+const statsSource = ref(null) // { transactions, deposits, withdrawals, adminIds } — 불러오기 전·실패 시 null
+const isStatsLoading = ref(false)
+const statsError = ref('')
+
+const currentRange = computed(() =>
+  periodRange(periodKind.value, Date.now(), { from: customFrom.value, to: customTo.value })
+)
+
+const periodLabel = computed(() => {
+  const r = currentRange.value
+  if (!r) return '기간 확인 필요'
+  const name = PERIOD_OPTIONS.find(p => p.key === periodKind.value)?.label
+  return `${name} ${kstDateString(r.start).replace(/-/g, '.')} ~ ${kstDateString(r.end - 1).replace(/-/g, '.')}`
+})
+
+const periodStats = computed(() => {
+  if (!statsSource.value || !currentRange.value) return null
+  return summarize({ ...statsSource.value, ...currentRange.value })
+})
+
+const monthlyRows = computed(() => {
+  if (!statsSource.value) return null
+  return recentMonths(Date.now(), 6).map(mo => ({
+    key: mo.key,
+    stats: summarize({ ...statsSource.value, start: mo.start, end: mo.end })
+  }))
+})
+
+// 값이 없을 때 금액 칸에 숫자 대신 보여 줄 글자
+const statsPlaceholder = computed(() => {
+  if (statsError.value) return '확인 필요'
+  if (isStatsLoading.value || !statsSource.value) return '불러오는 중…'
+  return '확인 필요' // 직접 기간이 잘못된 경우
+})
+
+const plus = () => '+'
+const minus = () => '-'
+const signed = v => (v < 0 ? '-' : v > 0 ? '+' : '')
+const periodCards = [
+  { key: 'deposit', label: '무통장 입금 (승인)', note: '입금 승인일 기준', color: 'text-blue-600', sign: plus },
+  { key: 'refund', label: '주문취소 환불', note: '예치금으로 돌려준 금액', color: 'text-emerald-600', sign: plus },
+  { key: 'withdrawal', label: '예치금 출금 완료', note: '출금 처리일 기준', color: 'text-orange-600', sign: minus },
+  { key: 'manual', label: '관리자 수동 조정 (순액)', note: '지급 − 차감', color: 'text-slate-900', sign: signed }
+]
+
+// 한 번에 1000줄씩 끝까지 읽는다 (Supabase 기본 응답 상한 1000줄 — 잘린 합계 방지)
+async function selectAll(buildQuery) {
+  const PAGE = 1000
+  const rows = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await buildQuery().range(from, from + PAGE - 1)
+    if (error) throw error
+    rows.push(...data)
+    if (data.length < PAGE) return rows
+  }
+}
+
+async function loadSettlementData() {
+  if (!isSupabaseConfigured()) {
+    statsError.value = 'Supabase 미설정'
+    console.error('[AdminSettlement] 정산 데이터 불러오기 불가 — Supabase 미설정')
+    return
+  }
+  isStatsLoading.value = true
+  try {
+    const [profiles, transactions, deposits, withdrawals] = await Promise.all([
+      selectAll(() => supabase.from('profiles').select('id, email, name, company_name, role').order('id')),
+      selectAll(() => supabase
+        .from('transactions')
+        .select('id, user_id, user_email, type, amount, balance_after, order_no, description, created_at')
+        .order('created_at', { ascending: false })
+        .order('id')),
+      selectAll(() => supabase
+        .from('deposit_requests')
+        .select('id, user_id, amount, status, approved_at')
+        .eq('status', 'approved')
+        .order('id')),
+      selectAll(() => supabase
+        .from('withdraw_requests')
+        .select('id, user_id, amount, status, processed_at')
+        .eq('status', 'completed')
+        .order('id'))
+    ])
+
+    const profileById = new Map(profiles.map(p => [p.id, p]))
+    statsSource.value = { transactions, deposits, withdrawals, adminIds: adminIdSet(profiles) }
+    transactionLogs.value = transactions.map(tx => {
+      const p = profileById.get(tx.user_id)
+      return {
+        id: tx.id,
+        createdAt: tx.created_at,
+        refNo: tx.order_no,
+        buyerName: p ? (p.company_name || p.name || '') : '회원 정보 없음',
+        buyerEmail: tx.user_email || '',
+        title: String(tx.description || tx.type).split(' | ')[0],
+        type: tx.type,
+        amount: Number(tx.amount),
+        balanceAfter: Number(tx.balance_after)
+      }
+    })
+    statsError.value = ''
+  } catch (e) {
+    console.error('[AdminSettlement] 정산 데이터 불러오기 실패:', e)
+    statsError.value = e?.message || String(e)
+    statsSource.value = null
+  } finally {
+    isStatsLoading.value = false
+  }
+}
 
 const filteredTransactionLogs = computed(() => {
   let list = [...transactionLogs.value]
@@ -918,7 +1056,8 @@ function getLogTypeBadge(type) {
   const map = {
     deposit: 'bg-blue-100 text-blue-800 border border-blue-200',
     order_payment: 'bg-rose-100 text-rose-800 border border-rose-200',
-    shipping_payment: 'bg-purple-100 text-purple-800 border border-purple-200',
+    refund: 'bg-teal-100 text-teal-800 border border-teal-200',
+    withdrawal: 'bg-purple-100 text-purple-800 border border-purple-200',
     manual_add: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
     manual_sub: 'bg-orange-100 text-orange-800 border border-orange-200'
   }
@@ -1244,6 +1383,7 @@ async function handleManualAdjust() {
   if (result && result.success) {
     showManualModal.value = false  // 먼저 닫아서 storage 이벤트 전 UI 안정화
     saveState()
+    loadSettlementData() // 로그·기간 합계 다시 읽기 (조정 처리와 무관한 읽기 전용)
     showToast(
       `[${target.label}] 예치금이 ${isAdd ? '지급' : '차감'}되었습니다.` +
       ` (₩${fmtN(result.prevBalance)} → ₩${fmtN(result.nextBalance)})`
@@ -1309,31 +1449,16 @@ async function loadState() {
       }
     } catch (e) {}
 
-    if (localRequests.length > 0) {
-      depositRequests.value = localRequests.map(r => normalizeDepositRequest(r)).filter(Boolean)
-    } else {
-      depositRequests.value = DEFAULT_REQUESTS.map(r => normalizeDepositRequest(r)).filter(Boolean)
-    }
+    // 예전에는 여기서 코드에 박힌 가짜 신청 3건(DEFAULT_REQUESTS)을 보여 줬다 — 신청이 없으면 빈 목록
+    depositRequests.value = localRequests.map(r => normalizeDepositRequest(r)).filter(Boolean)
   }
 
   depositRequests.value.sort((a, b) => new Date(b.createdAt || b.created_at || 0) - new Date(a.createdAt || a.created_at || 0))
-
-  // 5. 트랜잭션 로그 로드
-  try {
-    const rawLogs = localStorage.getItem('euchs_settlement_logs')
-    if (rawLogs) {
-      transactionLogs.value = JSON.parse(rawLogs)
-    } else {
-      transactionLogs.value = JSON.parse(JSON.stringify(DEFAULT_LOGS))
-    }
-  } catch (e) {
-    transactionLogs.value = JSON.parse(JSON.stringify(DEFAULT_LOGS))
-  }
+  // 트랜잭션 로그는 loadSettlementData()가 transactions 테이블에서 읽는다(예전: localStorage/가짜 3건).
 }
 
 function saveState() {
   localStorage.setItem('euchs_deposit_requests', JSON.stringify(depositRequests.value))
-  localStorage.setItem('euchs_settlement_logs', JSON.stringify(transactionLogs.value))
   window.dispatchEvent(new CustomEvent('euchs-settlement-update', { detail: { requests: depositRequests.value, logs: transactionLogs.value } }))
   window.dispatchEvent(new Event('storage'))
 }
@@ -1344,6 +1469,7 @@ onMounted(() => {
   loadState()
   fetchTotalBalance()
   fetchSiteSettings()
+  loadSettlementData()
 
   // 1. 동일 브라우저 탭 간 로컬 이벤트 감지
   window.addEventListener('euchs-deposit-request', (e) => {
@@ -1362,8 +1488,8 @@ onMounted(() => {
       }
     }
   })
-  window.addEventListener('euchs-balance-update', () => { loadState(); fetchTotalBalance() })
-  window.addEventListener('euchs-balance-updated', () => { loadState(); fetchTotalBalance() })
+  window.addEventListener('euchs-balance-update', () => { loadState(); fetchTotalBalance(); loadSettlementData() })
+  window.addEventListener('euchs-balance-updated', () => { loadState(); fetchTotalBalance(); loadSettlementData() })
   window.addEventListener('storage', loadState)
 
   // 2. Supabase Realtime 리스너 (원격 바이어 실시간 신청 감지)
@@ -1483,6 +1609,7 @@ async function executeCompleteWithdrawal(req) {
 
     showToast('출금 처리가 완료되었습니다.')
     await loadWithdrawals()
+    loadSettlementData() // 로그·기간 합계 다시 읽기
   } catch (err) {
     console.error('[executeCompleteWithdrawal]:', err)
     alert(`출금 완료 처리 오류: ${err.message}`)
