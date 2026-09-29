@@ -11,9 +11,10 @@
  * ★ 글자 줄은 직접 나눴다(\n) — 줄마다 폭 안에 들어가는지 테스트가 넉넉한 폭 재기로 본다 (글자 넘침·사진 겹침·자리 밖 없음).
  */
 import { TPL_BLOCKS } from './studioTemplateSets.js'
-import { withHero } from './studioTemplateHeroes.js'
+import { withHero, HERO_SPECS } from './studioTemplateHeroes.js'
+import { section, lowerTheme } from './studioTemplateSections.js'
 
-const { W, WHITE, textH, T, ornament, checks, boxes2, sec, SHIP, RETURN } = TPL_BLOCKS
+const { W, WHITE, textH, T, ornament, sec, SHIP, RETURN } = TPL_BLOCKS
 
 const F = { sans: 'pretendard', display: 'gasoek-one', serif: 'gowun-batang', hand: 'east-sea-dokdo', latin: 'cinzel' }
 const A = {
@@ -95,41 +96,6 @@ function chips(words, o = {}) {
   }
 }
 
-/** 포인트 카드 3장 — 번호(글꼴 따로) + 제목 + 설명 두 줄 */
-function pointCards(items, th, o = {}) {
-  const { cardBg = WHITE, h = 236, num = n => `0${n}`, numFont = F.latin, titleFont = F.sans, numColor = th.accent, radius = 18, stroke = null } = o
-  return {
-    h,
-    make: y => items.flatMap((it, i) => {
-      const x = 40 + i * 240
-      return [
-        { type: 'shape', shape: 'rect', x, y, w: 220, h, fill: cardBg, radius, ...(stroke ? { strokeWidth: 1, strokeColor: stroke } : {}) },
-        { type: 'text', x: x + 12, y: y + 30, w: 196, text: num(i + 1), fontSize: 30, fontWeight: numFont === F.latin ? 700 : 400, color: numColor, fontFamily: numFont, align: 'center', lineHeight: 1.2 },
-        { type: 'text', x: x + 12, y: y + 92, w: 196, text: it.title, fontSize: 21, fontWeight: titleFont === F.sans ? 800 : 700, color: th.ink, fontFamily: titleFont, align: 'center', lineHeight: 1.3 },
-        { type: 'text', x: x + 12, y: y + 136, w: 196, text: it.desc, fontSize: 16, fontWeight: 400, color: th.sub, fontFamily: F.sans, align: 'center', lineHeight: 1.6 },
-      ]
-    }),
-  }
-}
-
-/** 포인트 줄 목록 — 왼쪽 번호(Cinzel 로마 숫자 등) · 제목 · 설명 한 줄, 줄 사이 가는 선 */
-function pointLines(items, th, o = {}) {
-  const { num = n => ['I', 'II', 'III', 'IV'][n - 1], numColor = th.accent, line = th.line, titleFont = F.sans, x = 90, w = 600 } = o
-  const row = 112
-  return {
-    h: items.length * row,
-    make: y => items.flatMap((it, i) => {
-      const top = y + i * row
-      return [
-        { type: 'shape', shape: 'rect', x, y: top, w, h: 1, fill: line },
-        { type: 'text', x, y: top + 26, w: 80, text: num(i + 1), fontSize: 26, fontWeight: 700, color: numColor, fontFamily: F.latin, align: 'left', lineHeight: 1.2 },
-        { type: 'text', x: x + 90, y: top + 22, w: w - 90, text: it.title, fontSize: 23, fontWeight: titleFont === F.sans ? 800 : 700, color: th.ink, fontFamily: titleFont, align: 'left', lineHeight: 1.3 },
-        { type: 'text', x: x + 90, y: top + 60, w: w - 90, text: it.desc.replace(/\n/g, ' '), fontSize: 17, fontWeight: 400, color: th.sub, fontFamily: F.sans, align: 'left', lineHeight: 1.5 },
-      ]
-    }),
-  }
-}
-
 /** 손글씨 메모 — 테이프 그림 + 동해독도 글씨 (종이 네모 위) */
 function note(text, th, o = {}) {
   const { paper = '#fffdf6', ink = th.ink, size = 38, w = 520, rotation = -2 } = o
@@ -164,28 +130,6 @@ function bubble(text, fill, ink, o = {}) {
   }
 }
 
-/** 둥근 확대 사진 + 옆 글 (사진 왼쪽 / 오른쪽) */
-function zoom(slot, sample, title, desc, th, o = {}) {
-  const { side = 'left', d = 280, titleFont = F.sans, ring = null } = o
-  const px = side === 'left' ? 70 : W - 70 - d
-  const tx = side === 'left' ? px + d + 50 : 70
-  const tw = W - 70 - d - 50 - 70
-  const tH = textH(title, 26, 1.3), dH = textH(desc, 17, 1.6)
-  const inner = tH + 16 + dH
-  return {
-    h: d,
-    make: y => {
-      const ty = y + Math.round((d - inner) / 2)
-      return [
-        ...(ring ? [{ type: 'shape', shape: 'ellipse', x: px - 10, y: y - 10, w: d + 20, h: d + 20, fill: ring }] : []),
-        photoPart(slot, px, y, d, d, { sample, radius: d / 2 }),
-        { type: 'text', x: tx, y: ty, w: tw, text: title, fontSize: 26, fontWeight: titleFont === F.sans ? 800 : 700, color: th.ink, fontFamily: titleFont, align: 'left', lineHeight: 1.3 },
-        { type: 'text', x: tx, y: ty + tH + 16, w: tw, text: desc, fontSize: 17, fontWeight: 400, color: th.sub, fontFamily: F.sans, align: 'left', lineHeight: 1.6 },
-      ]
-    },
-  }
-}
-
 /**
  * 반반 첫 화면 — 한쪽 글(블록 목록), 한쪽 사진. 높이 = 위·아래 여백 + 글과 사진 중 높은 쪽 (둘 다 세로 가운데)
  * text(col) = col { x, w, align }에 맞춘 블록 목록을 돌려주는 함수
@@ -211,13 +155,6 @@ function split(bg, text, ph, o = {}) {
   return { height: top + inner + bottom, bg, ...(bgImage ? { bgImage: { asset: bgImage, fit: 'cover' } } : {}), items }
 }
 const colText = (col, o = {}) => ({ x: col.x, w: col.w, align: col.align, ...o })
-
-/** 구매 전 안내 + 배송·교환 상자 */
-const noticeSec = (c, th, bg, o = {}) => sec(bg, [
-  T(c.noticeTitle, 28, o.serif ? 700 : 800, th.ink, { font: o.serif ? F.serif : F.sans, lh: 1.3 }), 28,
-  T(c.notices, 17, 400, th.sub, { font: F.sans, w: 620, align: 'left', lh: 1.8 }), 40,
-  boxes2([SHIP, RETURN], th, { boxBg: o.boxBg ?? WHITE }),
-])
 
 // ── 색 ──
 const theme = (o) => ({ ink: '#1f2328', sub: '#4b5563', muted: '#7b818c', line: '#dfe2e6', onAccent: WHITE, soft: '#f5f5f4', dark: '#15171b', ...o })
@@ -295,10 +232,19 @@ const COPY = {
   },
 }
 
-// ── 짜임새 6가지 (v = 카테고리마다 다른 구도 0·1·2) ──
+// ── 짜임새 6가지 (v = 카테고리마다 다른 구도 0·1·2, sv = 아래 섹션 모양 번호 — studioTemplateSections) ──
+// 포인트·상세컷·추천·후기·구매 전 안내는 섹션 모양(section)으로, 키워드·메모·말풍선·맺음말은 짜임새마다 그대로
+
+const pointsOf = c => ({ title: c.pointsTitle, items: c.points })
+const noticeOf = c => ({ title: c.noticeTitle, notices: c.notices, boxes: [SHIP, RETURN] })
+/** 섹션 아래쪽 모서리 소품 그림 (글과 겹치지 않게 아래 여백을 늘리고 그 자리에) */
+const cornerArt = (file, w, h, label) => ({
+  pad: h + 20,
+  items: height => [art(file, W - 40 - w, height - h - 24, w, h, label)],
+})
 
 /** 1. 밝은 미니멀 — 흰 바탕·넓은 여백·Cinzel 작은 제목 + 프리텐다드 */
-function minimal(c, h, th, v) {
+function minimal(c, h, th, v, a, sv) {
   const intro = [eyebrow(h.eyebrow, th.accent), 18, head(h.title, 42, th.ink, { w: 660 }), 22, rule(th.accent), 22, body(h.lead, th.sub, { w: 620 })]
   const hero = v === 0
     ? [full(0, 'product'), sec(WHITE, intro, { top: 80, bottom: 40 })]
@@ -311,17 +257,17 @@ function minimal(c, h, th, v) {
   return [
     ...hero,
     sec(WHITE, [chips(c.chips, { fill: th.soft, ink: th.ink })], { top: v === 0 ? 0 : 60, bottom: 72 }),
-    sec(th.soft, [Prow([{ slot: 1, sample: 'scene' }, { slot: 2, sample: v === 2 ? 'hand' : 'detail' }], 420, { tw: 700 }), 20, small(c.caption, th.muted)], { top: 60, bottom: 60 }),
-    sec(WHITE, [head(c.pointsTitle, 32, th.ink), 30, pointLines(c.points, th, { num: n => `0${n}` })], { bottom: 60 }),
+    section('detail2', sv.detail2, { slots: [1, 2], samples: ['scene', v === 2 ? 'hand' : 'detail'], caption: c.caption }, th),
+    section('points', sv.points, pointsOf(c), th),
     full(3, 'scene'),
-    sec(WHITE, [zoom(4, v === 2 ? 'hand' : 'detail', c.zoomTitle, c.zoomDesc, th, { side: v === 1 ? 'right' : 'left' })]),
-    sec(th.soft, [pin(() => [art(PROP[h.cat], 610, 150, 130, 110, '소품')]), serifHead(c.quote, 30, th.ink, { w: 640, lh: 1.5 })], { top: 90, bottom: 90 }),
-    noticeSec(c, th, WHITE, { boxBg: th.soft }),
+    section('detail1', sv.detail1, { title: c.zoomTitle, lead: c.zoomDesc, slot: 4, sample: v === 2 ? 'hand' : 'detail' }, th),
+    section('review', sv.review, { quote: c.quote, by: '— 먼저 써 본 고객의 한마디' }, th, { corner: cornerArt(PROP[h.cat], 130, 110, '소품') }),
+    section('notice', sv.notice, noticeOf(c), th, { bg: WHITE }),
   ]
 }
 
 /** 2. 따뜻한 감성 — 베이지 배경 그림·고운바탕 제목·둥근 사진·손글씨 메모 */
-function warm(c, h, th, v, a) {
+function warm(c, h, th, v, a, sv) {
   const heroText = col => [
     eyebrow(h.eyebrow, th.accent, colText(col)), 16, serifHead(h.title, 36, th.ink, colText(col)), 20,
     body(h.lead, th.sub, colText(col)),
@@ -332,108 +278,80 @@ function warm(c, h, th, v, a) {
     : [split(th.soft, heroText, { slot: 0, sample: 'product', w: 340, h: 440, radius: 170, side: v === 1 ? 'left' : 'right' }, { top: 90, bottom: 90, bgImage: a.bg })]
   return [
     ...hero,
-    sec(WHITE, [serifHead(c.quote, 30, th.ink, { w: 640, lh: 1.55 }), 20, small(h.quoteBy, th.muted)], { top: 90, bottom: 90 }),
+    section('review', sv.review, { quote: c.quote, by: h.quoteBy }, th),
     full(1, 'scene'),
-    sec(th.soft, [serifHead(c.pointsTitle, 32, th.ink), 36, pointCards(c.points, th, { num: n => `${n}`, numFont: F.hand, titleFont: F.serif })]),
-    sec(WHITE, [Prow([{ slot: 2, sample: a.close }, { slot: 3, sample: 'product' }], 400, { radius: 24 }), 20, small(c.caption, th.muted)], { top: 60, bottom: 60 }),
+    section('points', sv.points, pointsOf(c), th),
+    section('detail2', sv.detail2, { slots: [2, 3], samples: [a.close, 'product'], caption: c.caption }, th),
     sec(th.soft, [note(c.note, th)], { top: 60, bottom: 70 }),
-    sec(WHITE, [serifHead(c.checksTitle, 32, th.ink), 36, checks(c.checks, th)]),
+    section('recommend', sv.recommend, { title: c.checksTitle, lines: c.checks }, th),
     full(4, 'scene'),
     sec(th.soft, [eyebrow(c.closing, th.accent), 14, serifHead(c.closingSub, 30, th.ink)], { top: 90, bottom: 90, bgImage: a.bg }),
-    noticeSec(c, th, WHITE, { serif: true, boxBg: th.soft }),
+    section('notice', sv.notice, noticeOf(c), th, { bg: WHITE }),
   ]
 }
 
 /** 3. 선명한 강조 — 진한 한 색 바탕·가석원 큰 제목·톱니 배지·흰 테두리 사진 */
-function vivid(c, h, th, v) {
-  const badge = pin(gid => {
-    const g = gid()
-    const bx = v === 1 ? 44 : 596
-    return [
-      { type: 'shape', group: g, shape: 'burst', x: bx, y: 40, w: 140, h: 140, fill: th.pop },
-      { type: 'text', group: g, x: bx + 15, y: 40 + Math.round((140 - textH(h.badge, 24, 1.2)) / 2), w: 110, text: h.badge, fontSize: 24, fontWeight: 400, color: th.onPop, fontFamily: F.display, align: 'center', lineHeight: 1.2 },
-    ]
-  })
-  const align = v === 1 ? { align: 'left', x: 60, w: 520 } : { w: 680 }
-  const shift = v === 1 ? {} : { x: cx(680) }
+function vivid(c, h, th, v, a, sv) {
   return [
-    sec(th.accent, [badge, pin(() => [art(A.sparkle, v === 1 ? 620 : 60, 50, 100, 94, '반짝이 별')]), eyebrow(h.eyebrow, th.onAccent, { ...align, ...shift, w: align.w }), 20, display(h.title, 58, th.onAccent, { ...align, ...shift, w: align.w, lh: 1.18 }), 24,
-      body(h.lead, th.onAccent, { ...align, ...shift, w: align.w })], { top: v === 1 ? 190 : 200, bottom: 90 }),
+    { photo: 0 }, // 첫 구간 자리 — withHero가 큰 제목 첫 화면으로 바꾼다
     sec(th.soft, [P(0, 560, { w: 560, sample: 'product', border: 12, borderColor: WHITE, shadow: 30 })], { top: 70, bottom: 70 }),
-    sec(th.dark, [display(c.pointsTitle, 34, WHITE), 36, pointCards(c.points, { ...th, ink: WHITE, sub: '#c9ced6' }, { cardBg: '#23262c', num: n => `0${n}`, numFont: F.display, numColor: th.pop })]),
+    section('points', sv.points, pointsOf(c), th),
     full(1, 'scene'),
-    sec(WHITE, [Prow([{ slot: 2, sample: th.close }, { slot: 3, sample: 'product' }, { slot: 4, sample: th.close }], 260, { tw: 700, gap: 14, radius: 12 }), 22, small(c.caption, th.muted)], { top: 60, bottom: 60 }),
-    sec(th.soft, [head(c.checksTitle, 32, th.ink), 36, checks(c.checks, th)]),
+    section('detail3', sv.detail3, { slots: [2, 3, 4], samples: [th.close, 'product', th.close], caption: c.caption }, th),
+    section('recommend', sv.recommend, { title: c.checksTitle, lines: c.checks }, th),
     sec(th.accent, [display(c.statement, 54, th.onAccent, { w: 680, lh: 1.2 }), 30, chips(c.chips, { fill: th.onAccent, ink: th.accent, font: F.sans })], { top: 90, bottom: 90 }),
-    noticeSec(c, th, WHITE, { boxBg: th.soft }),
+    section('notice', sv.notice, noticeOf(c), th, { bg: WHITE }),
   ]
 }
 
 /** 4. 고급 모노톤 — 짙은 바탕(또는 밝은 회색)·Cinzel·가는 금색 선·얇은 테두리 사진 */
-function mono(c, h, th, v, a) {
+function mono(c, h, th, v, a, sv) {
   const lite = v === 2
   const ink = lite ? th.ink : WHITE
   const sub = lite ? th.sub : '#b9bec7'
-  const T2 = { ...th, ink, sub, line: lite ? th.line : '#3a3f47' }
   const base = lite ? th.soft : th.dark
   return [
-    sec(base, [...(a.prop ? [pin(() => [art(a.prop, 620, 330, 140, 140, '소품')])] : []), eyebrow(h.eyebrow, th.accent, { letterSpacing: 0.4 }), 22, head(h.title, 40, ink, { w: 640, lh: 1.35 }), 26, rule(th.accent, 64, 1), 26, body(h.lead, sub, { w: 600 })],
-      { top: 130, bottom: 120, ...(a.bg ? { bgImage: a.bg } : {}) }),
+    { photo: 0 }, // 첫 구간 자리 — withHero가 큰 제목 첫 화면으로 바꾼다
     full(0, 'product', base),
-    sec(base, [eyebrow('DETAILS', th.accent, { letterSpacing: 0.4 }), 30, Prow([{ slot: 1, sample: a.close }, { slot: 2, sample: 'product' }], 330, { tw: 680, gap: 20, border: 2, borderColor: th.accent })], { top: 80, bottom: 80 }),
-    sec(base, [ornament(th.accent), 30, serifHead(c.story, 24, ink, { w: 600, lh: 1.8 })], { top: 80, bottom: 90 }),
+    sec(base, [eyebrow('DETAILS', th.bright, { letterSpacing: 0.4 }), 30, Prow([{ slot: 1, sample: a.close }, { slot: 2, sample: 'product' }], 330, { tw: 680, gap: 20, border: 2, borderColor: th.bright })], { top: 80, bottom: 80 }),
+    sec(base, [ornament(th.bright), 30, serifHead(c.story, 24, ink, { w: 600, lh: 1.8 })], { top: 80, bottom: 90 }),
     full(3, 'scene', base),
-    sec(base, [eyebrow('POINTS', th.accent, { letterSpacing: 0.4 }), 16, head(c.pointsTitle, 30, ink), 30, pointLines(c.points, T2, { numColor: th.accent })], { top: 80, bottom: 60 }),
-    sec(base, [zoom(4, a.close, c.zoomTitle, c.zoomDesc, T2, { side: v === 1 ? 'right' : 'left', ring: th.accent })], { top: 90, bottom: 90 }),
-    sec(lite ? WHITE : '#22252b', [T(c.noticeTitle, 26, 700, ink, { font: F.sans, lh: 1.3 }), 26, T(c.notices, 16, 400, sub, { font: F.sans, w: 620, align: 'left', lh: 1.8 }), 36,
-      boxes2([SHIP, RETURN], T2, { boxBg: lite ? th.soft : '#2c3037' })]),
-    sec(base, [eyebrow(c.closing, th.accent, { letterSpacing: 0.4 }), 14, small(c.closingSub, sub)], { top: 100, bottom: 100, ...(a.bg ? { bgImage: a.bg } : {}) }),
+    section('points', sv.points, pointsOf(c), th),
+    section('detail1', sv.detail1, { title: c.zoomTitle, lead: c.zoomDesc, slot: 4, sample: a.close }, th),
+    section('notice', sv.notice, noticeOf(c), th),
+    sec(base, [eyebrow(c.closing, th.bright, { letterSpacing: 0.4 }), 14, small(c.closingSub, sub)], { top: 100, bottom: 100, ...(a.bg ? { bgImage: a.bg } : {}) }),
   ]
 }
 
 /** 5. 내추럴 — 연한 초록·나뭇잎 그림·둥근 모서리·손글씨 한 줄 */
-function natural(c, h, th, v, a) {
-  const leaf = pin(() => [art(A.leaf, v === 1 ? 20 : 620, 24, 130, 173, '나뭇잎 가지')])
+function natural(c, h, th, v, a, sv) {
   return [
-    sec(th.soft, [leaf, hand(h.handLine, 34, th.accent), 10, head(h.title, 40, th.ink, { w: 620 }), 20, body(h.lead, th.sub, { w: 600 })], { top: 100, bottom: 70 }),
-    sec(th.soft, [P(0, 600, { w: 640, sample: 'product', radius: 28 })], { top: 0, bottom: 80 }),
-    sec(WHITE, [chips(c.chips, { fill: WHITE, ink: th.accent, stroke: th.accent })], { top: 60, bottom: 60 }),
-    sec(th.soft, [head(c.pointsTitle, 32, th.ink), 36, pointCards(c.points, th, { num: n => `0${n}`, radius: 28 })]),
-    sec(WHITE, [Prow([{ slot: 1, sample: 'scene' }, { slot: 2, sample: a.close }], 440, { radius: 28 }), 20, small(c.caption, th.muted)], { top: 60, bottom: 60 }),
+    { photo: 0 }, // 첫 구간 자리 — withHero가 큰 제목 첫 화면으로 바꾼다
+    sec(th.soft, [P(0, 600, { w: 640, sample: 'product', radius: 28 })], { top: 60, bottom: 80 }),
+    sec(WHITE, [chips(c.chips, { fill: WHITE, ink: th.accentText, stroke: th.accent })], { top: 60, bottom: 60 }),
+    section('points', sv.points, pointsOf(c), th),
+    section('detail2', sv.detail2, { slots: [1, 2], samples: ['scene', a.close], caption: c.caption }, th),
     sec(WHITE, [note(c.note, th, { paper: '#f6f8f1', rotation: 2 })], { top: 20, bottom: 70 }),
     full(3, 'scene'),
-    sec(th.soft, [head(c.checksTitle, 32, th.ink), 36, checks(c.checks, th)]),
+    section('recommend', sv.recommend, { title: c.checksTitle, lines: c.checks }, th),
     sec(th.soft, [hand(c.closingSub, 40, th.ink, { w: 640 })], { top: 110, bottom: 110, bgImage: a.bg }),
-    noticeSec(c, th, WHITE, { boxBg: th.soft }),
+    section('notice', sv.notice, noticeOf(c), th, { bg: WHITE }),
   ]
 }
 
 /** 6. 트렌디 — 두 가지 선명한 색·기울인 사진·별 스티커·테이프·말풍선·사진 네 칸 */
-function trendy(c, h, th, v) {
-  const tilt = v === 1 ? -4 : 4
+function trendy(c, h, th, v, a, sv) {
   return [
-    split(th.soft, col => [
-      hand(h.handLine, 32, th.accent, colText(col)), 8, display(h.title, 46, th.ink, colText(col, { lh: 1.18 })), 20, body(h.lead, th.sub, colText(col)),
-    ], { slot: 0, sample: 'product', w: 330, h: 400, border: 12, borderColor: WHITE, shadow: 26, rotation: tilt, side: v === 1 ? 'left' : 'right' }, {
-      top: 100, bottom: 100,
-      deco: gid => {
-        const g = gid()
-        const sx = v === 1 ? 630 : 40
-        return [
-          { type: 'shape', group: g, shape: 'star', x: sx, y: 20, w: 110, h: 105, fill: th.pop },
-          { type: 'text', group: g, x: sx + 18, y: 20 + Math.round((105 - textH('HOT', 22, 1.2)) / 2) + 4, w: 74, text: 'HOT', fontSize: 22, fontWeight: 400, color: th.onPop, fontFamily: F.display, align: 'center', lineHeight: 1.2 },
-        ]
-      },
-    }),
+    { photo: 0 }, // 첫 구간 자리 — withHero가 큰 제목 첫 화면으로 바꾼다
     sec(th.ink, [chips(c.chips, { fill: th.pop, ink: th.onPop, font: F.display, size: 18 })], { top: 40, bottom: 40 }),
     full(1, 'scene'),
     sec(WHITE, [display(h.gridTitle, 36, th.ink), 30,
       Prow([{ slot: 2, sample: th.close }, { slot: 3, sample: 'product' }], 330, { tw: 680, gap: 20, radius: 16 }), 20,
       Prow([{ slot: 4, sample: 'scene' }, { slot: 5, sample: th.close }], 330, { tw: 680, gap: 20, radius: 16 })], { top: 72, bottom: 72 }),
-    sec(th.soft, [display(c.pointsTitle, 32, th.ink), 36, pointCards(c.points, th, { cardBg: WHITE, num: n => `#${n}`, numFont: F.display, numColor: th.accent, radius: 24 })]),
+    section('points', sv.points, pointsOf(c), th),
     sec(WHITE, [pin(() => [art(A.sparkle, 620, 24, 96, 90, '반짝이 별')]), bubble(c.bubble, th.pop, th.onPop, { w: 400 })], { top: 70, bottom: 60 }),
-    sec(th.soft, [display(c.checksTitle, 30, th.ink), 36, checks(c.checks, th)]),
-    noticeSec(c, th, WHITE, { boxBg: th.soft }),
+    section('recommend', sv.recommend, { title: c.checksTitle, lines: c.checks }, th),
+    section('notice', sv.notice, noticeOf(c), th, { bg: WHITE }),
   ]
 }
 
@@ -509,11 +427,21 @@ const DESC = {
   trendy: '두 가지 선명한 색 · 기울인 사진 · 별 스티커 · 사진 네 칸 · 말풍선',
 }
 
-// 첫 구간 = 큰 제목 첫 화면 (studioTemplateHeroes — 구간 수·key·카테고리 그대로)
-export const LOOK_TEMPLATES = LOOKS.map(([category, key, name, kind, v, mood, color, th, a, h]) => {
+/** 이 파일의 템플릿 key (목록 순서) — 갤러리 순서·섹션 모양은 studioTemplates.js가 정한 뒤 buildLookTemplate으로 만든다 */
+export const LOOK_KEYS = LOOKS.map(r => r[1])
+
+/**
+ * 새 템플릿 하나 — sv = 아래 섹션 모양 번호들 (studioTemplateSections.planSectionStyles), 없으면 모두 0번 모양.
+ * 첫 구간 = 큰 제목 첫 화면 (studioTemplateHeroes — 구간 수·key·카테고리 그대로), 아래 섹션 색·글꼴 = 첫 화면을 따른다 (lowerTheme)
+ */
+export function buildLookTemplate(key, sv = {}) {
+  const row = LOOKS.find(r => r[1] === key)
+  if (!row) return null
+  const [category, , name, kind, v, mood, color, th, a, h] = row
   const label = `${{ apparel: '의류', bags: '잡화·가방', living: '생활용품' }[category]} · ${name}`
+  const theme = lowerTheme(HERO_SPECS[key], { ...th, body: F.sans })
   return withHero({
     key, category, label, desc: DESC[kind], gap: 0, mood, color, swatch: th.accent,
-    sections: BUILD[kind](COPY[category], { ...h, cat: category }, th, v, a),
+    sections: BUILD[kind](COPY[category], { ...h, cat: category }, theme, v, a, sv),
   })
-})
+}

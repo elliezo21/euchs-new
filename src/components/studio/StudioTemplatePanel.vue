@@ -33,7 +33,7 @@
       </div>
       <div v-else class="py-10 text-center" data-template-empty>
         <p class="st-desc break-keep">{{ tab === 'fav' && !filtered ? '하트를 누른 템플릿이 여기에 모여요.' : '조건에 맞는 템플릿이 없어요.' }}</p>
-        <button v-if="filtered" type="button" class="st-btn mt-3" @click="clearFilters">거르기 풀기</button>
+        <button v-if="filtered" type="button" class="st-btn mt-3" @click="clearFilters">필터 초기화</button>
       </div>
     </div>
 

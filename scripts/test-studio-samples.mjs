@@ -30,9 +30,11 @@ const samples = manifest.samples
 // ── 1. 파일·목록 ──
 {
   eq('manifest 문제 없음', manifest.problems, [])
-  eq('예시 사진 54장 · kind sample', [samples.length, samples.every(s => s.kind === 'sample')], [54, true])
-  const HAVE = ['apparel', 'bag', 'living'] // 지금 사진이 있는 카테고리 (SAMPLE_CATEGORIES의 나머지는 사진이 들어오면 쓰는 이름)
-  eq('카테고리마다 18장 (의류·가방·생활) · 나머지 카테고리는 아직 0장', [HAVE.map(c => samples.filter(s => s.category === c).length), SAMPLE_CATEGORIES.filter(c => !HAVE.includes(c)).map(c => samples.filter(s => s.category === c).length).every(n => n === 0)], [[18, 18, 18], true])
+  eq('예시 사진 124장 (1차 54 + 2차 70) · kind sample', [samples.length, samples.every(s => s.kind === 'sample')], [124, true])
+  const HAVE = ['apparel', 'bag', 'living'] // 1차 (18장씩)
+  eq('카테고리별 장수 — 1차 18장씩 · 2차 8장씩(전자 6 — 브랜드 닮은 2장 뺌)', SAMPLE_CATEGORIES.map(c => samples.filter(s => s.category === c).length), [18, 18, 18, 8, 8, 8, 8, 6, 8, 8, 8, 8])
+  eq('2차 사진: 원본 크기를 긴 변 1044로 줄임 (1차와 비슷한 무게)', samples.filter(s => !HAVE.includes(s.category)).every(s => Math.max(s.w, s.h) === 1044), true)
+  eq('브랜드 닮은 두 장은 넣지 않음', samples.some(s => /wireless-earbuds|earbuds-in-hand/.test(s.file)), false)
   eq('종류 (의류·가방 = 제품·연출·확대 / 생활 = 제품·연출·손)', HAVE.map(c => [...new Set(samples.filter(s => s.category === c).map(s => s.type))].sort()), [['detail', 'product', 'scene'], ['detail', 'product', 'scene'], ['hand', 'product', 'scene']])
   eq('에셋 목록(items)에는 예시 사진 없음', manifest.items.some(i => i.file.startsWith('samples/')), false)
   eq('webp 파일·크기·비율이 목록과 같음', samples.filter(s => {
@@ -58,7 +60,8 @@ const samples = manifest.samples
 // ── 2. 자리 종류·고르기 ──
 {
   eq('기본 종류: 첫 자리 = 제품, 다음 연출·확대·제품', [0, 1, 2, 3, 4].map(defaultSlotType), ['product', 'scene', 'detail', 'product', 'scene'])
-  eq('템플릿 카테고리 → 예시 사진 카테고리 (사진이 있는 가장 가까운 것)', ['apparel-look', 'bags-daily', 'living-basic', 'kitchen-bold', 'basic', 'beauty-mood', 'toys-play', 'event-review'].map(k => sampleCategoryOf(templateByKey(k), samples)), ['apparel', 'bag', 'living', 'living', 'apparel', 'bag', 'living', 'living'])
+  eq('템플릿 카테고리 → 예시 사진 카테고리 (사진이 있는 가장 가까운 것)', ['apparel-look', 'bags-daily', 'living-basic', 'kitchen-bold', 'basic', 'beauty-mood', 'toys-play', 'event-review'].map(k => sampleCategoryOf(templateByKey(k), samples)), ['apparel', 'bag', 'living', 'kitchen', 'food', 'beauty', 'toy', 'sports'])
+  eq('선물 템플릿(사은품·명절 선물세트) = 명절 선물 사진부터', ['event-free-gift', 'event-gift-set'].map(k => sampleCategoryOf(templateByKey(k), samples)), ['gift', 'gift'])
   eq('새 이름 읽기 (뷰티·전자·완구 …) · 모르는 이름은 null', [parseSampleName('euchs-sample_beauty_product_cream-jar_01')?.category, parseSampleName('euchs-sample_digital_scene_desk_02')?.category, parseSampleName('euchs-sample_shoe_product_x_01')], ['beauty', 'digital', null])
   const pick = pickSamples(['product', 'product', 'detail', 'scene'], samples, 'living')
   eq('같은 종류 두 자리 = 다른 사진 · 생활 확대 → 손 연출로', [pick[0].id !== pick[1].id, pick.map(s => s.type)], [true, ['product', 'product', 'hand', 'scene']])

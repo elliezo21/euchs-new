@@ -9,7 +9,7 @@ import {
   coverSlotIndexes, assignTemplateSamples, galleryOrder, GALLERY_COLUMNS, AUTO_BASE_TEMPLATE, templateFontList, templatesOf,
 } from '../src/lib/studioTemplates.js'
 import { HERO_H, HERO_W, HERO_TITLE_MIN, HERO_TITLE_MAX, HERO_TITLE_SIZE, HEART_ZONE, HERO_SPECS, HERO_COMPS, withHero } from '../src/lib/studioTemplateHeroes.js'
-import { EVENT_TEMPLATES } from '../src/lib/studioTemplateEvents.js'
+import { EVENT_TEMPLATES } from '../src/lib/studioTemplates.js'
 import { textLinesOf, itemBounds, isValidImageItem, readPage, PAGE_WIDTH } from '../src/lib/studioPage.js'
 import { isValidTextItem, textStyleOf } from '../src/lib/studioText.js'
 import { isValidAssetItem, isAssetPath } from '../src/lib/studioAsset.js'

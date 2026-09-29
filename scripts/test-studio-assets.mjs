@@ -1,7 +1,7 @@
 // 에셋 채우기 테스트 — node scripts/test-studio-assets.mjs
 // 카테고리 템플릿(구성·문구가 폭 안·겹침 없음) · 새 도형 path · 꾸밈 요소 · 배지 · 글자 스타일 묶음 · 표 틀
 import { STUDIO_TEMPLATES, TEMPLATE_CATEGORIES, templatesOf, templateSlots, templateProblems, buildTemplatePage } from '../src/lib/studioTemplates.js'
-import { CATEGORY_TEMPLATES } from '../src/lib/studioTemplateSets.js'
+import { CATEGORY_TEMPLATES } from '../src/lib/studioTemplates.js' // 섹션 모양까지 정한 목록 (studioTemplateSets는 만드는 함수만)
 import { readPage, buildGroupItems, addItemGroup, emptyPage, addSection, itemBounds, findItem, groupMemberIds, PAGE_WIDTH } from '../src/lib/studioPage.js'
 import { SHAPES, SHAPE_LABELS, ELEMENT_KINDS, shapePath, shapePaintSpec, normalizeShapeItem, isValidShapeItem, isValidLineItem, elementLabel } from '../src/lib/studioShape.js'
 import { DECOR_PRESETS, DECOR_KINDS, decorPresetByKey, groupPresetByKey, presetTextParts } from '../src/lib/studioDecor.js'

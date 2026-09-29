@@ -75,16 +75,19 @@ export const TEMPLATE_SAMPLE_CHAIN = {
   pets: ['pet', 'living', 'apparel'],
   fullset: ['living'],
   common: ['apparel', 'bag', 'living'],
-  event: ['gift', 'living', 'bag', 'apparel'],
+  event: ['sports', 'health', 'living', 'bag', 'apparel'], // 상품 한 장 자리(신상·특가·1+1·품절 임박) — 알맞은 템플릿 카테고리가 없는 사진부터. 선물 템플릿은 sampleCategories로 따로
   food: ['food', 'kitchen', 'living'],
   health: ['health', 'food', 'living'],
   sports: ['sports', 'apparel', 'bag'],
   gift: ['gift', 'living', 'bag'],
 }
-/** 이 템플릿이 쓸 예시 사진 카테고리 차례 (sampleCategory를 적은 템플릿은 그것부터) */
+/**
+ * 이 템플릿이 쓸 예시 사진 카테고리 차례 — 템플릿에 sampleCategories(배열)를 적었으면 그것, 아니면 카테고리 이름 규칙.
+ * sampleCategory(하나)를 적은 템플릿은 그것부터.
+ */
 export function sampleCategoriesOf(tpl) {
   const cat = String(tpl?.category ?? '')
-  const base = TEMPLATE_SAMPLE_CHAIN[cat] ?? [cat, cat.replace(/s$/, ''), 'living']
+  const base = Array.isArray(tpl?.sampleCategories) && tpl.sampleCategories.length ? tpl.sampleCategories : (TEMPLATE_SAMPLE_CHAIN[cat] ?? [cat, cat.replace(/s$/, ''), 'living'])
   const first = SAMPLE_CATEGORIES.includes(tpl?.sampleCategory) ? [tpl.sampleCategory] : []
   return [...new Set([...first, ...base].filter(c => SAMPLE_CATEGORIES.includes(c)))]
 }
@@ -136,7 +139,7 @@ const lessThan = (a, b) => {
  * 규칙 (앞이 먼저):
  *   · 한 템플릿 안에서는 같은 사진을 두 번 쓰지 않는다 (사진이 모자라면 그 자리는 null — 부르는 쪽이 빈 자리로 둔다)
  *   · 대표(첫 자리)와 표지의 다른 자리는 다른 템플릿 표지에 이미 쓴 사진을 피한다 — 피할 수 없을 때만 다시 쓴다
- *   · 그다음 카테고리 가까운 순서 → 종류가 맞는 순서(FALLBACK) → 덜 쓴 사진 → 목록 순서
+ *   · 표지 아닌 자리는 아직 안 쓴 사진 먼저(차례 안에서) → 그다음 카테고리 가까운 순서 → 종류가 맞는 순서(FALLBACK) → 덜 쓴 사진 → 목록 순서
  *   · 고르는 차례: 표지의 대표 전부 → 표지 나머지 → 나머지 자리 (첫 구간에 사진이 없는 안내·이벤트 템플릿은 나머지 자리로). 템플릿은 쓸 수 있는 카테고리가 적은 것부터 (넓게 고를 수 있는 템플릿이 남는 사진을 가져간다)
  * @returns {Map<string, (object|null)[]>}
  */
@@ -156,7 +159,9 @@ export function assignSamples(entries, samples) {
       const c = e.chain.indexOf(s.category)
       const t = ranks.indexOf(s.type)
       if (c < 0 || t < 0 || mine.get(e.key).has(s.id)) return
-      const score = [cover && onCover.has(s.id) ? 1 : 0, c, t, uses.get(s.id) ?? 0, idx]
+      const n = uses.get(s.id) ?? 0
+      // 표지 = 다른 표지에 쓴 사진 피하기 먼저 / 나머지 자리 = 아직 아무 템플릿도 안 쓴 사진 먼저 (차례 안의 카테고리에서 — 사진을 고르게 쓰게)
+      const score = cover ? [onCover.has(s.id) ? 1 : 0, c, t, n, idx] : [n > 0 ? 1 : 0, c, t, n, idx]
       if (!best || lessThan(score, bestScore)) { best = s; bestScore = score }
     })
     if (!best) return

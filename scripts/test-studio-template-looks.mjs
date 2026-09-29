@@ -2,7 +2,7 @@
 // 개수·구간 수·사진 자리 수·거르기 값 · 새 글꼴·에셋 사용 · 표 없음 · 서로 다른 모양 · 적용했을 때 글자 넘침·자리 밖·사진 겹침 없음
 // 글자 폭은 넉넉하게 잰다 (글꼴마다 한글·영문 글자 폭 비율 — 실제 글꼴보다 조금 넓게)
 import { STUDIO_TEMPLATES, TEMPLATE_MOODS, TEMPLATE_COLORS, templateSlots, templateSlotTypes, buildTemplatePage, templateProblems } from '../src/lib/studioTemplates.js'
-import { LOOK_TEMPLATES } from '../src/lib/studioTemplateLooks.js'
+import { LOOK_TEMPLATES } from '../src/lib/studioTemplates.js'
 import { textLinesOf, itemBounds, isValidImageItem, readPage, PAGE_WIDTH } from '../src/lib/studioPage.js'
 import { isValidTextItem } from '../src/lib/studioText.js'
 import { isValidAssetItem, isAssetPath } from '../src/lib/studioAsset.js'

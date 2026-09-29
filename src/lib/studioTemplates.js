@@ -35,10 +35,11 @@ import { normalizeShapeItem, normalizeLineItem } from './studioShape.js'
 import { normalizeTableItem } from './studioTable.js'
 import { normalizeAssetItem, sectionBgImageOf } from './studioAsset.js'
 import { isSampleItem } from './studioSamples.js'
-import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS } from './studioTemplateSets.js'
-import { LOOK_TEMPLATES } from './studioTemplateLooks.js'
-import { EVENT_TEMPLATES } from './studioTemplateEvents.js'
-import { withHero } from './studioTemplateHeroes.js'
+import { CATEGORY_KEYS, buildCategoryTemplate, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS } from './studioTemplateSets.js'
+import { LOOK_KEYS, buildLookTemplate } from './studioTemplateLooks.js'
+import { EVENT_KEYS, EVENT_TONES, buildEventTemplate } from './studioTemplateEvents.js'
+import { withHero, HERO_SPECS } from './studioTemplateHeroes.js'
+import { section, lowerTheme, planSectionStyles, recordSections, SECTION_VARIANTS } from './studioTemplateSections.js'
 
 export { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS }
 
@@ -50,6 +51,11 @@ const clone = v => JSON.parse(JSON.stringify(v))
 // ── 샘플 템플릿 3개 (카테고리 '기본') + 카테고리별 템플릿(studioTemplateSets.js — 에셋 채우기) ──
 const INK = '#1f2937'
 const t = (x, y, w, text, fontSize, fontWeight, color, extra = {}) => ({ type: 'text', x, y, w, text, fontSize, fontWeight, color, fontFamily: 'noto-sans-kr', align: 'center', lineHeight: 1.3, ...extra })
+
+// 기본 템플릿의 안내 글·사이즈표 칸 (원클릭 틀 = 예전 모양, 갤러리 틀 = 섹션 모양 — 내용은 같다)
+const BASIC_NOTICE = '· 화면에 따라 색이 조금 다르게 보일 수 있어요.\n· 재는 방법에 따라 크기가 1~3cm 다를 수 있어요.\n· 궁금한 점은 문의를 남겨 주시면 빠르게 답해 드려요.'
+const SIZE_CELLS = [['사이즈', '가슴', '어깨', '총장', '소매'], ...['S', 'M', 'L', 'XL'].map(s => [s, '-', '-', '-', '-'])]
+const SIZE_NOTE = '단위: cm · 재는 방법에 따라 1~3cm 차이가 날 수 있어요.'
 
 const BASE_TEMPLATES = [
   {
@@ -71,7 +77,7 @@ const BASE_TEMPLATES = [
         height: 330, bg: '#f5f5f4',
         items: [
           t(70, 60, 640, '구매 전에 확인해 주세요', 28, 800, INK),
-          t(100, 130, 580, '· 화면에 따라 색이 조금 다르게 보일 수 있어요.\n· 재는 방법에 따라 크기가 1~3cm 다를 수 있어요.\n· 궁금한 점은 문의를 남겨 주시면 빠르게 답해 드려요.', 19, 400, '#57534e', { align: 'left', lineHeight: 1.8 }),
+          t(100, 130, 580, BASIC_NOTICE, 19, 400, '#57534e', { align: 'left', lineHeight: 1.8 }),
         ],
       },
     ],
@@ -135,9 +141,9 @@ const BASE_TEMPLATES = [
           t(70, 50, 640, '사이즈 안내', 34, 800, '#222222'),
           {
             type: 'table', x: 90, y: 125, w: 600, headerBg: '#2a9d8f', headerColor: '#ffffff', borderColor: '#d6dedb',
-            cells: [['사이즈', '가슴', '어깨', '총장', '소매'], ...['S', 'M', 'L', 'XL'].map(s => [s, '-', '-', '-', '-'])],
+            cells: SIZE_CELLS,
           },
-          t(90, 355, 600, '단위: cm · 재는 방법에 따라 1~3cm 차이가 날 수 있어요.', 17, 400, '#777777'),
+          t(90, 355, 600, SIZE_NOTE, 17, 400, '#777777'),
         ],
       },
       { photo: 3 },
@@ -145,10 +151,11 @@ const BASE_TEMPLATES = [
   },
 ]
 // 기본 3개의 거르기 값 (분위기·색 — studioTemplateSets.TEMPLATE_MOODS·TEMPLATE_COLORS)
+// sampleCategories = 예시 사진 카테고리 차례 (알맞은 템플릿 카테고리가 없는 식품·건강식품·스포츠 사진을 기본 템플릿에서 쓴다 — size는 옷 치수표라 의류)
 const BASE_META = {
-  basic: { mood: 'clean', color: 'warm', swatch: '#c9a86a' },
-  point: { mood: 'bold', color: 'cool', swatch: '#14213d' },
-  size: { mood: 'clean', color: 'green', swatch: '#2a9d8f' },
+  basic: { mood: 'clean', color: 'warm', swatch: '#c9a86a', sampleCategories: ['food', 'health', 'apparel', 'bag', 'living'] },
+  point: { mood: 'bold', color: 'cool', swatch: '#14213d', sampleCategories: ['sports', 'health', 'apparel', 'bag', 'living'] },
+  size: { mood: 'clean', color: 'green', swatch: '#2a9d8f', sampleCategories: ['apparel'] },
 }
 /**
  * 원클릭 자동 제작이 쓰는 기본 틀 = 예전 'basic' 모양 그대로 (대표 사진 → 소개 글 → 사진들 → 구매 전 안내).
@@ -175,11 +182,65 @@ export function galleryOrder(list, cols = GALLERY_COLUMNS) {
   return out
 }
 
-// 목록: 기본 3 → 카테고리 템플릿 17 → 새 템플릿 18 → 안내·이벤트 22, 첫 구간 = 큰 제목 첫 화면(studioTemplateHeroes). 갤러리 순서는 galleryOrder
-export const STUDIO_TEMPLATES = galleryOrder([
-  ...BASE_TEMPLATES.map(t => withHero({ ...t, category: 'common', ...BASE_META[t.key] })),
-  ...CATEGORY_TEMPLATES, ...LOOK_TEMPLATES, ...EVENT_TEMPLATES,
-])
+/**
+ * 기본 템플릿 하나 (갤러리용) — 첫 구간 = 큰 제목 첫 화면, 구매 전 안내(basic)·사이즈 안내(size)는 섹션 모양(sv)으로.
+ * point의 POINT 구간(배지 그룹·사진 자리)은 예전 모양 그대로 (내 템플릿 변환·적용 흐름을 테스트가 이 모양으로 본다)
+ */
+function buildBaseTemplate(key, sv = {}) {
+  const raw = BASE_TEMPLATES.find(x => x.key === key)
+  const th = lowerTheme(HERO_SPECS[key], { body: 'noto-sans-kr' })
+  const sections = raw.sections.map((s, i) => {
+    if (key === 'basic' && i === 5) return section('notice', sv.notice, { title: '구매 전에 확인해 주세요', notices: BASIC_NOTICE }, th)
+    if (key === 'size' && i === 3) return section('table', sv.table, { title: '사이즈 안내', cells: SIZE_CELLS, note: SIZE_NOTE, w: 600, chips: ['단위 cm', '평평하게 재요', '1~3cm 차이'] }, th)
+    return s
+  })
+  return withHero({ ...raw, category: 'common', ...BASE_META[key], sections })
+}
+
+// 목록: 기본 3 → 카테고리 템플릿 17 → 새 템플릿 18 → 안내·이벤트 22, 첫 구간 = 큰 제목 첫 화면(studioTemplateHeroes).
+// 순서 먼저(galleryOrder — 첫 화면 바탕 계열만 본다) → 그 순서로 아래 섹션 모양을 정하고(planSectionStyles) → 템플릿을 만든다
+const BASE_KEYS = BASE_TEMPLATES.map(x => x.key)
+const toneOf = key => HERO_SPECS[key]?.tone ?? EVENT_TONES[key]
+const ORDER = galleryOrder([...BASE_KEYS, ...CATEGORY_KEYS, ...LOOK_KEYS, ...EVENT_KEYS].map(key => ({ key, tone: toneOf(key) }))).map(x => x.key)
+/** 템플릿마다 아래 섹션 모양 번호 { 종류: 번호 } (studioTemplateSections.SECTION_VARIANTS) — 테스트·보고서용 */
+const builderOf = key => (BASE_KEYS.includes(key) ? buildBaseTemplate : CATEGORY_KEYS.includes(key) ? buildCategoryTemplate : LOOK_KEYS.includes(key) ? buildLookTemplate : buildEventTemplate)
+// 템플릿마다 쓰는 섹션 종류 (모양 0번으로 한 번 만들어 모은다) — 쓰는 템플릿끼리 모양을 고르게 나누려고
+const USES = new Map(ORDER.map(key => [key, new Set(recordSections(() => builderOf(key)(key, {})).styles.map(s => s.split(':')[0]))]))
+export const SECTION_STYLE_PLAN = planSectionStyles(ORDER, GALLERY_COLUMNS, key => USES.get(key))
+// sectionStyles = 이 템플릿이 쓴 아래 섹션 모양 ['종류:번호', …] (페이지 문서에는 들어가지 않는다 — 템플릿 목록 칸)
+const buildOne = key => {
+  const { value, styles } = recordSections(() => builderOf(key)(key, SECTION_STYLE_PLAN.get(key)))
+  return { ...value, tone: toneOf(key), sectionStyles: styles }
+}
+const built = ORDER.map(buildOne)
+// 아래 섹션 모양 조합이 앞 템플릿과 완전히 같으면 — 쓴 종류 하나를 옆·위 카드와 겹치지 않는 다른 모양으로 옮겨 다시 만든다
+{
+  const seen = new Set()
+  const neighborsOf = i => [i - 1, i + 1, i - GALLERY_COLUMNS, i + GALLERY_COLUMNS].filter(j => j >= 0 && j < ORDER.length && (Math.abs(i - j) !== 1 || Math.floor(i / GALLERY_COLUMNS) === Math.floor(j / GALLERY_COLUMNS)))
+  built.forEach((t, i) => {
+    let sig = t.sectionStyles.join('|')
+    const kinds = [...new Set(t.sectionStyles.map(s => s.split(':')[0]))]
+    for (let k = 0; sig && seen.has(sig) && k < kinds.length * 8; k++) {
+      const kind = kinds[k % kinds.length]
+      const plan = SECTION_STYLE_PLAN.get(t.key)
+      const n = SECTION_VARIANTS[kind].make.length
+      const avoid = new Set(neighborsOf(i).map(j => SECTION_STYLE_PLAN.get(ORDER[j])[kind]))
+      const step = Math.floor(k / kinds.length) + 1
+      const next = [...Array(n).keys()].map(s => (plan[kind] + step + s) % n).find(v => v !== plan[kind] && !avoid.has(v))
+      if (next === undefined) continue
+      plan[kind] = next
+      built[i] = buildOne(t.key)
+      sig = built[i].sectionStyles.join('|')
+    }
+    seen.add(sig)
+  })
+}
+export const STUDIO_TEMPLATES = built
+const byKeys = keys => keys.map(k => STUDIO_TEMPLATES.find(t => t.key === k))
+/** 파일별 묶음 (그 파일의 목록 순서) — 테스트가 묶음마다 규칙을 본다 */
+export const CATEGORY_TEMPLATES = byKeys(CATEGORY_KEYS)
+export const LOOK_TEMPLATES = byKeys(LOOK_KEYS)
+export const EVENT_TEMPLATES = byKeys(EVENT_KEYS)
 /** 그 카테고리의 템플릿 (모르는 카테고리면 빈 목록) */
 export function templatesOf(category) { return STUDIO_TEMPLATES.filter(t => t.category === category) }
 
@@ -312,7 +373,8 @@ function partToItem(part, imageId, measure) {
       return fitTextItem(n, measure)
     }
     case 'shape': return normalizeShapeItem(normalizeItem({ ...fields, id }))
-    case 'line': return normalizeLineItem(normalizeItem({ ...fields, id, h: 2 }))
+    // 선 높이는 굵기에 맞춰 자동(가운데 기준) — 템플릿 조각은 h 없음(= 선 한 줄 두께 2 기준), 내 템플릿(페이지에서 온 조각)은 h가 있어 그 가운데 그대로
+    case 'line': return normalizeLineItem(normalizeItem({ ...fields, id, h: Number.isFinite(fields.h) ? fields.h : 2 }))
     case 'table': return normalizeTableItem(normalizeItem({ ...fields, id, h: 1 }))
     case 'asset': return normalizeAssetItem(normalizeItem({ ...fields, id }))
     default: return { ...clone(fields), id, type: part.type } // 모르는 요소 — 보존
