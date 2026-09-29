@@ -33,8 +33,8 @@
             <button type="button" class="land-btn land-btn-line land-btn-lg" data-land-howto @click="scrollToSteps">사용법 보기</button>
           </div>
           <ul class="hero-mk" data-hero-in aria-label="판매처">
-            <li v-for="m in MARKETS" :key="m.name" class="mk-chip" :class="{ 'is-soon': m.soon }">
-              {{ m.name }}<span v-if="m.soon" class="hero-mk-soon">준비 중</span>
+            <li v-for="m in MARKETS" :key="m.name" class="mk-chip" data-hero-market>
+              {{ m.name }}<Check class="hero-mk-check" :stroke-width="3" aria-hidden="true" />
             </li>
           </ul>
         </div>
@@ -103,8 +103,8 @@
               <h3 class="tile-h">쿠팡으로 바로 보내기</h3>
               <p class="tile-p">상세페이지·상품명·검색태그·옵션·가격·대표이미지·고시정보·배송정보까지 한 번에 보내요.</p>
               <ul class="mk" data-scene-visual>
-                <li v-for="m in MARKETS" :key="m.name" :class="{ 'is-soon': m.soon }" :data-ex-market="m.soon ? null : ''" :data-ex-soon="m.soon ? '' : null">
-                  {{ m.name }}<span v-if="m.soon" class="mk-soon">준비 중</span>
+                <li v-for="m in MARKETS" :key="m.name" data-ex-market>
+                  {{ m.name }}<Check class="mk-check" :stroke-width="3" aria-hidden="true" />
                 </li>
               </ul>
             </article>
@@ -248,7 +248,8 @@ const HERO_PRELOAD = [[HERO_IMG.pc, HERO_IMG.pcMedia], [HERO_IMG.mobile, HERO_IM
   return link
 })
 const OC_STEPS = ['사진 고르기', '글자 지우기', '페이지 배치', '문구 초안']
-// 판매처 칩 — 목록은 MARKETS(studioMarketplaceRules.js, 설정 > 판매처 연결과 같은 목록·순서). 쿠팡만 켜짐, soon = "준비 중" 작은 배지만
+// 판매처 칩 — 이름·순서만 MARKETS(studioMarketplaceRules.js, 설정 > 판매처 연결과 같은 목록)에서 읽는다.
+// 홍보 화면이라 soon(준비 중) 값은 쓰지 않고 9곳 모두 ✓ (홈 StudioPromoBand와 같게 — 2026-09-29 해성 지시). 설정·보내기 화면의 "준비 중"은 그대로
 const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '섹션별·한 장 다운로드']
 const NOTICE_TYPE_LABEL = { update: '업데이트', notice: '공지', soon: '예정' }
 
@@ -397,8 +398,7 @@ onBeforeUnmount(() => {
   display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px; font-size: 12.5px; font-weight: 700;
   white-space: nowrap; color: #fff; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.4);
 }
-.hero-mk li.is-soon { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); }
-.hero-mk-soon { padding: 0 5px; border-radius: 4px; font-size: 10.5px; background: rgba(255, 255, 255, 0.16); }
+.hero-mk-check { width: 13px; height: 13px; color: #86efac; }
 .hero-pic { position: relative; }
 .hero-pic img { display: block; width: 100%; height: auto; }
 .hero-shade { display: none; }
@@ -485,12 +485,11 @@ onBeforeUnmount(() => {
 
 .mk { margin-top: auto; padding-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
 .mk li {
-  --on: 1; padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; border: 1px solid var(--l-line);
+  --on: 1; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; border: 1px solid var(--l-line);
   color: color-mix(in srgb, var(--l-ink) calc(40% + var(--on) * 60%), transparent);
   background: color-mix(in srgb, var(--l-blue-soft) calc(var(--on) * 100%), #fff);
 }
-.mk li.is-soon { --on: 0; display: inline-flex; align-items: center; gap: 6px; }
-.mk-soon { padding: 1px 6px; border-radius: 5px; font-size: 11px; font-weight: 700; color: var(--l-ink-2); background: var(--l-line); }
+.mk-check { width: 13px; height: 13px; color: #16a34a; opacity: var(--on); }
 
 /* 만드는 순서 */
 .land-h2 { font-size: clamp(28px, 3.4vw, 40px); font-weight: 900; letter-spacing: -0.03em; line-height: 1.2; color: var(--l-ink); word-break: keep-all; }

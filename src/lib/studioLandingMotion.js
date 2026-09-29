@@ -133,12 +133,12 @@ export function startLandingMotion(root) {
       playWhenSeen(oc, timelinePlayer(tl))
     }
 
-    // ── 판매처 타일: 쿠팡 칩이 켜짐 ("준비 중" 칩은 data-ex-market이 없어 꺼진 채 그대로) ──
+    // ── 판매처 타일: 판매처 9곳 칩이 차례로 켜지며 ✓ (홍보 화면 — 홈 StudioPromoBand와 같게, 2초 안에 끝) ──
     const ex = sceneEl('export')
     if (ex) {
       const markets = Array.from(ex.querySelectorAll('[data-ex-market]'))
       const tl = paused()
-      markets.forEach((m, i) => turnOn(tl, m, 0.3 + i * 0.35, 0.2))
+      markets.forEach((m, i) => turnOn(tl, m, 0.3 + i * 0.18, 0.2))
       playWhenSeen(ex, timelinePlayer(tl))
     }
 
