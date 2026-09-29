@@ -1825,6 +1825,7 @@ const saveBoxMeasurement = async () => {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       type: 'inspection_done',
+      userId: app.user_id,
       phoneNumber: order?.buyerInfo?.phone || order?.buyer_phone || order?.buyerPhone || app.phone,
       variables: {
         customer_name: order?.buyerInfo?.buyerName || order?.buyerInfo?.companyName || order?.buyer_name || app.customer_name || '바이어',

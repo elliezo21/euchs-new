@@ -185,6 +185,7 @@ async function handleScan() {
 function openWarehouseModal(order) {
   const appLike = {
     id: order.id,
+    user_id: order.user_id, // 알림톡 발송 제외 대조용
     orderNo: order.orderNumber,
     customer_name: order.buyerInfo?.companyName || order.buyerInfo?.buyerName || order.buyerName || '',
     phone: order.buyerInfo?.phone || order.buyerPhone || '',

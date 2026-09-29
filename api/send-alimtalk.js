@@ -17,6 +17,7 @@
  */
 
 import crypto from 'crypto'
+import { alimtalkSkipReason, parseExcludeIds, maskPhone } from './_alimtalkGuard.js'
 
 const SOLAPI_SEND_URL = 'https://api.solapi.com/messages/v4/send'
 
@@ -64,7 +65,8 @@ export default async function handler(req, res) {
     return res.status(405).json({ success: false, message: 'POST 요청만 허용됩니다.' })
   }
 
-  const { type, phoneNumber, variables } = req.body || {}
+  // userId: 받는 회원의 profiles.id (발송 제외 목록 대조용)
+  const { type, phoneNumber, variables, userId } = req.body || {}
 
   const template = TEMPLATE_MAP[type]
   if (!template) {
@@ -75,6 +77,27 @@ export default async function handler(req, res) {
   const rawTo = String(phoneNumber || '').replace(/[^0-9]/g, '')
   if (!rawTo) {
     return res.status(400).json({ success: false, message: '수신자 전화번호(phoneNumber)가 필요합니다.' })
+  }
+
+  // 발송 제외 회원(ALIMTALK_EXCLUDE_USER_IDS)이거나 휴대폰 번호 형식이 아니면 솔라피를 부르지 않는다.
+  const skip = alimtalkSkipReason({
+    userId,
+    digits: rawTo,
+    excludeIds: parseExcludeIds(process.env.ALIMTALK_EXCLUDE_USER_IDS),
+  })
+  if (!skip.ok) {
+    console.warn('[send-alimtalk] ⏭️ 발송 안 함 — 솔라피 호출 없음:', {
+      reason: skip.status,
+      type,
+      userId: userId || null,
+      to: maskPhone(rawTo),
+      timestamp: new Date().toISOString(),
+    })
+    return res.status(200).json({
+      success: false,
+      status: skip.status,
+      message: skip.status === 'skipped_excluded_user' ? '발송 제외 회원' : '휴대폰 번호 형식이 아닙니다.',
+    })
   }
 
   // 환경변수에서만 인증정보 로드 (VITE_ 접두사 없음 — 서버 전용, 브라우저 노출 안 됨)

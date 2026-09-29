@@ -2693,6 +2693,7 @@ async function savePurchasingInfo(item, idx) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'warehouse_in',
+        userId: activeOrder.value.user_id,
         phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
         variables: {
           customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
@@ -3008,6 +3009,7 @@ async function approveQuoteFromDetail() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'quote_approved',
+        userId: activeOrder.value.user_id,
         phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
         variables: {
           customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
@@ -3560,6 +3562,7 @@ function openWarehouseModal(o, initialTab = null) {
 
   const appLike = {
     id: o.id,
+    user_id: o.user_id, // 알림톡 발송 제외 대조용
     orderNo: o.orderNumber,
     customer_name: o.buyerInfo?.companyName || o.buyerInfo?.buyerName || o.buyerName || '',
     phone: o.buyerInfo?.phone || o.buyerPhone || '',
@@ -3645,6 +3648,7 @@ async function executeConfirmPayment() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'payment_verified',
+        userId: o.user_id,
         phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
         variables: {
           customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
@@ -4414,6 +4418,7 @@ async function executeAdvanceToShipping() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'shipping_ready',
+        userId: o.user_id,
         phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
         variables: {
           customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',
@@ -4464,6 +4469,7 @@ async function submitBLForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'customs_clearance',
+        userId: activeOrder.value.user_id,
         phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
         variables: {
           customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
@@ -4525,6 +4531,7 @@ async function submitTrackingForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'shipping_started',
+        userId: activeOrder.value.user_id,
         phoneNumber: activeOrder.value.buyerInfo?.phone || activeOrder.value.buyer_phone || activeOrder.value.buyerPhone,
         variables: {
           customer_name: activeOrder.value.buyerInfo?.buyerName || activeOrder.value.buyerInfo?.companyName || activeOrder.value.buyer_name || activeOrder.value.buyerName || '바이어',
@@ -4572,6 +4579,7 @@ async function executeMarkDelivered() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'delivered',
+        userId: o.user_id,
         phoneNumber: o.buyerInfo?.phone || o.buyer_phone || o.buyerPhone,
         variables: {
           customer_name: o.buyerInfo?.buyerName || o.buyerInfo?.companyName || o.buyer_name || o.buyerName || '바이어',

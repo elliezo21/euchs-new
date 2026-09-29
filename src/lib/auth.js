@@ -986,6 +986,7 @@ export const signUpWithEmail = async (email, password, businessData = {}) => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'signup_welcome',
+        userId: data.user.id,
         phoneNumber: phone,
         variables: {
           customer_name: name || companyName || '고객',
