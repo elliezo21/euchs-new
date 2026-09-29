@@ -68,7 +68,8 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   eq('배지·제목(두 줄)·설명 (움직이는 시안 문구)', ['NEW · AI 스튜디오', '중국 수입부터<br />상세페이지·판매처 등록까지', '1688 링크 하나로 상세페이지를 만들어 쿠팡·스마트스토어에 바로 보내요.', '이유씨컴퍼니에서 사입하면 스튜디오 무료.'].every(s => shown.includes(s)), true)
   eq('판매처 칩 = 스튜디오 MARKETS 그대로 읽기(9곳)', [/v-for="\(m, k\) in MARKETS"/.test(band), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(band), MARKETS.map(m => m.name)],
     [true, true, ['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰']])
-  eq('연결된 곳 = ✓ / 아직인 곳 = "준비 중"', [/<i v-if="!m\.soon"[^>]*>✓<\/i>/.test(band), /<span v-else class="soon">준비 중<\/span>/.test(band), MARKETS.filter(m => !m.soon).map(m => m.key)], [true, true, ['coupang']])
+  eq('홈 칸: 9곳 모두 ✓ · "준비 중" 없음 · soon 값을 안 씀', [/<i aria-hidden="true">✓<\/i>/.test(band), /준비 중/.test(text), /m\.soon|\.soon\b/.test(band.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/.*$/gm, ''))], [true, false, false])
+  eq('반짝임 = 9곳을 차례로 (pingKeys = MARKETS 전체)', [/const pingKeys = MARKETS\.map\(m => m\.key\)/.test(band), /pingKeys\[pingSeq % pingKeys\.length\]/.test(band)], [true, true])
   eq('버튼: [스튜디오 둘러보기] → /studio + studio_cta_click / [1688 소싱몰 가기] → /mall + mall_cta_click',
     [/:to="STUDIO_PATH"[^>]*@click="trackStudioCta\('home_band'\)"/.test(band), /:to="MALL_PATH"[^>]*@click="trackMallCta\('home_band'\)"/.test(band), MALL_PATH, STUDIO_PATH], [true, true, '/mall', '/studio'])
   eq('이 칸에서 카톡 버튼·예전 보라 그림(hero-pc) 뺌', [/KAKAO_CHAT_URL|pf\.kakao/.test(band), /studio-landing/.test(band)], [false, false])

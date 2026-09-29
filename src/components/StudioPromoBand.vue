@@ -12,16 +12,16 @@
         1688 링크 하나로 상세페이지를 만들어 쿠팡·스마트스토어에 바로 보내요.<br />
         이유씨컴퍼니에서 사입하면 스튜디오 무료.
       </p>
-      <!-- 판매처 칩 — 스튜디오 설정(studioMarketplaceRules.MARKETS)을 읽기만. 연결된 곳 = 초록 ✓(처음 한 번 차례로 톡, 그 뒤 계속), 아직인 곳 = "준비 중" -->
+      <!-- 판매처 칩 — 스튜디오 설정(studioMarketplaceRules.MARKETS)에서 이름·순서만 읽는다. 홈 칸은 soon(준비 중) 값을 쓰지 않고
+           9곳 모두 초록 ✓ (2026-09-29 해성 지시 — 처음 한 번 차례로 톡, 그 뒤 계속) -->
       <ul class="chips" aria-label="판매처" data-studio-promo-markets>
         <li
           v-for="(m, k) in MARKETS" :key="m.key" class="chip"
-          :class="{ on: !m.soon && checked[k], ping: pingKey === m.key, 'is-soon': m.soon }"
+          :class="{ on: checked[k], ping: pingKey === m.key }"
           :style="{ color: chipColor(m.key) }" :data-market="m.key"
         >
           {{ m.name }}
-          <i v-if="!m.soon" aria-label="연결됨">✓</i>
-          <span v-else class="soon">준비 중</span>
+          <i aria-hidden="true">✓</i>
         </li>
       </ul>
       <div class="btns">
@@ -69,7 +69,7 @@
 <script setup>
 /**
  * 움직임 (시안 순서 그대로): 3.2초마다 노트북 화면이 다음 상품으로 서서히 바뀜 → 흰 카드가 노트북→휴대폰으로 날아감(1.1초)
- *   → 0.9초 뒤 휴대폰 화면도 같은 상품 → 1.1초 뒤 연결된 판매처 칩 하나가 살짝 튀어 오르며 흰 테두리로 반짝(0.9초).
+ *   → 0.9초 뒤 휴대폰 화면도 같은 상품 → 1.1초 뒤 판매처 칩 하나가(9곳을 차례로) 살짝 튀어 오르며 흰 테두리로 반짝(0.9초).
  *   ✓는 처음 보일 때 한 번 차례로 톡(0.6초 + 0.18초씩) 뜨고 그 뒤로는 계속 떠 있다.
  * 규칙: 칸이 화면에 보일 때만 움직인다(IntersectionObserver) — 밖이거나 탭이 숨으면 멈춤(is-paused: CSS 움직임·SVG 멈춤, 타이머 끔).
  *   멈출 때는 늘 완성된 모습으로 맞춘다(휴대폰 = 노트북과 같은 상품, 날아가는 카드·반짝 없앰, ✓ 모두 표시) → 반투명·중간 상태로 서 있지 않음.
@@ -100,7 +100,9 @@ const SCREENS = ['beauty', 'pet', 'kitchen']
 // 판매처 글자색 — 시안의 5곳, 나머지는 진한 회색
 const CHIP_COLORS = { coupang: '#e93834', smartstore: '#03c75a', '11st': '#ff0032', gmarket: '#50b43c', cafe24: '#285ae6' }
 const chipColor = key => CHIP_COLORS[key] || '#50556e'
-const connectedKeys = MARKETS.filter(m => !m.soon).map(m => m.key)
+// 반짝임은 9곳을 차례로 한 곳씩 (노트북 화면 번호와 따로 세는 순번)
+const pingKeys = MARKETS.map(m => m.key)
+let pingSeq = 0
 
 const STEP_MS = 3200
 const root = ref(null)
@@ -123,7 +125,7 @@ function clearTimers() {
   clearInterval(stepTimer); stepTimer = null
   timeouts.forEach(clearTimeout); timeouts = []
 }
-function showAllChecks() { MARKETS.forEach((m, k) => { if (!m.soon) checked[k] = true }) }
+function showAllChecks() { MARKETS.forEach((m, k) => { checked[k] = true }) }
 
 function step() {
   lapIdx.value = (lapIdx.value + 1) % SCREENS.length
@@ -131,8 +133,9 @@ function step() {
   requestAnimationFrame(() => { flying.value = true }) // 같은 클래스를 다시 붙여 날아가기를 처음부터
   const i = lapIdx.value
   later(() => { phoneIdx.value = i }, 900)
-  if (connectedKeys.length) {
-    const key = connectedKeys[(i + connectedKeys.length - 1) % connectedKeys.length]
+  if (pingKeys.length) {
+    const key = pingKeys[pingSeq % pingKeys.length]
+    pingSeq++
     later(() => { pingKey.value = key; later(() => { if (pingKey.value === key) pingKey.value = null }, 900) }, 1100)
   }
 }
@@ -143,7 +146,7 @@ function play() {
   trailSvg.value?.unpauseAnimations?.()
   if (!started) {
     started = true
-    MARKETS.forEach((m, k) => { if (!m.soon) later(() => { checked[k] = true }, 600 + k * 180) })
+    MARKETS.forEach((m, k) => { later(() => { checked[k] = true }, 600 + k * 180) })
   }
   stepTimer = setInterval(step, STEP_MS)
 }
@@ -216,7 +219,6 @@ onBeforeUnmount(() => {
 }
 .chip.on i { animation: pop 0.4s ease forwards; }
 .chip.ping { transform: translateY(-3px); box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.9), 0 8px 18px rgba(20, 24, 48, 0.25); }
-.chip .soon { padding: 0 5px; border-radius: 4px; font-size: 10.5px; font-weight: 700; color: #6b7280; background: #f1f2f5; }
 .btns { display: flex; flex-wrap: wrap; gap: 10px; }
 .btn { display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; border-radius: 12px; padding: 12px 20px; transition: transform 0.15s ease, filter 0.15s ease; }
 .btn:hover { filter: brightness(1.08); }
