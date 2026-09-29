@@ -615,3 +615,6 @@ export const CATEGORY_TEMPLATES = LIST.map(([category, key, label, kind, th, hea
   key, category, label, desc: FLOW[kind], gap: 0, mood: MOOD_OF_KIND[kind], color: COLOR_OF_THEME[th], swatch: TH[th].accent,
   sections: BUILD[kind]({ ...COPY[category], ...head }, TH[th]),
 }))
+
+// 조각 도구 — 다른 템플릿 모음(studioTemplateLooks.js)이 같은 조각 규칙(글자 높이·구간 조립)으로 만들게 내보낸다
+export const TPL_BLOCKS = { W, WHITE, textH, T, bar, ornament, pill, checks, boxes2, fixed, asset, sec, SHIP, RETURN }

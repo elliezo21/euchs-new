@@ -24,7 +24,7 @@ const memStore = () => {
 // ── 1. 거르기 값 ──
 {
   const moods = new Set(TEMPLATE_MOODS.map(m => m.key)), colors = new Set(TEMPLATE_COLORS.map(c => c.key)), cats = new Set(TEMPLATE_CATEGORIES.map(c => c.key))
-  eq('템플릿 20개', STUDIO_TEMPLATES.length, 20)
+  eq('템플릿 38개 (기본 3 · 카테고리 17 · 새 템플릿 18)', STUDIO_TEMPLATES.length, 38)
   eq('모든 템플릿: 카테고리·분위기·색이 목록 안', STUDIO_TEMPLATES.filter(t => !cats.has(t.category) || !moods.has(t.mood) || !colors.has(t.color)).map(t => t.key), [])
   eq('모든 템플릿: 대표색 #rrggbb', STUDIO_TEMPLATES.every(t => /^#[0-9a-f]{6}$/i.test(t.swatch)), true)
   eq('분위기마다 1개 이상', TEMPLATE_MOODS.map(m => STUDIO_TEMPLATES.some(t => t.mood === m.key)), TEMPLATE_MOODS.map(() => true))
@@ -42,10 +42,10 @@ const memStore = () => {
 // ── 3. 거르기 ──
 {
   eq('조건 없음 = 전부(목록 순서)', filterTemplates({}).map(t => t.key), STUDIO_TEMPLATES.map(t => t.key))
-  eq("'all'·빈 값은 안 봄", filterTemplates({ category: 'all', mood: '', color: null }).length, 20)
+  eq("'all'·빈 값은 안 봄", filterTemplates({ category: 'all', mood: '', color: null }).length, 38)
   eq('카테고리', filterTemplates({ category: 'kitchen' }).map(t => t.key), ['kitchen-bold', 'kitchen-check'])
   eq('카테고리 + 분위기', filterTemplates({ category: 'kitchen', mood: 'bold' }).map(t => t.key), ['kitchen-bold'])
-  eq('색', filterTemplates({ color: 'pink' }).map(t => t.key), ['beauty-mood', 'toys-basic'])
+  eq('색', filterTemplates({ color: 'pink' }).map(t => t.key), ['beauty-mood', 'toys-basic', 'apparel-trendy', 'living-trendy'])
   eq('내 보관함(keys) — Set·배열 모두, 목록 순서', [filterTemplates({ keys: new Set(['pets-mood', 'basic']) }).map(t => t.key), filterTemplates({ keys: ['size'] }).map(t => t.key)], [['basic', 'pets-mood'], ['size']])
   eq('내 보관함 비었음 = 0개', filterTemplates({ keys: new Set() }).length, 0)
   eq('맞는 것 없음 = 빈 목록', filterTemplates({ category: 'pets', color: 'mono' }), [])

@@ -36,6 +36,7 @@ import { normalizeTableItem } from './studioTable.js'
 import { normalizeAssetItem, sectionBgImageOf } from './studioAsset.js'
 import { isSampleItem } from './studioSamples.js'
 import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS } from './studioTemplateSets.js'
+import { LOOK_TEMPLATES } from './studioTemplateLooks.js'
 
 export { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS }
 
@@ -147,7 +148,8 @@ const BASE_META = {
   point: { mood: 'bold', color: 'cool', swatch: '#14213d' },
   size: { mood: 'clean', color: 'green', swatch: '#2a9d8f' },
 }
-export const STUDIO_TEMPLATES = [...BASE_TEMPLATES.map(t => ({ ...t, category: 'common', ...BASE_META[t.key] })), ...CATEGORY_TEMPLATES]
+// 순서: 기본 3 → 카테고리 템플릿 17 → 새 템플릿 18 (studioTemplateLooks — 의류·잡화·가방·생활용품 × 6)
+export const STUDIO_TEMPLATES = [...BASE_TEMPLATES.map(t => ({ ...t, category: 'common', ...BASE_META[t.key] })), ...CATEGORY_TEMPLATES, ...LOOK_TEMPLATES]
 /** 그 카테고리의 템플릿 (모르는 카테고리면 빈 목록) */
 export function templatesOf(category) { return STUDIO_TEMPLATES.filter(t => t.category === category) }
 

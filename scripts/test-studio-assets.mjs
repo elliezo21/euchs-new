@@ -26,7 +26,9 @@ const HEX = /^#[0-9a-f]{6}$/
 {
   const cats = TEMPLATE_CATEGORIES.filter(c => c.key !== 'common' && c.key !== 'fullset') // 풀세트는 test-studio-asset-images.mjs
   eq('카테고리 8개 (의류·잡화/가방·주방·생활용품·뷰티·전자/소형가전·완구·반려동물)', cats.map(c => c.key), ['apparel', 'bags', 'kitchen', 'living', 'beauty', 'electronics', 'toys', 'pets'])
-  eq('카테고리마다 템플릿 2~3개', cats.map(c => templatesOf(c.key).length >= 2 && templatesOf(c.key).length <= 3), cats.map(() => true))
+  // 에셋 채우기 템플릿만 (새 템플릿 18개 — studioTemplateLooks — 는 test-studio-template-looks.mjs가 본다)
+  const setOf = k => templatesOf(k).filter(t => !/-(minimal|warm|vivid|mono|natural|trendy)$/.test(t.key))
+  eq('카테고리마다 템플릿 2~3개 (에셋 채우기 템플릿)', cats.map(c => setOf(c.key).length >= 2 && setOf(c.key).length <= 3), cats.map(() => true))
   eq('기본 카테고리 = 예전 3개', templatesOf('common').map(t => t.key), ['basic', 'point', 'size'])
   eq('모든 템플릿의 카테고리가 목록에 있음', STUDIO_TEMPLATES.every(t => TEMPLATE_CATEGORIES.some(c => c.key === t.category)), true)
   eq('key·이름 겹침 없음', [new Set(STUDIO_TEMPLATES.map(t => t.key)).size, new Set(STUDIO_TEMPLATES.map(t => t.label)).size], [STUDIO_TEMPLATES.length, STUDIO_TEMPLATES.length])
