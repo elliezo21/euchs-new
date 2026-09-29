@@ -50,6 +50,150 @@ export function customerLabelOf(profile) {
   return cleanTagText(profile?.name)
 }
 
+// ── 관리자가 바꾸는 이름 (2026-09-29) ──────────────────────────────────────
+// 동업자가 위챗 고객 주문을 한 아이디(천공상사)로 넣기 때문에, 실제 고객 이름을 붙일 수 있게 한다.
+// 저장 위치 = orders.items JSONB 각 품목 객체의 새 키 (스키마 변경 없음, CLAUDE.md 5번 결정과 같은 방식).
+//   buyer_info는 쓰지 않는다 — 구매자 화면 동기화(orderStorage._syncOrdersToSupabase)가
+//   정해진 키만 남긴 buyer_info로 다시 덮어써서 새 키가 지워진다.
+//   items는 서버 발주 기록 RPC가 jsonb_set으로 필요한 키만 바꾸므로 새 키가 남는다.
+/** 주문 전체 이름 — 주문의 모든 품목에 같은 값 */
+export const ORDER_NAME_KEY = 'addressTagOrderName'
+/** 판매자별 이름 — 그 판매자 그룹의 모든 품목에 같은 값 (한 판매자 = 1688 주문 하나 = 택배 한 묶음) */
+export const SELLER_NAME_KEY = 'addressTagSellerName'
+/** 입력 칸 상한 (주소 상한과 별개 — 붙일 때 다시 줄어들 수 있다) */
+export const ADDRESS_NAME_MAX = 40
+
+/**
+ * 판매자 그룹 키 — src/utils/sellerGrouping.js getSellerGroupKey와 같은 규칙.
+ * 서버(api)가 src를 import하지 않으므로 여기 한 벌 더 둔다. 같은지 테스트가 대조한다
+ * (scripts/test-order-address-tag.mjs). sellerGrouping.js는 장바구니도 쓰는 파일이라 건드리지 않는다.
+ */
+export function sellerGroupKeyOf(item) {
+  const sid = String(item?.sellerId || '').trim()
+  if (sid) return `seller:${sid}`
+  const numIid = String(item?.num_iid || item?.itemId || item?.id || '').trim()
+  return `item:${numIid}`
+}
+
+/** 이 품목이 이미 1688에 발주됐는가 — item.purchaseNo (자동발주 RPC·수동발주 둘 다 이 키에 기록) */
+export function hasPurchaseNo(item) {
+  return String(item?.purchaseNo ?? '').trim() !== ''
+}
+
+/** 판매자 그룹 잠금 — 그룹 안 품목 하나라도 1688 주문번호가 있으면 */
+export function isGroupLocked(items, groupKey) {
+  return (items || []).some(it => sellerGroupKeyOf(it) === groupKey && hasPurchaseNo(it))
+}
+
+/** 제외되지 않은 품목이 있는 판매자 그룹 키 목록 */
+export function activeGroupKeys(items) {
+  return [...new Set((items || []).filter(it => !it?.excluded).map(sellerGroupKeyOf))]
+}
+
+/** 주문 전체 이름 잠금 — 발주할 판매자(제외 안 된 품목이 있는 그룹)가 모두 발주됐으면 */
+export function isOrderNameLocked(items) {
+  const keys = activeGroupKeys(items)
+  return keys.length > 0 && keys.every(k => isGroupLocked(items, k))
+}
+
+const firstName = (items, key) => {
+  for (const it of items || []) {
+    const v = cleanTagText(it?.[key])
+    if (v) return v
+  }
+  return ''
+}
+
+/**
+ * 붙일 이름 — 판매자별 이름 > 주문 전체 이름 > 회원 상호 > 가입 이름.
+ * @returns {{ name: string, source: 'seller'|'order'|'company'|'name'|'none' }}
+ */
+export function resolveTagName({ items, groupKey, profile }) {
+  const seller = firstName((items || []).filter(it => sellerGroupKeyOf(it) === groupKey), SELLER_NAME_KEY)
+  if (seller) return { name: seller, source: 'seller' }
+  const order = firstName(items, ORDER_NAME_KEY)
+  if (order) return { name: order, source: 'order' }
+  const company = cleanTagText(profile?.company_name)
+  if (company) return { name: company, source: 'company' }
+  const name = cleanTagText(profile?.name)
+  if (name) return { name, source: 'name' }
+  return { name: '', source: 'none' }
+}
+
+const cleanInput = (s) => takeChars(cleanTagText(s), ADDRESS_NAME_MAX)
+
+/**
+ * 이름 바꾸기 — 새 items 배열을 돌려준다(원본은 안 바꿈). 빈 값 = 키를 지워 기본값으로.
+ *   { orderName }            주문 전체 이름 (잠겼으면 에러)
+ *     · 이미 발주된 판매자 중 자기 이름이 없는 곳은 지금 붙은 이름을 판매자별 이름으로 굳힌다
+ *       — 주문 전체 이름을 바꿔도 이미 나간 택배의 표시가 바뀌어 보이지 않게.
+ *   { groupKey, sellerName } 그 판매자만 (그 판매자가 발주됐으면 에러)
+ */
+export function applyAddressNames(items, { orderName, groupKey, sellerName, profile } = {}) {
+  const src = Array.isArray(items) ? items : []
+  const next = src.map(it => ({ ...it }))
+  const setKey = (it, key, v) => { if (v) it[key] = v; else delete it[key] }
+
+  if (groupKey !== undefined) {
+    if (isGroupLocked(src, groupKey)) throw new Error('이미 1688에 발주된 판매자라 이름을 바꿀 수 없습니다.')
+    const v = cleanInput(sellerName)
+    next.forEach(it => { if (sellerGroupKeyOf(it) === groupKey) setKey(it, SELLER_NAME_KEY, v) })
+    return next
+  }
+
+  if (orderName !== undefined) {
+    if (isOrderNameLocked(src)) throw new Error('모든 판매자가 이미 1688에 발주돼 주문 전체 이름을 바꿀 수 없습니다.')
+    const lockedKeys = [...new Set(src.filter(hasPurchaseNo).map(sellerGroupKeyOf))]
+    for (const k of lockedKeys) {
+      const cur = resolveTagName({ items: src, groupKey: k, profile })
+      if (cur.source === 'seller' || !cur.name) continue
+      next.forEach(it => { if (sellerGroupKeyOf(it) === k) it[SELLER_NAME_KEY] = cur.name })
+    }
+    const v = cleanInput(orderName)
+    next.forEach(it => setKey(it, ORDER_NAME_KEY, v))
+    return next
+  }
+
+  throw new Error('바꿀 이름(orderName 또는 groupKey+sellerName)이 없습니다.')
+}
+
+/**
+ * 판매자 한 곳의 표시 — 관리자 화면(머리줄 표시·수동발주 [복사])이 쓴다. 자동발주와 같은 함수 조합.
+ *   baseAddress가 있으면 tagAddress로 완성 주소까지(글자 수 상한으로 이름이 줄 수 있음),
+ *   없으면 표시(tag)만 — 상한 계산 전 값이라 완성 주소의 표시와 다를 수 있다.
+ */
+export function describeGroupTag({ items, groupKey, profile, orderNumber, baseAddress }) {
+  const picked = resolveTagName({ items, groupKey, profile })
+  const locked = isGroupLocked(items, groupKey)
+  if (baseAddress) {
+    const t = tagAddress(baseAddress, orderNumber, picked.name)
+    return { groupKey, name: t.customer, source: picked.source, locked, tag: t.tag, address: t.address, customerCut: t.customerCut }
+  }
+  const tag = picked.name ? `${orderNumber} ${picked.name}` : String(orderNumber || '')
+  return { groupKey, name: picked.name, source: picked.source, locked, tag, address: null, customerCut: false }
+}
+
+/**
+ * 발주하는 품목들의 판매자 그룹 키 (서버가 DB items에서 직접 정한다 — 브라우저 값을 믿지 않는다).
+ *   itemIndices가 있으면 그 품목들, 없으면 numIid가 같은 품목들. 키가 하나로 모이지 않으면 에러.
+ */
+export function groupKeyForOrderItems(items, { itemIndices, numIid } = {}) {
+  const list = Array.isArray(items) ? items : []
+  let picked
+  if (Array.isArray(itemIndices) && itemIndices.length > 0) {
+    picked = itemIndices.map(i => list[i])
+    if (picked.some(it => !it)) throw new Error(`주문에 없는 품목 번호가 있습니다: [${itemIndices.join(', ')}]`)
+  } else if (numIid) {
+    picked = list.filter(it => String(it?.num_iid || it?.itemId || it?.id || '').trim() === String(numIid).trim())
+    if (picked.length === 0) throw new Error(`주문에 상품 ${numIid}이(가) 없습니다.`)
+  } else {
+    throw new Error('발주 품목(itemIndices 또는 numIid)이 없습니다.')
+  }
+  const keys = [...new Set(picked.map(sellerGroupKeyOf))]
+  if (keys.length !== 1) throw new Error(`발주 품목이 판매자 ${keys.length}곳에 걸쳐 있습니다.`)
+  return keys[0]
+}
+
 const lengthOf = (s) => Array.from(s).length
 const takeChars = (s, n) => Array.from(s).slice(0, Math.max(0, n)).join('').trim()
 

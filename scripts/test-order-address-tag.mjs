@@ -9,7 +9,10 @@ process.env.ONEBOUND_SESSION = 'test-session'
 
 import {
   ADDRESS_MAX_CHARS, cleanTagText, customerLabelOf, tagAddress, taggedAddressParam, buildFastCreateOrderArgs,
+  ORDER_NAME_KEY, SELLER_NAME_KEY, sellerGroupKeyOf, isGroupLocked, isOrderNameLocked, resolveTagName,
+  applyAddressNames, groupKeyForOrderItems, describeGroupTag,
 } from '../api/_orderAddressTag.js'
+import { getSellerGroupKey } from '../src/utils/sellerGrouping.js'
 
 let pass = 0, fail = 0
 function eq(name, got, want) {
@@ -106,12 +109,68 @@ eq('본문: flow·주소·품목', args, {
 })
 eq('본문 JSON에 표시가 들어감', JSON.stringify(args).includes(`${ONO} 천공상사`), true)
 
+// ── 8-b. 판매자 그룹 키 = src/utils/sellerGrouping.js 와 같은 규칙 ──
+for (const it of [
+  { sellerId: 'S1', num_iid: '1' }, { sellerId: '  ', num_iid: '2' }, { num_iid: '', itemId: '3' },
+  { id: 4 }, {}, { sellerId: '_sopid@BBB0fc524' },
+]) eq(`그룹 키 대조 ${JSON.stringify(it)}`, sellerGroupKeyOf(it), getSellerGroupKey(it))
+
+// ── 8-c. 이름 우선순위 4가지 ─────────────────────────────────
+const PROFILE = { company_name: '천공상사', name: '중국구매대행배대지및상품개발종합물류' }
+const A = 'seller:SA', B = 'seller:SB'
+const base2 = () => [
+  { sellerId: 'SA', num_iid: '111' }, { sellerId: 'SA', num_iid: '112' }, { sellerId: 'SB', num_iid: '222' },
+]
+eq('우선 4: 가입 이름 (상호 없음)', resolveTagName({ items: base2(), groupKey: A, profile: { company_name: '', name: '문세란' } }), { name: '문세란', source: 'name' })
+eq('우선 3: 회원 상호', resolveTagName({ items: base2(), groupKey: A, profile: PROFILE }), { name: '천공상사', source: 'company' })
+const withOrder = applyAddressNames(base2(), { orderName: '김위챗' })
+eq('우선 2: 주문 전체 이름 > 상호', resolveTagName({ items: withOrder, groupKey: A, profile: PROFILE }), { name: '김위챗', source: 'order' })
+const withSeller = applyAddressNames(withOrder, { groupKey: B, sellerName: '박위챗' })
+eq('우선 1: 판매자별 이름 > 주문 전체', resolveTagName({ items: withSeller, groupKey: B, profile: PROFILE }), { name: '박위챗', source: 'seller' })
+eq('판매자별 이름은 그 판매자만', resolveTagName({ items: withSeller, groupKey: A, profile: PROFILE }), { name: '김위챗', source: 'order' })
+eq('판매자별 이름 = 그 판매자 모든 품목에', withSeller.filter(it => it[SELLER_NAME_KEY] === '박위챗').length, 1)
+eq('주문 전체 이름 = 모든 품목에', withOrder.every(it => it[ORDER_NAME_KEY] === '김위챗'), true)
+const cleared = applyAddressNames(withSeller, { groupKey: B, sellerName: '  ' })
+eq('판매자별 이름 비우면 키 지움 → 주문 전체로', [SELLER_NAME_KEY in cleared[2], resolveTagName({ items: cleared, groupKey: B, profile: PROFILE }).source], [false, 'order'])
+eq('저장 이름도 이모지 제거', applyAddressNames(base2(), { orderName: '김😀위챗' })[0][ORDER_NAME_KEY], '김위챗')
+eq('원본 배열은 안 바뀜', base2().some(it => ORDER_NAME_KEY in it), false)
+
+// ── 8-d. 잠금 ────────────────────────────────────────────────
+const partly = base2(); partly[2].purchaseNo = '3316454079245011656'
+eq('발주된 판매자 잠금', [isGroupLocked(partly, B), isGroupLocked(partly, A)], [true, false])
+throws('잠긴 판매자 이름 바꾸기 = 에러', () => applyAddressNames(partly, { groupKey: B, sellerName: 'x' }), '이미 1688에 발주')
+eq('일부만 발주됨 → 주문 전체 이름은 안 잠김', isOrderNameLocked(partly), false)
+const froze = applyAddressNames(partly, { orderName: '김위챗', profile: PROFILE })
+eq('주문 전체 이름 바꿔도 발주된 판매자 표시는 그대로(굳힘)', resolveTagName({ items: froze, groupKey: B, profile: PROFILE }), { name: '천공상사', source: 'seller' })
+eq('안 발주된 판매자는 새 이름', resolveTagName({ items: froze, groupKey: A, profile: PROFILE }).name, '김위챗')
+const allDone = base2().map(it => ({ ...it, purchaseNo: 'P' }))
+eq('모두 발주됨 → 주문 전체 이름 잠김', isOrderNameLocked(allDone), true)
+throws('모두 발주됨 → 주문 전체 이름 저장 에러', () => applyAddressNames(allDone, { orderName: 'x' }), '모든 판매자')
+const exclDone = base2(); exclDone[2].purchaseNo = 'P'; exclDone[0].excluded = true; exclDone[1].excluded = true
+eq('제외된 판매자는 잠금 판정에서 뺌', isOrderNameLocked(exclDone), true)
+eq('describeGroupTag 잠금·표시', (({ locked, tag, source }) => ({ locked, tag, source }))(describeGroupTag({ items: partly, groupKey: B, profile: PROFILE, orderNumber: ONO })),
+  { locked: true, tag: `${ONO} 천공상사`, source: 'company' })
+eq('describeGroupTag 완성 주소', describeGroupTag({ items: withSeller, groupKey: B, profile: PROFILE, orderNumber: ONO, baseAddress: BASE }).address, `${BASE} ${ONO} 박위챗`)
+
+// ── 8-e. 서버가 발주 품목의 판매자를 DB items에서 정함 ───────
+eq('itemIndices → 판매자', groupKeyForOrderItems(base2(), { itemIndices: [0, 1] }), A)
+eq('numIid → 판매자', groupKeyForOrderItems(base2(), { numIid: '222' }), B)
+throws('판매자 두 곳에 걸치면 에러', () => groupKeyForOrderItems(base2(), { itemIndices: [0, 2] }), '판매자 2곳')
+throws('없는 품목 번호 에러', () => groupKeyForOrderItems(base2(), { itemIndices: [9] }), '없는 품목')
+throws('없는 상품 에러', () => groupKeyForOrderItems(base2(), { numIid: '999' }), '없습니다')
+
 // ── 9. 발주 API 핸들러 — 가짜 fetch로 1688에 나가려던 본문을 가로챔 ──
 const ORDER_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'
 const USER_ID = 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 const json = (x, status = 200) => new Response(JSON.stringify(x), { status, headers: { 'Content-Type': 'application/json' } })
 let captured = []
 let savedAddrOk = true
+// 가짜 DB 주문 items — 판매자 SA(111·222), SB(333)
+let dbItems = [
+  { sellerId: 'SA', num_iid: '111', specId: 's1' },
+  { sellerId: 'SA', num_iid: '222', specId: 's2' },
+  { sellerId: 'SB', num_iid: '333', specId: 's3' },
+]
 globalThis.fetch = async (url) => {
   const u = String(url)
   if (u.startsWith('http://mock.local/auth/v1/user')) return json({ id: 'admin-1', email: 'admin@test' })
@@ -120,7 +179,7 @@ globalThis.fetch = async (url) => {
   if (u.startsWith('http://mock.local/rest/v1/rpc/claim_purchase_slot')) return json({ ok: true })
   if (u.startsWith('http://mock.local/rest/v1/rpc/release_')) return json({ ok: true })
   if (u.startsWith('http://mock.local/rest/v1/orders?')) {
-    return json([{ id: ORDER_ID, order_number: ONO, user_id: USER_ID }])
+    return json([{ id: ORDER_ID, order_number: ONO, user_id: USER_ID, items: dbItems }])
   }
   if (u.startsWith('http://mock.local/rest/v1/profiles?')) return json([{ company_name: '천공상사', name: '조해성' }])
   if (u.startsWith('https://api-gw.onebound.cn/1688global/custom?')) {
@@ -183,20 +242,39 @@ captured = []
 const m = await run({ numIid: '333', specId: 's3', quantity: 1, orderNumber: 'EUC-20260101-0001', orderId: ORDER_ID, itemIndex: 0, confirmToken: 'EUCHS_ORDER_CONFIRMED' })
 eq('주문번호 불일치: 발주 중단', [m.body?.code, captured.length], ['ADDRESS_BUILD_FAILED', 0])
 
-// ── 10. 수동발주 주소 조회 API — 자동발주와 같은 글자, 휴대폰은 안 돌려줌 ──
+// ── 9-b. 판매자별 다른 이름이 각 발주 요청에 들어감 ──────────
+dbItems = applyAddressNames(applyAddressNames(dbItems, { orderName: '김위챗' }), { groupKey: 'seller:SB', sellerName: '박위챗' })
+captured = []
+await run({
+  items: [{ numIid: '111', specId: 's1', quantity: 2 }, { numIid: '222', specId: 's2', quantity: 3 }],
+  itemIndices: [0, 1], orderNumber: ONO, orderId: ORDER_ID, confirmToken: 'EUCHS_ORDER_CONFIRMED',
+})
+await run({ numIid: '333', specId: 's3', quantity: 1, orderNumber: ONO, confirmToken: 'EUCHS_ORDER_CONFIRMED' })
+await run({ numIid: '333', specId: 's3', quantity: 1, orderNumber: ONO, orderId: ORDER_ID, itemIndex: 2, confirmToken: 'EUCHS_ORDER_CONFIRMED' })
+eq('판매자 SA(그룹) 요청 = 주문 전체 이름', captured[0]?.addressParam?.address, `${BASE} ${ONO} 김위챗`)
+eq('판매자 SB(개별 재시도·numIid) 요청 = 판매자별 이름', captured[1]?.addressParam?.address, `${BASE} ${ONO} 박위챗`)
+eq('판매자 SB(단건·itemIndex) 요청 = 판매자별 이름', captured[2]?.addressParam?.address, `${BASE} ${ONO} 박위챗`)
+
+// ── 10. 수동발주 재료 API — 회원 상호·이름 + 기본 배송지, 휴대폰은 안 돌려줌 ──
 const { default: addrHandler } = await import('../api/1688-order-address.js')
-const a = await new Promise((resolve) => {
+const callAddr = (body) => new Promise((resolve) => {
   const res = {
     statusCode: 200, setHeader() {},
     status(c) { this.statusCode = c; return this },
     json(b) { resolve({ status: this.statusCode, body: b }) },
     end() { resolve({ status: this.statusCode, body: null }) },
   }
-  addrHandler({ method: 'POST', headers: { authorization: 'Bearer tok' }, body: { orderId: ORDER_ID } }, res)
+  addrHandler({ method: 'POST', headers: { authorization: 'Bearer tok' }, body }, res)
 })
-eq('수동 주소: 자동발주와 같은 주소', a.body?.address, `${BASE} ${ONO} 천공상사`)
-eq('수동 주소: 받는 사람·지역', [a.body?.fullName, a.body?.region], ['圆圆A45', '浙江省 金华市 义乌市'])
-eq('수동 주소: 휴대폰 안 돌려줌', JSON.stringify(a.body).includes('13800000000'), false)
+const a = await callAddr({ orderId: ORDER_ID, withAddress: true })
+eq('재료: 회원 상호·이름', a.body?.profile, { company_name: '천공상사', name: '조해성' })
+eq('재료: 기본 배송지', a.body?.base, { address: BASE, fullName: '圆圆A45', region: '浙江省 金华市 义乌市', postCode: '322000' })
+eq('재료: 휴대폰 안 돌려줌', JSON.stringify(a.body).includes('13800000000'), false)
+const a2 = await callAddr({ orderId: ORDER_ID })
+eq('재료: withAddress 없으면 1688 안 부름(base 없음)', 'base' in (a2.body || {}), false)
+// 수동 [복사] 글자 = 자동발주 요청 글자 (같은 함수 조합)
+eq('수동 [복사] = 자동발주 (판매자 SB)', describeGroupTag({ items: dbItems, groupKey: 'seller:SB', profile: a.body.profile, orderNumber: ONO, baseAddress: a.body.base.address }).address, captured[1]?.addressParam?.address)
+eq('수동 [복사] = 자동발주 (판매자 SA)', describeGroupTag({ items: dbItems, groupKey: 'seller:SA', profile: a.body.profile, orderNumber: ONO, baseAddress: a.body.base.address }).address, captured[0]?.addressParam?.address)
 
 console.log(`\n${pass} PASS / ${fail} FAIL`)
 process.exit(fail ? 1 : 0)

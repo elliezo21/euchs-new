@@ -447,7 +447,7 @@ export default async function handler(req, res) {
     // ── 받는 주소(표시 포함) — 잠금 전에 만든다. 못 만들면 발주하지 않는다 ──
     let addrGroup
     try {
-      addrGroup = await buildOrderAddress({ orderId, orderNumber })
+      addrGroup = await buildOrderAddress({ orderId, orderNumber, itemIndices: groupItemIndices })
     } catch (e) {
       console.error('[1688-order-create][GROUP] 받는 주소 만들기 실패 — 발주 중단:', {
         euchs_orderNumber: orderNumber, orderId, error: e.message,
@@ -741,10 +741,16 @@ export default async function handler(req, res) {
   }
 
   // ── 받는 주소(표시 포함) — 잠금 전에 만든다. 못 만들면 발주하지 않는다 ──
-  //   개별 재시도(executeItemAutoOrder)는 orderId 없이 orderNumber만 보낸다 → order_number로 찾는다.
+  //   개별 재시도(executeItemAutoOrder)는 orderId·itemIndex 없이 orderNumber만 보낸다
+  //   → order_number로 주문을 찾고, 판매자는 numIid가 같은 품목으로 정한다.
   let addrSingle
   try {
-    addrSingle = await buildOrderAddress({ orderId: orderId || null, orderNumber })
+    const hasIndex = typeof itemIndex === 'number' && itemIndex >= 0
+    addrSingle = await buildOrderAddress({
+      orderId: orderId || null,
+      orderNumber,
+      ...(hasIndex ? { itemIndices: [itemIndex] } : { numIid: String(numIid) }),
+    })
   } catch (e) {
     console.error('[1688-order-create] 받는 주소 만들기 실패 — 발주 중단:', {
       euchs_orderNumber: orderNumber, orderId: orderId || '(없음)', error: e.message,

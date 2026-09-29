@@ -351,6 +351,14 @@
         <!-- 모달 본문 (내부 콘텐츠는 항상 흰 배경 유지) -->
         <div class="p-6 space-y-5 text-sm overflow-y-auto flex-1 bg-white">
 
+          <!-- 0. 1688 받는 주소에 붙는 실제 고객명 (주문 전체 — 판매자별은 아래 판매자 머리줄) -->
+          <OrderAddressNameField
+            :order="activeOrder"
+            :profile="addressProfile"
+            :profile-error="addressProfileError"
+            :also-items="activeOrderListItems"
+          />
+
           <!-- 1. 바이어 & 수취인 핵심 정보 (3단 와이드 풀-스크린 그리드, 실측 칸 완전 제거) -->
           <div class="bg-slate-50 border border-slate-200 rounded-2xl p-4 sm:p-5 space-y-3">
             <div class="flex items-center justify-between border-b border-slate-200 pb-2">
@@ -440,9 +448,16 @@
               >
                 <!-- 판매자 카드 헤더 -->
                 <div class="bg-slate-50/80 px-4 py-2.5 flex items-center justify-between border-b border-slate-200">
-                  <div class="flex items-center gap-2">
+                  <div class="flex items-center gap-2 flex-wrap">
                     <span class="font-bold text-slate-700 text-sm">🏬 {{ group.displayName }}</span>
                     <span class="px-2 py-0.5 rounded-full bg-slate-100 text-slate-500 text-xs font-bold">{{ group.items.length }}개 품목</span>
+                    <SellerAddressTag
+                      :order="activeOrder"
+                      :group-key="group.groupKey"
+                      :profile="addressProfile"
+                      :profile-error="addressProfileError"
+                      :also-items="activeOrderListItems"
+                    />
                   </div>
                   <div class="flex items-center gap-2.5">
                     <div class="text-right font-mono">
@@ -1113,7 +1128,7 @@
               </div>
 
               <!-- 1688에 붙여 넣을 받는 주소 (자동발주와 같은 "주문번호 고객명" 표시) -->
-              <ManualOrderAddressBox v-if="activeOrder?.id" :order-id="String(activeOrder.id)" class="shrink-0" />
+              <ManualOrderAddressBox v-if="activeOrder?.id" :order="activeOrder" :groups="activeOrderItemGroups" class="shrink-0" />
 
               <!-- 전체선택 + 일괄입력 행 (shrink-0) -->
               <div class="shrink-0 flex items-center gap-2 flex-wrap bg-amber-100/60 border border-amber-200 rounded-lg px-3 py-2">
@@ -1606,6 +1621,9 @@ import AdminTtInvoicePanel from '@/components/admin/AdminTtInvoicePanel.vue';
 import { formatUsd as fmtUsdBadge } from '@/utils/ttInvoicePdf';
 import PurchaseConfirmModal from '@/components/admin/PurchaseConfirmModal.vue'
 import ManualOrderAddressBox from '@/components/admin/ManualOrderAddressBox.vue'
+import OrderAddressNameField from '@/components/admin/OrderAddressNameField.vue'
+import SellerAddressTag from '@/components/admin/SellerAddressTag.vue'
+import { useOrderAddressProfile } from '@/lib/orderAddressNames'
 import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue'
 import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue'
 import ProductDetailModal from '@/components/ProductDetailModal.vue'
@@ -1648,6 +1666,15 @@ watch(
 
 const searchQuery = ref('');
 const activeOrder = ref(null);
+// 1688 받는 주소 표시 — 모달 주문의 회원 상호·이름 (이름 우선순위 마지막 두 단계, api/_orderAddressTag.js)
+const { profile: addressProfile, error: addressProfileError } = useOrderAddressProfile(activeOrder);
+// activeOrder는 목록 주문의 깊은 복사본 → 이름 저장 시 목록 쪽 items에도 이름 키를 반영한다
+const activeOrderListItems = computed(() => {
+  const o = activeOrder.value;
+  if (!o) return [];
+  const t = orders.value.find(x => x.id === o.id || x.orderNumber === o.orderNumber);
+  return t && Array.isArray(t.items) ? [t.items] : [];
+});
 const modal = ref({ blForm: false, trackingForm: false, detail: false });
 const confirmSaveOrder = ref(false);
 const isMarkingRefund = ref(false); // 취소된 주문 상세에서 환불완료 처리 중 로딩 상태
