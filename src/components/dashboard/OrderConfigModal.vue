@@ -1023,6 +1023,7 @@ const handleSubmit = async () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'order_received',
+        userId: currentUser.value?.id,
         phoneNumber: buyerInfo.phone,
         variables: {
           customer_name: buyerInfo.buyerName || '바이어',

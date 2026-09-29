@@ -45,6 +45,7 @@ eq('로그용 가림', maskPhone('01012345678'), '*******5678')
     '../src/views/admin/AdminOrderManageView.vue',
     '../src/components/admin/AdminWarehouseModal.vue',
     '../src/lib/auth.js',
+    '../src/components/dashboard/OrderConfigModal.vue',
   ]
   for (const f of files) {
     const src = fs.readFileSync(new URL(f, import.meta.url), 'utf8')
