@@ -58,6 +58,12 @@ const studioRoute = {
       meta: { ...STUDIO_PROTECTED, title: '내 작업' }
     },
     {
+      path: 'templates',
+      name: 'studio-templates',
+      component: () => import('../views/studio/StudioTemplatesView.vue'),
+      meta: { ...STUDIO_PROTECTED, title: '템플릿' }
+    },
+    {
       path: 'new',
       name: 'studio-new',
       component: () => import('../views/studio/StudioNewView.vue'),

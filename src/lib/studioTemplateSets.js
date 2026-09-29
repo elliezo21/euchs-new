@@ -24,6 +24,24 @@ export const TEMPLATE_CATEGORIES = [
   { key: 'fullset', label: '풀세트' }, // 에셋 이미지(받침대·배경 그림)까지 들어간 긴 구성 (지금은 샘플 1개)
 ]
 
+// 템플릿 고르기 거르기 (템플릿 갤러리·편집기 [템플릿] 패널). 분위기 = 짜임새에서, 색 = 색 묶음에서 정한다 (템플릿마다 하나)
+export const TEMPLATE_MOODS = [
+  { key: 'clean', label: '깔끔한' },
+  { key: 'bold', label: '강렬한' },
+  { key: 'soft', label: '감성' },
+  { key: 'friendly', label: '친근한' },
+  { key: 'premium', label: '고급스러운' },
+]
+// swatch = 거르기 칩에 그리는 대표색
+export const TEMPLATE_COLORS = [
+  { key: 'warm', label: '따뜻한 색', swatch: '#c9814a' },
+  { key: 'cool', label: '푸른 색', swatch: '#2f6fed' },
+  { key: 'green', label: '초록', swatch: '#2f9e44' },
+  { key: 'pink', label: '분홍', swatch: '#e64980' },
+  { key: 'mono', label: '무채색', swatch: '#475569' },
+]
+const MOOD_OF_KIND = { classic: 'clean', bold: 'bold', magazine: 'soft', checklist: 'friendly', fullset: 'premium' }
+
 const W = 780
 const WHITE = '#ffffff'
 const textH = (text, size, lh) => Math.ceil(text.split('\n').length * size * lh)
@@ -584,7 +602,16 @@ const LIST = [
   ['fullset', 'fullset-sample', '풀세트 · 샘플', 'fullset', 'sky', { eyebrow: 'BRAND STORY', headline: '첫 화면에서\n마음을 잡는\n한 문장', lead: '누구에게 왜 좋은지\n두 줄로 소개해 주세요.' }],
 ]
 
+// 색 묶음 → 거르기 색 (TEMPLATE_COLORS의 key)
+const COLOR_OF_THEME = {
+  sand: 'warm', camel: 'warm', tomato: 'warm', sun: 'warm', cocoa: 'warm',
+  navy: 'cool', sky: 'cool', teal: 'cool', electric: 'cool',
+  olive: 'green', leaf: 'green', mint: 'green',
+  rose: 'pink', berry: 'pink',
+  slate: 'mono', graphite: 'mono',
+}
+
 export const CATEGORY_TEMPLATES = LIST.map(([category, key, label, kind, th, head]) => ({
-  key, category, label, desc: FLOW[kind], gap: 0,
+  key, category, label, desc: FLOW[kind], gap: 0, mood: MOOD_OF_KIND[kind], color: COLOR_OF_THEME[th], swatch: TH[th].accent,
   sections: BUILD[kind]({ ...COPY[category], ...head }, TH[th]),
 }))

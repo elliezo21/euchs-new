@@ -55,23 +55,17 @@
       </router-link>
 
       <nav class="mt-5 flex flex-col gap-0.5">
-        <template v-for="item in menuItems" :key="item.label">
-          <span v-if="item.disabled" class="st-nav-item is-disabled" :title="'준비 중이에요'">
-            <component :is="item.icon" class="w-[18px] h-[18px]" :stroke-width="2" />
-            <span>{{ item.label }}</span>
-            <span class="st-badge ml-auto">준비 중</span>
-          </span>
-          <router-link
-            v-else
-            :to="{ name: item.name }"
-            class="st-nav-item"
-            :class="{ 'is-active': isActive(item) }"
-            @click="drawerOpen = false"
-          >
-            <component :is="item.icon" class="w-[18px] h-[18px]" :stroke-width="2" />
-            <span>{{ item.label }}</span>
-          </router-link>
-        </template>
+        <router-link
+          v-for="item in menuItems"
+          :key="item.label"
+          :to="{ name: item.name }"
+          class="st-nav-item"
+          :class="{ 'is-active': isActive(item) }"
+          @click="drawerOpen = false"
+        >
+          <component :is="item.icon" class="w-[18px] h-[18px]" :stroke-width="2" />
+          <span>{{ item.label }}</span>
+        </router-link>
       </nav>
 
       <div class="flex-1" />
@@ -169,7 +163,7 @@ const isFullScreen = computed(() => FULL_SCREEN.has(route.name))
 const menuItems = [
   { name: 'studio-landing', label: '스튜디오 소개', icon: Home },
   { name: 'studio-projects', label: '내 작업', icon: FolderOpen, also: ['studio-editor', 'studio-new'] },
-  { label: '템플릿', icon: LayoutTemplate, disabled: true },
+  { name: 'studio-templates', label: '템플릿', icon: LayoutTemplate },
 ]
 // 한 번 맞춰 두는 것(판매처 연결·배송·반품 템플릿·저장값·용어집)은 아래쪽 [설정] 하나로 — 메인 메뉴는 매일 쓰는 작업만
 const isActive = item => route.name === item.name || (item.also || []).includes(route.name)

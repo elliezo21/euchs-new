@@ -37,7 +37,7 @@
         <ArrowLeft class="w-4 h-4" :stroke-width="2" /> 뒤로
       </button>
       <h2 class="mt-3 text-[22px] font-extrabold st-ink text-center">어떤 틀로 시작할까요?</h2>
-      <StudioTemplatePanel embedded :images="images" :views="views" class="mt-3" @apply="$emit('template', $event)" />
+      <StudioTemplatePanel embedded class="mt-3" @apply="$emit('template', $event)" />
     </div>
 
     <!-- 2) [직접 만들기] → 빈 페이지에서 시작 / 템플릿으로 시작 -->
@@ -84,8 +84,6 @@ import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 
 const props = defineProps({
   usableCount: { type: Number, default: 0 }, // 페이지에 넣을 수 있는 사진 수 (준비 끝 + 안 쓸 사진 아님)
-  images: { type: Array, default: () => [] },  // 템플릿 미리보기에 넣어 볼 쓸 사진 (자른 크기)
-  views: { type: Object, default: () => ({}) }, // 화면용 작은 사진
 })
 defineEmits(['blank', 'template', 'oneclick'])
 

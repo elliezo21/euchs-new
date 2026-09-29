@@ -158,7 +158,7 @@
           <!-- [요소] 패널 (11-1): 맨 위 종류 [도형][배지][사이즈표] — 마지막 종류는 이 편집기 안에서 기억 -->
           <StudioElementPanel v-else-if="activeTool === 'element'" v-model:tab="elementTab" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" @insert-asset="insertAsset" />
           <!-- [템플릿] 패널 (15단계): 템플릿 카드 — 누르면 확인 뒤 페이지를 그 틀로 (이력 한 칸, 사진 edit는 그대로) -->
-          <StudioTemplatePanel v-else-if="activeTool === 'template'" :images="templateImages" :views="views" :disabled="!page" @apply="askTemplate" />
+          <StudioTemplatePanel v-else-if="activeTool === 'template'" :disabled="!page" @apply="askTemplate" />
           <!-- [배경합성] 패널 (17-1): 고른 사진의 배경 지우기(서버 외부 AI) · 원래 배경/투명 · 배경 원래대로 -->
           <StudioBgPanel
             v-else-if="activeTool === 'bg'"
@@ -187,7 +187,7 @@
         />
         <!-- 시작 화면 ⓪ (16단계): 페이지가 비어 있는 작업(DB page = null)일 때만 가운데를 덮는다. 왼쪽 사진 목록은 그대로 쓸 수 있다 -->
         <StudioStartScreen
-          v-if="showStart" :usable-count="usableImagesNow().length" :images="templateImages" :views="views"
+          v-if="showStart" :usable-count="usableImagesNow().length"
           @blank="startBlank" @template="askTemplate" @oneclick="onOneClick"
         />
         <!-- 작업판 맨 위 가로 도구줄 (고정 — 페이지를 가리지 않게 스크롤 칸은 이 아래부터). 요소를 고르면 그 종류에 맞는 버튼, 안 고르면 안내 한 줄 -->
@@ -546,7 +546,8 @@ import { fetchBgStatus, requestBgRemove, uploadBgRefined, uploadBgLocalMask, fet
 import { buildLocalMaskPng } from '@/lib/studioBgLocal'
 import { refineKey } from '@/lib/studioBgRefine'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
-import { shouldShowStart } from '@/lib/studioStart'
+import { shouldShowStart, canStartBlank } from '@/lib/studioStart'
+import { readPendingTemplate, clearPendingTemplate, pendingFitsProject } from '@/lib/studioTemplateStart'
 import { copyProject } from '@/lib/studioProjectCopy'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
@@ -759,6 +760,28 @@ async function applyTemplate(key) {
   if (r.emptySlots) notes.push(`사진이 모자란 자리 ${r.emptySlots}곳은 뺐어요`)
   showToast(`'${tpl.label}' 템플릿을 적용했어요 · ${notes.join(' · ')}`)
 }
+
+// ── 템플릿 갤러리 [이 템플릿으로 시작] (studioTemplateStart) — 고른 뒤에 새로 만든 작업의 시작 화면이면 그 템플릿을 적용한다.
+// 적용은 [템플릿] 패널과 같은 길(askTemplate → 시작 화면이면 확인 없이 startFromDoc). 사진이 아직 준비 전이면 준비되면 다시 본다.
+function tabStorage() {
+  try { return window.sessionStorage } catch (e) { console.warn('[StudioEditor] 탭 저장소를 쓸 수 없어 고른 템플릿을 읽지 않음:', e.message); return null }
+}
+function startPendingTemplate() {
+  const p = project.value
+  if (!p || eraseOpen.value) return
+  const store = tabStorage()
+  const pending = readPendingTemplate(store)
+  if (!pending || !pendingFitsProject(pending, p.created_at)) return
+  if (!showStart.value || !templateByKey(pending.key)) {
+    if (showStart.value) console.error('[StudioEditor] 기억한 템플릿을 모름 — 쓰지 않음:', pending.key)
+    clearPendingTemplate(store) // 이미 페이지가 있는 작업이면 쓰지 않고 잊는다
+    return
+  }
+  if (!canStartBlank(usableImagesNow().length)) return // 사진이 준비되면 다시 (아래 watch)
+  clearPendingTemplate(store)
+  askTemplate(pending.key)
+}
+watch(() => usableImagesNow().length, () => startPendingTemplate())
 
 // ── 작업 이름 바꾸기 (16단계) — 목록 화면과 같은 저장 함수(renameProject, title 칸만 — page·page_version과 부딪치지 않는다) ──
 const titleEdit = reactive({ open: false, value: '' })
@@ -2590,6 +2613,7 @@ async function load() {
     syncEraseFromRoute() // ?erase=<사진 id>로 새로고침·진입했으면 그 사진의 지우기 화면을 연다
     maybeStartAi()       // 사진이 없는 작업 등 — 기다릴 사진이 없으면 바로
     runOneClickFromRoute() // 원클릭 1단계: 방금 만든 복사본(?oneclick=1)이면 여기서 원클릭
+    startPendingTemplate() // 템플릿 갤러리 [이 템플릿으로 시작] 뒤 새로 만든 작업이면 그 템플릿으로
   } catch (e) {
     if (seq !== loadSeq) return
     console.error('[StudioEditor] 불러오기 실패:', e)

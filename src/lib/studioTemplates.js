@@ -33,9 +33,9 @@ import { normalizeTextItem, fitTextItem, textStyleOf } from './studioText.js'
 import { normalizeShapeItem, normalizeLineItem } from './studioShape.js'
 import { normalizeTableItem } from './studioTable.js'
 import { normalizeAssetItem, sectionBgImageOf } from './studioAsset.js'
-import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES } from './studioTemplateSets.js'
+import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS } from './studioTemplateSets.js'
 
-export { TEMPLATE_CATEGORIES }
+export { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS }
 
 export const TEMPLATE_VERSION = 1
 export const TEMPLATE_NAME_MAX = 50 // 내 템플릿 이름 (studio_assets.name 제약과 같은 1~50자)
@@ -139,11 +139,53 @@ const BASE_TEMPLATES = [
     ],
   },
 ]
-export const STUDIO_TEMPLATES = [...BASE_TEMPLATES.map(t => ({ ...t, category: 'common' })), ...CATEGORY_TEMPLATES]
+// 기본 3개의 거르기 값 (분위기·색 — studioTemplateSets.TEMPLATE_MOODS·TEMPLATE_COLORS)
+const BASE_META = {
+  basic: { mood: 'clean', color: 'warm', swatch: '#c9a86a' },
+  point: { mood: 'bold', color: 'cool', swatch: '#14213d' },
+  size: { mood: 'clean', color: 'green', swatch: '#2a9d8f' },
+}
+export const STUDIO_TEMPLATES = [...BASE_TEMPLATES.map(t => ({ ...t, category: 'common', ...BASE_META[t.key] })), ...CATEGORY_TEMPLATES]
 /** 그 카테고리의 템플릿 (모르는 카테고리면 빈 목록) */
 export function templatesOf(category) { return STUDIO_TEMPLATES.filter(t => t.category === category) }
 
 export function templateByKey(key) { return STUDIO_TEMPLATES.find(x => x.key === key) ?? null }
+
+// ── 템플릿 고르기 (갤러리·[템플릿] 패널) — 목록·거르기·표시 글자 ──
+
+const CATEGORY_LABEL = new Map(TEMPLATE_CATEGORIES.map(c => [c.key, c.label]))
+const MOOD_LABEL = new Map(TEMPLATE_MOODS.map(m => [m.key, m.label]))
+/** 카테고리 이름 (모르면 빈 글자) */
+export function templateCategoryLabel(tpl) { return CATEGORY_LABEL.get(tpl?.category) ?? '' }
+/** 분위기 이름 (모르면 빈 글자) */
+export function templateMoodLabel(tpl) { return MOOD_LABEL.get(tpl?.mood) ?? '' }
+/** 카드 이름 — label 앞의 "카테고리 · "를 뺀 것 (카드는 "카테고리 | 이름"으로 보여 준다) */
+export function templateName(tpl) {
+  const label = String(tpl?.label ?? '')
+  const cat = templateCategoryLabel(tpl)
+  return cat && label.startsWith(`${cat} · `) ? label.slice(cat.length + 3) : label
+}
+/** 카드 글자 "카테고리 | 이름" */
+export function templateCardTitle(tpl) {
+  const cat = templateCategoryLabel(tpl)
+  return cat ? `${cat} | ${templateName(tpl)}` : templateName(tpl)
+}
+/** 섹션 수 (사진 자리가 다 찼을 때 — 템플릿 구간 수 그대로) */
+export function templateSectionCount(tpl) { return Array.isArray(tpl?.sections) ? tpl.sections.length : 0 }
+
+/**
+ * 거르기 — 값이 비어 있으면('' | null | 'all') 그 조건은 보지 않는다. keys(Set 또는 배열)가 있으면 그 템플릿만 (내 보관함).
+ * 순서는 STUDIO_TEMPLATES(목록) 순서 그대로.
+ * @param {{ category?, mood?, color?, keys? }} f
+ */
+export function filterTemplates(f = {}, list = STUDIO_TEMPLATES) {
+  const on = v => v !== undefined && v !== null && v !== '' && v !== 'all'
+  const keys = f.keys ? new Set(f.keys) : null
+  return list.filter(t => (!on(f.category) || t.category === f.category)
+    && (!on(f.mood) || t.mood === f.mood)
+    && (!on(f.color) || t.color === f.color)
+    && (!keys || keys.has(t.key)))
+}
 
 // ── 검사 ──
 
