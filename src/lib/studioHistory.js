@@ -86,7 +86,10 @@ export const LABELS = {
   lineCap: '선 끝 모양',
   // 강조 배지·사이즈표 (11-2)
   badgeInsert: '배지 넣기',
-  tableInsert: '사이즈표 넣기',
+  decorInsert: '꾸밈 요소 넣기',
+  assetInsert: '이미지 넣기',
+  secBgImage: '섹션 배경 이미지',
+  tableInsert: '표 넣기',
   tableCell: '표 칸 고치기',
   tableRowAdd: '행 추가',
   tableRowRemove: '행 빼기',
@@ -113,6 +116,7 @@ export const LABELS = {
   bgOriginal: '원래 배경',
   bgReset: '배경 원래대로',
   bgColor: '배경 단색', // 17-2 — [단색] 고르기·색 바꾸기
+  bgLibrary: '라이브러리 배경', // 에셋 이미지를 사진 배경으로 (AI 없음·무료)
   bgAi: 'AI 배경', // 17-4 — AI 배경 만들기·[AI 배경] 다시 고르기 (다시 고르기는 저장된 그림 — 돈 안 듦)
   bgRefine: '배경 다듬기', // 17-3 — [경계 다듬기] 화면에서 [적용] (붓질 하나하나는 그 화면 안에서만)
 

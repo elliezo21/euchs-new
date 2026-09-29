@@ -15,7 +15,10 @@
  *     lookOf(imageId)   → look (필터·조정 — 화면과 같은 값)
  *     measure(str, font)→ 글자 폭 (글자 요소 줄바꿈·표 칸 자르기와 같은 측정 — studioFonts.createTextMeasure)
  *     prepareFonts(list)→ Promise<boolean>  [{ style, text }] 글꼴 조각 받기 (studioFonts.loadFontsFor)
+ *     getAsset(path)    → Promise<{ source, width, height }>  에셋 이미지 (studioAsset — 같은 사이트의 정적 파일). 에셋이 없는 페이지에서는 부르지 않는다
  *   }
+ * ★ 에셋 이미지: 요소(type 'asset') = 자리 안에 fit(contain·cover)대로, 섹션 배경 이미지(bgImage) = 배경색 위·요소 아래에 cover.
+ *   놓는 네모 계산은 studioAsset.assetPlacement 하나 (화면 object-fit과 같은 결과).
  * ★ 좌표: 캔버스 = 페이지 px × scale. 구간 하나 = 폭 page.width × scale, 높이 구간 height × scale. 구간 밖으로 나간 부분은 잘린다(구간 캔버스 밖).
  *   요소는 items 배열 순서(뒤가 앞), 숨긴 요소는 그리지 않는다. 회전 = 요소 네모 가운데 기준, 투명도 = 요소 전체를 한 장으로 그린 뒤 한 번에(화면 opacity와 같음).
  * ★ 한 장으로 길게: 고른 구간을 위에서부터 이어 붙이고 구간 사이는 page.gap × scale만큼 흰색 (화면의 간격은 편집기 바탕이 비쳐 보이는 빈틈 — 이미지에서는 흰색).
@@ -26,6 +29,7 @@ import { isValidShapeItem, isValidLineItem, shapePaintSpec, linePaintSpec } from
 import { isValidTableItem, tablePaintSpec, tableFontOf } from './studioTable.js'
 import { lookValues, isDefaultLook } from './studioLook.js'
 import { fontSpec } from './studioFonts.js'
+import { isValidAssetItem, sectionBgImageOf, assetPlacement } from './studioAsset.js'
 
 // ── 형식·크기·한계 ──
 export const EXPORT_FORMATS = {
@@ -131,12 +135,13 @@ export function fontNeedsOf(sections) {
 
 /** 내보내기 실패 — 어느 구간(번호)·사진인지 (창이 원인과 [다시 시도]를 보여 준다) */
 export class ExportError extends Error {
-  constructor(message, { sectionId = null, imageId = null, kind = 'draw' } = {}) {
+  constructor(message, { sectionId = null, imageId = null, asset = null, kind = 'draw' } = {}) {
     super(message)
     this.name = 'ExportError'
     this.sectionId = sectionId
     this.imageId = imageId
-    this.kind = kind // 'image' | 'font' | 'draw' | 'tooLarge' | 'encode'
+    this.asset = asset // 에셋 이미지 경로 (kind 'asset')
+    this.kind = kind // 'image' | 'asset' | 'font' | 'draw' | 'tooLarge' | 'encode'
   }
 }
 
@@ -504,8 +509,23 @@ function drawTable(ctx, it, env) {
   ctx.restore()
 }
 
+/** 에셋 이미지 요소 — 자리(w×h) 안에 fit대로. 회전·뒤집기는 요소째 (도형과 같음) */
+function drawAsset(ctx, it, env) {
+  const img = env.assets?.get(it.asset)
+  const p = img ? assetPlacement(img.width, img.height, it.w, it.h, it.fit) : null
+  if (!p) return
+  ctx.save()
+  toItem(ctx, it, true)
+  ctx.beginPath()
+  ctx.rect(0, 0, it.w, it.h)
+  ctx.clip()
+  ctx.drawImage(img.source, p.sx, p.sy, p.sw, p.sh, p.dx, p.dy, p.dw, p.dh)
+  ctx.restore()
+}
+
 function drawItemBody(ctx, it, env) {
   if (isValidImageItem(it)) drawPhoto(ctx, it, env.images.get(it.imageId), env)
+  else if (isValidAssetItem(it)) drawAsset(ctx, it, env)
   else if (isValidTextItem(it)) drawText(ctx, it, env)
   else if (isValidShapeItem(it) || isValidLineItem(it)) drawShape(ctx, it, env)
   else if (isValidTableItem(it)) drawTable(ctx, it, env)
@@ -534,10 +554,31 @@ export function drawSection(ctx, page, section, env) {
   ctx.setTransform(env.scale, 0, 0, env.scale, 0, 0)
   ctx.fillStyle = section.bg
   ctx.fillRect(0, 0, page.width, section.height)
+  // 섹션 배경 이미지 (에셋): 배경색 위, 요소 아래
+  const bgi = sectionBgImageOf(section)
+  const bimg = bgi ? env.assets?.get(bgi.asset) : null
+  const bp = bimg ? assetPlacement(bimg.width, bimg.height, page.width, section.height, bgi.fit) : null
+  if (bp) {
+    ctx.save()
+    ctx.beginPath()
+    ctx.rect(0, 0, page.width, section.height)
+    ctx.clip()
+    ctx.drawImage(bimg.source, bp.sx, bp.sy, bp.sw, bp.sh, bp.dx, bp.dy, bp.dw, bp.dh)
+    ctx.restore()
+  }
   for (const it of sectionDrawList(section)) drawItem(ctx, it, env)
 }
 
-/** 구간들에 필요한 사진·글꼴 준비 — 실패하면 어느 구간·사진인지 ExportError */
+/** 이 구간에 그릴 에셋 경로 (섹션 배경 + 숨기지 않은 에셋 요소, 중복 없이) */
+export function assetPathsOf(section) {
+  const out = []
+  const bg = sectionBgImageOf(section)
+  if (bg) out.push(bg.asset)
+  for (const it of sectionDrawList(section)) if (isValidAssetItem(it) && !out.includes(it.asset)) out.push(it.asset)
+  return out
+}
+
+/** 구간들에 필요한 사진·에셋 이미지·글꼴 준비 — 실패하면 어느 구간·사진인지 ExportError */
 export async function prepareSections(sections, deps) {
   const images = new Map()
   const notes = []
@@ -555,11 +596,25 @@ export async function prepareSections(sections, deps) {
       for (const n of img.notes || []) notes.push({ sectionId: s.id, imageId: it.imageId, note: n })
     }
   }
+  // 에셋 이미지 (요소 + 섹션 배경) — 쓰인 것만 받는다
+  const assets = new Map()
+  for (const s of sections) {
+    for (const path of assetPathsOf(s)) {
+      if (assets.has(path)) continue
+      try {
+        if (typeof deps.getAsset !== 'function') throw new Error('이미지를 받을 방법이 없어요')
+        assets.set(path, await deps.getAsset(path))
+      } catch (e) {
+        console.error('[studioExport] 에셋 이미지를 받지 못함:', s.id, path, e)
+        throw new ExportError('이미지를 받지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.', { sectionId: s.id, asset: path, kind: 'asset' })
+      }
+    }
+  }
   const fonts = fontNeedsOf(sections)
   if (fonts.length && !(await deps.prepareFonts(fonts))) {
     throw new ExportError('글꼴을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.', { sectionId: sections[0]?.id ?? null, kind: 'font' })
   }
-  return { images, notes }
+  return { images, assets, notes }
 }
 
 /**
@@ -571,10 +626,10 @@ export async function renderSection(page, sectionId, deps, { scale = 1 } = {}) {
   if (!section) throw new ExportError('없는 섹션이에요', { sectionId })
   const { width, height } = sectionPixelSize(page, section, scale)
   if (!canvasFits(width, height)) throw new ExportError(`이미지가 너무 길어요 (${width}×${height}px)`, { sectionId, kind: 'tooLarge' })
-  const { images, notes } = await prepareSections([section], deps)
+  const { images, assets, notes } = await prepareSections([section], deps)
   const canvas = deps.createCanvas(width, height)
   const ctx = canvas.getContext('2d')
-  drawSection(ctx, page, section, { deps, images, scale, width, height })
+  drawSection(ctx, page, section, { deps, images, assets, scale, width, height })
   return { canvas, notes }
 }
 

@@ -37,6 +37,7 @@
           >
             <span class="st-layer-thumb">
               <img v-if="imageUrl(it)" :src="imageUrl(it)" alt="" draggable="false" class="w-full h-full object-cover" :style="thumbUnderStyle(views[it.imageId])" />
+              <img v-else-if="isValidAssetItem(it)" :src="assetUrl(it.asset)" alt="" draggable="false" class="w-full h-full object-contain" />
               <ImageIcon v-else-if="isImage(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Type v-else-if="isValidTextItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
               <Square v-else-if="isValidShapeItem(it)" class="w-3.5 h-3.5" :stroke-width="2" />
@@ -67,6 +68,7 @@ import { isValidImageItem } from '@/lib/studioPage'
 import { isValidTextItem, textLabel } from '@/lib/studioText'
 import { KIND_LABEL } from '@/lib/studioProjects'
 import { thumbUnderStyle } from '@/lib/studioViewImage'
+import { isValidAssetItem, assetUrl, assetLabel } from '@/lib/studioAsset'
 
 const props = defineProps({
   page: { type: Object, required: true },
@@ -125,6 +127,7 @@ function nameOf(it) {
   if (isValidTextItem(it)) return textLabel(it) // 10-1: "글자 · 앞 10자"
   if (isValidShapeItem(it) || isValidLineItem(it)) return elementLabel(it) // 11-1: "도형 · 네모" / "선" / "화살표"
   if (isValidTableItem(it)) return tableLabel() // 11-2: "사이즈표"
+  if (isValidAssetItem(it)) return assetLabel(it) // "이미지 · 이름"
   if (!isImage(it)) return '요소'
   const row = props.imagesById.get(it.imageId)
   return row ? KIND_LABEL[row.kind] ?? '사진' : '없는 사진'

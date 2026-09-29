@@ -61,19 +61,87 @@
       </div>
       <p class="st-desc-sm break-keep">배지는 한 그룹으로 들어가요. 글자를 두 번 누르면 그 글자만 고칠 수 있어요.</p>
     </div>
-    <!-- 사이즈표 (11-2): 기본 틀 3개. 칸 글자는 캔버스에서 칸을 눌러 바로(표 칸 입력) 또는 왼쪽 "표 편집"에서 -->
-    <div v-else class="px-4 pt-4 pb-4 space-y-3" data-table-group>
-      <div class="text-[13px] font-extrabold st-ink">사이즈표</div>
-      <div class="grid grid-cols-3 gap-2">
-        <button
-          v-for="t in tables" :key="t.key" type="button" class="st-el-card" :title="`${t.label} 사이즈표`" :data-table-add="t.key"
-          :disabled="disabled" @click="$emit('insert-table', t.key)"
-        >
-          <span class="st-el-sample"><span class="relative block" :style="t.box"><StudioTableView :item="t.item" :scale="t.scale" /></span></span>
-          <span class="st-el-name">{{ t.label }}</span>
-        </button>
+    <!-- 꾸밈 요소 (에셋 채우기): 체크·번호·말풍선·구분선·화살표 — 배지와 같은 묶음 넣기(insert-badge), 견본 = 넣었을 때 모양 그대로 -->
+    <template v-else-if="current === 'decor'">
+      <div v-for="(g, gi) in decorGroups" :key="g.key" class="px-4 pt-4 pb-4 space-y-3" :class="gi ? 'st-border-t' : ''" :data-decor-group="g.key">
+        <div class="text-[13px] font-extrabold st-ink">{{ g.label }}</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            v-for="b in g.items" :key="b.key" type="button" class="st-el-card" :title="b.label" :data-decor-add="b.key"
+            :disabled="disabled" @click="$emit('insert-badge', b.key)"
+          >
+            <span class="st-el-sample is-tall">
+              <span class="relative block" :style="b.box">
+                <span v-for="(it, i) in b.items" :key="i" class="absolute" :style="partStyle(it, b.scale)">
+                  <StudioTextView v-if="isValidTextItem(it)" :item="it" :lines="linesOf(it)" :scale="b.scale" />
+                  <StudioShapeView v-else :item="it" :scale="b.scale" />
+                </span>
+              </span>
+            </span>
+            <span class="st-el-name">{{ b.label }}</span>
+          </button>
+        </div>
       </div>
-      <p class="st-desc-sm break-keep">숫자 칸은 "-"로 비워 두었어요. 넣은 뒤 캔버스에서 칸을 눌러 바로 입력하세요.</p>
+      <p class="px-4 pb-4 st-desc-sm break-keep">색과 글자는 넣은 뒤 바꿀 수 있어요. 번호는 글자를 두 번 눌러 고쳐 쓰세요.</p>
+    </template>
+    <!-- 이미지 에셋 (우리 그림 — 목록은 public/studio-assets/manifest.json). 요소용 = 섹션 가운데에 넣기, 배경용 = 섹션 배경으로 -->
+    <div v-else-if="current === 'asset'" data-asset-group>
+      <p v-if="assetState === 'loading'" class="px-4 pt-4 st-desc-sm">이미지 목록을 불러오는 중…</p>
+      <div v-else-if="assetState === 'error'" class="px-4 pt-4 space-y-2">
+        <p class="st-desc-sm break-keep">이미지 목록을 불러오지 못했어요. 인터넷 연결을 확인하고 다시 시도해 주세요.</p>
+        <button type="button" class="st-btn" data-asset-retry @click="loadAssets">다시 시도</button>
+      </div>
+      <template v-else>
+        <!-- 거르기: 상품 묶음(공통·의류 …) + 종류(오브제·장식·배경 …). 목록은 작은 그림(thumb)만 받는다 — 원본은 페이지에 넣은 뒤에 -->
+        <div class="px-4 pt-3 pb-3 space-y-2 st-border-b" data-asset-filters>
+          <div class="flex flex-wrap gap-1" role="tablist" aria-label="상품 묶음" data-asset-groups>
+            <button
+              v-for="g in groupChips" :key="g.key" type="button" role="tab" class="st-asset-chip" :class="assetGroup === g.key ? 'is-active' : ''"
+              :aria-selected="assetGroup === g.key" :data-asset-group="g.key" @click="assetGroup = g.key"
+            >{{ g.label }}</button>
+          </div>
+          <div class="flex flex-wrap gap-1" role="tablist" aria-label="그림 종류" data-asset-kinds>
+            <button
+              v-for="c in categoryChips" :key="c.key" type="button" role="tab" class="st-asset-chip" :class="assetCategory === c.key ? 'is-active' : ''"
+              :aria-selected="assetCategory === c.key" :data-asset-kind="c.key" @click="assetCategory = c.key"
+            >{{ c.label }}</button>
+          </div>
+        </div>
+        <div v-for="(g, gi) in shownAssets" :key="g.key" class="px-4 pt-4 pb-4 space-y-3" :class="gi ? 'st-border-t' : ''" :data-asset-category="g.key">
+          <div class="flex items-center gap-2">
+            <span class="text-[13px] font-extrabold st-ink">{{ g.label }}</span>
+            <span class="st-muted text-[11px] font-bold">{{ g.items.length }}개</span>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button
+              v-for="a in g.items" :key="a.id" type="button" class="st-el-card" :title="a.use === 'bg' ? `${a.label} — 섹션 배경으로` : a.label"
+              :data-asset-add="a.id" :disabled="disabled" @click="$emit('insert-asset', a)"
+            >
+              <span class="st-el-sample is-tall"><img :src="assetThumbUrl(a)" alt="" draggable="false" loading="lazy" decoding="async" class="st-asset-thumb" /></span>
+              <span class="st-el-name st-asset-name">{{ a.label }}</span>
+              <span v-if="a.use === 'bg'" class="st-asset-use">섹션 배경</span>
+            </button>
+          </div>
+        </div>
+        <p v-if="shownAssets.length === 0" class="px-4 pt-4 st-desc-sm break-keep" data-asset-none>이 조건에 맞는 그림이 없어요. 다른 묶음이나 종류를 골라 보세요.</p>
+        <p class="px-4 pb-4 pt-2 st-desc-sm break-keep">"섹션 배경" 그림은 지금 보고 있는 섹션의 배경으로 들어가요. 빼려면 [섹션]에서 [배경 이미지 빼기]를 누르세요.</p>
+      </template>
+    </div>
+    <!-- 표 (11-2 사이즈표 + 에셋 채우기 비교표·스펙표). 칸 글자는 캔버스에서 칸을 눌러 바로(표 칸 입력) 또는 왼쪽 "표 편집"에서 -->
+    <div v-else data-table-group>
+      <div v-for="(g, gi) in tableGroups" :key="g.key" class="px-4 pt-4 pb-4 space-y-3" :class="gi ? 'st-border-t' : ''" :data-table-kind="g.key">
+        <div class="text-[13px] font-extrabold st-ink">{{ g.label }}</div>
+        <div class="grid grid-cols-3 gap-2">
+          <button
+            v-for="t in g.items" :key="t.key" type="button" class="st-el-card" :title="t.label" :data-table-add="t.key"
+            :disabled="disabled" @click="$emit('insert-table', t.key)"
+          >
+            <span class="st-el-sample"><span class="relative block" :style="t.box"><StudioTableView :item="t.item" :scale="t.scale" /></span></span>
+            <span class="st-el-name">{{ t.label }}</span>
+          </button>
+        </div>
+      </div>
+      <p class="px-4 pb-4 st-desc-sm break-keep">숫자 칸은 "-"로 비워 두었어요. 넣은 뒤 캔버스에서 칸을 눌러 바로 입력하세요.</p>
     </div>
     </div>
   </div>
@@ -82,11 +150,16 @@
 <script setup>
 // 왼쪽 [요소] 패널 (11-1) — 도형 5개·선 3개 견본(실제 그리기 StudioShapeView). 누르면 insert(종류)만 보낸다 — 넣기·고르기는 편집기가 한다.
 // 11-2: 강조 배지 8개(insert-badge — 견본은 넣을 때와 같은 buildGroupItems) · 사이즈표 기본 틀 3개(insert-table — 견본은 StudioTableView)
-// 맨 위 종류 버튼 [도형]·[배지]·[사이즈표] — 한 종류만 보이고 목록 칸 안에서 스크롤 (에셋 모양은 그대로)
-import { computed, inject } from 'vue'
+// 에셋 채우기: 도형 12개·배지 18개·꾸밈 요소(studioDecor)·표 11개(사이즈표 7 + 비교표·스펙표 4)
+// 에셋 이미지: [이미지] 탭 — 목록은 manifest.json(파일을 넣고 npm run studio:assets), insert-asset(목록 항목)만 보낸다
+// 맨 위 종류 버튼 [도형]·[배지]·[꾸밈]·[표]·[이미지] — 한 종류만 보이고 목록 칸 안에서 스크롤 (에셋 모양은 그대로)
+import { computed, inject, ref, watch } from 'vue'
 import { ELEMENT_KINDS, normalizeShapeItem, normalizeLineItem } from '@/lib/studioShape'
 import { BADGE_PRESETS } from '@/lib/studioBadge'
-import { TABLE_TEMPLATES, tableFieldsOf, normalizeTableItem } from '@/lib/studioTable'
+import { DECOR_PRESETS, DECOR_KINDS } from '@/lib/studioDecor'
+import { assetThumbUrl, filterAssets, ASSET_GROUP_ALL } from '@/lib/studioAsset'
+import { loadAssetManifest } from '@/lib/studioAssetLoad'
+import { TABLE_TEMPLATES, TABLE_GROUPS, tableGroupOf, tableFieldsOf, normalizeTableItem } from '@/lib/studioTable'
 import { buildGroupItems, textLinesOf } from '@/lib/studioPage'
 import { isValidTextItem } from '@/lib/studioText'
 import { ELEMENT_TABS, elementTabOf } from '@/lib/studioCanvasUi'
@@ -98,8 +171,31 @@ const props = defineProps({
   disabled: { type: Boolean, default: false }, // 페이지가 없을 때
   tab: { type: String, default: '' },           // 지금 종류 (편집기가 기억 — 이 패널은 [요소]를 열 때마다 새로 만들어진다)
 })
-defineEmits(['insert', 'insert-badge', 'insert-table', 'update:tab'])
+defineEmits(['insert', 'insert-badge', 'insert-table', 'insert-asset', 'update:tab'])
 const current = computed(() => elementTabOf(props.tab))
+
+// 이미지 에셋 목록 — [이미지] 탭을 처음 열 때 받는다 (같은 탭 안에서는 다시 받지 않음 — studioAssetLoad)
+const assetState = ref('idle') // idle | loading | ready | error
+const assetList = ref({ categories: [], groups: [], items: [] })
+const assetGroup = ref(ASSET_GROUP_ALL)    // 상품 묶음 (전체·공통·의류 …)
+const assetCategory = ref(ASSET_GROUP_ALL) // 그림 종류 (전체·오브제·장식·배경 …)
+const groupChips = computed(() => [{ key: ASSET_GROUP_ALL, label: '전체' }, ...assetList.value.groups])
+const categoryChips = computed(() => [{ key: ASSET_GROUP_ALL, label: '전체' }, ...assetList.value.categories.map(c => ({ key: c.key, label: c.label }))])
+// 보일 그림 — 종류(카테고리)별로 묶어서, 고른 묶음·종류만
+const shownAssets = computed(() => assetList.value.categories
+  .map(c => ({ key: c.key, label: c.label, items: filterAssets(c.items, { group: assetGroup.value, category: assetCategory.value }) }))
+  .filter(c => c.items.length))
+async function loadAssets() {
+  assetState.value = 'loading'
+  try {
+    assetList.value = await loadAssetManifest()
+    assetState.value = 'ready'
+  } catch (e) {
+    console.error('[StudioElementPanel] 이미지 목록을 받지 못함:', e)
+    assetState.value = 'error'
+  }
+}
+watch(current, tab => { if (tab === 'asset' && assetState.value === 'idle') loadAssets() }, { immediate: true })
 
 // 글자 폭 재기 (편집기 provide — 페이지와 같은 측정). 글꼴을 받으면 epoch가 바뀌어 견본 글자 줄도 다시
 const textLayout = inject('studioTextLayout')
@@ -124,25 +220,33 @@ const shapeKinds = ELEMENT_KINDS.filter(k => k.fields.type === 'shape').map(samp
 const lineKinds = ELEMENT_KINDS.filter(k => k.fields.type === 'line').map(sampleOf)
 
 // 배지 견본 — 칸(폭 약 120 · 높이 64) 안에 들어가게 줄인다
+function groupSample(b) {
+  const scale = Math.min(110 / b.w, 58 / b.h, 1)
+  return { key: b.key, kind: b.kind, label: b.label, scale, items: buildGroupItems(b, b.parts, textLayout.measure), box: { width: `${b.w * scale}px`, height: `${b.h * scale}px` } }
+}
 const badges = computed(() => {
   textLayout.epoch.value // 글꼴을 받으면 글자 높이도 다시
-  return BADGE_PRESETS.map(b => {
-    const scale = Math.min(110 / b.w, 58 / b.h)
-    return { key: b.key, label: b.label, scale, items: buildGroupItems(b, b.parts, textLayout.measure), box: { width: `${b.w * scale}px`, height: `${b.h * scale}px` } }
-  })
+  return BADGE_PRESETS.map(groupSample)
+})
+// 꾸밈 요소 견본 — 묶음(체크·번호 / 말풍선 / 구분선 / 화살표)별로
+const decorGroups = computed(() => {
+  textLayout.epoch.value
+  const all = DECOR_PRESETS.map(groupSample)
+  return DECOR_KINDS.map(k => ({ ...k, items: all.filter(d => d.kind === k.key) })).filter(g => g.items.length)
 })
 function partStyle(it, scale) {
   return {
     left: `${it.x * scale}px`, top: `${it.y * scale}px`, width: `${it.w * scale}px`, height: `${it.h * scale}px`,
-    transform: it.rotation ? `rotate(${it.rotation}deg)` : null,
+    transform: it.rotation ? `rotate(${it.rotation}deg)` : null, // 뒤집기는 StudioShapeView·StudioTextView가 스스로 그린다
   }
 }
 // 사이즈표 견본 — 칸 폭에 맞춰 줄인다 (글자는 작아도 넣었을 때와 같은 표)
 const tables = TABLE_TEMPLATES.map(t => {
   const item = normalizeTableItem({ id: `sample-${t.key}`, x: 0, y: 0, h: 1, ...tableFieldsOf(t) })
   const scale = Math.min(70 / item.w, 46 / item.h)
-  return { key: t.key, label: t.label, item, scale, box: { width: `${item.w * scale}px`, height: `${item.h * scale}px` } }
+  return { key: t.key, group: tableGroupOf(t), label: t.label, item, scale, box: { width: `${item.w * scale}px`, height: `${item.h * scale}px` } }
 })
+const tableGroups = TABLE_GROUPS.map(g => ({ ...g, items: tables.filter(t => t.group === g.key) }))
 </script>
 
 <style scoped>
@@ -155,5 +259,14 @@ const tables = TABLE_TEMPLATES.map(t => {
 /* 견본 바탕은 밝게 (작업물 색 그대로 보이게 — 어두운 화면 위 흰 페이지처럼) */
 .st-el-sample { width: 100%; height: 56px; border-radius: 7px; background: #f4f5f7; display: flex; align-items: center; justify-content: center; }
 .st-el-sample.is-tall { height: 70px; }
+/* 이미지 에셋 견본 — 그림 비율 그대로 칸 안에 */
+.st-asset-thumb { max-width: 100%; max-height: 100%; width: auto; height: 62px; object-fit: contain; }
+.st-asset-use { font-size: 10px; font-weight: 700; color: var(--st-accent); }
+.st-asset-name { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.st-asset-chip {
+  height: 26px; padding: 0 9px; border-radius: 8px; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--st-line-strong); background: var(--st-card); color: var(--st-ink-2);
+}
+.st-asset-chip.is-active { border-color: var(--st-accent); color: var(--st-accent); background: var(--st-accent-soft); }
 .st-el-name { font-size: 11px; font-weight: 700; color: var(--st-ink-2); white-space: nowrap; }
 </style>

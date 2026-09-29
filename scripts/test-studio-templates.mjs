@@ -26,7 +26,7 @@ function readsBack(page) {
 const clonePage = p => JSON.parse(JSON.stringify(p))
 
 // ── 1. 샘플 템플릿 모양 ──
-eq('샘플 템플릿 2~3개', STUDIO_TEMPLATES.length >= 2 && STUDIO_TEMPLATES.length <= 3, true)
+eq('기본 템플릿 3개 + 카테고리 템플릿 (에셋 채우기)', [STUDIO_TEMPLATES.filter(t => t.category === 'common').map(t => t.key), STUDIO_TEMPLATES.length > 3], [['basic', 'point', 'size'], true])
 eq('key 중복 없음', new Set(STUDIO_TEMPLATES.map(t => t.key)).size, STUDIO_TEMPLATES.length)
 for (const tpl of STUDIO_TEMPLATES) {
   eq(`${tpl.key}: 모양 문제 없음`, templateProblems(tpl), [])

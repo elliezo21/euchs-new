@@ -56,6 +56,12 @@
             <span class="ml-1 text-[11px] font-bold st-muted uppercase">{{ section.bg }}</span>
           </div>
         </div>
+        <!-- 배경 이미지 (에셋 이미지 — [요소] → [이미지]의 "섹션 배경" 그림으로 넣는다). 있을 때만 -->
+        <div v-if="bgImage" class="flex items-center gap-2" data-sec-bg-image>
+          <img :src="assetUrl(bgImage.asset)" alt="" draggable="false" loading="lazy" class="st-sec-bgimg" />
+          <span class="st-xfield-label">배경 이미지</span>
+          <button type="button" class="st-btn st-sec-btn ml-auto" data-sec-cmd="bg-image-remove" @click="cmd('sectionBgImage', { asset: null })">배경 이미지 빼기</button>
+        </div>
       </template>
       <p v-else class="st-desc break-keep" data-section-empty>섹션을 누르면 높이와 배경색을 바꿀 수 있어요</p>
     </div>
@@ -84,6 +90,7 @@
 import { ref, computed, nextTick } from 'vue'
 import { Plus, PaintBucket } from 'lucide-vue-next'
 import { SECTION_MAX, SECTION_H_MIN, SECTION_H_MAX, GAP_MAX } from '@/lib/studioPage'
+import { sectionBgImageOf, assetUrl } from '@/lib/studioAsset'
 
 const props = defineProps({
   page: { type: Object, required: true },
@@ -100,6 +107,7 @@ const QUICK_COLORS = [{ value: '#ffffff', label: '흰색' }, { value: '#f1f2f4',
 const sectionIndex = computed(() => (props.sectionId ? props.page.sections.findIndex(s => s.id === props.sectionId) : -1))
 const section = computed(() => (sectionIndex.value >= 0 ? props.page.sections[sectionIndex.value] : null))
 const full = computed(() => props.page.sections.length >= SECTION_MAX)
+const bgImage = computed(() => sectionBgImageOf(section.value))
 // <input type="color">는 #rrggbb만 받는다 — 예전 섹션의 다른 모양 값(#fff 등)이면 흰색에서 시작
 const colorValue = computed(() => (/^#[0-9a-f]{6}$/i.test(section.value?.bg || '') ? section.value.bg : '#ffffff'))
 
@@ -137,6 +145,7 @@ defineExpose({ focusGap })
 }
 .st-sec-row:hover { background: var(--st-card-hover); color: var(--st-ink); }
 .st-sec-row.is-current { background: var(--st-accent-soft); color: var(--st-accent); }
+.st-sec-bgimg { width: 40px; height: 28px; border-radius: 6px; object-fit: cover; border: 1px solid var(--st-line-strong); flex: none; }
 .st-sec-swatch { width: 14px; height: 14px; border-radius: 4px; border: 1px solid var(--st-line-strong); flex: none; }
 /* 고른 섹션 칸 — 고르기 전·후 높이가 크게 달라지지 않게 */
 .st-sec-detail { min-height: 150px; }

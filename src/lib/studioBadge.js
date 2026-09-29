@@ -72,6 +72,81 @@ export const BADGE_PRESETS = [
       txt('오늘 출발', 30, 190, 26),
     ],
   },
+  // ── 에셋 채우기: 구매대행 셀러가 자주 쓰는 문구 (글자·색은 넣은 뒤 바꿀 수 있다) ──
+  {
+    key: 'same-day', label: '빠른 출고 톱니', w: 160, h: 160,
+    parts: [
+      { type: 'shape', shape: 'burst', x: 0, y: 0, w: 160, h: 160, fill: '#2f6fed' },
+      txt('빠른', 62, 120, 34, { fontWeight: 900 }),
+      txt('출고', 100, 120, 34, { fontWeight: 900 }),
+    ],
+  },
+  {
+    key: 'local-check', label: '검수 완료 딱지', w: 220, h: 68,
+    parts: [
+      { type: 'shape', shape: 'rect', x: 0, y: 0, w: 220, h: 68, fill: '#0f766e', radius: 12 },
+      txt('검수 완료', 34, 200, 26),
+    ],
+  },
+  {
+    key: 'new-ribbon', label: 'NEW 리본', w: 240, h: 64,
+    parts: [
+      { type: 'shape', shape: 'ribbon', x: 0, y: 0, w: 240, h: 64, fill: '#e53935' },
+      txt('NEW ARRIVAL', 32, 190, 24, { fontWeight: 900, letterSpacing: 0.06 }),
+    ],
+  },
+  {
+    key: 'best-hex', label: 'BEST 육각형', w: 160, h: 140,
+    parts: [
+      { type: 'shape', shape: 'hexagon', x: 0, y: 0, w: 160, h: 140, fill: '#111111' },
+      txt('BEST', 62, 120, 38, { fontFamily: 'black-han-sans', fontWeight: 400, color: '#ffe14d', letterSpacing: 0.04 }),
+      txt('많이 찾는 상품', 98, 120, 14, { fontWeight: 700 }),
+    ],
+  },
+  {
+    key: 'hot-burst', label: 'HOT 톱니', w: 140, h: 140,
+    parts: [
+      { type: 'shape', shape: 'burst', x: 0, y: 0, w: 140, h: 140, fill: '#ff6b00' },
+      txt('HOT', 70, 110, 40, { fontFamily: 'black-han-sans', fontWeight: 400 }),
+    ],
+  },
+  {
+    key: 'free-ship-ribbon', label: '무료배송 리본', w: 250, h: 60,
+    parts: [
+      { type: 'shape', shape: 'ribbon', x: 0, y: 0, w: 250, h: 60, fill: '#1f3a68' },
+      txt('무료배송', 30, 200, 26),
+    ],
+  },
+  {
+    key: 'restock', label: '재입고 알약', w: 190, h: 60,
+    parts: [
+      { type: 'shape', shape: 'rect', x: 0, y: 0, w: 190, h: 60, fill: '#ffffff', strokeWidth: 3, strokeColor: '#111111', radius: 30 },
+      txt('재입고', 30, 170, 26, { color: '#111111' }),
+    ],
+  },
+  {
+    key: 'gift', label: '사은품 증정 원', w: 150, h: 150,
+    parts: [
+      { type: 'shape', shape: 'ellipse', x: 0, y: 0, w: 150, h: 150, fill: '#fde2e4', strokeWidth: 4, strokeColor: '#e5677a' },
+      txt('사은품', 60, 130, 30, { fontWeight: 900, color: '#b4233c' }),
+      txt('증정', 96, 130, 24, { color: '#b4233c' }),
+    ],
+  },
+  {
+    key: 'md-pick', label: 'MD 추천 마름모', w: 170, h: 170,
+    parts: [
+      { type: 'shape', shape: 'diamond', x: 0, y: 0, w: 170, h: 170, fill: '#6d28d9' },
+      txt('MD', 70, 90, 34, { fontFamily: 'black-han-sans', fontWeight: 400 }),
+      txt('추천', 104, 90, 20),
+    ],
+  },
+  {
+    key: 'point-tag', label: 'POINT 꼬리표', w: 170, h: 48,
+    parts: [
+      { type: 'shape', shape: 'rect', x: 0, y: 0, w: 170, h: 48, fill: '#111111', radius: 24 },
+      txt('POINT 01', 24, 150, 20, { letterSpacing: 0.08 }),
+    ],
+  },
 ]
 
 export function badgePresetByKey(key) { return BADGE_PRESETS.find(b => b.key === key) ?? null }

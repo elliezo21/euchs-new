@@ -10,6 +10,8 @@
  *     image  { type: 'image', slot: n, x, y, w, h, … }  imageId 대신 사진 자리 번호. 채우기(cover)로 그린다(페이지와 같음)
  *     text   { type: 'text', x, y, w, text, … }          h는 적용할 때 글자에 맞춘다 (measure)
  *     shape · line · table                               h 자동 규칙은 페이지와 같음 (선·표)
+ *     asset  { type: 'asset', asset: 파일 경로, x, y, w, h, fit? }  에셋 이미지 (고객 사진 자리가 아님 — 사진 수와 상관없이 늘 들어간다)
+ *   구간의 bgImage: { asset, fit } (선택) = 섹션 배경 이미지 — 적용할 때 그대로 옮긴다 (studioAsset.js)
  *     그 밖의 type                                        모르는 요소 — 그대로 옮긴다 (페이지 규칙: 그리지 않고 보존)
  *   group: '이름' (선택) = 같은 구간 안에서 같은 이름끼리 한 그룹 (적용할 때마다 새 groupId — 강조 배지처럼)
  * ★ 적용(buildTemplatePage): 쓸 사진(준비 끝 + 안 쓸 사진 아님, 목록 순서)을 사진 자리 번호가 작은 것부터 차례로 넣는다.
@@ -30,17 +32,21 @@ import {
 import { normalizeTextItem, fitTextItem, textStyleOf } from './studioText.js'
 import { normalizeShapeItem, normalizeLineItem } from './studioShape.js'
 import { normalizeTableItem } from './studioTable.js'
+import { normalizeAssetItem, sectionBgImageOf } from './studioAsset.js'
+import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES } from './studioTemplateSets.js'
+
+export { TEMPLATE_CATEGORIES }
 
 export const TEMPLATE_VERSION = 1
 export const TEMPLATE_NAME_MAX = 50 // 내 템플릿 이름 (studio_assets.name 제약과 같은 1~50자)
 
 const clone = v => JSON.parse(JSON.stringify(v))
 
-// ── 샘플 템플릿 3개 ──
+// ── 샘플 템플릿 3개 (카테고리 '기본') + 카테고리별 템플릿(studioTemplateSets.js — 에셋 채우기) ──
 const INK = '#1f2937'
 const t = (x, y, w, text, fontSize, fontWeight, color, extra = {}) => ({ type: 'text', x, y, w, text, fontSize, fontWeight, color, fontFamily: 'noto-sans-kr', align: 'center', lineHeight: 1.3, ...extra })
 
-export const STUDIO_TEMPLATES = [
+const BASE_TEMPLATES = [
   {
     key: 'basic', label: '기본 상세', desc: '대표 사진 → 상품 소개 글 → 사진 목록 → 구매 전 안내', gap: 0,
     sections: [
@@ -133,6 +139,9 @@ export const STUDIO_TEMPLATES = [
     ],
   },
 ]
+export const STUDIO_TEMPLATES = [...BASE_TEMPLATES.map(t => ({ ...t, category: 'common' })), ...CATEGORY_TEMPLATES]
+/** 그 카테고리의 템플릿 (모르는 카테고리면 빈 목록) */
+export function templatesOf(category) { return STUDIO_TEMPLATES.filter(t => t.category === category) }
 
 export function templateByKey(key) { return STUDIO_TEMPLATES.find(x => x.key === key) ?? null }
 
@@ -199,6 +208,7 @@ function partToItem(part, imageId, measure) {
     case 'shape': return normalizeShapeItem(normalizeItem({ ...fields, id }))
     case 'line': return normalizeLineItem(normalizeItem({ ...fields, id, h: 2 }))
     case 'table': return normalizeTableItem(normalizeItem({ ...fields, id, h: 1 }))
+    case 'asset': return normalizeAssetItem(normalizeItem({ ...fields, id }))
     default: return { ...clone(fields), id, type: part.type } // 모르는 요소 — 보존
   }
 }
@@ -252,7 +262,8 @@ export function buildTemplatePage(tpl, images, measure, width = PAGE_WIDTH) {
       items.push(it)
     }
     if (s.items.length > 0 && items.length === 0) continue // 사진 자리만 있던 구간이 모두 비었다 — 구간째 뺀다
-    page.sections.push({ id: newPageId('s'), height: s.height, bg: typeof s.bg === 'string' ? s.bg : SECTION_BG, items })
+    const bgImage = sectionBgImageOf(s)
+    page.sections.push({ id: newPageId('s'), height: s.height, bg: typeof s.bg === 'string' ? s.bg : SECTION_BG, ...(bgImage ? { bgImage } : {}), items })
   }
   const extras = photos.slice(slots.length)
   let extra = 0
@@ -279,7 +290,7 @@ function isPlainPhotoSection(s, pageWidth) {
   const style = itemStyleOf(it)
   return it.x === 0 && it.y === 0 && it.w === pageWidth && it.h === s.height && !n.rotation && n.opacity === 1
     && !n.flipX && !n.flipY && !n.locked && !n.hidden && Object.keys(ITEM_STYLE_DEFAULTS).every(k => style[k] === ITEM_STYLE_DEFAULTS[k])
-    && s.bg === SECTION_BG
+    && s.bg === SECTION_BG && !('bgImage' in s)
 }
 
 /**
@@ -310,7 +321,8 @@ export function pageToTemplate(page, name) {
       }
       items.push(part)
     }
-    sections.push({ height: s.height, bg: s.bg, items })
+    const bgImage = sectionBgImageOf(s)
+    sections.push({ height: s.height, bg: s.bg, ...(bgImage ? { bgImage } : {}), items })
   }
   return { v: TEMPLATE_VERSION, name: String(name ?? '').trim().slice(0, TEMPLATE_NAME_MAX), width: page.width, gap: page.gap, sections }
 }

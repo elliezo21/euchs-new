@@ -14,7 +14,9 @@ import { moveInOrder } from './studioPage.js'
 export const ELEMENT_TABS = [
   { key: 'shape', label: '도형' },   // 도형 + 선·화살표
   { key: 'badge', label: '배지' },
-  { key: 'table', label: '사이즈표' },
+  { key: 'decor', label: '꾸밈' },    // 에셋 채우기: 체크·번호·말풍선·구분선·화살표 (studioDecor)
+  { key: 'table', label: '표' },      // 사이즈표 + 비교표·스펙표
+  { key: 'asset', label: '이미지' },  // 에셋 이미지 (우리 그림 — public/studio-assets, studioAsset)
 ]
 /** 기억한 종류가 없거나 모르는 값이면 첫 종류 */
 export function elementTabOf(key) {

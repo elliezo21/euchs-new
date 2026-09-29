@@ -20,7 +20,8 @@ import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
 import { pixelLayersOf } from '@/lib/studioEdit'
 import { AI_MODEL_ID, loadAiPatch } from '@/lib/studioAiPatch'
 import { geometryOf, drawGeometry, geometryHeightAt, readShape } from '@/lib/studioCrop'
-import { bgActive, bgViewKey, bgPaintColor, bgMaskSource, bgAiUnder, aiFitSource, maskedCanvas } from '@/lib/studioBg'
+import { bgActive, bgViewKey, bgPaintColor, bgMaskSource, bgAiUnder, bgLibUnder, aiFitSource, maskedCanvas } from '@/lib/studioBg'
+import { loadAssetImage } from '@/lib/studioAssetLoad'
 
 export const VIEW_TYPE = 'image/webp'
 export const VIEW_QUALITY = 0.9
@@ -84,6 +85,24 @@ export async function applyBackground(pool, source, W, H, bg) {
   const mk = (w, h) => { const c = document.createElement('canvas'); c.width = w; c.height = h; return c }
   const canvas = maskedCanvas(source, W, H, maskImg, mk)
   // 17-4 AI 배경: 사진과 같은 원본 크기(W×H) 캔버스로 — 그리는 쪽이 사진과 같은 자르기·띠를 거쳐 사진 아래에 깐다 (필터 없음)
+  // 라이브러리 배경: AI 배경과 같은 길 — 그림만 같은 사이트의 정적 파일(에셋 이미지)에서 받는다 (서버·서명 주소·한도 없음)
+  const lib = bgLibUnder(bg)
+  if (lib) {
+    let libImg
+    try {
+      libImg = await loadAssetImage(lib.asset)
+    } catch (err) {
+      console.error('[studioViewImage] 라이브러리 배경 받기 실패:', lib.asset, err)
+      return { canvas, problems: ['라이브러리 배경을 불러오지 못해 투명으로 보여요'], color: null, under: null }
+    }
+    const under = mk(W, H)
+    const g = under.getContext('2d')
+    g.imageSmoothingEnabled = true
+    g.imageSmoothingQuality = 'high'
+    const s = aiFitSource(libImg.width, libImg.height, W, H)
+    g.drawImage(libImg.source, s.sx, s.sy, s.sw, s.sh, 0, 0, W, H)
+    return { canvas, problems: [], color: null, under }
+  }
   const ai = bgAiUnder(bg)
   if (!ai) return { canvas, problems: [], color: bgPaintColor(bg), under: null }
   let aiImg

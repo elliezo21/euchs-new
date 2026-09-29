@@ -156,7 +156,7 @@
           <!-- [텍스트] 패널 (10-1): 제목·부제목·본문 넣기 -->
           <StudioTextPanel v-else-if="activeTool === 'text'" :disabled="!page" @insert="insertText" @style="onStylePreset" />
           <!-- [요소] 패널 (11-1): 맨 위 종류 [도형][배지][사이즈표] — 마지막 종류는 이 편집기 안에서 기억 -->
-          <StudioElementPanel v-else-if="activeTool === 'element'" v-model:tab="elementTab" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" />
+          <StudioElementPanel v-else-if="activeTool === 'element'" v-model:tab="elementTab" :disabled="!page" @insert="insertElement" @insert-badge="insertBadge" @insert-table="insertTable" @insert-asset="insertAsset" />
           <!-- [템플릿] 패널 (15단계): 템플릿 카드 — 누르면 확인 뒤 페이지를 그 틀로 (이력 한 칸, 사진 edit는 그대로) -->
           <StudioTemplatePanel v-else-if="activeTool === 'template'" :images="templateImages" :views="views" :disabled="!page" @apply="askTemplate" />
           <!-- [배경합성] 패널 (17-1): 고른 사진의 배경 지우기(서버 외부 AI) · 원래 배경/투명 · 배경 원래대로 -->
@@ -168,7 +168,7 @@
             :thumb-under="bgRow ? views[bgRow.id]?.bgUrl || null : null"
             :gen-status="bgGenStatus" :gen-busy="!!(bgRow && bgGenBusy[bgRow.id])" :gen-error="bgGenError"
             @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus" @refine="openRefine"
-            @generate="onBgGenerate" @retry-gen-status="loadBgGenStatus"
+            @generate="onBgGenerate" @library="onBgLibrary" @retry-gen-status="loadBgGenStatus"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
             <span class="st-icon-box"><component :is="railItem(activeTool).icon" class="w-5 h-5" :stroke-width="2" /></span>
@@ -541,7 +541,7 @@ import { wheelZoom, zoomAnchor, scrollFix, panScroll, zoomPercent, blocksBrowser
 import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
-import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, BG_DEFAULT_COLOR, sectionBgChoice } from '@/lib/studioBg'
+import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, libFromEntry, BG_DEFAULT_COLOR, sectionBgChoice } from '@/lib/studioBg'
 import { fetchBgStatus, requestBgRemove, uploadBgRefined, fetchBgGenStatus, requestBgGenerate } from '@/lib/studioBgApi'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
@@ -568,7 +568,9 @@ import { geometryOf, drawGeometry, shapeMark, readShape } from '@/lib/studioCrop
 import StudioLayerPanel from '@/components/studio/StudioLayerPanel.vue'
 import StudioTextPanel from '@/components/studio/StudioTextPanel.vue'
 import StudioElementPanel from '@/components/studio/StudioElementPanel.vue'
-import { badgePresetByKey, badgeTextParts } from '@/lib/studioBadge'
+import { groupPresetByKey, presetTextParts } from '@/lib/studioDecor'
+import { assetFieldsOf, isAssetPath } from '@/lib/studioAsset'
+import { loadAssetImage } from '@/lib/studioAssetLoad'
 import { isValidTableItem, tableTemplateByKey, tableFieldsOf, hasTableCell, cleanCellText, tableRows, tableCols } from '@/lib/studioTable'
 import { createTextMeasure, ensureStudioFonts, onFontsChanged, fontsReadyNow, loadFontsFor } from '@/lib/studioFonts'
 import {
@@ -595,7 +597,7 @@ import {
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
   groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo, groupMemberIds,
   addTextItem, setTextProps, setTextContent, addElementItem, setShapeProps, setLineProps,
-  addItemGroup, setTableProps, editTable, fitSectionsToImage, scaleItemsFrom,
+  addItemGroup, setTableProps, editTable, fitSectionsToImage, scaleItemsFrom, setSectionBgImage,
 } from '@/lib/studioPage'
 import { isValidShapeItem, isValidLineItem, elementKindByKey } from '@/lib/studioShape'
 import { LABELS, restorePoint, list as listHistory } from '@/lib/studioHistory'
@@ -1540,10 +1542,12 @@ function insertElement(key) {
 // ── 강조 배지·사이즈표 (11-2) — 배지 = 도형 + 글자 그룹(studioBadge 프리셋, addItemGroup), 사이즈표 = type 'table'(studioTable) ──
 /** [요소] 패널 배지 견본 누름 — 글꼴 조각을 받은 뒤(글자 높이를 재야 해서) 골라진/보는 중 구간 가운데에 한 그룹으로 넣고 그룹 전체를 고른다 */
 async function insertBadge(key) {
-  const preset = badgePresetByKey(key)
-  if (!preset) { console.error('[StudioEditor] 모르는 배지:', key); return }
+  // 에셋 채우기: 꾸밈 요소(studioDecor — 체크·번호·말풍선·구분선·화살표)도 같은 묶음 넣기. 이력 이름만 다르다
+  const found = groupPresetByKey(key)
+  if (!found) { console.error('[StudioEditor] 모르는 배지·꾸밈 요소:', key); return }
+  const preset = found.preset
   if (!page.value || eraseOpen.value) return
-  await whenFontsReady(badgeTextParts(preset).map(p => {
+  await whenFontsReady(presetTextParts(preset).map(p => {
     const n = normalizeTextItem({ type: 'text', ...p })
     return { style: textStyleOf(n), text: n.text }
   }))
@@ -1556,7 +1560,7 @@ async function insertBadge(key) {
     showToast('넣지 못했어요. 잠시 후 다시 해 주세요.')
     return
   }
-  if (!applyPage(r.page, LABELS.badgeInsert)) return
+  if (!applyPage(r.page, found.kind === 'decor' ? LABELS.decorInsert : LABELS.badgeInsert)) return
   selectedItemIds.value = r.ids
   selectionSource = 'page'
   nextTick(() => pageView.value?.scrollToItem(r.ids[0]))
@@ -1575,6 +1579,34 @@ function insertTable(key) {
     return
   }
   if (!applyPage(r.page, LABELS.tableInsert)) return
+  selectedItemIds.value = [r.itemId]
+  selectionSource = 'page'
+  nextTick(() => pageView.value?.scrollToItem(r.itemId))
+}
+/**
+ * [요소] → [이미지] 견본 누름 (에셋 이미지 — 고객 사진이 아닌 우리 그림).
+ * 요소용(use 'item') = 골라진/보는 중 섹션 가운데에 넣고 고르기, 배경용(use 'bg') = 그 섹션의 배경 이미지로 (배경색은 그대로 남는다)
+ */
+function insertAsset(entry) {
+  if (!entry || !isAssetPath(entry.file)) { console.error('[StudioEditor] 모르는 에셋 이미지:', entry); return }
+  if (!page.value || eraseOpen.value) return
+  const target = insertTarget(page.value)
+  if (!target) { showToast('섹션을 더 만들 수 없어 넣지 못했어요.'); return }
+  if (entry.use === 'bg') {
+    const next = setSectionBgImage(target.page, target.sid, entry.file)
+    if (next === target.page) { showToast('이미 이 섹션의 배경이에요.'); return }
+    if (!applyPage(next, LABELS.secBgImage)) return
+    selectedSectionId.value = target.sid
+    showToast('섹션 배경으로 넣었어요 · 빼려면 [섹션]에서 [배경 이미지 빼기]')
+    return
+  }
+  const r = addElementItem(target.page, target.sid, assetFieldsOf(entry))
+  if (!r.itemId) {
+    console.error('[StudioEditor] 에셋 이미지를 넣지 못함:', entry.id, target.sid)
+    showToast('넣지 못했어요. 잠시 후 다시 해 주세요.')
+    return
+  }
+  if (!applyPage(r.page, LABELS.assetInsert)) return
   selectedItemIds.value = [r.itemId]
   selectionSource = 'page'
   nextTick(() => pageView.value?.scrollToItem(r.itemId))
@@ -1740,6 +1772,10 @@ function runCommand(name, args = {}) {
     case 'sectionBg': {
       const sid = selectedSectionId.value
       applyPage(setSectionBg(p, sid, args.color), LABELS.secBg, args.merge ? { mergeKey: `secBg-${sid}` } : undefined)
+      break
+    }
+    case 'sectionBgImage': { // 에셋 이미지: 섹션 배경 이미지 넣기·빼기 (asset = 경로 | null)
+      applyPage(setSectionBgImage(p, args.sectionId ?? selectedSectionId.value, args.asset), LABELS.secBgImage)
       break
     }
     case 'sectionDelete': { // 확인창 없이 — removeSection이 사진을 parked로 옮기므로 사진은 잃지 않는다. Ctrl+Z로 되돌림
@@ -2063,6 +2099,7 @@ const exportDeps = {
   createCanvas(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return c },
   Path2D: window.Path2D,
   getImage: exportImageOf,
+  getAsset: loadAssetImage, // 에셋 이미지 (같은 사이트의 정적 파일 — 캔버스가 오염되지 않는다)
   lookOf: id => session.lookMap[id], // 화면(StudioPageView looks)과 같은 값
   measure: textMeasure,
   async prepareFonts(list) {
@@ -2218,7 +2255,21 @@ function onBgMode(mode) {
   if (mode === 'color') { setBgNoted(row.id, { ...cur, mode, color: cur.color || BG_DEFAULT_COLOR }, LABELS.bgColor); return }
   // 17-4 AI 배경: 전에 만든 그림(bg.ai)을 다시 쓴다 — 돈 안 듦 (없으면 [AI 배경 만들기]로)
   if (mode === 'ai') { if (cur.ai) setBgNoted(row.id, { ...cur, mode }, LABELS.bgAi); return }
+  // 라이브러리 배경: 전에 고른 그림(bg.lib)을 다시 쓴다 (없으면 아래 [라이브러리 배경]에서 고른다)
+  if (mode === 'library') { if (cur.lib) setBgNoted(row.id, { ...cur, mode }, LABELS.bgLibrary); return }
   setBgNoted(row.id, { ...cur, mode }, mode === 'transparent' ? LABELS.bgTransparent : LABELS.bgOriginal)
+}
+/**
+ * 라이브러리 배경 — [배경합성] 패널에서 고른 에셋 이미지(연출 배경·배경)를 이 사진의 배경으로.
+ * 외부 AI·서버를 부르지 않는다(무료 — AI 배경 횟수·한도를 쓰지 않음, 자격 검사 없음). 배경을 지운(마스크가 있는) 사진에만. 사진 이력 "라이브러리 배경"
+ */
+function onBgLibrary(entry) {
+  const row = bgRow.value
+  const cur = row ? session.bgOf(row.id) : null
+  const lib = libFromEntry(entry)
+  if (!lib) { console.error('[StudioEditor] 라이브러리 배경으로 쓸 수 없는 그림:', entry); return }
+  if (!cur) { showToast('먼저 [배경 지우기]를 해 주세요'); return }
+  setBgNoted(row.id, { ...cur, mode: 'library', lib }, LABELS.bgLibrary)
 }
 // ── AI 배경 (17-4) — 외부 AI는 서버만 부른다. 결과 그림은 사진 데이터(edit.bg.ai)에 저장, 사진 이력 "AI 배경" ──
 const bgGenStatus = reactive({ loading: false, ready: false, reason: null, staff: false, left: null, perDay: 3, globalLeft: 0, message: '' })

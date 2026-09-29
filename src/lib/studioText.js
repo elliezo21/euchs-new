@@ -252,7 +252,54 @@ export const TEXT_STYLE_PRESETS = [
     style: { fontFamily: 'nanum-gothic', fontWeight: 800, color: '#0f766e', bgColor: '#e3f5f1', bgPadding: 8, bgRadius: 6 } },
   { key: 'red-outline-pop', label: '빨강 글씨 흰 테두리', sample: '한정 수량', size: 48, swatchBg: '#cfd3da',
     style: { fontFamily: 'do-hyeon', fontWeight: 400, color: '#e53935', strokeWidth: 4, strokeColor: '#ffffff', shadowY: 2, shadowBlur: 6, shadowOpacity: 0.25 } },
+  // ── 에셋 채우기: 상세페이지 글 종류별 (헤드라인·서브·본문·강조·가격·주의 문구) ──
+  { key: 'head-clean', group: 'headline', label: '또렷한 헤드라인', sample: '매일 쓰기 좋은', size: 56, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 900, color: '#111111', letterSpacing: -0.02 } },
+  { key: 'head-serif', group: 'headline', label: '명조 헤드라인', sample: '오래 곁에 두는', size: 52, swatchBg: '#f4efe6',
+    style: { fontFamily: 'noto-serif-kr', fontWeight: 900, color: '#2b2118' } },
+  { key: 'sub-gray', group: 'sub', label: '회색 서브 문구', sample: '가볍고 튼튼한 소재', size: 30, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 700, color: '#4b5563' } },
+  { key: 'sub-blue', group: 'sub', label: '파랑 서브 문구', sample: '이런 분께 추천해요', size: 30, swatchBg: '#ffffff',
+    style: { fontFamily: 'nanum-gothic', fontWeight: 800, color: '#2f6fed' } },
+  { key: 'sub-label', group: 'sub', label: '영문 작은 라벨', sample: 'PRODUCT INFO', size: 20, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 800, color: '#9aa1ac', letterSpacing: 0.2 } },
+  { key: 'body-dark', group: 'body', label: '진한 본문', sample: '하루 종일 편안해요', size: 22, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 400, color: '#222222' } },
+  { key: 'body-serif', group: 'body', label: '명조 본문', sample: '천천히 읽는 이야기', size: 22, swatchBg: '#f7f5f0',
+    style: { fontFamily: 'nanum-myeongjo', fontWeight: 400, color: '#3f3a36' } },
+  { key: 'body-caption', group: 'body', label: '작은 설명', sample: '사진 아래 설명', size: 17, swatchBg: '#ffffff',
+    style: { fontFamily: 'nanum-gothic', fontWeight: 400, color: '#6b7280' } },
+  { key: 'price-big', group: 'price', label: '큰 빨강 가격', sample: '19,900원', size: 60, swatchBg: '#ffffff',
+    style: { fontFamily: 'black-han-sans', fontWeight: 400, color: '#e53935' } },
+  { key: 'price-dark', group: 'price', label: '검정 가격', sample: '29,000원', size: 48, swatchBg: '#ffffff',
+    style: { fontFamily: 'do-hyeon', fontWeight: 400, color: '#111111' } },
+  { key: 'price-tag', group: 'price', label: '노랑 가격표', sample: '2개 묶음 특가', size: 32, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 900, color: '#111111', bgColor: '#ffe14d', bgPadding: 12, bgRadius: 8 } },
+  { key: 'notice-box', group: 'notice', label: '회색 안내 상자', sample: '구매 전 확인', size: 20, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 400, color: '#57534e', bgColor: '#f1f0ee', bgPadding: 14, bgRadius: 8 } },
+  { key: 'notice-amber', group: 'notice', label: '노랑 주의 상자', sample: '사용 전 읽어 보기', size: 20, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 700, color: '#7a4b00', bgColor: '#fff4d6', bgPadding: 14, bgRadius: 8 } },
+  { key: 'notice-red', group: 'notice', label: '빨강 주의 문구', sample: '사용 전 꼭 확인', size: 22, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 700, color: '#c62828' } },
+  { key: 'notice-small', group: 'notice', label: '작은 회색 안내', sample: '화면마다 색 차이', size: 17, swatchBg: '#ffffff',
+    style: { fontFamily: 'noto-sans-kr', fontWeight: 400, color: '#6b7280' } },
 ]
+/** 스타일 묶음 (왼쪽 [텍스트] 패널의 소제목 순서) */
+export const TEXT_STYLE_GROUPS = [
+  { key: 'headline', label: '헤드라인' },
+  { key: 'sub', label: '서브' },
+  { key: 'body', label: '본문' },
+  { key: 'point', label: '강조' },
+  { key: 'price', label: '가격' },
+  { key: 'notice', label: '주의 문구' },
+]
+// 10-2 때 만든 프리셋 10개의 묶음 (프리셋 데이터는 그대로 두고 여기서만 나눈다)
+const FIRST_PRESET_GROUP = {
+  'outline-white': 'headline', 'soft-shadow': 'headline', 'heavy-black': 'headline', 'premium-serif': 'sub', 'calm-note': 'body',
+  'highlight-yellow': 'point', 'navy-pill': 'point', 'mint-point': 'point', 'red-outline-pop': 'point', 'sale-red': 'price',
+}
+/** 프리셋의 묶음 키 (TEXT_STYLE_GROUPS) */
+export function styleGroupOf(preset) { return preset.group ?? FIRST_PRESET_GROUP[preset.key] ?? 'point' }
 export function stylePresetByKey(key) { return TEXT_STYLE_PRESETS.find(p => p.key === key) ?? null }
 /** 프리셋을 적용할 patch (patchTextItem에 넘김) — 프리셋에 없는 꾸미기는 없음으로 */
 export function presetPatch(preset) {

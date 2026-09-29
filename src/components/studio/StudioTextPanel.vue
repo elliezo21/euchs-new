@@ -18,18 +18,22 @@
     <div class="px-4 pb-4 space-y-2 st-border-t pt-4" data-style-presets>
       <div class="text-[13px] font-extrabold st-ink">스타일</div>
       <p class="st-desc-sm break-keep">글자를 골라 두고 누르면 그 모양으로 바뀌어요. 고른 글자가 없으면 이 모양으로 새 글자가 들어가요.</p>
-      <div class="grid grid-cols-2 gap-2">
-        <button
-          v-for="s in swatches" :key="s.key" type="button" class="st-style-card" :title="s.label" :data-style-preset="s.key"
-          :disabled="disabled" @click="$emit('style', s.key)"
-        >
-          <span class="st-style-sample" :style="{ background: s.bg }">
-            <span class="relative block" :style="{ width: `${s.item.w * SWATCH_SCALE}px`, height: `${s.item.h * SWATCH_SCALE}px` }">
-              <StudioTextView :item="s.item" :lines="s.lines" :scale="SWATCH_SCALE" />
+      <!-- 에셋 채우기: 글 종류별 묶음 (헤드라인·서브·본문·강조·가격·주의 문구) -->
+      <div v-for="g in groups" :key="g.key" class="space-y-1.5" :data-style-group="g.key">
+        <div class="text-[11px] font-bold st-ink-2 pt-1">{{ g.label }}</div>
+        <div class="grid grid-cols-2 gap-2">
+          <button
+            v-for="s in g.items" :key="s.key" type="button" class="st-style-card" :title="s.label" :data-style-preset="s.key"
+            :disabled="disabled" @click="$emit('style', s.key)"
+          >
+            <span class="st-style-sample" :style="{ background: s.bg }">
+              <span class="relative block" :style="{ width: `${s.item.w * SWATCH_SCALE}px`, height: `${s.item.h * SWATCH_SCALE}px` }">
+                <StudioTextView :item="s.item" :lines="s.lines" :scale="SWATCH_SCALE" />
+              </span>
             </span>
-          </span>
-          <span class="st-style-name">{{ s.label }}</span>
-        </button>
+            <span class="st-style-name">{{ s.label }}</span>
+          </button>
+        </div>
       </div>
     </div>
     <div class="px-4 pb-4 space-y-1.5">
@@ -43,7 +47,7 @@
 // 왼쪽 [텍스트] 패널 (10-1) — 제목·부제목·본문 넣기. 누르면 insert(종류)만 보낸다 — 넣기·고르기·고치기 시작은 편집기가 한다.
 // 10-2: 스타일 프리셋 목록 — 누르면 style(프리셋 키)만 보낸다 (고른 글자에 적용 / 없으면 새 글자는 편집기가 정한다)
 import { computed, inject } from 'vue'
-import { TEXT_STYLE_PRESETS, normalizeTextItem, presetPatch, fitTextItem, wrapLines, textStyleOf } from '@/lib/studioText'
+import { TEXT_STYLE_PRESETS, TEXT_STYLE_GROUPS, styleGroupOf, normalizeTextItem, presetPatch, fitTextItem, wrapLines, textStyleOf } from '@/lib/studioText'
 import StudioTextView from '@/components/studio/StudioTextView.vue'
 
 defineProps({
@@ -59,9 +63,10 @@ const swatches = computed(() => {
   return TEXT_STYLE_PRESETS.map(p => {
     const base = normalizeTextItem({ id: `swatch-${p.key}`, type: 'text', text: p.sample, x: 0, y: 0, w: 220, h: 1, fontSize: 26, lineHeight: 1.2, ...presetPatch(p) })
     const item = fitTextItem(base, textLayout.measure)
-    return { key: p.key, label: p.label, bg: p.swatchBg, item, lines: wrapLines(item.text, textStyleOf(item), item.w, textLayout.measure) }
+    return { key: p.key, group: styleGroupOf(p), label: p.label, bg: p.swatchBg, item, lines: wrapLines(item.text, textStyleOf(item), item.w, textLayout.measure) }
   })
 })
+const groups = computed(() => TEXT_STYLE_GROUPS.map(g => ({ ...g, items: swatches.value.filter(s => s.group === g.key) })).filter(g => g.items.length))
 
 const KINDS = [
   { key: 'title', label: '제목 넣기', hint: '큰 글자', size: 20, weight: 800 },
