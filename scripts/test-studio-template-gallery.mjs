@@ -5,6 +5,8 @@ import {
   STUDIO_TEMPLATES, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, templateByKey, filterTemplates,
   templateName, templateCardTitle, templateSectionCount, templateMoodLabel,
 } from '../src/lib/studioTemplates.js'
+import { templateColorOf } from '../src/lib/studioTemplateSets.js'
+import { HERO_SPECS } from '../src/lib/studioTemplateHeroes.js'
 
 let pass = 0, fail = 0
 function eq(name, got, want) {
@@ -39,7 +41,12 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
   eq('카테고리', filterTemplates({ category: 'kitchen' }).map(t => t.key), ['kitchen-bold', 'kitchen-check'])
   eq('카테고리 + 분위기', filterTemplates({ category: 'kitchen', mood: 'bold' }).map(t => t.key), ['kitchen-bold'])
   eq('색 (목록 순서 — 갤러리 순서)', filterTemplates({ color: 'pink' }).map(t => t.key), STUDIO_TEMPLATES.filter(t => t.color === 'pink').map(t => t.key))
-  eq('색 — 분홍 템플릿', filterTemplates({ color: 'pink' }).map(t => t.key).sort(), ['apparel-trendy', 'beauty-mood', 'event-benefits', 'event-free-gift', 'event-photo-review', 'event-restock', 'living-trendy', 'toys-basic'])
+  // 색 = 카드에 보이는 첫 화면 바탕 계열(tone — 사진 덮개 구도는 덮개 색) 한 곳에서 (studioTemplateSets.templateColorOf)
+  eq('색 — 분홍 템플릿', filterTemplates({ color: 'pink' }).map(t => t.key).sort(), ['apparel-trendy', 'beauty-mood', 'event-benefits', 'event-photo-review'])
+  eq('색 — 보라 템플릿 (뷰티 | 체크리스트는 초록이 아님)', filterTemplates({ color: 'purple' }).map(t => t.key).sort(), ['beauty-check', 'event-free-gift', 'event-restock', 'living-basic'])
+  eq('색 — 초록에 보라·파랑 없음', filterTemplates({ color: 'green' }).filter(t => ['purple', 'blue', 'pink'].includes(t.tone)).map(t => t.key), [])
+  eq('색 = tone 규칙 (60개 전부)', STUDIO_TEMPLATES.filter(t => t.color !== templateColorOf(t.tone, HERO_SPECS[t.key]?.bg)).map(t => t.key), [])
+  eq('사진 덮개 구도 = 덮개 색', ['basic', 'bags-check', 'pets-bold', 'apparel-mono', 'living-warm'].map(k => templateByKey(k).color), ['mono', 'green', 'green', 'mono', 'warm'])
   eq('내 보관함(keys) — Set·배열 모두, 목록 순서', [filterTemplates({ keys: new Set(['pets-mood', 'basic']) }).map(t => t.key), filterTemplates({ keys: ['size'] }).map(t => t.key)], [['basic', 'pets-mood'], ['size']])
   eq('내 보관함 비었음 = 0개', filterTemplates({ keys: new Set() }).length, 0)
   eq('맞는 것 없음 = 빈 목록', filterTemplates({ category: 'pets', color: 'mono' }), [])

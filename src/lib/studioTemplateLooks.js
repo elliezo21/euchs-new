@@ -359,60 +359,60 @@ function trendy(c, h, th, v, a, sv) {
 const APPAREL_BG = 'backgrounds/euchs-bg_apparel_beige-linen_01.jpg'
 const LOOKS = [
   // 의류
-  ['apparel', 'apparel-minimal', '미니멀 화이트', 'minimal', 0, 'clean', 'mono',
+  ['apparel', 'apparel-minimal', '미니멀 화이트', 'minimal', 0, 'clean',
     theme({ accent: '#1f2328', soft: '#f4f4f2', line: '#e2e3e5' }), {},
     { eyebrow: 'NEW ARRIVAL', title: '매일 손이 가는\n기본 니트', lead: '부드러운 촉감과 깔끔한 핏을\n한두 줄로 소개해 주세요.' }],
-  ['apparel', 'apparel-warm', '따뜻한 감성', 'warm', 0, 'soft', 'warm',
+  ['apparel', 'apparel-warm', '따뜻한 감성', 'warm', 0, 'soft',
     theme({ accent: '#a9805b', soft: '#f6f0e8', ink: '#2b2118', sub: '#5c5148', muted: '#8a7f75', line: '#e2d9cd' }), { bg: APPAREL_BG, close: 'detail' },
     { eyebrow: 'COZY DAYS', title: '포근하게\n감싸는 옷', lead: '어떤 날 입으면\n좋은지 적어 주세요.', quoteBy: '— 먼저 입어 본 고객의 한마디' }],
-  ['apparel', 'apparel-vivid', '선명한 강조', 'vivid', 0, 'bold', 'cool',
+  ['apparel', 'apparel-vivid', '선명한 강조', 'vivid', 0, 'bold',
     theme({ accent: '#2448d8', soft: '#eef2ff', dark: '#10162e', pop: '#ffd23f', onPop: '#10162e', close: 'detail' }), {},
     { eyebrow: 'SEASON PICK', title: '이번 시즌\n필수 아이템', lead: '가장 자랑하고 싶은 점을\n한 줄로 적어 주세요.', badge: '신상\n입고' }],
-  ['apparel', 'apparel-mono', '모노 프리미엄', 'mono', 0, 'premium', 'mono',
+  ['apparel', 'apparel-mono', '모노 프리미엄', 'mono', 0, 'premium',
     theme({ accent: '#c9a86a', dark: '#16181c', soft: '#f1efec' }), { bg: 'backgrounds/euchs-bg_common_wide-navy-charcoal_01.jpg', close: 'detail' },
     { eyebrow: 'CLASSIC LINE', title: '단정한 실루엣,\n오래 입는 옷', lead: '소재와 만듦새를\n차분하게 소개해 주세요.' }],
-  ['apparel', 'apparel-natural', '내추럴 데일리', 'natural', 0, 'friendly', 'green',
+  ['apparel', 'apparel-natural', '내추럴 데일리', 'natural', 0, 'friendly',
     theme({ accent: '#5d7a4a', soft: '#f1f5ec', line: '#dbe4d2' }), { bg: 'backgrounds/euchs-bg_health_botanical-shadow_01.jpg', close: 'detail' },
     { handLine: '오늘의 추천', title: '가볍게 걸치는\n내추럴 무드', lead: '어떤 날 입으면 좋은지\n한두 줄로 적어 주세요.' }],
-  ['apparel', 'apparel-trendy', '트렌디 스티커', 'trendy', 0, 'bold', 'pink',
+  ['apparel', 'apparel-trendy', '트렌디 스티커', 'trendy', 0, 'bold',
     theme({ accent: '#e0457b', soft: '#fff0f5', ink: '#1d1320', pop: '#ffe14d', onPop: '#1d1320', close: 'detail' }), {},
     { handLine: '요즘 이거 입어요', title: '딱 요즘\n입기 좋은 옷', lead: '컬러와 핏의 매력을\n한 줄로 적어 주세요.', gridTitle: '컬러별로 골라 보세요' }],
   // 잡화·가방
-  ['bags', 'bags-minimal', '미니멀 화이트', 'minimal', 1, 'clean', 'warm',
+  ['bags', 'bags-minimal', '미니멀 화이트', 'minimal', 1, 'clean',
     theme({ accent: '#8a6a4f', soft: '#f7f4f0', line: '#e6e0d8' }), {},
     { eyebrow: 'DAILY BAG', title: '가볍게 들고\n어디든 함께', lead: '언제 들기 좋은 가방인지\n한두 줄로 소개해 주세요.' }],
-  ['bags', 'bags-warm', '따뜻한 감성', 'warm', 1, 'soft', 'warm',
+  ['bags', 'bags-warm', '따뜻한 감성', 'warm', 1, 'soft',
     theme({ accent: '#b5651d', soft: '#faf3ea', ink: '#3a2413', sub: '#6b5443', muted: '#8f7b6b', line: '#eadccd' }), { bg: 'backgrounds/euchs-bg_bag_camel-shadow_01.jpg', close: 'detail' },
     { eyebrow: 'MY FAVORITE', title: '손에 익는\n부드러운 가죽', lead: '가방을 들었을 때 느낌을\n적어 주세요.', quoteBy: '— 매일 들고 다니는 분의 이야기' }],
-  ['bags', 'bags-vivid', '선명한 강조', 'vivid', 1, 'bold', 'warm',
+  ['bags', 'bags-vivid', '선명한 강조', 'vivid', 1, 'bold',
     theme({ accent: '#e4572e', soft: '#fff3ee', dark: '#23140f', pop: '#1f2328', onPop: WHITE, close: 'detail' }), {},
     { eyebrow: 'HOT ITEM', title: '들기만 해도\n포인트 완성', lead: '가장 자랑하고 싶은 점을\n한 줄로 적어 주세요.', badge: '인기\n색상' }],
-  ['bags', 'bags-mono', '모노 프리미엄', 'mono', 1, 'premium', 'mono',
+  ['bags', 'bags-mono', '모노 프리미엄', 'mono', 1, 'premium',
     theme({ accent: '#d6c3a1', dark: '#101010', soft: '#f1efec' }), { bg: null, close: 'detail', prop: A.leather },
     { eyebrow: 'SIGNATURE', title: '오래 들수록\n멋이 나는 가방', lead: '소재와 바느질을\n차분하게 소개해 주세요.' }],
-  ['bags', 'bags-natural', '내추럴 데일리', 'natural', 1, 'friendly', 'green',
+  ['bags', 'bags-natural', '내추럴 데일리', 'natural', 1, 'friendly',
     theme({ accent: '#6b7a3a', soft: '#f3f4ec', line: '#dfe2cf' }), { bg: 'backgrounds/euchs-bg_bag_travertine_01.jpg', close: 'detail' },
     { handLine: '주말엔 이 가방', title: '가볍게 떠나는\n주말 나들이', lead: '어디에 들고 가면 좋은지\n한두 줄로 적어 주세요.' }],
-  ['bags', 'bags-trendy', '트렌디 스티커', 'trendy', 1, 'bold', 'cool',
+  ['bags', 'bags-trendy', '트렌디 스티커', 'trendy', 1, 'bold',
     theme({ accent: '#1c64f2', soft: '#fffbe0', ink: '#111827', pop: '#1c64f2', onPop: WHITE, close: 'detail' }), {},
     { handLine: '요즘 제일 많이 드는', title: '들기 좋은\n미니 백', lead: '크기와 컬러의 매력을\n한 줄로 적어 주세요.', gridTitle: '이렇게 들어 보세요' }],
   // 생활용품
-  ['living', 'living-minimal', '미니멀 화이트', 'minimal', 2, 'clean', 'cool',
+  ['living', 'living-minimal', '미니멀 화이트', 'minimal', 2, 'clean',
     theme({ accent: '#3b6e8f', soft: '#f2f5f7', line: '#dde4ea' }), {},
     { eyebrow: 'HOME ESSENTIAL', title: '매일 쓰는\n작은 물건', lead: '어디에 두고 쓰면 좋은지\n적어 주세요.' }],
-  ['living', 'living-warm', '따뜻한 감성', 'warm', 2, 'soft', 'warm',
+  ['living', 'living-warm', '따뜻한 감성', 'warm', 2, 'soft',
     theme({ accent: '#9c6b4a', soft: '#f7f1ea', ink: '#2e211a', sub: '#5f4d42', muted: '#8d7b70', line: '#e7dbcf' }), { bg: 'backgrounds/euchs-bg_living_beige-plaster_01.jpg', close: 'hand' },
     { eyebrow: 'SLOW MORNING', title: '천천히 즐기는\n우리 집 아침', lead: '이 물건과 함께하는 하루를\n한두 줄로 소개해 주세요.', quoteBy: '— 먼저 써 본 고객의 한마디' }],
-  ['living', 'living-vivid', '선명한 강조', 'vivid', 2, 'bold', 'green',
+  ['living', 'living-vivid', '선명한 강조', 'vivid', 2, 'bold',
     theme({ accent: '#0f8a5f', soft: '#ecf8f2', dark: '#0d231b', pop: '#ffcf33', onPop: '#0d231b', close: 'hand' }), {},
     { eyebrow: 'LIVING PICK', title: '살림이 쉬워지는\n똑똑한 선택', lead: '가장 편해진 점을\n한 줄로 적어 주세요.', badge: '살림\n추천' }],
-  ['living', 'living-mono', '모노 프리미엄', 'mono', 2, 'premium', 'mono',
+  ['living', 'living-mono', '모노 프리미엄', 'mono', 2, 'premium',
     theme({ accent: '#8c7a62', dark: '#1b1b1b', soft: '#efedea', ink: '#1f1d1a', sub: '#5b5750', line: '#dcd8d2' }), { bg: 'backgrounds/euchs-bg_living_greige-arch_01.jpg', close: 'hand' },
     { eyebrow: 'QUIET LIVING', title: '조용하게 빛나는\n생활의 도구', lead: '소재와 쓰임새를\n차분하게 소개해 주세요.' }],
-  ['living', 'living-natural', '내추럴 데일리', 'natural', 2, 'friendly', 'green',
+  ['living', 'living-natural', '내추럴 데일리', 'natural', 2, 'friendly',
     theme({ accent: '#4f7a5a', soft: '#eef4ef', line: '#d6e3d9' }), { bg: 'backgrounds/euchs-bg_living_oak-minimal_01.jpg', close: 'hand' },
     { handLine: '초록이 있는 집', title: '자연스럽게\n어울리는 살림', lead: '어떤 공간에 두면 좋은지\n한두 줄로 적어 주세요.' }],
-  ['living', 'living-trendy', '트렌디 스티커', 'trendy', 2, 'bold', 'pink',
+  ['living', 'living-trendy', '트렌디 스티커', 'trendy', 2, 'bold',
     theme({ accent: '#ff6b4a', soft: '#eafaf6', ink: '#1a2b2a', pop: '#ff6b4a', onPop: WHITE, close: 'hand' }), {},
     { handLine: '집꾸미기 필수템', title: '보는 재미\n쓰는 재미', lead: '컬러와 쓰임새의 매력을\n한 줄로 적어 주세요.', gridTitle: '이렇게 써 보세요' }],
 ]
@@ -437,11 +437,11 @@ export const LOOK_KEYS = LOOKS.map(r => r[1])
 export function buildLookTemplate(key, sv = {}) {
   const row = LOOKS.find(r => r[1] === key)
   if (!row) return null
-  const [category, , name, kind, v, mood, color, th, a, h] = row
+  const [category, , name, kind, v, mood, th, a, h] = row
   const label = `${{ apparel: '의류', bags: '잡화·가방', living: '생활용품' }[category]} · ${name}`
   const theme = lowerTheme(HERO_SPECS[key], { ...th, body: F.sans })
   return withHero({
-    key, category, label, desc: DESC[kind], gap: 0, mood, color, swatch: th.accent,
+    key, category, label, desc: DESC[kind], gap: 0, mood, swatch: th.accent, // 거르기 색 = studioTemplates가 첫 화면 tone으로 (templateColorOf)
     sections: BUILD[kind](COPY[category], { ...h, cat: category }, theme, v, a, sv),
   })
 }

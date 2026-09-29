@@ -214,7 +214,7 @@ const B = (text, fill, ink, shape) => ({ text, fill, ink, ...(shape ? { shape } 
 
 const LIST = [
   {
-    key: 'event-review', name: '리뷰 이벤트', mood: 'friendly', color: 'warm', tone: 'yellow', th: theme('#b45309', '#fff8db'),
+    key: 'event-review', name: '리뷰 이벤트', mood: 'friendly', tone: 'yellow', th: theme('#b45309', '#fff8db'),
     hero: { comp: 'card', bg: '#ffe14d', font: 'black-han-sans', ink: '#2a2000', accent: '#b45309', title: '리뷰 쓰고\n선물\n받아 가세요', sub: '[가게 이름] 고객님께 드리는 감사 선물', label: 'REVIEW EVENT', rows: [['기간', '[0월 0일] ~ [0월 0일]'], ['대상', '상품을 받은 모든 고객님'], ['선물', '[선물 이름]']], asset: A.giftbox, assetLabel: '선물상자', badge: B('EVENT', '#2a2000', '#ffe14d') },
     body: (th, sv) => [
       section('steps', sv.steps, { title: '참여 방법', items: ['상품을 받고 사용해 보세요', '리뷰에 솔직한 후기를 남겨 주세요', '당첨 소식은 [0월 0일]에 알려 드려요'].map(title => ({ title })) }, th),
@@ -222,7 +222,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-photo-review', name: '포토리뷰 적립금', mood: 'friendly', color: 'pink', tone: 'pink', th: theme('#d6336c', '#fff0f5'),
+    key: 'event-photo-review', name: '포토리뷰 적립금', mood: 'friendly', tone: 'pink', th: theme('#d6336c', '#fff0f5'),
     hero: { comp: 'ticket', bg: '#ffc9d9', font: 'pretendard', ink: '#4a0f24', accent: '#d6336c', title: '사진 리뷰\n남기면\n적립금', sub: '사진 한 장이면 충분해요', label: 'PHOTO REVIEW', coupon: '포토 리뷰 적립금', amount: '[0,000]원', until: '[0월 0일]까지 남긴 리뷰', badge: B('사진\n한 장', '#d6336c', WHITE), asset: A.sparkle, assetLabel: '반짝이 별' },
     body: (th, sv) => [
       section('steps', sv.steps, { title: '이렇게 남겨 주세요', items: ['상품이 잘 보이게 사진을 찍어요', '사진과 함께 후기를 남겨요', '적립금은 [0]일 안에 들어가요'].map(title => ({ title })) }, th),
@@ -231,7 +231,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-shipping', name: '배송 안내', mood: 'clean', color: 'cool', tone: 'blue', th: theme('#1c64f2', '#eef4ff'),
+    key: 'event-shipping', name: '배송 안내', mood: 'clean', tone: 'blue', th: theme('#1c64f2', '#eef4ff'),
     hero: { comp: 'frame', bg: '#d7ecff', bgImage: 'backgrounds/euchs-bg_common_wide-free-shipping_01.jpg', font: 'pretendard', ink: '#0b2a5b', accent: '#1c64f2', title: '빠르고\n안전하게\n보내 드려요', sub: '[가게 이름]의 배송 안내예요', label: 'SHIPPING INFO' },
     body: (th, sv) => [
       section('rows', sv.rows, { title: '배송 한눈에 보기', rows: [['출고', '[오후 0시] 전 주문은 오늘 출발'], ['택배사', '[택배사 이름]'], ['배송비', '[0,000]원 · [00,000]원 이상 무료'], ['묶음 배송', '같은 날 주문은 한 번에 보내요']] }, th),
@@ -240,7 +240,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-holiday-cutoff', name: '명절 배송 마감', mood: 'premium', color: 'warm', tone: 'beige', th: theme('#9a3412', '#fbf3e6'),
+    key: 'event-holiday-cutoff', name: '명절 배송 마감', mood: 'premium', tone: 'beige', th: theme('#9a3412', '#fbf3e6'),
     hero: { comp: 'card', bg: '#f6ecdc', bgImage: 'backgrounds/euchs-bg_common_wide-korean-holiday_01.jpg', font: 'noto-serif-kr', ink: '#3b1d0e', accent: '#9a3412', title: '명절 전\n배송은\n여기까지', sub: '연휴 전에 받으시려면 서둘러 주세요', label: 'HOLIDAY NOTICE', rows: [['주문 마감', '[0월 0일] [오후 0시]'], ['출고 재개', '[0월 0일]부터'], ['문의 답변', '[0월 0일]부터 차례로']], asset: A.giftSvg, assetLabel: '선물 상자', badge: B('마감\n임박', '#9a3412', WHITE) },
     body: (th, sv) => [
       section('rows', sv.rows, { title: '연휴 일정', rows: [['마지막 출고', '[0월 0일]'], ['휴무', '[0월 0일] ~ [0월 0일]'], ['출고 재개', '[0월 0일]']] }, th),
@@ -248,7 +248,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-dayoff', name: '휴무 안내', mood: 'soft', color: 'cool', tone: 'blue', th: theme('#3b6e8f', '#eef4f8'),
+    key: 'event-dayoff', name: '휴무 안내', mood: 'soft', tone: 'blue', th: theme('#3b6e8f', '#eef4f8'),
     hero: { comp: 'frame', bg: '#dcebf5', bgImage: 'backgrounds/euchs-bg_common_wide-winter_01.jpg', font: 'gowun-batang', ink: '#1f3446', accent: '#3b6e8f', title: '잠시\n쉬어\n갑니다', sub: '휴무 동안 받은 주문은 쉬고 나서 차례로 보내요', label: 'HOLIDAY', asset: A.sparkle, assetLabel: '반짝이 별' },
     body: (th, sv) => [
       section('rows', sv.rows, { title: '휴무 일정', rows: [['휴무 기간', '[0월 0일] ~ [0월 0일]'], ['출고 재개', '[0월 0일]부터'], ['문의 답변', '[0월 0일]부터 차례로']] }, th),
@@ -256,7 +256,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-new-arrival', name: '신상 입고', mood: 'bold', color: 'mono', tone: 'black', th: theme('#111111', '#f4f4f2', { onAccent: '#ffe14d' }),
+    key: 'event-new-arrival', name: '신상 입고', mood: 'bold', tone: 'black', th: theme('#111111', '#f4f4f2', { onAccent: '#ffe14d' }),
     hero: { comp: 'number', bg: '#111111', font: 'black-han-sans', ink: WHITE, labelInk: '#ffe14d', label: 'NEW ARRIVAL', title: 'NEW\nIN', head: '새 상품이 들어왔어요', headInk: '#ffe14d', sub: '[0월 0일] 입고 · 수량이 넉넉하지 않아요', asset: A.sparkle, assetW: 200, assetLabel: '반짝이 별' },
     body: (th, sv) => [
       sec(WHITE, [secTitle('이번 주 새 상품', th), 36, photo(560), 22, T('[상품 이름] · [00,000]원', 22, 700, th.ink, { font: 'pretendard', lh: 1.4 })]),
@@ -264,7 +264,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-today-deal', name: '오늘만 특가', mood: 'bold', color: 'warm', tone: 'orange', th: theme('#e8590c', '#fff4e6'),
+    key: 'event-today-deal', name: '오늘만 특가', mood: 'bold', tone: 'orange', th: theme('#e8590c', '#fff4e6'),
     hero: { comp: 'number', bg: '#ff7a1a', font: 'black-han-sans', ink: WHITE, titleStroke: '#b8400a', labelInk: '#fff1e0', label: 'TODAY ONLY', title: '오늘만\n특가', head: '[0월 0일] 하루만 이 가격', headInk: '#2b1200', sub: '준비한 수량이 다 나가면 끝나요', asset: A.bag, assetW: 150, assetLabel: '쇼핑백' },
     body: (th, sv) => [
       sec(WHITE, [secTitle('오늘의 특가 상품', th), 36, photo(520), 30, rows([['원래 가격', '[00,000]원'], ['오늘 가격', '[00,000]원 ([00]% 할인)']], th)]),
@@ -272,7 +272,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-sale', name: '할인 기획전', mood: 'bold', color: 'warm', tone: 'red', th: theme('#d6293e', '#fff1f2'),
+    key: 'event-sale', name: '할인 기획전', mood: 'bold', tone: 'red', th: theme('#d6293e', '#fff1f2'),
     hero: { comp: 'number', bg: '#e03a2f', bgImage: 'backgrounds/euchs-bg_common_wide-sale-event_01.jpg', font: 'black-han-sans', ink: WHITE, titleStroke: '#9f1d14', labelInk: '#fff4e0', label: 'SALE EVENT', title: 'UP TO\n[00]%', head: '[기획전 이름] 기획전', headFont: 'black-han-sans', headInk: '#9f1d14', subInk: '#7a1410', sub: '[0월 0일] ~ [0월 0일]', asset: A.ribbon, assetW: 360, assetLabel: '리본' },
     body: (th, sv) => [
       section('perks', sv.perks, { title: '기획전 혜택', perks: [{ big: '[00]%', desc: '기획전 상품\n추가 할인' }, { big: '무료', desc: '[00,000]원 이상\n무료 배송' }, { big: '증정', desc: '먼저 주문한\n[00]분께 선물' }] }, th),
@@ -280,7 +280,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-one-plus-one', name: '1+1 행사', mood: 'friendly', color: 'green', tone: 'green', th: theme('#1f7a4d', '#effaf3'),
+    key: 'event-one-plus-one', name: '1+1 행사', mood: 'friendly', tone: 'green', th: theme('#1f7a4d', '#effaf3'),
     hero: { comp: 'number', bg: '#1f4d3a', font: 'black-han-sans', ink: '#ffe14d', labelInk: '#bff0d4', label: 'ONE PLUS ONE', title: '1+1', head: '하나 사면 하나 더', headInk: WHITE, sub: '[0월 0일]까지 · 준비한 수량이 다 나가면 끝나요', asset: A.giftbox, assetW: 240, assetLabel: '선물상자' },
     body: (th, sv) => [
       sec(WHITE, [secTitle('1+1 상품', th), 36, photo(520), 30, rows([['행사 기간', '[0월 0일] ~ [0월 0일]'], ['담는 방법', '하나만 담아도 두 개가 가요']], th)]),
@@ -288,7 +288,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-free-gift', name: '사은품 증정', samples: ['gift', 'health', 'food'], mood: 'soft', color: 'pink', tone: 'purple', th: theme('#6d3fc0', '#f5f0ff'),
+    key: 'event-free-gift', name: '사은품 증정', samples: ['gift', 'health', 'food'], mood: 'soft', tone: 'purple', th: theme('#6d3fc0', '#f5f0ff'),
     hero: { comp: 'asset', bg: '#3b2a5a', font: 'pretendard', ink: WHITE, subInk: '#e2d9f5', labelInk: '#cdb8ff', title: '구매하면\n선물이\n따라가요', sub: '[00,000]원 이상 주문하신 분께 드려요', label: 'FREE GIFT', asset: A.giftbox, assetW: 330, assetLabel: '선물상자', badge: B('선물\n증정', '#ffd23f', '#3b2a5a') },
     body: (th, sv) => [
       sec(WHITE, [secTitle('함께 드리는 선물', th), 36, photo(520), 22, T('[사은품 이름]', 22, 700, th.ink, { font: 'pretendard', lh: 1.4 })]),
@@ -297,7 +297,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-gift-set', name: '명절 선물세트', samples: ['gift', 'food', 'health'], mood: 'premium', color: 'warm', tone: 'red', th: theme('#8a1c2c', '#fbf1ee', { ink: '#2b1216' }),
+    key: 'event-gift-set', name: '명절 선물세트', samples: ['gift', 'food', 'health'], mood: 'premium', tone: 'red', th: theme('#8a1c2c', '#fbf1ee', { ink: '#2b1216' }),
     hero: { comp: 'asset', bg: '#5a1a2b', font: 'noto-serif-kr', ink: '#f3d9a4', subInk: '#f0e2e5', labelInk: '#f3d9a4', title: '마음을\n전하는\n선물세트', sub: '추석·설 선물, 정성껏 포장해서 보내 드려요', label: 'GIFT SET', asset: A.ribbon, assetW: 420, assetLabel: '리본' },
     body: (th, sv) => [
       sec(WHITE, [secTitle('선물세트 구성', th), 36, photo(520), 22, T('[세트 이름] · [구성품]', 22, 700, th.ink, { font: 'pretendard', lh: 1.4 })]),
@@ -306,7 +306,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-black-friday', name: '블랙프라이데이', mood: 'bold', color: 'mono', tone: 'black', th: theme('#e5484d', '#f4f4f5', { ink: '#111111' }),
+    key: 'event-black-friday', name: '블랙프라이데이', mood: 'bold', tone: 'black', th: theme('#e5484d', '#f4f4f5', { ink: '#111111' }),
     hero: { comp: 'number', bg: '#0b0b0b', font: 'black-han-sans', ink: WHITE, labelInk: '#ff5a5f', label: 'BIG SALE', title: 'BLACK\nFRIDAY', head: '1년에 한 번, 가장 큰 할인', headInk: '#ff5a5f', sub: '[0월 0일] ~ [0월 0일] · 최대 [00]%', asset: A.sparkle, assetW: 180, assetLabel: '반짝이 별' },
     body: (th, sv) => [
       section('perks', sv.perks, { title: '이번에만 드리는 혜택', perks: [{ big: '[00]%', desc: '모든 상품\n추가 할인' }, { big: '무료', desc: '기간 동안\n배송비 없음' }, { big: '2배', desc: '적립금\n두 배로' }] }, th),
@@ -314,7 +314,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-year-end', name: '연말 감사 세일', mood: 'premium', color: 'green', tone: 'green', th: theme('#1f5a44', '#f1f6f3'),
+    key: 'event-year-end', name: '연말 감사 세일', mood: 'premium', tone: 'green', th: theme('#1f5a44', '#f1f6f3'),
     hero: { comp: 'frame', bg: '#173a2e', font: 'gowun-batang', ink: '#f3d9a4', subInk: '#dfeae4', accent: '#d9b877', title: '올해도\n정말\n고마웠어요', sub: '한 해 동안 함께해 주신 마음에 감사 세일로 답해요', label: 'THANK YOU', store: '[가게 이름] 드림', asset: A.sparkle, assetLabel: '반짝이 별' },
     body: (th, sv) => [
       section('perks', sv.perks, { title: '감사 세일 혜택', perks: [{ big: '[00]%', desc: '연말 감사\n할인' }, { big: '선물', desc: '[00,000]원 이상\n작은 선물' }, { big: '카드', desc: '손글씨\n감사 카드' }] }, th),
@@ -322,7 +322,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-return', name: '교환·반품 안내', mood: 'clean', color: 'mono', tone: 'gray', th: theme('#374151', '#f3f4f6'),
+    key: 'event-return', name: '교환·반품 안내', mood: 'clean', tone: 'gray', th: theme('#374151', '#f3f4f6'),
     hero: { comp: 'card', bg: '#e5e7eb', font: 'pretendard', ink: '#111827', accent: '#374151', title: '교환·반품\n이렇게\n도와드려요', sub: '받은 날부터 [0]일 안에 신청해 주세요', label: 'RETURN GUIDE', rows: [['신청 기간', '받은 날부터 [0]일 안'], ['배송비', '[0,000]원 (단순 변심)'], ['보낼 곳', '[주소를 적어 주세요]']], asset: A.check, assetLabel: '체크 뱃지' },
     body: (th, sv) => [
       section('steps', sv.steps, { title: '신청 순서', items: ['주문 내역에서 교환·반품을 눌러요', '상품을 처음 포장처럼 싸요', '기사님이 가지러 가요', '확인 뒤 교환·환불해 드려요'].map(title => ({ title })) }, th),
@@ -330,7 +330,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-before-order', name: '주문 전 확인사항', mood: 'friendly', color: 'warm', tone: 'orange', th: theme('#c2410c', '#fff4ec'),
+    key: 'event-before-order', name: '주문 전 확인사항', mood: 'friendly', tone: 'orange', th: theme('#c2410c', '#fff4ec'),
     hero: { comp: 'frame', bg: '#ffe4cc', bgImage: 'backgrounds/euchs-bg_common_wide-autumn_01.jpg', font: 'black-han-sans', ink: '#3b1a05', accent: '#c2410c', title: '주문 전에\n꼭\n확인해요', sub: '받고 나서 아쉽지 않게 한 번만 읽어 주세요', label: 'CHECK LIST', asset: A.check, assetLabel: '체크 뱃지' },
     body: (th, sv) => [
       section('recommend', sv.recommend, { title: '주문 전 확인', lines: ['사이즈와 색을 한 번 더 확인했나요?', '받는 주소와 연락처가 맞나요?', '옵션을 빠짐없이 골랐나요?'] }, th),
@@ -338,7 +338,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-size-exchange', name: '사이즈 교환 안내', mood: 'clean', color: 'green', tone: 'green', th: theme('#0f766e', '#eefaf7'),
+    key: 'event-size-exchange', name: '사이즈 교환 안내', mood: 'clean', tone: 'green', th: theme('#0f766e', '#eefaf7'),
     hero: { comp: 'card', bg: '#cdeee3', font: 'pretendard', ink: '#0b3b37', accent: '#0f766e', title: '사이즈가\n안 맞으면\n바꿔 드려요', sub: '같은 상품, 다른 사이즈로 한 번 바꿀 수 있어요', label: 'SIZE EXCHANGE', rows: [['신청 기간', '받은 날부터 [0]일 안'], ['배송비', '[0,000]원'], ['횟수', '주문 한 건에 한 번']], badge: B('한 번\n무료', '#0f766e', WHITE), asset: A.giftSvg, assetLabel: '선물 상자' },
     body: (th, sv) => [
       section('steps', sv.steps, { title: '교환 순서', items: ['원하는 사이즈를 문의로 남겨요', '받은 상품을 다시 싸서 보내요', '새 사이즈를 보내 드려요'].map(title => ({ title })) }, th),
@@ -346,7 +346,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-how-to-order', name: '이용 순서 안내', mood: 'friendly', color: 'cool', tone: 'blue', th: theme('#2f6fed', '#f0f5ff'),
+    key: 'event-how-to-order', name: '이용 순서 안내', mood: 'friendly', tone: 'blue', th: theme('#2f6fed', '#f0f5ff'),
     hero: { comp: 'asset', bg: '#cfe0ff', font: 'black-han-sans', ink: '#12224a', accent: '#2f6fed', title: '처음이어도\n쉬운\n주문 방법', sub: '네 단계면 주문이 끝나요', label: 'HOW TO ORDER', asset: A.bag, assetW: 190, assetLabel: '쇼핑백', badge: B('STEP\n4', '#2f6fed', WHITE) },
     body: (th, sv) => [
       section('steps', sv.steps, { title: '주문 순서', items: ['마음에 드는 상품을 골라요', '옵션과 수량을 정해요', '받는 곳을 적고 결제해요', '출고 소식을 기다려요'].map(title => ({ title })) }, th),
@@ -354,7 +354,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-authentic', name: '정품 안내', mood: 'premium', color: 'mono', tone: 'gray', th: theme('#334155', '#f1f5f9'),
+    key: 'event-authentic', name: '정품 안내', mood: 'premium', tone: 'gray', th: theme('#334155', '#f1f5f9'),
     hero: { comp: 'asset', bg: '#2b3440', font: 'pretendard', ink: WHITE, subInk: '#d5dbe3', labelInk: '#c7d2fe', title: '믿고\n살 수\n있어요', sub: '[가게 이름]이 직접 확인하고 보내요', label: 'AUTHENTIC', asset: A.check, assetW: 260, assetLabel: '체크 뱃지' },
     body: (th, sv) => [
       section('steps', sv.steps, { title: '이렇게 확인해요', items: ['들여올 때 [확인 방법]을 봐요', '보내기 전에 한 번 더 살펴요', '[확인 자료]를 함께 보내 드려요'].map(title => ({ title })) }, th),
@@ -362,7 +362,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-restock', name: '재입고 알림', mood: 'soft', color: 'pink', tone: 'purple', th: theme('#7048e8', '#f3f0ff'),
+    key: 'event-restock', name: '재입고 알림', mood: 'soft', tone: 'purple', th: theme('#7048e8', '#f3f0ff'),
     hero: { comp: 'number', bg: '#e5dbff', bgImage: 'backgrounds/euchs-bg_beauty_lilac-water_01.jpg', font: 'black-han-sans', ink: '#3b2a78', labelInk: '#5f3dc4', label: 'BACK IN STOCK', title: 'RE\nSTOCK', head: '기다리던 상품이 다시 왔어요', headInk: '#3b2a78', sub: '[0월 0일] 재입고 · 수량이 넉넉하지 않아요', asset: A.sparkle, assetW: 170, assetLabel: '반짝이 별' },
     body: (th, sv) => [
       section('rows', sv.rows, { title: '다시 들어온 상품', rows: [['[상품 이름]', '[색상] · [사이즈]'], ['[상품 이름]', '[색상] · [사이즈]'], ['[상품 이름]', '[색상] · [사이즈]']] }, th),
@@ -370,7 +370,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-soldout-soon', name: '품절 임박', mood: 'bold', color: 'warm', tone: 'red', th: theme('#c92a2a', '#fff5f5'),
+    key: 'event-soldout-soon', name: '품절 임박', mood: 'bold', tone: 'red', th: theme('#c92a2a', '#fff5f5'),
     hero: { comp: 'number', bg: '#e5484d', font: 'black-han-sans', ink: WHITE, titleStroke: '#a51d22', labelInk: '#ffe3e3', label: 'ALMOST GONE', title: '품절\n임박', head: '남은 수량 [00]개', headInk: '#ffe14d', sub: '다음 입고는 아직 정해지지 않았어요', asset: A.bag, assetW: 140, assetLabel: '쇼핑백' },
     body: (th, sv) => [
       sec(WHITE, [secTitle('남은 수량이 얼마 없어요', th), 36, photo(520), 30, rows([['남은 수량', '[00]개'], ['가격', '[00,000]원']], th)]),
@@ -378,7 +378,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-benefits', name: '구매 혜택 모음', mood: 'friendly', color: 'pink', tone: 'pink', th: theme('#c2255c', '#fff0f6'),
+    key: 'event-benefits', name: '구매 혜택 모음', mood: 'friendly', tone: 'pink', th: theme('#c2255c', '#fff0f6'),
     hero: { comp: 'ticket', bg: '#ffd6e7', font: 'black-han-sans', ink: '#4a0f2a', accent: '#c2255c', title: '놓치면\n아쉬운\n혜택 모음', sub: '[가게 이름]에서 드리는 혜택을 모았어요', label: 'BENEFITS', coupon: '첫 구매 할인 쿠폰', amount: '[0,000]원', until: '[0월 0일]까지 사용', badge: B('혜택\n3가지', '#c2255c', WHITE), asset: A.giftSvg, assetLabel: '선물 상자' },
     body: (th, sv) => [
       section('perks', sv.perks, { title: '받을 수 있는 혜택', perks: [{ big: '쿠폰', desc: '첫 구매\n[0,000]원 할인' }, { big: '무료', desc: '[00,000]원 이상\n무료 배송' }, { big: '적립', desc: '구매 금액의\n[0]% 적립' }] }, th),
@@ -386,7 +386,7 @@ const LIST = [
     ],
   },
   {
-    key: 'event-membership', name: '회원 가입 혜택', mood: 'friendly', color: 'warm', tone: 'yellow', th: theme('#b7791f', '#fffbeb'),
+    key: 'event-membership', name: '회원 가입 혜택', mood: 'friendly', tone: 'yellow', th: theme('#b7791f', '#fffbeb'),
     hero: { comp: 'asset', bg: '#ffe98f', bgImage: 'backgrounds/euchs-bg_toy_yellow-mint_01.jpg', font: 'pretendard', ink: '#2b2000', labelInk: '#8a5a00', title: '가입하면\n바로 드리는\n혜택', sub: '[가게 이름] 회원이 되어 주세요', label: 'WELCOME', asset: A.bag, assetW: 180, assetLabel: '쇼핑백', badge: B('가입\n혜택', '#2b2000', '#ffe98f') },
     body: (th, sv) => [
       section('steps', sv.steps, { title: '가입 순서', items: ['[가게 이름]을 찜해 주세요', '회원 가입을 눌러요', '쿠폰함에서 혜택을 확인해요'].map(title => ({ title })) }, th),
@@ -422,7 +422,7 @@ export function buildEventTemplate(key, sv = {}) {
   if (!e) return null
   const th = lowerTheme({ ...e.hero, accent: e.th.accent }, { ...e.th, body: 'pretendard' })
   return {
-    key: e.key, category: 'event', label: `안내·이벤트 · ${e.name}`, desc: DESC[e.hero.comp], gap: 0, mood: e.mood, color: e.color, swatch: e.th.accent, tone: e.tone,
+    key: e.key, category: 'event', label: `안내·이벤트 · ${e.name}`, desc: DESC[e.hero.comp], gap: 0, mood: e.mood, swatch: e.th.accent, tone: e.tone, // 거르기 색 = studioTemplates가 tone으로 (templateColorOf)
     ...(e.samples ? { sampleCategories: e.samples } : {}), // 선물 템플릿 = 명절 선물·식품·건강식품 사진 (알맞은 템플릿 카테고리가 없는 사진)
     sections: [buildHero(e.hero), ...e.body(th, sv)],
   }

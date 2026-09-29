@@ -44,8 +44,35 @@ export const TEMPLATE_COLORS = [
   { key: 'cool', label: '푸른 색', swatch: '#2f6fed' },
   { key: 'green', label: '초록', swatch: '#2f9e44' },
   { key: 'pink', label: '분홍', swatch: '#e64980' },
+  { key: 'purple', label: '보라', swatch: '#7c5cd6' },
   { key: 'mono', label: '무채색', swatch: '#475569' },
 ]
+// 첫 화면 바탕 계열(tone — studioTemplateHeroes·studioTemplateEvents) → 거르기 색. 카드에 보이는 색 = 첫 화면 바탕이므로 색 분류는 여기서만 정한다
+const TONE_COLOR = {
+  yellow: 'warm', orange: 'warm', red: 'warm', beige: 'warm',
+  blue: 'cool', green: 'green', pink: 'pink', purple: 'purple', black: 'mono', gray: 'mono',
+}
+/** 사진이 첫 화면을 덮는 구도(tone 'photo')는 덮개 바탕색(bg)의 색상으로 — 채도가 낮으면 무채색 */
+function colorOfHex(hex) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(hex ?? ''))
+  if (!m) return null
+  const [r, g, b] = [0, 2, 4].map(i => parseInt(m[1].slice(i, i + 2), 16) / 255)
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), d = max - min
+  const l = (max + min) / 2
+  const s = d === 0 ? 0 : d / (1 - Math.abs(2 * l - 1))
+  if (s < 0.15) return 'mono'
+  const h = (max === r ? ((g - b) / d + 6) % 6 : max === g ? (b - r) / d + 2 : (r - g) / d + 4) * 60
+  if (h < 65 || h >= 345) return 'warm'
+  if (h < 170) return 'green'
+  if (h < 255) return 'cool'
+  if (h < 300) return 'purple'
+  return 'pink'
+}
+/** 템플릿 거르기 색 (TEMPLATE_COLORS의 key) — tone, 'photo'면 bg. 모르면 null (테스트가 잡는다) */
+export function templateColorOf(tone, bg) {
+  if (tone === 'photo') return colorOfHex(bg)
+  return TONE_COLOR[tone] ?? null
+}
 const MOOD_OF_KIND = { classic: 'clean', bold: 'bold', magazine: 'soft', checklist: 'friendly', fullset: 'premium' }
 
 const HERO = { photo: 0 } // 첫 구간 자리 — withHero가 큰 제목 첫 화면으로 바꾼다
@@ -415,15 +442,6 @@ const LIST = [
   ['fullset', 'fullset-sample', '풀세트 · 샘플', 'fullset', 'sky', { eyebrow: 'BRAND STORY', headline: '첫 화면에서\n마음을 잡는\n한 문장', lead: '누구에게 왜 좋은지\n두 줄로 소개해 주세요.' }],
 ]
 
-// 색 묶음 → 거르기 색 (TEMPLATE_COLORS의 key)
-const COLOR_OF_THEME = {
-  sand: 'warm', camel: 'warm', tomato: 'warm', sun: 'warm', cocoa: 'warm',
-  navy: 'cool', sky: 'cool', teal: 'cool', electric: 'cool',
-  olive: 'green', leaf: 'green', mint: 'green',
-  rose: 'pink', berry: 'pink',
-  slate: 'mono', graphite: 'mono',
-}
-
 /** 이 파일의 템플릿 key (목록 순서) — 갤러리 순서·섹션 모양은 studioTemplates.js가 정한 뒤 buildCategoryTemplate으로 만든다 */
 export const CATEGORY_KEYS = LIST.map(r => r[1])
 
@@ -437,7 +455,7 @@ export function buildCategoryTemplate(key, v = {}) {
   const [category, , label, kind, th, head] = row
   const theme = lowerTheme(HERO_SPECS[key], TH[th])
   return withHero({
-    key, category, label, desc: FLOW[kind], gap: 0, mood: MOOD_OF_KIND[kind], color: COLOR_OF_THEME[th], swatch: TH[th].accent,
+    key, category, label, desc: FLOW[kind], gap: 0, mood: MOOD_OF_KIND[kind], swatch: TH[th].accent, // 거르기 색은 studioTemplates가 첫 화면 tone으로 (templateColorOf)
     sections: BUILD[kind]({ ...COPY[category], ...head }, theme, v),
   })
 }

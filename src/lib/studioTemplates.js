@@ -35,7 +35,7 @@ import { normalizeShapeItem, normalizeLineItem } from './studioShape.js'
 import { normalizeTableItem } from './studioTable.js'
 import { normalizeAssetItem, sectionBgImageOf } from './studioAsset.js'
 import { isSampleItem } from './studioSamples.js'
-import { CATEGORY_KEYS, buildCategoryTemplate, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS } from './studioTemplateSets.js'
+import { CATEGORY_KEYS, buildCategoryTemplate, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, templateColorOf } from './studioTemplateSets.js'
 import { LOOK_KEYS, buildLookTemplate } from './studioTemplateLooks.js'
 import { EVENT_KEYS, EVENT_TONES, buildEventTemplate } from './studioTemplateEvents.js'
 import { withHero, HERO_SPECS } from './studioTemplateHeroes.js'
@@ -150,12 +150,12 @@ const BASE_TEMPLATES = [
     ],
   },
 ]
-// 기본 3개의 거르기 값 (분위기·색 — studioTemplateSets.TEMPLATE_MOODS·TEMPLATE_COLORS)
+// 기본 3개의 거르기 값 (분위기 — studioTemplateSets.TEMPLATE_MOODS. 색은 모든 템플릿이 첫 화면 tone으로 — buildOne의 templateColorOf)
 // sampleCategories = 예시 사진 카테고리 차례 (알맞은 템플릿 카테고리가 없는 식품·건강식품·스포츠 사진을 기본 템플릿에서 쓴다 — size는 옷 치수표라 의류)
 const BASE_META = {
-  basic: { mood: 'clean', color: 'warm', swatch: '#c9a86a', sampleCategories: ['food', 'health', 'apparel', 'bag', 'living'] },
-  point: { mood: 'bold', color: 'cool', swatch: '#14213d', sampleCategories: ['sports', 'health', 'apparel', 'bag', 'living'] },
-  size: { mood: 'clean', color: 'green', swatch: '#2a9d8f', sampleCategories: ['apparel'] },
+  basic: { mood: 'clean', swatch: '#c9a86a', sampleCategories: ['food', 'health', 'apparel', 'bag', 'living'] },
+  point: { mood: 'bold', swatch: '#14213d', sampleCategories: ['sports', 'health', 'apparel', 'bag', 'living'] },
+  size: { mood: 'clean', swatch: '#2a9d8f', sampleCategories: ['apparel'] },
 }
 /**
  * 원클릭 자동 제작이 쓰는 기본 틀 = 예전 'basic' 모양 그대로 (대표 사진 → 소개 글 → 사진들 → 구매 전 안내).
@@ -210,7 +210,8 @@ export const SECTION_STYLE_PLAN = planSectionStyles(ORDER, GALLERY_COLUMNS, key 
 // sectionStyles = 이 템플릿이 쓴 아래 섹션 모양 ['종류:번호', …] (페이지 문서에는 들어가지 않는다 — 템플릿 목록 칸)
 const buildOne = key => {
   const { value, styles } = recordSections(() => builderOf(key)(key, SECTION_STYLE_PLAN.get(key)))
-  return { ...value, tone: toneOf(key), sectionStyles: styles }
+  // 거르기 색 = 카드에 보이는 첫 화면 바탕 계열 (tone, 사진 덮개 구도는 덮개 색) — 템플릿 파일마다 손으로 적던 색은 쓰지 않는다
+  return { ...value, tone: toneOf(key), color: templateColorOf(toneOf(key), HERO_SPECS[key]?.bg), sectionStyles: styles }
 }
 const built = ORDER.map(buildOne)
 // 아래 섹션 모양 조합이 앞 템플릿과 완전히 같으면 — 쓴 종류 하나를 옆·위 카드와 겹치지 않는 다른 모양으로 옮겨 다시 만든다
