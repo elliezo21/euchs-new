@@ -70,12 +70,25 @@ eq('이용 안내 카드: 무료 · 이유씨컴퍼니 고객 / 준비 중 · �
   // 영상 칸 — 기본은 비어 있음 → 코드 애니메이션
   const scenes = ['hero', 'erase', 'background', 'oneClick', 'editor', 'export']
   eq("장면마다 video 칸 = '' (비어 있음) · poster 사진 있음", scenes.map(k => [M[k].video, isImg(M[k].poster)]), scenes.map(() => ['', true]))
-  // 영상 자리 = 첫 화면 편집기 틀(editor)·글자 지우기 타일(erase) 두 곳
-  eq('video가 비어 있으면 코드 그림 (편집기 틀·지우기 타일: v-if 영상 / v-else 코드)', ['editor', 'erase'].every(k => new RegExp(`<SceneVideo v-if="M\\.${k}\\.video"[^>]*/>\\s*<div v-else`).test(landing)), true)
+  // 영상 자리 = 글자 지우기 타일(erase). 첫 화면 편집기 틀(editor)은 2026-09-29 그림 배경으로 바뀌며 빠짐(editor 사진 설정은 남김)
+  eq('video가 비어 있으면 코드 그림 (지우기 타일: v-if 영상 / v-else 코드)', /<SceneVideo v-if="M\.erase\.video"[^>]*\/>\s*<div v-else/.test(landing), true)
   eq('영상 속성: autoplay·muted·loop·playsinline·preload metadata·poster', /autoplay: true, muted: true, loop: true, playsinline: true,\s*preload: 'metadata'/.test(landing) && /poster: props\.media\.poster/.test(landing), true)
   eq('움직임 줄이기면 영상 대신 poster 정지 사진', /props\.still\s*\?\s*h\('img', \{ src: props\.media\.poster/.test(landing) && /:still="isStatic"/.test(landing), true)
   const motion = read('src/lib/studioLandingMotion.js')
   eq('영상: 화면 밖 pause · 다시 들어오면 처음부터 play', /video\.currentTime = 0\s*const p = video\.play\(\)/.test(motion) && /reset: \(\) => \{ video\.pause\(\); video\.currentTime = 0 \}/.test(motion), true)
+}
+{
+  // 첫 화면 그림 배경 (2026-09-29) — webp 두 장 · lazy 없음 · 미리 불러오기 · 원본 png는 저장소에 없음
+  const tpl = landing.slice(0, landing.indexOf('<script'))
+  const hero = /<section class="land-hero">([\s\S]*?)<\/section>/.exec(tpl)?.[1] || ''
+  const webp = p => { try { const b = fs.readFileSync(new URL(`../public${p}`, import.meta.url)); return b.slice(0, 4).toString() === 'RIFF' && b.slice(8, 12).toString() === 'WEBP' } catch { return false } }
+  eq('그림 파일 = public/studio-landing/hero-pc.webp·hero-mobile.webp (진짜 webp)', [webp('/studio-landing/hero-pc.webp'), webp('/studio-landing/hero-mobile.webp')], [true, true])
+  eq('원본 hero_clean.png는 저장소에 없음', fs.existsSync(new URL('../public/studio-landing/hero_clean.png', import.meta.url)), false)
+  eq('640px 이상 = PC 그림 · 아래 = 모바일 그림 (picture 한 개)', [/pc: '\/studio-landing\/hero-pc\.webp'/.test(landing), /mobile: '\/studio-landing\/hero-mobile\.webp'/.test(landing), /pcMedia: '\(min-width: 640px\)'/.test(landing), /<source :media="HERO_IMG\.pcMedia" :srcset="HERO_IMG\.pc"/.test(hero)], [true, true, true, true])
+  eq('첫 화면 그림: lazy 없음 · fetchpriority high · 미리 불러오기 link', [/loading="lazy"/.test(hero), /<img :src="HERO_IMG\.mobile"[^>]*fetchpriority="high"/.test(hero), /rel: 'preload', as: 'image'/.test(landing), /HERO_PRELOAD\.forEach\(link => link\.remove\(\)\)/.test(landing)], [false, true, true, true])
+  eq('첫 화면 버튼 = 흰 바탕 [무료로 시작하기] · 흰 테두리 [사용법 보기]', [/land-btn-white[^"]*" data-land-start @click="start"/.test(hero), /land-btn-line[^"]*" data-land-howto @click="scrollToSteps"/.test(hero)], [true, true])
+  eq('첫 화면 BETA 배지·판매처 칩 = 기존 값 그대로 (BETA_BADGE·MARKETS)', [/\{\{ BETA_BADGE \}\}/.test(hero), /v-for="m in MARKETS"/.test(hero)], [true, true])
+  eq('첫 화면에 편집기 모형·상태 카드 없음 · hero 장면 표시 없음', [/land-win|land-status|data-hero-tip/.test(tpl), /data-scene="hero"/.test(tpl)], [false, false])
 }
 eq('금지 과장 표현 없음',/업계 최고|100%|최저가|1위/.test(landing.replace(/<style[\s\S]*<\/style>/, '')), false)
 

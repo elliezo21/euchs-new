@@ -14,88 +14,43 @@
       </div>
     </header>
 
-    <div class="land-dots">
-      <!-- ① 첫 화면 -->
-      <section class="land-hero" data-scene="hero">
-        <div class="land-wrap text-center">
-          <p class="land-kicker" data-hero-in data-hero-eyebrow>{{ eyebrow.lead }} · <b class="land-orange-text">{{ eyebrow.free }}</b></p>
+    <!-- ① 첫 화면 — 그림 배경(HERO_IMG). 640px 이상 = 그림을 전체 폭 배경 + 왼쪽 보라 그러데이션 위에 흰 글씨,
+         640px 미만 = 위 글씨(보라 바탕) · 아래 세로 그림. 그림 아래 흰 물결은 그림에 들어 있다 → 다음 구간 흰 바탕으로 이어짐.
+         2026-09-29: 편집기 모형·상태 카드는 뺐다(해성 지시) — 모션의 hero 장면은 대상(장면 표시)이 없어 건너뛴다 -->
+    <section class="land-hero">
+      <div class="land-wrap hero-copy">
+        <div class="hero-text">
+          <p class="land-kicker" data-hero-in data-hero-eyebrow>
+            <span v-if="STUDIO_BETA" class="beta-badge hero-beta">{{ BETA_BADGE }}</span>
+            {{ eyebrow.lead }} · <b class="land-orange-soft">{{ eyebrow.free }}</b>
+          </p>
           <h1 class="land-h1" data-hero-in>만들고, 다듬고,<br />바로 올리세요.</h1>
           <p class="land-lead" data-hero-in>사진만 있으면 상세페이지 초안이 먼저 나와요. 나머지는 원하는 만큼만 고치면 돼요.</p>
-          <div class="mt-8 flex flex-wrap justify-center gap-3" data-hero-in>
-            <button type="button" class="land-btn land-btn-primary land-btn-lg" data-land-start @click="start">
+          <div class="hero-btns" data-hero-in>
+            <button type="button" class="land-btn land-btn-white land-btn-lg" data-land-start @click="start">
               무료로 시작하기 <ArrowRight class="w-[18px] h-[18px]" :stroke-width="2.5" />
             </button>
-            <button type="button" class="land-btn land-btn-ghost land-btn-lg" data-land-howto @click="scrollToSteps">사용법 보기</button>
+            <button type="button" class="land-btn land-btn-line land-btn-lg" data-land-howto @click="scrollToSteps">사용법 보기</button>
           </div>
+          <ul class="hero-mk" data-hero-in aria-label="판매처">
+            <li v-for="m in MARKETS" :key="m.name" :class="{ 'is-soon': m.soon }">
+              {{ m.name }}<span v-if="m.soon" class="hero-mk-soon">준비 중</span>
+            </li>
+          </ul>
         </div>
+      </div>
+      <!-- 그러데이션(글씨 바탕)은 그림 밖에 둔다 — 그림이 서서히 나타나는 동안에도 흰 글씨가 읽히고, 흰 물결은 흰 바탕 위에서 나타남 -->
+      <div class="hero-shade" aria-hidden="true" />
+      <!-- 첫 화면 그림이라 lazy 없음 + fetchpriority high (미리 불러오기 link는 script의 HERO_PRELOAD) -->
+      <div class="hero-pic" data-hero-visual>
+        <picture>
+          <source :media="HERO_IMG.pcMedia" :srcset="HERO_IMG.pc" width="1920" height="1047" />
+          <img :src="HERO_IMG.mobile" alt="" width="780" height="975" fetchpriority="high" decoding="async" />
+        </picture>
+      </div>
+    </section>
 
-        <!-- 편집기 화면 (그림은 studioLandingMedia 한 곳 — 지금은 직접 그린 임시 그림) -->
-        <div class="land-wrap mt-12 md:mt-14">
-          <div class="land-stage" data-hero-visual>
-            <SceneVideo v-if="M.editor.video" :media="M.editor" alt="스튜디오 편집기 화면" :still="isStatic" />
-            <div v-else class="land-win" data-scene-visual role="img" aria-label="스튜디오 편집기 화면 예시 — 사진 목록, 상세페이지, 섹션 미리보기">
-              <div class="win-bar" aria-hidden="true">
-                <span class="win-dots"><i /><i /><i /></span>
-                <span class="win-title">매일 쓰는 머그</span>
-                <span class="win-saved">· 자동 저장됨</span>
-                <span class="flex-1" />
-                <span class="win-ai">원클릭 AI 초안</span>
-                <span class="win-export">다운로드</span>
-              </div>
-              <div class="win-body" aria-hidden="true">
-                <ul class="win-rail">
-                  <li v-for="(t, i) in RAIL" :key="i" :class="{ on: i === 1 }"><component :is="t" class="w-[18px] h-[18px]" :stroke-width="2" /></li>
-                </ul>
-                <div class="win-panel">
-                  <p class="win-panel-title">사진 · 1688에서 가져옴</p>
-                  <div class="win-thumbs">
-                    <img v-for="(p, i) in M.oneClick.photos" :key="i" :src="p.after" alt="" width="800" height="800" decoding="async" />
-                    <span />
-                  </div>
-                </div>
-                <div class="win-canvas">
-                  <div class="win-page">
-                    <div class="pg-hero">
-                      <img :src="M.erase.after" alt="" width="800" height="800" decoding="async" fetchpriority="high" />
-                      <img :src="M.erase.before" alt="" width="800" height="800" decoding="async" class="pg-before" data-hero-erase-top />
-                      <span class="pg-select" data-hero-select :style="boxStyle(M.erase.boxes[0])" />
-                      <span class="pg-title" data-hero-title>매일 쓰는 머그</span>
-                    </div>
-                    <div class="pg-row">
-                      <div class="pg-card pg-bg" :style="{ background: M.background.solidColor }">
-                        <img :src="M.background.cutout" alt="" width="800" height="800" decoding="async" />
-                        <img :src="M.background.original" alt="" width="800" height="800" decoding="async" class="pg-bg-orig" data-hero-bg-orig />
-                      </div>
-                      <div class="pg-card"><img :src="M.oneClick.photos[3].after" alt="" width="800" height="800" decoding="async" /></div>
-                    </div>
-                    <div class="pg-foot" />
-                    <span class="win-tip t1" data-hero-tip>AI로 지우기 — 칠하면 자연스럽게</span>
-                    <span class="win-tip t2" data-hero-tip>배경 바꾸기</span>
-                    <span class="win-tip t3" data-hero-tip>섹션 끌어서 순서 바꾸기</span>
-                  </div>
-                </div>
-                <ol class="win-mini">
-                  <li class="on"><img :src="M.erase.after" alt="" width="800" height="800" decoding="async" /></li>
-                  <li data-hero-mini="a"><img :src="M.background.cutout" alt="" width="800" height="800" decoding="async" :style="{ background: M.background.solidColor }" /></li>
-                  <li data-hero-mini="b"><img :src="M.oneClick.photos[3].after" alt="" width="800" height="800" decoding="async" /></li>
-                  <li /><li />
-                </ol>
-              </div>
-            </div>
-
-            <!-- 상태 카드 -->
-            <div class="land-status s1" data-hero-card>
-              <span class="st-ico is-src" aria-hidden="true">1688</span>
-              <div><b>상품 불러옴</b><p>사진 14장</p></div>
-            </div>
-            <div class="land-status s2" data-hero-card>
-              <span class="st-ico is-ok" aria-hidden="true"><Check class="w-4 h-4" :stroke-width="3" /></span>
-              <div><b>작업 저장 완료</b><p>내 상품에 보관됨</p></div>
-            </div>
-          </div>
-        </div>
-      </section>
-
+    <div class="land-dots">
       <!-- ② 기능 타일 -->
       <section id="features" class="land-sec pt-16 md:pt-20" aria-labelledby="land-features-title">
         <div class="land-wrap">
@@ -255,10 +210,7 @@
 // 개인 데이터를 보여 주지 않는 화면이라 로그아웃 구독은 필요 없다(로그인 여부에 따라 바뀌는 것도 없다).
 import { ref, h, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import {
-  ArrowRight, Check, Sparkles, MessageCircle,
-  LayoutTemplate, Image as ImageIcon, Type, Shapes, Rows3, Wand2,
-} from 'lucide-vue-next'
+import { ArrowRight, Check, Sparkles, MessageCircle } from 'lucide-vue-next'
 import { LANDING_MEDIA as M } from '@/data/studioLandingMedia'
 import { getStudioNotices } from '@/lib/studioNotices'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
@@ -284,7 +236,24 @@ const SceneVideo = props => h('div', { class: 'land-video', 'data-scene-visual':
 SceneVideo.props = ['media', 'alt', 'still']
 
 const KAKAO_CHAT = 'http://pf.kakao.com/_xmQWsK/chat' // Footer·CommunitySection과 같은 상담 채널
-const RAIL = [LayoutTemplate, ImageIcon, Type, Shapes, Rows3, Wand2] // 편집기 왼쪽 도구 막대 (템플릿·사진·텍스트·요소·섹션·배경합성)
+// 첫 화면 그림 (public/studio-landing — 원본 hero_clean.png 1408×768은 저장소에 없음, sharp로 만든 webp 두 장)
+//   pc = 가로 1920·품질 82 / mobile = 오른쪽 사람·화면 부분(원본 x800~1360·y68~768)을 세로로 잘라 가로 780·품질 82
+//   640px 기준은 CSS(.land-hero 레이아웃 @media)와 같다
+const HERO_IMG = {
+  pc: '/studio-landing/hero-pc.webp',
+  mobile: '/studio-landing/hero-mobile.webp',
+  pcMedia: '(min-width: 640px)',
+  mobileMedia: '(max-width: 639.98px)',
+}
+// 미리 불러오기 — 화면 너비에 맞는 한 장만 받는다(media). 랜딩이 떠 있는 동안만 head에 둔다
+const HERO_PRELOAD = [[HERO_IMG.pc, HERO_IMG.pcMedia], [HERO_IMG.mobile, HERO_IMG.mobileMedia]].map(([href, media]) => {
+  const link = document.createElement('link')
+  Object.assign(link, { rel: 'preload', as: 'image', href, media })
+  link.setAttribute('fetchpriority', 'high')
+  link.setAttribute('data-studio-hero-preload', '')
+  document.head.appendChild(link)
+  return link
+})
 const OC_STEPS = ['사진 고르기', '글자 지우기', '페이지 배치', '문구 초안']
 // 판매처 칩 — 목록은 MARKETS(studioMarketplaceRules.js, 설정 > 판매처 연결과 같은 목록·순서). 쿠팡만 켜짐, soon = "준비 중" 작은 배지만
 const STEPS = [
@@ -335,6 +304,7 @@ onMounted(async () => {
 })
 onBeforeUnmount(() => {
   alive = false
+  HERO_PRELOAD.forEach(link => link.remove())
   stopMotion?.()
   stopMotion = null
 })
@@ -356,9 +326,6 @@ onBeforeUnmount(() => {
   --l-orange-ink: #c2410c; /* 흰 바탕 위 주황 글자 (대비 AA) */
   --l-navy: #0b1b3f;
   --l-navy-ink: #afc0e6;
-  --l-dark: #1e2230; /* 편집기 모형 작업판 */
-  --l-dark-2: #171a25;
-  --l-dark-3: #262b3a;
   --l-wrap: 1240px;
   min-height: 100vh;
   overflow-x: clip;
@@ -369,11 +336,14 @@ onBeforeUnmount(() => {
 @media (min-width: 768px) { .land-wrap { padding: 0 40px; } }
 .land-ink { color: var(--l-ink); }
 .land-blue-text { color: var(--l-blue); }
-.land-orange-text { color: var(--l-orange-ink); }
 .land-orange-soft { color: #fdba74; }
 
-/* 점 격자 바탕 (은은하게) */
-.land-dots { background-image: radial-gradient(var(--l-dot) 1px, transparent 1px); background-size: 22px 22px; }
+/* 점 격자 바탕 (은은하게) — 맨 위 180px는 흰색에서 서서히: 첫 화면 그림의 흰 물결과 이어지게 */
+.land-dots {
+  background-image: linear-gradient(180deg, var(--l-white), rgba(255, 255, 255, 0)), radial-gradient(var(--l-dot) 1px, transparent 1px);
+  background-size: 100% 180px, 22px 22px;
+  background-repeat: no-repeat, repeat;
+}
 
 /* 상단 바 */
 .land-nav {
@@ -404,101 +374,77 @@ onBeforeUnmount(() => {
 .land-btn-onnavy:hover { background: rgba(255, 255, 255, 0.08); }
 @media (max-width: 400px) { .land-nav .land-btn { height: 34px; padding: 0 10px; font-size: 13px; } }
 
-/* 첫 화면 */
-.land-hero { padding: 120px 0 0; }
-@media (min-width: 768px) { .land-hero { padding-top: 132px; } }
-.land-kicker { font-size: 14px; font-weight: 700; color: var(--l-ink-2); letter-spacing: 0.01em; }
+/* 첫 화면 — 그림 배경. 기본(640px 미만) = 위 글씨(보라 그러데이션 바탕) · 아래 세로 그림(HERO_IMG.mobile) */
+.land-hero {
+  --hero-top: #2a1a6e;  /* 진한 보라 */
+  --hero-mid: #4a3fa6;
+  --hero-meet: #7587d5; /* 모바일 그림 맨 윗줄 평균색 — 글씨 바탕 끝이 그림과 이어지게 */
+  position: relative; margin-top: 64px; /* 고정 상단 바 높이 */
+  color: #fff; background: var(--l-white);
+}
+/* 모바일: 보라 바탕은 글씨 칸에만 (그림 칸은 흰 바탕 — 그림 아래 흰 물결이 나타나는 동안 색이 바뀌지 않게) */
+.hero-copy {
+  position: relative; z-index: 2; padding-top: 40px; padding-bottom: 28px;
+  background: linear-gradient(180deg, var(--hero-top) 0%, var(--hero-mid) 62%, var(--hero-meet) 100%);
+}
+.hero-text { max-width: 560px; }
+.land-kicker { font-size: 14px; font-weight: 700; line-height: 1.6; color: rgba(255, 255, 255, 0.88); letter-spacing: 0.01em; word-break: keep-all; }
+.hero-beta { display: inline-block; margin-right: 6px; vertical-align: 1px; color: #fff; background: rgba(255, 255, 255, 0.2); }
 .land-h1 {
-  margin-top: 16px; font-size: clamp(38px, 5.6vw, 64px); font-weight: 900; line-height: 1.15; letter-spacing: -0.035em;
-  color: var(--l-ink); word-break: keep-all;
+  margin-top: 14px; font-size: clamp(36px, 5.6vw, 64px); font-weight: 900; line-height: 1.15; letter-spacing: -0.035em;
+  color: #fff; word-break: keep-all; text-shadow: 0 2px 16px rgba(20, 10, 60, 0.3);
 }
-.land-lead { margin: 18px auto 0; max-width: 620px; font-size: clamp(16px, 1.5vw, 19px); line-height: 1.65; color: var(--l-ink-2); word-break: keep-all; }
+.land-lead { margin-top: 16px; max-width: 520px; font-size: clamp(16px, 1.5vw, 19px); line-height: 1.65; color: rgba(255, 255, 255, 0.92); word-break: keep-all; }
+.hero-btns { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 10px 12px; }
+.land-btn-white { background: #fff; color: var(--hero-top); box-shadow: 0 8px 22px rgba(20, 10, 60, 0.25); }
+.land-btn-white:hover { background: #f1eefe; }
+.land-btn-line { background: transparent; color: #fff; border: 1.5px solid rgba(255, 255, 255, 0.9); }
+.land-btn-line:hover { background: rgba(255, 255, 255, 0.12); }
+.land-hero .land-btn:focus-visible { outline-color: #fff; }
+/* 판매처 칩 — 목록은 MARKETS 하나(아래 판매처 타일과 같음) */
+.hero-mk { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 6px; }
+.hero-mk li {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px; font-size: 12.5px; font-weight: 700;
+  color: #fff; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.4);
+}
+.hero-mk li.is-soon { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); }
+.hero-mk-soon { padding: 0 5px; border-radius: 4px; font-size: 10.5px; background: rgba(255, 255, 255, 0.16); }
+.hero-pic { position: relative; }
+.hero-pic img { display: block; width: 100%; height: auto; }
+.hero-shade { display: none; }
+@media (max-width: 639.98px) {
+  .hero-btns .land-btn { flex: 1 1 auto; }
+  /* 그림 윗변을 글씨 바탕 끝 색에서 서서히 이어 줌 */
+  .hero-pic::before {
+    content: ''; position: absolute; z-index: 1; inset: 0 0 auto 0; height: 56px;
+    background: linear-gradient(180deg, var(--hero-meet), rgba(117, 135, 213, 0));
+  }
+}
 
-/* 편집기 화면 틀 */
-.land-stage { position: relative; max-width: 1180px; margin: 0 auto; }
-.land-win {
-  position: relative; background: var(--l-white); border-radius: 18px 18px 0 0; overflow: hidden;
-  box-shadow: 0 30px 80px rgba(11, 27, 63, 0.18), 0 0 0 1px var(--l-line);
+/* 640px 이상: 그림 = 전체 폭 배경(사람은 오른쪽, 아래 흰 물결은 바닥에 붙임), 글씨 = 왼쪽 */
+@media (min-width: 640px) {
+  .land-hero {
+    display: flex; align-items: center;
+    min-height: clamp(600px, calc(100vw / 1.834), 860px); /* 1.834 = 그림 가로/세로 (1920×1047) */
+  }
+  .hero-copy { width: 100%; padding-top: 48px; padding-bottom: max(120px, 13vw); /* 물결 위로 */ background: none; }
+  .hero-text { max-width: min(560px, 62%); }
+  .hero-pic { position: absolute; inset: 0; z-index: 0; overflow: hidden; }
+  .hero-pic picture, .hero-pic img { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hero-pic img { object-fit: cover; object-position: 80% 100%; }
+  /* 왼쪽 진한 보라 → 투명. 아래쪽은 흐려서 흰 물결을 덮지 않음 */
+  .hero-shade {
+    display: block; position: absolute; inset: 0; z-index: 1;
+    background: linear-gradient(90deg, rgba(34, 18, 98, 0.88) 0%, rgba(40, 22, 110, 0.7) 32%, rgba(48, 30, 120, 0.28) 55%, rgba(48, 30, 120, 0) 72%);
+    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 74%);
+    mask-image: linear-gradient(180deg, #000 55%, transparent 74%);
+  }
 }
-.win-bar { display: flex; align-items: center; gap: 12px; height: 48px; padding: 0 16px; border-bottom: 1px solid var(--l-line); font-size: 13px; color: var(--l-ink-2); }
-.win-dots { display: flex; gap: 6px; }
-.win-dots i { width: 11px; height: 11px; border-radius: 50%; background: #e6e9f0; }
-.win-title { font-weight: 800; color: var(--l-ink); white-space: nowrap; }
-.win-saved { white-space: nowrap; }
-.win-ai { background: var(--l-blue); color: #fff; border-radius: 8px; padding: 6px 12px; font-weight: 700; white-space: nowrap; }
-.win-export { border: 1px solid var(--l-line); border-radius: 8px; padding: 5px 12px; font-weight: 700; color: var(--l-ink); white-space: nowrap; }
-.win-body { display: grid; grid-template-columns: 64px 240px 1fr 170px; height: 512px; background: var(--l-dark); }
-.win-rail { background: var(--l-dark-2); display: flex; flex-direction: column; align-items: center; gap: 12px; padding-top: 16px; }
-.win-rail li { width: 38px; height: 38px; border-radius: 9px; display: flex; align-items: center; justify-content: center; color: #8d95aa; background: var(--l-dark-3); }
-.win-rail li.on { background: var(--l-blue); color: #fff; }
-.win-panel { background: #1b1f2c; padding: 16px; }
-.win-panel-title { color: #fff; font-size: 13px; font-weight: 700; margin-bottom: 12px; }
-.win-thumbs { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.win-thumbs > * { aspect-ratio: 1 / 1; width: 100%; border-radius: 8px; object-fit: cover; background: #2a3044; display: block; }
-.win-canvas { position: relative; display: flex; justify-content: center; padding-top: 24px; }
-.win-page { position: relative; width: 330px; align-self: flex-start; background: #fff; border-radius: 4px; }
-.pg-hero { position: relative; aspect-ratio: 1 / 1; overflow: hidden; border-radius: 4px 4px 0 0; }
-.pg-hero > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.pg-before { clip-path: inset(0 0 0 100%); }
-.pg-select { position: absolute; border: 2px dashed var(--l-blue); border-radius: 6px; opacity: 0; }
-.pg-title {
-  position: absolute; left: 0; right: 0; bottom: 9%; text-align: center; font-size: 20px; font-weight: 900; color: var(--l-ink); letter-spacing: -0.02em;
-}
-.pg-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 10px; }
-.pg-card { position: relative; aspect-ratio: 4 / 3; border-radius: 6px; overflow: hidden; background: #f6f8fc; }
-.pg-card img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
-.pg-bg-orig { opacity: 0; }
-.pg-foot { height: 80px; background: var(--l-navy); }
-.win-mini { background: var(--l-dark-2); padding: 14px 12px; display: flex; flex-direction: column; gap: 8px; }
-.win-mini li { height: 62px; border-radius: 6px; background: #2a3044; overflow: hidden; }
-.win-mini li img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.win-mini li.on { outline: 2px solid var(--l-blue); outline-offset: 1px; }
-.win-tip {
-  position: absolute; z-index: 3; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
-  background: #fff; border-radius: 12px; padding: 9px 14px; font-size: 13px; font-weight: 700; color: var(--l-ink);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
-}
-.win-tip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--l-blue); }
-.win-tip.t1 { left: 26%; top: 24%; }
-.win-tip.t2 { left: calc(100% - 30px); top: calc(330px + 34px); }
-.win-tip.t3 { left: calc(100% + 24px); top: 40px; }
-
-/* 상태 카드 */
-.land-status {
-  position: absolute; z-index: 4; display: flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
-  background: #fff; box-shadow: 0 14px 34px rgba(11, 27, 63, 0.16), 0 0 0 1px var(--l-line); font-size: 13px;
-}
-.land-status b { display: block; font-weight: 800; color: var(--l-ink); }
-.land-status p { color: var(--l-ink-2); font-size: 12px; margin-top: 1px; }
-.land-status.s1 { left: -28px; top: 96px; }
-.land-status.s2 { right: -28px; bottom: 72px; }
-.st-ico { width: 36px; height: 36px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; font-weight: 900; font-size: 11px; }
-.st-ico.is-src { background: var(--l-blue-soft); color: var(--l-blue); }
-.st-ico.is-ok { background: #e7f7ee; color: #12834a; }
-
-/* 좁은 화면: 편집기 틀을 줄이고 상태 카드는 틀 아래로 */
-@media (max-width: 1279px) {
-  .land-status.s1 { left: 12px; }
-  .land-status.s2 { right: 12px; }
-}
-@media (max-width: 1023px) {
-  .win-body { grid-template-columns: 56px 190px 1fr; }
-  .win-mini { display: none; }
-  .win-tip.t3 { left: auto; right: -12px; top: calc(100% - 64px); }
-}
-@media (max-width: 767px) {
-  .win-bar { gap: 8px; padding: 0 12px; }
-  .win-saved, .win-export { display: none; }
-  .win-body { grid-template-columns: 48px 1fr; height: 440px; }
-  .win-rail li { width: 32px; height: 32px; }
-  .win-panel { display: none; }
-  .win-page { width: min(250px, 100% - 28px); }
-  .win-tip { font-size: 12px; padding: 7px 11px; }
-  .win-tip.t1 { left: 4%; top: 4%; }
-  .win-tip.t2 { left: 30%; top: calc(100% - 150px); }
-  .win-tip.t3 { right: 4%; top: calc(100% - 40px); }
-  .land-stage { display: flex; flex-direction: column; }
-  .land-status { position: static; box-shadow: 0 0 0 1px var(--l-line); margin-top: 10px; }
+/* 태블릿(640~1023px): 글씨 칸이 그림 속 화면·아이콘 위까지 오므로 그러데이션을 더 진하고 넓게 (얼굴은 오른쪽 끝이라 그대로 보임) */
+@media (min-width: 640px) and (max-width: 1023.98px) {
+  .hero-shade {
+    background: linear-gradient(90deg, rgba(34, 18, 98, 0.92) 0%, rgba(40, 22, 110, 0.82) 40%, rgba(48, 30, 120, 0.45) 62%, rgba(48, 30, 120, 0) 78%);
+  }
 }
 
 /* 기능 타일 */
