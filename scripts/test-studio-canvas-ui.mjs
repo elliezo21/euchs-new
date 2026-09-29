@@ -3,7 +3,7 @@
 import fs from 'node:fs'
 import {
   ELEMENT_TABS, elementTabOf, selectBarButtons, sizeFactor, SIZE_PCT, ROTATE_DEG, blankPressTarget, sectionBarButtons,
-  sectionGapSlots, sectionAddArgs, insertIndexFromY, orderAfterDrop, SECTION_ADD_HINT,
+  sectionGapSlots, sectionAddArgs, insertIndexFromY, orderAfterDrop, SECTION_ADD_HINT, RIGHT_SPLIT, clampRightSplit,
 } from '../src/lib/studioCanvasUi.js'
 import {
   layoutSections, addSection, reorderSections, emptyPage, moveSection, duplicateSection, removeSection,
@@ -119,7 +119,25 @@ eq('모르는 값 = 첫 종류', elementTabOf('nope'), 'shape')
   eq('왼쪽 패널 [X] 닫기 · 아이콘 = 다시 열기', [/data-material-close @click="leftOpen = false"/.test(ed), /@click="onRail\(t\.key\)"/.test(ed), /activeTool\.value = key\n  leftOpen\.value = true/.test(ed)], [true, true, true])
   eq('가로 도구줄 = 작업판 맨 위 고정, 스크롤 칸은 그 아래(top-12)', [/data-select-strip/.test(ed), /:class="page && !showStart \? 'top-12' : 'top-0'" data-page-scroll/.test(ed)], [true, true])
   eq('도구줄 숨김: 안 고름·글자/표 칸 입력·지우기·시작 화면', /selectedItemIds\.value\.length > 0 && !showStart\.value && !eraseOpen\.value && !textEdit\.value && !cellEdit\.value/.test(ed), true)
-  eq('작업판 왼쪽 아래 되돌리기·다시 (같은 함수)', /data-canvas-action="undo" @click="undoAny"/.test(ed) && /data-canvas-action="redo" @click="redoAny"/.test(ed), true)
+  {
+    // 우클릭 순서·겹친 요소 (2026-09-29)
+    const pv0 = read('src/components/studio/StudioPageView.vue')
+    eq('우클릭 순서 4개 + 단축키 표시', ['order-front', 'order-forward', 'order-backward', 'order-back'].map(k => new RegExp(`key: '${k}'[^}]*keys: 'Ctrl\\+`).test(ed)), [true, true, true, true])
+    eq('단축키 Ctrl+]/[ (Shift = 맨 앞·뒤) → 같은 order 명령', [/const ORDER_KEYS = \{ BracketRight: \['forward', 'front'\], BracketLeft: \['backward', 'back'\] \}/.test(ed), /runCommand\('order', \{ where: ORDER_KEYS\[e\.code\]\[e\.shiftKey \? 1 : 0\] \}\)/.test(ed)], [true, true])
+    // 순서 키는 Shift 거르기(else if (eraseOpen.value || e.shiftKey …) return)보다 먼저 있어야 Ctrl+Shift+] 가 먹는다
+    eq('순서 키 판정이 Shift 거르기보다 앞', ed.indexOf('ORDER_KEYS[e.code] &&') > 0 && ed.indexOf('ORDER_KEYS[e.code] &&') < ed.indexOf('else if (eraseOpen.value || e.shiftKey || !page.value) return'), true)
+    eq('단축키 표에 순서 키', /Ctrl\+\] · Ctrl\+\[/.test(read('src/data/studioEditorGuide.js')), true)
+    eq('겹친 요소 고르기: 하나뿐이면 흐림 · 메뉴가 목록으로 바뀜(keep)', /key: 'overlap'.*disabled: under\.length <= 1, keep: true/.test(ed), true)
+    eq('겹친 요소: 페이지가 누른 자리 아래 요소를 넘김(itemsAtPoint)', /itemsAtPoint\(props\.page, p\.x, p\.y\)/.test(pv0) && /under \}\)/.test(pv0), true)
+    eq('겹친 요소 목록 = 레이어와 같은 이름·그림, 고르면 레이어 줄과 같은 선택', [/layerNameOf\(it, imagesById\.value\)/.test(ed), /thumb: it/.test(ed), /key\.startsWith\('pick:'\)\) onLayerSelect\(\{ ids: \[key\.slice\(5\)\], shift: false \}\)/.test(ed), /<StudioLayerThumb v-if="m\.thumb"/.test(read('src/components/studio/StudioContextMenu.vue')), /<StudioLayerThumb /.test(read('src/components/studio/StudioLayerPanel.vue'))], [true, true, true, true, true])
+  }
+  eq('작업판 아래 확대 막대 안 되돌리기·다시 (같은 함수, 할 게 없으면 흐림)', /data-canvas-action="undo" @click="undoAny"/.test(ed) && /data-canvas-action="redo" @click="redoAny"/.test(ed) && /:disabled="!editorCanUndo"/.test(ed) && /:disabled="!editorCanRedo"/.test(ed), true)
+  {
+    const bar = ed.slice(ed.indexOf('data-zoom-bar>'), ed.indexOf('data-page-width'))
+    eq('되돌리기·다시 = 확대 막대(data-zoom-bar) 안 — 따로 떠 있는 버튼 없음', [/data-canvas-action="undo"/.test(bar), /data-canvas-action="redo"/.test(bar), (ed.match(/data-canvas-action="undo"/g) || []).length], [true, true, 1])
+    const er = read('src/components/studio/StudioEraseScreen.vue'), cv = read('src/components/studio/StudioCanvas.vue')
+    eq('지우기 화면 확대 막대에도 되돌리기·다시 (같은 undoEdit·redoEdit, 흐림)', [/<slot name="zoom-start"/.test(cv), /#zoom-start/.test(er), /data-zoom-action="undo"[^>]*@click="undoEdit"|@click="undoEdit"[^>]*data-zoom-action="undo"/.test(er), /:disabled="!canUndoNow"[^>]*data-zoom-action="undo"/.test(er), /:disabled="!canRedoNow"[^>]*data-zoom-action="redo"/.test(er)], [true, true, true, true, true])
+  }
   const pv = read('src/components/studio/StudioPageView.vue')
   eq('요소 위 떠 있는 도구줄 없음 ([⋯] 팝오버 없음)', [pv.includes('<StudioItemToolbar'), ed.includes('StudioItemToolbar')], [false, false])
 }
@@ -224,6 +242,11 @@ eq('모르는 값 = 첫 종류', elementTabOf('nope'), 'shape')
   eq('편집기: [순서 변경] 버튼 없음 → 안내 "끌어서 순서를 바꿀 수 있어요"', [ed.includes('data-reorder '), ed.includes('끌어서 순서를 바꿀 수 있어요')], [false, true])
   eq('편집기: [섹션 사이 간격] 버튼', ed.includes('섹션 사이 간격</button>'), true)
   eq('편집기: 미니뷰 reorder = reorderSections + secReorder', /applyPage\(reorderSections\(page\.value, ids\), LABELS\.secReorder\)/.test(ed), true)
+  // 오른쪽 칸 = 위 미니뷰 · 아래 레이어 (탭 없음, 둘 다 늘 보임), 경계 끌기
+  eq('오른쪽 칸: [미니뷰]/[레이어] 탭 없음 · 위 미니뷰 · 아래 레이어 둘 다', [ed.includes('data-right-tab'), ed.includes('rightTab'), /data-right-mini>[\s\S]*<StudioMiniMap[\s\S]*data-right-split[\s\S]*data-right-layers>[\s\S]*<StudioLayerPanel/.test(ed)], [false, false, true])
+  eq('경계: 끌기·↑↓·두 번 누르기 → setMiniHeight (clampRightSplit)', [/@pointerdown="onSplitDown"/.test(ed), /@keydown="onSplitKey"/.test(ed), /@dblclick="setMiniHeight\(RIGHT_SPLIT\.def, true\)"/.test(ed), /clampRightSplit\(h, rightSplitEl\.value\?\.clientHeight \?\? 0\)/.test(ed)], [true, true, true, true])
+  eq('미니뷰 = 작은 지도 (그림 폭 고정 56px)', [/const THUMB_W = 56/.test(mm), /:width="THUMB_W"/.test(mm)], [true, true])
+  eq('높이: 최소·최대·처음', [clampRightSplit(10, 800), clampRightSplit(5000, 800), clampRightSplit(300, 800), clampRightSplit(NaN, 800), clampRightSplit(300, 0), clampRightSplit(200, 200)], [RIGHT_SPLIT.minTop, 800 - RIGHT_SPLIT.minBottom, 300, RIGHT_SPLIT.def, 300, RIGHT_SPLIT.minTop])
 }
 
 // ── 안내 한 줄 (가이드 "다시 보지 않기"와 같은 저장) ──

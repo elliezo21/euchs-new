@@ -1115,6 +1115,28 @@ export function itemsInBox(page, box) {
 }
 
 /**
+ * 누른 자리(페이지 좌표) 아래에 겹쳐 있는 요소 id — 맨 앞부터 (items 배열 뒤쪽 = 앞).
+ * 돌린 요소는 돌린 모양 그대로 판정, 구간 밖으로 나간 부분은 안 보이므로 뺀다. 숨김·잠금도 넣는다 (우클릭 "겹친 요소 고르기" — 가려진 요소 찾기).
+ * @param {number} pad 가는 선도 잡히게 더하는 여유 (페이지 px)
+ */
+export function itemsAtPoint(page, x, y, pad = 2) {
+  const row = layoutSections(page).rows.find(r => y >= r.top && y < r.top + r.height)
+  const s = row ? page.sections.find(sec => sec.id === row.id) : null
+  if (!s || x < 0 || x > page.width) return []
+  const sy = y - row.top
+  const out = []
+  for (let i = s.items.length - 1; i >= 0; i--) {
+    const it = s.items[i]
+    if (!isTransformable(it)) continue
+    const t = (normAngle(it.rotation || 0) * Math.PI) / 180
+    const dx = x - (it.x + it.w / 2), dy = sy - (it.y + it.h / 2)
+    const lx = dx * Math.cos(t) + dy * Math.sin(t), ly = -dx * Math.sin(t) + dy * Math.cos(t)
+    if (Math.abs(lx) <= it.w / 2 + pad && Math.abs(ly) <= it.h / 2 + pad) out.push(it.id)
+  }
+  return out
+}
+
+/**
  * 옮길 때 달라붙기 — 고른 요소들이 한 구간 안에 있을 때만. 기준: 구간 왼쪽·가운데·오른쪽·위·가운데·아래,
  * 다른 요소(숨긴 것 빼고)의 가장자리·가운데. threshold 안(페이지 px)이면 붙이고 안내선을 돌려준다.
  * @returns {{ dx, dy, guides: { axis: 'x'|'y', pos: number, sectionId: string }[] }} pos = 구간 좌표

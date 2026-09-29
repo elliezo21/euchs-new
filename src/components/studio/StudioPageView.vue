@@ -250,7 +250,7 @@ import { ref, shallowRef, computed, watch, nextTick, inject, onMounted, onBefore
 import { RefreshCw, Lock, RotateCw, Plus, ArrowUp, ArrowDown, CopyPlus, Trash2 } from 'lucide-vue-next'
 import {
   layoutSections, isValidImageItem, findItem, moveItems, resizeRect, setItemRect, setRotation, snapMove, itemsInBox, itemStyleOf,
-  DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups,
+  DRAG_IMAGE_TYPE, setSectionHeight, SECTION_H_MIN, SECTION_H_MAX, groupMemberIds, expandToGroups, itemsAtPoint,
   isDrawableItem, resizeTextItem, textLinesOf, setLineEnd, resizeTableItem, SECTION_MAX,
 } from '@/lib/studioPage'
 import { sectionBarButtons, sectionGapSlots, blankPressTarget } from '@/lib/studioCanvasUi'
@@ -287,7 +287,8 @@ const props = defineProps({
   cellEdit: { type: Object, default: null },           // { id, r, c } 입력 중인 표 칸 (표 칸 입력)
   canvasTools: { type: Boolean, default: true },       // 캔버스 도구줄·섹션 사이 추가를 보일지 (시작 화면·지우기 화면 동안 false)
 })
-// select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null }) 우클릭
+// select({ ids, source: 'page' }) 고른 요소 / change({ page, label }) 조작 끝(손을 뗄 때 한 번) / context({ x, y, itemId|null, under? }) 우클릭
+//   (under = 요소 우클릭일 때 그 자리 아래 겹친 요소 id, 맨 앞부터 — itemsAtPoint)
 // open-erase(imageId) / retry-image(imageId) / visible(imageIds) / shown({ id, ok })
 // drop-image({ imageId, sectionId|null, x, y }) 목록 사진을 끌어다 놓음 (6-3, x·y = 그 구간 좌표)
 // select-section(sectionId) 구간 이름·요소 없는 구간의 빈 곳을 누름 (8-1). 높이 손잡이는 놓을 때 change({ page, label: 구간 높이 })
@@ -844,7 +845,11 @@ function onItemContext(e, it) {
   if (!props.selectedIds.includes(it.id)) selectIds(groupMemberIds(props.page, it.id)) // 9단계: 그룹이면 그룹 전체
   // 표 칸 우클릭 = 그 칸 자리도 함께 (편집기 메뉴 "이 줄 삭제"·"이 열 삭제")
   const cell = isValidTableItem(it) && !it.hidden ? cellFromEvent(e, it) : null
-  emit('context', { x: e.clientX, y: e.clientY, itemId: it.id, cell })
+  // 누른 자리 아래 겹친 요소 (맨 앞부터) — 편집기 메뉴 "겹친 요소 고르기". 누른 요소는 늘 들어 있게
+  const p = pagePoint(e)
+  const hit = itemsAtPoint(props.page, p.x, p.y)
+  const under = hit.includes(it.id) ? hit : [it.id, ...hit]
+  emit('context', { x: e.clientX, y: e.clientY, itemId: it.id, cell, under })
 }
 function onBlankContext(e) {
   emit('context', { x: e.clientX, y: e.clientY, itemId: null, sectionId: sectionAt(e) })

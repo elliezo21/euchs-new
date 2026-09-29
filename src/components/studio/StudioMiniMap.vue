@@ -1,6 +1,6 @@
 <template>
   <div
-    ref="listEl" class="relative flex-1 min-h-0 overflow-y-auto px-3 pb-3" data-minimap
+    ref="listEl" class="relative flex-1 min-h-0 overflow-y-auto px-3 pb-2" data-minimap
     @dragover="onDragOver" @drop="onDrop" @dragleave="onDragLeave"
   >
     <p v-if="page.sections.length === 0" class="st-desc break-keep text-center pt-6">섹션이 생기면 여기에 작은 그림으로 보여요.</p>
@@ -11,24 +11,25 @@
     <div class="st-mini-gap" :data-minimap-gap="i">
       <button type="button" class="st-mini-add" :disabled="full" title="이 자리에 빈 섹션 추가" :data-minimap-add="i" @click="$emit('add-at', i)"><Plus class="w-3 h-3" :stroke-width="3" /></button>
     </div>
+    <!-- 작은 지도 한 줄: 왼쪽 작은 그림(폭 THUMB_W) + 오른쪽 이름·표시 -->
     <button
       type="button" draggable="true"
-      class="st-mini-card block w-full text-left"
+      class="st-mini-card flex items-start gap-2 w-full text-left"
       :class="[s.id === selectedSectionId ? 'is-picked' : '', s.id === activeSectionId ? 'is-inview' : '', s.id === dragId ? 'is-dragging' : '']"
       :data-minimap-section="s.id" :data-inview="s.id === activeSectionId ? '1' : null" :data-picked="s.id === selectedSectionId ? '1' : null"
       :title="`${labels[s.id]} — 눌러서 이 섹션으로 · 끌어서 순서 바꾸기`"
       @click="$emit('pick', s.id)" @dragstart="onDragStart($event, s.id)" @dragend="onDragEnd"
     >
-      <span class="st-mini-frame block">
+      <span class="st-mini-frame block shrink-0">
         <StudioSectionThumb
-          :section="s" :page-width="page.width" :views="views" :looks="looks" :width="thumbWidth"
+          :section="s" :page-width="page.width" :views="views" :looks="looks" :width="THUMB_W"
           :draw-images="shown.has(s.id)"
         />
       </span>
-      <span class="flex items-center gap-1 mt-1 text-[11px] font-bold" :class="s.id === selectedSectionId || s.id === activeSectionId ? 'st-ink' : 'st-muted'">
+      <span class="min-w-0 flex-1 flex flex-col gap-0.5 pt-0.5 text-[11px] font-bold" :class="s.id === selectedSectionId || s.id === activeSectionId ? 'st-ink' : 'st-muted'">
         <span class="truncate">{{ labels[s.id] }}</span>
-        <span v-if="flags[s.id]" class="shrink-0 st-badge st-badge-danger" :data-minimap-flag="s.id" :title="`확인 필요 · ${flags[s.id]}`">확인 필요</span>
-        <span v-if="s.id === activeSectionId" class="ml-auto shrink-0 st-mini-tag" data-inview-tag>보는 중</span>
+        <span v-if="flags[s.id]" class="self-start st-badge st-badge-danger" :data-minimap-flag="s.id" :title="`확인 필요 · ${flags[s.id]}`">확인 필요</span>
+        <span v-if="s.id === activeSectionId" class="self-start st-mini-tag" data-inview-tag>보는 중</span>
       </span>
       <span class="sr-only">{{ i + 1 }}번째 섹션</span>
     </button>
@@ -40,7 +41,7 @@
 </template>
 
 <script setup>
-// 오른쪽 미니뷰 (8-2) — 구간마다 작은 그림(폭 = 패널 폭, 높이 = 비율대로), 위 → 아래.
+// 오른쪽 미니뷰 (8-2) — 구간마다 작은 그림(폭 THUMB_W 고정, 높이 = 비율대로) + 옆에 이름, 위 → 아래 (작은 지도 — 오른쪽 칸 위쪽, 아래는 레이어).
 // 누르면 pick(sectionId) → 편집기가 페이지를 그 구간으로 스크롤하고 구간을 고른다(8-1 구간 고르기와 같은 상태).
 // 표시: 지금 화면에 가장 많이 보이는 구간 = 점선 테두리 + "보는 중" / 골라진 구간 = 파란 실선 테두리 (둘은 다르게).
 // 가볍게: 목록 화면 밖(위아래 여유 300px)의 그림은 사진을 그리지 않고 자리표시만. 사진은 새로 받지 않는다(views만).
@@ -106,9 +107,8 @@ function onDrop(e) {
   if (next !== ids) emit('reorder', next)
 }
 function onDragEnd() { dragId.value = null; dropIndex.value = null; dropLine.value = null }
-const thumbWidth = ref(180)
+const THUMB_W = 56 // 작은 지도 그림 폭 (px) — 780px 페이지의 약 1/14
 const shown = ref(new Set()) // 목록 화면 안(여유 포함)에 있는 구간 id
-let ro = null
 let io = null
 let mo = null
 
@@ -119,12 +119,6 @@ function observeCards() {
 onMounted(() => {
   const el = listEl.value
   if (!el) return
-  ro = new ResizeObserver(() => {
-    const cs = getComputedStyle(el)
-    const inner = el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 4 // 테두리 2px × 2
-    if (inner > 20) thumbWidth.value = Math.floor(inner)
-  })
-  ro.observe(el)
   if (typeof IntersectionObserver === 'undefined') {
     console.warn('[StudioMiniMap] IntersectionObserver 없음 — 모든 그림에 사진을 그림')
     shown.value = new Set(props.page.sections.map(s => s.id))
@@ -143,7 +137,7 @@ onMounted(() => {
   mo = new MutationObserver(observeCards) // 구간이 늘면 새 카드도 본다
   mo.observe(el, { childList: true })
 })
-onBeforeUnmount(() => { ro?.disconnect(); io?.disconnect(); mo?.disconnect() })
+onBeforeUnmount(() => { io?.disconnect(); mo?.disconnect() })
 
 // 페이지를 스크롤해 "보는 중" 구간이 바뀌면 미니뷰도 그 카드가 보이게 (목록 안에서만 — 페이지는 건드리지 않는다)
 watch(() => props.activeSectionId, id => {
@@ -161,14 +155,16 @@ watch(() => props.activeSectionId, id => {
 
 <style scoped>
 .st-mini-card { padding: 0; background: transparent; border: 0; cursor: pointer; }
-.st-mini-frame { border: 2px solid transparent; border-radius: 6px; overflow: hidden; }
+.st-mini-card { padding: 2px; border-radius: 8px; }
+.st-mini-card:hover { background: var(--st-card); }
+.st-mini-frame { border: 2px solid transparent; border-radius: 4px; overflow: hidden; }
 .st-mini-card:hover .st-mini-frame { border-color: var(--st-line-strong); }
 .st-mini-card.is-inview .st-mini-frame { border: 2px dashed var(--st-accent-ring); }
 .st-mini-card.is-picked .st-mini-frame { border: 2px solid var(--st-accent); }
 .st-mini-card:focus-visible .st-mini-frame { outline: 2px solid var(--st-accent); outline-offset: 2px; }
 .st-mini-card.is-dragging { opacity: 0.4; }
 /* 카드 사이 [+] — 마우스를 올린 자리만 */
-.st-mini-gap { position: relative; height: 12px; display: flex; align-items: center; justify-content: center; }
+.st-mini-gap { position: relative; height: 10px; display: flex; align-items: center; justify-content: center; }
 .st-mini-add {
   width: 22px; height: 18px; border-radius: 999px; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;
   background: var(--st-accent); color: var(--st-on-accent); opacity: 0; transition: opacity .12s; z-index: 1;

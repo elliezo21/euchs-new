@@ -174,3 +174,14 @@ export function orderAfterDrop(ids, draggedId, insertIndex) {
 
 // ── 안내 한 줄 "섹션 사이에 마우스를 올리면…" — 사용가이드 "다시 보지 않기"와 같은 방식(studioGuide GUIDE_KEYS, localStorage '1') ──
 export const SECTION_ADD_HINT = '섹션 사이에 마우스를 올리면 그 자리에 추가할 수 있어요'
+
+// ── 오른쪽 칸 위(미니뷰)·아래(레이어) 나누기 — def = 처음 위 높이, minTop·minBottom = 위·아래 최소 높이 (px) ──
+export const RIGHT_SPLIT = { def: 220, minTop: 96, minBottom: 140 }
+/**
+ * 위 칸 높이 — avail = 위·경계·아래를 합친 상자 높이 (모르면 0 → 위 최소 높이만 지킨다). 숫자가 아니면 처음 높이
+ */
+export function clampRightSplit(h, avail) {
+  const top = Number.isFinite(h) ? h : RIGHT_SPLIT.def
+  const max = avail > 0 ? Math.max(RIGHT_SPLIT.minTop, avail - RIGHT_SPLIT.minBottom) : Infinity
+  return Math.round(Math.min(max, Math.max(RIGHT_SPLIT.minTop, top)))
+}

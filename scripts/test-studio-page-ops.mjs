@@ -2,7 +2,7 @@
 import {
   readPage, normalizeItem, normAngle, itemBounds, moveItems, resizeRect, setItemRect, setRotation, rotateBy, flipItems,
   setOpacity, setLocked, setHidden, alignItems, reorderItems, removeItems, copyItems, pasteItems, duplicateItems,
-  sectionItemIds, itemsInBox, snapMove, findItem, ITEM_MIN_SIZE, PASTE_OFFSET,
+  sectionItemIds, itemsInBox, itemsAtPoint, snapMove, findItem, ITEM_MIN_SIZE, PASTE_OFFSET,
   itemStyleOf, setItemStyle, replaceItemImage, itemIdsOfImage, insertImageNear, dropImageAt,
   groupItems, ungroupItems, groupMemberIds, expandToGroups, anyGrouped, groupCheck, cleanGroups, reorderItemTo, duplicateSection,
 } from '../src/lib/studioPage.js'
@@ -257,6 +257,26 @@ const r2 = o => Object.fromEntries(Object.entries(o).map(([k, v]) => [k, Math.ro
   eq('자리 옮기기: 덩어리(그룹)째', order(reorderItemTo(g1, ['a', 'b'], 1), 's1'), ['L', 'a', 'b'])
   eq('자리 옮기기: 같은 순서·구간 섞임·정수 아님 → 그대로', [reorderItemTo(P, ['a'], 0) === P, reorderItemTo(P, ['a', 'c'], 0) === P, reorderItemTo(P, ['a'], 0.5) === P], [true, true, true])
   eq('자리 옮기기: 범위 밖은 끝으로', order(reorderItemTo(P, ['a'], 99), 's1'), ['b', 'L', 'a'])
+}
+
+// ── 겹친 요소 (우클릭 "겹친 요소 고르기") — itemsAtPoint: 누른 자리 아래, 맨 앞부터 ──
+{
+  // s1: a(0,0,100,100) 뒤 · 스티커 k(40,40,40,40) · 사진 p(20,20,100,100)가 맨 앞으로 k를 가림 / 돌린 r / 숨긴 h
+  const Q = {
+    ...P,
+    sections: [
+      { id: 's1', height: 400, bg: '#ffffff', items: [img('a', 'A', 0, 0, 100, 100), img('k', 'K', 40, 40, 40, 40), img('p', 'P', 20, 20, 100, 100),
+        img('r', 'R', 300, 100, 200, 20, { rotation: 90 }), img('h', 'H', 600, 0, 50, 50, { hidden: true, locked: true })] },
+      { id: 's2', height: 300, bg: '#ffffff', items: [img('c', 'C', 10, 10, 80, 80)] },
+    ],
+  }
+  eq('세 겹 = 맨 앞부터 (가려진 스티커도)', itemsAtPoint(Q, 50, 50), ['p', 'k', 'a'])
+  eq('한 개만 = 그 요소 하나', itemsAtPoint(Q, 110, 110), ['p'])
+  eq('빈 곳 = 없음', itemsAtPoint(Q, 200, 300), [])
+  eq('돌린 요소: 돌린 모양으로 (세로로 선 막대)', [itemsAtPoint(Q, 400, 60), itemsAtPoint(Q, 320, 110)], [['r'], []])
+  eq('숨김·잠금도 넣음', itemsAtPoint(Q, 620, 20), ['h'])
+  eq('두 번째 구간 = 구간 좌표로 (s2 top 400)', [itemsAtPoint(Q, 20, 420), itemsAtPoint(Q, 20, 20).includes('c')], [['c'], false])
+  eq('페이지 밖 = 없음', [itemsAtPoint(Q, -5, 50), itemsAtPoint(Q, 50, 9999)], [[], []])
 }
 
 eq('입력 문서는 바뀌지 않음', JSON.stringify(P) === snapshot, true)

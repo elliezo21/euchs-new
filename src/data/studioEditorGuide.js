@@ -43,6 +43,8 @@ export const SHORTCUT_GROUPS = [
       ['↑ · ↓', '사진 목록에서 고른 상태면 이전·다음 사진'],
       ['Enter · 두 번 누르기', '고른 글자 고치기 (고치는 중 Esc = 끝내기)'],
       ['Ctrl+G · Ctrl+Shift+G', '그룹 묶기 · 풀기'],
+      ['Ctrl+] · Ctrl+[', '앞으로 · 뒤로 (한 칸)'],
+      ['Ctrl+Shift+] · Ctrl+Shift+[', '맨 앞으로 · 맨 뒤로'],
       ['Ctrl+Alt+C · Ctrl+Alt+V', '글자 모양 복사 · 붙여넣기'],
     ],
   },

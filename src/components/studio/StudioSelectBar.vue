@@ -166,10 +166,10 @@ const TEXT_PARTS = { font: 'font', textSize: 'size', textColor: 'color', weight:
 const SHAPE_PARTS = { shapeKind: 'kind', fill: 'fill', stroke: 'stroke', line: 'line' }
 const WIDE = new Set(['look', 'deco', 'table', 'textMore', 'font'])
 const ORDERS = [
-  { where: 'front', label: '맨 앞으로', tip: '모든 요소보다 위로', icon: BringToFront },
-  { where: 'forward', label: '앞으로', tip: '다른 요소보다 위로', icon: ChevronUp },
-  { where: 'backward', label: '뒤로', tip: '다른 요소보다 아래로', icon: ChevronDown },
-  { where: 'back', label: '맨 뒤로', tip: '모든 요소보다 아래로', icon: SendToBack },
+  { where: 'front', label: '맨 앞으로', tip: '모든 요소보다 위로 (Ctrl+Shift+])', icon: BringToFront },
+  { where: 'forward', label: '앞으로', tip: '다른 요소보다 위로 (Ctrl+])', icon: ChevronUp },
+  { where: 'backward', label: '뒤로', tip: '다른 요소보다 아래로 (Ctrl+[)', icon: ChevronDown },
+  { where: 'back', label: '맨 뒤로', tip: '모든 요소보다 아래로 (Ctrl+Shift+[)', icon: SendToBack },
 ]
 const ALIGNS = [
   { where: 'left', label: '왼쪽 맞춤', short: '왼쪽', icon: AlignStartVertical },

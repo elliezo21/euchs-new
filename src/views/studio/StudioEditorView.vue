@@ -260,13 +260,15 @@
           </ol>
         </div>
         </div>
-        <!-- 작업판 왼쪽 아래 되돌리기·다시 (맨 위 버튼과 같은 함수) -->
-        <div v-if="page && !showStart" class="absolute left-4 bottom-4 flex items-center gap-0.5 p-1 rounded-[12px] st-card st-shadow-float" style="z-index: 5" data-canvas-undo>
-          <button type="button" class="st-icon-btn" :disabled="!editorCanUndo" :title="editorCanUndo ? '되돌리기 (Ctrl+Z)' : '되돌릴 동작이 없어요'" data-canvas-action="undo" @click="undoAny"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
-          <button type="button" class="st-icon-btn" :disabled="!editorCanRedo" :title="editorCanRedo ? '다시 (Ctrl+Shift+Z · Ctrl+Y)' : '다시 할 동작이 없어요'" data-canvas-action="redo" @click="redoAny"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
-        </div>
-        <!-- 아래 막대: 확대 · 폭 (시안 ①) -->
+        <!-- 아래 막대: 되돌리기·다시 (맨 위 버튼과 같은 함수) · 확대 · 폭 (시안 ①) -->
         <div v-if="page" class="absolute left-1/2 -translate-x-1/2 bottom-4 flex items-center gap-2 px-2 py-1.5 rounded-[12px] st-card st-shadow-float" style="z-index: 5" data-zoom-bar>
+          <template v-if="!showStart">
+            <div class="flex items-center gap-0.5" data-canvas-undo>
+              <button type="button" class="st-icon-btn" :disabled="!editorCanUndo" :title="editorCanUndo ? '되돌리기 (Ctrl+Z)' : '되돌릴 동작이 없어요'" data-canvas-action="undo" @click="undoAny"><Undo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+              <button type="button" class="st-icon-btn" :disabled="!editorCanRedo" :title="editorCanRedo ? '다시 (Ctrl+Shift+Z · Ctrl+Y)' : '다시 할 동작이 없어요'" data-canvas-action="redo" @click="redoAny"><Redo2 class="w-[18px] h-[18px]" :stroke-width="2" /></button>
+            </div>
+            <span class="w-px h-5" style="background: var(--st-line-strong)" />
+          </template>
           <div class="st-seg">
             <button
               v-for="z in ZOOM_PRESETS" :key="z" type="button" class="st-seg-item" :class="zoomMode === z ? 'is-active' : ''"
@@ -285,36 +287,46 @@
         ><PanelRightOpen class="w-4 h-4" :stroke-width="2" /></button>
       </section>
 
-      <!-- 오른쪽 (212px): [미니뷰 | 레이어] — 8·9단계에서 채운다. 1280px 미만에서는 접을 수 있다 -->
+      <!-- 오른쪽 (212px): 위 = 미니뷰(작은 지도), 아래 = 레이어 — 둘 다 늘 보인다. 가운데 경계를 끌어 높이 조절. 1280px 미만에서는 접을 수 있다 -->
       <aside v-if="isWide && rightOpen" class="w-[212px] shrink-0 flex flex-col st-surface st-border-l" data-right-panel>
-        <div class="p-3 flex items-center gap-1">
-          <div class="st-seg flex-1">
-            <button type="button" class="st-seg-item flex-1" :class="rightTab === 'mini' ? 'is-active' : ''" data-right-tab="mini" @click="rightTab = 'mini'">미니뷰</button>
-            <button type="button" class="st-seg-item flex-1" :class="rightTab === 'layers' ? 'is-active' : ''" data-right-tab="layers" @click="rightTab = 'layers'">레이어</button>
+        <div ref="rightSplitEl" class="flex-1 min-h-0 flex flex-col" data-right-split-box>
+          <!-- 위: 미니뷰 (8-2) — 섹션 작은 그림, 누르면 그 섹션으로 가서 고름. 보는 중(점선)·골라짐(실선) -->
+          <div class="shrink-0 min-h-0 flex flex-col" :style="{ height: `${miniHeight}px`, maxHeight: `calc(100% - ${RIGHT_SPLIT.minBottom}px)` }" data-right-mini>
+            <div class="px-3 pt-3 pb-1.5 flex items-center gap-1">
+              <span class="flex-1 text-[11px] font-extrabold st-muted" data-right-title="mini">미니뷰</span>
+              <button v-if="!wideRight" type="button" class="st-icon-btn shrink-0" title="패널 접기" data-right-close @click="rightOpen = false"><PanelRightClose class="w-4 h-4" :stroke-width="2" /></button>
+            </div>
+            <StudioMiniMap
+              v-if="page && !showStart"
+              :page="page" :views="views" :looks="session.lookMap" :labels="sectionLabels" :flags="sectionFlags"
+              :active-section-id="inViewSectionId" :selected-section-id="selectedSectionId"
+              @pick="onMiniPick" @reorder="onMiniReorder" @add-at="onAddSectionAt"
+            />
+            <!-- 검수 2묶음: 시작 화면이 떠 있는 동안은 가려진(저장 전) 기본 배치를 보이지 않는다 -->
+            <p v-else class="flex-1 px-3 pb-3 flex items-center justify-center text-center st-desc break-keep" data-right-soon>{{ showStart ? '시작 방법을 고르면 여기에 페이지가 보여요.' : '페이지가 준비되면 섹션 미리보기가 보여요.' }}</p>
           </div>
-          <button v-if="!wideRight" type="button" class="st-icon-btn shrink-0" title="패널 접기" data-right-close @click="rightOpen = false"><PanelRightClose class="w-4 h-4" :stroke-width="2" /></button>
-        </div>
-        <!-- 미니뷰 (8-2): 구간 작은 그림 — 누르면 그 구간으로 가서 고름. 보는 중(점선)·골라짐(실선) -->
-        <StudioMiniMap
-          v-if="rightTab === 'mini' && page && !showStart"
-          :page="page" :views="views" :looks="session.lookMap" :labels="sectionLabels" :flags="sectionFlags"
-          :active-section-id="inViewSectionId" :selected-section-id="selectedSectionId"
-          @pick="onMiniPick" @reorder="onMiniReorder" @add-at="onAddSectionAt"
-        />
-        <!-- 레이어 (9단계): 고른 요소의 구간 → 골라진 구간 → 보는 중 구간의 요소 목록 -->
-        <StudioLayerPanel
-          v-else-if="rightTab === 'layers' && page && !showStart"
-          :page="page" :section-id="layerSectionId" :section-label="layerSectionId ? sectionLabels[layerSectionId] ?? '' : ''"
-          :selected-ids="selectedItemIds" :views="views" :images-by-id="imagesById"
-          @select="onLayerSelect" @command="runCommand"
-        />
-        <div v-else class="flex-1 overflow-y-auto px-3 pb-3 flex flex-col items-center justify-center text-center gap-2" data-right-soon>
-          <!-- 검수 2묶음: 시작 화면이 떠 있는 동안은 가려진(저장 전) 기본 배치를 보이지 않는다 -->
-          <p class="st-desc break-keep">{{ showStart ? '시작 방법을 고르면 여기에 페이지가 보여요.' : rightTab === 'mini' ? '페이지가 준비되면 섹션 미리보기가 보여요.' : '페이지가 준비되면 레이어 목록이 보여요.' }}</p>
+          <!-- 가운데 경계: 끌기 = 위아래 높이 (이 브라우저에 기억), ↑/↓ = 16px, 두 번 누르기 = 처음 높이 -->
+          <div
+            class="st-right-split" role="separator" aria-orientation="horizontal" aria-label="미니뷰와 레이어 사이 높이" tabindex="0"
+            title="끌어서 높이 조절 · 두 번 누르면 처음 높이" data-right-split
+            @pointerdown="onSplitDown" @pointermove="onSplitMove" @pointerup="onSplitUp" @pointercancel="onSplitUp" @lostpointercapture="onSplitUp"
+            @dblclick="setMiniHeight(RIGHT_SPLIT.def, true)" @keydown="onSplitKey"
+          ><span class="st-right-split-grip" /></div>
+          <!-- 아래: 레이어 (9단계) — 고른 요소의 섹션 → 골라진 섹션 → 보는 중 섹션의 요소 목록. 남은 높이를 다 쓰고 목록은 따로 스크롤 -->
+          <div class="flex-1 min-h-0 flex flex-col" data-right-layers>
+            <div class="px-3 pt-2 pb-1 text-[11px] font-extrabold st-muted" data-right-title="layers">레이어</div>
+            <StudioLayerPanel
+              v-if="page && !showStart"
+              :page="page" :section-id="layerSectionId" :section-label="layerSectionId ? sectionLabels[layerSectionId] ?? '' : ''"
+              :selected-ids="selectedItemIds" :views="views" :images-by-id="imagesById"
+              @select="onLayerSelect" @command="runCommand"
+            />
+            <p v-else class="flex-1 px-3 pb-3 flex items-center justify-center text-center st-desc break-keep">{{ showStart ? '시작 방법을 고르면 여기에 요소가 보여요.' : '페이지가 준비되면 레이어 목록이 보여요.' }}</p>
+          </div>
         </div>
         <div class="p-3 space-y-2 st-border-t">
           <!-- 예전 [순서 변경] 창 대신: 미니뷰 그림을 끌어서 순서를 바꾼다 (같은 reorderSections·같은 이력) -->
-          <p v-if="rightTab === 'mini' && !showStart" class="flex items-start gap-1.5 text-[12px] font-bold st-ink-2 break-keep" data-reorder-hint data-guide="reorder">
+          <p v-if="!showStart" class="flex items-start gap-1.5 text-[12px] font-bold st-ink-2 break-keep" data-reorder-hint data-guide="reorder">
             <ArrowUpDown class="w-4 h-4 shrink-0 mt-px" :stroke-width="2" /> 끌어서 순서를 바꿀 수 있어요 · 그림 사이 [+] = 섹션 추가
           </p>
           <button type="button" class="st-btn st-btn-block" :disabled="showStart" title="페이지 전체의 섹션과 섹션 사이 간격 (왼쪽 [섹션]에서)" data-gap @click="openGapField"><MoveVertical class="w-4 h-4" :stroke-width="2" /> 섹션 사이 간격</button>
@@ -387,7 +399,7 @@
     />
 
     <!-- 우클릭 메뉴 (6-1) -->
-    <StudioContextMenu :open="ctx.open" :x="ctx.x" :y="ctx.y" :items="ctx.items" @select="onContextSelect" @close="ctx.open = false" />
+    <StudioContextMenu :open="ctx.open" :x="ctx.x" :y="ctx.y" :items="ctx.items" :views="views" @select="onContextSelect" @close="ctx.open = false" />
 
     <div v-if="toast" class="absolute top-16 left-1/2 -translate-x-1/2 px-3 py-2 rounded-[10px] st-card st-shadow-float text-[13px] font-bold st-ink break-keep" style="z-index: 30" data-toast>{{ toast }}</div>
     <!-- 작업 복사본 (16단계): 만드는 중 → "복사본을 만들었어요 [열기]" (닫을 때까지 남는다) -->
@@ -521,7 +533,7 @@
 </template>
 
 <script setup>
-// 편집기 (3단계: 어두운 화면 + 전체 틀) — 상단바 / 아이콘 막대 / 재료 패널 / 가운데 / 오른쪽 [미니뷰|레이어].
+// 편집기 (3단계: 어두운 화면 + 전체 틀) — 상단바 / 아이콘 막대 / 재료 패널 / 가운데 / 오른쪽 위 미니뷰 · 아래 레이어 (둘 다 늘 보임).
 // 지우기는 [지우기]로 여는 지우기 화면(StudioEraseScreen)에서 한다. 지우기 상태·자동 저장·이력·AI 엔진은 useEraseSession 하나가 든다.
 // 어두운 색은 이 화면 바깥 요소의 `studio-root st-dark`(studio-tokens.css) 안에서만 — 몰·관리자에는 영향 없음.
 // 4단계: 가운데 = 긴 한 장 페이지(StudioPageView, DOM). 페이지 문서·이력·자동 저장은 usePageSession, 화면용 작은 사진은 studioViewImage.
@@ -534,7 +546,7 @@ import {
   LayoutTemplate, Rows3, Image as ImageIcon, Type, Shapes, Blend, Bookmark, PanelRightOpen, PanelRightClose, ArrowUpDown, MoveVertical,
   MoreHorizontal, Pencil, Copy, X, Keyboard, Plus,
 } from 'lucide-vue-next'
-import { sectionAddArgs, elementTabOf, SECTION_ADD_HINT } from '@/lib/studioCanvasUi'
+import { sectionAddArgs, elementTabOf, SECTION_ADD_HINT, RIGHT_SPLIT, clampRightSplit } from '@/lib/studioCanvasUi'
 import StudioAutoBuildScreen from '@/components/studio/StudioAutoBuildScreen.vue'
 import { useAutoBuild } from '@/composables/useAutoBuild'
 import { AI_MISSING_NOTE } from '@/lib/studioPreview'
@@ -566,6 +578,7 @@ import StudioEraseScreen from '@/components/studio/StudioEraseScreen.vue'
 import StudioPhotoPanel from '@/components/studio/StudioPhotoPanel.vue'
 import StudioPageView from '@/components/studio/StudioPageView.vue'
 import StudioContextMenu from '@/components/studio/StudioContextMenu.vue'
+import { layerNameOf } from '@/lib/studioLayerName'
 import StudioSelectBar from '@/components/studio/StudioSelectBar.vue'
 import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
@@ -666,11 +679,43 @@ const clearAllOpen = ref(false)
 const leaveOpen = ref(false)
 const eraseOpen = ref(false)
 const activeTool = ref('photo')
-const rightTab = ref('mini')
 const toast = ref('')
 const isWide = ref(true)
 const wideRight = ref(true)   // 1280px 이상: 오른쪽 패널 항상 열림
 const rightOpen = ref(true)
+
+// ── 오른쪽 칸 위(미니뷰)·아래(레이어) 나누기 — 경계를 끌어 위 높이를 바꾼다. 보는 사람 화면 상태라 이 브라우저에만 기억 ──
+const RIGHT_SPLIT_KEY = 'studio-right-split'
+const rightSplitEl = ref(null)
+function readRightSplit() {
+  try {
+    return Number(localStorage.getItem(RIGHT_SPLIT_KEY)) || RIGHT_SPLIT.def
+  } catch (err) {
+    console.warn('[StudioEditor] 오른쪽 칸 높이를 읽지 못함 — 처음 높이로:', err)
+    return RIGHT_SPLIT.def
+  }
+}
+const miniHeight = ref(readRightSplit())
+function setMiniHeight(h, save = false) {
+  miniHeight.value = clampRightSplit(h, rightSplitEl.value?.clientHeight ?? 0)
+  if (!save) return
+  try { localStorage.setItem(RIGHT_SPLIT_KEY, String(miniHeight.value)) } catch (err) { console.warn('[StudioEditor] 오른쪽 칸 높이를 기억하지 못함:', err) }
+}
+let splitFrom = null
+function onSplitDown(e) {
+  if (e.button !== 0) return
+  e.preventDefault()
+  splitFrom = { y: e.clientY, h: miniHeight.value }
+  e.currentTarget.setPointerCapture?.(e.pointerId)
+}
+function onSplitMove(e) { if (splitFrom) setMiniHeight(splitFrom.h + e.clientY - splitFrom.y) }
+function onSplitUp() { if (!splitFrom) return; splitFrom = null; setMiniHeight(miniHeight.value, true) }
+function onSplitKey(e) {
+  if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown') return
+  e.preventDefault()
+  e.stopPropagation() // 편집기 방향키(요소 옮기기·사진 넘기기)로 가지 않게
+  setMiniHeight(miniHeight.value + (e.key === 'ArrowDown' ? 16 : -16), true)
+}
 // 작업을 열 때마다 그 작업에서 기억한 단계로 (패널은 바꾸지 않는다 — 처음 화면은 예전처럼 [사진])
 watch(() => project.value?.id, id => { step.value = readStep(stepStorage(), id) })
 let loadSeq = 0
@@ -1851,8 +1896,8 @@ function runCommand(name, args = {}) {
 }
 
 // ── 우클릭 메뉴 (6-1) ──
-const ctx = reactive({ open: false, x: 0, y: 0, items: [], sectionId: null, tableCell: null })
-function openContextMenu({ x, y, itemId, sectionId, cell }) {
+const ctx = reactive({ open: false, x: 0, y: 0, items: [], sectionId: null, tableCell: null, under: [] })
+function openContextMenu({ x, y, itemId, sectionId, cell, under = [] }) {
   if (eraseOpen.value) return
   const p = page.value
   const hasClip = !!clipboard?.length
@@ -1898,10 +1943,12 @@ function openContextMenu({ x, y, itemId, sectionId, cell }) {
       { key: 'group', label: '그룹으로 묶기', keys: 'Ctrl+G', disabled: groupCheck(p, selectedItemIds.value) !== 'ok' },
       { key: 'ungroup', label: '그룹 풀기', keys: 'Ctrl+Shift+G', disabled: !anyGrouped(p, selectedItemIds.value) },
       { sep: true },
-      { key: 'order-front', label: '맨 앞으로' },
-      { key: 'order-forward', label: '앞으로' },
-      { key: 'order-backward', label: '뒤로' },
-      { key: 'order-back', label: '맨 뒤로' },
+      { key: 'order-front', label: '맨 앞으로', keys: 'Ctrl+Shift+]' },
+      { key: 'order-forward', label: '앞으로', keys: 'Ctrl+]' },
+      { key: 'order-backward', label: '뒤로', keys: 'Ctrl+[' },
+      { key: 'order-back', label: '맨 뒤로', keys: 'Ctrl+Shift+[' },
+      // 누른 자리 아래 겹친 요소 목록 → 고르면 그 요소 하나 (가려진 스티커도 캔버스에서 바로). 하나뿐이면 흐림
+      { key: 'overlap', label: `겹친 요소 고르기${under.length > 1 ? ` (${under.length})` : ''}`, keys: '▸', disabled: under.length <= 1, keep: true },
       { sep: true },
       { key: 'rotate90', label: '90° 돌리기', disabled: allLocked },
       { key: 'flipX', label: '좌우 뒤집기', disabled: allLocked },
@@ -1914,7 +1961,19 @@ function openContextMenu({ x, y, itemId, sectionId, cell }) {
     ]
     ctx.sectionId = null
   }
+  ctx.under = itemId ? under : []
   Object.assign(ctx, { open: true, x, y })
+}
+/** "겹친 요소 고르기" — 같은 메뉴 자리에 목록(맨 앞부터, 레이어 목록과 같은 이름·작은 그림). 고르면 그 요소 하나 (그룹 안이어도 — 레이어 줄과 같게) */
+function openOverlapList() {
+  const p = page.value
+  const rows = ctx.under.map(id => findItem(p, id)?.item).filter(Boolean)
+  const sel = new Set(selectedItemIds.value)
+  const tag = it => [it.hidden ? '숨김' : '', it.locked ? '잠김' : ''].filter(Boolean).join(' · ')
+  ctx.items = [
+    { title: '겹친 요소 · 맨 위가 가장 앞' },
+    ...rows.map(it => ({ key: `pick:${it.id}`, label: layerNameOf(it, imagesById.value), thumb: it, keys: tag(it), active: sel.has(it.id) })),
+  ]
 }
 const SECTION_MENU = {
   'sec-add-above': ['sectionAdd', { where: 'above' }], 'sec-add-below': ['sectionAdd', { where: 'below' }],
@@ -1924,7 +1983,9 @@ function onContextSelect(key) {
   if (key === 'table-rowAt' || key === 'table-colAt') {
     const tc = ctx.tableCell
     if (tc) onTableEdit({ id: tc.id, op: key === 'table-rowAt' ? { kind: 'removeRowAt', r: tc.r } : { kind: 'removeColAt', c: tc.c } })
-  } else if (key.startsWith('order-')) runCommand('order', { where: key.slice(6) })
+  } else if (key === 'overlap') openOverlapList()
+  else if (key.startsWith('pick:')) onLayerSelect({ ids: [key.slice(5)], shift: false })
+  else if (key.startsWith('order-')) runCommand('order', { where: key.slice(6) })
   else if (SECTION_MENU[key]) runCommand(SECTION_MENU[key][0], { ...SECTION_MENU[key][1], sectionId: ctx.sectionId })
   else if (key === 'paste') runCommand('paste', { sectionId: ctx.sectionId })
   else runCommand(key)
@@ -2977,6 +3038,8 @@ function onWindowBlur() { spaceHeld.value = false; onPanUp() }
 //   Ctrl+G 그룹 묶기 · Ctrl+Shift+G 그룹 풀기 (9단계) · Ctrl+Alt+C / Ctrl+Alt+V 글자 스타일 복사·붙여넣기 (10-2)
 //   방향키 = 페이지에서 고른 요소 1px(Shift 10px) 옮기기. 목록에서 고른 상태면 ↑/↓ = 이전·다음 사진(예전 그대로)
 // 14단계: 사용가이드가 떠 있으면 편집기 키는 모두 쉰다(가이드가 Esc·←/→를 쓴다) · ? = 단축키 표 · 스페이스 누르고 있기 = 화면 이동 · Esc = [이력] 목록 닫기
+// 겹침 순서 키 → [Shift 없음, Shift] (reorderItems의 where)
+const ORDER_KEYS = { BracketRight: ['forward', 'front'], BracketLeft: ['backward', 'back'] }
 function onKeyDown(e) {
   // 검수 2묶음: 시작 화면·가이드·창이 떠 있어도 입력칸 밖 Ctrl+A가 뒤 페이지 글자 전체를 고르지 않게 (편집기 동작은 아래에서 따로)
   if (blocksBrowserSelectAll(e)) e.preventDefault()
@@ -3012,6 +3075,8 @@ function onKeyDown(e) {
     else if ((e.code === 'KeyZ' && e.shiftKey) || (e.code === 'KeyY' && !e.shiftKey)) { e.preventDefault(); redo() }
     // 9단계: Ctrl+G 그룹 묶기 · Ctrl+Shift+G 그룹 풀기 (Shift를 쓰므로 아래 Shift 거르기보다 먼저)
     else if (e.code === 'KeyG' && !eraseOpen.value && page.value && sel.length) { e.preventDefault(); runCommand(e.shiftKey ? 'ungroup' : 'group') }
+    // 겹침 순서: Ctrl+] 앞으로 · Ctrl+[ 뒤로 · Shift를 더하면 맨 앞·맨 뒤 — 우클릭 메뉴·도구줄 [앞뒤 순서]와 같은 order (e.code 기준: 한글 입력 상태도 같은 키)
+    else if (ORDER_KEYS[e.code] && !eraseOpen.value && page.value && sel.length) { e.preventDefault(); runCommand('order', { where: ORDER_KEYS[e.code][e.shiftKey ? 1 : 0] }) }
     else if (eraseOpen.value || e.shiftKey || !page.value) return
     else if (e.code === 'KeyA') { e.preventDefault(); runCommand('selectAll') }
     else if (e.code === 'KeyC' && sel.length) { e.preventDefault(); runCommand('copy') }
@@ -3171,6 +3236,13 @@ onUnmounted(() => {
 .st-replace-cell img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .st-replace-tag { position: absolute; left: 4px; bottom: 4px; padding: 1px 6px; border-radius: 6px; font-size: 10px; font-weight: 700; background: var(--st-panel); color: var(--st-ink-2); }
 .st-topbar { background: var(--st-bar, var(--st-surface)); }
+/* 오른쪽 칸 미니뷰·레이어 사이 경계 (끌어서 높이 조절) */
+.st-right-split {
+  flex: none; height: 9px; display: flex; align-items: center; justify-content: center; cursor: row-resize; touch-action: none;
+  border-top: 1px solid var(--st-line); outline: none;
+}
+.st-right-split-grip { width: 32px; height: 3px; border-radius: 999px; background: var(--st-line-strong); }
+.st-right-split:hover .st-right-split-grip, .st-right-split:focus-visible .st-right-split-grip { background: var(--st-accent); }
 /* 작업 바탕의 옅은 점 무늬 (시안) */
 .st-dotgrid { background-image: radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px); background-size: 22px 22px; }
 .st-rail-item {

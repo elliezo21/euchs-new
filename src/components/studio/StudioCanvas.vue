@@ -42,8 +42,9 @@
       </div>
     </div>
 
-    <!-- 확대/축소 (아래 가운데) -->
-    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-1.5 py-1 rounded-[12px] st-surface st-shadow-float">
+    <!-- 확대/축소 (아래 가운데). zoom-start = 부모(지우기 화면)가 앞에 넣는 버튼 (되돌리기·다시) -->
+    <div class="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1 px-1.5 py-1 rounded-[12px] st-surface st-shadow-float" data-erase-zoom-bar>
+      <slot name="zoom-start" />
       <button type="button" class="st-icon-btn" title="축소" :disabled="loadState !== 'ready'" @click="zoomBy(1 / 1.25)"><ZoomOut class="w-4 h-4" :stroke-width="2" /></button>
       <span class="w-12 text-center text-[12px] font-bold st-ink-2" data-zoom>{{ zoomPct }}%</span>
       <button type="button" class="st-icon-btn" title="확대" :disabled="loadState !== 'ready'" @click="zoomBy(1.25)"><ZoomIn class="w-4 h-4" :stroke-width="2" /></button>

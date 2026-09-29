@@ -293,7 +293,14 @@
           @ai-restart="restartAiEngine"
           @ai-retry="retryAiFailure"
           @remove-failed="removeFills"
-        />
+        >
+          <!-- 아래 확대 막대 앞 되돌리기·다시 — 맨 위 버튼·작업 바와 같은 함수 (할 게 없으면 흐림) -->
+          <template #zoom-start>
+            <button type="button" class="st-icon-btn" :disabled="!canUndoNow" :title="canUndoNow ? UNDO_TIP : '되돌릴 동작이 없어요'" data-zoom-action="undo" @click="undoEdit"><Undo2 class="w-4 h-4" :stroke-width="2" /></button>
+            <button type="button" class="st-icon-btn" :disabled="!canRedoNow" :title="canRedoNow ? REDO_TIP : '다시 할 동작이 없어요'" data-zoom-action="redo" @click="redoEdit"><Redo2 class="w-4 h-4" :stroke-width="2" /></button>
+            <span class="w-px h-5 mx-0.5" style="background: var(--st-line-strong)" />
+          </template>
+        </StudioCanvas>
         <!-- 선택 영역 작업 바 (포토샵 속성 막대처럼) — 선택 영역 가까이, 화면 밖·아래 확대 막대와 겹치지 않게. 왼쪽 패널 버튼과 같은 함수 -->
         <div
           v-if="workBar" ref="barEl" class="absolute st-work-bar st-shadow-float" :style="workBar" style="z-index: 6" role="toolbar" aria-label="선택 영역 작업"
