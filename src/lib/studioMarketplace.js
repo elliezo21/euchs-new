@@ -60,7 +60,8 @@ export async function resendToMarketplace(sendId) {
 }
 
 /**
- * 대표 이미지 — 고른 사진을 정사각형 JPG(REP_SIZE)로 만든다 (짧은 변 기준 가운데 자르기 또는 흰 여백)
+ * (보내기에는 쓰지 않는다 — 보낼 때는 서버가 Storage 원본을 읽어 만든다. 서명 주소는 10분 뒤 만료되므로 보내는 길에 두지 않는다)
+ * 고른 사진을 정사각형 JPG(REP_SIZE)로 만든다 (짧은 변 기준 가운데 자르기 또는 흰 여백)
  * @param {string} url 사진 주소(서명 URL) @param {'cover'|'contain'} fit
  * @returns {Promise<string>} base64 (data: 접두어 없이)
  */

@@ -166,6 +166,10 @@ if (built?.Coupang && built?.Modal) {
   const okT = { ...badT, places: [{ kind: 'outbound', place_code: '100', name: '출고지', address: { remote: [{ code: 'CJGLS' }] } }] }
   eq('템플릿의 택배사가 출고지의 도서산간 택배사와 다르면 예외 없이 그려짐 (빠짐 목록은 아래 창 테스트)', [bt.error, (await render(built.Coupang, { prepare: okT })).error], [null, null])
 
+  // ── 2026-09-29: 판매 방식 기본값 · 태그 추천 ──
+  const dm = await render(built.Coupang, { prepare: PREPARE(true, SOURCE) })
+  eq('판매 방식: 기억한 값이 없으면 "국내 재고 판매"가 골라진 채 열림 · 빠짐 목록에 판매 방식 없음 · 해외구매대행은 보조 카드', [dm.error, /aria-pressed="true"[^>]*data-mk-s-mode-pick="domestic"|data-mk-s-mode-pick="domestic"[^>]*aria-pressed="true"/.test(dm.html), /aria-pressed="true"[^>]*data-mk-s-mode-pick="agent"/.test(dm.html), /<button[^>]*class="[^"]*is-sub[^"]*"[^>]*data-mk-s-mode-pick="agent"/.test(dm.html), /<button[^>]*class="[^"]*is-sub[^"]*"[^>]*data-mk-s-mode-pick="domestic"/.test(dm.html), val(dm.html, 'data-mk-s-days')], [null, true, false, true, false, '2'])
+
   const e = await render(built.Modal, { open: true, prepare: null })
   eq('보내기 창 (준비 데이터 없음): 예외 없음 · 보내기 버튼 꺼짐', [e.error, /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(e.html)], [null, true])
 }

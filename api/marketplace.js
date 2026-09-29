@@ -15,6 +15,8 @@
  *   category_predict  { productName, brand? } → { result, categoryCode, categoryName }
  *   send_prepare      { resendId } → 위와 같음 + resend:{ sendId, sellerProductId, reason, revision, form(보냈던 값), categoryName } — 반려된 전송만 (고쳐서 다시 보내기)
  *   send              { …, resendId } → 새 상품을 만들지 않고 상품 조회(옵션 id) → 상품 수정(PUT seller-products, 같은 sellerProductId, requested true) 한 번. 승인 요청 API는 부르지 않는다. 회차 이력은 request_json.revisions
+ *   send              사진: repImageId(작업 사진 id)·fit('contain'|'cover')·optionImages[{ key, imageId }] — 서버가 보내는 순간 Storage 원본을 읽어 정사각형 JPG 1000px로 만든다
+ *                     (창을 열 때 준 서명 주소 images[].url은 화면 표시용 — 10분 뒤 만료돼도 보내기와 상관없다). 상세 이미지는 쿠팡이 받을 때 서버가 Storage에서 읽는다
  *   brand_search      { brandName } → { brands:[{ brandId, brandName, uidRequired, uidTypes }] }  (쿠팡 브랜드 검색 — 문서 58230017410841)
  *   category_meta     { categoryCode } → { attributes, notices, singleItem, certifications }
  *   send              { exportId, templateId, categoryCode, saleMode('domestic'|'agent' 필수 — 기본값 없음), outboundDays?,
@@ -42,7 +44,7 @@ import { readDimensions } from './studio-ingest.js'
 import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import { resendPlan } from './_coupangFields.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
-import { renderDetailPiece, shrinkBytes } from './_coupangImage.js'
+import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -52,6 +54,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 const VENDOR_RE = /^[A-Za-z0-9]{1,20}$/
 const KEY_MAX_DAYS = 180
 const REP_MIN = 500, REP_MAX = 5000, REP_MAX_BYTES = 3 * 1024 * 1024
+const REP_SIZE = 1000 // 서버가 만드는 대표 이미지·옵션 사진 한 변(px)
+const PREVIEW_URL_SEC = 3600 // 보내기 창에 보여 주는 사진 주소(서명) — 화면 표시용. 보낼 때는 쓰지 않는다
 const OPTION_IMAGE_MAX = 6 // 옵션 대표 이미지(서로 다른 사진) — 요청 본문 크기 때문에 6장까지, 나머지 옵션은 상품 대표 이미지를 쓴다
 const DOC_MAX_BYTES = 3 * 1024 * 1024 // 쿠팡 제한은 5MB — 요청 본문 크기 때문에 3MB까지 받는다
 const DOC_TYPES = { 'application/pdf': 'pdf', 'image/jpeg': 'jpg', 'image/png': 'png' }
@@ -306,7 +310,7 @@ async function sendPrepare(ctx, body, res) {
   const imgs = await sb(ctx.cfg, `studio_images?select=id,kind,source_url,original_path,width,height,sort_order,included&project_id=eq.${ex.project_id}&user_id=eq.${ctx.userId}&ingest_status=eq.done&original_path=not.is.null&order=sort_order&limit=60`)
   const images = []
   for (const im of Array.isArray(imgs) ? imgs : []) {
-    try { images.push({ id: im.id, path: im.original_path, width: im.width, height: im.height, included: im.included, sourceUrl: im.source_url || null, url: await storageSignDownload(ctx.cfg, BUCKET, im.original_path, 600) }) }
+    try { images.push({ id: im.id, path: im.original_path, width: im.width, height: im.height, included: im.included, sourceUrl: im.source_url || null, url: await storageSignDownload(ctx.cfg, BUCKET, im.original_path, PREVIEW_URL_SEC) }) }
     catch (e) { console.error('[marketplace] 사진 서명 주소 실패:', im.original_path, e.message) }
   }
   const [projRows, templates, places, account] = await Promise.all([
@@ -358,11 +362,14 @@ async function categoryMeta(ctx, body, res) {
   return res.status(200).json(summarizeCategoryMeta(r))
 }
 
-/** 대표 이미지 — 브라우저가 만든 정사각형 JPG(base64). 매직바이트·정사각형·500~5000px·3MB */
+/** 대표 이미지 — 정사각형 JPG(base64). 매직바이트·정사각형·500~5000px·3MB */
 function checkRepImage(b64) {
   let buf
   try { buf = Buffer.from(String(b64 || ''), 'base64') } catch { return { error: '대표 이미지를 읽지 못했어요.' } }
-  if (!buf.length) return { error: '대표 이미지를 골라 주세요.' }
+  return checkRepBuffer(buf)
+}
+function checkRepBuffer(buf) {
+  if (!buf || !buf.length) return { error: '대표 이미지를 골라 주세요.' }
   if (buf.length > REP_MAX_BYTES) return { error: '대표 이미지는 3MB 이하여야 해요.' }
   const mime = sniffMime(buf)
   if (mime !== 'image/jpeg') return { error: '대표 이미지는 JPG여야 해요.' }
@@ -371,6 +378,29 @@ function checkRepImage(b64) {
   if (d.width !== d.height) return { error: '대표 이미지는 정사각형이어야 해요.' }
   if (d.width < REP_MIN || d.width > REP_MAX) return { error: `대표 이미지는 한 변 ${REP_MIN}~${REP_MAX}px이어야 해요.` }
   return { buf, width: d.width }
+}
+/**
+ * 고른 작업 사진(id) → 정사각형 JPG. 보내는 순간 서버가 Storage에서 원본을 직접 읽는다
+ *   (보내기 창을 오래 열어 둬도 된다 — 창을 열 때 받은 서명 주소는 화면에 보여 주는 데만 쓰고 보낼 때는 쓰지 않는다)
+ * @returns {Promise<{ buf, width } | { error }>}
+ */
+async function squareFromImage(ctx, ex, imageId, fit) {
+  const id = String(imageId ?? '').trim().toLowerCase()
+  if (!UUID_RE.test(id)) return { error: '대표 이미지를 골라 주세요.' }
+  const rows = await sb(ctx.cfg, `studio_images?select=id,original_path&id=eq.${id}&project_id=eq.${ex.project_id}&user_id=eq.${ctx.userId}&ingest_status=eq.done&original_path=not.is.null&limit=1`)
+  const path = Array.isArray(rows) ? rows[0]?.original_path : null
+  if (!path) return { error: '고른 사진을 찾을 수 없어요. 창을 닫고 다시 열어 주세요.' }
+  const dl = await storageDownload(ctx.cfg, BUCKET, path)
+  if (!dl.found) {
+    console.error('[marketplace] 대표·옵션 사진 원본이 Storage에 없음:', path)
+    return { error: '고른 사진을 찾을 수 없어요. 창을 닫고 다시 열어 주세요.' }
+  }
+  let buf
+  try { buf = await renderSquare(dl.buf, { size: REP_SIZE, fit: fit === 'cover' ? 'cover' : 'contain' }) } catch (e) {
+    console.error('[marketplace] 정사각형 사진 만들기 실패:', path, e.message)
+    return { error: '고른 사진을 읽지 못했어요. 다른 사진을 골라 주세요.' }
+  }
+  return checkRepBuffer(buf)
 }
 function kstStart() {
   const k = new Date(Date.now() + 9 * 3600000).toISOString()
@@ -396,15 +426,16 @@ async function send(ctx, body, res) {
   if (!template) return sendError(res, 404, 'not_found', '템플릿을 찾을 수 없어요.')
   // 판매 방식 — 기본값 없음. 고르지 않았으면 아무것도 만들지 않고 돌려보낸다
   if (!isSaleMode(body.saleMode)) return sendError(res, 400, 'sale_mode_missing', '판매 방식을 골라 주세요. (국내 재고 판매 / 해외구매대행)')
-  const rep = checkRepImage(body.repImage?.dataBase64)
+  // 대표 이미지 — repImageId(작업 사진 id)면 서버가 원본을 읽어 만든다. repImage.dataBase64(이미 만든 정사각형 JPG)도 받는다
+  const rep = body.repImageId != null ? await squareFromImage(ctx, ex, body.repImageId, body.fit) : checkRepImage(body.repImage?.dataBase64)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
-  // 옵션 대표 이미지 (선택) — [{ key:'r01', dataBase64 }] · 옵션은 items[].imageKey로 가리킨다
+  // 옵션 대표 이미지 (선택) — [{ key:'r01', imageId }] 또는 [{ key:'r01', dataBase64 }] · 옵션은 items[].imageKey로 가리킨다
   const optImgs = []
   for (const o of Array.isArray(body.optionImages) ? body.optionImages : []) {
     const key = String(o?.key ?? '')
     if (!/^r\d{2}$/.test(key) || optImgs.some(x => x.key === key)) return sendError(res, 400, 'invalid_input', '옵션 이미지 값이 올바르지 않아요.')
     if (optImgs.length >= OPTION_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `옵션 이미지는 서로 다른 사진 ${OPTION_IMAGE_MAX}장까지예요.`)
-    const c = checkRepImage(o?.dataBase64)
+    const c = o?.imageId != null ? await squareFromImage(ctx, ex, o.imageId, body.fit) : checkRepImage(o?.dataBase64)
     if (c.error) return sendError(res, 400, 'rep_image_invalid', `옵션 이미지: ${c.error}`)
     optImgs.push({ key, buf: c.buf })
   }

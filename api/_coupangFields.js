@@ -21,7 +21,7 @@
  *   MANDATORY·OPTIONAL·MANDATORY_PARALLEL_IMPORTED·MANDATORY_OVERSEAS_PURCHASED · certifications.dataType CODE/NONE · required MANDATORY/RECOMMEND/OPTIONAL
  */
 
-// ── 판매 방식 (기본값 없음 — 고객이 반드시 고른다) ──
+// ── 판매 방식 (화면 기본값 = 국내 재고 판매. 서버는 값이 없으면 받지 않는다) ──
 export const AGENT_DEFAULT_DAYS = 10 // 해외구매대행 출고 소요일 기본 (문서에 제한 없음 — 우리 템플릿 범위 1~30 안에서 고객이 고친다)
 export const OUTBOUND_DAYS_MIN = 1
 export const OUTBOUND_DAYS_MAX = 30
@@ -29,6 +29,10 @@ export const SALE_MODES = {
   domestic: { label: '국내 재고 판매', deliveryMethod: 'SEQUENCIAL', overseasPurchased: 'NOT_OVERSEAS_PURCHASED', pccNeeded: false },
   agent: { label: '해외구매대행', deliveryMethod: 'AGENT_BUY', overseasPurchased: 'OVERSEAS_PURCHASED', pccNeeded: true },
 }
+// 처음 값 = 국내 재고 판매 (이유씨로 수입해 국내에서 보내는 고객이 기본). 이 브라우저에 기억한 값이 있으면 그것이 먼저
+export const DEFAULT_SALE_MODE = 'domestic'
+/** 보내기 창을 열 때의 판매 방식 — 기억한 값(올바르면) → 기본값 */
+export const initialSaleMode = remembered => (Object.prototype.hasOwnProperty.call(SALE_MODES, String(remembered)) ? String(remembered) : DEFAULT_SALE_MODE)
 export const isSaleMode = m => Object.prototype.hasOwnProperty.call(SALE_MODES, String(m))
 /** 판매 방식을 고른 직후의 출고 소요일 — 국내 = 템플릿 값, 해외구매대행 = 템플릿 값과 AGENT_DEFAULT_DAYS 중 큰 값 */
 export function defaultOutboundDays(mode, templateDays) {
@@ -152,14 +156,20 @@ const tagWord = w => !DROP_SET.has(squash(w))
  * @param {{ title?:string, categoryName?:string, options?:string[], brand?:string }} src  모두 한국어
  * 재료는 상품명·카테고리·옵션 값뿐 — 1688 상품 속성(산지·주요 판매 플랫폼·판매 지역 …)은 쓰지 않는다 (2026-09-28 운영: "이우, 타오바오, 경동, 이베이, 아마존, 소원"이 들어감)
  * 순서: 카테고리 끝 낱말 → 상품명 낱말 → 이웃한 두 낱말 붙임 → 옵션 값.  지명·플랫폼 이름·뜻 없는 말은 뺀다
+ * 붙인 말은 상품명에서 바로 옆에 있던 두 낱말만. 옵션 값은 붙이지 않고 하나씩만 — 옵션 값끼리·같은 말 반복("블랙블랙"·"블루네이비"·"반달대형")을 만들지 않는다
  */
 export function suggestSearchTags({ title = '', categoryName = '', options = [], brand = '' } = {}) {
   const cat = keywordsOf(String(categoryName).split(/[>/]/).pop()).filter(tagWord)
   const words = keywordsOf(title).filter(w => squash(w) !== squash(brand) && tagWord(w))
+  const optSet = new Set((Array.isArray(options) ? options : []).flatMap(o => keywordsOf(o)).map(squash))
+  const pairable = w => isWord(w) && tagWord(w) && squash(w) !== squash(brand) && !optSet.has(squash(w))
+  const raw = String(title || '').replace(ALL_SPECIAL, ' ').split(/\s+/).filter(Boolean) // 걸러 내기 전 순서 — 사이에 다른 말이 있었으면 이웃이 아니다
   const pairs = []
-  for (let i = 0; i + 1 < words.length && pairs.length < 6; i++) {
-    const p = `${words[i]}${words[i + 1]}`
-    if (p.length <= TAG_LEN) pairs.push(p)
+  for (let i = 0; i + 1 < raw.length && pairs.length < 6; i++) {
+    const a = raw[i], b = raw[i + 1]
+    if (!pairable(a) || !pairable(b) || squash(a) === squash(b)) continue
+    const p = `${a}${b}`
+    if (p.length <= TAG_LEN && !pairs.includes(p)) pairs.push(p)
   }
   const optWords = []
   for (const o of Array.isArray(options) ? options : []) for (const w of keywordsOf(o)) if (optWords.length < 8 && tagWord(w) && !SIZE_WORD.test(w) && !/\d/.test(w)) optWords.push(w)

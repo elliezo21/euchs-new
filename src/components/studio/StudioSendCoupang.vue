@@ -10,7 +10,7 @@
         <h4 class="st-h-card">1. 판매 방식 *</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
-            v-for="(m, key) in SALE_MODES" :key="key" type="button" class="mode-card" :class="{ 'is-on': f.saleMode === key }"
+            v-for="(m, key) in SALE_MODES" :key="key" type="button" class="mode-card" :class="{ 'is-on': f.saleMode === key, 'is-sub': key !== DEFAULT_SALE_MODE }"
             :aria-pressed="f.saleMode === key" :data-mk-s-mode-pick="key" @click="pickMode(key)"
           >
             <span class="text-[14px] font-bold st-ink">{{ m.label }}</span>
@@ -270,12 +270,12 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import StudioTagChips from '@/components/studio/StudioTagChips.vue'
 import { optionTableMode } from '@/lib/studioMarketplaceRules'
-import { predictCategory, searchBrand, getCategoryMeta, sendProduct, makeSquareJpeg, REP_SIZE, readSaleMode, rememberSaleMode, fileToBase64, SEND_BODY_MAX } from '@/lib/studioMarketplace'
+import { predictCategory, searchBrand, getCategoryMeta, sendProduct, REP_SIZE, readSaleMode, rememberSaleMode, fileToBase64, SEND_BODY_MAX } from '@/lib/studioMarketplace'
 import {
   SALE_MODES, isSaleMode, defaultOutboundDays, OUTBOUND_DAYS_MIN, OUTBOUND_DAYS_MAX, ENUMS, ENUM_LABEL, advancedDefaults, discountRate,
   TAG_MAX, TAG_LEN, suggestSearchTags, NAME_MAX, suggestGeneralName, suggestDisplayName, ITEMS_MAX, STOCK_MAX, mapOptionName, matchOptionImage,
   hasUntranslated, NOTICE_LEN, NOTICE_SEE_DETAIL, noticeDefaults, docRequired, realCerts, previewRows,
-  courierRule, TEMPLATE_COURIER_FIX, isColorOption,
+  courierRule, TEMPLATE_COURIER_FIX, isColorOption, initialSaleMode, DEFAULT_SALE_MODE,
   pickKoreanName, namesNeedKorean, koreanizeSkus, autoItemNames, ITEM_NAME_MAX, BRAND_MAX, BRAND_NOT_FOUND, pickBrand, brandWordIn,
 } from '../../../api/_coupangFields.js'
 
@@ -389,9 +389,9 @@ function pickMode(key) {
   if (f.value.templateId) rememberSaleMode(f.value.templateId, key)
 }
 function applyRememberedMode() {
-  const m = f.value.templateId ? readSaleMode(f.value.templateId) : ''
-  f.value.saleMode = isSaleMode(m) ? m : ''
-  f.value.outboundDays = f.value.saleMode ? defaultOutboundDays(f.value.saleMode, template.value?.outbound_shipping_time_day) : null
+  // 이 브라우저에 기억한 값이 있으면 그것, 없으면 국내 재고 판매 (initialSaleMode)
+  f.value.saleMode = initialSaleMode(f.value.templateId ? readSaleMode(f.value.templateId) : '')
+  f.value.outboundDays = defaultOutboundDays(f.value.saleMode, template.value?.outbound_shipping_time_day)
 }
 function onTemplate() { applyRememberedMode() }
 
@@ -687,12 +687,12 @@ async function submit() {
   sendError.value = ''
   try {
     const v = f.value
-    const dataBase64 = await makeSquareJpeg(imageOf(v.repImageId).url, v.fit)
+    // 사진은 id만 보낸다 — 서버가 보내는 순간 원본을 읽어 정사각형으로 만든다. 창을 열 때 받은 사진 주소(만료될 수 있음)는 보내는 데 쓰지 않는다
     const optionImages = []
     const keyOf = {}
     for (const id of optionImageIds.value) {
       const key = `r${String(optionImages.length + 1).padStart(2, '0')}`
-      optionImages.push({ key, dataBase64: await makeSquareJpeg(imageOf(id).url, v.fit) })
+      optionImages.push({ key, imageId: id })
       keyOf[id] = key
     }
     const notices = noticeItems.value.filter(n => String(v.notices[n.name] || '').trim()).map(n => ({ noticeCategoryName: v.noticeCategory, noticeCategoryDetailName: n.name, content: v.notices[n.name] }))
@@ -706,7 +706,7 @@ async function submit() {
       saleMode: v.saleMode, outboundDays: v.outboundDays,
       productName: v.productName, displayName: v.displayName, generalName: v.generalName, brand: brandOut.value, brandId: v.noBrand ? '' : v.brandId, manufacture: v.manufacture, modelNo: v.modelNo,
       items, notices, certifications: certsOut.value.map(c => ({ type: c.type, code: c.code })), documents: docsOut.value, advanced: { ...v.advanced },
-      repImage: { dataBase64 }, optionImages, searchTags: v.tags,
+      repImageId: v.repImageId, fit: v.fit, optionImages, searchTags: v.tags,
     }
     const size = JSON.stringify(payload).length
     if (size > SEND_BODY_MAX) {
@@ -732,6 +732,8 @@ defineExpose({ missing, busy, done, submit })
 <style scoped>
 .mode-card { display: flex; flex-direction: column; gap: 4px; padding: 12px 14px; text-align: left; border-radius: 10px; border: 1px solid var(--st-line-strong); background: var(--st-surface); }
 .mode-card:hover { border-color: var(--st-accent); }
+.mode-card.is-sub { padding: 9px 14px; background: var(--st-soft); } /* 보조 카드(해외구매대행) — 기본 카드보다 작고 옅게 */
+.mode-card.is-sub > span:first-child { font-size: 13px; }
 .mode-card.is-on { border-color: var(--st-accent); box-shadow: 0 0 0 2px var(--st-accent-ring); }
 /* 옵션 표 — 고정 칸 폭은 studioMarketplaceRules.js OPTION_FIXED_PX와 같은 숫자. 나머지 칸(옵션 이름·옵션 종류)이 남는 폭을 나눠 갖는다 */
 .opt-wrap { overflow: hidden; }

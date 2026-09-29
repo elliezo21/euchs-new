@@ -389,6 +389,43 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('동기화: 승인완료', (await post('sync')).body.sends.find(s => s.sellerProductId === '1234567890').status, 'approved')
   eq('처리현황 응답에 request_json 원문 없음', 'request_json' in (await post('sends_list')).body.sends[0], false)
 
+  // ── 17. 사진 주소 만료 (2026-09-29 운영: 창을 15분 넘게 열어 두면 "사진을 불러오지 못했어요 (HTTP 400)") — 보낼 때 서버가 원본을 직접 읽는다 ──
+  {
+    const { default: sharp } = await import('sharp')
+    const im = db.studio_images[0]
+    const before17 = files.get(im.original_path)
+    // 가로로 긴 사진 1200×600: 위 절반 빨강 · 아래 절반 파랑
+    files.set(im.original_path, await sharp({ create: { width: 1200, height: 600, channels: 3, background: { r: 0, g: 0, b: 200 } } }).composite([{ input: await sharp({ create: { width: 1200, height: 300, channels: 3, background: { r: 200, g: 0, b: 0 } } }).png().toBuffer(), top: 0, left: 0 }]).png().toBuffer())
+    const px = async (buf, x, y) => [...(await sharp(buf).extract({ left: x, top: y, width: 1, height: 1 }).raw().toBuffer())].slice(0, 3)
+    const near = (a, b) => a.every((v, i) => Math.abs(v - b[i]) <= 14)
+    const repOf = () => files.get([...files.keys()].filter(k => /\/marketplace\/[0-9a-f-]+_rep\.jpg$/.test(k)).at(-1))
+    const realFetch = globalThis.fetch
+    let signCalls = 0
+    globalThis.fetch = (url, o) => { if (decodeURIComponent(new URL(url).pathname).startsWith('/storage/v1/object/sign/')) signCalls++; return realFetch(url, o) }
+    const { repImage, ...NOIMG } = SEND
+    const byId = await post('send', { ...NOIMG, repImageId: im.id, fit: 'contain' })
+    const rep1 = repOf(), m1 = await sharp(rep1).metadata()
+    eq('대표 이미지: 사진 id만 보내면 서버가 원본을 읽어 정사각형 1000 JPG로 만듦 (흰 여백으로 채우기)', [byId.statusCode, m1.format, m1.width, m1.height, near(await px(rep1, 500, 100), [255, 255, 255]), near(await px(rep1, 500, 400), [200, 0, 0]), near(await px(rep1, 500, 600), [0, 0, 200]), near(await px(rep1, 500, 900), [255, 255, 255])], [200, 'jpeg', 1000, 1000, true, true, true, true])
+    await post('send', { ...NOIMG, repImageId: im.id, fit: 'cover' })
+    eq('가운데 자르기: 흰 여백 없음', [near(await px(repOf(), 500, 100), [200, 0, 0]), near(await px(repOf(), 500, 900), [0, 0, 200])], [true, true])
+    const opt = await post('send', { ...NOIMG, repImageId: im.id, optionImages: [{ key: 'r01', imageId: im.id }], items: [{ ...BASE.items[0], imageKey: 'r01' }] })
+    const optFile = files.get([...files.keys()].filter(k => /\/marketplace\/[0-9a-f-]+_r01\.jpg$/.test(k)).at(-1))
+    eq('옵션 사진도 사진 id로 — 서버가 만든 정사각형 1000 JPG', [opt.statusCode, (await sharp(optFile).metadata()).width, (await sharp(optFile).metadata()).height], [200, 1000, 1000])
+    eq('보내는 동안 서명 주소를 쓰지 않음 (서버가 Storage에서 직접 읽음 — 만료될 주소가 없음)', signCalls, 0)
+    globalThis.fetch = realFetch
+    const n18 = db.marketplace_sends.length
+    const other = newId()
+    db.studio_images.push({ id: other, user_id: newId(), project_id: PID, original_path: im.original_path, width: 1, height: 1, sort_order: 9, included: true, ingest_status: 'done' })
+    eq('없는 사진·남의 사진·이상한 id → 400 rep_image_invalid · 기록 안 만듦', [(await post('send', { ...NOIMG, repImageId: newId() })).body.code, (await post('send', { ...NOIMG, repImageId: other })).body.code, (await post('send', { ...NOIMG, repImageId: 'x' })).body.code, (await post('send', { ...NOIMG, repImageId: im.id, optionImages: [{ key: 'r01', imageId: newId() }] })).body.code, db.marketplace_sends.length], ['rep_image_invalid', 'rep_image_invalid', 'rep_image_invalid', 'rep_image_invalid', n18])
+    db.studio_images.pop()
+    eq('예전 방식(이미 만든 정사각형 JPG)도 그대로 받음', (await post('send', SEND)).statusCode, 200)
+    const readSrc = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+    const cp17 = readSrc('src/components/studio/StudioSendCoupang.vue')
+    eq('화면: 보낼 때 사진 주소로 사진을 받지 않음 · 사진 id만 보냄', [/makeSquareJpeg/.test(cp17), /imageOf\([^)]*\)\.url[^\n]*(fetch|dataBase64)/.test(cp17), cp17.includes('repImageId: v.repImageId, fit: v.fit, optionImages, searchTags: v.tags,'), cp17.includes('optionImages.push({ key, imageId: id })'), /dataBase64: await/.test(cp17.slice(cp17.indexOf('async function submit()')))], [false, false, true, true, false])
+    eq('상세 이미지는 쿠팡이 받을 때 서버가 Storage에서 읽음 (서명 주소 아님)', [/storageDownload\(cfg, BUCKET, path\)/.test(readSrc('api/marketplace.js')), /storageSignDownload\([^)]*\)/.test(readSrc('api/marketplace.js').slice(readSrc('api/marketplace.js').indexOf('async function send('), readSrc('api/marketplace.js').indexOf('async function resend(')))], [true, false])
+    if (before17) files.set(im.original_path, before17); else files.delete(im.original_path)
+  }
+
   // ── 16. 고쳐서 다시 보내기 — 서버 (가짜 쿠팡) ──
   {
     const row = () => db.marketplace_sends.find(s => s.seller_product_id === '1234567890')
@@ -995,6 +1032,23 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const form = F.formFromBody(C.buildProductBody({ ...BASE, saleMode: 'agent', outboundDays: 10, displayName: '이유씨 머그컵', generalName: '머그컵', manufacture: '이유씨컴퍼니', modelNo: 'M-1', searchTags: ['머그컵'], advanced: { maxPerPerson: 2, maxPerPersonDays: 30 } }).body)
   eq('보냈던 본문 → 보내기 창 값', [form.saleMode, form.outboundDays, form.productName, form.displayName, form.generalName, form.noBrand, form.brand, form.brandId, form.manufacture, form.modelNo, form.categoryCode, form.tags, form.optionTypes, form.items, form.notices, form.advanced.maxPerPerson, form.noticeCategory], ['agent', 10, '매일 쓰는 머그', '이유씨 머그컵', '머그컵', false, '이유씨', 'KR-77', '이유씨컴퍼니', 'M-1', '56137', ['머그컵'], ['색상'], [{ name: '블랙', originalPrice: 12000, salePrice: 9900, stock: 50, sku: 'MUG-BK', gtin: '', attributes: { 색상: '블랙' } }], { '품명 및 모델명': '머그' }, 2, '기타 재화'])
   eq('보냈던 본문이 없거나 이상하면 null · 브랜드 없이 보낸 것은 "브랜드 없음"', [F.formFromBody(null), F.formFromBody({ items: [] }), F.formFromBody(C.buildProductBody({ ...BASE, brand: '', brandId: '' }).body).noBrand], [null, null, true])
+}
+
+// ── 18. 판매 방식 기본값 · 태그 추천 (2026-09-29) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const cp = read('src/components/studio/StudioSendCoupang.vue')
+  eq('판매 방식 처음 값: 기억한 값이 없으면 국내 재고 판매 · 있으면 그것 · 이상한 값이면 기본값', [F.DEFAULT_SALE_MODE, F.initialSaleMode(''), F.initialSaleMode(undefined), F.initialSaleMode('agent'), F.initialSaleMode('domestic'), F.initialSaleMode('overseas')], ['domestic', 'domestic', 'domestic', 'agent', 'domestic', 'domestic'])
+  eq('화면: 처음 값 = initialSaleMode(기억한 값) · 해외구매대행은 보조 카드 · 국내 재고 판매가 먼저', [cp.includes("f.value.saleMode = initialSaleMode(f.value.templateId ? readSaleMode(f.value.templateId) : '')"), cp.includes("'is-sub': key !== DEFAULT_SALE_MODE"), Object.keys(F.SALE_MODES)], [true, true, ['domestic', 'agent']])
+  eq('서버는 그대로: 판매 방식이 없으면 받지 않음', C.buildProductBody({ ...BASE, saleMode: undefined }).ok, false)
+
+  const T = o => F.suggestSearchTags(o)
+  const opts = ['블랙', '블루', '네이비', '반달', '대형', '블랙']
+  const t1 = T({ title: '여성 헤어핀 블랙 블랙 블루 네이비 반달 대형', categoryName: '헤어액세서리>헤어핀', options: opts })
+  eq('태그 추천: 옵션 값끼리·같은 말 반복을 붙이지 않음 (운영에서 나온 3개)', ['블랙블랙', '블루네이비', '반달대형'].filter(x => t1.includes(x)), [])
+  eq('태그 추천: 옵션 값은 하나씩만 · 옵션 값이 낀 붙인 말 없음', [['블랙', '블루', '네이비', '반달', '대형'].every(x => t1.includes(x)), t1.filter(t => opts.some(o => t !== o && t.includes(o))), t1.filter(x => x === '블랙').length], [true, [], 1])
+  eq('태그 추천: 붙인 말은 상품명에서 바로 옆에 있던 두 낱말만', [T({ title: '여성 여름 슬리퍼' }), T({ title: '여성 신상 슬리퍼' }).includes('여성슬리퍼'), T({ title: '도트 헤어핀 3종 세트' }).filter(x => x.length > 4)], [['여성', '여름', '슬리퍼', '여성여름', '여름슬리퍼'], false, ['도트헤어핀', '헤어핀3종']])
+  eq('태그 추천: 세 낱말을 붙인 말 없음 · 같은 말 두 번 붙인 말 없음', [T({ title: '도트 도트 헤어핀 헤어핀' }), T({ title: '가을 겨울 니트 가디건' }).some(x => x === '가을겨울니트')], [['도트', '헤어핀', '도트헤어핀'], false])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

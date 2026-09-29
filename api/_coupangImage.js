@@ -40,6 +40,19 @@ export async function renderDetailPiece(src, piece, { maxBytes = DETAIL_MAX_BYTE
   return { ...r, mime: 'image/jpeg', width: outW, height: outH }
 }
 
+/**
+ * 대표 이미지·옵션 사진 — 원본 → 정사각형 JPG (흰 바탕에 맞춰 넣기 'contain' / 가운데 자르기 'cover'). 사진에 적힌 회전 정보를 따른다
+ * @returns {Promise<Buffer>}
+ */
+export async function renderSquare(src, { size = 1000, fit = 'contain', quality = 90 } = {}) {
+  return sharp(src, { limitInputPixels: false })
+    .rotate()
+    .flatten({ background: WHITE })
+    .resize(size, size, { fit: fit === 'cover' ? 'cover' : 'contain', position: 'centre', background: WHITE })
+    .jpeg({ quality, mozjpeg: false })
+    .toBuffer()
+}
+
 /** 손대지 않는 장인데 10MB를 넘을 때 — 크기는 그대로, JPG 품질만 낮춘다 */
 export async function shrinkBytes(src, { maxBytes = DETAIL_MAX_BYTES } = {}) {
   const r = await encode(() => sharp(src, { limitInputPixels: false }).flatten({ background: WHITE }), maxBytes)
