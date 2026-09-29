@@ -207,6 +207,33 @@ export function amendCurrent(h, edit) {
 }
 
 /**
+ * 현재 단계를 없던 것으로 — AI 지우기가 실패해 그 적용을 취소할 때 (다시 하기로 되살아나지 않게 뒤 칸도 남기지 않는다).
+ * 현재 단계가 맨 끝이고 첫 단계가 아닐 때만. @returns {{ history, edit } | null} edit = 한 칸 앞 단계의 edit (깊은 복사본)
+ */
+export function discardCurrent(h) {
+  if (!h || h.index < 1 || h.index !== h.steps.length - 1) return null
+  const steps = h.steps.slice(0, h.index)
+  return { history: { steps, index: steps.length - 1 }, edit: clone(steps[steps.length - 1].edit) }
+}
+
+/**
+ * 모든 단계의 edit를 fn으로 바꾼다 (단계 수·위치·라벨·시각 그대로). fn이 같은 edit를 돌려주면 그 단계는 그대로.
+ * 결과 없이 저장된 AI 레이어의 결과가 나중에 도착했을 때, 그 레이어가 같은 모양인 단계마다 결과를 채워 넣는 데 쓴다
+ * (되돌려도 결과 없는 상태로 돌아가 다시 계산하지 않게).
+ */
+export function mapSteps(h, fn) {
+  if (!h) return h
+  let changed = false
+  const steps = h.steps.map(s => {
+    const edit = fn(s.edit)
+    if (edit === s.edit) return s
+    changed = true
+    return { ...s, edit: clone(edit) }
+  })
+  return changed ? { steps, index: h.index } : h
+}
+
+/**
  * 이력 복원 (14단계 편집기 상단 [이력]) — i번째 단계의 값(깊은 복사본). 이 값을 새 동작("이력 복원")으로 push하면
  * 복원도 되돌리기 한 칸이 되어 Ctrl+Z로 취소할 수 있다 (jumpTo는 칸을 옮기기만 해서 다시 스택이 남는 것과 다르다).
  * 지금 단계·없는 단계면 null (할 일 없음)

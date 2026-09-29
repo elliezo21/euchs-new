@@ -450,7 +450,7 @@
                 </div>
               </div>
               <a
-                href="https://pf.kakao.com"
+                href="https://pf.kakao.com/_xmQWsK/chat"
                 target="_blank"
                 rel="noopener noreferrer"
                 class="px-3 py-1 rounded-xl bg-amber-400 hover:bg-amber-500 text-slate-950 font-bold text-xs transition"

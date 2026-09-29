@@ -3,6 +3,7 @@
 //   STUDIO_ENABLED=admin      → /api/studio-* 저장 API 켜짐 (api/_studio.js — vite.config.js는 이미 있는 process.env 값을 덮지 않는다)
 // 나머지는 기존 "dev"와 같다 (vite --host). 뒤에 붙인 인자는 vite에 그대로 넘긴다: npm run dev:studio -- --port 5180
 // 이미 값을 넣어 두었으면(예: all) 그 값을 쓴다.
+// ★ 사전 번들 폴더: node_modules/.vite-studio (다른 vite 서버와 node_modules/.vite를 같이 쓰면 AI 워커 모듈이 504로 지워질 수 있다 — vite.config.js)
 //
 // ★ 포트: 기본 5176, --strictPort (차 있으면 다른 포트로 옮기지 않고 멈춘다)
 // ★ 자기 서버만 다시 켜기 (6-3 보완): 시작하면 부모(이 node)·자식(vite) PID·포트·시각을 프로젝트 루트 .studio-dev.pid에 적고,
@@ -22,6 +23,7 @@ const require = createRequire(import.meta.url)
 const viteBin = path.join(path.dirname(require.resolve('vite/package.json')), 'bin', 'vite.js')
 const pidFile = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', PID_FILE_NAME)
 const isWin = process.platform === 'win32'
+const STUDIO_CACHE_DIR = 'node_modules/.vite-studio'
 
 /** 살아 있는 프로세스인지 (신호 0 = 확인만, 끄지 않음). ESRCH = 없음, EPERM = 있지만 권한 없음 */
 function alive(pid) {
@@ -96,8 +98,10 @@ const env = {
   ...process.env,
   VITE_STUDIO_ENABLED: process.env.VITE_STUDIO_ENABLED || 'admin',
   STUDIO_ENABLED: process.env.STUDIO_ENABLED || 'admin',
+  // 이 서버 전용 사전 번들 폴더 — 다른 vite 서버(npm run dev 5173·5174, 확인용 페이지)와 node_modules/.vite를 같이 쓰지 않는다 (vite.config.js studioDev)
+  STUDIO_DEV_CACHE_DIR: STUDIO_CACHE_DIR,
 }
-console.log(`[dev:studio] VITE_STUDIO_ENABLED=${env.VITE_STUDIO_ENABLED} STUDIO_ENABLED=${env.STUDIO_ENABLED}`)
+console.log(`[dev:studio] VITE_STUDIO_ENABLED=${env.VITE_STUDIO_ENABLED} STUDIO_ENABLED=${env.STUDIO_ENABLED} 캐시=${STUDIO_CACHE_DIR}`)
 
 await cleanupPrevious()
 

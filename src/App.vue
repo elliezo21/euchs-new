@@ -4,8 +4,10 @@
     <main class="flex-grow">
       <router-view />
     </main>
-    <QuickMenu v-if="!isStandaloneRoute" />
+    <QuickMenu v-if="!isStandaloneRoute" :raised="stickyCtaVisible" />
     <Footer v-if="!isStandaloneRoute" />
+    <!-- 모바일 하단 고정 바 [스튜디오 둘러보기]·[카톡 문의] (md 이상 숨김, 숨기는 경로는 homeCta.showStickyCta) -->
+    <MobileStickyCta v-if="stickyCtaVisible" />
     <AuthModal />
     <!-- 온보딩 사용가이드 모달 (/mall 또는 /dashboard 에서만 렌더링) -->
     <OnboardingTour v-if="isOnboardingAllowed" />
@@ -18,6 +20,8 @@ import { useRoute, useRouter } from 'vue-router'
 import Header from './components/Header.vue'
 import Footer from './components/Footer.vue'
 import QuickMenu from './components/QuickMenu.vue'
+import MobileStickyCta from './components/MobileStickyCta.vue'
+import { showStickyCta } from './lib/homeCta'
 import AuthModal from './components/AuthModal.vue'
 import OnboardingTour from './components/common/OnboardingTour.vue'
 import { trackVisitor } from './lib/analytics'
@@ -45,6 +49,9 @@ const isStandaloneRoute = computed(() => {
     p.startsWith('/studio')
   )
 })
+
+// 모바일 하단 고정 바 — 헤더·푸터가 있는 화면 중 관리자·대시보드·마이페이지·스튜디오·로그인이 아닐 때
+const stickyCtaVisible = computed(() => !isStandaloneRoute.value && showStickyCta(route.path))
 
 // 라우터 가드가 발행하는 로그인 모달 호출 이벤트 수신
 const handleOpenLoginModal = () => {

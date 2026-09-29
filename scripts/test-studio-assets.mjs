@@ -1,7 +1,7 @@
 // 에셋 채우기 테스트 — node scripts/test-studio-assets.mjs
 // 카테고리 템플릿(구성·문구가 폭 안·겹침 없음) · 새 도형 path · 꾸밈 요소 · 배지 · 글자 스타일 묶음 · 표 틀
 import { STUDIO_TEMPLATES, TEMPLATE_CATEGORIES, templatesOf, templateSlots, templateProblems, buildTemplatePage } from '../src/lib/studioTemplates.js'
-import { CATEGORY_TEMPLATES } from '../src/lib/studioTemplateSets.js'
+import { CATEGORY_TEMPLATES } from '../src/lib/studioTemplates.js' // 섹션 모양까지 정한 목록 (studioTemplateSets는 만드는 함수만)
 import { readPage, buildGroupItems, addItemGroup, emptyPage, addSection, itemBounds, findItem, groupMemberIds, PAGE_WIDTH } from '../src/lib/studioPage.js'
 import { SHAPES, SHAPE_LABELS, ELEMENT_KINDS, shapePath, shapePaintSpec, normalizeShapeItem, isValidShapeItem, isValidLineItem, elementLabel } from '../src/lib/studioShape.js'
 import { DECOR_PRESETS, DECOR_KINDS, decorPresetByKey, groupPresetByKey, presetTextParts } from '../src/lib/studioDecor.js'
@@ -24,9 +24,11 @@ const HEX = /^#[0-9a-f]{6}$/
 
 // ── 1. 카테고리 템플릿 ──
 {
-  const cats = TEMPLATE_CATEGORIES.filter(c => c.key !== 'common' && c.key !== 'fullset') // 풀세트는 test-studio-asset-images.mjs
+  const cats = TEMPLATE_CATEGORIES.filter(c => !['common', 'fullset', 'event'].includes(c.key)) // 풀세트는 test-studio-asset-images.mjs, 안내·이벤트는 test-studio-template-heroes.mjs
   eq('카테고리 8개 (의류·잡화/가방·주방·생활용품·뷰티·전자/소형가전·완구·반려동물)', cats.map(c => c.key), ['apparel', 'bags', 'kitchen', 'living', 'beauty', 'electronics', 'toys', 'pets'])
-  eq('카테고리마다 템플릿 2~3개', cats.map(c => templatesOf(c.key).length >= 2 && templatesOf(c.key).length <= 3), cats.map(() => true))
+  // 에셋 채우기 템플릿만 (새 템플릿 18개 — studioTemplateLooks — 는 test-studio-template-looks.mjs가 본다)
+  const setOf = k => templatesOf(k).filter(t => !/-(minimal|warm|vivid|mono|natural|trendy)$/.test(t.key))
+  eq('카테고리마다 템플릿 2~3개 (에셋 채우기 템플릿)', cats.map(c => setOf(c.key).length >= 2 && setOf(c.key).length <= 3), cats.map(() => true))
   eq('기본 카테고리 = 예전 3개', templatesOf('common').map(t => t.key), ['basic', 'point', 'size'])
   eq('모든 템플릿의 카테고리가 목록에 있음', STUDIO_TEMPLATES.every(t => TEMPLATE_CATEGORIES.some(c => c.key === t.category)), true)
   eq('key·이름 겹침 없음', [new Set(STUDIO_TEMPLATES.map(t => t.key)).size, new Set(STUDIO_TEMPLATES.map(t => t.label)).size], [STUDIO_TEMPLATES.length, STUDIO_TEMPLATES.length])

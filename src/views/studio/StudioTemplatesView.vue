@@ -51,11 +51,11 @@
     </div>
     <div v-else class="mt-5 st-card py-14 text-center" data-template-empty>
       <p class="st-desc break-keep">{{ tab === 'fav' && !filtered ? '하트를 누른 템플릿이 여기에 모여요.' : '조건에 맞는 템플릿이 없어요.' }}</p>
-      <button v-if="filtered" type="button" class="st-btn mt-3" @click="clearFilters">거르기 풀기</button>
+      <button v-if="filtered" type="button" class="st-btn mt-3" @click="clearFilters">필터 초기화</button>
     </div>
 
     <StudioTemplatePreview
-      :tpl-key="previewKey" action-label="이 템플릿으로 시작" :foot-note="FOOT"
+      :tpl-key="previewKey" :action-label="starting ? '작업을 만드는 중…' : '이 템플릿으로 시작'" :disabled="starting" :foot-note="FOOT"
       @close="previewKey = ''" @use="startWith"
     />
   </div>
@@ -63,22 +63,22 @@
 
 <script setup>
 // 스튜디오 [템플릿] 갤러리 — 큰 썸네일 격자, 카테고리 칩, 분위기·색 거르기, 섹션 수, 하트(내 보관함 — 계정에 저장).
-// 카드를 누르면 편집기와 같은 미리보기 칸 → [이 템플릿으로 시작]: 고른 템플릿을 이 탭에 기억하고(studioTemplateStart) [새로 만들기]로.
-//   새 작업은 사진이 있어야 만들어져서(1688 가져오기·내 사진 올리기), 사진을 불러와 편집기가 열리면 시작 화면에서 그 템플릿이 들어간다.
+// 카드를 누르면 편집기와 같은 미리보기 칸 → [이 템플릿으로 시작]: 사진 없이 빈 작업을 만들고(studioProjectBlank) 편집기에서 그 템플릿을 바로 적용.
+//   사진 자리는 예시 사진으로 채워지고("예시" 표시), 사진은 편집기에서 나중에 올려 [내 사진으로 바꾸기]로 넣는다.
 // 로그아웃 구독(CLAUDE.md 2-9): 하트 목록은 studioTemplateFavorites가 비우고, 이 화면은 열린 미리보기를 닫는다.
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import StudioTemplateCard from '@/components/studio/StudioTemplateCard.vue'
 import StudioTemplatePreview from '@/components/studio/StudioTemplatePreview.vue'
-import { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, filterTemplates } from '@/lib/studioTemplates'
+import { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, filterTemplates, templateByKey, templateCardTitle } from '@/lib/studioTemplates'
 import { favorites, loadFavorites, toggleFavorite } from '@/lib/studioTemplateFavorites'
-import { savePendingTemplate } from '@/lib/studioTemplateStart'
+import { createBlankProject } from '@/lib/studioProjectBlank'
 
 const router = useRouter()
 const TABS = [{ key: 'all', label: '전체 템플릿' }, { key: 'fav', label: '내 보관함' }]
 const CATEGORY_CHIPS = [{ key: 'all', label: '전체' }, ...TEMPLATE_CATEGORIES]
 const MOOD_CHIPS = [{ key: 'all', label: '전체' }, ...TEMPLATE_MOODS]
-const FOOT = '[이 템플릿으로 시작]을 누르고 사진을 불러오면, 사진이 순서대로 자리에 들어간 페이지로 시작해요.'
+const FOOT = '[이 템플릿으로 시작]을 누르면 새 작업이 열려요. 사진 자리의 예시 사진은 내 사진으로 바꿔 쓰면 돼요.'
 
 const tab = ref('all')
 const category = ref('all')
@@ -104,15 +104,24 @@ async function onFav(key) {
   }
 }
 
-function startWith(key) {
-  let store = null
-  try { store = window.sessionStorage } catch (e) { console.error('[StudioTemplates] 탭 저장소를 쓸 수 없음:', e.message) }
-  if (!savePendingTemplate(store, key)) {
-    favError.value = '잠시 후 다시 시도해 주세요.'
-    return
+// [이 템플릿으로 시작] = 사진 없이 빈 작업을 만들고(서버 project_blank) 편집기 ?template=key — 편집기가 그 템플릿을 바로 적용한다
+const starting = ref(false)
+async function startWith(key) {
+  if (starting.value) return
+  const tpl = templateByKey(key)
+  if (!tpl) return
+  starting.value = true
+  try {
+    const { projectId } = await createBlankProject(templateCardTitle(tpl))
+    previewKey.value = ''
+    router.push({ name: 'studio-editor', params: { projectId }, query: { template: key } })
+  } catch (e) {
+    favError.value = e.message
+    clearTimeout(favErrorTimer)
+    favErrorTimer = setTimeout(() => { favError.value = '' }, 4000)
+  } finally {
+    starting.value = false
   }
-  previewKey.value = ''
-  router.push({ name: 'studio-projects', hash: '#start' })
 }
 
 const onStudioAuthChanged = (e) => { if (!e.detail?.user) previewKey.value = '' }

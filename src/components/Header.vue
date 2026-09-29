@@ -236,7 +236,7 @@
             <div class="absolute left-0 mt-1 w-52 bg-white rounded-xl shadow-2xl border border-gray-100 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100]">
               <router-link to="/apply" class="block px-3.5 py-1.5 text-xs font-bold text-blue-600 hover:bg-blue-50">✍️ 무역대행 맞춤 서비스</router-link>
               <div class="border-t border-gray-100 my-1"></div>
-              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
+              <a href="https://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
             </div>
           </div>
 
@@ -297,7 +297,7 @@
               <router-link to="/community/notice" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">공지사항</router-link>
               <router-link to="/support/guide?tab=faq" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">자주 묻는 질문(FAQ)</router-link>
               <div class="border-t border-gray-100 my-1"></div>
-              <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 실시간 상담</a>
+              <a href="https://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block px-3.5 py-1.5 text-xs text-gray-700 hover:bg-blue-50 hover:text-blue-600">1:1 실시간 상담</a>
             </div>
           </div>
         </nav>
@@ -488,7 +488,7 @@
             </button>
             <div v-show="mobileSubmenu === 'agency'" class="pl-4 pb-2 space-y-1.5 text-sm text-gray-600">
               <router-link @click="isMobileMenuOpen = false" to="/apply" class="block py-1 font-bold text-blue-600">✍️ 무역대행 맞춤 서비스</router-link>
-              <a @click="isMobileMenuOpen = false" href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block py-1 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
+              <a @click="isMobileMenuOpen = false" href="https://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block py-1 hover:text-blue-600">💬 1:1 실시간 무역 상담</a>
               <div class="border-t border-gray-100 my-1"></div>
               <router-link @click="isMobileMenuOpen = false" to="/services/purchasing-agent" class="block py-1 font-bold text-amber-600">📝 1688 구매대행 이용안내</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/services/rocket-growth" class="block py-1 text-red-600 font-semibold">🚀 쿠팡 로켓그로스 대행</router-link>
@@ -527,7 +527,7 @@
             <div v-show="mobileSubmenu === 'cs'" class="pl-4 pb-2 space-y-1.5 text-sm text-gray-600">
               <router-link @click="isMobileMenuOpen = false" to="/community/notice" class="block py-1 hover:text-blue-600">공지사항 & 소식</router-link>
               <router-link @click="isMobileMenuOpen = false" to="/support/guide?tab=faq" class="block py-1 hover:text-blue-600">자주 묻는 질문 (FAQ)</router-link>
-              <a @click="isMobileMenuOpen = false" href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block py-1 hover:text-blue-600">1:1 실시간 상담</a>
+              <a @click="isMobileMenuOpen = false" href="https://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="block py-1 hover:text-blue-600">1:1 실시간 상담</a>
             </div>
           </div>
         </div>

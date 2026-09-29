@@ -17,6 +17,8 @@
  *   '..'·'//'·'\\'·':' 없음 → 다른 사이트 주소나 폴더 밖 파일을 가리킬 수 없다.
  */
 
+import { readSamples } from './studioSamples.js'
+
 export const ASSET_BASE = '/studio-assets/'
 export const ASSET_MANIFEST_URL = `${ASSET_BASE}manifest.json`
 export const ASSET_MANIFEST_VERSION = 1
@@ -114,12 +116,13 @@ export function isGroundY(v) {
 }
 /**
  * manifest.json → 쓸 수 있는 목록. 모양이 어긋난 항목은 빼고 사유를 돌려준다(하나가 이상해도 나머지는 쓴다).
- * @returns {{ categories: { key, label, items }[], groups: { key, label, count }[], items: object[], license: object, problems: string[] }}
+ * @returns {{ categories: { key, label, items }[], groups: { key, label, count }[], items: object[], samples: object[], license: object, problems: string[] }}
+ *   samples = 예시 사진 (studioSamples.readSamples — 에셋 목록과 따로)
  *   groups = 그림이 하나라도 있는 묶음만 (목록 순서)
  */
 export function readAssetManifest(raw) {
   const problems = []
-  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { categories: [], groups: [], items: [], license: {}, problems: ['manifest가 객체가 아님'] }
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return { categories: [], groups: [], items: [], samples: [], license: {}, problems: ['manifest가 객체가 아님'] }
   if (raw.v !== ASSET_MANIFEST_VERSION) problems.push(`v가 ${ASSET_MANIFEST_VERSION}이 아님: ${raw.v}`)
   const cats = []
   for (const c of Array.isArray(raw.categories) ? raw.categories : []) {
@@ -155,10 +158,11 @@ export function readAssetManifest(raw) {
     if (e.groundY !== undefined) { if (isGroundY(e.groundY)) item.groundY = e.groundY; else problems.push(`바닥선(groundY)을 뺌: ${e.id} (${e.groundY})`) }
     items.push(item)
   }
+  const sampleList = readSamples(raw.samples)
   return {
     categories: cats.map(c => ({ ...c, items: items.filter(i => i.category === c.key) })).filter(c => c.items.length),
     groups: groups.map(g => ({ ...g, count: items.filter(i => i.group === g.key).length })).filter(g => g.count > 0),
-    items, license, problems,
+    items, samples: sampleList.samples, license, problems: [...problems, ...sampleList.problems],
   }
 }
 

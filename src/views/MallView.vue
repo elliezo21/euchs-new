@@ -689,7 +689,7 @@
             대량 발주, 특수 검수, 맞춤 OEM 제작 문의는 전담 매니저에게 실시간 문의하세요.
           </p>
           <a
-            href="http://pf.kakao.com/_xmQWsK/chat"
+            href="https://pf.kakao.com/_xmQWsK/chat"
             target="_blank"
             class="block w-full py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-extrabold text-center rounded-xl transition text-xs"
           >

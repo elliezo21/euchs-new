@@ -623,7 +623,7 @@
               <!-- Quick Inquire Helper -->
               <div class="text-center pt-1">
                 <a 
-                  href="http://pf.kakao.com/_xmQWsK/chat" 
+                  href="https://pf.kakao.com/_xmQWsK/chat" 
                   target="_blank"
                   class="text-xs text-gray-500 hover:text-blue-600 inline-flex items-center gap-1 font-medium"
                 >
@@ -960,7 +960,7 @@ const handleKakaoConfirm = async () => {
   await copyApplicationDetails()
   triggerToast('신청 내역이 복사되었습니다. 채팅창에 붙여넣어 문의해 주세요.')
   setTimeout(() => {
-    window.open('http://pf.kakao.com/_xmQWsK/chat', '_blank')
+    window.open('https://pf.kakao.com/_xmQWsK/chat', '_blank')
   }, 350)
 }
 

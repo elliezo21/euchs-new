@@ -796,6 +796,19 @@ export function replaceItemImage(page, itemId, imageId) {
   return { ...page, sections, parked }
 }
 
+/**
+ * 예시 사진(studioSamples — 에셋 요소 + sample: true) 자리에 고객 사진 넣기 — 자리·크기·회전·투명도·뒤집기·꾸미기·그룹은 그대로, 사진 요소로 바뀐다.
+ * 예시 사진이 아니거나 사진 id가 비면 입력 그대로
+ */
+export function replaceSampleWithImage(page, itemId, imageId) {
+  const f = findItem(page, itemId)
+  if (!f || f.item.type !== 'asset' || f.item.sample !== true || typeof imageId !== 'string' || imageId === '') return page
+  const { asset: _a, fit: _f, sample: _s, label: _l, ...rest } = f.item
+  const next = { ...rest, type: 'image', imageId }
+  const sections = page.sections.map(s => (s.id === f.section.id ? { ...s, items: s.items.map(it => (it.id === itemId ? next : it)) } : s))
+  return { ...page, sections, parked: dropPlaced(page.parked, sections) }
+}
+
 export function setLocked(page, ids, locked) {
   return mapItems(page, ids, it => ({ ...it, locked: !!locked }))
 }

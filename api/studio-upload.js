@@ -1390,6 +1390,31 @@ async function exportDownload(ctx, body, res) {
   return res.status(200).json({ files: out })
 }
 
+// ── project_blank — 사진 없이 빈 작업 만들기 (템플릿 갤러리 [이 템플릿으로 시작] 전용, 2026-09-29) ──
+// 사진 올리기(prepare)와 같은 upload 작업·같은 하루 생성 상한(오늘 KST에 만든 upload 작업 수 — 지운 것도 센다). 사진 행은 만들지 않는다.
+// 사진은 편집기에서 나중에 올린다(prepare에 projectId). 페이지는 편집기가 템플릿으로 만들어 저장한다(page = null로 시작).
+async function projectBlank(ctx, body, res) {
+  const { cfg } = ctx
+  const cap = dailyProjectCap()
+  const dayStart = encodeURIComponent(`${kstDate()}T00:00:00+09:00`)
+  const today = await sb(cfg, `studio_projects?select=id&user_id=eq.${ctx.userId}&source_type=eq.upload&created_at=gte.${dayStart}`)
+  if ((Array.isArray(today) ? today.length : 0) >= cap) {
+    return sendError(res, 429, 'daily_limit', `사진 프로젝트는 하루 ${cap}개까지 만들 수 있습니다.`)
+  }
+  const rawTitle = typeof body.title === 'string' ? body.title.replace(/[\u0000-\u001f\u007f]/g, '').trim().slice(0, 100) : ''
+  const rows = await sb(cfg, 'studio_projects?select=id,expires_at', {
+    method: 'POST',
+    prefer: 'return=representation',
+    body: {
+      user_id: ctx.userId, source_type: 'upload', offer_id: null, source_url: null, desc_source: 'none', status: 'ingesting',
+      title: rawTitle || `새 작업 ${kstDate()}`,
+    },
+  })
+  const project = rows?.[0]
+  if (!project?.id) throw new Error('studio_projects insert 결과에 id 없음')
+  return res.status(200).json({ projectId: project.id })
+}
+
 // ── handler ─────────────────────────────────────────────────────────────────
 export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
@@ -1406,6 +1431,7 @@ export default async function handler(req, res) {
     if (body.action === 'final_prepare') return await finalPrepare(ctx, body, res)
     if (body.action === 'final_confirm') return await finalConfirm(ctx, body, res)
     if (body.action === 'project_copy') return await projectCopy(ctx, body, res)
+    if (body.action === 'project_blank') return await projectBlank(ctx, body, res)
     if (body.action === 'bg_status') return await bgStatus(ctx, body, res)
     if (body.action === 'bg_remove') return await bgRemove(ctx, body, res)
     if (body.action === 'bg_refine_prepare') return await bgRefinePrepare(ctx, body, res)
@@ -1421,7 +1447,7 @@ export default async function handler(req, res) {
     if (body.action === 'exports_list') return await exportsList(ctx, body, res)
     if (body.action === 'export_download') return await exportDownload(ctx, body, res)
     if (body.action === 'export_save_commit') return await exportSaveCommit(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_local_prepare'·'bg_local_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit' 중 하나여야 합니다.")
+    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'project_blank'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_local_prepare'·'bg_local_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

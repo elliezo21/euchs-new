@@ -87,6 +87,8 @@
               v-if="!it.hidden" :src="assetUrl(it.asset)" alt="" draggable="false"
               class="block w-full h-full pointer-events-none" :style="assetImgStyle(it)" @error="onAssetError(it)"
             />
+            <!-- 예시 사진 (studioSamples): 내 사진으로 바꿔야 하는 자리 — 편집 화면에만 보이는 표시 (내보내기에는 없다) -->
+            <span v-if="isSampleItem(it) && !it.hidden" class="st-sample-badge" data-sample-badge>예시</span>
           </div>
           <!-- 글자 요소 (10-1): 줄은 wrapLines로 한 줄씩. 고치는 중이면 그 자리에 입력 칸(textarea — 한글 조합이 깨지지 않게) -->
           <div
@@ -259,6 +261,7 @@ import StudioShapeView from '@/components/studio/StudioShapeView.vue'
 import StudioTableView from '@/components/studio/StudioTableView.vue'
 import { isValidShapeItem, isValidLineItem } from '@/lib/studioShape'
 import { isValidAssetItem, assetUrl, sectionBgImageOf } from '@/lib/studioAsset'
+import { isSampleItem } from '@/lib/studioSamples'
 import {
   isValidTableItem, tableCellAt, tableCellRect, nextTableCell, hasTableCell, tableFontOf, tableRows, tableCols,
   TABLE_CELL_MAX, TABLE_PAD_RATIO, TABLE_LIMITS,
@@ -404,8 +407,8 @@ function itemStyle(it, index) {
     left: `${it.x * z}px`, top: `${it.y * z}px`, width: `${it.w * z}px`, height: `${it.h * z}px`, opacity: it.hidden ? null : (it.opacity ?? 1), transform: rot,
     zIndex: index + 1,
   }
-  // 꾸미기(6-2 테두리·모서리·그림자)는 사진 요소에만 — 도형(11-1)의 radius 칸이 이름이 같아 사진 꾸미기로 읽히지 않게
-  if (it.hidden || !isValidImageItem(it)) return out
+  // 꾸미기(6-2 테두리·모서리·그림자)는 사진 요소·예시 사진에만 — 도형(11-1)의 radius 칸이 이름이 같아 사진 꾸미기로 읽히지 않게
+  if (it.hidden || !(isValidImageItem(it) || isSampleItem(it))) return out
   // 꾸미기 (6-2): 테두리(안쪽으로)·모서리·그림자 — 페이지 좌표 값에 배율을 곱한다
   const st = itemStyleOf(it)
   if (st.borderWidth) out.border = `${st.borderWidth * z}px solid ${st.borderColor}`
@@ -981,6 +984,11 @@ defineExpose({ scrollToItem, scrollToSection, sectionInView, isBusy: () => !!act
 .st-sec-bar-btn:disabled { opacity: 0.35; cursor: default; }
 .st-select-frame.is-multi { box-shadow: 0 0 0 1px var(--st-accent); }
 .st-item-hidden { outline: 1px dashed var(--st-muted); outline-offset: -1px; background: transparent; opacity: 0.6; }
+/* 예시 사진 표시 — 요소 왼쪽 위 작은 알약 (편집 화면에만) */
+.st-sample-badge {
+  position: absolute; left: 8px; top: 8px; padding: 2px 8px; border-radius: 999px; pointer-events: none;
+  font-size: 11px; font-weight: 800; line-height: 16px; background: var(--st-ai); color: var(--st-ai-text); box-shadow: 0 1px 3px rgba(0, 0, 0, .25);
+}
 /* 표 칸 입력 — 입력 칸은 그 칸 자리·글자 모양 그대로, 테두리 색으로 "입력 중" 표시 (표 디자인은 그대로) */
 .st-cell-edit {
   position: absolute; box-sizing: border-box; margin: 0; border: 0; outline: none; z-index: 2;

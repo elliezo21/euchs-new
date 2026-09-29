@@ -131,7 +131,7 @@
         </div>
         <div class="flex items-center gap-2.5 shrink-0">
           <a
-            href="http://pf.kakao.com/_xmQWsK/chat"
+            href="https://pf.kakao.com/_xmQWsK/chat"
             target="_blank"
             class="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-black text-sm transition active:scale-95 shadow-md"
           >

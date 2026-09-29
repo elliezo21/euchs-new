@@ -134,7 +134,7 @@
             가이드 목록으로 돌아가기
           </router-link>
           <a
-            href="http://pf.kakao.com/_xmQWsK/chat"
+            href="https://pf.kakao.com/_xmQWsK/chat"
             target="_blank"
             class="flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-yellow-400 hover:bg-yellow-300 text-slate-900 font-black text-sm transition active:scale-95 shadow-sm flex-1 sm:flex-none"
           >

@@ -94,7 +94,7 @@
             <p><strong>한국 연락처:</strong> <a href="tel:010-9373-1214" class="hover:text-white">010-9373-1214</a></p>
             <p><strong>중국 직통:</strong> <a href="tel:19524077350" class="hover:text-white">19524077350</a> (+86 195-2407-7350)</p>
             <p><strong>위챗 ID:</strong> <span class="text-green-400 font-bold">euchskorea</span></p>
-            <p><strong>카카오톡:</strong> <a href="http://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="text-yellow-400 font-bold hover:underline" title="카카오톡 공식 채널 바로가기">이유씨컴퍼니</a></p>
+            <p><strong>카카오톡:</strong> <a href="https://pf.kakao.com/_xmQWsK/chat" target="_blank" rel="noopener noreferrer" class="text-yellow-400 font-bold hover:underline" title="카카오톡 공식 채널 바로가기">이유씨컴퍼니</a></p>
           </div>
 
           <div class="pt-3 text-slate-500 text-xs border-t border-slate-900">
@@ -130,7 +130,7 @@
 
           <div class="pt-1 flex gap-2">
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
               class="flex-1 py-2.5 px-3 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black rounded-xl text-center text-xs transition flex items-center justify-center gap-1.5 shadow-md active:scale-95"
             >

@@ -10,7 +10,7 @@
  *   장면이 화면 밖으로 완전히 나가면(위·아래 어느 쪽이든) 시작 모습으로 되돌려 두고, 다시 들어오면 처음부터 다시 재생.
  *   장면 그림 자리에 영상(studioLandingMedia의 video)이 있으면 타임라인 대신 영상을 같은 규칙으로 재생·멈춤.
  *
- * 장면 (2026-09-28 재디자인): hero(편집기 화면 — 지우기·배경·섹션 순서 말풍선) · erase(큰 타일 원본/완성) ·
+ * 장면 (2026-09-28 재디자인): hero(편집기 화면 — 지우기·배경·섹션 순서 말풍선, 2026-09-29부터 첫 화면에 없음) · erase(큰 타일 원본/완성) ·
  *   oneclick(남색 타일 단계) · export(판매처 이름) + 떠오름(data-reveal)
  */
 import { gsap } from 'gsap'
@@ -59,6 +59,7 @@ function videoPlayer(video) {
 
 /** @param {HTMLElement} root 랜딩 최상위 요소 @returns {() => void} 정리 함수 */
 export function startLandingMotion(root) {
+  let heroTl = null
   const ctx = gsap.context(() => {
     const $ = sel => root.querySelector(sel)
     const $$ = sel => Array.from(root.querySelectorAll(sel))
@@ -73,12 +74,14 @@ export function startLandingMotion(root) {
     })
     const sceneEl = name => { const el = $(`[data-scene="${name}"]`); return el && !withVideo.has(el) ? el : null }
 
-    // ── 첫 화면 등장 (들어오자마자 한 번) ──
-    gsap.timeline({ defaults: { ease: 'power3.out' } })
+    // ── 첫 화면 등장 (들어오자마자 한 번) — 글씨는 살짝 떠오름, 배경 그림은 제자리에서 서서히 나타남만 ──
+    heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } })
       .fromTo($$('[data-hero-in]'), { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, stagger: 0.08 })
-      .fromTo($('[data-hero-visual]'), { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.9 }, 0.2)
+    const heroVisual = $('[data-hero-visual]')
+    if (heroVisual) heroTl.fromTo(heroVisual, { opacity: 0 }, { opacity: 1, duration: 1, ease: 'power1.out' }, 0)
 
     // ── 편집기 화면: 선택 네모 → 글자 지우기 쓸기 → 한글 제목 → 배경 바꾸기 → 섹션 순서 바꾸기 → 상태 카드 (약 3초) ──
+    // 2026-09-29: 첫 화면이 그림 배경으로 바뀌어 data-scene="hero"가 없다 → 이 장면은 건너뜀(편집기 모형을 다시 넣으면 그대로 동작)
     const hero = sceneEl('hero')
     if (hero) {
       const q = s => hero.querySelector(s)
@@ -151,7 +154,15 @@ export function startLandingMotion(root) {
   window.addEventListener('load', refresh)
   document.fonts?.ready?.then(refresh).catch(e => console.error('[StudioLanding] 글꼴 준비 확인 실패:', e))
 
+  // 탭이 숨겨진 채 열렸거나 등장 도중 탭을 옮기면 화면 그리기가 멈춰 첫 화면 글씨·그림이 반투명으로 남을 수 있다
+  // → 탭이 보이는 순간 첫 화면 등장을 끝 모습으로 보낸다
+  const finishHero = () => {
+    if (document.visibilityState === 'visible' && heroTl && heroTl.progress() < 1) heroTl.progress(1)
+  }
+  document.addEventListener('visibilitychange', finishHero)
+
   return () => {
+    document.removeEventListener('visibilitychange', finishHero)
     window.removeEventListener('load', refresh)
     ctx.revert()
   }

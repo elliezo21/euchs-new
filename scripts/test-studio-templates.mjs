@@ -39,7 +39,7 @@ eq('templateByKey', [templateByKey('basic')?.key, templateByKey('없음')], ['ba
 // ── 2. 슬롯 채우기 + readPage 통과 (사진 0장·적을 때·딱 맞을 때·많을 때) ──
 for (const tpl of STUDIO_TEMPLATES) {
   const slots = templateSlots(tpl).length
-  for (const n of [0, 1, slots - 1, slots, slots + 3]) {
+  for (const n of [...new Set([0, 1, slots - 1, slots, slots + 3].filter(n => n >= 0))]) { // 사진 자리가 없는 안내·이벤트 템플릿도
     const imgs = photos(n)
     const r = buildTemplatePage(tpl, imgs, measure)
     const tag = `${tpl.key} 사진 ${n}장/자리 ${slots}`

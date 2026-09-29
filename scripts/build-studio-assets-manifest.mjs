@@ -11,11 +11,15 @@
 //     source는 채우지 않는다(출처는 사람이 적는다).
 //   · 썸네일: png·jpg·jpeg·webp만 (svg는 가벼워서 원본을 그대로 쓴다). 원본보다 새 썸네일이 있으면 다시 만들지 않는다 (--force = 모두 다시).
 //   · 파일·폴더 이름은 소문자·숫자·-·_ 만 (studioAsset.isAssetPath). 어긋난 파일은 건너뛰고 알린다.
+//   · samples 폴더 = 예시 사진 (studioSamples) — 에셋 목록(items)이 아니라 manifest의 samples 칸에 따로 적는다.
+//     파일 이름 'euchs-sample_카테고리_종류_이름_번호.webp'에서 category·type을 읽고, 썸네일은 samples/thumbs/<이름>.webp (긴 변 400).
+//     원본 png → webp 는 scripts/build-studio-samples.mjs 가 먼저 한다.
 //   · --check : 쓰지 않고, 지금 manifest.json·썸네일이 폴더와 맞는지만 본다 (다르면 종료 코드 1)
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isAssetPath, readAssetManifest, ASSET_MANIFEST_VERSION } from '../src/lib/studioAsset.js'
+import { SAMPLE_DIR, SAMPLE_THUMB_SIZE, parseSampleName, sampleThumbPath } from '../src/lib/studioSamples.js'
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public', 'studio-assets')
 const OUT = path.join(ROOT, 'manifest.json')
@@ -84,7 +88,7 @@ function build() {
   const groupKeys = new Set((old.groups || []).map(g => g.key))
   const skipped = []
   const rank = k => { const i = oldCats.findIndex(c => c.key === k); return i >= 0 ? i : 100 + (ORDER.indexOf(k) + 1 || 99) }
-  const folders = fs.readdirSync(ROOT, { withFileTypes: true }).filter(d => d.isDirectory() && d.name !== THUMB_DIR).map(d => d.name)
+  const folders = fs.readdirSync(ROOT, { withFileTypes: true }).filter(d => d.isDirectory() && d.name !== THUMB_DIR && d.name !== SAMPLE_DIR).map(d => d.name)
     .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
   const categories = [], fresh = []
   const seen = new Set()
@@ -119,13 +123,39 @@ function build() {
   const order = new Map((old.items || []).map((i, n) => [i.file, n]))
   const items = fresh.map((it, n) => ({ it, k: order.has(it.file) ? order.get(it.file) : 100000 + n })).sort((a, b) => a.k - b.k).map(x => x.it)
   const gone = (old.items || []).filter(i => !seen.has(i.file)).map(i => i.file)
-  const manifest = { v: ASSET_MANIFEST_VERSION, categories, items, ...(old.groups ? { groups: old.groups } : {}), ...(old.license ? { license: old.license } : {}) }
+  const samples = buildSamples(old.samples, skipped, gone)
+  const manifest = {
+    v: ASSET_MANIFEST_VERSION, categories, items, ...(old.groups ? { groups: old.groups } : {}), ...(old.license ? { license: old.license } : {}),
+    ...(samples.length ? { samples } : {}),
+  }
   return { manifest, skipped, gone }
+}
+
+/** 예시 사진 목록 (samples 폴더의 webp, 이름순) — 있던 항목의 label은 그대로 */
+function buildSamples(oldList, skipped, gone) {
+  const dir = path.join(ROOT, SAMPLE_DIR)
+  const was = new Map((oldList || []).map(i => [i.file, i]))
+  const out = []
+  const names = fs.existsSync(dir) ? fs.readdirSync(dir, { withFileTypes: true }).filter(d => d.isFile()).map(d => d.name).sort() : []
+  for (const name of names) {
+    const file = `${SAMPLE_DIR}/${name}`
+    const p = name.endsWith('.webp') ? parseSampleName(name.slice(0, -5)) : null
+    if (!p || !isAssetPath(file)) { skipped.push(`${file} — 예시 사진 이름이 아님 (euchs-sample_카테고리_종류_이름_번호.webp)`); continue }
+    const size = imageSize(fs.readFileSync(path.join(dir, name)), 'webp')
+    if (!size) { skipped.push(`${file} — 크기를 읽지 못함`); continue }
+    out.push({
+      id: `sample-${p.category}-${p.type}-${p.slug}-${p.no}`, kind: 'sample', category: p.category, type: p.type,
+      label: was.get(file)?.label ?? p.slug, file, thumb: sampleThumbPath(file), w: size.w, h: size.h, ratio: Math.round((size.h / size.w) * 10000) / 10000,
+    })
+  }
+  for (const i of oldList || []) if (!out.some(o => o.file === i.file)) gone.push(i.file)
+  return out
 }
 
 /** 썸네일 만들기 — 있어야 하는데 없거나 원본보다 오래된 것만. @returns {{ made: string[], kept: number, failed: string[], stray: string[] }} */
 async function makeThumbs(items, { write }) {
   const need = items.filter(i => i.thumb)
+  const sizeOf = it => (it.kind === 'sample' ? SAMPLE_THUMB_SIZE : THUMB_SIZE)
   const made = [], failed = []
   let kept = 0
   let sharp = null
@@ -137,13 +167,13 @@ async function makeThumbs(items, { write }) {
     try {
       sharp ??= (await import('sharp')).default
       fs.mkdirSync(path.dirname(dst), { recursive: true })
-      await sharp(src).resize(THUMB_SIZE, THUMB_SIZE, { fit: 'inside', withoutEnlargement: true }).webp({ quality: THUMB_QUALITY, alphaQuality: 90 }).toFile(dst)
+      await sharp(src).resize(sizeOf(it), sizeOf(it), { fit: 'inside', withoutEnlargement: true }).webp({ quality: THUMB_QUALITY, alphaQuality: 90 }).toFile(dst)
       made.push(it.thumb)
     } catch (e) {
       failed.push(`${it.thumb} ← ${it.file}: ${e.message}`)
     }
   }
-  const want = new Set(need.map(i => i.thumb))
+  const want = new Set(need.filter(i => i.kind !== 'sample').map(i => i.thumb)) // 예시 사진 썸네일은 samples/thumbs (아래 stray 검사 밖)
   const dir = path.join(ROOT, THUMB_DIR)
   const stray = fs.existsSync(dir) ? fs.readdirSync(dir).map(n => `${THUMB_DIR}/${n}`).filter(p => !want.has(p)) : []
   return { made, kept, failed, stray }
@@ -157,7 +187,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   for (const s of skipped) console.error('건너뜀:', s)
   for (const g of gone) console.error('파일이 없어 목록에서 뺌:', g)
   for (const p of problems) console.error('문제:', p)
-  const thumbs = await makeThumbs(manifest.items, { write: !CHECK })
+  const thumbs = await makeThumbs([...manifest.items, ...(manifest.samples || [])], { write: !CHECK })
   for (const f of thumbs.failed) console.error('썸네일을 만들지 못함:', f)
   for (const s of thumbs.stray) console.error('목록에 없는 썸네일 (지우지 않음):', s)
   if (CHECK) {
@@ -170,6 +200,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
   fs.writeFileSync(OUT, text)
   console.log(`manifest.json 을 썼어요 — 카테고리 ${manifest.categories.length}개 · 그림 ${manifest.items.length}개`)
   for (const c of manifest.categories) console.log(`  ${c.key} (${c.label}): ${manifest.items.filter(i => i.category === c.key).length}개`)
+  if (manifest.samples) console.log(`  예시 사진 (samples): ${manifest.samples.length}장`)
   console.log(`썸네일 — 새로 만듦 ${thumbs.made.length}개 · 그대로 ${thumbs.kept}개 · 실패 ${thumbs.failed.length}개`)
   process.exit(problems.length || thumbs.failed.length ? 1 : 0)
 }

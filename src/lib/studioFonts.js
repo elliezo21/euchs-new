@@ -4,30 +4,31 @@
  * ★ 허용 목록은 상업용 무료 한글 폰트만. 라이선스 = Google Fonts 저장소 google/fonts의 ofl/<폰트>/METADATA.pb `license: "OFL"`
  *   (SIL Open Font License 1.1 — 상업 사용·웹 삽입·이미지 내보내기 가능, 폰트 파일 자체 판매만 금지). 2026-09-26 확인.
  * ★ 폰트 스타일시트는 사이트 전체(index.html)가 아니라 편집기가 열릴 때 한 번만 붙인다 (몰·ERP 화면 속도에 영향 없게).
- *   Noto Sans KR은 index.html이 이미 전역으로 불러오므로(300~900) 다시 붙이지 않는다.
+ * ★ 모든 글꼴 = 우리 도메인 (2026-09-29 — 예전 6종도 옮김, Google Fonts CDN 호출 없음).
+ *   Noto Sans KR은 몰 전체(index.html)가 Google에서 같은 이름으로 받으므로, 스튜디오 것은 'Studio Noto Sans KR'이라는 다른 이름으로 둔다
+ *   (페이지에는 글꼴 key 'noto-sans-kr'만 저장 — 예전 페이지 그대로).
  * ★ 한글 폰트는 글자 범위(unicode-range)별로 나뉘어 있어서, 그릴 글자를 넘겨 그 조각까지 받은 뒤에 잰다 (fontsReadyNow·loadFontsFor).
- * ★ local: true = 우리 도메인에 둔 woff2 (public/studio-fonts — 외부 CDN 없이. 2026-09-29 추가 5종).
- *   파일·@font-face는 public/studio-fonts/studio-fonts.css 한 장, 라이선스는 글꼴 폴더마다 OFL.txt.
- *   Google Fonts 배포본(woff2 조각)은 예약 글꼴 이름(RFN)이 없는 글꼴만 (조각 = 변형판이라 RFN이 있으면 이름을 못 씀),
- *   Pretendard는 제작사가 배포한 woff2 그대로 (변형 없음). license = SIL OFL 1.1 (상업 사용·웹 삽입·이미지로 만든 결과물 사용 가능, 글꼴 파일만 따로 판매 금지).
+ * ★ local = public/studio-fonts 아래 글꼴 폴더. 파일·@font-face는 public/studio-fonts/studio-fonts.css 한 장, 라이선스는 글꼴 폴더마다 OFL.txt.
+ *   Google Fonts 배포본(woff2 조각)은 예약 글꼴 이름(RFN)을 이름에 쓰지 않는 글꼴만 (조각 = 변형판이라 RFN이 이름에 들어가면 못 씀 — Noto의 RFN 'Source'는 이름에 없음),
+ *   나눔고딕·나눔명조(RFN 'Nanum…')는 배포된 TTF를 바꾸지 않고 그대로, Pretendard는 제작사가 배포한 woff2 그대로. license = SIL OFL 1.1 (상업 사용·웹 삽입·이미지로 만든 결과물 사용 가능, 글꼴 파일만 따로 판매 금지).
  * 목록·계산 함수는 DOM이 없어도 된다(node 테스트). document·canvas는 함수 안에서만 쓴다.
  */
 
 // weights = 이 편집기에서 고를 수 있는 굵기 (그 폰트가 실제로 가진 값만 — METADATA.pb·배포 파일 기준)
 export const STUDIO_FONTS = [
-  { key: 'noto-sans-kr', label: 'Noto Sans KR', family: 'Noto Sans KR', fallback: 'sans-serif', weights: [400, 700, 800, 900], license: 'SIL OFL 1.1', global: true },
-  { key: 'noto-serif-kr', label: 'Noto Serif KR', family: 'Noto Serif KR', fallback: 'serif', weights: [400, 700, 900], license: 'SIL OFL 1.1' },
-  { key: 'nanum-gothic', label: '나눔고딕', family: 'Nanum Gothic', fallback: 'sans-serif', weights: [400, 700, 800], license: 'SIL OFL 1.1' },
-  { key: 'nanum-myeongjo', label: '나눔명조', family: 'Nanum Myeongjo', fallback: 'serif', weights: [400, 700, 800], license: 'SIL OFL 1.1' },
-  { key: 'black-han-sans', label: '검은고딕', family: 'Black Han Sans', fallback: 'sans-serif', weights: [400], license: 'SIL OFL 1.1' },
-  { key: 'do-hyeon', label: '도현', family: 'Do Hyeon', fallback: 'sans-serif', weights: [400], license: 'SIL OFL 1.1' },
+  { key: 'noto-sans-kr', label: 'Noto Sans KR', family: 'Studio Noto Sans KR', fallback: 'sans-serif', weights: [400, 700, 800, 900], license: 'SIL OFL 1.1', local: 'noto-sans-kr' },
+  { key: 'noto-serif-kr', label: 'Noto Serif KR', family: 'Noto Serif KR', fallback: 'serif', weights: [400, 700, 900], license: 'SIL OFL 1.1', local: 'noto-serif-kr' },
+  { key: 'nanum-gothic', label: '나눔고딕', family: 'Nanum Gothic', fallback: 'sans-serif', weights: [400, 700, 800], license: 'SIL OFL 1.1', local: 'nanum-gothic' },
+  { key: 'nanum-myeongjo', label: '나눔명조', family: 'Nanum Myeongjo', fallback: 'serif', weights: [400, 700, 800], license: 'SIL OFL 1.1', local: 'nanum-myeongjo' },
+  { key: 'black-han-sans', label: '검은고딕', family: 'Black Han Sans', fallback: 'sans-serif', weights: [400], license: 'SIL OFL 1.1', local: 'black-han-sans' },
+  { key: 'do-hyeon', label: '도현', family: 'Do Hyeon', fallback: 'sans-serif', weights: [400], license: 'SIL OFL 1.1', local: 'do-hyeon' },
   { key: 'pretendard', label: '프리텐다드', family: 'Pretendard', fallback: 'sans-serif', weights: [400, 700, 800, 900], license: 'SIL OFL 1.1', local: 'pretendard' },
   { key: 'gasoek-one', label: '가석원', family: 'Gasoek One', fallback: 'sans-serif', weights: [400], license: 'SIL OFL 1.1', local: 'gasoek-one' },
   { key: 'gowun-batang', label: '고운바탕', family: 'Gowun Batang', fallback: 'serif', weights: [400, 700], license: 'SIL OFL 1.1', local: 'gowun-batang' },
   { key: 'east-sea-dokdo', label: '동해독도', family: 'East Sea Dokdo', fallback: 'cursive', weights: [400], license: 'SIL OFL 1.1', local: 'east-sea-dokdo' },
   { key: 'cinzel', label: 'Cinzel', family: 'Cinzel', fallback: 'serif', weights: [400, 700, 900], license: 'SIL OFL 1.1', local: 'cinzel' },
 ]
-/** 우리 도메인의 글꼴 스타일시트 (public/studio-fonts — local 글꼴의 @font-face) */
+/** 우리 도메인의 글꼴 스타일시트 (public/studio-fonts — 모든 글꼴의 @font-face) */
 export const LOCAL_FONT_CSS_URL = '/studio-fonts/studio-fonts.css'
 export const FONT_DEFAULT_KEY = 'noto-sans-kr'
 export const WEIGHT_LABELS = { 400: '보통', 700: '굵게', 800: '더 굵게', 900: '가장 굵게' }
@@ -52,13 +53,8 @@ export function fontSpec({ fontFamily, fontWeight, fontSize }) {
   return `${fontWeight} ${fontSize}px ${cssFamilyOf(fontFamily)}`
 }
 
-// ── 편집기에서만: 글꼴 스타일시트 두 장(Google Fonts — 예전 글꼴 / 우리 도메인 — local 글꼴) 한 번 붙이기 ──
-const CSS_URL = 'https://fonts.googleapis.com/css2?'
-  + STUDIO_FONTS.filter(f => !f.global && !f.local)
-    .map(f => `family=${f.family.replace(/ /g, '+')}${f.weights.length > 1 || f.weights[0] !== 400 ? `:wght@${f.weights.join(';')}` : ''}`)
-    .join('&')
-  + '&display=swap'
-const SHEETS = [{ id: 'studio-fonts-css', href: CSS_URL }, { id: 'studio-fonts-local-css', href: LOCAL_FONT_CSS_URL }]
+// ── 편집기에서만: 우리 도메인의 글꼴 스타일시트 한 장 붙이기 (외부 CDN 없음) ──
+const SHEETS = [{ id: 'studio-fonts-local-css', href: LOCAL_FONT_CSS_URL }]
 let cssPromise = null
 let cssReady = false
 
@@ -98,14 +94,14 @@ export function fontsReadyNow(list) {
   return list.every(({ style, text }) => {
     const f = fontByKey(style.fontFamily)
     if (!f) return true
-    if (!f.global && !cssReady) return false
+    if (!cssReady) return false
     return document.fonts.check(fontSpec(style), sampleOf(text))
   })
 }
 /** 필요한 폰트 조각을 받는다. 모두 준비되면 true, 못 받은 것이 있으면 false (이유는 console.warn) */
 export async function loadFontsFor(list) {
   if (typeof document === 'undefined' || !document.fonts) return false
-  if (list.some(({ style }) => !fontByKey(style.fontFamily)?.global)) await ensureStudioFonts()
+  if (list.some(({ style }) => fontByKey(style.fontFamily))) await ensureStudioFonts()
   await Promise.all(list.map(({ style, text }) => document.fonts.load(fontSpec(style), sampleOf(text))))
   const ok = fontsReadyNow(list)
   if (!ok) console.warn('[studioFonts] 글꼴 조각을 받지 못함 — 대체 글꼴로 잼:', list.map(x => fontSpec(x.style)))

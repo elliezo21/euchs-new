@@ -136,7 +136,7 @@
         <p class="text-xs text-gray-400">직접 1:1 상담을 통해 담당 매니저에게 질문해 보세요.</p>
         <div class="pt-2">
           <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
+            href="https://pf.kakao.com/_xmQWsK/chat" 
             target="_blank"
             class="inline-flex items-center gap-1.5 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-xs font-bold rounded-xl transition shadow-sm"
           >
@@ -156,7 +156,7 @@
         </div>
         <div class="flex items-center gap-3 shrink-0">
           <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
+            href="https://pf.kakao.com/_xmQWsK/chat" 
             target="_blank"
             class="px-5 py-3 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-bold text-xs sm:text-sm rounded-xl transition shadow"
           >

@@ -231,7 +231,7 @@
             </div>
 
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank" 
               rel="noopener noreferrer"
               class="bg-white/10 hover:bg-white/20 backdrop-blur-sm p-4 rounded-xl border border-white/10 text-center transition block"
@@ -251,7 +251,7 @@
 
           <div class="pt-4 flex flex-col items-center gap-3">
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
               class="px-8 py-3.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-extrabold text-sm rounded-xl shadow-lg hover:shadow-xl transition flex items-center gap-2"
             >

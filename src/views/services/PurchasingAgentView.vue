@@ -33,7 +33,7 @@
             </router-link>
 
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
               rel="noopener noreferrer"
               class="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/20 transition-all flex items-center gap-2 text-sm sm:text-base"
@@ -204,7 +204,7 @@
           </router-link>
 
           <a
-            href="http://pf.kakao.com/_xmQWsK/chat"
+            href="https://pf.kakao.com/_xmQWsK/chat"
             target="_blank"
             rel="noopener noreferrer"
             class="px-8 py-4 bg-slate-950/80 hover:bg-slate-950 text-white font-bold text-sm sm:text-base rounded-2xl border border-white/20 transition active:scale-95 flex items-center gap-2"

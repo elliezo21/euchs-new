@@ -21,7 +21,7 @@
           </div>
           <!-- 카카오 상담 버튼 -->
           <a
-            href="http://pf.kakao.com/_xmQWsK/chat"
+            href="https://pf.kakao.com/_xmQWsK/chat"
             target="_blank"
             class="shrink-0 flex items-center gap-2 px-4 py-2 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-xs font-extrabold shadow-sm transition active:scale-95 cursor-pointer"
           >
@@ -252,7 +252,7 @@
                 <span>홈택스 바로가기</span>
               </a>
               <a
-                href="http://pf.kakao.com/_xmQWsK/chat"
+                href="https://pf.kakao.com/_xmQWsK/chat"
                 target="_blank"
                 class="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-yellow-400 hover:bg-yellow-500 text-gray-900 text-xs font-bold transition active:scale-95"
               >
@@ -371,7 +371,7 @@
           </div>
           <div class="flex flex-col gap-2 shrink-0">
             <a
-              href="http://pf.kakao.com/_xmQWsK/chat"
+              href="https://pf.kakao.com/_xmQWsK/chat"
               target="_blank"
               class="flex items-center justify-center gap-2 px-5 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-black font-extrabold text-xs rounded-xl transition active:scale-95"
             >

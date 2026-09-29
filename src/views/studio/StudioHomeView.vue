@@ -5,16 +5,6 @@
       <h1 class="st-h-page">무엇으로 시작할까요?</h1>
       <p class="mt-2 text-[15px] st-ink-2">상품 사진을 불러오면 수정할 부분을 지우고, 한글을 올리고, 상세페이지로 저장하거나 받을 수 있어요.</p>
 
-      <!-- 템플릿 갤러리 [이 템플릿으로 시작] 뒤: 사진을 불러오면 이 템플릿으로 시작 (studioTemplateStart) -->
-      <div v-if="pendingTpl" class="mt-5 st-card px-4 py-3 flex flex-wrap items-center gap-3" data-pending-template>
-        <span class="st-icon-box"><LayoutTemplate class="w-[18px] h-[18px]" :stroke-width="2" /></span>
-        <span class="min-w-0 flex-1 text-[14px] st-ink break-keep">
-          <b>{{ pendingTpl.title }}</b> 템플릿으로 시작해요. 아래에서 사진을 불러오면 사진이 자리에 들어간 페이지가 열려요.
-        </span>
-        <router-link :to="{ name: 'studio-templates' }" class="st-btn">다른 템플릿 고르기</router-link>
-        <button type="button" class="st-btn st-btn-ghost" data-pending-template-cancel @click="cancelPendingTemplate">템플릿 없이 시작</button>
-      </div>
-
       <div class="mt-6 grid grid-cols-1 md:grid-cols-3 gap-4">
         <!-- 찜한 상품 -->
         <button type="button" class="st-card st-card-hover overflow-hidden text-left" @click="goPick('saved')">
@@ -117,9 +107,7 @@
 // 스튜디오 내 작업 — 시작하기(찜·주문·내 사진·1688 주소) + 최근 작업
 import { ref, h, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { Heart, Package, Camera, FolderUp, Link2, X, ArrowRight, LayoutTemplate } from 'lucide-vue-next'
-import { readPendingTemplate, clearPendingTemplate } from '@/lib/studioTemplateStart'
-import { templateByKey, templateCardTitle } from '@/lib/studioTemplates'
+import { Heart, Package, Camera, FolderUp, Link2, X, ArrowRight } from 'lucide-vue-next'
 import { listSavedProducts } from '@/lib/savedProducts'
 import { fetchOrderedProducts } from '@/lib/orderedProducts'
 import { getStudioNotices } from '@/lib/studioNotices'
@@ -214,21 +202,6 @@ function openEditor(projectId) {
 
 // 사이드바 [+ 새로 만들기] → #start 스크롤은 라우터 scrollBehavior(hash)가 한다
 
-// ── 템플릿 갤러리에서 고른 템플릿 (이 탭 sessionStorage — 편집기 시작 화면이 쓰고 지운다) ──
-function tabStorage() {
-  try { return window.sessionStorage } catch (e) { console.warn('[StudioHome] 탭 저장소를 쓸 수 없음:', e.message); return null }
-}
-const pendingTpl = ref(null)
-function readPending() {
-  const p = readPendingTemplate(tabStorage())
-  const tpl = p ? templateByKey(p.key) : null
-  pendingTpl.value = tpl ? { key: tpl.key, title: templateCardTitle(tpl) } : null
-}
-function cancelPendingTemplate() {
-  clearPendingTemplate(tabStorage())
-  pendingTpl.value = null
-}
-
 // ── 새 소식 (누구에게나 같은 공지 — 개인 데이터 아님) ──
 const notices = ref([])
 const noticeError = ref('')
@@ -256,7 +229,6 @@ const onStudioAuthChanged = (e) => {
     orderedThumbs.value = []
     uploadOpen.value = false
     importFlow.value?.reset()
-    cancelPendingTemplate()
   } else {
     loadCollages()
   }
@@ -264,7 +236,6 @@ const onStudioAuthChanged = (e) => {
 
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
-  readPending()
   loadCollages()
   loadNotices()
 })
