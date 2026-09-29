@@ -16,7 +16,7 @@ import { templateByKey, templatesOf, templateSlots, templateProblems, buildTempl
 import { isValidTextItem, wrapLines, textStyleOf } from '../src/lib/studioText.js'
 import { createHistory, push, undo } from '../src/lib/studioHistory.js'
 import { rewritePage, rewriteEdit } from '../api/_studioCopy.js'
-import { readBg, withBg, bgActive, bgMark, bgViewKey, bgLibUnder, bgAiUnder, bgPaintColor, libFromEntry, BG_MODES } from '../src/lib/studioBg.js'
+import { readBg, withBg, bgActive, bgMark, bgViewKey, bgLibUnder, bgAiUnder, bgPaintColor, libFromEntry, BG_MODES, libFitSource, aiFitSource, maskBottomRow } from '../src/lib/studioBg.js'
 import { imageSize } from './build-studio-assets-manifest.mjs'
 
 let pass = 0, fail = 0
@@ -309,7 +309,19 @@ const pageOf = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
     }
   }
   eq('글자가 폭 안 · 모든 요소가 섹션 안 · 글자와 이미지 자리가 겹치지 않음', [wrapped, outside, overlap], [[], [], []])
-  eq('12구간 흐름 (사진 4장)', r.page.sections.length, 12)
+  eq('11구간 흐름 (사진 4장 — 대표 사진은 첫 화면 받침대 위에만)', r.page.sections.length, 11)
+  // 첫 화면: 받침대 위 대표 사진 자리 — 밑면 = 받침대 윗면 선, 가로 = 받침대 가운데, 받침대보다 앞(뒤 순서), 반짝이와 안 겹침
+  const hero = r.page.sections[0]
+  const podium = hero.items.find(it => it.type === 'asset' && /podium/.test(it.asset))
+  const heroImg = hero.items.find(it => it.type === 'image')
+  const stand = Math.round(podium.y + podium.h * (260 / 616))
+  eq('첫 화면 대표 사진: 밑면 = 받침대 윗면 선 · 받침대 가운데 · 받침대 뒤에 그림 · 첫 사진', [
+    heroImg.y + heroImg.h, heroImg.x + heroImg.w / 2, podium.x + podium.w / 2, hero.items.indexOf(heroImg) > hero.items.indexOf(podium), heroImg.imageId,
+  ], [stand, podium.x + podium.w / 2, podium.x + podium.w / 2, true, 'img0'])
+  const others = hero.items.filter(it => it !== heroImg && it !== podium)
+  eq('첫 화면 대표 사진 자리가 글자·반짝이와 겹치지 않음', others.filter(b => heroImg.x < b.x + b.w && b.x < heroImg.x + heroImg.w && heroImg.y < b.y + b.h && b.y < heroImg.y + heroImg.h).map(b => b.text ?? b.asset), [])
+  eq('대표 사진이 페이지에 한 번만 (꽉 찬 구간으로 또 넣지 않음)', r.page.sections.flatMap(s => s.items).filter(it => it.imageId === 'img0').length, 1)
+  eq('사진 0장: 첫 화면은 받침대만 남음 (구간은 그대로)', buildTemplatePage(tpl, photos(0), measure).page.sections[0].items.some(it => it.type === 'image'), false)
   // 내 템플릿 변환에도 에셋이 남는다
   const mine = pageToTemplate(r.page, '풀세트')
   const again = buildTemplatePage(mine, photos(4), measure).page
@@ -322,13 +334,13 @@ const pageOf = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
   const mask = { path: 'uid/p1/bg/img-1/mask_0123456789abcdef.png', key: '0123456789abcdef', model: 'birefnet-v2', w: 800, h: 800 }
   const scene = manifest.items.find(i => i.category === 'scenes')
   const lib = libFromEntry(scene)
-  eq('목록 항목 → bg.lib (경로·크기·이름)', lib, { asset: scene.file, w: 1200, h: 1200, label: scene.label })
+  eq('목록 항목 → bg.lib (경로·크기·이름·바닥선)', lib, { asset: scene.file, w: 1200, h: 1200, label: scene.label, groundY: scene.groundY })
   eq('쓸 수 없는 항목 = null', [libFromEntry({ file: '../x.jpg', w: 10, h: 10 }), libFromEntry({ file: 'scenes/a.jpg', w: 0, h: 10 }), libFromEntry(null)], [null, null, null])
   eq('모드 목록에 library', BG_MODES.includes('library'), true)
   const edit = withBg({ v: 2, layers: [], look: { filter: 'warm' } }, { mask, mode: 'library', lib, color: '#ffeedd', ai: { path: 'uid/p1/bg/img-1/ai_0123456789abcdef.png', key: '0123456789abcdef', w: 1024, h: 768, preset: 'studio', model: 'm' } })
   const bg = readBg(clone(edit))
   eq('저장 → 읽기: 모드·그림 그대로, 다른 칸(단색 색·AI 배경·필터)도 남음', [bg.mode, bg.lib, bg.color, !!bg.ai, edit.look], ['library', lib, '#ffeedd', true, { filter: 'warm' }])
-  eq('합성에 쓰는 값: 아래 그림 = 라이브러리 (AI·단색 아님)', [bgActive(bg), bgLibUnder(bg), bgAiUnder(bg), bgPaintColor(bg), bgMark(bg)], [true, { asset: scene.file, w: 1200, h: 1200 }, null, null, '라이브러리 배경'])
+  eq('합성에 쓰는 값: 아래 그림 = 라이브러리 (AI·단색 아님)', [bgActive(bg), bgLibUnder(bg), bgAiUnder(bg), bgPaintColor(bg), bgMark(bg)], [true, { asset: scene.file, w: 1200, h: 1200, groundY: scene.groundY }, null, null, '라이브러리 배경'])
   eq('그림을 바꾸면 화면 작은 사진을 다시 만든다 (key가 달라짐)', bgViewKey(bg) !== bgViewKey({ ...bg, lib: { ...lib, asset: 'scenes/other.jpg' } }) && bgViewKey(bg).includes(scene.file), true)
   eq('다른 모드로 바꿔도 고른 그림은 남고, 아래 그림으로는 안 쓴다', [readBg(withBg(edit, { ...bg, mode: 'transparent' })).lib, bgLibUnder({ ...bg, mode: 'transparent' }), bgLibUnder({ ...bg, mode: 'ai' })], [lib, null, null])
   const broken = quiet(() => readBg({ bg: { mask, mode: 'library', lib: { asset: 'https://evil.example/a.jpg', w: 10, h: 10 } } }))
@@ -342,6 +354,41 @@ const pageOf = sections => ({ v: 1, width: 780, gap: 0, parked: [], sections })
   // 복사본: 마스크·AI 배경 파일은 새 폴더로, 라이브러리 그림은 경로 그대로(복사할 파일 없음)
   const copied = rewriteEdit(edit, { uid: 'uid', fromProject: 'p1', toProject: 'p2', fromImage: 'img-1', toImage: 'img-9' })
   eq('복사본: 라이브러리 그림 경로 그대로 · 복사할 파일에 없음', [copied.edit.bg.lib, copied.edit.bg.mode, copied.files.some(f => f.from.includes('scenes/') || f.to.includes('scenes/'))], [lib, 'library', false])
+}
+
+// ── 11. 바닥선(groundY) — 바닥이 있는 연출 배경에서 제품 밑면을 바닥선에 맞춘다 ──
+{
+  const mask = { path: 'uid/p1/bg/img-1/mask_0123456789abcdef.png', key: '0123456789abcdef', model: 'birefnet-v2', w: 800, h: 800 }
+  const scenes = manifest.items.filter(i => i.category === 'scenes')
+  eq('연출 배경 18장 모두 바닥선 · 배경(뒷배경)은 없음 · 값은 0.5~0.95', [
+    scenes.length, scenes.every(i => i.groundY >= 0.5 && i.groundY <= 0.95), manifest.items.filter(i => i.category !== 'scenes').some(i => 'groundY' in i),
+  ], [18, true, false])
+  eq('이상한 바닥선은 그 칸만 빼고 알림', (() => {
+    const r = readAssetManifest({ v: 1, categories: [{ key: 'scenes', label: '연출' }], items: [0, 1, -0.2, '0.8', 0.8].map((g, n) => ({ id: `s${n}`, category: 'scenes', label: '가', file: `scenes/s${n}.jpg`, w: 10, h: 10, use: 'bg', groundY: g })) })
+    return [r.items.map(i => i.groundY ?? null), r.problems.length]
+  })(), [[null, null, null, null, 0.8], 4])
+  const scene = scenes[0]
+  const lib = libFromEntry(scene)
+  eq('목록 항목 → bg.lib에 바닥선도 담김 · 합성 값에도', [lib.groundY, bgLibUnder({ mask, mode: 'library', lib }).groundY], [scene.groundY, scene.groundY])
+  const noG = libFromEntry(manifest.items.find(i => i.category === 'backgrounds' && i.use === 'bg'))
+  eq('바닥선 없는 그림 = groundY 칸 없음', ['groundY' in noG, 'groundY' in bgLibUnder({ mask, mode: 'library', lib: noG })], [false, false])
+  const bgG = readBg(clone(withBg({}, { mask, mode: 'library', lib })))
+  eq('저장 → 읽기: 바닥선 그대로 · 화면 key에 바닥선', [bgG.lib.groundY, bgViewKey(bgG).endsWith(`|lib:${scene.file}@${scene.groundY}`)], [scene.groundY, true])
+  eq('예전 bg.lib(바닥선 없음) = key가 예전 모양 그대로', bgViewKey({ mask, mode: 'library', lib: { asset: scene.file, w: 1200, h: 1200 } }), `|bg:${mask.path}|lib:${scene.file}`)
+  eq('이상한 바닥선이 저장돼 있으면 그 칸만 빼고 읽음', quiet(() => readBg({ bg: { mask, mode: 'library', lib: { asset: scene.file, w: 1200, h: 1200, groundY: 3 } } })).lib, { asset: scene.file, w: 1200, h: 1200 })
+  // 합성 범위: 그림 안 바닥선이 사진 속 제품 밑면 자리로 온다
+  const mapY = (s, H, gy) => ((gy - s.sy) / s.sh) * H // 그림 y → 사진 y
+  const s1 = libFitSource(1200, 1200, 1000, 1000, 0.8, 900)
+  eq('정사각 그림·정사각 사진: 바닥선(0.8) → 제품 밑면(900) · 찌그러지지 않음 · 그림 밖으로 안 나감', [Math.round(mapY(s1, 1000, 960)), Math.abs(s1.sw / s1.sh - 1) < 1e-9, s1.sx >= 0 && s1.sy >= 0 && s1.sx + s1.sw <= 1200.0001 && s1.sy + s1.sh <= 1200.0001], [900, true, true])
+  const s2 = libFitSource(1200, 1200, 1600, 900, 0.72, 500)
+  eq('가로로 긴 사진(여유 있음): 키우지 않고 위아래만 옮김', [Math.round(mapY(s2, 900, 0.72 * 1200)), Math.round(s2.sw), Math.round(s2.sx)], [500, 1200, 0])
+  const s3 = libFitSource(1200, 1200, 1000, 1000, 0.8, 100) // 제품이 사진 맨 위쪽에 있음 — 2배까지만 키움
+  eq('맞추기가 너무 멀면 채우기의 2배까지만 키우고 그림 안에서 멈춤', [1000 / s3.sw <= (1000 / 1200) * 2 + 1e-9, s3.sy >= 0 && s3.sy + s3.sh <= 1200.0001], [true, true])
+  eq('바닥선·제품 밑면이 없으면 예전 가운데 맞춤과 같음', [libFitSource(1200, 1200, 1600, 900, undefined, 500), libFitSource(1200, 1200, 1600, 900, 0.8, null)], [aiFitSource(1200, 1200, 1600, 900), aiFitSource(1200, 1200, 1600, 900)])
+  // 마스크 밑면
+  const m = new Uint8Array(4 * 5 * 1) // 4×5, 한 픽셀 1바이트
+  m[2 * 4 + 1] = 255; m[3 * 4 + 2] = 100 // 2번 줄에 제품, 3번 줄은 128 이하(제품 아님)
+  eq('마스크 밑면 = 제품이 있는 가장 아래 줄 + 1 · 없으면 null', [maskBottomRow(m, 4, 5, 1), maskBottomRow(new Uint8Array(20), 4, 5, 1)], [3, null])
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)

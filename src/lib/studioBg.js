@@ -12,7 +12,8 @@
  *       ai?: { path, key, w, h, preset, model }, AI 배경 이미지(17-4 — 서버 bg_generate가 저장한 결과 그대로, key = 내용 해시)
  *                                           경로 {uid}/{projectId}/bg/{imageId}/ai_{key16}.{png|jpg|webp}. mode 'ai'일 때 사진 자리 아래에 깐다.
  *                                           다른 모드로 바꿔도 남겨 두어 [AI 배경]으로 돌아오면 다시 쓴다(돈 안 듦 — 단색 색 기억과 같은 방식)
- *       lib?: { asset, w, h, label? },      라이브러리 배경(에셋 이미지 — studioAsset.js, public/studio-assets의 정적 파일 경로). mode 'library'일 때 사진 자리 아래에 깐다.
+ *       lib?: { asset, w, h, label?, groundY? }, 라이브러리 배경(에셋 이미지 — studioAsset.js, public/studio-assets의 정적 파일 경로). mode 'library'일 때 사진 자리 아래에 깐다.
+ *                                           groundY = 바닥이 있는 연출 배경의 바닥선(그림 높이 비율) — 있으면 제품 밑면을 그 선에 맞춰 깐다(libFitSource), 없으면 가운데.
  *                                           AI 배경과 같은 길(사진 밑 그림)이지만 외부 AI·서버·사용 기록·한도가 없다(무료). 파일을 복사하지 않는다(복사본도 같은 경로).
  *                                           다른 모드로 바꿔도 남겨 두어 [라이브러리]로 돌아오면 그 그림
  *     }
@@ -33,7 +34,7 @@
  * ★ 완성 JPG(final)에는 넣지 않는다. layers가 그대로면 erase_v도 그대로(studioFinal.stampEraseVersion은 layers만 본다).
  */
 
-import { isAssetPath } from './studioAsset.js'
+import { isAssetPath, isGroundY } from './studioAsset.js'
 
 export const BG_MODES = ['transparent', 'none', 'color', 'ai', 'library']
 export const BG_DEFAULT_COLOR = '#ffffff'
@@ -99,16 +100,21 @@ export function readBg(edit) {
   return out
 }
 
-/** 라이브러리 배경 정보 — 에셋 경로 규칙·크기(양의 정수)가 맞을 때만, 아니면 null */
+/** 라이브러리 배경 정보 — 에셋 경로 규칙·크기(양의 정수)가 맞을 때만, 아니면 null. groundY(바닥선)는 맞을 때만 담는다(이상하면 그 칸만 빼고 알림) */
 function readLib(l) {
   if (!l || typeof l !== 'object' || !isAssetPath(l.asset)) return null
   if (!Number.isInteger(l.w) || !Number.isInteger(l.h) || l.w < 1 || l.h < 1) return null
   const label = typeof l.label === 'string' ? [...l.label.trim()].slice(0, 40).join('') : ''
-  return label ? { asset: l.asset, w: l.w, h: l.h, label } : { asset: l.asset, w: l.w, h: l.h }
+  const out = label ? { asset: l.asset, w: l.w, h: l.h, label } : { asset: l.asset, w: l.w, h: l.h }
+  if (l.groundY !== undefined) {
+    if (isGroundY(l.groundY)) out.groundY = l.groundY
+    else console.error('[studioBg] 라이브러리 배경 바닥선(groundY) 값이 이상함 — 가운데 맞춤으로 씀:', l.asset, l.groundY)
+  }
+  return out
 }
-/** 목록 항목(manifest) → bg.lib */
+/** 목록 항목(manifest) → bg.lib (바닥선이 있는 연출 배경이면 groundY도 — 고를 때 한 번 담아 두고, 뒤에 목록이 바뀌어도 이 사진은 그대로) */
 export function libFromEntry(entry) {
-  return readLib({ asset: entry?.file, w: entry?.w, h: entry?.h, label: entry?.label })
+  return readLib({ asset: entry?.file, w: entry?.w, h: entry?.h, label: entry?.label, ...(entry?.groundY !== undefined ? { groundY: entry.groundY } : {}) })
 }
 
 /** AI 배경 정보 — 경로 규칙·key·크기(양의 정수)·같은 사진 폴더가 맞을 때만, 아니면 null */
@@ -178,7 +184,42 @@ export function bgAiUnder(bg) {
  * @returns {{ asset, w, h }|null}
  */
 export function bgLibUnder(bg) {
-  return bg?.mask && bg.mode === 'library' && bg.lib ? { asset: bg.lib.asset, w: bg.lib.w, h: bg.lib.h } : null
+  if (!(bg?.mask && bg.mode === 'library' && bg.lib)) return null
+  const out = { asset: bg.lib.asset, w: bg.lib.w, h: bg.lib.h }
+  if (isGroundY(bg.lib.groundY)) out.groundY = bg.lib.groundY
+  return out
+}
+
+export const LIB_ZOOM_MAX = 2 // 바닥선을 맞추려고 그림을 채우기(cover)보다 더 키우는 한도 — 넘으면 한도까지만 키우고 가능한 만큼만 맞춘다
+
+/**
+ * 라이브러리 배경(iw×ih)을 사진 크기(W×H)에 깔 때 쓸 원본 범위 — 제품 밑면(productBottom, 사진 px)이 그림의 바닥선(groundY × ih)에 오게.
+ * 늘 채우기(cover — 찌그러뜨리지 않음), 가로는 가운데. 위아래로 옮길 여유가 없으면 그만큼 그림을 키운다(LIB_ZOOM_MAX까지).
+ * groundY나 productBottom이 없으면 aiFitSource와 같은 가운데 맞춤(예전 그대로). 화면·내보내기·미리보기 모두 studioViewImage.applyBackground 한 곳에서 부른다.
+ * @returns {{ sx, sy, sw, sh }}
+ */
+export function libFitSource(iw, ih, W, H, groundY, productBottom) {
+  if (!isGroundY(groundY) || !Number.isFinite(productBottom) || productBottom <= 0 || productBottom > H) return aiFitSource(iw, ih, W, H)
+  const g = groundY * ih // 그림 안 바닥선 (그림 px)
+  const cover = Math.max(W / iw, H / ih)
+  // sy = g − productBottom/k 가 0 이상, ih − H/k 이하가 되려면 k가 이만큼은 커야 한다
+  const need = Math.max(cover, productBottom / g, (H - productBottom) / (ih - g))
+  const k = Math.min(need, cover * LIB_ZOOM_MAX)
+  const sw = W / k, sh = H / k
+  const sy = Math.min(Math.max(g - productBottom / k, 0), ih - sh)
+  return { sx: (iw - sw) / 2, sy, sw, sh }
+}
+
+/**
+ * 마스크 픽셀에서 제품 밑면 — 제품(값 128 초과)이 있는 가장 아래 줄 + 1 (위에서부터 px). 제품이 없으면 null.
+ * @param {Uint8ClampedArray|Uint8Array} data 마스크 픽셀 (한 픽셀 stride 바이트, 첫 바이트 사용)
+ */
+export function maskBottomRow(data, w, h, stride = 4) {
+  for (let y = h - 1; y >= 0; y--) {
+    const row = y * w * stride
+    for (let x = 0; x < w; x++) if (data[row + x * stride] > 128) return y + 1
+  }
+  return null
 }
 
 /**
@@ -214,7 +255,8 @@ export function bgViewKey(bg) {
   if (!bgActive(bg)) return ''
   const under = bgAiUnder(bg) // 17-4: AI 배경을 바꾸면 아래 그림을 다시 만든다
   const lib = bgLibUnder(bg) // 라이브러리 배경을 바꿔도 아래 그림을 다시 만든다
-  return `|bg:${bgMaskSource(bg).path}${under ? `|ai:${under.path}` : ''}${lib ? `|lib:${lib.asset}` : ''}`
+  // 바닥선이 있으면 key에도 (없는 예전 데이터는 key가 예전과 같다 — 사진을 다시 만들지 않음)
+  return `|bg:${bgMaskSource(bg).path}${under ? `|ai:${under.path}` : ''}${lib ? `|lib:${lib.asset}${lib.groundY !== undefined ? `@${lib.groundY}` : ''}` : ''}`
 }
 
 /** 목록·사진 정보 카드 표시 — 다듬은 마스크를 쓰면 "· 다듬음" (원래 배경일 때는 표시 없음 — 다듬은 결과가 안 보이므로) */

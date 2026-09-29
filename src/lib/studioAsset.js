@@ -108,6 +108,10 @@ export function assetFieldsOf(entry, max = ASSET_INSERT_MAX) {
 // ── 목록 (manifest) ──
 
 const KEY = /^[a-z0-9][a-z0-9_-]*$/
+/** 바닥선 값 — 0보다 크고 1보다 작은 숫자 (그림 맨 위·맨 아래는 바닥선이 될 수 없다) */
+export function isGroundY(v) {
+  return typeof v === 'number' && Number.isFinite(v) && v > 0 && v < 1
+}
 /**
  * manifest.json → 쓸 수 있는 목록. 모양이 어긋난 항목은 빼고 사유를 돌려준다(하나가 이상해도 나머지는 쓴다).
  * @returns {{ categories: { key, label, items }[], groups: { key, label, count }[], items: object[], license: object, problems: string[] }}
@@ -147,6 +151,8 @@ export function readAssetManifest(raw) {
     if (e.thumb !== undefined) { if (isAssetPath(e.thumb)) item.thumb = e.thumb; else problems.push(`썸네일 경로를 뺌: ${e.id}`) }
     if (e.group !== undefined) { if (groups.some(g => g.key === e.group)) item.group = e.group; else problems.push(`없는 묶음을 뺌: ${e.id} (${e.group})`) }
     if (typeof e.source === 'string' && e.source !== '') item.source = e.source
+    // groundY = 바닥이 있는 연출 배경에서 제품을 세울 선 (그림 높이의 비율 0~1 — 사람이 그림을 보고 적는다). 라이브러리 배경 합성이 제품 밑면을 이 선에 맞춘다
+    if (e.groundY !== undefined) { if (isGroundY(e.groundY)) item.groundY = e.groundY; else problems.push(`바닥선(groundY)을 뺌: ${e.id} (${e.groundY})`) }
     items.push(item)
   }
   return {

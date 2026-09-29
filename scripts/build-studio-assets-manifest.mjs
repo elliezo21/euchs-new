@@ -4,7 +4,8 @@
 // 목록용 작은 그림 public/studio-assets/thumbs/<파일 이름>.webp (긴 변 240px)를 만든다.
 //   · 파일을 폴더에 넣고 이 명령을 돌리면 [요소] → [이미지] 목록에 뜬다 (코드 수정 없음).
 //   · 폴더 이름 = 카테고리 key. 'backgrounds'·'scenes' 폴더의 그림은 배경용(use 'bg'), 나머지는 요소용(use 'item'). 'thumbs' 폴더는 썸네일 자리(카테고리 아님).
-//   · 이미 manifest.json에 있는 항목은 id·label·group·thumb·source·use를 그대로 둔다 (w·h만 파일에서 다시 읽는다).
+//   · 이미 manifest.json에 있는 항목은 id·label·group·thumb·source·use·groundY를 그대로 둔다 (w·h만 파일에서 다시 읽는다).
+//     groundY(0~1) = 바닥이 있는 연출 배경에서 제품 밑면을 맞출 선 — 그림을 보고 manifest.json에 직접 적는다.
 //     categories의 이름·순서, groups, license도 그대로 둔다.
 //   · 새 파일: label = 파일 이름(→ manifest.json에서 고쳐 쓰면 유지), 파일 이름이 'euchs-종류_묶음_이름_번호' 모양이고 묶음이 groups에 있으면 group을 채운다.
 //     source는 채우지 않는다(출처는 사람이 적는다).
@@ -101,11 +102,12 @@ function build() {
       const parsed = parseAssetName(base)
       const thumb = was?.thumb ?? thumbPathOf(file)
       const group = was?.group ?? (parsed && groupKeys.has(parsed.group) ? parsed.group : undefined)
-      // 칸 순서는 받은 manifest와 같게 (id·category·label·file·thumb·w·h·use·group·source)
+      // 칸 순서는 받은 manifest와 같게 (id·category·label·file·thumb·w·h·use·group·source·groundY)
       const item = {
         id: was?.id ?? `${folder}-${parsed ? parsed.rest : base}`, category: folder, label: was?.label ?? base, file,
         ...(thumb ? { thumb } : {}), w: size.w, h: size.h, use: was?.use ?? (BG_FOLDERS.includes(folder) ? 'bg' : 'item'),
         ...(group ? { group } : {}), ...(was?.source ? { source: was.source } : {}),
+        ...(was?.groundY !== undefined ? { groundY: was.groundY } : {}), // 바닥선 — 사람이 그림을 보고 적은 값 그대로 (이상하면 readAssetManifest가 알림)
       }
       seen.add(file)
       fresh.push(item)

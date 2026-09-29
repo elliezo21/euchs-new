@@ -20,7 +20,7 @@ import { fillPlan, fillArea, aiPatchKey } from '@/lib/studioFillPlan'
 import { pixelLayersOf } from '@/lib/studioEdit'
 import { AI_MODEL_ID, loadAiPatch } from '@/lib/studioAiPatch'
 import { geometryOf, drawGeometry, geometryHeightAt, readShape } from '@/lib/studioCrop'
-import { bgActive, bgViewKey, bgPaintColor, bgMaskSource, bgAiUnder, bgLibUnder, aiFitSource, maskedCanvas } from '@/lib/studioBg'
+import { bgActive, bgViewKey, bgPaintColor, bgMaskSource, bgAiUnder, bgLibUnder, aiFitSource, libFitSource, maskBottomRow, maskedCanvas } from '@/lib/studioBg'
 import { loadAssetImage } from '@/lib/studioAssetLoad'
 
 export const VIEW_TYPE = 'image/webp'
@@ -99,7 +99,13 @@ export async function applyBackground(pool, source, W, H, bg) {
     const g = under.getContext('2d')
     g.imageSmoothingEnabled = true
     g.imageSmoothingQuality = 'high'
-    const s = aiFitSource(libImg.width, libImg.height, W, H)
+    // 바닥선이 있는 연출 배경: 제품 밑면(마스크의 가장 아래 제품 줄)을 바닥선에 맞춘다. 제품을 못 찾으면 가운데(예전 그대로) + 알림
+    let productBottom = null
+    if (lib.groundY !== undefined) {
+      productBottom = maskBottomOf(maskImg, W, H, mk)
+      if (productBottom === null) console.warn('[studioViewImage] 마스크에 제품이 없어 라이브러리 배경을 가운데로 깜:', m.path)
+    }
+    const s = libFitSource(libImg.width, libImg.height, W, H, lib.groundY, productBottom)
     g.drawImage(libImg.source, s.sx, s.sy, s.sw, s.sh, 0, 0, W, H)
     return { canvas, problems: [], color: null, under }
   }
@@ -119,6 +125,18 @@ export async function applyBackground(pool, source, W, H, bg) {
   const s = aiFitSource(aiImg.naturalWidth, aiImg.naturalHeight, W, H)
   g.drawImage(aiImg, s.sx, s.sy, s.sw, s.sh, 0, 0, W, H)
   return { canvas, problems: [], color: null, under }
+}
+
+/** 마스크에서 제품 밑면 (사진 px, W×H 기준) — 작게 줄여 읽는다(세로 최대 512줄: 원본 크기 픽셀을 다시 읽지 않음). 제품이 없으면 null */
+function maskBottomOf(maskImg, W, H, mk) {
+  const hs = Math.min(H, 512), ws = Math.max(1, Math.min(W, Math.round(W * hs / H)))
+  const c = mk(ws, hs)
+  const ctx = c.getContext('2d', { willReadFrequently: true })
+  ctx.drawImage(maskImg, 0, 0, ws, hs)
+  const row = maskBottomRow(ctx.getImageData(0, 0, ws, hs).data, ws, hs, 4)
+  c.width = 0
+  c.height = 0
+  return row === null ? null : Math.min(H, (row * H) / hs)
 }
 
 /**

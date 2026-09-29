@@ -741,7 +741,8 @@
       "h": 1200,
       "use": "bg",
       "group": "apparel",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.84
     },
     {
       "id": "scenes-apparel_linen-studio_01",
@@ -753,7 +754,8 @@
       "h": 1200,
       "use": "bg",
       "group": "apparel",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.9
     },
     {
       "id": "scenes-bag_travertine_01",
@@ -765,7 +767,8 @@
       "h": 1200,
       "use": "bg",
       "group": "bag",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.85
     },
     {
       "id": "scenes-bag_walnut-console_01",
@@ -777,7 +780,8 @@
       "h": 1200,
       "use": "bg",
       "group": "bag",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.72
     },
     {
       "id": "scenes-beauty_marble-vanity_01",
@@ -789,7 +793,8 @@
       "h": 1200,
       "use": "bg",
       "group": "beauty",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.82
     },
     {
       "id": "scenes-beauty_pink-silk_01",
@@ -801,7 +806,8 @@
       "h": 1200,
       "use": "bg",
       "group": "beauty",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.85
     },
     {
       "id": "scenes-digital_dark-studio_01",
@@ -813,7 +819,8 @@
       "h": 1200,
       "use": "bg",
       "group": "digital",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.82
     },
     {
       "id": "scenes-digital_white-desk_01",
@@ -825,7 +832,8 @@
       "h": 1200,
       "use": "bg",
       "group": "digital",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.7
     },
     {
       "id": "scenes-health_sage-stone_01",
@@ -837,7 +845,8 @@
       "h": 1200,
       "use": "bg",
       "group": "health",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.78
     },
     {
       "id": "scenes-health_sunlit-wood_01",
@@ -849,7 +858,8 @@
       "h": 1200,
       "use": "bg",
       "group": "health",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.75
     },
     {
       "id": "scenes-kitchen_linen-table_01",
@@ -861,7 +871,8 @@
       "h": 1200,
       "use": "bg",
       "group": "kitchen",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.72
     },
     {
       "id": "scenes-kitchen_oak-counter_01",
@@ -873,7 +884,8 @@
       "h": 1200,
       "use": "bg",
       "group": "kitchen",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.76
     },
     {
       "id": "scenes-living_side-table_01",
@@ -885,7 +897,8 @@
       "h": 1200,
       "use": "bg",
       "group": "living",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.78
     },
     {
       "id": "scenes-living_white-shelf_01",
@@ -897,7 +910,8 @@
       "h": 1200,
       "use": "bg",
       "group": "living",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.82
     },
     {
       "id": "scenes-pet_lawn_01",
@@ -909,7 +923,8 @@
       "h": 1200,
       "use": "bg",
       "group": "pet",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.8
     },
     {
       "id": "scenes-pet_wood-floor_01",
@@ -921,7 +936,8 @@
       "h": 1200,
       "use": "bg",
       "group": "pet",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.8
     },
     {
       "id": "scenes-toy_pastel-platform_01",
@@ -933,7 +949,8 @@
       "h": 1200,
       "use": "bg",
       "group": "toy",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.8
     },
     {
       "id": "scenes-toy_playroom_01",
@@ -945,7 +962,8 @@
       "h": 1200,
       "use": "bg",
       "group": "toy",
-      "source": "ai-generated"
+      "source": "ai-generated",
+      "groundY": 0.84
     },
     {
       "id": "backgrounds-apparel_beige-linen_01",
