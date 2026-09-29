@@ -71,31 +71,47 @@
           </button>
         </template>
 
-        <!-- [배경 지우기] — 자격·준비 상태는 서버가 알려 준 대로 -->
+        <!-- [배경 지우기] 기본 = 흰 배경·단색 배경을 이 브라우저에서 지움 (외부 AI·돈 없음 — 자격 검사 없음) -->
         <template v-else>
+          <button type="button" class="st-btn st-btn-primary w-full" :disabled="busy" data-bg-remove @click="$emit('remove')">
+            <Loader2 v-if="busy" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
+            <Eraser v-else class="w-3.5 h-3.5" :stroke-width="2" />
+            {{ busy ? '배경 지우는 중…' : '배경 지우기' }}
+            <span v-if="!busy" class="st-badge ml-1" data-bg-remove-free>무료</span>
+          </button>
+          <p class="st-desc-sm break-keep" data-bg-remove-desc>흰색·한 가지 색 배경을 바로 지워요</p>
+          <!-- 단색 배경이 아니었던 사진: [AI로 정밀하게 지우기]를 따로 (쓸 수 없으면 한 가지 색 배경 사진을 고르라는 안내만) -->
+          <p v-if="localMiss" class="text-[12px] font-bold st-ink-2 break-keep" data-bg-local-miss>
+            {{ aiShown ? '배경이 여러 색인 사진은 [AI로 정밀하게 지우기]가 깔끔해요' : '배경이 한 가지 색인 사진을 골라 주세요' }}
+          </p>
+        </template>
+
+        <!-- [AI로 정밀하게 지우기] — 외부 AI(돈이 드는 곳)는 누를 때만. 단색이 아니었던 사진, 또는 무료로 지운 사진을 더 정밀하게 -->
+        <div v-if="aiWanted" class="space-y-1.5" data-bg-ai-remove-box>
           <div v-if="status.loading" class="st-desc-sm" data-bg-status="loading">확인하는 중…</div>
           <template v-else-if="status.reason === 'not_eligible'">
             <button type="button" class="st-btn w-full" disabled data-bg-locked>
-              <Lock class="w-3.5 h-3.5" :stroke-width="2" /> 배경 지우기
+              <Lock class="w-3.5 h-3.5" :stroke-width="2" /> AI로 정밀하게 지우기
             </button>
             <p class="st-desc-sm break-keep" data-bg-status="not_eligible">이유씨로 주문한 고객에게 열리는 기능이에요</p>
           </template>
-          <!-- 쓸 수 없는 상태(no_key·no_table)면 버튼·안내를 보이지 않는다 -->
-          <template v-else-if="status.reason === 'no_key' || status.reason === 'no_table'" />
           <template v-else-if="status.reason === 'error'">
             <p class="st-desc-sm break-keep" data-bg-status="error">{{ status.message || '상태를 확인하지 못했어요.' }}</p>
             <button type="button" class="st-btn w-full" data-bg-status-retry @click="$emit('retry-status')">다시 확인</button>
           </template>
-          <button
-            v-else type="button" class="st-btn st-btn-primary w-full" :disabled="busy || !status.ready" data-bg-remove
-            @click="$emit('remove')"
-          >
-            <Loader2 v-if="busy" class="w-3.5 h-3.5 animate-spin" :stroke-width="2" />
-            <Eraser v-else class="w-3.5 h-3.5" :stroke-width="2" />
-            {{ busy ? '배경 지우는 중…' : '배경 지우기' }}
-          </button>
-          <p class="st-desc-sm break-keep" data-bg-notice>사진은 배경을 지우기 위해 외부 AI 서비스로 보내져요.</p>
-        </template>
+          <!-- 쓸 수 없는 상태(no_key·no_table)면 버튼·안내를 보이지 않는다 -->
+          <template v-else-if="status.reason === 'no_key' || status.reason === 'no_table'" />
+          <template v-else-if="status.ready">
+            <button
+              type="button" class="st-btn w-full" :class="bg ? '' : 'st-btn-primary'" :disabled="busy" data-bg-remove-ai
+              @click="$emit('remove-ai')"
+            >
+              <Sparkles class="w-3.5 h-3.5" :stroke-width="2" /> AI로 정밀하게 지우기
+            </button>
+            <p v-if="bg" class="st-desc-sm break-keep">경계가 복잡한 사진은 AI가 더 정밀하게 지워요</p>
+            <p class="st-desc-sm break-keep" data-bg-notice>사진은 배경을 지우기 위해 외부 AI 서비스로 보내져요.</p>
+          </template>
+        </div>
 
         <p v-if="error" class="text-[12px] font-bold st-danger-text break-keep" data-bg-error>{{ error }}</p>
       </template>
@@ -219,7 +235,8 @@
 <script setup>
 /**
  * [배경합성] 패널 (17-1·17-2) — 고른 사진의 [배경 지우기] · 원래 배경/투명/단색 · [배경 원래대로]. AI 배경은 자리만.
- * 자격(주문 고객)·준비 상태는 서버(bg_status)가 알려 준 status로만 잠근다. 돈이 드는 요청은 [배경 지우기]를 누를 때 한 번.
+ * [배경 지우기] 기본 = 흰 배경·단색 배경을 브라우저에서 지움('remove' — studioBgLocal, 돈 없음·자격 검사 없음).
+ * [AI로 정밀하게 지우기]('remove-ai')만 외부 AI — 자격(주문 고객)·준비 상태는 서버(bg_status)가 알려 준 status로만 잠근다. 돈이 드는 요청은 이 버튼을 누를 때 한 번.
  * 단색(17-2)은 AI 없음·무료·자격 검사 없음 — 배경을 지운(마스크가 있는) 사진이면 누구나. 없으면 잠그고 "먼저 [배경 지우기]를 해 주세요".
  *   색 이벤트: ('color', 값, { commit }) — commit false = 색 고르기 칸을 끄는 중(이력 없음), true = 놓음·견본·구간 색(이력 한 칸)
  * 경계 다듬기(17-3)도 마스크가 있는 사진에만 — ('refine')이면 편집기가 다듬기 화면을 연다. 없으면 잠그고 같은 안내 문구.
@@ -231,6 +248,7 @@
 import { ref, computed, watch } from 'vue'
 import { Eraser, Lock, Loader2, RotateCcw, Pipette, Brush, Sparkles } from 'lucide-vue-next'
 import { BG_COLOR_SWATCHES, bgPaintColor, bgMark } from '@/lib/studioBg'
+import { LOCAL_BG_MODEL } from '@/lib/studioBgLocal'
 import { BG_GEN_PRESETS, presetLabel } from '@/lib/studioBgGen'
 import { assetThumbUrl, filterAssets, ASSET_GROUP_ALL } from '@/lib/studioAsset'
 import { loadAssetManifest } from '@/lib/studioAssetLoad'
@@ -244,6 +262,7 @@ const props = defineProps({
   sectionBgReason: { type: String, default: '' },  // 잠긴 이유 (옛 형식 색 등)
   status: { type: Object, required: true },        // { loading, ready, reason, message }
   busy: { type: Boolean, default: false },         // 이 사진을 처리 중
+  localMiss: { type: Boolean, default: false },    // 무료 [배경 지우기]가 단색 배경이 아니라고 판정한 사진 → [AI로 정밀하게 지우기]
   error: { type: String, default: '' },
   thumbUnder: { type: String, default: null },     // AI 배경 아래 그림 (17-4 — 화면 작은 사진과 같은 크기)
   genStatus: { type: Object, required: true },     // AI 배경 { loading, ready, reason, staff, left, perDay, globalLeft, message }
@@ -252,7 +271,11 @@ const props = defineProps({
   targetLabel: { type: String, default: '' },      // review-1: "03 상세 이미지 · 02번 사진" — 대상 사진이 어느 구간인지
   targetSource: { type: String, default: 'page' }, // 'page' 페이지에서 고른 사진 | 'list' 사진 목록에서 고른 사진
 })
-defineEmits(['remove', 'mode', 'color', 'reset', 'retry-status', 'refine', 'generate', 'retry-gen-status', 'library'])
+defineEmits(['remove', 'remove-ai', 'mode', 'color', 'reset', 'retry-status', 'refine', 'generate', 'retry-gen-status', 'library'])
+
+// [AI로 정밀하게 지우기] 칸: 단색이 아니었던 사진(아직 안 지움) — 자격·준비 상태를 보여 줌 / 무료로 지운 사진 — 쓸 수 있을 때만 버튼
+const aiShown = computed(() => !!props.status.ready)
+const aiWanted = computed(() => (!props.bg && props.localMiss) || (props.bg?.mask?.model === LOCAL_BG_MODEL && aiShown.value))
 
 const MODES = [
   { key: 'none', label: '원래 배경' },

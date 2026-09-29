@@ -52,7 +52,8 @@ eq('위 끝보다 위로는 안 감', scrollPlan({ elTop: 5, elHeight: 300, scro
   const ss = memStorage()
   eq('처음엔 안 띄움 기록 없음', readGuideShown(ss, 'erase'), false)
   eq('띄운 뒤 기억 → 다시 안 띄움', [writeGuideShown(ss, 'erase'), readGuideShown(ss, 'erase')], [true, true])
-  eq('편집기 가이드는 이 기록을 쓰지 않음(빈도는 결정 대기)', [writeGuideShown(ss, 'editor'), readGuideShown(ss, 'editor')], [false, false])
+  eq('편집기 가이드도 이 탭에서 한 번 (2026-09-29 — 닫으면 다시 안 띄움)', [readGuideShown(ss, 'editor'), writeGuideShown(ss, 'editor'), readGuideShown(ss, 'editor')], [false, true, true])
+  { const s2 = memStorage(); writeGuideShown(s2, 'erase'); eq('편집기·지우기 기록은 따로', readGuideShown(s2, 'editor'), false) }
   eq('"다시 보지 않기"와 따로 (localStorage 값은 안 건드림)', readGuideHidden(memStorage(), 'erase'), false)
   eq('탭 저장소를 못 쓰면 창 안에서만 (오류 없이 false)', [readGuideShown(memStorage(true), 'erase'), writeGuideShown(memStorage(true), 'erase'), readGuideShown(null, 'erase')], [false, false, false])
 }

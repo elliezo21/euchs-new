@@ -3,9 +3,12 @@
  *   bg_status: 쓸 수 있는지 (자격·키·사용 기록 테이블) — 화면은 이 결과로 버튼을 잠근다 (자격 판단은 서버만)
  *   bg_remove: 원본의 마스크를 만들어 저장하고 경로를 돌려준다 (돈이 나가는 곳 — [배경 지우기]를 누를 때만 부른다)
  *   bg_refine_prepare·confirm (17-3): 손으로 다듬은 마스크 PNG 저장 — 외부 AI를 부르지 않는다 (돈 없음)
+ *   bg_local_prepare·confirm (2026-09-29): 흰 배경·단색 배경을 브라우저에서 지운 마스크 PNG 저장 — [배경 지우기] 기본 동작 (돈 없음)
+ *   bg_remove는 [AI로 정밀하게 지우기]를 누를 때만
  */
 import { supabase } from '@/lib/supabase'
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
+import { LOCAL_BG_MODEL } from '@/lib/studioBgLocal'
 
 /** @returns {Promise<{ ready: boolean, reason: null|'not_eligible'|'no_key'|'no_table'|'error', model?: string }>} */
 export async function fetchBgStatus() {
@@ -24,22 +27,38 @@ export async function fetchBgStatus() {
  * @returns {Promise<{ path, key, w, h }>} edit.bg.refined에 넣을 값. 실패는 throw (message = 고객 문구, code)
  */
 export async function uploadBgRefined({ projectId, imageId, key, blob, width, height }) {
+  const path = await uploadBrowserMask('bg_refine', '다듬은 마스크', { projectId, imageId, key, blob, width, height })
+  return { path, key, w: width, h: height }
+}
+
+/**
+ * 흰 배경·단색 배경 지우기 결과 저장 (브라우저에서 만든 마스크 — studioBgLocal, 외부 AI·돈 없음). 다듬기와 같은 2단계:
+ *   bg_local_prepare → uploadToSignedUrl → bg_local_confirm. 경로는 AI 마스크와 같은 규칙(mask_{key}.png)
+ * @returns {Promise<{ path, key, model: 'local', width, height }>} bg_remove 응답과 같은 모양 (studioBg.bgFromServer에 그대로)
+ */
+export async function uploadBgLocalMask({ projectId, imageId, key, blob, width, height }) {
+  const path = await uploadBrowserMask('bg_local', '배경 지운 마스크', { projectId, imageId, key, blob, width, height })
+  return { path, key, model: LOCAL_BG_MODEL, width, height }
+}
+
+/** 브라우저가 만든 마스크 PNG 올리기 (prepare → 업로드 → confirm). 실패는 throw (message = 고객 문구, code). @returns {Promise<string>} 저장 경로 */
+async function uploadBrowserMask(actionPrefix, what, { projectId, imageId, key, blob, width, height }) {
   const fail = (code, detail) => {
-    console.error('[studioBgApi] 다듬은 마스크 저장 실패:', imageId, code, detail || '')
+    console.error(`[studioBgApi] ${what} 저장 실패:`, imageId, code, detail || '')
     const e = new Error(studioErrorMessage('bg', code))
     e.code = code
     return e
   }
-  const prep = await callStudioApi('studio-upload', { action: 'bg_refine_prepare', projectId, imageId, key, width, height, size: blob.size })
+  const prep = await callStudioApi('studio-upload', { action: `${actionPrefix}_prepare`, projectId, imageId, key, width, height, size: blob.size })
   if (!prep.ok) throw fail(prep.code)
   const { path, token, exists } = prep.data
   if (!exists) {
     const { error } = await supabase.storage.from('studio').uploadToSignedUrl(path, token, blob, { contentType: 'image/png' })
     if (error) throw fail('upload_failed', error.message)
   }
-  const conf = await callStudioApi('studio-upload', { action: 'bg_refine_confirm', projectId, imageId, path })
+  const conf = await callStudioApi('studio-upload', { action: `${actionPrefix}_confirm`, projectId, imageId, path })
   if (!conf.ok) throw fail(conf.code)
-  return { path, key, w: width, h: height }
+  return path
 }
 
 /**

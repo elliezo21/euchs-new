@@ -132,6 +132,10 @@ const BG = {
   bg_refine_limit: '이 사진에 저장할 수 있는 다듬기 결과 수를 넘었어요. 고객센터로 문의해 주세요.',
   bg_refine_invalid: '다듬은 결과 파일이 올바르지 않아 저장하지 않았어요. [적용]을 다시 눌러 주세요.',
   bg_refine_too_large: '다듬은 결과가 20MB를 넘어 저장하지 못했어요.',
+  // 흰 배경·단색 배경 지우기 (bg_local_prepare / bg_local_confirm)
+  bg_local_limit: '이 사진에 저장할 수 있는 배경 지우기 결과 수를 넘었어요. 고객센터로 문의해 주세요.',
+  bg_local_invalid: '배경 지운 결과 파일이 올바르지 않아 저장하지 않았어요. [배경 지우기]를 다시 눌러 주세요.',
+  bg_local_too_large: '배경 지운 결과가 20MB를 넘어 저장하지 못했어요.',
   sign_failed: '저장 준비에 실패했어요. [적용]을 다시 눌러 주세요.',
   not_uploaded: '저장이 끝나지 않았어요. [적용]을 다시 눌러 주세요.',
   upload_failed: '파일을 올리지 못했어요. 인터넷 연결을 확인하고 [적용]을 다시 눌러 주세요.',

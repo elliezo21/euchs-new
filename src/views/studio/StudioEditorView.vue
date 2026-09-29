@@ -164,10 +164,10 @@
             v-else-if="activeTool === 'bg'"
             :row="bgRow" :thumb-url="bgRow ? views[bgRow.id]?.url || null : null" :bg="bgRow ? session.bgOf(bgRow.id) : null"
             :target-label="bgTarget.label" :target-source="bgTarget.source"
-            :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :error="bgError" :section-bg="bgSectionColor" :section-bg-where="bgSectionChoice?.where || ''" :section-bg-reason="bgSectionChoice?.reason || ''"
+            :status="bgStatus" :busy="!!(bgRow && bgBusy[bgRow.id])" :local-miss="!!(bgRow && bgLocalMiss[bgRow.id])" :error="bgError" :section-bg="bgSectionColor" :section-bg-where="bgSectionChoice?.where || ''" :section-bg-reason="bgSectionChoice?.reason || ''"
             :thumb-under="bgRow ? views[bgRow.id]?.bgUrl || null : null"
             :gen-status="bgGenStatus" :gen-busy="!!(bgRow && bgGenBusy[bgRow.id])" :gen-error="bgGenError"
-            @remove="onBgRemove" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus" @refine="openRefine"
+            @remove="onBgRemove" @remove-ai="onBgRemoveAi" @mode="onBgMode" @color="onBgColor" @reset="onBgReset" @retry-status="loadBgStatus" @refine="openRefine"
             @generate="onBgGenerate" @library="onBgLibrary" @retry-gen-status="loadBgGenStatus"
           />
           <div v-else class="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center" data-panel-soon>
@@ -542,7 +542,9 @@ import StudioStartScreen from '@/components/studio/StudioStartScreen.vue'
 import StudioTemplatePanel from '@/components/studio/StudioTemplatePanel.vue'
 import StudioBgPanel from '@/components/studio/StudioBgPanel.vue'
 import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, libFromEntry, BG_DEFAULT_COLOR, sectionBgChoice } from '@/lib/studioBg'
-import { fetchBgStatus, requestBgRemove, uploadBgRefined, fetchBgGenStatus, requestBgGenerate } from '@/lib/studioBgApi'
+import { fetchBgStatus, requestBgRemove, uploadBgRefined, uploadBgLocalMask, fetchBgGenStatus, requestBgGenerate } from '@/lib/studioBgApi'
+import { buildLocalMaskPng } from '@/lib/studioBgLocal'
+import { refineKey } from '@/lib/studioBgRefine'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { shouldShowStart } from '@/lib/studioStart'
 import { copyProject } from '@/lib/studioProjectCopy'
@@ -865,6 +867,8 @@ const selectBarOn = computed(() => isWide.value && !!page.value && selectedItemI
 // 왼쪽 재료 패널 열기/닫기 — [X] = 닫기(작업판이 넓어짐), 아이콘을 누르면 그 탭으로 다시 연다
 const leftOpen = ref(true)
 function onRail(key) {
+  // 사용가이드는 클릭이 뒤로 통과해서, 떠 있는 채로 메뉴를 누르면 가이드가 계속 남아 있었다 — 메뉴를 누르면 닫은 것으로 친다
+  if (guide.open) onGuideFinish()
   activeTool.value = key
   leftOpen.value = true
 }
@@ -2227,7 +2231,48 @@ function setBgNoted(id, bg, label) {
   const before = session.histories[id]?.index
   if (session.setBg(id, bg, label) && session.histories[id]?.index !== before) noteAction({ imageId: id })
 }
+/**
+ * [배경 지우기] 기본 동작 — 흰 배경·단색 배경을 브라우저에서 지운다 (studioBgLocal, 외부 AI·돈 없음).
+ * 지우기·덮기가 적용된 사진(erasedSourceOf)으로 판정 → 마스크 PNG 저장(bg_local) → edit.bg.mask (AI 결과와 같은 모양, model 'local').
+ * 단색이 아니면 아무것도 저장하지 않고 bgLocalMiss에 표시 → 패널이 [AI로 정밀하게 지우기]를 보여 준다(누를 때만 유료).
+ */
+const bgLocalMiss = reactive({}) // image id → true (단색 배경이 아니라서 무료로 못 지움)
 async function onBgRemove() {
+  const row = bgRow.value
+  const pid = project.value?.id
+  if (!row || !pid || bgBusy[row.id]) return
+  bgBusy[row.id] = true
+  bgError.value = ''
+  delete bgLocalMiss[row.id]
+  try {
+    const src = await erasedSourceOf(row.id)
+    await new Promise(r => setTimeout(r, 0)) // "배경 지우는 중…"이 먼저 그려지게 (계산은 한 번에 끝난다)
+    const built = await buildLocalMaskPng(src.source, row.width, row.height)
+    if (project.value?.id !== pid || !imagesById.value.has(row.id)) return // 그 사이 다른 작업·로그아웃
+    if (!built.ok) {
+      console.info('[StudioEditor] 단색 배경이 아니라 무료로 지우지 않음:', row.id, built.reason)
+      bgLocalMiss[row.id] = true
+      return
+    }
+    const key = await refineKey(built.mask, built.width, built.height)
+    const saved = await uploadBgLocalMask({ projectId: pid, imageId: row.id, key, blob: built.blob, width: built.width, height: built.height })
+    if (project.value?.id !== pid || !imagesById.value.has(row.id)) return
+    setBgNoted(row.id, bgFromServer(saved), LABELS.bgRemove)
+  } catch (e) {
+    if (project.value?.id !== pid) return
+    console.error('[StudioEditor] 배경 지우기(무료) 실패:', row.id, e)
+    const msg = e.code ? e.message : '배경을 지우지 못했어요. 잠시 후 다시 시도해 주세요.'
+    if (bgRow.value?.id === row.id) bgError.value = msg
+    else showToast(msg)
+  } finally {
+    delete bgBusy[row.id]
+  }
+}
+/**
+ * [AI로 정밀하게 지우기] — 외부 AI(서버 bg_remove, 돈이 드는 곳)는 이 버튼을 누를 때만.
+ * 이미 지운 결과가 있으면(무료 결과를 AI로 바꿈) 모드·단색·라이브러리·AI 배경은 그대로 두고 마스크만 바꾼다 — 다듬은 마스크는 예전 마스크 기준이라 뺀다.
+ */
+async function onBgRemoveAi() {
   const row = bgRow.value
   const pid = project.value?.id
   if (!row || !pid || bgBusy[row.id] || !bgStatus.ready) return
@@ -2237,7 +2282,10 @@ async function onBgRemove() {
   try {
     const r = await requestBgRemove(pid, row.id)
     if (project.value?.id !== pid || !imagesById.value.has(row.id)) return // 그 사이 다른 작업·로그아웃
-    setBgNoted(row.id, bgFromServer(r), LABELS.bgRemove)
+    delete bgLocalMiss[row.id]
+    const next = bgFromServer(r)
+    const cur = session.bgOf(row.id)
+    setBgNoted(row.id, cur ? { ...withRefined(cur, null), mask: next.mask } : next, LABELS.bgRemove)
   } catch (e) {
     if (project.value?.id !== pid) return
     if (bgRow.value?.id === row.id) bgError.value = e.message
@@ -2744,7 +2792,7 @@ function restoreHistory(i) {
 }
 
 // ── 사용가이드 (14단계) — SpotlightGuide 하나로 편집기 가이드와 지우기 화면 가이드를 띄운다 (문구 src/data/studioEditorGuide.js) ──
-// "다시 보지 않기" = 브라우저 localStorage (studioGuide — 편집기·지우기 따로). 이 편집기를 연 동안 가이드마다 한 번만 자동으로.
+// "다시 보지 않기" = 브라우저 localStorage (studioGuide — 편집기·지우기 따로). 자동으로는 이 탭에서 가이드마다 한 번만(sessionStorage — 띄울 때·닫을 때 기록).
 const guideAutoShown = { editor: false, erase: false }
 let guideTimer = null
 function guideStorage() {
@@ -2773,7 +2821,12 @@ function setGuideHidden(v) {
   guide.hide = !!v
   writeGuideHidden(guideStorage(), guide.kind, guide.hide)
 }
-function onGuideFinish() { guide.open = false }
+/** 가이드를 닫음 (끝까지·건너뛰기·X·Esc·왼쪽 메뉴) — 이 탭에서는 그 가이드를 다시 자동으로 띄우지 않는다 (studioGuide.SESSION_ONCE) */
+function onGuideFinish() {
+  guide.open = false
+  guideAutoShown[guide.kind] = true
+  writeGuideShown(guideSessionStorage(), guide.kind)
+}
 // 자동 시작 판단 — 편집기: 작업·페이지가 준비되고 시작 화면(16단계)·지우기 화면·창이 없을 때 / 지우기: 지우기 화면이 열렸을 때
 const guideAutoKind = computed(() => {
   if (!isWide.value || guide.open || anyModalOpen.value || shortcutsOpen.value) return null
@@ -2966,6 +3019,7 @@ const onStudioAuthChanged = (e) => {
     bgStatusSeq++
     Object.assign(bgStatus, { loading: false, loaded: false, ready: false, reason: null, message: '' })
     for (const k of Object.keys(bgBusy)) delete bgBusy[k]
+    for (const k of Object.keys(bgLocalMiss)) delete bgLocalMiss[k]
     bgError.value = ''
     // 17-4 AI 배경 상태
     bgGenSeq++

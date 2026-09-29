@@ -66,6 +66,13 @@
  * 에러: invalid_input 400 / bg_refine_too_large·bg_refine_invalid·not_uploaded 400 / bg_refine_limit 400(사진당 60개) /
  *       not_found 404 / sign_failed·storage_error 500
  *
+ * ── 흰 배경·단색 배경 지우기 (2026-09-29) ── [배경 지우기]의 기본 동작. 브라우저가 테두리 색으로 배경을 찾아 마스크 PNG를 만들고 저장만 한다.
+ *   외부 AI·사용 기록·자격 검사 없음 — 돈이 들지 않는다. 다듬기와 같은 2단계, 이름만 AI 마스크와 같은 규칙(mask_{내용 해시}.png)
+ *   → 화면이 edit.bg.mask = { path, key, model:'local', w, h }로 저장 (투명·단색·라이브러리·AI 배경·다듬기·복사본이 그대로 씀)
+ * POST { action:'bg_local_prepare', projectId, imageId, key, width, height, size } → { exists:true, path } | { path, token }
+ * POST { action:'bg_local_confirm', projectId, imageId, path } → { ok:true, width, height }
+ * 에러: invalid_input 400 / bg_local_too_large·bg_local_invalid·not_uploaded 400 / bg_local_limit 400(사진당 mask_ 60개) / not_found 404 / sign_failed·storage_error 500
+ *
  * ── AI 배경 (17-4) ── 외부 API(fal Bria Background Replace, _studioBgProvider.generateBackground)로 새 배경 장면을 만든다. 돈이 나간다($0.04/장).
  *   자격 = 배경 지우기와 같음. 1인 하루 3회(관리자·스태프 제외) + 전체 하루 STUDIO_BG_GEN_DAILY_LIMIT(관리자 포함) — _studioBgGen.js
  *   결과 이미지는 받은 바이트 그대로 {uid}/{projectId}/bg/{imageId}/ai_{sha256 16자}.{png|jpg|webp}. 제품은 화면이 우리 원본 + 마스크로 위에 덮는다.
@@ -108,7 +115,7 @@ import { readDimensions } from './studio-ingest.js'
 import { buildCopyPlan } from './_studioCopy.js'
 import {
   isBgEligible, isBgStaff, usageTableReady, usageCheck, isUsageUnavailable, bgDailyLimit, bgMaskKey, bgFolder, buildMaskPng,
-  BG_MAX_SIDE, BG_SIGN_SECONDS, BG_MASK_MAX_BYTES, BG_REFINED_NAME_RE, BG_REFINED_MAX_FILES,
+  BG_MAX_SIDE, BG_SIGN_SECONDS, BG_MASK_MAX_BYTES, BG_REFINED_NAME_RE, BG_REFINED_MAX_FILES, BG_MASK_NAME_RE, BG_LOCAL_MAX_FILES,
 } from './_studioBg.js'
 import { bgProviderConfig, removeBackground, BgProviderError, bgGenProviderConfig, generateBackground } from './_studioBgProvider.js'
 import {
@@ -879,21 +886,35 @@ async function bgRemove(ctx, body, res) {
   return res.status(200).json({ ...out, reused: false })
 }
 
-// ── 배경 경계 다듬기 (17-3) — 브라우저가 만든 다듬은 마스크 저장 (외부 AI 없음) ────────────────
-const BG_REFINE_TOO_LARGE_MSG = `다듬은 결과는 ${BG_MASK_MAX_BYTES / 1024 / 1024}MB 이하여야 합니다.`
+// ── 배경 경계 다듬기 (17-3) · 흰 배경·단색 배경 지우기 (2026-09-29) — 브라우저가 만든 마스크 PNG 저장 (외부 AI·사용 기록 없음) ──
+// 두 가지가 같은 2단계(prepare → 업로드 → confirm)를 쓴다. 다른 것은 파일 이름·상한·오류 코드·문구뿐.
+const BG_MASK_MB = BG_MASK_MAX_BYTES / 1024 / 1024
+const BG_BROWSER_MASKS = {
+  // 다듬은 마스크 — AI 마스크(mask_)와 이름이 겹치지 않는다
+  refine: {
+    prefix: 'refined_', nameRe: BG_REFINED_NAME_RE, maxFiles: BG_REFINED_MAX_FILES, what: '다듬은 결과', log: '다듬기',
+    tooLarge: 'bg_refine_too_large', invalid: 'bg_refine_invalid', limit: 'bg_refine_limit', limitMsg: `사진 한 장의 다듬기 결과는 ${BG_REFINED_MAX_FILES}개까지 저장할 수 있습니다.`,
+  },
+  // 흰 배경·단색 배경 지우기 — AI 마스크와 같은 이름 규칙(mask_{내용 해시}.png) → edit.bg.mask로 그대로 쓴다 (복사본·AI 배경 검사도 그대로)
+  local: {
+    prefix: 'mask_', nameRe: BG_MASK_NAME_RE, maxFiles: BG_LOCAL_MAX_FILES, what: '배경 지운 결과', log: '단색 배경 지우기',
+    tooLarge: 'bg_local_too_large', invalid: 'bg_local_invalid', limit: 'bg_local_limit', limitMsg: `사진 한 장의 배경 지우기 결과는 ${BG_LOCAL_MAX_FILES}개까지 저장할 수 있습니다.`,
+  },
+}
 
-async function bgRefinePrepare(ctx, body, res) {
+async function bgMaskFilePrepare(ctx, body, res, k) {
   const key = String(body.key ?? '')
   const width = Number(body.width), height = Number(body.height), size = Number(body.size)
+  const tooLargeMsg = `${k.what}는 ${BG_MASK_MB}MB 이하여야 합니다.`
   if (!PATCH_KEY_RE.test(key)) return sendError(res, 400, 'invalid_input', 'key 형식이 올바르지 않습니다.')
-  if (!Number.isInteger(size) || size < 1 || size > BG_MASK_MAX_BYTES) return sendError(res, 400, 'bg_refine_too_large', BG_REFINE_TOO_LARGE_MSG)
+  if (!Number.isInteger(size) || size < 1 || size > BG_MASK_MAX_BYTES) return sendError(res, 400, k.tooLarge, tooLargeMsg)
   const t = await loadPatchTarget(ctx, body, res) // 본인·안 지운·안 끝난 작업의 done 사진만
   if (!t) return
   if (width !== t.image.width || height !== t.image.height) {
-    return sendError(res, 400, 'invalid_input', '다듬은 결과의 가로·세로가 원본과 다릅니다.')
+    return sendError(res, 400, 'invalid_input', `${k.what}의 가로·세로가 원본과 다릅니다.`)
   }
   const folder = bgFolder(ctx.userId, t.project.id, t.image.id)
-  const name = `refined_${key}.png`
+  const name = `${k.prefix}${key}.png`
   const path = `${folder}/${name}`
   let names
   try {
@@ -903,58 +924,60 @@ async function bgRefinePrepare(ctx, body, res) {
     return sendError(res, 500, 'storage_error', '저장소를 확인하지 못했습니다.')
   }
   if (names.includes(name)) return res.status(200).json({ exists: true, path })
-  if (names.filter(n => BG_REFINED_NAME_RE.test(n)).length >= BG_REFINED_MAX_FILES) {
-    return sendError(res, 400, 'bg_refine_limit', `사진 한 장의 다듬기 결과는 ${BG_REFINED_MAX_FILES}개까지 저장할 수 있습니다.`)
-  }
+  if (names.filter(n => k.nameRe.test(n)).length >= k.maxFiles) return sendError(res, 400, k.limit, k.limitMsg)
   let token
   try {
     token = await storageSignUpload(ctx.cfg, BUCKET, path)
   } catch (e) {
-    console.error(`[studio-upload] 다듬기 업로드 URL 발급 실패 ${path}:`, e.message)
+    console.error(`[studio-upload] ${k.log} 업로드 URL 발급 실패 ${path}:`, e.message)
     return sendError(res, 500, 'sign_failed', '업로드 준비에 실패했습니다.')
   }
   return res.status(200).json({ path, token })
 }
 
-async function bgRefineConfirm(ctx, body, res) {
+async function bgMaskFileConfirm(ctx, body, res, k) {
   const t = await loadPatchTarget(ctx, body, res)
   if (!t) return
   const path = String(body.path ?? '')
   const prefix = `${bgFolder(ctx.userId, t.project.id, t.image.id)}/`
-  // 다듬은 마스크 이름만 받는다 — AI 마스크(mask_)·다른 폴더는 여기서 확인하지 않는다
-  if (!path.startsWith(prefix) || !BG_REFINED_NAME_RE.test(path.slice(prefix.length))) {
+  // 이 종류의 이름만 받는다 — 다른 폴더·다른 이름은 여기서 확인하지 않는다
+  if (!path.startsWith(prefix) || !k.nameRe.test(path.slice(prefix.length))) {
     return sendError(res, 400, 'invalid_input', '경로가 올바르지 않습니다.')
   }
   let dl
   try {
     dl = await storageDownload(ctx.cfg, BUCKET, path)
   } catch (e) {
-    console.error(`[studio-upload] 다듬기 파일 읽기 실패 ${path}:`, e.message)
+    console.error(`[studio-upload] ${k.log} 파일 읽기 실패 ${path}:`, e.message)
     return sendError(res, 500, 'storage_error', '저장소에서 파일을 확인하지 못했습니다.')
   }
   if (!dl.found) return sendError(res, 400, 'not_uploaded', '업로드된 파일이 없습니다.')
   const buf = dl.buf
   let bad = null
   let dims = null
-  if (buf.length > BG_MASK_MAX_BYTES) bad = ['bg_refine_too_large', BG_REFINE_TOO_LARGE_MSG]
-  else if (sniffMime(buf) !== 'image/png') bad = ['bg_refine_invalid', 'PNG 파일이 아닙니다.']
+  if (buf.length > BG_MASK_MAX_BYTES) bad = [k.tooLarge, `${k.what}는 ${BG_MASK_MB}MB 이하여야 합니다.`]
+  else if (sniffMime(buf) !== 'image/png') bad = [k.invalid, 'PNG 파일이 아닙니다.']
   else {
     dims = readDimensions(buf, 'image/png')
-    if (!dims || !dims.width || !dims.height) bad = ['bg_refine_invalid', '이미지 크기를 읽을 수 없습니다.']
-    else if (dims.width !== t.image.width || dims.height !== t.image.height) bad = ['bg_refine_invalid', '다듬은 결과의 가로·세로가 원본과 다릅니다.']
+    if (!dims || !dims.width || !dims.height) bad = [k.invalid, '이미지 크기를 읽을 수 없습니다.']
+    else if (dims.width !== t.image.width || dims.height !== t.image.height) bad = [k.invalid, `${k.what}의 가로·세로가 원본과 다릅니다.`]
   }
   if (bad) {
-    console.warn(`[studio-upload] 다듬기 파일 불합격 ${path}: ${bad[0]} (${buf.length} bytes)`)
+    console.warn(`[studio-upload] ${k.log} 파일 불합격 ${path}: ${bad[0]} (${buf.length} bytes)`)
     try {
       await storageRemove(ctx.cfg, BUCKET, [path])
     } catch (e) {
-      console.error(`[studio-upload] 불합격 다듬기 파일 삭제 실패 ${path}:`, e.message)
+      console.error(`[studio-upload] 불합격 ${k.log} 파일 삭제 실패 ${path}:`, e.message)
       return sendError(res, 400, `${bad[0]}+delete_failed`, bad[1])
     }
     return sendError(res, 400, bad[0], bad[1])
   }
   return res.status(200).json({ ok: true, width: dims.width, height: dims.height })
 }
+const bgRefinePrepare = (ctx, body, res) => bgMaskFilePrepare(ctx, body, res, BG_BROWSER_MASKS.refine)
+const bgRefineConfirm = (ctx, body, res) => bgMaskFileConfirm(ctx, body, res, BG_BROWSER_MASKS.refine)
+const bgLocalPrepare = (ctx, body, res) => bgMaskFilePrepare(ctx, body, res, BG_BROWSER_MASKS.local)
+const bgLocalConfirm = (ctx, body, res) => bgMaskFileConfirm(ctx, body, res, BG_BROWSER_MASKS.local)
 
 // ── AI 배경 (17-4) ──────────────────────────────────────────────────────────
 /** [배경합성] 패널이 열릴 때·만든 뒤 — 쓸 수 있는지 + 오늘 남은 무료 횟수 (서버 값 기준) */
@@ -1387,6 +1410,8 @@ export default async function handler(req, res) {
     if (body.action === 'bg_remove') return await bgRemove(ctx, body, res)
     if (body.action === 'bg_refine_prepare') return await bgRefinePrepare(ctx, body, res)
     if (body.action === 'bg_refine_confirm') return await bgRefineConfirm(ctx, body, res)
+    if (body.action === 'bg_local_prepare') return await bgLocalPrepare(ctx, body, res)
+    if (body.action === 'bg_local_confirm') return await bgLocalConfirm(ctx, body, res)
     if (body.action === 'bg_gen_status') return await bgGenStatus(ctx, body, res)
     if (body.action === 'bg_generate') return await bgGenerate(ctx, body, res)
     if (body.action === 'product_facts') return await productFacts(ctx, body, res)
@@ -1396,7 +1421,7 @@ export default async function handler(req, res) {
     if (body.action === 'exports_list') return await exportsList(ctx, body, res)
     if (body.action === 'export_download') return await exportDownload(ctx, body, res)
     if (body.action === 'export_save_commit') return await exportSaveCommit(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit' 중 하나여야 합니다.")
+    return sendError(res, 400, 'invalid_input', "action은 'access'·'prepare'·'confirm'·'patch_prepare'·'patch_confirm'·'final_prepare'·'final_confirm'·'project_copy'·'bg_status'·'bg_remove'·'bg_refine_prepare'·'bg_refine_confirm'·'bg_local_prepare'·'bg_local_confirm'·'bg_gen_status'·'bg_generate'·'product_facts'·'export_begin'·'export_file_prepare'·'export_file_confirm'·'exports_list'·'export_download'·'export_save_commit' 중 하나여야 합니다.")
   } catch (e) {
     console.error(`[studio-upload] ${body.action} 처리 실패:`, e.message)
     return sendError(res, 500, 'internal', '업로드 처리 중 오류가 발생했습니다.')

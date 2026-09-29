@@ -36,6 +36,9 @@ export const BG_MASK_NAME_RE = /^mask_[0-9a-f]{16}\.png$/
 // 17-3 경계 다듬기 — 브라우저가 만든 다듬은 마스크 (같은 bg 폴더, 이름 = refined_{내용 해시 16자}.png). AI 마스크(mask_)와 이름이 겹치지 않는다
 export const BG_REFINED_NAME_RE = /^refined_[0-9a-f]{16}\.png$/
 export const BG_REFINED_MAX_FILES = 60   // 사진 한 장의 다듬은 마스크 파일 수 상한 (AI 조각 120개와 같은 뜻 — 끝없이 쌓이지 않게)
+// 흰 배경·단색 배경 지우기 (2026-09-29) — 브라우저가 만든 마스크를 AI 마스크와 같은 이름 규칙(mask_{내용 해시 16자}.png)으로 둔다
+// (edit.bg.mask·복사본·AI 배경 검사가 그대로 쓰게). 외부 AI·사용 기록 없음. 사진 한 장의 mask_ 파일 수 상한
+export const BG_LOCAL_MAX_FILES = 60
 
 export function bgDailyLimit(env = process.env) {
   const raw = env.STUDIO_BG_DAILY_LIMIT

@@ -56,8 +56,9 @@ export function visibleSteps(steps, exists) {
 // ── 이 탭에서 이미 자동으로 띄웠는지 (검수 2묶음) ──
 // 지우기 가이드는 같은 탭(창)에서 한 번 봤으면 "다시 보지 않기"를 안 눌렀어도 다시 자동으로 띄우지 않는다.
 // 편집기 컴포넌트 안에만 기억하면 목록으로 나갔다 다시 들어올 때 잊어서 또 떴다 → sessionStorage(탭이 닫히면 사라짐)에 기억.
-// 편집기 가이드는 예전 그대로(편집기를 열 때마다 — 빈도는 해성 결정 대기) — 이 기록을 쓰는 종류만 SESSION_ONCE에 둔다.
-export const SESSION_ONCE = new Set(['erase'])
+// 편집기 가이드도 같은 규칙 (2026-09-29 해성 지시): 건너뛰기·X·Esc로 닫았으면 이 탭에서는 다시 자동으로 띄우지 않는다
+// (예전에는 편집기를 열 때마다 떠서 닫아도 또 떴다). 자동으로 띄울 때와 닫을 때 둘 다 기록한다 — 이 기록을 쓰는 종류만 SESSION_ONCE에 둔다.
+export const SESSION_ONCE = new Set(['editor', 'erase'])
 const SHOWN_PREFIX = 'studio-guide-shown:'
 
 /** @param {Storage|null} storage sessionStorage  @returns {boolean} 이 탭에서 이미 자동으로 띄움 */

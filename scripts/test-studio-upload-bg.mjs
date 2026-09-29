@@ -266,5 +266,42 @@ eq('patch_confirm에 bg 경로 → invalid_input', (await quiet(() => call({ act
   eq('patch_confirm에 refined 경로 → invalid_input', (await quiet(() => call({ action: 'patch_confirm', projectId: PID, imageId: IMG, path: `${UID}/${PID}/patches/${IMG}/refined_${KEY}.png` }))).body.code, 'invalid_input')
 }
 
+// ── 흰 배경·단색 배경 지우기 (2026-09-29): bg_local_prepare / bg_local_confirm — 브라우저가 만든 마스크, 외부 AI·사용 기록 없음 ──
+{
+  const KEY = '0f1e2d3c4b5a6978'
+  const FOLDER = `${UID}/${PID}/bg/${IMG}`
+  const MASK = `${FOLDER}/mask_${KEY}.png`
+  const prep = (o = {}) => quiet(() => call({ action: 'bg_local_prepare', projectId: PID, imageId: IMG, key: KEY, width: W, height: H, size: 100, ...o }))
+  const conf = (o = {}) => quiet(() => call({ action: 'bg_local_confirm', projectId: PID, imageId: IMG, path: MASK, ...o }))
+  const grayPng = (w, h) => encodeGrayPng(new Uint8Array(w * h).fill(255), w, h)
+
+  reset()
+  const r = await prep()
+  eq('무료 지우기 준비 → AI 마스크와 같은 이름 규칙(mask_key)·토큰', [r.code, r.body.path, r.body.token], [200, MASK, 'up-token'])
+  eq('무료 지우기 준비: fal·사용 기록·원본 서명 주소 안 씀 (돈 없음)', [S.falCalls.length, S.usage.length, S.signCalls.length], [0, 0, 0])
+  S.files.set(MASK, grayPng(W, H))
+  const c = await conf()
+  eq('무료 지우기 확인 → ok · 크기', [c.code, c.body.ok, c.body.width, c.body.height], [200, true, W, H])
+  eq('확인 뒤에도 fal·사용 기록 없음', [S.falCalls.length, S.usage.length], [0, 0])
+  eq('같은 내용 다시 준비 → exists (다시 안 올림)', (await prep()).body, { exists: true, path: MASK })
+
+  reset()
+  eq('key 형식 틀림 → invalid_input', (await prep({ key: 'refined_0123' })).body.code, 'invalid_input')
+  eq('가로·세로가 원본과 다름 → invalid_input', (await prep({ height: H - 1 })).body.code, 'invalid_input')
+  eq('20MB 넘음 → bg_local_too_large', (await prep({ size: 20 * 1024 * 1024 + 1 })).body.code, 'bg_local_too_large')
+  eq('남의 사진 → 404', (await prep({ imageId: OTHER_IMG })).code, 404)
+  for (let i = 0; i < 60; i++) S.files.set(`${FOLDER}/mask_${String(i).padStart(16, '0')}.png`, Buffer.from('x'))
+  eq('사진당 mask_ 60개 넘음 → bg_local_limit', (await prep()).body.code, 'bg_local_limit')
+
+  reset()
+  eq('확인: 다듬기 이름은 받지 않음', (await conf({ path: `${FOLDER}/refined_${KEY}.png` })).body.code, 'invalid_input')
+  eq('확인: 다른 사진 폴더 → invalid_input', (await conf({ path: `${UID}/${PID}/bg/${OTHER_IMG}/mask_${KEY}.png` })).body.code, 'invalid_input')
+  eq('확인: 파일 없음 → not_uploaded', (await conf()).body.code, 'not_uploaded')
+  S.files.set(MASK, Buffer.from('not a png'))
+  eq('확인: PNG 아님 → bg_local_invalid + 삭제', [(await conf()).body.code, S.files.has(MASK)], ['bg_local_invalid', false])
+  S.files.set(MASK, grayPng(W, H + 1))
+  eq('확인: 크기 다름 → bg_local_invalid + 삭제', [(await conf()).body.code, S.files.has(MASK)], ['bg_local_invalid', false])
+}
+
 console.log(`\n통과 ${pass} / 실패 ${fail}`)
 process.exit(fail ? 1 : 0)
