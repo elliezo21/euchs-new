@@ -75,7 +75,7 @@ const st = (extra = {}) => ({ ...textStyleOf(normalizeTextItem({ type: 'text' })
 
 // ── 5. 폰트 목록 ──
 {
-  eq('폰트 11개(예전 6 + 우리 도메인 5), 모두 SIL OFL', [STUDIO_FONTS.length, STUDIO_FONTS.filter(f => f.local).length, STUDIO_FONTS.every(f => f.license === 'SIL OFL 1.1')], [11, 5, true])
+  eq('폰트 11개(예전 6 + 새 5) 모두 우리 도메인, 모두 SIL OFL', [STUDIO_FONTS.length, STUDIO_FONTS.filter(f => f.local).length, STUDIO_FONTS.every(f => f.license === 'SIL OFL 1.1')], [11, 11, true])
   eq('가까운 굵기 (나눔고딕 900 → 800, 500 → 400)', [nearestWeight('nanum-gothic', 900), nearestWeight('nanum-gothic', 500)], [800, 400])
   eq('캔버스 글꼴 한 줄', fontSpec({ fontFamily: 'nanum-gothic', fontWeight: 700, fontSize: 40 }), '700 40px "Nanum Gothic", sans-serif')
   eq('모르는 폰트 → sans-serif', cssFamilyOf('x'), 'sans-serif')

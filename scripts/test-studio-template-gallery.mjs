@@ -1,13 +1,10 @@
 // 템플릿 고르기 화면 테스트 — node scripts/test-studio-template-gallery.mjs
-// 거르기 값(분위기·색)·카드 글자·거르기 함수 · [이 템플릿으로 시작] 기억 규칙 · 내 보관함 SQL·표 없음 처리 · 화면 연결(메뉴·라우트·패널·미리보기·캐시)
+// 거르기 값(분위기·색)·카드 글자·거르기 함수 · 내 보관함 SQL·표 없음 처리 · 화면 연결(메뉴·라우트·패널·미리보기·캐시)
 import fs from 'node:fs'
 import {
   STUDIO_TEMPLATES, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, templateByKey, filterTemplates,
   templateName, templateCardTitle, templateSectionCount, templateMoodLabel,
 } from '../src/lib/studioTemplates.js'
-import {
-  savePendingTemplate, readPendingTemplate, clearPendingTemplate, pendingFitsProject, PENDING_TEMPLATE_KEY, PENDING_TTL_MS,
-} from '../src/lib/studioTemplateStart.js'
 
 let pass = 0, fail = 0
 function eq(name, got, want) {
@@ -16,10 +13,6 @@ function eq(name, got, want) {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name.padEnd(60)} ${ok ? '' : `${JSON.stringify(got)}  기대 ${JSON.stringify(want)}`}`)
 }
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
-const memStore = () => {
-  const m = new Map()
-  return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k), m }
-}
 
 // ── 1. 거르기 값 ──
 {
@@ -51,37 +44,7 @@ const memStore = () => {
   eq('맞는 것 없음 = 빈 목록', filterTemplates({ category: 'pets', color: 'mono' }), [])
 }
 
-// ── 4. [이 템플릿으로 시작] 기억 (sessionStorage) ──
-{
-  const s = memStore()
-  const t0 = 1_800_000_000_000
-  eq('저장 → 읽기', [savePendingTemplate(s, 'kitchen-bold', t0), readPendingTemplate(s, t0 + 1000)], [true, { key: 'kitchen-bold', at: t0 }])
-  eq('30분 지나면 잊음', readPendingTemplate(s, t0 + PENDING_TTL_MS + 1), null)
-  eq('저장소 없음 = null·false', [readPendingTemplate(null), savePendingTemplate(null, 'x')], [null, false])
-  s.setItem(PENDING_TEMPLATE_KEY, '{깨진')
-  const errs = []
-  const origErr = console.error
-  console.error = (...a) => errs.push(a.join(' '))
-  const broken = readPendingTemplate(s, t0)
-  console.error = origErr
-  eq('깨진 값 = null + 원인 로그', [broken, errs.length], [null, 1])
-  savePendingTemplate(s, 'basic', t0)
-  clearPendingTemplate(s)
-  eq('지우기', readPendingTemplate(s, t0), null)
-  const p = { key: 'basic', at: t0 }
-  eq('고른 뒤에 만든 작업만 (서버 시각 여유 1분)', [
-    pendingFitsProject(p, new Date(t0 + 5000).toISOString()),
-    pendingFitsProject(p, new Date(t0 - 30_000).toISOString()),
-    pendingFitsProject(p, new Date(t0 - 3_600_000).toISOString()),
-    pendingFitsProject(p, 'x'), pendingFitsProject(null, new Date(t0).toISOString()),
-  ], [true, true, false, false, false])
-  const editor = read('src/views/studio/StudioEditorView.vue')
-  eq('편집기: 불러오기 끝에 기억한 템플릿 → 시작 화면이면 askTemplate(같은 길)', [
-    /startPendingTemplate\(\) \/\/ 템플릿 갤러리/.test(editor),
-    /clearPendingTemplate\(store\)\s*\n\s*askTemplate\(pending\.key\)/.test(editor),
-    /if \(!canStartBlank\(usableImagesNow\(\)\.length\)\) return/.test(editor),
-  ], [true, true, true])
-}
+// ── 4. [이 템플릿으로 시작] = 사진 없이 빈 작업 (test-studio-project-blank.mjs가 서버·편집기 연결을 본다) ──
 
 // ── 5. 내 보관함 — 계정 저장(표) · 표가 없으면 멈춤 ──
 {
@@ -112,7 +75,7 @@ const memStore = () => {
   eq('패널: 탭 2개 · 개수 · 카테고리·분위기 거르기 · 2줄 격자', [/전체 템플릿/.test(panel) && /내 보관함/.test(panel), /data-template-count/.test(panel), /data-template-filter="category"/.test(panel) && /data-template-filter="mood"/.test(panel), /'grid-cols-2'/.test(panel)], [true, true, true, true])
   eq('패널: 카드 누르기 = 미리보기만, [이 템플릿 쓰기]에서만 apply', [/@open="previewKey = \$event"/.test(panel), (panel.match(/emit\('apply'/g) || []).length, /action-label="이 템플릿 쓰기"/.test(panel)], [true, 1, true])
   const gallery = read('src/views/studio/StudioTemplatesView.vue')
-  eq('갤러리: 카테고리 칩·분위기·색·큰 카드·[이 템플릿으로 시작]', [/data-gallery-categories/.test(gallery), /data-gallery-moods/.test(gallery), /data-gallery-colors/.test(gallery), /\blarge\b/.test(gallery), /action-label="이 템플릿으로 시작"/.test(gallery)], [true, true, true, true, true])
+  eq('갤러리: 카테고리 칩·분위기·색·큰 카드·[이 템플릿으로 시작]', [/data-gallery-categories/.test(gallery), /data-gallery-moods/.test(gallery), /data-gallery-colors/.test(gallery), /\blarge\b/.test(gallery), /'이 템플릿으로 시작'/.test(gallery)], [true, true, true, true, true])
   eq('갤러리: 데스크톱 4~5열', [/repeat\(4, minmax\(0, 1fr\)\)/.test(gallery), /repeat\(5, minmax\(0, 1fr\)\)/.test(gallery)], [true, true])
   eq('갤러리: 로그아웃 구독', /euchs-auth-changed/.test(gallery), true)
   const card = read('src/components/studio/StudioTemplateCard.vue')
@@ -122,8 +85,7 @@ const memStore = () => {
   const thumbs = read('src/lib/studioTemplateThumbs.js')
   eq('그림: 내보내기 엔진(renderPage)·적용과 같은 문서(templatePreviewPage) · key별 캐시', [/import \{ renderPage, canvasToBlob \} from '\.\/studioExport\.js'/.test(thumbs), /templatePreviewPage\(tpl, \[\], measure, samples\)/.test(thumbs), /if \(cache\.has\(key\)\) return cache\.get\(key\)/.test(thumbs)], [true, true, true])
   eq('그림: 글꼴을 받은 뒤에 재고 그림', thumbs.indexOf('loadFontsFor(templateFontList(tpl))') < thumbs.indexOf('templatePreviewPage(tpl, [], measure, samples)'), true)
-  const home = read('src/views/studio/StudioHomeView.vue')
-  eq('내 작업: 고른 템플릿 안내 + [템플릿 없이 시작]', [/data-pending-template/.test(home), /cancelPendingTemplate/.test(home)], [true, true])
+  eq('내 작업: 예전 기억해 두기 안내 줄 없음', /data-pending-template/.test(read('src/views/studio/StudioHomeView.vue')), false)
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)

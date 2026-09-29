@@ -558,8 +558,7 @@ import { refineKey } from '@/lib/studioBgRefine'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
 import { templateSamples } from '@/lib/studioTemplateThumbs'
 import { isSampleItem, sampleItemsOf } from '@/lib/studioSamples'
-import { shouldShowStart, canStartBlank } from '@/lib/studioStart'
-import { readPendingTemplate, clearPendingTemplate, pendingFitsProject } from '@/lib/studioTemplateStart'
+import { shouldShowStart } from '@/lib/studioStart'
 import { copyProject } from '@/lib/studioProjectCopy'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
 import StudioModal from '@/components/studio/StudioModal.vue'
@@ -775,27 +774,18 @@ async function applyTemplate(key) {
   showToast(`'${tpl.label}' 템플릿을 적용했어요 · ${notes.join(' · ')}`)
 }
 
-// ── 템플릿 갤러리 [이 템플릿으로 시작] (studioTemplateStart) — 고른 뒤에 새로 만든 작업의 시작 화면이면 그 템플릿을 적용한다.
-// 적용은 [템플릿] 패널과 같은 길(askTemplate → 시작 화면이면 확인 없이 startFromDoc). 사진이 아직 준비 전이면 준비되면 다시 본다.
-function tabStorage() {
-  try { return window.sessionStorage } catch (e) { console.warn('[StudioEditor] 탭 저장소를 쓸 수 없어 고른 템플릿을 읽지 않음:', e.message); return null }
+// ── 템플릿 갤러리 [이 템플릿으로 시작] — 서버가 사진 없이 만든 빈 작업(project_blank)을 ?template=<key>로 연다.
+// 시작 화면(페이지 없음)이면 그 템플릿을 바로 적용한다 — [템플릿] 패널과 같은 길(askTemplate → 확인 없이 startFromDoc), 사진 자리 = 예시 사진.
+// 이 길에서만 "사진 0장이면 막음"(studioStart.canStartBlank)을 보지 않는다. 주소의 template은 한 번 쓰고 뗀다 (새로고침에 다시 적용하지 않게)
+function startTemplateFromRoute() {
+  const key = typeof route.query.template === 'string' ? route.query.template : ''
+  if (!key || !project.value) return
+  const { template: _t, ...rest } = route.query
+  router.replace({ query: rest })
+  if (!showStart.value) return // 이미 페이지가 있는 작업 — 바꾸지 않는다
+  if (!templateByKey(key)) { console.error('[StudioEditor] 주소의 템플릿을 모름 — 시작 화면 그대로:', key); return }
+  askTemplate(key)
 }
-function startPendingTemplate() {
-  const p = project.value
-  if (!p || eraseOpen.value) return
-  const store = tabStorage()
-  const pending = readPendingTemplate(store)
-  if (!pending || !pendingFitsProject(pending, p.created_at)) return
-  if (!showStart.value || !templateByKey(pending.key)) {
-    if (showStart.value) console.error('[StudioEditor] 기억한 템플릿을 모름 — 쓰지 않음:', pending.key)
-    clearPendingTemplate(store) // 이미 페이지가 있는 작업이면 쓰지 않고 잊는다
-    return
-  }
-  if (!canStartBlank(usableImagesNow().length)) return // 사진이 준비되면 다시 (아래 watch)
-  clearPendingTemplate(store)
-  askTemplate(pending.key)
-}
-watch(() => usableImagesNow().length, () => startPendingTemplate())
 
 // ── 작업 이름 바꾸기 (16단계) — 목록 화면과 같은 저장 함수(renameProject, title 칸만 — page·page_version과 부딪치지 않는다) ──
 const titleEdit = reactive({ open: false, value: '' })
@@ -2668,7 +2658,7 @@ async function load() {
     syncEraseFromRoute() // ?erase=<사진 id>로 새로고침·진입했으면 그 사진의 지우기 화면을 연다
     maybeStartAi()       // 사진이 없는 작업 등 — 기다릴 사진이 없으면 바로
     runOneClickFromRoute() // 원클릭 1단계: 방금 만든 복사본(?oneclick=1)이면 여기서 원클릭
-    startPendingTemplate() // 템플릿 갤러리 [이 템플릿으로 시작] 뒤 새로 만든 작업이면 그 템플릿으로
+    startTemplateFromRoute() // 템플릿 갤러리 [이 템플릿으로 시작]으로 만든 빈 작업(?template=)이면 그 템플릿으로
   } catch (e) {
     if (seq !== loadSeq) return
     console.error('[StudioEditor] 불러오기 실패:', e)
