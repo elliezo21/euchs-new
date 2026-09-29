@@ -15,7 +15,7 @@
     </header>
 
     <!-- ① 첫 화면 — 그림 배경(HERO_IMG). 640px 이상 = 그림을 전체 폭 배경 + 왼쪽 보라 그러데이션 위에 흰 글씨,
-         640px 미만 = 위 글씨(보라 바탕) · 아래 세로 그림. 그림 아래 흰 물결은 그림에 들어 있다 → 다음 구간 흰 바탕으로 이어짐.
+         640px 미만 = 위 글씨(보라 바탕) · 아래 세로 그림. 그림 아래 흰 물결은 그림에 들어 있다 → 다음 섹션 흰 바탕으로 이어짐.
          2026-09-29: 편집기 모형·상태 카드는 뺐다(해성 지시) — 모션의 hero 장면은 대상(장면 표시)이 없어 건너뛴다 -->
     <section class="land-hero">
       <div class="land-wrap hero-copy">
@@ -33,7 +33,7 @@
             <button type="button" class="land-btn land-btn-line land-btn-lg" data-land-howto @click="scrollToSteps">사용법 보기</button>
           </div>
           <ul class="hero-mk" data-hero-in aria-label="판매처">
-            <li v-for="m in MARKETS" :key="m.name" :class="{ 'is-soon': m.soon }">
+            <li v-for="m in MARKETS" :key="m.name" class="mk-chip" :class="{ 'is-soon': m.soon }">
               {{ m.name }}<span v-if="m.soon" class="hero-mk-soon">준비 중</span>
             </li>
           </ul>
@@ -120,16 +120,8 @@
           <h2 class="land-h2">세 단계면 끝나요</h2>
           <p class="land-p">디자인 프로그램을 몰라도 돼요.</p>
         </div>
-        <ol class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-5">
-          <li v-for="(s, i) in STEPS" :key="s.title" class="step" data-reveal>
-            <span class="step-no">{{ String(i + 1).padStart(2, '0') }}</span>
-            <h3 class="step-h">{{ s.title }}</h3>
-            <p class="step-p">{{ s.desc }}</p>
-            <div class="step-vis">
-              <span v-for="c in s.chips" :key="c" class="chip">{{ c }}</span>
-            </div>
-          </li>
-        </ol>
+        <!-- 카드 3장 + 단계마다 반복 시연 (StudioLandingSteps — 움직임 줄이기면 끝난 모습) -->
+        <StudioLandingSteps :still="isStatic" />
       </div>
     </section>
 
@@ -215,6 +207,7 @@ import { LANDING_MEDIA as M } from '@/data/studioLandingMedia'
 import { getStudioNotices } from '@/lib/studioNotices'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
 import { STUDIO_BETA, BETA_BADGE, BETA_NOTE, heroEyebrow } from '@/lib/studioBeta'
+import StudioLandingSteps from './StudioLandingSteps.vue'
 
 const eyebrow = heroEyebrow()
 const router = useRouter()
@@ -256,11 +249,6 @@ const HERO_PRELOAD = [[HERO_IMG.pc, HERO_IMG.pcMedia], [HERO_IMG.mobile, HERO_IM
 })
 const OC_STEPS = ['사진 고르기', '글자 지우기', '페이지 배치', '문구 초안']
 // 판매처 칩 — 목록은 MARKETS(studioMarketplaceRules.js, 설정 > 판매처 연결과 같은 목록·순서). 쿠팡만 켜짐, soon = "준비 중" 작은 배지만
-const STEPS = [
-  { title: '가져오기', desc: '상품 링크, 찜한 상품, 주문한 상품, 내 사진 어디서든 시작해요.', chips: ['상품 링크', '주문한 상품', '내 사진'] },
-  { title: '다듬기', desc: '필요 없는 글자와 배경을 AI로 정리하고, 원클릭으로 페이지 초안을 받아요.', chips: ['AI로 지우기', '배경 바꾸기', '원클릭 초안'] },
-  { title: '올리기', desc: '섹션별 여러 장 또는 한 장으로 길게 받아 판매처에 올려요.', chips: ['JPG · PNG', '내 상품에 보관'] },
-]
 const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '섹션별·한 장 다운로드']
 const NOTICE_TYPE_LABEL = { update: '업데이트', notice: '공지', soon: '예정' }
 
@@ -327,6 +315,10 @@ onBeforeUnmount(() => {
   --l-navy: #0b1b3f;
   --l-navy-ink: #afc0e6;
   --l-wrap: 1240px;
+  /* 첫 화면 보라 — "세 단계" 카드 띠·시연 화면(StudioLandingSteps)도 같은 색 */
+  --hero-top: #2a1a6e;  /* 진한 보라 */
+  --hero-mid: #4a3fa6;
+  --hero-meet: #7587d5; /* 모바일 그림 맨 윗줄 평균색 — 글씨 바탕 끝이 그림과 이어지게 */
   min-height: 100vh;
   overflow-x: clip;
   background: var(--l-bg);
@@ -376,9 +368,6 @@ onBeforeUnmount(() => {
 
 /* 첫 화면 — 그림 배경. 기본(640px 미만) = 위 글씨(보라 그러데이션 바탕) · 아래 세로 그림(HERO_IMG.mobile) */
 .land-hero {
-  --hero-top: #2a1a6e;  /* 진한 보라 */
-  --hero-mid: #4a3fa6;
-  --hero-meet: #7587d5; /* 모바일 그림 맨 윗줄 평균색 — 글씨 바탕 끝이 그림과 이어지게 */
   position: relative; margin-top: 64px; /* 고정 상단 바 높이 */
   color: #fff; background: var(--l-white);
 }
@@ -401,11 +390,12 @@ onBeforeUnmount(() => {
 .land-btn-line { background: transparent; color: #fff; border: 1.5px solid rgba(255, 255, 255, 0.9); }
 .land-btn-line:hover { background: rgba(255, 255, 255, 0.12); }
 .land-hero .land-btn:focus-visible { outline-color: #fff; }
-/* 판매처 칩 — 목록은 MARKETS 하나(아래 판매처 타일과 같음) */
+/* 판매처 칩 — 목록은 MARKETS 하나(아래 판매처 타일과 같음). 칩 모양(.mk-chip)은 보라 바탕용 한 규칙을
+   첫 화면과 "올리기" 시연(StudioLandingSteps)이 같이 쓴다 */
 .hero-mk { margin-top: 22px; display: flex; flex-wrap: wrap; gap: 6px; }
-.hero-mk li {
+.st-land :deep(.mk-chip) {
   display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: 7px; font-size: 12.5px; font-weight: 700;
-  color: #fff; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.4);
+  white-space: nowrap; color: #fff; background: rgba(255, 255, 255, 0.2); border: 1px solid rgba(255, 255, 255, 0.4);
 }
 .hero-mk li.is-soon { color: rgba(255, 255, 255, 0.8); background: rgba(255, 255, 255, 0.08); border-color: rgba(255, 255, 255, 0.22); }
 .hero-mk-soon { padding: 0 5px; border-radius: 4px; font-size: 10.5px; background: rgba(255, 255, 255, 0.16); }
@@ -505,12 +495,6 @@ onBeforeUnmount(() => {
 /* 만드는 순서 */
 .land-h2 { font-size: clamp(28px, 3.4vw, 40px); font-weight: 900; letter-spacing: -0.03em; line-height: 1.2; color: var(--l-ink); word-break: keep-all; }
 .land-p { margin-top: 12px; font-size: 17px; color: var(--l-ink-2); word-break: keep-all; }
-.step { border: 1px solid var(--l-line); border-radius: 20px; padding: 28px; background: #fff; }
-.step-no { font-size: 14px; font-weight: 800; color: var(--l-blue); }
-.step-h { margin-top: 8px; font-size: 22px; font-weight: 800; letter-spacing: -0.02em; color: var(--l-ink); }
-.step-p { margin-top: 8px; font-size: 15px; line-height: 1.6; color: var(--l-ink-2); word-break: keep-all; }
-.step-vis { margin-top: 22px; min-height: 96px; border-radius: 14px; background: #f6f8fc; display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; padding: 16px; }
-.chip { background: #fff; border: 1px solid var(--l-line); border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 700; color: var(--l-ink); }
 
 /* 이용 안내 */
 .plan { position: relative; padding: 30px; border-radius: 20px; background: #fff; border: 1px solid var(--l-line); }

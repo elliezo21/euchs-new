@@ -59,6 +59,7 @@ function videoPlayer(video) {
 
 /** @param {HTMLElement} root 랜딩 최상위 요소 @returns {() => void} 정리 함수 */
 export function startLandingMotion(root) {
+  let heroTl = null
   const ctx = gsap.context(() => {
     const $ = sel => root.querySelector(sel)
     const $$ = sel => Array.from(root.querySelectorAll(sel))
@@ -74,7 +75,7 @@ export function startLandingMotion(root) {
     const sceneEl = name => { const el = $(`[data-scene="${name}"]`); return el && !withVideo.has(el) ? el : null }
 
     // ── 첫 화면 등장 (들어오자마자 한 번) — 글씨는 살짝 떠오름, 배경 그림은 제자리에서 서서히 나타남만 ──
-    const heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } })
+    heroTl = gsap.timeline({ defaults: { ease: 'power3.out' } })
       .fromTo($$('[data-hero-in]'), { y: 24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, stagger: 0.08 })
     const heroVisual = $('[data-hero-visual]')
     if (heroVisual) heroTl.fromTo(heroVisual, { opacity: 0 }, { opacity: 1, duration: 1, ease: 'power1.out' }, 0)
@@ -153,7 +154,15 @@ export function startLandingMotion(root) {
   window.addEventListener('load', refresh)
   document.fonts?.ready?.then(refresh).catch(e => console.error('[StudioLanding] 글꼴 준비 확인 실패:', e))
 
+  // 탭이 숨겨진 채 열렸거나 등장 도중 탭을 옮기면 화면 그리기가 멈춰 첫 화면 글씨·그림이 반투명으로 남을 수 있다
+  // → 탭이 보이는 순간 첫 화면 등장을 끝 모습으로 보낸다
+  const finishHero = () => {
+    if (document.visibilityState === 'visible' && heroTl && heroTl.progress() < 1) heroTl.progress(1)
+  }
+  document.addEventListener('visibilitychange', finishHero)
+
   return () => {
+    document.removeEventListener('visibilitychange', finishHero)
     window.removeEventListener('load', refresh)
     ctx.revert()
   }
