@@ -57,6 +57,8 @@ export function selectBarButtons(s) {
     )
     if (s.autoMark?.canRevert) left.push({ key: 'autoRevert', label: '원본으로', tip: '자동으로 지운 곳을 원래대로', type: 'emit', group: 'photo' })
   }
+  // 예시 사진 (studioSamples) — 자리·크기 그대로 내 사진으로 (편집기 사진 바꾸기 창)
+  if (s.sample) left.push({ key: 'sampleReplace', label: '내 사진으로 바꾸기', tip: '예시 사진 자리에 내 사진을 넣어요 (자리·크기·꾸미기 그대로)', type: 'emit', group: 'photo' })
   if (k.has('text')) {
     left.push(
       { key: 'font', label: '글꼴', tip: '글꼴 바꾸기', type: 'pop', pop: 'font', group: 'text' },

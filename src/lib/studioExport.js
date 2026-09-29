@@ -30,6 +30,7 @@ import { isValidTableItem, tablePaintSpec, tableFontOf } from './studioTable.js'
 import { lookValues, isDefaultLook } from './studioLook.js'
 import { fontSpec } from './studioFonts.js'
 import { isValidAssetItem, sectionBgImageOf, assetPlacement } from './studioAsset.js'
+import { isSampleItem } from './studioSamples.js'
 
 // ── 형식·크기·한계 ──
 export const EXPORT_FORMATS = {
@@ -525,6 +526,8 @@ function drawAsset(ctx, it, env) {
 
 function drawItemBody(ctx, it, env) {
   if (isValidImageItem(it)) drawPhoto(ctx, it, env.images.get(it.imageId), env)
+  // 예시 사진 (studioSamples): 사진 자리와 같게 — 채움(cover) + 꾸미기(모서리·테두리·그림자), 필터 없음
+  else if (isValidAssetItem(it) && isSampleItem(it)) { const img = env.assets?.get(it.asset); if (img) drawPhoto(ctx, it, img, env) }
   else if (isValidAssetItem(it)) drawAsset(ctx, it, env)
   else if (isValidTextItem(it)) drawText(ctx, it, env)
   else if (isValidShapeItem(it) || isValidLineItem(it)) drawShape(ctx, it, env)

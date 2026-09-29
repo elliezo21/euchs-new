@@ -27,12 +27,14 @@
  */
 import {
   PAGE_WIDTH, SECTION_BG, SECTION_MAX, newPageId, hasSize, imageSection, normalizeItem, cleanGroups, emptyPage,
-  isValidImageItem, itemStyleOf, ITEM_STYLE_DEFAULTS,
+  isValidImageItem, itemStyleOf, ITEM_STYLE_DEFAULTS, fitHeight,
 } from './studioPage.js'
+import { defaultSlotType, SAMPLE_TYPES, SAMPLE_LABEL } from './studioSamples.js'
 import { normalizeTextItem, fitTextItem, textStyleOf } from './studioText.js'
 import { normalizeShapeItem, normalizeLineItem } from './studioShape.js'
 import { normalizeTableItem } from './studioTable.js'
 import { normalizeAssetItem, sectionBgImageOf } from './studioAsset.js'
+import { isSampleItem } from './studioSamples.js'
 import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS } from './studioTemplateSets.js'
 
 export { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS }
@@ -224,6 +226,20 @@ export function templateSlots(tpl) {
   return [...set].sort((a, b) => a - b)
 }
 
+/**
+ * 자리마다 어울리는 예시 사진 종류 (templateSlots 순서) — 구간 { photo, sample } 또는 사진 조각 { slot, sample }에 적은 값,
+ * 없으면 studioSamples.defaultSlotType (첫 자리 = 제품)
+ */
+export function templateSlotTypes(tpl) {
+  const typeOf = new Map()
+  const note = (n, t) => { if (SAMPLE_TYPES.includes(t) && !typeOf.has(n)) typeOf.set(n, t) }
+  for (const s of tpl.sections) {
+    if (isPhotoSection(s)) note(s.photo, s.sample)
+    else for (const p of s.items || []) if (isSlotPart(p)) note(p.slot, p.sample)
+  }
+  return templateSlots(tpl).map((n, i) => typeOf.get(n) ?? defaultSlotType(i))
+}
+
 /** 템플릿 글자 조각의 글꼴 목록 (적용 전에 글꼴 조각을 받을 때 — studioFonts.loadFontsFor 입력) */
 export function templateFontList(tpl) {
   const out = []
@@ -239,7 +255,7 @@ export function templateFontList(tpl) {
 
 /** 요소 조각 → 페이지 요소 (새 id). 사진 조각은 imageId를 받아야 만든다 */
 function partToItem(part, imageId, measure) {
-  const { slot: _slot, group: _group, id: _id, ...fields } = part
+  const { slot: _slot, group: _group, id: _id, sample: _sample, ...fields } = part
   const id = newPageId('i')
   switch (part.type) {
     case 'image': return normalizeItem({ ...fields, id, type: 'image', imageId })
@@ -255,14 +271,24 @@ function partToItem(part, imageId, measure) {
   }
 }
 
+/** 예시 사진 요소 (studioSamples — 에셋 요소 + sample: true). 사진 조각의 자리·꾸미기(모서리·테두리·그림자)는 그대로 둔다 */
+function sampleItem(sample, fields) {
+  return normalizeAssetItem(normalizeItem({
+    ...fields, id: newPageId('i'), type: 'asset', asset: sample.file, fit: 'cover', sample: true, label: SAMPLE_LABEL,
+  }))
+}
+
 /**
  * 템플릿으로 새 페이지 문서를 만든다.
  * @param {object} tpl 템플릿 (STUDIO_TEMPLATES 하나 또는 내 템플릿)
  * @param {{ id, width, height }[]} images 쓸 사진 (목록 순서, 자른 사진은 자른 크기). 크기를 모르는 사진은 빼고 사유를 남긴다
  * @param {(s: string, style: object) => number} measure 글자 폭 재기 (글자 높이를 정하려고)
- * @returns {{ page, placed: number, extra: number, slots: number, emptySlots: number } | null} 모양이 어긋난 템플릿이면 null
+ * @param {{ samples?: ({ file, w, h }|null)[] }} opts samples = 자리 순서(templateSlots)대로 예시 사진 (studioSamples.pickSamples).
+ *   고객 사진이 모자란 자리는 예시 사진 요소로 채운다 (없으면 예전처럼 그 자리를 뺀다)
+ * @returns {{ page, placed: number, extra: number, slots: number, emptySlots: number, samples: number } | null} 모양이 어긋난 템플릿이면 null
+ *   samples = 예시 사진으로 채운 자리 수, emptySlots = 사진도 예시 사진도 없어 뺀 자리 수
  */
-export function buildTemplatePage(tpl, images, measure, width = PAGE_WIDTH) {
+export function buildTemplatePage(tpl, images, measure, width = PAGE_WIDTH, { samples = null } = {}) {
   const problems = templateProblems(tpl)
   if (problems.length) {
     console.error('[studioTemplates] 템플릿 모양이 어긋나 적용하지 않음:', tpl?.key || tpl?.name, problems)
@@ -275,14 +301,22 @@ export function buildTemplatePage(tpl, images, measure, width = PAGE_WIDTH) {
   }
   const slots = templateSlots(tpl)
   const photoOfSlot = new Map(slots.map((n, i) => [n, photos[i] ?? null]))
+  const okSample = v => !!v && typeof v.file === 'string' && v.w > 0 && v.h > 0
+  const sampleOfSlot = new Map(slots.map((n, i) => [n, !photos[i] && okSample(samples?.[i]) ? samples[i] : null]))
   const page = emptyPage(width)
   page.gap = Number.isInteger(tpl.gap) ? tpl.gap : 0
   for (const s of tpl.sections) {
     if (page.sections.length >= SECTION_MAX) break
     if (isPhotoSection(s)) {
       const img = photoOfSlot.get(s.photo)
-      if (!img) continue // 빈 자리 — 구간째 뺀다
-      const sec = imageSection(img, width)
+      const sm = img ? null : sampleOfSlot.get(s.photo)
+      if (!img && !sm) continue // 빈 자리 — 구간째 뺀다
+      let sec
+      if (img) sec = imageSection(img, width)
+      else {
+        const h = fitHeight(width, sm.w, sm.h)
+        sec = { id: newPageId('s'), height: h, bg: SECTION_BG, items: [sampleItem(sm, { x: 0, y: 0, w: width, h })] }
+      }
       if (typeof s.bg === 'string') sec.bg = s.bg
       page.sections.push(sec)
       continue
@@ -291,12 +325,18 @@ export function buildTemplatePage(tpl, images, measure, width = PAGE_WIDTH) {
     const items = []
     for (const part of s.items) {
       let imageId = null
+      let it
       if (part.type === 'image') {
         const img = photoOfSlot.get(part.slot)
-        if (!img) continue // 빈 자리의 사진 요소는 빼고 저장하지 않는다
-        imageId = img.id
+        const sm = img ? null : sampleOfSlot.get(part.slot)
+        if (!img && !sm) continue // 빈 자리의 사진 요소는 빼고 저장하지 않는다
+        if (img) imageId = img.id
+        else {
+          const { slot: _s, group: _g, id: _i, sample: _t, type: _ty, ...fields } = part
+          it = sampleItem(sm, fields)
+        }
       }
-      let it = partToItem(part, imageId, measure)
+      it ??= partToItem(part, imageId, measure)
       if (typeof part.group === 'string' && part.group !== '') {
         if (!gids.has(part.group)) gids.set(part.group, newPageId('g'))
         it = { ...it, groupId: gids.get(part.group) }
@@ -318,7 +358,8 @@ export function buildTemplatePage(tpl, images, measure, width = PAGE_WIDTH) {
     extra++
   }
   const placed = Math.min(slots.length, photos.length)
-  return { page: cleanGroups(page), placed, extra, slots: slots.length, emptySlots: slots.length - placed }
+  const sampled = [...sampleOfSlot.values()].filter(Boolean).length
+  return { page: cleanGroups(page), placed, extra, slots: slots.length, emptySlots: slots.length - placed - sampled, samples: sampled }
 }
 
 // ── 내 템플릿 (지금 페이지 → 템플릿) ──
@@ -355,8 +396,17 @@ export function pageToTemplate(page, name) {
     for (const it of s.items) {
       if (!it || typeof it !== 'object') continue
       if (it.type === 'image' && !isValidImageItem(it)) continue
-      const { id: _id, imageId, groupId, ...rest } = clone(it)
-      const part = it.type === 'image' ? { ...rest, slot: slotFor(imageId) } : rest
+      let part, groupId
+      if (isSampleItem(it)) {
+        // 예시 사진 = 사진 자리 (다른 작업에서 고객 사진이 들어가게)
+        const { id: _id, asset: _a, fit: _f, sample: _s, label: _l, groupId: g, ...rest } = clone(it)
+        part = { ...rest, type: 'image', slot: slotFor(`sample:${it.id}`) }
+        groupId = g
+      } else {
+        const { id: _id, imageId, groupId: g, ...rest } = clone(it)
+        part = it.type === 'image' ? { ...rest, slot: slotFor(imageId) } : rest
+        groupId = g
+      }
       if (typeof groupId === 'string' && groupId !== '') {
         if (!groupNames.has(groupId)) groupNames.set(groupId, `g${groupNames.size + 1}`)
         part.group = groupNames.get(groupId)
@@ -375,12 +425,14 @@ export function pageToTemplate(page, name) {
 export const PREVIEW_PHOTO = { width: 780, height: 780 }
 
 /**
- * 카드 미리보기 문서 — 쓸 사진이 있으면 그 사진(자리 수까지만, 남는 사진은 붙이지 않음), 없으면 정사각 가짜 사진 자리.
- * 그리는 쪽(StudioSectionThumb)은 화면용 작은 사진이 없으면 흐린 자리표시를 그린다.
+ * 카드 미리보기 문서 — 쓸 사진이 있으면 그 사진(자리 수까지만, 남는 사진은 붙이지 않음).
+ * 남은 자리: samples(자리 순서대로 예시 사진 — studioSamples.pickSamples)가 있으면 예시 사진 요소(적용할 때와 같은 모양),
+ * 없으면 정사각 가짜 사진 자리(id 'slot-n' — 그리는 쪽이 회색 자리표시로).
  */
-export function templatePreviewPage(tpl, images, measure) {
+export function templatePreviewPage(tpl, images, measure, samples = null) {
   const slots = templateSlots(tpl)
   const real = (images || []).filter(hasSize).slice(0, slots.length)
+  if (samples) return buildTemplatePage(tpl, real, measure, PAGE_WIDTH, { samples })?.page ?? null
   const fill = slots.map((n, i) => real[i] ?? { id: `slot-${n}`, ...PREVIEW_PHOTO })
   return buildTemplatePage(tpl, fill, measure)?.page ?? null
 }

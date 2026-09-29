@@ -120,8 +120,8 @@ const memStore = () => {
   const prev = read('src/components/studio/StudioTemplatePreview.vue')
   eq('미리보기: [닫기]·쓰기 버튼·전체 그림 스크롤·Esc', [/data-template-preview-close/.test(prev), /data-template-preview-use/.test(prev), /overflow-y: auto/.test(prev), /e\.key === 'Escape'/.test(prev)], [true, true, true, true])
   const thumbs = read('src/lib/studioTemplateThumbs.js')
-  eq('그림: 내보내기 엔진(renderPage)·적용과 같은 문서(templatePreviewPage) · key별 캐시', [/import \{ renderPage, canvasToBlob \} from '\.\/studioExport\.js'/.test(thumbs), /templatePreviewPage\(tpl, \[\], measure\)/.test(thumbs), /if \(cache\.has\(key\)\) return cache\.get\(key\)/.test(thumbs)], [true, true, true])
-  eq('그림: 글꼴을 받은 뒤에 재고 그림', thumbs.indexOf('loadFontsFor(templateFontList(tpl))') < thumbs.indexOf('templatePreviewPage(tpl, [], measure)'), true)
+  eq('그림: 내보내기 엔진(renderPage)·적용과 같은 문서(templatePreviewPage) · key별 캐시', [/import \{ renderPage, canvasToBlob \} from '\.\/studioExport\.js'/.test(thumbs), /templatePreviewPage\(tpl, \[\], measure, samples\)/.test(thumbs), /if \(cache\.has\(key\)\) return cache\.get\(key\)/.test(thumbs)], [true, true, true])
+  eq('그림: 글꼴을 받은 뒤에 재고 그림', thumbs.indexOf('loadFontsFor(templateFontList(tpl))') < thumbs.indexOf('templatePreviewPage(tpl, [], measure, samples)'), true)
   const home = read('src/views/studio/StudioHomeView.vue')
   eq('내 작업: 고른 템플릿 안내 + [템플릿 없이 시작]', [/data-pending-template/.test(home), /cancelPendingTemplate/.test(home)], [true, true])
 }

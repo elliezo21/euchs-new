@@ -199,7 +199,7 @@
             :thumb-under="selectedPhotoItem ? thumbUnderStyle(views[selectedPhotoItem.imageId]) : null"
             :shape-text="selectedPhotoItem ? shapeMarkOf(selectedPhotoItem.imageId) : ''" :auto-mark="selectedPhotoItem ? autoMarkOf(selectedPhotoItem.imageId) : null"
             :photo-info="photoBarInfo" :fill-count="photoBarImage ? selectedFillCount : 0"
-            :can-paste-style="canPasteStyle"
+            :can-paste-style="canPasteStyle" :sample="!!selectedSampleItem"
             @command="runCommand" @replace="replaceOpen = true" @crop="openCrop(selectedPhotoItem.imageId)" @erase="openErase(selectedPhotoItem.imageId)"
             @clear-all="clearAllOpen = true"
             @compare="onCompare" @auto-revert="onAutoRevert(selectedPhotoItem.imageId)" @look="onLook" @style="onItemStyle" @reset-look="resetLookOpen = true"
@@ -365,7 +365,7 @@
     <!-- 미리보기 (13-2): PC·모바일 — 그림은 다운로드 엔진 결과 그대로. [이미지로 받기] = 아래 [다운로드] 창을 위에 연다 -->
     <StudioPreview
       v-if="page" :open="previewOpen" :page="page" :labels="sectionLabels" :pending-by-section="exportPendingBySection"
-      :render="exportRender" :keys-blocked="exportOpen || !!exportCompareId"
+      :render="exportRender" :keys-blocked="exportOpen || !!exportCompareId || !!sampleAsk"
       @close="previewOpen = false" @export="openExport"
     />
     <!-- [다운로드] 창 (13-1): 구간별 여러 장·한 장, JPG·PNG, 1·2배 — 브라우저 캔버스로 그려 바로 내려받는다 (내 상품에도 보관)
@@ -419,9 +419,19 @@
       </template>
     </StudioModal>
 
+    <!-- 예시 사진이 남아 있어요 (studioSamples) — [다운로드]·[작업 저장] 전에 -->
+    <StudioModal :open="!!sampleAsk" :title="sampleAsk ? `예시 사진이 ${sampleAsk.n}장 남아 있어요` : ''" @close="sampleAsk = null">
+      <span class="break-keep" data-sample-ask>예시 사진은 틀을 보여 주는 사진이에요. 판매 페이지에는 내 사진으로 바꿔서 올려 주세요.</span>
+      <template #actions>
+        <button type="button" class="st-btn" data-sample-ask-continue @click="sampleAskContinue">그대로 계속</button>
+        <button type="button" class="st-btn st-btn-primary" data-sample-ask-show @click="sampleAskShow">예시 사진 보기</button>
+      </template>
+    </StudioModal>
+
     <!-- 사진 바꾸기 (6-2): 이 작업의 다른 사진 고르기 — 자리·크기·회전은 그대로 -->
-    <StudioModal :open="replaceOpen" wide title="어떤 사진으로 바꿀까요?" @close="replaceOpen = false">
+    <StudioModal :open="replaceOpen" wide :title="selectedSampleItem ? '예시 사진 자리에 어떤 사진을 넣을까요?' : '어떤 사진으로 바꿀까요?'" @close="replaceOpen = false">
       <p class="st-desc mb-3 break-keep">자리·크기·회전·꾸미기는 그대로 두고 사진만 바뀌어요.</p>
+      <p v-if="!doneImages.length" class="st-desc mb-3 break-keep" data-replace-empty>왼쪽 [사진]에서 사진을 올리면 여기서 고를 수 있어요.</p>
       <div class="grid grid-cols-5 gap-2 max-h-[60vh] overflow-y-auto" data-replace-grid>
         <button
           v-for="img in doneImages" :key="img.id" type="button" class="st-replace-cell" :class="img.id === selectedPhotoItem?.imageId ? 'is-current' : ''"
@@ -546,6 +556,8 @@ import { fetchBgStatus, requestBgRemove, uploadBgRefined, uploadBgLocalMask, fet
 import { buildLocalMaskPng } from '@/lib/studioBgLocal'
 import { refineKey } from '@/lib/studioBgRefine'
 import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
+import { templateSamples } from '@/lib/studioTemplateThumbs'
+import { isSampleItem, sampleItemsOf } from '@/lib/studioSamples'
 import { shouldShowStart, canStartBlank } from '@/lib/studioStart'
 import { readPendingTemplate, clearPendingTemplate, pendingFitsProject } from '@/lib/studioTemplateStart'
 import { copyProject } from '@/lib/studioProjectCopy'
@@ -596,7 +608,7 @@ import {
   firstItemOfImage, findItem, fitZoom, PAGE_WIDTH, PAGE_WIDTH_LABEL, ZOOM_PRESETS, PASTE_OFFSET,
   moveItems, setItemRect, setRotation, rotateBy, flipItems, setOpacity, setLocked, setHidden, alignItems, reorderItems,
   removeItems, copyItems, pasteItems, duplicateItems, sectionItemIds, isValidImageItem,
-  setItemStyle, replaceItemImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
+  setItemStyle, replaceItemImage, replaceSampleWithImage, itemIdsOfImage, pageImageIds, insertImageNear, dropImageAt,
   addSection, removeSection, moveSection, setSectionHeight, setGap, duplicateSection, setSectionBg, SECTION_MAX, reorderSections,
   groupItems, ungroupItems, groupCheck, anyGrouped, reorderItemTo, groupMemberIds,
   addTextItem, setTextProps, setTextContent, addElementItem, setShapeProps, setLineProps,
@@ -739,8 +751,9 @@ async function applyTemplate(key) {
   const pid = project.value?.id
   if (!tpl || !pid) return
   await whenFontsReady(templateFontList(tpl)) // 글자 높이를 재야 해서 글꼴 조각을 먼저 받는다
+  const samples = await templateSamples(tpl) // 사진이 모자란 자리 = 예시 사진 (갤러리 그림과 같은 사진)
   if (!page.value || eraseOpen.value || project.value?.id !== pid) return
-  const r = buildTemplatePage(tpl, templateImages.value, textMeasure)
+  const r = buildTemplatePage(tpl, templateImages.value, textMeasure, PAGE_WIDTH, { samples })
   if (!r) { showToast('템플릿을 적용하지 못했어요. 잠시 후 다시 해 주세요.'); return }
   if (pageSession.isDefault.value) {
     // 시작 화면(저장 전 기본 배치) — [빈 페이지에서 시작]과 같은 길로 바로 저장하고 시작 화면을 닫는다
@@ -757,6 +770,7 @@ async function applyTemplate(key) {
   nextTick(() => { if (pageScroll.value) pageScroll.value.scrollTop = 0 })
   const notes = [`사진 ${r.placed}장이 자리에 들어갔어요`]
   if (r.extra) notes.push(`남은 사진 ${r.extra}장은 아래에 이어 붙였어요`)
+  if (r.samples) notes.push(`남은 자리 ${r.samples}곳은 예시 사진이에요 — 내 사진으로 바꿔 주세요`)
   if (r.emptySlots) notes.push(`사진이 모자란 자리 ${r.emptySlots}곳은 뺐어요`)
   showToast(`'${tpl.label}' 템플릿을 적용했어요 · ${notes.join(' · ')}`)
 }
@@ -1303,6 +1317,12 @@ const selectedPhotoItem = computed(() => {
   const it = findItem(page.value, selectedItemIds.value[0])?.item
   return it && isValidImageItem(it) && imagesById.value.has(it.imageId) ? it : null
 })
+// 예시 사진 하나를 골랐을 때 (studioSamples) — 도구줄 [내 사진으로 바꾸기] → 사진 바꾸기 창
+const selectedSampleItem = computed(() => {
+  if (selectedItemIds.value.length !== 1 || !page.value) return null
+  const it = findItem(page.value, selectedItemIds.value[0])?.item
+  return isSampleItem(it) ? it : null
+})
 // 맨 위 도구줄의 사진 정보([지우기] 툴팁)·[지우기 모두 되돌리기] — 예전 작업판 오른쪽 위 사진 정보 카드를 대신한다.
 // 모두 되돌리기(confirmClearAll)는 selectedImageId 기준이라, 고른 사진 요소와 같은 사진일 때만 값을 준다
 const photoBarImage = computed(() => (selectedImage.value && selectedPhotoItem.value && selectedImage.value.id === selectedPhotoItem.value.imageId ? selectedImage.value : null))
@@ -1320,9 +1340,18 @@ const compare = ref(null)    // { imageId, url } 원본 비교 중
 let compareSeq = 0
 
 function pickReplace(imageId) {
+  const sample = selectedSampleItem.value
   const it = selectedPhotoItem.value
   replaceOpen.value = false
-  if (!it || !page.value) return
+  if (!page.value) return
+  if (sample) {
+    // 예시 사진 자리 → 내 사진 (자리·크기·꾸미기 그대로 사진 요소로). 이력 "사진 바꾸기"
+    const img = sizedRow(imageId)
+    if (!img || img.ingest_status !== 'done') return
+    if (applyPage(replaceSampleWithImage(page.value, sample.id, imageId), LABELS.elReplace)) selectImage(imageId)
+    return
+  }
+  if (!it) return
   if (applyPage(replaceItemImage(page.value, it.id, imageId), LABELS.elReplace)) selectImage(imageId)
 }
 /** 필터·조정 → 사진 데이터(edit.look). 슬라이더를 끄는 동안(merge)은 이력 한 단계 */
@@ -2161,20 +2190,45 @@ const exportPendingBySection = computed(() => {
   }
   return out
 })
+// ── 예시 사진이 남아 있으면 먼저 묻는다 (studioSamples) — [다운로드]·[작업 저장](→ [판매처로 보내기]는 저장 뒤에만) 전에.
+// 예시 사진이 모르게 판매 페이지에 나가지 않게. [예시 사진 보기] = 첫 예시 사진을 골라 그 섹션으로, [그대로 계속] = 원래 하려던 것
+const sampleAsk = ref(null) // { n, go }
+function guardSamples(go) {
+  const n = page.value ? sampleItemsOf(page.value).length : 0
+  if (!n) { go(); return }
+  sampleAsk.value = { n, go }
+}
+function sampleAskContinue() {
+  const a = sampleAsk.value
+  sampleAsk.value = null
+  a?.go()
+}
+function sampleAskShow() {
+  sampleAsk.value = null
+  const first = page.value ? sampleItemsOf(page.value)[0] : null
+  if (!first) return
+  previewOpen.value = false // 미리보기에서 [이미지로 받기]를 눌렀던 경우 — 페이지로 돌아간다
+  onPageSelect({ ids: [first.item.id] })
+  nextTick(() => pageView.value?.scrollToSection(first.sectionId))
+}
 function openExport() {
   if (!page.value || eraseOpen.value) return
   pageView.value?.finishEdit() // 글자를 고치는 중이면 먼저 끝낸다 (고친 글자가 들어가게)
-  clearSelection()
-  exportSaveOnly.value = false
-  exportOpen.value = true
+  guardSamples(() => {
+    clearSelection()
+    exportSaveOnly.value = false
+    exportOpen.value = true
+  })
 }
 /** 상단 [작업 저장] — 받지 않고 결과물을 만들어 내 상품에 저장만 (같은 작업을 다시 저장하면 그 카드를 바꾼다) */
 function openSave() {
   if (!page.value || !page.value.sections.length || eraseOpen.value || !project.value) return
   pageView.value?.finishEdit()
-  clearSelection()
-  exportSaveOnly.value = true
-  exportOpen.value = true
+  guardSamples(() => {
+    clearSelection()
+    exportSaveOnly.value = true
+    exportOpen.value = true
+  })
 }
 function goHomeAfterSave() {
   exportOpen.value = false
@@ -2511,6 +2565,7 @@ const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!con
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
   || !!refineImageId.value // 17-3: 경계 다듬기 화면이 열린 동안도 (붓 단축키 K·E·X·[·]·Ctrl+Z는 그 화면이 받는다)
   || !!templateAsk.value // 15: 템플릿 교체 확인창
+  || !!sampleAsk.value // 예시 사진이 남아 있어요 확인창
   || autoBuild.state.open || autoCopyAsk.value // 원클릭: 진행 화면·복사본 확인
   || shortcutsOpen.value) // 14: 단축키 표
 

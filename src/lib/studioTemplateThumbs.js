@@ -3,15 +3,17 @@
  *
  * ★ 그리는 함수는 새로 만들지 않는다: 템플릿 → 페이지 문서(studioTemplates.templatePreviewPage — 적용과 같은 buildTemplatePage)
  *   → 내보내기·미리보기와 같은 엔진(studioExport.renderPage)으로 한 장. 그래서 적용한 페이지를 내보낸 그림과 같다.
- *   사진 자리는 정사각 회색 자리표시(가운데 산 그림)로 그린다 — 고객 사진은 적용할 때 자리 순서대로 들어간다.
+ *   사진 자리는 그 카테고리의 예시 사진(studioSamples — 자리마다 어울리는 종류)으로 채운다 = 사진 없이 적용했을 때와 같은 모양.
+ *   예시 사진 목록(manifest)을 못 받으면 정사각 회색 자리표시(가운데 산 그림)로 그린다.
  * ★ 캐시: 템플릿 key마다 한 번만 그리고(이 탭 안), 그 결과(JPG blob 주소)를 다시 쓴다. 실패한 것은 캐시에서 빼서 다음에 다시 그린다.
  *   여러 장을 동시에 부르면 하나씩 차례로 그린다 (화면이 버벅이지 않게).
  * ★ 글꼴: 템플릿 글자의 글꼴 조각을 먼저 받은 뒤에 글자 높이를 재고 그린다 (편집기 적용·내보내기와 같은 순서).
  */
 import { renderPage, canvasToBlob } from './studioExport.js'
-import { templateByKey, templatePreviewPage, templatePageHeight, templateFontList, PREVIEW_PHOTO } from './studioTemplates.js'
+import { templateByKey, templatePreviewPage, templatePageHeight, templateFontList, templateSlotTypes, PREVIEW_PHOTO } from './studioTemplates.js'
 import { createTextMeasure, loadFontsFor } from './studioFonts.js'
-import { loadAssetImage } from './studioAssetLoad.js'
+import { loadAssetImage, loadAssetManifest } from './studioAssetLoad.js'
+import { pickSamples, sampleCategoryOf } from './studioSamples.js'
 
 export const THUMB_WIDTH = 560           // 그림 폭 (px) — 카드·미리보기 칸이 줄여서 보여 준다
 export const COVER_RATIO = 4 / 3         // 표지(첫 화면) = 폭 × 4/3 높이만큼 위쪽
@@ -68,6 +70,21 @@ const deps = {
   },
 }
 
+/**
+ * 이 템플릿 자리마다 예시 사진 (자리 순서) — 목록을 못 받으면 null (회색 자리표시로 그린다).
+ * 편집기 적용(applyTemplate)도 같은 함수로 남은 자리를 채운다.
+ */
+export async function templateSamples(tpl) {
+  try {
+    const m = await loadAssetManifest()
+    if (!m.samples?.length) return null
+    return pickSamples(templateSlotTypes(tpl), m.samples, sampleCategoryOf(tpl))
+  } catch (e) {
+    console.error('[studioTemplateThumbs] 예시 사진 목록을 받지 못함 — 회색 자리로 그림:', e)
+    return null
+  }
+}
+
 function toUrl(canvas) {
   return canvasToBlob(canvas, 'jpg').then(b => URL.createObjectURL(b))
 }
@@ -82,7 +99,8 @@ async function draw(key) {
     console.error('[studioTemplateThumbs] 글꼴 조각을 받지 못함:', key, e)
   }
   if (!fontsOk) measure.clear() // 대체 글꼴로 잰 값이 다음 템플릿에 남지 않게
-  const page = templatePreviewPage(tpl, [], measure)
+  const samples = await templateSamples(tpl)
+  const page = templatePreviewPage(tpl, [], measure, samples)
   if (!page || page.sections.length === 0) throw new Error(`템플릿 페이지를 만들지 못함: ${key}`)
   const scale = THUMB_WIDTH / page.width
   const { canvas } = await renderPage(page, page.sections.map(s => s.id), deps, { scale })

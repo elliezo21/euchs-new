@@ -130,6 +130,7 @@ const props = defineProps({
   photoInfo: { type: String, default: '' },      // [지우기] 툴팁 둘째 줄 "대표 사진 · 547×547px · 120KB · 지움 2"
   fillCount: { type: Number, default: 0 },       // 그 사진의 지우기 레이어 수 — 0이면 [지우기 모두 되돌리기] 숨김
   canPasteStyle: { type: Boolean, default: false },
+  sample: { type: Boolean, default: false },     // 예시 사진 하나를 골랐음 (studioSamples) → [내 사진으로 바꾸기]
 })
 // command(name, args) · replace · crop · erase · clear-all · compare(bool) · auto-revert · look · style · reset-look · text · style-copy · style-paste · shape · line · table-props · table-edit
 const emit = defineEmits([
@@ -141,7 +142,7 @@ const items = computed(() => props.selectedIds.map(id => findItem(props.page, id
 const kinds = computed(() => new Set(items.value.map(it => (isValidImageItem(it) ? 'image' : isValidTextItem(it) ? 'text' : isValidShapeItem(it) ? 'shape' : isValidLineItem(it) ? 'line' : isValidTableItem(it) ? 'table' : 'other'))))
 const tables = computed(() => items.value.filter(isValidTableItem))
 const bar = computed(() => selectBarButtons({
-  kinds: kinds.value, photo: !!props.photoItem, autoMark: props.autoMark, photoInfo: props.photoInfo, fillCount: props.fillCount,
+  kinds: kinds.value, photo: !!props.photoItem, sample: props.sample, autoMark: props.autoMark, photoInfo: props.photoInfo, fillCount: props.fillCount,
   anyLocked: items.value.some(it => it.locked), allLocked: items.value.length > 0 && items.value.every(it => it.locked),
   anyHidden: items.value.some(it => it.hidden),
   canGroup: items.value.length >= 2 && groupCheck(props.page, props.selectedIds) !== 'same', canUngroup: anyGrouped(props.page, props.selectedIds),
@@ -150,7 +151,7 @@ const bar = computed(() => selectBarButtons({
 
 const ICONS = {
   size: Maximize2, rotate: RotateCw, opacity: Blend, order: Layers, align: AlignCenter,
-  replace: Replace, crop: Crop, look: SlidersHorizontal, deco: Frame, erase: Eraser, clearAll: RotateCcw, compare: Columns2, autoRevert: Undo2,
+  replace: Replace, sampleReplace: Replace, crop: Crop, look: SlidersHorizontal, deco: Frame, erase: Eraser, clearAll: RotateCcw, compare: Columns2, autoRevert: Undo2,
   font: Type, fontSize: ALargeSmall, textColor: Palette, weight: Bold, textAlign: AlignLeft, textMore: Sparkles,
   shapeKind: Shapes, fill: PaintBucket, stroke: BoxSelect, line: Minus,
   addRow: Rows3, addCol: Columns3, header: Heading, tableMore: Table2,
@@ -196,7 +197,7 @@ function onButton(b, e) {
     return
   }
   pop.value = null
-  if (b.key === 'replace') emit('replace')
+  if (b.key === 'replace' || b.key === 'sampleReplace') emit('replace')
   else if (b.key === 'crop') emit('crop')
   else if (b.key === 'erase') emit('erase')
   else if (b.key === 'clearAll') emit('clear-all')
