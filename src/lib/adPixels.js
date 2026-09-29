@@ -152,3 +152,56 @@ export function onDocumentClickCapture(e) {
   if (href.includes('pf.kakao.com')) trackKakaoClick(href)
   else if (href.toLowerCase().startsWith('tel:')) trackPhoneClick(href)
 }
+
+// 15초 이상 보고(다른 탭에 있는 시간 제외) + 내릴 수 있는 거리의 절반 이상 스크롤한 방문자에게
+// 한 방문(탭)에 한 번만 신호 전송: 틱톡 ViewContent / GA engaged_15s / 메타 ViewContent(켜져 있을 때)
+// 관리자 제외 = 위 isExcludedPath (Contact와 같은 경로 규칙). main.js에서 앱 시작 때 한 번만 부른다.
+export function startEngagedTracking() {
+  if (typeof window === 'undefined') return
+  const KEY = 'euchs_engaged_sent'
+  try { if (sessionStorage.getItem(KEY)) return } catch (e) { console.warn('[adPixels] sessionStorage 읽기 실패 — engaged 중복 방지 없이 진행', e) }
+
+  let timeOk = false
+  let scrollOk = false
+  let sent = false
+
+  // 스크롤할 게 거의 없는 짧은 페이지는 스크롤 조건 통과 — 보낼 때 그 순간 기준으로만 본다.
+  // (scrollOk로 고정하면 앱이 그려지기 전 빈 화면(main.js에서 시작할 때)도 짧은 페이지로 잡혀 스크롤 조건이 꺼진다)
+  const isShortPage = () => document.documentElement.scrollHeight - window.innerHeight <= 50
+
+  const send = () => {
+    if (sent || !timeOk || !(scrollOk || isShortPage())) return
+    if (isExcludedPath(window.location.pathname)) return // 관리자 화면에 있을 때는 보내지 않음(일반 화면으로 옮기면 그때 보냄)
+    sent = true
+    try { sessionStorage.setItem(KEY, '1') } catch (e) { console.warn('[adPixels] sessionStorage 쓰기 실패 — 이 탭에서는 새로고침하면 다시 보낼 수 있음', e) }
+    try { window.ttq && window.ttq.track('ViewContent', { content_name: 'engaged_15s' }) } catch (e) { console.warn('[adPixels] 틱톡 engaged_15s 전송 실패', e) }
+    try { window.gtag && window.gtag('event', 'engaged_15s') } catch (e) { console.warn('[adPixels] GA engaged_15s 전송 실패', e) }
+    try { window.fbq && window.fbq('track', 'ViewContent', { content_name: 'engaged_15s' }) } catch (e) { console.warn('[adPixels] 메타 engaged_15s 전송 실패', e) }
+    window.removeEventListener('scroll', onScroll)
+    clearInterval(tick)
+  }
+
+  const onScroll = () => {
+    if (scrollOk) return
+    const doc = document.documentElement
+    const scrollable = doc.scrollHeight - window.innerHeight
+    if (scrollable <= 50) return // 짧은 페이지는 send()의 isShortPage에서 판정
+    if (window.scrollY / scrollable >= 0.5) { scrollOk = true; send() }
+  }
+
+  window.addEventListener('scroll', onScroll, { passive: true })
+  onScroll()
+
+  // 화면을 실제로 보고 있는 시간만 셈 (다른 탭에 가 있으면 멈춤)
+  let visibleMs = 0
+  let last = Date.now()
+  const tick = setInterval(() => {
+    const now = Date.now()
+    if (document.visibilityState === 'visible') visibleMs += now - last
+    last = now
+    if (visibleMs >= 15000) timeOk = true
+    // 짧은 페이지로 이동한 경우도 잡도록 매 초 스크롤 조건을 다시 확인
+    onScroll()
+    send()
+  }, 1000)
+}

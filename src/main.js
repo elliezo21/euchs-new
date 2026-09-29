@@ -2,7 +2,7 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 import { initAuth } from './lib/auth'
-import { initAdPixels, trackPageView, onDocumentClickCapture, applyPathRules } from './lib/adPixels'
+import { initAdPixels, trackPageView, onDocumentClickCapture, applyPathRules, startEngagedTracking } from './lib/adPixels'
 import './assets/style.css'
 
 // 초기 인증 세션 동기화
@@ -12,6 +12,8 @@ initAuth()
 // 시작할 때 한 번(첫 페이지뷰 포함, /admin·/dashboard 이하면 안 불러옴) + 카톡·전화 링크 클릭(캡처 단계 1개)
 initAdPixels(window.location.pathname)
 document.addEventListener('click', onDocumentClickCapture, true)
+// 15초+절반 스크롤 방문자 신호 — 앱 시작 때 한 번만 (라우트 이동마다 부르지 않음)
+startEngagedTracking()
 let firstNavDone = false
 // 주소가 바뀌기 전에 메타 전송을 멈추거나 켠다 (메타가 주소 변경 순간 PageView를 스스로 보내기 때문)
 router.beforeEach((to) => {
