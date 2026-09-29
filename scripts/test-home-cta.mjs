@@ -2,7 +2,7 @@
 // 숨김 경로 · 카톡 주소 통일 · GA 이벤트(gtag 있을 때만) · 문구 규칙("무료"는 사입 조건과 함께, "중국어" 없음) · 배치 위치
 import fs from 'fs'
 import path from 'path'
-import { KAKAO_CHAT_URL, STUDIO_PATH, showStickyCta, trackStudioCta } from '../src/lib/homeCta.js'
+import { KAKAO_CHAT_URL, STUDIO_PATH, MALL_PATH, showStickyCta, trackStudioCta, trackMallCta } from '../src/lib/homeCta.js'
 import { MARKETS } from '../src/lib/studioMarketplaceRules.js'
 
 let pass = 0, fail = 0
@@ -49,6 +49,12 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   globalThis.window.gtag = (...a) => calls.push(a)
   trackStudioCta('home_band'); trackStudioCta('sticky')
   eq('gtag 있으면 studio_cta_click + location', calls, [['event', 'studio_cta_click', { location: 'home_band' }], ['event', 'studio_cta_click', { location: 'sticky' }]])
+  calls.length = 0
+  trackMallCta('home_band')
+  eq('[1688 소싱몰 가기] → mall_cta_click + location', calls, [['event', 'mall_cta_click', { location: 'home_band' }]])
+  delete globalThis.window.gtag
+  trackMallCta('home_band')
+  eq('gtag 없으면 mall_cta_click도 안 보냄', calls.length, 1)
   delete globalThis.window
 }
 
@@ -59,12 +65,22 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   const text = shown.replace(/<[^>]+>/g, ' ')
   eq('"무료"는 "이유씨컴퍼니에서 사입하면"과 같은 문장에', text.split(/[.!?]/).filter(s => s.includes('무료')).every(s => s.includes('이유씨컴퍼니에서 사입하면')), true)
   eq('고객 문구에 "중국어"·"고시정보" 없음', /중국어|고시정보/.test(text), false)
-  eq('제목·배지·설명', ['NEW · AI 스튜디오', '1688 링크 하나로 상세페이지부터 마켓 등록까지', '이유씨컴퍼니에서 사입하면 상세페이지 제작·판매처 등록 도구를 무료로 써요.'].every(s => shown.includes(s)), true)
-  eq('판매처 칩 = 스튜디오 MARKETS 그대로(9곳)', [/v-for="m in MARKETS"/.test(band), /from '@\/lib\/studioMarketplaceRules'/.test(band), MARKETS.map(m => m.name)],
+  eq('배지·제목(두 줄)·설명 (움직이는 시안 문구)', ['NEW · AI 스튜디오', '중국 수입부터<br />상세페이지·판매처 등록까지', '1688 링크 하나로 상세페이지를 만들어 쿠팡·스마트스토어에 바로 보내요.', '이유씨컴퍼니에서 사입하면 스튜디오 무료.'].every(s => shown.includes(s)), true)
+  eq('판매처 칩 = 스튜디오 MARKETS 그대로 읽기(9곳)', [/v-for="\(m, k\) in MARKETS"/.test(band), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(band), MARKETS.map(m => m.name)],
     [true, true, ['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰']])
-  eq('그림: lazy · 폭·높이 · hero-pc / 모바일 hero-mobile', [/loading="lazy"/.test(band), /width="1920" height="1047"/.test(band), /\/studio-landing\/hero-pc\.webp/.test(band), /\/studio-landing\/hero-mobile\.webp/.test(band)], [true, true, true, true])
-  eq('[스튜디오 둘러보기] → /studio + GA home_band · 카톡 = <a href> 새 창(adPixels가 kakao_click)', [/trackStudioCta\('home_band'\)/.test(band), /:href="KAKAO_CHAT_URL" target="_blank"/.test(band)], [true, true])
-  eq('움직임 줄이기면 효과 없음', /prefers-reduced-motion: reduce/.test(band), true)
+  eq('연결된 곳 = ✓ / 아직인 곳 = "준비 중"', [/<i v-if="!m\.soon"[^>]*>✓<\/i>/.test(band), /<span v-else class="soon">준비 중<\/span>/.test(band), MARKETS.filter(m => !m.soon).map(m => m.key)], [true, true, ['coupang']])
+  eq('버튼: [스튜디오 둘러보기] → /studio + studio_cta_click / [1688 소싱몰 가기] → /mall + mall_cta_click',
+    [/:to="STUDIO_PATH"[^>]*@click="trackStudioCta\('home_band'\)"/.test(band), /:to="MALL_PATH"[^>]*@click="trackMallCta\('home_band'\)"/.test(band), MALL_PATH, STUDIO_PATH], [true, true, '/mall', '/studio'])
+  eq('이 칸에서 카톡 버튼·예전 보라 그림(hero-pc) 뺌', [/KAKAO_CHAT_URL|pf\.kakao/.test(band), /studio-landing/.test(band)], [false, false])
+  {
+    const files = ['ship', 'boxes', 'frame', 'sparkles', 'tiles', 'bag', 'laptop-beauty', 'laptop-pet', 'laptop-kitchen', 'phone-beauty', 'phone-pet', 'phone-kitchen']
+    const missing = files.filter(f => !fs.existsSync(new URL(`../public/home-studio-band/${f}.webp`, import.meta.url)))
+    const imgs = [...shown.matchAll(/<img[\s\S]*?\/>/g)].map(m => m[0])
+    eq('그림 12개 = public/home-studio-band/ · 모든 <img> lazy + width·height', [missing, imgs.length > 0 && imgs.every(t => /loading="lazy"/.test(t) && /:?width="/.test(t) && /:?height="/.test(t))], [[], true])
+  }
+  eq('움직임 줄이기: 움직임 없이 완성 장면(✓ 표시)', [/prefers-reduced-motion: reduce\)'\)\.matches\) \{\s*still\.value = true\s*showAllChecks\(\)/.test(band), /@media \(prefers-reduced-motion: reduce\)/.test(band), /\.is-still \.chip\.on i \{ animation: none; transform: scale\(1\); \}/.test(band)], [true, true, true])
+  eq('보일 때만 움직임 (IntersectionObserver + 숨은 탭 멈춤) · 글·그림 opacity 0으로 기다리지 않음',
+    [/new IntersectionObserver/.test(band), /visibilitychange/.test(band), /\.copy[^{]*\{[^}]*opacity:\s*0/.test(band)], [true, true, false])
   const home = read('src/views/HomeView.vue')
   const iSearch = home.indexOf('한글로 검색'), iBand = home.indexOf('<StudioPromoBand />'), iFeed = home.indexOf('실시간 비즈니스 데이터')
   eq('홈: 검색 칸 → 스튜디오 칸 → 실시간 데이터 칸 순서', iSearch > 0 && iSearch < iBand && iBand < iFeed, true)
