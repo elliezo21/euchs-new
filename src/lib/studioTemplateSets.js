@@ -9,7 +9,9 @@
  *   짜임새 4가지(클래식·짙은 첫 화면·매거진·체크리스트) × 카테고리별 색·문구. 배치·색·문구 모두 이 프로젝트에서 새로 정한 것
  *   (다른 편집 프로그램·쇼핑몰의 템플릿·문구·그림을 옮기지 않음). 도형은 studioShape의 직접 그린 path, 글꼴은 허용 목록만.
  * ★ 문구는 판매자가 고쳐 쓰는 자리표시 — 사실 확인이 필요한 말(인증·효능·수치)은 넣지 않고 "적어 주세요"로 둔다.
+ * ★ 첫 구간은 studioTemplateHeroes.withHero가 큰 제목 첫 화면(780×1040)으로 바꾼다 — 아래 짜임새의 첫 구간 자리는 그 자리표시.
  */
+import { withHero } from './studioTemplateHeroes.js'
 
 export const TEMPLATE_CATEGORIES = [
   { key: 'common', label: '기본' },
@@ -22,6 +24,7 @@ export const TEMPLATE_CATEGORIES = [
   { key: 'toys', label: '완구' },
   { key: 'pets', label: '반려동물' },
   { key: 'fullset', label: '풀세트' }, // 에셋 이미지(받침대·배경 그림)까지 들어간 긴 구성 (지금은 샘플 1개)
+  { key: 'event', label: '안내·이벤트' }, // 제품 사진 0~1장 — 리뷰·배송·할인·명절 안내 (studioTemplateEvents)
 ]
 
 // 템플릿 고르기 거르기 (템플릿 갤러리·편집기 [템플릿] 패널). 분위기 = 짜임새에서, 색 = 색 묶음에서 정한다 (템플릿마다 하나)
@@ -294,40 +297,21 @@ function checklist(c, th) {
 }
 
 // 풀세트에 쓰는 에셋 이미지 (public/studio-assets — manifest.json에 있는 파일. 파일 경로만 바꾸면 템플릿 코드는 그대로)
+// 첫 화면(배경·받침대·반짝이 별)은 studioTemplateHeroes의 받침대 구도(podium)가 그린다
 const FULL = {
-  heroBg: 'backgrounds/euchs-bg_common_wide-gold-ivory_01.jpg',
-  podium: 'objects/euchs-obj_common_podium-white_01.png',        // 1200×616
   sparkle: 'objects/euchs-obj_common_sparkle-stars_01.png',       // 940×881
   check: 'objects/euchs-obj_common_check-badge_01.png',           // 1065×1121
   endBg: 'backgrounds/euchs-bg_living_beige-plaster_01.jpg',
 }
-// 흰 받침대 그림(1200×616)에서 제품을 세울 선 — 윗면 타원(뒤 끝 y≈40 · 가운데 ≈185 · 앞 끝 ≈330)의 가운데보다 조금 앞 y≈260 (그림을 재서 정함)
-const PODIUM_TOP = 260 / 616
-const HERO_PODIUM = { x: 440, y: 318, w: 300, h: 154 }
-const HERO_STAND = Math.round(HERO_PODIUM.y + HERO_PODIUM.h * PODIUM_TOP) // 받침대 윗면 선 (첫 화면 구간 안 y)
-// 받침대 위 대표 사진 자리 (배경을 지운 사진을 넣으면 받침대에 올라선 모습) — 밑면 = 받침대 윗면 선, 가로 = 받침대 가운데
-const HERO_PHOTO = { w: 190, h: 230 }
-const heroPhoto = slot => fixed(() => [{
-  type: 'image', slot, w: HERO_PHOTO.w, h: HERO_PHOTO.h,
-  x: Math.round(HERO_PODIUM.x + (HERO_PODIUM.w - HERO_PHOTO.w) / 2), y: HERO_STAND - HERO_PHOTO.h,
-}])
 
 /**
- * 5. 풀세트 — 첫 화면(배경 이미지 + 받침대 위 대표 사진) → 공감 → 핵심 포인트 3 → 상세 사진 → 사진 두 장 → 소재·스펙 → 비교 →
+ * 5. 풀세트 — 첫 화면(배경 이미지 + 받침대 위 대표 사진 — studioTemplateHeroes 'podium') → 공감 → 핵심 포인트 3 → 상세 사진 → 사진 두 장 → 소재·스펙 → 비교 →
  *    사용법 → 사이즈·옵션 → 구매 전 안내 → 배송·교환 (11구간). 에셋 이미지 = 첫 화면 배경·받침대·반짝임, 공감·비교 구간 장식, 끝 구간 배경
  *    대표 사진(자리 0)은 첫 화면 받침대 위에만 둔다 (같은 사진을 바로 아래 꽉 찬 구간에 한 번 더 넣지 않음)
  */
 function fullset(c, th) {
-  const h = heading(c, th)
   return [
-    sec(th.soft, [
-      asset(FULL.podium, HERO_PODIUM.x, HERO_PODIUM.y, HERO_PODIUM.w, HERO_PODIUM.h, { label: '흰 받침대' }),
-      heroPhoto(0), // 받침대 다음 — 사진이 받침대 위에 그려진다 (앞뒤 = items 순서)
-      asset(FULL.sparkle, 676, 56, 96, 90, { label: '반짝이 별' }), // 사진 자리(위 끝 y 153)와 겹치지 않게 오른쪽 위
-      T(c.eyebrow, 17, 800, th.accent, { w: 370, x: 60, align: 'left', letterSpacing: 0.2, lh: 1.3 }), 20,
-      T(c.headline, 44, h.weight, th.ink, { font: h.font, w: 370, x: 60, align: 'left', lh: 1.3 }), 24,
-      T(c.lead, 20, 400, th.sub, { w: 370, x: 60, align: 'left', lh: 1.7 }),
-    ], { top: 110, bottom: 110, bgImage: FULL.heroBg }),
+    { photo: 0 }, // 첫 화면 자리 — withHero가 받침대 구도로 바꾼다
     sec(WHITE, [
       asset(FULL.check, 626, 24, 114, 120, { label: '체크 뱃지' }),
       T(c.worryTitle, 34, th.serif ? 700 : 800, th.ink, { font: th.serif ? 'noto-serif-kr' : 'noto-sans-kr', w: 440, lh: 1.3 }), 40, checks(c.worries, th),
@@ -611,7 +595,8 @@ const COLOR_OF_THEME = {
   slate: 'mono', graphite: 'mono',
 }
 
-export const CATEGORY_TEMPLATES = LIST.map(([category, key, label, kind, th, head]) => ({
+// 첫 구간 = 큰 제목 첫 화면 (studioTemplateHeroes — 구간 수·key·카테고리 그대로)
+export const CATEGORY_TEMPLATES = LIST.map(([category, key, label, kind, th, head]) => withHero({
   key, category, label, desc: FLOW[kind], gap: 0, mood: MOOD_OF_KIND[kind], color: COLOR_OF_THEME[th], swatch: TH[th].accent,
   sections: BUILD[kind]({ ...COPY[category], ...head }, TH[th]),
 }))

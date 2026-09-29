@@ -10,13 +10,13 @@
  * ★ 글꼴: 템플릿 글자의 글꼴 조각을 먼저 받은 뒤에 글자 높이를 재고 그린다 (편집기 적용·내보내기와 같은 순서).
  */
 import { renderPage, canvasToBlob } from './studioExport.js'
-import { templateByKey, templatePreviewPage, templatePageHeight, templateFontList, templateSlotTypes, PREVIEW_PHOTO } from './studioTemplates.js'
+import { templateByKey, templatePreviewPage, templatePageHeight, templateFontList, templateSlotTypes, assignTemplateSamples, PREVIEW_PHOTO } from './studioTemplates.js'
 import { createTextMeasure, loadFontsFor } from './studioFonts.js'
 import { loadAssetImage, loadAssetManifest } from './studioAssetLoad.js'
 import { pickSamples, sampleCategoryOf } from './studioSamples.js'
 
 export const THUMB_WIDTH = 560           // 그림 폭 (px) — 카드·미리보기 칸이 줄여서 보여 준다
-export const COVER_RATIO = 4 / 3         // 표지(첫 화면) = 폭 × 4/3 높이만큼 위쪽
+export const COVER_RATIO = 4 / 3         // 표지 = 3:4 칸 (첫 구간 전체를 줄여 넣는다 — 템플릿 첫 구간은 780×1040 = 3:4)
 const PLACEHOLDER_BG = '#e8eaee'
 const PLACEHOLDER_INK = '#c6ccd5'
 
@@ -70,15 +70,19 @@ const deps = {
   },
 }
 
+let assigned = null // { samples, map } — 목록(manifest)이 같으면 한 번만 나눈다
 /**
  * 이 템플릿 자리마다 예시 사진 (자리 순서) — 목록을 못 받으면 null (회색 자리표시로 그린다).
- * 편집기 적용(applyTemplate)도 같은 함수로 남은 자리를 채운다.
+ * 갤러리 전체를 한 번에 나눈 결과(studioTemplates.assignTemplateSamples — 카드끼리 대표 사진이 겹치지 않음)에서 꺼낸다.
+ * 목록에 없는 템플릿(내 템플릿 등)은 그 카테고리 사진을 차례로 (pickSamples).
+ * 편집기 적용(applyTemplate)도 같은 함수로 남은 자리를 채운다 = 갤러리 그림과 같은 사진.
  */
 export async function templateSamples(tpl) {
   try {
     const m = await loadAssetManifest()
     if (!m.samples?.length) return null
-    return pickSamples(templateSlotTypes(tpl), m.samples, sampleCategoryOf(tpl))
+    if (assigned?.samples !== m.samples) assigned = { samples: m.samples, map: assignTemplateSamples(m.samples) }
+    return assigned.map.get(tpl.key) ?? pickSamples(templateSlotTypes(tpl), m.samples, sampleCategoryOf(tpl, m.samples))
   } catch (e) {
     console.error('[studioTemplateThumbs] 예시 사진 목록을 받지 못함 — 회색 자리로 그림:', e)
     return null
@@ -105,9 +109,17 @@ async function draw(key) {
   const scale = THUMB_WIDTH / page.width
   const { canvas } = await renderPage(page, page.sections.map(s => s.id), deps, { scale })
   try {
-    const coverH = Math.min(canvas.height, Math.round(canvas.width * COVER_RATIO))
+    // 표지 = 첫 구간 전체를 3:4 칸에 줄여 넣는다 (윗부분만 자르지 않음 — 첫 구간이 3:4보다 길면 줄이고, 짧으면 위아래를 구간 배경색으로)
+    const first = page.sections[0]
+    const secH = Math.min(canvas.height, Math.round(first.height * scale))
+    const coverH = Math.round(canvas.width * COVER_RATIO)
     const cover = deps.createCanvas(canvas.width, coverH)
-    cover.getContext('2d').drawImage(canvas, 0, 0)
+    const g = cover.getContext('2d')
+    g.fillStyle = typeof first.bg === 'string' ? first.bg : '#ffffff'
+    g.fillRect(0, 0, canvas.width, coverH)
+    const k = Math.min(1, coverH / secH)
+    const dw = Math.round(canvas.width * k), dh = Math.round(secH * k)
+    g.drawImage(canvas, 0, 0, canvas.width, secH, Math.round((canvas.width - dw) / 2), Math.round((coverH - dh) / 2), dw, dh)
     const [full, coverUrl] = await Promise.all([toUrl(canvas), toUrl(cover)])
     cover.width = 0
     cover.height = 0

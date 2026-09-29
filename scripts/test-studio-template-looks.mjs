@@ -46,19 +46,22 @@ function layoutProblems(page) {
   const out = []
   for (const [si, s] of page.sections.entries()) {
     const solid = []
+    const badgeGroups = new Set(s.items.filter(it => it.type === 'shape' && it.groupId).map(it => it.groupId))
     for (const it of s.items) {
       const b = itemBounds(it)
       if (b.x < -0.5 || b.y < -0.5 || b.x + b.w > page.width + 0.5 || b.y + b.h > s.height + 0.5) out.push(`섹션 ${si}: 자리 밖 ${it.type} ${JSON.stringify(b)}`)
       if (isValidTextItem(it)) {
         const lines = textLinesOf(it, measure)
         if (lines.length !== it.text.split('\n').length) out.push(`섹션 ${si}: 글자 넘침(줄이 늘어남) "${it.text}" ${lines.length}줄`)
-        solid.push({ kind: 'text', g: it.groupId, b: inkBox(it), it })
-      } else if (isValidImageItem(it) || isSampleItem(it)) solid.push({ kind: 'photo', g: it.groupId, b, it })
-      else if (isValidAssetItem(it)) solid.push({ kind: 'asset', g: it.groupId, b, it })
+        solid.push({ kind: 'text', g: it.groupId, b: inkBox(it), it, badge: badgeGroups.has(it.groupId) })
+      } else if (isValidImageItem(it) || isSampleItem(it)) {
+        if (it.w * it.h < page.width * s.height * 0.95) solid.push({ kind: 'photo', g: it.groupId, b, it }) // 구간을 채운 바탕 사진(첫 화면 사진 전면)은 글자를 얹는 자리
+      } else if (isValidAssetItem(it)) solid.push({ kind: 'asset', g: it.groupId, b, it })
     }
     for (let i = 0; i < solid.length; i++) for (let j = i + 1; j < solid.length; j++) {
       const p = solid[i], q = solid[j]
       if (p.g && p.g === q.g) continue // 같은 묶음(배지·메모) 안은 겹쳐도 된다
+      if ((p.badge && q.kind === 'photo') || (q.badge && p.kind === 'photo')) continue // 사진 모서리에 붙인 배지·알약 (도형 + 글자 묶음)
       if (p.kind === 'text' && q.kind === 'text') { if (hit(p.b, q.b)) out.push(`섹션 ${si}: 글자끼리 겹침 "${p.it.text}" / "${q.it.text}"`); continue }
       if (hit(p.b, q.b)) out.push(`섹션 ${si}: ${p.kind}·${q.kind} 겹침 ${p.it.text ?? p.it.asset ?? p.it.slot ?? ''} / ${q.it.text ?? q.it.asset ?? ''}`)
     }
@@ -66,7 +69,7 @@ function layoutProblems(page) {
   return out
 }
 
-eq('새 템플릿 18개 · 전체 38개', [LOOK_TEMPLATES.length, STUDIO_TEMPLATES.length], [18, 38])
+eq('새 템플릿 18개 · 전체 60개', [LOOK_TEMPLATES.length, STUDIO_TEMPLATES.length], [18, 60])
 eq('카테고리마다 6개 (의류·잡화·가방·생활용품)', ['apparel', 'bags', 'living'].map(c => LOOK_TEMPLATES.filter(t => t.category === c).length), [6, 6, 6])
 eq('key 겹침 없음 (전체)', new Set(STUDIO_TEMPLATES.map(t => t.key)).size, STUDIO_TEMPLATES.length)
 const moods = new Set(TEMPLATE_MOODS.map(m => m.key)), colors = new Set(TEMPLATE_COLORS.map(c => c.key))
@@ -76,7 +79,8 @@ const usedFonts = new Set()
 for (const tpl of LOOK_TEMPLATES) {
   const k = tpl.key
   eq(`${k}: 모양 검사 통과`, templateProblems(tpl), [])
-  eq(`${k}: 구간 8~12 · 사진 자리 4~6`, [tpl.sections.length >= 8 && tpl.sections.length <= 12, templateSlots(tpl).length >= 4 && templateSlots(tpl).length <= 6], [true, true])
+  // 사진 자리: 첫 화면(studioTemplateHeroes)이 겹침 구도면 뒷 사진 자리가 1~2개 늘어난다
+  eq(`${k}: 구간 8~12 · 사진 자리 4~8`, [tpl.sections.length >= 8 && tpl.sections.length <= 12, templateSlots(tpl).length >= 4 && templateSlots(tpl).length <= 8], [true, true])
   const parts = tpl.sections.flatMap(s => s.items || [])
   const fonts = new Set(parts.filter(p => p.type === 'text').map(p => p.fontFamily))
   fonts.forEach(f => usedFonts.add(f))

@@ -4,12 +4,14 @@
  * ★ 모양은 studioTemplates.js 맨 위 설명과 같다 ({ key, label, desc, gap, sections } + category·mood·color·swatch). 조각 규칙은 studioTemplateSets.TPL_BLOCKS.
  * ★ 짜임새: 밝은 미니멀 · 따뜻한 감성 · 선명한 강조 · 고급 모노톤 · 내추럴 · 트렌디 — 카테고리마다 색·첫 화면 구도·제목 글꼴·구간 순서를 바꿔 서로 다르게.
  *   글꼴 = 새 글꼴 5종(프리텐다드·가석원·고운바탕·동해독도·Cinzel) 위주, 에셋 = public/studio-assets (배경·소품·연출 배경).
- * ★ 사진 자리 4~6개, 자리마다 어울리는 예시 사진 종류(sample: product·scene·detail·hand — studioSamples). 사이즈표·상세정보 표는 넣지 않는다.
+ * ★ 사진 자리 4~6개(첫 화면이 겹침 구도면 뒷 사진 자리만큼 더 — 최대 8), 자리마다 어울리는 예시 사진 종류(sample: product·scene·detail·hand — studioSamples). 사이즈표·상세정보 표는 넣지 않는다.
+ * ★ 첫 구간은 studioTemplateHeroes.withHero가 큰 제목 첫 화면(780×1040)으로 바꾼다 — 아래 짜임새의 첫 구간(hero)은 그 자리표시.
  * ★ 배치·색·문구는 이 프로젝트에서 새로 정한 것 (다른 편집 프로그램·쇼핑몰의 템플릿·문구·그림을 옮기지 않음).
  *   문구는 판매자가 고쳐 쓰는 예시 — 인증·효능·수치 같은 사실 확인이 필요한 말은 넣지 않는다.
  * ★ 글자 줄은 직접 나눴다(\n) — 줄마다 폭 안에 들어가는지 테스트가 넉넉한 폭 재기로 본다 (글자 넘침·사진 겹침·자리 밖 없음).
  */
 import { TPL_BLOCKS } from './studioTemplateSets.js'
+import { withHero } from './studioTemplateHeroes.js'
 
 const { W, WHITE, textH, T, ornament, checks, boxes2, sec, SHIP, RETURN } = TPL_BLOCKS
 
@@ -507,10 +509,11 @@ const DESC = {
   trendy: '두 가지 선명한 색 · 기울인 사진 · 별 스티커 · 사진 네 칸 · 말풍선',
 }
 
+// 첫 구간 = 큰 제목 첫 화면 (studioTemplateHeroes — 구간 수·key·카테고리 그대로)
 export const LOOK_TEMPLATES = LOOKS.map(([category, key, name, kind, v, mood, color, th, a, h]) => {
   const label = `${{ apparel: '의류', bags: '잡화·가방', living: '생활용품' }[category]} · ${name}`
-  return {
+  return withHero({
     key, category, label, desc: DESC[kind], gap: 0, mood, color, swatch: th.accent,
     sections: BUILD[kind](COPY[category], { ...h, cat: category }, th, v, a),
-  }
+  })
 })

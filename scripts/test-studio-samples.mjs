@@ -31,8 +31,9 @@ const samples = manifest.samples
 {
   eq('manifest 문제 없음', manifest.problems, [])
   eq('예시 사진 54장 · kind sample', [samples.length, samples.every(s => s.kind === 'sample')], [54, true])
-  eq('카테고리마다 18장', SAMPLE_CATEGORIES.map(c => samples.filter(s => s.category === c).length), [18, 18, 18])
-  eq('종류 (의류·가방 = 제품·연출·확대 / 생활 = 제품·연출·손)', SAMPLE_CATEGORIES.map(c => [...new Set(samples.filter(s => s.category === c).map(s => s.type))].sort()), [['detail', 'product', 'scene'], ['detail', 'product', 'scene'], ['hand', 'product', 'scene']])
+  const HAVE = ['apparel', 'bag', 'living'] // 지금 사진이 있는 카테고리 (SAMPLE_CATEGORIES의 나머지는 사진이 들어오면 쓰는 이름)
+  eq('카테고리마다 18장 (의류·가방·생활) · 나머지 카테고리는 아직 0장', [HAVE.map(c => samples.filter(s => s.category === c).length), SAMPLE_CATEGORIES.filter(c => !HAVE.includes(c)).map(c => samples.filter(s => s.category === c).length).every(n => n === 0)], [[18, 18, 18], true])
+  eq('종류 (의류·가방 = 제품·연출·확대 / 생활 = 제품·연출·손)', HAVE.map(c => [...new Set(samples.filter(s => s.category === c).map(s => s.type))].sort()), [['detail', 'product', 'scene'], ['detail', 'product', 'scene'], ['hand', 'product', 'scene']])
   eq('에셋 목록(items)에는 예시 사진 없음', manifest.items.some(i => i.file.startsWith('samples/')), false)
   eq('webp 파일·크기·비율이 목록과 같음', samples.filter(s => {
     const f = path.join(ROOT, s.file)
@@ -51,13 +52,14 @@ const samples = manifest.samples
     try { execFileSync(process.execPath, [path.join(HERE, 'build-studio-assets-manifest.mjs'), '--check'], { stdio: 'pipe' }); return true } catch { return false }
   })(), true)
   eq('이름 읽기', [parseSampleName('euchs-sample_bag_detail_zipper-pull_06'), parseSampleName('euchs-sample_shoe_product_x_01')], [{ category: 'bag', type: 'detail', slug: 'zipper-pull', no: '06' }, null])
-  eq('이상한 항목은 빼고 사유', readSamples([{ id: 'a', kind: 'sample', category: 'apparel', type: 'product', file: '../x.webp', w: 1, h: 1 }, { id: 'b', kind: 'sample', category: 'toy', type: 'product', file: 'samples/b.webp', w: 1, h: 1 }]).problems.length, 2)
+  eq('이상한 항목은 빼고 사유', readSamples([{ id: 'a', kind: 'sample', category: 'apparel', type: 'product', file: '../x.webp', w: 1, h: 1 }, { id: 'b', kind: 'sample', category: 'shoe', type: 'product', file: 'samples/b.webp', w: 1, h: 1 }]).problems.length, 2)
 }
 
 // ── 2. 자리 종류·고르기 ──
 {
   eq('기본 종류: 첫 자리 = 제품, 다음 연출·확대·제품', [0, 1, 2, 3, 4].map(defaultSlotType), ['product', 'scene', 'detail', 'product', 'scene'])
-  eq('템플릿 카테고리 → 예시 사진 카테고리', ['apparel-look', 'bags-daily', 'living-basic', 'kitchen-bold', 'basic', 'beauty-mood'].map(k => sampleCategoryOf(templateByKey(k))), ['apparel', 'bag', 'living', 'living', 'living', 'living'])
+  eq('템플릿 카테고리 → 예시 사진 카테고리 (사진이 있는 가장 가까운 것)', ['apparel-look', 'bags-daily', 'living-basic', 'kitchen-bold', 'basic', 'beauty-mood', 'toys-play', 'event-review'].map(k => sampleCategoryOf(templateByKey(k), samples)), ['apparel', 'bag', 'living', 'living', 'apparel', 'bag', 'living', 'living'])
+  eq('새 이름 읽기 (뷰티·전자·완구 …) · 모르는 이름은 null', [parseSampleName('euchs-sample_beauty_product_cream-jar_01')?.category, parseSampleName('euchs-sample_digital_scene_desk_02')?.category, parseSampleName('euchs-sample_shoe_product_x_01')], ['beauty', 'digital', null])
   const pick = pickSamples(['product', 'product', 'detail', 'scene'], samples, 'living')
   eq('같은 종류 두 자리 = 다른 사진 · 생활 확대 → 손 연출로', [pick[0].id !== pick[1].id, pick.map(s => s.type)], [true, ['product', 'product', 'hand', 'scene']])
   eq('사진이 없는 카테고리 = null', pickSamples(['product'], samples, 'none'), [null])

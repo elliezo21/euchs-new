@@ -29,7 +29,7 @@
  */
 import { aiK } from './studioAi/aiGeometry.js'
 import { writeRect } from './studioFillPlan.js'
-import { buildTemplatePage, templateByKey } from './studioTemplates.js'
+import { buildTemplatePage, templateByKey, AUTO_BASE_TEMPLATE } from './studioTemplates.js'
 import { normalizeTableItem, tableHeight, TABLE_CELL_MAX } from './studioTable.js'
 
 export const AUTO_VERSION = 1
@@ -552,7 +552,8 @@ export function optionTableSection(cells) {
  * @returns {{ page, tpl, placed, extra }|null}
  */
 export function buildAutoPage(photos, drafts, measure, templateKey = AUTO_TEMPLATE_KEY) {
-  const base = templateByKey(templateKey)
+  // 'basic' = 원클릭용 예전 모양 (갤러리의 basic은 큰 제목 첫 화면 — 상품명 초안이 들어갈 소개 글 구간 흐름이 다르다)
+  const base = templateKey === AUTO_TEMPLATE_KEY ? AUTO_BASE_TEMPLATE : templateByKey(templateKey)
   if (!base) return null
   const tpl = autoTemplate(base, photos.length, drafts)
   const r = buildTemplatePage(tpl, photos, measure)

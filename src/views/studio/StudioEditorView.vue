@@ -540,7 +540,7 @@ import { useAutoBuild } from '@/composables/useAutoBuild'
 import { AI_MISSING_NOTE } from '@/lib/studioPreview'
 import { fetchProductFacts } from '@/lib/studioFactsApi'
 import {
-  reviewMark, buildDrafts, autoTemplate, oneClickTarget, AUTO_TEMPLATE_KEY, draftSectionIds, withDraftMark, isDraftSection, problemList,
+  reviewMark, buildDrafts, autoTemplate, oneClickTarget, draftSectionIds, withDraftMark, isDraftSection, problemList,
   isAutoPage, readNoticeClosed, writeNoticeClosed,
 } from '@/lib/studioAutoBuild'
 import SpotlightGuide from '@/components/common/SpotlightGuide.vue'
@@ -555,7 +555,7 @@ import { bgFromServer, bgMark, normalizeBgColor, withRefined, aiFromServer, libF
 import { fetchBgStatus, requestBgRemove, uploadBgRefined, uploadBgLocalMask, fetchBgGenStatus, requestBgGenerate } from '@/lib/studioBgApi'
 import { buildLocalMaskPng } from '@/lib/studioBgLocal'
 import { refineKey } from '@/lib/studioBgRefine'
-import { templateByKey, templateFontList, buildTemplatePage } from '@/lib/studioTemplates'
+import { templateByKey, templateFontList, buildTemplatePage, AUTO_BASE_TEMPLATE } from '@/lib/studioTemplates'
 import { templateSamples } from '@/lib/studioTemplateThumbs'
 import { isSampleItem, sampleItemsOf } from '@/lib/studioSamples'
 import { shouldShowStart } from '@/lib/studioStart'
@@ -999,7 +999,7 @@ async function finishOneClick({ results, facts }) {
   const drafts = buildDrafts(facts)
   const photos = results.filter(r => r.placed).map(r => sizedRow(r.id)).filter(Boolean)
   if (photos.length) {
-    const tpl = autoTemplate(templateByKey(AUTO_TEMPLATE_KEY), photos.length, drafts)
+    const tpl = autoTemplate(AUTO_BASE_TEMPLATE, photos.length, drafts) // 원클릭 = 예전 'basic' 모양 (소개 글 구간에 상품명 초안)
     await whenFontsReady(templateFontList(tpl)) // 글자 높이를 재야 해서 글꼴 조각을 먼저 받는다 (템플릿 적용과 같음)
     if (project.value?.id !== pid) return
     const r = buildTemplatePage(tpl, photos, textMeasure)

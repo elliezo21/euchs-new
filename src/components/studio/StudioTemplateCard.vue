@@ -10,9 +10,12 @@
           </span>
         </span>
         <span v-else class="st-tcard-img st-skeleton" />
+      </span>
+      <!-- 섹션 수는 그림 밖 (그림 위에 두면 첫 화면 아래쪽 배지·부제를 가린다) -->
+      <span class="st-tcard-caption">
+        <span class="st-tcard-title">{{ title }}</span>
         <span class="st-tcard-count" data-template-sections>섹션 {{ sections }}개</span>
       </span>
-      <span class="st-tcard-title">{{ title }}</span>
     </button>
     <button
       type="button" class="st-tcard-heart" :class="favorite ? 'is-on' : ''" :disabled="favReady !== true || favBusy"
@@ -79,19 +82,20 @@ onMounted(() => { if (!thumb.value) load() })
   display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 999px;
   background: #fff; color: #4b5563; box-shadow: 0 1px 3px rgba(0, 0, 0, .2); cursor: pointer;
 }
-.st-tcard-count {
-  position: absolute; left: 6px; bottom: 6px; padding: 2px 7px; border-radius: 999px; font-size: 11px; font-weight: 800;
-  background: rgba(17, 20, 26, .72); color: #fff;
-}
+.st-tcard-caption { display: flex; align-items: baseline; gap: 6px; margin-top: 7px; min-width: 0; }
 .st-tcard-title {
-  display: block; margin-top: 7px; font-size: 12px; font-weight: 700; color: var(--st-ink); line-height: 1.35;
+  display: block; min-width: 0; flex: 1 1 auto; font-size: 12px; font-weight: 700; color: var(--st-ink); line-height: 1.35;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
 }
-.st-tcard.is-large .st-tcard-title { margin-top: 10px; font-size: 14px; }
-.st-tcard.is-large .st-tcard-count { left: 8px; bottom: 8px; font-size: 12px; padding: 3px 9px; }
+.st-tcard-count { flex: none; font-size: 11px; font-weight: 700; color: var(--st-muted); white-space: nowrap; }
+.st-tcard.is-large .st-tcard-caption { margin-top: 10px; }
+.st-tcard.is-large .st-tcard-title { font-size: 14px; }
+.st-tcard.is-large .st-tcard-count { font-size: 12px; }
+/* 하트 = 반투명 흰 원, 카드 모서리 안쪽 (템플릿 첫 화면은 이 자리에 배지·글자를 두지 않는다 — studioTemplateHeroes.HEART_ZONE) */
 .st-tcard-heart {
-  position: absolute; top: 6px; right: 6px; display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center;
-  border-radius: 999px; border: 0; background: rgba(255, 255, 255, .92); color: #6b7280; box-shadow: 0 1px 3px rgba(0, 0, 0, .18); cursor: pointer;
+  position: absolute; top: 10px; right: 10px; display: inline-flex; width: 30px; height: 30px; align-items: center; justify-content: center;
+  border-radius: 999px; border: 0; background: rgba(255, 255, 255, .72); color: #4b5563; box-shadow: 0 1px 4px rgba(0, 0, 0, .16); cursor: pointer;
+  -webkit-backdrop-filter: blur(4px); backdrop-filter: blur(4px);
 }
 .st-tcard-heart:hover:not(:disabled) { color: #e5484d; }
 .st-tcard-heart.is-on { color: #e5484d; }

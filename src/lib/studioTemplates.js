@@ -29,7 +29,7 @@ import {
   PAGE_WIDTH, SECTION_BG, SECTION_MAX, newPageId, hasSize, imageSection, normalizeItem, cleanGroups, emptyPage,
   isValidImageItem, itemStyleOf, ITEM_STYLE_DEFAULTS, fitHeight,
 } from './studioPage.js'
-import { defaultSlotType, SAMPLE_TYPES, SAMPLE_LABEL } from './studioSamples.js'
+import { defaultSlotType, SAMPLE_TYPES, SAMPLE_LABEL, sampleCategoriesOf, assignSamples } from './studioSamples.js'
 import { normalizeTextItem, fitTextItem, textStyleOf } from './studioText.js'
 import { normalizeShapeItem, normalizeLineItem } from './studioShape.js'
 import { normalizeTableItem } from './studioTable.js'
@@ -37,6 +37,8 @@ import { normalizeAssetItem, sectionBgImageOf } from './studioAsset.js'
 import { isSampleItem } from './studioSamples.js'
 import { CATEGORY_TEMPLATES, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS } from './studioTemplateSets.js'
 import { LOOK_TEMPLATES } from './studioTemplateLooks.js'
+import { EVENT_TEMPLATES } from './studioTemplateEvents.js'
+import { withHero } from './studioTemplateHeroes.js'
 
 export { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS }
 
@@ -148,8 +150,36 @@ const BASE_META = {
   point: { mood: 'bold', color: 'cool', swatch: '#14213d' },
   size: { mood: 'clean', color: 'green', swatch: '#2a9d8f' },
 }
-// 순서: 기본 3 → 카테고리 템플릿 17 → 새 템플릿 18 (studioTemplateLooks — 의류·잡화·가방·생활용품 × 6)
-export const STUDIO_TEMPLATES = [...BASE_TEMPLATES.map(t => ({ ...t, category: 'common', ...BASE_META[t.key] })), ...CATEGORY_TEMPLATES, ...LOOK_TEMPLATES]
+/**
+ * 원클릭 자동 제작이 쓰는 기본 틀 = 예전 'basic' 모양 그대로 (대표 사진 → 소개 글 → 사진들 → 구매 전 안내).
+ * 갤러리의 'basic'은 큰 제목 첫 화면으로 바뀌었지만, 원클릭은 소개 글 구간에 상품명 초안을 넣으므로 예전 모양을 쓴다 (studioAutoBuild).
+ */
+export const AUTO_BASE_TEMPLATE = { ...BASE_TEMPLATES[0], category: 'common', ...BASE_META.basic }
+
+/**
+ * 갤러리 순서 — 목록 순서를 되도록 지키되, 바로 옆 카드(앞 칸)와 바로 위 카드(cols칸 앞)의 바탕색 계열(tone)이 같지 않게 뒤로 미룬다.
+ * 피할 수 없으면(남은 것이 모두 같은 계열) 그대로 둔다.
+ */
+export const GALLERY_COLUMNS = 5 // 1440px 폭 갤러리 한 줄 카드 수 (StudioTemplatesView .st-gal-grid)
+export function galleryOrder(list, cols = GALLERY_COLUMNS) {
+  const rest = [...list]
+  const out = []
+  const clash = t => {
+    const n = out.length
+    return (n > 0 && out[n - 1].tone === t.tone) || (n >= cols && out[n - cols].tone === t.tone)
+  }
+  while (rest.length) {
+    const i = rest.findIndex(t => !clash(t))
+    out.push(rest.splice(i < 0 ? 0 : i, 1)[0])
+  }
+  return out
+}
+
+// 목록: 기본 3 → 카테고리 템플릿 17 → 새 템플릿 18 → 안내·이벤트 22, 첫 구간 = 큰 제목 첫 화면(studioTemplateHeroes). 갤러리 순서는 galleryOrder
+export const STUDIO_TEMPLATES = galleryOrder([
+  ...BASE_TEMPLATES.map(t => withHero({ ...t, category: 'common', ...BASE_META[t.key] })),
+  ...CATEGORY_TEMPLATES, ...LOOK_TEMPLATES, ...EVENT_TEMPLATES,
+])
 /** 그 카테고리의 템플릿 (모르는 카테고리면 빈 목록) */
 export function templatesOf(category) { return STUDIO_TEMPLATES.filter(t => t.category === category) }
 
@@ -240,6 +270,22 @@ export function templateSlotTypes(tpl) {
     else for (const p of s.items || []) if (isSlotPart(p)) note(p.slot, p.sample)
   }
   return templateSlots(tpl).map((n, i) => typeOf.get(n) ?? defaultSlotType(i))
+}
+
+/** 첫 구간(갤러리 카드 표지)에 있는 사진 자리의 차례 번호들 (templateSlots 안의 자리) */
+export function coverSlotIndexes(tpl) {
+  const first = tpl.sections[0]
+  const inCover = new Set(isPhotoSection(first) ? [first.photo] : (first?.items || []).filter(isSlotPart).map(p => p.slot))
+  return templateSlots(tpl).map((n, i) => (inCover.has(n) ? i : -1)).filter(i => i >= 0)
+}
+
+/**
+ * 템플릿마다 자리별 예시 사진 — 갤러리 전체를 한 번에 나눠 준다 (studioSamples.assignSamples).
+ * 대표 사진(첫 자리)은 카드끼리 겹치지 않게, 한 템플릿 안에서는 같은 사진을 두 번 쓰지 않게, 카테고리는 이름 규칙(sampleCategoriesOf)으로.
+ * @returns {Map<string, (object|null)[]>} key → 자리 순서대로 예시 사진
+ */
+export function assignTemplateSamples(samples, list = STUDIO_TEMPLATES) {
+  return assignSamples(list.map(t => ({ key: t.key, chain: sampleCategoriesOf(t), types: templateSlotTypes(t), cover: coverSlotIndexes(t) })), samples)
 }
 
 /** 템플릿 글자 조각의 글꼴 목록 (적용 전에 글꼴 조각을 받을 때 — studioFonts.loadFontsFor 입력) */
