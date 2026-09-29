@@ -9,15 +9,18 @@
  *   선택 이력(studioSelection): 브러시 한 획·사각형 한 번·옮기기/크기 한 번·선택 해제마다 한 칸 — 사진 이력(적용 단위)과 누른 순서대로 되돌린다.
  *   적용을 되돌리면 그때 선택을 다시 살린다(appliedFrom). (예전 결정 16 "초안이 있으면 되돌리기 = 초안 전체 지우기"를 대신한다)
  * ★ 삭제(method 'clear', 포토샵 Delete): 선택 영역을 투명하게 — 레이어 하나(pad 0)로 쌓는다. 완성 JPG는 투명을 못 담아 만들지 않는다(편집기 requestBake).
- * ★ AI 지우기: 영역을 정한 뒤 [AI로 지우기]를 눌러야 계산한다 (자동 계산·자동 재계산 없음).
+ * ★ AI 지우기: 영역을 정한 뒤 [AI로 지우기]를 눌러야 계산한다. 예외 = 결과(ai) 없이 저장된 AI 레이어는 사진을 열면 자동으로 계산한다
+ *   (StudioCanvas, studioAiFailure.needsAiResult — 결과가 오면 이력 칸을 만들지 않고 같은 모양인 단계마다 채운다). 옮겨서 결과가 안 맞는 레이어는 예전처럼 [AI로 지우기]로.
  *   엔진(LaMa 워커)은 편집기에 들어오면 바로 준비를 시작하고 떠나면 정리한다.
  *   AI 결과는 PNG로 저장되고(studioAiPatch), 도착하면 그 레이어에 ai 필드를 붙인다 — 이력 "AI 지우기" 한 단계.
+ * ★ AI 실패(studioAiFailure): 누를 때 엔진이 오류면 레이어·이력을 만들지 않고 선택 영역을 그대로 둔다. 계산이 실패하면 방금 적용한
+ *   "AI 지우기" 칸을 없던 것으로 하고(discardCurrent) 선택 영역으로 돌려놓는다 — 캔버스 위 [다시 시도](엔진을 새로 만들고 같은 영역으로).
  * ★ 덮기(12-2, studioCover): 같은 layers 배열의 type 'cover' 레이어. 초안도 같은 draft 한 개(네모로 덮을 곳 → 가져올 곳 자동) —
  *   [적용]을 누르면 레이어로 추가(이력 "덮기"). 옮기기·크기·삭제·되돌리기·저장·erase_v는 지우기 레이어와 같은 길을 탄다.
  *
  * @param {{ images: import('vue').Ref<object[]>, selectedImageId: import('vue').Ref<string|null>, showToast: (msg: string) => void }} opts
  */
-import { ref, shallowRef, reactive, computed, watch } from 'vue'
+import { ref, shallowRef, reactive, computed, watch, toRaw } from 'vue'
 import {
   readLayers, buildEdit, fillLayersOf, pixelLayersOf, fillCounts, isValidFillLayer, newFillId, createEditSaver, fetchImageEdit, saveImageEdit,
   MAX_LAYERS, PAD_MIN, PAD_MAX, PAD_DEFAULT,
@@ -26,8 +29,9 @@ import { stampEraseVersion, withoutEraseVersion } from '@/lib/studioFinal'
 import {
   createHistory, push as pushHistory, undo as undoHistory, redo as redoHistory, jumpTo as jumpHistory,
   clear as clearHistory, canRedo, list as listHistory, current as currentStep, amendCurrent as amendHistory,
-  undoAction, LABELS,
+  undoAction, discardCurrent, mapSteps, LABELS,
 } from '@/lib/studioHistory'
+import { engineDown, canRetryAi, fillAiInEdit, AI_FAIL_TEXT } from '@/lib/studioAiFailure'
 import { clampRectToImage } from '@/lib/studioCoords'
 import {
   brushBBox, translateBrush, brushPointCount, BRUSH_SIZE_MIN, BRUSH_MAX_STROKES, BRUSH_MAX_POINTS,
@@ -129,6 +133,14 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     aiState.progress = null
   }
 
+  /** [다시 시도] — 오류 난 엔진(워커)을 버리고 새로 준비한다 (모델은 Cache Storage에 있으면 다시 받지 않는다). 오류가 아니면 그대로 */
+  function restartAiEngine() {
+    if (aiEngine.value && !engineDown(aiState.status)) return
+    console.info('[StudioEditor] AI 엔진을 다시 준비함 (이전 사유:', aiState.reason || aiState.status, ')')
+    stopAiEngine()
+    startAiEngine()
+  }
+
   function makeSaver() {
     return createEditSaver({
       // 저장 직전 erase_v를 찍는다: 직전 저장본(row.edit = curVersion의 값 — 한 사진의 저장은 차례대로라 onSaved가 먼저 맞춰 둔다)과
@@ -202,6 +214,7 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     if (prevId) saver.flush(prevId) // 즉시 저장 (결과는 상단 바 상태로 보인다)
     draft.value = null
     selectedLayerId.value = null
+    aiFailNotice.value = null
   }
 
   // ── 레이어 바꾸기 (화면 값 → 자동 저장 [+ 이력]) ──
@@ -404,16 +417,27 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
    *   AI의 이력 한 단계 = 누른 순간 edit가 바뀌면 그때 단계를 만들고, 결과가 오면 그 단계에 합친다(applyAiResult)
    */
   let aiBatchSeq = 0
+  // 실행 번호(batch) → 그때 [AI로 지우기]가 만든 이력 칸 { imageId, layerId, sel(초안이었으면 그 선택), step(만든 칸 — 원본 객체) }
+  // 계산이 실패하면 이 칸이 아직 맨 끝·현재일 때만 없던 것으로 한다 (handleAiFailure). 결과가 오면 지운다
+  const aiApplied = new Map()
   function executeFill(layerId, method) {
     const id = selectedImageId.value
     if (!id || (method !== 'ai' && method !== 'solid' && method !== 'clear')) return
     const cur = layerMap[id] || []
-    const batch = `e${++aiBatchSeq}`
     let pushedIndex = null
     if (canvasDraft.value?.id === layerId && canvasDraft.value.type === 'cover') return // 덮기 초안은 [적용](applyCover)으로
+    if (method === 'ai' && engineDown(aiState.status)) {
+      // 엔진을 쓸 수 없음 — 레이어·이력을 만들지 않고 선택 영역·작업 바를 그대로 둔 채 캔버스 위에 알린다 ([다시 시도] = retryAiFailure)
+      console.error('[StudioEditor] AI 엔진을 쓸 수 없어 [AI로 지우기]를 적용하지 않음 (레이어·이력 없음):', aiState.status, aiState.reason)
+      aiFailNotice.value = { imageId: id, target: layerId, kind: aiState.status === 'unsupported' ? 'unsupported' : 'engine' }
+      return
+    }
+    const batch = `e${++aiBatchSeq}`
+    if (method === 'ai') aiFailNotice.value = null
+    let sel = null
     if (canvasDraft.value?.id === layerId) {
       if (cur.length >= MAX_LAYERS) { showToast(`한 사진에 영역은 ${MAX_LAYERS}개까지예요`); return }
-      const sel = canvasDraft.value
+      sel = canvasDraft.value
       // 삭제(투명)는 선택 영역 그대로 (가장자리 여유 없음 — 포토샵 Delete와 같게)
       const layer = { ...sel, method, ...(method === 'clear' ? { pad: 0 } : {}) }
       draft.value = null
@@ -439,8 +463,54 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     selectedLayerId.value = layerId
     if (method === 'ai') {
       aiHistoryBatch[id] = { batch, index: pushedIndex }
+      if (pushedIndex !== null) {
+        const h = toRaw(histories[id])
+        aiApplied.set(batch, { imageId: id, layerId, sel: sel ? JSON.parse(JSON.stringify(sel)) : null, step: h.steps[h.index] })
+      }
       eraseRequest.value = { layerId, n: ++eraseSeq, batch }
     }
+  }
+
+  /**
+   * 캔버스가 AI 계산 실패를 알림 (엔진 오류·계산 오류·시간 초과). 이 실행이 방금 만든 "AI 지우기" 칸이 아직 맨 끝·현재면
+   * 그 칸을 없던 것으로 하고(다시 하기에도 안 남음) 초안이었으면 선택 영역으로 돌려놓는다 → 박스 + 작업 바 + 캔버스 위 [다시 시도].
+   * 그 사이 다른 편집이 있었거나 원래 있던 레이어면 되돌리지 않는다 — 캔버스가 그 영역에 실패 표시와 [다시 시도]/[빼기]를 둔다.
+   * @returns {boolean} 되돌렸으면 true
+   */
+  function handleAiFailure({ imageId, layerId, batch, kind }) {
+    const a = aiApplied.get(batch)
+    if (!a || a.imageId !== imageId || a.layerId !== layerId) return false
+    aiApplied.delete(batch)
+    const h = histories[imageId] ? toRaw(histories[imageId]) : null
+    const res = h && h.steps[h.index] === a.step ? discardCurrent(h) : null
+    if (!res) {
+      console.warn('[StudioEditor] AI 지우기 실패 — 그 뒤 다른 편집이 있어 적용을 되돌리지 않고 실패 표시로 둠:', imageId, layerId)
+      return false
+    }
+    applyHistory(res, imageId)
+    if (appliedFrom[imageId]) delete appliedFrom[imageId][res.history.index + 1]
+    if (aiHistoryBatch[imageId]?.batch === batch) delete aiHistoryBatch[imageId]
+    if (a.sel && imageId === selectedImageId.value && !canvasDraft.value) setDraftSilently(imageId, a.sel)
+    aiFailNotice.value = { imageId, target: a.sel ? a.sel.id : layerId, kind }
+    return true
+  }
+
+  // 캔버스 위 실패 안내 (선택 영역·그 영역에 대한 것 하나) — { imageId, target: 초안 또는 레이어 id, kind: studioAiFailure 종류 }
+  const aiFailNotice = ref(null)
+  // 지금 보일 안내: 이 사진이고, 그 선택 영역(또는 레이어)이 아직 있을 때만 — 새로 선택하거나 해제하면 사라진다
+  const aiFailure = computed(() => {
+    const n = aiFailNotice.value
+    if (!n || n.imageId !== selectedImageId.value) return null
+    const alive = canvasDraft.value?.id === n.target || (layerMap[n.imageId] || []).some(l => l.id === n.target)
+    return alive ? { ...n, text: AI_FAIL_TEXT[n.kind] || AI_FAIL_TEXT.compute, retry: canRetryAi(n.kind) } : null
+  })
+  /** 캔버스 위 [다시 시도] — 엔진이 오류면 새로 준비한 뒤(준비되는 동안 기다림) 같은 영역으로 다시 [AI로 지우기] */
+  function retryAiFailure() {
+    const n = aiFailure.value
+    if (!n?.retry) return
+    aiFailNotice.value = null
+    restartAiEngine()
+    executeFill(n.target, 'ai')
   }
 
   /**
@@ -458,12 +528,22 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
       console.info('[StudioEditor] AI 결과가 도착했지만 그 사이 영역이 바뀌어 붙이지 않음:', imageId, layerId)
       return
     }
+    if (aiApplied.get(batch)?.layerId === layerId) aiApplied.delete(batch) // 결과가 왔으니 실패 되돌리기 대상이 아니다
+    const had = cur.find(l => l.id === layerId)
     const next = cur.map(l => (l.id === layerId ? { ...l, ai } : l))
     const h = histories[imageId]
     const last = aiHistoryBatch[imageId]
     if (h && last && last.batch === batch && last.index !== null && last.index === h.index) {
       setLayers(imageId, next, null)
       histories[imageId] = amendHistory(h, editOf(imageId))
+      return
+    }
+    if (had && !had.ai) {
+      // 결과 없이 있던 AI 레이어에 결과를 채움 (사진을 열 때 자동 계산·실패 뒤 다시 시도) — 새 이력 칸을 만들지 않고,
+      // 이 레이어가 같은 모양인 단계마다 채운다 (되돌려도 결과 없는 상태로 돌아가 다시 계산하지 않게 — studioAiFailure.fillAiInEdit)
+      setLayers(imageId, next, null)
+      const keyOf = (layers, lid) => fillPlan(pixelLayersOf(layers), W, H).find(p => p.id === lid)?.key
+      if (h) histories[imageId] = mapSteps(toRaw(h), e => fillAiInEdit(e, { layerId, planKey, ai }, keyOf))
       return
     }
     setLayers(imageId, next, LABELS.aiErase)
@@ -504,6 +584,15 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     }
     setLayers(id, (layerMap[id] || []).filter(l => l.id !== layerId), LABELS.remove)
     if (selectedLayerId.value === layerId) selectedLayerId.value = null
+  }
+  /** 캔버스 위 [빼기] — AI로 지우지 못한 영역들을 한 번에 뺀다 (이력 "영역 빼기" 한 칸 — Ctrl+Z로 되살림) */
+  function removeFills(layerIds) {
+    const id = selectedImageId.value
+    const drop = new Set(layerIds)
+    const cur = layerMap[id] || []
+    if (!id || !cur.some(l => drop.has(l.id))) return
+    setLayers(id, cur.filter(l => !drop.has(l.id)), LABELS.remove)
+    if (drop.has(selectedLayerId.value)) selectedLayerId.value = null
   }
 
   // ── 덮기 (12-2) ──
@@ -758,6 +847,8 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     for (const k of Object.keys(appliedFrom)) delete appliedFrom[k]
     draft.value = null
     selectedLayerId.value = null
+    aiFailNotice.value = null
+    aiApplied.clear()
     saveStatus.value = 'saved'
     saveDetail.value = ''
     conflictId.value = null
@@ -778,10 +869,12 @@ export function useEraseSession({ images, selectedImageId, showToast }) {
     canvasDraft, canUndoNow, canRedoNow, historySteps,
     canvasTool, brushSize, brushMode,
     // 동작
-    fillCount, syncFromServer, leaveImage, startAiEngine, stopAiEngine,
+    fillCount, syncFromServer, leaveImage, startAiEngine, stopAiEngine, restartAiEngine,
     setDraftRect, discardDraft, setBrushSize, stepBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult,
     deselect, hasSelection,
-    setPad, recordPad, removeFill, clearAllFills, undoEdit, redoEdit, jumpEdit,
+    // AI 실패 (studioAiFailure)
+    aiFailure, handleAiFailure, retryAiFailure,
+    setPad, recordPad, removeFill, removeFills, clearAllFills, undoEdit, redoEdit, jumpEdit,
     retrySave, flush, hasUnsaved, isSaved, reopenConflict, reloadConflicted, resetAll, resetScreenState, dispose,
     // 필터·조정 (6-2)
     lookMap, setLook, lookOf, canUndoImage, canRedoImage, undoImage, redoImage,

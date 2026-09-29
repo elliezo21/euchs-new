@@ -195,6 +195,9 @@
           <p v-if="selectedFill && !selectedIsDraft && selectedFill.method === 'ai' && (selectedAiState === 'needs' || selectedAiState === 'failed')" class="mt-2 st-desc-sm break-keep" data-ai-stale>
             영역이 바뀌어 결과가 맞지 않아요. [AI로 지우기]를 누르면 다시 지워요.
           </p>
+          <p v-if="selectedFill && !selectedIsDraft && selectedFill.method === 'ai' && selectedAiState === 'error'" class="mt-2 text-[12px] font-bold st-danger-text break-keep" data-ai-error>
+            AI로 지우지 못한 영역이에요. [AI로 지우기]를 누르면 다시 해요.
+          </p>
           <!-- 글자 걸침 안내 — 자동으로 넓히지 않고 안내만 -->
           <div v-if="selectedFill && bleedSides.length" class="mt-3 st-erase-bleed" data-bleed-notice>
             <p class="break-keep">네모 테두리가 지울 부분에 걸쳐 있어요. 모두 덮도록 조금 더 크게 그려 주세요.</p>
@@ -231,6 +234,7 @@
                   <span class="st-applied-no">{{ row.no }}</span>
                   <component :is="row.kind === 'cover' ? Stamp : row.kind === 'clear' ? Trash2 : Eraser" class="w-3.5 h-3.5 shrink-0" :stroke-width="2" />
                   <span class="truncate">{{ row.label }}</span>
+                  <span v-if="row.failed" class="shrink-0 st-danger-text" data-applied-failed>· 지우지 못함</span>
                 </button>
               </li>
             </ol>
@@ -284,6 +288,11 @@
           @key-action="onKeyAction"
           @deselect="deselect"
           @viewport="v => (view = v)"
+          :ai-failure="aiFailure"
+          @ai-failed="handleAiFailure"
+          @ai-restart="restartAiEngine"
+          @ai-retry="retryAiFailure"
+          @remove-failed="removeFills"
         />
         <!-- 선택 영역 작업 바 (포토샵 속성 막대처럼) — 선택 영역 가까이, 화면 밖·아래 확대 막대와 겹치지 않게. 왼쪽 패널 버튼과 같은 함수 -->
         <div
@@ -358,17 +367,20 @@ const {
   setDraftRect, discardDraft, setBrushSize, stepBrushSize, addBrushStroke, changeFill, executeFill, applyAiResult, deselect, hasSelection,
   setPad, recordPad, removeFill, undoEdit, redoEdit, jumpEdit, retrySave, reopenConflict, flush,
   selectedCover, setCoverDraft, moveCoverSource, setCoverFeather, recordCoverFeather, applyCover,
+  aiFailure, handleAiFailure, retryAiFailure, restartAiEngine, removeFills,
 } = props.session
 
 // 덮기 패널을 보일 때: [덮기] 도구이거나 덮기(초안·레이어)를 골랐을 때 (12-2)
 const coverMode = computed(() => canvasTool.value === 'cover' || !!selectedCover.value)
 const METHOD_LABEL = { ai: 'AI', solid: '단색', coons: '예전 방식' }
 // 적용한 순서 — 이 사진의 지우기·덮기 레이어 (배열 순서 = 적용 순서)
+// AI로 지우지 못한 영역(캔버스 ai-states 'error')은 "· 지우지 못함"을 붙여 빨간 글자로
 const appliedRows = computed(() => selectedLayers.value.filter(isValidPixelLayer).map((l, i) => ({
   id: l.id,
   no: i + 1,
   kind: l.type === 'cover' ? 'cover' : l.method === 'clear' ? 'clear' : 'fill',
   label: l.type === 'cover' ? '주변으로 덮기' : l.method === 'clear' ? `삭제${l.shape === 'brush' ? ' · 브러시' : ''}` : `지우기 · ${METHOD_LABEL[l.method]}${l.shape === 'brush' ? ' · 브러시' : ''}`,
+  failed: l.method === 'ai' && aiLayerStates.value[l.id] === 'error',
 })))
 
 // 12-1 자르기·띠 안내 (예: "잘림 · 띠 2 — 지우기는 원본 전체에서 해요")

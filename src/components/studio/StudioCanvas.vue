@@ -15,8 +15,21 @@
       <button type="button" class="st-btn" @click="showImage">다시 시도</button>
     </div>
 
-    <!-- 위쪽 가운데: 계산·AI 상태 안내 (조용히 넘기지 않는다). 도구·실행 버튼은 지우기 화면 왼쪽 패널에 있다 -->
-    <div class="absolute top-3 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none" style="z-index: 4; max-width: calc(100% - 24px)">
+    <!-- 위쪽 가운데: 계산·AI 상태 안내 (조용히 넘기지 않는다). 도구·실행 버튼은 지우기 화면 왼쪽 패널에 있다.
+         지우기 화면의 "선택 영역 · Delete 삭제 · Esc 해제" 안내(top 12px, 높이 28px) 아래에 둔다 — 겹쳐 안 읽히던 문제.
+         작업 바(z 6)보다 위(z 7) — 선택 영역이 사진 위쪽이라 작업 바가 이 자리로 올라와도 [다시 시도]가 가려지지 않게 -->
+    <div class="absolute top-[52px] left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 pointer-events-none" style="z-index: 7; max-width: calc(100% - 24px)" data-canvas-notices>
+      <!-- 방금 누른 [AI로 지우기]가 안 됨 — 선택 영역은 그대로 (useEraseSession.aiFailure) -->
+      <div v-if="aiFailure" class="pointer-events-auto flex items-center gap-2 px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-ai-failed>
+        <span>{{ aiFailure.text }}</span>
+        <button v-if="aiFailure.retry && interactive" type="button" class="st-btn shrink-0" data-ai-retry @click="$emit('ai-retry')">다시 시도</button>
+      </div>
+      <!-- 적용해 둔 AI 영역을 지우지 못함 (결과 없이 저장돼 있던 영역 포함) — [다시 시도]/[빼기], 조용히 지우지 않는다 -->
+      <div v-if="layerFailure && interactive" class="pointer-events-auto flex items-center gap-2 px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-ai-layer-failed>
+        <span>{{ layerFailure.text }}</span>
+        <button v-if="layerFailure.retry" type="button" class="st-btn shrink-0" data-ai-layer-retry @click="retryFailedLayers">다시 시도</button>
+        <button type="button" class="st-btn st-btn-ghost shrink-0" data-ai-layer-remove @click="$emit('remove-failed', layerFailure.ids)">빼기</button>
+      </div>
       <div v-if="computeError" class="pointer-events-auto px-3 py-2 rounded-[10px] st-surface st-shadow-float text-[12px] font-bold st-danger-text break-keep" data-compute-error>
         {{ computeError }}
       </div>
@@ -79,6 +92,7 @@ import { widenSides } from '@/lib/studioBleed'
 import { isValidFillLayer, isValidPixelLayer } from '@/lib/studioEdit'
 import { eraseKeyAction } from '@/lib/studioEraseKeys'
 import { AI_MODEL_ID, uploadAiPatch, loadAiPatch } from '@/lib/studioAiPatch'
+import { engineDown, aiFailKind, canRetryAi, aiLayerFailText, needsAiResult } from '@/lib/studioAiFailure'
 import { nextRetryDelay, isRetryableSaveError, AI_SAVE_RETRY_DELAYS } from '@/lib/studioSaveGuard'
 
 const props = defineProps({
@@ -97,6 +111,7 @@ const props = defineProps({
   draft: { type: Object, default: null },            // 실행 전 영역 (네모 {id,type,x,y,w,h,pad} 또는 붓 {…, shape:'brush', brush}) — method 없음 / 덮기 초안 {type:'cover', …}
   brushSize: { type: Number, default: 40 },          // 붓 크기 (원본 픽셀)
   brushMode: { type: String, default: 'add' },       // 'add' 칠하기 | 'sub' 덜어내기
+  aiFailure: { type: Object, default: null },         // 방금 누른 [AI로 지우기] 실패 안내 { text, retry } (useEraseSession.aiFailure) — [다시 시도] = emit 'ai-retry'
 })
 // change(id, rect, kind): kind 'move' | 'resize' — 이력 라벨용 (초안이면 편집기가 초안만 고친다)
 // execute(id, method): [AI로 지우기]/[단색] — 초안이면 레이어로 추가, 레이어면 그 방식으로 다시 실행
@@ -104,7 +119,7 @@ const props = defineProps({
 // brush-stroke({ mode, size, pts }): 붓 한 획 (단순화된 정수 원본 좌표) → 편집기가 붓 초안에 합친다
 // ai({ imageId, layerId, planKey, W, H, ai, batch }): AI 결과 조각을 저장했음 — 편집기가 그 레이어에 ai 필드를 붙인다.
 //   batch: 실행 한 번의 번호 (같이 지운 앞 AI가 있으면 여러 결과가 같은 번호로 온다 → 이력 한 단계)
-// ai-states({ [layerId]: 'done'|'needs'|'busy'|'loading'|'failed' }): AI 레이어 상태 — 왼쪽 패널용
+// ai-states({ [layerId]: 'done'|'needs'|'busy'|'loading'|'failed'|'error' }): AI 레이어 상태 — 왼쪽 패널용 (failed = 저장된 결과 받기 실패, error = 계산 실패)
 // ai-unsaved({ count, pending, autoRetrying, saving, message }): 계산은 됐지만 결과 조각이 아직 저장되지 않은 AI 결과
 //   (count = 저장 실패 → [다시 저장] 카드, pending = 올리는 중·자동 재시도 대기) — 지우기 화면이 카드·나가기 확인을 보인다.
 //   부모가 retryAiSave()를 부르면 메모리의 결과로 업로드만 다시 한다 (AI 재계산 없음)
@@ -115,7 +130,12 @@ const props = defineProps({
 // bleed(sides[]): 선택한 네모가 글자에 걸친 변 (없으면 []) — 부모가 안내와 [조금 넓히기]를 보여준다
 // draft-cover(rect): [덮기] 도구로 덮을 곳을 그림 → 편집기가 가져올 곳을 붙인 덮기 초안을 만든다
 // cover-source(id, { sx, sy }): 가져올 곳을 끌어 놓음 (정수, 사진 안)
-const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'ai-unsaved', 'tool', 'bleed', 'draft-cover', 'cover-source', 'key-action', 'deselect', 'viewport'])
+// ai-failed({ imageId, layerId, planKey, batch, kind, message }): AI 계산 실패 (kind = studioAiFailure.aiFailKind) — 편집기가 방금 적용한 것이면
+//   그 적용을 되돌린다(useEraseSession.handleAiFailure). 캔버스는 그 영역에 실패 표시(빨간 점선) + 위 안내 [다시 시도]/[빼기]
+// ai-restart(): 실패 영역 [다시 시도] 때 엔진이 오류 상태 — 편집기가 엔진을 새로 만든다 (useEraseSession.restartAiEngine)
+// ai-retry(): 선택 영역 실패 안내의 [다시 시도] (useEraseSession.retryAiFailure)
+// remove-failed(ids): 실패 영역 [빼기] (useEraseSession.removeFills — 이력 한 칸)
+const emit = defineEmits(['change', 'select', 'remove', 'execute', 'draft-rect', 'brush-stroke', 'ai', 'ai-states', 'ai-unsaved', 'tool', 'bleed', 'draft-cover', 'cover-source', 'key-action', 'deselect', 'viewport', 'ai-failed', 'ai-restart', 'ai-retry', 'remove-failed'])
 
 const wrap = ref(null)
 const host = ref(null)
@@ -150,7 +170,10 @@ const selectedBleed = computed(() => {
 watch(selectedBleed, (s, prev) => { if (!prev || s.join() !== prev.join()) emit('bleed', [...s]) }, { immediate: true })
 
 // ── AI 지우기 상태 ──
-// AI는 [지우기]를 눌러야 계산한다 (자동 계산·자동 재계산 없음). 저장된 결과(ai.key가 지금 계산 key와 같음)만 자동으로 불러온다.
+// AI는 [지우기]를 눌러야 계산한다. 저장된 결과(ai.key가 지금 계산 key와 같음)는 자동으로 불러오고,
+// 결과(ai) 없이 저장된 AI 레이어는 엔진이 준비되면 자동으로 계산한다 (studioAiFailure.needsAiResult — 보기 전용 캔버스는 안 함).
+// 옮겨서 결과가 안 맞는 레이어(ai는 있음)는 예전처럼 [AI로 지우기]를 눌러야 다시 계산한다.
+// 실패(엔진 오류·계산 오류·시간 초과)는 요청을 비우고 emit('ai-failed') — 버튼이 "AI가 채우는 중…"에 멈추지 않는다.
 const aiActive = ref(false)        // 엔진이 지금 한 건을 계산하는 중
 const aiRequestCount = ref(0)      // [지우기]를 눌러 기다리거나 계산 중인 AI 레이어 수
 const aiStates = ref({})           // layer id → 'done'|'needs'|'busy'|'loading'|'failed'
@@ -169,10 +192,19 @@ const aiNotice = computed(() => {
     return { text: `AI 지우기를 처음 쓰실 때 한 번만 약 200MB를 받습니다. 다음부터는 바로 됩니다. (${pct}%)` }
   }
   if (aiRequestCount.value === 0 && !aiActive.value) return null
-  if (s.status === 'error' || s.status === 'unsupported') return { text: `AI 지우기를 쓸 수 없어요: ${s.reason || s.status}`, danger: true }
+  // 엔진 오류면 기다리던 요청은 바로 실패로 돌린다(failRequestsIfEngineDown) — 문구는 실패 안내 칸이 맡는다
+  if (engineDown(s.status)) return null
   return { text: s.status === 'ready' || aiActive.value ? 'AI가 채우는 중…' : 'AI 준비 중…' }
 })
 const aiReady = () => props.aiState?.status === 'ready' && !!props.aiEngine
+// 적용해 둔 AI 영역의 계산 실패 — layer id → { planKey, kind } (그 영역이 바뀌거나 빠지면 sync가 지운다)
+const aiErrors = ref({})
+const layerFailure = computed(() => {
+  const ids = Object.keys(aiErrors.value)
+  if (!ids.length) return null
+  const kind = aiErrors.value[ids[0]].kind
+  return { ids, text: aiLayerFailText(kind, ids.length), retry: canRetryAi(kind) }
+})
 
 function setBleed(id, sides) {
   const cur = bleedById.value[id]
@@ -195,7 +227,7 @@ let imgEl = null
 let W = 0, H = 0
 let vpt = [1, 0, 0, 1, 0, 0]
 let showSeq = 0
-let colors = { accent: '', surface: '' }
+let colors = { accent: '', surface: '', danger: '' }
 const regions = new Map()        // layer id → RegionRect
 const patches = new Map()        // layer id → FabricImage (지우기 결과 조각)
 const transforming = new Set()   // 옮기는·크기 바꾸는 중인 layer id
@@ -204,6 +236,7 @@ const failedKeys = new Set()     // 계산에 실패한 plan key (같은 값으�
 let byId = new Map()             // layer id → 레이어 (sync 때마다 새로)
 let eff = new Map()              // layer id → 화면 계산 key (coons·단색: 안 지운 앞 AI 목록 포함 — effectiveKey)
 let aiRunning = false            // AI는 한 번에 1건 (엔진 워커 하나 — 계산·불러오기 모두)
+let aiComputingKey = null        // 지금 엔진이 계산 중인 AI plan key (엔진 오류 때 이 건은 runAi가 제 사유로 실패 처리)
 const aiRequested = new Map()    // AI plan key → [지우기] 누름 번호(batch). 계산이 끝나거나 버려지면 뺀다
 const aiChecked = new Set()      // `${plan key}|${ai.key}` — 저장된 결과가 지금 key와 다름을 확인함 (→ [다시 지우기])
 const aiUnsaved = new Map()      // layer id → 결과 key: 계산했지만 레이어에 ai가 아직 안 붙은 결과 (저장 중·저장 실패)
@@ -233,16 +266,16 @@ class RegionRect extends Rect {
     const act = c ? c.getActiveObject() : null
     // 덮기의 가져올 곳을 끄는 중이면 그 덮을 곳도 고른 것처럼 그린다
     const selected = !!act && (act === this || (act.isSource && act.layerId === this.layerId))
-    const strong = this.isDraft || selected || this.busy
+    const strong = this.isDraft || selected || this.busy || this.failed
     if (!strong && !this.hovered) return
     const sw = this.width * this.scaleX, sh = this.height * this.scaleY
     ctx.save()
     ctx.scale(1 / this.scaleX, 1 / this.scaleY) // 객체 배율을 풀어 원본 px 단위로 (원점 = 영역 가운데)
-    ctx.strokeStyle = colors.accent
+    ctx.strokeStyle = this.failed ? colors.danger : colors.accent // AI로 지우지 못함 = 빨간 점선
     const lw = (strong ? 2 : 1.5) / z
     ctx.lineWidth = lw
     ctx.globalAlpha = strong ? 1 : 0.5
-    ctx.setLineDash(this.busy && !this.isDraft ? [6 / z, 4 / z] : [])
+    ctx.setLineDash((this.busy || this.failed) && !this.isDraft ? [6 / z, 4 / z] : [])
     // 테두리를 영역 바깥쪽에 그려 결과 픽셀을 가리지 않는다
     ctx.strokeRect(-sw / 2 - lw / 2, -sh / 2 - lw / 2, sw + lw, sh + lw)
     if (selected && this.grow > 0 && W) {
@@ -312,12 +345,21 @@ class BrushRegion extends Rect {
     const z = c ? c.getZoom() : 1
     const selected = !!c && c.getActiveObject() === this
     const w = this.bw, h = this.bh
-    if (!this.tint && !selected && !this.hovered) return
+    if (!this.tint && !selected && !this.hovered && !this.failed) return
     ctx.save()
     ctx.scale(1 / this.scaleX, 1 / this.scaleY)
     if (this.tint) {
       ctx.globalAlpha = 0.45
       ctx.drawImage(this.maskCanvas().canvas, -w / 2, -h / 2, w, h)
+    }
+    if (this.failed) { // AI로 지우지 못함 — 칠한 곳을 감싸는 빨간 점선 네모
+      const lw = 2 / z
+      ctx.globalAlpha = 1
+      ctx.strokeStyle = colors.danger
+      ctx.lineWidth = lw
+      ctx.setLineDash([6 / z, 4 / z])
+      ctx.strokeRect(-w / 2 - lw / 2, -h / 2 - lw / 2, w + lw, h + lw)
+      ctx.setLineDash([])
     }
     if (selected || this.hovered) {
       const o = this.outlineCanvas(z)
@@ -911,6 +953,14 @@ function sync() {
   if (aiLoadFailure.value && plan.get(aiLoadFailure.value.layerId)?.key !== aiLoadFailure.value.planKey) aiLoadFailure.value = null
   // 값이 바뀌어 더는 없는 key의 [지우기] 요청은 버린다 (옮기면 다시 [다시 지우기]를 눌러야 한다)
   for (const k of [...aiRequested.keys()]) if (!planKeys.has(k)) aiRequested.delete(k)
+  // 실패 표시는 그 영역이 빠지거나(되돌림·[빼기]) 값이 바뀌면(옮김) 내린다
+  // (빠진 영역의 실패 기록도 지운다 — [빼기]를 Ctrl+Z로 되살리면 결과 없는 AI로 다시 자동 계산된다)
+  const errs = Object.entries(aiErrors.value)
+  const keptErrs = errs.filter(([id, x]) => byId.get(id)?.method === 'ai' && plan.get(id)?.key === x.planKey)
+  if (keptErrs.length !== errs.length) {
+    for (const [id, x] of errs) if (!byId.has(id)) failedKeys.delete(x.planKey)
+    aiErrors.value = Object.fromEntries(keptErrs)
+  }
   // 레이어에 ai가 붙었거나(저장 완료) 값이 바뀐 결과는 "저장 안 됨" 목록에서 뺀다
   for (const [id, k] of [...aiUnsaved]) {
     const l = byId.get(id), p = patches.get(id)
@@ -959,6 +1009,19 @@ function sync() {
     if (p) p.visible = false
     r.busy = true
   }
+  // 1-1) 결과(ai) 없이 저장된 AI 레이어 → 자동으로 계산 요청 (한 번 sync에서 찾은 것 = 같은 번호 — 편집기 이력 칸을 만들지 않고 채운다).
+  //      실패했던 값(failedKeys)은 다시 하지 않는다 — [다시 시도]/[AI로 지우기]를 눌러야 한다. 엔진이 준비되면 nextPending이 계산한다
+  if (props.interactive) {
+    let auto = null
+    for (const l of fills) {
+      if (!needsAiResult(l) || transforming.has(l.id) || aiDone(l)) continue
+      const k = plan.get(l.id)?.key
+      if (!k || aiRequested.has(k) || failedKeys.has(k)) continue
+      auto = auto || `a${++aiBatchSeq}`
+      aiRequested.set(k, auto)
+    }
+  }
+  for (const l of fills) { const r = regions.get(l.id); if (r) r.failed = !!aiErrors.value[l.id] }
   // 2) coons·단색·덮기: 화면 계산 key = 계산 key + 안 지운 앞 AI 목록 (앞 AI를 지우면 다시 계산)
   eff = new Map()
   for (const l of planList) {
@@ -988,8 +1051,59 @@ function sync() {
   if (want && active !== want && !holdingSource) canvas.setActiveObject(want)
   else if (!want && active) canvas.discardActiveObject()
   canvas.requestRenderAll()
+  failRequestsIfEngineDown()
   refreshAiStates()
   scheduleCompute()
+}
+
+/**
+ * AI 계산 실패 한 건 — 요청을 비우고(버튼이 "채우는 중…"에 멈추지 않게) 그 영역에 실패 표시, 편집기에 알린다.
+ * 같은 값으로는 저절로 다시 하지 않는다(failedKeys) — [다시 시도]·[AI로 지우기]를 눌러야 한다
+ */
+function failAi(layerId, planKey, batch, kind, err) {
+  console.error(`[StudioCanvas] AI 지우기 실패 (${kind}):`, layerId, err)
+  failedKeys.add(planKey)
+  aiRequested.delete(planKey)
+  aiErrors.value = { ...aiErrors.value, [layerId]: { planKey, kind } }
+  const r = regions.get(layerId)
+  if (r) r.failed = true
+  emit('ai-failed', { imageId: props.image?.id, layerId, planKey, batch, kind, message: String(err?.message || err) })
+}
+
+/** 앞 AI 영역이 실패하면 그 결과를 기다리던 뒤 영역(chain)도 함께 실패로 (안 그러면 영영 기다린다) */
+function failDependents(layerId, kind) {
+  for (const [id, e] of [...plan]) {
+    if (id === layerId || !aiRequested.has(e.key) || !e.chain.includes(layerId)) continue
+    failAi(id, e.key, aiRequested.get(e.key), kind, new Error(`앞 AI 영역(${layerId})을 지우지 못해 함께 멈춤`))
+  }
+}
+
+/**
+ * 엔진을 쓸 수 없게 되면(워커 로드 실패·시간 초과로 끔 등) 기다리던 AI 요청을 모두 실패로 돌린다.
+ * 지금 계산 중인 한 건은 빼고 — 엔진이 그 계산을 실패로 돌려주므로(aiEngine failAll) runAi가 제 사유(시간 초과 등)로 처리한다
+ */
+function failRequestsIfEngineDown() {
+  const s = props.aiState?.status
+  if (!engineDown(s) || aiRequested.size === 0) return
+  const kind = s === 'unsupported' ? 'unsupported' : 'engine'
+  for (const [id, e] of [...plan]) {
+    if (e.key === aiComputingKey || !aiRequested.has(e.key)) continue
+    failAi(id, e.key, aiRequested.get(e.key), kind, new Error(`AI 엔진 ${s}: ${props.aiState.reason || '사유 없음'}`))
+  }
+  canvas?.requestRenderAll()
+}
+
+/** 실패 영역 [다시 시도] — 엔진이 오류면 편집기가 새로 만들고, 그 영역들을 다시 요청한다 (준비되면 계산) */
+function retryFailedLayers() {
+  const ids = Object.keys(aiErrors.value)
+  if (!ids.length) return
+  if (engineDown(props.aiState?.status)) emit('ai-restart')
+  aiErrors.value = {}
+  for (const id of ids) {
+    const r = regions.get(id)
+    if (r) r.failed = false
+    requestErase(id)
+  }
 }
 
 /** AI 레이어의 결과가 지금 화면에 맞게 있는가 — 계산 key가 같고, 결과 key가 레이어의 ai.key(또는 저장 중인 결과)와 같을 때 */
@@ -1006,6 +1120,7 @@ function aiStateOf(l) {
   if (!key) return 'needs'
   if (aiDone(l)) return 'done'
   if (aiRequested.has(key)) return 'busy'
+  if (aiErrors.value[l.id]?.planKey === key) return 'error' // 계산 실패 (다시 시도·빼기)
   if (aiLoadFailure.value?.layerId === l.id) return 'failed'
   if (l.ai && !aiChecked.has(`${key}|${l.ai.key}`) && !failedKeys.has(key)) return 'loading'
   return 'needs'
@@ -1033,13 +1148,18 @@ function requestErase(layerId, batchFromEditor) {
     return
   }
   const batch = batchFromEditor ?? `c${++aiBatchSeq}`
-  for (const id of aiEraseSet(e, byId, x => aiDone(byId.get(x)))) {
+  const ids = aiEraseSet(e, byId, x => aiDone(byId.get(x)))
+  for (const id of ids) {
     const k = plan.get(id).key
     failedKeys.delete(k)
     aiRequested.set(k, batch)
+    const r = regions.get(id)
+    if (r) r.failed = false
   }
+  if (ids.some(id => aiErrors.value[id])) aiErrors.value = Object.fromEntries(Object.entries(aiErrors.value).filter(([id]) => !ids.includes(id)))
   if (aiLoadFailure.value?.layerId === layerId) aiLoadFailure.value = null
   computeError.value = ''
+  failRequestsIfEngineDown()
   refreshAiStates()
   scheduleCompute()
 }
@@ -1181,7 +1301,8 @@ async function runAi(l, e, mode) {
   const aiKeyAtStart = l.ai?.key
   const stale = () => seq !== showSeq || !canvas || plan.get(l.id)?.key !== planKey
   aiRunning = true
-  if (mode === 'compute') aiActive.value = true
+  if (mode === 'compute') { aiActive.value = true; aiComputingKey = planKey }
+  const batchAtStart = aiRequested.get(planKey)
   try {
     if (!AI_MODEL_ID) throw new Error('AI 모델 설정(VITE_STUDIO_AI_MODEL_SHA256)이 없어요')
     const key = await aiPatchKey(planKey, AI_MODEL_ID)
@@ -1243,12 +1364,19 @@ async function runAi(l, e, mode) {
     await saveAiResult({ imageRow, layerId: l.id, planKey, key, W, H, batch, area, canvas: pc, engine: props.aiEngine.engine })
   } catch (err) {
     if (stale()) return
-    console.error('[StudioCanvas] AI 지우기 실패:', l.id, err)
-    computeError.value = `AI 지우기에 실패했어요: ${err.message || err}`
-    failedKeys.add(planKey)
-    aiRequested.delete(planKey)
+    if (mode === 'load') { // 저장된 결과 확인 중 오류 (결과 key 계산 등) — 예전 그대로 사유만 보인다
+      console.error('[StudioCanvas] AI 결과 확인 실패:', l.id, err)
+      computeError.value = `AI 결과를 확인하지 못했어요: ${err.message || err}`
+      failedKeys.add(planKey)
+      return
+    }
+    // 계산 실패 — 원문은 console.error, 화면은 쉬운 말 + [다시 시도] (편집기가 방금 적용한 것이면 선택 영역으로 되돌린다)
+    const kind = aiFailKind({ engineStatus: props.aiState?.status, code: err?.code })
+    failAi(l.id, planKey, aiRequested.get(planKey) ?? batchAtStart, kind, err)
+    failDependents(l.id, kind)
   } finally {
     aiRunning = false
+    aiComputingKey = null
     aiActive.value = false
     if (canvas) {
       refreshAiStates()
@@ -1376,6 +1504,7 @@ function clearObjects() {
   aiUploading.clear()
   emitSaveState()
   aiLoadFailure.value = null
+  aiErrors.value = {}
   aiRequestCount.value = 0
   aiStates.value = {}
   emit('ai-states', {})
@@ -1461,7 +1590,10 @@ function onBlur() { spaceHeld.value = false }
 // ── 수명 ──
 onMounted(() => {
   const cs = getComputedStyle(wrap.value)
-  colors = { accent: cs.getPropertyValue('--st-accent').trim(), surface: cs.getPropertyValue('--st-surface').trim() }
+  colors = {
+    accent: cs.getPropertyValue('--st-accent').trim(), surface: cs.getPropertyValue('--st-surface').trim(),
+    danger: cs.getPropertyValue('--st-danger').trim(), // AI로 지우지 못한 영역 테두리
+  }
   const el = document.createElement('canvas')
   host.value.appendChild(el)
   const { cw, ch } = viewSize()
@@ -1559,8 +1691,11 @@ watch(() => props.showOriginal, on => {
   if (sourceObj) sourceObj.visible = true
   sync()
 })
-// 엔진이 준비되면 기다리던 AI 레이어를 계산한다
-watch(() => props.aiState?.status, s => { if (s === 'ready') scheduleCompute() })
+// 엔진이 준비되면 기다리던 AI 레이어를 계산한다. 쓸 수 없게 되면 기다리던 요청을 실패로 돌린다 (영영 "채우는 중…"이 되지 않게)
+watch(() => props.aiState?.status, s => {
+  if (s === 'ready') scheduleCompute()
+  else if (engineDown(s) && canvas) { failRequestsIfEngineDown(); refreshAiStates() }
+})
 // 왼쪽 패널의 [AI로 지우기]
 watch(() => props.eraseRequest?.n, () => { if (props.eraseRequest) requestErase(props.eraseRequest.layerId, props.eraseRequest.batch) })
 watch(() => props.draft, () => sync(), { deep: true })

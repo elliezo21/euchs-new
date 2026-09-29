@@ -1147,10 +1147,20 @@ function lab1688Plugin(env) {
 
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  // 스튜디오 개발 서버(npm run dev:studio — scripts/dev-studio.mjs가 STUDIO_DEV_CACHE_DIR을 넘긴다)에만:
+  //   cacheDir 따로 — 같은 폴더에서 다른 vite 서버(npm run dev·확인용 페이지)가 사전 번들을 다시 만들며 node_modules/.vite/deps를
+  //     통째로 바꾸면, 이 서버가 기억하는 onnxruntime 파일이 지워져 504 Outdated Optimize Dep → AI 워커가 못 뜬다 (2026-09-29 조사)
+  //   onnxruntime-web/webgpu 미리 번들 — AI·OCR 워커(new Worker(new URL(...)))는 시작 스캔에 안 잡혀, 처음 쓸 때 발견 → 재번들 → 새로고침이 났다
+  // vite build(command 'build')에는 아무것도 바꾸지 않는다
+  const studioDev = command === 'serve' && !!process.env.STUDIO_DEV_CACHE_DIR
 
   return {
+    ...(studioDev ? {
+      cacheDir: process.env.STUDIO_DEV_CACHE_DIR,
+      optimizeDeps: { include: ['onnxruntime-web/webgpu'] },
+    } : {}),
     plugins: [
       vue(),
       naverAuthPlugin(env),
