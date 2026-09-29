@@ -1112,6 +1112,9 @@
                 </p>
               </div>
 
+              <!-- 1688에 붙여 넣을 받는 주소 (자동발주와 같은 "주문번호 고객명" 표시) -->
+              <ManualOrderAddressBox v-if="activeOrder?.id" :order-id="String(activeOrder.id)" class="shrink-0" />
+
               <!-- 전체선택 + 일괄입력 행 (shrink-0) -->
               <div class="shrink-0 flex items-center gap-2 flex-wrap bg-amber-100/60 border border-amber-200 rounded-lg px-3 py-2">
                 <!-- 전체선택 체크박스 -->
@@ -1602,6 +1605,7 @@ import ConfirmSaveModal from '@/components/common/ConfirmSaveModal.vue';
 import AdminTtInvoicePanel from '@/components/admin/AdminTtInvoicePanel.vue';
 import { formatUsd as fmtUsdBadge } from '@/utils/ttInvoicePdf';
 import PurchaseConfirmModal from '@/components/admin/PurchaseConfirmModal.vue'
+import ManualOrderAddressBox from '@/components/admin/ManualOrderAddressBox.vue'
 import ChinaLogisticsTimeline from '@/components/shared/ChinaLogisticsTimeline.vue'
 import SellerGroupTotalRow from '@/components/shared/SellerGroupTotalRow.vue'
 import ProductDetailModal from '@/components/ProductDetailModal.vue'

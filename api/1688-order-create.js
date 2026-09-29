@@ -28,9 +28,12 @@
 
 
 import { callItemDetail, readCache } from './bulk-item-detail.js'
+import { buildOrderAddress } from './_1688OrderAddress.js'
+import { buildFastCreateOrderArgs } from './_orderAddressTag.js'
 
 const ONEBOUND_BASE_URL = 'https://api-gw.onebound.cn'
-const ADDRESS_ID = '6402758024' // 圆圆A45 — 청양류 C구 38동 1층 이우, 기본 배송지
+// 받는 주소: 기본 배송지(圆圆A45, 6402758024)의 글자 칸 + address 끝에 "주문번호 고객명" 표시
+//   (api/_1688OrderAddress.js buildOrderAddress — 2026-09-29부터 addressId 대신 글자 칸으로 보낸다)
 
 // 프론트엔드 확인 절차를 거쳤음을 증명하는 confirmToken 기대값
 const EXPECTED_CONFIRM_TOKEN = 'EUCHS_ORDER_CONFIRMED'
@@ -253,7 +256,8 @@ async function insertCriticalNotice({ china1688OrderId, orderId, itemIndices, er
  * @param {string} token  사용자 access_token (req.headers.authorization에서 추출)
  * @returns {{ ok: boolean, error: string|null, email: string|null }}
  */
-async function verifyAdminToken(token) {
+// export: 수동발주 주소 조회(api/1688-order-address.js)가 같은 관리자 판정을 쓴다
+export async function verifyAdminToken(token) {
   const { url, serviceRoleKey } = getServiceRoleConfig()
   if (!url || !serviceRoleKey) {
     return { ok: false, error: 'Supabase 환경변수 미설정', email: null }
@@ -440,6 +444,21 @@ export default async function handler(req, res) {
       })
     }
 
+    // ── 받는 주소(표시 포함) — 잠금 전에 만든다. 못 만들면 발주하지 않는다 ──
+    let addrGroup
+    try {
+      addrGroup = await buildOrderAddress({ orderId, orderNumber })
+    } catch (e) {
+      console.error('[1688-order-create][GROUP] 받는 주소 만들기 실패 — 발주 중단:', {
+        euchs_orderNumber: orderNumber, orderId, error: e.message,
+      })
+      return res.status(502).json({
+        success: false,
+        message: `받는 주소를 만들지 못해 발주를 중단했습니다: ${e.message} — 잠시 후 재시도하거나 수동발주로 처리해주세요.`,
+        code: 'ADDRESS_BUILD_FAILED',
+      })
+    }
+
     // ── 그룹 잠금: claim_group_purchase_slot ────────────────────
     const { data: claimResult, error: claimError } = await callRpc('claim_group_purchase_slot', {
       p_order_id:     orderId,
@@ -476,25 +495,16 @@ export default async function handler(req, res) {
       })
     }
 
-    // ── cargoParamList 다건 조립 ────────────────────────────────
+    // ── _o_args 조립 (buildFastCreateOrderArgs 하나로 — 단건과 같은 함수) ──
     // 단품(위에서 원본으로 확인됨)은 specId 키를 아예 넣지 않는다.
     //   2026-09-23 alibaba.createOrder.preview 실측: offerId+quantity만 보내면 정상 응답
     //   (offer 1081424348445 ×4000 → error_code 0000, finalUnitPrice 0.7, sumCarriage ¥274.30).
     //   빈 문자열도 같은 결과였으나, 키를 생략하는 쪽이 의도를 분명히 드러낸다.
-    const cargoParamList = groupItems.map(it => {
-      const spec = String(it.specId || '').trim()
-      return {
-        offerId:  String(it.numIid),
-        ...(spec ? { specId: spec } : {}),
-        quantity: Number(it.quantity),
-      }
+    const oArgsGroup = buildFastCreateOrderArgs({
+      addressParam: addrGroup.addressParam,
+      cargos: groupItems,
     })
-
-    const oArgsGroup = {
-      flow: 'general',
-      addressParam: { addressId: ADDRESS_ID },
-      cargoParamList,
-    }
+    const cargoParamList = oArgsGroup.cargoParamList
 
     const paramsGroup = new URLSearchParams({
       key:     OB_KEY,
@@ -513,6 +523,7 @@ export default async function handler(req, res) {
       orderId,
       groupItemIndices,
       cargoCount: cargoParamList.length,
+      addressTag: addrGroup.tag,   // 받는 주소 끝에 붙인 표시 (휴대폰 등은 로그에 남기지 않음)
       timestamp: new Date().toISOString(),
     })
 
@@ -682,7 +693,7 @@ export default async function handler(req, res) {
     })
   }
   // ══════════════════════════════════════════════════════════════
-  // ── 이하 기존 단건 모드 (items[] 없음) — 코드 변경 없음 ──────
+  // ── 이하 단건 모드 (items[] 없음) — 받는 주소만 그룹과 같은 함수로 ──
   // ══════════════════════════════════════════════════════════════
 
   // ── 필수 파라미터 엄격 검증 ───────────────────────────────────────────
@@ -727,6 +738,22 @@ export default async function handler(req, res) {
         message: `상품 ${numIid}: 옵션 상품인데 옵션(specId) 정보가 없어 자동발주 불가 — 수동발주로 처리`,
       })
     }
+  }
+
+  // ── 받는 주소(표시 포함) — 잠금 전에 만든다. 못 만들면 발주하지 않는다 ──
+  //   개별 재시도(executeItemAutoOrder)는 orderId 없이 orderNumber만 보낸다 → order_number로 찾는다.
+  let addrSingle
+  try {
+    addrSingle = await buildOrderAddress({ orderId: orderId || null, orderNumber })
+  } catch (e) {
+    console.error('[1688-order-create] 받는 주소 만들기 실패 — 발주 중단:', {
+      euchs_orderNumber: orderNumber, orderId: orderId || '(없음)', error: e.message,
+    })
+    return res.status(502).json({
+      success: false,
+      message: `받는 주소를 만들지 못해 발주를 중단했습니다: ${e.message} — 잠시 후 재시도하거나 수동발주로 처리해주세요.`,
+      code: 'ADDRESS_BUILD_FAILED',
+    })
   }
 
   // ── 안전장치 3: SECURITY DEFINER RPC 기반 멱등성 가드 ───────────────────
@@ -800,13 +827,12 @@ export default async function handler(req, res) {
     })
   }
 
-  // ── _o_args 조립 ──────────────────────────────────────────────────────
-  const oArgs = {
-    flow: 'general',
-    addressParam: { addressId: ADDRESS_ID },
-    // 단품은 specId 키를 넣지 않는다 (그룹 모드와 같은 규칙 — 위 재확인을 통과한 경우만 도달)
-    cargoParamList: [{ offerId: String(numIid), ...(singleSpec ? { specId: singleSpec } : {}), quantity: qty }],
-  }
+  // ── _o_args 조립 (그룹 모드와 같은 함수) ────────────────────────────────
+  // 단품은 specId 키를 넣지 않는다 (위 재확인을 통과한 경우만 도달)
+  const oArgs = buildFastCreateOrderArgs({
+    addressParam: addrSingle.addressParam,
+    cargos: [{ numIid, specId: singleSpec, quantity: qty }],
+  })
 
   // ── Query string 조립 ────────────────────────────────────────────────
   const params = new URLSearchParams({
@@ -827,14 +853,12 @@ export default async function handler(req, res) {
     numIid: String(numIid),
     specId: String(specId),
     quantity: qty,
-    addressId: ADDRESS_ID,
+    // 요청 주소(url)는 남기지 않는다 — _o_args에 창고 휴대폰 번호가 들어 있다
+    addressTag: addrSingle.tag,
     orderId: orderId || '(없음)',
     itemIndex: itemIndex ?? '(없음)',
     dbIdempotencyActive: slotClaimed,
     timestamp: new Date().toISOString(),
-    url: targetUrl
-      .replace(/secret=[^&]+/, 'secret=***')
-      .replace(/session=[^&]+/, 'session=***'),
   })
 
   // ── 12초 타임아웃 ────────────────────────────────────────────────────

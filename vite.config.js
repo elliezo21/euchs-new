@@ -22,6 +22,8 @@ import jusoSearchHandler from './api/juso-search.js'
 import jusoEnglishHandler from './api/juso-english.js'
 // 로컬 개발용: api/tt-invoice.js handler 직접 import (T/T 해외송금 인보이스 발행, 동일 패턴)
 import ttInvoiceHandler from './api/tt-invoice.js'
+// 로컬 개발용: api/1688-order-address.js handler 직접 import (수동발주 받는 주소 조회, 동일 패턴)
+import orderAddressHandler from './api/1688-order-address.js'
 // 로컬 개발용: api/studio-product.js handler 직접 import (스튜디오 상품 조회, 동일 패턴)
 import studioProductHandler from './api/studio-product.js'
 // 로컬 개발용: api/studio-ingest.js handler 직접 import (스튜디오 이미지 수집, 동일 패턴)
@@ -907,6 +909,37 @@ function lab1688Plugin(env) {
               end: res.end.bind(res),
             })
             await ttInvoiceHandler(req, wrappedRes)
+          })
+          return
+        }
+
+        // 5-f. 수동발주용 1688 받는 주소(주문번호·고객명 표시) — api/1688-order-address.js handler 직접 재사용
+        // 읽기 전용(receiveAddress.get + DB). 동일 어댑터 패턴
+        if (req.url?.startsWith('/api/1688-order-address') && (req.method === 'POST' || req.method === 'OPTIONS')) {
+          let rawBody = ''
+          req.on('data', chunk => { rawBody += chunk })
+          req.on('end', async () => {
+            try { req.body = JSON.parse(rawBody || '{}') } catch { req.body = {} }
+            if (!process.env.SUPABASE_URL)              process.env.SUPABASE_URL              = env.SUPABASE_URL              || env.VITE_SUPABASE_URL || ''
+            if (!process.env.SUPABASE_SERVICE_ROLE_KEY) process.env.SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || ''
+            if (!process.env.ONEBOUND_KEY)              process.env.ONEBOUND_KEY              = env.ONEBOUND_KEY              || ''
+            if (!process.env.ONEBOUND_SECRET)           process.env.ONEBOUND_SECRET           = env.ONEBOUND_SECRET           || ''
+            if (!process.env.ONEBOUND_SESSION)          process.env.ONEBOUND_SESSION          = env.ONEBOUND_SESSION          || ''
+            const wrappedRes = Object.assign(Object.create(res), {
+              status(code) {
+                res.statusCode = code
+                return {
+                  json(body) {
+                    res.setHeader('Content-Type', 'application/json; charset=utf-8')
+                    res.end(JSON.stringify(body))
+                  },
+                  end() { res.end() },
+                }
+              },
+              setHeader: res.setHeader.bind(res),
+              end: res.end.bind(res),
+            })
+            await orderAddressHandler(req, wrappedRes)
           })
           return
         }
