@@ -101,7 +101,7 @@
               </a>
 
               <a 
-                href="http://pf.kakao.com/_xmQWsK/chat" 
+                href="https://pf.kakao.com/_xmQWsK/chat" 
                 target="_blank"
                 class="block w-full py-1 text-center text-[10px] font-semibold text-gray-500 hover:text-blue-600 bg-gray-50 hover:bg-blue-50 rounded transition"
               >
@@ -119,7 +119,7 @@
             원하시는 상품이나 찾으시는 특정 공장이 있으신가요?
           </span>
           <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
+            href="https://pf.kakao.com/_xmQWsK/chat" 
             target="_blank"
             class="inline-flex items-center gap-1.5 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 text-xs sm:text-sm font-bold rounded-lg transition"
           >

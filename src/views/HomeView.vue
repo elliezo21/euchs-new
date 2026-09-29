@@ -105,7 +105,7 @@
             </router-link>
 
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
               class="px-6 sm:px-8 py-3.5 sm:py-4 rounded-2xl bg-slate-900/80 hover:bg-slate-800 text-slate-200 border border-slate-700/80 font-bold text-sm sm:text-base backdrop-blur-md hover:-translate-y-0.5 active:scale-95 transition-all duration-200 flex items-center gap-2"
             >
@@ -228,6 +228,9 @@
 
       </div>
     </section>
+
+    <!-- 1.7. 스튜디오 알림 칸 (1688 검색 칸과 실시간 데이터 칸 사이) -->
+    <StudioPromoBand />
 
     <!-- ======================================================== -->
     <!-- 2. BENTO GRID DASHBOARD (Real-Time Rates, Notices & Quick Hub) -->
@@ -696,7 +699,7 @@
 
         <div class="flex flex-wrap items-center justify-center gap-4 pt-4">
           <a 
-            href="http://pf.kakao.com/_xmQWsK/chat" 
+            href="https://pf.kakao.com/_xmQWsK/chat" 
             target="_blank"
             class="px-8 py-4 rounded-2xl bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-sm shadow-xl hover:-translate-y-0.5 active:scale-95 transition flex items-center gap-2"
           >
@@ -752,6 +755,7 @@ import { useRouter } from 'vue-router'
 import TradePhotos from '../components/TradePhotos.vue'
 import EmergencyPopup from '../components/EmergencyPopup.vue'
 import VideoWidget9x16 from '../components/VideoWidget9x16.vue'
+import StudioPromoBand from '../components/StudioPromoBand.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { extractOfferId } from '../utils/offerId'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'

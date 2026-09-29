@@ -1,5 +1,6 @@
 <template>
-  <div class="fixed right-3.5 sm:right-5 bottom-5 sm:bottom-6 z-40 flex flex-col items-center gap-2 select-none font-sans">
+  <!-- raised = 모바일 하단 고정 바가 있는 화면 → 모바일(768px 미만)에서 바 위로 올림 (App.vue) -->
+  <div class="fixed right-3.5 sm:right-5 z-40 flex flex-col items-center gap-2 select-none font-sans" :class="raised ? 'qm-raised' : 'bottom-5 sm:bottom-6'">
     
     <!-- Expanded Menu Popup (Opens Upwards above floating stack) -->
     <transition
@@ -141,7 +142,7 @@
 
       <!-- 5. 노란색 카카오톡 상담하기 원형 버튼 -->
       <a 
-        href="http://pf.kakao.com/_xmQWsK/chat" 
+        href="https://pf.kakao.com/_xmQWsK/chat" 
         target="_blank"
         rel="noopener noreferrer"
         class="w-11 h-11 sm:w-12 sm:h-12 rounded-full bg-yellow-400 hover:bg-yellow-500 active:scale-95 text-slate-900 shadow-lg hover:shadow-xl flex items-center justify-center transition-all duration-200 transform focus:outline-none border border-amber-300/40 hover:-translate-y-0.5"
@@ -170,6 +171,10 @@
 import { ref, watch, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { isLoggedIn, currentUser, getCartStorageKey } from '../lib/auth'
+
+defineProps({
+  raised: { type: Boolean, default: false }, // 모바일 하단 고정 바(MobileStickyCta)가 보이는 화면
+})
 
 const router = useRouter()
 const isOpen = ref(false)
@@ -261,3 +266,11 @@ onUnmounted(() => {
   window.removeEventListener('euchs-auth-changed', handleAuthChanged)
 })
 </script>
+
+<style scoped>
+/* 모바일 하단 고정 바(64px + 안전 영역) 위 12px — 768px 이상에서는 바가 없으므로 예전 자리(bottom-6) */
+.qm-raised { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 768px) {
+  .qm-raised { bottom: 1.5rem; }
+}
+</style>

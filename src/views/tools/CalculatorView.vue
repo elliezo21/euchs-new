@@ -508,7 +508,7 @@
                 </button>
 
                 <a 
-                  href="http://pf.kakao.com/_xmQWsK/chat" 
+                  href="https://pf.kakao.com/_xmQWsK/chat" 
                   target="_blank"
                   class="py-2.5 bg-yellow-400 hover:bg-yellow-500 text-slate-950 text-xs font-bold rounded-xl transition flex items-center justify-center gap-1"
                 >

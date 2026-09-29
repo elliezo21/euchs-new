@@ -146,7 +146,7 @@
               </router-link>
 
               <a 
-                href="http://pf.kakao.com/_xmQWsK/chat" 
+                href="https://pf.kakao.com/_xmQWsK/chat" 
                 target="_blank"
                 class="flex flex-col items-center justify-center p-3 rounded-xl bg-slate-50 hover:bg-yellow-50 text-gray-700 hover:text-amber-700 transition text-center group border border-gray-100"
               >

@@ -33,7 +33,7 @@
             </router-link>
 
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
               class="px-6 py-3.5 bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-white font-black rounded-xl shadow-lg shadow-purple-600/30 hover:shadow-xl transition-all duration-200 flex items-center gap-2 text-sm sm:text-base"
             >
@@ -158,7 +158,7 @@
           <!-- Contact & CTA Buttons -->
           <div class="pt-4 flex flex-wrap items-center justify-center gap-4">
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
               class="px-8 py-4 bg-yellow-400 hover:bg-yellow-500 text-slate-950 font-black text-sm sm:text-base rounded-2xl shadow-xl hover:shadow-2xl transition-all duration-200 flex items-center gap-2 transform active:scale-98"
             >

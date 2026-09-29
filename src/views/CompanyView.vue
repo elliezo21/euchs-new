@@ -92,7 +92,7 @@
                 </div>
               </div>
               <a 
-                href="http://pf.kakao.com/_xmQWsK/chat" 
+                href="https://pf.kakao.com/_xmQWsK/chat" 
                 target="_blank"
                 class="inline-flex items-center gap-2 px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold text-xs sm:text-sm rounded-lg transition shadow-sm"
               >

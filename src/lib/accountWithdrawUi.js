@@ -5,7 +5,7 @@
 
 export const CONFIRM_WORD = '탈퇴합니다' // api/_accountWithdraw.js CONFIRM_WORD와 같아야 한다(테스트가 대조)
 export const SUPPORT_PHONE = '010-9373-1214'
-export const SUPPORT_KAKAO = 'http://pf.kakao.com/_xmQWsK/chat'
+export const SUPPORT_KAKAO = 'https://pf.kakao.com/_xmQWsK/chat'
 
 /**
  * 막는 이유별 해결 방법. action이 있으면 화면에 버튼으로 보인다.

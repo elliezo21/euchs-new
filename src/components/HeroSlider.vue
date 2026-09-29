@@ -52,7 +52,7 @@
                       <span><strong>상담문의:</strong> {{ slide.phones }}</span>
                     </div>
                     <a 
-                      href="http://pf.kakao.com/_xmQWsK/chat" 
+                      href="https://pf.kakao.com/_xmQWsK/chat" 
                       target="_blank"
                       rel="noopener noreferrer"
                       class="flex items-center gap-2 hover:text-yellow-300 transition"
@@ -68,7 +68,7 @@
               <!-- CTA Buttons -->
               <div class="pt-2 flex flex-wrap gap-3">
                 <a 
-                  href="http://pf.kakao.com/_xmQWsK/chat" 
+                  href="https://pf.kakao.com/_xmQWsK/chat" 
                   target="_blank"
                   class="inline-flex items-center gap-2 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold px-6 py-3 rounded-lg shadow-lg hover:shadow-xl transition text-sm sm:text-base"
                 >

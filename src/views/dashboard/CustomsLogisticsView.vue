@@ -833,9 +833,9 @@ function getCarrierTrackingUrl(carrier, trackingNo) {
 
 // ----------------------------------------------------------------
 // 카카오톡 1:1 상담 URL 동적 생성
-// KAKAO CHANNEL: http://pf.kakao.com/_xmQWsK/chat
+// KAKAO CHANNEL: https://pf.kakao.com/_xmQWsK/chat
 // ----------------------------------------------------------------
-const KAKAO_CHANNEL_URL = 'http://pf.kakao.com/_xmQWsK/chat'
+const KAKAO_CHANNEL_URL = 'https://pf.kakao.com/_xmQWsK/chat'
 
 function getKakaoUrl(item) {
   if (!item) return KAKAO_CHANNEL_URL

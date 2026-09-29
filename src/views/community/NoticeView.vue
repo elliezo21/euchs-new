@@ -203,7 +203,7 @@
           <!-- Modal Footer -->
           <div class="border-t border-gray-100 pt-4 flex items-center justify-between">
             <a 
-              href="http://pf.kakao.com/_xmQWsK/chat" 
+              href="https://pf.kakao.com/_xmQWsK/chat" 
               target="_blank"
               class="px-4 py-2.5 bg-yellow-400 hover:bg-yellow-500 text-slate-900 font-bold text-xs rounded-xl transition flex items-center gap-1.5"
             >

@@ -5,8 +5,9 @@
          · right-5(20px): QuickMenu 와 우측 정렬
          · bottom-[381px]: QuickMenu 하단 24 + 높이 341 + 간격 16
          · 화면 높이 < 740px: 위로 쌓으면 sticky 헤더(94px) 밑으로 잘리므로 QuickMenu 왼쪽(right-[84px])·하단(bottom-6)으로 대체
-       xl 미만: 화면 좌측 하단 fixed 120px 9:16 카드 (우측 하단은 QuickMenu 사용) (HomeView.vue 에서만 마운트됨 — 몰/다른 페이지 미노출) -->
-  <div v-if="isVisible" class="fixed left-4 bottom-5 z-[60] xl:left-auto xl:right-5 xl:bottom-[381px] xl:z-30 xl:[@media(max-height:739px)]:right-[84px] xl:[@media(max-height:739px)]:bottom-6">
+       xl 미만: 화면 좌측 하단 fixed 120px 9:16 카드 (우측 하단은 QuickMenu 사용) (HomeView.vue 에서만 마운트됨 — 몰/다른 페이지 미노출)
+       768px 미만: 모바일 하단 고정 바(MobileStickyCta, 홈에서 늘 보임) 위로 올림 (vw-above-bar) -->
+  <div v-if="isVisible" class="vw-above-bar fixed left-4 bottom-5 z-[60] xl:left-auto xl:right-5 xl:bottom-[381px] xl:z-30 xl:[@media(max-height:739px)]:right-[84px] xl:[@media(max-height:739px)]:bottom-6">
     <!-- 작은 자동재생 상태 -->
     <button
       type="button"
@@ -382,3 +383,10 @@ onUnmounted(() => {
   if (expanded.value) document.body.style.overflow = ''
 })
 </script>
+
+<style scoped>
+/* 모바일 하단 고정 바(64px + 안전 영역) 위 12px — QuickMenu의 qm-raised와 같은 높이. 768px 이상은 예전 자리 */
+@media (max-width: 767.98px) {
+  .vw-above-bar { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+}
+</style>
