@@ -26,6 +26,11 @@
         <div v-if="s.coupangStatus" class="st-desc-sm truncate">{{ marketName(s.market) }}: {{ s.coupangStatus }}</div>
         <div v-if="s.revision" class="st-desc-sm truncate" :data-mk-send-revision="s.id">다시 보낸 횟수 {{ s.revision }}</div>
         <p v-if="s.reason" class="text-[12px] break-keep send-reason" :class="s.status === 'rejected' || s.status === 'failed' ? 'st-danger-text' : 'st-muted'" :title="s.reason" :data-mk-send-reason="s.id">{{ s.status === 'rejected' ? '반려 사유: ' : '' }}{{ s.reason }}</p>
+        <!-- 카페24 = 진열 안 함으로 등록됨 → 관리자에서 확인·진열 (2026-09-30) -->
+        <template v-if="s.market === 'cafe24' && s.status === 'registered'">
+          <p class="st-desc-sm break-keep">진열 안 함 상태 — 카페24 쇼핑몰 관리 화면에서 확인 후 진열하세요.</p>
+          <a v-if="s.adminUrl" :href="s.adminUrl" target="_blank" rel="noopener" class="st-btn mt-1.5 w-full text-[12px] whitespace-normal text-center" :data-mk-send-admin="s.id" title="카페24 쇼핑몰 관리 화면에서 보기">카페24에서 열기</a>
+        </template>
         <button v-if="canResend(s)" type="button" class="st-btn st-btn-primary mt-1.5 w-full" :disabled="resendBusy === s.id" :data-mk-send-resend="s.id" @click="openResend(s)">{{ resendBusy === s.id ? '여는 중…' : '고쳐서 다시 보내기' }}</button>
       </li>
     </ul>

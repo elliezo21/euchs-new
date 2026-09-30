@@ -49,19 +49,21 @@
 
 <script setup>
 // [판매처로 보내기] 창 — 맨 위 "0. 보낼 판매처"에서 고른 판매처의 섹션만 아래에 보이고(v-show — 값은 남는다), [보내기]는 체크된 판매처마다 그 섹션의 submit()을 부른다.
-// 판매처 섹션 컴포넌트가 내놓는 것: missing(빠진 것)·busy·done·submit() — 지금은 쿠팡(StudioSendCoupang) 하나.
+// 판매처 섹션 컴포넌트가 내놓는 것: missing(빠진 것)·busy·done·submit() — 쿠팡(StudioSendCoupang)·카페24(StudioSendCafe24).
 // 판매처 줄·처음 체크·버튼 글자는 studioMarketplaceRules.js (설정·랜딩과 같은 MARKETS 목록)
 import { ref, reactive, computed, watch, shallowRef, onErrorCaptured } from 'vue'
 import { Lock } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
-import { MARKETS, marketRows, defaultChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
+import StudioSendCafe24 from '@/components/studio/StudioSendCafe24.vue'
+import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isSuperAdmin } from '@/lib/auth'
 
-const SECTIONS = { coupang: StudioSendCoupang }
+const SECTIONS = { coupang: StudioSendCoupang, cafe24: StudioSendCafe24 } // 2026-09-30 카페24 섹션 추가 — 쿠팡 섹션은 그대로
 
-const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null } })
+// market = 어느 판매처 버튼으로 열었는지([쿠팡으로 보내기]·[카페24로 보내기]) → 그 판매처만 처음 체크. 비면 연결된 곳 모두(다시 보내기는 쿠팡만)
+const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null }, market: { type: String, default: '' } })
 const emit = defineEmits(['close', 'sent'])
 
 const checked = ref({})
@@ -87,7 +89,7 @@ watch(() => props.open, v => {
   sending.value = false
   results.value = {}
   for (const k of Object.keys(sections)) delete sections[k]
-  checked.value = defaultChecked(rows.value)
+  checked.value = initialChecked(rows.value, { market: props.market, resend: !!props.prepare?.resend })
 })
 
 const missing = computed(() => {

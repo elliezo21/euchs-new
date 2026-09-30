@@ -196,3 +196,142 @@ export const needsRefresh = (refreshExpiresAt, now = Date.now()) => {
   const t = new Date(refreshExpiresAt || 0).getTime()
   return Number.isFinite(t) && t > now && t - now < REFRESH_BEFORE_DAYS * 86400000
 }
+
+// ── 상품 보내기 (2026-09-30) — Admin API 호출 ──
+// [확인한 곳 — apidocs.cafe24.com/en/docs/admin/post-products · post-products-images · get-categories · guide/versioning · guide/api-quota]
+//   POST /api/v2/admin/products          scope WRITE_PRODUCT · 40 calls/sec · 1건. 필수 = product_name·supply_price(문서: "참고용"). 응답 { product: { product_no, … } }
+//   POST /api/v2/admin/products/images   base64 20장까지 → { image: [{ path: "https://{domain}/web/upload/NNEditor/…" }] } — 상품에 넣으려면 먼저 올려야 한다
+//   GET  /api/v2/admin/categories        scope READ_CATEGORY · limit 100 · offset → { categories: [{ category_no, category_depth, parent_category_no, category_name, full_category_name:{1..4} }] }
+//   헤더 X-Cafe24-Api-Version: yyyy-mm-dd (없으면 개발자센터 앱 설정 버전 — 1년 뒤 만료) · Authorization: Bearer {access_token}
+//   한도: 10분에 3,000회·처리 600초 + 버킷 40개(초당 2개 배출) → 초과는 429 + X-Api-Call-Limit(used/limit)
+//   우리 토큰 주소(GET /api/marketplace?t=)는 30분 뒤 만료라 카페24 상세 HTML에 넣지 않는다 — 카페24에 올린 경로만 쓴다
+// API 버전 헤더는 환경변수 CAFE24_API_VERSION(yyyy-mm-dd)이 있을 때만 붙인다 — 없으면 문서대로 개발자센터 앱 설정 버전을 따른다 (날짜를 코드에 적어 두지 않는다)
+export const apiVersionHeader = (env = process.env) => (/^\d{4}-\d{2}-\d{2}$/.test(String(env.CAFE24_API_VERSION || '')) ? env.CAFE24_API_VERSION : null)
+export const IMAGES_PER_UPLOAD = 20
+export const PRODUCT_NAME_MAX = 250
+export const PRICE_MAX = 2147483647
+export const ACCESS_REFRESH_MARGIN_MS = 5 * 60 * 1000 // access 만료 5분 전이면 미리 갱신
+export const CATEGORY_PAGE = 100
+export const CATEGORY_MAX_PAGES = 10 // 분류 1,000개까지 (그 이상은 자르고 원인 로그)
+
+/** access 토큰이 지났거나 5분 안에 지나면 갱신 */
+export const accessNeedsRefresh = (accessExpiresAt, now = Date.now()) => {
+  const t = new Date(accessExpiresAt || 0).getTime()
+  return !Number.isFinite(t) || t - now < ACCESS_REFRESH_MARGIN_MS
+}
+/** 원(₩) 값 검사 — 0 이상 정수 (카페24 price는 소수도 받지만 원화는 정수만 넣는다) */
+export const isWon = v => Number.isInteger(v) && v >= 0 && v <= PRICE_MAX
+/** 상품명 검사 — 1~250자 */
+export const cleanProductName = s => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, PRODUCT_NAME_MAX)
+/** 분류 번호 — 양의 정수 */
+export const isCategoryNo = n => Number.isInteger(n) && n > 0
+/** 쇼핑몰 관리자 상품 수정 화면 [확인 필요 — 공식 문서에 없음. 로그인 없이 200이고 관리자 로그인으로 넘어가는 것까지만 확인(2026-09-30)] */
+export const cafe24AdminProductUrl = (mallId, productNo) => (isMallId(mallId) && /^\d{1,20}$/.test(String(productNo ?? '')) ? `https://${mallId}.cafe24.com/disp/admin/shop1/product/ProductRegister?product_no=${productNo}` : null)
+const escapeHtml = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]))
+
+/**
+ * 상세 설명 HTML — 카페24에 올린 이미지 경로를 <img>로 위에서 아래로 잇는다 (alt = 상품명 + 번호). 글자·스크립트 없음
+ * @param {string[]} paths 카페24가 준 이미지 경로 @param {string} productName
+ */
+export function detailHtml(paths, productName) {
+  const list = (Array.isArray(paths) ? paths : []).filter(p => typeof p === 'string' && p)
+  const name = escapeHtml(cleanProductName(productName) || '상품')
+  return `<div style="text-align:center;font-size:0;line-height:0">${list.map((p, i) => `<img src="${escapeHtml(p)}" alt="${name} 상세 ${i + 1}" style="max-width:100%;height:auto;display:block;margin:0 auto" />`).join('')}</div>`
+}
+
+/**
+ * 상품 등록 본문 (POST /products). 진열·판매 안 함(display F·selling F)이 기본 — 고객이 카페24 관리자에서 확인한 뒤 직접 진열한다
+ * @param {{ productName, price, categoryNo?, detailImagePath, detailPaths:string[], customCode? }} p
+ * @returns {{ ok:true, body } | { ok:false, message }}
+ */
+export function buildCafe24Product(p) {
+  const productName = cleanProductName(p?.productName)
+  if (!productName) return { ok: false, message: '상품명을 넣어 주세요.' }
+  if (!isWon(p?.price)) return { ok: false, message: '판매가는 0 이상 정수(원)여야 해요.' }
+  if (typeof p?.detailImagePath !== 'string' || !p.detailImagePath) return { ok: false, message: '대표 이미지를 올리지 못했어요.' }
+  if (!Array.isArray(p?.detailPaths) || !p.detailPaths.length) return { ok: false, message: '상세 이미지를 올리지 못했어요.' }
+  if (p?.categoryNo != null && !isCategoryNo(p.categoryNo)) return { ok: false, message: '상품 분류가 올바르지 않아요.' }
+  const request = {
+    display: 'F', selling: 'F', // 안전 기본값 — 고객이 관리자에서 확인 후 진열
+    product_name: productName,
+    price: String(p.price), supply_price: String(p.price), // supply_price = 문서상 필수·참고용 → 판매가와 같게
+    has_option: 'F',
+    image_upload_type: 'A', detail_image: p.detailImagePath,
+    description: detailHtml(p.detailPaths, productName),
+  }
+  if (p.categoryNo != null) request.add_category_no = [{ category_no: p.categoryNo, recommend: 'F', new: 'F' }]
+  if (typeof p.customCode === 'string' && p.customCode.trim()) request.custom_product_code = p.customCode.trim().slice(0, 40)
+  return { ok: true, body: { request } }
+}
+
+/** 분류 응답 → 화면 목록 [{ no, depth, parentNo, name, fullName }] (full_category_name {1..4}를 " > "로) */
+export function normalizeCategories(json) {
+  const list = Array.isArray(json?.categories) ? json.categories : []
+  return list.map(c => {
+    const full = c?.full_category_name && typeof c.full_category_name === 'object' ? [1, 2, 3, 4].map(k => c.full_category_name[k]).filter(Boolean) : []
+    return { no: Number(c?.category_no), depth: Number(c?.category_depth) || 1, parentNo: Number(c?.parent_category_no) || 0, name: String(c?.category_name || ''), fullName: full.length ? full.join(' > ') : String(c?.category_name || '') }
+  }).filter(c => isCategoryNo(c.no) && c.name)
+}
+
+/** 이미지 업로드 응답 → 경로 배열 (모양이 틀리면 null) */
+export function uploadedPaths(json) {
+  const list = Array.isArray(json?.image) ? json.image : null
+  if (!list) return null
+  const out = list.map(x => (x && typeof x.path === 'string' ? x.path : '')).filter(Boolean)
+  return out.length === list.length ? out : null
+}
+
+/** Admin API 오류 → 고객 문구 (null = 성공). 토큰 만료(401)는 부르는 쪽이 갱신 뒤 한 번 더 시도한다 */
+export function translateCafe24Api(status, text = '') {
+  const t = String(text || '')
+  let msg = ''
+  try { msg = JSON.parse(t)?.error?.message || '' } catch { /* JSON 아님 */ }
+  if (status === 0) return { code: 'market_unreachable', message: '카페24가 응답하지 않아요. 잠시 후 다시 시도해 주세요.' }
+  if (status < 400) return null
+  if (status === 401) return { code: 'token_invalid', message: '카페24 인증이 만료됐어요. [연결] 탭에서 다시 연결해 주세요.' }
+  if (status === 403) return { code: 'scope_denied', message: '카페24 앱에 상품 등록 권한이 없어요. [연결] 탭에서 연결을 해제하고 다시 연결해 주세요.' }
+  if (status === 429) return { code: 'rate_limited', message: '카페24 요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.' }
+  if (status === 422 || status === 400) return { code: 'market_rejected', message: msg ? `카페24가 요청을 거절했어요: ${msg.slice(0, 300)}` : '카페24가 요청을 거절했어요. 입력값을 확인해 주세요.' }
+  if (status >= 500) return { code: 'market_server', message: '카페24가 응답하지 않아요. 잠시 후 다시 시도해 주세요.' }
+  return { code: 'market_rejected', message: `카페24가 요청을 거절했어요 (HTTP ${status}).` }
+}
+
+/**
+ * Admin API 한 번 (재시도 없음). 성공 = JSON. 실패 = Cafe24Error throw (401 = token_invalid — 부르는 쪽이 갱신 뒤 다시)
+ * @param {{ mallId, accessToken, breakerKey, fetchImpl?, apiVersion? }} c
+ * @param {{ method, path, query?, body?, timeoutMs? }} req  path = '/products' 처럼 /api/v2/admin 뒤
+ */
+export async function cafe24Api(c, { method, path, query = '', body, timeoutMs = TIMEOUT_MS }) {
+  const breaker = breakerFor(`cafe24:${c.breakerKey || ''}`)
+  const left = breaker.blockedFor()
+  if (left > 0) throw new Cafe24Error('breaker_open', `카페24 오류가 잦아 잠시 멈췄어요. ${Math.ceil(left / 60000)}분 뒤 다시 시도해 주세요.`)
+  const url = `${hostOf(c.mallId)}/api/v2/admin${path}${query ? `?${query}` : ''}`
+  const headers = { 'Authorization': `Bearer ${c.accessToken}`, 'Content-Type': 'application/json', 'Accept': 'application/json' }
+  const ver = c.apiVersion || apiVersionHeader()
+  if (ver) headers['X-Cafe24-Api-Version'] = ver
+  const fetchImpl = c.fetchImpl || fetch
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  let r, text
+  try {
+    r = await fetchImpl(url, { method, headers, body: body === undefined ? undefined : JSON.stringify(body), signal: controller.signal })
+    text = await r.text()
+  } catch (e) {
+    breaker.recordError()
+    throw new Cafe24Error('market_unreachable', '카페24가 응답하지 않아요. 잠시 후 다시 시도해 주세요.', { status: 0, raw: e?.name === 'AbortError' ? 'timeout' : e?.message })
+  } finally {
+    clearTimeout(timer)
+  }
+  const tr = translateCafe24Api(r.status, text)
+  if (tr) {
+    if (r.status !== 401) breaker.recordError()
+    throw new Cafe24Error(tr.code, tr.message, { status: r.status, raw: `${text.slice(0, 200)} limit=${r.headers?.get?.('X-Api-Call-Limit') || ''}` })
+  }
+  let json = null
+  try { json = text ? JSON.parse(text) : null } catch {
+    breaker.recordError()
+    throw new Cafe24Error('market_bad_json', '카페24 응답을 읽지 못했어요. 잠시 후 다시 시도해 주세요.', { status: r.status, raw: text.slice(0, 200) })
+  }
+  breaker.recordOk()
+  return json
+}

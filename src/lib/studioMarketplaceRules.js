@@ -30,7 +30,7 @@ export const CHANNEL_TABS = [
 // 판매처 목록 — 연결 탭·보내기 탭·보내기 창·랜딩 칩이 같은 목록·같은 순서를 쓴다
 // connect = 연결 방법: 'key' = 고객이 직접 발급한 키·앱으로 연결(쿠팡·11번가·스마트스토어·카페24) · 'planned' = 아직 연결할 수 없음 → 화면에 "예정" 한 단어만
 //   (S3-3, 2026-09-30: 업체 등록·제휴 없이 고객 키만으로 되는 곳만 연결한다. 연결 신청 기능은 걷어냄 — 버튼·입력 칸·안내 문구 없음)
-// soon = 연결은 되지만 아직 상품 보내기를 못 함 (스마트스토어·11번가·카페24)
+// soon = 연결은 되지만 아직 상품 보내기를 못 함 (스마트스토어·11번가). 보내기 되는 곳 = 쿠팡·카페24(2026-09-30)
 export const MARKETS = [
   { key: 'coupang', name: '쿠팡', connect: 'key' },
   { key: 'smartstore', name: '스마트스토어', soon: true, connect: 'key' }, // 2026-09-30 S3-2 — 고객이 만든 내 스토어 애플리케이션 ID·시크릿
@@ -38,7 +38,7 @@ export const MARKETS = [
   { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'planned' },
   { key: 'ably', name: '에이블리', soon: true, connect: 'planned' }, // 판매자 API 토큰은 있지만 공개 API 문서가 없어 주소·인증을 확인할 수 없음 (S3-3 조사)
   { key: 'zigzag', name: '지그재그', soon: true, connect: 'planned' },
-  { key: 'cafe24', name: '카페24', soon: true, connect: 'key' }, // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면 (심사 승인 전에는 관리자만 — CAFE24_PUBLIC)
+  { key: 'cafe24', name: '카페24', connect: 'key' }, // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면 (심사 승인 전에는 관리자만 연결 — CAFE24_PUBLIC). 보내기 = 서버 cafe24_send
   { key: 'makeshop', name: '메이크샵', soon: true, connect: 'planned' },
   { key: 'godomall', name: '고도몰', soon: true, connect: 'planned' },
 ]
@@ -88,11 +88,12 @@ export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
  * "준비 중" 글자는 쓰지 않는다
  * @param {{ [key:string]: { connected?:boolean } }} connected  쿠팡 = 서버 status/send_prepare.markets, 나머지 = studioMarketLinks.linkStates
  * @param {{ admin?: boolean }} who  관리자면 카페24도 연결 상태로 (CAFE24_PUBLIC 전 — connectFor)
+ * ★ 이미 연결된 판매처는 CAFE24_PUBLIC·관리자와 상관없이 연결 상태(connected/linked) — 쇼핑몰 관리자에서 앱을 열어 연결한 일반 고객도 [카페24로 보내기]가 보여야 한다 (2026-09-30)
  */
 export function channelRows(connected = {}, { admin = false } = {}) {
   return MARKETS.map(m => {
     const on = connected?.[m.key]?.connected === true
-    const state = connectFor(m, { admin }) === 'planned' ? 'planned' : on ? (m.soon ? 'linked' : 'connected') : 'locked'
+    const state = on ? (m.soon ? 'linked' : 'connected') : connectFor(m, { admin }) === 'planned' ? 'planned' : 'locked'
     return { key: m.key, name: m.name, state }
   })
 }
@@ -104,11 +105,14 @@ export const defaultChecked = rows => Object.fromEntries((Array.isArray(rows) ? 
 export const checkedMarkets = (rows, checked) => (Array.isArray(rows) ? rows : []).filter(r => r.state === 'connected' && checked?.[r.key] === true).map(r => r.key)
 /** 섹션을 만들어 둘 판매처 — 연결돼 있고 섹션 컴포넌트가 있는 곳. 체크 여부와 상관없다(체크는 보이기만 바꾼다 → 넣은 값이 남는다) */
 export const sectionKeys = (rows, have) => (Array.isArray(rows) ? rows : []).filter(r => r.state === 'connected' && (have || []).includes(r.key)).map(r => r.key)
-/** "쿠팡으로" / "11번가로" — 받침(ㄹ 제외)이 있으면 '으로' */
+/** "쿠팡으로" / "11번가로" / "카페24로" — 받침(ㄹ 제외)이 있으면 '으로'. 끝이 숫자면 읽는 소리(영·일·이·삼·사·오·육·칠·팔·구)로 판정 */
+const DIGIT_EUL = { 0: '으로', 1: '로', 2: '로', 3: '으로', 4: '로', 5: '로', 6: '으로', 7: '로', 8: '로', 9: '로' }
 export function withRo(name) {
   const s = String(name || '')
-  const c = s.charCodeAt(s.length - 1)
+  const last = s[s.length - 1] || ''
+  const c = last.charCodeAt(0)
   if (c >= 0xAC00 && c <= 0xD7A3) { const jong = (c - 0xAC00) % 28; return `${s}${jong === 0 || jong === 8 ? '로' : '으로'}` }
+  if (DIGIT_EUL[last]) return `${s}${DIGIT_EUL[last]}`
   return `${s}(으)로`
 }
 /** [보내기] 버튼 글자 — 1곳이면 그 이름, 아니면 "선택한 판매처로 보내기" */
@@ -137,8 +141,14 @@ export function optionTableMode({ width = 0, viewport = 0, flexCols = 2, hasCny 
 }
 export const optionTableNeed = ({ flexCols = 2, hasCny = false } = {}) => OPTION_FIXED_PX + (hasCny ? OPTION_CNY_PX : 0) + Math.max(1, flexCols) * OPTION_FLEX_MIN
 
-// 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인 = 초록, 반려·실패 = 빨강
-export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
+// 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인·등록됨(카페24) = 초록, 반려·실패 = 빨강
+export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
+/** 처음 체크할 판매처 — 특정 판매처 버튼([카페24로 보내기])으로 열었으면 그곳만, 다시 보내기면 쿠팡만, 아니면 연결된 곳 모두(defaultChecked) */
+export function initialChecked(rows, { market = '', resend = false } = {}) {
+  const only = market || (resend ? 'coupang' : '')
+  if (!only) return defaultChecked(rows)
+  return Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.key === only && r.state === 'connected']))
+}
 /**
  * 내 상품 id → 판매처별 가장 최근 전송 (MARKETS 순서). 안 보낸 판매처는 목록에 없다.
  * @returns {{ [exportId]: [send] }}

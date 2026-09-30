@@ -7,10 +7,10 @@
  */
 import { callStudioApi, studioErrorMessage } from '@/lib/studioApi'
 
-export const MARKET_LABEL = { coupang: '쿠팡' }
-export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인', rejected: '반려', failed: '실패' }
-// 색: 전송 중·승인 대기 = 회색, 승인 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
-export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
+export const MARKET_LABEL = { coupang: '쿠팡', cafe24: '카페24' }
+export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인', registered: '등록됨', rejected: '반려', failed: '실패' } // registered = 카페24(승인 절차 없음 — 진열 안 함으로 등록)
+// 색: 전송 중·승인 대기 = 회색, 승인·등록됨 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
+export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', registered: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
 export const REP_SIZE = 1000 // 브라우저가 만드는 대표 이미지 한 변(px) — 쿠팡 정사각형 500~5000
 export { isNotReady, needsGuide, latestSendByExport, sendsByExport, badgeReason, SEND_BADGE_CLASS, SETTINGS_TABS, CHANNEL_TABS } from '@/lib/studioMarketplaceRules'
 
@@ -54,6 +54,9 @@ export const beginCafe24 = (mallId) => call('cafe24_begin', { mall_id: mallId, o
 export const launchCafe24 = (query) => call('cafe24_launch', { query, origin: pageOrigin() })           // 쇼핑몰 관리자에서 앱을 열었을 때 — 쿼리 원문(hmac 확인) → { mallId, authorizeUrl }
 export const finishCafe24 = (code, state) => call('cafe24_finish', { code, state })
 export const disconnectCafe24 = () => call('disconnect_cafe24')
+// 카페24 상품 보내기 (2026-09-30) — 서버가 토큰 갱신·이미지 업로드·등록(진열 안 함)까지. 창의 카페24 섹션(StudioSendCafe24)이 부른다
+export const listCafe24Categories = () => call('cafe24_categories')                         // → { categories:[{ no, depth, parentNo, name, fullName }] }
+export const sendCafe24Product = (payload) => call('cafe24_send', payload)                  // { exportId, productName, price, categoryNo?, repImageId, fit } → { sendId, productNo, status:'registered', adminUrl }
 
 /**
  * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.

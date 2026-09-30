@@ -47,7 +47,7 @@
               v-if="r.state === 'connected'" type="button" class="st-btn st-btn-primary ch-btn" :disabled="!!opening"
               :data-ch-send="r.key" @click="openSend(r.key)"
             ><Send class="w-3.5 h-3.5" :stroke-width="2" /> {{ opening === r.key ? '여는 중…' : sendButtonLabel([r.key]) }}</button>
-            <!-- 연결됨(스마트스토어·11번가·카페24) — 보내기 버튼은 아직 없다 · 아직 연결할 수 없는 곳 = "예정"만 -->
+            <!-- 연결됨(스마트스토어·11번가) — 보내기 버튼은 아직 없다 · 아직 연결할 수 없는 곳 = "예정"만. 카페24는 연결되면 위 [카페24로 보내기] -->
             <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-ch-linked="r.key">연결됨</span>
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-ch-planned="r.key">{{ PLANNED_LABEL }}</span>
             <template v-else>
@@ -58,6 +58,7 @@
         </ul>
         <p v-if="statusError" class="mt-2 text-[13px] break-keep" :class="statusSoft ? 'st-muted' : 'font-bold st-danger-text'" data-ch-status-error>{{ statusError }}</p>
         <p v-if="message" class="mt-2 text-[13px] font-bold break-keep" :class="messageError ? 'st-danger-text' : 'st-success-text'" data-ch-msg>{{ message }}
+          <a v-if="!messageError && messageAdminUrl" :href="messageAdminUrl" target="_blank" rel="noopener" class="st-link ml-1" data-ch-admin-link>카페24 쇼핑몰 관리 화면에서 보기</a>
           <router-link v-if="!messageError" :to="{ name: 'studio-channels-sent' }" class="st-link ml-1">보낸 상품 보기</router-link></p>
       </template>
       <p v-else class="st-desc break-keep" data-ch-picked-empty>아래 내 상품에서 보낼 상품을 눌러 골라 주세요.</p>
@@ -68,13 +69,13 @@
     </template>
 
     <!-- 보내기 창 — 내 작업에 있던 것과 같은 창·같은 진입(sendToMarketplace) 그대로 -->
-    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" @close="sendOpen = false" @sent="onSent" />
+    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" :market="sendMarket" @close="sendOpen = false" @sent="onSent" />
   </div>
 </template>
 
 <script setup>
 // 판매처 > [보내기] 탭 (2026-09-30) — 내 상품을 하나 고르고, 판매처 줄에서 보낸다.
-//   연결된 판매처 = [쿠팡으로 보내기] → 예전과 같은 보내기 창(StudioSendModal · 진입은 studioMarketplace.sendToMarketplace 한 곳)
+//   연결된 판매처 = [쿠팡으로 보내기]·[카페24로 보내기](2026-09-30) → 같은 보내기 창(StudioSendModal · 진입은 studioMarketplace.sendToMarketplace 한 곳) — 누른 판매처만 처음 체크(market prop)
 //   연결 전 판매처 = 자물쇠 + [연결하기](연결 탭) · 아직 연결할 수 없는 곳 = "예정" 한 단어만. "준비 중" 글자는 쓰지 않는다 (줄 규칙 studioMarketplaceRules.channelRows)
 // 주소 ?export=<내 상품 id> = 그 상품을 골라 둔 채로 연다 (편집기 [작업 저장] 뒤 [판매처로 보내기] · 내 작업 "판매처에서 보내기 →")
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
@@ -160,17 +161,21 @@ function gotoSent(id) {
 const opening = ref('')
 const sendOpen = ref(false)
 const sendPrepare = ref(null)
+const sendMarket = ref('') // 누른 버튼의 판매처 — 창이 그곳만 처음 체크한다
 const message = ref('')
 const messageError = ref(false)
+const messageAdminUrl = ref('') // 카페24 등록 뒤 [카페24 쇼핑몰 관리 화면에서 보기]
 async function openSend(market) {
   if (!picked.value || opening.value) return
   opening.value = market
   message.value = ''
+  messageAdminUrl.value = ''
   try {
     // 작업 시작 관문 — 주문 이력이 없으면 안내 창 (서버 API도 같은 자격을 다시 확인한다)
     if (!(await studioGate(`/studio/channels/send?export=${encodeURIComponent(picked.value.id)}`))) return
     const r = await sendToMarketplace(picked.value.id)
     sendPrepare.value = r.prepare
+    sendMarket.value = market
     sendOpen.value = true
   } catch (e) {
     console.error('[StudioChannelSendView] 판매처로 보내기 준비 실패:', picked.value.id, e.code, e)
@@ -181,8 +186,13 @@ async function openSend(market) {
   }
 }
 function onSent(r) {
-  const name = MARKETS.find(m => m.key === (r?.market || 'coupang'))?.name || r?.market
-  message.value = `${withRo(name)} 보냈어요${r?.sellerProductId ? ` (#${r.sellerProductId})` : ''}.`
+  const market = r?.market || 'coupang'
+  const name = MARKETS.find(m => m.key === market)?.name || market
+  // 카페24 = 승인 절차 없이 등록(진열 안 함) → "등록됐어요" + 관리자 링크. 쿠팡 = 승인 요청 → "보냈어요"
+  message.value = market === 'cafe24'
+    ? `카페24에 등록됐어요${r?.productNo ? ` (상품번호 ${r.productNo})` : ''}. 진열 안 함 상태예요 — 카페24 쇼핑몰 관리 화면에서 확인한 뒤 진열해 주세요.`
+    : `${withRo(name)} 보냈어요${r?.sellerProductId ? ` (#${r.sellerProductId})` : ''}.`
+  messageAdminUrl.value = market === 'cafe24' && typeof r?.adminUrl === 'string' ? r.adminUrl : ''
   messageError.value = false
   loadSends()
 }
@@ -197,7 +207,9 @@ const onStudioAuthChanged = (e) => {
     selectedId.value = ''
     sendOpen.value = false
     sendPrepare.value = null
+    sendMarket.value = ''
     message.value = ''
+    messageAdminUrl.value = ''
   } else {
     loadStatus()
     loadSends()
