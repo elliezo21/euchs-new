@@ -91,7 +91,7 @@ eq('처음 보이는 수 = 12 (데스크톱 6칸 × 2줄)', L.FIRST_ROWS, 12)
   const land = read('src/views/studio/StudioLandingView.vue'), t = shown('src/views/studio/StudioLandingView.vue')
   const nav = t.slice(t.indexOf('<header'), t.indexOf('</header>'))
   eq('상단: [내 작업]·[로그인] 없음 · [무료로 시작하기] 하나 · 로그인 여부로 갈리지 않음', [/내 작업|로그인/.test(nav), (nav.match(/무료로 시작하기/g) || []).length, /v-if="currentUser"|v-else/.test(nav), /currentUser|openLoginModal/.test(land)], [false, 1, false, false])
-  eq('히어로에도 [무료로 시작하기] · 누르면 작업 홈으로 (로그인 전이면 가드가 로그인 창)', [(t.match(/data-land-start @click="start"/g) || []).length >= 2, /function start\(\) \{\s*router\.push\(\{ name: 'studio-projects' \}\)/.test(land)], [true, true])
+  eq('히어로에도 [무료로 시작하기] · 누르면 스튜디오 안 [템플릿]으로 (로그인·잠금 창 없음)', [(t.match(/data-land-start @click="start"/g) || []).length >= 2, /function start\(\) \{\s*router\.push\(\{ name: 'studio-templates' \}\)/.test(land)], [true, true])
 }
 
 // ── 7. 1688 주소 입력줄 ──

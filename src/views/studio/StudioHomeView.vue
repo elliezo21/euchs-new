@@ -73,12 +73,16 @@
       </div>
     </section>
 
-    <!-- 6-2. 최근 작업 (0개면 숨김) -->
-    <StudioRecentProjects title="최근 작업" show-filters />
+    <template v-if="loggedIn">
+      <!-- 6-2. 최근 작업 (0개면 숨김) -->
+      <StudioRecentProjects title="최근 작업" show-filters />
 
-    <!-- 내 상품 (2026-09-28): [작업 저장]·[다운로드]로 만든 결과물 보관 — [다시 받기] + "판매처에서 보내기 →"
-         보내기·보낸 상품·상태 배지는 사이드바 [판매처]로 옮겼다 (2026-09-30 — 만드는 곳과 보내는 곳을 나눔) -->
-    <StudioExportList />
+      <!-- 내 상품 (2026-09-28): [작업 저장]·[다운로드]로 만든 결과물 보관 — [다시 받기] + "판매처에서 보내기 →"
+           보내기·보낸 상품·상태 배지는 사이드바 [판매처]로 옮겼다 (2026-09-30 — 만드는 곳과 보내는 곳을 나눔) -->
+      <StudioExportList />
+    </template>
+    <!-- 로그인 전 (누구나 봄 — 2026-09-30): 내 작업·내 상품을 부르지 않고 안내만 -->
+    <StudioLoginNeeded v-else title="만든 작업과 내 상품이 여기에 모여요" desc="로그인하면 최근 작업을 이어서 고치고, 저장한 상품을 다시 받거나 판매처로 보낼 수 있어요." />
 
     <!-- 6-3. 새 소식 (랜딩 개편 때 /studio 대문에서 옮김) -->
     <section>
@@ -103,8 +107,11 @@
 
 <script setup>
 // 스튜디오 내 작업 — 시작하기(찜·주문·내 사진·1688 주소) + 최근 작업
-import { ref, h, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, h, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { currentUser } from '@/lib/auth'
+import { studioGate } from '@/lib/studioGate'
+import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
 import { Heart, Package, Camera, FolderUp, Link2, X, ArrowRight } from 'lucide-vue-next'
 import { listSavedProducts } from '@/lib/savedProducts'
 import { fetchOrderedProducts } from '@/lib/orderedProducts'
@@ -127,6 +134,9 @@ const CardFoot = (props) => h('div', { class: 'flex items-center gap-3 px-[18px]
 CardFoot.props = ['icon', 'title', 'desc', 'error']
 
 const router = useRouter()
+const route = useRoute()
+// 누구나 보는 화면(2026-09-30) — 로그인 전에는 개인 데이터를 부르지 않고, 작업 버튼만 관문(studioGate)을 거친다
+const loggedIn = computed(() => !!currentUser.value?.id)
 const importFlow = ref(null)
 const uploadPanel = ref(null)
 
@@ -160,10 +170,12 @@ function goPick(tab) {
 // ── 1688 주소 (가져오기 로직은 StudioImportFlow) ──
 const urlInput = ref('')
 const urlEmpty = ref(false)
-function submitUrl() {
+// [1688 가져오기] = 작업 시작 — 관문(studioGate). 로그인하고 돌아오면 ?start=url&url=…로 이어서 가져온다
+async function submitUrl() {
   const v = urlInput.value.trim()
   urlEmpty.value = !v
   if (!v) return
+  if (!(await studioGate(`/studio/projects?start=url&url=${encodeURIComponent(v)}`))) return
   importFlow.value?.importUrl(v)
 }
 
@@ -172,16 +184,38 @@ const uploadOpen = ref(false)
 const cardDrag = ref(false)
 const uploadedProjectId = ref(null)
 const autoNavigated = ref(false)
-function openUpload() {
+// [내 사진으로] = 작업 시작 — 관문. 사진 고르기 창은 누른 순간에만 열 수 있어서, 이미 확인된 사람은 기다리지 않고 바로 연다
+async function openUpload() {
+  if (!(await studioGate('/studio/projects?start=upload#start'))) return
   uploadOpen.value = true
   uploadPanel.value?.openPicker()
 }
-function onCardDrop(e) {
+async function onCardDrop(e) {
   cardDrag.value = false
-  // dataTransfer는 이 이벤트 안에서만 읽힌다 — 패널이 이미 붙어 있으므로 곧바로 넘긴다
+  // 로그인 전 → 로그인 창만 (끌어 놓은 파일은 받지 않는다 — 로그인 뒤 다시 놓으면 된다)
+  if (!loggedIn.value) { studioGate('/studio/projects?start=upload#start'); return }
+  // dataTransfer는 이 이벤트 안에서만 읽힌다 — 패널에 곧바로 넘기고(올리기는 [올리기]를 눌러야 시작), 관문에서 막히면 비운다
   uploadPanel.value?.addDrop(e.dataTransfer)
   uploadOpen.value = true
+  if (!(await studioGate('/studio/projects?start=upload#start'))) {
+    uploadPanel.value?.up.clearAll()
+    uploadOpen.value = false
+  }
 }
+
+// ── 로그인 뒤 이어서 (작업 버튼에서 시작한 로그인만 — ?start=new|upload|url) ──
+// 관문을 한 번 더 거친다: 주문 없음 → 잠금 창, 있음 → 하려던 작업 계속. 한 번 쓰고 주소에서 뗀다
+watch(() => [route.query.start, currentUser.value?.id], async ([start, uid]) => {
+  if (typeof start !== 'string' || !start || !uid) return
+  const url = typeof route.query.url === 'string' ? route.query.url : ''
+  const { start: _s, url: _u, ...rest } = route.query
+  router.replace({ query: rest, hash: route.hash })
+  if (!(await studioGate(route.fullPath))) return
+  if (start === 'new') document.getElementById('start')?.scrollIntoView({ block: 'start' })
+  else if (start === 'upload') uploadOpen.value = true // 사진 고르기 창은 사용자가 눌러야 열린다 — 패널만 펼친다
+  else if (start === 'url' && url) { urlInput.value = url; importFlow.value?.importUrl(url) }
+  else console.warn('[StudioHome] 이어서 할 작업을 알 수 없음:', start)
+}, { immediate: true })
 function onUploadFinished({ projectId, done, failed }) {
   uploadedProjectId.value = projectId
   // 전부 성공했으면 바로 편집기로. 실패가 있으면 다시 시도할 수 있게 머문다
@@ -230,7 +264,7 @@ const onStudioAuthChanged = (e) => {
 
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
-  loadCollages()
+  if (loggedIn.value) loadCollages() // 로그인 전에는 찜·주문을 부르지 않는다 (로그인하면 euchs-auth-changed로 읽는다)
   loadNotices()
 })
 onUnmounted(() => window.removeEventListener('euchs-auth-changed', onStudioAuthChanged))

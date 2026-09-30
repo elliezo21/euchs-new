@@ -289,10 +289,10 @@ const NOTICE_TYPE_LABEL = { update: '업데이트', notice: '공지', soon: '예
 /** 글자 자리(% — studioLandingPlaceholders TEXT_BOXES) → 위치 */
 const boxStyle = b => ({ left: `${b.x}%`, top: `${b.y}%`, width: `${b.w}%`, height: `${b.h}%` })
 
-// [무료로 시작하기] = 작업 홈으로. 로그인 전이면 기존 라우터 가드가 복귀 주소를 기억하고 로그인 창을 연다(구글·카카오 로그인도 같은 규칙).
-// 로그인했지만 자격이 없으면 가드가 안내 창(1688 구매하러 가기)을 띄운다
+// [무료로 시작하기] = 스튜디오 안 [템플릿] 목록으로 (2026-09-30) — 로그인·주문 여부와 상관없이 들어간다(로그인 창·잠금 창 없음).
+// 로그인·주문 확인은 안에서 작업 버튼을 누를 때만 (작업 시작 관문·라우터 가드)
 function start() {
-  router.push({ name: 'studio-projects' })
+  router.push({ name: 'studio-templates' })
 }
 
 function scrollToSteps() {

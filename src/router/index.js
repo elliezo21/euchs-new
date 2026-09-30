@@ -58,7 +58,7 @@ const studioRoute = {
       path: 'projects',
       name: 'studio-projects',
       component: () => import('../views/studio/StudioHomeView.vue'),
-      meta: { ...STUDIO_PROTECTED, title: '내 작업' }
+      meta: { ...STUDIO_PUBLIC, title: '내 작업' } // 누구나 봄 — 로그인 전이면 빈 화면 안내, 작업 버튼만 관문(2026-09-30)
     },
     {
       path: 'templates',
@@ -643,8 +643,9 @@ router.beforeEach(async (to, from, next) => {
     const access = await checkStudioAccess(currentUser.value?.id)
     if (access === 'not_customer') {
       studioNoAccessOpen.value = true
+      // 스튜디오 안에서 눌렀으면 그 화면에 머물고, 주소로 바로 들어왔으면(로그인 복귀 등) 스튜디오 안 [템플릿]으로 — 첫 화면에 가두지 않는다
       if (from.name && from.path !== to.path && from.path.startsWith('/studio')) next(false)
-      else next({ name: 'studio-landing' })
+      else next({ name: 'studio-templates' })
       return
     }
     if (access === 'error') console.error('[guard] 스튜디오 자격 확인 실패 — 화면은 열고 서버 API가 자격을 다시 확인합니다:', to.fullPath)

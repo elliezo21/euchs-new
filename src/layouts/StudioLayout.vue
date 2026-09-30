@@ -46,13 +46,10 @@
         </span>
       </div>
 
-      <router-link
-        :to="{ name: 'studio-projects', hash: '#start' }"
-        class="st-btn st-btn-primary st-btn-lg st-btn-block mt-6"
-        @click="drawerOpen = false"
-      >
+      <!-- [새로 만들기] = 작업 시작 — 관문(studioGate): 로그인 전 → 로그인 창 · 주문 없음 → 잠금 창 · 있음 → 내 작업 #start -->
+      <button type="button" class="st-btn st-btn-primary st-btn-lg st-btn-block mt-6" data-studio-nav-new @click="startNew">
         <Plus class="w-4 h-4" :stroke-width="2.5" /> 새로 만들기
-      </router-link>
+      </button>
 
       <nav class="mt-5 flex flex-col gap-0.5">
         <router-link
@@ -154,6 +151,7 @@ import { currentUser, signOut, openLoginModal } from '@/lib/auth'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import { STUDIO_BETA, BETA_BADGE, BETA_NOTE } from '@/lib/studioBeta'
 import { studioNoAccessOpen, STUDIO_NO_ACCESS_TITLE } from '@/lib/studioAccess'
+import { studioGate } from '@/lib/studioGate'
 
 const route = useRoute()
 const router = useRouter()
@@ -190,6 +188,12 @@ function closeMenus() {
 function goMall() {
   studioNoAccessOpen.value = false
   router.push('/mall')
+}
+
+// 로그인하고 돌아오면 내 작업(?start=new)이 관문을 한 번 더 거쳐 이어서 연다 (StudioHomeView)
+async function startNew() {
+  drawerOpen.value = false
+  if (await studioGate('/studio/projects?start=new#start')) router.push({ name: 'studio-projects', hash: '#start' })
 }
 
 function openLogin() {
