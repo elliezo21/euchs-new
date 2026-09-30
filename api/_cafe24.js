@@ -273,6 +273,16 @@ export function buildCafe24ProductImage(jpegBuf) {
   if (!Buffer.isBuffer(jpegBuf) || !jpegBuf.length) return { ok: false, message: '대표 이미지를 만들지 못했어요.' }
   return { ok: true, body: { request: { image_upload_type: 'A', detail_image: `data:image/jpeg;base64,${jpegBuf.toString('base64')}` } } }
 }
+/**
+ * 상품 등록 응답 → 상품 번호 문자열 (product.product_no — 숫자(integer)로 오지만 문자열도 받는다). 없거나 숫자 모양이 아니면 null
+ * 2026-09-30 운영: 19f1320이 정규식 백슬래시를 잃어(/^d{1,20}$/) 정상 응답의 product_no를 모두 떨어뜨렸다 → 순수 함수 + 값 테스트로 고정
+ */
+export function productNoOf(json) {
+  const v = json?.product?.product_no
+  if (v === null || v === undefined || v === '') return null
+  const s = typeof v === 'number' ? (Number.isInteger(v) && v >= 0 ? String(v) : '') : String(v).trim()
+  return /^\d{1,20}$/.test(s) ? s : null
+}
 /** 대표 이미지 응답 → 저장된 대표 이미지 경로(image.detail_image). 모양이 틀리면 null */
 export function productImagePath(json) {
   const p = json?.image?.detail_image

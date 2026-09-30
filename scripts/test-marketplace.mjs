@@ -1278,7 +1278,16 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const ri = K.buildCafe24ProductImage(jpg)
   eq('대표 이미지 본문: image_upload_type A · detail_image = data:image/jpeg;base64,… · 빈 버퍼·버퍼 아님은 거절', [ri.ok, ri.body.request.image_upload_type, ri.body.request.detail_image, Object.keys(ri.body.request), K.buildCafe24ProductImage(Buffer.alloc(0)).ok, K.buildCafe24ProductImage('x').ok], [true, 'A', `data:image/jpeg;base64,${jpg.toString('base64')}`, ['image_upload_type', 'detail_image'], false, false])
   eq('대표 이미지 응답: image.detail_image 경로 · 모양 틀리면 null', [K.productImagePath({ image: { shop_no: 1, product_no: 20, detail_image: 'https://m/web/product/big/201801/a.jpeg', list_image: 'x' } }), K.productImagePath({ image: [{ detail_image: 'x' }] }), K.productImagePath({ image: { detail_image: '' } }), K.productImagePath(null)], ['https://m/web/product/big/201801/a.jpeg', null, null, null])
+  // 2026-09-30 운영 3차: 정상 응답(product.product_no 숫자)을 /^d{1,20}$/(백슬래시 빠짐)가 떨어뜨림 → 순수 함수 productNoOf를 실제 값으로 검사
+  eq('상품 번호 읽기: 숫자(integer) · 문자열 · 없음/null/빈 문자열 · 숫자 모양 아님·소수·음수는 null · 항상 문자열로', [
+    K.productNoOf({ product: { shop_no: 1, product_no: 28, product_code: 'P00000BB' } }), K.productNoOf({ product: { product_no: '29' } }), K.productNoOf({ product: { product_no: ' 30 ' } }),
+    K.productNoOf({ product: { product_code: 'P00000BB' } }), K.productNoOf({ product: { product_no: null } }), K.productNoOf({ product: { product_no: '' } }), K.productNoOf({}), K.productNoOf(null),
+    K.productNoOf({ product: { product_no: 'P28' } }), K.productNoOf({ product: { product_no: 28.5 } }), K.productNoOf({ product: { product_no: -1 } }), typeof K.productNoOf({ product: { product_no: 28 } }),
+  ], ['28', '29', '30', null, null, null, null, null, null, null, null, 'string'])
   const c24send2 = /async function cafe24Send[\s\S]*?\n\}/.exec(read('api/marketplace.js'))[0]
+  eq('서버: product_no는 productNoOf로만 읽음(손으로 쓴 정규식 없음) · 없으면 rawProductNo·productNoType을 기록에 남김 · 전체 파일에 백슬래시 빠진 /^d{ 없음', [
+    /const productNo = productNoOf\(r\)/.test(c24send2), /\^\\?d\{1,20\}/.test(c24send2), /rawProductNo: rawNo/.test(c24send2), /productNoType: typeof r\?\.product\?\.product_no/.test(c24send2), /\/\^d\{/.test(read('api/marketplace.js')),
+  ], [true, false, true, true, false])
   const at = k => c24send2.indexOf(k)
   eq('서버 순서: 상세 업로드(products/images) → 상품 등록(대표 없이) → registered 기록 → 대표 이미지(products/{no}/images) · ③ 실패해도 registered 그대로 + repImageError 안내 + result_json.repImage(이유·shape) · 갱신 실패 응답 중복 없음 · 본문 로그 없음', [
     at("path: '/products/images'") < at("path: '/products'"), at("path: '/products'") < at("status: 'registered'"), at("status: 'registered'") < at('path: `/products/${productNo}/images`'),

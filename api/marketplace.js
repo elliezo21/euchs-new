@@ -60,7 +60,7 @@ import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
 import { smartstoreToken, SmartstoreError } from './_smartstore.js'
 import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
-  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, buildCafe24ProductImage, productImagePath, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
+  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, buildCafe24ProductImage, productImagePath, productNoOf, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
 } from './_cafe24.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
@@ -506,11 +506,14 @@ async function cafe24Send(ctx, body, res) {
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
   let r
   try { r = await cafe24CallRetry(ctx, res, credRef, { method: 'POST', path: '/products', body: built.body, timeoutMs: 60000 }) } catch (e) { return c24Fail(e, 'product') }
-  const productNo = r?.product?.product_no != null ? String(r.product.product_no) : ''
-  if (!/^d{1,20}$/.test(productNo)) {
-    const productShape = { ...responseShape(r), productKeys: r?.product && typeof r.product === 'object' ? Object.keys(r.product).slice(0, 10) : undefined } // 값 없이 모양만
-    console.error('[marketplace] 카페24 상품 등록 응답에 product_no 없음:', sendId, JSON.stringify(productShape))
-    return fail(502, 'market_bad_json', '카페24가 상품 번호를 주지 않았어요. 카페24 쇼핑몰 관리 화면에서 상품이 등록됐는지 확인해 주세요.', { result_json: { code: 'market_bad_json', step: 'product', shape: uploadShape, productShape } })
+  // 상품 번호 — 숫자(integer)든 문자열이든 productNoOf(순수 함수, 값 테스트 있음)로 읽어 문자열로 저장한다
+  const productNo = productNoOf(r)
+  if (!productNo) {
+    const productShape = { ...responseShape(r), productKeys: r?.product && typeof r.product === 'object' ? Object.keys(r.product).slice(0, 10) : undefined, productNoType: typeof r?.product?.product_no } // 값 없이 모양만
+    // 번호를 잃지 않게: 숫자 모양이 아니어도 값이 있으면 기록에는 남긴다(seller_product_id는 표 규칙이 숫자만이라 result_json에)
+    const rawNo = r?.product?.product_no != null ? String(r.product.product_no).slice(0, 40) : null
+    console.error('[marketplace] 카페24 상품 등록 응답에 product_no 없음(또는 숫자 모양 아님):', sendId, JSON.stringify({ ...productShape, rawNo }))
+    return fail(502, 'market_bad_json', '카페24가 상품 번호를 주지 않았어요. 카페24 쇼핑몰 관리 화면에서 상품이 등록됐는지 확인해 주세요.', { result_json: { code: 'market_bad_json', step: 'product', shape: uploadShape, productShape, rawProductNo: rawNo } })
   }
   // 등록은 됐다 — 먼저 registered로 남긴다 (③ 대표 이미지가 실패해도 상품은 카페24에 있다)
   const resultJson = { product_no: productNo, product_code: r.product?.product_code || null, display: r.product?.display || null, selling: r.product?.selling || null, shape: uploadShape }
