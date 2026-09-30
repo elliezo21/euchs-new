@@ -97,5 +97,27 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   eq('영상 창 비켜 두기 = 768px 미만 CSS에만 (translateX·누를 수 없음)', [/translateX\(calc\(-100% - 24px\)\)/.test(yieldRule), /pointer-events: none/.test(yieldRule), (vwStyle.match(/\.vw-yield/g) || []).length, /:class="\{ 'vw-yield': yieldToCta \}"/.test(vw)], [true, true, 1, true])
 }
 
+// ── 5. 스튜디오 소개 크게 넓힘 (2026-09-30): 판매처 배지 10곳 · ②~⑤ 자세한 소개 · 편집기 녹화 영상 ──
+{
+  const { HOME_BRANDS, brandLogo } = await import('../src/data/homeStudioBrands.js')
+  const band = read('src/components/StudioPromoBand.vue'), more = read('src/components/StudioPromoDetails.vue')
+  const shownOf = s => s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  eq('판매처 배지 10곳 (G마켓·옥션 나눔) · 로고 파일은 public/brand에 있음 · 못 받은 곳은 이름만(출처 없음)',
+    [HOME_BRANDS.map(b => b.key), HOME_BRANDS.filter(b => b.logo).every(b => fs.existsSync(new URL(`../public${brandLogo(b)}`, import.meta.url)) && /^https?:\/\//.test(b.src)), HOME_BRANDS.filter(b => !b.logo).every(b => !b.src)],
+    [['coupang', 'smartstore', '11st', 'gmarket', 'auction', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'], true, true])
+  eq('띠: 배지·점선이 무대 안 · 둥둥(float)도 보일 때만 움직이고 움직임 줄이기면 멈춤 · 폰은 로고 배지만',
+    [/v-for="b in BADGES"[^>]*data-band-badge/.test(shownOf(band).replace(/\s+/g, ' ')), /\.is-paused [^{]*\.float/.test(band), /\.is-still [^{]*\.float/.test(band), /\.badge\.m-hide \{ display: none; \}/.test(band)], [true, true, true, true])
+  eq('자세한 소개가 띠 바로 아래 · 마지막 버튼 = 같은 스튜디오 주소 · GA studio_cta_click',
+    [/<\/section>\s*<StudioPromoDetails \/>/.test(band), /:to="STUDIO_PATH"[^>]*@click="trackStudioCta\('home_band_more'\)"[^>]*>스튜디오 둘러보기 →/.test(more)], [true, true])
+  const vid = /<video[\s\S]*?>/.exec(more)?.[0] || ''
+  eq('영상: 소리 없음·자동 재생·반복·인라인·컨트롤 없음 · webm+mp4 · 포스터 · 보일 때만 불러옴(active)',
+    [['muted', 'autoplay', 'loop', 'playsinline'].every(a => new RegExp(`\\s${a}[\\s>]`).test(vid)), /controls/.test(vid), /v-if="active"/.test(vid), /type="video\/webm"/.test(more) && /type="video\/mp4"/.test(more), /:poster=/.test(vid)], [true, false, true, true, true])
+  const files = ['oneclick', 'erase', 'send'].flatMap(n => [`${n}.mp4`, `${n}.webm`, `${n}-poster.jpg`])
+  const sizes = files.map(f => { try { return fs.statSync(new URL(`../public/studio-demo/${f}`, import.meta.url)).size } catch { return -1 } })
+  eq('영상 3개 × mp4·webm·포스터 = public/studio-demo · 영상은 3MB 이하', [sizes.every(s => s > 0), files.filter((f, i) => !f.endsWith('.jpg') && sizes[i] > 3 * 1024 * 1024)], [true, []])
+  const t = shownOf(more).replace(/<[^>]+>/g, ' ')
+  eq('자세한 소개 문구: "중국어"·"준비 중" 없음 · 숫자 한 줄(94·10·이유씨 구매 고객 무료)', [/중국어|준비 중/.test(t), /94[\s\S]*템플릿[\s\S]*10[\s\S]*판매처[\s\S]*무료[\s\S]*이유씨 구매 고객/.test(t)], [false, true])
+}
+
 console.log(`\n통과 ${pass} / 실패 ${fail}`)
 process.exit(fail ? 1 : 0)

@@ -1,4 +1,6 @@
 <template>
+  <!-- 홈 스튜디오 소개 (2026-09-30 크게 넓힘): ① 알림 띠(아래) + ②~⑤ 자세한 소개(StudioPromoDetails) -->
+  <div class="studio-promo">
   <!-- 홈 스튜디오 알림 칸 (2026-09-29 해성이 고른 움직이는 시안 — 코랄→주황) — 1688 검색 칸과 "실시간 비즈니스 데이터" 칸 사이.
        배치(% 위치·크기)·빛줄기 경로·움직임 순서는 시안(euchs-band-assets/reference-mockup.html) 그대로. 그림 = public/home-studio-band/ -->
   <section
@@ -36,6 +38,10 @@
 
     <!-- 오른쪽 그림 무대 (880:460) — 빛줄기 · 둥둥 떠 있는 그림 · 노트북 → 휴대폰으로 날아가는 카드 -->
     <div class="stage" aria-hidden="true" data-studio-promo-stage>
+      <!-- 판매처 배지 → 가운데 노트북으로 이어지는 가는 점선 (그림 뒤) -->
+      <svg class="links" viewBox="0 0 880 460" preserveAspectRatio="none" data-band-links>
+        <path v-for="b in BADGES" :key="b.key" :d="linkPath(b)" />
+      </svg>
       <svg ref="trailSvg" class="trail" viewBox="0 0 880 460" preserveAspectRatio="none">
         <path class="glow" :d="TRAIL" />
         <path class="dash" :d="TRAIL" />
@@ -62,8 +68,18 @@
         v-for="o in PROPS_FRONT" :key="o.key" :class="['obj', o.anim]" :src="img(o.file)" :width="o.w" :height="o.h"
         :style="{ left: `${o.left}%`, top: `${o.top}%`, width: `${o.width}%` }" alt="" loading="lazy" decoding="async"
       />
+      <!-- 판매처 배지 10곳 — 흰 동그라미 안에 공식 로고(없으면 이름 글자). 천천히 둥둥 (모바일은 로고 있는 곳만·움직임 없음) -->
+      <span
+        v-for="b in BADGES" :key="b.key" class="badge float" :class="{ 'is-name': !b.src, 'm-hide': b.mHide }"
+        :style="{ left: `${b.x}%`, top: `${b.y}%`, animationDelay: `${b.delay}s`, animationDuration: `${b.dur}s` }" :data-band-badge="b.key"
+      >
+        <img v-if="b.src" :src="b.src" :width="b.w" :height="b.h" alt="" loading="lazy" decoding="async" />
+        <b v-else>{{ b.name }}</b>
+      </span>
     </div>
   </section>
+  <StudioPromoDetails />
+  </div>
 </template>
 
 <script setup>
@@ -78,6 +94,26 @@
 import { ref, reactive, onMounted, onBeforeUnmount } from 'vue'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
 import { STUDIO_PATH, MALL_PATH, trackStudioCta, trackMallCta } from '@/lib/homeCta'
+import { HOME_BRANDS, brandLogo } from '@/data/homeStudioBrands'
+import StudioPromoDetails from './StudioPromoDetails.vue'
+
+// 판매처 배지 자리 (무대 880×460의 %, 배지 폭 8.5%) — 그림(배·상자·액자·노트북·휴대폰·쇼핑백·앱칸) 사이 빈 곳. delay·dur = 둥둥 박자(서로 다르게)
+// mHide = 폰(760px 미만)에서는 숨김 — 무대가 작아 이름 배지 글자가 읽히지 않는다(로고 6곳만)
+const BADGE_SPOTS = {
+  coupang: [1, 4], smartstore: [27, 1], '11st': [44, 11], gmarket: [9.5, 31], auction: [0.5, 50],
+  ably: [22, 59], zigzag: [25, 80], cafe24: [72.5, 73], makeshop: [83, 34], godomall: [88, 50],
+}
+const BADGES = HOME_BRANDS.map((b, i) => ({
+  ...b, src: brandLogo(b), x: BADGE_SPOTS[b.key][0], y: BADGE_SPOTS[b.key][1],
+  delay: -((i * 0.73) % 4.2).toFixed(2), dur: (5.2 + (i % 4) * 0.6).toFixed(1), mHide: !b.logo,
+}))
+// 배지 가운데 → 노트북 화면 가운데(무대 좌표)로 휘어지는 점선
+const HUB = [470, 272]
+function linkPath(b) {
+  const x = (b.x + 4.25) * 8.8, y = (b.y + 8.15) * 4.6
+  const mx = (x + HUB[0]) / 2 + (y - HUB[1]) * 0.25, my = (y + HUB[1]) / 2 - (x - HUB[0]) * 0.12
+  return `M${x.toFixed(0)} ${y.toFixed(0)} Q${mx.toFixed(0)} ${my.toFixed(0)} ${HUB[0]} ${HUB[1]}`
+}
 
 const BASE = '/home-studio-band/'
 const img = f => `${BASE}${f}`
@@ -194,7 +230,7 @@ onBeforeUnmount(() => {
 .band {
   position: relative; overflow: hidden; isolation: isolate;
   display: grid; grid-template-columns: minmax(0, 44fr) minmax(0, 56fr); align-items: center; gap: 12px; /* 시안 40:60 → 제목이 두 줄에 들게 44:56 */
-  padding: 40px 0 40px 7%;
+  padding: 60px 0 60px 7%; /* 2026-09-30 높이를 조금 키움 (배지 자리·여유) */
   background: linear-gradient(100deg, #ff6b6b, #ffa64d);
 }
 .band::before {
@@ -241,6 +277,18 @@ onBeforeUnmount(() => {
 .bob2 { animation: bob 3.8s ease-in-out -1.2s infinite; }
 .bob3 { animation: bob 2.8s ease-in-out -0.6s infinite; }
 .twinkle { animation: twinkle 1.8s ease-in-out infinite; }
+/* 판매처 배지 — 흰 동그라미 + 공식 로고(없으면 이름) · 천천히 둥둥 */
+.links { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.links path { fill: none; stroke: #fff; stroke-width: 2; stroke-dasharray: 3 7; stroke-linecap: round; opacity: 0.55; animation: flow 3.2s linear infinite; }
+.badge {
+  position: absolute; z-index: 3; width: 8.5%; aspect-ratio: 1; border-radius: 50%; background: #fff;
+  display: grid; place-items: center; box-shadow: 0 8px 18px rgba(120, 36, 18, 0.22), 0 0 0 3px rgba(255, 255, 255, 0.45);
+}
+/* 안쪽 여백은 %로 주지 않는다(무대 폭 기준이 된다) — 로고 크기를 배지 폭의 %로 */
+.badge img { width: 70%; height: auto; max-height: 56%; object-fit: contain; filter: none; }
+.badge b { max-width: 84%; font-size: clamp(8px, 0.72vw, 12px); font-weight: 800; color: #2b2f3a; letter-spacing: -0.03em; line-height: 1.15; text-align: center; word-break: keep-all; }
+.float { animation: float 5.6s ease-in-out infinite; }
+@keyframes float { 0%, 100% { transform: translateY(0) rotate(0); } 50% { transform: translateY(-9%) rotate(-3deg); } }
 .fly { position: absolute; width: 7%; aspect-ratio: 1; border-radius: 8px; background: #fff; box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2); left: 48%; top: 48%; opacity: 0; pointer-events: none; }
 .fly.go { animation: fly 1.1s cubic-bezier(0.5, 0, 0.3, 1) forwards; }
 @keyframes flow { to { stroke-dashoffset: -26; } }
@@ -250,9 +298,9 @@ onBeforeUnmount(() => {
 @keyframes fly { 0% { opacity: 1; transform: translate(0, 0) scale(1); } 100% { opacity: 0; transform: translate(330%, -180%) scale(0.5); } }
 
 /* 화면 밖·숨은 탭: 움직임 멈춤 (멈춘 자리 그대로 다 보임 — 날아가는 카드는 JS가 없앰) */
-.is-paused .bob, .is-paused .bob2, .is-paused .bob3, .is-paused .twinkle, .is-paused .trail path { animation-play-state: paused; }
+.is-paused .bob, .is-paused .bob2, .is-paused .bob3, .is-paused .twinkle, .is-paused .trail path, .is-paused .float, .is-paused .links path { animation-play-state: paused; }
 /* 움직임 줄이기: 움직임 없이 완성 장면 */
-.is-still .bob, .is-still .bob2, .is-still .bob3, .is-still .twinkle, .is-still .trail path, .is-still .fly { animation: none; }
+.is-still .bob, .is-still .bob2, .is-still .bob3, .is-still .twinkle, .is-still .trail path, .is-still .fly, .is-still .float, .is-still .links path { animation: none; }
 .is-still .chip.on i { animation: none; transform: scale(1); }
 .is-still .screen img, .is-still .chip { transition: none; }
 @media (prefers-reduced-motion: reduce) {
@@ -270,8 +318,13 @@ onBeforeUnmount(() => {
 }
 /* 모바일(760px 미만): 그림 무대 위, 글·칩·버튼 아래, 버튼은 가로 꽉 차게 */
 @media (max-width: 759.98px) {
-  .band { grid-template-columns: 1fr; padding: 28px 16px; }
+  .band { grid-template-columns: 1fr; padding: 32px 16px; }
   .stage { order: -1; }
+  /* 폰: 로고 배지 6곳만 조금 크게, 움직임·점선 흐름 없음 (무거운 움직임 줄이기) */
+  .badge { width: 11%; box-shadow: 0 4px 10px rgba(120, 36, 18, 0.2); }
+  .badge.m-hide { display: none; }
+  .float, .links path { animation: none; }
+  .links { display: none; }
   .title { font-size: clamp(22px, 6.6vw, 30px); }
   .btns { flex-direction: column; }
   .btn { width: 100%; min-height: 50px; font-size: 16px; }
