@@ -1264,14 +1264,28 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const api = read('api/marketplace.js'), sec = read('src/components/studio/StudioSendCafe24.vue'), shell = read('src/components/studio/StudioSendModal.vue')
   const sv = read('src/views/studio/StudioChannelSendView.vue'), sl = read('src/components/studio/StudioSendList.vue'), lib = read('src/lib/studioMarketplace.js'), sql = read('docs/sql/2026-09-30-marketplace-sends-cafe24.sql')
   // 본문 — 진열·판매 안 함 · 필수 = 상품명·supply_price(판매가와 같게) · 상세 = 올린 경로 <img>
-  const b = K.buildCafe24Product({ productName: '  매일 쓰는\n머그  ', price: 12900, categoryNo: 27, detailImagePath: 'https://m.cafe24.com/web/upload/NNEditor/a.jpg', detailPaths: ['https://m.cafe24.com/web/upload/NNEditor/01.jpg', 'https://m.cafe24.com/web/upload/NNEditor/02.jpg'] })
-  eq('카페24 본문: 진열 F·판매 F · 상품명 정리 · price = supply_price(문자열) · 옵션 없음 · 대표 = 올린 경로 · 분류 1개(recommend F·new F)', [b.ok, b.body.request.display, b.body.request.selling, b.body.request.product_name, b.body.request.price, b.body.request.supply_price, b.body.request.has_option, b.body.request.image_upload_type, b.body.request.detail_image, b.body.request.add_category_no], [true, 'F', 'F', '매일 쓰는 머그', '12900', '12900', 'F', 'A', 'https://m.cafe24.com/web/upload/NNEditor/a.jpg', [{ category_no: 27, recommend: 'F', new: 'F' }]])
+  const b = K.buildCafe24Product({ productName: '  매일 쓰는\n머그  ', price: 12900, categoryNo: 27, detailPaths: ['https://m.cafe24.com/web/upload/NNEditor/01.jpg', 'https://m.cafe24.com/web/upload/NNEditor/02.jpg'] })
+  // 2026-09-30 운영 422 "[Product image] Wrong image path": NNEditor 경로는 detail_image에 못 넣는다 → 등록 본문에 대표 이미지 없음 (전용 API로 뒤에)
+  eq('카페24 본문: 진열 F·판매 F · 상품명 정리 · price = supply_price(문자열) · 옵션 없음 · 대표 이미지(detail_image·image_upload_type) 없음 · 분류 1개(recommend F·new F)', [b.ok, b.body.request.display, b.body.request.selling, b.body.request.product_name, b.body.request.price, b.body.request.supply_price, b.body.request.has_option, 'image_upload_type' in b.body.request, 'detail_image' in b.body.request, b.body.request.add_category_no], [true, 'F', 'F', '매일 쓰는 머그', '12900', '12900', 'F', false, false, [{ category_no: 27, recommend: 'F', new: 'F' }]])
   eq('상세 HTML: 올린 경로를 순서대로 <img> · alt = 상품명 + 번호 · 스크립트·우리 토큰 주소 없음', [(b.body.request.description.match(/<img /g) || []).length, /alt="매일 쓰는 머그 상세 1"/.test(b.body.request.description), /api\/marketplace\?t=|<script/.test(b.body.request.description), b.body.request.description.indexOf('01.jpg') < b.body.request.description.indexOf('02.jpg')], [2, true, false, true])
-  eq('카페24 본문: 분류를 안 고르면 add_category_no 없음(미분류) · 상품명 없음·판매가 소수·이미지 없음은 거절', [
-    'add_category_no' in K.buildCafe24Product({ productName: 'a', price: 0, detailImagePath: 'p', detailPaths: ['x'] }).body.request,
-    K.buildCafe24Product({ productName: '', price: 1, detailImagePath: 'p', detailPaths: ['x'] }).ok, K.buildCafe24Product({ productName: 'a', price: 12.5, detailImagePath: 'p', detailPaths: ['x'] }).ok,
-    K.buildCafe24Product({ productName: 'a', price: 1, detailImagePath: '', detailPaths: ['x'] }).ok, K.buildCafe24Product({ productName: 'a', price: 1, detailImagePath: 'p', detailPaths: [] }).ok, K.buildCafe24Product({ productName: 'a', price: 1, categoryNo: -1, detailImagePath: 'p', detailPaths: ['x'] }).ok,
-  ], [false, false, false, false, false, false])
+  eq('카페24 본문: 분류를 안 고르면 add_category_no 없음(미분류) · 상품명 없음·판매가 소수·상세 이미지 없음·분류 음수는 거절', [
+    'add_category_no' in K.buildCafe24Product({ productName: 'a', price: 0, detailPaths: ['x'] }).body.request,
+    K.buildCafe24Product({ productName: '', price: 1, detailPaths: ['x'] }).ok, K.buildCafe24Product({ productName: 'a', price: 12.5, detailPaths: ['x'] }).ok,
+    K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: [] }).ok, K.buildCafe24Product({ productName: 'a', price: 1, categoryNo: -1, detailPaths: ['x'] }).ok,
+  ], [false, false, false, false, false])
+  // ③ 대표 이미지 전용 API (POST /products/{product_no}/images) — 문서 요청 예시 = data URI, 필수 image_upload_type, 응답 image.detail_image = /web/product/big/…
+  const jpg = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
+  const ri = K.buildCafe24ProductImage(jpg)
+  eq('대표 이미지 본문: image_upload_type A · detail_image = data:image/jpeg;base64,… · 빈 버퍼·버퍼 아님은 거절', [ri.ok, ri.body.request.image_upload_type, ri.body.request.detail_image, Object.keys(ri.body.request), K.buildCafe24ProductImage(Buffer.alloc(0)).ok, K.buildCafe24ProductImage('x').ok], [true, 'A', `data:image/jpeg;base64,${jpg.toString('base64')}`, ['image_upload_type', 'detail_image'], false, false])
+  eq('대표 이미지 응답: image.detail_image 경로 · 모양 틀리면 null', [K.productImagePath({ image: { shop_no: 1, product_no: 20, detail_image: 'https://m/web/product/big/201801/a.jpeg', list_image: 'x' } }), K.productImagePath({ image: [{ detail_image: 'x' }] }), K.productImagePath({ image: { detail_image: '' } }), K.productImagePath(null)], ['https://m/web/product/big/201801/a.jpeg', null, null, null])
+  const c24send2 = /async function cafe24Send[\s\S]*?\n\}/.exec(read('api/marketplace.js'))[0]
+  const at = k => c24send2.indexOf(k)
+  eq('서버 순서: 상세 업로드(products/images) → 상품 등록(대표 없이) → registered 기록 → 대표 이미지(products/{no}/images) · ③ 실패해도 registered 그대로 + repImageError 안내 + result_json.repImage(이유·shape) · 갱신 실패 응답 중복 없음 · 본문 로그 없음', [
+    at("path: '/products/images'") < at("path: '/products'"), at("path: '/products'") < at("status: 'registered'"), at("status: 'registered'") < at('path: `/products/${productNo}/images`'),
+    /detailImagePath/.test(c24send2), /buildCafe24ProductImage\(rep\.buf\)/.test(c24send2), /result_json: \{ \.\.\.resultJson, repImage \}/.test(c24send2),
+    /const repImageError = repImage\.ok \? null : `상품은 등록됐지만 대표 이미지는 못 올렸어요\. 카페24 쇼핑몰 관리 화면에서 넣어 주세요\./.test(c24send2), /if \(alreadyResponded\) return/.test(c24send2), /JSON\.stringify\(ri?\)\.slice/.test(c24send2),
+    /data-mk-c24-rep-error/.test(read('src/components/studio/StudioSendCafe24.vue')), /r\.repImageError/.test(read('src/views/studio/StudioChannelSendView.vue')),
+  ], [true, true, true, false, true, true, true, true, false, true, true])
   eq('HTML 이스케이프: 상품명·경로의 < > " 가 그대로 들어가지 않음', /<b>|"x"/.test(K.detailHtml(['https://x/a.jpg?a="x"'], '<b>머그</b>')), false)
   eq('분류 응답 정리: full_category_name {1..4} → " > " · 번호 없는 줄 뺌 · 업로드 응답 → 경로 배열(모양 틀리면 null)', [
     K.normalizeCategories({ categories: [{ category_no: 27, category_depth: 2, parent_category_no: 1, category_name: '컵', full_category_name: { 1: '주방', 2: '컵', 3: null, 4: null } }, { category_no: 'x', category_name: '없음' }] }),

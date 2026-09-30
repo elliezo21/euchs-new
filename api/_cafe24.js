@@ -241,14 +241,15 @@ export function detailHtml(paths, productName) {
 
 /**
  * 상품 등록 본문 (POST /products). 진열·판매 안 함(display F·selling F)이 기본 — 고객이 카페24 관리자에서 확인한 뒤 직접 진열한다
- * @param {{ productName, price, categoryNo?, detailImagePath, detailPaths:string[], customCode? }} p
+ * 대표 이미지(detail_image)는 여기 넣지 않는다 — 2026-09-30 운영: products/images(NNEditor 경로)를 detail_image에 넣으면 422 "[Product image] Wrong image path".
+ *   NNEditor 경로는 상세설명 HTML용. 대표 이미지는 등록 뒤 전용 API(POST /products/{product_no}/images — buildCafe24ProductImage)로
+ * @param {{ productName, price, categoryNo?, detailPaths:string[], customCode? }} p
  * @returns {{ ok:true, body } | { ok:false, message }}
  */
 export function buildCafe24Product(p) {
   const productName = cleanProductName(p?.productName)
   if (!productName) return { ok: false, message: '상품명을 넣어 주세요.' }
   if (!isWon(p?.price)) return { ok: false, message: '판매가는 0 이상 정수(원)여야 해요.' }
-  if (typeof p?.detailImagePath !== 'string' || !p.detailImagePath) return { ok: false, message: '대표 이미지를 올리지 못했어요.' }
   if (!Array.isArray(p?.detailPaths) || !p.detailPaths.length) return { ok: false, message: '상세 이미지를 올리지 못했어요.' }
   if (p?.categoryNo != null && !isCategoryNo(p.categoryNo)) return { ok: false, message: '상품 분류가 올바르지 않아요.' }
   const request = {
@@ -256,7 +257,6 @@ export function buildCafe24Product(p) {
     product_name: productName,
     price: String(p.price), supply_price: String(p.price), // supply_price = 문서상 필수·참고용 → 판매가와 같게
     has_option: 'F',
-    image_upload_type: 'A', detail_image: p.detailImagePath,
     description: detailHtml(p.detailPaths, productName),
   }
   if (p.categoryNo != null) request.add_category_no = [{ category_no: p.categoryNo, recommend: 'F', new: 'F' }]
@@ -264,6 +264,20 @@ export function buildCafe24Product(p) {
   return { ok: true, body: { request } }
 }
 
+/**
+ * 대표 이미지 본문 (POST /products/{product_no}/images) — 문서 요청 예시가 data URI(data:image/png;base64,…), 필수 = image_upload_type
+ *   A = 대표 이미지 하나로 목록·작은·썸네일까지 채움. [확인한 곳 apidocs.cafe24.com/en/docs/admin/post-products-by-product-no-images]
+ * @param {Buffer} jpegBuf 정사각형 JPG
+ */
+export function buildCafe24ProductImage(jpegBuf) {
+  if (!Buffer.isBuffer(jpegBuf) || !jpegBuf.length) return { ok: false, message: '대표 이미지를 만들지 못했어요.' }
+  return { ok: true, body: { request: { image_upload_type: 'A', detail_image: `data:image/jpeg;base64,${jpegBuf.toString('base64')}` } } }
+}
+/** 대표 이미지 응답 → 저장된 대표 이미지 경로(image.detail_image). 모양이 틀리면 null */
+export function productImagePath(json) {
+  const p = json?.image?.detail_image
+  return typeof p === 'string' && p ? p : null
+}
 /** 분류 응답 → 화면 목록 [{ no, depth, parentNo, name, fullName }] (full_category_name {1..4}를 " > "로) */
 export function normalizeCategories(json) {
   const list = Array.isArray(json?.categories) ? json.categories : []

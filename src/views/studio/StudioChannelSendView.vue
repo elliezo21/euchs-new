@@ -190,7 +190,7 @@ function onSent(r) {
   const name = MARKETS.find(m => m.key === market)?.name || market
   // 카페24 = 승인 절차 없이 등록(진열 안 함) → "등록됐어요" + 관리자 링크. 쿠팡 = 승인 요청 → "보냈어요"
   message.value = market === 'cafe24'
-    ? `카페24에 등록됐어요${r?.productNo ? ` (상품번호 ${r.productNo})` : ''}. 진열 안 함 상태예요 — 카페24 쇼핑몰 관리 화면에서 확인한 뒤 진열해 주세요.`
+    ? `카페24에 등록됐어요${r?.productNo ? ` (상품번호 ${r.productNo})` : ''}. 진열 안 함 상태예요 — 카페24 쇼핑몰 관리 화면에서 확인한 뒤 진열해 주세요.${typeof r?.repImageError === 'string' && r.repImageError ? ` ${r.repImageError}` : ''}`
     : `${withRo(name)} 보냈어요${r?.sellerProductId ? ` (#${r.sellerProductId})` : ''}.`
   messageAdminUrl.value = market === 'cafe24' && typeof r?.adminUrl === 'string' ? r.adminUrl : ''
   messageError.value = false

@@ -60,7 +60,7 @@ import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
 import { smartstoreToken, SmartstoreError } from './_smartstore.js'
 import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
-  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
+  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, buildCafe24ProductImage, productImagePath, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
 } from './_cafe24.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
@@ -351,7 +351,8 @@ async function disconnectCafe24(ctx, body, res) {
 // cafe24_categories → { categories:[{ no, depth, parentNo, name, fullName }] }  (고객 쇼핑몰 상품분류 — 고르지 않으면 미분류로 등록)
 // cafe24_send { exportId, productName, price(원·정수), categoryNo?, repImageId, fit? } → { sendId, productNo, status:'registered', adminUrl }
 //   토큰: access가 지났거나 5분 안에 지나면 refresh로 갱신해 바로 저장(refresh는 매번 바뀜). refresh가 지났거나 갱신이 거절되면 status 'expired' + "다시 연결"
-//   사진: 우리 토큰 주소(30분)는 안 쓴다 — 대표(정사각형 1000 JPG)·상세 장을 카페24 이미지 업로드 API로 올리고 그 경로를 detail_image·description <img>에 넣는다
+//   사진: 우리 토큰 주소(30분)는 안 쓴다 — ① 상세 장을 이미지 업로드 API(products/images, NNEditor 경로)로 올려 description <img>에만 ② 상품 등록(대표 이미지 없이)
+//         ③ 대표(정사각형 1000 JPG)는 등록 뒤 전용 API(products/{product_no}/images, image_upload_type A, data URI) — ③만 실패하면 registered + repImageError 안내
 //   등록은 진열 안 함·판매 안 함(display F·selling F) — 고객이 카페24 관리자에서 확인 후 직접 진열. 옵션 없음(has_option F)
 //   기록: marketplace_sends(market 'cafe24', status sending → registered / failed, seller_product_id = product_no). SQL docs/sql/2026-09-30-marketplace-sends-cafe24.sql 실행 전이면 503 marketplace_sql_missing
 const CAFE24_SEND_SELECT = `${CAFE24_PUBLIC},oauth_enc,access_expires_at`
@@ -475,7 +476,7 @@ async function cafe24Send(ctx, body, res) {
     console.warn(`[marketplace] 카페24 ${where} 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
     return fail(e.status === 429 ? 429 : e.code === 'invalid_input' ? 400 : 502, e.code, e.message, { result_json: { code: e.code, status: e.status, step: where, shape: uploadShape } })
   }
-  // 이미지 올리기 — 대표 1장 + 상세 장(내 상품 파일 그대로). 한 장씩 (요청 본문 크기 때문에 20장 묶음을 쓰지 않는다)
+  // 상세 이미지 올리기 — 내 상품 파일 그대로, 한 장씩 (요청 본문 크기 때문에 20장 묶음을 쓰지 않는다). 이 경로(NNEditor)는 상세설명 HTML에만 쓴다
   const upload = async (buf, where) => {
     const r = await cafe24CallRetry(ctx, res, credRef, { method: 'POST', path: '/products/images', body: { requests: [{ image: buf.toString('base64') }] }, timeoutMs: 60000 })
     const shape = responseShape(r)
@@ -487,10 +488,8 @@ async function cafe24Send(ctx, body, res) {
     }
     return paths[0]
   }
-  let detailImagePath
   const detailPaths = []
   try {
-    detailImagePath = await upload(rep.buf, 'upload/rep')
     for (const f of ex.files) {
       const dl = await storageDownload(ctx.cfg, BUCKET, f.path)
       if (!dl.found) {
@@ -500,21 +499,44 @@ async function cafe24Send(ctx, body, res) {
       detailPaths.push(await upload(dl.buf, `upload/${f.key}`))
     }
   } catch (e) { return c24Fail(e, 'upload') }
-  const built = buildCafe24Product({ productName, price, categoryNo, detailImagePath, detailPaths })
+  // ② 상품 등록 — 대표 이미지 없이(detail_image에 NNEditor 경로를 넣으면 422 "Wrong image path" — 2026-09-30 운영)
+  const built = buildCafe24Product({ productName, price, categoryNo, detailPaths })
   if (!built.ok) return fail(400, 'invalid_input', built.message)
-  const requestJson = { body: built.body, mallId: cred.mallId, files: Object.fromEntries(ex.files.map(f => [f.key, f.path])), imagePaths: { rep: detailImagePath, detail: detailPaths } }
+  const requestJson = { body: built.body, mallId: cred.mallId, files: Object.fromEntries(ex.files.map(f => [f.key, f.path])), imagePaths: { detail: detailPaths } }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
   let r
   try { r = await cafe24CallRetry(ctx, res, credRef, { method: 'POST', path: '/products', body: built.body, timeoutMs: 60000 }) } catch (e) { return c24Fail(e, 'product') }
   const productNo = r?.product?.product_no != null ? String(r.product.product_no) : ''
-  if (!/^\d{1,20}$/.test(productNo)) {
+  if (!/^d{1,20}$/.test(productNo)) {
     const productShape = { ...responseShape(r), productKeys: r?.product && typeof r.product === 'object' ? Object.keys(r.product).slice(0, 10) : undefined } // 값 없이 모양만
     console.error('[marketplace] 카페24 상품 등록 응답에 product_no 없음:', sendId, JSON.stringify(productShape))
     return fail(502, 'market_bad_json', '카페24가 상품 번호를 주지 않았어요. 카페24 쇼핑몰 관리 화면에서 상품이 등록됐는지 확인해 주세요.', { result_json: { code: 'market_bad_json', step: 'product', shape: uploadShape, productShape } })
   }
-  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: productNo, status: 'registered', result_json: { product_no: productNo, product_code: r.product?.product_code || null, display: r.product?.display || null, selling: r.product?.selling || null, shape: uploadShape } }, prefer: 'return=minimal' })
-  console.info(`[marketplace] 카페24 상품 등록 ${ctx.userId} send=${sendId} mall=${cred.mallId} product_no=${productNo} images=${detailPaths.length + 1}`)
-  return res.status(200).json({ sendId, productNo, sellerProductId: productNo, status: 'registered', adminUrl: cafe24AdminProductUrl(cred.mallId, productNo) })
+  // 등록은 됐다 — 먼저 registered로 남긴다 (③ 대표 이미지가 실패해도 상품은 카페24에 있다)
+  const resultJson = { product_no: productNo, product_code: r.product?.product_code || null, display: r.product?.display || null, selling: r.product?.selling || null, shape: uploadShape }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: productNo, status: 'registered', result_json: resultJson }, prefer: 'return=minimal' })
+  // ③ 대표 이미지 — 전용 API(POST /products/{product_no}/images, image_upload_type A, data URI). 실패해도 상품은 registered 그대로 + 안내
+  const repImage = { ok: false }
+  let alreadyResponded = false // 갱신 실패면 cafe24Credentials가 이미 409를 보냈다
+  try {
+    const rb = buildCafe24ProductImage(rep.buf)
+    if (!rb.ok) throw new Cafe24Error('invalid_input', rb.message)
+    const ri = await cafe24CallRetry(ctx, res, credRef, { method: 'POST', path: `/products/${productNo}/images`, body: rb.body, timeoutMs: 60000 })
+    const path = productImagePath(ri)
+    repImage.shape = { ...responseShape(ri), imageKeys: ri?.image && typeof ri.image === 'object' ? Object.keys(ri.image).slice(0, 10) : undefined, path40: path ? path.slice(0, 40) : undefined }
+    if (!path) throw new Cafe24Error('market_bad_json', '카페24가 대표 이미지 경로를 주지 않았어요.', { status: 200, raw: `shape=${JSON.stringify(repImage.shape)}` })
+    repImage.ok = true
+  } catch (e) {
+    if (!(e instanceof Cafe24Error)) throw e
+    if (e.code === 'responded') { alreadyResponded = true; repImage.code = 'key_expired'; repImage.message = '카페24 인증이 만료됐어요.' }
+    else { repImage.code = e.code; repImage.message = e.message }
+    console.warn(`[marketplace] 카페24 대표 이미지 실패(상품은 등록됨) ${ctx.userId} send=${sendId} product_no=${productNo} ${e.code} (HTTP ${e.status}): ${e.raw}`)
+  }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { result_json: { ...resultJson, repImage } }, prefer: 'return=minimal' }).catch(err => console.error('[marketplace] 대표 이미지 결과 기록 실패:', sendId, err.message))
+  if (alreadyResponded) return
+  console.info(`[marketplace] 카페24 상품 등록 ${ctx.userId} send=${sendId} mall=${cred.mallId} product_no=${productNo} detail=${detailPaths.length} rep=${repImage.ok ? 'ok' : repImage.code}`)
+  const repImageError = repImage.ok ? null : `상품은 등록됐지만 대표 이미지는 못 올렸어요. 카페24 쇼핑몰 관리 화면에서 넣어 주세요. (${repImage.message})`
+  return res.status(200).json({ sendId, productNo, sellerProductId: productNo, status: 'registered', adminUrl: cafe24AdminProductUrl(cred.mallId, productNo), repImageError })
 }
 async function connectElevenst(ctx, body, res) {
   const encKey = encKeyOr(res)

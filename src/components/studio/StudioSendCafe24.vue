@@ -65,6 +65,8 @@
       <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">[연결] 탭으로 가기</router-link></p>
     <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-c24-done>카페24에 등록됐어요 (상품번호 {{ done.productNo }}). 진열 안 함 상태예요 — 카페24 쇼핑몰 관리 화면에서 확인한 뒤 진열해 주세요.
       <a v-if="done.adminUrl" :href="done.adminUrl" target="_blank" rel="noopener" class="st-link ml-1" data-mk-c24-admin>카페24 쇼핑몰 관리 화면에서 보기</a></p>
+    <!-- 상품은 등록됐는데 대표 이미지(전용 API)만 실패 — 서버 repImageError -->
+    <p v-if="done && done.repImageError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-c24-rep-error>{{ done.repImageError }}</p>
   </div>
 </template>
 
