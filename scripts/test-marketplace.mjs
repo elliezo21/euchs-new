@@ -664,10 +664,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const on = R.channelRows({ coupang: { connected: true } }), off = R.channelRows({ coupang: { connected: false } })
   // S3-3: 연결할 수 있는 곳(쿠팡·스마트스토어·11번가)은 연결 상태, 나머지는 "예정"(planned) — 카페24는 심사 승인 전(CAFE24_PUBLIC false) 관리자만 연결 상태
   // 2026-09-30 카페24 보내기: 이미 연결된 카페24는 일반 고객도 connected([카페24로 보내기]) — 쇼핑몰 관리자에서 앱을 열어 연결한 사람
-  const KEYED = ['coupang', 'smartstore', '11st']
+  // 2026-09-30 카페24 공개(CAFE24_PUBLIC true — 앱 심사 신청): 카페24도 일반 고객에게 연결 전 locked(자물쇠 + [연결하기]) — 관리자와 같음
+  const KEYED = ['coupang', 'smartstore', '11st', 'cafe24']
   const offStates = R.MARKETS.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
-  const adminOff = R.MARKETS.map(m => ([...KEYED, 'cafe24'].includes(m.key) ? 'locked' : 'planned'))
-  eq('판매처 줄 = MARKETS 9곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처는 연결 전 locked · 나머지 = planned(준비 중 없음) · 스마트스토어는 연결되면 linked · 카페24 = 연결 전 일반 고객 planned / 관리자 locked · 연결되면 누구나 connected', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state], [R.MARKETS.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'linked', 'connected', adminOff, 'connected'])
+  const adminOff = R.MARKETS.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
+  eq('판매처 줄 = MARKETS 9곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처(카페24 포함)는 연결 전 locked · 나머지 = planned(준비 중 없음) · 스마트스토어는 연결되면 linked · 카페24 연결 전 = 일반 고객·관리자 모두 locked · 연결되면 누구나 connected', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state], [R.MARKETS.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'linked', 'connected', adminOff, 'connected'])
 }
 
 // ── 11. 쿠팡 항목 규칙 (api/_coupangFields.js — 화면과 서버가 같이 쓰는 순수 함수) ──
@@ -807,7 +808,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     // 2026-09-30: 연결된 곳은 연결 방법(planned)보다 먼저 — 카페24가 연결돼 있으면 일반 고객도 [카페24로 보내기]. 지그재그처럼 "예정"인 곳도 값이 오면 linked(연결 자체가 없으니 실제로는 안 온다)
     eq('보내기 탭 줄: 쿠팡 = 보내기 · 11번가 = 연결됨(보내기 없음) · 카페24 연결됨 = 보내기(일반 고객도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'planned', ably: 'planned', zigzag: 'linked', cafe24: 'connected', makeshop: 'planned', godomall: 'planned' })
     const onAdmin = R.channelRows({ cafe24: { connected: true } }, { admin: true })
-    eq('카페24 심사 전: 설정값 하나(CAFE24_PUBLIC false) · 관리자만 key · MARKETS 자체는 key 그대로 · 연결되면 connected(보내기)', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state], [false, 'planned', 'key', 'key', 'connected'])
+    // 2026-09-30 앱 심사 신청 → CAFE24_PUBLIC true: 일반 고객도 key([연결하기]). 값을 false로 되돌리면 관리자만 key로 돌아가는 규칙(connectFor)은 그대로
+    eq('카페24 공개: 설정값 하나(CAFE24_PUBLIC true) · 일반 고객·관리자 모두 key · MARKETS 자체는 key 그대로 · 연결되면 connected(보내기)', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state, R.channelRows({}).find(r => r.key === 'cafe24').state], [true, 'key', 'key', 'key', 'connected', 'locked'])
     {
       const mk = read('src/views/studio/StudioMarketplaceView.vue'), sv = read('src/views/studio/StudioChannelSendView.vue'), sm = read('src/components/studio/StudioSendModal.vue')
       eq('화면: 카페24 카드는 showCafe24일 때만 (관리자·App URL로 들어옴·연결됨) · 보내기 탭·보내기 창 줄에 관리자 여부 전달 · 관리자 판정 = auth.isSuperAdmin 재사용',
@@ -985,7 +987,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const rowsOn = R.marketRows({ coupang: { connected: true } }), rowsOff = R.marketRows({ coupang: { connected: false } })
   eq('판매처 줄 = MARKETS와 같은 9곳·같은 순서', [rowsOn.map(r => r.name), rowsOn.map(r => r.key)], [R.MARKETS.map(m => m.name), R.MARKETS.map(m => m.key)])
   // S3-3: 보내기 창도 보내기 탭과 같은 규칙(channelRows) — 키 연결 판매처는 연결 상태, 나머지 5곳 = "예정"(planned). "준비 중"(soon) 없음
-  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가 = 연결 상태(연결되면 linked) · 카페24 연결되면 connected · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', cafe24: 'planned', makeshop: 'planned', godomall: 'planned' }, 'connected', true])
+  eq('줄 상태: 연결됨 = connected · 연결 전 = locked · 스마트스토어·11번가·카페24(공개) = 연결 전 locked · 카페24 연결되면 connected · 나머지 5곳 = planned', [rowsOn[0].state, rowsOff[0].state, R.marketRows()[0].state, Object.fromEntries(rowsOn.slice(1).map(r => [r.key, r.state])), R.marketRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.marketRows === R.channelRows], ['connected', 'locked', 'locked', { smartstore: 'locked', '11st': 'locked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', cafe24: 'locked', makeshop: 'planned', godomall: 'planned' }, 'connected', true])
   eq('처음 체크: 연결된 곳만 체크 · 연결 전이면 아무것도 체크 안 됨', [R.checkedMarkets(rowsOn, R.defaultChecked(rowsOn)), R.checkedMarkets(rowsOff, R.defaultChecked(rowsOff))], [['coupang'], []])
   eq('체크할 수 없는 줄은 값이 들어와도 보내지 않음', [R.checkedMarkets(rowsOn, { coupang: true, smartstore: true, cafe24: true }), R.checkedMarkets(rowsOff, { coupang: true })], [['coupang'], []])
   eq('버튼 글자: 1곳 = 이름 · 0곳·여러 곳 = "선택한 판매처로 보내기"', [R.sendButtonLabel(['coupang']), R.sendButtonLabel([]), R.sendButtonLabel(['coupang', 'smartstore']), R.sendButtonLabel(['11st']), R.sendButtonLabel(['smartstore'])], ['쿠팡으로 보내기', '선택한 판매처로 보내기', '선택한 판매처로 보내기', '11번가로 보내기', '스마트스토어로 보내기'])

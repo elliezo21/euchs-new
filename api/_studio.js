@@ -6,7 +6,8 @@
  *   1. 스위치   STUDIO_ENABLED 가 'admin' | 'all' 이 아니면 503 studio_disabled
  *   2. 토큰     api/bulk-item-detail.js의 verifyUserToken() 재사용 → 실패 시 401 unauthorized
  *   3. admin    관리자·스태프만 (DB 함수 is_admin_or_staff()와 같은 조건) → 아니면 403 not_admin
- *   4. all      관리자·스태프 또는 결제 확인 이후 주문 1건 이상(_studioBg.isBgEligible 그대로) → 아니면 403 not_customer
+ *   4. all      관리자·스태프 또는 허용 명단(STUDIO_ALLOW_EMAILS — 토큰의 이메일) 또는 결제 확인 이후 주문 1건 이상(_studioBg.isBgEligible 그대로) → 아니면 403 not_customer
+ *               명단 사용자는 isAdmin·skipUserCap false (관리자 혜택 없음)
  *               (studio_entitlements 행은 쓰지 않는다 — 1688 상품 가져오기 1인 하루 상한은 api/_studioProductCap.js)
  *   5. 소유권   loadOwnedRow() — 남의 행이면 404 (403이면 존재 여부가 샌다)
  *
@@ -18,6 +19,7 @@
  *   ONEBOUND_KEY, ONEBOUND_SECRET
  *   STUDIO_ONEBOUND_DAILY_CAP    스튜디오 전체 OneBound 하루 상한 (기본 100)
  *   STUDIO_ONEBOUND_USER_DAILY_CAP  1인 하루 1688 상품 가져오기(OneBound 조회) 상한 (기본 30, 관리자·스태프 제외 — _studioProductCap.js)
+ *   STUDIO_ALLOW_EMAILS          'all' 모드에서 주문 없이 통과시킬 이메일(쉼표 구분, 대소문자 무시) — 판정은 _studioBg.isAllowListed
  *   MODELSTUDIO_API_KEY, MODELSTUDIO_BASE_URL, STUDIO_MT_PER_MINUTE  (번역 API에서 사용 — Phase 1-4 이후)
  */
 
@@ -189,8 +191,9 @@ export async function studioGuard(req, res, { method = 'POST' } = {}) {
       return { cfg, userId, email, isAdmin: true, mode: cfg.mode, skipUserCap: true }
     }
 
-    // 4. 전체 공개 모드 — 관리자·스태프 또는 "결제 확인 이후 단계" 주문 1건 이상 (2026-09-28).
-    //    판정은 배경 지우기 자격(_studioBg.isBgEligible — ORDER_OK_STATUSES)을 그대로 쓴다. 새로 정의하지 않는다
+    // 4. 전체 공개 모드 — 관리자·스태프 또는 허용 명단(2026-09-30, 토큰 이메일) 또는 "결제 확인 이후 단계" 주문 1건 이상 (2026-09-28).
+    //    판정은 배경 지우기 자격(_studioBg.isBgEligible — 명단·ORDER_OK_STATUSES)을 그대로 쓴다. 새로 정의하지 않는다
+    //    email은 위 jwtEmail(token) — 검증된 토큰에서만. 명단 사용자도 isAdmin = staff(false)·skipUserCap = staff(false)
     const staff = await isAdminOrStaff(cfg, userId, email)
     const base = { cfg, userId, email, isAdmin: staff, mode: cfg.mode }
     if (!(await isBgEligible(base))) {

@@ -64,9 +64,24 @@ export async function isBgStaff(ctx) {
   return !!(await isAdminOrStaff(ctx.cfg, ctx.userId, ctx.email))
 }
 
-/** 자격 — 관리자는 늘, 아니면 결제까지 한 주문 1건 이상 (17-4 AI 배경도 이 함수) */
+/**
+ * 스튜디오 허용 명단 (2026-09-30 — 카페24 앱 심사 계정처럼 주문 없이 스튜디오를 써야 하는 계정)
+ * 서버 환경변수 STUDIO_ALLOW_EMAILS = 쉼표 구분 이메일. 앞뒤 공백 정리·대소문자 무시. 비었거나 없으면 아무도 없음(예전 그대로)
+ * email은 반드시 검증된 토큰(JWT)에서 읽은 값(ctx.email — _studio.js jwtEmail)만 넘긴다. 요청 본문·쿼리의 이메일은 쓰지 않는다
+ * 명단 사용자는 관리자 혜택이 없다(isAdmin·skipUserCap false — 일반 고객과 같은 상한)
+ */
+export function allowEmails(env = process.env) {
+  return String(env.STUDIO_ALLOW_EMAILS || '').split(',').map(s => s.trim().toLowerCase()).filter(s => s.includes('@'))
+}
+export function isAllowListed(email, env = process.env) {
+  const e = typeof email === 'string' ? email.trim().toLowerCase() : ''
+  return !!e && allowEmails(env).includes(e)
+}
+
+/** 자격 — 관리자는 늘, 허용 명단(STUDIO_ALLOW_EMAILS), 아니면 결제까지 한 주문 1건 이상 (스튜디오 관문·배경 지우기·17-4 AI 배경 모두 이 함수) */
 export async function isBgEligible(ctx) {
   if (await isBgStaff(ctx)) return true
+  if (isAllowListed(ctx.email)) return true
   const rows = await sb(ctx.cfg, `orders?select=id&user_id=eq.${ctx.userId}&status=in.(${ORDER_OK_STATUSES.join(',')})&limit=1`)
   return Array.isArray(rows) && rows.length > 0
 }

@@ -46,10 +46,11 @@ export const MARKETS = [
 export const PLANNED_MARKETS = MARKETS.filter(m => m.connect === 'planned').map(m => m.key)
 export const PLANNED_LABEL = '예정'
 
-// 카페24 — 우리 앱 "EUCHS 스튜디오"가 카페24 심사 승인 전(제작중)이라 일반 고객 쇼핑몰은 연결할 수 없다 (2026-09-30)
-//   false = 일반 고객 화면(연결 탭·보내기 탭·보내기 창)에서는 다른 곳과 같은 "예정", 관리자(isSuperAdmin)에게만 카드·[연결하기] (테스트용)
-//   심사 승인 뒤 이 값 하나만 true로 바꾸면 모두에게 열린다. 쇼핑몰 관리자에서 앱을 여는 길(App URL + hmac)은 이 값과 상관없이 동작한다
-export const CAFE24_PUBLIC = false
+// 카페24 — 우리 앱 "EUCHS 스튜디오" 연결을 일반 고객에게 보일지 (2026-09-30)
+//   true = 모두에게 카드·[연결하기] (2026-09-30 20:50 카페24 앱 심사 신청 — 심사자가 일반 계정으로 연결해 봐야 해서 공개)
+//   false = 일반 고객 화면(연결 탭·보내기 탭·보내기 창)에서는 "예정", 관리자(isSuperAdmin)에게만 카드·[연결하기]
+//   쇼핑몰 관리자에서 앱을 여는 길(App URL + hmac)과 이미 연결된 계정의 [카페24로 보내기]는 이 값과 상관없이 동작한다
+export const CAFE24_PUBLIC = true
 /** 이 사람에게 보일 연결 방법 — MARKETS의 connect, 단 카페24는 CAFE24_PUBLIC 전이면 관리자만 'key' */
 export const connectFor = (m, { admin = false } = {}) => (m?.key === 'cafe24' && !CAFE24_PUBLIC && !admin ? 'planned' : m?.connect)
 

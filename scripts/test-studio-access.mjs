@@ -88,6 +88,55 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
   eq('access(주문 고객) → 200 ok', [res.code, res.body?.ok, res.body?.staff], [200, true, false])
 }
 
+// 허용 명단 STUDIO_ALLOW_EMAILS (2026-09-30 — 카페24 앱 심사 계정). 이메일은 검증된 토큰(JWT payload)에서만 읽는다
+{
+  const { isAllowListed, allowEmails } = await import('../api/_studioBg.js')
+  // 가짜 JWT (서명은 가짜 /auth/v1/user가 토큰 문자열로 확인) — payload의 email만 _studio.js jwtEmail이 읽는다
+  const jwt = email => `h.${Buffer.from(JSON.stringify({ sub: 'x', email })).toString('base64url')}.s`
+  const REVIEW = jwt('elliezo21+cafe24review@gmail.com'), REVIEW_UP = jwt('ElLieZo21+Cafe24Review@Gmail.com'), OUT = jwt('someone@test.local')
+  USERS[REVIEW] = { id: '66666666-6666-4666-8666-666666666666', role: null, orders: [], ent: false }
+  USERS[REVIEW_UP] = { id: '77777777-7777-4777-8777-777777777777', role: null, orders: [], ent: false }
+  USERS[OUT] = { id: '88888888-8888-4888-8888-888888888888', role: null, orders: [], ent: false }
+  const LIST = '  Elliezo21+Cafe24Review@gmail.com ,other@x.com,, '
+
+  process.env.STUDIO_ALLOW_EMAILS = LIST
+  eq('명단 읽기: 쉼표 구분 · 공백 정리 · 소문자 · 빈 칸·@ 없는 값 버림', [allowEmails(), allowEmails({ STUDIO_ALLOW_EMAILS: '' }), allowEmails({}), allowEmails({ STUDIO_ALLOW_EMAILS: 'not-an-email, a@b.c' })], [['elliezo21+cafe24review@gmail.com', 'other@x.com'], [], [], ['a@b.c']])
+  eq('판정: 대소문자·공백 무시 · 명단 밖·빈 값·문자열 아님은 거짓', [isAllowListed('ELLIEZO21+CAFE24REVIEW@GMAIL.COM '), isAllowListed('other@x.com'), isAllowListed('someone@test.local'), isAllowListed(''), isAllowListed(null), isAllowListed({ email: 'other@x.com' })], [true, true, false, false, false, false])
+  const r = await guard(REVIEW)
+  eq('명단 이메일(주문 없음·일반 role) → 통과 · 관리자 혜택 없음(isAdmin·skipUserCap false)', [!!r.ctx, r.ctx?.isAdmin, r.ctx?.skipUserCap, r.ctx?.email], [true, false, false, 'elliezo21+cafe24review@gmail.com'])
+  const ru = await guard(REVIEW_UP)
+  eq('토큰 이메일 대소문자가 달라도 통과', [!!ru.ctx, ru.ctx?.isAdmin], [true, false])
+  const o = await guard(OUT)
+  eq('명단 밖 일반 사용자(주문 없음) → 403 not_customer 그대로', [o.ctx, o.res.code, o.res.body?.code], [null, 403, 'not_customer'])
+  {
+    const res = mkRes()
+    await upload({ method: 'POST', headers: { authorization: `Bearer ${OUT}` }, body: { action: 'access', email: 'elliezo21+cafe24review@gmail.com' }, query: { email: 'elliezo21+cafe24review@gmail.com' } }, res)
+    eq('요청 본문·쿼리에 명단 이메일을 넣어도 무시 → 403', [res.code, res.body?.code], [403, 'not_customer'])
+  }
+  {
+    const res = mkRes()
+    await upload({ method: 'POST', headers: { authorization: `Bearer ${REVIEW}` }, body: { action: 'access' } }, res)
+    eq('access(명단 이메일) → 200 ok · staff false', [res.code, res.body?.ok, res.body?.staff], [200, true, false])
+  }
+  process.env.STUDIO_ALLOW_EMAILS = ''
+  const e1 = await guard(REVIEW)
+  eq('빈 변수 → 기존 동작 그대로(주문 없으면 403)', [e1.ctx, e1.res.code], [null, 403])
+  delete process.env.STUDIO_ALLOW_EMAILS
+  const e2 = await guard(REVIEW)
+  eq('변수 없음 → 기존 동작 그대로(주문 없으면 403) · 주문 고객은 그대로 통과', [e2.ctx, e2.res.code, !!(await guard('tok-buyer')).ctx], [null, 403, true])
+  // admin 모드는 명단과 상관없이 관리자·스태프만
+  process.env.STUDIO_ALLOW_EMAILS = LIST
+  process.env.STUDIO_ENABLED = 'admin'
+  const a = await guard(REVIEW)
+  eq("'admin' 모드: 명단 이메일도 403 not_admin (바뀌지 않음)", [a.ctx, a.res.code, a.res.body?.code], [null, 403, 'not_admin'])
+  process.env.STUDIO_ENABLED = 'all'
+  delete process.env.STUDIO_ALLOW_EMAILS
+  const src = fs.readFileSync(new URL('../api/_studioBg.js', import.meta.url), 'utf8'), guardSrc = fs.readFileSync(new URL('../api/_studio.js', import.meta.url), 'utf8')
+  eq('배선: 명단 판정은 isBgEligible 안 한 곳(관문·배경 지우기·AI 배경 같은 결과) · 이메일은 ctx.email(jwtEmail)만 · 요청 본문 이메일을 읽지 않음 · VITE_ 없음', [
+    /if \(isAllowListed\(ctx\.email\)\) return true/.test(src), /const email = jwtEmail\(token\)/.test(guardSrc), /body\??\.email|query\??\.email/.test(guardSrc + src), /VITE_STUDIO_ALLOW/.test(guardSrc + src),
+  ], [true, true, false, false])
+}
+
 // 화면 쪽: all일 때만 가드가 묻고, 안내 창 문구·몰 버튼
 {
   const router = fs.readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8')
