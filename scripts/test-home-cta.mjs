@@ -89,6 +89,12 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   eq('하단 바: md 이상 숨김 · GA sticky', [/class="md:hidden"/.test(sticky), /trackStudioCta\('sticky'\)/.test(sticky)], [true, true])
   const app = read('src/App.vue')
   eq('App: 바가 보이면 QuickMenu를 올림', [/:raised="stickyCtaVisible"/.test(app), /<MobileStickyCta v-if="stickyCtaVisible" \/>/.test(app)], [true, true])
+  // 2026-09-30: 모바일(768px 미만) 영상 창이 스튜디오 칸 버튼을 가리지 않게 — 버튼이 보이는 동안 왼쪽 밖으로. PC(768px 이상)는 그대로
+  const vw = read('src/components/VideoWidget9x16.vue')
+  const vwStyle = /<style[^>]*>([\s\S]*?)<\/style>/.exec(vw)?.[1] || ''
+  const yieldRule = /@media \(max-width: 767\.98px\) \{[\s\S]*?\.vw-yield \{([^}]*)\}/.exec(vwStyle)?.[1] || ''
+  eq('영상 창: 스튜디오 칸 두 버튼을 관찰 (칸의 data 속성 그대로)', [/'\[data-studio-promo-cta\], \[data-studio-promo-mall\]'/.test(vw), /data-studio-promo-cta/.test(band) && /data-studio-promo-mall/.test(band), /new IntersectionObserver/.test(vw), /ctaObserver\?\.disconnect\(\)/.test(vw)], [true, true, true, true])
+  eq('영상 창 비켜 두기 = 768px 미만 CSS에만 (translateX·누를 수 없음)', [/translateX\(calc\(-100% - 24px\)\)/.test(yieldRule), /pointer-events: none/.test(yieldRule), (vwStyle.match(/\.vw-yield/g) || []).length, /:class="\{ 'vw-yield': yieldToCta \}"/.test(vw)], [true, true, 1, true])
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)

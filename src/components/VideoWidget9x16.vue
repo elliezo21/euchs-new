@@ -6,8 +6,9 @@
          · bottom-[381px]: QuickMenu 하단 24 + 높이 341 + 간격 16
          · 화면 높이 < 740px: 위로 쌓으면 sticky 헤더(94px) 밑으로 잘리므로 QuickMenu 왼쪽(right-[84px])·하단(bottom-6)으로 대체
        xl 미만: 화면 좌측 하단 fixed 120px 9:16 카드 (우측 하단은 QuickMenu 사용) (HomeView.vue 에서만 마운트됨 — 몰/다른 페이지 미노출)
-       768px 미만: 모바일 하단 고정 바(MobileStickyCta, 홈에서 늘 보임) 위로 올림 (vw-above-bar) -->
-  <div v-if="isVisible" class="vw-above-bar fixed left-4 bottom-5 z-[60] xl:left-auto xl:right-5 xl:bottom-[381px] xl:z-30 xl:[@media(max-height:739px)]:right-[84px] xl:[@media(max-height:739px)]:bottom-6">
+       768px 미만: 모바일 하단 고정 바(MobileStickyCta, 홈에서 늘 보임) 위로 올림 (vw-above-bar)
+         + 홈 스튜디오 칸 버튼([스튜디오 둘러보기]·[1688 소싱몰 가기])이 화면에 보이는 동안 왼쪽 밖으로 비켜 둠 (vw-yield — 버튼을 가리지 않게) -->
+  <div v-if="isVisible" :class="{ 'vw-yield': yieldToCta }" class="vw-above-bar fixed left-4 bottom-5 z-[60] xl:left-auto xl:right-5 xl:bottom-[381px] xl:z-30 xl:[@media(max-height:739px)]:right-[84px] xl:[@media(max-height:739px)]:bottom-6">
     <!-- 작은 자동재생 상태 -->
     <button
       type="button"
@@ -336,6 +337,26 @@ const onKeydown = (e) => {
   if (e.key === 'Escape' && expanded.value) closeLightbox()
 }
 
+// 홈 스튜디오 칸(StudioPromoBand) 버튼이 화면에 하나라도 보이면 true → 768px 미만에서만 CSS(vw-yield)가 창을 비켜 둔다.
+// 같은 HomeView 안에서 함께 그려지므로 onMounted 때 버튼이 이미 DOM에 있다. PC는 CSS가 없어 그대로
+const CTA_SELECTOR = '[data-studio-promo-cta], [data-studio-promo-mall]'
+const yieldToCta = ref(false)
+let ctaObserver = null
+const watchStudioCta = () => {
+  const targets = document.querySelectorAll(CTA_SELECTOR)
+  if (!targets.length) return // 스튜디오 칸이 없는 화면이면 할 일 없음
+  if (typeof IntersectionObserver !== 'function') {
+    console.warn('[VideoWidget] IntersectionObserver가 없어 스튜디오 칸 버튼 비켜 두기를 쓰지 못합니다.')
+    return
+  }
+  const seen = new Set()
+  ctaObserver = new IntersectionObserver((entries) => {
+    entries.forEach((en) => (en.isIntersecting ? seen.add(en.target) : seen.delete(en.target)))
+    yieldToCta.value = seen.size > 0
+  })
+  targets.forEach((el) => ctaObserver.observe(el))
+}
+
 // 켜져 있는데 선택한 소스가 비어/잘못돼 렌더되지 않는 경우 조용히 넘기지 않고 경고
 watch(
   [enabled, sourceType, youtubeIdsKey, uploadUrl],
@@ -374,10 +395,13 @@ watch(isVisible, (v) => {
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
   window.addEventListener('message', onYoutubeMessage)
+  watchStudioCta()
 })
 onUnmounted(() => {
   window.removeEventListener('keydown', onKeydown)
   window.removeEventListener('message', onYoutubeMessage)
+  ctaObserver?.disconnect()
+  ctaObserver = null
   stopListening()
   stopStallWatch()
   if (expanded.value) document.body.style.overflow = ''
@@ -387,6 +411,14 @@ onUnmounted(() => {
 <style scoped>
 /* 모바일 하단 고정 바(64px + 안전 영역) 위 12px — QuickMenu의 qm-raised와 같은 높이. 768px 이상은 예전 자리 */
 @media (max-width: 767.98px) {
-  .vw-above-bar { bottom: calc(76px + env(safe-area-inset-bottom, 0px)); }
+  .vw-above-bar {
+    bottom: calc(76px + env(safe-area-inset-bottom, 0px));
+    transition: transform 0.3s ease, opacity 0.3s ease;
+  }
+  /* 홈 스튜디오 칸 버튼이 보이는 동안: 왼쪽 밖으로 비켜 둠 (누를 수도 없게) — 버튼이 화면을 벗어나면 제자리로 */
+  .vw-yield { transform: translateX(calc(-100% - 24px)); opacity: 0; pointer-events: none; }
+}
+@media (max-width: 767.98px) and (prefers-reduced-motion: reduce) {
+  .vw-above-bar { transition: none; }
 }
 </style>

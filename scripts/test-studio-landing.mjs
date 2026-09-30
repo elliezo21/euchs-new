@@ -61,7 +61,17 @@ eq('여는 시점을 약속하는 문구 없음 (지금 바로·먼저 알려·�
 // 쿠팡 타일 설명은 한 줄만, 사정 설명 문구 없음 (해성 지시 2026-09-28 — push 전 마지막 수정)
 eq('쿠팡 타일 설명 = 한 줄', /쿠팡으로 바로 보내기<\/h3>\s*<p class="tile-p">상세페이지·상품명·검색태그·옵션·가격·대표이미지·고시정보·배송정보까지 한 번에 보내요\.<\/p>/.test(landing), true)
 eq('랜딩 화면 글자(주석 제외)에 "곧"·"준비 중이라"·"관리자"·"이어서 준비" 없음', /곧|준비 중이라|관리자|이어서 준비/.test(landing.slice(landing.indexOf('<template>'), landing.indexOf('<script')).replace(/<!--[\s\S]*?-->/g, '') + landing.slice(landing.indexOf('<script'), landing.indexOf('<style')).replace(/\/\/.*$/gm, '')), false)
-eq('이용 안내 카드: 무료 · 이유씨컴퍼니 고객 / 준비 중 · 일반 고객', [/>무료</.test(landing), /이유씨컴퍼니 고객</.test(landing), />준비 중</.test(landing), /일반 고객</.test(landing), /준비 중이에요/.test(landing)], [true, true, true, true, true])
+{
+  // 이용 안내 (2026-09-30): 이유씨컴퍼니 고객 카드 하나만 + [이유씨 몰에서 사입하기] → /mall. "일반 고객" 카드 없음
+  const plans = /<section id="plans"[\s\S]*?<\/section>/.exec(landing)?.[0] || ''
+  eq('이용 안내 = 카드 하나 (무료 · 이유씨컴퍼니 고객) · 일반 고객 없음', [(plans.match(/class="plan[ "]/g) || []).length, />무료</.test(plans), /이유씨컴퍼니 고객</.test(plans), /일반 고객/.test(landing)], [1, true, true, false])
+  eq('이용 안내 카드 안 [이유씨 몰에서 사입하기] → /mall', /<router-link :to="MALL_PATH"[^>]*data-land-plan-mall>\s*이유씨 몰에서 사입하기/.test(plans) && /import \{ MALL_PATH \} from '@\/lib\/homeCta'/.test(landing), true)
+  eq('랜딩 파일 전체(주석 포함)에 "준비 중" 없음', /준비 중/.test(landing), false)
+  // 몰 배너 하나 (기능 타일과 만드는 순서 사이)
+  const iFeat = landing.indexOf('id="features"'), iMall = landing.indexOf('data-land-mall-band'), iSteps = landing.indexOf('id="steps"')
+  eq('몰 배너 1개 = 기능 타일 → 몰 배너 → 만드는 순서', [(landing.match(/data-land-mall-band/g) || []).length, iFeat < iMall && iMall < iSteps], [1, true])
+  eq('몰 배너 문구·버튼 → /mall', [/이유씨컴퍼니에서 사입하면<br \/>스튜디오 무료/.test(landing), /<router-link :to="MALL_PATH"[^>]*data-land-mall-cta>/.test(landing)], [true, true])
+}
 {
   const motion = read('src/lib/studioLandingMotion.js').replace(/\/\*\*[\s\S]*?\*\/|\/\/.*$/gm, '') // 주석 빼고
   eq('화면 고정 없음 = pin-spacer 0개 (pin·scrub 없음)', [/\bpin\s*:/.test(motion), /\bscrub\s*:/.test(motion)], [false, false])
@@ -149,11 +159,12 @@ eq('랜딩 [무료로 시작하기] = 작업 홈으로 (가드가 로그인 처�
   eq('주 버튼 = 파랑 (주황 주 버튼 없음)', /\.land-btn-primary \{ background: var\(--l-blue\)/.test(style) && !/land-btn-primary[^}]*orange/.test(style), true)
   eq('영문 대문자 소제목 없음 (uppercase·EUCHS 말고 대문자 단어)', [/uppercase/.test(landing), (visibleText.match(/\b[A-Z]{4,}\b/g) || []).filter(w => w !== 'EUCHS')], [false, []])
   const header = read('src/components/Header.vue')
-  eq('파랑 = 메인 [무역대행 신청](blue-600 #2563eb) · 주황 = [1688 소싱몰](orange-500 #f97316)', [
-    /to="\/apply"\s*class="[^"]*bg-blue-600/.test(header), /--l-blue: #2563eb/.test(style),
-    /to="\/mall"\s*class="[^"]*from-orange-500/.test(header), /--l-orange: #f97316/.test(style),
-  ], [true, true, true, true])
-  eq('주황은 "구매 고객 무료" 강조에만 (주황 타일 1개·무료 글자)', (tpl.match(/land-orange|tile-orange|is-free/g) || []).length, 4)
+  eq('파랑 = 메인 [무역대행 신청](blue-600 #2563eb)', [/to="\/apply"\s*class="[^"]*bg-blue-600/.test(header), /--l-blue: #2563eb/.test(style)], [true, true])
+  // 2026-09-30: 몰 배너(주황 그라데이션·남색 카드)와 겹치지 않게 — 기능 타일·이용 안내에 주황·남색 단색 카드 없음, 보라 + 스튜디오 파랑(--st-accent)
+  const bento = /<div class="land-bento">([\s\S]*?)<\/section>/.exec(tpl)?.[1] || ''
+  eq('기능 타일: 주황·남색 카드 없음 · 5장 모두 아이콘', [/tile-orange|tile-navy|orange|navy/.test(bento), /--l-orange|tile-orange|tile-navy/.test(style), (bento.match(/<article /g) || []).length, (bento.match(/class="tile-ic"/g) || []).length], [false, false, 5, 5])
+  eq('보라·스튜디오 파랑 토큰 (첫 화면 보라 · studio-tokens --st-accent #3d7bff)', [/--l-violet: #5b4bd6/.test(style), /--l-accent: #3d7bff/.test(style), /--st-accent: #3d7bff/.test(read('src/styles/studio-tokens.css'))], [true, true, true])
+  eq('주황 글자는 첫 화면 한 줄·마지막 안내 "무료"에만', (tpl.match(/land-orange/g) || []).length, 2)
   eq('새 소식에 지난 예정 소식("편집기가 곧 나와요") 없음', read('src/lib/studioNotices.js').includes('편집기가 곧 나와요'), false)
 }
 const layout = read('src/layouts/StudioLayout.vue')

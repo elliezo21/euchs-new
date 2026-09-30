@@ -12,7 +12,7 @@
         1688 링크 하나로 상세페이지를 만들어 쿠팡·스마트스토어에 바로 보내요.<br />
         이유씨컴퍼니에서 사입하면 스튜디오 무료.
       </p>
-      <!-- 판매처 칩 — 스튜디오 설정(studioMarketplaceRules.MARKETS)에서 이름·순서만 읽는다. 홈 칸은 soon(준비 중) 값을 쓰지 않고
+      <!-- 판매처 칩 — 스튜디오 설정(studioMarketplaceRules.MARKETS)에서 이름·순서만 읽는다. 홈 칸은 soon 값을 쓰지 않고
            9곳 모두 초록 ✓ (2026-09-29 해성 지시 — 처음 한 번 차례로 톡, 그 뒤 계속) -->
       <ul class="chips" aria-label="판매처" data-studio-promo-markets>
         <li

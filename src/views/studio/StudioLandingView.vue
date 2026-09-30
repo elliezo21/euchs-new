@@ -51,13 +51,14 @@
     </section>
 
     <div class="land-dots">
-      <!-- ② 기능 타일 -->
-      <section id="features" class="land-sec pt-16 md:pt-20" aria-labelledby="land-features-title">
+      <!-- ② 기능 타일 — 밝은 카드 + 작은 아이콘 + 카드마다 작은 그림 (2026-09-30: 몰 배너의 주황·남색 카드와 겹치지 않게 보라·파랑 계열로) -->
+      <section id="features" class="land-sec land-sec-feat pt-16 md:pt-20" aria-labelledby="land-features-title">
         <div class="land-wrap">
           <h2 id="land-features-title" class="sr-only">기능</h2>
           <div class="land-bento">
             <!-- 글자 지우기 (큰 타일) -->
             <article class="tile tile-big" data-scene="erase">
+              <span class="tile-ic" aria-hidden="true"><Eraser :stroke-width="2.2" /></span>
               <h3 class="tile-h">필요 없는 글자, AI가 지워요</h3>
               <p class="tile-p">지운 자리는 주변과 어울리게 채워져요. 원본 사진은 그대로 보관돼요.</p>
               <SceneVideo v-if="M.erase.video" class="mt-5" :media="M.erase" :alt="M.erase.alt" :still="isStatic" />
@@ -76,18 +77,27 @@
             </article>
 
             <article class="tile">
+              <span class="tile-ic" aria-hidden="true"><Link2 :stroke-width="2.2" /></span>
               <h3 class="tile-h">1688에서 바로</h3>
               <p class="tile-p">상품 링크를 넣으면 사진과 상품 정보를 한 번에 가져와요. 직접 찍은 사진도 올릴 수 있어요.</p>
               <span class="tile-mark" aria-hidden="true">1688</span>
             </article>
 
-            <article class="tile tile-orange">
+            <!-- 구매 고객 무료 — 연한 보라 카드 + "주문·결제 → 스튜디오 무료" 작은 흐름 그림 -->
+            <article class="tile tile-free" data-land-free-tile>
+              <span class="tile-ic" aria-hidden="true"><Gift :stroke-width="2.2" /></span>
               <h3 class="tile-h">구매 고객은 무료</h3>
               <p class="tile-p">이유씨컴퍼니에서 주문하고 결제까지 마친 적이 있다면 바로 쓸 수 있어요.</p>
+              <div class="ff" aria-hidden="true">
+                <span class="ff-step"><ShoppingBag class="ff-ic" :stroke-width="2.4" />주문·결제</span>
+                <span class="ff-line"><i /></span>
+                <span class="ff-step is-on"><BadgeCheck class="ff-ic" :stroke-width="2.4" />스튜디오 무료</span>
+              </div>
             </article>
 
             <!-- 원클릭 -->
-            <article class="tile tile-navy" data-scene="oneclick">
+            <article class="tile tile-oc" data-scene="oneclick">
+              <span class="tile-ic" aria-hidden="true"><WandSparkles :stroke-width="2.2" /></span>
               <h3 class="tile-h">원클릭 AI 초안</h3>
               <p class="tile-p">사진 고르기부터 글자 지우기·배치·문구 초안까지 한 번에.</p>
               <div class="oc" data-scene-visual>
@@ -100,6 +110,7 @@
 
             <!-- 판매처 보내기 -->
             <article class="tile" data-scene="export">
+              <span class="tile-ic" aria-hidden="true"><Send :stroke-width="2.2" /></span>
               <h3 class="tile-h">쿠팡으로 바로 보내기</h3>
               <p class="tile-p">상세페이지·상품명·검색태그·옵션·가격·대표이미지·고시정보·배송정보까지 한 번에 보내요.</p>
               <ul class="mk" data-scene-visual>
@@ -108,6 +119,27 @@
                 </li>
               </ul>
             </article>
+          </div>
+        </div>
+      </section>
+
+      <!-- 이유씨 몰 배너 (2026-09-30) — 첫 화면과 같은 보라 계열. 오른쪽 작은 카드 3장 = 사입 주문 → 결제 완료 → 스튜디오 무료 -->
+      <section class="land-mall" aria-labelledby="land-mall-title">
+        <div class="land-wrap">
+          <div class="mall-band" data-reveal data-land-mall-band>
+            <div class="mall-copy">
+              <p class="mall-eyebrow"><Store class="w-4 h-4" :stroke-width="2.4" /> 이유씨 몰</p>
+              <h2 id="land-mall-title" class="mall-h">이유씨컴퍼니에서 사입하면<br />스튜디오 무료</h2>
+              <p class="mall-p">몰에서 주문하고 결제까지 마치면 스튜디오를 무료로 쓸 수 있어요.</p>
+              <router-link :to="MALL_PATH" class="land-btn land-btn-white land-btn-lg mt-6" data-land-mall-cta>
+                이유씨 몰 둘러보기 <ArrowRight class="w-[18px] h-[18px]" :stroke-width="2.5" />
+              </router-link>
+            </div>
+            <ol class="mall-art" aria-hidden="true">
+              <li class="ma-card"><span class="ma-ic"><Package :stroke-width="2.3" /></span>사입 주문</li>
+              <li class="ma-card"><span class="ma-ic"><BadgeCheck :stroke-width="2.3" /></span>결제 완료</li>
+              <li class="ma-card is-on"><span class="ma-ic"><Sparkles :stroke-width="2.3" /></span>스튜디오 무료</li>
+            </ol>
           </div>
         </div>
       </section>
@@ -132,20 +164,19 @@
           <h2 class="land-h2">이용 안내</h2>
         </div>
         <p v-if="STUDIO_BETA" class="land-p" data-reveal data-beta-note>{{ BETA_NOTE }}</p>
-        <div class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-5 max-w-[960px]">
-          <div class="plan is-main" data-reveal>
-            <span class="plan-label is-free">무료</span>
+        <!-- 이유씨컴퍼니 고객 카드 하나만 크게 (2026-09-30) -->
+        <div class="plan mt-10" data-reveal data-land-plan>
+          <div class="plan-main">
+            <span class="plan-label">무료</span>
             <h3 class="plan-h">이유씨컴퍼니 고객</h3>
             <p class="plan-p">이유씨컴퍼니에서 주문하고 결제까지 마친 고객은 스튜디오를 무료로 쓸 수 있어요.</p>
-            <ul class="mt-5 space-y-2.5">
-              <li v-for="f in FREE_FEATURES" :key="f" class="flex items-start gap-2 text-[15px] land-ink"><Check class="w-4 h-4 mt-1 land-blue-text shrink-0" :stroke-width="2.8" />{{ f }}</li>
-            </ul>
+            <router-link :to="MALL_PATH" class="land-btn land-btn-primary land-btn-lg mt-7" data-land-plan-mall>
+              이유씨 몰에서 사입하기 <ArrowRight class="w-[18px] h-[18px]" :stroke-width="2.5" />
+            </router-link>
           </div>
-          <div class="plan" data-reveal>
-            <span class="plan-label">준비 중</span>
-            <h3 class="plan-h">일반 고객</h3>
-            <p class="plan-p">준비 중이에요</p>
-          </div>
+          <ul class="plan-list">
+            <li v-for="f in FREE_FEATURES" :key="f"><Check class="plan-check" :stroke-width="2.8" />{{ f }}</li>
+          </ul>
         </div>
       </div>
     </section>
@@ -196,14 +227,16 @@
 <script setup>
 // 스튜디오 랜딩(/studio) — 로그인 없이 누구나 본다. 작업(최근 작업)은 /studio/projects(작업 홈)에서.
 // 2026-09-28 재디자인: 밝은 바탕 + 이유씨 파랑(메인 헤더 [무역대행 신청] = Tailwind blue-600 #2563eb) · 남색 글자.
-//   주황(메인 [1688 소싱몰] = orange-500 #f97316)은 "구매 고객 무료" 강조에만. 편집기 안(작업 화면)은 건드리지 않는다.
+//   2026-09-30: 기능 타일·이용 안내·몰 배너 = 첫 화면 보라 + 스튜디오 파랑(--st-accent) 계열. 주황·남색 단색 카드는 몰 배너와 겹쳐서 안 쓴다
+//   (주황 글자는 첫 화면 한 줄·마지막 안내의 "무료"에만). 편집기 안(작업 화면)은 건드리지 않는다.
 // 모션은 studioLandingMotion.js(GSAP)를 여기서만 동적 import — 편집기·ERP 번들에 섞이지 않는다.
 // 기본 화면(CSS) = 장면이 끝난 모습 → 움직임 줄이기 설정·불러오기 실패여도 내용은 다 보인다.
 // 개인 데이터를 보여 주지 않는 화면이라 로그아웃 구독은 필요 없다(로그인 여부에 따라 바뀌는 것도 없다).
 import { ref, h, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { ArrowRight, Check, Sparkles, MessageCircle } from 'lucide-vue-next'
+import { ArrowRight, Check, Sparkles, MessageCircle, Eraser, Link2, Gift, WandSparkles, Send, ShoppingBag, BadgeCheck, Store, Package } from 'lucide-vue-next'
 import { LANDING_MEDIA as M } from '@/data/studioLandingMedia'
+import { MALL_PATH } from '@/lib/homeCta'
 import { getStudioNotices } from '@/lib/studioNotices'
 import { MARKETS } from '@/lib/studioMarketplaceRules'
 import { STUDIO_BETA, BETA_BADGE, BETA_NOTE, heroEyebrow } from '@/lib/studioBeta'
@@ -249,7 +282,7 @@ const HERO_PRELOAD = [[HERO_IMG.pc, HERO_IMG.pcMedia], [HERO_IMG.mobile, HERO_IM
 })
 const OC_STEPS = ['사진 고르기', '글자 지우기', '페이지 배치', '문구 초안']
 // 판매처 칩 — 이름·순서만 MARKETS(studioMarketplaceRules.js, 설정 > 판매처 연결과 같은 목록)에서 읽는다.
-// 홍보 화면이라 soon(준비 중) 값은 쓰지 않고 9곳 모두 ✓ (홈 StudioPromoBand와 같게 — 2026-09-29 해성 지시). 설정·보내기 화면의 "준비 중"은 그대로
+// 홍보 화면이라 soon 값은 쓰지 않고 9곳 모두 ✓ (홈 StudioPromoBand와 같게 — 2026-09-29 해성 지시). 설정·보내기 화면의 표시는 그대로
 const FREE_FEATURES = ['AI 글자 지우기·덮기', '배경 지우기·단색·경계 다듬기', 'AI 배경 만들기 (하루 3회)', '원클릭 AI 자동 제작', '섹션별·한 장 다운로드']
 const NOTICE_TYPE_LABEL = { update: '업데이트', notice: '공지', soon: '예정' }
 
@@ -311,8 +344,12 @@ onBeforeUnmount(() => {
   --l-blue: #2563eb;
   --l-blue-d: #1d4ed8;
   --l-blue-soft: #eff4ff;
-  --l-orange: #f97316;
-  --l-orange-ink: #c2410c; /* 흰 바탕 위 주황 글자 (대비 AA) */
+  /* 기능 타일·이용 안내·몰 배너 — 첫 화면 보라(--hero-*)와 스튜디오 파랑(studio-tokens.css --st-accent #3d7bff) 사이 */
+  --l-violet: #5b4bd6;
+  --l-violet-ink: #4331b8;   /* 흰 바탕 위 보라 글자 (대비 AA) */
+  --l-violet-soft: #f4f2ff;
+  --l-violet-line: #e4defb;
+  --l-accent: #3d7bff;
   --l-navy: #0b1b3f;
   --l-navy-ink: #afc0e6;
   --l-wrap: 1240px;
@@ -447,17 +484,44 @@ onBeforeUnmount(() => {
   .tile-big { grid-column: span 2; }
 }
 @media (min-width: 1024px) {
-  .land-bento { grid-template-columns: 2fr 1fr 1fr; grid-auto-rows: 240px; gap: 18px; }
+  /* 줄 높이 = 240px 이상, 내용이 길면 늘어남 (아이콘 줄이 생겨 고정 240px이면 잘린다) */
+  .land-bento { grid-template-columns: 2fr 1fr 1fr; grid-auto-rows: minmax(240px, auto); gap: 18px; }
   .tile-big { grid-column: auto; grid-row: span 2; }
 }
-.tile { position: relative; overflow: hidden; background: #fff; border: 1px solid var(--l-line); border-radius: 20px; padding: 26px; display: flex; flex-direction: column; min-height: 200px; }
+/* 밝은 카드 — 얇은 보라 테두리 + 옅은 그림자, 마우스를 올리면 살짝 떠오름 */
+.tile {
+  position: relative; overflow: hidden; background: #fff; border: 1px solid var(--l-violet-line); border-radius: 20px; padding: 26px;
+  display: flex; flex-direction: column; min-height: 200px;
+  box-shadow: 0 1px 2px rgba(42, 26, 110, 0.04), 0 10px 28px -16px rgba(42, 26, 110, 0.18);
+  transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+}
+.tile:hover { transform: translateY(-3px); border-color: #d3cbf7; box-shadow: 0 2px 4px rgba(42, 26, 110, 0.05), 0 18px 36px -18px rgba(42, 26, 110, 0.28); }
+.tile-ic {
+  width: 38px; height: 38px; margin-bottom: 14px; border-radius: 11px; flex-shrink: 0;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--l-violet-ink);
+  background: linear-gradient(145deg, #efeaff, #e3ecff); border: 1px solid #e0d9fb;
+  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.tile-ic svg { width: 19px; height: 19px; }
+.tile:hover .tile-ic { transform: rotate(-8deg) scale(1.06); }
 .tile-h { font-size: 21px; font-weight: 800; letter-spacing: -0.02em; color: inherit; word-break: keep-all; }
 .tile-p { margin-top: 8px; font-size: 14.5px; line-height: 1.6; color: var(--l-ink-2); word-break: keep-all; }
-.tile-orange { background: var(--l-orange); border-color: var(--l-orange); color: #fff; }
-.tile-orange .tile-p { color: #fff3e8; }
-.tile-navy { background: var(--l-navy); border-color: var(--l-navy); color: #fff; }
-.tile-navy .tile-p { color: var(--l-navy-ink); }
-.tile-mark { position: absolute; right: 22px; bottom: 14px; font-size: 56px; font-weight: 900; color: var(--l-ink); opacity: 0.12; letter-spacing: -0.02em; }
+.tile-mark { position: absolute; right: 22px; bottom: 14px; font-size: 56px; font-weight: 900; color: var(--l-violet); opacity: 0.1; letter-spacing: -0.02em; }
+
+/* 구매 고객 무료 — 연한 보라 바탕 (단색 채움 아님) + 주문·결제 → 스튜디오 무료 흐름 */
+.tile-free { background: linear-gradient(160deg, var(--l-violet-soft) 0%, #fff 70%); }
+.tile-free .tile-ic { color: #fff; background: linear-gradient(145deg, var(--l-violet), var(--l-accent)); border-color: transparent; }
+.ff { margin-top: auto; padding-top: 16px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.ff-step {
+  display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 8px; font-size: 12.5px; font-weight: 700; white-space: nowrap;
+  color: var(--l-ink-2); background: #fff; border: 1px solid var(--l-violet-line);
+}
+.ff-step.is-on { color: var(--l-violet-ink); border-color: #cfc5f6; background: #fff; box-shadow: 0 4px 12px -6px rgba(91, 75, 214, 0.45); }
+.ff-ic { width: 14px; height: 14px; }
+/* 두 단계 사이 점선 + 그 위를 지나가는 작은 점 (반복) */
+.ff-line { position: relative; flex: 1 1 18px; min-width: 18px; max-width: 48px; height: 2px; background-image: linear-gradient(90deg, #cfc5f6 50%, transparent 50%); background-size: 6px 2px; }
+.ff-line i { position: absolute; top: -2px; left: 0; width: 6px; height: 6px; border-radius: 50%; background: var(--l-violet); animation: ff-go 2.2s ease-in-out infinite; }
+@keyframes ff-go { 0% { left: 0; opacity: 0; } 20% { opacity: 1; } 80% { opacity: 1; } 100% { left: calc(100% - 6px); opacity: 0; } }
 
 .cmp { margin-top: 22px; flex: 1; min-height: 240px; display: grid; grid-template-columns: 1fr 1fr; border-radius: 14px; overflow: hidden; border: 1px solid var(--l-line); }
 .cmp-side { position: relative; overflow: hidden; }
@@ -475,19 +539,23 @@ onBeforeUnmount(() => {
 
 .oc { margin-top: auto; padding-top: 16px; }
 .oc-steps { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 10px; }
+/* 원클릭 — 밝은 카드 위 단계 4개(켜지면 보라 체크)와 보라→파랑 진행 막대 (켜짐 = 모션의 --on) */
 .oc-steps li {
   --on: 1; display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700;
-  color: color-mix(in srgb, #fff calc(45% + var(--on) * 55%), transparent);
+  color: color-mix(in srgb, var(--l-ink) calc(35% + var(--on) * 65%), transparent);
 }
-.oc-steps li svg { color: #60a5fa; opacity: var(--on); }
-.oc-bar { margin-top: 12px; height: 6px; border-radius: 6px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
-.oc-bar span { display: block; height: 100%; background: #60a5fa; transform-origin: left center; }
+.oc-steps li svg {
+  width: 16px; height: 16px; padding: 2px; border-radius: 5px; flex-shrink: 0;
+  color: #fff; background: color-mix(in srgb, var(--l-violet) calc(var(--on) * 100%), #e4e1f2);
+}
+.oc-bar { margin-top: 14px; height: 6px; border-radius: 6px; background: var(--l-violet-soft); border: 1px solid var(--l-violet-line); overflow: hidden; }
+.oc-bar span { display: block; height: 100%; background: linear-gradient(90deg, var(--l-violet), var(--l-accent)); transform-origin: left center; }
 
 .mk { margin-top: auto; padding-top: 14px; display: flex; flex-wrap: wrap; gap: 6px; }
 .mk li {
-  --on: 1; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; border: 1px solid var(--l-line);
+  --on: 1; display: inline-flex; align-items: center; gap: 5px; padding: 5px 10px; border-radius: 8px; font-size: 13px; font-weight: 700; border: 1px solid var(--l-violet-line);
   color: color-mix(in srgb, var(--l-ink) calc(40% + var(--on) * 60%), transparent);
-  background: color-mix(in srgb, var(--l-blue-soft) calc(var(--on) * 100%), #fff);
+  background: color-mix(in srgb, var(--l-violet-soft) calc(var(--on) * 100%), #fff);
 }
 .mk-check { width: 13px; height: 13px; color: #16a34a; opacity: var(--on); }
 
@@ -495,14 +563,57 @@ onBeforeUnmount(() => {
 .land-h2 { font-size: clamp(28px, 3.4vw, 40px); font-weight: 900; letter-spacing: -0.03em; line-height: 1.2; color: var(--l-ink); word-break: keep-all; }
 .land-p { margin-top: 12px; font-size: 17px; color: var(--l-ink-2); word-break: keep-all; }
 
-/* 이용 안내 */
-.plan { position: relative; padding: 30px; border-radius: 20px; background: #fff; border: 1px solid var(--l-line); }
-.plan.is-main { border-color: color-mix(in srgb, var(--l-orange) 45%, var(--l-line)); box-shadow: 0 14px 40px rgba(11, 27, 63, 0.06); }
+/* 이용 안내 — 이유씨컴퍼니 고객 카드 하나 (넓은 화면 = 왼쪽 설명·버튼 / 오른쪽 기능 목록) */
+.plan {
+  position: relative; max-width: 1040px; padding: 30px 24px; border-radius: 24px;
+  background: linear-gradient(160deg, var(--l-violet-soft) 0%, #fff 55%); border: 1px solid var(--l-violet-line);
+  box-shadow: 0 1px 2px rgba(42, 26, 110, 0.04), 0 18px 44px -24px rgba(42, 26, 110, 0.3);
+  display: grid; grid-template-columns: 1fr; gap: 28px;
+}
+@media (min-width: 768px) { .plan { padding: 44px 48px; grid-template-columns: 1.1fr 1fr; gap: 48px; align-items: center; } }
 .beta-badge { padding: 2px 7px; border-radius: 6px; font-size: 10px; font-weight: 900; letter-spacing: 0.08em; color: var(--l-blue); background: var(--l-blue-soft); }
-.plan-label { font-size: 14px; font-weight: 900; color: var(--l-ink-2); }
-.plan-label.is-free { color: var(--l-orange-ink); }
-.plan-h { margin-top: 6px; font-size: 22px; font-weight: 800; color: var(--l-ink); }
-.plan-p { margin-top: 8px; font-size: 15px; line-height: 1.65; color: var(--l-ink-2); word-break: keep-all; }
+.plan-label { display: inline-block; padding: 3px 9px; border-radius: 7px; font-size: 13px; font-weight: 900; color: #fff; background: linear-gradient(135deg, var(--l-violet), var(--l-accent)); }
+.plan-h { margin-top: 12px; font-size: clamp(24px, 2.6vw, 30px); font-weight: 900; letter-spacing: -0.02em; color: var(--l-ink); }
+.plan-p { margin-top: 10px; font-size: 16px; line-height: 1.65; color: var(--l-ink-2); word-break: keep-all; }
+.plan .land-btn-lg { width: 100%; }
+@media (min-width: 640px) { .plan .land-btn-lg { width: auto; } }
+.plan-list { display: grid; gap: 10px; padding: 20px; border-radius: 16px; background: #fff; border: 1px solid var(--l-violet-line); }
+.plan-list li { display: flex; align-items: flex-start; gap: 10px; font-size: 15px; font-weight: 600; color: var(--l-ink); word-break: keep-all; }
+.plan-check { width: 18px; height: 18px; margin-top: 2px; padding: 3px; border-radius: 6px; flex-shrink: 0; color: var(--l-violet-ink); background: var(--l-violet-soft); }
+
+/* 이유씨 몰 배너 — 기능 타일 바로 아래. 첫 화면 보라 그러데이션 + 은은한 점 무늬, 오른쪽 작은 카드 3장이 천천히 떠 있음 */
+.land-sec-feat { padding-bottom: 0; } /* 아래 간격은 몰 배너(.land-mall)가 맡음 */
+.land-mall { padding: 28px 0 72px; }
+@media (min-width: 768px) { .land-mall { padding: 36px 0 96px; } }
+.mall-band {
+  position: relative; overflow: hidden; border-radius: 24px; color: #fff; padding: 32px 22px;
+  display: grid; grid-template-columns: 1fr; gap: 28px; align-items: center;
+  background-color: var(--hero-mid);
+  background-image:
+    radial-gradient(rgba(255, 255, 255, 0.12) 1px, transparent 1px),
+    linear-gradient(120deg, var(--hero-top) 0%, var(--hero-mid) 55%, #6477d6 100%);
+  background-size: 18px 18px, 100% 100%;
+}
+@media (min-width: 900px) { .mall-band { grid-template-columns: 1.2fr 1fr; padding: 48px 56px; } }
+.mall-eyebrow { display: inline-flex; align-items: center; gap: 6px; font-size: 14px; font-weight: 800; color: rgba(255, 255, 255, 0.85); }
+.mall-h { margin-top: 10px; font-size: clamp(26px, 3vw, 38px); font-weight: 900; line-height: 1.22; letter-spacing: -0.03em; word-break: keep-all; }
+.mall-p { margin-top: 12px; font-size: 16px; line-height: 1.6; color: rgba(255, 255, 255, 0.86); word-break: keep-all; }
+.mall-band .land-btn:focus-visible { outline-color: #fff; }
+@media (max-width: 639.98px) { .mall-band .land-btn-lg { width: 100%; } }
+.mall-art { display: flex; flex-direction: column; gap: 10px; }
+@media (min-width: 900px) { .mall-art { align-items: flex-start; padding-left: 12px; } }
+.ma-card {
+  display: inline-flex; align-items: center; gap: 10px; align-self: flex-start;
+  padding: 10px 16px 10px 10px; border-radius: 14px; font-size: 15px; font-weight: 800; color: var(--l-ink);
+  background: #fff; box-shadow: 0 12px 28px -14px rgba(10, 6, 40, 0.55);
+  animation: ma-float 4.8s ease-in-out infinite;
+}
+.ma-card:nth-child(2) { margin-left: 28px; animation-delay: -1.6s; }
+.ma-card:nth-child(3) { margin-left: 56px; animation-delay: -3.2s; }
+.ma-ic { width: 30px; height: 30px; border-radius: 9px; display: inline-flex; align-items: center; justify-content: center; color: var(--l-violet-ink); background: var(--l-violet-soft); }
+.ma-ic svg { width: 17px; height: 17px; }
+.ma-card.is-on .ma-ic { color: #fff; background: linear-gradient(135deg, var(--l-violet), var(--l-accent)); }
+@keyframes ma-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
 
 /* 새 소식 */
 .news { border-top: 1px solid var(--l-line); max-width: 960px; }
