@@ -1417,6 +1417,113 @@ const STORAGES = [
   }], o.sec),
 ]
 
+/**
+ * 소재 안내 (의류·잡화) — { title, mix: [[항목, 내용]] (2~4줄), feel: [{ k: 두께·신축성 같은 이름, steps: [3칸], on: 표시할 칸 번호 }] (3줄), note? }
+ * 표시한 칸은 예시 — 판매자가 상품에 맞는 칸으로 색을 옮긴다 (note로 안내)
+ */
+const FABRICS = [
+  // 0 흰 카드 — 소재 줄 + 느낌 알약 칸
+  (d, th, o) => {
+    const rh = 56, fh = 60
+    const mixH = d.mix.length * rh
+    const ch = 28 + mixH + 24 + 2 + 28 + d.feel.length * fh + 12
+    return sec(o.bg ?? th.soft, [heading(d.title, th), 32, {
+      h: ch,
+      make: (y, gid) => {
+        const out = [rect(70, y, 640, ch, WHITE, { radius: 22 })]
+        d.mix.forEach(([k, v], i) => {
+          const top = y + 28 + i * rh
+          const ty = top + Math.round((rh - textH('가', 18, 1.4)) / 2)
+          out.push(txt(110, ty, 150, k, 18, 800, th.ink, th.body), txt(270, ty, 400, v, 18, 400, th.sub, th.body))
+          if (i < d.mix.length - 1) out.push({ type: 'line', x: 110, y: top + rh - 1, w: 560, strokeWidth: 1, color: th.line, dash: 'dotted' })
+        })
+        const fy = y + 28 + mixH + 24
+        out.push(rect(110, fy, 560, 2, th.line))
+        d.feel.forEach((f, i) => {
+          const top = fy + 2 + 28 + i * fh
+          out.push(txt(110, top + Math.round((42 - textH('가', 17, 1.3)) / 2), 130, f.k, 17, 800, th.ink, th.body, { lineHeight: 1.3 }))
+          f.steps.forEach((s, j) => {
+            const x = 250 + j * 142, on = j === f.on, g = gid()
+            out.push(
+              { type: 'shape', group: g, shape: 'rect', x, y: top, w: 128, h: 42, fill: on ? th.accent : WHITE, radius: 21, ...(on ? {} : { strokeWidth: 1, strokeColor: th.line }) },
+              txt(x, top + Math.round((42 - textH('가', 16, 1.3)) / 2), 128, s, 16, on ? 800 : 400, on ? th.onAccent : th.muted, th.body, { align: 'center', lineHeight: 1.3, group: g }),
+            )
+          })
+        })
+        return out
+      },
+    }, ...(d.note ? [22, bodyT(d.note, th, { size: 15, color: th.muted })] : [])], o.sec)
+  },
+  // 1 큰 원 소재 + 점 눈금
+  (d, th, o) => {
+    const n = d.mix.length, dia = n > 3 ? 150 : 180
+    const gap = n > 1 ? Math.floor((640 - dia * n) / (n - 1)) : 0
+    const vals = d.mix.map(([, v]) => wrapText(v, 18, dia - 44, th.body))
+    const rowH = 92
+    return sec(o.bg ?? WHITE, [latin('FABRIC', th.accentText), 12, heading(d.title, th), 36, {
+      h: dia,
+      make: (y, gid) => d.mix.flatMap(([k], i) => {
+        const x = 70 + i * (dia + gap), g = gid()
+        const vH = textH(vals[i], 18, 1.35)
+        const top = y + Math.round((dia - (22 + 10 + vH)) / 2)
+        return [
+          { type: 'shape', group: g, shape: 'ellipse', x, y, w: dia, h: dia, fill: th.soft, strokeWidth: 2, strokeColor: th.accent },
+          txt(x + 16, top, dia - 32, k, 16, 800, th.accentText, th.body, { align: 'center', lineHeight: 1.35, group: g }),
+          txt(x + 22, top + 32, dia - 44, vals[i], 18, 700, th.ink, th.body, { align: 'center', lineHeight: 1.35, group: g }),
+        ]
+      }),
+    }, 44, {
+      h: d.feel.length * rowH - 20,
+      make: (y, gid) => d.feel.flatMap((f, i) => {
+        const top = y + i * rowH
+        const g = gid()
+        return [
+          txt(70, top + 2, 150, f.k, 18, 800, th.ink, th.body, { lineHeight: 1.3 }),
+          { type: 'line', group: g, x: 256, y: top + 13, w: 428, strokeWidth: 2, color: th.line },
+          ...f.steps.flatMap((s, j) => {
+            const px = 256 + j * 214, on = j === f.on, dd = on ? 28 : 16
+            return [
+              { type: 'shape', group: g, shape: 'ellipse', x: px - dd / 2, y: top + 14 - dd / 2, w: dd, h: dd, fill: on ? th.accent : th.line },
+              txt(px - 60, top + 36, 120, s, 15, on ? 800 : 400, on ? th.accentText : th.muted, th.body, { align: 'center', lineHeight: 1.3 }),
+            ]
+          }),
+        ]
+      }),
+    }, ...(d.note ? [20, bodyT(d.note, th, { size: 15, color: th.muted })] : [])], o.sec)
+  },
+  // 2 짙은 바탕 — 줄 목록 + 칸 막대
+  (d, th, o) => {
+    const light = mix(th.dark, '#ffffff', 0.8), faint = mix(th.dark, '#ffffff', 0.16)
+    return sec(th.dark, [latin('MATERIAL', th.bright), 12, heading(d.title, th, { color: WHITE }), 34, {
+      h: d.mix.length * 54,
+      make: y => d.mix.flatMap(([k, v], i) => {
+        const top = y + i * 54
+        const ty = top + Math.round((54 - textH('가', 18, 1.4)) / 2)
+        return [
+          txt(90, ty, 160, k, 18, 800, th.bright, th.body),
+          txt(260, ty, 430, v, 18, 400, light, th.body),
+          rect(90, top + 53, 600, 1, faint),
+        ]
+      }),
+    }, 34, {
+      h: d.feel.length * 64 - 20,
+      make: (y, gid) => d.feel.flatMap((f, i) => {
+        const top = y + i * 64
+        return [
+          txt(90, top + Math.round((44 - textH('가', 17, 1.3)) / 2), 140, f.k, 17, 800, WHITE, th.body, { lineHeight: 1.3 }),
+          ...f.steps.flatMap((s, j) => {
+            const x = 240 + j * 152, on = j === f.on, g = gid()
+            return [
+              { type: 'shape', group: g, shape: 'rect', x, y: top, w: 148, h: 44, fill: on ? th.bright : faint, radius: 8 },
+              txt(x, top + Math.round((44 - textH('가', 16, 1.3)) / 2), 148, s, 16, on ? 800 : 400, on ? th.dark : light, th.body, { align: 'center', lineHeight: 1.3, group: g }),
+            ]
+          }),
+        ]
+      }),
+    }, ...(d.note ? [24, bodyT(d.note, th, { size: 15, color: mix(th.dark, '#ffffff', 0.7) })] : [])], { top: 84, bottom: 84, ...o.sec })
+  },
+]
+
 /** 종류별 모양 (이름표는 보고서·테스트용) */
 export const SECTION_VARIANTS = {
   points: { make: POINTS, names: ['아이콘 카드 3개', '큰 번호 세로 목록', '체크 목록', '배지 격자', '큰 숫자 강조', '강조색 띠 줄 카드'] },
@@ -1440,6 +1547,7 @@ export const SECTION_VARIANTS = {
   contents: { make: CONTENTS, names: ['점선 줄 목록', '더하기 상자', '티켓 모양'] },
   ingredient: { make: INGREDIENTS, names: ['정보 라벨 상자', '큰 칸 두 개 + 줄 목록'] },
   storage: { make: STORAGES, names: ['보관 태그 카드', '짙은 띠 번호 줄'] },
+  fabric: { make: FABRICS, names: ['흰 카드 + 느낌 알약', '큰 원 소재 + 점 눈금', '짙은 바탕 + 칸 막대'] },
 }
 export const SECTION_KINDS = Object.keys(SECTION_VARIANTS)
 

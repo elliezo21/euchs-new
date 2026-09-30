@@ -30,13 +30,13 @@ const samples = manifest.samples
 // ── 1. 파일·목록 ──
 {
   eq('manifest 문제 없음', manifest.problems, [])
-  eq('예시 사진 200장 (1차 54 + 2차 70 + 촬영 세트 76) · kind sample', [samples.length, samples.every(s => s.kind === 'sample')], [200, true])
+  eq('예시 사진 259장 (1차 54 + 2차 70 + 촬영 세트 76 + 3차 패션 59) · kind sample', [samples.length, samples.every(s => s.kind === 'sample')], [259, true])
   const HAVE = ['apparel', 'bag', 'living'] // 1차 (18장씩)
   // 촬영 세트 (studioTemplateShoots — 한 벌 4장, 이름 끝 번호 = 세트 번호: 의류 07~09 · 가방 07~14 · 식품 09~11 · 건강식품·선물 09 · 유아·캠핑·인테리어 01)
-  const SET_NO = { apparel: [7, 9], bag: [7, 14], food: [9, 11], health: [9, 9], gift: [9, 9], baby: [1, 1], camping: [1, 1], interior: [1, 1] }
+  const SET_NO = { apparel: [7, 19], bag: [7, 19], food: [9, 11], health: [9, 9], gift: [9, 9], baby: [1, 1], camping: [1, 1], interior: [1, 1] }
   const isSet = s => { const r = SET_NO[s.category]; const n = Number(parseSampleName(s.file.slice(8, -5))?.no); return !!r && n >= r[0] && n <= r[1] }
-  eq('카테고리별 장수 — 1차 18장씩 · 2차 8장씩(전자 6 — 브랜드 닮은 2장 뺌) · 촬영 세트 4장씩', SAMPLE_CATEGORIES.map(c => samples.filter(s => s.category === c).length), [30, 50, 18, 8, 20, 12, 8, 6, 8, 8, 8, 12, 4, 4, 4])
-  eq('촬영 세트 76장 = 세트 19개 × 4장', [samples.filter(isSet).length, new Set(samples.filter(isSet).map(s => `${s.category}-${parseSampleName(s.file.slice(8, -5)).no}`)).size], [76, 19])
+  eq('카테고리별 장수 — 1차 18장씩 · 2차 8장씩(전자 6 — 브랜드 닮은 2장 뺌) · 촬영 세트 4장씩', SAMPLE_CATEGORIES.map(c => samples.filter(s => s.category === c).length), [69, 70, 18, 8, 20, 12, 8, 6, 8, 8, 8, 12, 4, 4, 4])
+  eq('촬영 세트 135장 = 세트 34개 × 4장 − 1 (니트 착용 사진은 뺌)', [samples.filter(isSet).length, new Set(samples.filter(isSet).map(s => `${s.category}-${parseSampleName(s.file.slice(8, -5)).no}`)).size], [135, 34])
   eq('2차 사진: 원본 크기를 긴 변 1044로 줄임 (1차와 비슷한 무게)', samples.filter(s => !HAVE.includes(s.category) && !isSet(s)).every(s => Math.max(s.w, s.h) === 1044), true)
   eq('촬영 세트: 3:4 · 긴 변 1044 이하 (자국·글자를 잘라 낸 3장은 더 작음)', samples.filter(isSet).filter(s => Math.abs(s.h / s.w - 4 / 3) > 0.01 || Math.max(s.w, s.h) > 1044).map(s => s.id), [])
   eq('브랜드 닮은 두 장은 넣지 않음', samples.some(s => /wireless-earbuds|earbuds-in-hand/.test(s.file)), false)

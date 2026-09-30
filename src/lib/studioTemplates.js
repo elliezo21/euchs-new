@@ -38,7 +38,7 @@ import { isSampleItem } from './studioSamples.js'
 import { CATEGORY_KEYS, buildCategoryTemplate, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, templateColorOf } from './studioTemplateSets.js'
 import { LOOK_KEYS, buildLookTemplate } from './studioTemplateLooks.js'
 import { EVENT_KEYS, EVENT_TONES, buildEventTemplate } from './studioTemplateEvents.js'
-import { SHOOT_KEYS, SHOOT_TONES, buildShootTemplate } from './studioTemplateShoots.js'
+import { SHOOT_KEYS, SHOOT_KEY_BATCHES, SHOOT_TONES, buildShootTemplate } from './studioTemplateShoots.js'
 import { withHero, HERO_SPECS } from './studioTemplateHeroes.js'
 import { section, lowerTheme, planSectionStyles, recordSections, SECTION_VARIANTS } from './studioTemplateSections.js'
 
@@ -200,13 +200,13 @@ function buildBaseTemplate(key, sv = {}) {
 }
 
 // 목록: 기본 3 → 카테고리 템플릿 17 → 새 템플릿 18 → 안내·이벤트 22, 첫 구간 = 큰 제목 첫 화면(studioTemplateHeroes).
-// 그 뒤에 촬영 세트 템플릿 19 (studioTemplateShoots — 앞 60개의 순서·모양을 바꾸지 않게 이어 붙인다)
+// 그 뒤에 촬영 세트 템플릿 19 → 3차 패션 15 (studioTemplateShoots — 묶음마다 앞 목록의 순서·모양을 바꾸지 않게 이어 붙인다)
 // 순서 먼저(galleryOrder — 첫 화면 바탕 계열만 본다) → 그 순서로 아래 섹션 모양을 정하고(planSectionStyles — 앞에서부터 차례로 정해 뒤에 붙여도 앞은 그대로) → 템플릿을 만든다
 const BASE_KEYS = BASE_TEMPLATES.map(x => x.key)
 const toneOf = key => HERO_SPECS[key]?.tone ?? EVENT_TONES[key] ?? SHOOT_TONES[key]
 const withTone = keys => keys.map(key => ({ key, tone: toneOf(key) }))
 const ORDER_60 = galleryOrder(withTone([...BASE_KEYS, ...CATEGORY_KEYS, ...LOOK_KEYS, ...EVENT_KEYS]))
-const ORDER = [...ORDER_60, ...galleryOrder(withTone(SHOOT_KEYS), GALLERY_COLUMNS, ORDER_60)].map(x => x.key)
+const ORDER = SHOOT_KEY_BATCHES.reduce((acc, keys) => [...acc, ...galleryOrder(withTone(keys), GALLERY_COLUMNS, acc)], ORDER_60).map(x => x.key)
 /** 템플릿마다 아래 섹션 모양 번호 { 종류: 번호 } (studioTemplateSections.SECTION_VARIANTS) — 테스트·보고서용 */
 const builderOf = key => (BASE_KEYS.includes(key) ? buildBaseTemplate : CATEGORY_KEYS.includes(key) ? buildCategoryTemplate : LOOK_KEYS.includes(key) ? buildLookTemplate
   : SHOOT_KEYS.includes(key) ? buildShootTemplate : buildEventTemplate)

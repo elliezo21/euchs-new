@@ -80,7 +80,7 @@ const BEFORE = { basic: [6, 0], point: [5, 0], size: [5, 1], 'apparel-look': [7,
 
 // ── 1. 개수·카테고리 ──
 {
-  eq('전체 79개 (예전 38 + 안내·이벤트 22 + 촬영 세트 19)', [STUDIO_TEMPLATES.length >= 60, STUDIO_TEMPLATES.length, EVENT_TEMPLATES.length], [true, 79, 22])
+  eq('전체 94개 (예전 38 + 안내·이벤트 22 + 촬영 세트 34)', [STUDIO_TEMPLATES.length >= 60, STUDIO_TEMPLATES.length, EVENT_TEMPLATES.length], [true, 94, 22])
   eq('예전 38개 key가 모두 남아 있음', Object.keys(BEFORE).filter(k => !STUDIO_TEMPLATES.some(t => t.key === k)), [])
   eq('key 겹침 없음', new Set(STUDIO_TEMPLATES.map(t => t.key)).size, STUDIO_TEMPLATES.length)
   eq('카테고리 "안내·이벤트" = 22개', [TEMPLATE_CATEGORIES.find(c => c.key === 'event')?.label, templatesOf('event').length], ['안내·이벤트', 22])

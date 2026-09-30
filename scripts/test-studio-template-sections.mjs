@@ -70,8 +70,8 @@ const contrast = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((m, n) => n - 
 
 // ── 1. 종류마다 모양 수 ──
 const COUNTS = Object.fromEntries(SECTION_KINDS.map(k => [k, SECTION_VARIANTS[k].make.length]))
-eq('모양 수: 포인트 6 · 관리법 5 · 표 5 · 안내 5 · 추천 5 · 후기 4 · 상세컷(1장 5·2장 4·3장 3) · 포인트 사진 4 · 정보 줄 4 · 혜택 4 + 촬영 세트용 8종', COUNTS,
-  { points: 6, steps: 5, table: 5, notice: 5, recommend: 5, review: 4, detail1: 5, detail2: 4, detail3: 3, pointPhoto: 4, rows: 4, perks: 4, statement: 3, story: 3, zoom: 3, sizeSlot: 3, care: 3, contents: 3, ingredient: 2, storage: 2 })
+eq('모양 수: 포인트 6 · 관리법 5 · 표 5 · 안내 5 · 추천 5 · 후기 4 · 상세컷(1장 5·2장 4·3장 3) · 포인트 사진 4 · 정보 줄 4 · 혜택 4 + 촬영 세트용 9종', COUNTS,
+  { points: 6, steps: 5, table: 5, notice: 5, recommend: 5, review: 4, detail1: 5, detail2: 4, detail3: 3, pointPhoto: 4, rows: 4, perks: 4, statement: 3, story: 3, zoom: 3, sizeSlot: 3, care: 3, contents: 3, ingredient: 2, storage: 2, fabric: 3 })
 eq('모양마다 이름표', SECTION_KINDS.every(k => SECTION_VARIANTS[k].names.length === COUNTS[k]), true)
 
 // ── 2. 모든 모양 × 색 3가지 (밝은 첫 화면 · 짙은 첫 화면 · 노랑 강조) ──
@@ -104,6 +104,8 @@ eq('모양마다 이름표', SECTION_KINDS.every(k => SECTION_VARIANTS[k].names.
     contents: { title: '구성', items: [['보관 주머니', '1개'], ['[구성품 이름]', '[수량]'], ['목걸이', '1개']] },
     ingredient: { title: '원재료 및 정보', rows: [['원재료명', '[원재료 이름]'], ['내용량', '[00]정 · [0]개월분'], ['볶음 정도', '[중간 볶음]'], ['보관 방법', '[서늘한 곳]'], ['제조일', '[별도 표시]']] },
     storage: { title: '이렇게 보관해 주세요', items: [{ k: '냉동', v: '[-18]℃ 이하', t: '받은 뒤 [0]일 안에\n드실 때' }, { k: '실온', v: '서늘한 곳', t: '손이 닿지 않는\n곳에 두세요' }, { k: '해동', v: '냉장실에서', t: '먹기 전날\n옮겨 주세요' }] },
+    // 3차 패션 (소재 안내) — 긴 값 기준
+    fabric: { title: '소재 안내', mix: [['겉감', '[나일론 00% · 스판 00%]'], ['충전재', '[충전재 이름]'], ['색상', '[머스터드 · 네이비]']], feel: [{ k: '테 두께', steps: ['부드러움', '보통', '단단함'], on: 0 }, { k: '신축성', steps: ['없음', '약간', '좋음'], on: 1 }, { k: '비침', steps: ['없음', '약간', '있음'], on: 2 }], note: '표시한 칸은 예시예요. 상품에 맞는 칸으로 바꿔 주세요.' },
   }
   const four = { title: '배송 순서', items: ['주문을 확인해요', '꼼꼼히 포장해요', '택배사에 맡겨요', '문 앞까지 도착해요'].map(title => ({ title })) }
   for (const kind of SECTION_KINDS) {
@@ -147,11 +149,11 @@ for (const tpl of STUDIO_TEMPLATES) {
   eq(`바로 위 카드와 같은 종류인데 같은 모양 0곳`, list.flatMap((t, i) => (i >= GALLERY_COLUMNS && same(t, list[i - GALLERY_COLUMNS]).length ? [`${list[i - GALLERY_COLUMNS].key}/${t.key}`] : [])), [])
   const sigs = list.map(t => t.sectionStyles.join('|'))
   eq('아래 섹션 모양 조합이 완전히 같은 템플릿 0쌍', sigs.filter((s, i) => sigs.indexOf(s) !== i), [])
-  eq('섹션 모양을 쓰는 템플릿 78개 (point는 POINT 구간을 예전 모양으로 둠)', list.filter(t => t.sectionStyles.length).length, 78)
+  eq('섹션 모양을 쓰는 템플릿 93개 (point는 POINT 구간을 예전 모양으로 둠)', list.filter(t => t.sectionStyles.length).length, 93)
   const usedAll = new Set(list.flatMap(t => t.sectionStyles))
   eq('모든 모양이 어느 템플릿엔가 쓰임', SECTION_KINDS.flatMap(k => [...Array(COUNTS[k]).keys()].map(v => `${k}:${v}`)).filter(s => !usedAll.has(s)), [])
   eq('새 섹션 종류가 템플릿에 들어감 — 후기 인용·전·후 비교·구성품 한눈에·이런 분께 추천', ['review', 'detail2:2', 'detail3:2', 'recommend'].map(k => list.some(t => t.sectionStyles.some(s => s === k || s.startsWith(`${k}:`)))), [true, true, true, true])
-  eq('모양 번호표가 79개 모두',STUDIO_TEMPLATES.every(t => SECTION_STYLE_PLAN.has(t.key)), true)
+  eq('모양 번호표가 94개 모두',STUDIO_TEMPLATES.every(t => SECTION_STYLE_PLAN.has(t.key)), true)
 }
 
 // ── 5. 내용은 그대로 · 색은 첫 화면을 따름 ──

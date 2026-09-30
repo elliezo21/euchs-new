@@ -1457,6 +1457,30 @@
   },
   "samples": [
     {
+      "id": "sample-apparel-detail-active-seam-18",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "active-seam",
+      "file": "samples/euchs-sample_apparel_detail_active-seam_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_active-seam_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-detail-blouse-cuff-button-10",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "blouse-cuff-button",
+      "file": "samples/euchs-sample_apparel_detail_blouse-cuff-button_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_blouse-cuff-button_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-apparel-detail-button-stitch-02",
       "kind": "sample",
       "category": "apparel",
@@ -1467,6 +1491,42 @@
       "w": 891,
       "h": 891,
       "ratio": 1
+    },
+    {
+      "id": "sample-apparel-detail-coat-lapel-12",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "coat-lapel",
+      "file": "samples/euchs-sample_apparel_detail_coat-lapel_12.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_coat-lapel_12.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-detail-corduroy-pocket-19",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "corduroy-pocket",
+      "file": "samples/euchs-sample_apparel_detail_corduroy-pocket_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_corduroy-pocket_19.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-detail-denim-rivet-14",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "denim-rivet",
+      "file": "samples/euchs-sample_apparel_detail_denim-rivet_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_denim-rivet_14.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-apparel-detail-dress-button-09",
@@ -1517,6 +1577,18 @@
       "ratio": 1
     },
     {
+      "id": "sample-apparel-detail-knit-wood-button-11",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "knit-wood-button",
+      "file": "samples/euchs-sample_apparel_detail_knit-wood-button_11.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_knit-wood-button_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-apparel-detail-neckline-no-label-06",
       "kind": "sample",
       "category": "apparel",
@@ -1536,6 +1608,54 @@
       "label": "pajama-button-piping",
       "file": "samples/euchs-sample_apparel_detail_pajama-button-piping_07.webp",
       "thumb": "samples/thumbs/euchs-sample_apparel_detail_pajama-button-piping_07.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-detail-pleats-texture-15",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "pleats-texture",
+      "file": "samples/euchs-sample_apparel_detail_pleats-texture_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_pleats-texture_15.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-detail-puffer-zipper-13",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "puffer-zipper",
+      "file": "samples/euchs-sample_apparel_detail_puffer-zipper_13.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_puffer-zipper_13.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-detail-shirt-collar-button-17",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "shirt-collar-button",
+      "file": "samples/euchs-sample_apparel_detail_shirt-collar-button_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_shirt-collar-button_17.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-detail-slacks-waist-hook-16",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "detail",
+      "label": "slacks-waist-hook",
+      "file": "samples/euchs-sample_apparel_detail_slacks-waist-hook_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_detail_slacks-waist-hook_16.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -1577,6 +1697,54 @@
       "ratio": 1
     },
     {
+      "id": "sample-apparel-product-black-puffer-13",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "black-puffer",
+      "file": "samples/euchs-sample_apparel_product_black-puffer_13.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_black-puffer_13.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-product-cable-cardigan-stool-11",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "cable-cardigan-stool",
+      "file": "samples/euchs-sample_apparel_product_cable-cardigan-stool_11.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_cable-cardigan-stool_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-product-camel-coat-mannequin-12",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "camel-coat-mannequin",
+      "file": "samples/euchs-sample_apparel_product_camel-coat-mannequin_12.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_camel-coat-mannequin_12.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-product-denim-bench-14",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "denim-bench",
+      "file": "samples/euchs-sample_apparel_product_denim-bench_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_denim-bench_14.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-apparel-product-denim-pants-flat-03",
       "kind": "sample",
       "category": "apparel",
@@ -1587,6 +1755,42 @@
       "w": 891,
       "h": 891,
       "ratio": 1
+    },
+    {
+      "id": "sample-apparel-product-gray-slacks-16",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "gray-slacks",
+      "file": "samples/euchs-sample_apparel_product_gray-slacks_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_gray-slacks_16.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-product-ivory-bow-blouse-10",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "ivory-bow-blouse",
+      "file": "samples/euchs-sample_apparel_product_ivory-bow-blouse_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_ivory-bow-blouse_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-product-kids-outfit-rug-19",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "kids-outfit-rug",
+      "file": "samples/euchs-sample_apparel_product_kids-outfit-rug_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_kids-outfit-rug_19.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-apparel-product-knit-cardigan-05",
@@ -1620,6 +1824,30 @@
       "label": "linen-dress",
       "file": "samples/euchs-sample_apparel_product_linen-dress_09.webp",
       "thumb": "samples/thumbs/euchs-sample_apparel_product_linen-dress_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-product-oxford-shirt-folded-17",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "oxford-shirt-folded",
+      "file": "samples/euchs-sample_apparel_product_oxford-shirt-folded_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_oxford-shirt-folded_17.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-product-pleats-skirt-hanger-15",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "pleats-skirt-hanger",
+      "file": "samples/euchs-sample_apparel_product_pleats-skirt-hanger_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_pleats-skirt-hanger_15.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -1673,6 +1901,54 @@
       "ratio": 1
     },
     {
+      "id": "sample-apparel-product-yoga-set-mat-18",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "product",
+      "label": "yoga-set-mat",
+      "file": "samples/euchs-sample_apparel_product_yoga-set-mat_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_product_yoga-set-mat_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-active-flatlay-18",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "active-flatlay",
+      "file": "samples/euchs-sample_apparel_scene_active-flatlay_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_active-flatlay_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-blouse-stone-table-10",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "blouse-stone-table",
+      "file": "samples/euchs-sample_apparel_scene_blouse-stone-table_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_blouse-stone-table_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-blouse-window-back-10",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "blouse-window-back",
+      "file": "samples/euchs-sample_apparel_scene_blouse-window-back_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_blouse-window-back_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-apparel-scene-cafe-window-back-03",
       "kind": "sample",
       "category": "apparel",
@@ -1683,6 +1959,54 @@
       "w": 780,
       "h": 1044,
       "ratio": 1.3385
+    },
+    {
+      "id": "sample-apparel-scene-coat-armchair-12",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "coat-armchair",
+      "file": "samples/euchs-sample_apparel_scene_coat-armchair_12.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_coat-armchair_12.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-coat-autumn-walk-12",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "coat-autumn-walk",
+      "file": "samples/euchs-sample_apparel_scene_coat-autumn-walk_12.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_coat-autumn-walk_12.webp",
+      "w": 762,
+      "h": 1016,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-denim-stack-14",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "denim-stack",
+      "file": "samples/euchs-sample_apparel_scene_denim-stack_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_denim-stack_14.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-denim-street-walk-14",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "denim-street-walk",
+      "file": "samples/euchs-sample_apparel_scene_denim-street-walk_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_denim-street-walk_14.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-apparel-scene-dress-mannequin-09",
@@ -1745,6 +2069,54 @@
       "ratio": 1.3333
     },
     {
+      "id": "sample-apparel-scene-kids-clothes-rack-19",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "kids-clothes-rack",
+      "file": "samples/euchs-sample_apparel_scene_kids-clothes-rack_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_kids-clothes-rack_19.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-kids-park-walk-19",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "kids-park-walk",
+      "file": "samples/euchs-sample_apparel_scene_kids-park-walk_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_kids-park-walk_19.webp",
+      "w": 762,
+      "h": 1016,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-knit-bed-flatlay-11",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "knit-bed-flatlay",
+      "file": "samples/euchs-sample_apparel_scene_knit-bed-flatlay_11.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_knit-bed-flatlay_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-leggings-mat-walk-18",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "leggings-mat-walk",
+      "file": "samples/euchs-sample_apparel_scene_leggings-mat-walk_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_leggings-mat-walk_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-apparel-scene-linen-curtain-rack-02",
       "kind": "sample",
       "category": "apparel",
@@ -1788,6 +2160,102 @@
       "label": "pajama-morning",
       "file": "samples/euchs-sample_apparel_scene_pajama-morning_07.webp",
       "thumb": "samples/thumbs/euchs-sample_apparel_scene_pajama-morning_07.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-puffer-snow-walk-13",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "puffer-snow-walk",
+      "file": "samples/euchs-sample_apparel_scene_puffer-snow-walk_13.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_puffer-snow-walk_13.webp",
+      "w": 762,
+      "h": 1016,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-puffer-window-rack-13",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "puffer-window-rack",
+      "file": "samples/euchs-sample_apparel_scene_puffer-window-rack_13.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_puffer-window-rack_13.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-shirt-cuff-hands-17",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "shirt-cuff-hands",
+      "file": "samples/euchs-sample_apparel_scene_shirt-cuff-hands_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_shirt-cuff-hands_17.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-shirt-stack-stool-17",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "shirt-stack-stool",
+      "file": "samples/euchs-sample_apparel_scene_shirt-stack-stool_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_shirt-stack-stool_17.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-skirt-bed-flatlay-15",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "skirt-bed-flatlay",
+      "file": "samples/euchs-sample_apparel_scene_skirt-bed-flatlay_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_skirt-bed-flatlay_15.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-skirt-garden-walk-15",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "skirt-garden-walk",
+      "file": "samples/euchs-sample_apparel_scene_skirt-garden-walk_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_skirt-garden-walk_15.webp",
+      "w": 762,
+      "h": 1016,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-slacks-desk-16",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "slacks-desk",
+      "file": "samples/euchs-sample_apparel_scene_slacks-desk_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_slacks-desk_16.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-apparel-scene-slacks-lobby-walk-16",
+      "kind": "sample",
+      "category": "apparel",
+      "type": "scene",
+      "label": "slacks-lobby-walk",
+      "file": "samples/euchs-sample_apparel_scene_slacks-lobby-walk_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_apparel_scene_slacks-lobby-walk_16.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -1860,6 +2328,18 @@
       "label": "nursery-hanger",
       "file": "samples/euchs-sample_baby_scene_nursery-hanger_01.webp",
       "thumb": "samples/thumbs/euchs-sample_baby_scene_nursery-hanger_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-detail-belt-buckle-17",
+      "kind": "sample",
+      "category": "bag",
+      "type": "detail",
+      "label": "belt-buckle",
+      "file": "samples/euchs-sample_bag_detail_belt-buckle_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_detail_belt-buckle_17.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -1973,6 +2453,18 @@
       "ratio": 1.3333
     },
     {
+      "id": "sample-bag-detail-pearl-pin-scrunchie-19",
+      "kind": "sample",
+      "category": "bag",
+      "type": "detail",
+      "label": "pearl-pin-scrunchie",
+      "file": "samples/euchs-sample_bag_detail_pearl-pin-scrunchie_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_detail_pearl-pin-scrunchie_19.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-bag-detail-pumps-leather-07",
       "kind": "sample",
       "category": "bag",
@@ -2009,6 +2501,30 @@
       "ratio": 1.3333
     },
     {
+      "id": "sample-bag-detail-sunglasses-hinge-18",
+      "kind": "sample",
+      "category": "bag",
+      "type": "detail",
+      "label": "sunglasses-hinge",
+      "file": "samples/euchs-sample_bag_detail_sunglasses-hinge_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_detail_sunglasses-hinge_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-detail-tote-stitch-15",
+      "kind": "sample",
+      "category": "bag",
+      "type": "detail",
+      "label": "tote-stitch",
+      "file": "samples/euchs-sample_bag_detail_tote-stitch_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_detail_tote-stitch_15.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-bag-detail-umbrella-handle-13",
       "kind": "sample",
       "category": "bag",
@@ -2016,6 +2532,18 @@
       "label": "umbrella-handle",
       "file": "samples/euchs-sample_bag_detail_umbrella-handle_13.webp",
       "thumb": "samples/thumbs/euchs-sample_bag_detail_umbrella-handle_13.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-detail-wallet-edge-16",
+      "kind": "sample",
+      "category": "bag",
+      "type": "detail",
+      "label": "wallet-edge",
+      "file": "samples/euchs-sample_bag_detail_wallet-edge_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_detail_wallet-edge_16.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -2064,6 +2592,30 @@
       "label": "beret-scarf",
       "file": "samples/euchs-sample_bag_product_beret-scarf_12.webp",
       "thumb": "samples/thumbs/euchs-sample_bag_product_beret-scarf_12.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-product-black-belt-stone-17",
+      "kind": "sample",
+      "category": "bag",
+      "type": "product",
+      "label": "black-belt-stone",
+      "file": "samples/euchs-sample_bag_product_black-belt-stone_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_product_black-belt-stone_17.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-product-black-wallets-slate-16",
+      "kind": "sample",
+      "category": "bag",
+      "type": "product",
+      "label": "black-wallets-slate",
+      "file": "samples/euchs-sample_bag_product_black-wallets-slate_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_product_black-wallets-slate_16.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -2201,6 +2753,42 @@
       "ratio": 1
     },
     {
+      "id": "sample-bag-product-tan-tote-podium-15",
+      "kind": "sample",
+      "category": "bag",
+      "type": "product",
+      "label": "tan-tote-podium",
+      "file": "samples/euchs-sample_bag_product_tan-tote-podium_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_product_tan-tote-podium_15.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-product-tortoise-sunglasses-18",
+      "kind": "sample",
+      "category": "bag",
+      "type": "product",
+      "label": "tortoise-sunglasses",
+      "file": "samples/euchs-sample_bag_product_tortoise-sunglasses_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_product_tortoise-sunglasses_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-product-velvet-hair-set-19",
+      "kind": "sample",
+      "category": "bag",
+      "type": "product",
+      "label": "velvet-hair-set",
+      "file": "samples/euchs-sample_bag_product_velvet-hair-set_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_product_velvet-hair-set_19.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-bag-scene-bag-in-hand-03",
       "kind": "sample",
       "category": "bag",
@@ -2211,6 +2799,30 @@
       "w": 780,
       "h": 1044,
       "ratio": 1.3385
+    },
+    {
+      "id": "sample-bag-scene-belt-wearing-17",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "belt-wearing",
+      "file": "samples/euchs-sample_bag_scene_belt-wearing_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_belt-wearing_17.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-scene-belts-flatlay-17",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "belts-flatlay",
+      "file": "samples/euchs-sample_bag_scene_belts-flatlay_17.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_belts-flatlay_17.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-bag-scene-beret-street-12",
@@ -2271,6 +2883,18 @@
       "w": 780,
       "h": 1044,
       "ratio": 1.3385
+    },
+    {
+      "id": "sample-bag-scene-cardholder-hands-16",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "cardholder-hands",
+      "file": "samples/euchs-sample_bag_scene_cardholder-hands_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_cardholder-hands_16.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-bag-scene-entryway-hooks-04",
@@ -2345,6 +2969,18 @@
       "ratio": 1.3333
     },
     {
+      "id": "sample-bag-scene-ribbon-bun-back-19",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "ribbon-bun-back",
+      "file": "samples/euchs-sample_bag_scene_ribbon-bun-back_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_ribbon-bun-back_19.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-bag-scene-sandals-beach-mat-09",
       "kind": "sample",
       "category": "bag",
@@ -2364,6 +3000,18 @@
       "label": "sandals-boardwalk",
       "file": "samples/euchs-sample_bag_scene_sandals-boardwalk_09.webp",
       "thumb": "samples/thumbs/euchs-sample_bag_scene_sandals-boardwalk_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-scene-scrunchie-tray-19",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "scrunchie-tray",
+      "file": "samples/euchs-sample_bag_scene_scrunchie-tray_19.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_scrunchie-tray_19.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -2417,6 +3065,54 @@
       "ratio": 1.3385
     },
     {
+      "id": "sample-bag-scene-sunglasses-beach-back-18",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "sunglasses-beach-back",
+      "file": "samples/euchs-sample_bag_scene_sunglasses-beach-back_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_sunglasses-beach-back_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-scene-sunglasses-beach-bag-18",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "sunglasses-beach-bag",
+      "file": "samples/euchs-sample_bag_scene_sunglasses-beach-bag_18.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_sunglasses-beach-bag_18.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-scene-tote-cafe-chair-15",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "tote-cafe-chair",
+      "file": "samples/euchs-sample_bag_scene_tote-cafe-chair_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_tote-cafe-chair_15.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-scene-tote-street-shoulder-15",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "tote-street-shoulder",
+      "file": "samples/euchs-sample_bag_scene_tote-street-shoulder_15.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_tote-street-shoulder_15.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-bag-scene-umbrella-rain-walk-13",
       "kind": "sample",
       "category": "bag",
@@ -2451,6 +3147,18 @@
       "w": 780,
       "h": 1044,
       "ratio": 1.3385
+    },
+    {
+      "id": "sample-bag-scene-wallet-flatlay-16",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "wallet-flatlay",
+      "file": "samples/euchs-sample_bag_scene_wallet-flatlay_16.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_wallet-flatlay_16.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-bag-scene-wood-table-styling-01",

@@ -1,5 +1,5 @@
 /**
- * 촬영 세트 템플릿 19개 — 한 벌로 찍은 예시 사진 4장(대표·연출·확대·사용 장면)으로 만든 긴 상세페이지 (DOM·DB 없음)
+ * 촬영 세트 템플릿 34개 (1·2차 19 + 3차 패션 15) — 한 벌로 찍은 예시 사진 4장(대표·연출·확대·사용 장면, 니트만 3장)으로 만든 긴 상세페이지 (DOM·DB 없음)
  * node 테스트: scripts/test-studio-template-shoots.mjs (+ heroes·sections·gallery 테스트가 전체 목록으로 본다)
  *
  * ★ 모양은 studioTemplates.js 맨 위 설명과 같다 ({ key, label, desc, gap, sections } + category·mood·swatch·tone).
@@ -48,7 +48,18 @@ function badge(b, x, y, d) {
   ]
 }
 
-// ── 첫 화면 구도 13가지 — 모두 { items } (바탕색은 spec.bg) ──
+/** 점선 네모 (선 4개 한 묶음 — 도형 테두리는 점선이 없어서) */
+function dashRect(x, y, w, h, color, g) {
+  const line = (lx, ly, len, rot) => ({ type: 'line', group: g, x: lx, y: ly, w: len, strokeWidth: 2, color, dash: 'dashed', ...(rot ? { rotation: 90 } : {}) })
+  return [line(x, y, w), line(x, y + h - 2, w), line(x - h / 2 + 1, y + h / 2 - 1, h, true), line(x + w - h / 2 - 1, y + h / 2 - 1, h, true)]
+}
+/** 두 점을 잇는 선 (가운데 기준으로 돌린 선) */
+function leg(x0, y0, x1, y1, color) {
+  const len = Math.round(Math.hypot(x1 - x0, y1 - y0))
+  return { type: 'line', x: Math.round((x0 + x1) / 2 - len / 2), y: Math.round((y0 + y1) / 2 - 1), w: len, strokeWidth: 2, color, rotation: Math.round((Math.atan2(y1 - y0, x1 - x0) * 180) / Math.PI) }
+}
+
+// ── 첫 화면 구도 22가지 (1·2차 13 + 3차 9) — 모두 { items } (바탕색은 spec.bg) ──
 const HEROES = {
   /** 액자 선 — 사진 전면 + 안쪽 가는 테두리 + 왼쪽 위 명조 제목 */
   frame(s) {
@@ -230,6 +241,168 @@ const HEROES = {
       { type: 'line', x: (W + pw) / 2 + 30, y: py + ph - 1, w: (W - pw) / 2 - 120, strokeWidth: 2, color: s.accent },
     ]
   },
+
+  // ── 3차 (패션 15벌) — 세로로 긴 옷 = 옆 칸 제목(사진이 세로로 길게) · 아래쪽에 놓인 상품 = 사진 전면 + 위쪽 빈 곳에 제목 ──
+  /** 옷걸이 봉 — 위쪽 가로 봉에 두 줄로 걸린 세로 사진 + 오른쪽 칸 제목 */
+  rail(s) {
+    const ry = 100, px = 24, pw = 460, py = 188, ph = H - 56 - py
+    const cx0 = px + pw + 26, cw = W - 30 - cx0
+    const t = title(s.title, s.font, s.ink, cx0, 340, cw, s.target ?? 0.31)
+    const sb = sub(s.sub, s.subInk ?? s.ink, cx0, 340 + t.h + 24, cw, 'left', 19)
+    const hx = px + pw / 2
+    return [
+      rect(24, ry, W - 48, 8, s.rod, { radius: 4 }),
+      { type: 'shape', shape: 'ellipse', x: 12, y: ry - 8, w: 24, h: 24, fill: s.rod },
+      { type: 'shape', shape: 'ellipse', x: W - 36, y: ry - 8, w: 24, h: 24, fill: s.rod },
+      { type: 'shape', shape: 'ellipse', x: hx - 11, y: ry + 10, w: 22, h: 22, fill: '', strokeWidth: 3, strokeColor: s.rod },
+      leg(hx, ry + 30, px + 40, py, s.rod), leg(hx, ry + 30, px + pw - 40, py, s.rod),
+      photo(px, py, pw, ph, { shadow: 22 }),
+      label(s.label, s.labelInk ?? s.accent, cx0, 300, cw),
+      t.part, sb.part,
+      rect(cx0, sb.part.y + sb.h + 26, 44, 3, s.accent),
+    ]
+  },
+  /** 옷 라벨 — 왼쪽 세로 사진 + 오른쪽 박음질 라벨(제목 · 관리 표시 3개 · 부제) */
+  careLabel(s) {
+    const pw = 440, lx = pw + 32, lw = W - 28 - lx, ly = 160, lh = H - 70 - ly
+    const tx = lx + 20, tw = lw - 40
+    const t = title(s.title, s.font, s.ink, tx, ly + 96, tw, s.target ?? 0.31, { align: 'center' })
+    const iy = ly + 96 + t.h + 52
+    const sb = sub(s.sub, s.subInk ?? s.ink, tx, iy + 56 + 26, tw, 'center', 18)
+    return [
+      photo(0, 0, pw, H),
+      rect(lx + 24, ly - 18, lw - 48, 18, s.accent, { radius: 4 }),
+      rect(lx, ly, lw, lh, s.tag, { radius: 6 }),
+      ...dashRect(lx + 12, ly + 12, lw - 24, lh - 24, s.accent, 'cl'),
+      label(s.label, s.labelInk ?? s.accent, tx, ly + 46, tw, 'center'),
+      t.part,
+      rect(lx + lw / 2 - 20, ly + 96 + t.h + 22, 40, 3, s.accent),
+      ...s.icons.flatMap((k, i) => {
+        const x = tx + 8 + i * 80, g = `ci${i}`
+        return [
+          { type: 'shape', group: g, shape: 'ellipse', x, y: iy, w: 56, h: 56, fill: '', strokeWidth: 2, strokeColor: s.accent },
+          { type: 'text', group: g, x: x - 4, y: iy + Math.round((56 - textH('가', 14, 1.2)) / 2), w: 64, text: k, fontSize: 14, fontWeight: 700, color: s.ink, fontFamily: 'pretendard', align: 'center', lineHeight: 1.2 },
+        ]
+      }),
+      sb.part,
+    ]
+  },
+  /** 행택 — 위에서 끈으로 내려온 큰 가격표 모양 카드(제목) + 오른쪽 세로 사진 (카드가 사진 가장자리를 살짝 덮음) */
+  tag(s) {
+    const px = 340, tx = 30, tw = 370, ty = 170, th = H - 90 - ty, hx = tx + tw / 2
+    const t = title(s.title, s.font, s.tagInk, tx + 25, ty + 150, tw - 50, s.target ?? 0.31, { align: 'center', group: 'tg' })
+    const sb = sub(s.sub, s.tagSub ?? s.tagInk, tx + 30, ty + 150 + t.h + 48, tw - 60, 'center', 19)
+    return [
+      photo(px, 0, W - px, H),
+      { type: 'line', x: hx - (ty + 40) / 2, y: (ty + 40) / 2, w: ty + 40, strokeWidth: 2, color: s.string, rotation: 90 },
+      { type: 'shape', group: 'tg', shape: 'rect', x: tx, y: ty, w: tw, h: th, fill: s.tag, radius: 28 },
+      { type: 'shape', group: 'tg', shape: 'ellipse', x: hx - 20, y: ty + 28, w: 40, h: 40, fill: s.bg, strokeWidth: 3, strokeColor: s.accent },
+      { ...label(s.label, s.labelInk ?? s.accent, tx, ty + 96, tw, 'center'), group: 'tg' },
+      t.part,
+      { type: 'shape', group: 'tg', shape: 'rect', x: hx - 22, y: ty + 150 + t.h + 22, w: 44, h: 3, fill: s.accent },
+      { ...sb.part, group: 'tg' },
+      { type: 'line', group: 'tg', x: tx + 30, y: ty + th - 70, w: tw - 60, strokeWidth: 2, color: s.accent, dash: 'dashed' },
+    ]
+  },
+  /** 치수 도식 — 모눈 바탕 · 세로 사진 + 가로·세로 치수 화살표 · 오른쪽 칸 제목 */
+  measure(s) {
+    const items = []
+    for (let x = 52; x < W; x += 52) items.push({ type: 'line', x: x - H / 2, y: H / 2 - 1, w: H, strokeWidth: 1, color: s.grid, rotation: 90 })
+    for (let y = 52; y < H; y += 52) items.push({ type: 'line', x: 0, y, w: W, strokeWidth: 1, color: s.grid })
+    const px = 96, py = 150, pw = 380, ph = 790
+    const cx0 = px + pw + 30, cw = W - 30 - cx0
+    const t = title(s.title, s.font, s.ink, cx0, 340, cw, s.target ?? 0.31)
+    const sb = sub(s.sub, s.subInk ?? s.ink, cx0, 340 + t.h + 24, cw, 'left', 19)
+    const chip = (x, y, w, text, g) => [
+      { type: 'shape', group: g, shape: 'rect', x, y, w, h: 34, fill: s.bg, radius: 17, strokeWidth: 2, strokeColor: s.accent },
+      { type: 'text', group: g, x, y: 34 / 2 + y - Math.round(textH('가', 15, 1.2) / 2), w, text, fontSize: 15, fontWeight: 700, color: s.accent, fontFamily: 'pretendard', align: 'center', lineHeight: 1.2 },
+    ]
+    const ay = py + ph + 34
+    items.push(
+      { type: 'line', x: 52 - ph / 2, y: py + ph / 2 - 1, w: ph, strokeWidth: 2, color: s.accent, startCap: 'arrow', endCap: 'arrow', rotation: 90 },
+      ...chip(20, py + ph / 2 - 17, 64, '[00]', 'mv'),
+      { type: 'line', x: px, y: ay, w: pw, strokeWidth: 2, color: s.accent, startCap: 'arrow', endCap: 'arrow' },
+      ...chip(px + pw / 2 - 50, ay - 17, 100, '[00]cm', 'mh'),
+      photo(px, py, pw, ph),
+      label(s.label, s.labelInk ?? s.accent, cx0, 300, cw),
+      t.part, sb.part,
+      rect(cx0, sb.part.y + sb.h + 26, 44, 3, s.accent),
+    )
+    return items
+  },
+  /** L자 띠 — 사진 전면 + 위쪽 넓은 띠(제목) + 왼쪽 세로 띠(세로 영문 라벨) */
+  corner(s) {
+    const sw = 92, bh = s.bandH ?? 440
+    const t = title(s.title, s.font, s.ink, sw + 44, 64, 500, s.target ?? 0.31)
+    const sb = sub(s.sub, s.subInk ?? s.ink, sw + 46, 64 + t.h + 14, 480, 'left', 20)
+    return [
+      photo(0, 0, W, H),
+      rect(0, 0, W, bh, s.band),
+      rect(0, 0, sw, H, s.band),
+      rect(sw, bh, W - sw, 6, s.accent),
+      { ...label(s.label, s.labelInk ?? s.accent, sw / 2 - 180, H / 2 + 120, 360, 'center'), rotation: -90 },
+      t.part, sb.part,
+    ]
+  },
+  /** 박음질 상자 — 사진 전면 + 제목을 두른 점선 박음질 + 왼쪽 천 조각 · 부제는 제목 옆 */
+  stitch(s) {
+    const t = title(s.title, s.font, s.ink, 72, 100, 330, s.target ?? 0.31)
+    const sb = sub(s.sub, s.subInk ?? s.ink, 432, 100 + t.h - 70, 190, 'left', 19)
+    const bh = 100 + t.h + 18 - 36
+    return [
+      photo(0, 0, W, H),
+      ...dashRect(40, 36, 600, bh, s.thread, 'sb'),
+      rect(28, 110, 26, 130, s.accent, { radius: 4 }),
+      label(s.label, s.labelInk ?? s.ink, 72, 58, 400),
+      t.part, sb.part,
+    ]
+  },
+  /** 색 견본 — 사진 전면 + 위쪽 빈 곳에 제목 · 오른쪽 위 색 동그라미 3개 */
+  swatch(s) {
+    const t = title(s.title, s.font, s.ink, 56, 96, 520, s.target ?? 0.31)
+    const sb = sub(s.sub, s.subInk ?? s.ink, 58, 96 + t.h + 12, 500, 'left', 20)
+    return [
+      photo(0, 0, W, H),
+      label(s.label, s.labelInk ?? s.ink, 58, 56),
+      t.part, sb.part,
+      ...s.chips.flatMap((c, i) => {
+        const y = 170 + i * 96, g = `sw${i}`
+        return [
+          { type: 'shape', group: g, shape: 'ellipse', x: 624, y, w: 52, h: 52, fill: c, strokeWidth: 3, strokeColor: WHITE },
+          { type: 'text', group: g, x: 600, y: y + 58, w: 100, text: s.chipLabel ?? '[색상]', fontSize: 14, fontWeight: 700, color: s.ink, fontFamily: 'pretendard', align: 'center', lineHeight: 1.2 },
+        ]
+      }),
+    ]
+  },
+  /** 창틀 — 사진 전면 + 굵은 창틀 · 가로 창살 위쪽을 흐리게(제목은 왼쪽 칸 · 부제는 오른쪽 칸) */
+  window(s) {
+    const f = 26, tb = s.transom ?? 450, mx = W / 2 - 7
+    const t = title(s.title, s.font, s.ink, 60, 92, mx - 76, s.target ?? 0.31)
+    const sb = sub(s.sub, s.subInk ?? s.ink, mx + 44, tb - 150, W - f - mx - 70, 'left', 20)
+    return [
+      photo(0, 0, W, H),
+      rect(0, 0, W, tb, s.veil, { fillOpacity: 0.8 }),
+      rect(0, 0, W, f, s.frame), rect(0, H - f, W, f, s.frame), rect(0, 0, f, H, s.frame), rect(W - f, 0, f, H, s.frame),
+      rect(0, tb, W, 16, s.frame), rect(mx, f, 14, tb - f, s.frame),
+      { type: 'shape', shape: 'ellipse', x: W / 2 - 14, y: tb - 6, w: 28, h: 28, fill: s.accent },
+      label(s.label, s.labelInk ?? s.ink, mx + 44, tb - 196, 300),
+      t.part, sb.part,
+    ]
+  },
+  /** 선반 — 벽에 단 선반 위 정사각 사진 + 위쪽 가운데 제목 */
+  shelf(s) {
+    const t = title(s.title, s.font, s.ink, 40, 140, 700, s.target ?? 0.31, { align: 'center' })
+    const sb = sub(s.sub, s.subInk ?? s.ink, 70, 140 + t.h + 14, 640, 'center')
+    const sy = H - 96, ps = sy - (sb.part.y + sb.h + 40), px = (W - ps) / 2
+    return [
+      label(s.label, s.labelInk ?? s.accent, 40, 84, 700, 'center'),
+      t.part, sb.part,
+      photo(px, sy - ps, ps, ps, { radius: 6, shadow: 18 }),
+      rect(60, sy, W - 120, 20, s.board, { radius: 3 }),
+      { type: 'shape', shape: 'triangle', x: 120, y: sy + 20, w: 40, h: 44, fill: s.board, rotation: 180 },
+      { type: 'shape', shape: 'triangle', x: W - 160, y: sy + 20, w: 40, h: 44, fill: s.board, rotation: 180 },
+    ]
+  },
 }
 export const SHOOT_HERO_COMPS = Object.keys(HEROES)
 
@@ -309,6 +482,73 @@ const FLOWS = {
     c.steps ? section('steps', v.steps, c.steps, th) : section('care', v.care, c.care, th),
     notice(c, th, v),
   ],
+  // ── 3차 (패션 15벌) — 모두 소재 안내(fabric) · 사이즈 자리 · 세탁·관리. 착용 사진이 없는 세트(니트)는 착용 장면을 뺀다 ──
+  // 의류 — 착용 장면 → 소재 확대 → 소재 안내 → 특징 → 연출 → 사이즈 자리 → 세탁 → 구성 → 안내
+  wearA: (c, th, v) => [
+    use(c, th, v),
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('fabric', v.fabric, c.fabric, th),
+    section('points', v.points, c.points, th),
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('sizeSlot', v.sizeSlot, c.size, th),
+    section('care', v.care, c.care, th),
+    section('contents', v.contents, c.contents, th),
+    notice(c, th, v),
+  ].filter(Boolean),
+  // 의류 — 문장 → 연출 → 소재 안내 → 소재 확대 → 특징 → 착용 장면 → 사이즈 자리 → 세탁 → 구성 → 안내
+  wearB: (c, th, v) => [
+    section('statement', v.statement, c.statement, th),
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('fabric', v.fabric, c.fabric, th),
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('points', v.points, c.points, th),
+    use(c, th, v),
+    section('sizeSlot', v.sizeSlot, c.size, th),
+    section('care', v.care, c.care, th),
+    section('contents', v.contents, c.contents, th),
+    notice(c, th, v),
+  ].filter(Boolean),
+  // 의류 — 소재 확대 → 소재 안내 → 착용 장면 → 추천 → 연출 → 사이즈 자리 → 세탁 → 구성 → 안내
+  wearC: (c, th, v) => [
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('fabric', v.fabric, c.fabric, th),
+    use(c, th, v),
+    section('recommend', v.recommend, c.recommend, th),
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('sizeSlot', v.sizeSlot, c.size, th),
+    section('care', v.care, c.care, th),
+    section('contents', v.contents, c.contents, th),
+    notice(c, th, v),
+  ].filter(Boolean),
+  // 잡화 — 연출 → 특징 → 확대 → 제품 정보 → 사용 장면 → 크기 자리 → 관리 → 구성 → 안내
+  accA: (c, th, v) => [
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('points', v.points, c.points, th),
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('fabric', v.fabric, c.fabric, th),
+    use(c, th, v),
+    section('sizeSlot', v.sizeSlot, c.size, th),
+    section('care', v.care, c.care, th),
+    section('contents', v.contents, c.contents, th),
+    notice(c, th, v),
+  ].filter(Boolean),
+  // 잡화 — 문장 → 사용 장면 → 확대 → 제품 정보 → 추천 → 연출 → 크기 자리 → 관리 → 구성 → 안내
+  accB: (c, th, v) => [
+    section('statement', v.statement, c.statement, th),
+    use(c, th, v),
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('fabric', v.fabric, c.fabric, th),
+    section('recommend', v.recommend, c.recommend, th),
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('sizeSlot', v.sizeSlot, c.size, th),
+    section('care', v.care, c.care, th),
+    section('contents', v.contents, c.contents, th),
+    notice(c, th, v),
+  ].filter(Boolean),
+}
+/** 착용·사용 장면 (사진 4 — 없는 세트는 null) */
+function use(c, th, v) {
+  return c.use ? section('story', v.story, { ...c.use, slot: 'U', sample: c.useSample ?? 'scene' }, th) : null
 }
 const FLOW_DESC = {
   fashionA: '대표 사진 → 브랜드 문장 → 연출 → 특징 3가지 → 소재 확대 → 착용 장면 → 사이즈 자리 → 관리 → 구성 → 안내',
@@ -317,7 +557,14 @@ const FLOW_DESC = {
   food: '대표 사진 → 브랜드 문장 → 연출 → 원재료 → 확대 → 보관법 → 손질·포장 장면 → 구성 → 안내',
   foodB: '대표 사진 → 확대 → 원재료 → 브랜드 문장 → 연출 → 드시는 법 → 보관법 → 장면 → 구성 → 안내',
   living: '대표 사진 → 브랜드 문장 → 특징 3가지 → 사용 장면 → 확대 → 연출 → 추천 → 구성품 → 순서·관리 → 안내',
+  wearA: '대표 사진 → 착용 장면 → 소재 확대 → 소재 안내 → 특징 3가지 → 연출 → 사이즈 자리 → 세탁·관리 → 구성 → 안내',
+  wearB: '대표 사진 → 브랜드 문장 → 연출 → 소재 안내 → 소재 확대 → 특징 3가지 → 착용 장면 → 사이즈 자리 → 세탁·관리 → 구성 → 안내',
+  wearC: '대표 사진 → 소재 확대 → 소재 안내 → 착용 장면 → 추천 → 연출 → 사이즈 자리 → 세탁·관리 → 구성 → 안내',
+  accA: '대표 사진 → 연출 → 특징 3가지 → 확대 → 제품 정보 → 사용 장면 → 크기 자리 → 관리 → 구성 → 안내',
+  accB: '대표 사진 → 브랜드 문장 → 사용 장면 → 확대 → 제품 정보 → 추천 → 연출 → 크기 자리 → 관리 → 구성 → 안내',
 }
+/** 착용 사진이 없는 세트의 흐름 설명 (착용 장면을 뺀 글) */
+const flowDesc = e => (e.pins.length < 4 ? FLOW_DESC[e.flow].replace(' → 착용 장면', '') : FLOW_DESC[e.flow])
 
 // ── 문구 ──
 const P = (title, desc) => ({ title, desc })
@@ -331,6 +578,16 @@ const SHOE_SIZE = { title: '사이즈 안내', chips: ['단위 mm', '발 길이 
 const CLOTH_SIZE = { title: '사이즈 안내', chips: ['단위 cm', '평평하게 재요', '1~3cm 차이'], note: '가지고 있는 옷과 비교해 골라 주세요.' }
 const CLOTH_CARE = { title: '세탁·관리 안내', items: [K('30°', '미지근한 물에\n세탁해 주세요'), K('단독', '처음에는 따로\n세탁해 주세요'), K('그늘', '뒤집어서 그늘에\n말려 주세요'), K('다림', '낮은 온도로\n다려 주세요')] }
 const MORE = ['[구성품 이름]', '[수량]']
+// 소재 안내 (3차) — 느낌 칸 3단계 · 표시한 칸(on)은 예시
+const FEEL_STEPS = {
+  thick: ['두께', ['얇음', '보통', '도톰']], stretch: ['신축성', ['없음', '약간', '좋음']], sheer: ['비침', ['없음', '약간', '있음']],
+  weight: ['무게', ['가벼움', '보통', '묵직']], size: ['크기', ['작음', '보통', '넉넉']], firm: ['단단함', ['부드러움', '보통', '단단함']],
+  room: ['수납', ['적음', '보통', '넉넉']], width: ['폭', ['좁음', '보통', '넓음']], tint: ['렌즈 색', ['연함', '보통', '진함']],
+  rim: ['테 두께', ['얇음', '보통', '두꺼움']], hold: ['고정', ['가볍게', '보통', '단단히']],
+}
+const FEEL = Object.fromEntries(Object.entries(FEEL_STEPS).map(([key, [k, steps]]) => [key, on => ({ k, steps, on })]))
+const CLOTH_FEEL = (thick, stretch, sheer) => [FEEL.thick(thick), FEEL.stretch(stretch), FEEL.sheer(sheer)]
+const FAB = (mix, feel, title = '소재 안내') => ({ title, mix, feel, note: '표시한 칸은 예시예요. 상품에 맞는 칸으로 바꿔 주세요.' })
 
 const COPY = {
   pumps: {
@@ -535,6 +792,178 @@ const COPY = {
     care: { title: '관리 방법', items: [K('천', '마른 천으로\n닦아 주세요'), K('물기', '물기는 바로\n닦아 주세요'), K('충격', '떨어뜨리지 않게\n조심해 주세요'), K('자리', '평평한 곳에\n두세요')] },
     notices: '· 손으로 만들어 모양과 색이 조금씩 달라요.\n· 조명에 따라 색이 다르게 보일 수 있어요.\n· 궁금한 점은 문의를 남겨 주세요.',
   },
+
+  // ── 3차: 패션 15벌 (소재 안내 fabric · 사이즈 자리 · 세탁·관리) ──
+  blouse: {
+    statement: { label: 'OFFICE DAILY', text: '리본 하나로 단정함과 부드러움을 함께 담았어요', sub: '소재와 핏의 장점을 적어 주세요.' },
+    scene: { title: '반듯하게 개어 둔 모습', lead: '함께 입기 좋은 옷을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    fabric: FAB([['겉감', '[폴리 00% · 레이온 00%]'], ['안감', '[없음]'], ['색상', '[아이보리]']], CLOTH_FEEL(0, 1, 1)),
+    zoom: { title: '소매 끝을 가까이', notes: [N('싸개 단추', '단추 모양을 적어 주세요.'), N('깔끔한 박음질', '마감 방식을 적어 주세요.'), N('부드러운 원단', '원단 이름을 적어 주세요.')] },
+    points: { title: '손이 자주 가는 이유', items: [P('은은한 광택', '원단의 느낌을\n적어 주세요'), P('리본 칼라', '묶는 방법을\n적어 주세요'), P('단추 여밈', '단추 소재를\n적어 주세요')] },
+    use: { label: 'BY THE WINDOW', title: '창가에 선 오후의 뒷모습', desc: '입었을 때 느낌을 한두 줄로 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('손세탁', '찬물에 가볍게\n손세탁해 주세요'), K('그늘', '그늘에서\n말려 주세요'), K('다림', '낮은 온도로\n다려 주세요'), K('걸기', '옷걸이에 걸어\n보관해 주세요')] },
+    contents: { title: '구성', items: [['블라우스', '1장'], MORE, ['[구성품 이름]', '[수량]']] },
+    notices: FASHION_NOTICE,
+  },
+  knit: {
+    statement: { label: 'WARM KNIT', text: '꽈배기 무늬가 겨울 옷차림을 포근하게 해요', sub: '실 굵기와 짜임을 적어 주세요.' },
+    scene: { title: '침대 위에 개어 둔 니트', lead: '색상 구성을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    fabric: FAB([['겉감', '[울 00% · 아크릴 00%]'], ['안감', '[없음]'], ['색상', '[색상 이름]']], CLOTH_FEEL(2, 1, 0)),
+    zoom: { title: '단추와 짜임을 가까이', notes: [N('꽈배기 무늬', '무늬 이름을 적어 주세요.'), N('나무 단추', '단추 크기를 적어 주세요.'), N('포근한 실', '실 소재를 적어 주세요.')] },
+    points: { title: '포근하게 입는 이유', items: [P('도톰한 짜임', '짜임 방식을\n적어 주세요'), P('나무 단추', '단추 소재를\n적어 주세요'), P('넉넉한 핏', '핏을\n적어 주세요')] },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('울코스', '울 코스로\n세탁해 주세요'), K('눕혀', '눕혀서\n말려 주세요'), K('보풀', '보풀은 살살\n떼어 주세요'), K('개기', '개어서\n보관해 주세요')] },
+    contents: { title: '구성', items: [['가디건', '1장'], MORE, ['[구성품 이름]', '[수량]']] },
+    notices: FASHION_NOTICE,
+  },
+  coat: {
+    zoom: { title: '칼라를 가까이에서', notes: [N('단정한 칼라', '칼라 모양을 적어 주세요.'), N('촘촘한 모직', '원단 이름을 적어 주세요.'), N('겉 박음질', '마감 방식을 적어 주세요.')] },
+    fabric: FAB([['겉감', '[울 00% · 폴리 00%]'], ['안감', '[폴리 100%]'], ['색상', '[카멜]']], [FEEL.thick(2), FEEL.weight(1), FEEL.stretch(0)]),
+    use: { label: 'AUTUMN WALK', title: '낙엽 길을 걷는 오후', desc: '입고 걸었을 때 느낌을 한두 줄로 적어 주세요.' },
+    recommend: { title: '이런 분께 추천해요', lines: ['오래 입을 기본 코트를 찾는 분', '출근과 주말에 함께 입을 분', '허리끈으로 핏을 바꾸고 싶은 분'] },
+    scene: { title: '의자에 걸쳐 둔 코트', lead: '어울리는 옷차림을 알려 주세요.', caption: '사진 아래에 착용 사이즈를 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('전문', '드라이클리닝을\n맡겨 주세요'), K('솔질', '입은 뒤 옷솔로\n털어 주세요'), K('걸기', '두꺼운 옷걸이에\n걸어 주세요'), K('통풍', '통풍이 잘 되는\n곳에 두세요')] },
+    contents: { title: '구성', items: [['코트', '1벌'], ['허리끈', '1개'], MORE] },
+    notices: FASHION_NOTICE,
+  },
+  padding: {
+    use: { label: 'SNOW WALK', title: '눈 내린 숲길에서도 든든하게', desc: '입고 나갔을 때 느낌을 한두 줄로 적어 주세요.' },
+    zoom: { title: '지퍼와 누빔을 가까이', notes: [N('튼튼한 지퍼', '지퍼 소재를 적어 주세요.'), N('도톰한 누빔', '누빔 간격을 적어 주세요.'), N('매끈한 겉감', '겉감 소재를 적어 주세요.')] },
+    fabric: FAB([['겉감', '[나일론 100%]'], ['충전재', '[충전재 이름]'], ['색상', '[블랙]']], [FEEL.thick(2), FEEL.weight(0), FEEL.stretch(0)]),
+    points: { title: '겨울에 손이 가는 이유', items: [P('포근한 충전재', '충전재를\n적어 주세요'), P('가벼운 무게', '무게를\n적어 주세요'), P('모자 달린 목', '목 높이를\n적어 주세요')] },
+    scene: { title: '창가 옷걸이에 걸어 둔 모습', lead: '함께 챙기면 좋은 소품을 알려 주세요.', caption: '사진 아래에 착용 사이즈를 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('세탁망', '세탁망에 넣어\n세탁해 주세요'), K('중성', '중성 세제를\n써 주세요'), K('두드려', '말린 뒤 두드려\n부풀려 주세요'), K('걸기', '접지 말고\n걸어 주세요')] },
+    contents: { title: '구성', items: [['패딩', '1벌'], MORE, ['[구성품 이름]', '[수량]']] },
+    notices: FASHION_NOTICE,
+  },
+  denim: {
+    use: { label: 'CITY WALK', title: '운동화와 걷는 가벼운 하루', desc: '입고 걸었을 때 느낌을 한두 줄로 적어 주세요.' },
+    zoom: { title: '리벳과 스티치를 가까이', notes: [N('구릿빛 리벳', '리벳 소재를 적어 주세요.'), N('주황 스티치', '실 색을 적어 주세요.'), N('탄탄한 데님', '원단 두께를 적어 주세요.')] },
+    fabric: FAB([['겉감', '[면 00% · 스판 00%]'], ['워싱', '[미디엄 블루]'], ['핏', '[일자 핏]']], CLOTH_FEEL(1, 1, 0)),
+    points: { title: '매일 입게 되는 이유', items: [P('편한 일자 핏', '핏을\n적어 주세요'), P('은은한 워싱', '색을\n적어 주세요'), P('튼튼한 박음질', '마감을\n적어 주세요')] },
+    scene: { title: '세 가지 색으로 골라요', lead: '색상 이름을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('뒤집어', '뒤집어서\n세탁해 주세요'), K('단독', '처음에는 따로\n세탁해 주세요'), K('찬물', '찬물로\n세탁해 주세요'), K('그늘', '그늘에서\n말려 주세요')] },
+    contents: { title: '구성', items: [['청바지', '1벌'], MORE, ['[구성품 이름]', '[수량]']] },
+    notices: FASHION_NOTICE,
+  },
+  skirt: {
+    statement: { label: 'GARDEN MOOD', text: '걸을 때마다 주름이 살랑이는 한 벌', sub: '길이와 소재를 적어 주세요.' },
+    scene: { title: '침대 위에 펼쳐 둔 스커트', lead: '함께 입으면 좋은 옷을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    fabric: FAB([['겉감', '[폴리 100%]'], ['안감', '[있음]'], ['허리', '[밴드]']], CLOTH_FEEL(0, 1, 1)),
+    zoom: { title: '주름을 가까이에서', notes: [N('고른 주름', '주름 간격을 적어 주세요.'), N('은은한 광택', '원단 느낌을 적어 주세요.'), N('가벼운 원단', '원단 무게를 적어 주세요.')] },
+    points: { title: '입을수록 좋은 이유', items: [P('흐르는 주름', '주름 모양을\n적어 주세요'), P('편한 밴드', '허리 방식을\n적어 주세요'), P('긴 기장', '기장을\n적어 주세요')] },
+    use: { label: 'GARDEN WALK', title: '꽃길을 걷는 오후', desc: '입고 걸었을 때 느낌을 한두 줄로 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('손세탁', '찬물에 가볍게\n손세탁해 주세요'), K('세탁망', '세탁망에 넣어\n주세요'), K('걸기', '걸어서\n말려 주세요'), K('주름', '주름을 따라\n말려 주세요')] },
+    contents: { title: '구성', items: [['스커트', '1장'], MORE, ['[구성품 이름]', '[수량]']] },
+    notices: FASHION_NOTICE,
+  },
+  slacks: {
+    zoom: { title: '허리 여밈을 가까이', notes: [N('숨은 고리', '여밈 방식을 적어 주세요.'), N('반듯한 주름', '앞 주름을 적어 주세요.'), N('부드러운 결', '원단 느낌을 적어 주세요.')] },
+    fabric: FAB([['겉감', '[폴리 00% · 레이온 00%]'], ['안감', '[없음]'], ['핏', '[와이드 핏]']], CLOTH_FEEL(1, 1, 0)),
+    use: { label: 'OFFICE WALK', title: '로비를 걷는 출근길', desc: '입고 걸었을 때 느낌을 한두 줄로 적어 주세요.' },
+    recommend: { title: '이런 분께 추천해요', lines: ['단정한 출근 바지를 찾는 분', '편한 와이드 핏을 좋아하는 분', '셔츠와 니트에 두루 입을 분'] },
+    scene: { title: '책상 위에 개어 둔 모습', lead: '함께 입으면 좋은 옷을 알려 주세요.', caption: '사진 아래에 착용 사이즈를 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('세탁망', '세탁망에 넣어\n세탁해 주세요'), K('그늘', '그늘에서\n말려 주세요'), K('다림', '주름을 따라\n다려 주세요'), K('걸기', '바지 걸이에\n걸어 주세요')] },
+    contents: { title: '구성', items: [['슬랙스', '1벌'], MORE, ['[구성품 이름]', '[수량]']] },
+    notices: FASHION_NOTICE,
+  },
+  shirt: {
+    zoom: { title: '칼라와 단추를 가까이', notes: [N('단정한 칼라', '칼라 모양을 적어 주세요.'), N('하얀 단추', '단추 소재를 적어 주세요.'), N('옥스퍼드 결', '원단 짜임을 적어 주세요.')] },
+    fabric: FAB([['겉감', '[면 100%]'], ['짜임', '[옥스퍼드]'], ['색상', '[하늘색]']], CLOTH_FEEL(1, 0, 1)),
+    use: { label: 'MORNING', title: '소매 단추를 채우는 아침', desc: '입었을 때 느낌을 한두 줄로 적어 주세요.' },
+    recommend: { title: '이런 분께 추천해요', lines: ['매일 입을 기본 셔츠를 찾는 분', '넥타이 없이도 단정하고 싶은 분', '여러 색을 함께 고르는 분'] },
+    scene: { title: '세 가지 색으로 쌓아 둔 모습', lead: '색상 이름을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('30°', '미지근한 물에\n세탁해 주세요'), K('단독', '처음에는 따로\n세탁해 주세요'), K('걸어', '옷걸이에 걸어\n말려 주세요'), K('다림', '칼라부터\n다려 주세요')] },
+    contents: { title: '구성', items: [['셔츠', '1장'], MORE, ['[구성품 이름]', '[수량]']] },
+    notices: FASHION_NOTICE,
+  },
+  active: {
+    statement: { label: 'MOVE FREELY', text: '몸에 부드럽게 붙어 움직임이 가벼워요', sub: '소재와 신축성을 적어 주세요.' },
+    scene: { title: '세 가지 색으로 골라요', lead: '색상 이름을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    fabric: FAB([['겉감', '[나일론 00% · 스판 00%]'], ['안감', '[없음]'], ['색상', '[라벤더 외 0색]']], CLOTH_FEEL(1, 2, 0)),
+    zoom: { title: '박음질을 가까이에서', notes: [N('납작한 박음질', '박음질 방식을 적어 주세요.'), N('매끈한 겉면', '원단 느낌을 적어 주세요.'), N('탄탄한 밴드', '밴드 폭을 적어 주세요.')] },
+    points: { title: '운동할 때 좋은 이유', items: [P('늘어나는 원단', '신축성을\n적어 주세요'), P('편한 허리', '허리 밴드를\n적어 주세요'), P('세트 구성', '구성을\n적어 주세요')] },
+    use: { label: 'YOGA TIME', title: '매트 위에서 가볍게', desc: '입고 움직였을 때 느낌을 적어 주세요.' },
+    size: CLOTH_SIZE,
+    care: { title: '세탁·관리 안내', items: [K('찬물', '찬물로\n세탁해 주세요'), K('세탁망', '세탁망에 넣어\n주세요'), K('그늘', '그늘에서\n말려 주세요'), K('자연', '바람에\n말려 주세요')] },
+    contents: { title: '구성', items: [['상의', '1장'], ['레깅스', '1장'], MORE] },
+    notices: FASHION_NOTICE,
+  },
+  kids: {
+    zoom: { title: '코듀로이를 가까이', notes: [N('도톰한 골', '골 굵기를 적어 주세요.'), N('동그란 주머니', '주머니 모양을 적어 주세요.'), N('부드러운 면', '소재를 적어 주세요.')] },
+    fabric: FAB([['상의', '[면 00% · 아크릴 00%]'], ['하의', '[면 100%]'], ['색상', '[머스터드 · 네이비]']], CLOTH_FEEL(1, 1, 0)),
+    use: { label: 'PARK DAY', title: '손잡고 걷는 공원 산책', desc: '입고 뛰놀았을 때 모습을 적어 주세요.' },
+    recommend: { title: '이런 분께 추천해요', lines: ['아이 가을옷을 한 번에 고르는 분', '뛰놀기 편한 옷을 찾는 분', '선물할 아이 옷을 고르는 분'] },
+    scene: { title: '옷걸이에 걸어 둔 아이 옷', lead: '색상 구성을 알려 주세요.', caption: '사진 아래에 사이즈를 적어 주세요.' },
+    size: { title: '사이즈 안내', chips: ['단위 cm', '키 기준', '1~3cm 차이'], note: '아이 키와 몸무게를 기준으로 골라 주세요.' },
+    care: { title: '세탁·관리 안내', items: [K('30°', '미지근한 물에\n세탁해 주세요'), K('중성', '순한 세제를\n써 주세요'), K('뒤집어', '뒤집어서\n세탁해 주세요'), K('그늘', '그늘에서\n말려 주세요')] },
+    contents: { title: '구성', items: [['니트', '1장'], ['바지', '1장'], MORE] },
+    notices: '· 처음 입히기 전에 한 번 세탁해 주세요.\n· 아이 키와 사이즈를 확인해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
+  tote: {
+    scene: { title: '카페 의자 위의 토트백', lead: '넣기 좋은 물건을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    points: { title: '매일 들게 되는 이유', items: [P('넉넉한 수납', '들어가는 물건을\n적어 주세요'), P('튼튼한 손잡이', '손잡이 길이를\n적어 주세요'), P('부드러운 가죽', '가죽 종류를\n적어 주세요')] },
+    zoom: { title: '박음질을 가까이에서', notes: [N('꼼꼼한 박음질', '바느질 방식을 적어 주세요.'), N('자연스러운 결', '가죽 결을 적어 주세요.'), N('마감된 가장자리', '마감 방식을 적어 주세요.')] },
+    fabric: FAB([['소재', '[소가죽]'], ['안감', '[면]'], ['여밈', '[지퍼]']], [FEEL.size(2), FEEL.weight(1), FEEL.firm(1)], '제품 정보'),
+    use: { label: 'ON THE SHOULDER', title: '어깨에 메고 걷는 골목', desc: '들고 나갔을 때 느낌을 한두 줄로 적어 주세요.' },
+    size: { title: '크기 안내', chips: ['단위 cm', '가로·세로·폭', '손잡이 길이'], note: '노트북·책이 들어가는지 함께 적어 주세요.' },
+    care: { title: '관리 방법', items: [K('마른천', '마른 천으로\n닦아 주세요'), K('물기', '젖으면 바로\n닦아 주세요'), K('속지', '속을 채워\n보관해 주세요'), K('통풍', '통풍이 잘 되는\n곳에 두세요')] },
+    contents: { title: '구성', items: [['토트백', '1개'], ['보관 주머니', '1개'], MORE] },
+    notices: FASHION_NOTICE,
+  },
+  wallet: {
+    statement: { label: 'LEATHER GOODS', text: '손에 쥐었을 때 딱 맞는 크기의 지갑', sub: '가죽과 수납 칸을 적어 주세요.' },
+    use: { label: 'EVERY DAY', title: '카드 한 장을 꺼내는 순간', desc: '쓸 때 편한 점을 한두 줄로 적어 주세요.' },
+    zoom: { title: '가장자리를 가까이', notes: [N('단단한 가장자리', '마감 방식을 적어 주세요.'), N('촘촘한 무늬', '가죽 무늬를 적어 주세요.'), N('꼼꼼한 박음질', '바느질을 적어 주세요.')] },
+    fabric: FAB([['소재', '[소가죽]'], ['카드 칸', '[0]칸'], ['색상', '[블랙 외 0색]']], [FEEL.thick(0), FEEL.room(1), FEEL.weight(0)], '제품 정보'),
+    recommend: { title: '이런 분께 추천해요', lines: ['얇은 지갑을 찾는 분', '가죽 선물을 고르는 분', '카드만 가볍게 챙기는 분'] },
+    scene: { title: '책상 위에 늘어놓은 구성', lead: '색상과 종류를 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    size: { title: '크기 안내', chips: ['단위 cm', '가로·세로', '두께'], note: '접었을 때와 펼쳤을 때 크기를 적어 주세요.' },
+    care: { title: '관리 방법', items: [K('마른천', '마른 천으로\n닦아 주세요'), K('물기', '젖으면 바로\n닦아 주세요'), K('습기', '습한 곳을\n피해 주세요'), K('크림', '가죽 크림으로\n가끔 닦아 주세요')] },
+    contents: { title: '구성', items: [['지갑', '1개'], ['선물 상자', '1개'], MORE] },
+    notices: FASHION_NOTICE,
+  },
+  belt: {
+    scene: { title: '세 가지 색으로 골라요', lead: '어울리는 신발과 옷을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    points: { title: '오래 쓰게 되는 이유', items: [P('단단한 가죽', '가죽 종류를\n적어 주세요'), P('은빛 버클', '버클 소재를\n적어 주세요'), P('넉넉한 구멍', '구멍 수를\n적어 주세요')] },
+    zoom: { title: '버클을 가까이에서', notes: [N('반짝이는 버클', '버클 소재를 적어 주세요.'), N('겉 박음질', '실 색을 적어 주세요.'), N('튼튼한 구멍', '구멍 간격을 적어 주세요.')] },
+    fabric: FAB([['소재', '[소가죽]'], ['버클', '[금속]'], ['폭', '[0.0]cm']], [FEEL.width(1), FEEL.thick(1), FEEL.firm(2)], '제품 정보'),
+    use: { label: 'DRESS UP', title: '셔츠 위로 단정하게', desc: '맸을 때 느낌을 한두 줄로 적어 주세요.' },
+    size: { title: '길이 안내', chips: ['단위 cm', '버클 포함', '허리둘레 기준'], note: '가지고 있는 벨트와 길이를 비교해 주세요.' },
+    care: { title: '관리 방법', items: [K('마른천', '마른 천으로\n닦아 주세요'), K('물기', '젖으면 바로\n닦아 주세요'), K('말아서', '둥글게 말아\n보관해 주세요'), K('크림', '가죽 크림으로\n가끔 닦아 주세요')] },
+    contents: { title: '구성', items: [['벨트', '1개'], ['보관 상자', '1개'], MORE] },
+    notices: FASHION_NOTICE,
+  },
+  sunglass: {
+    statement: { label: 'SUMMER LIGHT', text: '햇살 좋은 날, 바다 앞에서 더 빛나요', sub: '렌즈와 테 이야기를 적어 주세요.' },
+    use: { label: 'BY THE SEA', title: '파도 앞에서 잠시 쉬어 가요', desc: '썼을 때 느낌을 한두 줄로 적어 주세요.' },
+    zoom: { title: '경첩을 가까이에서', notes: [N('튼튼한 경첩', '경첩 소재를 적어 주세요.'), N('얼룩무늬 테', '테 소재를 적어 주세요.'), N('맑은 렌즈', '렌즈 색을 적어 주세요.')] },
+    fabric: FAB([['테', '[아세테이트]'], ['렌즈', '[렌즈 소재]'], ['색상', '[브라운]']], [FEEL.weight(0), FEEL.tint(1), FEEL.rim(2)], '제품 정보'),
+    recommend: { title: '이런 분께 추천해요', lines: ['얼굴형에 맞는 테를 찾는 분', '여름 여행을 준비하는 분', '매일 쓸 선글라스를 찾는 분'] },
+    scene: { title: '라탄 가방 위의 세 가지 색', lead: '색상 이름을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    size: { title: '크기 안내', chips: ['단위 mm', '렌즈 가로', '다리 길이'], note: '가지고 있는 안경과 크기를 비교해 주세요.' },
+    care: { title: '관리 방법', items: [K('천', '전용 천으로\n닦아 주세요'), K('케이스', '케이스에 넣어\n보관해 주세요'), K('열', '뜨거운 차 안을\n피해 주세요'), K('물기', '물기는 바로\n닦아 주세요')] },
+    contents: { title: '구성', items: [['선글라스', '1개'], ['케이스', '1개'], ['닦는 천', '1장']] },
+    notices: '· 조명에 따라 색이 조금 다르게 보일 수 있어요.\n· 렌즈 정보는 상품 표시를 확인해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
+  hairacc: {
+    scene: { title: '쟁반 위에 모아 둔 헤어 소품', lead: '색상과 종류를 알려 주세요.', caption: '사진 아래에 구성과 색상을 적어 주세요.' },
+    points: { title: '고르는 재미가 있는 이유', items: [P('여러 가지 색', '색상 구성을\n적어 주세요'), P('부드러운 벨벳', '소재를\n적어 주세요'), P('진주 장식', '장식을\n적어 주세요')] },
+    zoom: { title: '진주와 벨벳을 가까이', notes: [N('동그란 진주', '진주 크기를 적어 주세요.'), N('포근한 벨벳', '소재를 적어 주세요.'), N('금빛 핀', '핀 소재를 적어 주세요.')] },
+    fabric: FAB([['소재', '[벨벳 · 금속]'], ['장식', '[인조 진주]'], ['구성', '[0]종']], [FEEL.size(1), FEEL.hold(1), FEEL.weight(0)], '제품 정보'),
+    use: { label: 'HAIR STYLING', title: '리본으로 묶은 뒷머리', desc: '했을 때 모습을 한두 줄로 적어 주세요.' },
+    size: { title: '크기 안내', chips: ['단위 cm', '핀 길이', '밴드 지름'], note: '머리숱에 맞는 크기를 함께 적어 주세요.' },
+    care: { title: '관리 방법', items: [K('손세탁', '찬물에 가볍게\n손세탁해 주세요'), K('그늘', '그늘에서\n말려 주세요'), K('따로', '하나씩 따로\n보관해 주세요'), K('물기', '금속은 물기를\n닦아 주세요')] },
+    contents: { title: '구성', items: [['곱창 밴드', '[0]개'], ['헤어핀', '[0]개'], ['리본 핀', '[0]개']] },
+    notices: FASHION_NOTICE,
+  },
 }
 
 // ── 템플릿 19개 ──
@@ -641,12 +1070,91 @@ const LIST = [
     pins: pin('bag', '14', ['acrylic-keyrings', 'stationery-flatlay', 'keyring-clip', 'keyring-bag']),
     hero: { comp: 'tape', bg: '#e7cf65', font: 'gasoek-one', tape: '#111111', tapeInk: '#fff066', accent: '#111111', labelInk: '#111111', subBg: '#ffffff', subInk: '#111111', title: '가방에\n톡!', sub: '모양과 크기를 한 줄로 적어 주세요', label: 'KEYRING GOODS' },
   },
+  // ── 3차: 패션 15벌 (batch 3 — 앞 19개 뒤에 이어 붙인다) ──
+  // 세로로 긴 옷 = 옆 칸 제목 구도(치수 도식·옷걸이 봉·행택·옷 라벨) / 상품이 사진 아래쪽에 놓인 세트 = 사진 전면 + 위쪽 빈 곳 제목(박음질·색 견본·창틀·L자 띠) · 선반
+  {
+    key: 'shoot-bow-blouse', batch: 3, category: 'apparel', name: '리본 블라우스', mood: 'soft', tone: 'beige', flow: 'wearB', copy: 'blouse', body: 'noto-sans-kr',
+    pins: pin('apparel', '10', ['ivory-bow-blouse', 'blouse-stone-table', 'blouse-cuff-button', 'blouse-window-back']),
+    hero: { comp: 'measure', bg: '#efe7dc', grid: '#e3d8c9', font: 'nanum-myeongjo', target: 0.32, ink: '#3b2f26', accent: '#9a7550', title: '리본을\n묶는\n단정한\n하루', sub: '소재와 핏을\n적어 주세요', label: 'BOW BLOUSE' },
+  },
+  {
+    key: 'shoot-cable-knit', batch: 3, category: 'apparel', name: '꽈배기 니트', mood: 'soft', tone: 'photo', flow: 'wearB', copy: 'knit', body: 'noto-sans-kr',
+    pins: pin('apparel', '11', ['cable-cardigan-stool', 'knit-bed-flatlay', 'knit-wood-button']),
+    hero: { comp: 'stitch', bg: '#baa387', font: 'gowun-batang', ink: '#3b2c1f', thread: '#6b4f36', accent: '#a8764f', title: '포근한\n겨울\n가디건', sub: '실과 짜임을\n적어 주세요', label: 'CABLE KNIT' },
+  },
+  {
+    key: 'shoot-wool-coat', batch: 3, category: 'apparel', name: '울 코트', mood: 'premium', tone: 'orange', flow: 'wearC', copy: 'coat', body: 'noto-sans-kr',
+    pins: pin('apparel', '12', ['camel-coat-mannequin', 'coat-armchair', 'coat-lapel', 'coat-autumn-walk']),
+    hero: { comp: 'measure', bg: '#dcc7a7', grid: '#cfb893', font: 'noto-serif-kr', target: 0.32, ink: '#3a2a1c', accent: '#7a4e2d', title: '가을을\n닮은\n낙타색\n코트', sub: '원단과 핏을\n적어 주세요', label: 'WOOL COAT' },
+  },
+  {
+    key: 'shoot-puffer', batch: 3, category: 'apparel', name: '패딩', mood: 'bold', tone: 'black', flow: 'wearA', copy: 'padding', body: 'pretendard',
+    pins: pin('apparel', '13', ['black-puffer', 'puffer-window-rack', 'puffer-zipper', 'puffer-snow-walk']),
+    hero: { comp: 'rail', bg: '#1a1d22', rod: '#9aa3ad', font: 'black-han-sans', ink: '#ffffff', subInk: '#c9ced6', accent: '#7fb2ff', title: '눈길도\n가볍게\n걷는\n패딩', sub: '보온과 무게를\n적어 주세요', label: 'DOWN JACKET' },
+  },
+  {
+    key: 'shoot-daily-denim', batch: 3, category: 'apparel', name: '청바지', mood: 'friendly', tone: 'beige', flow: 'wearA', copy: 'denim', body: 'pretendard',
+    pins: pin('apparel', '14', ['denim-bench', 'denim-stack', 'denim-rivet', 'denim-street-walk']),
+    hero: { comp: 'tag', bg: '#f1ece2', tag: '#2c4566', tagInk: '#ffffff', tagSub: '#c9d6e8', string: '#2c4566', font: 'black-han-sans', ink: '#2c4566', accent: '#e0a458', title: '매일\n입는\n청바지', sub: '핏과 워싱을\n적어 주세요', label: 'DAILY DENIM' },
+  },
+  {
+    key: 'shoot-pleats-skirt', batch: 3, category: 'apparel', name: '플리츠 스커트', mood: 'soft', tone: 'green', flow: 'wearB', copy: 'skirt', body: 'noto-sans-kr',
+    pins: pin('apparel', '15', ['pleats-skirt-hanger', 'skirt-bed-flatlay', 'pleats-texture', 'skirt-garden-walk']),
+    hero: { comp: 'careLabel', bg: '#dfe6d8', tag: '#fbfaf5', font: 'gowun-batang', ink: '#2f3d2b', accent: '#6f8a67', icons: ['손세탁', '그늘', '걸기'], title: '살랑\n이는\n주름', sub: '길이와 소재를\n적어 주세요', label: 'PLEATS SKIRT' },
+  },
+  {
+    key: 'shoot-wide-slacks', batch: 3, category: 'apparel', name: '와이드 슬랙스', mood: 'clean', tone: 'gray', flow: 'wearC', copy: 'slacks', body: 'pretendard',
+    pins: pin('apparel', '16', ['gray-slacks', 'slacks-desk', 'slacks-waist-hook', 'slacks-lobby-walk']),
+    hero: { comp: 'careLabel', bg: '#d9d9d6', tag: '#ffffff', font: 'pretendard', ink: '#24272c', accent: '#4a4f57', icons: ['30°', '세탁망', '다림'], title: '매일\n입는\n회색\n슬랙스', sub: '핏과 기장을\n적어 주세요', label: 'WIDE SLACKS' },
+  },
+  {
+    key: 'shoot-oxford-shirt', batch: 3, category: 'apparel', name: '남성 셔츠', mood: 'clean', tone: 'blue', flow: 'wearC', copy: 'shirt', body: 'noto-sans-kr',
+    pins: pin('apparel', '17', ['oxford-shirt-folded', 'shirt-stack-stool', 'shirt-collar-button', 'shirt-cuff-hands']),
+    hero: { comp: 'rail', bg: '#dde6f0', rod: '#5b6b80', font: 'noto-sans-kr', ink: '#1f3048', accent: '#3867a8', title: '단정한\n하루를\n여는\n셔츠', sub: '원단과 핏을\n적어 주세요', label: 'OXFORD SHIRT' },
+  },
+  {
+    key: 'shoot-active-set', batch: 3, category: 'apparel', name: '요가복 세트', mood: 'bold', tone: 'photo', flow: 'wearB', copy: 'active', body: 'pretendard',
+    pins: pin('apparel', '18', ['yoga-set-mat', 'active-flatlay', 'active-seam', 'leggings-mat-walk']),
+    hero: { comp: 'swatch', bg: '#ab9ba8', font: 'black-han-sans', ink: '#3e2f5b', accent: '#6e55a8', chips: ['#b9a3e3', '#9fbfa6', '#1f1f24'], title: '매트\n위에서\n가볍게', sub: '신축성과 두께를 적어 주세요', label: 'ACTIVE WEAR' },
+  },
+  {
+    key: 'shoot-kids-wear', batch: 3, category: 'apparel', name: '아동복', mood: 'friendly', tone: 'photo', flow: 'wearC', copy: 'kids', body: 'pretendard',
+    pins: pin('apparel', '19', ['kids-outfit-rug', 'kids-clothes-rack', 'corduroy-pocket', 'kids-park-walk']),
+    hero: { comp: 'swatch', bg: '#cbbd9b', font: 'do-hyeon', ink: '#4a3a12', accent: '#b07a1e', chips: ['#d9a23a', '#23355c', '#efe6d4'], title: '뛰놀기\n좋은\n가을옷', sub: '사이즈와 소재를 적어 주세요', label: 'KIDS WEAR' },
+  },
+  {
+    key: 'shoot-leather-tote', batch: 3, category: 'bags', name: '가죽 토트백', mood: 'premium', tone: 'orange', flow: 'accA', copy: 'tote', body: 'noto-sans-kr',
+    pins: pin('bag', '15', ['tan-tote-podium', 'tote-cafe-chair', 'tote-stitch', 'tote-street-shoulder']),
+    hero: { comp: 'tag', bg: '#3b2a20', tag: '#f4ead9', tagInk: '#4a2e1c', tagSub: '#7a5a44', string: '#d8b98f', font: 'noto-serif-kr', ink: '#4a2e1c', accent: '#b0703f', title: '매일\n드는\n토트백', sub: '크기와 가죽을\n적어 주세요', label: 'LEATHER TOTE' },
+  },
+  {
+    key: 'shoot-leather-wallet', batch: 3, category: 'bags', name: '가죽 지갑', mood: 'premium', tone: 'photo', flow: 'accB', copy: 'wallet', body: 'noto-sans-kr',
+    pins: pin('bag', '16', ['black-wallets-slate', 'wallet-flatlay', 'wallet-edge', 'cardholder-hands']),
+    hero: { comp: 'stitch', bg: '#23272b', font: 'nanum-myeongjo', ink: '#f3ece2', subInk: '#cfc6ba', thread: '#c9a77a', accent: '#b98a55', labelInk: '#c9a77a', title: '손에\n꼭 맞는\n지갑', sub: '가죽과 수납을\n적어 주세요', label: 'LEATHER WALLET' },
+  },
+  {
+    key: 'shoot-leather-belt', batch: 3, category: 'bags', name: '가죽 벨트', mood: 'clean', tone: 'gray', flow: 'accA', copy: 'belt', body: 'pretendard',
+    pins: pin('bag', '17', ['black-belt-stone', 'belts-flatlay', 'belt-buckle', 'belt-wearing']),
+    hero: { comp: 'shelf', bg: '#e9e7e2', board: '#8b6b4e', font: 'pretendard', ink: '#26282b', accent: '#6b5440', title: '허리선을\n반듯하게', sub: '가죽과 버클을 한 줄로 적어 주세요', label: 'LEATHER BELT' },
+  },
+  {
+    key: 'shoot-sunglasses', batch: 3, category: 'bags', name: '선글라스', mood: 'bold', tone: 'photo', flow: 'accB', copy: 'sunglass', body: 'pretendard',
+    pins: pin('bag', '18', ['tortoise-sunglasses', 'sunglasses-beach-bag', 'sunglasses-hinge', 'sunglasses-beach-back']),
+    hero: { comp: 'window', bg: '#1e5b86', veil: '#1e5b86', frame: '#f4efe6', font: 'black-han-sans', ink: '#ffffff', subInk: '#dbe9f5', labelInk: '#f2b134', accent: '#f2b134', title: '햇빛을\n가리는\n여름', sub: '렌즈와 테를\n적어 주세요', label: 'SUNGLASSES' },
+  },
+  {
+    key: 'shoot-hair-accessory', batch: 3, category: 'bags', name: '헤어 액세서리', mood: 'friendly', tone: 'pink', flow: 'accA', copy: 'hairacc', body: 'pretendard',
+    pins: pin('bag', '19', ['velvet-hair-set', 'scrunchie-tray', 'pearl-pin-scrunchie', 'ribbon-bun-back']),
+    hero: { comp: 'corner', bg: '#c98f98', band: '#c98f98', font: 'gowun-batang', ink: '#4a1f2a', accent: '#7a2e3f', title: '고르는\n즐거움', sub: '색상과 소재를 한 줄로 적어 주세요', label: 'HAIR ACCESSORY' },
+  },
 ]
 
 const CAT_LABEL = { bags: '잡화·가방', apparel: '의류', food: '식품', health: '건강식품', gift: '선물세트', baby: '유아', camping: '캠핑', interior: '인테리어' }
 
 /** 이 파일의 템플릿 key·바탕 계열 (목록 순서) — 갤러리 순서·섹션 모양은 studioTemplates.js가 정한 뒤 buildShootTemplate으로 만든다 */
 export const SHOOT_KEYS = LIST.map(e => e.key)
+/** 묶음별 key (앞 묶음 순서를 바꾸지 않게 묶음마다 갤러리 뒤에 이어 붙인다) — [1·2차 19개, 3차 15개] */
+export const SHOOT_KEY_BATCHES = [LIST.filter(e => !e.batch).map(e => e.key), LIST.filter(e => e.batch === 3).map(e => e.key)]
 export const SHOOT_TONES = Object.fromEntries(LIST.map(e => [e.key, e.tone]))
 
 const isPhotoSec = s => !!s && s.photo !== undefined
@@ -668,7 +1176,7 @@ export function buildShootTemplate(key, sv = {}) {
   const pack = new Map(order.map((n, i) => [n, i]))
   const pinOf = { P: e.pins[0], S: e.pins[1], D: e.pins[2], U: e.pins[3] }
   return {
-    key: e.key, category: e.category, label: `${CAT_LABEL[e.category]} · ${e.name}`, desc: FLOW_DESC[e.flow], gap: 0, mood: e.mood, swatch: s.accent, tone: e.tone, heroComp: s.comp,
+    key: e.key, category: e.category, label: `${CAT_LABEL[e.category]} · ${e.name}`, desc: flowDesc(e), gap: 0, mood: e.mood, swatch: s.accent, tone: e.tone, heroComp: s.comp,
     samplePins: order.map(n => pinOf[n]),
     sections: sections.map(sec => renumber(sec, n => pack.get(n))).map(sec => (isPhotoSec(sec) ? sec : { ...sec, items: sec.items.map(p => (p.type === 'image' && Number.isInteger(p.slot) ? { ...p, sample: p.sample ?? SAMPLE_OF[order[p.slot]] } : p)) })),
   }
