@@ -24,10 +24,11 @@ const HEX = /^#[0-9a-f]{6}$/
 
 // ── 1. 카테고리 템플릿 ──
 {
-  const cats = TEMPLATE_CATEGORIES.filter(c => !['common', 'fullset', 'event'].includes(c.key)) // 풀세트는 test-studio-asset-images.mjs, 안내·이벤트는 test-studio-template-heroes.mjs
+  // 풀세트는 test-studio-asset-images.mjs, 안내·이벤트는 test-studio-template-heroes.mjs
+  const cats = TEMPLATE_CATEGORIES.filter(c => !['common', 'fullset', 'event'].includes(c.key))
   eq('카테고리 8개 (의류·잡화/가방·주방·생활용품·뷰티·전자/소형가전·완구·반려동물)', cats.map(c => c.key), ['apparel', 'bags', 'kitchen', 'living', 'beauty', 'electronics', 'toys', 'pets'])
   // 에셋 채우기 템플릿만 (새 템플릿 18개 — studioTemplateLooks — 는 test-studio-template-looks.mjs가 본다)
-  const setOf = k => templatesOf(k).filter(t => !/-(minimal|warm|vivid|mono|natural|trendy)$/.test(t.key))
+  const setOf = k => templatesOf(k).filter(t => !/-(minimal|warm|vivid|mono|natural|trendy)$/.test(t.key) && !t.key.startsWith('shoot-'))
   eq('카테고리마다 템플릿 2~3개 (에셋 채우기 템플릿)', cats.map(c => setOf(c.key).length >= 2 && setOf(c.key).length <= 3), cats.map(() => true))
   eq('기본 카테고리 = 예전 3개', templatesOf('common').map(t => t.key), ['basic', 'point', 'size'])
   eq('모든 템플릿의 카테고리가 목록에 있음', STUDIO_TEMPLATES.every(t => TEMPLATE_CATEGORIES.some(c => c.key === t.category)), true)

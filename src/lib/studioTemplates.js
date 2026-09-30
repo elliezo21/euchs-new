@@ -38,6 +38,7 @@ import { isSampleItem } from './studioSamples.js'
 import { CATEGORY_KEYS, buildCategoryTemplate, TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, templateColorOf } from './studioTemplateSets.js'
 import { LOOK_KEYS, buildLookTemplate } from './studioTemplateLooks.js'
 import { EVENT_KEYS, EVENT_TONES, buildEventTemplate } from './studioTemplateEvents.js'
+import { SHOOT_KEYS, SHOOT_TONES, buildShootTemplate } from './studioTemplateShoots.js'
 import { withHero, HERO_SPECS } from './studioTemplateHeroes.js'
 import { section, lowerTheme, planSectionStyles, recordSections, SECTION_VARIANTS } from './studioTemplateSections.js'
 
@@ -168,9 +169,10 @@ export const AUTO_BASE_TEMPLATE = { ...BASE_TEMPLATES[0], category: 'common', ..
  * 피할 수 없으면(남은 것이 모두 같은 계열) 그대로 둔다.
  */
 export const GALLERY_COLUMNS = 5 // 1440px 폭 갤러리 한 줄 카드 수 (StudioTemplatesView .st-gal-grid)
-export function galleryOrder(list, cols = GALLERY_COLUMNS) {
+/** after = 이미 순서가 정해진 앞 카드들 (그 뒤에 이어 붙일 때 — 결과에는 list만) */
+export function galleryOrder(list, cols = GALLERY_COLUMNS, after = []) {
   const rest = [...list]
-  const out = []
+  const out = [...after]
   const clash = t => {
     const n = out.length
     return (n > 0 && out[n - 1].tone === t.tone) || (n >= cols && out[n - cols].tone === t.tone)
@@ -179,7 +181,7 @@ export function galleryOrder(list, cols = GALLERY_COLUMNS) {
     const i = rest.findIndex(t => !clash(t))
     out.push(rest.splice(i < 0 ? 0 : i, 1)[0])
   }
-  return out
+  return out.slice(after.length)
 }
 
 /**
@@ -198,20 +200,24 @@ function buildBaseTemplate(key, sv = {}) {
 }
 
 // 목록: 기본 3 → 카테고리 템플릿 17 → 새 템플릿 18 → 안내·이벤트 22, 첫 구간 = 큰 제목 첫 화면(studioTemplateHeroes).
-// 순서 먼저(galleryOrder — 첫 화면 바탕 계열만 본다) → 그 순서로 아래 섹션 모양을 정하고(planSectionStyles) → 템플릿을 만든다
+// 그 뒤에 촬영 세트 템플릿 19 (studioTemplateShoots — 앞 60개의 순서·모양을 바꾸지 않게 이어 붙인다)
+// 순서 먼저(galleryOrder — 첫 화면 바탕 계열만 본다) → 그 순서로 아래 섹션 모양을 정하고(planSectionStyles — 앞에서부터 차례로 정해 뒤에 붙여도 앞은 그대로) → 템플릿을 만든다
 const BASE_KEYS = BASE_TEMPLATES.map(x => x.key)
-const toneOf = key => HERO_SPECS[key]?.tone ?? EVENT_TONES[key]
-const ORDER = galleryOrder([...BASE_KEYS, ...CATEGORY_KEYS, ...LOOK_KEYS, ...EVENT_KEYS].map(key => ({ key, tone: toneOf(key) }))).map(x => x.key)
+const toneOf = key => HERO_SPECS[key]?.tone ?? EVENT_TONES[key] ?? SHOOT_TONES[key]
+const withTone = keys => keys.map(key => ({ key, tone: toneOf(key) }))
+const ORDER_60 = galleryOrder(withTone([...BASE_KEYS, ...CATEGORY_KEYS, ...LOOK_KEYS, ...EVENT_KEYS]))
+const ORDER = [...ORDER_60, ...galleryOrder(withTone(SHOOT_KEYS), GALLERY_COLUMNS, ORDER_60)].map(x => x.key)
 /** 템플릿마다 아래 섹션 모양 번호 { 종류: 번호 } (studioTemplateSections.SECTION_VARIANTS) — 테스트·보고서용 */
-const builderOf = key => (BASE_KEYS.includes(key) ? buildBaseTemplate : CATEGORY_KEYS.includes(key) ? buildCategoryTemplate : LOOK_KEYS.includes(key) ? buildLookTemplate : buildEventTemplate)
+const builderOf = key => (BASE_KEYS.includes(key) ? buildBaseTemplate : CATEGORY_KEYS.includes(key) ? buildCategoryTemplate : LOOK_KEYS.includes(key) ? buildLookTemplate
+  : SHOOT_KEYS.includes(key) ? buildShootTemplate : buildEventTemplate)
 // 템플릿마다 쓰는 섹션 종류 (모양 0번으로 한 번 만들어 모은다) — 쓰는 템플릿끼리 모양을 고르게 나누려고
 const USES = new Map(ORDER.map(key => [key, new Set(recordSections(() => builderOf(key)(key, {})).styles.map(s => s.split(':')[0]))]))
 export const SECTION_STYLE_PLAN = planSectionStyles(ORDER, GALLERY_COLUMNS, key => USES.get(key))
 // sectionStyles = 이 템플릿이 쓴 아래 섹션 모양 ['종류:번호', …] (페이지 문서에는 들어가지 않는다 — 템플릿 목록 칸)
 const buildOne = key => {
   const { value, styles } = recordSections(() => builderOf(key)(key, SECTION_STYLE_PLAN.get(key)))
-  // 거르기 색 = 카드에 보이는 첫 화면 바탕 계열 (tone, 사진 덮개 구도는 덮개 색) — 템플릿 파일마다 손으로 적던 색은 쓰지 않는다
-  return { ...value, tone: toneOf(key), color: templateColorOf(toneOf(key), HERO_SPECS[key]?.bg), sectionStyles: styles }
+  // 거르기 색 = 카드에 보이는 첫 화면 바탕 계열 (tone, 사진 덮개 구도는 첫 화면 바탕색 = 덮개·사진 평균색) — 템플릿 파일마다 손으로 적던 색은 쓰지 않는다
+  return { ...value, tone: toneOf(key), color: templateColorOf(toneOf(key), value.sections[0].bg), sectionStyles: styles }
 }
 const built = ORDER.map(buildOne)
 // 아래 섹션 모양 조합이 앞 템플릿과 완전히 같으면 — 쓴 종류 하나를 옆·위 카드와 겹치지 않는 다른 모양으로 옮겨 다시 만든다
@@ -242,6 +248,7 @@ const byKeys = keys => keys.map(k => STUDIO_TEMPLATES.find(t => t.key === k))
 export const CATEGORY_TEMPLATES = byKeys(CATEGORY_KEYS)
 export const LOOK_TEMPLATES = byKeys(LOOK_KEYS)
 export const EVENT_TEMPLATES = byKeys(EVENT_KEYS)
+export const SHOOT_TEMPLATES = byKeys(SHOOT_KEYS)
 /** 그 카테고리의 템플릿 (모르는 카테고리면 빈 목록) */
 export function templatesOf(category) { return STUDIO_TEMPLATES.filter(t => t.category === category) }
 
@@ -347,7 +354,7 @@ export function coverSlotIndexes(tpl) {
  * @returns {Map<string, (object|null)[]>} key → 자리 순서대로 예시 사진
  */
 export function assignTemplateSamples(samples, list = STUDIO_TEMPLATES) {
-  return assignSamples(list.map(t => ({ key: t.key, chain: sampleCategoriesOf(t), types: templateSlotTypes(t), cover: coverSlotIndexes(t) })), samples)
+  return assignSamples(list.map(t => ({ key: t.key, chain: sampleCategoriesOf(t), types: templateSlotTypes(t), cover: coverSlotIndexes(t), ...(t.samplePins ? { pins: t.samplePins } : {}) })), samples)
 }
 
 /** 템플릿 글자 조각의 글꼴 목록 (적용 전에 글꼴 조각을 받을 때 — studioFonts.loadFontsFor 입력) */

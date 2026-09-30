@@ -997,6 +997,344 @@ const PERKS = [
   }], o.sec),
 ]
 
+// ── 촬영 세트 템플릿(studioTemplateShoots)용 종류 — 기존 템플릿은 쓰지 않는다 (SECTION_VARIANTS 끝에 붙여 예전 모양 번호가 그대로) ──
+
+/** 브랜드 문장 — { label, text, sub? } */
+const STATEMENTS = [
+  // 0 가운데 큰 문장 (연한 바탕)
+  (d, th, o) => sec(o.bg ?? th.soft, [latin(d.label, th.accentText), 18, T(wrapText(d.text, 34, 640, th.font), 34, headW(th.font), th.ink, { font: th.font, lh: 1.5, w: 640 }), 26, bar(th.accent, 40, 3),
+    ...(d.sub ? [24, bodyT(d.sub, th, { color: th.sub })] : [])], { top: 96, bottom: 96, ...o.sec }),
+  // 1 짙은 띠 문장
+  (d, th, o) => sec(th.dark, [latin(d.label, th.bright), 18, T(wrapText(d.text, 34, 640, th.font), 34, headW(th.font), WHITE, { font: th.font, lh: 1.5, w: 640 }), 26, bar(th.bright, 40, 3),
+    ...(d.sub ? [24, bodyT(d.sub, th, { color: mix(th.dark, '#ffffff', 0.78) })] : [])], { top: 100, bottom: 100, ...o.sec }),
+  // 2 왼쪽 막대 + 왼쪽 맞춤 문장
+  (d, th, o) => {
+    const t = wrapText(d.text, 32, 560, th.font)
+    const s = d.sub ? wrapText(one(d.sub), 17, 560, th.body) : ''
+    const tH = textH(t, 32, 1.45), sH = s ? textH(s, 17, 1.6) : 0
+    const h = 20 + 14 + tH + (s ? 18 + sH : 0)
+    return sec(o.bg ?? WHITE, [{
+      h,
+      make: () => [],
+    }], {
+      top: 88, bottom: 88, ...o.sec,
+      tail: () => {
+        const y = 88
+        return [
+          rect(90, y, 6, h, th.accent, { radius: 3 }),
+          txt(122, y, 560, d.label, 15, 700, th.accentText, 'cinzel', { lineHeight: 1.3, letterSpacing: 0.3 }),
+          txt(122, y + 34, 560, t, 32, headW(th.font), th.ink, th.font, { lineHeight: 1.45 }),
+          ...(s ? [txt(122, y + 34 + tH + 18, 560, s, 17, 400, th.sub, th.body, { lineHeight: 1.6 })] : []),
+        ]
+      },
+    })
+  },
+]
+
+/** 사용 장면 (사진 한 장이 주인공) — { slot, sample?, label, title, desc } */
+const STORIES = [
+  // 0 폭·높이 가득 사진 + 아래 어둡게 + 흰 글
+  (d, th) => {
+    const H = 1040
+    const title = wrapText(d.title, 34, 660, th.font)
+    const desc = wrapText(one(d.desc), 18, 620, th.body)
+    const tH = textH(title, 34, 1.35), dH = textH(desc, 18, 1.6)
+    const dy = H - 76 - dH
+    const ty = dy - 16 - tH
+    return {
+      height: H, bg: th.dark,
+      items: [
+        { type: 'image', slot: d.slot, x: 0, y: 0, w: W, h: H, ...(d.sample ? { sample: d.sample } : {}) },
+        rect(0, 520, W, H - 520, '#000000', { fillOpacity: 0.42 }),
+        txt(60, ty - 34, 400, d.label, 15, 700, '#f3f4f6', 'cinzel', { lineHeight: 1.3, letterSpacing: 0.3 }),
+        txt(60, ty, 660, title, 34, headW(th.font), WHITE, th.font, { lineHeight: 1.35 }),
+        txt(60, dy, 620, desc, 18, 400, '#eceef1', th.body, { lineHeight: 1.6 }),
+      ],
+    }
+  },
+  // 1 폭 가득 사진 + 왼쪽 위 흰 글 상자
+  (d, th) => {
+    const H = 900
+    const title = wrapText(d.title, 28, 380, th.font)
+    const desc = wrapText(one(d.desc), 16, 380, th.body)
+    const tH = textH(title, 28, 1.35), dH = textH(desc, 16, 1.6)
+    const bh = 32 + 20 + 12 + tH + 12 + dH + 32
+    return {
+      height: H, bg: th.soft,
+      items: [
+        { type: 'image', slot: d.slot, x: 0, y: 0, w: W, h: H, ...(d.sample ? { sample: d.sample } : {}) },
+        rect(40, 40, 440, bh, WHITE, { fillOpacity: 0.9, radius: 18 }),
+        txt(70, 72, 380, d.label, 15, 700, th.accentText, 'cinzel', { lineHeight: 1.3, letterSpacing: 0.3 }),
+        txt(70, 104, 380, title, 28, headW(th.font), th.ink, th.font, { lineHeight: 1.35 }),
+        txt(70, 104 + tH + 12, 380, desc, 16, 400, th.sub, th.body, { lineHeight: 1.6 }),
+      ],
+    }
+  },
+  // 2 넓은 사진 + 아래 두 칸 글 (제목 | 설명)
+  (d, th, o) => {
+    const title = wrapText(d.title, 28, 300, th.font)
+    const desc = wrapText(one(d.desc), 17, 350, th.body)
+    const tH = textH(title, 28, 1.35), dH = textH(desc, 17, 1.7)
+    const low = 20 + 12 + Math.max(tH, dH)
+    const H = 620 + 56 + low + 72
+    return {
+      height: H, bg: o.bg ?? WHITE,
+      items: [
+        { type: 'image', slot: d.slot, x: 0, y: 0, w: W, h: 620, ...(d.sample ? { sample: d.sample } : {}) },
+        txt(60, 676, 300, d.label, 15, 700, th.accentText, 'cinzel', { lineHeight: 1.3, letterSpacing: 0.3 }),
+        txt(60, 708, 300, title, 28, headW(th.font), th.ink, th.font, { lineHeight: 1.35 }),
+        rect(390, 708, 2, Math.max(tH, dH), th.line),
+        txt(420, 708, 350, desc, 17, 400, th.sub, th.body, { lineHeight: 1.7 }),
+      ],
+    }
+  },
+]
+
+/** 소재·디테일 확대 — { slot, sample?, title, notes: [{ t, d }] (3개) } */
+const ZOOMS = [
+  // 0 세로 사진 + 오른쪽 설명 선 3개
+  (d, th, o) => sec(o.bg ?? WHITE, [heading(d.title, th), 36, {
+    h: 540,
+    make: (y, gid) => [
+      { type: 'image', slot: d.slot, x: 40, y, w: 400, h: 540, radius: 20, ...(d.sample ? { sample: d.sample } : {}) },
+      ...d.notes.flatMap((n, i) => {
+        const ny = y + 30 + i * 180
+        const g = gid()
+        const ds = wrapText(one(n.d), 16, 250, th.body)
+        return [
+          { type: 'shape', shape: 'ellipse', x: 432, y: ny + 13, w: 16, h: 16, fill: th.accent },
+          { type: 'line', x: 448, y: ny + 20, w: 30, strokeWidth: 2, color: th.accent },
+          { type: 'shape', group: g, shape: 'ellipse', x: 484, y: ny, w: 42, h: 42, fill: th.accent },
+          txt(484, ny + Math.round((42 - textH('1', 19, 1.2)) / 2), 42, String(i + 1), 19, 900, th.onAccent, 'noto-sans-kr', { align: 'center', lineHeight: 1.2, group: g }),
+          txt(538, ny + 6, 210, n.t, 20, 800, th.ink, th.body, { lineHeight: 1.3 }),
+          txt(484, ny + 56, 250, ds, 16, 400, th.sub, th.body, { lineHeight: 1.6 }),
+        ]
+      }),
+    ],
+  }], o.sec),
+  // 1 넓은 사진 + 아래 설명 3칸
+  (d, th, o) => {
+    const cols = d.notes.map(n => ({ t: wrapText(n.t, 19, 210, th.body), d: wrapText(one(n.d), 15, 210, th.body) }))
+    const ch = 30 + 8 + Math.max(...cols.map(c => textH(c.t, 19, 1.3))) + 8 + Math.max(...cols.map(c => textH(c.d, 15, 1.6)))
+    return sec(o.bg ?? th.soft, [heading(d.title, th), 32, {
+      h: 480, make: y => [{ type: 'image', slot: d.slot, x: 0, y, w: W, h: 480, ...(d.sample ? { sample: d.sample } : {}) }],
+    }, 34, {
+      h: ch,
+      make: y => cols.flatMap((c, i) => {
+        const x = 50 + i * 240
+        const tH = textH(c.t, 19, 1.3)
+        return [
+          txt(x, y, 210, `0${i + 1}`, 24, 700, th.accentText, 'cinzel', { lineHeight: 1.25 }),
+          rect(x, y + 34, 30, 2, th.accent),
+          txt(x, y + 46, 210, c.t, 19, 800, th.ink, th.body, { lineHeight: 1.3 }),
+          txt(x, y + 54 + tH, 210, c.d, 15, 400, th.sub, th.body, { lineHeight: 1.6 }),
+        ]
+      }),
+    }], { top: 72, bottom: 64, ...o.sec })
+  },
+  // 2 짙은 바탕 + 정사각 사진 + 모서리 붙임 라벨 두 개
+  (d, th, o) => {
+    const [a, b, c] = d.notes
+    const chip = (text, x, y, g) => [
+      { type: 'shape', group: g, shape: 'rect', x, y, w: 230, h: 50, fill: th.bright, radius: 25 },
+      txt(x + 12, y + Math.round((50 - textH('가', 17, 1.3)) / 2), 206, text, 17, 800, th.dark, th.body, { align: 'center', lineHeight: 1.3, group: g }),
+    ]
+    return sec(th.dark, [heading(d.title, th, { color: WHITE }), 36, {
+      h: 540,
+      make: (y, gid) => [
+        { type: 'image', slot: d.slot, x: 130, y: y + 10, w: 520, h: 520, borderWidth: 2, borderColor: th.bright, ...(d.sample ? { sample: d.sample } : {}) },
+        ...chip(a.t, 90, y + 40, gid()),
+        ...chip(b.t, 460, y + 450, gid()),
+      ],
+    }, 34, T(c.t, 20, 800, WHITE, { font: th.body, w: 620, lh: 1.3 }), 10, bodyT(c.d, th, { size: 16, color: mix(th.dark, '#ffffff', 0.72) })], { top: 80, bottom: 80, ...o.sec })
+  },
+]
+
+/** 사이즈 자리 (사이즈표는 넣지 않는다 — 고객이 [요소] → [사이즈표]에서 골라 넣는 자리) — { title, chips?, note? } */
+const SIZE_SLOT = '[사이즈표 자리]'
+const SIZE_HOW = '[요소] → [사이즈표]에서\n상의·하의·신발 틀을 골라 넣어 주세요'
+/** 점선 네모 (선 4개 — 도형 테두리는 점선이 없어서) */
+function dashBox(x, y, w, h, color, g) {
+  const line = (lx, ly, len, rot) => ({ type: 'line', group: g, x: lx, y: ly, w: len, strokeWidth: 2, color, dash: 'dashed', ...(rot ? { rotation: 90 } : {}) })
+  return [line(x, y, w), line(x, y + h - 2, w), line(x - h / 2 + 1, y + h / 2 - 1, h, true), line(x + w - h / 2 - 1, y + h / 2 - 1, h, true)]
+}
+/** 점선 네모 안 안내 두 줄 (가운데) */
+function slotGuide(x, y, w, h, th) {
+  const g1 = textH(SIZE_SLOT, 22, 1.3), g2 = textH(SIZE_HOW, 16, 1.6)
+  const top = y + Math.round((h - g1 - 12 - g2) / 2)
+  return [
+    txt(x + 20, top, w - 40, SIZE_SLOT, 22, 800, th.sub, th.body, { align: 'center', lineHeight: 1.3 }),
+    txt(x + 20, top + g1 + 12, w - 40, SIZE_HOW, 16, 400, th.muted, th.body, { align: 'center', lineHeight: 1.6 }),
+  ]
+}
+const SIZE_SLOTS = [
+  // 0 점선 자리 + 정보 칩 3개
+  (d, th, o) => {
+    const chips = d.chips ?? ['단위 cm', '평평하게 재요', '1~3cm 차이']
+    return sec(o.bg ?? WHITE, [heading(d.title, th), 32, {
+      h: 280, make: y => [...dashBox(70, y, 640, 280, th.muted), ...slotGuide(70, y, 640, 280, th)],
+    }, 28, {
+      h: 44,
+      make: (y, gid) => chips.flatMap((c, i) => {
+        const x = 90 + i * 206
+        const g = gid()
+        return [
+          { type: 'shape', group: g, shape: 'rect', x, y, w: 190, h: 44, fill: th.soft, radius: 22 },
+          { type: 'shape', group: g, shape: 'ellipse', x: x + 12, y: y + 12, w: 20, h: 20, fill: th.accent },
+          txt(x + 38, y + Math.round((44 - textH('가', 16, 1.3)) / 2), 142, c, 16, 700, th.ink, th.body, { lineHeight: 1.3, group: g }),
+        ]
+      }),
+    }], o.sec)
+  },
+  // 1 재는 법 그림 + 점선 자리
+  (d, th, o) => sec(o.bg ?? th.soft, [heading(d.title, th), 36, {
+    h: 300,
+    make: (y, gid) => {
+      const g = gid()
+      return [
+        rect(80, y + 80, 190, 150, WHITE, { radius: 10, strokeWidth: 2, strokeColor: th.ink }),
+        { type: 'line', group: g, x: 80, y: y + 50, w: 190, strokeWidth: 2, color: th.accent, startCap: 'arrow', endCap: 'arrow' },
+        txt(125, y + 14, 100, '가로', 16, 700, th.accentText, th.body, { align: 'center', lineHeight: 1.3, group: g }),
+        { type: 'line', group: `${g}v`, x: 214, y: y + 154, w: 150, strokeWidth: 2, color: th.accent, startCap: 'arrow', endCap: 'arrow', rotation: 90 },
+        txt(80, y + 250, 190, '재는 곳을 적어 주세요', 15, 400, th.muted, th.body, { align: 'center', lineHeight: 1.4 }),
+        ...dashBox(330, y, 390, 300, th.muted, `${g}b`),
+        ...slotGuide(330, y, 390, 300, th),
+      ]
+    },
+  }, ...(d.note ? [24, bodyT(d.note, th, { size: 16, color: th.muted })] : [])], o.sec),
+  // 2 흰 카드 안 점선 자리 (연한 바탕)
+  (d, th, o) => {
+    const note = d.note ? wrapText(one(d.note), 16, 560, th.body) : ''
+    const nH = note ? textH(note, 16, 1.6) : 0
+    const titleT = wrapText(d.title, 30, 560, th.font)
+    const tH = textH(titleT, 30, 1.3)
+    const ch = 40 + 20 + 12 + tH + 28 + 240 + (note ? 20 + nH : 0) + 40
+    return sec(o.bg ?? th.soft, [{
+      h: ch,
+      make: y => [
+        rect(50, y, 680, ch, WHITE, { radius: 24 }),
+        txt(90, y + 40, 600, 'SIZE GUIDE', 15, 700, th.accentText, 'cinzel', { lineHeight: 1.3, letterSpacing: 0.3 }),
+        txt(90, y + 72, 600, titleT, 30, headW(th.font), th.ink, th.font, { lineHeight: 1.3 }),
+        ...dashBox(90, y + 72 + tH + 28, 600, 240, th.muted),
+        ...slotGuide(90, y + 72 + tH + 28, 600, 240, th),
+        ...(note ? [txt(90, y + 72 + tH + 28 + 240 + 20, 600, note, 16, 400, th.muted, th.body, { lineHeight: 1.6 })] : []),
+      ],
+    }], { top: 64, bottom: 64, ...o.sec })
+  },
+]
+
+/** 세탁·관리 안내 — { title, items: [{ k: 아이콘 자리 짧은 말(3자까지), t: 설명 }] (4개) } */
+const CARES = [
+  // 0 동그라미 4개 + 아래 설명
+  (d, th, o) => {
+    const labels = d.items.map(it => wrapText(one(it.t), 16, 160, th.body))
+    const lH = Math.max(...labels.map(l => textH(l, 16, 1.55)))
+    return sec(o.bg ?? th.soft, [heading(d.title, th), 40, {
+      h: 110 + 18 + lH,
+      make: (y, gid) => d.items.flatMap((it, i) => {
+        const c = 120 + i * 180
+        const g = gid()
+        return [
+          { type: 'shape', group: g, shape: 'ellipse', x: c - 55, y, w: 110, h: 110, fill: WHITE, strokeWidth: 2, strokeColor: th.accent },
+          txt(c - 50, y + Math.round((110 - textH('가', 22, 1.2)) / 2), 100, it.k, 22, 800, th.accentText, th.body, { align: 'center', lineHeight: 1.2, group: g }),
+          txt(c - 80, y + 128, 160, labels[i], 16, 400, th.ink, th.body, { align: 'center', lineHeight: 1.55 }),
+        ]
+      }),
+    }], o.sec)
+  },
+  // 1 2×2 카드
+  (d, th, o) => sec(o.bg ?? WHITE, [heading(d.title, th), 36, {
+    h: 2 * 128 + 20,
+    make: (y, gid) => d.items.flatMap((it, i) => {
+      const x = 60 + (i % 2) * 340, top = y + Math.floor(i / 2) * 148
+      const g = gid()
+      const t = wrapText(one(it.t), 17, 200, th.body)
+      return [
+        rect(x, top, 320, 128, th.soft, { radius: 18 }),
+        { type: 'shape', group: g, shape: 'rect', x: x + 22, y: top + 32, w: 64, h: 64, fill: th.accent, radius: 16 },
+        txt(x + 22, top + 32 + Math.round((64 - textH('가', 17, 1.2)) / 2), 64, it.k, 17, 800, th.onAccent, th.body, { align: 'center', lineHeight: 1.2, group: g }),
+        txt(x + 104, top + Math.round((128 - textH(t, 17, 1.5)) / 2), 200, t, 17, 700, th.ink, th.body, { lineHeight: 1.5 }),
+      ]
+    }),
+  }], o.sec),
+  // 2 알약 줄 목록 (점선 구분)
+  (d, th, o) => sec(o.bg ?? WHITE, [latin('CARE', th.accentText), 12, heading(d.title, th), 34, {
+    h: d.items.length * 76 - 16,
+    make: (y, gid) => d.items.flatMap((it, i) => {
+      const top = y + i * 76
+      const g = gid()
+      return [
+        { type: 'shape', group: g, shape: 'rect', x: 90, y: top, w: 110, h: 40, fill: th.soft, radius: 20 },
+        txt(90, top + Math.round((40 - textH('가', 16, 1.2)) / 2), 110, it.k, 16, 800, th.accentText, th.body, { align: 'center', lineHeight: 1.2, group: g }),
+        txt(222, top + Math.round((40 - textH('가', 18, 1.4)) / 2), 470, one(it.t), 18, 400, th.ink, th.body, { lineHeight: 1.4 }),
+        ...(i < d.items.length - 1 ? [{ type: 'line', x: 90, y: top + 56, w: 600, strokeWidth: 2, color: th.line, dash: 'dotted' }] : []),
+      ]
+    }),
+  }], o.sec),
+]
+
+/** 구성 (사진 없이 글로) — { title, items: [[이름, 수량]] (3~4개) } */
+const CONTENTS = [
+  // 0 흰 카드 안 줄 목록
+  (d, th, o) => sec(o.bg ?? th.soft, [heading(d.title, th), 32, {
+    h: d.items.length * 66 + 28,
+    make: y => [
+      rect(90, y, 600, d.items.length * 66 + 28, WHITE, { radius: 20 }),
+      ...d.items.flatMap(([k, v], i) => {
+        const top = y + 14 + i * 66
+        const ty = top + Math.round((66 - textH('가', 20, 1.4)) / 2)
+        return [
+          txt(126, ty, 330, k, 20, 700, th.ink, th.body),
+          txt(456, ty, 200, v, 20, 700, th.accentText, th.body, { align: 'right' }),
+          ...(i < d.items.length - 1 ? [{ type: 'line', x: 126, y: top + 65, w: 528, strokeWidth: 2, color: th.line, dash: 'dotted' }] : []),
+        ]
+      }),
+    ],
+  }], o.sec),
+  // 1 더하기로 잇는 상자
+  (d, th, o) => {
+    const n = d.items.length
+    const gap = 50
+    const bw = Math.floor((700 - gap * (n - 1)) / n)
+    const x0 = cx(bw * n + gap * (n - 1))
+    const names = d.items.map(([k]) => wrapText(k, 18, bw - 24, th.body))
+    const nH = Math.max(...names.map(t => textH(t, 18, 1.35)))
+    const bh = 30 + 24 + 12 + nH + 10 + 22 + 28
+    return sec(o.bg ?? WHITE, [heading(d.title, th), 36, {
+      h: bh,
+      make: y => d.items.flatMap(([, v], i) => {
+        const x = x0 + i * (bw + gap)
+        return [
+          rect(x, y, bw, bh, th.soft, { radius: 18 }),
+          txt(x + 12, y + 30, bw - 24, `0${i + 1}`, 18, 700, th.accentText, 'cinzel', { align: 'center', lineHeight: 1.3 }),
+          txt(x + 12, y + 66, bw - 24, names[i], 18, 800, th.ink, th.body, { align: 'center', lineHeight: 1.35 }),
+          txt(x + 12, y + 76 + nH, bw - 24, v, 15, 400, th.muted, th.body, { align: 'center', lineHeight: 1.4 }),
+          ...(i < n - 1 ? [txt(x + bw, y + Math.round((bh - textH('+', 34, 1.2)) / 2), gap, '+', 34, 700, th.accentText, 'noto-sans-kr', { align: 'center', lineHeight: 1.2 })] : []),
+        ]
+      }),
+    }], o.sec)
+  },
+  // 2 티켓 모양 (왼쪽 SET · 오른쪽 목록)
+  (d, th, o) => {
+    const lines = d.items.map(([k, v]) => `· ${k}  ${v}`).join('\n')
+    const lH = textH(lines, 18, 1.8)
+    const h = Math.max(170, lH + 64)
+    const bg = o.bg ?? th.soft
+    return sec(bg, [heading(d.title, th), 34, {
+      h,
+      make: y => [
+        rect(60, y, 660, h, WHITE, { radius: 18, strokeWidth: 2, strokeColor: th.accent }),
+        { type: 'shape', shape: 'ellipse', x: 44, y: y + h / 2 - 16, w: 32, h: 32, fill: bg },
+        { type: 'shape', shape: 'ellipse', x: 704, y: y + h / 2 - 16, w: 32, h: 32, fill: bg },
+        { type: 'line', x: 250 - h / 2 + 30, y: y + h / 2 - 1, w: h - 60, strokeWidth: 2, color: th.line, dash: 'dashed', rotation: 90 },
+        txt(80, y + Math.round(h / 2) - 44, 150, 'SET', 40, 700, th.accentText, 'cinzel', { align: 'center', lineHeight: 1.2 }),
+        txt(80, y + Math.round(h / 2) + 8, 150, '구성', 17, 700, th.ink, th.body, { align: 'center', lineHeight: 1.3 }),
+        txt(290, y + Math.round((h - lH) / 2), 400, lines, 18, 400, th.ink, th.body, { lineHeight: 1.8 }),
+      ],
+    }], o.sec)
+  },
+]
+
 /** 종류별 모양 (이름표는 보고서·테스트용) */
 export const SECTION_VARIANTS = {
   points: { make: POINTS, names: ['아이콘 카드 3개', '큰 번호 세로 목록', '체크 목록', '배지 격자', '큰 숫자 강조', '강조색 띠 줄 카드'] },
@@ -1011,6 +1349,13 @@ export const SECTION_VARIANTS = {
   pointPhoto: { make: POINT_PHOTOS, names: ['알약 + 사진 아래', '지그재그', '큰 번호 + 폭 가득 사진', '사진 위 제목 띠'] },
   rows: { make: ROWS, names: ['테두리 카드 줄', '번갈아 칠한 줄', '강조색 항목 칸', '점선 목록'] },
   perks: { make: PERKS, names: ['테두리 카드', '강조색 원', '가로 줄 목록', '쿠폰 모양'] },
+  // 촬영 세트 템플릿용 (studioTemplateShoots) — 끝에 붙인다
+  statement: { make: STATEMENTS, names: ['가운데 큰 문장', '짙은 띠 문장', '왼쪽 막대 문장'] },
+  story: { make: STORIES, names: ['풀블리드 + 아래 글', '풀블리드 + 흰 글 상자', '넓은 사진 + 두 칸 글'] },
+  zoom: { make: ZOOMS, names: ['사진 + 설명 선 3개', '넓은 사진 + 설명 3칸', '짙은 바탕 + 붙임 라벨'] },
+  sizeSlot: { make: SIZE_SLOTS, names: ['점선 자리 + 정보 칩', '재는 법 그림 + 점선 자리', '카드 안 점선 자리'] },
+  care: { make: CARES, names: ['동그라미 아이콘 4개', '2×2 카드', '알약 줄 목록'] },
+  contents: { make: CONTENTS, names: ['점선 줄 목록', '더하기 상자', '티켓 모양'] },
 }
 export const SECTION_KINDS = Object.keys(SECTION_VARIANTS)
 

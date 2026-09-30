@@ -134,9 +134,11 @@ const lessThan = (a, b) => {
 }
 /**
  * 여러 템플릿에 예시 사진을 한 번에 나눠 준다 — 갤러리 카드가 서로 다른 사진을 쓰게.
- * @param {{ key, chain: string[], types: string[], cover: number[] }[]} entries
+ * @param {{ key, chain: string[], types: string[], cover: number[], pins?: (string|null)[] }[]} entries
  *   chain = 예시 사진 카테고리 차례(sampleCategoriesOf), types = 자리 순서대로 종류, cover = 첫 구간(카드 표지)에 있는 자리 차례
+ *   pins = 자리 순서대로 정해 둔 사진 id (촬영 세트 템플릿 — 한 벌로 찍은 사진을 그 템플릿만 쓴다)
  * 규칙 (앞이 먼저):
+ *   · 정해 둔 사진(pins)은 그 자리에 먼저 넣고, 다른 템플릿은 그 사진을 고르지 않는다 (그래서 나머지 템플릿의 나눔은 pins가 없을 때와 같다)
  *   · 한 템플릿 안에서는 같은 사진을 두 번 쓰지 않는다 (사진이 모자라면 그 자리는 null — 부르는 쪽이 빈 자리로 둔다)
  *   · 대표(첫 자리)와 표지의 다른 자리는 다른 템플릿 표지에 이미 쓴 사진을 피한다 — 피할 수 없을 때만 다시 쓴다
  *   · 표지 아닌 자리는 아직 안 쓴 사진 먼저(차례 안에서) → 그다음 카테고리 가까운 순서 → 종류가 맞는 순서(FALLBACK) → 덜 쓴 사진 → 목록 순서
@@ -152,13 +154,26 @@ export function assignSamples(entries, samples) {
   const onCover = new Set()
   const width = e => e.chain.filter(c => present.has(c)).length
   const order = entries.map((e, i) => ({ e, i })).sort((a, b) => width(a.e) - width(b.e) || a.i - b.i).map(x => x.e)
+  const byId = new Map(list.map(s => [s.id, s]))
+  const pinned = new Set(entries.flatMap(e => (e.pins || []).filter(id => byId.has(id))))
+  for (const e of entries) {
+    (e.pins || []).forEach((id, slot) => {
+      if (id === null || id === undefined || slot >= e.types.length) return
+      const s = byId.get(id)
+      if (!s) { console.error('[studioSamples] 정해 둔 예시 사진이 목록에 없음 — 그 자리는 카테고리 사진으로:', e.key, id); return }
+      out.get(e.key)[slot] = s
+      mine.get(e.key).add(s.id)
+      uses.set(s.id, (uses.get(s.id) ?? 0) + 1)
+      if (e.cover.includes(slot)) onCover.add(s.id)
+    })
+  }
   const pick = (e, slot, cover) => {
     const ranks = FALLBACK[e.types[slot]] ?? FALLBACK.product
     let best = null, bestScore = null
     list.forEach((s, idx) => {
       const c = e.chain.indexOf(s.category)
       const t = ranks.indexOf(s.type)
-      if (c < 0 || t < 0 || mine.get(e.key).has(s.id)) return
+      if (c < 0 || t < 0 || mine.get(e.key).has(s.id) || pinned.has(s.id)) return
       const n = uses.get(s.id) ?? 0
       // 표지 = 다른 표지에 쓴 사진 피하기 먼저 / 나머지 자리 = 아직 아무 템플릿도 안 쓴 사진 먼저 (차례 안의 카테고리에서 — 사진을 고르게 쓰게)
       const score = cover ? [onCover.has(s.id) ? 1 : 0, c, t, n, idx] : [n > 0 ? 1 : 0, c, t, n, idx]
@@ -170,8 +185,8 @@ export function assignSamples(entries, samples) {
     uses.set(best.id, (uses.get(best.id) ?? 0) + 1)
     if (cover) onCover.add(best.id)
   }
-  for (const e of order) if (e.types.length && e.cover.includes(0)) pick(e, 0, true)
-  for (const e of order) for (const i of e.cover) if (i > 0 && i < e.types.length) pick(e, i, true)
+  for (const e of order) if (e.types.length && e.cover.includes(0) && !out.get(e.key)[0]) pick(e, 0, true)
+  for (const e of order) for (const i of e.cover) if (i > 0 && i < e.types.length && !out.get(e.key)[i]) pick(e, i, true)
   for (const e of order) e.types.forEach((_, i) => { if (!out.get(e.key)[i]) pick(e, i, false) })
   return out
 }
