@@ -32,6 +32,8 @@
  *   market_status     → { elevenst:{ connected, account }, requests:{ [market]:{ status } }, requestsReady }   (2026-09-30)
  *   connect_11st      { seller_login_id, api_key } → 중계 경유 출고지 조회로 키 확인(api/_elevenst.js) → 암호화 저장(쿠팡과 같은 표·방식) — 연결까지만
  *   disconnect_11st   → 11번가 계정 삭제
+ *   connect_smartstore { client_id, client_secret } → 중계 경유 인증 토큰 발급으로 확인(api/_smartstore.js) → 암호화 저장(11번가와 같은 표·방식) — 연결까지만
+ *   disconnect_smartstore → 스마트스토어 계정 삭제
  *   connect_request   { market(REQUEST_MARKETS), seller_id, contact } → marketplace_requests 저장(status requested) — 관리자가 보고 연결
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
  *
@@ -50,6 +52,7 @@ import { resendPlan } from './_coupangFields.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
 import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
+import { smartstoreToken, SmartstoreError } from './_smartstore.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -189,7 +192,8 @@ async function disconnect(ctx, body, res) {
 // 11번가 = 쿠팡과 같은 표(marketplace_accounts)·같은 암호화(encryptSecret)·같은 중계(MARKETPLACE_RELAY_*). 연결까지만 — 보내기는 다음 작업
 // 연결 신청 = marketplace_requests (SQL docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 전이면 503 marketplace_sql_missing — 원인 로그)
 const ELEVENST = '11st'
-const REQUEST_MARKETS = ['smartstore', 'gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'] // src/lib/studioMarketplaceRules.js REQUEST_MARKETS와 같게 (테스트가 대조)
+const SMARTSTORE = 'smartstore'
+const REQUEST_MARKETS = ['gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'] // src/lib/studioMarketplaceRules.js REQUEST_MARKETS와 같게 (테스트가 대조)
 const ELEVENST_PUBLIC = 'seller_login_id,key_last4,status,last_checked_at,last_error,created_at'
 const isSchemaGap = e => e?.status === 400 && /check constraint|violates|null value|23514|23502|column/i.test(String(e?.message || ''))
 
@@ -208,11 +212,15 @@ async function loadRequests(ctx) {
 async function marketStatus(ctx, body, res) {
   const rows = await sb(ctx.cfg, `marketplace_accounts?select=${ELEVENST_PUBLIC}&user_id=eq.${ctx.userId}&market=eq.${ELEVENST}&limit=1`)
   const a = Array.isArray(rows) && rows[0] ? rows[0] : null
+  const ssRows = await sb(ctx.cfg, `marketplace_accounts?select=${ELEVENST_PUBLIC}&user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}&limit=1`)
+  const s = Array.isArray(ssRows) && ssRows[0] ? ssRows[0] : null
   const reqRows = await loadRequests(ctx)
   const requests = {}
   for (const r of reqRows || []) requests[r.market] = { status: r.status, created_at: r.created_at, updated_at: r.updated_at }
   return res.status(200).json({
     elevenst: a ? { connected: true, account: { seller_login_id: a.seller_login_id, key_last4: a.key_last4, status: a.status, last_checked_at: a.last_checked_at, last_error: a.last_error } } : { connected: false, account: null },
+    // 스마트스토어 — 칸을 하나씩 고른다(암호문 칸 없음). key_last4 = 애플리케이션 ID 끝 4자리 · 시크릿은 어떤 형태로도 안 내려감
+    smartstore: s ? { connected: true, account: { key_last4: s.key_last4, status: s.status, last_checked_at: s.last_checked_at, last_error: s.last_error } } : { connected: false, account: null },
     requests, requestsReady: reqRows !== null, relayIp: RELAY_IP,
   })
 }
@@ -248,6 +256,45 @@ async function connectElevenst(ctx, body, res) {
   console.info(`[marketplace] 11번가 연결 ${ctx.userId}`)
   return marketStatus(ctx, body, res)
 }
+// 스마트스토어 (2026-09-30) — 11번가와 같은 방식: 같은 표·같은 암호화·같은 중계. 애플리케이션 ID = access_key_enc, 시크릿 = secret_key_enc
+// 키 확인 = 중계 경유 인증 토큰 발급(api/_smartstore.js). 토큰은 저장하지 않는다. 연결까지만 — 보내기는 다음 작업
+async function connectSmartstore(ctx, body, res) {
+  const encKey = encKeyOr(res)
+  if (!encKey) return
+  const id = String(body.client_id ?? '').trim(), secret = String(body.client_secret ?? '').trim()
+  if (!/^[\x21-\x7e]{4,200}$/.test(id)) return sendError(res, 400, 'invalid_input', '애플리케이션 ID를 넣어 주세요.')
+  if (!/^[\x21-\x7e]{8,200}$/.test(secret)) return sendError(res, 400, 'invalid_input', '애플리케이션 시크릿을 넣어 주세요.')
+  const m = marketConfig()
+  try {
+    await smartstoreToken({ relayUrl: m.relayUrl, relaySecret: m.relaySecret, clientId: id, clientSecret: secret, breakerKey: ctx.userId })
+  } catch (e) {
+    if (!(e instanceof SmartstoreError)) throw e
+    if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] 스마트스토어 connect 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw} — MARKETPLACE_RELAY_URL·SECRET·relay.js smartstore 대상 확인`)
+    else console.warn(`[marketplace] 스마트스토어 connect 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+    return sendError(res, e.status === 429 ? 429 : 502, e.code, e.message)
+  }
+  const row = {
+    user_id: ctx.userId, market: SMARTSTORE, seller_login_id: '내 스토어 애플리케이션', vendor_id: null,
+    access_key_enc: encryptSecret(id, encKey), secret_key_enc: encryptSecret(secret, encKey), key_last4: id.slice(-4).replace(/[^A-Za-z0-9-]/g, '-'),
+    expires_at: null, status: 'connected', last_checked_at: new Date().toISOString(), last_error: null,
+  }
+  try {
+    await sb(ctx.cfg, 'marketplace_accounts?on_conflict=user_id,market', { method: 'POST', body: row, prefer: 'resolution=merge-duplicates,return=minimal' })
+  } catch (e) {
+    if (isSchemaGap(e)) {
+      console.error('[marketplace] 스마트스토어 계정 저장 실패 — marketplace_accounts market 체크에 smartstore 없음(docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 필요):', e.message)
+      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
+    }
+    throw e
+  }
+  console.info(`[marketplace] 스마트스토어 연결 ${ctx.userId}`)
+  return marketStatus(ctx, body, res)
+}
+async function disconnectSmartstore(ctx, body, res) {
+  await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}`, { method: 'DELETE', prefer: 'return=minimal' })
+  return marketStatus(ctx, body, res)
+}
+
 async function disconnectElevenst(ctx, body, res) {
   await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${ELEVENST}`, { method: 'DELETE', prefer: 'return=minimal' })
   return marketStatus(ctx, body, res)
@@ -798,7 +845,9 @@ export default async function handler(req, res) {
     if (body.action === 'connect_11st') return await connectElevenst(ctx, body, res)
     if (body.action === 'disconnect_11st') return await disconnectElevenst(ctx, body, res)
     if (body.action === 'connect_request') return await connectRequest(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_request' 중 하나여야 합니다.")
+    if (body.action === 'connect_smartstore') return await connectSmartstore(ctx, body, res)
+    if (body.action === 'disconnect_smartstore') return await disconnectSmartstore(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_request'·'connect_smartstore'·'disconnect_smartstore' 중 하나여야 합니다.")
   } catch (e) {
     if (e?.status === 404 || e?.status === 401 || e?.status === 403) {
       console.error(`[marketplace] ${body.action} 표를 쓸 수 없음(GRANT·표 — docs/sql/2026-09-28-marketplace-coupang.sql):`, e.message)

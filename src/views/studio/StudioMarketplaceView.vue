@@ -49,6 +49,8 @@
 
       <!-- 11번가 — 쿠팡과 같은 키 연결 (2026-09-30, 연결까지만) -->
       <StudioElevenstCard />
+      <!-- 스마트스토어 — 11번가와 같은 키 연결 (2026-09-30 S3-2, 연결까지만) -->
+      <StudioSmartstoreCard />
     </div>
     <p v-if="marketLinks.error" class="text-[13px] break-keep" :class="marketLinks.soft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-links-error>{{ marketLinks.error }}</p>
 
@@ -124,6 +126,7 @@ import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioMarketplaceGuide from '@/components/studio/StudioMarketplaceGuide.vue'
 import { getMarketplaceStatus, connectCoupang, disconnectCoupang, refreshPlaces, expiryState, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
 import StudioElevenstCard from '@/components/studio/StudioElevenstCard.vue'
+import StudioSmartstoreCard from '@/components/studio/StudioSmartstoreCard.vue'
 import StudioMarketRequests from '@/components/studio/StudioMarketRequests.vue'
 import { marketLinks, loadMarketLinks } from '@/lib/studioMarketLinks'
 

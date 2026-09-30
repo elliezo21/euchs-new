@@ -5,10 +5,12 @@
 --
 -- [무엇을 바꾸나]
 --   ① marketplace_accounts (쿠팡 전용이던 표)를 11번가도 쓰게 — 같은 표·같은 암호화(v1: AES-256-GCM, MARKETPLACE_ENC_KEY)
---      - market 체크에 '11st' 추가
+--      - market 체크에 '11st'·'smartstore' 추가 (스마트스토어 = 2026-09-30 S3-2 — 고객이 만든 '내 스토어 애플리케이션' ID·시크릿)
 --      - vendor_id · secret_key_enc · expires_at: 11번가에는 없는 값 → null 허용. 대신 쿠팡 행은 세 칸이 모두 있어야 한다(아래 체크) — 쿠팡 규칙은 그대로
+--      - 스마트스토어: access_key_enc = 애플리케이션 ID 암호문, secret_key_enc = 애플리케이션 시크릿 암호문(필수 — 아래 체크), vendor_id·expires_at 없음(null)
+--        key_last4 = 애플리케이션 ID 끝 4자리, seller_login_id = '내 스토어 애플리케이션'(표시용 고정 글자 — ID를 평문으로 두지 않는다)
 --      - access_key_enc = 11번가 API 키 암호문, key_last4 = 끝 4자리(표시용)
---   ② marketplace_requests (새 표) — 연결 신청 (지그재그·에이블리·스마트스토어·G마켓·카페24·메이크샵·고도몰)
+--   ② marketplace_requests (새 표) — 연결 신청 (지그재그·에이블리·G마켓·카페24·메이크샵·고도몰 — 스마트스토어는 키 연결)
 --      서버(service_role)만 쓴다. 본인은 읽기만, 관리자·스태프는 전부 읽기(연결 처리용)
 --
 -- [영향 범위] 기존 표 1개 제약 변경(쿠팡 행 영향 없음 — 세 칸 모두 이미 not null로 들어 있음) + 새 표 1개·정책 2개·트리거 1개.
@@ -18,21 +20,23 @@
 
 begin;
 
--- ① marketplace_accounts — 11번가 허용
+-- ① marketplace_accounts — 11번가·스마트스토어 허용
 alter table public.marketplace_accounts drop constraint if exists marketplace_accounts_market_check;
-alter table public.marketplace_accounts add constraint marketplace_accounts_market_check check (market in ('coupang', '11st'));
+alter table public.marketplace_accounts add constraint marketplace_accounts_market_check check (market in ('coupang', '11st', 'smartstore'));
 alter table public.marketplace_accounts alter column vendor_id drop not null;
 alter table public.marketplace_accounts alter column secret_key_enc drop not null;
 alter table public.marketplace_accounts alter column expires_at drop not null;
 alter table public.marketplace_accounts add constraint marketplace_accounts_coupang_fields
   check (market <> 'coupang' or (vendor_id is not null and secret_key_enc is not null and expires_at is not null));
+alter table public.marketplace_accounts add constraint marketplace_accounts_smartstore_fields
+  check (market <> 'smartstore' or secret_key_enc is not null);                              -- 스마트스토어는 시크릿 필수 (11번가는 키 하나라 없음)
 -- 기존 체크(secret_key_enc like 'v1:%', vendor_id 형식)는 null이면 통과하므로 그대로 둔다
 
 -- ② 연결 신청
 create table public.marketplace_requests (
   id          uuid primary key default gen_random_uuid(),
   user_id     uuid not null references auth.users(id) on delete cascade,
-  market      text not null check (market in ('smartstore', 'gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall')),
+  market      text not null check (market in ('gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall')),   -- 스마트스토어는 키 연결로 옮겨 뺐다(S3-2)
   seller_id   text not null check (char_length(seller_id) between 1 and 100),          -- 고객이 적은 판매자 ID
   contact     text not null check (contact ~ '^[0-9+\- ()]{8,20}$'),                    -- 담당자 연락처
   status      text not null default 'requested' check (status in ('requested', 'connected', 'rejected')),
@@ -62,7 +66,8 @@ commit;
 /* 되돌리기 (필요할 때만 — 11번가 행이 있으면 먼저 지워야 한다)
 begin;
 drop table if exists public.marketplace_requests;
-delete from public.marketplace_accounts where market = '11st';
+delete from public.marketplace_accounts where market in ('11st', 'smartstore');
+alter table public.marketplace_accounts drop constraint if exists marketplace_accounts_smartstore_fields;
 alter table public.marketplace_accounts drop constraint if exists marketplace_accounts_coupang_fields;
 alter table public.marketplace_accounts alter column vendor_id set not null;
 alter table public.marketplace_accounts alter column secret_key_enc set not null;

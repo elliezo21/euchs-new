@@ -19,6 +19,20 @@ export const ELEVENST_GUIDE = [
   '[연결 확인]을 누르면 연결이 끝나요.',
 ]
 
+/**
+ * 스마트스토어 — 고객이 네이버 커머스API센터에서 "내 스토어 애플리케이션"을 직접 만들고 ID·시크릿을 넣는다 (2026-09-30 S3-2)
+ * 확인한 메뉴: "커머스API센터 > 내 스토어 애플리케이션", 애플리케이션 [수정]에서 IP 추가·IPv4 최대 3개 (공식 저장소 답변 #2291)
+ */
+export const SMARTSTORE_GUIDE = [
+  '네이버 커머스API센터에 스마트스토어 판매자 계정으로 로그인하세요.',
+  '내 스토어 애플리케이션 메뉴로 들어가세요.',
+  `새 애플리케이션을 등록하세요. ${MENU_CHECK}`,
+  `API 호출 IP 칸에 ${RELAY_IP}를 넣고 저장하세요. 이미 만든 애플리케이션이면 [수정]에서 IP를 더하세요. ${MENU_CHECK}`,
+  `애플리케이션 ID와 애플리케이션 시크릿을 복사하세요. ${MENU_CHECK}`,
+  '아래 칸에 두 값을 붙여넣으세요.',
+  '[연결 확인]을 누르면 연결이 끝나요.',
+]
+
 /** 연결 신청 — 판매처별 첫 단계만 다르고 나머지는 같다 */
 const REQUEST_FIRST = {
   zigzag: [`지그재그 판매자 센터(파트너센터)에 로그인하세요. ${MENU_CHECK}`, '내 정보 화면에서 판매자 ID(스토어 ID)를 확인하세요.'],
@@ -41,6 +55,7 @@ export function requestGuide(key, name) {
 /** "메뉴 이름 확인 필요"가 붙은 문장 [{ market, step }] */
 export function menuChecks(keys = ['zigzag', 'ably']) {
   const out = ELEVENST_GUIDE.filter(s => s.includes(MENU_CHECK)).map(step => ({ market: '11st', step }))
+  for (const step of SMARTSTORE_GUIDE) if (step.includes(MENU_CHECK)) out.push({ market: 'smartstore', step })
   for (const k of keys) for (const step of requestGuide(k, k)) if (step.includes(MENU_CHECK)) out.push({ market: k, step })
   return out
 }

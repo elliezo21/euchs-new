@@ -28,11 +28,11 @@ export const CHANNEL_TABS = [
 ]
 
 // 판매처 목록 — 설정 > 판매처 연결과 랜딩 칩이 같은 목록·같은 순서를 쓴다. soon = 이름 + "준비 중" 배지만 (부가 설명 문구 없음)
-// connect = 연결 방법 (2026-09-30): 'key' = 고객이 API 키를 넣어 직접 연결(쿠팡·11번가) · 'request' = [연결 신청] → 우리가 연결하고 알림
+// connect = 연결 방법 (2026-09-30): 'key' = 고객이 API 키를 넣어 직접 연결(쿠팡·11번가·스마트스토어) · 'request' = [연결 신청] → 우리가 연결하고 알림
 // soon = 아직 상품 보내기를 못 함 (연결은 될 수 있다 — 11번가). 서버 api/marketplace.js REQUEST_MARKETS와 같은 목록(테스트가 대조)
 export const MARKETS = [
   { key: 'coupang', name: '쿠팡', connect: 'key' },
-  { key: 'smartstore', name: '스마트스토어', soon: true, connect: 'request' },
+  { key: 'smartstore', name: '스마트스토어', soon: true, connect: 'key' }, // 2026-09-30 S3-2 — 고객이 만든 내 스토어 애플리케이션 ID·시크릿
   { key: '11st', name: '11번가', soon: true, connect: 'key' },
   { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'request' },
   { key: 'ably', name: '에이블리', soon: true, connect: 'request' },
@@ -53,6 +53,15 @@ export function requestProblems({ sellerId = '', contact = '' } = {}) {
   const id = String(sellerId || '').trim(), tel = String(contact || '').trim()
   if (!id || id.length > 100) out.push('판매자 ID')
   if (!/^[0-9+\-\s()]{8,20}$/.test(tel) || (tel.match(/\d/g) || []).length < 8) out.push('담당자 연락처')
+  return out
+}
+/**
+ * 스마트스토어 키 입력 검사 — 애플리케이션 ID(공백 없음 4~200자)·시크릿(bcrypt salt 모양 "$2a$…" — 서버 api/_smartstore.js isBcryptSalt와 같은 식)
+ */
+export function smartstoreKeyProblems({ clientId = '', clientSecret = '' } = {}) {
+  const out = []
+  if (!/^[\x21-\x7e]{4,200}$/.test(String(clientId || '').trim())) out.push('애플리케이션 ID')
+  if (!/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{22}/.test(String(clientSecret || '').trim())) out.push('애플리케이션 시크릿')
   return out
 }
 /** 11번가 키 입력 검사 — 셀러 ID·API 키 (공백 없는 영문·숫자·기호 8~200자) */

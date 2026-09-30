@@ -661,7 +661,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('예전 설정 링크 이름이 남은 곳 = 보내기 창·쿠팡 섹션뿐 (redirect로 새 탭)', [...['src/components/studio/StudioExportList.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioChannelSendView.vue'].filter(p => /studio-settings-(marketplace|shipping)/.test(read(p)))], [])
   // 판매처 줄 (보내기 탭)
   const on = R.channelRows({ coupang: { connected: true } }), off = R.channelRows({ coupang: { connected: false } })
-  eq('판매처 줄 = MARKETS 9곳·같은 순서 · 연결된 쿠팡만 connected · 나머지는 모두 locked(준비 중 없음)', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state], [R.MARKETS.map(m => m.key), ['connected', ...Array(8).fill('locked')], Array(9).fill('locked'), Array(9).fill('locked'), 'locked'])
+  eq('판매처 줄 = MARKETS 9곳·같은 순서 · 연결된 쿠팡만 connected · 나머지는 모두 locked(준비 중 없음) · 스마트스토어는 키 연결(S3-2)이라 연결되면 linked', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state], [R.MARKETS.map(m => m.key), ['connected', ...Array(8).fill('locked')], Array(9).fill('locked'), Array(9).fill('locked'), 'linked'])
 }
 
 // ── 11. 쿠팡 항목 규칙 (api/_coupangFields.js — 화면과 서버가 같이 쓰는 순수 함수) ──
@@ -796,14 +796,14 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     const E = await import('../api/_elevenst.js')
     const api = read('api/marketplace.js'), el = read('api/_elevenst.js'), card = read('src/components/studio/StudioElevenstCard.vue')
     const sql = read('docs/sql/2026-09-30-marketplace-11st-requests.sql')
-    eq('연결 방법: 쿠팡·11번가 = 키 · 나머지 7곳 = 연결 신청 · 보내기는 쿠팡만', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.REQUEST_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['coupang', '11st'], ['smartstore', 'gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'], ['coupang']])
+    eq('연결 방법: 쿠팡·11번가·스마트스토어 = 키 · 나머지 6곳 = 연결 신청 · 보내기는 쿠팡만', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.REQUEST_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['coupang', 'smartstore', '11st'], ['gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'], ['coupang']])
     eq('서버 신청 목록 = 화면 목록 · SQL 체크도 같은 목록', [JSON.parse(/const REQUEST_MARKETS = (\[[^\]]*\])/.exec(api)[1].replace(/'/g, '"')), (/market\s+text not null check \(market in \(([^)]*)\)\)/.exec(sql.slice(sql.indexOf('create table public.marketplace_requests')))?.[1] || '').replace(/[' ]/g, '').split(',')], [R.REQUEST_MARKETS, R.REQUEST_MARKETS])
     const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { requested: true }, cafe24: { connected: true } })
     eq('보내기 탭 줄: 쿠팡 = 보내기 · 11번가 = 연결됨(보내기 없음) · 신청 = 신청 접수됨 · 신청형은 connected여도 잠금', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'locked', ably: 'locked', zigzag: 'requested', cafe24: 'locked', makeshop: 'locked', godomall: 'locked' })
     eq('신청 입력 검사', [R.requestProblems({ sellerId: 'shop1', contact: '010-1234-5678' }), R.requestProblems({ sellerId: '', contact: '12' }), R.requestProblems({ sellerId: 'a', contact: '010 1234 5678' })], [[], ['판매자 ID', '담당자 연락처'], []])
     eq('11번가 키 입력 검사', [R.elevenstKeyProblems({ sellerId: 'seller', apiKey: 'abcd1234efgh' }), R.elevenstKeyProblems({ sellerId: '', apiKey: 'short' }), R.elevenstKeyProblems({ sellerId: 'a', apiKey: 'has space 123' })], [[], ['11번가 셀러 ID', 'API 키'], ['API 키']])
     eq('가이드: 단계 5~8개 · 짧은 명령형(끝이 "요.") · IP = 중계 IP', [G.ELEVENST_GUIDE.length, ['zigzag', 'ably', 'cafe24'].map(k => G.requestGuide(k, k).length), [...G.ELEVENST_GUIDE, ...G.requestGuide('zigzag', '지그재그')].every(s => /요\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112'))], [7, [5, 5, 5], true, true, true])
-    eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘', G.menuChecks().map(x => x.market), ['11st', '11st', '11st', 'zigzag', 'ably'])
+    eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘', G.menuChecks().map(x => x.market), ['11st', '11st', '11st', 'smartstore', 'smartstore', 'smartstore', 'zigzag', 'ably'])
     eq('11번가 호출 = 쿠팡과 같은 중계(/11st 접두어 + x-relay-secret) · 같은 브레이커·준비 문제 문구', [/`\$\{c\.relayUrl\.replace\(\/\\\/\$\/, ''\)\}\/11st\$\{path\}/.test(el), /'x-relay-secret': c\.relaySecret/.test(el), /import \{ breakerFor, NOT_READY_MESSAGE, RELAY_IP \} from '\.\/_coupang\.js'/.test(el), /'openapikey': c\.apiKey/.test(el)], [true, true, true, true])
     {
       const calls = []
@@ -825,6 +825,41 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     eq('SQL: 쿠팡 칸 규칙 유지 · 새 표 GRANT(anon 없음, authenticated select만) · RLS · 되돌리기', [/check \(market <> 'coupang' or \(vendor_id is not null and secret_key_enc is not null and expires_at is not null\)\)/.test(sql), /revoke all on table public\.marketplace_requests from anon, authenticated;/.test(sql), /grant select on table public\.marketplace_requests to authenticated;/.test(sql), /enable row level security/.test(sql), /상태: 미실행/.test(sql), /\/\* 되돌리기/.test(sql), / to anon/.test(sql.replace(/from anon/g, ''))], [true, true, true, true, true, true, false])
     eq('화면: [연결하기]·[연결 신청] = 작업 시작 관문 · 로그인 뒤 ?link=11st·?request=로 이어서', [/await studioGate\('\/studio\/channels\/connect\?link=11st'\)/.test(card), /await studioGate\(`\/studio\/channels\/connect\?request=\$\{encodeURIComponent\(m\.key\)\}`\)/.test(reqList)], [true, true])
     eq('화면: 연결 탭 "다른 판매처"에 "준비 중" 없음 · 키는 password 칸 · 끝 4자리만', [/준비 중/.test(screenTextOf('src/components/studio/StudioMarketRequests.vue') + screenTextOf('src/components/studio/StudioElevenstCard.vue') + screenTextOf('src/views/studio/StudioMarketplaceView.vue')), /type="password"[^>]*data-mk-11st-f-key/.test(card), /•••• \{\{ acc\.key_last4 \}\}/.test(card)], [false, true, true])
+    // ── 스마트스토어 키 연결 (2026-09-30 S3-2) ──
+    {
+      const S = await import('../api/_smartstore.js')
+      const bc = (await import('bcryptjs')).default
+      const ss = read('api/_smartstore.js'), ssCard = read('src/components/studio/StudioSmartstoreCard.vue')
+      const SALT = bc.genSaltSync(4) // 가짜 시크릿 (bcrypt salt 모양)
+      const sign = S.smartstoreSign('app-id-1', SALT, 1643961623299)
+      const decoded = Buffer.from(sign, 'base64').toString('utf8')
+      eq('전자서명 = base64(bcrypt(client_id + "_" + timestamp, salt = 시크릿)) · 같은 입력이면 같은 값', [decoded.startsWith(SALT), bc.compareSync('app-id-1_1643961623299', decoded), S.smartstoreSign('app-id-1', SALT, 1643961623299) === sign, S.smartstoreSign('app-id-1', SALT, 1643961623300) === sign], [true, true, true, false])
+      const calls = []
+      const fake = (status, text) => async (url, opt) => { calls.push({ url, opt }); return { ok: status < 400, status, text: async () => text } }
+      const base = { relayUrl: 'https://relay.example', relaySecret: 'S', clientId: 'app-id-1', clientSecret: SALT, now: () => 1790000000000 }
+      const tok = await S.smartstoreToken({ ...base, breakerKey: 'ok', fetchImpl: fake(200, '{"access_token":"tok","expires_in":10800,"token_type":"Bearer"}') })
+      const body = new URLSearchParams(calls[0].opt.body)
+      eq('토큰 발급(가짜 응답): 중계 /smartstore + 공식 경로 · form-urlencoded · client_credentials · SELF · 13자리 timestamp · 시크릿은 보내지 않음', [
+        calls[0].url, calls[0].opt.method, calls[0].opt.headers['Content-Type'], calls[0].opt.headers['x-relay-secret'],
+        [...body.keys()], body.get('grant_type'), body.get('type'), body.get('timestamp').length, calls[0].opt.body.includes(SALT.slice(7)), tok.access_token,
+      ], ['https://relay.example/smartstore/external/v1/oauth2/token', 'POST', 'application/x-www-form-urlencoded', 'S', ['client_id', 'timestamp', 'client_secret_sign', 'grant_type', 'type'], 'client_credentials', 'SELF', 13, false, 'tok'])
+      const codes = []
+      for (const [st, tx, k] of [[403, '{"code":"GW.IP_NOT_ALLOWED","message":"호출이 허용되지 않은 IP입니다."}', 'a'], [401, '{"code":"GW.AUTHN"}', 'b'], [400, '{"message":"invalid_client"}', 'c'], [200, '{"nope":1}', 'd'], [500, 'x', 'e']]) {
+        try { await S.smartstoreToken({ ...base, breakerKey: k, fetchImpl: fake(st, tx) }) } catch (e) { codes.push(e.code) }
+      }
+      let badSalt = '', relay = ''
+      const n = calls.length
+      try { await S.smartstoreToken({ ...base, clientSecret: 'not-a-bcrypt-salt', fetchImpl: fake(200, '{}') }) } catch (e) { badSalt = e.code }
+      try { await S.smartstoreToken({ ...base, relayUrl: '' }) } catch (e) { relay = e.code }
+      eq('토큰 오류: IP 막힘 · 키 틀림 · 응답 모양 이상 · 네이버 장애 / 시크릿 모양이 틀리면·중계 설정이 없으면 부르지 않음', [codes, badSalt, relay, calls.length === n], [['ip_not_allowed', 'bad_key', 'bad_key', 'market_bad_json', 'market_server'], 'bad_key', 'relay_not_configured', true])
+      eq('같은 중계·브레이커·준비 문구 재사용 · 토큰은 로그에서 가림', [/import \{ breakerFor, NOT_READY_MESSAGE, RELAY_IP \} from '\.\/_coupang\.js'/.test(ss), /breakerFor\(`smartstore:/.test(ss), /"access_token":"\[가림\]"/.test(ss)], [true, true, true])
+      eq('서버: 스마트스토어 = 같은 표·같은 암호화(ID·시크릿 둘 다) · 상태 응답에 ID 끝 4자리만', [/market: SMARTSTORE, seller_login_id: '내 스토어 애플리케이션', vendor_id: null,\s*access_key_enc: encryptSecret\(id, encKey\), secret_key_enc: encryptSecret\(secret, encKey\)/.test(api), /smartstore: s \? \{ connected: true, account: \{ key_last4: s\.key_last4, status: s\.status/.test(api), ['connect_smartstore', 'disconnect_smartstore'].every(a => api.includes(`body.action === '${a}'`))], [true, true, true])
+      eq('SQL: market 체크에 smartstore · 스마트스토어는 시크릿 필수 · 신청 목록에서 뺌', [/check \(market in \('coupang', '11st', 'smartstore'\)\)/.test(sql), /check \(market <> 'smartstore' or secret_key_enc is not null\)/.test(sql), /market\s+text not null check \(market in \('gmarket'/.test(sql)], [true, true, true])
+      eq('스마트스토어 입력 검사 (시크릿 = bcrypt salt 모양)', [R.smartstoreKeyProblems({ clientId: 'abcd1234', clientSecret: SALT }), R.smartstoreKeyProblems({ clientId: '', clientSecret: 'plain-secret' })], [[], ['애플리케이션 ID', '애플리케이션 시크릿']])
+      eq('가이드: 7단계 · 중계 IP · 확인한 메뉴 "내 스토어 애플리케이션"', [G.SMARTSTORE_GUIDE.length, G.SMARTSTORE_GUIDE.some(s => s.includes('3.39.196.112')), G.SMARTSTORE_GUIDE.every(s => /요\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.SMARTSTORE_GUIDE[1]], [7, true, true, '내 스토어 애플리케이션 메뉴로 들어가세요.'])
+      eq('화면: 카드 = 관문 · 시크릿은 password 칸 · ID 끝 4자리만 · 연결 탭에 카드', [/await studioGate\('\/studio\/channels\/connect\?link=smartstore'\)/.test(ssCard), /type="password"[^>]*data-mk-ss-f-secret/.test(ssCard), /•••• \{\{ acc\.key_last4 \}\}/.test(ssCard), /<StudioSmartstoreCard \/>/.test(mkView)], [true, true, true, true])
+      eq('보내기 탭: 스마트스토어 연결되면 "연결됨"(보내기 없음)', R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, 'linked')
+    }
     eq('상태 모듈: 로그인 전 안 부름 · 로그아웃이면 비움', [/if \(!currentUser\.value\?\.id\) \{ reset\(\); return \}/.test(read('src/lib/studioMarketLinks.js')), /addEventListener\('euchs-auth-changed', e => \{ reset\(\); if \(e\.detail\?\.user\) loadMarketLinks\(\) \}\)/.test(read('src/lib/studioMarketLinks.js'))], [true, true])
   }
   const screenText = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }

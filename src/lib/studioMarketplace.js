@@ -47,6 +47,8 @@ export const getMarketLinks = () => call('market_status')
 export const connectElevenst = (form) => call('connect_11st', form)
 export const disconnectElevenst = () => call('disconnect_11st')
 export const requestConnect = (form) => call('connect_request', form)
+export const connectSmartstore = (form) => call('connect_smartstore', form)
+export const disconnectSmartstore = () => call('disconnect_smartstore')
 
 /**
  * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.
