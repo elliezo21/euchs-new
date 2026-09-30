@@ -1,9 +1,17 @@
 <template>
   <div class="st-tcard" :class="large ? 'is-large' : ''" :data-template-card="tpl.key">
     <button type="button" class="st-tcard-main" :title="title" :data-template-open="tpl.key" @click="$emit('open', tpl.key)">
-      <!-- 표지 = 템플릿 첫 화면 (studioTemplateThumbs.templateCover — 적용·내보내기와 같은 엔진, 첫 구간만·작은 그림). 화면 가까이 올 때만 그린다 -->
+      <!-- 표지 = 템플릿 첫 화면. 기본 템플릿 = 미리 만든 그림(studioTemplateCovers — npm run studio:covers)만,
+           그 밖(내 템플릿 등) = studioTemplateThumbs.templateCover로 화면 가까이 올 때 그림 -->
       <span ref="coverEl" class="st-tcard-thumb" data-template-cover>
-        <img v-if="thumb" :src="thumb.cover" alt="" class="st-tcard-img" draggable="false" loading="lazy" decoding="async" />
+        <template v-if="builtIn && !failed">
+          <span v-if="!ready" class="st-tcard-img st-tcard-layer st-skeleton" />
+          <img
+            :key="retry" :src="builtInSrc" :width="COVER_W" :height="COVER_H" alt="" class="st-tcard-img st-tcard-layer" :class="ready ? '' : 'is-loading'"
+            draggable="false" loading="lazy" decoding="async" data-template-cover-img @load="ready = true" @error="onImgError"
+          />
+        </template>
+        <img v-else-if="thumb" :src="thumb.cover" alt="" class="st-tcard-img" draggable="false" loading="lazy" decoding="async" />
         <span v-else-if="failed" class="st-tcard-fail">
           <span class="st-tcard-retry" role="button" tabindex="0" title="다시 시도" data-template-retry @click.stop="load" @keydown.enter.stop.prevent="load">
             <RotateCw class="w-4 h-4" :stroke-width="2" />
@@ -13,6 +21,7 @@
       </span>
       <!-- 섹션 수는 그림 밖 (그림 위에 두면 첫 화면 아래쪽 배지·부제를 가린다) -->
       <span class="st-tcard-caption">
+        <span v-if="isNew" class="st-tcard-new" data-template-new>NEW</span>
         <span class="st-tcard-title">{{ title }}</span>
         <span class="st-tcard-count" data-template-sections>섹션 {{ sections }}개</span>
       </span>
@@ -32,8 +41,10 @@
 // 누르면 open(key)만 보낸다 (미리보기 칸은 부모가 연다). 하트는 fav(key) — 저장은 studioTemplateFavorites.
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Heart, RotateCw } from 'lucide-vue-next'
-import { templateCardTitle, templateSectionCount } from '@/lib/studioTemplates'
+import { templateByKey, templateCardTitle, templateSectionCount } from '@/lib/studioTemplates'
 import { templateCover, templateCoverNow } from '@/lib/studioTemplateThumbs'
+import { COVER_W, COVER_H, builtInCoverUrl } from '@/lib/studioTemplateCovers'
+import { isNewTemplate } from '@/lib/studioTemplateSort'
 
 const props = defineProps({
   tpl: { type: Object, required: true },
@@ -46,7 +57,28 @@ defineEmits(['open', 'fav'])
 
 const title = computed(() => templateCardTitle(props.tpl))
 const sections = computed(() => templateSectionCount(props.tpl))
-const thumb = ref(templateCoverNow(props.tpl.key))
+const isNew = computed(() => isNewTemplate(props.tpl))
+
+// 기본 템플릿 — 미리 만든 그림 (목록에 없으면 실패 표시 + 원인 로그. 대신 그리지 않는다 — 테스트가 빠진 표지를 막는다)
+const builtIn = computed(() => !!templateByKey(props.tpl.key))
+const ready = ref(false) // 그림을 다 받음 (그 전에는 회색 자리표시)
+const retry = ref(0)
+const builtInSrc = computed(() => {
+  const url = builtInCoverUrl(props.tpl.key)
+  return url && retry.value ? `${url}?r=${retry.value}` : url
+})
+function checkBuiltIn() {
+  if (builtIn.value && !builtInCoverUrl(props.tpl.key)) {
+    console.error('[StudioTemplateCard] 기본 템플릿 표지가 없음 — npm run studio:covers 필요:', props.tpl.key)
+    failed.value = true
+  }
+}
+function onImgError() {
+  console.error('[StudioTemplateCard] 표지 그림을 받지 못함:', props.tpl.key, builtInSrc.value)
+  failed.value = true
+}
+
+const thumb = ref(builtIn.value ? null : templateCoverNow(props.tpl.key))
 const failed = ref(false)
 const coverEl = ref(null)
 const seen = ref(false) // 표지 자리가 화면 가까이 온 적이 있음 — 그 뒤에만 그린다
@@ -54,6 +86,7 @@ const seen = ref(false) // 표지 자리가 화면 가까이 온 적이 있음 �
 async function load() {
   const key = props.tpl.key
   failed.value = false
+  if (builtIn.value) { ready.value = false; retry.value++; checkBuiltIn(); return }
   try {
     const t = await templateCover(key)
     if (props.tpl.key === key) thumb.value = t
@@ -62,10 +95,17 @@ async function load() {
     if (props.tpl.key === key) failed.value = true
   }
 }
-watch(() => props.tpl.key, k => { thumb.value = templateCoverNow(k); failed.value = false; if (!thumb.value && seen.value) load() })
+watch(() => props.tpl.key, k => {
+  failed.value = false
+  ready.value = false
+  if (builtIn.value) { thumb.value = null; checkBuiltIn(); return }
+  thumb.value = templateCoverNow(k)
+  if (!thumb.value && seen.value) load()
+})
 
 let io = null
 onMounted(() => {
+  if (builtIn.value) { checkBuiltIn(); return } // 브라우저가 loading="lazy"로 화면 가까이 올 때 받는다
   if (thumb.value) { seen.value = true; return }
   if (typeof IntersectionObserver !== 'function') { seen.value = true; load(); return }
   io = new IntersectionObserver(entries => {
@@ -93,6 +133,12 @@ onUnmounted(() => { io?.disconnect(); io = null })
 .st-tcard-main:focus-visible { outline: none; }
 .st-tcard-main:focus-visible .st-tcard-thumb { box-shadow: 0 0 0 2px var(--st-accent), 0 0 0 4px var(--st-accent-ring, transparent); }
 .st-tcard-img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: top; }
+.st-tcard-layer { position: absolute; inset: 0; }
+.st-tcard-img.is-loading { opacity: 0; }
+.st-tcard-new {
+  flex: none; align-self: center; padding: 1px 5px; border-radius: 4px; font-size: 10px; font-weight: 800; line-height: 1.4; letter-spacing: .02em;
+  background: var(--st-accent); color: #fff;
+}
 .st-tcard-fail { display: flex; width: 100%; height: 100%; align-items: center; justify-content: center; }
 .st-tcard-retry {
   display: inline-flex; width: 32px; height: 32px; align-items: center; justify-content: center; border-radius: 999px;

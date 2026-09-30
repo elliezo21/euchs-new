@@ -169,9 +169,12 @@ function assetNeeds(page, section, table, scale) {
   return need
 }
 
-async function drawCover(key) {
-  const tpl = templateByKey(key)
-  if (!tpl) throw new Error(`모르는 템플릿: ${key}`)
+/**
+ * 표지 한 장 (캔버스) — 화면 카드(3c0e670 방식, 내 템플릿 등)와 기본 템플릿 표지 미리 만들기(scripts/build-studio-covers.mjs)가 같이 쓴다.
+ * @returns {Promise<{ canvas, fontsOk: boolean }>} canvas = 폭 width × 3:4. 다 쓴 뒤 부르는 쪽이 비운다
+ */
+export async function drawCoverCanvas(tpl, width = COVER_WIDTH) {
+  const key = tpl.key
   const first = { ...tpl, sections: tpl.sections.slice(0, 1) }
   let fontsOk = false
   try {
@@ -184,7 +187,7 @@ async function drawCover(key) {
   const samples = await templateSamples(tpl)
   const page = coverPage(tpl, samples, coverMeasure)
   if (!page || page.sections.length === 0) throw new Error(`템플릿 페이지를 만들지 못함: ${key}`)
-  const scale = COVER_WIDTH / page.width
+  const scale = width / page.width
   const sec = page.sections[0]
   const table = await thumbTable()
   const need = assetNeeds(page, sec, table, scale)
@@ -213,10 +216,19 @@ async function drawCover(key) {
     const k = Math.min(1, coverH / secH)
     const dw = Math.round(canvas.width * k), dh = Math.round(secH * k)
     g.drawImage(canvas, 0, 0, canvas.width, secH, Math.round((canvas.width - dw) / 2), Math.round((coverH - dh) / 2), dw, dh)
-    const coverUrl = await toUrl(cover)
-    cover.width = 0
-    cover.height = 0
-    return { cover: coverUrl }
+    return { canvas: cover, fontsOk }
+  } finally {
+    canvas.width = 0
+    canvas.height = 0
+  }
+}
+
+async function drawCover(key) {
+  const tpl = templateByKey(key)
+  if (!tpl) throw new Error(`모르는 템플릿: ${key}`)
+  const { canvas } = await drawCoverCanvas(tpl, COVER_WIDTH)
+  try {
+    return { cover: await toUrl(canvas) }
   } finally {
     canvas.width = 0
     canvas.height = 0

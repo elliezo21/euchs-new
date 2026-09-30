@@ -19,6 +19,9 @@
           <option value="all">분위기 전체</option>
           <option v-for="m in TEMPLATE_MOODS" :key="m.key" :value="m.key">{{ m.label }}</option>
         </select>
+        <select v-model="sort" class="st-tpl-select" aria-label="정렬" data-template-filter="sort">
+          <option v-for="s in TEMPLATE_SORTS" :key="s.key" :value="s.key">{{ s.label }}</option>
+        </select>
       </div>
       <p v-if="favError" class="text-[12px] font-bold st-danger-text" role="alert">{{ favError }}</p>
     </div>
@@ -49,12 +52,14 @@
 // 왼쪽 [템플릿] 패널 (15단계 → 템플릿 고르기 개편) — 탭 [전체 템플릿]/[내 보관함], 개수, 카테고리·분위기 거르기, 카드 2줄 격자.
 // 카드를 누르면 가운데 미리보기 칸(StudioTemplatePreview) → [이 템플릿 쓰기]를 눌러야 apply(key) — 확인창·적용·저장·되돌리기는 편집기가 한다(askTemplate 그대로).
 // 시작 화면(16단계)의 [템플릿으로 시작]도 이 목록을 embedded로 쓴다.
-// 카드 표지·미리보기 그림 = studioTemplateThumbs (적용·내보내기와 같은 엔진, 한 번 그려 캐시). 하트 = studioTemplateFavorites(계정에 저장).
+// 카드 표지 = 기본 템플릿은 미리 만든 그림(studioTemplateCovers), 미리보기 그림 = studioTemplateThumbs. 하트 = studioTemplateFavorites(계정에 저장).
+// 정렬 = studioTemplateSort (추천순 기본 / 최신순).
 import { computed, onMounted, ref } from 'vue'
 import StudioTemplateCard from '@/components/studio/StudioTemplateCard.vue'
 import StudioTemplatePreview from '@/components/studio/StudioTemplatePreview.vue'
 import { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, filterTemplates } from '@/lib/studioTemplates'
 import { favorites, loadFavorites, toggleFavorite } from '@/lib/studioTemplateFavorites'
+import { TEMPLATE_SORTS, DEFAULT_TEMPLATE_SORT, sortTemplates } from '@/lib/studioTemplateSort'
 
 const props = defineProps({
   disabled: { type: Boolean, default: false },
@@ -68,14 +73,15 @@ const FOOT = '준비된 사진이 순서대로 자리에 들어가요. 지운 �
 const tab = ref('all')
 const category = ref('all')
 const mood = ref('all')
+const sort = ref(DEFAULT_TEMPLATE_SORT) // 추천순(기본) / 최신순 — 거르기와 따로
 const previewKey = ref('')
 const favError = ref('')
 let favErrorTimer = null
 
 const filtered = computed(() => category.value !== 'all' || mood.value !== 'all')
-const list = computed(() => filterTemplates({
+const list = computed(() => sortTemplates(filterTemplates({
   category: category.value, mood: mood.value, keys: tab.value === 'fav' ? favorites.keys : null,
-}))
+}), sort.value))
 
 function clearFilters() { category.value = 'all'; mood.value = 'all' }
 

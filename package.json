@@ -8,6 +8,7 @@
     "dev:studio": "node scripts/dev-studio.mjs",
     "build": "vite build",
     "studio:assets": "node scripts/build-studio-assets-manifest.mjs",
+    "studio:covers": "node scripts/build-studio-covers.mjs",
     "preview": "vite preview"
   },
   "dependencies": {

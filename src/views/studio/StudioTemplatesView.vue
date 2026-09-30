@@ -28,6 +28,13 @@
           :aria-pressed="color === c.key" :title="c.label" :data-gallery-color="c.key" @click="color = c.key"
         ><span class="st-gal-dot" :style="{ background: c.swatch }" />{{ c.label }}</button>
       </div>
+      <div class="flex flex-wrap items-center gap-1.5" data-gallery-sorts>
+        <span class="mr-1 text-[13px] font-bold st-muted">정렬</span>
+        <button
+          v-for="s in TEMPLATE_SORTS" :key="s.key" type="button" class="st-gal-pill" :class="sort === s.key ? 'is-active' : ''"
+          :aria-pressed="sort === s.key" :data-gallery-sort="s.key" @click="sort = s.key"
+        >{{ s.label }}</button>
+      </div>
     </div>
 
     <!-- 탭 · 개수 -->
@@ -74,6 +81,7 @@ import StudioTemplateCard from '@/components/studio/StudioTemplateCard.vue'
 import StudioTemplatePreview from '@/components/studio/StudioTemplatePreview.vue'
 import { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, filterTemplates, templateByKey, templateCardTitle } from '@/lib/studioTemplates'
 import { favorites, loadFavorites, toggleFavorite } from '@/lib/studioTemplateFavorites'
+import { TEMPLATE_SORTS, DEFAULT_TEMPLATE_SORT, sortTemplates } from '@/lib/studioTemplateSort'
 import { createBlankProject } from '@/lib/studioProjectBlank'
 
 const router = useRouter()
@@ -87,14 +95,15 @@ const tab = ref('all')
 const category = ref('all')
 const mood = ref('all')
 const color = ref('all')
+const sort = ref(DEFAULT_TEMPLATE_SORT) // 추천순(기본) / 최신순 — 거르기와 따로 (필터 초기화에 안 들어감)
 const previewKey = ref('')
 const favError = ref('')
 let favErrorTimer = null
 
 const filtered = computed(() => category.value !== 'all' || mood.value !== 'all' || color.value !== 'all')
-const list = computed(() => filterTemplates({
+const list = computed(() => sortTemplates(filterTemplates({
   category: category.value, mood: mood.value, color: color.value, keys: tab.value === 'fav' ? favorites.keys : null,
-}))
+}), sort.value))
 function clearFilters() { category.value = 'all'; mood.value = 'all'; color.value = 'all' }
 
 async function onFav(key) {
