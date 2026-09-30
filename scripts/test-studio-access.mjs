@@ -170,7 +170,7 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
     /if \(loggedIn\.value\) load\(\)/.test(read('src/views/studio/StudioShippingView.vue')),
     /if \(!loggedIn\.value\) return \/\/ 로그인 전에는 연결 상태를 부르지 않는다/.test(read('src/views/studio/StudioMarketplaceView.vue')),
   ], [true, true, true, true])
-  eq('작업 시작 버튼 = 관문 (판매처 연결·보내기)', [/await studioGate\('\/studio\/channels\/connect\?connect=1'\)/.test(read('src/views/studio/StudioMarketplaceView.vue')), /await studioGate\(`\/studio\/channels\/send\?export=/.test(read('src/views/studio/StudioChannelSendView.vue'))], [true, true])
+  eq('작업 시작 버튼 = 관문 (판매처 연결·보내기)', [/await studioGate\('\/studio\/channels\/connect\?connect=1'\)/.test(read('src/views/studio/StudioMarketplaceView.vue')), /const resume = `\/studio\/channels\/send\?export=/.test(read('src/views/studio/StudioChannelSendView.vue')) && /if \(!\(await studioGate\(resume\)\)\)/.test(read('src/views/studio/StudioChannelSendView.vue'))], [true, true])
   const lay = read('src/layouts/StudioLayout.vue')
   eq('[설정] 메뉴 숨김 (주소·라우트는 그대로)', [/const SHOW_SETTINGS_NAV = false/.test(lay), /v-if="SHOW_SETTINGS_NAV"/.test(lay), /path: 'settings',/.test(router)], [true, true, true])
   eq('스크롤: 다른 페이지 → 스튜디오 = 바로 맨 위 (뒤로가기 복원은 먼저)', [/if \(savedPosition\) \{\s*return savedPosition\s*\} else if \(enteringStudio\(to, from\)\) \{[\s\S]*?return \{ top: 0, behavior: 'instant' \}/.test(router), router.includes("const enteringStudio = (to, from) => !to.hash && isStudioPath(to.path) && !!from.name && !isStudioPath(from.path)")], [true, true])

@@ -35,8 +35,7 @@
       </li>
     </ul>
     </template>
-    <p v-if="resendError" class="mt-2 text-[12px] font-bold st-danger-text break-keep" data-mk-send-resend-error>{{ resendError }}</p>
-    <StudioSendModal :open="resendOpen" :prepare="resendPrepare" @close="resendOpen = false" @sent="onResent" />
+    <StudioSendModal :open="resendOpen" :prepare="resendPrepare" :load-error="resendError" @close="resendOpen = false" @sent="onResent" @retry="loadResend(resendId)" />
     <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'">일부 상품의 상태를 확인하지 못했습니다: {{ syncErrors[0].message }}</p>
   </section>
 </template>
@@ -107,23 +106,32 @@ async function sync() {
   }
 }
 // 반려된 상품 [고쳐서 다시 보내기] — 그 전송의 값으로 채운 보내기 창을 연다. 보내면 새 상품을 만들지 않고 같은 쿠팡 상품을 고쳐 다시 승인 요청한다
+// 창을 먼저 열고 준비 데이터(send_prepare)는 창 안에서 기다린다 — 못 받으면 창 안에 이유 + [다시 시도] (2026-09-30)
 const resendOpen = ref(false)
 const resendPrepare = ref(null)
 const resendBusy = ref(null)
 const resendError = ref('')
-async function openResend(s) {
-  resendBusy.value = s.id
+const resendId = ref(null)
+let resendSeq = 0
+async function loadResend(id) {
+  const my = ++resendSeq
+  resendBusy.value = id
   resendError.value = ''
   try {
-    const r = await resendToMarketplace(s.id)
-    resendPrepare.value = r.prepare
-    resendOpen.value = true
+    const r = await resendToMarketplace(id)
+    if (my === resendSeq) resendPrepare.value = r.prepare
   } catch (e) {
     console.error('[StudioSendList] 다시 보내기 준비 실패:', e.code, e)
-    resendError.value = e.message
+    if (my === resendSeq) resendError.value = e.message
   } finally {
-    resendBusy.value = null
+    if (my === resendSeq) resendBusy.value = null
   }
+}
+function openResend(s) {
+  resendId.value = s.id
+  resendPrepare.value = null
+  resendOpen.value = true
+  loadResend(s.id)
 }
 function onResent() { load() }
 
@@ -149,6 +157,9 @@ function clear() {
   resendOpen.value = false
   resendPrepare.value = null
   resendError.value = ''
+  resendSeq++
+  resendBusy.value = null
+  resendId.value = null
   marketFilter.value = ''
   setSends([])
 }

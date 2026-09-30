@@ -653,7 +653,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('내 작업: 보낸 상품·보내기 없음 · 내 상품 칸만', [/StudioSendList|StudioSendModal|sendToMarketplace|sends/.test(home), /<StudioExportList \/>/.test(home)], [false, true])
   eq('내 상품(내 작업) = [다시 받기] + "판매처에서 보내기 →"(이 상품을 골라 둔 보내기 탭)만', [/'다시 받기'/.test(listShown), /:to="\{ name: 'studio-channels-send', query: \{ export: x\.id \} \}"[^>]*>판매처에서 보내기 →</.test(listShown), /StudioSendModal|sendToMarketplace|판매처로 보내기/.test(list)], [true, true, false])
   eq('내 상품 배지·고르기는 판매처 > 보내기(pick)에서만', [/v-if="pick && sendsOf\[x\.id\]"/.test(listShown), /v-if="!pick" class="flex flex-col gap-1"/.test(listShown), /<StudioExportList pick :selected-id="selectedId" :sends="sends"/.test(sendView)], [true, true, true])
-  eq('보내기 탭: 예전 진입 그대로 (sendToMarketplace → StudioSendModal) · ?export= 로 골라 둠', [/const r = await sendToMarketplace\(picked\.value\.id\)/.test(sendView), /<StudioSendModal :open="sendOpen" :prepare="sendPrepare"/.test(sendView), /route\.query\.export/.test(sendView)], [true, true, true])
+  eq('보내기 탭: 예전 진입 그대로 (sendToMarketplace → StudioSendModal) · ?export= 로 골라 둠', [/const r = await sendToMarketplace\(exportId\)/.test(sendView), /<StudioSendModal :open="sendOpen" :prepare="sendPrepare"/.test(sendView), /route\.query\.export/.test(sendView)], [true, true, true])
   eq('보내기 탭: 연결 전 = 자물쇠 + [연결하기](연결 탭) · "준비 중" 글자 없음', [/<Lock /.test(shown('src/views/studio/StudioChannelSendView.vue')), /:to="\{ name: 'studio-channels-connect' \}"[^>]*>연결하기</.test(shown('src/views/studio/StudioChannelSendView.vue')), /준비 중/.test(shown('src/views/studio/StudioChannelSendView.vue'))], [true, true, false])
   eq('보낸 상품 탭 = StudioSendList 그대로 · 연결 화면에는 없음', [/<StudioSendList v-if="loggedIn" ref="sendList" :exports="exportItems"/.test(sentView), /<StudioSendList|<StudioShippingTemplates/.test(read('src/views/studio/StudioMarketplaceView.vue'))], [true, false])
   eq('판매처 화면: 로그아웃 구독', ['src/components/studio/StudioSendList.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/views/studio/StudioChannelSentView.vue', 'src/components/studio/StudioExportList.vue'].map(p => /euchs-auth-changed/.test(read(p))), [true, true, true, true, true])
@@ -1351,7 +1351,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const both = R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } })
   eq('처음 체크: 누른 판매처만(market) · 다시 보내기는 쿠팡만 · 없으면 연결된 곳 모두', [R.initialChecked(both, { market: 'cafe24' }), R.initialChecked(both, { resend: true }), R.initialChecked(both), R.initialChecked(R.channelRows({ coupang: { connected: true } }), { market: 'cafe24' }).cafe24], [{ ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), cafe24: true }, { ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), coupang: true }, R.defaultChecked(both), false])
   eq('보내기 창: market prop → initialChecked · 카페24 섹션 = 같은 모양(missing·busy·done·submit) · 판매가는 정수 검사 · 분류는 선택(못 읽어도 보냄)', [
-    /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare?.resend })"),
+    /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend })"),
     /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /<option :value="null">미분류<\/option>/.test(sec), sec.includes('catError.value = e.message'),
     /진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다\./.test(sec) && /등록 정보 확인/.test(sec) && !/진열 안 함 · 판매 안 함 상태로 등록돼요/.test(sec), /sendCafe24Product\(\{/.test(sec) && /listCafe24Categories\(\)/.test(sec),
   ], [true, true, true, true, true, true, true, true])
@@ -1427,6 +1427,48 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     mk.includes('완성한 상세페이지를 판매처에 바로 등록할 수 있습니다. 가이드를 참고하여 직접 연결하세요.'),
     mk.includes('쿠팡 Wing에서 발급한 OPEN API 키를 입력하면 상품을 바로 등록할 수 있습니다.'),
   ], [0, 0, true, true])
+}
+
+// ── 보내기 창 여는 속도 (2026-09-30 운영: "여는 중…" 10~18초) — 창 먼저 · 준비는 창 안에서 · 같은 화면 안에서 다시 받지 않기 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const sv = read('src/views/studio/StudioChannelSendView.vue'), sl = read('src/components/studio/StudioSendList.vue')
+  const shell = read('src/components/studio/StudioSendModal.vue'), sec = read('src/components/studio/StudioSendCafe24.vue')
+  const shellTpl = shell.slice(shell.indexOf('<template>'), shell.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  const body = (src, head) => { const i = src.indexOf(head); return i < 0 ? '' : src.slice(i, src.indexOf('\n}\n', i)) }
+  const open = body(sv, 'async function openSend(market)')
+  eq('보내기 탭: 창을 먼저 연다 (sendOpen = true가 관문·준비 데이터보다 앞) · 관문과 준비 데이터를 같이 시작 · 로그인 전이면 서버를 부르지 않음', [
+    open.indexOf('sendOpen.value = true') > 0 && open.indexOf('sendOpen.value = true') < open.lastIndexOf('await studioGate(resume)'),
+    open.indexOf('if (!fresh) loadPrepare(exportId)') > 0 && open.indexOf('if (!fresh) loadPrepare(exportId)') < open.lastIndexOf('await studioGate(resume)'),
+    /if \(!\(await studioGate\(resume\)\)\) \{ prepareSeq\+\+; sendOpen\.value = false \}/.test(open),
+    open.indexOf('if (!loggedIn.value) { await studioGate(resume); return }') > 0 && open.indexOf('if (!loggedIn.value)') < open.indexOf('loadPrepare('),
+    /await sendToMarketplace/.test(open),
+  ], [true, true, true, true, false])
+  eq('보내기 탭: 같은 상품은 10분 안에 다시 받지 않음 · 보낸 뒤·로그아웃·사용자 바뀜이면 버림 · 늦은 응답은 버림', [
+    sv.includes('const PREPARE_KEEP_MS = 10 * 60 * 1000'), /Date\.now\(\) - kept\.at < PREPARE_KEEP_MS \? kept\.prepare : null/.test(open),
+    /function onSent\(r\) \{\s+prepared\.delete\(sendExportId\.value\)/.test(sv), /prepared\.clear\(\)\s+prepareSeq\+\+/.test(sv), /if \(uid !== prev\) prepared\.clear\(\)/.test(sv),
+    /if \(my === prepareSeq\) sendPrepare\.value = r\.prepare/.test(sv), /if \(my === prepareSeq\) sendLoadError\.value = e\.message/.test(sv),
+  ], [true, true, true, true, true, true, true])
+  eq('창: 준비 데이터 없음 = "상품 정보 불러오는 중…" + 자리표시 · 못 받음 = 이유 + [다시 시도](retry) · "준비 중" 글자 없음 · 두 진입 모두 load-error·retry 연결', [
+    /data-mk-s-loading[\s\S]*상품 정보 불러오는 중…[\s\S]*st-skeleton/.test(shellTpl), /v-else-if="loadError"[\s\S]*\{\{ loadError \}\}[\s\S]*data-mk-s-load-retry @click="\$emit\('retry'\)"/.test(shellTpl), /준비 중/.test(shellTpl),
+    /defineEmits\(\['close', 'sent', 'retry'\]\)/.test(shell), /loadError: \{ type: String, default: '' \}/.test(shell),
+    /:load-error="sendLoadError"[^>]*@retry="loadPrepare\(sendExportId\)"/.test(sv), /:load-error="resendError"[^>]*@retry="loadResend\(resendId\)"/.test(sl),
+  ], [true, true, false, true, true, true, true])
+  eq('창: 준비 데이터가 늦게 와도 그때 섹션을 만들고 처음 체크를 정함 (prepare.markets를 본 뒤)', [
+    /watch\(\(\) => props\.open, v => \{ if \(v\) resetForPrepare\(\) \}\)/.test(shell), /watch\(\(\) => props\.prepare, \(p, old\) => \{ if \(props\.open && p && p !== old\) resetForPrepare\(\) \}\)/.test(shell),
+    shell.includes('checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend }) : {}'),
+  ], [true, true, true])
+  const resend = body(sl, 'function openResend(s)')
+  eq('다시 보내기: 창을 먼저 열고(기다리지 않음) 창 안에서 받음 · 로그아웃이면 늦은 응답 버림', [/resendOpen\.value = true\s+loadResend\(s\.id\)/.test(resend), /await/.test(resend), /resendSeq\+\+/.test(body(sl, 'function clear()'))], [true, false, true])
+  eq('카페24 분류: 창이 들고 있는 목록(sendCache)을 같이 씀 · 받는 중이면 같은 요청 · 실패는 기억 안 함 · 로그인 바뀜이면 비움', [
+    /const sendCache = inject\(SEND_CACHE_KEY, null\)/.test(sec), /if \(!sendCache\.cafe24Categories\) \{\s+const p = listCafe24Categories\(\)/.test(sec), /delete sendCache\.cafe24Categories/.test(sec),
+    /const done = sendCache\?\.cafe24CategoriesDone\s+if \(done\)/.test(sec), /provide\(SEND_CACHE_KEY, sendCache\)/.test(shell), /addEventListener\('euchs-auth-changed', clearSendCache\)/.test(shell) && /removeEventListener\('euchs-auth-changed', clearSendCache\)/.test(shell),
+  ], [true, true, true, true, true, true])
+  // 보내는 내용은 그대로 — 카페24 submit 본문(요청 칸 7개)·쿠팡 섹션·창 submit 순서
+  eq('보내는 내용 그대로: 카페24 요청 칸 7개 · 창은 고른 판매처 차례로 submit()', [
+    body(sec, 'async function submit()').includes("exportId: props.prepare.export.id, productName: String(f.value.productName).trim(), price: f.value.price,\n      categoryNo: f.value.categoryNo ?? null, repImageId: f.value.repImageId, fit: f.value.fit, display: f.value.display,"),
+    /for \(const key of picked\.value\) \{\s+const s = sections\[key\]\s+if \(!s \|\| s\.done\) continue\s+const r = await s\.submit\(\)/.test(shell),
+  ], [true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

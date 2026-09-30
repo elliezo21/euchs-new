@@ -81,8 +81,9 @@
 // 항목: 상품명·판매가·분류(선택)·대표 이미지·진열상태. 상세 이미지는 내 상품 파일 전부를 서버가 카페24에 올려 <img>로 잇는다.
 // 진열상태 기본 진열안함(display F·selling F) — 진열함이면 등록 즉시 노출(display T·selling T, 서버 buildCafe24Product). 필수값은 화면(missing)이 먼저 막고 서버가 다시 검사한다
 // 문구 원칙(2026-09-30 해성): 항목명은 명사, 설명은 칸 아래 회색 한 줄, 결과는 "~되었습니다"
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
 import { listCafe24Categories, sendCafe24Product, isNotReady } from '@/lib/studioMarketplace'
+import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 
 const PRODUCT_NAME_MAX = 250 // api/_cafe24.js PRODUCT_NAME_MAX와 같음 (카페24 product_name maxLength)
@@ -123,11 +124,26 @@ const preview = computed(() => [
   { label: '판매상태', value: SELLING_LABEL[f.value.display] },
 ])
 
+// 상품 분류는 창을 열 때마다 받지 않는다 — 창(StudioSendModal)이 화면이 떠 있는 동안 들고 있는 목록(sendCache)을 같이 쓴다.
+// 받는 중에 창을 다시 열면 같은 요청을 기다린다. 실패는 기억하지 않는다(다음에 열 때 다시 받는다)
+const sendCache = inject(SEND_CACHE_KEY, null)
+function fetchCategories() {
+  if (!sendCache) return listCafe24Categories()
+  if (!sendCache.cafe24Categories) {
+    const p = listCafe24Categories()
+    sendCache.cafe24Categories = p
+    p.then(r => { if (sendCache.cafe24Categories === p) sendCache.cafe24CategoriesDone = r },
+      () => { if (sendCache.cafe24Categories === p) delete sendCache.cafe24Categories }) // 원인은 아래 loadCategories가 console.error로 남긴다
+  }
+  return sendCache.cafe24Categories
+}
 async function loadCategories() {
+  const done = sendCache?.cafe24CategoriesDone
+  if (done) { categories.value = Array.isArray(done.categories) ? done.categories : []; return }
   catLoading.value = true
   catError.value = ''
   try {
-    const r = await listCafe24Categories()
+    const r = await fetchCategories()
     categories.value = Array.isArray(r.categories) ? r.categories : []
   } catch (e) {
     // 분류를 못 읽어도 보내기는 된다(미분류) — 이유만 보여 준다

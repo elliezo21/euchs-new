@@ -29,7 +29,8 @@ const stubPlugin = {
       const never = () => Promise.reject(new Error('테스트에서는 서버를 부르지 않는다'))
       export const predictCategory = never, searchBrand = never, getCategoryMeta = never, sendProduct = never, makeSquareJpeg = never, fileToBase64 = never
       export const REP_SIZE = 1000, SEND_BODY_MAX = 4000000
-      export const readSaleMode = () => '', rememberSaleMode = () => {}`
+      export const readSaleMode = () => '', rememberSaleMode = () => {}
+      export const listCafe24Categories = never, sendCafe24Product = never, isNotReady = () => false`
     return null
   },
 }
@@ -41,6 +42,8 @@ const outDir = path.join(workDir, 'out')
 const entry = path.join(workDir, 'entry-src.js')
 fs.writeFileSync(entry, `export { default as Modal } from '@/components/studio/StudioSendModal.vue'
 export { default as Coupang } from '@/components/studio/StudioSendCoupang.vue'
+export { default as Cafe24 } from '@/components/studio/StudioSendCafe24.vue'
+export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 `)
 // 브라우저 전역 흉내 (불러올 때 window를 보는 파일이 있다) — 값이 아니라 자리만
 if (typeof globalThis.window === 'undefined') globalThis.window = globalThis
@@ -172,6 +175,17 @@ if (built?.Coupang && built?.Modal) {
 
   const e = await render(built.Modal, { open: true, prepare: null })
   eq('보내기 창 (준비 데이터 없음): 예외 없음 · 보내기 버튼 꺼짐', [e.error, /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(e.html)], [null, true])
+
+  // ── 보내기 창 여는 속도 (2026-09-30): 창을 먼저 열고 준비 데이터는 창 안에서 ──
+  eq('준비 데이터 없음 = "상품 정보 불러오는 중…" + 자리표시 · 판매처 줄·섹션 없음 · 오류 줄 없음', [/data-mk-s-loading/.test(e.html), e.html.includes('상품 정보 불러오는 중…'), /st-skeleton/.test(e.html), /data-mk-s-market="/.test(e.html), /data-mk-s-load-error/.test(e.html)], [true, true, true, false, false])
+  const le = await render(built.Modal, { open: true, prepare: null, loadError: '잠시 후 다시 시도해 주세요.' })
+  eq('준비 데이터를 못 받음 = 이유 + [다시 시도] · 불러오는 중 표시 없음 · 보내기 버튼 꺼짐', [le.error, /data-mk-s-load-error[\s\S]*잠시 후 다시 시도해 주세요\.[\s\S]*data-mk-s-load-retry/.test(le.html), /data-mk-s-loading/.test(le.html), /<button[^>]*disabled[^>]*data-mk-s-send|<button[^>]*data-mk-s-send[^>]*disabled/.test(le.html)], [null, true, false, true])
+  const withData = await render(built.Modal, { open: true, prepare: PREPARE(true), loadError: '' })
+  eq('준비 데이터가 있으면 불러오는 중·오류 표시 없음', [withData.error, /data-mk-s-loading|data-mk-s-load-error/.test(withData.html)], [null, false])
+  const { provide: vueProvide } = await import('vue')
+  const cache = { cafe24CategoriesDone: { categories: [{ no: 25, depth: 2, parentNo: 24, name: '상의', fullName: '의류 > 상의' }] } }
+  const c24 = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, cache); return () => h(built.Cafe24, { prepare: PREPARE(true) }) } }, {})
+  eq('카페24 섹션: 창의 목록(sendCache)을 받아 운영 방식 빌드에서 예외 없이 그려짐', [c24.error, /data-mk-c24-name/.test(c24.html)], [null, true])
 }
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }

@@ -73,7 +73,7 @@
     </template>
 
     <!-- 보내기 창 — 내 작업에 있던 것과 같은 창·같은 진입(sendToMarketplace) 그대로 -->
-    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" :market="sendMarket" @close="sendOpen = false" @sent="onSent" />
+    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" :market="sendMarket" :load-error="sendLoadError" @close="sendOpen = false" @sent="onSent" @retry="loadPrepare(sendExportId)" />
   </div>
 </template>
 
@@ -190,32 +190,60 @@ function gotoSent(id) {
 // ── 보내기 (예전 내 상품 카드의 [판매처로 보내기]와 같은 길) ──
 const opening = ref('')
 const sendOpen = ref(false)
-const sendPrepare = ref(null)
+const sendPrepare = ref(null) // null = 창 안에서 "보내기 준비 중"
+const sendLoadError = ref('')  // 준비를 못 받음 — 창 안에 이유 + [다시 시도]
+const sendExportId = ref('')   // 지금 창이 보여 주는 내 상품
 const sendMarket = ref('') // 누른 버튼의 판매처 — 창이 그곳만 처음 체크한다
 const message = ref('')
 const messageError = ref(false)
 const messageAdminUrl = ref('') // 카페24 등록 뒤 [카페24 쇼핑몰 관리 화면에서 보기]
+
+// 준비 데이터(send_prepare) — 서버가 사진마다 서명 주소를 차례로 만들어 10초 넘게 걸릴 수 있다(2026-09-30 운영).
+// 그래서 창을 먼저 열고 창 안에서 기다린다. 받은 것은 이 화면이 떠 있는 동안 상품마다 기억해 같은 상품을 다시 열면 바로 쓴다
+// (사진 주소는 서버에서 1시간 유효 — 기억은 10분까지. 보낸 뒤·로그아웃이면 버린다. 다른 탭으로 가면 화면과 함께 없어진다)
+const PREPARE_KEEP_MS = 10 * 60 * 1000
+const prepared = new Map() // 내 상품 id → { at, prepare }
+let prepareSeq = 0
+async function loadPrepare(exportId) {
+  const my = ++prepareSeq
+  sendLoadError.value = ''
+  try {
+    const r = await sendToMarketplace(exportId)
+    prepared.set(exportId, { at: Date.now(), prepare: r.prepare })
+    if (my === prepareSeq) sendPrepare.value = r.prepare
+  } catch (e) {
+    console.error('[StudioChannelSendView] 판매처로 보내기 준비 실패:', exportId, e.code, e)
+    if (my === prepareSeq) sendLoadError.value = e.message
+  }
+}
 async function openSend(market) {
   if (!picked.value || opening.value) return
-  opening.value = market
+  const exportId = picked.value.id
+  const resume = `/studio/channels/send?export=${encodeURIComponent(exportId)}`
   message.value = ''
   messageAdminUrl.value = ''
+  if (!loggedIn.value) { await studioGate(resume); return } // 로그인 창 (서버를 부르지 않는다)
+  opening.value = market
   try {
-    // 작업 시작 관문 — 주문 이력이 없으면 안내 창 (서버 API도 같은 자격을 다시 확인한다)
-    if (!(await studioGate(`/studio/channels/send?export=${encodeURIComponent(picked.value.id)}`))) return
-    const r = await sendToMarketplace(picked.value.id)
-    sendPrepare.value = r.prepare
+    // 창을 먼저 연다 — 기억한 준비 데이터가 있으면 그대로, 없으면 창 안에서 "보내기 준비 중"
+    const kept = prepared.get(exportId)
+    const fresh = kept && Date.now() - kept.at < PREPARE_KEEP_MS ? kept.prepare : null
+    prepareSeq++ // 앞서 열었던 창의 늦은 응답이 이 창을 덮지 않게
+    sendExportId.value = exportId
     sendMarket.value = market
+    sendLoadError.value = ''
+    sendPrepare.value = fresh
     sendOpen.value = true
-  } catch (e) {
-    console.error('[StudioChannelSendView] 판매처로 보내기 준비 실패:', picked.value.id, e.code, e)
-    message.value = e.message
-    messageError.value = true
+    // 작업 시작 관문(주문 이력 — 보통은 기억한 값이라 바로 끝남)과 준비 데이터 받기는 서로 기다릴 이유가 없어 같이 시작한다.
+    // 관문에서 막히면 창을 닫는다(안내 창·로그인 창은 studioGate가 띄운다 — 서버 API도 같은 자격을 다시 확인한다)
+    if (!fresh) loadPrepare(exportId)
+    if (!(await studioGate(resume))) { prepareSeq++; sendOpen.value = false }
   } finally {
     opening.value = ''
   }
 }
 function onSent(r) {
+  prepared.delete(sendExportId.value) // 보낸 뒤에는 새로 받는다
   const market = r?.market || 'coupang'
   const name = MARKETS.find(m => m.key === market)?.name || market
   // 카페24 = 승인 절차 없이 등록 → "등록되었습니다" + 진열상태 + 관리자 링크. 쿠팡 = 승인 요청 → "전송되었습니다" (문구 원칙: 결과는 ~되었습니다)
@@ -238,6 +266,10 @@ const onStudioAuthChanged = (e) => {
     selectedId.value = ''
     sendOpen.value = false
     sendPrepare.value = null
+    sendLoadError.value = ''
+    sendExportId.value = ''
+    prepared.clear()
+    prepareSeq++
     sendMarket.value = ''
     message.value = ''
     messageAdminUrl.value = ''
@@ -248,7 +280,10 @@ const onStudioAuthChanged = (e) => {
 }
 // 로그인한 사용자가 바뀌면 이벤트가 오지 않아도 읽는다 (auth.js initAuth는 세션 복원 때 currentUser만 채우고 euchs-auth-changed를 보내지 않을 때가 있다 —
 // 그러면 마운트 때 로그인 전이던 화면의 판매처 줄이 "확인 중"에 멈췄다, 2026-09-30)
-watch(() => currentUser.value?.id, (uid, prev) => { if (uid && uid !== prev) { loadStatus(); loadSends() } })
+watch(() => currentUser.value?.id, (uid, prev) => {
+  if (uid !== prev) prepared.clear() // 다른 사람의 준비 데이터를 쓰지 않게
+  if (uid && uid !== prev) { loadStatus(); loadSends() }
+})
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
   loadMarketLinks() // 11번가·스마트스토어·카페24 연결 상태 (로그인 전이면 부르지 않는다)

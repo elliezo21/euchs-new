@@ -39,7 +39,19 @@
         </ul>
       </div>
     </div>
-    <p v-else class="st-desc">불러오는 중…</p>
+    <!-- 준비 데이터(send_prepare)를 받는 동안 — 창은 먼저 열고 여기서 진행 상태를 보인다 (2026-09-30: 받는 동안 버튼에 "여는 중…"만 10초 넘게 떠 있었다).
+         '준비 중'은 이 창에서 쓰지 않는 글자(아직 없는 기능 표시와 헷갈림 — S3-3)라 "불러오는 중" -->
+    <div v-else-if="loadError" class="space-y-2" data-mk-s-load-error>
+      <p class="text-[13px] font-bold st-danger-text break-keep">{{ loadError }}</p>
+      <button type="button" class="st-btn" data-mk-s-load-retry @click="$emit('retry')">다시 시도</button>
+    </div>
+    <div v-else class="space-y-3" data-mk-s-loading aria-busy="true">
+      <p class="text-[14px] font-bold st-ink">상품 정보 불러오는 중…</p>
+      <p class="st-desc-sm break-keep">상품 이미지 · 배송 설정 · 판매처 연결 상태 확인 중</p>
+      <div class="st-skeleton h-9 rounded-[10px]" />
+      <div class="st-skeleton h-24 rounded-[10px]" />
+      <div class="st-skeleton h-9 w-2/3 rounded-[10px]" />
+    </div>
     <template #actions>
       <button type="button" class="st-btn" @click="close">{{ allDone ? '닫기' : '취소' }}</button>
       <button v-if="!allDone" type="button" class="st-btn st-btn-primary" :disabled="!canSend" data-mk-s-send @click="submit">{{ sending ? '전송 중…' : buttonLabel }}</button>
@@ -51,20 +63,29 @@
 // [판매처로 보내기] 창 — 맨 위 "0. 보낼 판매처"에서 고른 판매처의 섹션만 아래에 보이고(v-show — 값은 남는다), [보내기]는 체크된 판매처마다 그 섹션의 submit()을 부른다.
 // 판매처 섹션 컴포넌트가 내놓는 것: missing(빠진 것)·busy·done·submit() — 쿠팡(StudioSendCoupang)·카페24(StudioSendCafe24).
 // 판매처 줄·처음 체크·버튼 글자는 studioMarketplaceRules.js (설정·랜딩과 같은 MARKETS 목록)
-import { ref, reactive, computed, watch, shallowRef, onErrorCaptured } from 'vue'
+import { ref, reactive, computed, watch, shallowRef, onErrorCaptured, provide, onMounted, onUnmounted } from 'vue'
 import { Lock } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
 import StudioSendCafe24 from '@/components/studio/StudioSendCafe24.vue'
-import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isSuperAdmin } from '@/lib/auth'
 
 const SECTIONS = { coupang: StudioSendCoupang, cafe24: StudioSendCafe24 } // 2026-09-30 카페24 섹션 추가 — 쿠팡 섹션은 그대로
 
 // market = 어느 판매처 버튼으로 열었는지([쿠팡으로 보내기]·[카페24로 보내기]) → 그 판매처만 처음 체크. 비면 연결된 곳 모두(다시 보내기는 쿠팡만)
-const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null }, market: { type: String, default: '' } })
-const emit = defineEmits(['close', 'sent'])
+// prepare = null이면 준비 중(창은 먼저 열린다) · loadError = 준비를 못 받음 → [다시 시도] = 'retry'
+const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null }, market: { type: String, default: '' }, loadError: { type: String, default: '' } })
+const emit = defineEmits(['close', 'sent', 'retry'])
+
+// 같은 화면 안에서 창을 다시 열 때 다시 받지 않는 목록 (지금은 카페24 상품 분류 — StudioSendCafe24가 inject).
+// 창 컴포넌트는 화면이 떠 있는 동안 남아 있다 → 화면을 떠나면(연결 탭 등) 비워진다. 로그인 바뀜·로그아웃이면 비운다
+const sendCache = {}
+provide(SEND_CACHE_KEY, sendCache)
+const clearSendCache = () => { for (const k of Object.keys(sendCache)) delete sendCache[k] }
+onMounted(() => window.addEventListener('euchs-auth-changed', clearSendCache))
+onUnmounted(() => window.removeEventListener('euchs-auth-changed', clearSendCache))
 
 const checked = ref({})
 const sending = ref(false)
@@ -82,15 +103,18 @@ function setSection(key, el) {
   else delete sections[key]
 }
 
-watch(() => props.open, v => {
-  if (!v) return
+// 창을 열 때, 그리고 창이 열린 뒤 준비 데이터가 도착할 때 — 섹션을 새로 만들고 처음 체크를 정한다
+// (처음 체크는 prepare.markets를 보므로 준비 데이터가 온 뒤에 정해야 한다)
+function resetForPrepare() {
   openSeq.value++
   sectionError.value = false
   sending.value = false
   results.value = {}
   for (const k of Object.keys(sections)) delete sections[k]
-  checked.value = initialChecked(rows.value, { market: props.market, resend: !!props.prepare?.resend })
-})
+  checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend }) : {}
+}
+watch(() => props.open, v => { if (v) resetForPrepare() })
+watch(() => props.prepare, (p, old) => { if (props.open && p && p !== old) resetForPrepare() })
 
 const missing = computed(() => {
   if (!picked.value.length) return ['판매처']

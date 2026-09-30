@@ -45,6 +45,8 @@ export const MARKETS = [
 /** 아직 연결할 수 없는 판매처 key — 화면에는 "예정" 한 단어만 */
 export const PLANNED_MARKETS = MARKETS.filter(m => m.connect === 'planned').map(m => m.key)
 export const PLANNED_LABEL = '예정'
+/** 보내기 창(StudioSendModal)이 판매처 섹션에 내려주는 "같은 화면 안에서 다시 받지 않는 목록" provide 키 (2026-09-30 — 카페24 상품 분류) */
+export const SEND_CACHE_KEY = 'studio-send-cache'
 
 // 카페24 — 우리 앱 "EUCHS 스튜디오" 연결을 일반 고객에게 보일지 (2026-09-30)
 //   true = 모두에게 카드·[연결하기] (2026-09-30 20:50 카페24 앱 심사 신청 — 심사자가 일반 계정으로 연결해 봐야 해서 공개)
