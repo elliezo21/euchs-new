@@ -75,21 +75,20 @@ export const SMARTSTORE_GUIDE = [
 ]
 
 /**
- * 카페24 — 고객이 카페24 개발자센터에서 자기 앱을 만들고, 돌아오는 주소·권한을 넣은 뒤 Client ID·Secret과 쇼핑몰 ID를 넣는다 (2026-09-30 S3-3)
- * 확인한 것: 공식 문서의 동의·토큰 규칙(api/_cafe24.js 주석), 자기 쇼핑몰용 앱은 심사 없이 동의까지 된다(개인 블로그·제디 "직접 입력 방식" 안내)
+ * 카페24 — 우리 앱 "EUCHS 스튜디오" 방식 (2026-09-30): 고객은 쇼핑몰 ID만 넣고 카페24 화면에서 동의한다 (앱 만들기·Client ID 입력 없음)
+ * 권한 = api/_cafe24.js SCOPES(상품 읽기·쓰기, 상품분류 읽기). 다른 방법 = 쇼핑몰 관리자에서 앱 열기(App URL + hmac — studioCafe24Launch.js)
  * 돌아오는 주소는 운영 도메인 기준 — api/_cafe24.js CAFE24_REDIRECT_URI와 같은 값 (테스트가 대조)
  */
 export const CAFE24_REDIRECT_URI = 'https://www.euchs.co.kr/studio/channels/connect'
 export const CAFE24_GUIDE = [
-  '카페24 개발자센터(developers.cafe24.com)에 쇼핑몰 운영자 계정으로 로그인하세요.',
-  `처음이면 약관에 동의하고, 파트너 정보의 전문 분야를 쇼핑몰 운영으로 고르세요. ${MENU_CHECK}`,
-  `Apps의 앱 관리에서 새 앱을 만드세요. ${MENU_CHECK}`,
-  `App URL 칸에는 https://www.euchs.co.kr 를, Redirect URI 칸에는 ${CAFE24_REDIRECT_URI} 를 그대로 넣으세요.`,
-  `권한에서 상품 읽기·쓰기와 상품분류 읽기를 고르고 저장하세요. ${MENU_CHECK}`,
-  `인증 정보에서 Client ID와 Client Secret을 복사하세요. ${MENU_CHECK}`,
-  '아래 칸에 쇼핑몰 ID와 두 값을 넣고 [연결하기]를 누르세요.',
-  `카페24 동의 화면에서 동의하면 이 화면으로 돌아와 연결이 끝나요. ${MENU_CHECK}`,
+  '[연결하기]를 누르고 카페24 쇼핑몰 ID를 넣으세요.',
+  '주소가 myshop.cafe24.com이면 쇼핑몰 ID는 myshop이에요.',
+  '카페24 화면이 열리면 쇼핑몰 대표 운영자 계정으로 로그인하세요.',
+  '상품 읽기·쓰기, 상품분류 읽기 권한에 동의하세요.',
+  '스튜디오로 돌아와 "연결됨"이 보이면 끝이에요.',
 ]
+/** 카페24 다른 연결 방법 (단계 밖 한 줄) */
+export const CAFE24_GUIDE_ALT = '다른 방법: 카페24 쇼핑몰 관리자에서 EUCHS 스튜디오 앱을 열면 쇼핑몰 ID 없이 바로 연결돼요.'
 
 /** "메뉴 이름 확인 필요"가 붙은 문장 [{ market, step }] */
 export function menuChecks() {

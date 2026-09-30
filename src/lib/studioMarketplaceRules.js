@@ -38,13 +38,20 @@ export const MARKETS = [
   { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'planned' },
   { key: 'ably', name: '에이블리', soon: true, connect: 'planned' }, // 판매자 API 토큰은 있지만 공개 API 문서가 없어 주소·인증을 확인할 수 없음 (S3-3 조사)
   { key: 'zigzag', name: '지그재그', soon: true, connect: 'planned' },
-  { key: 'cafe24', name: '카페24', soon: true, connect: 'key' }, // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면
+  { key: 'cafe24', name: '카페24', soon: true, connect: 'key' }, // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면 (심사 승인 전에는 관리자만 — CAFE24_PUBLIC)
   { key: 'makeshop', name: '메이크샵', soon: true, connect: 'planned' },
   { key: 'godomall', name: '고도몰', soon: true, connect: 'planned' },
 ]
 /** 아직 연결할 수 없는 판매처 key — 화면에는 "예정" 한 단어만 */
 export const PLANNED_MARKETS = MARKETS.filter(m => m.connect === 'planned').map(m => m.key)
 export const PLANNED_LABEL = '예정'
+
+// 카페24 — 우리 앱 "EUCHS 스튜디오"가 카페24 심사 승인 전(제작중)이라 일반 고객 쇼핑몰은 연결할 수 없다 (2026-09-30)
+//   false = 일반 고객 화면(연결 탭·보내기 탭·보내기 창)에서는 다른 곳과 같은 "예정", 관리자(isSuperAdmin)에게만 카드·[연결하기] (테스트용)
+//   심사 승인 뒤 이 값 하나만 true로 바꾸면 모두에게 열린다. 쇼핑몰 관리자에서 앱을 여는 길(App URL + hmac)은 이 값과 상관없이 동작한다
+export const CAFE24_PUBLIC = false
+/** 이 사람에게 보일 연결 방법 — MARKETS의 connect, 단 카페24는 CAFE24_PUBLIC 전이면 관리자만 'key' */
+export const connectFor = (m, { admin = false } = {}) => (m?.key === 'cafe24' && !CAFE24_PUBLIC && !admin ? 'planned' : m?.connect)
 
 /**
  * 카페24 입력 검사 — 우리 앱 방식이라 고객이 넣는 값은 쇼핑몰 ID 하나 (영문 소문자·숫자 — 서버 api/_cafe24.js isMallId·normalizeMallId와 같은 식)
@@ -80,11 +87,12 @@ export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
  * state: 'connected'(보낼 수 있음 — 체크 가능) | 'linked'(연결됨 — 보내기는 아직: 스마트스토어·11번가·카페24) | 'locked'(연결 전 — 자물쇠 + [연결하기]) | 'planned'("예정" 한 단어만)
  * "준비 중" 글자는 쓰지 않는다
  * @param {{ [key:string]: { connected?:boolean } }} connected  쿠팡 = 서버 status/send_prepare.markets, 나머지 = studioMarketLinks.linkStates
+ * @param {{ admin?: boolean }} who  관리자면 카페24도 연결 상태로 (CAFE24_PUBLIC 전 — connectFor)
  */
-export function channelRows(connected = {}) {
+export function channelRows(connected = {}, { admin = false } = {}) {
   return MARKETS.map(m => {
     const on = connected?.[m.key]?.connected === true
-    const state = m.connect === 'planned' ? 'planned' : on ? (m.soon ? 'linked' : 'connected') : 'locked'
+    const state = connectFor(m, { admin }) === 'planned' ? 'planned' : on ? (m.soon ? 'linked' : 'connected') : 'locked'
     return { key: m.key, name: m.name, state }
   })
 }

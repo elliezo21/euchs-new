@@ -60,7 +60,7 @@
         <ul class="feats">
           <li v-for="f in FEATURES" :key="f.key" class="feat" :data-demo-feature="f.key">
             <span class="feat-ic"><component :is="f.icon" :size="20" :stroke-width="2.2" /></span>
-            <span><b>{{ f.title }}</b><em>{{ f.desc }}</em></span>
+            <span><b>{{ f.title }}<small v-if="f.note" class="more">{{ f.note }}</small></b><em>{{ f.desc }}</em></span>
           </li>
         </ul>
       </div>
@@ -69,7 +69,7 @@
     <!-- ④ 숫자 한 줄 -->
     <div class="wrap">
       <ul class="stats" data-studio-stats>
-        <li><b>94</b>템플릿</li>
+        <li data-studio-stat-templates><b>100+</b>무료 템플릿<small class="more">계속 추가 예정</small></li>
         <li><b>10</b>판매처</li>
         <li><b>무료</b>이유씨 구매 고객</li>
       </ul>
@@ -102,7 +102,7 @@ const VIDEOS = [
 ]
 const FEATURES = [
   { key: 'erase', icon: Eraser, title: 'AI 글자 지우기', desc: '사진 속 글자를 네모로 감싸면 AI가 지워요' },
-  { key: 'templates', icon: LayoutTemplate, title: '템플릿 94개', desc: '고르면 내 사진이 알맞은 자리에 들어가요' },
+  { key: 'templates', icon: LayoutTemplate, title: '무료 템플릿 100+', note: '계속 추가 예정', desc: '고르면 내 사진이 알맞은 자리에 들어가요' },
   { key: 'size', icon: Ruler, title: '사이즈표·소재·세탁 안내 칸', desc: '표와 안내 칸을 눌러서 바로 채워요' },
   { key: 'send', icon: Send, title: '판매처로 바로 보내기', desc: '완성한 페이지를 연결한 판매처로 보내요' },
 ]
@@ -217,6 +217,8 @@ onBeforeUnmount(() => {
 .stats li { display: flex; flex-direction: column; align-items: center; gap: 2px; font-size: 14px; font-weight: 700; color: #fff3ee; }
 .stats li + li { border-left: 1px solid rgba(255, 255, 255, 0.35); }
 .stats b { font-size: clamp(26px, 3vw, 40px); font-weight: 900; color: #fff; letter-spacing: -0.02em; line-height: 1.1; }
+.stats .more { font-size: 11px; font-weight: 600; color: rgba(255, 255, 255, 0.8); }
+.feat .more { margin-left: 6px; font-size: 11px; font-weight: 600; color: var(--sub); }
 
 /* ⑤ 마지막 버튼 */
 .end { display: flex; justify-content: center; }

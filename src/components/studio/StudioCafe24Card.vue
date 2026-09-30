@@ -19,7 +19,10 @@
       </div>
     </div>
     <div v-else class="mt-4 space-y-3">
-      <p class="st-desc break-keep">카페24 쇼핑몰 ID를 넣고 카페24 화면에서 동의하면 연결돼요.</p>
+      <ol class="guide-steps" data-mk-c24-guide>
+        <li v-for="(s, i) in CAFE24_GUIDE" :key="i"><span class="guide-no">{{ i + 1 }}</span><span class="break-keep">{{ s }}</span></li>
+      </ol>
+      <p class="st-desc-sm break-keep" data-mk-c24-guide-alt>{{ CAFE24_GUIDE_ALT }}</p>
       <button type="button" class="st-btn st-btn-primary" :disabled="!!busy" data-mk-c24-open @click="start">{{ busy === 'finish' || busy === 'launch' ? '연결 확인 중…' : '연결하기' }}</button>
     </div>
     <p v-if="msg" class="mt-3 text-[13px] break-keep" :class="msgTone" data-mk-c24-msg>{{ msg }}</p>
@@ -69,6 +72,7 @@ import { studioGate } from '@/lib/studioGate'
 import { beginCafe24, launchCafe24, finishCafe24, disconnectCafe24, fmtDate, isNotReady } from '@/lib/studioMarketplace'
 import { cafe24MallProblems, isCafe24Return, isCafe24Launch, CAFE24_LAUNCH_KEYS } from '@/lib/studioMarketplaceRules'
 import { takeCafe24Launch, hasCafe24Launch } from '@/lib/studioCafe24Launch'
+import { CAFE24_GUIDE, CAFE24_GUIDE_ALT } from '@/lib/studioMarketGuides'
 import { marketLinks, applyMarketLinks } from '@/lib/studioMarketLinks'
 
 const STATUS_LABEL = { connected: '연결됨', invalid: '다시 연결 필요', expired: '다시 연결 필요' }
@@ -194,3 +198,9 @@ watch(() => [route.query.link, currentUser.value?.id], ([l, uid]) => {
 // 로그아웃 — 열린 창·입력값을 비운다 (상태는 studioMarketLinks가 비운다)
 watch(() => currentUser.value?.id, uid => { if (!uid) { formOpen.value = false; confirmOff.value = false; form.value = { mallId: '' }; msg.value = '' } })
 </script>
+
+<style scoped>
+.guide-steps { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: var(--st-soft); }
+.guide-steps li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--st-ink); }
+.guide-no { flex: none; width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; background: var(--st-accent); color: #fff; }
+</style>

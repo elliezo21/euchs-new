@@ -116,7 +116,8 @@ eq('카톡 주소 = https 채팅', [KAKAO_CHAT_URL, STUDIO_PATH], ['https://pf.k
   const sizes = files.map(f => { try { return fs.statSync(new URL(`../public/studio-demo/${f}`, import.meta.url)).size } catch { return -1 } })
   eq('영상 3개 × mp4·webm·포스터 = public/studio-demo · 영상은 3MB 이하', [sizes.every(s => s > 0), files.filter((f, i) => !f.endsWith('.jpg') && sizes[i] > 3 * 1024 * 1024)], [true, []])
   const t = shownOf(more).replace(/<[^>]+>/g, ' ')
-  eq('자세한 소개 문구: "중국어"·"준비 중" 없음 · 숫자 한 줄(94·10·이유씨 구매 고객 무료)', [/중국어|준비 중/.test(t), /94[\s\S]*템플릿[\s\S]*10[\s\S]*판매처[\s\S]*무료[\s\S]*이유씨 구매 고객/.test(t)], [false, true])
+  eq('자세한 소개 문구: "중국어"·"준비 중" 없음 · 숫자 한 줄(무료 템플릿 100+ 계속 추가 예정·10·이유씨 구매 고객 무료)', [/중국어|준비 중/.test(t), /100\+\s*무료 템플릿\s*계속 추가 예정[\s\S]*10[\s\S]*판매처[\s\S]*무료[\s\S]*이유씨 구매 고객/.test(t)], [false, true])
+  eq('템플릿 개수 문구 = "무료 템플릿 100+" · 옆에 "계속 추가 예정" (예전 94 없음)', [/title: '무료 템플릿 100\+', note: '계속 추가 예정'/.test(more), /\b94\b/.test(t) || /템플릿 94/.test(more)], [true, false])
 }
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)

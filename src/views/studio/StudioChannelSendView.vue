@@ -83,7 +83,7 @@ import { Send, Lock } from 'lucide-vue-next'
 import StudioExportList from '@/components/studio/StudioExportList.vue'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
 import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
-import { currentUser } from '@/lib/auth'
+import { currentUser, isSuperAdmin } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
 import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
 import { channelRows, sendButtonLabel, withRo, MARKETS, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
@@ -104,7 +104,7 @@ const pickedRef = ref(null)
 const status = ref(null)
 const statusError = ref('')
 const statusSoft = ref(false)
-const rows = computed(() => channelRows(linkStates(status.value?.connected === true))) // 쿠팡 + 11번가·스마트스토어·카페24(studioMarketLinks)
+const rows = computed(() => channelRows(linkStates(status.value?.connected === true), { admin: isSuperAdmin.value })) // 쿠팡 + 11번가·스마트스토어·카페24(studioMarketLinks) — 카페24는 심사 승인 전 관리자만
 async function loadStatus() {
   statusError.value = ''
   try {
