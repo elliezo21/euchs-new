@@ -18,7 +18,8 @@ import { isAssetPath } from './studioAsset.js'
 export const SAMPLE_DIR = 'samples'
 // 예시 사진 카테고리 (파일 이름 euchs-sample_<카테고리>_… — 지금 사진이 있는 것 = apparel·bag·living).
 // 뒤 9개는 사진이 들어오면 바로 쓰는 이름 (주방·식품·건강식품·뷰티·전자·완구·반려동물·스포츠·명절 선물) — 에셋 목록 카테고리 이름과 같게
-export const SAMPLE_CATEGORIES = ['apparel', 'bag', 'living', 'kitchen', 'food', 'health', 'beauty', 'digital', 'toy', 'pet', 'sports', 'gift']
+// 끝 3개(유아·캠핑·인테리어)는 촬영 세트 템플릿(studioTemplateShoots) 사진 — 그 템플릿이 사진을 정해 두고 쓴다(samplePins)
+export const SAMPLE_CATEGORIES = ['apparel', 'bag', 'living', 'kitchen', 'food', 'health', 'beauty', 'digital', 'toy', 'pet', 'sports', 'gift', 'baby', 'camping', 'interior']
 export const SAMPLE_TYPES = ['product', 'scene', 'detail', 'hand']
 export const SAMPLE_TYPE_LABELS = { product: '제품', scene: '연출', detail: '확대', hand: '손 연출' }
 export const SAMPLE_LABEL = '예시 사진'
@@ -80,6 +81,9 @@ export const TEMPLATE_SAMPLE_CHAIN = {
   health: ['health', 'food', 'living'],
   sports: ['sports', 'apparel', 'bag'],
   gift: ['gift', 'living', 'bag'],
+  baby: ['baby', 'toy', 'living'],
+  camping: ['camping', 'sports', 'living'],
+  interior: ['interior', 'living'],
 }
 /**
  * 이 템플릿이 쓸 예시 사진 카테고리 차례 — 템플릿에 sampleCategories(배열)를 적었으면 그것, 아니면 카테고리 이름 규칙.

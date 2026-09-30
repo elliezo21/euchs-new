@@ -1,12 +1,13 @@
 /**
- * 촬영 세트 템플릿 (1차 패션·잡화 10개) — 한 벌로 찍은 예시 사진 4장(대표·연출·확대·사용 장면)으로 만든 긴 상세페이지 (DOM·DB 없음)
+ * 촬영 세트 템플릿 19개 — 한 벌로 찍은 예시 사진 4장(대표·연출·확대·사용 장면)으로 만든 긴 상세페이지 (DOM·DB 없음)
  * node 테스트: scripts/test-studio-template-shoots.mjs (+ heroes·sections·gallery 테스트가 전체 목록으로 본다)
  *
  * ★ 모양은 studioTemplates.js 맨 위 설명과 같다 ({ key, label, desc, gap, sections } + category·mood·swatch·tone).
  *   첫 구간 = 780×1040(3:4) 첫 화면 — 대표 사진 + 큰 제목(높이의 30~42%) · 작은 영문 라벨 · 부제. 구도는 이 파일의 HEROES (기존 첫 화면 9구도와 다른 모양).
  *   아래 섹션 = studioTemplateSections의 종류 (모양 번호는 studioTemplates가 갤러리 순서로 정한다 — planSectionStyles).
  *   패션 = 소재 확대·착용 장면·사이즈 자리(표는 넣지 않음 — 고객이 [요소] → [사이즈표]에서 고른다)·관리 안내·구성
- * * ★ 사진 4장을 모두 한 번씩 쓴다. 사진 자리 번호는 페이지 위에서부터 0,1,2,3 (고객 사진이 위에서부터 차례로 들어간다).
+ *   식품 = 원재료·보관법·구성 / 유아·캠핑·인테리어 = 사용 장면·특징 3가지·구성품
+ * ★ 사진 4장을 모두 한 번씩 쓴다. 사진 자리 번호는 페이지 위에서부터 0,1,2,3 (고객 사진이 위에서부터 차례로 들어간다).
  *   samplePins = 자리 순서대로 이 세트의 예시 사진 id (studioSamples.assignSamples — 이 템플릿만 그 사진을 쓴다)
  * ★ 문구는 판매자가 고쳐 쓰는 자리표시 — 인증·효능·수치처럼 사실 확인이 필요한 말은 넣지 않는다.
  *   배치·색·문구는 이 프로젝트에서 새로 정한 것 (다른 편집 프로그램·쇼핑몰의 템플릿·문구를 옮기지 않음). 글꼴은 허용 목록(studioFonts)만.
@@ -47,7 +48,7 @@ function badge(b, x, y, d) {
   ]
 }
 
-// ── 첫 화면 구도 9가지 — 모두 { items } (바탕색은 spec.bg) ──
+// ── 첫 화면 구도 13가지 — 모두 { items } (바탕색은 spec.bg) ──
 const HEROES = {
   /** 액자 선 — 사진 전면 + 안쪽 가는 테두리 + 왼쪽 위 명조 제목 */
   frame(s) {
@@ -176,6 +177,59 @@ const HEROES = {
     ]
     return items
   },
+  /** 도장 — 사진 전면 + 왼쪽 위 제목 + 둥근 도장 배지 */
+  stamp(s) {
+    const t = title(s.title, s.font, s.ink, 60, 140, 680, s.target ?? 0.32)
+    const sb = sub(s.sub, s.subInk ?? s.ink, 62, 140 + t.h + 18, 480)
+    const d = 176, sx = 560, sy = s.stampY ?? 540
+    const st = textH(s.stamp, 20, 1.3)
+    return [
+      photo(0, 0, W, H),
+      label(s.label, s.labelInk ?? s.ink, 62, 96),
+      t.part, sb.part,
+      { type: 'shape', group: 'st', shape: 'ellipse', x: sx, y: sy, w: d, h: d, fill: s.stampFill, fillOpacity: 0.92 },
+      { type: 'shape', group: 'st', shape: 'ellipse', x: sx + 10, y: sy + 10, w: d - 20, h: d - 20, fill: '', strokeWidth: 2, strokeColor: s.stampInk },
+      { type: 'text', group: 'st', x: sx + 20, y: sy + Math.round((d - st) / 2), w: d - 40, text: s.stamp, fontSize: 20, fontWeight: 800, color: s.stampInk, fontFamily: 'pretendard', align: 'center', lineHeight: 1.3 },
+    ]
+  },
+  /** 흰 안개 — 사진 전면 + 위쪽을 밝게 덮고 가운데 제목 · 아래 작은 영문 줄 */
+  soft(s) {
+    const t = title(s.title, s.font, s.ink, 40, 150, 700, s.target ?? 0.31, { align: 'center' })
+    const sb = sub(s.sub, s.subInk ?? s.ink, 70, 150 + t.h + 16, 640, 'center')
+    return [
+      photo(0, 0, W, H),
+      rect(0, 0, W, 560, WHITE, { fillOpacity: 0.5 }),
+      label(s.label, s.labelInk ?? s.accent, 40, 96, 700, 'center'),
+      t.part, sb.part,
+      rect(W / 2 - 24, sb.part.y + sb.h + 22, 48, 3, s.accent),
+    ]
+  },
+  /** 조명 — 짙은 바탕 · 은은한 빛 원 뒤 정사각 사진 + 금색 선 · 아래 큰 제목 */
+  spotlight(s) {
+    const ps = 450, px = (W - ps) / 2, py = 96
+    const t = title(s.title, s.font, s.ink, 40, py + ps + 58, 700, s.target ?? 0.31, { align: 'center' })
+    const sb = sub(s.sub, s.subInk ?? s.ink, 70, t.part.y + t.h + 16, 640, 'center', 21)
+    return [
+      { type: 'shape', shape: 'ellipse', x: px - 90, y: py - 70, w: ps + 180, h: ps + 140, fill: s.glow, fillOpacity: 0.22 },
+      rect(px - 14, py - 14, ps + 28, ps + 28, '', { strokeWidth: 1, strokeColor: s.accent }),
+      photo(px, py, ps, ps),
+      label(s.label, s.labelInk ?? s.accent, 40, py + ps + 22, 700, 'center'),
+      t.part, sb.part,
+    ]
+  },
+  /** 액자 걸기 — 연한 바탕 · 가운데 제목 · 흰 여백 틀을 두른 사진 한 점 */
+  mat(s) {
+    const t = title(s.title, s.font, s.ink, 40, 140, 700, s.target ?? 0.31, { align: 'center' })
+    const sb = sub(s.sub, s.subInk ?? s.ink, 70, 140 + t.h + 16, 640, 'center')
+    const py = sb.part.y + sb.h + 46, ph = H - 70 - py, pw = Math.round(ph * 0.8)
+    return [
+      label(s.label, s.labelInk ?? s.accent, 40, 84, 700, 'center'),
+      t.part, sb.part,
+      photo((W - pw) / 2, py, pw, ph, { borderWidth: 26, borderColor: WHITE, shadow: 28 }),
+      { type: 'line', x: 90, y: py + ph - 1, w: (W - pw) / 2 - 120, strokeWidth: 2, color: s.accent },
+      { type: 'line', x: (W + pw) / 2 + 30, y: py + ph - 1, w: (W - pw) / 2 - 120, strokeWidth: 2, color: s.accent },
+    ]
+  },
 }
 export const SHOOT_HERO_COMPS = Object.keys(HEROES)
 
@@ -220,11 +274,49 @@ const FLOWS = {
     section('care', v.care, c.care, th),
     notice(c, th, v),
   ],
+  // 식품 — 문장 → 연출 → 원재료 → 확대 → 보관법 → 손질·포장 장면 → 구성 → 안내
+  food: (c, th, v) => [
+    section('statement', v.statement, c.statement, th),
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('ingredient', v.ingredient, c.ingredient, th),
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('storage', v.storage, c.storage, th),
+    section('story', v.story, { ...c.use, slot: 'U', sample: 'hand' }, th),
+    section('contents', v.contents, c.contents, th),
+    notice(c, th, v),
+  ],
+  // 식품 — 원재료가 먼저 (확대 → 원재료 → 문장 → 연출 → 드시는 법) → 보관법 → 장면 → 구성 → 안내
+  foodB: (c, th, v) => [
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('ingredient', v.ingredient, c.ingredient, th),
+    section('statement', v.statement, c.statement, th),
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('steps', v.steps, c.steps, th),
+    section('storage', v.storage, c.storage, th),
+    section('story', v.story, { ...c.use, slot: 'U', sample: 'hand' }, th),
+    section('contents', v.contents, c.contents, th),
+    notice(c, th, v),
+  ],
+  // 유아·캠핑·인테리어 — 문장 → 특징 3가지 → 사용 장면 → 확대 → 연출 → 추천 → 구성품 → 순서·관리 → 안내
+  living: (c, th, v) => [
+    section('statement', v.statement, c.statement, th),
+    section('points', v.points, c.points, th),
+    section('story', v.story, { ...c.use, slot: 'U', sample: 'hand' }, th),
+    section('zoom', v.zoom, { ...c.zoom, slot: 'D', sample: 'detail' }, th),
+    section('detail1', v.detail1, { ...c.scene, slot: 'S', sample: 'scene' }, th),
+    section('recommend', v.recommend, c.recommend, th),
+    section('contents', v.contents, c.contents, th),
+    c.steps ? section('steps', v.steps, c.steps, th) : section('care', v.care, c.care, th),
+    notice(c, th, v),
+  ],
 }
 const FLOW_DESC = {
   fashionA: '대표 사진 → 브랜드 문장 → 연출 → 특징 3가지 → 소재 확대 → 착용 장면 → 사이즈 자리 → 관리 → 구성 → 안내',
   fashionB: '대표 사진 → 착용 장면 → 브랜드 문장 → 소재 확대 → 특징 3가지 → 연출 → 관리 → 사이즈 자리 → 구성 → 안내',
   fashionC: '대표 사진 → 소재 확대 → 특징 3가지 → 연출 → 브랜드 문장 → 착용 장면 → 사이즈 자리 → 구성 → 관리 → 안내',
+  food: '대표 사진 → 브랜드 문장 → 연출 → 원재료 → 확대 → 보관법 → 손질·포장 장면 → 구성 → 안내',
+  foodB: '대표 사진 → 확대 → 원재료 → 브랜드 문장 → 연출 → 드시는 법 → 보관법 → 장면 → 구성 → 안내',
+  living: '대표 사진 → 브랜드 문장 → 특징 3가지 → 사용 장면 → 확대 → 연출 → 추천 → 구성품 → 순서·관리 → 안내',
 }
 
 // ── 문구 ──
@@ -233,6 +325,7 @@ const N = (t, d) => ({ t, d })
 const K = (k, t) => ({ k, t })
 const FASHION_NOTICE = '· 화면에 따라 색이 조금 다르게 보일 수 있어요.\n· 재는 방법에 따라 1~3cm 차이가 날 수 있어요.\n· 궁금한 점은 문의를 남겨 주세요.'
 const SHOE_NOTICE = '· 발볼·발등에 따라 신는 느낌이 다를 수 있어요.\n· 실내에서 먼저 신어 본 뒤 교환을 신청해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.'
+const FOOD_NOTICE = '· 받으신 날 바로 보관 방법대로 보관해 주세요.\n· 알레르기가 있다면 원재료를 꼭 확인해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.'
 const SHOE_CARE = { title: '오래 신는 관리법', items: [K('마른천', '먼지는 마른 천으로\n닦아 주세요'), K('그늘', '젖으면 그늘에서\n말려 주세요'), K('모양', '종이를 넣어\n모양을 잡아 주세요'), K('크림', '가죽 크림으로\n가끔 닦아 주세요')] }
 const SHOE_SIZE = { title: '사이즈 안내', chips: ['단위 mm', '발 길이 기준', '반 치수 차이'], note: '발볼이 넓다면 반 치수 크게 골라 주세요.' }
 const CLOTH_SIZE = { title: '사이즈 안내', chips: ['단위 cm', '평평하게 재요', '1~3cm 차이'], note: '가지고 있는 옷과 비교해 골라 주세요.' }
@@ -356,12 +449,99 @@ const COPY = {
     contents: { title: '구성', items: [['원피스', '1벌'], MORE, ['[구성품 이름]', '[수량]']] },
     notices: FASHION_NOTICE,
   },
+  croaker: {
+    statement: { label: 'FROM THE SEA', text: '바닷바람에 말려 맛이 깊어졌어요', sub: '말리는 방법과 산지를 적어 주세요.' },
+    scene: { title: '밥상에 올리기 좋게', lead: '어울리는 반찬과 요리를 알려 주세요.', caption: '사진 아래에 구성과 중량을 적어 주세요.' },
+    ingredient: { title: '원재료 및 정보', rows: [['원재료명', '[원재료 이름]'], ['원산지', '[원산지]'], ['내용량', '[000]g · [00]마리'], ['보관 방법', '[냉동 보관]'], ['제조일', '[별도 표시]']] },
+    zoom: { title: '결을 가까이에서', notes: [N('노릇한 빛깔', '색과 윤기를 적어 주세요.'), N('도톰한 살', '크기와 두께를 적어 주세요.'), N('깨끗한 손질', '손질 방법을 적어 주세요.')] },
+    storage: { title: '이렇게 보관해 주세요', items: [{ k: '냉동', v: '[-18]℃ 이하', t: '오래 두고 드실 때' }, { k: '냉장', v: '[0~5]℃', t: '받은 뒤 [0]일 안에\n드실 때' }, { k: '해동', v: '냉장실에서', t: '먹기 전날\n옮겨 주세요' }] },
+    use: { label: 'PACKED WITH CARE', title: '한 마리씩 꼼꼼하게 담아요', desc: '포장 방법과 배송 이야기를 적어 주세요.' },
+    contents: { title: '구성', items: [['[상품 이름]', '[00]마리'], ['보냉 포장', '1개'], MORE] },
+    notices: FOOD_NOTICE,
+  },
+  fruit: {
+    statement: { label: 'FRESH PICK', text: '제철에 딴 과일을 가장 맛있을 때 보내요', sub: '산지와 수확 이야기를 적어 주세요.' },
+    scene: { title: '잘랐을 때 더 맛있어 보여요', lead: '당도와 식감을 알려 주세요.', caption: '사진 아래에 품종과 크기를 적어 주세요.' },
+    ingredient: { title: '상품 정보', rows: [['품종', '[품종 이름]'], ['원산지', '[산지]'], ['중량', '[0]kg · [00]과'], ['크기', '[중과·대과]'], ['수확 시기', '[0월]']] },
+    zoom: { title: '껍질까지 싱싱하게', notes: [N('윤기 나는 껍질', '색과 윤기를 적어 주세요.'), N('단단한 과육', '식감을 적어 주세요.'), N('고른 크기', '크기 기준을 적어 주세요.')] },
+    storage: { title: '보관 방법', items: [{ k: '냉장', v: '[0~5]℃', t: '비닐에 담아\n보관해 주세요' }, { k: '실온', v: '서늘한 곳', t: '[0]일 안에\n드셔 주세요' }, { k: '따로', v: '과일끼리', t: '다른 과일과\n떨어뜨려 두세요' }] },
+    steps: { title: '맛있게 드시는 법', items: [P('씻기', '흐르는 물에\n씻어 주세요'), P('자르기', '먹기 좋게\n잘라 주세요'), P('차갑게', '조금 차갑게 두면\n더 맛있어요')] },
+    use: { label: 'GIFT READY', title: '한 알씩 감싸서 담아요', desc: '포장과 배송 이야기를 적어 주세요.' },
+    contents: { title: '구성', items: [['[품종 이름]', '[0]kg'], ['선물 상자', '1개'], MORE] },
+    notices: '· 과일은 크기·색이 조금씩 다를 수 있어요.\n· 받으신 날 바로 상태를 확인해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
+  coffee: {
+    statement: { label: 'SLOW BREW', text: '한 잔을 천천히 내리는 동안 아침이 시작돼요', sub: '원두 이야기를 적어 주세요.' },
+    scene: { title: '갓 볶은 원두를 담아요', lead: '볶는 날짜와 향을 알려 주세요.', caption: '사진 아래에 원두 이름과 중량을 적어 주세요.' },
+    ingredient: { title: '원두 정보', rows: [['원두', '[원두 이름]'], ['산지', '[산지]'], ['볶음 정도', '[중간 볶음]'], ['향', '[향 설명]'], ['중량', '[000]g']] },
+    zoom: { title: '볶은 원두를 가까이', notes: [N('고른 색', '볶은 정도를 적어 주세요.'), N('기름진 윤기', '향과 맛을 적어 주세요.'), N('신선한 향', '볶는 날짜를 적어 주세요.')] },
+    storage: { title: '원두 보관법', items: [{ k: '밀폐', v: '공기 차단', t: '봉투를 꼭\n닫아 주세요' }, { k: '실온', v: '서늘한 곳', t: '햇빛을\n피해 주세요' }, { k: '빨리', v: '[0]주 안에', t: '볶은 뒤 빨리\n드셔 주세요' }] },
+    steps: { title: '맛있게 내리는 법', items: [P('갈기', '[중간] 굵기로\n갈아 주세요'), P('뜸', '물을 조금 부어\n기다려 주세요'), P('내리기', '천천히 나눠\n부어 주세요')] },
+    use: { label: 'HAND DRIP', title: '천천히 내리는 한 잔', desc: '내리는 방법과 맛을 적어 주세요.' },
+    contents: { title: '구성', items: [['원두', '[000]g'], ['[구성품 이름]', '[수량]'], ['안내 카드', '1장']] },
+    notices: FOOD_NOTICE,
+  },
+  health: {
+    statement: { label: 'DAILY HABIT', text: '하루 한 번, 나를 챙기는 작은 습관', sub: '제품 이야기를 적어 주세요.' },
+    scene: { title: '식탁 위에 두고 챙겨요', lead: '보관하기 좋은 자리를 알려 주세요.', caption: '사진 아래에 제품 이름과 용량을 적어 주세요.' },
+    ingredient: { title: '제품 정보', rows: [['원료', '[원료 이름]'], ['내용량', '[00]정 · [0]개월분'], ['섭취 방법', '[하루 0번, 0정]'], ['보관 방법', '[서늘한 곳]'], ['제조원', '[제조원]']] },
+    zoom: { title: '한 알을 가까이에서', notes: [N('작은 크기', '알 크기를 적어 주세요.'), N('맑은 색', '제형을 적어 주세요.'), N('편한 섭취', '먹는 방법을 적어 주세요.')] },
+    storage: { title: '보관 방법', items: [{ k: '실온', v: '서늘한 곳', t: '햇빛을\n피해 주세요' }, { k: '밀폐', v: '뚜껑 닫기', t: '먹은 뒤 꼭\n닫아 주세요' }, { k: '손길', v: '어린이 주의', t: '손이 닿지 않는\n곳에 두세요' }] },
+    steps: { title: '이렇게 드세요', items: [P('물 한 잔', '물과 함께\n드세요'), P('정해진 양', '표시된 양을\n지켜 주세요'), P('같은 시간', '매일 같은 때\n드시면 좋아요')] },
+    use: { label: 'MORNING ROUTINE', title: '아침을 여는 한 알', desc: '드시는 때와 방법을 적어 주세요.' },
+    contents: { title: '구성', items: [['[제품 이름]', '[00]정'], ['[구성품 이름]', '[수량]'], ['안내서', '1장']] },
+    notices: '· 제품 표시 사항을 꼭 확인해 주세요.\n· 알레르기가 있다면 원료를 먼저 확인해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
+  gift: {
+    statement: { label: 'WITH HEART', text: '고마운 마음을 곱게 싸서 전해요', sub: '선물 구성 이야기를 적어 주세요.' },
+    scene: { title: '열어 보는 순간까지 특별하게', lead: '상자와 구성을 알려 주세요.', caption: '사진 아래에 구성과 중량을 적어 주세요.' },
+    ingredient: { title: '선물 구성 정보', rows: [['구성', '[구성품 이름]'], ['원산지', '[원산지]'], ['내용량', '[000]g × [0]개'], ['포장', '[보자기 포장]'], ['보관 방법', '[서늘한 곳]']] },
+    zoom: { title: '매듭까지 정성스럽게', notes: [N('고운 보자기', '보자기 소재를 적어 주세요.'), N('단정한 매듭', '매듭 방식을 적어 주세요.'), N('든든한 상자', '상자 소재를 적어 주세요.')] },
+    storage: { title: '보관 방법', items: [{ k: '실온', v: '서늘한 곳', t: '받으신 뒤\n바로 옮겨 주세요' }, { k: '냉장', v: '[0~5]℃', t: '연 뒤에는\n냉장 보관해요' }, { k: '기한', v: '[별도 표시]', t: '표시된 날까지\n드셔 주세요' }] },
+    use: { label: 'GIVING', title: '두 손으로 건네는 마음', desc: '선물하기 좋은 날을 적어 주세요.' },
+    contents: { title: '구성', items: [['선물 상자', '1개'], ['보자기', '1장'], ['쇼핑백', '1개']] },
+    notices: '· 명절 즈음에는 배송이 늦어질 수 있어요.\n· 받는 분 주소와 연락처를 꼭 확인해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
+  baby: {
+    statement: { label: 'GENTLE TOUCH', text: '아기 피부에 처음 닿는 옷이니까 더 순하게', sub: '소재와 만든 방식을 적어 주세요.' },
+    points: { title: '엄마 아빠가 고르는 이유', items: [P('부드러운 면', '소재를\n적어 주세요'), P('순한 마감', '봉제 방식을\n적어 주세요'), P('쉬운 입히기', '여밈 방식을\n적어 주세요')] },
+    use: { label: 'EVERY DAY', title: '매일 개어 두는 작은 옷', desc: '입히고 벗기는 모습을 적어 주세요.' },
+    zoom: { title: '바느질을 가까이에서', notes: [N('겉 박음질', '봉제 방식을 적어 주세요.'), N('도톰한 면', '원단 두께를 적어 주세요.'), N('순한 색', '염색 방식을 적어 주세요.')] },
+    scene: { title: '아기 방에 걸어 두어도 예뻐요', lead: '색상 구성을 알려 주세요.', caption: '사진 아래에 색상 이름을 적어 주세요.' },
+    recommend: { title: '이런 분께 추천해요', lines: ['출산 선물을 고르는 분', '부드러운 면 옷을 찾는 분', '세탁이 쉬운 옷이 필요한 분'] },
+    contents: { title: '구성품', items: [['바디수트', '1장'], ['모자', '1개'], ['[구성품 이름]', '[수량]']] },
+    care: { title: '세탁 안내', items: [K('30°', '미지근한 물에\n세탁해 주세요'), K('중성', '순한 세제를\n써 주세요'), K('단독', '처음에는 따로\n세탁해 주세요'), K('그늘', '그늘에서\n말려 주세요')] },
+    notices: '· 처음 입히기 전에 한 번 세탁해 주세요.\n· 사용 연령과 사이즈를 확인해 주세요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
+  camping: {
+    statement: { label: 'OUTDOOR MOOD', text: '해가 지면 숲속 작은 불빛이 하루를 밝혀요', sub: '제품 이야기를 적어 주세요.' },
+    points: { title: '캠핑에서 빛나는 이유', items: [P('은은한 불빛', '밝기 단계를\n적어 주세요'), P('튼튼한 몸체', '소재를\n적어 주세요'), P('쉬운 사용', '켜는 방법을\n적어 주세요')] },
+    use: { label: 'BY THE FIRE', title: '모닥불 옆 따뜻한 한 잔', desc: '캠핑장에서 쓰는 모습을 적어 주세요.' },
+    zoom: { title: '불빛을 가까이에서', notes: [N('따뜻한 빛', '빛 색을 적어 주세요.'), N('튼튼한 틀', '몸체 소재를 적어 주세요.'), N('걸기 쉬운 고리', '고리 모양을 적어 주세요.')] },
+    scene: { title: '텐트 옆에 두면 완성', lead: '함께 쓰기 좋은 캠핑 용품을 알려 주세요.', caption: '사진 아래에 크기와 무게를 적어 주세요.' },
+    recommend: { title: '이런 캠핑에 좋아요', lines: ['숲속 오토 캠핑을 즐기는 분', '감성 캠핑 소품을 찾는 분', '밤 시간을 오래 즐기는 분'] },
+    contents: { title: '구성품', items: [['[제품 이름]', '1개'], ['보관 가방', '1개'], ['[구성품 이름]', '[수량]']] },
+    steps: { title: '사용 순서', items: [P('꺼내기', '구성품을\n확인해 주세요'), P('켜기', '켜는 방법을\n적어 주세요'), P('보관', '다 쓴 뒤\n말려 두세요')] },
+    notices: '· 불을 쓰는 제품은 주변을 꼭 살펴 주세요.\n· 텐트 안에서는 사용 방법을 지켜 주세요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
+  interior: {
+    statement: { label: 'HOME STYLING', text: '작은 소품 하나로 방 안의 공기가 달라져요', sub: '소재와 분위기를 적어 주세요.' },
+    points: { title: '집에 두면 좋은 이유', items: [P('자연스러운 색', '색상 이름을\n적어 주세요'), P('손으로 빚은 결', '만든 방식을\n적어 주세요'), P('어디든 어울림', '어울리는 공간을\n적어 주세요')] },
+    use: { label: 'EVENING', title: '초를 켜는 저녁 시간', desc: '공간에 두었을 때 분위기를 적어 주세요.' },
+    zoom: { title: '유약의 결을 가까이', notes: [N('도톰한 유약', '유약 느낌을 적어 주세요.'), N('자연스러운 점', '무늬 이야기를 적어 주세요.'), N('묵직한 바닥', '무게를 적어 주세요.')] },
+    scene: { title: '선반 위에 두어 보세요', lead: '함께 두면 좋은 소품을 알려 주세요.', caption: '사진 아래에 크기를 적어 주세요.' },
+    recommend: { title: '이런 공간에 어울려요', lines: ['햇빛이 드는 창가', '작은 선반이 있는 거실', '향이 필요한 침실'] },
+    contents: { title: '구성품', items: [['화병', '1개'], ['[구성품 이름]', '[수량]'], ['선물 포장', '[선택]']] },
+    care: { title: '관리 방법', items: [K('천', '마른 천으로\n닦아 주세요'), K('물기', '물기는 바로\n닦아 주세요'), K('충격', '떨어뜨리지 않게\n조심해 주세요'), K('자리', '평평한 곳에\n두세요')] },
+    notices: '· 손으로 만들어 모양과 색이 조금씩 달라요.\n· 조명에 따라 색이 다르게 보일 수 있어요.\n· 궁금한 점은 문의를 남겨 주세요.',
+  },
 }
 
-// ── 템플릿 ──
+// ── 템플릿 19개 ──
 // hero.bg = 첫 화면 바탕 — 사진이 첫 화면 전체를 덮는 구도(tone 'photo')는 그 사진의 평균색(거르기 색 = templateColorOf 규칙)
 // pins = [대표, 연출, 확대, 사용 장면] 예시 사진 id (manifest samples — 이 세트 사진)
 const pin = (cat, no, slugs, types = ['product', 'scene', 'detail', 'scene']) => slugs.map((s, i) => `sample-${cat}-${types[i]}-${s}-${no}`)
+const FOOD_TYPES = ['product', 'scene', 'detail', 'hand']
 const B = (text, fill, ink, shape) => ({ text, fill, ink, ...(shape ? { shape } : {}) })
 const LIST = [
   // ── 1차: 패션·잡화 10개 ──
@@ -415,9 +595,55 @@ const LIST = [
     pins: pin('bag', '13', ['navy-umbrella', 'umbrella-wet-street', 'umbrella-handle', 'umbrella-rain-walk']),
     hero: { comp: 'vertical', side: 'right', bg: '#e8eaed', font: 'pretendard', ink: '#1f2d4a', accent: '#2f4a7a', radius: 24, title: '비\n오\n는\n날', sub: '크기와 무게를 한 줄로 적어 주세요', label: 'RAINY DAY' },
   },
+  // ── 2차: 9개 ──
+  {
+    key: 'shoot-dried-fish', category: 'food', name: '건어물', mood: 'friendly', tone: 'photo', flow: 'food', copy: 'croaker', body: 'pretendard',
+    pins: pin('food', '09', ['dried-yellow-croaker', 'dried-anchovy-bowls', 'croaker-skin', 'fish-packing'], FOOD_TYPES),
+    hero: { comp: 'stamp', bg: '#c2ab8e', font: 'do-hyeon', ink: '#3b2a17', accent: '#b5651d', title: '바다의\n맛 그대로', sub: '산지와 말리는 방법을 적어 주세요', label: 'FROM THE SEA', stamp: '[가게 이름]\n바다 직송', stampFill: '#fff8ee', stampInk: '#9a4a12' },
+  },
+  {
+    key: 'shoot-supplement', category: 'health', name: '건강식품', mood: 'clean', tone: 'photo', flow: 'foodB', copy: 'health', body: 'pretendard',
+    pins: pin('health', '09', ['supplement-bottle', 'tablets-herbs', 'omega-capsule', 'morning-supplement'], FOOD_TYPES),
+    hero: { comp: 'soft', bg: '#dee8e0', font: 'pretendard', ink: '#1f4d3f', accent: '#2f8f6f', title: '매일의\n작은 습관', sub: '제품을 한 줄로 소개해 주세요', label: 'DAILY HEALTH' },
+  },
+  {
+    key: 'shoot-holiday-gift', category: 'gift', name: '명절 선물', mood: 'premium', tone: 'red', flow: 'food', copy: 'gift', body: 'noto-sans-kr',
+    pins: pin('gift', '09', ['bojagi-gift-box', 'lacquer-gift-box', 'bojagi-knot', 'gift-giving'], FOOD_TYPES),
+    hero: { comp: 'spotlight', bg: '#2a1216', font: 'nanum-myeongjo', ink: '#f1d9a6', subInk: '#d9c2b0', accent: '#c9a45c', glow: '#b8434f', title: '마음을\n담은 선물', sub: '선물 구성을 한 줄로 적어 주세요', label: 'GIFT SET' },
+  },
+  {
+    key: 'shoot-fruit', category: 'food', name: '제철 과일', mood: 'friendly', tone: 'photo', flow: 'foodB', copy: 'fruit', body: 'pretendard',
+    pins: pin('food', '10', ['fruit-basket', 'apple-pear-board', 'apple-droplets', 'fruit-box-packing'], FOOD_TYPES),
+    hero: { comp: 'pop', bg: '#d1c1aa', font: 'black-han-sans', ink: '#d62839', accent: '#d62839', stroke: '#ffffff', strokeWidth: 10, subInk: '#4a2a12', labelInk: '#8a2a1a', title: '제철 과일\n한 바구니', sub: '산지와 당도를 한 줄로 적어 주세요', label: 'FRESH FRUIT', badge: B('제철\n수확', '#d62839', '#ffffff'), badgeX: 590, badgeY: 590 },
+  },
+  {
+    key: 'shoot-coffee', category: 'food', name: '원두 커피', mood: 'soft', tone: 'beige', flow: 'foodB', copy: 'coffee', body: 'noto-sans-kr',
+    pins: pin('food', '11', ['coffee-bean-bag', 'coffee-bean-scoop', 'roasted-beans', 'pour-over'], FOOD_TYPES),
+    hero: { comp: 'magazine', side: 'right', bg: '#ece1d2', font: 'gowun-batang', ink: '#3b2a1e', accent: '#8d5b3e', line: '#c9b39a', title: '천천히\n내리는\n아침', sub: '원두 이야기를\n적어 주세요', label: 'SLOW COFFEE', lines: ['[원두 이름]\n갓 볶은 원두', '[산지]\n한 곳의 맛', '[000]g\n한 봉'] },
+  },
+  {
+    key: 'shoot-baby', category: 'baby', name: '유아복', mood: 'soft', tone: 'pink', flow: 'living', copy: 'baby', body: 'pretendard',
+    pins: pin('baby', '01', ['baby-clothes-set', 'nursery-hanger', 'cotton-seam', 'folding-baby-clothes'], FOOD_TYPES),
+    hero: { comp: 'capsule', pw: 440, bg: '#f9e4e4', font: 'gowun-batang', ink: '#5a3a3a', subInk: '#7a5a58', accent: '#d9918f', title: '순하고\n부드럽게', sub: '소재와 만든 방식을 적어 주세요', label: 'BABY CARE', badge: B('출산\n선물', '#d9918f', '#ffffff') },
+  },
+  {
+    key: 'shoot-camping', category: 'camping', name: '캠핑 랜턴', mood: 'bold', tone: 'photo', flow: 'living', copy: 'camping', body: 'pretendard',
+    pins: pin('camping', '01', ['lantern-table', 'forest-tent', 'lantern-glow', 'campfire-coffee'], FOOD_TYPES),
+    hero: { comp: 'posterDark', bg: '#7c6749', shade: 0.46, font: 'pretendard', ink: '#ffffff', subInk: '#f1e6d6', accent: '#f2a93b', title: '숲에서\n보내는\n하룻밤', sub: '캠핑에서 좋은 점을 적어 주세요', label: 'CAMPING NIGHT', issue: 'OUTDOOR 01' },
+  },
+  {
+    key: 'shoot-interior', category: 'interior', name: '인테리어 소품', mood: 'premium', tone: 'gray', flow: 'living', copy: 'interior', body: 'noto-sans-kr',
+    pins: pin('interior', '01', ['dried-flower-vase', 'floating-shelf', 'ceramic-glaze', 'candle-lighting'], FOOD_TYPES),
+    hero: { comp: 'mat', bg: '#ecebe8', font: 'noto-serif-kr', ink: '#2f2b27', subInk: '#5f5850', accent: '#9a8f82', title: '머물고\n싶은 집', sub: '소재와 분위기를 한 줄로 적어 주세요', label: 'HOME STYLING' },
+  },
+  {
+    key: 'shoot-keyring', category: 'bags', name: '키링 굿즈', mood: 'bold', tone: 'photo', flow: 'fashionB', copy: 'keyring', body: 'pretendard',
+    pins: pin('bag', '14', ['acrylic-keyrings', 'stationery-flatlay', 'keyring-clip', 'keyring-bag']),
+    hero: { comp: 'tape', bg: '#e7cf65', font: 'gasoek-one', tape: '#111111', tapeInk: '#fff066', accent: '#111111', labelInk: '#111111', subBg: '#ffffff', subInk: '#111111', title: '가방에\n톡!', sub: '모양과 크기를 한 줄로 적어 주세요', label: 'KEYRING GOODS' },
+  },
 ]
 
-const CAT_LABEL = { bags: '잡화·가방', apparel: '의류' }
+const CAT_LABEL = { bags: '잡화·가방', apparel: '의류', food: '식품', health: '건강식품', gift: '선물세트', baby: '유아', camping: '캠핑', interior: '인테리어' }
 
 /** 이 파일의 템플릿 key·바탕 계열 (목록 순서) — 갤러리 순서·섹션 모양은 studioTemplates.js가 정한 뒤 buildShootTemplate으로 만든다 */
 export const SHOOT_KEYS = LIST.map(e => e.key)

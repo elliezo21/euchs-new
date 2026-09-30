@@ -69,7 +69,7 @@ function layoutProblems(page) {
   return out
 }
 
-eq('새 템플릿 18개 · 전체 70개', [LOOK_TEMPLATES.length, STUDIO_TEMPLATES.length], [18, 70])
+eq('새 템플릿 18개 · 전체 79개', [LOOK_TEMPLATES.length, STUDIO_TEMPLATES.length], [18, 79])
 eq('카테고리마다 6개 (의류·잡화·가방·생활용품)', ['apparel', 'bags', 'living'].map(c => LOOK_TEMPLATES.filter(t => t.category === c).length), [6, 6, 6])
 eq('key 겹침 없음 (전체)', new Set(STUDIO_TEMPLATES.map(t => t.key)).size, STUDIO_TEMPLATES.length)
 const moods = new Set(TEMPLATE_MOODS.map(m => m.key)), colors = new Set(TEMPLATE_COLORS.map(c => c.key))

@@ -28,11 +28,11 @@ const FOODISH = ['food', 'health', 'gift']
 const LIVINGISH = ['baby', 'camping', 'interior']
 
 // ── 1. 목록 ──
-eq('촬영 세트 10개 (1차 패션·잡화) · 목록 맨 뒤에 이어 붙음 (앞 60개 그대로)', [SHOOT_TEMPLATES.length, STUDIO_TEMPLATES.slice(60).every(t => SHOOT_KEYS.includes(t.key))], [10, true])
+eq('촬영 세트 19개 · 목록 맨 뒤에 이어 붙음 (앞 60개 그대로)', [SHOOT_TEMPLATES.length, STUDIO_TEMPLATES.slice(60).every(t => SHOOT_KEYS.includes(t.key))], [19, true])
 eq('카테고리가 목록에 있음 (패션 = 의류·잡화·가방 칩)', SHOOT_TEMPLATES.filter(t => !TEMPLATE_CATEGORIES.some(c => c.key === t.category)).map(t => t.key), [])
-eq('패션·잡화 = 기존 칩(의류·잡화·가방)', [...new Set(SHOOT_TEMPLATES.map(t => t.category))].sort(), ['apparel', 'bags'])
-eq('분위기 5가지 모두 1개 이상', TEMPLATE_MOODS.map(m => SHOOT_TEMPLATES.some(t => t.mood === m.key)), TEMPLATE_MOODS.map(() => true))
-eq('첫 화면 구도 9가지 모두 쓰고 한 구도는 2번까지', (() => {
+eq('새 칩: 식품·건강식품·선물세트·유아·캠핑·인테리어', ['food', 'health', 'gift', 'baby', 'camping', 'interior'].map(k => TEMPLATE_CATEGORIES.find(c => c.key === k)?.label), ['식품', '건강식품', '선물세트', '유아', '캠핑', '인테리어'])
+eq('분위기 5가지 모두 3개 이상', TEMPLATE_MOODS.map(m => SHOOT_TEMPLATES.filter(t => t.mood === m.key).length >= 3), TEMPLATE_MOODS.map(() => true))
+eq('첫 화면 구도 13가지 모두 쓰고 한 구도는 2번까지', (() => {
   const n = new Map(); SHOOT_TEMPLATES.forEach(t => { const c = t.heroComp; n.set(c, (n.get(c) ?? 0) + 1) })
   return [SHOOT_HERO_COMPS.every(c => n.has(c)), Math.max(...n.values()) <= 2]
 })(), [true, true])
@@ -61,7 +61,7 @@ for (const t of SHOOT_TEMPLATES) {
   const pins = new Set(SHOOT_TEMPLATES.flatMap(t => t.samplePins))
   const others = STUDIO_TEMPLATES.filter(t => !SHOOT_KEYS.includes(t.key)).flatMap(t => assigned.get(t.key).map(s => s?.id)).filter(id => pins.has(id))
   eq('촬영 세트 사진을 다른 템플릿이 쓰지 않음', others, [])
-  eq('세트 사진 40장이 모두 어느 템플릿엔가', pins.size, 40)
+  eq('세트 사진 76장이 모두 어느 템플릿엔가', pins.size, 76)
   const text = JSON.stringify(SHOOT_TEMPLATES)
   eq('문구에 "중국어"·"준비 중"·다른 회사 이름 없음', /중국어|준비 ?중|1688|쿠팡|네이버|미리캔버스|캔바|canva|망고보드/i.test(text), false)
   eq('사이즈 자리 안내 = [요소] → [사이즈표]', /\[요소\] → \[사이즈표\]/.test(text), true)

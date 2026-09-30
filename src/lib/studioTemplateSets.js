@@ -26,6 +26,13 @@ export const TEMPLATE_CATEGORIES = [
   { key: 'electronics', label: '전자·소형가전' },
   { key: 'toys', label: '완구' },
   { key: 'pets', label: '반려동물' },
+  // 촬영 세트 템플릿(studioTemplateShoots)으로 생긴 카테고리
+  { key: 'food', label: '식품' },
+  { key: 'health', label: '건강식품' },
+  { key: 'gift', label: '선물세트' },
+  { key: 'baby', label: '유아' },
+  { key: 'camping', label: '캠핑' },
+  { key: 'interior', label: '인테리어' },
   { key: 'fullset', label: '풀세트' }, // 에셋 이미지(받침대·배경 그림)까지 들어간 긴 구성 (지금은 샘플 1개)
   { key: 'event', label: '안내·이벤트' }, // 제품 사진 0~1장 — 리뷰·배송·할인·명절 안내 (studioTemplateEvents)
 ]

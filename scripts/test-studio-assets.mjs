@@ -24,8 +24,8 @@ const HEX = /^#[0-9a-f]{6}$/
 
 // ── 1. 카테고리 템플릿 ──
 {
-  // 풀세트는 test-studio-asset-images.mjs, 안내·이벤트는 test-studio-template-heroes.mjs
-  const cats = TEMPLATE_CATEGORIES.filter(c => !['common', 'fullset', 'event'].includes(c.key))
+  // 풀세트는 test-studio-asset-images.mjs, 안내·이벤트는 test-studio-template-heroes.mjs, 촬영 세트로 생긴 카테고리(식품·건강식품·선물세트·유아·캠핑·인테리어)는 test-studio-template-shoots.mjs
+  const cats = TEMPLATE_CATEGORIES.filter(c => !['common', 'fullset', 'event', 'food', 'health', 'gift', 'baby', 'camping', 'interior'].includes(c.key))
   eq('카테고리 8개 (의류·잡화/가방·주방·생활용품·뷰티·전자/소형가전·완구·반려동물)', cats.map(c => c.key), ['apparel', 'bags', 'kitchen', 'living', 'beauty', 'electronics', 'toys', 'pets'])
   // 에셋 채우기 템플릿만 (새 템플릿 18개 — studioTemplateLooks — 는 test-studio-template-looks.mjs가 본다)
   const setOf = k => templatesOf(k).filter(t => !/-(minimal|warm|vivid|mono|natural|trendy)$/.test(t.key) && !t.key.startsWith('shoot-'))

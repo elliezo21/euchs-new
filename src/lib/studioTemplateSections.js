@@ -1335,6 +1335,88 @@ const CONTENTS = [
   },
 ]
 
+/** 원재료·정보 (식품) — { title, rows: [[항목, 내용]] } */
+const INGREDIENTS = [
+  // 0 정보 라벨 상자 (굵은 위 막대)
+  (d, th, o) => {
+    const rh = 58
+    const bh = 30 + textH('가', 26, 1.3) + 16 + 8 + 8 + d.rows.length * rh + 18
+    return sec(o.bg ?? th.soft, [{
+      h: bh,
+      make: y => [
+        rect(90, y, 600, bh, WHITE, { radius: 6, strokeWidth: 2, strokeColor: th.ink }),
+        txt(118, y + 30, 544, one(d.title), 26, headW(th.font), th.ink, th.font, { lineHeight: 1.3 }),
+        rect(118, y + 30 + textH('가', 26, 1.3) + 16, 544, 8, th.ink),
+        ...d.rows.flatMap(([k, v], i) => {
+          const top = y + 30 + textH('가', 26, 1.3) + 16 + 16 + i * rh
+          const ty = top + Math.round((rh - textH('가', 18, 1.4)) / 2)
+          return [
+            txt(118, ty, 170, k, 18, 800, th.ink, th.body),
+            txt(300, ty, 362, v, 18, 400, th.sub, th.body),
+            ...(i < d.rows.length - 1 ? [rect(118, top + rh - 1, 544, 1, th.line)] : []),
+          ]
+        }),
+      ],
+    }], { top: 80, bottom: 80, ...o.sec })
+  },
+  // 1 큰 칸 두 개 + 줄 목록
+  (d, th, o) => {
+    const [a, b, ...rest] = d.rows
+    const tiles = [[70, a, th.accent, th.onAccent], [390, b, th.soft, th.ink]]
+    return sec(o.bg ?? WHITE, [latin('INGREDIENTS', th.accentText), 12, heading(d.title, th), 32, {
+      h: 136,
+      make: y => tiles.flatMap(([x, [k, v], fill, ink]) => [
+        rect(x, y, 320, 136, fill, { radius: 20 }),
+        txt(x + 26, y + 26, 268, k, 16, 700, ink, th.body, { lineHeight: 1.3 }),
+        txt(x + 26, y + 58, 268, v, 26, 800, ink, th.body, { lineHeight: 1.3 }),
+      ]),
+    }, 24, {
+      h: rest.length * 60,
+      make: y => rest.flatMap(([k, v], i) => {
+        const top = y + i * 60
+        const ty = top + Math.round((60 - textH('가', 18, 1.4)) / 2)
+        return [
+          ...(i % 2 === 0 ? [rect(70, top, 640, 60, th.soft, { radius: 10 })] : []),
+          txt(100, ty, 170, k, 18, 800, th.ink, th.body), txt(290, ty, 400, v, 18, 400, th.sub, th.body),
+        ]
+      }),
+    }], o.sec)
+  },
+]
+
+/** 보관법 (식품) — { title, items: [{ k: 냉장·냉동·실온, v: 온도 자리, t: 설명 }] (3개) } */
+const STORAGES = [
+  // 0 보관 태그 카드 (첫 칸 = 권하는 보관)
+  (d, th, o) => sec(o.bg ?? WHITE, [heading(d.title, th), 36, {
+    h: 230,
+    make: y => d.items.flatMap((it, i) => {
+      const x = 40 + i * 240
+      const on = i === 0
+      const t = wrapText(one(it.t), 16, 180, th.body)
+      return [
+        rect(x, y, 220, 230, on ? th.accent : WHITE, { radius: 20, ...(on ? {} : { strokeWidth: 2, strokeColor: th.line }) }),
+        txt(x + 10, y + 30, 200, it.k, 34, 400, on ? th.onAccent : th.accentText, 'black-han-sans', { align: 'center', lineHeight: 1.2 }),
+        txt(x + 10, y + 82, 200, it.v, 20, 800, on ? th.onAccent : th.ink, th.body, { align: 'center', lineHeight: 1.3 }),
+        txt(x + 20, y + 128, 180, t, 16, 400, on ? th.onAccent : th.sub, th.body, { align: 'center', lineHeight: 1.55 }),
+      ]
+    }),
+  }], o.sec),
+  // 1 짙은 띠 + 번호 줄
+  (d, th, o) => sec(th.dark, [latin('STORAGE', th.bright), 12, heading(d.title, th, { color: WHITE }), 36, {
+    h: d.items.length * 96 - 20,
+    make: (y, gid) => d.items.flatMap((it, i) => {
+      const top = y + i * 96
+      const g = gid()
+      return [
+        { type: 'shape', group: g, shape: 'ellipse', x: 90, y: top, w: 48, h: 48, fill: th.bright },
+        txt(90, top + Math.round((48 - textH('1', 20, 1.2)) / 2), 48, String(i + 1), 20, 900, th.dark, 'noto-sans-kr', { align: 'center', lineHeight: 1.2, group: g }),
+        txt(160, top + 2, 530, `${it.k} · ${it.v}`, 21, 800, WHITE, th.body, { lineHeight: 1.3 }),
+        txt(160, top + 38, 530, one(it.t), 16, 400, mix(th.dark, '#ffffff', 0.74), th.body, { lineHeight: 1.5 }),
+      ]
+    }),
+  }], o.sec),
+]
+
 /** 종류별 모양 (이름표는 보고서·테스트용) */
 export const SECTION_VARIANTS = {
   points: { make: POINTS, names: ['아이콘 카드 3개', '큰 번호 세로 목록', '체크 목록', '배지 격자', '큰 숫자 강조', '강조색 띠 줄 카드'] },
@@ -1356,6 +1438,8 @@ export const SECTION_VARIANTS = {
   sizeSlot: { make: SIZE_SLOTS, names: ['점선 자리 + 정보 칩', '재는 법 그림 + 점선 자리', '카드 안 점선 자리'] },
   care: { make: CARES, names: ['동그라미 아이콘 4개', '2×2 카드', '알약 줄 목록'] },
   contents: { make: CONTENTS, names: ['점선 줄 목록', '더하기 상자', '티켓 모양'] },
+  ingredient: { make: INGREDIENTS, names: ['정보 라벨 상자', '큰 칸 두 개 + 줄 목록'] },
+  storage: { make: STORAGES, names: ['보관 태그 카드', '짙은 띠 번호 줄'] },
 }
 export const SECTION_KINDS = Object.keys(SECTION_VARIANTS)
 

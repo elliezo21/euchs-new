@@ -1817,6 +1817,54 @@
       "ratio": 1.3385
     },
     {
+      "id": "sample-baby-detail-cotton-seam-01",
+      "kind": "sample",
+      "category": "baby",
+      "type": "detail",
+      "label": "cotton-seam",
+      "file": "samples/euchs-sample_baby_detail_cotton-seam_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_baby_detail_cotton-seam_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-baby-hand-folding-baby-clothes-01",
+      "kind": "sample",
+      "category": "baby",
+      "type": "hand",
+      "label": "folding-baby-clothes",
+      "file": "samples/euchs-sample_baby_hand_folding-baby-clothes_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_baby_hand_folding-baby-clothes_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-baby-product-baby-clothes-set-01",
+      "kind": "sample",
+      "category": "baby",
+      "type": "product",
+      "label": "baby-clothes-set",
+      "file": "samples/euchs-sample_baby_product_baby-clothes-set_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_baby_product_baby-clothes-set_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-baby-scene-nursery-hanger-01",
+      "kind": "sample",
+      "category": "baby",
+      "type": "scene",
+      "label": "nursery-hanger",
+      "file": "samples/euchs-sample_baby_scene_nursery-hanger_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_baby_scene_nursery-hanger_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-bag-detail-beret-silk-texture-12",
       "kind": "sample",
       "category": "bag",
@@ -1875,6 +1923,18 @@
       "w": 891,
       "h": 891,
       "ratio": 1
+    },
+    {
+      "id": "sample-bag-detail-keyring-clip-14",
+      "kind": "sample",
+      "category": "bag",
+      "type": "detail",
+      "label": "keyring-clip",
+      "file": "samples/euchs-sample_bag_detail_keyring-clip_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_detail_keyring-clip_14.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-bag-detail-leather-grain-01",
@@ -1971,6 +2031,18 @@
       "w": 891,
       "h": 891,
       "ratio": 1
+    },
+    {
+      "id": "sample-bag-product-acrylic-keyrings-14",
+      "kind": "sample",
+      "category": "bag",
+      "type": "product",
+      "label": "acrylic-keyrings",
+      "file": "samples/euchs-sample_bag_product_acrylic-keyrings_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_product_acrylic-keyrings_14.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-bag-product-beige-pumps-07",
@@ -2237,6 +2309,18 @@
       "ratio": 1.3333
     },
     {
+      "id": "sample-bag-scene-keyring-bag-14",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "keyring-bag",
+      "file": "samples/euchs-sample_bag_scene_keyring-bag_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_keyring-bag_14.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-bag-scene-pumps-linen-table-07",
       "kind": "sample",
       "category": "bag",
@@ -2304,6 +2388,18 @@
       "label": "socks-flatlay",
       "file": "samples/euchs-sample_bag_scene_socks-flatlay_11.webp",
       "thumb": "samples/thumbs/euchs-sample_bag_scene_socks-flatlay_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-bag-scene-stationery-flatlay-14",
+      "kind": "sample",
+      "category": "bag",
+      "type": "scene",
+      "label": "stationery-flatlay",
+      "file": "samples/euchs-sample_bag_scene_stationery-flatlay_14.webp",
+      "thumb": "samples/thumbs/euchs-sample_bag_scene_stationery-flatlay_14.webp",
       "w": 783,
       "h": 1044,
       "ratio": 1.3333
@@ -2465,6 +2561,54 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-camping-detail-lantern-glow-01",
+      "kind": "sample",
+      "category": "camping",
+      "type": "detail",
+      "label": "lantern-glow",
+      "file": "samples/euchs-sample_camping_detail_lantern-glow_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_camping_detail_lantern-glow_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-camping-hand-campfire-coffee-01",
+      "kind": "sample",
+      "category": "camping",
+      "type": "hand",
+      "label": "campfire-coffee",
+      "file": "samples/euchs-sample_camping_hand_campfire-coffee_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_camping_hand_campfire-coffee_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-camping-product-lantern-table-01",
+      "kind": "sample",
+      "category": "camping",
+      "type": "product",
+      "label": "lantern-table",
+      "file": "samples/euchs-sample_camping_product_lantern-table_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_camping_product_lantern-table_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-camping-scene-forest-tent-01",
+      "kind": "sample",
+      "category": "camping",
+      "type": "scene",
+      "label": "forest-tent",
+      "file": "samples/euchs-sample_camping_scene_forest-tent_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_camping_scene_forest-tent_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-digital-detail-bluetooth-speaker-07",
       "kind": "sample",
       "category": "digital",
@@ -2537,6 +2681,18 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-food-detail-apple-droplets-10",
+      "kind": "sample",
+      "category": "food",
+      "type": "detail",
+      "label": "apple-droplets",
+      "file": "samples/euchs-sample_food_detail_apple-droplets_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_detail_apple-droplets_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-food-detail-cookie-07",
       "kind": "sample",
       "category": "food",
@@ -2549,6 +2705,66 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-food-detail-croaker-skin-09",
+      "kind": "sample",
+      "category": "food",
+      "type": "detail",
+      "label": "croaker-skin",
+      "file": "samples/euchs-sample_food_detail_croaker-skin_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_detail_croaker-skin_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-food-detail-roasted-beans-11",
+      "kind": "sample",
+      "category": "food",
+      "type": "detail",
+      "label": "roasted-beans",
+      "file": "samples/euchs-sample_food_detail_roasted-beans_11.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_detail_roasted-beans_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-food-hand-fish-packing-09",
+      "kind": "sample",
+      "category": "food",
+      "type": "hand",
+      "label": "fish-packing",
+      "file": "samples/euchs-sample_food_hand_fish-packing_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_hand_fish-packing_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-food-hand-fruit-box-packing-10",
+      "kind": "sample",
+      "category": "food",
+      "type": "hand",
+      "label": "fruit-box-packing",
+      "file": "samples/euchs-sample_food_hand_fruit-box-packing_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_hand_fruit-box-packing_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-food-hand-pour-over-11",
+      "kind": "sample",
+      "category": "food",
+      "type": "hand",
+      "label": "pour-over",
+      "file": "samples/euchs-sample_food_hand_pour-over_11.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_hand_pour-over_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-food-hand-traditional-tea-08",
       "kind": "sample",
       "category": "food",
@@ -2559,6 +2775,42 @@
       "w": 835,
       "h": 1044,
       "ratio": 1.2503
+    },
+    {
+      "id": "sample-food-product-coffee-bean-bag-11",
+      "kind": "sample",
+      "category": "food",
+      "type": "product",
+      "label": "coffee-bean-bag",
+      "file": "samples/euchs-sample_food_product_coffee-bean-bag_11.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_product_coffee-bean-bag_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-food-product-dried-yellow-croaker-09",
+      "kind": "sample",
+      "category": "food",
+      "type": "product",
+      "label": "dried-yellow-croaker",
+      "file": "samples/euchs-sample_food_product_dried-yellow-croaker_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_product_dried-yellow-croaker_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-food-product-fruit-basket-10",
+      "kind": "sample",
+      "category": "food",
+      "type": "product",
+      "label": "fruit-basket",
+      "file": "samples/euchs-sample_food_product_fruit-basket_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_product_fruit-basket_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-food-product-mixed-nuts-03",
@@ -2597,6 +2849,18 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-food-scene-apple-pear-board-10",
+      "kind": "sample",
+      "category": "food",
+      "type": "scene",
+      "label": "apple-pear-board",
+      "file": "samples/euchs-sample_food_scene_apple-pear-board_10.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_scene_apple-pear-board_10.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-food-scene-coffee-bean-bag-06",
       "kind": "sample",
       "category": "food",
@@ -2607,6 +2871,30 @@
       "w": 835,
       "h": 1044,
       "ratio": 1.2503
+    },
+    {
+      "id": "sample-food-scene-coffee-bean-scoop-11",
+      "kind": "sample",
+      "category": "food",
+      "type": "scene",
+      "label": "coffee-bean-scoop",
+      "file": "samples/euchs-sample_food_scene_coffee-bean-scoop_11.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_scene_coffee-bean-scoop_11.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-food-scene-dried-anchovy-bowls-09",
+      "kind": "sample",
+      "category": "food",
+      "type": "scene",
+      "label": "dried-anchovy-bowls",
+      "file": "samples/euchs-sample_food_scene_dried-anchovy-bowls_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_food_scene_dried-anchovy-bowls_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-food-scene-fruit-gift-box-04",
@@ -2633,6 +2921,18 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-gift-detail-bojagi-knot-09",
+      "kind": "sample",
+      "category": "gift",
+      "type": "detail",
+      "label": "bojagi-knot",
+      "file": "samples/euchs-sample_gift_detail_bojagi-knot_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_gift_detail_bojagi-knot_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-gift-detail-bojagi-wrap-07",
       "kind": "sample",
       "category": "gift",
@@ -2645,6 +2945,18 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-gift-hand-gift-giving-09",
+      "kind": "sample",
+      "category": "gift",
+      "type": "hand",
+      "label": "gift-giving",
+      "file": "samples/euchs-sample_gift_hand_gift-giving_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_gift_hand_gift-giving_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-gift-hand-hanji-box-08",
       "kind": "sample",
       "category": "gift",
@@ -2655,6 +2967,18 @@
       "w": 835,
       "h": 1044,
       "ratio": 1.2503
+    },
+    {
+      "id": "sample-gift-product-bojagi-gift-box-09",
+      "kind": "sample",
+      "category": "gift",
+      "type": "product",
+      "label": "bojagi-gift-box",
+      "file": "samples/euchs-sample_gift_product_bojagi-gift-box_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_gift_product_bojagi-gift-box_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-gift-product-dried-persimmon-set-03",
@@ -2705,6 +3029,18 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-gift-scene-lacquer-gift-box-09",
+      "kind": "sample",
+      "category": "gift",
+      "type": "scene",
+      "label": "lacquer-gift-box",
+      "file": "samples/euchs-sample_gift_scene_lacquer-gift-box_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_gift_scene_lacquer-gift-box_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-gift-scene-nut-gift-set-06",
       "kind": "sample",
       "category": "gift",
@@ -2739,6 +3075,30 @@
       "w": 835,
       "h": 1044,
       "ratio": 1.2503
+    },
+    {
+      "id": "sample-health-detail-omega-capsule-09",
+      "kind": "sample",
+      "category": "health",
+      "type": "detail",
+      "label": "omega-capsule",
+      "file": "samples/euchs-sample_health_detail_omega-capsule_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_health_detail_omega-capsule_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-health-hand-morning-supplement-09",
+      "kind": "sample",
+      "category": "health",
+      "type": "hand",
+      "label": "morning-supplement",
+      "file": "samples/euchs-sample_health_hand_morning-supplement_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_health_hand_morning-supplement_09.webp",
+      "w": 600,
+      "h": 800,
+      "ratio": 1.3333
     },
     {
       "id": "sample-health-hand-powder-scoop-08",
@@ -2789,6 +3149,18 @@
       "ratio": 1.2503
     },
     {
+      "id": "sample-health-product-supplement-bottle-09",
+      "kind": "sample",
+      "category": "health",
+      "type": "product",
+      "label": "supplement-bottle",
+      "file": "samples/euchs-sample_health_product_supplement-bottle_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_health_product_supplement-bottle_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
       "id": "sample-health-scene-gift-box-06",
       "kind": "sample",
       "category": "health",
@@ -2823,6 +3195,66 @@
       "w": 835,
       "h": 1044,
       "ratio": 1.2503
+    },
+    {
+      "id": "sample-health-scene-tablets-herbs-09",
+      "kind": "sample",
+      "category": "health",
+      "type": "scene",
+      "label": "tablets-herbs",
+      "file": "samples/euchs-sample_health_scene_tablets-herbs_09.webp",
+      "thumb": "samples/thumbs/euchs-sample_health_scene_tablets-herbs_09.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-interior-detail-ceramic-glaze-01",
+      "kind": "sample",
+      "category": "interior",
+      "type": "detail",
+      "label": "ceramic-glaze",
+      "file": "samples/euchs-sample_interior_detail_ceramic-glaze_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_interior_detail_ceramic-glaze_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-interior-hand-candle-lighting-01",
+      "kind": "sample",
+      "category": "interior",
+      "type": "hand",
+      "label": "candle-lighting",
+      "file": "samples/euchs-sample_interior_hand_candle-lighting_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_interior_hand_candle-lighting_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-interior-product-dried-flower-vase-01",
+      "kind": "sample",
+      "category": "interior",
+      "type": "product",
+      "label": "dried-flower-vase",
+      "file": "samples/euchs-sample_interior_product_dried-flower-vase_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_interior_product_dried-flower-vase_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
+    },
+    {
+      "id": "sample-interior-scene-floating-shelf-01",
+      "kind": "sample",
+      "category": "interior",
+      "type": "scene",
+      "label": "floating-shelf",
+      "file": "samples/euchs-sample_interior_scene_floating-shelf_01.webp",
+      "thumb": "samples/thumbs/euchs-sample_interior_scene_floating-shelf_01.webp",
+      "w": 783,
+      "h": 1044,
+      "ratio": 1.3333
     },
     {
       "id": "sample-kitchen-detail-tumbler-07",
