@@ -30,6 +30,7 @@ import { currentUser, checkUserRole, userRole, verifyUserSession } from '../lib/
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 import { AUTH_REDIRECT_KEY, isSafeRedirectPath, isStudioProtectedPath, isStudioPath } from '../lib/authRedirect'
 import { checkStudioAccess, studioNoAccessOpen } from '../lib/studioAccess'
+import '../lib/studioCafe24Launch' // 카페24 App URL 쿼리 원문을 라우터가 주소를 다시 쓰기 전에 적어 둔다 (hmac 확인용)
 
 // 스튜디오(/studio) 노출 스위치 — off(기본) / admin / all
 // 빌드 시점에 값이 고정된다(재배포해야 바뀜). off면 라우트를 등록하지 않아 /studio는 catch-all로 / 에 간다.

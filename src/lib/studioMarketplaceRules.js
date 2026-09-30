@@ -3,7 +3,7 @@
  */
 
 // 우리 쪽 준비 문제 — 고객에게는 "지금은 연결할 수 없어요…" 한 줄만, 빨간 경고로 띄우지 않는다 (원인은 서버 로그)
-export const NOT_READY_CODES = ['marketplace_sql_missing', 'enc_not_ready', 'relay_not_configured', 'relay_unreachable', 'relay_denied']
+export const NOT_READY_CODES = ['marketplace_sql_missing', 'enc_not_ready', 'relay_not_configured', 'relay_unreachable', 'relay_denied', 'cafe24_not_ready']
 export const isNotReady = code => NOT_READY_CODES.includes(code)
 
 // 고객이 Wing에서 직접 고칠 수 있는 오류 — 문구 옆에 [연결 방법 보기]를 붙인다
@@ -38,7 +38,7 @@ export const MARKETS = [
   { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'planned' },
   { key: 'ably', name: '에이블리', soon: true, connect: 'planned' }, // 판매자 API 토큰은 있지만 공개 API 문서가 없어 주소·인증을 확인할 수 없음 (S3-3 조사)
   { key: 'zigzag', name: '지그재그', soon: true, connect: 'planned' },
-  { key: 'cafe24', name: '카페24', soon: true, connect: 'key' }, // 2026-09-30 S3-3 — 고객이 만든 카페24 앱(Client ID·Secret) + 동의 화면
+  { key: 'cafe24', name: '카페24', soon: true, connect: 'key' }, // 2026-09-30 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 카페24 동의 화면
   { key: 'makeshop', name: '메이크샵', soon: true, connect: 'planned' },
   { key: 'godomall', name: '고도몰', soon: true, connect: 'planned' },
 ]
@@ -47,18 +47,16 @@ export const PLANNED_MARKETS = MARKETS.filter(m => m.connect === 'planned').map(
 export const PLANNED_LABEL = '예정'
 
 /**
- * 카페24 입력 검사 — 쇼핑몰 ID(영문 소문자·숫자 — 서버 api/_cafe24.js isMallId와 같은 식)·Client ID·Client Secret(공백 없는 8~200자)
+ * 카페24 입력 검사 — 우리 앱 방식이라 고객이 넣는 값은 쇼핑몰 ID 하나 (영문 소문자·숫자 — 서버 api/_cafe24.js isMallId·normalizeMallId와 같은 식)
  */
-export function cafe24KeyProblems({ mallId = '', clientId = '', clientSecret = '' } = {}) {
-  const out = []
-  const mall = String(mallId || '').trim().toLowerCase().replace(/\.cafe24\.com.*$/, '').replace(/^https?:\/\//, '')
-  if (!/^[a-z0-9]{3,20}$/.test(mall)) out.push('쇼핑몰 ID')
-  if (!/^[\x21-\x7e]{8,200}$/.test(String(clientId || '').trim())) out.push('Client ID')
-  if (!/^[\x21-\x7e]{8,200}$/.test(String(clientSecret || '').trim())) out.push('Client Secret')
-  return out
-}
+export const normalizeCafe24MallId = s => String(s || '').trim().toLowerCase().replace(/\.cafe24\.com.*$/, '').replace(/^https?:\/\//, '')
+export const cafe24MallProblems = ({ mallId = '' } = {}) => (/^[a-z0-9]{3,20}$/.test(normalizeCafe24MallId(mallId)) ? [] : ['쇼핑몰 ID'])
 /** 연결 탭에 돌아온 주소가 카페24 동의 결과인지 (?code=&state=c24.… 또는 ?error=&state=c24.…) — 구글·카카오 로그인의 ?code=와 구분 */
 export const isCafe24Return = q => typeof q?.state === 'string' && q.state.startsWith('c24.') && (typeof q.code === 'string' || typeof q.error === 'string')
+/** 쇼핑몰 관리자에서 우리 앱을 열어 App URL로 들어왔는지 (?mall_id=…&timestamp=…&hmac=…) */
+export const isCafe24Launch = q => typeof q?.hmac === 'string' && typeof q?.mall_id === 'string'
+/** App URL로 붙어 오는 칸 — 확인을 시작하면 주소에서 뗀다 (예: lang·mall_id·nation·shop_no·timestamp·user_id·user_name·user_type·hmac) */
+export const CAFE24_LAUNCH_KEYS = ['lang', 'mall_id', 'nation', 'shop_no', 'timestamp', 'user_id', 'user_name', 'user_type', 'is_multi_shop', 'hmac']
 /**
  * 스마트스토어 키 입력 검사 — 애플리케이션 ID(공백 없음 4~200자)·시크릿(bcrypt salt 모양 "$2a$…" — 서버 api/_smartstore.js isBcryptSalt와 같은 식)
  */

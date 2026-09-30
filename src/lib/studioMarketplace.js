@@ -48,7 +48,10 @@ export const connectElevenst = (form) => call('connect_11st', form)
 export const disconnectElevenst = () => call('disconnect_11st')
 export const connectSmartstore = (form) => call('connect_smartstore', form)
 export const disconnectSmartstore = () => call('disconnect_smartstore')
-export const beginCafe24 = (form) => call('cafe24_begin', form)          // → { authorizeUrl } (카페24 동의 화면)
+// 카페24 = 우리 앱 방식 — 고객은 쇼핑몰 ID만. origin = 돌아오는 주소(www/비www 중 등록된 것)를 서버가 고르는 재료
+const pageOrigin = () => (typeof window !== 'undefined' ? window.location.origin : '')
+export const beginCafe24 = (mallId) => call('cafe24_begin', { mall_id: mallId, origin: pageOrigin() })   // → { authorizeUrl } (카페24 동의 화면)
+export const launchCafe24 = (query) => call('cafe24_launch', { query, origin: pageOrigin() })           // 쇼핑몰 관리자에서 앱을 열었을 때 — 쿼리 원문(hmac 확인) → { mallId, authorizeUrl }
 export const finishCafe24 = (code, state) => call('cafe24_finish', { code, state })
 export const disconnectCafe24 = () => call('disconnect_cafe24')
 

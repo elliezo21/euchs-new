@@ -870,49 +870,83 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       eq('화면: 카드 = 관문 · 시크릿은 password 칸 · ID 끝 4자리만 · 연결 탭에 카드', [/await studioGate\('\/studio\/channels\/connect\?link=smartstore'\)/.test(ssCard), /type="password"[^>]*data-mk-ss-f-secret/.test(ssCard), /•••• \{\{ acc\.key_last4 \}\}/.test(ssCard), /<StudioSmartstoreCard \/>/.test(mkView)], [true, true, true, true])
       eq('보내기 탭: 스마트스토어 연결되면 "연결됨"(보내기 없음)', R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, 'linked')
     }
-    // ── 카페24 — 고객이 만든 앱 + 동의 화면 (2026-09-30 S3-3, 가짜 응답만) ──
+    // ── 카페24 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 동의 화면 (2026-09-30 앱 방식, 가짜 응답만) ──
     {
       const K = await import('../api/_cafe24.js')
-      const c24 = read('api/_cafe24.js'), c24Card = read('src/components/studio/StudioCafe24Card.vue')
+      const L = await import('../src/lib/studioCafe24Launch.js')
+      const c24 = read('api/_cafe24.js'), c24Card = read('src/components/studio/StudioCafe24Card.vue'), appSql = read('docs/sql/2026-09-30-cafe24-app-mode.sql')
       const ENC = Buffer.alloc(32, 7), UID = '11111111-2222-3333-4444-555555555555', NOW = 1790000000
-      eq('돌아오는 주소 = 운영 도메인 연결 탭 · 가이드와 서버가 같은 값 · 가이드에 그대로 적힘', [K.CAFE24_REDIRECT_URI, G.CAFE24_REDIRECT_URI === K.CAFE24_REDIRECT_URI, G.CAFE24_GUIDE.some(s => s.includes(K.CAFE24_REDIRECT_URI))], ['https://www.euchs.co.kr/studio/channels/connect', true, true])
-      const au = new URL(K.authorizeUrl({ mallId: 'myshop', clientId: 'CID12345', state: 'c24.x' }))
-      eq('동의 주소 = 공식 형식 · 권한 3개(공백 구분) · 주소에 시크릿 없음', [au.origin + au.pathname, au.searchParams.get('response_type'), au.searchParams.get('client_id'), au.searchParams.get('redirect_uri'), au.searchParams.get('scope'), au.searchParams.get('state')], ['https://myshop.cafe24api.com/api/v2/oauth/authorize', 'code', 'CID12345', K.CAFE24_REDIRECT_URI, 'mall.read_product mall.write_product mall.read_category', 'c24.x'])
-      let hostErr = ''
+      eq('돌아오는 주소 = 등록한 두 값(www·비www) · 가이드와 서버가 같은 값(www) · 접속 도메인에 맞춰 고름', [K.CAFE24_REDIRECT_URIS, G.CAFE24_REDIRECT_URI === K.CAFE24_REDIRECT_URI, K.redirectKeyFor('https://www.euchs.co.kr'), K.redirectKeyFor('https://euchs.co.kr'), K.redirectKeyFor('https://euchs.co.kr/'), K.redirectKeyFor('http://localhost:5176'), K.redirectKeyFor(undefined)], [{ w: 'https://www.euchs.co.kr/studio/channels/connect', a: 'https://euchs.co.kr/studio/channels/connect' }, true, 'w', 'a', 'a', 'w', 'w'])
+      eq('앱 값 = 서버 환경변수 CAFE24_CLIENT_ID·SECRET에서만 · 없으면 null', [K.appCredentials({ CAFE24_CLIENT_ID: ' CID ', CAFE24_CLIENT_SECRET: 'SEC' }), K.appCredentials({ CAFE24_CLIENT_ID: 'CID' }), K.appCredentials({})], [{ clientId: 'CID', clientSecret: 'SEC' }, null, null])
+      const au = new URL(K.authorizeUrl({ mallId: 'myshop', clientId: 'CID12345', state: 'c24.x', redirectUri: K.CAFE24_REDIRECT_URIS.a }))
+      eq('동의 주소 = 공식 형식 · 권한 3개(공백 구분) · 주소에 시크릿 없음 · 고른 돌아오는 주소 그대로', [au.origin + au.pathname, au.searchParams.get('response_type'), au.searchParams.get('client_id'), au.searchParams.get('redirect_uri'), au.searchParams.get('scope'), au.searchParams.get('state')], ['https://myshop.cafe24api.com/api/v2/oauth/authorize', 'code', 'CID12345', 'https://euchs.co.kr/studio/channels/connect', 'mall.read_product mall.write_product mall.read_category', 'c24.x'])
+      let hostErr = '', redirErr = false
       try { K.authorizeUrl({ mallId: 'evil.com/x', clientId: 'a', state: 's' }) } catch (e) { hostErr = e.code }
-      eq('쇼핑몰 ID = 영문 소문자·숫자만 (주소 조작 막음) · 입력 정리', [hostErr, K.isMallId('myshop01'), K.isMallId('My-Shop'), K.normalizeMallId(' MyShop.cafe24.com/admin '), K.normalizeMallId('https://myshop.cafe24.com')], ['invalid_input', true, false, 'myshop', 'myshop'])
-      const st = K.makeState(ENC, UID, NOW)
-      eq('state: 이 사용자·10분 안만 통과 · 다른 사용자·만료·위조·다른 키는 거절 · c24. 로 시작', [st.startsWith('c24.'), K.verifyState(ENC, st, UID, NOW + 60), K.verifyState(ENC, st, '99999999-2222-3333-4444-555555555555', NOW), K.verifyState(ENC, st, UID, NOW + 601), K.verifyState(ENC, st.slice(0, -2) + 'AA', UID, NOW), K.verifyState(Buffer.alloc(32, 8), st, UID, NOW), K.verifyState(ENC, '', UID, NOW)], [true, true, false, false, false, false, false])
+      try { K.authorizeUrl({ mallId: 'myshop', clientId: 'a', state: 's', redirectUri: 'https://evil.example/cb' }) } catch { redirErr = true }
+      eq('쇼핑몰 ID = 영문 소문자·숫자만 (주소 조작 막음) · 입력 정리 · 등록 안 된 돌아오는 주소는 안 만듦', [hostErr, redirErr, K.isMallId('myshop01'), K.isMallId('My-Shop'), K.normalizeMallId(' MyShop.cafe24.com/admin '), K.normalizeMallId('https://myshop.cafe24.com')], ['invalid_input', true, true, false, 'myshop', 'myshop'])
+      const st = K.makeState(ENC, UID, 'myshop', 'a', NOW)
+      eq('state: 쇼핑몰 ID·돌아오는 주소를 담고 서명 · 이 사용자·10분 안만 · 다른 사용자·만료·위조(쇼핑몰 바꿔치기 포함)·다른 키는 거절', [st.startsWith('c24.'), K.verifyState(ENC, st, UID, NOW + 60), K.verifyState(ENC, st, '99999999-2222-3333-4444-555555555555', NOW), K.verifyState(ENC, st, UID, NOW + 601), K.verifyState(ENC, st.slice(0, -2) + 'AA', UID, NOW), K.verifyState(ENC, st.replace('.myshop.', '.evilshop.'), UID, NOW), K.verifyState(Buffer.alloc(32, 8), st, UID, NOW), K.verifyState(ENC, '', UID, NOW)], [true, { mallId: 'myshop', redirectUri: 'https://euchs.co.kr/studio/channels/connect' }, null, null, null, null, null, null])
+      // App URL hmac — 쿼리 원문에서 hmac 칸만 빼고 Client Secret으로 HMAC-SHA256 → base64
+      const SEC = 'APPSECRET9'
+      const body = `lang=ko_KR&mall_id=myshop&nation=KR&shop_no=1&timestamp=${NOW}&user_id=myshop&user_name=%EB%8C%80%ED%91%9C%20%EA%B4%80%EB%A6%AC%EC%9E%90&user_type=P`
+      const sig = crypto.createHmac('sha256', SEC).update(body).digest('base64')
+      const good = `${body}&hmac=${encodeURIComponent(sig)}`
+      eq('App URL hmac: 맞으면 쇼핑몰 ID · 틀린 서명·다른 시크릿·칸 바꿔치기·시각 지남·hmac 없음·쇼핑몰 ID 이상 = 거절', [
+        K.verifyLaunch(SEC, good, NOW + 10), K.verifyLaunch(SEC, `?${good}`, NOW), K.verifyLaunch(SEC, `${body}&hmac=${sig}`, NOW).ok,
+        K.verifyLaunch('OTHER', good, NOW).reason, K.verifyLaunch(SEC, good.replace('mall_id=myshop', 'mall_id=evilshop'), NOW).reason,
+        K.verifyLaunch(SEC, good, NOW + 3 * 3600).reason, K.verifyLaunch(SEC, body, NOW).reason, K.verifyLaunch(SEC, good.replace('mall_id=myshop', 'mall_id=a.b'), NOW).reason, K.verifyLaunch('', good, NOW).reason,
+      ], [{ ok: true, mallId: 'myshop' }, { ok: true, mallId: 'myshop' }, true, 'bad_hmac', 'bad_hmac', 'bad_time', 'no_hmac', 'bad_mall', 'no_hmac'])
+      // 쿼리 원문 붙잡기 — 라우터가 주소를 다시 쓰기 전에
+      const mem = () => { const m = new Map(); return { getItem: k => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: k => m.delete(k) } }
+      const s1 = mem(), s2 = mem()
+      const cap = [L.captureCafe24Launch({ pathname: '/studio/channels/connect', search: `?${good}` }, s1), L.captureCafe24Launch({ pathname: '/studio/channels/connect', search: '?code=a&state=c24.x' }, s2), L.captureCafe24Launch({ pathname: '/mall', search: `?${good}` }, s2)]
+      eq('App URL 원문 붙잡기: 연결 탭 + hmac·mall_id일 때만 · 원문 그대로 한 번만 꺼냄 · 30분 지나면 버림', [cap, L.hasCafe24Launch(s1), L.takeCafe24Launch(s1) === good, L.takeCafe24Launch(s1), (L.captureCafe24Launch({ pathname: '/studio/channels/connect', search: `?${good}` }, s2), L.takeCafe24Launch(s2, Date.now() + 31 * 60000))], [[true, false, false], true, true, null, null])
+      eq('라우터가 만들어지기 전에 붙잡음 (router/index.js가 먼저 불러옴)', /import '\.\.\/lib\/studioCafe24Launch'/.test(read('src/router/index.js')), true)
       const calls = []
       const fake = (status, text) => async (url, opt) => { calls.push({ url, opt }); return { ok: status < 400, status, text: async () => text } }
       const OK = JSON.stringify({ access_token: 'AT', expires_at: '2026-10-01T14:00:00.000', refresh_token: 'RT', refresh_token_expires_at: '2026-10-15T12:00:00.000', client_id: 'CID12345', mall_id: 'myshop', user_id: 'u', scopes: ['mall.read_product', 'mall.write_product', 'mall.read_category'], issued_at: '2026-10-01T12:00:00.000', shop_no: '1' })
       const base = { mallId: 'myshop', clientId: 'CID12345', clientSecret: 'SECRET999', breakerKey: 'ok' }
-      const tok = await K.exchangeCode({ ...base, fetchImpl: fake(200, OK) }, 'CODE1')
+      const tok = await K.exchangeCode({ ...base, fetchImpl: fake(200, OK) }, 'CODE1', K.CAFE24_REDIRECT_URIS.a)
       const b1 = new URLSearchParams(calls[0].opt.body)
-      eq('코드 교환(가짜 응답): 공식 주소 · Basic(client_id:secret) · form · 시크릿은 본문에 없음 · 시각은 한국 시각으로 읽음', [calls[0].url, calls[0].opt.method, calls[0].opt.headers.Authorization, calls[0].opt.headers['Content-Type'], [...b1.entries()], calls[0].opt.body.includes('SECRET999'), tok.accessToken, tok.refreshToken, tok.accessExpiresAt, tok.refreshExpiresAt, tok.mallId, K.missingScopes(tok.scopes)], ['https://myshop.cafe24api.com/api/v2/oauth/token', 'POST', `Basic ${Buffer.from('CID12345:SECRET999').toString('base64')}`, 'application/x-www-form-urlencoded', [['grant_type', 'authorization_code'], ['code', 'CODE1'], ['redirect_uri', K.CAFE24_REDIRECT_URI]], false, 'AT', 'RT', '2026-10-01T05:00:00.000Z', '2026-10-15T03:00:00.000Z', 'myshop', []])
+      eq('코드 교환(가짜 응답): 공식 주소 · Basic(우리 client_id:secret) · form · 동의 때와 같은 돌아오는 주소 · 시크릿은 본문에 없음 · 시각은 한국 시각으로 읽음', [calls[0].url, calls[0].opt.method, calls[0].opt.headers.Authorization, calls[0].opt.headers['Content-Type'], [...b1.entries()], calls[0].opt.body.includes('SECRET999'), tok.accessToken, tok.refreshToken, tok.accessExpiresAt, tok.refreshExpiresAt, tok.mallId, K.missingScopes(tok.scopes)], ['https://myshop.cafe24api.com/api/v2/oauth/token', 'POST', `Basic ${Buffer.from('CID12345:SECRET999').toString('base64')}`, 'application/x-www-form-urlencoded', [['grant_type', 'authorization_code'], ['code', 'CODE1'], ['redirect_uri', 'https://euchs.co.kr/studio/channels/connect']], false, 'AT', 'RT', '2026-10-01T05:00:00.000Z', '2026-10-15T03:00:00.000Z', 'myshop', []])
       await K.refreshAccess({ ...base, breakerKey: 'rf', fetchImpl: fake(200, OK) }, 'RT-OLD')
       eq('갱신 = grant_type refresh_token + 예전 refresh 토큰 (새 토큰을 받는다)', [...new URLSearchParams(calls[1].opt.body).entries()], [['grant_type', 'refresh_token'], ['refresh_token', 'RT-OLD']])
-      const codes = []
+      const codes = [], msgs = []
       for (const [s, t, k] of [[401, '{"error":"invalid_client"}', 'a'], [400, '{"error":"invalid_grant","error_description":"code expired"}', 'b'], [400, '{"error":"invalid_request","error_description":"redirect_uri mismatch"}', 'c'], [200, '{"access_token":"x"}', 'd'], [429, '', 'e'], [503, '', 'f']]) {
-        try { await K.exchangeCode({ ...base, breakerKey: k, fetchImpl: fake(s, t) }, 'C') } catch (e) { codes.push(e.code) }
+        try { await K.exchangeCode({ ...base, breakerKey: k, fetchImpl: fake(s, t) }, 'C') } catch (e) { codes.push(e.code); msgs.push(e.message) }
       }
       let down = ''
       try { await K.exchangeCode({ ...base, breakerKey: 'g', fetchImpl: async () => { throw new Error('down') } }, 'C') } catch (e) { down = e.code }
-      eq('토큰 오류: 키 틀림 · 동의 시간 지남 · 돌아오는 주소 다름 · 응답 모양 이상 · 너무 잦음 · 장애 · 끊김', [...codes, down], ['bad_key', 'code_expired', 'bad_redirect', 'market_bad_json', 'rate_limited', 'market_server', 'market_unreachable'])
+      eq('토큰 오류: 우리 앱 값·돌아오는 주소 문제 = "잠시 후 다시"(고객 문구에 Client ID·Secret·주소 없음) · 동의 시간 지남 · 응답 모양 이상 · 너무 잦음 · 장애 · 끊김', [[...codes, down], msgs[0], msgs[2], msgs.some(m => /Client|Secret|Redirect|cafe24api/i.test(m))], [['cafe24_not_ready', 'code_expired', 'cafe24_not_ready', 'market_bad_json', 'rate_limited', 'market_server', 'market_unreachable'], C.NOT_READY_MESSAGE, C.NOT_READY_MESSAGE, false])
       eq('권한이 빠지면 목록 · 갱신 시점 = refresh 만료 7일 안(지난 건 아님)', [K.missingScopes(['mall.read_product']), K.needsRefresh(new Date(Date.now() + 3 * 86400000).toISOString()), K.needsRefresh(new Date(Date.now() + 10 * 86400000).toISOString()), K.needsRefresh(new Date(Date.now() - 1000).toISOString())], [['mall.write_product', 'mall.read_category'], true, false, false])
-      eq('카페24 = 중계 안 거침(IP 제한 없음) · 같은 브레이커 · 토큰은 로그에서 가림', [/relayUrl|x-relay-secret/.test(c24), /breakerFor\(`cafe24:/.test(c24), /"\$1":"\[가림\]"/.test(c24)], [false, true, true])
-      eq('서버: 앱 값·토큰 모두 암호화 · 동의 전 pending · 상태 응답에 쇼핑몰 ID·끝 4자리만', [
-        /market: CAFE24, seller_login_id: mallId, vendor_id: null,\s*access_key_enc: encryptSecret\(id, encKey\), secret_key_enc: encryptSecret\(secret, encKey\)/.test(api),
-        /status: 'pending'/.test(api), /oauth_enc: encryptSecret\(JSON\.stringify\(\{ access_token: tok\.accessToken, refresh_token: tok\.refreshToken \}\), encKey\)/.test(api),
-        /const CAFE24_PUBLIC = 'seller_login_id,key_last4,status,expires_at,last_checked_at,last_error,created_at'/.test(api),
-        /oauth_enc|secret_key_enc|access_key_enc/.test(/function cafe24Public[\s\S]*?\n\}/.exec(api)[0]),
-        /if \(!verifyState\(encKey, body\.state, ctx\.userId\)\)/.test(api), /missingScopes\(tok\.scopes\)/.test(api), /tok\.mallId !== cred\.call\.mallId/.test(api),
-      ], [true, true, true, true, false, true, true, true])
-      eq('SQL: 토큰 칸 · pending · 카페24 필수 칸 체크 · 되돌리기에 칸 삭제', [/add column oauth_enc text check \(oauth_enc is null or oauth_enc like 'v1:%'\)/.test(sql), /add column access_expires_at timestamptz/.test(sql), /status in \('connected', 'invalid', 'expired', 'pending'\)/.test(sql), /check \(market <> 'cafe24' or \(secret_key_enc is not null and \(status = 'pending' or \(oauth_enc is not null/.test(sql), /drop column if exists oauth_enc/.test(sql)], [true, true, true, true, true])
-      eq('카페24 입력 검사 · 돌아온 주소 판별(c24. state만 — 로그인 ?code=와 안 섞임)', [R.cafe24KeyProblems({ mallId: 'myshop', clientId: 'CID12345', clientSecret: 'SECRET999' }), R.cafe24KeyProblems({ mallId: 'My Shop', clientId: 'x', clientSecret: '' }), R.isCafe24Return({ code: 'a', state: 'c24.x' }), R.isCafe24Return({ error: 'access_denied', state: 'c24.x' }), R.isCafe24Return({ code: 'a' }), R.isCafe24Return({ code: 'a', state: 'naver' })], [[], ['쇼핑몰 ID', 'Client ID', 'Client Secret'], true, true, false, false])
-      eq('화면: 카드 = 관문 · Secret은 password 칸 · 끝 4자리만 · 돌아오면 code·state를 주소에서 뗌 · 연결 탭에 카드', [/await studioGate\('\/studio\/channels\/connect\?link=cafe24'\)/.test(c24Card), /type="password"[^>]*data-mk-c24-f-secret/.test(c24Card), /•••• \{\{ acc\.key_last4 \}\}/.test(c24Card), /const \{ code, state, error, error_description, \.\.\.rest \} = q\s+router\.replace\(\{ query: rest \}\)/.test(c24Card), /<StudioCafe24Card \/>/.test(mkView)], [true, true, true, true, true])
+      eq('카페24 = 중계 안 거침(IP 제한 없음) · 같은 브레이커 · 토큰은 로그에서 가림 · 앱 값은 환경변수에서만(코드에 값 없음)', [/relayUrl|x-relay-secret/.test(c24), /breakerFor\(`cafe24:/.test(c24), /"\$1":"\[가림\]"/.test(c24), /env\.CAFE24_CLIENT_ID/.test(c24) && /env\.CAFE24_CLIENT_SECRET/.test(c24), /VITE_CAFE24/.test(c24 + api + c24Card)], [false, true, true, true, false])
+      const fin = /async function cafe24Finish[\s\S]*?\n\}/.exec(api)[0], beg = /async function cafe24Begin[\s\S]*?\n\}/.exec(api)[0], lau = /async function cafe24Launch[\s\S]*?\n\}/.exec(api)[0], keep = /async function keepCafe24Alive[\s\S]*?\n\}/.exec(api)[0]
+      eq('서버: 시작은 DB 쓰기 없음 · App URL은 hmac 확인 뒤에만 동의 주소 · 끝낼 때 state 확인·쇼핑몰 대조·권한 확인·토큰만 암호화 저장(고객 앱 값 없음)', [
+        /sb\(/.test(beg), /verifyLaunch\(app\.clientSecret/.test(lau), lau.indexOf('if (!v.ok)') < lau.indexOf('cafe24Authorize('), /'bad_launch'/.test(lau),
+        /const st = verifyState\(encKey, body\.state, ctx\.userId\)/.test(fin), /tok\.mallId !== st\.mallId/.test(fin), /missingScopes\(tok\.scopes\)/.test(fin), /exchangeCode\(\{ mallId: st\.mallId, \.\.\.app, breakerKey: ctx\.userId \}, code, st\.redirectUri\)/.test(api),
+        /access_key_enc: null, secret_key_enc: null/.test(api), /oauth_enc: encryptSecret\(JSON\.stringify\(\{ access_token: tok\.accessToken, refresh_token: tok\.refreshToken \}\), encKey\)/.test(api), /status: 'pending'/.test(api), /clientSecret: decryptSecret/.test(api),
+        /oauth_enc|secret_key_enc|access_key_enc|key_last4/.test(/function cafe24Public[\s\S]*?\n\}/.exec(api)[0]), /2026-09-30-cafe24-app-mode\.sql 실행 필요/.test(fin),
+        /refreshAccess\(\{ mallId: row\.seller_login_id, \.\.\.app/.test(keep), /e\.code === 'code_expired'/.test(keep), /'bad_key'/.test(keep),
+      ], [false, true, true, true, true, true, true, true, true, true, false, false, false, true, true, true, false])
+      eq('서버: 판매처 연결 action에 cafe24_launch (studioGuard 뒤)', [api.includes("body.action === 'cafe24_launch'"), api.indexOf('const ctx = await studioGuard(req, res)') < api.indexOf("body.action === 'cafe24_launch'")], [true, true])
+      eq('SQL(앱 방식): 미실행 · 예전 카페24 규칙·pending 빼기 · 카페24만 access_key_enc 비움 · 토큰 필수·앱 값 없음 · 새 표·GRANT 없음 · 되돌리기', [
+        /상태: 미실행/.test(appSql), /drop constraint if exists marketplace_accounts_cafe24_fields/.test(appSql), /drop constraint if exists marketplace_accounts_pending_cafe24/.test(appSql),
+        /alter column access_key_enc drop not null/.test(appSql), /check \(market = 'cafe24' or access_key_enc is not null\)/.test(appSql),
+        /access_key_enc is null and secret_key_enc is null\s+and oauth_enc is not null and access_expires_at is not null and expires_at is not null/.test(appSql),
+        /status in \('connected', 'invalid', 'expired'\)\);/.test(appSql), /create table|grant /i.test(appSql.replace(/--.*$/gm, '')), /\/\* 되돌리기[\s\S]*alter column access_key_enc set not null/.test(appSql),
+      ], [true, true, true, true, true, true, true, false, true])
+      eq('쇼핑몰 ID 검사(고객 입력은 이것 하나) · 돌아온 주소 판별(c24. state만) · App URL 판별', [R.cafe24MallProblems({ mallId: 'myshop' }), R.cafe24MallProblems({ mallId: 'MyShop.cafe24.com' }), R.cafe24MallProblems({ mallId: 'My Shop' }), 'cafe24KeyProblems' in R, R.isCafe24Return({ code: 'a', state: 'c24.x' }), R.isCafe24Return({ error: 'access_denied', state: 'c24.x' }), R.isCafe24Return({ code: 'a' }), R.isCafe24Return({ code: 'a', state: 'naver' }), R.isCafe24Launch({ mall_id: 'a', hmac: 'x' }), R.isCafe24Launch({ mall_id: 'a' }), R.isNotReady('cafe24_not_ready')], [[], [], ['쇼핑몰 ID'], false, true, true, false, false, true, false, true])
+      eq('화면: 카드 = 관문 · 입력 칸은 쇼핑몰 ID 하나(Client ID·Secret 칸·개발자센터 안내 없음) · 돌아오면 code·state를 주소에서 뗌 · App URL 칸도 뗌 · 연결 탭에 카드', [/await studioGate\('\/studio\/channels\/connect\?link=cafe24'\)/.test(c24Card), (c24Card.match(/<input /g) || []).length, /data-mk-c24-f-mall/.test(c24Card), /Client ID|Client Secret|client_secret|type="password"|개발자센터|CAFE24_GUIDE/.test(c24Card), /const \{ code, state, error, error_description, \.\.\.rest \} = q\s+router\.replace\(\{ query: rest \}\)/.test(c24Card), /for \(const k of CAFE24_LAUNCH_KEYS\) delete rest\[k\]/.test(c24Card), /<StudioCafe24Card \/>/.test(mkView)], [true, 1, true, false, true, true, true])
     }
-    eq('상태 모듈: 로그인 전 안 부름 · 로그아웃이면 비움', [/if \(!currentUser\.value\?\.id\) \{ reset\(\); return \}/.test(read('src/lib/studioMarketLinks.js')), /addEventListener\('euchs-auth-changed', e => \{ reset\(\); if \(e\.detail\?\.user\) loadMarketLinks\(\) \}\)/.test(read('src/lib/studioMarketLinks.js'))], [true, true])
+    {
+      // 연결 탭 깜빡임 (2026-09-30 운영) — auth.js가 같은 사용자로 euchs-auth-changed를 다시 보낼 때(탭 복귀 SIGNED_IN·TOKEN_REFRESHED) 상태를 비우지 않는다
+      const links = read('src/lib/studioMarketLinks.js')
+      eq('상태 모듈: 로그인 전 안 부름 · 로그아웃·다른 사용자면 비움 · 같은 사용자면 비우지 않고 다시 읽기만 · 다시 읽기 실패해도 보여 주던 값 유지', [
+        /if \(!uid\) \{ reset\(\); return \}/.test(links), /addEventListener\('euchs-auth-changed', e => onAuthChangedForLinks\(e\.detail\?\.user\)\)/.test(links),
+        /if \(!uid \|\| uid !== shownUid\) reset\(\)/.test(links), /if \(shownUid && shownUid !== uid\) reset\(\)/.test(links),
+        /addEventListener\('euchs-auth-changed', e => \{ reset\(\);/.test(links), /catch \(e\) \{[\s\S]*?marketLinks\.error = e\.message[\s\S]*?\}/.test(links) && !/catch \(e\) \{[^}]*Object\.assign\(marketLinks, blank\(\)\)/.test(links),
+      ], [true, true, true, true, false, true])
+    }
   }
   const screenText = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
   const customer = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioChannelsView.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/views/studio/StudioChannelSentView.vue', 'src/views/studio/StudioLandingView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioTagChips.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
