@@ -66,8 +66,10 @@
 // 카드를 누르면 편집기와 같은 미리보기 칸 → [이 템플릿으로 시작]: 사진 없이 빈 작업을 만들고(studioProjectBlank) 편집기에서 그 템플릿을 바로 적용.
 //   사진 자리는 예시 사진으로 채워지고("예시" 표시), 사진은 편집기에서 나중에 올려 [내 사진으로 바꾸기]로 넣는다.
 // 로그아웃 구독(CLAUDE.md 2-9): 하트 목록은 studioTemplateFavorites가 비우고, 이 화면은 열린 미리보기를 닫는다.
-import { computed, onMounted, onUnmounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { currentUser } from '@/lib/auth'
+import { studioGate } from '@/lib/studioGate'
 import StudioTemplateCard from '@/components/studio/StudioTemplateCard.vue'
 import StudioTemplatePreview from '@/components/studio/StudioTemplatePreview.vue'
 import { TEMPLATE_CATEGORIES, TEMPLATE_MOODS, TEMPLATE_COLORS, filterTemplates, templateByKey, templateCardTitle } from '@/lib/studioTemplates'
@@ -75,6 +77,7 @@ import { favorites, loadFavorites, toggleFavorite } from '@/lib/studioTemplateFa
 import { createBlankProject } from '@/lib/studioProjectBlank'
 
 const router = useRouter()
+const route = useRoute()
 const TABS = [{ key: 'all', label: '전체 템플릿' }, { key: 'fav', label: '내 보관함' }]
 const CATEGORY_CHIPS = [{ key: 'all', label: '전체' }, ...TEMPLATE_CATEGORIES]
 const MOOD_CHIPS = [{ key: 'all', label: '전체' }, ...TEMPLATE_MOODS]
@@ -105,6 +108,7 @@ async function onFav(key) {
 }
 
 // [이 템플릿으로 시작] = 사진 없이 빈 작업을 만들고(서버 project_blank) 편집기 ?template=key — 편집기가 그 템플릿을 바로 적용한다
+// 누구나 구경하는 화면이라(2026-09-30) 시작할 때만 관문(studioGate): 로그인 전 → 로그인 창, 로그인하면 ?start=key로 돌아와 이어서 시작
 const starting = ref(false)
 async function startWith(key) {
   if (starting.value) return
@@ -112,6 +116,8 @@ async function startWith(key) {
   if (!tpl) return
   starting.value = true
   try {
+    // 막히면 미리보기를 닫는다 — 미리보기 창이 로그인 창·안내 창보다 위에 떠서 가린다
+    if (!(await studioGate(`/studio/templates?start=${encodeURIComponent(key)}`))) { previewKey.value = ''; return }
     const { projectId } = await createBlankProject(templateCardTitle(tpl))
     previewKey.value = ''
     router.push({ name: 'studio-editor', params: { projectId }, query: { template: key } })
@@ -123,6 +129,15 @@ async function startWith(key) {
     starting.value = false
   }
 }
+
+// 로그인 뒤 이어서 — 주소에 ?start=key가 있고 로그인돼 있으면 그 템플릿으로 시작 (한 번 쓰고 주소에서 뗀다)
+watch(() => [route.query.start, currentUser.value?.id], ([key, uid]) => {
+  if (typeof key !== 'string' || !key || !uid) return
+  const { start, ...rest } = route.query
+  router.replace({ query: rest })
+  if (templateByKey(key)) startWith(key)
+  else console.warn('[StudioTemplatesView] 이어서 시작할 템플릿이 없음:', start)
+}, { immediate: true })
 
 const onStudioAuthChanged = (e) => { if (!e.detail?.user) previewKey.value = '' }
 onMounted(() => {

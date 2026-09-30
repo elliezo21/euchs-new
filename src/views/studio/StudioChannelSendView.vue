@@ -1,5 +1,22 @@
 <template>
   <div class="px-4 sm:px-12 py-6 max-w-[1560px] space-y-8" data-ch-send-view>
+    <!-- 로그인 전 (누구나 구경 — 2026-09-30): 판매처 목록만, 내 상품·연결 상태는 부르지 않는다 -->
+    <template v-if="!loggedIn">
+      <StudioLoginNeeded title="만든 상품을 판매처로 바로 보내요" desc="로그인하면 내 상품을 골라 연결한 판매처로 보낼 수 있어요." />
+      <section class="st-card p-5 sm:p-6" data-ch-markets-guest>
+        <h3 class="st-h-card">보낼 수 있는 판매처</h3>
+        <ul class="mt-3 st-border rounded-[10px] st-divide overflow-hidden">
+          <li v-for="r in guestRows" :key="r.key" class="ch-row is-off" :data-ch-market="r.key" data-ch-market-state="locked">
+            <span class="text-[14px] font-bold truncate st-muted">{{ r.name }}</span>
+            <span class="flex-1" />
+            <Lock class="w-3.5 h-3.5 st-muted shrink-0" :stroke-width="2.2" aria-label="연결 전" />
+            <router-link :to="{ name: 'studio-channels-connect' }" class="st-link text-[13px] shrink-0" :data-ch-connect="r.key">연결하기</router-link>
+          </li>
+        </ul>
+      </section>
+    </template>
+
+    <template v-else>
     <!-- 고른 상품 + 판매처 줄 -->
     <section ref="pickedRef" class="st-card p-5 sm:p-6 scroll-mt-6" data-ch-picked>
       <template v-if="picked">
@@ -42,6 +59,7 @@
 
     <!-- 내 상품 — 카드를 눌러 고른다 (판매처별 상태 배지) -->
     <StudioExportList pick :selected-id="selectedId" :sends="sends" @loaded="onLoaded" @select="select" @goto-send="gotoSent" />
+    </template>
 
     <!-- 보내기 창 — 내 작업에 있던 것과 같은 창·같은 진입(sendToMarketplace) 그대로 -->
     <StudioSendModal :open="sendOpen" :prepare="sendPrepare" @close="sendOpen = false" @sent="onSent" />
@@ -58,12 +76,17 @@ import { useRoute, useRouter } from 'vue-router'
 import { Send, Lock } from 'lucide-vue-next'
 import StudioExportList from '@/components/studio/StudioExportList.vue'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
+import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
+import { currentUser } from '@/lib/auth'
+import { studioGate } from '@/lib/studioGate'
 import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
 import { channelRows, sendButtonLabel, withRo, MARKETS } from '@/lib/studioMarketplaceRules'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 
 const route = useRoute()
 const router = useRouter()
+const loggedIn = computed(() => !!currentUser.value?.id)
+const guestRows = channelRows({}) // 로그인 전 — 모두 자물쇠 + [연결하기]
 
 const items = ref([])       // 내 상품 (StudioExportList가 읽은 것)
 const selectedId = ref(typeof route.query.export === 'string' ? route.query.export : '')
@@ -137,6 +160,8 @@ async function openSend(market) {
   opening.value = market
   message.value = ''
   try {
+    // 작업 시작 관문 — 주문 이력이 없으면 안내 창 (서버 API도 같은 자격을 다시 확인한다)
+    if (!(await studioGate(`/studio/channels/send?export=${encodeURIComponent(picked.value.id)}`))) return
     const r = await sendToMarketplace(picked.value.id)
     sendPrepare.value = r.prepare
     sendOpen.value = true
@@ -173,6 +198,7 @@ const onStudioAuthChanged = (e) => {
 }
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
+  if (!loggedIn.value) return // 로그인 전에는 부르지 않는다 (로그인하면 euchs-auth-changed로 읽는다)
   loadStatus()
   loadSends()
 })

@@ -28,7 +28,7 @@ import BuyerCancelledView from '../views/dashboard/BuyerCancelledView.vue'
 import NaverCallbackView from '../views/auth/NaverCallbackView.vue'
 import { currentUser, checkUserRole, userRole, verifyUserSession } from '../lib/auth'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { AUTH_REDIRECT_KEY, isSafeRedirectPath, isStudioProtectedPath } from '../lib/authRedirect'
+import { AUTH_REDIRECT_KEY, isSafeRedirectPath, isStudioProtectedPath, isStudioPath } from '../lib/authRedirect'
 import { checkStudioAccess, studioNoAccessOpen } from '../lib/studioAccess'
 
 // 스튜디오(/studio) 노출 스위치 — off(기본) / admin / all
@@ -40,6 +40,9 @@ const STUDIO_MODE = import.meta.env.VITE_STUDIO_ENABLED || 'off'
 const STUDIO_PROTECTED = STUDIO_MODE === 'admin'
   ? { requiresAdmin: true, requiresAuth: true }
   : { requiresAuth: true }
+// 누구나 구경하는 화면(2026-09-30 — 템플릿·판매처 목록·연결 안내). 작업을 시작하는 버튼만 관문(studioGate)을 거친다.
+// admin 모드(관리자만 공개)에서는 예전처럼 보호 화면 그대로
+const STUDIO_PUBLIC = STUDIO_MODE === 'admin' ? STUDIO_PROTECTED : {}
 
 const studioRoute = {
   path: '/studio',
@@ -61,7 +64,7 @@ const studioRoute = {
       path: 'templates',
       name: 'studio-templates',
       component: () => import('../views/studio/StudioTemplatesView.vue'),
-      meta: { ...STUDIO_PROTECTED, title: '템플릿' }
+      meta: { ...STUDIO_PUBLIC, title: '템플릿' }
     },
     {
       path: 'new',
@@ -79,32 +82,32 @@ const studioRoute = {
       // 판매처 — 탭 4개(자식 라우트, 2026-09-30). 만드는 곳(내 작업)과 보내는 곳(판매처)을 나눈다. 가드는 to.matched를 보므로 자식마다 같은 meta
       path: 'channels',
       component: () => import('../views/studio/StudioChannelsView.vue'),
-      meta: { ...STUDIO_PROTECTED, title: '판매처' },
+      meta: { ...STUDIO_PUBLIC, title: '판매처' },
       children: [
         { path: '', name: 'studio-channels', redirect: { name: 'studio-channels-send' } },
         {
           path: 'send',
           name: 'studio-channels-send',
           component: () => import('../views/studio/StudioChannelSendView.vue'),
-          meta: { ...STUDIO_PROTECTED, title: '판매처로 보내기' }
+          meta: { ...STUDIO_PUBLIC, title: '판매처로 보내기' }
         },
         {
           path: 'sent',
           name: 'studio-channels-sent',
           component: () => import('../views/studio/StudioChannelSentView.vue'),
-          meta: { ...STUDIO_PROTECTED, title: '보낸 상품' }
+          meta: { ...STUDIO_PUBLIC, title: '보낸 상품' }
         },
         {
           path: 'defaults',
           name: 'studio-channels-defaults',
           component: () => import('../views/studio/StudioShippingView.vue'),
-          meta: { ...STUDIO_PROTECTED, title: '판매처 기본 설정' }
+          meta: { ...STUDIO_PUBLIC, title: '판매처 기본 설정' }
         },
         {
           path: 'connect',
           name: 'studio-channels-connect',
           component: () => import('../views/studio/StudioMarketplaceView.vue'),
-          meta: { ...STUDIO_PROTECTED, title: '판매처 연결' }
+          meta: { ...STUDIO_PUBLIC, title: '판매처 연결' }
         }
       ]
     },
@@ -431,12 +434,19 @@ const routes = [
   }
 ]
 
+/** 스튜디오 밖(이름 있는 화면)에서 스튜디오로 들어오는 이동인지 — 첫 진입·스튜디오 안 이동·해시 이동은 아님 */
+const enteringStudio = (to, from) => !to.hash && isStudioPath(to.path) && !!from.name && !isStudioPath(from.path)
+
 const router = createRouter({
   history: createWebHistory(),
   routes,
   scrollBehavior(to, from, savedPosition) {
     if (savedPosition) {
       return savedPosition
+    } else if (enteringStudio(to, from)) {
+      // 다른 페이지(메인·몰)에서 스튜디오로 넘어올 때는 바로 맨 위 (2026-09-30) — html의 scroll-behavior: smooth 때문에
+      // 부드럽게 올라가는 도중 스튜디오 화면이 늦게 그려지며(지연 로딩·모션) 중간에서 멈췄다. 뒤로가기는 위 savedPosition 그대로
+      return { top: 0, behavior: 'instant' }
     } else if (to.hash) {
       return new Promise((resolve) => {
         setTimeout(() => {

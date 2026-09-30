@@ -26,7 +26,7 @@ import AuthModal from './components/AuthModal.vue'
 import OnboardingTour from './components/common/OnboardingTour.vue'
 import { trackVisitor } from './lib/analytics'
 import { openLoginModal } from './lib/auth'
-import { AUTH_REDIRECT_KEY, isPostLoginTarget, loginSuccessDest, oauthReturnDest } from './lib/authRedirect'
+import { AUTH_REDIRECT_KEY, isPostLoginTarget, loginSuccessDest, oauthReturnDest, landedInStudio } from './lib/authRedirect'
 
 const route = useRoute()
 const router = useRouter()
@@ -81,6 +81,14 @@ const handleLoginSuccess = () => {
 const checkOAuthReturnUrl = () => {
   const returnUrl = localStorage.getItem('euchs_oauth_return_url')
   if (!returnUrl) return
+
+  // 스튜디오에서 시작한 로그인은 스튜디오 화면으로 바로 돌아온다(auth.js oauthRedirectTarget) — 착지한 화면이 목적지.
+  // 저장값만 치우고 옮기지 않는다. (route.path는 첫 이동이 끝나기 전이라 '/'로 보이므로 실제 주소를 본다)
+  if (landedInStudio(window.location.pathname)) {
+    localStorage.removeItem('euchs_oauth_return_url')
+    takeSavedRedirect()
+    return
+  }
 
   // returnUrl이 있고 현재 경로가 / 또는 /login이면 → 저장된 보호 화면, 없으면 returnUrl로 이동
   const currentPath = route.path

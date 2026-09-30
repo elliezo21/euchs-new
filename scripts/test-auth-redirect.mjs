@@ -1,6 +1,7 @@
 // 로그인 복귀 주소·세션 만료 판정 테스트 — node scripts/test-auth-redirect.mjs
 import {
   isSafeRedirectPath, isDashboardPath, isPostLoginTarget, loginSuccessDest, oauthReturnDest, dropsRedirectOnClose,
+  isStudioPath, oauthRedirectTarget, landedInStudio,
 } from '../src/lib/authRedirect.js'
 import { shouldClearStaleLocalUser, shouldPromptLoginAfterClear } from '../src/lib/authSession.js'
 
@@ -69,6 +70,15 @@ eq('보호 화면 → 창 띄움',
 eq('공개 화면 → 안 띄움',
   ['/', '/mall', '/mall?q=cup', '/studio', '/guide', '/admin'].map(shouldPromptLoginAfterClear),
   [false, false, false, false, false, false])
+
+// ── 스튜디오에서 시작한 구글·카카오 로그인 → 스튜디오로 바로 (2026-09-30) ──
+const O = 'https://www.euchs.co.kr'
+eq('스튜디오 경로 판정 (대문 포함)', ['/studio', '/studio/templates', '/studio?x=1', '/studios', '/mall', '/'].map(isStudioPath), [true, true, true, false, false, false])
+eq('스튜디오 밖에서 시작 → 예전 그대로 홈', [oauthRedirectTarget(O, '/mall', null), oauthRedirectTarget(O, '/', '/dashboard/orders'), oauthRedirectTarget(O, '/guide', '/studio/projects')], [`${O}/`, `${O}/`, `${O}/`])
+eq('스튜디오에서 시작 + 하려던 동작 저장 → 그 주소로 바로', [oauthRedirectTarget(O, '/studio', '/studio/projects'), oauthRedirectTarget(O, '/studio/templates', '/studio/templates?start=basic')], [`${O}/studio/projects`, `${O}/studio/templates?start=basic`])
+eq('스튜디오에서 시작 + 저장 없음 → 시작한 화면', [oauthRedirectTarget(O, '/studio', null), oauthRedirectTarget(O, '/studio/channels/connect', '')], [`${O}/studio`, `${O}/studio/channels/connect`])
+eq('저장값이 스튜디오 밖·이상한 주소면 쓰지 않음', [oauthRedirectTarget(O, '/studio', '/dashboard/orders'), oauthRedirectTarget(O, '/studio', '//evil.com'), oauthRedirectTarget(O, '/studio', 'https://evil.com/studio')], [`${O}/studio`, `${O}/studio`, `${O}/studio`])
+eq('돌아와서: 스튜디오에 착지 = 그대로 · 홈 착지 = 예전 처리', ['/studio/projects', '/studio', '/', '/mall'].map(landedInStudio), [true, true, false, false])
 
 console.log(`\n통과 ${pass} / 실패 ${fail}`)
 process.exit(fail ? 1 : 0)

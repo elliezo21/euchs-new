@@ -217,7 +217,7 @@
       <!-- 8. 배송 템플릿 -->
       <section class="space-y-2">
         <h4 class="st-h-card">8. 배송/반품 템플릿</h4>
-        <p v-if="!prepare.templates.length" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-no-template>템플릿이 없어요. <router-link :to="{ name: 'studio-settings-shipping' }" class="st-link">설정 &gt; 배송·반품 템플릿</router-link>에서 먼저 만들어 주세요.</p>
+        <p v-if="!prepare.templates.length" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-no-template>템플릿이 없어요. <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">판매처 &gt; 기본 설정</router-link>에서 먼저 만들어 주세요.</p>
         <select v-else v-model="f.templateId" class="st-input w-full" data-mk-s-template @change="onTemplate">
           <option v-for="t in prepare.templates" :key="t.id" :value="t.id">{{ t.name }}{{ t.is_default ? ' (기본)' : '' }}</option>
         </select>
@@ -490,7 +490,7 @@ const missing = computed(() => {
   }
   if (!/^\d+$/.test(v.categoryCode)) out.push('카테고리')
   if (!v.templateId) out.push('배송/반품 템플릿')
-  else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (설정 > 배송·반품 템플릿에서 다시 저장)')
+  else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (판매처 > 기본 설정에서 다시 저장)')
   if (!v.repImageId) out.push('대표 이미지')
   for (const t of v.optionTypes) if (!t.mapped) out.push(`옵션 종류 "${t.label}"에 맞는 쿠팡 옵션`)
   const dupMap = v.optionTypes.map(t => t.mapped).filter(Boolean)

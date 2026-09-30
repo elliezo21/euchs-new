@@ -35,10 +35,10 @@
         </div>
 
         <!-- 연결 전 (상태를 못 읽었을 때도 버튼은 평소처럼 — 누르면 그때 안내) -->
-        <div v-else-if="st || loadError" class="mt-4 space-y-3">
+        <div v-else-if="st || loadError || !loggedIn" class="mt-4 space-y-3">
           <p class="st-desc break-keep">쿠팡 Wing에서 OPEN API 키를 발급받아 넣으면 내 상품을 쿠팡 상품으로 바로 보낼 수 있어요.</p>
           <div class="flex flex-wrap gap-2">
-            <button type="button" class="st-btn st-btn-primary" data-mk-connect-open @click="openForm(false)">쿠팡 연결하기</button>
+            <button type="button" class="st-btn st-btn-primary" :disabled="gating" data-mk-connect-open @click="startConnect">쿠팡 연결하기</button>
             <button type="button" class="st-btn" data-mk-guide-open @click="guideOpen = true">연결 방법 보기</button>
           </div>
         </div>
@@ -115,8 +115,11 @@
 // 판매처 > [연결] 탭 (스튜디오 → 쿠팡 2~3단계, 2026-09-28 · 2026-09-30 설정에서 옮김). 서버 api/marketplace.js — 브라우저는 키를 한 번 보내고 다시 보지 않는다.
 // 배송·반품 템플릿은 [기본 설정] 탭(StudioShippingView), 보낸 상품은 [보낸 상품] 탭(StudioSendList)에 있다.
 // 우리 쪽 준비 문제(isNotReady)는 회색 한 줄로만 보인다 — 빨간 경고·내부 원인 문구 없음(원인은 서버 로그).
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Store } from 'lucide-vue-next'
+import { currentUser } from '@/lib/auth'
+import { studioGate } from '@/lib/studioGate'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioMarketplaceGuide from '@/components/studio/StudioMarketplaceGuide.vue'
 import { getMarketplaceStatus, connectCoupang, disconnectCoupang, refreshPlaces, expiryState, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
@@ -127,6 +130,9 @@ const OTHERS = MARKETS.filter(m => m.soon) // 랜딩 칩과 같은 목록·같�
 const TONE_CLASS = { ok: 'font-bold st-success-text', error: 'font-bold st-danger-text', soft: 'st-muted' }
 const toneOf = e => isNotReady(e.code) ? 'soft' : 'error'
 
+const route = useRoute()
+const router = useRouter()
+const loggedIn = computed(() => !!currentUser.value?.id)
 const st = ref(null)
 const loadError = ref('')
 const loadSoft = ref(false)
@@ -167,6 +173,27 @@ function openForm(isRekey) {
   formGuide.value = false
   formOpen.value = true
 }
+// [쿠팡 연결하기] — 누구나 보는 화면이라(2026-09-30) 연결을 시작할 때만 관문(studioGate).
+// 로그인 전 → 로그인 창, 로그인하면 ?connect=1로 돌아와 연결 창을 이어서 연다 · 주문 이력 없음 → 안내 창
+const gating = ref(false)
+async function startConnect() {
+  if (gating.value) return
+  gating.value = true
+  try {
+    if (await studioGate('/studio/channels/connect?connect=1')) openForm(false)
+  } finally {
+    gating.value = false
+  }
+}
+// 로그인 뒤 이어서 — ?connect=1이면 상태를 읽은 뒤(연결 전일 때만) 연결 창 (한 번 쓰고 주소에서 뗀다)
+async function resumeConnect() {
+  if (route.query.connect !== '1' || !loggedIn.value) return
+  const { connect, ...rest } = route.query
+  router.replace({ query: rest })
+  await load()
+  if (!st.value?.connected && !loadError.value) startConnect()
+}
+
 function note(msg, tone = 'ok', guide = false) {
   actionMsg.value = msg
   actionTone.value = tone
@@ -230,13 +257,17 @@ const onStudioAuthChanged = (e) => {
     confirmDisconnect.value = false
     actionMsg.value = ''
     loadError.value = ''
-  } else {
+  } else if (route.query.connect !== '1') { // ?connect=1이면 아래 watch가 읽고 이어서 연다
     load()
   }
 }
+// 이메일 로그인은 같은 화면에 ?connect=1만 붙여 돌아온다(onMounted가 다시 돌지 않음) → 주소·로그인 상태를 지켜본다
+watch(() => [route.query.connect, loggedIn.value], ([c, ok]) => { if (c === '1' && ok) resumeConnect() })
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
-  load()
+  if (!loggedIn.value) return // 로그인 전에는 연결 상태를 부르지 않는다 (연결 방법 보기·판매처 목록은 그대로)
+  if (route.query.connect === '1') resumeConnect()
+  else load()
 })
 onUnmounted(() => window.removeEventListener('euchs-auth-changed', onStudioAuthChanged))
 </script>

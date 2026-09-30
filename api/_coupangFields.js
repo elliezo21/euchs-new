@@ -329,7 +329,7 @@ export function brandWordIn(...names) {
 // [근거] 쿠팡 반려 사유(2026-09-28): "도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다."
 export const REMOTE_NONE_NOTE = 'Wing 출고지 관리에서 도서산간 택배사를 등록하면 켤 수 있어요'
 export const REMOTE_COURIER_NOTE = '도서산간 배송을 켜면 고른 출고지에 등록된 택배사만 고를 수 있어요'
-export const TEMPLATE_COURIER_FIX = '배송·반품 템플릿의 택배사가 출고지에 등록된 도서산간 택배사와 달라요. 설정 > 배송·반품 템플릿에서 템플릿을 열어 다시 저장해 주세요.'
+export const TEMPLATE_COURIER_FIX = '배송·반품 템플릿의 택배사가 출고지에 등록된 도서산간 택배사와 달라요. 판매처 > 기본 설정에서 템플릿을 열어 다시 저장해 주세요.'
 /** 출고지 응답의 remoteInfos → 저장할 목록 (쓸 수 있는 것만, 중복 뺌) */
 export function normalizeRemoteInfos(list) {
   const out = []

@@ -20,6 +20,25 @@ export function isStudioProtectedPath(p) {
   return typeof p === 'string' && p.startsWith('/studio/')
 }
 
+/** 스튜디오 화면(대문 /studio 포함, 쿼리·해시 포함)인지 */
+export function isStudioPath(p) {
+  return typeof p === 'string' && /^\/studio(?:[/?#]|$)/.test(p)
+}
+
+/**
+ * 구글·카카오 로그인이 끝나고 돌아올 주소 (Supabase signInWithOAuth redirectTo) — 2026-09-30
+ * - 스튜디오 화면에서 시작한 로그인 → 스튜디오로 바로 (메인을 거치지 않는다):
+ *     저장된 스튜디오 목적지(가드·작업 관문이 저장한 "하려던 동작")가 있으면 그곳, 없으면 로그인을 시작한 화면
+ * - 그 밖에서 시작한 로그인 → 예전 그대로 홈(`${origin}/`) — 돌아온 뒤 App.vue checkOAuthReturnUrl이 옮긴다
+ * ※ Supabase 대시보드 Redirect URLs에 스튜디오 주소가 없으면 Supabase가 Site URL(홈)로 돌려보낸다 → 예전 길로 복귀(깨지지 않음)
+ * @param {string} origin location.origin @param {string} currentPath 지금 주소(pathname + search) @param {string|null} saved sessionStorage 복귀 주소
+ */
+export function oauthRedirectTarget(origin, currentPath, saved) {
+  if (!isStudioPath(currentPath)) return `${origin}/`
+  const back = isPostLoginTarget(saved) && isStudioPath(saved) && isSafeRedirectPath(saved) ? saved : currentPath
+  return `${origin}${back}`
+}
+
 /** 대시보드(/dashboard, /dashboard/*, 쿼리·해시 포함)인지 */
 export function isDashboardPath(p) {
   return typeof p === 'string' && /^\/dashboard(?:[/?#]|$)/.test(p)
@@ -59,6 +78,14 @@ export function loginSuccessDest(saved, currentPath, currentFullPath) {
  * - 저장된 보호 화면 주소가 있으면 그곳 (가드가 / 로 보낸 뒤 로그인을 눌렀으면 returnUrl은 "/"라서 목적지를 잃는다)
  * - 없으면 예전 규칙: 로그인 버튼을 누른 화면(returnUrl), 홈이었으면 /mall
  */
+/**
+ * 구글·카카오에서 돌아와 앱이 처음 뜰 때, 이미 스튜디오 화면에 바로 착지했는지 (oauthRedirectTarget으로 보낸 경우)
+ * → 그 화면이 목적지다. 저장값만 치우고 옮기지 않는다. 홈에 착지했으면(예전 길·대시보드 설정 전) false → 예전 처리 그대로
+ */
+export function landedInStudio(landedPath) {
+  return isStudioPath(landedPath)
+}
+
 export function oauthReturnDest(saved, returnUrl) {
   if (isPostLoginTarget(saved)) return saved
   return (returnUrl && returnUrl !== '/' && !returnUrl.startsWith('/?')) ? returnUrl : '/mall'

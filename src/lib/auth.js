@@ -2,6 +2,7 @@ import { ref, computed } from 'vue'
 import { isAuthRetryableFetchError } from '@supabase/supabase-js'
 import { supabase, isSupabaseConfigured, isValidUUID, removeSupabaseAuthToken } from './supabase'
 import { shouldClearStaleLocalUser, shouldPromptLoginAfterClear } from './authSession'
+import { AUTH_REDIRECT_KEY, oauthRedirectTarget } from './authRedirect'
 
 export const currentUser = ref(null)
 export const currentUserProfile = ref(null) // Supabase profiles 테이블 데이터 (balance, company_name, pccc 등)
@@ -325,8 +326,8 @@ export const signInWithGoogle = async () => {
       provider: 'google',
       options: {
         // Supabase Dashboard Redirect URLs에 반드시 등록된 URL 사용
-        // Site URL(루트)로 착지한 뒤 App.vue가 returnUrl로 자동 복귀
-        redirectTo: `${window.location.origin}/`,
+        // 스튜디오에서 시작 → 스튜디오 화면으로 바로(2026-09-30). 그 밖 → 예전 그대로 루트에 착지한 뒤 App.vue가 returnUrl로 복귀
+        redirectTo: oauthRedirectTarget(window.location.origin, returnUrl, sessionStorage.getItem(AUTH_REDIRECT_KEY)),
         queryParams: {
           access_type: 'offline',
           prompt: 'select_account'
@@ -360,7 +361,8 @@ export const signInWithKakao = async () => {
       provider: 'kakao',
       options: {
         // Supabase Dashboard Redirect URLs에 반드시 등록된 URL 사용
-        redirectTo: `${window.location.origin}/`
+        // 스튜디오에서 시작 → 스튜디오 화면으로 바로(2026-09-30 — 메인이 잠깐 보이지 않게). 그 밖 → 예전 그대로 루트
+        redirectTo: oauthRedirectTarget(window.location.origin, returnUrl, sessionStorage.getItem(AUTH_REDIRECT_KEY))
       }
     })
 

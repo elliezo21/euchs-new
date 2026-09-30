@@ -1,5 +1,5 @@
 /**
- * 스튜디오 사용 자격 (2026-09-28) — VITE_STUDIO_ENABLED = 'all'일 때만 라우터 가드가 쓴다. admin 모드는 예전 그대로(관리자만).
+ * 스튜디오 사용 자격 (2026-09-28) — VITE_STUDIO_ENABLED = 'all'일 때만 라우터 가드·작업 시작 관문(studioGate.js)이 쓴다. admin 모드는 예전 그대로(관리자만).
  *
  * 자격 판정은 서버에만 있다: api/_studio.js studioGuard → _studioBg.isBgEligible(관리자·스태프 또는 결제 확인 이후 주문 1건 이상).
  * 화면은 서버에 한 번 묻는다(action 'access'). 막히면 서버가 403 not_customer — 모든 스튜디오 API가 같은 관문이라 화면을 건너뛰어도 막힌다.
@@ -9,7 +9,7 @@
 import { ref } from 'vue'
 import { callStudioApi } from '@/lib/studioApi'
 
-export const STUDIO_NO_ACCESS_TITLE = '스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요'
+export const STUDIO_NO_ACCESS_TITLE = 'EUCHS에서 사입하면 스튜디오는 무료예요'
 
 /** 안내 창 열림 — 라우터 가드가 켜고 StudioLayout이 보여 준다 (가드가 도는 순간 레이아웃이 아직 없을 수 있어 이벤트 대신 상태) */
 export const studioNoAccessOpen = ref(false)

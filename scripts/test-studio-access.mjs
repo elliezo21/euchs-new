@@ -93,9 +93,30 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
   const router = fs.readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8')
   eq('라우터: all 모드에서만 자격 확인', /STUDIO_MODE === 'all' && isStudioProtectedPath\(to\.path\)[\s\S]{0,200}checkStudioAccess/.test(router), true)
   const layout = fs.readFileSync(new URL('../src/layouts/StudioLayout.vue', import.meta.url), 'utf8')
-  eq('레이아웃: 안내 창 + [1688 구매하러 가기] → /mall', [layout.includes(':open="studioNoAccessOpen"'), layout.includes('1688 구매하러 가기'), /router\.push\('\/mall'\)/.test(layout)], [true, true, true])
+  eq('레이아웃: 안내 창 + [이유씨 몰에서 사입하기] → /mall', [layout.includes(':open="studioNoAccessOpen"'), layout.includes('>이유씨 몰에서 사입하기</button>'), /router\.push\('\/mall'\)/.test(layout)], [true, true, true])
   const access = fs.readFileSync(new URL('../src/lib/studioAccess.js', import.meta.url), 'utf8')
-  eq('안내 제목 문구', access.includes("'스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요'"), true)
+  eq('안내 제목 문구', access.includes("'EUCHS에서 사입하면 스튜디오는 무료예요'"), true)
+
+  // 누구나 구경, 작업 시작할 때만 (2026-09-30)
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const gate = read('src/lib/studioGate.js')
+  eq('관문: 판정은 checkStudioAccess 그대로 (새 판정 없음 — 서버·주문 표를 직접 부르지 않음)', [/import \{ checkStudioAccess, studioNoAccessOpen \} from '@\/lib\/studioAccess'/.test(gate), /supabase|orders|callStudioApi/.test(gate.replace(/\/\*[\s\S]*?\*\//g, ''))], [true, false])
+  eq('관문: 로그인 전 = 목적지 저장 + 로그인 창 · 주문 없음 = 안내 창 · 있음 = 진행', [/if \(!currentUser\.value\?\.id\) \{ askLogin\(resumePath\); return false \}/.test(gate), /sessionStorage\.setItem\(AUTH_REDIRECT_KEY, resumePath\)/.test(gate), /openLoginModal\('login'\)/.test(gate), /if \(access === 'not_customer'\) \{ studioNoAccessOpen\.value = true; return false \}/.test(gate), /if \(access === 'ok'\) return true/.test(gate)], [true, true, true, true, true])
+  const PUB = ['templates', 'channels', 'send', 'sent', 'defaults', 'connect']
+  eq('누구나 보는 라우트 = 템플릿·판매처(탭 4개) · 나머지(내 작업·새로 만들기·편집기·설정)는 보호 그대로', [
+    PUB.map(p => new RegExp(`path: '${p}',[\\s\\S]{0,140}?meta: \\{ \\.\\.\\.STUDIO_PUBLIC`).test(router)),
+    ['projects', 'new', 'p/:projectId', 'settings'].map(p => new RegExp(`path: '${p.replace(/[/:]/g, m => '\\' + m)}',[\\s\\S]{0,140}?meta: \\{ \\.\\.\\.STUDIO_PROTECTED`).test(router)),
+  ], [PUB.map(() => true), [true, true, true, true]])
+  eq('로그인 전 판매처 화면은 DB를 부르지 않음', [
+    /if \(!loggedIn\.value\) return \/\/ 로그인 전에는 부르지 않는다/.test(read('src/views/studio/StudioChannelSendView.vue')),
+    /if \(loggedIn\.value\) loadExports\(\)/.test(read('src/views/studio/StudioChannelSentView.vue')) && /<StudioSendList v-if="loggedIn"/.test(read('src/views/studio/StudioChannelSentView.vue')),
+    /if \(loggedIn\.value\) load\(\)/.test(read('src/views/studio/StudioShippingView.vue')),
+    /if \(!loggedIn\.value\) return \/\/ 로그인 전에는 연결 상태를 부르지 않는다/.test(read('src/views/studio/StudioMarketplaceView.vue')),
+  ], [true, true, true, true])
+  eq('작업 시작 버튼 = 관문 (판매처 연결·보내기)', [/await studioGate\('\/studio\/channels\/connect\?connect=1'\)/.test(read('src/views/studio/StudioMarketplaceView.vue')), /await studioGate\(`\/studio\/channels\/send\?export=/.test(read('src/views/studio/StudioChannelSendView.vue'))], [true, true])
+  const lay = read('src/layouts/StudioLayout.vue')
+  eq('[설정] 메뉴 숨김 (주소·라우트는 그대로)', [/const SHOW_SETTINGS_NAV = false/.test(lay), /v-if="SHOW_SETTINGS_NAV"/.test(lay), /path: 'settings',/.test(router)], [true, true, true])
+  eq('스크롤: 다른 페이지 → 스튜디오 = 바로 맨 위 (뒤로가기 복원은 먼저)', [/if \(savedPosition\) \{\s*return savedPosition\s*\} else if \(enteringStudio\(to, from\)\) \{[\s\S]*?return \{ top: 0, behavior: 'instant' \}/.test(router), router.includes("const enteringStudio = (to, from) => !to.hash && isStudioPath(to.path) && !!from.name && !isStudioPath(from.path)")], [true, true])
   const header = fs.readFileSync(new URL('../src/components/Header.vue', import.meta.url), 'utf8')
   eq('메인 메뉴: all = 누구나 · admin = 관리자·스태프만', /showStudioMenu = computed\(\(\) => STUDIO_MODE === 'all' \|\| \(STUDIO_MODE === 'admin' && isAdminOrStaff\.value\)\)/.test(header), true)
   // 2026-09-28 "AI 스튜디오" 알약·메가메뉴·모바일 카드는 HeaderStudioNav.vue로 — 노출 조건은 Header.vue 두 곳 그대로

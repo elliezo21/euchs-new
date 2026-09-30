@@ -78,8 +78,10 @@
         <router-link to="/mall" class="mt-2 inline-block text-[12px] st-link">이유씨몰로 가기 →</router-link>
       </div>
 
-      <!-- 설정 (계정 영역 위) -->
+      <!-- 설정 (계정 영역 위) — 남은 탭(저장값·용어집)에 아직 쓸 기능이 없어 메뉴에서만 숨긴다 (2026-09-30). 주소 /studio/settings…와 이동 규칙은 그대로.
+           탭이 생기면 SHOW_SETTINGS_NAV를 true로 -->
       <router-link
+        v-if="SHOW_SETTINGS_NAV"
         :to="{ name: 'studio-settings' }"
         class="st-nav-item mt-3"
         :class="{ 'is-active': isSettings }"
@@ -121,12 +123,12 @@
       <router-view />
     </main>
 
-    <!-- 스튜디오 전체 공개(all): 로그인했지만 주문 고객이 아닐 때 (라우터 가드 3-2 → studioNoAccessOpen) -->
+    <!-- 스튜디오 전체 공개(all): 로그인했지만 주문 고객이 아닐 때 (라우터 가드 3-2 · 작업 시작 관문 studioGate → studioNoAccessOpen) -->
     <StudioModal :open="studioNoAccessOpen" :title="STUDIO_NO_ACCESS_TITLE" @close="studioNoAccessOpen = false">
-      <span data-studio-no-access>결제까지 마친 주문이 1건 이상 있으면 바로 쓸 수 있어요.</span>
+      <span data-studio-no-access>이유씨 몰에서 결제까지 마친 주문이 1건 이상 있으면 바로 작업을 시작할 수 있어요.</span>
       <template #actions>
         <button type="button" class="st-btn" @click="studioNoAccessOpen = false">닫기</button>
-        <button type="button" class="st-btn st-btn-primary" data-studio-no-access-mall @click="goMall">1688 구매하러 가기</button>
+        <button type="button" class="st-btn st-btn-primary" data-studio-no-access-mall @click="goMall">이유씨 몰에서 사입하기</button>
       </template>
     </StudioModal>
 
@@ -170,6 +172,7 @@ const menuItems = [
 // 한 번 맞춰 두는 것(저장값·용어집)은 아래쪽 [설정] 하나로 — 메인 메뉴는 매일 쓰는 작업만
 const isActive = item => route.name === item.name || (item.also || []).includes(route.name) || (!!item.prefix && String(route.name || '').startsWith(item.prefix))
 const isSettings = computed(() => String(route.name || '').startsWith('studio-settings'))
+const SHOW_SETTINGS_NAV = false // [설정] 메뉴 — 남은 탭에 아직 쓸 기능이 없어 숨김 (주소는 그대로 열린다)
 
 const drawerOpen = ref(false)
 const accountOpen = ref(false)
