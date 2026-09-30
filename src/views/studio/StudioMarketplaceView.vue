@@ -51,11 +51,21 @@
       <StudioElevenstCard />
       <!-- 스마트스토어 — 11번가와 같은 키 연결 (2026-09-30 S3-2, 연결까지만) -->
       <StudioSmartstoreCard />
+      <!-- 카페24 — 고객이 만든 앱 + 카페24 동의 화면 (2026-09-30 S3-3, 연결까지만) -->
+      <StudioCafe24Card />
     </div>
     <p v-if="marketLinks.error" class="text-[13px] break-keep" :class="marketLinks.soft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-links-error>{{ marketLinks.error }}</p>
 
-    <!-- 다른 판매처 — [연결 신청] (예전 "준비 중" 목록) -->
-    <StudioMarketRequests />
+    <!-- 아직 연결할 수 없는 판매처 — 이름 + "예정" 한 단어만 (버튼·입력 칸·안내 문구 없음, S3-3) -->
+    <section class="st-card p-5 sm:p-6" data-mk-card="planned">
+      <h3 class="st-h-card">다른 판매처</h3>
+      <ul class="mt-3 st-border rounded-[10px] st-divide overflow-hidden">
+        <li v-for="m in PLANNED" :key="m.key" class="planned-row" :data-mk-planned="m.key">
+          <span class="text-[14px] font-bold st-muted truncate">{{ m.name }}</span>
+          <span class="st-badge ml-auto shrink-0">{{ PLANNED_LABEL }}</span>
+        </li>
+      </ul>
+    </section>
 
     <!-- 출고지·반품지 -->
     <section v-if="st?.connected" class="st-card p-5 sm:p-6" data-mk-places>
@@ -127,11 +137,13 @@ import StudioMarketplaceGuide from '@/components/studio/StudioMarketplaceGuide.v
 import { getMarketplaceStatus, connectCoupang, disconnectCoupang, refreshPlaces, expiryState, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
 import StudioElevenstCard from '@/components/studio/StudioElevenstCard.vue'
 import StudioSmartstoreCard from '@/components/studio/StudioSmartstoreCard.vue'
-import StudioMarketRequests from '@/components/studio/StudioMarketRequests.vue'
+import StudioCafe24Card from '@/components/studio/StudioCafe24Card.vue'
 import { marketLinks, loadMarketLinks } from '@/lib/studioMarketLinks'
+import { MARKETS, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
 
 const STATUS_LABEL = { connected: '연결됨', invalid: '키 확인 필요', expired: '만료됨' }
-// 쿠팡 밖의 판매처 — 11번가(키 연결)는 StudioElevenstCard, 나머지(MARKETS connect 'request')는 StudioMarketRequests. 상태는 studioMarketLinks 한 곳
+// 쿠팡 밖의 판매처 — 키 연결은 카드(StudioElevenstCard·StudioSmartstoreCard·StudioCafe24Card), 나머지(MARKETS connect 'planned')는 "예정"만. 상태는 studioMarketLinks 한 곳
+const PLANNED = MARKETS.filter(m => m.connect === 'planned')
 const TONE_CLASS = { ok: 'font-bold st-success-text', error: 'font-bold st-danger-text', soft: 'st-muted' }
 const toneOf = e => isNotReady(e.code) ? 'soft' : 'error'
 
@@ -277,3 +289,7 @@ onMounted(() => {
 })
 onUnmounted(() => window.removeEventListener('euchs-auth-changed', onStudioAuthChanged))
 </script>
+
+<style scoped>
+.planned-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; background: var(--st-soft); min-height: 46px; }
+</style>

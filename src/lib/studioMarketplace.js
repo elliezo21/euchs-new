@@ -42,13 +42,15 @@ export const getCategoryMeta =(categoryCode) => call('category_meta', { category
 export const sendProduct = (payload) => call('send', payload)
 export const listSends = () => call('sends_list')
 export const syncSends = () => call('sync')
-// 11번가 키 연결 · 다른 판매처 연결 신청 (2026-09-30) — 상태는 studioMarketLinks.js가 한 곳에서 들고 있다
+// 11번가 · 스마트스토어 · 카페24 연결 (2026-09-30) — 상태는 studioMarketLinks.js가 한 곳에서 들고 있다
 export const getMarketLinks = () => call('market_status')
 export const connectElevenst = (form) => call('connect_11st', form)
 export const disconnectElevenst = () => call('disconnect_11st')
-export const requestConnect = (form) => call('connect_request', form)
 export const connectSmartstore = (form) => call('connect_smartstore', form)
 export const disconnectSmartstore = () => call('disconnect_smartstore')
+export const beginCafe24 = (form) => call('cafe24_begin', form)          // → { authorizeUrl } (카페24 동의 화면)
+export const finishCafe24 = (code, state) => call('cafe24_finish', { code, state })
+export const disconnectCafe24 = () => call('disconnect_cafe24')
 
 /**
  * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.

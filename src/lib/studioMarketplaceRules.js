@@ -27,34 +27,38 @@ export const CHANNEL_TABS = [
   { key: 'connect', label: '연결', route: 'studio-channels-connect', moved: ['studio-settings-marketplace', 'studio-marketplace'] },
 ]
 
-// 판매처 목록 — 설정 > 판매처 연결과 랜딩 칩이 같은 목록·같은 순서를 쓴다. soon = 이름 + "준비 중" 배지만 (부가 설명 문구 없음)
-// connect = 연결 방법 (2026-09-30): 'key' = 고객이 API 키를 넣어 직접 연결(쿠팡·11번가·스마트스토어) · 'request' = [연결 신청] → 우리가 연결하고 알림
-// soon = 아직 상품 보내기를 못 함 (연결은 될 수 있다 — 11번가). 서버 api/marketplace.js REQUEST_MARKETS와 같은 목록(테스트가 대조)
+// 판매처 목록 — 연결 탭·보내기 탭·보내기 창·랜딩 칩이 같은 목록·같은 순서를 쓴다
+// connect = 연결 방법: 'key' = 고객이 직접 발급한 키·앱으로 연결(쿠팡·11번가·스마트스토어·카페24) · 'planned' = 아직 연결할 수 없음 → 화면에 "예정" 한 단어만
+//   (S3-3, 2026-09-30: 업체 등록·제휴 없이 고객 키만으로 되는 곳만 연결한다. 연결 신청 기능은 걷어냄 — 버튼·입력 칸·안내 문구 없음)
+// soon = 연결은 되지만 아직 상품 보내기를 못 함 (스마트스토어·11번가·카페24)
 export const MARKETS = [
   { key: 'coupang', name: '쿠팡', connect: 'key' },
   { key: 'smartstore', name: '스마트스토어', soon: true, connect: 'key' }, // 2026-09-30 S3-2 — 고객이 만든 내 스토어 애플리케이션 ID·시크릿
   { key: '11st', name: '11번가', soon: true, connect: 'key' },
-  { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'request' },
-  { key: 'ably', name: '에이블리', soon: true, connect: 'request' },
-  { key: 'zigzag', name: '지그재그', soon: true, connect: 'request' },
-  { key: 'cafe24', name: '카페24', soon: true, connect: 'request' },
-  { key: 'makeshop', name: '메이크샵', soon: true, connect: 'request' },
-  { key: 'godomall', name: '고도몰', soon: true, connect: 'request' },
+  { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'planned' },
+  { key: 'ably', name: '에이블리', soon: true, connect: 'planned' }, // 판매자 API 토큰은 있지만 공개 API 문서가 없어 주소·인증을 확인할 수 없음 (S3-3 조사)
+  { key: 'zigzag', name: '지그재그', soon: true, connect: 'planned' },
+  { key: 'cafe24', name: '카페24', soon: true, connect: 'key' }, // 2026-09-30 S3-3 — 고객이 만든 카페24 앱(Client ID·Secret) + 동의 화면
+  { key: 'makeshop', name: '메이크샵', soon: true, connect: 'planned' },
+  { key: 'godomall', name: '고도몰', soon: true, connect: 'planned' },
 ]
-/** [연결 신청]으로 받는 판매처 key */
-export const REQUEST_MARKETS = MARKETS.filter(m => m.connect === 'request').map(m => m.key)
+/** 아직 연결할 수 없는 판매처 key — 화면에는 "예정" 한 단어만 */
+export const PLANNED_MARKETS = MARKETS.filter(m => m.connect === 'planned').map(m => m.key)
+export const PLANNED_LABEL = '예정'
 
 /**
- * 연결 신청 입력 검사 (화면·서버가 같은 규칙 — 서버는 api/marketplace.js에서 같은 식을 다시 본다)
- * @returns {string[]} 빠진·틀린 칸 이름
+ * 카페24 입력 검사 — 쇼핑몰 ID(영문 소문자·숫자 — 서버 api/_cafe24.js isMallId와 같은 식)·Client ID·Client Secret(공백 없는 8~200자)
  */
-export function requestProblems({ sellerId = '', contact = '' } = {}) {
+export function cafe24KeyProblems({ mallId = '', clientId = '', clientSecret = '' } = {}) {
   const out = []
-  const id = String(sellerId || '').trim(), tel = String(contact || '').trim()
-  if (!id || id.length > 100) out.push('판매자 ID')
-  if (!/^[0-9+\-\s()]{8,20}$/.test(tel) || (tel.match(/\d/g) || []).length < 8) out.push('담당자 연락처')
+  const mall = String(mallId || '').trim().toLowerCase().replace(/\.cafe24\.com.*$/, '').replace(/^https?:\/\//, '')
+  if (!/^[a-z0-9]{3,20}$/.test(mall)) out.push('쇼핑몰 ID')
+  if (!/^[\x21-\x7e]{8,200}$/.test(String(clientId || '').trim())) out.push('Client ID')
+  if (!/^[\x21-\x7e]{8,200}$/.test(String(clientSecret || '').trim())) out.push('Client Secret')
   return out
 }
+/** 연결 탭에 돌아온 주소가 카페24 동의 결과인지 (?code=&state=c24.… 또는 ?error=&state=c24.…) — 구글·카카오 로그인의 ?code=와 구분 */
+export const isCafe24Return = q => typeof q?.state === 'string' && q.state.startsWith('c24.') && (typeof q.code === 'string' || typeof q.error === 'string')
 /**
  * 스마트스토어 키 입력 검사 — 애플리케이션 ID(공백 없음 4~200자)·시크릿(bcrypt salt 모양 "$2a$…" — 서버 api/_smartstore.js isBcryptSalt와 같은 식)
  */
@@ -74,27 +78,20 @@ export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
 }
 
 /**
- * 보내기 창 "보낼 판매처" 줄 — MARKETS와 같은 순서.
- * state: 'connected'(체크 가능) | 'locked'(열려 있지만 연결 전 — 자물쇠 + [연결하기]) | 'soon'("준비 중" 배지만)
- * @param {{ [key:string]: { connected?:boolean } }} connected  서버 send_prepare.markets
- */
-export function marketRows(connected = {}) {
-  return MARKETS.map(m => ({ key: m.key, name: m.name, state: m.soon ? 'soon' : connected?.[m.key]?.connected === true ? 'connected' : 'locked' }))
-}
-/**
- * 판매처 > [보내기] 탭의 판매처 줄 — MARKETS와 같은 순서.
- * state: 'connected'(보낼 수 있음) | 'linked'(키 연결됨 — 보내기는 아직, 11번가) | 'requested'(연결 신청 접수됨) | 'locked'(연결 전 — 자물쇠 + [연결하기])
+ * 판매처 줄 — 보내기 탭·보내기 창 "보낼 판매처"가 같이 쓴다. MARKETS와 같은 순서.
+ * state: 'connected'(보낼 수 있음 — 체크 가능) | 'linked'(연결됨 — 보내기는 아직: 스마트스토어·11번가·카페24) | 'locked'(연결 전 — 자물쇠 + [연결하기]) | 'planned'("예정" 한 단어만)
  * "준비 중" 글자는 쓰지 않는다
- * @param {{ [key:string]: { connected?:boolean, requested?:boolean } }} connected
+ * @param {{ [key:string]: { connected?:boolean } }} connected  쿠팡 = 서버 status/send_prepare.markets, 나머지 = studioMarketLinks.linkStates
  */
 export function channelRows(connected = {}) {
   return MARKETS.map(m => {
-    const s = connected?.[m.key] || {}
-    const state = m.connect === 'key' && s.connected === true ? (m.soon ? 'linked' : 'connected')
-      : m.connect === 'request' && s.requested === true ? 'requested' : 'locked'
+    const on = connected?.[m.key]?.connected === true
+    const state = m.connect === 'planned' ? 'planned' : on ? (m.soon ? 'linked' : 'connected') : 'locked'
     return { key: m.key, name: m.name, state }
   })
 }
+/** 보내기 창 "보낼 판매처" 줄 — channelRows와 같은 규칙 (S3-3에서 "준비 중" 배지 없앰) */
+export const marketRows = channelRows
 /** 처음 체크 — 연결된 판매처는 모두 체크 (1곳이면 그 1곳) */
 export const defaultChecked = rows => Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.state === 'connected']))
 /** 체크된 판매처 key (연결된 것만 — 체크할 수 없는 줄은 값이 있어도 뺀다) */

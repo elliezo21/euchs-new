@@ -28,34 +28,34 @@ export const SMARTSTORE_GUIDE = [
   '내 스토어 애플리케이션 메뉴로 들어가세요.',
   `새 애플리케이션을 등록하세요. ${MENU_CHECK}`,
   `API 호출 IP 칸에 ${RELAY_IP}를 넣고 저장하세요. 이미 만든 애플리케이션이면 [수정]에서 IP를 더하세요. ${MENU_CHECK}`,
+  `애플리케이션을 등록할 때 API 그룹을 전부 선택하세요. 하나라도 빠지면 상품을 보낼 수 없어요. ${MENU_CHECK}`, // S3-3 — IP 입력 다음
   `애플리케이션 ID와 애플리케이션 시크릿을 복사하세요. ${MENU_CHECK}`,
   '아래 칸에 두 값을 붙여넣으세요.',
   '[연결 확인]을 누르면 연결이 끝나요.',
 ]
 
-/** 연결 신청 — 판매처별 첫 단계만 다르고 나머지는 같다 */
-const REQUEST_FIRST = {
-  zigzag: [`지그재그 판매자 센터(파트너센터)에 로그인하세요. ${MENU_CHECK}`, '내 정보 화면에서 판매자 ID(스토어 ID)를 확인하세요.'],
-  ably: [`에이블리 판매자 센터(파트너스)에 로그인하세요. ${MENU_CHECK}`, '내 정보 화면에서 판매자 ID를 확인하세요.'],
-}
-const REQUEST_REST = [
-  '아래 칸에 판매자 ID와 담당자 연락처를 넣으세요.',
-  '[신청하기]를 누르세요.',
-  '연결이 끝나면 알려 드려요. 알림을 받은 뒤 바로 상품을 보낼 수 있어요.',
-]
 /**
- * @param {string} key 판매처 key @param {string} name 판매처 이름
- * @returns {string[]} 단계 (5~8개)
+ * 카페24 — 고객이 카페24 개발자센터에서 자기 앱을 만들고, 돌아오는 주소·권한을 넣은 뒤 Client ID·Secret과 쇼핑몰 ID를 넣는다 (2026-09-30 S3-3)
+ * 확인한 것: 공식 문서의 동의·토큰 규칙(api/_cafe24.js 주석), 자기 쇼핑몰용 앱은 심사 없이 동의까지 된다(개인 블로그·제디 "직접 입력 방식" 안내)
+ * 돌아오는 주소는 운영 도메인 기준 — api/_cafe24.js CAFE24_REDIRECT_URI와 같은 값 (테스트가 대조)
  */
-export function requestGuide(key, name) {
-  const first = REQUEST_FIRST[key] || [`${name} 판매자 센터에 로그인하세요.`, '판매자 ID를 확인하세요.']
-  return [...first, ...REQUEST_REST]
-}
+export const CAFE24_REDIRECT_URI = 'https://www.euchs.co.kr/studio/channels/connect'
+export const CAFE24_GUIDE = [
+  '카페24 개발자센터(developers.cafe24.com)에 쇼핑몰 운영자 계정으로 로그인하세요.',
+  `처음이면 약관에 동의하고, 파트너 정보의 전문 분야를 쇼핑몰 운영으로 고르세요. ${MENU_CHECK}`,
+  `Apps의 앱 관리에서 새 앱을 만드세요. ${MENU_CHECK}`,
+  `App URL 칸에는 https://www.euchs.co.kr 를, Redirect URI 칸에는 ${CAFE24_REDIRECT_URI} 를 그대로 넣으세요.`,
+  `권한에서 상품 읽기·쓰기와 상품분류 읽기를 고르고 저장하세요. ${MENU_CHECK}`,
+  `인증 정보에서 Client ID와 Client Secret을 복사하세요. ${MENU_CHECK}`,
+  '아래 칸에 쇼핑몰 ID와 두 값을 넣고 [연결하기]를 누르세요.',
+  `카페24 동의 화면에서 동의하면 이 화면으로 돌아와 연결이 끝나요. ${MENU_CHECK}`,
+]
 
 /** "메뉴 이름 확인 필요"가 붙은 문장 [{ market, step }] */
-export function menuChecks(keys = ['zigzag', 'ably']) {
-  const out = ELEVENST_GUIDE.filter(s => s.includes(MENU_CHECK)).map(step => ({ market: '11st', step }))
-  for (const step of SMARTSTORE_GUIDE) if (step.includes(MENU_CHECK)) out.push({ market: 'smartstore', step })
-  for (const k of keys) for (const step of requestGuide(k, k)) if (step.includes(MENU_CHECK)) out.push({ market: k, step })
+export function menuChecks() {
+  const out = []
+  for (const [market, guide] of [['11st', ELEVENST_GUIDE], ['smartstore', SMARTSTORE_GUIDE], ['cafe24', CAFE24_GUIDE]]) {
+    for (const step of guide) if (step.includes(MENU_CHECK)) out.push({ market, step })
+  }
   return out
 }

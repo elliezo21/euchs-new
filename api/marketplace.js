@@ -29,12 +29,14 @@
  *                     → 대표 이미지 검사·저장 → marketplace_sends(sending) → 상품 생성(requested:true) → { sendId, sellerProductId, status }
  *   sends_list        → { sends:[…] }
  *   sync              → 승인대기 건을 쿠팡에서 다시 읽어(상품 조회 + histories) 갱신 → { sends }
- *   market_status     → { elevenst:{ connected, account }, requests:{ [market]:{ status } }, requestsReady }   (2026-09-30)
+ *   market_status     → { elevenst, smartstore, cafe24: { connected, account } }   (2026-09-30 — 카페24는 refresh 만료 7일 전이면 이때 갱신)
  *   connect_11st      { seller_login_id, api_key } → 중계 경유 출고지 조회로 키 확인(api/_elevenst.js) → 암호화 저장(쿠팡과 같은 표·방식) — 연결까지만
  *   disconnect_11st   → 11번가 계정 삭제
  *   connect_smartstore { client_id, client_secret } → 중계 경유 인증 토큰 발급으로 확인(api/_smartstore.js) → 암호화 저장(11번가와 같은 표·방식) — 연결까지만
  *   disconnect_smartstore → 스마트스토어 계정 삭제
- *   connect_request   { market(REQUEST_MARKETS), seller_id, contact } → marketplace_requests 저장(status requested) — 관리자가 보고 연결
+ *   cafe24_begin      { mall_id, client_id, client_secret } → 앱 값 암호화 저장(status pending) → { authorizeUrl } (카페24 동의 화면 — api/_cafe24.js)
+ *   cafe24_finish     { code, state } → state 확인 → 토큰 교환 · 권한 확인 → 토큰 암호화 저장(connected)
+ *   disconnect_cafe24 → 카페24 계정 삭제
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
  *
  * 비밀: 키는 MARKETPLACE_ENC_KEY로 암호화해 marketplace_accounts에만. 응답·로그·기록(request_json)에 키·서명을 넣지 않는다.
@@ -53,6 +55,7 @@ import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, norma
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
 import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
 import { smartstoreToken, SmartstoreError } from './_smartstore.js'
+import { Cafe24Error, authorizeUrl, makeState, verifyState, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId } from './_cafe24.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
 
@@ -188,41 +191,131 @@ async function disconnect(ctx, body, res) {
   return res.status(200).json({ ok: true })
 }
 
-// ── 11번가 키 연결 · 다른 판매처 연결 신청 (2026-09-30) ──
-// 11번가 = 쿠팡과 같은 표(marketplace_accounts)·같은 암호화(encryptSecret)·같은 중계(MARKETPLACE_RELAY_*). 연결까지만 — 보내기는 다음 작업
-// 연결 신청 = marketplace_requests (SQL docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 전이면 503 marketplace_sql_missing — 원인 로그)
+// ── 11번가 · 스마트스토어 · 카페24 연결 (2026-09-30) ──
+// 쿠팡과 같은 표(marketplace_accounts)·같은 암호화(encryptSecret). 11번가·스마트스토어는 같은 중계(MARKETPLACE_RELAY_*), 카페24는 IP 제한이 없어 바로 부른다(api/_cafe24.js)
+// 연결까지만 — 보내기는 다음 작업. SQL docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 전이면 503 marketplace_sql_missing(원인 로그)
+// 다른 판매처(지그재그·에이블리·G마켓·옥션·메이크샵·고도몰)는 화면에 "예정"만 — 서버 action 없음 (S3-3에서 연결 신청을 걷어냄)
 const ELEVENST = '11st'
 const SMARTSTORE = 'smartstore'
-const REQUEST_MARKETS = ['gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'] // src/lib/studioMarketplaceRules.js REQUEST_MARKETS와 같게 (테스트가 대조)
+const CAFE24 = 'cafe24'
 const ELEVENST_PUBLIC = 'seller_login_id,key_last4,status,last_checked_at,last_error,created_at'
-const isSchemaGap = e => e?.status === 400 && /check constraint|violates|null value|23514|23502|column/i.test(String(e?.message || ''))
+const CAFE24_PUBLIC = 'seller_login_id,key_last4,status,expires_at,last_checked_at,last_error,created_at'
+const isSchemaGap = e => e?.status === 400 && /check constraint|violates|null value|23514|23502|42703|column/i.test(String(e?.message || ''))
 
-async function loadRequests(ctx) {
-  try {
-    const rows = await sb(ctx.cfg, `marketplace_requests?select=market,status,created_at,updated_at&user_id=eq.${ctx.userId}`)
-    return Array.isArray(rows) ? rows : []
-  } catch (e) {
-    if ([401, 403, 404].includes(e?.status)) {
-      console.error('[marketplace] marketplace_requests를 쓸 수 없음 — docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 필요:', e.message)
-      return null
-    }
-    throw e
-  }
+async function oneAccount(ctx, market, select) {
+  const rows = await sb(ctx.cfg, `marketplace_accounts?select=${select}&user_id=eq.${ctx.userId}&market=eq.${market}&limit=1`)
+  return Array.isArray(rows) && rows[0] ? rows[0] : null
+}
+/** 카페24 행 → 화면 값. pending(동의 대기)은 연결 전으로 · refresh 만료가 지났으면 expired */
+function cafe24Public(c) {
+  if (!c || c.status === 'pending') return { connected: false, account: null }
+  const expired = c.expires_at && new Date(c.expires_at).getTime() < Date.now()
+  return { connected: true, account: { mall_id: c.seller_login_id, key_last4: c.key_last4, status: expired && c.status === 'connected' ? 'expired' : c.status, expires_at: c.expires_at, last_checked_at: c.last_checked_at, last_error: c.last_error } }
 }
 async function marketStatus(ctx, body, res) {
-  const rows = await sb(ctx.cfg, `marketplace_accounts?select=${ELEVENST_PUBLIC}&user_id=eq.${ctx.userId}&market=eq.${ELEVENST}&limit=1`)
-  const a = Array.isArray(rows) && rows[0] ? rows[0] : null
-  const ssRows = await sb(ctx.cfg, `marketplace_accounts?select=${ELEVENST_PUBLIC}&user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}&limit=1`)
-  const s = Array.isArray(ssRows) && ssRows[0] ? ssRows[0] : null
-  const reqRows = await loadRequests(ctx)
-  const requests = {}
-  for (const r of reqRows || []) requests[r.market] = { status: r.status, created_at: r.created_at, updated_at: r.updated_at }
+  const a = await oneAccount(ctx, ELEVENST, ELEVENST_PUBLIC)
+  const s = await oneAccount(ctx, SMARTSTORE, ELEVENST_PUBLIC)
+  let c = await oneAccount(ctx, CAFE24, CAFE24_PUBLIC)
+  if (c && c.status === 'connected' && needsRefresh(c.expires_at)) c = (await keepCafe24Alive(ctx)) || c // 연결 유지 — 2주 refresh 만료 전에 갱신
   return res.status(200).json({
     elevenst: a ? { connected: true, account: { seller_login_id: a.seller_login_id, key_last4: a.key_last4, status: a.status, last_checked_at: a.last_checked_at, last_error: a.last_error } } : { connected: false, account: null },
     // 스마트스토어 — 칸을 하나씩 고른다(암호문 칸 없음). key_last4 = 애플리케이션 ID 끝 4자리 · 시크릿은 어떤 형태로도 안 내려감
     smartstore: s ? { connected: true, account: { key_last4: s.key_last4, status: s.status, last_checked_at: s.last_checked_at, last_error: s.last_error } } : { connected: false, account: null },
-    requests, requestsReady: reqRows !== null, relayIp: RELAY_IP,
+    // 카페24 — 쇼핑몰 ID·Client ID 끝 4자리·연결 유지 기한만. 시크릿·토큰은 안 내려감
+    cafe24: cafe24Public(c),
+    relayIp: RELAY_IP,
   })
+}
+
+// ── 카페24 (2026-09-30 S3-3) — 고객이 만든 앱의 Client ID·Secret → 카페24 동의 화면 → 연결 탭으로 돌아와 코드 교환 ──
+// cafe24_begin  { mall_id, client_id, client_secret } → 암호화 저장(status pending) → { authorizeUrl } — 브라우저가 그 주소로 간다
+// cafe24_finish { code, state } → state(이 사용자·10분) 확인 → 토큰 교환 → 권한 확인 → 토큰 암호화 저장(status connected)
+async function cafe24Begin(ctx, body, res) {
+  const encKey = encKeyOr(res)
+  if (!encKey) return
+  const mallId = normalizeMallId(body.mall_id), id = String(body.client_id ?? '').trim(), secret = String(body.client_secret ?? '').trim()
+  if (!isMallId(mallId)) return sendError(res, 400, 'invalid_input', '쇼핑몰 ID를 넣어 주세요. (영문 소문자·숫자)')
+  if (!/^[\x21-\x7e]{8,200}$/.test(id)) return sendError(res, 400, 'invalid_input', 'Client ID를 넣어 주세요.')
+  if (!/^[\x21-\x7e]{8,200}$/.test(secret)) return sendError(res, 400, 'invalid_input', 'Client Secret을 넣어 주세요.')
+  const row = {
+    user_id: ctx.userId, market: CAFE24, seller_login_id: mallId, vendor_id: null,
+    access_key_enc: encryptSecret(id, encKey), secret_key_enc: encryptSecret(secret, encKey), key_last4: id.slice(-4).replace(/[^A-Za-z0-9-]/g, '-'),
+    oauth_enc: null, access_expires_at: null, expires_at: null, status: 'pending', last_checked_at: null, last_error: null,
+  }
+  try {
+    await sb(ctx.cfg, 'marketplace_accounts?on_conflict=user_id,market', { method: 'POST', body: row, prefer: 'resolution=merge-duplicates,return=minimal' })
+  } catch (e) {
+    if (isSchemaGap(e)) {
+      console.error('[marketplace] 카페24 앱 값 저장 실패 — marketplace_accounts에 cafe24·oauth_enc 없음(docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 필요):', e.message)
+      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
+    }
+    throw e
+  }
+  console.info(`[marketplace] 카페24 연결 시작 ${ctx.userId} mall=${mallId}`)
+  return res.status(200).json({ authorizeUrl: authorizeUrl({ mallId, clientId: id, state: makeState(encKey, ctx.userId) }) })
+}
+async function cafe24Credentials(ctx, encKey) {
+  const row = await oneAccount(ctx, CAFE24, `${CAFE24_PUBLIC},access_key_enc,secret_key_enc,oauth_enc`)
+  if (!row) return null
+  return { row, call: { mallId: row.seller_login_id, clientId: decryptSecret(row.access_key_enc, encKey), clientSecret: decryptSecret(row.secret_key_enc, encKey), breakerKey: ctx.userId } }
+}
+async function saveCafe24Token(ctx, encKey, tok) {
+  await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${CAFE24}`, {
+    method: 'PATCH', prefer: 'return=minimal',
+    body: { oauth_enc: encryptSecret(JSON.stringify({ access_token: tok.accessToken, refresh_token: tok.refreshToken }), encKey), access_expires_at: tok.accessExpiresAt, expires_at: tok.refreshExpiresAt, status: 'connected', last_checked_at: new Date().toISOString(), last_error: null },
+  })
+}
+function cafe24Fail(res, e, where) {
+  if (!(e instanceof Cafe24Error)) throw e
+  console.warn(`[marketplace] 카페24 ${where} 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+  return sendError(res, e.status === 429 ? 429 : e.code === 'invalid_input' ? 400 : 502, e.code, e.message)
+}
+async function cafe24Finish(ctx, body, res) {
+  const encKey = encKeyOr(res)
+  if (!encKey) return
+  if (!verifyState(encKey, body.state, ctx.userId)) return sendError(res, 400, 'bad_state', '연결 시간이 지났어요. [연결하기]를 다시 눌러 주세요.')
+  const code = String(body.code ?? '').trim()
+  if (!/^[\x21-\x7e]{4,500}$/.test(code)) return sendError(res, 400, 'invalid_input', '동의 결과를 읽지 못했어요. [연결하기]를 다시 눌러 주세요.')
+  let cred
+  try { cred = await cafe24Credentials(ctx, encKey) } catch (e) {
+    console.error('[marketplace] 카페24 앱 값 복호화 실패:', e.message)
+    return sendError(res, 500, 'decrypt_failed', '저장된 앱 값을 읽지 못했어요. [연결하기]를 다시 눌러 주세요.')
+  }
+  if (!cred) return sendError(res, 409, 'not_started', '연결을 시작한 기록이 없어요. [연결하기]를 다시 눌러 주세요.')
+  let tok
+  try { tok = await exchangeCode(cred.call, code) } catch (e) { return cafe24Fail(res, e, 'finish') }
+  if (tok.mallId && tok.mallId !== cred.call.mallId) {
+    console.warn(`[marketplace] 카페24 쇼핑몰 ID 다름: 넣은 값 ${cred.call.mallId} · 동의한 곳 ${tok.mallId}`)
+    return sendError(res, 400, 'mall_mismatch', '넣은 쇼핑몰 ID와 동의한 쇼핑몰이 달라요. 쇼핑몰 ID를 확인해 주세요.')
+  }
+  const lack = missingScopes(tok.scopes)
+  if (lack.length) return sendError(res, 400, 'scope_missing', `카페24 앱 권한에서 상품 읽기·쓰기와 상품분류 읽기를 모두 골라 주세요. (빠진 권한: ${lack.join(', ')})`)
+  await saveCafe24Token(ctx, encKey, tok)
+  console.info(`[marketplace] 카페24 연결 ${ctx.userId} mall=${cred.call.mallId}`)
+  return marketStatus(ctx, body, res)
+}
+/** refresh 토큰 갱신 — 새 refresh 토큰을 바로 저장한다(예전 것은 카페24가 폐기). 실패면 기록만 남기고 null */
+async function keepCafe24Alive(ctx) {
+  let encKey
+  try { encKey = loadEncKey() } catch (e) { console.error('[marketplace] 카페24 갱신: MARKETPLACE_ENC_KEY 문제:', e.message); return null }
+  try {
+    const cred = await cafe24Credentials(ctx, encKey)
+    if (!cred?.row?.oauth_enc) return null
+    const { refresh_token: rt } = JSON.parse(decryptSecret(cred.row.oauth_enc, encKey))
+    await saveCafe24Token(ctx, encKey, await refreshAccess(cred.call, rt))
+    return oneAccount(ctx, CAFE24, CAFE24_PUBLIC)
+  } catch (e) {
+    console.warn('[marketplace] 카페24 연결 유지(토큰 갱신) 실패:', e.code || '', e.message, e.raw || '')
+    if (e instanceof Cafe24Error && ['bad_key', 'code_expired'].includes(e.code)) {
+      await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${CAFE24}`, { method: 'PATCH', prefer: 'return=minimal', body: { status: 'invalid', last_error: e.message.slice(0, 500) } })
+      return oneAccount(ctx, CAFE24, CAFE24_PUBLIC)
+    }
+    return null
+  }
+}
+async function disconnectCafe24(ctx, body, res) {
+  await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${CAFE24}`, { method: 'DELETE', prefer: 'return=minimal' })
+  return marketStatus(ctx, body, res)
 }
 async function connectElevenst(ctx, body, res) {
   const encKey = encKeyOr(res)
@@ -299,26 +392,6 @@ async function disconnectElevenst(ctx, body, res) {
   await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${ELEVENST}`, { method: 'DELETE', prefer: 'return=minimal' })
   return marketStatus(ctx, body, res)
 }
-async function connectRequest(ctx, body, res) {
-  const market = String(body.market ?? '')
-  if (!REQUEST_MARKETS.includes(market)) return sendError(res, 400, 'invalid_input', '신청할 판매처를 골라 주세요.')
-  const sellerId = String(body.seller_id ?? '').trim(), contact = String(body.contact ?? '').trim()
-  if (!sellerId || sellerId.length > 100) return sendError(res, 400, 'invalid_input', '판매자 ID를 넣어 주세요.')
-  if (!/^[0-9+\-\s()]{8,20}$/.test(contact) || (contact.match(/\d/g) || []).length < 8) return sendError(res, 400, 'invalid_input', '담당자 연락처를 숫자로 넣어 주세요. (예: 010-1234-5678)')
-  const row = { user_id: ctx.userId, market, seller_id: sellerId, contact, status: 'requested' }
-  try {
-    await sb(ctx.cfg, 'marketplace_requests?on_conflict=user_id,market', { method: 'POST', body: row, prefer: 'resolution=merge-duplicates,return=minimal' })
-  } catch (e) {
-    if ([401, 403, 404].includes(e?.status) || isSchemaGap(e)) {
-      console.error('[marketplace] 연결 신청 저장 실패 — docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 필요:', e.message)
-      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
-    }
-    throw e
-  }
-  console.info(`[marketplace] 연결 신청 ${ctx.userId} ${market}`)
-  return marketStatus(ctx, body, res)
-}
-
 async function withCredentials(ctx, res) {
   const encKey = encKeyOr(res)
   if (!encKey) return null
@@ -844,10 +917,12 @@ export default async function handler(req, res) {
     if (body.action === 'market_status') return await marketStatus(ctx, body, res)
     if (body.action === 'connect_11st') return await connectElevenst(ctx, body, res)
     if (body.action === 'disconnect_11st') return await disconnectElevenst(ctx, body, res)
-    if (body.action === 'connect_request') return await connectRequest(ctx, body, res)
     if (body.action === 'connect_smartstore') return await connectSmartstore(ctx, body, res)
     if (body.action === 'disconnect_smartstore') return await disconnectSmartstore(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_request'·'connect_smartstore'·'disconnect_smartstore' 중 하나여야 합니다.")
+    if (body.action === 'cafe24_begin') return await cafe24Begin(ctx, body, res)
+    if (body.action === 'cafe24_finish') return await cafe24Finish(ctx, body, res)
+    if (body.action === 'disconnect_cafe24') return await disconnectCafe24(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_smartstore'·'disconnect_smartstore'·'cafe24_begin'·'cafe24_finish'·'disconnect_cafe24' 중 하나여야 합니다.")
   } catch (e) {
     if (e?.status === 404 || e?.status === 401 || e?.status === 403) {
       console.error(`[marketplace] ${body.action} 표를 쓸 수 없음(GRANT·표 — docs/sql/2026-09-28-marketplace-coupang.sql):`, e.message)

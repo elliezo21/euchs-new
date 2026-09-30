@@ -149,13 +149,17 @@ const HEROES = {
   /** 짙은 포스터 — 사진 전면 + 왼쪽 강조 막대 + 아주 굵은 제목 + 아래 권호 */
   posterDark(s) {
     const t = title(s.title, s.font, s.ink, 88, 140, 620, s.target ?? 0.34)
-    const sb = sub(s.sub, s.subInk ?? s.ink, 90, 140 + t.h + 22, 560)
+    const gap = s.subBg ? 34 : 22
+    const sb = sub(s.sub, s.subInk ?? s.ink, s.subBg ? 104 : 90, 140 + t.h + gap, 560)
+    // subBg (선택) = 안내 글씨 뒤 반투명 띠 — 사진 속 물건(옷걸이 봉 등)과 제목에서 안내 글씨를 떼어 읽히게. 없으면 예전 그대로
+    const sw = Math.ceil(textUnits(s.sub, 'pretendard') * 22) + 32
     return [
       photo(0, 0, W, H),
       ...(s.shade ? [rect(0, 0, W, 640, '#000000', { fillOpacity: s.shade })] : []),
       rect(56, 146, 10, t.h - 12, s.accent),
       label(s.label, s.labelInk ?? s.accent, 88, 96),
-      t.part, sb.part,
+      t.part,
+      ...(s.subBg ? [{ ...rect(88, sb.part.y - 8, sw, sb.h + 16, s.subBg, { fillOpacity: 0.72, radius: Math.round((sb.h + 16) / 2) }), group: 'pd' }, { ...sb.part, group: 'pd' }] : [sb.part]),
       label(s.issue, s.labelInk ?? s.accent, 56, H - 76, 400),
     ]
   },
@@ -1007,7 +1011,8 @@ const LIST = [
   {
     key: 'shoot-leather-jacket', category: 'apparel', name: '남성 가죽 자켓', mood: 'bold', tone: 'photo', flow: 'fashionA', copy: 'jacket', body: 'pretendard',
     pins: pin('apparel', '08', ['leather-jacket-rack', 'jacket-flatlay', 'jacket-zipper', 'jacket-city-night']),
-    hero: { comp: 'posterDark', bg: '#1e2c2e', font: 'gasoek-one', ink: '#ffffff', subInk: '#d5dadc', accent: '#e8553d', title: '거칠고\n멋있게', sub: '가죽과 핏의 장점을 적어 주세요', label: 'LEATHER JACKET', issue: 'VOL 01' },
+    // 기본(0.34)이면 제목 아래가 안내 글씨·옷걸이 봉까지 내려와 겹쳐 보였다 (S3-3) → 제목 0.3(규칙 30~42% 안) + 안내 글씨는 제목과 더 떼고 어두운 띠 위에
+    hero: { comp: 'posterDark', target: 0.3, subBg: '#0b1112', bg: '#1e2c2e', font: 'gasoek-one', ink: '#ffffff', subInk: '#d5dadc', accent: '#e8553d', title: '거칠고\n멋있게', sub: '가죽과 핏의 장점을 적어 주세요', label: 'LEATHER JACKET', issue: 'VOL 01' },
   },
   {
     key: 'shoot-linen-dress', category: 'apparel', name: '린넨 원피스', mood: 'clean', tone: 'blue', flow: 'fashionB', copy: 'dress', body: 'noto-sans-kr',

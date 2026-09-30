@@ -17,7 +17,8 @@
               <Lock class="w-3.5 h-3.5 st-muted shrink-0" :stroke-width="2.2" aria-label="연결 전" />
               <router-link :to="{ name: 'studio-settings-marketplace' }" class="st-link text-[13px] shrink-0" :data-mk-s-market-connect="r.key" @click="$emit('close')">연결하기</router-link>
             </template>
-            <span v-else-if="r.state === 'soon'" class="st-badge shrink-0">준비 중</span>
+            <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-mk-s-market-linked="r.key">연결됨</span>
+            <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-mk-s-market-planned="r.key">{{ PLANNED_LABEL }}</span>
           </li>
         </ul>
       </section>
@@ -54,7 +55,8 @@ import { ref, reactive, computed, watch, shallowRef, onErrorCaptured } from 'vue
 import { Lock } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
-import { MARKETS, marketRows, defaultChecked, checkedMarkets, sectionKeys, sendActionLabel } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, defaultChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
+import { linkStates } from '@/lib/studioMarketLinks'
 
 const SECTIONS = { coupang: StudioSendCoupang }
 
@@ -67,7 +69,8 @@ const openSeq = ref(0) // 창을 열 때마다 섹션을 새로 만든다
 const sections = reactive({}) // key → 섹션 인스턴스
 const results = shallowRef({}) // key → 보낸 결과
 
-const rows = computed(() => marketRows(props.prepare?.markets))
+// 쿠팡 = 서버 send_prepare.markets, 스마트스토어·11번가·카페24 = 연결 탭과 같은 상태(studioMarketLinks — 보내기는 아직이라 "연결됨"만), 나머지 = "예정"
+const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare?.markets || {}) }))
 const picked = computed(() => checkedMarkets(rows.value, checked.value))
 const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) // 섹션을 만들어 둘 판매처 (체크와 상관없음)
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
