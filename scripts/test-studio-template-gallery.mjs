@@ -94,8 +94,20 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
   const prev = read('src/components/studio/StudioTemplatePreview.vue')
   eq('미리보기: [닫기]·쓰기 버튼·전체 그림 스크롤·Esc', [/data-template-preview-close/.test(prev), /data-template-preview-use/.test(prev), /overflow-y: auto/.test(prev), /e\.key === 'Escape'/.test(prev)], [true, true, true, true])
   const thumbs = read('src/lib/studioTemplateThumbs.js')
-  eq('그림: 내보내기 엔진(renderPage)·적용과 같은 문서(templatePreviewPage) · key별 캐시', [/import \{ renderPage, canvasToBlob \} from '\.\/studioExport\.js'/.test(thumbs), /templatePreviewPage\(tpl, \[\], measure, samples\)/.test(thumbs), /if \(cache\.has\(key\)\) return cache\.get\(key\)/.test(thumbs)], [true, true, true])
+  eq('그림: 내보내기 엔진(renderPage)·적용과 같은 문서(templatePreviewPage) · key별 캐시', [/import \{ renderPage, renderSection, canvasToBlob \} from '\.\/studioExport\.js'/.test(thumbs), /templatePreviewPage\(tpl, \[\], measure, samples\)/.test(thumbs), /if \(cache\.has\(key\)\) return cache\.get\(key\)/.test(thumbs)], [true, true, true])
   eq('그림: 글꼴을 받은 뒤에 재고 그림', thumbs.indexOf('loadFontsFor(templateFontList(tpl))') < thumbs.indexOf('templatePreviewPage(tpl, [], measure, samples)'), true)
+  // 목록 로딩 속도 — 카드 표지는 첫 구간만·작은 그림·화면 가까이 올 때만, 전체 그림은 미리보기 칸을 열 때만
+  eq('표지: 첫 구간만(renderSection)·첫 구간 글꼴만·폭 400', [
+    /renderSection\(page, sec\.id, coverDeps, \{ scale \}\)/.test(thumbs),
+    /loadFontsFor\(templateFontList\(first\)\)/.test(thumbs),
+    /export const COVER_WIDTH = 400/.test(thumbs),
+  ], [true, true, true])
+  eq('표지: 목록용 작은 그림이 표지 크기에 충분할 때만 (모자라면 원본)', [/loadAssetImage\(t\.thumb\)/.test(thumbs), /small\.width \/ t\.w >= need\.get\(path\)/.test(thumbs)], [true, true])
+  eq('카드: templateCover + 화면 가까이 올 때만 그림 (IntersectionObserver)', [
+    /templateCover\(key\)/.test(card), /new IntersectionObserver/.test(card), /loading="lazy"/.test(card), /templateThumb\(/.test(card),
+  ], [true, true, true, false])
+  eq('미리보기: 전체 그림(templateThumb — 원본 그림)은 열 때만', [/templateThumb\(key\)/.test(prev), /thumb\.full/.test(prev)], [true, true])
+  eq('전체 그림은 표지를 만들지 않음 (full만)', /return \{ full, width: canvas\.width/.test(thumbs), true)
   eq('내 작업: 예전 기억해 두기 안내 줄 없음', /data-pending-template/.test(read('src/views/studio/StudioHomeView.vue')), false)
 }
 

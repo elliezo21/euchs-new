@@ -1,9 +1,9 @@
 <template>
   <div class="st-tcard" :class="large ? 'is-large' : ''" :data-template-card="tpl.key">
     <button type="button" class="st-tcard-main" :title="title" :data-template-open="tpl.key" @click="$emit('open', tpl.key)">
-      <!-- 표지 = 템플릿 첫 화면 (studioTemplateThumbs — 적용·내보내기와 같은 엔진으로 한 번 그린 그림) -->
-      <span class="st-tcard-thumb" data-template-cover>
-        <img v-if="thumb" :src="thumb.cover" alt="" class="st-tcard-img" draggable="false" />
+      <!-- 표지 = 템플릿 첫 화면 (studioTemplateThumbs.templateCover — 적용·내보내기와 같은 엔진, 첫 구간만·작은 그림). 화면 가까이 올 때만 그린다 -->
+      <span ref="coverEl" class="st-tcard-thumb" data-template-cover>
+        <img v-if="thumb" :src="thumb.cover" alt="" class="st-tcard-img" draggable="false" loading="lazy" decoding="async" />
         <span v-else-if="failed" class="st-tcard-fail">
           <span class="st-tcard-retry" role="button" tabindex="0" title="다시 시도" data-template-retry @click.stop="load" @keydown.enter.stop.prevent="load">
             <RotateCw class="w-4 h-4" :stroke-width="2" />
@@ -30,10 +30,10 @@
 <script setup>
 // 템플릿 카드 (템플릿 갤러리·편집기 [템플릿] 패널) — 표지 + "카테고리 | 이름" + 섹션 수 + 하트.
 // 누르면 open(key)만 보낸다 (미리보기 칸은 부모가 연다). 하트는 fav(key) — 저장은 studioTemplateFavorites.
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Heart, RotateCw } from 'lucide-vue-next'
 import { templateCardTitle, templateSectionCount } from '@/lib/studioTemplates'
-import { templateThumb, templateThumbNow } from '@/lib/studioTemplateThumbs'
+import { templateCover, templateCoverNow } from '@/lib/studioTemplateThumbs'
 
 const props = defineProps({
   tpl: { type: Object, required: true },
@@ -46,22 +46,38 @@ defineEmits(['open', 'fav'])
 
 const title = computed(() => templateCardTitle(props.tpl))
 const sections = computed(() => templateSectionCount(props.tpl))
-const thumb = ref(templateThumbNow(props.tpl.key))
+const thumb = ref(templateCoverNow(props.tpl.key))
 const failed = ref(false)
+const coverEl = ref(null)
+const seen = ref(false) // 표지 자리가 화면 가까이 온 적이 있음 — 그 뒤에만 그린다
 
 async function load() {
   const key = props.tpl.key
   failed.value = false
   try {
-    const t = await templateThumb(key)
+    const t = await templateCover(key)
     if (props.tpl.key === key) thumb.value = t
   } catch (e) {
     console.error('[StudioTemplateCard] 표지를 그리지 못함:', key, e)
     if (props.tpl.key === key) failed.value = true
   }
 }
-watch(() => props.tpl.key, k => { thumb.value = templateThumbNow(k); if (!thumb.value) load() })
-onMounted(() => { if (!thumb.value) load() })
+watch(() => props.tpl.key, k => { thumb.value = templateCoverNow(k); failed.value = false; if (!thumb.value && seen.value) load() })
+
+let io = null
+onMounted(() => {
+  if (thumb.value) { seen.value = true; return }
+  if (typeof IntersectionObserver !== 'function') { seen.value = true; load(); return }
+  io = new IntersectionObserver(entries => {
+    if (!entries.some(e => e.isIntersecting)) return
+    io.disconnect()
+    io = null
+    seen.value = true
+    if (!thumb.value) load()
+  }, { rootMargin: '300px 0px' })
+  if (coverEl.value) io.observe(coverEl.value)
+})
+onUnmounted(() => { io?.disconnect(); io = null })
 </script>
 
 <style scoped>

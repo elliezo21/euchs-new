@@ -8,21 +8,29 @@
  * ★ 캐시: 템플릿 key마다 한 번만 그리고(이 탭 안), 그 결과(JPG blob 주소)를 다시 쓴다. 실패한 것은 캐시에서 빼서 다음에 다시 그린다.
  *   여러 장을 동시에 부르면 하나씩 차례로 그린다 (화면이 버벅이지 않게).
  * ★ 글꼴: 템플릿 글자의 글꼴 조각을 먼저 받은 뒤에 글자 높이를 재고 그린다 (편집기 적용·내보내기와 같은 순서).
+ * ★ 카드 표지(templateCover)와 미리보기 전체 그림(templateThumb)은 따로 그린다 — 목록을 열 때 템플릿 전체·원본 사진을 받지 않게.
+ *   표지 = 첫 구간만, 폭 COVER_WIDTH, 에셋·예시 사진은 목록용 작은 그림(manifest thumb — 표지 크기에 모자라면 원본), 첫 구간 글꼴만.
+ *   전체 그림 = 예전 그대로 모든 구간·원본 그림 (미리보기 칸을 열 때만). 편집기 적용은 이 파일의 그림을 쓰지 않는다(원본 그대로).
  */
-import { renderPage, canvasToBlob } from './studioExport.js'
-import { templateByKey, templatePreviewPage, templatePageHeight, templateFontList, templateSlotTypes, assignTemplateSamples, PREVIEW_PHOTO } from './studioTemplates.js'
+import { renderPage, renderSection, canvasToBlob } from './studioExport.js'
+import { templateByKey, templatePreviewPage, templatePageHeight, templateFontList, templateSlots, templateSlotTypes, assignTemplateSamples, PREVIEW_PHOTO } from './studioTemplates.js'
 import { createTextMeasure, loadFontsFor } from './studioFonts.js'
 import { loadAssetImage, loadAssetManifest } from './studioAssetLoad.js'
 import { pickSamples, sampleCategoryOf } from './studioSamples.js'
+import { sectionBgImageOf } from './studioAsset.js'
 
-export const THUMB_WIDTH = 560           // 그림 폭 (px) — 카드·미리보기 칸이 줄여서 보여 준다
+export const THUMB_WIDTH = 560           // 미리보기 전체 그림 폭 (px) — 미리보기 칸이 줄여서 보여 준다
+export const COVER_WIDTH = 400           // 카드 표지 폭 (px) — 예시 사진 목록용 그림(긴 변 400)과 같은 폭
 export const COVER_RATIO = 4 / 3         // 표지 = 3:4 칸 (첫 구간 전체를 줄여 넣는다 — 템플릿 첫 구간은 780×1040 = 3:4)
 const PLACEHOLDER_BG = '#e8eaee'
 const PLACEHOLDER_INK = '#c6ccd5'
 
 const measure = createTextMeasure()
-const cache = new Map() // key → Promise<{ full, cover, width, height, sections }>
+const coverMeasure = createTextMeasure() // 표지는 첫 구간 글꼴만 받으므로 전체 그림과 측정 캐시를 나눈다
+const cache = new Map() // key → Promise<{ full, width, height, sections, pageHeight }>
 const done = new Map()  // key → 다 그린 그림
+const coverCache = new Map() // key → Promise<{ cover }>
+const coverDone = new Map()
 let queue = Promise.resolve()
 
 let placeholder = null
@@ -109,21 +117,8 @@ async function draw(key) {
   const scale = THUMB_WIDTH / page.width
   const { canvas } = await renderPage(page, page.sections.map(s => s.id), deps, { scale })
   try {
-    // 표지 = 첫 구간 전체를 3:4 칸에 줄여 넣는다 (윗부분만 자르지 않음 — 첫 구간이 3:4보다 길면 줄이고, 짧으면 위아래를 구간 배경색으로)
-    const first = page.sections[0]
-    const secH = Math.min(canvas.height, Math.round(first.height * scale))
-    const coverH = Math.round(canvas.width * COVER_RATIO)
-    const cover = deps.createCanvas(canvas.width, coverH)
-    const g = cover.getContext('2d')
-    g.fillStyle = typeof first.bg === 'string' ? first.bg : '#ffffff'
-    g.fillRect(0, 0, canvas.width, coverH)
-    const k = Math.min(1, coverH / secH)
-    const dw = Math.round(canvas.width * k), dh = Math.round(secH * k)
-    g.drawImage(canvas, 0, 0, canvas.width, secH, Math.round((canvas.width - dw) / 2), Math.round((coverH - dh) / 2), dw, dh)
-    const [full, coverUrl] = await Promise.all([toUrl(canvas), toUrl(cover)])
-    cover.width = 0
-    cover.height = 0
-    return { full, cover: coverUrl, width: canvas.width, height: canvas.height, sections: page.sections.length, pageHeight: templatePageHeight(page) }
+    const full = await toUrl(canvas)
+    return { full, width: canvas.width, height: canvas.height, sections: page.sections.length, pageHeight: templatePageHeight(page) }
   } finally {
     canvas.width = 0
     canvas.height = 0
@@ -131,21 +126,133 @@ async function draw(key) {
 }
 
 /**
- * 템플릿 그림 (캐시). @returns {Promise<{ full, cover, width, height, sections, pageHeight }>} full·cover = blob 주소
+ * 표지용 문서 — 첫 구간만 남긴 템플릿으로 만든다 (아래 구간의 글꼴·사진을 받지 않게).
+ * 예시 사진은 전체 템플릿의 자리 순서로 나눈 것을 그 자리 번호로 옮겨 준다 (갤러리 그림·적용과 같은 사진).
+ * 첫 구간이 빠지는 템플릿(자리가 비어 구간째 빠짐)이면 전체 문서의 첫 구간 = 예전 표지와 같다.
+ */
+function coverPage(tpl, samples, m) {
+  const one = { ...tpl, sections: tpl.sections.slice(0, 1) }
+  const all = templateSlots(tpl)
+  const oneSamples = samples ? templateSlots(one).map(n => samples[all.indexOf(n)] ?? null) : null
+  const page = templatePreviewPage(one, [], m, oneSamples)
+  if (page && page.sections.length > 0) return page
+  return templatePreviewPage(tpl, [], m, samples)
+}
+
+/** manifest 경로 → { thumb, w, h } (에셋 + 예시 사진). 목록을 못 받으면 빈 표 (원본으로 그린다) */
+async function thumbTable() {
+  const out = new Map()
+  try {
+    const m = await loadAssetManifest()
+    for (const e of [...(m.items || []), ...(m.samples || [])]) if (e.thumb) out.set(e.file, { thumb: e.thumb, w: e.w, h: e.h })
+  } catch (e) {
+    console.error('[studioTemplateThumbs] 이미지 목록을 받지 못함 — 표지를 원본 그림으로 그림:', e)
+  }
+  return out
+}
+
+/**
+ * 이 구간에서 에셋 그림마다 필요한 배율 (원본 1px → 표지 몇 px). 같은 그림이 여러 번이면 가장 큰 값.
+ * contain = 그림 전체가 자리 안, cover = 자리를 채우도록 (섹션 배경 이미지 = 섹션 전체를 cover).
+ */
+function assetNeeds(page, section, table, scale) {
+  const need = new Map()
+  const note = (path, w, h, fit) => {
+    const t = table.get(path)
+    if (!t || !(t.w > 0 && t.h > 0)) return
+    const k = (fit === 'cover' ? Math.max : Math.min)((w * scale) / t.w, (h * scale) / t.h)
+    need.set(path, Math.max(need.get(path) ?? 0, k))
+  }
+  const bg = sectionBgImageOf(section)
+  if (bg) note(bg.asset, page.width, section.height, bg.fit)
+  for (const it of section.items || []) if (it?.type === 'asset' && typeof it.asset === 'string') note(it.asset, it.w, it.h, it.fit)
+  return need
+}
+
+async function drawCover(key) {
+  const tpl = templateByKey(key)
+  if (!tpl) throw new Error(`모르는 템플릿: ${key}`)
+  const first = { ...tpl, sections: tpl.sections.slice(0, 1) }
+  let fontsOk = false
+  try {
+    fontsOk = await loadFontsFor(templateFontList(first))
+  } catch (e) {
+    console.error('[studioTemplateThumbs] 표지 글꼴 조각을 받지 못함:', key, e)
+  }
+  coverMeasure.clear() // 첫 구간 글꼴만 받았으니 표지마다 새로 잰다 (다른 표지의 대체 글꼴 값이 남지 않게)
+  if (!fontsOk) console.warn('[studioTemplateThumbs] 표지를 대체 글꼴로 그림:', key)
+  const samples = await templateSamples(tpl)
+  const page = coverPage(tpl, samples, coverMeasure)
+  if (!page || page.sections.length === 0) throw new Error(`템플릿 페이지를 만들지 못함: ${key}`)
+  const scale = COVER_WIDTH / page.width
+  const sec = page.sections[0]
+  const table = await thumbTable()
+  const need = assetNeeds(page, sec, table, scale)
+  const coverDeps = {
+    ...deps,
+    measure: coverMeasure,
+    // 목록용 작은 그림이 표지 크기에 충분하면 그것, 모자라면(큰 배경 등) 원본
+    async getAsset(path) {
+      const t = table.get(path)
+      if (t && need.has(path)) {
+        const small = await loadAssetImage(t.thumb)
+        if (small.width / t.w >= need.get(path) * 0.95) return small
+      }
+      return loadAssetImage(path)
+    },
+  }
+  const { canvas } = await renderSection(page, sec.id, coverDeps, { scale })
+  try {
+    // 표지 = 첫 구간 전체를 3:4 칸에 줄여 넣는다 (윗부분만 자르지 않음 — 첫 구간이 3:4보다 길면 줄이고, 짧으면 위아래를 구간 배경색으로)
+    const secH = canvas.height
+    const coverH = Math.round(canvas.width * COVER_RATIO)
+    const cover = deps.createCanvas(canvas.width, coverH)
+    const g = cover.getContext('2d')
+    g.fillStyle = typeof sec.bg === 'string' ? sec.bg : '#ffffff'
+    g.fillRect(0, 0, canvas.width, coverH)
+    const k = Math.min(1, coverH / secH)
+    const dw = Math.round(canvas.width * k), dh = Math.round(secH * k)
+    g.drawImage(canvas, 0, 0, canvas.width, secH, Math.round((canvas.width - dw) / 2), Math.round((coverH - dh) / 2), dw, dh)
+    const coverUrl = await toUrl(cover)
+    cover.width = 0
+    cover.height = 0
+    return { cover: coverUrl }
+  } finally {
+    canvas.width = 0
+    canvas.height = 0
+  }
+}
+
+/** 한 번에 하나씩 그리고 key별로 캐시 (실패한 것은 캐시에서 빼서 다음에 다시) */
+function queued(key, store, finished, fn, what) {
+  if (store.has(key)) return store.get(key)
+  const p = queue.then(() => fn(key))
+  queue = p.catch(() => {}) // 앞 것이 실패해도 다음 것은 그린다
+  const out = p.then(v => { finished.set(key, v); return v }, e => {
+    store.delete(key)
+    console.error(`[studioTemplateThumbs] ${what}을 만들지 못함:`, key, e)
+    throw e
+  })
+  store.set(key, out)
+  return out
+}
+
+/**
+ * 미리보기 칸용 템플릿 전체 그림 (캐시). @returns {Promise<{ full, width, height, sections, pageHeight }>} full = blob 주소
  * 실패하면 reject — 부르는 쪽이 자리표시 + [다시 시도]를 그린다
  */
 export function templateThumb(key) {
   if (cache.has(key)) return cache.get(key)
-  const p = queue.then(() => draw(key))
-  queue = p.catch(() => {}) // 앞 것이 실패해도 다음 것은 그린다
-  const out = p.then(v => { done.set(key, v); return v }, e => {
-    cache.delete(key)
-    console.error('[studioTemplateThumbs] 템플릿 그림을 만들지 못함:', key, e)
-    throw e
-  })
-  cache.set(key, out)
-  return out
+  return queued(key, cache, done, draw, '템플릿 그림')
 }
 
 /** 이미 그려 둔 그림 (없으면 null) — 화면이 다시 열릴 때 기다리지 않고 바로 쓰려고 */
 export function templateThumbNow(key) { return done.get(key) ?? null }
+
+/** 카드 표지 (첫 구간만·작은 그림, 캐시). @returns {Promise<{ cover }>} cover = blob 주소 */
+export function templateCover(key) {
+  return queued(key, coverCache, coverDone, drawCover, '템플릿 표지')
+}
+
+/** 이미 그려 둔 표지 (없으면 null) */
+export function templateCoverNow(key) { return coverDone.get(key) ?? null }

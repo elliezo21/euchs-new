@@ -181,7 +181,7 @@ eq('안내·이벤트: 문구에 다른 회사·판매처 이름·"중국어" �
 // ── 7. 화면 — 표지 3:4 전체 · 하트 ──
 {
   const thumbs = fs.readFileSync(path.join(HERE, '..', 'src', 'lib', 'studioTemplateThumbs.js'), 'utf8')
-  eq('표지 = 첫 구간 전체를 3:4에 줄여 넣음 (윗부분만 자르지 않음)', [/const first = page\.sections\[0\]/.test(thumbs), /Math\.min\(1, coverH \/ secH\)/.test(thumbs)], [true, true])
+  eq('표지 = 첫 구간 전체를 3:4에 줄여 넣음 (윗부분만 자르지 않음)', [/const sec = page\.sections\[0\]/.test(thumbs), /Math\.min\(1, coverH \/ secH\)/.test(thumbs)], [true, true])
   eq('예시 사진 = 갤러리 전체 나눔(assignTemplateSamples)', /assignTemplateSamples\(m\.samples\)/.test(thumbs), true)
   const card = fs.readFileSync(path.join(HERE, '..', 'src', 'components', 'studio', 'StudioTemplateCard.vue'), 'utf8')
   eq('하트: 반투명 흰 원 · 카드 모서리 안쪽', [/\.st-tcard-heart \{[^}]*background: rgba\(255, 255, 255, \.7\d?\)/.test(card), /\.st-tcard-heart \{[^}]*top: 10px; right: 10px/.test(card)], [true, true])
