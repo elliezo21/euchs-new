@@ -82,7 +82,7 @@
 //   연결된 판매처 = [쿠팡으로 보내기]·[카페24로 보내기](2026-09-30) → 같은 보내기 창(StudioSendModal · 진입은 studioMarketplace.sendToMarketplace 한 곳) — 누른 판매처만 처음 체크(market prop)
 //   연결 전 판매처 = 자물쇠 + [연결하기](연결 탭) · 아직 연결할 수 없는 곳 = "예정" 한 단어만. "준비 중" 글자는 쓰지 않는다 (줄 규칙 studioMarketplaceRules.channelRows)
 // 주소 ?export=<내 상품 id> = 그 상품을 골라 둔 채로 연다 (편집기 [작업 저장] 뒤 [판매처로 보내기] · 내 작업 "판매처에서 보내기 →")
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Send, Lock } from 'lucide-vue-next'
 import StudioExportList from '@/components/studio/StudioExportList.vue'
@@ -92,7 +92,7 @@ import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 import { currentUser, isSuperAdmin, isAuthLoading } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
 import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
-import { channelRows, sendButtonLabel, MARKETS, PLANNED_LABEL, linkPhase } from '@/lib/studioMarketplaceRules'
+import { channelRows, sendButtonLabel, MARKETS, PLANNED_LABEL, linkPhase, NOT_CUSTOMER } from '@/lib/studioMarketplaceRules'
 import { linkStates, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 
@@ -123,17 +123,28 @@ function retryRows() {
   if (coupangPhase.value === 'failed') loadStatus()
   if (marketLinksPhase.value === 'failed') loadMarketLinks()
 }
-async function loadStatus() {
-  statusError.value = ''
-  statusCode.value = ''
-  try {
-    status.value = await getMarketplaceStatus()
-  } catch (e) {
-    console.error('[StudioChannelSendView] 연결 상태 조회 실패:', e.code, e)
-    statusError.value = e.message
-    statusCode.value = e.code || ''
-    statusSoft.value = isNotReady(e.code)
-  }
+// 읽는 중에 또 부르면 같은 요청을 같이 쓴다 (마운트·로그인 이벤트·로그인 사용자 바뀜이 겹칠 때 요청 한 번)
+let statusLoading = null
+function loadStatus() {
+  if (statusLoading) return statusLoading
+  statusLoading = (async () => {
+    // 못 읽은 상태면 다시 "확인 중"으로. 주문 자격 없음(locked)은 다시 읽는 동안에도 그대로(탭 복귀마다 깜빡이지 않게)
+    if (statusCode.value !== NOT_CUSTOMER) {
+      statusError.value = ''
+      statusCode.value = ''
+    }
+    try {
+      status.value = await getMarketplaceStatus()
+      statusError.value = ''
+      statusCode.value = ''
+    } catch (e) {
+      console.error('[StudioChannelSendView] 연결 상태 조회 실패:', e.code, e)
+      statusError.value = e.message
+      statusCode.value = e.code || ''
+      statusSoft.value = isNotReady(e.code)
+    }
+  })().finally(() => { statusLoading = null })
+  return statusLoading
 }
 
 // ── 보낸 기록 (배지) ──
@@ -235,10 +246,13 @@ const onStudioAuthChanged = (e) => {
     loadSends()
   }
 }
+// 로그인한 사용자가 바뀌면 이벤트가 오지 않아도 읽는다 (auth.js initAuth는 세션 복원 때 currentUser만 채우고 euchs-auth-changed를 보내지 않을 때가 있다 —
+// 그러면 마운트 때 로그인 전이던 화면의 판매처 줄이 "확인 중"에 멈췄다, 2026-09-30)
+watch(() => currentUser.value?.id, (uid, prev) => { if (uid && uid !== prev) { loadStatus(); loadSends() } })
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
   loadMarketLinks() // 11번가·스마트스토어·카페24 연결 상태 (로그인 전이면 부르지 않는다)
-  if (!loggedIn.value) return // 로그인 전에는 부르지 않는다 (로그인하면 euchs-auth-changed로 읽는다)
+  if (!loggedIn.value) return // 로그인 전에는 부르지 않는다 (로그인하면 위 watch·euchs-auth-changed가 읽는다)
   loadStatus()
   loadSends()
 })

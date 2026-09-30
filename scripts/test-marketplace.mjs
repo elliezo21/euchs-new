@@ -960,7 +960,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       const links = read('src/lib/studioMarketLinks.js')
       eq('상태 모듈: 로그인 전 안 부름 · 로그아웃·다른 사용자면 비움 · 같은 사용자면 비우지 않고 다시 읽기만 · 다시 읽기 실패해도 보여 주던 값 유지', [
         /if \(!uid\) \{ reset\(\); return \}/.test(links), /addEventListener\('euchs-auth-changed', e => onAuthChangedForLinks\(e\.detail\?\.user\)\)/.test(links),
-        /if \(!uid \|\| uid !== shownUid\) reset\(\)/.test(links), /if \(shownUid && shownUid !== uid\) reset\(\)/.test(links),
+        /if \(!uid \|\| \(uid !== shownUid && uid !== loadingUid\)\) reset\(\)/.test(links), /if \(shownUid && shownUid !== uid\) reset\(\)/.test(links), // 2026-09-30: 같은 사용자를 읽는 중이면 비우지 않음(요청 한 번)
         /addEventListener\('euchs-auth-changed', e => \{ reset\(\);/.test(links), /catch \(e\) \{[\s\S]*?marketLinks\.error = e\.message[\s\S]*?\}/.test(links) && !/catch \(e\) \{[^}]*Object\.assign\(marketLinks, blank\(\)\)/.test(links),
       ], [true, true, true, true, false, true])
     }
@@ -1400,7 +1400,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ], [[true, true, true, true], true, true, false, false])
   eq('자리표시: 확인 중 = 스켈레톤(버튼 없음) · 못 읽음 = 고정 문구 + [다시 시도] · 단계는 linkPhase 하나(auth 로딩 포함) · 다시 시도하면 오류를 비워 확인 중으로', [
     /phase === 'checking'" class="st-skeleton/.test(pend), /\{\{ LINK_LOAD_FAILED \}\}/.test(pend) && /data-mk-link-retry @click="\$emit\('retry'\)">다시 시도</.test(pend),
-    /linkPhase\(\{ authLoading: isAuthLoading\.value/.test(links), /if \(!marketLinks\.loaded\) \{ marketLinks\.error = ''; marketLinks\.code = '' \}/.test(links), (links.match(/linkPhase\(/g) || []).length, /export function linkPhase/.test(read('src/lib/studioMarketplaceRules.js')) && (read('src/lib/studioMarketplaceRules.js').match(/export function linkPhase/g) || []).length,
+    /linkPhase\(\{ authLoading: isAuthLoading\.value/.test(links), /if \(!marketLinks\.loaded && marketLinks\.code !== NOT_CUSTOMER\) \{ marketLinks\.error = ''; marketLinks\.code = '' \}/.test(links), (links.match(/linkPhase\(/g) || []).length, /export function linkPhase/.test(read('src/lib/studioMarketplaceRules.js')) && (read('src/lib/studioMarketplaceRules.js').match(/export function linkPhase/g) || []).length,
   ], [true, true, true, true, 1, 1])
   eq('보내기 탭: 잠긴 줄은 읽는 중·못 읽음이면 자물쇠·[연결하기] 대신 자리표시 · 못 읽으면 목록 아래 [다시 시도] · 원인 줄은 읽은 뒤 실패에만', [
     /<StudioLinkPending v-else-if="rowWaiting\(r\)" part="badge"/.test(sv), sv.indexOf('rowWaiting(r)') > 0 && sv.indexOf('rowWaiting(r)') < sv.lastIndexOf(':data-ch-connect="r.key"'),

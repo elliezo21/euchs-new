@@ -153,7 +153,7 @@ import StudioSmartstoreCard from '@/components/studio/StudioSmartstoreCard.vue'
 import StudioCafe24Card from '@/components/studio/StudioCafe24Card.vue'
 import { marketLinks, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
 import { STUDIO_NO_ACCESS_TITLE, STUDIO_NO_ACCESS_BODY, STUDIO_NO_ACCESS_MALL } from '@/lib/studioAccess'
-import { MARKETS, PLANNED_LABEL, connectFor, isCafe24Launch, isCafe24Return, linkPhase } from '@/lib/studioMarketplaceRules'
+import { MARKETS, PLANNED_LABEL, connectFor, isCafe24Launch, isCafe24Return, linkPhase, NOT_CUSTOMER } from '@/lib/studioMarketplaceRules'
 import { hasCafe24Launch } from '@/lib/studioCafe24Launch'
 
 const STATUS_LABEL = { connected: '연결됨', invalid: '키 확인 필요', expired: '만료됨' }
@@ -199,17 +199,28 @@ const noAccess = computed(() => cpPhase.value === 'locked' || marketLinksPhase.v
 const expiry = computed(() => st.value?.connected ? expiryState(st.value.account.expires_at) : { level: 'ok', label: '' })
 const placesOf = kind => (st.value?.places || []).filter(p => p.kind === kind)
 
-async function load() {
-  loadError.value = ''
-  loadCode.value = ''
-  try {
-    st.value = await getMarketplaceStatus()
-  } catch (e) {
-    console.error('[StudioMarketplaceView] 상태 조회 실패:', e.code, e)
-    loadError.value = e.message
-    loadCode.value = e.code || ''
-    loadSoft.value = isNotReady(e.code)
-  }
+// 읽는 중에 또 부르면(마운트·로그인 이벤트·로그인 사용자 바뀜이 겹칠 때) 같은 요청을 같이 쓴다 — 요청 한 번
+let loading = null
+function load() {
+  if (loading) return loading
+  loading = (async () => {
+    // 못 읽은 상태면 다시 "확인 중"으로. 주문 자격 없음(locked)은 다시 읽는 동안에도 그대로(탭 복귀마다 깜빡이지 않게)
+    if (loadCode.value !== NOT_CUSTOMER) {
+      loadError.value = ''
+      loadCode.value = ''
+    }
+    try {
+      st.value = await getMarketplaceStatus()
+      loadError.value = ''
+      loadCode.value = ''
+    } catch (e) {
+      console.error('[StudioMarketplaceView] 상태 조회 실패:', e.code, e)
+      loadError.value = e.message
+      loadCode.value = e.code || ''
+      loadSoft.value = isNotReady(e.code)
+    }
+  })().finally(() => { loading = null })
+  return loading
 }
 function defaultExpiry() {
   const d = new Date(Date.now() + 180 * 86400000 + 9 * 3600000)
@@ -313,10 +324,13 @@ const onStudioAuthChanged = (e) => {
 }
 // 이메일 로그인은 같은 화면에 ?connect=1만 붙여 돌아온다(onMounted가 다시 돌지 않음) → 주소·로그인 상태를 지켜본다
 watch(() => [route.query.connect, loggedIn.value], ([c, ok]) => { if (c === '1' && ok) resumeConnect() })
+// 로그인한 사용자가 바뀌면 이벤트가 오지 않아도 읽는다 (2026-09-30 운영: 마운트 때 로그인 복원 전이면 onMounted가 읽지 않고,
+// auth.js initAuth가 세션 복원 때 currentUser만 채우고 euchs-auth-changed를 보내지 않으면 쿠팡 카드가 "확인 중"(글자로는 제목만)에 멈췄다)
+watch(() => currentUser.value?.id, (uid, prev) => { if (uid && uid !== prev && route.query.connect !== '1') load() })
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
   loadMarketLinks() // 11번가·연결 신청 상태 (로그인 전이면 부르지 않고 비운다 — 로그인하면 그 모듈이 다시 읽는다)
-  if (!loggedIn.value) return // 로그인 전에는 연결 상태를 부르지 않는다 (연결 방법 보기·판매처 목록은 그대로)
+  if (!loggedIn.value) return // 로그인 전에는 연결 상태를 부르지 않는다 (로그인되면 위 watch·euchs-auth-changed가 읽는다)
   if (route.query.connect === '1') resumeConnect()
   else load()
 })
