@@ -122,10 +122,10 @@
 
     <!-- 스튜디오 전체 공개(all): 로그인했지만 주문 고객이 아닐 때 (라우터 가드 3-2 · 작업 시작 관문 studioGate → studioNoAccessOpen) -->
     <StudioModal :open="studioNoAccessOpen" :title="STUDIO_NO_ACCESS_TITLE" @close="studioNoAccessOpen = false">
-      <span data-studio-no-access>이유씨 몰에서 결제까지 마친 주문이 1건 이상 있으면 바로 작업을 시작할 수 있어요.</span>
+      <span data-studio-no-access>{{ STUDIO_NO_ACCESS_BODY }}</span>
       <template #actions>
         <button type="button" class="st-btn" @click="studioNoAccessOpen = false">닫기</button>
-        <button type="button" class="st-btn st-btn-primary" data-studio-no-access-mall @click="goMall">이유씨 몰에서 사입하기</button>
+        <button type="button" class="st-btn st-btn-primary" data-studio-no-access-mall @click="goMall">{{ STUDIO_NO_ACCESS_MALL }}</button>
       </template>
     </StudioModal>
 
@@ -150,7 +150,7 @@ import {
 import { currentUser, signOut, openLoginModal } from '@/lib/auth'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import { STUDIO_BETA, BETA_BADGE, BETA_NOTE } from '@/lib/studioBeta'
-import { studioNoAccessOpen, STUDIO_NO_ACCESS_TITLE } from '@/lib/studioAccess'
+import { studioNoAccessOpen, STUDIO_NO_ACCESS_TITLE, STUDIO_NO_ACCESS_BODY, STUDIO_NO_ACCESS_MALL } from '@/lib/studioAccess'
 import { studioGate } from '@/lib/studioGate'
 
 const route = useRoute()

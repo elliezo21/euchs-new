@@ -10,6 +10,9 @@ import { ref } from 'vue'
 import { callStudioApi } from '@/lib/studioApi'
 
 export const STUDIO_NO_ACCESS_TITLE = 'EUCHS에서 사입하면 스튜디오는 무료예요'
+/** 안내 본문·버튼 — StudioLayout 안내 창과 판매처 연결 탭 안내(주문 자격 없음)가 같이 쓴다 */
+export const STUDIO_NO_ACCESS_BODY = '이유씨 몰에서 결제까지 마친 주문이 1건 이상 있으면 바로 작업을 시작할 수 있어요.'
+export const STUDIO_NO_ACCESS_MALL = '이유씨 몰에서 사입하기'
 
 /** 안내 창 열림 — 라우터 가드가 켜고 StudioLayout이 보여 준다 (가드가 도는 순간 레이아웃이 아직 없을 수 있어 이벤트 대신 상태) */
 export const studioNoAccessOpen = ref(false)

@@ -2,6 +2,15 @@
   <div class="px-4 sm:px-12 py-6 max-w-5xl space-y-6" data-mk-view>
     <p class="st-desc break-keep">완성한 상세페이지를 판매처에 바로 등록할 수 있습니다. 가이드를 참고하여 직접 연결하세요.</p>
 
+    <!-- 주문 자격 없음(서버 403 not_customer) — 탭 위에 한 번만. 문구·버튼은 스튜디오 안내 창(StudioLayout)과 같은 것 (studioAccess) -->
+    <section v-if="noAccess" class="st-card p-5 sm:p-6 flex flex-wrap items-center gap-3" data-mk-no-access>
+      <div class="min-w-0 flex-1">
+        <h3 class="st-h-card">{{ STUDIO_NO_ACCESS_TITLE }}</h3>
+        <p class="mt-1 st-desc break-keep">{{ STUDIO_NO_ACCESS_BODY }}</p>
+      </div>
+      <router-link to="/mall" class="st-btn st-btn-primary shrink-0" data-mk-no-access-mall>{{ STUDIO_NO_ACCESS_MALL }}</router-link>
+    </section>
+
     <!-- 이미 읽은 뒤 다시 읽기가 실패한 때만 (처음부터 못 읽으면 쿠팡 카드 안에 "불러오지 못했습니다 [다시 시도]") -->
     <p v-if="loadError && st" class="text-[14px] break-keep" :class="loadSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-load-error>{{ loadError }}</p>
 
@@ -142,7 +151,8 @@ import { getMarketplaceStatus, connectCoupang, disconnectCoupang, refreshPlaces,
 import StudioElevenstCard from '@/components/studio/StudioElevenstCard.vue'
 import StudioSmartstoreCard from '@/components/studio/StudioSmartstoreCard.vue'
 import StudioCafe24Card from '@/components/studio/StudioCafe24Card.vue'
-import { marketLinks, loadMarketLinks } from '@/lib/studioMarketLinks'
+import { marketLinks, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
+import { STUDIO_NO_ACCESS_TITLE, STUDIO_NO_ACCESS_BODY, STUDIO_NO_ACCESS_MALL } from '@/lib/studioAccess'
 import { MARKETS, PLANNED_LABEL, connectFor, isCafe24Launch, isCafe24Return, linkPhase } from '@/lib/studioMarketplaceRules'
 import { hasCafe24Launch } from '@/lib/studioCafe24Launch'
 
@@ -166,6 +176,7 @@ const PLANNED = computed(() => MARKETS.filter(m => (m.key === 'cafe24' ? !showCa
 const loggedIn = computed(() => !!currentUser.value?.id)
 const st = ref(null)
 const loadError = ref('')
+const loadCode = ref('') // 못 읽은 서버 코드 — not_customer = 주문 자격 없음(linkPhase 'locked')
 const loadSoft = ref(false)
 const busy = ref('')
 const actionMsg = ref('')
@@ -181,18 +192,22 @@ const confirmDisconnect = ref(false)
 const form = ref({ seller_login_id: '', vendor_id: '', access_key: '', secret_key: '', expires_at: '' })
 
 // 쿠팡 카드 표시 단계 — 상태(st)를 읽기 전에는 "연결 전" 대신 자리표시, 처음부터 못 읽으면 "불러오지 못했습니다 [다시 시도]"
-const cpPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: loggedIn.value, loaded: !!st.value, error: loadError.value }))
+// 'locked'(주문 자격 없음)이면 "연결 전" + [쿠팡 연결하기] 그대로 — 누르면 studioGate가 주문 고객 안내 창을 연다
+const cpPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: loggedIn.value, loaded: !!st.value, error: loadError.value, code: loadCode.value }))
 const cpWaiting = computed(() => cpPhase.value === 'checking' || cpPhase.value === 'failed')
+const noAccess = computed(() => cpPhase.value === 'locked' || marketLinksPhase.value === 'locked')
 const expiry = computed(() => st.value?.connected ? expiryState(st.value.account.expires_at) : { level: 'ok', label: '' })
 const placesOf = kind => (st.value?.places || []).filter(p => p.kind === kind)
 
 async function load() {
   loadError.value = ''
+  loadCode.value = ''
   try {
     st.value = await getMarketplaceStatus()
   } catch (e) {
     console.error('[StudioMarketplaceView] 상태 조회 실패:', e.code, e)
     loadError.value = e.message
+    loadCode.value = e.code || ''
     loadSoft.value = isNotReady(e.code)
   }
 }
@@ -291,6 +306,7 @@ const onStudioAuthChanged = (e) => {
     confirmDisconnect.value = false
     actionMsg.value = ''
     loadError.value = ''
+    loadCode.value = ''
   } else if (route.query.connect !== '1') { // ?connect=1이면 아래 watch가 읽고 이어서 연다
     load()
   }

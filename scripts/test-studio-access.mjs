@@ -142,8 +142,9 @@ for (const [name, h] of [['studio-upload', upload], ['studio-ingest', ingest], [
   const router = fs.readFileSync(new URL('../src/router/index.js', import.meta.url), 'utf8')
   eq('라우터: all 모드에서만 자격 확인', /STUDIO_MODE === 'all' && isStudioProtectedPath\(to\.path\)[\s\S]{0,200}checkStudioAccess/.test(router), true)
   const layout = fs.readFileSync(new URL('../src/layouts/StudioLayout.vue', import.meta.url), 'utf8')
-  eq('레이아웃: 안내 창 + [이유씨 몰에서 사입하기] → /mall', [layout.includes(':open="studioNoAccessOpen"'), layout.includes('>이유씨 몰에서 사입하기</button>'), /router\.push\('\/mall'\)/.test(layout)], [true, true, true])
   const access = fs.readFileSync(new URL('../src/lib/studioAccess.js', import.meta.url), 'utf8')
+  // 2026-09-30: 본문·버튼 글자를 studioAccess 상수로 옮김(판매처 연결 탭 안내가 같은 글자를 씀) — 글자는 그대로
+  eq('레이아웃: 안내 창 + [이유씨 몰에서 사입하기] → /mall (글자 = studioAccess 상수)', [layout.includes(':open="studioNoAccessOpen"'), layout.includes('>{{ STUDIO_NO_ACCESS_MALL }}</button>'), access.includes("export const STUDIO_NO_ACCESS_MALL = '이유씨 몰에서 사입하기'"), access.includes("export const STUDIO_NO_ACCESS_BODY = '이유씨 몰에서 결제까지 마친 주문이 1건 이상 있으면 바로 작업을 시작할 수 있어요.'"), /router\.push\('\/mall'\)/.test(layout)], [true, true, true, true, true])
   eq('안내 제목 문구', access.includes("'EUCHS에서 사입하면 스튜디오는 무료예요'"), true)
 
   // 누구나 구경, 작업 시작할 때만 (2026-09-30)

@@ -8,11 +8,11 @@ import { getMarketLinks, isNotReady } from '@/lib/studioMarketplace'
 import { linkPhase } from '@/lib/studioMarketplaceRules'
 
 const OFF = () => ({ connected: false, account: null })
-const blank = () => ({ loaded: false, loading: false, error: '', soft: false, elevenst: OFF(), smartstore: OFF(), cafe24: OFF() })
-// loaded: 한 번이라도 읽음 · error: 못 읽은 이유(고객 문구) · soft: 우리 쪽 준비 문제(회색)
+const blank = () => ({ loaded: false, loading: false, error: '', code: '', soft: false, elevenst: OFF(), smartstore: OFF(), cafe24: OFF() })
+// loaded: 한 번이라도 읽음 · error: 못 읽은 이유(고객 문구) · code: 못 읽은 서버 코드(not_customer = 주문 자격 없음) · soft: 우리 쪽 준비 문제(회색)
 export const marketLinks = reactive(blank())
 /** 카드·보내기 줄 표시 단계 (studioMarketplaceRules.linkPhase) — 'ready'가 아니면 "연결 전"·[연결하기]를 그리지 않는다 */
-export const marketLinksPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: !!currentUser.value?.id, loaded: marketLinks.loaded, error: marketLinks.error }))
+export const marketLinksPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: !!currentUser.value?.id, loaded: marketLinks.loaded, error: marketLinks.error, code: marketLinks.code }))
 
 let seq = 0
 let listening = false
@@ -40,6 +40,7 @@ export function applyMarketLinks(d) {
   marketLinks.cafe24 = d.cafe24 || OFF()
   marketLinks.loaded = true
   marketLinks.error = ''
+  marketLinks.code = ''
   shownUid = currentUser.value?.id || ''
 }
 export async function loadMarketLinks() {
@@ -52,7 +53,7 @@ export async function loadMarketLinks() {
   if (shownUid && shownUid !== uid) reset()
   const my = ++seq
   marketLinks.loading = true
-  if (!marketLinks.loaded) marketLinks.error = '' // [다시 시도] — 한 번도 못 읽은 상태면 다시 "확인 중"으로
+  if (!marketLinks.loaded) { marketLinks.error = ''; marketLinks.code = '' } // [다시 시도] — 한 번도 못 읽은 상태면 다시 "확인 중"으로
   try {
     const d = await getMarketLinks()
     if (my === seq) { applyMarketLinks(d); shownUid = uid }
@@ -61,6 +62,7 @@ export async function loadMarketLinks() {
     // 다시 읽기가 실패해도 이미 보여 주던 같은 사용자의 연결 상태는 그대로 둔다(깜빡이지 않게) — 이유만 보여 준다
     console.error('[studioMarketLinks] 연결 상태 조회 실패:', e.code, e)
     marketLinks.error = e.message
+    marketLinks.code = e.code || ''
     marketLinks.soft = isNotReady(e.code)
   } finally {
     if (my === seq) marketLinks.loading = false

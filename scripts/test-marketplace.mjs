@@ -1383,6 +1383,13 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     P({ loaded: true, loggedIn: true, error: 'x' }), P({ authLoading: true }), P({}), P({ loggedIn: true }), P({ loggedIn: true, error: '잠시 후 다시 시도해 주세요.' }),
   ], ['ready', 'checking', 'guest', 'checking', 'failed'])
   eq('못 읽음 문구', R.LINK_LOAD_FAILED, '연결 상태를 불러오지 못했습니다.')
+  // 2026-09-30 운영: 주문 없는 계정(studioGuard 403 not_customer)이 'failed'로 보여 [다시 시도]만 반복 → 'locked'로 구분 (자격 판정은 서버 그대로)
+  const U = { loggedIn: true }
+  eq('자격: not_customer(403) = locked · 500·네트워크(코드 없음)·준비 문제 = failed · 정상 응답 = ready · 허용 명단 계정(서버가 통과시켜 정상 응답) = ready · 로그인 확인 중이면 코드가 있어도 checking', [
+    P({ ...U, error: '스튜디오는 EUCHS에서 주문하신 고객님께 무료로 열려 있어요.', code: 'not_customer' }),
+    P({ ...U, error: '잠시 후 다시 시도해 주세요.', code: 'server_error' }), P({ ...U, error: 'Failed to fetch' }), P({ ...U, error: '지금은 연결할 수 없어요.', code: 'relay_unreachable' }),
+    P({ ...U, loaded: true }), P({ ...U, loaded: true, error: 'x', code: 'not_customer' }), P({ authLoading: true, error: 'x', code: 'not_customer' }), P({ error: 'x', code: 'not_customer' }),
+  ], ['locked', 'failed', 'failed', 'failed', 'ready', 'ready', 'checking', 'guest'])
   const mk = read('src/views/studio/StudioMarketplaceView.vue'), pend = read('src/components/studio/StudioLinkPending.vue'), links = read('src/lib/studioMarketLinks.js'), sv = read('src/views/studio/StudioChannelSendView.vue')
   const cards = ['StudioElevenstCard', 'StudioSmartstoreCard', 'StudioCafe24Card'].map(n => read(`src/components/studio/${n}.vue`))
   // "연결 전" 배지·[연결하기] 앞에 자리표시(v-else-if waiting)가 먼저 온다 — 읽기 전에는 "연결 전"이 그려지지 않는다
@@ -1393,12 +1400,21 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ], [[true, true, true, true], true, true, false, false])
   eq('자리표시: 확인 중 = 스켈레톤(버튼 없음) · 못 읽음 = 고정 문구 + [다시 시도] · 단계는 linkPhase 하나(auth 로딩 포함) · 다시 시도하면 오류를 비워 확인 중으로', [
     /phase === 'checking'" class="st-skeleton/.test(pend), /\{\{ LINK_LOAD_FAILED \}\}/.test(pend) && /data-mk-link-retry @click="\$emit\('retry'\)">다시 시도</.test(pend),
-    /linkPhase\(\{ authLoading: isAuthLoading\.value/.test(links), /if \(!marketLinks\.loaded\) marketLinks\.error = ''/.test(links), (links.match(/linkPhase\(/g) || []).length, /export function linkPhase/.test(read('src/lib/studioMarketplaceRules.js')) && (read('src/lib/studioMarketplaceRules.js').match(/export function linkPhase/g) || []).length,
+    /linkPhase\(\{ authLoading: isAuthLoading\.value/.test(links), /if \(!marketLinks\.loaded\) \{ marketLinks\.error = ''; marketLinks\.code = '' \}/.test(links), (links.match(/linkPhase\(/g) || []).length, /export function linkPhase/.test(read('src/lib/studioMarketplaceRules.js')) && (read('src/lib/studioMarketplaceRules.js').match(/export function linkPhase/g) || []).length,
   ], [true, true, true, true, 1, 1])
   eq('보내기 탭: 잠긴 줄은 읽는 중·못 읽음이면 자물쇠·[연결하기] 대신 자리표시 · 못 읽으면 목록 아래 [다시 시도] · 원인 줄은 읽은 뒤 실패에만', [
     /<StudioLinkPending v-else-if="rowWaiting\(r\)" part="badge"/.test(sv), sv.indexOf('rowWaiting(r)') > 0 && sv.indexOf('rowWaiting(r)') < sv.lastIndexOf(':data-ch-connect="r.key"'),
     /<StudioLinkPending v-if="rowsFailed" phase="failed" @retry="retryRows" \/>/.test(sv), /v-if="statusError && status"/.test(sv), /r\.state === 'locked' && \['checking', 'failed'\]\.includes\(rowPhase\(r\.key\)\)/.test(sv),
   ], [true, true, true, true, true])
+  const acc = read('src/lib/studioAccess.js'), lay = read('src/layouts/StudioLayout.vue')
+  eq('locked 화면: 서버 코드를 단계로 넘김(쿠팡·11번가 등·보내기 탭 쿠팡 줄) · 카드는 자리표시가 아니라 "연결 전"+[연결하기](관문이 안내 창) · 탭 위 안내 한 번 = 스튜디오 안내 창과 같은 상수 · 몰 버튼 /mall · [다시 시도] 없음', [
+    /code: loadCode\.value/.test(mk) && /loadCode\.value = e\.code/.test(mk), /code: marketLinks\.code/.test(links) && /marketLinks\.code = e\.code/.test(links), /code: statusCode\.value/.test(sv) && /statusCode\.value = e\.code/.test(sv),
+    /const waiting = computed\(\(\) => phase\.value === 'checking' \|\| phase\.value === 'failed'\)/.test(cards[0]), /const noAccess = computed\(\(\) => cpPhase\.value === 'locked' \|\| marketLinksPhase\.value === 'locked'\)/.test(mk),
+    (mk.match(/data-mk-no-access[\s>]/g) || []).length, /\{\{ STUDIO_NO_ACCESS_TITLE \}\}[\s\S]*\{\{ STUDIO_NO_ACCESS_BODY \}\}[\s\S]*to="\/mall"[^>]*>\{\{ STUDIO_NO_ACCESS_MALL \}\}/.test(mk),
+    /\{\{ STUDIO_NO_ACCESS_BODY \}\}/.test(lay) && /\{\{ STUDIO_NO_ACCESS_MALL \}\}/.test(lay), /export const STUDIO_NO_ACCESS_BODY = '/.test(acc),
+    /다시 시도/.test(mk.slice(mk.indexOf('data-mk-no-access'), mk.indexOf('</section>', mk.indexOf('data-mk-no-access')))),
+  ], [true, true, true, true, true, 1, true, true, true, false])
+  eq('자격 판정은 화면에 없음 — 서버 studioGuard·isBgEligible·허용 명단을 화면이 부르거나 흉내 내지 않음', /isBgEligible|STUDIO_ALLOW_EMAILS|isAllowListed/.test(mk + links + sv + read('src/lib/studioMarketplaceRules.js')), false)
   // 연결 탭 화면 글자(템플릿 + 알림·안내 문자열) — 대화체 없음. 서버 오류 문구(e.message)는 이 작업 범위 밖
   const G = await import('../src/lib/studioMarketGuides.js')
   const tpl = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')

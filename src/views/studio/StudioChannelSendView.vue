@@ -110,10 +110,12 @@ const pickedRef = ref(null)
 const status = ref(null)
 const statusError = ref('')
 const statusSoft = ref(false)
+const statusCode = ref('') // 못 읽은 서버 코드 — not_customer = 주문 자격 없음(linkPhase 'locked')
 const rows = computed(() => channelRows(linkStates(status.value?.connected === true), { admin: isSuperAdmin.value })) // 쿠팡 + 11번가·스마트스토어·카페24(studioMarketLinks) — 카페24는 심사 승인 전 관리자만
 // 줄마다 표시 단계 — 쿠팡 = 이 화면이 읽는 status, 11번가·스마트스토어·카페24 = studioMarketLinks.
 // 읽기 전에는 "연결 전"(자물쇠·[연결하기]) 대신 자리표시, 처음부터 못 읽으면 목록 아래 "불러오지 못했습니다 [다시 시도]"
-const coupangPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: loggedIn.value, loaded: !!status.value, error: statusError.value }))
+// 'locked'(주문 자격 없음 — 서버 403 not_customer)은 자리표시·[다시 시도] 없이 자물쇠 + [연결하기] 그대로
+const coupangPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: loggedIn.value, loaded: !!status.value, error: statusError.value, code: statusCode.value }))
 const rowPhase = key => (key === 'coupang' ? coupangPhase.value : marketLinksPhase.value)
 const rowWaiting = r => r.state === 'locked' && ['checking', 'failed'].includes(rowPhase(r.key))
 const rowsFailed = computed(() => rows.value.some(r => r.state === 'locked' && rowPhase(r.key) === 'failed'))
@@ -123,11 +125,13 @@ function retryRows() {
 }
 async function loadStatus() {
   statusError.value = ''
+  statusCode.value = ''
   try {
     status.value = await getMarketplaceStatus()
   } catch (e) {
     console.error('[StudioChannelSendView] 연결 상태 조회 실패:', e.code, e)
     statusError.value = e.message
+    statusCode.value = e.code || ''
     statusSoft.value = isNotReady(e.code)
   }
 }
@@ -218,6 +222,7 @@ const onStudioAuthChanged = (e) => {
     sendsSeq++
     status.value = null
     statusError.value = ''
+    statusCode.value = ''
     sends.value = []
     selectedId.value = ''
     sendOpen.value = false

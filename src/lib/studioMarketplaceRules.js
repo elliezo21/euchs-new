@@ -100,13 +100,17 @@ export function channelRows(connected = {}, { admin = false } = {}) {
 }
 /**
  * 연결 상태 표시 단계 (2026-09-30 운영 — 불러오는 동안 모든 카드가 "연결 전"으로 보였다가 "연결됨"으로 바뀌던 깜빡임)
- *   'ready' 한 번이라도 읽음 · 'checking' 로그인 확인 중이거나 읽는 중 · 'failed' 한 번도 못 읽음 · 'guest' 로그인 전
- * "연결 전"·[연결하기]는 'ready'(연결 안 됨)와 'guest'에서만 보인다. 'failed'는 "연결 전"으로 떨어뜨리지 않고 LINK_LOAD_FAILED + [다시 시도]
+ *   'ready' 한 번이라도 읽음 · 'checking' 로그인 확인 중이거나 읽는 중 · 'failed' 한 번도 못 읽음(네트워크·500 등) · 'guest' 로그인 전
+ *   'locked' 주문 자격 없음 — 서버 studioGuard가 403 not_customer (2026-09-30 운영: 이것이 'failed'로 보여 [다시 시도]만 반복됐다)
+ * "연결 전"·[연결하기]는 'ready'(연결 안 됨)·'guest'·'locked'에서 보인다 — [연결하기]는 studioGate가 막고 주문 고객 안내 창을 연다.
+ * 'failed'는 "연결 전"으로 떨어뜨리지 않고 LINK_LOAD_FAILED + [다시 시도]. 자격 판정은 서버에만 있다 — 여기서는 응답 코드만 읽는다
  */
-export function linkPhase({ authLoading = false, loggedIn = false, loaded = false, error = '' } = {}) {
+export const NOT_CUSTOMER = 'not_customer'
+export function linkPhase({ authLoading = false, loggedIn = false, loaded = false, error = '', code = '' } = {}) {
   if (loaded) return 'ready'
   if (authLoading) return 'checking'
   if (!loggedIn) return 'guest'
+  if (code === NOT_CUSTOMER) return 'locked'
   return error ? 'failed' : 'checking'
 }
 export const LINK_LOAD_FAILED = '연결 상태를 불러오지 못했습니다.'
