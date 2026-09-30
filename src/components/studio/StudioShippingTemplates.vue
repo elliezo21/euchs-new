@@ -5,7 +5,7 @@
       <button type="button" class="st-btn ml-auto" :disabled="!places.length" data-mk-template-new @click="startNew">새 템플릿</button>
     </div>
     <p v-if="errorMsg" class="mb-2 text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-template-list-error>{{ errorMsg }}</p>
-    <p v-if="!places.length" class="st-desc break-keep">출고지·반품지가 없어요. <router-link :to="{ name: 'studio-settings-marketplace' }" class="st-link">판매처 연결</router-link> 탭에서 [출고지·반품지 새로고침]을 먼저 눌러 주세요.</p>
+    <p v-if="!places.length" class="st-desc break-keep">출고지·반품지가 없어요. <router-link :to="{ name: 'studio-channels-connect' }" class="st-link">[연결]</router-link> 탭에서 [출고지·반품지 새로고침]을 먼저 눌러 주세요.</p>
     <p v-else-if="!templates.length && !editing" class="st-desc break-keep" data-mk-template-empty>상품을 보낼 때 쓸 배송비·반품비·출고지 묶음이에요. [새 템플릿]으로 하나 만들어 두세요.</p>
 
     <ul v-if="templates.length" class="st-divide st-border rounded-[12px] overflow-hidden mb-4">

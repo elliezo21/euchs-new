@@ -76,11 +76,9 @@
     <!-- 6-2. 최근 작업 (0개면 숨김) -->
     <StudioRecentProjects title="최근 작업" show-filters />
 
-    <!-- 내 상품 (2026-09-28): [작업 저장]·[다운로드]로 만든 결과물 보관 — [다시 받기] · [판매처로 보내기](쿠팡 보내기 창) · 판매처 상태 배지 -->
-    <StudioExportList :sends="sends" @sent="sendList?.load()" @goto-send="sendList?.focus($event)" @loaded="exportItems = $event" />
-
-    <!-- 보낸 상품 — 판매처로 보낸 상품의 진행 상태 (설정이 아니라 작업 쪽에 둔다). 읽은 목록을 내 상품 배지가 같이 쓴다 -->
-    <StudioSendList ref="sendList" :exports="exportItems" @update="sends = $event" />
+    <!-- 내 상품 (2026-09-28): [작업 저장]·[다운로드]로 만든 결과물 보관 — [다시 받기] + "판매처에서 보내기 →"
+         보내기·보낸 상품·상태 배지는 사이드바 [판매처]로 옮겼다 (2026-09-30 — 만드는 곳과 보내는 곳을 나눔) -->
+    <StudioExportList />
 
     <!-- 6-3. 새 소식 (랜딩 개편 때 /studio 대문에서 옮김) -->
     <section>
@@ -114,7 +112,6 @@ import { getStudioNotices } from '@/lib/studioNotices'
 import StudioUploadPanel from '@/components/studio/StudioUploadPanel.vue'
 import StudioRecentProjects from '@/components/studio/StudioRecentProjects.vue'
 import StudioExportList from '@/components/studio/StudioExportList.vue'
-import StudioSendList from '@/components/studio/StudioSendList.vue'
 import StudioImportFlow from '@/components/studio/StudioImportFlow.vue'
 
 // 카드 아래쪽 (아이콘 상자 + 제목 + 설명 + 화살표)
@@ -132,9 +129,6 @@ CardFoot.props = ['icon', 'title', 'desc', 'error']
 const router = useRouter()
 const importFlow = ref(null)
 const uploadPanel = ref(null)
-const sendList = ref(null)
-const exportItems = ref([]) // StudioExportList가 읽은 내 상품 (보낸 상품 카드의 미리보기 사진용)
-const sends = ref([]) // StudioSendList가 읽은 목록 (로그아웃 때 그쪽이 비워서 빈 배열을 올려 보낸다)
 
 // ── 콜라주 (기존 내상품리스트·재주문과 같은 함수) ──
 const savedThumbs = ref([])

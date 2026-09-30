@@ -9,7 +9,7 @@
     <section v-else-if="!connected" class="st-card p-5 sm:p-6 space-y-3" data-mk-shipping-need-connect>
       <h3 class="st-h-card">먼저 판매처를 연결해 주세요</h3>
       <p class="st-desc break-keep">템플릿은 쿠팡에 등록한 출고지·반품지를 불러와서 만들어요.</p>
-      <router-link :to="{ name: 'studio-settings-marketplace' }" class="st-btn st-btn-primary">판매처 연결로 가기</router-link>
+      <router-link :to="{ name: 'studio-channels-connect' }" class="st-btn st-btn-primary">[연결] 탭으로 가기</router-link>
     </section>
 
     <StudioShippingTemplates v-show="connected" ref="templatesRef" />
@@ -17,7 +17,7 @@
 </template>
 
 <script setup>
-// 설정 > 배송·반품 템플릿 탭 — 판매처 연결 화면에서 분리 (목록·저장·삭제는 StudioShippingTemplates 그대로)
+// 판매처 > [기본 설정] 탭 (2026-09-30 설정 > 배송·반품 템플릿에서 옮김) — 판매처별 기본값. 지금은 쿠팡 배송·반품 템플릿 (목록·저장·삭제는 StudioShippingTemplates 그대로)
 import { ref, nextTick, onMounted, onUnmounted } from 'vue'
 import StudioShippingTemplates from '@/components/studio/StudioShippingTemplates.vue'
 import { getMarketplaceStatus, isNotReady } from '@/lib/studioMarketplace'

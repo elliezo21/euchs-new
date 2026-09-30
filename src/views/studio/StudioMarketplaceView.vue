@@ -75,7 +75,7 @@
       </div>
     </section>
 
-    <p v-if="st?.connected" class="st-desc break-keep" data-mk-next>다음 단계: <router-link :to="{ name: 'studio-settings-shipping' }" class="st-link">배송·반품 템플릿</router-link>을 만들어 두면 내 작업 → 내 상품에서 [판매처로 보내기]를 쓸 수 있어요.</p>
+    <p v-if="st?.connected" class="st-desc break-keep" data-mk-next>다음 단계: <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">[기본 설정]</router-link>에서 배송·반품 템플릿을 만들어 두면 <router-link :to="{ name: 'studio-channels-send' }" class="st-link">[보내기]</router-link>에서 내 상품을 보낼 수 있어요.</p>
 
     <!-- 연결·키 교체 창 -->
     <StudioModal :open="formOpen" :title="rekey ? '쿠팡 키 교체' : '쿠팡 연결'" wide @close="formOpen = false">
@@ -112,8 +112,8 @@
 </template>
 
 <script setup>
-// 설정 > 판매처 연결 탭 (스튜디오 → 쿠팡 2~3단계, 2026-09-28). 서버 api/marketplace.js — 브라우저는 키를 한 번 보내고 다시 보지 않는다.
-// 배송·반품 템플릿은 옆 탭(StudioShippingView), 보낸 상품은 내 작업 화면(StudioSendList)에 있다.
+// 판매처 > [연결] 탭 (스튜디오 → 쿠팡 2~3단계, 2026-09-28 · 2026-09-30 설정에서 옮김). 서버 api/marketplace.js — 브라우저는 키를 한 번 보내고 다시 보지 않는다.
+// 배송·반품 템플릿은 [기본 설정] 탭(StudioShippingView), 보낸 상품은 [보낸 상품] 탭(StudioSendList)에 있다.
 // 우리 쪽 준비 문제(isNotReady)는 회색 한 줄로만 보인다 — 빨간 경고·내부 원인 문구 없음(원인은 서버 로그).
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { Store } from 'lucide-vue-next'

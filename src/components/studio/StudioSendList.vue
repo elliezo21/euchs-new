@@ -5,11 +5,17 @@
       <button type="button" class="st-btn ml-auto" :disabled="syncing || !sends.length" data-mk-sync @click="sync">{{ syncing ? '확인 중…' : '상태 새로고침' }}</button>
     </div>
     <p v-if="errorMsg" class="text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-sends-error>{{ errorMsg }}
-      <router-link v-if="errorGuide" :to="{ name: 'studio-settings-marketplace' }" class="st-link ml-1">설정 &gt; 판매처 연결로 가기</router-link></p>
-    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>아직 보낸 상품이 없어요. 위 내 상품에서 [판매처로 보내기]를 눌러 보세요.</p>
+      <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">[연결] 탭으로 가기</router-link></p>
+    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>아직 보낸 상품이 없어요. [보내기] 탭에서 상품을 골라 보내 보세요.</p>
+    <template v-else>
+    <!-- 판매처별로 보기 — 보낸 적 있는 판매처만 (MARKETS 순서) -->
+    <div class="flex flex-wrap gap-1 mb-3" data-mk-sends-markets>
+      <button type="button" class="st-chip" :class="!marketFilter ? 'is-active' : ''" data-mk-sends-market="" @click="marketFilter = ''">전체 {{ sends.length }}</button>
+      <button v-for="m in sentMarkets" :key="m.key" type="button" class="st-chip" :class="marketFilter === m.key ? 'is-active' : ''" :data-mk-sends-market="m.key" @click="marketFilter = m.key">{{ m.name }} {{ m.count }}</button>
+    </div>
     <!-- 작은 카드 — 내 작업·내 상품과 같은 크기 (st-grid-compact). 사진 = 그 내 상품의 미리보기 -->
-    <ul v-else class="st-grid-compact" data-mk-sends-grid>
-      <li v-for="s in sends" :key="s.id" class="send-row min-w-0 rounded-[10px]" :class="{ 'is-focus': focusId === s.id }" :data-mk-send="s.id" :data-mk-send-status="s.status">
+    <ul class="st-grid-compact" data-mk-sends-grid>
+      <li v-for="s in shownSends" :key="s.id" class="send-row min-w-0 rounded-[10px]" :class="{ 'is-focus': focusId === s.id }" :data-mk-send="s.id" :data-mk-send-status="s.status">
         <div class="relative st-thumb-sq st-border st-placeholder">
           <img v-if="previewOf[s.exportId]" :src="previewOf[s.exportId]" alt="" loading="lazy" />
           <span v-else class="text-[11px]">미리보기 없음</span>
@@ -23,6 +29,7 @@
         <button v-if="canResend(s)" type="button" class="st-btn st-btn-primary mt-1.5 w-full" :disabled="resendBusy === s.id" :data-mk-send-resend="s.id" @click="openResend(s)">{{ resendBusy === s.id ? '여는 중…' : '고쳐서 다시 보내기' }}</button>
       </li>
     </ul>
+    </template>
     <p v-if="resendError" class="mt-2 text-[12px] font-bold st-danger-text break-keep" data-mk-send-resend-error>{{ resendError }}</p>
     <StudioSendModal :open="resendOpen" :prepare="resendPrepare" @close="resendOpen = false" @sent="onResent" />
     <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'">일부 상품은 상태를 확인하지 못했어요: {{ syncErrors[0].message }}</p>
@@ -30,8 +37,8 @@
 </template>
 
 <script setup>
-// 내 작업 화면의 [보낸 상품] — marketplace_sends. [상태 새로고침] = 서버 sync(쿠팡 상품 조회 + histories로 반려 사유)
-// 목록이 바뀔 때마다 'update'로 올려 보낸다 → 내 상품 카드(StudioExportList)의 판매처 상태 배지가 같은 목록을 쓴다(따로 또 부르지 않는다)
+// 판매처 > [보낸 상품] 탭 (2026-09-30 내 작업 화면에서 옮김) — marketplace_sends. [상태 새로고침] = 서버 sync(쿠팡 상품 조회 + histories로 반려 사유)
+// 목록이 바뀔 때마다 'update'로 올려 보낸다. 판매처 칩 = 판매처별로 거르기(화면에서만 — 목록은 그대로 한 번 읽는다)
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
 import { canResend } from '@/lib/studioMarketplaceRules'
@@ -51,6 +58,12 @@ const errorSoft = ref(false)
 const errorGuide = ref(false)
 const syncErrors = ref([])
 let seq = 0
+
+// 판매처별 보기 — 예전 기록에는 판매처 칸이 없었다(그때는 쿠팡뿐 — sendsByExport와 같은 규칙)
+const marketOf = s => s.market || 'coupang'
+const marketFilter = ref('')
+const sentMarkets = computed(() => MARKETS.map(m => ({ ...m, count: sends.value.filter(s => marketOf(s) === m.key).length })).filter(m => m.count > 0))
+const shownSends = computed(() => (marketFilter.value ? sends.value.filter(s => marketOf(s) === marketFilter.value) : sends.value))
 
 function setSends(list) {
   sends.value = Array.isArray(list) ? list : []
@@ -113,6 +126,8 @@ function onResent() { load() }
 const focusId = ref(null)
 let focusTimer = null
 async function focus(id) {
+  const hit = sends.value.find(s => s.id === id)
+  if (hit && marketFilter.value && marketOf(hit) !== marketFilter.value) marketFilter.value = '' // 거른 목록에 없으면 전체로
   focusId.value = id
   await nextTick()
   const row = root.value?.querySelector(`[data-mk-send="${CSS.escape(String(id))}"]`)
@@ -129,6 +144,7 @@ function clear() {
   resendOpen.value = false
   resendPrepare.value = null
   resendError.value = ''
+  marketFilter.value = ''
   setSends([])
 }
 

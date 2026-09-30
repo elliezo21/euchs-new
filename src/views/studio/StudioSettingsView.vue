@@ -21,7 +21,8 @@
 </template>
 
 <script setup>
-// 스튜디오 설정 — 탭 4개(판매처 연결 | 배송·반품 템플릿 | 저장값 | 용어집). 탭마다 자식 라우트 → 주소로 바로 열리고 새로고침해도 그 탭.
+// 스튜디오 설정 — 탭 2개(저장값 | 용어집). 탭마다 자식 라우트 → 주소로 바로 열리고 새로고침해도 그 탭.
+// 판매처 연결·배송·반품 템플릿은 사이드바 [판매처](StudioChannelsView)로 옮겼다 (2026-09-30).
 // 개인 데이터는 탭 화면이 각자 갖고, 로그아웃 구독도 각자 한다(이 화면은 상태 없음).
 import { useRoute } from 'vue-router'
 import { SETTINGS_TABS } from '@/lib/studioMarketplaceRules'

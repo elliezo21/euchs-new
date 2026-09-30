@@ -381,15 +381,12 @@
       @close="previewOpen = false" @export="openExport"
     />
     <!-- [다운로드] 창 (13-1): 구간별 여러 장·한 장, JPG·PNG, 1·2배 — 브라우저 캔버스로 그려 바로 내려받는다 (내 상품에도 보관)
-         [작업 저장] = 같은 창을 save-only로 — 받지 않고 내 상품에 저장만. 끝나면 [판매처로 보내기]·[내 작업으로 가기]·[계속 편집] -->
+         [작업 저장] = 같은 창을 save-only로 — 받지 않고 내 상품에 저장만. 끝나면 [판매처로 보내기](판매처 > 보내기 탭)·[내 작업으로 가기]·[계속 편집] -->
     <StudioExportModal
       v-if="page" :open="exportOpen" :page="page" :project-id="project?.id || ''" :title="project ? projectDisplayTitle(project) : ''" :labels="sectionLabels"
       :pending-by-section="exportPendingBySection" :render="exportRender" :dev-compare="DEV_EXPORT_COMPARE" :save-only="exportSaveOnly"
       @close="exportOpen = false" @compare="openExportCompare" @home="goHomeAfterSave" @send="sendAfterSave"
     />
-    <!-- [작업 저장] 뒤 [판매처로 보내기] — 내 작업 화면과 같은 보내기 창 -->
-    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" @close="sendOpen = false" />
-    <p v-if="sendNote" class="fixed left-1/2 -translate-x-1/2 bottom-6 px-3 py-2 rounded-[10px] st-card st-shadow-float text-[13px] font-bold st-danger-text" style="z-index: 60" role="status" data-save-send-note>{{ sendNote }}</p>
     <!-- 개발용 비교 보기 (개발 서버에서만 — 빌드에는 들어가지 않는다) -->
     <component
       :is="StudioExportCompare" v-if="StudioExportCompare && exportCompareId && page"
@@ -584,8 +581,6 @@ import StudioStepBar from '@/components/studio/StudioStepBar.vue'
 import StudioSectionPanel from '@/components/studio/StudioSectionPanel.vue'
 import StudioMiniMap from '@/components/studio/StudioMiniMap.vue'
 import StudioExportModal from '@/components/studio/StudioExportModal.vue'
-import StudioSendModal from '@/components/studio/StudioSendModal.vue'
-import { sendToMarketplace } from '@/lib/studioMarketplace'
 import StudioPreview from '@/components/studio/StudioPreview.vue'
 import StudioCropScreen from '@/components/studio/StudioCropScreen.vue'
 import StudioBgRefineScreen from '@/components/studio/StudioBgRefineScreen.vue'
@@ -1311,8 +1306,6 @@ function resetEditorLog() {
   textEdit.value = null     // 10-1 글자 고치기
   cellEdit.value = null     // 표 칸 입력
   exportOpen.value = false  // 13-1 [다운로드]·[작업 저장] 창
-  sendOpen.value = false
-  sendPrepare.value = null
   exportCompareId.value = null
   previewOpen.value = false // 13-2 미리보기
   cropImageId.value = null  // 12-1 자르기 창
@@ -2285,24 +2278,15 @@ function goHomeAfterSave() {
   exportOpen.value = false
   router.push({ name: 'studio-projects' })
 }
-// [작업 저장] 뒤 [판매처로 보내기] — 진입은 내 작업 화면과 같은 sendToMarketplace 한 곳
-const sendOpen = ref(false)
-const sendPrepare = ref(null)
-const sendNote = ref('')
-let sendNoteTimer = null
-async function sendAfterSave(exportId) {
+// [작업 저장] 뒤 [판매처로 보내기] — 판매처 > [보내기] 탭으로, 방금 저장한 내 상품을 골라 둔 채 (보내기 창은 그 탭에서 연다 — 2026-09-30)
+function sendAfterSave(exportId) {
   exportOpen.value = false
-  sendNote.value = ''
-  try {
-    const r = await sendToMarketplace(exportId)
-    sendPrepare.value = r.prepare
-    sendOpen.value = true
-  } catch (e) {
-    console.error('[StudioEditor] 판매처로 보내기 준비 실패:', exportId, e.code, e)
-    sendNote.value = e.message
-    clearTimeout(sendNoteTimer)
-    sendNoteTimer = setTimeout(() => { sendNote.value = '' }, 5000)
+  if (!exportId) {
+    console.error('[StudioEditor] 판매처로 보내기: 저장한 내 상품 id가 없음 — 고르지 않은 채 보내기 탭을 연다')
+    router.push({ name: 'studio-channels-send' })
+    return
   }
+  router.push({ name: 'studio-channels-send', query: { export: exportId } })
 }
 /** 상단 [미리보기] (13-2) — 받게 될 이미지 그대로 PC·모바일로 */
 function openPreview() {
@@ -2611,7 +2595,7 @@ const usedCount = computed(() => images.value.filter(i =>
   i.ingest_status === 'done' || (i.kind === 'upload' && i.ingest_status === 'pending')).length)
 const anyModalOpen = computed(() => addOpen.value || clearAllOpen.value || !!conflictId.value || leaveOpen.value || pageSession.conflict.value
   || replaceOpen.value || resetLookOpen.value || !!includeAsk.value
-  || exportOpen.value || sendOpen.value || !!exportCompareId.value // 13-1: 받는 동안·보내기 창이 열린 동안 편집기 단축키가 페이지에 적용되지 않게
+  || exportOpen.value || !!exportCompareId.value // 13-1: 받는 동안 편집기 단축키가 페이지에 적용되지 않게 (보내기 창은 판매처 탭에서 연다)
   || previewOpen.value // 13-2: 미리보기가 열린 동안도
   || !!cropImageId.value // 12-1: 자르기 창이 열린 동안도
   || !!refineImageId.value // 17-3: 경계 다듬기 화면이 열린 동안도 (붓 단축키 K·E·X·[·]·Ctrl+Z는 그 화면이 받는다)

@@ -12,7 +12,7 @@ export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승
 // 색: 전송 중·승인 대기 = 회색, 승인 = 초록, 반려·실패 = 빨강 (st-badge 위에 덧붙이는 클래스)
 export const SEND_STATUS_CLASS = { sending: '', approval_pending: '', approved: 'st-badge-ok', rejected: 'st-badge-danger', failed: 'st-badge-danger' }
 export const REP_SIZE = 1000 // 브라우저가 만드는 대표 이미지 한 변(px) — 쿠팡 정사각형 500~5000
-export { isNotReady, needsGuide, latestSendByExport, sendsByExport, badgeReason, SEND_BADGE_CLASS, SETTINGS_TABS } from '@/lib/studioMarketplaceRules'
+export { isNotReady, needsGuide, latestSendByExport, sendsByExport, badgeReason, SEND_BADGE_CLASS, SETTINGS_TABS, CHANNEL_TABS } from '@/lib/studioMarketplaceRules'
 
 /** 서버 응답 → Error (서버가 message를 주면 그대로 — coupang_*·template_invalid·required_missing 등) */
 export function marketplaceError(r) {

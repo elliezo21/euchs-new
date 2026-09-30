@@ -76,24 +76,48 @@ const studioRoute = {
       meta: { ...STUDIO_PROTECTED, title: '상세페이지 편집' }
     },
     {
-      // 설정 — 탭 4개(자식 라우트). 가드는 to.matched를 보므로 자식마다 같은 meta를 단다
+      // 판매처 — 탭 4개(자식 라우트, 2026-09-30). 만드는 곳(내 작업)과 보내는 곳(판매처)을 나눈다. 가드는 to.matched를 보므로 자식마다 같은 meta
+      path: 'channels',
+      component: () => import('../views/studio/StudioChannelsView.vue'),
+      meta: { ...STUDIO_PROTECTED, title: '판매처' },
+      children: [
+        { path: '', name: 'studio-channels', redirect: { name: 'studio-channels-send' } },
+        {
+          path: 'send',
+          name: 'studio-channels-send',
+          component: () => import('../views/studio/StudioChannelSendView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '판매처로 보내기' }
+        },
+        {
+          path: 'sent',
+          name: 'studio-channels-sent',
+          component: () => import('../views/studio/StudioChannelSentView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '보낸 상품' }
+        },
+        {
+          path: 'defaults',
+          name: 'studio-channels-defaults',
+          component: () => import('../views/studio/StudioShippingView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '판매처 기본 설정' }
+        },
+        {
+          path: 'connect',
+          name: 'studio-channels-connect',
+          component: () => import('../views/studio/StudioMarketplaceView.vue'),
+          meta: { ...STUDIO_PROTECTED, title: '판매처 연결' }
+        }
+      ]
+    },
+    {
+      // 설정 — 탭 2개(자식 라우트). 가드는 to.matched를 보므로 자식마다 같은 meta를 단다
       path: 'settings',
       component: () => import('../views/studio/StudioSettingsView.vue'),
       meta: { ...STUDIO_PROTECTED, title: '설정' },
       children: [
-        { path: '', name: 'studio-settings', redirect: { name: 'studio-settings-marketplace' } },
-        {
-          path: 'marketplace',
-          name: 'studio-settings-marketplace',
-          component: () => import('../views/studio/StudioMarketplaceView.vue'),
-          meta: { ...STUDIO_PROTECTED, title: '판매처 연결' }
-        },
-        {
-          path: 'shipping',
-          name: 'studio-settings-shipping',
-          component: () => import('../views/studio/StudioShippingView.vue'),
-          meta: { ...STUDIO_PROTECTED, title: '배송·반품 템플릿' }
-        },
+        { path: '', name: 'studio-settings', redirect: { name: 'studio-settings-assets' } },
+        // 예전 주소 — 판매처 연결·배송·반품 템플릿은 [판매처]로 옮김 (이름도 남겨 둔다 — 보내기 창의 [연결하기] 링크가 이 이름을 쓴다)
+        { path: 'marketplace', name: 'studio-settings-marketplace', redirect: { name: 'studio-channels-connect' } },
+        { path: 'shipping', name: 'studio-settings-shipping', redirect: { name: 'studio-channels-defaults' } },
         {
           path: 'assets',
           name: 'studio-settings-assets',
@@ -108,8 +132,8 @@ const studioRoute = {
         }
       ]
     },
-    // 예전 주소 — 북마크·안내 링크가 안 깨지게 설정의 해당 탭으로 보낸다 (이름도 남겨 둔다)
-    { path: 'marketplace', name: 'studio-marketplace', redirect: { name: 'studio-settings-marketplace' } },
+    // 예전 주소 — 북마크·안내 링크가 안 깨지게 해당 탭으로 보낸다 (이름도 남겨 둔다)
+    { path: 'marketplace', name: 'studio-marketplace', redirect: { name: 'studio-channels-connect' } },
     { path: 'assets', name: 'studio-assets', redirect: { name: 'studio-settings-assets' } },
     { path: 'glossary', name: 'studio-glossary', redirect: { name: 'studio-settings-glossary' } },
     {

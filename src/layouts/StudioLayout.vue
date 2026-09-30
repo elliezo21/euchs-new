@@ -146,7 +146,7 @@ import { ref, computed, watch, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   Home, FolderOpen, LayoutTemplate, Plus, Sparkles, Menu, X,
-  ChevronDown, Gauge, ExternalLink, LogOut, Settings,
+  ChevronDown, Gauge, ExternalLink, LogOut, Settings, Store,
 } from 'lucide-vue-next'
 import { currentUser, signOut, openLoginModal } from '@/lib/auth'
 import StudioModal from '@/components/studio/StudioModal.vue'
@@ -164,9 +164,11 @@ const menuItems = [
   { name: 'studio-landing', label: '스튜디오 소개', icon: Home },
   { name: 'studio-projects', label: '내 작업', icon: FolderOpen, also: ['studio-editor', 'studio-new'] },
   { name: 'studio-templates', label: '템플릿', icon: LayoutTemplate },
+  // 판매처 — 만든 상품을 보내는 곳 (보내기·보낸 상품·기본 설정·연결 탭). 탭 어디에 있어도 켜짐
+  { name: 'studio-channels', label: '판매처', icon: Store, prefix: 'studio-channels' },
 ]
-// 한 번 맞춰 두는 것(판매처 연결·배송·반품 템플릿·저장값·용어집)은 아래쪽 [설정] 하나로 — 메인 메뉴는 매일 쓰는 작업만
-const isActive = item => route.name === item.name || (item.also || []).includes(route.name)
+// 한 번 맞춰 두는 것(저장값·용어집)은 아래쪽 [설정] 하나로 — 메인 메뉴는 매일 쓰는 작업만
+const isActive = item => route.name === item.name || (item.also || []).includes(route.name) || (!!item.prefix && String(route.name || '').startsWith(item.prefix))
 const isSettings = computed(() => String(route.name || '').startsWith('studio-settings'))
 
 const drawerOpen = ref(false)

@@ -12,11 +12,19 @@ export const needsGuide = code => GUIDE_CODES.includes(code)
 
 // 설정 화면 탭 (순서 = 화면 순서). route = 자식 라우트 이름, legacy = 예전 라우트 이름(redirect로 남김)
 // soon = 탭 내용이 아직 "준비 중이에요" 껍데기 → 탭 이름 옆에 "준비 중" 배지 (화면이 생기면 뺀다)
+// 판매처 연결·배송·반품 템플릿은 2026-09-30 사이드바 [판매처](CHANNEL_TABS)로 옮김 — 예전 주소는 router에서 새 탭으로 redirect
 export const SETTINGS_TABS = [
-  { key: 'marketplace', label: '판매처 연결', route: 'studio-settings-marketplace', legacy: 'studio-marketplace' },
-  { key: 'shipping', label: '배송·반품 템플릿', route: 'studio-settings-shipping' },
   { key: 'assets', label: '저장값', route: 'studio-settings-assets', legacy: 'studio-assets', soon: true },
   { key: 'glossary', label: '용어집', route: 'studio-settings-glossary', legacy: 'studio-glossary', soon: true },
+]
+
+// 판매처 화면 탭 (2026-09-30 — 만드는 곳(내 작업)과 보내는 곳(판매처)을 나눔). route = 자식 라우트 이름 (/studio/channels/<key>)
+// moved = 예전 주소(라우트 이름) — 새 탭으로 redirect
+export const CHANNEL_TABS = [
+  { key: 'send', label: '보내기', route: 'studio-channels-send' },
+  { key: 'sent', label: '보낸 상품', route: 'studio-channels-sent' },
+  { key: 'defaults', label: '기본 설정', route: 'studio-channels-defaults', moved: ['studio-settings-shipping'] },
+  { key: 'connect', label: '연결', route: 'studio-channels-connect', moved: ['studio-settings-marketplace', 'studio-marketplace'] },
 ]
 
 // 판매처 목록 — 설정 > 판매처 연결과 랜딩 칩이 같은 목록·같은 순서를 쓴다. soon = 이름 + "준비 중" 배지만 (부가 설명 문구 없음)
@@ -39,6 +47,14 @@ export const MARKETS = [
  */
 export function marketRows(connected = {}) {
   return MARKETS.map(m => ({ key: m.key, name: m.name, state: m.soon ? 'soon' : connected?.[m.key]?.connected === true ? 'connected' : 'locked' }))
+}
+/**
+ * 판매처 > [보내기] 탭의 판매처 줄 — MARKETS와 같은 순서.
+ * state: 'connected'(누를 수 있음) | 'locked'(연결 전 — 자물쇠 + [연결하기]). "준비 중" 글자는 쓰지 않는다
+ * @param {{ [key:string]: { connected?:boolean } }} connected
+ */
+export function channelRows(connected = {}) {
+  return MARKETS.map(m => ({ key: m.key, name: m.name, state: !m.soon && connected?.[m.key]?.connected === true ? 'connected' : 'locked' }))
 }
 /** 처음 체크 — 연결된 판매처는 모두 체크 (1곳이면 그 1곳) */
 export const defaultChecked = rows => Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.state === 'connected']))
