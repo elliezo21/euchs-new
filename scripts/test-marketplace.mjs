@@ -1277,6 +1277,20 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     K.normalizeCategories({ categories: [{ category_no: 27, category_depth: 2, parent_category_no: 1, category_name: '컵', full_category_name: { 1: '주방', 2: '컵', 3: null, 4: null } }, { category_no: 'x', category_name: '없음' }] }),
     K.uploadedPaths({ image: [{ path: 'https://a/1.jpg' }, { path: 'https://a/2.jpg' }] }), K.uploadedPaths({ image: [{ path: '' }] }), K.uploadedPaths({}),
   ], [[{ no: 27, depth: 2, parentNo: 1, name: '컵', fullName: '주방 > 컵' }], ['https://a/1.jpg', 'https://a/2.jpg'], null, null])
+  // 2026-09-30 운영 실패(2회 모두 upload 200 → market_bad_json): 문서가 어긋남 — 응답 스키마 image = 객체 { path }, 예시 image = [{ path }]. 둘 다 받는다
+  eq('업로드 응답: 문서 예시(image 배열) · 문서 스키마(image 객체 하나) · images 키 · 경로 문자열 · 빈 배열·경로 없음·null은 null', [
+    K.uploadedPaths({ image: [{ path: 'https://m.cafe24.com/web/upload/NNEditor/20180130/a.png' }] }), K.uploadedPaths({ image: { path: '/web/upload/NNEditor/20180130/a.png' } }),
+    K.uploadedPaths({ images: [{ path: 'https://a/1.jpg' }] }), K.uploadedPaths({ image: ['https://a/1.jpg'] }), K.uploadedPaths({ image: [] }), K.uploadedPaths({ image: { url: 'x' } }), K.uploadedPaths(null), K.uploadedPaths(''),
+  ], [['https://m.cafe24.com/web/upload/NNEditor/20180130/a.png'], ['/web/upload/NNEditor/20180130/a.png'], ['https://a/1.jpg'], ['https://a/1.jpg'], null, null, null, null])
+  const longPath = 'https://m.cafe24.com/web/upload/NNEditor/20180130/' + 'x'.repeat(80) + '.png'
+  eq('응답 모양 기록: 키 이름·종류·길이·첫 원소 키·path 앞 40자만 — 값(경로 전체·base64·토큰)은 없음', [
+    K.responseShape({ image: [{ path: longPath }, { path: 'b' }], access_token: 'SECRET' }), K.responseShape({ image: { path: '/web/x.png', extra: 1 } }), K.responseShape(null), K.responseShape([1, 2]), K.responseShape('text'),
+    JSON.stringify(K.responseShape({ image: [{ path: longPath }], access_token: 'SECRET' })).includes('SECRET'), JSON.stringify(K.responseShape({ image: [{ path: longPath }] })).includes('x'.repeat(41)),
+  ], [{ type: 'object', keys: ['image', 'access_token'], imageType: 'array', len: 2, firstKeys: ['path'], path40: longPath.slice(0, 40) }, { type: 'object', keys: ['image'], imageType: 'object', firstKeys: ['path', 'extra'], path40: '/web/x.png' }, { type: 'null' }, { type: 'array', len: 2 }, { type: 'string' }, false, false])
+  eq('서버: 업로드 실패·성공 모두 result_json.shape에 모양 기록 · 원문 본문(JSON.stringify(r))은 기록·로그에 안 남김 · uploadShape는 c24Fail보다 먼저 선언', [
+    (read("api/marketplace.js").match(/shape: uploadShape/g) || []).length >= 2, /JSON\.stringify\(r\)\.slice/.test(/async function cafe24Send[\s\S]*?\n\}/.exec(read('api/marketplace.js'))[0]),
+    read('api/marketplace.js').indexOf('let uploadShape = null') < read('api/marketplace.js').indexOf('const c24Fail = async'), /raw: `shape=\$\{JSON\.stringify\(shape\)\}`/.test(read('api/marketplace.js')),
+  ], [true, false, true, true])
   const now = Date.parse('2026-09-30T09:00:00Z')
   eq('access 갱신 시점: 지났거나 5분 안에 지나면 · 넉넉하면 아니오 · 값이 없으면 갱신', [K.accessNeedsRefresh('2026-09-30T08:59:00Z', now), K.accessNeedsRefresh('2026-09-30T09:04:00Z', now), K.accessNeedsRefresh('2026-09-30T09:06:00Z', now), K.accessNeedsRefresh(null, now)], [true, true, false, true])
   eq('Admin API 오류 → 고객 문구: 401 = 다시 연결 · 403 = 권한 · 429 · 422 = 카페24 문구 그대로 · 500 · 끊김 · 성공은 null · 내부 용어 없음', (() => {

@@ -60,7 +60,7 @@ import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
 import { smartstoreToken, SmartstoreError } from './_smartstore.js'
 import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
-  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, normalizeCategories, uploadedPaths, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
+  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
 } from './_cafe24.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
@@ -464,6 +464,8 @@ async function cafe24Send(ctx, body, res) {
     return sendError(res, status, code, message)
   }
   const credRef = { value: cred }
+  // 사진 업로드 응답 모양(responseShape — 값 없이 최상위 키·image 종류·길이·첫 원소 키·path 앞 40자). 첫 장 것을 result_json.shape에 남겨 운영 응답 모양을 DB로 확인한다. ★ c24Fail보다 먼저 선언
+  let uploadShape = null
   const c24Fail = async (e, where) => {
     if (e instanceof Cafe24Error && e.code === 'responded') { // 갱신 실패 응답은 cafe24Credentials가 이미 보냈다 — 기록만 남긴다
       await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { status: 'failed', reason: '카페24 인증이 만료됐어요. [연결] 탭에서 다시 연결해 주세요.' }, prefer: 'return=minimal' }).catch(err => console.error('[marketplace] 실패 기록도 못 남김:', sendId, err.message))
@@ -471,13 +473,18 @@ async function cafe24Send(ctx, body, res) {
     }
     if (!(e instanceof Cafe24Error)) throw e
     console.warn(`[marketplace] 카페24 ${where} 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
-    return fail(e.status === 429 ? 429 : e.code === 'invalid_input' ? 400 : 502, e.code, e.message, { result_json: { code: e.code, status: e.status, step: where } })
+    return fail(e.status === 429 ? 429 : e.code === 'invalid_input' ? 400 : 502, e.code, e.message, { result_json: { code: e.code, status: e.status, step: where, shape: uploadShape } })
   }
   // 이미지 올리기 — 대표 1장 + 상세 장(내 상품 파일 그대로). 한 장씩 (요청 본문 크기 때문에 20장 묶음을 쓰지 않는다)
   const upload = async (buf, where) => {
     const r = await cafe24CallRetry(ctx, res, credRef, { method: 'POST', path: '/products/images', body: { requests: [{ image: buf.toString('base64') }] }, timeoutMs: 60000 })
+    const shape = responseShape(r)
+    if (!uploadShape) uploadShape = shape
     const paths = uploadedPaths(r)
-    if (!paths) throw new Cafe24Error('market_bad_json', '카페24가 올린 사진 경로를 주지 않았어요. 잠시 후 다시 시도해 주세요.', { status: 200, raw: JSON.stringify(r).slice(0, 200) })
+    if (!paths) {
+      console.error(`[marketplace] 카페24 사진 업로드 응답 모양이 다름 ${ctx.userId} send=${sendId} ${where}:`, JSON.stringify(shape))
+      throw new Cafe24Error('market_bad_json', '카페24가 올린 사진 경로를 주지 않았어요. 잠시 후 다시 시도해 주세요.', { status: 200, raw: `shape=${JSON.stringify(shape)}` })
+    }
     return paths[0]
   }
   let detailImagePath
@@ -501,10 +508,11 @@ async function cafe24Send(ctx, body, res) {
   try { r = await cafe24CallRetry(ctx, res, credRef, { method: 'POST', path: '/products', body: built.body, timeoutMs: 60000 }) } catch (e) { return c24Fail(e, 'product') }
   const productNo = r?.product?.product_no != null ? String(r.product.product_no) : ''
   if (!/^\d{1,20}$/.test(productNo)) {
-    console.error('[marketplace] 카페24 상품 등록 응답에 product_no 없음:', sendId, JSON.stringify(r).slice(0, 300))
-    return fail(502, 'market_bad_json', '카페24가 상품 번호를 주지 않았어요. 카페24 쇼핑몰 관리 화면에서 상품이 등록됐는지 확인해 주세요.')
+    const productShape = { ...responseShape(r), productKeys: r?.product && typeof r.product === 'object' ? Object.keys(r.product).slice(0, 10) : undefined } // 값 없이 모양만
+    console.error('[marketplace] 카페24 상품 등록 응답에 product_no 없음:', sendId, JSON.stringify(productShape))
+    return fail(502, 'market_bad_json', '카페24가 상품 번호를 주지 않았어요. 카페24 쇼핑몰 관리 화면에서 상품이 등록됐는지 확인해 주세요.', { result_json: { code: 'market_bad_json', step: 'product', shape: uploadShape, productShape } })
   }
-  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: productNo, status: 'registered', result_json: { product_no: productNo, product_code: r.product?.product_code || null, display: r.product?.display || null, selling: r.product?.selling || null } }, prefer: 'return=minimal' })
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: productNo, status: 'registered', result_json: { product_no: productNo, product_code: r.product?.product_code || null, display: r.product?.display || null, selling: r.product?.selling || null, shape: uploadShape } }, prefer: 'return=minimal' })
   console.info(`[marketplace] 카페24 상품 등록 ${ctx.userId} send=${sendId} mall=${cred.mallId} product_no=${productNo} images=${detailPaths.length + 1}`)
   return res.status(200).json({ sendId, productNo, sellerProductId: productNo, status: 'registered', adminUrl: cafe24AdminProductUrl(cred.mallId, productNo) })
 }

@@ -273,12 +273,39 @@ export function normalizeCategories(json) {
   }).filter(c => isCategoryNo(c.no) && c.name)
 }
 
-/** 이미지 업로드 응답 → 경로 배열 (모양이 틀리면 null) */
+/**
+ * 이미지 업로드 응답 → 경로 배열 (모양이 틀리면 null)
+ * 문서(영문·한글 같음)가 서로 어긋난다: 응답 스키마는 image = 객체 { path }, 예시는 image = [{ path }, …] (2026-09-30 확인).
+ * 운영에서 200인데 배열만 받던 예전 코드가 null을 돌려줬으므로(bc1c051) 둘 다 받는다: image·images 아래 배열 또는 객체 하나, 원소 = { path } 또는 경로 문자열
+ */
 export function uploadedPaths(json) {
-  const list = Array.isArray(json?.image) ? json.image : null
-  if (!list) return null
-  const out = list.map(x => (x && typeof x.path === 'string' ? x.path : '')).filter(Boolean)
+  const raw = json?.image ?? json?.images
+  if (raw == null) return null
+  const list = Array.isArray(raw) ? raw : [raw]
+  if (!list.length) return null
+  const out = list.map(x => (typeof x === 'string' ? x : x && typeof x.path === 'string' ? x.path : '')).filter(Boolean)
   return out.length === list.length ? out : null
+}
+/**
+ * 응답 "모양"만 — 로그·기록용 (값은 남기지 않는다: 최상위 키 이름 · image/images의 종류·길이 · 첫 원소의 키 이름 · path 값이 있으면 앞 40자)
+ * 토큰·base64·본문 전체는 절대 넣지 않는다
+ */
+export function responseShape(json) {
+  if (json === null || json === undefined) return { type: json === null ? 'null' : 'undefined' }
+  if (Array.isArray(json)) return { type: 'array', len: json.length }
+  if (typeof json !== 'object') return { type: typeof json }
+  const shape = { type: 'object', keys: Object.keys(json).slice(0, 10) }
+  const raw = json.image ?? json.images
+  if (raw !== undefined) {
+    shape.imageType = Array.isArray(raw) ? 'array' : raw === null ? 'null' : typeof raw
+    if (Array.isArray(raw)) shape.len = raw.length
+    const first = Array.isArray(raw) ? raw[0] : raw
+    if (first && typeof first === 'object') {
+      shape.firstKeys = Object.keys(first).slice(0, 10)
+      if (typeof first.path === 'string') shape.path40 = first.path.slice(0, 40)
+    } else if (typeof first === 'string') shape.firstType = 'string'
+  }
+  return shape
 }
 
 /** Admin API 오류 → 고객 문구 (null = 성공). 토큰 만료(401)는 부르는 쪽이 갱신 뒤 한 번 더 시도한다 */
