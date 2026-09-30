@@ -803,8 +803,17 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { connected: true }, cafe24: { connected: true } })
     eq('보내기 탭 줄: 쿠팡 = 보내기 · 11번가·카페24 = 연결됨(보내기 없음) · 예정 판매처는 값이 와도 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'planned', ably: 'planned', zigzag: 'planned', cafe24: 'linked', makeshop: 'planned', godomall: 'planned' })
     eq('11번가 키 입력 검사', [R.elevenstKeyProblems({ sellerId: 'seller', apiKey: 'abcd1234efgh' }), R.elevenstKeyProblems({ sellerId: '', apiKey: 'short' }), R.elevenstKeyProblems({ sellerId: 'a', apiKey: 'has space 123' })], [[], ['11번가 셀러 ID', 'API 키'], ['API 키']])
-    eq('가이드: 단계 5~8개 · 짧은 명령형(끝이 "요.") · IP = 중계 IP · 연결 신청 가이드 없음', [G.ELEVENST_GUIDE.length, G.SMARTSTORE_GUIDE.length, G.CAFE24_GUIDE.length, [...G.ELEVENST_GUIDE, ...G.SMARTSTORE_GUIDE, ...G.CAFE24_GUIDE].every(s => /요\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112')), 'requestGuide' in G], [7, 8, 8, true, true, true, false])
-    eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘', G.menuChecks().map(x => x.market), ['11st', '11st', '11st', 'smartstore', 'smartstore', 'smartstore', 'smartstore', 'cafe24', 'cafe24', 'cafe24', 'cafe24', 'cafe24'])
+    eq('가이드: 단계 5~8개 · 짧은 명령형(끝이 "요.") · IP = 중계 IP · 연결 신청 가이드 없음', [G.ELEVENST_GUIDE.length, G.SMARTSTORE_GUIDE.length, G.CAFE24_GUIDE.length, [...G.ELEVENST_GUIDE, ...G.SMARTSTORE_GUIDE, ...G.CAFE24_GUIDE].every(s => /요\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112')), 'requestGuide' in G], [8, 8, 8, true, true, true, false])
+    eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘 (11번가는 실제 화면으로 확인 → 표시 없음)', G.menuChecks().map(x => x.market), ['smartstore', 'smartstore', 'smartstore', 'smartstore', 'cafe24', 'cafe24', 'cafe24', 'cafe24', 'cafe24'])
+    // 사진 가이드 (2026-09-30) — 판매처별 목록 한 곳 · 파일이 실제로 있고 가벼움 · 단계와 짝
+    {
+      const ph = G.guidePhotos('11st')
+      const size = p => { try { return fs.statSync(new URL(`../public${p}`, import.meta.url)).size } catch { return -1 } }
+      eq('11번가 사진 8장 = 단계 8개와 1:1 · 파일 있음 · 큰 사진 400KB 이하 · 썸네일 30KB 이하', [ph.length, ph.map(p => p.step), ph.every(p => size(p.src) > 0 && size(p.src) <= 400 * 1024), ph.every(p => size(p.thumb) > 0 && size(p.thumb) <= 30 * 1024), ph.every(p => p.alt)], [8, [0, 1, 2, 3, 4, 5, 6, 7], true, true, true])
+      eq('사진 없는 판매처 = 빈 목록 · 단계 → 사진 번호', [G.guidePhotos('smartstore'), G.guidePhotos('cafe24'), G.photoIndexForStep('11st', 2), G.photoIndexForStep('smartstore', 0)], [[], [], 2, -1])
+      eq('11번가 가이드: 확인 필요 표시 없음 · IP 3칸 · 셀링툴 비워 둬도 됨', [G.ELEVENST_GUIDE.some(s => s.includes(G.MENU_CHECK)), /3칸 모두 3\.39\.196\.112/.test(G.ELEVENST_GUIDE[2]), /셀링툴 업체 선택 칸은 비워/.test(G.ELEVENST_STEP_NOTES[2])], [false, true, true])
+      eq('11번가 연결 창: 사진 가이드 컴포넌트 · 단계 [사진] 링크 · IP [복사]', [/<StudioGuidePhotos ref="photos" market="11st"/.test(card), /data-mk-11st-step-photo/.test(card), /data-mk-11st-copy-ip/.test(card)], [true, true, true])
+    }
     eq('11번가 호출 = 쿠팡과 같은 중계(/11st 접두어 + x-relay-secret) · 같은 브레이커·준비 문제 문구', [/`\$\{c\.relayUrl\.replace\(\/\\\/\$\/, ''\)\}\/11st\$\{path\}/.test(el), /'x-relay-secret': c\.relaySecret/.test(el), /import \{ breakerFor, NOT_READY_MESSAGE, RELAY_IP \} from '\.\/_coupang\.js'/.test(el), /'openapikey': c\.apiKey/.test(el)], [true, true, true, true])
     {
       const calls = []

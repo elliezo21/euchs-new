@@ -8,16 +8,56 @@
 export const RELAY_IP = '3.39.196.112' // api/_coupang.js RELAY_IP와 같은 값 (테스트가 대조)
 export const MENU_CHECK = '(메뉴 이름 확인 필요)'
 
-/** 11번가 — 고객이 API 키를 직접 넣는다 (쿠팡과 같은 방식) */
+/**
+ * 11번가 — 고객이 API 키를 직접 넣는다 (쿠팡과 같은 방식)
+ * 2026-09-30 사장님이 실제로 연결하며 캡처한 화면 순서 그대로 (docs/guide-assets/11st/11st-1~8.jpg — 단계 i = 사진 i)
+ */
 export const ELEVENST_GUIDE = [
-  '11번가 셀러오피스에 로그인하세요.',
-  `셀러오피스에서 오픈API 센터로 들어가세요. ${MENU_CHECK}`,
-  `API 키 발급을 눌러 키를 받으세요. ${MENU_CHECK}`,
-  `서버 IP 등록 칸에 ${RELAY_IP}를 넣고 저장하세요. ${MENU_CHECK}`,
-  '발급된 API 키를 복사하세요.',
-  '아래 칸에 11번가 셀러 ID와 API 키를 붙여넣으세요.',
-  '[연결 확인]을 누르면 연결이 끝나요.',
+  '11번가 OPEN API CENTER(openapi.11st.co.kr)에 11번가 셀러 아이디로 로그인하고 [API 관리]를 누르세요.',
+  '[서비스 이용 동의]와 [개인정보 수집/이용 동의]에 모두 체크하세요.',
+  `접속권한 > IP 직접 입력에서 [사용]을 고르고, 개발서버 IP·개발자 PC·상용서버 IP 3칸 모두 ${RELAY_IP} 를 넣은 뒤 [등록하기]를 누르세요.`,
+  '등록이 끝나면 [인증하기]를 누르세요.',
+  '휴대폰으로 인증하세요. 카카오톡으로 인증번호가 와요.',
+  'API 키가 나오면 [복사하기]를 누르세요.',
+  '여기 아래 칸에 11번가 셀러 ID와 API 키를 붙여넣고 [연결 확인]을 누르세요.',
+  '"연결됨"이 뜨면 끝이에요.',
 ]
+/** 단계 아래 작은 덧붙임 { 단계 번호(0부터): 문장 } */
+export const ELEVENST_STEP_NOTES = {
+  2: '셀링툴 업체 선택 칸은 비워 둬도 돼요. IP 직접 입력 방식이라 필요 없어요.',
+}
+
+/**
+ * 판매처별 사진 가이드 — 사진이 있는 판매처만 연결 창에 [사진으로 보기]가 나온다.
+ * 새 판매처: public/guides/<판매처>/ 에 사진(가로 1400 이하)과 thumbs/(가로 240)를 넣고 여기에 줄만 더한다.
+ * step = 그 사진이 보여 주는 가이드 단계 번호(0부터) — 단계 옆 [사진] 링크가 이 번호로 사진을 찾는다.
+ */
+const photoSet = (market, alts) => alts.map((alt, i) => ({
+  src: `/guides/${market}/${market}-${i + 1}.jpg`,
+  thumb: `/guides/${market}/thumbs/${market}-${i + 1}.jpg`,
+  step: i,
+  alt,
+}))
+export const GUIDE_PHOTOS = {
+  '11st': photoSet('11st', [
+    'OPEN API CENTER에서 API 관리 누르기',
+    '두 곳 모두 동의 체크',
+    'IP 직접 입력 사용 · IP 3칸 입력 · 등록하기',
+    '인증하기 누르기',
+    '휴대폰 인증번호 받기',
+    'API 키 복사하기',
+    '스튜디오에 셀러 ID·API 키 붙여넣기',
+    '연결됨 확인',
+  ]),
+}
+/** 판매처 사진 목록 (없으면 빈 배열) */
+export function guidePhotos(market) {
+  return GUIDE_PHOTOS[market] || []
+}
+/** 그 단계의 첫 사진 번호 (없으면 -1) */
+export function photoIndexForStep(market, step) {
+  return guidePhotos(market).findIndex(p => p.step === step)
+}
 
 /**
  * 스마트스토어 — 고객이 네이버 커머스API센터에서 "내 스토어 애플리케이션"을 직접 만들고 ID·시크릿을 넣는다 (2026-09-30 S3-2)

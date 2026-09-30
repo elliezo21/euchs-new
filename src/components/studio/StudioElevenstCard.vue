@@ -28,8 +28,19 @@
     <StudioModal :open="formOpen" title="11번가 연결" wide @close="formOpen = false">
       <form class="space-y-4" data-mk-11st-form @submit.prevent="submit">
         <ol class="guide-steps" data-mk-11st-guide>
-          <li v-for="(s, i) in ELEVENST_GUIDE" :key="i"><span class="guide-no">{{ i + 1 }}</span><span class="break-keep">{{ s }}</span></li>
+          <li v-for="(s, i) in ELEVENST_GUIDE" :key="i">
+            <span class="guide-no">{{ i + 1 }}</span>
+            <span class="flex-1 min-w-0">
+              <span class="break-keep">
+                <template v-if="s.includes(RELAY_IP)">{{ s.split(RELAY_IP)[0] }}<code class="ip-chip">{{ RELAY_IP }}</code><button type="button" class="copy-btn" data-mk-11st-copy-ip @click="copyIp">{{ ipCopied ? '복사됨' : '복사' }}</button>{{ s.split(RELAY_IP)[1] }}</template>
+                <template v-else>{{ s }}</template>
+              </span>
+              <button v-if="photoIndexForStep('11st', i) >= 0" type="button" class="photo-link" :data-mk-11st-step-photo="i" @click="photos?.openAt(photoIndexForStep('11st', i))">사진</button>
+              <span v-if="ELEVENST_STEP_NOTES[i]" class="block mt-1 text-[12px] st-muted break-keep" data-mk-11st-step-note>{{ ELEVENST_STEP_NOTES[i] }}</span>
+            </span>
+          </li>
         </ol>
+        <StudioGuidePhotos ref="photos" market="11st" />
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="block"><span class="st-label">11번가 셀러 ID *</span><input v-model.trim="form.sellerId" class="st-input w-full" maxlength="100" autocomplete="off" data-mk-11st-f-id /></label>
           <label class="block"><span class="st-label">API 키 *</span><input v-model.trim="form.apiKey" type="password" class="st-input w-full font-mono" maxlength="200" autocomplete="new-password" data-mk-11st-f-key /></label>
@@ -65,7 +76,8 @@ import { currentUser } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
 import { connectElevenst, disconnectElevenst, fmtDate, isNotReady } from '@/lib/studioMarketplace'
 import { elevenstKeyProblems } from '@/lib/studioMarketplaceRules'
-import { ELEVENST_GUIDE } from '@/lib/studioMarketGuides'
+import { ELEVENST_GUIDE, ELEVENST_STEP_NOTES, RELAY_IP, photoIndexForStep } from '@/lib/studioMarketGuides'
+import StudioGuidePhotos from '@/components/studio/StudioGuidePhotos.vue'
 import { marketLinks, applyMarketLinks } from '@/lib/studioMarketLinks'
 
 const route = useRoute()
@@ -83,6 +95,17 @@ const formTried = ref(false)
 const formError = ref('')
 const formSoft = ref(false)
 const problems = computed(() => elevenstKeyProblems(form.value))
+const photos = ref(null)
+const ipCopied = ref(false)
+async function copyIp() {
+  try {
+    await navigator.clipboard.writeText(RELAY_IP)
+    ipCopied.value = true
+    setTimeout(() => { ipCopied.value = false }, 1500)
+  } catch (e) {
+    console.error('[StudioElevenstCard] IP 복사 실패:', e)
+  }
+}
 
 async function start() {
   if (busy.value) return
@@ -146,5 +169,8 @@ watch(() => currentUser.value?.id, uid => { if (!uid) { formOpen.value = false; 
 <style scoped>
 .guide-steps { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: var(--st-soft); }
 .guide-steps li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--st-ink); }
+.ip-chip { font-family: ui-monospace, monospace; font-weight: 800; padding: 1px 6px; border-radius: 5px; background: var(--st-card, #fff); border: 1px solid var(--st-line); }
+.copy-btn { margin: 0 4px; padding: 1px 8px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #fff; background: var(--st-accent); }
+.photo-link { margin-left: 6px; font-size: 12px; font-weight: 700; color: var(--st-accent); text-decoration: underline; text-underline-offset: 2px; }
 .guide-no { flex: none; width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; background: var(--st-accent); color: #fff; }
 </style>
