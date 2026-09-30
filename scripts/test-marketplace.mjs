@@ -581,7 +581,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const guide = read('src/components/studio/StudioMarketplaceGuide.vue')
   eq('가이드: 캡처 5장 · "[추가] 버튼" 강조 2곳(04·05) · IP 복사', [[1, 2, 3, 4, 5].every(n => guide.includes(`/studio-guide/coupang/0${n}.png`) && fs.existsSync(new URL(`../public/studio-guide/coupang/0${n}.png`, import.meta.url))), (guide.match(/반드시 \[추가\] 버튼/g) || []).length, guide.includes("label: 'IP'")], [true, 2, true])
   const modal = read('src/components/studio/StudioSendCoupang.vue')
-  eq('보내기 창: 브랜드는 선택("브랜드 없음" 기본 체크) · 품번 필수 · GTIN 선택', [/브랜드 \*/.test(modal), /data-mk-s-no-brand/.test(modal), /noBrand: true, brand: '', brandId: ''/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드 숫자 8~14자리\)은 선택/.test(modal), /자체브랜드명/.test(modal)], [false, true, true, true, true, false])
+  eq('보내기 창: 브랜드는 선택("브랜드 없음" 기본 체크) · 품번 필수 · GTIN 선택', [/브랜드 \*/.test(modal), /data-mk-s-no-brand/.test(modal), /noBrand: true, brand: '', brandId: ''/.test(modal), /품번 \*/.test(modal), /GTIN\(바코드 8~14자리\) 선택/.test(modal), /자체브랜드명/.test(modal)], [false, true, true, true, true, false])
   eq('판매처 화면: 로그아웃 구독', /euchs-auth-changed/.test(read('src/views/studio/StudioMarketplaceView.vue')), true)
 }
 
@@ -628,7 +628,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const BAN = /관리자|서버|암호화|키 설정|환경변수|중계|relay|ENC_KEY|RELAY/
   const screens = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioChannelsView.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/views/studio/StudioChannelSentView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
   // relayIp는 값(IP 숫자)을 넘기는 속성 이름 — 화면에 글자로 보이지 않는다
-  const shown = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/:relay-ip|relayIp/g, '') }
+  // "카페24 관리자" = 카페24 쇼핑몰 관리 화면의 이름(2026-09-30 카페24 보내기 문구) — 우리 내부 관리자를 뜻하지 않으므로 검사에서 뺀다
+  const shown = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/:relay-ip|relayIp/g, '').replace(/카페24 관리자/g, '') }
   eq('화면 템플릿에 내부 용어 없음', screens.filter(p => BAN.test(shown(p))), [])
   const table = /const MARKETPLACE = \{([\s\S]*?)\n\}/.exec(read('src/lib/studioApi.js'))[1].replace(/\/\/.*$/gm, '').replace(/^\s*\w+:/gm, '')
   eq('오류 문구 표(marketplace)에 내부 용어 없음', BAN.test(table), false)
@@ -961,7 +962,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       ], [true, true, true, true, false, true])
     }
   }
-  const screenText = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
+  const screenText = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/카페24 관리자/g, '') } // "카페24 관리자" = 카페24 화면 이름 — 허용
   const customer = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioChannelsView.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/views/studio/StudioChannelSentView.vue', 'src/views/studio/StudioLandingView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioTagChips.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
   eq('고객 화면에 "이어서 준비"·"부터 열려"·"곧"·"관리자" 없음', customer.filter(p => /이어서 준비|부터 열려|곧|관리자/.test(screenText(p))), [])
   eq('판매 방식 기억 = 템플릿마다 · 브라우저에만', [/studio-mk-sale-mode:\$\{id\}/.test(read('src/lib/studioMarketplace.js')), /rememberSaleMode\(f\.value\.templateId, key\)/.test(modal)], [true, true])
@@ -990,8 +991,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('버튼 글자: 1곳 = 이름 · 0곳·여러 곳 = "선택한 판매처로 보내기"', [R.sendButtonLabel(['coupang']), R.sendButtonLabel([]), R.sendButtonLabel(['coupang', 'smartstore']), R.sendButtonLabel(['11st']), R.sendButtonLabel(['smartstore'])], ['쿠팡으로 보내기', '선택한 판매처로 보내기', '선택한 판매처로 보내기', '11번가로 보내기', '스마트스토어로 보내기'])
   const shell = read('src/components/studio/StudioSendModal.vue')
   const shellShown = shell.slice(shell.indexOf('<template>'), shell.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
-  eq('보내기 창: "0. 보낼 판매처"가 맨 위 · 체크박스 줄 · 자물쇠 + [연결하기] · "예정" 배지(준비 중 없음 — S3-3)', [/0\. 보낼 판매처/.test(shellShown), shellShown.indexOf('data-mk-s-markets') < shellShown.indexOf('<component :is="SECTIONS[key]"'), /type="checkbox" :disabled="r\.state !== 'connected'/.test(shellShown), /<Lock /.test(shellShown), /:to="\{ name: 'studio-settings-marketplace' \}"[^>]*>연결하기</.test(shellShown), /v-else-if="r\.state === 'planned'" class="st-badge shrink-0"[^>]*>\{\{ PLANNED_LABEL \}\}</.test(shellShown) && !/준비 중/.test(shellShown)], [true, true, true, true, true, true])
-  eq('보내기 창: 체크 0개 → 빠짐 목록 "보낼 판매처" · 버튼은 빠짐이 있으면 꺼짐', [/if \(!picked\.value\.length\) return \['보낼 판매처'\]/.test(shell), /:disabled="!canSend" data-mk-s-send/.test(shellShown)], [true, true])
+  eq('보내기 창: "판매처 *"가 맨 위(번호 없음) · 체크박스 줄 · 자물쇠 + [연결하기] · "예정" 배지(준비 중 없음 — S3-3)', [/<h4 class="st-h-card">판매처 \*<\/h4>/.test(shellShown) && !/0\. 보낼 판매처/.test(shellShown), shellShown.indexOf('data-mk-s-markets') < shellShown.indexOf('<component :is="SECTIONS[key]"'), /type="checkbox" :disabled="r\.state !== 'connected'/.test(shellShown), /<Lock /.test(shellShown), /:to="\{ name: 'studio-settings-marketplace' \}"[^>]*>연결하기</.test(shellShown), /v-else-if="r\.state === 'planned'" class="st-badge shrink-0"[^>]*>\{\{ PLANNED_LABEL \}\}</.test(shellShown) && !/준비 중/.test(shellShown)], [true, true, true, true, true, true])
+  eq('보내기 창: 체크 0개 → 빠짐 목록 "판매처" · 버튼은 빠짐이 있으면 꺼짐', [/if \(!picked\.value\.length\) return \['판매처'\]/.test(shell), /:disabled="!canSend" data-mk-s-send/.test(shellShown)], [true, true])
   eq('재발 방지: 준비 데이터가 없거나 고른 판매처의 섹션이 안 떠 있으면 [보내기] 꺼짐 · 섹션 오류는 한 줄만', [
     shell.includes('const canSend = computed(() => !!props.prepare && sectionsReady.value && !sectionError.value && !sending.value && !sectionBusy.value && missing.value.length === 0)'),
     shell.includes('const sectionsReady = computed(() => picked.value.length > 0 && picked.value.every(key => !!SECTIONS[key] && !!sections[key]))'),
@@ -1066,7 +1067,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const cp = read('src/components/studio/StudioSendCoupang.vue'), shell = read('src/components/studio/StudioSendModal.vue'), modalBox = read('src/components/studio/StudioModal.vue')
 
   // 1) 창 폭 · 옵션 표
-  eq('1 창 폭: 보내기 창 = 화면 폭 90%(최대 1400px) · 다른 창의 wide는 그대로', [/<StudioModal :open="open" :title="prepare\?\.resend \? '고쳐서 다시 보내기' : '판매처로 보내기'" full /.test(shell), modalBox.includes("full ? 'w-[90vw] max-w-[1400px]' : wide ? 'w-full max-w-2xl' : 'w-full max-w-md'")], [true, true])
+  eq('1 창 폭: 보내기 창 = 화면 폭 90%(최대 1400px) · 다른 창의 wide는 그대로', [/<StudioModal :open="open" :title="prepare\?\.resend \? '수정 후 다시 보내기' : '판매처로 보내기'" full /.test(shell), modalBox.includes("full ? 'w-[90vw] max-w-[1400px]' : wide ? 'w-full max-w-2xl' : 'w-full max-w-md'")], [true, true])
   eq('1 옵션 표: 가로 스크롤 없음 · 칸 폭 고정 배치 · 입력 칸은 칸 폭에 맞춤', [/overflow-x-auto[^"]*"[^>]*>\s*<table class="opt-table"/.test(cp), /\.opt-table \{[^}]*table-layout: fixed/.test(cp), /\.opt-in \{ width: 100%; min-width: 0;/.test(cp), /class="st-input w-\[\d+px\]"[^>]*data-mk-s-(stock|sku|price|opt)=/.test(cp)], [false, true, true, false])
   const fixedCss = ['c-img', 'c-price', 'c-price', 'c-rate', 'c-stock', 'c-sku', 'c-gtin', 'c-del'].reduce((n, c) => n + Number(new RegExp(`\\.opt-table \\.${c} \\{ width: (\\d+)px`).exec(cp)?.[1] || NaN), 0)
   eq('1 옵션 표: 화면의 고정 칸 폭 합 = 규칙 파일 숫자', [fixedCss, Number(/\.opt-table \.c-cny \{ width: (\d+)px/.exec(cp)?.[1])], [R.OPTION_FIXED_PX, R.OPTION_CNY_PX])
@@ -1141,7 +1142,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('브랜드 고르기: 0개 = 없음 · 이름이 통째로 같은 하나 = 그것 · 하나뿐 = 그것 · 아니면 고객이 고름', [F.pickBrand([], 'x').state, F.pickBrand(found, 'nike').brand.brandId, F.pickBrand([found[1]], '나이키').brand.brandId, F.pickBrand(found, 'nik').state, F.pickBrand(found, 'nik').brands.length], ['none', 'KR-5', 'KR-6', 'many', 2])
   eq('안내 문구 (쿠팡에 없는 브랜드)', F.BRAND_NOT_FOUND, '쿠팡에 등록된 브랜드가 아니에요. 브랜드 없음으로 보내거나 Wing 브랜드 관리에서 먼저 등록해 주세요.')
   eq('상품명에 알려진 브랜드 이름이 있는지', [F.brandWordIn('나이키 스타일 운동화', ''), F.brandWordIn('도트 헤어핀', '여성 헤어핀'), F.brandWordIn()], ['나이키', '', ''])
-  eq('화면: "브랜드 없음" 체크(기본) · 체크면 입력 꺼짐 · [브랜드 찾기] · 여러 개면 고르기 · 경고 한 줄', [/type="checkbox" data-mk-s-no-brand/.test(shown), /:disabled="f\.noBrand" placeholder="브랜드 이름" data-mk-s-brand/.test(shown), /data-mk-s-brand-find/.test(shown), /v-if="!f\.noBrand && brandChoices\.length > 1"[^>]*data-mk-s-brand-pick/.test(shown), /data-mk-s-brand-warn/.test(shown), shown.includes('상품명에 브랜드 이름이 들어 있으면 "브랜드 없음"을 풀고 브랜드를 넣어 주세요.')], [true, true, true, true, true, true])
+  eq('화면: "브랜드 없음" 체크(기본) · 체크면 입력 꺼짐 · [브랜드 검색] · 여러 개면 선택 · 경고 한 줄', [/type="checkbox" data-mk-s-no-brand/.test(shown), /:disabled="f\.noBrand" placeholder="브랜드 이름" data-mk-s-brand/.test(shown), /data-mk-s-brand-find/.test(shown), /v-if="!f\.noBrand && brandChoices\.length > 1"[^>]*data-mk-s-brand-pick/.test(shown), /data-mk-s-brand-warn/.test(shown), shown.includes('상품명에 브랜드명이 포함된 경우 "브랜드 없음"을 해제하고 브랜드를 입력하세요.')], [true, true, true, true, true, true])
   eq('화면: 브랜드 없음이면 brand·brandId를 비워 보냄 · 빠짐 목록에 브랜드 필수 없음 · 없는 브랜드면 보내기 막음', [cp.includes("brand: brandOut.value, brandId: v.noBrand ? '' : v.brandId, manufacture: v.manufacture,"), cp.includes("const brandOut = computed(() => (f.value.noBrand ? '' : f.value.brand))"), /out\.push\('브랜드 \(없으면 자체브랜드명\)'\)/.test(cp), cp.includes("else if (brandNote.value === BRAND_NOT_FOUND) out.push('쿠팡에 등록된 브랜드')"), cp.includes('if (!v.noBrand) {')], [true, true, false, true, true])
   eq('요약 표: 브랜드 없음 / 브랜드 (brandId) · 제조사는 넣은 것만', [F.previewRows({ noBrand: true, brand: 'x' }).find(r => r.label === '브랜드').value, F.previewRows({ brand: '이유씨', brandId: 'KR-77' }).find(r => r.label === '브랜드').value, F.previewRows({ brand: '이유씨' }).find(r => r.label === '제조사').value], ['브랜드 없음', '이유씨 (KR-77)', ''])
 
@@ -1155,7 +1156,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], name: '', attributes: {} }] }).ok,
   ], [['블랙 / M', '블랙 / L'], '내가 쓴 이름', false])
   eq('서버: 검색옵션(노출 안 함)은 옵션 이름에 안 넣음', C.buildProductBody({ ...BASE, attributeMeta: [{ name: '색상', exposed: true }, { name: '소재', exposed: false }], items: [{ ...BASE.items[0], name: '', attributes: { 색상: '블랙', 소재: '면' } }] }).body.items[0].itemName, '블랙')
-  eq('화면: "옵션 이름" 열은 기본 숨김 · [옵션 이름 직접 쓰기] 링크 · 보낼 때 자동 이름', [/<th v-if="f\.manualNames">옵션 이름 \*<\/th>/.test(shown), /<td v-if="f\.manualNames" class="c-name"/.test(shown), /manualNames: false/.test(cp), /data-mk-s-names-toggle/.test(shown), shown.includes("'옵션 이름 직접 쓰기'"), cp.includes('name: itemNames.value[i],'), cp.includes('const autoNames = computed(() => autoItemNames(f.value.items.map(buyValuesOf)))')], [true, true, true, true, true, true, true])
+  eq('화면: "옵션 이름" 열은 기본 숨김 · [옵션 이름 직접 입력] 링크 · 보낼 때 자동 이름', [/<th v-if="f\.manualNames">옵션 이름 \*<\/th>/.test(shown), /<td v-if="f\.manualNames" class="c-name"/.test(shown), /manualNames: false/.test(cp), /data-mk-s-names-toggle/.test(shown), shown.includes("'옵션 이름 직접 입력'"), cp.includes('name: itemNames.value[i],'), cp.includes('const autoNames = computed(() => autoItemNames(f.value.items.map(buyValuesOf)))')], [true, true, true, true, true, true, true])
 
   // 옵션 종류 2개 — 종류 수만큼 맞추기·열, 줄은 SKU 수만큼
   const two = F.extractSkus1688(ITEM_1688)
@@ -1221,7 +1222,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 3) 반려 사유는 카드에 그대로 · 4) [고쳐서 다시 보내기]
   const R15 = await import('../src/lib/studioMarketplaceRules.js')
   const sl = read('src/components/studio/StudioSendList.vue'), cp15 = read('src/components/studio/StudioSendCoupang.vue')
-  eq('보낸 상품 카드: 반려 사유 그대로 · 반려 항목에만 [고쳐서 다시 보내기] · 보내면 목록 다시 읽기 · 로그아웃 때 비움', [/\{\{ s\.status === 'rejected' \? '반려 사유: ' : '' \}\}\{\{ s\.reason \}\}/.test(sl), /<button v-if="canResend\(s\)"[^>]*data-mk-send-resend/.test(sl), sl.includes("'고쳐서 다시 보내기'"), /@sent="onResent"/.test(sl), /resendPrepare\.value = null/.test(sl)], [true, true, true, true, true])
+  eq('보낸 상품 카드: 반려 사유 그대로 · 반려 항목에만 [수정 후 다시 보내기] · 보내면 목록 다시 읽기 · 로그아웃 때 비움', [/\{\{ s\.status === 'rejected' \? '반려 사유: ' : '' \}\}\{\{ s\.reason \}\}/.test(sl), /<button v-if="canResend\(s\)"[^>]*data-mk-send-resend/.test(sl), sl.includes("'수정 후 다시 보내기'"), /@sent="onResent"/.test(sl), /resendPrepare\.value = null/.test(sl)], [true, true, true, true, true])
   eq('[고쳐서 다시 보내기]는 반려 + 쿠팡 상품 번호가 있을 때만', [R15.canResend({ status: 'rejected', sellerProductId: '16397573540' }), R15.canResend({ status: 'rejected', sellerProductId: null }), R15.canResend({ status: 'failed', sellerProductId: '1' }), R15.canResend({ status: 'approval_pending', sellerProductId: '1' }), R15.canResend(null)], [true, false, false, false, false])
   eq('버튼 글자: 다시 보내기 = "다시 승인 요청" · 아니면 예전 그대로', [R15.sendActionLabel(['coupang'], true), R15.sendActionLabel(['coupang'], false), R15.sendActionLabel([], false)], ['다시 승인 요청', '쿠팡으로 보내기', '선택한 판매처로 보내기'])
   eq('쿠팡 섹션: 다시 보내기면 resendId를 같이 보냄 · 템플릿 택배사 검사 · 요약 표에 상세 이미지', [cp15.includes('...(resend.value ? { resendId: resend.value.sendId } : {}),'), cp15.includes("else if (!templateCourierOk.value) out.push('배송/반품 템플릿의 택배사 (판매처 > 기본 설정에서 다시 저장)')"), cp15.includes("detailFiles: props.prepare?.export?.files || []")], [true, true, true])
@@ -1273,6 +1274,26 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     K.buildCafe24Product({ productName: '', price: 1, detailPaths: ['x'] }).ok, K.buildCafe24Product({ productName: 'a', price: 12.5, detailPaths: ['x'] }).ok,
     K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: [] }).ok, K.buildCafe24Product({ productName: 'a', price: 1, categoryNo: -1, detailPaths: ['x'] }).ok,
   ], [false, false, false, false, false])
+  // 진열 선택 (2026-09-30): display 'T'|'F'만, 기본 'F'. 'T'면 selling도 'T'
+  const dOn = K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: ['x'], display: 'T' }), dOff = K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: ['x'], display: 'F' }), dNone = K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: ['x'] })
+  eq('진열상태: 진열함 = display T·selling T · 진열안함 = F·F · 없으면 F·F · 다른 값은 거절', [[dOn.body.request.display, dOn.body.request.selling], [dOff.body.request.display, dOff.body.request.selling], [dNone.body.request.display, dNone.body.request.selling], K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: ['x'], display: 'Y' }).ok, K.buildCafe24Product({ productName: 'a', price: 1, detailPaths: ['x'], display: true }).ok, [K.isDisplayFlag('T'), K.isDisplayFlag('F'), K.isDisplayFlag('t'), K.isDisplayFlag('')]], [['T', 'T'], ['F', 'F'], ['F', 'F'], false, false, [true, true, false, false]])
+  eq('서버·화면: body.display를 검사(isDisplayFlag)해 buildCafe24Product에 넘기고 응답에 display · 목록(publicSend)에 보낸 진열상태 · 섹션 라디오 진열안함(기본 F)/진열함 + 한 줄 안내 · 요약 표 진열상태·판매상태 · 결과 "등록되었습니다"', [
+    /if \(!isDisplayFlag\(display\)\) return sendError\(res, 400, 'invalid_input'/.test(read('api/marketplace.js')), /buildCafe24Product\(\{ productName, price, categoryNo, detailPaths, display \}\)/.test(read('api/marketplace.js')), /status: 'registered', display, adminUrl/.test(read('api/marketplace.js')),
+    /display: c24 \? \(s\.request_json\?\.body\?\.request\?\.display === 'T' \? 'T' : 'F'\) : null/.test(read('api/marketplace.js')),
+    /data-mk-c24-display-off/.test(sec) && /data-mk-c24-display-on/.test(sec) && sec.includes("fit: 'contain', display: 'F'"), /진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다\./.test(sec),
+    /label: '진열상태', value: DISPLAY_LABEL\[f\.value\.display\]/.test(sec) && /label: '판매상태', value: SELLING_LABEL\[f\.value\.display\]/.test(sec), /등록되었습니다\. 상품번호 \{\{ done\.productNo \}\} · \{\{ DISPLAY_LABEL\[f\.display\] \}\}/.test(sec), sec.includes('display: f.value.display,'),
+    /진열상태: \{\{ s\.display === 'T' \? '진열함' : '진열안함' \}\}/.test(sl),
+  ], [true, true, true, true, true, true, true, true, true, true])
+  // 문구 원칙(2026-09-30 해성): 번호 없는 명사 항목명 · 결과 "~되었습니다" · 창 두 개 같은 말투 · 긴 안내 상자 없음
+  const cpShown = read('src/components/studio/StudioSendCoupang.vue'), secShown = sec
+  // 템플릿 글자만(주석 제외). 고정 문구 "잠시 후 다시 시도해 주세요."(규칙 6)와 로그인 전 안내 카드(StudioLoginNeeded — 창 밖)는 검사에서 뺀다
+  const tplText = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/잠시 후 다시 시도해 주세요\./g, '').replace(/<StudioLoginNeeded[^>]*>/g, '')
+  eq('문구: 쿠팡·카페24 섹션에 "1. 2." 번호 항목명 없음 · 대화체(~어요/~예요/~해요/~돼요/주세요) 없음 · 결과는 "~되었습니다" · 요약 제목 "등록 정보 확인" 두 창 · 빈 값 "미입력"', [
+    /<h4 class="st-h-card">\d+\. /.test(cpShown) || /<h4 class="st-h-card">\d+\. /.test(secShown),
+    [cpShown, secShown, shell, sv, sl].map(tplText).filter(t => /(어요|예요|해요|돼요|아요|워요|네요|줘요)[.!]|주세요/.test(t)).length,
+    /등록 및 승인 요청되었습니다\./.test(cpShown) && /등록되었습니다\. 상품번호/.test(secShown) && /카페24에 등록되었습니다\./.test(sv) && /에 전송되었습니다\./.test(sv),
+    (tplText(cpShown).match(/등록 정보 확인/g) || []).length + (tplText(secShown).match(/등록 정보 확인/g) || []).length, /'미입력'/.test(cpShown) && /'미입력'/.test(secShown) && !/비어 있음/.test(cpShown + secShown),
+  ], [false, 0, true, 2, true])
   // ③ 대표 이미지 전용 API (POST /products/{product_no}/images) — 문서 요청 예시 = data URI, 필수 image_upload_type, 응답 image.detail_image = /web/product/big/…
   const jpg = Buffer.from([0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10])
   const ri = K.buildCafe24ProductImage(jpg)
@@ -1292,7 +1313,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('서버 순서: 상세 업로드(products/images) → 상품 등록(대표 없이) → registered 기록 → 대표 이미지(products/{no}/images) · ③ 실패해도 registered 그대로 + repImageError 안내 + result_json.repImage(이유·shape) · 갱신 실패 응답 중복 없음 · 본문 로그 없음', [
     at("path: '/products/images'") < at("path: '/products'"), at("path: '/products'") < at("status: 'registered'"), at("status: 'registered'") < at('path: `/products/${productNo}/images`'),
     /detailImagePath/.test(c24send2), /buildCafe24ProductImage\(rep\.buf\)/.test(c24send2), /result_json: \{ \.\.\.resultJson, repImage \}/.test(c24send2),
-    /const repImageError = repImage\.ok \? null : `상품은 등록됐지만 대표 이미지는 못 올렸어요\. 카페24 쇼핑몰 관리 화면에서 넣어 주세요\./.test(c24send2), /if \(alreadyResponded\) return/.test(c24send2), /JSON\.stringify\(ri?\)\.slice/.test(c24send2),
+    /const repImageError = repImage\.ok \? null : `상품은 등록되었으나 대표 이미지 업로드에 실패했습니다\. 카페24 관리자에서 등록하세요\. \(사유: /.test(c24send2), /if \(alreadyResponded\) return/.test(c24send2), /JSON\.stringify\(ri?\)\.slice/.test(c24send2),
     /data-mk-c24-rep-error/.test(read('src/components/studio/StudioSendCafe24.vue')), /r\.repImageError/.test(read('src/views/studio/StudioChannelSendView.vue')),
   ], [true, true, true, false, true, true, true, true, false, true, true])
   eq('HTML 이스케이프: 상품명·경로의 < > " 가 그대로 들어가지 않음', /<b>|"x"/.test(K.detailHtml(['https://x/a.jpg?a="x"'], '<b>머그</b>')), false)
@@ -1328,11 +1349,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('처음 체크: 누른 판매처만(market) · 다시 보내기는 쿠팡만 · 없으면 연결된 곳 모두', [R.initialChecked(both, { market: 'cafe24' }), R.initialChecked(both, { resend: true }), R.initialChecked(both), R.initialChecked(R.channelRows({ coupang: { connected: true } }), { market: 'cafe24' }).cafe24], [{ ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), cafe24: true }, { ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), coupang: true }, R.defaultChecked(both), false])
   eq('보내기 창: market prop → initialChecked · 카페24 섹션 = 같은 모양(missing·busy·done·submit) · 판매가는 정수 검사 · 분류는 선택(못 읽어도 보냄)', [
     /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare?.resend })"),
-    /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /분류 없음 \(미분류로 등록\)/.test(sec), sec.includes('catError.value = e.message'),
-    /진열 안 함 · 판매 안 함 상태로 등록돼요/.test(sec), /sendCafe24Product\(\{/.test(sec) && /listCafe24Categories\(\)/.test(sec),
+    /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /<option :value="null">미분류<\/option>/.test(sec), sec.includes('catError.value = e.message'),
+    /진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다\./.test(sec) && /등록 정보 확인/.test(sec) && !/진열 안 함 · 판매 안 함 상태로 등록돼요/.test(sec), /sendCafe24Product\(\{/.test(sec) && /listCafe24Categories\(\)/.test(sec),
   ], [true, true, true, true, true, true, true, true])
-  eq('보내기 탭: [카페24로 보내기] = 같은 버튼(sendButtonLabel) · 창에 market 전달 · 등록 뒤 "등록됐어요" + 관리 화면 링크 · 보낸 상품 카드에도 링크', [
-    /:market="sendMarket"/.test(sv), sv.includes("sendMarket.value = market"), /카페24에 등록됐어요/.test(sv), /data-ch-admin-link/.test(sv), /:data-mk-send-admin="s\.id"/.test(sl), /s\.market === 'cafe24' && s\.status === 'registered'/.test(sl),
+  eq('보내기 탭: [카페24로 보내기] = 같은 버튼(sendButtonLabel) · 창에 market 전달 · 등록 뒤 "등록되었습니다" + 관리자 링크 · 보낸 상품 카드에도 링크', [
+    /:market="sendMarket"/.test(sv), sv.includes("sendMarket.value = market"), /카페24에 등록되었습니다\./.test(sv), /data-ch-admin-link/.test(sv), /:data-mk-send-admin="s\.id"/.test(sl), /s\.market === 'cafe24' && s\.status === 'registered'/.test(sl),
     lib.includes("registered: '등록됨'"), lib.includes("call('cafe24_send', payload)"), lib.includes("call('cafe24_categories')"),
   ], [true, true, true, true, true, true, true, true, true])
   // 서버 배선 — 쿠팡 흐름은 그대로
@@ -1341,7 +1362,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     api.includes("body.action === 'cafe24_send'"), api.includes("body.action === 'cafe24_categories'"), api.indexOf('const ctx = await studioGuard(req, res)') < api.indexOf("body.action === 'cafe24_send'"),
     /force \|\| accessNeedsRefresh\(row\.access_expires_at\)/.test(cred), /await saveCafe24Token\(ctx, encKey, mallId, fresh\)/.test(cred), /status: 'expired'/.test(cred), /'key_expired'/.test(cred),
     c24send.indexOf("market: CAFE24, status: 'sending'") < c24send.indexOf("path: '/products/images'"), /marketplace_sql_missing/.test(c24send), /2026-09-30-marketplace-sends-cafe24\.sql/.test(c24send),
-    /display: 'F', selling: 'F'/.test(read('api/_cafe24.js')), /status: 'registered'/.test(c24send), /api\/marketplace\?t=/.test(c24send),
+    /display, selling: display,/.test(read('api/_cafe24.js')), /status: 'registered'/.test(c24send), /api\/marketplace\?t=/.test(c24send),
   ], [true, true, true, true, true, true, true, true, true, true, true, true, false])
   eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록은 쿠팡+카페24', [
     /access_token|refresh_token|oauth_enc/.test(c24send), /Bearer \$\{c\.accessToken\}/.test(read('api/_cafe24.js')), /market=eq\.\$\{MARKET\}&seller_product_id=not\.is\.null&status=in\.\(sending,approval_pending,rejected\)/.test(api),

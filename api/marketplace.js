@@ -60,7 +60,7 @@ import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
 import { smartstoreToken, SmartstoreError } from './_smartstore.js'
 import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
-  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, buildCafe24ProductImage, productImagePath, productNoOf, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
+  cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, isDisplayFlag, buildCafe24ProductImage, productImagePath, productNoOf, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
 } from './_cafe24.js'
 import { lookupCachedTranslations } from './_translationCache.js'
 import { CACHE_SOURCE_LANG, CACHE_TARGET_LANG } from './_crossborderKo.js'
@@ -349,11 +349,11 @@ async function disconnectCafe24(ctx, body, res) {
 
 // ── 카페24 상품 보내기 (2026-09-30) ──
 // cafe24_categories → { categories:[{ no, depth, parentNo, name, fullName }] }  (고객 쇼핑몰 상품분류 — 고르지 않으면 미분류로 등록)
-// cafe24_send { exportId, productName, price(원·정수), categoryNo?, repImageId, fit? } → { sendId, productNo, status:'registered', adminUrl }
+// cafe24_send { exportId, productName, price(원·정수), categoryNo?, repImageId, fit?, display?('T'|'F' 기본 'F') } → { sendId, productNo, status:'registered', adminUrl }
 //   토큰: access가 지났거나 5분 안에 지나면 refresh로 갱신해 바로 저장(refresh는 매번 바뀜). refresh가 지났거나 갱신이 거절되면 status 'expired' + "다시 연결"
 //   사진: 우리 토큰 주소(30분)는 안 쓴다 — ① 상세 장을 이미지 업로드 API(products/images, NNEditor 경로)로 올려 description <img>에만 ② 상품 등록(대표 이미지 없이)
 //         ③ 대표(정사각형 1000 JPG)는 등록 뒤 전용 API(products/{product_no}/images, image_upload_type A, data URI) — ③만 실패하면 registered + repImageError 안내
-//   등록은 진열 안 함·판매 안 함(display F·selling F) — 고객이 카페24 관리자에서 확인 후 직접 진열. 옵션 없음(has_option F)
+//   등록은 기본 진열 안 함·판매 안 함(display F·selling F) — body.display 'T'(진열함)면 둘 다 T로 즉시 노출. 옵션 없음(has_option F)
 //   기록: marketplace_sends(market 'cafe24', status sending → registered / failed, seller_product_id = product_no). SQL docs/sql/2026-09-30-marketplace-sends-cafe24.sql 실행 전이면 503 marketplace_sql_missing
 const CAFE24_SEND_SELECT = `${CAFE24_PUBLIC},oauth_enc,access_expires_at`
 async function markCafe24(ctx, patch) {
@@ -444,6 +444,9 @@ async function cafe24Send(ctx, body, res) {
   if (!isWon(price)) return sendError(res, 400, 'invalid_input', '판매가를 원 단위 정수로 넣어 주세요.')
   const categoryNo = body.categoryNo == null || body.categoryNo === '' ? null : Number(body.categoryNo)
   if (categoryNo != null && !isCategoryNo(categoryNo)) return sendError(res, 400, 'invalid_input', '상품 분류가 올바르지 않아요.')
+  // 진열상태 — 'T'|'F'만, 없으면 'F'(진열안함·판매안함). 'T'면 등록 즉시 노출(판매함까지)
+  const display = body.display == null || body.display === '' ? 'F' : body.display
+  if (!isDisplayFlag(display)) return sendError(res, 400, 'invalid_input', '진열상태는 진열함·진열안함 중 하나예요.')
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
 
@@ -500,7 +503,7 @@ async function cafe24Send(ctx, body, res) {
     }
   } catch (e) { return c24Fail(e, 'upload') }
   // ② 상품 등록 — 대표 이미지 없이(detail_image에 NNEditor 경로를 넣으면 422 "Wrong image path" — 2026-09-30 운영)
-  const built = buildCafe24Product({ productName, price, categoryNo, detailPaths })
+  const built = buildCafe24Product({ productName, price, categoryNo, detailPaths, display })
   if (!built.ok) return fail(400, 'invalid_input', built.message)
   const requestJson = { body: built.body, mallId: cred.mallId, files: Object.fromEntries(ex.files.map(f => [f.key, f.path])), imagePaths: { detail: detailPaths } }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
@@ -538,8 +541,8 @@ async function cafe24Send(ctx, body, res) {
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { result_json: { ...resultJson, repImage } }, prefer: 'return=minimal' }).catch(err => console.error('[marketplace] 대표 이미지 결과 기록 실패:', sendId, err.message))
   if (alreadyResponded) return
   console.info(`[marketplace] 카페24 상품 등록 ${ctx.userId} send=${sendId} mall=${cred.mallId} product_no=${productNo} detail=${detailPaths.length} rep=${repImage.ok ? 'ok' : repImage.code}`)
-  const repImageError = repImage.ok ? null : `상품은 등록됐지만 대표 이미지는 못 올렸어요. 카페24 쇼핑몰 관리 화면에서 넣어 주세요. (${repImage.message})`
-  return res.status(200).json({ sendId, productNo, sellerProductId: productNo, status: 'registered', adminUrl: cafe24AdminProductUrl(cred.mallId, productNo), repImageError })
+  const repImageError = repImage.ok ? null : `상품은 등록되었으나 대표 이미지 업로드에 실패했습니다. 카페24 관리자에서 등록하세요. (사유: ${repImage.message})`
+  return res.status(200).json({ sendId, productNo, sellerProductId: productNo, status: 'registered', display, adminUrl: cafe24AdminProductUrl(cred.mallId, productNo), repImageError })
 }
 async function connectElevenst(ctx, body, res) {
   const encKey = encKeyOr(res)
@@ -1032,7 +1035,8 @@ function publicSend(s) {
   return {
     id: s.id, exportId: s.export_id, market, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
     productName: (c24 ? s.request_json?.body?.request?.product_name : s.request_json?.body?.sellerProductName) || null, categoryName: s.request_json?.categoryName || null, revision: revisionsOf(s).length,
-    adminUrl: c24 ? cafe24AdminProductUrl(s.request_json?.mallId, s.seller_product_id) : null, // 카페24 = 관리자 상품 화면 (진열 안 함으로 등록돼 고객이 여기서 진열)
+    adminUrl: c24 ? cafe24AdminProductUrl(s.request_json?.mallId, s.seller_product_id) : null, // 카페24 = 관리자 상품 화면
+    display: c24 ? (s.request_json?.body?.request?.display === 'T' ? 'T' : 'F') : null, // 카페24 진열상태(보낸 값 — 관리자에서 바꾼 뒤는 모름)
     approvalRequestedAt: s.approval_requested_at, lastSyncedAt: s.last_synced_at, createdAt: s.created_at, updatedAt: s.updated_at,
   }
 }

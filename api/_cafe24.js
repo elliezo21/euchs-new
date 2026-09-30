@@ -243,17 +243,21 @@ export function detailHtml(paths, productName) {
  * 상품 등록 본문 (POST /products). 진열·판매 안 함(display F·selling F)이 기본 — 고객이 카페24 관리자에서 확인한 뒤 직접 진열한다
  * 대표 이미지(detail_image)는 여기 넣지 않는다 — 2026-09-30 운영: products/images(NNEditor 경로)를 detail_image에 넣으면 422 "[Product image] Wrong image path".
  *   NNEditor 경로는 상세설명 HTML용. 대표 이미지는 등록 뒤 전용 API(POST /products/{product_no}/images — buildCafe24ProductImage)로
- * @param {{ productName, price, categoryNo?, detailPaths:string[], customCode? }} p
+ * 진열상태(display) = 'T'|'F', 기본 'F'. 'T'(진열함)면 판매상태도 'T' — 등록 즉시 쇼핑몰에 노출 (2026-09-30 진열 선택 칸)
+ * @param {{ productName, price, categoryNo?, detailPaths:string[], customCode?, display? }} p
  * @returns {{ ok:true, body } | { ok:false, message }}
  */
+export const isDisplayFlag = v => v === 'T' || v === 'F'
 export function buildCafe24Product(p) {
   const productName = cleanProductName(p?.productName)
   if (!productName) return { ok: false, message: '상품명을 넣어 주세요.' }
   if (!isWon(p?.price)) return { ok: false, message: '판매가는 0 이상 정수(원)여야 해요.' }
   if (!Array.isArray(p?.detailPaths) || !p.detailPaths.length) return { ok: false, message: '상세 이미지를 올리지 못했어요.' }
   if (p?.categoryNo != null && !isCategoryNo(p.categoryNo)) return { ok: false, message: '상품 분류가 올바르지 않아요.' }
+  if (p?.display != null && !isDisplayFlag(p.display)) return { ok: false, message: '진열상태 값이 올바르지 않아요.' }
+  const display = p?.display === 'T' ? 'T' : 'F'
   const request = {
-    display: 'F', selling: 'F', // 안전 기본값 — 고객이 관리자에서 확인 후 진열
+    display, selling: display, // 기본 진열안함·판매안함 — 진열함을 고르면 둘 다 T (고객 선택)
     product_name: productName,
     price: String(p.price), supply_price: String(p.price), // supply_price = 문서상 필수·참고용 → 판매가와 같게
     has_option: 'F',

@@ -6,7 +6,7 @@
     </div>
     <p v-if="errorMsg" class="text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-sends-error>{{ errorMsg }}
       <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">[연결] 탭으로 가기</router-link></p>
-    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>아직 보낸 상품이 없어요. [보내기] 탭에서 상품을 골라 보내 보세요.</p>
+    <p v-else-if="!sends.length" class="st-desc break-keep" data-mk-sends-empty>보낸 상품이 없습니다. [보내기] 탭에서 상품을 선택하세요.</p>
     <template v-else>
     <!-- 판매처별로 보기 — 보낸 적 있는 판매처만 (MARKETS 순서) -->
     <div class="flex flex-wrap gap-1 mb-3" data-mk-sends-markets>
@@ -26,18 +26,18 @@
         <div v-if="s.coupangStatus" class="st-desc-sm truncate">{{ marketName(s.market) }}: {{ s.coupangStatus }}</div>
         <div v-if="s.revision" class="st-desc-sm truncate" :data-mk-send-revision="s.id">다시 보낸 횟수 {{ s.revision }}</div>
         <p v-if="s.reason" class="text-[12px] break-keep send-reason" :class="s.status === 'rejected' || s.status === 'failed' ? 'st-danger-text' : 'st-muted'" :title="s.reason" :data-mk-send-reason="s.id">{{ s.status === 'rejected' ? '반려 사유: ' : '' }}{{ s.reason }}</p>
-        <!-- 카페24 = 진열 안 함으로 등록됨 → 관리자에서 확인·진열 (2026-09-30) -->
+        <!-- 카페24 = 등록됨 → 진열상태(보낸 값) + 관리자 링크 (2026-09-30) -->
         <template v-if="s.market === 'cafe24' && s.status === 'registered'">
-          <p class="st-desc-sm break-keep">진열 안 함 상태 — 카페24 쇼핑몰 관리 화면에서 확인 후 진열하세요.</p>
-          <a v-if="s.adminUrl" :href="s.adminUrl" target="_blank" rel="noopener" class="st-btn mt-1.5 w-full text-[12px] whitespace-normal text-center" :data-mk-send-admin="s.id" title="카페24 쇼핑몰 관리 화면에서 보기">카페24에서 열기</a>
+          <p class="st-desc-sm break-keep" :data-mk-send-display="s.id">진열상태: {{ s.display === 'T' ? '진열함' : '진열안함' }}</p>
+          <a v-if="s.adminUrl" :href="s.adminUrl" target="_blank" rel="noopener" class="st-btn mt-1.5 w-full text-[12px] whitespace-normal text-center" :data-mk-send-admin="s.id">카페24 관리자에서 보기</a>
         </template>
-        <button v-if="canResend(s)" type="button" class="st-btn st-btn-primary mt-1.5 w-full" :disabled="resendBusy === s.id" :data-mk-send-resend="s.id" @click="openResend(s)">{{ resendBusy === s.id ? '여는 중…' : '고쳐서 다시 보내기' }}</button>
+        <button v-if="canResend(s)" type="button" class="st-btn st-btn-primary mt-1.5 w-full" :disabled="resendBusy === s.id" :data-mk-send-resend="s.id" @click="openResend(s)">{{ resendBusy === s.id ? '여는 중…' : '수정 후 다시 보내기' }}</button>
       </li>
     </ul>
     </template>
     <p v-if="resendError" class="mt-2 text-[12px] font-bold st-danger-text break-keep" data-mk-send-resend-error>{{ resendError }}</p>
     <StudioSendModal :open="resendOpen" :prepare="resendPrepare" @close="resendOpen = false" @sent="onResent" />
-    <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'">일부 상품은 상태를 확인하지 못했어요: {{ syncErrors[0].message }}</p>
+    <p v-if="syncErrors.length" class="mt-2 text-[12px] break-keep" :class="isNotReady(syncErrors[0].code) ? 'st-muted' : 'font-bold st-danger-text'">일부 상품의 상태를 확인하지 못했습니다: {{ syncErrors[0].message }}</p>
   </section>
 </template>
 

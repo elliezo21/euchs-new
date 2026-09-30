@@ -2,12 +2,12 @@
     <div class="space-y-5" data-mk-send-coupang>
       <div class="flex items-center gap-2 pt-1">
         <h3 class="st-h-section">쿠팡</h3>
-        <span class="st-desc-sm break-keep">상품으로 등록하고 승인 요청까지 보내요.</span>
+        <span class="st-desc-sm break-keep">상품 등록 후 승인 요청까지 진행합니다.</span>
       </div>
 
       <!-- 1. 판매 방식 (기본값 없음) -->
       <section class="space-y-2" data-mk-s-mode>
-        <h4 class="st-h-card">1. 판매 방식 *</h4>
+        <h4 class="st-h-card">판매 방식 *</h4>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button
             v-for="(m, key) in SALE_MODES" :key="key" type="button" class="mode-card" :class="{ 'is-on': f.saleMode === key, 'is-sub': key !== DEFAULT_SALE_MODE }"
@@ -17,47 +17,49 @@
             <span class="st-desc-sm break-keep">{{ MODE_DESC[key] }}</span>
           </button>
         </div>
-        <p v-if="f.saleMode === 'agent'" class="st-desc-sm break-keep" data-mk-s-agent-note>해외구매대행은 Wing에 등록한 해외 출고지만 쓸 수 있어요. 템플릿의 출고지를 확인해 주세요.</p>
-        <label v-if="f.saleMode" class="block max-w-[220px]"><span class="st-label">출고 소요일 ({{ OUTBOUND_DAYS_MIN }}~{{ OUTBOUND_DAYS_MAX }}일)</span><input v-model.number="f.outboundDays" type="number" :min="OUTBOUND_DAYS_MIN" :max="OUTBOUND_DAYS_MAX" class="st-input w-full" data-mk-s-days /></label>
+        <p v-if="f.saleMode === 'agent'" class="st-desc-sm break-keep" data-mk-s-agent-note>해외구매대행은 Wing에 등록한 해외 출고지만 사용할 수 있습니다. 템플릿의 출고지를 확인하세요.</p>
+        <label v-if="f.saleMode" class="block max-w-[220px]"><span class="st-label">출고 소요일 *</span><input v-model.number="f.outboundDays" type="number" :min="OUTBOUND_DAYS_MIN" :max="OUTBOUND_DAYS_MAX" class="st-input w-full" data-mk-s-days /><span class="st-desc-sm block mt-1">{{ OUTBOUND_DAYS_MIN }}~{{ OUTBOUND_DAYS_MAX }}일</span></label>
       </section>
 
       <!-- 2. 상품 정보 -->
       <section class="space-y-2">
-        <h4 class="st-h-card">2. 상품 정보</h4>
-        <label class="block"><span class="st-label">등록상품명 * (발주서에 쓰는 이름, {{ NAME_MAX }}자)</span><input v-model.trim="f.productName" class="st-input w-full" :maxlength="NAME_MAX" :placeholder="NAME_HINT" data-mk-s-name /></label>
-        <p v-if="namesBad" class="text-[12px] font-bold st-danger-text break-keep" data-mk-s-name-korean>상품명은 한글로 넣어 주세요.</p>
+        <h4 class="st-h-card">상품 정보</h4>
+        <label class="block"><span class="st-label">등록상품명 *</span><input v-model.trim="f.productName" class="st-input w-full" :maxlength="NAME_MAX" :placeholder="NAME_HINT" data-mk-s-name /><span class="st-desc-sm block mt-1">발주서에 사용하는 이름 · {{ NAME_MAX }}자 이내</span></label>
+        <p v-if="namesBad" class="text-[12px] font-bold st-danger-text break-keep" data-mk-s-name-korean>상품명은 한글로 입력하세요.</p>
         <!-- 브랜드 (선택) — 기본은 "브랜드 없음". 브랜드를 쓰려면 쿠팡에 등록된 브랜드여야 한다(brandId) -->
         <div class="space-y-1.5" data-mk-s-brand-box>
           <label class="flex items-center gap-2 text-[13px] st-ink font-bold"><input v-model="f.noBrand" type="checkbox" data-mk-s-no-brand @change="onNoBrand" /> 브랜드 없음</label>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <label class="block">
-              <span class="st-label">브랜드 (쿠팡에 등록된 브랜드 이름)</span>
+              <span class="st-label">브랜드</span>
               <div class="flex gap-2">
                 <input v-model.trim="f.brand" class="st-input flex-1 min-w-0" :maxlength="BRAND_MAX" :disabled="f.noBrand" placeholder="브랜드 이름" data-mk-s-brand @input="onBrandInput" @keydown.enter.prevent="findBrand" />
-                <button type="button" class="st-btn shrink-0" :disabled="f.noBrand || !f.brand || !!busy" data-mk-s-brand-find @click="findBrand">{{ busy === 'brand' ? '찾는 중…' : '브랜드 찾기' }}</button>
+                <button type="button" class="st-btn shrink-0" :disabled="f.noBrand || !f.brand || !!busy" data-mk-s-brand-find @click="findBrand">{{ busy === 'brand' ? '검색 중…' : '브랜드 검색' }}</button>
               </div>
+              <span class="st-desc-sm block mt-1">쿠팡에 등록된 브랜드만 사용할 수 있습니다.</span>
             </label>
-            <label class="block"><span class="st-label">제조사 (비우면 보내지 않아요)</span><input v-model.trim="f.manufacture" class="st-input w-full" maxlength="50" data-mk-s-manufacture /></label>
+            <label class="block"><span class="st-label">제조사</span><input v-model.trim="f.manufacture" class="st-input w-full" maxlength="50" data-mk-s-manufacture /><span class="st-desc-sm block mt-1">비우면 전송하지 않습니다.</span></label>
           </div>
           <select v-if="!f.noBrand && brandChoices.length > 1" v-model="f.brandId" class="st-input w-full sm:w-[360px]" data-mk-s-brand-pick @change="onBrandPick">
-            <option value="">브랜드 고르기</option>
+            <option value="">브랜드 선택</option>
             <option v-for="b in brandChoices" :key="b.brandId" :value="b.brandId">{{ b.brandName }} ({{ b.brandId }})</option>
           </select>
           <p v-if="!f.noBrand && f.brandId" class="text-[12px] st-success-text font-bold" data-mk-s-brand-ok>쿠팡 브랜드 {{ f.brand }} ({{ f.brandId }})</p>
           <p v-if="!f.noBrand && brandNote" class="text-[12px] font-bold st-danger-text break-keep" data-mk-s-brand-note>{{ brandNote }}</p>
-          <p v-if="f.noBrand" class="st-desc-sm break-keep" :class="brandInName ? 'st-danger-text font-bold' : ''" data-mk-s-brand-warn>{{ brandInName ? `상품명에 브랜드 이름(${brandInName})이 있어요. ` : '' }}상품명에 브랜드 이름이 들어 있으면 "브랜드 없음"을 풀고 브랜드를 넣어 주세요.</p>
+          <p v-if="f.noBrand" class="st-desc-sm break-keep" :class="brandInName ? 'st-danger-text font-bold' : ''" data-mk-s-brand-warn>{{ brandInName ? `상품명에 브랜드명(${brandInName})이 포함되어 있습니다. ` : '' }}상품명에 브랜드명이 포함된 경우 "브랜드 없음"을 해제하고 브랜드를 입력하세요.</p>
         </div>
-        <label class="block"><span class="st-label">제품명 (색상·사이즈 같은 옵션을 뺀 이름)</span><input v-model.trim="f.generalName" class="st-input w-full" :maxlength="NAME_MAX" placeholder="예: 도트 헤어핀" data-mk-s-general /></label>
+        <label class="block"><span class="st-label">제품명</span><input v-model.trim="f.generalName" class="st-input w-full" :maxlength="NAME_MAX" placeholder="예: 도트 헤어핀" data-mk-s-general /><span class="st-desc-sm block mt-1">색상·사이즈 등 옵션을 제외한 이름</span></label>
         <label class="block">
-          <span class="st-label">노출상품명 (쿠팡 판매 화면에 보이는 이름, {{ NAME_MAX }}자 — 비우면 등록상품명)</span>
+          <span class="st-label">노출상품명</span>
           <div class="flex gap-2">
             <input v-model.trim="f.displayName" class="st-input flex-1 min-w-0" :maxlength="NAME_MAX" placeholder="예: 이유씨 도트 헤어핀" data-mk-s-display />
             <button type="button" class="st-btn shrink-0" :disabled="!nameSeed" data-mk-s-name-suggest @click="suggestNames">이름 추천</button>
           </div>
+          <span class="st-desc-sm block mt-1">판매 화면에 표시되는 이름 · {{ NAME_MAX }}자 이내 · 비우면 등록상품명 사용</span>
         </label>
         <label class="block max-w-[320px]"><span class="st-label">모델번호</span><input v-model.trim="f.modelNo" class="st-input w-full" maxlength="50" data-mk-s-model /></label>
         <div class="flex flex-wrap items-center gap-2">
-          <button type="button" class="st-btn" :disabled="!f.productName || !!busy" data-mk-s-predict @click="predict">{{ busy === 'predict' ? '추천 중…' : '카테고리 추천받기' }}</button>
+          <button type="button" class="st-btn" :disabled="!f.productName || !!busy" data-mk-s-predict @click="predict">{{ busy === 'predict' ? '추천 중…' : '카테고리 추천' }}</button>
           <span v-if="f.categoryCode" class="text-[13px] st-ink font-bold" data-mk-s-category>{{ f.categoryName || '카테고리' }} <span class="st-muted font-mono font-normal">#{{ f.categoryCode }}</span></span>
           <label class="flex items-center gap-1 text-[12px] st-muted ml-auto">직접 입력 <input v-model.trim="f.categoryCode" class="st-input w-[120px] font-mono" placeholder="카테고리 코드" @change="f.categoryName = ''; loadMeta()" /></label>
         </div>
@@ -66,8 +68,8 @@
 
       <!-- 3. 검색태그 -->
       <section class="space-y-2">
-        <h4 class="st-h-card">3. 검색태그</h4>
-        <p class="st-desc-sm break-keep">{{ TAG_MAX }}개까지, 하나에 {{ TAG_LEN }}자까지예요. 다른 회사 상표는 쓸 수 없어요.</p>
+        <h4 class="st-h-card">검색태그</h4>
+        <p class="st-desc-sm break-keep">최대 {{ TAG_MAX }}개 · 태그당 {{ TAG_LEN }}자 · 타사 상표 사용 불가</p>
         <StudioTagChips ref="tagChips" v-model="f.tags" :brand="brandOut">
           <button type="button" class="st-btn" :disabled="!nameSeed" data-mk-s-tag-suggest @click="suggestTags">태그 추천</button>
         </StudioTagChips>
@@ -75,18 +77,18 @@
 
       <!-- 4. 옵션 -->
       <section class="space-y-2">
-        <h4 class="st-h-card">4. 옵션·가격·재고 수량</h4>
-        <p class="st-desc-sm break-keep">옵션마다 품번(판매자 상품코드)은 필수, GTIN(바코드 숫자 8~14자리)은 선택이에요. 쿠팡 정책상 상품식별정보·필수 구매옵션이 비면 노출이 제한돼요. 옵션 이름은 옵션 값으로 자동으로 만들어요.</p>
+        <h4 class="st-h-card">옵션·가격·재고</h4>
+        <p class="st-desc-sm break-keep">품번(판매자 상품코드) 필수 · GTIN(바코드 8~14자리) 선택 · 옵션 이름은 옵션 값으로 자동 생성 · 상품식별정보·필수 구매옵션이 비면 쿠팡 노출 제한</p>
         <p v-if="sourceNote" class="st-desc-sm break-keep" data-mk-s-source-note>{{ sourceNote }}</p>
 
         <!-- 옵션 종류 → 쿠팡 구매옵션 -->
         <div v-if="f.optionTypes.length" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-s-option-types>
-          <div class="st-label">옵션 종류 맞추기</div>
+          <div class="st-label">옵션 종류 매칭</div>
           <div v-for="t in f.optionTypes" :key="t.key" class="flex flex-wrap items-center gap-2 text-[13px]">
             <span class="st-ink font-bold min-w-[80px]">{{ t.label }}</span>
             <span class="st-muted">→</span>
             <select v-if="buyAttrs.length" v-model="t.mapped" class="st-input w-[200px]" :data-mk-s-option-map="t.key">
-              <option value="">쿠팡 옵션 고르기</option>
+              <option value="">쿠팡 옵션 선택</option>
               <option v-for="a in buyAttrs" :key="a.name" :value="a.name">{{ a.name }}{{ a.required ? ' *' : '' }}</option>
             </select>
             <input v-else v-model.trim="t.mapped" class="st-input w-[200px]" :maxlength="ATTR_NAME_MAX" placeholder="옵션 종류 (예: 색상)" :data-mk-s-option-map="t.key" />
@@ -98,7 +100,7 @@
           <label class="block"><span class="st-desc-sm">정가(원)</span><input v-model.number="bulk.originalPrice" type="number" min="1" class="st-input w-[120px]" /></label>
           <label class="block"><span class="st-desc-sm">판매가(원)</span><input v-model.number="bulk.salePrice" type="number" min="1" class="st-input w-[120px]" /></label>
           <label class="block"><span class="st-desc-sm">재고 수량</span><input v-model.number="bulk.stock" type="number" min="0" :max="STOCK_MAX" class="st-input w-[100px]" data-mk-s-bulk-stock /></label>
-          <button type="button" class="st-btn" :disabled="!bulkReady" data-mk-s-bulk-apply @click="applyBulk">모든 옵션에 넣기</button>
+          <button type="button" class="st-btn" :disabled="!bulkReady" data-mk-s-bulk-apply @click="applyBulk">전체 적용</button>
         </div>
 
         <!-- 넓으면 표, 자리가 모자라거나 폰이면 카드(옵션 1개 = 카드 1장) — 가로 스크롤 없이 모든 칸이 보인다 (규칙: optionTableMode) -->
@@ -124,7 +126,7 @@
             <tbody>
               <tr v-for="(it, i) in f.items" :key="it.uid" :data-mk-s-item="i">
                 <td class="c-img" data-label="사진">
-                  <button type="button" class="opt-img" :class="{ 'is-picking': pickFor === i }" :title="it.imageId ? '옵션 사진 바꾸기' : '옵션 사진 고르기 (비우면 대표 이미지)'" :data-mk-s-item-image="i" @click="pickFor = pickFor === i ? -1 : i">
+                  <button type="button" class="opt-img" :class="{ 'is-picking': pickFor === i }" :title="it.imageId ? '옵션 이미지 변경' : '옵션 이미지 선택 · 비우면 대표 이미지'" :data-mk-s-item-image="i" @click="pickFor = pickFor === i ? -1 : i">
                     <img v-if="imageOf(it.imageId)" :src="imageOf(it.imageId).url" alt="" loading="lazy" />
                     <span v-else class="st-muted text-[11px]">대표</span>
                   </button>
@@ -147,13 +149,13 @@
                 <td class="c-stock" data-label="재고 수량 *"><input v-model.number="it.stock" type="number" min="0" :max="STOCK_MAX" class="st-input opt-in" :title="it.stock1688 === null ? '' : `1688 재고 ${it.stock1688}`" :data-mk-s-stock="i" /></td>
                 <td class="c-sku" data-label="품번 *"><input v-model.trim="it.sku" class="st-input opt-in font-mono" maxlength="50" :data-mk-s-sku="i" /></td>
                 <td class="c-gtin" data-label="GTIN"><input v-model.trim="it.gtin" class="st-input opt-in font-mono" maxlength="14" placeholder="8~14자리" /></td>
-                <td class="c-del"><button v-if="f.items.length > 1" type="button" class="st-link-muted text-[12px] whitespace-nowrap" @click="removeItem(i)">빼기</button></td>
+                <td class="c-del"><button v-if="f.items.length > 1" type="button" class="st-link-muted text-[12px] whitespace-nowrap" @click="removeItem(i)">삭제</button></td>
               </tr>
             </tbody>
           </table>
         </div>
         <div v-if="pickFor >= 0 && f.items[pickFor]" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-s-item-picker>
-          <div class="flex items-center gap-2 text-[13px]"><b class="st-ink">{{ itemNames[pickFor] || `옵션 ${pickFor + 1}` }}</b><span class="st-muted">의 사진</span><button type="button" class="st-link-muted text-[12px] ml-auto" @click="setItemImage(null)">대표 이미지 쓰기</button></div>
+          <div class="flex items-center gap-2 text-[13px]"><b class="st-ink">{{ itemNames[pickFor] || `옵션 ${pickFor + 1}` }}</b><span class="st-muted">옵션 이미지</span><button type="button" class="st-link-muted text-[12px] ml-auto" @click="setItemImage(null)">대표 이미지 사용</button></div>
           <div class="grid grid-cols-6 sm:grid-cols-8 gap-1.5">
             <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[6px] overflow-hidden st-border" :class="f.items[pickFor].imageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" @click="setItemImage(im.id)"><img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" /></button>
           </div>
@@ -161,20 +163,20 @@
         <div class="flex items-center gap-3">
           <button type="button" class="st-btn" :disabled="f.items.length >= ITEMS_MAX" data-mk-s-item-add @click="addItem">옵션 추가</button>
           <span class="text-[12px] st-muted">{{ f.items.length }} / {{ ITEMS_MAX }}</span>
-          <button type="button" class="st-link-muted text-[12px] ml-auto" data-mk-s-names-toggle @click="toggleManualNames">{{ f.manualNames ? '옵션 이름 자동으로 만들기' : '옵션 이름 직접 쓰기' }}</button>
+          <button type="button" class="st-link-muted text-[12px] ml-auto" data-mk-s-names-toggle @click="toggleManualNames">{{ f.manualNames ? '옵션 이름 자동 생성' : '옵션 이름 직접 입력' }}</button>
         </div>
         <p v-if="!f.manualNames && itemNames.some(Boolean)" class="st-desc-sm break-keep" data-mk-s-names-auto>옵션 이름: {{ itemNames.filter(Boolean).slice(0, 3).join(', ') }}{{ itemNames.length > 3 ? ' …' : '' }}</p>
       </section>
 
       <!-- 5. 상품정보고시 -->
       <section v-if="meta && meta.notices.length" class="space-y-2" data-mk-s-meta>
-        <h4 class="st-h-card">5. 상품정보고시</h4>
+        <h4 class="st-h-card">상품정보고시</h4>
         <div class="flex flex-wrap items-center gap-2">
           <select v-if="meta.notices.length > 1" v-model="f.noticeCategory" class="st-input w-full sm:w-auto" data-mk-s-notice-category @change="fillNoticeDefaults">
             <option v-for="n in meta.notices" :key="n.category" :value="n.category">{{ n.category }}</option>
           </select>
           <span v-else class="text-[13px] font-bold st-ink">{{ f.noticeCategory }}</span>
-          <button type="button" class="st-btn ml-auto" data-mk-s-notice-fill @click="fillSeeDetail">빈 칸을 "{{ NOTICE_SEE_DETAIL }}"로 채우기</button>
+          <button type="button" class="st-btn ml-auto" data-mk-s-notice-fill @click="fillSeeDetail">빈 항목 "{{ NOTICE_SEE_DETAIL }}"로 입력</button>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
           <label v-for="n in noticeItems" :key="n.name" class="block"><span class="st-desc-sm">{{ n.name }}{{ n.required ? ' *' : '' }}</span><input v-model.trim="f.notices[n.name]" class="st-input w-full" :maxlength="NOTICE_LEN" :data-mk-s-notice="n.name" /></label>
@@ -183,7 +185,7 @@
 
       <!-- 6. 인증·구비서류 (필요한 카테고리만) -->
       <section v-if="meta && (certList.length || docList.length)" class="space-y-2" data-mk-s-cert>
-        <h4 class="st-h-card">6. 인증정보·구비서류</h4>
+        <h4 class="st-h-card">인증정보·구비서류</h4>
         <div v-if="certList.length" class="space-y-1.5">
           <div v-for="c in certList" :key="c.type" class="flex flex-wrap items-center gap-2 text-[13px]" :data-mk-s-cert-row="c.type">
             <label class="flex items-center gap-2 min-w-[220px]"><input v-model="f.certs[c.type].on" type="checkbox" /> <span class="st-ink">{{ c.name || c.type }}{{ c.required ? ' *' : '' }}</span></label>
@@ -196,28 +198,28 @@
             <input type="file" accept=".pdf,.jpg,.jpeg,.png" class="text-[12px] st-muted" @change="onDoc(d.templateName, $event)" />
             <span v-if="f.docs[d.templateName]" class="st-muted">{{ f.docs[d.templateName].name }}</span>
           </div>
-          <p class="st-desc-sm">PDF·JPG·PNG, 파일 하나에 3MB까지예요.</p>
+          <p class="st-desc-sm">PDF·JPG·PNG · 파일당 3MB 이내</p>
           <p v-if="docError" class="text-[12px] font-bold st-danger-text" data-mk-s-doc-error>{{ docError }}</p>
         </div>
       </section>
 
       <!-- 7. 대표 이미지 -->
       <section class="space-y-2">
-        <h4 class="st-h-card">7. 대표 이미지 (정사각형)</h4>
-        <p class="st-desc-sm break-keep">작업 사진 중 하나를 고르면 정사각형 {{ REP_SIZE }}px로 만들어 보내요. 상세 이미지는 내 상품 {{ prepare.export.files.length }}장이 그대로 들어가요.</p>
-        <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없어요.</div>
+        <h4 class="st-h-card">대표 이미지 *</h4>
+        <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
         <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-s-images>
           <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :data-mk-s-image="im.id" @click="f.repImageId = im.id">
             <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
           </button>
         </div>
-        <label class="flex items-center gap-2 text-[12px] st-muted"><input v-model="f.fit" type="radio" value="contain" /> 흰 여백으로 채우기 <input v-model="f.fit" type="radio" value="cover" class="ml-3" /> 가운데 자르기</label>
+        <label class="flex items-center gap-2 text-[12px] st-muted"><input v-model="f.fit" type="radio" value="contain" /> 여백 채우기 <input v-model="f.fit" type="radio" value="cover" class="ml-3" /> 중앙 자르기</label>
+        <p class="st-desc-sm break-keep">{{ REP_SIZE }}×{{ REP_SIZE }}으로 자동 변환됩니다. 상세 이미지는 내 상품 {{ prepare.export.files.length }}장을 사용합니다.</p>
       </section>
 
       <!-- 8. 배송 템플릿 -->
       <section class="space-y-2">
-        <h4 class="st-h-card">8. 배송/반품 템플릿</h4>
-        <p v-if="!prepare.templates.length" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-no-template>템플릿이 없어요. <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">판매처 &gt; 기본 설정</router-link>에서 먼저 만들어 주세요.</p>
+        <h4 class="st-h-card">배송·반품 템플릿 *</h4>
+        <p v-if="!prepare.templates.length" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-no-template>템플릿이 없습니다. <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">판매처 &gt; 기본 설정</router-link>에서 먼저 등록하세요.</p>
         <select v-else v-model="f.templateId" class="st-input w-full" data-mk-s-template @change="onTemplate">
           <option v-for="t in prepare.templates" :key="t.id" :value="t.id">{{ t.name }}{{ t.is_default ? ' (기본)' : '' }}</option>
         </select>
@@ -238,28 +240,28 @@
           </label>
           <label class="block"><span class="st-label">1인 구매 제한 수량 (0 = 제한 없음)</span><input v-model.number="f.advanced.maxPerPerson" type="number" min="0" max="99999" class="st-input w-full" data-mk-s-adv="maxPerPerson" /></label>
           <label v-if="f.advanced.maxPerPerson > 0" class="block"><span class="st-label">제한 기간 (일)</span><input v-model.number="f.advanced.maxPerPersonDays" type="number" min="1" max="365" class="st-input w-full" data-mk-s-adv="maxPerPersonDays" /></label>
-          <p class="st-desc-sm sm:col-span-2 break-keep">상품 상태는 등록한 뒤에는 바꿀 수 없어요. 정가와 판매가가 다르면 쿠팡 화면에 할인율이 보여요.</p>
+          <p class="st-desc-sm sm:col-span-2 break-keep">상품 상태는 등록 후 변경할 수 없습니다. 정가와 판매가가 다르면 할인율이 표시됩니다.</p>
         </div>
       </section>
 
       <!-- 보내기 전 요약 -->
       <section class="space-y-2" data-mk-s-preview>
-        <h4 class="st-h-card">쿠팡에 보낼 내용</h4>
+        <h4 class="st-h-card">등록 정보 확인</h4>
         <div class="st-border rounded-[10px] overflow-hidden">
           <table class="sum-table">
             <tbody>
               <tr v-for="r in preview" :key="r.label" :data-mk-s-preview-row="r.label">
                 <th>{{ r.label }}</th>
-                <td :class="r.value ? 'st-ink' : 'st-muted'">{{ r.value || '비어 있음' }}</td>
+                <td :class="r.value ? 'st-ink' : 'st-muted'">{{ r.value || '미입력' }}</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
 
-      <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-error>{{ sendError }}</p>
-      <p v-if="done && done.resend" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>쿠팡 #{{ done.sellerProductId }} 을 고치고 다시 승인 요청을 보냈어요. 진행 상태는 내 작업의 [보낸 상품]에서 볼 수 있어요.</p>
-      <p v-else-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>쿠팡에 등록하고 승인 요청을 보냈어요{{ done.sellerProductId ? ` (쿠팡 #${done.sellerProductId})` : '' }}. 진행 상태는 내 작업의 [보낸 상품]에서 볼 수 있어요.</p>
+      <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-s-error>등록에 실패했습니다. (사유: {{ sendError }})</p>
+      <p v-if="done && done.resend" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>수정 후 승인 요청되었습니다. 상품번호 {{ done.sellerProductId }} · 진행 상태는 [보낸 상품]에서 확인합니다.</p>
+      <p v-else-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-s-done>등록 및 승인 요청되었습니다.{{ done.sellerProductId ? ` 상품번호 ${done.sellerProductId}` : '' }} · 진행 상태는 [보낸 상품]에서 확인합니다.</p>
     </div>
 </template>
 
@@ -283,8 +285,8 @@ const props = defineProps({ prepare: { type: Object, required: true } })
 
 const ATTR_NAME_MAX = 25
 const ATTR_VALUE_MAX = 30
-const NAME_HINT = '한글 상품명을 넣어 주세요'
-const MODE_DESC = { domestic: '국내에 있는 재고를 바로 보내요.', agent: '주문이 들어오면 해외에서 사서 보내요. 구매자의 개인통관고유부호를 받아요.' }
+const NAME_HINT = '상품명을 입력하세요'
+const MODE_DESC = { domestic: '국내 재고를 직접 발송합니다.', agent: '주문 후 해외에서 구매하여 발송합니다. 구매자 개인통관고유부호를 수집합니다.' }
 const ADV_KEYS = [
   { key: 'taxType', label: '과세' }, { key: 'adultOnly', label: '구매 대상' }, { key: 'offerCondition', label: '상품 상태' },
   { key: 'parallelImported', label: '병행수입' }, { key: 'unionDeliveryType', label: '묶음배송' },
@@ -323,7 +325,7 @@ const sourceNote = computed(() => {
   const s = source.value
   if (!s || !s.skus?.length) return ''
   const more = s.skuTotal > s.skus.length ? ` (전체 ${s.skuTotal}개 중 ${s.skus.length}개)` : ''
-  return `가져온 상품의 옵션 ${s.skus.length}개를 넣어 두었어요${more}. 1688 가격은 참고용이에요 — 판매가는 직접 넣어 주세요.`
+  return `가져온 상품의 옵션 ${s.skus.length}개를 불러왔습니다${more}. 1688 가격은 참고용이며 판매가는 직접 입력합니다.`
 })
 
 // 처음 값 — 창이 열릴 때마다 이 섹션이 새로 만들어진다(StudioSendModal이 key로 다시 띄움). 맨 아래에서 한 번 부른다
@@ -484,9 +486,9 @@ const missing = computed(() => {
   if (!v.productName) out.push('등록상품명')
   if (namesBad.value) out.push('상품명 한글')
   if (!v.noBrand) {
-    if (!v.brand) out.push('브랜드 이름 (없으면 "브랜드 없음" 체크)')
+    if (!v.brand) out.push('브랜드명 (없으면 "브랜드 없음" 선택)')
     else if (brandNote.value === BRAND_NOT_FOUND) out.push('쿠팡에 등록된 브랜드')
-    else if (!v.brandId) out.push(brandChoices.value.length > 1 ? '브랜드 고르기' : '[브랜드 찾기] 누르기')
+    else if (!v.brandId) out.push(brandChoices.value.length > 1 ? '브랜드 선택' : '[브랜드 검색] 실행')
   }
   if (!/^\d+$/.test(v.categoryCode)) out.push('카테고리')
   if (!v.templateId) out.push('배송/반품 템플릿')
@@ -494,7 +496,7 @@ const missing = computed(() => {
   if (!v.repImageId) out.push('대표 이미지')
   for (const t of v.optionTypes) if (!t.mapped) out.push(`옵션 종류 "${t.label}"에 맞는 쿠팡 옵션`)
   const dupMap = v.optionTypes.map(t => t.mapped).filter(Boolean)
-  if (new Set(dupMap).size !== dupMap.length) out.push('옵션 종류마다 다른 쿠팡 옵션을 골라 주세요')
+  if (new Set(dupMap).size !== dupMap.length) out.push('옵션 종류별 서로 다른 쿠팡 옵션')
   const names = new Set()
   const groupsDone = new Set()
   v.items.forEach((it, i) => {
@@ -503,12 +505,12 @@ const missing = computed(() => {
     const name = itemNames.value[i]
     if (v.manualNames) {
       if (!name) out.push(`${tag}옵션 이름`)
-      else if (names.has(name)) out.push(`${tag}옵션 이름이 다른 옵션과 같아요`)
+      else if (names.has(name)) out.push(`${tag}옵션 이름 중복`)
     }
     names.add(name)
-    if (hasUntranslated(name) || Object.values(it.opt).some(hasUntranslated)) out.push(`${tag}옵션 값을 한글로 고쳐 주세요`)
+    if (hasUntranslated(name) || Object.values(it.opt).some(hasUntranslated)) out.push(`${tag}옵션 값 한글 입력`)
     if (!(it.salePrice > 0)) out.push(`${tag}판매가`)
-    else if (it.originalPrice > 0 && it.salePrice > it.originalPrice) out.push(`${tag}판매가가 정가보다 커요`)
+    else if (it.originalPrice > 0 && it.salePrice > it.originalPrice) out.push(`${tag}판매가가 정가 초과`)
     if (it.stock === null || it.stock === '' || it.stock === undefined) out.push(`${tag}재고 수량`)
     else if (!(Number.isInteger(it.stock) && it.stock >= 0 && it.stock <= STOCK_MAX)) out.push(`${tag}재고 수량은 0~${STOCK_MAX}`)
     if (!it.sku) out.push(`${tag}품번`)
@@ -534,7 +536,7 @@ const missing = computed(() => {
   }
   for (const d of docList.value) if (d.needed && !v.docs[d.templateName]) out.push(`구비서류 ${d.templateName}`)
   const limit = props.prepare?.limits?.optionImages
-  if (Number.isInteger(limit) && optionImageIds.value.length > limit) out.push(`옵션 사진은 서로 다른 사진 ${limit}장까지예요 (지금 ${optionImageIds.value.length}장)`)
+  if (Number.isInteger(limit) && optionImageIds.value.length > limit) out.push(`옵션 이미지 ${limit}장 초과 (현재 ${optionImageIds.value.length}장)`)
   return [...new Set(out)]
 })
 
@@ -615,7 +617,7 @@ async function onDoc(templateName, e) {
   if (!file) { delete f.value.docs[templateName]; return }
   const max = props.prepare?.limits?.documentBytes
   if (Number.isInteger(max) && file.size > max) {
-    docError.value = `"${file.name}"은 3MB를 넘어요.`
+    docError.value = `"${file.name}" 파일이 3MB를 초과합니다.`
     e.target.value = ''
     delete f.value.docs[templateName]
     return
@@ -624,7 +626,7 @@ async function onDoc(templateName, e) {
     f.value.docs[templateName] = { name: file.name, dataBase64: await fileToBase64(file) }
   } catch (err) {
     console.error('[StudioSendCoupang] 구비서류 읽기 실패:', file.name, err)
-    docError.value = `"${file.name}"을 읽지 못했어요. 다시 골라 주세요.`
+    docError.value = `"${file.name}" 파일을 읽지 못했습니다. 다시 선택하세요.`
     delete f.value.docs[templateName]
   }
 }
@@ -638,11 +640,11 @@ async function predict() {
     if (r.categoryCode) {
       f.value.categoryCode = r.categoryCode
       f.value.categoryName = r.categoryName || ''
-      predictNote.value = r.result === 'SUCCESS' ? '추천 카테고리예요. 다르면 코드를 직접 넣어 주세요.' : '정보가 부족해 추천이 확실하지 않아요. 카테고리를 확인해 주세요.'
+      predictNote.value = r.result === 'SUCCESS' ? '추천 카테고리입니다. 다르면 코드를 직접 입력하세요.' : '추천 정확도가 낮습니다. 카테고리를 확인하세요.'
       await loadMeta()
     } else {
       predictError.value = true
-      predictNote.value = '카테고리를 추천받지 못했어요. 상품명을 더 구체적으로 쓰거나 코드를 직접 넣어 주세요.'
+      predictNote.value = '카테고리를 추천받지 못했습니다. 상품명을 구체적으로 입력하거나 코드를 직접 입력하세요.'
     }
   } catch (e) {
     console.error('[StudioSendCoupang] 카테고리 추천 실패:', e.code, e)
@@ -711,7 +713,7 @@ async function submit() {
     const size = JSON.stringify(payload).length
     if (size > SEND_BODY_MAX) {
       console.error('[StudioSendCoupang] 요청 본문이 너무 큼:', size, '옵션 사진', optionImages.length, '구비서류', payload.documents.length)
-      sendError.value = '사진과 서류를 합친 크기가 너무 커요. 옵션 사진 수를 줄이거나 서류 파일을 줄여 주세요.'
+      sendError.value = '이미지와 서류의 합계 용량이 너무 큽니다. 옵션 이미지 수를 줄이거나 서류 파일 용량을 줄이세요.'
       return null
     }
     done.value = await sendProduct(payload)

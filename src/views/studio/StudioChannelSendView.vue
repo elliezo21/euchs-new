@@ -58,10 +58,10 @@
         </ul>
         <p v-if="statusError" class="mt-2 text-[13px] break-keep" :class="statusSoft ? 'st-muted' : 'font-bold st-danger-text'" data-ch-status-error>{{ statusError }}</p>
         <p v-if="message" class="mt-2 text-[13px] font-bold break-keep" :class="messageError ? 'st-danger-text' : 'st-success-text'" data-ch-msg>{{ message }}
-          <a v-if="!messageError && messageAdminUrl" :href="messageAdminUrl" target="_blank" rel="noopener" class="st-link ml-1" data-ch-admin-link>카페24 쇼핑몰 관리 화면에서 보기</a>
+          <a v-if="!messageError && messageAdminUrl" :href="messageAdminUrl" target="_blank" rel="noopener" class="st-link ml-1" data-ch-admin-link>카페24 관리자에서 보기</a>
           <router-link v-if="!messageError" :to="{ name: 'studio-channels-sent' }" class="st-link ml-1">보낸 상품 보기</router-link></p>
       </template>
-      <p v-else class="st-desc break-keep" data-ch-picked-empty>아래 내 상품에서 보낼 상품을 눌러 골라 주세요.</p>
+      <p v-else class="st-desc break-keep" data-ch-picked-empty>아래 목록에서 보낼 상품을 선택하세요.</p>
     </section>
 
     <!-- 내 상품 — 카드를 눌러 고른다 (판매처별 상태 배지) -->
@@ -87,7 +87,7 @@ import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
 import { currentUser, isSuperAdmin } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
 import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
-import { channelRows, sendButtonLabel, withRo, MARKETS, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
+import { channelRows, sendButtonLabel, MARKETS, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
 import { linkStates, loadMarketLinks } from '@/lib/studioMarketLinks'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 
@@ -188,10 +188,10 @@ async function openSend(market) {
 function onSent(r) {
   const market = r?.market || 'coupang'
   const name = MARKETS.find(m => m.key === market)?.name || market
-  // 카페24 = 승인 절차 없이 등록(진열 안 함) → "등록됐어요" + 관리자 링크. 쿠팡 = 승인 요청 → "보냈어요"
+  // 카페24 = 승인 절차 없이 등록 → "등록되었습니다" + 진열상태 + 관리자 링크. 쿠팡 = 승인 요청 → "전송되었습니다" (문구 원칙: 결과는 ~되었습니다)
   message.value = market === 'cafe24'
-    ? `카페24에 등록됐어요${r?.productNo ? ` (상품번호 ${r.productNo})` : ''}. 진열 안 함 상태예요 — 카페24 쇼핑몰 관리 화면에서 확인한 뒤 진열해 주세요.${typeof r?.repImageError === 'string' && r.repImageError ? ` ${r.repImageError}` : ''}`
-    : `${withRo(name)} 보냈어요${r?.sellerProductId ? ` (#${r.sellerProductId})` : ''}.`
+    ? `카페24에 등록되었습니다.${r?.productNo ? ` 상품번호 ${r.productNo}` : ''} · ${r?.display === 'T' ? '진열함' : '진열안함'}${typeof r?.repImageError === 'string' && r.repImageError ? ` — ${r.repImageError}` : ''}`
+    : `${name}에 전송되었습니다.${r?.sellerProductId ? ` 상품번호 ${r.sellerProductId}` : ''}`
   messageAdminUrl.value = market === 'cafe24' && typeof r?.adminUrl === 'string' ? r.adminUrl : ''
   messageError.value = false
   loadSends()

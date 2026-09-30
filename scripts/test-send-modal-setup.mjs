@@ -126,13 +126,13 @@ if (built?.Coupang && built?.Modal) {
   eq('1 옵션 표: 가로 스크롤 상자 없음 · 칸마다 이름표(카드형에서 보임) · 모든 칸이 그려짐', [/overflow-x-auto/.test(m1.html), ['사진', '색상', '1688 가격', '정가(원) *', '판매가(원) *', '할인', '재고 수량 *', '품번 *', 'GTIN'].filter(l => !m1.html.includes('data-label="' + l + '"')), /data-mk-s-items-mode="table"/.test(m1.html)], [false, [], true])
 
   const n1 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, ZH) })
-  eq('2 상품명: 작업 이름·가져온 제목이 모두 번역 전이면 세 칸 다 빈칸 + placeholder (예외 없음)', [n1.error, val(n1.html, 'data-mk-s-name'), val(n1.html, 'data-mk-s-general'), val(n1.html, 'data-mk-s-display'), /placeholder="한글 상품명을 넣어 주세요"[^>]*data-mk-s-name/.test(n1.html)], [null, '', '', '', true])
+  eq('2 상품명: 작업 이름·가져온 제목이 모두 번역 전이면 세 칸 다 빈칸 + placeholder (예외 없음)', [n1.error, val(n1.html, 'data-mk-s-name'), val(n1.html, 'data-mk-s-general'), val(n1.html, 'data-mk-s-display'), /placeholder="상품명을 입력하세요"[^>]*data-mk-s-name/.test(n1.html)], [null, '', '', '', true])
   const n2 = await render(built.Coupang, { prepare: withTitle(RAW, ZH, '도트 헤어핀 모음') })
   const n3 = await render(built.Coupang, { prepare: withTitle({ ...RAW, title: { zh: ZH, ko: '여성 도트 헤어핀' } }, ZH, ZH) })
   eq('2 상품명: 작업의 한글 이름 · 없으면 가져온 제목의 한글', [val(n2.html, 'data-mk-s-name'), val(n3.html, 'data-mk-s-name')], ['도트 헤어핀 모음', '여성 도트 헤어핀'])
   eq('2 화면 어디에도 번역 전 제목이 값으로 들어가지 않음', [n1, n2, n3].map(r => new RegExp('value="[^"]*' + ZH).test(r.html)), [false, false, false])
 
-  eq('3 옵션: "옵션 이름" 열 없음(자동) · 색상값 "블랙"·"레드" · 옵션 종류 이름 "색상" · 자동 이름 "블랙, 레드"', [(n1.html.match(/data-mk-s-item-name="\d+"/g) || []).length, /data-label="옵션 이름/.test(n1.html), /value="블랙"/.test(n1.html), /value="레드"/.test(n1.html), /data-label="색상"/.test(n1.html), /data-mk-s-names-auto[^>]*>옵션 이름: 블랙, 레드</.test(n1.html), /data-mk-s-names-toggle[^>]*>옵션 이름 직접 쓰기</.test(n1.html)], [0, false, true, true, true, true, true])
+  eq('3 옵션: "옵션 이름" 열 없음(자동) · 색상값 "블랙"·"레드" · 옵션 종류 이름 "색상" · 자동 이름 "블랙, 레드"', [(n1.html.match(/data-mk-s-item-name="\d+"/g) || []).length, /data-label="옵션 이름/.test(n1.html), /value="블랙"/.test(n1.html), /value="레드"/.test(n1.html), /data-label="색상"/.test(n1.html), /data-mk-s-names-auto[^>]*>옵션 이름: 블랙, 레드</.test(n1.html), /data-mk-s-names-toggle[^>]*>옵션 이름 직접 입력</.test(n1.html)], [0, false, true, true, true, true, true])
   eq('브랜드: "브랜드 없음"이 처음부터 체크 · 브랜드 입력 꺼짐 · 요약 표 "브랜드 없음" · 경고 한 줄', [/<input[^>]*data-mk-s-no-brand[^>]*checked|<input[^>]*checked[^>]*data-mk-s-no-brand/.test(n1.html), /<input[^>]*disabled[^>]*data-mk-s-brand(?![-\w])|<input[^>]*data-mk-s-brand(?![-\w])[^>]*disabled/.test(n1.html), /data-mk-s-preview-row="브랜드"[\s\S]{0,200}브랜드 없음/.test(n1.html), /data-mk-s-brand-warn/.test(n1.html)], [true, true, true, true])
   const TWO = { ...RAW, skuTotal: 4, skus: ['黑色', '白色'].flatMap((c, ci) => ['M', 'L'].map((z, zi) => ({ skuId: String(ci * 2 + zi + 1), values: [{ name: { zh: '颜色', ko: null }, value: { zh: c, ko: null } }, { name: { zh: '尺码', ko: null }, value: { zh: z, ko: null } }], priceCny: 9, stock: 1, imageUrl: '' }))) }
   const n5 = await render(built.Coupang, { prepare: PREPARE(true, TWO) })
@@ -153,7 +153,7 @@ if (built?.Coupang && built?.Modal) {
   const RESEND = { sendId: '66666666-6666-4666-8666-666666666666', sellerProductId: '16397573540', reason: '도서산간배송 출고지에 등록된 택배사만 선택할 수 있습니다.', revision: 0, form: FORM, categoryName: '헤어핀' }
   const rp = { ...PREPARE(true, RAW), resend: RESEND }
   const r1 = await render(built.Modal, { open: true, prepare: rp })
-  eq('다시 보내기 창: 예외 없음 · 제목 · 버튼 "다시 승인 요청" · 쿠팡 상품 번호와 반려 사유 안내', [r1.error, />고쳐서 다시 보내기</.test(r1.html), /data-mk-s-send[^>]*>다시 승인 요청</.test(r1.html), /data-mk-s-resend-note/.test(r1.html) && r1.html.includes('쿠팡 #16397573540') && r1.html.includes('반려 사유: 도서산간배송')], [null, true, true, true])
+  eq('다시 보내기 창: 예외 없음 · 제목 · 버튼 "다시 승인 요청" · 쿠팡 상품 번호와 반려 사유 안내', [r1.error, />수정 후 다시 보내기</.test(r1.html), /data-mk-s-send[^>]*>다시 승인 요청</.test(r1.html), /data-mk-s-resend-note/.test(r1.html) && r1.html.includes("16397573540") && r1.html.includes('반려 사유: 도서산간배송')], [null, true, true, true])
   const r2 = await render(built.Coupang, { prepare: rp })
   eq('다시 보내기: 그 전송의 값으로 채워짐 (이름·옵션·가격·재고·품번 · 가져온 상품 값이 아님)', [r2.error, val(r2.html, 'data-mk-s-name'), (r2.html.match(/data-mk-s-item="/g) || []).length, val(r2.html, 'data-mk-s-item-name="0"'), val(r2.html, 'data-mk-s-price="0"'), val(r2.html, 'data-mk-s-stock="1"'), val(r2.html, 'data-mk-s-sku="1"'), val(r2.html, 'data-mk-s-days')], [null, '도트 헤어핀 3종', 2, '블랙', '3900', '15', 'HP-RD', '10'])
   eq('요약 표: "상세 이미지 1장 (쿠팡 규격 맞춤)"', /data-mk-s-preview-row="상세 이미지"[\s\S]{0,200}상세 이미지 1장 \(쿠팡 규격 맞춤\)/.test(n1.html), true)

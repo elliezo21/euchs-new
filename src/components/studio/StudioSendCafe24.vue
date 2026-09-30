@@ -1,70 +1,75 @@
 <template>
   <div class="space-y-5 st-border rounded-[12px] p-4" data-mk-c24>
-    <h4 class="st-h-card">카페24 항목</h4>
-    <p class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep" data-mk-c24-note>
-      <b class="st-ink">진열 안 함 · 판매 안 함 상태로 등록돼요.</b> 카페24 쇼핑몰 관리 화면에서 상품을 확인한 뒤 직접 진열해 주세요. 상세 이미지는 내 상품 {{ prepare.export.files.length }}장을 카페24에 올려 위에서 아래로 이어요.
-    </p>
+    <h4 class="st-h-card">카페24</h4>
 
-    <!-- 1. 상품명 -->
-    <section class="space-y-1.5">
-      <label class="block"><span class="st-label">1. 상품명 *</span>
-        <input v-model="f.productName" type="text" class="st-input w-full" :maxlength="PRODUCT_NAME_MAX" placeholder="한글 상품명을 넣어 주세요" :disabled="!!done" data-mk-c24-name />
-      </label>
-    </section>
+    <!-- 상품명 -->
+    <label class="block">
+      <span class="st-label">상품명 *</span>
+      <input v-model="f.productName" type="text" class="st-input w-full" :maxlength="PRODUCT_NAME_MAX" placeholder="상품명을 입력하세요" :disabled="!!done" data-mk-c24-name />
+    </label>
 
-    <!-- 2. 판매가 -->
-    <section class="space-y-1.5">
-      <label class="block"><span class="st-label">2. 판매가 (원) *</span>
-        <input v-model.number="f.price" type="number" min="0" step="1" class="st-input w-full sm:w-64" placeholder="예: 19900" :disabled="!!done" data-mk-c24-price />
-      </label>
-      <p class="st-desc-sm break-keep">원 단위 정수로 넣어 주세요. 옵션·재고는 카페24 쇼핑몰 관리 화면에서 설정해요.</p>
-    </section>
+    <!-- 판매가 -->
+    <label class="block">
+      <span class="st-label">판매가 *</span>
+      <input v-model.number="f.price" type="number" min="0" step="1" class="st-input w-full sm:w-64" placeholder="원" :disabled="!!done" data-mk-c24-price />
+      <span class="st-desc-sm block mt-1">옵션·재고는 카페24 관리자에서 설정합니다.</span>
+    </label>
 
-    <!-- 3. 상품 분류 (선택) -->
-    <section class="space-y-1.5">
-      <span class="st-label">3. 상품 분류 (선택)</span>
-      <p v-if="catLoading" class="st-desc-sm" data-mk-c24-cat-loading>쇼핑몰 분류를 불러오는 중…</p>
+    <!-- 상품 분류 (선택) -->
+    <div class="block">
+      <span class="st-label">상품 분류</span>
+      <p v-if="catLoading" class="st-desc-sm" data-mk-c24-cat-loading>분류 목록을 불러오는 중…</p>
       <template v-else>
         <select v-model="f.categoryNo" class="st-input w-full" :disabled="!!done" data-mk-c24-category>
-          <option :value="null">분류 없음 (미분류로 등록)</option>
+          <option :value="null">미분류</option>
           <option v-for="c in categories" :key="c.no" :value="c.no">{{ '　'.repeat(Math.max(0, c.depth - 1)) }}{{ c.fullName }}</option>
         </select>
-        <p v-if="catError" class="text-[12px] break-keep" :class="catSoft ? 'st-muted' : 'st-danger-text'" data-mk-c24-cat-error>{{ catError }} 분류 없이 보낼 수 있어요.</p>
+        <span v-if="catError" class="block mt-1 text-[12px] break-keep" :class="catSoft ? 'st-muted' : 'st-danger-text'" data-mk-c24-cat-error>{{ catError }} 분류 없이 등록할 수 있습니다.</span>
       </template>
-    </section>
+    </div>
 
-    <!-- 4. 대표 이미지 -->
-    <section class="space-y-2">
-      <span class="st-label">4. 대표 이미지 *</span>
-      <p class="st-desc-sm break-keep">작업 사진 중 하나를 고르면 정사각형 {{ REP_SIZE }}px로 만들어 올려요.</p>
-      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없어요.</div>
+    <!-- 대표 이미지 -->
+    <div class="block">
+      <span class="st-label">대표 이미지 *</span>
+      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
       <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-c24-images>
         <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-c24-image="im.id" @click="f.repImageId = im.id">
           <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
         </button>
       </div>
-      <label class="flex items-center gap-2 text-[12px] st-muted"><input v-model="f.fit" type="radio" value="contain" :disabled="!!done" /> 흰 여백으로 채우기 <input v-model="f.fit" type="radio" value="cover" class="ml-3" :disabled="!!done" /> 가운데 자르기</label>
-    </section>
+      <label class="flex items-center gap-2 text-[12px] st-muted mt-2"><input v-model="f.fit" type="radio" value="contain" :disabled="!!done" /> 여백 채우기 <input v-model="f.fit" type="radio" value="cover" class="ml-3" :disabled="!!done" /> 중앙 자르기</label>
+      <span class="st-desc-sm block mt-1">1000×1000으로 자동 변환됩니다. 상세 이미지는 내 상품 {{ prepare.export.files.length }}장을 사용합니다.</span>
+    </div>
 
-    <!-- 보내기 전 요약 -->
+    <!-- 진열상태 (2026-09-30) — 진열함이면 판매상태도 판매함 (display T·selling T). 기본 진열안함 -->
+    <div class="block" data-mk-c24-display>
+      <span class="st-label">진열상태</span>
+      <label class="flex items-center gap-2 text-[13px] st-ink mt-1">
+        <input v-model="f.display" type="radio" value="F" :disabled="!!done" data-mk-c24-display-off /> 진열안함
+        <input v-model="f.display" type="radio" value="T" class="ml-4" :disabled="!!done" data-mk-c24-display-on /> 진열함
+      </label>
+      <span class="st-desc-sm block mt-1">진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다.</span>
+    </div>
+
+    <!-- 등록 정보 확인 -->
     <section class="space-y-2" data-mk-c24-preview>
-      <h4 class="st-h-card">카페24에 보낼 내용</h4>
+      <h4 class="st-h-card">등록 정보 확인</h4>
       <div class="st-border rounded-[10px] overflow-hidden">
         <table class="sum-table">
           <tbody>
             <tr v-for="r in preview" :key="r.label" :data-mk-c24-preview-row="r.label">
               <th>{{ r.label }}</th>
-              <td :class="r.value ? 'st-ink' : 'st-muted'">{{ r.value || '비어 있음' }}</td>
+              <td :class="r.value ? 'st-ink' : 'st-muted'">{{ r.value || '미입력' }}</td>
             </tr>
           </tbody>
         </table>
       </div>
     </section>
 
-    <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-c24-error>{{ sendError }}
-      <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">[연결] 탭으로 가기</router-link></p>
-    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-c24-done>카페24에 등록됐어요 (상품번호 {{ done.productNo }}). 진열 안 함 상태예요 — 카페24 쇼핑몰 관리 화면에서 확인한 뒤 진열해 주세요.
-      <a v-if="done.adminUrl" :href="done.adminUrl" target="_blank" rel="noopener" class="st-link ml-1" data-mk-c24-admin>카페24 쇼핑몰 관리 화면에서 보기</a></p>
+    <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-c24-error>등록에 실패했습니다. (사유: {{ sendError }})
+      <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">연결 설정으로 이동</router-link></p>
+    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-c24-done>등록되었습니다. 상품번호 {{ done.productNo }} · {{ DISPLAY_LABEL[f.display] }}
+      <a v-if="done.adminUrl" :href="done.adminUrl" target="_blank" rel="noopener" class="st-link ml-1" data-mk-c24-admin>카페24 관리자에서 보기</a></p>
     <!-- 상품은 등록됐는데 대표 이미지(전용 API)만 실패 — 서버 repImageError -->
     <p v-if="done && done.repImageError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-c24-rep-error>{{ done.repImageError }}</p>
   </div>
@@ -73,13 +78,16 @@
 <script setup>
 // 보내기 창의 카페24 섹션 (2026-09-30) — 내 상품 한 줄(prepare = send_prepare 응답)을 카페24 상품으로 등록한다.
 // 쿠팡 섹션(StudioSendCoupang)과 같은 모양으로 밖에 내놓는다: missing(빠진 것)·busy·done·submit(). 창(StudioSendModal)이 카페24를 체크했을 때만 보인다.
-// 항목은 넷뿐: 상품명·판매가·분류(선택)·대표 이미지. 상세 이미지는 내 상품 파일 전부를 서버가 카페24에 올려 <img>로 잇는다.
-// 등록은 진열 안 함·판매 안 함(서버 buildCafe24Product) — 고객이 카페24 관리자에서 확인 후 진열. 필수값은 화면(missing)이 먼저 막고 서버가 다시 검사한다
+// 항목: 상품명·판매가·분류(선택)·대표 이미지·진열상태. 상세 이미지는 내 상품 파일 전부를 서버가 카페24에 올려 <img>로 잇는다.
+// 진열상태 기본 진열안함(display F·selling F) — 진열함이면 등록 즉시 노출(display T·selling T, 서버 buildCafe24Product). 필수값은 화면(missing)이 먼저 막고 서버가 다시 검사한다
+// 문구 원칙(2026-09-30 해성): 항목명은 명사, 설명은 칸 아래 회색 한 줄, 결과는 "~되었습니다"
 import { ref, computed, onMounted } from 'vue'
-import { listCafe24Categories, sendCafe24Product, REP_SIZE, isNotReady } from '@/lib/studioMarketplace'
+import { listCafe24Categories, sendCafe24Product, isNotReady } from '@/lib/studioMarketplace'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 
 const PRODUCT_NAME_MAX = 250 // api/_cafe24.js PRODUCT_NAME_MAX와 같음 (카페24 product_name maxLength)
+const DISPLAY_LABEL = { F: '진열안함', T: '진열함' }
+const SELLING_LABEL = { F: '판매안함', T: '판매함' }
 const props = defineProps({ prepare: { type: Object, required: true } })
 
 const busy = ref('')
@@ -93,7 +101,7 @@ const catSoft = ref(false)
 const f = ref({
   // 상품명 기본값 = 쿠팡 섹션과 같은 규칙(한글만 — 작업의 지금 이름 → 내 상품 이름 → 가져온 제목의 번역 캐시), 없으면 빈칸
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  price: null, categoryNo: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
+  price: null, categoryNo: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain', display: 'F',
 })
 
 const priceOk = computed(() => Number.isInteger(f.value.price) && f.value.price >= 0)
@@ -108,10 +116,11 @@ const categoryName = computed(() => categories.value.find(c => c.no === f.value.
 const preview = computed(() => [
   { label: '상품명', value: String(f.value.productName || '').trim() },
   { label: '판매가', value: priceOk.value ? `${f.value.price.toLocaleString('ko-KR')}원` : '' },
-  { label: '상품 분류', value: f.value.categoryNo ? categoryName.value : '분류 없음 (미분류)' },
-  { label: '대표 이미지', value: f.value.repImageId ? `작업 사진 1장 (정사각형 ${REP_SIZE}px)` : '' },
-  { label: '상세 이미지', value: `내 상품 ${props.prepare.export.files.length}장 (카페24에 올려 이어 붙임)` },
-  { label: '진열 · 판매', value: '진열 안 함 · 판매 안 함 (쇼핑몰 관리 화면에서 확인 후 진열)' },
+  { label: '상품 분류', value: f.value.categoryNo ? categoryName.value : '미분류' },
+  { label: '대표 이미지', value: f.value.repImageId ? '대표 이미지 1장' : '' },
+  { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
+  { label: '진열상태', value: DISPLAY_LABEL[f.value.display] },
+  { label: '판매상태', value: SELLING_LABEL[f.value.display] },
 ])
 
 async function loadCategories() {
@@ -139,7 +148,7 @@ async function submit() {
   try {
     const r = await sendCafe24Product({
       exportId: props.prepare.export.id, productName: String(f.value.productName).trim(), price: f.value.price,
-      categoryNo: f.value.categoryNo ?? null, repImageId: f.value.repImageId, fit: f.value.fit,
+      categoryNo: f.value.categoryNo ?? null, repImageId: f.value.repImageId, fit: f.value.fit, display: f.value.display,
     })
     done.value = r
     return r

@@ -1,12 +1,12 @@
 <template>
-  <StudioModal :open="open" :title="prepare?.resend ? '고쳐서 다시 보내기' : '판매처로 보내기'" full @close="close">
+  <StudioModal :open="open" :title="prepare?.resend ? '수정 후 다시 보내기' : '판매처로 보내기'" full @close="close">
     <div v-if="prepare" class="space-y-5 max-h-[70vh] overflow-y-auto pr-1" data-mk-send-modal>
-      <p class="st-desc break-keep">내 상품 <b class="st-ink">{{ prepare.export.title || '이름 없는 작업' }}</b> ({{ prepare.export.files.length }}장)</p>
-      <p v-if="prepare.resend" class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep" data-mk-s-resend-note><b class="st-ink">쿠팡 #{{ prepare.resend.sellerProductId }}</b> 을 고쳐서 다시 승인 요청해요. 새 상품은 만들지 않아요.<span v-if="prepare.resend.reason" class="block mt-1 st-danger-text">반려 사유: {{ prepare.resend.reason }}</span></p>
+      <p class="st-desc break-keep">상품 <b class="st-ink">{{ prepare.export.title || '이름 없는 작업' }}</b> · 이미지 {{ prepare.export.files.length }}장</p>
+      <p v-if="prepare.resend" class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep" data-mk-s-resend-note>쿠팡 상품번호 <b class="st-ink">{{ prepare.resend.sellerProductId }}</b> 을 수정하여 다시 승인 요청합니다. 새 상품은 생성되지 않습니다.<span v-if="prepare.resend.reason" class="block mt-1 st-danger-text">반려 사유: {{ prepare.resend.reason }}</span></p>
 
       <!-- 0. 보낼 판매처 -->
       <section class="space-y-2" data-mk-s-markets>
-        <h4 class="st-h-card">0. 보낼 판매처 *</h4>
+        <h4 class="st-h-card">판매처 *</h4>
         <ul class="st-border rounded-[10px] st-divide overflow-hidden">
           <li v-for="r in rows" :key="r.key" class="market-row" :class="{ 'is-off': r.state !== 'connected' }" :data-mk-s-market="r.key" :data-mk-s-market-state="r.state">
             <label class="flex items-center gap-2.5 min-w-0 flex-1" :class="r.state === 'connected' ? 'cursor-pointer' : ''">
@@ -33,7 +33,7 @@
       <p v-if="sectionFailed" class="text-[13px] font-bold st-danger-text" data-mk-s-section-error>잠시 후 다시 시도해 주세요.</p>
 
       <div v-else-if="missing.length && !allDone" class="st-surface st-border rounded-[10px] p-3" data-mk-s-missing>
-        <div class="text-[13px] font-bold st-danger-text mb-1">채워야 보낼 수 있어요 ({{ missing.length }})</div>
+        <div class="text-[13px] font-bold st-danger-text mb-1">입력이 필요한 항목 ({{ missing.length }})</div>
         <ul class="text-[13px] st-danger-text space-y-0.5">
           <li v-for="m in missing" :key="m">· {{ m }}</li>
         </ul>
@@ -42,7 +42,7 @@
     <p v-else class="st-desc">불러오는 중…</p>
     <template #actions>
       <button type="button" class="st-btn" @click="close">{{ allDone ? '닫기' : '취소' }}</button>
-      <button v-if="!allDone" type="button" class="st-btn st-btn-primary" :disabled="!canSend" data-mk-s-send @click="submit">{{ sending ? '보내는 중…' : buttonLabel }}</button>
+      <button v-if="!allDone" type="button" class="st-btn st-btn-primary" :disabled="!canSend" data-mk-s-send @click="submit">{{ sending ? '전송 중…' : buttonLabel }}</button>
     </template>
   </StudioModal>
 </template>
@@ -93,7 +93,7 @@ watch(() => props.open, v => {
 })
 
 const missing = computed(() => {
-  if (!picked.value.length) return ['보낼 판매처']
+  if (!picked.value.length) return ['판매처']
   const out = []
   for (const key of picked.value) {
     const list = sections[key]?.missing || []
