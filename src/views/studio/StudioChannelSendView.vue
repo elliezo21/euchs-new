@@ -50,13 +50,17 @@
             <!-- 연결됨(스마트스토어·11번가) — 보내기 버튼은 아직 없다 · 아직 연결할 수 없는 곳 = "예정"만. 카페24는 연결되면 위 [카페24로 보내기] -->
             <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-ch-linked="r.key">연결됨</span>
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-ch-planned="r.key">{{ PLANNED_LABEL }}</span>
+            <!-- 연결 상태를 읽는 중·못 읽음 — 자물쇠·[연결하기]를 그리지 않는다 (studioMarketplaceRules.linkPhase) -->
+            <StudioLinkPending v-else-if="rowWaiting(r)" part="badge" :phase="rowPhase(r.key)" />
             <template v-else>
               <Lock class="w-3.5 h-3.5 st-muted shrink-0" :stroke-width="2.2" aria-label="연결 전" />
               <router-link :to="{ name: 'studio-channels-connect' }" class="st-link text-[13px] shrink-0" :data-ch-connect="r.key">연결하기</router-link>
             </template>
           </li>
         </ul>
-        <p v-if="statusError" class="mt-2 text-[13px] break-keep" :class="statusSoft ? 'st-muted' : 'font-bold st-danger-text'" data-ch-status-error>{{ statusError }}</p>
+        <StudioLinkPending v-if="rowsFailed" phase="failed" @retry="retryRows" />
+        <!-- 이미 읽은 뒤 다시 읽기가 실패한 때만 원인 한 줄 -->
+        <p v-if="statusError && status" class="mt-2 text-[13px] break-keep" :class="statusSoft ? 'st-muted' : 'font-bold st-danger-text'" data-ch-status-error>{{ statusError }}</p>
         <p v-if="message" class="mt-2 text-[13px] font-bold break-keep" :class="messageError ? 'st-danger-text' : 'st-success-text'" data-ch-msg>{{ message }}
           <a v-if="!messageError && messageAdminUrl" :href="messageAdminUrl" target="_blank" rel="noopener" class="st-link ml-1" data-ch-admin-link>카페24 관리자에서 보기</a>
           <router-link v-if="!messageError" :to="{ name: 'studio-channels-sent' }" class="st-link ml-1">보낸 상품 보기</router-link></p>
@@ -84,11 +88,12 @@ import { Send, Lock } from 'lucide-vue-next'
 import StudioExportList from '@/components/studio/StudioExportList.vue'
 import StudioSendModal from '@/components/studio/StudioSendModal.vue'
 import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
-import { currentUser, isSuperAdmin } from '@/lib/auth'
+import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
+import { currentUser, isSuperAdmin, isAuthLoading } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
 import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
-import { channelRows, sendButtonLabel, MARKETS, PLANNED_LABEL } from '@/lib/studioMarketplaceRules'
-import { linkStates, loadMarketLinks } from '@/lib/studioMarketLinks'
+import { channelRows, sendButtonLabel, MARKETS, PLANNED_LABEL, linkPhase } from '@/lib/studioMarketplaceRules'
+import { linkStates, loadMarketLinks, marketLinksPhase } from '@/lib/studioMarketLinks'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 
 const route = useRoute()
@@ -106,6 +111,16 @@ const status = ref(null)
 const statusError = ref('')
 const statusSoft = ref(false)
 const rows = computed(() => channelRows(linkStates(status.value?.connected === true), { admin: isSuperAdmin.value })) // 쿠팡 + 11번가·스마트스토어·카페24(studioMarketLinks) — 카페24는 심사 승인 전 관리자만
+// 줄마다 표시 단계 — 쿠팡 = 이 화면이 읽는 status, 11번가·스마트스토어·카페24 = studioMarketLinks.
+// 읽기 전에는 "연결 전"(자물쇠·[연결하기]) 대신 자리표시, 처음부터 못 읽으면 목록 아래 "불러오지 못했습니다 [다시 시도]"
+const coupangPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: loggedIn.value, loaded: !!status.value, error: statusError.value }))
+const rowPhase = key => (key === 'coupang' ? coupangPhase.value : marketLinksPhase.value)
+const rowWaiting = r => r.state === 'locked' && ['checking', 'failed'].includes(rowPhase(r.key))
+const rowsFailed = computed(() => rows.value.some(r => r.state === 'locked' && rowPhase(r.key) === 'failed'))
+function retryRows() {
+  if (coupangPhase.value === 'failed') loadStatus()
+  if (marketLinksPhase.value === 'failed') loadMarketLinks()
+}
 async function loadStatus() {
   statusError.value = ''
   try {

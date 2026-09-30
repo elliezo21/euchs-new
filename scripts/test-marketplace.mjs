@@ -817,10 +817,11 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
         [true, true, true, true, true, true])
     }
     eq('11번가 키 입력 검사', [R.elevenstKeyProblems({ sellerId: 'seller', apiKey: 'abcd1234efgh' }), R.elevenstKeyProblems({ sellerId: '', apiKey: 'short' }), R.elevenstKeyProblems({ sellerId: 'a', apiKey: 'has space 123' })], [[], ['11번가 셀러 ID', 'API 키'], ['API 키']])
-    eq('가이드: 단계 5~8개 · 짧은 명령형(끝이 "요.") · IP = 중계 IP · 연결 신청 가이드 없음', [G.ELEVENST_GUIDE.length, G.SMARTSTORE_GUIDE.length, G.CAFE24_GUIDE.length, [...G.ELEVENST_GUIDE, ...G.SMARTSTORE_GUIDE, ...G.CAFE24_GUIDE].every(s => /요\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112')), 'requestGuide' in G], [8, 8, 5, true, true, true, false])
+    // 2026-09-30 합니다체: 단계 끝 = "~하세요."(명령형) 또는 "~니다."(설명) — 예전 "~요."(대화체) 규칙에서 바꿈
+    eq('가이드: 단계 5~8개 · 짧은 명령형·합니다체(끝이 "세요." 또는 "니다.") · IP = 중계 IP · 연결 신청 가이드 없음', [G.ELEVENST_GUIDE.length, G.SMARTSTORE_GUIDE.length, G.CAFE24_GUIDE.length, [...G.ELEVENST_GUIDE, ...G.SMARTSTORE_GUIDE, ...G.CAFE24_GUIDE].every(s => /(세요|니다)\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112')), 'requestGuide' in G], [8, 8, 5, true, true, true, false])
     eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘 (11번가는 실제 화면으로 확인 → 표시 없음 · 카페24는 우리 앱 방식이라 메뉴 안내 없음)', G.menuChecks().map(x => x.market), ['smartstore', 'smartstore', 'smartstore', 'smartstore'])
     eq('카페24 가이드 = 우리 앱 방식 (쇼핑몰 ID → 대표 운영자 로그인 → 권한 동의 → "연결됨") · 다른 방법 한 줄 · 옛 개발자센터·Client ID 안내 없음', [G.CAFE24_GUIDE, G.CAFE24_GUIDE_ALT, /개발자센터|Client ID|Client Secret|Redirect URI/.test(G.CAFE24_GUIDE.join(' ') + G.CAFE24_GUIDE_ALT), /v-for="\(s, i\) in CAFE24_GUIDE"/.test(read('src/components/studio/StudioCafe24Card.vue'))],
-      [['[연결하기]를 누르고 카페24 쇼핑몰 ID를 넣으세요.', '주소가 myshop.cafe24.com이면 쇼핑몰 ID는 myshop이에요.', '카페24 화면이 열리면 쇼핑몰 대표 운영자 계정으로 로그인하세요.', '상품 읽기·쓰기, 상품분류 읽기 권한에 동의하세요.', '스튜디오로 돌아와 "연결됨"이 보이면 끝이에요.'], '다른 방법: 카페24 쇼핑몰 관리자에서 EUCHS 스튜디오 앱을 열면 쇼핑몰 ID 없이 바로 연결돼요.', false, true])
+      [['[연결하기]를 누르고 카페24 쇼핑몰 ID를 넣으세요.', '주소가 myshop.cafe24.com이면 쇼핑몰 ID는 myshop입니다.', '카페24 화면이 열리면 쇼핑몰 대표 운영자 계정으로 로그인하세요.', '상품 읽기·쓰기, 상품분류 읽기 권한에 동의하세요.', '스튜디오로 돌아와 "연결됨"이 표시되면 연결이 완료됩니다.'], '다른 방법: 카페24 쇼핑몰 관리자에서 EUCHS 스튜디오 앱을 열면 쇼핑몰 ID 없이 바로 연결됩니다.', false, true])
     // 사진 가이드 (2026-09-30) — 판매처별 목록 한 곳 · 파일이 실제로 있고 가벼움 · 단계와 짝
     {
       const ph = G.guidePhotos('11st')
@@ -882,7 +883,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       eq('서버: 스마트스토어 = 같은 표·같은 암호화(ID·시크릿 둘 다) · 상태 응답에 ID 끝 4자리만', [/market: SMARTSTORE, seller_login_id: '내 스토어 애플리케이션', vendor_id: null,\s*access_key_enc: encryptSecret\(id, encKey\), secret_key_enc: encryptSecret\(secret, encKey\)/.test(api), /smartstore: s \? \{ connected: true, account: \{ key_last4: s\.key_last4, status: s\.status/.test(api), ['connect_smartstore', 'disconnect_smartstore'].every(a => api.includes(`body.action === '${a}'`))], [true, true, true])
       eq('SQL: market 체크에 smartstore·cafe24 · 스마트스토어는 시크릿 필수', [/check \(market in \('coupang', '11st', 'smartstore', 'cafe24'\)\)/.test(sql), /check \(market <> 'smartstore' or secret_key_enc is not null\)/.test(sql)], [true, true])
       eq('스마트스토어 입력 검사 (시크릿 = bcrypt salt 모양)', [R.smartstoreKeyProblems({ clientId: 'abcd1234', clientSecret: SALT }), R.smartstoreKeyProblems({ clientId: '', clientSecret: 'plain-secret' })], [[], ['애플리케이션 ID', '애플리케이션 시크릿']])
-      eq('가이드: 8단계 · 중계 IP · 확인한 메뉴 "내 스토어 애플리케이션" · IP 다음에 API 그룹 전부 선택(S3-3)', [G.SMARTSTORE_GUIDE.length, G.SMARTSTORE_GUIDE.some(s => s.includes('3.39.196.112')), G.SMARTSTORE_GUIDE.every(s => /요\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.SMARTSTORE_GUIDE[1], G.SMARTSTORE_GUIDE.findIndex(s => /API 그룹을 전부 선택/.test(s)) === G.SMARTSTORE_GUIDE.findIndex(s => s.includes('3.39.196.112')) + 1], [8, true, true, '내 스토어 애플리케이션 메뉴로 들어가세요.', true])
+      eq('가이드: 8단계 · 중계 IP · 확인한 메뉴 "내 스토어 애플리케이션" · IP 다음에 API 그룹 전부 선택(S3-3)', [G.SMARTSTORE_GUIDE.length, G.SMARTSTORE_GUIDE.some(s => s.includes('3.39.196.112')), G.SMARTSTORE_GUIDE.every(s => /(세요|니다)\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.SMARTSTORE_GUIDE[1], G.SMARTSTORE_GUIDE.findIndex(s => /API 그룹을 전부 선택/.test(s)) === G.SMARTSTORE_GUIDE.findIndex(s => s.includes('3.39.196.112')) + 1], [8, true, true, '내 스토어 애플리케이션 메뉴로 들어가세요.', true])
       eq('화면: 카드 = 관문 · 시크릿은 password 칸 · ID 끝 4자리만 · 연결 탭에 카드', [/await studioGate\('\/studio\/channels\/connect\?link=smartstore'\)/.test(ssCard), /type="password"[^>]*data-mk-ss-f-secret/.test(ssCard), /•••• \{\{ acc\.key_last4 \}\}/.test(ssCard), /<StudioSmartstoreCard \/>/.test(mkView)], [true, true, true, true])
       eq('보내기 탭: 스마트스토어 연결되면 "연결됨"(보내기 없음)', R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, 'linked')
     }
@@ -1371,6 +1372,45 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     /market=in\.\(\$\{MARKET\},\$\{CAFE24\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
   ], [false, true, true, true, true])
   eq('SQL: marketplace_sends market에 cafe24 · status에 registered · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24'\)\)/.test(sql), /'registered'\)\)/.test(sql), /create table|grant /.test(sql), /상태: 미실행/.test(sql)], [true, true, false, true])
+}
+
+// ── 연결 탭 "연결 전" 깜빡임 + 문구 합니다체 (2026-09-30 운영) ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const P = R.linkPhase
+  eq('단계: 읽음 = ready(오류가 있어도) · 로그인 확인 중 = checking · 로그인 전 = guest · 로그인 + 읽는 중 = checking · 로그인 + 한 번도 못 읽음 = failed', [
+    P({ loaded: true, loggedIn: true, error: 'x' }), P({ authLoading: true }), P({}), P({ loggedIn: true }), P({ loggedIn: true, error: '잠시 후 다시 시도해 주세요.' }),
+  ], ['ready', 'checking', 'guest', 'checking', 'failed'])
+  eq('못 읽음 문구', R.LINK_LOAD_FAILED, '연결 상태를 불러오지 못했습니다.')
+  const mk = read('src/views/studio/StudioMarketplaceView.vue'), pend = read('src/components/studio/StudioLinkPending.vue'), links = read('src/lib/studioMarketLinks.js'), sv = read('src/views/studio/StudioChannelSendView.vue')
+  const cards = ['StudioElevenstCard', 'StudioSmartstoreCard', 'StudioCafe24Card'].map(n => read(`src/components/studio/${n}.vue`))
+  // "연결 전" 배지·[연결하기] 앞에 자리표시(v-else-if waiting)가 먼저 온다 — 읽기 전에는 "연결 전"이 그려지지 않는다
+  const pendBeforeOff = t => { const a = t.search(/<StudioLinkPending v-else-if="(waiting|cpWaiting)" part="badge"/), b = t.indexOf('<span v-else class="st-badge ml-auto">연결 전</span>'); return a > 0 && b > a }
+  eq('카드 4개: 배지 자리 = 자리표시가 "연결 전"보다 먼저 · 본문도 자리표시(다시 시도 = 다시 읽기) · 쿠팡 "불러오는 중…" 줄 없음 · 못 읽은 채 [쿠팡 연결하기] 보이던 조건 없음', [
+    [mk, ...cards].map(pendBeforeOff), cards.every(t => /<StudioLinkPending v-else-if="waiting" :phase="phase" @retry="loadMarketLinks" \/>/.test(t)), /<StudioLinkPending v-else-if="cpWaiting" :phase="cpPhase" @retry="load" \/>/.test(mk),
+    /불러오는 중…/.test(mk), /v-else-if="st \|\| loadError \|\| !loggedIn"/.test(mk),
+  ], [[true, true, true, true], true, true, false, false])
+  eq('자리표시: 확인 중 = 스켈레톤(버튼 없음) · 못 읽음 = 고정 문구 + [다시 시도] · 단계는 linkPhase 하나(auth 로딩 포함) · 다시 시도하면 오류를 비워 확인 중으로', [
+    /phase === 'checking'" class="st-skeleton/.test(pend), /\{\{ LINK_LOAD_FAILED \}\}/.test(pend) && /data-mk-link-retry @click="\$emit\('retry'\)">다시 시도</.test(pend),
+    /linkPhase\(\{ authLoading: isAuthLoading\.value/.test(links), /if \(!marketLinks\.loaded\) marketLinks\.error = ''/.test(links), (links.match(/linkPhase\(/g) || []).length, /export function linkPhase/.test(read('src/lib/studioMarketplaceRules.js')) && (read('src/lib/studioMarketplaceRules.js').match(/export function linkPhase/g) || []).length,
+  ], [true, true, true, true, 1, 1])
+  eq('보내기 탭: 잠긴 줄은 읽는 중·못 읽음이면 자물쇠·[연결하기] 대신 자리표시 · 못 읽으면 목록 아래 [다시 시도] · 원인 줄은 읽은 뒤 실패에만', [
+    /<StudioLinkPending v-else-if="rowWaiting\(r\)" part="badge"/.test(sv), sv.indexOf('rowWaiting(r)') > 0 && sv.indexOf('rowWaiting(r)') < sv.lastIndexOf(':data-ch-connect="r.key"'),
+    /<StudioLinkPending v-if="rowsFailed" phase="failed" @retry="retryRows" \/>/.test(sv), /v-if="statusError && status"/.test(sv), /r\.state === 'locked' && \['checking', 'failed'\]\.includes\(rowPhase\(r\.key\)\)/.test(sv),
+  ], [true, true, true, true, true])
+  // 연결 탭 화면 글자(템플릿 + 알림·안내 문자열) — 대화체 없음. 서버 오류 문구(e.message)는 이 작업 범위 밖
+  const G = await import('../src/lib/studioMarketGuides.js')
+  const tpl = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  const strs = t => (t.slice(t.indexOf('<script setup>')).replace(/^\s*\/\/.*$/gm, '').match(/'[^'\n]*[가-힣][^'\n]*'|`[^`\n]*[가-힣][^`\n]*`/g) || []).join('\n')
+  const guideVue = read('src/components/studio/StudioMarketplaceGuide.vue')
+  const talk = /(어요|예요|해요|돼요|아요|워요|네요|줘요|까요|에요)[.!?]|주세요/
+  eq('문구: 연결 탭 카드·확인창·성공/실패·쿠팡 가이드·가이드 단계에 대화체 없음 · 탭 위 한 줄 합니다체', [
+    [mk, ...cards, guideVue].filter(t => talk.test(tpl(t)) || talk.test(strs(t))).length,
+    [...G.ELEVENST_GUIDE, ...Object.values(G.ELEVENST_STEP_NOTES), ...G.SMARTSTORE_GUIDE, ...G.CAFE24_GUIDE, G.CAFE24_GUIDE_ALT].filter(s => talk.test(s)).length,
+    mk.includes('완성한 상세페이지를 판매처에 바로 등록할 수 있습니다. 가이드를 참고하여 직접 연결하세요.'),
+    mk.includes('쿠팡 Wing에서 발급한 OPEN API 키를 입력하면 상품을 바로 등록할 수 있습니다.'),
+  ], [0, 0, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

@@ -2,14 +2,17 @@
  * 11번가·스마트스토어·카페24 연결 상태 (2026-09-30) — 판매처 > 연결 탭과 > 보내기 탭·보내기 창이 같이 본다 (서버 action market_status 한 번)
  * 로그인 전에는 부르지 않는다. 로그아웃(euchs-auth-changed)이면 비우고, 로그인이면 다시 읽는다 (CLAUDE.md 2-9)
  */
-import { reactive } from 'vue'
-import { currentUser } from '@/lib/auth'
+import { reactive, computed } from 'vue'
+import { currentUser, isAuthLoading } from '@/lib/auth'
 import { getMarketLinks, isNotReady } from '@/lib/studioMarketplace'
+import { linkPhase } from '@/lib/studioMarketplaceRules'
 
 const OFF = () => ({ connected: false, account: null })
 const blank = () => ({ loaded: false, loading: false, error: '', soft: false, elevenst: OFF(), smartstore: OFF(), cafe24: OFF() })
 // loaded: 한 번이라도 읽음 · error: 못 읽은 이유(고객 문구) · soft: 우리 쪽 준비 문제(회색)
 export const marketLinks = reactive(blank())
+/** 카드·보내기 줄 표시 단계 (studioMarketplaceRules.linkPhase) — 'ready'가 아니면 "연결 전"·[연결하기]를 그리지 않는다 */
+export const marketLinksPhase = computed(() => linkPhase({ authLoading: isAuthLoading.value, loggedIn: !!currentUser.value?.id, loaded: marketLinks.loaded, error: marketLinks.error }))
 
 let seq = 0
 let listening = false
@@ -49,6 +52,7 @@ export async function loadMarketLinks() {
   if (shownUid && shownUid !== uid) reset()
   const my = ++seq
   marketLinks.loading = true
+  if (!marketLinks.loaded) marketLinks.error = '' // [다시 시도] — 한 번도 못 읽은 상태면 다시 "확인 중"으로
   try {
     const d = await getMarketLinks()
     if (my === seq) { applyMarketLinks(d); shownUid = uid }

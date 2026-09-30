@@ -12,7 +12,7 @@
         </button>
         <div v-else class="h-[220px] st-placeholder text-[13px]">캡처 이미지 자리</div>
       </div>
-      <p v-if="step.img" class="-mt-2 text-[12px] st-muted">이미지를 누르면 크게 볼 수 있어요.</p>
+      <p v-if="step.img" class="-mt-2 text-[12px] st-muted">이미지를 누르면 크게 볼 수 있습니다.</p>
 
       <div>
         <h4 class="st-h-card">{{ index + 1 }}. {{ step.title }}</h4>
@@ -65,12 +65,12 @@ const STEPS = computed(() => [
   { img: '/studio-guide/coupang/03.png', title: '약관 2개 모두 체크 → [약관 동의 및 Key 발급받기]', desc: '약관 두 개를 모두 체크한 뒤 [약관 동의 및 Key 발급받기]를 누르세요.' },
   {
     img: '/studio-guide/coupang/04.png', title: '업체 입력 방식: 자체개발(직접입력)', desc: '"자체개발"을 고르고 업체명·URL·IP를 아래 값 그대로 넣으세요.',
-    warn: 'IP를 입력한 뒤 반드시 [추가] 버튼을 눌러야 해요. 입력만 하고 넘어가면 IP가 등록되지 않아요.',
+    warn: 'IP를 입력한 뒤 반드시 [추가] 버튼을 누르세요. 입력만 하고 넘어가면 IP가 등록되지 않습니다.',
     copies: [{ label: '업체명', value: 'EUCHS' }, { label: 'URL', value: 'euchs.co.kr' }, { label: 'IP', value: props.relayIp }],
   },
   {
-    img: '/studio-guide/coupang/05.png', title: 'IP [추가] → [확인] → 키 복사', desc: 'IP를 [추가]하면 [확인] 버튼이 켜져요. 확인을 누른 뒤 보이는 업체코드·Access Key·Secret Key를 복사해 이 화면의 연결 칸에 붙여넣으세요.',
-    warn: 'IP 입력 후 반드시 [추가] 버튼을 눌러야 [확인]이 켜져요. 키 유효기간은 180일 — 만료 14일 전부터 Wing에서 재발급할 수 있고, 재발급하면 여기서 [키 교체]로 새 키를 넣으세요. (IP 등록은 반영까지 최대 30분)',
+    img: '/studio-guide/coupang/05.png', title: 'IP [추가] → [확인] → 키 복사', desc: 'IP를 [추가]하면 [확인] 버튼이 활성화됩니다. 확인을 누른 뒤 보이는 업체코드·Access Key·Secret Key를 복사해 이 화면의 연결 칸에 붙여넣으세요.',
+    warn: 'IP 입력 후 반드시 [추가] 버튼을 눌러야 [확인]이 활성화됩니다. 키 유효기간은 180일 — 만료 14일 전부터 Wing에서 재발급할 수 있고, 재발급하면 여기서 [키 교체]로 새 키를 넣으세요. (IP 등록은 반영까지 최대 30분)',
   },
 ])
 const index = ref(0)

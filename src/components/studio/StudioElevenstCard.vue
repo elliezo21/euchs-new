@@ -4,6 +4,7 @@
       <span class="st-icon-box"><Store class="w-[18px] h-[18px]" :stroke-width="2" /></span>
       <h3 class="st-h-card">11번가</h3>
       <span v-if="linked" class="st-badge st-badge-accent ml-auto" data-mk-11st-badge>{{ acc?.status === 'invalid' ? '키 확인 필요' : '연결됨' }}</span>
+      <StudioLinkPending v-else-if="waiting" part="badge" :phase="phase" />
       <span v-else class="st-badge ml-auto">연결 전</span>
     </div>
 
@@ -18,8 +19,9 @@
         <button type="button" class="st-btn st-btn-danger" :disabled="!!busy" data-mk-11st-disconnect @click="confirmOff = true">연결 해제</button>
       </div>
     </div>
+    <StudioLinkPending v-else-if="waiting" :phase="phase" @retry="loadMarketLinks" />
     <div v-else class="mt-4 space-y-3">
-      <p class="st-desc break-keep">11번가 오픈API 키를 넣으면 스튜디오와 연결돼요. 키는 안전하게 보관하고 화면에 다시 보여 주지 않아요.</p>
+      <p class="st-desc break-keep">11번가 오픈API 키를 입력하면 스튜디오와 연결됩니다. 키는 안전하게 보관하며 화면에 다시 표시하지 않습니다.</p>
       <button type="button" class="st-btn st-btn-primary" :disabled="!!busy" data-mk-11st-open @click="start">연결하기</button>
     </div>
     <p v-if="msg" class="mt-3 text-[13px] break-keep" :class="msgTone" data-mk-11st-msg>{{ msg }}</p>
@@ -45,7 +47,7 @@
           <label class="block"><span class="st-label">11번가 셀러 ID *</span><input v-model.trim="form.sellerId" class="st-input w-full" maxlength="100" autocomplete="off" data-mk-11st-f-id /></label>
           <label class="block"><span class="st-label">API 키 *</span><input v-model.trim="form.apiKey" type="password" class="st-input w-full font-mono" maxlength="200" autocomplete="new-password" data-mk-11st-f-key /></label>
         </div>
-        <p v-if="formTried && problems.length" class="text-[13px] font-bold st-danger-text" data-mk-11st-missing>확인해 주세요: {{ problems.join(', ') }}</p>
+        <p v-if="formTried && problems.length" class="text-[13px] font-bold st-danger-text" data-mk-11st-missing>입력을 확인하세요: {{ problems.join(', ') }}</p>
         <p v-if="formError" class="text-[13px] break-keep" :class="formSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-11st-error>{{ formError }}</p>
         <div class="flex justify-end gap-2">
           <button type="button" class="st-btn" @click="formOpen = false">취소</button>
@@ -54,8 +56,8 @@
       </form>
     </StudioModal>
 
-    <StudioModal :open="confirmOff" title="11번가 연결을 해제할까요?" @close="confirmOff = false">
-      저장된 API 키를 지워요. 다시 연결하려면 키를 새로 넣어 주세요.
+    <StudioModal :open="confirmOff" title="11번가 연결을 해제하시겠습니까?" @close="confirmOff = false">
+      저장된 API 키가 삭제됩니다. 다시 연결하려면 키를 새로 입력하세요.
       <template #actions>
         <button type="button" class="st-btn" @click="confirmOff = false">취소</button>
         <button type="button" class="st-btn st-btn-danger" data-mk-11st-disconnect-confirm @click="disconnect">해제</button>
@@ -78,11 +80,15 @@ import { connectElevenst, disconnectElevenst, fmtDate, isNotReady } from '@/lib/
 import { elevenstKeyProblems } from '@/lib/studioMarketplaceRules'
 import { ELEVENST_GUIDE, ELEVENST_STEP_NOTES, RELAY_IP, photoIndexForStep } from '@/lib/studioMarketGuides'
 import StudioGuidePhotos from '@/components/studio/StudioGuidePhotos.vue'
-import { marketLinks, applyMarketLinks } from '@/lib/studioMarketLinks'
+import { marketLinks, applyMarketLinks, marketLinksPhase, loadMarketLinks } from '@/lib/studioMarketLinks'
+import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 
 const route = useRoute()
 const router = useRouter()
 const linked = computed(() => marketLinks.elevenst?.connected === true)
+// 불러오는 중·못 읽음 — "연결 전"·[연결하기] 대신 자리표시 (studioMarketplaceRules.linkPhase)
+const phase = computed(() => marketLinksPhase.value)
+const waiting = computed(() => phase.value === 'checking' || phase.value === 'failed')
 const acc = computed(() => marketLinks.elevenst?.account || null)
 
 const busy = ref('')
@@ -129,7 +135,7 @@ async function submit() {
     applyMarketLinks(await connectElevenst({ seller_login_id: form.value.sellerId, api_key: form.value.apiKey }))
     form.value.apiKey = ''
     formOpen.value = false
-    msg.value = '11번가가 연결됐어요.'
+    msg.value = '11번가가 연결되었습니다.'
     msgTone.value = 'st-success-text font-bold'
   } catch (e) {
     console.error('[StudioElevenstCard] 11번가 연결 실패:', e.code, e)
@@ -144,7 +150,7 @@ async function disconnect() {
   busy.value = 'disconnect'
   try {
     applyMarketLinks(await disconnectElevenst())
-    msg.value = '11번가 연결을 해제했어요.'
+    msg.value = '11번가 연결이 해제되었습니다.'
     msgTone.value = 'st-muted'
   } catch (e) {
     console.error('[StudioElevenstCard] 11번가 연결 해제 실패:', e.code, e)

@@ -4,6 +4,7 @@
       <span class="st-icon-box"><Store class="w-[18px] h-[18px]" :stroke-width="2" /></span>
       <h3 class="st-h-card">스마트스토어</h3>
       <span v-if="linked" class="st-badge st-badge-accent ml-auto" data-mk-ss-badge>{{ acc?.status === 'invalid' ? '키 확인 필요' : '연결됨' }}</span>
+      <StudioLinkPending v-else-if="waiting" part="badge" :phase="phase" />
       <span v-else class="st-badge ml-auto">연결 전</span>
     </div>
 
@@ -17,8 +18,9 @@
         <button type="button" class="st-btn st-btn-danger" :disabled="!!busy" data-mk-ss-disconnect @click="confirmOff = true">연결 해제</button>
       </div>
     </div>
+    <StudioLinkPending v-else-if="waiting" :phase="phase" @retry="loadMarketLinks" />
     <div v-else class="mt-4 space-y-3">
-      <p class="st-desc break-keep">네이버 커머스API센터에서 만든 내 스토어 애플리케이션의 ID·시크릿을 넣으면 연결돼요. 시크릿은 안전하게 보관하고 화면에 다시 보여 주지 않아요.</p>
+      <p class="st-desc break-keep">네이버 커머스API센터에서 만든 내 스토어 애플리케이션의 ID·시크릿을 입력하면 연결됩니다. 시크릿은 안전하게 보관하며 화면에 다시 표시하지 않습니다.</p>
       <button type="button" class="st-btn st-btn-primary" :disabled="!!busy" data-mk-ss-open @click="start">연결하기</button>
     </div>
     <p v-if="msg" class="mt-3 text-[13px] break-keep" :class="msgTone" data-mk-ss-msg>{{ msg }}</p>
@@ -33,7 +35,7 @@
           <label class="block"><span class="st-label">애플리케이션 ID *</span><input v-model.trim="form.clientId" class="st-input w-full font-mono" maxlength="200" autocomplete="off" data-mk-ss-f-id /></label>
           <label class="block"><span class="st-label">애플리케이션 시크릿 *</span><input v-model.trim="form.clientSecret" type="password" class="st-input w-full font-mono" maxlength="200" autocomplete="new-password" data-mk-ss-f-secret /></label>
         </div>
-        <p v-if="formTried && problems.length" class="text-[13px] font-bold st-danger-text" data-mk-ss-missing>확인해 주세요: {{ problems.join(', ') }}</p>
+        <p v-if="formTried && problems.length" class="text-[13px] font-bold st-danger-text" data-mk-ss-missing>입력을 확인하세요: {{ problems.join(', ') }}</p>
         <p v-if="formError" class="text-[13px] break-keep" :class="formSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-ss-error>{{ formError }}</p>
         <div class="flex justify-end gap-2">
           <button type="button" class="st-btn" @click="formOpen = false">취소</button>
@@ -42,8 +44,8 @@
       </form>
     </StudioModal>
 
-    <StudioModal :open="confirmOff" title="스마트스토어 연결을 해제할까요?" @close="confirmOff = false">
-      저장된 애플리케이션 ID·시크릿을 지워요. 다시 연결하려면 새로 넣어 주세요.
+    <StudioModal :open="confirmOff" title="스마트스토어 연결을 해제하시겠습니까?" @close="confirmOff = false">
+      저장된 애플리케이션 ID·시크릿이 삭제됩니다. 다시 연결하려면 새로 입력하세요.
       <template #actions>
         <button type="button" class="st-btn" @click="confirmOff = false">취소</button>
         <button type="button" class="st-btn st-btn-danger" data-mk-ss-disconnect-confirm @click="disconnect">해제</button>
@@ -66,11 +68,15 @@ import { studioGate } from '@/lib/studioGate'
 import { connectSmartstore, disconnectSmartstore, fmtDate, isNotReady } from '@/lib/studioMarketplace'
 import { smartstoreKeyProblems } from '@/lib/studioMarketplaceRules'
 import { SMARTSTORE_GUIDE } from '@/lib/studioMarketGuides'
-import { marketLinks, applyMarketLinks } from '@/lib/studioMarketLinks'
+import { marketLinks, applyMarketLinks, marketLinksPhase, loadMarketLinks } from '@/lib/studioMarketLinks'
+import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 
 const route = useRoute()
 const router = useRouter()
 const linked = computed(() => marketLinks.smartstore?.connected === true)
+// 불러오는 중·못 읽음 — "연결 전"·[연결하기] 대신 자리표시 (studioMarketplaceRules.linkPhase)
+const phase = computed(() => marketLinksPhase.value)
+const waiting = computed(() => phase.value === 'checking' || phase.value === 'failed')
 const acc = computed(() => marketLinks.smartstore?.account || null)
 
 const busy = ref('')
@@ -106,7 +112,7 @@ async function submit() {
     applyMarketLinks(await connectSmartstore({ client_id: form.value.clientId, client_secret: form.value.clientSecret }))
     form.value = { clientId: '', clientSecret: '' }
     formOpen.value = false
-    msg.value = '스마트스토어가 연결됐어요.'
+    msg.value = '스마트스토어가 연결되었습니다.'
     msgTone.value = 'st-success-text font-bold'
   } catch (e) {
     console.error('[StudioSmartstoreCard] 스마트스토어 연결 실패:', e.code, e)
@@ -121,7 +127,7 @@ async function disconnect() {
   busy.value = 'disconnect'
   try {
     applyMarketLinks(await disconnectSmartstore())
-    msg.value = '스마트스토어 연결을 해제했어요.'
+    msg.value = '스마트스토어 연결이 해제되었습니다.'
     msgTone.value = 'st-muted'
   } catch (e) {
     console.error('[StudioSmartstoreCard] 스마트스토어 연결 해제 실패:', e.code, e)

@@ -4,6 +4,7 @@
       <span class="st-icon-box"><Store class="w-[18px] h-[18px]" :stroke-width="2" /></span>
       <h3 class="st-h-card">카페24</h3>
       <span v-if="linked" class="st-badge ml-auto" :class="acc?.status === 'connected' ? 'st-badge-accent' : 'st-badge-danger'" data-mk-c24-badge>{{ STATUS_LABEL[acc?.status] || '연결됨' }}</span>
+      <StudioLinkPending v-else-if="waiting" part="badge" :phase="phase" />
       <span v-else class="st-badge ml-auto">연결 전</span>
     </div>
 
@@ -12,12 +13,13 @@
         <span class="st-muted">쇼핑몰 ID</span><span class="st-ink font-bold">{{ acc.mall_id }}</span>
         <span class="st-muted">마지막 확인</span><span class="st-ink">{{ fmtDate(acc.last_checked_at) }}</span>
       </div>
-      <p v-if="acc.status !== 'connected'" class="text-[12px] font-bold st-danger-text break-keep" data-mk-c24-relink>[다시 연결]을 눌러 카페24 동의를 한 번 더 해 주세요.</p>
+      <p v-if="acc.status !== 'connected'" class="text-[12px] font-bold st-danger-text break-keep" data-mk-c24-relink>[다시 연결]을 눌러 카페24 동의를 다시 진행하세요.</p>
       <div class="flex flex-wrap gap-2 pt-1">
         <button type="button" class="st-btn" :disabled="!!busy" data-mk-c24-rekey @click="start">다시 연결</button>
         <button type="button" class="st-btn st-btn-danger" :disabled="!!busy" data-mk-c24-disconnect @click="confirmOff = true">연결 해제</button>
       </div>
     </div>
+    <StudioLinkPending v-else-if="waiting" :phase="phase" @retry="loadMarketLinks" />
     <div v-else class="mt-4 space-y-3">
       <ol class="guide-steps" data-mk-c24-guide>
         <li v-for="(s, i) in CAFE24_GUIDE" :key="i"><span class="guide-no">{{ i + 1 }}</span><span class="break-keep">{{ s }}</span></li>
@@ -30,13 +32,13 @@
     <!-- 연결 창 — 쇼핑몰 ID 하나 → 카페24 동의 화면으로 -->
     <StudioModal :open="formOpen" title="카페24 연결" @close="formOpen = false">
       <form class="space-y-4" data-mk-c24-form @submit.prevent="submit">
-        <p class="st-desc break-keep">[연결하기]를 누르면 카페24 화면으로 이동해요. 쇼핑몰 대표 운영자 계정으로 로그인하고 동의해 주세요.</p>
+        <p class="st-desc break-keep">[연결하기]를 누르면 카페24 화면으로 이동합니다. 쇼핑몰 대표 운영자 계정으로 로그인한 뒤 동의하세요.</p>
         <label class="block">
           <span class="st-label">쇼핑몰 ID *</span>
           <input v-model.trim="form.mallId" class="st-input w-full" maxlength="60" autocomplete="off" placeholder="myshop" data-mk-c24-f-mall />
-          <span class="block mt-1 text-[12px] st-muted break-keep">쇼핑몰 주소가 myshop.cafe24.com이면 myshop이에요.</span>
+          <span class="block mt-1 text-[12px] st-muted break-keep">쇼핑몰 주소가 myshop.cafe24.com이면 myshop입니다.</span>
         </label>
-        <p v-if="formTried && problems.length" class="text-[13px] font-bold st-danger-text" data-mk-c24-missing>확인해 주세요: {{ problems.join(', ') }}</p>
+        <p v-if="formTried && problems.length" class="text-[13px] font-bold st-danger-text" data-mk-c24-missing>입력을 확인하세요: {{ problems.join(', ') }}</p>
         <p v-if="formError" class="text-[13px] break-keep" :class="formSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-c24-error>{{ formError }}</p>
         <div class="flex justify-end gap-2">
           <button type="button" class="st-btn" @click="formOpen = false">취소</button>
@@ -45,8 +47,8 @@
       </form>
     </StudioModal>
 
-    <StudioModal :open="confirmOff" title="카페24 연결을 해제할까요?" @close="confirmOff = false">
-      저장된 연결 정보를 지워요. 다시 연결하려면 [연결하기]를 눌러 주세요.
+    <StudioModal :open="confirmOff" title="카페24 연결을 해제하시겠습니까?" @close="confirmOff = false">
+      저장된 연결 정보가 삭제됩니다. 다시 연결하려면 [연결하기]를 누르세요.
       <template #actions>
         <button type="button" class="st-btn" @click="confirmOff = false">취소</button>
         <button type="button" class="st-btn st-btn-danger" data-mk-c24-disconnect-confirm @click="disconnect">해제</button>
@@ -73,7 +75,8 @@ import { beginCafe24, launchCafe24, finishCafe24, disconnectCafe24, fmtDate, isN
 import { cafe24MallProblems, isCafe24Return, isCafe24Launch, CAFE24_LAUNCH_KEYS } from '@/lib/studioMarketplaceRules'
 import { takeCafe24Launch, hasCafe24Launch } from '@/lib/studioCafe24Launch'
 import { CAFE24_GUIDE, CAFE24_GUIDE_ALT } from '@/lib/studioMarketGuides'
-import { marketLinks, applyMarketLinks } from '@/lib/studioMarketLinks'
+import { marketLinks, applyMarketLinks, marketLinksPhase, loadMarketLinks } from '@/lib/studioMarketLinks'
+import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 
 const STATUS_LABEL = { connected: '연결됨', invalid: '다시 연결 필요', expired: '다시 연결 필요' }
 const route = useRoute()
@@ -82,6 +85,9 @@ const linked = computed(() => marketLinks.cafe24?.connected === true)
 const acc = computed(() => marketLinks.cafe24?.account || null)
 
 const busy = ref('')
+// 불러오는 중·못 읽음 — "연결 전"·[연결하기] 대신 자리표시 (studioMarketplaceRules.linkPhase). 동의 뒤 마무리·앱 열기 확인 중에는 버튼의 "연결 확인 중…"을 그대로 보인다
+const phase = computed(() => marketLinksPhase.value)
+const waiting = computed(() => (phase.value === 'checking' || phase.value === 'failed') && busy.value !== 'finish' && busy.value !== 'launch')
 const msg = ref('')
 const msgTone = ref('st-success-text font-bold')
 const formOpen = ref(false)
@@ -130,7 +136,7 @@ async function submit() {
 // App URL로 들어옴 — 적어 둔 쿼리 원문을 서버에 보내 hmac 확인 → 맞으면 바로 동의 화면
 async function runLaunch() {
   const raw = takeCafe24Launch()
-  if (!raw) { say('카페24에서 연 주소가 오래됐어요. 쇼핑몰 ID를 넣고 [연결하기]를 눌러 주세요.', 'error'); return }
+  if (!raw) { say('카페24에서 연 주소가 만료되었습니다. 쇼핑몰 ID를 입력하고 [연결하기]를 누르세요.', 'error'); return }
   busy.value = 'launch'
   try {
     const r = await launchCafe24(raw)
@@ -146,13 +152,13 @@ async function finish(q) {
   router.replace({ query: rest })
   if (typeof error === 'string') {
     console.warn('[StudioCafe24Card] 카페24 동의가 끝나지 않음:', error, error_description || '')
-    say('카페24 동의를 마치지 않았어요. [연결하기]를 다시 눌러 주세요.', 'error')
+    say('카페24 동의가 완료되지 않았습니다. [연결하기]를 다시 누르세요.', 'error')
     return
   }
   busy.value = 'finish'
   try {
     applyMarketLinks(await finishCafe24(code, state))
-    say('카페24가 연결됐어요.', 'ok')
+    say('카페24가 연결되었습니다.', 'ok')
   } catch (e) {
     console.error('[StudioCafe24Card] 카페24 연결 마무리 실패:', e.code, e)
     say(e.message, isNotReady(e.code) ? 'soft' : 'error')
@@ -165,7 +171,7 @@ async function disconnect() {
   busy.value = 'disconnect'
   try {
     applyMarketLinks(await disconnectCafe24())
-    say('카페24 연결을 해제했어요.', 'soft')
+    say('카페24 연결이 해제되었습니다.', 'soft')
   } catch (e) {
     console.error('[StudioCafe24Card] 카페24 연결 해제 실패:', e.code, e)
     say(e.message, isNotReady(e.code) ? 'soft' : 'error')
@@ -185,7 +191,7 @@ watch(() => route.query.hmac, () => {
   const rest = { ...route.query }
   for (const k of CAFE24_LAUNCH_KEYS) delete rest[k]
   router.replace({ query: rest })
-  if (!hasCafe24Launch()) { console.error('[StudioCafe24Card] App URL로 들어왔지만 쿼리 원문이 적혀 있지 않음'); say('카페24에서 연 주소를 확인하지 못했어요. 쇼핑몰 ID를 넣고 [연결하기]를 눌러 주세요.', 'error'); return }
+  if (!hasCafe24Launch()) { console.error('[StudioCafe24Card] App URL로 들어왔지만 쿼리 원문이 적혀 있지 않음'); say('카페24에서 연 주소를 확인하지 못했습니다. 쇼핑몰 ID를 입력하고 [연결하기]를 누르세요.', 'error'); return }
   start()
 }, { immediate: true })
 // 로그인 뒤 이어서 — ?link=cafe24 (한 번 쓰고 주소에서 뗀다)
