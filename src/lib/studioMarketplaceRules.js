@@ -28,17 +28,41 @@ export const CHANNEL_TABS = [
 ]
 
 // 판매처 목록 — 설정 > 판매처 연결과 랜딩 칩이 같은 목록·같은 순서를 쓴다. soon = 이름 + "준비 중" 배지만 (부가 설명 문구 없음)
+// connect = 연결 방법 (2026-09-30): 'key' = 고객이 API 키를 넣어 직접 연결(쿠팡·11번가) · 'request' = [연결 신청] → 우리가 연결하고 알림
+// soon = 아직 상품 보내기를 못 함 (연결은 될 수 있다 — 11번가). 서버 api/marketplace.js REQUEST_MARKETS와 같은 목록(테스트가 대조)
 export const MARKETS = [
-  { key: 'coupang', name: '쿠팡' },
-  { key: 'smartstore', name: '스마트스토어', soon: true },
-  { key: '11st', name: '11번가', soon: true },
-  { key: 'gmarket', name: 'G마켓·옥션', soon: true },
-  { key: 'ably', name: '에이블리', soon: true },
-  { key: 'zigzag', name: '지그재그', soon: true },
-  { key: 'cafe24', name: '카페24', soon: true },
-  { key: 'makeshop', name: '메이크샵', soon: true },
-  { key: 'godomall', name: '고도몰', soon: true },
+  { key: 'coupang', name: '쿠팡', connect: 'key' },
+  { key: 'smartstore', name: '스마트스토어', soon: true, connect: 'request' },
+  { key: '11st', name: '11번가', soon: true, connect: 'key' },
+  { key: 'gmarket', name: 'G마켓·옥션', soon: true, connect: 'request' },
+  { key: 'ably', name: '에이블리', soon: true, connect: 'request' },
+  { key: 'zigzag', name: '지그재그', soon: true, connect: 'request' },
+  { key: 'cafe24', name: '카페24', soon: true, connect: 'request' },
+  { key: 'makeshop', name: '메이크샵', soon: true, connect: 'request' },
+  { key: 'godomall', name: '고도몰', soon: true, connect: 'request' },
 ]
+/** [연결 신청]으로 받는 판매처 key */
+export const REQUEST_MARKETS = MARKETS.filter(m => m.connect === 'request').map(m => m.key)
+
+/**
+ * 연결 신청 입력 검사 (화면·서버가 같은 규칙 — 서버는 api/marketplace.js에서 같은 식을 다시 본다)
+ * @returns {string[]} 빠진·틀린 칸 이름
+ */
+export function requestProblems({ sellerId = '', contact = '' } = {}) {
+  const out = []
+  const id = String(sellerId || '').trim(), tel = String(contact || '').trim()
+  if (!id || id.length > 100) out.push('판매자 ID')
+  if (!/^[0-9+\-\s()]{8,20}$/.test(tel) || (tel.match(/\d/g) || []).length < 8) out.push('담당자 연락처')
+  return out
+}
+/** 11번가 키 입력 검사 — 셀러 ID·API 키 (공백 없는 영문·숫자·기호 8~200자) */
+export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
+  const out = []
+  const id = String(sellerId || '').trim(), key = String(apiKey || '').trim()
+  if (!id || id.length > 100) out.push('11번가 셀러 ID')
+  if (!/^[\x21-\x7e]{8,200}$/.test(key)) out.push('API 키')
+  return out
+}
 
 /**
  * 보내기 창 "보낼 판매처" 줄 — MARKETS와 같은 순서.
@@ -50,11 +74,17 @@ export function marketRows(connected = {}) {
 }
 /**
  * 판매처 > [보내기] 탭의 판매처 줄 — MARKETS와 같은 순서.
- * state: 'connected'(누를 수 있음) | 'locked'(연결 전 — 자물쇠 + [연결하기]). "준비 중" 글자는 쓰지 않는다
- * @param {{ [key:string]: { connected?:boolean } }} connected
+ * state: 'connected'(보낼 수 있음) | 'linked'(키 연결됨 — 보내기는 아직, 11번가) | 'requested'(연결 신청 접수됨) | 'locked'(연결 전 — 자물쇠 + [연결하기])
+ * "준비 중" 글자는 쓰지 않는다
+ * @param {{ [key:string]: { connected?:boolean, requested?:boolean } }} connected
  */
 export function channelRows(connected = {}) {
-  return MARKETS.map(m => ({ key: m.key, name: m.name, state: !m.soon && connected?.[m.key]?.connected === true ? 'connected' : 'locked' }))
+  return MARKETS.map(m => {
+    const s = connected?.[m.key] || {}
+    const state = m.connect === 'key' && s.connected === true ? (m.soon ? 'linked' : 'connected')
+      : m.connect === 'request' && s.requested === true ? 'requested' : 'locked'
+    return { key: m.key, name: m.name, state }
+  })
 }
 /** 처음 체크 — 연결된 판매처는 모두 체크 (1곳이면 그 1곳) */
 export const defaultChecked = rows => Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.state === 'connected']))

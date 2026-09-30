@@ -44,6 +44,9 @@
               v-if="r.state === 'connected'" type="button" class="st-btn st-btn-primary ch-btn" :disabled="!!opening"
               :data-ch-send="r.key" @click="openSend(r.key)"
             ><Send class="w-3.5 h-3.5" :stroke-width="2" /> {{ opening === r.key ? '여는 중…' : sendButtonLabel([r.key]) }}</button>
+            <!-- 키 연결됨(11번가) — 보내기 버튼은 아직 없다 · 연결 신청 접수됨 -->
+            <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-ch-linked="r.key">연결됨</span>
+            <span v-else-if="r.state === 'requested'" class="text-[12px] st-muted shrink-0" :data-ch-requested="r.key">신청 접수됨</span>
             <template v-else>
               <Lock class="w-3.5 h-3.5 st-muted shrink-0" :stroke-width="2.2" aria-label="연결 전" />
               <router-link :to="{ name: 'studio-channels-connect' }" class="st-link text-[13px] shrink-0" :data-ch-connect="r.key">연결하기</router-link>
@@ -81,6 +84,7 @@ import { currentUser } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
 import { getMarketplaceStatus, listSends, sendToMarketplace, sendsByExport, badgeReason, isNotReady, SEND_STATUS_LABEL, SEND_BADGE_CLASS } from '@/lib/studioMarketplace'
 import { channelRows, sendButtonLabel, withRo, MARKETS } from '@/lib/studioMarketplaceRules'
+import { linkStates, loadMarketLinks } from '@/lib/studioMarketLinks'
 import { daysAgoLabel } from '@/lib/studioProjectList'
 
 const route = useRoute()
@@ -97,7 +101,7 @@ const pickedRef = ref(null)
 const status = ref(null)
 const statusError = ref('')
 const statusSoft = ref(false)
-const rows = computed(() => channelRows({ coupang: { connected: status.value?.connected === true } }))
+const rows = computed(() => channelRows(linkStates(status.value?.connected === true))) // 쿠팡 + 11번가·연결 신청(studioMarketLinks)
 async function loadStatus() {
   statusError.value = ''
   try {
@@ -198,6 +202,7 @@ const onStudioAuthChanged = (e) => {
 }
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
+  loadMarketLinks() // 11번가·연결 신청 상태 (로그인 전이면 부르지 않는다)
   if (!loggedIn.value) return // 로그인 전에는 부르지 않는다 (로그인하면 euchs-auth-changed로 읽는다)
   loadStatus()
   loadSends()

@@ -786,7 +786,47 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const R = await import('../src/lib/studioMarketplaceRules.js')
   eq('판매처 목록·순서 (쿠팡만 연결 가능, 나머지는 준비 중)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang']])
   const mkView = read('src/views/studio/StudioMarketplaceView.vue'), landing = read('src/views/studio/StudioLandingView.vue')
-  eq('설정·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음)', [/import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(mkView), /OTHERS = MARKETS\.filter\(m => m\.soon\)/.test(mkView), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [true, true, true, true, false])
+  const reqList = read('src/components/studio/StudioMarketRequests.vue')
+  const screenTextOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
+  eq('연결 탭·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음)', [/<StudioMarketRequests \/>/.test(mkView), /import \{ MARKETS, requestProblems \} from '@\/lib\/studioMarketplaceRules'/.test(reqList), /const REQUEST_LIST = MARKETS\.filter\(m => m\.connect === 'request'\)/.test(reqList), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing + reqList)], [true, true, true, true, true, false])
+
+  // ── 판매처 연결 2단계 (2026-09-30): 11번가 키 연결 · 연결 신청 · 가이드 ──
+  {
+    const G = await import('../src/lib/studioMarketGuides.js')
+    const E = await import('../api/_elevenst.js')
+    const api = read('api/marketplace.js'), el = read('api/_elevenst.js'), card = read('src/components/studio/StudioElevenstCard.vue')
+    const sql = read('docs/sql/2026-09-30-marketplace-11st-requests.sql')
+    eq('연결 방법: 쿠팡·11번가 = 키 · 나머지 7곳 = 연결 신청 · 보내기는 쿠팡만', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.REQUEST_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['coupang', '11st'], ['smartstore', 'gmarket', 'ably', 'zigzag', 'cafe24', 'makeshop', 'godomall'], ['coupang']])
+    eq('서버 신청 목록 = 화면 목록 · SQL 체크도 같은 목록', [JSON.parse(/const REQUEST_MARKETS = (\[[^\]]*\])/.exec(api)[1].replace(/'/g, '"')), (/market\s+text not null check \(market in \(([^)]*)\)\)/.exec(sql.slice(sql.indexOf('create table public.marketplace_requests')))?.[1] || '').replace(/[' ]/g, '').split(',')], [R.REQUEST_MARKETS, R.REQUEST_MARKETS])
+    const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { requested: true }, cafe24: { connected: true } })
+    eq('보내기 탭 줄: 쿠팡 = 보내기 · 11번가 = 연결됨(보내기 없음) · 신청 = 신청 접수됨 · 신청형은 connected여도 잠금', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'locked', ably: 'locked', zigzag: 'requested', cafe24: 'locked', makeshop: 'locked', godomall: 'locked' })
+    eq('신청 입력 검사', [R.requestProblems({ sellerId: 'shop1', contact: '010-1234-5678' }), R.requestProblems({ sellerId: '', contact: '12' }), R.requestProblems({ sellerId: 'a', contact: '010 1234 5678' })], [[], ['판매자 ID', '담당자 연락처'], []])
+    eq('11번가 키 입력 검사', [R.elevenstKeyProblems({ sellerId: 'seller', apiKey: 'abcd1234efgh' }), R.elevenstKeyProblems({ sellerId: '', apiKey: 'short' }), R.elevenstKeyProblems({ sellerId: 'a', apiKey: 'has space 123' })], [[], ['11번가 셀러 ID', 'API 키'], ['API 키']])
+    eq('가이드: 단계 5~8개 · 짧은 명령형(끝이 "요.") · IP = 중계 IP', [G.ELEVENST_GUIDE.length, ['zigzag', 'ably', 'cafe24'].map(k => G.requestGuide(k, k).length), [...G.ELEVENST_GUIDE, ...G.requestGuide('zigzag', '지그재그')].every(s => /요\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112'))], [7, [5, 5, 5], true, true, true])
+    eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘', G.menuChecks().map(x => x.market), ['11st', '11st', '11st', 'zigzag', 'ably'])
+    eq('11번가 호출 = 쿠팡과 같은 중계(/11st 접두어 + x-relay-secret) · 같은 브레이커·준비 문제 문구', [/`\$\{c\.relayUrl\.replace\(\/\\\/\$\/, ''\)\}\/11st\$\{path\}/.test(el), /'x-relay-secret': c\.relaySecret/.test(el), /import \{ breakerFor, NOT_READY_MESSAGE, RELAY_IP \} from '\.\/_coupang\.js'/.test(el), /'openapikey': c\.apiKey/.test(el)], [true, true, true, true])
+    {
+      const calls = []
+      const fake = (status, text) => async (url, opt) => { calls.push({ url, h: opt.headers }); return { ok: status < 400, status, text: async () => text } }
+      const base = { relayUrl: 'https://relay.example/', relaySecret: 'S', apiKey: 'KEY12345', breakerKey: 't1' }
+      await E.verifyElevenstKey({ ...base, fetchImpl: fake(200, '<ns2:outboundAreas><outboundArea/></ns2:outboundAreas>') })
+      const errs = []
+      for (const [st, tx] of [[401, 'unauthorized'], [200, '<result_code>-1</result_code><result_message>인증 실패</result_message>'], [0, ''], [403, '허용되지 않은 IP입니다']]) {
+        try { await E.verifyElevenstKey({ ...base, breakerKey: `t${st}${tx.length}`, fetchImpl: st === 0 ? async () => { throw new Error('down') } : fake(st, tx) }) } catch (e) { errs.push(e.code) }
+      }
+      eq('11번가 키 확인(가짜 응답): 주소·헤더 · 성공/키 틀림/거절/중계 끊김/IP', [calls[0].url, calls[0].h.openapikey, calls[0].h['x-relay-secret'], errs], ['https://relay.example/11st/rest/areaservice/outboundarea', 'KEY12345', 'S', ['bad_key', 'bad_key', 'relay_unreachable', 'ip_not_allowed']])
+      let noRelay = ''
+      try { await E.verifyElevenstKey({ ...base, relayUrl: '' }) } catch (e) { noRelay = e.code }
+      eq('중계 설정이 없으면 호출하지 않음', noRelay, 'relay_not_configured')
+    }
+    eq('서버: 11번가 키는 쿠팡과 같은 표·암호화 · 응답에는 끝 4자리만', [/market: ELEVENST, seller_login_id: login, vendor_id: null,\s*access_key_enc: encryptSecret\(key, encKey\)/.test(api), /const ELEVENST_PUBLIC = 'seller_login_id,key_last4,status,last_checked_at,last_error,created_at'/.test(api), /access_key_enc|api_key/.test(/async function marketStatus[\s\S]*?\n\}/.exec(api)[0])], [true, true, false])
+    eq('서버: SQL 실행 전이면 503 marketplace_sql_missing + 원인 로그 (조용히 삼키지 않음)', [(api.match(/sendError\(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE\)/g) || []).length >= 3, /2026-09-30-marketplace-11st-requests\.sql 실행 필요/.test(api)], [true, true])
+    eq('서버: 새 action 4개 · 모두 studioGuard 뒤', ['market_status', 'connect_11st', 'disconnect_11st', 'connect_request'].map(a => api.includes(`body.action === '${a}'`)), [true, true, true, true])
+    eq('SQL: 쿠팡 칸 규칙 유지 · 새 표 GRANT(anon 없음, authenticated select만) · RLS · 되돌리기', [/check \(market <> 'coupang' or \(vendor_id is not null and secret_key_enc is not null and expires_at is not null\)\)/.test(sql), /revoke all on table public\.marketplace_requests from anon, authenticated;/.test(sql), /grant select on table public\.marketplace_requests to authenticated;/.test(sql), /enable row level security/.test(sql), /상태: 미실행/.test(sql), /\/\* 되돌리기/.test(sql), / to anon/.test(sql.replace(/from anon/g, ''))], [true, true, true, true, true, true, false])
+    eq('화면: [연결하기]·[연결 신청] = 작업 시작 관문 · 로그인 뒤 ?link=11st·?request=로 이어서', [/await studioGate\('\/studio\/channels\/connect\?link=11st'\)/.test(card), /await studioGate\(`\/studio\/channels\/connect\?request=\$\{encodeURIComponent\(m\.key\)\}`\)/.test(reqList)], [true, true])
+    eq('화면: 연결 탭 "다른 판매처"에 "준비 중" 없음 · 키는 password 칸 · 끝 4자리만', [/준비 중/.test(screenTextOf('src/components/studio/StudioMarketRequests.vue') + screenTextOf('src/components/studio/StudioElevenstCard.vue') + screenTextOf('src/views/studio/StudioMarketplaceView.vue')), /type="password"[^>]*data-mk-11st-f-key/.test(card), /•••• \{\{ acc\.key_last4 \}\}/.test(card)], [false, true, true])
+    eq('상태 모듈: 로그인 전 안 부름 · 로그아웃이면 비움', [/if \(!currentUser\.value\?\.id\) \{ reset\(\); return \}/.test(read('src/lib/studioMarketLinks.js')), /addEventListener\('euchs-auth-changed', e => \{ reset\(\); if \(e\.detail\?\.user\) loadMarketLinks\(\) \}\)/.test(read('src/lib/studioMarketLinks.js'))], [true, true])
+  }
   const screenText = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
   const customer = ['src/views/studio/StudioMarketplaceView.vue', 'src/views/studio/StudioShippingView.vue', 'src/views/studio/StudioSettingsView.vue', 'src/views/studio/StudioChannelsView.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/views/studio/StudioChannelSentView.vue', 'src/views/studio/StudioLandingView.vue', 'src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCoupang.vue', 'src/components/studio/StudioTagChips.vue', 'src/components/studio/StudioShippingTemplates.vue', 'src/components/studio/StudioMarketplaceGuide.vue', 'src/components/studio/StudioSendList.vue', 'src/components/studio/StudioExportList.vue']
   eq('고객 화면에 "이어서 준비"·"부터 열려"·"곧"·"관리자" 없음', customer.filter(p => /이어서 준비|부터 열려|곧|관리자/.test(screenText(p))), [])

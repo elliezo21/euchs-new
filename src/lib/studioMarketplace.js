@@ -42,6 +42,11 @@ export const getCategoryMeta =(categoryCode) => call('category_meta', { category
 export const sendProduct = (payload) => call('send', payload)
 export const listSends = () => call('sends_list')
 export const syncSends = () => call('sync')
+// 11번가 키 연결 · 다른 판매처 연결 신청 (2026-09-30) — 상태는 studioMarketLinks.js가 한 곳에서 들고 있다
+export const getMarketLinks = () => call('market_status')
+export const connectElevenst = (form) => call('connect_11st', form)
+export const disconnectElevenst = () => call('disconnect_11st')
+export const requestConnect = (form) => call('connect_request', form)
 
 /**
  * [판매처로 보내기] 진입 — 연결·내 상품을 확인하고 보내기 창에 필요한 값을 돌려준다.

@@ -47,13 +47,13 @@
           <button v-if="actionGuide" type="button" class="st-link ml-1" data-mk-action-guide @click="guideOpen = true">연결 방법 보기</button></p>
       </section>
 
-      <section class="st-card p-5 sm:p-6 space-y-3" data-mk-card="others">
-        <h3 class="st-h-card">다른 판매처</h3>
-        <ul class="space-y-2">
-          <li v-for="m in OTHERS" :key="m.key" class="flex items-center gap-2 text-[14px] st-ink-2" :data-mk-other="m.key"><span>{{ m.name }}</span><span class="st-badge ml-auto">준비 중</span></li>
-        </ul>
-      </section>
+      <!-- 11번가 — 쿠팡과 같은 키 연결 (2026-09-30, 연결까지만) -->
+      <StudioElevenstCard />
     </div>
+    <p v-if="marketLinks.error" class="text-[13px] break-keep" :class="marketLinks.soft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-links-error>{{ marketLinks.error }}</p>
+
+    <!-- 다른 판매처 — [연결 신청] (예전 "준비 중" 목록) -->
+    <StudioMarketRequests />
 
     <!-- 출고지·반품지 -->
     <section v-if="st?.connected" class="st-card p-5 sm:p-6" data-mk-places>
@@ -123,10 +123,12 @@ import { studioGate } from '@/lib/studioGate'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioMarketplaceGuide from '@/components/studio/StudioMarketplaceGuide.vue'
 import { getMarketplaceStatus, connectCoupang, disconnectCoupang, refreshPlaces, expiryState, fmtDate, isNotReady, needsGuide } from '@/lib/studioMarketplace'
-import { MARKETS } from '@/lib/studioMarketplaceRules'
+import StudioElevenstCard from '@/components/studio/StudioElevenstCard.vue'
+import StudioMarketRequests from '@/components/studio/StudioMarketRequests.vue'
+import { marketLinks, loadMarketLinks } from '@/lib/studioMarketLinks'
 
 const STATUS_LABEL = { connected: '연결됨', invalid: '키 확인 필요', expired: '만료됨' }
-const OTHERS = MARKETS.filter(m => m.soon) // 랜딩 칩과 같은 목록·같은 순서 — 이름 + "준비 중" 배지만
+// 쿠팡 밖의 판매처 — 11번가(키 연결)는 StudioElevenstCard, 나머지(MARKETS connect 'request')는 StudioMarketRequests. 상태는 studioMarketLinks 한 곳
 const TONE_CLASS = { ok: 'font-bold st-success-text', error: 'font-bold st-danger-text', soft: 'st-muted' }
 const toneOf = e => isNotReady(e.code) ? 'soft' : 'error'
 
@@ -265,6 +267,7 @@ const onStudioAuthChanged = (e) => {
 watch(() => [route.query.connect, loggedIn.value], ([c, ok]) => { if (c === '1' && ok) resumeConnect() })
 onMounted(() => {
   window.addEventListener('euchs-auth-changed', onStudioAuthChanged)
+  loadMarketLinks() // 11번가·연결 신청 상태 (로그인 전이면 부르지 않고 비운다 — 로그인하면 그 모듈이 다시 읽는다)
   if (!loggedIn.value) return // 로그인 전에는 연결 상태를 부르지 않는다 (연결 방법 보기·판매처 목록은 그대로)
   if (route.query.connect === '1') resumeConnect()
   else load()
