@@ -61,18 +61,19 @@
 
 <script setup>
 // [판매처로 보내기] 창 — 맨 위 "0. 보낼 판매처"에서 고른 판매처의 섹션만 아래에 보이고(v-show — 값은 남는다), [보내기]는 체크된 판매처마다 그 섹션의 submit()을 부른다.
-// 판매처 섹션 컴포넌트가 내놓는 것: missing(빠진 것)·busy·done·submit() — 쿠팡(StudioSendCoupang)·카페24(StudioSendCafe24).
+// 판매처 섹션 컴포넌트가 내놓는 것: missing(빠진 것)·busy·done·submit() — 쿠팡(StudioSendCoupang)·스마트스토어(StudioSendSmartstore)·카페24(StudioSendCafe24).
 // 판매처 줄·처음 체크·버튼 글자는 studioMarketplaceRules.js (설정·랜딩과 같은 MARKETS 목록)
 import { ref, reactive, computed, watch, shallowRef, onErrorCaptured, provide, onMounted, onUnmounted } from 'vue'
 import { Lock } from 'lucide-vue-next'
 import StudioModal from '@/components/studio/StudioModal.vue'
 import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
 import StudioSendCafe24 from '@/components/studio/StudioSendCafe24.vue'
+import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isSuperAdmin } from '@/lib/auth'
 
-const SECTIONS = { coupang: StudioSendCoupang, cafe24: StudioSendCafe24 } // 2026-09-30 카페24 섹션 추가 — 쿠팡 섹션은 그대로
+const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, cafe24: StudioSendCafe24 } // 2026-09-30 카페24 · 2026-10-01 스마트스토어 섹션 추가 — 쿠팡 섹션은 그대로
 
 // market = 어느 판매처 버튼으로 열었는지([쿠팡으로 보내기]·[카페24로 보내기]) → 그 판매처만 처음 체크. 비면 연결된 곳 모두(다시 보내기는 쿠팡만)
 // prepare = null이면 준비 중(창은 먼저 열린다) · loadError = 준비를 못 받음 → [다시 시도] = 'retry'
@@ -93,7 +94,7 @@ const openSeq = ref(0) // 창을 열 때마다 섹션을 새로 만든다
 const sections = reactive({}) // key → 섹션 인스턴스
 const results = shallowRef({}) // key → 보낸 결과
 
-// 쿠팡 = 서버 send_prepare.markets, 스마트스토어·11번가·카페24 = 연결 탭과 같은 상태(studioMarketLinks — 보내기는 아직이라 "연결됨"만), 나머지 = "예정"
+// 쿠팡 = 서버 send_prepare.markets, 스마트스토어·11번가·카페24 = 연결 탭과 같은 상태(studioMarketLinks — 11번가는 보내기 아직이라 "연결됨"만), 나머지 = "예정"
 const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare?.markets || {}) }, { admin: isSuperAdmin.value })) // 카페24는 심사 승인 전 관리자만 (CAFE24_PUBLIC)
 const picked = computed(() => checkedMarkets(rows.value, checked.value))
 const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) // 섹션을 만들어 둘 판매처 (체크와 상관없음)

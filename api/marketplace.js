@@ -32,7 +32,7 @@
  *   market_status     → { elevenst, smartstore, cafe24: { connected, account } }   (2026-09-30 — 카페24는 refresh 만료 7일 전이면 이때 갱신)
  *   connect_11st      { seller_login_id, api_key } → 중계 경유 출고지 조회로 키 확인(api/_elevenst.js) → 암호화 저장(쿠팡과 같은 표·방식) — 연결까지만
  *   disconnect_11st   → 11번가 계정 삭제
- *   connect_smartstore { client_id, client_secret } → 중계 경유 인증 토큰 발급으로 확인(api/_smartstore.js) → 암호화 저장(11번가와 같은 표·방식) — 연결까지만
+ *   connect_smartstore { client_id, client_secret } → 중계 경유 인증 토큰 발급으로 확인(api/_smartstore.js) → 암호화 저장(11번가와 같은 표·방식) — 보내기는 smartstore_send (2026-10-01)
  *   disconnect_smartstore → 스마트스토어 계정 삭제
  *   cafe24_begin      { mall_id, origin } → { authorizeUrl } (우리 앱 "EUCHS 스튜디오"의 카페24 동의 화면 — api/_cafe24.js, DB 쓰기 없음)
  *   cafe24_launch     { query, origin } → 쇼핑몰 관리자에서 앱을 열었을 때 App URL 쿼리 hmac 확인 → { mallId, authorizeUrl } (틀리면 400 bad_launch)
@@ -40,6 +40,10 @@
  *   disconnect_cafe24 → 카페24 계정 삭제
  *   cafe24_categories → { categories:[{ no, depth, parentNo, name, fullName }] }  (고객 쇼핑몰 상품분류 — 2026-09-30 카페24 보내기)
  *   cafe24_send       { exportId, productName, price, categoryNo?, repImageId, fit? } → 토큰 갱신(필요하면) → 이미지 업로드(대표 + 상세) → 상품 등록(진열·판매 안 함) → marketplace_sends(cafe24, registered) → { sendId, productNo, status, adminUrl }
+ *   smartstore_categories → { categories:[{ id, name, wholeName }] }  (리프 카테고리 — 2026-10-01 스마트스토어 보내기)
+ *   smartstore_addresses  → { addresses:[{ id, name, type, address, phone }], defaults:{ shipping, return } }  (판매자 주소록)
+ *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery, afterService, origin, notice }
+ *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
  *
  * 비밀: 키는 MARKETPLACE_ENC_KEY로 암호화해 marketplace_accounts에만. 응답·로그·기록(request_json)에 키·서명을 넣지 않는다.
@@ -57,7 +61,10 @@ import { resendPlan } from './_coupangFields.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
 import { verifyElevenstKey, ElevenstError } from './_elevenst.js'
-import { smartstoreToken, SmartstoreError } from './_smartstore.js'
+import {
+  smartstoreToken, SmartstoreError, smartstoreApi, SS_PATHS, buildSmartstoreProduct, normalizeSsCategories, normalizeAddressBooks, defaultAddress, uploadedImageUrls, productNosOf,
+  imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DETAIL_IMAGE_MAX, DISPLAY_STATUSES,
+} from './_smartstore.js'
 import {
   Cafe24Error, authorizeUrl, makeState, verifyState, verifyLaunch, exchangeCode, refreshAccess, missingScopes, needsRefresh, isMallId, normalizeMallId, appCredentials, redirectKeyFor, CAFE24_REDIRECT_URIS,
   cafe24Api, accessNeedsRefresh, isWon, cleanProductName, isCategoryNo, buildCafe24Product, isDisplayFlag, buildCafe24ProductImage, productImagePath, productNoOf, normalizeCategories, uploadedPaths, responseShape, CATEGORY_PAGE, CATEGORY_MAX_PAGES, cafe24AdminProductUrl,
@@ -199,7 +206,7 @@ async function disconnect(ctx, body, res) {
 
 // ── 11번가 · 스마트스토어 · 카페24 연결 (2026-09-30) ──
 // 쿠팡과 같은 표(marketplace_accounts)·같은 암호화(encryptSecret). 11번가·스마트스토어는 같은 중계(MARKETPLACE_RELAY_*), 카페24는 IP 제한이 없어 바로 부른다(api/_cafe24.js)
-// 연결까지만 — 보내기는 다음 작업. SQL docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 전이면 503 marketplace_sql_missing(원인 로그)
+// 11번가는 연결까지만(보내기는 다음 작업) · 스마트스토어 보내기 = smartstoreSend. SQL docs/sql/2026-09-30-marketplace-11st-requests.sql 실행 전이면 503 marketplace_sql_missing(원인 로그)
 // 다른 판매처(지그재그·에이블리·G마켓·옥션·메이크샵·고도몰)는 화면에 "예정"만 — 서버 action 없음 (S3-3에서 연결 신청을 걷어냄)
 const ELEVENST = '11st'
 const SMARTSTORE = 'smartstore'
@@ -577,7 +584,7 @@ async function connectElevenst(ctx, body, res) {
   return marketStatus(ctx, body, res)
 }
 // 스마트스토어 (2026-09-30) — 11번가와 같은 방식: 같은 표·같은 암호화·같은 중계. 애플리케이션 ID = access_key_enc, 시크릿 = secret_key_enc
-// 키 확인 = 중계 경유 인증 토큰 발급(api/_smartstore.js). 토큰은 저장하지 않는다. 연결까지만 — 보내기는 다음 작업
+// 키 확인 = 중계 경유 인증 토큰 발급(api/_smartstore.js). 토큰은 저장하지 않는다. 보내기는 아래 smartstoreSend (2026-10-01)
 async function connectSmartstore(ctx, body, res) {
   const encKey = encKeyOr(res)
   if (!encKey) return
@@ -613,6 +620,159 @@ async function connectSmartstore(ctx, body, res) {
 async function disconnectSmartstore(ctx, body, res) {
   await sb(ctx.cfg, `marketplace_accounts?user_id=eq.${ctx.userId}&market=eq.${SMARTSTORE}`, { method: 'DELETE', prefer: 'return=minimal' })
   return marketStatus(ctx, body, res)
+}
+
+// ── 스마트스토어 상품 보내기 (2026-10-01) ── 규칙·근거는 api/_smartstore.js (공식 문서 경로 주석)
+// 모든 네이버 호출은 연결과 같은 중계(MARKETPLACE_RELAY_*). 토큰은 action마다 새로 받고 저장하지 않는다
+// 기록: marketplace_sends(market 'smartstore', sending → registered / failed, seller_product_id = 원상품번호, result_json.channelProductNo = 채널상품번호)
+//   SQL docs/sql/2026-10-01-marketplace-sends-smartstore.sql 실행 전이면 기록을 만들 때 503 marketplace_sql_missing (네이버에 아무것도 올리기 전)
+const ADDRESS_PAGES_MAX = 5 // 주소록 500개까지
+function smartstoreFail(res, e, where) {
+  if (!(e instanceof SmartstoreError)) throw e
+  if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] 스마트스토어 ${where} 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw} — MARKETPLACE_RELAY_URL·SECRET·relay.js smartstore 대상 확인`)
+  else console.warn(`[marketplace] 스마트스토어 ${where} 실패 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+  return sendError(res, e.status === 429 ? 429 : e.code === 'invalid_input' ? 400 : 502, e.code, e.message)
+}
+/** 호출 재료 { relayUrl, relaySecret, accessToken, breakerKey } — 연결 전·복호화 실패·토큰 실패면 응답을 보내고 null */
+async function smartstoreCredentials(ctx, res) {
+  const encKey = encKeyOr(res)
+  if (!encKey) return null
+  const row = await oneAccount(ctx, SMARTSTORE, `${ELEVENST_PUBLIC},access_key_enc,secret_key_enc`)
+  if (!row?.access_key_enc || !row?.secret_key_enc) { sendError(res, 409, 'not_connected', '먼저 스마트스토어를 연결해 주세요.'); return null }
+  let clientId, clientSecret
+  try { clientId = decryptSecret(row.access_key_enc, encKey); clientSecret = decryptSecret(row.secret_key_enc, encKey) } catch (e) {
+    console.error('[marketplace] 스마트스토어 키 복호화 실패:', e.message)
+    sendError(res, 500, 'decrypt_failed', '저장된 연결 정보를 읽지 못했어요. 연결을 해제하고 다시 연결해 주세요.')
+    return null
+  }
+  const m = marketConfig()
+  let tok
+  try { tok = await smartstoreToken({ relayUrl: m.relayUrl, relaySecret: m.relaySecret, clientId, clientSecret, breakerKey: ctx.userId }) } catch (e) { smartstoreFail(res, e, 'token'); return null }
+  return { relayUrl: m.relayUrl, relaySecret: m.relaySecret, accessToken: tok.access_token, breakerKey: ctx.userId }
+}
+async function smartstoreCategories(ctx, body, res) {
+  const cred = await smartstoreCredentials(ctx, res)
+  if (!cred) return
+  let r
+  try { r = await smartstoreApi(cred, { method: 'GET', path: SS_PATHS.categories, query: 'last=true' }) } catch (e) { return smartstoreFail(res, e, 'categories') }
+  const categories = normalizeSsCategories(r.json)
+  if (!categories.length) console.error(`[marketplace] 스마트스토어 카테고리 응답에 리프가 없음 ${ctx.userId}: type=${Array.isArray(r.json) ? `array(${r.json.length})` : typeof r.json}`)
+  return res.status(200).json({ categories })
+}
+async function smartstoreAddresses(ctx, body, res) {
+  const cred = await smartstoreCredentials(ctx, res)
+  if (!cred) return
+  const addresses = []
+  try {
+    for (let page = 1; page <= ADDRESS_PAGES_MAX; page++) {
+      const r = await smartstoreApi(cred, { method: 'GET', path: SS_PATHS.addressBooks, query: `page=${page}` })
+      addresses.push(...normalizeAddressBooks(r.json))
+      const total = Number(r.json?.totalPage) || 1
+      if (page >= total) break
+      if (page === ADDRESS_PAGES_MAX) console.error(`[marketplace] 스마트스토어 주소록이 ${ADDRESS_PAGES_MAX}페이지를 넘음 — 앞부분만 ${ctx.userId}`)
+    }
+  } catch (e) { return smartstoreFail(res, e, 'addresses') }
+  return res.status(200).json({ addresses, defaults: { shipping: defaultAddress(addresses, 'shipping'), return: defaultAddress(addresses, 'return') } })
+}
+/** 화면 값 → 등록 재료 (이미지 주소는 올린 뒤에 채운다) */
+function smartstoreInput(body) {
+  const num = v => (v === '' || v == null ? NaN : Number(v))
+  const d = body.delivery && typeof body.delivery === 'object' ? body.delivery : {}
+  return {
+    productName: body.productName, salePrice: num(body.salePrice), stock: num(body.stock), leafCategoryId: body.leafCategoryId,
+    display: body.display == null || body.display === '' ? DISPLAY_STATUSES[0] : body.display, // 기본 전시중지
+    delivery: { company: d.company, feeType: d.feeType, baseFee: d.feeType === 'PAID' ? num(d.baseFee) : undefined, returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingAddressId: num(d.shippingAddressId), returnAddressId: num(d.returnAddressId) },
+    afterService: body.afterService || {}, origin: body.origin || {}, notice: body.notice || {},
+  }
+}
+async function smartstoreSend(ctx, body, res) {
+  const ex = await loadOwnedExport(ctx, body, res)
+  if (!ex) return
+  const input = smartstoreInput(body)
+  // 입력 검사를 네이버를 부르기 전에 — 이미지 주소 자리는 검사용 값
+  const pre = buildSmartstoreProduct({ ...input, repUrl: '-', detailUrls: ['-'] })
+  if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
+  if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있어요.`)
+  const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
+  if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
+  const cred = await smartstoreCredentials(ctx, res)
+  if (!cred) return
+
+  let created
+  try {
+    created = await sb(ctx.cfg, 'marketplace_sends?select=id', { method: 'POST', body: { user_id: ctx.userId, export_id: ex.id, market: SMARTSTORE, status: 'sending', request_json: {} }, prefer: 'return=representation' })
+  } catch (e) {
+    if (isSchemaGap(e)) {
+      console.error('[marketplace] 스마트스토어 전송 기록 실패 — marketplace_sends market 규칙에 smartstore 없음(docs/sql/2026-10-01-marketplace-sends-smartstore.sql 실행 필요):', e.message)
+      return sendError(res, 503, 'marketplace_sql_missing', NOT_READY_MESSAGE)
+    }
+    throw e
+  }
+  const sendId = created?.[0]?.id
+  if (!sendId) throw new Error('marketplace_sends insert: id 없음')
+  const fail = async (status, code, message, extra = {}) => {
+    await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { status: 'failed', reason: message.slice(0, 2000), ...extra }, prefer: 'return=minimal' }).catch(e => console.error('[marketplace] 실패 기록도 못 남김:', sendId, e.message))
+    return sendError(res, status, code, message)
+  }
+  const ssFail = (e, step) => {
+    if (!(e instanceof SmartstoreError)) throw e
+    if (NOT_READY_CODES.includes(e.code)) console.error(`[marketplace] 스마트스토어 ${step} 중계 문제 ${e.code} (HTTP ${e.status}): ${e.raw}`)
+    else console.warn(`[marketplace] 스마트스토어 ${step} 실패 ${e.code} (HTTP ${e.status}) send=${sendId}: ${e.raw}`)
+    return fail(e.status === 429 ? 429 : 502, e.code, e.message, { result_json: { code: e.code, status: e.status, step, raw: e.raw } })
+  }
+
+  // ① 이미지 준비 — 대표(정사각형 JPG) + 내 상품 파일. 한 장이 중계 본문 제한을 넘으면 JPG 품질만 낮춘다
+  const images = [{ buf: rep.buf, mime: 'image/jpeg' }]
+  for (const f of ex.files) {
+    const dl = await storageDownload(ctx.cfg, BUCKET, f.path)
+    if (!dl.found) {
+      console.error('[marketplace] 스마트스토어 상세 이미지 원본이 Storage에 없음:', f.path)
+      return fail(404, 'not_found', '내 상품 파일을 찾을 수 없어요. 작업을 다시 저장한 뒤 보내 주세요.')
+    }
+    let buf = dl.buf, mime = imageMime(buf)
+    if (!mime) return fail(400, 'invalid_input', '내 상품 파일 형식을 읽지 못했어요. 작업을 다시 저장한 뒤 보내 주세요.')
+    if (buf.length > UPLOAD_IMAGE_MAX) {
+      const out = await shrinkBytes(buf, { maxBytes: UPLOAD_IMAGE_MAX })
+      if (out.tooBig) {
+        console.error(`[marketplace] 스마트스토어 상세 이미지가 품질 ${out.quality}에서도 ${UPLOAD_IMAGE_MAX}바이트를 넘음: ${f.path} ${out.buf.length}`)
+        return fail(400, 'invalid_input', '상세 이미지 한 장이 너무 커요. 섹션별 여러 장으로 다시 저장해 주세요.')
+      }
+      buf = out.buf
+      mime = out.mime
+    }
+    images.push({ buf, mime })
+  }
+  // ② 이미지 업로드 — 묶음마다 한 요청(10장·본문 상한), 한 번에 한 요청씩 (문서: 스토어당 동시 요청 금지)
+  const urls = []
+  for (const group of planUploads(images.map(im => im.buf.length))) {
+    const mp = buildImageMultipart(group.map(i => images[i]))
+    let r
+    try { r = await smartstoreApi(cred, { method: 'POST', path: SS_PATHS.imageUpload, multipart: mp }) } catch (e) { return ssFail(e, 'upload') }
+    const got = uploadedImageUrls(r.json, group.length)
+    if (!got) {
+      const shape = { keys: r.json && typeof r.json === 'object' ? Object.keys(r.json).slice(0, 10) : typeof r.json, len: Array.isArray(r.json?.images) ? r.json.images.length : null, sent: group.length }
+      console.error(`[marketplace] 스마트스토어 이미지 업로드 응답 모양이 다름 send=${sendId}:`, JSON.stringify(shape))
+      return fail(502, 'market_bad_json', '네이버가 올린 이미지 주소를 주지 않았어요. 잠시 후 다시 시도해 주세요.', { result_json: { code: 'market_bad_json', step: 'upload', shape } })
+    }
+    urls.push(...got)
+  }
+  // ③ 상품 등록
+  const built = buildSmartstoreProduct({ ...input, repUrl: urls[0], detailUrls: urls.slice(1) })
+  if (!built.ok) return fail(400, 'invalid_input', built.message)
+  const requestJson = { body: built.body, categoryName: typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : null, files: Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
+  let r
+  try { r = await smartstoreApi(cred, { method: 'POST', path: SS_PATHS.products, json: built.body }) } catch (e) { return ssFail(e, 'product') }
+  const nos = productNosOf(r.text)
+  if (!nos.originProductNo) {
+    const shape = { keys: r.json && typeof r.json === 'object' ? Object.keys(r.json).slice(0, 10) : typeof r.json }
+    console.error('[marketplace] 스마트스토어 등록 응답에 originProductNo 없음:', sendId, JSON.stringify(shape))
+    return fail(502, 'market_bad_json', '네이버가 상품 번호를 주지 않았어요. 스마트스토어센터에서 상품이 등록됐는지 확인해 주세요.', { result_json: { code: 'market_bad_json', step: 'product', shape } })
+  }
+  const display = built.body.smartstoreChannelProduct.channelProductDisplayStatusType
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: nos.originProductNo, status: 'registered', result_json: { originProductNo: nos.originProductNo, channelProductNo: nos.channelProductNo, display } }, prefer: 'return=minimal' })
+  console.info(`[marketplace] 스마트스토어 상품 등록 ${ctx.userId} send=${sendId} origin=${nos.originProductNo} channel=${nos.channelProductNo} images=${urls.length} display=${display}`)
+  return res.status(200).json({ sendId, originProductNo: nos.originProductNo, channelProductNo: nos.channelProductNo, sellerProductId: nos.originProductNo, status: 'registered', display })
 }
 
 async function disconnectElevenst(ctx, body, res) {
@@ -1032,17 +1192,22 @@ async function resend(ctx, res, { cred, prev, sendId, requestJson, plan }) {
 function publicSend(s) {
   const market = s.market || MARKET
   const c24 = market === CAFE24
+  const ss = market === SMARTSTORE
   return {
     id: s.id, exportId: s.export_id, market, sellerProductId: s.seller_product_id, status: s.status, coupangStatus: s.coupang_status, reason: s.reason,
-    productName: (c24 ? s.request_json?.body?.request?.product_name : s.request_json?.body?.sellerProductName) || null, categoryName: s.request_json?.categoryName || null, revision: revisionsOf(s).length,
+    productName: (c24 ? s.request_json?.body?.request?.product_name : ss ? s.request_json?.body?.originProduct?.name : s.request_json?.body?.sellerProductName) || null, categoryName: s.request_json?.categoryName || null, revision: revisionsOf(s).length,
     adminUrl: c24 ? cafe24AdminProductUrl(s.request_json?.mallId, s.seller_product_id) : null, // 카페24 = 관리자 상품 화면
     display: c24 ? (s.request_json?.body?.request?.display === 'T' ? 'T' : 'F') : null, // 카페24 진열상태(보낸 값 — 관리자에서 바꾼 뒤는 모름)
+    // 스마트스토어 = 보낸 전시 상태(ON|SUSPENSION — 스마트스토어센터에서 바꾼 뒤는 모름) · 채널상품번호
+    ssDisplay: ss ? (s.request_json?.body?.smartstoreChannelProduct?.channelProductDisplayStatusType === 'ON' ? 'ON' : 'SUSPENSION') : null,
+    channelProductNo: ss ? (s.result_json?.channelProductNo || null) : null,
     approvalRequestedAt: s.approval_requested_at, lastSyncedAt: s.last_synced_at, createdAt: s.created_at, updatedAt: s.updated_at,
   }
 }
-// 목록은 모든 판매처 (쿠팡 + 카페24). sync는 쿠팡만(market=eq.coupang 그대로) — 카페24는 등록 즉시 끝이라 다시 읽을 상태가 없다
+// 목록은 모든 판매처 (쿠팡 + 카페24 + 스마트스토어). sync는 쿠팡만(market=eq.coupang 그대로) — 카페24·스마트스토어는 등록 즉시 끝이라 다시 읽을 상태가 없다
+// result_json은 목록에서만 더 읽는다(스마트스토어 채널상품번호) — 쿠팡 다시 보내기·sync가 쓰는 SEND_SELECT는 그대로
 async function loadSends(ctx) {
-  const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT}&user_id=eq.${ctx.userId}&market=in.(${MARKET},${CAFE24})&order=created_at.desc&limit=${SENDS_LIST_MAX}`)
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=${SEND_SELECT},result_json&user_id=eq.${ctx.userId}&market=in.(${MARKET},${CAFE24},${SMARTSTORE})&order=created_at.desc&limit=${SENDS_LIST_MAX}`)
   return (Array.isArray(rows) ? rows : []).map(publicSend)
 }
 async function sendsList(ctx, body, res) {
@@ -1157,7 +1322,10 @@ export default async function handler(req, res) {
     if (body.action === 'disconnect_cafe24') return await disconnectCafe24(ctx, body, res)
     if (body.action === 'cafe24_categories') return await cafe24Categories(ctx, body, res)
     if (body.action === 'cafe24_send') return await cafe24Send(ctx, body, res)
-    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_smartstore'·'disconnect_smartstore'·'cafe24_begin'·'cafe24_launch'·'cafe24_finish'·'disconnect_cafe24'·'cafe24_categories'·'cafe24_send' 중 하나여야 합니다.")
+    if (body.action === 'smartstore_categories') return await smartstoreCategories(ctx, body, res)
+    if (body.action === 'smartstore_addresses') return await smartstoreAddresses(ctx, body, res)
+    if (body.action === 'smartstore_send') return await smartstoreSend(ctx, body, res)
+    return sendError(res, 400, 'invalid_input', "action은 'status'·'connect'·'disconnect'·'refresh_places'·'templates_list'·'template_save'·'template_delete'·'send_prepare'·'category_predict'·'brand_search'·'category_meta'·'send'·'sends_list'·'sync'·'market_status'·'connect_11st'·'disconnect_11st'·'connect_smartstore'·'disconnect_smartstore'·'cafe24_begin'·'cafe24_launch'·'cafe24_finish'·'disconnect_cafe24'·'cafe24_categories'·'cafe24_send'·'smartstore_categories'·'smartstore_addresses'·'smartstore_send' 중 하나여야 합니다.")
   } catch (e) {
     if (e?.status === 404 || e?.status === 401 || e?.status === 403) {
       console.error(`[marketplace] ${body.action} 표를 쓸 수 없음(GRANT·표 — docs/sql/2026-09-28-marketplace-coupang.sql):`, e.message)

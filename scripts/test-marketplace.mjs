@@ -209,8 +209,11 @@ globalThis.fetch = async (url, opts = {}) => {
   const u = new URL(url)
   const method = opts.method || 'GET'
   if (u.host === 'relay.local') {
-    relay.calls.push({ path: u.pathname, query: u.search, method, headers: opts.headers, body: opts.body ? JSON.parse(opts.body) : null })
+    // 본문: JSON이면 객체로(쿠팡) — 스마트스토어 토큰(form-urlencoded)·이미지 업로드(multipart)는 원문 그대로 raw에
+    const isJson = /json/i.test(String(opts.headers?.['Content-Type'] || 'application/json'))
+    relay.calls.push({ path: u.pathname, query: u.search, method, headers: opts.headers, body: opts.body && isJson ? JSON.parse(opts.body) : null, raw: opts.body && !isJson ? Buffer.from(opts.body) : null })
     if (opts.headers['x-relay-secret'] !== 'test-relay-secret') return json({ error: 'relay secret mismatch' }, 401)
+    if (u.pathname.startsWith('/smartstore/')) return smartstoreRelay(u, method, opts)
     if (relay.mode === 'ip') return json({ code: 403, message: 'Not allowed IP' }, 403)
     if (relay.mode === 'reject' && method === 'POST' && u.pathname.endsWith('/seller-products')) return json({ code: 'ERROR', message: '카테고리 필수 속성 누락' }, 400)
     const p = u.pathname.replace(/^\/coupang/, '')
@@ -668,7 +671,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const KEYED = ['coupang', 'smartstore', '11st', 'cafe24']
   const offStates = R.MARKETS.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
   const adminOff = R.MARKETS.map(m => (KEYED.includes(m.key) ? 'locked' : 'planned'))
-  eq('판매처 줄 = MARKETS 9곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처(카페24 포함)는 연결 전 locked · 나머지 = planned(준비 중 없음) · 스마트스토어는 연결되면 linked · 카페24 연결 전 = 일반 고객·관리자 모두 locked · 연결되면 누구나 connected', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state], [R.MARKETS.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'linked', 'connected', adminOff, 'connected'])
+  eq('판매처 줄 = MARKETS 9곳·같은 순서 · 연결된 쿠팡만 connected · 키 연결 판매처(카페24 포함)는 연결 전 locked · 나머지 = planned(준비 중 없음) · 스마트스토어는 연결되면 connected(2026-10-01 보내기) · 카페24 연결 전 = 일반 고객·관리자 모두 locked · 연결되면 누구나 connected', [on.map(r => r.key), on.map(r => r.state), off.map(r => r.state), R.channelRows().map(r => r.state), R.channelRows({ smartstore: { connected: true } })[1].state, R.channelRows({ cafe24: { connected: true } }).find(r => r.key === 'cafe24').state, R.channelRows({}, { admin: true }).map(r => r.state), R.channelRows({ cafe24: { connected: true } }, { admin: true }).find(r => r.key === 'cafe24').state], [R.MARKETS.map(m => m.key), ['connected', ...offStates.slice(1)], offStates, offStates, 'connected', 'connected', adminOff, 'connected'])
 }
 
 // ── 11. 쿠팡 항목 규칙 (api/_coupangFields.js — 화면과 서버가 같이 쓰는 순수 함수) ──
@@ -791,7 +794,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('보내기 창·태그 칩: 규칙은 공용 파일에서', [/from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(modal), /from '\.\.\/\.\.\/\.\.\/api\/_coupangFields\.js'/.test(read('src/components/studio/StudioTagChips.vue'))], [true, true])
   // 판매처 목록 — 설정·랜딩이 같은 목록·같은 순서, 사정 설명 문구 없음
   const R = await import('../src/lib/studioMarketplaceRules.js')
-  eq('판매처 목록·순서 (보내기 = 쿠팡·카페24, 나머지는 soon)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang', 'cafe24']])
+  eq('판매처 목록·순서 (보내기 = 쿠팡·스마트스토어·카페24, 나머지는 soon)', [R.MARKETS.map(m => m.name), R.MARKETS.filter(m => !m.soon).map(m => m.key)], [['쿠팡', '스마트스토어', '11번가', 'G마켓·옥션', '에이블리', '지그재그', '카페24', '메이크샵', '고도몰'], ['coupang', 'smartstore', 'cafe24']])
   const mkView = read('src/views/studio/StudioMarketplaceView.vue'), landing = read('src/views/studio/StudioLandingView.vue')
   const screenTextOf = p => { const s = read(p); return s.slice(s.indexOf('<template>'), s.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '') }
   eq('연결 탭·랜딩 둘 다 공용 목록을 씀 (따로 적은 목록 없음) · 연결 신청 화면 없음(S3-3)', [/<StudioMarketRequests/.test(mkView), /const PLANNED = computed\(\(\) => MARKETS\.filter\(m => \(m\.key === 'cafe24' \? !showCafe24\.value : m\.connect === 'planned'\)\)\)/.test(mkView), /import \{ MARKETS \} from '@\/lib\/studioMarketplaceRules'/.test(landing), /v-for="m in MARKETS"/.test(landing), /'카페24'|'고도몰'|'메이크샵'/.test(mkView + landing)], [false, true, true, true, false])
@@ -802,7 +805,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     const E = await import('../api/_elevenst.js')
     const api = read('api/marketplace.js'), el = read('api/_elevenst.js'), card = read('src/components/studio/StudioElevenstCard.vue')
     const sql = read('docs/sql/2026-09-30-marketplace-11st-requests.sql')
-    eq('연결 방법: 쿠팡·스마트스토어·11번가·카페24 = 키 · 나머지 5곳 = 예정 · 보내기는 쿠팡·카페24', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.PLANNED_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key), R.PLANNED_LABEL, 'REQUEST_MARKETS' in R, 'requestProblems' in R], [['coupang', 'smartstore', '11st', 'cafe24'], ['gmarket', 'ably', 'zigzag', 'makeshop', 'godomall'], ['coupang', 'cafe24'], '예정', false, false])
+    eq('연결 방법: 쿠팡·스마트스토어·11번가·카페24 = 키 · 나머지 5곳 = 예정 · 보내기는 쿠팡·스마트스토어·카페24', [R.MARKETS.filter(m => m.connect === 'key').map(m => m.key), R.PLANNED_MARKETS, R.MARKETS.filter(m => !m.soon).map(m => m.key), R.PLANNED_LABEL, 'REQUEST_MARKETS' in R, 'requestProblems' in R], [['coupang', 'smartstore', '11st', 'cafe24'], ['gmarket', 'ably', 'zigzag', 'makeshop', 'godomall'], ['coupang', 'smartstore', 'cafe24'], '예정', false, false])
     eq('서버: 연결 신청 action·표 없음 · SQL에 marketplace_requests 만들기 없음', [/connect_request|REQUEST_MARKETS|marketplace_requests/.test(api), /create table public\.marketplace_requests/.test(sql), /marketplace_requests/.test(read('src/lib/studioMarketplace.js') + read('src/lib/studioMarketLinks.js'))], [false, false, false])
     const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { connected: true }, cafe24: { connected: true } })
     // 2026-09-30: 연결된 곳은 연결 방법(planned)보다 먼저 — 카페24가 연결돼 있으면 일반 고객도 [카페24로 보내기]. 지그재그처럼 "예정"인 곳도 값이 오면 linked(연결 자체가 없으니 실제로는 안 온다)
@@ -899,7 +902,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
         eq('연결 창: 단계 안내 컴포넌트 · 복사 버튼 · 크게 보기 · 센터 링크 새 창', [/<StudioSmartstoreGuide \/>/.test(ssCard), /data-mk-ss-copy/.test(ssGuide), /data-mk-ss-zoom[\s>]/.test(ssGuide), /:href="SMARTSTORE_API_CENTER_URL" target="_blank" rel="noopener noreferrer"/.test(ssGuide)], [true, true, true, true])
       }
       eq('화면: 카드 = 관문 · 시크릿은 password 칸 · ID 끝 4자리만 · 연결 탭에 카드', [/await studioGate\('\/studio\/channels\/connect\?link=smartstore'\)/.test(ssCard), /type="password"[^>]*data-mk-ss-f-secret/.test(ssCard), /•••• \{\{ acc\.key_last4 \}\}/.test(ssCard), /<StudioSmartstoreCard \/>/.test(mkView)], [true, true, true, true])
-      eq('보내기 탭: 스마트스토어 연결되면 "연결됨"(보내기 없음)', R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, 'linked')
+      eq('보내기 탭: 스마트스토어 연결되면 보낼 수 있음(2026-10-01 — 예전 "연결됨"만)', R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, 'connected')
     }
     // ── 카페24 — 우리 앱 "EUCHS 스튜디오" + 쇼핑몰 ID + 동의 화면 (2026-09-30 앱 방식, 가짜 응답만) ──
     {
@@ -1026,7 +1029,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     ], [true, false, true, true, true, true, true, true])
     eq('서버: 재고가 비면 본문을 만들지 않음 (임의 숫자로 채우지 않음) · 0과 37은 그대로', [C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: null }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: '' }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 0 }] }).body.items[0].maximumBuyCount, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 37 }] }).body.items[0].maximumBuyCount], [false, false, 0, 37])
   }
-  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30)', [/const SECTIONS = \{ coupang: StudioSendCoupang, cafe24: StudioSendCafe24 \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30) · 스마트스토어 섹션 추가(2026-10-01)', [/const SECTIONS = \{ coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, cafe24: StudioSendCafe24 \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
   {
     // 체크를 풀었다 다시 켜도 값이 남는다 — 섹션은 체크와 상관없이 만들어 두고(v-show로 가리기만), 빠짐·보내기는 체크된 것만
     const on = R.marketRows({ coupang: { connected: true } })
@@ -1381,9 +1384,9 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     c24send.indexOf("market: CAFE24, status: 'sending'") < c24send.indexOf("path: '/products/images'"), /marketplace_sql_missing/.test(c24send), /2026-09-30-marketplace-sends-cafe24\.sql/.test(c24send),
     /display, selling: display,/.test(read('api/_cafe24.js')), /status: 'registered'/.test(c24send), /api\/marketplace\?t=/.test(c24send),
   ], [true, true, true, true, true, true, true, true, true, true, true, true, false])
-  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록은 쿠팡+카페24', [
+  eq('서버: 응답·기록에 토큰 없음 (access_token은 헤더로만) · 쿠팡 send·sync 코드는 그대로(market=eq.coupang) · 목록은 쿠팡+카페24+스마트스토어(2026-10-01)', [
     /access_token|refresh_token|oauth_enc/.test(c24send), /Bearer \$\{c\.accessToken\}/.test(read('api/_cafe24.js')), /market=eq\.\$\{MARKET\}&seller_product_id=not\.is\.null&status=in\.\(sending,approval_pending,rejected\)/.test(api),
-    /market=in\.\(\$\{MARKET\},\$\{CAFE24\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
+    /market=in\.\(\$\{MARKET\},\$\{CAFE24\},\$\{SMARTSTORE\}\)&order=created_at\.desc/.test(api), /market: MARKET, status: 'sending', request_json: \{\} \}/.test(api),
   ], [false, true, true, true, true])
   eq('SQL: marketplace_sends market에 cafe24 · status에 registered · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24'\)\)/.test(sql), /'registered'\)\)/.test(sql), /create table|grant /.test(sql), /상태: 미실행/.test(sql)], [true, true, false, true])
 }
@@ -1483,6 +1486,202 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     body(sec, 'async function submit()').includes("exportId: props.prepare.export.id, productName: String(f.value.productName).trim(), price: f.value.price,\n      categoryNo: f.value.categoryNo ?? null, repImageId: f.value.repImageId, fit: f.value.fit, display: f.value.display,"),
     /for \(const key of picked\.value\) \{\s+const s = sections\[key\]\s+if \(!s \|\| s\.done\) continue\s+const r = await s\.submit\(\)/.test(shell),
   ], [true, true])
+}
+
+// ── 20. 스마트스토어 상품 보내기 (2026-10-01) — 가짜 중계 응답으로 보내는 요청을 고정한다 (실제 네이버 호출 없음) ──
+// 가짜 네이버(중계 /smartstore 뒤). ssRelay.mode로 실패를 흉내 낸다
+var ssRelay = { mode: 'ok', uploads: 0 }
+function smartstoreRelay(u, method, opts) {
+  const p = u.pathname.replace(/^\/smartstore/, '')
+  if (p === '/external/v1/oauth2/token' && method === 'POST') return json({ access_token: 'ss-access-token', expires_in: 10800, token_type: 'Bearer' })
+  if (opts.headers.Authorization !== 'Bearer ss-access-token') return json({ code: 'GW.AUTHN', message: '요청을 보낼 권한이 없습니다.' }, 401)
+  if (p === '/external/v1/categories' && method === 'GET') return json([
+    { wholeCategoryName: '생활/건강>주방용품>잔/컵>머그컵', id: '50000999', name: '머그컵', last: true },
+    { wholeCategoryName: '생활/건강>주방용품', id: '50000100', name: '주방용품', last: false },
+    { wholeCategoryName: '가구/인테리어>수납', id: '50000555', name: '수납', last: true },
+  ])
+  if (p === '/external/v1/seller/addressbooks-for-page' && method === 'GET') {
+    const page = Number(new URLSearchParams(u.search).get('page'))
+    const A = (no, name, type) => ({ addressBookNo: no, name, addressType: type, baseAddress: '광주 북구', detailAddress: '1층', address: '광주 북구 1층', phoneNumber1: '010-0000-0000' })
+    return json(page === 1 ? { addressBooks: [A(101, '본사', 'REPRESENTATIVE'), A(102, '물류창고', 'RELEASE')], page: 1, totalPage: 2 } : { addressBooks: [A(103, '반품센터', 'REFUND_OR_EXCHANGE')], page: 2, totalPage: 2 })
+  }
+  if (p === '/external/v1/product-images/upload' && method === 'POST') {
+    if (ssRelay.mode === 'upload-fail') return json({ code: 'BAD_REQUEST', message: '올바른 이미지 파일이 아닙니다.' }, 400)
+    const n = (Buffer.from(opts.body).toString('latin1').match(/name="imageFiles"/g) || []).length
+    return json({ images: Array.from({ length: n }, () => ({ url: `https://shop-phinf.pstatic.net/test/${++ssRelay.uploads}.jpg` })) })
+  }
+  if (p === '/external/v2/products' && method === 'POST') {
+    if (ssRelay.mode === 'reject') return json({ code: 'BAD_REQUEST', message: '상품 등록 실패', invalidInputs: [{ name: 'originProduct.leafCategoryId', type: 'NotNull', message: '카테고리를 입력해주세요.' }] }, 400)
+    // int64 — JS 안전 정수를 넘는 번호도 글자 그대로 읽는지
+    return new Response('{"originProductNo":9007199254740993,"smartstoreChannelProductNo":12345678901,"originProduct":{"statusType":"SALE"}}', { status: 200, headers: { 'Content-Type': 'application/json;charset=UTF-8' } })
+  }
+  return json({ code: 'NOT_FOUND', message: 'no route' }, 404)
+}
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const S = await import('../api/_smartstore.js')
+  const SF = await import('../api/_smartstoreFields.js')
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const { default: sharp } = await import('sharp')
+
+  // 1) 등록 본문 — 문서 필수 칸만 · 화면 값 그대로 · 모르는 칸 없음
+  const IN = {
+    productName: ' 매일 쓰는\n머그 ', salePrice: 12900, stock: 30, leafCategoryId: '50000999', repUrl: 'https://shop-phinf.pstatic.net/a/rep.jpg', detailUrls: ['https://shop-phinf.pstatic.net/a/1.jpg', 'https://shop-phinf.pstatic.net/a/2.jpg'], display: 'SUSPENSION',
+    delivery: { company: 'CJGLS', feeType: 'FREE', returnFee: 3000, exchangeFee: 6000, shippingAddressId: 102, returnAddressId: 103 },
+    afterService: { phone: '010-1234-5678', guide: '상세페이지 참조' }, origin: { code: '03' }, notice: { itemName: '머그컵', modelName: 'MUG-01', manufacturer: '이유씨' },
+  }
+  const b = S.buildSmartstoreProduct(IN)
+  eq('스마트스토어 본문: 전체 모양 고정 (등록 = statusType SALE · 전시중지 · 네이버쇼핑 등록 false · 기타 재화 고시 · 원산지 03 · 무료배송 · 주소록 번호)', b, { ok: true, body: {
+    originProduct: {
+      statusType: 'SALE', leafCategoryId: '50000999', name: '매일 쓰는 머그',
+      detailContent: '<div style="text-align:center"><img src="https://shop-phinf.pstatic.net/a/1.jpg" alt="매일 쓰는 머그 상세 1" style="max-width:100%;height:auto;display:block;margin:0 auto" /><img src="https://shop-phinf.pstatic.net/a/2.jpg" alt="매일 쓰는 머그 상세 2" style="max-width:100%;height:auto;display:block;margin:0 auto" /></div>',
+      images: { representativeImage: { url: 'https://shop-phinf.pstatic.net/a/rep.jpg' } }, salePrice: 12900, stockQuantity: 30,
+      deliveryInfo: { deliveryType: 'DELIVERY', deliveryAttributeType: 'NORMAL', deliveryCompany: 'CJGLS', deliveryFee: { deliveryFeeType: 'FREE' }, claimDeliveryInfo: { returnDeliveryFee: 3000, exchangeDeliveryFee: 6000, shippingAddressId: 102, returnAddressId: 103 } },
+      detailAttribute: {
+        afterServiceInfo: { afterServiceTelephoneNumber: '010-1234-5678', afterServiceGuideContent: '상세페이지 참조' }, originAreaInfo: { originAreaCode: '03' }, minorPurchasable: true,
+        productInfoProvidedNotice: { productInfoProvidedNoticeType: 'ETC', etc: { itemName: '머그컵', modelName: 'MUG-01', manufacturer: '이유씨', customerServicePhoneNumber: '010-1234-5678' } },
+      },
+    },
+    smartstoreChannelProduct: { naverShoppingRegistration: false, channelProductDisplayStatusType: 'SUSPENSION' },
+  } })
+  const paid = S.buildSmartstoreProduct({ ...IN, display: 'ON', delivery: { ...IN.delivery, feeType: 'PAID', baseFee: 3000 }, origin: { code: '04', content: '중국' } })
+  eq('유료배송 = PAID + baseFee + PREPAID · 원산지 직접 입력 = 04 + content · 전시중 = ON', [paid.body.originProduct.deliveryInfo.deliveryFee, paid.body.originProduct.detailAttribute.originAreaInfo, paid.body.smartstoreChannelProduct.channelProductDisplayStatusType], [{ deliveryFeeType: 'PAID', baseFee: 3000, deliveryFeePayType: 'PREPAID' }, { originAreaCode: '04', content: '중국' }, 'ON'])
+  const bad = o => S.buildSmartstoreProduct({ ...IN, ...o }).ok
+  eq('본문 거절: 판매가 0·소수 · 재고 음수·빈값 · 카테고리 없음 · 전시 WAIT · 택배사 모름 · 유료인데 배송비 없음 · 주소 없음 · A/S 없음 · 04인데 원산지 없음 · 고시 빈칸 · 이미지 없음 (임의 값으로 채우지 않음)', [
+    bad({ salePrice: 0 }), bad({ salePrice: 12.5 }), bad({ stock: -1 }), bad({ stock: NaN }), bad({ leafCategoryId: '' }), bad({ display: 'WAIT' }), bad({ display: undefined }),
+    bad({ delivery: { ...IN.delivery, company: 'XX' } }), bad({ delivery: { ...IN.delivery, feeType: 'PAID' } }), bad({ delivery: { ...IN.delivery, shippingAddressId: null } }),
+    bad({ afterService: { phone: '', guide: 'x' } }), bad({ origin: { code: '04' } }), bad({ origin: { code: '02' } }), bad({ notice: { ...IN.notice, modelName: ' ' } }), bad({ repUrl: '' }), bad({ detailUrls: [] }),
+  ], Array(16).fill(false))
+  eq('재고 0은 그대로(품절로 등록 — 문서) · 상세 HTML에 우리 토큰 주소·스크립트 없음 · 이스케이프', [S.buildSmartstoreProduct({ ...IN, stock: 0 }).body.originProduct.stockQuantity, /api\/marketplace\?t=|<script/.test(b.body.originProduct.detailContent), /<b>|"x"/.test(S.ssDetailHtml(['https://x/a.jpg?a="x"'], '<b>머그</b>'))], [0, false, false])
+  eq('공용 값: 전시 상태 = 문서 ON·SUSPENSION(기본 SUSPENSION) · 택배사 5곳 = 문서 코드 · 서버가 같은 파일을 다시 내보냄', [SF.DISPLAY_STATUSES, SF.SS_DELIVERY_COMPANIES.map(c => c.code), S.DISPLAY_STATUSES === SF.DISPLAY_STATUSES, S.SS_DELIVERY_COMPANIES === SF.SS_DELIVERY_COMPANIES], [['SUSPENSION', 'ON'], ['CJGLS', 'HYUNDAI', 'HANJIN', 'KGB', 'EPOST'], true, true])
+
+  // 2) 응답·업로드 규칙
+  eq('응답 읽기: 카테고리는 리프만·전체 이름 순 · 주소록 번호·유형 · 기본 출고지 RELEASE·반품지 REFUND_OR_EXCHANGE', [
+    S.normalizeSsCategories([{ wholeCategoryName: 'B>b', id: '2', name: 'b', last: true }, { wholeCategoryName: 'A', id: '1', name: 'A', last: false }, { wholeCategoryName: 'A>a', id: '3', name: 'a', last: true }, { id: 'x', last: true }]).map(c => c.id),
+    S.normalizeAddressBooks({ addressBooks: [{ addressBookNo: 7, name: 'n', addressType: 'RELEASE', address: '주소' }, { addressBookNo: 'x' }] }),
+    S.defaultAddress([{ id: 1, type: 'REPRESENTATIVE' }, { id: 2, type: 'RELEASE' }, { id: 3, type: 'REFUND_OR_EXCHANGE' }], 'shipping'), S.defaultAddress([{ id: 2, type: 'RELEASE' }, { id: 3, type: 'REFUND_OR_EXCHANGE' }], 'return'), S.defaultAddress([], 'return'),
+  ], [['3', '2'], [{ id: 7, name: 'n', type: 'RELEASE', address: '주소', phone: '' }], 2, 3, null])
+  eq('등록 응답 번호: int64를 글자 그대로(정밀도 손실 없음) · 없으면 null · 업로드 응답 장 수가 다르면 null', [
+    S.productNosOf('{"originProductNo":9007199254740993,"smartstoreChannelProductNo":12}'), S.productNosOf('{"x":1}'),
+    S.uploadedImageUrls({ images: [{ url: 'a' }, { url: 'b' }] }, 2), S.uploadedImageUrls({ images: [{ url: 'a' }] }, 2), S.uploadedImageUrls({ images: [{ url: '' }] }, 1), S.uploadedImageUrls(null, 1),
+  ], [{ originProductNo: '9007199254740993', channelProductNo: '12' }, { originProductNo: null, channelProductNo: null }, ['a', 'b'], null, null, null])
+  eq('업로드 묶음: 한 요청 10장 이하 · 본문 상한(중계 5MB 안) 이하 · 순서 그대로', [
+    S.planUploads(Array(23).fill(1000)).map(g => g.length), S.planUploads([2000000, 2000000, 2000000]).map(g => g.length), S.planUploads([4400000, 200000, 100]), S.UPLOAD_BODY_MAX < 5 * 1024 * 1024, S.UPLOAD_FILES_MAX,
+  ], [[10, 10, 3], [2, 1], [[0], [1, 2]], true, 10])
+  {
+    const png = Buffer.from([0x89, 0x50, 0x4E, 0x47, 1, 2]), jp = Buffer.from([0xFF, 0xD8, 0xFF, 9])
+    const mp = S.buildImageMultipart([{ buf: jp, mime: 'image/jpeg' }, { buf: png, mime: 'image/png' }], 'BND')
+    const txt = mp.body.toString('latin1')
+    eq('multipart: 칸 이름 imageFiles 반복 · 장마다 실제 형식 Content-Type·확장자 · boundary 머리·끝', [mp.contentType, (txt.match(/name="imageFiles"/g) || []).length, /filename="01\.jpg"\r\nContent-Type: image\/jpeg/.test(txt), /filename="02\.png"\r\nContent-Type: image\/png/.test(txt), txt.endsWith('--BND--\r\n'), mp.body.includes(png) && mp.body.includes(jp)], ['multipart/form-data; boundary=BND', 2, true, true, true, true])
+    eq('실제 형식은 바이트로 (JPG·PNG·GIF · 그 밖은 null)', [S.imageMime(jp), S.imageMime(png), S.imageMime(Buffer.from('GIF89a')), S.imageMime(Buffer.from('RIFFxxxxWEBP'))], ['image/jpeg', 'image/png', 'image/gif', null])
+  }
+  eq('오류 번역: 400 = 네이버 문구 + invalidInputs · 401 = 다시 연결 · 403 = API 그룹 · IP · 중계 = 준비 문구 · 성공 null · 내부 용어 없음', (() => {
+    const all = [[400, '{"code":"BAD_REQUEST","message":"상품 등록 실패","invalidInputs":[{"name":"originProduct.name","message":"상품명을 입력해주세요."}]}'], [401, '{"code":"GW.AUTHN"}'], [403, ''], [403, 'GW.IP_NOT_ALLOWED'], [0, ''], [401, 'relay secret mismatch'], [429, ''], [500, ''], [200, '']].map(([s, t]) => S.translateSmartstoreApi(s, t))
+    return [all.map(x => x && x.code), all[0].message.includes('originProduct.name: 상품명을 입력해주세요.'), all.filter(Boolean).some(x => /관리자|서버|암호화|중계|relay|토큰/i.test(x.message))]
+  })(), [['market_rejected', 'token_invalid', 'scope_denied', 'ip_not_allowed', 'relay_unreachable', 'relay_denied', 'rate_limited', 'market_server', null], true, false])
+
+  // 3) handler — 가짜 Supabase + 가짜 중계(/smartstore)
+  const SPID = '66666666-6666-4666-8666-666666666666', SEID = '77777777-7777-4777-8777-777777777777', SIMG = '88888888-8888-4888-8888-888888888888'
+  const folder = `${UID}/${SPID}/exports/20261001-090000-ss01`
+  db.studio_projects.push({ id: SPID, user_id: UID, title: '머그' })
+  db.studio_exports.push({ id: SEID, user_id: UID, project_id: SPID, folder, title: '매일 쓰는 머그', format: 'jpg', mode: 'sections', files: [{ key: '01', name: 'a_01.jpg', path: `${folder}/01.jpg`, width: 780, height: 900 }, { key: '02', name: 'a_02.png', path: `${folder}/02.png`, width: 780, height: 400 }] })
+  db.studio_images.push({ id: SIMG, user_id: UID, project_id: SPID, original_path: `${UID}/${SPID}/orig/m.png`, width: 800, height: 600, sort_order: 0, included: true, ingest_status: 'done' })
+  files.set(`${UID}/${SPID}/orig/m.png`, await sharp({ create: { width: 800, height: 600, channels: 3, background: { r: 0, g: 120, b: 200 } } }).png().toBuffer())
+  files.set(`${folder}/01.jpg`, await sharp({ create: { width: 780, height: 900, channels: 3, background: { r: 250, g: 250, b: 250 } } }).jpeg().toBuffer())
+  files.set(`${folder}/02.png`, await sharp({ create: { width: 780, height: 400, channels: 3, background: { r: 10, g: 10, b: 10 } } }).png().toBuffer())
+  const SS_SALT = '$2a$10$abcdefghijklmnopqrstuv'
+  const UI = {
+    exportId: SEID, productName: '매일 쓰는 머그', salePrice: 12900, stock: 30, leafCategoryId: '50000999', categoryName: '생활/건강>주방용품>잔/컵>머그컵', repImageId: SIMG, fit: 'contain',
+    delivery: { company: 'CJGLS', feeType: 'FREE', baseFee: null, returnFee: 3000, exchangeFee: 6000, shippingAddressId: 102, returnAddressId: 103 },
+    afterService: { phone: '010-1234-5678', guide: '상세페이지 참조' }, origin: { code: '03' }, notice: { itemName: '머그컵', modelName: 'MUG-01', manufacturer: '이유씨' },
+  }
+  eq('연결 전 → 409 not_connected (카테고리·주소록·보내기 모두) · 기록 안 만듦', [(await post('smartstore_categories')).body.code, (await post('smartstore_addresses')).body.code, (await post('smartstore_send', UI)).body.code, db.marketplace_sends.filter(s => s.market === 'smartstore').length], ['not_connected', 'not_connected', 'not_connected', 0])
+  db.marketplace_accounts.push({ id: newId(), user_id: UID, market: 'smartstore', seller_login_id: '내 스토어 애플리케이션', vendor_id: null, access_key_enc: encryptSecret('ss-app-id-1', K), secret_key_enc: encryptSecret(SS_SALT, K), key_last4: 'id-1', expires_at: null, status: 'connected' })
+
+  relay.calls = []
+  const cats = await post('smartstore_categories')
+  eq('카테고리: 토큰(중계 /smartstore + 공식 경로) → GET /v1/categories?last=true · 리프만', [cats.statusCode, cats.body.categories.map(c => c.id), relay.calls.map(c => `${c.method} ${c.path}${c.query}`)], [200, ['50000555', '50000999'], ['POST /smartstore/external/v1/oauth2/token', 'GET /smartstore/external/v1/categories?last=true']])
+  eq('네이버 호출 헤더: Bearer 토큰 · 중계 비밀 · 시크릿·서명은 상품 API 요청에 없음', [relay.calls[1].headers.Authorization, relay.calls[1].headers['x-relay-secret'], JSON.stringify(relay.calls[1]).includes(SS_SALT)], ['Bearer ss-access-token', 'test-relay-secret', false])
+  relay.calls = []
+  const ad = await post('smartstore_addresses')
+  eq('주소록: 페이지 끝까지(totalPage) · 기본 출고지 102(RELEASE)·반품지 103(REFUND_OR_EXCHANGE)', [ad.statusCode, ad.body.addresses.map(a => a.id), ad.body.defaults, relay.calls.filter(c => c.path.endsWith('addressbooks-for-page')).map(c => c.query)], [200, [101, 102, 103], { shipping: 102, return: 103 }, ['?page=1', '?page=2']])
+
+  // 입력이 틀리면 네이버를 부르지 않고 기록도 안 만든다
+  relay.calls = []
+  const nSend = db.marketplace_sends.length
+  const iv = await post('smartstore_send', { ...UI, stock: '' })
+  eq('재고 비움 → 400 · 네이버 호출 0 · 기록 안 만듦 (0으로 채우지 않음)', [iv.statusCode, iv.body.code, relay.calls.length, db.marketplace_sends.length], [400, 'invalid_input', 0, nSend])
+  eq('전시 상태가 문서 밖 값(WAIT) → 400 · 대표 사진 남의 것 → 400', [(await post('smartstore_send', { ...UI, display: 'WAIT' })).statusCode, (await post('smartstore_send', { ...UI, repImageId: newId() })).body.code], [400, 'rep_image_invalid'])
+
+  // SQL 실행 전(market 규칙에 smartstore 없음)이면 네이버에 올리기 전에 503
+  const realFetch = globalThis.fetch
+  globalThis.fetch = async (url, o = {}) => (new URL(url).pathname === '/rest/v1/marketplace_sends' && (o.method || 'GET') === 'POST' && JSON.parse(o.body).market === 'smartstore'
+    ? json({ code: '23514', message: 'new row for relation "marketplace_sends" violates check constraint "marketplace_sends_market_check"' }, 400) : realFetch(url, o))
+  relay.calls = []
+  const gap = await post('smartstore_send', UI)
+  globalThis.fetch = realFetch
+  eq('SQL 실행 전 → 503 marketplace_sql_missing · 이미지 업로드·상품 등록 호출 없음', [gap.statusCode, gap.body.code, relay.calls.filter(c => /upload|v2\/products/.test(c.path)).length], [503, 'marketplace_sql_missing', 0])
+
+  // 성공
+  relay.calls = []
+  ssRelay.uploads = 0
+  const ok = await post('smartstore_send', UI)
+  const rec = db.marketplace_sends.at(-1)
+  const ups = relay.calls.filter(c => c.path.endsWith('/product-images/upload')), prod = relay.calls.find(c => c.path.endsWith('/external/v2/products'))
+  eq('보내기 성공: 200 registered · 원상품번호(int64 글자 그대로)·채널상품번호 · 기본 전시중지', [ok.statusCode, ok.body.status, ok.body.originProductNo, ok.body.channelProductNo, ok.body.display], [200, 'registered', '9007199254740993', '12345678901', 'SUSPENSION'])
+  eq('기록: market smartstore · registered · seller_product_id = 원상품번호 · result_json = 두 번호 + 전시상태', [rec.market, rec.status, rec.seller_product_id, rec.result_json], ['smartstore', 'registered', '9007199254740993', { originProductNo: '9007199254740993', channelProductNo: '12345678901', display: 'SUSPENSION' }])
+  eq('순서: 토큰 → 이미지 업로드 → 상품 등록 (다른 호출 없음)', relay.calls.map(c => c.path.replace('/smartstore/external', '')), ['/v1/oauth2/token', '/v1/product-images/upload', '/v2/products'])
+  {
+    const raw = ups[0].raw.toString('latin1')
+    eq('이미지 업로드: multipart · 대표(JPG) + 상세 2장(JPG·PNG 실제 형식) = 한 요청 3장 · 본문 상한 이하', [/^multipart\/form-data; boundary=/.test(ups[0].headers['Content-Type']), (raw.match(/name="imageFiles"/g) || []).length, [...raw.matchAll(/Content-Type: (image\/\w+)/g)].map(m => m[1]), ups[0].raw.length <= S.UPLOAD_BODY_MAX], [true, 3, ['image/jpeg', 'image/jpeg', 'image/png'], true])
+    const repBuf = ups[0].raw.subarray(ups[0].raw.indexOf(Buffer.from('\r\n\r\n')) + 4)
+    const meta = await sharp(repBuf.subarray(0, repBuf.indexOf(Buffer.from('\r\n--')))).metadata()
+    eq('대표 이미지 = 서버가 원본으로 만든 정사각형 1000 JPG', [meta.format, meta.width, meta.height], ['jpeg', 1000, 1000])
+  }
+  eq('상품 등록 본문 = buildSmartstoreProduct(화면 값 + 네이버가 준 주소) 그대로 · 대표 = 첫 주소 · 상세 = 나머지 · JSON', [prod.headers['Content-Type'], prod.body, rec.request_json.body], ['application/json', S.buildSmartstoreProduct({ ...IN, productName: UI.productName, repUrl: 'https://shop-phinf.pstatic.net/test/1.jpg', detailUrls: ['https://shop-phinf.pstatic.net/test/2.jpg', 'https://shop-phinf.pstatic.net/test/3.jpg'] }).body, prod.body])
+  eq('기록·응답에 키·시크릿·토큰 없음', /ss-app-id-1|abcdefghijklmnopqrstuv|ss-access-token|test-relay-secret/.test(JSON.stringify(rec) + JSON.stringify(ok.body)), false)
+  const listed = (await post('sends_list')).body.sends.find(s => s.id === rec.id)
+  eq('보낸 상품 목록: 스마트스토어 줄 · 상품명 · 카테고리 · 전시상태 · 채널상품번호 · request_json 원문 없음', [listed.market, listed.status, listed.productName, listed.categoryName, listed.ssDisplay, listed.channelProductNo, 'request_json' in listed, 'result_json' in listed], ['smartstore', 'registered', '매일 쓰는 머그', '생활/건강>주방용품>잔/컵>머그컵', 'SUSPENSION', '12345678901', false, false])
+
+  // 네이버 거절·업로드 실패 → failed + 네이버 문구
+  ssRelay.mode = 'reject'
+  const rj = await post('smartstore_send', UI)
+  eq('등록 거절 → failed 기록 + 네이버 문구(invalidInputs)', [rj.statusCode, rj.body.code, rj.body.message.includes('카테고리를 입력해주세요.'), db.marketplace_sends.at(-1).status, db.marketplace_sends.at(-1).result_json.step], [502, 'market_rejected', true, 'failed', 'product'])
+  ssRelay.mode = 'upload-fail'
+  relay.calls = []
+  const uf = await post('smartstore_send', UI)
+  eq('업로드 실패 → failed · 상품 등록은 부르지 않음', [uf.body.code, db.marketplace_sends.at(-1).status, db.marketplace_sends.at(-1).result_json.step, relay.calls.some(c => c.path.endsWith('/v2/products'))], ['market_rejected', 'failed', 'upload', false])
+  ssRelay.mode = 'ok'
+
+  // 화면 배선
+  const shell = read('src/components/studio/StudioSendModal.vue'), sec = read('src/components/studio/StudioSendSmartstore.vue'), lib = read('src/lib/studioMarketplace.js'), api = read('api/marketplace.js'), sv = read('src/views/studio/StudioChannelSendView.vue'), sl = read('src/components/studio/StudioSendList.vue')
+  const tpl = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
+  eq('보내기 창: 스마트스토어 섹션 = 같은 모양(missing·busy·done·submit) · 연결되면 체크 가능(soon 없음) · 버튼 "스마트스토어로 보내기"', [
+    /smartstore: StudioSendSmartstore/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), 'soon' in R.MARKETS.find(m => m.key === 'smartstore'),
+    R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, R.sendButtonLabel(['smartstore']),
+  ], [true, true, false, 'connected', '스마트스토어로 보내기'])
+  eq('섹션: 판매 상태 기본 전시중지(DISPLAY_STATUSES[0]) · 라디오 전시중지/전시중 · 판매상태는 판매중으로 등록 안내 · 요약 표에 판매상태·전시상태 · 공용 파일만 import(서버 모듈 안 씀)', [
+    sec.includes('display: DISPLAY_STATUSES[0], // 기본 전시중지'), /data-mk-ss-display-off \/> 전시중지/.test(sec) && /data-mk-ss-display-on \/> 전시중/.test(sec), sec.includes('네이버 등록 규칙상 판매상태는 판매중으로 등록됩니다. 전시중지 상품은 스토어에 노출되지 않습니다.'),
+    /label: '판매상태', value: '판매중'/.test(sec) && /label: '전시상태', value: DISPLAY_LABEL\[v\.display\]/.test(sec), /from '\.\.\/\.\.\/\.\.\/api\/_smartstoreFields\.js'/.test(sec), /api\/_smartstore\.js'/.test(sec),
+  ], [true, true, true, true, true, false])
+  eq('섹션 문구: 합니다체·명사형 (대화체 없음) · 결과 "등록되었습니다" · 빈 값 "미입력" · 카테고리·주소록은 sendCache로 한 번만', [
+    /(어요|예요|해요|돼요|아요|워요|네요|줘요|까요|에요)[.!?]|주세요/.test(tpl(sec)), /등록되었습니다\. 원상품번호/.test(sec), /'미입력'/.test(sec),
+    /const sendCache = inject\(SEND_CACHE_KEY, null\)/.test(sec) && /cached\('smartstoreCategories', listSmartstoreCategories\)/.test(sec) && /cached\('smartstoreAddresses', listSmartstoreAddresses\)/.test(sec),
+  ], [false, true, true, true])
+  eq('배선: 라이브러리 action 3개 · 서버 action 3개(studioGuard 뒤) · 보내기 탭 결과 문구 · 보낸 상품 카드 전시상태', [
+    ["call('smartstore_categories')", "call('smartstore_addresses')", "call('smartstore_send', payload)"].every(x => lib.includes(x)),
+    ['smartstore_categories', 'smartstore_addresses', 'smartstore_send'].every(a => api.includes(`body.action === '${a}'`)), api.indexOf('const ctx = await studioGuard(req, res)') < api.indexOf("body.action === 'smartstore_send'"),
+    sv.includes('스마트스토어에 등록되었습니다.'), /data-mk-send-ss-display/.test(sl),
+  ], [true, true, true, true, true])
+  const ssSend = /async function smartstoreSend[\s\S]*?\n\}/.exec(api)[0]
+  eq('서버 순서: 입력 검사 → 대표 사진 → 토큰 → 기록(sending) → 업로드 → 등록 → registered · 우리 토큰 주소(?t=) 안 씀 · SQL 파일 이름', [
+    ssSend.indexOf('buildSmartstoreProduct({ ...input, repUrl') < ssSend.indexOf('squareFromImage'), ssSend.indexOf('squareFromImage') < ssSend.indexOf('smartstoreCredentials'), ssSend.indexOf('smartstoreCredentials') < ssSend.indexOf("market: SMARTSTORE, status: 'sending'"),
+    ssSend.indexOf("status: 'sending'") < ssSend.indexOf('SS_PATHS.imageUpload'), ssSend.indexOf('SS_PATHS.imageUpload') < ssSend.indexOf('SS_PATHS.products'), /makeImageToken|urlOf\(/.test(ssSend), /2026-10-01-marketplace-sends-smartstore\.sql/.test(ssSend),
+  ], [true, true, true, true, true, false, true])
+  const sql = read('docs/sql/2026-10-01-marketplace-sends-smartstore.sql')
+  eq('SQL: market에 coupang·cafe24 유지 + smartstore · 되돌리기 있음 · 새 표·GRANT 없음 · 미실행 표시', [/check \(market in \('coupang', 'cafe24', 'smartstore'\)\)/.test(sql), /-- alter table public\.marketplace_sends add constraint marketplace_sends_market_check check \(market in \('coupang', 'cafe24'\)\);/.test(sql), /create table|grant /i.test(sql.replace(/GRANT 변경 없음/g, '')), /상태: 미실행/.test(sql)], [true, true, false, true])
+  // 쿠팡·카페24 보내기는 그대로 — 이 작업이 그 파일들을 바꾸지 않았다 (본문 값은 위 7·19번 묶음이 고정)
+  eq('범위: 쿠팡·카페24 보내기 코드에 스마트스토어가 섞이지 않음', [/smartstore/i.test(read('api/_coupang.js') + read('api/_coupangFields.js') + read('api/_cafe24.js') + read('src/components/studio/StudioSendCoupang.vue') + read('src/components/studio/StudioSendCafe24.vue')), /async function send\(ctx[\s\S]*?\n\}/.exec(api)[0].includes('smartstore'), /async function cafe24Send[\s\S]*?\n\}/.exec(api)[0].includes('smartstore')], [false, false, false])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

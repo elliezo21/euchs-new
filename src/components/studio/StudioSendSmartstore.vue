@@ -1,0 +1,362 @@
+<template>
+  <div class="space-y-5 st-border rounded-[12px] p-4" data-mk-ss>
+    <h4 class="st-h-card">스마트스토어</h4>
+
+    <!-- 상품명 -->
+    <label class="block">
+      <span class="st-label">상품명 *</span>
+      <input v-model="f.productName" type="text" class="st-input w-full" maxlength="300" placeholder="상품명을 입력하세요" :disabled="!!done" data-mk-ss-name />
+    </label>
+
+    <!-- 카테고리 (리프만 — 서버 smartstore_categories) -->
+    <div class="block" data-mk-ss-category-box>
+      <span class="st-label">카테고리 *</span>
+      <p v-if="catLoading" class="st-desc-sm" data-mk-ss-cat-loading>카테고리 목록을 불러오는 중…</p>
+      <template v-else-if="categories.length">
+        <input v-model="catQuery" type="text" class="st-input w-full mb-1.5" placeholder="카테고리 검색 (예: 머그컵)" :disabled="!!done" data-mk-ss-cat-search />
+        <select v-model="f.leafCategoryId" class="st-input w-full" :disabled="!!done" data-mk-ss-category>
+          <option :value="null">카테고리 선택</option>
+          <option v-for="c in catOptions" :key="c.id" :value="c.id">{{ c.wholeName }}</option>
+        </select>
+        <span class="st-desc-sm block mt-1">검색 결과 {{ catMatches.length.toLocaleString('ko-KR') }}건<template v-if="catMatches.length > CAT_SHOWN"> · 앞 {{ CAT_SHOWN }}건 표시</template></span>
+      </template>
+      <p v-if="catError" class="mt-1 text-[12px] break-keep" :class="catSoft ? 'st-muted' : 'st-danger-text'" data-mk-ss-cat-error>{{ catError }}
+        <button type="button" class="st-link ml-1" data-mk-ss-cat-retry @click="loadCategories">다시 불러오기</button></p>
+    </div>
+
+    <!-- 판매가 · 재고 -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label class="block">
+        <span class="st-label">판매가 *</span>
+        <input v-model.number="f.salePrice" type="number" min="1" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-ss-price />
+      </label>
+      <label class="block">
+        <span class="st-label">재고 수량 *</span>
+        <input v-model.number="f.stock" type="number" min="0" step="1" class="st-input w-full" placeholder="개" :disabled="!!done" data-mk-ss-stock />
+        <span class="st-desc-sm block mt-1">0이면 품절로 등록됩니다.</span>
+      </label>
+    </div>
+
+    <!-- 대표 이미지 -->
+    <div class="block">
+      <span class="st-label">대표 이미지 *</span>
+      <div v-if="!prepare.images.length" class="st-desc">이 작업에 사진이 없습니다.</div>
+      <div v-else class="grid grid-cols-4 sm:grid-cols-6 gap-2" data-mk-ss-images>
+        <button v-for="im in prepare.images" :key="im.id" type="button" class="aspect-square rounded-[8px] overflow-hidden st-border" :class="f.repImageId === im.id ? 'ring-2 ring-[var(--st-accent)]' : ''" :disabled="!!done" :data-mk-ss-image="im.id" @click="f.repImageId = im.id">
+          <img :src="im.url" alt="" class="w-full h-full object-cover" loading="lazy" />
+        </button>
+      </div>
+      <label class="flex items-center gap-2 text-[12px] st-muted mt-2"><input v-model="f.fit" type="radio" value="contain" :disabled="!!done" /> 여백 채우기 <input v-model="f.fit" type="radio" value="cover" class="ml-3" :disabled="!!done" /> 중앙 자르기</label>
+      <span class="st-desc-sm block mt-1">1000×1000으로 자동 변환됩니다. 상세 이미지는 내 상품 {{ prepare.export.files.length }}장을 사용합니다.</span>
+    </div>
+
+    <!-- 배송 -->
+    <div class="block space-y-2" data-mk-ss-delivery>
+      <span class="st-label">배송 *</span>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <label class="block">
+          <span class="st-desc-sm block mb-1">택배사</span>
+          <select v-model="f.company" class="st-input w-full" :disabled="!!done" data-mk-ss-company>
+            <option v-for="c in SS_DELIVERY_COMPANIES" :key="c.code" :value="c.code">{{ c.name }}</option>
+          </select>
+        </label>
+        <div class="block">
+          <span class="st-desc-sm block mb-1">배송비</span>
+          <label class="flex items-center gap-2 text-[13px] st-ink">
+            <input v-model="f.feeType" type="radio" value="FREE" :disabled="!!done" data-mk-ss-fee-free /> 무료
+            <input v-model="f.feeType" type="radio" value="PAID" class="ml-3" :disabled="!!done" data-mk-ss-fee-paid /> 유료(선결제)
+          </label>
+          <input v-if="f.feeType === 'PAID'" v-model.number="f.baseFee" type="number" min="1" step="1" class="st-input w-full mt-1.5" placeholder="기본 배송비 (원)" :disabled="!!done" data-mk-ss-base-fee />
+        </div>
+        <label class="block">
+          <span class="st-desc-sm block mb-1">반품 배송비 (편도)</span>
+          <input v-model.number="f.returnFee" type="number" min="0" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-ss-return-fee />
+        </label>
+        <label class="block">
+          <span class="st-desc-sm block mb-1">교환 배송비 (왕복)</span>
+          <input v-model.number="f.exchangeFee" type="number" min="0" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-ss-exchange-fee />
+        </label>
+      </div>
+    </div>
+
+    <!-- 출고지 · 반품지 (판매자 주소록) -->
+    <div class="block" data-mk-ss-address-box>
+      <span class="st-label">출고지 · 반품지 *</span>
+      <p v-if="addrLoading" class="st-desc-sm" data-mk-ss-addr-loading>주소록을 불러오는 중…</p>
+      <template v-else-if="addresses.length">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="block">
+            <span class="st-desc-sm block mb-1">출고지</span>
+            <select v-model="f.shippingAddressId" class="st-input w-full" :disabled="!!done" data-mk-ss-shipping>
+              <option :value="null">출고지 선택</option>
+              <option v-for="a in addresses" :key="a.id" :value="a.id">{{ addressLabel(a) }}</option>
+            </select>
+          </label>
+          <label class="block">
+            <span class="st-desc-sm block mb-1">반품지</span>
+            <select v-model="f.returnAddressId" class="st-input w-full" :disabled="!!done" data-mk-ss-return>
+              <option :value="null">반품지 선택</option>
+              <option v-for="a in addresses" :key="a.id" :value="a.id">{{ addressLabel(a) }}</option>
+            </select>
+          </label>
+        </div>
+      </template>
+      <p v-else-if="!addrError" class="st-desc-sm break-keep" data-mk-ss-addr-empty>스마트스토어센터 판매자 주소록에 출고지·반품지를 먼저 등록하세요.</p>
+      <p v-if="addrError" class="mt-1 text-[12px] break-keep" :class="addrSoft ? 'st-muted' : 'st-danger-text'" data-mk-ss-addr-error>{{ addrError }}
+        <button type="button" class="st-link ml-1" data-mk-ss-addr-retry @click="loadAddresses">다시 불러오기</button></p>
+    </div>
+
+    <!-- A/S · 원산지 -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <label class="block">
+        <span class="st-label">A/S 전화번호 *</span>
+        <input v-model="f.asPhone" type="text" maxlength="30" class="st-input w-full" placeholder="예: 010-0000-0000" :disabled="!!done" data-mk-ss-as-phone />
+      </label>
+      <label class="block">
+        <span class="st-label">A/S 안내 *</span>
+        <input v-model="f.asGuide" type="text" maxlength="300" class="st-input w-full" :disabled="!!done" data-mk-ss-as-guide />
+      </label>
+    </div>
+    <div class="block" data-mk-ss-origin>
+      <span class="st-label">원산지 *</span>
+      <label class="flex items-center gap-2 text-[13px] st-ink mt-1">
+        <input v-model="f.originCode" type="radio" value="03" :disabled="!!done" data-mk-ss-origin-detail /> 상세설명에 표시
+        <input v-model="f.originCode" type="radio" value="04" class="ml-4" :disabled="!!done" data-mk-ss-origin-direct /> 직접 입력
+      </label>
+      <input v-if="f.originCode === '04'" v-model="f.originContent" type="text" maxlength="200" class="st-input w-full sm:w-64 mt-1.5" placeholder="국가명 입력" :disabled="!!done" data-mk-ss-origin-content />
+    </div>
+
+    <!-- 상품정보제공고시 (기타 재화) -->
+    <div class="block space-y-2" data-mk-ss-notice>
+      <span class="st-label">상품정보제공고시 (기타 재화) *</span>
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        <label class="block"><span class="st-desc-sm block mb-1">품명</span><input v-model="f.itemName" type="text" maxlength="50" class="st-input w-full" :disabled="!!done" data-mk-ss-item-name /></label>
+        <label class="block"><span class="st-desc-sm block mb-1">모델명</span><input v-model="f.modelName" type="text" maxlength="50" class="st-input w-full" :disabled="!!done" data-mk-ss-model-name /></label>
+        <label class="block"><span class="st-desc-sm block mb-1">제조자(사)</span><input v-model="f.manufacturer" type="text" maxlength="200" class="st-input w-full" :disabled="!!done" data-mk-ss-manufacturer /></label>
+      </div>
+      <button type="button" class="st-btn text-[12px]" :disabled="!!done" data-mk-ss-notice-fill @click="fillNotice">빈 칸을 "{{ DETAIL_REF }}"로</button>
+    </div>
+
+    <!-- 판매 상태 — 등록 때 판매상태는 판매중만 가능(네이버 문서) → 노출은 전시 상태로. 기본 전시중지 -->
+    <div class="block" data-mk-ss-display>
+      <span class="st-label">판매 상태</span>
+      <label class="flex items-center gap-2 text-[13px] st-ink mt-1">
+        <input v-model="f.display" type="radio" value="SUSPENSION" :disabled="!!done" data-mk-ss-display-off /> 전시중지
+        <input v-model="f.display" type="radio" value="ON" class="ml-4" :disabled="!!done" data-mk-ss-display-on /> 전시중
+      </label>
+      <span class="st-desc-sm block mt-1">네이버 등록 규칙상 판매상태는 판매중으로 등록됩니다. 전시중지 상품은 스토어에 노출되지 않습니다.</span>
+    </div>
+
+    <!-- 등록 정보 확인 -->
+    <section class="space-y-2" data-mk-ss-preview>
+      <h4 class="st-h-card">등록 정보 확인</h4>
+      <div class="st-border rounded-[10px] overflow-hidden">
+        <table class="sum-table">
+          <tbody>
+            <tr v-for="r in preview" :key="r.label" :data-mk-ss-preview-row="r.label">
+              <th>{{ r.label }}</th>
+              <td :class="r.value ? 'st-ink' : 'st-muted'">{{ r.value || '미입력' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-ss-error>등록에 실패했습니다. (사유: {{ sendError }})
+      <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">연결 설정으로 이동</router-link></p>
+    <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-ss-done>등록되었습니다. 원상품번호 {{ done.originProductNo }}<template v-if="done.channelProductNo"> · 채널상품번호 {{ done.channelProductNo }}</template> · {{ DISPLAY_LABEL[done.display] || DISPLAY_LABEL[f.display] }}</p>
+  </div>
+</template>
+
+<script setup>
+// 보내기 창의 스마트스토어 섹션 (2026-10-01) — 내 상품 한 줄(prepare = send_prepare 응답)을 스마트스토어 상품으로 등록한다.
+// 카페24 섹션(StudioSendCafe24)과 같은 모양으로 밖에 내놓는다: missing(빠진 것)·busy·done·submit(). 창(StudioSendModal)이 스마트스토어를 체크했을 때만 보인다.
+// 항목은 네이버 상품 등록 문서의 필수 칸(api/_smartstore.js buildSmartstoreProduct)만 — 카테고리·판매가·재고·대표 이미지·배송·출고지/반품지·A/S·원산지·고시·전시 상태.
+// 판매 상태: 등록 때는 판매중(SALE)만 가능(문서) → 기본 전시중지(SUSPENSION)로 노출하지 않는다. 필수값은 화면(missing)이 먼저 막고 서버가 다시 검사한다
+// 카테고리·주소록은 창(StudioSendModal)이 화면이 떠 있는 동안 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
+import { ref, computed, onMounted, inject } from 'vue'
+import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduct, isNotReady } from '@/lib/studioMarketplace'
+import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { pickKoreanName } from '../../../api/_coupangFields.js'
+import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES } from '../../../api/_smartstoreFields.js'
+
+const CAT_SHOWN = 200 // 선택 목록에 한 번에 보이는 카테고리 수 (검색으로 좁힌다)
+const DETAIL_REF = '상세페이지 참조'
+const DISPLAY_LABEL = { SUSPENSION: '전시중지', ON: '전시중' }
+const ADDRESS_TYPE = { RELEASE: '출고지', REFUND_OR_EXCHANGE: '반품/교환지', REPRESENTATIVE: '사업장', BUSINESS: '추가 사업장', GENERAL: '일반', LOGISTICS_CENTER_RELEASE: '물류센터 출고지', LOGISTICS_CENTER_REFUND_OR_EXCHANGE: '물류센터 반품/교환지' }
+const props = defineProps({ prepare: { type: Object, required: true } })
+
+const busy = ref('')
+const done = ref(null)
+const sendError = ref('')
+const errorGuide = ref(false)
+const categories = ref([])
+const catLoading = ref(false)
+const catError = ref('')
+const catSoft = ref(false)
+const catQuery = ref('')
+const addresses = ref([])
+const addrLoading = ref(false)
+const addrError = ref('')
+const addrSoft = ref(false)
+const f = ref({
+  // 상품명 기본값 = 쿠팡·카페24 섹션과 같은 규칙(한글만), 없으면 빈칸
+  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
+  leafCategoryId: null, salePrice: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
+  company: SS_DELIVERY_COMPANIES[0].code, feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null,
+  shippingAddressId: null, returnAddressId: null,
+  asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '',
+  itemName: '', modelName: '', manufacturer: '',
+  display: DISPLAY_STATUSES[0], // 기본 전시중지
+})
+
+const isWon = (v, min) => Number.isInteger(v) && v >= min
+const catMatches = computed(() => {
+  const q = catQuery.value.trim().toLowerCase()
+  return q ? categories.value.filter(c => c.wholeName.toLowerCase().includes(q)) : categories.value
+})
+// 고른 카테고리는 검색어와 상관없이 늘 목록에 남긴다(선택이 풀려 보이지 않게)
+const catOptions = computed(() => {
+  const list = catMatches.value.slice(0, CAT_SHOWN)
+  const sel = categories.value.find(c => c.id === f.value.leafCategoryId)
+  return sel && !list.includes(sel) ? [sel, ...list] : list
+})
+const categoryName = computed(() => categories.value.find(c => c.id === f.value.leafCategoryId)?.wholeName || '')
+const addressLabel = a => `${a.name}${ADDRESS_TYPE[a.type] ? ` (${ADDRESS_TYPE[a.type]})` : ''} · ${a.address}`
+const addressName = id => { const a = addresses.value.find(x => x.id === id); return a ? addressLabel(a) : '' }
+
+const missing = computed(() => {
+  const v = f.value, out = []
+  if (!String(v.productName || '').trim()) out.push('상품명')
+  if (!v.leafCategoryId) out.push('카테고리')
+  if (!isWon(v.salePrice, 1)) out.push('판매가')
+  if (!isWon(v.stock, 0)) out.push('재고 수량')
+  if (!v.repImageId) out.push('대표 이미지')
+  if (v.feeType === 'PAID' && !isWon(v.baseFee, 1)) out.push('기본 배송비')
+  if (!isWon(v.returnFee, 0)) out.push('반품 배송비')
+  if (!isWon(v.exchangeFee, 0)) out.push('교환 배송비')
+  if (!v.shippingAddressId) out.push('출고지')
+  if (!v.returnAddressId) out.push('반품지')
+  if (!v.asPhone.trim()) out.push('A/S 전화번호')
+  if (!v.asGuide.trim()) out.push('A/S 안내')
+  if (v.originCode === '04' && !v.originContent.trim()) out.push('원산지')
+  if (!v.itemName.trim() || !v.modelName.trim() || !v.manufacturer.trim()) out.push('상품정보제공고시')
+  return out
+})
+const won = n => (Number.isInteger(n) ? `${n.toLocaleString('ko-KR')}원` : '')
+const preview = computed(() => {
+  const v = f.value
+  return [
+    { label: '상품명', value: String(v.productName || '').trim() },
+    { label: '카테고리', value: categoryName.value },
+    { label: '판매가', value: isWon(v.salePrice, 1) ? won(v.salePrice) : '' },
+    { label: '재고 수량', value: isWon(v.stock, 0) ? `${v.stock.toLocaleString('ko-KR')}개` : '' },
+    { label: '대표 이미지', value: v.repImageId ? '대표 이미지 1장' : '' },
+    { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
+    { label: '배송비', value: v.feeType === 'PAID' ? (isWon(v.baseFee, 1) ? `${won(v.baseFee)} (선결제)` : '') : '무료' },
+    { label: '반품·교환 배송비', value: isWon(v.returnFee, 0) && isWon(v.exchangeFee, 0) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
+    { label: '출고지', value: addressName(v.shippingAddressId) },
+    { label: '반품지', value: addressName(v.returnAddressId) },
+    { label: '판매상태', value: '판매중' },
+    { label: '전시상태', value: DISPLAY_LABEL[v.display] },
+  ]
+})
+function fillNotice() {
+  for (const k of ['itemName', 'modelName', 'manufacturer']) if (!f.value[k].trim()) f.value[k] = DETAIL_REF
+}
+
+// 같은 화면 안에서 다시 받지 않는 목록 — 받는 중에 다시 열면 같은 요청을 기다린다. 실패는 기억하지 않는다
+const sendCache = inject(SEND_CACHE_KEY, null)
+function cached(key, load) {
+  if (!sendCache) return load()
+  if (!sendCache[key]) {
+    const p = load()
+    sendCache[key] = p
+    p.then(r => { if (sendCache[key] === p) sendCache[`${key}Done`] = r },
+      () => { if (sendCache[key] === p) delete sendCache[key] }) // 원인은 부르는 쪽이 console.error로 남긴다
+  }
+  return sendCache[key]
+}
+async function loadCategories() {
+  const kept = sendCache?.smartstoreCategoriesDone
+  if (kept) { categories.value = Array.isArray(kept.categories) ? kept.categories : []; return }
+  catLoading.value = true
+  catError.value = ''
+  try {
+    const r = await cached('smartstoreCategories', listSmartstoreCategories)
+    categories.value = Array.isArray(r.categories) ? r.categories : []
+    if (!categories.value.length) catError.value = '카테고리 목록이 비어 있습니다.'
+  } catch (e) {
+    console.error('[StudioSendSmartstore] 카테고리 조회 실패:', e.code, e)
+    catError.value = e.message
+    catSoft.value = isNotReady(e.code)
+  } finally {
+    catLoading.value = false
+  }
+}
+function applyAddresses(r) {
+  addresses.value = Array.isArray(r.addresses) ? r.addresses : []
+  if (f.value.shippingAddressId == null) f.value.shippingAddressId = r.defaults?.shipping ?? null
+  if (f.value.returnAddressId == null) f.value.returnAddressId = r.defaults?.return ?? null
+}
+async function loadAddresses() {
+  const kept = sendCache?.smartstoreAddressesDone
+  if (kept) { applyAddresses(kept); return }
+  addrLoading.value = true
+  addrError.value = ''
+  try {
+    applyAddresses(await cached('smartstoreAddresses', listSmartstoreAddresses))
+  } catch (e) {
+    console.error('[StudioSendSmartstore] 주소록 조회 실패:', e.code, e)
+    addrError.value = e.message
+    addrSoft.value = isNotReady(e.code)
+  } finally {
+    addrLoading.value = false
+  }
+}
+
+/** 창의 [보내기]가 부른다 — 성공하면 결과, 실패하면 null(이유는 이 섹션 안에) */
+async function submit() {
+  if (busy.value || done.value || missing.value.length) return null
+  busy.value = 'send'
+  sendError.value = ''
+  errorGuide.value = false
+  const v = f.value
+  try {
+    const r = await sendSmartstoreProduct({
+      exportId: props.prepare.export.id, productName: String(v.productName).trim(), salePrice: v.salePrice, stock: v.stock,
+      leafCategoryId: v.leafCategoryId, categoryName: categoryName.value, repImageId: v.repImageId, fit: v.fit, display: v.display,
+      delivery: { company: v.company, feeType: v.feeType, baseFee: v.feeType === 'PAID' ? v.baseFee : null, returnFee: v.returnFee, exchangeFee: v.exchangeFee, shippingAddressId: v.shippingAddressId, returnAddressId: v.returnAddressId },
+      afterService: { phone: v.asPhone.trim(), guide: v.asGuide.trim() },
+      origin: v.originCode === '04' ? { code: '04', content: v.originContent.trim() } : { code: '03' },
+      notice: { itemName: v.itemName.trim(), modelName: v.modelName.trim(), manufacturer: v.manufacturer.trim() },
+    })
+    done.value = r
+    return r
+  } catch (e) {
+    console.error('[StudioSendSmartstore] 스마트스토어 보내기 실패:', e.code, e)
+    sendError.value = e.message
+    errorGuide.value = ['not_connected', 'token_invalid', 'scope_denied', 'ip_not_allowed', 'bad_key'].includes(e.code)
+    return null
+  } finally {
+    busy.value = ''
+  }
+}
+
+// 창을 다시 열 때 이미 받은 목록은 바로 채운다(깜빡임 없음) — 받지 않은 것만 화면에 붙은 뒤 서버에 묻는다
+if (sendCache?.smartstoreCategoriesDone) categories.value = Array.isArray(sendCache.smartstoreCategoriesDone.categories) ? sendCache.smartstoreCategoriesDone.categories : []
+if (sendCache?.smartstoreAddressesDone) applyAddresses(sendCache.smartstoreAddressesDone)
+onMounted(() => {
+  if (!sendCache?.smartstoreCategoriesDone) loadCategories()
+  if (!sendCache?.smartstoreAddressesDone) loadAddresses()
+})
+defineExpose({ missing, busy, done, submit })
+</script>
+
+<style scoped>
+/* 쿠팡·카페24 섹션의 요약 표와 같은 모양 */
+.sum-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.sum-table th { width: 130px; padding: 7px 10px; text-align: left; font-weight: 700; color: var(--st-muted); background: var(--st-soft); border-bottom: 1px solid var(--st-line); white-space: nowrap; }
+.sum-table td { padding: 7px 10px; border-bottom: 1px solid var(--st-line); word-break: break-all; }
+.sum-table tr:last-child th, .sum-table tr:last-child td { border-bottom: 0; }
+</style>

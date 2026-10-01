@@ -31,6 +31,10 @@
           <p class="st-desc-sm break-keep" :data-mk-send-display="s.id">진열상태: {{ s.display === 'T' ? '진열함' : '진열안함' }}</p>
           <a v-if="s.adminUrl" :href="s.adminUrl" target="_blank" rel="noopener" class="st-btn mt-1.5 w-full text-[12px] whitespace-normal text-center" :data-mk-send-admin="s.id">카페24 관리자에서 보기</a>
         </template>
+        <!-- 스마트스토어 = 등록됨 → 보낸 전시상태 + 채널상품번호 (2026-10-01) -->
+        <template v-if="s.market === 'smartstore' && s.status === 'registered'">
+          <p class="st-desc-sm break-keep" :data-mk-send-ss-display="s.id">전시상태: {{ s.ssDisplay === 'ON' ? '전시중' : '전시중지' }}<template v-if="s.channelProductNo"> · 채널상품번호 {{ s.channelProductNo }}</template></p>
+        </template>
         <button v-if="canResend(s)" type="button" class="st-btn st-btn-primary mt-1.5 w-full" :disabled="resendBusy === s.id" :data-mk-send-resend="s.id" @click="openResend(s)">{{ resendBusy === s.id ? '여는 중…' : '수정 후 다시 보내기' }}</button>
       </li>
     </ul>

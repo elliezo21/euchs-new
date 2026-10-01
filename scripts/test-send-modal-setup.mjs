@@ -30,7 +30,8 @@ const stubPlugin = {
       export const predictCategory = never, searchBrand = never, getCategoryMeta = never, sendProduct = never, makeSquareJpeg = never, fileToBase64 = never
       export const REP_SIZE = 1000, SEND_BODY_MAX = 4000000
       export const readSaleMode = () => '', rememberSaleMode = () => {}
-      export const listCafe24Categories = never, sendCafe24Product = never, isNotReady = () => false`
+      export const listCafe24Categories = never, sendCafe24Product = never, isNotReady = () => false
+      export const listSmartstoreCategories = never, listSmartstoreAddresses = never, sendSmartstoreProduct = never`
     return null
   },
 }
@@ -43,6 +44,7 @@ const entry = path.join(workDir, 'entry-src.js')
 fs.writeFileSync(entry, `export { default as Modal } from '@/components/studio/StudioSendModal.vue'
 export { default as Coupang } from '@/components/studio/StudioSendCoupang.vue'
 export { default as Cafe24 } from '@/components/studio/StudioSendCafe24.vue'
+export { default as Smartstore } from '@/components/studio/StudioSendSmartstore.vue'
 export { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 `)
 // 브라우저 전역 흉내 (불러올 때 window를 보는 파일이 있다) — 값이 아니라 자리만
@@ -186,6 +188,12 @@ if (built?.Coupang && built?.Modal) {
   const cache = { cafe24CategoriesDone: { categories: [{ no: 25, depth: 2, parentNo: 24, name: '상의', fullName: '의류 > 상의' }] } }
   const c24 = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, cache); return () => h(built.Cafe24, { prepare: PREPARE(true) }) } }, {})
   eq('카페24 섹션: 창의 목록(sendCache)을 받아 운영 방식 빌드에서 예외 없이 그려짐', [c24.error, /data-mk-c24-name/.test(c24.html)], [null, true])
+  // 스마트스토어 섹션 (2026-10-01) — 카테고리·주소록을 창의 목록(sendCache)에서 받아 그린다
+  const ssCache = { smartstoreCategoriesDone: { categories: [{ id: '50000999', name: '머그컵', wholeName: '생활/건강>주방용품>잔/컵>머그컵' }] }, smartstoreAddressesDone: { addresses: [{ id: 102, name: '물류창고', type: 'RELEASE', address: '광주 북구 1층', phone: '' }, { id: 103, name: '반품센터', type: 'REFUND_OR_EXCHANGE', address: '광주 북구 2층', phone: '' }], defaults: { shipping: 102, return: 103 } } }
+  const ss = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ssCache); return () => h(built.Smartstore, { prepare: PREPARE(true) }) } }, {})
+  const checked = (html, attr) => new RegExp('<input[^>]*' + attr + '[^>]*checked|<input[^>]*checked[^>]*' + attr).test(html)
+  eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 카테고리 목록 · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), (ss.html.includes('생활/건강&gt;주방용품&gt;잔/컵&gt;머그컵') || ss.html.includes('생활/건강>주방용품>잔/컵>머그컵')), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '매일 쓰는 머그', true, true, true, true, false])
+  eq('스마트스토어 섹션: 요약 표 판매상태 판매중·전시상태 전시중지 · 가격·재고는 빈칸(임의 숫자 없음)', [/data-mk-ss-preview-row="판매상태"[\s\S]{0,200}판매중/.test(ss.html), /data-mk-ss-preview-row="전시상태"[\s\S]{0,200}전시중지/.test(ss.html), val(ss.html, 'data-mk-ss-price'), val(ss.html, 'data-mk-ss-stock')], [true, true, '', ''])
 }
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }

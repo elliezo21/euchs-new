@@ -247,9 +247,12 @@ function onSent(r) {
   const market = r?.market || 'coupang'
   const name = MARKETS.find(m => m.key === market)?.name || market
   // 카페24 = 승인 절차 없이 등록 → "등록되었습니다" + 진열상태 + 관리자 링크. 쿠팡 = 승인 요청 → "전송되었습니다" (문구 원칙: 결과는 ~되었습니다)
+  // 스마트스토어 = 승인 절차 없이 등록 → "등록되었습니다" + 원상품번호 + 전시상태 (2026-10-01)
   message.value = market === 'cafe24'
     ? `카페24에 등록되었습니다.${r?.productNo ? ` 상품번호 ${r.productNo}` : ''} · ${r?.display === 'T' ? '진열함' : '진열안함'}${typeof r?.repImageError === 'string' && r.repImageError ? ` — ${r.repImageError}` : ''}`
-    : `${name}에 전송되었습니다.${r?.sellerProductId ? ` 상품번호 ${r.sellerProductId}` : ''}`
+    : market === 'smartstore'
+      ? `스마트스토어에 등록되었습니다.${r?.originProductNo ? ` 원상품번호 ${r.originProductNo}` : ''} · ${r?.display === 'ON' ? '전시중' : '전시중지'}`
+      : `${name}에 전송되었습니다.${r?.sellerProductId ? ` 상품번호 ${r.sellerProductId}` : ''}`
   messageAdminUrl.value = market === 'cafe24' && typeof r?.adminUrl === 'string' ? r.adminUrl : ''
   messageError.value = false
   loadSends()
