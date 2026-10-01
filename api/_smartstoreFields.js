@@ -8,6 +8,9 @@ export const DISPLAY_STATUSES = ['SUSPENSION', 'ON']
 export const SS_DELIVERY_COMPANIES = [
   { code: 'CJGLS', name: 'CJ대한통운' }, { code: 'HYUNDAI', name: '롯데택배' }, { code: 'HANJIN', name: '한진택배' }, { code: 'KGB', name: '로젠택배' }, { code: 'EPOST', name: '우체국택배' },
 ]
+// 배송비 종류 — create-product-product deliveryFeeType enum 중 이 섹션이 쓰는 3개 (문서 값 그대로. 수량별·구간별은 쓰지 않는다)
+//   CONDITIONAL_FREE + freeConditionalAmount("배송비 유형이 '조건부 무료'일 경우 입력합니다.") — 2026-10-01 추가
+export const SS_FEE_TYPES = ['FREE', 'PAID', 'CONDITIONAL_FREE']
 // 원산지 — 03(기타-상세 설명에 표시)·04(기타-직접 입력, content 필수) (문서)
 export const ORIGIN_CODES = ['03', '04']
 // 관부가세 — originProduct.detailAttribute.customsTaxType. "출고지 주소가 해외 주소인 경우 필수" (create-product-product 문서 표 그대로)
@@ -58,7 +61,6 @@ export function lastAddressesOf(claim) {
 // 스마트스토어 칸으로 바꾸는 일은 여기서만. 템플릿에 값이 없는 칸은 돌려주지 않는다(화면이 처음 값을 그대로 둔다)
 // 스마트스토어 보내기에 칸이 없는 값(브랜드·제조국·반품/교환 안내·KC·고시 유형·제주/도서산간 추가비)은 쓰지 않는다
 export const AS_GUIDE_MAX = 300 // A/S 안내 — 화면 칸 maxlength·서버 cleanText(guide, 300)와 같은 길이
-export const SS_FEE_UNSUPPORTED_NOTE = '스마트스토어는 조건부 무료 배송비를 지원하지 않아 배송비 방식은 적용하지 않았습니다. 배송비를 직접 선택하세요.'
 export const AS_GUIDE_LONG_NOTE = `템플릿의 A/S 안내가 ${AS_GUIDE_MAX}자를 넘어 적용하지 않았습니다. A/S 안내를 직접 입력하세요.`
 const isWonValue = v => Number.isInteger(v) && v >= 0
 /**
@@ -81,15 +83,15 @@ export function smartstoreFormFromProduct(data = {}) {
   return { form, notes }
 }
 /**
- * 배송 템플릿 data → 섹션 칸 (일부) — 무료 FREE · 고정 PAID + baseFee · 반품(편도)·교환(왕복) 배송비
- *   조건부 무료는 이 섹션에 없음 → feeType = ''(선택 안 됨 — 빠짐 목록이 막는다) + 안내. 무료나 유료로 바꿔 넣지 않는다
+ * 배송 템플릿 data → 섹션 칸 (일부) — 무료 FREE · 고정 PAID + baseFee · 조건부 무료 CONDITIONAL_FREE + baseFee + freeOver · 반품(편도)·교환(왕복) 배송비
  * @returns {{ form:object, notes:string[] }}
  */
 export function smartstoreFormFromShipping(data = {}) {
   const form = {}, notes = []
-  if (data?.feeType === 'free') { form.feeType = 'FREE'; form.baseFee = null }
-  else if (data?.feeType === 'fixed') { form.feeType = 'PAID'; form.baseFee = isWonValue(data.fee) ? data.fee : null }
-  else if (data?.feeType === 'conditional') { form.feeType = ''; form.baseFee = null; notes.push(SS_FEE_UNSUPPORTED_NOTE) }
+  const won = v => (isWonValue(v) ? v : null)
+  if (data?.feeType === 'free') { form.feeType = 'FREE'; form.baseFee = null; form.freeOver = null }
+  else if (data?.feeType === 'fixed') { form.feeType = 'PAID'; form.baseFee = won(data.fee); form.freeOver = null }
+  else if (data?.feeType === 'conditional') { form.feeType = 'CONDITIONAL_FREE'; form.baseFee = won(data.fee); form.freeOver = won(data.freeOver) }
   if (isWonValue(data?.returnFee)) form.returnFee = data.returnFee
   if (isWonValue(data?.exchangeFee)) form.exchangeFee = data.exchangeFee
   return { form, notes }
@@ -105,6 +107,6 @@ export function productTemplateFromSmartstoreForm(f = {}) {
 /** 섹션 칸 → 배송 템플릿 data */
 export function shippingTemplateFromSmartstoreForm(f = {}) {
   const n = v => (isWonValue(v) ? v : null)
-  const feeType = f.feeType === 'FREE' ? 'free' : f.feeType === 'PAID' ? 'fixed' : ''
-  return { feeType, fee: feeType === 'fixed' ? n(f.baseFee) : null, freeOver: null, jejuFee: null, islandFee: null, returnFee: n(f.returnFee), exchangeFee: n(f.exchangeFee) }
+  const feeType = f.feeType === 'FREE' ? 'free' : f.feeType === 'PAID' ? 'fixed' : f.feeType === 'CONDITIONAL_FREE' ? 'conditional' : ''
+  return { feeType, fee: feeType === 'fixed' || feeType === 'conditional' ? n(f.baseFee) : null, freeOver: feeType === 'conditional' ? n(f.freeOver) : null, jejuFee: null, islandFee: null, returnFee: n(f.returnFee), exchangeFee: n(f.exchangeFee) }
 }

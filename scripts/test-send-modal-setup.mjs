@@ -273,9 +273,11 @@ if (built?.Coupang && built?.Modal) {
   ], [null, true, true, '(주)이유씨 수입', '02-000-0000', 'A/S 안내 문구', true, '베트남', true, '3000', '3500', '7000', true, false])
   eq('스마트스토어 등록 템플릿: 출고지·반품지·택배사는 템플릿과 상관없이 예전 규칙(102·103·CJ대한통운)', [selSs(lt1.html, 'data-mk-ss-shipping', 102), selSs(lt1.html, 'data-mk-ss-return', 103), selSs(lt1.html, 'data-mk-ss-company', 'CJGLS')], [true, true, true])
   const lt2 = await renderLt([SP1, SS1])
-  eq('스마트스토어 등록 템플릿 — 조건부 무료(이 섹션에 없음): 무료·유료 어느 쪽도 체크 안 함 · 안내 한 줄 · 요약 배송비 미입력 · 반품·교환은 적용', [
-    lt2.error, checked(lt2.html, 'data-mk-ss-fee-free'), checked(lt2.html, 'data-mk-ss-fee-paid'), /data-mk-ss-lt-note="shipping"[^>]*>[^<]*조건부 무료/.test(lt2.html), /data-mk-ss-preview-row="배송비"[\s\S]{0,200}미입력/.test(lt2.html), val(lt2.html, 'data-mk-ss-return-fee'), val(lt2.html, 'data-mk-ss-exchange-fee'),
-  ], [null, false, false, true, true, '3000', '6000'])
+  eq('스마트스토어 등록 템플릿 — 조건부 무료: [조건부 무료] 체크 · 기본 3,000 · 30,000원 이상 무료 · 안내 줄 없음 · 요약 표 · 반품·교환 · 제주·도서산간 칸 없음', [
+    lt2.error, checked(lt2.html, 'data-mk-ss-fee-cond'), checked(lt2.html, 'data-mk-ss-fee-free'), checked(lt2.html, 'data-mk-ss-fee-paid'), val(lt2.html, 'data-mk-ss-base-fee'), val(lt2.html, 'data-mk-ss-free-over'), /data-mk-ss-lt-note/.test(lt2.html),
+    /data-mk-ss-preview-row="배송비"[\s\S]{0,200}3,000원 · 30,000원 이상 무료 \(선결제\)/.test(lt2.html), val(lt2.html, 'data-mk-ss-return-fee'), val(lt2.html, 'data-mk-ss-exchange-fee'), /data-mk-ss-jeju|data-mk-ss-island/.test(lt2.html),
+  ], [null, true, false, false, '3000', '30000', false, true, '3000', '6000', false])
+  eq('스마트스토어 처음 값: 배송비 무료 · 기준 금액 칸 없음(조건부 무료일 때만)', [checked(ss.html, 'data-mk-ss-fee-free'), checked(ss.html, 'data-mk-ss-fee-cond'), /data-mk-ss-free-over/.test(ss.html)], [true, false, false])
   const lt3 = await renderLt([{ ...SP2, is_default: true }, { ...SS2, is_default: true }])
   eq('스마트스토어 등록 템플릿: 국내 원산지는 안 덮음(상세설명 그대로) · 무료 → 무료 · 반품 4,000 · 교환은 처음 값(빈칸)', [lt3.error, checked(lt3.html, 'data-mk-ss-origin-detail'), val(lt3.html, 'data-mk-ss-manufacturer'), checked(lt3.html, 'data-mk-ss-fee-free'), val(lt3.html, 'data-mk-ss-return-fee'), val(lt3.html, 'data-mk-ss-exchange-fee')], [null, true, '이유씨', true, '4000', ''])
   const lt4 = await renderLt([{ ...SP1, data: { ...SP1.data, asGuide: '가'.repeat(301) } }])

@@ -98,8 +98,10 @@
           <label class="flex items-center gap-2 text-[13px] st-ink">
             <input v-model="f.feeType" type="radio" value="FREE" :disabled="!!done" data-mk-ss-fee-free /> 무료
             <input v-model="f.feeType" type="radio" value="PAID" class="ml-3" :disabled="!!done" data-mk-ss-fee-paid /> 유료(선결제)
+            <input v-model="f.feeType" type="radio" value="CONDITIONAL_FREE" class="ml-3" :disabled="!!done" data-mk-ss-fee-cond /> 조건부 무료
           </label>
-          <input v-if="f.feeType === 'PAID'" v-model.number="f.baseFee" type="number" min="1" step="1" class="st-input w-full mt-1.5" placeholder="기본 배송비 (원)" :disabled="!!done" data-mk-ss-base-fee />
+          <input v-if="f.feeType === 'PAID' || f.feeType === 'CONDITIONAL_FREE'" v-model.number="f.baseFee" type="number" min="1" step="1" class="st-input w-full mt-1.5" placeholder="기본 배송비 (원)" :disabled="!!done" data-mk-ss-base-fee />
+          <input v-if="f.feeType === 'CONDITIONAL_FREE'" v-model.number="f.freeOver" type="number" min="1" step="1" class="st-input w-full mt-1.5" placeholder="이 금액 이상 구매 시 무료 (원)" :disabled="!!done" data-mk-ss-free-over />
         </div>
         <label class="block">
           <span class="st-desc-sm block mb-1">반품 배송비 (편도)</span>
@@ -227,7 +229,7 @@ import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateN
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
-  SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL,
+  SS_DELIVERY_COMPANIES, SS_FEE_TYPES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL,
   smartstoreFormFromProduct, smartstoreFormFromShipping, productTemplateFromSmartstoreForm, shippingTemplateFromSmartstoreForm,
 } from '../../../api/_smartstoreFields.js'
 import { marketOptionsFromSource, optionsPayload, smartstoreOptionProblems, ssOptionPriceRange } from '../../../api/_marketOptions.js'
@@ -254,13 +256,14 @@ const addrError = ref('')
 const addrSoft = ref(false)
 const addrRefreshing = ref(false)
 // 템플릿이 채우는 칸의 처음 값 — 아래 f의 처음 값과 같다. 템플릿을 바꿔 고르면 이 값으로 되돌린 뒤 템플릿 값을 덮는다(앞 템플릿 값이 남지 않게)
-const shippingBase = () => ({ feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null })
+const shippingBase = () => ({ feeType: 'FREE', baseFee: null, freeOver: null, returnFee: null, exchangeFee: null })
 const productBase = () => ({ asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '', manufacturer: '' })
 const f = ref({
   // 상품명 기본값 = 쿠팡·카페24 섹션과 같은 규칙(한글만), 없으면 빈칸
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
   leafCategoryId: null, salePrice: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
   company: SS_DELIVERY_COMPANIES[0].code, feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null,
+  freeOver: null, // 조건부 무료 기준 금액 — 조건부 무료일 때만 보낸다(임의 숫자 없음)
   shippingAddressId: null, returnAddressId: null,
   asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '',
   itemName: '', modelName: '', manufacturer: '',
@@ -303,8 +306,9 @@ const missing = computed(() => {
     else out.push(...smartstoreOptionProblems(optionsOut.value, isWon(v.salePrice, 1) ? v.salePrice : null).map(m => `옵션: ${m}`))
   } else if (!isWon(v.stock, 0)) out.push('재고 수량')
   if (!v.repImageId) out.push('대표 이미지')
-  if (v.feeType !== 'FREE' && v.feeType !== 'PAID') out.push('배송비') // 템플릿이 이 섹션에 없는 방식(조건부 무료)이면 선택 안 됨 — 서버 검사와 같은 두 값
-  if (v.feeType === 'PAID' && !isWon(v.baseFee, 1)) out.push('기본 배송비')
+  if (!SS_FEE_TYPES.includes(v.feeType)) out.push('배송비') // 서버 검사와 같은 목록(api/_smartstoreFields.js)
+  if ((v.feeType === 'PAID' || v.feeType === 'CONDITIONAL_FREE') && !isWon(v.baseFee, 1)) out.push('기본 배송비')
+  if (v.feeType === 'CONDITIONAL_FREE' && !isWon(v.freeOver, 1)) out.push('무료배송 기준 금액')
   if (!isWon(v.returnFee, 0)) out.push('반품 배송비')
   if (!isWon(v.exchangeFee, 0)) out.push('교환 배송비')
   if (!v.shippingAddressId) out.push('출고지')
@@ -333,7 +337,8 @@ const preview = computed(() => {
     { label: '옵션', value: optionsSummary.value },
     { label: '대표 이미지', value: v.repImageId ? '대표 이미지 1장' : '' },
     { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
-    { label: '배송비', value: v.feeType === 'PAID' ? (isWon(v.baseFee, 1) ? `${won(v.baseFee)} (선결제)` : '') : v.feeType === 'FREE' ? '무료' : '' },
+    { label: '배송비', value: v.feeType === 'PAID' ? (isWon(v.baseFee, 1) ? `${won(v.baseFee)} (선결제)` : '')
+      : v.feeType === 'CONDITIONAL_FREE' ? (isWon(v.baseFee, 1) && isWon(v.freeOver, 1) ? `${won(v.baseFee)} · ${won(v.freeOver)} 이상 무료 (선결제)` : '') : v.feeType === 'FREE' ? '무료' : '' },
     { label: '반품·교환 배송비', value: isWon(v.returnFee, 0) && isWon(v.exchangeFee, 0) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
     { label: '출고지', value: addressName(v.shippingAddressId) },
     { label: '반품지', value: addressName(v.returnAddressId) },
@@ -494,7 +499,7 @@ async function submit() {
       exportId: props.prepare.export.id, productName: String(v.productName).trim(), salePrice: v.salePrice, stock: optionsOut.value ? optionStockTotal.value : v.stock,
       ...(optionsOut.value ? { options: optionsOut.value } : {}), // 옵션을 안 쓰면 보내지 않는다(단일상품 — 예전 그대로)
       leafCategoryId: v.leafCategoryId, categoryName: categoryName.value, repImageId: v.repImageId, fit: v.fit, display: v.display,
-      delivery: { company: v.company, feeType: v.feeType, baseFee: v.feeType === 'PAID' ? v.baseFee : null, returnFee: v.returnFee, exchangeFee: v.exchangeFee, shippingAddressId: v.shippingAddressId, returnAddressId: v.returnAddressId, shippingOverseas: shippingOverseas.value },
+      delivery: { company: v.company, feeType: v.feeType, baseFee: v.feeType === 'PAID' || v.feeType === 'CONDITIONAL_FREE' ? v.baseFee : null, ...(v.feeType === 'CONDITIONAL_FREE' ? { freeOver: v.freeOver } : {}), returnFee: v.returnFee, exchangeFee: v.exchangeFee, shippingAddressId: v.shippingAddressId, returnAddressId: v.returnAddressId, shippingOverseas: shippingOverseas.value },
       afterService: { phone: v.asPhone.trim(), guide: v.asGuide.trim() },
       origin: v.originCode === '04' ? { code: '04', content: v.originContent.trim() } : { code: '03' },
       notice: { itemName: v.itemName.trim(), modelName: v.modelName.trim(), manufacturer: v.manufacturer.trim() },

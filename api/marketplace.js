@@ -714,7 +714,7 @@ function smartstoreInput(body) {
   return {
     productName: body.productName, salePrice: num(body.salePrice), stock: num(body.stock), leafCategoryId: body.leafCategoryId,
     display: body.display == null || body.display === '' ? DISPLAY_STATUSES[0] : body.display, // 기본 전시중지
-    delivery: { company: d.company, feeType: d.feeType, baseFee: d.feeType === 'PAID' ? num(d.baseFee) : undefined, returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingAddressId: num(d.shippingAddressId), returnAddressId: num(d.returnAddressId), shippingOverseas: d.shippingOverseas === true },
+    delivery: { company: d.company, feeType: d.feeType, baseFee: d.feeType === 'PAID' || d.feeType === 'CONDITIONAL_FREE' ? num(d.baseFee) : undefined, ...(d.feeType === 'CONDITIONAL_FREE' ? { freeOver: num(d.freeOver) } : {}), returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingAddressId: num(d.shippingAddressId), returnAddressId: num(d.returnAddressId), shippingOverseas: d.shippingOverseas === true },
     afterService: body.afterService || {}, origin: body.origin || {}, notice: body.notice || {},
     customsTaxType: body.customsTaxType, // 해외 출고지일 때만 화면이 보낸다 (2026-10-01 운영 1차 400)
     options: marketOptionsInput(body.options), // 옵션(조합형)을 쓸 때만 화면이 보낸다 — 없으면 단일상품

@@ -16,7 +16,7 @@
  */
 import bcrypt from 'bcryptjs'
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
-import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, isCustomsTaxType, pickSmartstoreAddress } from './_smartstoreFields.js'
+import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, SS_FEE_TYPES, isCustomsTaxType, pickSmartstoreAddress } from './_smartstoreFields.js'
 import { smartstoreOptionInfo } from './_marketOptions.js'
 
 export const SMARTSTORE_PATHS = { token: '/external/v1/oauth2/token' }
@@ -137,9 +137,14 @@ export const DETAIL_IMAGE_MAX = 30 // 상세 이미지 장 수 (함수 시간 60
 export const SALE_PRICE_MAX = 999999990 // 문서 max
 export const STOCK_MAX = 99999999 // 문서 max
 export const BASE_FEE_MAX = 100000 // 기본 배송비 문서 max
+// 조건부 무료 (2026-10-01) — create-product-product 문서(current) deliveryInfo.deliveryFee 원문:
+//   deliveryFeeType enum "FREE(무료), CONDITIONAL_FREE(조건부 무료), PAID(유료), UNIT_QUANTITY_PAID(수량별), RANGE_QUANTITY_PAID(구간별)"
+//   freeConditionalAmount "무료 조건 금액" integer int32 maximum 999999990 — "배송비 유형이 '조건부 무료'일 경우 입력합니다."
+//   baseFee "기본 배송비" maximum 100000 · deliveryFeePayType COLLECT/PREPAID/COLLECT_OR_PREPAID (유료와 같이 PREPAID)
+export const FREE_CONDITIONAL_MAX = 999999990
 export const CLAIM_FEE_MAX = 1000000 // 반품·교환 배송비 문서 max
 // 전시 상태·택배사·원산지 코드 = 화면과 같은 파일 (api/_smartstoreFields.js — 순수)
-export { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES }
+export { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, SS_FEE_TYPES }
 const NOTICE_LIMITS = { itemName: 50, modelName: 50, manufacturer: 200, phone: 30 } // 기타 재화 고시 maxLength (문서)
 
 const cleanText = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, max)
@@ -157,7 +162,7 @@ export function ssDetailHtml(urls, productName) {
 /**
  * 상품 등록 본문 (POST /v2/products). 화면에서 받은 값만 — 모르는 칸은 넣지 않는다
  * @param {{ productName, salePrice, stock, leafCategoryId, repUrl, detailUrls:string[], display,
- *           delivery:{ company, feeType:'FREE'|'PAID', baseFee?, returnFee, exchangeFee, shippingAddressId, returnAddressId, shippingOverseas? },
+ *           delivery:{ company, feeType:'FREE'|'PAID'|'CONDITIONAL_FREE', baseFee?(유료·조건부), freeOver?(조건부 무료 기준 금액), returnFee, exchangeFee, shippingAddressId, returnAddressId, shippingOverseas? },
  *           afterService:{ phone, guide }, origin:{ code:'03'|'04', content? }, notice:{ itemName, modelName, manufacturer },
  *           customsTaxType?:'NOT_APPLICABLE'|'INCLUDED'|'EXCLUDED', options?:{ groupNames, rows:[{ values, addPrice, stock }] } | null }} p
  *           shippingOverseas = 고른 출고지의 주소록 overseasAddress (true면 관부가세 필수) · options = 조합형 옵션(_marketOptions.optionsPayload) — 있으면 stock 대신 옵션 재고 합계
@@ -180,8 +185,9 @@ export function buildSmartstoreProduct(p) {
   if (!DISPLAY_STATUSES.includes(p?.display)) return { ok: false, message: '전시 상태 값이 올바르지 않습니다.' }
   const d = p?.delivery || {}
   if (!SS_DELIVERY_COMPANIES.some(c => c.code === d.company)) return { ok: false, message: '택배사를 선택하세요.' }
-  if (d.feeType !== 'FREE' && d.feeType !== 'PAID') return { ok: false, message: '배송비 종류를 선택하세요.' }
-  if (d.feeType === 'PAID' && !isInt(d.baseFee, 1, BASE_FEE_MAX)) return { ok: false, message: `기본 배송비는 1~${BASE_FEE_MAX.toLocaleString('ko-KR')}원 정수로 입력하세요.` }
+  if (!SS_FEE_TYPES.includes(d.feeType)) return { ok: false, message: '배송비 종류를 선택하세요.' }
+  if (d.feeType !== 'FREE' && !isInt(d.baseFee, 1, BASE_FEE_MAX)) return { ok: false, message: `기본 배송비는 1~${BASE_FEE_MAX.toLocaleString('ko-KR')}원 정수로 입력하세요.` }
+  if (d.feeType === 'CONDITIONAL_FREE' && !isInt(d.freeOver, 1, FREE_CONDITIONAL_MAX)) return { ok: false, message: `무료배송 기준 금액은 1~${FREE_CONDITIONAL_MAX.toLocaleString('ko-KR')}원 정수로 입력하세요.` }
   if (!isInt(d.returnFee, 0, CLAIM_FEE_MAX) || !isInt(d.exchangeFee, 0, CLAIM_FEE_MAX)) return { ok: false, message: '반품·교환 배송비를 0 이상 정수(원)로 입력하세요.' }
   if (!isInt(d.shippingAddressId, 1, Number.MAX_SAFE_INTEGER) || !isInt(d.returnAddressId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, message: '출고지·반품지를 선택하세요.' }
   const as = p?.afterService || {}
@@ -199,7 +205,9 @@ export function buildSmartstoreProduct(p) {
   if (customs != null && !isCustomsTaxType(customs)) return { ok: false, message: '관부가세 값이 올바르지 않습니다.' }
   if (d.shippingOverseas === true && customs == null) return { ok: false, message: '해외 출고지는 관부가세를 선택하세요.' }
 
-  const deliveryFee = d.feeType === 'PAID' ? { deliveryFeeType: 'PAID', baseFee: d.baseFee, deliveryFeePayType: 'PREPAID' } : { deliveryFeeType: 'FREE' }
+  const deliveryFee = d.feeType === 'PAID' ? { deliveryFeeType: 'PAID', baseFee: d.baseFee, deliveryFeePayType: 'PREPAID' }
+    : d.feeType === 'CONDITIONAL_FREE' ? { deliveryFeeType: 'CONDITIONAL_FREE', baseFee: d.baseFee, freeConditionalAmount: d.freeOver, deliveryFeePayType: 'PREPAID' }
+    : { deliveryFeeType: 'FREE' }
   const body = {
     originProduct: {
       statusType: 'SALE', // 등록 때는 SALE만 (문서) — 고객에게 숨기는 것은 전시 상태로

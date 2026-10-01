@@ -1603,6 +1603,22 @@ function smartstoreRelay(u, method, opts) {
   } })
   const paid = S.buildSmartstoreProduct({ ...IN, display: 'ON', delivery: { ...IN.delivery, feeType: 'PAID', baseFee: 3000 }, origin: { code: '04', content: '중국' } })
   eq('유료배송 = PAID + baseFee + PREPAID · 원산지 직접 입력 = 04 + content · 전시중 = ON', [paid.body.originProduct.deliveryInfo.deliveryFee, paid.body.originProduct.detailAttribute.originAreaInfo, paid.body.smartstoreChannelProduct.channelProductDisplayStatusType], [{ deliveryFeeType: 'PAID', baseFee: 3000, deliveryFeePayType: 'PREPAID' }, { originAreaCode: '04', content: '중국' }, 'ON'])
+  // 조건부 무료 (2026-10-01) — create-product-product 문서 deliveryFee: deliveryFeeType CONDITIONAL_FREE · freeConditionalAmount(max 999999990) · baseFee(max 100000)
+  const cond = S.buildSmartstoreProduct({ ...IN, delivery: { ...IN.delivery, feeType: 'CONDITIONAL_FREE', baseFee: 3000, freeOver: 30000 } })
+  const condBad = d => S.buildSmartstoreProduct({ ...IN, delivery: { ...IN.delivery, feeType: 'CONDITIONAL_FREE', ...d } })
+  eq('조건부 무료 = CONDITIONAL_FREE + baseFee + freeConditionalAmount + PREPAID (문서 칸만) · 나머지 본문은 무료일 때와 같음', [cond.body.originProduct.deliveryInfo.deliveryFee, { ...cond.body.originProduct, deliveryInfo: { ...cond.body.originProduct.deliveryInfo, deliveryFee: null } }],
+    [{ deliveryFeeType: 'CONDITIONAL_FREE', baseFee: 3000, freeConditionalAmount: 30000, deliveryFeePayType: 'PREPAID' }, { ...b.body.originProduct, deliveryInfo: { ...b.body.originProduct.deliveryInfo, deliveryFee: null } }])
+  eq('조건부 무료 거절: 기준 금액 없음·0·소수·상한 초과 · 기본 배송비 없음·상한 초과 (임의 값으로 채우지 않음) · 상한 그대로는 통과', [
+    condBad({ baseFee: 3000 }).message, condBad({ baseFee: 3000, freeOver: 0 }).ok, condBad({ baseFee: 3000, freeOver: 1.5 }).ok, condBad({ baseFee: 3000, freeOver: 999999991 }).ok,
+    condBad({ freeOver: 30000 }).message, condBad({ baseFee: 100001, freeOver: 30000 }).ok, condBad({ baseFee: 100000, freeOver: 999999990 }).ok, S.FREE_CONDITIONAL_MAX,
+  ], ['무료배송 기준 금액은 1~999,999,990원 정수로 입력하세요.', false, false, false, '기본 배송비는 1~100,000원 정수로 입력하세요.', false, true, 999999990])
+  eq('배송비 종류: 문서 enum 중 3개만(수량별·구간별·모르는 값 거절) · 무료·유료 본문은 예전 그대로(freeConditionalAmount 없음)', [
+    SF.SS_FEE_TYPES, S.buildSmartstoreProduct({ ...IN, delivery: { ...IN.delivery, feeType: 'UNIT_QUANTITY_PAID', baseFee: 3000 } }).ok, S.buildSmartstoreProduct({ ...IN, delivery: { ...IN.delivery, feeType: 'X' } }).message,
+    'freeConditionalAmount' in paid.body.originProduct.deliveryInfo.deliveryFee, S.buildSmartstoreProduct({ ...IN, delivery: { ...IN.delivery, freeOver: 30000 } }).body.originProduct.deliveryInfo.deliveryFee,
+    S.buildSmartstoreProduct({ ...IN, delivery: { ...IN.delivery, feeType: 'PAID', baseFee: 3000, freeOver: 30000 } }).body.originProduct.deliveryInfo.deliveryFee,
+  ], [['FREE', 'PAID', 'CONDITIONAL_FREE'], false, '배송비 종류를 선택하세요.', false, { deliveryFeeType: 'FREE' }, { deliveryFeeType: 'PAID', baseFee: 3000, deliveryFeePayType: 'PREPAID' }])
+  const mkSrc = read('api/marketplace.js')
+  eq('서버 화면 값 → 재료(smartstoreInput): 기준 금액은 조건부 무료일 때만 넘김 · 기본 배송비는 유료·조건부일 때만', /baseFee: d\.feeType === 'PAID' \|\| d\.feeType === 'CONDITIONAL_FREE' \? num\(d\.baseFee\) : undefined, \.\.\.\(d\.feeType === 'CONDITIONAL_FREE' \? \{ freeOver: num\(d\.freeOver\) \} : \{\}\)/.test(mkSrc), true)
   const bad = o => S.buildSmartstoreProduct({ ...IN, ...o }).ok
   eq('본문 거절: 판매가 0·소수 · 재고 음수·빈값 · 카테고리 없음 · 전시 WAIT · 택배사 모름 · 유료인데 배송비 없음 · 주소 없음 · A/S 없음 · 04인데 원산지 없음 · 고시 빈칸 · 이미지 없음 (임의 값으로 채우지 않음)', [
     bad({ salePrice: 0 }), bad({ salePrice: 12.5 }), bad({ stock: -1 }), bad({ stock: NaN }), bad({ leafCategoryId: '' }), bad({ display: 'WAIT' }), bad({ display: undefined }),
@@ -1668,20 +1684,24 @@ function smartstoreRelay(u, method, opts) {
     eq('A/S 안내 300자 넘음 = 안 덮고 안내(자르지 않음) · 300자는 그대로', ['asGuide' in long.form, long.notes, just.form.asGuide.length], [false, [SF.AS_GUIDE_LONG_NOTE], 300])
     eq('배송 템플릿 → 스마트스토어 칸: 무료 FREE · 고정 PAID + baseFee · 반품(편도)·교환(왕복) · 제주·도서산간은 칸이 없어 안 씀 · 빈 금액은 안 덮음', [
       SF.smartstoreFormFromShipping({ feeType: 'free', fee: 3000, returnFee: 3000, exchangeFee: 6000, jejuFee: 3000 }), SF.smartstoreFormFromShipping({ feeType: 'fixed', fee: 2500 }), SF.smartstoreFormFromShipping({ feeType: 'fixed', fee: null, returnFee: null }), SF.smartstoreFormFromShipping({}),
-    ], [{ form: { feeType: 'FREE', baseFee: null, returnFee: 3000, exchangeFee: 6000 }, notes: [] }, { form: { feeType: 'PAID', baseFee: 2500 }, notes: [] }, { form: { feeType: 'PAID', baseFee: null }, notes: [] }, { form: {}, notes: [] }])
-    eq('조건부 무료(스마트스토어 칸 없음) = 무료·유료로 바꿔 넣지 않음: feeType 빈 값 + 안내 · 반품·교환은 적용', SF.smartstoreFormFromShipping({ feeType: 'conditional', fee: 3000, freeOver: 30000, returnFee: 3000, exchangeFee: 6000 }),
-      { form: { feeType: '', baseFee: null, returnFee: 3000, exchangeFee: 6000 }, notes: [SF.SS_FEE_UNSUPPORTED_NOTE] })
+    ], [{ form: { feeType: 'FREE', baseFee: null, freeOver: null, returnFee: 3000, exchangeFee: 6000 }, notes: [] }, { form: { feeType: 'PAID', baseFee: 2500, freeOver: null }, notes: [] }, { form: { feeType: 'PAID', baseFee: null, freeOver: null }, notes: [] }, { form: {}, notes: [] }])
+    eq('조건부 무료 → CONDITIONAL_FREE + 기본 배송비 + 기준 금액 (네이버 문서 enum) · 금액이 비면 빈칸 그대로(임의 숫자 없음)', [
+      SF.smartstoreFormFromShipping({ feeType: 'conditional', fee: 3000, freeOver: 30000, returnFee: 3000, exchangeFee: 6000 }), SF.smartstoreFormFromShipping({ feeType: 'conditional' }).form,
+    ], [{ form: { feeType: 'CONDITIONAL_FREE', baseFee: 3000, freeOver: 30000, returnFee: 3000, exchangeFee: 6000 }, notes: [] }, { feeType: 'CONDITIONAL_FREE', baseFee: null, freeOver: null }])
+    const sc = { feeType: 'CONDITIONAL_FREE', baseFee: 3000, freeOver: 50000, returnFee: 3000, exchangeFee: 6000 }
+    eq('조건부 무료 칸 → 템플릿(conditional) → 칸: 같은 값', [SF.shippingTemplateFromSmartstoreForm(sc), SF.smartstoreFormFromShipping(L.normalizeShippingData(SF.shippingTemplateFromSmartstoreForm(sc))).form],
+      [{ feeType: 'conditional', fee: 3000, freeOver: 50000, jejuFee: null, islandFee: null, returnFee: 3000, exchangeFee: 6000 }, sc])
     const sf = { feeType: 'PAID', baseFee: 3000, returnFee: 3000, exchangeFee: 6000, manufacturer: '이유씨', asPhone: '010-1', asGuide: '안내', originCode: '04', originContent: '중국' }
     eq('스마트스토어 칸 → 템플릿 → 칸: 같은 값 (마켓 공용 이름 fixed · overseas)', [SF.shippingTemplateFromSmartstoreForm(sf).feeType, SF.smartstoreFormFromShipping(L.normalizeShippingData(SF.shippingTemplateFromSmartstoreForm(sf))).form, SF.productTemplateFromSmartstoreForm(sf).origin, SF.smartstoreFormFromProduct(L.normalizeProductData(SF.productTemplateFromSmartstoreForm(sf))).form],
-      ['fixed', { feeType: 'PAID', baseFee: 3000, returnFee: 3000, exchangeFee: 6000 }, { type: 'overseas', place: '중국' }, { manufacturer: '이유씨', asPhone: '010-1', asGuide: '안내', originCode: '04', originContent: '중국' }])
+      ['fixed', { feeType: 'PAID', baseFee: 3000, freeOver: null, returnFee: 3000, exchangeFee: 6000 }, { type: 'overseas', place: '중국' }, { manufacturer: '이유씨', asPhone: '010-1', asGuide: '안내', originCode: '04', originContent: '중국' }])
     eq('칸 → 템플릿: 무료 free(금액 없음) · 상세설명 03 → refer · 저장 검사 통과', [SF.shippingTemplateFromSmartstoreForm({ feeType: 'FREE', baseFee: 100, returnFee: 0, exchangeFee: 0 }), SF.productTemplateFromSmartstoreForm({ originCode: '03' }).origin, L.validateListingTemplate('product', 'x', SF.productTemplateFromSmartstoreForm(sf)).ok, L.validateListingTemplate('shipping', 'x', SF.shippingTemplateFromSmartstoreForm(sf)).ok],
       [{ feeType: 'free', fee: null, freeOver: null, jejuFee: null, islandFee: null, returnFee: 0, exchangeFee: 0 }, { type: 'refer', place: '' }, true, true])
     const ssv = read('src/components/studio/StudioSendSmartstore.vue')
     const submitSrc = ssv.slice(ssv.indexOf('async function submit()'), ssv.indexOf('defineExpose'))
     eq('스마트스토어 섹션 배선: 공용 템플릿 목록은 11번가와 같은 sendCache 키 · 보내는 값(submit)은 칸(f)만 읽고 템플릿을 직접 보내지 않음 · 칸 처음 값 = 템플릿 처음 값', [
       /cached\('listingTemplates', listListingTemplates\)/.test(ssv), /\blt\./.test(submitSrc),
-      /const shippingBase = \(\) => \(\{ feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null \}\)/.test(ssv), /const productBase = \(\) => \(\{ asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '', manufacturer: '' \}\)/.test(ssv),
-      /company: SS_DELIVERY_COMPANIES\[0\]\.code, feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null,/.test(ssv), /asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '',/.test(ssv), /itemName: '', modelName: '', manufacturer: '',/.test(ssv),
+      /const shippingBase = \(\) => \(\{ feeType: 'FREE', baseFee: null, freeOver: null, returnFee: null, exchangeFee: null \}\)/.test(ssv), /const productBase = \(\) => \(\{ asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '', manufacturer: '' \}\)/.test(ssv),
+      /company: SS_DELIVERY_COMPANIES\[0\]\.code, feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null,\n  freeOver: null,/.test(ssv), /asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '',/.test(ssv), /itemName: '', modelName: '', manufacturer: '',/.test(ssv),
     ], [true, false, true, true, true, true, true])
     eq('기본 설정 화면 이름: 공용 = "공용 등록 템플릿"(11번가·스마트스토어) · 쿠팡 = "쿠팡 배송/반품 템플릿"(쿠팡 보내기 창 빠짐 목록 "배송/반품 템플릿"과 같은 말)', [read('src/components/studio/StudioListingTemplates.vue').includes('공용 등록 템플릿'), read('src/components/studio/StudioShippingTemplates.vue').includes('<h3 class="st-h-card">쿠팡 배송/반품 템플릿</h3>')], [true, true])
   }
