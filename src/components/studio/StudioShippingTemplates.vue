@@ -1,7 +1,7 @@
 <template>
   <section class="st-card p-5 sm:p-6" data-mk-templates>
     <div class="flex items-center gap-2 mb-3">
-      <h3 class="st-h-card">배송/반품 템플릿</h3>
+      <h3 class="st-h-card">쿠팡 배송/반품 템플릿</h3>
       <button type="button" class="st-btn ml-auto" :disabled="!places.length" data-mk-template-new @click="startNew">새 템플릿</button>
     </div>
     <p v-if="errorMsg" class="mb-2 text-[13px] break-keep" :class="errorSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-template-list-error>{{ errorMsg }}</p>

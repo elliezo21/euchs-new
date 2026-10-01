@@ -251,6 +251,37 @@ if (built?.Coupang && built?.Modal) {
   const ov = await renderAddr(ovCache)
   eq('국내 주소가 없을 때만 목록 첫 번째(해외 104) — 출고지·반품지 둘 다', [sel(ov.html, 'data-mk-ss-shipping', 104), sel(ov.html, 'data-mk-ss-return', 104)], [true, true])
   eq('스마트스토어 섹션: 해외 출고지면 관부가세 칸(필수 · 3개 + 선택 안 함) · 출고지 이름에 "해외" · 요약 줄 미입력', [ov.error, /data-mk-ss-customs-box/.test(ov.html), (ov.html.match(/<option[^>]*value="(NOT_APPLICABLE|INCLUDED|EXCLUDED)"/g) || []).length, /data-mk-ss-customs[^-][\s\S]{0,200}<option value=""[^>]*selected/.test(ov.html) || /<option value="" selected[^>]*>관부가세 선택/.test(ov.html), ov.html.includes('항주 창고 (출고지) · 해외'), /data-mk-ss-preview-row="관부가세"[\s\S]{0,200}미입력/.test(ov.html)], [null, true, 3, true, true, true])
+
+  // ── 등록 템플릿 (2026-10-01) — 11번가와 같은 공용 템플릿. 템플릿을 안 쓰면 칸·요약이 예전과 같아야 한다 ──
+  const renderLt = list => render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, { ...ssCache, listingTemplatesDone: { ready: true, templates: list } }); return () => h(built.Smartstore, { prepare: PREPARE(true) }) } }, {})
+  const selSs = (html, attr, id) => new RegExp(attr + '[^>]*>(?:(?!<\\/select>)[\\s\\S])*<option[^>]*value="' + id + '"[^>]*selected').test(html)
+  const afterLt = html => html.slice(html.indexOf('data-mk-ss-name')) // 템플릿 칸 아래 = 상품명부터 끝까지 (칸·요약 표 전부)
+  const SP1 = { id: 'sp1', kind: 'product', name: '중국산', is_default: true, data: { origin: { type: 'overseas', place: '베트남' }, maker: '(주)이유씨 수입', country: '베트남', brand: '이유홈', asContact: '02-000-0000', asGuide: 'A/S 안내 문구', returnGuide: '반품 안내', kc: {}, notice: { type: '기타 재화', items: {} } } }
+  const SP2 = { id: 'sp2', kind: 'product', name: '국내', is_default: false, data: { origin: { type: 'domestic', place: '서울' }, maker: '이유씨' } }
+  const SS1 = { id: 'ss1', kind: 'shipping', name: '조건부', is_default: true, data: { feeType: 'conditional', fee: 3000, freeOver: 30000, jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000 } }
+  const SS2 = { id: 'ss2', kind: 'shipping', name: '무료', is_default: false, data: { feeType: 'free', returnFee: 4000 } }
+  const SS3 = { id: 'ss3', kind: 'shipping', name: '고정', is_default: true, data: { feeType: 'fixed', fee: 3000, returnFee: 3500, exchangeFee: 7000 } }
+  eq('스마트스토어 등록 템플릿: 목록이 없으면(표 없음 — SQL 전) 템플릿 칸을 그리지 않음', /data-mk-ss-templates/.test(ss.html), false)
+  const lt0 = await renderLt([SP2, SS2])
+  eq('스마트스토어 등록 템플릿: 기본 템플릿이 없으면 아무것도 고르지 않음 · 칸·요약 표 HTML이 템플릿 없을 때와 글자 하나까지 같음(예전 그대로)', [lt0.error, /data-mk-ss-templates/.test(lt0.html), selSs(lt0.html, 'data-mk-ss-lt="product"', ''), selSs(lt0.html, 'data-mk-ss-lt="shipping"', ''), afterLt(lt0.html) === afterLt(ss.html)], [null, true, true, true, true])
+  eq('스마트스토어 처음 값(템플릿 없음): 무료 · 반품·교환 빈칸 · A/S 전화 빈칸 · A/S 안내 "상세페이지 참조" · 원산지 상세설명 · 제조자 빈칸', [checked(ss.html, 'data-mk-ss-fee-free'), val(ss.html, 'data-mk-ss-return-fee'), val(ss.html, 'data-mk-ss-exchange-fee'), val(ss.html, 'data-mk-ss-as-phone'), val(ss.html, 'data-mk-ss-as-guide'), checked(ss.html, 'data-mk-ss-origin-detail'), val(ss.html, 'data-mk-ss-manufacturer')], [true, '', '', '', '상세페이지 참조', true, ''])
+  const lt1 = await renderLt([SP2, SP1, SS2, SS3])
+  eq('스마트스토어 등록 템플릿 적용(기본 자동 선택): 제조자·A/S 전화·A/S 안내 · 원산지 해외 → 직접 입력 "베트남" · 고정 배송비 → 유료 3,000 · 반품 3,500·교환 7,000 · 요약 표', [
+    lt1.error, selSs(lt1.html, 'data-mk-ss-lt="product"', 'sp1'), selSs(lt1.html, 'data-mk-ss-lt="shipping"', 'ss3'), val(lt1.html, 'data-mk-ss-manufacturer'), val(lt1.html, 'data-mk-ss-as-phone'), val(lt1.html, 'data-mk-ss-as-guide'),
+    checked(lt1.html, 'data-mk-ss-origin-direct'), val(lt1.html, 'data-mk-ss-origin-content'), checked(lt1.html, 'data-mk-ss-fee-paid'), val(lt1.html, 'data-mk-ss-base-fee'), val(lt1.html, 'data-mk-ss-return-fee'), val(lt1.html, 'data-mk-ss-exchange-fee'),
+    /data-mk-ss-preview-row="배송비"[\s\S]{0,200}3,000원 \(선결제\)/.test(lt1.html), /data-mk-ss-lt-note/.test(lt1.html),
+  ], [null, true, true, '(주)이유씨 수입', '02-000-0000', 'A/S 안내 문구', true, '베트남', true, '3000', '3500', '7000', true, false])
+  eq('스마트스토어 등록 템플릿: 출고지·반품지·택배사는 템플릿과 상관없이 예전 규칙(102·103·CJ대한통운)', [selSs(lt1.html, 'data-mk-ss-shipping', 102), selSs(lt1.html, 'data-mk-ss-return', 103), selSs(lt1.html, 'data-mk-ss-company', 'CJGLS')], [true, true, true])
+  const lt2 = await renderLt([SP1, SS1])
+  eq('스마트스토어 등록 템플릿 — 조건부 무료(이 섹션에 없음): 무료·유료 어느 쪽도 체크 안 함 · 안내 한 줄 · 요약 배송비 미입력 · 반품·교환은 적용', [
+    lt2.error, checked(lt2.html, 'data-mk-ss-fee-free'), checked(lt2.html, 'data-mk-ss-fee-paid'), /data-mk-ss-lt-note="shipping"[^>]*>[^<]*조건부 무료/.test(lt2.html), /data-mk-ss-preview-row="배송비"[\s\S]{0,200}미입력/.test(lt2.html), val(lt2.html, 'data-mk-ss-return-fee'), val(lt2.html, 'data-mk-ss-exchange-fee'),
+  ], [null, false, false, true, true, '3000', '6000'])
+  const lt3 = await renderLt([{ ...SP2, is_default: true }, { ...SS2, is_default: true }])
+  eq('스마트스토어 등록 템플릿: 국내 원산지는 안 덮음(상세설명 그대로) · 무료 → 무료 · 반품 4,000 · 교환은 처음 값(빈칸)', [lt3.error, checked(lt3.html, 'data-mk-ss-origin-detail'), val(lt3.html, 'data-mk-ss-manufacturer'), checked(lt3.html, 'data-mk-ss-fee-free'), val(lt3.html, 'data-mk-ss-return-fee'), val(lt3.html, 'data-mk-ss-exchange-fee')], [null, true, '이유씨', true, '4000', ''])
+  const lt4 = await renderLt([{ ...SP1, data: { ...SP1.data, asGuide: '가'.repeat(301) } }])
+  eq('스마트스토어 등록 템플릿: A/S 안내가 300자를 넘으면 안 덮고(자르지 않음) 안내 한 줄', [val(lt4.html, 'data-mk-ss-as-guide'), /data-mk-ss-lt-note="product"[^>]*>[^<]*300자/.test(lt4.html)], ['상세페이지 참조', true])
+  const lt5 = await renderLt([])
+  eq('스마트스토어: 템플릿이 하나도 없으면 [기본 설정] 안내 한 줄 · 저장 버튼 2개(상품정보·배송)', [/data-mk-ss-lt-empty/.test(lt5.html), (lt5.html.match(/data-mk-ss-lt-save="/g) || []).length], [true, 2])
 }
 
 if (built?.Elevenst) {

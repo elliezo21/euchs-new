@@ -1655,6 +1655,36 @@ function smartstoreRelay(u, method, opts) {
   ], [['NOT_APPLICABLE', 'INCLUDED', 'EXCLUDED'], false, false, 'EXCLUDED', false, false, '해외 출고지는 관부가세를 선택하세요.'])
   eq('같은 그림 재사용 = 그대로: 같은 주소가 여러 번이면 상세 HTML에 순서대로 모두(합치지 않음)', (S.ssDetailHtml(['https://x/a.jpg', 'https://x/b.jpg', 'https://x/b.jpg', 'https://x/b.jpg'], '머그').match(/<img src="https:\/\/x\/(a|b)\.jpg"/g) || []).map(t => t.slice(-6, -1)), ['a.jpg', 'b.jpg', 'b.jpg', 'b.jpg'])
   eq('보내기 문구 합니다체: 본문 검사 문구에 대화체 없음', [{}, { productName: '' }, { salePrice: 0 }, { stock: -1 }, { leafCategoryId: '' }, { display: 'X' }, { delivery: { ...IN.delivery, company: 'X' } }, { delivery: { ...IN.delivery, feeType: 'PAID' } }, { origin: { code: '04' } }, { notice: {} }, { customsTaxType: 'X' }].map(o => S.buildSmartstoreProduct({ ...IN, ...o }).message).filter(m => m && /(어요|예요|해요|돼요|아요|워요|네요|줘요)[.!]|주세요/.test(m)), [])
+  // 등록 템플릿(2026-10-01) — 마켓 공용 값(api/_listingTemplates.js) ↔ 스마트스토어 칸(api/_smartstoreFields.js). 없는 칸·다른 뜻은 넣지 않는다
+  {
+    const L = await import('../api/_listingTemplates.js')
+    const P = L.normalizeProductData({ origin: { type: 'overseas', place: '베트남' }, maker: ' (주)이유씨 ', country: '베트남', brand: '이유홈', asContact: '02-000-0000', asGuide: 'A/S', returnGuide: '반품', kc: { living: { choice: 'none' } }, notice: { type: '의류', items: { 색상: '블랙' } } })
+    eq('상품정보 템플릿 → 스마트스토어 칸: 제조자 → manufacturer · 전화 → asPhone · A/S 안내 · 해외 → 04 + 나라 이름 · 브랜드·제조국·반품 안내·KC·고시 유형은 칸이 없어 안 씀', SF.smartstoreFormFromProduct(P),
+      { form: { manufacturer: '(주)이유씨', asPhone: '02-000-0000', asGuide: 'A/S', originCode: '04', originContent: '베트남' }, notes: [] })
+    eq('원산지: 상세설명 참조 → 03 · 국내는 안 덮음([모름] 04에 국내 지역) · 해외인데 나라 없음은 안 덮음 · 빈 템플릿은 아무 칸도 안 덮음', [
+      SF.smartstoreFormFromProduct({ origin: { type: 'refer' } }).form, SF.smartstoreFormFromProduct({ origin: { type: 'domestic', place: '서울' } }).form, SF.smartstoreFormFromProduct({ origin: { type: 'overseas', place: '' } }).form, SF.smartstoreFormFromProduct(L.blankProductData()).form,
+    ], [{ originCode: '03', originContent: '' }, {}, {}, {}])
+    const long = SF.smartstoreFormFromProduct({ asGuide: '가'.repeat(301) }), just = SF.smartstoreFormFromProduct({ asGuide: '가'.repeat(300) })
+    eq('A/S 안내 300자 넘음 = 안 덮고 안내(자르지 않음) · 300자는 그대로', ['asGuide' in long.form, long.notes, just.form.asGuide.length], [false, [SF.AS_GUIDE_LONG_NOTE], 300])
+    eq('배송 템플릿 → 스마트스토어 칸: 무료 FREE · 고정 PAID + baseFee · 반품(편도)·교환(왕복) · 제주·도서산간은 칸이 없어 안 씀 · 빈 금액은 안 덮음', [
+      SF.smartstoreFormFromShipping({ feeType: 'free', fee: 3000, returnFee: 3000, exchangeFee: 6000, jejuFee: 3000 }), SF.smartstoreFormFromShipping({ feeType: 'fixed', fee: 2500 }), SF.smartstoreFormFromShipping({ feeType: 'fixed', fee: null, returnFee: null }), SF.smartstoreFormFromShipping({}),
+    ], [{ form: { feeType: 'FREE', baseFee: null, returnFee: 3000, exchangeFee: 6000 }, notes: [] }, { form: { feeType: 'PAID', baseFee: 2500 }, notes: [] }, { form: { feeType: 'PAID', baseFee: null }, notes: [] }, { form: {}, notes: [] }])
+    eq('조건부 무료(스마트스토어 칸 없음) = 무료·유료로 바꿔 넣지 않음: feeType 빈 값 + 안내 · 반품·교환은 적용', SF.smartstoreFormFromShipping({ feeType: 'conditional', fee: 3000, freeOver: 30000, returnFee: 3000, exchangeFee: 6000 }),
+      { form: { feeType: '', baseFee: null, returnFee: 3000, exchangeFee: 6000 }, notes: [SF.SS_FEE_UNSUPPORTED_NOTE] })
+    const sf = { feeType: 'PAID', baseFee: 3000, returnFee: 3000, exchangeFee: 6000, manufacturer: '이유씨', asPhone: '010-1', asGuide: '안내', originCode: '04', originContent: '중국' }
+    eq('스마트스토어 칸 → 템플릿 → 칸: 같은 값 (마켓 공용 이름 fixed · overseas)', [SF.shippingTemplateFromSmartstoreForm(sf).feeType, SF.smartstoreFormFromShipping(L.normalizeShippingData(SF.shippingTemplateFromSmartstoreForm(sf))).form, SF.productTemplateFromSmartstoreForm(sf).origin, SF.smartstoreFormFromProduct(L.normalizeProductData(SF.productTemplateFromSmartstoreForm(sf))).form],
+      ['fixed', { feeType: 'PAID', baseFee: 3000, returnFee: 3000, exchangeFee: 6000 }, { type: 'overseas', place: '중국' }, { manufacturer: '이유씨', asPhone: '010-1', asGuide: '안내', originCode: '04', originContent: '중국' }])
+    eq('칸 → 템플릿: 무료 free(금액 없음) · 상세설명 03 → refer · 저장 검사 통과', [SF.shippingTemplateFromSmartstoreForm({ feeType: 'FREE', baseFee: 100, returnFee: 0, exchangeFee: 0 }), SF.productTemplateFromSmartstoreForm({ originCode: '03' }).origin, L.validateListingTemplate('product', 'x', SF.productTemplateFromSmartstoreForm(sf)).ok, L.validateListingTemplate('shipping', 'x', SF.shippingTemplateFromSmartstoreForm(sf)).ok],
+      [{ feeType: 'free', fee: null, freeOver: null, jejuFee: null, islandFee: null, returnFee: 0, exchangeFee: 0 }, { type: 'refer', place: '' }, true, true])
+    const ssv = read('src/components/studio/StudioSendSmartstore.vue')
+    const submitSrc = ssv.slice(ssv.indexOf('async function submit()'), ssv.indexOf('defineExpose'))
+    eq('스마트스토어 섹션 배선: 공용 템플릿 목록은 11번가와 같은 sendCache 키 · 보내는 값(submit)은 칸(f)만 읽고 템플릿을 직접 보내지 않음 · 칸 처음 값 = 템플릿 처음 값', [
+      /cached\('listingTemplates', listListingTemplates\)/.test(ssv), /\blt\./.test(submitSrc),
+      /const shippingBase = \(\) => \(\{ feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null \}\)/.test(ssv), /const productBase = \(\) => \(\{ asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '', manufacturer: '' \}\)/.test(ssv),
+      /company: SS_DELIVERY_COMPANIES\[0\]\.code, feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null,/.test(ssv), /asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '',/.test(ssv), /itemName: '', modelName: '', manufacturer: '',/.test(ssv),
+    ], [true, false, true, true, true, true, true])
+    eq('기본 설정 화면 이름: 공용 = "공용 등록 템플릿"(11번가·스마트스토어) · 쿠팡 = "쿠팡 배송/반품 템플릿"(쿠팡 보내기 창 빠짐 목록 "배송/반품 템플릿"과 같은 말)', [read('src/components/studio/StudioListingTemplates.vue').includes('공용 등록 템플릿'), read('src/components/studio/StudioShippingTemplates.vue').includes('<h3 class="st-h-card">쿠팡 배송/반품 템플릿</h3>')], [true, true])
+  }
   eq('등록 응답 번호: int64를 글자 그대로(정밀도 손실 없음) · 없으면 null · 업로드 응답 장 수가 다르면 null', [
     S.productNosOf('{"originProductNo":9007199254740993,"smartstoreChannelProductNo":12}'), S.productNosOf('{"x":1}'),
     S.uploadedImageUrls({ images: [{ url: 'a' }, { url: 'b' }] }, 2), S.uploadedImageUrls({ images: [{ url: 'a' }] }, 2), S.uploadedImageUrls({ images: [{ url: '' }] }, 1), S.uploadedImageUrls(null, 1),

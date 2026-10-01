@@ -53,3 +53,58 @@ export function lastAddressesOf(claim) {
   const id = v => (Number.isSafeInteger(v) && v > 0 ? v : null)
   return { shipping: id(claim?.shippingAddressId), return: id(claim?.returnAddressId) }
 }
+
+// ── 등록 템플릿(마켓 공용 값 — api/_listingTemplates.js) ↔ 스마트스토어 섹션 칸 (2026-10-01) ──
+// 스마트스토어 칸으로 바꾸는 일은 여기서만. 템플릿에 값이 없는 칸은 돌려주지 않는다(화면이 처음 값을 그대로 둔다)
+// 스마트스토어 보내기에 칸이 없는 값(브랜드·제조국·반품/교환 안내·KC·고시 유형·제주/도서산간 추가비)은 쓰지 않는다
+export const AS_GUIDE_MAX = 300 // A/S 안내 — 화면 칸 maxlength·서버 cleanText(guide, 300)와 같은 길이
+export const SS_FEE_UNSUPPORTED_NOTE = '스마트스토어는 조건부 무료 배송비를 지원하지 않아 배송비 방식은 적용하지 않았습니다. 배송비를 직접 선택하세요.'
+export const AS_GUIDE_LONG_NOTE = `템플릿의 A/S 안내가 ${AS_GUIDE_MAX}자를 넘어 적용하지 않았습니다. A/S 안내를 직접 입력하세요.`
+const isWonValue = v => Number.isInteger(v) && v >= 0
+/**
+ * 상품정보 템플릿 data → 섹션 칸 (일부)
+ *   maker → manufacturer(고시 제조자) · asContact → asPhone · asGuide → asGuide(300자 넘으면 안 덮고 안내)
+ *   원산지: 상세설명 참조 → 03 · 해외 + 나라 이름 → 04 직접 입력(content = 나라 이름) · 국내는 안 덮음(04에 국내 지역을 넣어도 되는지 문서로 확인 못 함[모름])
+ * @returns {{ form:object, notes:string[] }}
+ */
+export function smartstoreFormFromProduct(data = {}) {
+  const form = {}, notes = []
+  const s = v => String(v ?? '').trim()
+  if (s(data?.maker)) form.manufacturer = s(data.maker)
+  if (s(data?.asContact)) form.asPhone = s(data.asContact)
+  const guide = s(data?.asGuide)
+  if (guide && [...guide].length > AS_GUIDE_MAX) notes.push(AS_GUIDE_LONG_NOTE)
+  else if (guide) form.asGuide = guide
+  const o = data?.origin || {}
+  if (o.type === 'refer') { form.originCode = '03'; form.originContent = '' }
+  else if (o.type === 'overseas' && s(o.place)) { form.originCode = '04'; form.originContent = s(o.place) }
+  return { form, notes }
+}
+/**
+ * 배송 템플릿 data → 섹션 칸 (일부) — 무료 FREE · 고정 PAID + baseFee · 반품(편도)·교환(왕복) 배송비
+ *   조건부 무료는 이 섹션에 없음 → feeType = ''(선택 안 됨 — 빠짐 목록이 막는다) + 안내. 무료나 유료로 바꿔 넣지 않는다
+ * @returns {{ form:object, notes:string[] }}
+ */
+export function smartstoreFormFromShipping(data = {}) {
+  const form = {}, notes = []
+  if (data?.feeType === 'free') { form.feeType = 'FREE'; form.baseFee = null }
+  else if (data?.feeType === 'fixed') { form.feeType = 'PAID'; form.baseFee = isWonValue(data.fee) ? data.fee : null }
+  else if (data?.feeType === 'conditional') { form.feeType = ''; form.baseFee = null; notes.push(SS_FEE_UNSUPPORTED_NOTE) }
+  if (isWonValue(data?.returnFee)) form.returnFee = data.returnFee
+  if (isWonValue(data?.exchangeFee)) form.exchangeFee = data.exchangeFee
+  return { form, notes }
+}
+/** 섹션 칸 → 상품정보 템플릿 data (마켓 공용 값 — [현재 값으로 새 템플릿 저장]). 스마트스토어에 없는 값은 비워 둔다 */
+export function productTemplateFromSmartstoreForm(f = {}) {
+  const s = v => String(v ?? '').trim()
+  return {
+    origin: f.originCode === '04' && s(f.originContent) ? { type: 'overseas', place: s(f.originContent) } : f.originCode === '03' ? { type: 'refer', place: '' } : { type: '', place: '' },
+    maker: s(f.manufacturer), country: '', brand: '', asContact: s(f.asPhone), asGuide: s(f.asGuide), returnGuide: '',
+  }
+}
+/** 섹션 칸 → 배송 템플릿 data */
+export function shippingTemplateFromSmartstoreForm(f = {}) {
+  const n = v => (isWonValue(v) ? v : null)
+  const feeType = f.feeType === 'FREE' ? 'free' : f.feeType === 'PAID' ? 'fixed' : ''
+  return { feeType, fee: feeType === 'fixed' ? n(f.baseFee) : null, freeOver: null, jejuFee: null, islandFee: null, returnFee: n(f.returnFee), exchangeFee: n(f.exchangeFee) }
+}

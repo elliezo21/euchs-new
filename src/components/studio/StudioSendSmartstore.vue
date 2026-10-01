@@ -6,6 +6,28 @@
     <p v-if="sendError" ref="errorEl" class="text-[13px] font-bold st-danger-text break-keep st-surface st-border rounded-[10px] p-3" role="alert" data-mk-ss-error>등록에 실패했습니다. (사유: {{ sendError }})
       <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">연결 설정으로 이동</router-link></p>
 
+    <!-- 등록 템플릿 (2026-10-01) — 11번가 섹션과 같은 공용 템플릿. 고르면 칸이 채워지고 그 자리에서 고칠 수 있다. 기본 템플릿은 창을 열 때 자동 선택. 표가 없으면 그리지 않는다 -->
+    <div v-if="lt.ready" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-ss-templates>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div v-for="k in TEMPLATE_KINDS" :key="k.key" class="block">
+          <span class="st-desc-sm block mb-1">{{ k.name }}</span>
+          <select v-model="lt.picked[k.key]" class="st-input w-full" :disabled="!!done" :data-mk-ss-lt="k.key" @change="applyTemplate(k.key)">
+            <option value="">선택 안 함</option>
+            <option v-for="t in ltList(k.key)" :key="t.id" :value="t.id">{{ t.name }}{{ t.is_default ? ' (기본)' : '' }}</option>
+          </select>
+          <button v-if="lt.saving !== k.key" type="button" class="st-link text-[12px] mt-1" :disabled="!!done || !!lt.saving" :data-mk-ss-lt-save="k.key" @click="startSaveTemplate(k.key)">현재 값으로 새 템플릿 저장</button>
+          <div v-else class="flex flex-wrap items-center gap-1.5 mt-1.5" :data-mk-ss-lt-save-box="k.key">
+            <input v-model="lt.name" type="text" :maxlength="TEMPLATE_NAME_MAX" class="st-input flex-1 min-w-[140px]" placeholder="템플릿 이름" data-mk-ss-lt-name />
+            <button type="button" class="st-btn st-btn-primary" :disabled="lt.busy" data-mk-ss-lt-save-ok @click="saveTemplate(k.key)">{{ lt.busy ? '저장 중…' : '저장' }}</button>
+            <button type="button" class="st-btn" :disabled="lt.busy" @click="lt.saving = ''">취소</button>
+          </div>
+          <p v-for="n in lt.notes[k.key]" :key="n" class="text-[12px] st-danger-text font-bold break-keep mt-1" :data-mk-ss-lt-note="k.key">{{ n }}</p>
+        </div>
+      </div>
+      <p v-if="!lt.list.length" class="st-desc-sm break-keep" data-mk-ss-lt-empty>템플릿이 없습니다. <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">기본 설정</router-link> 탭에서 예시값으로 템플릿을 만들 수 있습니다.</p>
+      <p v-if="lt.message" class="text-[12px] break-keep" :class="lt.error ? 'st-danger-text font-bold' : 'st-muted'" data-mk-ss-lt-msg>{{ lt.message }}</p>
+    </div>
+
     <!-- 상품명 -->
     <label class="block">
       <span class="st-label">상품명 *</span>
@@ -197,11 +219,17 @@
 // 항목은 네이버 상품 등록 문서의 필수 칸(api/_smartstore.js buildSmartstoreProduct)만 — 카테고리·판매가·재고·대표 이미지·배송·출고지/반품지·A/S·원산지·고시·전시 상태.
 // 판매 상태: 등록 때는 판매중(SALE)만 가능(문서) → 기본 전시중지(SUSPENSION)로 노출하지 않는다. 필수값은 화면(missing)이 먼저 막고 서버가 다시 검사한다
 // 카테고리·주소록은 창(StudioSendModal)이 화면이 떠 있는 동안 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
-import { ref, computed, onMounted, inject, nextTick } from 'vue'
+// 등록 템플릿(2026-10-01): 11번가 섹션과 같은 공용 템플릿(api/_listingTemplates.js) — 이 섹션 칸 변환은 api/_smartstoreFields.js에서만. 택배사·출고지·반품지는 템플릿에 없다(주소록 + 마지막 사용 기억 그대로)
+import { ref, reactive, computed, onMounted, inject, nextTick } from 'vue'
 import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduct, isNotReady } from '@/lib/studioMarketplace'
+import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
+import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
-import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL } from '../../../api/_smartstoreFields.js'
+import {
+  SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL,
+  smartstoreFormFromProduct, smartstoreFormFromShipping, productTemplateFromSmartstoreForm, shippingTemplateFromSmartstoreForm,
+} from '../../../api/_smartstoreFields.js'
 import { marketOptionsFromSource, optionsPayload, smartstoreOptionProblems, ssOptionPriceRange } from '../../../api/_marketOptions.js'
 import StudioSendOptions from './StudioSendOptions.vue'
 
@@ -225,6 +253,9 @@ const addrLoading = ref(false)
 const addrError = ref('')
 const addrSoft = ref(false)
 const addrRefreshing = ref(false)
+// 템플릿이 채우는 칸의 처음 값 — 아래 f의 처음 값과 같다. 템플릿을 바꿔 고르면 이 값으로 되돌린 뒤 템플릿 값을 덮는다(앞 템플릿 값이 남지 않게)
+const shippingBase = () => ({ feeType: 'FREE', baseFee: null, returnFee: null, exchangeFee: null })
+const productBase = () => ({ asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '', manufacturer: '' })
 const f = ref({
   // 상품명 기본값 = 쿠팡·카페24 섹션과 같은 규칙(한글만), 없으면 빈칸
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
@@ -272,6 +303,7 @@ const missing = computed(() => {
     else out.push(...smartstoreOptionProblems(optionsOut.value, isWon(v.salePrice, 1) ? v.salePrice : null).map(m => `옵션: ${m}`))
   } else if (!isWon(v.stock, 0)) out.push('재고 수량')
   if (!v.repImageId) out.push('대표 이미지')
+  if (v.feeType !== 'FREE' && v.feeType !== 'PAID') out.push('배송비') // 템플릿이 이 섹션에 없는 방식(조건부 무료)이면 선택 안 됨 — 서버 검사와 같은 두 값
   if (v.feeType === 'PAID' && !isWon(v.baseFee, 1)) out.push('기본 배송비')
   if (!isWon(v.returnFee, 0)) out.push('반품 배송비')
   if (!isWon(v.exchangeFee, 0)) out.push('교환 배송비')
@@ -301,7 +333,7 @@ const preview = computed(() => {
     { label: '옵션', value: optionsSummary.value },
     { label: '대표 이미지', value: v.repImageId ? '대표 이미지 1장' : '' },
     { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
-    { label: '배송비', value: v.feeType === 'PAID' ? (isWon(v.baseFee, 1) ? `${won(v.baseFee)} (선결제)` : '') : '무료' },
+    { label: '배송비', value: v.feeType === 'PAID' ? (isWon(v.baseFee, 1) ? `${won(v.baseFee)} (선결제)` : '') : v.feeType === 'FREE' ? '무료' : '' },
     { label: '반품·교환 배송비', value: isWon(v.returnFee, 0) && isWon(v.exchangeFee, 0) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
     { label: '출고지', value: addressName(v.shippingAddressId) },
     { label: '반품지', value: addressName(v.returnAddressId) },
@@ -387,6 +419,69 @@ async function loadAddresses() {
   }
 }
 
+// ── 등록 템플릿 (2026-10-01) — 11번가 섹션과 같은 방식 ──
+// 목록은 창의 sendCache('listingTemplates')를 11번가 섹션과 같이 쓴다(다시 받지 않음). 표가 없으면 ready = false → 칸을 그리지 않는다
+// notes = 이 섹션에 넣지 못한 템플릿 값 안내(예: 조건부 무료) — 템플릿을 다시 고르면 지운다
+const lt = reactive({ ready: false, list: [], picked: { product: '', shipping: '' }, notes: { product: [], shipping: [] }, saving: '', name: '', busy: false, message: '', error: false })
+const ltList = kind => lt.list.filter(t => t.kind === kind)
+/** 고른 템플릿 → 칸. 그 템플릿이 채우는 칸은 처음 값으로 되돌린 뒤 덮는다. "선택 안 함"이면 칸을 그대로 둔다 */
+function applyTemplate(kind) {
+  lt.notes[kind] = []
+  const t = lt.list.find(x => x.id === lt.picked[kind] && x.kind === kind)
+  if (!t) return
+  const r = kind === 'product' ? smartstoreFormFromProduct(t.data) : smartstoreFormFromShipping(t.data)
+  Object.assign(f.value, kind === 'product' ? productBase() : shippingBase(), r.form)
+  lt.notes[kind] = r.notes
+  lt.message = ''
+}
+/** 목록 → 기본 템플릿 자동 선택 (창을 열 때 한 번 — 섹션은 창을 열 때마다 새로 만든다) */
+let ltApplied = false
+function applyTemplateList(r) {
+  lt.ready = r?.ready === true
+  lt.list = Array.isArray(r?.templates) ? r.templates : []
+  if (ltApplied || !lt.ready) return
+  ltApplied = true
+  for (const k of TEMPLATE_KINDS) {
+    const d = pickDefaultTemplate(lt.list, k.key)
+    if (d) { lt.picked[k.key] = d.id; applyTemplate(k.key) }
+  }
+}
+async function loadTemplates() {
+  try {
+    applyTemplateList(await cached('listingTemplates', listListingTemplates))
+  } catch (e) {
+    console.error('[StudioSendSmartstore] 등록 템플릿 조회 실패 — 직접 입력으로 진행:', e) // 보내기는 막지 않는다
+  }
+}
+function startSaveTemplate(kind) {
+  lt.saving = kind
+  lt.name = uniqueTemplateName(kind === 'product' ? '스마트스토어 상품정보' : '스마트스토어 배송', lt.list, kind)
+  lt.message = ''
+}
+/** [현재 값으로 새 템플릿 저장] — 지금 칸의 값을 마켓 공용 값으로 바꿔 저장. 그 종류의 첫 템플릿이면 기본으로 */
+async function saveTemplate(kind) {
+  if (lt.busy) return
+  lt.busy = true
+  lt.message = ''
+  lt.error = false
+  try {
+    const data = kind === 'product' ? productTemplateFromSmartstoreForm(f.value) : shippingTemplateFromSmartstoreForm(f.value)
+    const row = await createListingTemplate({ kind, name: lt.name, data, is_default: ltList(kind).length === 0 })
+    lt.list = [...lt.list, row]
+    if (sendCache) sendCache.listingTemplatesDone = { ready: true, templates: lt.list }
+    lt.picked[kind] = row.id
+    lt.notes[kind] = []
+    lt.saving = ''
+    lt.message = `"${row.name}" 템플릿을 저장했습니다.${row.is_default ? ' 기본 템플릿으로 지정되었습니다.' : ''}`
+  } catch (e) {
+    console.error('[StudioSendSmartstore] 템플릿 저장 실패:', e)
+    lt.message = e.message
+    lt.error = true
+  } finally {
+    lt.busy = false
+  }
+}
+
 /** 창의 [보내기]가 부른다 — 성공하면 결과, 실패하면 null(이유는 이 섹션 안에) */
 async function submit() {
   if (busy.value || done.value || missing.value.length) return null
@@ -425,9 +520,11 @@ async function submit() {
 // 창을 다시 열 때 이미 받은 목록은 바로 채운다(깜빡임 없음) — 받지 않은 것만 화면에 붙은 뒤 서버에 묻는다
 if (sendCache?.smartstoreCategoriesDone) categories.value = Array.isArray(sendCache.smartstoreCategoriesDone.categories) ? sendCache.smartstoreCategoriesDone.categories : []
 if (sendCache?.smartstoreAddressesDone) applyAddresses(sendCache.smartstoreAddressesDone)
+if (sendCache?.listingTemplatesDone) applyTemplateList(sendCache.listingTemplatesDone)
 onMounted(() => {
   if (!sendCache?.smartstoreCategoriesDone) loadCategories()
   if (!sendCache?.smartstoreAddressesDone) loadAddresses()
+  if (!sendCache?.listingTemplatesDone) loadTemplates()
 })
 defineExpose({ missing, busy, done, submit })
 </script>

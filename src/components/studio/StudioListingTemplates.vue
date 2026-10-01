@@ -2,8 +2,8 @@
   <!-- 표가 아직 없으면(SQL 실행 전) 그리지 않는다 — 원인은 console.error (studioListingTemplates.js) -->
   <section v-if="ready" class="st-card p-5 sm:p-6 space-y-5" data-mk-lt>
     <div>
-      <h3 class="st-h-card">등록 템플릿</h3>
-      <p class="st-desc break-keep mt-1">상품정보·배송 설정값 묶음입니다. 보내기 창에서 템플릿을 고르면 칸이 채워지고, 기본 템플릿은 창을 열 때 자동으로 선택됩니다.</p>
+      <h3 class="st-h-card">공용 등록 템플릿 <span class="st-desc-sm font-normal ml-1" data-mk-lt-markets>11번가 · 스마트스토어</span></h3>
+      <p class="st-desc break-keep mt-1">11번가·스마트스토어 보내기에 함께 쓰는 상품정보·배송 설정값 묶음입니다. 보내기 창에서 템플릿을 고르면 칸이 채워지고, 기본 템플릿은 창을 열 때 자동으로 선택됩니다. 쿠팡은 아래 쿠팡 배송/반품 템플릿을 사용합니다.</p>
     </div>
     <p v-if="errorMsg" class="text-[13px] font-bold st-danger-text break-keep" data-mk-lt-error>{{ errorMsg }}</p>
 

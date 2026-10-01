@@ -1,6 +1,6 @@
 <template>
   <div class="px-4 sm:px-12 py-6 max-w-5xl space-y-6" data-mk-shipping-view>
-    <p class="st-desc break-keep">상품을 보낼 때 쓸 배송비·반품비·출고지 묶음이에요. 한 번 만들어 두면 보낼 때마다 고르기만 하면 돼요.</p>
+    <p class="st-desc break-keep">판매처에 상품을 보낼 때 쓸 설정값 묶음이에요. 한 번 만들어 두면 보낼 때마다 고르기만 하면 돼요.</p>
 
     <!-- 로그인 전 (누구나 구경 — 2026-09-30): 템플릿·출고지를 부르지 않는다 -->
     <!-- 등록 템플릿(상품정보·배송 — 판매처 공용, 2026-10-01): 쿠팡 연결과 상관없이 보인다. 11번가 보내기 공개 전에는 관리자·스태프만 (listingTemplatesShown) -->
@@ -12,7 +12,7 @@
 
     <!-- 연결 전 -->
     <section v-else-if="!connected" class="st-card p-5 sm:p-6 space-y-3" data-mk-shipping-need-connect>
-      <h3 class="st-h-card">먼저 판매처를 연결해 주세요</h3>
+      <h3 class="st-h-card">쿠팡 배송/반품 템플릿은 쿠팡을 연결한 뒤 만들 수 있어요</h3>
       <p class="st-desc break-keep">템플릿은 쿠팡에 등록한 출고지·반품지를 불러와서 만들어요.</p>
       <router-link :to="{ name: 'studio-channels-connect' }" class="st-btn st-btn-primary">[연결] 탭으로 가기</router-link>
     </section>
