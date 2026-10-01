@@ -101,9 +101,12 @@ function toUrl(canvas) {
   return canvasToBlob(canvas, 'jpg').then(b => URL.createObjectURL(b))
 }
 
-async function draw(key) {
-  const tpl = templateByKey(key)
-  if (!tpl) throw new Error(`모르는 템플릿: ${key}`)
+/**
+ * 템플릿 전체 페이지 한 장 (캔버스) — 미리보기 창(내 템플릿 등)과 기본 템플릿 미리보기 미리 만들기(scripts/build-studio-covers.mjs)가 같이 쓴다.
+ * @returns {Promise<{ canvas, fontsOk: boolean, sections: number, pageHeight: number }>} 다 쓴 뒤 부르는 쪽이 캔버스를 비운다
+ */
+export async function drawFullCanvas(tpl, width = THUMB_WIDTH) {
+  const key = tpl.key
   let fontsOk = false
   try {
     fontsOk = await loadFontsFor(templateFontList(tpl))
@@ -114,11 +117,18 @@ async function draw(key) {
   const samples = await templateSamples(tpl)
   const page = templatePreviewPage(tpl, [], measure, samples)
   if (!page || page.sections.length === 0) throw new Error(`템플릿 페이지를 만들지 못함: ${key}`)
-  const scale = THUMB_WIDTH / page.width
+  const scale = width / page.width
   const { canvas } = await renderPage(page, page.sections.map(s => s.id), deps, { scale })
+  return { canvas, fontsOk, sections: page.sections.length, pageHeight: templatePageHeight(page) }
+}
+
+async function draw(key) {
+  const tpl = templateByKey(key)
+  if (!tpl) throw new Error(`모르는 템플릿: ${key}`)
+  const { canvas, sections, pageHeight } = await drawFullCanvas(tpl, THUMB_WIDTH)
   try {
     const full = await toUrl(canvas)
-    return { full, width: canvas.width, height: canvas.height, sections: page.sections.length, pageHeight: templatePageHeight(page) }
+    return { full, width: canvas.width, height: canvas.height, sections, pageHeight }
   } finally {
     canvas.width = 0
     canvas.height = 0

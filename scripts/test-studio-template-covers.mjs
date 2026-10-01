@@ -5,7 +5,11 @@ import { STUDIO_TEMPLATES } from '../src/lib/studioTemplates.js'
 import { TEMPLATE_ADDED } from '../src/data/studioTemplateAdded.js'
 import { RECOMMENDED_TEMPLATES } from '../src/data/studioTemplateRecommended.js'
 import { sortTemplates, isNewTemplate, addedMs, TEMPLATE_SORTS, DEFAULT_TEMPLATE_SORT, NEW_DAYS } from '../src/lib/studioTemplateSort.js'
-import { coverHashes, coverProblems, readCoverIndex, coverFileOf, COVER_WIDTH, COVER_HEIGHT } from './studio-covers-lib.mjs'
+import {
+  coverHashes, coverProblems, readCoverIndex, coverFileOf, COVER_WIDTH, COVER_HEIGHT,
+  previewHashes, previewProblems, previewFileOf, allCoverProblems, PREVIEW_WIDTH,
+} from './studio-covers-lib.mjs'
+import { THUMB_WIDTH } from '../src/lib/studioTemplateThumbs.js'
 
 let pass = 0, fail = 0
 function eq(name, got, want) {
@@ -36,6 +40,32 @@ const keys = STUDIO_TEMPLATES.map(t => t.key)
   eq('파일 이름 = key + 해시 앞 8자', coverFileOf('abc', '0123456789abcdef'), 'studio-covers/abc-01234567.webp')
   const sizes = Object.values(index.items).map(it => it.bytes)
   eq('표지 한 장 100KB 이하', sizes.every(b => b > 0 && b <= 100 * 1024), true)
+}
+
+// ── 1-2. 미리보기 전체 그림 — 모든 기본 템플릿에 있고 최신 ──
+{
+  const pHashes = previewHashes()
+  const index = readCoverIndex()
+  eq('미리보기: 문제 없음 (빠짐·옛것 — 있으면 npm run studio:covers)', previewProblems(index, pHashes), [])
+  eq('미리보기: 기본 템플릿 수와 같음', Object.keys(index.preview?.items || {}).length, STUDIO_TEMPLATES.length)
+  eq('미리보기 폭 = 미리보기 창 그림 폭(THUMB_WIDTH)', [index.preview.width, PREVIEW_WIDTH], [THUMB_WIDTH, THUMB_WIDTH])
+  const k0 = keys[0]
+  const changed = new Map(pHashes)
+  changed.set(k0, '0'.repeat(64))
+  eq('옛 미리보기: 템플릿이 바뀌면 걸림', previewProblems(index, changed).some(p => p.includes(k0) && p.includes('다시 만들지 않음')), true)
+  eq('미리보기 파일 이름 = key-page-해시 8자', previewFileOf('abc', '0123456789abcdef'), 'studio-covers/abc-page-01234567.webp')
+  eq('표지와 미리보기 해시는 따로 (미리보기는 모든 섹션 그림)', coverHashes().get(k0) !== pHashes.get(k0), true)
+  eq('빌드 검사 = 표지 + 미리보기 한 번에', allCoverProblems(), [])
+  const pSizes = Object.values(index.preview.items).map(it => it.bytes)
+  eq('미리보기 한 장 400KB 이하', pSizes.every(b => b > 0 && b <= 400 * 1024), true)
+}
+
+// ── 1-3. 빌드 검사 — npm run build가 vite build 전에 돈다 ──
+{
+  const pkg = JSON.parse(read('package.json'))
+  eq('npm run build = 검사 && vite build', pkg.scripts.build, 'node scripts/check-studio-covers.mjs && vite build')
+  const check = read('scripts/check-studio-covers.mjs')
+  eq('검사는 해시만 (sharp·크롬 안 씀)', [/allCoverProblems/.test(check), /sharp|chrome/i.test(check.replace(/\/\/.*$/gm, ''))], [true, false])
 }
 
 // ── 2. 추가한 날짜 · 추천 목록 ──
@@ -80,6 +110,13 @@ const keys = STUDIO_TEMPLATES.map(t => t.key)
   ], [true, true, true, true])
   eq('카드: 기본 템플릿은 화면에서 그리지 않음 (onMounted에서 바로 끝)', /if \(builtIn\.value\) \{ checkBuiltIn\(\); return \}/.test(card), true)
   eq('카드: NEW 표시', [/isNewTemplate\(props\.tpl\)/.test(card), /data-template-new>NEW</.test(card)], [true, true])
+  eq('카드: 마우스 올림·누르기 시작 = 미리보기 미리 받기', [/@mouseenter="preload" @pointerdown="preload"/.test(card), /preloadPreview\(props\.tpl\.key\)/.test(card)], [true, true])
+  const prev = read('src/components/studio/StudioTemplatePreview.vue')
+  eq('미리보기 창: 기본 템플릿 = 미리 만든 그림(loadPreview)·자리 높이 먼저·표지 먼저', [
+    /await loadPreview\(key\)/.test(prev), /aspectRatio: `\$\{built\.width\} \/ \$\{built\.height\}`/.test(prev), /data-template-preview-cover/.test(prev),
+  ], [true, true, true])
+  const covers2 = read('src/lib/studioTemplateCovers.js')
+  eq('미리보기 그림은 key마다 한 번 (같은 약속)', /if \(previews\.has\(key\)\) return previews\.get\(key\)/.test(covers2), true)
   const gallery = read('src/views/studio/StudioTemplatesView.vue')
   const panel = read('src/components/studio/StudioTemplatePanel.vue')
   eq('갤러리: 거른 뒤 정렬 + 추천순/최신순 선택', [/sortTemplates\(filterTemplates\(/.test(gallery), /data-gallery-sort=/.test(gallery)], [true, true])

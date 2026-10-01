@@ -209,8 +209,8 @@
       "bytes": 9716
     },
     "event-holiday-cutoff": {
-      "file": "studio-covers/event-holiday-cutoff-5b7df18a.webp",
-      "hash": "5b7df18af2fd1447e995f70ed98d81a0b483b8ae8d7616a6ce4853159b30719e",
+      "file": "studio-covers/event-holiday-cutoff-8de11508.webp",
+      "hash": "8de11508071e24467743ad5a7802b6a473f124e59976dfde63ab7da7e4696e5f",
       "bytes": 15406
     },
     "event-dayoff": {
@@ -269,8 +269,8 @@
       "bytes": 9768
     },
     "event-size-exchange": {
-      "file": "studio-covers/event-size-exchange-2702d5c1.webp",
-      "hash": "2702d5c1bad05f756cf7ddea00b14a5f0adfb64afe6f9b1cf71ef10f8d45a543",
+      "file": "studio-covers/event-size-exchange-50a22311.webp",
+      "hash": "50a22311025daee3c75f531cd4165d468ea3ba1a522bb198dfbf73a5b2a1d512",
       "bytes": 12006
     },
     "event-how-to-order": {
@@ -294,8 +294,8 @@
       "bytes": 9028
     },
     "event-benefits": {
-      "file": "studio-covers/event-benefits-7bcee522.webp",
-      "hash": "7bcee522c38ba2c0994d6b47209762f742e11dac2ce404d4645eca50dce10399",
+      "file": "studio-covers/event-benefits-1c40842a.webp",
+      "hash": "1c40842a97b95d348de3c35c60e4953dd5dc2b18e56a959daba60f6b4025cd29",
       "bytes": 11016
     },
     "event-membership": {
@@ -472,6 +472,576 @@
       "file": "studio-covers/shoot-sunglasses-874c29ae.webp",
       "hash": "874c29aeb616e3f2e71f6a2a3eef254b6b24c966e95b848c49186595954fcbae",
       "bytes": 38814
+    }
+  },
+  "preview": {
+    "v": 1,
+    "width": 560,
+    "items": {
+      "basic": {
+        "file": "studio-covers/basic-page-6b97e5fb.webp",
+        "hash": "6b97e5fb0d13b61d397deeaf5295b72af98738d4d6d32685c793846be3857051",
+        "bytes": 131698,
+        "height": 3387
+      },
+      "point": {
+        "file": "studio-covers/point-page-8cff6647.webp",
+        "hash": "8cff6647739b3e7cf8df713952f7b49d00284d1c3c7cb04745e6a54a6b10a213",
+        "bytes": 211542,
+        "height": 3066
+      },
+      "size": {
+        "file": "studio-covers/size-page-296bb95b.webp",
+        "hash": "296bb95bc9788488f933f8aac57271b27f24a6ff9febcbb19fdc8b60b873163f",
+        "bytes": 88836,
+        "height": 2274
+      },
+      "apparel-look": {
+        "file": "studio-covers/apparel-look-page-b368be6f.webp",
+        "hash": "b368be6f11e23bd6aa3a5fb2b2e9d22c82ee3c805e0a4049cebaa03f2ceb5625",
+        "bytes": 98762,
+        "height": 3482
+      },
+      "apparel-basic": {
+        "file": "studio-covers/apparel-basic-page-a837679d.webp",
+        "hash": "a837679dee4ee8b9ac3da9277ef8b110fb690e150a64b9ada764cf93d614a354",
+        "bytes": 143954,
+        "height": 3847
+      },
+      "bags-daily": {
+        "file": "studio-covers/bags-daily-page-937d6bf6.webp",
+        "hash": "937d6bf607ef87f86188e4e6e1d6bab4c64c7e4d9408cbe74f08c4e55018ad54",
+        "bytes": 111660,
+        "height": 3706
+      },
+      "bags-check": {
+        "file": "studio-covers/bags-check-page-932bdab0.webp",
+        "hash": "932bdab086aa62797a7db5ca28040096b0c46d58a106d0a8ec76b6a9a9f0e568",
+        "bytes": 116100,
+        "height": 4295
+      },
+      "kitchen-bold": {
+        "file": "studio-covers/kitchen-bold-page-8e6ba626.webp",
+        "hash": "8e6ba6269d3dff22dc913fb89d58c62af285d9956c90b61a7be220faf3aec7f4",
+        "bytes": 108000,
+        "height": 4122
+      },
+      "kitchen-check": {
+        "file": "studio-covers/kitchen-check-page-beb5c1bb.webp",
+        "hash": "beb5c1bb829b1c47f7147f53ec7eb557b52700b7c872d37d07539791272b4863",
+        "bytes": 136262,
+        "height": 4453
+      },
+      "living-basic": {
+        "file": "studio-covers/living-basic-page-32f404a0.webp",
+        "hash": "32f404a0f3d82c341ad45b655c53a13cf02974aa0e5f4ff60adc817620c92b21",
+        "bytes": 85422,
+        "height": 3749
+      },
+      "living-bold": {
+        "file": "studio-covers/living-bold-page-a7107492.webp",
+        "hash": "a71074921da9579d7af5f2d99d6026e2660b215ff9e9854654043e3288cc9b32",
+        "bytes": 112334,
+        "height": 4224
+      },
+      "beauty-mood": {
+        "file": "studio-covers/beauty-mood-page-604d7851.webp",
+        "hash": "604d7851367322576d0cbbe14bd8629255d78f94eacfbbfe4388f00f1d282bbd",
+        "bytes": 66574,
+        "height": 3195
+      },
+      "beauty-check": {
+        "file": "studio-covers/beauty-check-page-1ab59835.webp",
+        "hash": "1ab598355dfcea476a633ccc7fd8599dd6c9b736ddd2ffecdc9a6fcd2c31ff3b",
+        "bytes": 105754,
+        "height": 4522
+      },
+      "electronics-bold": {
+        "file": "studio-covers/electronics-bold-page-37b04fbc.webp",
+        "hash": "37b04fbc6a80c93600a2b842b06a20651c05c2fafe8c7c6d7531a6eab9fb75dc",
+        "bytes": 124338,
+        "height": 4270
+      },
+      "electronics-spec": {
+        "file": "studio-covers/electronics-spec-page-c73d0269.webp",
+        "hash": "c73d0269200abb34d1541c7f26959cd518b93f76957b780d14db4d193f7e9dbf",
+        "bytes": 122648,
+        "height": 3812
+      },
+      "toys-play": {
+        "file": "studio-covers/toys-play-page-2e996089.webp",
+        "hash": "2e996089c00e64955c07b73f64ce575d9f61f867090851434d59b904e7f36c52",
+        "bytes": 102988,
+        "height": 4483
+      },
+      "toys-basic": {
+        "file": "studio-covers/toys-basic-page-ed92030b.webp",
+        "hash": "ed92030bcff85e20a16df2dc334327cc62e35fd48d87d45d2c4b0fda7c71078f",
+        "bytes": 131202,
+        "height": 3873
+      },
+      "pets-bold": {
+        "file": "studio-covers/pets-bold-page-1601bd9a.webp",
+        "hash": "1601bd9abdf1ec4406f93a403e211b99e982d51c5120fcfe7180bc3fd46d83c2",
+        "bytes": 152838,
+        "height": 4021
+      },
+      "pets-mood": {
+        "file": "studio-covers/pets-mood-page-3367c252.webp",
+        "hash": "3367c252e33a8cc4b8b844b0cb1a0a69b6bcab1ffee19f76f4e61e3d60631136",
+        "bytes": 106142,
+        "height": 3148
+      },
+      "apparel-warm": {
+        "file": "studio-covers/apparel-warm-page-4c205251.webp",
+        "hash": "4c2052512baff66b967b2705f463a54f456ee7ec3e7612eb61814f0510bb7496",
+        "bytes": 113786,
+        "height": 4595
+      },
+      "fullset-sample": {
+        "file": "studio-covers/fullset-sample-page-348d9472.webp",
+        "hash": "348d9472843b54cf44167339e6ec20d8a1fe0e87296de9ab77edbef3522193fa",
+        "bytes": 98200,
+        "height": 4713
+      },
+      "apparel-minimal": {
+        "file": "studio-covers/apparel-minimal-page-60698b9d.webp",
+        "hash": "60698b9dd2aa54d483b56e64102bc55c6131d1ef26bb57aadb1c1ccc10ead3da",
+        "bytes": 99832,
+        "height": 3902
+      },
+      "apparel-vivid": {
+        "file": "studio-covers/apparel-vivid-page-a18071f5.webp",
+        "hash": "a18071f57c7e58e3c2fadc182bbc0a97d9cc8aac1985e179f0f396646d460209",
+        "bytes": 151260,
+        "height": 3855
+      },
+      "apparel-mono": {
+        "file": "studio-covers/apparel-mono-page-2928e757.webp",
+        "hash": "2928e757cc35cdbdca2f4b52ce7878346b19ec6f6edc181d129e18bbbfb08cf1",
+        "bytes": 133624,
+        "height": 4314
+      },
+      "apparel-natural": {
+        "file": "studio-covers/apparel-natural-page-60637550.webp",
+        "hash": "606375506cde83bc9bb56008ccf5a16274c97771f7eaca878460cca7f4867594",
+        "bytes": 85120,
+        "height": 4026
+      },
+      "apparel-trendy": {
+        "file": "studio-covers/apparel-trendy-page-66b9a02e.webp",
+        "hash": "66b9a02e48814eee8da67c9c4397ac810d169267b18eb3d1ac841a03714552aa",
+        "bytes": 131428,
+        "height": 3615
+      },
+      "bags-minimal": {
+        "file": "studio-covers/bags-minimal-page-c7125e50.webp",
+        "hash": "c7125e5063e91b5d903e95ed4cc285f8ec8bd81e8dd7355f2f875ab15f4dc147",
+        "bytes": 123704,
+        "height": 3613
+      },
+      "bags-warm": {
+        "file": "studio-covers/bags-warm-page-54c126e1.webp",
+        "hash": "54c126e18cd87709aa4ab89bd1efa3e3fac1b20b454a328597fdb0bfea498e81",
+        "bytes": 139064,
+        "height": 4645
+      },
+      "bags-vivid": {
+        "file": "studio-covers/bags-vivid-page-79e87f34.webp",
+        "hash": "79e87f3441a2c78a006d60b9c14061f65ff0842889748f9fde8c75838e1ba656",
+        "bytes": 80352,
+        "height": 3733
+      },
+      "bags-mono": {
+        "file": "studio-covers/bags-mono-page-9b7eab04.webp",
+        "hash": "9b7eab04c10139c541fc5b3b31540acc5ef0375463e9d4fbc4c73df3632173a8",
+        "bytes": 151088,
+        "height": 4290
+      },
+      "bags-natural": {
+        "file": "studio-covers/bags-natural-page-2cbc29e6.webp",
+        "hash": "2cbc29e6372e300652e3b599cca88e9f7d27dbc6840befca082fc1b4de5bdb4c",
+        "bytes": 108804,
+        "height": 4181
+      },
+      "bags-trendy": {
+        "file": "studio-covers/bags-trendy-page-fe94ac08.webp",
+        "hash": "fe94ac080557a5047aef94c07085e50e16ffdfe4065dd4542a6e5ae6ed15298a",
+        "bytes": 119094,
+        "height": 3584
+      },
+      "living-minimal": {
+        "file": "studio-covers/living-minimal-page-51887052.webp",
+        "hash": "51887052a75692758d7da1622665a3bed96c24a45304dfe8a899d531ada06591",
+        "bytes": 99066,
+        "height": 3683
+      },
+      "living-warm": {
+        "file": "studio-covers/living-warm-page-8c8559df.webp",
+        "hash": "8c8559dfef24c1b16a06a5051f116e8aa4e048dec7e9eff3e3c82d02d3ec5746",
+        "bytes": 132920,
+        "height": 5195
+      },
+      "living-vivid": {
+        "file": "studio-covers/living-vivid-page-925924f7.webp",
+        "hash": "925924f7366a98f758c86f360dc61346170b13b0f510cf28efe2070b0a416960",
+        "bytes": 118578,
+        "height": 3977
+      },
+      "living-mono": {
+        "file": "studio-covers/living-mono-page-4d2bad86.webp",
+        "hash": "4d2bad86d9204333d0364e9191069d3fbb4356ce36e55d7b39a6ece5ab8d7fbf",
+        "bytes": 94646,
+        "height": 4140
+      },
+      "living-natural": {
+        "file": "studio-covers/living-natural-page-c3759aae.webp",
+        "hash": "c3759aae9431ce66e44fe1dd01228029ac02cd35af2833aef85302fed0a5e0dc",
+        "bytes": 121874,
+        "height": 4237
+      },
+      "living-trendy": {
+        "file": "studio-covers/living-trendy-page-0afed4a3.webp",
+        "hash": "0afed4a370874cc1a2a11e78b1b50ea7f13cd500589f9a87bbc7af7ba9f5e3bc",
+        "bytes": 113162,
+        "height": 3590
+      },
+      "event-photo-review": {
+        "file": "studio-covers/event-photo-review-page-10146ac9.webp",
+        "hash": "10146ac9c500b06eaad1e1d12e72b37e11edc2f11df7ce98d4019e5fbce61e14",
+        "bytes": 28154,
+        "height": 1577
+      },
+      "event-review": {
+        "file": "studio-covers/event-review-page-cb6ec6fe.webp",
+        "hash": "cb6ec6fea59868ffb433e42265290b92805abc7f0f581dec4fd63307e1177e4c",
+        "bytes": 29350,
+        "height": 1391
+      },
+      "event-shipping": {
+        "file": "studio-covers/event-shipping-page-b71be541.webp",
+        "hash": "b71be5415ab8e92aea5b83c8de86a5f49e3243a509c3922f41b51d9f504ab69a",
+        "bytes": 34070,
+        "height": 1666
+      },
+      "event-holiday-cutoff": {
+        "file": "studio-covers/event-holiday-cutoff-page-9340c485.webp",
+        "hash": "9340c485f737c3dce94e09a6fe53e02d1c564dea3aeaecf41c4ea8a0c8e212e3",
+        "bytes": 28220,
+        "height": 1396
+      },
+      "event-dayoff": {
+        "file": "studio-covers/event-dayoff-page-a9c22107.webp",
+        "hash": "a9c22107ea82bc36300f9048836d790876ef7fbd6c023b865a23e7a91c7e311d",
+        "bytes": 17962,
+        "height": 1237
+      },
+      "event-new-arrival": {
+        "file": "studio-covers/event-new-arrival-page-4643458f.webp",
+        "hash": "4643458f64c40e4e15ac7eca850c312317b0a569762f84a345f8e9eb6aa1b7cc",
+        "bytes": 19624,
+        "height": 1646
+      },
+      "event-today-deal": {
+        "file": "studio-covers/event-today-deal-page-f168083d.webp",
+        "hash": "f168083d8883142448b05a5ea65af41e64a0ecd4a36ba9c8d8462c55925e3b38",
+        "bytes": 31844,
+        "height": 1655
+      },
+      "event-sale": {
+        "file": "studio-covers/event-sale-page-1cc20c07.webp",
+        "hash": "1cc20c077d68da09261683bcb41389885726c84e14467b497b1dfced96cee60d",
+        "bytes": 28684,
+        "height": 1325
+      },
+      "event-one-plus-one": {
+        "file": "studio-covers/event-one-plus-one-page-5cd754c6.webp",
+        "hash": "5cd754c643f833728e51c819e1270fa416699bd700d7ebc4a5bee55a81f80dcd",
+        "bytes": 31716,
+        "height": 1708
+      },
+      "event-free-gift": {
+        "file": "studio-covers/event-free-gift-page-ec2bd708.webp",
+        "hash": "ec2bd708a9cb90054f546829b77c1ad986c802befcccdaabd05f6d76c6ad55b2",
+        "bytes": 41420,
+        "height": 1904
+      },
+      "event-gift-set": {
+        "file": "studio-covers/event-gift-set-page-d855c91a.webp",
+        "hash": "d855c91a4b2fecb1a2eb688ee2a8cc0b2953e619ad82f73ecdc4197fac921b22",
+        "bytes": 37394,
+        "height": 1948
+      },
+      "event-black-friday": {
+        "file": "studio-covers/event-black-friday-page-9ab8b411.webp",
+        "hash": "9ab8b4116a26c79a6c943eae7a4ee489a4a1866845dc13c8aa861fd103d591a0",
+        "bytes": 22470,
+        "height": 1316
+      },
+      "event-year-end": {
+        "file": "studio-covers/event-year-end-page-fb4b040a.webp",
+        "hash": "fb4b040a5434aa55fea2a6bcf4d59db9bf5af6a69c4f0eca9296fddef96a92c4",
+        "bytes": 23136,
+        "height": 1302
+      },
+      "event-return": {
+        "file": "studio-covers/event-return-page-c9fe8730.webp",
+        "hash": "c9fe87300b0bb14d3d89597048459607328cac14cb583236326963265ed2eedc",
+        "bytes": 25388,
+        "height": 1466
+      },
+      "event-before-order": {
+        "file": "studio-covers/event-before-order-page-6f32f2c1.webp",
+        "hash": "6f32f2c17b68c35935b2769e07c6036d2a5d637733a31957c066d4964db6f31b",
+        "bytes": 26370,
+        "height": 1386
+      },
+      "event-size-exchange": {
+        "file": "studio-covers/event-size-exchange-page-760298ed.webp",
+        "hash": "760298edbfef209981f37622105d7ae2a38d982c62056d5f1e06ca2c9ae25477",
+        "bytes": 25274,
+        "height": 1270
+      },
+      "event-how-to-order": {
+        "file": "studio-covers/event-how-to-order-page-a0311647.webp",
+        "hash": "a0311647922173e93da079b2ba1f240d48b080e1b040ad89c8078ea09b013816",
+        "bytes": 22892,
+        "height": 1466
+      },
+      "event-authentic": {
+        "file": "studio-covers/event-authentic-page-4796b253.webp",
+        "hash": "4796b25378f9db4038bc877fa220e0a24633ebf2a0e1706939d2820654491d18",
+        "bytes": 20988,
+        "height": 1276
+      },
+      "event-restock": {
+        "file": "studio-covers/event-restock-page-6157cc73.webp",
+        "hash": "6157cc73889f477ddf01a7277525c576808e205bbd7067a7d5001f5bfe72281a",
+        "bytes": 24570,
+        "height": 1323
+      },
+      "event-soldout-soon": {
+        "file": "studio-covers/event-soldout-soon-page-cda02ec9.webp",
+        "hash": "cda02ec9160ef3009c896ab9e98b8ff3675a88c03ab0f80e509d8d3f8f9afd57",
+        "bytes": 30060,
+        "height": 1708
+      },
+      "event-benefits": {
+        "file": "studio-covers/event-benefits-page-17d23d78.webp",
+        "hash": "17d23d78c30586a0a09e7ced65b744365de2e3fbd0374bcca4aa60b189fd11d7",
+        "bytes": 23358,
+        "height": 1460
+      },
+      "event-membership": {
+        "file": "studio-covers/event-membership-page-f8875e72.webp",
+        "hash": "f8875e72f11088af823e4a0f31c205659b4ffcc4b859d1aafbfffd27a9ab4fe2",
+        "bytes": 22150,
+        "height": 1390
+      },
+      "shoot-pumps": {
+        "file": "studio-covers/shoot-pumps-page-2b063c8a.webp",
+        "hash": "2b063c8a3757bb6af7ff3ccead2b33268ceb1c6c31e06bce81165603ba5e044d",
+        "bytes": 127252,
+        "height": 4629
+      },
+      "shoot-boots": {
+        "file": "studio-covers/shoot-boots-page-3947109f.webp",
+        "hash": "3947109fef3844e96c8826942c6148323fede3e4438607fe65ecc4024cf59677",
+        "bytes": 119728,
+        "height": 4657
+      },
+      "shoot-sandals": {
+        "file": "studio-covers/shoot-sandals-page-7f08adb8.webp",
+        "hash": "7f08adb8cce17795f2da8b66c79c0cfdf0e9fec09e9c56c8e7b0f079e1139a6d",
+        "bytes": 182062,
+        "height": 4599
+      },
+      "shoot-jewelry": {
+        "file": "studio-covers/shoot-jewelry-page-a2646801.webp",
+        "hash": "a26468012cef0f42a0ce6147accca57d74baf8e745a42f9f0c82fa0bc90730da",
+        "bytes": 115472,
+        "height": 4592
+      },
+      "shoot-socks": {
+        "file": "studio-covers/shoot-socks-page-3ba70971.webp",
+        "hash": "3ba7097122b37cf4b4898c1a747df0b21bf7df63bb3104ea5bf3a540b5684545",
+        "bytes": 125632,
+        "height": 4579
+      },
+      "shoot-linen-dress": {
+        "file": "studio-covers/shoot-linen-dress-page-234a60d7.webp",
+        "hash": "234a60d7a855bdcadf7b7fc879279d931d33a49e794478f643e3901f298011ac",
+        "bytes": 180146,
+        "height": 4597
+      },
+      "shoot-pajama": {
+        "file": "studio-covers/shoot-pajama-page-c7d48848.webp",
+        "hash": "c7d48848c6a66a12c3c06248e33d9cbdb59181c42908d8f3ee265acf85e8c315",
+        "bytes": 129438,
+        "height": 4517
+      },
+      "shoot-hat-scarf": {
+        "file": "studio-covers/shoot-hat-scarf-page-ebb582f8.webp",
+        "hash": "ebb582f8e137df1941e401cbf9bf909f41a94290aa3c9b2ef71b57684dd4087f",
+        "bytes": 149198,
+        "height": 4878
+      },
+      "shoot-leather-jacket": {
+        "file": "studio-covers/shoot-leather-jacket-page-2a87a129.webp",
+        "hash": "2a87a1299e4bc3db9c5daf583f3d5da663f334b095ab30d5f40e209eaf3ada63",
+        "bytes": 173312,
+        "height": 4684
+      },
+      "shoot-umbrella": {
+        "file": "studio-covers/shoot-umbrella-page-b07722c4.webp",
+        "hash": "b07722c41b299d82715e45d1461ff1f35ecbfaa12adb0da863d9c04f12848884",
+        "bytes": 130070,
+        "height": 4474
+      },
+      "shoot-dried-fish": {
+        "file": "studio-covers/shoot-dried-fish-page-a13fe486.webp",
+        "hash": "a13fe48694d9d753e823d03ef44e36913a36899509704faa46755ed3ae2c3e41",
+        "bytes": 136386,
+        "height": 4269
+      },
+      "shoot-holiday-gift": {
+        "file": "studio-covers/shoot-holiday-gift-page-31a2e99a.webp",
+        "hash": "31a2e99a3b5439f61ab40f8d502a71d4b30b8937a46f49d8083cb0a6f0b87b3d",
+        "bytes": 107864,
+        "height": 4302
+      },
+      "shoot-supplement": {
+        "file": "studio-covers/shoot-supplement-page-43d641a1.webp",
+        "hash": "43d641a1346706e8c7644210aee69a19a51c4573f46481a5daa1b5e7c9384d5a",
+        "bytes": 100820,
+        "height": 4546
+      },
+      "shoot-coffee": {
+        "file": "studio-covers/shoot-coffee-page-9422e40d.webp",
+        "hash": "9422e40db406833bfcd4e1b7f9411b0e2a741862d3f97b8f65d0c32e3484fa89",
+        "bytes": 119574,
+        "height": 4791
+      },
+      "shoot-fruit": {
+        "file": "studio-covers/shoot-fruit-page-d5f2d858.webp",
+        "hash": "d5f2d85866f37a0b5bf53a27559a4894b293fec3878798253ec8bbff0553fbbb",
+        "bytes": 135706,
+        "height": 4418
+      },
+      "shoot-baby": {
+        "file": "studio-covers/shoot-baby-page-62946388.webp",
+        "hash": "6294638881eb990055dd510c287757ec68da3057589ec55308b796f90072809b",
+        "bytes": 109810,
+        "height": 4434
+      },
+      "shoot-camping": {
+        "file": "studio-covers/shoot-camping-page-fac9efed.webp",
+        "hash": "fac9efeda088d004d02f033d232fb777844cf39f0c00b81816cefdd8b22e936d",
+        "bytes": 195718,
+        "height": 4700
+      },
+      "shoot-interior": {
+        "file": "studio-covers/shoot-interior-page-53e678bd.webp",
+        "hash": "53e678bdd74a0943ce0dd478a5550008e7ee0d01d3ccc705e1b98cb4aea75234",
+        "bytes": 119110,
+        "height": 4535
+      },
+      "shoot-keyring": {
+        "file": "studio-covers/shoot-keyring-page-82f179a4.webp",
+        "hash": "82f179a4831f586cbc1d00adbff848d8efecb25dd090c27a47fd8ed5246fbcd3",
+        "bytes": 118918,
+        "height": 4564
+      },
+      "shoot-bow-blouse": {
+        "file": "studio-covers/shoot-bow-blouse-page-e318730a.webp",
+        "hash": "e318730a85519b025d308e9a46e56abdd33f2404179dd7d87c36fb3ad4194911",
+        "bytes": 109918,
+        "height": 5235
+      },
+      "shoot-cable-knit": {
+        "file": "studio-covers/shoot-cable-knit-page-4c9e4cce.webp",
+        "hash": "4c9e4cce4fa28b6a2ac75b479cfcfff0e701defe52b18bbc0f15ca7883fde2ca",
+        "bytes": 131962,
+        "height": 4319
+      },
+      "shoot-wool-coat": {
+        "file": "studio-covers/shoot-wool-coat-page-b7d539d3.webp",
+        "hash": "b7d539d38da8c9a3b97eb8d099d65d32db6d60ed435ae127b4935f4481d65ab1",
+        "bytes": 150342,
+        "height": 4918
+      },
+      "shoot-puffer": {
+        "file": "studio-covers/shoot-puffer-page-8c2b5170.webp",
+        "hash": "8c2b5170c5dd4556580c416094a0296d4c01cc06c9755aa151fe8c53b3d52c58",
+        "bytes": 144034,
+        "height": 4988
+      },
+      "shoot-daily-denim": {
+        "file": "studio-covers/shoot-daily-denim-page-9e786da7.webp",
+        "hash": "9e786da7e110486752089a54300dd92692ccb5ad269acde55bd20e15dc66baae",
+        "bytes": 202240,
+        "height": 4976
+      },
+      "shoot-pleats-skirt": {
+        "file": "studio-covers/shoot-pleats-skirt-page-fe9cd9ab.webp",
+        "hash": "fe9cd9ab4116058e3890e61826fd66479044d6d5f489b36fe0304f158014f79b",
+        "bytes": 161310,
+        "height": 5076
+      },
+      "shoot-wide-slacks": {
+        "file": "studio-covers/shoot-wide-slacks-page-8025e643.webp",
+        "hash": "8025e6439efacef206526e562e05c1f925b8904ed03584525f682ea46fedbfe7",
+        "bytes": 128858,
+        "height": 4854
+      },
+      "shoot-oxford-shirt": {
+        "file": "studio-covers/shoot-oxford-shirt-page-22c3f624.webp",
+        "hash": "22c3f624c4eeaa109eeb90013dc29d7d944bda5299ade1188af12cf27231b022",
+        "bytes": 150854,
+        "height": 4792
+      },
+      "shoot-active-set": {
+        "file": "studio-covers/shoot-active-set-page-4717d67d.webp",
+        "hash": "4717d67dec023443c728823d11a0ac5acb5641a7e6eff7b598e260636ae123a4",
+        "bytes": 157702,
+        "height": 5294
+      },
+      "shoot-leather-tote": {
+        "file": "studio-covers/shoot-leather-tote-page-4c374597.webp",
+        "hash": "4c374597cefd3009babba93211a4a9cc080f2e6c31851dfde5ba9d02ece31718",
+        "bytes": 131184,
+        "height": 4837
+      },
+      "shoot-kids-wear": {
+        "file": "studio-covers/shoot-kids-wear-page-d151b6d2.webp",
+        "hash": "d151b6d2d5be7ecc3f9e14a8ac5dcb2985dbf2da3777faf31cb4cc5e27e38e60",
+        "bytes": 176810,
+        "height": 4841
+      },
+      "shoot-hair-accessory": {
+        "file": "studio-covers/shoot-hair-accessory-page-8e2cac29.webp",
+        "hash": "8e2cac2900fd945df2bc6e5ad3828d16afd405bec1aab22418c3c217f62799ab",
+        "bytes": 128862,
+        "height": 4801
+      },
+      "shoot-leather-wallet": {
+        "file": "studio-covers/shoot-leather-wallet-page-133d3a6b.webp",
+        "hash": "133d3a6becaffd170cd2dd9a25b4cc6fd7bc16258ee0a38678b14fedc254a6ac",
+        "bytes": 152048,
+        "height": 5194
+      },
+      "shoot-leather-belt": {
+        "file": "studio-covers/shoot-leather-belt-page-3d5cf55e.webp",
+        "hash": "3d5cf55e9077120d4ef8f05147e792f78da9cc824416805e794560ef3d57b5ae",
+        "bytes": 115120,
+        "height": 4833
+      },
+      "shoot-sunglasses": {
+        "file": "studio-covers/shoot-sunglasses-page-f2b99f9a.webp",
+        "hash": "f2b99f9ab78680833e190976f8cde9b7b6a78c0783ce1792888588a097aefef7",
+        "bytes": 180408,
+        "height": 5265
+      }
     }
   }
 }

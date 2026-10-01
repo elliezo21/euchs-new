@@ -1,6 +1,9 @@
 <template>
   <div class="st-tcard" :class="large ? 'is-large' : ''" :data-template-card="tpl.key">
-    <button type="button" class="st-tcard-main" :title="title" :data-template-open="tpl.key" @click="$emit('open', tpl.key)">
+    <button
+      type="button" class="st-tcard-main" :title="title" :data-template-open="tpl.key"
+      @mouseenter="preload" @pointerdown="preload" @click="$emit('open', tpl.key)"
+    >
       <!-- 표지 = 템플릿 첫 화면. 기본 템플릿 = 미리 만든 그림(studioTemplateCovers — npm run studio:covers)만,
            그 밖(내 템플릿 등) = studioTemplateThumbs.templateCover로 화면 가까이 올 때 그림 -->
       <span ref="coverEl" class="st-tcard-thumb" data-template-cover>
@@ -43,7 +46,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { Heart, RotateCw } from 'lucide-vue-next'
 import { templateByKey, templateCardTitle, templateSectionCount } from '@/lib/studioTemplates'
 import { templateCover, templateCoverNow } from '@/lib/studioTemplateThumbs'
-import { COVER_W, COVER_H, builtInCoverUrl } from '@/lib/studioTemplateCovers'
+import { COVER_W, COVER_H, builtInCoverUrl, preloadPreview } from '@/lib/studioTemplateCovers'
 import { isNewTemplate } from '@/lib/studioTemplateSort'
 
 const props = defineProps({
@@ -73,6 +76,8 @@ function checkBuiltIn() {
     failed.value = true
   }
 }
+// 마우스를 올리거나(데스크톱) 누르기 시작할 때(터치) 미리보기 전체 그림을 미리 받는다 — key마다 한 번 (studioTemplateCovers.loadPreview)
+function preload() { if (builtIn.value) preloadPreview(props.tpl.key) }
 function onImgError() {
   console.error('[StudioTemplateCard] 표지 그림을 받지 못함:', props.tpl.key, builtInSrc.value)
   failed.value = true

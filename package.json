@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "vite --host",
     "dev:studio": "node scripts/dev-studio.mjs",
-    "build": "vite build",
+    "build": "node scripts/check-studio-covers.mjs && vite build",
     "studio:assets": "node scripts/build-studio-assets-manifest.mjs",
     "studio:covers": "node scripts/build-studio-covers.mjs",
     "preview": "vite preview"
