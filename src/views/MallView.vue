@@ -913,11 +913,12 @@
 
       <!-- Clean Search Results Header Bar (No Item Count, Clean Single Tag) -->
 
-      <div v-if="hasSearched && !isLoading" ref="searchResultBarRef" class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      <!-- 검색어 검색은 로딩 중에도 보인다(searchingQueryKo) — 로딩이 끝나도 같은 요소라 자리가 튀지 않음 -->
+      <div v-if="(hasSearched && !isLoading) || searchingQueryKo" ref="searchResultBarRef" class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div class="flex items-center gap-2 text-xs sm:text-sm">
           <span class="text-gray-500 font-medium">검색어:</span>
           <span class="px-3.5 py-1 rounded-xl bg-rose-50 text-rose-700 font-bold border border-rose-200">
-            {{ lastQueryKo }}
+            {{ searchingQueryKo || lastQueryKo }}
           </span>
         </div>
 
@@ -1303,6 +1304,8 @@ const warehouseTabCounts    = computed(() => getWarehouseTabCounts(submittedOrde
 
 const lastQueryKo = ref('')
 const lastQueryZh = ref('')
+// 검색어 검색이 진행 중일 때의 검색어 — 로딩 중에도 "검색어/정렬" 상자를 보이게 한다 (상품번호·사진 검색 로딩에는 안 씀)
+const searchingQueryKo = ref('')
 // 현재 결과가 메가메뉴 소분류로 들어온 것이면 그 소분류의 확정 중국어 키워드.
 // 그 외 경로(검색창·퀵탭·배너·홈 섹션)에서는 executeSearch가 ''로 덮어쓴다.
 const activeCategoryKeywordZh = ref('')
@@ -2649,6 +2652,7 @@ const executeSearch = async (page = 1, overrideKeyword = null, categoryName = ''
   }
 
   // [분기 B] 일반 검색어인 경우 → 한-중 번역 및 1688 소싱 목록 검색 진행
+  searchingQueryKo.value = rawInput
   isLoading.value = true
   errorMessage.value = ''
   currentPage.value = page
@@ -2727,6 +2731,7 @@ const executeSearch = async (page = 1, overrideKeyword = null, categoryName = ''
     hasSearched.value = true
   } finally {
     isLoading.value = false
+    searchingQueryKo.value = ''
   }
 }
 
@@ -2929,7 +2934,7 @@ const safeLoadBalance = () => {
   }
 }
 // ----------------------------------------------------
-// 메인(홈) 1688 검색으로 들어온 경우만 — 모바일에서 "검색어" 상자(로딩 중이면 같은 자리의 스켈레톤)를
+// 메인(홈) 1688 검색으로 들어온 경우만 — 모바일에서 "검색어" 상자(로딩 중에도 보임, 스켈레톤은 그 아래)를
 // 몰 고정 메뉴 바로 아래로 한 번 옮긴다 (src/lib/mallSearchJump.js, 2026-10-01)
 // 표시는 history.state에만 있고 여기서 읽는 즉시 지운다 → 새로고침·뒤로가기·모달 닫기 뒤에는 다시 옮기지 않음
 // ----------------------------------------------------

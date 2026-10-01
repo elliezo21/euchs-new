@@ -1,7 +1,7 @@
 // 메인 1688 검색 → 몰 "검색어" 상자 자동 이동 (2026-10-01) — node scripts/test-mall-search-jump.mjs
 import fs from 'fs'
 import {
-  MALL_JUMP_STATE_KEY, MALL_MOBILE_QUERY, MALL_JUMP_GAP, USER_INPUT_EVENTS,
+  MALL_JUMP_STATE_KEY, MALL_MOBILE_QUERY, MALL_JUMP_GAP, MALL_JUMP_SETTLE_MS, USER_INPUT_EVENTS,
   homeSearchState, takeMallJumpFlag, jumpTarget, createMallJumpPin
 } from '../src/lib/mallSearchJump.js'
 
@@ -99,6 +99,10 @@ const doc = { documentElement: { style: { scrollBehavior: '' } }, body: {} }
   eq('몰: 고정 메뉴·상자·스켈레톤 ref', ['ref="mallHeaderRef"', 'ref="searchResultBarRef"', 'ref="searchSkeletonRef"'].map(s => mall.includes(s)), [true, true, true])
   eq('몰: 모바일 기준·q 있을 때만', /takeMallJumpFlag\(window\.history\)/.test(mall) && /MALL_MOBILE_QUERY\)\.matches === true/.test(mall), true)
   eq('몰: 나갈 때 정리', mall.includes('searchJumpPin?.stop()'), true)
+  eq('몰: 검색어 상자는 검색어 로딩 중에도 보임', mall.includes('v-if="(hasSearched && !isLoading) || searchingQueryKo" ref="searchResultBarRef"'), true)
+  eq('몰: 로딩 중 상자 글자 = 지금 검색어', mall.includes('{{ searchingQueryKo || lastQueryKo }}'), true)
+  eq('몰: 검색어 검색에서만 켜고 끝나면 끔', [/searchingQueryKo\.value = rawInput\n\s*isLoading\.value = true/.test(mall), /isLoading\.value = false\n\s*searchingQueryKo\.value = ''/.test(mall)], [true, true])
+  eq('자리 지키기 = 로딩 끝 + 8초(느린 폰 그림 늦게 뜸)', MALL_JUMP_SETTLE_MS, 8000)
   const router = read('src/router/index.js')
   eq('라우터 scrollBehavior는 손대지 않음', router.includes('mallSearchJump'), false)
 }
