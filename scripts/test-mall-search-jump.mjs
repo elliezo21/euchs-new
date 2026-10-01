@@ -2,7 +2,7 @@
 import fs from 'fs'
 import {
   MALL_JUMP_STATE_KEY, MALL_MOBILE_QUERY, MALL_JUMP_GAP, MALL_JUMP_SETTLE_MS, USER_INPUT_EVENTS,
-  homeSearchState, takeMallJumpFlag, jumpTarget, createMallJumpPin
+  homeSearchState, takeMallJumpFlag, jumpTarget, createMallJumpPin, lastRowCard
 } from '../src/lib/mallSearchJump.js'
 
 let pass = 0, fail = 0
@@ -28,6 +28,18 @@ eq('상자 윗변 = 메뉴 아래 + 여백', jumpTarget({ scrollY: 0, anchorTop:
 eq('이미 스크롤된 상태도 문서 기준', jumpTarget({ scrollY: 300, anchorTop: 400, headerHeight: 98, gap: 8 }), 594)
 eq('음수 안 됨', jumpTarget({ scrollY: 0, anchorTop: 50, headerHeight: 98 }), 0)
 eq('모바일 기준 = 몰 사이드바(lg) 미만', MALL_MOBILE_QUERY, '(max-width: 1023px)')
+
+// ── 2-1. 카테고리 마지막 줄 (열 수와 상관없이 위치로) ──
+{
+  const card = (name, top) => ({ name, getBoundingClientRect: () => ({ top }) })
+  const three = [card('a', 10), card('b', 10), card('c', 10), card('d', 150), card('e', 150), card('f', 150), card('g', 290), card('h', 290), card('i', 290)]
+  eq('3열 9개 → 셋째 줄 맨 왼쪽', lastRowCard(three).name, 'g')
+  const five = [card('a', 10), card('b', 10), card('c', 10), card('d', 10), card('e', 10), card('f', 120), card('g', 120), card('h', 120), card('i', 120)]
+  eq('5열 9개 → 둘째 줄(4개) 맨 왼쪽', lastRowCard(five).name, 'f')
+  eq('9열 한 줄 → 첫 카드', lastRowCard([card('a', 5), card('b', 5)]).name, 'a')
+  eq('반올림 차이(0.4px)는 같은 줄', lastRowCard([card('a', 100.2), card('b', 100.4)]).name, 'a')
+  eq('카드 없음 = null', [lastRowCard([]), lastRowCard(undefined)], [null, null])
+}
 
 // ── 3. 자리 지키기 (가짜 창) ──
 function fakeWin() {
@@ -99,6 +111,9 @@ const doc = { documentElement: { style: { scrollBehavior: '' } }, body: {} }
   eq('몰: 고정 메뉴·상자·스켈레톤 ref', ['ref="mallHeaderRef"', 'ref="searchResultBarRef"', 'ref="searchSkeletonRef"'].map(s => mall.includes(s)), [true, true, true])
   eq('몰: 모바일 기준·q 있을 때만', /takeMallJumpFlag\(window\.history\)/.test(mall) && /MALL_MOBILE_QUERY\)\.matches === true/.test(mall), true)
   eq('몰: 나갈 때 정리', mall.includes('searchJumpPin?.stop()'), true)
+  eq('몰: 기준 = 카테고리 카드 마지막 줄', mall.includes("getAnchor: () => lastRowCard(mallMainRef.value?.querySelectorAll('[data-mall-category-card]'))"), true)
+  eq('몰: main ref', mall.includes('<main ref="mallMainRef"'), true)
+  eq('카테고리 카드 표시', read('src/components/mall/MallCategoryGrid.vue').includes('data-mall-category-card'), true)
   eq('몰: 검색어 상자는 검색어 로딩 중에도 보임', mall.includes('v-if="(hasSearched && !isLoading) || searchingQueryKo" ref="searchResultBarRef"'), true)
   eq('몰: 로딩 중 상자 글자 = 지금 검색어', mall.includes('{{ searchingQueryKo || lastQueryKo }}'), true)
   eq('몰: 검색어 검색에서만 켜고 끝나면 끔', [/searchingQueryKo\.value = rawInput\n\s*isLoading\.value = true/.test(mall), /isLoading\.value = false\n\s*searchingQueryKo\.value = ''/.test(mall)], [true, true])

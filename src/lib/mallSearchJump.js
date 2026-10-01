@@ -1,5 +1,6 @@
 // 메인(홈) 1688 검색창·인기 키워드 → 몰 (2026-10-01)
-// 모바일에서 몰이 열리면 "검색어 / 정렬" 상자(로딩 중에도 보임)를 몰 고정 메뉴 바로 아래로 한 번 옮긴다.
+// 모바일에서 몰이 열리면 "전체 카테고리" 카드의 마지막 줄을 몰 고정 메뉴 바로 아래로 한 번 옮긴다
+// → 그 아래 "검색어 / 정렬" 상자(로딩 중에도 보임), 그 아래 상품(로딩 중엔 스켈레톤)이 함께 보인다.
 // 표시는 라우터 state(history.state)로만 넘긴다 — 주소에 남기지 않아 링크 공유로는 이동하지 않고,
 // 몰이 표시를 읽는 즉시 지워서 새로고침·뒤로가기·앞으로가기로 같은 기록에 돌아와도 다시 이동하지 않는다.
 
@@ -8,7 +9,7 @@ export const MALL_JUMP_STATE_KEY = 'euchsMallJump'
 // 몰의 모바일 배치 기준 = 왼쪽 사이드바가 사라지는 Tailwind lg(1024px) 미만 (MallView aside `hidden lg:flex`)
 export const MALL_MOBILE_QUERY = '(max-width: 1023px)'
 
-// 고정 메뉴 아래쪽과 상자 사이 여백(px)
+// 고정 메뉴 아래쪽과 카테고리 마지막 줄 사이 여백(px)
 export const MALL_JUMP_GAP = 8
 
 // 상품 로딩이 끝난 뒤에도 이만큼은 위쪽 배너 높이 변화에 맞춰 자리를 지킨다(ms)
@@ -23,6 +24,20 @@ export const USER_INPUT_EVENTS = ['touchstart', 'wheel', 'keydown', 'mousedown',
 /** HomeView → router.push의 state */
 export const homeSearchState = () => ({ [MALL_JUMP_STATE_KEY]: true })
 
+/**
+ * 카테고리 카드 중 마지막 줄의 카드 하나(그 줄 맨 왼쪽) — 화면 폭마다 열 수(3·5·9)가 달라도 위치로 찾는다.
+ * 2026-10-01 해성 결정: 도착 = 이 줄 윗변이 몰 고정 메뉴 바로 아래 → 그 아래 "검색어/정렬" 상자 → 상품 첫 줄
+ */
+export function lastRowCard(cards) {
+  let best = null
+  let bestTop = -Infinity
+  for (const el of cards || []) {
+    const top = Math.round(el.getBoundingClientRect().top)
+    if (top > bestTop) { best = el; bestTop = top }
+  }
+  return best
+}
+
 /** history.state에 표시가 있으면 true — 읽는 즉시 표시를 지운다(다른 state 칸은 그대로) */
 export function takeMallJumpFlag(hist) {
   const st = hist?.state
@@ -31,7 +46,7 @@ export function takeMallJumpFlag(hist) {
   return true
 }
 
-/** 상자 윗변이 고정 메뉴 아래 + 여백에 오게 하는 스크롤 값 */
+/** 기준 요소(카테고리 마지막 줄) 윗변이 고정 메뉴 아래 + 여백에 오게 하는 스크롤 값 */
 export function jumpTarget({ scrollY, anchorTop, headerHeight, gap = MALL_JUMP_GAP }) {
   return Math.max(0, Math.round(scrollY + anchorTop - headerHeight - gap))
 }

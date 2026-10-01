@@ -17,6 +17,7 @@
           v-for="cat in displayCategories"
           :key="cat.id"
           type="button"
+          data-mall-category-card
           @click="$emit('select', cat)"
           class="group flex flex-col items-center gap-1.5 p-2 sm:p-2.5 rounded-xl border border-gray-100 hover:border-orange-300 hover:bg-orange-50 transition-all duration-200 active:scale-95 cursor-pointer text-center"
         >

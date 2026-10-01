@@ -702,7 +702,7 @@
       <!-- ====================================================== -->
       <!-- RIGHT: MAIN SOURCING MALL CONTENT                       -->
       <!-- ====================================================== -->
-      <main class="flex-1 min-w-0 space-y-4 sm:space-y-6">
+      <main ref="mallMainRef" class="flex-1 min-w-0 space-y-4 sm:space-y-6">
 
 
       <!-- ============================================================ -->
@@ -1243,7 +1243,7 @@ import { fetchSubCategoryKeywordMap, subCategoryKey } from '@/lib/mallCategories
 import { getMockSearchResults } from '../services/mock1688Data'
 import { extractOfferId } from '../utils/offerId'
 import { fetchSiteSettings } from '../lib/settings'
-import { takeMallJumpFlag, createMallJumpPin, MALL_MOBILE_QUERY } from '../lib/mallSearchJump'
+import { takeMallJumpFlag, createMallJumpPin, lastRowCard, MALL_MOBILE_QUERY } from '../lib/mallSearchJump'
 
 import {
   isLoggedIn,
@@ -2934,11 +2934,12 @@ const safeLoadBalance = () => {
   }
 }
 // ----------------------------------------------------
-// 메인(홈) 1688 검색으로 들어온 경우만 — 모바일에서 "검색어" 상자(로딩 중에도 보임, 스켈레톤은 그 아래)를
-// 몰 고정 메뉴 바로 아래로 한 번 옮긴다 (src/lib/mallSearchJump.js, 2026-10-01)
+// 메인(홈) 1688 검색으로 들어온 경우만 — 모바일에서 "전체 카테고리" 카드 마지막 줄을 몰 고정 메뉴 바로 아래로 한 번 옮긴다
+// → 그 아래 "검색어/정렬" 상자(로딩 중에도 보임), 상품(로딩 중엔 스켈레톤) (src/lib/mallSearchJump.js, 2026-10-01)
 // 표시는 history.state에만 있고 여기서 읽는 즉시 지운다 → 새로고침·뒤로가기·모달 닫기 뒤에는 다시 옮기지 않음
 // ----------------------------------------------------
 const mallHeaderRef = ref(null)
+const mallMainRef = ref(null)
 const searchResultBarRef = ref(null)
 const searchSkeletonRef = ref(null)
 const cameFromHomeSearch = typeof window !== 'undefined' && takeMallJumpFlag(window.history)
@@ -2950,12 +2951,14 @@ const searchJumpPin = (
   ? createMallJumpPin({
       win: window,
       doc: document,
-      getAnchor: () => searchResultBarRef.value || searchSkeletonRef.value,
+      // 카드 줄 수는 화면 폭마다 달라서(3·5·9열) 그 순간 가장 아래 줄의 카드를 찾는다
+      // (MallCategoryGrid 컴포넌트 ref의 $el은 템플릿 맨 앞 주석 때문에 개발 모드에서 section이 아니라서 main 안에서 찾음)
+      getAnchor: () => lastRowCard(mallMainRef.value?.querySelectorAll('[data-mall-category-card]')),
       getHeader: () => mallHeaderRef.value
     })
   : null
 if (searchJumpPin) {
-  // 상자나 스켈레톤이 처음 그려지는 즉시 시작 (상품 로딩을 기다리지 않음) — 한 번만
+  // 검색어 상자(검색이 시작되면 바로 그려짐)나 스켈레톤이 처음 그려지는 즉시 시작 (상품 로딩을 기다리지 않음) — 한 번만
   const stopAnchorWatch = watch([searchResultBarRef, searchSkeletonRef], ([bar, skeleton]) => {
     if (!bar && !skeleton) return
     searchJumpPin.start()
