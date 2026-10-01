@@ -841,7 +841,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     eq('서버: 연결 신청 action·표 없음 · SQL에 marketplace_requests 만들기 없음', [/connect_request|REQUEST_MARKETS|marketplace_requests/.test(api), /create table public\.marketplace_requests/.test(sql), /marketplace_requests/.test(read('src/lib/studioMarketplace.js') + read('src/lib/studioMarketLinks.js'))], [false, false, false])
     const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { connected: true }, cafe24: { connected: true } })
     // 연결된 곳은 연결 방법(planned)보다 먼저 — 지그재그처럼 "예정"인 곳도 값이 오면 linked. 카페24는 2026-10-01부터 고객에게 줄 자체가 없음(연결돼 있어도)
-    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 보내기(2026-10-01) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'connected', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
+    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 연결됨(공개 전 — ELEVENST_SEND_PUBLIC false) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
     const onAdmin = R.channelRows({ cafe24: { connected: true } }, { admin: true })
     // 2026-10-01 카페24 앱 심사 반려 → CAFE24_PUBLIC false: 고객 = 줄·카드 없음(connectFor null) · 관리자·스태프 = key·connected(테스트몰 유지)
     eq('카페24 숨김: 설정값 하나(CAFE24_PUBLIC false) · 고객 = null · 관리자 = key · MARKETS 자체는 key 그대로 · 관리자 연결되면 connected · 고객 줄 없음', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state, R.channelRows({}).some(r => r.key === 'cafe24')], [false, null, 'key', 'key', 'connected', false])
@@ -1908,9 +1908,20 @@ function elevenstRelay(u, method, opts) {
   eq('고시 값: 제조자·제조국·전화번호만 판매자 값, 나머지 "상세페이지 참조" · 제조국 기본 = 원산지 표 이름 · 무거운 유형 = 어린이제품·생활화학제품', [
     F.noticeItemsFor('891045', { maker: '이유씨', country: '중국', phone: '010-1' }).map(i => [i.code, i.name]), F.NOTICE_COUNTRY_DEFAULT === F.ORIGIN_CHINA.name, F.HEAVY_NOTICE_TYPES, F.noticeItemsFor('999', {}),
   ], [[['11800', '상세페이지 참조'], ['11905', '이유씨'], ['23760413', '010-1'], ['23759100', '중국'], ['23756033', '상세페이지 참조']], true, ['891033', '1149547'], null])
-  eq('KC: 기본값 없음(하나라도 안 고르면 null) · 구매대행 면제 = 대상여부 02 + 면제유형 02 · 어린이·방송통신은 대상 아님만 · 인증대상(01)은 화면에 없음', [
-    F.kcGroupsFor({}), F.kcGroupsFor({ '01': 'agent', '02': 'none' }), F.kcGroupsFor({ '01': 'agent', '02': 'none', '03': 'none' }), F.KC_CHOICES['02'].map(c => c.key), Object.values(F.KC_CHOICES).flat().some(c => c.obj === '01'),
-  ], [null, null, [{ crtfGrpTypCd: '01', crtfGrpObjClfCd: '02', crtfGrpExptTypCd: '02' }, { crtfGrpTypCd: '02', crtfGrpObjClfCd: '03' }, { crtfGrpTypCd: '03', crtfGrpObjClfCd: '03' }], ['none'], false])
+  eq('KC: 그룹 4개(01~04 — 문서 값) · 그룹별 허용 대상여부 = 01:01·02·03 / 02:01·03 / 03:01·03 / 04:04·05 · 인증유형 코드 = 문서 그대로', [F.KC_GROUPS.map(g => g.code), Object.fromEntries(Object.entries(F.KC_CHOICES).map(([g, cs]) => [g, cs.map(c => c.obj).sort()])), Object.fromEntries(Object.entries(F.KC_CERT_TYPES).map(([g, ts]) => [g, ts.map(t => t[0])]))],
+    [['01', '02', '03', '04'], { '01': ['01', '02', '02', '03'], '02': ['01', '03'], '03': ['01', '03'], '04': ['04', '05'] }, { '01': ['101', '103', '124', '123', '102', '104', '127', '132'], '02': ['128', '129', '130', '134'], '03': ['105', '135'], '04': ['133', '136'] }])
+  {
+    const ALL = { '01': 'agent', '02': 'none', '03': 'none', '04': 'none' }
+    const r = F.kcFor(ALL)
+    const c = F.kcFor({ ...ALL, '01': 'cert', '04': 'cert' }, { '01': { type: '102', key: ' HU07123-12001 ' }, '04': { type: '133', key: 'CB12-34' } })
+    eq('KC: 기본값 없음 — 하나라도 안 고르면 합니다체로 막음 · 4개 그룹 모두 보냄 · 면제 = 02 + 면제유형 · 04 대상 아님 = 05', [F.kcFor({}).message, F.kcFor({ '01': 'agent', '02': 'none', '03': 'none' }).message, r.groups, r.certs],
+      ['KC 인증 "전기용품·생활용품 KC인증" 항목을 선택하세요.', 'KC 인증 "생활화학 및 살생물제품" 항목을 선택하세요.', [{ crtfGrpTypCd: '01', crtfGrpObjClfCd: '02', crtfGrpExptTypCd: '02' }, { crtfGrpTypCd: '02', crtfGrpObjClfCd: '03' }, { crtfGrpTypCd: '03', crtfGrpObjClfCd: '03' }, { crtfGrpTypCd: '04', crtfGrpObjClfCd: '05' }], []])
+    eq('KC 인증대상: 대상여부 01(04그룹은 04) + ProductCert(인증유형·인증번호) · 인증유형이 그 그룹 것이 아니면 막음 · 번호 없으면 막음', [c.groups.map(g => g.crtfGrpObjClfCd), c.certs, F.kcFor({ ...ALL, '02': 'cert' }, { '02': { type: '102', key: 'x' } }).message, F.kcFor({ ...ALL, '03': 'cert' }, { '03': { type: '105', key: ' ' } }).message],
+      [['01', '03', '03', '04'], [{ certTypeCd: '102', certKey: 'HU07123-12001' }, { certTypeCd: '133', certKey: 'CB12-34' }], 'KC 인증 "어린이제품 KC인증"의 인증유형을 선택하세요.', 'KC 인증 "방송통신기자재 KC인증"의 인증번호를 입력하세요.'])
+    eq('원산지: 기본 해외·중국 · 국내+지역 · 해외+국가 · 상세설명 참조(03 + 원산지명) · 목록 밖 코드는 null', [F.originFor({ kind: F.ORIGIN_CHINA.orgnTypCd, code: F.ORIGIN_CHINA.orgnTypDtlsCd }), F.originFor({ kind: '01', code: '1009' }), F.originFor({ kind: '03' }), F.originFor({ kind: '02', code: '9999' }), F.originFor({ kind: '01', code: '1287' })],
+      [{ orgnTypCd: '02', orgnTypDtlsCd: '1287', label: '해외 · 중국' }, { orgnTypCd: '01', orgnTypDtlsCd: '1009', label: '국내 · 서울' }, { orgnTypCd: '03', orgnNmVal: '상세설명 참조', label: '상세설명 참조' }, null, null])
+    eq('공개 스위치: ELEVENST_SEND_PUBLIC false — 고객은 연결돼 있어도 "연결됨"(보내기 없음) · 관리자·스태프는 보내기', [F.ELEVENST_SEND_PUBLIC, R.channelRows({ '11st': { connected: true } }).find(x => x.key === '11st').state, R.channelRows({ '11st': { connected: true } }, { admin: true }).find(x => x.key === '11st').state, R.sendableFor(R.MARKETS.find(m => m.key === 'coupang'))], [false, 'linked', 'connected', true])
+  }
   eq('주소 기본: 마지막에 쓴 주소가 목록에 있으면 그것 · 없으면 목록 첫째 · 빈 목록 null', [F.pickElevenstAddress([{ id: '11' }, { id: '12' }], '12'), F.pickElevenstAddress([{ id: '11' }, { id: '12' }], '99'), F.pickElevenstAddress([{ id: '11' }, { id: '12' }]), F.pickElevenstAddress([])], ['12', '11', '11', null])
 
   // 2) 응답 읽기
@@ -1929,7 +1940,7 @@ function elevenstRelay(u, method, opts) {
   // 3) 등록 본문 — 공식 필수 항목 · EUC-KR · 해외 항목 없음
   const IN = {
     productName: '매일 쓰는 머그', categoryId: '1017898', price: 12900, stock: 30, repUrl: 'https://www.euchs.co.kr/api/marketplace?t=rep', detailUrls: ['https://www.euchs.co.kr/api/marketplace?t=01', 'https://www.euchs.co.kr/api/marketplace?t=02'],
-    vat: '01', kc: { '01': 'agent', '02': 'none', '03': 'none' },
+    vat: '01', origin: { kind: '02', code: '1287' }, kc: { '01': 'cert', '02': 'none', '03': 'none', '04': 'none' }, kcCerts: { '01': { type: '102', key: 'HU07123-12001' } },
     delivery: { feeType: '01', jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000, outAddr: '11', inAddr: '22' },
     asDetail: '상세페이지 참조', rtngExchDetail: '상세페이지 참조', notice: { type: '891045', maker: '이유씨', country: '중국', phone: '010-1234-5678' },
   }
@@ -1937,21 +1948,26 @@ function elevenstRelay(u, method, opts) {
   const x = b.ok ? dec(b.buf) : ''
   const tags = [...x.matchAll(/<([A-Za-z0-9]+)>/g)].map(m => m[1]).filter((t, i, a) => a.indexOf(t) === i)
   eq('등록 본문: EUC-KR 바이트 · XML 선언 EUC-KR · 바이트를 되읽으면 같은 글자', [b.ok, x.startsWith('<?xml version="1.0" encoding="EUC-KR"?><Product>'), x === b.xml], [true, true, true])
-  eq('등록 본문: 문서 필수 칸 모두 · 순서 고정', tags, ['Product', 'selMthdCd', 'dispCtgrNo', 'prdTypCd', 'prdNm', 'brand', 'rmaterialTypCd', 'orgnTypCd', 'orgnTypDtlsCd', 'suplDtyfrPrdClfCd', 'prdStatCd', 'minorSelCnYn', 'prdImage01', 'htmlDetail', 'ProductCertGroup', 'crtfGrpTypCd', 'crtfGrpObjClfCd', 'crtfGrpExptTypCd', 'selPrc', 'prdSelQty', 'dlvCnAreaCd', 'dlvWyCd', 'dlvCstInstBasiCd', 'bndlDlvCnYn', 'dlvCstPayTypCd', 'jejuDlvCst', 'islandDlvCst', 'addrSeqOut', 'addrSeqIn', 'rtngdDlvCst', 'exchDlvCst', 'asDetail', 'rtngExchDetail', 'dlvClf', 'ProductNotification', 'type', 'item', 'code', 'name'])
+  eq('등록 본문: 문서 필수 칸 모두 · 순서 고정', tags, ['Product', 'selMthdCd', 'dispCtgrNo', 'prdTypCd', 'prdNm', 'brand', 'rmaterialTypCd', 'orgnTypCd', 'orgnTypDtlsCd', 'suplDtyfrPrdClfCd', 'prdStatCd', 'minorSelCnYn', 'prdImage01', 'htmlDetail', 'ProductCertGroup', 'crtfGrpTypCd', 'crtfGrpObjClfCd', 'ProductCert', 'certTypeCd', 'certKey', 'selPrc', 'prdSelQty', 'dlvCnAreaCd', 'dlvWyCd', 'dlvCstInstBasiCd', 'bndlDlvCnYn', 'dlvCstPayTypCd', 'jejuDlvCst', 'islandDlvCst', 'addrSeqOut', 'addrSeqIn', 'rtngdDlvCst', 'exchDlvCst', 'asDetail', 'rtngExchDetail', 'dlvClf', 'ProductNotification', 'type', 'item', 'code', 'name'])
   eq('등록 본문 값: 고정가 01 · 일반배송 01 · 상품명 CDATA · 브랜드 없음 = 알수없음 · 원산지 해외 02 + 중국 1287 · 새상품 · 택배 · 전국 · 선결제 · 업체배송 02 · 출고지 11 · 반품지 22 · 고시 891045 + 5항목', [
     E11.xmlTag(x, 'selMthdCd'), E11.xmlTag(x, 'prdTypCd'), /<prdNm><!\[CDATA\[매일 쓰는 머그\]\]><\/prdNm>/.test(x), E11.xmlTag(x, 'brand'), E11.xmlTag(x, 'orgnTypCd'), E11.xmlTag(x, 'orgnTypDtlsCd'), E11.xmlTag(x, 'prdStatCd'),
     E11.xmlTag(x, 'dlvWyCd'), E11.xmlTag(x, 'dlvCnAreaCd'), E11.xmlTag(x, 'dlvCstPayTypCd'), E11.xmlTag(x, 'dlvClf'), E11.xmlTag(x, 'addrSeqOut'), E11.xmlTag(x, 'addrSeqIn'), E11.xmlTag(x, 'type'), (x.match(/<item>/g) || []).length,
   ], ['01', '01', true, '알수없음', '02', '1287', '01', '01', '01', '03', '02', '11', '22', '891045', 5])
+  eq('KC: ProductCertGroup 4개(01 인증대상 01 · 02·03 대상 아님 03 · 04 대상 아님 05) · ProductCert 1개(102 + 인증번호 CDATA)', [E11.xmlBlocks(x, 'ProductCertGroup').map(g => `${E11.xmlTag(g, 'crtfGrpTypCd')}:${E11.xmlTag(g, 'crtfGrpObjClfCd')}`), E11.xmlBlocks(x, 'ProductCert').map(c => `${E11.xmlTag(c, 'certTypeCd')}:${E11.xmlTag(c, 'certKey')}`), /<certKey><!\[CDATA\[HU07123-12001\]\]><\/certKey>/.test(x)], [['01:01', '02:03', '03:03', '04:05'], ['102:HU07123-12001'], true])
+  {
+    const ko = dec(E11.buildElevenstProduct({ ...IN, origin: { kind: '01', code: '1009' } }).buf), rf = dec(E11.buildElevenstProduct({ ...IN, origin: { kind: '03' } }).buf)
+    eq('원산지 바꾸기: 국내 서울 = 01 + 1009 · 상세설명 참조 = 03 + orgnNmVal(지역 코드 없음) · 잘못된 원산지 = 거절(합니다체)', [E11.xmlTag(ko, 'orgnTypCd'), E11.xmlTag(ko, 'orgnTypDtlsCd'), E11.xmlTag(rf, 'orgnTypCd'), E11.xmlTag(rf, 'orgnNmVal'), /orgnTypDtlsCd/.test(rf), E11.buildElevenstProduct({ ...IN, origin: { kind: '02', code: '0' } }).message], ['01', '1009', '03', '상세설명 참조', false, '원산지를 선택하세요.'])
+  }
   eq('국내 셀러: 해외 항목 없음 · 발송마감 템플릿은 값이 있을 때만 · 무료배송이면 dlvCst1 없음', [/abrdBuyPlace|forAbrdBuyClf|outsideYnOut|outsideYnIn|importFeeCd|hsCode|globalOutAddrSeq/.test(x), /dlvSendCloseTmpltNo/.test(x), /dlvSendCloseTmpltNo>77</.test(dec(E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, sendCloseTmplt: '77' } }).buf)), /dlvCst1/.test(x)], [false, false, true, false])
   eq('상세설명: 이미지 주소를 위에서 아래로 · 상세 이미지 주소는 한 함수(elevenstDetailImageUrls)에서', [(E11.xmlTag(x, 'htmlDetail').match(/<img src="https:\/\/www\.euchs\.co\.kr\/api\/marketplace\?t=0\d"/g) || []).length, E11.elevenstDetailImageUrls({ files: [{ key: '01' }, { key: '02' }], urlOf: k => `u/${k}` })], [2, ['u/01', 'u/02']])
   {
     const bad = o => E11.buildElevenstProduct({ ...IN, ...o })
     const cases = [
-      { productName: '' }, { productName: '가'.repeat(101) }, { categoryId: '' }, { price: 12905 }, { price: 0 }, { stock: 0 }, { stock: NaN }, { repUrl: '' }, { detailUrls: [] }, { vat: '' }, { kc: {} },
+      { productName: '' }, { productName: '가'.repeat(101) }, { categoryId: '' }, { price: 12905 }, { price: 0 }, { stock: 0 }, { stock: NaN }, { repUrl: '' }, { detailUrls: [] }, { vat: '' }, { kc: {} }, { origin: {} }, { kcCerts: {} },
       { delivery: { ...IN.delivery, feeType: '02' } }, { delivery: { ...IN.delivery, jejuFee: NaN } }, { delivery: { ...IN.delivery, returnFee: 3005 } }, { delivery: { ...IN.delivery, outAddr: '' } },
       { asDetail: ' ' }, { rtngExchDetail: '' }, { notice: { ...IN.notice, type: '999' } }, { notice: { ...IN.notice, maker: '' } }, { notice: { ...IN.notice, maker: '가'.repeat(51) } }, { productName: '머그 똠' },
     ].map(o => bad(o))
-    eq('필수 항목 누락·잘못된 값 → 거절(임의 값으로 채우지 않음) · 문구는 합니다체 · 재고 0 거절 · 10원 단위 · 고시 50자 · EUC-KR 밖 글자 거절', [cases.every(r => r.ok === false), cases.filter(r => talk.test(r.message)).length, cases[5].message, cases[3].message, cases[20].message],
+    eq('필수 항목 누락·잘못된 값 → 거절(임의 값으로 채우지 않음) · 문구는 합니다체 · 재고 0 거절 · 10원 단위 · 고시 50자 · EUC-KR 밖 글자 거절', [cases.every(r => r.ok === false), cases.filter(r => talk.test(r.message)).length, cases[5].message, cases[3].message, cases[22].message],
       [true, 0, '재고 수량은 1개 이상 입력하세요. (11번가는 재고 0으로 등록할 수 없습니다)', '판매가는 10원 단위로 입력하세요. (10억 원 미만)', '11번가에 보낼 수 없는 글자가 있습니다: 똠 — 상품명·안내 문구에서 빼고 다시 보내세요.'])
   }
 
@@ -1967,7 +1983,7 @@ function elevenstRelay(u, method, opts) {
   files.set(`${folder11}/02.jpg`, await sharp({ create: { width: 780, height: 400, channels: 3, background: { r: 10, g: 10, b: 10 } } }).jpeg().toBuffer())
   const UI11 = {
     exportId: EID11, productName: '매일 쓰는 머그', brand: '', categoryId: '1017898', categoryName: '주방용품>컵>머그컵', price: 12900, stock: 30, repImageId: IMG11, fit: 'contain',
-    vat: '01', minorOk: true, kc: { '01': 'agent', '02': 'none', '03': 'none' },
+    vat: '01', minorOk: true, origin: { kind: '02', code: '1287' }, kc: { '01': 'agent', '02': 'none', '03': 'none', '04': 'none' },
     delivery: { feeType: '01', fee: null, jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000, outAddr: '12', inAddr: '22' },
     asDetail: '상세페이지 참조', rtngExchDetail: '상세페이지 참조', notice: { type: '891045', maker: '이유씨', country: '중국', phone: '010-1234-5678' },
   }
@@ -2033,13 +2049,15 @@ function elevenstRelay(u, method, opts) {
   const adAfterFail = await post('elevenst_addresses')
   eq('실패한 보내기는 주소를 기억하지 않음 (12·22 그대로)', adAfterFail.body.last, { out: '12', in: '22' })
 
-  // 고객(관리자 아님)이 testStop을 보내도 판매중지를 부르지 않는다
+  // 고객(관리자 아님) — 공개 전(ELEVENST_SEND_PUBLIC false)이면 11번가 조회·보내기 요청을 서버가 거절 (11번가 호출·기록 없음)
   globalThis.__asCustomer = true
   process.env.STUDIO_ENABLED = 'all'
   try {
     relay.calls = []
-    const cs = await post('elevenst_send', { ...UI11, testStop: true })
-    eq('고객: testStop 무시 — 판매중지 호출 없음 · 등록은 정상', [cs.statusCode, cs.body.stopped, relay.calls.some(c => /stopdisplay/.test(c.path))], [200, false, false])
+    const nBefore = db.marketplace_sends.length, catBefore = st11.categoryCalls
+    const got = []
+    for (const a of ['elevenst_categories', 'elevenst_addresses', 'elevenst_send']) { const r = await post(a, { ...UI11, testStop: true }); got.push([r.statusCode, r.body?.code]) }
+    eq('고객(공개 전): elevenst_* 3개 모두 403 market_unavailable · 11번가 호출·기록 없음 · 연결 상태(market_status)는 그대로 읽힘', [got, relay.calls.length, st11.categoryCalls - catBefore, db.marketplace_sends.length - nBefore, (await post('market_status')).body.elevenst.connected], [[[403, 'market_unavailable'], [403, 'market_unavailable'], [403, 'market_unavailable']], 0, 0, 0, true])
   } finally {
     globalThis.__asCustomer = false
     process.env.STUDIO_ENABLED = 'admin'
@@ -2049,7 +2067,7 @@ function elevenstRelay(u, method, opts) {
   const shell = read('src/components/studio/StudioSendModal.vue'), sec = read('src/components/studio/StudioSendElevenst.vue'), lib = read('src/lib/studioMarketplace.js')
   const tpl = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
   const shown = tpl(sec)
-  eq('보내기 창: 11번가 섹션 = 같은 모양(missing·busy·done·submit) · 연결되면 체크 가능(connected) · 버튼 "11번가로 보내기"', [/'11st': StudioSendElevenst/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), R.channelRows({ '11st': { connected: true } }).find(r => r.key === '11st').state, R.sendButtonLabel(['11st'])], [true, true, 'connected', '11번가로 보내기'])
+  eq('보내기 창: 11번가 섹션 = 같은 모양(missing·busy·done·submit) · 관리자는 연결되면 체크 가능(connected) · 버튼 "11번가로 보내기"', [/'11st': StudioSendElevenst/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), R.channelRows({ '11st': { connected: true } }, { admin: true }).find(r => r.key === '11st').state, R.sendButtonLabel(['11st'])], [true, true, 'connected', '11번가로 보내기'])
   eq('섹션: 금액 기본값 없음(빈칸) · KC 기본값 없음 · 고시 기본 891045 · 제조국 기본 = 공용 상수 · 관리자만 테스트 판매중지 · 공용 파일만 import', [
     sec.includes('feeType: \'01\', fee: null, jejuFee: null, islandFee: null, returnFee: null, exchangeFee: null'), sec.includes("kc: Object.fromEntries(KC_GROUPS.map(g => [g.code, '']))"), sec.includes('noticeType: DEFAULT_NOTICE_TYPE'), sec.includes('country: NOTICE_COUNTRY_DEFAULT'),
     /<label v-if="isAdminOrStaff"[^>]*data-mk-11st-teststop/.test(shown), /from '\.\.\/\.\.\/\.\.\/api\/_elevenstFields\.js'/.test(sec), /api\/_elevenst\.js'/.test(sec),

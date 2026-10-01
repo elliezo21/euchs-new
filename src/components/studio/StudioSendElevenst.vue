@@ -140,17 +140,39 @@
     </div>
     <p v-if="f.vat === '02'" class="st-desc-sm break-keep" data-mk-11st-vat-note>면세상품으로 등록하면 세무·법률적 책임은 판매자에게 있습니다.</p>
 
+    <!-- 원산지 — 기본 해외·중국, 판매자가 바꿀 수 있다 (11번가 법적 표시 칸) -->
+    <div ref="originEl" class="block" data-mk-11st-origin>
+      <span class="st-label">원산지 *</span>
+      <div class="flex flex-wrap items-center gap-2 mt-1">
+        <select v-model="f.originKind" class="st-input w-full sm:w-40" :disabled="!!done" data-mk-11st-origin-kind @change="onOriginKind">
+          <option v-for="k in ORIGIN_KINDS" :key="k.code" :value="k.code">{{ k.name }}</option>
+        </select>
+        <select v-if="f.originKind !== '03'" v-model="f.originCode" class="st-input w-full sm:w-48" :disabled="!!done" data-mk-11st-origin-code>
+          <option value="">{{ f.originKind === '01' ? '지역 선택' : '국가 선택' }}</option>
+          <option v-for="[code, name] in (f.originKind === '01' ? ORIGIN_DOMESTIC : ORIGIN_COUNTRIES)" :key="code" :value="code">{{ name }}</option>
+        </select>
+      </div>
+    </div>
+
     <!-- KC 인증 — 판매자가 직접 고른다 (기본값 없음) -->
     <div ref="kcEl" class="block space-y-2" data-mk-11st-kc>
       <span class="st-label">KC 인증 *</span>
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <label v-for="g in KC_GROUPS" :key="g.code" class="block">
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div v-for="g in KC_GROUPS" :key="g.code" class="block st-border rounded-[10px] p-2.5" :data-mk-11st-kc-box="g.code">
           <span class="st-desc-sm block mb-1">{{ g.name }}</span>
           <select v-model="f.kc[g.code]" class="st-input w-full" :disabled="!!done" :data-mk-11st-kc-group="g.code">
             <option value="">선택</option>
             <option v-for="c in KC_CHOICES[g.code]" :key="c.key" :value="c.key">{{ c.label }}</option>
           </select>
-        </label>
+          <!-- 인증대상 → 인증유형 + 인증번호 -->
+          <div v-if="f.kc[g.code] === 'cert'" class="grid grid-cols-1 gap-1.5 mt-1.5" :data-mk-11st-kc-cert="g.code">
+            <select v-model="f.kcCerts[g.code].type" class="st-input w-full" :disabled="!!done" :data-mk-11st-kc-type="g.code">
+              <option value="">인증유형 선택</option>
+              <option v-for="[code, label] in KC_CERT_TYPES[g.code]" :key="code" :value="code">{{ label }}</option>
+            </select>
+            <input v-model="f.kcCerts[g.code].key" type="text" :maxlength="KC_CERT_KEY_MAX" class="st-input w-full" placeholder="인증번호" :disabled="!!done" :data-mk-11st-kc-key="g.code" />
+          </div>
+        </div>
       </div>
       <p class="st-desc-sm break-keep" data-mk-11st-kc-note>KC 인증 대상 여부는 판매자가 직접 확인하여 선택해야 합니다. 잘못 표시하여 발생하는 법적 책임은 판매자에게 있습니다.</p>
     </div>
@@ -208,8 +230,8 @@ import { isAdminOrStaff } from '@/lib/auth'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
   NOTICE_TYPES, DEFAULT_NOTICE_TYPE, NOTICE_VALUE_MAX, NOTICE_DEFAULT_VALUE, NOTICE_COUNTRY_DEFAULT, HEAVY_NOTICE_TYPES, noticeTypeOf, noticeItemsFor,
-  NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, kcGroupsFor, VAT_TYPES, PRODUCT_NAME_MAX, is10Won,
-  pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA,
+  NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, KC_CERT_TYPES, KC_CERT_KEY_MAX, kcFor, VAT_TYPES, PRODUCT_NAME_MAX, is10Won,
+  pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor,
 } from '../../../api/_elevenstFields.js'
 
 const CAT_SHOWN = 200
@@ -220,7 +242,7 @@ const done = ref(null)
 const sendError = ref('')
 const errorGuide = ref(false)
 const errorEl = ref(null)
-const nameEl = ref(null), catEl = ref(null), priceEl = ref(null), imageEl = ref(null), deliveryEl = ref(null), addressEl = ref(null), guideEl = ref(null), kcEl = ref(null), noticeEl = ref(null)
+const nameEl = ref(null), catEl = ref(null), priceEl = ref(null), imageEl = ref(null), deliveryEl = ref(null), addressEl = ref(null), guideEl = ref(null), originEl = ref(null), kcEl = ref(null), noticeEl = ref(null)
 const categories = ref([])
 const catLoading = ref(false)
 const catError = ref('')
@@ -240,7 +262,9 @@ const f = ref({
   outAddr: null, inAddr: null,
   asDetail: NOTICE_DEFAULT_VALUE, rtngExchDetail: NOTICE_DEFAULT_VALUE,
   vat: '01', minorBlocked: false,
-  kc: Object.fromEntries(KC_GROUPS.map(g => [g.code, ''])), // 기본값 없음 — 판매자가 직접 고른다
+  kc: Object.fromEntries(KC_GROUPS.map(g => [g.code, ''])), // 기본값 없음 — 판매자가 직접 고른다 (4개 그룹 모두)
+  kcCerts: Object.fromEntries(KC_GROUPS.map(g => [g.code, { type: '', key: '' }])), // 인증대상일 때 인증유형·인증번호
+  originKind: ORIGIN_CHINA.orgnTypCd, originCode: ORIGIN_CHINA.orgnTypDtlsCd, // 원산지 기본 해외·중국 — 판매자가 바꿀 수 있다
   noticeType: DEFAULT_NOTICE_TYPE, maker: NOTICE_DEFAULT_VALUE, country: NOTICE_COUNTRY_DEFAULT, phone: NOTICE_DEFAULT_VALUE,
   testStop: false,
 })
@@ -277,7 +301,8 @@ const missing = computed(() => {
   if (!v.inAddr) out.push('반품/교환지')
   if (!String(v.asDetail || '').trim()) out.push('A/S 안내')
   if (!String(v.rtngExchDetail || '').trim()) out.push('반품/교환 안내')
-  if (!kcGroupsFor(v.kc)) out.push('KC 인증')
+  if (!originFor({ kind: v.originKind, code: v.originCode })) out.push('원산지')
+  if (!kcFor(v.kc, v.kcCerts).ok) out.push('KC 인증')
   if (noticeItems.value.some(it => !it.name || [...it.name].length > NOTICE_VALUE_MAX)) out.push('상품정보제공고시')
   return out
 })
@@ -297,7 +322,7 @@ const preview = computed(() => {
     { label: '반품·교환 배송비', value: is10Won(v.returnFee) && is10Won(v.exchangeFee) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
     { label: '출고지', value: addressName(outAddresses.value, v.outAddr) },
     { label: '반품/교환지', value: addressName(inAddresses.value, v.inAddr) },
-    { label: '원산지', value: `해외 · ${ORIGIN_CHINA.name}` },
+    { label: '원산지', value: originFor({ kind: v.originKind, code: v.originCode })?.label || '' },
     { label: '상품정보제공고시', value: noticeTypeName.value },
     { label: '판매상태', value: v.testStop && isAdminOrStaff.value ? '등록 후 판매중지 (테스트)' : '판매중' },
   ]
@@ -371,10 +396,14 @@ async function refreshAddresses() {
   }
 }
 
+/** 원산지 종류를 바꾸면 지역·국가를 다시 고른다 (해외로 돌아오면 기본 중국) */
+function onOriginKind() {
+  f.value.originCode = f.value.originKind === ORIGIN_CHINA.orgnTypCd ? ORIGIN_CHINA.orgnTypDtlsCd : ''
+}
 /** 실패 문구 → 해당 칸 (모르면 섹션 맨 위 사유 줄) */
 const FIELD_HINTS = [
   [/상품명|보낼 수 없는 글자/, nameEl], [/카테고리/, catEl], [/판매가|재고/, priceEl], [/대표 이미지|상세 이미지|사진/, imageEl],
-  [/배송비/, deliveryEl], [/출고지|반품지|반품\/교환지|주소/, addressEl], [/A\/S 안내|반품\/교환 안내/, guideEl], [/KC/, kcEl], [/고시/, noticeEl],
+  [/배송비/, deliveryEl], [/출고지|반품지|반품\/교환지|주소/, addressEl], [/A\/S 안내|반품\/교환 안내/, guideEl], [/원산지/, originEl], [/KC/, kcEl], [/고시/, noticeEl],
 ]
 function scrollToProblem(message) {
   const hit = FIELD_HINTS.find(([re]) => re.test(String(message || '')))
@@ -393,7 +422,8 @@ async function submit() {
     const r = await sendElevenstProduct({
       exportId: props.prepare.export.id, productName: String(v.productName).trim(), brand: String(v.brand || '').trim(),
       categoryId: v.categoryId, categoryName: categoryName.value, price: v.price, stock: v.stock, repImageId: v.repImageId, fit: v.fit,
-      vat: v.vat, minorOk: !v.minorBlocked, kc: { ...v.kc },
+      vat: v.vat, minorOk: !v.minorBlocked, origin: { kind: v.originKind, code: v.originKind === '03' ? null : v.originCode },
+      kc: { ...v.kc }, kcCerts: Object.fromEntries(KC_GROUPS.filter(g => v.kc[g.code] === 'cert').map(g => [g.code, { type: v.kcCerts[g.code].type, key: String(v.kcCerts[g.code].key).trim() }])),
       delivery: { feeType: v.feeType, fee: v.feeType === '02' ? v.fee : null, jejuFee: v.jejuFee, islandFee: v.islandFee, returnFee: v.returnFee, exchangeFee: v.exchangeFee, outAddr: v.outAddr, inAddr: v.inAddr },
       asDetail: String(v.asDetail).trim(), rtngExchDetail: String(v.rtngExchDetail).trim(),
       notice: { type: v.noticeType, maker: String(v.maker).trim(), country: String(v.country).trim(), phone: String(v.phone).trim() },

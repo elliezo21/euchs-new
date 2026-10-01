@@ -17,7 +17,7 @@
  */
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
 import {
-  NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcGroupsFor, ORIGIN_CHINA, VAT_TYPES, DELIVERY_FEE_TYPES, PRODUCT_NAME_MAX, PRICE_MAX, is10Won,
+  NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcFor, originFor, VAT_TYPES, DELIVERY_FEE_TYPES, PRODUCT_NAME_MAX, PRICE_MAX, is10Won,
 } from './_elevenstFields.js'
 
 export const ELEVENST_PATHS = {
@@ -230,8 +230,8 @@ const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
 /**
  * 상품 등록 XML (EUC-KR 바이트). 화면에서 받은 값만 — 국내 셀러라 해외 항목(abrdBuyPlace·forAbrdBuyClf·outsideYn*·importFeeCd·hsCode 등)은 넣지 않는다.
  * 발송마감 템플릿(dlvSendCloseTmpltNo)은 문서상 선택입력 — 값이 있을 때만
- * @param {{ productName, brand?, categoryId, price, stock, repUrl, detailUrls:string[], vat:'01'|'02', minorOk?:boolean,
- *           kc:{ [group]: key }, delivery:{ feeType:'01'|'02', fee?, jejuFee, islandFee, returnFee, exchangeFee, outAddr, inAddr, sendCloseTmplt? },
+ * @param {{ productName, brand?, categoryId, price, stock, repUrl, detailUrls:string[], vat:'01'|'02', minorOk?:boolean, origin:{ kind:'01'|'02'|'03', code? },
+ *           kc:{ [group]: key }, kcCerts?:{ [group]: { type, key } }, delivery:{ feeType:'01'|'02', fee?, jejuFee, islandFee, returnFee, exchangeFee, outAddr, inAddr, sendCloseTmplt? },
  *           asDetail, rtngExchDetail, notice:{ type, maker, country, phone } }} p
  * @returns {{ ok:true, xml, buf, summary } | { ok:false, message }}
  */
@@ -246,8 +246,10 @@ export function buildElevenstProduct(p) {
   if (typeof p?.repUrl !== 'string' || !p.repUrl) return { ok: false, message: '대표 이미지를 준비하지 못했습니다.' }
   if (!Array.isArray(p?.detailUrls) || !p.detailUrls.length) return { ok: false, message: '상세 이미지를 준비하지 못했습니다.' }
   if (!VAT_TYPES.some(v => v.code === p?.vat)) return { ok: false, message: '부가세 구분을 선택하세요.' }
-  const kc = kcGroupsFor(p?.kc)
-  if (!kc) return { ok: false, message: 'KC 인증 정보를 그룹마다 선택하세요.' }
+  const kc = kcFor(p?.kc, p?.kcCerts)
+  if (!kc.ok) return { ok: false, message: kc.message }
+  const origin = originFor(p?.origin)
+  if (!origin) return { ok: false, message: '원산지를 선택하세요.' }
   const d = p?.delivery || {}
   if (!DELIVERY_FEE_TYPES.some(t => t.code === d.feeType)) return { ok: false, message: '배송비 종류를 선택하세요.' }
   if (d.feeType === '02' && !is10Won(d.fee, 10, 1000000)) return { ok: false, message: '기본 배송비를 10원 단위로 입력하세요.' }
@@ -278,13 +280,15 @@ export function buildElevenstProduct(p) {
     elC('prdNm', name),
     elC('brand', brand),
     el('rmaterialTypCd', '04'), // 원산지 의무 표시대상 아님(가공식품 원재료가 아님) — 원산지는 아래 orgnTypCd로 표시
-    el('orgnTypCd', ORIGIN_CHINA.orgnTypCd), el('orgnTypDtlsCd', ORIGIN_CHINA.orgnTypDtlsCd), // 해외 · 중국(area.xlsx 1287)
+    el('orgnTypCd', origin.orgnTypCd), // 01 국내 · 02 해외 (+ 지역 코드 — area.xlsx) · 03 기타 (+ 원산지명)
+    ...(origin.orgnTypDtlsCd ? [el('orgnTypDtlsCd', origin.orgnTypDtlsCd)] : [elC('orgnNmVal', origin.orgnNmVal)]),
     el('suplDtyfrPrdClfCd', p.vat),
     el('prdStatCd', '01'), // 새상품
     el('minorSelCnYn', p.minorOk === false ? 'N' : 'Y'),
     el('prdImage01', p.repUrl),
     elC('htmlDetail', elevenstDetailHtml(p.detailUrls, name)),
-    ...kc.map(g => `<ProductCertGroup>${el('crtfGrpTypCd', g.crtfGrpTypCd)}${el('crtfGrpObjClfCd', g.crtfGrpObjClfCd)}${g.crtfGrpExptTypCd ? el('crtfGrpExptTypCd', g.crtfGrpExptTypCd) : ''}</ProductCertGroup>`),
+    ...kc.groups.map(g => `<ProductCertGroup>${el('crtfGrpTypCd', g.crtfGrpTypCd)}${el('crtfGrpObjClfCd', g.crtfGrpObjClfCd)}${g.crtfGrpExptTypCd ? el('crtfGrpExptTypCd', g.crtfGrpExptTypCd) : ''}</ProductCertGroup>`),
+    ...kc.certs.map(c => `<ProductCert>${el('certTypeCd', c.certTypeCd)}${elC('certKey', c.certKey)}</ProductCert>`), // 인증대상 그룹만
     el('selPrc', String(p.price)),
     el('prdSelQty', String(p.stock)),
     el('dlvCnAreaCd', '01'), // 전국
@@ -308,7 +312,7 @@ export function buildElevenstProduct(p) {
   ].join('')
   const enc = encodeEucKr(xml)
   if (enc.bad.length) return { ok: false, message: `11번가에 보낼 수 없는 글자가 있습니다: ${enc.bad.slice(0, 5).join(' ')} — 상품명·안내 문구에서 빼고 다시 보내세요.` }
-  const summary = { prdNm: name, dispCtgrNo: cat, selPrc: p.price, prdSelQty: p.stock, addrSeqOut: outAddr, addrSeqIn: inAddr, dlvCstInstBasiCd: d.feeType, noticeType: n.type, kc }
+  const summary = { prdNm: name, dispCtgrNo: cat, selPrc: p.price, prdSelQty: p.stock, addrSeqOut: outAddr, addrSeqIn: inAddr, dlvCstInstBasiCd: d.feeType, noticeType: n.type, origin: origin.label, kc: kc.groups, certTypes: kc.certs.map(c => c.certTypeCd) }
   return { ok: true, xml, buf: enc.buf, summary }
 }
 /** 마지막 등록의 { out, in } 주소 번호 (기록 request_json.summary) — 없거나 이상하면 null */

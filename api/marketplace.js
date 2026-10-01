@@ -44,7 +44,7 @@
  *   smartstore_addresses  → { addresses:[{ id, name, type, address, phone, overseas }], last:{ shipping, return }, defaults:{ shipping, return } }  (판매자 주소록 · last = 마지막 등록 성공 때 주소)
  *   elevenst_categories → { categories:[{ id, name, wholeName }] } (최하위만 — 11번가 공개 조회)
  *   elevenst_addresses  → { outAddresses, inAddresses:[{ id, name, address, phone }], last:{ out, in }, defaults:{ out, in } } (판매자 주소록 — 읽기만)
- *   elevenst_send       { exportId, productName, brand?, categoryId, categoryName?, price, stock, repImageId, fit?, vat, minorOk?, kc, delivery, asDetail, rtngExchDetail, notice, testStop?(관리자만) } → { sendId, productNo, status:'registered', stopped }
+ *   elevenst_send       { exportId, productName, brand?, categoryId, categoryName?, price, stock, repImageId, fit?, vat, minorOk?, origin, kc, kcCerts?, delivery, asDetail, rtngExchDetail, notice, testStop?(관리자만) } → { sendId, productNo, status:'registered', stopped }
  *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery(+ shippingOverseas), afterService, origin, notice, customsTaxType?(해외 출고지면 필수) }
  *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
@@ -67,7 +67,7 @@ import {
   verifyElevenstKey, ElevenstError, elevenstCall, ELEVENST_PATHS, ELEVENST_CATEGORY_URL, decodeXmlBytes, normalizeElevenstCategories, normalizeElevenstAddresses,
   translateElevenstApi, buildElevenstProduct, elevenstDetailImageUrls, parseClientMessage, lastElevenstAddresses,
 } from './_elevenst.js'
-import { pickElevenstAddress } from './_elevenstFields.js'
+import { pickElevenstAddress, ELEVENST_SEND_PUBLIC } from './_elevenstFields.js'
 import {
   smartstoreToken, SmartstoreError, smartstoreApi, SS_PATHS, buildSmartstoreProduct, normalizeSsCategories, normalizeAddressBooks, defaultAddress, uploadedImageUrls, productNosOf,
   imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DETAIL_IMAGE_MAX, DISPLAY_STATUSES,
@@ -238,6 +238,9 @@ function cafe24Public(c) {
  * 고객에게는 화면에서 숨기고, 서버도 cafe24_* 요청을 거절한다. 카페24 코드·DB 기록은 지우지 않는다
  */
 const cafe24Allowed = ctx => ctx?.isAdmin === true
+// 11번가 보내기 — 공개 스위치(api/_elevenstFields.js ELEVENST_SEND_PUBLIC)가 꺼져 있으면 관리자·스태프만 (실전 테스트 전, 2026-10-01). 연결(connect_11st)은 그대로
+const elevenstSendAllowed = ctx => ELEVENST_SEND_PUBLIC || ctx?.isAdmin === true
+const ELEVENST_SEND_ACTIONS = ['elevenst_categories', 'elevenst_addresses', 'elevenst_send']
 const CAFE24_ACTIONS = ['cafe24_begin', 'cafe24_launch', 'cafe24_finish', 'disconnect_cafe24', 'cafe24_categories', 'cafe24_send']
 async function marketStatus(ctx, body, res) {
   const a = await oneAccount(ctx, ELEVENST, ELEVENST_PUBLIC)
@@ -888,7 +891,8 @@ function elevenstInput(body) {
   const n = body.notice && typeof body.notice === 'object' ? body.notice : {}
   return {
     productName: body.productName, brand: body.brand, categoryId: body.categoryId, price: num(body.price), stock: num(body.stock), vat: body.vat,
-    minorOk: body.minorOk !== false, kc: body.kc && typeof body.kc === 'object' ? body.kc : {},
+    minorOk: body.minorOk !== false, kc: body.kc && typeof body.kc === 'object' ? body.kc : {}, kcCerts: body.kcCerts && typeof body.kcCerts === 'object' ? body.kcCerts : {},
+    origin: body.origin && typeof body.origin === 'object' ? { kind: body.origin.kind, code: body.origin.code } : {},
     delivery: { feeType: d.feeType, fee: d.feeType === '02' ? num(d.fee) : undefined, jejuFee: num(d.jejuFee), islandFee: num(d.islandFee), returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), outAddr: d.outAddr, inAddr: d.inAddr, sendCloseTmplt: d.sendCloseTmplt },
     asDetail: body.asDetail, rtngExchDetail: body.rtngExchDetail, notice: { type: n.type, maker: n.maker, country: n.country, phone: n.phone },
   }
@@ -1495,6 +1499,10 @@ export default async function handler(req, res) {
   const ctx = await studioGuard(req, res)
   if (!ctx) return
   const body = req.body && typeof req.body === 'object' ? req.body : {}
+  if (ELEVENST_SEND_ACTIONS.includes(body.action) && !elevenstSendAllowed(ctx)) {
+    console.warn(`[marketplace] 11번가 보내기 요청 거절(공개 전·관리자 아님) ${ctx.userId}: ${body.action}`)
+    return sendError(res, 403, 'market_unavailable', '지원하지 않는 판매처입니다.')
+  }
   if (CAFE24_ACTIONS.includes(body.action) && !cafe24Allowed(ctx)) {
     console.warn(`[marketplace] 카페24 요청 거절(관리자 아님) ${ctx.userId}: ${body.action}`)
     return sendError(res, 403, 'market_unavailable', '지원하지 않는 판매처입니다.')

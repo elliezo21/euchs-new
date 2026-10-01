@@ -1,6 +1,8 @@
 /**
- * 판매처 연동 — 화면 규칙 (순수 함수, import 없음 → scripts/test-marketplace.mjs가 그대로 부른다)
+ * 판매처 연동 — 화면 규칙 (순수 함수 → scripts/test-marketplace.mjs가 그대로 부른다)
+ * import는 서버와 같이 쓰는 순수 파일(api/_elevenstFields.js — 11번가 공개 스위치) 하나뿐
  */
+import { ELEVENST_SEND_PUBLIC } from '../../api/_elevenstFields.js'
 
 // 우리 쪽 준비 문제 — 고객에게는 "지금은 연결할 수 없어요…" 한 줄만, 빨간 경고로 띄우지 않는다 (원인은 서버 로그)
 export const NOT_READY_CODES = ['marketplace_sql_missing', 'enc_not_ready', 'relay_not_configured', 'relay_unreachable', 'relay_denied', 'cafe24_not_ready']
@@ -99,10 +101,12 @@ export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
  * @param {{ [key:string]: { connected?:boolean } }} connected  쿠팡 = 서버 status/send_prepare.markets, 나머지 = studioMarketLinks.linkStates
  * @param {{ admin?: boolean }} who  관리자·스태프면 카페24 줄도 (고객이면 카페24 줄 자체가 없음 — 연결돼 있어도. 2026-10-01 marketsFor)
  */
+/** 연결돼 있을 때 이 사람이 보낼 수 있는지 — soon이 아니고, 11번가는 공개 전(ELEVENST_SEND_PUBLIC false)이면 관리자·스태프만 (2026-10-01) */
+export const sendableFor = (m, { admin = false } = {}) => !!m && !m.soon && (m.key !== '11st' || ELEVENST_SEND_PUBLIC || admin)
 export function channelRows(connected = {}, { admin = false } = {}) {
   return marketsFor({ admin }).map(m => {
     const on = connected?.[m.key]?.connected === true
-    const state = on ? (m.soon ? 'linked' : 'connected') : connectFor(m, { admin }) === 'planned' ? 'planned' : 'locked'
+    const state = on ? (sendableFor(m, { admin }) ? 'connected' : 'linked') : connectFor(m, { admin }) === 'planned' ? 'planned' : 'locked'
     return { key: m.key, name: m.name, state }
   })
 }

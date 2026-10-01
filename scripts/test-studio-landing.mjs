@@ -53,8 +53,13 @@ eq("페이지에 '중국'이라는 글자가 없음 (랜딩·사진 설정·임�
   const studioFiles = srcFiles.filter(p =>
     /^src\/(views|components)\/studio\//.test(p) || /^src\/lib\/studio/.test(p) || /^src\/data\/studio/.test(p) ||
     p === 'src/layouts/StudioLayout.vue' || (/^src\/composables\//.test(p) && /studio/i.test(read(p))))
-  const hits = studioFiles.flatMap(p => stripComments(read(p)).split('\n').map((l, i) => [p, i + 1, l]).filter(([, , l]) => /중국|중문|한자/.test(l)).map(([p, n, l]) => `${p}:${n} ${l.trim().slice(0, 60)}`))
-  eq(`스튜디오 화면 파일 전체(${studioFiles.length}개, 주석 제외)에 '중국'·'중문'·'한자' 없음`, hits, [])
+  // 예외 (2026-10-01 해성 결정): 11번가 보내기의 원산지·고시(제조국) 칸 — 법적 표시 정보라 숨기지 않는다.
+  //   그 칸의 "중국"은 공용 값(api/_elevenstFields.js ORIGIN_COUNTRIES·NOTICE_COUNTRY_DEFAULT)에서 온다. 화면 파일에 글자로 쓰면 이 칸(data-mk-11st-origin·data-mk-11st-country) 줄만 허용
+  const allowed = (p, l) => p === 'src/components/studio/StudioSendElevenst.vue' && /data-mk-11st-(origin|country)/.test(l)
+  const hits = studioFiles.flatMap(p => stripComments(read(p)).split('\n').map((l, i) => [p, i + 1, l]).filter(([fp, , l]) => /중국|중문|한자/.test(l) && !allowed(fp, l)).map(([p, n, l]) => `${p}:${n} ${l.trim().slice(0, 60)}`))
+  eq(`스튜디오 화면 파일 전체(${studioFiles.length}개, 주석 제외)에 '중국'·'중문'·'한자' 없음 (11번가 원산지·제조국 칸만 예외)`, hits, [])
+  const fields = await import('../api/_elevenstFields.js')
+  eq('예외 범위: 11번가 원산지 기본 = 해외·중국(1287) · 제조국 기본 "중국" — 공용 값에서만', [fields.ORIGIN_CHINA.orgnTypDtlsCd, fields.ORIGIN_COUNTRIES.find(c => c[0] === '1287')?.[1], fields.NOTICE_COUNTRY_DEFAULT], ['1287', '중국', '중국'])
 }
 eq('랜딩 히어로 버튼 = [사용법 보기] → 만드는 순서로 이동', /@click="scrollToSteps">사용법 보기</.test(landing) && /ref="stepsRef" id="steps"/.test(landing), true)
 eq('여는 시점을 약속하는 문구 없음 (지금 바로·먼저 알려·지금 시작)', /지금 바로|먼저 알려|지금 시작/.test(landing), false)

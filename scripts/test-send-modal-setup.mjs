@@ -252,9 +252,10 @@ if (built?.Elevenst) {
   eq('11번가 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 보낸 적 없으면 출고지·반품지 = 목록 첫째', [a.error, /data-mk-11st-name[^>]*value="매일 쓰는 머그"|value="매일 쓰는 머그"[^>]*data-mk-11st-name/.test(a.html), sel11(a.html, 'data-mk-11st-out', '11'), sel11(a.html, 'data-mk-11st-in', '21')], [null, true, true, true])
   const b = await render11(cache11({ out: '12', in: '22' }))
   eq('11번가 섹션: 마지막에 보낸 주소(12·22)가 목록에 있으면 그것', [sel11(b.html, 'data-mk-11st-out', '12'), sel11(b.html, 'data-mk-11st-in', '22')], [true, true])
-  eq('11번가 섹션: KC 기본값 없음(세 그룹 모두 "선택") · 고시 기본 기타 재화 · 금액 칸 빈칸 · 관리자 아니면 테스트 판매중지 없음', [
-    ['01', '02', '03'].every(g => sel11(a.html, 'data-mk-11st-kc-group="' + g + '"', '')), sel11(a.html, 'data-mk-11st-notice-type', '891045'), /data-mk-11st-price[^>]*value="\d/.test(a.html), /data-mk-11st-teststop/.test(a.html),
-  ], [true, true, false, false])
+  eq('11번가 섹션: KC 기본값 없음(네 그룹 모두 "선택" · 인증번호 칸 없음) · 원산지 기본 해외·중국(1287) · 고시 기본 기타 재화 · 금액 칸 빈칸 · 관리자 아니면 테스트 판매중지 없음', [
+    ['01', '02', '03', '04'].every(g => sel11(a.html, 'data-mk-11st-kc-group="' + g + '"', '')), /data-mk-11st-kc-key/.test(a.html), sel11(a.html, 'data-mk-11st-origin-kind', '02'), sel11(a.html, 'data-mk-11st-origin-code', '1287'),
+    sel11(a.html, 'data-mk-11st-notice-type', '891045'), /data-mk-11st-price[^>]*value="\d/.test(a.html), /data-mk-11st-teststop/.test(a.html),
+  ], [true, false, true, true, true, false, false])
   built.userRole.value = 'staff'
   const c = await render11(cache11({ out: null, in: null }))
   built.userRole.value = 'user'

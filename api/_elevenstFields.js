@@ -50,34 +50,77 @@ export function noticeItemsFor(type, v = {}) {
   return t.items.map(([code, label]) => ({ code, label, name: String(pick(code) ?? '').replace(/\s+/g, ' ').trim() }))
 }
 
-// KC 인증정보그룹 (ProductCertGroup) — 판매자가 직접 고른다(기본값 없음)
-//   문서: 그룹 01(전기용품/생활용품) = 인증대상여부 01·02·03 / 02(어린이제품)·03(방송통신기자재) = 01·03 / 04(생활화학·살생물) = 04·05
-//   인증대상여부 01 = KC인증대상 · 02 = 면제(KC면제유형 필수: 02 구매대행면제 · 03 병행수입면제) — 문서로 확인
-//   인증대상여부 03 = "KC인증대상 아님" — 문서 설명이 잘려 있어 [확인 필요]. 01(인증대상)은 인증번호를 넣을 인증유형 코드(ProductCert certTypeCd)가 확인 안 되어 화면에 두지 않는다.
-//   그룹 04(생활화학)의 04·05 뜻은 확인 안 됨 → 보내지 않는다
+// KC 인증정보 — 상품등록 문서(apiSeq 1003)에서 채팅 Claude가 직접 읽은 값 (2026-10-01). 4개 그룹 모두 판매자가 고른다(기본값 없음)
+//   문서: "인증정보 입력이 필수인 카테고리일 경우 01, 02, 03, 04의 인증정보를 모두 입력해주세요." → 4개 그룹을 늘 보낸다
+//   ProductCertGroup: crtfGrpTypCd 01 전기용품/생활용품 KC · 02 어린이제품 KC · 03 방송통신기자재 KC · 04 생활화학 및 살생물제품
+//                     crtfGrpObjClfCd 01 KC인증대상 · 02 KC면제대상 · 03 KC인증대상 아님 · 04 생활화학 및 살생물제품 대상 · 05 생활화학 및 살생물제품 대상 아님
+//                     그룹별 허용: 01 → 01·02·03 / 02 → 01·03 / 03 → 01·03 / 04 → 04·05
+//                     crtfGrpExptTypCd(면제일 때): 02 구매대행면제대상 · 03 병행수입면제대상
+//   ProductCert(인증대상일 때): certTypeCd + certKey(인증번호)
 export const KC_GROUPS = [
   { code: '01', name: '전기용품·생활용품 KC인증' },
   { code: '02', name: '어린이제품 KC인증' },
   { code: '03', name: '방송통신기자재 KC인증' },
+  { code: '04', name: '생활화학 및 살생물제품' },
 ]
+// cert = 인증대상 → 인증유형 + 인증번호 입력
 export const KC_CHOICES = {
-  '01': [{ key: 'none', label: 'KC인증 대상 아님', obj: '03' }, { key: 'agent', label: '구매대행 면제 대상', obj: '02', expt: '02' }, { key: 'parallel', label: '병행수입 면제 대상', obj: '02', expt: '03' }],
-  '02': [{ key: 'none', label: 'KC인증 대상 아님', obj: '03' }],
-  '03': [{ key: 'none', label: 'KC인증 대상 아님', obj: '03' }],
+  '01': [{ key: 'cert', label: 'KC인증 대상', obj: '01', cert: true }, { key: 'agent', label: 'KC면제 대상 (구매대행)', obj: '02', expt: '02' }, { key: 'parallel', label: 'KC면제 대상 (병행수입)', obj: '02', expt: '03' }, { key: 'none', label: 'KC인증 대상 아님', obj: '03' }],
+  '02': [{ key: 'cert', label: 'KC인증 대상', obj: '01', cert: true }, { key: 'none', label: 'KC인증 대상 아님', obj: '03' }],
+  '03': [{ key: 'cert', label: 'KC인증 대상', obj: '01', cert: true }, { key: 'none', label: 'KC인증 대상 아님', obj: '03' }],
+  '04': [{ key: 'cert', label: '생활화학 및 살생물제품 대상', obj: '04', cert: true }, { key: 'none', label: '생활화학 및 살생물제품 대상 아님', obj: '05' }],
 }
-/** 화면 선택 { '01': 'none'|'agent'|'parallel', ... } → ProductCertGroup 목록 (고르지 않은 그룹이 있으면 null) */
-export function kcGroupsFor(sel = {}) {
-  const out = []
+// 인증유형(certTypeCd) — 그룹별로 고를 수 있는 것 (문서 코드 그대로. 131 해당없음은 대상 아님으로 고르므로 쓰지 않는다)
+export const KC_CERT_TYPES = {
+  '01': [['101', '[생활용품] 안전인증'], ['103', '[생활용품] 안전확인'], ['124', '[생활용품] 공급자적합성확인'], ['123', '[생활용품] 어린이보호포장'], ['102', '[전기용품] 안전인증'], ['104', '[전기용품] 안전확인'], ['127', '[전기용품] 공급자적합성확인'], ['132', '[전기용품/생활용품] 상품상세설명 참조']],
+  '02': [['128', '[어린이제품] 안전인증'], ['129', '[어린이제품] 안전확인'], ['130', '[어린이제품] 공급자적합성확인'], ['134', '[어린이제품] 상품상세설명 참조']],
+  '03': [['105', '[방송통신기자재] 적합성평가'], ['135', '[방송통신기자재] 상품상세설명 참조']],
+  '04': [['133', '[생활화학 및 살생물제품] 자가검사번호'], ['136', '[생활화학 및 살생물제품] 상품상세설명 참조']],
+}
+export const KC_CERT_KEY_MAX = 50
+/**
+ * 화면 선택 → 보낼 인증정보
+ * @param {{ [group]: key }} sel  @param {{ [group]: { type, key } }} certs  인증대상인 그룹의 인증유형·인증번호
+ * @returns {{ ok:true, groups, certs } | { ok:false, message }}  문구는 합니다체
+ */
+export function kcFor(sel = {}, certs = {}) {
+  const groups = [], out = []
   for (const g of KC_GROUPS) {
     const c = (KC_CHOICES[g.code] || []).find(x => x.key === sel?.[g.code])
-    if (!c) return null
-    out.push({ crtfGrpTypCd: g.code, crtfGrpObjClfCd: c.obj, ...(c.expt ? { crtfGrpExptTypCd: c.expt } : {}) })
+    if (!c) return { ok: false, message: `KC 인증 "${g.name}" 항목을 선택하세요.` }
+    groups.push({ crtfGrpTypCd: g.code, crtfGrpObjClfCd: c.obj, ...(c.expt ? { crtfGrpExptTypCd: c.expt } : {}) })
+    if (c.cert) {
+      const type = String(certs?.[g.code]?.type ?? '')
+      const key = String(certs?.[g.code]?.key ?? '').replace(/\s+/g, ' ').trim()
+      if (!(KC_CERT_TYPES[g.code] || []).some(([code]) => code === type)) return { ok: false, message: `KC 인증 "${g.name}"의 인증유형을 선택하세요.` }
+      if (!key) return { ok: false, message: `KC 인증 "${g.name}"의 인증번호를 입력하세요.` }
+      if ([...key].length > KC_CERT_KEY_MAX) return { ok: false, message: `KC 인증번호는 ${KC_CERT_KEY_MAX}자까지 입력할 수 있습니다.` }
+      out.push({ certTypeCd: type, certKey: key })
+    }
   }
-  return out
+  return { ok: true, groups, certs: out }
 }
 
-// 원산지 — orgnTypCd 02(해외) + 지역 코드 / 03(기타) + 원산지명
-export const ORIGIN_CHINA = { orgnTypCd: '02', orgnTypDtlsCd: '1287', name: '중국' }
+// 원산지 — 기본 해외·중국. 판매자가 바꿀 수 있다 (2026-10-01)
+//   orgnTypCd 01 국내 + 국내 지역 코드 / 02 해외 + 국가 코드 (코드 = area.xlsx) / 03 기타 + 원산지명(상세설명 참조)
+export const ORIGIN_KINDS = [{ code: '02', name: '해외' }, { code: '01', name: '국내' }, { code: '03', name: '상세설명 참조' }]
+export const ORIGIN_DOMESTIC = [['1009', '서울'], ['1002', '경기'], ['1011', '인천'], ['1001', '강원'], ['1015', '충남'], ['1016', '충북'], ['1007', '대전'], ['1004', '경북'], ['1003', '경남'], ['1006', '대구'], ['1008', '부산'], ['1010', '울산'], ['1012', '전남'], ['1013', '전북'], ['1005', '광주'], ['1014', '제주']]
+export const ORIGIN_COUNTRIES = [['1287', '중국'], ['1265', '베트남'], ['1284', '인도네시아'], ['1293', '태국'], ['1283', '인도'], ['1285', '일본'], ['1405', '미국'], ['1264', '방글라데시'], ['1290', '캄보디아'], ['1262', '미얀마'], ['1298', '필리핀'], ['1259', '말레이시아'], ['1393', '터키'], ['1389', '이탈리아'], ['1357', '독일']]
+export const ORIGIN_REFER_NAME = '상세설명 참조'
+export const ORIGIN_CHINA = { orgnTypCd: '02', orgnTypDtlsCd: '1287', name: '중국' } // 기본값
+/** 화면 선택 { kind, code } → 원산지 칸 · 표시 이름. 잘못되면 null */
+export function originFor(o = {}) {
+  if (o.kind === '03') return { orgnTypCd: '03', orgnNmVal: ORIGIN_REFER_NAME, label: ORIGIN_REFER_NAME }
+  const list = o.kind === '01' ? ORIGIN_DOMESTIC : o.kind === '02' ? ORIGIN_COUNTRIES : null
+  const hit = list && list.find(([code]) => code === String(o.code ?? ''))
+  if (!hit) return null
+  return { orgnTypCd: o.kind, orgnTypDtlsCd: hit[0], label: `${o.kind === '01' ? '국내' : '해외'} · ${hit[1]}` }
+}
+
+// 공개 스위치 — 11번가 보내기를 일반 고객에게 보일지 (2026-10-01)
+//   false = 관리자·스태프에게만 보내기(보내기 탭·보내기 창). 고객은 연결은 그대로, 보내기 줄은 "연결됨"만. 서버도 고객의 elevenst_* 요청을 거절
+//   실전 테스트 통과 후 이 값 하나만 true
+export const ELEVENST_SEND_PUBLIC = false
 // 부가세 — 01 과세 · 02 면세 (면세 선택 시 세무·법률 책임은 판매자 — 문서)
 export const VAT_TYPES = [{ code: '01', name: '과세상품' }, { code: '02', name: '면세상품' }]
 // 배송비 종류 — 01 무료 · 02 고정 배송비(dlvCst1)
