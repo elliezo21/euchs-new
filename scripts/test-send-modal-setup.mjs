@@ -264,6 +264,13 @@ if (built?.Elevenst) {
   eq('11번가 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 보낸 적 없으면 출고지·반품지 = 목록 첫째', [a.error, /data-mk-11st-name[^>]*value="매일 쓰는 머그"|value="매일 쓰는 머그"[^>]*data-mk-11st-name/.test(a.html), sel11(a.html, 'data-mk-11st-out', '11'), sel11(a.html, 'data-mk-11st-in', '21')], [null, true, true, true])
   const b = await render11(cache11({ out: '12', in: '22' }))
   eq('11번가 섹션: 마지막에 보낸 주소(12·22)가 목록에 있으면 그것', [sel11(b.html, 'data-mk-11st-out', '12'), sel11(b.html, 'data-mk-11st-in', '22')], [true, true])
+  // 옵션(싱글옵션, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로
+  const o11 = await render({ setup: () => { vueProvide2(built.SEND_CACHE_KEY, cache11({ out: null, in: null })); return () => h(built.Elevenst, { prepare: PREPARE(true, SOURCE) }) } }, {})
+  const inVal = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''
+  eq('11번가 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 영역 · 줄 수 = 가져온 옵션 수 · 재고 칸 대신 합계 · 0원 옵션 안내 · 옵션 재고 빈칸 · 추가금액 0', [
+    o11.error, /data-mk-opt-table/.test(o11.html), (o11.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-11st-stock-total/.test(o11.html), /data-mk-11st-stock /.test(o11.html), /data-mk-opt-note[^>]*>[^<]*0원인 옵션이 1개 이상/.test(o11.html), inVal(o11.html, 'data-mk-opt-stock="0"'), inVal(o11.html, 'data-mk-opt-price="0"'),
+  ], [null, true, SOURCE.skus.length, true, false, true, '', '0'])
+  eq('11번가 섹션(옵션 없는 상품): 옵션 영역 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-table/.test(a.html), /data-mk-11st-stock /.test(a.html), /data-mk-11st-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(a.html)], [false, true, true])
   eq('11번가 섹션: KC 기본값 없음(네 그룹 모두 "선택" · 인증번호 칸 없음) · 원산지 기본 해외·중국(1287) · 고시 기본 기타 재화 · 금액 칸 빈칸 · 관리자 아니면 테스트 판매중지 없음', [
     ['01', '02', '03', '04'].every(g => sel11(a.html, 'data-mk-11st-kc-group="' + g + '"', '')), /data-mk-11st-kc-key/.test(a.html), sel11(a.html, 'data-mk-11st-origin-kind', '02'), sel11(a.html, 'data-mk-11st-origin-code', '1287'),
     sel11(a.html, 'data-mk-11st-notice-type', '891045'), /data-mk-11st-price[^>]*value="\d/.test(a.html), /data-mk-11st-teststop/.test(a.html),

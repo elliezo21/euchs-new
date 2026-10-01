@@ -717,11 +717,11 @@ function smartstoreInput(body) {
     delivery: { company: d.company, feeType: d.feeType, baseFee: d.feeType === 'PAID' ? num(d.baseFee) : undefined, returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingAddressId: num(d.shippingAddressId), returnAddressId: num(d.returnAddressId), shippingOverseas: d.shippingOverseas === true },
     afterService: body.afterService || {}, origin: body.origin || {}, notice: body.notice || {},
     customsTaxType: body.customsTaxType, // 해외 출고지일 때만 화면이 보낸다 (2026-10-01 운영 1차 400)
-    options: smartstoreOptionsInput(body.options), // 옵션(조합형)을 쓸 때만 화면이 보낸다 — 없으면 단일상품
+    options: marketOptionsInput(body.options), // 옵션(조합형)을 쓸 때만 화면이 보낸다 — 없으면 단일상품
   }
 }
-/** 화면 옵션 → 등록 재료. 숫자 칸은 숫자로만 읽고(빈칸 = NaN → 검사에서 거절) 값은 그대로 — 검사는 buildSmartstoreProduct(_marketOptions) 한 곳 */
-function smartstoreOptionsInput(o) {
+/** 화면 옵션 → 등록 재료 (스마트스토어·11번가 공용). 숫자 칸은 숫자로만 읽고(빈칸 = NaN → 검사에서 거절) 값은 그대로 — 검사는 판매처 본문 함수(_marketOptions) 한 곳 */
+function marketOptionsInput(o) {
   if (o == null) return null
   const num = v => (v === '' || v == null ? NaN : Number(v))
   const rows = Array.isArray(o.rows) ? o.rows : []
@@ -909,6 +909,7 @@ function elevenstInput(body) {
     asDetail: body.asDetail, rtngExchDetail: body.rtngExchDetail,
     // 고시 나머지 항목 { 항목 코드: 값 } — 글자만 받는다 (그 유형의 항목이 아닌 코드는 noticeItemsFor가 쓰지 않는다)
     notice: { type: n.type, maker: n.maker, country: n.country, phone: n.phone, items: n.items && typeof n.items === 'object' && !Array.isArray(n.items) ? Object.fromEntries(Object.entries(n.items).slice(0, 40).filter(([k, v]) => /^\d{1,12}$/.test(k) && typeof v === 'string').map(([k, v]) => [k, v.slice(0, 200)])) : {} },
+    options: marketOptionsInput(body.options), // 옵션(싱글옵션)을 쓸 때만 화면이 보낸다 — 없으면 단일상품
   }
 }
 async function elevenstSend(ctx, body, res) {

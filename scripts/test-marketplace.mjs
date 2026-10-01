@@ -2174,6 +2174,20 @@ function elevenstRelay(u, method, opts) {
     const cx = dec(relay.calls.find(c => c.path.endsWith('/rest/prodservices/product'))?.raw || Buffer.alloc(0))
     eq('서버 경유 조건부 무료: 03 · dlvCst1 3000 · PrdFrDlvBasiAmt 30000 · 고시 품명 항목 = 판매자 값(글자가 아닌 값·이상한 코드는 버림)', [cond.statusCode, E11.xmlTag(cx, 'dlvCstInstBasiCd'), E11.xmlTag(cx, 'dlvCst1'), E11.xmlTag(cx, 'PrdFrDlvBasiAmt'), E11.xmlBlocks(cx, 'item').map(b => E11.xmlTag(b, 'name'))[0], E11.xmlBlocks(cx, 'item').map(b => E11.xmlTag(b, 'name'))[4]], [200, '03', '3000', '30000', '머그컵 MG-1', '상세페이지 참조'])
   }
+  {
+    // 옵션(싱글옵션, 2026-10-01): 화면이 options를 보내면 서버(elevenstInput)를 거쳐 XML까지. 빈 재고·0원 옵션 없음은 11번가를 부르기 전에 400
+    const OPT = { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'M'], addPrice: 0, stock: 5 }, { values: ['화이트', 'L'], addPrice: '1000', stock: 7 }] }
+    relay.calls = []
+    const n0 = db.marketplace_sends.length
+    const empty = await post('elevenst_send', { ...UI11, options: { ...OPT, rows: [{ ...OPT.rows[0], stock: '' }] } })
+    const noZero = await post('elevenst_send', { ...UI11, options: { ...OPT, rows: [{ ...OPT.rows[1] }] } })
+    eq('11번가 옵션 재고 비움 · 0원 옵션 없음 → 400 + 고객 문구 · 11번가 호출 0 · 기록 안 만듦', [empty.statusCode, empty.body.message, noZero.statusCode, noZero.body.message, relay.calls.filter(c => c.path.includes('/rest/')).length, db.marketplace_sends.length],
+      [400, '판매할 옵션의 재고 수량을 1개 이상 정수로 입력하세요. (11번가는 판매 옵션 재고 0으로 등록할 수 없습니다)', 400, '11번가는 추가금액 0원인 옵션이 1개 이상 있어야 합니다.', 0, n0])
+    const good = await post('elevenst_send', { ...UI11, stock: 12, options: OPT })
+    const ox = dec(relay.calls.find(c => c.path.endsWith('/rest/prodservices/product'))?.raw || Buffer.alloc(0))
+    eq('서버 경유 옵션: 200 · optSelectYn Y · txtColCnt 1 · colTitle 색상/사이즈 · 옵션 2줄 · prdSelQty = 합계 12 · 기록 summary.options', [good.statusCode, E11.xmlTag(ox, 'optSelectYn'), E11.xmlTag(ox, 'txtColCnt'), E11.xmlTag(ox, 'colTitle'), E11.xmlBlocks(ox, 'ProductOption').map(b => [E11.xmlTag(b, 'useYn'), E11.xmlTag(b, 'colOptPrice'), E11.xmlTag(b, 'colValue0'), E11.xmlTag(b, 'colCount')]), E11.xmlTag(ox, 'prdSelQty'), db.marketplace_sends.at(-1).request_json.summary.options],
+      [200, 'Y', '1', '색상/사이즈', [['Y', '0', '블랙/M', '5'], ['Y', '1000', '화이트/L', '7']], '12', { colTitle: '색상/사이즈', count: 2 }])
+  }
 
   // 실패
   st11.mode = 'reject'
@@ -2282,7 +2296,66 @@ function elevenstRelay(u, method, opts) {
     /<StudioSendOptions v-if="opts\.rows\.length"/.test(ss), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(ss), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions" class="block">/.test(ss),
   ], [true, true, true, true, true])
   eq('옵션 영역: 옵션 사용 끄기 · 판매 체크 · 값·추가금액·재고 칸 · 가져온 원문 · 한 번에 넣기 · 1688 재고는 툴팁만', [/data-mk-opt-enabled/.test(area), /data-mk-opt-use/.test(area), /data-mk-opt-value/.test(area), /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /data-mk-opt-bulk-apply/.test(area), /`1688 재고 \$\{r\.stock1688\}`/.test(area)], [true, true, true, true, true, true, true, true])
-  eq('11번가·쿠팡 섹션은 공용 옵션 영역을 쓰지 않음 (11번가 옵션 XML 보류 · 쿠팡 출력 그대로)', [/StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendElevenst.vue') + read('api/_elevenst.js')), /StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendCoupang.vue') + read('api/_coupang.js') + read('api/_coupangFields.js'))], [false, false])
+  eq('쿠팡 섹션·서버는 공용 옵션을 쓰지 않음 (쿠팡 출력 그대로)', /StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendCoupang.vue') + read('api/_coupang.js') + read('api/_coupangFields.js')), false)
+
+  // ── 11번가 싱글옵션 (공식 예제 singleOption1.txt) ──
+  const E11 = await import('../api/_elevenst.js')
+  const dec = buf => new TextDecoder('euc-kr').decode(buf)
+  const NOW = new Date('2026-10-01T03:00:00Z')
+  const EIN = {
+    productName: '매일 쓰는 머그', categoryId: '1017898', price: 12900, stock: 30, repUrl: 'https://x/rep.jpg', detailUrls: ['https://x/01.jpg'],
+    vat: '01', origin: { kind: '02', code: '1287' }, kc: { '01': 'none', '02': 'none', '03': 'none', '04': 'none' },
+    delivery: { feeType: '01', jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000, outAddr: '11', inAddr: '22' },
+    asDetail: '상세페이지 참조', rtngExchDetail: '상세페이지 참조', notice: { type: '891045', maker: '이유씨', country: '중국', phone: '010-1234-5678' }, now: NOW,
+  }
+  const plain = E11.buildElevenstProduct(EIN), plainNull = E11.buildElevenstProduct({ ...EIN, options: null })
+  eq('11번가 옵션 없음(null·없음) = 예전 XML과 바이트까지 같음 · 옵션 태그 없음 · summary 예전 모양', [plain.ok, Buffer.compare(plain.buf, plainNull.buf), /optSelectYn|txtColCnt|colTitle|ProductOption|colValue0/.test(plain.xml), 'options' in plain.summary], [true, 0, false, false])
+  const OPT1 = { groupNames: ['색상'], rows: [{ values: ['블랙'], addPrice: 0, stock: 10 }, { values: ['화이트'], addPrice: 1000, stock: 5 }] }
+  const OPT2 = { groupNames: ['색상', '사이즈'], rows: [{ values: ['블루', 'XL'], addPrice: 0, stock: 10 }, { values: ['블랙', 'M'], addPrice: 500, stock: 3 }] }
+  const g1 = E11.buildElevenstProduct({ ...EIN, stock: undefined, options: OPT1 }), g2 = E11.buildElevenstProduct({ ...EIN, options: OPT2 })
+  const block = xml => xml.slice(xml.indexOf('<selPrc>'), xml.indexOf('</prdSelQty>') + '</prdSelQty>'.length)
+  eq('11번가 옵션 XML(종류 1개): 공식 예제 모양 그대로 · selPrc 뒤 prdSelQty 앞 · prdSelQty = 합계 · prdExposeClfCd·colSellerStockCd·멀티옵션 칸 없음', [g1.ok, block(g1.xml), /prdExposeClfCd|colSellerStockCd|optionAllQty|optionAllAddPrc|optMixYn|ProductRootOption/.test(g1.xml)], [true,
+    '<selPrc>12900</selPrc><optSelectYn>Y</optSelectYn><txtColCnt>1</txtColCnt><colTitle>색상</colTitle><ProductOption><useYn>Y</useYn><colOptPrice>0</colOptPrice><colValue0>블랙</colValue0><colCount>10</colCount></ProductOption><ProductOption><useYn>Y</useYn><colOptPrice>1000</colOptPrice><colValue0>화이트</colValue0><colCount>5</colCount></ProductOption><prdSelQty>15</prdSelQty>', false])
+  eq('11번가 옵션 XML(종류 2개): "/"로 합쳐 한 칸 (색상/사이즈 · 블루/XL) · 단일 재고 칸은 안 봄 · EUC-KR로 돌려 읽어도 같음', [block(dec(g2.buf)), g2.summary.prdSelQty, g2.summary.options],
+    ['<selPrc>12900</selPrc><optSelectYn>Y</optSelectYn><txtColCnt>1</txtColCnt><colTitle>색상/사이즈</colTitle><ProductOption><useYn>Y</useYn><colOptPrice>0</colOptPrice><colValue0>블루/XL</colValue0><colCount>10</colCount></ProductOption><ProductOption><useYn>Y</useYn><colOptPrice>500</colOptPrice><colValue0>블랙/M</colValue0><colCount>3</colCount></ProductOption><prdSelQty>13</prdSelQty>', 13, { colTitle: '색상/사이즈', count: 2 }])
+  eq('11번가 옵션 넣어도 다른 요소 그대로 (옵션 블록만 빼면 옵션 없는 XML과 같음, prdSelQty 값 제외)', g2.xml.replace(/<optSelectYn>[\s\S]*<\/ProductOption>/, '').replace(/<prdSelQty>\d+<\/prdSelQty>/, ''), plain.xml.replace(/<prdSelQty>\d+<\/prdSelQty>/, ''))
+
+  eq('11번가 옵션가 범위: -50% ~ +100% · 판매가 없음 = null', [O.elevenstOptionPriceRange(12900), O.elevenstOptionPriceRange(10), O.elevenstOptionPriceRange(null)], [{ min: -6450, max: 12900 }, { min: -5, max: 10 }, null])
+  eq('11번가 옵션값 길이 단위: 한글 2 · 영문·숫자·기호 1 (한글 25자 = 영문 50자)', [O.elevenstValueUnits('블랙/M'), O.elevenstValueUnits('가'.repeat(25)), O.elevenstValueUnits('a'.repeat(50))], [6, 50, 50])
+  const ep = (o, price = 12900) => O.elevenstOptionProblems({ ...OPT2, ...o }, price)
+  eq('11번가 옵션 검사: 정상 = 없음', ep({}), [])
+  eq('11번가 옵션 검사 문구', [
+    ep({ rows: [{ ...OPT2.rows[1] }] })[0],
+    ep({ rows: [{ ...OPT2.rows[0], stock: 0 }] })[0],
+    ep({ rows: [OPT2.rows[0], { ...OPT2.rows[0], addPrice: 100 }] })[0],
+    ep({ rows: [OPT2.rows[0], { ...OPT2.rows[1], addPrice: -7000 }] })[0],
+    ep({ rows: [OPT2.rows[0], { ...OPT2.rows[1], addPrice: 13000 }] })[0],
+    ep({ groupNames: ['아주 긴 색상 종류 이름입니다', '사이즈 종류 이름'] })[0],
+    ep({ rows: [{ ...OPT2.rows[0], values: ['가'.repeat(24), 'XL'] }] })[0],
+    ep({ rows: [{ ...OPT2.rows[0], values: ['블루|네이비', 'XL'] }] })[0],
+    ep({ groupNames: ['색상#', '사이즈'] })[0],
+    ep({ rows: [{ ...OPT2.rows[0], values: ['블루', ''] }] })[0],
+  ], [
+    '11번가는 추가금액 0원인 옵션이 1개 이상 있어야 합니다.',
+    '판매할 옵션의 재고 수량을 1개 이상 정수로 입력하세요. (11번가는 판매 옵션 재고 0으로 등록할 수 없습니다)',
+    '같은 옵션값이 두 번 있습니다. 옵션값을 다르게 하거나 한 줄을 판매 안 함으로 바꾸세요.',
+    '옵션 추가금액은 판매가 12,900원 기준 -6,450원 ~ +12,900원 사이로 입력하세요.',
+    '옵션 추가금액은 판매가 12,900원 기준 -6,450원 ~ +12,900원 사이로 입력하세요.',
+    '11번가 옵션명은 25자까지입니다. 옵션 종류 이름을 줄이세요. (지금 "아주 긴 색상 종류 이름입니다/사이즈 종류 이름" 26자)',
+    `11번가 옵션값은 한글 25자(영문·숫자 50자)까지입니다: "${'가'.repeat(24)}/XL"`,
+    '옵션값에 11번가가 받지 않는 특수문자가 있습니다: |',
+    '옵션 종류 이름에 11번가가 받지 않는 특수문자가 있습니다: #',
+    '판매할 옵션의 옵션값을 모두 입력하세요.',
+  ])
+  eq('11번가 옵션 검사 문구: 대화체 없음', [ep({ rows: [{ ...OPT2.rows[1] }] }), ep({ rows: [{ ...OPT2.rows[0], stock: NaN }] }), ep({ groupNames: [] })].flat().filter(x => /(어요|예요|해요|돼요|아요|워요|네요|줘요)[.!]|주세요/.test(x)).length, 0)
+  eq('11번가: 옵션이 틀리면 본문 거절 · EUC-KR로 못 바꾸는 글자(옵션) → 거절 + 옵션 문구', [E11.buildElevenstProduct({ ...EIN, options: { ...OPT2, rows: [{ ...OPT2.rows[1] }] } }).message, E11.buildElevenstProduct({ ...EIN, options: { ...OPT2, rows: [{ ...OPT2.rows[0], values: ['블루😀', 'XL'] }] } }).message],
+    ['11번가는 추가금액 0원인 옵션이 1개 이상 있어야 합니다.', '11번가에 보낼 수 없는 글자가 옵션에 있습니다: 😀 — 옵션 이름·값에서 빼고 다시 보내세요.'])
+  eq('판매 안 함 줄은 보내지 않음(품절 N으로 보내지 않음) · useYn은 늘 Y', [O.optionsPayload({ enabled: true, groupNames: ['색상'], rows: [{ values: ['블랙'], addPrice: 0, stock: 1, use: true }, { values: ['화이트'], addPrice: 0, stock: 1, use: false }] }).rows.length, /<useYn>N</.test(g1.xml + g2.xml)], [1, false])
+
+  const el11 = read('src/components/studio/StudioSendElevenst.vue')
+  eq('11번가 섹션: 옵션 영역(같은 컴포넌트) · 같은 원천 · 화면 검사 = 서버 함수 · 옵션 쓸 때만 options · 재고 칸 대신 합계 · 규칙 안내 · 요약 "옵션" 줄', [
+    /<StudioSendOptions :model="opts"[^>]*:note="OPTION_NOTE"/.test(el11), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(el11), /elevenstOptionProblems\(/.test(el11), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(el11), /<label v-if="!useOptions" class="block">/.test(el11), /0원인 옵션이 1개 이상/.test(el11), /label: '옵션', value: optionsSummary\.value/.test(el11),
+  ], [true, true, true, true, true, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

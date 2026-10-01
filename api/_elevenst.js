@@ -21,6 +21,7 @@ import {
   NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcFor, originFor, VAT_TYPES, DELIVERY_FEE_TYPES, feeHasBase, PRODUCT_NAME_MAX, PRICE_MAX, is10Won,
   bundleDeliveryYn, SETTLEMENT_ERROR_RE, SETTLEMENT_MESSAGE, SALE_PERIOD_CLF, SALE_END_DAY, kstDaySlash,
 } from './_elevenstFields.js'
+import { elevenstOptionRows } from './_marketOptions.js'
 
 export const ELEVENST_PATHS = {
   outbound: '/rest/areaservice/outboundarea', // 출고지 주소 조회 (apiSeq 1014)
@@ -239,7 +240,8 @@ const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
  * 발송마감 템플릿(dlvSendCloseTmpltNo)은 문서상 선택입력 — 값이 있을 때만
  * @param {{ productName, brand?, categoryId, price, stock, repUrl, detailUrls:string[], vat:'01'|'02', minorOk?:boolean, origin:{ kind:'01'|'02'|'03', code? },
  *           kc:{ [group]: key }, kcCerts?:{ [group]: { type, key } }, delivery:{ feeType:'01'|'02'|'03', fee?, freeOver?(03), jejuFee, islandFee, returnFee, exchangeFee, outAddr, inAddr, sendCloseTmplt? },
- *           asDetail, rtngExchDetail, notice:{ type, maker, country, phone, items?:{ [code]: 값 } } }} p
+ *           asDetail, rtngExchDetail, notice:{ type, maker, country, phone, items?:{ [code]: 값 } },
+ *           options?:{ groupNames, rows:[{ values, addPrice, stock }] } | null }} p   options = 싱글옵션(_marketOptions.optionsPayload) — 있으면 stock 대신 옵션 재고 합계
  * @returns {{ ok:true, xml, buf, summary } | { ok:false, message }}
  */
 export function buildElevenstProduct(p) {
@@ -249,7 +251,15 @@ export function buildElevenstProduct(p) {
   const cat = String(p?.categoryId ?? '')
   if (!/^\d{1,20}$/.test(cat)) return { ok: false, message: '카테고리를 선택하세요.' }
   if (!is10Won(p?.price, 10, PRICE_MAX)) return { ok: false, message: '판매가는 10원 단위로 입력하세요. (10억 원 미만)' }
-  if (!Number.isInteger(p?.stock) || p.stock < 1 || p.stock > 99999999) return { ok: false, message: '재고 수량은 1개 이상 입력하세요. (11번가는 재고 0으로 등록할 수 없습니다)' }
+  // 옵션(싱글옵션 한 칸) — 있으면 prdSelQty = 판매할 옵션 재고 합계 (규칙·근거 api/_marketOptions.js). 없으면 예전 그대로
+  let opt = null
+  if (p?.options != null) {
+    opt = elevenstOptionRows(p.options, p.price)
+    if (!opt.ok) return { ok: false, message: opt.message }
+    const bad = encodeEucKr([opt.title, ...opt.rows.map(r => r.value)].join('')).bad
+    if (bad.length) return { ok: false, message: `11번가에 보낼 수 없는 글자가 옵션에 있습니다: ${bad.slice(0, 5).join(' ')} — 옵션 이름·값에서 빼고 다시 보내세요.` }
+  } else if (!Number.isInteger(p?.stock) || p.stock < 1 || p.stock > 99999999) return { ok: false, message: '재고 수량은 1개 이상 입력하세요. (11번가는 재고 0으로 등록할 수 없습니다)' }
+  const stock = opt ? opt.stockTotal : p.stock
   if (typeof p?.repUrl !== 'string' || !p.repUrl) return { ok: false, message: '대표 이미지를 준비하지 못했습니다.' }
   if (!Array.isArray(p?.detailUrls) || !p.detailUrls.length) return { ok: false, message: '상세 이미지를 준비하지 못했습니다.' }
   if (!VAT_TYPES.some(v => v.code === p?.vat)) return { ok: false, message: '부가세 구분을 선택하세요.' }
@@ -302,7 +312,12 @@ export function buildElevenstProduct(p) {
     el('aplBgnDy', saleBegin), // 판매시작일 = 보내는 날 한국시간
     el('aplEndDy', SALE_END_DAY), // 2999/12/31 = 11번가가 최대 3년으로 처리
     el('selPrc', String(p.price)),
-    el('prdSelQty', String(p.stock)),
+    // 옵션 블록 — 공식 Product 요소 순서상 할인·포인트 항목 뒤, prdSelQty 앞 (공식 예제 singleOption1.txt 모양 그대로)
+    ...(opt ? [
+      el('optSelectYn', 'Y'), el('txtColCnt', '1'), el('colTitle', opt.title),
+      ...opt.rows.map(r => `<ProductOption>${el('useYn', 'Y')}${el('colOptPrice', String(r.addPrice))}${el('colValue0', r.value)}${el('colCount', String(r.stock))}</ProductOption>`),
+    ] : []),
+    el('prdSelQty', String(stock)),
     el('dlvCnAreaCd', '01'), // 전국
     el('dlvWyCd', '01'), // 택배
     ...(tmplt != null ? [el('dlvSendCloseTmpltNo', tmplt)] : []),
@@ -325,7 +340,8 @@ export function buildElevenstProduct(p) {
   ].join('')
   const enc = encodeEucKr(xml)
   if (enc.bad.length) return { ok: false, message: `11번가에 보낼 수 없는 글자가 있습니다: ${enc.bad.slice(0, 5).join(' ')} — 상품명·안내 문구에서 빼고 다시 보내세요.` }
-  const summary = { prdNm: name, dispCtgrNo: cat, selPrc: p.price, prdSelQty: p.stock, addrSeqOut: outAddr, addrSeqIn: inAddr, dlvCstInstBasiCd: d.feeType, bndlDlvCnYn: bundleDeliveryYn(d.feeType), aplBgnDy: saleBegin, aplEndDy: SALE_END_DAY, noticeType: n.type, origin: origin.label, kc: kc.groups, certTypes: kc.certs.map(c => c.certTypeCd) }
+  const summary = { prdNm: name, dispCtgrNo: cat, selPrc: p.price, prdSelQty: stock, addrSeqOut: outAddr, addrSeqIn: inAddr, dlvCstInstBasiCd: d.feeType, bndlDlvCnYn: bundleDeliveryYn(d.feeType), aplBgnDy: saleBegin, aplEndDy: SALE_END_DAY, noticeType: n.type, origin: origin.label, kc: kc.groups, certTypes: kc.certs.map(c => c.certTypeCd) }
+  if (opt) summary.options = { colTitle: opt.title, count: opt.rows.length } // 옵션이 있을 때만 (없으면 기록 모양 예전 그대로)
   return { ok: true, xml, buf: enc.buf, summary }
 }
 /** 마지막 등록의 { out, in } 주소 번호 (기록 request_json.summary) — 없거나 이상하면 null */

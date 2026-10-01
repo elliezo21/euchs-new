@@ -72,11 +72,20 @@
         <span class="st-label">판매가 *</span>
         <input v-model.number="f.price" type="number" min="10" step="10" class="st-input w-full" placeholder="원 (10원 단위)" :disabled="!!done" data-mk-11st-price />
       </label>
-      <label class="block">
+      <label v-if="!useOptions" class="block">
         <span class="st-label">재고 수량 *</span>
         <input v-model.number="f.stock" type="number" min="1" step="1" class="st-input w-full" placeholder="개" :disabled="!!done" data-mk-11st-stock />
         <span class="st-desc-sm block mt-1">11번가는 재고 0으로 등록할 수 없습니다.</span>
       </label>
+      <div v-else class="block" data-mk-11st-stock-total>
+        <span class="st-label">재고 수량</span>
+        <p class="text-[13px] st-ink mt-1">판매할 옵션 재고 합계 {{ optionStockTotal.toLocaleString('ko-KR') }}개</p>
+      </div>
+    </div>
+
+    <!-- 옵션 (싱글옵션 한 칸 — 종류가 여럿이면 "/"로 합침) — 가져온 상품에 옵션이 있을 때만. 규칙·근거 api/_marketOptions.js -->
+    <div v-if="opts.rows.length" ref="optionsEl">
+      <StudioSendOptions :model="opts" :disabled="!!done" :range="optionRange" :note="OPTION_NOTE" data-mk-11st-options />
     </div>
 
     <!-- 대표 이미지 -->
@@ -271,8 +280,11 @@ import {
   pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor, feeHasBase, bundleDeliveryYn, BUNDLE_OFF_NOTE,
   elevenstFormFromProduct, elevenstFormFromShipping, productTemplateFromElevenstForm, shippingTemplateFromElevenstForm,
 } from '../../../api/_elevenstFields.js'
+import { marketOptionsFromSource, optionsPayload, elevenstOptionProblems, elevenstOptionPriceRange, elevenstOptionMerge } from '../../../api/_marketOptions.js'
+import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200
+const OPTION_NOTE = '11번가는 옵션 종류가 여럿이면 "/"로 합쳐 한 칸으로 등록합니다(예: 색상/사이즈 · 블랙/M). 추가금액 0원인 옵션이 1개 이상 있어야 하고, 판매할 옵션 재고는 1개 이상이어야 합니다.'
 const props = defineProps({ prepare: { type: Object, required: true } })
 
 const busy = ref('')
@@ -280,6 +292,7 @@ const done = ref(null)
 const sendError = ref('')
 const errorGuide = ref(false)
 const errorEl = ref(null)
+const optionsEl = ref(null)
 const nameEl = ref(null), catEl = ref(null), priceEl = ref(null), imageEl = ref(null), deliveryEl = ref(null), addressEl = ref(null), guideEl = ref(null), originEl = ref(null), kcEl = ref(null), noticeEl = ref(null)
 const categories = ref([])
 const catLoading = ref(false)
@@ -314,6 +327,12 @@ const f = ref({
   ...productBase(),
   testStop: false,
 })
+// 옵션 — 다른 판매처와 같은 원천(send_prepare.source.skus)·같은 공용 모양. 가져온 옵션이 있으면 처음부터 "옵션 사용"
+const opts = ref({ enabled: true, ...marketOptionsFromSource(props.prepare?.source?.skus) })
+const useOptions = computed(() => opts.value.enabled && opts.value.rows.length > 0)
+const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
+const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
+const optionRange = computed(() => elevenstOptionPriceRange(f.value.price))
 
 const catMatches = computed(() => {
   const q = catQuery.value.trim().toLowerCase()
@@ -340,7 +359,11 @@ const missing = computed(() => {
   else if ([...String(v.productName).trim()].length > PRODUCT_NAME_MAX) out.push(`상품명 ${PRODUCT_NAME_MAX}자 이내`)
   if (!v.categoryId) out.push('카테고리')
   if (!is10Won(v.price, 10)) out.push('판매가 (10원 단위)')
-  if (!Number.isInteger(v.stock) || v.stock < 1) out.push('재고 수량 (1개 이상)')
+  if (useOptions.value) {
+    // 서버와 같은 검사(_marketOptions.elevenstOptionProblems) — 판매가가 없으면 범위 검사는 판매가 칸이 먼저 막는다
+    if (!optionsOut.value) out.push('판매할 옵션')
+    else out.push(...elevenstOptionProblems(optionsOut.value, is10Won(v.price, 10) ? v.price : null).map(m => `옵션: ${m}`))
+  } else if (!Number.isInteger(v.stock) || v.stock < 1) out.push('재고 수량 (1개 이상)')
   if (!v.repImageId) out.push('대표 이미지')
   if (feeHasBase(v.feeType) && !is10Won(v.fee, 10)) out.push('기본 배송비')
   if (v.feeType === '03' && !is10Won(v.freeOver, 10)) out.push('무료배송 기준 금액')
@@ -356,6 +379,14 @@ const missing = computed(() => {
   return out
 })
 const won = n => (Number.isInteger(n) ? `${n.toLocaleString('ko-KR')}원` : '')
+// 요약 = 11번가에 보내는 모양 그대로(합친 옵션명·옵션값)
+const optionsSummary = computed(() => {
+  const o = optionsOut.value
+  if (!o) return '없음 (단일상품)'
+  const m = elevenstOptionMerge(o)
+  const sample = m.rows.slice(0, 3).map(r => r.value).filter(Boolean)
+  return `${m.title} ${m.rows.length}개${sample.length ? ` (${sample.join(', ')}${m.rows.length > 3 ? ' …' : ''})` : ''}`
+})
 const preview = computed(() => {
   const v = f.value
   return [
@@ -363,7 +394,8 @@ const preview = computed(() => {
     { label: '브랜드', value: String(v.brand || '').trim() || '알수없음' },
     { label: '카테고리', value: categoryName.value },
     { label: '판매가', value: is10Won(v.price, 10) ? won(v.price) : '' },
-    { label: '재고 수량', value: Number.isInteger(v.stock) && v.stock >= 1 ? `${v.stock.toLocaleString('ko-KR')}개` : '' },
+    { label: '재고 수량', value: useOptions.value ? `${optionStockTotal.value.toLocaleString('ko-KR')}개 (옵션 재고 합계)` : Number.isInteger(v.stock) && v.stock >= 1 ? `${v.stock.toLocaleString('ko-KR')}개` : '' },
+    { label: '옵션', value: optionsSummary.value },
     { label: '대표 이미지', value: v.repImageId ? '대표 이미지 1장' : '' },
     { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
     { label: '배송비', value: v.feeType === '02' ? (is10Won(v.fee, 10) ? `${won(v.fee)} (선결제)` : '')
@@ -512,6 +544,7 @@ function onOriginKind() {
 }
 /** 실패 문구 → 해당 칸 (모르면 섹션 맨 위 사유 줄) */
 const FIELD_HINTS = [
+  [/옵션/, optionsEl], // "옵션 … 재고"가 판매가·재고 칸으로 가지 않게 맨 앞
   [/상품명|보낼 수 없는 글자/, nameEl], [/카테고리/, catEl], [/판매가|재고/, priceEl], [/대표 이미지|상세 이미지|사진/, imageEl],
   [/배송비|무료배송/, deliveryEl], [/출고지|반품지|반품\/교환지|주소/, addressEl], [/A\/S 안내|반품\/교환 안내/, guideEl], [/원산지/, originEl], [/KC/, kcEl], [/고시/, noticeEl],
 ]
@@ -531,7 +564,8 @@ async function submit() {
   try {
     const r = await sendElevenstProduct({
       exportId: props.prepare.export.id, productName: String(v.productName).trim(), brand: String(v.brand || '').trim(),
-      categoryId: v.categoryId, categoryName: categoryName.value, price: v.price, stock: v.stock, repImageId: v.repImageId, fit: v.fit,
+      categoryId: v.categoryId, categoryName: categoryName.value, price: v.price, stock: optionsOut.value ? optionStockTotal.value : v.stock, repImageId: v.repImageId, fit: v.fit,
+      ...(optionsOut.value ? { options: optionsOut.value } : {}), // 옵션을 안 쓰면 보내지 않는다(단일상품 — 예전 그대로)
       vat: v.vat, minorOk: !v.minorBlocked, origin: { kind: v.originKind, code: v.originKind === '03' ? null : v.originCode },
       kc: { ...v.kc }, kcCerts: Object.fromEntries(KC_GROUPS.filter(g => v.kc[g.code] === 'cert').map(g => [g.code, { type: v.kcCerts[g.code].type, key: String(v.kcCerts[g.code].key).trim() }])),
       delivery: { feeType: v.feeType, fee: feeHasBase(v.feeType) ? v.fee : null, ...(v.feeType === '03' ? { freeOver: v.freeOver } : {}), jejuFee: v.jejuFee, islandFee: v.islandFee, returnFee: v.returnFee, exchangeFee: v.exchangeFee, outAddr: v.outAddr, inAddr: v.inAddr },

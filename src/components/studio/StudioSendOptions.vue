@@ -23,6 +23,7 @@
         <button type="button" class="st-btn" :disabled="disabled || !bulkReady" data-mk-opt-bulk-apply @click="applyBulk">판매할 옵션 모두에 넣기</button>
       </div>
       <p v-if="range" class="st-desc-sm" data-mk-opt-range>추가금액은 {{ won(range.min) }} ~ +{{ won(range.max) }} 사이로 입력하세요. (판매가 기준)</p>
+      <p v-if="note" class="st-desc-sm break-keep" data-mk-opt-note>{{ note }}</p>
 
       <!-- 옵션 표 -->
       <div class="st-border rounded-[10px] overflow-x-auto">
@@ -63,6 +64,7 @@ const props = defineProps({
   model: { type: Object, required: true }, // { enabled, groupNames:string[], rows:[{ values, originals, addPrice, stock, use, stock1688 }] }
   disabled: { type: Boolean, default: false },
   range: { type: Object, default: null }, // { min, max } — 판매처 옵션가 범위 (없으면 안내 안 함)
+  note: { type: String, default: '' }, // 판매처 규칙 안내 한 줄 (없으면 안 그림)
 })
 const bulk = ref({ addPrice: null, stock: null })
 const bulkReady = computed(() => Number.isInteger(bulk.value.addPrice) || (Number.isInteger(bulk.value.stock) && bulk.value.stock >= 0))
