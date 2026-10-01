@@ -103,6 +103,8 @@ export function elevenstKeyProblems({ sellerId = '', apiKey = '' } = {}) {
  */
 /** 연결돼 있을 때 이 사람이 보낼 수 있는지 — soon이 아니고, 11번가는 공개 전(ELEVENST_SEND_PUBLIC false)이면 관리자·스태프만 (2026-10-01) */
 export const sendableFor = (m, { admin = false } = {}) => !!m && !m.soon && (m.key !== '11st' || ELEVENST_SEND_PUBLIC || admin)
+/** [기본 설정] 탭 "등록 템플릿" 카드 — 지금 쓰는 곳이 11번가 보내기뿐이라 같은 스위치: 공개 전이면 관리자·스태프만 (2026-10-01) */
+export const listingTemplatesShown = ({ admin = false } = {}) => ELEVENST_SEND_PUBLIC || admin === true
 export function channelRows(connected = {}, { admin = false } = {}) {
   return marketsFor({ admin }).map(m => {
     const on = connected?.[m.key]?.connected === true

@@ -2016,7 +2016,11 @@ function elevenstRelay(u, method, opts) {
       ['중국산 생활잡화', { type: 'overseas', place: '중국' }, '중국', '기타 재화', true, null, '1287'])
     const shown = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ')
     const screens = ['src/components/studio/StudioListingTemplates.vue', 'src/components/studio/StudioListingTemplateForm.vue']
-    eq('관리 화면 문구 합니다체(대화체 없음) · 내부 용어 없음 · 로그아웃 때 비움(clear) · 기본 설정 탭에 붙음', [screens.filter(p => talk.test(shown(read(p))) || /관리자|서버|SQL/.test(shown(read(p)))), /listingRef\.value\?\.clear\(\)/.test(read('src/views/studio/StudioShippingView.vue')), /<StudioListingTemplates v-if="loggedIn"/.test(read('src/views/studio/StudioShippingView.vue'))], [[], true, true])
+    eq('관리 화면 문구 합니다체(대화체 없음) · 내부 용어 없음 · 로그아웃 때 비움(clear) · 기본 설정 탭에 붙음', [screens.filter(p => talk.test(shown(read(p))) || /관리자|서버|SQL/.test(shown(read(p)))), /listingRef\.value\?\.clear\(\)/.test(read('src/views/studio/StudioShippingView.vue')), /<StudioListingTemplates v-if="showListing"/.test(read('src/views/studio/StudioShippingView.vue'))], [[], true, true])
+    const sv = read('src/views/studio/StudioShippingView.vue')
+    eq('등록 템플릿 카드: 11번가 보내기와 같은 스위치(ELEVENST_SEND_PUBLIC false) — 고객이면 카드 없음 · 관리자·스태프면 있음 · 판정은 isAdminOrStaff + 로그인',
+      [F.ELEVENST_SEND_PUBLIC, R.listingTemplatesShown(), R.listingTemplatesShown({ admin: false }), R.listingTemplatesShown({ admin: true }), /showListing = computed\(\(\) => loggedIn\.value && listingTemplatesShown\(\{ admin: isAdminOrStaff\.value \}\)\)/.test(sv)],
+      [false, false, false, true, true])
     const sql = read('docs/sql/2026-10-01-marketplace-listing-templates.sql')
     eq('SQL: 새 표 + RLS + 본인 행 정책 4개 + authenticated GRANT · anon 없음 · 기본 1개 인덱스 · 기존 쿠팡 표 안 건드림', [/create table public\.marketplace_listing_templates/.test(sql), /enable row level security/.test(sql), (sql.match(/create policy/g) || []).length, /grant select, insert, delete on table public\.marketplace_listing_templates to authenticated/.test(sql), /grant [^;]*to anon/.test(sql), /where is_default/.test(sql), /alter table public\.marketplace_templates|drop table if exists public\.marketplace_templates/.test(sql)], [true, true, 4, true, false, true, false])
   }

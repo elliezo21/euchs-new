@@ -3,8 +3,8 @@
     <p class="st-desc break-keep">상품을 보낼 때 쓸 배송비·반품비·출고지 묶음이에요. 한 번 만들어 두면 보낼 때마다 고르기만 하면 돼요.</p>
 
     <!-- 로그인 전 (누구나 구경 — 2026-09-30): 템플릿·출고지를 부르지 않는다 -->
-    <!-- 등록 템플릿(상품정보·배송 — 판매처 공용, 2026-10-01): 쿠팡 연결과 상관없이 로그인하면 보인다 -->
-    <StudioListingTemplates v-if="loggedIn" ref="listingRef" />
+    <!-- 등록 템플릿(상품정보·배송 — 판매처 공용, 2026-10-01): 쿠팡 연결과 상관없이 보인다. 11번가 보내기 공개 전에는 관리자·스태프만 (listingTemplatesShown) -->
+    <StudioListingTemplates v-if="showListing" ref="listingRef" />
 
     <StudioLoginNeeded v-if="!loggedIn" title="배송비·반품비를 한 번만 맞춰 두세요" desc="로그인하고 판매처를 연결하면 보낼 때마다 고르기만 하면 되는 배송·반품 묶음을 만들 수 있어요." />
     <p v-else-if="loadError" class="text-[14px] break-keep" :class="loadSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-shipping-error>{{ loadError }}</p>
@@ -23,14 +23,17 @@
 
 <script setup>
 // 판매처 > [기본 설정] 탭 (2026-09-30 설정 > 배송·반품 템플릿에서 옮김) — 판매처별 기본값. 지금은 쿠팡 배송·반품 템플릿 (목록·저장·삭제는 StudioShippingTemplates 그대로)
-import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue'
 import StudioShippingTemplates from '@/components/studio/StudioShippingTemplates.vue'
 import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
 import StudioListingTemplates from '@/components/studio/StudioListingTemplates.vue'
 import { getMarketplaceStatus, isNotReady } from '@/lib/studioMarketplace'
-import { currentUser } from '@/lib/auth'
+import { listingTemplatesShown } from '@/lib/studioMarketplaceRules'
+import { currentUser, isAdminOrStaff } from '@/lib/auth'
 
 const loggedIn = computed(() => !!currentUser.value?.id)
+// 11번가 보내기 섹션과 같은 판정 (ELEVENST_SEND_PUBLIC || isAdminOrStaff — StudioSendModal marketRows)
+const showListing = computed(() => loggedIn.value && listingTemplatesShown({ admin: isAdminOrStaff.value }))
 
 const connected = ref(null) // null = 아직 모름
 const loadError = ref('')
@@ -54,6 +57,9 @@ async function load() {
     loadSoft.value = isNotReady(e.code)
   }
 }
+
+// 권한(role)은 화면이 뜬 뒤에 올 수 있다 — 카드가 새로 보이게 되면 그때 목록을 읽는다
+watch(showListing, (on) => { if (on) nextTick(() => listingRef.value?.load()) })
 
 // 로그아웃 구독 (CLAUDE.md 2-9) — 이전 계정의 템플릿·출고지를 비운다
 const onStudioAuthChanged = (e) => {
