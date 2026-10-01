@@ -121,8 +121,8 @@ export function originFor(o = {}) {
 
 // 공개 스위치 — 11번가 보내기를 일반 고객에게 보일지 (2026-10-01)
 //   false = 관리자·스태프에게만 보내기(보내기 탭·보내기 창). 고객은 연결은 그대로, 보내기 줄은 "연결됨"만. 서버도 고객의 elevenst_* 요청을 거절
-//   실전 테스트 통과 후 이 값 하나만 true
-export const ELEVENST_SEND_PUBLIC = false
+//   실전 테스트 통과 후 이 값 하나만 true → 2026-10-01 true (실등록 9652340990 상세 영구 주소 · 9652421632 옵션 확인). "등록 직후 판매중지"는 이 값과 상관없이 관리자·스태프만
+export const ELEVENST_SEND_PUBLIC = true
 // 부가세 — 01 과세 · 02 면세 (면세 선택 시 세무·법률 책임은 판매자 — 문서)
 export const VAT_TYPES = [{ code: '01', name: '과세상품' }, { code: '02', name: '면세상품' }]
 // 배송비 종류 — 01 무료 · 02 고정 배송비(dlvCst1) · 03 조건부 무료(dlvCst1 + 무료 기준 금액 PrdFrDlvBasiAmt) — 2026-10-01 등록 템플릿에서 03 추가

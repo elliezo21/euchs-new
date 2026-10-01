@@ -857,7 +857,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     eq('서버: 연결 신청 action·표 없음 · SQL에 marketplace_requests 만들기 없음', [/connect_request|REQUEST_MARKETS|marketplace_requests/.test(api), /create table public\.marketplace_requests/.test(sql), /marketplace_requests/.test(read('src/lib/studioMarketplace.js') + read('src/lib/studioMarketLinks.js'))], [false, false, false])
     const on = R.channelRows({ coupang: { connected: true }, '11st': { connected: true }, zigzag: { connected: true }, cafe24: { connected: true } })
     // 연결된 곳은 연결 방법(planned)보다 먼저 — 지그재그처럼 "예정"인 곳도 값이 오면 linked. 카페24는 2026-10-01부터 고객에게 줄 자체가 없음(연결돼 있어도)
-    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 연결됨(공개 전 — ELEVENST_SEND_PUBLIC false) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'linked', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
+    eq('보내기 탭 줄(고객): 쿠팡 = 보내기 · 11번가 = 보내기(공개 — ELEVENST_SEND_PUBLIC true) · 카페24 줄 없음(연결돼 있어도) · 예정 판매처는 값이 안 오면 예정', Object.fromEntries(on.map(r => [r.key, r.state])), { coupang: 'connected', smartstore: 'locked', '11st': 'connected', gmarket: 'planned', ably: 'planned', zigzag: 'linked', makeshop: 'planned', godomall: 'planned' })
     const onAdmin = R.channelRows({ cafe24: { connected: true } }, { admin: true })
     // 2026-10-01 카페24 앱 심사 반려 → CAFE24_PUBLIC false: 고객 = 줄·카드 없음(connectFor null) · 관리자·스태프 = key·connected(테스트몰 유지)
     eq('카페24 숨김: 설정값 하나(CAFE24_PUBLIC false) · 고객 = null · 관리자 = key · MARKETS 자체는 key 그대로 · 관리자 연결되면 connected · 고객 줄 없음', [R.CAFE24_PUBLIC, R.connectFor(R.MARKETS.find(m => m.key === 'cafe24')), R.connectFor(R.MARKETS.find(m => m.key === 'cafe24'), { admin: true }), R.connectFor(R.MARKETS.find(m => m.key === '11st')), onAdmin.find(r => r.key === 'cafe24').state, R.channelRows({}).some(r => r.key === 'cafe24')], [false, null, 'key', 'key', 'connected', false])
@@ -1954,7 +1954,7 @@ function elevenstRelay(u, method, opts) {
       [['01', '03', '03', '04'], [{ certTypeCd: '102', certKey: 'HU07123-12001' }, { certTypeCd: '133', certKey: 'CB12-34' }], 'KC 인증 "어린이제품 KC인증"의 인증유형을 선택하세요.', 'KC 인증 "방송통신기자재 KC인증"의 인증번호를 입력하세요.'])
     eq('원산지: 기본 해외·중국 · 국내+지역 · 해외+국가 · 상세설명 참조(03 + 원산지명) · 목록 밖 코드는 null', [F.originFor({ kind: F.ORIGIN_CHINA.orgnTypCd, code: F.ORIGIN_CHINA.orgnTypDtlsCd }), F.originFor({ kind: '01', code: '1009' }), F.originFor({ kind: '03' }), F.originFor({ kind: '02', code: '9999' }), F.originFor({ kind: '01', code: '1287' })],
       [{ orgnTypCd: '02', orgnTypDtlsCd: '1287', label: '해외 · 중국' }, { orgnTypCd: '01', orgnTypDtlsCd: '1009', label: '국내 · 서울' }, { orgnTypCd: '03', orgnNmVal: '상세설명 참조', label: '상세설명 참조' }, null, null])
-    eq('공개 스위치: ELEVENST_SEND_PUBLIC false — 고객은 연결돼 있어도 "연결됨"(보내기 없음) · 관리자·스태프는 보내기', [F.ELEVENST_SEND_PUBLIC, R.channelRows({ '11st': { connected: true } }).find(x => x.key === '11st').state, R.channelRows({ '11st': { connected: true } }, { admin: true }).find(x => x.key === '11st').state, R.sendableFor(R.MARKETS.find(m => m.key === 'coupang'))], [false, 'linked', 'connected', true])
+    eq('공개 스위치: ELEVENST_SEND_PUBLIC true — 고객도 연결돼 있으면 보내기 · 관리자·스태프도 보내기', [F.ELEVENST_SEND_PUBLIC, R.channelRows({ '11st': { connected: true } }).find(x => x.key === '11st').state, R.channelRows({ '11st': { connected: true } }, { admin: true }).find(x => x.key === '11st').state, R.sendableFor(R.MARKETS.find(m => m.key === 'coupang'))], [true, 'connected', 'connected', true])
   }
   eq('주소 기본: 마지막에 쓴 주소가 목록에 있으면 그것 · 없으면 목록 첫째 · 빈 목록 null', [F.pickElevenstAddress([{ id: '11' }, { id: '12' }], '12'), F.pickElevenstAddress([{ id: '11' }, { id: '12' }], '99'), F.pickElevenstAddress([{ id: '11' }, { id: '12' }]), F.pickElevenstAddress([])], ['12', '11', '11', null])
 
@@ -2070,9 +2070,9 @@ function elevenstRelay(u, method, opts) {
     const screens = ['src/components/studio/StudioListingTemplates.vue', 'src/components/studio/StudioListingTemplateForm.vue']
     eq('관리 화면 문구 합니다체(대화체 없음) · 내부 용어 없음 · 로그아웃 때 비움(clear) · 기본 설정 탭에 붙음', [screens.filter(p => talk.test(shown(read(p))) || /관리자|서버|SQL/.test(shown(read(p)))), /listingRef\.value\?\.clear\(\)/.test(read('src/views/studio/StudioShippingView.vue')), /<StudioListingTemplates v-if="showListing"/.test(read('src/views/studio/StudioShippingView.vue'))], [[], true, true])
     const sv = read('src/views/studio/StudioShippingView.vue')
-    eq('등록 템플릿 카드: 11번가 보내기와 같은 스위치(ELEVENST_SEND_PUBLIC false) — 고객이면 카드 없음 · 관리자·스태프면 있음 · 판정은 isAdminOrStaff + 로그인',
+    eq('등록 템플릿 카드: 11번가 보내기와 같은 스위치(ELEVENST_SEND_PUBLIC true) — 고객도 카드 있음 · 관리자·스태프도 있음 · 판정은 isAdminOrStaff + 로그인',
       [F.ELEVENST_SEND_PUBLIC, R.listingTemplatesShown(), R.listingTemplatesShown({ admin: false }), R.listingTemplatesShown({ admin: true }), /showListing = computed\(\(\) => loggedIn\.value && listingTemplatesShown\(\{ admin: isAdminOrStaff\.value \}\)\)/.test(sv)],
-      [false, false, false, true, true])
+      [true, true, true, true, true])
     const sql = read('docs/sql/2026-10-01-marketplace-listing-templates.sql')
     eq('SQL: 새 표 + RLS + 본인 행 정책 4개 + authenticated GRANT · anon 없음 · 기본 1개 인덱스 · 기존 쿠팡 표 안 건드림', [/create table public\.marketplace_listing_templates/.test(sql), /enable row level security/.test(sql), (sql.match(/create policy/g) || []).length, /grant select, insert, delete on table public\.marketplace_listing_templates to authenticated/.test(sql), /grant [^;]*to anon/.test(sql), /where is_default/.test(sql), /alter table public\.marketplace_templates|drop table if exists public\.marketplace_templates/.test(sql)], [true, true, 4, true, false, true, false])
   }
@@ -2202,15 +2202,16 @@ function elevenstRelay(u, method, opts) {
   const adAfterFail = await post('elevenst_addresses')
   eq('실패한 보내기는 주소를 기억하지 않음 (12·22 그대로)', adAfterFail.body.last, { out: '12', in: '22' })
 
-  // 고객(관리자 아님) — 공개 전(ELEVENST_SEND_PUBLIC false)이면 11번가 조회·보내기 요청을 서버가 거절 (11번가 호출·기록 없음)
+  // 고객(관리자 아님) — 공개(ELEVENST_SEND_PUBLIC true, 2026-10-01)라 11번가 조회·보내기가 된다. "등록 직후 판매중지"는 고객이 보내도 무시(관리자·스태프만)
   globalThis.__asCustomer = true
   process.env.STUDIO_ENABLED = 'all'
   try {
     relay.calls = []
-    const nBefore = db.marketplace_sends.length, catBefore = st11.categoryCalls
+    const nBefore = db.marketplace_sends.length
     const got = []
-    for (const a of ['elevenst_categories', 'elevenst_addresses', 'elevenst_send']) { const r = await post(a, { ...UI11, testStop: true }); got.push([r.statusCode, r.body?.code]) }
-    eq('고객(공개 전): elevenst_* 3개 모두 403 market_unavailable · 11번가 호출·기록 없음 · 연결 상태(market_status)는 그대로 읽힘', [got, relay.calls.length, st11.categoryCalls - catBefore, db.marketplace_sends.length - nBefore, (await post('market_status')).body.elevenst.connected], [[[403, 'market_unavailable'], [403, 'market_unavailable'], [403, 'market_unavailable']], 0, 0, 0, true])
+    let sent = null
+    for (const a of ['elevenst_categories', 'elevenst_addresses', 'elevenst_send']) { const r = await post(a, { ...UI11, testStop: true }); got.push([r.statusCode, r.body?.code ?? null]); if (a === 'elevenst_send') sent = r.body }
+    eq('고객(공개): elevenst_* 3개 모두 200 · 보내기 기록 1건 · testStop을 보내도 판매중지 안 함(stopped false · 판매중지 호출 없음) · 연결 상태(market_status) 그대로', [got, db.marketplace_sends.length - nBefore, sent?.stopped, relay.calls.filter(c => c.path.includes('/stopdisplay/')).length, (await post('market_status')).body.elevenst.connected], [[[200, null], [200, null], [200, null]], 1, false, 0, true])
   } finally {
     globalThis.__asCustomer = false
     process.env.STUDIO_ENABLED = 'admin'
