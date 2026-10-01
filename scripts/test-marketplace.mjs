@@ -1742,6 +1742,24 @@ function smartstoreRelay(u, method, opts) {
   const listed = (await post('sends_list')).body.sends.find(s => s.id === rec.id)
   eq('보낸 상품 목록: 스마트스토어 줄 · 상품명 · 카테고리 · 전시상태 · 채널상품번호 · request_json 원문 없음', [listed.market, listed.status, listed.productName, listed.categoryName, listed.ssDisplay, listed.channelProductNo, 'request_json' in listed, 'result_json' in listed], ['smartstore', 'registered', '매일 쓰는 머그', '생활/건강>주방용품>잔/컵>머그컵', 'SUSPENSION', '12345678901', false, false])
 
+  // 옵션(조합형, 2026-10-01) — 화면이 options를 보내면 optionInfo + 상품 재고 = 옵션 재고 합계. 빈 재고는 0으로 채우지 않고 네이버를 부르기 전에 400
+  {
+    const OPT = { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'M'], addPrice: 0, stock: 5 }, { values: ['화이트', 'L'], addPrice: 1000, stock: 7 }] }
+    relay.calls = []
+    const n0 = db.marketplace_sends.length
+    const empty = await post('smartstore_send', { ...UI, options: { ...OPT, rows: [{ ...OPT.rows[0], stock: '' }] } })
+    const far = await post('smartstore_send', { ...UI, options: { ...OPT, rows: [{ ...OPT.rows[0], addPrice: 7000 }] } })
+    eq('옵션 재고 비움·추가금액 범위 밖 → 400 + 고객 문구 · 네이버 호출 0 · 기록 안 만듦', [empty.statusCode, empty.body.code, empty.body.message, far.statusCode, far.body.message, relay.calls.length, db.marketplace_sends.length],
+      [400, 'invalid_input', '판매할 옵션의 재고 수량을 0~99,999,999 사이 정수로 입력하세요.', 400, '옵션 추가금액은 판매가 12,900원 기준 -6,450원 ~ +6,450원 사이로 입력하세요.', 0, n0])
+    const good = await post('smartstore_send', { ...UI, stock: 12, options: OPT })
+    const sent = relay.calls.find(c => c.path.endsWith('/external/v2/products')).body.originProduct
+    eq('옵션 보내기: 200 · 등록 본문 optionInfo(조합형 문서 칸만) · stockQuantity = 합계 12 · 기록 request_json에도 그대로', [good.statusCode, sent.stockQuantity, sent.detailAttribute.optionInfo, db.marketplace_sends.at(-1).request_json.body.originProduct.detailAttribute.optionInfo], [200, 12, {
+      optionCombinationGroupNames: { optionGroupName1: '색상', optionGroupName2: '사이즈' },
+      optionCombinations: [{ optionName1: '블랙', optionName2: 'M', stockQuantity: 5, price: 0, usable: true }, { optionName1: '화이트', optionName2: 'L', stockQuantity: 7, price: 1000, usable: true }],
+      useStockManagement: true,
+    }, sent.detailAttribute.optionInfo])
+  }
+
   // 네이버 거절·업로드 실패 → failed + 네이버 문구
   ssRelay.mode = 'reject'
   const rj = await post('smartstore_send', UI)
@@ -2199,6 +2217,72 @@ function elevenstRelay(u, method, opts) {
   eq('문구 합니다체: 섹션 화면 글자에 대화체 없음 · "준비 중"·"곧" 없음', [talk.test(shown.replace(/<[^>]+>/g, ' ')), /준비 중|곧 /.test(shown)], [false, false])
   eq('클라이언트 함수 3개 · 서버 action 3개', [/call\('elevenst_categories'\)/.test(lib), /call\('elevenst_addresses'\)/.test(lib), /call\('elevenst_send', payload\)/.test(lib), ['elevenst_categories', 'elevenst_addresses', 'elevenst_send'].every(a => read('api/marketplace.js').includes(`body.action === '${a}'`))], [true, true, true, true])
   eq('범위: 11번가 주소록은 읽기만 — 주소 등록·수정 API 경로 없음', /registerOutAddress|updateOutAddress|registerRtnAddress|updateRtnAddress|addOutAddrBasiDlvCst/.test(read('api/_elevenst.js') + read('api/marketplace.js')), false)
+}
+
+// ── 판매처 공용 옵션 (2026-10-01) — api/_marketOptions.js · 스마트스토어 조합형 ──
+{
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  const O = await import('../api/_marketOptions.js')
+  const S = await import('../api/_smartstore.js')
+  const pair = (zh, ko = null) => ({ zh, ko })
+  const SKUS = [
+    { skuId: '1', values: [{ name: pair('颜色', '색상'), value: pair('黑色', '블랙') }, { name: pair('尺码', '사이즈'), value: pair('M', 'M') }], priceCny: 12.5, stock: 300 },
+    { skuId: '2', values: [{ name: pair('颜色', '색상'), value: pair('白色', '화이트') }, { name: pair('尺码', '사이즈'), value: pair('L', 'L') }], priceCny: 13, stock: 0 },
+    { skuId: '3', values: [{ name: pair('颜色', '색상'), value: pair('奇怪花纹') }, { name: pair('尺码', '사이즈'), value: pair('L', 'L') }], priceCny: null, stock: null },
+  ]
+  const m = O.marketOptionsFromSource(SKUS)
+  eq('원천 → 공용 모양: 옵션 종류 한글 · 값 = 쿠팡 옵션 표와 같은 koreanizeSkus 값 · 번역 안 된 값은 빈칸 · 원문 · 추가금액 0 · 재고 비움(1688 재고는 참고만)', [m.groupNames, m.rows.map(r => r.values), m.rows.map(r => r.originals), m.rows.map(r => [r.addPrice, r.stock, r.use, r.stock1688])],
+    [['색상', '사이즈'], [['블랙', 'M'], ['화이트', 'L'], ['', 'L']], [['黑色', 'M'], ['白色', 'L'], ['奇怪花纹', 'L']], [[0, null, true, 300], [0, null, true, 0], [0, null, true, null]]])
+  {
+    const F2 = await import('../api/_coupangFields.js')
+    const kr = F2.koreanizeSkus(SKUS)
+    eq('공용 값 = 쿠팡 옵션 표 값(koreanizeSkus opt) 그대로 — 같은 원천·같은 규칙', m.rows.map(r => r.values), kr.rows.map(r => kr.types.map(t => r.opt[t.key] || '')))
+  }
+  eq('옵션 없는 상품 → 빈 모양 (단일상품)', [O.marketOptionsFromSource([]), O.marketOptionsFromSource(undefined)], [{ groupNames: [], rows: [] }, { groupNames: [], rows: [] }])
+  eq('번역 없는 옵션 종류 이름은 중국어를 넣지 않고 빈칸 (같은 뜻 묶음이면 표준 이름)', [O.marketOptionsFromSource([{ values: [{ name: pair('颜色分类'), value: pair('黑', '블랙') }] }]).groupNames, O.marketOptionsFromSource([{ values: [{ name: pair('奇怪属性'), value: pair('甲', '갑') }] }]).groupNames], [['색상'], ['']])
+
+  const P = { enabled: true, groupNames: [' 색상 ', '사이즈'], rows: [{ values: ['블랙', 'M'], addPrice: 0, stock: 5, use: true }, { values: ['화이트', 'L'], addPrice: 500, stock: 3, use: false }] }
+  eq('보낼 모양: 판매할 줄만 · 글자 정리 · 옵션 끔/줄 0개 = null(단일상품)', [O.optionsPayload(P), O.optionsPayload({ ...P, enabled: false }), O.optionsPayload({ ...P, rows: [] }), O.optionsPayload({ ...P, rows: P.rows.map(r => ({ ...r, use: false })) })],
+    [{ groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'M'], addPrice: 0, stock: 5 }] }, null, null, null])
+
+  eq('옵션가 범위 [2차 출처]: 2천 미만 0~+100% · 1만 미만 -50~+100% · 1만 이상 -50~+50% · 판매가 없음 = null', [O.ssOptionPriceRange(1500), O.ssOptionPriceRange(5000), O.ssOptionPriceRange(12900), O.ssOptionPriceRange(null), O.ssOptionPriceRange(0)],
+    [{ min: 0, max: 1500 }, { min: -2500, max: 5000 }, { min: -6450, max: 6450 }, null, null])
+  const OK = { groupNames: ['색상', '사이즈'], rows: [{ values: ['블랙', 'M'], addPrice: 0, stock: 5 }, { values: ['화이트', 'L'], addPrice: 1000, stock: 0 }] }
+  const pr = (o, price = 12900) => O.smartstoreOptionProblems({ ...OK, ...o }, price)
+  eq('옵션 검사: 정상 = 없음 · 재고 0 허용(그 옵션 품절)', pr({}), [])
+  eq('옵션 검사: 종류 4개(조합형 최대 3 — 문서) · 종류 이름 빈칸·겹침 · 값 빈칸 · 같은 조합 두 번 · 재고 비움/음수/소수 · 추가금액 비움 · 범위 밖 · 줄 0개', [
+    pr({ groupNames: ['a', 'b', 'c', 'd'], rows: [{ values: ['1', '2', '3', '4'], addPrice: 0, stock: 1 }] }), pr({ groupNames: ['색상', ''] }), pr({ groupNames: ['색상', '색상'] }),
+    pr({ rows: [{ values: ['블랙', ''], addPrice: 0, stock: 1 }] }), pr({ rows: [OK.rows[0], { ...OK.rows[0] }] }),
+    pr({ rows: [{ ...OK.rows[0], stock: NaN }] }), pr({ rows: [{ ...OK.rows[0], stock: -1 }] }), pr({ rows: [{ ...OK.rows[0], stock: 1.5 }] }),
+    pr({ rows: [{ ...OK.rows[0], addPrice: NaN }] }), pr({ rows: [{ ...OK.rows[0], addPrice: -7000 }] }), pr({ rows: [] }),
+  ].map(x => x.length), [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1])
+  eq('옵션 검사 문구: 고객이 알아볼 합니다체 · 대화체 없음', [pr({ rows: [{ ...OK.rows[0], addPrice: 7000 }] })[0], pr({ groupNames: ['a', 'b', 'c', 'd'], rows: [{ values: ['1', '2', '3', '4'], addPrice: 0, stock: 1 }] })[0],
+    [pr({ groupNames: ['색상', ''] }), pr({ rows: [OK.rows[0], { ...OK.rows[0] }] }), pr({ rows: [{ ...OK.rows[0], stock: NaN }] })].flat().filter(x => /(어요|예요|해요|돼요|아요|워요|네요|줘요)[.!]|주세요/.test(x)).length],
+    ['옵션 추가금액은 판매가 12,900원 기준 -6,450원 ~ +6,450원 사이로 입력하세요.', '스마트스토어 옵션 종류는 3개까지 등록할 수 있습니다. (지금 4개)', 0])
+
+  const IN = {
+    productName: '머그', salePrice: 12900, stock: 30, leafCategoryId: '50000999', repUrl: 'https://shop-phinf.pstatic.net/a/rep.jpg', detailUrls: ['https://shop-phinf.pstatic.net/a/1.jpg'], display: 'SUSPENSION',
+    delivery: { company: 'CJGLS', feeType: 'FREE', returnFee: 3000, exchangeFee: 6000, shippingAddressId: 102, returnAddressId: 103 },
+    afterService: { phone: '010-1234-5678', guide: '상세페이지 참조' }, origin: { code: '03' }, notice: { itemName: '머그컵', modelName: 'MUG-01', manufacturer: '이유씨' },
+  }
+  const one = S.buildSmartstoreProduct(IN), withNull = S.buildSmartstoreProduct({ ...IN, options: null }), opt = S.buildSmartstoreProduct({ ...IN, stock: undefined, options: OK })
+  eq('옵션 없음(null·없음) = 예전 단일상품 본문과 똑같음 · optionInfo 없음', [JSON.stringify(withNull) === JSON.stringify(one), 'optionInfo' in one.body.originProduct.detailAttribute], [true, false])
+  eq('옵션 있음: optionInfo 조합형(문서 칸만) · useStockManagement true(미입력이면 9,999 — 문서) · stockQuantity = 합계 · 단일 재고 칸은 안 봄', [opt.ok, opt.body.originProduct.stockQuantity, opt.body.originProduct.detailAttribute.optionInfo], [true, 5, {
+    optionCombinationGroupNames: { optionGroupName1: '색상', optionGroupName2: '사이즈' },
+    optionCombinations: [{ optionName1: '블랙', optionName2: 'M', stockQuantity: 5, price: 0, usable: true }, { optionName1: '화이트', optionName2: 'L', stockQuantity: 0, price: 1000, usable: true }],
+    useStockManagement: true,
+  }])
+  eq('옵션 문서 밖 칸 없음 (단독형·표준형·직접입력형·정렬·SKU 안 보냄)', Object.keys(opt.body.originProduct.detailAttribute.optionInfo).sort(), ['optionCombinationGroupNames', 'optionCombinations', 'useStockManagement'])
+  eq('옵션 종류 1개 = optionGroupName1·optionName1만', S.buildSmartstoreProduct({ ...IN, options: { groupNames: ['색상'], rows: [{ values: ['블랙'], addPrice: 0, stock: 2 }] } }).body.originProduct.detailAttribute.optionInfo.optionCombinations, [{ optionName1: '블랙', stockQuantity: 2, price: 0, usable: true }])
+  eq('옵션이 틀리면 본문 거절(임의 값으로 채우지 않음) — 서버 검사 = 화면 검사 함수', [S.buildSmartstoreProduct({ ...IN, options: { ...OK, rows: [{ ...OK.rows[0], stock: NaN }] } }).message, S.buildSmartstoreProduct({ ...IN, options: { groupNames: [], rows: [] } }).ok], ['판매할 옵션의 재고 수량을 0~99,999,999 사이 정수로 입력하세요.', false])
+
+  // 화면 연결 — 스마트스토어 섹션만 옵션 영역을 쓴다 (11번가는 근거 확정 전이라 보류 · 쿠팡은 손대지 않음)
+  const ss = read('src/components/studio/StudioSendSmartstore.vue'), area = read('src/components/studio/StudioSendOptions.vue')
+  eq('스마트스토어 섹션: 옵션 영역 · 같은 원천(prepare.source.skus) · 화면 검사 = 서버 함수 · 옵션을 쓸 때만 options 보냄 · 재고 칸 대신 합계', [
+    /<StudioSendOptions v-if="opts\.rows\.length"/.test(ss), /marketOptionsFromSource\(props\.prepare\?\.source\?\.skus\)/.test(ss), /smartstoreOptionProblems\(/.test(ss), /\.\.\.\(optionsOut\.value \? \{ options: optionsOut\.value \} : \{\}\)/.test(ss), /<label v-if="!useOptions" class="block">/.test(ss),
+  ], [true, true, true, true, true])
+  eq('옵션 영역: 옵션 사용 끄기 · 판매 체크 · 값·추가금액·재고 칸 · 가져온 원문 · 한 번에 넣기 · 1688 재고는 툴팁만', [/data-mk-opt-enabled/.test(area), /data-mk-opt-use/.test(area), /data-mk-opt-value/.test(area), /data-mk-opt-price/.test(area), /data-mk-opt-stock/.test(area), /가져온 옵션:/.test(area), /data-mk-opt-bulk-apply/.test(area), /`1688 재고 \$\{r\.stock1688\}`/.test(area)], [true, true, true, true, true, true, true, true])
+  eq('11번가·쿠팡 섹션은 공용 옵션 영역을 쓰지 않음 (11번가 옵션 XML 보류 · 쿠팡 출력 그대로)', [/StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendElevenst.vue') + read('api/_elevenst.js')), /StudioSendOptions|_marketOptions/.test(read('src/components/studio/StudioSendCoupang.vue') + read('api/_coupang.js') + read('api/_coupangFields.js'))], [false, false])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

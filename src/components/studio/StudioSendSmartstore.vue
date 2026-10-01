@@ -34,12 +34,19 @@
         <span class="st-label">판매가 *</span>
         <input v-model.number="f.salePrice" type="number" min="1" step="1" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-ss-price />
       </label>
-      <label class="block">
+      <label v-if="!useOptions" class="block">
         <span class="st-label">재고 수량 *</span>
         <input v-model.number="f.stock" type="number" min="0" step="1" class="st-input w-full" placeholder="개" :disabled="!!done" data-mk-ss-stock />
         <span class="st-desc-sm block mt-1">0이면 품절로 등록됩니다.</span>
       </label>
+      <div v-else class="block" data-mk-ss-stock-total>
+        <span class="st-label">재고 수량</span>
+        <p class="text-[13px] st-ink mt-1">판매할 옵션 재고 합계 {{ optionStockTotal.toLocaleString('ko-KR') }}개</p>
+      </div>
     </div>
+
+    <!-- 옵션 (조합형) — 가져온 상품에 옵션이 있을 때만. 규칙·근거 api/_marketOptions.js -->
+    <StudioSendOptions v-if="opts.rows.length" :model="opts" :disabled="!!done" :range="optionRange" data-mk-ss-options />
 
     <!-- 대표 이미지 -->
     <div class="block">
@@ -195,6 +202,8 @@ import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduc
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL } from '../../../api/_smartstoreFields.js'
+import { marketOptionsFromSource, optionsPayload, smartstoreOptionProblems, ssOptionPriceRange } from '../../../api/_marketOptions.js'
+import StudioSendOptions from './StudioSendOptions.vue'
 
 const CAT_SHOWN = 200 // 선택 목록에 한 번에 보이는 카테고리 수 (검색으로 좁힌다)
 const DETAIL_REF = '상세페이지 참조'
@@ -227,6 +236,12 @@ const f = ref({
   display: DISPLAY_STATUSES[0], // 기본 전시중지
   customsTaxType: '', // 해외 출고지일 때만 보이고 필수 — 기본값 없음
 })
+// 옵션 — 쿠팡 옵션 표와 같은 원천(send_prepare.source.skus)을 공용 모양으로. 가져온 옵션이 있으면 처음부터 "옵션 사용"
+const opts = ref({ enabled: true, ...marketOptionsFromSource(props.prepare?.source?.skus) })
+const useOptions = computed(() => opts.value.enabled && opts.value.rows.length > 0)
+const optionsOut = computed(() => (useOptions.value ? optionsPayload(opts.value) : null))
+const optionStockTotal = computed(() => (optionsOut.value?.rows || []).reduce((s, r) => s + (Number.isInteger(r.stock) ? r.stock : 0), 0))
+const optionRange = computed(() => ssOptionPriceRange(f.value.salePrice))
 
 const isWon = (v, min) => Number.isInteger(v) && v >= min
 const catMatches = computed(() => {
@@ -251,7 +266,11 @@ const missing = computed(() => {
   if (!String(v.productName || '').trim()) out.push('상품명')
   if (!v.leafCategoryId) out.push('카테고리')
   if (!isWon(v.salePrice, 1)) out.push('판매가')
-  if (!isWon(v.stock, 0)) out.push('재고 수량')
+  if (useOptions.value) {
+    // 서버와 같은 검사(_marketOptions.smartstoreOptionProblems) — 판매가가 없으면 범위 검사는 판매가 칸이 먼저 막는다
+    if (!optionsOut.value) out.push('판매할 옵션')
+    else out.push(...smartstoreOptionProblems(optionsOut.value, isWon(v.salePrice, 1) ? v.salePrice : null).map(m => `옵션: ${m}`))
+  } else if (!isWon(v.stock, 0)) out.push('재고 수량')
   if (!v.repImageId) out.push('대표 이미지')
   if (v.feeType === 'PAID' && !isWon(v.baseFee, 1)) out.push('기본 배송비')
   if (!isWon(v.returnFee, 0)) out.push('반품 배송비')
@@ -266,13 +285,20 @@ const missing = computed(() => {
   return out
 })
 const won = n => (Number.isInteger(n) ? `${n.toLocaleString('ko-KR')}원` : '')
+const optionsSummary = computed(() => {
+  const o = optionsOut.value
+  if (!o) return '없음 (단일상품)'
+  const sample = o.rows.slice(0, 3).map(r => r.values.filter(Boolean).join('/')).filter(Boolean)
+  return `${o.groupNames.filter(Boolean).join(' · ')} 조합 ${o.rows.length}개${sample.length ? ` (${sample.join(', ')}${o.rows.length > 3 ? ' …' : ''})` : ''}`
+})
 const preview = computed(() => {
   const v = f.value
   return [
     { label: '상품명', value: String(v.productName || '').trim() },
     { label: '카테고리', value: categoryName.value },
     { label: '판매가', value: isWon(v.salePrice, 1) ? won(v.salePrice) : '' },
-    { label: '재고 수량', value: isWon(v.stock, 0) ? `${v.stock.toLocaleString('ko-KR')}개` : '' },
+    { label: '재고 수량', value: useOptions.value ? `${optionStockTotal.value.toLocaleString('ko-KR')}개 (옵션 재고 합계)` : isWon(v.stock, 0) ? `${v.stock.toLocaleString('ko-KR')}개` : '' },
+    { label: '옵션', value: optionsSummary.value },
     { label: '대표 이미지', value: v.repImageId ? '대표 이미지 1장' : '' },
     { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
     { label: '배송비', value: v.feeType === 'PAID' ? (isWon(v.baseFee, 1) ? `${won(v.baseFee)} (선결제)` : '') : '무료' },
@@ -370,7 +396,8 @@ async function submit() {
   const v = f.value
   try {
     const r = await sendSmartstoreProduct({
-      exportId: props.prepare.export.id, productName: String(v.productName).trim(), salePrice: v.salePrice, stock: v.stock,
+      exportId: props.prepare.export.id, productName: String(v.productName).trim(), salePrice: v.salePrice, stock: optionsOut.value ? optionStockTotal.value : v.stock,
+      ...(optionsOut.value ? { options: optionsOut.value } : {}), // 옵션을 안 쓰면 보내지 않는다(단일상품 — 예전 그대로)
       leafCategoryId: v.leafCategoryId, categoryName: categoryName.value, repImageId: v.repImageId, fit: v.fit, display: v.display,
       delivery: { company: v.company, feeType: v.feeType, baseFee: v.feeType === 'PAID' ? v.baseFee : null, returnFee: v.returnFee, exchangeFee: v.exchangeFee, shippingAddressId: v.shippingAddressId, returnAddressId: v.returnAddressId, shippingOverseas: shippingOverseas.value },
       afterService: { phone: v.asPhone.trim(), guide: v.asGuide.trim() },

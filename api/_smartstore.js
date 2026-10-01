@@ -17,6 +17,7 @@
 import bcrypt from 'bcryptjs'
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
 import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, isCustomsTaxType, pickSmartstoreAddress } from './_smartstoreFields.js'
+import { smartstoreOptionInfo } from './_marketOptions.js'
 
 export const SMARTSTORE_PATHS = { token: '/external/v1/oauth2/token' }
 const RELAY_TIMEOUT_MS = 25000
@@ -158,14 +159,20 @@ export function ssDetailHtml(urls, productName) {
  * @param {{ productName, salePrice, stock, leafCategoryId, repUrl, detailUrls:string[], display,
  *           delivery:{ company, feeType:'FREE'|'PAID', baseFee?, returnFee, exchangeFee, shippingAddressId, returnAddressId, shippingOverseas? },
  *           afterService:{ phone, guide }, origin:{ code:'03'|'04', content? }, notice:{ itemName, modelName, manufacturer },
- *           customsTaxType?:'NOT_APPLICABLE'|'INCLUDED'|'EXCLUDED' }} p   shippingOverseas = 고른 출고지의 주소록 overseasAddress (true면 관부가세 필수)
+ *           customsTaxType?:'NOT_APPLICABLE'|'INCLUDED'|'EXCLUDED', options?:{ groupNames, rows:[{ values, addPrice, stock }] } | null }} p
+ *           shippingOverseas = 고른 출고지의 주소록 overseasAddress (true면 관부가세 필수) · options = 조합형 옵션(_marketOptions.optionsPayload) — 있으면 stock 대신 옵션 재고 합계
  * @returns {{ ok:true, body } | { ok:false, message }}
  */
 export function buildSmartstoreProduct(p) {
   const name = cleanSsName(p?.productName)
   if (!name) return { ok: false, message: '상품명을 입력하세요.' }
   if (!isInt(p?.salePrice, 1, SALE_PRICE_MAX)) return { ok: false, message: '판매가는 1원 이상 정수(원)로 입력하세요.' }
-  if (!isInt(p?.stock, 0, STOCK_MAX)) return { ok: false, message: '재고 수량은 0 이상 정수로 입력하세요.' }
+  // 옵션(조합형) — 있으면 상품 재고 = 판매할 옵션 재고 합계 (규칙·근거 api/_marketOptions.js). 없으면 예전 그대로 단일상품
+  let opt = null
+  if (p?.options != null) {
+    opt = smartstoreOptionInfo(p.options, p.salePrice)
+    if (!opt.ok) return { ok: false, message: opt.message }
+  } else if (!isInt(p?.stock, 0, STOCK_MAX)) return { ok: false, message: '재고 수량은 0 이상 정수로 입력하세요.' }
   const leaf = String(p?.leafCategoryId ?? '')
   if (!/^\d{1,20}$/.test(leaf)) return { ok: false, message: '카테고리를 선택하세요.' }
   if (typeof p?.repUrl !== 'string' || !p.repUrl) return { ok: false, message: '대표 이미지를 올리지 못했습니다.' }
@@ -201,7 +208,7 @@ export function buildSmartstoreProduct(p) {
       detailContent: ssDetailHtml(p.detailUrls, name),
       images: { representativeImage: { url: p.repUrl } },
       salePrice: p.salePrice,
-      stockQuantity: p.stock,
+      stockQuantity: opt ? opt.stockTotal : p.stock,
       deliveryInfo: {
         deliveryType: 'DELIVERY', deliveryAttributeType: 'NORMAL', deliveryCompany: d.company,
         deliveryFee,
@@ -217,6 +224,7 @@ export function buildSmartstoreProduct(p) {
     smartstoreChannelProduct: { naverShoppingRegistration: false, channelProductDisplayStatusType: p.display },
   }
   if (customs != null) body.originProduct.detailAttribute.customsTaxType = customs
+  if (opt) body.originProduct.detailAttribute.optionInfo = opt.optionInfo
   return { ok: true, body }
 }
 

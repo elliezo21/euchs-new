@@ -208,6 +208,12 @@ if (built?.Coupang && built?.Modal) {
   eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 카테고리 목록 · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), (ss.html.includes('생활/건강&gt;주방용품&gt;잔/컵&gt;머그컵') || ss.html.includes('생활/건강>주방용품>잔/컵>머그컵')), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '매일 쓰는 머그', true, true, true, true, false])
   eq('스마트스토어 섹션: 요약 표 판매상태 판매중·전시상태 전시중지 · 가격·재고는 빈칸(임의 숫자 없음)', [/data-mk-ss-preview-row="판매상태"[\s\S]{0,200}판매중/.test(ss.html), /data-mk-ss-preview-row="전시상태"[\s\S]{0,200}전시중지/.test(ss.html), val(ss.html, 'data-mk-ss-price'), val(ss.html, 'data-mk-ss-stock')], [true, true, '', ''])
   eq('스마트스토어 섹션: 국내 출고지면 관부가세 칸·요약 줄 없음', [/data-mk-ss-customs/.test(ss.html), /data-mk-ss-preview-row="관부가세"/.test(ss.html)], [false, false])
+  // 옵션(조합형, 2026-10-01) — 가져온 상품에 옵션이 있으면 옵션 영역 · 없으면 예전 그대로 단일상품
+  const sso = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ssCache); return () => h(built.Smartstore, { prepare: PREPARE(true, SOURCE) }) } }, {})
+  eq('스마트스토어 섹션(옵션 있는 상품): 예외 없이 그려짐 · 옵션 영역 · 옵션 사용 체크 · 줄 수 = 가져온 옵션 수 · 재고 칸 대신 합계 · 옵션 재고 빈칸 · 추가금액 0 · 값 = 한글', [
+    sso.error, /data-mk-opt-table/.test(sso.html), checked(sso.html, 'data-mk-opt-enabled'), (sso.html.match(/data-mk-opt-row="/g) || []).length, /data-mk-ss-stock-total/.test(sso.html), /data-mk-ss-stock /.test(sso.html), val(sso.html, 'data-mk-opt-stock="0"'), val(sso.html, 'data-mk-opt-price="0"'), val(sso.html, 'data-mk-opt-value="0-0"'),
+  ], [null, true, true, SOURCE.skus.length, true, false, '', '0', '블랙'])
+  eq('스마트스토어 섹션(옵션 없는 상품): 옵션 영역 없음 · 단일 재고 칸 · 요약 표 옵션 "없음 (단일상품)"', [/data-mk-opt-table/.test(ss.html), /data-mk-ss-stock-total/.test(ss.html), /data-mk-ss-preview-row="옵션"[\s\S]{0,200}없음 \(단일상품\)/.test(ss.html)], [false, false, true])
   // 출고지·반품지 기본값 = 국내 주소 우선 (2026-10-01 운영 1차: 주소록 첫 번째 해외(항주)가 기본으로 잡혀 관부가세 400)
   const HZ = { id: 104, name: '항주 창고', type: 'RELEASE', address: '항주 1층', phone: '', overseas: true }
   const GJ = { id: 102, name: '광주 창고', type: 'RELEASE', address: '광주 북구 1층', phone: '', overseas: false }
