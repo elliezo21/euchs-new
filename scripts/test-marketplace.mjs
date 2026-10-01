@@ -1599,12 +1599,17 @@ function smartstoreRelay(u, method, opts) {
     const P = SF.pickSmartstoreAddress
     const ened = [A(1, 'REFUND_OR_EXCHANGE'), A(2, 'GENERAL'), A(3, 'RELEASE', true)]
     eq('주소 유형 = 문서 enum 8개 그대로', Object.keys(SF.ADDRESS_TYPES), ['REPRESENTATIVE', 'BUSINESS', 'GENERAL', 'RELEASE', 'REFUND_OR_EXCHANGE', 'LOGISTICS_CENTER_RELEASE', 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE', 'OVERSEAS_BANK'])
-    eq('출고지≠반품지 기본값: 출고지 RELEASE·반품지 REFUND_OR_EXCHANGE(서로 다름) · 출고지 용도 없으면 반품/교환지가 아닌 국내(일반) · 물류센터 유형은 일반 유형보다 먼저 · 반품지에 출고지 전용 주소를 먼저 넣지 않음', [
+    // 이니드 주소록 (2026-10-01 운영) — 상품출고지(일반)·반품교환지(반품/교환지)·물류센터 출고지·물류센터 반품/교환지·해외 항주
+    const ENID = [A(11, 'REFUND_OR_EXCHANGE'), A(12, 'GENERAL'), A(13, 'LOGISTICS_CENTER_RELEASE'), A(14, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE'), A(15, 'RELEASE', true)]
+    eq('이니드 주소록이면 출고지 기본값 = 상품출고지(일반 12) · 반품지 = 반품교환지(11) · 물류센터 주소는 맨 뒤', [P(ENID, 'shipping'), P(ENID, 'return')], [12, 11])
+    eq('출고지≠반품지 기본값: 출고지 RELEASE·반품지 REFUND_OR_EXCHANGE(서로 다름) · 용도 유형 없으면 용도 미지정(일반·사업장) · 그다음 물류센터 · 반품지에 출고지 전용 주소를 먼저 넣지 않음', [
       [P([A(1, 'REFUND_OR_EXCHANGE'), A(2, 'RELEASE')], 'shipping'), P([A(1, 'REFUND_OR_EXCHANGE'), A(2, 'RELEASE')], 'return')],
       [P(ened, 'shipping'), P(ened, 'return')],
-      [P([A(1, 'REFUND_OR_EXCHANGE'), A(2, 'GENERAL'), A(3, 'LOGISTICS_CENTER_RELEASE'), A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE')], 'shipping'), P([A(2, 'GENERAL'), A(3, 'LOGISTICS_CENTER_RELEASE'), A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE')], 'return')],
+      [P([A(3, 'LOGISTICS_CENTER_RELEASE'), A(1, 'RELEASE')], 'shipping'), P([A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE'), A(1, 'REFUND_OR_EXCHANGE')], 'return')],
+      [P([A(3, 'LOGISTICS_CENTER_RELEASE'), A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE')], 'shipping'), P([A(3, 'LOGISTICS_CENTER_RELEASE'), A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE')], 'return')],
+      [P([A(1, 'REFUND_OR_EXCHANGE'), A(3, 'LOGISTICS_CENTER_RELEASE')], 'shipping'), P([A(2, 'RELEASE'), A(4, 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE')], 'return')],
       P([A(1, 'RELEASE'), A(2, 'REPRESENTATIVE')], 'return'),
-    ], [[2, 1], [2, 1], [3, 4], 2])
+    ], [[2, 1], [2, 1], [1, 1], [3, 4], [3, 4], 2])
     eq('기본값 예외: 용도 값이 없으면 예전 그대로(국내 첫째) · 해외만 있으면 목록 첫째 · 정산 계좌(OVERSEAS_BANK)는 고르지 않음 · 빈 목록 null', [
       P([A(7, ''), A(8, '')], 'shipping'), P([A(7, ''), A(8, '')], 'return'), P([A(5, 'RELEASE', true), A(6, 'REFUND_OR_EXCHANGE', true)], 'return'),
       P([A(9, 'OVERSEAS_BANK'), A(2, 'GENERAL')], 'shipping'), P([A(9, 'OVERSEAS_BANK')], 'return'), P([], 'shipping'), S.defaultAddress(null, 'return'),
@@ -1780,6 +1785,12 @@ function smartstoreRelay(u, method, opts) {
       /function pickDefaultAddress/.test(read('src/components/studio/StudioSendSmartstore.vue')),
       read('src/components/studio/StudioSendSmartstore.vue').includes('last: { shipping: v.shippingAddressId, return: v.returnAddressId }'),
     ], [true, true, false, true])
+    const ssv = read('src/components/studio/StudioSendSmartstore.vue')
+    eq('주소록 새로고침: 창의 목록(sendCache)을 버리고 다시 받음 · 고른 주소가 새 목록에 있으면 유지 · 주소록 관리 = 스마트스토어센터 새 탭 · 주소록은 읽기만(GET) · 배송 NORMAL 그대로', [
+      /delete sendCache\.smartstoreAddresses; delete sendCache\.smartstoreAddressesDone/.test(ssv), /if \(!kept\(f\.value\.shippingAddressId\)\)/.test(ssv), SF.SMARTSTORE_CENTER_URL,
+      /:href="SMARTSTORE_CENTER_URL" target="_blank" rel="noopener noreferrer"/.test(ssv),
+      [...read('api/marketplace.js').matchAll(/smartstoreApi\(cred, \{ method: '(\w+)', path: SS_PATHS\.addressBooks/g)].map(m => m[1]), /deliveryAttributeType: 'NORMAL'/.test(read('api/_smartstore.js')),
+    ], [true, true, 'https://sell.smartstore.naver.com/', true, ['GET'], true])
   }
 
   // 화면 배선

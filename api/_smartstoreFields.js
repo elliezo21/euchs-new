@@ -23,28 +23,31 @@ export const ADDRESS_TYPES = {
   REPRESENTATIVE: '사업장', BUSINESS: '추가 사업장', GENERAL: '일반', RELEASE: '출고지', REFUND_OR_EXCHANGE: '반품/교환지',
   LOGISTICS_CENTER_RELEASE: '물류센터 출고지', LOGISTICS_CENTER_REFUND_OR_EXCHANGE: '물류센터 반품/교환지', OVERSEAS_BANK: '해외 정산 계좌 은행',
 }
-// 용도별 유형 — 앞이 먼저. 정산 계좌(OVERSEAS_BANK)는 배송 주소가 아니라 기본으로 고르지 않는다
+// 용도가 정해진 유형 — 이 밖(사업장·추가 사업장·일반·빈 값)은 "용도 미지정". 정산 계좌(OVERSEAS_BANK)는 배송 주소가 아니라 기본으로 고르지 않는다
 const ADDRESS_USE = {
-  shipping: ['RELEASE', 'LOGISTICS_CENTER_RELEASE'],
-  return: ['REFUND_OR_EXCHANGE', 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE'],
+  shipping: { main: 'RELEASE', center: 'LOGISTICS_CENTER_RELEASE' },
+  return: { main: 'REFUND_OR_EXCHANGE', center: 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE' },
 }
+const PURPOSE_TYPES = ['RELEASE', 'LOGISTICS_CENTER_RELEASE', 'REFUND_OR_EXCHANGE', 'LOGISTICS_CENTER_REFUND_OR_EXCHANGE']
 /**
- * 처음 골라 둘 주소록 번호 (화면 StudioSendSmartstore·서버 smartstore_addresses가 같이 쓴다)
- *   ① 마지막으로 등록에 성공한 상품의 주소(lastId)가 지금 목록에 있으면 그것 — 출고지·반품지 각각 따로
- *   ② 국내(overseas 아님) 주소 중 그 용도 유형(출고지 = RELEASE → 물류센터 출고지 / 반품지 = REFUND_OR_EXCHANGE → 물류센터 반품/교환지)
- *   ③ 없으면 국내 주소 중 다른 용도가 아닌 것(출고지 자리에 반품/교환지를 먼저 넣지 않음 — 2026-10-01 운영: 출고지 기본이 "반품교환지"로 잡힘)
- *   ④ 그래도 없으면 예전 그대로: 국내 첫째 → 목록 첫째(해외만 있을 때 — 관부가세 칸이 나온다)
+ * 처음 골라 둘 주소록 번호 (화면 StudioSendSmartstore·서버 smartstore_addresses가 같이 쓴다) — 출고지·반품지 각각 따로
+ *   ① 마지막으로 등록에 성공한 상품의 주소(lastId)가 지금 목록에 있으면 그것
+ *   ② 국내(overseas 아님) 그 용도 유형 (출고지 RELEASE / 반품지 REFUND_OR_EXCHANGE)
+ *   ③ 국내 용도 미지정 주소 (일반·사업장 등 — 2026-10-01 운영: 이니드 "상품출고지(일반)")
+ *   ④ 국내 물류센터 유형 (물류센터 출고지 / 물류센터 반품/교환지) — 맨 뒤 (2026-10-01 해성 결정)
+ *   ⑤ 그래도 없으면 예전 그대로: 국내 첫째 → 목록 첫째(해외만 있을 때 — 관부가세 칸이 나온다)
  * @param {{ id:number, type:string, overseas:boolean }[]} list  @param {'shipping'|'return'} kind  @param {number|null} [lastId]
  */
 export function pickSmartstoreAddress(list, kind, lastId = null) {
   const all = (Array.isArray(list) ? list : []).filter(a => a && a.type !== 'OVERSEAS_BANK')
   if (lastId != null) { const hit = all.find(a => a.id === lastId); if (hit) return hit.id }
   const use = kind === 'return' ? ADDRESS_USE.return : ADDRESS_USE.shipping
-  const other = kind === 'return' ? ADDRESS_USE.shipping : ADDRESS_USE.return
   const domestic = all.filter(a => a.overseas !== true)
-  for (const t of use) { const hit = domestic.find(a => a.type === t); if (hit) return hit.id }
-  return (domestic.find(a => !other.includes(a.type)) || domestic[0] || all[0])?.id ?? null
+  const hit = domestic.find(a => a.type === use.main) || domestic.find(a => !PURPOSE_TYPES.includes(a.type)) || domestic.find(a => a.type === use.center)
+  return (hit || domestic[0] || all[0])?.id ?? null
 }
+// [주소록 관리] 버튼 — 스마트스토어센터 첫 화면. 주소록 화면의 고유 주소는 공식 문서·안내에서 찾지 못함[모름] → 첫 화면 (2026-10-01)
+export const SMARTSTORE_CENTER_URL = 'https://sell.smartstore.naver.com/'
 /** 등록 본문(request_json.body)의 claimDeliveryInfo → 마지막에 쓴 { shipping, return } 주소록 번호 (없거나 이상하면 null) */
 export function lastAddressesOf(claim) {
   const id = v => (Number.isSafeInteger(v) && v > 0 ? v : null)

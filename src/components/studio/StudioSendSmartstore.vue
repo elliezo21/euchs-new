@@ -85,7 +85,12 @@
 
     <!-- 출고지 · 반품지 (판매자 주소록) -->
     <div class="block" data-mk-ss-address-box>
-      <span class="st-label">출고지 · 반품지 *</span>
+      <div class="flex flex-wrap items-center gap-2 mb-1">
+        <span class="st-label">출고지 · 반품지 *</span>
+        <!-- 주소록은 읽기만 — 바꾸기는 스마트스토어센터에서. 바꾼 뒤 [주소록 새로고침] -->
+        <a :href="SMARTSTORE_CENTER_URL" target="_blank" rel="noopener noreferrer" class="st-btn ml-auto" data-mk-ss-addr-manage>주소록 관리</a>
+        <button type="button" class="st-btn" :disabled="!!done || addrLoading || addrRefreshing" data-mk-ss-addr-refresh @click="refreshAddresses">{{ addrRefreshing ? '확인 중…' : '주소록 새로고침' }}</button>
+      </div>
       <p v-if="addrLoading" class="st-desc-sm" data-mk-ss-addr-loading>주소록을 불러오는 중…</p>
       <template v-else-if="addresses.length">
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -114,7 +119,7 @@
           <span class="st-desc-sm block mt-1">해외 출고지 상품은 관부가세 입력이 필수입니다.</span>
         </label>
       </template>
-      <p v-else-if="!addrError" class="st-desc-sm break-keep" data-mk-ss-addr-empty>스마트스토어센터 판매자 주소록에 출고지·반품지를 먼저 등록하세요.</p>
+      <p v-else-if="!addrError" class="st-desc-sm break-keep" data-mk-ss-addr-empty>스마트스토어센터 판매자 주소록에 출고지·반품지를 등록한 뒤 [주소록 새로고침]을 누르세요.</p>
       <p v-if="addrError" class="mt-1 text-[12px] break-keep" :class="addrSoft ? 'st-muted' : 'st-danger-text'" data-mk-ss-addr-error>{{ addrError }}
         <button type="button" class="st-link ml-1" data-mk-ss-addr-retry @click="loadAddresses">다시 불러오기</button></p>
     </div>
@@ -189,7 +194,7 @@ import { ref, computed, onMounted, inject, nextTick } from 'vue'
 import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduct, isNotReady } from '@/lib/studioMarketplace'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
-import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress } from '../../../api/_smartstoreFields.js'
+import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES, ADDRESS_TYPES, pickSmartstoreAddress, SMARTSTORE_CENTER_URL } from '../../../api/_smartstoreFields.js'
 
 const CAT_SHOWN = 200 // 선택 목록에 한 번에 보이는 카테고리 수 (검색으로 좁힌다)
 const DETAIL_REF = '상세페이지 참조'
@@ -210,6 +215,7 @@ const addresses = ref([])
 const addrLoading = ref(false)
 const addrError = ref('')
 const addrSoft = ref(false)
+const addrRefreshing = ref(false)
 const f = ref({
   // 상품명 기본값 = 쿠팡·카페24 섹션과 같은 규칙(한글만), 없으면 빈칸
   productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
@@ -318,8 +324,26 @@ async function loadCategories() {
  */
 function applyAddresses(r) {
   addresses.value = Array.isArray(r.addresses) ? r.addresses : []
-  if (f.value.shippingAddressId == null) f.value.shippingAddressId = pickSmartstoreAddress(addresses.value, 'shipping', r.last?.shipping ?? null)
-  if (f.value.returnAddressId == null) f.value.returnAddressId = pickSmartstoreAddress(addresses.value, 'return', r.last?.return ?? null)
+  // 고른 주소가 새 목록에도 있으면 그대로 — 없어졌거나(새로고침) 아직 안 골랐으면 규칙으로 다시
+  const kept = id => id != null && addresses.value.some(a => a.id === id)
+  if (!kept(f.value.shippingAddressId)) f.value.shippingAddressId = pickSmartstoreAddress(addresses.value, 'shipping', r.last?.shipping ?? null)
+  if (!kept(f.value.returnAddressId)) f.value.returnAddressId = pickSmartstoreAddress(addresses.value, 'return', r.last?.return ?? null)
+}
+/** [주소록 새로고침] — 창이 들고 있는 목록(sendCache)을 버리고 다시 받는다 (네이버 주소록은 읽기만) */
+async function refreshAddresses() {
+  if (addrRefreshing.value || addrLoading.value) return
+  if (sendCache) { delete sendCache.smartstoreAddresses; delete sendCache.smartstoreAddressesDone }
+  addrRefreshing.value = true
+  addrError.value = ''
+  try {
+    applyAddresses(await cached('smartstoreAddresses', listSmartstoreAddresses))
+  } catch (e) {
+    console.error('[StudioSendSmartstore] 주소록 새로고침 실패:', e.code, e)
+    addrError.value = e.message
+    addrSoft.value = isNotReady(e.code)
+  } finally {
+    addrRefreshing.value = false
+  }
 }
 async function loadAddresses() {
   const kept = sendCache?.smartstoreAddressesDone
