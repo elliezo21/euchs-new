@@ -531,7 +531,7 @@ onMounted(() => {
   if (!sendCache?.smartstoreAddressesDone) loadAddresses()
   if (!sendCache?.listingTemplatesDone) loadTemplates()
 })
-defineExpose({ missing, busy, done, submit })
+defineExpose({ missing, busy, done, submit, sendError }) // sendError = 창의 결과 표가 실패 사유를 그대로 보인다 (2026-10-01)
 </script>
 
 <style scoped>

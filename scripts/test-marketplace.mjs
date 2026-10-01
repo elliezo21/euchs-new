@@ -1077,7 +1077,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     ], [true, false, true, true, true, true, true, true])
     eq('서버: 재고가 비면 본문을 만들지 않음 (임의 숫자로 채우지 않음) · 0과 37은 그대로', [C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: null }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: '' }] }).ok, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 0 }] }).body.items[0].maximumBuyCount, C.buildProductBody({ ...BASE, items: [{ ...BASE.items[0], stock: 37 }] }).body.items[0].maximumBuyCount], [false, false, 0, 37])
   }
-  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30) · 스마트스토어·11번가 섹션 추가(2026-10-01)', [/const SECTIONS = \{ coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24 \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
+  eq('판매처별 섹션 컴포넌트 분리: 쿠팡 항목은 쿠팡 섹션에만 · 체크됐을 때만 보임 · 카페24 섹션 추가(2026-09-30) · 스마트스토어·11번가 섹션 추가(2026-10-01)', [/const SECTIONS = \{ coupang: StudioSendCoupang, smartstore: StudioSendSmartstore, '11st': StudioSendElevenst, cafe24: StudioSendCafe24 \}/.test(shell), /v-show="picked\.includes\(key\)"/.test(shellShown), /data-mk-s-mode-pick|saleMode|noticeItems/.test(shell), /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(read('src/components/studio/StudioSendCoupang.vue'))], [true, true, false, true])
   {
     // 체크를 풀었다 다시 켜도 값이 남는다 — 섹션은 체크와 상관없이 만들어 두고(v-show로 가리기만), 빠짐·보내기는 체크된 것만
     const on = R.marketRows({ coupang: { connected: true } })
@@ -1419,7 +1419,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('처음 체크(고객): 카페24로 열어도 카페24 칸 자체가 없음 · 아무것도 체크 안 됨', (() => { const c = R.initialChecked(R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } }), { market: 'cafe24' }); return ['cafe24' in c, Object.values(c).some(Boolean)] })(), [false, false])
   eq('보내기 창: market prop → initialChecked · 카페24 섹션 = 같은 모양(missing·busy·done·submit) · 판매가는 정수 검사 · 분류는 선택(못 읽어도 보냄)', [
     /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend })"),
-    /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /<option :value="null">미분류<\/option>/.test(sec), sec.includes('catError.value = e.message'),
+    /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /<option :value="null">미분류<\/option>/.test(sec), sec.includes('catError.value = e.message'),
     /진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다\./.test(sec) && /등록 정보 확인/.test(sec) && !/진열 안 함 · 판매 안 함 상태로 등록돼요/.test(sec), /sendCafe24Product\(\{/.test(sec) && /listCafe24Categories\(\)/.test(sec),
   ], [true, true, true, true, true, true, true, true])
   eq('보내기 탭: [카페24로 보내기] = 같은 버튼(sendButtonLabel) · 창에 market 전달 · 등록 뒤 "등록되었습니다" + 관리자 링크 · 보낸 상품 카드에도 링크', [
@@ -1534,7 +1534,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   // 보내는 내용은 그대로 — 카페24 submit 본문(요청 칸 7개)·쿠팡 섹션·창 submit 순서
   eq('보내는 내용 그대로: 카페24 요청 칸 7개 · 창은 고른 판매처 차례로 submit()', [
     body(sec, 'async function submit()').includes("exportId: props.prepare.export.id, productName: String(f.value.productName).trim(), price: f.value.price,\n      categoryNo: f.value.categoryNo ?? null, repImageId: f.value.repImageId, fit: f.value.fit, display: f.value.display,"),
-    /for \(const key of picked\.value\) \{\s+const s = sections\[key\]\s+if \(!s \|\| s\.done\) continue\s+const r = await s\.submit\(\)/.test(shell),
+    /const keys = picked\.value\.filter\(k => !sections\[k\]\?\.done\)[\s\S]*for \(const key of keys\) \{\s+const s = sections\[key\]\s+if \(!s\) continue\s+const r = await s\.submit\(\)/.test(shell), // 2026-10-01: 등록된 곳(done)은 keys에서 미리 뺀다
   ], [true, true])
 }
 
@@ -1890,7 +1890,7 @@ function smartstoreRelay(u, method, opts) {
   const shell = read('src/components/studio/StudioSendModal.vue'), sec = read('src/components/studio/StudioSendSmartstore.vue'), lib = read('src/lib/studioMarketplace.js'), api = read('api/marketplace.js'), sv = read('src/views/studio/StudioChannelSendView.vue'), sl = read('src/components/studio/StudioSendList.vue')
   const tpl = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
   eq('보내기 창: 스마트스토어 섹션 = 같은 모양(missing·busy·done·submit) · 연결되면 체크 가능(soon 없음) · 버튼 "스마트스토어로 보내기"', [
-    /smartstore: StudioSendSmartstore/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), 'soon' in R.MARKETS.find(m => m.key === 'smartstore'),
+    /smartstore: StudioSendSmartstore/.test(shell), /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(sec), 'soon' in R.MARKETS.find(m => m.key === 'smartstore'),
     R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, R.sendButtonLabel(['smartstore']),
   ], [true, true, false, 'connected', '스마트스토어로 보내기'])
   eq('섹션: 판매 상태 기본 전시중지(DISPLAY_STATUSES[0]) · 라디오 전시중지/전시중 · 판매상태는 판매중으로 등록 안내 · 요약 표에 판매상태·전시상태 · 공용 파일만 import(서버 모듈 안 씀)', [
@@ -2271,7 +2271,7 @@ function elevenstRelay(u, method, opts) {
   const shell = read('src/components/studio/StudioSendModal.vue'), sec = read('src/components/studio/StudioSendElevenst.vue'), lib = read('src/lib/studioMarketplace.js')
   const tpl = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '')
   const shown = tpl(sec)
-  eq('보내기 창: 11번가 섹션 = 같은 모양(missing·busy·done·submit) · 관리자는 연결되면 체크 가능(connected) · 버튼 "11번가로 보내기"', [/'11st': StudioSendElevenst/.test(shell), /defineExpose\(\{ missing, busy, done, submit \}\)/.test(sec), R.channelRows({ '11st': { connected: true } }, { admin: true }).find(r => r.key === '11st').state, R.sendButtonLabel(['11st'])], [true, true, 'connected', '11번가로 보내기'])
+  eq('보내기 창: 11번가 섹션 = 같은 모양(missing·busy·done·submit) · 관리자는 연결되면 체크 가능(connected) · 버튼 "11번가로 보내기"', [/'11st': StudioSendElevenst/.test(shell), /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(sec), R.channelRows({ '11st': { connected: true } }, { admin: true }).find(r => r.key === '11st').state, R.sendButtonLabel(['11st'])], [true, true, 'connected', '11번가로 보내기'])
   eq('섹션: 금액 기본값 없음(빈칸) · KC 기본값 없음 · 고시 기본 891045 · 제조국 기본 = 공용 상수 · 관리자만 테스트 판매중지 · 공용 파일만 import', [
     sec.includes('feeType: \'01\', fee: null, jejuFee: null, islandFee: null, returnFee: null, exchangeFee: null'), sec.includes("kc: Object.fromEntries(KC_GROUPS.map(g => [g.code, '']))"), sec.includes('noticeType: DEFAULT_NOTICE_TYPE'), sec.includes('country: NOTICE_COUNTRY_DEFAULT'),
     /<label v-if="isAdminOrStaff"[^>]*data-mk-11st-teststop/.test(shown), /from '\.\.\/\.\.\/\.\.\/api\/_elevenstFields\.js'/.test(sec), /api\/_elevenst\.js'/.test(sec),
@@ -2450,6 +2450,24 @@ function elevenstRelay(u, method, opts) {
     SC.commonPatch('11st', C, { name: true }).form, SC.commonPatch('11st', C, { price: true }).form, SC.commonPatch('smartstore', C, { stock: true }), SC.commonPatch('smartstore', C, { image: true }).form,
   ], [{ price: 12900, stock: 30, repImageId: 'img2', fit: 'cover' }, { productName: '머그컵 350ml', stock: 30, repImageId: 'img2', fit: 'cover' }, { form: { productName: '머그컵 350ml', salePrice: 12900, repImageId: 'img2', fit: 'cover' }, opts: null }, { productName: '머그컵 350ml', salePrice: 12900, stock: 30 }])
   eq('공통 대상이 아닌 판매처(쿠팡)는 오류로 멈춤 (조용히 넘어가지 않음)', (() => { try { SC.commonPatch('coupang', C); return 'no-throw' } catch (e) { return /쿠팡|coupang/.test(e.message) } })(), true)
+
+  // ── 보내기 결과 표 · 실패한 판매처만 다시 보내기 ──
+  const R = await import('../src/lib/studioMarketplaceRules.js')
+  const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n')
+  eq('결과 줄: MARKETS 순서 · 성공 = 상품번호·서버 status · 실패 = 섹션 사유 그대로 · 사유 없으면 안내 · 아직 = 대기', R.sendResultRows(['11st', 'coupang', 'smartstore', 'gmarket'], {
+    smartstore: { ok: true, id: 123, status: 'registered' }, coupang: { ok: true, id: '999', status: 'approval_pending' }, '11st': { ok: false, reason: ' 판매처에서 등록을 거절했습니다: x ' },
+  }).map(r => [r.key, r.state, r.id, r.status, r.reason]), [
+    ['coupang', 'ok', '999', 'approval_pending', ''], ['smartstore', 'ok', '123', 'registered', ''], ['11st', 'fail', '', 'failed', '판매처에서 등록을 거절했습니다: x'], ['gmarket', 'wait', '', '', ''],
+  ])
+  eq('결과 줄: 실패 사유가 비면 "사유는 아래 판매처 칸에서 확인하세요."', R.sendResultRows(['11st'], { '11st': { ok: false, reason: '' } })[0].reason, R.SEND_RESULT_FAIL_HINT)
+  eq('버튼 글자: 1곳 = 예전 그대로(실패했어도) · 2곳 이상 + 실패 남음 = "실패한 판매처 다시 보내기" · 실패 없음 = 예전 · 다시 보내기 = "다시 승인 요청"', [
+    R.bulkSendLabel(['smartstore'], ['smartstore'], false), R.bulkSendLabel(['smartstore', '11st'], ['11st'], false), R.bulkSendLabel(['smartstore', '11st'], [], false), R.bulkSendLabel(['coupang'], ['coupang'], true), R.bulkSendLabel(['coupang', '11st'], [], false),
+  ], ['스마트스토어로 보내기', '실패한 판매처 다시 보내기', '선택한 판매처로 보내기', '다시 승인 요청', '선택한 판매처로 보내기'])
+  const modal = read('src/components/studio/StudioSendModal.vue')
+  eq('창 배선: 등록된 곳(done)은 건너뛰고 나머지만 보냄 · 결과 표는 2곳 이상일 때만 · 실패 사유 = 섹션 sendError · 실패해도 다음 판매처 계속', [
+    /const keys = picked\.value\.filter\(k => !sections\[k\]\?\.done\)/.test(modal), /runKeys\.value = picked\.value\.length > 1 \? \[\.\.\.picked\.value\] : \[\]/.test(modal), /reason: s\.sendError/.test(modal), /for \(const key of keys\)/.test(modal), /<section v-if="resultRows\.length"[^>]*data-mk-s-results>/.test(modal),
+  ], [true, true, true, true, true])
+  eq('섹션 4개 모두 sendError를 내놓음 (창 결과 표용 — 읽기만)', ['Coupang', 'Smartstore', 'Elevenst', 'Cafe24'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
 }
 
 console.log(`\n${pass} 통과 · ${fail} 실패`)

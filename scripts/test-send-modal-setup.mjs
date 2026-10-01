@@ -38,7 +38,8 @@ const stubPlugin = {
       export const readSaleMode = () => '', rememberSaleMode = () => {}
       export const listCafe24Categories = never, sendCafe24Product = never, isNotReady = () => false
       export const listSmartstoreCategories = never, listSmartstoreAddresses = never, sendSmartstoreProduct = never
-      export const listElevenstCategories = never, listElevenstAddresses = never, sendElevenstProduct = never`
+      export const listElevenstCategories = never, listElevenstAddresses = never, sendElevenstProduct = never
+      export const SEND_STATUS_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인', registered: '등록됨', rejected: '반려', failed: '실패' }`
     return null
   },
 }
@@ -118,6 +119,7 @@ if (built?.Coupang && built?.Modal) {
   const c = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   eq('보내기 창 setup이 예외 없이 실행 (연결됨)', c.error, null)
   eq('보내기 창(고객): 판매처 8줄(카페24 없음) + 쿠팡 섹션이 그려짐 · 화면 글자에 카페24 없음', [(c.html.match(/data-mk-s-market="/g) || []).length, /data-mk-send-coupang/.test(c.html), /data-mk-s-mode-pick/.test(c.html), /data-mk-s-market="cafe24"|카페24/.test(c.html)], [8, true, true, false])
+  eq('보내기 창: 열 때는 결과 표 없음 (2026-10-01 결과 표는 2곳 이상 보낸 뒤에만)', /data-mk-s-results/.test(c.html), false)
   built.userRole.value = 'staff'
   const cAdmin = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   built.userRole.value = 'user'

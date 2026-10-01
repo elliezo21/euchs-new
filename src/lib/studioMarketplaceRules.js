@@ -201,6 +201,28 @@ export const canResend = s => !!s && s.status === 'rejected' && /^\d+$/.test(Str
 /** [보내기] 버튼 글자 — 다시 보내기면 "다시 승인 요청" */
 export const sendActionLabel = (keys, resend) => (resend ? '다시 승인 요청' : sendButtonLabel(keys))
 
+export const SEND_RESULT_FAIL_HINT = '사유는 아래 판매처 칸에서 확인하세요.'
+/**
+ * 여러 판매처로 보낸 결과 줄 (2026-10-01) — 보내기 창 아래 결과 표. 판매처 2곳 이상을 한 번에 보냈을 때만 그린다(1곳이면 예전처럼 섹션 안에만)
+ * @param {string[]} keys 이번에 보낸 판매처 (MARKETS 순서로 정렬해 돌려준다)
+ * @param {{ [key]: { ok:boolean, id?:string, status?:string, reason?:string } }} results  ok = 보냄(id = 판매처 상품번호, status = 서버 응답 status — 등록됨/승인 대기) · ok false = 실패(reason = 섹션에 보인 사유 그대로)
+ * @returns {[{ key, name, state:'ok'|'fail'|'wait', id, status, reason }]}  wait = 아직 차례가 안 옴(보내는 중)
+ */
+export function sendResultRows(keys, results = {}) {
+  const want = new Set(Array.isArray(keys) ? keys : [])
+  return MARKETS.filter(m => want.has(m.key)).map(m => {
+    const r = results?.[m.key]
+    if (!r) return { key: m.key, name: m.name, state: 'wait', id: '', status: '', reason: '' }
+    if (r.ok) return { key: m.key, name: m.name, state: 'ok', id: String(r.id ?? ''), status: String(r.status ?? ''), reason: '' }
+    return { key: m.key, name: m.name, state: 'fail', id: '', status: 'failed', reason: String(r.reason || '').trim() || SEND_RESULT_FAIL_HINT }
+  })
+}
+/**
+ * 보내기 창 버튼 글자 — 여러 곳을 보냈는데 실패한 곳이 남았으면 "실패한 판매처 다시 보내기"(누르면 등록된 곳은 건너뛴다). 그 밖은 예전 그대로(sendActionLabel)
+ * @param {string[]} picked 체크된 판매처 · @param {string[]} failed 체크된 판매처 중 지난번에 실패한 곳(아직 등록 안 됨)
+ */
+export const bulkSendLabel = (picked, failed, resend) => (!resend && (picked?.length || 0) > 1 && (failed?.length || 0) > 0 ? '실패한 판매처 다시 보내기' : sendActionLabel(picked, resend))
+
 /** 배지 툴팁 — 반려·실패일 때만, 판매처가 준 사유(기록된 reason) 그대로 */
 export const badgeReason = s => (s && ['rejected', 'failed'].includes(s.status) && typeof s.reason === 'string' ? s.reason.trim() : '')
 

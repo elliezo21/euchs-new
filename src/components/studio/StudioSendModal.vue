@@ -38,6 +38,20 @@
           <li v-for="m in missing" :key="m">· {{ m }}</li>
         </ul>
       </div>
+
+      <!-- 보내기 결과 (2026-10-01) — 판매처 2곳 이상을 한 번에 보냈을 때만. 1곳이면 예전처럼 그 섹션 안에만 보인다 -->
+      <section v-if="resultRows.length" class="space-y-2" data-mk-s-results>
+        <h4 class="st-h-card">보내기 결과</h4>
+        <ul class="st-border rounded-[10px] st-divide overflow-hidden">
+          <li v-for="r in resultRows" :key="r.key" class="market-row" :data-mk-s-result="r.key" :data-mk-s-result-state="r.state">
+            <span class="text-[14px] font-bold st-ink shrink-0 w-[96px] truncate">{{ r.name }}</span>
+            <span :class="r.state === 'wait' ? 'st-badge' : SEND_BADGE_CLASS[r.status] || 'st-badge'" class="shrink-0">{{ r.state === 'wait' ? (sections[r.key]?.busy === 'send' ? '보내는 중' : '대기') : SEND_STATUS_LABEL[r.status] || r.status }}</span>
+            <span v-if="r.state === 'ok'" class="text-[13px] st-ink min-w-0 break-all" :data-mk-s-result-id="r.key">상품번호 {{ r.id }}</span>
+            <span v-else-if="r.state === 'fail'" class="text-[13px] st-danger-text min-w-0 break-keep" :data-mk-s-result-reason="r.key">{{ r.reason }}</span>
+          </li>
+        </ul>
+        <p v-if="failedKeys.length" class="st-desc-sm break-keep" data-mk-s-results-retry-note>[실패한 판매처 다시 보내기]를 누르면 등록된 판매처는 건너뛰고 실패한 판매처만 다시 보냅니다. 실패 사유를 아래 판매처 칸에서 고친 뒤 누르세요.</p>
+      </section>
     </div>
     <!-- 준비 데이터(send_prepare)를 받는 동안 — 창은 먼저 열고 여기서 진행 상태를 보인다 (2026-09-30: 받는 동안 버튼에 "여는 중…"만 10초 넘게 떠 있었다).
          '준비 중'은 이 창에서 쓰지 않는 글자(아직 없는 기능 표시와 헷갈림 — S3-3)라 "불러오는 중" -->
@@ -70,7 +84,8 @@ import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
 import StudioSendCafe24 from '@/components/studio/StudioSendCafe24.vue'
 import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import StudioSendElevenst from '@/components/studio/StudioSendElevenst.vue'
-import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, sendActionLabel, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { SEND_STATUS_LABEL } from '@/lib/studioMarketplace'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isAdminOrStaff } from '@/lib/auth'
 
@@ -93,7 +108,8 @@ const checked = ref({})
 const sending = ref(false)
 const openSeq = ref(0) // 창을 열 때마다 섹션을 새로 만든다
 const sections = reactive({}) // key → 섹션 인스턴스
-const results = shallowRef({}) // key → 보낸 결과
+const results = shallowRef({}) // key → { ok, id, status } | { ok:false, reason } (sendResultRows)
+const runKeys = ref([]) // 마지막 [보내기] 때 체크된 판매처 — 2곳 이상이면 결과 표를 그린다
 
 // 쿠팡 = 서버 send_prepare.markets, 스마트스토어·11번가·카페24 = 연결 탭과 같은 상태(studioMarketLinks), 나머지 = "예정"
 const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare?.markets || {}) }, { admin: isAdminOrStaff.value })) // 카페24 줄은 관리자·스태프에게만 (2026-10-01 — marketsFor)
@@ -112,6 +128,7 @@ function resetForPrepare() {
   sectionError.value = false
   sending.value = false
   results.value = {}
+  runKeys.value = []
   for (const k of Object.keys(sections)) delete sections[k]
   checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend }) : {}
 }
@@ -140,19 +157,28 @@ const sectionFailed = computed(() => sectionError.value || (picked.value.length 
 const canSend = computed(() => !!props.prepare && sectionsReady.value && !sectionError.value && !sending.value && !sectionBusy.value && missing.value.length === 0)
 const sectionBusy = computed(() => picked.value.some(key => !!sections[key]?.busy))
 const allDone = computed(() => picked.value.length > 0 && picked.value.every(key => !!sections[key]?.done))
-const buttonLabel = computed(() => sendActionLabel(picked.value, !!props.prepare?.resend))
+// 체크된 판매처 중 지난 [보내기]에서 실패하고 아직 등록 안 된 곳 → 버튼 "실패한 판매처 다시 보내기"
+const failedKeys = computed(() => picked.value.filter(k => results.value[k] && !results.value[k].ok && !sections[k]?.done))
+const resultRows = computed(() => (runKeys.value.length > 1 ? sendResultRows(runKeys.value, results.value) : []))
+const buttonLabel = computed(() => bulkSendLabel(picked.value, failedKeys.value, !!props.prepare?.resend))
 
 async function submit() {
   if (!canSend.value) return
   sending.value = true
+  // 이번에 보낼 곳 = 체크됐고 아직 등록 안 된 곳. 등록된 곳(done)은 건너뛴다 → 다시 누르면 실패한 곳만 다시 보낸다
+  const keys = picked.value.filter(k => !sections[k]?.done)
+  runKeys.value = picked.value.length > 1 ? [...picked.value] : []
+  results.value = Object.fromEntries(Object.entries(results.value).filter(([k]) => !keys.includes(k)))
   try {
-    for (const key of picked.value) {
+    for (const key of keys) {
       const s = sections[key]
-      if (!s || s.done) continue
+      if (!s) continue
       const r = await s.submit() // 못 보낸 이유는 그 섹션 안에 보인다 — 다른 판매처는 계속 보낸다
       if (r) {
-        results.value = { ...results.value, [key]: r }
+        results.value = { ...results.value, [key]: { ok: true, id: r.sellerProductId, status: r.status } }
         emit('sent', { market: key, ...r })
+      } else {
+        results.value = { ...results.value, [key]: { ok: false, reason: s.sendError } }
       }
     }
   } finally {
