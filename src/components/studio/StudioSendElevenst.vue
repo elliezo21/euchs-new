@@ -6,6 +6,27 @@
     <p v-if="sendError" ref="errorEl" class="text-[13px] font-bold st-danger-text break-keep st-surface st-border rounded-[10px] p-3" role="alert" data-mk-11st-error>등록에 실패했습니다. (사유: {{ sendError }})
       <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">연결 설정으로 이동</router-link></p>
 
+    <!-- 등록 템플릿 (2026-10-01) — 고르면 칸이 채워지고 그 자리에서 고칠 수 있다. 기본 템플릿은 창을 열 때 자동 선택. 표가 없으면(SQL 실행 전) 그리지 않는다 -->
+    <div v-if="lt.ready" class="st-surface st-border rounded-[10px] p-3 space-y-2" data-mk-11st-templates>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div v-for="k in TEMPLATE_KINDS" :key="k.key" class="block">
+          <span class="st-desc-sm block mb-1">{{ k.name }}</span>
+          <select v-model="lt.picked[k.key]" class="st-input w-full" :disabled="!!done" :data-mk-11st-lt="k.key" @change="applyTemplate(k.key)">
+            <option value="">선택 안 함</option>
+            <option v-for="t in ltList(k.key)" :key="t.id" :value="t.id">{{ t.name }}{{ t.is_default ? ' (기본)' : '' }}</option>
+          </select>
+          <button v-if="lt.saving !== k.key" type="button" class="st-link text-[12px] mt-1" :disabled="!!done || !!lt.saving" :data-mk-11st-lt-save="k.key" @click="startSaveTemplate(k.key)">현재 값으로 새 템플릿 저장</button>
+          <div v-else class="flex flex-wrap items-center gap-1.5 mt-1.5" :data-mk-11st-lt-save-box="k.key">
+            <input v-model="lt.name" type="text" :maxlength="TEMPLATE_NAME_MAX" class="st-input flex-1 min-w-[140px]" placeholder="템플릿 이름" data-mk-11st-lt-name />
+            <button type="button" class="st-btn st-btn-primary" :disabled="lt.busy" data-mk-11st-lt-save-ok @click="saveTemplate(k.key)">{{ lt.busy ? '저장 중…' : '저장' }}</button>
+            <button type="button" class="st-btn" :disabled="lt.busy" @click="lt.saving = ''">취소</button>
+          </div>
+        </div>
+      </div>
+      <p v-if="!lt.list.length" class="st-desc-sm break-keep" data-mk-11st-lt-empty>템플릿이 없습니다. <router-link :to="{ name: 'studio-channels-defaults' }" class="st-link">기본 설정</router-link> 탭에서 예시값으로 템플릿을 만들 수 있습니다.</p>
+      <p v-if="lt.message" class="text-[12px] break-keep" :class="lt.error ? 'st-danger-text font-bold' : 'st-muted'" data-mk-11st-lt-msg>{{ lt.message }}</p>
+    </div>
+
     <!-- 판매자 사전 준비 -->
     <div class="st-surface st-border rounded-[10px] p-3 text-[13px] break-keep space-y-1" data-mk-11st-prep>
       <div class="font-bold st-ink">보내기 전 준비 사항</div>
@@ -76,11 +97,13 @@
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <div class="block">
           <span class="st-desc-sm block mb-1">배송비</span>
-          <label class="flex items-center gap-2 text-[13px] st-ink">
+          <label class="flex flex-wrap items-center gap-2 text-[13px] st-ink">
             <input v-model="f.feeType" type="radio" value="01" :disabled="!!done" data-mk-11st-fee-free /> 무료
             <input v-model="f.feeType" type="radio" value="02" class="ml-3" :disabled="!!done" data-mk-11st-fee-paid /> 고정 배송비
+            <input v-model="f.feeType" type="radio" value="03" class="ml-3" :disabled="!!done" data-mk-11st-fee-cond /> 조건부 무료
           </label>
-          <input v-if="f.feeType === '02'" v-model.number="f.fee" type="number" min="10" step="10" class="st-input w-full mt-1.5" placeholder="기본 배송비 (원)" :disabled="!!done" data-mk-11st-base-fee />
+          <input v-if="feeHasBase(f.feeType)" v-model.number="f.fee" type="number" min="10" step="10" class="st-input w-full mt-1.5" placeholder="기본 배송비 (원)" :disabled="!!done" data-mk-11st-base-fee />
+          <input v-if="f.feeType === '03'" v-model.number="f.freeOver" type="number" min="10" step="10" class="st-input w-full mt-1.5" placeholder="무료배송 기준 금액 (원 이상)" :disabled="!!done" data-mk-11st-free-over />
         </div>
         <div class="grid grid-cols-2 gap-2">
           <label class="block"><span class="st-desc-sm block mb-1">제주 추가</span><input v-model.number="f.jejuFee" type="number" min="0" step="10" class="st-input w-full" placeholder="원" :disabled="!!done" data-mk-11st-jeju /></label>
@@ -189,7 +212,17 @@
         <label class="block"><span class="st-desc-sm block mb-1">제조국</span><input v-model="f.country" type="text" :maxlength="NOTICE_VALUE_MAX" class="st-input w-full" :disabled="!!done" data-mk-11st-country /></label>
         <label class="block"><span class="st-desc-sm block mb-1">A/S·상담 전화번호</span><input v-model="f.phone" type="text" :maxlength="NOTICE_VALUE_MAX" class="st-input w-full" :disabled="!!done" data-mk-11st-phone /></label>
       </div>
-      <p class="st-desc-sm break-keep" data-mk-11st-notice-rest>나머지 항목({{ restLabels.join(' · ') }})은 "{{ NOTICE_DEFAULT_VALUE }}"로 등록됩니다. 값은 {{ NOTICE_VALUE_MAX }}자까지 입력할 수 있습니다.</p>
+      <p class="st-desc-sm break-keep" data-mk-11st-notice-rest>나머지 항목({{ restLabels.join(' · ') }})은 비워 두면 "{{ NOTICE_DEFAULT_VALUE }}"로 등록됩니다. 값은 {{ NOTICE_VALUE_MAX }}자까지 입력할 수 있습니다.</p>
+      <!-- 나머지 항목 직접 입력 (등록 템플릿의 고시 항목값이 여기로 들어온다) -->
+      <details class="text-[13px]" :open="restFilled" data-mk-11st-notice-items>
+        <summary class="st-link cursor-pointer">나머지 항목 직접 입력</summary>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
+          <label v-for="[code, label] in restItems" :key="code" class="block">
+            <span class="st-desc-sm block mb-1 break-keep">{{ label }}</span>
+            <input v-model="f.noticeItems[code]" type="text" :maxlength="NOTICE_VALUE_MAX" class="st-input w-full" :placeholder="NOTICE_DEFAULT_VALUE" :disabled="!!done" :data-mk-11st-notice-item="code" />
+          </label>
+        </div>
+      </details>
     </div>
 
     <!-- 관리자·스태프 테스트용 — 등록 직후 판매중지 -->
@@ -223,15 +256,19 @@
 // 항목·코드는 공용 파일(api/_elevenstFields.js — 공식 문서·셀러오피스 표 그대로). 필수값은 화면(missing)이 먼저 막고 서버(buildElevenstProduct)가 다시 검사한다
 // 금액은 기본값 없이 비워 둔다(임의 숫자 없음). KC 인증은 판매자가 직접 고른다(기본값 없음)
 // 카테고리·주소록은 창이 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
-import { ref, computed, onMounted, inject, nextTick } from 'vue'
+// 등록 템플릿(2026-10-01): 마켓 공용 값(api/_listingTemplates.js) ↔ 이 섹션 칸 변환은 api/_elevenstFields.js에서만. 출고지·반품지는 템플릿에 없다(주소록 + 마지막 사용 기억 그대로)
+import { ref, reactive, computed, onMounted, inject, nextTick } from 'vue'
 import { listElevenstCategories, listElevenstAddresses, sendElevenstProduct, isNotReady } from '@/lib/studioMarketplace'
+import { listListingTemplates, createListingTemplate } from '@/lib/studioListingTemplates'
+import { TEMPLATE_KINDS, TEMPLATE_NAME_MAX, pickDefaultTemplate, uniqueTemplateName } from '../../../api/_listingTemplates.js'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { isAdminOrStaff } from '@/lib/auth'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
 import {
   NOTICE_TYPES, DEFAULT_NOTICE_TYPE, NOTICE_VALUE_MAX, NOTICE_DEFAULT_VALUE, NOTICE_COUNTRY_DEFAULT, HEAVY_NOTICE_TYPES, noticeTypeOf, noticeItemsFor,
   NOTICE_MAKER_CODES, NOTICE_COUNTRY_CODES, NOTICE_PHONE_CODES, KC_GROUPS, KC_CHOICES, KC_CERT_TYPES, KC_CERT_KEY_MAX, kcFor, VAT_TYPES, PRODUCT_NAME_MAX, is10Won,
-  pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor,
+  pickElevenstAddress, SELLER_OFFICE_URL, ORIGIN_CHINA, ORIGIN_KINDS, ORIGIN_DOMESTIC, ORIGIN_COUNTRIES, originFor, feeHasBase,
+  elevenstFormFromProduct, elevenstFormFromShipping, productTemplateFromElevenstForm, shippingTemplateFromElevenstForm,
 } from '../../../api/_elevenstFields.js'
 
 const CAT_SHOWN = 200
@@ -254,18 +291,26 @@ const addrLoading = ref(false)
 const addrRefreshing = ref(false)
 const addrError = ref('')
 const addrSoft = ref(false)
-const f = ref({
-  // 상품명 기본값 = 다른 판매처 섹션과 같은 규칙(한글만), 없으면 빈칸
-  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
-  brand: '', categoryId: null, price: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
-  feeType: '01', fee: null, jejuFee: null, islandFee: null, returnFee: null, exchangeFee: null,
-  outAddr: null, inAddr: null,
+// 템플릿이 채우는 칸의 처음 값 — 템플릿을 바꿔 고르면 이 값으로 되돌린 뒤 템플릿 값을 덮는다(앞 템플릿 값이 남지 않게)
+// 금액은 기본값 없이 비워 둔다(임의 숫자 없음)
+const shippingBase = () => ({ feeType: '01', fee: null, jejuFee: null, islandFee: null, returnFee: null, exchangeFee: null, freeOver: null })
+const productBase = () => ({
+  brand: '',
   asDetail: NOTICE_DEFAULT_VALUE, rtngExchDetail: NOTICE_DEFAULT_VALUE,
-  vat: '01', minorBlocked: false,
   kc: Object.fromEntries(KC_GROUPS.map(g => [g.code, ''])), // 기본값 없음 — 판매자가 직접 고른다 (4개 그룹 모두)
   kcCerts: Object.fromEntries(KC_GROUPS.map(g => [g.code, { type: '', key: '' }])), // 인증대상일 때 인증유형·인증번호
   originKind: ORIGIN_CHINA.orgnTypCd, originCode: ORIGIN_CHINA.orgnTypDtlsCd, // 원산지 기본 해외·중국 — 판매자가 바꿀 수 있다
   noticeType: DEFAULT_NOTICE_TYPE, maker: NOTICE_DEFAULT_VALUE, country: NOTICE_COUNTRY_DEFAULT, phone: NOTICE_DEFAULT_VALUE,
+  noticeItems: {}, // 고시 나머지 항목 { 코드: 값 } — 비면 "상세페이지 참조"
+})
+const f = ref({
+  // 상품명 기본값 = 다른 판매처 섹션과 같은 규칙(한글만), 없으면 빈칸
+  productName: pickKoreanName([props.prepare?.export?.projectTitle, props.prepare?.export?.title, props.prepare?.source?.title?.ko]),
+  categoryId: null, price: null, stock: null, repImageId: props.prepare?.images?.[0]?.id ?? null, fit: 'contain',
+  ...shippingBase(),
+  outAddr: null, inAddr: null,
+  vat: '01', minorBlocked: false,
+  ...productBase(),
   testStop: false,
 })
 
@@ -283,8 +328,10 @@ const addressLabel = a => `${a.name || '이름 없음'} · ${a.address}`
 const addressName = (list, id) => { const a = list.find(x => x.id === id); return a ? addressLabel(a) : '' }
 const noticeTypeName = computed(() => noticeTypeOf(f.value.noticeType)?.name || '')
 const heavyNotice = computed(() => HEAVY_NOTICE_TYPES.includes(f.value.noticeType))
-const restLabels = computed(() => (noticeTypeOf(f.value.noticeType)?.items || []).filter(([code]) => ![...NOTICE_MAKER_CODES, ...NOTICE_COUNTRY_CODES, ...NOTICE_PHONE_CODES].includes(code)).map(([, label]) => label))
-const noticeItems = computed(() => noticeItemsFor(f.value.noticeType, { maker: f.value.maker, country: f.value.country, phone: f.value.phone }) || [])
+const restItems = computed(() => (noticeTypeOf(f.value.noticeType)?.items || []).filter(([code]) => ![...NOTICE_MAKER_CODES, ...NOTICE_COUNTRY_CODES, ...NOTICE_PHONE_CODES].includes(code)))
+const restLabels = computed(() => restItems.value.map(([, label]) => label))
+const restFilled = computed(() => restItems.value.some(([code]) => String(f.value.noticeItems[code] ?? '').trim()))
+const noticeItems = computed(() => noticeItemsFor(f.value.noticeType, { maker: f.value.maker, country: f.value.country, phone: f.value.phone, items: f.value.noticeItems }) || [])
 
 const missing = computed(() => {
   const v = f.value, out = []
@@ -294,7 +341,8 @@ const missing = computed(() => {
   if (!is10Won(v.price, 10)) out.push('판매가 (10원 단위)')
   if (!Number.isInteger(v.stock) || v.stock < 1) out.push('재고 수량 (1개 이상)')
   if (!v.repImageId) out.push('대표 이미지')
-  if (v.feeType === '02' && !is10Won(v.fee, 10)) out.push('기본 배송비')
+  if (feeHasBase(v.feeType) && !is10Won(v.fee, 10)) out.push('기본 배송비')
+  if (v.feeType === '03' && !is10Won(v.freeOver, 10)) out.push('무료배송 기준 금액')
   if (!is10Won(v.jejuFee) || !is10Won(v.islandFee)) out.push('제주·도서산간 추가 배송비')
   if (!is10Won(v.returnFee) || !is10Won(v.exchangeFee)) out.push('반품·교환 배송비')
   if (!v.outAddr) out.push('출고지')
@@ -317,7 +365,8 @@ const preview = computed(() => {
     { label: '재고 수량', value: Number.isInteger(v.stock) && v.stock >= 1 ? `${v.stock.toLocaleString('ko-KR')}개` : '' },
     { label: '대표 이미지', value: v.repImageId ? '대표 이미지 1장' : '' },
     { label: '상세 이미지', value: `상세 이미지 ${props.prepare.export.files.length}장` },
-    { label: '배송비', value: v.feeType === '02' ? (is10Won(v.fee, 10) ? `${won(v.fee)} (선결제)` : '') : '무료' },
+    { label: '배송비', value: v.feeType === '02' ? (is10Won(v.fee, 10) ? `${won(v.fee)} (선결제)` : '')
+      : v.feeType === '03' ? (is10Won(v.fee, 10) && is10Won(v.freeOver, 10) ? `${won(v.fee)} · ${won(v.freeOver)} 이상 무료 (선결제)` : '') : '무료' },
     { label: '제주·도서산간', value: is10Won(v.jejuFee) && is10Won(v.islandFee) ? `제주 ${won(v.jejuFee)} · 도서산간 ${won(v.islandFee)}` : '' },
     { label: '반품·교환 배송비', value: is10Won(v.returnFee) && is10Won(v.exchangeFee) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
     { label: '출고지', value: addressName(outAddresses.value, v.outAddr) },
@@ -396,6 +445,65 @@ async function refreshAddresses() {
   }
 }
 
+// ── 등록 템플릿 (2026-10-01) ──
+// 목록은 창의 sendCache를 같이 쓴다(다른 판매처 섹션도 같은 템플릿을 쓰게 될 때 다시 받지 않게). 표가 없으면 ready = false → 칸을 그리지 않는다
+const lt = reactive({ ready: false, list: [], picked: { product: '', shipping: '' }, saving: '', name: '', busy: false, message: '', error: false })
+const ltList = kind => lt.list.filter(t => t.kind === kind)
+/** 고른 템플릿 → 칸. 그 템플릿이 채우는 칸은 처음 값으로 되돌린 뒤 덮는다. "선택 안 함"이면 칸을 그대로 둔다 */
+function applyTemplate(kind) {
+  const t = lt.list.find(x => x.id === lt.picked[kind] && x.kind === kind)
+  if (!t) return
+  if (kind === 'product') Object.assign(f.value, productBase(), elevenstFormFromProduct(t.data))
+  else Object.assign(f.value, shippingBase(), elevenstFormFromShipping(t.data))
+  lt.message = ''
+}
+/** 목록 → 기본 템플릿 자동 선택 (창을 열 때 한 번 — 섹션은 창을 열 때마다 새로 만든다) */
+let ltApplied = false
+function applyTemplateList(r) {
+  lt.ready = r?.ready === true
+  lt.list = Array.isArray(r?.templates) ? r.templates : []
+  if (ltApplied || !lt.ready) return
+  ltApplied = true
+  for (const k of TEMPLATE_KINDS) {
+    const d = pickDefaultTemplate(lt.list, k.key)
+    if (d) { lt.picked[k.key] = d.id; applyTemplate(k.key) }
+  }
+}
+async function loadTemplates() {
+  try {
+    applyTemplateList(await cached('listingTemplates', listListingTemplates))
+  } catch (e) {
+    console.error('[StudioSendElevenst] 등록 템플릿 조회 실패 — 직접 입력으로 진행:', e) // 보내기는 막지 않는다
+  }
+}
+function startSaveTemplate(kind) {
+  lt.saving = kind
+  lt.name = uniqueTemplateName(kind === 'product' ? '11번가 상품정보' : '11번가 배송', lt.list, kind)
+  lt.message = ''
+}
+/** [현재 값으로 새 템플릿 저장] — 지금 칸의 값을 마켓 공용 값으로 바꿔 저장. 그 종류의 첫 템플릿이면 기본으로 */
+async function saveTemplate(kind) {
+  if (lt.busy) return
+  lt.busy = true
+  lt.message = ''
+  lt.error = false
+  try {
+    const data = kind === 'product' ? productTemplateFromElevenstForm(f.value) : shippingTemplateFromElevenstForm(f.value)
+    const row = await createListingTemplate({ kind, name: lt.name, data, is_default: ltList(kind).length === 0 })
+    lt.list = [...lt.list, row]
+    if (sendCache) sendCache.listingTemplatesDone = { ready: true, templates: lt.list }
+    lt.picked[kind] = row.id
+    lt.saving = ''
+    lt.message = `"${row.name}" 템플릿을 저장했습니다.${row.is_default ? ' 기본 템플릿으로 지정되었습니다.' : ''}`
+  } catch (e) {
+    console.error('[StudioSendElevenst] 템플릿 저장 실패:', e)
+    lt.message = e.message
+    lt.error = true
+  } finally {
+    lt.busy = false
+  }
+}
+
 /** 원산지 종류를 바꾸면 지역·국가를 다시 고른다 (해외로 돌아오면 기본 중국) */
 function onOriginKind() {
   f.value.originCode = f.value.originKind === ORIGIN_CHINA.orgnTypCd ? ORIGIN_CHINA.orgnTypDtlsCd : ''
@@ -403,7 +511,7 @@ function onOriginKind() {
 /** 실패 문구 → 해당 칸 (모르면 섹션 맨 위 사유 줄) */
 const FIELD_HINTS = [
   [/상품명|보낼 수 없는 글자/, nameEl], [/카테고리/, catEl], [/판매가|재고/, priceEl], [/대표 이미지|상세 이미지|사진/, imageEl],
-  [/배송비/, deliveryEl], [/출고지|반품지|반품\/교환지|주소/, addressEl], [/A\/S 안내|반품\/교환 안내/, guideEl], [/원산지/, originEl], [/KC/, kcEl], [/고시/, noticeEl],
+  [/배송비|무료배송/, deliveryEl], [/출고지|반품지|반품\/교환지|주소/, addressEl], [/A\/S 안내|반품\/교환 안내/, guideEl], [/원산지/, originEl], [/KC/, kcEl], [/고시/, noticeEl],
 ]
 function scrollToProblem(message) {
   const hit = FIELD_HINTS.find(([re]) => re.test(String(message || '')))
@@ -424,9 +532,12 @@ async function submit() {
       categoryId: v.categoryId, categoryName: categoryName.value, price: v.price, stock: v.stock, repImageId: v.repImageId, fit: v.fit,
       vat: v.vat, minorOk: !v.minorBlocked, origin: { kind: v.originKind, code: v.originKind === '03' ? null : v.originCode },
       kc: { ...v.kc }, kcCerts: Object.fromEntries(KC_GROUPS.filter(g => v.kc[g.code] === 'cert').map(g => [g.code, { type: v.kcCerts[g.code].type, key: String(v.kcCerts[g.code].key).trim() }])),
-      delivery: { feeType: v.feeType, fee: v.feeType === '02' ? v.fee : null, jejuFee: v.jejuFee, islandFee: v.islandFee, returnFee: v.returnFee, exchangeFee: v.exchangeFee, outAddr: v.outAddr, inAddr: v.inAddr },
+      delivery: { feeType: v.feeType, fee: feeHasBase(v.feeType) ? v.fee : null, ...(v.feeType === '03' ? { freeOver: v.freeOver } : {}), jejuFee: v.jejuFee, islandFee: v.islandFee, returnFee: v.returnFee, exchangeFee: v.exchangeFee, outAddr: v.outAddr, inAddr: v.inAddr },
       asDetail: String(v.asDetail).trim(), rtngExchDetail: String(v.rtngExchDetail).trim(),
-      notice: { type: v.noticeType, maker: String(v.maker).trim(), country: String(v.country).trim(), phone: String(v.phone).trim() },
+      notice: {
+        type: v.noticeType, maker: String(v.maker).trim(), country: String(v.country).trim(), phone: String(v.phone).trim(),
+        items: Object.fromEntries(restItems.value.map(([code]) => [code, String(v.noticeItems[code] ?? '').trim()]).filter(([, x]) => x)), // 이 유형의 나머지 항목 중 고친 것만
+      },
       ...(isAdminOrStaff.value && v.testStop ? { testStop: true } : {}), // 서버도 관리자만 받아들인다
     })
     done.value = r
@@ -448,9 +559,11 @@ async function submit() {
 // 창을 다시 열 때 이미 받은 목록은 바로 채운다(깜빡임 없음) — 받지 않은 것만 화면에 붙은 뒤 서버에 묻는다
 if (sendCache?.elevenstCategoriesDone) categories.value = Array.isArray(sendCache.elevenstCategoriesDone.categories) ? sendCache.elevenstCategoriesDone.categories : []
 if (sendCache?.elevenstAddressesDone) applyAddresses(sendCache.elevenstAddressesDone)
+if (sendCache?.listingTemplatesDone) applyTemplateList(sendCache.listingTemplatesDone)
 onMounted(() => {
   if (!sendCache?.elevenstCategoriesDone) loadCategories()
   if (!sendCache?.elevenstAddressesDone) loadAddresses()
+  if (!sendCache?.listingTemplatesDone) loadTemplates()
 })
 defineExpose({ missing, busy, done, submit })
 </script>

@@ -17,7 +17,7 @@
  */
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
 import {
-  NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcFor, originFor, VAT_TYPES, DELIVERY_FEE_TYPES, PRODUCT_NAME_MAX, PRICE_MAX, is10Won,
+  NOTICE_VALUE_MAX, noticeItemsFor, noticeTypeOf, kcFor, originFor, VAT_TYPES, DELIVERY_FEE_TYPES, feeHasBase, PRODUCT_NAME_MAX, PRICE_MAX, is10Won,
 } from './_elevenstFields.js'
 
 export const ELEVENST_PATHS = {
@@ -231,8 +231,8 @@ const clean = (s, max) => String(s ?? '').replace(/[\u0000-\u001f\u007f]/g, ' ')
  * 상품 등록 XML (EUC-KR 바이트). 화면에서 받은 값만 — 국내 셀러라 해외 항목(abrdBuyPlace·forAbrdBuyClf·outsideYn*·importFeeCd·hsCode 등)은 넣지 않는다.
  * 발송마감 템플릿(dlvSendCloseTmpltNo)은 문서상 선택입력 — 값이 있을 때만
  * @param {{ productName, brand?, categoryId, price, stock, repUrl, detailUrls:string[], vat:'01'|'02', minorOk?:boolean, origin:{ kind:'01'|'02'|'03', code? },
- *           kc:{ [group]: key }, kcCerts?:{ [group]: { type, key } }, delivery:{ feeType:'01'|'02', fee?, jejuFee, islandFee, returnFee, exchangeFee, outAddr, inAddr, sendCloseTmplt? },
- *           asDetail, rtngExchDetail, notice:{ type, maker, country, phone } }} p
+ *           kc:{ [group]: key }, kcCerts?:{ [group]: { type, key } }, delivery:{ feeType:'01'|'02'|'03', fee?, freeOver?(03), jejuFee, islandFee, returnFee, exchangeFee, outAddr, inAddr, sendCloseTmplt? },
+ *           asDetail, rtngExchDetail, notice:{ type, maker, country, phone, items?:{ [code]: 값 } } }} p
  * @returns {{ ok:true, xml, buf, summary } | { ok:false, message }}
  */
 export function buildElevenstProduct(p) {
@@ -252,7 +252,8 @@ export function buildElevenstProduct(p) {
   if (!origin) return { ok: false, message: '원산지를 선택하세요.' }
   const d = p?.delivery || {}
   if (!DELIVERY_FEE_TYPES.some(t => t.code === d.feeType)) return { ok: false, message: '배송비 종류를 선택하세요.' }
-  if (d.feeType === '02' && !is10Won(d.fee, 10, 1000000)) return { ok: false, message: '기본 배송비를 10원 단위로 입력하세요.' }
+  if (feeHasBase(d.feeType) && !is10Won(d.fee, 10, 1000000)) return { ok: false, message: '기본 배송비를 10원 단위로 입력하세요.' }
+  if (d.feeType === '03' && !is10Won(d.freeOver, 10, PRICE_MAX)) return { ok: false, message: '무료배송 기준 금액을 10원 단위로 입력하세요.' }
   if (!is10Won(d.jejuFee, 0, 1000000) || !is10Won(d.islandFee, 0, 1000000)) return { ok: false, message: '제주·도서산간 추가 배송비를 10원 단위로 입력하세요.' }
   if (!is10Won(d.returnFee, 0, 1000000) || !is10Won(d.exchangeFee, 0, 1000000)) return { ok: false, message: '반품·교환 배송비를 10원 단위로 입력하세요.' }
   const outAddr = String(d.outAddr ?? ''), inAddr = String(d.inAddr ?? '')
@@ -295,7 +296,8 @@ export function buildElevenstProduct(p) {
     el('dlvWyCd', '01'), // 택배
     ...(tmplt != null ? [el('dlvSendCloseTmpltNo', tmplt)] : []),
     el('dlvCstInstBasiCd', d.feeType),
-    ...(d.feeType === '02' ? [el('dlvCst1', String(d.fee))] : []),
+    ...(feeHasBase(d.feeType) ? [el('dlvCst1', String(d.fee))] : []), // 02 고정 · 03 조건부 무료의 기본 배송비
+    ...(d.feeType === '03' ? [el('PrdFrDlvBasiAmt', String(d.freeOver))] : []), // 03 조건부 무료 — 이 금액 이상이면 무료
     el('bndlDlvCnYn', 'Y'),
     el('dlvCstPayTypCd', '03'), // 선결제
     el('jejuDlvCst', String(d.jejuFee)),

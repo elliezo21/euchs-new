@@ -41,11 +41,12 @@ export const noticeTypeOf = code => NOTICE_TYPES.find(t => t.code === code) || n
 export function noticeItemsFor(type, v = {}) {
   const t = noticeTypeOf(type)
   if (!t) return null
+  const items = v.items && typeof v.items === 'object' ? v.items : {} // 나머지 항목을 판매자가 고친 값 { [code]: 값 } (2026-10-01 등록 템플릿) — 비면 "상세페이지 참조"
   const pick = (code) => {
     if (NOTICE_MAKER_CODES.includes(code)) return v.maker
     if (NOTICE_COUNTRY_CODES.includes(code)) return v.country
     if (NOTICE_PHONE_CODES.includes(code)) return v.phone
-    return NOTICE_DEFAULT_VALUE
+    return String(items[code] ?? '').trim() || NOTICE_DEFAULT_VALUE
   }
   return t.items.map(([code, label]) => ({ code, label, name: String(pick(code) ?? '').replace(/\s+/g, ' ').trim() }))
 }
@@ -57,11 +58,12 @@ export function noticeItemsFor(type, v = {}) {
 //                     그룹별 허용: 01 → 01·02·03 / 02 → 01·03 / 03 → 01·03 / 04 → 04·05
 //                     crtfGrpExptTypCd(면제일 때): 02 구매대행면제대상 · 03 병행수입면제대상
 //   ProductCert(인증대상일 때): certTypeCd + certKey(인증번호)
+// key = 등록 템플릿의 뜻 키 (api/_listingTemplates.js KC_KEYS)
 export const KC_GROUPS = [
-  { code: '01', name: '전기용품·생활용품 KC인증' },
-  { code: '02', name: '어린이제품 KC인증' },
-  { code: '03', name: '방송통신기자재 KC인증' },
-  { code: '04', name: '생활화학 및 살생물제품' },
+  { code: '01', name: '전기용품·생활용품 KC인증', key: 'living' },
+  { code: '02', name: '어린이제품 KC인증', key: 'kids' },
+  { code: '03', name: '방송통신기자재 KC인증', key: 'radio' },
+  { code: '04', name: '생활화학 및 살생물제품', key: 'chemical' },
 ]
 // cert = 인증대상 → 인증유형 + 인증번호 입력
 export const KC_CHOICES = {
@@ -123,8 +125,10 @@ export function originFor(o = {}) {
 export const ELEVENST_SEND_PUBLIC = false
 // 부가세 — 01 과세 · 02 면세 (면세 선택 시 세무·법률 책임은 판매자 — 문서)
 export const VAT_TYPES = [{ code: '01', name: '과세상품' }, { code: '02', name: '면세상품' }]
-// 배송비 종류 — 01 무료 · 02 고정 배송비(dlvCst1)
-export const DELIVERY_FEE_TYPES = [{ code: '01', name: '무료' }, { code: '02', name: '고정 배송비' }]
+// 배송비 종류 — 01 무료 · 02 고정 배송비(dlvCst1) · 03 조건부 무료(dlvCst1 + 무료 기준 금액 PrdFrDlvBasiAmt) — 2026-10-01 등록 템플릿에서 03 추가
+//   key = 등록 템플릿의 배송비 방식 (api/_listingTemplates.js SHIP_FEE_TYPES)
+export const DELIVERY_FEE_TYPES = [{ code: '01', name: '무료', key: 'free' }, { code: '02', name: '고정 배송비', key: 'fixed' }, { code: '03', name: '조건부 무료', key: 'conditional' }]
+export const feeHasBase = code => code === '02' || code === '03' // 기본 배송비(dlvCst1)를 받는 종류
 export const PRODUCT_NAME_MAX = 100 // 상품명 100자
 export const PRICE_MAX = 999999990 // 10억 원 미만 · 10원 단위
 export const is10Won = (n, min = 0, max = PRICE_MAX) => Number.isInteger(n) && n >= min && n <= max && n % 10 === 0
@@ -138,3 +142,81 @@ export function pickElevenstAddress(list, lastId = null) {
 
 // 판매자 사전 준비·주소 관리 — 셀러오피스 첫 화면 (주소 관리 화면의 고유 주소는 확인 안 됨)
 export const SELLER_OFFICE_URL = 'https://soffice.11st.co.kr/'
+
+// ── 등록 템플릿(마켓 공용 값 — api/_listingTemplates.js) ↔ 11번가 섹션 칸 (2026-10-01) ──
+// 11번가 코드로 바꾸는 일은 여기서만. 템플릿에 값이 없는 칸은 돌려주지 않는다(화면이 기본값을 그대로 둔다)
+const nameToCode = (list, name) => (list.find(([, n]) => n === String(name ?? '').trim()) || [])[0] || ''
+const codeToName = (list, code) => (list.find(([c]) => c === String(code ?? '')) || [])[1] || ''
+const certLabelToCode = (group, label) => nameToCode(KC_CERT_TYPES[group] || [], label)
+const isWon = v => Number.isInteger(v) && v >= 0
+
+/**
+ * 상품정보 템플릿 data → 섹션 칸 (일부)
+ * 원산지 나라·지역 이름이 11번가 목록에 없으면 originCode = ''(판매자가 고른다 — 다른 나라로 바꾸지 않는다)
+ * @returns {object} f에 덮어쓸 칸만 — brand·maker·country·phone·asDetail·rtngExchDetail·originKind·originCode·kc·kcCerts·noticeType·noticeItems
+ */
+export function elevenstFormFromProduct(data = {}) {
+  const out = {}
+  for (const [from, to] of [['brand', 'brand'], ['maker', 'maker'], ['country', 'country'], ['asContact', 'phone'], ['asGuide', 'asDetail'], ['returnGuide', 'rtngExchDetail']]) {
+    const v = String(data?.[from] ?? '').trim()
+    if (v) out[to] = v
+  }
+  const o = data?.origin || {}
+  if (o.type === 'refer') { out.originKind = '03'; out.originCode = '' }
+  else if (o.type === 'overseas') { out.originKind = '02'; out.originCode = nameToCode(ORIGIN_COUNTRIES, o.place) }
+  else if (o.type === 'domestic') { out.originKind = '01'; out.originCode = nameToCode(ORIGIN_DOMESTIC, o.place) }
+  const kc = data?.kc || {}
+  if (KC_GROUPS.some(g => kc[g.key]?.choice)) {
+    out.kc = {}
+    out.kcCerts = {}
+    for (const g of KC_GROUPS) {
+      const v = kc[g.key] || {}
+      const ok = (KC_CHOICES[g.code] || []).some(c => c.key === v.choice)
+      out.kc[g.code] = ok ? v.choice : ''
+      out.kcCerts[g.code] = { type: ok && v.choice === 'cert' ? certLabelToCode(g.code, v.certType) : '', key: ok && v.choice === 'cert' ? String(v.certNo ?? '').trim() : '' }
+    }
+  }
+  const t = NOTICE_TYPES.find(x => x.name === String(data?.notice?.type ?? '').trim())
+  if (t) {
+    out.noticeType = t.code
+    const items = data.notice.items || {}
+    out.noticeItems = Object.fromEntries(t.items.filter(([code]) => ![...NOTICE_MAKER_CODES, ...NOTICE_COUNTRY_CODES, ...NOTICE_PHONE_CODES].includes(code))
+      .map(([code, label]) => [code, String(items[label] ?? '').trim()]).filter(([, v]) => v))
+  }
+  return out
+}
+/** 배송 템플릿 data → 섹션 칸 (일부) — feeType·fee·freeOver·jejuFee·islandFee·returnFee·exchangeFee */
+export function elevenstFormFromShipping(data = {}) {
+  const out = {}
+  const t = DELIVERY_FEE_TYPES.find(x => x.key === data?.feeType)
+  if (t) {
+    out.feeType = t.code
+    out.fee = feeHasBase(t.code) && isWon(data.fee) ? data.fee : null
+    out.freeOver = t.code === '03' && isWon(data.freeOver) ? data.freeOver : null
+  }
+  for (const f of ['jejuFee', 'islandFee', 'returnFee', 'exchangeFee']) if (isWon(data?.[f])) out[f] = data[f]
+  return out
+}
+/** 섹션 칸 → 상품정보 템플릿 data (마켓 공용 값 — [현재 값으로 새 템플릿 저장]) */
+export function productTemplateFromElevenstForm(f = {}) {
+  const t = noticeTypeOf(f.noticeType)
+  const s = v => String(v ?? '').trim()
+  return {
+    origin: f.originKind === '03' ? { type: 'refer', place: '' } : { type: f.originKind === '01' ? 'domestic' : 'overseas', place: codeToName(f.originKind === '01' ? ORIGIN_DOMESTIC : ORIGIN_COUNTRIES, f.originCode) },
+    maker: s(f.maker), country: s(f.country), brand: s(f.brand), asContact: s(f.phone), asGuide: s(f.asDetail), returnGuide: s(f.rtngExchDetail),
+    kc: Object.fromEntries(KC_GROUPS.map(g => {
+      const choice = f.kc?.[g.code] || ''
+      return [g.key, { choice, certType: choice === 'cert' ? codeToName(KC_CERT_TYPES[g.code] || [], f.kcCerts?.[g.code]?.type) : '', certNo: choice === 'cert' ? s(f.kcCerts?.[g.code]?.key) : '' }]
+    })),
+    notice: t ? { type: t.name, items: Object.fromEntries(t.items.map(([code, label]) => [label, s(f.noticeItems?.[code])]).filter(([, v]) => v && v !== NOTICE_DEFAULT_VALUE)) } : { type: '', items: {} },
+  }
+}
+/** 섹션 칸 → 배송 템플릿 data */
+export function shippingTemplateFromElevenstForm(f = {}) {
+  const t = DELIVERY_FEE_TYPES.find(x => x.code === f.feeType)
+  const n = v => (Number.isInteger(v) && v >= 0 ? v : null)
+  return {
+    feeType: t?.key || '', fee: t && feeHasBase(t.code) ? n(f.fee) : null, freeOver: t?.code === '03' ? n(f.freeOver) : null,
+    jejuFee: n(f.jejuFee), islandFee: n(f.islandFee), returnFee: n(f.returnFee), exchangeFee: n(f.exchangeFee),
+  }
+}

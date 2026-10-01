@@ -3,6 +3,9 @@
     <p class="st-desc break-keep">상품을 보낼 때 쓸 배송비·반품비·출고지 묶음이에요. 한 번 만들어 두면 보낼 때마다 고르기만 하면 돼요.</p>
 
     <!-- 로그인 전 (누구나 구경 — 2026-09-30): 템플릿·출고지를 부르지 않는다 -->
+    <!-- 등록 템플릿(상품정보·배송 — 판매처 공용, 2026-10-01): 쿠팡 연결과 상관없이 로그인하면 보인다 -->
+    <StudioListingTemplates v-if="loggedIn" ref="listingRef" />
+
     <StudioLoginNeeded v-if="!loggedIn" title="배송비·반품비를 한 번만 맞춰 두세요" desc="로그인하고 판매처를 연결하면 보낼 때마다 고르기만 하면 되는 배송·반품 묶음을 만들 수 있어요." />
     <p v-else-if="loadError" class="text-[14px] break-keep" :class="loadSoft ? 'st-muted' : 'font-bold st-danger-text'" data-mk-shipping-error>{{ loadError }}</p>
     <p v-else-if="connected === null" class="st-desc">불러오는 중…</p>
@@ -23,6 +26,7 @@
 import { ref, computed, nextTick, onMounted, onUnmounted } from 'vue'
 import StudioShippingTemplates from '@/components/studio/StudioShippingTemplates.vue'
 import StudioLoginNeeded from '@/components/studio/StudioLoginNeeded.vue'
+import StudioListingTemplates from '@/components/studio/StudioListingTemplates.vue'
 import { getMarketplaceStatus, isNotReady } from '@/lib/studioMarketplace'
 import { currentUser } from '@/lib/auth'
 
@@ -32,9 +36,11 @@ const connected = ref(null) // null = 아직 모름
 const loadError = ref('')
 const loadSoft = ref(false)
 const templatesRef = ref(null)
+const listingRef = ref(null)
 
 async function load() {
   loadError.value = ''
+  nextTick(() => listingRef.value?.load()) // 등록 템플릿 — 쿠팡 상태 조회와 따로 (실패해도 서로 막지 않는다)
   try {
     const st = await getMarketplaceStatus()
     connected.value = st.connected === true
@@ -55,6 +61,7 @@ const onStudioAuthChanged = (e) => {
     connected.value = null
     loadError.value = ''
     templatesRef.value?.clear()
+    listingRef.value?.clear()
   } else {
     load()
   }

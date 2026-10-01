@@ -1971,6 +1971,56 @@ function elevenstRelay(u, method, opts) {
       [true, 0, '재고 수량은 1개 이상 입력하세요. (11번가는 재고 0으로 등록할 수 없습니다)', '판매가는 10원 단위로 입력하세요. (10억 원 미만)', '11번가에 보낼 수 없는 글자가 있습니다: 똠 — 상품명·안내 문구에서 빼고 다시 보내세요.'])
   }
 
+  // 3-1) 조건부 무료(03) · 고시 나머지 항목 (2026-10-01 등록 템플릿)
+  {
+    const c = E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, feeType: '03', fee: 3000, freeOver: 30000 } })
+    const cx = c.ok ? dec(c.buf) : ''
+    const ctags = [...cx.matchAll(/<([A-Za-z0-9]+)>/g)].map(m => m[1])
+    eq('조건부 무료: dlvCstInstBasiCd 03 · dlvCst1 3000 · PrdFrDlvBasiAmt 30000 (dlvCst1 바로 뒤) · 고정 배송비(02)는 PrdFrDlvBasiAmt 없음', [c.ok, E11.xmlTag(cx, 'dlvCstInstBasiCd'), E11.xmlTag(cx, 'dlvCst1'), E11.xmlTag(cx, 'PrdFrDlvBasiAmt'), ctags[ctags.indexOf('dlvCst1') + 1], /PrdFrDlvBasiAmt/.test(dec(E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, feeType: '02', fee: 3000, freeOver: 30000 } }).buf))], [true, '03', '3000', '30000', 'PrdFrDlvBasiAmt', false])
+    const bad = [{ feeType: '03', fee: 3000 }, { feeType: '03', fee: 3000, freeOver: 30005 }, { feeType: '03', freeOver: 30000 }, { feeType: '04', fee: 3000 }].map(d => E11.buildElevenstProduct({ ...IN, delivery: { ...IN.delivery, ...d } }))
+    eq('조건부 무료 검사: 기준 금액 없음·10원 단위 아님 → 거절 · 기본 배송비 없음 → 거절 · 모르는 종류 → 거절 (합니다체)', [bad.map(r => r.ok), bad.map(r => r.message), bad.filter(r => talk.test(r.message)).length], [[false, false, false, false], ['무료배송 기준 금액을 10원 단위로 입력하세요.', '무료배송 기준 금액을 10원 단위로 입력하세요.', '기본 배송비를 10원 단위로 입력하세요.', '배송비 종류를 선택하세요.'], 0])
+    const ni = E11.buildElevenstProduct({ ...IN, notice: { ...IN.notice, items: { 11800: '머그컵 MG-1', 99999: '다른 유형 항목' } } })
+    eq('고시 나머지 항목: 판매자 값이 있으면 그 값 · 그 유형이 아닌 코드는 안 씀 · 50자 넘으면 거절', [E11.xmlBlocks(dec(ni.buf), 'item').map(b => `${E11.xmlTag(b, 'code')}:${E11.xmlTag(b, 'name')}`), E11.buildElevenstProduct({ ...IN, notice: { ...IN.notice, items: { 11800: '가'.repeat(51) } } }).ok],
+      [['11800:머그컵 MG-1', '11905:이유씨', '23760413:010-1234-5678', '23759100:중국', '23756033:상세페이지 참조'], false])
+  }
+
+  // 3-2) 등록 템플릿 — 마켓 공용 값(api/_listingTemplates.js) ↔ 11번가 칸(api/_elevenstFields.js)
+  {
+    const L = await import('../api/_listingTemplates.js')
+    const P = { origin: { type: 'overseas', place: '베트남' }, maker: ' (주)이유씨 ', country: '베트남', brand: '', asContact: '02-000-0000', asGuide: 'A/S', returnGuide: '반품',
+      kc: { living: { choice: 'cert', certType: '[전기용품] 안전인증', certNo: 'HU-1' }, kids: { choice: 'none' }, radio: { choice: 'none' }, chemical: { choice: 'cert', certType: '[생활화학 및 살생물제품] 자가검사번호', certNo: 'CB-9' } },
+      notice: { type: '의류', items: { 색상: '블랙', 치수: 'FREE', '제조자/수입자': '무시됨' } } }
+    const form = F.elevenstFormFromProduct(L.normalizeProductData(P))
+    eq('상품정보 템플릿 → 11번가 칸: 원산지 이름 → 코드(베트남 1265) · 전화 → phone · KC 뜻 키 → 그룹 코드 · 인증유형 이름 → 코드 · 고시 이름 → 891011 + 나머지 항목 코드 · 빈 브랜드는 안 덮음', [
+      form.originKind, form.originCode, form.maker, form.phone, form.asDetail, form.rtngExchDetail, form.kc, form.kcCerts['01'], form.kcCerts['04'], form.noticeType, form.noticeItems, 'brand' in form,
+    ], ['02', '1265', '(주)이유씨', '02-000-0000', 'A/S', '반품', { '01': 'cert', '02': 'none', '03': 'none', '04': 'cert' }, { type: '102', key: 'HU-1' }, { type: '133', key: 'CB-9' }, '891011', { 11835: '블랙', 23760034: 'FREE' }, false])
+    eq('원산지: 11번가 목록에 없는 나라는 코드 빈칸(다른 나라로 바꾸지 않음) · 국내 서울 1009 · 상세설명 참조 03 · KC를 하나도 안 고른 템플릿은 KC를 안 덮음', [
+      F.elevenstFormFromProduct({ origin: { type: 'overseas', place: '네팔' } }).originCode, F.elevenstFormFromProduct({ origin: { type: 'domestic', place: '서울' } }).originCode, F.elevenstFormFromProduct({ origin: { type: 'refer' } }).originKind, 'kc' in F.elevenstFormFromProduct(L.blankProductData()),
+    ], ['', '1009', '03', false])
+    eq('배송 템플릿 → 11번가 칸: 무료 01 · 고정 02 · 조건부 무료 03 + 기준 금액 · 빈 금액은 안 덮음', [
+      F.elevenstFormFromShipping({ feeType: 'free', fee: 3000, returnFee: 3000 }), F.elevenstFormFromShipping({ feeType: 'fixed', fee: 3000 }), F.elevenstFormFromShipping({ feeType: 'conditional', fee: 3000, freeOver: 50000, jejuFee: 3000 }),
+    ], [{ feeType: '01', fee: null, freeOver: null, returnFee: 3000 }, { feeType: '02', fee: 3000, freeOver: null }, { feeType: '03', fee: 3000, freeOver: 50000, jejuFee: 3000 }])
+    // 칸 → 템플릿 → 칸 되돌리기가 같은 값
+    const f0 = { ...form, brand: '이유홈', maker: '(주)이유씨', country: '베트남' }
+    const back = F.elevenstFormFromProduct(L.normalizeProductData(F.productTemplateFromElevenstForm(f0)))
+    eq('11번가 칸 → 상품정보 템플릿 → 칸: 같은 값 (원산지·KC·인증·고시 항목)', [back.originCode, back.kc, back.kcCerts['04'], back.noticeType, back.noticeItems, back.brand], [f0.originCode, f0.kc, f0.kcCerts['04'], f0.noticeType, f0.noticeItems, '이유홈'])
+    const sf = { feeType: '03', fee: 3000, freeOver: 30000, jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000 }
+    eq('11번가 칸 → 배송 템플릿 (마켓 공용 이름 conditional) → 칸: 같은 값', [F.shippingTemplateFromElevenstForm(sf).feeType, F.elevenstFormFromShipping(F.shippingTemplateFromElevenstForm(sf))], ['conditional', sf])
+    eq('기본 템플릿 고르기: 종류마다 is_default · 없으면 null', [L.pickDefaultTemplate([{ id: 'a', kind: 'product' }, { id: 'b', kind: 'product', is_default: true }, { id: 'c', kind: 'shipping', is_default: true }], 'product').id, L.pickDefaultTemplate([{ id: 'a', kind: 'product' }], 'product'), L.pickDefaultTemplate(null, 'shipping')], ['b', null, null])
+    eq('저장 검사: 이름 필수·50자 · 금액 10원 단위 · 빈 금액은 허용 · 문구 합니다체 · 이름 겹치면 (2)', [
+      L.validateListingTemplate('product', ' ', {}).message, L.validateListingTemplate('shipping', '배송', { feeType: 'conditional', fee: 3000, freeOver: 30005 }).message, L.validateListingTemplate('shipping', '배송', { feeType: 'fixed' }).ok, L.validateListingTemplate('etc', 'x', {}).ok,
+      L.uniqueTemplateName('기본', [{ kind: 'product', name: '기본' }, { kind: 'product', name: '기본 (2)' }], 'product'), L.uniqueTemplateName('기본', [{ kind: 'shipping', name: '기본' }], 'product'),
+    ], ['템플릿 이름을 입력하세요.', '무료 기준 금액: 10원 단위로 입력하세요.', true, false, '기본 (3)', '기본'])
+    const sp = L.sampleTemplate('product')
+    eq('예시 템플릿 "중국산 생활잡화": 해외·중국 · 제조국 중국 · 고시 기타 재화 · KC 비움(판매자 판단) · 금액 비움 → 11번가 칸 변환 가능', [sp.name, sp.data.origin, sp.data.country, sp.data.notice.type, Object.values(sp.data.kc).every(v => !v.choice), L.sampleTemplate('shipping').data.fee, F.elevenstFormFromProduct(sp.data).originCode],
+      ['중국산 생활잡화', { type: 'overseas', place: '중국' }, '중국', '기타 재화', true, null, '1287'])
+    const shown = t => t.slice(t.indexOf('<template>'), t.lastIndexOf('</template>')).replace(/<!--[\s\S]*?-->/g, '').replace(/<[^>]+>/g, ' ')
+    const screens = ['src/components/studio/StudioListingTemplates.vue', 'src/components/studio/StudioListingTemplateForm.vue']
+    eq('관리 화면 문구 합니다체(대화체 없음) · 내부 용어 없음 · 로그아웃 때 비움(clear) · 기본 설정 탭에 붙음', [screens.filter(p => talk.test(shown(read(p))) || /관리자|서버|SQL/.test(shown(read(p)))), /listingRef\.value\?\.clear\(\)/.test(read('src/views/studio/StudioShippingView.vue')), /<StudioListingTemplates v-if="loggedIn"/.test(read('src/views/studio/StudioShippingView.vue'))], [[], true, true])
+    const sql = read('docs/sql/2026-10-01-marketplace-listing-templates.sql')
+    eq('SQL: 새 표 + RLS + 본인 행 정책 4개 + authenticated GRANT · anon 없음 · 기본 1개 인덱스 · 기존 쿠팡 표 안 건드림', [/create table public\.marketplace_listing_templates/.test(sql), /enable row level security/.test(sql), (sql.match(/create policy/g) || []).length, /grant select, insert, delete on table public\.marketplace_listing_templates to authenticated/.test(sql), /grant [^;]*to anon/.test(sql), /where is_default/.test(sql), /alter table public\.marketplace_templates|drop table if exists public\.marketplace_templates/.test(sql)], [true, true, 4, true, false, true, false])
+  }
+
   // 4) handler — 가짜 Supabase + 가짜 중계(/11st) + 가짜 카테고리
   const PID11 = 'aaaaaaaa-1111-4111-8111-111111111111', EID11 = 'bbbbbbbb-2222-4222-8222-222222222222', IMG11 = 'cccccccc-3333-4333-8333-333333333333'
   const folder11 = `${UID}/${PID11}/exports/20261001-150000-st01`
@@ -2035,6 +2085,13 @@ function elevenstRelay(u, method, opts) {
   eq('마지막에 보낸 주소 기억(출고지 12 · 반품지 22 — 목록 첫째가 아님) · 새 DB 칸 없음(보내기 기록에서)', [ad2.body.last, ad2.body.defaults], [{ out: '12', in: '22' }, { out: '12', in: '22' }])
   const listed = (await post('sends_list')).body.sends.find(s => s.id === rec.id)
   eq('보낸 상품 목록: 11번가 줄 · 상품명 · 카테고리', [listed?.market, listed?.status, listed?.productName, listed?.categoryName], ['11st', 'registered', '매일 쓰는 머그', '주방용품>컵>머그컵'])
+  {
+    // 등록 템플릿 (2026-10-01): 화면이 보낸 조건부 무료·고시 나머지 항목이 서버(elevenstInput)를 거쳐 XML까지 (가짜 중계 — 실제 11번가 호출 없음)
+    relay.calls = []
+    const cond = await post('elevenst_send', { ...UI11, delivery: { ...UI11.delivery, feeType: '03', fee: '3000', freeOver: 30000 }, notice: { ...UI11.notice, items: { 11800: '머그컵 MG-1', bad: 'x', 23756033: 5 } } })
+    const cx = dec(relay.calls.find(c => c.path.endsWith('/rest/prodservices/product'))?.raw || Buffer.alloc(0))
+    eq('서버 경유 조건부 무료: 03 · dlvCst1 3000 · PrdFrDlvBasiAmt 30000 · 고시 품명 항목 = 판매자 값(글자가 아닌 값·이상한 코드는 버림)', [cond.statusCode, E11.xmlTag(cx, 'dlvCstInstBasiCd'), E11.xmlTag(cx, 'dlvCst1'), E11.xmlTag(cx, 'PrdFrDlvBasiAmt'), E11.xmlBlocks(cx, 'item').map(b => E11.xmlTag(b, 'name'))[0], E11.xmlBlocks(cx, 'item').map(b => E11.xmlTag(b, 'name'))[4]], [200, '03', '3000', '30000', '머그컵 MG-1', '상세페이지 참조'])
+  }
 
   // 실패
   st11.mode = 'reject'

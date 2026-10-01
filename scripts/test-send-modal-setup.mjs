@@ -17,14 +17,20 @@ function eq(name, got, want) {
 }
 
 const API_STUB = '\0studio-marketplace-stub'
+const LT_STUB = '\0studio-listing-templates-stub' // 등록 템플릿(DB) — 목록은 sendCache로 넣는다
 const stubPlugin = {
   name: 'send-modal-test',
   enforce: 'pre',
   resolveId(id) {
     if (id === '@/lib/studioMarketplace') return API_STUB
+    if (id === '@/lib/studioListingTemplates') return LT_STUB
     return null
   },
   load(id) {
+    if (id === LT_STUB) return `
+      const never = () => Promise.reject(new Error('테스트에서는 DB를 부르지 않는다'))
+      export const listListingTemplates = never, createListingTemplate = never, updateListingTemplate = never, setDefaultListingTemplate = never, deleteListingTemplate = never
+      export const isListingSchemaMissing = () => false`
     if (id === API_STUB) return `
       const never = () => Promise.reject(new Error('테스트에서는 서버를 부르지 않는다'))
       export const predictCategory = never, searchBrand = never, getCategoryMeta = never, sendProduct = never, makeSquareJpeg = never, fileToBase64 = never
@@ -260,6 +266,36 @@ if (built?.Elevenst) {
   const c = await render11(cache11({ out: null, in: null }))
   built.userRole.value = 'user'
   eq('11번가 섹션(관리자·스태프): 테스트 판매중지 칸 보임', [c.error, /data-mk-11st-teststop/.test(c.html)], [null, true])
+
+  // ── 등록 템플릿 (2026-10-01) — 기본 템플릿 자동 선택 · 고르면 칸이 채워짐 · 조건부 무료 ──
+  const val11 = (html, attr) => (new RegExp('<input[^>]*' + attr + '[^>]*>').exec(html)?.[0].match(/ value="([^"]*)"/)?.[1]) ?? ''
+  const chk11 = (html, attr) => new RegExp('<input[^>]*' + attr + '[^>]*checked|<input[^>]*checked[^>]*' + attr).test(html)
+  eq('등록 템플릿: 목록이 없으면(표 없음 — SQL 전) 템플릿 칸을 그리지 않음', /data-mk-11st-templates/.test(a.html), false)
+  const P1 = { id: 'p1', kind: 'product', name: '중국산 생활잡화', is_default: true, data: {
+    origin: { type: 'overseas', place: '베트남' }, maker: '(주)이유씨 수입', country: '베트남', brand: '이유홈', asContact: '고객센터 02-000-0000', asGuide: 'A/S 안내 문구', returnGuide: '반품 안내 문구',
+    kc: { living: { choice: 'cert', certType: '[생활용품] 안전확인', certNo: 'CB-1' }, kids: { choice: 'none' }, radio: { choice: 'none' }, chemical: { choice: 'none' } },
+    notice: { type: '기타 재화', items: { '품명 및 모델명': '머그컵 MG-1' } } } }
+  const P2 = { id: 'p2', kind: 'product', name: '국내 상품', is_default: false, data: { origin: { type: 'domestic', place: '서울' } } }
+  const S1 = { id: 's1', kind: 'shipping', name: '조건부 무료', is_default: true, data: { feeType: 'conditional', fee: 3000, freeOver: 30000, jejuFee: 3000, islandFee: 5000, returnFee: 3000, exchangeFee: 6000 } }
+  const S2 = { id: 's2', kind: 'shipping', name: '무료', is_default: false, data: { feeType: 'free', returnFee: 4000 } }
+  const ltCache = list => ({ ...cache11({ out: null, in: null }), listingTemplatesDone: { ready: true, templates: list } })
+  const t1 = await render11(ltCache([P2, P1, S2, S1]))
+  eq('등록 템플릿: 기본 템플릿(상품정보 p1·배송 s1)이 자동 선택됨', [t1.error, /data-mk-11st-templates/.test(t1.html), sel11(t1.html, 'data-mk-11st-lt="product"', 'p1'), sel11(t1.html, 'data-mk-11st-lt="shipping"', 's1')], [null, true, true, true])
+  eq('등록 템플릿 적용: 브랜드·제조자·제조국·전화·A/S·반품 안내 · 원산지 해외 베트남(1265) · KC 01 인증대상 103 + 번호 · 고시 기타 재화 + 품명 항목', [
+    val11(t1.html, 'data-mk-11st-brand'), val11(t1.html, 'data-mk-11st-maker'), val11(t1.html, 'data-mk-11st-country'), val11(t1.html, 'data-mk-11st-phone'), val11(t1.html, 'data-mk-11st-as'), val11(t1.html, 'data-mk-11st-rtng'),
+    sel11(t1.html, 'data-mk-11st-origin-kind', '02'), sel11(t1.html, 'data-mk-11st-origin-code', '1265'),
+    sel11(t1.html, 'data-mk-11st-kc-group="01"', 'cert'), sel11(t1.html, 'data-mk-11st-kc-type="01"', '103'), val11(t1.html, 'data-mk-11st-kc-key="01"'), sel11(t1.html, 'data-mk-11st-kc-group="04"', 'none'),
+    sel11(t1.html, 'data-mk-11st-notice-type', '891045'), val11(t1.html, 'data-mk-11st-notice-item="11800"'),
+  ], ['이유홈', '(주)이유씨 수입', '베트남', '고객센터 02-000-0000', 'A/S 안내 문구', '반품 안내 문구', true, true, true, true, 'CB-1', true, true, '머그컵 MG-1'])
+  eq('등록 템플릿 적용: 배송비 조건부 무료(03) · 기본 3,000 · 30,000원 이상 무료 · 제주·도서산간·반품·교환 · 요약 표', [
+    chk11(t1.html, 'data-mk-11st-fee-cond'), val11(t1.html, 'data-mk-11st-base-fee'), val11(t1.html, 'data-mk-11st-free-over'), val11(t1.html, 'data-mk-11st-jeju'), val11(t1.html, 'data-mk-11st-island'), val11(t1.html, 'data-mk-11st-return-fee'), val11(t1.html, 'data-mk-11st-exchange-fee'),
+    /data-mk-11st-preview-row="배송비"[\s\S]{0,200}3,000원 · 30,000원 이상 무료/.test(t1.html),
+  ], [true, '3000', '30000', '3000', '5000', '3000', '6000', true])
+  eq('등록 템플릿: 출고지·반품지는 템플릿과 상관없이 주소록 첫째(마지막 사용 기억 규칙 그대로)', [sel11(t1.html, 'data-mk-11st-out', '11'), sel11(t1.html, 'data-mk-11st-in', '21')], [true, true])
+  const t2 = await render11(ltCache([P2, S2]))
+  eq('기본 템플릿이 없으면 아무것도 고르지 않음 · 칸은 처음 값(중국·무료·금액 빈칸)', [t2.error, sel11(t2.html, 'data-mk-11st-lt="product"', ''), sel11(t2.html, 'data-mk-11st-lt="shipping"', ''), sel11(t2.html, 'data-mk-11st-origin-code', '1287'), chk11(t2.html, 'data-mk-11st-fee-free'), val11(t2.html, 'data-mk-11st-return-fee')], [null, true, true, true, true, ''])
+  const t3 = await render11(ltCache([]))
+  eq('템플릿이 하나도 없으면 [기본 설정] 안내 한 줄 · 저장 버튼 2개(상품정보·배송)', [/data-mk-11st-lt-empty/.test(t3.html), (t3.html.match(/data-mk-11st-lt-save="/g) || []).length], [true, 2])
 }
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }

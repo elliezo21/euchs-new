@@ -44,7 +44,7 @@
  *   smartstore_addresses  → { addresses:[{ id, name, type, address, phone, overseas }], last:{ shipping, return }, defaults:{ shipping, return } }  (판매자 주소록 · last = 마지막 등록 성공 때 주소)
  *   elevenst_categories → { categories:[{ id, name, wholeName }] } (최하위만 — 11번가 공개 조회)
  *   elevenst_addresses  → { outAddresses, inAddresses:[{ id, name, address, phone }], last:{ out, in }, defaults:{ out, in } } (판매자 주소록 — 읽기만)
- *   elevenst_send       { exportId, productName, brand?, categoryId, categoryName?, price, stock, repImageId, fit?, vat, minorOk?, origin, kc, kcCerts?, delivery, asDetail, rtngExchDetail, notice, testStop?(관리자만) } → { sendId, productNo, status:'registered', stopped }
+ *   elevenst_send       { exportId, productName, brand?, categoryId, categoryName?, price, stock, repImageId, fit?, vat, minorOk?, origin, kc, kcCerts?, delivery(feeType 01·02·03 조건부 무료 + freeOver), asDetail, rtngExchDetail, notice(+ items), testStop?(관리자만) } → { sendId, productNo, status:'registered', stopped }
  *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery(+ shippingOverseas), afterService, origin, notice, customsTaxType?(해외 출고지면 필수) }
  *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
@@ -67,7 +67,7 @@ import {
   verifyElevenstKey, ElevenstError, elevenstCall, ELEVENST_PATHS, ELEVENST_CATEGORY_URL, decodeXmlBytes, normalizeElevenstCategories, normalizeElevenstAddresses,
   translateElevenstApi, buildElevenstProduct, elevenstDetailImageUrls, parseClientMessage, lastElevenstAddresses,
 } from './_elevenst.js'
-import { pickElevenstAddress, ELEVENST_SEND_PUBLIC } from './_elevenstFields.js'
+import { pickElevenstAddress, ELEVENST_SEND_PUBLIC, feeHasBase } from './_elevenstFields.js'
 import {
   smartstoreToken, SmartstoreError, smartstoreApi, SS_PATHS, buildSmartstoreProduct, normalizeSsCategories, normalizeAddressBooks, defaultAddress, uploadedImageUrls, productNosOf,
   imageMime, planUploads, buildImageMultipart, UPLOAD_IMAGE_MAX, DETAIL_IMAGE_MAX, DISPLAY_STATUSES,
@@ -893,8 +893,10 @@ function elevenstInput(body) {
     productName: body.productName, brand: body.brand, categoryId: body.categoryId, price: num(body.price), stock: num(body.stock), vat: body.vat,
     minorOk: body.minorOk !== false, kc: body.kc && typeof body.kc === 'object' ? body.kc : {}, kcCerts: body.kcCerts && typeof body.kcCerts === 'object' ? body.kcCerts : {},
     origin: body.origin && typeof body.origin === 'object' ? { kind: body.origin.kind, code: body.origin.code } : {},
-    delivery: { feeType: d.feeType, fee: d.feeType === '02' ? num(d.fee) : undefined, jejuFee: num(d.jejuFee), islandFee: num(d.islandFee), returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), outAddr: d.outAddr, inAddr: d.inAddr, sendCloseTmplt: d.sendCloseTmplt },
-    asDetail: body.asDetail, rtngExchDetail: body.rtngExchDetail, notice: { type: n.type, maker: n.maker, country: n.country, phone: n.phone },
+    delivery: { feeType: d.feeType, fee: feeHasBase(d.feeType) ? num(d.fee) : undefined, freeOver: d.feeType === '03' ? num(d.freeOver) : undefined, jejuFee: num(d.jejuFee), islandFee: num(d.islandFee), returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), outAddr: d.outAddr, inAddr: d.inAddr, sendCloseTmplt: d.sendCloseTmplt },
+    asDetail: body.asDetail, rtngExchDetail: body.rtngExchDetail,
+    // 고시 나머지 항목 { 항목 코드: 값 } — 글자만 받는다 (그 유형의 항목이 아닌 코드는 noticeItemsFor가 쓰지 않는다)
+    notice: { type: n.type, maker: n.maker, country: n.country, phone: n.phone, items: n.items && typeof n.items === 'object' && !Array.isArray(n.items) ? Object.fromEntries(Object.entries(n.items).slice(0, 40).filter(([k, v]) => /^\d{1,12}$/.test(k) && typeof v === 'string').map(([k, v]) => [k, v.slice(0, 200)])) : {} },
   }
 }
 async function elevenstSend(ctx, body, res) {
