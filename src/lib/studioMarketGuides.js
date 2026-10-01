@@ -61,18 +61,51 @@ export function photoIndexForStep(market, step) {
 
 /**
  * 스마트스토어 — 고객이 네이버 커머스API센터에서 "내 스토어 애플리케이션"을 직접 만들고 ID·시크릿을 넣는다 (2026-09-30 S3-2)
- * 확인한 메뉴: "커머스API센터 > 내 스토어 애플리케이션", 애플리케이션 [수정]에서 IP 추가·IPv4 최대 3개 (공식 저장소 답변 #2291)
+ * 2026-10-01 해성이 실제로 앱을 만들고 연결한 화면 기준으로 다시 씀 — 캡처 = public/studio-guide/smartstore/01~09.png
+ * (개인정보 가림 처리된 원본 docs/guide-assets/smartstore). 연결 창(StudioSmartstoreGuide)이 단계별 캡처 + 한 줄로 보여 준다.
+ * text = 한 줄(명사형), strong = text 안에서 굵게 할 부분, imgs = 캡처 번호, warn·note = 한 줄 덧붙임(합니다체), copies = 복사 버튼
  */
-export const SMARTSTORE_GUIDE = [
-  '네이버 커머스API센터에 스마트스토어 판매자 계정으로 로그인하세요.',
-  '내 스토어 애플리케이션 메뉴로 들어가세요.',
-  `새 애플리케이션을 등록하세요. ${MENU_CHECK}`,
-  `API 호출 IP 칸에 ${RELAY_IP}를 넣고 저장하세요. 이미 만든 애플리케이션이면 [수정]에서 IP를 더하세요. ${MENU_CHECK}`,
-  `애플리케이션을 등록할 때 API 그룹을 전부 선택하세요. 하나라도 빠지면 상품을 보낼 수 없습니다. ${MENU_CHECK}`, // S3-3 — IP 입력 다음
-  `애플리케이션 ID와 애플리케이션 시크릿을 복사하세요. ${MENU_CHECK}`,
-  '아래 칸에 두 값을 붙여넣으세요.',
-  '[연결 확인]을 누르면 연결이 완료됩니다.',
+export const SMARTSTORE_API_CENTER_URL = 'https://apicenter.commerce.naver.com/ko/basic/main'
+export const SMARTSTORE_APP_NAME = 'EUCHS 스튜디오'
+export const SMARTSTORE_APP_DESC = '상세페이지 제작 후 내 스토어 상품 등록'
+export const SMARTSTORE_API_GROUPS = ['상품/N배송', '판매자정보']
+const ssImg = n => `/studio-guide/smartstore/0${n}.png`
+export const SMARTSTORE_STEPS = [
+  {
+    text: '커머스API센터 접속 → 스마트스토어 대표(통합매니저) 계정으로 로그인', strong: '대표(통합매니저) 계정으로 로그인', link: true, imgs: [ssImg(1)],
+    note: '처음 로그인하면 "개발업체계정 권한" 안내창이 뜹니다. 통합매니저 권한이 있는 계정이어야 다음 단계를 진행할 수 있습니다.',
+  },
+  {
+    text: '처음이면 [계정생성] → 계정명 입력 → 약관 동의 → [가입하기]', imgs: [ssImg(2), ssImg(3)],
+    note: '이미 개발업체 계정이 있으면 이 단계는 건너뜁니다.',
+  },
+  {
+    text: '[애플리케이션 등록] → 이름·설명 입력', imgs: [ssImg(4), ssImg(5)],
+    note: '회원 홈의 애플리케이션 등록에서 [등록하기]를 누르면 입력 화면이 열립니다.',
+    copies: [{ label: '이름', value: SMARTSTORE_APP_NAME }, { label: '설명', value: SMARTSTORE_APP_DESC }],
+  },
+  {
+    text: `API 호출 IP ${RELAY_IP} 입력 후 반드시 [추가] (목록에 들어가야 함)`, strong: '입력 후 반드시 [추가]', imgs: [ssImg(5), ssImg(7)],
+    warn: `입력만 하고 넘어가면 IP가 등록되지 않습니다. [추가]를 누르면 아래 목록에 ${RELAY_IP}가 들어가고 (1/3)으로 바뀝니다.`,
+    note: '이미 만든 애플리케이션이면 애플리케이션 상세의 [수정]에서 IP를 추가합니다.',
+    copies: [{ label: 'IP', value: RELAY_IP }],
+  },
+  {
+    text: `API 그룹 ${SMARTSTORE_API_GROUPS.map(g => `"${g}"`).join(', ')} [추가]`, imgs: [ssImg(6), ssImg(7)],
+    note: '두 그룹이 "내 API 그룹"에 들어가면 됩니다.',
+  },
+  {
+    text: '인증 토큰 표준 스펙 확인 체크 → [등록]', imgs: [ssImg(8)],
+    note: '등록 완료 안내가 뜨면 [확인]을 누릅니다.',
+  },
+  {
+    text: '애플리케이션 ID 복사, 시크릿 [보기] → [복사]', imgs: [ssImg(9)],
+    note: '시크릿은 [보기]를 눌러야 [복사]가 켜집니다.',
+  },
+  { text: '아래 칸에 붙여넣기 → [연결 확인]', imgs: [] },
 ]
+/** 단계 한 줄만 (예전 문자열 목록과 같은 모양) */
+export const SMARTSTORE_GUIDE = SMARTSTORE_STEPS.map(s => s.text)
 
 /**
  * 카페24 — 우리 앱 "EUCHS 스튜디오" 방식 (2026-09-30): 고객은 쇼핑몰 ID만 넣고 카페24 화면에서 동의한다 (앱 만들기·Client ID 입력 없음)

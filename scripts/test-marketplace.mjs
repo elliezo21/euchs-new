@@ -818,8 +818,9 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
     }
     eq('11번가 키 입력 검사', [R.elevenstKeyProblems({ sellerId: 'seller', apiKey: 'abcd1234efgh' }), R.elevenstKeyProblems({ sellerId: '', apiKey: 'short' }), R.elevenstKeyProblems({ sellerId: 'a', apiKey: 'has space 123' })], [[], ['11번가 셀러 ID', 'API 키'], ['API 키']])
     // 2026-09-30 합니다체: 단계 끝 = "~하세요."(명령형) 또는 "~니다."(설명) — 예전 "~요."(대화체) 규칙에서 바꿈
-    eq('가이드: 단계 5~8개 · 짧은 명령형·합니다체(끝이 "세요." 또는 "니다.") · IP = 중계 IP · 연결 신청 가이드 없음', [G.ELEVENST_GUIDE.length, G.SMARTSTORE_GUIDE.length, G.CAFE24_GUIDE.length, [...G.ELEVENST_GUIDE, ...G.SMARTSTORE_GUIDE, ...G.CAFE24_GUIDE].every(s => /(세요|니다)\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112')), 'requestGuide' in G], [8, 8, 5, true, true, true, false])
-    eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘 (11번가는 실제 화면으로 확인 → 표시 없음 · 카페24는 우리 앱 방식이라 메뉴 안내 없음)', G.menuChecks().map(x => x.market), ['smartstore', 'smartstore', 'smartstore', 'smartstore'])
+    // 스마트스토어 단계 한 줄은 명사형(2026-10-01 실제 화면 기준) — 덧붙임(warn·note)이 합니다체
+    eq('가이드: 단계 5~8개 · 짧은 명령형·합니다체(끝이 "세요." 또는 "니다.") · IP = 중계 IP · 연결 신청 가이드 없음', [G.ELEVENST_GUIDE.length, G.SMARTSTORE_GUIDE.length, G.CAFE24_GUIDE.length, [...G.ELEVENST_GUIDE, ...G.CAFE24_GUIDE, ...G.SMARTSTORE_STEPS.flatMap(s => [s.warn, s.note].filter(Boolean))].every(s => /(세요|니다)\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.RELAY_IP === C.RELAY_IP, G.ELEVENST_GUIDE.some(s => s.includes('3.39.196.112')), 'requestGuide' in G], [8, 8, 5, true, true, true, false])
+    eq('가이드: 메뉴 이름을 모르는 곳은 표시 · 목록으로 뽑힘 (11번가·스마트스토어는 실제 화면으로 확인 → 표시 없음 · 카페24는 우리 앱 방식이라 메뉴 안내 없음)', G.menuChecks().map(x => x.market), [])
     eq('카페24 가이드 = 우리 앱 방식 (쇼핑몰 ID → 대표 운영자 로그인 → 권한 동의 → "연결됨") · 다른 방법 한 줄 · 옛 개발자센터·Client ID 안내 없음', [G.CAFE24_GUIDE, G.CAFE24_GUIDE_ALT, /개발자센터|Client ID|Client Secret|Redirect URI/.test(G.CAFE24_GUIDE.join(' ') + G.CAFE24_GUIDE_ALT), /v-for="\(s, i\) in CAFE24_GUIDE"/.test(read('src/components/studio/StudioCafe24Card.vue'))],
       [['[연결하기]를 누르고 카페24 쇼핑몰 ID를 넣으세요.', '주소가 myshop.cafe24.com이면 쇼핑몰 ID는 myshop입니다.', '카페24 화면이 열리면 쇼핑몰 대표 운영자 계정으로 로그인하세요.', '상품 읽기·쓰기, 상품분류 읽기 권한에 동의하세요.', '스튜디오로 돌아와 "연결됨"이 표시되면 연결이 완료됩니다.'], '다른 방법: 카페24 쇼핑몰 관리자에서 EUCHS 스튜디오 앱을 열면 쇼핑몰 ID 없이 바로 연결됩니다.', false, true])
     // 사진 가이드 (2026-09-30) — 판매처별 목록 한 곳 · 파일이 실제로 있고 가벼움 · 단계와 짝
@@ -883,7 +884,20 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
       eq('서버: 스마트스토어 = 같은 표·같은 암호화(ID·시크릿 둘 다) · 상태 응답에 ID 끝 4자리만', [/market: SMARTSTORE, seller_login_id: '내 스토어 애플리케이션', vendor_id: null,\s*access_key_enc: encryptSecret\(id, encKey\), secret_key_enc: encryptSecret\(secret, encKey\)/.test(api), /smartstore: s \? \{ connected: true, account: \{ key_last4: s\.key_last4, status: s\.status/.test(api), ['connect_smartstore', 'disconnect_smartstore'].every(a => api.includes(`body.action === '${a}'`))], [true, true, true])
       eq('SQL: market 체크에 smartstore·cafe24 · 스마트스토어는 시크릿 필수', [/check \(market in \('coupang', '11st', 'smartstore', 'cafe24'\)\)/.test(sql), /check \(market <> 'smartstore' or secret_key_enc is not null\)/.test(sql)], [true, true])
       eq('스마트스토어 입력 검사 (시크릿 = bcrypt salt 모양)', [R.smartstoreKeyProblems({ clientId: 'abcd1234', clientSecret: SALT }), R.smartstoreKeyProblems({ clientId: '', clientSecret: 'plain-secret' })], [[], ['애플리케이션 ID', '애플리케이션 시크릿']])
-      eq('가이드: 8단계 · 중계 IP · 확인한 메뉴 "내 스토어 애플리케이션" · IP 다음에 API 그룹 전부 선택(S3-3)', [G.SMARTSTORE_GUIDE.length, G.SMARTSTORE_GUIDE.some(s => s.includes('3.39.196.112')), G.SMARTSTORE_GUIDE.every(s => /(세요|니다)\.( \(메뉴 이름 확인 필요\))?$/.test(s)), G.SMARTSTORE_GUIDE[1], G.SMARTSTORE_GUIDE.findIndex(s => /API 그룹을 전부 선택/.test(s)) === G.SMARTSTORE_GUIDE.findIndex(s => s.includes('3.39.196.112')) + 1], [8, true, true, '내 스토어 애플리케이션 메뉴로 들어가세요.', true])
+      {
+        // 2026-10-01 실제 화면 기준 다시 씀 — 캡처 9장(public/studio-guide/smartstore) · "확인 필요" 없음 · API 그룹 2개(전부 선택 아님)
+        const St = G.SMARTSTORE_STEPS, all = St.flatMap(s => [s.text, s.warn, s.note, ...(s.copies || []).map(c => c.value)]).filter(Boolean).join('\n')
+        const imgs = [...new Set(St.flatMap(s => s.imgs))].sort()
+        const ssGuide = read('src/components/studio/StudioSmartstoreGuide.vue')
+        eq('스마트스토어 가이드: 8단계 · 캡처 01~09 모두 쓰고 파일 있음(300KB 이하) · 마지막 단계만 캡처 없음', [St.length, imgs, imgs.every(p => { try { const n = fs.statSync(new URL(`../public${p}`, import.meta.url)).size; return n > 0 && n <= 300 * 1024 } catch { return false } }), St.map(s => s.imgs.length > 0)],
+          [8, [1, 2, 3, 4, 5, 6, 7, 8, 9].map(n => `/studio-guide/smartstore/0${n}.png`), true, [true, true, true, true, true, true, true, false]])
+        eq('스마트스토어 가이드: 확인 필요 표시 없음 · "전부 선택" 없음 · 그룹 = 상품/N배송·판매자정보 · IP 단계 = 반드시 [추가] 굵게 + 경고 · 로그인 단계 = 대표 계정 굵게 + 센터 주소',
+          [all.includes(G.MENU_CHECK), /전부 선택/.test(all), St[4].text, St[3].text.includes(St[3].strong), St[3].strong, !!St[3].warn, St[0].strong, St[0].link, G.SMARTSTORE_API_CENTER_URL],
+          [false, false, 'API 그룹 "상품/N배송", "판매자정보" [추가]', true, '입력 후 반드시 [추가]', true, '대표(통합매니저) 계정으로 로그인', true, 'https://apicenter.commerce.naver.com/ko/basic/main'])
+        eq('스마트스토어 가이드: 복사 값 = 이름·설명·IP · SMARTSTORE_GUIDE = 단계 한 줄', [St.flatMap(s => s.copies || []).map(c => [c.label, c.value]), G.SMARTSTORE_GUIDE[3]],
+          [[['이름', 'EUCHS 스튜디오'], ['설명', '상세페이지 제작 후 내 스토어 상품 등록'], ['IP', '3.39.196.112']], 'API 호출 IP 3.39.196.112 입력 후 반드시 [추가] (목록에 들어가야 함)'])
+        eq('연결 창: 단계 안내 컴포넌트 · 복사 버튼 · 크게 보기 · 센터 링크 새 창', [/<StudioSmartstoreGuide \/>/.test(ssCard), /data-mk-ss-copy/.test(ssGuide), /data-mk-ss-zoom[\s>]/.test(ssGuide), /:href="SMARTSTORE_API_CENTER_URL" target="_blank" rel="noopener noreferrer"/.test(ssGuide)], [true, true, true, true])
+      }
       eq('화면: 카드 = 관문 · 시크릿은 password 칸 · ID 끝 4자리만 · 연결 탭에 카드', [/await studioGate\('\/studio\/channels\/connect\?link=smartstore'\)/.test(ssCard), /type="password"[^>]*data-mk-ss-f-secret/.test(ssCard), /•••• \{\{ acc\.key_last4 \}\}/.test(ssCard), /<StudioSmartstoreCard \/>/.test(mkView)], [true, true, true, true])
       eq('보내기 탭: 스마트스토어 연결되면 "연결됨"(보내기 없음)', R.channelRows({ smartstore: { connected: true } }).find(r => r.key === 'smartstore').state, 'linked')
     }
@@ -1422,8 +1436,8 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   const guideVue = read('src/components/studio/StudioMarketplaceGuide.vue')
   const talk = /(어요|예요|해요|돼요|아요|워요|네요|줘요|까요|에요)[.!?]|주세요/
   eq('문구: 연결 탭 카드·확인창·성공/실패·쿠팡 가이드·가이드 단계에 대화체 없음 · 탭 위 한 줄 합니다체', [
-    [mk, ...cards, guideVue].filter(t => talk.test(tpl(t)) || talk.test(strs(t))).length,
-    [...G.ELEVENST_GUIDE, ...Object.values(G.ELEVENST_STEP_NOTES), ...G.SMARTSTORE_GUIDE, ...G.CAFE24_GUIDE, G.CAFE24_GUIDE_ALT].filter(s => talk.test(s)).length,
+    [mk, ...cards, guideVue, read('src/components/studio/StudioSmartstoreGuide.vue')].filter(t => talk.test(tpl(t)) || talk.test(strs(t))).length,
+    [...G.ELEVENST_GUIDE, ...Object.values(G.ELEVENST_STEP_NOTES), ...G.SMARTSTORE_STEPS.flatMap(s => [s.text, s.warn, s.note].filter(Boolean)), ...G.CAFE24_GUIDE, G.CAFE24_GUIDE_ALT].filter(s => talk.test(s)).length,
     mk.includes('완성한 상세페이지를 판매처에 바로 등록할 수 있습니다. 가이드를 참고하여 직접 연결하세요.'),
     mk.includes('쿠팡 Wing에서 발급한 OPEN API 키를 입력하면 상품을 바로 등록할 수 있습니다.'),
   ], [0, 0, true, true])

@@ -28,9 +28,7 @@
     <!-- 연결 창 — 가이드 + 애플리케이션 ID·시크릿 -->
     <StudioModal :open="formOpen" title="스마트스토어 연결" wide @close="formOpen = false">
       <form class="space-y-4" data-mk-ss-form @submit.prevent="submit">
-        <ol class="guide-steps" data-mk-ss-guide>
-          <li v-for="(s, i) in SMARTSTORE_GUIDE" :key="i"><span class="guide-no">{{ i + 1 }}</span><span class="break-keep">{{ s }}</span></li>
-        </ol>
+        <StudioSmartstoreGuide />
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label class="block"><span class="st-label">애플리케이션 ID *</span><input v-model.trim="form.clientId" class="st-input w-full font-mono" maxlength="200" autocomplete="off" data-mk-ss-f-id /></label>
           <label class="block"><span class="st-label">애플리케이션 시크릿 *</span><input v-model.trim="form.clientSecret" type="password" class="st-input w-full font-mono" maxlength="200" autocomplete="new-password" data-mk-ss-f-secret /></label>
@@ -67,7 +65,7 @@ import { currentUser } from '@/lib/auth'
 import { studioGate } from '@/lib/studioGate'
 import { connectSmartstore, disconnectSmartstore, fmtDate, isNotReady } from '@/lib/studioMarketplace'
 import { smartstoreKeyProblems } from '@/lib/studioMarketplaceRules'
-import { SMARTSTORE_GUIDE } from '@/lib/studioMarketGuides'
+import StudioSmartstoreGuide from '@/components/studio/StudioSmartstoreGuide.vue'
 import { marketLinks, applyMarketLinks, marketLinksPhase, loadMarketLinks } from '@/lib/studioMarketLinks'
 import StudioLinkPending from '@/components/studio/StudioLinkPending.vue'
 
@@ -148,9 +146,3 @@ watch(() => [route.query.link, currentUser.value?.id], ([l, uid]) => {
 // 로그아웃 — 열린 창·입력값을 비운다 (상태는 studioMarketLinks가 비운다)
 watch(() => currentUser.value?.id, uid => { if (!uid) { formOpen.value = false; confirmOff.value = false; form.value = { clientId: '', clientSecret: '' }; msg.value = '' } })
 </script>
-
-<style scoped>
-.guide-steps { display: flex; flex-direction: column; gap: 8px; padding: 14px; border-radius: 12px; background: var(--st-soft); }
-.guide-steps li { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; color: var(--st-ink); }
-.guide-no { flex: none; width: 20px; height: 20px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 800; background: var(--st-accent); color: #fff; }
-</style>
