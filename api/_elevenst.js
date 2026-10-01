@@ -13,7 +13,8 @@
  *         인증 오류 <AuthMessage><resultCode>100|200|300</resultCode> (300 = Seller API 미승인)
  *   대표 이미지(prdImage01) = 11번가가 내려받아 600×600으로 저장(문서 — Content-Type이 이미지여야 함, jpg·jpeg·png·webp)
  *   상세(htmlDetail) 안 이미지는 복사 여부가 문서에 없고 이미지 업로드 API도 없다
- *     → 상세 이미지 주소는 elevenstDetailImageUrls 한 곳에서 만든다 (실전 1건 뒤 복사 안 하면 이 함수만 영구 주소로 바꾼다)
+ *     → 2026-10-01 실전 등록에서 11번가가 상세 이미지를 복사하지 않고 우리 주소를 그대로 불러 쓰는 것을 확인
+ *     → 상세 이미지 주소 = 판매용 공개 창고의 영구 주소(api/_marketImages.js publishMarketImages). 주소 고르기는 elevenstDetailImageUrls 한 곳
  */
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
 import {
@@ -213,12 +214,17 @@ export function translateElevenstApi(status, text = '', what = '요청') {
 
 // ── 상세설명 ──
 /**
- * 상세 이미지 주소 — 지금은 다른 판매처와 같은 우리 이미지 주소(토큰 30분, marketplace.js serveImage)를 쓴다.
- * 11번가가 상세 이미지를 복사하지 않으면 실전 1건 뒤 이 함수만 영구 주소 방식으로 바꾼다 (2026-10-01 결정)
+ * 상세 이미지 주소 — 판매용 공개 창고의 영구 주소(publishMarketImages 결과 urls)를 key 순서대로.
+ * 우리 이미지 주소(토큰 30분)는 쓰지 않는다 — 11번가가 상세 이미지를 복사하지 않아 30분 뒤 깨진다 (2026-10-01 실전 확인)
+ * 주소가 없는 key가 있으면 throw (빈 자리를 조용히 빼지 않는다)
  * @param {{ files:{ key }[], urlOf:(key)=>string }} p @returns {string[]}
  */
 export function elevenstDetailImageUrls({ files, urlOf }) {
-  return (Array.isArray(files) ? files : []).filter(f => f && typeof f.key === 'string').map(f => urlOf(f.key))
+  return (Array.isArray(files) ? files : []).filter(f => f && typeof f.key === 'string').map(f => {
+    const u = urlOf(f.key)
+    if (typeof u !== 'string' || !u) throw new Error(`11번가 상세 이미지 ${f.key}번 주소 없음`)
+    return u
+  })
 }
 /** 상세설명 HTML — 이미지만 위에서 아래로 (alt = 상품명 + 번호). 글자·스크립트·외부 링크 없음 */
 export function elevenstDetailHtml(urls, productName) {

@@ -63,6 +63,7 @@ import { extractFacts, factTexts, withKo } from './_studioFacts.js'
 import { resendPlan } from './_coupangFields.js'
 import { extractSkus1688, isSaleMode, DOC_MAX, BRAND_MAX, BRAND_NOT_FOUND, normalizeBrands, pickBrand, detailImagePlans, formFromBody, DETAIL_MAX_BYTES } from './_coupangFields.js'
 import { renderDetailPiece, shrinkBytes, renderSquare } from './_coupangImage.js'
+import { publishMarketImages, MarketImagesError } from './_marketImages.js'
 import {
   verifyElevenstKey, ElevenstError, elevenstCall, ELEVENST_PATHS, ELEVENST_CATEGORY_URL, decodeXmlBytes, normalizeElevenstCategories, normalizeElevenstAddresses,
   translateElevenstApi, buildElevenstProduct, elevenstDetailImageUrls, parseClientMessage, lastElevenstAddresses,
@@ -940,12 +941,21 @@ async function elevenstSend(ctx, body, res) {
   const m = marketConfig()
   const urlOf = key => `${m.publicUrl}/api/marketplace?t=${makeImageToken(encKey, sendId, key)}`
   const files = { rep: repPath, ...Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
-  // ② 등록 본문
-  const built = buildElevenstProduct({ ...input, repUrl: urlOf('rep'), detailUrls: elevenstDetailImageUrls({ files: ex.files, urlOf }) })
-  if (!built.ok) return fail(400, 'invalid_input', built.message)
+  // ② 상세 이미지 → 판매용 공개 창고(영구 주소). 11번가는 상세 HTML 안 이미지를 복사하지 않아 토큰 주소(30분)를 쓰면 깨진다.
+  //    하나라도 실패하면 토큰 주소로 바꾸지 않고 멈춘다
+  let published
+  try { published = await publishMarketImages(ctx.cfg, { sourceBucket: BUCKET, files: ex.files }) } catch (e) {
+    if (!(e instanceof MarketImagesError)) throw e
+    console.error(`[marketplace] 11번가 상세 이미지 공개 창고 복사 실패 send=${sendId}:`, e.message, e.cause?.message ?? '', e.leftover.length ? `남은 경로 ${e.leftover.join(',')}` : '')
+    return fail(500, 'market_images_failed', `상세 이미지를 올리지 못해 보내기를 멈췄습니다. (${e.message}) 잠시 후 다시 시도해 주세요.`, { result_json: { step: 'images', message: e.message, leftover: e.leftover } })
+  }
+  const publicImages = { bucket: published.bucket, folder: published.folder, paths: published.paths }
+  // ③ 등록 본문 — 대표 이미지는 11번가가 내려받아 복사하므로 토큰 주소 그대로
+  const built = buildElevenstProduct({ ...input, repUrl: urlOf('rep'), detailUrls: elevenstDetailImageUrls({ files: ex.files, urlOf: key => published.urls[key] }) })
+  if (!built.ok) return fail(400, 'invalid_input', built.message, { request_json: { files, publicImages } })
   const categoryName = typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : null
-  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: { summary: built.summary, xml: built.xml, files, categoryName } }, prefer: 'return=minimal' })
-  // ③ 등록
+  await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: { summary: built.summary, xml: built.xml, files, categoryName, publicImages } }, prefer: 'return=minimal' })
+  // ④ 등록
   let xml
   try { xml = await elevenstCall(cred, { method: 'POST', path: ELEVENST_PATHS.product, body: built.buf, contentType: 'text/xml', translate: (s, t) => translateElevenstApi(s, t, '등록') }) } catch (e) {
     if (!(e instanceof ElevenstError)) throw e
@@ -962,7 +972,7 @@ async function elevenstSend(ctx, body, res) {
   }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: cm.productNo, status: 'registered', result_json: { productNo: cm.productNo, resultCode: cm.code, message: cm.message } }, prefer: 'return=minimal' })
   console.info(`[marketplace] 11번가 상품 등록 ${ctx.userId} send=${sendId} prdNo=${cm.productNo} code=${cm.code} images=${ex.files.length + 1}`)
-  // ④ 테스트용 판매중지 (관리자·스태프만) — 실패해도 등록은 그대로, 안내만
+  // ⑤ 테스트용 판매중지 (관리자·스태프만) — 실패해도 등록은 그대로, 안내만
   let stopped = false, stopError = ''
   if (testStop) {
     try {

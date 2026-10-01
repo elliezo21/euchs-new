@@ -204,7 +204,8 @@ const PID = '22222222-2222-4222-8222-222222222222'
 const EID = '44444444-4444-4444-8444-444444444444'
 const db = { marketplace_accounts: [], marketplace_places: [], marketplace_templates: [], marketplace_sends: [], studio_exports: [], studio_images: [], studio_projects: [], studio_product_snapshots: [], translation_cache: [] }
 const files = new Map()
-let relay = { mode: 'ok', calls: [] }
+const marketImages = { files: new Map(), copies: [] }
+let relay ={ mode: 'ok', calls: [] }
 let seq = 0
 const newId = () => `${String(++seq).padStart(8, '0')}-aaaa-4aaa-8aaa-aaaaaaaaaaaa`
 const json = (x, status = 200) => new Response(JSON.stringify(x), { status, headers: { 'Content-Type': 'application/json' } })
@@ -259,6 +260,21 @@ globalThis.fetch = async (url, opts = {}) => {
   if (p === '/rest/v1/orders' && globalThis.__asCustomer) return json([{ id: 'order-1' }])
   if (p === '/rest/v1/profiles') return json([])
   if (p.startsWith('/storage/v1/object/sign/')) return json({ signedURL: `/object/sign/${p.slice(24)}?token=t` })
+  // 판매용 공개 창고 (2026-10-01 — api/_marketImages.js): 버킷 간 복사(storage-js copy destinationBucket) · 정리(remove)
+  if (p === '/storage/v1/object/copy' && method === 'POST') {
+    const b = JSON.parse(opts.body)
+    marketImages.copies.push(b)
+    if (b.bucketId !== 'studio' || b.destinationBucket !== 'market-images') return json({ statusCode: '400', error: 'bad', message: 'wrong bucket' }, 400)
+    if (!files.has(b.sourceKey)) return json({ statusCode: '404', error: 'not_found', message: 'Object not found' }, 400)
+    if (marketImages.files.has(b.destinationKey)) return json({ statusCode: '409', error: 'Duplicate', message: 'The resource already exists' }, 400)
+    marketImages.files.set(b.destinationKey, files.get(b.sourceKey))
+    return json({ Key: `market-images/${b.destinationKey}` })
+  }
+  if (p === '/storage/v1/object/market-images' && method === 'DELETE') {
+    const gone = JSON.parse(opts.body).prefixes
+    for (const k of gone) marketImages.files.delete(k)
+    return json(gone.map(name => ({ name })))
+  }
   if (p.startsWith('/storage/v1/object/studio/')) {
     const key = p.slice('/storage/v1/object/studio/'.length)
     if (method === 'POST') { files.set(key, Buffer.from(opts.body)); return json({ Key: key }) }
@@ -2096,6 +2112,32 @@ function elevenstRelay(u, method, opts) {
   const sentXml = prod ? dec(prod.raw) : ''
   eq('보내기 성공: 200 registered · 상품번호 · 관리자 테스트 판매중지 = PUT stopdisplay/{상품번호}', [ok.statusCode, ok.body.status, ok.body.productNo, ok.body.stopped, relay.calls.map(c => `${c.method} ${c.path}`)], [200, 'registered', '3456789012', true, ['POST /11st/rest/prodservices/product', 'PUT /11st/rest/prodstatservice/stat/stopdisplay/3456789012']])
   eq('보낸 본문: Content-Type text/xml · EUC-KR 바이트 = buildElevenstProduct 결과 · 대표 이미지 = 우리 이미지 주소(토큰) · 상세 = 내 상품 2장', [prod.headers['Content-Type'], sentXml === rec.request_json.xml, /^https:\/\/www\.euchs\.co\.kr\/api\/marketplace\?t=/.test(E11.xmlTag(sentXml, 'prdImage01')), (E11.xmlTag(sentXml, 'htmlDetail').match(/<img /g) || []).length, E11.xmlTag(sentXml, 'addrSeqOut'), E11.xmlTag(sentXml, 'addrSeqIn')], ['text/xml', true, true, 2, '12', '22'])
+  {
+    // 상세 이미지 영구 주소 (2026-10-01): studio → market-images 버킷 복사 · 공개 주소 · 토큰 주소 없음 · 기록 request_json.publicImages
+    const pi = rec.request_json.publicImages
+    const srcs = [...E11.xmlTag(sentXml, 'htmlDetail').matchAll(/<img src="([^"]+)"/g)].map(x => x[1])
+    eq('상세 이미지 = 공개 창고 영구 주소({무작위 32자}/{key}.jpg) · 토큰 주소(?t=) 없음 · 버킷 간 복사(destinationBucket) 2번 · 경로에 회원·작업 ID 없음',
+      [srcs, srcs.some(s => s.includes('?t=')), marketImages.copies.slice(-2).map(c => `${c.bucketId}:${c.sourceKey}→${c.destinationBucket}:${c.destinationKey}`), /^[0-9a-f]{32}$/.test(pi.folder), pi.paths.some(x => x.includes(UID) || x.includes(PID11))],
+      [[`http://mock.local/storage/v1/object/public/market-images/${pi.folder}/01.jpg`, `http://mock.local/storage/v1/object/public/market-images/${pi.folder}/02.jpg`], false,
+        [`studio:${folder11}/01.jpg→market-images:${pi.folder}/01.jpg`, `studio:${folder11}/02.jpg→market-images:${pi.folder}/02.jpg`], true, false])
+    eq('기록: request_json에 publicImages { bucket, folder, paths } 추가 · 예전 키(xml·files·summary·categoryName) 그대로 · 공개 창고에 실제로 2장',
+      [Object.keys(rec.request_json).sort(), pi.bucket, pi.paths, rec.request_json.files['01'], pi.paths.every(x => marketImages.files.has(x))],
+      [['categoryName', 'files', 'publicImages', 'summary', 'xml'], 'market-images', [`${pi.folder}/01.jpg`, `${pi.folder}/02.jpg`], `${folder11}/01.jpg`, true])
+    eq('상세 이미지 주소 함수: 주소 없는 번호가 있으면 throw (조용히 빼지 않음)', (() => { try { E11.elevenstDetailImageUrls({ files: [{ key: '01' }, { key: '02' }], urlOf: k => ({ '01': 'u/01' })[k] }); return 'no throw' } catch (e) { return e.message } })(), '11번가 상세 이미지 02번 주소 없음')
+  }
+  {
+    // 복사가 하나라도 실패 → 토큰 주소로 바꾸지 않고 멈춤 · 11번가 등록 호출 없음 · 기록 failed · 이번에 복사한 것은 지움
+    const keep = files.get(`${folder11}/02.jpg`)
+    files.delete(`${folder11}/02.jpg`)
+    relay.calls = []
+    const before = marketImages.files.size
+    const bad = await quiet(() => post('elevenst_send', UI11))
+    files.set(`${folder11}/02.jpg`, keep)
+    const brec = db.marketplace_sends.at(-1)
+    eq('공개 창고 복사 실패 → 500 market_images_failed · 원인(번호·오류) 문구 · 11번가 호출 0 · 기록 failed · 남은 복사본 없음',
+      [bad.statusCode, bad.body.code, /02번 이미지 복사 실패: Object not found/.test(bad.body.message), relay.calls.length, brec.status, brec.result_json?.step, marketImages.files.size - before],
+      [500, 'market_images_failed', true, 0, 'failed', 'images', 0])
+  }
   eq('기록: market 11st · registered · seller_product_id = 상품번호 · 요약(주소·상품명) · 키·중계 비밀 없음', [rec.market, rec.status, rec.seller_product_id, rec.request_json.summary.prdNm, rec.request_json.summary.addrSeqOut, /11st-key-ABCD1234|test-relay-secret/.test(JSON.stringify(rec) + JSON.stringify(ok.body))], ['11st', 'registered', '3456789012', '매일 쓰는 머그', '12', false])
   {
     const t = new URL(E11.xmlTag(sentXml, 'prdImage01')).searchParams.get('t')
