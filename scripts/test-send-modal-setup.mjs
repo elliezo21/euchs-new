@@ -195,9 +195,26 @@ if (built?.Coupang && built?.Modal) {
   eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 카테고리 목록 · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), (ss.html.includes('생활/건강&gt;주방용품&gt;잔/컵&gt;머그컵') || ss.html.includes('생활/건강>주방용품>잔/컵>머그컵')), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '매일 쓰는 머그', true, true, true, true, false])
   eq('스마트스토어 섹션: 요약 표 판매상태 판매중·전시상태 전시중지 · 가격·재고는 빈칸(임의 숫자 없음)', [/data-mk-ss-preview-row="판매상태"[\s\S]{0,200}판매중/.test(ss.html), /data-mk-ss-preview-row="전시상태"[\s\S]{0,200}전시중지/.test(ss.html), val(ss.html, 'data-mk-ss-price'), val(ss.html, 'data-mk-ss-stock')], [true, true, '', ''])
   eq('스마트스토어 섹션: 국내 출고지면 관부가세 칸·요약 줄 없음', [/data-mk-ss-customs/.test(ss.html), /data-mk-ss-preview-row="관부가세"/.test(ss.html)], [false, false])
-  // 해외 출고지가 기본으로 골라진 주소록 (운영 1차: 항주) → 관부가세 칸이 보이고 선택 전(기본값 없음)
-  const ovCache = { ...ssCache, smartstoreAddressesDone: { addresses: [{ id: 104, name: '항주 창고', type: 'RELEASE', address: '항주 1층', phone: '', overseas: true }, ssCache.smartstoreAddressesDone.addresses[1]], defaults: { shipping: 104, return: 103 } } }
-  const ov = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ovCache); return () => h(built.Smartstore, { prepare: PREPARE(true) }) } }, {})
+  // 출고지·반품지 기본값 = 국내 주소 우선 (2026-10-01 운영 1차: 주소록 첫 번째 해외(항주)가 기본으로 잡혀 관부가세 400)
+  const HZ = { id: 104, name: '항주 창고', type: 'RELEASE', address: '항주 1층', phone: '', overseas: true }
+  const GJ = { id: 102, name: '광주 창고', type: 'RELEASE', address: '광주 북구 1층', phone: '', overseas: false }
+  const RT = { id: 103, name: '반품센터', type: 'REFUND_OR_EXCHANGE', address: '광주 북구 2층', phone: '', overseas: false }
+  const BIZ = { id: 101, name: '본사', type: 'REPRESENTATIVE', address: '광주 북구 3층', phone: '', overseas: false }
+  const HZR = { id: 105, name: '항주 반품', type: 'REFUND_OR_EXCHANGE', address: '항주 2층', phone: '', overseas: true }
+  const withAddr = (addresses, defaults) => ({ ...ssCache, smartstoreAddressesDone: { addresses, defaults } })
+  const renderAddr = cache => render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, cache); return () => h(built.Smartstore, { prepare: PREPARE(true) }) } }, {})
+  const sel = (html, attr, id) => new RegExp(attr + '[^>]*>(?:(?!<\\/select>)[\\s\\S])*<option[^>]*value="' + id + '"[^>]*selected').test(html)
+  // 운영과 같은 순서(해외 첫 번째) + 서버 기본값이 해외를 가리켜도 화면은 국내를 고른다
+  const a1 = await renderAddr(withAddr([HZ, HZR, GJ, RT], { shipping: 104, return: 105 }))
+  eq('기본값: 해외가 목록 첫 번째여도 국내 출고지(102)·국내 반품지(103) · 해외 주소는 목록에 그대로 · 관부가세 칸 없음', [a1.error, sel(a1.html, 'data-mk-ss-shipping', 102), sel(a1.html, 'data-mk-ss-return', 103), a1.html.includes('항주 창고 (출고지) · 해외'), /data-mk-ss-customs/.test(a1.html)], [null, true, true, true, false])
+  const a2 = await renderAddr(withAddr([HZ, BIZ, RT], { shipping: 104, return: 103 }))
+  eq('기본값: 국내 출고지 용도 주소가 없으면 국내 첫 번째(본사 101) · 반품지는 국내 반품/교환지(103)', [sel(a2.html, 'data-mk-ss-shipping', 101), sel(a2.html, 'data-mk-ss-return', 103), /data-mk-ss-customs/.test(a2.html)], [true, true, false])
+  const a3 = await renderAddr(withAddr([HZ, GJ, BIZ], { shipping: 104, return: null }))
+  eq('기본값: 국내 반품/교환지가 없으면 국내 첫 번째(102)', sel(a3.html, 'data-mk-ss-return', 102), true)
+  // 국내 주소가 하나도 없을 때만 첫 번째(해외) → 관부가세 칸이 보이고 선택 전(기본값 없음)
+  const ovCache = withAddr([HZ, HZR], { shipping: 104, return: 105 })
+  const ov = await renderAddr(ovCache)
+  eq('국내 주소가 없을 때만 목록 첫 번째(해외 104) — 출고지·반품지 둘 다', [sel(ov.html, 'data-mk-ss-shipping', 104), sel(ov.html, 'data-mk-ss-return', 104)], [true, true])
   eq('스마트스토어 섹션: 해외 출고지면 관부가세 칸(필수 · 3개 + 선택 안 함) · 출고지 이름에 "해외" · 요약 줄 미입력', [ov.error, /data-mk-ss-customs-box/.test(ov.html), (ov.html.match(/<option[^>]*value="(NOT_APPLICABLE|INCLUDED|EXCLUDED)"/g) || []).length, /data-mk-ss-customs[^-][\s\S]{0,200}<option value=""[^>]*selected/.test(ov.html) || /<option value="" selected[^>]*>관부가세 선택/.test(ov.html), ov.html.includes('항주 창고 (출고지) · 해외'), /data-mk-ss-preview-row="관부가세"[\s\S]{0,200}미입력/.test(ov.html)], [null, true, 3, true, true, true])
 }
 

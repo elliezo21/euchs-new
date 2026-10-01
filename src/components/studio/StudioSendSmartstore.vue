@@ -312,10 +312,20 @@ async function loadCategories() {
     catLoading.value = false
   }
 }
+/**
+ * 처음 골라 둘 주소 (2026-10-01 운영 1차: 주소록의 해외(항주) 출고지가 기본으로 잡혀 관부가세 400) — 우리 고객은 국내에서 출고한다
+ *   국내(overseas false) 주소 중 용도가 맞는 것(출고지 RELEASE · 반품지 REFUND_OR_EXCHANGE) → 없으면 국내 첫 번째
+ *   국내 주소가 하나도 없을 때만 목록 첫 번째(해외) — 그때는 관부가세 칸이 나온다. 해외 주소도 목록에는 그대로 둔다(고를 수 있음)
+ */
+function pickDefaultAddress(list, kind) {
+  const want = kind === 'return' ? 'REFUND_OR_EXCHANGE' : 'RELEASE'
+  const domestic = list.filter(a => a.overseas !== true)
+  return (domestic.find(a => a.type === want) || domestic[0] || list[0])?.id ?? null
+}
 function applyAddresses(r) {
   addresses.value = Array.isArray(r.addresses) ? r.addresses : []
-  if (f.value.shippingAddressId == null) f.value.shippingAddressId = r.defaults?.shipping ?? null
-  if (f.value.returnAddressId == null) f.value.returnAddressId = r.defaults?.return ?? null
+  if (f.value.shippingAddressId == null) f.value.shippingAddressId = pickDefaultAddress(addresses.value, 'shipping')
+  if (f.value.returnAddressId == null) f.value.returnAddressId = pickDefaultAddress(addresses.value, 'return')
 }
 async function loadAddresses() {
   const kept = sendCache?.smartstoreAddressesDone
