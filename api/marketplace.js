@@ -730,6 +730,17 @@ function marketOptionsInput(o) {
     rows: rows.map(r => ({ values: Array.isArray(r?.values) ? r.values.map(s => String(s ?? '')) : [], addPrice: num(r?.addPrice), stock: num(r?.stock) })),
   }
 }
+// 보내는 중 가드 (2026-10-01 중복 등록 방지 — 스마트스토어·11번가만, 쿠팡은 다음 단계) — 같은 사용자·같은 내 상품·같은 판매처의
+// 'sending' 기록이 2분 안에 있으면 새로 등록하지 않고 409 send_in_progress (두 번 누름·두 탭). 판매처 1건 보내기 실측 최대 8.3초(10/1 DB)라 2분이면 넉넉하다.
+// 2분이 지난 'sending'(함수가 중간에 끊긴 기록)은 막지 않는다 — 고객이 다시 보낼 수 있어야 한다
+const SEND_IN_PROGRESS_MS = 2 * 60 * 1000
+const SEND_IN_PROGRESS_MESSAGE = '이 상품을 이 판매처로 보내는 중입니다. 잠시 후 [보낸 상품]에서 결과를 확인하세요.'
+async function sendInProgress(ctx, exportId, market) {
+  const since = new Date(Date.now() - SEND_IN_PROGRESS_MS).toISOString()
+  const rows = await sb(ctx.cfg, `marketplace_sends?select=id&user_id=eq.${ctx.userId}&export_id=eq.${exportId}&market=eq.${market}&status=eq.sending&created_at=gte.${encodeURIComponent(since)}&limit=1`)
+  return Array.isArray(rows) && rows.length > 0
+}
+
 async function smartstoreSend(ctx, body, res) {
   const ex = await loadOwnedExport(ctx, body, res)
   if (!ex) return
@@ -740,6 +751,7 @@ async function smartstoreSend(ctx, body, res) {
   if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있습니다.`)
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
+  if (await sendInProgress(ctx, ex.id, SMARTSTORE)) return sendError(res, 409, 'send_in_progress', SEND_IN_PROGRESS_MESSAGE) // 토큰 받기 전 — 막히면 네이버 호출 없음
   const cred = await smartstoreCredentials(ctx, res)
   if (!cred) return
 
@@ -923,6 +935,7 @@ async function elevenstSend(ctx, body, res) {
   const testStop = body.testStop === true && ctx.isAdmin === true // 등록 직후 판매중지 — 관리자·스태프 테스트용만 (고객이 보내도 무시)
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
+  if (await sendInProgress(ctx, ex.id, ELEVENST)) return sendError(res, 409, 'send_in_progress', SEND_IN_PROGRESS_MESSAGE)
   const cred = await elevenstCredentials(ctx, res)
   if (!cred) return
   const encKey = loadEncKey()

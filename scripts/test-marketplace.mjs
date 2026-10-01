@@ -215,6 +215,7 @@ function match(row, q) {
     if (['select', 'order', 'limit', 'on_conflict'].includes(k)) continue
     if (v.startsWith('eq.')) { if (String(row[k]) !== v.slice(3)) return false }
     else if (v === 'not.is.null') { if (row[k] == null) return false }
+    else if (v.startsWith('gte.')) { if (!(String(row[k] ?? '') >= v.slice(4))) return false } // ISO 시각 비교 (보내는 중 가드 2026-10-01)
     else if (v.startsWith('in.(')) { if (!v.slice(4, -1).split(',').map(x => x.replace(/^"|"$/g, '')).includes(String(row[k]))) return false }
   }
   return true
@@ -1771,10 +1772,20 @@ function smartstoreRelay(u, method, opts) {
   globalThis.fetch = realFetch
   eq('SQL 실행 전 → 503 marketplace_sql_missing · 이미지 업로드·상품 등록 호출 없음', [gap.statusCode, gap.body.code, relay.calls.filter(c => /upload|v2\/products/.test(c.path)).length], [503, 'marketplace_sql_missing', 0])
 
+  // 보내는 중 가드 (2026-10-01 중복 등록 방지): 같은 상품·같은 판매처의 'sending'이 2분 안에 있으면 409 · 네이버 호출·기록 없음
+  const busyRow = { id: newId(), user_id: UID, export_id: UI.exportId, market: 'smartstore', status: 'sending', created_at: new Date().toISOString(), request_json: {} }
+  db.marketplace_sends.push(busyRow)
+  relay.calls = []
+  const nBusy = db.marketplace_sends.length
+  const busy = await post('smartstore_send', UI)
+  eq('보내는 중 가드: 2분 안 sending → 409 send_in_progress · 안내 문구 · 네이버 호출 0 · 기록 안 만듦', [busy.statusCode, busy.body.code, busy.body.message, relay.calls.length, db.marketplace_sends.length], [409, 'send_in_progress', '이 상품을 이 판매처로 보내는 중입니다. 잠시 후 [보낸 상품]에서 결과를 확인하세요.', 0, nBusy])
+  busyRow.created_at = new Date(Date.now() - 3 * 60 * 1000).toISOString() // 2분 지난 sending(끊긴 기록)은 막지 않음 → 아래 성공 보내기가 그대로 간다
+
   // 성공
   relay.calls = []
   ssRelay.uploads = 0
   const ok = await post('smartstore_send', UI)
+  db.marketplace_sends.splice(db.marketplace_sends.indexOf(busyRow), 1)
   const rec = db.marketplace_sends.at(-1)
   const ups = relay.calls.filter(c => c.path.endsWith('/product-images/upload')), prod = relay.calls.find(c => c.path.endsWith('/external/v2/products'))
   eq('보내기 성공: 200 registered · 원상품번호(int64 글자 그대로)·채널상품번호 · 기본 전시중지', [ok.statusCode, ok.body.status, ok.body.originProductNo, ok.body.channelProductNo, ok.body.display], [200, 'registered', '9007199254740993', '12345678901', 'SUSPENSION'])
@@ -2173,8 +2184,18 @@ function elevenstRelay(u, method, opts) {
     globalThis.fetch = realFetch
     eq('SQL 실행 전 → 503 marketplace_sql_missing · 상품 등록 호출 없음', [gap.statusCode, gap.body.code, relay.calls.filter(c => /prodservices/.test(c.path)).length], [503, 'marketplace_sql_missing', 0])
   }
+  // 보내는 중 가드 (2026-10-01): 스마트스토어와 같은 규칙 · 다른 판매처(스마트스토어)의 sending은 11번가를 막지 않음
+  const busy11 = { id: newId(), user_id: UID, export_id: UI11.exportId, market: '11st', status: 'sending', created_at: new Date().toISOString(), request_json: {} }
+  const otherMarket = { ...busy11, id: newId(), market: 'smartstore' }
+  db.marketplace_sends.push(busy11, otherMarket)
+  relay.calls = []
+  const nBusy11 = db.marketplace_sends.length
+  const b11 = await post('elevenst_send', UI11)
+  eq('11번가 보내는 중 가드: 2분 안 sending → 409 send_in_progress · 11번가 호출 0 · 기록 안 만듦', [b11.statusCode, b11.body.code, relay.calls.length, db.marketplace_sends.length], [409, 'send_in_progress', 0, nBusy11])
+  db.marketplace_sends.splice(db.marketplace_sends.indexOf(busy11), 1) // 남은 것 = 스마트스토어 sending → 아래 성공 보내기가 그대로 간다
   relay.calls = []
   const ok = await post('elevenst_send', { ...UI11, testStop: true }) // 관리자 계정(가짜 user_roles admin) — 판매중지까지
+  db.marketplace_sends.splice(db.marketplace_sends.indexOf(otherMarket), 1)
   const rec = db.marketplace_sends.at(-1)
   const prod = relay.calls.find(c => c.path.endsWith('/rest/prodservices/product'))
   const sentXml = prod ? dec(prod.raw) : ''
@@ -2499,6 +2520,15 @@ function elevenstRelay(u, method, opts) {
     /<div v-if="sendableCount > 1"[^>]*data-ch-send-all-box>/.test(view), /data-ch-send-all @click="openSend\(''\)"/.test(view), /sendableCount = computed\(\(\) => rows\.value\.filter\(r => r\.state === 'connected'\)\.length\)/.test(view),
     /opening\.value = market \|\| ALL/.test(view), /:data-ch-send="r\.key" @click="openSend\(r\.key\)"/.test(view),
   ], [true, true, true, true, true])
+  {
+    const api = read('api/marketplace.js')
+    const fn = name => api.slice(api.indexOf(`async function ${name}(`), api.indexOf('\n}\n', api.indexOf(`async function ${name}(`)))
+    eq('보내는 중 가드 범위: 스마트스토어·11번가 send에만(토큰·자격 확인 전) · 쿠팡 send·카페24 send에는 없음(다음 단계)', [
+      fn('smartstoreSend').indexOf('sendInProgress(ctx, ex.id, SMARTSTORE)') > -1 && fn('smartstoreSend').indexOf('sendInProgress(') < fn('smartstoreSend').indexOf('smartstoreCredentials('),
+      fn('elevenstSend').indexOf('sendInProgress(ctx, ex.id, ELEVENST)') > -1 && fn('elevenstSend').indexOf('sendInProgress(') < fn('elevenstSend').indexOf('elevenstCredentials('),
+      /sendInProgress/.test(fn('send')), /sendInProgress/.test(fn('cafe24Send')),
+    ], [true, true, false, false])
+  }
   eq('섹션 4개 모두 sendError를 내놓음 (창 결과 표용 — 읽기만)', ['Coupang', 'Smartstore', 'Elevenst', 'Cafe24'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
 }
 
