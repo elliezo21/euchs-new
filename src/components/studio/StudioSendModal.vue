@@ -19,16 +19,17 @@
             </template>
             <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-mk-s-market-linked="r.key">연결됨</span>
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-mk-s-market-planned="r.key">{{ PLANNED_LABEL }}</span>
-            <!-- 이 상품을 이미 보낸 판매처 (2026-10-01 중복 등록 방지) — 막지 않고 표시만. 처음 체크에서 빠지고, 체크하면 아래 확인 문구 -->
-            <span v-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">이미 보냄 · {{ SEND_STATUS_LABEL[sentMap[r.key].status] || sentMap[r.key].status }}</span>
+            <!-- 이 상품이 이미 전송된 판매처 (2026-10-01 중복 등록 방지) — 막지 않고 상태만 표시. [일괄 전송]이면 처음 체크에서 빠지고,
+                 판매처 버튼([○○로 보내기])으로 열면 체크된 채 아래 확인 문구가 처음부터 펼쳐진다(2026-10-02) -->
+            <span v-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">{{ SENT_BADGE_LABEL[sentMap[r.key].status] }}</span>
           </li>
         </ul>
         <!-- 이미 보낸 판매처를 체크했을 때 — 브라우저 확인창 대신 화면 안 문구·버튼. 확인 전에는 보내기 버튼이 꺼진다(빠짐 목록) -->
         <div v-for="key in confirmKeys" :key="key" class="st-surface st-border rounded-[10px] p-3 space-y-2" :data-mk-s-sent-confirm="key">
-          <p class="text-[13px] st-ink break-keep">이 상품은 {{ nameOf(key) }}에 이미 보냈습니다({{ SEND_STATUS_LABEL[sentMap[key].status] || sentMap[key].status }}<template v-if="sentMap[key].sellerProductId"> · 상품번호 {{ sentMap[key].sellerProductId }}</template>). 다시 보내면 {{ nameOf(key) }}에 같은 상품이 하나 더 등록됩니다.</p>
+          <p class="text-[13px] st-ink break-keep" :data-mk-s-sent-text="key"><b>{{ nameOf(key) }}</b> · {{ sentConfirmText(sentMap[key].status) }}<template v-if="sentMap[key].sellerProductId"> (상품번호 {{ sentMap[key].sellerProductId }})</template></p>
           <div class="flex flex-wrap gap-2">
-            <button type="button" class="st-btn" :data-mk-s-sent-ok="key" @click="sentOk = { ...sentOk, [key]: true }">그래도 다시 보내기</button>
-            <button type="button" class="st-btn" :data-mk-s-sent-cancel="key" @click="checked[key] = false">체크 해제</button>
+            <button type="button" class="st-btn" :data-mk-s-sent-ok="key" @click="sentOk = { ...sentOk, [key]: true }">중복 등록</button>
+            <button type="button" class="st-btn" :data-mk-s-sent-cancel="key" @click="checked[key] = false">선택 해제</button>
           </div>
         </div>
       </section>
@@ -52,18 +53,18 @@
         </ul>
       </div>
 
-      <!-- 보내기 결과 (2026-10-01) — 판매처 2곳 이상을 한 번에 보냈을 때만. 1곳이면 예전처럼 그 섹션 안에만 보인다 -->
+      <!-- 전송 결과 (2026-10-01) — 판매처 2곳 이상을 한 번에 보냈을 때만. 1곳이면 예전처럼 그 섹션 안에만 보인다 -->
       <section v-if="resultRows.length" class="space-y-2" data-mk-s-results>
-        <h4 class="st-h-card">보내기 결과</h4>
+        <h4 class="st-h-card">전송 결과</h4>
         <ul class="st-border rounded-[10px] st-divide overflow-hidden">
           <li v-for="r in resultRows" :key="r.key" class="market-row" :data-mk-s-result="r.key" :data-mk-s-result-state="r.state">
             <span class="text-[14px] font-bold st-ink shrink-0 w-[96px] truncate">{{ r.name }}</span>
-            <span :class="r.state === 'wait' ? 'st-badge' : SEND_BADGE_CLASS[r.status] || 'st-badge'" class="shrink-0">{{ r.state === 'wait' ? (sections[r.key]?.busy === 'send' ? '보내는 중' : '대기') : SEND_STATUS_LABEL[r.status] || r.status }}</span>
+            <span :class="r.state === 'wait' ? 'st-badge' : SEND_BADGE_CLASS[r.status] || 'st-badge'" class="shrink-0">{{ r.state === 'wait' ? RESULT_STATE_LABEL[sections[r.key]?.busy === 'send' ? 'sending' : 'wait'] : r.state === 'fail' ? RESULT_STATE_LABEL.fail : SENT_BADGE_LABEL[r.status] || r.status }}</span>
             <span v-if="r.state === 'ok'" class="text-[13px] st-ink min-w-0 break-all" :data-mk-s-result-id="r.key">상품번호 {{ r.id }}</span>
             <span v-else-if="r.state === 'fail'" class="text-[13px] st-danger-text min-w-0 break-keep" :data-mk-s-result-reason="r.key">{{ r.reason }}</span>
           </li>
         </ul>
-        <p v-if="failedKeys.length" class="st-desc-sm break-keep" data-mk-s-results-retry-note>[실패한 판매처 다시 보내기]를 누르면 등록된 판매처는 건너뛰고 실패한 판매처만 다시 보냅니다. 실패 사유를 아래 판매처 칸에서 고친 뒤 누르세요.</p>
+        <p v-if="failedKeys.length" class="st-desc-sm break-keep" data-mk-s-results-retry-note>[{{ RETRY_FAILED_LABEL }}]은 등록 완료된 판매처를 제외하고 실패한 판매처만 재전송합니다. 아래 판매처 칸에서 실패 사유를 수정한 뒤 진행합니다.</p>
       </section>
     </div>
     <!-- 준비 데이터(send_prepare)를 받는 동안 — 창은 먼저 열고 여기서 진행 상태를 보인다 (2026-09-30: 받는 동안 버튼에 "여는 중…"만 10초 넘게 떠 있었다).
@@ -99,8 +100,7 @@ import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import StudioSendElevenst from '@/components/studio/StudioSendElevenst.vue'
 import StudioSendCommon from '@/components/studio/StudioSendCommon.vue'
 import { COMMON_MARKETS, commonMarkets, commonActive, commonFromPrepare } from '@/lib/studioSendCommon'
-import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
-import { SEND_STATUS_LABEL } from '@/lib/studioMarketplace'
+import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, duplicateConfirmKeys, sentConfirmText, SENT_BADGE_LABEL, RESULT_STATE_LABEL, RETRY_FAILED_LABEL, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isAdminOrStaff } from '@/lib/auth'
 
@@ -134,8 +134,8 @@ const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) /
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
 // 이미 보낸 판매처 — 다시 보내기 창에서는 쓰지 않는다(반려된 쿠팡 상품을 고치는 길)
 const sentMap = computed(() => (props.prepare?.resend ? {} : alreadySent(props.sent)))
-const sentOk = ref({}) // 체크한 "이미 보냄" 판매처 중 [그래도 다시 보내기]를 누른 곳
-const confirmKeys = computed(() => picked.value.filter(k => sentMap.value[k] && !sentOk.value[k] && !sections[k]?.done))
+const sentOk = ref({}) // 체크한 이미 전송된 판매처 중 [중복 등록]을 누른 곳
+const confirmKeys = computed(() => duplicateConfirmKeys(picked.value, sentMap.value, sentOk.value, picked.value.filter(k => !!sections[k]?.done)))
 // 공통 정보 — 창을 열 때(준비 데이터가 올 때) 새로 만든다. 스마트스토어·11번가를 함께 체크했고 다시 보내기가 아닐 때만 쓴다(commonActive)
 const common = ref(null)
 const useCommon = computed(() => !!common.value && commonActive(picked.value, { resend: !!props.prepare?.resend }))
@@ -167,7 +167,7 @@ const missing = computed(() => {
     const list = sections[key]?.missing || []
     for (const m of list) out.push(picked.value.length > 1 ? `${nameOf(key)} · ${m}` : m)
   }
-  for (const key of confirmKeys.value) out.push(`${nameOf(key)} 다시 보내기 확인 (위 [그래도 다시 보내기] 또는 [체크 해제])`)
+  for (const key of confirmKeys.value) out.push(`${nameOf(key)} 중복 등록 확인 ([중복 등록] 또는 [선택 해제])`)
   return out
 })
 // 재발 방지 (2026-09-28 운영 버그: 섹션 setup이 죽었는데 [보내기]가 켜져 있었다)
@@ -183,7 +183,7 @@ const sectionFailed = computed(() => sectionError.value || (picked.value.length 
 const canSend = computed(() => !!props.prepare && sectionsReady.value && !sectionError.value && !sending.value && !sectionBusy.value && missing.value.length === 0)
 const sectionBusy = computed(() => picked.value.some(key => !!sections[key]?.busy))
 const allDone = computed(() => picked.value.length > 0 && picked.value.every(key => !!sections[key]?.done))
-// 체크된 판매처 중 지난 [보내기]에서 실패하고 아직 등록 안 된 곳 → 버튼 "실패한 판매처 다시 보내기"
+// 체크된 판매처 중 지난 [보내기]에서 실패하고 아직 등록 안 된 곳 → 버튼 [실패 건 재전송]
 const failedKeys = computed(() => picked.value.filter(k => results.value[k] && !results.value[k].ok && !sections[k]?.done))
 const resultRows = computed(() => (runKeys.value.length > 1 ? sendResultRows(runKeys.value, results.value) : []))
 const buttonLabel = computed(() => bulkSendLabel(picked.value, failedKeys.value, !!props.prepare?.resend))

@@ -2,14 +2,14 @@
   <div class="space-y-5 st-border rounded-[12px] p-4" data-mk-cm>
     <div class="space-y-1">
       <h4 class="st-h-card">공통 정보</h4>
-      <p class="st-desc-sm break-keep" data-mk-cm-desc>여기에 넣은 값이 아래 {{ marketNames }} 칸에 똑같이 들어갑니다. 판매처마다 다르게 하려면 그 판매처 칸에서 [이 판매처만 다르게]를 켜세요.</p>
+      <p class="st-desc-sm break-keep" data-mk-cm-desc>여기에 입력한 값은 아래 {{ marketNames }} 칸에 동일하게 적용됩니다. 판매처별로 다르게 입력하려면 해당 판매처 칸에서 [이 판매처만 다르게]를 선택합니다.</p>
       <p v-if="coupang" class="st-desc-sm break-keep" data-mk-cm-coupang>{{ COUPANG_COMMON_NOTE }}</p>
     </div>
 
     <!-- 상품명 -->
     <label class="block">
       <span class="st-label">상품명 *</span>
-      <input v-model="common.productName" type="text" class="st-input w-full" maxlength="300" placeholder="상품명을 입력하세요" :disabled="disabled" data-mk-cm-name />
+      <input v-model="common.productName" type="text" class="st-input w-full" maxlength="300" placeholder="상품명 입력" :disabled="disabled" data-mk-cm-name />
     </label>
 
     <!-- 판매가 · 재고 -->

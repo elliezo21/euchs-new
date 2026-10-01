@@ -124,7 +124,9 @@ if (built?.Coupang && built?.Modal) {
   eq('보내기 창: 열 때는 결과 표 없음 (2026-10-01 결과 표는 2곳 이상 보낸 뒤에만)', /data-mk-s-results/.test(c.html), false)
   // 이미 보냄 (2026-10-01) — sent를 넘기면 그 판매처 줄에 배지 · 안 넘기면(예전) 배지 없음 · 다시 보내기 창은 안 씀
   const sentHtml = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE), sent: [{ market: 'coupang', status: 'approval_pending', sellerProductId: '777' }] })
-  eq('이미 보냄: 쿠팡 줄에 "이미 보냄 · 승인 대기" 배지 · 예외 없음 · sent 없으면 배지 없음', [sentHtml.error, /data-mk-s-market-sent="coupang"[^>]*>이미 보냄 · 승인 대기</.test(sentHtml.html), /data-mk-s-market-sent/.test(c.html)], [null, true, false])
+  eq('이미 전송됨: 쿠팡 줄에 상태만 "승인 대기" 배지 (2026-10-02 업무용어) · 예외 없음 · sent 없으면 배지 없음', [sentHtml.error, /data-mk-s-market-sent="coupang"[^>]*>승인 대기</.test(sentHtml.html), /data-mk-s-market-sent/.test(c.html)], [null, true, false])
+  const regHtml = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE), sent: [{ market: 'coupang', status: 'registered' }] })
+  eq('이미 전송됨: 등록 완료 기록 = "등록 완료" 배지', /data-mk-s-market-sent="coupang"[^>]*>등록 완료</.test(regHtml.html), true)
   const failedSent = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE), sent: [{ market: 'coupang', status: 'rejected' }] })
   eq('이미 보냄: 반려된 기록은 배지 없음', /data-mk-s-market-sent/.test(failedSent.html), false)
   built.userRole.value = 'staff'

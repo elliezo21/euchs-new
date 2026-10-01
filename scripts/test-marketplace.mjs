@@ -2480,10 +2480,10 @@ function elevenstRelay(u, method, opts) {
   }).map(r => [r.key, r.state, r.id, r.status, r.reason]), [
     ['coupang', 'ok', '999', 'approval_pending', ''], ['smartstore', 'ok', '123', 'registered', ''], ['11st', 'fail', '', 'failed', '판매처에서 등록을 거절했습니다: x'], ['gmarket', 'wait', '', '', ''],
   ])
-  eq('결과 줄: 실패 사유가 비면 "사유는 아래 판매처 칸에서 확인하세요."', R.sendResultRows(['11st'], { '11st': { ok: false, reason: '' } })[0].reason, R.SEND_RESULT_FAIL_HINT)
-  eq('버튼 글자: 1곳 = 예전 그대로(실패했어도) · 2곳 이상 + 실패 남음 = "실패한 판매처 다시 보내기" · 실패 없음 = 예전 · 다시 보내기 = "다시 승인 요청"', [
+  eq('결과 줄: 실패 사유가 비면 "사유는 아래 판매처 칸에 표시됩니다."', R.sendResultRows(['11st'], { '11st': { ok: false, reason: '' } })[0].reason, R.SEND_RESULT_FAIL_HINT)
+  eq('버튼 글자: 1곳 = 예전 그대로(실패했어도) · 2곳 이상 + 실패 남음 = "실패 건 재전송" · 실패 없음 = 예전 · 다시 보내기 = "다시 승인 요청"', [
     R.bulkSendLabel(['smartstore'], ['smartstore'], false), R.bulkSendLabel(['smartstore', '11st'], ['11st'], false), R.bulkSendLabel(['smartstore', '11st'], [], false), R.bulkSendLabel(['coupang'], ['coupang'], true), R.bulkSendLabel(['coupang', '11st'], [], false),
-  ], ['스마트스토어로 보내기', '실패한 판매처 다시 보내기', '선택한 판매처로 보내기', '다시 승인 요청', '선택한 판매처로 보내기'])
+  ], ['스마트스토어로 보내기', '실패 건 재전송', '선택한 판매처로 보내기', '다시 승인 요청', '선택한 판매처로 보내기'])
   const modal = read('src/components/studio/StudioSendModal.vue')
   eq('창 배선: 등록된 곳(done)은 건너뛰고 나머지만 보냄 · 결과 표는 2곳 이상일 때만 · 실패 사유 = 섹션 sendError · 실패해도 다음 판매처 계속', [
     /const keys = picked\.value\.filter\(k => !sections\[k\]\?\.done\)/.test(modal), /runKeys\.value = picked\.value\.length > 1 \? \[\.\.\.picked\.value\] : \[\]/.test(modal), /reason: s\.sendError/.test(modal), /for \(const key of keys\)/.test(modal), /<section v-if="resultRows\.length"[^>]*data-mk-s-results>/.test(modal),
@@ -2494,11 +2494,34 @@ function elevenstRelay(u, method, opts) {
     [['coupang', 'smartstore'], ['smartstore'], {}, ['sending', 'approval_pending', 'approved', 'registered']])
   const ROWS3 = [{ key: 'coupang', state: 'connected' }, { key: 'smartstore', state: 'connected' }, { key: '11st', state: 'connected' }, { key: 'gmarket', state: 'planned' }]
   const SENT = R.alreadySent([{ market: 'smartstore', status: 'registered' }])
-  eq('처음 체크: sent 없으면 예전과 같음 · 이미 보낸 곳은 뺌(모두·버튼 판매처 모두) · 다시 보내기는 sent를 안 봄', [
+  eq('처음 체크: sent 없으면 예전과 같음 · [일괄 전송](판매처 없이)은 이미 보낸 곳을 뺌 · 판매처 버튼은 이미 보냈어도 체크(2026-10-02) · 다시 보내기는 sent를 안 봄', [
     JSON.stringify(R.initialChecked(ROWS3, {})) === JSON.stringify(R.defaultChecked(ROWS3)), R.initialChecked(ROWS3, { market: '11st' }),
     R.initialChecked(ROWS3, { sent: SENT }), R.initialChecked(ROWS3, { market: 'smartstore', sent: SENT }), R.initialChecked(ROWS3, { resend: true, sent: R.alreadySent([{ market: 'coupang', status: 'approved' }]) }),
   ], [true, { coupang: false, smartstore: false, '11st': true, gmarket: false },
-    { coupang: true, smartstore: false, '11st': true, gmarket: false }, { coupang: false, smartstore: false, '11st': false, gmarket: false }, { coupang: true, smartstore: false, '11st': false, gmarket: false }])
+    { coupang: true, smartstore: false, '11st': true, gmarket: false }, { coupang: false, smartstore: true, '11st': false, gmarket: false }, { coupang: true, smartstore: false, '11st': false, gmarket: false }])
+  {
+    // 두 진입 경로 (2026-10-02) — 처음 체크 → 확인 문구를 펼칠 판매처(창 빠짐 목록 → 전송 버튼 꺼짐)
+    const pick = ch => Object.keys(ch).filter(k => ch[k])
+    const viaButton = pick(R.initialChecked(ROWS3, { market: 'smartstore', sent: SENT }))
+    const viaBulk = pick(R.initialChecked(ROWS3, { sent: SENT }))
+    eq('[스마트스토어로 보내기]로 열기: 이미 등록 완료여도 체크 · 확인 문구가 처음부터 펼쳐짐 · [중복 등록] 누르면 사라짐 · 이번 창에서 등록한 곳은 없음', [
+      viaButton, R.duplicateConfirmKeys(viaButton, SENT), R.duplicateConfirmKeys(viaButton, SENT, { smartstore: true }), R.duplicateConfirmKeys(viaButton, SENT, {}, ['smartstore']),
+    ], [['smartstore'], ['smartstore'], [], []])
+    eq('[일괄 전송]으로 열기: 이미 전송된 스마트스토어는 처음 체크에서 빠짐 · 확인 문구 없음 · 고객이 직접 체크하면 그때 확인 문구', [viaBulk, R.duplicateConfirmKeys(viaBulk, SENT), R.duplicateConfirmKeys([...viaBulk, 'smartstore'], SENT)], [['coupang', '11st'], [], ['smartstore']])
+    eq('창: 확인 문구 목록 = duplicateConfirmKeys 하나 · 그 목록이 빠짐 목록에 오름(전송 버튼 꺼짐)', [/const confirmKeys = computed\(\(\) => duplicateConfirmKeys\(picked\.value, sentMap\.value, sentOk\.value/.test(read('src/components/studio/StudioSendModal.vue')), /for \(const key of confirmKeys\.value\) out\.push\(`\$\{nameOf\(key\)\} 중복 등록 확인 \(\[중복 등록\] 또는 \[선택 해제\]\)`\)/.test(read('src/components/studio/StudioSendModal.vue'))], [true, true])
+  }
+  eq('업무용어: 배지 = 상태만(등록 완료·승인 대기·승인 완료·전송 중) · 중복 확인 문구 · 결과 표 상태 · [실패 건 재전송]', [
+    R.SENT_BADGE_LABEL, R.sentConfirmText('registered'), R.sentConfirmText('approved'), R.sentConfirmText('approval_pending'), R.sentConfirmText('sending'), R.RESULT_STATE_LABEL, R.RETRY_FAILED_LABEL,
+  ], [{ sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료' }, '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?', '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?', '전송 중인 상품입니다. 중복 등록하시겠습니까?', { fail: '실패', wait: '대기', sending: '전송 중' }, '실패 건 재전송'])
+  {
+    // 이번 작업에서 새로 넣은 고객 문구 — 합니다체 · "~요" 끝 없음 · 예전 문구 없음
+    const strip = s => s.replace(/<!--[\s\S]*?-->/g, '').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '')
+    const files = ['src/components/studio/StudioSendModal.vue', 'src/components/studio/StudioSendCommon.vue', 'src/views/studio/StudioChannelSendView.vue', 'src/lib/studioSendCommon.js']
+    const shown = files.map(f => strip(read(f))).join('\n') + '\n' + [R.SEND_RESULT_FAIL_HINT, ...Object.values(R.SENT_BADGE_LABEL), R.sentConfirmText('registered'), R.sentConfirmText('approval_pending')].join('\n')
+    eq('새 문구에 예전 표현 없음(이미 보냄·그래도 다시 보내기·체크 해제·보내기 결과·실패한 판매처 다시 보내기·여러 판매처로 한 번에 보내기)', ['이미 보냄', '그래도 다시 보내기', '체크 해제', '보내기 결과', '실패한 판매처 다시 보내기', '여러 판매처로 한 번에 보내기'].filter(w => shown.includes(w)), [])
+    eq('새 문구 "~요" 끝 없음 (공통 정보 칸·창 확인 문구·결과 표·[일괄 전송] 안내)', [read('src/components/studio/StudioSendCommon.vue'), R.SEND_RESULT_FAIL_HINT, (await import('../src/lib/studioSendCommon.js')).COUPANG_COMMON_NOTE].map(strip).join('\n').match(/[가-힣]+요[.!"<\s]/g), null)
+    eq('보내기 탭 진입 버튼 [일괄 전송] · 안내 합니다체', [/'일괄 전송'/.test(read('src/views/studio/StudioChannelSendView.vue')), read('src/views/studio/StudioChannelSendView.vue').includes('판매처별 항목만 따로 입력합니다.')], [true, true])
+  }
   const view = read('src/views/studio/StudioChannelSendView.vue')
   eq('창 배선: 보내기 탭이 그 상품의 판매처별 최근 전송을 넘김 · 확인 전에는 빠짐 목록(보내기 꺼짐) · 브라우저 confirm/alert 없음 · 다시 보내기 창은 안 씀', [
     /:sent="sentOfOpen"/.test(view), /sendsByExport\(sends\.value\)\[sendExportId\.value\]/.test(view), /for \(const key of confirmKeys\.value\) out\.push\(/.test(modal), /window\.confirm|window\.alert|\bconfirm\(|\balert\(/.test(modal), /props\.prepare\?\.resend \? \{\} : alreadySent\(props\.sent\)/.test(modal), /sent: sentMap\.value/.test(modal),

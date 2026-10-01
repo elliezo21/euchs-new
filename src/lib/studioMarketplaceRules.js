@@ -176,13 +176,28 @@ export const optionTableNeed = ({ flexCols = 2, hasCny = false } = {}) => OPTION
 export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
 /**
  * 처음 체크할 판매처 — 특정 판매처 버튼([카페24로 보내기])으로 열었으면 그곳만, 다시 보내기면 쿠팡만, 아니면 연결된 곳 모두(defaultChecked)
- * sent = 이 상품을 이미 보낸 판매처(alreadySent) — 처음 체크에서 뺀다(2026-10-01 중복 등록 방지). 막지는 않는다: 고객이 체크하면 창이 확인 문구를 보인다. 다시 보내기(resend)에는 쓰지 않는다
+ * sent = 이 상품을 이미 보낸 판매처(alreadySent) — [일괄 전송]·판매처 없이 열면 처음 체크에서 뺀다(2026-10-01 중복 등록 방지).
+ *   특정 판매처 버튼([○○로 보내기])으로 열었으면 이미 보냈어도 그 판매처를 체크한다 — 창이 중복 확인 문구를 처음부터 펼치고 확인 전에는 전송 버튼이 꺼진다(2026-10-02).
+ *   다시 보내기(resend)에는 쓰지 않는다
  */
 export function initialChecked(rows, { market = '', resend = false, sent = {} } = {}) {
   const only = market || (resend ? 'coupang' : '')
-  const base = only ? Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.key === only && r.state === 'connected'])) : defaultChecked(rows)
-  if (resend) return base
-  return Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v && !sent?.[k]]))
+  if (only) return Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.key === only && r.state === 'connected']))
+  return Object.fromEntries(Object.entries(defaultChecked(rows)).map(([k, v]) => [k, v && !sent?.[k]]))
+}
+/**
+ * 중복 확인 문구를 펼칠 판매처 — 체크됐고 이미 전송됐고 [중복 등록]을 아직 안 눌렀고 이번 창에서 등록하지 않은 곳.
+ * 이 목록이 비어 있지 않으면 창의 빠짐 목록에 올라 전송 버튼이 꺼진다
+ * @param {string[]} picked 체크된 판매처 · @param {object} sent alreadySent · @param {object} ok [중복 등록]을 누른 곳 · @param {string[]} doneKeys 이번 창에서 등록된 곳
+ */
+export const duplicateConfirmKeys = (picked, sent, ok = {}, doneKeys = []) => (Array.isArray(picked) ? picked : []).filter(k => sent?.[k] && !ok?.[k] && !doneKeys.includes(k))
+/** 이미 전송된 판매처 줄 배지 — 상태만 업무용어로 (2026-10-02) */
+export const SENT_BADGE_LABEL = { sending: '전송 중', approval_pending: '승인 대기', approved: '승인 완료', registered: '등록 완료' }
+/** 중복 확인 문구 — 승인 대기 · 전송 중 · 그 밖(등록 완료·승인 완료) (2026-10-02) */
+export function sentConfirmText(status) {
+  if (status === 'approval_pending') return '승인 대기 중인 상품입니다. 중복 등록하시겠습니까?'
+  if (status === 'sending') return '전송 중인 상품입니다. 중복 등록하시겠습니까?'
+  return '이 판매처에 등록 완료된 상품입니다. 중복 등록하시겠습니까?'
 }
 /** "이미 보냄"으로 치는 상태 — 보내는 중·승인 대기·승인·등록됨. 반려·실패는 다시 보내도 중복이 아니다 */
 export const ALREADY_SENT_STATUSES = ['sending', 'approval_pending', 'approved', 'registered']
@@ -220,7 +235,9 @@ export const canResend = s => !!s && s.status === 'rejected' && /^\d+$/.test(Str
 /** [보내기] 버튼 글자 — 다시 보내기면 "다시 승인 요청" */
 export const sendActionLabel = (keys, resend) => (resend ? '다시 승인 요청' : sendButtonLabel(keys))
 
-export const SEND_RESULT_FAIL_HINT = '사유는 아래 판매처 칸에서 확인하세요.'
+export const SEND_RESULT_FAIL_HINT = '사유는 아래 판매처 칸에 표시됩니다.'
+/** 결과 표 상태 칸 (2026-10-02 업무용어) — 성공은 서버 status(등록 완료·승인 대기), 실패, 아직 차례가 안 옴 */
+export const RESULT_STATE_LABEL = { fail: '실패', wait: '대기', sending: '전송 중' }
 /**
  * 여러 판매처로 보낸 결과 줄 (2026-10-01) — 보내기 창 아래 결과 표. 판매처 2곳 이상을 한 번에 보냈을 때만 그린다(1곳이면 예전처럼 섹션 안에만)
  * @param {string[]} keys 이번에 보낸 판매처 (MARKETS 순서로 정렬해 돌려준다)
@@ -237,10 +254,11 @@ export function sendResultRows(keys, results = {}) {
   })
 }
 /**
- * 보내기 창 버튼 글자 — 여러 곳을 보냈는데 실패한 곳이 남았으면 "실패한 판매처 다시 보내기"(누르면 등록된 곳은 건너뛴다). 그 밖은 예전 그대로(sendActionLabel)
+ * 보내기 창 버튼 글자 — 여러 곳을 보냈는데 실패한 곳이 남았으면 "실패 건 재전송"(누르면 등록된 곳은 건너뛴다). 그 밖은 예전 그대로(sendActionLabel)
  * @param {string[]} picked 체크된 판매처 · @param {string[]} failed 체크된 판매처 중 지난번에 실패한 곳(아직 등록 안 됨)
  */
-export const bulkSendLabel = (picked, failed, resend) => (!resend && (picked?.length || 0) > 1 && (failed?.length || 0) > 0 ? '실패한 판매처 다시 보내기' : sendActionLabel(picked, resend))
+export const RETRY_FAILED_LABEL = '실패 건 재전송'
+export const bulkSendLabel = (picked, failed, resend) => (!resend && (picked?.length || 0) > 1 && (failed?.length || 0) > 0 ? RETRY_FAILED_LABEL : sendActionLabel(picked, resend))
 
 /** 배지 툴팁 — 반려·실패일 때만, 판매처가 준 사유(기록된 reason) 그대로 */
 export const badgeReason = s => (s && ['rejected', 'failed'].includes(s.status) && typeof s.reason === 'string' ? s.reason.trim() : '')
