@@ -758,6 +758,7 @@ import VideoWidget9x16 from '../components/VideoWidget9x16.vue'
 import StudioPromoBand from '../components/StudioPromoBand.vue'
 import { fetchSiteSettings, currentSettings, isVideoMedia } from '../lib/settings'
 import { extractOfferId } from '../utils/offerId'
+import { homeSearchState } from '../lib/mallSearchJump'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
 
 
@@ -790,7 +791,8 @@ const handleMain1688Search = (keyword) => {
   if (offerId) {
     router.push({ path: '/mall', query: { offerId } })
   } else {
-    router.push({ path: '/mall', query: { q: rawInput } })
+    // state = 모바일에서 몰의 "검색어" 상자로 한 번 이동하라는 표시 (주소에는 안 남김 — mallSearchJump.js)
+    router.push({ path: '/mall', query: { q: rawInput }, state: homeSearchState() })
   }
 }
 

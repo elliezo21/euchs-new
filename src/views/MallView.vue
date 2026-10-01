@@ -12,7 +12,7 @@
     <!-- ======================================================== -->
     <!-- 1. MALL 2-TIER STICKY SEARCH & CATEGORY BAR              -->
     <!-- ======================================================== -->
-    <header class="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-200 py-2.5 sm:py-3 transition-all duration-200">
+    <header ref="mallHeaderRef" class="sticky top-0 z-40 bg-white/95 backdrop-blur-md shadow-sm border-b border-slate-200 py-2.5 sm:py-3 transition-all duration-200">
       <div class="max-w-[1720px] mx-auto px-2 sm:px-6 lg:px-8">
         
         <!-- 메인 한 줄 바: [카테고리] + [1688 와이드 검색창] + [보관함] -->
@@ -913,7 +913,7 @@
 
       <!-- Clean Search Results Header Bar (No Item Count, Clean Single Tag) -->
 
-      <div v-if="hasSearched && !isLoading" class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+      <div v-if="hasSearched && !isLoading" ref="searchResultBarRef" class="bg-white p-3.5 sm:p-4 rounded-2xl border border-gray-200 shadow-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
         <div class="flex items-center gap-2 text-xs sm:text-sm">
           <span class="text-gray-500 font-medium">검색어:</span>
           <span class="px-3.5 py-1 rounded-xl bg-rose-50 text-rose-700 font-bold border border-rose-200">
@@ -937,7 +937,7 @@
       </div>
 
       <!-- Loading Skeleton Cards -->
-      <div v-if="isLoading" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4 lg:gap-5">
+      <div v-if="isLoading" ref="searchSkeletonRef" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-5 gap-2.5 sm:gap-4 lg:gap-5">
         <div
           v-for="i in 10"
           :key="i"
@@ -1242,6 +1242,7 @@ import { fetchSubCategoryKeywordMap, subCategoryKey } from '@/lib/mallCategories
 import { getMockSearchResults } from '../services/mock1688Data'
 import { extractOfferId } from '../utils/offerId'
 import { fetchSiteSettings } from '../lib/settings'
+import { takeMallJumpFlag, createMallJumpPin, MALL_MOBILE_QUERY } from '../lib/mallSearchJump'
 
 import {
   isLoggedIn,
@@ -2927,6 +2928,38 @@ const safeLoadBalance = () => {
     console.debug('[MallView] safeLoadBalance notice:', err)
   }
 }
+// ----------------------------------------------------
+// 메인(홈) 1688 검색으로 들어온 경우만 — 모바일에서 "검색어" 상자(로딩 중이면 같은 자리의 스켈레톤)를
+// 몰 고정 메뉴 바로 아래로 한 번 옮긴다 (src/lib/mallSearchJump.js, 2026-10-01)
+// 표시는 history.state에만 있고 여기서 읽는 즉시 지운다 → 새로고침·뒤로가기·모달 닫기 뒤에는 다시 옮기지 않음
+// ----------------------------------------------------
+const mallHeaderRef = ref(null)
+const searchResultBarRef = ref(null)
+const searchSkeletonRef = ref(null)
+const cameFromHomeSearch = typeof window !== 'undefined' && takeMallJumpFlag(window.history)
+const searchJumpPin = (
+  cameFromHomeSearch &&
+  typeof route.query.q === 'string' && route.query.q.trim() &&
+  window.matchMedia?.(MALL_MOBILE_QUERY).matches === true
+)
+  ? createMallJumpPin({
+      win: window,
+      doc: document,
+      getAnchor: () => searchResultBarRef.value || searchSkeletonRef.value,
+      getHeader: () => mallHeaderRef.value
+    })
+  : null
+if (searchJumpPin) {
+  // 상자나 스켈레톤이 처음 그려지는 즉시 시작 (상품 로딩을 기다리지 않음) — 한 번만
+  const stopAnchorWatch = watch([searchResultBarRef, searchSkeletonRef], ([bar, skeleton]) => {
+    if (!bar && !skeleton) return
+    searchJumpPin.start()
+    stopAnchorWatch()
+  }, { flush: 'post' })
+  // 상품이 다 그려진 뒤 잠시 더 위쪽 높이 변화에 맞추고 끝낸다
+  watch(isLoading, (loading) => { if (!loading) searchJumpPin.settle() }, { flush: 'post' })
+}
+
 const handleIncomingQuery = async () => {
   const rawOfferId = route.query.offerId
   const offerId = typeof rawOfferId === 'string' ? rawOfferId.trim() : ''
@@ -3006,6 +3039,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  searchJumpPin?.stop()
   window.removeEventListener('euchs:business_verified', checkAndResumePendingProduct)
   window.removeEventListener('euchs:login_success', checkAndResumePendingProduct)
   window.removeEventListener('euchs:open-auth-guard', handleOpenAuthGuardEvent)
