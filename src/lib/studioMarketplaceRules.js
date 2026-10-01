@@ -174,11 +174,30 @@ export const optionTableNeed = ({ flexCols = 2, hasCny = false } = {}) => OPTION
 
 // 상태 배지 — 색: 전송 중·승인 대기 = 회색, 승인·등록됨(카페24) = 초록, 반려·실패 = 빨강
 export const SEND_BADGE_CLASS = { sending: 'st-badge', approval_pending: 'st-badge', approved: 'st-badge st-badge-ok', registered: 'st-badge st-badge-ok', rejected: 'st-badge st-badge-danger', failed: 'st-badge st-badge-danger' }
-/** 처음 체크할 판매처 — 특정 판매처 버튼([카페24로 보내기])으로 열었으면 그곳만, 다시 보내기면 쿠팡만, 아니면 연결된 곳 모두(defaultChecked) */
-export function initialChecked(rows, { market = '', resend = false } = {}) {
+/**
+ * 처음 체크할 판매처 — 특정 판매처 버튼([카페24로 보내기])으로 열었으면 그곳만, 다시 보내기면 쿠팡만, 아니면 연결된 곳 모두(defaultChecked)
+ * sent = 이 상품을 이미 보낸 판매처(alreadySent) — 처음 체크에서 뺀다(2026-10-01 중복 등록 방지). 막지는 않는다: 고객이 체크하면 창이 확인 문구를 보인다. 다시 보내기(resend)에는 쓰지 않는다
+ */
+export function initialChecked(rows, { market = '', resend = false, sent = {} } = {}) {
   const only = market || (resend ? 'coupang' : '')
-  if (!only) return defaultChecked(rows)
-  return Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.key === only && r.state === 'connected']))
+  const base = only ? Object.fromEntries((Array.isArray(rows) ? rows : []).map(r => [r.key, r.key === only && r.state === 'connected'])) : defaultChecked(rows)
+  if (resend) return base
+  return Object.fromEntries(Object.entries(base).map(([k, v]) => [k, v && !sent?.[k]]))
+}
+/** "이미 보냄"으로 치는 상태 — 보내는 중·승인 대기·승인·등록됨. 반려·실패는 다시 보내도 중복이 아니다 */
+export const ALREADY_SENT_STATUSES = ['sending', 'approval_pending', 'approved', 'registered']
+/**
+ * 이 상품을 이미 보낸 판매처 (2026-10-01)
+ * @param {object[]} lastSends 이 내 상품의 판매처별 가장 최근 전송 (sendsByExport(sends)[exportId])
+ * @returns {{ [market]: send }}
+ */
+export function alreadySent(lastSends) {
+  const out = {}
+  for (const s of Array.isArray(lastSends) ? lastSends : []) {
+    const market = s?.market || 'coupang' // 예전 기록 규칙 = sendsByExport와 같음
+    if (ALREADY_SENT_STATUSES.includes(s?.status)) out[market] = s
+  }
+  return out
 }
 /**
  * 내 상품 id → 판매처별 가장 최근 전송 (MARKETS 순서). 안 보낸 판매처는 목록에 없다.

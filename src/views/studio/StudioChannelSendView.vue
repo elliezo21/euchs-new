@@ -73,7 +73,7 @@
     </template>
 
     <!-- 보내기 창 — 내 작업에 있던 것과 같은 창·같은 진입(sendToMarketplace) 그대로 -->
-    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" :market="sendMarket" :load-error="sendLoadError" @close="sendOpen = false" @sent="onSent" @retry="loadPrepare(sendExportId)" />
+    <StudioSendModal :open="sendOpen" :prepare="sendPrepare" :market="sendMarket" :load-error="sendLoadError" :sent="sentOfOpen" @close="sendOpen = false" @sent="onSent" @retry="loadPrepare(sendExportId)" />
   </div>
 </template>
 
@@ -194,6 +194,8 @@ const sendPrepare = ref(null) // null = 창 안에서 "보내기 준비 중"
 const sendLoadError = ref('')  // 준비를 못 받음 — 창 안에 이유 + [다시 시도]
 const sendExportId = ref('')   // 지금 창이 보여 주는 내 상품
 const sendMarket = ref('') // 누른 버튼의 판매처 — 창이 그곳만 처음 체크한다
+// 보내기 창이 보여 주는 내 상품의 판매처별 최근 전송 → 창의 "이미 보냄" (2026-10-01 중복 등록 방지)
+const sentOfOpen = computed(() => (sendExportId.value ? sendsByExport(sends.value)[sendExportId.value] || [] : []))
 const message = ref('')
 const messageError = ref(false)
 const messageAdminUrl = ref('') // 카페24 등록 뒤 [카페24 쇼핑몰 관리 화면에서 보기]

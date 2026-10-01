@@ -1418,7 +1418,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   eq('처음 체크(관리자): 누른 판매처만(market) · 다시 보내기는 쿠팡만 · 없으면 연결된 곳 모두', [R.initialChecked(both, { market: 'cafe24' }), R.initialChecked(both, { resend: true }), R.initialChecked(both), R.initialChecked(R.channelRows({ coupang: { connected: true } }, { admin: true }), { market: 'cafe24' }).cafe24], [{ ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), cafe24: true }, { ...Object.fromEntries(R.MARKETS.map(m => [m.key, false])), coupang: true }, R.defaultChecked(both), false])
   eq('처음 체크(고객): 카페24로 열어도 카페24 칸 자체가 없음 · 아무것도 체크 안 됨', (() => { const c = R.initialChecked(R.channelRows({ coupang: { connected: true }, cafe24: { connected: true } }), { market: 'cafe24' }); return ['cafe24' in c, Object.values(c).some(Boolean)] })(), [false, false])
   eq('보내기 창: market prop → initialChecked · 카페24 섹션 = 같은 모양(missing·busy·done·submit) · 판매가는 정수 검사 · 분류는 선택(못 읽어도 보냄)', [
-    /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend })"),
+    /market: \{ type: String, default: '' \}/.test(shell), shell.includes("initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value })") /* 2026-10-01 sent = 이미 보낸 판매처 */,
     /defineExpose\(\{ missing, busy, done, submit(, sendError)? \}\)/.test(sec), sec.includes('Number.isInteger(f.value.price) && f.value.price >= 0'), /<option :value="null">미분류<\/option>/.test(sec), sec.includes('catError.value = e.message'),
     /진열함을 선택하면 등록 즉시 쇼핑몰에 노출됩니다\./.test(sec) && /등록 정보 확인/.test(sec) && !/진열 안 함 · 판매 안 함 상태로 등록돼요/.test(sec), /sendCafe24Product\(\{/.test(sec) && /listCafe24Categories\(\)/.test(sec),
   ], [true, true, true, true, true, true, true, true])
@@ -1523,7 +1523,7 @@ const CONNECT = { seller_login_id: 'wingid', vendor_id: 'A00012345', access_key:
   ], [true, true, false, true, true, true, true])
   eq('창: 준비 데이터가 늦게 와도 그때 섹션을 만들고 처음 체크를 정함 (prepare.markets를 본 뒤)', [
     /watch\(\(\) => props\.open, v => \{ if \(v\) resetForPrepare\(\) \}\)/.test(shell), /watch\(\(\) => props\.prepare, \(p, old\) => \{ if \(props\.open && p && p !== old\) resetForPrepare\(\) \}\)/.test(shell),
-    shell.includes('checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend }) : {}'),
+    shell.includes('checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value }) : {}'),
   ], [true, true, true])
   const resend = body(sl, 'function openResend(s)')
   eq('다시 보내기: 창을 먼저 열고(기다리지 않음) 창 안에서 받음 · 로그아웃이면 늦은 응답 버림', [/resendOpen\.value = true\s+loadResend\(s\.id\)/.test(resend), /await/.test(resend), /resendSeq\+\+/.test(body(sl, 'function clear()'))], [true, false, true])
@@ -2467,6 +2467,21 @@ function elevenstRelay(u, method, opts) {
   eq('창 배선: 등록된 곳(done)은 건너뛰고 나머지만 보냄 · 결과 표는 2곳 이상일 때만 · 실패 사유 = 섹션 sendError · 실패해도 다음 판매처 계속', [
     /const keys = picked\.value\.filter\(k => !sections\[k\]\?\.done\)/.test(modal), /runKeys\.value = picked\.value\.length > 1 \? \[\.\.\.picked\.value\] : \[\]/.test(modal), /reason: s\.sendError/.test(modal), /for \(const key of keys\)/.test(modal), /<section v-if="resultRows\.length"[^>]*data-mk-s-results>/.test(modal),
   ], [true, true, true, true, true])
+  // ── 이미 보냄 (중복 등록 방지 — 막지 않고 표시 + 처음 체크에서 뺌 + 체크하면 확인 문구) ──
+  const LAST = [{ market: 'coupang', status: 'approval_pending' }, { market: 'smartstore', status: 'registered', sellerProductId: '111' }, { market: '11st', status: 'failed' }, { status: 'approved' }]
+  eq('이미 보냄 = 보내는 중·승인 대기·승인·등록됨 (반려·실패는 아님) · 판매처 칸 없는 예전 기록 = 쿠팡', [Object.keys(R.alreadySent(LAST)).sort(), Object.keys(R.alreadySent([{ market: '11st', status: 'rejected' }, { market: 'smartstore', status: 'sending' }])), R.alreadySent(undefined), R.ALREADY_SENT_STATUSES],
+    [['coupang', 'smartstore'], ['smartstore'], {}, ['sending', 'approval_pending', 'approved', 'registered']])
+  const ROWS3 = [{ key: 'coupang', state: 'connected' }, { key: 'smartstore', state: 'connected' }, { key: '11st', state: 'connected' }, { key: 'gmarket', state: 'planned' }]
+  const SENT = R.alreadySent([{ market: 'smartstore', status: 'registered' }])
+  eq('처음 체크: sent 없으면 예전과 같음 · 이미 보낸 곳은 뺌(모두·버튼 판매처 모두) · 다시 보내기는 sent를 안 봄', [
+    JSON.stringify(R.initialChecked(ROWS3, {})) === JSON.stringify(R.defaultChecked(ROWS3)), R.initialChecked(ROWS3, { market: '11st' }),
+    R.initialChecked(ROWS3, { sent: SENT }), R.initialChecked(ROWS3, { market: 'smartstore', sent: SENT }), R.initialChecked(ROWS3, { resend: true, sent: R.alreadySent([{ market: 'coupang', status: 'approved' }]) }),
+  ], [true, { coupang: false, smartstore: false, '11st': true, gmarket: false },
+    { coupang: true, smartstore: false, '11st': true, gmarket: false }, { coupang: false, smartstore: false, '11st': false, gmarket: false }, { coupang: true, smartstore: false, '11st': false, gmarket: false }])
+  const view = read('src/views/studio/StudioChannelSendView.vue')
+  eq('창 배선: 보내기 탭이 그 상품의 판매처별 최근 전송을 넘김 · 확인 전에는 빠짐 목록(보내기 꺼짐) · 브라우저 confirm/alert 없음 · 다시 보내기 창은 안 씀', [
+    /:sent="sentOfOpen"/.test(view), /sendsByExport\(sends\.value\)\[sendExportId\.value\]/.test(view), /for \(const key of confirmKeys\.value\) out\.push\(/.test(modal), /window\.confirm|window\.alert|\bconfirm\(|\balert\(/.test(modal), /props\.prepare\?\.resend \? \{\} : alreadySent\(props\.sent\)/.test(modal), /sent: sentMap\.value/.test(modal),
+  ], [true, true, true, false, true, true])
   eq('섹션 4개 모두 sendError를 내놓음 (창 결과 표용 — 읽기만)', ['Coupang', 'Smartstore', 'Elevenst', 'Cafe24'].map(n => /defineExpose\(\{ missing, busy, done, submit, sendError \}\)/.test(read(`src/components/studio/StudioSend${n}.vue`))), [true, true, true, true])
 }
 

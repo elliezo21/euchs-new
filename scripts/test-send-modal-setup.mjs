@@ -120,6 +120,11 @@ if (built?.Coupang && built?.Modal) {
   eq('보내기 창 setup이 예외 없이 실행 (연결됨)', c.error, null)
   eq('보내기 창(고객): 판매처 8줄(카페24 없음) + 쿠팡 섹션이 그려짐 · 화면 글자에 카페24 없음', [(c.html.match(/data-mk-s-market="/g) || []).length, /data-mk-send-coupang/.test(c.html), /data-mk-s-mode-pick/.test(c.html), /data-mk-s-market="cafe24"|카페24/.test(c.html)], [8, true, true, false])
   eq('보내기 창: 열 때는 결과 표 없음 (2026-10-01 결과 표는 2곳 이상 보낸 뒤에만)', /data-mk-s-results/.test(c.html), false)
+  // 이미 보냄 (2026-10-01) — sent를 넘기면 그 판매처 줄에 배지 · 안 넘기면(예전) 배지 없음 · 다시 보내기 창은 안 씀
+  const sentHtml = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE), sent: [{ market: 'coupang', status: 'approval_pending', sellerProductId: '777' }] })
+  eq('이미 보냄: 쿠팡 줄에 "이미 보냄 · 승인 대기" 배지 · 예외 없음 · sent 없으면 배지 없음', [sentHtml.error, /data-mk-s-market-sent="coupang"[^>]*>이미 보냄 · 승인 대기</.test(sentHtml.html), /data-mk-s-market-sent/.test(c.html)], [null, true, false])
+  const failedSent = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE), sent: [{ market: 'coupang', status: 'rejected' }] })
+  eq('이미 보냄: 반려된 기록은 배지 없음', /data-mk-s-market-sent/.test(failedSent.html), false)
   built.userRole.value = 'staff'
   const cAdmin = await render(built.Modal, { open: true, prepare: PREPARE(true, SOURCE) })
   built.userRole.value = 'user'

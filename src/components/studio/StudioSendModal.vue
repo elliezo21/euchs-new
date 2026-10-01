@@ -19,8 +19,18 @@
             </template>
             <span v-else-if="r.state === 'linked'" class="st-badge st-badge-accent shrink-0" :data-mk-s-market-linked="r.key">연결됨</span>
             <span v-else-if="r.state === 'planned'" class="st-badge shrink-0" :data-mk-s-market-planned="r.key">{{ PLANNED_LABEL }}</span>
+            <!-- 이 상품을 이미 보낸 판매처 (2026-10-01 중복 등록 방지) — 막지 않고 표시만. 처음 체크에서 빠지고, 체크하면 아래 확인 문구 -->
+            <span v-if="sentMap[r.key]" :class="SEND_BADGE_CLASS[sentMap[r.key].status] || 'st-badge'" class="shrink-0" :data-mk-s-market-sent="r.key">이미 보냄 · {{ SEND_STATUS_LABEL[sentMap[r.key].status] || sentMap[r.key].status }}</span>
           </li>
         </ul>
+        <!-- 이미 보낸 판매처를 체크했을 때 — 브라우저 확인창 대신 화면 안 문구·버튼. 확인 전에는 보내기 버튼이 꺼진다(빠짐 목록) -->
+        <div v-for="key in confirmKeys" :key="key" class="st-surface st-border rounded-[10px] p-3 space-y-2" :data-mk-s-sent-confirm="key">
+          <p class="text-[13px] st-ink break-keep">이 상품은 {{ nameOf(key) }}에 이미 보냈습니다({{ SEND_STATUS_LABEL[sentMap[key].status] || sentMap[key].status }}<template v-if="sentMap[key].sellerProductId"> · 상품번호 {{ sentMap[key].sellerProductId }}</template>). 다시 보내면 {{ nameOf(key) }}에 같은 상품이 하나 더 등록됩니다.</p>
+          <div class="flex flex-wrap gap-2">
+            <button type="button" class="st-btn" :data-mk-s-sent-ok="key" @click="sentOk = { ...sentOk, [key]: true }">그래도 다시 보내기</button>
+            <button type="button" class="st-btn" :data-mk-s-sent-cancel="key" @click="checked[key] = false">체크 해제</button>
+          </div>
+        </div>
       </section>
 
       <!-- 판매처별 섹션 — 연결된 판매처마다 하나 만들어 두고, 체크된 것만 보인다(v-show).
@@ -84,7 +94,7 @@ import StudioSendCoupang from '@/components/studio/StudioSendCoupang.vue'
 import StudioSendCafe24 from '@/components/studio/StudioSendCafe24.vue'
 import StudioSendSmartstore from '@/components/studio/StudioSendSmartstore.vue'
 import StudioSendElevenst from '@/components/studio/StudioSendElevenst.vue'
-import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
+import { MARKETS, marketRows, initialChecked, checkedMarkets, sectionKeys, bulkSendLabel, sendResultRows, alreadySent, SEND_BADGE_CLASS, PLANNED_LABEL, SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { SEND_STATUS_LABEL } from '@/lib/studioMarketplace'
 import { linkStates } from '@/lib/studioMarketLinks'
 import { isAdminOrStaff } from '@/lib/auth'
@@ -93,7 +103,8 @@ const SECTIONS = { coupang: StudioSendCoupang, smartstore: StudioSendSmartstore,
 
 // market = 어느 판매처 버튼으로 열었는지([쿠팡으로 보내기]·[카페24로 보내기]) → 그 판매처만 처음 체크. 비면 연결된 곳 모두(다시 보내기는 쿠팡만)
 // prepare = null이면 준비 중(창은 먼저 열린다) · loadError = 준비를 못 받음 → [다시 시도] = 'retry'
-const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null }, market: { type: String, default: '' }, loadError: { type: String, default: '' } })
+// sent = 이 내 상품의 판매처별 가장 최근 전송(sendsByExport) — "이미 보냄" 표시용. 안 넘기면(다시 보내기 창) 예전 그대로
+const props = defineProps({ open: { type: Boolean, default: false }, prepare: { type: Object, default: null }, market: { type: String, default: '' }, loadError: { type: String, default: '' }, sent: { type: Array, default: () => [] } })
 const emit = defineEmits(['close', 'sent', 'retry'])
 
 // 같은 화면 안에서 창을 다시 열 때 다시 받지 않는 목록 (지금은 카페24 상품 분류 — StudioSendCafe24가 inject).
@@ -116,6 +127,10 @@ const rows = computed(() => marketRows({ ...linkStates(false), ...(props.prepare
 const picked = computed(() => checkedMarkets(rows.value, checked.value))
 const mounted = computed(() => sectionKeys(rows.value, Object.keys(SECTIONS))) // 섹션을 만들어 둘 판매처 (체크와 상관없음)
 const nameOf = key => MARKETS.find(m => m.key === key)?.name || key
+// 이미 보낸 판매처 — 다시 보내기 창에서는 쓰지 않는다(반려된 쿠팡 상품을 고치는 길)
+const sentMap = computed(() => (props.prepare?.resend ? {} : alreadySent(props.sent)))
+const sentOk = ref({}) // 체크한 "이미 보냄" 판매처 중 [그래도 다시 보내기]를 누른 곳
+const confirmKeys = computed(() => picked.value.filter(k => sentMap.value[k] && !sentOk.value[k] && !sections[k]?.done))
 function setSection(key, el) {
   if (el) sections[key] = el
   else delete sections[key]
@@ -129,8 +144,9 @@ function resetForPrepare() {
   sending.value = false
   results.value = {}
   runKeys.value = []
+  sentOk.value = {}
   for (const k of Object.keys(sections)) delete sections[k]
-  checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend }) : {}
+  checked.value = props.prepare ? initialChecked(rows.value, { market: props.market, resend: !!props.prepare.resend, sent: sentMap.value }) : {}
 }
 watch(() => props.open, v => { if (v) resetForPrepare() })
 watch(() => props.prepare, (p, old) => { if (props.open && p && p !== old) resetForPrepare() })
@@ -142,6 +158,7 @@ const missing = computed(() => {
     const list = sections[key]?.missing || []
     for (const m of list) out.push(picked.value.length > 1 ? `${nameOf(key)} · ${m}` : m)
   }
+  for (const key of confirmKeys.value) out.push(`${nameOf(key)} 다시 보내기 확인 (위 [그래도 다시 보내기] 또는 [체크 해제])`)
   return out
 })
 // 재발 방지 (2026-09-28 운영 버그: 섹션 setup이 죽었는데 [보내기]가 켜져 있었다)
