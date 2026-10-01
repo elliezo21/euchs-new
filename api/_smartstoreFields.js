@@ -10,3 +10,10 @@ export const SS_DELIVERY_COMPANIES = [
 ]
 // 원산지 — 03(기타-상세 설명에 표시)·04(기타-직접 입력, content 필수) (문서)
 export const ORIGIN_CODES = ['03', '04']
+// 관부가세 — originProduct.detailAttribute.customsTaxType. "출고지 주소가 해외 주소인 경우 필수" (create-product-product 문서 표 그대로)
+//   INCLUDED 비고: "노출 채널이 해외직구인 경우 INCLUDED만 허용" — 해외직구 채널 여부는 확인 못 함[모름] → 고객이 고른다(기본값 없음)
+//   2026-10-01 운영 1차: 해외(항주) 출고지로 보냈다가 400 customsTaxType.required.overseas
+export const CUSTOMS_TAX_TYPES = [
+  { code: 'NOT_APPLICABLE', name: '부과 대상 아님' }, { code: 'INCLUDED', name: '관부가세 포함' }, { code: 'EXCLUDED', name: '관부가세 미포함' },
+]
+export const isCustomsTaxType = v => CUSTOMS_TAX_TYPES.some(t => t.code === v)

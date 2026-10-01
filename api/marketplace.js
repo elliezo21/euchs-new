@@ -42,7 +42,7 @@
  *   cafe24_send       { exportId, productName, price, categoryNo?, repImageId, fit? } → 토큰 갱신(필요하면) → 이미지 업로드(대표 + 상세) → 상품 등록(진열·판매 안 함) → marketplace_sends(cafe24, registered) → { sendId, productNo, status, adminUrl }
  *   smartstore_categories → { categories:[{ id, name, wholeName }] }  (리프 카테고리 — 2026-10-01 스마트스토어 보내기)
  *   smartstore_addresses  → { addresses:[{ id, name, type, address, phone }], defaults:{ shipping, return } }  (판매자 주소록)
- *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery, afterService, origin, notice }
+ *   smartstore_send   { exportId, productName, salePrice, stock, leafCategoryId, categoryName?, repImageId, fit?, display?('SUSPENSION' 기본|'ON'), delivery(+ shippingOverseas), afterService, origin, notice, customsTaxType?(해외 출고지면 필수) }
  *                     → 토큰 → marketplace_sends(smartstore, sending) → 이미지 업로드(대표 + 상세, 네이버 주소) → 상품 등록 → registered(원상품번호·채널상품번호) → { sendId, originProductNo, channelProductNo, status }
  * GET ?t={토큰}  (로그인 없음 — 쿠팡이 이미지를 내려받는 짧은 주소, _marketplaceCrypto 토큰 30분) → 파일 바이트 그대로 (302 아님)
  *
@@ -638,11 +638,11 @@ async function smartstoreCredentials(ctx, res) {
   const encKey = encKeyOr(res)
   if (!encKey) return null
   const row = await oneAccount(ctx, SMARTSTORE, `${ELEVENST_PUBLIC},access_key_enc,secret_key_enc`)
-  if (!row?.access_key_enc || !row?.secret_key_enc) { sendError(res, 409, 'not_connected', '먼저 스마트스토어를 연결해 주세요.'); return null }
+  if (!row?.access_key_enc || !row?.secret_key_enc) { sendError(res, 409, 'not_connected', '먼저 스마트스토어를 연결하세요.'); return null }
   let clientId, clientSecret
   try { clientId = decryptSecret(row.access_key_enc, encKey); clientSecret = decryptSecret(row.secret_key_enc, encKey) } catch (e) {
     console.error('[marketplace] 스마트스토어 키 복호화 실패:', e.message)
-    sendError(res, 500, 'decrypt_failed', '저장된 연결 정보를 읽지 못했어요. 연결을 해제하고 다시 연결해 주세요.')
+    sendError(res, 500, 'decrypt_failed', '저장된 연결 정보를 읽지 못했습니다. 연결을 해제하고 다시 연결하세요.')
     return null
   }
   const m = marketConfig()
@@ -681,8 +681,9 @@ function smartstoreInput(body) {
   return {
     productName: body.productName, salePrice: num(body.salePrice), stock: num(body.stock), leafCategoryId: body.leafCategoryId,
     display: body.display == null || body.display === '' ? DISPLAY_STATUSES[0] : body.display, // 기본 전시중지
-    delivery: { company: d.company, feeType: d.feeType, baseFee: d.feeType === 'PAID' ? num(d.baseFee) : undefined, returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingAddressId: num(d.shippingAddressId), returnAddressId: num(d.returnAddressId) },
+    delivery: { company: d.company, feeType: d.feeType, baseFee: d.feeType === 'PAID' ? num(d.baseFee) : undefined, returnFee: num(d.returnFee), exchangeFee: num(d.exchangeFee), shippingAddressId: num(d.shippingAddressId), returnAddressId: num(d.returnAddressId), shippingOverseas: d.shippingOverseas === true },
     afterService: body.afterService || {}, origin: body.origin || {}, notice: body.notice || {},
+    customsTaxType: body.customsTaxType, // 해외 출고지일 때만 화면이 보낸다 (2026-10-01 운영 1차 400)
   }
 }
 async function smartstoreSend(ctx, body, res) {
@@ -692,7 +693,7 @@ async function smartstoreSend(ctx, body, res) {
   // 입력 검사를 네이버를 부르기 전에 — 이미지 주소 자리는 검사용 값
   const pre = buildSmartstoreProduct({ ...input, repUrl: '-', detailUrls: ['-'] })
   if (!pre.ok) return sendError(res, 400, 'invalid_input', pre.message)
-  if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있어요.`)
+  if (ex.files.length > DETAIL_IMAGE_MAX) return sendError(res, 400, 'invalid_input', `상세 이미지는 ${DETAIL_IMAGE_MAX}장까지 보낼 수 있습니다.`)
   const rep = await squareFromImage(ctx, ex, body.repImageId, body.fit)
   if (rep.error) return sendError(res, 400, 'rep_image_invalid', rep.error)
   const cred = await smartstoreCredentials(ctx, res)
@@ -727,15 +728,15 @@ async function smartstoreSend(ctx, body, res) {
     const dl = await storageDownload(ctx.cfg, BUCKET, f.path)
     if (!dl.found) {
       console.error('[marketplace] 스마트스토어 상세 이미지 원본이 Storage에 없음:', f.path)
-      return fail(404, 'not_found', '내 상품 파일을 찾을 수 없어요. 작업을 다시 저장한 뒤 보내 주세요.')
+      return fail(404, 'not_found', '내 상품 파일을 찾을 수 없습니다. 작업을 다시 저장한 뒤 보내세요.')
     }
     let buf = dl.buf, mime = imageMime(buf)
-    if (!mime) return fail(400, 'invalid_input', '내 상품 파일 형식을 읽지 못했어요. 작업을 다시 저장한 뒤 보내 주세요.')
+    if (!mime) return fail(400, 'invalid_input', '내 상품 파일 형식을 읽지 못했습니다. 작업을 다시 저장한 뒤 보내세요.')
     if (buf.length > UPLOAD_IMAGE_MAX) {
       const out = await shrinkBytes(buf, { maxBytes: UPLOAD_IMAGE_MAX })
       if (out.tooBig) {
         console.error(`[marketplace] 스마트스토어 상세 이미지가 품질 ${out.quality}에서도 ${UPLOAD_IMAGE_MAX}바이트를 넘음: ${f.path} ${out.buf.length}`)
-        return fail(400, 'invalid_input', '상세 이미지 한 장이 너무 커요. 섹션별 여러 장으로 다시 저장해 주세요.')
+        return fail(400, 'invalid_input', '상세 이미지 한 장이 너무 큽니다. 섹션별 여러 장으로 다시 저장하세요.')
       }
       buf = out.buf
       mime = out.mime
@@ -752,7 +753,7 @@ async function smartstoreSend(ctx, body, res) {
     if (!got) {
       const shape = { keys: r.json && typeof r.json === 'object' ? Object.keys(r.json).slice(0, 10) : typeof r.json, len: Array.isArray(r.json?.images) ? r.json.images.length : null, sent: group.length }
       console.error(`[marketplace] 스마트스토어 이미지 업로드 응답 모양이 다름 send=${sendId}:`, JSON.stringify(shape))
-      return fail(502, 'market_bad_json', '네이버가 올린 이미지 주소를 주지 않았어요. 잠시 후 다시 시도해 주세요.', { result_json: { code: 'market_bad_json', step: 'upload', shape } })
+      return fail(502, 'market_bad_json', '판매처가 이미지 주소를 주지 않았습니다. 잠시 후 다시 시도해 주세요.', { result_json: { code: 'market_bad_json', step: 'upload', shape } })
     }
     urls.push(...got)
   }
@@ -762,12 +763,12 @@ async function smartstoreSend(ctx, body, res) {
   const requestJson = { body: built.body, categoryName: typeof body.categoryName === 'string' ? body.categoryName.slice(0, 300) : null, files: Object.fromEntries(ex.files.map(f => [f.key, f.path])) }
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { request_json: requestJson }, prefer: 'return=minimal' })
   let r
-  try { r = await smartstoreApi(cred, { method: 'POST', path: SS_PATHS.products, json: built.body }) } catch (e) { return ssFail(e, 'product') }
+  try { r = await smartstoreApi(cred, { method: 'POST', path: SS_PATHS.products, json: built.body, what: '등록' }) } catch (e) { return ssFail(e, 'product') }
   const nos = productNosOf(r.text)
   if (!nos.originProductNo) {
     const shape = { keys: r.json && typeof r.json === 'object' ? Object.keys(r.json).slice(0, 10) : typeof r.json }
     console.error('[marketplace] 스마트스토어 등록 응답에 originProductNo 없음:', sendId, JSON.stringify(shape))
-    return fail(502, 'market_bad_json', '네이버가 상품 번호를 주지 않았어요. 스마트스토어센터에서 상품이 등록됐는지 확인해 주세요.', { result_json: { code: 'market_bad_json', step: 'product', shape } })
+    return fail(502, 'market_bad_json', '판매처가 상품 번호를 주지 않았습니다. 스마트스토어센터에서 상품이 등록되었는지 확인하세요.', { result_json: { code: 'market_bad_json', step: 'product', shape } })
   }
   const display = built.body.smartstoreChannelProduct.channelProductDisplayStatusType
   await sb(ctx.cfg, `marketplace_sends?id=eq.${sendId}`, { method: 'PATCH', body: { seller_product_id: nos.originProductNo, status: 'registered', result_json: { originProductNo: nos.originProductNo, channelProductNo: nos.channelProductNo, display } }, prefer: 'return=minimal' })

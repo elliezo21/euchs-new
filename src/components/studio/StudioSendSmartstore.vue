@@ -2,6 +2,10 @@
   <div class="space-y-5 st-border rounded-[12px] p-4" data-mk-ss>
     <h4 class="st-h-card">스마트스토어</h4>
 
+    <!-- 실패 사유 — 섹션 맨 위 + 실패하면 이 줄로 스크롤 (2026-10-01 운영: 창 맨 아래에만 있어 보이지 않았다) -->
+    <p v-if="sendError" ref="errorEl" class="text-[13px] font-bold st-danger-text break-keep st-surface st-border rounded-[10px] p-3" role="alert" data-mk-ss-error>등록에 실패했습니다. (사유: {{ sendError }})
+      <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">연결 설정으로 이동</router-link></p>
+
     <!-- 상품명 -->
     <label class="block">
       <span class="st-label">상품명 *</span>
@@ -100,6 +104,15 @@
             </select>
           </label>
         </div>
+        <!-- 관부가세 — 고른 출고지가 해외 주소(주소록 overseasAddress)일 때만, 필수 · 기본값 없음 -->
+        <label v-if="shippingOverseas" class="block mt-3" data-mk-ss-customs-box>
+          <span class="st-label">관부가세 *</span>
+          <select v-model="f.customsTaxType" class="st-input w-full sm:w-64" :disabled="!!done" data-mk-ss-customs>
+            <option value="">관부가세 선택</option>
+            <option v-for="t in CUSTOMS_TAX_TYPES" :key="t.code" :value="t.code">{{ t.name }}</option>
+          </select>
+          <span class="st-desc-sm block mt-1">해외 출고지 상품은 관부가세 입력이 필수입니다.</span>
+        </label>
       </template>
       <p v-else-if="!addrError" class="st-desc-sm break-keep" data-mk-ss-addr-empty>스마트스토어센터 판매자 주소록에 출고지·반품지를 먼저 등록하세요.</p>
       <p v-if="addrError" class="mt-1 text-[12px] break-keep" :class="addrSoft ? 'st-muted' : 'st-danger-text'" data-mk-ss-addr-error>{{ addrError }}
@@ -162,8 +175,6 @@
       </div>
     </section>
 
-    <p v-if="sendError" class="text-[13px] font-bold st-danger-text break-keep" data-mk-ss-error>등록에 실패했습니다. (사유: {{ sendError }})
-      <router-link v-if="errorGuide" :to="{ name: 'studio-channels-connect' }" class="st-link ml-1">연결 설정으로 이동</router-link></p>
     <p v-if="done" class="text-[13px] font-bold st-success-text break-keep" data-mk-ss-done>등록되었습니다. 원상품번호 {{ done.originProductNo }}<template v-if="done.channelProductNo"> · 채널상품번호 {{ done.channelProductNo }}</template> · {{ DISPLAY_LABEL[done.display] || DISPLAY_LABEL[f.display] }}</p>
   </div>
 </template>
@@ -174,11 +185,11 @@
 // 항목은 네이버 상품 등록 문서의 필수 칸(api/_smartstore.js buildSmartstoreProduct)만 — 카테고리·판매가·재고·대표 이미지·배송·출고지/반품지·A/S·원산지·고시·전시 상태.
 // 판매 상태: 등록 때는 판매중(SALE)만 가능(문서) → 기본 전시중지(SUSPENSION)로 노출하지 않는다. 필수값은 화면(missing)이 먼저 막고 서버가 다시 검사한다
 // 카테고리·주소록은 창(StudioSendModal)이 화면이 떠 있는 동안 들고 있는 목록(sendCache)을 같이 쓴다 — 창을 다시 열어도 다시 받지 않는다
-import { ref, computed, onMounted, inject } from 'vue'
+import { ref, computed, onMounted, inject, nextTick } from 'vue'
 import { listSmartstoreCategories, listSmartstoreAddresses, sendSmartstoreProduct, isNotReady } from '@/lib/studioMarketplace'
 import { SEND_CACHE_KEY } from '@/lib/studioMarketplaceRules'
 import { pickKoreanName } from '../../../api/_coupangFields.js'
-import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES } from '../../../api/_smartstoreFields.js'
+import { SS_DELIVERY_COMPANIES, DISPLAY_STATUSES, CUSTOMS_TAX_TYPES } from '../../../api/_smartstoreFields.js'
 
 const CAT_SHOWN = 200 // 선택 목록에 한 번에 보이는 카테고리 수 (검색으로 좁힌다)
 const DETAIL_REF = '상세페이지 참조'
@@ -190,6 +201,7 @@ const busy = ref('')
 const done = ref(null)
 const sendError = ref('')
 const errorGuide = ref(false)
+const errorEl = ref(null)
 const categories = ref([])
 const catLoading = ref(false)
 const catError = ref('')
@@ -208,6 +220,7 @@ const f = ref({
   asPhone: '', asGuide: DETAIL_REF, originCode: '03', originContent: '',
   itemName: '', modelName: '', manufacturer: '',
   display: DISPLAY_STATUSES[0], // 기본 전시중지
+  customsTaxType: '', // 해외 출고지일 때만 보이고 필수 — 기본값 없음
 })
 
 const isWon = (v, min) => Number.isInteger(v) && v >= min
@@ -222,7 +235,10 @@ const catOptions = computed(() => {
   return sel && !list.includes(sel) ? [sel, ...list] : list
 })
 const categoryName = computed(() => categories.value.find(c => c.id === f.value.leafCategoryId)?.wholeName || '')
-const addressLabel = a => `${a.name}${ADDRESS_TYPE[a.type] ? ` (${ADDRESS_TYPE[a.type]})` : ''} · ${a.address}`
+const addressLabel = a => `${a.name}${ADDRESS_TYPE[a.type] ? ` (${ADDRESS_TYPE[a.type]})` : ''}${a.overseas ? ' · 해외' : ''} · ${a.address}`
+// 고른 출고지가 해외 주소인지 — 주소록 응답 overseasAddress(서버 normalizeAddressBooks의 overseas) 그대로
+const shippingOverseas = computed(() => addresses.value.find(a => a.id === f.value.shippingAddressId)?.overseas === true)
+const customsName = code => CUSTOMS_TAX_TYPES.find(t => t.code === code)?.name || ''
 const addressName = id => { const a = addresses.value.find(x => x.id === id); return a ? addressLabel(a) : '' }
 
 const missing = computed(() => {
@@ -237,6 +253,7 @@ const missing = computed(() => {
   if (!isWon(v.exchangeFee, 0)) out.push('교환 배송비')
   if (!v.shippingAddressId) out.push('출고지')
   if (!v.returnAddressId) out.push('반품지')
+  if (shippingOverseas.value && !v.customsTaxType) out.push('관부가세')
   if (!v.asPhone.trim()) out.push('A/S 전화번호')
   if (!v.asGuide.trim()) out.push('A/S 안내')
   if (v.originCode === '04' && !v.originContent.trim()) out.push('원산지')
@@ -257,6 +274,7 @@ const preview = computed(() => {
     { label: '반품·교환 배송비', value: isWon(v.returnFee, 0) && isWon(v.exchangeFee, 0) ? `반품 ${won(v.returnFee)} · 교환 ${won(v.exchangeFee)}` : '' },
     { label: '출고지', value: addressName(v.shippingAddressId) },
     { label: '반품지', value: addressName(v.returnAddressId) },
+    ...(shippingOverseas.value ? [{ label: '관부가세', value: customsName(v.customsTaxType) }] : []),
     { label: '판매상태', value: '판매중' },
     { label: '전시상태', value: DISPLAY_LABEL[v.display] },
   ]
@@ -326,10 +344,11 @@ async function submit() {
     const r = await sendSmartstoreProduct({
       exportId: props.prepare.export.id, productName: String(v.productName).trim(), salePrice: v.salePrice, stock: v.stock,
       leafCategoryId: v.leafCategoryId, categoryName: categoryName.value, repImageId: v.repImageId, fit: v.fit, display: v.display,
-      delivery: { company: v.company, feeType: v.feeType, baseFee: v.feeType === 'PAID' ? v.baseFee : null, returnFee: v.returnFee, exchangeFee: v.exchangeFee, shippingAddressId: v.shippingAddressId, returnAddressId: v.returnAddressId },
+      delivery: { company: v.company, feeType: v.feeType, baseFee: v.feeType === 'PAID' ? v.baseFee : null, returnFee: v.returnFee, exchangeFee: v.exchangeFee, shippingAddressId: v.shippingAddressId, returnAddressId: v.returnAddressId, shippingOverseas: shippingOverseas.value },
       afterService: { phone: v.asPhone.trim(), guide: v.asGuide.trim() },
       origin: v.originCode === '04' ? { code: '04', content: v.originContent.trim() } : { code: '03' },
       notice: { itemName: v.itemName.trim(), modelName: v.modelName.trim(), manufacturer: v.manufacturer.trim() },
+      ...(shippingOverseas.value ? { customsTaxType: v.customsTaxType } : {}), // 국내 출고지면 보내지 않는다
     })
     done.value = r
     return r
@@ -337,6 +356,8 @@ async function submit() {
     console.error('[StudioSendSmartstore] 스마트스토어 보내기 실패:', e.code, e)
     sendError.value = e.message
     errorGuide.value = ['not_connected', 'token_invalid', 'scope_denied', 'ip_not_allowed', 'bad_key'].includes(e.code)
+    // 실패 사유가 보이게 — 섹션 맨 위 사유 줄로 스크롤 (창 안 스크롤 영역)
+    nextTick(() => errorEl.value?.scrollIntoView?.({ block: 'center', behavior: 'smooth' }))
     return null
   } finally {
     busy.value = ''

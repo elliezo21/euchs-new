@@ -16,7 +16,7 @@
  */
 import bcrypt from 'bcryptjs'
 import { breakerFor, NOT_READY_MESSAGE, RELAY_IP } from './_coupang.js'
-import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES } from './_smartstoreFields.js'
+import { DISPLAY_STATUSES, SS_DELIVERY_COMPANIES, ORIGIN_CODES, isCustomsTaxType } from './_smartstoreFields.js'
 
 export const SMARTSTORE_PATHS = { token: '/external/v1/oauth2/token' }
 const RELAY_TIMEOUT_MS = 25000
@@ -156,36 +156,41 @@ export function ssDetailHtml(urls, productName) {
 /**
  * 상품 등록 본문 (POST /v2/products). 화면에서 받은 값만 — 모르는 칸은 넣지 않는다
  * @param {{ productName, salePrice, stock, leafCategoryId, repUrl, detailUrls:string[], display,
- *           delivery:{ company, feeType:'FREE'|'PAID', baseFee?, returnFee, exchangeFee, shippingAddressId, returnAddressId },
- *           afterService:{ phone, guide }, origin:{ code:'03'|'04', content? }, notice:{ itemName, modelName, manufacturer } }} p
+ *           delivery:{ company, feeType:'FREE'|'PAID', baseFee?, returnFee, exchangeFee, shippingAddressId, returnAddressId, shippingOverseas? },
+ *           afterService:{ phone, guide }, origin:{ code:'03'|'04', content? }, notice:{ itemName, modelName, manufacturer },
+ *           customsTaxType?:'NOT_APPLICABLE'|'INCLUDED'|'EXCLUDED' }} p   shippingOverseas = 고른 출고지의 주소록 overseasAddress (true면 관부가세 필수)
  * @returns {{ ok:true, body } | { ok:false, message }}
  */
 export function buildSmartstoreProduct(p) {
   const name = cleanSsName(p?.productName)
-  if (!name) return { ok: false, message: '상품명을 넣어 주세요.' }
-  if (!isInt(p?.salePrice, 1, SALE_PRICE_MAX)) return { ok: false, message: '판매가는 1원 이상 정수(원)여야 해요.' }
-  if (!isInt(p?.stock, 0, STOCK_MAX)) return { ok: false, message: '재고 수량은 0 이상 정수여야 해요.' }
+  if (!name) return { ok: false, message: '상품명을 입력하세요.' }
+  if (!isInt(p?.salePrice, 1, SALE_PRICE_MAX)) return { ok: false, message: '판매가는 1원 이상 정수(원)로 입력하세요.' }
+  if (!isInt(p?.stock, 0, STOCK_MAX)) return { ok: false, message: '재고 수량은 0 이상 정수로 입력하세요.' }
   const leaf = String(p?.leafCategoryId ?? '')
-  if (!/^\d{1,20}$/.test(leaf)) return { ok: false, message: '카테고리를 골라 주세요.' }
-  if (typeof p?.repUrl !== 'string' || !p.repUrl) return { ok: false, message: '대표 이미지를 올리지 못했어요.' }
-  if (!Array.isArray(p?.detailUrls) || !p.detailUrls.length) return { ok: false, message: '상세 이미지를 올리지 못했어요.' }
-  if (!DISPLAY_STATUSES.includes(p?.display)) return { ok: false, message: '전시 상태 값이 올바르지 않아요.' }
+  if (!/^\d{1,20}$/.test(leaf)) return { ok: false, message: '카테고리를 선택하세요.' }
+  if (typeof p?.repUrl !== 'string' || !p.repUrl) return { ok: false, message: '대표 이미지를 올리지 못했습니다.' }
+  if (!Array.isArray(p?.detailUrls) || !p.detailUrls.length) return { ok: false, message: '상세 이미지를 올리지 못했습니다.' }
+  if (!DISPLAY_STATUSES.includes(p?.display)) return { ok: false, message: '전시 상태 값이 올바르지 않습니다.' }
   const d = p?.delivery || {}
-  if (!SS_DELIVERY_COMPANIES.some(c => c.code === d.company)) return { ok: false, message: '택배사를 골라 주세요.' }
-  if (d.feeType !== 'FREE' && d.feeType !== 'PAID') return { ok: false, message: '배송비 종류를 골라 주세요.' }
-  if (d.feeType === 'PAID' && !isInt(d.baseFee, 1, BASE_FEE_MAX)) return { ok: false, message: `기본 배송비는 1~${BASE_FEE_MAX.toLocaleString('ko-KR')}원 정수여야 해요.` }
-  if (!isInt(d.returnFee, 0, CLAIM_FEE_MAX) || !isInt(d.exchangeFee, 0, CLAIM_FEE_MAX)) return { ok: false, message: '반품·교환 배송비를 0 이상 정수(원)로 넣어 주세요.' }
-  if (!isInt(d.shippingAddressId, 1, Number.MAX_SAFE_INTEGER) || !isInt(d.returnAddressId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, message: '출고지·반품지를 골라 주세요.' }
+  if (!SS_DELIVERY_COMPANIES.some(c => c.code === d.company)) return { ok: false, message: '택배사를 선택하세요.' }
+  if (d.feeType !== 'FREE' && d.feeType !== 'PAID') return { ok: false, message: '배송비 종류를 선택하세요.' }
+  if (d.feeType === 'PAID' && !isInt(d.baseFee, 1, BASE_FEE_MAX)) return { ok: false, message: `기본 배송비는 1~${BASE_FEE_MAX.toLocaleString('ko-KR')}원 정수로 입력하세요.` }
+  if (!isInt(d.returnFee, 0, CLAIM_FEE_MAX) || !isInt(d.exchangeFee, 0, CLAIM_FEE_MAX)) return { ok: false, message: '반품·교환 배송비를 0 이상 정수(원)로 입력하세요.' }
+  if (!isInt(d.shippingAddressId, 1, Number.MAX_SAFE_INTEGER) || !isInt(d.returnAddressId, 1, Number.MAX_SAFE_INTEGER)) return { ok: false, message: '출고지·반품지를 선택하세요.' }
   const as = p?.afterService || {}
   const phone = cleanText(as.phone, NOTICE_LIMITS.phone), guide = cleanText(as.guide, 300)
-  if (!phone || !guide) return { ok: false, message: 'A/S 전화번호와 A/S 안내를 넣어 주세요.' }
+  if (!phone || !guide) return { ok: false, message: 'A/S 전화번호와 A/S 안내를 입력하세요.' }
   const o = p?.origin || {}
-  if (!ORIGIN_CODES.includes(o.code)) return { ok: false, message: '원산지 표시 방법을 골라 주세요.' }
+  if (!ORIGIN_CODES.includes(o.code)) return { ok: false, message: '원산지 표시 방법을 선택하세요.' }
   const originContent = cleanText(o.content, 200)
-  if (o.code === '04' && !originContent) return { ok: false, message: '원산지를 넣어 주세요.' }
+  if (o.code === '04' && !originContent) return { ok: false, message: '원산지를 입력하세요.' }
   const n = p?.notice || {}
   const itemName = cleanText(n.itemName, NOTICE_LIMITS.itemName), modelName = cleanText(n.modelName, NOTICE_LIMITS.modelName), manufacturer = cleanText(n.manufacturer, NOTICE_LIMITS.manufacturer)
-  if (!itemName || !modelName || !manufacturer) return { ok: false, message: '상품정보제공고시(품명·모델명·제조자)를 넣어 주세요.' }
+  if (!itemName || !modelName || !manufacturer) return { ok: false, message: '상품정보제공고시(품명·모델명·제조자)를 입력하세요.' }
+  // 관부가세 — 출고지가 해외 주소면 필수(문서·운영 1차 400). 국내 출고지면 보내지 않는다(운영 2차 성공 본문 그대로)
+  const customs = p?.customsTaxType == null || p.customsTaxType === '' ? null : p.customsTaxType
+  if (customs != null && !isCustomsTaxType(customs)) return { ok: false, message: '관부가세 값이 올바르지 않습니다.' }
+  if (d.shippingOverseas === true && customs == null) return { ok: false, message: '해외 출고지는 관부가세를 선택하세요.' }
 
   const deliveryFee = d.feeType === 'PAID' ? { deliveryFeeType: 'PAID', baseFee: d.baseFee, deliveryFeePayType: 'PREPAID' } : { deliveryFeeType: 'FREE' }
   const body = {
@@ -211,6 +216,7 @@ export function buildSmartstoreProduct(p) {
     },
     smartstoreChannelProduct: { naverShoppingRegistration: false, channelProductDisplayStatusType: p.display },
   }
+  if (customs != null) body.originProduct.detailAttribute.customsTaxType = customs
   return { ok: true, body }
 }
 
@@ -222,12 +228,12 @@ export function normalizeSsCategories(json) {
     .map(c => ({ id: String(c.id), name: String(c.name || ''), wholeName: String(c.wholeCategoryName || c.name || '') }))
     .sort((a, b) => a.wholeName.localeCompare(b.wholeName, 'ko'))
 }
-/** 주소록 한 페이지 → [{ id, name, type, address, phone }] */
+/** 주소록 한 페이지 → [{ id, name, type, address, phone, overseas }] — overseas = 문서 칸 overseasAddress(해외 주소 여부, boolean) 그대로 */
 export function normalizeAddressBooks(json) {
   const list = Array.isArray(json?.addressBooks) ? json.addressBooks : []
   return list
     .filter(a => a && Number.isSafeInteger(Number(a.addressBookNo)) && Number(a.addressBookNo) > 0)
-    .map(a => ({ id: Number(a.addressBookNo), name: String(a.name || ''), type: String(a.addressType || ''), address: String(a.address || [a.baseAddress, a.detailAddress].filter(Boolean).join(' ')), phone: String(a.phoneNumber1 || '') }))
+    .map(a => ({ id: Number(a.addressBookNo), name: String(a.name || ''), type: String(a.addressType || ''), address: String(a.address || [a.baseAddress, a.detailAddress].filter(Boolean).join(' ')), phone: String(a.phoneNumber1 || ''), overseas: a.overseasAddress === true }))
 }
 /** 기본으로 고를 주소 — 출고지는 RELEASE, 반품지는 REFUND_OR_EXCHANGE 첫째 (없으면 null — 고객이 고른다) */
 export function defaultAddress(list, kind) {
@@ -283,33 +289,40 @@ export function buildImageMultipart(images, boundary = `----euchs${Date.now().to
   return { body: Buffer.concat(chunks), contentType: `multipart/form-data; boundary=${boundary}` }
 }
 
-/** 상품·주소록·카테고리 API 오류 → 고객 문구 (null = 성공). 네이버 문구(message·invalidInputs)는 그대로 붙인다 */
-export function translateSmartstoreApi(status, text = '') {
+/**
+ * 상품·주소록·카테고리 API 오류 → 고객 문구 (null = 성공). 네이버 문구(message·invalidInputs의 message)는 그대로 붙인다
+ * 문구는 합니다체 (2026-10-01 운영 — "네이버가 요청을 거절했어요" → "판매처에서 등록을 거절했습니다: …")
+ * @param {string} what 무엇을 거절했는지 — 상품 등록 = '등록', 나머지 = '요청'
+ */
+export function translateSmartstoreApi(status, text = '', what = '요청') {
   const t = String(text || '')
   if (status === 0) return { code: 'relay_unreachable', message: NOT_READY_MESSAGE }
   if (status === 401 && /relay/i.test(t)) return { code: 'relay_denied', message: NOT_READY_MESSAGE }
-  if (/IP_NOT_ALLOWED|허용되지 않은 IP/i.test(t)) return { code: 'ip_not_allowed', message: `커머스API센터의 애플리케이션에 API 호출 IP ${RELAY_IP}가 등록됐는지 확인해 주세요.` }
+  if (/IP_NOT_ALLOWED|허용되지 않은 IP/i.test(t)) return { code: 'ip_not_allowed', message: `커머스API센터의 애플리케이션에 API 호출 IP ${RELAY_IP}가 등록되어 있는지 확인하세요.` }
   if (status < 400) return null
   let j = null
   try { j = JSON.parse(t) } catch { /* JSON 아님 — 아래 기본 문구 */ }
-  const detail = [typeof j?.message === 'string' ? j.message : '', ...(Array.isArray(j?.invalidInputs) ? j.invalidInputs.map(x => [x?.name, x?.message].filter(Boolean).join(': ')) : [])].filter(Boolean).join(' / ').slice(0, 500)
-  if (status === 401) return { code: 'token_invalid', message: '스마트스토어 인증에 실패했어요. [연결] 탭에서 다시 연결해 주세요.' }
-  if (status === 403) return { code: 'scope_denied', message: detail ? `네이버가 요청을 거절했어요: ${detail}` : '커머스API센터 애플리케이션의 API 그룹(상품/N배송·판매자정보)을 확인해 주세요.' }
-  if (status === 429) return { code: 'rate_limited', message: '네이버 요청이 너무 잦아요. 잠시 후 다시 시도해 주세요.' }
-  if (status >= 500) return { code: 'market_server', message: '네이버가 응답하지 않아요. 잠시 후 다시 시도해 주세요.' }
-  return { code: 'market_rejected', message: detail ? `네이버가 요청을 거절했어요: ${detail}` : `네이버가 요청을 거절했어요 (HTTP ${status}).` }
+  // invalidInputs는 네이버 문구만 (칸 이름 originProduct.… 은 고객에게 의미가 없다 — 원문은 기록 raw에 남는다). 없으면 message
+  const inputs = Array.isArray(j?.invalidInputs) ? j.invalidInputs.map(x => (typeof x?.message === 'string' ? x.message.trim() : '')).filter(Boolean) : []
+  const detail = (inputs.length ? inputs : [typeof j?.message === 'string' ? j.message.trim() : ''].filter(Boolean)).join(' / ').slice(0, 500)
+  const rejected = detail ? `판매처에서 ${what}을 거절했습니다: ${detail}` : `판매처에서 ${what}을 거절했습니다. (HTTP ${status})`
+  if (status === 401) return { code: 'token_invalid', message: '스마트스토어 인증에 실패했습니다. [연결] 탭에서 다시 연결하세요.' }
+  if (status === 403) return { code: 'scope_denied', message: detail ? rejected : '커머스API센터 애플리케이션의 API 그룹(상품/N배송·판매자정보)을 확인하세요.' }
+  if (status === 429) return { code: 'rate_limited', message: '판매처 요청이 많아 잠시 멈췄습니다. 잠시 후 다시 시도해 주세요.' }
+  if (status >= 500) return { code: 'market_server', message: '판매처가 응답하지 않습니다. 잠시 후 다시 시도해 주세요.' }
+  return { code: 'market_rejected', message: rejected }
 }
 
 /**
  * 커머스API 한 번 (중계 경유 · 재시도 없음). 성공 = { json, text }. 실패 = SmartstoreError throw
  * @param {{ relayUrl, relaySecret, accessToken, breakerKey, fetchImpl? }} c
- * @param {{ method, path, query?, json?, multipart?:{ body:Buffer, contentType }, timeoutMs? }} req
+ * @param {{ method, path, query?, json?, multipart?:{ body:Buffer, contentType }, timeoutMs?, what? }} req  what = 오류 문구의 "무엇을" (translateSmartstoreApi)
  */
-export async function smartstoreApi(c, { method, path, query = '', json, multipart, timeoutMs = API_TIMEOUT_MS }) {
+export async function smartstoreApi(c, { method, path, query = '', json, multipart, timeoutMs = API_TIMEOUT_MS, what = '요청' }) {
   if (!c.relayUrl || !c.relaySecret) throw new SmartstoreError('relay_not_configured', NOT_READY_MESSAGE)
   const breaker = breakerFor(`smartstore:${c.breakerKey || ''}`)
   const left = breaker.blockedFor()
-  if (left > 0) throw new SmartstoreError('breaker_open', `네이버 오류가 잦아 잠시 멈췄어요. ${Math.ceil(left / 60000)}분 뒤 다시 시도해 주세요.`)
+  if (left > 0) throw new SmartstoreError('breaker_open', `판매처 오류가 잦아 잠시 멈췄습니다. ${Math.ceil(left / 60000)}분 뒤 다시 시도해 주세요.`)
   const url = `${c.relayUrl.replace(/\/$/, '')}/smartstore${path}${query ? `?${query}` : ''}`
   const headers = { 'Authorization': `Bearer ${c.accessToken}`, 'Accept': 'application/json', 'x-relay-secret': c.relaySecret }
   let body
@@ -328,7 +341,7 @@ export async function smartstoreApi(c, { method, path, query = '', json, multipa
   } finally {
     clearTimeout(timer)
   }
-  const tr = translateSmartstoreApi(r.status, text)
+  const tr = translateSmartstoreApi(r.status, text, what)
   if (tr) {
     breaker.recordError()
     throw new SmartstoreError(tr.code, tr.message, { status: r.status, raw: String(text || '').slice(0, 300) })
@@ -336,7 +349,7 @@ export async function smartstoreApi(c, { method, path, query = '', json, multipa
   let parsed = null
   try { parsed = text ? JSON.parse(text) : null } catch {
     breaker.recordError()
-    throw new SmartstoreError('market_bad_json', '네이버 응답을 읽지 못했어요. 잠시 후 다시 시도해 주세요.', { status: r.status, raw: String(text || '').slice(0, 300) })
+    throw new SmartstoreError('market_bad_json', '판매처 응답을 읽지 못했습니다. 잠시 후 다시 시도해 주세요.', { status: r.status, raw: String(text || '').slice(0, 300) })
   }
   breaker.recordOk()
   return { json: parsed, text }

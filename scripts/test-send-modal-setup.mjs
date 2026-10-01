@@ -194,6 +194,11 @@ if (built?.Coupang && built?.Modal) {
   const checked = (html, attr) => new RegExp('<input[^>]*' + attr + '[^>]*checked|<input[^>]*checked[^>]*' + attr).test(html)
   eq('스마트스토어 섹션: 운영 방식 빌드에서 예외 없이 그려짐 · 상품명 한글 기본값 · 카테고리 목록 · 기본 출고지·반품지 골라짐 · 판매 상태 전시중지 체크', [ss.error, val(ss.html, 'data-mk-ss-name'), (ss.html.includes('생활/건강&gt;주방용품&gt;잔/컵&gt;머그컵') || ss.html.includes('생활/건강>주방용품>잔/컵>머그컵')), /data-mk-ss-shipping[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="102"[^>]*selected/.test(ss.html), /data-mk-ss-return[^>]*>(?:(?!<\/select>)[\s\S])*<option[^>]*value="103"[^>]*selected/.test(ss.html), checked(ss.html, 'data-mk-ss-display-off'), checked(ss.html, 'data-mk-ss-display-on')], [null, '매일 쓰는 머그', true, true, true, true, false])
   eq('스마트스토어 섹션: 요약 표 판매상태 판매중·전시상태 전시중지 · 가격·재고는 빈칸(임의 숫자 없음)', [/data-mk-ss-preview-row="판매상태"[\s\S]{0,200}판매중/.test(ss.html), /data-mk-ss-preview-row="전시상태"[\s\S]{0,200}전시중지/.test(ss.html), val(ss.html, 'data-mk-ss-price'), val(ss.html, 'data-mk-ss-stock')], [true, true, '', ''])
+  eq('스마트스토어 섹션: 국내 출고지면 관부가세 칸·요약 줄 없음', [/data-mk-ss-customs/.test(ss.html), /data-mk-ss-preview-row="관부가세"/.test(ss.html)], [false, false])
+  // 해외 출고지가 기본으로 골라진 주소록 (운영 1차: 항주) → 관부가세 칸이 보이고 선택 전(기본값 없음)
+  const ovCache = { ...ssCache, smartstoreAddressesDone: { addresses: [{ id: 104, name: '항주 창고', type: 'RELEASE', address: '항주 1층', phone: '', overseas: true }, ssCache.smartstoreAddressesDone.addresses[1]], defaults: { shipping: 104, return: 103 } } }
+  const ov = await render({ setup: () => { vueProvide(built.SEND_CACHE_KEY, ovCache); return () => h(built.Smartstore, { prepare: PREPARE(true) }) } }, {})
+  eq('스마트스토어 섹션: 해외 출고지면 관부가세 칸(필수 · 3개 + 선택 안 함) · 출고지 이름에 "해외" · 요약 줄 미입력', [ov.error, /data-mk-ss-customs-box/.test(ov.html), (ov.html.match(/<option[^>]*value="(NOT_APPLICABLE|INCLUDED|EXCLUDED)"/g) || []).length, /data-mk-ss-customs[^-][\s\S]{0,200}<option value=""[^>]*selected/.test(ov.html) || /<option value="" selected[^>]*>관부가세 선택/.test(ov.html), ov.html.includes('항주 창고 (출고지) · 해외'), /data-mk-ss-preview-row="관부가세"[\s\S]{0,200}미입력/.test(ov.html)], [null, true, 3, true, true, true])
 }
 
 try { fs.rmSync(workDir, { recursive: true, force: true }) } catch (e) { console.warn('임시 폴더를 지우지 못함:', workDir, e.message) }

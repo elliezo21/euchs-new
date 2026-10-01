@@ -1502,16 +1502,23 @@ function smartstoreRelay(u, method, opts) {
   ])
   if (p === '/external/v1/seller/addressbooks-for-page' && method === 'GET') {
     const page = Number(new URLSearchParams(u.search).get('page'))
-    const A = (no, name, type) => ({ addressBookNo: no, name, addressType: type, baseAddress: '광주 북구', detailAddress: '1층', address: '광주 북구 1층', phoneNumber1: '010-0000-0000' })
-    return json(page === 1 ? { addressBooks: [A(101, '본사', 'REPRESENTATIVE'), A(102, '물류창고', 'RELEASE')], page: 1, totalPage: 2 } : { addressBooks: [A(103, '반품센터', 'REFUND_OR_EXCHANGE')], page: 2, totalPage: 2 })
+    const A = (no, name, type, overseas = false) => ({ addressBookNo: no, name, addressType: type, baseAddress: overseas ? '항주' : '광주 북구', detailAddress: '1층', address: overseas ? '중국 항주 1층' : '광주 북구 1층', phoneNumber1: '010-0000-0000', overseasAddress: overseas })
+    return json(page === 1 ? { addressBooks: [A(101, '본사', 'REPRESENTATIVE'), A(102, '물류창고', 'RELEASE')], page: 1, totalPage: 2 } : { addressBooks: [A(103, '반품센터', 'REFUND_OR_EXCHANGE'), A(104, '항주 창고', 'RELEASE', true)], page: 2, totalPage: 2 })
   }
   if (p === '/external/v1/product-images/upload' && method === 'POST') {
     if (ssRelay.mode === 'upload-fail') return json({ code: 'BAD_REQUEST', message: '올바른 이미지 파일이 아닙니다.' }, 400)
-    const n = (Buffer.from(opts.body).toString('latin1').match(/name="imageFiles"/g) || []).length
-    return json({ images: Array.from({ length: n }, () => ({ url: `https://shop-phinf.pstatic.net/test/${++ssRelay.uploads}.jpg` })) })
+    const raw = Buffer.from(opts.body), boundary = /boundary=(\S+)/.exec(opts.headers['Content-Type'])[1]
+    const parts = raw.toString('latin1').split(`--${boundary}`).filter(x => x.includes('name="imageFiles"'))
+    // sameUrl = 네이버처럼 같은 바이트면 같은 주소 (운영: 내보낸 03·14·15가 같은 파일 → 같은 주소)
+    return json({ images: parts.map(x => ({ url: ssRelay.sameUrl ? `https://shop-phinf.pstatic.net/same/${crypto.createHash('md5').update(Buffer.from(x.slice(x.indexOf('\r\n\r\n') + 4, -2), 'latin1')).digest('hex').slice(0, 12)}.jpg` : `https://shop-phinf.pstatic.net/test/${++ssRelay.uploads}.jpg` })) })
   }
   if (p === '/external/v2/products' && method === 'POST') {
     if (ssRelay.mode === 'reject') return json({ code: 'BAD_REQUEST', message: '상품 등록 실패', invalidInputs: [{ name: 'originProduct.leafCategoryId', type: 'NotNull', message: '카테고리를 입력해주세요.' }] }, 400)
+    // 운영 1차(2026-10-01) — 해외 출고지(104)인데 관부가세가 없으면 400. invalidInputs는 운영 응답 그대로, 맨 위 message는 테스트용 가짜
+    const pb = JSON.parse(opts.body)
+    if (pb.originProduct?.deliveryInfo?.claimDeliveryInfo?.shippingAddressId === 104 && !pb.originProduct?.detailAttribute?.customsTaxType) {
+      return json({ code: 'BAD_REQUEST', message: '상품 등록 요청 정보가 올바르지 않습니다.', invalidInputs: [{ name: 'originProduct.detailAttribute.customsTaxType', type: 'customsTaxType.required.overseas', message: '출고지가 해외 주소인 경우 해외 상품에 해당하므로 관부가세 입력이 필수입니다.' }] }, 400)
+    }
     // int64 — JS 안전 정수를 넘는 번호도 글자 그대로 읽는지
     return new Response('{"originProductNo":9007199254740993,"smartstoreChannelProductNo":12345678901,"originProduct":{"statusType":"SALE"}}', { status: 200, headers: { 'Content-Type': 'application/json;charset=UTF-8' } })
   }
@@ -1560,7 +1567,17 @@ function smartstoreRelay(u, method, opts) {
     S.normalizeSsCategories([{ wholeCategoryName: 'B>b', id: '2', name: 'b', last: true }, { wholeCategoryName: 'A', id: '1', name: 'A', last: false }, { wholeCategoryName: 'A>a', id: '3', name: 'a', last: true }, { id: 'x', last: true }]).map(c => c.id),
     S.normalizeAddressBooks({ addressBooks: [{ addressBookNo: 7, name: 'n', addressType: 'RELEASE', address: '주소' }, { addressBookNo: 'x' }] }),
     S.defaultAddress([{ id: 1, type: 'REPRESENTATIVE' }, { id: 2, type: 'RELEASE' }, { id: 3, type: 'REFUND_OR_EXCHANGE' }], 'shipping'), S.defaultAddress([{ id: 2, type: 'RELEASE' }, { id: 3, type: 'REFUND_OR_EXCHANGE' }], 'return'), S.defaultAddress([], 'return'),
-  ], [['3', '2'], [{ id: 7, name: 'n', type: 'RELEASE', address: '주소', phone: '' }], 2, 3, null])
+  ], [['3', '2'], [{ id: 7, name: 'n', type: 'RELEASE', address: '주소', phone: '', overseas: false }], 2, 3, null])
+  eq('주소록 해외 여부 = 문서 칸 overseasAddress(boolean) 그대로 · true일 때만 해외', S.normalizeAddressBooks({ addressBooks: [{ addressBookNo: 1, overseasAddress: true }, { addressBookNo: 2, overseasAddress: false }, { addressBookNo: 3 }, { addressBookNo: 4, overseasAddress: 'true' }] }).map(a => a.overseas), [true, false, false, false])
+  // 관부가세 (2026-10-01 운영 1차 400 customsTaxType.required.overseas)
+  const OVS = { ...IN, delivery: { ...IN.delivery, shippingAddressId: 104, shippingOverseas: true } }
+  eq('관부가세: 문서 값 3개 · 해외 출고지 + 값 없음 = 거절 · 해외 + 값 = detailAttribute.customsTaxType · 국내 = 칸 없음(운영 2차 성공 본문 그대로) · 문서 밖 값 거절', [
+    SF.CUSTOMS_TAX_TYPES.map(t => t.code), S.buildSmartstoreProduct(OVS).ok, S.buildSmartstoreProduct({ ...OVS, customsTaxType: '' }).ok,
+    S.buildSmartstoreProduct({ ...OVS, customsTaxType: 'EXCLUDED' }).body.originProduct.detailAttribute.customsTaxType, 'customsTaxType' in b.body.originProduct.detailAttribute,
+    S.buildSmartstoreProduct({ ...IN, customsTaxType: 'FREE' }).ok, S.buildSmartstoreProduct(OVS).message,
+  ], [['NOT_APPLICABLE', 'INCLUDED', 'EXCLUDED'], false, false, 'EXCLUDED', false, false, '해외 출고지는 관부가세를 선택하세요.'])
+  eq('같은 그림 재사용 = 그대로: 같은 주소가 여러 번이면 상세 HTML에 순서대로 모두(합치지 않음)', (S.ssDetailHtml(['https://x/a.jpg', 'https://x/b.jpg', 'https://x/b.jpg', 'https://x/b.jpg'], '머그').match(/<img src="https:\/\/x\/(a|b)\.jpg"/g) || []).map(t => t.slice(-6, -1)), ['a.jpg', 'b.jpg', 'b.jpg', 'b.jpg'])
+  eq('보내기 문구 합니다체: 본문 검사 문구에 대화체 없음', [{}, { productName: '' }, { salePrice: 0 }, { stock: -1 }, { leafCategoryId: '' }, { display: 'X' }, { delivery: { ...IN.delivery, company: 'X' } }, { delivery: { ...IN.delivery, feeType: 'PAID' } }, { origin: { code: '04' } }, { notice: {} }, { customsTaxType: 'X' }].map(o => S.buildSmartstoreProduct({ ...IN, ...o }).message).filter(m => m && /(어요|예요|해요|돼요|아요|워요|네요|줘요)[.!]|주세요/.test(m)), [])
   eq('등록 응답 번호: int64를 글자 그대로(정밀도 손실 없음) · 없으면 null · 업로드 응답 장 수가 다르면 null', [
     S.productNosOf('{"originProductNo":9007199254740993,"smartstoreChannelProductNo":12}'), S.productNosOf('{"x":1}'),
     S.uploadedImageUrls({ images: [{ url: 'a' }, { url: 'b' }] }, 2), S.uploadedImageUrls({ images: [{ url: 'a' }] }, 2), S.uploadedImageUrls({ images: [{ url: '' }] }, 1), S.uploadedImageUrls(null, 1),
@@ -1575,10 +1592,15 @@ function smartstoreRelay(u, method, opts) {
     eq('multipart: 칸 이름 imageFiles 반복 · 장마다 실제 형식 Content-Type·확장자 · boundary 머리·끝', [mp.contentType, (txt.match(/name="imageFiles"/g) || []).length, /filename="01\.jpg"\r\nContent-Type: image\/jpeg/.test(txt), /filename="02\.png"\r\nContent-Type: image\/png/.test(txt), txt.endsWith('--BND--\r\n'), mp.body.includes(png) && mp.body.includes(jp)], ['multipart/form-data; boundary=BND', 2, true, true, true, true])
     eq('실제 형식은 바이트로 (JPG·PNG·GIF · 그 밖은 null)', [S.imageMime(jp), S.imageMime(png), S.imageMime(Buffer.from('GIF89a')), S.imageMime(Buffer.from('RIFFxxxxWEBP'))], ['image/jpeg', 'image/png', 'image/gif', null])
   }
-  eq('오류 번역: 400 = 네이버 문구 + invalidInputs · 401 = 다시 연결 · 403 = API 그룹 · IP · 중계 = 준비 문구 · 성공 null · 내부 용어 없음', (() => {
+  eq('오류 번역: 400 = 판매처 문구(invalidInputs의 message) · 401 = 다시 연결 · 403 = API 그룹 · IP · 중계 = 준비 문구 · 성공 null · 내부 용어 없음', (() => {
     const all = [[400, '{"code":"BAD_REQUEST","message":"상품 등록 실패","invalidInputs":[{"name":"originProduct.name","message":"상품명을 입력해주세요."}]}'], [401, '{"code":"GW.AUTHN"}'], [403, ''], [403, 'GW.IP_NOT_ALLOWED'], [0, ''], [401, 'relay secret mismatch'], [429, ''], [500, ''], [200, '']].map(([s, t]) => S.translateSmartstoreApi(s, t))
-    return [all.map(x => x && x.code), all[0].message.includes('originProduct.name: 상품명을 입력해주세요.'), all.filter(Boolean).some(x => /관리자|서버|암호화|중계|relay|토큰/i.test(x.message))]
-  })(), [['market_rejected', 'token_invalid', 'scope_denied', 'ip_not_allowed', 'relay_unreachable', 'relay_denied', 'rate_limited', 'market_server', null], true, false])
+    return [all.map(x => x && x.code), all[0].message, all.filter(Boolean).some(x => /관리자|서버|암호화|중계|relay|토큰/i.test(x.message))]
+  })(), [['market_rejected', 'token_invalid', 'scope_denied', 'ip_not_allowed', 'relay_unreachable', 'relay_denied', 'rate_limited', 'market_server', null], '판매처에서 요청을 거절했습니다: 상품명을 입력해주세요.', false])
+  eq('오류 문구 합니다체: 운영 1차 응답 → "판매처에서 등록을 거절했습니다: …" · invalidInputs 없으면 message · 둘 다 없으면 HTTP 번호 · 대화체 없음', (() => {
+    const op = '{"code":"BAD_REQUEST","invalidInputs":[{"name":"originProduct.detailAttribute.customsTaxType","type":"customsTaxType.required.overseas","message":"출고지가 해외 주소인 경우 해외 상품에 해당하므로 관부가세 입력이 필수입니다."}]}'
+    const all = [[400, op, '등록'], [400, '{"message":"이미지 오류"}', '요청'], [400, '', '등록'], [401, '', '요청'], [403, '', '요청'], [429, '', '요청'], [500, '', '요청']].map(([s, t, w]) => S.translateSmartstoreApi(s, t, w).message)
+    return [all[0], all[1], all[2], all.filter(m => /(어요|예요|해요|돼요|아요|워요|네요|줘요)[.!]/.test(m)).length]
+  })(), ['판매처에서 등록을 거절했습니다: 출고지가 해외 주소인 경우 해외 상품에 해당하므로 관부가세 입력이 필수입니다.', '판매처에서 요청을 거절했습니다: 이미지 오류', '판매처에서 등록을 거절했습니다. (HTTP 400)', 0])
 
   // 3) handler — 가짜 Supabase + 가짜 중계(/smartstore)
   const SPID = '66666666-6666-4666-8666-666666666666', SEID = '77777777-7777-4777-8777-777777777777', SIMG = '88888888-8888-4888-8888-888888888888'
@@ -1604,7 +1626,7 @@ function smartstoreRelay(u, method, opts) {
   eq('네이버 호출 헤더: Bearer 토큰 · 중계 비밀 · 시크릿·서명은 상품 API 요청에 없음', [relay.calls[1].headers.Authorization, relay.calls[1].headers['x-relay-secret'], JSON.stringify(relay.calls[1]).includes(SS_SALT)], ['Bearer ss-access-token', 'test-relay-secret', false])
   relay.calls = []
   const ad = await post('smartstore_addresses')
-  eq('주소록: 페이지 끝까지(totalPage) · 기본 출고지 102(RELEASE)·반품지 103(REFUND_OR_EXCHANGE)', [ad.statusCode, ad.body.addresses.map(a => a.id), ad.body.defaults, relay.calls.filter(c => c.path.endsWith('addressbooks-for-page')).map(c => c.query)], [200, [101, 102, 103], { shipping: 102, return: 103 }, ['?page=1', '?page=2']])
+  eq('주소록: 페이지 끝까지(totalPage) · 기본 출고지 102(RELEASE)·반품지 103(REFUND_OR_EXCHANGE)', [ad.statusCode, ad.body.addresses.map(a => a.id), ad.body.defaults, relay.calls.filter(c => c.path.endsWith('addressbooks-for-page')).map(c => c.query), ad.body.addresses.filter(a => a.overseas).map(a => a.id)], [200, [101, 102, 103, 104], { shipping: 102, return: 103 }, ['?page=1', '?page=2'], [104]])
 
   // 입력이 틀리면 네이버를 부르지 않고 기록도 안 만든다
   relay.calls = []
@@ -1646,12 +1668,49 @@ function smartstoreRelay(u, method, opts) {
   // 네이버 거절·업로드 실패 → failed + 네이버 문구
   ssRelay.mode = 'reject'
   const rj = await post('smartstore_send', UI)
-  eq('등록 거절 → failed 기록 + 네이버 문구(invalidInputs)', [rj.statusCode, rj.body.code, rj.body.message.includes('카테고리를 입력해주세요.'), db.marketplace_sends.at(-1).status, db.marketplace_sends.at(-1).result_json.step], [502, 'market_rejected', true, 'failed', 'product'])
+  eq('등록 거절 → failed 기록 + 판매처 문구(invalidInputs) · "판매처에서 등록을 거절했습니다:"', [rj.statusCode, rj.body.code, rj.body.message, db.marketplace_sends.at(-1).status, db.marketplace_sends.at(-1).result_json.step], [502, 'market_rejected', '판매처에서 등록을 거절했습니다: 카테고리를 입력해주세요.', 'failed', 'product'])
   ssRelay.mode = 'upload-fail'
   relay.calls = []
   const uf = await post('smartstore_send', UI)
-  eq('업로드 실패 → failed · 상품 등록은 부르지 않음', [uf.body.code, db.marketplace_sends.at(-1).status, db.marketplace_sends.at(-1).result_json.step, relay.calls.some(c => c.path.endsWith('/v2/products'))], ['market_rejected', 'failed', 'upload', false])
+  eq('업로드 실패 → failed · 상품 등록은 부르지 않음 · "판매처에서 요청을 거절했습니다:"', [uf.body.code, uf.body.message, db.marketplace_sends.at(-1).status, db.marketplace_sends.at(-1).result_json.step, relay.calls.some(c => c.path.endsWith('/v2/products'))], ['market_rejected', '판매처에서 요청을 거절했습니다: 올바른 이미지 파일이 아닙니다.', 'failed', 'upload', false])
   ssRelay.mode = 'ok'
+
+  // 관부가세 (운영 1차 재현) — 해외 출고지(104)
+  {
+    const OV = { ...UI, delivery: { ...UI.delivery, shippingAddressId: 104 } }
+    const op = await post('smartstore_send', OV) // 예전 화면처럼 관부가세 없이 · 해외 표시 없이 → 네이버가 거절 (운영 1차와 같은 문구)
+    eq('운영 1차 재현: 해외 출고지 + 관부가세 없음 → 판매처 거절 문구 그대로 · failed', [op.statusCode, op.body.message, db.marketplace_sends.at(-1).status], [502, '판매처에서 등록을 거절했습니다: 출고지가 해외 주소인 경우 해외 상품에 해당하므로 관부가세 입력이 필수입니다.', 'failed'])
+    relay.calls = []
+    const n0 = db.marketplace_sends.length
+    const miss = await post('smartstore_send', { ...OV, delivery: { ...OV.delivery, shippingOverseas: true } })
+    eq('화면이 해외라고 알리고 관부가세가 없음 → 400 · 네이버 호출·기록 없음', [miss.statusCode, miss.body.message, relay.calls.length, db.marketplace_sends.length], [400, '해외 출고지는 관부가세를 선택하세요.', 0, n0])
+    relay.calls = []
+    const okOv = await post('smartstore_send', { ...OV, delivery: { ...OV.delivery, shippingOverseas: true }, customsTaxType: 'EXCLUDED' })
+    const pOv = relay.calls.find(c => c.path.endsWith('/external/v2/products'))
+    eq('해외 출고지 + 관부가세 → 등록 · 본문 detailAttribute.customsTaxType = 고른 값 · 다른 칸은 국내와 같음', [okOv.statusCode, pOv.body.originProduct.detailAttribute.customsTaxType, (() => {
+      const x = structuredClone(pOv.body); delete x.originProduct.detailAttribute.customsTaxType; x.originProduct.deliveryInfo.claimDeliveryInfo.shippingAddressId = 102
+      const norm = o => JSON.stringify(o).replace(/test\/\d+\.jpg/g, 'test/N.jpg')
+      return norm(x) === norm(prod.body)
+    })()], [200, 'EXCLUDED', true])
+    eq('국내 출고지 본문에는 customsTaxType 칸 없음 (운영 2차 성공 본문)', 'customsTaxType' in prod.body.originProduct.detailAttribute, false)
+  }
+
+  // 같은 그림 재사용 (운영: 내보낸 03·14·15가 같은 파일) — 장마다 그대로 올리고, 네이버가 같은 주소를 주면 상세에 같은 주소가 여러 번 (지금 동작 고정)
+  {
+    const SEID2 = '99999999-9999-4999-8999-999999999999', f2 = `${UID}/${SPID}/exports/20261001-100000-ss02`
+    const blank = await sharp({ create: { width: 780, height: 400, channels: 3, background: { r: 255, g: 255, b: 255 } } }).jpeg().toBuffer()
+    const keys = ['01', '02', '03', '04']
+    db.studio_exports.push({ id: SEID2, user_id: UID, project_id: SPID, folder: f2, title: '같은 그림', format: 'jpg', mode: 'sections', files: keys.map(k => ({ key: k, name: `b_${k}.jpg`, path: `${f2}/${k}.jpg`, width: 780, height: 400 })) })
+    files.set(`${f2}/01.jpg`, files.get(`${folder}/01.jpg`))
+    for (const k of ['02', '03', '04']) files.set(`${f2}/${k}.jpg`, blank) // 같은 바이트 3장
+    ssRelay.sameUrl = true
+    relay.calls = []
+    const sr = await post('smartstore_send', { ...UI, exportId: SEID2 })
+    ssRelay.sameUrl = false
+    const up = relay.calls.find(c => c.path.endsWith('/product-images/upload')), pr = relay.calls.find(c => c.path.endsWith('/external/v2/products'))
+    const srcs = [...pr.body.originProduct.detailContent.matchAll(/<img src="([^"]+)"/g)].map(m => m[1])
+    eq('같은 그림: 합치지 않고 장마다 업로드(대표 + 4장 = 5) · 상세 4장 순서 그대로 · 02·03·04 = 같은 주소 · 01과는 다름', [sr.statusCode, (up.raw.toString('latin1').match(/name="imageFiles"/g) || []).length, srcs.length, srcs[1] === srcs[2] && srcs[2] === srcs[3], srcs[0] !== srcs[1]], [200, 5, 4, true, true])
+  }
 
   // 화면 배선
   const shell = read('src/components/studio/StudioSendModal.vue'), sec = read('src/components/studio/StudioSendSmartstore.vue'), lib = read('src/lib/studioMarketplace.js'), api = read('api/marketplace.js'), sv = read('src/views/studio/StudioChannelSendView.vue'), sl = read('src/components/studio/StudioSendList.vue')
@@ -1668,6 +1727,12 @@ function smartstoreRelay(u, method, opts) {
     /(어요|예요|해요|돼요|아요|워요|네요|줘요|까요|에요)[.!?]|주세요/.test(tpl(sec)), /등록되었습니다\. 원상품번호/.test(sec), /'미입력'/.test(sec),
     /const sendCache = inject\(SEND_CACHE_KEY, null\)/.test(sec) && /cached\('smartstoreCategories', listSmartstoreCategories\)/.test(sec) && /cached\('smartstoreAddresses', listSmartstoreAddresses\)/.test(sec),
   ], [false, true, true, true])
+  eq('섹션(2026-10-01 운영 반영): 관부가세 칸은 해외 출고지(주소록 overseas)일 때만 · 기본값 없음 · 빠짐 목록 · 해외일 때만 보냄 · 실패 사유는 섹션 맨 위 + 스크롤', [
+    /<label v-if="shippingOverseas"[^>]*data-mk-ss-customs-box/.test(sec), /const shippingOverseas = computed\(\(\) => addresses\.value\.find\(a => a\.id === f\.value\.shippingAddressId\)\?\.overseas === true\)/.test(sec),
+    sec.includes("customsTaxType: '', // 해외 출고지일 때만 보이고 필수 — 기본값 없음"), sec.includes("if (shippingOverseas.value && !v.customsTaxType) out.push('관부가세')"),
+    sec.includes('...(shippingOverseas.value ? { customsTaxType: v.customsTaxType } : {})'), sec.includes('shippingOverseas: shippingOverseas.value }'),
+    tpl(sec).indexOf('data-mk-ss-error') > 0 && tpl(sec).indexOf('data-mk-ss-error') < tpl(sec).indexOf('data-mk-ss-name'), /errorEl\.value\?\.scrollIntoView\?\.\(/.test(sec), /role="alert"/.test(sec),
+  ], [true, true, true, true, true, true, true, true, true])
   eq('배선: 라이브러리 action 3개 · 서버 action 3개(studioGuard 뒤) · 보내기 탭 결과 문구 · 보낸 상품 카드 전시상태', [
     ["call('smartstore_categories')", "call('smartstore_addresses')", "call('smartstore_send', payload)"].every(x => lib.includes(x)),
     ['smartstore_categories', 'smartstore_addresses', 'smartstore_send'].every(a => api.includes(`body.action === '${a}'`)), api.indexOf('const ctx = await studioGuard(req, res)') < api.indexOf("body.action === 'smartstore_send'"),
